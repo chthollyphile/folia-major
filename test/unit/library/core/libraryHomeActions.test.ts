@@ -184,7 +184,7 @@ describe('createLibraryHomeActions — opening cards', () => {
         expect(open).not.toHaveBeenCalled();
     });
 
-    it('an empty FM plays nothing; a failing FM is logged', async () => {
+    it('an empty FM plays nothing; a failing FM is logged and shown to the listener', async () => {
         const error = vi.spyOn(console, 'error').mockImplementation(() => {});
         const empty = createPort({ getPersonalFm: vi.fn(async () => []) });
         await createLibraryHomeActions(empty.port).playPersonalFm();
@@ -193,7 +193,15 @@ describe('createLibraryHomeActions — opening cards', () => {
         const failing = createPort({ getPersonalFm: vi.fn(async () => { throw new Error('offline'); }) });
         expect(await createLibraryHomeActions(failing.port).playPersonalFm()).toEqual({ ok: false, reason: 'failed' });
         expect(error).toHaveBeenCalledTimes(1);
+        expect(failing.notices).toEqual([{ kind: 'status', type: 'error', message: { key: 'home.personalFmFailed' } }]);
         error.mockRestore();
+    });
+
+    it('does not show a failed-radio notice when the request was superseded', async () => {
+        const { port, notices } = createPort({ getPersonalFm: vi.fn(async () => { throw new DOMException('Superseded', 'AbortError'); }) });
+        await createLibraryHomeActions(port).playPersonalFm();
+        expect(port.playPersonalFm).not.toHaveBeenCalled();
+        expect(notices).toEqual([]);
     });
 
     it('other online cards open their source object with the card type, under the provider', async () => {

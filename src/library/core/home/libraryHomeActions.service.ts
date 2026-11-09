@@ -1,4 +1,5 @@
 import type { PersonalFmLaunch } from '../../../types/personalFm';
+import type { ProviderCollection } from '../../../types/onlineMusic';
 import type { LocalLibraryGroup } from '../../../types';
 import type { NavidromeGridViewCollectionType } from '../collection/collection.contract';
 import type {
@@ -48,13 +49,15 @@ export const createLibraryHomeActions = (port: LibraryHomePort): LibraryHomeActi
         patch({ scan: progress?.active ? progress : null });
     };
 
-    const playPersonalFm = async (selection?: PersonalFmLaunch, providerId?: string): Promise<LibraryHomeActionResult> => {
+    const playPersonalFm = async (selection?: PersonalFmLaunch, providerId?: string, previewToken?: string): Promise<LibraryHomeActionResult> => {
         try {
-            const songs = await port.getPersonalFm(selection, providerId);
+            const songs = await port.getPersonalFm(selection, providerId, previewToken);
             if (songs.length > 0) port.playPersonalFm(songs[0], songs);
             return OK;
         } catch (error) {
+            if ((error as { name?: string } | null)?.name === 'AbortError') return FAILED;
             console.error('[LibraryHome] Failed to fetch and play Personal FM:', error);
+            port.notify({ kind: 'status', type: 'error', message: { key: 'home.personalFmFailed' } });
             return FAILED;
         }
     };
@@ -136,7 +139,14 @@ export const createLibraryHomeActions = (port: LibraryHomePort): LibraryHomeActi
         playPersonalFm,
 
         openOnlineCard: async (card: LibraryHomeCard, providerId: string, open: LibraryHomeOpenCollection) => {
-            if (isPersonalFmCard(card)) return playPersonalFm((card.raw as { personalFm?: PersonalFmLaunch } | undefined)?.personalFm, providerId);
+            if (isPersonalFmCard(card)) {
+                const { personalFm, songPreview } = (card.raw ?? {}) as Pick<ProviderCollection, 'personalFm' | 'songPreview'>;
+                if (songPreview?.currentSong && personalFm) {
+                    // A stale displayed current song cannot restart an unrelated queue or fall back to its old preview.
+                    return port.continuePersonalFm?.(songPreview.currentSong, personalFm, providerId) ? OK : FAILED;
+                }
+                return playPersonalFm(personalFm, providerId, songPreview?.playbackToken);
+            }
             open(port.describeOnlineCollection(onlineCardCollection(card), providerId));
             return OK;
         },

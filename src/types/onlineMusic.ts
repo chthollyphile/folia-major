@@ -226,6 +226,13 @@ export interface ProviderHistoryEntry {
 export type ListeningRankRange = 'week' | 'all';
 
 export interface ProviderCollection {
+    /** Songs used to present a recommendation entry without changing its collection identity. */
+    songPreview?: {
+        firstSong?: UnifiedSong;
+        currentSong?: UnifiedSong;
+        /** Transient provider ticket for starting exactly the displayed batch, never a credential. */
+        playbackToken?: string;
+    };
     /** A provider's named radio stream: selecting the card starts FM with this mode. */
     personalFm?: PersonalFmLaunch;
     /** The account's listening ranking over this span (type `listening_rank`): read-only, made by the platform. */
@@ -883,6 +890,8 @@ export interface PersonalFmRequestOptions {
     submode?: string | null;
     /** One of the provider's extra radios; absent for its Personal FM. A provider without stations ignores it. */
     station?: string | null;
+    /** Transient provider-issued preview ticket, for explicit card starts; continuation omits it. */
+    previewToken?: string;
 }
 
 /**

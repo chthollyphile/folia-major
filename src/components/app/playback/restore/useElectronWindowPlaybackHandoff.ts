@@ -14,7 +14,9 @@ import type {
 } from '../../../../types/appPlayback';
 import { setStatusMessage as setStatusMsg } from '../../../../stores/useStatusMessageStore';
 import { setActivePlaybackContext, setAudioSrc, setCachedCoverUrl, setCurrentLineIndex, setDuration, setIsFmMode, setPlayQueue, setPlayerState } from '../../../../stores/usePlaybackStore';
+import { noteAcceptedFmPlayback } from '../../../../services/playbackQueueOrigin';
 import { askedSongKeyRef, makeSongCurrent, startRestore } from '../currentSong';
+import { personalFmEndingsSoFar } from '../personalFmEndings';
 import { useStableActionSurface } from '../../../../hooks/useStableCallbacks';
 import { usePlaybackStore } from '../../../../stores/usePlaybackStore';
 import { captureActiveStations, restoreActiveStations } from '../../../../stores/usePersonalFmModeStore';
@@ -168,7 +170,6 @@ export function useElectronWindowPlaybackHandoff({
     const cachedCoverUrl = usePlaybackStore(state => state.cachedCoverUrl);
     const audioSrc = usePlaybackStore(state => state.audioSrc);
     const playQueue = usePlaybackStore(state => state.playQueue);
-    const isFmMode = usePlaybackStore(state => state.isFmMode);
     const playerState = usePlaybackStore(state => state.playerState);
     const duration = usePlaybackStore(state => state.duration);
     const currentLineIndex = usePlaybackStore(state => state.currentLineIndex);
@@ -188,8 +189,24 @@ export function useElectronWindowPlaybackHandoff({
     // The whole-queue writes when the handoff began to be read. A mod that replaced the queue in this new
     // window meanwhile (from its `activate`) keeps its queue, and the FM it ended, over the late handoff's.
     const handoffQueueWritesRef = useRef<number | null>(null);
+    const handoffFmEndingsRef = useRef<number | null>(null);
+
+    // An explicit switch or sign-out during the IPC read ends radio, including a parked Stage main queue.
+    const withCurrentFmEndings = useCallback((handoff: WindowPlaybackHandoff): WindowPlaybackHandoff => {
+        if (handoffFmEndingsRef.current === null || handoffFmEndingsRef.current === personalFmEndingsSoFar()) return handoff;
+        const ended = (snapshot: PlaybackSnapshot | null) => snapshot?.isFmMode ? { ...snapshot, isFmMode: false } : snapshot;
+        return {
+            ...handoff,
+            mainPlayback: ended(handoff.mainPlayback),
+            activePlayback: ended(handoff.activePlayback),
+            stage: { ...handoff.stage, playback: ended(handoff.stage.playback) },
+            fmStations: undefined,
+        };
+    }, []);
 
     const captureWindowPlaybackHandoff = useCallback((): WindowPlaybackHandoff => {
+        // An explicit ending is synchronous, even before React renders its store notification.
+        const acceptedFmPlayback = usePlaybackStore.getState().acceptedFmPlayback;
         // The provider's player keeps sounding through the rebuild (its process is the main
         // process's, not this window's): the snapshot says playing, and the next window adopts it.
         // This window stops following the player once the snapshot is taken: a track ending in the
@@ -210,7 +227,10 @@ export function useElectronWindowPlaybackHandoff({
             currentSong,
             currentTime,
             duration,
-            isFmMode,
+            // A pending play already changed the requested flag; only the queue that landed travels as FM.
+            isFmMode: Boolean(acceptedFmPlayback && currentSong
+                && acceptedFmPlayback.songKeys.has(getPlaybackSongKey(currentSong))
+                && playQueue.some(song => getPlaybackSongKey(song) === getPlaybackSongKey(currentSong))),
             lyrics,
             playQueue,
             playerState: isExternalRoute() && !handsOverExternal ? usePlaybackStore.getState().playerState : playerState,
@@ -227,7 +247,9 @@ export function useElectronWindowPlaybackHandoff({
             mainPlayback,
             activePlayback,
             // Which extra radio the FM queue came from, so the new window tops it up from the same one.
-            ...(mainPlayback?.isFmMode ? { fmStations: captureActiveStations(getOnlineProviderIdForSong(mainPlayback.currentSong)) } : {}),
+            ...(mainPlayback?.isFmMode ? { fmStations: activePlaybackContext === 'main'
+                ? (acceptedFmPlayback?.selection.station ? { [acceptedFmPlayback.providerId]: acceptedFmPlayback.selection.station } : undefined)
+                : captureActiveStations(getOnlineProviderIdForSong(mainPlayback.currentSong)) } : {}),
             stage: {
                 status: stageStatus,
                 source: stageSource,
@@ -260,7 +282,6 @@ export function useElectronWindowPlaybackHandoff({
         currentView,
         duration,
         getNowPlayingDisplayTime,
-        isFmMode,
         isPlayerChromeHidden,
         lyrics,
         mainPlaybackSnapshotRef,
@@ -305,6 +326,7 @@ export function useElectronWindowPlaybackHandoff({
             if (!queueRewritten) {
                 setPlayQueue([]);
                 setIsFmMode(false);
+                noteAcceptedFmPlayback(null, [], false);
             } else {
                 // The old window's empty queue is the listener's: the replacement's undo puts it back.
                 reportYieldedQueue({ queue: [], isFmMode: false, song: null });
@@ -331,6 +353,7 @@ export function useElectronWindowPlaybackHandoff({
             setPlayQueue(restoredQueue);
             setIsFmMode(snapshot.isFmMode);
             if (snapshot.isFmMode) restoreActiveStations(fmStations);
+            noteAcceptedFmPlayback(snapshot.currentSong, restoredQueue, snapshot.isFmMode);
         } else {
             // Saved again now that a song is current, as the session restore does: the replacement's own save
             // found none, so it kept nothing, and the source's restore saves only on some of its paths.
@@ -430,6 +453,7 @@ export function useElectronWindowPlaybackHandoff({
         if (!handoff || handoff.version !== 1) {
             return false;
         }
+        handoff = withCurrentFmEndings(handoff);
 
         setIsPlayerChromeHidden(handoff.ui.playerChromeHidden);
         setShowTransparentWindowBorder(handoff.ui.mainWindowBorderVisible);
@@ -443,7 +467,7 @@ export function useElectronWindowPlaybackHandoff({
             // The Stage plays on the Web engine, and the main song waits in the snapshot until it ends:
             // a track the old window left playing in mpv is stopped before the Stage sounds.
             await releaseTrackLeftInMpv();
-            await restoreStagePlaybackHandoff(handoff);
+            await restoreStagePlaybackHandoff(withCurrentFmEndings(handoff));
             return true;
         }
 
@@ -455,6 +479,7 @@ export function useElectronWindowPlaybackHandoff({
         navigateToPlayer,
         restoreMainPlaybackSnapshot,
         restoreStagePlaybackHandoff,
+        withCurrentFmEndings,
         setActivePlaybackContext,
         setIsPlayerChromeHidden,
         setShowTransparentWindowBorder,
@@ -471,7 +496,8 @@ export function useElectronWindowPlaybackHandoff({
     const captureWindowPlaybackHandoffForRebuild = useCallback(async (): Promise<WindowPlaybackHandoff> => {
         const reading = consumeHandoffPromiseRef.current;
         if (reading && !hasCompletedRestoreCheckRef.current) {
-            const received = await reading.catch(() => null);
+            const read = await reading.catch(() => null);
+            const received = read ? withCurrentFmEndings(read) : null;
             // The song the restore puts on screen: a Stage hand-off shows its Stage song, the main one waits.
             const shownPlayback = received?.activePlaybackContext === 'stage'
                 ? received.stage.playback ?? received.activePlayback
@@ -489,7 +515,7 @@ export function useElectronWindowPlaybackHandoff({
             }
         }
         return captureWindowPlaybackHandoffRef.current();
-    }, []);
+    }, [withCurrentFmEndings]);
 
     const toggleTransparentModeWithHandoff = useCallback(async (enabled: boolean) => {
         if (isElectronWindow && window.electron?.setWindowTransparentMode) {
@@ -536,6 +562,7 @@ export function useElectronWindowPlaybackHandoff({
 
         if (!consumeHandoffPromiseRef.current) {
             handoffQueueWritesRef.current = wholeQueueWritesSoFar();
+            handoffFmEndingsRef.current = personalFmEndingsSoFar();
             consumeHandoffPromiseRef.current = window.electron.consumeWindowPlaybackHandoff();
         }
 

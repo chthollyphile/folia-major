@@ -1982,6 +1982,8 @@ export default {
     "qqGuessYouLikeSuggested": "Saran",
     "qqGuessYouLikeOther": "Lainnya",
     "personalFm": "FM Pribadi",
+    "personalFmFailed": "Lagu rekomendasi tidak dapat dimuat. Silakan coba lagi.",
+    "personalFmEmpty": "Belum ada lagu rekomendasi saat ini. Silakan coba lagi nanti.",
     "dailyRecommendations": "Rekomendasi Harian",
     "dailyRecommendationsDescription": "Campuran harian yang dibuat khusus untuk Anda",
     "dailyRecommendationsSummary": "Diperbarui setiap hari berdasarkan selera mendengar Anda",

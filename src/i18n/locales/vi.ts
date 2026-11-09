@@ -1982,6 +1982,8 @@ export default {
     "qqGuessYouLikeSuggested": "Gợi ý",
     "qqGuessYouLikeOther": "Khác",
     "personalFm": "FM cá nhân",
+    "personalFmFailed": "Không tải được bài hát gợi ý. Vui lòng thử lại.",
+    "personalFmEmpty": "Hiện chưa có bài hát gợi ý. Vui lòng thử lại sau.",
     "dailyRecommendations": "Gợi ý hàng ngày",
     "dailyRecommendationsDescription": "Bản phối hàng ngày dành riêng cho bạn",
     "dailyRecommendationsSummary": "Cập nhật mỗi ngày theo gu âm nhạc của bạn",

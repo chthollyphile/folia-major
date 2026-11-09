@@ -65,6 +65,7 @@ export const askedSongKeyRef: AskedSongKeyRef = {
 
 let playsStarted = 0;
 let playsDropped = 0;
+let shownPlaybackDropped = 0;
 /**
  * The plays started since the last drop that have not been abandoned, oldest first (for
  * `onceShown`). Only the newest PLAYS_KEPT are kept: a play older than those is answered no for good
@@ -76,11 +77,19 @@ let playsForgotten = 0;
 /** How often a song was asked for. The key cannot tell two asks for the same song apart; this can. */
 let asks = 0;
 
-/** Every play that has started and has not shown its song yet gives up at its next check. */
-export const dropPlaysInFlight = (): void => {
+/**
+ * Every play still on its way gives up at its next check. Continuing the sounding track keeps its
+ * `onceShown` monitor and restores its ask; the default also retires that monitor, as before.
+ */
+export const dropPlaysInFlight = ({ keepShownPlayback = false }: { keepShownPlayback?: boolean } = {}): void => {
     playsDropped += 1;
+    if (!keepShownPlayback) shownPlaybackDropped += 1;
     // Every play started so far is answered no by the count above, whatever is abandoned later.
     playsStanding = [];
+    const shown = usePlaybackStore.getState().currentSong;
+    if (keepShownPlayback && askedSongKey !== (shown ? getPlaybackSongKey(shown) : null)) {
+        askForSong(shown, { putBack: true });
+    }
 };
 
 /** How often the plays of each online platform were dropped (its sign-out): see `dropPlaysOfProvider`. */
@@ -122,7 +131,7 @@ export type PlayStart = {
     (): boolean;
     /**
      * For what the play leaves running once it showed its song (the HiFi track): yes until a newer
-     * play starts or the plays in flight are dropped, and yes again once every newer play abandoned.
+     * play starts or the sounding playback is dropped, and yes again once every newer play abandoned.
      */
     onceShown: () => boolean;
     /**
@@ -141,13 +150,14 @@ export const startPlay = (providerId?: string | null): PlayStart => {
     playsStarted += 1;
     const started = playsStarted;
     const dropped = playsDropped;
+    const shownDropped = shownPlaybackDropped;
     const providerDropped = providerPlaysDroppedSoFar(providerId);
     const providerStands = () => providerPlaysDroppedSoFar(providerId) === providerDropped;
     playsStanding.push(started);
     if (playsStanding.length > PLAYS_KEPT) playsForgotten = playsStanding.shift() ?? playsForgotten;
     const stillWanted = () => playsStarted === started && playsDropped === dropped && providerStands();
     return Object.assign(stillWanted, {
-        onceShown: () => playsDropped === dropped
+        onceShown: () => shownPlaybackDropped === shownDropped
             && providerStands()
             && started > playsForgotten
             && (playsStanding.length === 0 || playsStanding[playsStanding.length - 1] <= started),

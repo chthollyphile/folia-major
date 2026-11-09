@@ -72,6 +72,7 @@ const { useElectronWindowPlaybackHandoff } = await import('@/components/app/play
 const { usePlaybackStore } = await import('@/stores/usePlaybackStore');
 const { askForSong, makeSongCurrent } = await import('@/components/app/playback/currentSong');
 const { resetPlaybackStore } = await import('./currentSongWatch');
+const { leaveProviderForSwitch } = await import('@/library/app/createLibraryAccountPort');
 
 const externalSong: SongResult = {
     id: 'am1', name: 'A', artists: [], album: { id: '', name: '' }, durationMs: 200000,
@@ -362,6 +363,33 @@ describe('a window rebuilt again while it restores the snapshot it was handed', 
         expect(env.calls).toEqual([]);
         finishRestore();
         await settle();
+    });
+
+    it.each(['main', 'stage'] as const)('does not forward ended FM from a %s handoff still being restored', async context => {
+        const finishRestore = blockRestore();
+        const mainPlayback = { ...snapshotOf(webSong), isFmMode: true };
+        const stagePlayback = snapshotOf(otherSong);
+        const handoff = {
+            ...handoffOf(mainPlayback), activePlaybackContext: context,
+            activePlayback: context === 'main' ? mainPlayback : stagePlayback,
+            fmStations: { bodian: 'ended-station' },
+            stage: { status: null, source: 'stage-api', playback: context === 'stage' ? stagePlayback : null,
+                lyricsClock: { startTimeSec: 0, endTimeSec: 0, baseTimeSec: 0, startedAtMs: null } },
+        } as WindowPlaybackHandoff;
+        const { request, submitWindowPlaybackHandoff } = rebuildWhileRestoring(Promise.resolve(handoff));
+        try {
+            await settle();
+            leaveProviderForSwitch('bodian', 'qq');
+            request('ended-fm');
+            await settle();
+            const forwarded = submitWindowPlaybackHandoff.mock.calls[0][1] as WindowPlaybackHandoff;
+            expect(forwarded.mainPlayback).toEqual({ ...mainPlayback, isFmMode: false });
+            expect(forwarded.activePlayback?.isFmMode).toBe(false);
+            expect(forwarded.fmStations).toBeUndefined();
+        } finally {
+            finishRestore();
+            await settle();
+        }
     });
 
     it('answers for itself once its restore is done', async () => {
