@@ -231,6 +231,17 @@ describe('the current song module', () => {
         expect(newer[0].onceShown()).toBe(true);
     });
 
+    it('putting back the same start revives its restore, but a new ask for the same song does not', () => {
+        makeSongCurrent(songA);
+        const restore = startRestore();
+        askForSong(songB);
+        expect(restore()).toBe(false);
+        dropPlaysInFlight({ keepShownPlayback: true });
+        expect(restore()).toBe(true);
+        askForSong(songA);
+        expect(restore()).toBe(false);
+    });
+
     it('a restore is still wanted until a song is asked for again, the same one too, or the plays in flight are dropped', () => {
         makeSongCurrent(songA);
         const restore = startRestore();

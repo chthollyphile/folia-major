@@ -9,26 +9,22 @@ const HOUR = 60 * 60 * 1000;
 type Backend = {
     sessionMode?: 'sealed' | 'stored';
     refresh?: (token: string) => Response | Promise<Response>;
-    accountId?: () => string;
-    read?: (path: string) => Response | Promise<Response> | undefined;
 };
 
 // 照路径回答的后端：/login/channels 宣告会话存法，/login/status 认得会话，/login/refresh 按用例回答。
-const serve = ({ sessionMode = 'sealed', refresh, accountId = () => '10001', read }: Backend) => {
+const serve = ({ sessionMode = 'sealed', refresh }: Backend) => {
     const fetchMock = vi.fn(async (url: string, init?: RequestInit) => {
         const path = new URL(url, 'https://folia.example.test').pathname;
         if (path === '/api/qq/login/channels') {
             return Response.json({ code: 200, data: { channels: ['qq', 'wechat'], sessionMode, configured: true } });
         }
         if (path === '/api/qq/login/status') {
-            return Response.json({ code: 200, data: { profile: { uin: accountId(), nick: 'fixture user' } } });
+            return Response.json({ code: 200, data: { profile: { uin: '10001', nick: 'fixture user' } } });
         }
         if (path === '/api/qq/login/refresh' && refresh) {
             return refresh(String((init?.headers as Record<string, string>)?.['X-QQ-Session'] ?? ''));
         }
         if (path === '/api/qq/logout') return Response.json({ code: 200 });
-        const answer = read?.(path);
-        if (answer) return answer;
         return Response.json({ code: 404 }, { status: 404 });
     });
     vi.stubGlobal('fetch', fetchMock);
@@ -45,7 +41,6 @@ const load = async () => {
     return {
         signedIn: () => qqProvider.auth!.getLoginStatus(),
         logout: () => qqProvider.auth!.logout(),
-        checkLogin: () => qqProvider.auth!.checkLogin!('fixture-login'),
         session: () => readProviderSessionValue('qq', 'cookie'),
         refreshQqSession,
     };
@@ -72,66 +67,6 @@ afterEach(() => {
 });
 
 describe('QQ session refresh on a serverless backend', () => {
-    it('keeps an in-flight station preview ticket across a real same-account token rotation', async () => {
-        let releasePreview!: (response: Response) => void;
-        let guessReads = 0;
-        const song = (mid: string) => ({ mid, id: 1, name: mid, singer: [], album: { mid: 'album', name: 'Album' } });
-        serve({
-            refresh: () => Response.json({ code: 200, data: { token: 'new-token', rotated: true } }),
-            read: path => {
-                if (path !== '/api/qq/user/guess-you-like') return;
-                guessReads += 1;
-                if (guessReads === 1) return new Promise(resolve => { releasePreview = resolve; });
-                return Response.json({ code: 200, songs: [song(`guess-${guessReads}`)] });
-            },
-        });
-        const qq = await load();
-        const { getQqGuessYouLikeCard } = await import('@/services/onlineMusic/qq/qqGuessYouLike');
-        const { qqRecommendations } = await import('@/services/onlineMusic/qq/qqRecommendations');
-        const reading = getQqGuessYouLikeCard();
-        await vi.waitFor(() => { expect(releasePreview).toBeDefined(); });
-
-        await qq.refreshQqSession();
-        expect(qq.session()).toBe('qqmusic_session=new-token');
-        releasePreview(Response.json({ code: 200, songs: [song('guess-1')] }));
-        const card = (await reading)!;
-        expect(card.songPreview?.firstSong?.qqMid).toBe('guess-1');
-        const start = { station: card.personalFm!.station, previewToken: card.songPreview!.playbackToken };
-        expect((await qqRecommendations.getPersonalFm!(start)).map(entry => entry.qqMid)).toEqual(['guess-1']);
-        expect(guessReads).toBe(1);
-        expect((await qqRecommendations.getPersonalFm!({ station: start.station })).map(entry => entry.qqMid)).toEqual(['guess-2']);
-        expect((await qqRecommendations.getPersonalFm!(start)).map(entry => entry.qqMid)).toEqual(['guess-1']);
-        expect(guessReads).toBe(2);
-    });
-
-    it.each(['logout', 'account switch', 'new login'] as const)('invalidates an old preview ticket through the real %s path', async action => {
-        vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] });
-        let account = '10001';
-        let guessReads = 0;
-        serve({
-            accountId: () => account,
-            refresh: () => Response.json({ code: 200, data: { rotated: false } }),
-            read: path => {
-                if (path === '/api/qq/login/qr/check') return Response.json({ code: 803, cookie: 'qqmusic_session=relogin-token' });
-                if (path === '/api/qq/user/guess-you-like') {
-                    guessReads += 1;
-                    return Response.json({ code: 200, songs: [{ mid: 'old-preview', id: 1, name: 'Old', singer: [], album: { mid: 'album' } }] });
-                }
-            },
-        });
-        const qq = await load();
-        await qq.signedIn();
-        const { getQqGuessYouLikeCard } = await import('@/services/onlineMusic/qq/qqGuessYouLike');
-        const { qqRecommendations } = await import('@/services/onlineMusic/qq/qqRecommendations');
-        const card = (await getQqGuessYouLikeCard())!;
-        if (action === 'logout') await qq.logout();
-        else if (action === 'new login') await qq.checkLogin();
-        else { account = '20002'; await qq.signedIn(); }
-
-        expect(await qqRecommendations.getPersonalFm!({ station: card.personalFm!.station, previewToken: card.songPreview!.playbackToken })).toEqual([]);
-        expect(guessReads).toBe(1);
-    });
-
     it('keeps the new token when the backend hands one out, sending the old one as a POST in the header', async () => {
         const fetchMock = serve({ refresh: () => Response.json({ code: 200, data: { token: 'new-token', rotated: true, expiresAt: 1 } }) });
         const qq = await load();

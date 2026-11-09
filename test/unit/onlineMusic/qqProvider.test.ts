@@ -24,7 +24,6 @@ vi.mock('@/services/onlineMusic/qq/qqTransport', async importOriginal => ({
 
 vi.mock('@/services/onlineMusic/providerStorage', () => ({
     writeProviderSessionValue: writeSessionValueMock,
-    readProviderSessionValue: () => 'opaque-test-session',
 }));
 
 // 登录确认后的续期在后台接着问后端（qqSessionRefresh.ts，有它自己的测试）；这里不让它占 requestMock 排好的回答。

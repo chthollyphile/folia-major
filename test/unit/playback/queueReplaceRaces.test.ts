@@ -25,6 +25,7 @@ const env = vi.hoisted(() => {
         /** Song ids whose audio address is held until the promise resolves. */
         audioGate: new Map<string, Promise<unknown>>(),
         audioCalls: [] as string[],
+        lyricsGate: new Map<string, Promise<unknown>>(),
         /** What the audio source answers for a song id; a plain http address when nothing is set. */
         audioResultFor: new Map<string, unknown>(),
         /** Song ids their platform marks unavailable. */
@@ -98,6 +99,7 @@ vi.mock('@/services/onlineMusic/omni', () => ({
         canPlaySong: () => true,
         canPlayExternally: () => false,
         getProviderLabel: (id: string) => id,
+        getLyrics: async () => ({ lyrics: null, isPureMusic: true }),
         getPersonalFm: () => env.self.fmBatch ?? Promise.resolve([]),
         getPersonalFmCatalog: async () => ({
             ...DEFAULT_PERSONAL_FM_CATALOG,
@@ -118,6 +120,7 @@ vi.mock('@/services/onlineMusic/songAvailability', () => ({ askPlayedSong: () =>
 vi.mock('@/services/onlineMusic/resourceCache', () => ({
     hasCachedSongAudio: async () => null,
     getCachedSongCoverUrl: async () => null,
+    getSongCacheWithLegacyMigration: async () => null,
 }));
 const prefetch = vi.hoisted(() => ({
     prefetchNearbySongs: vi.fn(),
@@ -139,19 +142,24 @@ vi.mock('@/services/onlinePlayback', () => ({
     },
     loadOnlineSongLyrics: async () => {},
 }));
-vi.mock('@/utils/onlineLyricsState', () => ({ loadOnlineLyricsState: async () => null }));
+vi.mock('@/utils/onlineLyricsState', () => ({
+    loadOnlineLyricsState: async (song: { id: string }) => { await env.self.lyricsGate.get(String(song.id)); return null; },
+    resolveOnlineLyrics: (_state: unknown, lyrics: unknown) => lyrics,
+}));
 // The sign-out saves the queue left for the next launch; there is no database here.
 vi.mock('@/components/app/playback/persistPlaybackCache', () => ({
     persistPlaybackCache: async () => undefined,
     forgetPlaybackCache: async () => undefined,
 }));
 
+const { useElectronWindowPlaybackHandoff } = await import('@/components/app/playback/restore/useElectronWindowPlaybackHandoff');
+const HandoffProbe = (props: Parameters<typeof useElectronWindowPlaybackHandoff>[0]) => useElectronWindowPlaybackHandoff(props);
 const { usePlaybackQueueController } = await import('@/components/app/playback/start/usePlaybackQueueController');
 const { usePlaybackRuntimeRefs } = await import('@/components/app/playback/usePlaybackRuntimeRefs');
 const { setIsFmMode, setPlayQueue, usePlaybackStore } = await import('@/stores/usePlaybackStore');
 const { noteAcceptedFmPlayback, replacePlayQueue } = await import('@/services/playbackQueueOrigin');
 const { useStatusMessageStore } = await import('@/stores/useStatusMessageStore');
-const { makeSongCurrent } = await import('@/components/app/playback/currentSong');
+const { askedSongKeyRef, makeSongCurrent } = await import('@/components/app/playback/currentSong');
 const { noteWholeQueueWrite } = await import('@/services/wholeQueueWrites');
 const { notePersonalFmEnded } = await import('@/components/app/playback/personalFmEndings');
 const { dropPlaysOfProvider, dropPlaysInFlight } = await import('@/components/app/playback/currentSong');
@@ -223,6 +231,7 @@ beforeEach(() => {
     resetPlaybackStore();
     usePersonalFmModeStore.setState({ stations: {} });
     env.self.audioGate.clear();
+    env.self.lyricsGate.clear();
     env.self.audioCalls.length = 0;
     env.self.audioResultFor.clear();
     env.self.unavailable.clear();
@@ -351,6 +360,76 @@ describe('continuing the accepted stream through the real home surface and playb
         expect(store().playQueue).toBe(host.originalQueue);
         expect([currentTime.get(), host.audio.currentTime, store().audioSrc]).toEqual([42, 42, 'https://audio.test/f1']);
         expect(env.self.audioCalls).toEqual([]);
+    });
+
+    it.each([PlayerState.PLAYING, PlayerState.PAUSED].flatMap(playerState => [false, true].map(sourceFinished => [playerState, sourceFinished] as const)))('continues a handed-over radio after another song asked for lyrics (%s, old restore finished: %s)', async (playerState, sourceFinished) => {
+        useOnlineProviderAccountStore.setState({ activeProviderId: 'bodian' });
+        usePersonalFmModeStore.setState({ providerSelections: {}, stations: {} });
+        const host = mount();
+        const snapshot = {
+            currentSong: f1, lyrics: null, cachedCoverUrl: null, audioSrc: null,
+            playQueue: [f1, f2], isFmMode: true, playerState, currentTime: 42, duration: 180, currentLineIndex: -1,
+        };
+        vi.stubGlobal('window', { ...window, electron: { consumeWindowPlaybackHandoff: async () => ({
+            version: 1, capturedAt: 0, activePlaybackContext: 'main', mainPlayback: snapshot, activePlayback: snapshot,
+            stage: { status: null, source: null, playback: null, lyricsClock: { startTimeSec: 0, endTimeSec: 0, baseTimeSec: 0, startedAtMs: null } },
+            nowPlaying: { track: null, lyricPayload: null, paused: true, progressMs: 0, progressQuality: 'coarse', displayTimeSec: 0 },
+            ui: { currentView: 'home', playerChromeHidden: false, mainWindowBorderVisible: false, transparentModeEnabled: false },
+        }) } });
+        const source = deferred();
+        const lyrics = deferred();
+        env.self.audioGate.set('f1', source.promise);
+        env.self.lyricsGate.set('b', lyrics.promise);
+        vi.stubGlobal('localStorage', { getItem: () => null, setItem: () => {}, removeItem: () => {} });
+        env.self.rendering = true;
+        HandoffProbe({
+            isElectronWindow: true, navigateToPlayer: vi.fn(), audioRef: host.refs.audioRef, mainPlaybackSnapshotRef: host.mainPlaybackSnapshotRef,
+            stageStatus: null, stageSource: null, stageLyricsClockRef: { current: {} }, nowPlayingTrack: null, nowPlayingLyricPayload: null,
+            nowPlayingPaused: true, nowPlayingProgressMs: 0, nowPlayingProgressQuality: 'coarse', getNowPlayingDisplayTime: () => 0,
+            restoreStagePlaybackHandoff: vi.fn(async () => undefined), setLyrics: vi.fn(), setIsLyricsLoading: vi.fn(),
+            blobUrlRef: host.refs.blobUrlRef, shouldAutoPlayRef: host.refs.shouldAutoPlay, pendingResumeTimeRef: host.refs.pendingResumeTimeRef,
+            lastAudioRecoverySourceRef: host.refs.lastAudioRecoverySourceRef, currentOnlineAudioUrlFetchedAtRef: host.refs.currentOnlineAudioUrlFetchedAtRef,
+            applyTransparentPlayerBackground: vi.fn(), restoreCachedThemeForSong: vi.fn(async () => 'none'), persistLastPlaybackCache: host.persistLastPlaybackCache,
+        } as never);
+        env.self.rendering = false;
+        const consume = env.self.effects.find(effect => String(effect).includes('consumeWindowPlaybackHandoff()'));
+        expect(consume).toBeDefined();
+        consume!();
+        await settle();
+        expect(store().acceptedFmPlayback?.providerId).toBe('bodian');
+        expect(store().audioSrc).toBeNull();
+        const competition = host.render().playSong(b, [b], false);
+        await settle();
+        expect(askedSongKeyRef.current).toBe(getPlaybackSongKey(b));
+        if (sourceFinished) {
+            source.resolve();
+            await settle();
+            await settle();
+            expect(store().audioSrc).toBeNull();
+        }
+        const resume = vi.fn(async () => {
+            expect(store().audioSrc).toBe('https://audio.test/f1');
+            store().setPlayerState(PlayerState.PLAYING);
+        });
+        const play = vi.fn();
+        const port = createLibraryHomePort(() => ({ localSongs: [], onRefreshLocalSongs: vi.fn(), onPlaySong: play, onResumePlayback: resume }));
+        try {
+            expect(port.continuePersonalFm?.(f1, { mode: 'DEFAULT', scene: null }, 'bodian')).toBe(true);
+            expect(askedSongKeyRef.current).toBe(getPlaybackSongKey(f1));
+            expect(resume).not.toHaveBeenCalled();
+            lyrics.resolve();
+            await competition;
+            source.resolve();
+            await settle();
+            await settle();
+            expect(store().currentSong?.id).toBe('f1');
+            expect(store().audioSrc).toBe('https://audio.test/f1');
+            expect(host.refs.pendingResumeTimeRef.current).toBe(42);
+            expect(currentTime.get()).toBe(42);
+            expect(store().playerState).toBe(PlayerState.PLAYING);
+            expect(resume).toHaveBeenCalledTimes(playerState === PlayerState.PAUSED ? 1 : 0);
+            expect(play).not.toHaveBeenCalled();
+        } finally { lyrics.resolve(); source.resolve(); await competition; }
     });
 
     it('the real home landing keeps scene A ownership while scene B is waiting for songs', async () => {

@@ -50,7 +50,7 @@ const loadPersonalFmBatch = async (): Promise<UnifiedSong[]> => {
 /**
  * 私人 FM 一批（每批几首）；带着猜你喜欢电台（station）时是那个电台按所选模式的一批。私人 FM 没有模式，
  * 不看 mode。批内去重；跨批的重复交给续歌的地方按队列去掉（utils/fmQueue）。
- * 真实失败交给 Omni 和调用方隔离、重试；取消不当作成功的空结果缓存。
+ * 失败只记日志、回空：FM 续歌和首页电台卡都按「这次没有歌」处理，不让一次上游拒绝（22006）拖垮整页。
  */
 const getPersonalFm = async (options?: PersonalFmRequestOptions): Promise<UnifiedSong[]> => {
     try {
@@ -60,7 +60,7 @@ const getPersonalFm = async (options?: PersonalFmRequestOptions): Promise<Unifie
         return batch.filter((song, index) => batch.findIndex(other => other.qqMid === song.qqMid) === index);
     } catch (error) {
         console.warn('[QQProvider] personal-fm:failed', error);
-        throw error;
+        return [];
     }
 };
 

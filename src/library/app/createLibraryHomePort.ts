@@ -157,13 +157,12 @@ export const createLibraryHomePort = (getSurface: () => HomePortSurface): Librar
             dropPlaysInFlight({ keepShownPlayback: true });
             restoreSelection();
             usePlaybackStore.getState().setIsFmMode(true);
-            if (state.playerState !== PlayerState.PLAYING) {
-                // A rebuilt window may already show this song while its source is still on the way.
-                // Let that restore keep its route and position before asking the transport to resume.
-                const restoring = waitForShownRestore();
-                const resumed = restoring ? restoring.then(wanted => wanted ? surface.onResumePlayback?.() : undefined) : surface.onResumePlayback?.();
-                void resumed?.catch((error: unknown) => console.warn('[LibraryHome] Failed to resume Personal FM:', error));
-            }
+            // A rebuilt window may show this song while its source is pending or was already discarded
+            // for the competing ask. Continue its original restore before resuming the same position.
+            const restoring = waitForShownRestore();
+            const resumed = state.playerState === PlayerState.PLAYING ? restoring
+                : restoring ? restoring.then(wanted => wanted ? surface.onResumePlayback?.() : undefined) : surface.onResumePlayback?.();
+            void resumed?.catch((error: unknown) => console.warn('[LibraryHome] Failed to resume Personal FM:', error));
             surface.onEnterPlaybackView?.();
             return true;
         },

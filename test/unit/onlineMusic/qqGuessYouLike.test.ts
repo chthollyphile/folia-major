@@ -12,7 +12,7 @@ vi.mock('@/services/onlineMusic/qq/qqTransport', () => ({
     requestQq: requestMock,
 }));
 
-import { clearQqGuessYouLikeCatalog, getQqGuessYouLikeCard, QQ_GUESS_YOU_LIKE_STATION } from '@/services/onlineMusic/qq/qqGuessYouLike';
+import { clearQqGuessYouLikeCatalog, QQ_GUESS_YOU_LIKE_STATION } from '@/services/onlineMusic/qq/qqGuessYouLike';
 import { qqRecommendations } from '@/services/onlineMusic/qq/qqRecommendations';
 import { DEFAULT_PERSONAL_FM_CATALOG } from '@/services/onlineMusic/fmModes';
 import { OnlineProviderError } from '@/types/onlineMusic';
@@ -53,9 +53,9 @@ describe('QQ Guess You Like station', () => {
         vi.spyOn(console, 'warn').mockImplementation(() => { });
     });
 
-    it('offers a station card, its cover from the first song of a default batch', async () => {
+    it('offers a station card before the playlists, its cover from the first song of a default batch', async () => {
         answer({ user_guess_you_like: { code: 200, songs: [{ ...song('cover', 1), album: { mid: 'cover-album', name: '专辑' } }] } });
-        const card = (await getQqGuessYouLikeCard())!;
+        const [card] = await qqRecommendations.getRecommendedCollections!(10);
         expect(card).toMatchObject({
             providerId: 'qq', type: 'radio',
             personalFm: { mode: 'DEFAULT', scene: null, station: QQ_GUESS_YOU_LIKE_STATION },
@@ -63,25 +63,9 @@ describe('QQ Guess You Like station', () => {
         expect(card.coverUrl).toContain('cover-album');
     });
 
-    it('restarts the displayed default batch by ticket while continuing and mode changes read their own batches', async () => {
-        answer();
-        const card = (await getQqGuessYouLikeCard())!;
-        const token = card.songPreview!.playbackToken!;
-        expect(token).toEqual(expect.any(String));
-        const selected = { ...station(), previewToken: token };
-        expect((await qqRecommendations.getPersonalFm!(selected))[0].qqMid).toBe(card.songPreview!.firstSong!.qqMid);
-        await qqRecommendations.getPersonalFm!(station());
-        expect(requestMock.mock.calls.filter(call => call[0] === 'user_guess_you_like')).toHaveLength(2);
-        expect((await qqRecommendations.getPersonalFm!(selected))[0].qqMid).toBe(card.songPreview!.firstSong!.qqMid);
-        expect(requestMock.mock.calls.filter(call => call[0] === 'user_guess_you_like')).toHaveLength(2);
-        expect((await qqRecommendations.getPersonalFm!(station({ mode: 'FAMILIAR' })))[0].qqMid).toBe('pool7103');
-        clearQqGuessYouLikeCatalog();
-        expect(await qqRecommendations.getPersonalFm!(selected)).toEqual([]);
-    });
-
     it('plays the batch read for the cover first, once, when the card starts in the default mode', async () => {
         answer();
-        await getQqGuessYouLikeCard();
+        await qqRecommendations.getRecommendedCollections!(10);
         const reads = () => requestMock.mock.calls.filter(call => call[0] === 'user_guess_you_like').length;
         expect(reads()).toBe(1);
         expect((await qqRecommendations.getPersonalFm!(station())).map(entry => entry.qqMid)).toEqual(['default']);
@@ -97,7 +81,7 @@ describe('QQ Guess You Like station', () => {
         requestMock.mockImplementation((operation: string, params?: { pool?: string }) => (operation === 'user_guess_you_like' && !release
             ? new Promise(resolve => { release = resolve; })
             : base(operation, params)));
-        const loading = getQqGuessYouLikeCard();
+        const loading = qqRecommendations.getRecommendedCollections!(10);
         await vi.waitFor(() => expect(release).toBeDefined());
         clearQqGuessYouLikeCatalog();
         release({ code: 200, songs: [song('old-account', 9)] });
@@ -108,7 +92,7 @@ describe('QQ Guess You Like station', () => {
 
     it('borrows the cover of the default mode when no song can be read', async () => {
         answer({ user_guess_you_like: new OnlineProviderError('network', 'QQMusicApi failed: HTTP 502', 'qq', undefined, 502) });
-        const card = (await getQqGuessYouLikeCard())!;
+        const [card] = await qqRecommendations.getRecommendedCollections!(10);
         expect(card).toMatchObject({ coverUrl: 'https://fixture.invalid/2.png', personalFm: { station: QQ_GUESS_YOU_LIKE_STATION } });
     });
 
@@ -117,7 +101,7 @@ describe('QQ Guess You Like station', () => {
             user_guess_you_like: new OnlineProviderError('network', 'QQMusicApi failed: HTTP 502', 'qq', undefined, 502),
             user_guess_you_like_modes: { ...MODES, primaryModes: [mode('1', '探索模式', '7101'), { ...mode('2', '默认'), cover: '' }] },
         });
-        const card = (await getQqGuessYouLikeCard())!;
+        const [card] = await qqRecommendations.getRecommendedCollections!(10);
         expect(card.coverUrl).toBe('https://fixture.invalid/1.png');
     });
 

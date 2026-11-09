@@ -2133,7 +2133,7 @@
       "count": 1
     },
     "@typescript-eslint/no-unnecessary-condition": {
-      "count": 6
+      "count": 4
     },
     "@typescript-eslint/no-unused-vars": {
       "count": 2
@@ -10067,7 +10067,10 @@
   },
   "src/services/onlineMusic/qq/qqGuessYouLike.ts": {
     "@typescript-eslint/no-explicit-any": {
-      "count": 8
+      "count": 9
+    },
+    "@typescript-eslint/no-unnecessary-condition": {
+      "count": 1
     },
     "@typescript-eslint/no-unnecessary-type-conversion": {
       "count": 1

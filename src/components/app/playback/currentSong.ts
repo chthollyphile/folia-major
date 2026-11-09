@@ -50,7 +50,8 @@ import { setCurrentSong, usePlaybackStore } from '../../../stores/usePlaybackSto
 // A restore of a remembered song (the last session, the hand-off to a rebuilt window) is not a
 // play: it ends no play, and it makes its song current before its first wait. The key cannot tell
 // it from a play of that same song, so it takes `startRestore()` at that moment and asks the answer
-// after each wait: no, once a song was asked for again, or once the shown playback was dropped.
+// after each wait: no while a different start is asked for, or once the shown playback was dropped.
+// Putting back that same start lets its still-pending restore finish at the position it kept.
 
 /** The key, for reading only. `usePlaybackRuntimeRefs` hands this out as `currentSongRef`. */
 export type AskedSongKeyRef = { readonly current: string | null };
@@ -74,8 +75,6 @@ let shownPlaybackDropped = 0;
 let playsStanding: number[] = [];
 const PLAYS_KEPT = 64;
 let playsForgotten = 0;
-/** How often a song was asked for. The key cannot tell two asks for the same song apart; this can. */
-let asks = 0;
 
 /**
  * Every play still on its way gives up at its next check. Continuing the sounding track keeps its
@@ -196,38 +195,42 @@ export const askForSong = (song: SongResult | null, { putBack = false }: { putBa
     askedStart = putBack && askedBefore.key === key ? askedBefore.start : (starts += 1);
     askedBefore = replaced;
     askedSongKey = key;
-    asks += 1;
 };
 
 /**
  * A restore of a remembered song calls this right after it made that song current, and keeps what
- * it gets: the answer to "is this restore still wanted". It is yes until a song is asked for again
- * (another song or this same one, by a play, the stage or a route that empties the player), or
- * until the shown playback is dropped. Continuing that same song keeps its source restore.
+ * it gets: the answer to "is this restore still wanted". A new start (even of the same song) or
+ * dropping the shown playback says no. Continuing the original start puts its identity back,
+ * so its still-pending source and position can finish restoring after a competing play is dropped.
  */
 export const startRestore = (): (() => boolean) => {
-    const asked = asks;
+    const asked = askedStart;
     const dropped = shownPlaybackDropped;
-    return () => asks === asked && shownPlaybackDropped === dropped;
+    return () => askedStart === asked && shownPlaybackDropped === dropped;
 };
 
-let shownRestore: { stillWanted: () => boolean; finished: Promise<void> } | null = null;
+let shownRestore: { stillWanted: () => boolean; finished: Promise<void>; done: boolean; restart: () => Promise<void> } | null = null;
 
 /** Holds resume until the rebuilt window finishes restoring this source, including its playback route. */
-export const trackShownRestore = (stillWanted: () => boolean): (() => void) => {
+export const trackShownRestore = (stillWanted: () => boolean, restart: () => Promise<void>): (() => void) => {
     let finish!: () => void;
-    const restoring = { stillWanted, finished: new Promise<void>(resolve => { finish = resolve; }) };
+    const restoring = { stillWanted, finished: new Promise<void>(resolve => { finish = resolve; }), done: false, restart };
     shownRestore = restoring;
     return () => {
-        if (shownRestore === restoring) shownRestore = null;
+        restoring.done = true;
+        // An overtaken restore may already have discarded its source before Continue puts its start back.
+        // Keep its retry until then; a new start never satisfies this restore's identity guard.
+        if (shownRestore === restoring && stillWanted()) shownRestore = null;
         finish();
     };
 };
 
-/** A pending restore owns the position and route; a newer ask must never be resumed by its caller. */
+/** Continues this start's restore, retrying an already discarded source; newer asks cannot be resumed. */
 export const waitForShownRestore = (): Promise<boolean> | null => {
     const restoring = shownRestore;
-    return restoring?.stillWanted() ? restoring.finished.then(() => restoring.stillWanted()) : null;
+    if (!restoring?.stillWanted()) return null;
+    const finished = restoring.done ? restoring.restart() : restoring.finished;
+    return finished.then(() => restoring.stillWanted());
 };
 
 /**

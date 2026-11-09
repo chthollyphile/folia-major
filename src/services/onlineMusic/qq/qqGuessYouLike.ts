@@ -4,7 +4,6 @@ import { OnlineProviderError, type PersonalFmRequestOptions, type ProviderCollec
 import type { PersonalFmCatalog, PersonalFmSceneEntry } from '../../../types/personalFm';
 import { DEFAULT_PERSONAL_FM_CATALOG } from '../fmModes';
 import { normalizeQqSong } from './qqNormalize';
-import { createQqRecommendationPreview } from './qqRecommendationPreview';
 import { hasUsableQqSession, requestQq } from './qqTransport';
 
 // src/services/onlineMusic/qq/qqGuessYouLike.ts
@@ -52,6 +51,10 @@ const DEFAULT_ONLY: QqStationCatalog = {
 
 let catalogTask: Promise<QqStationCatalog> | null = null;
 let catalogAt = 0;
+// 为卡片封面读的那一批默认歌：猜你喜欢是动态推荐，封面用它第一首的图；点卡片开播（默认模式）时先放这一批，
+// 不白白多耗一批。只留几分钟，过了就不用。
+const COVER_BATCH_TTL_MS = 5 * 60_000;
+let coverBatch: { songs: UnifiedSong[]; at: number } | null = null;
 // 清掉的次数：清掉之前就在路上的封面那一批，回来时不再记下（不让上一个账号的歌留给下一个账号）。
 let generation = 0;
 
@@ -60,10 +63,8 @@ export const clearQqGuessYouLikeCatalog = (): void => {
     generation += 1;
     catalogTask = null;
     catalogAt = 0;
+    coverBatch = null;
 };
-
-/** 同一登录代次的推荐身份：凭据续期不换代，退出、重新登录和换账号由 provider 清掉。 */
-export const getQqRecommendationSessionKey = (): string | null => hasUsableQqSession() ? String(generation) : null;
 
 const listOf = (value: unknown): any[] => (Array.isArray(value) ? value : []);
 const poolOf = (entry: any): string | null => {
@@ -164,8 +165,11 @@ const songsOf = (response: any): UnifiedSong[] => (Array.isArray(response?.songs
 export const getQqGuessYouLikeBatch = async (selected: PersonalFmRequestOptions): Promise<UnifiedSong[]> => {
     if (!hasUsableQqSession()) return [];
     const pool = await poolOfSelection(selected);
-    if (selected.previewToken !== undefined && pool) return [];
-    if (!pool) return preview.take(selected.previewToken);
+    if (!pool && coverBatch && Date.now() - coverBatch.at < COVER_BATCH_TTL_MS) {
+        const kept = coverBatch.songs;
+        coverBatch = null;
+        return kept;
+    }
     if (pool) {
         try {
             const songs = songsOf(await requestQq<any>('user_guess_you_like_tracks', { pool }));
@@ -177,24 +181,23 @@ export const getQqGuessYouLikeBatch = async (selected: PersonalFmRequestOptions)
             }
         }
     }
-    return preview.take();
+    return songsOf(await requestQq<any>('user_guess_you_like'));
 };
 
-// 单份默认批次缓存同时服务封面与显式开始；票据随账号代次失效，续歌不带票据。
-const preview = createQqRecommendationPreview(
-    async () => songsOf(await requestQq<any>('user_guess_you_like')),
-    getQqRecommendationSessionKey,
-);
-
-/** 登录后的稳定电台卡用真实首歌预览；批次只在这里预留，显式开始按票据领取。 */
+/**
+ * 电台页上这个电台的卡片：登录了才有。猜你喜欢是动态推荐，封面用默认一批第一首的图（这一批留给开播用），
+ * 读不到歌才借默认模式的图。
+ */
 export const getQqGuessYouLikeCard = async (): Promise<ProviderCollection | null> => {
     if (!hasUsableQqSession()) return null;
     const mine = generation;
-    const held = await preview.reserve().catch(error => {
+    const songs = await requestQq<any>('user_guess_you_like').then(songsOf).catch(error => {
         console.warn('[QQProvider] guess-you-like-cover:failed', error);
-        return { songs: [] as UnifiedSong[], playbackToken: undefined };
+        return [] as UnifiedSong[];
     });
-    const cover = held.songs[0]?.album.coverUrl || (mine === generation ? (await stationCatalog()).cover : undefined);
+    if (songs.length > 0 && mine === generation) coverBatch = { songs, at: Date.now() };
+    const cover = songs.find(song => song.album?.coverUrl)?.album.coverUrl
+        || (mine === generation ? (await stationCatalog()).cover : undefined);
     return {
         providerId: 'qq',
         id: `station-${QQ_GUESS_YOU_LIKE_STATION}`,
@@ -202,7 +205,6 @@ export const getQqGuessYouLikeCard = async (): Promise<ProviderCollection | null
         name: i18n.t('home.qqGuessYouLike'),
         description: i18n.t('home.qqGuessYouLikeDescription'),
         ...(cover ? { coverUrl: cover } : {}),
-        songPreview: { firstSong: held.songs[0], ...(held.playbackToken ? { playbackToken: held.playbackToken } : {}) },
         personalFm: { mode: 'DEFAULT', scene: null, station: QQ_GUESS_YOU_LIKE_STATION },
     };
 };
