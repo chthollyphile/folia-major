@@ -39,7 +39,11 @@ Linux 入口显示「Linux 暂未支援」，不保留备用浏览器运行时�
 - `companionRequests.cjs`：操作白名单、参数验证、串行调度与注入页面的受限读取函数。音量（`setVolume`，0–1 线性）也在这里写进页面的 MusicKit，和播放命令同一条串行链。
 - `companionQueue.cjs`：最多两首后继的队列预备和复用。
 - `companionFavorites.cjs`、`companionPlaylist.cjs`：喜爱与歌单写入，不自动重试可能已成功的追加。
-- `companionStorefront.cjs`：将页面地区跟随账号，避免跨区目录导致队列就绪却无法播放。
+- `companionStorefront.cjs`：将页面地区跟随账号。页面地区与账号不同时，MusicKit 只放试听片段或拒播该地区没有的歌。
+  中国大陆出口访问时，Apple 把 `/cn` 以外的页面都重定向回 `/cn`，页面移不过去：起播与预备队列前在页面内把 MusicKit 的
+  `storefrontId` 改为账号地区，账号有订阅时把 PREVIEW_ONLY 改回 MIXED_CONTENT（#1150、#1151）。被重定向过的地区本次运行不再跳转，
+  以免整页重载打断播放。新起播（不复用预备队列）的 `playSong` 应答带 `previewOnly`、实际播放地区与订阅答复 `subscribed`，
+  见运行日志的 `[AppleMusic] play started`。
 
 网页不能调用本地控制接口或文件操作；导航仅允许 Apple 音乐与登录主机。退出登录先销毁旧页面再清空宿主会话。
 原生 named store 与旧浏览器资料分开，不复制或删除用户旧凭据。
