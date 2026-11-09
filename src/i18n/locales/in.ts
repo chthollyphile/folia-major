@@ -1870,7 +1870,6 @@ export default {
     "settingsGroupAdvanced": "Lanjutan",
     "settingsPageAppearance": "Penampilan",
     "settingsPagePlayer": "Halaman pemutar",
-    "settingsPageScene": "Adegan",
     "settingsPageHome": "Beranda & playlist",
     "settingsPagePlayback": "Pemutaran",
     "settingsPageLyrics": "Lirik",

@@ -1870,7 +1870,6 @@ export default {
     "settingsGroupAdvanced": "Advanced",
     "settingsPageAppearance": "Appearance",
     "settingsPagePlayer": "Player page",
-    "settingsPageScene": "Scene",
     "settingsPageHome": "Home & playlists",
     "settingsPagePlayback": "Playback",
     "settingsPageLyrics": "Lyrics",

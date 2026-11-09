@@ -1870,7 +1870,6 @@ export default {
     "settingsGroupAdvanced": "高级",
     "settingsPageAppearance": "外观",
     "settingsPagePlayer": "播放页",
-    "settingsPageScene": "场景",
     "settingsPageHome": "主页与歌单",
     "settingsPagePlayback": "播放控制",
     "settingsPageLyrics": "歌词",

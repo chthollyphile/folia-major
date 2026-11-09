@@ -26,15 +26,16 @@ src/components/scenes/
   settings/
     useSceneSettingsStore.ts  选了哪个场景、每个场景的画质 / 视点 / 设置值（键 scene_id、scene_options）
     useSoundTracingStore.ts   声线追踪开关和耳机/音箱，所有场景共用（键 scene_room_sound、scene_room_output，沿用旧名）
-    SceneGroups.tsx           设置「场景」页：选场景，选中场景的画质、设置表、座位图
-    SoundTracingGroup.tsx     设置「场景」页：声线追踪一组
+    SceneRow.tsx              播放面板外观区的「场景」一行，「场景设置」小浮层是 SceneSettingsPanel.tsx
+    SceneWindow.tsx           设置「外观」页「场景」一行打开的窗口：场景名单，选中场景自己的设置
+    SoundTracingGroup.tsx     场景窗口里的「声线追踪」一组
     SeatMap.tsx               座位图
 src/types/sceneIds.ts  内建场景 id 清单和 id 规矩
 src/services/sceneSound/  房间声：acousticsTypes.ts（和声学进程的约定）、acousticMaterials.ts（声学材质表）、
                           roomIr.ts（响度补偿、缓存键）、roomStage.ts（播放链里的两路卷积）、sceneSound.ts（ctx.sound）
 ```
 
-接入点（删掉 `scenes/` 和这几处，功能就删干净了）：`src/App.tsx` 挂 `SceneHost`；`src/components/panelTab/controls/AppearanceSection.tsx` 的过滤；设置里的 `settingsNavModel.ts` 一项和 `pages/ScenePage.tsx`、`pages/index.ts` 一行；`src/components/command-palette/commands/sceneCommands.ts` 和 `index.ts` 里的一行；`visualConfigTransfer.ts`、`appearanceCodec.ts`、`appearanceImportPlan.ts` 的场景字段；`usePlaybackQueueController.ts` 的 `announceQueueEnd()`；`src/services/sceneSound/` 和 `usePlaybackAudioBridge.ts` 里的 `registerRoomSlot` 一行；三份语言文件的 `ui.scene*`、`ui.soundTracing*`、`options.settingsPageScene` 和 `commandPalette.commands.scene-*`。
+接入点（删掉 `scenes/` 和这几处，功能就删干净了）：`src/App.tsx` 挂 `SceneHost`；`src/components/panelTab/controls/AppearanceSection.tsx` 的场景一行和过滤；设置 `AppearancePage.tsx` 的「场景」一行，`SettingsModal.tsx` 里打开 `SceneWindow` 的几行（子视图 `scene`）；`src/components/command-palette/commands/sceneCommands.ts` 和 `index.ts` 里的一行；`visualConfigTransfer.ts`、`appearanceCodec.ts`、`appearanceImportPlan.ts` 的场景字段；`usePlaybackQueueController.ts` 的 `announceQueueEnd()`；`src/services/sceneSound/` 和 `usePlaybackAudioBridge.ts` 里的 `registerRoomSlot` 一行；三份语言文件的 `ui.scene*`、`ui.soundTracing*` 和 `commandPalette.commands.scene-*`。
 
 ## 约定（定了就不改）
 

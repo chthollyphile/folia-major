@@ -13,7 +13,7 @@ import id from '../../../src/i18n/locales/in';
 const echo = (key: string) => key;
 
 const ALL_SECTIONS: SettingsSectionId[] = [
-    'appearance', 'player', 'scene', 'home', 'playback', 'lyrics', 'general', 'interaction', 'integration', 'storage', 'desktop', 'graphics', 'mods', 'developer',
+    'appearance', 'player', 'home', 'playback', 'lyrics', 'general', 'interaction', 'integration', 'storage', 'desktop', 'graphics', 'mods', 'developer',
 ];
 
 const lookup = (bundle: Record<string, unknown>, key: string): unknown => (
