@@ -55,6 +55,7 @@ import { playbackFade } from '../../../../services/playbackFade';
 import { getProviderSongMetadata } from '../../../../services/onlineMusic/songMetadata';
 import { setStatusMessage as setStatusMsg } from '../../../../stores/useStatusMessageStore';
 import { setAudioSrc, setCachedCoverUrl, setCurrentLineIndex, setCurrentSong, setDuration, setIsFmMode, setPlayQueue, setPlayerState, startLoadingToPlay, usePlaybackStore } from '../../../../stores/usePlaybackStore';
+import { getAcceptedFmSelection, noteAcceptedFmPlayback } from '../../../../services/playbackQueueOrigin';
 import { askedSongKeyRef, askForSong, keepSongsOfProvidersStanding, playsDroppedSoFar, providerDropsSoFar, providerPlaysDroppedSoFar, showSong, startOfAskedSong, startPlay, withdrawAsk } from '../currentSong';
 import { personalFmEndingsSoFar } from '../personalFmEndings';
 import { loadOnlineSongAudio } from '../source/songAudioSource';
@@ -277,7 +278,7 @@ export function usePlaybackQueueController({
     /** FM state from before the oldest play that has not shown its song yet; a play that does not land puts it back. */
     // `queueWrites`: the whole-queue writes when it was kept. One that came since (a mod's replaceQueue ended FM)
     // makes it stale: no later play puts FM back to it.
-    const fmModeBeforePendingPlayRef = useRef<{ isFm: boolean; queueWrites: number; fmEndings: number } | null>(null);
+    const fmModeBeforePendingPlayRef = useRef<{ isFm: boolean; queueWrites: number; fmEndings: number; drops: number } | null>(null);
     const pendingUnavailableSkipTimerRef = useRef<number | null>(null);
     const pendingUnavailableSkipIntervalRef = useRef<number | null>(null);
 
@@ -287,7 +288,9 @@ export function usePlaybackQueueController({
     useEffect(() => usePlaybackStore.subscribe((state, previous) => {
         if (state.activePlaybackContext !== 'stage' || previous.activePlaybackContext === 'stage') return;
         const kept = fmModeBeforePendingPlayRef.current;
-        const fmModeBeforeRequest = kept && kept.queueWrites === wholeQueueWritesSoFar() ? kept.isFm : null;
+        // Entering Stage drops once before this notification; an earlier cancellation already retired the intent.
+        const fmModeBeforeRequest = kept && kept.queueWrites === wholeQueueWritesSoFar()
+            && kept.fmEndings === personalFmEndingsSoFar() && kept.drops + 1 === playsDroppedSoFar() ? kept.isFm : null;
         fmModeBeforePendingPlayRef.current = null;
         const mainSnapshot = mainPlaybackSnapshotRef.current;
         if (fmModeBeforeRequest !== null && mainSnapshot && mainSnapshot.isFmMode !== fmModeBeforeRequest) {
@@ -599,8 +602,8 @@ export function usePlaybackQueueController({
         // went with a song that played.
         const keptFmMode = fmModeBeforePendingPlayRef.current;
         const fmModeToRestore = keptFmMode && keptFmMode.queueWrites === wholeQueueWritesSoFar()
-            && keptFmMode.fmEndings === personalFmEndingsSoFar() ? keptFmMode.isFm : wasFmMode;
-        fmModeBeforePendingPlayRef.current = { isFm: fmModeToRestore, queueWrites: wholeQueueWritesSoFar(), fmEndings: personalFmEndingsSoFar() };
+            && keptFmMode.fmEndings === personalFmEndingsSoFar() && keptFmMode.drops === playsDroppedSoFar() ? keptFmMode.isFm : wasFmMode;
+        fmModeBeforePendingPlayRef.current = { isFm: fmModeToRestore, queueWrites: wholeQueueWritesSoFar(), fmEndings: personalFmEndingsSoFar(), drops: playsDroppedSoFar() };
         // A whole-queue write during the hook's wait has set Personal FM for the store's queue (a replacement
         // ends it): a play from that queue keeps it so, instead of the FM state it was called with.
         const playsAsFm = queueRewritten() ? wasFmMode : asFm();
@@ -675,6 +678,7 @@ export function usePlaybackQueueController({
             quietLoadedToast: options.quietLoadedToast,
         };
         const providerId = getOnlineProviderIdForSong(song) ?? undefined;
+        const fmSelectionAtStart = playsAsFm && providerId ? getAcceptedFmSelection(providerId) : undefined;
 
         // A button of a failure may be pressed long after: where the queue follows the store, the main
         // queue as it is then (the stage keeps it in mainPlaybackSnapshotRef while it plays).
@@ -1013,11 +1017,12 @@ export function usePlaybackQueueController({
         } else if (queue.length > 0 || playQueue.length === 0) {
             setPlayQueue(landedQueue);
         }
-
         if (isLatestPlaybackRequest() && playSongCallIdRef.current === playSongCallId) {
             if (usePlaybackStore.getState().isFmMode && !queueRewritten()) onFmLanding?.();
             else if (fmModeToRestore && !usePlaybackStore.getState().isFmMode) usePersonalFmModeStore.getState().resetStationSelections();
         }
+
+        noteAcceptedFmPlayback(resolvedSong, landedQueue, usePlaybackStore.getState().isFmMode, onFmLanding ? undefined : fmSelectionAtStart);
 
         void persistLastPlaybackCache({ ...resolvedSong, onlineLyricsState: onlineLyricsState ?? undefined }, landedQueue);
 

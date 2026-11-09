@@ -37,13 +37,16 @@ export const faceOf = (item: OmniExploreItem, t: (key: string) => string): Face 
     const { collection } = item;
     const isArtist = collection.type === 'artist';
     const kindLabel = t(isArtist ? 'home.exploreArtist' : collection.type === 'album' ? 'home.exploreAlbum' : item.isMix ? 'home.exploreMix' : 'home.explorePlaylist');
-    const coverUrl = collection.coverUrl ?? '';
+    const preview = collection.songPreview?.currentSong ?? collection.songPreview?.firstSong;
+    const artists = preview?.artists.map(artist => artist.name).filter(Boolean).join(', ');
+    const previewLabel = preview ? [preview.name, artists].filter(Boolean).join(' — ') : '';
+    const coverUrl = preview?.album.coverUrl || collection.coverUrl || '';
     // An artist is always its own cover in a circle.
-    const wideCoverUrl = isArtist ? undefined : item.wideCoverUrl;
+    const wideCoverUrl = isArtist || preview ? undefined : item.wideCoverUrl;
     return {
         kind: collection.type,
         title: collection.name,
-        subtitle: item.subtitle ?? ((isArtist ? '' : getProviderCollectionArtistLabel(collection)) || kindLabel),
+        subtitle: previewLabel || (item.subtitle ?? ((isArtist ? '' : getProviderCollectionArtistLabel(collection)) || kindLabel)),
         pictureUrl: wideCoverUrl ?? coverUrl,
         coverUrl,
         shape: isArtist ? 'round' : wideCoverUrl ? 'wide' : 'square',

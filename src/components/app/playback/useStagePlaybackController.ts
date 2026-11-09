@@ -40,10 +40,12 @@ import type {
 } from '../../../types/appPlayback';
 import { setStatusMessage as setStatusMsg } from '../../../stores/useStatusMessageStore';
 import { setActivePlaybackContext, setAudioSrc, setCachedCoverUrl, setCurrentLineIndex, setDuration, setIsFmMode, setPlayQueue, setPlayerState } from '../../../stores/usePlaybackStore';
+import { noteAcceptedFmPlayback } from '../../../services/playbackQueueOrigin';
 import { useStableActionSurface } from '../../../hooks/useStableCallbacks';
 import { useTranslation } from 'react-i18next';
 import { usePlaybackStore } from '../../../stores/usePlaybackStore';
 import { askForSong, askedSongKeyRef, dropPlaysInFlight, makeSongCurrent, showSong, startRestore } from './currentSong';
+import { subscribePersonalFmEnded } from './personalFmEndings';
 import { supplyLyricsAfterEmptyLoad } from './createLyricsSetter';
 import { useStageSettingsStore } from '../../../stores/useStageSettingsStore';
 import { currentTime } from '../../../stores/motionSignals';
@@ -150,6 +152,10 @@ export function useStagePlaybackController({
     });
 
     const mainPlaybackSnapshotRef = useRef<RoutedPlaybackSnapshot | null>(null);
+    useEffect(() => subscribePersonalFmEnded(() => {
+        const snapshot = mainPlaybackSnapshotRef.current;
+        if (snapshot?.isFmMode) mainPlaybackSnapshotRef.current = { ...snapshot, isFmMode: false };
+    }), []);
     const stagePlaybackSnapshotRef = useRef<PlaybackSnapshot | null>(null);
     const lastLoadedStageEntryKeyRef = useRef<string | null>(null);
     const lastKnownMainSongRef = useRef<SongResult | null>(null);
@@ -273,6 +279,7 @@ export function useStagePlaybackController({
         setAudioSrc(restoresSource ? null : snapshot?.audioSrc ?? null);
         setPlayQueue(snapshot?.playQueue ?? []);
         setIsFmMode(snapshot?.isFmMode ?? false);
+        noteAcceptedFmPlayback(song, snapshot?.playQueue ?? [], snapshot?.isFmMode ?? false);
         setIsLyricsLoading(false);
         // Nothing sounds until the restored source lands: the autoplay intent above starts it then.
         setPlayerState((external || restoresSource) && snapshot?.playerState !== PlayerState.IDLE

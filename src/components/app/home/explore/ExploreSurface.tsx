@@ -9,6 +9,7 @@ import { ExploreLight } from './ExploreLight';
 import { EXPLORE_PILL, EXPLORE_TOKENS, ExploreSections } from './ExploreSections';
 import { useExploreTilt } from './exploreTilt';
 import { OWN_SECTION_IDS, listenedSongsOf, useOwnExploreSections } from './ownSections';
+import { useExploreSongPreviews } from './useExploreSongPreviews';
 
 // src/components/app/home/explore/ExploreSurface.tsx
 // The explore tab of the home screen, as sections one under another. A section is the same
@@ -85,7 +86,8 @@ export const ExploreSurface: React.FC<ExploreSurfaceProps> = ({ providerId, acco
     useEffect(() => { show(key, listened()); }, [key, keptKey, show, listened]);
 
     // A section that holds nothing is not shown; a page of such sections is an empty page.
-    const provided = (feed?.sections ?? []).filter(section => section.items.length > 0);
+    const previewed = useExploreSongPreviews(feed?.sections ?? []);
+    const provided = previewed.filter(section => section.items.length > 0);
     const own = useOwnExploreSections(providerId, accountId);
     const sections = own.length > 0 ? [...own, ...provided] : provided;
     const hasMore = Boolean(feed?.nextCursor);
