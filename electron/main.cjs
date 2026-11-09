@@ -5882,6 +5882,11 @@ function createWindow(options = {}) {
   // window remembers what it was built as so the reconcile path can detect mismatches.
   const useTransparentWindow = isTransparentPlayerBackgroundEnabled()
     && !(useWindowsWallpaper && !isWindowsWallpaperTransparentSupported());
+  // macOS 正常模式用系统红绿灯（hidden 标题栏）替代自绘窗口按钮；壁纸模式仍是完全无边框，
+  // 沉进桌面层的窗口不能带着红绿灯。
+  const useMacNativeTrafficLights = process.platform === 'darwin'
+    && !isWallpaperModeEnabled()
+    && !useWallpaperGeometry;
   const enableNativeBlur = store.get('enable_player_page_native_blur') === true;
   let win;
   try {
@@ -5890,7 +5895,11 @@ function createWindow(options = {}) {
       type: useDesktopWindowType ? 'desktop' : undefined,
       minWidth: 350,
       minHeight: 100,
-      frame: false,
+      // macOS 正常模式：hidden 标题栏保留系统红绿灯，内容仍铺满整窗；
+      // 其余平台（以及 mac 壁纸模式）保持完全无边框。
+      ...(useMacNativeTrafficLights
+        ? { titleBarStyle: 'hidden', trafficLightPosition: { x: 14, y: 11 } }
+        : { frame: false }),
       transparent: useTransparentWindow,
       hasShadow: !useTransparentWindow,
       // Windows wallpaper mode must drop WS_THICKFRAME entirely: with it, Windows treats the
@@ -6037,6 +6046,15 @@ function createWindow(options = {}) {
 
   mainWindow = win;
   isolateFirstPartyWindow(win);
+  if (useMacNativeTrafficLights) {
+    // 先藏起来，等渲染层按标题栏 reveal 再放出，避免启动时红绿灯常驻在沉浸页面上。
+    // 常驻标题栏设置的用户由渲染层随即打开。
+    try {
+      win.setWindowButtonVisibility(readStoredBoolean('always_show_main_window_titlebar', false));
+    } catch {
+      // setWindowButtonVisibility 只在 macOS 且窗口带红绿灯时有意义。
+    }
+  }
   backgroundThrottling.attach(win);
   ensureTray();
   setMainWindowSkipTaskbarEnabled(mainWindowSkipTaskbarEnabled);
@@ -7427,6 +7445,23 @@ ipcMain.handle('window-is-fullscreen', (event) => {
     return false;
   }
   return isMainWindowFullscreen(mainWindow);
+});
+
+// macOS 原生红绿灯显隐：渲染层把标题栏 reveal / 点击穿透状态同步过来。
+// 全屏时系统自己会藏，这里照常设置也不会冲突。
+ipcMain.handle('window-set-traffic-lights-visible', (event, visible) => {
+  if (!isTrustedMainWindowContents(event.sender) || !mainWindow || mainWindow.isDestroyed()) {
+    return false;
+  }
+  if (process.platform !== 'darwin' || typeof mainWindow.setWindowButtonVisibility !== 'function') {
+    return false;
+  }
+  try {
+    mainWindow.setWindowButtonVisibility(visible === true);
+    return true;
+  } catch {
+    return false;
+  }
 });
 
 ipcMain.handle('window-get-transparent-mode', (event) => {

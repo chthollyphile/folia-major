@@ -140,6 +140,7 @@ export const IPC_CHANNELS = {
     'window-set-click-through': { level: 'first-party', why: '现状：有来源校验' },
     'window-set-click-through-unlock-hover': { level: 'first-party', why: '现状：有来源校验' },
     'window-set-native-theme': { level: 'first-party', why: '改窗口的明暗外观（firstParty）' },
+    'window-set-traffic-lights-visible': { level: 'first-party', why: 'mac 原生红绿灯显隐（firstParty）' },
     'window-set-transparent-mode': { level: 'first-party', why: '现状：有来源校验' },
     'window-toggle-fullscreen': { level: 'first-party', why: '现状：有来源校验' },
     'window-toggle-maximize': { level: 'first-party', why: '操作主窗口（firstParty）' },

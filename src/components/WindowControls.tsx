@@ -106,42 +106,47 @@ export default function WindowControls({
                     {isFullscreen ? <Minimize size={13} /> : <Maximize size={13} />}
                 </button>
             )}
-            <button
-                className={btnClass}
-                tabIndex={standardControlsVisible ? 0 : -1}
-                onClick={() => electron.minimizeWindow()}
-            >
-                <Minus size={16} />
-            </button>
-            <button
-                className={btnClass}
-                tabIndex={standardControlsVisible ? 0 : -1}
-                title={t(usesNativeFullscreen
-                    ? isExpanded ? 'ui.exitFullscreen' : 'ui.enterFullscreen'
-                    : isExpanded ? 'ui.restoreWindow' : 'ui.maximizeWindow')}
-                aria-label={t(usesNativeFullscreen
-                    ? isExpanded ? 'ui.exitFullscreen' : 'ui.enterFullscreen'
-                    : isExpanded ? 'ui.restoreWindow' : 'ui.maximizeWindow')}
-                onClick={async () => {
-                    if (usesNativeFullscreen) {
-                        await electron.toggleFullscreenWindow();
-                    } else {
-                        await electron.toggleMaximizeWindow();
-                        setIsMaximized(await electron.isWindowMaximized());
-                    }
-                }}
-            >
-                {usesNativeFullscreen
-                    ? isExpanded ? <Minimize size={13} /> : <Maximize size={13} />
-                    : isExpanded ? <Copy size={13} /> : <Square size={13} />}
-            </button>
-            <button
-                className={closeBtnClass}
-                tabIndex={standardControlsVisible ? 0 : -1}
-                onClick={() => electron.closeWindow()}
-            >
-                <X size={16} />
-            </button>
+            {/* mac 上最小化/最大化/关闭由系统红绿灯接管（titleBarStyle hidden），右上角不再重复渲染。 */}
+            {!isMac && (
+                <>
+                    <button
+                        className={btnClass}
+                        tabIndex={standardControlsVisible ? 0 : -1}
+                        onClick={() => electron.minimizeWindow()}
+                    >
+                        <Minus size={16} />
+                    </button>
+                    <button
+                        className={btnClass}
+                        tabIndex={standardControlsVisible ? 0 : -1}
+                        title={t(usesNativeFullscreen
+                            ? isExpanded ? 'ui.exitFullscreen' : 'ui.enterFullscreen'
+                            : isExpanded ? 'ui.restoreWindow' : 'ui.maximizeWindow')}
+                        aria-label={t(usesNativeFullscreen
+                            ? isExpanded ? 'ui.exitFullscreen' : 'ui.enterFullscreen'
+                            : isExpanded ? 'ui.restoreWindow' : 'ui.maximizeWindow')}
+                        onClick={async () => {
+                            if (usesNativeFullscreen) {
+                                await electron.toggleFullscreenWindow();
+                            } else {
+                                await electron.toggleMaximizeWindow();
+                                setIsMaximized(await electron.isWindowMaximized());
+                            }
+                        }}
+                    >
+                        {usesNativeFullscreen
+                            ? isExpanded ? <Minimize size={13} /> : <Maximize size={13} />
+                            : isExpanded ? <Copy size={13} /> : <Square size={13} />}
+                    </button>
+                    <button
+                        className={closeBtnClass}
+                        tabIndex={standardControlsVisible ? 0 : -1}
+                        onClick={() => electron.closeWindow()}
+                    >
+                        <X size={16} />
+                    </button>
+                </>
+            )}
         </div>
     );
 }
