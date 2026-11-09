@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import adapter, { baseRisk, baselineItems, baselineShrink, growthProblems, lintItems, lintKey } from '../../../dev/coven/adapter.mjs';
+import adapter, { baseRisk, baselineHints, baselineItems, baselineShrink, growthProblems, lintHints, lintItems, lintKey } from '../../../dev/coven/adapter.mjs';
 import config from '../../../dev/coven/config.json';
 import { blockedPackagesIn, missingPackageNotes, withoutPackages } from '../../../dev/coven/setupWorktree.mjs';
 import { validateAdapter } from '../../../packages/coven/src/adapter.mjs';
@@ -70,6 +70,28 @@ describe('folia scope sources', () => {
             expect.objectContaining({ key: 'lint:@stylistic/quotes@src/demo/', code: 'D431', count: 1 }),
         ]);
         expect(baseRisk(items[0])).toBe('R0');
+        // 套在一起的前缀只按外面那个出条目：两个条目盖住同样的文件，分进两个任务就会改同一批文件
+        expect(lintItems(suppressions, { rules: ['@stylistic/indent'], prefixes: ['src/demo/', 'src/', 'src/demo/'] }).map(item => item.key)).toEqual([lintKey('@stylistic/indent', 'src/')]);
+    });
+
+    // Compass 里给来源选项列候选值
+    it('offers the codes in the baseline and the rules and folders in the suppressions as option hints', () => {
+        expect(baselineHints(['D190:a.ts->b.ts', 'D190:c.ts->d.ts', 'D301:e.ts', 'D999:gone.ts']).codes).toEqual([
+            { value: 'D190', label: expect.any(String), count: 2 },
+            { value: 'D301', label: expect.any(String), count: 1 },
+        ]);
+        const hints = lintHints({
+            'src/demo/a.ts': { '@stylistic/indent': { count: 3 }, '@stylistic/quotes': { count: 1 } },
+            'src/demo/deep/b.ts': { '@stylistic/indent': { count: 2 } },
+            'root.ts': { '@stylistic/quotes': { count: 9 } },
+        }, { maxPaths: 3 });
+        expect(hints.rules).toEqual([
+            { value: '@stylistic/quotes', label: 'D431', count: 10 },
+            { value: '@stylistic/indent', label: 'D430', count: 5 },
+        ]);
+        // 目录到第三层，按抑制数排，截到 maxPaths；根目录下的文件不算目录
+        expect(hints.paths).toEqual([{ value: 'src/', label: '各规则合计', count: 6 }, { value: 'src/demo/', label: '各规则合计', count: 6 }, { value: 'src/demo/deep/', label: '各规则合计', count: 2 }]);
+        expect(typeof adapter.sources.lint.hints).toBe('function');
     });
 });
 

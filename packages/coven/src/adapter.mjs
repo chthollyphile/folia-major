@@ -22,7 +22,8 @@ import { ACTIONS, isRelativePath } from './contract.mjs';
  *
  * @typedef {{
  *   id: string,
- *   sources: Record<string, { describe: string, options?: string[], list: (ctx: { root: string, options: Record<string, string[]> }) => CovenItem[] }>,
+ *   sources: Record<string, { describe: string, options?: string[], list: (ctx: { root: string, options: Record<string, string[]> }) => CovenItem[],
+ *     hints?: (ctx: { root: string }) => Record<string, Array<{ value: string, label?: string, count?: number }>> }>,
  *   itemKeyPattern?: RegExp,
  *   baseRisk: (item: CovenItem) => string,
  *   ledger?: { files: string[], growth: (ctx: { readBase: (file: string) => string|null, readHead: (file: string) => string|null, renameMap: Map<string, string>, newFiles: Set<string> }) => string[] },
@@ -96,6 +97,7 @@ export function validateAdapter(adapter, { config = {} } = {}) {
     for (const [name, source] of sources) {
         if (!/^[a-z][a-z0-9-]*$/.test(name)) problems.push(`来源名 ${name} 要用小写字母、数字和连字符`);
         if (!isFunction(source?.list)) problems.push(`sources.${name}.list 要是函数`);
+        if (source?.hints !== undefined && !isFunction(source.hints)) problems.push(`sources.${name}.hints 要是函数（给 Compass 列选项的候选值）`);
         if (typeof source?.describe !== 'string') problems.push(`sources.${name}.describe 要写一句说明`);
         for (const option of source?.options ?? []) {
             if (RESERVED_SCOPE_OPTIONS.includes(option)) problems.push(`sources.${name} 的选项 ${option} 和 coven scope 自己的选项重名`);

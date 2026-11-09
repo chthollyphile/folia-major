@@ -19,6 +19,8 @@ npm run coven:claim -- renew
 npm run coven:pr -- --task op3-no2 --title "refactor(lyrics): 把歌词来源的登录判断交给调用方"
 ```
 
+维护者要自己看运行、划范围时，在监控 session 的检出里开 Coven Compass：`npm run coven:compass`（打开 `http://127.0.0.1:4317/`）。它划好的范围存在 `.coven/scopes/`，用 `npm run coven:scope -- --show <范围名>` 读出来。
+
 ## 范围的来源
 
 | 来源 | 内容 | 选项 | 体裁 |

@@ -42,7 +42,7 @@
 | 字段 | 内容 |
 | --- | --- |
 | `id` | 名字 |
-| `sources` | 范围的来源：`{ <名字>: { describe, options?, list({ root, options }) } }`。`list` 返回条目 `{ key, kind, paths, code?, riskPaths?, note? }`，`options` 是这个来源收的命令行选项 |
+| `sources` | 范围的来源：`{ <名字>: { describe, options?, list({ root, options }), hints?({ root }) } }`。`list` 返回条目 `{ key, kind, paths, code?, riskPaths?, note? }`，`options` 是这个来源收的命令行选项。`hints` 可选，返回 `{ <选项>: [{ value, label?, count? }] }`，Compass 拿它给选项列候选值 |
 | `itemKeyPattern` | 可选：维护者手写的认领首行里，条目 key 长什么样（不能带 g、y 标志）；不给就认反引号包着的第一个 token |
 | `baseRisk(item)` | 条目本身的基础风险级（R0–R4）；harness 再按 `risk` 表的路径往上调 |
 | `ledger` | 可选：“只减不增”的账本，`{ files, growth({ readBase, readHead, renameMap, newFiles }) }`。`files` 是相对文件路径。账本文件任何任务都能改，但 `growth` 报出的增长一律拦下（D841）；删掉账本文件也该报 |
@@ -67,8 +67,25 @@
 | `coven verify` | 在工作 worktree 里跑关口和确定性验收项 |
 | `coven pr` | 开 PR、合并，只进集成分支 |
 | `coven setup` | 按适配层准备一个工作 worktree |
+| `coven compass` | Coven Compass：本机网页，看运行和认领、划范围、看历史（见下一节） |
 
 写 GitHub 的命令（claim、pr，以及会改认领评论的 state）只在有 `.coven/state.json` 的检出里能跑，也就是监控 session 那里。
+
+## Coven Compass
+
+`coven compass [--port 4317] [--open]` 在监控 session 的检出里起一个本机网页（只听 `127.0.0.1`），给维护者看和划范围用：
+
+| 页 | 内容 |
+| --- | --- |
+| 运行 | 这次运行的任务、阶段、轮数、用量、PR，升级和维护者的决定，人类介入的时间线；每几秒自动刷新 |
+| 认领 | 借本机 `gh` 读跟踪 issue 上的认领评论，用和脚本同一套判定（`resolveClaims`）列出每个条目归谁、租约到几点、有没有冲突和过期；标出哪些是这个检出的 |
+| 划范围 | 选适配层的来源，按它的选项（`hints` 给候选值）列出候选，风险级和敏感原因由脚本算；勾选后存成 `.coven/scopes/<名字>.json`：条目和 `coven scope` 生成的一样，`source` 另外记下每组勾选用的来源和选项。读过认领后，候选上会标出谁持有，并写明是什么时候读的 |
+| 历史 | `.coven/runs/` 下的运行记录和总结 |
+
+- 它只会写 `.coven/scopes/` 下的范围文件：不写 GitHub，不改 `.coven/state.json`。存范围时按同样的来源和选项重新列一遍：页面传回来的条目对象不算数，有条目已经列不出来（比如刚被修掉），整份拒绝，重新列一次再存。正在跑的运行用的范围不能覆盖；已有的同名范围要页面确认才覆盖；账本读不了时只能存新名字。
+- 存好范围不等于开始运行：把范围名交给监控 session，它照常 `coven state init --scope <名字>` 并记 HD1。
+- 防护：只认 Host 是 `127.0.0.1` 或 `localhost` 的请求（挡 DNS 重绑定），别的网站发来的请求（Origin 不对）一律拒绝；接口要带页面里的一次性令牌；页面带严格的 CSP，来自 GitHub 和账本的文字都按纯文本放进页面。
+- 页面是 `compass/` 下的三个静态文件，没有构建步骤、没有依赖。
 
 ## 关口
 

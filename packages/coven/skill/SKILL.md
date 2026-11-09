@@ -54,7 +54,10 @@ description: Use when a maintainer asks to run Coven on a scope (for example "�
 
 ### 2. 范围（HD1）
 
-`coven scope --help` 列出适配层的来源和它们的选项。范围名写成 `<体裁>` 或 `<体裁>-<标题>`。
+范围有两种来法：
+
+- **维护者在 Coven Compass 里划好了**（`coven compass` 打开的本机网页，存在 `.coven/scopes/<范围名>.json`）：用 `coven scope --show <范围名>` 把清单读出来，和维护者确认一遍就是 HD1，直接到下面的 `init`。
+- **维护者口头给范围**：自己生成。`coven scope --help` 列出适配层的来源和它们的选项。范围名写成 `<体裁>` 或 `<体裁>-<标题>`。
 
 ```bash
 coven scope --name <范围名> --from <来源> [来源的选项]

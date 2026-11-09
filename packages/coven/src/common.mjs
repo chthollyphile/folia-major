@@ -82,6 +82,7 @@ export const isDryRun = (state, config) => Boolean(state?.dryRun) || !config.hd0
 
 function run(command, args, options = {}) {
     const result = spawnSync(command, args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, ...options });
+    if (result.error?.code === 'ETIMEDOUT') throw new Error(`${command} ${args.slice(0, 3).join(' ')} 过了 ${Math.round(options.timeout / 1000)} 秒还没返回，已经停掉`);
     if (result.error) throw new Error(`${command} 没跑起来：${result.error.message}`);
     if (result.status !== 0 && !options.allowFailure) {
         throw new Error(`${command} ${args.slice(0, 3).join(' ')} 失败（退出码 ${result.status}）：${(result.stderr || result.stdout).trim().slice(0, 2000)}`);
@@ -97,7 +98,10 @@ export function tryGit(cwd, args) {
     return { ok: result.status === 0, status: result.status, output: `${result.stdout}${result.stderr}`.trim() };
 }
 
-export const gh = (args, options) => run('gh', args, options).stdout;
+/** gh 卡住（网络、登录弹窗）时不要一直等：监控 session 和 Compass 都是一条一条同步调用的，卡一条就全停。 */
+const GH_TIMEOUT_MS = 120_000;
+
+export const gh = (args, options) => run('gh', args, { timeout: GH_TIMEOUT_MS, ...options }).stdout;
 
 /** gh api 的分页结果，配 --jq 输出一行一个 JSON。 */
 export function ghApiLines(endpoint, jq) {

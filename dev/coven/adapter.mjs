@@ -42,14 +42,16 @@ export function baselineItems(entries, { codes = [] } = {}) {
 
 /**
  * eslint-suppressions.json 里的抑制变成范围条目，每个“规则 × 路径前缀”一项（一个目录几十个文件，逐个认领会刷屏）。
- * 风险按其中每个文件算（riskPaths）。
+ * 风险按其中每个文件算（riskPaths）。同时给了 `src/` 和 `src/demo/` 这样套在一起的前缀时，只按外面那个出条目：
+ * 两个条目会盖住同样的文件，分进两个任务就会改同一批文件。
  * @param {Record<string, Record<string, { count: number }>>} suppressions
  * @param {{ rules: string[], prefixes: string[] }} options
  */
 export function lintItems(suppressions, { rules, prefixes }) {
     const items = [];
+    const outer = [...new Set(prefixes)].filter((prefix, _index, all) => !all.some(other => other !== prefix && prefix.startsWith(other)));
     for (const rule of rules) {
-        for (const prefix of prefixes) {
+        for (const prefix of outer) {
             const files = Object.keys(suppressions).filter(file => file.startsWith(prefix) && suppressions[file][rule]).sort();
             if (files.length === 0) continue;
             const count = files.reduce((sum, file) => sum + suppressions[file][rule].count, 0);
@@ -62,6 +64,38 @@ export function lintItems(suppressions, { rules, prefixes }) {
     return items;
 }
 
+// ---- Compass 里来源选项的候选值 ----
+
+/** 基线里有哪些代码，各几条（Compass 的 --codes 选项）。 */
+export function baselineHints(entries) {
+    const counts = new Map();
+    for (const key of entries) {
+        const code = key.split(':')[0];
+        if (codeInfo(code)) counts.set(code, (counts.get(code) ?? 0) + 1);
+    }
+    return { codes: [...counts].sort(([a], [b]) => a.localeCompare(b)).map(([code, count]) => ({ value: code, label: codeInfo(code).name, count })) };
+}
+
+/** 抑制文件里有哪些规则、哪些目录（到第三层）有抑制，各多少处（Compass 的 --rules、--paths 选项）。 */
+export function lintHints(suppressions, { maxPaths = 80 } = {}) {
+    const rules = new Map();
+    const dirs = new Map();
+    for (const [file, byRule] of Object.entries(suppressions)) {
+        const total = Object.values(byRule).reduce((sum, entry) => sum + (entry.count ?? 0), 0);
+        for (const [rule, entry] of Object.entries(byRule)) rules.set(rule, (rules.get(rule) ?? 0) + (entry.count ?? 0));
+        const parts = file.split('/').slice(0, -1);
+        for (let depth = 1; depth <= Math.min(3, parts.length); depth++) {
+            const dir = `${parts.slice(0, depth).join('/')}/`;
+            dirs.set(dir, (dirs.get(dir) ?? 0) + total);
+        }
+    }
+    return {
+        rules: [...rules].sort((a, b) => b[1] - a[1]).map(([rule, count]) => ({ value: rule, label: ESLINT_RULE_CODES[rule] ?? 'D490', count })),
+        // 计数是这个目录下所有规则的抑制合计（不随选的规则变）
+        paths: [...dirs].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, maxPaths).map(([dir, count]) => ({ value: dir, label: '各规则合计', count })),
+    };
+}
+
 /** 条目本身的基础风险级。 */
 export function baseRisk(item) {
     if (STYLE_CODES.has(item.code)) return 'R0';
@@ -72,6 +106,8 @@ export function baseRisk(item) {
 // ---- 账本：基线和抑制只减不增 ----
 
 const parseJsonOr = (text, fallback) => (text === null ? fallback : JSON.parse(text));
+
+const readSuppressions = root => JSON.parse(fs.readFileSync(path.join(root, SUPPRESSIONS_FILE), 'utf8'));
 
 /**
  * 基线和抑制有没有增长（harness 的 D841）：不看契约写没写 dedicatus 项，每次都查。
@@ -312,6 +348,7 @@ export default defineAdapter({
             describe: 'Dedicatus 基线（dev/dedicatus/baseline.json）里的条目：边界违规、循环依赖……',
             options: ['codes'],
             list: ({ root, options }) => baselineItems(loadBaseline(root), { codes: options.codes ?? [] }),
+            hints: ({ root }) => baselineHints(loadBaseline(root)),
         },
         lint: {
             describe: 'eslint-suppressions.json 里某条规则在某个目录下的抑制，每个“规则 × 目录”一项',
@@ -320,8 +357,9 @@ export default defineAdapter({
                 const rules = options.rules ?? [];
                 const prefixes = options.paths ?? [];
                 if (rules.length === 0 || prefixes.length === 0) throw new Error('lint 来源要配 --rules 和 --paths');
-                return lintItems(JSON.parse(fs.readFileSync(path.join(root, SUPPRESSIONS_FILE), 'utf8')), { rules, prefixes });
+                return lintItems(readSuppressions(root), { rules, prefixes });
             },
+            hints: ({ root }) => lintHints(readSuppressions(root)),
         },
     },
     itemKeyPattern: /(?:D\d{3}|lint):[^\s`·]+/,
