@@ -866,6 +866,7 @@ export default {
     "scene": "场景",
     "sceneNone": "关",
     "sceneSettings": "场景设置",
+    "sceneNoSettings": "普通播放页没有场景设置",
     "sceneQuality": "画质",
     "sceneQuality_low": "低",
     "sceneQuality_medium": "中",

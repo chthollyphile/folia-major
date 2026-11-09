@@ -866,6 +866,7 @@ export default {
     "scene": "Scene",
     "sceneNone": "Off",
     "sceneSettings": "Scene settings",
+    "sceneNoSettings": "The plain player page has no scene settings",
     "sceneQuality": "Quality",
     "sceneQuality_low": "Low",
     "sceneQuality_medium": "Medium",

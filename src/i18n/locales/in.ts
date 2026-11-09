@@ -866,6 +866,7 @@ export default {
     "scene": "Adegan",
     "sceneNone": "Mati",
     "sceneSettings": "Pengaturan adegan",
+    "sceneNoSettings": "Halaman pemutar biasa tidak punya pengaturan adegan",
     "sceneQuality": "Kualitas",
     "sceneQuality_low": "Rendah",
     "sceneQuality_medium": "Sedang",

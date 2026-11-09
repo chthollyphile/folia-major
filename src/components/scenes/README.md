@@ -27,8 +27,8 @@ src/components/scenes/
     useSceneSettingsStore.ts  选了哪个场景、每个场景的画质 / 视点 / 设置值（键 scene_id、scene_options）
     useSoundTracingStore.ts   声线追踪开关和耳机/音箱，所有场景共用（键 scene_room_sound、scene_room_output，沿用旧名）
     SceneRow.tsx              播放面板外观区的「场景」一行，「场景设置」小浮层是 SceneSettingsPanel.tsx
-    SceneWindow.tsx           设置「外观」页「场景」一行打开的窗口：场景名单，选中场景自己的设置
-    SoundTracingGroup.tsx     场景窗口里的「声线追踪」一组
+    SceneWindow.tsx           设置「外观」页「场景」一行打开的窗口，照歌词样式工作台：场景卡、「场景设置」「声线追踪」两个标签
+    SoundTracingGroup.tsx     场景窗口「声线追踪」标签里的一组
     SeatMap.tsx               座位图
 src/types/sceneIds.ts  内建场景 id 清单和 id 规矩
 src/services/sceneSound/  房间声：acousticsTypes.ts（和声学进程的约定）、acousticMaterials.ts（声学材质表）、

@@ -5,7 +5,7 @@ import { useChosenScene } from '../registry';
 import { useSoundTracingStore, type SoundTracingOutput } from './useSoundTracingStore';
 
 // src/components/scenes/settings/SoundTracingGroup.tsx
-// 场景窗口里的「声线追踪」一组：总开关，开着时下面是耳机/音箱。所有场景共用；
+// 场景窗口「声线追踪」标签里的一组（标签就是它的标题）：总开关，开着时下面是耳机/音箱。所有场景共用；
 // 没选场景或选的场景不放音乐（清单 sound.music 不是 'speakers'）时开关不能点。
 
 const OUTPUTS: readonly SoundTracingOutput[] = ['headphones', 'speakers'];
@@ -22,7 +22,7 @@ const SoundTracingGroup: React.FC = () => {
     const on = supported && enabled;
 
     return (
-        <Group def={SOUND}>
+        <Group def={SOUND} bare>
             <Row label={t('ui.soundTracing')} hint={supported ? undefined : t('ui.soundTracingUnsupported')} disabled={!supported}>
                 <Toggle checked={on} onChange={setEnabled} disabled={!supported} />
             </Row>
