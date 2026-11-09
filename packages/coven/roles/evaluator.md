@@ -8,7 +8,7 @@
 
 {{contract}}
 
-## 确定性检查结果（coven:verify 跑的）
+## 确定性检查结果（coven verify 跑的）
 
 {{verify}}
 
@@ -16,10 +16,10 @@
 
 1. 看全部改动：`git -C {{worktree}} diff {{base}} {{head}}`，再加 `--stat -M` 看挪动，`git -C {{worktree}} log --oneline {{base}}..{{head}}` 看提交怎么分的。
 2. 逐项判断验收项：
-   - 确定性的（typecheck、unit、dedicatus、baseline）以上面的结果为准，没过的不能判成过。
-   - review：diff 是不是只有搬移和改引用、没有行为变化；挪文件的提交是不是只挪不改；有没有出 `scope.paths`；有没有新加的 `eslint-disable`、基线条目或抑制条目。
-   - preview / desktop：{{runRequirement}}
-3. 按 `skills/development-workflow` 的严重度标准列问题（critical / high / medium / low），每条写文件、行号、问题和建议的改法。
+   - 确定性的（{{deterministicKinds}}）以上面的结果为准，没过的不能判成过。
+{{project.reviewChecks}}
+   - 要真跑应用的项：{{runRequirement}}
+3. 按{{project.severity}}列问题（critical / high / medium / low），每条写文件、行号、问题和建议的改法。
 4. 契约本身有问题（要改需求、要在两种行为之间取舍）时，`verdict` 写 `escalate`，在 `escalation` 里给出代码 D812、问题和选项。
 
 判不过的情形：任何验收项没过、任何成立的 medium 及以上问题、任何没有验证的项。

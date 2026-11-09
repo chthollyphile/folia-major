@@ -1,31 +1,30 @@
 import crypto from 'node:crypto';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { catalogueLabel } from './catalogue.mjs';
-import { ROOT, covenPath, gh, ghApiLines, isDryRun, loadConfig, loadState, nowIso, parseArgs, readJson, requireSupervisor, runCli, saveState, splitList } from './common.mjs';
-// dev/coven/claim.mjs
+import { covenPath, gh, ghApiLines, isDryRun, nowIso, parseArgs, prLabel, readJson, requireSupervisor, saveState, splitList } from './common.mjs';
+// packages/coven/src/claim.mjs
 // `coven:` 认领协议（plan/coven-semi-auto-plan.md 第 4 节）：多位维护者各自跑监控 session 时，不处理同一条。
 // 一条认领从头到尾只用同一条评论，状态变了就编辑它。判定只看维护者（OWNER、MEMBER、COLLABORATOR）发的评论，
 // 按 claimId 而不是账号区分，所以同一位维护者开两个监控 session 也不会撞车。
 //
-//   npm run coven:claim -- status                       范围里每条现在归谁
-//   npm run coven:claim -- claim [--items k1,k2]        认领空闲的条目（发评论 → 再读一次 → 输了就让出）
-//   npm run coven:claim -- renew                        续租自己的认领（监控 session 每次被唤醒时跑）
-//   npm run coven:claim -- set --task <id> --state working --pr 12   改认领状态（一般由 coven:state、coven:pr 代劳）
-//   npm run coven:claim -- release                      收尾：释放所有没完成的认领
+//   coven claim status                       范围里每条现在归谁
+//   coven claim claim [--items k1,k2]        认领空闲的条目（发评论 → 再读一次 → 输了就让出）
+//   coven claim renew                        续租自己的认领（监控 session 每次被唤醒时跑；coven pr 开 PR、合并前也会自己续）
+//   coven claim set --task <id> --state working --pr 12   改认领状态（一般由 coven state、coven pr 代劳）
+//   coven claim release                      收尾：释放所有没完成的认领
 //
 // 干跑（状态文件 dryRun，或配置 hd0Confirmed 为 false）时评论只记在 .coven/state.json 的 dryComments 里，GitHub 上什么都不发。
 
 export const MAINTAINER_ASSOCIATIONS = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
 export const CLAIM_STATES = ['claimed', 'working', 'blocked', 'handed-off', 'released', 'done'];
-/** coven:claim -- set 能改成的状态（转交 handed-off 要指定接手人，v1 不支持）。 */
+/** coven claim set 能改成的状态（转交 handed-off 要指定接手人，v1 不支持）。 */
 export const SETTABLE_STATES = ['claimed', 'working', 'blocked', 'released', 'done'];
 /** 占着条目的状态：租约内别人不能接。 */
 export const ACTIVE_STATES = new Set(['claimed', 'working', 'blocked', 'handed-off']);
 
 const MARKER = /<!--\s*coven:v1\s+(\{[\s\S]*?\})\s*-->/;
 const FIRST_LINE = /^coven:\s*(claimed|working|blocked|handed-off|released|done)\b(.*)$/i;
-const ITEM_IN_LINE = /`?((?:D\d{3}|lint):[^\s`·]+)`?/;
+/** 手写认领首行里的条目：适配层给了 key 的样子（itemKeyPattern）就按它认，否则认反引号包起来的第一个 token。 */
+const BACKTICKED = /`([^`\s]+)`/;
 const ACTION_LABELS = { refactor: '重构', 'issue-to-pr': 'issue → PR', sort: '分拣', fix: '就地修复', rewrite: '重写' };
 
 /**
@@ -44,9 +43,9 @@ const timeOf = value => Date.parse(value);
  * 读一条评论。不是 `coven:` 开头的返回 null；是的话返回认领，格式不对的带 problem。
  * 没有隐藏标记的（维护者手写的 `coven: claimed @自己`）按首行解析，租约从最后编辑时间起算。
  * @param {{ id: number|string, author: string, association: string, createdAt: string, updatedAt?: string, body: string }} comment
- * @param {{ leaseHours: number, defaultItem?: string | null }} options
+ * @param {{ leaseHours: number, defaultItem?: string | null, itemPattern?: RegExp | null }} options
  */
-export function parseClaimComment(comment, { leaseHours, defaultItem = null }) {
+export function parseClaimComment(comment, { leaseHours, defaultItem = null, itemPattern = null }) {
     const body = String(comment.body ?? '').replace(/\r\n/g, '\n');
     const firstLine = body.trimStart().split('\n')[0].trim();
     const line = FIRST_LINE.exec(firstLine);
@@ -84,7 +83,7 @@ export function parseClaimComment(comment, { leaseHours, defaultItem = null }) {
     const mentions = [...line[2].matchAll(/@([\w-]+)/g)].map(match => match[1]);
     const prMatch = /PR #(\d+)/.exec(line[2]);
     const state = line[1].toLowerCase();
-    const item = defaultItem ?? ITEM_IN_LINE.exec(line[2])?.[1] ?? null;
+    const item = defaultItem ?? (itemPattern ? itemPattern.exec(line[2])?.[0] : null) ?? BACKTICKED.exec(line[2])?.[1] ?? null;
     if (!item) return { ...base, problem: '手写的认领没写条目' };
     return {
         ...base,
@@ -120,16 +119,16 @@ function compareComments(a, b) {
  * - 租约内的有效认领里，评论创建得最早的持有条目，其余记进 conflicts（D830）。
  * - 租约过期的记进 expired（D832），条目算空闲。
  * @param {Array<{ id: number|string, author: string, association: string, createdAt: string, updatedAt?: string, body: string }>} comments
- * @param {{ now: number|string, leaseHours: number, defaultItem?: string|null }} options
+ * @param {{ now: number|string, leaseHours: number, defaultItem?: string|null, itemPattern?: RegExp|null }} options
  * @returns {{ items: Map<string, ClaimResolution>, ignored: Array<{ code: string|null, commentId: number|string, author: string, reason: string }> }}
  */
-export function resolveClaims(comments, { now, leaseHours, defaultItem = null }) {
+export function resolveClaims(comments, { now, leaseHours, defaultItem = null, itemPattern = null }) {
     const nowMs = typeof now === 'number' ? now : timeOf(now);
     const ignored = [];
     /** @type {Claim[]} */
     const claims = [];
     for (const comment of [...comments].sort(compareComments)) {
-        const claim = parseClaimComment(comment, { leaseHours, defaultItem });
+        const claim = parseClaimComment(comment, { leaseHours, defaultItem, itemPattern });
         if (!claim) continue;
         if (!MAINTAINER_ASSOCIATIONS.has(String(comment.association).toUpperCase())) {
             ignored.push({ code: 'D831', commentId: comment.id, author: comment.author, reason: '不是维护者发的 coven: 评论' });
@@ -183,11 +182,11 @@ export function renderClaimComment(claim, config) {
     const takeover = claim.takeover ? ` · 接手 @${claim.takeover.owner} 的过期认领` : '';
     const head = {
         claimed: `coven: claimed @${claim.owner} · ${subject} · ${lease}${takeover}`,
-        working: `coven: working @${claim.owner} (PR #${claim.pr}) · ${subject} · ${lease}`,
+        working: `coven: working @${claim.owner} (${prLabel(claim.pr)}) · ${subject} · ${lease}`,
         blocked: `coven: blocked @${claim.owner} (${claim.code}) · ${subject} · ${lease}`,
         'handed-off': `coven: handed-off @${claim.from} → @${claim.owner} · ${subject} · ${lease}`,
         released: `coven: released @${claim.owner} · ${subject}`,
-        done: `coven: done @${claim.owner} · ${subject}${claim.pr ? ` (PR #${claim.pr})` : ''}`,
+        done: `coven: done @${claim.owner} · ${subject}${claim.pr ? ` (${prLabel(claim.pr)})` : ''}`,
     }[claim.state];
     if (!head) throw new Error(`不认识的认领状态 ${claim.state}`);
     const marker = {
@@ -254,13 +253,13 @@ const leaseFrom = (nowMs, hours) => new Date(nowMs + hours * 3600_000).toISOStri
  * 已经是自己（同一个 claimId）持有的跳过；别人持有的、已完成的记进 skipped。
  * @returns {{ won: string[], skipped: Array<{ item: string, reason: string, holder?: object }> }}
  */
-export function claimItems({ keys, state, config, io, now = Date.now() }) {
+export function claimItems({ keys, state, config, io, now = Date.now(), itemPattern = null }) {
     const won = [];
     const skipped = [];
     const posted = [];
     const byIssue = groupByTarget(keys, state, io.dryRun);
     for (const [issue, itemKeys] of byIssue) {
-        const before = resolveClaims(io.list(issue), { now, leaseHours: config.leaseHours, defaultItem: defaultItemOf(issue, itemKeys) });
+        const before = resolveClaims(io.list(issue), { now, leaseHours: config.leaseHours, defaultItem: defaultItemOf(issue, itemKeys), itemPattern });
         for (const key of itemKeys) {
             const mine = state.items[key];
             const resolution = resolutionOf(before, key);
@@ -294,7 +293,7 @@ export function claimItems({ keys, state, config, io, now = Date.now() }) {
     }
     // 再读一次：两边同时认领时，评论创建得早的赢
     for (const [issue, entries] of groupPosted(posted)) {
-        const after = resolveClaims(io.list(issue), { now, leaseHours: config.leaseHours, defaultItem: defaultItemOf(issue, entries.map(entry => entry.key)) });
+        const after = resolveClaims(io.list(issue), { now, leaseHours: config.leaseHours, defaultItem: defaultItemOf(issue, entries.map(entry => entry.key)), itemPattern });
         for (const { key, claim } of entries) {
             const holder = resolutionOf(after, key).holder;
             if (holder?.claimId === claim.claimId) {
@@ -313,7 +312,7 @@ function groupByTarget(keys, state, dryRun) {
     const groups = new Map();
     for (const key of keys) {
         const issue = claimTargetOf(key, state);
-        if (!issue && !dryRun) throw new Error('配置里没有 trackingIssue：基线条目的认领要发在跟踪 issue 上（dev/coven/config.json）');
+        if (!issue && !dryRun) throw new Error('配置里没有 trackingIssue：不属于某个 issue 或 PR 的条目，认领要发在跟踪 issue 上');
         if (!groups.has(issue)) groups.set(issue, []);
         groups.get(issue).push(key);
     }
@@ -337,12 +336,12 @@ const defaultItemOf = (issue, keys) => (keys.length === 1 && /^(?:issue|pr):/.te
  * 改之前先判定一次：条目已经不归自己（被接手、被更早的认领占了）就不改，记进 lost。
  * @returns {{ updated: string[], lost: Array<{ item: string, holder: Claim|null }> }}
  */
-export function updateClaims({ keys, state, config, io, change = {}, now = Date.now() }) {
+export function updateClaims({ keys, state, config, io, change = {}, now = Date.now(), itemPattern = null }) {
     const updated = [];
     const lost = [];
     const relevant = keys.filter(key => state.items[key]?.commentId && ACTIVE_STATES.has(state.items[key].claim?.state));
     for (const [issue, itemKeys] of groupByTarget(relevant, state, io.dryRun)) {
-        const resolved = resolveClaims(io.list(issue), { now, leaseHours: config.leaseHours, defaultItem: defaultItemOf(issue, itemKeys) });
+        const resolved = resolveClaims(io.list(issue), { now, leaseHours: config.leaseHours, defaultItem: defaultItemOf(issue, itemKeys), itemPattern });
         const revived = [];
         for (const key of itemKeys) {
             const mine = state.items[key];
@@ -367,7 +366,7 @@ export function updateClaims({ keys, state, config, io, change = {}, now = Date.
         }
         if (revived.length === 0) continue;
         // 续上之后再读一次：同一时间有人点名接手了它，就让出
-        const after = resolveClaims(io.list(issue), { now, leaseHours: config.leaseHours, defaultItem: defaultItemOf(issue, itemKeys) });
+        const after = resolveClaims(io.list(issue), { now, leaseHours: config.leaseHours, defaultItem: defaultItemOf(issue, itemKeys), itemPattern });
         for (const key of revived) {
             const mine = state.items[key];
             const holder = resolutionOf(after, key).holder;
@@ -386,10 +385,10 @@ export function updateClaims({ keys, state, config, io, change = {}, now = Date.
  * 这些条目里，现在不归这个监控 session（claimId）持有的。开 PR、推送之前先查。
  * @returns {Array<{ item: string, holder: Claim|null }>}
  */
-export function unheldItems({ keys, state, config, io, now = Date.now() }) {
+export function unheldItems({ keys, state, config, io, now = Date.now(), itemPattern = null }) {
     const result = [];
     for (const [issue, itemKeys] of groupByTarget(keys, state, io.dryRun)) {
-        const resolved = resolveClaims(io.list(issue), { now, leaseHours: config.leaseHours, defaultItem: defaultItemOf(issue, itemKeys) });
+        const resolved = resolveClaims(io.list(issue), { now, leaseHours: config.leaseHours, defaultItem: defaultItemOf(issue, itemKeys), itemPattern });
         for (const key of itemKeys) {
             const holder = resolutionOf(resolved, key).holder;
             if (!state.items[key]?.claimId || holder?.claimId !== state.items[key].claimId) result.push({ item: key, holder });
@@ -403,16 +402,16 @@ export const keysOfTask = (state, task) => Object.keys(state.items).filter(key =
 
 // ---- 命令行 ----
 
-function printStatus(state, config, io) {
+function printStatus(state, config, io, itemPattern) {
     const keys = Object.keys(state.items);
     for (const [issue, itemKeys] of groupByTarget(keys, state, io.dryRun)) {
-        const resolved = resolveClaims(io.list(issue), { now: Date.now(), leaseHours: config.leaseHours, defaultItem: defaultItemOf(issue, itemKeys) });
+        const resolved = resolveClaims(io.list(issue), { now: Date.now(), leaseHours: config.leaseHours, defaultItem: defaultItemOf(issue, itemKeys), itemPattern });
         for (const note of resolved.ignored) console.log(`  忽略评论 ${note.commentId}（@${note.author}）：${note.code ? `${note.code} ` : ''}${note.reason}`);
         for (const key of itemKeys) {
             const resolution = resolutionOf(resolved, key);
             const holder = resolution.holder;
             const mine = holder && holder.claimId === state.items[key].claimId ? '（我）' : '';
-            const who = holder ? `@${holder.owner}${mine} ${holder.state}${holder.pr ? ` PR #${holder.pr}` : ''}，租约至 ${formatLease(holder.leaseUntil, config)}` : '';
+            const who = holder ? `@${holder.owner}${mine} ${holder.state}${holder.pr ? ` ${prLabel(holder.pr)}` : ''}，租约至 ${formatLease(holder.leaseUntil, config)}` : '';
             console.log(`${resolution.status.padEnd(5)} ${key} ${who}`);
             for (const conflict of resolution.conflicts) console.log(`      D830 冲突：@${conflict.owner}（${conflict.claimId}）`);
             for (const expired of resolution.expired) console.log(`      D832 过期：@${expired.owner}（${expired.claimId}）`);
@@ -420,18 +419,18 @@ function printStatus(state, config, io) {
     }
 }
 
-function main() {
-    const { positional, options } = parseArgs(process.argv.slice(2), ['dry-run'], ['items', 'task', 'state', 'pr', 'code']);
+export async function run(host, argv) {
+    const { root, config, adapter } = host;
+    const itemPattern = adapter.itemKeyPattern ?? null;
+    const { positional, options } = parseArgs(argv, ['dry-run'], ['items', 'task', 'state', 'pr', 'code']);
     const command = positional[0];
-    requireSupervisor(ROOT);
-    const state = loadState(ROOT);
-    const config = loadConfig(ROOT);
+    const state = requireSupervisor(root);
     const dryRun = Boolean(options['dry-run']) || isDryRun(state, config);
-    const io = githubIo(state, config, { dryRun, readRemote: Boolean(state.trackingIssue), persist: () => saveState(ROOT, state) });
-    const scope = readJson(covenPath(ROOT, 'scopes', `${state.scope}.json`));
+    const io = githubIo(state, config, { dryRun, readRemote: Boolean(state.trackingIssue), persist: () => saveState(root, state) });
+    const scope = readJson(covenPath(root, 'scopes', `${state.scope}.json`));
     const scopeKeys = scope.items.map(item => item.key);
     if (command === 'status') {
-        printStatus(state, config, io);
+        printStatus(state, config, io, itemPattern);
         return;
     }
     if (command === 'claim') {
@@ -439,8 +438,8 @@ function main() {
         const unknown = keys.filter(key => !scopeKeys.includes(key));
         if (unknown.length > 0) throw new Error(`这些条目不在范围 ${state.scope} 里：${unknown.join('，')}`);
         for (const key of keys) state.items[key] ??= { action: scope.items.find(item => item.key === key).action, risk: scope.items.find(item => item.key === key).risk };
-        const { won, skipped } = claimItems({ keys, state, config, io });
-        saveState(ROOT, state);
+        const { won, skipped } = claimItems({ keys, state, config, io, itemPattern });
+        saveState(root, state);
         console.log(`${dryRun ? '[干跑] ' : ''}认领到 ${won.length} 条，跳过 ${skipped.length} 条。`);
         for (const entry of skipped) console.log(`  跳过 ${entry.item}：${entry.reason}`);
         return;
@@ -454,13 +453,11 @@ function main() {
         if (command === 'set' && !SETTABLE_STATES.includes(change.state)) throw new Error(`--state 只能是 ${SETTABLE_STATES.join('、')}`);
         if (change.state === 'blocked' && !change.code) throw new Error('blocked 要带 --code（D810–D813 等）');
         if (change.state === 'working' && !change.pr) throw new Error('working 要带 --pr');
-        const { updated, lost } = updateClaims({ keys: pick(), state, config, io, change });
-        saveState(ROOT, state);
+        const { updated, lost } = updateClaims({ keys: pick(), state, config, io, change, itemPattern });
+        saveState(root, state);
         console.log(`${dryRun ? '[干跑] ' : ''}改了 ${updated.length} 条认领。`);
         for (const entry of lost) console.log(`  D830 ${entry.item} 已经不归这个监控 session：${entry.holder ? `@${entry.holder.owner} 持有` : '没有有效认领'}。停掉这条的工作，告诉维护者。`);
         return;
     }
-    throw new Error('用法：npm run coven:claim -- status | claim [--items …] | renew | set --task <id> --state <状态> [--pr n] [--code Dxxx] | release');
+    throw new Error('用法：coven claim status | claim [--items …] | renew | set --task <id> --state <状态> [--pr n] [--code Dxxx] | release');
 }
-
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) runCli(main);

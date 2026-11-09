@@ -1,4 +1,4 @@
-// dev/coven/catalogue.mjs
+// packages/coven/src/catalogue.mjs
 // Coven 的代号按古典乐谱编目：一次真跑是一个作品号 Op. n，干跑是 WoO n（没有作品号的作品，没正式发表），
 // 运行里的任务是 No. k，planner 起的名字做标题；范围用音乐体裁起名；风险级在给人看的地方配速度术语。
 // 显示名给人读（`Op. 3 No. 2 "lyric-match-sources"`），机器名进分支、文件名和 id（`op3-no2`），两者在这里互转。
@@ -96,7 +96,7 @@ export function nextTaskNumber(run, taskIds) {
  */
 export const GENRES = {
     fugue: { label: 'Fugue', use: '理清几个模块之间的依赖：边界违规、循环依赖（基线条目）' },
-    etude: { label: 'Étude', use: '机械、重复的格式清理（ESLint 抑制）' },
+    etude: { label: 'Étude', use: '机械、重复的格式清理（lint 抑制之类）' },
     variations: { label: 'Variations', use: '同一种改法用在许多处' },
     interlude: { label: 'Interlude', use: '两次大运行之间的零星小修' },
     prelude: { label: 'Prelude', use: '给后面的运行铺路：先挪文件、拆模块' },

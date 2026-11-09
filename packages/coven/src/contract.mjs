@@ -1,43 +1,42 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { BLOCKED_CODE } from './codes.mjs';
 import { TITLE, isTaskId, nextTaskNumber, taskIdOf, taskLabel, tempoLabel } from './catalogue.mjs';
-import { ROOT, covenPath, loadConfig, loadState, requireCurrentFormat, nowIso, parseArgs, readJson, runCli, saveState, trackedFilesUnder, writeJson, writeText } from './common.mjs';
+import { covenPath, loadState, nowIso, parseArgs, readJson, requireCurrentFormat, saveState, trackedFilesUnder, writeJson, writeText } from './common.mjs';
 import { RISKS, maxRisk, riskRank, scopeRiskOf } from './risk.mjs';
-// dev/coven/contract.mjs
+// packages/coven/src/contract.mjs
 // 契约：每个任务一份，列出目标、不做什么、能动的路径和验收项。HD2 批准的那一版存成 .approved.json，
 // 之后只允许翻验收项的 passes（D804），diff 不能出 scope.paths（D803），有一项没过就不能开 PR（D802）。
 //
-//   npm run coven:contract -- import <planner 输出的 JSON>   按顺序给任务编号（op<n>-no<k>），写入契约，在状态文件里登记任务和分组
-//   npm run coven:contract -- show <任务>                      给维护者看（HD2）
-//   npm run coven:contract -- approve <任务> --by <账号>       HD2 批准；R0/R1 用 --auto 跳过 HD2；批准过的只有维护者要求时 --reapprove
-//   npm run coven:contract -- verdict <任务> <evaluator 输出的 JSON>   按评审结论翻 passes，写评审记录
+//   coven contract import <planner 输出的 JSON>   按顺序给任务编号（op<n>-no<k>），写入契约，在状态文件里登记任务和分组
+//   coven contract show <任务>                      给维护者看（HD2）
+//   coven contract approve <任务> --by <账号>       HD2 批准；R0/R1 用 --auto 跳过 HD2；批准过的只有维护者要求时 --reapprove
+//   coven contract verdict <任务> <evaluator 输出的 JSON>   按评审结论翻 passes，写评审记录
+//
+// 验收种类（verify.kind）由适配层的 checks 定：确定性的由 coven verify 跑出结果，其余由 evaluator 判断。
+// 适配层账本里的文件（ledger.files，Folia 是基线和抑制文件）任何任务都可以改，但只许变小（verify 的 D841）。
 
-/** verify.mjs 能自己跑出结果的验收项；其余由 evaluator 判断（读代码、浏览器预览、桌面版、组件测试）。 */
-export const DETERMINISTIC_KINDS = ['typecheck', 'unit', 'dedicatus', 'baseline'];
-export const JUDGED_KINDS = ['review', 'preview', 'desktop', 'component'];
 export const ACTIONS = ['refactor', 'issue-to-pr', 'fix'];
-
-/** 任何任务都可以改的文件：基线和抑制只许变小，由 verify 的 baseline 检查和 Dedicatus 的 D001 把关。 */
-export const ALWAYS_IN_SCOPE = ['dev/dedicatus/baseline.json', 'eslint-suppressions.json'];
 
 const SAFE_PATH = /^[\w@.\-/]+$/;
 
-const isRelativePath = value => typeof value === 'string' && value.length > 0 && SAFE_PATH.test(value) && !value.startsWith('/') && !value.split('/').includes('..');
+/** 仓库内的相对路径：不能是绝对路径、不能有 ..，只用常见字符（这些路径会进命令行参数）。 */
+export const isRelativePath = value => typeof value === 'string' && value.length > 0 && SAFE_PATH.test(value) && !value.startsWith('/') && !value.split('/').includes('..');
 
 /**
  * 契约格式检查。返回问题列表，空数组表示合格。
  * 风险级（D807）不能低于：条目在范围里算出的级别，以及 scope.paths 能改到的路径的级别（给了 riskRules 时算）。
  * 否则一个 R1 契约把 scope 写成 `.github/workflows/` 就能用 --auto 跳过 HD2。
+ * 验收种类和它们各自的格式要求（validate）来自适配层的 checks；requiredKinds 是某种动作必须有的验收（Folia：重构要有 baseline，D806）。
  * @param {any} contract
- * @param {{ itemRisks?: Record<string, string>, riskRules?: any, filesUnder?: (dir: string) => string[] }} [options]
+ * @param {{ checks: Record<string, any>, requiredKinds?: Record<string, string[]>, itemRisks?: Record<string, string>, riskRules?: any, filesUnder?: (dir: string) => string[] }} options
  */
-export function validateContract(contract, { itemRisks = {}, riskRules = null, filesUnder = () => [] } = {}) {
+export function validateContract(contract, { checks, requiredKinds = {}, itemRisks = {}, riskRules = null, filesUnder = () => [] }) {
     const problems = [];
     const add = (message, code = null) => problems.push({ code, message });
     if (!contract || typeof contract !== 'object') return [{ code: null, message: '契约不是对象' }];
-    if (!isTaskId(contract.task)) add('task 要是 op<n>-no<k> 这样的编号（由 coven:contract -- import 分配）');
+    if (!isTaskId(contract.task)) add('task 要是 op<n>-no<k> 这样的编号（由 coven contract import 分配）');
     if (!TITLE.test(contract.title ?? '')) add('title 要用小写字母、数字和连字符，最长 48 个字符');
     if (!Array.isArray(contract.items) || contract.items.length === 0 || contract.items.some(item => typeof item !== 'string')) add('items 要是非空的字符串数组（基线 key）');
     if (!RISKS.includes(contract.risk)) add(`risk 只能是 ${RISKS.join('、')}`);
@@ -59,15 +58,17 @@ export function validateContract(contract, { itemRisks = {}, riskRules = null, f
             if (typeof criterion?.description !== 'string' || !criterion.description.trim()) add(`${label} 缺 description`);
             if (typeof criterion?.passes !== 'boolean') add(`${label} 缺 passes`);
             const kind = criterion?.verify?.kind;
-            if (![...DETERMINISTIC_KINDS, ...JUDGED_KINDS].includes(kind)) add(`${label} 的 verify.kind 不认识：${kind}`);
-            if (kind === 'unit') {
-                const targets = [].concat(criterion.verify.target ?? []);
-                if (targets.length === 0 || targets.some(target => !isRelativePath(target))) add(`${label} 的 unit 要写 target（测试文件的相对路径）`);
+            const check = typeof kind === 'string' && Object.hasOwn(checks, kind) ? checks[kind] : undefined;
+            if (!check) add(`${label} 的 verify.kind 不认识：${kind}（可用：${Object.keys(checks).join('、')}）`);
+            else {
+                const problem = check.validate?.(criterion.verify);
+                if (problem) add(`${label}：${problem}`);
             }
-            if (kind === 'dedicatus' && criterion.verify.target !== undefined && !['graph', 'all'].includes(criterion.verify.target)) add(`${label} 的 dedicatus target 只能是 graph 或 all`);
         }
-        if (contract.action === 'refactor' && !criteria.some(criterion => criterion?.verify?.kind === 'baseline')) {
-            add('重构任务要有一项 baseline 验收（条目从基线消掉，D806）', 'D806');
+        for (const kind of (typeof contract.action === 'string' && Object.hasOwn(requiredKinds, contract.action) ? requiredKinds[contract.action] : [])) {
+            if (!criteria.some(criterion => criterion?.verify?.kind === kind)) {
+                add(`${contract.action} 任务要有一项 ${kind} 验收${contract.action === 'refactor' ? '（条目要真的消掉，D806）' : ''}`, contract.action === 'refactor' ? 'D806' : null);
+            }
         }
     }
     const computed = (contract.items ?? []).map(item => itemRisks[item]).filter(Boolean);
@@ -116,18 +117,20 @@ export function compareWithApproved(approved, current) {
     return [{ code: 'D804', message: `契约在批准后被改了：${changed.join('、') || '内容'}（只允许翻 passes）` }];
 }
 
-/** 路径在不在范围里：范围项以 / 结尾的按目录前缀，否则按整个文件名。 */
-export const inScope = (file, scopePaths) => [...scopePaths, ...ALWAYS_IN_SCOPE].some(entry => (entry.endsWith('/') ? file.startsWith(entry) : file === entry));
+/** 路径在不在范围里：范围项以 / 结尾的按目录前缀，否则按整个文件名。账本文件（alwaysInScope）总在范围里。 */
+export const inScope = (file, scopePaths, alwaysInScope = []) => [...scopePaths, ...alwaysInScope].some(entry => (entry.endsWith('/') ? file.startsWith(entry) : file === entry));
 
 /**
  * diff 有没有出范围（D803）。改名的新旧两个路径都要在范围里。
  * @param {Array<{ path: string, oldPath?: string }>} changed
+ * @param {string[]} scopePaths
+ * @param {string[]} [alwaysInScope] 适配层账本里的文件
  */
-export function checkScope(changed, scopePaths) {
+export function checkScope(changed, scopePaths, alwaysInScope = []) {
     const outside = [];
     for (const entry of changed) {
         for (const file of [entry.oldPath, entry.path].filter(Boolean)) {
-            if (!inScope(file, scopePaths) && !outside.includes(file)) outside.push(file);
+            if (!inScope(file, scopePaths, alwaysInScope) && !outside.includes(file)) outside.push(file);
         }
     }
     return outside.map(file => ({ code: 'D803', message: `改了契约范围以外的文件：${file}` }));
@@ -137,10 +140,10 @@ export function checkScope(changed, scopePaths) {
 export const failingCriteria = contract => (contract.criteria ?? []).filter(criterion => !criterion.passes).map(criterion => criterion.id);
 
 /**
- * 按 evaluator 的结论翻 passes。确定性的验收项以 verify 的结果为准：evaluator 判过、verify 没过的按没过算。
+ * 按 evaluator 的结论翻 passes。确定性的验收项（适配层 checks 里 deterministic 的）以 verify 的结果为准：evaluator 判过、verify 没过的按没过算。
  * @returns {{ contract: object, overridden: string[], missing: string[] }}
  */
-export function applyVerdict(contract, verdict, verifyResult) {
+export function applyVerdict(contract, verdict, verifyResult, checks) {
     const overridden = [];
     const missing = [];
     const verified = verifyResult?.criteria ?? {};
@@ -151,7 +154,9 @@ export function applyVerdict(contract, verdict, verifyResult) {
             return { ...criterion, passes: false };
         }
         let passes = judged.passes;
-        if (DETERMINISTIC_KINDS.includes(criterion.verify.kind) && passes && verified[criterion.id] !== true) {
+        const kind = criterion.verify?.kind;
+        const deterministic = typeof kind === 'string' && Object.hasOwn(checks, kind) && checks[kind].deterministic;
+        if (deterministic && passes && verified[criterion.id] !== true) {
             passes = false;
             overridden.push(criterion.id);
         }
@@ -275,7 +280,7 @@ export function planImportProblems(state, scope, plan, validateOptions = {}) {
         }
     }
     for (const escalation of plan.escalations ?? []) {
-        if (!/^D8\d\d$/.test(escalation.code ?? '')) errors.push(`升级项的 code 要是 D8xx（收到 ${escalation.code}）`);
+        if (!BLOCKED_CODE.test(escalation.code ?? '')) errors.push(`升级项的 code 要是 D8xx（收到 ${escalation.code}）`);
         for (const item of escalation.items ?? []) {
             if (covered.has(item)) errors.push(`条目 ${item} 既分进了任务、又列在升级里（或者升级里重复）`);
             else if (!available.has(item) && !state.escalations.some(entry => entry.items.includes(item))) errors.push(`升级的条目 ${item} 不是这个监控 session 认领着的`);
@@ -328,11 +333,11 @@ export function approvalProblems({ contract, taskId, task, validateOptions = {},
 export function verdictProblems({ taskId, task, verdict, verify }) {
     const problems = [];
     if (!task) return [`状态文件里没有任务 ${taskId}`];
-    if (task.phase !== 'evaluating') problems.push(`任务在 ${task.phase} 阶段，先 coven:state -- phase ${taskId} evaluating`);
+    if (task.phase !== 'evaluating') problems.push(`任务在 ${task.phase} 阶段，先 coven state phase ${taskId} evaluating`);
     if (verdict.task !== taskId) problems.push(`评审结论写的任务是 ${verdict.task}，不是 ${taskId}`);
     if (verdict.round !== task.rounds) problems.push(`评审结论写的是第 ${verdict.round} 轮，现在是第 ${task.rounds} 轮`);
     if (!['pass', 'fail', 'escalate'].includes(verdict.verdict)) problems.push(`verdict 只能是 pass、fail、escalate，收到 ${verdict.verdict}`);
-    if (!verify) problems.push('还没跑 coven:verify');
+    if (!verify) problems.push('还没跑 coven verify');
     else if (verify.task !== taskId) problems.push(`verify 的结果是任务 ${verify.task} 的`);
     // evaluator 审的是进 evaluating 时 verify 跑的那个提交；之后 verify 又在新提交上跑过，这份结论就不算数
     if (verdict.head !== task.reviewHead) problems.push(`评审结论写的提交是 ${String(verdict.head).slice(0, 7)}，这一轮要审的是 ${String(task.reviewHead).slice(0, 7)}`);
@@ -342,58 +347,62 @@ export function verdictProblems({ taskId, task, verdict, verify }) {
 
 // ---- 命令行 ----
 
-function validateOptionsFor(state) {
-    const scope = readJson(covenPath(ROOT, 'scopes', `${state.scope}.json`));
+/** 契约检查要用的东西：范围里的条目风险、配置的风险表、仓库里的文件、适配层的验收种类。 */
+export function validateOptionsFor(host, state) {
+    const scope = readJson(covenPath(host.root, 'scopes', `${state.scope}.json`));
     return {
         scope,
         options: {
+            checks: host.adapter.checks,
+            requiredKinds: host.adapter.requiredKinds,
             itemRisks: Object.fromEntries(scope.items.map(item => [item.key, item.risk])),
-            riskRules: loadConfig(ROOT).risk,
-            filesUnder: dir => trackedFilesUnder(ROOT, dir),
+            riskRules: host.config.risk,
+            filesUnder: dir => trackedFilesUnder(host.root, dir),
         },
     };
 }
 
-function main() {
-    const { positional, options } = parseArgs(process.argv.slice(2), ['auto', 'reapprove'], ['by']);
+export async function run(host, argv) {
+    const { root, adapter } = host;
+    const { positional, options } = parseArgs(argv, ['auto', 'reapprove'], ['by']);
     const [command, task, file] = positional;
-    const state = requireCurrentFormat(loadState(ROOT));
+    const state = requireCurrentFormat(loadState(root));
     if (command === 'import') {
         if (!task) throw new Error('要给 planner 输出的 JSON 文件');
         const numbered = numberPlan(state, readJson(path.resolve(task)));
         if (numbered.errors.length > 0) throw new Error(`planner 的输出不合格，什么都没导入：\n${numbered.errors.join('\n')}`);
         const plan = numbered.plan;
-        const { scope, options: validateOptions } = validateOptionsFor(state);
+        const { scope, options: validateOptions } = validateOptionsFor(host, state);
         const { errors, uncovered, fromBlocked } = planImportProblems(state, scope, plan, validateOptions);
         if (errors.length > 0) throw new Error(`planner 的输出不合格，什么都没导入：\n${errors.join('\n')}`);
-        for (const contract of plan.tasks ?? []) writeJson(contractFile(ROOT, contract.task), contract);
+        for (const contract of plan.tasks ?? []) writeJson(contractFile(root, contract.task), contract);
         applyPlanImport(state, plan);
-        saveState(ROOT, state);
+        saveState(root, state);
         console.log(`登记了 ${(plan.tasks ?? []).length} 个任务，${(plan.escalations ?? []).length} 条新的升级。`);
         for (const contract of plan.tasks ?? []) console.log(`  ${contract.task}  ${taskLabel(contract.task, contract.title)}`);
-        if (fromBlocked.length > 0) console.log(`这些条目原来标成 blocked，开工前先 npm run coven:claim -- set --items ${fromBlocked.join(',')} --state claimed`);
+        if (fromBlocked.length > 0) console.log(`这些条目原来标成 blocked，开工前先 coven claim set --items ${fromBlocked.join(',')} --state claimed`);
         if (uncovered.length > 0) console.log(`这些认领着的条目 planner 没有分配：${uncovered.join('，')}`);
         return;
     }
     if (!task) throw new Error('要指定任务');
-    const contract = readJson(contractFile(ROOT, task));
+    const contract = readJson(contractFile(root, task));
     if (command === 'show') {
         console.log(renderContract(contract));
         return;
     }
     if (command === 'approve') {
-        const alreadyApproved = fs.existsSync(approvedFile(ROOT, task));
+        const alreadyApproved = fs.existsSync(approvedFile(root, task));
         const problems = approvalProblems({
-            contract, taskId: task, task: state.tasks[task], validateOptions: validateOptionsFor(state).options,
+            contract, taskId: task, task: state.tasks[task], validateOptions: validateOptionsFor(host, state).options,
             alreadyApproved, auto: Boolean(options.auto), by: options.by, reapprove: Boolean(options.reapprove),
         });
         if (problems.length > 0) throw new Error(`不能批准 ${task}：\n${problems.map(problem => `- ${problem}`).join('\n')}`);
         const by = options.auto ? 'auto（R0/R1 跳过 HD2）' : options.by;
-        writeJson(approvedFile(ROOT, task), { approvedAt: nowIso(), by, fingerprint: contractFingerprint(contract), contract });
+        writeJson(approvedFile(root, task), { approvedAt: nowIso(), by, fingerprint: contractFingerprint(contract), contract });
         // 批准前维护者可能改了标题：账本跟着批准的这一版，show 和运行总结才不会出现两个名字
         state.tasks[task].title = contract.title;
         if (!options.auto) state.interventions.push({ at: nowIso(), kind: 'HD2', note: `${alreadyApproved ? '重新批准' : '批准'} ${task}` });
-        saveState(ROOT, state);
+        saveState(root, state);
         console.log(`已${alreadyApproved ? '重新' : ''}批准 ${task}（${by}）。`);
         return;
     }
@@ -401,26 +410,24 @@ function main() {
         if (!file) throw new Error('要给 evaluator 输出的 JSON 文件');
         const record = state.tasks[task];
         const verdict = readJson(path.resolve(file));
-        const latest = covenPath(ROOT, 'verify', `${task}-latest.json`);
+        const latest = covenPath(root, 'verify', `${task}-latest.json`);
         const verify = fs.existsSync(latest) ? readJson(latest) : null;
         const problems = verdictProblems({ taskId: task, task: record, verdict, verify });
         if (problems.length > 0) throw new Error(`不能记这份评审结论：\n${problems.map(problem => `- ${problem}`).join('\n')}`);
-        const { contract: next, overridden, missing } = applyVerdict(contract, verdict, verify);
-        writeJson(contractFile(ROOT, task), next);
+        const { contract: next, overridden, missing } = applyVerdict(contract, verdict, verify, adapter.checks);
+        writeJson(contractFile(root, task), next);
         const round = record.rounds;
-        writeText(covenPath(ROOT, 'reviews', `${task}-r${round}.md`), renderReview(task, round, verdict));
+        writeText(covenPath(root, 'reviews', `${task}-r${round}.md`), renderReview(task, round, verdict));
         // 结论绑定到 verify 跑的那个提交和这一版契约：之后分支又有新提交、或者契约变了，都要重新评审
         record.lastVerdict = {
             round, verdict: verdict.verdict, passes: verdictPasses(next, verdict), escalation: verdict.escalation ?? null,
             head: record.reviewHead, fingerprint: contractFingerprint(next),
         };
-        saveState(ROOT, state);
+        saveState(root, state);
         if (overridden.length > 0) console.log(`这些确定性验收项 verify 没过，按没过算：${overridden.join('、')}`);
         if (missing.length > 0) console.log(`evaluator 没判这些验收项，按没过算：${missing.join('、')}`);
-        console.log(record.lastVerdict.passes ? `第 ${round} 轮通过（提交 ${verify.head.slice(0, 7)}），可以 npm run coven:pr -- --task ${task} …` : `第 ${round} 轮没过：问题清单在 .coven/reviews/${task}-r${round}.md`);
+        console.log(record.lastVerdict.passes ? `第 ${round} 轮通过（提交 ${verify.head.slice(0, 7)}），可以 coven pr --task ${task} …` : `第 ${round} 轮没过：问题清单在 .coven/reviews/${task}-r${round}.md`);
         return;
     }
-    throw new Error('用法：npm run coven:contract -- import <文件> | show <任务> | approve <任务> (--by <账号> [--reapprove] | --auto) | verdict <任务> <文件>');
+    throw new Error('用法：coven contract import <文件> | show <任务> | approve <任务> (--by <账号> [--reapprove] | --auto) | verdict <任务> <文件>');
 }
-
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) runCli(main);

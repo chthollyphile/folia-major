@@ -1,22 +1,12 @@
-// dev/coven/risk.mjs
-// 风险分级（plan/coven-plan.md 第 4 节）：由条目的代码和涉及的路径确定性地算，LLM 只能往上调（往下调报 D807）。
-//   R0 只动空白和引号的风格修复；R1 可自动修复的 lint；R2 普通的边界、环、其余 lint；
-//   R3 碰到 config.json 里 risk.r3 的敏感路径；R4 碰到 risk.r4（项目规则、CI、检查规则、依赖），只写方案不实现。
+// packages/coven/src/risk.mjs
+// 风险分级：由条目本身（适配层的 baseRisk）和涉及的路径（配置里的 risk 表）确定性地算，LLM 只能往上调（往下调报 D807）。
+//   R0–R2 的基础级别由适配层按条目定（Folia：只动空白和引号 R0、可自动修复的 lint R1、其余 R2）；
+//   R3 碰到配置 risk.r3 的敏感路径；R4 碰到 risk.r4（项目规则、CI、检查规则、依赖），只写方案不实现。
 
 export const RISKS = ['R0', 'R1', 'R2', 'R3', 'R4'];
 
-const STYLE_CODES = new Set(['D430', 'D431', 'D432']);
-const AUTOFIX_CODES = new Set(['D405']);
-
 export const riskRank = risk => RISKS.indexOf(risk);
 export const maxRisk = (...risks) => risks.reduce((top, risk) => (riskRank(risk) > riskRank(top) ? risk : top), 'R0');
-
-/** 只看代码的基础级别。 */
-export function baseRiskOf(code) {
-    if (STYLE_CODES.has(code)) return 'R0';
-    if (AUTOFIX_CODES.has(code)) return 'R1';
-    return 'R2';
-}
 
 const matches = (rule, file) => (rule.prefix !== undefined ? file === rule.prefix || file.startsWith(rule.prefix) : new RegExp(rule.pattern).test(file));
 
@@ -59,9 +49,14 @@ export function scopeRiskOf(paths, rules, filesUnder = () => []) {
     return sensitiveRiskOf([...candidates], rules);
 }
 
-/** 条目的风险级：代码的基础级别和路径命中的敏感级别取高的。 */
-export function riskOf(code, paths, rules) {
-    const base = baseRiskOf(code);
+/**
+ * 条目的风险级：基础级别（适配层按条目给的）和路径命中的敏感级别取高的。
+ * @param {string} base
+ * @param {string[]} paths
+ * @param {object} rules
+ */
+export function riskOf(base, paths, rules) {
+    if (!RISKS.includes(base)) throw new Error(`适配层给的基础风险级 ${base} 不是 R0–R4`);
     const sensitive = sensitiveRiskOf(paths, rules);
     return { risk: sensitive.risk ? maxRisk(base, sensitive.risk) : base, reasons: sensitive.reasons };
 }

@@ -1,28 +1,29 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { BRANCH_PREFIX, TAG_PREFIX, catalogueTagOf, integrationBranchOf, nextRunNumber, runIdOf, runLabel, scopeLabel, taskBranchOf, taskLabel, tempoLabel } from './catalogue.mjs';
-import { ROOT, STATE_FILE, covenPath, gh, ghApiLines, git, isDryRun, loadConfig, loadState, localDate, nowIso, parseArgs, readJson, requireCurrentFormat, runCli, saveState, tryGit, writeJson, writeText } from './common.mjs';
-import { contractFile, isApprovedCurrent } from './contract.mjs';
 import { githubIo, keysOfTask, updateClaims } from './claim.mjs';
+import { BLOCKED_CODE } from './codes.mjs';
+import { STATE_FILE, covenPath, gh, ghApiLines, git, isDryRun, loadState, localDate, nowIso, parseArgs, prLabel, readJson, requireCurrentFormat, saveState, tryGit, writeJson, writeText } from './common.mjs';
+import { contractFile, isApprovedCurrent } from './contract.mjs';
+import { configLabel } from './host.mjs';
 import { riskRank } from './risk.mjs';
-// dev/coven/state.mjs
+// packages/coven/src/state.mjs
 // 监控 session 的账本 .coven/state.json：范围、认领、任务（planner 分的组）和它们的阶段、人类介入、花费、所有 GitHub 写操作。
 // 监控 session 中途被关掉，新开的 session 读它和认领评论对账，接着往下走。
 //
-//   npm run coven:state -- init --scope <名字> [--live] [--owner <账号>] [--base origin/main]
+//   coven state init --scope <名字> [--live] [--owner <账号>] [--base origin/main]
 //                                取下一个作品号（真跑 Op. n，干跑 WoO n），从 base 切出集成分支 coven/op<n>，真跑时推上去占号
-//   npm run coven:state -- show
-//   npm run coven:state -- phase <任务> <阶段> [--code Dxxx] [--note …] [--session …] [--worktree …] [--branch …]
-//   npm run coven:state -- cost <任务> --tokens 34000          记一次用量（预算按 token 算）
-//   npm run coven:state -- hd <HD1–HD5> --note "…"         记一次人类介入
-//   npm run coven:state -- finish [--force]                  释放没完成的认领，写运行记录 .coven/runs/
-//   npm run coven:state -- audit                             对照 GitHub：运行期间这个账号的评论和 PR 是不是都由脚本发的
+//   coven state show
+//   coven state phase <任务> <阶段> [--code Dxxx] [--note …] [--session …] [--worktree …] [--branch …] [--unblock-by <账号>]
+//   coven state cost <任务> --tokens 34000          记一次用量（预算按 token 算）
+//   coven state hd <HD1–HD5> --note "…"         记一次人类介入
+//   coven state finish [--force]                  释放没完成的认领，写运行记录 .coven/runs/
+//   coven state audit                             对照 GitHub：运行期间这个账号的评论和 PR 是不是都由脚本发的
 
 /**
  * @typedef {{ items: string[], title?: string, risk: string, phase: string, rounds: number, tokens: number,
  *   history: Array<{ at: string, phase: string, code?: string, note?: string }>, code?: string|null, pr?: number|string|null,
- *   session?: string, worktree?: string, branch?: string, reviewHead?: string,
+ *   session?: string, worktree?: string, branch?: string, reviewHead?: string, prTitle?: string,
  *   lastVerdict?: { round: number, verdict?: string, passes: boolean, escalation?: object|null } }} CovenTask
  * @typedef {{ version: number, run: string, date: string, scope: string, owner: string, integrationBranch: string,
  *   trackingIssue: number|null, dryRun: boolean, startedAt: string, finishedAt: string|null,
@@ -34,7 +35,6 @@ import { riskRank } from './risk.mjs';
 
 export const PHASES = ['planning', 'spec-review', 'building', 'evaluating', 'pr', 'done', 'blocked', 'released'];
 const TERMINAL = new Set(['done', 'released']);
-const BLOCKED_CODES = /^D8\d\d$/;
 
 /**
  * run 是这次运行的作品号（catalogue.mjs：真跑 op<n>，干跑 woo<n>），集成分支是 coven/<run>。
@@ -85,10 +85,10 @@ export function transition(task, phase, { code = null, note = null, approved = f
         released: PHASES.filter(entry => !TERMINAL.has(entry)),
     }[phase];
     if (!allowed.includes(from)) return `不能从 ${from} 直接到 ${phase}`;
-    if (phase === 'blocked' && !BLOCKED_CODES.test(code ?? '')) return 'blocked 要带原因代码（D805、D810–D813 等）';
+    if (phase === 'blocked' && !BLOCKED_CODE.test(code ?? '')) return 'blocked 要带原因代码（D805、D810–D813 等）';
     if (phase === 'building') {
         if (task.risk === 'R4') return 'R4 只写方案草稿，不进实现';
-        if (!approved) return riskRank(task.risk) <= riskRank('R1') ? '契约还没批准：R0/R1 先跑 coven:contract -- approve <任务> --auto' : `${task.risk} 要先过 HD2（coven:contract -- approve <任务> --by <账号>）`;
+        if (!approved) return riskRank(task.risk) <= riskRank('R1') ? '契约还没批准：R0/R1 先跑 coven contract approve <任务> --auto' : `${task.risk} 要先过 HD2（coven contract approve <任务> --by <账号>）`;
         if (from === 'evaluating' && task.rounds >= maxRounds) return `D811：已经评审 ${task.rounds} 轮还没过，改成 blocked 交给维护者`;
         if (budget.perTaskTokens && task.tokens >= budget.perTaskTokens) return `D813：任务用了 ${task.tokens} token，到了上限 ${budget.perTaskTokens}`;
         if (budget.perRunTokens && runTokens >= budget.perRunTokens) return `D813：本次运行用了 ${runTokens} token，到了上限 ${budget.perRunTokens}`;
@@ -101,7 +101,7 @@ export function transition(task, phase, { code = null, note = null, approved = f
     return null;
 }
 
-/** 阶段对应的认领评论状态；没列的阶段不动评论。pr → working 由 coven:pr 带着 PR 编号改。 */
+/** 阶段对应的认领评论状态；没列的阶段不动评论。pr → working 由 coven pr 带着 PR 编号改。 */
 export function claimChangeFor(phase, { code, from } = {}) {
     if (phase === 'blocked') return { state: 'blocked', code };
     if (phase === 'done') return { state: 'done' };
@@ -119,7 +119,7 @@ export function runRecord(state, now = nowIso()) {
         const last = task.history.at(-1)?.at ?? now;
         return {
             task: id, title: task.title ?? null, items: task.items, risk: task.risk, phase: task.phase, rounds: task.rounds,
-            tokens: task.tokens ?? 0, pr: task.pr ?? null, code: task.code ?? null,
+            tokens: task.tokens ?? 0, pr: task.pr ?? null, prTitle: task.prTitle ?? null, code: task.code ?? null,
             minutes: Math.round((Date.parse(last) - Date.parse(first)) / 60_000),
         };
     });
@@ -172,7 +172,7 @@ function renderSummary(record) {
         '',
         '| 任务 | 风险 | 阶段 | 轮数 | 分钟 | token | PR | 代码 |',
         '| --- | --- | --- | --- | --- | --- | --- | --- |',
-        ...record.tasks.map(task => `| ${taskLabel(task.task, task.title)} | ${tempoLabel(task.risk)} | ${task.phase} | ${task.rounds} | ${task.minutes} | ${task.tokens} | ${task.pr ? `#${task.pr}` : ''} | ${task.code ?? ''} |`),
+        ...record.tasks.map(task => `| ${taskLabel(task.task, task.title)} | ${tempoLabel(task.risk)} | ${task.phase} | ${task.rounds} | ${task.minutes} | ${task.tokens} | ${prLabel(task.pr)} | ${task.code ?? ''} |`),
     ];
     if (record.escalations.length > 0) {
         lines.push('', '## 升级', ...record.escalations.map(entry => `- ${entry.code}：${entry.items.join('、')}${entry.question ? ` —— ${entry.question}` : ''}`));
@@ -186,7 +186,8 @@ function printState(state) {
     for (const id of state.order.length > 0 ? state.order : Object.keys(state.tasks)) {
         const task = state.tasks[id];
         if (!task) continue;
-        console.log(`  ${id.padEnd(12)} ${(task.title ?? '').padEnd(28)} ${task.risk} ${task.phase.padEnd(11)} 第 ${task.rounds} 轮${task.session ? ` session ${task.session}` : ''}${task.pr ? ` PR #${task.pr}` : ''}${task.code ? ` ${task.code}` : ''}`);
+        console.log(`  ${id.padEnd(12)} ${(task.title ?? '').padEnd(28)} ${task.risk} ${task.phase.padEnd(11)} 第 ${task.rounds} 轮${task.session ? ` session ${task.session}` : ''}${task.pr ? ` ${prLabel(task.pr)}` : ''}${task.code ? ` ${task.code}` : ''}`);
+        if (task.prTitle) console.log(`  ${''.padEnd(12)} PR 标题：${task.prTitle}`);
     }
     for (const entry of state.escalations) console.log(`  升级 ${entry.code}：${entry.items.join('、')}`);
     const escalated = new Set(state.escalations.flatMap(entry => entry.items));
@@ -251,30 +252,31 @@ function currentLogin() {
     return gh(['api', 'user', '--jq', '.login']).trim();
 }
 
-function main() {
-    const { positional, options } = parseArgs(process.argv.slice(2), ['live', 'force'], ['scope', 'base', 'branch', 'owner', 'note', 'tokens', 'code', 'session', 'worktree', 'unblock-by']);
+export async function run(host, argv) {
+    const { root: ROOT, config } = host;
+    const { positional, options } = parseArgs(argv, ['live', 'force'], ['scope', 'base', 'branch', 'owner', 'note', 'tokens', 'code', 'session', 'worktree', 'unblock-by']);
     const [command, ...rest] = positional;
-    const config = loadConfig(ROOT);
     if (command === 'init') {
         const file = path.join(ROOT, STATE_FILE);
         if (fs.existsSync(file)) {
             const previous = readJson(file);
-            if (!previous.finishedAt) throw new Error(`上一次运行 ${previous.run} 还没收尾：接着跑就直接用它（coven:state -- show），放弃就先 coven:state -- finish --force`);
+            if (!previous.finishedAt) throw new Error(`上一次运行 ${previous.run} 还没收尾：接着跑就直接用它（coven state show），放弃就先 coven state finish --force`);
         }
         archivePreviousRun(ROOT, fs.existsSync(file) ? readJson(file).run : null);
-        if (!options.scope || !fs.existsSync(covenPath(ROOT, 'scopes', `${options.scope}.json`))) throw new Error('--scope 要是 .coven/scopes/ 下已有的范围（先 npm run coven:scope）');
+        if (!options.scope || !fs.existsSync(covenPath(ROOT, 'scopes', `${options.scope}.json`))) throw new Error('--scope 要是 .coven/scopes/ 下已有的范围（先 coven scope）');
         if (options.branch) throw new Error('集成分支由 init 按作品号自己切（coven/op<n>），不用 --branch；要从别的提交切出就用 --base');
         const live = Boolean(options.live);
-        if (live && !config.hd0Confirmed) throw new Error('HD0 还没拍板（dev/coven/config.json 的 hd0Confirmed），只能干跑');
-        if (live && !config.trackingIssue) throw new Error('真跑要先开跟踪 issue，把编号填进 dev/coven/config.json 的 trackingIssue');
+        if (live && !config.hd0Confirmed) throw new Error(`HD0 还没拍板（${configLabel(host)} 的 hd0Confirmed），只能干跑`);
+        if (live && !config.trackingIssue) throw new Error(`真跑要先开跟踪 issue，把编号填进 ${configLabel(host)} 的 trackingIssue`);
         const owner = options.owner ?? currentLogin();
-        const base = options.base ?? 'origin/main';
-        if (!options.base) git(ROOT, ['fetch', 'origin', 'main']);
+        const baseBranch = config.baseBranch ?? 'main';
+        const base = options.base ?? `origin/${baseBranch}`;
+        if (!options.base) git(ROOT, ['fetch', 'origin', baseBranch]);
         const { run, branch, tag, pushed } = allocateRun(ROOT, { live, base });
         const state = createState({ run, scope: options.scope, owner, trackingIssue: config.trackingIssue, dryRun: !live, timeZone: config.timeZone });
         if (pushed) state.github.push({ at: nowIso(), dryRun: false, action: 'push', branch, tag });
         saveState(ROOT, state);
-        console.log(`已开始运行 ${runLabel(run)}，集成分支 ${branch}（从 ${base} 切出${pushed ? `，已推上去，占号标签 ${tag}` : ''}）${state.dryRun ? '。干跑：认领和 PR 只记在本地' : ''}。下一步：npm run coven:claim -- claim`);
+        console.log(`已开始运行 ${runLabel(run)}，集成分支 ${branch}（从 ${base} 切出${pushed ? `，已推上去，占号标签 ${tag}` : ''}）${state.dryRun ? '。干跑：认领和 PR 只记在本地' : ''}。下一步：coven claim claim`);
         return;
     }
     const state = loadState(ROOT);
@@ -306,7 +308,7 @@ function main() {
         const [id, phase] = rest;
         const task = state.tasks[id];
         if (!task) throw new Error(`没有任务 ${id}`);
-        if (phase === 'pr') throw new Error('开 PR 走 npm run coven:pr，它会自己改阶段');
+        if (phase === 'pr') throw new Error('开 PR 走 coven pr，它会自己改阶段');
         if (options.branch && options.branch !== taskBranchOf(id)) throw new Error(`--branch 要是这个任务的工作分支 ${taskBranchOf(id)}`);
         const from = task.phase;
         const unblockedBy = options['unblock-by'] ?? null;
@@ -315,7 +317,7 @@ function main() {
         if (phase === 'evaluating') {
             const latest = covenPath(ROOT, 'verify', `${id}-latest.json`);
             const verify = fs.existsSync(latest) ? readJson(latest) : null;
-            if (verify?.task !== id) throw new Error(`先跑 npm run coven:verify -- --task ${id} --worktree …，再进评审`);
+            if (verify?.task !== id) throw new Error(`先跑 coven verify --task ${id} --worktree …，再进评审`);
             reviewHead = verify.head;
         }
         const problem = transition(task, phase, {
@@ -331,7 +333,7 @@ function main() {
         const change = claimChangeFor(phase, { code: options.code, from });
         if (change) {
             const io = githubIo(state, config, { dryRun: isDryRun(state, config), readRemote: Boolean(state.trackingIssue), persist: () => saveState(ROOT, state) });
-            const { lost } = updateClaims({ keys: keysOfTask(state, id), state, config, io, change });
+            const { lost } = updateClaims({ keys: keysOfTask(state, id), state, config, io, change, itemPattern: host.adapter.itemKeyPattern ?? null });
             for (const entry of lost) console.log(`D830 ${entry.item} 已经不归这个监控 session，停掉这条，告诉维护者。`);
         }
         saveState(ROOT, state);
@@ -347,7 +349,7 @@ function main() {
             const item = state.items[key];
             return item.claim?.state && ['claimed', 'blocked'].includes(item.claim.state);
         });
-        updateClaims({ keys: open, state, config, io, change: { state: 'released' } });
+        updateClaims({ keys: open, state, config, io, change: { state: 'released' }, itemPattern: host.adapter.itemKeyPattern ?? null });
         const now = nowIso();
         const record = runRecord(state, now);
         state.finishedAt = now;
@@ -356,7 +358,7 @@ function main() {
         writeText(covenPath(ROOT, 'runs', `${stem}.md`), renderSummary(record));
         saveState(ROOT, state);
         console.log(renderSummary(record));
-        console.log(`运行记录在 .coven/runs/${stem}.json；接下来跑 npm run coven:state -- audit。`);
+        console.log(`运行记录在 .coven/runs/${stem}.json；接下来跑 coven state audit。`);
         return;
     }
     if (command === 'audit') {
@@ -375,7 +377,5 @@ function main() {
         }
         return;
     }
-    throw new Error('用法：npm run coven:state -- init | show | phase | cost | hd | finish | audit（见文件开头）');
+    throw new Error('用法：coven state init | show | phase | cost | hd | finish | audit（见文件开头）');
 }
-
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) runCli(main);

@@ -14,9 +14,9 @@ import {
     taskLabel,
     tempoLabel,
     titleWithCatalogue,
-} from '../../../dev/coven/catalogue.mjs';
+} from '../src/catalogue.mjs';
 
-// test/unit/coven/catalogue.test.ts
+// packages/coven/test/catalogue.test.mjs
 // Coven 的乐谱编目：显示名和机器名互转、作品号和任务号只增不回收、范围名的体裁、风险级配的速度术语、PR 标题带代号。
 
 describe('coven catalogue names', () => {
