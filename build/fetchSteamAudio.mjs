@@ -29,7 +29,8 @@ const WANTED = {
     'steamaudio/lib/windows-x64/phonon.dll': ['win-x64'],
     'steamaudio/lib/linux-x64/libphonon.so': ['linux-x64'],
     'steamaudio/lib/osx/libphonon.dylib': ['mac-x64', 'mac-arm64'],
-    // The SDK's only license file: the third-party notices (IPP, FFTS, ...) that must travel with the library.
+    // The SDK zip's only license file: the third-party notices (IPP, FFTS, ...) that must travel with the library.
+    // Steam Audio's own Apache-2.0 text is not in the zip: build/steamAudio.LICENSE.md (from the v4.8.1 tag), shipped by extraResources.
     'steamaudio/THIRDPARTY.md': ['win-x64', 'linux-x64', 'mac-x64', 'mac-arm64'],
 };
 

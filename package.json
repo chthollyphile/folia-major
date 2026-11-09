@@ -131,6 +131,10 @@
         "to": "steam-audio"
       },
       {
+        "from": "build/steamAudio.LICENSE.md",
+        "to": "steam-audio/LICENSE.md"
+      },
+      {
         "from": "models",
         "to": "models",
         "filter": [
