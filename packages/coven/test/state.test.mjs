@@ -1,16 +1,20 @@
+import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { contractFingerprint } from '../../../dev/coven/contract.mjs';
-import { prPreflight, renderPrBody } from '../../../dev/coven/pr.mjs';
-import { auditWrites, claimChangeFor, createState, pushCreatedRef, runRecord, transition } from '../../../dev/coven/state.mjs';
-import type { CovenTask } from '../../../dev/coven/state.mjs';
-import { requireCurrentFormat } from '../../../dev/coven/common.mjs';
-import { baselineShrink, growthProblems, parseNameStatus } from '../../../dev/coven/verify.mjs';
+import { prLabel, requireCurrentFormat } from '../src/common.mjs';
+import { contractFingerprint } from '../src/contract.mjs';
+import { mergeLocally, prPreflight, renderPrBody } from '../src/pr.mjs';
+import { auditWrites, claimChangeFor, createState, pushCreatedRef, runRecord, transition } from '../src/state.mjs';
+import { parseNameStatus } from '../src/verify.mjs';
 
-// test/unit/coven/state.test.ts
+// packages/coven/test/state.test.mjs
 // 监控 session 的账本：阶段流转里的关口（HD2、两轮评审 D811、预算 D813）、运行记录、运行后审计，
-// 以及 verify 的基线判断（D806）和开 PR 前的把关。
+// verify 读 diff，开 PR 前的把关，以及干跑合并在本地真的把工作分支合进集成分支。
 
-const task = (overrides: Partial<CovenTask> = {}): CovenTask => ({ items: ['D102:a->b'], risk: 'R2', phase: 'planning', rounds: 0, tokens: 0, history: [], ...overrides });
+/** @param {Partial<import('../src/state.mjs').CovenTask>} [overrides] */
+const task = (overrides = {}) => ({ items: ['D102:a->b'], risk: 'R2', phase: 'planning', rounds: 0, tokens: 0, history: [], ...overrides });
 
 describe('coven task phases', () => {
     it('does not start building an R2 task before HD2, but lets R0/R1 skip it once auto-approved', () => {
@@ -123,46 +127,6 @@ describe('coven verify', () => {
             { status: 'A', path: 'src/new.ts' },
         ]);
     });
-
-    it('wants the item gone from the baseline and from the findings (D806)', () => {
-        const item = 'D190:src/utils/themeColorMath.ts->src/components/visualizer/colorMix.ts';
-        const base = { baseEntries: [item, 'D301:x.ts'], baseSuppressions: {}, headSuppressions: {} };
-        expect(baselineShrink({ ...base, items: [item], headEntries: ['D301:x.ts'], findingKeys: new Set() })).toMatchObject({ ok: true, shrank: true });
-        // 只删了基线，代码没修：Dedicatus 还能查出来（D190 是 warning，光看有没有 error 会漏）
-        const cheated = baselineShrink({ ...base, items: [item], headEntries: ['D301:x.ts'], findingKeys: new Set([item]) });
-        expect(cheated.ok).toBe(false);
-        expect(cheated.items[item].detail).toContain('只删了基线');
-        // 基线一条没少
-        expect(baselineShrink({ ...base, items: [item], headEntries: [item, 'D301:x.ts'], findingKeys: new Set([item]) })).toMatchObject({ ok: false, shrank: false });
-    });
-
-    it('catches a new baseline entry or a moved suppression even when the totals shrank (D001)', () => {
-        const ledgers = {
-            baseEntries: ['D102:a.ts->b.ts', 'D190:c.ts->d.ts'],
-            headEntries: ['D102:new.ts->z.ts'],
-            baseSuppressions: { 'src/demo/a.ts': { '@stylistic/indent': { count: 5 } } },
-            headSuppressions: { 'src/utils/b.ts': { '@stylistic/indent': { count: 1 } } },
-            renameMap: new Map<string, string>(),
-            newFiles: new Set<string>(),
-        };
-        const problems = growthProblems(ledgers);
-        expect(problems).toEqual(['基线多了 D102:new.ts->z.ts', 'src/utils/b.ts 的 @stylistic/indent 抑制 0 → 1']);
-        // 挪文件时条目跟着改名走，不算增长
-        expect(growthProblems({
-            ...ledgers,
-            headEntries: ['D102:moved.ts->b.ts'],
-            headSuppressions: { 'src/demo/moved.ts': { '@stylistic/indent': { count: 5 } } },
-            renameMap: new Map([['a.ts', 'moved.ts'], ['src/demo/a.ts', 'src/demo/moved.ts']]),
-        })).toEqual([]);
-    });
-
-    it('wants a lint item to bring its suppressions under the prefix to zero', () => {
-        const before = { 'src/utils/a.ts': { '@typescript-eslint/consistent-type-imports': { count: 3 } }, 'src/utils/b.ts': { '@typescript-eslint/consistent-type-imports': { count: 1 } } };
-        const partly = { 'src/utils/b.ts': { '@typescript-eslint/consistent-type-imports': { count: 1 } } };
-        const input = { items: ['lint:@typescript-eslint/consistent-type-imports@src/utils/'], baseEntries: [], headEntries: [], baseSuppressions: before, findingKeys: new Set<string>() };
-        expect(baselineShrink({ ...input, headSuppressions: partly })).toMatchObject({ ok: false, shrank: true });
-        expect(baselineShrink({ ...input, headSuppressions: {} })).toMatchObject({ ok: true });
-    });
 });
 
 describe('coven pr preflight', () => {
@@ -172,7 +136,7 @@ describe('coven pr preflight', () => {
     };
     const verify = { task: 'op3-no1', head: 'abc1234def', base: 'coven/op3', mergeBase: 'm', ok: true, criteria: { c1: true }, changed: ['M src/a.ts'], checks: [{ id: 'c1', kind: 'baseline', ok: true, summary: '已消掉' }] };
     const passed = { round: 1, passes: true, head: 'abc1234def', fingerprint: contractFingerprint(contract) };
-    const stateWith = (overrides: Partial<CovenTask> = {}) => ({
+    const stateWith = (overrides = {}) => ({
         run: 'op3', scope: 'fugue-boundaries', integrationBranch: 'coven/op3',
         tasks: { 'op3-no1': { ...task({ phase: 'evaluating', rounds: 1, lastVerdict: passed }), ...overrides } },
     });
@@ -197,7 +161,7 @@ describe('coven pr preflight', () => {
         const text = problems.join('\n');
         expect(text).toContain('D801');
         expect(text).toContain('D802');
-        expect(text).toContain('重跑 coven:verify');
+        expect(text).toContain('重跑 coven verify');
         expect(text).toContain('评审没有通过');
         expect(text).toContain('不直接进 main');
     });
@@ -208,6 +172,10 @@ describe('coven pr preflight', () => {
         expect(prPreflight({ ...input, state: stateWith(), verify: newer, branchHead: 'bbbbbbbbbb' }).join('\n')).toContain('新提交要重新评审');
         const reworded = { ...contract, goal: '换了说法' };
         expect(prPreflight({ ...input, state: stateWith(), contract: reworded, approved: { contract: reworded } }).join('\n')).toContain('评审之后契约变了');
+    });
+
+    it('does not open a PR for a branch with no changes', () => {
+        expect(prPreflight({ ...input, state: stateWith(), verify: { ...verify, changed: [] } }).join('\n')).toContain('没有任何改动');
     });
 
     it('wants verify against the integration branch and a coven task branch', () => {
@@ -222,5 +190,48 @@ describe('coven state format', () => {
         expect(() => requireCurrentFormat({ version: 1, run: '2026-11-08-arch-1108' })).toThrow('finish --force');
         const current = createState({ run: 'op3', scope: 'fugue', owner: 'alice', trackingIssue: null, dryRun: false });
         expect(requireCurrentFormat(current)).toBe(current);
+    });
+});
+
+describe('coven dry-run merge', () => {
+    const git = (cwd, ...args) => {
+        const result = spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', ...args], { cwd, encoding: 'utf8' });
+        if (result.status !== 0) throw new Error(result.stderr);
+        return result.stdout.trim();
+    };
+
+    it('merges the task branch into the local integration branch without checking anything out', () => {
+        const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'coven-merge-'));
+        try {
+            git(repo, 'init', '-q', '-b', 'main');
+            fs.writeFileSync(path.join(repo, 'a.txt'), 'a\n');
+            git(repo, 'add', '.');
+            git(repo, 'commit', '-q', '-m', 'base');
+            git(repo, 'branch', 'coven/woo1');
+            git(repo, 'switch', '-q', '-c', 'coven/woo1-no1');
+            fs.writeFileSync(path.join(repo, 'b.txt'), 'b\n');
+            git(repo, 'add', '.');
+            git(repo, 'commit', '-q', '-m', 'task');
+            git(repo, 'switch', '-q', 'main');
+            const before = git(repo, 'rev-parse', 'coven/woo1');
+            const merged = mergeLocally(repo, { into: 'coven/woo1', from: 'coven/woo1-no1', message: 'Merge coven/woo1-no1' });
+            expect(git(repo, 'rev-parse', 'coven/woo1')).toBe(merged);
+            expect(git(repo, 'rev-list', '--parents', '-n', '1', merged).split(' ')).toEqual([merged, before, git(repo, 'rev-parse', 'coven/woo1-no1')]);
+            // 后面的任务从集成分支切出时看得到前面任务的文件
+            expect(git(repo, 'show', 'coven/woo1:b.txt')).toBe('b');
+            // 检出着的分支不移动它
+            expect(() => mergeLocally(repo, { into: 'main', from: 'coven/woo1-no1', message: 'x' })).toThrow('检出着');
+            // 合过了再合一次（上次合完、记账之前中断了）：不再造新的合并提交
+            expect(mergeLocally(repo, { into: 'coven/woo1', from: 'coven/woo1-no1', message: 'again' })).toBe(merged);
+            expect(git(repo, 'rev-parse', 'coven/woo1')).toBe(merged);
+        } finally {
+            fs.rmSync(repo, { recursive: true, force: true });
+        }
+    });
+
+    it('labels a dry-run PR without a fake number', () => {
+        expect(prLabel(1201)).toBe('PR #1201');
+        expect(prLabel('dry-woo1-no1')).toBe('干跑 PR');
+        expect(prLabel(null)).toBe('');
     });
 });

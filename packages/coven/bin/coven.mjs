@@ -1,0 +1,30 @@
+#!/usr/bin/env node
+import { runCli } from '../src/common.mjs';
+import { loadHost } from '../src/host.mjs';
+// packages/coven/bin/coven.mjs
+// Coven 的命令行入口：coven <命令> [参数]。在宿主仓库（或它的 worktree）里任意目录运行；配置和适配层由 host.mjs 找。
+
+const COMMANDS = {
+    scope: { file: '../src/scope.mjs', what: '从适配层的来源生成范围（HD1）' },
+    state: { file: '../src/state.mjs', what: '运行的账本：开始、阶段、用量、人类介入、收尾、审计' },
+    claim: { file: '../src/claim.mjs', what: 'coven: 认领评论：认领、续租、改状态、释放' },
+    prompt: { file: '../src/prompt.mjs', what: '把角色模板填成提示' },
+    contract: { file: '../src/contract.mjs', what: '导入、展示、批准契约（HD2），记录评审结论' },
+    verify: { file: '../src/verify.mjs', what: '在工作 worktree 里跑确定性验收和关口' },
+    pr: { file: '../src/pr.mjs', what: '开 PR、合并（只进集成分支）' },
+    setup: { file: '../src/setup.mjs', what: '按适配层准备一个工作 worktree（装依赖等）' },
+};
+
+const usage = () => `用法：coven <命令> [参数]\n${Object.entries(COMMANDS).map(([name, command]) => `  ${name.padEnd(9)} ${command.what}`).join('\n')}`;
+
+runCli(async () => {
+    const [command, ...argv] = process.argv.slice(2);
+    if (!command || command === '--help' || command === 'help') {
+        console.log(usage());
+        return;
+    }
+    if (!Object.hasOwn(COMMANDS, command)) throw new Error(`不认识的命令 ${command}\n${usage()}`);
+    const host = await loadHost();
+    const module = await import(COMMANDS[command].file);
+    await module.run(host, argv);
+});

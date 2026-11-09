@@ -1,13 +1,12 @@
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
-// dev/coven/common.mjs
-// Coven 脚本共用的东西：仓库根目录、.coven/ 下的文件、配置、git 和 gh 的调用。
-// .coven/ 是监控 session 所在检出的本地目录（git 忽略）。工作 session 在自己的 worktree 里，那里没有 .coven/state.json，
-// 所以写 GitHub 的脚本（claim、pr）在那里一律拒绝执行（requireSupervisor）。
+// packages/coven/src/common.mjs
+// Coven 脚本共用的东西：宿主仓库里 .coven/ 下的文件、git 和 gh 的调用、命令行参数。
+// root 都是宿主仓库的根目录（host.mjs 的 loadHost 给出），harness 自己不假定装在哪里。
+// .coven/ 是监控 session 所在检出的本地目录（宿主仓库要 git 忽略它）。工作 session 在自己的 worktree 里，那里没有 .coven/state.json，
+// 所以写 GitHub 的命令（claim、pr）在那里一律拒绝执行（requireSupervisor）。
 
-export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 export const COVEN_DIR = '.coven';
 export const STATE_FILE = `${COVEN_DIR}/state.json`;
 
@@ -34,18 +33,16 @@ export function writeText(file, text) {
     fs.writeFileSync(file, text);
 }
 
-export const loadConfig = (root = ROOT) => readJson(path.join(root, 'dev/coven/config.json'));
-
-/** 只有监控 session 的检出里才有 .coven/state.json；写 GitHub 的脚本先过这一关。 */
-export function requireSupervisor(root = ROOT) {
+/** 只有监控 session 的检出里才有 .coven/state.json；写 GitHub 的命令先过这一关。 */
+export function requireSupervisor(root) {
     const file = path.join(root, STATE_FILE);
     if (!fs.existsSync(file)) {
-        throw new Error(`${STATE_FILE} 不存在：只有监控 session 能执行这个命令（先 npm run coven:state -- init）。工作 session 不做任何 GitHub 写操作。`);
+        throw new Error(`${STATE_FILE} 不存在：只有监控 session 能执行这个命令（先 coven state init）。工作 session 不做任何 GitHub 写操作。`);
     }
     return requireCurrentFormat(readJson(file));
 }
 
-export const loadState = (root = ROOT) => readJson(path.join(root, STATE_FILE));
+export const loadState = root => readJson(path.join(root, STATE_FILE));
 
 /** 账本的格式版本：2 起运行和任务用乐谱编目的代号（catalogue.mjs）。 */
 export const STATE_VERSION = 2;
@@ -53,7 +50,7 @@ export const STATE_VERSION = 2;
 /** 旧格式的运行（日期加范围名的运行、coven/run-* 集成分支、自由格式的任务名）不能接着跑：直接说清楚怎么办，不要走到 PR 才报错。 */
 export function requireCurrentFormat(state) {
     if (state?.version !== STATE_VERSION) {
-        throw new Error(`.coven/state.json 是旧格式的运行 ${state?.run}（代号改成乐谱编目之前开的），不能接着跑：先 npm run coven:state -- finish --force 收尾，再重新 init`);
+        throw new Error(`.coven/state.json 是旧格式的运行 ${state?.run}（代号改成乐谱编目之前开的），不能接着跑：先 coven state finish --force 收尾，再重新 init`);
     }
     return state;
 }
@@ -80,7 +77,7 @@ export const git = (cwd, args, options) => run('git', args, { cwd, ...options })
 /** 允许失败的 git：返回 { ok, output }，由调用方决定失败了怎么办（比如作品号被别人先占了就换下一个）。 */
 export function tryGit(cwd, args) {
     const result = run('git', args, { cwd, allowFailure: true });
-    return { ok: result.status === 0, output: `${result.stdout}${result.stderr}`.trim() };
+    return { ok: result.status === 0, status: result.status, output: `${result.stdout}${result.stderr}`.trim() };
 }
 
 export const gh = (args, options) => run('gh', args, options).stdout;
@@ -140,6 +137,9 @@ export function withoutTokens(env = process.env) {
     for (const name of ['GH_TOKEN', 'GITHUB_TOKEN', 'GH_ENTERPRISE_TOKEN', 'GITHUB_ENTERPRISE_TOKEN']) delete copy[name];
     return copy;
 }
+
+/** 干跑时 PR 没有号：给人看的地方写“干跑 PR”，不写成像真 PR 的 #dry-…。 */
+export const prLabel = pr => (typeof pr === 'number' ? `PR #${pr}` : pr ? '干跑 PR' : '');
 
 /** 仓库里某个目录下已跟踪的文件（算风险下限时，目录型的 scope 要看里面有什么）。 */
 export const trackedFilesUnder = (root, dir) => git(root, ['ls-files', '-z', '--', dir]).split('\0').filter(Boolean);

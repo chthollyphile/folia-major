@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { claimItems, parseClaimComment, renderClaimComment, resolveClaims, unheldItems, updateClaims } from '../../../dev/coven/claim.mjs';
-import { parseArgs } from '../../../dev/coven/common.mjs';
+import { claimItems, parseClaimComment, renderClaimComment, resolveClaims, unheldItems, updateClaims } from '../src/claim.mjs';
+import { parseArgs } from '../src/common.mjs';
 
-// test/unit/coven/claim.test.ts
+// packages/coven/test/claim.test.mjs
 // coven: 认领协议的判定（plan/coven-semi-auto-plan.md 第 4 节）：只认维护者、先到先得、租约过期可接手、
 // 按 claimId 区分（同一位维护者的两个监控 session 也不撞车）、接手之后原认领续租也不算数。
 
@@ -11,12 +11,11 @@ const NOW = Date.parse('2026-11-09T04:00:00Z');
 const ITEM = 'D102:src/utils/lyrics/lyricMatchSources.ts->src/stores/useOnlineProviderAccountStore.ts';
 
 let nextId = 100;
-function comment(claim: Record<string, unknown>, { at = '2026-11-09T03:00:00Z', author = String(claim.owner ?? 'alice'), association = 'OWNER', id = nextId++ } = {}) {
+function comment(claim, { at = '2026-11-09T03:00:00Z', author = String(claim.owner ?? 'alice'), association = 'OWNER', id = nextId++ } = {}) {
     const body = renderClaimComment({ state: 'claimed', action: 'refactor', scope: 'arch', item: ITEM, leaseUntil: '2026-11-09T15:00:00Z', ...claim }, config);
     return { id, author, association, createdAt: at, updatedAt: at, body };
 }
-type Comment = Parameters<typeof resolveClaims>[0][number];
-const resolve = (comments: Comment[]) => resolveClaims(comments, { now: NOW, leaseHours: 12 }).items.get(ITEM);
+const resolve = comments => resolveClaims(comments, { now: NOW, leaseHours: 12 }).items.get(ITEM);
 
 describe('coven claim resolution', () => {
     it('gives the item to the earliest live claim and reports the later one as a conflict (D830)', () => {
@@ -74,6 +73,9 @@ describe('coven claim resolution', () => {
         expect(claim).toMatchObject({ state: 'claimed', owner: 'carol', item: ITEM, manual: true, leaseUntil: '2026-11-09T13:00:00.000Z' });
         expect(resolve([manual])?.holder?.owner).toBe('carol');
         // 跟踪 issue 上手写的认领没写条目：忽略，不能挡住所有条目
+        const bare = { ...manual, id: 7, body: `coven: claimed @carol · ${ITEM}` };
+        expect(parseClaimComment(bare, { leaseHours: 12 })).toMatchObject({ problem: '手写的认领没写条目' });
+        expect(parseClaimComment(bare, { leaseHours: 12, itemPattern: /D\d{3}:[^\s`·]+/ })).toMatchObject({ item: ITEM });
         const vague = { ...manual, id: 6, body: 'coven: claimed @carol' };
         expect(resolveClaims([vague], { now: NOW, leaseHours: 12 }).ignored).toEqual([expect.objectContaining({ reason: '手写的认领没写条目' })]);
     });
@@ -88,30 +90,34 @@ describe('coven claim resolution', () => {
         const assigned = renderClaimComment({ state: 'working', owner: 'alice', claimId: 'a1', item: ITEM, action: 'refactor', run: 'op3', task: 'op3-no2', pr: 1200, leaseUntil: '2026-11-09T14:00:00Z' }, config);
         expect(assigned.split('\n')[0]).toBe(`coven: working @alice (PR #1200) · Op. 3 No. 2 · 重构 \`${ITEM}\` · 租约至 11-09 22:00（UTC+8）`);
         expect(parseClaimComment({ id: 2, author: 'alice', association: 'OWNER', createdAt: '2026-11-09T03:00:00Z', body: assigned }, { leaseHours: 12 })).toMatchObject({ item: ITEM, state: 'working' });
+        // 干跑的 PR 没有号：首行写“干跑 PR”，不写成像真 PR 的 #dry-…（2026-11-09 云端干跑 WoO 1 的反馈）
+        const dry = renderClaimComment({ state: 'working', owner: 'alice', claimId: 'a1', item: ITEM, action: 'refactor', run: 'woo1', task: 'woo1-no1', pr: 'dry-woo1-no1', leaseUntil: '2026-11-09T14:00:00Z' }, config);
+        expect(dry.split('\n')[0]).toBe(`coven: working @alice (干跑 PR) · WoO 1 No. 1 · 重构 \`${ITEM}\` · 租约至 11-09 22:00（UTC+8）`);
+        expect(parseClaimComment({ id: 3, author: 'alice', association: 'OWNER', createdAt: '2026-11-09T03:00:00Z', body: dry }, { leaseHours: 12 })).toMatchObject({ pr: 'dry-woo1-no1' });
     });
 });
 
 /** 内存里的跟踪 issue：评论按发出的顺序编号、带时间。 */
-function fakeIssue(initial: object[] = []) {
-    const comments: Array<Record<string, unknown>> = [...initial] as Array<Record<string, unknown>>;
+function fakeIssue(initial = []) {
+    const comments = [...initial];
     let id = 1000;
     return {
         comments,
         dryRun: false,
         list: () => comments,
-        create(_issue: number, body: string) {
+        create(_issue, body) {
             const created = { id: id++, author: 'alice', association: 'OWNER', createdAt: '2026-11-09T04:00:00Z', updatedAt: '2026-11-09T04:00:00Z', body };
             comments.push(created);
             return created;
         },
-        edit(_issue: number, commentId: number, body: string) {
+        edit(_issue, commentId, body) {
             const target = comments.find(entry => entry.id === commentId);
             if (target) target.body = body;
         },
     };
 }
 
-const freshState = () => ({ owner: 'alice', scope: 'arch', trackingIssue: 42, dryRun: false, items: {} as Record<string, any> });
+const freshState = () => ({ owner: 'alice', scope: 'arch', trackingIssue: 42, dryRun: false, items: {} });
 
 describe('coven claim flow', () => {
     it('claims a free item, skips one held by someone else, and keeps its own claim on resume', () => {
@@ -162,11 +168,11 @@ describe('coven claim recovery', () => {
     it('saves the claimId before posting, so a failure after posting leaves no orphan claim', () => {
         const issue = fakeIssue();
         const state = freshState();
-        const saved: string[] = [];
+        const saved = [];
         const flaky = {
             ...issue,
             persist: () => saved.push(JSON.stringify(state.items[ITEM] ?? null)),
-            create(issueNumber: number, body: string) {
+            create(issueNumber, body) {
                 issue.create(issueNumber, body);
                 throw new Error('gh: 502 Bad Gateway');
             },
