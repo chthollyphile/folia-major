@@ -6282,12 +6282,9 @@ app.whenReady().then(async () => {
     app.setAppUserModelId(WINDOWS_APP_USER_MODEL_ID);
   }
   logGpuPreference(gpuPreferenceApplied);
-  if (process.platform === 'win32') {
-    // Late, so the DxDiag pass behind the read stays out of startup; the settings page may read it sooner.
-    setTimeout(() => {
-      readActiveGpu().catch(error => console.warn('[Gpu] Could not read the active adapter', error));
-    }, 10_000);
-  }
+  // The active adapter is read only when the settings page asks: the 'complete' info behind it holds the
+  // GPU process's main thread about half a second (CollectDawnInfo), and every window's frames stop with it.
+  // Measured 2026-11-10: read 10 s after launch, it froze the picture 0.5 s on every start.
 
   if (process.platform === 'linux' && typeof safeStorage.getSelectedStorageBackend === 'function') {
     const backend = safeStorage.getSelectedStorageBackend();
