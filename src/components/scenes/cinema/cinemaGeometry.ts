@@ -320,14 +320,29 @@ const addFloor = (builder: MeshBuilder) => {
         const x = lerp(-W, W, u);
         return [x, 0, lerp(STAGE.front, rowZ(0, x) - ROWS.treadFront, v)];
     }, MAT.CARPET, [0, 1, 0]);
-    // One curved tread per row; the risers face the screen and are never seen from the seats.
-    for (let row = 0; row <= ROWS.count + 1; row += 1) {
+    // One curved tread per row, each with its riser: turning round in a seat shows them.
+    const lastRow = ROWS.count + 1;
+    for (let row = 0; row <= lastRow; row += 1) {
         const y = rowFloor(row);
+        const below = row > 0 ? rowFloor(row - 1) : 0;
+        const edge = (r: number, x: number) => rowZ(r, x) - ROWS.treadFront;
         builder.grid(64, 2, (u, v) => {
             const x = lerp(-W, W, u);
-            return [x, y, lerp(rowZ(row, x) - ROWS.treadFront, rowZ(row + 1, x) - ROWS.treadFront, v)];
+            return [x, y, lerp(edge(row, x), edge(row + 1, x), v)];
         }, MAT.CARPET, [0, 1, 0]);
+        if (y > below) {
+            builder.grid(64, 1, (u, v) => {
+                const x = lerp(-W, W, u);
+                return [x, lerp(below, y, v), edge(row, x)];
+            }, MAT.CARPET, [0, 0, -1], () => 0.55);
+        }
     }
+    // Behind the last row, flat to the back wall.
+    const top = rowFloor(lastRow);
+    builder.grid(64, 2, (u, v) => {
+        const x = lerp(-W, W, u);
+        return [x, top, lerp(rowZ(lastRow + 1, x) - ROWS.treadFront, HALL.back, v)];
+    }, MAT.CARPET, [0, 1, 0]);
 };
 
 const addWalls = (builder: MeshBuilder) => {
@@ -561,9 +576,14 @@ export const buildSeatGeometry = () => {
     return mergeParts(parts, 'seat');
 };
 
-/** Someone seated, as the rows behind see them: a head over the seat back and the shoulders below it. */
+/**
+ * Someone seated in buildSeatGeometry's seat: the back against the seat back (leaning with it), the hips
+ * on the cushion, the thighs along it and the shins down to the floor, so no part goes through the seat.
+ */
 export const buildAudienceGeometry = () => {
     const at = (x: number, y: number, z: number) => new THREE.Matrix4().makeTranslation(x, y, z);
+    // The seat back's own frame (as buildSeatGeometry's backAt): its front face is at z = -0.065.
+    const leaning = (x: number, y: number, z: number) => at(0, 0.78, -0.1).multiply(new THREE.Matrix4().makeRotationX(0.17)).multiply(at(x, y, z));
     // Rounded boxes come without an index; the others are made the same way so they merge.
     const flat = (geometry: THREE.BufferGeometry) => {
         const result = geometry.toNonIndexed();
@@ -574,9 +594,11 @@ export const buildAudienceGeometry = () => {
     head.applyMatrix4(new THREE.Matrix4().makeScale(0.92, 1.12, 1));
     const neck = flat(new THREE.CylinderGeometry(0.05, 0.06, 0.16, 10));
     return mergeParts([
-        part(head, at(0, 1.2, -0.08), MAT.AUDIENCE),
-        part(neck, at(0, 1.06, -0.1), MAT.AUDIENCE),
-        part(new RoundedBoxGeometry(0.42, 0.24, 0.2, 3, 0.09), at(0, 0.95, -0.12), MAT.AUDIENCE),
+        part(head, leaning(0, 0.46, -0.18), MAT.AUDIENCE),
+        part(neck, leaning(0, 0.35, -0.18), MAT.AUDIENCE),
+        part(new RoundedBoxGeometry(0.4, 0.56, 0.2, 3, 0.08), leaning(0, 0.02, -0.18), MAT.AUDIENCE),
+        part(new RoundedBoxGeometry(0.36, 0.14, 0.44, 3, 0.06), at(0, 0.57, -0.4), MAT.AUDIENCE),
+        part(new RoundedBoxGeometry(0.32, 0.5, 0.12, 2, 0.05), at(0, 0.26, -0.64), MAT.AUDIENCE),
     ], 'audience');
 };
 

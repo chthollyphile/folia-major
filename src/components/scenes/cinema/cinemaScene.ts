@@ -334,9 +334,10 @@ export const createCinemaScene = (): CinemaScene => {
         uniforms.uShutter.value = shutter;
         uniforms.uChange.value = change;
         uniforms.uAmbient.value.copy(average).multiplyScalar(0.012).add(new THREE.Vector3(0.0025, 0.0028, 0.0038).multiplyScalar(1 - day));
-        uniforms.uHaze.value.copy(average).multiplyScalar(0.004 * (1 - day)).add(new THREE.Vector3(0.2, 0.16, 0.12).multiplyScalar(day * 0.35));
+        // By day a little warm air only: more haze greys the far hall over and washes the colours out.
+        uniforms.uHaze.value.copy(average).multiplyScalar(0.004 * (1 - day)).add(new THREE.Vector3(0.2, 0.15, 0.1).multiplyScalar(day * 0.1));
         // At night a dim show level stays on, so the rows never vanish whatever colour the screen throws.
-        uniforms.uHouse.value = lerp(0.12, 2.3, day);
+        uniforms.uHouse.value = lerp(0.12, 1.7, day);
         uniforms.uSconce.value = lerp(1.4, 0.9, day);
         uniforms.uFoot.value = lerp(0.9, 0.55, day);
         uniforms.uBoxLamp.value = lerp(1, 0.6, day);

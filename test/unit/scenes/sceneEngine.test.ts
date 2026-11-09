@@ -117,6 +117,9 @@ describe('phase director', () => {
         expect(chooseDirectorShot('tour', 'interlude', 2)).toBe('seat');
         expect(chooseDirectorShot('tour', 'singing', 20)).toBe('seat');
         expect(chooseDirectorShot('seat', 'outro', Infinity)).toBe('tour');
+        expect(chooseDirectorShot('seat', 'intro', 30)).toBe('seat');
+        expect(chooseDirectorShot('tour', 'intro', 30)).toBe('seat');
+        expect(chooseDirectorShot('seat', 'instrumental', Infinity)).toBe('seat');
     });
 });
 

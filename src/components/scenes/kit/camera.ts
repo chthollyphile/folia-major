@@ -20,11 +20,13 @@ export interface Head {
     pitch: number;
 }
 
-/** Adds this frame's drag (ctx.input.look()) to the head: once a frame, before the rigs. Round the vertical it turns without end. */
+/** How far a seated person turns their head to either side. */
+export const YAW_LIMIT = 80 * DEG;
+
+/** Adds this frame's drag (ctx.input.look()) to the head: once a frame, before the rigs. Left and right it stops at YAW_LIMIT. */
 export const turnHead = (ctx: SceneContext, head: Head) => {
     const turned = ctx.input.look();
-    const yaw = head.yaw + turned.yaw;
-    head.yaw = Math.atan2(Math.sin(yaw), Math.cos(yaw));
+    head.yaw = THREE.MathUtils.clamp(head.yaw + turned.yaw, -YAW_LIMIT, YAW_LIMIT);
     head.pitch += turned.pitch;
 };
 
@@ -106,7 +108,8 @@ export const DEFAULT_DIRECTOR_TIMING: DirectorTiming = { tourAfterSec: 10, leadI
 
 /** The shot for this moment, given the one on now (the gap between the two thresholds keeps it from flickering). */
 export const chooseDirectorShot = (current: DirectorShot, phase: LyricPhase, nextLineIn: number, timing: DirectorTiming = DEFAULT_DIRECTOR_TIMING): DirectorShot => {
-    if (phase === 'singing') return 'seat';
+    // A song opens in the seat: the tour is only for gaps once the singing has begun.
+    if (phase === 'singing' || phase === 'intro' || phase === 'instrumental') return 'seat';
     if (current === 'seat') return nextLineIn >= timing.tourAfterSec ? 'tour' : 'seat';
     return nextLineIn <= timing.leadInSec ? 'seat' : 'tour';
 };
