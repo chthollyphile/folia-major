@@ -17,7 +17,7 @@ import { isSongUnavailable } from '../../../services/onlineMusic/songAvailabilit
 import type { BravaisLayer, BravaisSeamModel } from './bravaisLayer';
 import type { BravaisHomeEntry, BravaisHomeTool } from './bravaisHomeModels';
 import { openRecommendationPreferences, useRecommendationPreferencesEntry } from '../../../components/recommendationPreferences/recommendationPreferencesEntry';
-import { projectExploreHeadings, projectExploreItems } from './bravaisExploreProjection';
+import { projectExploreHeadings, projectExploreItems, projectExploreShortcuts } from './bravaisExploreProjection';
 import type { BravaisHomeChrome } from './useBravaisHomeChrome';
 import { useBravaisHomeAccount } from './useBravaisHomeAccount';
 import { useBravaisLayerRegistration } from './useBravaisLayerRegistration';
@@ -31,7 +31,7 @@ import { availableLocalTabLabel, onlineWallHint } from './bravaisEmptyWallHint';
 //   集合墙；歌曲点了展开聚焦卡，播放时与网格一样连同它所在 section 的歌曲一起放。
 // - 歌曲磁贴与聚焦卡右上角悬浮的「加入速记簿」「收藏到歌单」（explore-collect / explore-save-to-playlist，走首页的
 //   播放端口）：速记簿里的出处是「探索 · section 标题」。
-// - 本机的两组（最近播放、再听一次，ownSections）排在平台的 section 前面，和网格的探索页一样；网格的探索墙不放它们。
+// - 本机的两组（最近播放、再听一次，ownSections）排在固定推荐入口之后、普通平台 section 之前，和网格探索页一样；网格的探索墙不放它们。
 //   这两组是快照：进页签时（换平台、账户、语言就是另一页，也算进页签）与「换一批」时各读一次，之后放歌不跟着变，墙不在听歌时重排；
 //   只有播放记录被纠正（旧的 MV 记录换成正式版）时再读一次。
 // - 缝：标题与面包屑是「探索」，元数据行是平台；读取中 / 读不到 / 空页的说明进状态行（墙上有本机的两组时照样说）；
@@ -145,6 +145,11 @@ const BravaisHomeExplore: React.FC<{
         };
     }, []);
 
+    const shortcuts = useMemo(() => projectExploreShortcuts(wall.tiles, feed?.sections ?? NO_SECTIONS).map(shortcut => ({
+        ...shortcut,
+        open: () => onOpenItem(shortcut.itemKey),
+    })), [feed?.sections, onOpenItem, wall.tiles]);
+
     const accountSeam = useBravaisHomeAccount(accountController, online);
     const status = online.accountView === 'guest'
         ? (online.needsRelogin ? t('status.loginExpired') : undefined)
@@ -187,13 +192,15 @@ const BravaisHomeExplore: React.FC<{
         onSelectTab: chrome.onSelectTab,
         home: {
             entries,
+            shortcuts,
+            shortcutsLabel: t('libraryBravaisHome.shortcuts'),
             tools,
             menuLabel: t('libraryBravaisHome.more'),
             scan: chrome.scan,
             search: chrome.search,
             account: accountSeam,
         },
-    }), [accountSeam, chrome.onSelectTab, chrome.scan, chrome.search, chrome.tabs, chrome.title, entries, online.providerLabel, status, t, tools]);
+    }), [accountSeam, chrome.onSelectTab, chrome.scan, chrome.search, chrome.tabs, chrome.title, entries, online.providerLabel, shortcuts, status, t, tools]);
     const localTab = availableLocalTabLabel(chrome.tabs);
     const { accountView, needsRelogin, providerLabel } = online;
     const wallHint = useMemo(

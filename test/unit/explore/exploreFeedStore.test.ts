@@ -78,6 +78,51 @@ describe('explore feed store', () => {
         await vi.waitFor(() => expect(feed().refreshing).toBe(false));
     };
 
+    it('keeps fixed entry placement through remembered order, further reads, refresh and removed collections', async () => {
+        const key = 'qq:me:en';
+        omni.getExploreFeed.mockResolvedValueOnce({ sections: [section('radar'), section('charts')] });
+        store().show(key);
+        await vi.waitFor(() => expect(feed().status).toBe('ready'));
+        store().clear();
+        omni.getExploreFeed.mockResolvedValueOnce({
+            sections: [section('recommended', { placement: 'first', moreCursor: 'recommended-more' }), section('charts'), section('radar')],
+            nextCursor: 'page-2', refreshReadsAnew: true,
+        });
+        store().show(key);
+        await vi.waitFor(() => expect(feed().status).toBe('ready'));
+        expect(feed().sections.map(shown => shown.id)).toEqual(['recommended', 'radar', 'charts']);
+        expect(feed().sections[0].placement).toBe('first');
+
+        omni.getExploreSectionItems.mockResolvedValueOnce({ items: [item('recommended-2')] });
+        await store().loadMoreOf('recommended');
+        expect(feed().sections[0]).toMatchObject({ placement: 'first', items: [item('recommended-1'), item('recommended-2')] });
+        omni.getExploreFeed.mockResolvedValueOnce({ sections: [section('later-entry', { placement: 'first' }), section('later')] });
+        await store().loadMore();
+        expect(feed().sections.map(shown => shown.id)).toEqual(['recommended', 'later-entry', 'radar', 'charts', 'later']);
+        expect(feed().sections.slice(0, 2).every(shown => shown.placement === 'first')).toBe(true);
+
+        omni.getExploreFeed.mockResolvedValueOnce({
+            sections: [section('later-entry', { placement: 'first' }), section('recommended', { placement: 'first', items: [item('recommended-new')] }), section('charts'), section('radar')],
+            refreshReadsAnew: true,
+        });
+        await refreshed();
+        expect(feed().sections.map(shown => shown.id)).toEqual(['later-entry', 'recommended', 'radar', 'charts', 'later']);
+        expect(feed().sections[1]).toMatchObject({ placement: 'first', items: [item('recommended-new')] });
+        store().noteSaved({ providerId: 'ytm', type: 'playlist', id: 'later-1' }, false);
+        expect(feed().sections.slice(0, 2).every(shown => shown.placement === 'first')).toBe(true);
+        store().noteSaved({ providerId: 'ytm', type: 'playlist', id: 'later-1' }, true);
+    });
+
+    it('adopts a known section placement from a fresh page and leads with newly introduced fixed entries', async () => {
+        omni.getExploreFeed.mockResolvedValueOnce({ sections: [section('ordinary'), section('upgraded')] });
+        store().show('ytm:me:en');
+        await vi.waitFor(() => expect(feed().status).toBe('ready'));
+        omni.getExploreFeed.mockResolvedValueOnce({ sections: [section('new-entry', { placement: 'first' }), section('upgraded', { placement: 'first' }), section('ordinary')] });
+        await refreshed();
+        expect(feed().sections.map(shown => shown.id)).toEqual(['new-entry', 'upgraded', 'ordinary']);
+        expect(feed().sections.slice(0, 2).every(shown => shown.placement === 'first')).toBe(true);
+    });
+
     it('shows, on a refresh, the entries that follow the ones shown, and reads the page anew only once every section has shown its last', async () => {
         const page = () => ({ sections: [titled('picks', ['p1', 'p2'], { moreCursor: 'picks-3' }), titled('fixed', ['f1', 'f2'])] });
         omni.getExploreFeed.mockImplementation(async () => page());

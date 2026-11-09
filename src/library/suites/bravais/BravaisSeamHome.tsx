@@ -183,7 +183,7 @@ export const HomeSeamShortcuts: React.FC<{
 }> = ({ shortcuts, entries, label, rule, onOpen, measure = false }) => {
     const { t } = useTranslation();
     // A provider's extra radio goes by its own name (Guess You Like); the other kinds by their fixed short names.
-    const name = (shortcut: BravaisHomeShortcut) => (shortcut.special === 'fm-station' && shortcut.label
+    const name = (shortcut: BravaisHomeShortcut) => shortcut.shortLabel || (shortcut.special === 'fm-station' && shortcut.label
         ? shortcut.label
         : t(`libraryBravaisHome.special.${shortcut.special}`));
     return (
@@ -285,10 +285,12 @@ const BravaisSeamHome: React.FC<{
     const home = seam.home;
     const tabs = seam.tabs ?? [];
     const sections = home?.sections && home.sections.length > 0 ? home.sections : null;
-    const shortcuts = home?.shortcuts && home.shortcuts.length > 0 ? home.shortcuts : null;
+    const allShortcuts = home?.shortcuts ?? [];
+    const pinnedShortcuts = allShortcuts.filter(shortcut => shortcut.pinned);
+    const shortcuts = allShortcuts.filter(shortcut => !shortcut.pinned);
     const entries = home?.entries && home.entries.length > 0 ? home.entries : null;
-    // 直达入口这一列：特殊集合的入口，后面是动作入口；两样都没有就不画。
-    const hasJumps = shortcuts !== null || entries !== null;
+    // 普通直达入口这一列：特殊集合的入口，后面是动作入口；固定推荐另占一段。
+    const hasJumps = shortcuts.length > 0 || entries !== null;
     const navRef = useRef<HTMLDivElement>(null);
     const headRef = useRef<HTMLDivElement>(null);
     const middleRef = useRef<HTMLDivElement>(null);
@@ -304,7 +306,7 @@ const BravaisSeamHome: React.FC<{
     });
     const { level, overflowing } = fit;
     const short = level === 'short';
-    // 直达入口放得下就在中段，否则挪进「⋯」菜单（先于二级切换让位）。
+    // 普通直达入口按空间退让；固定入口独立占位，留在页签与账户之间。
     const shortcutsInColumn = hasJumps && fit.shortcuts;
     const labelsKey = tabs.map(tab => tab.label).join('\u0000');
     const shortLabels = useMemo(() => abbreviateSeamTabLabels(labelsKey.split('\u0000')), [labelsKey]);
@@ -326,7 +328,7 @@ const BravaisSeamHome: React.FC<{
     );
     return (
         <div className={`bravais-seam-home${compact ? ' is-compact' : ''}${short ? ' has-short-tabs' : ''}`} data-bravais-home-seam
-            data-bravais-home-fit={level} data-bravais-home-shortcuts={hasJumps ? (shortcutsInColumn ? 'column' : 'menu') : undefined}>
+            data-bravais-home-fit={level} data-bravais-home-shortcuts={hasJumps || pinnedShortcuts.length > 0 ? (shortcutsInColumn || pinnedShortcuts.length > 0 ? 'column' : 'menu') : undefined}>
             <div ref={navRef} className={`bravais-seam-home-nav${overflowing ? ' is-overflowing' : ''}`}>
                 <div className="bravais-seam-home-nav-content">
                     <div ref={headRef}>
@@ -359,7 +361,7 @@ const BravaisSeamHome: React.FC<{
                         {/* fb11：直达入口贴在中段底部（上面的内容在剩下的空间里居中）。 */}
                         <div ref={jumpsRef} className="bravais-seam-home-jumps" data-bravais-home-jumps>
                             {shortcutsInColumn && (
-                                <HomeSeamShortcuts shortcuts={shortcuts ?? []} entries={entries} label={home?.shortcutsLabel} rule={Boolean(sections)} onOpen={openShortcut} />
+                                <HomeSeamShortcuts shortcuts={shortcuts} entries={entries} label={home?.shortcutsLabel} rule={Boolean(sections)} onOpen={openShortcut} />
                             )}
                         </div>
                     </div>
@@ -384,7 +386,7 @@ const BravaisSeamHome: React.FC<{
                 )}
             </div>
             <div ref={jumpsMeasureRef} className="bravais-seam-home-measure" aria-hidden>
-                {hasJumps && <HomeSeamShortcuts shortcuts={shortcuts ?? []} entries={entries} rule={Boolean(sections)} measure />}
+                {hasJumps && <HomeSeamShortcuts shortcuts={shortcuts} entries={entries} rule={Boolean(sections)} measure />}
             </div>
             <AnimatePresence initial={false}>
                 {seam.filter && !compact && (filterEditing || seam.filter.query) && (
@@ -400,10 +402,15 @@ const BravaisSeamHome: React.FC<{
                 </button>
             )}
             {/* fb4：账户入口贴在工具格正上方（不在中段），平台列表从它往上弹出、盖在导航区上。 */}
+            {pinnedShortcuts.length > 0 && (
+                <div className="bravais-seam-home-jumps is-pinned" data-bravais-home-jumps>
+                    <HomeSeamShortcuts shortcuts={pinnedShortcuts} label={home?.shortcutsLabel} rule={false} onOpen={openShortcut} />
+                </div>
+            )}
             {home?.account && <BravaisSeamAccountSlot account={home.account} compact={compact} />}
             {home && (
                 <BravaisSeamHomeTools home={home} compact={compact} onExpand={expand}
-                    menuShortcuts={shortcuts && !shortcutsInColumn ? shortcuts : null} onOpenShortcut={openShortcut}
+                    menuShortcuts={!shortcutsInColumn ? shortcuts : null} onOpenShortcut={openShortcut}
                     menuEntries={entries && !shortcutsInColumn ? entries : null} />
             )}
             {compact && (

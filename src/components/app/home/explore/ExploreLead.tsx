@@ -56,8 +56,8 @@ const LeadLine: React.FC<{ item: OmniExploreItem; place: number; hasWideSlot: bo
         >
             <span className={`flex shrink-0 justify-center ${hasWideSlot ? 'w-24' : 'w-[54px]'}`}>
                 <span data-explore-beat className={`relative block h-[54px] overflow-hidden bg-[var(--ex-tint)] ${face.shape === 'wide' ? 'w-24 rounded-xl' : face.shape === 'round' ? 'w-[54px] rounded-full' : 'w-[54px] rounded-xl'}`}>
-                    <Picture url={face.pictureUrl} size={200} className="h-full w-full" />
-                    {item.kind === 'song' && (
+                    <Picture url={face.pictureUrl} size={200} className="h-full w-full" overlay={face.coverOverlay} />
+                    {(item.kind === 'song' || Boolean(item.collection.personalFm)) && (
                         <span className="absolute inset-0 flex items-center justify-center bg-black/45 text-white opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-visible:opacity-100">
                             <Play size={16} fill="currentColor" />
                         </span>
@@ -116,11 +116,11 @@ const LargeEntry: React.FC<{ item: OmniExploreItem; arrival: Arrival; onSelect: 
                 {face.kind === 'album' && face.pictureUrl && <Record />}
                 {playing && <BeatRing round={face.shape === 'round' ? 'rounded-full' : 'rounded-3xl'} />}
                 <span className={`relative block overflow-hidden bg-[var(--ex-tint)] shadow-[0_30px_60px_-28px_rgba(0,0,0,0.8)] ${face.shape === 'wide' ? 'aspect-video w-full rounded-3xl' : face.shape === 'round' ? 'aspect-square w-56 rounded-full' : 'aspect-square w-56 rounded-3xl'}`}>
-                    <Uncovered arrival={arrival}><Picture url={face.pictureUrl} size={640} className="h-full w-full" /></Uncovered>
+                    <Uncovered arrival={arrival}><Picture url={face.pictureUrl} size={640} className="h-full w-full" overlay={face.coverOverlay} /></Uncovered>
                     {face.shape !== 'round' && (playing
                         ? <Levels className={`bottom-4 left-4 ${LEVELS_CHIP}`} />
                         : <DurationChip durationMs={face.durationMs} className="bottom-4 left-4" />)}
-                    {face.shape !== 'round' && <ActionMark isSong={item.kind === 'song'} className="explore-float absolute bottom-4 right-4 h-12 w-12 bg-white text-black" />}
+                    {face.shape !== 'round' && <ActionMark plays={item.kind === 'song' || Boolean(item.collection.personalFm)} className="explore-float absolute bottom-4 right-4 h-12 w-12 bg-white text-black" />}
                     <Hairline />
                     <Sheen />
                 </span>

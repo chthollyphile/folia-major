@@ -230,6 +230,8 @@ export interface ProviderCollection {
     personalFm?: PersonalFmLaunch;
     /** The account's listening ranking over this span (type `listening_rank`): read-only, made by the platform. */
     listeningRank?: ListeningRankRange;
+    /** Provider artwork displayed over a collection's song cover. */
+    coverOverlay?: { label: string; logoUrl?: string };
     providerId: OnlineProviderId;
     id: MediaId;
     name: string;
@@ -1012,6 +1014,8 @@ export interface ProviderExploreSection {
     id: string;
     /** The provider's own heading, in the language its pages are read in. May be empty. */
     title: string;
+    /** Fixed entry sections stay before remembered headings, in the order the provider gives them. */
+    placement?: 'first';
     items: ProviderExploreItem[];
     /** Present when the section has further items; handed back to `getSectionItems`. */
     moreCursor?: string;
