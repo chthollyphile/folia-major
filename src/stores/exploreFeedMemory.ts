@@ -1,6 +1,7 @@
-import type { OmniCollection, OmniExploreItem, OmniExploreSection } from '../../../../types/onlineMusic';
+import type { OmniCollection, OmniExploreItem, OmniExploreSection } from '../types/onlineMusic';
+import { getStoredString, setStoredString } from './storagePrimitives';
 
-// src/components/app/home/explore/exploreFeedMemory.ts
+// src/stores/exploreFeedMemory.ts
 // What the explore tab remembers from one session to the next: the order its sections stand in,
 // and the collections the listener took out of their library.
 
@@ -21,15 +22,13 @@ interface Memory {
     takenOut: Record<string, number>;
 }
 
-const storage = () => (typeof localStorage === 'undefined' ? null : localStorage);
-
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
 
 // What is stored, as far as it has the shape written here; anything else is left out.
 const read = (): Memory => {
     const memory: Memory = { orders: {}, takenOut: {} };
     try {
-        const kept: unknown = JSON.parse(storage()?.getItem(STORAGE_KEY) ?? 'null');
+        const kept: unknown = JSON.parse(getStoredString(STORAGE_KEY, 'null'));
         if (!isRecord(kept)) return memory;
         for (const [page, order] of Object.entries(isRecord(kept.orders) ? kept.orders : {})) {
             if (Array.isArray(order)) {
@@ -48,7 +47,7 @@ const read = (): Memory => {
 let memory: Memory | null = null;
 const recall = (): Memory => (memory ??= read());
 const keep = () => {
-    try { storage()?.setItem(STORAGE_KEY, JSON.stringify(recall())); } catch { /* kept for the session */ }
+    try { setStoredString(STORAGE_KEY, JSON.stringify(recall())); } catch { /* kept for the session */ }
 };
 
 /** Forgets what was read from storage, so that the next call reads it again. */
