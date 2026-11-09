@@ -564,9 +564,11 @@ void main() {
 const BEAM_VERTEX = `
 uniform mat4 uInvViewProj;
 varying vec4 vFar;
+varying vec2 vUv;
 void main() {
     gl_Position = vec4(position.xy, 0.0, 1.0);
     vFar = uInvViewProj * vec4(position.xy, 1.0, 1.0);
+    vUv = position.xy * 0.5 + 0.5;
 }
 `;
 
@@ -577,18 +579,25 @@ uniform vec4 uBeamPlanes[4];
 uniform sampler3D uNoise;
 uniform float uBeamGain;
 uniform float uSmokeTime;
+// Drawn in a pass of its own after the hall (cinemaPost.ts): the eye, and the hall's depth to stop at.
+uniform vec3 uEye;
+uniform sampler2D uDepth;
+uniform mat4 uInvProj;
 
 varying vec4 vFar;
+varying vec2 vUv;
 
 const int STEPS = 14;
 
 void main() {
-    vec3 ro = cameraPosition;
+    vec3 ro = uEye;
     vec3 rd = normalize(vFar.xyz / vFar.w - ro);
-    if (rd.z >= -1e-4) discard;
-    // Clip the view ray to the pyramid from the lens to the screen's edges, and stop at the screen.
+    // Clip the view ray to the pyramid from the lens to the screen's edges, and stop at the screen, and at
+    // the first thing in the hall the eye sees along it (a curtain, the valance, a wall, a head).
     float t0 = 0.0;
-    float t1 = -ro.z / rd.z;
+    float t1 = rd.z < -1e-4 ? -ro.z / rd.z : 1e3;
+    vec4 hit = uInvProj * vec4(vUv * 2.0 - 1.0, texture2D(uDepth, vUv).r * 2.0 - 1.0, 1.0);
+    t1 = min(t1, length(hit.xyz / hit.w));
     for (int i = 0; i < 4; i++) {
         vec4 plane = uBeamPlanes[i];
         float dn = dot(plane.xyz, rd);
@@ -623,7 +632,7 @@ void main() {
         sum += light * density * spread * edge;
     }
     sum *= dt * uBeamGain;
-    // Added onto the finished picture: brought into display space here.
+    // Added onto the finished picture (the composite pass): brought into display space here.
     gl_FragColor = vec4(linearToSrgb(min(sum, vec3(1.0))) * 0.55, 1.0);
 }
 `;

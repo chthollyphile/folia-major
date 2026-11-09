@@ -40,6 +40,8 @@ export interface CinemaFrameInput {
     lightsUp: boolean;
     /** The app's static mode: no intermission, everything at once where it belongs. */
     still?: boolean;
+    /** The user's setting: a pause closes the curtains (an intermission); false, a pause changes nothing. */
+    curtainsOnPause?: boolean;
     /** The cove strips' colour, linear. */
     cove: THREE.Color;
     camera: THREE.PerspectiveCamera;
@@ -136,7 +138,6 @@ const breathe = () => new Promise<void>(resolve => { setTimeout(resolve, 0); });
 export const createCinemaScene = async (): Promise<CinemaScene> => {
     const leader = createLeaderReel();
     const noise = createSmokeNoise();
-    const post = createCinemaPost();
     const uniforms = {
         uTime: { value: 0 },
         uResolution: { value: new THREE.Vector2(1, 1) },
@@ -244,12 +245,11 @@ export const createCinemaScene = async (): Promise<CinemaScene> => {
     const dust = new THREE.Points(dustGeometry, additive(CINEMA_SHADERS.dust, true));
     dust.renderOrder = 6;
 
-    const beamGeometry = keep(new THREE.BufferGeometry());
-    beamGeometry.setAttribute('position', new THREE.Float32BufferAttribute([-1, -1, 0, 3, -1, 0, -1, 3, 0], 3));
-    const beam = new THREE.Mesh(beamGeometry, additive(CINEMA_SHADERS.beam, false));
-    beam.renderOrder = 10;
+    // The beam is drawn by the lens passes after the hall, from its depth (cinemaPost.ts): it stops at the curtains and the walls.
+    const beam = keep(new THREE.ShaderMaterial({ ...CINEMA_SHADERS.beam, uniforms: { ...uniforms }, depthTest: false, depthWrite: false }));
+    const post = createCinemaPost(beam);
 
-    [seats, audience, room, curtainMesh, screen, glows, dust, beam].forEach(object => {
+    [seats, audience, room, curtainMesh, screen, glows, dust].forEach(object => {
         object.frustumCulled = false;
         scene.add(object);
     });
@@ -310,12 +310,12 @@ export const createCinemaScene = async (): Promise<CinemaScene> => {
     const projected = new THREE.Vector3();
     const mixed = new THREE.Vector3();
 
-    const update = ({ dt, running, power: powerIn, bass: bassIn, lightsUp, still, cove, camera, bufferSize }: CinemaFrameInput) => {
+    const update = ({ dt, running, power: powerIn, bass: bassIn, lightsUp, still, curtainsOnPause, cove, camera, bufferSize }: CinemaFrameInput) => {
         time += dt;
         power = running ? ease(power, powerIn, 5, dt) : power;
         bass = running ? ease(bass, bassIn, 7, dt) : bass;
         // The house lights, the shutter and the curtains: a pause turns into an intermission.
-        const show = intermission.step(dt, running, lightsUp, still);
+        const show = intermission.step(dt, running, lightsUp, still, curtainsOnPause);
         day = show.lights;
         const shutter = show.shutter;
         if (moved(show.left, hung.left) || moved(show.right, hung.right)) {

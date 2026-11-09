@@ -93,10 +93,10 @@ export const boxOut = (t: number) => BOXES.endOut + BOXES.bowOut * Math.sin(Math
 const boxLampZ = (index: number) => BOXES.z0 + (BOXES.z1 - BOXES.z0) * BOXES.lampAt[index];
 const boxLampX = () => HALL.halfWidth - boxOut(BOXES.lampAt[0]) + 0.08;
 
-/** The projector's lens in the booth behind the audience. */
+/** The projector's lens in the booth behind the audience: behind the back wall, so the beam comes out of the wall. */
 export const PROJECTOR = {
     y: 8.9,
-    z: 29.6,
+    z: HALL.back + 1,
 };
 
 export const STAGE_LIGHTS = {

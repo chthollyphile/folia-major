@@ -110,6 +110,7 @@ uniform float uTime;
 uniform float uGrain;
 uniform float uVignette;
 uniform float uBloomGain;
+uniform sampler2D uVolume;
 varying vec2 vUv;
 
 float hash12(vec2 p) {
@@ -132,6 +133,8 @@ void main() {
     vec3 bloom = (texture2D(uBloom, vUv + vec2(bt.x, bt.y)) + texture2D(uBloom, vUv - vec2(bt.x, bt.y))
         + texture2D(uBloom, vUv + vec2(bt.x, -bt.y)) + texture2D(uBloom, vUv - vec2(bt.x, -bt.y))).rgb * 0.25 * uBloomGain;
     c = c + bloom * (1.0 - c * 0.5);
+    // The light in the air (the projector's beam), already stopped at whatever the eye sees first.
+    c += texture2D(uVolume, vUv).rgb;
     vec2 q = vUv - 0.5;
     q.x *= uResolution.x / uResolution.y;
     float vignette = 1.0 - uVignette * smoothstep(0.3, 1.15, length(q));
@@ -145,7 +148,11 @@ void main() {
 }
 `;
 
-export const createCinemaPost = (): CinemaPost => {
+/**
+ * `volume` draws the light in the air (the beam) at half size after the hall, from the hall's depth, so it
+ * stops at the first thing the eye sees: it gets uDepth, uInvProj and uEye here.
+ */
+export const createCinemaPost = (volume: THREE.ShaderMaterial): CinemaPost => {
     const target = (samples: number, depth: boolean, float = false) => new THREE.WebGLRenderTarget(1, 1, {
         samples,
         depthBuffer: depth,
@@ -167,7 +174,9 @@ export const createCinemaPost = (): CinemaPost => {
     const half = [target(0, false, true), target(0, false, true)];
     const quarter = [target(0, false, true), target(0, false, true)];
     const bloom = [target(0, false, true), target(0, false, true)];
-    const targets = [main, ...half, ...quarter, ...bloom];
+    const air = target(0, false, true);
+    const targets = [main, ...half, ...quarter, ...bloom, air];
+    Object.assign(volume.uniforms, depthUniforms(), { uEye: { value: new THREE.Vector3() } });
 
     const material = (fragmentShader: string, uniforms: Record<string, THREE.IUniform>) => new THREE.ShaderMaterial({
         vertexShader: QUAD_VERTEX,
@@ -189,6 +198,7 @@ export const createCinemaPost = (): CinemaPost => {
         uGrain: { value: 0 },
         uVignette: { value: 0 },
         uBloomGain: { value: 0 },
+        uVolume: { value: air.texture },
     });
 
     const geometry = new THREE.BufferGeometry();
@@ -230,7 +240,7 @@ export const createCinemaPost = (): CinemaPost => {
             main.setSize(width, height);
             const halfW = Math.max(1, Math.floor(width / 2));
             const halfH = Math.max(1, Math.floor(height / 2));
-            half.forEach(item => item.setSize(halfW, halfH));
+            [...half, air].forEach(item => item.setSize(halfW, halfH));
             [...quarter, ...bloom].forEach(item => item.setSize(Math.max(1, Math.floor(halfW / 2)), Math.max(1, Math.floor(halfH / 2))));
         }
         const autoClear = renderer.autoClear;
@@ -239,11 +249,13 @@ export const createCinemaPost = (): CinemaPost => {
         renderer.setClearColor(0x000000, 1);
         renderer.setRenderTarget(main);
         renderer.render(scene, camera);
-        [down, composite].forEach(item => {
+        [down, composite, volume].forEach(item => {
             item.uniforms.uInvProj.value.copy(camera.projectionMatrixInverse);
             item.uniforms.uFocus.value = frame.focus;
             item.uniforms.uAperture.value = frame.aperture;
         });
+        volume.uniforms.uEye.value.setFromMatrixPosition(camera.matrixWorld);
+        pass(renderer, volume, air);
 
         downInto(renderer, main, half[0], false);
         downInto(renderer, half[0], bloom[0], true);
@@ -266,7 +278,7 @@ export const createCinemaPost = (): CinemaPost => {
     // targets, the composite onto the canvas, so each is compiled with that target bound.
     const compile = async (renderer: THREE.WebGLRenderer, scene: THREE.Object3D, camera: THREE.Camera) => {
         const passes = new THREE.Scene();
-        [down, blur].forEach(shader => passes.add(new THREE.Mesh(geometry, shader)));
+        [down, blur, volume].forEach(shader => passes.add(new THREE.Mesh(geometry, shader)));
         renderer.setRenderTarget(main);
         const intoTargets = [renderer.compileAsync(scene, camera), renderer.compileAsync(passes, quadCamera)];
         renderer.setRenderTarget(null);

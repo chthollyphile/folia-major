@@ -33,6 +33,12 @@ export default defineScene({
                 label: { 'zh-CN': '开灯', en: 'House lights', in: 'Lampu ruangan' },
                 defaultValue: false,
             },
+            {
+                key: 'curtainsOnPause',
+                type: 'boolean',
+                label: { 'zh-CN': '幕布', en: 'Curtains', in: 'Tirai' },
+                defaultValue: true,
+            },
         ],
     },
     load: () => import('./cinemaRuntime').then(module => module.createCinemaRuntime),

@@ -84,7 +84,7 @@ const SceneOwnSettings: React.FC<{ manifest: SceneManifest }> = ({ manifest }) =
             {schema.length > 0 && (
                 <Row
                     below={(
-                        <div className="grid grid-cols-2 gap-x-3 gap-y-3">
+                        <div className="flex flex-wrap gap-x-6 gap-y-3">
                             <FoliumParamFields
                                 params={schema}
                                 values={values}

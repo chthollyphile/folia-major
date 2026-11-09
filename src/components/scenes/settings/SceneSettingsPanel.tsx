@@ -74,7 +74,7 @@ const SceneSettingsPanel: React.FC<SceneSettingsPanelProps> = ({ manifest, ancho
                 </div>
             )}
             {schema.length > 0 && (
-                <div className="grid grid-cols-2 gap-x-3 gap-y-3">
+                <div className="flex flex-wrap gap-x-6 gap-y-3">
                     <FoliumParamFields
                         params={schema}
                         values={values}

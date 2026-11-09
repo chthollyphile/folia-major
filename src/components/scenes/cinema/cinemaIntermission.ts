@@ -53,9 +53,10 @@ const clamp = (value: number, min: number, max: number) => Math.min(max, Math.ma
 export interface CinemaIntermission {
     /**
      * Moves the intermission one frame. playing: the music plays; lightsUp: the house lights up by hand;
-     * still (the app's static mode): no ceremony, everything at once where it belongs.
+     * still (the app's static mode): no ceremony, everything at once where it belongs. onPause false (the
+     * user's setting): a pause is no intermission, the picture stays and the curtains stay open (closed ones open).
      */
-    step: (dt: number, playing: boolean, lightsUp: boolean, still?: boolean) => IntermissionState;
+    step: (dt: number, playing: boolean, lightsUp: boolean, still?: boolean, onPause?: boolean) => IntermissionState;
 }
 
 export const createIntermission = (): CinemaIntermission => {
@@ -67,7 +68,7 @@ export const createIntermission = (): CinemaIntermission => {
     const hems = HEM_OMEGA.map(omega => ({ omega, at: 0, speed: 0 }));
     const state: IntermissionState = { shutter: 1, lights: 0, left: { top: 0, bottom: 0 }, right: { top: 0, bottom: 0 } };
 
-    const step = (dt: number, playing: boolean, lightsUp: boolean, still = false) => {
+    const step = (dt: number, playing: boolean, lightsUp: boolean, still = false, onPause = true) => {
         if (still) {
             pausedFor = 0;
             lit = false;
@@ -77,7 +78,7 @@ export const createIntermission = (): CinemaIntermission => {
             state.shutter = 1;
             state.lights = lightsUp ? 1 : 0;
         } else {
-            pausedFor = playing ? 0 : pausedFor + dt;
+            pausedFor = playing || !onPause ? 0 : pausedFor + dt;
             state.shutter = pausedFor > SHUTTER_AFTER
                 ? Math.max(0, state.shutter - dt / SHUTTER_CLOSE_SECONDS)
                 : Math.min(1, state.shutter + dt / SHUTTER_OPEN_SECONDS);

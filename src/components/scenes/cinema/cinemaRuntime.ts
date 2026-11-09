@@ -93,7 +93,10 @@ export const createCinemaRuntime: SceneFactory = async (ctx) => {
     // The house lights: up by the scene's setting, and fully up once the queue has played out, until play.
     const houseLights = () => ctx.settings.get().houseLights === true;
     let lightsByHand = houseLights();
-    disposers.push(ctx.settings.onChange(() => { lightsByHand = houseLights(); }));
+    // A pause closes the curtains unless the user turned that off: then the curtains never close, paused or not.
+    const curtainsOnPause = () => ctx.settings.get().curtainsOnPause !== false;
+    let closeOnPause = curtainsOnPause();
+    disposers.push(ctx.settings.onChange(() => { lightsByHand = houseLights(); closeOnPause = curtainsOnPause(); }));
     disposers.push(ctx.on('queueEnd', () => { lightsUpAtEnd = true; }));
     disposers.push(ctx.on('play', () => { lightsUpAtEnd = false; }));
 
@@ -138,6 +141,7 @@ export const createCinemaRuntime: SceneFactory = async (ctx) => {
                 power: ctx.music.power(),
                 bass: ctx.music.bands().bass,
                 lightsUp: lightsByHand || lightsUpAtEnd,
+                curtainsOnPause: closeOnPause,
                 still: ctx.host.staticMode,
                 cove,
                 camera,
