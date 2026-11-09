@@ -13,7 +13,7 @@ import OnlineProviderAccountlessPanel from '../account/OnlineProviderAccountless
 import HomeLoginPanel from '../../../../components/login/HomeLoginPanel';
 import SwitcherPill from '../../../../components/login/SwitcherPill';
 import ExploreSurface from '../../../../components/app/home/explore/ExploreSurface';
-import { createOnlineGridViewCollection } from '../../../../components/app/home/gridViewCollectionAdapters';
+import { buildOnlinePlaylistCards } from '../../../core/home/homeCards';
 import { hasExploreWallEntries } from '../../../../components/app/lattice/exploreWall';
 import type { ProviderCollection, ProviderUser } from '../../../../types/onlineMusic';
 import { useThemeSettingsStore } from '../../../../stores/useThemeSettingsStore';
@@ -506,7 +506,7 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                             accountId={String(activeUser?.id ?? '')}
                             scope={`${activeUser?.id ?? ''}:${i18n.language}`}
                             onPlaySong={(song, queue) => onPlaySong(song, queue, false)}
-                            onOpenCollection={collection => onOpenGridView?.(createOnlineGridViewCollection(collection, activeProviderId))}
+                            onOpenCollection={collection => handleSelectCollectionCard(buildOnlinePlaylistCards([collection], t)[0])}
                         />
                     )
                 ) : showOnlineList ? (

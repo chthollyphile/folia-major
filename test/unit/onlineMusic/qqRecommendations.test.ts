@@ -4,7 +4,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // 推荐路由的响应形状取自 qq-music-api 3.3.0 的使用文档（docs/README.md「猜你喜欢、电台与推荐歌单」）；数字与名字是虚构示例。
 
 const requestMock = vi.hoisted(() => vi.fn());
-const transportState = vi.hoisted(() => ({ hasSession: true }));
+const transportState = vi.hoisted(() => ({ hasSession: true, session: 0 }));
+
+vi.mock('@/services/onlineMusic/providerStorage', () => ({
+    readProviderSessionValue: () => `opaque-test-session-${transportState.session}`,
+}));
 
 vi.mock('@/services/onlineMusic/qq/qqTransport', () => ({
     hasQqSession: () => transportState.hasSession,
@@ -14,6 +18,7 @@ vi.mock('@/services/onlineMusic/qq/qqTransport', () => ({
 
 import { qqRecommendations } from '@/services/onlineMusic/qq/qqRecommendations';
 import { OnlineProviderError } from '@/types/onlineMusic';
+import i18n from '@/i18n/config';
 
 const song = (mid: string, id: number) => ({
     mid,
@@ -33,11 +38,25 @@ describe('QQ recommendations', () => {
     beforeEach(() => {
         requestMock.mockReset();
         transportState.hasSession = true;
+        transportState.session += 1;
         vi.spyOn(console, 'warn').mockImplementation(() => { });
     });
 
     afterEach(() => {
         vi.restoreAllMocks();
+    });
+
+    it('names the recommendations with the provider\'s translated product terms on each read', () => {
+        const translate = vi.spyOn(i18n, 't').mockImplementation((...args) => `translated:${String(args[0])}`);
+
+        expect(qqRecommendations.getPresentation!()).toEqual({
+            homeTab: 'explore',
+            personalFmHomeTab: 'radio',
+            dailySongs: { name: 'translated:home.daily30' },
+        });
+
+        translate.mockImplementation((...args) => `changed:${String(args[0])}`);
+        expect(qqRecommendations.getPresentation!().dailySongs?.name).toBe('changed:home.daily30');
     });
 
     describe('daily songs', () => {
@@ -112,11 +131,30 @@ describe('QQ recommendations', () => {
             expect(requestMock.mock.calls).toEqual([['user_personal_fm', { page: 1 }], ['user_guess_you_like']]);
         });
 
-        // 与波点的 FM 一样：上游拒绝（22006）只是这次没有歌，不让首页电台整块失败。
-        it('turns a failed batch into no songs', async () => {
-            requestMock.mockRejectedValueOnce(upstreamFailure());
+        it('asks nothing without a usable session', async () => {
+            transportState.hasSession = false;
             await expect(qqRecommendations.getPersonalFm!()).resolves.toEqual([]);
-            expect(console.warn).toHaveBeenCalledWith('[QQProvider] personal-fm:failed', expect.objectContaining({ name: 'OnlineProviderError' }));
+            expect(requestMock).not.toHaveBeenCalled();
+        });
+
+        it('keeps a missing route or a successful empty answer as an empty batch', async () => {
+            requestMock.mockRejectedValueOnce(emptyAnswer()).mockRejectedValueOnce(missingRoute());
+            await expect(qqRecommendations.getPersonalFm!()).resolves.toEqual([]);
+            await expect(qqRecommendations.getPersonalFm!()).resolves.toEqual([]);
+        });
+
+        // Omni 隔离失败、标记 partial，保留其余推荐；这里不能吞掉上游拒绝后让首页缓存空卡。
+        it('surfaces a failed batch so the home feed can retry', async () => {
+            const failure = upstreamFailure();
+            requestMock.mockRejectedValueOnce(failure);
+            await expect(qqRecommendations.getPersonalFm!()).rejects.toBe(failure);
+            expect(console.warn).toHaveBeenCalled();
+        });
+
+        it('preserves cancellation instead of caching it as no songs', async () => {
+            const abort = new DOMException('aborted', 'AbortError');
+            requestMock.mockRejectedValueOnce(abort);
+            await expect(qqRecommendations.getPersonalFm!()).rejects.toBe(abort);
         });
     });
 

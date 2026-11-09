@@ -54,7 +54,7 @@ export const createLibraryHomePort = (getSurface: () => HomePortSurface): Librar
             window.addEventListener(LOCAL_MUSIC_SCAN_PROGRESS_EVENT, handleScanProgress);
             return () => window.removeEventListener(LOCAL_MUSIC_SCAN_PROGRESS_EVENT, handleScanProgress);
         },
-        getPersonalFm: async (selection, cardProviderId) => {
+        getPersonalFm: async (selection, cardProviderId, previewToken) => {
             const request = ++personalFmRequest;
             const activeProvider = () => useOnlineProviderAccountStore.getState().activeProviderId;
             const providerId = cardProviderId ?? activeProvider();
@@ -106,7 +106,7 @@ export const createLibraryHomePort = (getSurface: () => HomePortSurface): Librar
             };
             let songs: SongResult[];
             try {
-                songs = await omni.getPersonalFm(options);
+                songs = await omni.getPersonalFm(previewToken !== undefined ? { ...options, previewToken } : options);
             } catch (error) {
                 putBack();
                 settle();

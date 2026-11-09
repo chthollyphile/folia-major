@@ -1,7 +1,10 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { omni } from '@/services/onlineMusic/omni';
 import { getOnlineMusicProvider } from '@/services/onlineMusic/providerRegistry';
 import { normalizeQqCollection, normalizeQqSong } from '@/services/onlineMusic/qq/qqNormalize';
+import * as qqTransport from '@/services/onlineMusic/qq/qqTransport';
+import * as providerStorage from '@/services/onlineMusic/providerStorage';
+import { OnlineProviderError } from '@/types/onlineMusic';
 import { useOnlineProviderAccountStore } from '@/stores/useOnlineProviderAccountStore';
 import { canDislikeCurrentSong } from '@/utils/playerLikeAvailability';
 import type { UnifiedSong } from '@/types';
@@ -66,6 +69,30 @@ describe('QQ personal FM dislike', () => {
 describe('home feed sections', () => {
     const qqRecommendations = () => getOnlineMusicProvider('qq')!.recommendations!;
 
+    beforeEach(() => {
+        // Exercise the generic three-part Radio contract independently of QQ's Explore ownership.
+        vi.spyOn(qqRecommendations(), 'getPresentation').mockReturnValue({ homeTab: 'radio' });
+    });
+
+    it('leaves Explore-owned song previews untouched when Radio reads its playlists', async () => {
+        vi.mocked(qqRecommendations().getPresentation!).mockReturnValue({ homeTab: 'explore' });
+        const fm = vi.spyOn(qqRecommendations(), 'getPersonalFm');
+        const daily = vi.spyOn(qqRecommendations(), 'getDailySongs');
+        vi.spyOn(qqRecommendations(), 'getRecommendedCollections').mockResolvedValue([recommended]);
+        useOnlineProviderAccountStore.getState().setActiveProviderId('qq');
+        await expect(omni.getHomeFeed()).resolves.toEqual({ personalFm: [], dailySongs: [], recommendedCollections: [recommended] });
+        expect(fm).not.toHaveBeenCalled();
+        expect(daily).not.toHaveBeenCalled();
+    });
+
+    it('fails an Explore-owned Radio feed when its only requested section fails', async () => {
+        vi.mocked(qqRecommendations().getPresentation!).mockReturnValue({ homeTab: 'explore' });
+        const failure = new Error('playlist service unavailable');
+        vi.spyOn(qqRecommendations(), 'getRecommendedCollections').mockRejectedValue(failure);
+        useOnlineProviderAccountStore.getState().setActiveProviderId('qq');
+        await expect(omni.getHomeFeed()).rejects.toBe(failure);
+    });
+
     // 日推被上游拒绝不该把 FM 卡和推荐歌单一起拖下去。
     it('keeps the other sections when one fails', async () => {
         vi.spyOn(console, 'warn').mockImplementation(() => { });
@@ -74,8 +101,43 @@ describe('home feed sections', () => {
         vi.spyOn(qqRecommendations(), 'getRecommendedCollections').mockResolvedValue([recommended]);
         useOnlineProviderAccountStore.getState().setActiveProviderId('qq');
 
-        await expect(omni.getHomeFeed()).resolves.toEqual({ personalFm: [], dailySongs: [], recommendedCollections: [recommended], partial: true });
+        await expect(omni.getHomeFeed()).resolves.toMatchObject({ personalFm: [], dailySongs: [], recommendedCollections: [recommended], partial: true });
         expect(console.warn).toHaveBeenCalledWith('[Omni] Home feed section failed', expect.objectContaining({ providerId: 'qq' }));
+    });
+
+    // 使用真实 QQ adapter，防止它吞掉 FM 请求失败、让首页把空推荐当成成功缓存。
+    it('marks a real QQ FM failure partial and succeeds when it is read again', async () => {
+        vi.spyOn(console, 'warn').mockImplementation(() => { });
+        vi.spyOn(qqTransport, 'hasUsableQqSession').mockReturnValue(true);
+        vi.spyOn(providerStorage, 'readProviderSessionValue').mockReturnValue('opaque-retry-session');
+        const rawSong = { mid: 'mid-retried', id: 2, name: '重新读到的歌', singer: [], album: {} };
+        const ask = vi.spyOn(qqTransport, 'requestQq')
+            .mockRejectedValueOnce(new OnlineProviderError('network', 'recommendation.rejected', 'qq', undefined, 502))
+            .mockResolvedValueOnce({ code: 200, songs: [rawSong] });
+        vi.spyOn(qqRecommendations(), 'getDailySongs').mockResolvedValue([]);
+        vi.spyOn(qqRecommendations(), 'getRecommendedCollections').mockResolvedValue([recommended]);
+        useOnlineProviderAccountStore.getState().setActiveProviderId('qq');
+
+        await expect(omni.getHomeFeed()).resolves.toMatchObject({
+            personalFm: [], dailySongs: [], recommendedCollections: [recommended], partial: true,
+        });
+        const retried = await omni.getHomeFeed();
+
+        expect(retried.personalFm).toEqual([normalizeQqSong(rawSong)]);
+        expect(retried).not.toHaveProperty('partial');
+        expect(ask.mock.calls).toEqual([['user_personal_fm', { page: 1 }], ['user_personal_fm', { page: 1 }]]);
+    });
+
+    it('does not turn a cancelled real QQ FM request into a successful empty feed', async () => {
+        const abort = new DOMException('aborted', 'AbortError');
+        vi.spyOn(qqTransport, 'hasUsableQqSession').mockReturnValue(true);
+        vi.spyOn(providerStorage, 'readProviderSessionValue').mockReturnValue('opaque-abort-session');
+        vi.spyOn(qqTransport, 'requestQq').mockRejectedValue(abort);
+        vi.spyOn(qqRecommendations(), 'getDailySongs').mockResolvedValue([]);
+        vi.spyOn(qqRecommendations(), 'getRecommendedCollections').mockResolvedValue([]);
+        useOnlineProviderAccountStore.getState().setActiveProviderId('qq');
+
+        await expect(omni.getHomeFeed()).rejects.toBe(abort);
     });
 
     it('reports a complete feed without the partial flag', async () => {

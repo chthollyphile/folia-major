@@ -43,6 +43,20 @@ beforeEach(() => {
     api.getPersonalFm.mockResolvedValue(songs);
 });
 describe('home radio provider binding', () => {
+    it('routes a displayed preview ticket through Omni on every explicit start, playing the preview first', async () => {
+        const { actions, play } = setup();
+        const open = vi.fn();
+        const card = { id: 'station-radio', name: 'For you', type: 'radio' as const,
+            raw: { personalFm: stationCard, songPreview: { playbackToken: 'displayed-batch' } } };
+        await actions.openOnlineCard(card, 'qishui', open);
+        await actions.openOnlineCard(card, 'qishui', open);
+        expect(api.getPersonalFm).toHaveBeenCalledTimes(2);
+        expect(api.getPersonalFm).toHaveBeenLastCalledWith({ mode: 'DEFAULT', submode: null, station: 'radio', previewToken: 'displayed-batch' });
+        expect(play).toHaveBeenCalledTimes(2);
+        expect(play).toHaveBeenLastCalledWith(songs[0], songs, true);
+        expect(open).not.toHaveBeenCalled();
+    });
+
     it('discards songs from an earlier card while the newer scene is still loading', async () => {
         const first = deferred<SongResult[]>();
         const second = deferred<SongResult[]>();

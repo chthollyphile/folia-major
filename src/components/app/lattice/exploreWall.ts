@@ -2,7 +2,7 @@ import type { SongResult } from '../../../types';
 import type { OmniExploreItem, OmniExploreSection } from '../../../types/onlineMusic';
 import type { ExploreFeed } from '../../../stores/useExploreFeedStore';
 import { getPlaybackSongKey } from '../../../utils/appPlaybackGuards';
-import { faceOf } from '../home/explore/exploreFace';
+import { exploreCollectionLabelKey, faceOf } from '../home/explore/exploreFace';
 import type { WallSection } from './wallLayout';
 import type { LatticeTile, WallEntryKind } from './latticeModel';
 
@@ -24,9 +24,8 @@ export const hasExploreWallEntries = (feed: { sections: OmniExploreSection[] } |
     Boolean(feed?.sections.some(section => section.items.length > 0))
 );
 
-// What an entry is. For a collection this is the choice `faceOf` makes for a card that has no
-// second line of its own; it does not hand the choice out, so it is made again here (a test
-// holds the two together).
+// The geometry of an entry. Collections keep the existing album / artist / mix / playlist
+// shapes; radio and daily recommendation labels come separately from exploreCollectionLabelKey.
 const kindOf = (item: OmniExploreItem): WallEntryKind => {
     if (item.kind === 'song') return 'song';
     if (item.collection.type === 'artist') return 'artist';
@@ -83,7 +82,7 @@ export const buildExploreTiles = (
                 // The entry's own cover: it fills a seat to the edges (an artist's is drawn round on the seat). (A wide picture may be padding outside its middle.)
                 coverUrl: face.coverUrl || face.pictureUrl || undefined,
                 section: 'upcoming' as const,
-                label: t(KIND_LABEL_KEYS[entryKind]),
+                label: t(item.kind === 'collection' ? exploreCollectionLabelKey(item) : KIND_LABEL_KEYS[entryKind]),
                 heading: section.title,
                 sectionKey: section.id,
                 entryKind,
