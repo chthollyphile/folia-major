@@ -367,7 +367,9 @@ describe('a window rebuilt again while it restores the snapshot it was handed', 
 
     it.each(['main', 'stage'] as const)('does not forward ended FM from a %s handoff still being restored', async context => {
         const finishRestore = blockRestore();
-        const mainPlayback = { ...snapshotOf(webSong), isFmMode: true };
+        const mainPlayback = { ...snapshotOf(webSong), isFmMode: true, acceptedFmSource: {
+            providerId: 'bodian', selection: { mode: 'FAMILIAR' as const, scene: null, station: 'ended-station' },
+        } };
         const stagePlayback = snapshotOf(otherSong);
         const handoff = {
             ...handoffOf(mainPlayback), activePlaybackContext: context,
@@ -383,8 +385,9 @@ describe('a window rebuilt again while it restores the snapshot it was handed', 
             request('ended-fm');
             await settle();
             const forwarded = submitWindowPlaybackHandoff.mock.calls[0][1] as WindowPlaybackHandoff;
-            expect(forwarded.mainPlayback).toEqual({ ...mainPlayback, isFmMode: false });
+            expect(forwarded.mainPlayback).toEqual({ ...mainPlayback, isFmMode: false, acceptedFmSource: null });
             expect(forwarded.activePlayback?.isFmMode).toBe(false);
+            expect(forwarded.activePlayback?.acceptedFmSource).toBeNull();
             expect(forwarded.fmStations).toBeUndefined();
         } finally {
             finishRestore();

@@ -7,6 +7,7 @@ import { applyOnlineAudioSourceMetadata, loadOnlineSongLyrics } from '../../../.
 import { askPlayedSong, isSongUnavailable } from '../../../../services/onlineMusic/songAvailability';
 import { getSongResourceCacheKey } from '../../../../services/onlineMusic/resourceKeys';
 import { getPersonalFmSelection, getStationRequestOptions } from '../../../../stores/usePersonalFmModeStore';
+import { toPersonalFmRequestOptions } from '../../../../services/onlineMusic/fmModes';
 import { omni } from '../../../../services/onlineMusic/omni';
 import { announceExternalPlayback, beginExternalPlayback, isExternalRoute, yieldExternalPlayback } from '../../../../services/onlineMusic/externalPlayback';
 import { getCachedSongCoverUrl, hasCachedSongAudio } from '../../../../services/onlineMusic/resourceCache';
@@ -537,13 +538,18 @@ export function usePlaybackQueueController({
         const asFm = () => isFmCall && !fmEndedMeanwhile();
         // No queue given, or the store's own (next / previous, a mod's playQueueItem, the FM top-up): the
         // buttons of a failure play from the queue as it is when they are pressed. Only a queue not yet in
-        // the store (a playlist's song) is kept as it was given. The queue panel hands a copy with the local
-        // library's display (playerDisplayQueue, a new array each time), so it is kept too. Read before the
-        // hook's wait, as the caller saw it.
+        // the store (a playlist's song) is kept as it was given. Queue-panel selection passes the live
+        // queue alongside its metadata-enriched display song. Read before the hook's wait, as the caller saw it.
         const queueFollowsStore = queue.length === 0 || queue === usePlaybackStore.getState().playQueue;
         // A play of a queue of its own, or one that turns Personal FM on or off, starts something new: the FM
         // batches still on their way (a mode switch, a home card) are dropped for it. See queueStarts.ts.
         const storeAtCall = usePlaybackStore.getState();
+        // A step through this exact live queue keeps the scene that actually landed, even while a
+        // newer card has changed the requested setting. An overlapping fresh queue is a new intent.
+        const fmSelectionForRequest = isFmCall && requestedProviderId
+            ? (queueFollowsStore && storeAtCall.acceptedFmPlayback?.providerId === requestedProviderId
+                ? storeAtCall.acceptedFmPlayback.selection : getAcceptedFmSelection(requestedProviderId))
+            : undefined;
         if (isFmCall !== storeAtCall.isFmMode
             || !(queueFollowsStore || samePlaybackKeySequence(queue, storeAtCall.playQueue))) {
             noteQueueStart();
@@ -678,7 +684,9 @@ export function usePlaybackQueueController({
             quietLoadedToast: options.quietLoadedToast,
         };
         const providerId = getOnlineProviderIdForSong(song) ?? undefined;
-        const fmSelectionAtStart = playsAsFm && providerId ? getAcceptedFmSelection(providerId) : undefined;
+        const fmSelectionAtStart = playsAsFm && providerId
+            ? providerId === requestedProviderId ? fmSelectionForRequest : getAcceptedFmSelection(providerId)
+            : undefined;
 
         // A button of a failure may be pressed long after: where the queue follows the store, the main
         // queue as it is then (the stage keeps it in mainPlaybackSnapshotRef while it plays).
@@ -1330,18 +1338,25 @@ export function usePlaybackQueueController({
             let batch: SongResult[] = [];
             const stepFrom = heldSong ?? options?.fromSong ?? currentSong;
             const providerId = stepFrom ? getOnlineProviderIdForSong(stepFrom) : undefined;
+            const acceptedAtStart = usePlaybackStore.getState().acceptedFmPlayback;
+            if (acceptedAtStart && acceptedAtStart.providerId !== providerId) return;
+            const acceptedSelection = acceptedAtStart?.selection;
             const selection = getPersonalFmSelection(providerId || undefined);
             // The extra radio on air, if there is one (undefined on every platform without a station): its next
             // batch is asked for by its options, and dropped when they changed while it came.
             const station = providerId ? getStationRequestOptions(providerId) : undefined;
+            // A pending card may have changed settings already. This batch still belongs to the
+            // accepted stream, including a scene carried through Stage or a window snapshot.
+            const request = acceptedSelection ? toPersonalFmRequestOptions(acceptedSelection, acceptedSelection.station) : station;
             // The main player's plays start in playSong and take a new call id there, before any wait of their
             // own (a mode switch, a home card, a next pressed meanwhile, a search result): one that came while
             // the batch did has the say over what plays next, even before it shows its song. The stage takes
             // over without playSong, and ends FM as it does.
             const playCallAtStart = playSongCallIdRef.current;
             const queueStartsAtStart = queueStartsSoFar();
+            const fmEndingsAtStart = personalFmEndingsSoFar();
             try {
-                batch = await omni.getPersonalFm(station);
+                batch = await omni.getPersonalFm(request);
             } catch (error) {
                 console.error('Failed to fetch FM tracks', error);
             }
@@ -1378,9 +1393,13 @@ export function usePlaybackQueueController({
                 }
                 return;
             }
-            if (selection.mode !== selectedNow.mode || selection.scene !== selectedNow.scene) return;
-            const stationNow = providerId ? getStationRequestOptions(providerId) : undefined;
-            if (station?.station !== stationNow?.station || station?.mode !== stationNow?.mode || station?.submode !== stationNow?.submode) return;
+            if (personalFmEndingsSoFar() !== fmEndingsAtStart || live.acceptedFmPlayback !== acceptedAtStart) return;
+            if (!acceptedSelection) {
+                // Legacy playback has no accepted source yet, so its settings remain the authority.
+                if (selection.mode !== selectedNow.mode || selection.scene !== selectedNow.scene) return;
+                const stationNow = providerId ? getStationRequestOptions(providerId) : undefined;
+                if (station?.station !== stationNow?.station || station?.mode !== stationNow?.mode || station?.submode !== stationNow?.submode) return;
+            }
             // The queue as the store holds it now, with whatever was added or edited during the wait: this
             // render's may already be an older copy of it.
             const base = live.playQueue;
@@ -1755,7 +1774,7 @@ export function usePlaybackQueueController({
                 if (!selectedSong) {
                     throw new Error('Queue item was not found.');
                 }
-                await playSong(selectedSong, baseQueue, isFmMode, { shouldNavigateToPlayer: true });
+                await playSong(selectedSong, playQueue.length > 0 ? playQueue : [], isFmMode, { shouldNavigateToPlayer: true });
                 await complete(
                     true,
                     null,

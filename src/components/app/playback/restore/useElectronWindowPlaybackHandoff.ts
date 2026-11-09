@@ -14,7 +14,7 @@ import type {
 } from '../../../../types/appPlayback';
 import { setStatusMessage as setStatusMsg } from '../../../../stores/useStatusMessageStore';
 import { setActivePlaybackContext, setAudioSrc, setCachedCoverUrl, setCurrentLineIndex, setDuration, setIsFmMode, setPlayQueue, setPlayerState } from '../../../../stores/usePlaybackStore';
-import { noteAcceptedFmPlayback } from '../../../../services/playbackQueueOrigin';
+import { captureAcceptedFmSource, restoreAcceptedFmPlayback } from '../../../../services/playbackQueueOrigin';
 import { askedSongKeyRef, makeSongCurrent, startRestore, trackShownRestore } from '../currentSong';
 import { personalFmEndingsSoFar } from '../personalFmEndings';
 import { useStableActionSurface } from '../../../../hooks/useStableCallbacks';
@@ -105,6 +105,7 @@ const buildPlaybackSnapshot = ({
     currentTime,
     duration,
     isFmMode,
+    acceptedFmSource,
     lyrics,
     playQueue,
     playerState,
@@ -123,6 +124,7 @@ const buildPlaybackSnapshot = ({
     audioSrc,
     playQueue,
     isFmMode,
+    acceptedFmSource,
     playerState,
     // On the HiFi route <audio> sits idle: the position is mpv's, as its clock reads it now.
     // The external player's clock answers for itself the same way. A song restored on <audio> sits at 0
@@ -194,7 +196,7 @@ export function useElectronWindowPlaybackHandoff({
     // An explicit switch or sign-out during the IPC read ends radio, including a parked Stage main queue.
     const withCurrentFmEndings = useCallback((handoff: WindowPlaybackHandoff): WindowPlaybackHandoff => {
         if (handoffFmEndingsRef.current === null || handoffFmEndingsRef.current === personalFmEndingsSoFar()) return handoff;
-        const ended = (snapshot: PlaybackSnapshot | null) => snapshot?.isFmMode ? { ...snapshot, isFmMode: false } : snapshot;
+        const ended = (snapshot: PlaybackSnapshot | null) => snapshot ? { ...snapshot, isFmMode: false, acceptedFmSource: null } : snapshot;
         return {
             ...handoff,
             mainPlayback: ended(handoff.mainPlayback),
@@ -206,7 +208,7 @@ export function useElectronWindowPlaybackHandoff({
 
     const captureWindowPlaybackHandoff = useCallback((): WindowPlaybackHandoff => {
         // An explicit ending is synchronous, even before React renders its store notification.
-        const acceptedFmPlayback = usePlaybackStore.getState().acceptedFmPlayback;
+        const acceptedFmSource = captureAcceptedFmSource(currentSong, playQueue);
         // The provider's player keeps sounding through the rebuild (its process is the main
         // process's, not this window's): the snapshot says playing, and the next window adopts it.
         // This window stops following the player once the snapshot is taken: a track ending in the
@@ -228,9 +230,8 @@ export function useElectronWindowPlaybackHandoff({
             currentTime,
             duration,
             // A pending play already changed the requested flag; only the queue that landed travels as FM.
-            isFmMode: Boolean(acceptedFmPlayback && currentSong
-                && acceptedFmPlayback.songKeys.has(getPlaybackSongKey(currentSong))
-                && playQueue.some(song => getPlaybackSongKey(song) === getPlaybackSongKey(currentSong))),
+            isFmMode: acceptedFmSource !== null,
+            acceptedFmSource,
             lyrics,
             playQueue,
             playerState: isExternalRoute() && !handsOverExternal ? usePlaybackStore.getState().playerState : playerState,
@@ -239,6 +240,7 @@ export function useElectronWindowPlaybackHandoff({
         const mainPlayback = activePlaybackContext === 'main'
             ? activePlayback
             : withUntransformedLyrics(mainPlaybackSnapshotRef.current);
+        const mainFmSource = mainPlayback?.acceptedFmSource;
 
         return {
             version: 1,
@@ -247,9 +249,9 @@ export function useElectronWindowPlaybackHandoff({
             mainPlayback,
             activePlayback,
             // Which extra radio the FM queue came from, so the new window tops it up from the same one.
-            ...(mainPlayback?.isFmMode ? { fmStations: activePlaybackContext === 'main'
-                ? (acceptedFmPlayback?.selection.station ? { [acceptedFmPlayback.providerId]: acceptedFmPlayback.selection.station } : undefined)
-                : captureActiveStations(getOnlineProviderIdForSong(mainPlayback.currentSong)) } : {}),
+            ...(mainPlayback?.isFmMode ? { fmStations: mainFmSource === undefined
+                ? captureActiveStations(getOnlineProviderIdForSong(mainPlayback.currentSong))
+                : mainFmSource?.selection.station ? { [mainFmSource.providerId]: mainFmSource.selection.station } : undefined } : {}),
             stage: {
                 status: stageStatus,
                 source: stageSource,
@@ -326,7 +328,7 @@ export function useElectronWindowPlaybackHandoff({
             if (!queueRewritten) {
                 setPlayQueue([]);
                 setIsFmMode(false);
-                noteAcceptedFmPlayback(null, [], false);
+                restoreAcceptedFmPlayback(null, [], false, null);
             } else {
                 // The old window's empty queue is the listener's: the replacement's undo puts it back.
                 reportYieldedQueue({ queue: [], isFmMode: false, song: null });
@@ -351,9 +353,10 @@ export function useElectronWindowPlaybackHandoff({
         setAudioSrc(null);
         if (!queueRewritten) {
             setPlayQueue(restoredQueue);
-            setIsFmMode(snapshot.isFmMode);
-            if (snapshot.isFmMode) restoreActiveStations(fmStations);
-            noteAcceptedFmPlayback(snapshot.currentSong, restoredQueue, snapshot.isFmMode);
+            const restoresFm = snapshot.isFmMode && snapshot.acceptedFmSource !== null;
+            setIsFmMode(restoresFm);
+            if (restoresFm) restoreActiveStations(fmStations);
+            restoreAcceptedFmPlayback(snapshot.currentSong, restoredQueue, restoresFm, snapshot.acceptedFmSource);
         } else {
             // Saved again now that a song is current, as the session restore does: the replacement's own save
             // found none, so it kept nothing, and the source's restore saves only on some of its paths.

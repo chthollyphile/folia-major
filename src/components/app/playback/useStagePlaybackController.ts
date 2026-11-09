@@ -40,7 +40,7 @@ import type {
 } from '../../../types/appPlayback';
 import { setStatusMessage as setStatusMsg } from '../../../stores/useStatusMessageStore';
 import { setActivePlaybackContext, setAudioSrc, setCachedCoverUrl, setCurrentLineIndex, setDuration, setIsFmMode, setPlayQueue, setPlayerState } from '../../../stores/usePlaybackStore';
-import { noteAcceptedFmPlayback } from '../../../services/playbackQueueOrigin';
+import { captureAcceptedFmSource, restoreAcceptedFmPlayback } from '../../../services/playbackQueueOrigin';
 import { useStableActionSurface } from '../../../hooks/useStableCallbacks';
 import { useTranslation } from 'react-i18next';
 import { usePlaybackStore } from '../../../stores/usePlaybackStore';
@@ -128,7 +128,6 @@ export function useStagePlaybackController({
     const cachedCoverUrl = usePlaybackStore(state => state.cachedCoverUrl);
     const audioSrc = usePlaybackStore(state => state.audioSrc);
     const playQueue = usePlaybackStore(state => state.playQueue);
-    const isFmMode = usePlaybackStore(state => state.isFmMode);
     const playerState = usePlaybackStore(state => state.playerState);
     const duration = usePlaybackStore(state => state.duration);
     const currentLineIndex = usePlaybackStore(state => state.currentLineIndex);
@@ -154,7 +153,7 @@ export function useStagePlaybackController({
     const mainPlaybackSnapshotRef = useRef<RoutedPlaybackSnapshot | null>(null);
     useEffect(() => subscribePersonalFmEnded(() => {
         const snapshot = mainPlaybackSnapshotRef.current;
-        if (snapshot?.isFmMode) mainPlaybackSnapshotRef.current = { ...snapshot, isFmMode: false };
+        if (snapshot) mainPlaybackSnapshotRef.current = { ...snapshot, isFmMode: false, acceptedFmSource: null };
     }), []);
     const stagePlaybackSnapshotRef = useRef<PlaybackSnapshot | null>(null);
     const lastLoadedStageEntryKeyRef = useRef<string | null>(null);
@@ -227,20 +226,22 @@ export function useStagePlaybackController({
         // The external route is the same, with the provider's player in mpv's place.
         const onHifi = isHifiRoute();
         const onExternal = isExternalPlaybackSounding();
+        const acceptedFmSource = captureAcceptedFmSource(currentSong, playQueue);
         return {
             currentSong,
             lyrics,
             cachedCoverUrl,
             audioSrc,
             playQueue,
-            isFmMode,
+            isFmMode: acceptedFmSource !== null,
+            acceptedFmSource,
             playerState,
             currentTime: onHifi ? getHifiPosition() : onExternal ? getExternalPosition() : audioRef.current?.currentTime ?? currentTime.get(),
             duration,
             currentLineIndex,
             route: onExternal ? 'external' : onHifi ? 'hifi' : 'web',
         };
-    }, [audioRef, audioSrc, cachedCoverUrl, currentLineIndex, currentSong, currentTime, duration, isFmMode, lyrics, playQueue, playerState]);
+    }, [audioRef, audioSrc, cachedCoverUrl, currentLineIndex, currentSong, currentTime, duration, lyrics, playQueue, playerState]);
 
     const applyPlaybackSnapshot = useCallback((snapshot: RoutedPlaybackSnapshot | null) => {
         const song = snapshot?.currentSong ?? null;
@@ -278,8 +279,9 @@ export function useStagePlaybackController({
         setCachedCoverUrl(snapshot?.cachedCoverUrl ?? null);
         setAudioSrc(restoresSource ? null : snapshot?.audioSrc ?? null);
         setPlayQueue(snapshot?.playQueue ?? []);
-        setIsFmMode(snapshot?.isFmMode ?? false);
-        noteAcceptedFmPlayback(song, snapshot?.playQueue ?? [], snapshot?.isFmMode ?? false);
+        const restoresFm = (snapshot?.isFmMode ?? false) && snapshot?.acceptedFmSource !== null;
+        setIsFmMode(restoresFm);
+        restoreAcceptedFmPlayback(song, snapshot?.playQueue ?? [], restoresFm, snapshot?.acceptedFmSource);
         setIsLyricsLoading(false);
         // Nothing sounds until the restored source lands: the autoplay intent above starts it then.
         setPlayerState((external || restoresSource) && snapshot?.playerState !== PlayerState.IDLE
