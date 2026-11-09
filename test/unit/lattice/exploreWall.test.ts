@@ -124,6 +124,36 @@ describe('buildExploreTiles', () => {
         expect(tiles.map(tile => tile.sectionKey)).toEqual(['a', 'a', 'b']);
     });
 
+    it('labels radios and daily recommendations by their identity while retaining collection geometry', () => {
+        const personalFm: OmniExploreItem = {
+            kind: 'collection',
+            collection: {
+                providerId: 'ytm', id: 'named-radio', type: 'playlist', name: 'Named radio',
+                personalFm: { mode: 'DEFAULT', scene: null },
+            },
+        };
+        const entries = [personalFm, card('radio', 'station', { isMix: true }), card('daily_recommendations', 'daily')];
+        const tiles = buildExploreTiles([section('recommendations', entries)], t);
+
+        expect(tiles.map(tile => tile.label)).toEqual(['home.radio', 'home.radio', 'home.dailyRecommendations']);
+        expect(entries.map(entry => faceOf(entry, t).subtitle)).toEqual(tiles.map(tile => tile.label));
+        expect(tiles.map(tile => tile.entryKind)).toEqual(['playlist', 'mix', 'playlist']);
+        expect(tiles.map(tile => tile.kind)).toEqual(['collection', 'collection', 'collection']);
+        expect(tiles[0].kind === 'collection' && tiles[0].collection.personalFm).toEqual({ mode: 'DEFAULT', scene: null });
+        expect(tiles[2].kind === 'collection' && tiles[2].collection.type).toBe('daily_recommendations');
+    });
+
+    it('keeps a recommendation entry\'s own second line and gives its wall badge the semantic type', () => {
+        const entries: OmniExploreItem[] = [
+            { kind: 'collection', collection: { providerId: 'ytm', id: 'fm', type: 'radio', name: 'Radio' }, subtitle: 'Continuous songs' },
+            { kind: 'collection', collection: { providerId: 'ytm', id: 'daily', type: 'daily_recommendations', name: 'Daily' }, subtitle: 'Chosen for today' },
+        ];
+        const tiles = buildExploreTiles([section('recommendations', entries)], t);
+
+        expect(tiles.map(tile => tile.artist)).toEqual(['Continuous songs', 'Chosen for today']);
+        expect(tiles.map(tile => tile.label)).toEqual(['home.radio', 'home.dailyRecommendations']);
+    });
+
     it('fills a seat with the entry own cover, not with its wide picture', () => {
         const [tile] = buildExploreTiles([section('a', [card('playlist', '1', { wideCoverUrl: 'wide-of-1' })])], t);
 
