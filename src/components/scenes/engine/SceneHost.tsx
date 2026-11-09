@@ -170,7 +170,16 @@ const SceneStage: React.FC<{ definition: SceneDefinition; rendererProps: Rendere
                     }));
                 },
             },
-            quality: { preset, get: key => manifest.quality.presets[preset()]?.[key] },
+            quality: {
+                preset,
+                get: key => manifest.quality.presets[preset()]?.[key],
+                onChange: (fn) => {
+                    const changed = bus.guard(fn);
+                    return bus.track(useSceneSettingsStore.subscribe((state, previous) => {
+                        if (state.sceneOptions[id]?.quality !== previous.sceneOptions[id]?.quality) changed();
+                    }));
+                },
+            },
             anchors: {
                 add: anchor => { anchors.push(anchor); },
                 list: kind => anchors.filter(anchor => anchor.kind === kind) as never,
@@ -334,10 +343,9 @@ const SceneStage: React.FC<{ definition: SceneDefinition; rendererProps: Rendere
 const SceneHost: React.FC<SceneHostProps> = ({ songThemePair, ...props }) => {
     const reloadToken = useSceneSettingsStore(state => state.reloadToken);
     const definition = useChosenScene();
-    // A scene reads its quality preset as it starts, so a new preset loads it again.
-    const quality = useSceneSettingsStore(state => (definition ? state.sceneOptions[definition.manifest.id]?.quality : undefined));
     if (!definition) return <VisualizerRenderer {...props} />;
-    return <SceneStage key={`${definition.manifest.id}:${reloadToken}:${quality ?? ''}`} definition={definition} rendererProps={props} songThemePair={songThemePair} />;
+    // A new quality preset is applied in place (ctx.quality.onChange), without loading the scene again.
+    return <SceneStage key={`${definition.manifest.id}:${reloadToken}`} definition={definition} rendererProps={props} songThemePair={songThemePair} />;
 };
 
 export default SceneHost;

@@ -33,8 +33,23 @@ const basisToPoints = (p: readonly (readonly [number, number])[]): Matrix3 => {
     return multiply(m, [v[0], 0, 0, 0, v[1], 0, 0, 0, v[2]]);
 };
 
-/** The 3×3 projective map (row-major, last entry 1) from the box's corners to the quad's. */
+/**
+ * The 3×3 projective map (row-major) from the box's corners to the quad's. Corners with `w` (a flat
+ * parallelogram seen through a camera, ScreenPoint) map straight from their homogeneous values, so a corner
+ * behind the camera keeps its sign and the browser clips that part; plain corners solve the four-point map.
+ */
 export const quadHomography = (width: number, height: number, quad: ScreenQuad): Matrix3 => {
+    if (quad.every(point => point.w !== undefined)) {
+        const [p0, p1, , p3] = quad;
+        const h = [
+            (p1.x - p0.x) / width, (p3.x - p0.x) / height, p0.x,
+            (p1.y - p0.y) / width, (p3.y - p0.y) / height, p0.y,
+            (p1.w! - p0.w!) / width, (p3.w! - p0.w!) / height, p0.w!,
+        ];
+        // Scaled by a positive number only: the sign of w is what says which part is behind the camera.
+        const scale = Math.max(...quad.map(point => Math.abs(point.w!)), 1e-9);
+        return h.map(value => value / scale);
+    }
     // Basis order: top-left, top-right, bottom-left, then bottom-right.
     const source = basisToPoints([[0, 0], [width, 0], [0, height], [width, height]]);
     const target = basisToPoints([[quad[0].x, quad[0].y], [quad[1].x, quad[1].y], [quad[3].x, quad[3].y], [quad[2].x, quad[2].y]]);

@@ -21,8 +21,11 @@ export interface ThreeStage {
     camera: THREE.PerspectiveCamera;
     /** World points (metres) on the box in CSS pixels; null when one lies behind the camera. */
     project: (points: readonly Vec3[]) => ScreenPoint[] | null;
-    /** A surface anchor's four corners for ctx.surfaces.place. */
-    projectQuad: (corners: readonly [Vec3, Vec3, Vec3, Vec3]) => ScreenQuad | null;
+    /**
+     * A surface's four corners for ctx.surfaces.place, homogeneous (ScreenPoint.w): whatever of it is in front
+     * of the camera shows, the part behind is clipped by the browser.
+     */
+    projectQuad: (corners: readonly [Vec3, Vec3, Vec3, Vec3]) => ScreenQuad;
     render: (scene: THREE.Object3D) => void;
     dispose: () => void;
 }
@@ -54,8 +57,11 @@ export const createThreeStage = (ctx: SceneContext, options: ThreeStageOptions =
     resize();
     const observer = new ResizeObserver(resize);
     observer.observe(ctx.container);
+    // A new quality preset changes the resolution in place: the scene goes on as it was.
+    const releaseQuality = ctx.quality.onChange(resize);
 
     const point = new THREE.Vector3();
+    const clip = new THREE.Vector4();
     const project = (points: readonly Vec3[]) => {
         camera.updateMatrixWorld();
         const result: ScreenPoint[] = [];
@@ -72,10 +78,20 @@ export const createThreeStage = (ctx: SceneContext, options: ThreeStageOptions =
         renderer,
         camera,
         project,
-        projectQuad: corners => project(corners) as ScreenQuad | null,
+        projectQuad: (corners) => {
+            camera.updateMatrixWorld();
+            const quad = corners.map(([x, y, z]) => {
+                clip.set(x, y, z, 1).applyMatrix4(camera.matrixWorldInverse).applyMatrix4(camera.projectionMatrix);
+                return { x: ((clip.x + clip.w) / 2) * width, y: ((clip.w - clip.y) / 2) * height, w: clip.w };
+            });
+            // All behind the camera it is still placed (the browser clips it all): hiding it would save nothing, as
+            // the lyric style keeps drawing either way, and showing it again would make the browser redraw its layer.
+            return quad as unknown as ScreenQuad;
+        },
         render: scene => renderer.render(scene, camera),
         dispose: () => {
             observer.disconnect();
+            releaseQuality();
             renderer.dispose();
             // The context goes now, not at garbage collection: Chromium drops the oldest past about 16,
             // which can be another WebGL view of the app. The host has stopped listening for the loss by now.

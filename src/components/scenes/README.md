@@ -79,7 +79,7 @@ src/services/sceneSound/  房间声：acousticsTypes.ts（和声学进程的约�
    - 事件用 `ctx.on('songChange' | 'blendStart' | 'lineChange' | 'phaseChange' | 'play' | 'pause' | 'seek' | 'queueEnd', fn)`。事件只报变化，第一帧没有事件：开始时直接读 `ctx.song.current()`、`ctx.lyrics.phase()` 这些。
    - 每帧的 `dt` 是秒，暂停时为 0。不要每帧写 React state。
    - 颜色：`ctx.song.current().theme` 是歌曲的一对主题 `{ light, dark }`，app 切亮暗模式时不变。场景按自己的画面挑一个（影厅暗，用 `dark`）；app 现在的模式在 `ctx.display.isDaylight()`，场景的灯光不该跟它走。
-4. 设置和画质只写在清单里（`settings` 用 Folium 的设置表格式，`quality` 三档），值从 `ctx.settings.get()`、`ctx.quality.get(key)` 读。
+4. 设置和画质只写在清单里（`settings` 用 Folium 的设置表格式，`quality` 三档），值从 `ctx.settings.get()`、`ctx.quality.get(key)` 读；用户改了就在 `onChange` 里就地用新值，场景不重载。
 5. 文案：三份语言文件（`en.ts`、`zh-CN.ts`、`in.ts`）的 `commandPalette.commands` 加 `scene-rooftop` 的 `title`、`description`（切换命令按名单自动生成，缺了 `commandRegistryContract.test.ts` 会失败），再更新那个测试的命令顺序快照（确认只多了 `scene-rooftop`）。场景的名字写在清单的 `name` 里，不进语言文件。
 6. 只有场景里有用户看不见的逻辑才写单元测试，放 `test/unit/scenes/`。
 

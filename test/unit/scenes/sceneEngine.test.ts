@@ -106,6 +106,21 @@ describe('surface mapping', () => {
         });
         expect(quadToMatrix3d(800, 432, quad)).toMatch(/^matrix3d\((-?[\d.e-]+,){15}-?[\d.e-]+\)$/);
     });
+
+    it('keeps a surface partly behind the camera, the corner behind with its w still negative', () => {
+        // Homogeneous corners of a parallelogram: the right edge is behind the camera (w < 0).
+        const quad = [{ x: 100, y: 50, w: 1 }, { x: -300, y: -20, w: -0.5 }, { x: -260, y: 90, w: -0.5 }, { x: 140, y: 160, w: 1 }] as const;
+        const h = quadHomography(800, 432, quad);
+        const map = (x: number, y: number) => [h[0] * x + h[1] * y + h[2], h[3] * x + h[4] * y + h[5], h[6] * x + h[7] * y + h[8]];
+        [[0, 0], [800, 0], [800, 432], [0, 432]].forEach(([x, y], index) => {
+            const [X, Y, W] = map(x, y);
+            const { x: qx, y: qy, w: qw } = quad[index];
+            // Same point up to a positive scale: the sign of w (which side of the camera) is kept.
+            expect(Math.sign(W)).toBe(Math.sign(qw));
+            expect(X / W).toBeCloseTo(qx / qw, 6);
+            expect(Y / W).toBeCloseTo(qy / qw, 6);
+        });
+    });
 });
 
 describe('phase director', () => {

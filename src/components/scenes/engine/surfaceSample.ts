@@ -23,9 +23,11 @@ const INSET = 0.08;
 export const sampleSurface = async (box: HTMLElement, quad: ScreenQuad, width: number, height: number): Promise<ImageBitmap | null> => {
     const api = sceneScreenApi();
     if (!api) return null;
+    // A surface partly behind the camera is not sampled: the scene keeps the light it had.
+    if (quad.some(point => point.w !== undefined && point.w <= 0)) return null;
     const at = box.getBoundingClientRect();
-    const xs = quad.map(point => point.x);
-    const ys = quad.map(point => point.y);
+    const xs = quad.map(point => point.x / (point.w ?? 1));
+    const ys = quad.map(point => point.y / (point.w ?? 1));
     const inX = (Math.max(...xs) - Math.min(...xs)) * INSET;
     const inY = (Math.max(...ys) - Math.min(...ys)) * INSET;
     const left = Math.max(0, at.left + Math.min(...xs) + inX);

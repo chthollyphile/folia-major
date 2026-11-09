@@ -30,6 +30,12 @@ export interface Pose {
 export interface ScreenPoint {
     x: number;
     y: number;
+    /**
+     * 齐次坐标的 w：给了时 x、y 是乘过 w 的，屏幕上的点是 (x / w, y / w)，w ≤ 0 的角在镜头后面。
+     * 四个角都带 w 时，宿主按这块平面在 3D 里的位置贴（角要是 3D 里的平行四边形），镜头后面的部分由浏览器裁掉，
+     * 所以只要还看得到一角，表面就照常显示。kit 的 threeStage.projectQuad 给的就是这种角。
+     */
+    w?: number;
 }
 
 /** 一个表面四个角在盒子里的位置：左上、右上、右下、左下。 */
@@ -225,7 +231,8 @@ export interface SceneContext {
     readonly input: { look(): { yaw: number; pitch: number } };
     readonly display: { isDaylight(): boolean; showText(): boolean; lyricsFontScale(): number };
     readonly settings: { get(): Record<string, unknown>; onChange(fn: () => void): Disposer };
-    readonly quality: { preset(): SceneQualityPreset; get(key: string): number | boolean | undefined };
+    /** 用户换画质时场景不重载：onChange 里就地用新值（kit 的 threeStage 换分辨率）。 */
+    readonly quality: { preset(): SceneQualityPreset; get(key: string): number | boolean | undefined; onChange(fn: () => void): Disposer };
     readonly anchors: { add(anchor: SceneAnchor): void; list<K extends SceneAnchorKind>(kind: K): Extract<SceneAnchor, { kind: K }>[] };
     /**
      * 每帧告诉宿主一个表面的四个角在盒子里的位置，宿主把借来的歌词样式、背景贴上去（清单写了贴什么；
