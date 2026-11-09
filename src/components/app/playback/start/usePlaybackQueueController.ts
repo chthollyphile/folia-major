@@ -71,7 +71,7 @@ import { showLatticeFmNotice, usePlaybackEntryViewStore } from '../../../../stor
 import { useStableActionSurface } from '../../../../hooks/useStableCallbacks';
 import { hasBeforePlayHook, notifyPlaybackFailed, runBeforePlayHook } from '../../../../services/hostExtensionHooks';
 import { wholeQueueWritesSoFar } from '../../../../services/wholeQueueWrites';
-import { noteQueueStart } from './queueStarts';
+import { noteQueueStart, queueStartsSoFar } from './queueStarts';
 import { errorMessage } from '../../../../utils/errorText';
 import { hifiTransport, isHifiRoute } from '../../../../services/hifi/hifiPlayback';
 
@@ -1017,12 +1017,13 @@ export function usePlaybackQueueController({
         } else if (queue.length > 0 || playQueue.length === 0) {
             setPlayQueue(landedQueue);
         }
+        let acceptedSelection = onFmLanding ? undefined : fmSelectionAtStart;
         if (isLatestPlaybackRequest() && playSongCallIdRef.current === playSongCallId) {
-            if (usePlaybackStore.getState().isFmMode && !queueRewritten()) onFmLanding?.();
+            if (usePlaybackStore.getState().isFmMode && !queueRewritten()) acceptedSelection = onFmLanding?.() ?? acceptedSelection;
             else if (fmModeToRestore && !usePlaybackStore.getState().isFmMode) usePersonalFmModeStore.getState().resetStationSelections();
         }
 
-        noteAcceptedFmPlayback(resolvedSong, landedQueue, usePlaybackStore.getState().isFmMode, onFmLanding ? undefined : fmSelectionAtStart);
+        noteAcceptedFmPlayback(resolvedSong, landedQueue, usePlaybackStore.getState().isFmMode, acceptedSelection);
 
         void persistLastPlaybackCache({ ...resolvedSong, onlineLyricsState: onlineLyricsState ?? undefined }, landedQueue);
 
@@ -1338,11 +1339,14 @@ export function usePlaybackQueueController({
             // the batch did has the say over what plays next, even before it shows its song. The stage takes
             // over without playSong, and ends FM as it does.
             const playCallAtStart = playSongCallIdRef.current;
+            const queueStartsAtStart = queueStartsSoFar();
             try {
                 batch = await omni.getPersonalFm(station);
             } catch (error) {
                 console.error('Failed to fetch FM tracks', error);
             }
+            // Continuing the same accepted stream is a new intent too, without starting playSong.
+            if (queueStartsSoFar() !== queueStartsAtStart) return;
             if (wholeQueueWritesSoFar() !== queueWritesAtStart) {
                 // The queue was replaced whole while the batch came (which ended FM): no radio songs are
                 // added after it, and the newest handleNextTrack steps through the new queue instead.

@@ -99,6 +99,10 @@ vi.mock('@/services/onlineMusic/omni', () => ({
         canPlayExternally: () => false,
         getProviderLabel: (id: string) => id,
         getPersonalFm: () => env.self.fmBatch ?? Promise.resolve([]),
+        getPersonalFmCatalog: async () => ({
+            ...DEFAULT_PERSONAL_FM_CATALOG,
+            scenes: ['33', '44'].map(id => ({ id, category: 'activity', labelKey: '', labelFallback: id, keywords: [] })),
+        }),
         getSongReplacement: async (song: { id: string }) => env.self.replacementFor.get(String(song.id)) ?? null,
         getSongDetail: async (providerId: string, id: number | string) => {
             env.self.detailCalls.push([providerId, id]);
@@ -331,6 +335,52 @@ describe('continuing the accepted stream through the real home surface and playb
         expect(host.audio.play).toHaveBeenCalledTimes(state === PlayerState.PAUSED ? 1 : 0);
         expect(store().playerState).toBe(PlayerState.PLAYING);
         expect(host.enter).toHaveBeenCalledOnce();
+    });
+
+    it('continuing the displayed radio cancels a next-track top-up already waiting for its batch', async () => {
+        const host = prepare(PlayerState.PLAYING);
+        const batch = deferred<SongResult[]>();
+        env.self.fmBatch = batch.promise;
+        const next = host.queue.handleNextTrack();
+        await settle();
+        expect(await host.click()).toEqual({ ok: true });
+        batch.resolve([f3]);
+        await next;
+        await settle();
+        expect(store().currentSong).toBe(f1);
+        expect(store().playQueue).toBe(host.originalQueue);
+        expect([currentTime.get(), host.audio.currentTime, store().audioSrc]).toEqual([42, 42, 'https://audio.test/f1']);
+        expect(env.self.audioCalls).toEqual([]);
+    });
+
+    it('the real home landing keeps scene A ownership while scene B is waiting for songs', async () => {
+        useOnlineProviderAccountStore.setState({ activeProviderId: 'bodian' });
+        playerWith([a], a);
+        const host = mount();
+        const plays: Promise<void>[] = [];
+        const port = createLibraryHomePort(() => ({
+            localSongs: [], onRefreshLocalSongs: vi.fn(),
+            onPlaySong: (song, queue, fm) => { plays.push(host.queue.playSong(song, queue, fm)); },
+        }));
+        const first = { mode: 'SCENE_RCMD' as const, scene: '33' };
+        const second = { mode: 'SCENE_RCMD' as const, scene: '44' };
+        const release = holdAddress(f1);
+        const later = deferred<SongResult[]>();
+        try {
+            env.self.fmBatch = Promise.resolve([f1, f2]);
+            const firstQueue = await port.getPersonalFm(first, 'bodian');
+            port.playPersonalFm(f1, firstQueue);
+            await settle();
+            env.self.fmBatch = later.promise;
+            const secondQueue = port.getPersonalFm(second, 'bodian');
+            await settle();
+            expect(usePersonalFmModeStore.getState().providerSelections.bodian).toEqual(second);
+            release();
+            await plays[0];
+            expect(store().acceptedFmPlayback?.selection).toEqual(first);
+            later.resolve([p1, p2]);
+            await secondQueue;
+        } finally { release(); later.resolve([]); }
     });
 
     it.each(['audio', 'beforePlay'] as const)('cancels the older %s request without letting its late result replace the sounding track', async waitingAt => {

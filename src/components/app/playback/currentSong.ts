@@ -50,7 +50,7 @@ import { setCurrentSong, usePlaybackStore } from '../../../stores/usePlaybackSto
 // A restore of a remembered song (the last session, the hand-off to a rebuilt window) is not a
 // play: it ends no play, and it makes its song current before its first wait. The key cannot tell
 // it from a play of that same song, so it takes `startRestore()` at that moment and asks the answer
-// after each wait: no, once a song was asked for again, or once the plays in flight were dropped.
+// after each wait: no, once a song was asked for again, or once the shown playback was dropped.
 
 /** The key, for reading only. `usePlaybackRuntimeRefs` hands this out as `currentSongRef`. */
 export type AskedSongKeyRef = { readonly current: string | null };
@@ -203,12 +203,31 @@ export const askForSong = (song: SongResult | null, { putBack = false }: { putBa
  * A restore of a remembered song calls this right after it made that song current, and keeps what
  * it gets: the answer to "is this restore still wanted". It is yes until a song is asked for again
  * (another song or this same one, by a play, the stage or a route that empties the player), or
- * until the plays in flight are dropped.
+ * until the shown playback is dropped. Continuing that same song keeps its source restore.
  */
 export const startRestore = (): (() => boolean) => {
     const asked = asks;
-    const dropped = playsDropped;
-    return () => asks === asked && playsDropped === dropped;
+    const dropped = shownPlaybackDropped;
+    return () => asks === asked && shownPlaybackDropped === dropped;
+};
+
+let shownRestore: { stillWanted: () => boolean; finished: Promise<void> } | null = null;
+
+/** Holds resume until the rebuilt window finishes restoring this source, including its playback route. */
+export const trackShownRestore = (stillWanted: () => boolean): (() => void) => {
+    let finish!: () => void;
+    const restoring = { stillWanted, finished: new Promise<void>(resolve => { finish = resolve; }) };
+    shownRestore = restoring;
+    return () => {
+        if (shownRestore === restoring) shownRestore = null;
+        finish();
+    };
+};
+
+/** A pending restore owns the position and route; a newer ask must never be resumed by its caller. */
+export const waitForShownRestore = (): Promise<boolean> | null => {
+    const restoring = shownRestore;
+    return restoring?.stillWanted() ? restoring.finished.then(() => restoring.stillWanted()) : null;
 };
 
 /**

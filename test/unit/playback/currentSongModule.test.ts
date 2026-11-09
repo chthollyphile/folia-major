@@ -240,6 +240,8 @@ describe('the current song module', () => {
         // The restore's own rebuilt song in the place of the shown one is the same ask.
         replaceShownSong(songA, { ...songA, name: 'A rebuilt' });
         expect(restore()).toBe(true);
+        dropPlaysInFlight({ keepShownPlayback: true });
+        expect(restore()).toBe(true);
 
         askForSong(songA);
         expect(restore()).toBe(false);

@@ -16,7 +16,7 @@ import { noteQueueStart, queueStartsSoFar } from '../../components/app/playback/
 import { selectDisplaySong, usePlaybackStore } from '../../stores/usePlaybackStore';
 import { getPlaybackSongKey, isSamePlaybackSong } from '../../utils/appPlaybackGuards';
 import { registerPersonalFmLanding } from '../../components/app/playback/start/personalFmLanding';
-import { dropPlaysInFlight } from '../../components/app/playback/currentSong';
+import { dropPlaysInFlight, waitForShownRestore } from '../../components/app/playback/currentSong';
 import {
     createLocalGridViewCollection,
     createNavidromeGridViewCollection,
@@ -36,7 +36,7 @@ export const createLibraryHomePort = (getSurface: () => HomePortSurface): Librar
     // The selection stored before the cards still on their way: a card that brings nothing puts it back.
     let selectionBeforePending: { providerId: string; selection: PersonalFmSelection; applied: PersonalFmSelection } | null = null;
     // The radio the last card brought songs for (null: the Personal FM itself), until those songs are played.
-    let launched: { songs: SongResult[]; providerId: string; station: string | null; selection: PersonalFmSelection | null } | null = null;
+    let launched: { songs: SongResult[]; providerId: string; station: string | null; selection: PersonalFmSelection } | null = null;
     return {
         localAvailability: () => getLocalLibraryAvailability(),
         importFolder: async () => (await importFolder()).length,
@@ -71,7 +71,7 @@ export const createLibraryHomePort = (getSurface: () => HomePortSurface): Librar
             // The extra radio this card starts, if it is one: its mode choice stays in memory and the stored
             // Personal FM settings are not touched. It takes effect once its songs are in (below).
             const station = selection?.station || null;
-            let stationSelection: PersonalFmSelection | null = null;
+            let appliedSelection = selectProviderPersonalFm(usePersonalFmModeStore.getState(), providerId);
             // Put back when the card brings nothing to play, as the mode switch in the command palette does.
             // Only this click's own choice is taken back: a newer card, or a mode picked meanwhile in the
             // command palette, has stored its own, which stands.
@@ -87,8 +87,8 @@ export const createLibraryHomePort = (getSurface: () => HomePortSurface): Librar
                     const catalog = await omni.getPersonalFmStationCatalog(providerId, station);
                     if (!catalog || !stillCurrent()) return [];
                     usePersonalFmModeStore.getState().setStationCatalog(providerId, station, catalog);
-                    stationSelection = normalizePersonalFmSelection(selection, catalog);
-                    options = toPersonalFmRequestOptions(stationSelection, station);
+                    appliedSelection = normalizePersonalFmSelection(selection, catalog);
+                    options = toPersonalFmRequestOptions(appliedSelection, station);
                 } else if (selection) {
                     const catalog = await omni.getPersonalFmCatalog(providerId);
                     // A card belongs to the provider that displayed it, even if the listener switches meanwhile.
@@ -102,6 +102,7 @@ export const createLibraryHomePort = (getSurface: () => HomePortSurface): Librar
                     // Stored before the songs come: the radio's later batches are asked for in the mode stored.
                     const applied = modes.setProviderSelection(providerId, selection);
                     selectionBeforePending = { providerId, selection: previous, applied };
+                    appliedSelection = applied;
                     options = toPersonalFmRequestOptions(applied);
                 }
                 const songs = await omni.getPersonalFm(previewToken !== undefined ? { ...options, previewToken } : options);
@@ -113,7 +114,7 @@ export const createLibraryHomePort = (getSurface: () => HomePortSurface): Librar
                     // Which radio these songs are from: it goes on air with them once they play (playPersonalFm). The
                     // Personal FM card (or a scene of it) puts an extra radio off, the card of a radio puts it on.
                     // The station goes on air only with this exact accepted queue, through the upstream landing hook.
-                    launched = { songs, providerId, station: stationSelection ? station : null, selection: stationSelection };
+                    launched = { songs, providerId, station, selection: appliedSelection };
                 }
                 return songs;
             } catch (error) {
@@ -157,7 +158,11 @@ export const createLibraryHomePort = (getSurface: () => HomePortSurface): Librar
             restoreSelection();
             usePlaybackStore.getState().setIsFmMode(true);
             if (state.playerState !== PlayerState.PLAYING) {
-                void surface.onResumePlayback?.().catch((error: unknown) => console.warn('[LibraryHome] Failed to resume Personal FM:', error));
+                // A rebuilt window may already show this song while its source is still on the way.
+                // Let that restore keep its route and position before asking the transport to resume.
+                const restoring = waitForShownRestore();
+                const resumed = restoring ? restoring.then(wanted => wanted ? surface.onResumePlayback?.() : undefined) : surface.onResumePlayback?.();
+                void resumed?.catch((error: unknown) => console.warn('[LibraryHome] Failed to resume Personal FM:', error));
             }
             surface.onEnterPlaybackView?.();
             return true;
@@ -167,8 +172,9 @@ export const createLibraryHomePort = (getSurface: () => HomePortSurface): Librar
             launched = null;
             if (launch) registerPersonalFmLanding(queue, () => {
                 const modes = usePersonalFmModeStore.getState();
-                if (launch.station && launch.selection) modes.startStation(launch.providerId, launch.station, launch.selection);
+                if (launch.station) modes.startStation(launch.providerId, launch.station, launch.selection);
                 else modes.endStation(launch.providerId);
+                return launch.station ? { ...launch.selection, station: launch.station } : launch.selection;
             });
             getSurface().onPlaySong(song, queue, true);
         },

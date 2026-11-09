@@ -15,7 +15,7 @@ import type {
 import { setStatusMessage as setStatusMsg } from '../../../../stores/useStatusMessageStore';
 import { setActivePlaybackContext, setAudioSrc, setCachedCoverUrl, setCurrentLineIndex, setDuration, setIsFmMode, setPlayQueue, setPlayerState } from '../../../../stores/usePlaybackStore';
 import { noteAcceptedFmPlayback } from '../../../../services/playbackQueueOrigin';
-import { askedSongKeyRef, makeSongCurrent, startRestore } from '../currentSong';
+import { askedSongKeyRef, makeSongCurrent, startRestore, trackShownRestore } from '../currentSong';
 import { personalFmEndingsSoFar } from '../personalFmEndings';
 import { useStableActionSurface } from '../../../../hooks/useStableCallbacks';
 import { usePlaybackStore } from '../../../../stores/usePlaybackStore';
@@ -376,54 +376,59 @@ export function useElectronWindowPlaybackHandoff({
             return;
         }
 
-        // The snapshot URL was playing moments ago: falling back to it beats seconds of silence spent on retries.
-        const fallbackAudioSrc = snapshot.audioSrc && !snapshot.audioSrc.startsWith('blob:') ? snapshot.audioSrc : null;
-        const restored = await restorePlaybackSourceForSong(snapshot.currentSong, {
-            audioQuality,
-            userId,
-            blobUrlRef,
-            currentOnlineAudioUrlFetchedAtRef,
-            setPlayQueue,
-            setLyrics,
-            restoreCachedThemeForSong,
-            persistLastPlaybackCache,
-            queue: restoredQueue,
-            stillWanted,
-            hasFallbackSource: fallbackAudioSrc !== null,
-            queueWritesAtStart,
-            pendingResumeTimeRef,
-        }).catch((error): RestorePlaybackSourceOutcome => {
-            console.warn('[Electron] Failed to restore window playback handoff source', error);
-            return 'failed';
-        });
+        const finishRestore = trackShownRestore(stillWanted);
+        try {
+            // The snapshot URL was playing moments ago: falling back to it beats seconds of silence spent on retries.
+            const fallbackAudioSrc = snapshot.audioSrc && !snapshot.audioSrc.startsWith('blob:') ? snapshot.audioSrc : null;
+            const restored = await restorePlaybackSourceForSong(snapshot.currentSong, {
+                audioQuality,
+                userId,
+                blobUrlRef,
+                currentOnlineAudioUrlFetchedAtRef,
+                setPlayQueue,
+                setLyrics,
+                restoreCachedThemeForSong,
+                persistLastPlaybackCache,
+                queue: restoredQueue,
+                stillWanted,
+                hasFallbackSource: fallbackAudioSrc !== null,
+                queueWritesAtStart,
+                pendingResumeTimeRef,
+            }).catch((error): RestorePlaybackSourceOutcome => {
+                console.warn('[Electron] Failed to restore window playback handoff source', error);
+                return 'failed';
+            });
 
-        // The old window's address is the fallback of a restore that failed, for the handed-over song
-        // only: not for a restore that was overtaken, nor for a song that was asked for while its source
-        // was being fetched again, another one or this same one.
-        const stillThatSong = stillWanted() && askedSongKeyRef.current === getPlaybackSongKey(snapshot.currentSong);
-        if (restored === 'failed' && stillThatSong && fallbackAudioSrc) {
-            setAudioSrc(fallbackAudioSrc);
-        }
-        // A provider's own player kept sounding the song through the rebuild: take it over as it
-        // stands. With another track or none there, the player is stopped (as mpv's track is
-        // released above when nothing restores it), the song is shown paused, and the play path
-        // starts it when the listener asks.
-        if (!omni.canPlayExternally(snapshot.currentSong)) return;
-        if (restored === 'restored' && stillThatSong) {
-            // Nothing of this window starts the player by itself; the adoption says whether it plays.
-            shouldAutoPlayRef.current = false;
-            if (await adoptExternalPlayback(snapshot.currentSong)) return;
-            releaseUnclaimedExternalTrack(snapshot.currentSong, 'not taken over');
-        } else {
-            releaseUnclaimedExternalTrack(snapshot.currentSong, stillThatSong ? `restore ${restored}` : 'the restore was overtaken');
-            // A failed restore fell back to the old window's address above: that source plays it.
-            if (fallbackAudioSrc) return;
-        }
-        // The snapshot said playing; nothing here sounds the song now. A song asked for meanwhile
-        // keeps the state its own play gives it.
-        if (stillWanted() && askedSongKeyRef.current === getPlaybackSongKey(snapshot.currentSong)) {
-            shouldAutoPlayRef.current = false;
-            if (usePlaybackStore.getState().playerState === PlayerState.PLAYING) setPlayerState(PlayerState.PAUSED);
+            // The old window's address is the fallback of a restore that failed, for the handed-over song
+            // only: not for a restore that was overtaken, nor for a song that was asked for while its source
+            // was being fetched again, another one or this same one.
+            const stillThatSong = stillWanted() && askedSongKeyRef.current === getPlaybackSongKey(snapshot.currentSong);
+            if (restored === 'failed' && stillThatSong && fallbackAudioSrc) {
+                setAudioSrc(fallbackAudioSrc);
+            }
+            // A provider's own player kept sounding the song through the rebuild: take it over as it
+            // stands. With another track or none there, the player is stopped (as mpv's track is
+            // released above when nothing restores it), the song is shown paused, and the play path
+            // starts it when the listener asks.
+            if (!omni.canPlayExternally(snapshot.currentSong)) return;
+            if (restored === 'restored' && stillThatSong) {
+                // Nothing of this window starts the player by itself; the adoption says whether it plays.
+                shouldAutoPlayRef.current = false;
+                if (await adoptExternalPlayback(snapshot.currentSong)) return;
+                releaseUnclaimedExternalTrack(snapshot.currentSong, 'not taken over');
+            } else {
+                releaseUnclaimedExternalTrack(snapshot.currentSong, stillThatSong ? `restore ${restored}` : 'the restore was overtaken');
+                // A failed restore fell back to the old window's address above: that source plays it.
+                if (fallbackAudioSrc) return;
+            }
+            // The snapshot said playing; nothing here sounds the song now. A song asked for meanwhile
+            // keeps the state its own play gives it.
+            if (stillWanted() && askedSongKeyRef.current === getPlaybackSongKey(snapshot.currentSong)) {
+                shouldAutoPlayRef.current = false;
+                if (usePlaybackStore.getState().playerState === PlayerState.PLAYING) setPlayerState(PlayerState.PAUSED);
+            }
+        } finally {
+            finishRestore();
         }
     }, [
         audioQuality,
