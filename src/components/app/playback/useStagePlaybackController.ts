@@ -6,8 +6,8 @@ import { getFromCache, removeFromCache, saveToCache } from '../../../services/db
 import { NowPlayingProvider } from '../../../services/nowPlayingProvider';
 import { usePlayerCapSource } from '../../../hooks/usePlayerCapSource';
 import { findLatestActiveLineIndex, hasRenderableLyrics } from '../../../utils/appPlaybackHelpers';
-import { buildStageEntryKey, getStageLyricsTimelineBounds } from '../../../utils/appStageHelpers';
-import { getPlaybackSongKey, isStagePlaybackSong } from '../../../utils/appPlaybackGuards';
+import { buildStageEntryKey, getStageLyricsSessionTimeline, getStageLyricsTimelineBounds, latestStageLyricsClock, stageLyricsClockTimeSec, withLatestStageLyricsClock } from '../../../utils/appStageHelpers';
+import { getPlaybackSongKey, isLocalPlaybackSong, isNavidromePlaybackSong, isStagePlaybackSong } from '../../../utils/appPlaybackGuards';
 import {
     buildNowPlayingContentLoadKey,
     clampNowPlayingTimeSec,
@@ -25,6 +25,7 @@ import {
     NowPlayingTrackSnapshot,
     PlayerState,
     SongResult,
+    StageLyricsClockUpdate,
     StageLyricsSession,
     StageMediaSession,
     StageSource,
@@ -42,19 +43,33 @@ import { setActivePlaybackContext, setAudioSrc, setCachedCoverUrl, setCurrentLin
 import { useStableActionSurface } from '../../../hooks/useStableCallbacks';
 import { useTranslation } from 'react-i18next';
 import { usePlaybackStore } from '../../../stores/usePlaybackStore';
-import { askForSong, askedSongKeyRef, dropPlaysInFlight, makeSongCurrent, showSong } from './currentSong';
+import { askForSong, askedSongKeyRef, dropPlaysInFlight, makeSongCurrent, showSong, startRestore } from './currentSong';
 import { supplyLyricsAfterEmptyLoad } from './createLyricsSetter';
 import { useStageSettingsStore } from '../../../stores/useStageSettingsStore';
 import { currentTime } from '../../../stores/motionSignals';
+import { useAudioSettingsStore } from '../../../stores/useAudioSettingsStore';
+import type { PlaybackRoute } from '../../../types/hifi';
+import { getHifiPosition, isHifiRoute } from '../../../services/hifi/hifiPlayback';
+import { getExternalPosition, isExternalPlaybackSounding } from '../../../services/onlineMusic/externalPlayback';
+import { restorePlaybackSourceForSong } from './restore/restorePlaybackSource';
+import { findPlaybackDecks } from '../../hifi/useWebEngineYield';
 
 // src/components/app/playback/useStagePlaybackController.ts
 
 type SetState<T> = Dispatch<SetStateAction<T>>;
 
+/**
+ * A snapshot of the player plus the engine that was sounding it. Only the stage round trip reads the
+ * route; a snapshot without one (from a window that did not write it) counts as 'web'.
+ */
+type RoutedPlaybackSnapshot = PlaybackSnapshot & { route?: PlaybackRoute };
+
 type UseStagePlaybackControllerParams = {
     isDev: boolean;
     isElectronWindow: boolean;
     audioRef: RefObject<HTMLAudioElement | null>;
+    /** Handed to the source restore of a main song that comes back from the stage (see applyPlaybackSnapshot). */
+    blobUrlRef: MutableRefObject<string | null>;
     shouldAutoPlayRef: MutableRefObject<boolean>;
     pendingResumeTimeRef: MutableRefObject<number | null>;
     lastAudioRecoverySourceRef: MutableRefObject<string | null>;
@@ -88,6 +103,7 @@ export function useStagePlaybackController({
     isDev,
     isElectronWindow,
     audioRef,
+    blobUrlRef,
     shouldAutoPlayRef,
     pendingResumeTimeRef,
     lastAudioRecoverySourceRef,
@@ -133,11 +149,17 @@ export function useStagePlaybackController({
         lastError: null,
     });
 
-    const mainPlaybackSnapshotRef = useRef<PlaybackSnapshot | null>(null);
+    const mainPlaybackSnapshotRef = useRef<RoutedPlaybackSnapshot | null>(null);
     const stagePlaybackSnapshotRef = useRef<PlaybackSnapshot | null>(null);
     const lastLoadedStageEntryKeyRef = useRef<string | null>(null);
     const lastKnownMainSongRef = useRef<SongResult | null>(null);
     const lastKnownMainQueueRef = useRef<SongResult[]>([]);
+    // The newest POST /stage/lyrics/clock, and which lyrics session was loaded last (its updatedAt).
+    const stageLyricsClockUpdateRef = useRef<StageLyricsClockUpdate | null>(null);
+    const loadedStageLyricsSessionRef = useRef<number | null>(null);
+    const stageLyricsLoadIdRef = useRef(0);
+    // The loaded lyrics session runs on an external clock with no length: its end of 0 means unbounded.
+    const stageLyricsOpenEndedRef = useRef(false);
     const stageLyricsClockRef = useRef<StageLyricsClockState>({
         startTimeSec: 0,
         endTimeSec: 0,
@@ -194,36 +216,85 @@ export function useStagePlaybackController({
     const playerCapSongIdRef = useRef(-1);
     const playerCapSongKeyRef = useRef('');
 
-    const buildPlaybackSnapshot = useCallback((): PlaybackSnapshot => ({
-        currentSong,
-        lyrics,
-        cachedCoverUrl,
-        audioSrc,
-        playQueue,
-        isFmMode,
-        playerState,
-        currentTime: audioRef.current?.currentTime ?? currentTime.get(),
-        duration,
-        currentLineIndex,
-    }), [audioRef, audioSrc, cachedCoverUrl, currentLineIndex, currentSong, currentTime, duration, isFmMode, lyrics, playQueue, playerState]);
+    const buildPlaybackSnapshot = useCallback((): RoutedPlaybackSnapshot => {
+        // On the HiFi route mpv sounds the song and the deck sits idle: the position is mpv's.
+        // The external route is the same, with the provider's player in mpv's place.
+        const onHifi = isHifiRoute();
+        const onExternal = isExternalPlaybackSounding();
+        return {
+            currentSong,
+            lyrics,
+            cachedCoverUrl,
+            audioSrc,
+            playQueue,
+            isFmMode,
+            playerState,
+            currentTime: onHifi ? getHifiPosition() : onExternal ? getExternalPosition() : audioRef.current?.currentTime ?? currentTime.get(),
+            duration,
+            currentLineIndex,
+            route: onExternal ? 'external' : onHifi ? 'hifi' : 'web',
+        };
+    }, [audioRef, audioSrc, cachedCoverUrl, currentLineIndex, currentSong, currentTime, duration, isFmMode, lyrics, playQueue, playerState]);
 
-    const applyPlaybackSnapshot = useCallback((snapshot: PlaybackSnapshot | null) => {
+    const applyPlaybackSnapshot = useCallback((snapshot: RoutedPlaybackSnapshot | null) => {
+        const song = snapshot?.currentSong ?? null;
+        // A local or Navidrome song mpv was playing has no source a deck could pick up again: entering the
+        // stage stopped mpv. Neither has one whose snapshot holds no source at all. Its source is restored
+        // instead, which routes it to HiFi again and starts it there at the saved position.
+        // An external player has no source this window can reload: the song comes back paused, at its
+        // position, and the play path starts it there when the listener asks.
+        const external = snapshot?.route === 'external';
+        const restoresSource = Boolean(
+            snapshot && song
+            && (isLocalPlaybackSong(song) || isNavidromePlaybackSong(song))
+            && (snapshot.route === 'hifi' || !snapshot.audioSrc),
+        );
         pendingResumeTimeRef.current = snapshot ? Math.max(0, snapshot.currentTime) : null;
-        shouldAutoPlayRef.current = snapshot?.playerState === PlayerState.PLAYING;
+        shouldAutoPlayRef.current = !external && snapshot?.playerState === PlayerState.PLAYING;
         lastAudioRecoverySourceRef.current = null;
         currentOnlineAudioUrlFetchedAtRef.current = null;
-        makeSongCurrent(snapshot?.currentSong ?? null);
+        // An external song has nothing of this snapshot to play from a deck either: the stage's
+        // media must be stopped too, not left sounding under a player Folia has not started.
+        if (restoresSource || external) {
+            // Nothing of this snapshot plays from a deck, and a null audioSrc does not stop one: the
+            // deck that sounded the stage's media is paused and emptied here, or it keeps sounding
+            // (and its timeupdate and ended drive the main player) until the restore moves the route,
+            // or for good when the restore fails.
+            findPlaybackDecks(audioRef.current).forEach((deck) => {
+                deck.pause();
+                deck.removeAttribute('src');
+                deck.load();
+            });
+        }
+        makeSongCurrent(song);
+        const stillWanted = restoresSource ? startRestore() : null;
         setLyrics(snapshot?.lyrics ?? null);
         setCachedCoverUrl(snapshot?.cachedCoverUrl ?? null);
-        setAudioSrc(snapshot?.audioSrc ?? null);
+        setAudioSrc(restoresSource ? null : snapshot?.audioSrc ?? null);
         setPlayQueue(snapshot?.playQueue ?? []);
         setIsFmMode(snapshot?.isFmMode ?? false);
         setIsLyricsLoading(false);
-        setPlayerState(snapshot?.playerState ?? PlayerState.IDLE);
+        // Nothing sounds until the restored source lands: the autoplay intent above starts it then.
+        setPlayerState((external || restoresSource) && snapshot?.playerState !== PlayerState.IDLE
+            ? PlayerState.PAUSED
+            : snapshot?.playerState ?? PlayerState.IDLE);
         setCurrentLineIndex(snapshot?.currentLineIndex ?? -1);
         currentTime.set(snapshot?.currentTime ?? 0);
         setDuration(snapshot?.duration ?? 0);
+        if (!snapshot || !song || !stillWanted) return;
+        // The restore spends pendingResumeTimeRef: mpv starts there, or the deck's loadedmetadata does on the web route.
+        restorePlaybackSourceForSong(song, {
+            audioQuality: useAudioSettingsStore.getState().audioQuality,
+            blobUrlRef,
+            currentOnlineAudioUrlFetchedAtRef,
+            setLyrics,
+            queue: snapshot.playQueue,
+            stillWanted,
+            pendingResumeTimeRef,
+        }).catch(error => console.warn('[Stage] Failed to restore the main song\'s source after the stage', error));
     }, [
+        audioRef,
+        blobUrlRef,
         currentOnlineAudioUrlFetchedAtRef,
         currentTime,
         lastAudioRecoverySourceRef,
@@ -298,6 +369,7 @@ export function useStagePlaybackController({
     } as SongResult), []);
 
     const resetStageLyricsClock = useCallback(() => {
+        stageLyricsOpenEndedRef.current = false;
         stageLyricsClockRef.current = {
             startTimeSec: 0,
             endTimeSec: 0,
@@ -316,7 +388,10 @@ export function useStagePlaybackController({
 
     const syncStageLyricsClock = useCallback((timeSec: number, endTimeSec: number, nextPlayerState: PlayerState, startTimeSec = 0) => {
         const safeStartTime = Math.max(0, startTimeSec);
-        const safeEndTime = Math.max(safeStartTime, endTimeSec);
+        // An end of 0 on an external player's clock with no length given is none: it runs on unbounded.
+        const safeEndTime = endTimeSec > 0
+            ? Math.max(safeStartTime, endTimeSec)
+            : stageLyricsOpenEndedRef.current ? Number.POSITIVE_INFINITY : safeStartTime;
         const safeTime = Math.min(Math.max(timeSec, safeStartTime), safeEndTime);
 
         stageLyricsClockRef.current = {
@@ -505,12 +580,12 @@ export function useStagePlaybackController({
         }
     }, [applyNowPlayingPreciseAnchor, isDev, updateNowPlayingDebugInfo]);
 
-    const buildStageLyricsPlaybackSong = useCallback((session: StageLyricsSession, lyricData: LyricData): SongResult => ({
+    const buildStageLyricsPlaybackSong = useCallback((session: StageLyricsSession, lyricData: LyricData | null, durationSec: number): SongResult => ({
         id: -Math.max(1, Math.floor(session.updatedAt || Date.now())),
-        name: session.title || lyricData.title || 'Stage Lyrics',
-        artists: [{ id: 0, name: session.artist || lyricData.artist || 'Stage' }],
-        album: { id: 0, name: session.album || 'Stage' },
-        durationMs: Math.max(0, Math.floor(getStageLyricsTimelineBounds(lyricData).endTimeSec * 1000)),
+        name: session.title || lyricData?.title || 'Stage Lyrics',
+        artists: [{ id: 0, name: session.artist || lyricData?.artist || 'Stage' }],
+        album: { id: 0, name: session.album || 'Stage', coverUrl: session.coverUrl || undefined },
+        durationMs: Math.max(0, Math.floor(durationSec * 1000)),
         sourceType: 'cloud',
         isStage: true,
         sourceRef: { kind: 'stage', mediaId: String(session.updatedAt) },
@@ -533,6 +608,8 @@ export function useStagePlaybackController({
     }, []);
 
     const loadStageSessionIntoPlayback = useCallback(async (session: StageMediaSession | null, options: LoadPlaybackOptions = {}) => {
+        // A lyrics push still being parsed is overtaken by this one.
+        stageLyricsLoadIdRef.current += 1;
         if (!session) {
             resetStageLyricsClock();
             clearPlaybackSurface();
@@ -590,49 +667,72 @@ export function useStagePlaybackController({
     ]);
 
     const loadStageLyricsIntoPlayback = useCallback(async (
-        session: StageLyricsSession | null,
+        pushedSession: StageLyricsSession | null,
         options: LoadPlaybackOptions = {},
     ) => {
+        let session = pushedSession;
         if (!session) {
+            stageLyricsLoadIdRef.current += 1;
+            loadedStageLyricsSessionRef.current = null;
             resetStageLyricsClock();
             clearPlaybackSurface();
             return;
         }
 
-        let parsedLyrics: LyricData | null = null;
-        try {
-            parsedLyrics = await LyricParserFactory.parse(session.lyricSource as never);
-        } catch (error) {
-            console.warn('[Stage] Failed to parse stage lyrics session', error);
-        }
+        // A later push overtakes this one while its lyrics are parsed.
+        const loadId = stageLyricsLoadIdRef.current + 1;
+        stageLyricsLoadIdRef.current = loadId;
 
-        if (!hasRenderableLyrics(parsedLyrics)) {
+        let parsedLyrics: LyricData | null = null;
+        if (session.lyricSource) {
+            try {
+                parsedLyrics = await LyricParserFactory.parse(session.lyricSource as never);
+            } catch (error) {
+                console.warn('[Stage] Failed to parse stage lyrics session', error);
+            }
+        }
+        if (stageLyricsLoadIdRef.current !== loadId) return;
+        // A clock (and a length) sent since the push, also while the lyrics were parsed.
+        session = withLatestStageLyricsClock(session, stageLyricsClockUpdateRef.current);
+
+        const renderableLyrics = hasRenderableLyrics(parsedLyrics) ? parsedLyrics : null;
+        // A session that says which track it is (an external player's: a clock, a length or a cover,
+        // or no lyrics sent at all) is shown without lyrics; lyrics alone that cannot be read are an error.
+        const showsTrack = Boolean(session.clock || session.durationMs || session.coverUrl || !session.lyricSource);
+        if (!renderableLyrics && !showsTrack) {
             resetStageLyricsClock();
             clearPlaybackSurface();
             setStatusMsg({ type: 'error', text: t('status.playbackError') });
             return;
         }
 
-        const { startTimeSec, endTimeSec } = getStageLyricsTimelineBounds(parsedLyrics);
-        const nextPlayerState = options.playerState ?? ((options.autoplay ?? true) ? PlayerState.PLAYING : PlayerState.PAUSED);
-        const initialTime = options.resumeTime ?? startTimeSec;
-        const nextLineIndex = findLatestActiveLineIndex(parsedLyrics.lines, initialTime);
-        const stageSong = buildStageLyricsPlaybackSong(session, parsedLyrics);
+        const { startTimeSec, endTimeSec, durationSec } = getStageLyricsSessionTimeline(session, renderableLyrics);
+        // An external player's clock says where and whether it plays.
+        const clock = session.clock ?? null;
+        const nextPlayerState = clock
+            ? (clock.paused ? PlayerState.PAUSED : PlayerState.PLAYING)
+            : options.playerState ?? ((options.autoplay ?? true) ? PlayerState.PLAYING : PlayerState.PAUSED);
+        const unclampedTime = clock ? stageLyricsClockTimeSec(clock) : options.resumeTime ?? startTimeSec;
+        const initialTime = endTimeSec > 0 ? Math.min(unclampedTime, endTimeSec) : unclampedTime;
+        const nextLineIndex = renderableLyrics ? findLatestActiveLineIndex(renderableLyrics.lines, initialTime) : -1;
+        const stageSong = buildStageLyricsPlaybackSong(session, renderableLyrics, durationSec);
 
         clearPlaybackSurface();
         shouldAutoPlayRef.current = false;
         pendingResumeTimeRef.current = null;
         makeSongCurrent(stageSong);
-        setCachedCoverUrl(null);
+        loadedStageLyricsSessionRef.current = session.updatedAt;
+        setCachedCoverUrl(session.coverUrl || null);
         setAudioSrc(null);
         setPlayQueue([]);
         setIsFmMode(false);
         setIsLyricsLoading(false);
-        setLyrics(parsedLyrics);
+        setLyrics(renderableLyrics);
         currentTime.set(initialTime);
         setCurrentLineIndex(nextLineIndex);
-        setDuration(endTimeSec);
+        setDuration(durationSec);
         setPlayerState(nextPlayerState);
+        stageLyricsOpenEndedRef.current = Boolean(clock) && endTimeSec <= 0;
         syncStageLyricsClock(initialTime, endTimeSec, nextPlayerState, startTimeSec);
         // Lines that only say "instrumental" are set as none. Nothing was awaited since the song
         // became current, so it still is; a mod may supply lyrics for it.
@@ -914,7 +1014,9 @@ export function useStagePlaybackController({
         const nextStageEntryKey = buildStageEntryKey(stageActiveEntryKind, stageLyricsSession, stageMediaSession);
         setActivePlaybackContext('stage');
 
-        if (savedStageSnapshot && savedStageEntryKey && savedStageEntryKey === nextStageEntryKey) {
+        // An external player's session ran on while away: it is loaded again from its newest clock, not resumed from the snapshot.
+        const followsExternalClock = stageActiveEntryKind === 'lyrics' && Boolean(stageLyricsSession && latestStageLyricsClock(stageLyricsSession, stageLyricsClockUpdateRef.current));
+        if (savedStageSnapshot && savedStageEntryKey && savedStageEntryKey === nextStageEntryKey && !followsExternalClock) {
             applyPlaybackSnapshot(savedStageSnapshot);
             if (stageActiveEntryKind === 'lyrics') {
                 syncStageLyricsClock(
@@ -960,6 +1062,8 @@ export function useStagePlaybackController({
         if (activePlaybackContext !== 'stage') {
             return;
         }
+        // A lyrics push still being parsed is not applied once the Stage is left.
+        stageLyricsLoadIdRef.current += 1;
 
         if (stageSource === 'now-playing' || stageSource === 'playercap') {
             stagePlaybackSnapshotRef.current = null;
@@ -1131,6 +1235,39 @@ export function useStagePlaybackController({
             stagePlaybackSnapshotRef.current = buildPlaybackSnapshot();
         }
     }, [activePlaybackContext, buildPlaybackSnapshot, currentSong, playQueue]);
+
+    // POST /stage/lyrics/clock: an external player played, paused, sought or drifted. Only the clock
+    // of the lyrics session on screen moves; the session is not loaded again. Kept for a session not
+    // loaded yet too: it starts from the newest clock (latestStageLyricsClock).
+    useEffect(() => {
+        if (!window.electron?.onStageLyricsClockUpdated) {
+            return;
+        }
+
+        return window.electron.onStageLyricsClockUpdated((update) => {
+            stageLyricsClockUpdateRef.current = update;
+            // The session held here takes the clock and length too: a reload (back on the Stage, a
+            // rebuilt window's handoff) starts from them, not from the clock of the push.
+            setStageStatus(previous => (
+                previous?.lyricsSession && previous.lyricsSession.updatedAt === update.sessionUpdatedAt
+                    ? { ...previous, lyricsSession: withLatestStageLyricsClock(previous.lyricsSession, update) }
+                    : previous
+            ));
+            if (activePlaybackContext !== 'stage' || stageActiveEntryKind !== 'lyrics') return;
+            if (loadedStageLyricsSessionRef.current !== update.sessionUpdatedAt) return;
+
+            const durationSec = update.durationMs && update.durationMs > 0 ? update.durationMs / 1000 : 0;
+            if (durationSec) stageLyricsOpenEndedRef.current = false;
+            const endTimeSec = durationSec || stageLyricsClockRef.current.endTimeSec;
+            const nextPlayerState = update.clock.paused ? PlayerState.PAUSED : PlayerState.PLAYING;
+            const reportedTime = stageLyricsClockTimeSec(update.clock);
+            const nextTime = Number.isFinite(endTimeSec) && endTimeSec > 0 ? Math.min(reportedTime, endTimeSec) : reportedTime;
+            syncStageLyricsClock(nextTime, endTimeSec, nextPlayerState, 0);
+            currentTime.set(nextTime);
+            setPlayerState(nextPlayerState);
+            if (durationSec) setDuration(durationSec);
+        });
+    }, [activePlaybackContext, currentTime, setDuration, setPlayerState, setStageStatus, stageActiveEntryKind, syncStageLyricsClock]);
 
     useEffect(() => {
         if (stageSource === 'now-playing') {

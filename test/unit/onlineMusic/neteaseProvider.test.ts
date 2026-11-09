@@ -22,15 +22,21 @@ vi.mock('@/services/onlineMusic/netease/netease', async importOriginal => ({
         getAlbum: vi.fn(),
         getArtistDetail: vi.fn(),
         getArtistAlbums: vi.fn(),
+        getArtistSongs: vi.fn(),
         getPersonalizedPlaylists: vi.fn(),
         getLikedSongs: vi.fn(),
         getUserPlaylists: vi.fn(),
+        getUserRecord: vi.fn(),
         checkQr: vi.fn(),
         getQrKey: vi.fn(),
         createQr: vi.fn(),
         scrobbleV1: vi.fn(),
         getLoginStatus: vi.fn(),
         getUserAccount: vi.fn(),
+        updatePlaylistTracks: vi.fn(),
+        getDailyStyleConfigs: vi.fn(),
+        getDailyStyleSongs: vi.fn(),
+        setDailyStyle: vi.fn(),
     },
 }));
 
@@ -116,6 +122,77 @@ describe('neteaseProvider', () => {
         expect(page).toMatchObject({ total: 2, hasMore: true, nextOffset: 1 });
     });
 
+    // 歌手的 tns / alias 取自 2026-11-05 cloudsearch type 1 的实测回答。
+    it('keeps the other spelling of the artists from cloudsearch for the lyric search', async () => {
+        const withArtists = (ar: Array<{ name: string; tns?: string[]; alias?: string[] }>) => ({
+            ...song, sourceRef: undefined, ar, artists: ar.map((artist, index) => ({ id: index, name: artist.name })),
+        });
+        vi.mocked(neteaseApi.cloudSearch).mockResolvedValue({
+            result: {
+                songs: [
+                    withArtists([{ name: '陈奕迅', tns: [], alias: ['Eason Chan'] }]),
+                    withArtists([{ name: 'Oasis', tns: ['绿洲乐队'], alias: [] }]),
+                    // 王菲的 alias 先列旧名「王靖雯」：要的是另一种文字的写法。
+                    withArtists([{ name: '王菲', tns: [], alias: ['王靖雯', 'Faye Wong', 'Shirley Wong'] }, { name: '那英', tns: [], alias: [] }]),
+                    withArtists([{ name: '周杰伦', tns: [], alias: ['周董'] }]),
+                ],
+                songCount: 4,
+            },
+        } as any);
+        const page = await neteaseProvider.search!.searchSongs('song', 4, 0);
+        const other = (index: number) => neteaseProvider.lyrics!.getAlternateArtistName!(page.items[index]);
+
+        await expect(other(0)).resolves.toBe('Eason Chan');
+        await expect(other(1)).resolves.toBe('绿洲乐队');
+        await expect(other(2)).resolves.toBe('Faye Wong, 那英');
+        await expect(other(3)).resolves.toBeNull();
+        expect(page.items[3].sourceRef).toEqual({ kind: 'online', providerId: 'netease', mediaId: '42' });
+        // 缓存水合：正规化过的歌曲再正规化一次，另一种写法还在。
+        const hydrated = neteaseProvider.normalizeSong!(page.items[0]);
+        expect(hydrated.sourceRef).toEqual(page.items[0].sourceRef);
+        expect(hydrated.sourceRef).toMatchObject({ providerData: { otherArtistNames: 'Eason Chan' } });
+        await expect(neteaseProvider.lyrics!.getAlternateArtistName!(song)).resolves.toBeNull();
+    });
+
+    // 字段取自 2026-10-31 cloudsearch type 10 / 1000 的实测回答（裁剪过）。
+    it('searches albums and playlists through cloudsearch and normalizes them as collections', async () => {
+        vi.mocked(neteaseApi.cloudSearch).mockResolvedValueOnce({
+            result: {
+                albums: [{
+                    id: 18909, name: 'Partners 拍档', type: '专辑', size: 13, publishTime: 1019750400000,
+                    picUrl: 'https://p4.music.126.net/cover.jpg', company: '北京亚歆',
+                    artists: [{ id: 6452, name: '周杰伦' }, { id: 12203406, name: '方文山' }],
+                }],
+                albumCount: 592,
+            },
+        } as any);
+        const albums = await neteaseProvider.search!.searchAlbums!('周杰伦', 30, 0);
+        expect(neteaseApi.cloudSearch).toHaveBeenLastCalledWith('周杰伦', 30, 0, 10);
+        expect(albums).toMatchObject({ total: 592, hasMore: true, nextOffset: 1 });
+        expect(albums.items[0]).toMatchObject({
+            providerId: 'netease', id: 18909, type: 'album', name: 'Partners 拍档', trackCount: 13,
+            coverUrl: 'https://p4.music.126.net/cover.jpg', publishedAt: 1019750400000,
+            artists: [{ name: '周杰伦' }, { name: '方文山' }],
+        });
+
+        vi.mocked(neteaseApi.cloudSearch).mockResolvedValueOnce({
+            result: {
+                playlists: [{
+                    id: 6792103822, name: '周杰伦-Jay', coverImgUrl: 'http://p1.music.126.net/list.jpg', trackCount: 144,
+                    playCount: 34324836, creator: { nickname: 'Buradarrr', userId: 361038766 },
+                }],
+                playlistCount: 1,
+            },
+        } as any);
+        const playlists = await neteaseProvider.search!.searchPlaylists!('周杰伦', 30, 0);
+        expect(neteaseApi.cloudSearch).toHaveBeenLastCalledWith('周杰伦', 30, 0, 1000);
+        expect(playlists).toMatchObject({ total: 1, hasMore: false, nextOffset: 1 });
+        expect(playlists.items[0]).toMatchObject({
+            providerId: 'netease', id: 6792103822, type: 'playlist', trackCount: 144, playCount: 34324836,
+            creator: { nickname: 'Buradarrr' },
+        });
+    });
+
     // `/song/detail` takes many ids: songs looked up together go 50 to a request, one request after another.
     it('looks many songs up 50 to a request, in the order of the ids, null for one NetEase does not have', async () => {
         const detail = (id: number) => ({ ...song, id, name: `Song ${id}`, sourceRef: undefined });
@@ -199,6 +276,18 @@ describe('neteaseProvider', () => {
             publishedAt: 1704067200000,
             publisher: 'Publisher',
         });
+    });
+
+    it("pages an artist's songs with the whole count NetEase answers (#918)", async () => {
+        vi.mocked(neteaseApi.getArtistSongs).mockResolvedValue({ songs: [{ id: 1, name: 'One', ar: [], al: { id: 0, name: '' } }], more: true, total: 418 } as any);
+        await expect(neteaseProvider.catalog!.getArtistSongs!(9, 50, 50)).resolves.toMatchObject({ hasMore: true, nextOffset: 51, total: 418 });
+        expect(neteaseApi.getArtistSongs).toHaveBeenCalledWith(9, 50, 50);
+
+        // 没给总数（或给的不是正数）时不编一个出来：补页照 more 走。
+        vi.mocked(neteaseApi.getArtistSongs).mockResolvedValue({ songs: [], more: false, total: '0' } as any);
+        const page = await neteaseProvider.catalog!.getArtistSongs!(9, 50, 0);
+        expect(page.total).toBeUndefined();
+        expect(page.hasMore).toBe(false);
     });
 
     it('reads an album as an album whatever release type NetEase gives it', async () => {
@@ -634,5 +723,122 @@ describe('neteaseProvider listening reports', () => {
 
         await expect(neteaseProvider.playbackReports!.reportPlayback(reported, { playedSeconds: 45 }))
             .rejects.toMatchObject({ code: 'unavailable' });
+    });
+
+    it('accepts a playlist change the API wraps as a success', async () => {
+        vi.mocked(neteaseApi.updatePlaylistTracks).mockResolvedValue({ status: 200, body: { code: 200, trackIds: '[1,2]' } } as any);
+
+        await expect(neteaseProvider.mutations!.updatePlaylistTracks!('add', { providerId: 'netease', id: 7, name: 'P', type: 'playlist' }, [
+            { id: 1 } as any, { id: 2 } as any,
+        ])).resolves.toBeUndefined();
+        expect(neteaseApi.updatePlaylistTracks).toHaveBeenCalledWith('add', 7, [1, 2]);
+    });
+
+    it('throws when NetEase refuses a playlist change behind an HTTP 200', async () => {
+        // The API passes NetEase's refusal through as the body, with status 200 (a song already in the list).
+        vi.mocked(neteaseApi.updatePlaylistTracks).mockResolvedValue({ code: 502, message: '歌单内歌曲重复' } as any);
+        await expect(neteaseProvider.mutations!.updatePlaylistTracks!('add', { providerId: 'netease', id: 7, name: 'P', type: 'playlist' }, [{ id: 1 } as any]))
+            .rejects.toMatchObject({ code: 'unavailable' });
+
+        vi.mocked(neteaseApi.updatePlaylistTracks).mockResolvedValue({ code: 301 } as any);
+        await expect(neteaseProvider.mutations!.updatePlaylistTracks!('add', { providerId: 'netease', id: 7, name: 'P', type: 'playlist' }, [{ id: 1 } as any]))
+            .rejects.toMatchObject({ code: 'auth-required' });
+    });
+
+    it('reads the daily style groups and the pick the style songs were made for (#938)', async () => {
+        const recommendations = neteaseProvider.recommendations!;
+        vi.mocked(neteaseApi.getDailyStyleConfigs).mockResolvedValue({
+            code: 200,
+            data: {
+                categorys: [
+                    { categoryId: 1000, categoryName: '曲风', tagVOList: [{ categoryId: 1000, tagId: 10004, tagName: '电音' }, { tagName: 'no id' }] },
+                    { categoryId: 3000, categoryName: '情绪', tagVOList: [] },
+                ],
+            },
+        } as any);
+        await expect(recommendations.getDailyStyleGroups!()).resolves.toEqual([
+            { id: '1000', name: '曲风', tags: [{ id: '10004', name: '电音' }] },
+        ]);
+
+        vi.mocked(neteaseApi.getDailyStyleSongs).mockResolvedValue({
+            code: 200,
+            data: { tags: { categoryId: 1000, categoryName: '曲风', tagVOList: [{ tagId: 10004, tagName: '电音' }, { tagId: 10015, tagName: '二次元' }] } },
+            songs: [song],
+        } as any);
+        const answer = await recommendations.getDailyStyleSongs!();
+        expect(answer.selection).toEqual({ groupId: '1000', tagIds: ['10004', '10015'] });
+        expect(answer.songs).toHaveLength(1);
+
+        vi.mocked(neteaseApi.getDailyStyleSongs).mockResolvedValue({ code: 200, data: { tags: null }, songs: [] } as any);
+        await expect(recommendations.getDailyStyleSongs!()).resolves.toEqual({ songs: [], selection: null });
+    });
+
+    it('saves a daily style pick as numbers and throws when NetEase refuses it (#938)', async () => {
+        const recommendations = neteaseProvider.recommendations!;
+        vi.mocked(neteaseApi.setDailyStyle).mockResolvedValue({ code: 200, data: { saveSuccess: true } } as any);
+        await recommendations.setDailyStyle!({ groupId: '1000', tagIds: ['10004', '10015'] });
+        expect(neteaseApi.setDailyStyle).toHaveBeenCalledWith(1000, [10004, 10015]);
+
+        vi.mocked(neteaseApi.setDailyStyle).mockResolvedValue({ code: 200, data: { saveSuccess: false } } as any);
+        await expect(recommendations.setDailyStyle!({ groupId: '1000', tagIds: ['10004'] })).rejects.toBeInstanceOf(OnlineProviderError);
+        vi.mocked(neteaseApi.setDailyStyle).mockResolvedValue({ code: 301 } as any);
+        await expect(recommendations.setDailyStyle!({ groupId: '1000', tagIds: ['10004'] })).rejects.toMatchObject({ code: 'auth-required' });
+    });
+});
+
+describe('neteaseProvider listening ranking', () => {
+    beforeEach(() => vi.clearAllMocks());
+
+    const listener = { id: 7, nickname: 'Listener', avatarUrl: 'https://img.test/avatar.jpg' };
+    // `/user/record`'s rows, as the upstream module names them: { playCount, score, song }.
+    const row = (id: number, playCount: unknown, cover?: string) => ({
+        playCount, score: 100,
+        song: { id, name: `Song ${id}`, ar: [], album: { id: 1, name: 'Album', ...(cover ? { coverUrl: cover } : {}) }, dt: 1000 },
+    });
+
+    it('asks type 1 for the last week and 0 for all time, and makes an entry a span that has songs', async () => {
+        vi.mocked(neteaseApi.getUserRecord).mockImplementation(async (_uid: number, type: 0 | 1) => (type === 1
+            ? { code: 200, weekData: [row(1, 12, 'https://img.test/1.jpg'), row(2, 3)] }
+            : { code: 200, allData: [] }) as any);
+
+        const entries = await neteaseProvider.library!.getListeningRankCollections!(listener);
+
+        expect(vi.mocked(neteaseApi.getUserRecord).mock.calls).toEqual([[7, 1], [7, 0]]);
+        expect(entries).toEqual([expect.objectContaining({
+            providerId: 'netease', id: 'listening-rank-week-7', type: 'listening_rank', listeningRank: 'week',
+            trackCount: 2, coverUrl: 'https://img.test/1.jpg', isOwned: false, creator: listener,
+        })]);
+    });
+
+    it('fails where NetEase refuses, -2 (无权限访问, as an anonymous request is answered) too, rather than reading no songs', async () => {
+        vi.mocked(neteaseApi.getUserRecord).mockResolvedValue({ code: -2, msg: '无权限访问' } as any);
+        await expect(neteaseProvider.library!.getListeningRankCollections!(listener)).rejects.toMatchObject({ code: 'unavailable', cause: { code: -2 } });
+        await expect(neteaseProvider.catalog!.getListeningRankTracks!('week', 10, 0, {
+            providerId: 'netease', id: 'listening-rank-week-7', type: 'listening_rank', name: 'Week', listeningRank: 'week', creator: listener,
+        })).rejects.toMatchObject({ code: 'unavailable' });
+
+        vi.mocked(neteaseApi.getUserRecord).mockResolvedValue({ code: 301 } as any);
+        await expect(neteaseProvider.library!.getListeningRankCollections!(listener)).rejects.toMatchObject({ code: 'auth-required' });
+
+        vi.mocked(neteaseApi.getUserRecord).mockResolvedValue({ code: 200 } as any);
+        await expect(neteaseProvider.library!.getListeningRankCollections!(listener)).rejects.toMatchObject({ code: 'invalid-response' });
+    });
+
+    it("reads the entry's user's songs in NetEase's order, each with its play count, a page a slice", async () => {
+        vi.mocked(neteaseApi.getUserRecord).mockResolvedValue({ code: 200, allData: [row(5, 40), row(6, '9'), row(7, null)] } as any);
+        const entry = { providerId: 'netease', id: 'listening-rank-all-7', type: 'listening_rank', name: 'All', listeningRank: 'all' as const, creator: listener };
+
+        const first = await neteaseProvider.catalog!.getListeningRankTracks!('all', 2, 0, entry);
+        expect(neteaseApi.getUserRecord).toHaveBeenCalledWith(7, 0);
+        expect(first.items.map(item => [item.id, item.listenCount])).toEqual([[5, 40], [6, 9]]);
+        expect(first).toMatchObject({ total: 3, hasMore: true, nextOffset: 2 });
+
+        const rest = await neteaseProvider.catalog!.getListeningRankTracks!('all', 2, 2, entry);
+        expect(rest.items.map(item => item.id)).toEqual([7]);
+        expect(rest.items[0]).not.toHaveProperty('listenCount');
+        expect(rest).toMatchObject({ hasMore: false, nextOffset: 3 });
+
+        await expect(neteaseProvider.catalog!.getListeningRankTracks!('all', 2, 0, { ...entry, creator: undefined }))
+            .rejects.toMatchObject({ code: 'invalid-response' });
     });
 });

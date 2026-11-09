@@ -8,6 +8,8 @@ import { getPlaybackSongKey, isNavidromePlaybackSong, resolveNavidromePlaybackCa
 import { nextTransitionSong } from '../../utils/playbackNeighbors';
 import { getPrefetchedData } from '../prefetchService';
 import { describeProfileState, getTrackProfile, recordPlayedTail } from './profileService';
+import { onPlayWrapped } from '../volumeBalance/balanceMeter';
+import { learnPlayedSong } from '../volumeBalance/balanceRecords';
 import { refreshModelAvailability } from '../analysis/modelAvailability';
 import { canSeparateStems, clearStemDeadlines, ensureStems, getStemsByKey, setWantedStems, stemWindowKey } from './stems';
 import { connectAutomixDeck, type AutomixDeckChain } from './crossfadeGraph';
@@ -199,6 +201,8 @@ export function useAutomixDecks({
     const playQueue = usePlaybackStore(state => state.playQueue);
     const isFmMode = usePlaybackStore(state => state.isFmMode);
     const playerState = usePlaybackStore(state => state.playerState);
+    // 智能平衡 meters every deck as it plays, Auto Mix or not.
+    const balancing = usePlaybackStore(state => state.replayGainMode === 'auto');
     const audioQuality = useAudioSettingsStore(state => state.audioQuality);
 
     const [activeDeck, setActiveDeck] = useState<AutomixDeckId>('A');
@@ -282,13 +286,24 @@ export function useAutomixDecks({
     const harvestDeck = useCallback((deck: AutomixDeckId) => {
         const element = elementsRef.current[deck];
         const song = deckSongRef.current[deck];
-        const history = chainsRef.current[deck]?.analyser.levelHistory();
+        const chain = chainsRef.current[deck];
+        if (element && song && chain && usePlaybackStore.getState().replayGainMode === 'auto') {
+            learnPlayedSong(song, chain.balanceMeter.play(), element);
+        }
+        const history = chain?.analyser.levelHistory();
         if (!element || !song || !history) return;
         recordPlayedTail(song, history.db, history.hopSec, element.duration, element.currentSrc || null);
     }, []);
     // The session's ports are built once, before this exists, and must not close over a stale copy.
     const harvestRef = useRef(harvestDeck);
     harvestRef.current = harvestDeck;
+    // A loop come round ends a play with no 'ended' and no settle behind it, so the balance learns it here.
+    useEffect(() => onPlayWrapped((meter, ended) => {
+        const deck = (['A', 'B'] as const).find(id => chainsRef.current[id]?.balanceMeter === meter);
+        const element = deck && elementsRef.current[deck];
+        const song = deck && deckSongRef.current[deck];
+        if (element && song && usePlaybackStore.getState().replayGainMode === 'auto') learnPlayedSong(song, ended, element);
+    }), []);
     const advanceRef = useRef(onAdvanceTrack);
     advanceRef.current = onAdvanceTrack;
     // Same reason as the two above: the session's ports close over this once, so it is read through a
@@ -706,21 +721,28 @@ export function useAutomixDecks({
     // state to IDLE for as long as the incoming deck is loading - the whole lead - while the
     // outgoing deck plays on. Stopping the measurements there would hand the blend a beat grid and
     // a level reading from seconds ago, which is precisely the moment they have to be current.
+    //
+    // The volume balance's meters ride the same timer whenever the balance is on, playing or not: a
+    // meter skips a paused deck itself, and stopping the timer at a pause would lose the fade-out.
     useEffect(() => {
-        if (!isEnabled || (playerState !== PlayerState.PLAYING && tailSrc === null)) return;
+        const blending = isEnabled && (playerState === PlayerState.PLAYING || tailSrc !== null);
+        if (!blending && !balancing) return;
         const timer = setInterval(() => {
             const context = audioContextRef.current;
             if (!context) return;
             const now = context.currentTime;
-            (['A', 'B'] as const).forEach(deck => chainsRef.current[deck]?.analyser.tick(now));
+            (['A', 'B'] as const).forEach((deck) => {
+                if (blending) chainsRef.current[deck]?.analyser.tick(now);
+                if (balancing) chainsRef.current[deck]?.balanceMeter.tick(now);
+            });
             // The same tick, one property read wider: each deck's own position against the audio
             // clock. Forty of these a second is what lets a line be fitted through the staircase
             // `currentTime` reports, and that line is the difference between placing a handover
             // near a bar and placing it on one. See deckClock.
-            session.sampleDecks(now);
+            if (blending) session.sampleDecks(now);
         }, ANALYSER_INTERVAL_MS);
         return () => clearInterval(timer);
-    }, [audioContextRef, isEnabled, playerState, session, tailSrc]);
+    }, [audioContextRef, balancing, isEnabled, playerState, session, tailSrc]);
 
     /**
      * Separates the two ends a transition will need, as soon as the track that needs them starts.

@@ -21,7 +21,7 @@ const openInteractionSettings = async (page: import('@playwright/test').Page) =>
     await page.addInitScript(([version, guideKey]) => {
         localStorage.clear();
         localStorage.setItem('library_suite_prompt_seen', 'true');
-        localStorage.setItem('i18nextLng', 'en');
+        localStorage.setItem('folia_app_language', 'en');
         localStorage.setItem('static_mode', 'true');
         localStorage.setItem(guideKey, version);
     }, [APP_VERSION, GUIDE_VERSION_STORAGE_KEY]);
@@ -104,7 +104,7 @@ test('lands on the section a command names, not the top of its page', async ({ p
     await page.addInitScript(([version, guideKey]) => {
         localStorage.clear();
         localStorage.setItem('library_suite_prompt_seen', 'true');
-        localStorage.setItem('i18nextLng', 'en');
+        localStorage.setItem('folia_app_language', 'en');
         localStorage.setItem('static_mode', 'true');
         localStorage.setItem(guideKey, version);
     }, [APP_VERSION, GUIDE_VERSION_STORAGE_KEY]);

@@ -205,12 +205,13 @@ const PonderGridPageSurface: React.FC<PonderGridPageSurfaceProps> = ({
                 className="overflow-hidden rounded-[5%] border bg-zinc-950/95"
                 style={{ ...relativeRectStyle(G.command), borderColor: outline }}
             >
-                <div className="flex h-[22%] items-center gap-[4%] border-b px-[5%]" style={{ borderColor: outline }}>
-                    <Command className="h-[38%] w-auto opacity-55" />
-                    <Line width="66%" line={line} className="h-[12%]" />
-                </div>
+                {/* 从控制条长出来的样子：结果在上，搜索行在底。 */}
                 <div className="flex h-[78%] flex-col justify-evenly px-[6%]">
                     {[76, 58, 84].map(width => <Line key={width} width={`${width}%`} line={line} className="h-[7%]" />)}
+                </div>
+                <div className="flex h-[22%] items-center gap-[4%] border-t px-[5%]" style={{ borderColor: outline }}>
+                    <Command className="h-[38%] w-auto opacity-55" />
+                    <Line width="66%" line={line} className="h-[12%]" />
                 </div>
             </div>
         </PonderSurfaceStateLayer>

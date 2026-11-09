@@ -150,6 +150,39 @@ describe('the frame that cuts the big sample', () => {
     });
 });
 
+describe('the big sample on the listener\'s screen', () => {
+    // App windows in CSS pixels, maximised (the screen over its scaling, less a 48px taskbar):
+    // 1920x1080 at 100% and 150%, 2560x1440, 3840x2160 at 100% (at 150% it is 2560x1440), 2560x1080,
+    // 1440x900, 1680x1050, 2880x1920 at 200%, 1366x768; and two windows that are not maximised.
+    const windows = [
+        [1920, 1032], [1280, 672], [2560, 1392], [3840, 2112], [2560, 1032], [1440, 852], [1680, 1002],
+        [1440, 912], [1366, 720], [1000, 700], [800, 600],
+    ].map(([width, height]) => ({ width, height }));
+    // The room the sample's box has in the lyric style window and in Theme Park on such windows.
+    const rooms = [[772, 394], [772, 692], [772, 246], [772, 544], [912, 160], [712, 360]].map(([width, height]) => ({ width, height }));
+    // Two edges of the frame at each side, and a pixel the box's size is rounded by.
+    const slackPx = 5;
+
+    it('lays the style out on a stage of the screen\'s shape and shows it whole, at the box\'s size', () => {
+        for (const window of windows) {
+            for (const room of rooms) {
+                // The box takes the window's shape, as large as the room allows (SampleBox), measured to whole pixels.
+                const fit = fitStage(window, room)!;
+                const box = { width: Math.round(window.width * fit.scale), height: Math.round(window.height * fit.scale) };
+                const { place, stage } = frameStage(window, box, 1, true)!;
+                // Scaled as the box is to the window, both ways: the window's shape, nothing zoomed in.
+                expect(Math.abs(window.width * place.scale - box.width)).toBeLessThanOrEqual(slackPx);
+                expect(Math.abs(window.height * place.scale - box.height)).toBeLessThanOrEqual(slackPx);
+                // The stage is the window, grown by no more than the slack: the style lays out as on that screen.
+                expect(stage.width).toBeGreaterThanOrEqual(window.width);
+                expect(stage.height).toBeGreaterThanOrEqual(window.height);
+                expect((stage.width - window.width) * place.scale).toBeLessThanOrEqual(slackPx);
+                expect((stage.height - window.height) * place.scale).toBeLessThanOrEqual(slackPx);
+            }
+        }
+    });
+});
+
 describe('what a picture does', () => {
     const state = (visible: boolean, chosen = false, active = false) => ({ visible, chosen, active });
 

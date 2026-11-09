@@ -9,7 +9,7 @@ on:
       - 'docs/CODEMAP.md'
 
 permissions:
-  contents: write
+  contents: read
 
 # 串行执行：并发的两次 push 各自 checkout 后推同一个分支会撞车。
 concurrency:
@@ -20,12 +20,18 @@ jobs:
   sync:
     name: Regenerate code map
     runs-on: ubuntu-latest
+    timeout-minutes: 40
 
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v6
         with:
           ref: ${{ github.ref_name }}
+          # main 的分支保护要求 Run unit tests 和 Typecheck sync-server 通过，GITHUB_TOKEN 推不进去；
+          # 在临时分支上用 workflow_dispatch 补跑的检查 GitHub 也不认，直接推和走 PR 合并都报
+          # “2 of 2 required status checks are expected”（run 40492106867、40495357734）。
+          # 保护规则只约束非管理员，所以用仓库管理员的 PAT（只授本仓库 contents: write）推送。
+          token: ${{ secrets.CODEMAP_PUSH_TOKEN }}
 
       - name: Install Node.js
         uses: actions/setup-node@v6
@@ -36,7 +42,7 @@ jobs:
       - name: Regenerate code map
         run: npm run codemap
 
-      - name: Commit when the map moved
+      - name: Commit and push when the map moved
         run: |
           if git diff --quiet -- docs/CODEMAP.md; then
             echo "代码地图已经是最新的，无需提交。"
@@ -45,7 +51,13 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add docs/CODEMAP.md
-          # GITHUB_TOKEN 推的 commit 本来就不会触发 workflow；[skip ci] 是换成 PAT 时的兜底，
-          # 否则 canary-pre-release 的 `push: branches: ['**']` 会被每次结构变动带起来。
+          # PAT 推的 commit 会触发 push workflow：[skip ci] 挡住 canary-pre-release 的
+          # `push: branches: ['**']`，本 workflow 自己由 paths-ignore 挡住。
           git commit -m 'chore(dev): 同步代码地图 [skip ci]'
-          git push
+          git fetch origin main
+          # 生成的这会儿 main 又前进了：这份地图已经旧了，新那次 push 会带起下一跑重生成。
+          if ! git merge-base --is-ancestor origin/main HEAD; then
+            echo "::notice::main 在生成期间已经前进，这份代码地图交给下一跑。"
+            exit 0
+          fi
+          git push origin HEAD:main

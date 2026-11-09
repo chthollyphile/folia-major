@@ -164,14 +164,8 @@ export const resolveControllerTheme = ({
         }
     }
 
-    const baseTheme = getBaseThemeForMode({ defaultTheme, daylightTheme, isDaylight });
-    if (legacyTheme) {
-        return normalizeTheme({
-            ...legacyTheme,
-            backgroundColor: baseTheme.backgroundColor,
-        });
-    }
-
+    // The default source is the built-in theme itself: an AI or legacy theme stays loaded so the
+    // user can switch back to it, but lends none of its colors here (#947).
     return normalizeTheme(resolveBgModeTheme({
         mode: bgMode === 'custom' ? 'default' : bgMode,
         aiTheme,

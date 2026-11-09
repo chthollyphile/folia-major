@@ -41,6 +41,8 @@ export interface SubsonicAlbum {
     name: string;
     artist: string;
     artistId: string;
+    /** OpenSubsonic 扩展：专辑的每位歌手（Navidrome 0.53 起有；老服务器只有上面的 artist / artistId）。 */
+    artists?: { id: string; name: string }[];
     coverArt?: string;
     songCount: number;
     duration: number;
@@ -69,6 +71,10 @@ export interface SubsonicSong {
     suffix: string;
     duration: number; // seconds
     bitRate?: number;
+    // OpenSubsonic fields Navidrome sends; absent on older servers.
+    bitDepth?: number;
+    samplingRate?: number;
+    channelCount?: number;
     path: string;
     playCount?: number;
     discNumber?: number;
@@ -331,6 +337,11 @@ export interface NavidromeSong extends SongResult {
         path: string;
         bitRate?: number;
         suffix: string;
+        // The original file's format, for the HiFi signal path (services/hifi/sourceSpec.ts).
+        contentType?: string;
+        bitDepth?: number;
+        samplingRate?: number;
+        channelCount?: number;
         starred?: string;
         replayGain?: SubsonicSong['replayGain'];
     };

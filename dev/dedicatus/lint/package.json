@@ -1,0 +1,16 @@
+{
+  "name": "folia-dedicatus-lint",
+  "private": true,
+  "description": "Dedicatus 的 ESLint 运行环境：与项目隔离，钉 TypeScript 6.0（typescript-eslint 需要它的编译器 API，项目用的 TypeScript 7 没有）。typescript-eslint 正式支持 TypeScript 7.1 后撤掉这份环境。",
+  "type": "module",
+  "devDependencies": {
+    "@eslint-community/eslint-plugin-eslint-comments": "4.8.1",
+    "@eslint/js": "10.0.1",
+    "@stylistic/eslint-plugin": "5.10.0",
+    "eslint": "10.14.0",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "globals": "17.14.0",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.72.1"
+  }
+}

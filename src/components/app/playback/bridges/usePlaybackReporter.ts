@@ -7,6 +7,8 @@ import { getProviderSongMetadata } from '../../../../services/onlineMusic/songMe
 import { isPlaybackReportReady, sendPlaybackReport } from '../../../../services/onlineMusic/playbackReportGate';
 import { omni } from '../../../../services/onlineMusic/omni';
 import { PlaybackListenTracker } from '../../../../utils/playbackListenTracker';
+import { usePlaybackStore } from '../../../../stores/usePlaybackStore';
+import { getObservedMedia } from '../../../../services/hifi/hifiMediaShim';
 
 // src/components/app/playback/bridges/usePlaybackReporter.ts
 // Turns real playback of a track of a provider that takes them into one listening report (听歌打卡).
@@ -46,6 +48,8 @@ export const usePlaybackReporter = ({
     activeDeck,
 }: UsePlaybackReporterParams): void => {
     const enabled = useAudioSettingsStore(state => state.neteaseScrobbleEnabled);
+    // On the HiFi route the listeners go on the HiFi media shim rather than a deck.
+    const playbackRoute = usePlaybackStore(state => state.playbackRoute);
     const trackerRef = useRef<PlaybackListenTracker | null>(null);
     const sessionSongRef = useRef<SongResult | null>(null);
 
@@ -99,7 +103,7 @@ export const usePlaybackReporter = ({
             openSession(currentSong);
         }
 
-        const audioElement = audioRef.current;
+        const audioElement = getObservedMedia(audioRef.current);
         if (!audioElement) return;
 
         const handleTimeUpdate = () => {
@@ -130,5 +134,6 @@ export const usePlaybackReporter = ({
         // these listeners are bound to the element itself. That swap happens at ARM time, before the
         // outgoing track really ends, so its last few seconds go uncounted - an under-report of the
         // blend's length, which is the safe direction for a feature that writes to a real account.
-    }, [audioRef, activeDeck, currentSong, enabled]);
+        // `playbackRoute` moves them between a deck and the HiFi media shim.
+    }, [audioRef, activeDeck, currentSong, enabled, playbackRoute]);
 };

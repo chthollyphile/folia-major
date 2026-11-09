@@ -1,5 +1,5 @@
 import type { LibraryHomeCard } from './homeModel.contract';
-import { DAILY_RECOMMENDATIONS_CARD_ID, isPersonalFmCard } from './homeCards';
+import { DAILY_RECOMMENDATIONS_CARD_ID, isPersonalFmCard, isStationCard } from './homeCards';
 import { LOCAL_ALL_SONGS_ID } from './localHomeModel';
 import { NAVIDROME_FAVORITES_PLAYLIST_ID, NAVIDROME_RANDOM_PLAYLIST_ID } from './navidrome/navidromeHomeModel';
 
@@ -15,6 +15,7 @@ export type LibraryHomeSpecialKind =
     | 'liked'
     | 'cloud'
     | 'personal-fm'
+    | 'fm-station'
     | 'daily'
     | 'all-songs'
     | 'local-favorites'
@@ -29,6 +30,7 @@ export const LIBRARY_HOME_SPECIAL_ORDER: readonly LibraryHomeSpecialKind[] = [
     'liked',
     'cloud',
     'personal-fm',
+    'fm-station',
     'daily',
     'all-songs',
     'local-favorites',
@@ -46,6 +48,9 @@ const isLikedCollection = (raw: unknown): boolean => (
 export const resolveLibraryHomeSpecial = (card: SpecialCardFields, source: LibraryHomeCardSource): LibraryHomeSpecialKind | null => {
     switch (source) {
         case 'online':
+            // A provider's extra radio (its card says which station it starts) is not the Personal FM: it gets its
+            // own entry, and the Personal FM keeps its own.
+            if (isStationCard(card)) return 'fm-station';
             if (isPersonalFmCard(card)) return 'personal-fm';
             if (card.type === 'daily_recommendations' && card.id === DAILY_RECOMMENDATIONS_CARD_ID) return 'daily';
             if (card.type === 'cloud') return 'cloud';

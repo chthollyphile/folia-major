@@ -3,7 +3,9 @@ import { useTranslation } from 'react-i18next';
 import type { SongResult, UnifiedSong } from '../../../../types';
 import type { OmniExploreSection, OmniProviderId } from '../../../../types/onlineMusic';
 import { getPlaybackSongKey } from '../../../../utils/appPlaybackGuards';
-import { recentPlaysOf, replayedSongsOf, watchRecentPlays } from './recentPlays';
+import { errorMessage } from '../../../../utils/errorText';
+import { omni } from '../../../../services/onlineMusic/omni';
+import { recentPlaysOf, replayedSongsOf, showRecordedSongsAs, watchRecentPlays } from './recentPlays';
 
 // src/components/app/home/explore/ownSections.ts
 // The explore page's own sections: what Folia itself knows of the listener, the same under
@@ -23,6 +25,24 @@ const sectionOf = (id: string, title: string, songs: SongResult[]): OmniExploreS
     id, title, items: songs.map(song => ({ kind: 'song', song: song as UnifiedSong })),
 });
 
+// The accounts of platforms whose songs played here were set right this run (see `setRightOnce`).
+const setRight = new Set<string>();
+// With the first read of a platform's page for an account in a run, the platform is asked which
+// of the songs recorded as played it now shows as other ones, and the record is set right with
+// them (`OnlineExploreProvider.songsShownAs`). It is asked again after a failure.
+const setRightOnce = (providerId: OmniProviderId, accountId: string): void => {
+    const scope = `${providerId}:${accountId}`;
+    const shownAs = omni.exploreSongsShownAs(providerId);
+    if (!shownAs || setRight.has(scope)) return;
+    setRight.add(scope);
+    void showRecordedSongsAs(providerId, accountId, songs => shownAs(songs as UnifiedSong[])).then(count => {
+        if (count > 0) console.log(`[Explore] ${count} song(s) played here from ${providerId} recorded again as the song it shows them as`);
+    }, error => {
+        setRight.delete(scope);
+        console.warn(`[Explore] The songs played here from ${providerId} could not be set right (${errorMessage(error)}); asked again with the next read`);
+    });
+};
+
 // A provider is handed this many of the listener's songs with a read of its page.
 const MAX_LISTENED = 30;
 /**
@@ -30,6 +50,7 @@ const MAX_LISTENED = 30;
  * once first: what a provider is handed with a read of its page (`OnlineExploreProvider.getFeed`).
  */
 export const listenedSongsOf = (providerId: OmniProviderId, accountId: string): UnifiedSong[] => {
+    setRightOnce(providerId, accountId);
     const songs = new Map<string, SongResult>();
     for (const song of [...replayedSongsOf(providerId, accountId), ...recentPlaysOf(providerId, accountId)]) {
         if (!songs.has(getPlaybackSongKey(song))) songs.set(getPlaybackSongKey(song), song);

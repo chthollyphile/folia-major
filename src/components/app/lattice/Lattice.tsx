@@ -93,6 +93,7 @@ export default function Lattice({
     const posterTintUseCustomColor = useLatticeSettingsStore(state => state.latticePosterTintUseCustomColor);
     const posterTintColor = useLatticeSettingsStore(state => state.latticePosterTintColor);
     const posterTintIntensity = useLatticeSettingsStore(state => state.latticePosterTintIntensity);
+    const badgeCurrentOnly = useLatticeSettingsStore(state => state.latticeBadgeCurrentOnly);
     // Set by the way the wall was opened, and the same for as long as it is up.
     const isExplore = useAppViewStore(state => state.latticeSource) === 'explore';
     const explore = useExploreWall({ isOn: isExplore, currentSong, providerId: exploreProviderId, accountId: exploreAccountId });
@@ -151,28 +152,39 @@ export default function Lattice({
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [onBack]);
 
+    // The card's own action. A song is played: within the queue there is on the queue wall,
+    // with the songs of its section on the explore wall, as the explore page plays it. A
+    // collection's page is opened; the wall is taken down meanwhile, and Back opens it on
+    // this tile again. The tile, which is the grown one, is the card whose cover flies to
+    // the page: captured, and the page's plan made, before the navigation (wallFlight.ts).
+    // A wall that has been left stays on the screen, and can be pressed, while it leaves:
+    // a press then (Open pressed twice, Enter held down) opens no page and plays no song.
+    const playTile = (tile: LatticeTile) => {
+        const appView = useAppViewStore.getState();
+        if (appView.view !== 'lattice') return;
+        if (tile.kind === 'song') {
+            onPlaySong(tile.song, tile.queue ?? queue);
+            return;
+        }
+        beginWallTrip('open');
+        planPageFromWall(coverFlies);
+        appView.setLatticeReturnTileId(tile.id);
+        appView.setIsLatticeLeftForPage(true);
+        onOpenCollection?.(tile.collection);
+    };
+
     // App rebuilds these on every render of its own, and the wall hands them to every poster on
     // screen. Given a permanent identity here they stop being a reason for those posters to render.
     const wall = useStableCallbacks({
-        // The card's own action. A song is played: within the queue there is on the queue wall,
-        // with the songs of its section on the explore wall, as the explore page plays it. A
-        // collection's page is opened; the wall is taken down meanwhile, and Back opens it on
-        // this tile again. The tile, which is the grown one, is the card whose cover flies to
-        // the page: captured, and the page's plan made, before the navigation (wallFlight.ts).
-        // A wall that has been left stays on the screen, and can be pressed, while it leaves:
-        // a press then (Open pressed twice, Enter held down) opens no page and plays no song.
-        onPlay: (tile: LatticeTile) => {
-            const appView = useAppViewStore.getState();
-            if (appView.view !== 'lattice') return;
-            if (tile.kind === 'song') {
-                onPlaySong(tile.song, tile.queue ?? queue);
+        onPlay: playTile,
+        // #834 a double click on a poster: the tile's own action, as the play button on the poster
+        // does it, except that the song playing is resumed when paused and never paused.
+        onPlayFromWall: (tile: LatticeTile) => {
+            if (tile.kind === 'song' && tile.section === 'now' && canTogglePlayback) {
+                if (playerState !== PlayerState.PLAYING) onTogglePlayback();
                 return;
             }
-            beginWallTrip('open');
-            planPageFromWall(coverFlies);
-            appView.setLatticeReturnTileId(tile.id);
-            appView.setIsLatticeLeftForPage(true);
-            onOpenCollection?.(tile.collection);
+            playTile(tile);
         },
         onTogglePlayback,
         onSeek,
@@ -193,7 +205,7 @@ export default function Lattice({
         <LatticeLyricsProvider source={lyricSource} songKey={currentSong ? getPlaybackSongKey(currentSong) : ''}
             keywordColoringEnabled={lyricKeywordColoringEnabled}>
         <section
-            className={`lattice-root lattice-queue-root ${isDaylight ? 'is-daylight' : ''} ${vignette ? 'has-vignette' : ''} ${lightsOn ? '' : 'is-lights-out'} ${posterTintEnabled ? 'has-poster-tint' : ''} ${posterTintUseCustomColor ? 'uses-custom-poster-tint' : ''} ${surfaceOff ? 'is-handoff-surface-off' : ''} ${fadesIn && !reducedMotion ? 'is-returning' : ''}`}
+            className={`lattice-root lattice-queue-root ${isDaylight ? 'is-daylight' : ''} ${vignette ? 'has-vignette' : ''} ${lightsOn ? '' : 'is-lights-out'} ${posterTintEnabled ? 'has-poster-tint' : ''} ${posterTintUseCustomColor ? 'uses-custom-poster-tint' : ''} ${badgeCurrentOnly ? 'has-badge-current-only' : ''} ${surfaceOff ? 'is-handoff-surface-off' : ''} ${fadesIn && !reducedMotion ? 'is-returning' : ''}`}
             data-wall-handoff={handoffRole ?? undefined}
             data-wall-handoff-phase={handoffPhase}
             data-wall-handoff-mode={handoffSession?.mode}
@@ -213,6 +225,7 @@ export default function Lattice({
                 startTileId={startTileId}
                 currentSong={currentSong}
                 onPlay={wall.onPlay}
+                onPlayFromWall={wall.onPlayFromWall}
                 onTogglePlayback={wall.onTogglePlayback}
                 onSeek={wall.onSeek}
                 onOpenPlayer={wall.onOpenPlayer}

@@ -1,18 +1,22 @@
-import type { SongResult } from '../../../../types';
+import type { SongResult, UnifiedSong } from '../../../../types';
 import type { OnlineProviderId } from '../../../../types/onlineMusic';
-import { getPlaybackSongKey, getPlaybackSourceRef } from '../../../../utils/appPlaybackGuards';
+import { getPlaybackSongKey, getPlaybackSourceRef, normalizePlaybackSongSource } from '../../../../utils/appPlaybackGuards';
 
 // src/components/app/home/explore/recentPlays.ts
-// Folia's own record of the songs played here from an online platform: each song once, with
-// when it was last played and how many listenings of it each day had, newest first. It is what
-// the explore page's own sections are made of (ownSections.ts): the songs played lately, and the
-// songs listened to more than once. What an account played on a platform's own apps is no part
-// of it, and what is played here need not reach the platform (the YouTube Music sign-in reports
-// no play).
+// Folia's own record of the songs played here: each song once, with when it was last played and
+// how many listenings of it each day had, newest first. Songs of an online platform are kept for
+// each account of it, and they are what the explore page's own sections are made of
+// (ownSections.ts): the songs played lately, and the songs listened to more than once. Local
+// files, and the songs of a Navidrome server (for each user of each server: their ids are the
+// server's), are kept too, apart: the explore pages are a platform's and leave them out; the
+// scratchpad's play history lists them all. What an account played on a platform's own apps is no
+// part of it, and what is played here need not reach the platform (the YouTube Music sign-in
+// reports no play).
 // Played and listened to are two things, reported apart (useRecentPlaysRecorder.ts): a song is
 // played once a few seconds of it have sounded, and listened to once half of it has. Only a
 // listening speaks for playing a song again: a song skipped twice was not liked twice.
-// Kept on this device (localStorage), apart for each platform and each account of it. A song is
+// Kept on this device (localStorage), apart for each platform and each account of it, for local
+// files, and for each Navidrome user (`PlayScope`). A song is
 // kept for thirty days after it was last played, and a listening counts for thirty of the
 // listener's days; "played lately" is the last seven days.
 
@@ -35,12 +39,33 @@ const LISTENING_KEPT_DAYS = PLAYS_KEPT_MS / DAY_MS;
 
 /** A day of the listener's (see `dayOf`), and how many listenings of a song it had. */
 type DayCount = [day: number, listenings: number];
-/** A song, when it was last played, when a listening of it was last counted (0: never), and its listenings by day. */
-interface Play { song: SongResult; at: number; heardAt: number; days: DayCount[] }
+/**
+ * A song, when it was last played, when a listening of it was last counted (0: never), its
+ * listenings by day, and whether the platform was asked which song it shows it as (see `showRecordedSongsAs`).
+ */
+interface Play { song: SongResult; at: number; heardAt: number; days: DayCount[]; checked?: boolean }
 type Kept = Record<string, Play[]>;
 
 const storage = () => (typeof localStorage === 'undefined' ? null : localStorage);
 const scopeOf = (providerId: string, accountId: string) => `${providerId}:${accountId}`;
+/**
+ * Whose plays a list is: an online platform under one of its accounts, this device's local files,
+ * or a Navidrome server under one of its users (`navidromePlayAccount`). Kept under keys no platform
+ * id can make: those of the platforms are `<platform id>:<account id>`.
+ */
+export type PlayScope =
+    | { kind: 'online'; providerId: OnlineProviderId; accountId: string }
+    | { kind: 'local' }
+    | { kind: 'navidrome'; accountId: string };
+const keyOfScope = (scope: PlayScope): string => (
+    scope.kind === 'online' ? scopeOf(scope.providerId, scope.accountId)
+        : scope.kind === 'local' ? '#local:'
+            : `#navidrome:${scope.accountId}`
+);
+/** The account Navidrome plays are kept under: the user at the server (song ids are the server's). '' when none is set up. */
+export const navidromePlayAccount = (config: { serverUrl?: string; username?: string } | null | undefined): string => (
+    config?.serverUrl && config.username ? `${config.username}@${config.serverUrl.replace(/\/+$/, '')}` : ''
+);
 const isSong = (value: unknown): value is SongResult => typeof value === 'object' && value !== null && 'id' in value && 'name' in value;
 const isPlay = (value: unknown): value is Play => typeof value === 'object' && value !== null
     && isSong((value as Play).song) && Number.isFinite((value as Play).at);
@@ -88,6 +113,7 @@ const keptAs = (stored: Play, now: number): Play => ({
     at: Math.min(stored.at, now),
     heardAt: Number.isFinite(stored.heardAt) ? Math.min(stored.heardAt, now) : 0,
     days: Array.isArray(stored.days) ? stored.days.filter(isDayCount) : [],
+    ...(stored.checked === true ? { checked: true } : {}),
 });
 
 // What is stored, as far as it has the shape written here and is not too old; anything else is
@@ -122,7 +148,7 @@ const NONE: SongResult[] = [];
 // What is read from a list of plays: the same lists for as long as the plays are the same ones.
 // (The songs played lately are fewer as time goes by: `recentCount` tells that they are. The
 // listenings that count are fewer from one day to the next: `replayedOn` is the day they were read on.)
-const listed = new WeakMap<Play[], { recentCount: number; recent: SongResult[]; replayedOn?: number; replayed?: SongResult[] }>();
+const listed = new WeakMap<Play[], { recentCount: number; recent: SongResult[]; replayedOn?: number; replayed?: SongResult[]; records?: Play[] }>();
 // The plays of a scope that are still kept.
 const keptOf = (scope: string, now: number): Play[] | null => {
     const plays = recall()[scope];
@@ -135,11 +161,24 @@ const keptOf = (scope: string, now: number): Play[] | null => {
 // What is kept of a song: what the catalogue says of it. What the player attached while it
 // played is left out: the listener's own lyrics for it (which may be a whole lyric sheet, are
 // kept elsewhere and are attached again when the song is played) and the mark of the bytes
-// that were playing.
-const catalogued = ({ onlineLyricsState: _lyrics, playbackSourceRevision: _revision, ...song }: SongResult): SongResult => song;
+// that were playing. Of a local file only the reference to it in the library is kept (its file
+// handle and blob addresses do not outlive the run): it is played again through the library, and
+// its cover is the library's again then.
+const catalogued = ({ onlineLyricsState: _lyrics, playbackSourceRevision: _revision, ...song }: SongResult): SongResult => {
+    if (getPlaybackSourceRef(song).kind !== 'local') return song;
+    const { localData, ...rest } = normalizePlaybackSongSource(song) as UnifiedSong & { localData?: { id?: string } };
+    const songId = rest.localRef?.songId || localData?.id;
+    // A cover read from the file is a blob address of this run: dead at the next start.
+    const album = rest.album?.coverUrl?.startsWith('blob:') ? { ...rest.album, coverUrl: undefined } : rest.album;
+    const kept = { ...rest, album } as SongResult;
+    return songId ? { ...kept, isLocal: true, localRef: { songId } } as SongResult : kept;
+};
 
-/** Forgets what was read from storage, so that the next call reads it again. */
-export const resetRecentPlays = (): void => { kept = null; };
+/** Forgets what was read from storage, so that the next call reads it again, and what was set right this run. */
+export const resetRecentPlays = (): void => {
+    kept = null;
+    setRightTo.clear();
+};
 
 /** Calls `watcher` whenever a play changes the list of an account. */
 export const watchRecentPlays = (watcher: () => void): (() => void) => {
@@ -160,6 +199,52 @@ export const recentPlaysOf = (providerId: OnlineProviderId, accountId: string): 
     if (known?.recentCount === recent.length) return known.recent;
     listed.set(plays, { ...known, recentCount: recent.length, recent: recent.map(play => play.song) });
     return listed.get(plays)!.recent;
+};
+
+/** A song played lately, and when it was last played. */
+export type RecentPlay = { readonly song: SongResult; readonly at: number };
+const NO_PLAYS: readonly RecentPlay[] = [];
+
+/**
+ * The plays of the last seven days of a scope (an online platform under an account, local files,
+ * a Navidrome user), newest first, each with when it was last played: for an online platform the
+ * songs of `recentPlaysOf`, for a list that shows when (the scratchpad's play history). The same list until a play changes it or its oldest one has become
+ * too old. (Playing the newest song again moves its time on in place and tells nobody: read later,
+ * the newest one's time may be later than it was.)
+ */
+export const recentPlayRecordsOf = (scope: PlayScope): readonly RecentPlay[] => {
+    const now = Date.now();
+    const plays = keptOf(keyOfScope(scope), now);
+    if (!plays) return NO_PLAYS;
+    const recent = plays.filter(play => isRecent(play, now));
+    const known = listed.get(plays) ?? { recentCount: -1, recent: NONE };
+    if (known.records?.length === recent.length) return known.records;
+    listed.set(plays, { ...known, records: recent });
+    return recent;
+};
+
+/**
+ * Forgets these songs (by playback key) in these scopes: the scratchpad's play history deletes
+ * them there. Their plays and listenings go with them, so they leave the explore page's sections of
+ * those accounts too. Says how many plays were forgotten; the watchers are told when there were any.
+ */
+export const forgetPlays = (scopes: readonly PlayScope[], songKeys: readonly string[]): number => {
+    const drop = new Set(songKeys);
+    const plays = recall();
+    let forgotten = 0;
+    for (const scope of new Set(scopes.map(keyOfScope))) {
+        const list = plays[scope];
+        if (!list) continue;
+        const kept = list.filter(play => !drop.has(getPlaybackSongKey(play.song)));
+        if (kept.length === list.length) continue;
+        forgotten += list.length - kept.length;
+        plays[scope] = kept;
+    }
+    if (forgotten > 0) {
+        store(plays);
+        for (const watcher of watchers) watcher();
+    }
+    return forgotten;
 };
 
 /**
@@ -186,14 +271,24 @@ export const replayedSongsOf = (providerId: OnlineProviderId, accountId: string)
     return known.replayed;
 };
 
-// Records that `song` is playing under this account of its platform, and a listening of it
-// where one is handed in: one that may be the last one going on (see `goesOn`), or, having gone
-// straight on, one more whatever the clock says. A song of no online platform is not recorded.
+// The songs set right this run (see `showRecordedSongsAs`), by the key of what was recorded: one
+// still playing goes on being recorded as the song it was set right to, with that song's play.
+const setRightTo = new Map<string, SongResult>();
+
+// Records that `song` is playing under this account of its platform (of the Navidrome server; a
+// local file has none), and a listening of it where one is handed in: one that may be the last one
+// going on (see `goesOn`), or, having gone straight on, one more whatever the clock says. A song of
+// a stage (another app's) is not recorded.
 const note = (song: SongResult, accountId: string, listening?: { lengthMs: number; wentStraightOn: boolean }): void => {
     const source = getPlaybackSourceRef(song);
-    if (source.kind !== 'online') return;
-    const scope = scopeOf(source.providerId, accountId);
-    const songKey = getPlaybackSongKey(song);
+    if (source.kind === 'stage') return;
+    const scope = keyOfScope(
+        source.kind === 'online' ? { kind: 'online', providerId: source.providerId, accountId }
+            : source.kind === 'local' ? { kind: 'local' }
+                : { kind: 'navidrome', accountId },
+    );
+    const shown = setRightTo.get(getPlaybackSongKey(song)) ?? song;
+    const songKey = getPlaybackSongKey(shown);
     const now = Date.now();
     const before = recall()[scope] ?? [];
     const kept = before.filter(other => isKept(other, now));
@@ -207,24 +302,88 @@ const note = (song: SongResult, accountId: string, listening?: { lengthMs: numbe
         return;
     }
     const played: Play = {
-        song: catalogued(song),
+        song: catalogued(shown),
         at: now,
         heardAt: isCounted ? now : again?.heardAt ?? 0,
         days: isCounted ? withListening(again?.days ?? [], dayOf(now)) : again?.days ?? [],
+        ...(again?.checked ? { checked: true } : {}),
     };
     recall()[scope] = [played, ...kept.filter(other => other !== again)].slice(0, MAX_RECENT_PLAYS);
     store(recall());
     for (const watcher of watchers) watcher();
 };
 
+// One play of two that are of one song: where and as which song the first stands, the later of
+// their times, the listenings of both, and checked where either was.
+const together = (first: Play, other: Play): Play => {
+    const days = new Map<number, number>();
+    for (const [day, count] of [...first.days, ...other.days]) days.set(day, (days.get(day) ?? 0) + count);
+    return {
+        song: first.song,
+        at: Math.max(first.at, other.at),
+        heardAt: Math.max(first.heardAt, other.heardAt),
+        days: [...days].sort(([one], [two]) => two - one),
+        ...(first.checked || other.checked ? { checked: true } : {}),
+    };
+};
+
+// How many times this run a record was set right (see `showRecordedSongsAs`).
+let setRightTimes = 0;
+/** How many times this run a record of the songs played was set right: what was read of it before then is no longer so. */
+export const recordSetRightTimes = (): number => setRightTimes;
+
 /**
- * Records that `song` was played under this account of its platform: it is the newest of the
+ * Asks the platform which song it shows each song played under this account as, of those it was
+ * not asked about yet (`shownAs`, by id: another song, or null for the song itself; one it could
+ * not answer about is left out, and asked about the next time), and puts that song in its place:
+ * a music video recorded as played, before the platform showed videos as their songs, or from a
+ * list that names the video with its song's album and length. Its plays and listenings go to that
+ * song, and to that song's own play where it has one. Resolves to how many plays were set right.
+ */
+export const showRecordedSongsAs = async (
+    providerId: OnlineProviderId,
+    accountId: string,
+    shownAs: (songs: SongResult[]) => Promise<Map<string, SongResult | null>>,
+): Promise<number> => {
+    const scope = scopeOf(providerId, accountId);
+    const unasked = keptOf(scope, Date.now())?.filter(play => !play.checked) ?? [];
+    if (unasked.length === 0) return 0;
+    const answers = await shownAs(unasked.map(play => play.song));
+    if (answers.size === 0) return 0;
+    // (Read again: songs may have been played meanwhile.)
+    const plays: Play[] = [];
+    let changed = 0;
+    for (const play of recall()[scope] ?? []) {
+        const id = String(play.song.id);
+        const version = answers.get(id);
+        if (version) {
+            changed += 1;
+            setRightTo.set(getPlaybackSongKey(play.song), version);
+        }
+        const shown: Play = answers.has(id) ? { ...play, ...(version ? { song: catalogued(version) } : {}), checked: true } : play;
+        const key = getPlaybackSongKey(shown.song);
+        const at = plays.findIndex(other => getPlaybackSongKey(other.song) === key);
+        // (The plays are newest first: the one already in place is the later.)
+        if (at < 0) plays.push(shown);
+        else plays[at] = together(plays[at], shown);
+    }
+    recall()[scope] = plays;
+    store(recall());
+    if (changed === 0) return 0;
+    setRightTimes += 1;
+    for (const watcher of watchers) watcher();
+    return changed;
+};
+
+/**
+ * Records that `song` was played under this account of its platform (for a Navidrome song the
+ * user at its server, `navidromePlayAccount`; a local file takes none): it is the newest of the
  * songs played. No listening of it is counted by that.
  */
 export const noteSongPlayed = (song: SongResult, accountId: string): void => note(song, accountId);
 
 /**
- * Records a listening of `song` under this account of its platform. `lengthMs` is how long the
+ * Records a listening of `song` under this account of its platform (see `noteSongPlayed`). `lengthMs` is how long the
  * song lasts, as the listening was measured by. `wentStraightOn`: the song was followed without
  * a break since its last listening and has sounded for its whole length again (it is on repeat,
  * or was taken back), so this is one more, whatever the clock says. Otherwise it is counted

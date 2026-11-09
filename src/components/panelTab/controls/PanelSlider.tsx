@@ -19,11 +19,16 @@ type PanelSliderProps = {
     label: string;
     /** How the value reads, e.g. "72%". */
     valueText: string;
+    /**
+     * Out of reach: dimmed, and neither the pointer nor a key moves it. It still takes focus, so a
+     * screen reader reaches it and hears it is unavailable.
+     */
+    disabled?: boolean;
 };
 
 const clampUnit = (value: number) => Math.min(1, Math.max(0, value));
 
-export const PanelSlider: React.FC<PanelSliderProps> = ({ value, onPreview, onCommit, label, valueText }) => {
+export const PanelSlider: React.FC<PanelSliderProps> = ({ value, onPreview, onCommit, label, valueText, disabled = false }) => {
     const trackRef = useRef<HTMLDivElement>(null);
     const [isHeld, setIsHeld] = useState(false);
     const shown = clampUnit(value);
@@ -39,11 +44,18 @@ export const PanelSlider: React.FC<PanelSliderProps> = ({ value, onPreview, onCo
     };
 
     const release = () => {
+        // Out of reach, only a hold that began before the slider went out of reach still ends with a commit.
+        if (disabled && !isHeld) {
+            return;
+        }
         setIsHeld(false);
         onCommit();
     };
 
     const handleKeyDown = (event: React.KeyboardEvent) => {
+        if (disabled) {
+            return;
+        }
         // To the next line of the key's grid, so a value between two lines gets back onto a round place.
         const next = event.key === 'ArrowRight' || event.key === 'ArrowUp' ? (Math.floor(shown / KEY_STEP + 1e-6) + 1) * KEY_STEP
             : event.key === 'ArrowLeft' || event.key === 'ArrowDown' ? (Math.ceil(shown / KEY_STEP - 1e-6) - 1) * KEY_STEP
@@ -67,8 +79,9 @@ export const PanelSlider: React.FC<PanelSliderProps> = ({ value, onPreview, onCo
             aria-valuemax={100}
             aria-valuenow={Math.round(shown * 100)}
             aria-valuetext={valueText}
+            aria-disabled={disabled || undefined}
             onPointerDown={(event) => {
-                if (event.button !== 0) {
+                if (disabled || event.button !== 0) {
                     return;
                 }
                 event.currentTarget.setPointerCapture(event.pointerId);
@@ -87,7 +100,7 @@ export const PanelSlider: React.FC<PanelSliderProps> = ({ value, onPreview, onCo
             }}
             onPointerMove={(event) => {
                 // A move with no button down means the release was missed (focus went to another window).
-                if (!isHeld || event.buttons === 0 || event.clientX === lastXRef.current) {
+                if (disabled || !isHeld || event.buttons === 0 || event.clientX === lastXRef.current) {
                     return;
                 }
                 lastXRef.current = event.clientX;
@@ -97,9 +110,11 @@ export const PanelSlider: React.FC<PanelSliderProps> = ({ value, onPreview, onCo
             onPointerCancel={release}
             onLostPointerCapture={release}
             onKeyDown={handleKeyDown}
-            onKeyUp={onCommit}
+            onKeyUp={disabled ? undefined : onCommit}
             onBlur={release}
-            className="relative h-6 min-w-0 flex-1 cursor-pointer touch-none rounded-full"
+            className={disabled
+                ? 'relative h-6 min-w-0 flex-1 cursor-not-allowed touch-none rounded-full opacity-40'
+                : 'relative h-6 min-w-0 flex-1 cursor-pointer touch-none rounded-full'}
         >
             <span className="absolute inset-x-0 top-2.5 h-1 overflow-hidden rounded-full bg-[var(--st-track)]">
                 <span className="absolute inset-0 origin-left bg-[var(--st-accent)]" style={{ transform: `scaleX(${shown})` }} />

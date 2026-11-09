@@ -66,7 +66,7 @@ const PlayerLayoutProbe: React.FC = () => {
             hideFullscreenButton={false} usesCustomWindowChrome={customChrome} useCustomWindowRadius={false}
             showTransparentWindowBorder={false} isPlayerView={active} isTitlebarRevealed
             alwaysShowMainWindowTitlebar={false} isMainWindowClickThroughEnabled={false}
-            showMainWindowClickThroughToggle={false} onToggleMainWindowClickThrough={noop}
+            showMainWindowClickThroughToggle={false} onToggleMainWindowClickThrough={noop} onClickThroughTransportAction={noop}
             isDaylight={false} audioElement={null}>
             <div data-probe-layout data-back-hits={backHits} data-card-hits={cardHits} className="absolute inset-0">
                 <PlayerBottomBarLayoutContext.Provider value={active}>

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildLyricFilterPreviewModel } from '@/components/modal/lyric-filter/buildLyricFilterPreviewModel';
-import { applyLyricDisplayFilter } from '@/utils/lyrics/filtering';
+import { applyLyricLineRules, compileLyricLineRules } from '@/utils/lyrics/lyricLineRules';
 import { parseLyricsByFormat } from '@/utils/lyrics/parserCore';
 import { applyLyricStaffPolicy } from '@/utils/lyrics/staffCreditsPolicy';
 import type { LyricStaffPolicyOptions } from '@/utils/lyrics/staffCreditsPolicy';
@@ -42,25 +42,27 @@ const SHORT_INTRO = parse([
     '[00:09.00]第二句歌词',
 ].join('\n'));
 
+const rules = (pattern: string) => compileLyricLineRules(pattern ? [{ id: 'legacy', on: true, shape: 'written', text: pattern }] : []);
+
 const SMART: LyricStaffPolicyOptions = { policy: 'smart', minDwellSeconds: 1.5, absorbMode: 'off', pattern: '' };
 
 /** The lines playback shows for these rules, as text and start time. */
 const played = (lyrics: ReturnType<typeof parse>, filterPattern: string, staffOptions: LyricStaffPolicyOptions) => (
-    (applyLyricStaffPolicy(applyLyricDisplayFilter(lyrics, filterPattern), staffOptions)?.lines ?? [])
+    (applyLyricStaffPolicy(applyLyricLineRules(lyrics, compileLyricLineRules([{ id: 'legacy', on: true, shape: 'written', text: filterPattern }])), staffOptions)?.lines ?? [])
         .filter(line => line.fullText !== '......')
         .map(line => [line.fullText, line.startTime])
 );
 
 /** The lines the preview leaves standing, as text and the start time it shows. */
 const previewed = (lyrics: ReturnType<typeof parse>, filterPattern: string, staffOptions: LyricStaffPolicyOptions) => (
-    buildLyricFilterPreviewModel(lyrics, filterPattern, staffOptions).rows
+    buildLyricFilterPreviewModel(lyrics, compileLyricLineRules([{ id: 'legacy', on: true, shape: 'written', text: filterPattern }]), staffOptions).rows
         .filter(row => !row.removedByFilter && !row.removedByStaff)
         .map(row => [row.line.fullText, row.startTime])
 );
 
 describe('lyric filter preview model', () => {
     it('gives the spread credits the start times playback gives them', () => {
-        const model = buildLyricFilterPreviewModel(LONG_INTRO, '', SMART);
+        const model = buildLyricFilterPreviewModel(LONG_INTRO, rules(''), SMART);
 
         expect(model.staff.verdict).toBe('retime');
         // Four credits share the 38 seconds from the first credit to one second before the first lyric.
@@ -71,7 +73,7 @@ describe('lyric filter preview model', () => {
     });
 
     it('marks the separator lines of a spread block as removed by the credits rule', () => {
-        const model = buildLyricFilterPreviewModel(SEPARATED, '', SMART);
+        const model = buildLyricFilterPreviewModel(SEPARATED, rules(''), SMART);
 
         expect(model.staff.verdict).toBe('retime');
         expect(model.rows.map(row => row.removedByStaff)).toEqual([false, true, false, true, false, false]);
@@ -83,7 +85,7 @@ describe('lyric filter preview model', () => {
     });
 
     it('names the rule that removed each line', () => {
-        const model = buildLyricFilterPreviewModel(SHORT_INTRO, '^第二句', SMART);
+        const model = buildLyricFilterPreviewModel(SHORT_INTRO, rules('^第二句'), SMART);
 
         expect(model.staff.verdict).toBe('hide');
         expect(model.rows.map(row => (row.removedByFilter ? 'line' : row.removedByStaff ? 'staff' : null)))
@@ -93,7 +95,7 @@ describe('lyric filter preview model', () => {
     });
 
     it('marks no block and moves no time when credits are always shown', () => {
-        const model = buildLyricFilterPreviewModel(LONG_INTRO, '', { ...SMART, policy: 'keep' });
+        const model = buildLyricFilterPreviewModel(LONG_INTRO, rules(''), { ...SMART, policy: 'keep' });
 
         expect(model.staff.verdict).toBe('none');
         expect(model.rows.some(row => row.inStaffBlock || row.removedByStaff || row.timeMoved)).toBe(false);

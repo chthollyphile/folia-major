@@ -9,7 +9,7 @@
 | 项 | 内容 |
 | --- | --- |
 | npm 包 | [`@yakult-green-tea/qq-music-api`](https://www.npmjs.com/package/@yakult-green-tea/qq-music-api) |
-| 版本 | `3.3.3`，锁定在 [`package.json`](./package.json) 与 `package-lock.json` |
+| 版本 | `3.3.6`，锁定在 [`package.json`](./package.json) 与 `package-lock.json` |
 | 原始上游 | [Rain120/qq-music-api](https://github.com/Rain120/qq-music-api)，作者 Rain120 |
 | 许可证 | MIT；全文随包安装在 `node_modules/@yakult-green-tea/qq-music-api/LICENSE` |
 | 镜像定义 | [`images/qq-api.Dockerfile`](../images/qq-api.Dockerfile) |
@@ -225,6 +225,13 @@ Cloudflare 上可以用 Durable Object 补上它——DO 能跨调用持有那�
 - 不登录也能用 `/search` 搜歌了。
 - `QQ_WECHAT_POLL_BUDGET_MS` 的上限从 20000 改成 15000 毫秒（Folia 等一个登录请求 20 秒就当没回应），设在 15001–20000 之间的会改用默认的 15 秒。
 - 3.3.4 打算移除一批旧路由（`/getHotkey`、`/getSingerList` 等，都已经有新路由接手）；Folia 在用的路由不受影响。
+
+3.3.6 起：
+
+- 新增要登录的私人 FM `/user/personal-fm`、每日 30 首历史 `/user/daily-songs/history/dates` 与 `/user/daily-songs/history`、歌曲不喜欢 `POST /user/blacklist/add`（拉进账号的歌曲黑名单，写一次、读黑名单首屏核对，不自动重送）、听歌排行 `/user/listening-rank`，以及客户端首页 feed `/recommend/feed`。
+- 账号的音乐偏好 `/user/recommendation-preferences` 与 `POST /user/recommendation-preferences/update`（只改交来的几项，写一次、读回核对，不自动重送）。后端低于 3.3.6 时，偏好设置面板读不出来。
+- 猜你喜欢电台的听歌模式目录 `/user/guess-you-like/modes` 与按模式取歌 `/user/guess-you-like/tracks`（只带 pool，不改账号的模式设置）。后端低于 3.3.6 时，猜你喜欢只有默认一种模式。
+- 后端低于 3.3.6 时，私人 FM 照旧读 `/user/guess-you-like`；每日推荐没有历史日期，点歌曲的不喜欢会提示失败，探索页没有首页 feed 那几栏，歌单里没有听歌排行，其他功能照旧。
 
 排查时先看容器日志：
 

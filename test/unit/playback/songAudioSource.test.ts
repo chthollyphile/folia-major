@@ -8,6 +8,8 @@ import type { NavidromeSong } from '@/types/navidrome';
 // from. The file access, the Navidrome server and the online source are stubs; the registry of
 // copies the browser can play is the real one. No request leaves the test.
 // What is said for each failure is in test/unit/onlineMusic/onlineFailureTexts.test.ts.
+// The HiFi route's side is pinned here too: a local file handed over as itself, a Navidrome song's
+// stream of the original file and the format the server writes onto it.
 
 const env = vi.hoisted(() => ({
     asked: [] as string[],
@@ -18,11 +20,12 @@ const env = vi.hoisted(() => ({
 
 vi.mock('@/services/localMusicService', () => ({
     getAudioFromLocalSong: async (song: { id: string }) => { env.asked.push(`file ${song.id}`); return env.unreadable ? null : `blob:${song.id}`; },
+    getFileFromLocalSong: async (song: { id: string }) => { env.asked.push(`the file itself ${song.id}`); return env.unreadable ? null : { name: `${song.id}.flac` }; },
     ensureLocalSongCoverAsset: async (song: { id: string }) => { env.asked.push(`cover asset ${song.id}`); return { ...song, localCoverAssetId: 'asset' }; },
 }));
 vi.mock('@/services/navidromeService', () => ({
     navidromeApi: {
-        getStreamUrl: (config: { serverUrl: string }, id: string) => `${config.serverUrl}/stream/${id}`,
+        getStreamUrl: (config: { serverUrl: string }, id: string, format?: string) => `${config.serverUrl}/stream/${id}${format ? `?format=${format}` : ''}`,
         getSong: async (_config: unknown, id: string) => { env.asked.push(`server song ${id}`); return env.serverSong; },
     },
 }));
@@ -33,7 +36,7 @@ vi.mock('@/services/onlinePlayback', () => ({
     },
 }));
 
-const { loadLocalSongAudio, loadNavidromeSongAudio, loadOnlineSongAudio } = await import('@/components/app/playback/source/songAudioSource');
+const { loadLocalSongAudio, loadLocalSongHifiSource, loadNavidromeSongAudio, loadOnlineSongAudio } = await import('@/components/app/playback/source/songAudioSource');
 const { clearPlaybackRepresentationsForTests, registerPlaybackRepresentation } = await import('@/services/playbackRecovery/representationRegistry');
 
 const copy = (songKey: string, sourceRevision: string) => ({ songKey, sourceRevision, representationId: 'transcoded', url: `blob:copy-of-${songKey}` } as never);
@@ -80,6 +83,22 @@ describe('the audio of a local file', () => {
     });
 });
 
+describe('a local file for the HiFi route', () => {
+    it('is the file itself and no blob URL, with the record after its cover asset was asked for', async () => {
+        const source = await loadLocalSongHifiSource(localFile);
+
+        expect(env.asked).toEqual(['the file itself l1', 'cover asset l1']);
+        expect(source).toEqual({ file: { name: 'l1.flac' }, localSong: { ...localFile, localCoverAssetId: 'asset' } });
+    });
+
+    it('is nothing when the file cannot be read, and the cover asset is not asked for', async () => {
+        env.unreadable = true;
+
+        expect(await loadLocalSongHifiSource(localFile)).toBeNull();
+        expect(env.asked).toEqual(['the file itself l1']);
+    });
+});
+
 describe('the audio of a Navidrome song', () => {
     it('is its stream address, and the server is asked for the song at once', () => {
         const audio = loadNavidromeSongAudio(navidromeConfig, aNavidromeSong());
@@ -100,6 +119,41 @@ describe('the audio of a Navidrome song', () => {
         env.serverSong = {};
         await loadNavidromeSongAudio(navidromeConfig, song).takeServerGain();
         expect(song.navidromeData.replayGain).toEqual({ trackGain: -4 });
+    });
+
+    it('gives the stream of the original file for the HiFi route only when asked, and the web address stays as it was', () => {
+        const audio = loadNavidromeSongAudio(navidromeConfig, aNavidromeSong());
+
+        expect(audio.rawStreamUrl()).toBe('https://navi.test/stream/n1?format=raw');
+        expect(audio.streamUrl).toBe('https://navi.test/stream/n1');
+    });
+
+    it('writes the file\'s format onto the song with the gain on the HiFi route, and only the gain on the web route', async () => {
+        const format = { contentType: 'audio/flac', bitDepth: 24, samplingRate: 96000, channelCount: 2 };
+        env.serverSong = { replayGain: { trackGain: -4 }, ...format };
+
+        const onTheWeb = aNavidromeSong();
+        await loadNavidromeSongAudio(navidromeConfig, onTheWeb).takeServerGain();
+        expect(onTheWeb.navidromeData).toEqual({ id: 'n1', path: 'a/b.flac', suffix: 'flac', replayGain: { trackGain: -4 } });
+
+        const onHifi = aNavidromeSong();
+        await loadNavidromeSongAudio(navidromeConfig, onHifi).takeServerGainAndFormat();
+        expect(onHifi.navidromeData).toEqual({ id: 'n1', path: 'a/b.flac', suffix: 'flac', replayGain: { trackGain: -4 }, ...format });
+        // One request for both: the server is asked once per load.
+        expect(env.asked).toEqual(['server song n1', 'server song n1']);
+    });
+
+    it('keeps the format the song had where the server leaves a field out, or does not answer', async () => {
+        const song = aNavidromeSong();
+        Object.assign(song.navidromeData, { contentType: 'audio/x-flac', bitDepth: 16, samplingRate: 44100, channelCount: 2 });
+        env.serverSong = { samplingRate: 48000 };
+        await loadNavidromeSongAudio(navidromeConfig, song).takeServerGainAndFormat();
+        expect(song.navidromeData).toMatchObject({ contentType: 'audio/x-flac', bitDepth: 16, samplingRate: 48000, channelCount: 2 });
+        expect(song.navidromeData.replayGain).toBeUndefined();
+
+        env.serverSong = null;
+        await loadNavidromeSongAudio(navidromeConfig, song).takeServerGainAndFormat();
+        expect(song.navidromeData).toMatchObject({ contentType: 'audio/x-flac', bitDepth: 16, samplingRate: 48000, channelCount: 2 });
     });
 
     it('names the revision of the song at this address, and finds the copy made from it', () => {

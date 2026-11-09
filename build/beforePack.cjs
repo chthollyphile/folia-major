@@ -26,7 +26,14 @@ exports.default = async (context) => {
   // from the pinned official SDK zip; extraResources takes this target's build/steam-audio/${os}-${arch}.
   const { prepareSteamAudio } = await import("./fetchSteamAudio.mjs");
   await prepareSteamAudio();
+  if (context.electronPlatformName === 'win32') {
+    // The Apple Music WebView2 host (electron/appleMusic/windows), compiled with MSBuild.
+    const { prepareWindowsCompanion } = require('../electron/appleMusic/windows/prepareBundle.cjs');
+    prepareWindowsCompanion({ arch, projectRoot: context.packager.projectDir });
+  }
   if (context.electronPlatformName === 'darwin') {
+    const { prepareMacCompanion } = require('../electron/appleMusic/macos/prepareBundle.cjs');
+    prepareMacCompanion({ arch, projectRoot: context.packager.projectDir });
     const { prepareBundledKoffi } = await import('../packaging/macos/prepare-koffi.mjs');
     await prepareBundledKoffi({ arch, projectRoot: context.packager.projectDir });
     // The wallpaper's Stage Manager click guard (issue #698), a small native helper.

@@ -5,12 +5,16 @@ import { setStatusMessage as setStatusMsg } from '../../../../stores/useStatusMe
 import { setPlayerState } from '../../../../stores/usePlaybackStore';
 import { useTranslation } from 'react-i18next';
 import { usePlaybackStore } from '../../../../stores/usePlaybackStore';
+import { omni } from '../../../../services/onlineMusic/omni';
 import { currentTime } from '../../../../stores/motionSignals';
 import { markProgrammaticPause, playbackFade, type PlaybackFadeSettleReason } from '../../../../services/playbackFade';
 import { getPlaybackSongKey } from '../../../../utils/appPlaybackGuards';
 import type { OnlineRecovery, OnlineRecoveryOptions } from '../restore/createOnlineRecoveryController';
 import type { OnlineFailure } from '../../../../services/onlineMusic/failure/onlineFailureCase';
 import { onlineFailureToast } from '../source/onlineFailureToast';
+import { hifiTransport, isHifiRoute } from '../../../../services/hifi/hifiPlayback';
+import { resumeHifiPlayback } from '../../../hifi/hifiRouteTransport';
+import { isExternalRoute, pauseExternalPlayback, resumeExternalPlayback } from '../../../../services/onlineMusic/externalPlayback';
 
 // src/components/app/playback/bridges/usePlaybackTransportController.ts
 
@@ -44,6 +48,11 @@ type UsePlaybackTransportControllerParams = {
     pauseDuringTransition?: () => boolean;
     /** True while a blend is audible on the deck no control points at. Such a pause still needs the fade. */
     isTransitionAudible?: () => boolean;
+    /**
+     * Starts the song on screen in the provider's own player (the external route). Given where the
+     * player has no track yet: a session restore leaves the song there, paused and unloaded.
+     */
+    startExternalSong?: () => void;
 };
 
 // Owns play and pause transport behavior across main playback and Stage lyric-only playback.
@@ -62,6 +71,7 @@ export function usePlaybackTransportController({
     syncStageLyricsClock,
     pauseDuringTransition,
     isTransitionAudible,
+    startExternalSong,
 }: UsePlaybackTransportControllerParams) {
     // Read here rather than passed in: store fields, a module-level motion signal, or i18n.
     const { t } = useTranslation();
@@ -81,6 +91,27 @@ export function usePlaybackTransportController({
         }
         const revision = ++transportRevision.current;
         wantsPlayback.current = true;
+
+        // mpv plays this song: no AudioContext, fade or analyser on that route. A replay after the
+        // queue ended (mpv was stopped) goes through playSong, which writes the state itself.
+        if (isHifiRoute()) {
+            if (resumeHifiPlayback()) setPlayerState(PlayerState.PLAYING);
+            return;
+        }
+
+        // The provider's own player sounds this song: no deck is involved.
+        if (isExternalRoute()) {
+            if (resumeExternalPlayback()) setPlayerState(PlayerState.PLAYING);
+            return;
+        }
+
+        // The song on screen is the external player's but nothing is loaded there yet (a session
+        // restore leaves it paused): start it through the play path, which knows the queue.
+        const shownSong = usePlaybackStore.getState().currentSong;
+        if (shownSong && omni.canPlayExternally(shownSong)) {
+            startExternalSong?.();
+            return;
+        }
 
         if (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && !audioSrc) {
             const currentSyntheticTime = getSyntheticStageLyricsTime();
@@ -191,7 +222,7 @@ export function usePlaybackTransportController({
             setPlayerState(PlayerState.PAUSED);
             throw error;
         }
-    }, [activePlaybackContext, audioContextRef, audioRef, audioSrc, currentTime, duration, getSyntheticStageLyricsTime, getTargetPlaybackVolume, isNowPlayingStageActive, isTransitionAudible, recoverOnlinePlaybackSource, setPlayerState, setStatusMsg, setupAudioAnalyzer, shouldRefreshCurrentOnlineAudioSource, stageActiveEntryKind, stageLyricsClockRef, syncOutputGain, syncStageLyricsClock, t]);
+    }, [activePlaybackContext, audioContextRef, audioRef, audioSrc, currentTime, duration, getSyntheticStageLyricsTime, getTargetPlaybackVolume, isNowPlayingStageActive, isTransitionAudible, recoverOnlinePlaybackSource, setPlayerState, setStatusMsg, setupAudioAnalyzer, shouldRefreshCurrentOnlineAudioSource, stageActiveEntryKind, stageLyricsClockRef, startExternalSong, syncOutputGain, syncStageLyricsClock, t]);
 
     const pausePlayback = useCallback(() => {
         if (isNowPlayingStageActive) {
@@ -199,6 +230,20 @@ export function usePlaybackTransportController({
         }
         transportRevision.current++;
         wantsPlayback.current = false;
+
+        // Before the fade logic: the fade graph belongs to the Web Audio route, and mpv pauses at once.
+        if (isHifiRoute()) {
+            void hifiTransport.pause();
+            setPlayerState(PlayerState.PAUSED);
+            return;
+        }
+
+        // The external player pauses at once too, and has no fade graph of ours.
+        if (isExternalRoute()) {
+            pauseExternalPlayback();
+            setPlayerState(PlayerState.PAUSED);
+            return;
+        }
 
         if (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && !audioSrc) {
             const currentSyntheticTime = getSyntheticStageLyricsTime();

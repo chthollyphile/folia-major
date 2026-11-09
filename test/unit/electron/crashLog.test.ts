@@ -254,6 +254,22 @@ describe('which failures reach the user', () => {
         }
     });
 
+    it('runs beforeExit right before the exit after an uncaught exception, and exits when it throws', () => {
+        // app.exit() 跳过 before-quit / will-quit：HiFi 的 mpv 子进程在这里杀。
+        for (const beforeExitResult of [() => {}, () => { throw new Error('already gone'); }]) {
+            const order: string[] = [];
+            const flushStorage = vi.fn(() => { order.push('flush'); });
+            const beforeExit = vi.fn(() => { order.push('beforeExit'); beforeExitResult(); });
+            withHandlers(app => {
+                app.exit.mockImplementation(() => { order.push('exit'); });
+                const ours = process.listeners('uncaughtException').at(-1)!;
+                ours(new Error('boom'), 'uncaughtException');
+                expect(order).toEqual(['flush', 'beforeExit', 'exit']);
+                expect(app.exit).toHaveBeenCalledWith(1);
+            }, { flushStorage, beforeExit });
+        }
+    });
+
     it('ignores a renderer that exited cleanly', () => {
         withHandlers((app, report) => {
             app.emit('render-process-gone', {}, { getURL: () => 'x' }, gone('clean-exit'));

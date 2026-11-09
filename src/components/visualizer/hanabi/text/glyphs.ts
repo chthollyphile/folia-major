@@ -1,5 +1,6 @@
 // Copyright (c) 2026 chthollyphile
 import type { Texture } from 'pixi.js';
+import { resolveHanabiBaseResolution } from '../hanabiTuning';
 import type { PixiModule } from '../types';
 
 // src/components/visualizer/hanabi/text/glyphs.ts
@@ -84,7 +85,7 @@ export interface GlyphAtlasOptions {
     outline: number;
     glow: boolean;
     halves: 'lr' | 'tb' | null;
-    /** 图集边长上限（像素）。 */
+    /** 图集位图边长上限（物理像素）；不给时按 resolveGlyphAtlasLimit。 */
     maxCanvasPx?: number;
 }
 
@@ -112,6 +113,31 @@ interface Cell {
     y: number;
     scramble: boolean;
 }
+
+/**
+ * 图集位图边长的基础上限（物理像素，和原来一样）：用户选的分辨率倍数大于 1（超采样）时按倍数放大，字才真的按那个密度画（#929）；
+ * 屏幕本身的密度不放大它，倍数为 1 时和原来完全一样。
+ */
+const ATLAS_BASE_LIMIT_PX = 4096;
+/** 图集位图边长的硬上限（物理像素）：8192² 的 RGBA 已是 256 MB，再大一张就吃掉太多内存与显存。 */
+const ATLAS_HARD_LIMIT_PX = 8192;
+/** GPU 单张纹理的边长上限：运行时建好上下文后报上来；报之前（以及单测里）按 WebGL 几乎都满足的 4096 算。 */
+let gpuTextureLimitPx = 4096;
+
+/** 运行时建好 WebGL 上下文后报 MAX_TEXTURE_SIZE（各运行时同一块 GPU，报的值一样）。 */
+export const setHanabiGlyphTextureLimit = (px: number) => {
+    if (Number.isFinite(px) && px >= 2048) gpuTextureLimitPx = Math.floor(px);
+};
+
+/**
+ * 图集位图边长上限（物理像素）：基础上限 × 超采样倍数（渲染倍率 ÷ 花火自己的像素密度，不小于 1），再和 GPU 纹理上限、
+ * 硬上限取小；给了 maxCanvasPx 就用它。
+ */
+export const resolveGlyphAtlasLimit = (resolution: number, maxCanvasPx?: number, devicePixelRatio = globalThis.devicePixelRatio ?? 1) => {
+    if (maxCanvasPx !== undefined) return maxCanvasPx;
+    const superscale = Math.max(1, resolution / resolveHanabiBaseResolution(devicePixelRatio));
+    return Math.min(ATLAS_BASE_LIMIT_PX * superscale, Math.max(ATLAS_BASE_LIMIT_PX, gpuTextureLimitPx), ATLAS_HARD_LIMIT_PX);
+};
 
 /** 一格的边长（逻辑像素）：字框 1.3 倍 + 描边 / 光晕的外扩。 */
 const cellSide = (px: number, outline: number, glow: boolean) =>
@@ -156,7 +182,8 @@ export const buildGlyphAtlas: BuildGlyphAtlas = (pixi, options) => {
         width = Math.max(width, x);
     });
     const height = Math.max(1, y + shelf);
-    const limit = options.maxCanvasPx ?? 4096;
+    // 上限按物理像素：位图边长 = 逻辑边长 × resolution，不超过它。
+    const limit = resolveGlyphAtlasLimit(options.resolution, options.maxCanvasPx);
     const resolution = Math.max(0.1, Math.min(options.resolution, limit / width, limit / height));
 
     const canvas = document.createElement('canvas');

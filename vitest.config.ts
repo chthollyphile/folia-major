@@ -27,6 +27,8 @@ export default defineConfig({
     // 第二消费者始终参与单测；test.env 与 vi.stubEnv 使用同一入口，可覆写验证关闭/生产边界。
     // 初始选择钉在 grid：现有用例都假设没选过 suite 的人看到网格（开发阶段的初始选择是 bravais）。
     env: { VITE_LIBRARY_TUI: 'true', VITE_LIBRARY_INITIAL_SUITE: 'grid' },
-    include: ['test/unit/**/*.test.ts']
+    include: ['test/unit/**/*.test.ts', 'packages/*/test/**/*.test.mjs'],
+    // Node 25 起自带的 localStorage 占位会盖住 jsdom 的那份：jsdom 用例在这里统一补内存实现，node 用例删掉占位。
+    setupFiles: ['test/unit/jsdomLocalStorage.ts']
   }
 });

@@ -1,5 +1,5 @@
 import type { AppView, LatticeSource } from '../stores/useAppViewStore';
-import type { SearchReturnView, SearchSource } from '../stores/useSearchNavigationStore';
+import type { SearchKind, SearchReturnView, SearchSource } from '../stores/useSearchNavigationStore';
 import type { CollectionNavigationSnapshot } from '../library/core/collection/collection.contract';
 import {
     isSameCollectionPath,
@@ -19,7 +19,8 @@ import {
 
 export type NavigationHistoryState = {
     view: AppView;
-    search?: { query: string; sourceTab: SearchSource; returnView?: SearchReturnView; } | null;
+    /** `kind`：搜的是单曲、专辑还是歌单；旧记录没有它。 */
+    search?: { query: string; sourceTab: SearchSource; kind?: SearchKind; returnView?: SearchReturnView; } | null;
     collection?: CollectionNavigationSnapshot | null;
     /** Set on a 'lattice' entry that shows the explore page's entries; one without it shows the play queue. */
     latticeSource?: LatticeSource;

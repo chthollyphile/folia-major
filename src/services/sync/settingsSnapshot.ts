@@ -41,6 +41,7 @@ export const buildSyncedVisualSettings = (state: SyncableSettingsState): SyncedV
     hidePlayerTranslationSubtitle: state.hidePlayerTranslationSubtitle,
     showSubtitleTranslation: state.showSubtitleTranslation,
     subtitleContentMode: state.subtitleContentMode,
+    subtitleOverlayLayout: state.subtitleOverlayLayout,
     subtitleOverlayBackground: state.subtitleOverlayBackground,
     subtitleUpcomingLyricsBlur: state.subtitleUpcomingLyricsBlur,
     lyricsFontStyle: state.lyricsFontStyle,
@@ -111,6 +112,7 @@ export const applySyncedVisualSettings = (
     if (settings.hidePlayerTranslationSubtitle !== undefined) state.handleToggleHidePlayerTranslationSubtitle(Boolean(settings.hidePlayerTranslationSubtitle));
     if (settings.showSubtitleTranslation !== undefined) state.handleToggleShowSubtitleTranslation(Boolean(settings.showSubtitleTranslation));
     if (settings.subtitleContentMode !== undefined) state.handleSetSubtitleContentMode(settings.subtitleContentMode);
+    if (settings.subtitleOverlayLayout !== undefined) state.handleSetSubtitleOverlayLayout(settings.subtitleOverlayLayout);
     if (settings.subtitleOverlayBackground !== undefined) state.handleToggleSubtitleOverlayBackground(Boolean(settings.subtitleOverlayBackground));
     if (settings.subtitleUpcomingLyricsBlur !== undefined) state.handleToggleSubtitleUpcomingLyricsBlur(Boolean(settings.subtitleUpcomingLyricsBlur));
     if (settings.lyricsFontStyle !== undefined) state.handleSetLyricsFontStyle(settings.lyricsFontStyle);

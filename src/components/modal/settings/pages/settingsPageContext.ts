@@ -14,7 +14,7 @@ import type { ConfigThemeControls } from './storage/visualConfigTransfer';
 // not in a store, the dialogs a row opens, and the state the dialog keeps while it is open.
 
 /** The kinds of data the app keeps on disk, each of which can be cleared on its own. */
-export type CacheCategory = 'playlist' | 'lyrics' | 'cover' | 'media' | 'analysis';
+export type CacheCategory = 'playlist' | 'lyrics' | 'cover' | 'media' | 'analysis' | 'volumeBalance';
 
 /** A provider key the desktop app keeps in its main process. */
 export type AiApiKeyName = 'GEMINI_API_KEY' | 'OPENAI_API_KEY';

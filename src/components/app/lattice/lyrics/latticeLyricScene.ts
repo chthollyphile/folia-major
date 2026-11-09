@@ -3,7 +3,7 @@ import type { MonetVisibleLineEntry } from '../../../visualizer/monet/monetLyric
 import { resolveMonetSweepEdgeSoftness, resolveMonetSweepEnd } from '../../../visualizer/monet/monetLyricsModel';
 import { resolveMonetFillWidth, resolveMonetGlow, clampMonetProgress } from '../../../visualizer/monet/monetLyricMotion';
 import { buildWordColorRangesFromMatchers, prepareWordColorMatchers, resolveTokenColorMap } from '../../../visualizer/wordColoring';
-import { colorWithAlpha, mixColors } from '../../../visualizer/colorMix';
+import { colorWithAlpha, mixColors, resolveGlowColorStrength } from '../../../visualizer/colorMix';
 import { getLineRenderEndTime } from '../../../../utils/lyrics/renderHints';
 import type { LatticeLyricInput } from './types';
 import type { LatticeLineLayout, LatticeTypography, LyricPiece } from './latticeLyricLayout';
@@ -36,11 +36,12 @@ export function createLatticeLineView(pixi: Pixi, raster: LatticeRaster, parent:
     };
     const createPiece = (piece: LyricPiece): PieceView => {
         const px = piece.translation ? type.translationPx : type.fontPx;
-        const image = raster.rasterize(piece.text, piece.translation ? type.translationFont : type.font, px, resolution);
+        const image = raster.rasterize(piece.text, piece.translation ? type.translationFont : type.font, px, resolution, piece.rtl);
         const color = piece.translation ? (input.subtitleTheme ?? input.theme).primaryColor : colors.get(piece.token.key) ?? accent;
         const base = new pixi.Color(input.theme.primaryColor).toArray();
         const sweep = createLatticeSweepShader(pixi, base, new pixi.Color(color).toArray(), image.texture);
         sweep.uniforms.uGlyphRange = [(image.pad - piece.tokenOffset) / image.width, (piece.offsets.at(-1) ?? piece.width) / image.width];
+        sweep.uniforms.uRtl = piece.rtl ? 1 : 0;
         const sprite = new pixi.Mesh({ geometry: quad, shader: sweep.shader, texture: image.texture });
         sprite.scale.set(image.width, image.height);
         sprite.position.set(piece.x - image.pad, piece.y - image.pad); text.addChild(sprite);
@@ -81,13 +82,14 @@ export function createLatticeLineView(pixi: Pixi, raster: LatticeRaster, parent:
             uniforms.uVerticalFade[1] = clipped ? (view.pad + type.lineHeight) / view.height : 3;
             const glow = !quiet && !piece.translation && token.timed && status !== 'waiting'
                 ? resolveMonetGlow(time, start, end, getLineRenderEndTime(entry.line)) : 0;
-            glowing ||= glow > 0;
             const word = uniforms.uWord;
             const r = Math.round((view.base[0] + (word[0] - view.base[0]) * glow) * 255);
             const g = Math.round((view.base[1] + (word[1] - view.base[1]) * glow) * 255);
             const b = Math.round((view.base[2] + (word[2] - view.base[2]) * glow) * 255);
+            const glowAlpha = glow * (chorus ? 1 : 0.88) * resolveGlowColorStrength(r, g, b);
+            glowing ||= glowAlpha > 0;
             for (const sprite of view.glow) {
-                sprite.alpha = glow * (chorus ? 1 : 0.88);
+                sprite.alpha = glowAlpha;
                 sprite.tint = (r << 16) | (g << 8) | b;
             }
         }

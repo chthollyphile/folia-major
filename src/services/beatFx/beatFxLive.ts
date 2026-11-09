@@ -85,6 +85,8 @@ let holdUntil = 0;
 let hearing = false;
 /** The playing track's time the listener hears, seconds; null while nothing plays. */
 let heardAt: number | null = null;
+/** The last time heard while playing, and its track: what a pause or a picture switch leaves. */
+let lastHeard: { key: string | null; time: number } = { key: null, time: 0 };
 const intensities = { beat: 1, downbeat: 1 };
 /** Median gap between the installed track's beats, in seconds; see `getBeatFxBeatPeriod`. */
 const DEFAULT_BEAT_PERIOD = 0.5;
@@ -124,6 +126,9 @@ export const setBeatFxLiveEffects = (strengths: Readonly<Record<string, number>>
 /** The strength an effect plays at now, 0..2; 0 while it does not play (off, retired, not on screen). */
 export const getBeatEffectStrength = (id: string): number => liveEffects[id] ?? 0;
 
+/** Whether an effect plays now, its strength turned down to 0 included (雾笺: 0 is no rain, not the fallback). */
+export const isBeatEffectPlaying = (id: string): boolean => id in liveEffects;
+
 /**
  * How many beats and downbeats the clock has fired since the app started - only ever growing, across
  * tracks and seeks - so a frame loop that remembers last frame's counts sees exactly the ones fired
@@ -137,6 +142,8 @@ export const beginBeatFxTrack = (key: string | null) => {
     // events alone, a run of quick skips dropped the frame at the second one.
     const wasReady = isBeatFxReady();
     holdUntil = key && wasReady ? Math.max(holdUntil, performance.now() + READY_HOLD_MS) : 0;
+    // Another track: where the last one was heard is not where this one is.
+    if (key !== trackKey) lastHeard = { key: null, time: 0 };
     trackKey = key;
     state.events = [];
     state.cursor = 0;
@@ -189,6 +196,9 @@ export const isBeatFxHearing = (): boolean => hearing;
 
 /** The installed track's key and the time in it the listener hears (null while nothing plays). */
 export const getBeatFxHeard = (): Readonly<{ key: string | null; time: number | null }> => ({ key: trackKey, time: heardAt });
+
+/** Where `key` was last heard playing (s), 0 if it has not been: the playhead 雾笺's vocals start from. */
+export const getBeatFxLastHeard = (key: string): number => (lastHeard.key === key ? lastHeard.time : 0);
 
 /** Stops the clock and zeroes both envelopes; called when the FX are switched off. */
 export const stopBeatFx = () => {
@@ -243,6 +253,7 @@ export const tickBeatFx = (audioElement: HTMLMediaElement | null, context: BaseA
     }
     hearing = heardTime !== null;
     heardAt = heardTime;
+    if (heardTime !== null) lastHeard = { key: trackKey, time: heardTime };
 
     stepBeatFxClock(state, heardTime, dtSec);
     firedCounts.beats = state.firedBeats;

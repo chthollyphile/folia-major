@@ -420,4 +420,74 @@ describe('Electron KuGou API bridge', () => {
             expect((error as Error).message).toContain('operation=not_an_operation');
         });
     });
+
+    describe('which answers may change the signed-in account (#1101)', () => {
+        const signIn = (token: string, userid: string) => async () => ({
+            body: { data: { status: 4, token, userid } },
+            cookie: [`token=${token}`, `userid=${userid}`],
+        });
+
+        it('keeps the account when a public playlist answers with its creator userid', async () => {
+            const store = createStore();
+            const safeStorage = createSafeStorage();
+            const userDetail = vi.fn(async (_params: any) => ({ body: { data: { nickname: 'A' } }, cookie: [] }));
+            const bridge = createKugouApiBridge({ store, safeStorage, apiLoader: () => ({
+                register_dev: async () => ({ body: { status: 1 }, cookie: ['dfid=device'] }),
+                login_qr_check: signIn('token-a', 'user-a'),
+                playlist_detail: async () => ({
+                    body: { data: { userid: 'user-b', user_id: 'user-b', token: 'token-b', name: 'B list' } },
+                    cookie: ['userid=user-b', 'token=token-b'],
+                }),
+                user_detail: userDetail,
+            }) });
+
+            await bridge.request('login_qr_check', { key: 'qr' });
+            const playlist = await bridge.request('playlist_detail', { ids: 'list' });
+            await bridge.request('user_detail', {});
+
+            // The creator stays in what the renderer is given; only the session keeps out of it.
+            expect(playlist).toEqual(expect.objectContaining({ data: expect.objectContaining({ userid: 'user-b' }) }));
+            expect(userDetail.mock.calls[0][0]).toEqual(expect.objectContaining({ userid: 'user-a', token: 'token-a' }));
+            expect(readEncryptedCookies(store, safeStorage)).toEqual(expect.objectContaining({ token: 'token-a', userid: 'user-a' }));
+            expect(readEncryptedCookies(store, safeStorage).user_id).toBeUndefined();
+        });
+
+        it('lets a new confirmed sign-in replace the account as a whole pair', async () => {
+            const store = createStore();
+            const safeStorage = createSafeStorage();
+            let next = signIn('token-a', 'user-a');
+            const bridge = createKugouApiBridge({ store, safeStorage, apiLoader: () => ({
+                register_dev: async () => ({ body: { status: 1 }, cookie: ['dfid=device'] }),
+                login_qr_check: () => next(),
+            }) });
+
+            await bridge.request('login_qr_check', { key: 'qr' });
+            next = signIn('token-c', 'user-c');
+            await bridge.request('login_qr_check', { key: 'qr' });
+
+            expect(readEncryptedCookies(store, safeStorage)).toEqual(expect.objectContaining({ token: 'token-c', userid: 'user-c' }));
+        });
+
+        it('does not take half a pair from a confirmed sign-in, nor anything from an unconfirmed one', async () => {
+            const store = createStore();
+            const safeStorage = createSafeStorage();
+            const warn = vi.fn();
+            let next: () => Promise<unknown> = signIn('token-a', 'user-a');
+            const bridge = createKugouApiBridge({ store, safeStorage, warn, apiLoader: () => ({
+                register_dev: async () => ({ body: { status: 1 }, cookie: ['dfid=device'] }),
+                login_qr_check: () => next(),
+            }) });
+
+            await bridge.request('login_qr_check', { key: 'qr' });
+            // The SDK writes the cookies of a status 4 answer from its fields, a missing one as 'undefined'.
+            next = async () => ({ body: { data: { status: 4, token: 'token-x' } }, cookie: ['token=token-x', 'userid=undefined'] });
+            await bridge.request('login_qr_check', { key: 'qr' });
+            next = async () => ({ body: { data: { status: 2, token: 'token-y', userid: 'user-y' } }, cookie: ['token=token-y', 'userid=user-y'] });
+            await bridge.request('login_qr_check', { key: 'qr' });
+
+            expect(readEncryptedCookies(store, safeStorage)).toEqual(expect.objectContaining({ token: 'token-a', userid: 'user-a' }));
+            expect(warn).toHaveBeenCalledWith(expect.stringContaining('without both a token and an account id'), { hasToken: true, hasUserId: false });
+            expect(bridge.getStatus().authenticated).toBe(true);
+        });
+    });
 });

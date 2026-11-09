@@ -54,7 +54,17 @@ const useAudioSettingsStore = vi.hoisted(() => {
 });
 vi.mock('@/stores/useAudioSettingsStore', () => ({ useAudioSettingsStore }));
 
+// Only the playback route is read: on the HiFi route the listeners go on the HiFi media shim instead of the deck.
+const playback = vi.hoisted(() => ({ state: { playbackRoute: 'web' as 'web' | 'hifi' } }));
+vi.mock('@/stores/usePlaybackStore', () => ({
+    usePlaybackStore: Object.assign(
+        (selector: (state: typeof playback.state) => unknown) => selector(playback.state),
+        { getState: () => playback.state },
+    ),
+}));
+
 const { usePlaybackReporter } = await import('@/components/app/playback/bridges/usePlaybackReporter');
+const { hifiMediaShim } = await import('@/services/hifi/hifiMediaShim');
 
 /**
  * A clock that moves with playback.
@@ -138,6 +148,8 @@ describe('usePlaybackReporter', () => {
         vi.spyOn(Date, 'now').mockImplementation(() => clock.now);
         deck = createDeck();
         audioRef.current = deck;
+        playback.state.playbackRoute = 'web';
+        hifiMediaShim.reset();
     });
 
     it('reports the finished track when the queue moves on', () => {
@@ -244,6 +256,42 @@ describe('usePlaybackReporter', () => {
 
         expect(gate.isPlaybackReportReady).toHaveBeenCalledWith(first);
         expect(gate.isPlaybackReportReady).not.toHaveBeenCalledWith();
+    });
+
+    it('follows the song onto the HiFi media shim when the route changes, and back', () => {
+        let position = 0;
+        hifiMediaShim.setClockReader(() => position);
+        const tick = (seconds: number) => {
+            for (let step = 0; step < Math.round(seconds / 0.25); step += 1) {
+                position += 0.25;
+                clock.now += 250;
+                hifiMediaShim.dispatchEvent(new Event('timeupdate'));
+            }
+        };
+
+        render(song('1'));
+        deck.playFor(10);
+        // The next song plays through mpv: same hook, same ref, only the route moved.
+        playback.state.playbackRoute = 'hifi';
+        hifiMediaShim.beginTrack('online:netease:2#a');
+        hifiMediaShim.setDuration(240);
+        hifiMediaShim.markPlaying();
+        render(song('2'));
+        // The silent deck reports nothing any more; the shim's clock is what counts.
+        deck.playFor(60);
+        tick(45);
+        playback.state.playbackRoute = 'web';
+        hifiMediaShim.reset();
+        render(song('3'));
+
+        expect(gate.sendPlaybackReport).toHaveBeenCalledTimes(1);
+        expect(reportedSong(0)).toMatchObject({ id: '2' });
+        expect(reportedPayload(0)).toMatchObject({ playedSeconds: 45 });
+        // Back on the web route the deck is listened to again.
+        deck.playFor(45);
+        render(song('4'));
+        expect(gate.sendPlaybackReport).toHaveBeenCalledTimes(2);
+        expect(reportedSong(1)).toMatchObject({ id: '3' });
     });
 
     it('counts nothing while the deck is paused', () => {

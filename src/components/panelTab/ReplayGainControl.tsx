@@ -1,11 +1,14 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ReplayGainInfo, ReplayGainMode } from '../../types';
+import { usePlaybackStore } from '../../stores/usePlaybackStore';
+import { useIsHifiRoute } from '../hifi/useHifiSignalPath';
+import { useIsExternalPlayerRoute } from './ExternalPlayerNotice';
 import { PanelRow } from './shell/PanelRow';
 import { Segments } from './shell/Segments';
 
 // Shared control keeps local and Navidrome ReplayGain presentation and mode selection in sync.
-// One row of the song's tab: the gains measured for the song under the name, and off, track or album.
+// One row of the song's tab: off, auto, track or album, and under the name what the chosen mode does to the song.
 export type ReplayGainValues = Pick<ReplayGainInfo, 'trackGain' | 'albumGain'>;
 
 interface ReplayGainControlProps {
@@ -22,28 +25,40 @@ const ReplayGainControl: React.FC<ReplayGainControlProps> = ({
     onChangeMode,
 }) => {
     const { t } = useTranslation();
+    const appliedDb = usePlaybackStore(state => state.replayGainAppliedDb);
+    const estimated = usePlaybackStore(state => state.replayGainEstimated);
+    // mpv plays the song on the HiFi route and applies no gain; the mode is kept for the web engine.
+    const isHifiRoute = useIsHifiRoute();
+    // A platform's own player sounds the song on the external route; no gain reaches it either.
+    const isExternalRoute = useIsExternalPlayerRoute();
+    const labels: Record<ReplayGainMode, string> = {
+        off: t('localMusic.replayGainOff'),
+        auto: t('localMusic.replayGainAuto'),
+        track: t('localMusic.replayGainTrack'),
+        album: t('localMusic.replayGainAlbum'),
+    };
+    // Track and album read the song's tags (album falls back to track), so without either there is nothing to apply.
+    const hasTags = typeof values?.trackGain === 'number' || typeof values?.albumGain === 'number';
     const measured: string[] = [];
     if (typeof values?.trackGain === 'number') {
-        measured.push(`${t('localMusic.replayGainTrack')} ${formatGain(values.trackGain)}`);
+        measured.push(`${labels.track} ${formatGain(values.trackGain)}`);
     }
     if (typeof values?.albumGain === 'number') {
-        measured.push(`${t('localMusic.replayGainAlbum')} ${formatGain(values.albumGain)}`);
+        measured.push(`${labels.album} ${formatGain(values.albumGain)}`);
     }
+    const hint = isHifiRoute ? [t('hifi.player.replayGainBypassed'), ...measured].join(' · ')
+        : isExternalRoute ? t('status.externalReplayGainBypassed')
+        : mode === 'off' ? undefined
+        : mode !== 'auto' && !hasTags ? t('localMusic.replayGainUnavailable')
+        : `${labels[mode]} ${formatGain(appliedDb)}${mode === 'auto' && estimated ? ` · ${t('localMusic.replayGainEstimated')}` : ''}`;
 
     return (
-        <PanelRow
-            label={t('localMusic.replayGainTitle')}
-            hint={measured.length > 0 ? measured.join(' · ') : t('localMusic.replayGainUnavailable')}
-        >
+        <PanelRow label={t('localMusic.replayGainTitle')} hint={hint}>
             <Segments
                 fill
                 value={mode}
                 onChange={onChangeMode}
-                options={[
-                    { value: 'off', label: t('localMusic.replayGainOff') },
-                    { value: 'track', label: t('localMusic.replayGainTrack') },
-                    { value: 'album', label: t('localMusic.replayGainAlbum') },
-                ]}
+                options={(['off', 'auto', 'track', 'album'] as const).map(value => ({ value, label: labels[value] }))}
             />
         </PanelRow>
     );

@@ -57,7 +57,7 @@ const ThemeNameRow: React.FC<ThemeNameRowProps> = ({
             </span>
             <span className="ml-auto flex max-w-full items-center gap-1.5">
                 <Segments
-                    size="s"
+                    size="m"
                     value={isDaylight ? 'light' : 'dark'}
                     onChange={() => onToggleDaylight()}
                     options={[

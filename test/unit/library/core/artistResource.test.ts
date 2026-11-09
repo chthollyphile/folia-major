@@ -126,6 +126,26 @@ describe('online artist resource', () => {
         expect(calls.albumCalls).toHaveLength(3);
     });
 
+    it('says the artist has more songs than the top ones when the first song page goes on (#918)', async () => {
+        const answered = async (page: ProviderPage<SongResult>) => {
+            const calls = onlineDeps();
+            const resource = createArtistResource('k', online, calls.deps);
+            resource.ensure(online);
+            expect(resource.getSnapshot().hasMoreSongs).toBe(false);
+            calls.detailCalls[0].resolve(detail());
+            calls.songCalls[0].resolve(page);
+            await flush();
+            return resource.getSnapshot();
+        };
+        const songs = (count: number) => Array.from({ length: count }, (_, index) => song(`s${index}`));
+        expect(await answered({ items: songs(10), hasMore: true, nextOffset: 10 })).toMatchObject({ status: 'ready', hasMoreSongs: true });
+        expect((await answered({ items: songs(10), hasMore: false, nextOffset: 10 })).hasMoreSongs).toBe(false);
+        // A provider that answers with more than it was asked for has more, whatever it says.
+        const more = await answered({ items: songs(12), hasMore: false, nextOffset: 12 });
+        expect(more.hasMoreSongs).toBe(true);
+        expect(more.topSongs).toHaveLength(10);
+    });
+
     it('drops the responses of a load superseded by reload', async () => {
         const calls = onlineDeps();
         const resource = createArtistResource('k', online, calls.deps);
@@ -236,6 +256,8 @@ describe('Navidrome artist resource', () => {
         expect(resource.getSnapshot()).toMatchObject({ status: 'ready', detail: { name: 'Navi', coverUrl: 'cover:art-a1', albumCount: 2 }, albumSync: { state: 'none' } });
         expect(resource.getSnapshot().albums.map(album => album.id)).toEqual(['a1', 'a2']);
         expect(resource.getSnapshot().topSongs.map(item => item.id)).toEqual(['a1-s1', 'a1-s2', 'a2-s1', 'a2-s2']);
+        // Its songs are all in its albums: no "all songs" (#918).
+        expect(resource.getSnapshot().hasMoreSongs).toBe(false);
     });
 
     it('drops a late getArtist from a superseded load (the old fixme)', async () => {

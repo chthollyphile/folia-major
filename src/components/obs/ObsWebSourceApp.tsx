@@ -1,6 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useMotionValue } from 'framer-motion';
 import VisualizerRenderer from '../visualizer/VisualizerRenderer';
+import { LyricRenderQualityGlobalContext } from '../visualizer/renderQuality/lyricRenderQualityPin';
+import ObsNowPlayingCard from './ObsNowPlayingCard';
+import { useObsSourceLanguage } from './useObsSourceLanguage';
 import { NO_LYRIC_LINES } from '../../utils/lyrics/noLyricLines';
 import { buildVisualizerTheme } from '../app/presentation/buildVisualizerTheme';
 import type { DualTheme, Line, MonetPortraitImage, Theme } from '../../types';
@@ -27,12 +30,15 @@ const EMPTY_SPECTRUM = new Uint8Array(0);
 interface ObsWebSourceAppProps {
     source: WebLyricSource;
     appearance: ObsWebAppearance;
+    /** Folia's UI language from the link (lang=); null leaves OBS's own. */
+    language?: string | null;
     // Dynamic AI mode: when set, the overlay regenerates an AI theme per song (overrides cfg/cover);
     // null/undefined keeps the cfg-or-cover behavior unchanged.
     obsAiConfig?: ObsAiConfig | null;
 }
 
-const ObsWebSourceApp: React.FC<ObsWebSourceAppProps> = ({ source, appearance, obsAiConfig }) => {
+const ObsWebSourceApp: React.FC<ObsWebSourceAppProps> = ({ source, appearance, language, obsAiConfig }) => {
+    useObsSourceLanguage(language);
     const { state, getCurrentTimeSec } = source;
     const { isDaylight, transparent } = appearance;
 
@@ -197,6 +203,11 @@ const ObsWebSourceApp: React.FC<ObsWebSourceAppProps> = ({ source, appearance, o
         cssAssets.portraitUrl ? { id: 'obs-css-portrait', name: 'obs-css-portrait', url: cssAssets.portraitUrl } : null
     ), [cssAssets.portraitUrl]);
 
+    const track = state.track;
+    const cardSong = useMemo(() => (track
+        ? { title: track.name, artist: track.artist || null, coverUrl: track.coverUrl }
+        : null), [track?.name, track?.artist, track?.coverUrl]);
+
     // Overlay the cfg font stack onto the resolved theme so the OBS fonts match the main window
     // (same helper as the main app). appStyle {} keeps theme.backgroundColor.
     const { visualizerTheme, visualizerSubtitleTheme } = buildVisualizerTheme({
@@ -225,41 +236,52 @@ const ObsWebSourceApp: React.FC<ObsWebSourceAppProps> = ({ source, appearance, o
                 color: theme.primaryColor,
             }}
         >
-            <VisualizerRenderer
-                mode={appearance.mode}
-                visualizerTunings={appearance.visualizerTunings}
-                currentTime={currentTime}
-                duration={state.clock.durationSec}
-                currentLineIndex={currentLineIndex}
-                lines={state.lyrics?.lines ?? NO_LYRIC_LINES}
-                theme={visualizerTheme}
-                subtitleTheme={visualizerSubtitleTheme}
+            {/* 歌词画布的分辨率与抗锯齿用配置码带来的（本机的设置在 OBS 的浏览器里读不到）；没带就用默认 */}
+            <LyricRenderQualityGlobalContext.Provider value={appearance.lyricRenderQuality ?? null}>
+                <VisualizerRenderer
+                    mode={appearance.mode}
+                    visualizerTunings={appearance.visualizerTunings}
+                    currentTime={currentTime}
+                    duration={state.clock.durationSec}
+                    currentLineIndex={currentLineIndex}
+                    lines={state.lyrics?.lines ?? NO_LYRIC_LINES}
+                    theme={visualizerTheme}
+                    subtitleTheme={visualizerSubtitleTheme}
+                    isDaylight={isDaylight}
+                    audioPower={audioPower}
+                    audioBands={audioBands}
+                    songTitle={state.track?.name}
+                    songArtist={state.track?.artist}
+                    coverUrl={coverUrl}
+                    showText={true}
+                    seed={state.track?.seed || 'folia-obs-web'}
+                    paused={paused}
+                    staticMode={appearance.staticMode}
+                    visualizerOpacity={appearance.visualizerOpacity}
+                    background={backgroundWithAssets}
+                    monetPortraitImage={portraitImage}
+                    cappellaCustomEmojiImages={cssAssets.cappellaEmojis}
+                    cappellaCustomAvatarImages={cssAssets.cappellaAvatars}
+                    lyricsFontScale={appearance.lyricsFontScale}
+                    subtitleFontScale={appearance.subtitleFontScale}
+                    subtitleOverlayBackground={appearance.subtitleOverlayBackground}
+                    subtitleUpcomingLyricsBlur={appearance.subtitleUpcomingLyricsBlur}
+                    subtitleOverlayOpacity={appearance.subtitleOverlayOpacity}
+                    showHarmonySubtitle={appearance.showHarmonySubtitle}
+                    harmonySubtitleBackground={appearance.harmonySubtitleBackground}
+                    hideTranslationSubtitle={appearance.hideTranslationSubtitle}
+                    showSubtitleTranslation={appearance.showSubtitleTranslation}
+                    subtitleContentMode={appearance.subtitleContentMode}
+                    subtitleOverlayLayout={appearance.subtitleOverlayLayout}
+                    isPlayerChromeHidden={true}
+                />
+            </LyricRenderQualityGlobalContext.Provider>
+            <ObsNowPlayingCard
+                card={appearance.nowPlayingCard}
+                song={cardSong}
+                trackKey={`${track?.name ?? ''}|${track?.artist ?? ''}`}
                 isDaylight={isDaylight}
-                audioPower={audioPower}
-                audioBands={audioBands}
-                songTitle={state.track?.name}
-                songArtist={state.track?.artist}
-                coverUrl={coverUrl}
-                showText={true}
-                seed={state.track?.seed || 'folia-obs-web'}
-                paused={paused}
-                staticMode={appearance.staticMode}
-                visualizerOpacity={appearance.visualizerOpacity}
-                background={backgroundWithAssets}
-                monetPortraitImage={portraitImage}
-                cappellaCustomEmojiImages={cssAssets.cappellaEmojis}
-                cappellaCustomAvatarImages={cssAssets.cappellaAvatars}
-                lyricsFontScale={appearance.lyricsFontScale}
-                subtitleFontScale={appearance.subtitleFontScale}
-                subtitleOverlayBackground={appearance.subtitleOverlayBackground}
-                subtitleUpcomingLyricsBlur={appearance.subtitleUpcomingLyricsBlur}
-                subtitleOverlayOpacity={appearance.subtitleOverlayOpacity}
-                showHarmonySubtitle={appearance.showHarmonySubtitle}
-                harmonySubtitleBackground={appearance.harmonySubtitleBackground}
-                hideTranslationSubtitle={appearance.hideTranslationSubtitle}
-                showSubtitleTranslation={appearance.showSubtitleTranslation}
-                subtitleContentMode={appearance.subtitleContentMode}
-                isPlayerChromeHidden={true}
+                theme={theme}
             />
         </div>
     );

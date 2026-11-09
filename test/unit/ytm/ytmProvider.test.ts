@@ -3,8 +3,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // test/unit/ytm/ytmProvider.test.ts
 
 const request = vi.hoisted(() => vi.fn());
+const loadSnapshot = vi.hoisted(() => vi.fn());
 vi.mock('@/services/onlineMusic/ytm/ytmTransport', () => ({
     requestYtm: request, getYtmTransportAvailability: () => ({ configured: true }),
+}));
+vi.mock('@/services/onlineMusic/providerAccountCache', () => ({
+    loadProviderAccountSnapshot: loadSnapshot,
 }));
 import { ytmProvider } from '@/services/onlineMusic/ytm/ytmProvider';
 import { noteYtmAccount, ytmHasPremium } from '@/services/onlineMusic/ytm/ytmAccount';
@@ -28,6 +32,7 @@ const ids = (count: number, from = 0) => Array.from({ length: count }, (_, index
 
 beforeEach(() => {
     request.mockReset();
+    loadSnapshot.mockReset().mockResolvedValue(null);
     clearYtmCatalogCache();
     clearYtmLibraryCache();
     noteYtmAccount(null);
@@ -685,6 +690,18 @@ describe('YouTube Music provider', () => {
         await expect(ytmProvider.lyrics!.getLyrics(foreign)).rejects.toMatchObject({ code: 'unsupported' });
     });
 
+    it('takes YouTube\'s loudness figure as the track gain: a track louder than its level is turned down, a quieter one not lifted', async () => {
+        request.mockResolvedValueOnce({ url: 'folia-ytm://audio/m9SMT5ipbxk?k=one', route: 'web', loudnessDb: 4.5 })
+            .mockResolvedValueOnce({ url: 'folia-ytm://audio/m9SMT5ipbxk?k=quiet', route: 'web', loudnessDb: -6 })
+            .mockResolvedValueOnce({ url: 'folia-ytm://audio/m9SMT5ipbxk?k=two', route: 'web' });
+        vi.spyOn(console, 'log').mockImplementation(() => {});
+        const song = normalizeYtmSong(wireSong());
+        expect(await ytmProvider.playback!.getAudioSource(song, 'high')).toMatchObject({ replayGain: { trackGain: -4.5 } });
+        expect(await ytmProvider.playback!.getAudioSource(song, 'high')).toMatchObject({ replayGain: { trackGain: 0 } });
+        expect(await ytmProvider.playback!.getAudioSource(song, 'high')).not.toHaveProperty('replayGain');
+        vi.mocked(console.log).mockRestore();
+    });
+
     it('reads its line-timed lyrics, and answers "none" when there are none or the request fails', async () => {
         const song = normalizeYtmSong(wireSong());
         const mainText = '[00:00.880]first line\n[00:04.500]second line\n[00:20.000]after a break';
@@ -1064,5 +1081,19 @@ describe('YouTube Music catalog and library', () => {
         expect(request.mock.calls).toEqual([
             ['user_playlists', { continuation: undefined }], ['user_albums', { continuation: undefined }], ['user_playlists', { continuation: 'lists-2' }],
         ]);
+    });
+
+    it('keeps confirmed ownership on an inconclusive refresh for the same account only', async () => {
+        const playlist = (id: string, isOwned?: boolean) => ({ id, type: 'playlist', name: id, coverUrl: '', isOwned });
+        loadSnapshot.mockResolvedValue({
+            user: { id: 'owner' }, collections: [playlist('PLunknown', true), playlist('PLnotOwned', true)],
+        });
+        request.mockResolvedValue({ items: [playlist('PLunknown'), playlist('PLnotOwned', false)] });
+
+        const library = ytmProvider.library!;
+        const own = await library.getUserPlaylists('owner', 50, 0);
+        expect(own.items.map(item => item.isOwned)).toEqual([true, false]);
+        const other = await library.getUserPlaylists('other', 50, 0);
+        expect(other.items.map(item => item.isOwned)).toEqual([undefined, false]);
     });
 });

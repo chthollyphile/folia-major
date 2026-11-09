@@ -10,7 +10,7 @@ test('enters Sonnet from settings and exposes its layer controls', async ({ page
     await page.addInitScript((version) => {
         localStorage.clear();
         localStorage.setItem('library_suite_prompt_seen', 'true');
-        localStorage.setItem('i18nextLng', 'en');
+        localStorage.setItem('folia_app_language', 'en');
         localStorage.setItem('visualizer_mode', 'classic');
         localStorage.setItem('static_mode', 'true');
         localStorage.setItem('folia_last_seen_ponder_onboarding_version', version);

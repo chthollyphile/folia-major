@@ -35,7 +35,7 @@ interface LiveCanvas {
 }
 
 export interface FumeLiveRasterFrame {
-    /** Device pixels per world unit on the stage this frame (camera scale times devicePixelRatio). */
+    /** Device pixels per world unit on the stage this frame (camera scale times the stage's pixel ratio: devicePixelRatio × 分辨率倍数). */
     deviceScale: number;
     /** The world rect on screen this frame. */
     visible: { left: number; top: number; right: number; bottom: number };

@@ -140,14 +140,18 @@ const fakePort = () => {
 };
 
 /** 一次取完的在线资源（首页里允许重复条目，与上游一致）；缓存写入记账。 */
-const onlineResource = async (descriptor: OnlineGridViewCollectionDescriptor, tracks: SongResult[]) => {
+const onlineResource = async (
+    descriptor: OnlineGridViewCollectionDescriptor,
+    tracks: SongResult[],
+    getDailySongs = vi.fn(async () => tracks),
+) => {
     const writes: Array<{ tracks: SongResult[]; snapshotTime: number }> = [];
     const page: OmniPage<SongResult> = { items: tracks, total: tracks.length, hasMore: false, nextOffset: tracks.length };
     const resource = createOnlineCollectionResource('k', {
         getCollectionTracks: vi.fn(async () => page),
         getCollectionDetail: vi.fn(async () => null),
         getPersonalFm: vi.fn(async () => []),
-        getDailySongs: vi.fn(async () => tracks),
+        getDailySongs,
         readCache: vi.fn(async () => ({ tracks: [], snapshotTime: 0, schemaVersion: 0 })),
         writeCache: vi.fn(async (_key, written, snapshotTime) => { writes.push({ tracks: written, snapshotTime }); }),
         wait: async () => {},
@@ -400,7 +404,54 @@ describe('disliking a daily recommendation', () => {
         expect(ids(resource.getSnapshot().tracks)).toEqual(['d0', 'd1', 'd2']);
     });
 
-    it('reports failed when upstream gives neither a replacement nor a limit, or throws', async () => {
+    // 有的平台的不喜欢是把歌拉进黑名单，没有替换曲：成功就把这一行从当天的列表里去掉（removed）。
+    it('removes the entry when the write succeeded without a replacement', async () => {
+        const { resource } = await onlineResource(daily, dailyTracks());
+        const omni = fakeOmni({ dislikeSong: vi.fn(async () => ({ removed: true })) });
+        const { controller } = setup({ descriptor: daily, resource, omni });
+
+        expect(await controller.removeEntry(entryIn(resource, 1))).toEqual({ ok: true });
+        expect(omni.dislikeSong).toHaveBeenCalledWith(expect.objectContaining({ id: 'd1' }));
+        expect(ids(resource.getSnapshot().tracks)).toEqual(['d0', 'd2']);
+    });
+
+    it('keeps a matching song in history when a removal returns after switching dates', async () => {
+        const { resource } = await onlineResource(daily, dailyTracks());
+        const upstream = deferred<{ removed: boolean }>();
+        const omni = fakeOmni({
+            dislikeSong: vi.fn(() => upstream.promise),
+            getRecommendationHistorySongs: vi.fn(async () => [onlineSong('d1'), onlineSong('history')]),
+            getProviderCapabilities: vi.fn(() => ({ historyRecommendations: true, dailyStyleRecommendations: false })),
+        });
+        const { controller } = setup({ descriptor: daily, resource, omni });
+        const removal = controller.removeEntry(entryIn(resource, 1));
+        expect(await controller.setDailyDate('2024-01-02')).toEqual({ ok: true });
+        upstream.resolve({ removed: true });
+        expect(await removal).toEqual({ ok: false, reason: 'stale' });
+        expect(ids(resource.getSnapshot().tracks)).toEqual(['d1', 'history']);
+    });
+
+    it('keeps history when a removal starts while the date is loading', async () => {
+        const { resource } = await onlineResource(daily, dailyTracks());
+        const history = deferred<SongResult[]>();
+        const upstream = deferred<{ removed: boolean }>();
+        const omni = fakeOmni({
+            dislikeSong: vi.fn(() => upstream.promise),
+            getRecommendationHistorySongs: vi.fn(() => history.promise),
+            getProviderCapabilities: vi.fn(() => ({ historyRecommendations: true, dailyStyleRecommendations: false })),
+        });
+        const { controller } = setup({ descriptor: daily, resource, omni });
+        const switching = controller.setDailyDate('2024-01-02');
+        const removal = controller.removeEntry(entryIn(resource, 1));
+        expect(omni.dislikeSong).toHaveBeenCalledTimes(1);
+        history.resolve([onlineSong('d1'), onlineSong('history')]);
+        expect(await switching).toEqual({ ok: true });
+        upstream.resolve({ removed: true });
+        expect(await removal).toEqual({ ok: false, reason: 'stale' });
+        expect(ids(resource.getSnapshot().tracks)).toEqual(['d1', 'history']);
+    });
+
+    it('reports failed when upstream gives neither a replacement, a removal nor a limit, or throws', async () => {
         const { resource } = await onlineResource(daily, dailyTracks());
         vi.spyOn(console, 'error').mockImplementation(() => {});
         const empty = setup({ descriptor: daily, resource, omni: fakeOmni({ dislikeSong: vi.fn(async () => ({})) }) });
@@ -476,6 +527,351 @@ describe('daily recommendation dates', () => {
         history.resolve([onlineSong('h')]);
         expect(await first).toEqual({ ok: true });
         expect(omni.getRecommendationHistorySongs).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('daily recommendations after the account preferences are saved', () => {
+    const listening = (overrides?: Partial<CollectionMutationOmni>) => {
+        const listeners = new Set<(providerId: string) => void>();
+        const omni = fakeOmni({
+            ...overrides,
+            subscribeRecommendationPreferenceSaves: vi.fn((listener: (providerId: string) => void) => {
+                listeners.add(listener);
+                return () => { listeners.delete(listener); };
+            }),
+        });
+        const tell = (providerId: string) => listeners.forEach(listener => listener(providerId));
+        return { listeners, omni, tell };
+    };
+
+    it('reads today again for a save on its own provider, once someone looks', async () => {
+        const { listeners, omni, tell } = listening();
+        const { resource } = await onlineResource(daily, [onlineSong('d0')]);
+        const { controller } = setup({ descriptor: daily, resource, omni });
+        expect(listeners.size).toBe(0);
+
+        controller.subscribe(() => {});
+        await settle();
+        expect(listeners.size).toBe(1);
+
+        tell('another-provider');
+        await settle();
+        expect(omni.getDailySongs).not.toHaveBeenCalled();
+
+        tell('p');
+        await settle();
+        expect(omni.getDailySongs).toHaveBeenCalledWith(true);
+        expect(ids(resource.getSnapshot().tracks)).toEqual(['fresh-0']);
+    });
+
+    it('leaves a history date as it is', async () => {
+        const { omni, tell } = listening();
+        const { resource } = await onlineResource(daily, [onlineSong('d0')]);
+        const { controller } = setup({ descriptor: daily, resource, omni });
+        controller.subscribe(() => {});
+        expect(await controller.setDailyDate('2024-01-02')).toEqual({ ok: true });
+
+        tell('p');
+        await settle();
+        expect(omni.getDailySongs).not.toHaveBeenCalled();
+        expect(ids(resource.getSnapshot().tracks)).toEqual(['h-0', 'h-1']);
+    });
+
+    it('reads today once more when preferences are saved during the first load', async () => {
+        const { omni, tell } = listening();
+        const initial = deferred<SongResult[]>();
+        const { resource } = await onlineResource(daily, [], vi.fn(() => initial.promise));
+        const { controller } = setup({ descriptor: daily, resource, omni });
+        controller.subscribe(() => {});
+        expect(resource.getSnapshot().status).toBe('loading');
+
+        tell('p');
+        tell('p');
+        expect(omni.getDailySongs).not.toHaveBeenCalled();
+
+        initial.resolve([onlineSong('before-save')]);
+        await settle();
+        expect(omni.getDailySongs).toHaveBeenCalledExactlyOnceWith(true);
+        expect(ids(resource.getSnapshot().tracks)).toEqual(['fresh-0']);
+    });
+
+    it('reads today again after returning from history if preferences were saved during the switch', async () => {
+        const { omni, tell } = listening();
+        const { resource } = await onlineResource(daily, [onlineSong('d0')]);
+        const { controller } = setup({ descriptor: daily, resource, omni });
+        controller.subscribe(() => {});
+        await controller.setDailyDate('2024-01-02');
+        const returning = deferred<SongResult[]>();
+        vi.mocked(omni.getDailySongs).mockReturnValueOnce(returning.promise);
+
+        const change = controller.setDailyDate('');
+        tell('p');
+        expect(omni.getDailySongs).toHaveBeenCalledExactlyOnceWith(false);
+
+        returning.resolve([onlineSong('before-save')]);
+        expect(await change).toEqual({ ok: true });
+        await settle();
+        expect(vi.mocked(omni.getDailySongs).mock.calls).toEqual([[false], [true]]);
+        expect(ids(resource.getSnapshot().tracks)).toEqual(['fresh-0']);
+    });
+
+    it.each(['account change', 'provider change', 'dispose'])('drops a queued read on %s', async change => {
+        const { omni, tell } = listening();
+        const initial = deferred<SongResult[]>();
+        const { resource } = await onlineResource(daily, [], vi.fn(() => initial.promise));
+        const { controller } = setup({ descriptor: daily, resource, omni });
+        controller.subscribe(() => {});
+
+        tell('p');
+        if (change === 'account change') controller.update({ currentUserId: 'u2' });
+        if (change === 'provider change') controller.update({ descriptor: { ...daily, providerId: 'p2' } });
+        if (change === 'dispose') controller.dispose();
+        initial.resolve([onlineSong('before-save')]);
+        await settle();
+
+        expect(omni.getDailySongs).not.toHaveBeenCalled();
+    });
+
+    it.each(['history', 'style'])('drops the queued read once %s is shown even if today is opened again immediately', async view => {
+        const history = deferred<SongResult[]>();
+        const style = deferred<{ songs: SongResult[]; selection: null }>();
+        const { omni, tell } = listening({
+            getRecommendationHistorySongs: vi.fn(() => history.promise),
+            getProviderCapabilities: () => ({ historyRecommendations: true, dailyStyleRecommendations: true }),
+            getDailyStyleSongs: vi.fn(() => style.promise),
+            setDailyStyle: vi.fn(async () => {}),
+        });
+        const { resource } = await onlineResource(daily, [onlineSong('d0')]);
+        const { controller } = setup({ descriptor: daily, resource, omni });
+        let returned = false;
+        controller.subscribe(() => {
+            const { dailyDate, dailyStyleShown, capabilities } = controller.getSnapshot();
+            if (returned || capabilities.dailyDate.pending || !(dailyDate || dailyStyleShown)) return;
+            returned = true;
+            void controller.setDailyDate('');
+        });
+
+        const change = view === 'history' ? controller.setDailyDate('2024-01-02') : controller.showDailyStyle();
+        tell('p');
+        history.resolve([onlineSong('history')]);
+        style.resolve({ songs: [onlineSong('style')], selection: null });
+        expect(await change).toEqual({ ok: true });
+        await settle();
+
+        expect(controller.getSnapshot()).toMatchObject({ dailyDate: '', dailyStyleShown: false });
+        expect(omni.getDailySongs).toHaveBeenCalledExactlyOnceWith(false);
+    });
+
+    it('does not listen for other collections, and stops listening once disposed', async () => {
+        const { listeners, omni } = listening();
+        const { resource: playlist } = await onlineResource(ownedPlaylist(), [onlineSong('s0')]);
+        setup({ descriptor: ownedPlaylist(), resource: playlist, omni }).controller.subscribe(() => {});
+        await settle();
+        expect(listeners.size).toBe(0);
+
+        const { resource } = await onlineResource(daily, [onlineSong('d0')]);
+        const { controller } = setup({ descriptor: daily, resource, omni });
+        controller.subscribe(() => {});
+        await settle();
+        expect(listeners.size).toBe(1);
+        controller.dispose();
+        expect(listeners.size).toBe(0);
+    });
+});
+
+describe('daily style recommendations (#938)', () => {
+    const genre = { id: '1000', name: 'Genre', tags: [{ id: '10004', name: 'EDM' }, { id: '10015', name: 'ACG' }] };
+    const styleOmni = (overrides: Partial<CollectionMutationOmni> = {}) => fakeOmni({
+        getProviderCapabilities: vi.fn(() => ({ historyRecommendations: true, dailyStyleRecommendations: true })),
+        getDailyStyleGroups: vi.fn(async () => [genre]),
+        getDailyStyleSongs: vi.fn(async () => ({ songs: [onlineSong('s-0'), onlineSong('s-1')], selection: { groupId: '1000', tagIds: ['10004'] } })),
+        setDailyStyle: vi.fn(async () => {}),
+        ...overrides,
+    });
+
+    it('is only there when the provider says so', async () => {
+        const { resource } = await onlineResource(daily, [onlineSong('d0')]);
+        const { controller } = setup({ descriptor: daily, resource });
+        expect(controller.getSnapshot().dailyStyleAvailable).toBe(false);
+        expect(await controller.showDailyStyle()).toEqual({ ok: false, reason: 'unsupported' });
+
+        const { controller: styled } = setup({ descriptor: daily, resource, omni: styleOmni() });
+        expect(styled.getSnapshot().dailyStyleAvailable).toBe(true);
+    });
+
+    it('shows the style songs with the pick they came with, loads the groups once, and locks editing', async () => {
+        const { resource } = await onlineResource(daily, [onlineSong('d0')]);
+        const omni = styleOmni();
+        const { controller } = setup({ descriptor: daily, resource, omni });
+
+        expect(await controller.showDailyStyle()).toEqual({ ok: true });
+        await settle();
+        expect(ids(resource.getSnapshot().tracks)).toEqual(['s-0', 's-1']);
+        expect(controller.getSnapshot()).toMatchObject({
+            dailyStyleShown: true,
+            dailyDate: '',
+            dailyStyleGroups: [genre],
+            dailyStyleSelection: { groupId: '1000', tagIds: ['10004'] },
+        });
+        expect(controller.getSnapshot().capabilities.removeEntry.supported).toBe(false);
+        expect(controller.getSnapshot().capabilities.editCollection.supported).toBe(false);
+
+        controller.loadDailyStyleGroups();
+        expect(await controller.showDailyStyle()).toEqual({ ok: true });
+        expect(omni.getDailyStyleGroups).toHaveBeenCalledTimes(1);
+
+        // 换回默认推荐（今天）。
+        expect(await controller.setDailyDate('')).toEqual({ ok: true });
+        expect(controller.getSnapshot().dailyStyleShown).toBe(false);
+        expect(ids(resource.getSnapshot().tracks)).toEqual(['fresh-0']);
+        expect(controller.getSnapshot().capabilities.editCollection.supported).toBe(true);
+    });
+
+    it('saves a new pick before reading the songs, and changes nothing when the save fails', async () => {
+        const { resource } = await onlineResource(daily, [onlineSong('d0')]);
+        const omni = styleOmni({ getDailyStyleSongs: vi.fn(async () => ({ songs: [onlineSong('s-2')], selection: null })) });
+        const { controller } = setup({ descriptor: daily, resource, omni });
+
+        const pick = { groupId: '1000', tagIds: ['10004', '10015'] };
+        expect(await controller.setDailyStyle(pick)).toEqual({ ok: true });
+        expect(omni.setDailyStyle).toHaveBeenCalledWith(pick);
+        expect(vi.mocked(omni.setDailyStyle!).mock.invocationCallOrder[0])
+            .toBeLessThan(vi.mocked(omni.getDailyStyleSongs!).mock.invocationCallOrder[0]);
+        expect(controller.getSnapshot()).toMatchObject({ dailyStyleShown: true, dailyStyleSelection: pick });
+        expect(ids(resource.getSnapshot().tracks)).toEqual(['s-2']);
+
+        vi.spyOn(console, 'warn').mockImplementation(() => {});
+        vi.mocked(omni.setDailyStyle!).mockRejectedValueOnce(new Error('refused'));
+        const result = await controller.setDailyStyle({ groupId: '1000', tagIds: ['10015'] });
+        expect(result).toMatchObject({ ok: false, reason: 'failed' });
+        expect(omni.getDailyStyleSongs).toHaveBeenCalledTimes(1);
+        expect(controller.getSnapshot().dailyStyleSelection).toEqual(pick);
+        expect(ids(resource.getSnapshot().tracks)).toEqual(['s-2']);
+
+        expect(await controller.setDailyStyle({ groupId: '1000', tagIds: [] })).toEqual({ ok: false, reason: 'unsupported' });
+    });
+
+    it('keeps the shown pick when the save went through but the songs did not, so the same pick can be retried', async () => {
+        const { resource } = await onlineResource(daily, [onlineSong('d0')]);
+        const omni = styleOmni();
+        const { controller } = setup({ descriptor: daily, resource, omni });
+        expect(await controller.showDailyStyle()).toEqual({ ok: true });
+        const shown = controller.getSnapshot().dailyStyleSelection;
+
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+        vi.mocked(omni.getDailyStyleSongs!).mockRejectedValueOnce(new Error('offline'));
+        const pick = { groupId: '1000', tagIds: ['10004', '10015'] };
+        expect(await controller.setDailyStyle(pick)).toMatchObject({ ok: false, reason: 'failed' });
+        expect(omni.setDailyStyle).toHaveBeenCalledWith(pick);
+        expect(controller.getSnapshot().dailyStyleSelection).toEqual(shown);
+        expect(ids(resource.getSnapshot().tracks)).toEqual(['s-0', 's-1']);
+
+        vi.mocked(omni.getDailyStyleSongs!).mockResolvedValueOnce({ songs: [onlineSong('s-3')], selection: null });
+        expect(await controller.setDailyStyle(pick)).toEqual({ ok: true });
+        expect(controller.getSnapshot().dailyStyleSelection).toEqual(pick);
+        expect(ids(resource.getSnapshot().tracks)).toEqual(['s-3']);
+    });
+
+    it('marks the style groups as failed when they do not come, and loads them again on request', async () => {
+        const { resource } = await onlineResource(daily, [onlineSong('d0')]);
+        vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const omni = styleOmni({ getDailyStyleGroups: vi.fn().mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce([]).mockResolvedValue([genre]) });
+        const { controller } = setup({ descriptor: daily, resource, omni });
+
+        controller.loadDailyStyleGroups();
+        await settle();
+        expect(controller.getSnapshot()).toMatchObject({ dailyStyleGroups: [], dailyStyleGroupsFailed: true });
+        controller.loadDailyStyleGroups();
+        await settle();
+        expect(controller.getSnapshot()).toMatchObject({ dailyStyleGroups: [], dailyStyleGroupsFailed: true });
+        controller.loadDailyStyleGroups();
+        expect(controller.getSnapshot().dailyStyleGroupsFailed).toBe(false);
+        await settle();
+        expect(controller.getSnapshot()).toMatchObject({ dailyStyleGroups: [genre], dailyStyleGroupsFailed: false });
+        controller.loadDailyStyleGroups();
+        expect(omni.getDailyStyleGroups).toHaveBeenCalledTimes(3);
+    });
+
+    it('starts where the last visit left off and writes every switch back', async () => {
+        const { resource } = await onlineResource(daily, [onlineSong('s-loaded')]);
+        const omni = styleOmni();
+        const listeners = new Set<() => void>();
+        const remembered = { prefersStyle: true, styleSelection: null as { groupId: string; tagIds: string[] } | null };
+        const dailyMode = {
+            read: () => ({ ...remembered }),
+            setPrefersStyle: vi.fn((prefersStyle: boolean) => { remembered.prefersStyle = prefersStyle; }),
+            noteStyleSelection: vi.fn((selection: { groupId: string; tagIds: string[] } | null) => { remembered.styleSelection = selection; }),
+            subscribe: (listener: () => void) => { listeners.add(listener); return () => listeners.delete(listener); },
+        };
+        const controller = createCollectionMutationController({
+            descriptor: daily, resource, port: fakePort(), currentUserId: 'u1', omni, removeCacheEntry: vi.fn(async () => {}), dailyMode,
+        });
+        expect(controller.getSnapshot()).toMatchObject({ dailyStyleShown: true, dailyStyleSelection: null });
+        expect(controller.getSnapshot().capabilities.editCollection.supported).toBe(false);
+
+        // 第一个订阅者到来：取分组；资源加载完记下的风格到了就通知。
+        const listener = vi.fn();
+        controller.subscribe(listener);
+        await settle();
+        expect(omni.getDailyStyleGroups).toHaveBeenCalledTimes(1);
+        remembered.styleSelection = { groupId: '1000', tagIds: ['10015'] };
+        listeners.forEach(notify => notify());
+        expect(controller.getSnapshot().dailyStyleSelection).toEqual({ groupId: '1000', tagIds: ['10015'] });
+        expect(listener).toHaveBeenCalled();
+
+        expect(await controller.setDailyDate('')).toEqual({ ok: true });
+        expect(dailyMode.setPrefersStyle).toHaveBeenLastCalledWith(false);
+        expect(controller.getSnapshot().dailyStyleSelection).toBeNull();
+        expect(await controller.showDailyStyle()).toEqual({ ok: true });
+        expect(dailyMode.setPrefersStyle).toHaveBeenLastCalledWith(true);
+        // 换成功的风格写回，下一个控制器从它起步。
+        expect(dailyMode.noteStyleSelection).toHaveBeenLastCalledWith({ groupId: '1000', tagIds: ['10004'] });
+
+        // 自动取分组只有第一次；宿主之后的 update 不再重发。
+        controller.update({});
+        controller.update({});
+        expect(omni.getDailyStyleGroups).toHaveBeenCalledTimes(1);
+
+        controller.dispose();
+        expect(listeners.size).toBe(0);
+    });
+
+    it('shows no styles when the answer names none, even after another pick', async () => {
+        const { resource } = await onlineResource(daily, [onlineSong('d0')]);
+        const omni = styleOmni({ getDailyStyleSongs: vi.fn(async () => ({ songs: [], selection: null })) });
+        const noted: unknown[] = [];
+        const dailyMode = { read: () => ({ prefersStyle: false, styleSelection: null }), setPrefersStyle: vi.fn(), noteStyleSelection: vi.fn((s: unknown) => { noted.push(s); }), subscribe: () => () => {} };
+        const controller = createCollectionMutationController({
+            descriptor: daily, resource, port: fakePort(), currentUserId: 'u1', omni, removeCacheEntry: vi.fn(async () => {}), dailyMode,
+        });
+        expect(await controller.setDailyStyle({ groupId: '1000', tagIds: ['10004'] })).toEqual({ ok: true });
+        expect(controller.getSnapshot().dailyStyleSelection).toEqual({ groupId: '1000', tagIds: ['10004'] });
+        expect(await controller.showDailyStyle()).toEqual({ ok: true });
+        expect(controller.getSnapshot().dailyStyleSelection).toBeNull();
+        expect(noted.at(-1)).toBeNull();
+    });
+
+    it('starts on the default list where the provider has no style recommendations', async () => {
+        const { resource } = await onlineResource(daily, [onlineSong('d0')]);
+        const dailyMode = { read: () => ({ prefersStyle: true, styleSelection: null }), setPrefersStyle: vi.fn(), noteStyleSelection: vi.fn(), subscribe: () => () => {} };
+        const controller = createCollectionMutationController({
+            descriptor: daily, resource, port: fakePort(), currentUserId: 'u1', omni: fakeOmni(), removeCacheEntry: vi.fn(async () => {}), dailyMode,
+        });
+        expect(controller.getSnapshot().dailyStyleShown).toBe(false);
+    });
+
+    it('shares the busy lock with the date switch', async () => {
+        const { resource } = await onlineResource(daily, [onlineSong('d0')]);
+        const songs = deferred<{ songs: SongResult[]; selection: null }>();
+        const omni = styleOmni({ getDailyStyleSongs: vi.fn(() => songs.promise) });
+        const { controller } = setup({ descriptor: daily, resource, omni });
+
+        const first = controller.showDailyStyle();
+        expect(await controller.setDailyDate('2024-01-02')).toEqual({ ok: false, reason: 'busy' });
+        expect(await controller.setDailyStyle({ groupId: '1000', tagIds: ['10004'] })).toEqual({ ok: false, reason: 'busy' });
+        songs.resolve({ songs: [onlineSong('s')], selection: null });
+        expect(await first).toEqual({ ok: true });
+        expect(omni.setDailyStyle).not.toHaveBeenCalled();
     });
 });
 

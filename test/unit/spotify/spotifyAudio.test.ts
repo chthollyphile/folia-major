@@ -4,6 +4,9 @@ import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { onlineFailureOf, stopsPlayback } from '@/services/onlineMusic/failure/onlineFailureCase';
+import { describeSpotifyFailure } from '@/services/onlineMusic/spotify/spotifyFailure';
+import { OnlineProviderError } from '@/types/onlineMusic';
 
 // test/unit/spotify/spotifyAudio.test.ts — the scheme handler that serves Spotify's audio,
 // against a stand-in for Spotify's CDN that holds a file encrypted the way Spotify encrypts one.
@@ -11,6 +14,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 const require = createRequire(import.meta.url);
 const { createSpotifyAudio, counterAt } = require('../../../electron/spotify/audio.cjs');
 const { createSpotifyAudioFiles } = require('../../../electron/spotify/audioFiles.cjs');
+const { toErrorResult } = require('../../../electron/spotify/errors.cjs');
 
 const TRACK = '4cOdK2wGLETKBW3PvgPWqT';
 const KEY = Buffer.from('000102030405060708090a0b0c0d0e0f', 'hex');
@@ -35,8 +39,8 @@ const folder = () => {
 afterEach(() => { folders.splice(0).forEach(made => fs.rmSync(made, { recursive: true, force: true })); });
 
 // The CDN: answers a range of the encrypted file, and refuses the addresses listed in `expired`.
-// With `directory`, files are kept there.
-const setup = ({ file = plainFile(), format = 'OGG_VORBIS_320', directory }: { file?: Buffer; format?: string; directory?: string } = {}) => {
+// With `directory`, files are kept there. Each new connection fails with `fail` until told otherwise.
+const setup = ({ file = plainFile(), format = 'OGG_VORBIS_320', directory, fail = null }: { file?: Buffer; format?: string; directory?: string; fail?: string | null } = {}) => {
     const sealed = encrypt(file);
     const expired = new Set<string>();
     const asked: string[] = [];
@@ -51,7 +55,7 @@ const setup = ({ file = plainFile(), format = 'OGG_VORBIS_320', directory }: { f
     const sessions: any[] = [];
     const openSession = vi.fn(async () => {
         const session = {
-            fail: null as null | string,
+            fail: fail as null | string,
             resolveAudioFileAsync: vi.fn(async () => {
                 if (session.fail) throw new Error(session.fail);
                 located += 1;
@@ -198,6 +202,42 @@ describe('Spotify audio', () => {
         expect(openSession).toHaveBeenCalledTimes(2);
     });
 
+    it('tells a refused key apart: an account never given one stops, one given keys before tries later; a CDN 429 tries later', async () => {
+        const REFUSED_KEY = 'audio key unavailable: Error { kind: Unavailable, error: AesKey }';
+        // What the renderer makes of a failure: the shared case, and whether the queue stops.
+        const shown = async (asking: Promise<unknown>) => {
+            const thrown = await asking.then(() => null, error => error);
+            const { error } = toErrorResult(thrown);
+            const provided = new OnlineProviderError(error.code, error.message, 'spotify');
+            const failure = onlineFailureOf({ operation: 'audio', providerId: 'spotify' }, { error: provided, detail: describeSpotifyFailure('audio', provided) ?? undefined });
+            return { case: failure.case, stops: stopsPlayback(failure, true), message: error.message };
+        };
+
+        const { audio, sessions, openSession, logs, fetch } = setup({ fail: REFUSED_KEY });
+        // No key yet in this run: the account cannot play; no new connection is made for it.
+        expect(await shown(audio.issue(TRACK, 320))).toEqual({ case: 'account-refused', stops: true, message: 'Spotify gives this account no audio key' });
+        expect(openSession).toHaveBeenCalledTimes(1);
+        expect(logs.at(-1)).toMatch(/has given this account no key in this run; the account cannot play here/);
+
+        // A key was given before: Spotify asks to slow down.
+        sessions[0].fail = null;
+        await audio.issue(TRACK, 160);
+        sessions[0].fail = REFUSED_KEY;
+        expect(await shown(audio.issue('1111111111111111111111', 320))).toEqual({ case: 'retry-later', stops: false, message: 'Spotify refused the audio key for now' });
+        expect(openSession).toHaveBeenCalledTimes(1);
+        expect(sessions[0].close).not.toHaveBeenCalled();
+        expect(logs.at(-1)).toMatch(/refused the key after giving keys in this run; asked to try later/);
+
+        // Another account signs in: what the one before was given does not count for it.
+        audio.clear();
+        expect((await shown(audio.issue(TRACK, 320))).case).toBe('account-refused');
+
+        // The CDN answers 429.
+        sessions[1].fail = null;
+        fetch.mockResolvedValueOnce(new Response(null, { status: 429 }));
+        expect(await shown(audio.issue('2222222222222222222222', 320))).toMatchObject({ case: 'retry-later', stops: false });
+    });
+
     it('answers a line that fails as a network error, so that the element asks again', async () => {
         const { audio, get, fetch } = setup();
         const { url } = await audio.issue(TRACK, 320);
@@ -335,5 +375,45 @@ describe('Spotify audio', () => {
         const issued = await bare.audio.issue(TRACK, 320);
         expect(await bare.audio.keep(issued.url, 0)).toBe(false);
         expect(await bare.audio.kept(issued.url)).toBe(false);
+    });
+});
+
+describe('Spotify audio · the key probe after a sign-in', () => {
+    const REFUSED_KEY = 'audio key unavailable: Error { kind: Unavailable, error: AesKey }';
+
+    it('says the account gets keys from the first track that answers, without fetching any audio', async () => {
+        const { audio, fetch, sessions } = setup();
+        await expect(audio.probe([TRACK, '1111111111111111111111'])).resolves.toBe('ok');
+        expect(sessions[0].resolveAudioFileAsync).toHaveBeenCalledTimes(1);
+        expect(fetch).not.toHaveBeenCalled();
+    });
+
+    it('says an account Spotify gives no key, and a refusal after it gave one is no refusal of the account', async () => {
+        const refused = setup({ fail: REFUSED_KEY });
+        await expect(refused.audio.probe([TRACK])).resolves.toBe('no-key');
+
+        const given = setup();
+        await given.audio.issue(TRACK, 160);
+        given.sessions[0].fail = REFUSED_KEY;
+        await expect(given.audio.probe(['1111111111111111111111'])).resolves.toBe('ok');
+    });
+
+    it('passes over a track Spotify has no audio for, and knows nothing from other failures or nothing to ask', async () => {
+        const { audio, sessions } = setup({ fail: 'track is unavailable' });
+        const probing = audio.probe([TRACK, '1111111111111111111111']);
+        await expect(probing).resolves.toBe('unknown');
+        expect(sessions[0].resolveAudioFileAsync).toHaveBeenCalledTimes(2);
+
+        const broken = setup({ fail: 'something else entirely' });
+        await expect(broken.audio.probe([TRACK])).resolves.toBe('unknown');
+        await expect(broken.audio.probe(['not-a-track'])).resolves.toBe('unknown');
+    });
+
+    it('gives up past its limit', async () => {
+        const { audio, sessions, logs } = setup();
+        await audio.issue(TRACK, 160);
+        sessions[0].resolveAudioFileAsync.mockImplementation(() => new Promise(() => { }));
+        await expect(audio.probe(['1111111111111111111111'], 5)).resolves.toBe('unknown');
+        expect(logs.at(-1)).toMatch(/probe took over 5ms/);
     });
 });

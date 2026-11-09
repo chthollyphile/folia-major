@@ -1,6 +1,7 @@
 const { VIDEO_ID } = require('./tiles.cjs');
 const { thumbnailUrl } = require('./catalog.cjs');
 const { describeError, toErrorResult } = require('./errors.cjs');
+const { videoFieldsOf } = require('./songVersion.cjs');
 
 // electron/ytm/webExplore.cjs
 // The explore page of the account of the web sign-in: YouTube Music's own pages as its web
@@ -44,7 +45,13 @@ function entryLeadingTo(endpoint, { name, coverUrl, artists, albumLine }) {
     const album = (Array.isArray(albumLine?.runs) ? albumLine.runs : [])
       .find(run => pageTypeOf(run?.navigationEndpoint) === 'MUSIC_PAGE_TYPE_ALBUM')?.navigationEndpoint.browseEndpoint.browseId;
     // (No entry of these pages says how long its song is.)
-    return { kind: 'song', song: { id: videoId, name, artists, album: { id: album ?? '', name: album ? textOf(albumLine) : '', coverUrl }, durationMs: 0 } };
+    return {
+      kind: 'song',
+      song: {
+        id: videoId, name, artists, album: { id: album ?? '', name: album ? textOf(albumLine) : '', coverUrl }, durationMs: 0,
+        ...videoFieldsOf(endpoint.watchEndpoint),
+      },
+    };
   }
   const played = endpoint.watchPlaylistEndpoint?.playlistId;
   if (played !== undefined) {

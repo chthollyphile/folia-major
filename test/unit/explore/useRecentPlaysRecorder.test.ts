@@ -38,8 +38,19 @@ vi.mock('@/components/app/home/explore/recentPlays', async importOriginal => {
 });
 const accounts = vi.hoisted(() => ({ accounts: {} as Record<string, { user: { id: string | number } | null }> }));
 vi.mock('@/stores/useOnlineProviderAccountStore', () => ({ useOnlineProviderAccountStore: { getState: () => accounts } }));
+const navidrome = vi.hoisted(() => ({ config: null as null | { serverUrl: string; username: string; passwordHash: string } }));
+vi.mock('@/services/navidromeService', () => ({ getNavidromeConfig: () => navidrome.config }));
+// Only the playback route is read: on the HiFi route the song's position is the HiFi media shim's.
+const playback = vi.hoisted(() => ({ state: { playbackRoute: 'web' as 'web' | 'hifi' } }));
+vi.mock('@/stores/usePlaybackStore', () => ({
+    usePlaybackStore: Object.assign(
+        (selector: (state: typeof playback.state) => unknown) => selector(playback.state),
+        { getState: () => playback.state },
+    ),
+}));
 
 const { useRecentPlaysRecorder, RECENT_PLAY_SECONDS, LISTENING_SECONDS_AT_MOST, USUAL_SONG_SECONDS } = await import('@/components/app/home/explore/useRecentPlaysRecorder');
+const { hifiMediaShim } = await import('@/services/hifi/hifiMediaShim');
 
 const song = (id: string, providerId = 'ytm', extra: Partial<SongResult> = {}): SongResult => ({
     id, name: `Song ${id}`, sourceRef: { kind: 'online', providerId, mediaId: id }, ...extra,
@@ -76,6 +87,8 @@ describe('recent plays recorder', () => {
         runtime.effect?.stop?.();
         Object.assign(runtime, { slots: [], cursor: 0, effect: null });
         accounts.accounts = { ytm: { user: { id: 'me' } }, netease: { user: { id: 42 } } };
+        playback.state.playbackRoute = 'web';
+        hifiMediaShim.reset();
     });
 
     it('records a song of an online platform once it has sounded long enough, for the account of that platform', () => {
@@ -261,9 +274,41 @@ describe('recent plays recorder', () => {
         expect(recent.noteSongPlayed).toHaveBeenCalledTimes(2);
     });
 
-    it('records nothing for a song that is of no online platform, nor with nothing playing', () => {
+    it('follows the same song onto the HiFi media shim when only the route changes', () => {
+        const deck = player();
+        let position = 0;
+        hifiMediaShim.setClockReader(() => position);
+        const playing = song('a');
+        render(deck.audio, playing);
+        deck.play(RECENT_PLAY_SECONDS - 1);
+        // The same song goes on through mpv (a restore that adopted it): nothing else changed.
+        playback.state.playbackRoute = 'hifi';
+        hifiMediaShim.beginTrack('online:ytm:a#1');
+        hifiMediaShim.markPlaying();
+        render(deck.audio, playing);
+        deck.play(30);
+        expect(recent.noteSongPlayed).not.toHaveBeenCalled();
+        for (let heard = 0; heard < RECENT_PLAY_SECONDS; heard += 1) {
+            position += 1;
+            hifiMediaShim.dispatchEvent(new Event('timeupdate'));
+        }
+        hifiMediaShim.reset();
+        expect(recent.noteSongPlayed.mock.calls).toEqual([[playing, 'me']]);
+    });
+
+    it('records a local file under no account and a Navidrome song under the user at its server, and nothing of the stage nor with nothing playing', () => {
+        navidrome.config = { serverUrl: 'https://music.example/', username: 'me', passwordHash: '' };
         const { audio, play } = player();
         render(audio, { id: 'file', name: 'A file', durationMs: 20 * 1000, sourceRef: { kind: 'local', mediaId: 'file' } } as unknown as SongResult);
+        play(60);
+        expect(recent.noteSongPlayed).toHaveBeenLastCalledWith(expect.objectContaining({ id: 'file' }), '');
+        render(audio, { id: 'n1', name: 'A Navidrome song', durationMs: 20 * 1000, sourceRef: { kind: 'navidrome', mediaId: 'n1' } } as unknown as SongResult);
+        play(60);
+        expect(recent.noteSongPlayed).toHaveBeenLastCalledWith(expect.objectContaining({ id: 'n1' }), 'me@https://music.example');
+        navidrome.config = null;
+        recent.noteSongPlayed.mockClear();
+        recent.noteSongListened.mockClear();
+        render(audio, { id: 'show', name: 'Another app', durationMs: 20 * 1000, sourceRef: { kind: 'stage', mediaId: 'show' } } as unknown as SongResult);
         play(60);
         render(audio, null);
         play(30);

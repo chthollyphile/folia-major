@@ -43,6 +43,7 @@ export interface BaseGridViewCollectionDescriptor {
     albumArtist?: string;
     albumYear?: number;
     albumGenre?: string;
+    /** 专辑总时长，单位秒（Navidrome 的 album.duration）。 */
     albumDuration?: number;
     albumCompany?: string;
     albumPublishTime?: number;
@@ -56,6 +57,11 @@ export interface LocalGridViewCollectionDescriptor extends BaseGridViewCollectio
     entityId?: string;
     playlistId?: string;
     isVirtual?: boolean;
+    /**
+     * 由集合里的歌推出来的自动封面（宿主在交给集合层的描述上写；没有时为 null）。设了自定义集合封面时 coverUrl 是那张，
+     * 这里仍是自动的：画曲目本身（专辑墙）的地方用它，集合封面不影响集合里的歌。没写（undefined）时就是 coverUrl。
+     */
+    automaticCoverUrl?: string | null;
 }
 
 export interface NavidromeGridViewCollectionDescriptor extends BaseGridViewCollectionDescriptor {

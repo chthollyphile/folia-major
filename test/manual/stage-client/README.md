@@ -34,6 +34,7 @@ Stage API 当前接口清单：
 - `GET /stage/health`
 - `GET /stage/status`
 - `POST /stage/lyrics`
+- `POST /stage/lyrics/clock`
 - `POST /stage/session`
 - `POST /stage/player/search`
 - `POST /stage/player/play`
@@ -61,6 +62,11 @@ Stage API 当前接口清单：
   用于写入一份 parser-compatible 的歌词载荷，让 Folia 按自身歌词解析链接管并更新当前 Stage 歌词状态。
 
   注意这个接口的功能相当于直接播放一个无音频的歌词文件，而不是在当前媒体上下文中附加歌词；如果需要后者，请使用 `POST /stage/session` 上传一个包含内嵌歌词的媒体会话。
+
+  也用来显示另一个播放器正在放的歌：可以不带歌词（只给曲目），带上长度、封面和那个播放器现在的位置（`positionMs`、`paused`），舞台就按那个播放器的时间走。见 [API_SCHEMA.md](./API_SCHEMA.md) 的「接入外部播放器」。
+
+- `POST /stage/lyrics/clock`
+  移动当前歌词会话的时钟（外部播放器播放、暂停、拖动、纠正漂移），不重新载入会话。
 
 - `POST /stage/session`
   用于写入媒体会话数据，可以是 JSON 形式的媒体描述，也可以是 multipart 形式的实际文件上传。
@@ -92,7 +98,7 @@ Stage API 当前接口清单：
 
 补充约束：
 
-- 除 `GET /stage/health` 之外，其余接口都需要 Bearer token
+- 除 `GET /stage/health` 之外，其余接口都需要 Bearer token；本机程序可以从连接文件读到地址和 token（见 [API_SCHEMA.md](./API_SCHEMA.md) 的「连接文件」）
 - `POST /stage/session` 支持 JSON 和 multipart 两种传输方式
 - 上传音频文件时，Folia 会尝试读取内嵌歌词、封面和歌曲 metadata
 - `/stage/status` 只表示外部推送输入状态；播放器真实状态请使用 `/stage/player/status`

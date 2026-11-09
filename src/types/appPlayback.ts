@@ -29,6 +29,24 @@ export type PlaybackNavigationOptions = {
      * the play waited and the play's queue was the store's, so the landing leaves the new queue standing.
      */
     queueRewritten?: () => boolean;
+    /**
+     * Where a local or Navidrome song starts, in seconds, instead of its beginning: the web route's
+     * deck seeks there once its metadata is in, the HiFi route loads mpv there. Set by the HiFi bridge
+     * when it moves the song it was playing to the other engine (a HiFi failure, HiFi switched off, a
+     * replay after the queue ended), so the listener keeps their place. Only onPlayLocalSong and
+     * onPlayNavidromeSong read it.
+     */
+    startAtSec?: number;
+    /**
+     * false: the song is loaded and left paused, as a paused song moved to the other engine stays
+     * paused. Not given: it plays, as every play does. Only onPlayLocalSong and onPlayNavidromeSong read it.
+     */
+    autoplay?: boolean;
+    /**
+     * The play's own progress and success toasts ('loading', 'loaded') are not shown: the toast that
+     * is showing (why the song left HiFi) stays. Only onPlayLocalSong and onPlayNavidromeSong read it.
+     */
+    quietLoadedToast?: boolean;
 };
 
 export type NextTrackOptions = PlaybackNavigationOptions & {
@@ -64,6 +82,8 @@ export type UnavailableReplacementRequest = {
      * `queue` and `isFmCall` stand.
      */
     liveQueue?: () => { queue: SongResult[]; isFmCall: boolean } | null;
+    /** Personal FM was ended from outside since the play that opened it (a switch to another platform): the other version plays without it. */
+    fmEnded?: () => boolean;
 };
 
 export type PlaybackSnapshot = {
@@ -121,6 +141,8 @@ export type WindowPlaybackHandoff = {
     activePlaybackContext: 'main' | 'stage';
     mainPlayback: PlaybackSnapshot | null;
     activePlayback: PlaybackSnapshot | null;
+    /** Provider id → the extra radio on air in it, while FM plays: which radio the queue came from. Its mode choice is not carried. */
+    fmStations?: Record<string, string>;
     stage: WindowPlaybackHandoffStageState;
     nowPlaying: WindowPlaybackHandoffNowPlayingState;
     ui: WindowPlaybackHandoffUiState;

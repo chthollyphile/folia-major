@@ -3,13 +3,17 @@ import { DEFAULT_TEMPERA_TUNING, type TemperaColorMode, type TemperaTuning } fro
 import { Group, PictureGrid, Reveal, Row, type SettingsGroupDef } from '../../modal/settings/kit';
 import type { VisualizerSettingsPanelProps } from '../definition';
 import { SliderRow, times, ToggleRow } from '../panelRows';
+import LyricRenderQualityRows from '../renderQuality/LyricRenderQualityRows';
 import TemperaImageLayerControls from './TemperaImageLayerControls';
 import { resolveTemperaPalette } from './temperaPalette';
 
 // src/components/visualizer/tempera/TemperaSettingsPanel.tsx
-// Keeps Tempera's tuning controls adjacent to the mode implementation: six groups of the settings kit.
+// Keeps Tempera's tuning controls adjacent to the mode implementation: seven groups of the settings kit
+// (渲染一组是分辨率 / 抗锯齿，#929).
 const IMAGE_GROUP: SettingsGroupDef = { id: 'vis-tempera-image', titleKey: 'options.temperaImageSection' };
 const QUALITY_GROUP: SettingsGroupDef = { id: 'vis-tempera-quality', titleKey: 'options.temperaQualitySection' };
+/** 分辨率倍数（乘在上面的纹理分辨率上）与抗锯齿，默认跟随「动画与性能」的全局挡位（#929）。 */
+const RENDER_GROUP: SettingsGroupDef = { id: 'vis-tempera-render', titleKey: 'options.lyricRenderSection' };
 const MOTION_GROUP: SettingsGroupDef = { id: 'vis-tempera-motion', titleKey: 'options.temperaMotionSection' };
 const POST_PROCESS_GROUP: SettingsGroupDef = { id: 'vis-tempera-post-process', titleKey: 'options.temperaPostProcessSection' };
 const LYRIC_GROUP: SettingsGroupDef = { id: 'vis-tempera-lyric', titleKey: 'options.temperaLyricSection' };
@@ -24,6 +28,13 @@ const COLOR_MODES: Array<{ value: TemperaColorMode; labelKey: string }> = [
 const MOTION_CONTROLS: Array<{ key: Extract<keyof TemperaTuning, 'cameraIntensity' | 'glyphMotion'>; labelKey: string }> = [
     { key: 'cameraIntensity', labelKey: 'options.temperaCameraIntensity' },
     { key: 'glyphMotion', labelKey: 'options.temperaGlyphMotion' },
+];
+
+/** 墨染奥行's three strengths; its ink takes the beat effect's own strength in 智能动感. */
+const DEPTH_CONTROLS: Array<{ key: Extract<keyof TemperaTuning, 'depthOfField' | 'depthPan' | 'glyphDepth'>; labelKey: string }> = [
+    { key: 'depthOfField', labelKey: 'options.temperaDepthOfField' },
+    { key: 'depthPan', labelKey: 'options.temperaDepthPan' },
+    { key: 'glyphDepth', labelKey: 'options.temperaGlyphDepth' },
 ];
 
 const POST_PROCESS_CONTROLS: Array<{
@@ -102,6 +113,13 @@ const TemperaSettingsPanel: React.FC<VisualizerSettingsPanelProps<TemperaTuning>
                 <Row notice={t('options.temperaTexturePerformanceWarning')} />
             </Group>
 
+            <Group def={RENDER_GROUP}>
+                <LyricRenderQualityRows
+                    value={temperaTuning.render}
+                    onChange={patch => onTemperaTuningChange?.({ render: { ...temperaTuning.render, ...patch } })}
+                />
+            </Group>
+
             <Group def={MOTION_GROUP}>
                 {MOTION_CONTROLS.map(control => (
                     <SliderRow
@@ -127,6 +145,21 @@ const TemperaSettingsPanel: React.FC<VisualizerSettingsPanelProps<TemperaTuning>
                     format={times}
                     onChange={glyphSettleStretch => onTemperaTuningChange?.({ glyphSettleStretch })}
                 />
+                <Row label={t('options.temperaDepthStrength')} hint={t('options.temperaDepthStrengthHint')} />
+                {DEPTH_CONTROLS.map(control => (
+                    <SliderRow
+                        {...drag}
+                        sub
+                        key={control.key}
+                        label={t(control.labelKey)}
+                        value={temperaTuning[control.key]}
+                        min={0}
+                        max={2}
+                        step={0.05}
+                        format={times}
+                        onChange={value => onTemperaTuningChange?.({ [control.key]: value })}
+                    />
+                ))}
                 <Row
                     label={t('options.temperaColorMode')}
                     below={(

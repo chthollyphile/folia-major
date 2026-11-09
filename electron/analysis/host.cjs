@@ -2,6 +2,7 @@ const { modelsPresent, resolveModelFile } = require('./modelPaths.cjs');
 const { unpackWeights } = require('./packedWeights.cjs');
 const { poolFits, requestThreads } = require('./threads.cjs');
 const { runtimeLine } = require('../debug/debugHost.cjs');
+const { createSenderGuardedHandler } = require('../ipcAccessGuard.cjs');
 const fs = require('fs');
 const path = require('path');
 
@@ -50,7 +51,12 @@ const CRASHED = Symbol('crashed');
  * @param getModelsDir the installer's models directory (in a dev checkout, the repo's models/), which
  *   holds both models (modelPaths.cjs).
  */
-const createAnalysisHost = ({ app, ipcMain, getModelsDir, idleMs = IDLE_MS }) => {
+const createAnalysisHost = ({ app, ipcMain, getModelsDir, isTrustedSender, idleMs = IDLE_MS }) => {
+    // 只给第一方窗口（主窗口、遥控窗口）：判断由宿主 main.cjs 注入，没注入时按不可信处理（fail closed）。
+    // 单向的 send 通道对不可信来源静默忽略：监听函数里抛错会变成主进程的未捕获异常。
+    const isTrusted = event => typeof isTrustedSender === 'function' && isTrustedSender(event);
+    const firstParty = (channel, handler) => createSenderGuardedHandler({ channel, isTrusted, handler });
+    const firstPartyEvent = (channel, handler) => createSenderGuardedHandler({ channel, isTrusted, handler, onUntrusted: () => undefined });
     const modelsDirs = () => [getModelsDir?.()].filter(Boolean);
 
     let child = null;
@@ -224,17 +230,17 @@ const createAnalysisHost = ({ app, ipcMain, getModelsDir, idleMs = IDLE_MS }) =>
         return answer === CRASHED ? { result: null, reason: 'the analysis worker died twice in a row' } : answer;
     };
 
-    ipcMain.handle('automix-beat-this', async (_event, chunks) => (await ask('beat-this', chunks)).result);
+    ipcMain.handle('automix-beat-this', firstParty('automix-beat-this', async (_event, chunks) => (await ask('beat-this', chunks)).result));
     /**
      * The stems, or `{ declined }` with the worker's reason when it ran nothing. The reason crosses over
      * because the worker's own log goes to this process's stdout, which the renderer's console - where
      * the listener looks - never shows: a library that would not load used to read there as a
      * separation that never finished.
      */
-    ipcMain.handle('automix-htdemucs', async (_event, request) => {
+    ipcMain.handle('automix-htdemucs', firstParty('automix-htdemucs', async (_event, request) => {
         const { result, reason } = await ask('htdemucs', request);
         return result ?? { declined: reason || 'the worker gave no reason' };
-    });
+    }));
 
     /**
      * Automix switched on or off, from the renderer - on mount and on every change.
@@ -251,7 +257,7 @@ const createAnalysisHost = ({ app, ipcMain, getModelsDir, idleMs = IDLE_MS }) =>
         automixEnabled = enabled;
         if (!enabled && child) void send('release', null);
     };
-    ipcMain.on('automix-enabled', (_event, enabled) => setAutomixEnabled(enabled === true));
+    ipcMain.on('automix-enabled', firstPartyEvent('automix-enabled', (_event, enabled) => setAutomixEnabled(enabled === true)));
 
     /**
      * A WebGPU export - beat_this's, or htdemucs' (asked for as 'htdemucs') - for the renderer to run on
@@ -302,7 +308,7 @@ const createAnalysisHost = ({ app, ipcMain, getModelsDir, idleMs = IDLE_MS }) =>
 
     // Renderer stage marks - the automix session's own timeline, which is worth having beside the
     // worker's lines rather than only in the renderer's console buffer. See services/automix/diag.ts.
-    ipcMain.on('automix-diag', (_event, text) => runtimeLine('automix', String(text)));
+    ipcMain.on('automix-diag', firstPartyEvent('automix-diag', (_event, text) => runtimeLine('automix', String(text))));
 
     app?.on('will-quit', () => { quitting = true; stop(); });
 

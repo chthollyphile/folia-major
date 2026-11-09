@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useAppChromeStore } from '../stores/useAppChromeStore';
 import { usePlayerChromeSettingsStore } from '../stores/usePlayerChromeSettingsStore';
 import { isWithinClickThroughUnlockHotspot } from '../utils/clickThroughUnlockHotspot';
@@ -16,6 +16,7 @@ import { useClickThroughPointerLock } from './useClickThroughPointerLock';
 // chrome store, which they already go through.
 
 export const useElectronWindowChrome = () => {
+    const lastPointer = useRef<{ screenX: number; clientX: number } | undefined>(undefined);
     const isElectronWindow = Boolean((window as typeof window & { electron?: unknown; }).electron);
     const transparentPlayerBackground = usePlayerChromeSettingsStore(state => state.transparentPlayerBackground);
     const enablePlayerPageNativeBlur = usePlayerChromeSettingsStore(state => state.enablePlayerPageNativeBlur);
@@ -23,6 +24,19 @@ export const useElectronWindowChrome = () => {
     const isMainWindowClickThroughEnabled = useAppChromeStore(state => state.isMainWindowClickThroughEnabled);
     const setIsMainWindowClickThroughEnabled = useAppChromeStore(state => state.setIsMainWindowClickThroughEnabled);
     const setIsClickThroughToggleHotspotActive = useAppChromeStore(state => state.setIsClickThroughToggleHotspotActive);
+
+    useEffect(() => {
+        if (window.electron?.platform !== 'darwin') return;
+        const rememberPointer = (event: MouseEvent) => {
+            lastPointer.current = { screenX: event.screenX, clientX: event.clientX };
+        };
+        window.addEventListener('mousemove', rememberPointer);
+        window.addEventListener('mousedown', rememberPointer);
+        return () => {
+            window.removeEventListener('mousemove', rememberPointer);
+            window.removeEventListener('mousedown', rememberPointer);
+        };
+    }, []);
 
     useEffect(() => {
         const body = document.body;
@@ -80,6 +94,14 @@ export const useElectronWindowChrome = () => {
             setIsClickThroughToggleHotspotActive(false);
             void window.electron?.setMainWindowClickThroughUnlockHover?.(false);
             return;
+        }
+
+        if (window.electron.platform === 'darwin') {
+            // The main process polls the real cursor, even while another window receives clicks.
+            const syncViewport = () => void window.electron!.setMainWindowClickThroughUnlockHover(false, window.innerWidth, lastPointer.current);
+            syncViewport();
+            window.addEventListener('resize', syncViewport);
+            return () => window.removeEventListener('resize', syncViewport);
         }
 
         const syncToggleHotspot = (active: boolean) => {

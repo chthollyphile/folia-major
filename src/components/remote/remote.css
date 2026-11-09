@@ -27,6 +27,15 @@
   line-height: normal;
   -webkit-font-smoothing: antialiased;
   user-select: none;
+  transition: opacity 140ms ease-out;
+}
+
+/* The window's top edge is moving to show or hide the queue above the card (useRemoteQueue): the
+   compositor would show the last frame at the new spot, so nothing is drawn until the page has
+   laid itself out at the new size. */
+.remote-window[data-shifting='true'] {
+  opacity: 0;
+  transition: opacity 90ms ease-out;
 }
 
 .remote-window[data-theme='light'] {
@@ -80,6 +89,19 @@
   height: 176px;
   margin: -88px 0 0 -297px;
   color: rgb(var(--remote-ink));
+}
+
+/* Grown to show the queue (RemoteQueue.css): the card keeps to the edge away from it. At the
+   window's own height that is where it already is, so the side is set before the window grows. */
+.remote-window[data-queue='down'] .remote-card {
+  top: 4px;
+  margin-top: 0;
+}
+
+.remote-window[data-queue='up'] .remote-card {
+  top: auto;
+  bottom: 4px;
+  margin-top: 0;
 }
 
 /* Everything of the card in use, at the place and size it has always had. */
@@ -160,9 +182,11 @@
   background: linear-gradient(180deg, rgba(9, 9, 13, 0.46) 0%, rgba(9, 9, 13, 0.7) 100%);
 }
 
-/* Transparent: no card. A page in a transparent window cannot blur what is behind the window,
-   so the idle type (in the sleeve or not) sits on a soft dark shade, and a dark base comes up for
-   the card in use. */
+/* Transparent: no card. The idle type (in the sleeve or not) stands on what is behind the window
+   with only its own thin shadow, and a dark base comes up for the card in use. */
+
+/* The settings switch "text shade" (off by default). A page in a transparent window cannot blur
+   what is behind the window, so with it on the idle type sits on a soft dark shade. */
 .remote-cloud {
   position: absolute;
   border-radius: 26px;
@@ -273,7 +297,8 @@
   border-radius: 48px;
   overflow: hidden;
   background: rgba(var(--remote-ink), 0.1);
-  transition: transform 300ms var(--remote-snap), border-radius 300ms var(--remote-snap);
+  transition: transform 300ms var(--remote-snap), border-radius 300ms var(--remote-snap),
+    box-shadow 300ms var(--remote-snap);
 }
 
 .remote-cover::after {
@@ -297,7 +322,8 @@
 .remote-window[data-sleeve='true'] .remote-cover {
   transform: none;
   border-radius: 18px 0 0 18px;
-  transition: transform 560ms var(--remote-settle) 60ms, border-radius 560ms var(--remote-settle) 60ms;
+  transition: transform 560ms var(--remote-settle) 60ms, border-radius 560ms var(--remote-settle) 60ms,
+    box-shadow 560ms var(--remote-settle) 60ms;
 }
 
 .remote-window[data-sleeve='true'] .remote-cover::after {
@@ -305,13 +331,16 @@
   transition: box-shadow 560ms var(--remote-settle) 60ms;
 }
 
-/* No card around it in the sleeve: rounded all round, and lifted off what is behind the window. */
+/* No card around it: lifted off what is behind the window. */
 .remote-window[data-bg='transparent'] .remote-cover {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.32);
 }
 
+/* In the sleeve rounded all round. The window leaves it 4 px, which would cut that shadow square,
+   so it keeps only the type's thin shadow (on .remote-song). */
 .remote-window[data-bg='transparent'][data-sleeve='true'] .remote-cover {
   border-radius: 18px;
+  box-shadow: none;
 }
 
 .remote-cover__face,
@@ -567,7 +596,11 @@
   padding-bottom: 2px;
 }
 
-.remote-lyric__word[data-fill='part'] {
+/* Every piece is painted the same way, sung, unsung or in between: text drawn as a clip of its
+   background is smoothed otherwise than text drawn in a colour, so a piece that changed between the
+   two at the start and the end of its fill looked a little different there. */
+.remote-lyric__word,
+.remote-lyric__gap {
   color: transparent;
   background-image: linear-gradient(
     90deg,
@@ -578,8 +611,6 @@
   background-clip: text;
 }
 
-.remote-lyric__word[data-fill='full'],
-.remote-lyric__gap[data-fill='full'],
 .remote-lyric__whole {
   color: var(--remote-sung);
 }

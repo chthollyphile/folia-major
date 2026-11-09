@@ -255,7 +255,15 @@ const flushPageStorage = () => require('electron').session.defaultSession.flushS
  *        The file is still written; only the interruption is withheld while recovery runs.
  * @param flushStorage asks for the pages' storage to be written before the app exits.
  */
-const installCrashHandlers = ({ app, crashLog, isRendererCrashRecovered = () => false, flushStorage = flushPageStorage }) => {
+const installCrashHandlers = ({
+    app,
+    crashLog,
+    isRendererCrashRecovered = () => false,
+    flushStorage = flushPageStorage,
+    // Runs right before the exit below: app.exit() skips before-quit and will-quit, so children
+    // that would outlive the app (HiFi's mpv) are killed here.
+    beforeExit = () => {},
+}) => {
     // A shutdown is not a crash: renderers legitimately go away while the app exits, and a modal
     // put up over a closing window is one nobody can act on. Tracked here rather than read off
     // main's own quit flag, so installing this needs nothing but `app`.
@@ -271,6 +279,9 @@ const installCrashHandlers = ({ app, crashLog, isRendererCrashRecovered = () => 
         try {
             flushStorage();
         } catch { /* before the app is ready, or outside Electron: nothing to write */ }
+        try {
+            beforeExit();
+        } catch { /* the exit below must still happen */ }
         app.exit(1);
     });
 

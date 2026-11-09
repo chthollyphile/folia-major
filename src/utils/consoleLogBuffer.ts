@@ -52,6 +52,9 @@ const format = (value: unknown): string => {
         const seen = new WeakSet<object>();
         return JSON.stringify(value, (_key, item: unknown) => {
             if (typeof item !== 'object' || item === null) return item;
+            // An Error (a DOMException too) inside an object: its name and message are on the
+            // prototype, so JSON.stringify would write `{}` - a failed setSinkId logged as "error":{}.
+            if (item instanceof Error) return `${item.name}: ${item.message}`;
             if (seen.has(item)) return '[circular]';
             seen.add(item);
             return item;

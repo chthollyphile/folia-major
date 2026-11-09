@@ -30,6 +30,6 @@ describe('a mode\'s beat effects in its settings', () => {
     });
 
     it('is nothing for a mode with no effects', () => {
-        expect(render('tempera')).toBe('');
+        expect(render('partita')).toBe('');
     });
 });

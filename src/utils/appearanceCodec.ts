@@ -1,3 +1,4 @@
+import { normalizeNowPlayingCardPosition } from './nowPlayingCardPosition';
 import {
     DEFAULT_CLADDAGH_TUNING,
     DEFAULT_DIORAMA_TUNING,
@@ -15,6 +16,10 @@ import {
 } from '../types';
 import { normalizeRandomVisualizerModes } from './randomVisualizerModes';
 import { normalizeLumiereTuning } from './lumiereTuning';
+import { normalizeLyricRenderQuality } from './lyricRenderQuality';
+
+/** 配置的一层字段，按名字读写；新加的字段用它，不再往 any 上加。 */
+type ConfigFields = Record<string, unknown>;
 
 // src/utils/appearanceCodec.ts
 // The shareable appearance config codec: theme + visual settings <-> the minified `folia-theme://`
@@ -416,19 +421,20 @@ const decompressSonnet = (o: any): any => ({
 // 智能动感模式 is one setting for every visualizer, not a Sonnet tuning, so it has its own key. Its
 // mode is `md` ('off' | 'cached' | 'on'); `on` is the one switch a build before the modes reads
 // (toStoredSmartBeat), and a config from such a build has only it. Each effect's setting is
-// `[on ? 1 : 0, strength]`; a config from before effects had their own carries the shared
+// `[on ? 1 : 0, strength]`, with its part strengths after for an effect that has them
+// (`[on, strength, { part: strength }]`); a config from before effects had their own carries the shared
 // 轻拍 / 重拍 pair (`bi` / `dbi`). Both legacy forms are passed on for the store to fold
 // (resolveSmartBeatSettings).
 const compressSmartBeat = (t: any): any => ({
     ...(t.mode !== undefined ? { md: t.mode } : {}),
     on: t.enabled ?? t.mode === 'on',
-    ef: Object.fromEntries(Object.entries(t.effects ?? {}).map(([id, e]: [string, any]) => [id, [e.on ? 1 : 0, e.strength]])),
+    ef: Object.fromEntries(Object.entries(t.effects ?? {}).map(([id, e]: [string, any]) => [id, e.parts ? [e.on ? 1 : 0, e.strength, e.parts] : [e.on ? 1 : 0, e.strength]])),
 });
 const decompressSmartBeat = (o: any): any => ({
     ...(o.md !== undefined ? { mode: o.md } : {}),
     enabled: o.on !== undefined ? o.on : DEFAULT_SMART_BEAT_SETTINGS.mode === 'on',
     ...(o.ef && typeof o.ef === 'object'
-        ? { effects: Object.fromEntries(Object.entries(o.ef).map(([id, e]: [string, any]) => [id, Array.isArray(e) ? { on: e[0] === 1, strength: e[1] } : e])) }
+        ? { effects: Object.fromEntries(Object.entries(o.ef).map(([id, e]: [string, any]) => [id, Array.isArray(e) ? { on: e[0] === 1, strength: e[1], ...(e[2] && typeof e[2] === 'object' ? { parts: e[2] } : {}) } : e])) }
         : {}),
     ...(o.bi !== undefined ? { beatIntensity: o.bi } : {}),
     ...(o.dbi !== undefined ? { downbeatIntensity: o.dbi } : {}),
@@ -439,6 +445,9 @@ const compressTempera = (t: any): any => ({
     gm: t.glyphMotion,
     wll: t.wholeLineLyrics,
     gss: t.glyphSettleStretch,
+    dof: t.depthOfField,
+    dpn: t.depthPan,
+    gd: t.glyphDepth,
     cm: t.colorMode,
     sb: t.showBlocks,
     sd: t.showDecor,
@@ -462,6 +471,9 @@ const decompressTempera = (o: any): any => ({
     glyphMotion: o.gm !== undefined ? o.gm : DEFAULT_TEMPERA_TUNING.glyphMotion,
     wholeLineLyrics: o.wll !== undefined ? o.wll : DEFAULT_TEMPERA_TUNING.wholeLineLyrics,
     glyphSettleStretch: o.gss !== undefined ? o.gss : DEFAULT_TEMPERA_TUNING.glyphSettleStretch,
+    depthOfField: o.dof !== undefined ? o.dof : DEFAULT_TEMPERA_TUNING.depthOfField,
+    depthPan: o.dpn !== undefined ? o.dpn : DEFAULT_TEMPERA_TUNING.depthPan,
+    glyphDepth: o.gd !== undefined ? o.gd : DEFAULT_TEMPERA_TUNING.glyphDepth,
     colorMode: o.cm !== undefined ? o.cm : DEFAULT_TEMPERA_TUNING.colorMode,
     showBlocks: o.sb !== undefined ? o.sb : DEFAULT_TEMPERA_TUNING.showBlocks,
     showDecor: o.sd !== undefined ? o.sd : DEFAULT_TEMPERA_TUNING.showDecor,
@@ -536,9 +548,12 @@ export const compressConfig = (config: any): string => {
     if (config.disableVisualizerVignette !== undefined) minified.dvv = config.disableVisualizerVignette;
     if (config.staticMode !== undefined) minified.stm = config.staticMode;
     if (config.visualizerOpacity !== undefined) minified.vo = config.visualizerOpacity;
+    // 新字段按类型写（config、minified 是 any，老字段的写法是旧账）
+    if ((config as ConfigFields).lyricRenderQuality !== undefined) (minified as ConfigFields).lrq = (config as ConfigFields).lyricRenderQuality;
     if (config.hidePlayerTranslationSubtitle !== undefined) minified.hpts = config.hidePlayerTranslationSubtitle;
     if (config.showSubtitleTranslation !== undefined) minified.sst = config.showSubtitleTranslation;
     if (config.subtitleContentMode !== undefined) minified.scm = config.subtitleContentMode;
+    if (config.subtitleOverlayLayout !== undefined) minified.sovl = config.subtitleOverlayLayout;
     if (config.subtitleOverlayBackground !== undefined) minified.sob = config.subtitleOverlayBackground;
     if (config.subtitleUpcomingLyricsBlur !== undefined) minified.sulb = config.subtitleUpcomingLyricsBlur;
     if (config.subtitleOverlayOpacity !== undefined) minified.soo = config.subtitleOverlayOpacity;
@@ -588,12 +603,17 @@ export const compressConfig = (config: any): string => {
     if (config.stageTrackPillMode !== undefined) minified.stp = config.stageTrackPillMode;
     if (config.stageTrackPillTimeoutSec !== undefined) minified.stpt = config.stageTrackPillTimeoutSec;
     if (config.stageTrackPillOnHome !== undefined) minified.stph = config.stageTrackPillOnHome;
+    if (config.stageTrackPillInObs !== undefined) minified.stpo = config.stageTrackPillInObs;
+    if (config.stageTrackPillPosition !== undefined) minified.stpp = normalizeNowPlayingCardPosition(config.stageTrackPillPosition);
     if (config.libraryWallStackEdges !== undefined) minified.lwse = config.libraryWallStackEdges;
     if (config.libraryWallSeamClear !== undefined) minified.lwsc = config.libraryWallSeamClear;
     if (config.libraryWallSeamStyle !== undefined) minified.lwss = config.libraryWallSeamStyle;
     if (config.libraryWallBackdropLyrics !== undefined) minified.lwbl = config.libraryWallBackdropLyrics;
     if (config.libraryWallBackdropBlur !== undefined) minified.lwbb = config.libraryWallBackdropBlur;
     if (config.libraryWallSeamDirection !== undefined) minified.lwsd = config.libraryWallSeamDirection;
+    if (config.latticeBadgeCurrentOnly !== undefined) minified.lbco = config.latticeBadgeCurrentOnly;
+    if (config.playerHeaderBlur !== undefined) minified.phb = config.playerHeaderBlur;
+    if (config.scratchpadHandleStyle !== undefined) minified.sphs = config.scratchpadHandleStyle;
 
     const jsonStr = JSON.stringify(minified);
     const bytes = new TextEncoder().encode(jsonStr);
@@ -659,13 +679,20 @@ export const decompressConfig = (str: string): any => {
         || parsed.stp !== undefined
         || parsed.stpt !== undefined
         || parsed.stph !== undefined
+        || parsed.stpp !== undefined
+        || parsed.stpo !== undefined
         // The bravais wall's collection stack edges, info strip and backdrop, for the same reason.
         || parsed.lwse !== undefined
         || parsed.lwsc !== undefined
         || parsed.lwss !== undefined
         || parsed.lwbl !== undefined
         || parsed.lwbb !== undefined
-        || parsed.lwsd !== undefined;
+        || parsed.lwsd !== undefined
+        // Numbering only the playing song on both tile walls (#930), for the same reason.
+        || parsed.lbco !== undefined
+        || parsed.phb !== undefined
+        // The scratchpad side tab's resting look, for the same reason.
+        || parsed.sphs !== undefined;
     if (isMinified) {
         const decompressed: any = {};
         if (parsed.t) {
@@ -686,9 +713,12 @@ export const decompressConfig = (str: string): any => {
         if (parsed.dvv !== undefined) decompressed.disableVisualizerVignette = parsed.dvv;
         if (parsed.stm !== undefined) decompressed.staticMode = parsed.stm;
         if (parsed.vo !== undefined) decompressed.visualizerOpacity = parsed.vo;
+        const lrq: unknown = (parsed as { lrq?: unknown }).lrq;
+        if (lrq !== undefined) (decompressed as Record<string, unknown>).lyricRenderQuality = normalizeLyricRenderQuality(lrq);
         if (parsed.hpts !== undefined) decompressed.hidePlayerTranslationSubtitle = parsed.hpts;
         if (parsed.sst !== undefined) decompressed.showSubtitleTranslation = parsed.sst;
         if (parsed.scm !== undefined) decompressed.subtitleContentMode = parsed.scm;
+        if (parsed.sovl !== undefined) decompressed.subtitleOverlayLayout = parsed.sovl;
         if (parsed.sob !== undefined) decompressed.subtitleOverlayBackground = parsed.sob;
         if (parsed.sulb !== undefined) decompressed.subtitleUpcomingLyricsBlur = parsed.sulb;
         if (parsed.soo !== undefined) decompressed.subtitleOverlayOpacity = parsed.soo;
@@ -737,12 +767,17 @@ export const decompressConfig = (str: string): any => {
         if (parsed.stp !== undefined) decompressed.stageTrackPillMode = parsed.stp;
         if (parsed.stpt !== undefined) decompressed.stageTrackPillTimeoutSec = parsed.stpt;
         if (parsed.stph !== undefined) decompressed.stageTrackPillOnHome = parsed.stph;
+        if (parsed.stpo !== undefined) decompressed.stageTrackPillInObs = parsed.stpo;
+        if (parsed.stpp !== undefined) decompressed.stageTrackPillPosition = normalizeNowPlayingCardPosition(parsed.stpp);
         if (parsed.lwse !== undefined) decompressed.libraryWallStackEdges = parsed.lwse;
         if (parsed.lwsc !== undefined) decompressed.libraryWallSeamClear = parsed.lwsc;
         if (parsed.lwss !== undefined) decompressed.libraryWallSeamStyle = parsed.lwss;
         if (parsed.lwbl !== undefined) decompressed.libraryWallBackdropLyrics = parsed.lwbl;
         if (parsed.lwbb !== undefined) decompressed.libraryWallBackdropBlur = parsed.lwbb;
         if (parsed.lwsd !== undefined) decompressed.libraryWallSeamDirection = parsed.lwsd;
+        if (parsed.lbco !== undefined) decompressed.latticeBadgeCurrentOnly = parsed.lbco;
+        if (parsed.phb !== undefined) decompressed.playerHeaderBlur = parsed.phb;
+        if (parsed.sphs !== undefined) decompressed.scratchpadHandleStyle = parsed.sphs;
 
         return decompressed;
     } else {
@@ -751,8 +786,8 @@ export const decompressConfig = (str: string): any => {
         const validKeys = [
             'theme', 'visualizerMode', 'randomVisualizerModePerSong', 'randomVisualizerModes', 'visualizerBackgroundMode', 'backgroundOpacity',
             'useCoverColorBg', 'disableVisualizerGeometricBackground', 'disableVisualizerVignette', 'staticMode',
-            'visualizerOpacity', 'hidePlayerTranslationSubtitle', 'showSubtitleTranslation', 'subtitleContentMode',
-            'subtitleOverlayBackground', 'subtitleUpcomingLyricsBlur', 'subtitleOverlayOpacity',
+            'visualizerOpacity', 'lyricRenderQuality', 'hidePlayerTranslationSubtitle', 'showSubtitleTranslation', 'subtitleContentMode',
+            'subtitleOverlayLayout', 'subtitleOverlayBackground', 'subtitleUpcomingLyricsBlur', 'subtitleOverlayOpacity',
             'showHarmonySubtitle', 'harmonySubtitleBackground',
             'lyricsFontStyle', 'lyricsFontScale', 'lyricsFontWeight', 'lyricsFontFallbackFamilies',
             'subtitleFontInheritsLyrics', 'subtitleFontScale', 'subtitleFontStyle', 'subtitleFontWeight', 'subtitleFontFamily',
@@ -762,11 +797,15 @@ export const decompressConfig = (str: string): any => {
             'pendoloTuning', 'sonnetTuning', 'smartBeat', 'temperaTuning', 'lumiereTuning', 'foliumParams',
             'urlBackgroundList', 'urlBackgroundSelectedId',
             'songThemeAutoSwitchEnabled', 'songThemeAutoGenerateEnabled', 'themeGenerationSource', 'followSystemTheme',
-            'stageTrackPillMode', 'stageTrackPillTimeoutSec', 'stageTrackPillOnHome',
+            'stageTrackPillMode', 'stageTrackPillTimeoutSec', 'stageTrackPillOnHome', 'stageTrackPillPosition',
+            'stageTrackPillInObs',
             'libraryWallStackEdges',
             'libraryWallSeamClear', 'libraryWallSeamStyle', 'libraryWallBackdropLyrics', 'libraryWallBackdropBlur',
             'libraryWallSeamDirection',
             'sceneId', 'sceneOptions',
+            'latticeBadgeCurrentOnly',
+            'playerHeaderBlur',
+            'scratchpadHandleStyle',
         ];
         const hasValidKey = validKeys.some(k => parsed[k] !== undefined);
         if (!hasValidKey) {
@@ -774,6 +813,9 @@ export const decompressConfig = (str: string): any => {
         }
         if (parsed.randomVisualizerModes !== undefined) {
             parsed.randomVisualizerModes = normalizeRandomVisualizerModes(parsed.randomVisualizerModes);
+        }
+        if (parsed.stageTrackPillPosition !== undefined) {
+            parsed.stageTrackPillPosition = normalizeNowPlayingCardPosition(parsed.stageTrackPillPosition);
         }
         return parsed;
     }

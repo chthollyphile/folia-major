@@ -81,7 +81,7 @@ const LibraryTuiAccount: React.FC<LibraryAccountSurfaceProps> = ({ account, them
         onKey: (key) => {
             if (!pendingSwitch) return false;
             const requestId = pendingSwitch.request.id;
-            // 不 await：controller 同步清掉待确认请求，层随之收起；清空播放器与读账号在后台走完。
+            // 不 await：controller 同步清掉待确认请求，层随之收起；离开旧平台与读账号在后台走完。
             if (key === 'Enter') void account.confirmSwitch(requestId);
             else if (key === 'Escape') account.cancelSwitch(requestId);
             else return false;

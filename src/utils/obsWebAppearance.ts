@@ -1,12 +1,15 @@
-import type { SubtitleContentMode, Theme, VisualizerMode } from '../types';
+import type { LyricRenderQuality, SubtitleContentMode, SubtitleOverlayLayout, Theme, VisualizerMode } from '../types';
 import type { VisualizerTuningBundle } from '../components/visualizer/tuningRegistry';
 import type { VisualizerBackgroundConfig } from '../components/visualizer/backgrounds/definition';
 // OBS 覆盖层不加载 mods（initModVisualizers 需要 Electron 桥接，web 上是 no-op），
 // 所以短码里的模式只可能是内建的。
 import { DEFAULT_VISUALIZER_MODE, isBuiltinVisualizerMode } from '../types/visualizerModes';
 import { decompressConfig } from './appearanceCodec';
+import { parseSubtitleOverlayLayout } from './lyrics/subtitleOverlayLayout';
+import { normalizeLyricRenderQuality } from './lyricRenderQuality';
 import type { ObsAiConfig } from '../services/aiText';
 import { getWebAiProvider } from '../services/runtimeConfig';
+import { resolveObsNowPlayingCard, type ObsNowPlayingCardConfig } from './obsNowPlayingCard';
 
 // src/utils/obsWebAppearance.ts
 // Parse the OBS URL params (including the appearance cfg shortcode) into the appearance
@@ -32,6 +35,7 @@ export interface ObsWebParams {
   transparent: boolean;
   visualizer: string; // single-mode override (empty = use the cfg's mode)
   themeMode: ObsThemeMode | null; // null = link predates the marker; infer from cfg instead
+  language: string | null; // Folia's UI language when the link was copied; null = OBS's own
 }
 
 export interface ObsWebAppearance {
@@ -48,9 +52,12 @@ export interface ObsWebAppearance {
   hideTranslationSubtitle?: boolean;
   showSubtitleTranslation?: boolean;
   subtitleContentMode?: SubtitleContentMode;
+  subtitleOverlayLayout?: SubtitleOverlayLayout;
   subtitleOverlayBackground?: boolean;
   subtitleUpcomingLyricsBlur?: boolean;
   subtitleOverlayOpacity?: number;
+  /** 歌词画布的分辨率与抗锯齿；配置码里没有时是 undefined，OBS 页面用默认。 */
+  lyricRenderQuality?: LyricRenderQuality;
   showHarmonySubtitle?: boolean;
   harmonySubtitleBackground?: boolean;
   // Font stack (raw store fields; overlaid onto the theme in ObsWebSourceApp so fonts match the
@@ -64,6 +71,8 @@ export interface ObsWebAppearance {
   subtitleFontFamily?: string | null;
   subtitleFontFallbackFamilies?: string[];
   background: VisualizerBackgroundConfig;
+  // The now playing card, when the cfg asks for it in the browser source; null draws none.
+  nowPlayingCard: ObsNowPlayingCardConfig | null;
 }
 
 export function parseObsWebParams(search: string): ObsWebParams {
@@ -80,6 +89,7 @@ export function parseObsWebParams(search: string): ObsWebParams {
     transparent: params.get('transparent') === '1',
     visualizer: params.get('visualizer')?.trim() || '',
     themeMode: readObsThemeMode(params),
+    language: params.get('lang')?.trim() || null,
   };
 }
 
@@ -99,6 +109,12 @@ interface BuildAppearanceOptions {
   visualizerOverride?: string;
   themeMode?: ObsThemeMode | null;
 }
+
+/** 配置码里的歌词画布分辨率与抗锯齿，读成合法值；没有这一项是 undefined（OBS 页面用默认）。 */
+const readLyricRenderQuality = (decoded: unknown): LyricRenderQuality | undefined => {
+  const raw = decoded && typeof decoded === 'object' ? (decoded as { lyricRenderQuality?: unknown }).lyricRenderQuality : undefined;
+  return raw ? normalizeLyricRenderQuality(raw) : undefined;
+};
 
 export function buildObsAppearanceFromShortcode(
   cfg: string | null,
@@ -166,9 +182,12 @@ export function buildObsAppearanceFromShortcode(
     hideTranslationSubtitle: decoded?.hidePlayerTranslationSubtitle,
     showSubtitleTranslation: decoded?.showSubtitleTranslation,
     subtitleContentMode: decoded?.subtitleContentMode,
+    subtitleOverlayLayout: parseSubtitleOverlayLayout(decoded?.subtitleOverlayLayout) ?? undefined,
     subtitleOverlayBackground: decoded?.subtitleOverlayBackground,
     subtitleUpcomingLyricsBlur: decoded?.subtitleUpcomingLyricsBlur,
     subtitleOverlayOpacity: decoded?.subtitleOverlayOpacity,
+    // 配置码可能是手改的 JSON：读成合法值再交出去（渲染器直接用它算像素密度）
+    lyricRenderQuality: readLyricRenderQuality(decoded),
     showHarmonySubtitle: decoded?.showHarmonySubtitle,
     harmonySubtitleBackground: decoded?.harmonySubtitleBackground,
     lyricsFontStyle: decoded?.lyricsFontStyle,
@@ -182,5 +201,11 @@ export function buildObsAppearanceFromShortcode(
     subtitleFontFamily: decoded?.subtitleFontFamily,
     subtitleFontFallbackFamilies: Array.isArray(decoded?.subtitleFontFallbackFamilies) ? decoded.subtitleFontFallbackFamilies : undefined,
     background,
+    nowPlayingCard: resolveObsNowPlayingCard({
+      inObs: decoded?.stageTrackPillInObs,
+      mode: decoded?.stageTrackPillMode,
+      timeoutSec: decoded?.stageTrackPillTimeoutSec,
+      position: decoded?.stageTrackPillPosition,
+    }),
   };
 }

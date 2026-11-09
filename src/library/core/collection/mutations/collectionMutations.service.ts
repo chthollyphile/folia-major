@@ -1,5 +1,11 @@
 import type { SongResult, UnifiedSong } from '../../../../types';
-import type { OmniCollection, OmniProviderId, ProviderCapabilities } from '../../../../types/onlineMusic';
+import type {
+    DailyStyleGroup,
+    DailyStyleSelection,
+    OmniCollection,
+    OmniProviderId,
+    ProviderCapabilities,
+} from '../../../../types/onlineMusic';
 import type {
     CollectionMutationBranches,
     CollectionMutationCapabilities,
@@ -23,6 +29,7 @@ import {
 } from './collectionMutationCapabilities';
 import { getProviderCacheKey } from '../../../../services/onlineMusic/providerStorage';
 import { isCloudDriveCollection } from '../collectionIdentity';
+import { supportsLocalCollectionCover } from '../cover/localCollectionCover';
 import { errorMessage } from '../../../../utils/errorText';
 import {
     askCollectionSaved,
@@ -35,7 +42,7 @@ import {
 
 // src/library/core/collection/mutations/collectionMutations.service.ts
 // 集合的变更动作层：删条目、订阅、改名、删除集合、重扫、导出、加入 / 新建 Navidrome 歌单、
-// 编辑实体、整理、匹配、每日推荐换日期。规则搬自 GridView，归属从网格实例挪到「集合会话」上：
+// 编辑实体、整理、匹配、每日推荐换日期与风格推荐。规则搬自 GridView，归属从网格实例挪到「集合会话」上：
 // - 一个集合会话一个控制器，宿主持有、renderer 订阅；换 renderer 不丢进行中的状态；
 // - 上游确认之后才改资源（权威提交，立即以 urgent 通知），动画只是 renderer 自己的事；
 // - 同一条目 / 同一动作进行中再次提交返回 busy，只发一次请求；收藏（订阅）例外：星星一按就变，请求在后台发，
@@ -52,20 +59,41 @@ export type CollectionMutationOmni = {
     subscribe(collection: OmniCollection, subscribed: boolean): Promise<void>;
     likeSong(song: SongResult, liked: boolean): Promise<void>;
     updateCollectionTracks(collection: OmniCollection, operation: 'add' | 'del', tracks: SongResult[]): Promise<void>;
-    dislikeSong(song: SongResult): Promise<{ replacement?: SongResult; limitReached?: boolean }>;
+    dislikeSong(song: SongResult): Promise<{ replacement?: SongResult; limitReached?: boolean; removed?: boolean }>;
     getRecommendationHistoryDates(): Promise<string[]>;
     getRecommendationHistorySongs(date: string): Promise<SongResult[]>;
     getDailySongs(refresh?: boolean): Promise<SongResult[]>;
+    /** 风格推荐（#938）的三样；替身不给时没有风格推荐。 */
+    getDailyStyleGroups?(): Promise<DailyStyleGroup[]>;
+    getDailyStyleSongs?(): Promise<{ songs: SongResult[]; selection: DailyStyleSelection | null }>;
+    setDailyStyle?(selection: DailyStyleSelection): Promise<void>;
     /**
-     * 平台的能力（这里只看每日推荐有没有历史日期，historyRecommendations）。单测的替身可以不给：那时当作有。
+     * 平台的能力（这里只看每日推荐有没有历史日期 historyRecommendations、有没有风格推荐 dailyStyleRecommendations）。
+     * 单测的替身可以不给：那时历史日期当作有，风格推荐当作没有。
      */
-    getProviderCapabilities?(providerId: OmniProviderId): Pick<ProviderCapabilities, 'historyRecommendations'>;
+    getProviderCapabilities?(providerId: OmniProviderId): Pick<ProviderCapabilities, 'historyRecommendations' | 'dailyStyleRecommendations'>;
+    /** 账号上的推荐偏好存过（说是哪个平台）；替身不给时不听。 */
+    subscribeRecommendationPreferenceSaves?(listener: (providerId: OmniProviderId) => void): () => void;
+};
+
+/**
+ * 每日推荐上次看的是哪一种（#938，core/collection/useDailyRecommendationModeStore）。资源按它加载，控制器按它定
+ * 开始时是不是风格推荐；切换成功后写回。styleSelection 是资源加载的风格推荐答复说的风格。
+ */
+export type DailyRecommendationModePort = {
+    read(): { prefersStyle: boolean; styleSelection: DailyStyleSelection | null };
+    setPrefersStyle(prefersStyle: boolean): void;
+    /** 控制器换成功的风格推荐是哪些风格（下一个控制器起步时用）。 */
+    noteStyleSelection(selection: DailyStyleSelection | null): void;
+    subscribe(listener: () => void): () => void;
 };
 
 export type CollectionMutationDeps = {
     omni: CollectionMutationOmni;
     /** 删一条应用缓存（在线歌单删歌后作废 `playlist_detail_${id}`）。 */
     removeCacheEntry: (key: string) => Promise<void>;
+    /** 单测可以不给：那时每日推荐总是从默认推荐开始，也不记。 */
+    dailyMode?: DailyRecommendationModePort;
 };
 
 export type CollectionMutationControllerOptions = CollectionMutationInputs & CollectionMutationDeps;
@@ -107,7 +135,7 @@ const sameCapabilities = (left: CollectionMutationCapabilities, right: Collectio
 export const createCollectionMutationController = (
     options: CollectionMutationControllerOptions,
 ): CollectionMutationController => {
-    const { omni, removeCacheEntry } = options;
+    const { omni, removeCacheEntry, dailyMode } = options;
     let inputs: CollectionMutationInputs = {
         descriptor: options.descriptor,
         resource: options.resource,
@@ -123,7 +151,18 @@ export const createCollectionMutationController = (
     let historyRequested = false;
     let dailyHistoryDates: readonly string[] = [];
     let dailyDate = '';
+    let dailyListVersion = 0;
     let dailyDatePending = false;
+    let dailyStyleShown = false;
+    let stopWatchingDailyMode: (() => void) | null = null;
+    let stopWatchingPreferenceSaves: (() => void) | null = null;
+    let dailyPreferenceRefreshPending = false;
+    let stopWatchingDailyLoad: (() => void) | null = null;
+    let dailyStyleGroupsPrefetched = false;
+    let dailyStyleGroups: readonly DailyStyleGroup[] = [];
+    let dailyStyleGroupsRequested = false;
+    let dailyStyleGroupsFailed = false;
+    let dailyStyleSelection: DailyStyleSelection | null = null;
     let dailyLimitReached = false;
     let sourceActionPending = false;
     /**
@@ -146,6 +185,7 @@ export const createCollectionMutationController = (
             canDislikeCollectionSongs: online ? omni.canDislikeCollectionSongs(online) : false,
             isCloudDrive: isCloudDriveCollection(descriptor),
             dailyDate,
+            dailyStyleShown,
             port,
         });
     };
@@ -161,6 +201,19 @@ export const createCollectionMutationController = (
         const capabilities = omni.getProviderCapabilities?.(descriptor.providerId);
         return capabilities ? capabilities.historyRecommendations === true : true;
     };
+    /** 每日推荐有没有风格推荐：平台说了、omni 也有这几样才算。 */
+    const styleAvailable = () => {
+        const { descriptor } = inputs;
+        if (descriptor.source !== 'online' || descriptor.type !== 'daily_recommendations') return false;
+        if (!omni.getDailyStyleSongs || !omni.setDailyStyle) return false;
+        return omni.getProviderCapabilities?.(descriptor.providerId)?.dailyStyleRecommendations === true;
+    };
+    // 每日推荐的资源按上次看的那种加载（dailyRecommendationLoad.service），控制器从同一处起步。
+    dailyStyleShown = Boolean(dailyMode?.read().prefersStyle) && styleAvailable();
+    /** 正在看的风格：控制器自己换来的为准；开始时那份是资源加载的，风格记在 dailyMode 里。 */
+    const currentStyleSelection = () => (
+        dailyStyleSelection ?? (dailyStyleShown ? dailyMode?.read().styleSelection ?? null : null)
+    );
 
     const compute = (previous: CollectionMutationSnapshot | null): CollectionMutationSnapshot => {
         const branches = resolveBranches();
@@ -191,6 +244,11 @@ export const createCollectionMutationController = (
             dailyDate,
             dailyHistoryDates,
             dailyHistoryAvailable: historyAvailable(),
+            dailyStyleAvailable: styleAvailable(),
+            dailyStyleShown,
+            dailyStyleGroups,
+            dailyStyleGroupsFailed,
+            dailyStyleSelection: currentStyleSelection(),
             renamedTo: currentRename(),
             availablePlaylists: previous && sameList(previous.availablePlaylists, availablePlaylists) ? previous.availablePlaylists : availablePlaylists,
             branches: previous && sameShallow(previous.branches, branches) ? previous.branches : branches,
@@ -207,6 +265,32 @@ export const createCollectionMutationController = (
         if (sameShallow(snapshot, next)) return;
         snapshot = next;
         listeners.forEach(listener => listener());
+    };
+
+    const clearDailyPreferenceRefresh = () => {
+        dailyPreferenceRefreshPending = false;
+        stopWatchingDailyLoad?.();
+        stopWatchingDailyLoad = null;
+    };
+
+    // 切换以最终显示的日期和模式为准，资源自己发出的加载也要等这一轮结束。
+    const refreshDailyAfterPreferenceSave = () => {
+        if (!dailyPreferenceRefreshPending || dailyDatePending) return;
+        const { resource } = inputs;
+        if (dailyDate || dailyStyleShown || !resource) {
+            clearDailyPreferenceRefresh();
+            return;
+        }
+        if (resource.getSnapshot().status === 'loading') {
+            stopWatchingDailyLoad ??= resource.subscribe(() => {
+                if (resource.getSnapshot().status !== 'loading') queueMicrotask(refreshDailyAfterPreferenceSave);
+            });
+            return;
+        }
+        clearDailyPreferenceRefresh();
+        void setDailyDate('', { afresh: true }).then(result => {
+            if (!result.ok) console.warn('[LibraryUi] Daily recommendations were not read again after preferences changed:', result.reason);
+        });
     };
 
     // 订阅状态与历史日期都是「有人看才需要」：第一个订阅者到来（或能力后来才出现）时各取一次。
@@ -227,6 +311,22 @@ export const createCollectionMutationController = (
                 })
                 .catch(error => console.warn('[LibraryUi] Failed to fetch collection subscription status:', error));
         }
+        // 开始时就是风格推荐：选中的风格要分组才写得出名字；资源加载完记下的风格到了也要通知。
+        // 自动只取一次；没取到之后由选择器（打开、重试）再取，宿主每次 update 不跟着重发。
+        if (dailyStyleShown && !dailyStyleGroupsPrefetched) {
+            dailyStyleGroupsPrefetched = true;
+            loadDailyStyleGroups();
+        }
+        if (!stopWatchingDailyMode && dailyMode && styleAvailable()) stopWatchingDailyMode = dailyMode.subscribe(emit);
+        // 账号上的推荐偏好存过：这个平台今天的每日推荐可能换了。
+        if (!stopWatchingPreferenceSaves && snapshot.branches.isDailyRecommendationsCollection && omni.subscribeRecommendationPreferenceSaves) {
+            stopWatchingPreferenceSaves = omni.subscribeRecommendationPreferenceSaves(providerId => {
+                const current = inputs.descriptor;
+                if (disposed || current.source !== 'online' || current.type !== 'daily_recommendations' || current.providerId !== providerId) return;
+                dailyPreferenceRefreshPending = true;
+                refreshDailyAfterPreferenceSave();
+            });
+        }
         if (!historyRequested && snapshot.branches.isDailyRecommendationsCollection && historyAvailable()) {
             historyRequested = true;
             omni.getRecommendationHistoryDates()
@@ -245,6 +345,9 @@ export const createCollectionMutationController = (
     // ---- 删条目 ----
 
     const removeDaily = async (entry: LibraryEntryRef): Promise<LibraryMutationResult> => {
+        const listVersion = dailyListVersion;
+        const originalResource = inputs.resource;
+        const originalUser = inputs.currentUserId;
         const result = await omni.dislikeSong(entry.track);
         if (result?.replacement) {
             const resource = inputs.resource;
@@ -256,6 +359,15 @@ export const createCollectionMutationController = (
         if (result?.limitReached) {
             dailyLimitReached = true;
             return fail('limit-reached');
+        }
+        // 写进黑名单但没有替换曲：把这一行从当天的列表去掉。
+        if (result?.removed) {
+            if (listVersion !== dailyListVersion || inputs.resource !== originalResource || inputs.currentUserId !== originalUser) return fail('stale');
+            const resource = inputs.resource;
+            const tracks = resource?.getSnapshot().tracks ?? [];
+            const index = resolveRawIndex(tracks, entry.entryKey);
+            if (!resource || index < 0) return fail('stale');
+            return resource.removeAt(index, getPlaybackSongKey(entry.track)) ? OK : fail('stale');
         }
         return fail('failed');
     };
@@ -496,12 +608,101 @@ export const createCollectionMutationController = (
                 date ? omni.getRecommendationHistorySongs(date) : omni.getDailySongs(afresh)
             ));
             if (!replaced) return fail('failed');
+            dailyListVersion += 1;
             dailyDate = date;
+            dailyStyleShown = false;
+            if (date) clearDailyPreferenceRefresh();
+            dailyMode?.setPrefersStyle(false);
             return OK;
         } finally {
             dailyDatePending = false;
             emit();
+            refreshDailyAfterPreferenceSave();
         }
+    };
+
+    // ---- 风格推荐（#938） ----
+
+    /**
+     * 风格分组取到一次就不再取，不挡着换歌。没取到（失败或一组都没有）时记成失败，选择器据此给重试，
+     * 再调一次就再取。
+     */
+    const loadDailyStyleGroups = () => {
+        if (disposed || dailyStyleGroupsRequested || !omni.getDailyStyleGroups || !styleAvailable()) return;
+        dailyStyleGroupsRequested = true;
+        if (dailyStyleGroupsFailed) {
+            dailyStyleGroupsFailed = false;
+            emit();
+        }
+        omni.getDailyStyleGroups()
+            .then(groups => {
+                if (disposed) return;
+                dailyStyleGroups = groups || [];
+                if (dailyStyleGroups.length === 0) {
+                    dailyStyleGroupsRequested = false;
+                    dailyStyleGroupsFailed = true;
+                    console.warn('[LibraryUi] Daily style groups came back empty');
+                }
+                emit();
+            })
+            .catch(error => {
+                if (disposed) return;
+                dailyStyleGroupsRequested = false;
+                dailyStyleGroupsFailed = true;
+                console.warn('[LibraryUi] Failed to load daily style groups:', error);
+                emit();
+            });
+    };
+
+    /**
+     * 换成风格推荐的歌；saving 是要先存到账号上的新风格，存失败时什么都不换。选中的风格只在歌换成功之后才改：
+     * 存成功、取歌失败时界面仍是原来的风格和歌，同一组风格可以再确认一次重试。
+     */
+    const replaceWithDailyStyle = async (saving?: DailyStyleSelection): Promise<LibraryMutationResult> => {
+        if (disposed) return fail('stale');
+        const resource = inputs.resource;
+        if (!currentCapabilities().dailyDate.supported || !resource || !styleAvailable()) return fail('unsupported');
+        if (dailyDatePending) return fail('busy');
+        dailyDatePending = true;
+        emit();
+        loadDailyStyleGroups();
+        try {
+            if (saving) {
+                try {
+                    await omni.setDailyStyle?.(saving);
+                } catch (error) {
+                    console.warn('[LibraryUi] Failed to save the daily style:', error);
+                    return failed(error);
+                }
+            }
+            const answer: { selection: DailyStyleSelection | null } = { selection: null };
+            const replaced = await resource.replaceAll(async () => {
+                const result = await omni.getDailyStyleSongs?.();
+                answer.selection = result?.selection ?? null;
+                return result?.songs ?? [];
+            });
+            if (!replaced) return fail('failed');
+            dailyListVersion += 1;
+            dailyDate = '';
+            dailyStyleShown = true;
+            clearDailyPreferenceRefresh();
+            dailyMode?.setPrefersStyle(true);
+            const shownFor = answer.selection ?? saving;
+            dailyStyleSelection = shownFor ? { groupId: shownFor.groupId, tagIds: [...shownFor.tagIds] } : null;
+            dailyMode?.noteStyleSelection(dailyStyleSelection);
+            return OK;
+        } finally {
+            dailyDatePending = false;
+            emit();
+            refreshDailyAfterPreferenceSave();
+        }
+    };
+
+    const showDailyStyle = () => replaceWithDailyStyle();
+
+    const setDailyStyle = (selection: DailyStyleSelection): Promise<LibraryMutationResult> => {
+        if (!selection.groupId || selection.tagIds.length === 0) return Promise.resolve(fail('unsupported'));
+        return replaceWithDailyStyle(selection);
     };
 
     return {
@@ -516,7 +717,14 @@ export const createCollectionMutationController = (
         },
         update: (next) => {
             if (disposed) return;
+            const previous = inputs;
             inputs = { ...inputs, ...next };
+            if (
+                previous.resource !== inputs.resource
+                || String(previous.currentUserId ?? '') !== String(inputs.currentUserId ?? '')
+                || (previous.descriptor.source === 'online' ? previous.descriptor.providerId : null)
+                    !== (inputs.descriptor.source === 'online' ? inputs.descriptor.providerId : null)
+            ) clearDailyPreferenceRefresh();
             // 宿主的描述换了名字：记录作废（之后即使又变回旧名，也不再拿出来）。
             if (renamed && inputs.descriptor.name !== renamed.from) renamed = null;
             emit();
@@ -557,6 +765,14 @@ export const createCollectionMutationController = (
                     : undefined
             ), { exclusive: false });
         },
+        setCover: () => {
+            const { descriptor, port } = inputs;
+            return runSourceAction('setCover', () => (
+                descriptor.source === 'local' && supportsLocalCollectionCover(descriptor)
+                    ? port.local?.editCover?.(descriptor)
+                    : undefined
+            ), { exclusive: false });
+        },
         organizeSongInfo: () => {
             const { descriptor, port } = inputs;
             return runSourceAction('organizeSongInfo', () => (
@@ -569,9 +785,17 @@ export const createCollectionMutationController = (
             return runSourceAction('matchSong', () => inputs.port.local?.matchSong?.(songId), { exclusive: false });
         },
         setDailyDate,
+        showDailyStyle,
+        setDailyStyle,
+        loadDailyStyleGroups,
         dispose: () => {
             disposed = true;
+            clearDailyPreferenceRefresh();
             stopWatchingSaves();
+            stopWatchingDailyMode?.();
+            stopWatchingDailyMode = null;
+            stopWatchingPreferenceSaves?.();
+            stopWatchingPreferenceSaves = null;
             listeners.clear();
         },
     };

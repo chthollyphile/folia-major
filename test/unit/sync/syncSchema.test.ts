@@ -26,6 +26,7 @@ describe('sync schema parsing', () => {
                 hidePlayerTranslationSubtitle: 'false',
                 showSubtitleTranslation: true,
                 subtitleContentMode: 'romanization',
+                subtitleOverlayLayout: 'current+romanization',
                 subtitleOverlayBackground: true,
                 subtitleUpcomingLyricsBlur: false,
                 lyricsFontStyle: 'fantasy',
@@ -48,6 +49,7 @@ describe('sync schema parsing', () => {
             visualizerOpacity: 0.7,
             showSubtitleTranslation: true,
             subtitleContentMode: 'romanization',
+            subtitleOverlayLayout: 'current+romanization',
             subtitleOverlayBackground: true,
             subtitleUpcomingLyricsBlur: false,
             subtitleFontStyle: 'serif',
@@ -71,6 +73,20 @@ describe('sync schema parsing', () => {
 
         expect(parse('both')).toBe('both');
         expect(parse('triple')).toBeUndefined();
+    });
+
+    it('accepts bottom subtitle row layouts and drops anything else', () => {
+        const parse = (subtitleOverlayLayout: unknown) => parseSyncedSettingsRecord({
+            schemaVersion: 1,
+            updatedAt: '2026-10-28T00:00:00.000Z',
+            data: { subtitleOverlayLayout },
+        })?.data.subtitleOverlayLayout;
+
+        expect(parse('current+romanization+translation')).toBe('current+romanization+translation');
+        expect(parse('translation')).toBe('translation');
+        expect(parse('next')).toBeUndefined();
+        expect(parse('current+next+next+next')).toBeUndefined();
+        expect(parse(3)).toBeUndefined();
     });
 
     it('migrates the deprecated carousel home layout to grid', () => {

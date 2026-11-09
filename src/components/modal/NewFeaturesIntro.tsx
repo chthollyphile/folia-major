@@ -20,7 +20,9 @@ export const NewFeaturesIntro: React.FC = () => {
                     className="mb-2.5 inline-flex items-center gap-1.5 rounded-full bg-[var(--st-fill)] px-2.5 py-0.5 text-xs font-semibold leading-5 text-[color:var(--st-accent)]"
                 >
                     <Sparkles size={13} aria-hidden="true" />
-                    {t('help.majorUpdateLabel', { codename: majorUpdate.codename })}
+                    {majorUpdate.servicePack
+                        ? t('help.servicePackLabel', { codename: majorUpdate.codename, servicePack: majorUpdate.servicePack })
+                        : t('help.majorUpdateLabel', { codename: majorUpdate.codename })}
                 </span>
             )}
             <p className="text-[13px] leading-[21px] text-[color:var(--st-t1)]">{t(`${i18nKey}.intro`)}</p>

@@ -5,6 +5,7 @@ import { Settings2, X, Command } from 'lucide-react';
 import type { Theme } from '../../../types';
 import { usePlayerBottomBarBottomPx } from '../../../hooks/usePlayerBottomBarBottomPx';
 import { usePlayerOverlayObstacle } from '../../../hooks/usePlayerOverlayLayout';
+import { holdCompanionHover, releaseCompanionHover, useBottomDockStore, useIsDockCompactWithCapsule } from '../../../stores/useBottomDockStore';
 
 // src/components/panelTab/shell/PanelHandle.tsx
 // The round button at the bottom right of the playing page that opens the panel and, white, closes
@@ -49,9 +50,28 @@ const PanelHandle: React.FC<PanelHandleProps> = ({
     const toggleButtonRef = React.useRef<HTMLButtonElement | null>(null);
     const trackEndIconRef = React.useRef<HTMLDivElement | null>(null);
     const trackFillRef = React.useRef<HTMLDivElement | null>(null);
-    const canSlideOpenCommandPalette = !isOpen && Boolean(onOpenCommandPalette);
+    // 紧凑档（窗口窄于 960，progress-bar v3）里按钮挂到进度条胶囊的右端：缩成 40、去掉自己的底色，
+    // 位置由 bottomDock.css 按 <html data-bottom-layout> 平移过去。挂着时没有左滑开命令面板的手势：
+    // 滑轨会横在胶囊上；命令面板从点胶囊或快捷行最右那一格开。
+    const isDocked = useIsDockCompactWithCapsule();
+    const canSlideOpenCommandPalette = !isOpen && Boolean(onOpenCommandPalette) && !isDocked;
+    // 按钮这一刻画不画（下面 AnimatePresence 的条件）。它被拿掉时浏览器不会补发 pointerleave：
+    // 不在这里清掉，胶囊会一直当作还在悬停、一直展开着。
+    const isButtonShown = !hideToggleButton && (!isOpen || showOpenPanelCloseButton) && !isCommandPaletteOpen;
+    React.useEffect(() => {
+        if (!isButtonShown) releaseCompanionHover(true);
+    }, [isButtonShown]);
     const isGuideLineVisible = canSlideOpenCommandPalette && (showGuideLine || isPanelGuideHotspotActive);
-    const toggleButtonMotionClass = (isOpen || isGuideLineVisible || isDragging)
+    React.useEffect(() => {
+        if (hideToggleButton) return undefined;
+        const store = useBottomDockStore.getState();
+        store.setCompanion('panel-toggle', true);
+        return () => {
+            useBottomDockStore.getState().setCompanion('panel-toggle', false);
+            releaseCompanionHover(true);
+        };
+    }, [hideToggleButton]);
+    const toggleButtonMotionClass = (isOpen || isGuideLineVisible || isDragging || isDocked)
         ? 'translate-x-0 opacity-100'
         : supportsHover
             ? 'translate-x-1/2 opacity-60 group-hover:translate-x-0 group-hover:opacity-100 md:translate-x-0 md:opacity-100 md:hover:scale-105'
@@ -270,6 +290,18 @@ const PanelHandle: React.FC<PanelHandleProps> = ({
             setShowGuideLine(false);
         }
     };
+    // 挂在胶囊上时，鼠标停在按钮上胶囊也算在悬停，不会从展开缩回去。只认鼠标和笔：
+    // 手指点完浏览器会补发 mouseenter，又没有对应的离开，胶囊就会一直展开着。
+    const handleCompanionPointerEnter = (event: React.PointerEvent<HTMLDivElement>) => {
+        if (isDocked && event.pointerType !== 'touch') {
+            holdCompanionHover();
+        }
+    };
+    const handleCompanionPointerLeave = (event: React.PointerEvent<HTMLDivElement>) => {
+        if (event.pointerType !== 'touch') {
+            releaseCompanionHover();
+        }
+    };
     const handleToggleHotspotPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
         if (event.pointerType !== 'touch' || !canSlideOpenCommandPalette) {
             return;
@@ -312,7 +344,7 @@ const PanelHandle: React.FC<PanelHandleProps> = ({
 
     return (
         <AnimatePresence>
-            {!hideToggleButton && (!isOpen || showOpenPanelCloseButton) && !isCommandPaletteOpen && (
+            {isButtonShown && (
                 <motion.div
                     initial={{ opacity: 0, x: 20, y: 12, scale: 0.92 }}
                     animate={{ opacity: 1, x: 0, y: 0, scale: 1 }}
@@ -324,10 +356,15 @@ const PanelHandle: React.FC<PanelHandleProps> = ({
                     data-testid="panel-toggle"
                     ref={layoutRef}
                     onUpdate={invalidateLayout}
+                    // 挂上、取下只动 CSS 的 translate / scale，尺寸观察和 framer 的 onUpdate 都不会响：
+                    // 平移走完再请模组的 player.layout 量一次，不然它拿到的是半路的位置。
+                    onTransitionEnd={invalidateLayout}
                     style={{ bottom: bottomBarBottomPx }}
-                    className="pointer-events-auto fixed right-0 z-[60] pr-4 md:pr-8 group w-20 flex justify-end"
+                    className={`dock-companion dock-companion--panel ${isDocked ? 'is-docked' : ''} pointer-events-auto fixed right-0 z-[60] pr-4 md:pr-8 group w-20 flex justify-end`}
                     onMouseEnter={handleToggleButtonMouseEnter}
                     onMouseLeave={handleToggleButtonMouseLeave}
+                    onPointerEnter={handleCompanionPointerEnter}
+                    onPointerLeave={handleCompanionPointerLeave}
                     onPointerDown={handleToggleHotspotPointerDown}
                 >
                     {/* Wrapper for both track and button to guarantee perfect alignment across browsers */}
@@ -396,8 +433,13 @@ const PanelHandle: React.FC<PanelHandleProps> = ({
                             onPointerCancel={clearToggleButtonGesture}
                             onClick={handleToggleButtonClick}
                             style={{ touchAction: canSlideOpenCommandPalette ? 'none' : undefined }}
-                            className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 shadow-lg backdrop-blur-md transform
-                                border-none absolute right-0 top-0 z-10 ${isOpen ? 'bg-white text-black' : (isDaylight ? 'bg-white/70 text-zinc-900' : 'bg-black/40 text-white')}`}
+                            className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 transform
+                                border-none absolute right-0 top-0 z-10 ${isOpen
+                    ? 'bg-white text-black shadow-lg'
+                    : isDocked
+                    // 挂在胶囊上：胶囊的玻璃就是它的底，不再叠一层自己的。
+                        ? `bg-transparent ${isDaylight ? 'text-zinc-900 hover:bg-black/5' : 'text-white hover:bg-white/10'}`
+                        : `shadow-lg backdrop-blur-md ${isDaylight ? 'bg-white/70 text-zinc-900' : 'bg-black/40 text-white'}`}`}
                         >
                             {isOpen ? <X size={20} /> : <Settings2 size={20} />}
                         </button>

@@ -271,6 +271,33 @@ describe('the runtime log file and the session-log switch', () => {
         fs.rmSync(root, { recursive: true, force: true });
     });
 
+    // D605 复核（2026-11-08）：调试通道只给第一方窗口；main.cjs 没注入判断时一律按不可信处理
+    it('answers only first-party windows, and without a check injected answers no one', () => {
+        const silent = vi.spyOn(console, 'log').mockImplementation(() => {});
+        const build = (isTrustedSender?: (event: { sender: { id: number } }) => boolean) => {
+            const handlers: Record<string, (event: unknown, payload?: unknown) => any> = {};
+            const stored: Record<string, unknown> = {};
+            createDebugHost({
+                app: { getPath: () => root, on: () => {}, getAppMetrics: () => [] },
+                ipcMain: { handle: (channel: string, run: any) => { handlers[channel] = run; }, on: (channel: string, run: any) => { handlers[channel] = run; } },
+                store: { get: (key: string) => stored[key], set: (key: string, value: unknown) => { stored[key] = value; } },
+                BrowserWindow: { getAllWindows: () => [] },
+                ...(isTrustedSender ? { isTrustedSender } : {}),
+            });
+            return handlers;
+        };
+        const popup = { sender: { id: 2 } };
+        const checked = build(event => event.sender.id === 1);
+        expect(() => checked['debug-set-state'](popup, { sessionLog: true })).toThrow(/Untrusted renderer/);
+        expect(() => checked['debug-get-state'](popup)).toThrow(/Untrusted renderer/);
+        // 单向的 send 通道不抛错（监听函数里抛错会变成主进程的未捕获异常），只是不处理
+        expect(checked['debug-runtime-lines'](popup, [{ at: 1, level: 'log', tag: 'X', text: 'x' }])).toBeUndefined();
+        expect(checked['debug-get-state']({ sender: { id: 1 } })).toHaveProperty('logsRoot');
+        const unchecked = build();
+        expect(() => unchecked['debug-get-state']({ sender: { id: 1 } })).toThrow(/Untrusted renderer/);
+        silent.mockRestore();
+    });
+
     it('is written only while both switches are on, and the main process remembers the session-log switch', () => {
         // The host takes over console for good; the spy underneath keeps the test output clean.
         const silent = vi.spyOn(console, 'log').mockImplementation(() => {});
@@ -281,6 +308,7 @@ describe('the runtime log file and the session-log switch', () => {
             ipcMain: { handle: (channel: string, run: any) => { handlers[channel] = run; }, on: (channel: string, run: any) => { handlers[channel] = run; } },
             store: { get: (key: string) => stored[key], set: (key: string, value: unknown) => { stored[key] = value; } },
             BrowserWindow: { getAllWindows: () => [] },
+            isTrustedSender: () => true,
         });
         const fromPage = (text: string) => handlers['debug-runtime-lines']({}, [{ at: Date.now(), level: 'log', tag: 'Page', text }]);
         const backlog = () => {
@@ -314,6 +342,32 @@ describe('the runtime log file and the session-log switch', () => {
         expect(written).toContain('[Page] one');
         expect(written).toContain('[Main] three');
         expect(written).not.toContain('while it is off');
+    });
+
+    it('keeps credential values out of the file and the panel, from main and from the page', () => {
+        const silent = vi.spyOn(console, 'info').mockImplementation(() => {});
+        const stored: Record<string, unknown> = { debug_runtime_log_enabled: true };
+        const handlers: Record<string, (event: unknown, payload?: unknown) => any> = {};
+        const host = createDebugHost({
+            app: { getPath: () => root, on: () => {}, getAppMetrics: () => [] },
+            ipcMain: { handle: (channel: string, run: any) => { handlers[channel] = run; }, on: (channel: string, run: any) => { handlers[channel] = run; } },
+            store: { get: (key: string) => stored[key], set: (key: string, value: unknown) => { stored[key] = value; } },
+            BrowserWindow: { getAllWindows: () => [] },
+            isTrustedSender: () => true,
+        });
+        // The line the NetEase API package writes for every request, with the cookie the page put in the address.
+        console.info('[INFO]', 'Request Success: [eapi] /song/url/v1?id=1&cookie=MUSIC_U=secret-u; __csrf=secret-csrf; os=pc&level=lossless');
+        handlers['debug-runtime-lines']({}, [{ at: Date.now(), level: 'log', tag: 'Page', text: 'qq search {"cookie":"qqmusic_key=secret-q"}' }]);
+        let panel: Array<{ text: string }> = [];
+        handlers['debug-main-lines-ready']({ sender: { isDestroyed: () => false, isCrashed: () => false, send: (_channel: string, sent: typeof panel) => { panel = sent; } } });
+        host.stop();
+        silent.mockRestore();
+
+        const written = fs.readdirSync(path.join(root, 'logs', 'runtime')).map(name => fs.readFileSync(path.join(root, 'logs', 'runtime', name), 'utf-8')).join('');
+        expect(written).toContain('/song/url/v1?id=1&cookie=<redacted>&level=lossless');
+        expect(written).toContain('qq search {"cookie":"<redacted>"}');
+        expect(written).not.toMatch(/secret/);
+        expect(panel.map(line => line.text).join('\n')).not.toMatch(/secret/);
     });
 });
 
@@ -511,5 +565,7 @@ describe('the main-process lines for the log panel', () => {
         expect(consoleText(['[Ytm] plan', { route: 'web' }, 12])).toBe('[Ytm] plan {"route":"web"} 12');
         expect(consoleText(['[Ytm] kept', circular, 10n])).toBe('[Ytm] kept [object Object] 10');
         expect(consoleText([new Error('broke')])).toMatch(/^Error: broke\n\s+at /);
+        // An error inside an object: JSON.stringify alone writes it as {}.
+        expect(consoleText(['[App] failed', { error: new TypeError('no sink') }])).toBe('[App] failed {"error":"TypeError: no sink"}');
     });
 });

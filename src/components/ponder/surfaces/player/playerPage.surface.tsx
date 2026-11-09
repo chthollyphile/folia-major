@@ -23,7 +23,10 @@ type PonderPlayerPageSurfaceProps = {
 
 const LYRIC_WIDTHS = [72, 96, 58, 84, 44];
 
-/** 命令窗口的外壳：搜索行加几条结果。两个结果层都套它，窗口本身才不会长出两个样子。 */
+/**
+ * 命令窗口的外壳：几条结果加一条搜索行。两个结果层都套它，窗口本身才不会长出两个样子。
+ * 它是从控制条长出来的，所以搜索行在底、落在控制条的位置上。
+ */
 const PaletteFrame: React.FC<{
     line: string;
     outline: string;
@@ -34,11 +37,11 @@ const PaletteFrame: React.FC<{
         className="flex flex-col overflow-hidden rounded-[4%] border bg-zinc-950/95 p-[3%]"
         style={{ ...relativeRectStyle(G.palette), borderColor: outline }}
     >
-        <div className="flex h-[16%] shrink-0 items-center gap-[3%] border-b" style={{ borderColor: outline }}>
+        {children}
+        <div className="flex h-[16%] shrink-0 items-center gap-[3%] border-t" style={{ borderColor: outline }}>
             <Search className="h-[42%] w-auto opacity-50" />
             <span className="h-1.5 w-[46%] rounded-full" style={{ backgroundColor: line }} />
         </div>
-        {children}
     </div>
 );
 
@@ -97,11 +100,12 @@ const PonderPlayerPageSurface: React.FC<PonderPlayerPageSurfaceProps> = ({
             </div>
         </PonderSurfaceBase>
 
-        {/* 按 S、滑手柄、或触屏点右缘，三条路开的是同一个窗口。 */}
+        {/* 按 S、滑手柄、点控制条空白处或触屏点右缘，几条路开的是同一个窗口。
+            结果倒着排：第一名（亮着的那条）贴着底部的搜索行。 */}
         <PonderSurfaceStateLayer state="palette-open" registerStateNode={registerStateNode} className="bg-zinc-950/55">
             <PaletteFrame line={line} outline={outline}>
-                <div className="flex flex-1 flex-col justify-evenly pt-[3%]">
-                    {[0, 1, 2].map(index => (
+                <div className="flex flex-1 flex-col justify-evenly pb-[3%]">
+                    {[2, 1, 0].map(index => (
                         <div
                             key={index}
                             data-ponder-player-palette-row
@@ -130,7 +134,7 @@ const PonderPlayerPageSurface: React.FC<PonderPlayerPageSurfaceProps> = ({
         {/* 执行模式：输入行变成一个冒号提示，下面列的是「一个键一条命令」。 */}
         <PonderSurfaceStateLayer state="execute-mode" registerStateNode={registerStateNode} replaces="palette-open" className="bg-zinc-950/55">
             <PaletteFrame line={line} outline={outline}>
-                <div data-ponder-player-execute-mode className="flex flex-1 flex-col justify-evenly pt-[3%]">
+                <div data-ponder-player-execute-mode className="flex flex-1 flex-col justify-evenly pb-[3%]">
                     {['r', 'v', 'o'].map((key, index) => (
                         <div key={key} className="flex h-[22%] items-center gap-[3%] px-[2%]">
                             <span

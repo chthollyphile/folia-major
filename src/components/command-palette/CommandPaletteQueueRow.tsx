@@ -1,7 +1,7 @@
 import React from 'react';
 import { ListEnd, ListPlus, Trash2 } from 'lucide-react';
 import type { RowComponentProps } from 'react-window';
-import { getSongUnavailableLabel, isSongUnavailable } from '../../services/onlineMusic/songAvailability';
+import { getSongTag, isSongUnavailable } from '../../services/onlineMusic/songAvailability';
 import { getSongArtistLabel } from '../../services/onlineMusic/songMetadata';
 import { getPlaybackSongKey } from '../../utils/appPlaybackGuards';
 import type { CommandPaletteMatch } from './types';
@@ -19,6 +19,7 @@ export type CommandPaletteQueueRowProps = {
         playNext: string;
         remove: string;
         unavailable: string;
+        video: string;
         artist: string;
         album: string;
     };
@@ -56,6 +57,7 @@ const CommandPaletteQueueRow = ({
     const isSelected = index === activeIndex;
     const isPlaying = currentSongKey === getPlaybackSongKey(song);
     const unavailable = isSongUnavailable(song);
+    const tag = getSongTag(song, labels);
     const selectedClass = isDaylight ? 'bg-black/10' : 'bg-white/10';
     const hoverClass = isDaylight ? 'hover:bg-black/[0.05]' : 'hover:bg-white/[0.06]';
 
@@ -87,9 +89,9 @@ const CommandPaletteQueueRow = ({
                     <span className="min-w-0 flex-1">
                         <span className="flex items-center gap-2">
                             <span className="truncate text-sm font-medium">{song.name}</span>
-                            {unavailable && (
+                            {tag && (
                                 <span className="shrink-0 rounded-full border border-current/10 px-1.5 py-0.5 text-[9px] opacity-70">
-                                    {getSongUnavailableLabel(song, labels.unavailable)}
+                                    {tag}
                                 </span>
                             )}
                         </span>

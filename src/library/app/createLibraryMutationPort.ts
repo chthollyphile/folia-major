@@ -10,10 +10,12 @@ import { isLocalGridViewCollection } from '../../components/app/home/gridViewCol
 import type { HomeSurfaceProps } from '../../components/app/home/homeSurfaceTypes';
 import { FAVORITE_ALBUMS_CHANGED_EVENT } from './useLibraryHomeResources';
 import { useExploreFeedStore } from '../../stores/useExploreFeedStore';
+import { localCollectionCoverKey } from '../core/collection/cover/localCollectionCover';
+import { localCollectionCovers } from '../core/collection/cover/localCollectionCovers.service';
 
 // src/library/app/createLibraryMutationPort.ts
 // 把首页 surface 上的来源动作装配成 Library Core 的变更端口：本地曲库与 Navidrome 的读写、
-// 宿主挂载的三个对话框、账户刷新与应用内通知。实现原样搬自 GridViewOverlayHost 的 sourceActions，
+// 宿主挂载的四个对话框（实体编辑、整理、匹配、集合封面）、账户刷新与应用内通知。实现原样搬自 GridViewOverlayHost 的 sourceActions，
 // 行为不变；在线集合的变更不在这里（控制器经由 omni 完成）。
 
 type MutationSurface = Pick<
@@ -27,6 +29,7 @@ type MutationSurface = Pick<
 
 export type LibraryMutationPortDialogs = {
     editEntity: (entityId: string) => void;
+    editCover: (collection: LocalGridViewCollectionDescriptor) => void;
     organizeFolder: (collection: LocalGridViewCollectionDescriptor) => void;
     matchSong: (songId: string) => void;
 };
@@ -47,6 +50,7 @@ export const createLibraryMutationPort = ({
     local: {
         refresh: surface.onRefreshLocalSongs,
         editEntity: async (entityId) => dialogs.editEntity(entityId),
+        editCover: async (collection) => dialogs.editCover(collection),
         organizeFolder: async (collection) => {
             if (isLocalGridViewCollection(collection) && collection.type === 'folder' && !collection.isVirtual) {
                 dialogs.organizeFolder(collection);
@@ -78,6 +82,13 @@ export const createLibraryMutationPort = ({
         },
         deletePlaylist: async (playlistId) => {
             await deleteLocalPlaylist(playlistId);
+            // 歌单 id 不会再出现：它的自定义封面一并删掉（失败只记一行，歌单已经删了）。
+            const coverKey = localCollectionCoverKey({ type: 'playlist', id: playlistId, playlistId });
+            if (coverKey) {
+                void localCollectionCovers.clear(coverKey).catch(error => (
+                    console.warn('[LocalCollectionCover] Failed to remove the cover of a deleted playlist:', error)
+                ));
+            }
             surface.onRefreshLocalSongs();
         },
         exportPlaylist: async (playlistId) => {

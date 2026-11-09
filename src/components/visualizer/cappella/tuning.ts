@@ -2,7 +2,7 @@ import i18n from '../../../i18n/config';
 import { setStatusMessage } from '../../../stores/useStatusMessageStore';
 import { useVisualizerAssetStore } from '../../../stores/useVisualizerAssetStore';
 import { DEFAULT_CAPPELLA_TUNING, type CappellaAvatarSource, type CappellaTuning } from '../../../types';
-import { defineVisualizerTuning, type StoredTuningFields } from '../tuningDefinition';
+import { defineVisualizerTuning, MOD_SWITCH, modChoice, type StoredTuningFields } from '../tuningDefinition';
 import { cappellaPackActions, type CappellaPackActions } from './customPacks';
 
 // src/components/visualizer/cappella/tuning.ts
@@ -37,6 +37,12 @@ const asksForMissingEmojiPack = (patch: Partial<CappellaTuning>) => (
 export default defineVisualizerTuning<CappellaTuning>({
     mode: 'cappella',
     defaults: DEFAULT_CAPPELLA_TUNING,
+    // What mods may read and write (folium.visualizer.setTuning): the panel's own controls, without what the picture costs.
+    modKeys: {
+        showEmoMessages: MOD_SWITCH,
+        // 'custom' needs a picture the listener uploaded: left to the listener.
+        avatarSource: modChoice(['cover', 'builtin', 'color']),
+    },
     settingsKey: 'cappellaTuning',
     settingsSetterKey: 'handleSetCappellaTuning',
     settingsResetterKey: 'handleResetCappellaTuning',

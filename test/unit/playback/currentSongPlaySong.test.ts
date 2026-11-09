@@ -13,6 +13,10 @@ import type { OnlineLyricsState, UnifiedSong } from '@/types';
 // address that cannot be had leaves behind.
 
 const env = vi.hoisted(() => ({
+    blockedIds: new Set<string>(),
+    external: false,
+    externalPrepared: false,
+    externalStarts: vi.fn(async (..._args: unknown[]) => {}),
     note: (_label: string) => {},
     lyricsStateFor: new Map<string, Promise<unknown>>(),
     /** Song ids whose audio address is held until the promise resolves. */
@@ -63,8 +67,14 @@ vi.mock('@/services/hostExtensionHooks', () => ({
     // A play that fails tells the extensions (Folium playback.failed); nothing listens here.
     notifyPlaybackFailed: () => undefined,
 }));
-vi.mock('@/services/onlineMusic/omni', () => ({ omni: { canPlaySong: () => true, getProviderLabel: (id: string) => id } }));
-vi.mock('@/services/onlineMusic/songAvailability', () => ({ isSongUnavailable: () => false }));
+vi.mock('@/services/onlineMusic/omni', () => ({ omni: { canPlaySong: (song: { id: string }) => !env.blockedIds.has(song.id), canPlayExternally: () => env.external, isExternalPlaybackPrepared: () => env.externalPrepared, getProviderLabel: (id: string) => id } }));
+vi.mock('@/services/onlineMusic/externalPlayback', async importOriginal => ({
+    ...await importOriginal<typeof import('@/services/onlineMusic/externalPlayback')>(),
+    beginExternalPlayback: (...args: unknown[]) => env.externalStarts(...args),
+    announceExternalPlayback: vi.fn(),
+    isExternalRoute: () => env.external,
+}));
+vi.mock('@/services/onlineMusic/songAvailability', () => ({ askPlayedSong: () => null, isSongUnavailable: () => false }));
 vi.mock('@/services/onlineMusic/resourceCache', () => ({
     hasCachedSongAudio: async () => null,
     getCachedSongCoverUrl: async (song: { id: string }) => { env.note(`wait cover ${song.id}`); return env.coverFor.get(song.id) ?? null; },
@@ -111,7 +121,7 @@ const { usePlaybackStore } = await import('@/stores/usePlaybackStore');
 const { useStatusMessageStore } = await import('@/stores/useStatusMessageStore');
 const { retireBlobUrl } = await import('@/services/playbackBlobUrls');
 const { makeSongCurrent } = await import('@/components/app/playback/currentSong');
-const { emptyPlayerForProviderChange } = await import('@/library/app/createLibraryAccountPort');
+const { dropProviderSongs } = await import('@/library/app/createLibraryAccountPort');
 const { removeFromCache } = await import('@/services/db');
 const { resetPlaybackStore, watchCurrentSong } = await import('./currentSongWatch');
 const { onlineFailureOf } = await import('@/services/onlineMusic/failure/onlineFailureCase');
@@ -123,12 +133,19 @@ const [songA, songB]: UnifiedSong[] = ['1', '2'].map(id => ({
     id, name: id === '1' ? 'A' : 'B', artists: [], album: { id: '', name: '' }, durationMs: 1000,
     sourceRef: { kind: 'online', providerId: 'bodian', mediaId: id },
 }));
+// A song of another platform than A and B.
+const songQ: UnifiedSong = { id: '3', name: 'Q', artists: [], album: { id: '', name: '' }, durationMs: 1000, sourceRef: { kind: 'online', providerId: 'qq', mediaId: '3' } };
 const keyA = 'online:bodian:1';
 const keyB = 'online:bodian:2';
+const keyQ = 'online:qq:3';
 
 beforeEach(() => {
     vi.stubGlobal('window', { setTimeout: vi.fn(() => 1), setInterval: vi.fn(() => 2), clearTimeout: vi.fn(), clearInterval: vi.fn() });
     resetPlaybackStore();
+    env.blockedIds.clear();
+    env.external = false;
+    env.externalPrepared = false;
+    env.externalStarts.mockClear();
     env.lyricsStateFor.clear();
     env.audioGate.clear();
     env.beforePlay = null;
@@ -181,6 +198,56 @@ const deferred = <T,>() => {
 };
 
 describe('playSong and the current song (online)', () => {
+    it('does not request an audio URL or show link loading for prepared external playback, and reuses its prefetched metadata', async () => {
+        env.external = true;
+        env.externalPrepared = true;
+        const prefetched = { lyrics: { lines: [] }, coverUrl: 'https://cover.test/next' };
+        env.prefetchedFor.set('1', prefetched);
+        const messages: unknown[] = [];
+        const unsubscribe = useStatusMessageStore.subscribe(state => { messages.push(state.message); });
+        const { watch, queue } = mount();
+        await queue.playSong(songA, [songA, songB]);
+        expect(env.externalStarts).toHaveBeenCalledWith(songA, 0);
+        expect(watch.take().some(line => line.includes('wait audio source'))).toBe(false);
+        expect(messages).not.toContainEqual(expect.objectContaining({ text: 'status.loadingSong' }));
+        expect(messages).not.toContainEqual(expect.objectContaining({ text: 'status.preparingExternalPlayback' }));
+        unsubscribe();
+    });
+
+
+    it('shows preparation feedback on a cold external start', async () => {
+        env.external = true;
+        const messages: unknown[] = [];
+        const unsubscribe = useStatusMessageStore.subscribe(state => { messages.push(state.message); });
+        const { queue } = mount();
+        await queue.playSong(songA, [songA, songB]);
+        expect(messages).toContainEqual(expect.objectContaining({ text: 'status.preparingExternalPlayback' }));
+        expect(messages).not.toContainEqual(expect.objectContaining({ text: 'status.loadingSong' }));
+        unsubscribe();
+    });
+
+
+    it('advances past a known unplayable row while retaining the playlist order', async () => {
+        const songC = { ...songA, id: '3', name: 'C', sourceRef: { kind: 'online' as const, providerId: 'bodian', mediaId: '3' } };
+        env.blockedIds.add('2');
+        usePlaybackStore.setState({ currentSong: songA, playQueue: [songA, songB, songC] });
+        const { queue } = mount();
+        await queue.handleNextTrack();
+        await vi.waitFor(() => expect(usePlaybackStore.getState().currentSong?.id).toBe('3'));
+        expect(usePlaybackStore.getState().playQueue.map(song => song.id)).toEqual(['1', '2', '3']);
+    });
+
+
+    it('rejects a known unplayable external click before replacing the sounding song', async () => {
+        env.external = true;
+        const { queue } = mount();
+        await queue.playSong(songA, [songA, songB]);
+        env.blockedIds.add('2');
+        await queue.playSong(songB, [songA, songB]);
+        expect(env.externalStarts).toHaveBeenCalledTimes(1);
+        expect(usePlaybackStore.getState().currentSong?.id).toBe('1');
+    });
+
     it('lets a mod supply lyrics when a load that found none ends, only for the song still asked for', async () => {
         const { queue } = mount();
         const lyricsA = deferred<void>();
@@ -290,8 +357,8 @@ describe('playSong and the current song (online)', () => {
         expect(refs.currentSongRef.current).toBe(keyB);
     });
 
-    // What a provider switch, or a sign-out of the active provider, does to the player.
-    const emptyThePlayer = (refs: ReturnType<typeof mount>['refs']) => emptyPlayerForProviderChange({
+    // What signing out of the songs' provider does to the player: its songs leave, plays on their way give up.
+    const emptyThePlayer = (refs: ReturnType<typeof mount>['refs']) => dropProviderSongs({
         automixRef: { current: null },
         audioRef: refs.audioRef,
         shouldAutoPlay: refs.shouldAutoPlay,
@@ -354,8 +421,30 @@ describe('playSong and the current song (online)', () => {
         expect(refs.currentSongRef.current).toBeNull();
     });
 
-    it('forgets the saved song and queue, so the next launch brings nothing back', () => {
+    it('a sign-out of the platform of the song that plays leaves a play of another platform, still waiting for its lyrics state, to land', async () => {
+        const { refs, watch, queue } = mount();
+        await queue.playSong(songA, [songA]);
+        const stateQ = deferred<OnlineLyricsState | null>();
+        env.lyricsStateFor.set('3', stateQ.promise);
+
+        const play = queue.playSong(songQ, [songA, songQ]);
+        await vi.waitFor(() => expect(watch.log.at(-1)).toContain('wait lyrics state 3'));
+        emptyThePlayer(refs);
+        // The ask for the other platform's song stands: only the song shown is taken away.
+        expect(refs.currentSongRef.current).toBe(keyQ);
+        expect(usePlaybackStore.getState().currentSong).toBeNull();
+
+        stateQ.resolve(null);
+        await play;
+
+        expect(usePlaybackStore.getState().currentSong).toMatchObject({ id: '3' });
+        expect(usePlaybackStore.getState().audioSrc).toBe('https://audio.test/3');
+        expect(refs.currentSongRef.current).toBe(keyQ);
+    });
+
+    it('forgets the saved song and queue when nothing is left, so the next launch brings nothing back', () => {
         const { refs } = mount();
+        usePlaybackStore.setState({ currentSong: songA, playQueue: [songA, songB] });
         vi.mocked(removeFromCache).mockClear();
         emptyThePlayer(refs);
         expect(vi.mocked(removeFromCache).mock.calls.map(([key]) => key).sort()).toEqual(['last_queue', 'last_song']);

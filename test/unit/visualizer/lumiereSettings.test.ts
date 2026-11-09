@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_LUMIERE_TUNING, type LumiereTuning } from '@/types';
+import { DEFAULT_LYRIC_RENDER_OVERRIDE } from '@/utils/lyricRenderQuality';
 import { normalizeLumiereTuning } from '@/utils/lumiereTuning';
 import { compressConfig, decompressConfig } from '@/utils/appearanceCodec';
 import { useVisualizerSettingsStore } from '@/stores/useVisualizerSettingsStore';
@@ -22,7 +23,9 @@ const createLocalStorageMock = (): Storage => {
     };
 };
 
+// render 留默认：旧的 lmt 短码不带它（见下面「分辨率与抗锯齿」一组），这样短码的测试都能整份比较。
 const NON_DEFAULT_TUNING: LumiereTuning = {
+    render: { ...DEFAULT_LYRIC_RENDER_OVERRIDE },
     lightIntensity: 1.6,
     audioResponse: 0,
     fogDensity: 0.4,
@@ -83,6 +86,36 @@ describe('normalizeLumiereTuning', () => {
         expect(normalizeLumiereTuning({ darkField: -0.5 }).darkField).toBe(0);
         expect(normalizeLumiereTuning({ fogOctaves: 12 }).fogOctaves).toBe(6);
         expect(normalizeLumiereTuning({ fogOctaves: 0 }).fogOctaves).toBe(2);
+    });
+});
+
+describe('Lumiere render override (#929)', () => {
+    const OVERRIDDEN: LumiereTuning = { ...NON_DEFAULT_TUNING, render: { scale: 1.5, antialias: 'on' } };
+
+    it('reads an old saved tuning without render as following the global preset', () => {
+        const { render: _omitted, ...legacy } = OVERRIDDEN;
+        expect(normalizeLumiereTuning(legacy).render).toEqual({ scale: 'global', antialias: 'global' });
+        expect(DEFAULT_LUMIERE_TUNING.render).toEqual({ scale: 'global', antialias: 'global' });
+    });
+
+    it('reads a valid render back as is and falls back per field on bad values', () => {
+        expect(normalizeLumiereTuning(OVERRIDDEN)).toEqual(OVERRIDDEN);
+        expect(normalizeLumiereTuning({ render: { scale: 0.5, antialias: 'off' } }).render).toEqual({ scale: 0.5, antialias: 'off' });
+        expect(normalizeLumiereTuning({ render: { scale: 3, antialias: 'auto' } }).render).toEqual({ scale: 'global', antialias: 'global' });
+        expect(normalizeLumiereTuning({ render: { scale: 2, antialias: 'msaa' } }).render).toEqual({ scale: 2, antialias: 'global' });
+        expect(normalizeLumiereTuning({ render: 'high' }).render).toEqual({ scale: 'global', antialias: 'global' });
+    });
+
+    it('keeps the renderQuality preset alongside the render override', () => {
+        const tuning = normalizeLumiereTuning({ renderQuality: 'low', render: { scale: 2, antialias: 'global' } });
+        expect(tuning.renderQuality).toBe('low');
+        expect(tuning.render).toEqual({ scale: 2, antialias: 'global' });
+    });
+
+    it('carries render through JSON configs and the visualizerTunings bundle, but not the legacy lmt short code', () => {
+        expect(decompressConfig(JSON.stringify({ lumiereTuning: OVERRIDDEN })).lumiereTuning).toEqual(OVERRIDDEN);
+        expect(decompressConfig(compressConfig({ visualizerTunings: { lumiere: OVERRIDDEN } })).visualizerTunings?.lumiere).toEqual(OVERRIDDEN);
+        expect(decompressConfig(compressConfig({ lumiereTuning: OVERRIDDEN })).lumiereTuning?.render).toEqual(DEFAULT_LYRIC_RENDER_OVERRIDE);
     });
 });
 

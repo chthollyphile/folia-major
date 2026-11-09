@@ -3,7 +3,7 @@ import { ChevronLeft, FoldHorizontal, ListFilter, ListPlus, Maximize2, Play } fr
 import { useTranslation } from 'react-i18next';
 import type { BravaisLayer } from './bravaisLayer';
 import type { BravaisSeamLevel } from './bravaisSeamLevel';
-import { BravaisSeamCollectionMenu, BravaisSeamCollectionMeta, BravaisSeamStar, BravaisSeamStatusLine } from './BravaisSeamCollection';
+import { BravaisSeamCollectionMenu, BravaisSeamCollectionMeta, BravaisSeamMetaLine, BravaisSeamStar, BravaisSeamStatusLine } from './BravaisSeamCollection';
 import { BravaisSeamSpineTitle, BravaisSeamTitleArea } from './BravaisSeamTitle';
 import BravaisSeamFilterField from './BravaisSeamFilterField';
 import { openBravaisFilter } from './useBravaisSeamFilter';
@@ -68,7 +68,7 @@ export const BravaisSeamFullRow: React.FC<{ layer: BravaisLayer; actions: Bravai
                 <div className="bravais-seam-row-info">
                     {/* 歌手页的统计已是「关于艺术家」的附注：相同时元数据行不重复（过滤中是匹配数，照常显示）。 */}
                     {!(seam.artist?.stats && seam.artist.stats === seam.meta) && (
-                        <BravaisSeamFlipText as="div" flipKey={seam.meta} className="bravais-seam-meta">{seam.meta}</BravaisSeamFlipText>
+                        <BravaisSeamMetaLine meta={seam.meta} reload={collection?.reload} className="bravais-seam-meta" />
                     )}
                     {seam.artist && <BravaisSeamArtist artist={seam.artist} />}
                     {collection?.description && (

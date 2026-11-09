@@ -28,14 +28,34 @@
 /* —— 头部：标题、只读锁、存为歌单、清空（两步确认时变成带字的强调色胶囊）—— */
 
 .lattice-tools-island-header {
+    position: relative;
     display: flex;
     height: 36px;
     flex: none;
     align-items: center;
-    gap: 4px;
     padding: 0 6px 0 14px;
     border-bottom: 1px solid rgb(255 255 255 / 8%);
 }
+
+/* 头部那一行（标题或命名输入框、锁、按钮）。搜索时淡出并 visibility: hidden（不留在 Tab 顺序里），搜索框盖在它上面；
+   收起搜索时立刻可见、稍晚一点淡入，跟着收拢的搜索框露出来。 */
+.lattice-tools-island-header-row {
+    display: flex;
+    min-width: 0;
+    height: 100%;
+    flex: 1 1 auto;
+    align-items: center;
+    gap: 4px;
+    transition: opacity 160ms ease 70ms, visibility 0s;
+}
+
+.lattice-tools-island-header.is-searching .lattice-tools-island-header-row {
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 110ms ease, visibility 0s linear 110ms;
+}
+
+:root[data-reduce-motion~='uiMicroMotion'] .lattice-tools-island-header-row { transition: none; }
 
 .lattice-tools.is-daylight .lattice-tools-island-header { border-bottom-color: rgb(0 0 0 / 7%); }
 
@@ -71,6 +91,83 @@
     outline: 2px solid var(--text-accent, currentColor);
     outline-offset: 1px;
 }
+
+/* 搜索态：一个拱门形的搜索框盖住头部那一行（放大镜、输入、关闭都在框里）。上、左、右与浮岛边缘留同样的 6px；
+   上面两个角 14px，与浮岛的 20px 圆角同心（20 − 6），顺着浮岛的顶边拱起来；下面两个角收成 6px，落在列表上方。
+   展开 / 收起由组件用 clip-path 做（从放大镜按钮那块长出来、缩回去）；左右的 6px 与组件里的 SEARCH_FIELD_INSET 一致。
+   聚焦不画外描边（会把框撑到离浮岛顶边只剩 3px），改成边框与底色提亮。 */
+.lattice-tools-island-search {
+    position: absolute;
+    top: calc(50% - 12px);
+    right: 6px;
+    left: 6px;
+    display: flex;
+    height: 24px;
+    align-items: center;
+    border: 1px solid rgb(255 255 255 / 12%);
+    border-radius: 14px 14px 6px 6px;
+    background: rgb(255 255 255 / 6%);
+    transition: border-color 160ms ease, background-color 160ms ease;
+}
+
+.lattice-tools-island-search:focus-within {
+    border-color: rgb(255 255 255 / 30%);
+    background: rgb(255 255 255 / 9%);
+}
+
+.lattice-tools.is-daylight .lattice-tools-island-search { border-color: rgb(0 0 0 / 11%); background: rgb(0 0 0 / 4%); }
+.lattice-tools.is-daylight .lattice-tools-island-search:focus-within { border-color: rgb(0 0 0 / 26%); background: rgb(0 0 0 / 6%); }
+
+.lattice-tools-island-search > svg {
+    width: 13px;
+    height: 13px;
+    flex: none;
+    margin-left: 9px;
+    opacity: 0.55;
+}
+
+.lattice-tools-island-search-input {
+    min-width: 0;
+    height: 100%;
+    flex: 1 1 auto;
+    padding: 0 4px 0 7px;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-size: 12px;
+    outline: none;
+}
+
+.lattice-tools-island-search-input::placeholder { color: inherit; opacity: 0.45; }
+
+.lattice-tools-island-search-close {
+    display: grid;
+    width: 20px;
+    height: 20px;
+    flex: none;
+    place-items: center;
+    margin-right: 1px;
+    padding: 0;
+    border: 0;
+    border-radius: 10px;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    opacity: 0.6;
+    transition: background-color 140ms ease, opacity 140ms ease;
+}
+
+.lattice-tools-island-search-close:hover,
+.lattice-tools-island-search-close:focus-visible {
+    background: rgb(255 255 255 / 12%);
+    opacity: 1;
+}
+
+.lattice-tools.is-daylight .lattice-tools-island-search-close:hover,
+.lattice-tools.is-daylight .lattice-tools-island-search-close:focus-visible { background: rgb(0 0 0 / 8%); }
+
+.lattice-tools-island-search-close svg { width: 12px; height: 12px; }
 
 .lattice-tools-island-note {
     display: grid;
@@ -214,8 +311,9 @@
     .lattice-tools-island-handle { opacity: 0.4; }
 }
 
-/* 只读（外部舞台播放）：没有手柄，主按钮往右让出同样的位置。 */
-.lattice-tools-island[data-queue-readonly] .lattice-tools-island-row { padding-left: 6px; }
+/* 只读（外部舞台播放）、搜索筛选中：没有手柄，主按钮往右让出同样的位置。 */
+.lattice-tools-island[data-queue-readonly] .lattice-tools-island-row,
+.lattice-tools-island[data-queue-filtering] .lattice-tools-island-row { padding-left: 6px; }
 
 .lattice-tools-island-song {
     display: flex;

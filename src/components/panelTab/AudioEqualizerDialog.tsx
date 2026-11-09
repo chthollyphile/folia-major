@@ -19,6 +19,9 @@ import AudioEffectGrid from './equalizer/AudioEffectGrid';
 import EqualizerBandGrid from './equalizer/EqualizerBandGrid';
 import PresetChips from './equalizer/PresetChips';
 import ModCurveNotice from './equalizer/ModCurveNotice';
+import HifiBypassNotice from '../hifi/HifiBypassNotice';
+import ExternalPlayerNotice, { useIsExternalPlayerRoute } from './ExternalPlayerNotice';
+import { useIsHifiRoute } from '../hifi/useHifiSignalPath';
 import { useAudioSettingsStore } from '../../stores/useAudioSettingsStore';
 
 // src/components/panelTab/AudioEqualizerDialog.tsx
@@ -47,6 +50,11 @@ const AudioEqualizerDialog: React.FC<AudioEqualizerDialogProps> = ({ isDaylight 
         [ownSettings, modCurve, modCurveSuspended],
     );
     const curveHeard = Boolean(modCurve) && !modCurveSuspended;
+    // On the HiFi route mpv plays the song and none of this is heard: the window only shows the settings, kept for the web engine.
+    const isHifiRoute = useIsHifiRoute();
+    // A platform's own player sounds the song on the external route: nothing here reaches it either.
+    const isExternalRoute = useIsExternalPlayerRoute();
+    const readOnly = curveHeard || isHifiRoute || isExternalRoute;
     const [draft, setDraft] = useState<AudioEqualizerSettings>(settings);
     const draftRef = useRef(draft);
     const mountedRef = useRef(false);
@@ -159,10 +167,20 @@ const AudioEqualizerDialog: React.FC<AudioEqualizerDialogProps> = ({ isDaylight 
     // A let-go with nothing edited (a key, focus passing through, a press on a thumb) writes nothing either: any
     // write ends a curve on hold, and only an edit of the listener's own sound is meant to.
     const commitDraft = () => {
-        if (curveHeard) return;
+        if (readOnly) return;
         if (areAudioEqualizerSettingsEqual(resolveAudioEqualizerSettings(draftRef.current), ownSettings)) return;
         commitSettings(draftRef.current);
     };
+
+    const presetChips = (
+        <PresetChips
+            presetIds={PRESET_IDS}
+            chosen={curveHeard ? null : draft.preset}
+            onChoose={applyPreset}
+            canReset={!curveHeard && isAudioEqualizerCustomSlotId(draft.preset)}
+            onReset={resetActiveCustomSlot}
+        />
+    );
 
     return (
         <Sheet
@@ -178,28 +196,27 @@ const AudioEqualizerDialog: React.FC<AudioEqualizerDialogProps> = ({ isDaylight 
                     <span className="whitespace-nowrap text-xs text-[color:var(--st-t2)] max-sm:sr-only">
                         {t(draft.enabled ? 'ui.equalizerEnabled' : 'ui.equalizerDisabled')}
                     </span>
-                    <Toggle checked={draft.enabled} onChange={setEnabled} />
+                    <Toggle checked={draft.enabled} onChange={setEnabled} disabled={isHifiRoute} />
                 </label>
             )}
         >
             {/* 这一层排窗口里的内容（至少和窗口一样高，多出的高度给推子），也让这扇对话框自己能被思索命中。 */}
             <div data-ponder="audio-equalizer" className="flex min-h-full flex-col">
+                <HifiBypassNotice />
+                <ExternalPlayerNotice />
                 <ModCurveNotice />
-                <PresetChips
-                    presetIds={PRESET_IDS}
-                    chosen={curveHeard ? null : draft.preset}
-                    onChoose={applyPreset}
-                    canReset={!curveHeard && isAudioEqualizerCustomSlotId(draft.preset)}
-                    onReset={resetActiveCustomSlot}
-                />
+                {isHifiRoute ? (
+                    // Out of reach on HiFi as well: a preset would write a sound that is not heard.
+                    <div inert className="opacity-40">{presetChips}</div>
+                ) : presetChips}
                 {/* Dimmed while processing is off, and still in reach: an edit turns processing on. */}
                 {/* While a mod's curve plays they are read-only: keep it as a custom slot first. */}
                 {/* The grids take the faders and sliders out of reach themselves: a narrow window must still scroll the bands sideways to show them all. */}
                 <div
-                    className={`st-t-move flex flex-1 flex-col transition-opacity${draft.enabled && !curveHeard ? '' : ' opacity-40'}`}
+                    className={`st-t-move flex flex-1 flex-col transition-opacity${draft.enabled && !readOnly ? '' : ' opacity-40'}`}
                 >
-                    <EqualizerBandGrid gains={draft.gains} onBandChange={updateBandDraft} onCommit={commitDraft} readOnly={curveHeard} />
-                    <AudioEffectGrid effects={draft.effects} onEffectChange={updateEffectDraft} onCommit={commitDraft} readOnly={curveHeard} />
+                    <EqualizerBandGrid gains={draft.gains} onBandChange={updateBandDraft} onCommit={commitDraft} readOnly={readOnly} />
+                    <AudioEffectGrid effects={draft.effects} onEffectChange={updateEffectDraft} onCommit={commitDraft} readOnly={readOnly} />
                 </div>
             </div>
         </Sheet>

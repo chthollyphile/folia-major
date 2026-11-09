@@ -1,5 +1,5 @@
 {
-    "version": { "major": 1, "minor": 7 },
+    "version": { "major": 1, "minor": 8 },
     "permissions": {
         "filesystem.data": { "guards": ["folium.storage", "api.storage"] },
         "playback.read": { "guards": ["api.runtime.getPlaybackSnapshot"] },
@@ -24,6 +24,10 @@
         },
         "playback.queue": { "guards": ["folium.playback.replaceQueue"] },
         "equalizer.control": { "guards": ["folium.equalizer.setMode", "folium.equalizer.applyCurve", "folium.equalizer.releaseCurve"] },
+        "visualizer.renderQuality": { "guards": ["folium.visualizer.setRenderQuality"] },
+        "visualizer.mode": { "guards": ["folium.visualizer.setMode"] },
+        "visualizer.tuning": { "guards": ["folium.visualizer.setTuning"] },
+        "visualizer.beatEffects": { "guards": ["folium.visualizer.setBeatEffects"] },
         "render.export": { "guards": ["api.render.exportVideo"] },
         "net.fetch": { "guards": ["folium.net.fetch"] },
         "net.embed": { "guards": ["folium.ui.embed"] },

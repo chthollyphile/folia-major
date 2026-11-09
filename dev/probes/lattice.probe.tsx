@@ -46,11 +46,18 @@ const lyricLines: Line[] = [
         { text: ' Notes From Striking the Anvil', startTime: 12, endTime: 16 },
     ] },
 ];
+// The same lines with a background vocal sung at the probe's clock (42 s), for the harmony layer on the card.
+const harmonyLyricLines: Line[] = [lyricLines[0], { ...lyricLines[1], backgroundVocal: {
+    text: '(在地下 在地下)', startTime: 40, endTime: 48, translation: '(Underground, underground)', words: [
+        { text: '(在地下', startTime: 40, endTime: 44 },
+        { text: ' 在地下)', startTime: 44, endTime: 48 },
+    ] } }];
 
 // Covers are off and the queue is 12 by default, so the gesture cases keep their fixture and run
 // without a single image request.
-function LatticeProbe({ covers = 'off', queueLength = 12, withLyrics = false }:
-    { covers?: CoverMode; queueLength?: number; withLyrics?: boolean }) {
+function LatticeProbe({ covers = 'off', queueLength = 12, withLyrics = false, withHarmony = false }:
+    { covers?: CoverMode; queueLength?: number; withLyrics?: boolean; withHarmony?: boolean }) {
+    const lines = withHarmony ? harmonyLyricLines : withLyrics ? lyricLines : null;
     const source = useMemo(
         () => (covers === 'off' && queueLength === 12 ? queue : buildQueue(queueLength, covers)),
         [covers, queueLength],
@@ -78,15 +85,15 @@ function LatticeProbe({ covers = 'off', queueLength = 12, withLyrics = false }:
     }, [currentSong]);
     return <div style={{ height: '100vh' }} data-loop={loopMode} data-command={command} data-toggles={toggles} data-backs={backs} data-homes={homes} data-seek={seek}
         data-current-song-poster-visible={isCurrentSongPosterVisible}>
-        <Lattice lyrics={withLyrics ? { lines: lyricLines } : null} controls={{ loopMode,
+        <Lattice lyrics={lines ? { lines } : null} controls={{ loopMode,
             playback: { prev: () => setCurrentSong(source[Math.max(0, source.indexOf(currentSong!) - 1)]),
                 next: () => setCurrentSong(source[(source.indexOf(currentSong!) + 1) % source.length]),
                 toggleLoop: () => setLoopMode(value => value === 'off' ? 'all' : value === 'all' ? 'one' : 'off'),
                 shuffleQueue: () => setSongs(value => [...value].reverse()), toggleSongLike: () => {}, isSongLiked: false, isFmMode: false },
             invokeCommandById: setCommand, canInvokeCommandById: () => true,
         }} queue={songs} currentSong={currentSong} playerState={playerState}
-            lyricSource={{ currentTime: time, currentLineIndex: withLyrics ? 0 : -1,
-                lines: withLyrics ? lyricLines : [], theme: DEFAULT_THEME }} lyricKeywordColoringEnabled
+            lyricSource={{ currentTime: time, currentLineIndex: lines ? 0 : -1,
+                lines: lines ?? [], theme: DEFAULT_THEME }} lyricKeywordColoringEnabled
             currentTime={time} lyricCurrentTime={time} playbackDuration={playbackDuration} canTogglePlayback isDaylight={false}
             onBack={() => setBacks(value => value + 1)} onGoHome={() => setHomes(value => value + 1)} onOpenPlayer={() => {}} onPlaySong={song => setCurrentSong(song)}
             onTogglePlayback={() => setToggles(value => value + 1)} onSeek={setSeek} />

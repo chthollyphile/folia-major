@@ -316,11 +316,15 @@ export class PendoloClockworkRenderer {
 
     private coverVerts = new Float32Array(16);
 
-    constructor(readonly canvas: HTMLCanvasElement) {
+    /**
+     * `antialias` 是上下文的 MSAA（#929，默认开）。建上下文时就定了，一块画布只认第一次拿到的上下文，
+     * 所以改它要换一块新画布、建一个新的渲染器（PendoloClockworkCanvas 按它给画布换 key）。
+     */
+    constructor(readonly canvas: HTMLCanvasElement, antialias = true) {
         const gl = canvas.getContext('webgl2', {
             alpha: true,
             premultipliedAlpha: true,
-            antialias: true,
+            antialias,
             powerPreference: 'high-performance',
         });
         if (!gl) return;

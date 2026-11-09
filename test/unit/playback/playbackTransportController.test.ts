@@ -8,6 +8,7 @@ import type { OnlineFailureCaseId, OnlineFailureDetail } from '@/types/onlineMus
 import { usePlaybackStore } from '@/stores/usePlaybackStore';
 import { useStatusMessageStore } from '@/stores/useStatusMessageStore';
 import { PlayerState } from '@/types';
+import { hifiTransport } from '@/services/hifi/hifiPlayback';
 
 // test/unit/playback/playbackTransportController.test.ts
 const failureOf = (caseId: OnlineFailureCaseId, detail: OnlineFailureDetail = {}) => (
@@ -28,7 +29,7 @@ vi.mock('react-i18next', async importOriginal => ({
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 let root: Root | null = null;
 beforeEach(() => {
-    usePlaybackStore.setState({ activePlaybackContext: 'main', audioSrc: 'fixture.mp3', playerState: PlayerState.PAUSED });
+    usePlaybackStore.setState({ activePlaybackContext: 'main', audioSrc: 'fixture.mp3', playerState: PlayerState.PAUSED, playbackRoute: 'web' });
     useStatusMessageStore.setState({ message: null });
 });
 afterEach(() => {
@@ -191,5 +192,47 @@ describe('transport failure reasons', () => {
         host.recover.mockResolvedValueOnce({ recovered: false, stale: true });
         await act(async () => { await host.actions().resumePlayback(); });
         expect(useStatusMessageStore.getState().message).toBeNull();
+    });
+});
+describe('transport on the HiFi route', () => {
+    // mpv has the song: the deck has no source, and the AudioContext, the fade and the analyser stay out of it.
+    beforeEach(() => {
+        usePlaybackStore.setState({ audioSrc: null, playbackRoute: 'hifi' });
+    });
+    afterEach(() => {
+        vi.restoreAllMocks();
+    });
+    it('resumes mpv instead of the deck', async () => {
+        const resume = vi.spyOn(hifiTransport, 'resume').mockResolvedValue(undefined);
+        const host = mount({ contextResume: Promise.resolve() });
+        await act(async () => { await host.actions().resumePlayback(); });
+        expect(resume).toHaveBeenCalledTimes(1);
+        expect(host.audio.play).not.toHaveBeenCalled();
+        expect(host.params.setupAudioAnalyzer).not.toHaveBeenCalled();
+        expect(host.params.syncOutputGain).not.toHaveBeenCalled();
+        expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PLAYING);
+    });
+    it('pauses mpv at once, without the fade', () => {
+        const pause = vi.spyOn(hifiTransport, 'pause').mockResolvedValue(undefined);
+        usePlaybackStore.setState({ playerState: PlayerState.PLAYING });
+        const host = mount();
+        host.audio.paused = false;
+        act(() => host.actions().pausePlayback());
+        expect(pause).toHaveBeenCalledTimes(1);
+        expect(host.audio.pause).not.toHaveBeenCalled();
+        expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PAUSED);
+    });
+    it('still cancels an older web resume that was waiting when the song moved to HiFi', async () => {
+        vi.spyOn(hifiTransport, 'resume').mockResolvedValue(undefined);
+        usePlaybackStore.setState({ audioSrc: 'fixture.mp3', playbackRoute: 'web' });
+        const context = deferred();
+        const host = mount({ contextResume: context.promise });
+        let pending!: Promise<void>;
+        act(() => { pending = host.actions().resumePlayback(); });
+        act(() => usePlaybackStore.setState({ audioSrc: null, playbackRoute: 'hifi' }));
+        await act(async () => { await host.actions().resumePlayback(); });
+        await act(async () => { context.resolve(); await pending; });
+        expect(host.audio.play).not.toHaveBeenCalled();
+        expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PLAYING);
     });
 });

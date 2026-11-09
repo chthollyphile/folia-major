@@ -1,5 +1,6 @@
 import type { MotionValue } from 'framer-motion';
-import type { AudioBands, SonnetTuning, Theme } from '../../../types';
+import type { AudioBands, LyricRenderScale, SonnetTuning, Theme } from '../../../types';
+import { resolveLyricPixelRatio } from '../../../utils/lyricRenderQuality';
 import type { SonnetProgram } from './types';
 import { findSonnetParagraphIndexAtTime } from './sonnetProgram';
 import { buildSonnetScene, type SceneView } from './sonnetSceneBuilder';
@@ -73,6 +74,13 @@ export interface SonnetRuntimeOptions {
     program: SonnetProgram;
     theme: Theme;
     tuning: SonnetTuning;
+    /**
+     * 分辨率倍数（#929，全局挡位叠上样式覆盖）：乘在 `textureResolution` 上再做纹理池吸附。
+     * 就地改，见 setRenderScale。
+     */
+    renderScale: LyricRenderScale;
+    /** 画布开不开 MSAA（#929）：「自动」时就是原来的 `!postProcessEnabled`。只在建上下文时定，变了由外壳重建。 */
+    antialias: boolean;
     /** 智能动感模式 (`smartBeatActive`: on or cached); its strengths reach the frame through the beat clock. */
     smartBeatEnabled: boolean;
     currentTime: MotionValue<number>;
@@ -89,6 +97,22 @@ export interface SonnetRuntimeOptions {
     /** Mod-driven per-frame multipliers (e.g. `{ cameraScale: 1.4 }`). Defaults to 1 = no change. */
     modulation?: Record<string, number>;
 }
+
+/**
+ * 渲染器实际用的 resolution：`textureResolution` 是样式原来的像素密度（base），乘上分辨率倍数（#929）
+ * 后再吸附到纹理池档位。吸附随视口变，所以 resize 和倍数变化时都要重算。
+ */
+const resolveSonnetRenderResolution = (
+    width: number,
+    height: number,
+    tuning: SonnetTuning,
+    renderScale: LyricRenderScale,
+) => snapResolutionToTexturePool(width, height, resolveLyricPixelRatio(tuning.textureResolution, renderScale));
+
+/** 两份 tuning 除了 render 一项之外全都一样（其余字段都是原始值）。 */
+const onlyRenderChanged = (previous: SonnetTuning, next: SonnetTuning) => (
+    (Object.keys(next) as Array<keyof SonnetTuning>).every(key => key === 'render' || previous[key] === next[key])
+);
 
 export class SonnetPixiRuntime {
     private readonly sceneCache = new PixiSceneCache<SceneView>({
@@ -147,8 +171,9 @@ export class SonnetPixiRuntime {
             // With post-processing the scene is drawn into the filter's own multisampled target and
             // the canvas only gets the filtered picture and the frame marks: its 4-sample buffers
             // would cost about 190 MB of video memory for those. The marks' edges are then not
-            // smoothed. postProcessEnabled is part of the host's rebuild key, so the switch applies.
-            antialias: !options.tuning.postProcessEnabled,
+            // smoothed. That is the default; the 抗锯齿 setting (#929) can force it either way, and
+            // the resolved value is part of the host's rebuild key, so a change applies.
+            antialias: options.antialias,
             powerPreference: 'high-performance',
         } as const;
         const context = await makePixiContext(pixi, contextOptions, options.signal);
@@ -161,7 +186,7 @@ export class SonnetPixiRuntime {
             ...contextOptions,
             ...context,
             autoDensity: true,
-            resolution: snapResolutionToTexturePool(width, height, options.tuning.textureResolution),
+            resolution: resolveSonnetRenderResolution(width, height, options.tuning, options.renderScale),
             autoStart: false,
             sharedTicker: false,
             preference: 'webgl',
@@ -227,7 +252,7 @@ export class SonnetPixiRuntime {
         this.app.renderer.resize(
             width,
             height,
-            snapResolutionToTexturePool(width, height, this.options.tuning.textureResolution),
+            resolveSonnetRenderResolution(width, height, this.options.tuning, this.options.renderScale),
         );
         // Staged against the old viewport, so its layout no longer fits.
         if (this.songSwap?.staged) {
@@ -646,13 +671,31 @@ export class SonnetPixiRuntime {
     /**
      * Applies a settings change to the live runtime. Every scene is rebuilt against the new
      * tuning, but the WebGL context, the canvas and the icon textures stay; the settings that
-     * shape those (`textureResolution`, `showOnlyText`, `showBackgroundDecor`, and
-     * `postProcessEnabled` for the canvas's antialiasing) are part of the
+     * shape those (`textureResolution`, `showOnlyText`, `showBackgroundDecor`, and the resolved
+     * antialiasing, which follows `postProcessEnabled` by default) are part of the
      * host's rebuild key instead.
      */
     setTuning(tuning: SonnetTuning) {
         if (this.destroyed || this.options.tuning === tuning) return;
+        const previous = this.options.tuning;
         this.options.tuning = tuning;
+        // 只动了 render（分辨率 / 抗锯齿覆盖）时场景不用重建：外壳把合出来的倍数经 setRenderScale 推来，
+        // 抗锯齿则在重建键里。
+        if (onlyRenderChanged(previous, tuning)) return;
+        this.rebuildScenes();
+    }
+
+    /**
+     * 换分辨率倍数（#929）：就地改渲染器的 resolution，不重建 WebGL 上下文；场景按新 surface 重建一遍
+     * （文字纹理跟着新密度）。首次 resize 之前只记下来，install 的那次 resize 会用上。
+     */
+    setRenderScale(renderScale: LyricRenderScale) {
+        if (this.destroyed || this.options.renderScale === renderScale) return;
+        this.options.renderScale = renderScale;
+        if (this.lastWidth <= 0 || this.lastHeight <= 0) return;
+        const resolution = resolveSonnetRenderResolution(this.lastWidth, this.lastHeight, this.options.tuning, renderScale);
+        if (resolution === this.app.renderer.resolution) return;
+        this.app.renderer.resize(this.lastWidth, this.lastHeight, resolution);
         this.rebuildScenes();
     }
 

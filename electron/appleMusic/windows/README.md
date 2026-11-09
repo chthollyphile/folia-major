@@ -1,0 +1,61 @@
+# Windows WebView2 companion
+
+Windows 11 已实测官方登录、整首 DRM 播放与逐词歌词（见文末），从 0.7.26 起正式版默认启用。
+打包时 `build/beforePack.cjs` 调 `prepareBundle.cjs` 编译宿主（只支持 x64），`package.json` 的
+`build.win.extraResources` 把运行需要的文件放进 `resources/apple-music/windows/`，`build/afterPack.cjs`
+核对文件齐全。
+
+## 依赖与构建
+
+- Windows x64，.NET Framework 4.8。
+- Visual Studio 2022 / Build Tools（含 .NET SDK）：安装「.NET 桌面生成工具」工作负载及 .NET 桌面开发、.NET Framework 4.8 targeting pack 与 MSBuild。
+- Microsoft Edge WebView2 **Evergreen Runtime**。SDK 不包含浏览器运行时；不要用 Fixed Runtime
+  的结果代替 Evergreen 验证，DRM 支持可能不同。
+- `Microsoft.Web.WebView2` SDK 钉死为 `1.0.4314.35`，由 NuGet 还原。没有打包独立的 .NET/CoreCLR。
+  宿主窗口平时是隐藏的，而 WinForms 控件会跟着窗口把页面设成 hidden。Chromium 对隐藏、且这个 WebView
+  从没放过媒体的页面会推迟媒体加载（`prerender::DeferMediaLoad`），MusicKit 拿到许可证后就不再缓冲。
+  所以每次启播时，主进程发 `keepVisible` 指令，`webViewHost.cs` 用反射读 SDK 私有字段 `_coreWebView2Controller`，
+  让主页面保持可见；播放器出声（连续两次查询都在播放、位置在前进）、暂停或启播失败后就放开，最长 65 秒。
+  页面放过一次，之后隐藏也照常加载；可见时播放约占一个核的 20%，隐藏时 3–6%，所以不常驻。
+  升级 SDK 时要复核这个字段，字段不在时宿主会报 `visibility-pin-unavailable`（主进程日志里的
+  `[AppleMusic] Native companion:`）。
+
+在仓库根目录 PowerShell 执行：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File electron/appleMusic/windows/buildCompanion.ps1
+npm run dev:electron
+```
+
+输出为 `build/apple-music-native/windows/FoliaAppleMusicCompanion.exe`，开发版发现后优先使用。
+也可以通过 `FOLIA_APPLE_MUSIC_NATIVE` 指定可执行路径。构建输出与中间文件不进 Git。
+正式安装包随附宿主；WebView2 Evergreen Runtime 不随附（Windows 11 自带），宿主未做代码签名。
+
+## 结构与边界
+
+`nativeCompanion.cs` 负责进程、私有 JSON 行控制、profile 锁和退出；`webViewHost.cs` 管 WebView2、
+导航、登录弹窗与求值；`navigationPolicy.cs` 限制 Apple 域名；`jsonLineProtocol.cs` 限制消息体大小。
+使用现有父进程请求白名单、串行队列、过期文档检查和超时恢复，macOS/Windows 共用 `nativeSpawn.cjs`。
+
+默认窗口及任务栏入口隐藏，只有登录操作显示。每个 profile 的 WebView2 数据保存在其独立子目录，
+不复制系统浏览器或 CastLabs 的凭据。退出登录先替换成空页，再清理该 WebView2 profile。
+网页消息只能完成带 nonce 与文档代数的求值回报，不能执行 show/hide、导航、清理或文件操作。
+
+## Windows 验收清单
+
+- [ ] 构建成功，确认 WebView2 loader 与托管程序集在输出目录。
+- [ ] Evergreen Runtime 缺失时能诊断，安装后可重试。
+- [ ] 官方页登录、地区跟随、重启保留登录，退出登录清理。
+- [ ] 超过 30 秒且整首有声播放；区分界面加载、队列就绪与 DRM 成功。
+- [ ] 隐藏播放、暂停/恢复、seek、预备/手动/自动下一首及歌词。
+- [ ] 登录弹窗初始化期间关闭登录面板，确认初始化完成后不重新弹出；再次打开面板可恢复弹窗。
+- [ ] 登录弹窗、父进程退出、网络异常与 WebView2 崩溃恢复。
+- [ ] 正式安装包、系统版本和架构范围。
+
+Linux 不启动该宿主，Apple Music 登录行显示「Linux 暂未支援」。
+
+## Windows 11 用户实测（2026-11-04）
+
+用户确认安装 WebView2、使用（当时的）开发实验开关后，官方登录、整首播放以及 TTML 逐词歌词正常，DRM 有声超过 30 秒。
+首次打开登录窗口曾被其他窗口遮挡；当前代码在显示期间启用任务栏按钮，隐藏时关闭，仍需 Windows 实机复测。
+构建脚本明确使用 NuGet.org；固定的宿主生命周期诊断经受限通道进入 Folia 日志，不转发网页或运行时原始输出。

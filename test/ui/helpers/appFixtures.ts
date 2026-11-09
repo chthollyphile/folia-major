@@ -231,7 +231,7 @@ export async function installBaseState(
     });
 
     localStorage.clear();
-    localStorage.setItem('i18nextLng', 'en');
+    localStorage.setItem('folia_app_language', 'en');
     localStorage.setItem('default_theme_daylight', 'true');
     localStorage.setItem('static_mode', 'true');
     // 动效不再跟随系统偏好（issue #370），所以 emulateMedia({ reducedMotion: 'reduce' }) 自己

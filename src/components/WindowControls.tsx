@@ -53,31 +53,35 @@ export default function WindowControls({
 
     const remoteControlVisible = revealed && !isMainWindowClickThroughEnabled;
     const standardControlsVisible = revealed && !isMainWindowClickThroughEnabled;
-    const remoteBtnClass = `flex items-center justify-center w-11 h-full transition-all duration-200 ${
+    // Keep the full titlebar hit area while centering the rounded hover surface on the icon.
+    const buttonBaseClass = `relative flex items-center justify-center w-11 h-full transition-all duration-200 before:pointer-events-none before:absolute before:inset-x-1 before:rounded-lg before:transition-colors before:duration-200 before:content-[''] [&_svg]:relative ${
+        isMac ? 'before:top-1.5 before:-bottom-0.5' : 'before:top-0.5 before:bottom-0.5'
+    }`;
+    const remoteBtnClass = `${buttonBaseClass} ${
         remoteControlVisible
             ? isDaylight
-                ? 'pointer-events-auto opacity-85 translate-y-0 hover:opacity-100 hover:bg-black/[0.05]'
-                : 'pointer-events-auto opacity-75 translate-y-0 hover:opacity-100 hover:bg-white/10'
+                ? 'pointer-events-auto opacity-85 translate-y-0 hover:opacity-100 hover:before:bg-black/[0.05]'
+                : 'pointer-events-auto opacity-75 translate-y-0 hover:opacity-100 hover:before:bg-white/10'
             : 'pointer-events-none opacity-0 -translate-y-1'
     }`;
-    const btnClass = `flex items-center justify-center w-11 h-full transition-all duration-200 ${
+    const btnClass = `${buttonBaseClass} ${
         standardControlsVisible
             ? isDaylight
-                ? 'pointer-events-auto opacity-85 translate-y-0 hover:opacity-100 hover:bg-black/[0.05]'
-                : 'pointer-events-auto opacity-75 translate-y-0 hover:opacity-100 hover:bg-white/10'
+                ? 'pointer-events-auto opacity-85 translate-y-0 hover:opacity-100 hover:before:bg-black/[0.05]'
+                : 'pointer-events-auto opacity-75 translate-y-0 hover:opacity-100 hover:before:bg-white/10'
             : 'pointer-events-none opacity-0 -translate-y-1'
     }`;
-    const closeBtnClass = `flex items-center justify-center w-11 h-full transition-all duration-200 ${
+    const closeBtnClass = `${buttonBaseClass} ${
         standardControlsVisible
             ? isDaylight
-                ? 'pointer-events-auto opacity-85 translate-y-0 hover:opacity-100 hover:bg-red-500 hover:text-white'
-                : 'pointer-events-auto opacity-75 translate-y-0 hover:opacity-100 hover:bg-red-500 hover:text-white'
+                ? 'pointer-events-auto opacity-85 translate-y-0 hover:opacity-100 hover:before:bg-red-500 hover:text-white'
+                : 'pointer-events-auto opacity-75 translate-y-0 hover:opacity-100 hover:before:bg-red-500 hover:text-white'
             : 'pointer-events-none opacity-0 -translate-y-1'
     }`;
 
     return (
         <div
-            className={`flex h-full ${isDaylight ? 'text-zinc-800' : 'text-[var(--text-primary)]'}`}
+            className={`flex h-full ${isMac ? '[&_svg]:translate-y-1' : ''} ${isDaylight ? 'text-zinc-800' : 'text-[var(--text-primary)]'}`}
             style={{
                 WebkitAppRegion: 'no-drag',
                 pointerEvents: 'none',

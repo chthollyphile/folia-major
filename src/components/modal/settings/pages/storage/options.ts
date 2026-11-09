@@ -18,6 +18,7 @@ export const CACHE_ROWS = [
     { category: 'cover', option: option(CACHES, 'cacheCover', 'options.covers') },
     { category: 'media', option: option(CACHES, 'cacheMedia', 'options.mediaFiles') },
     { category: 'analysis', option: option(CACHES, 'cacheAnalysis', 'options.analysisData') },
+    { category: 'volumeBalance', option: option(CACHES, 'cacheVolumeBalance', 'options.volumeBalanceData') },
 ] as const;
 
 export const O = {

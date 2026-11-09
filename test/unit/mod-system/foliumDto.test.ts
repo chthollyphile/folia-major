@@ -204,6 +204,7 @@ describe('toFoliumPlaybackFailureReason', () => {
     // without a row here fails the type check, and the length check below catches a dropped row.
     const CLASSES: Record<OnlineFailureCaseId, string> = {
         'sign-in-needed': 'auth',
+        'account-refused': 'restricted',
         'subscription-required': 'restricted',
         'purchase-required': 'restricted',
         'entitlement-required': 'restricted',
@@ -221,8 +222,8 @@ describe('toFoliumPlaybackFailureReason', () => {
         unknown: 'unknown',
     };
 
-    it('classes all sixteen host reasons', () => {
-        expect(Object.keys(CLASSES)).toHaveLength(16);
+    it('classes all seventeen host reasons', () => {
+        expect(Object.keys(CLASSES)).toHaveLength(17);
         for (const [reason, expected] of Object.entries(CLASSES)) {
             expect(toFoliumPlaybackFailureReason(reason as OnlineFailureCaseId), reason).toBe(expected);
         }

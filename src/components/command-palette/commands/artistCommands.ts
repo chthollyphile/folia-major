@@ -1,4 +1,4 @@
-import { ListPlus, Play, RefreshCw, RotateCcw, SquarePen } from 'lucide-react';
+import { ListMusic, ListPlus, Play, RefreshCw, RotateCcw, SquarePen } from 'lucide-react';
 import { createArtistSurfaceCommand } from '../commandFactories';
 import type { CommandPaletteCommand } from '../types';
 
@@ -50,5 +50,14 @@ export const artistCommands: CommandPaletteCommand[] = [
         ['edit artist', 'artist info', '编辑歌手', '歌手信息'],
         'edit-entity',
         SquarePen,
+    ),
+    // #918：不在任何专辑里的单曲只在「全部歌曲」那一层看得到；只给在线歌手，热门歌曲之外还有歌时才出现。
+    createArtistSurfaceCommand(
+        'artist-open-all-songs',
+        'Open all songs',
+        'List every song by this artist on one page, including singles outside any album',
+        ['every song', 'artist songs', 'singles', '所有歌曲', '单曲'],
+        'open-all-songs',
+        ListMusic,
     ),
 ];

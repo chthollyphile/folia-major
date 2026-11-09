@@ -3,6 +3,11 @@
 // buttons, the titlebar, the transparent background and the auto-hide behaviour.
 //
 // Split out of useSettingsUiStore.
+//
+// @note 这里除 player_header_blur 以外的设置（播放页控件、标题栏、鼠标指针、透明背景、系统材质）是用户明确决定
+// 「不进外观配置导入导出」的（2026-11-08）：配置码也用于 web 版 OBS 链接，只加 OBS 页面看得到的，
+// OBS 页面隐藏了这些控件。不要按 settings-feature-integration「视觉设置必须进
+// buildCurrentConfig / compressConfig / decompressConfig / validKeys / handleImportConfig」的规则把它们补进短码或 JSON。
 
 import { create } from 'zustand';
 import i18n from '../i18n/config';
@@ -55,6 +60,8 @@ export type PlayerChromeSettingsState = {
     alwaysShowPlayerBackButton: boolean;
     alwaysShowTrackSwitchButtons: boolean;
     alwaysShowMainWindowTitlebar: boolean;
+    /** A frosted bar behind the window titlebar on the player page, so its buttons read over any picture. */
+    playerHeaderBlur: boolean;
     hideFullscreenButton: boolean;
     useNativeMacFullscreenButton: boolean;
     transparentPlayerBackground: boolean;
@@ -72,6 +79,7 @@ export type PlayerChromeSettingsState = {
     handleToggleAlwaysShowPlayerBackButton: (enable: boolean) => void;
     handleToggleAlwaysShowTrackSwitchButtons: (enable: boolean) => void;
     handleToggleAlwaysShowMainWindowTitlebar: (enable: boolean) => void;
+    handleTogglePlayerHeaderBlur: (enable: boolean) => void;
     handleToggleHideFullscreenButton: (enable: boolean) => void;
     handleToggleNativeMacFullscreenButton: (enable: boolean) => void;
     handleToggleTransparentPlayerBackground: (enable: boolean) => void;
@@ -97,6 +105,7 @@ export const usePlayerChromeSettingsStore = create<PlayerChromeSettingsState>((s
     alwaysShowPlayerBackButton: getStoredBoolean('always_show_player_back_button', false),
     alwaysShowTrackSwitchButtons: getStoredBoolean('always_show_track_switch_buttons', false),
     alwaysShowMainWindowTitlebar: getStoredBoolean('always_show_main_window_titlebar', false),
+    playerHeaderBlur: getStoredBoolean('player_header_blur', false),
     hideFullscreenButton: getStoredBoolean('hide_fullscreen_button', false),
     useNativeMacFullscreenButton: getStoredBoolean('use_native_mac_fullscreen_button', false),
     transparentPlayerBackground: getStoredBoolean('transparent_player_background', false),
@@ -193,6 +202,14 @@ export const usePlayerChromeSettingsStore = create<PlayerChromeSettingsState>((s
             text: i18n.t('notifications.' + (enable ? 'mainWindowTitlebarAlwaysShown' : 'mainWindowTitlebarAutoHidden')),
         });
     },
+    handleTogglePlayerHeaderBlur: (enable) => {
+        setStoredBoolean('player_header_blur', enable);
+        set({ playerHeaderBlur: enable });
+        setStatusMessage({
+            type: 'info',
+            text: i18n.t('notifications.' + (enable ? 'playerHeaderBlurOn' : 'playerHeaderBlurOff')),
+        });
+    },
     handleToggleHideFullscreenButton: (enable) => {
         setStoredBoolean('hide_fullscreen_button', enable);
         set({ hideFullscreenButton: enable });
@@ -248,6 +265,7 @@ export const selectPlayerChromeSettingsSnapshot = (state: PlayerChromeSettingsSt
     alwaysShowPlayerBackButton: state.alwaysShowPlayerBackButton,
     alwaysShowTrackSwitchButtons: state.alwaysShowTrackSwitchButtons,
     alwaysShowMainWindowTitlebar: state.alwaysShowMainWindowTitlebar,
+    playerHeaderBlur: state.playerHeaderBlur,
     hideFullscreenButton: state.hideFullscreenButton,
     useNativeMacFullscreenButton: state.useNativeMacFullscreenButton,
     transparentPlayerBackground: state.transparentPlayerBackground,
@@ -263,6 +281,7 @@ export const selectPlayerChromeSettingsSnapshot = (state: PlayerChromeSettingsSt
     handleToggleAlwaysShowPlayerBackButton: state.handleToggleAlwaysShowPlayerBackButton,
     handleToggleAlwaysShowTrackSwitchButtons: state.handleToggleAlwaysShowTrackSwitchButtons,
     handleToggleAlwaysShowMainWindowTitlebar: state.handleToggleAlwaysShowMainWindowTitlebar,
+    handleTogglePlayerHeaderBlur: state.handleTogglePlayerHeaderBlur,
     handleToggleHideFullscreenButton: state.handleToggleHideFullscreenButton,
     handleToggleNativeMacFullscreenButton: state.handleToggleNativeMacFullscreenButton,
     handleToggleTransparentPlayerBackground: state.handleToggleTransparentPlayerBackground,

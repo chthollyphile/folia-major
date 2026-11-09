@@ -4,6 +4,7 @@ import type { TemperaColorMode, TemperaTuning } from '../../../types';
 import { cycleValue, QuickControlChip, QuickControlToggle } from '../../shared/QuickControlChip';
 import { defineVisualizer, type VisualizerQuickControlsProps } from '../definition';
 import TemperaSettingsPanel from './TemperaSettingsPanel';
+import { BEAT_EFFECT_IDS } from '../../../services/beatFx/beatEffects';
 
 const VisualizerTempera = React.lazy(() => import('./VisualizerTempera'));
 
@@ -37,6 +38,15 @@ export default defineVisualizer({
         keywords: ['tempera', '凝彩', 'dancai', 'dc', '色块 pv', 'block pv'],
     },
     usesWordSegmentation: true,
+    // 智能动感模式「墨染奥行」: the paper rests under a faint grey stain and an ink blot in its palette's accent spreads
+    // over it on each kick and snare of the track's drum hits (htdemucs_gpu; temperaInkFlash.ts). The same switch
+    // brings in the depth: blurred layers with parallax, a per-shot camera pan and size-as-depth glyphs (temperaDepth.ts).
+    beatEffects: [{
+        id: BEAT_EFFECT_IDS.temperaInkFlash,
+        nameKey: 'options.beatEffect_temperaInkFlash',
+        descKey: 'options.beatEffect_temperaInkFlashDesc',
+        source: 'drums',
+    }],
     // Deliberately unkeyed on the seed: the runtime hands a track change over in place
     // (see songHandover.ts / pixiRuntimeHost.ts). Remounting here would throw the WebGL
     // context away mid-transition and leave the frame empty for the whole rebuild.

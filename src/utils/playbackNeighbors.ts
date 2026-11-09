@@ -60,6 +60,17 @@ export const hasTrackAfter = (queueLength: number, currentIndex: number, loopMod
     (currentIndex >= 0 && currentIndex < queueLength - 1) || (loopMode === 'all' && queueLength > 1)
 );
 
+/** Find the next playable row without deleting unavailable entries or probing the network. */
+export const nextPlayableQueueIndex = <T>(queue: T[], currentIndex: number, loopMode: StageLoopMode, isPlayable: (song: T) => boolean): number => {
+    let index = currentIndex;
+    for (let step = 0; step < queue.length; step++) {
+        index = nextQueueIndex(queue.length, index, loopMode);
+        if (index < 0) return -1;
+        if (isPlayable(queue[index])) return index;
+    }
+    return -1;
+};
+
 /**
  * 当前曲目之后第一首通过 isPlayable 的歌，没有则 null。
  * 按 nextQueueIndex 一首一首往后找，列表循环时绕回队首接着找，其余的歌都问过一遍为止

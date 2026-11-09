@@ -3,6 +3,10 @@ import type { LyricStaffPolicy } from '../../../utils/lyrics/staffCreditsPolicy'
 import type { ThemeGenerationSource } from '../../../services/themePreferences';
 import { useAudioSettingsStore } from '../../../stores/useAudioSettingsStore';
 import { useAutomixSettingsStore } from '../../../stores/useAutomixSettingsStore';
+import { useHifiSettingsStore } from '../../../stores/useHifiSettingsStore';
+import { hifiEngine, useHifiEngineStore } from '../../../services/hifi/hifiEngine';
+import { HIFI_PLATFORM } from '../../modal/settings/pages/hifi/options';
+import { canOfferRuntimeDownload, isRuntimeInstalling } from '../../modal/settings/pages/hifi/runtimeState';
 import { useDesktopSettingsStore } from '../../../stores/useDesktopSettingsStore';
 import { useLocalLibrarySettingsStore } from '../../../stores/useLocalLibrarySettingsStore';
 import { isLocalLibraryAutoScanSupported } from '../../../services/localLibraryAutoScan';
@@ -15,6 +19,7 @@ import { usePlaybackEntryViewStore } from '../../../stores/usePlaybackEntryViewS
 import { hasLibrarySuiteChoice } from '../../../library/registry';
 import { chooseLibrarySuite, getActiveLibrarySuiteId, listLibrarySuiteOptions } from '../../../library/app/librarySuiteChoice';
 import { isBravaisLibraryActive } from '../../../library/app/bravaisLibraryActive';
+import { isGridLibraryActive } from '../../../library/app/gridLibraryActive';
 import { useLibraryWallLookStore } from '../../../stores/useLibraryWallLookStore';
 import { usePonderStore } from '../../../stores/usePonderStore';
 import { useHomeLayoutSettingsStore } from '../../../stores/useHomeLayoutSettingsStore';
@@ -92,6 +97,8 @@ export const buildSettingsCommandContext = (
         chooseLibrarySuite,
         // bravais 的透光偏好：与设置分区同一个谓词；值与 setter 都现读 store（面板开着时也会变）。
         isLibraryWallLookAvailable: isBravaisLibraryActive,
+        // 只有网格界面读的设置（首页卡片、网格卡片、海报墙按钮）：与设置页同一个谓词。
+        isGridLibraryActive,
         libraryWallLook: () => useLibraryWallLookStore.getState().look,
         setLibraryWallLook: look => useLibraryWallLookStore.getState().setLook(look),
         libraryWallWindowsPerBlock: () => useLibraryWallLookStore.getState().windowsPerBlock,
@@ -142,6 +149,9 @@ export const buildSettingsCommandContext = (
         toggleLatticeVignette: () => useLatticeSettingsStore.getState().handleToggleLatticeVignette(
             !useLatticeSettingsStore.getState().latticeVignette,
         ),
+        toggleLatticeBadgeCurrentOnly: () => useLatticeSettingsStore.getState().handleToggleLatticeBadgeCurrentOnly(
+            !useLatticeSettingsStore.getState().latticeBadgeCurrentOnly,
+        ),
         toggleReduceLatticeMotion: () => {
             const motion = useMotionSettingsStore.getState();
             motion.handleToggleReducedMotionSurface('lattice', !motion.reducedMotionSurfaces.lattice);
@@ -166,6 +176,9 @@ export const buildSettingsCommandContext = (
         ),
         toggleAlwaysShowMainWindowTitlebar: () => chrome.handleToggleAlwaysShowMainWindowTitlebar(
             !usePlayerChromeSettingsStore.getState().alwaysShowMainWindowTitlebar,
+        ),
+        togglePlayerHeaderBlur: () => chrome.handleTogglePlayerHeaderBlur(
+            !usePlayerChromeSettingsStore.getState().playerHeaderBlur,
         ),
         toggleHideFullscreenButton: () => chrome.handleToggleHideFullscreenButton(
             !usePlayerChromeSettingsStore.getState().hideFullscreenButton,
@@ -197,6 +210,14 @@ export const buildSettingsCommandContext = (
         togglePlaybackReport: () => audio.handleToggleNeteaseScrobble(
             !useAudioSettingsStore.getState().neteaseScrobbleEnabled,
         ),
+        toggleAutoAiLyricSegmentation: () => {
+            const lyric = useLyricSettingsStore.getState();
+            lyric.handleToggleAutoAiLyricSegmentation(!lyric.autoAiLyricSegmentation);
+        },
+        toggleKeepProviderWordTiming: () => {
+            const lyric = useLyricSettingsStore.getState();
+            lyric.handleToggleKeepProviderWordTiming(!lyric.keepProviderWordTiming);
+        },
         voiceInputPauseSupported: deps.voiceInputPauseSupported,
         modSystemEnabled: desktop.modSystemEnabled,
         toggleVoiceInputPause: () => desktop.handleToggleVoiceInputPause(
@@ -220,9 +241,15 @@ export const buildSettingsCommandContext = (
         toggleRemoteControlExpandCover: () => desktop.handleToggleRemoteControlExpandCover(
             !useDesktopSettingsStore.getState().remoteControlExpandCover,
         ),
+        toggleRemoteControlTextShade: () => desktop.handleToggleRemoteControlTextShade(
+            !useDesktopSettingsStore.getState().remoteControlTextShade,
+        ),
         unlockRemoteControl: () => desktop.handleToggleRemoteControlClickThrough(false),
         toggleObsKeepMainWindowAnimation: () => useStageSettingsStore.getState().handleToggleObsKeepMainWindowAnimation(
             !useStageSettingsStore.getState().obsKeepMainWindowAnimation,
+        ),
+        toggleTrackCardInObs: () => useStageSettingsStore.getState().handleToggleStageTrackPillInObs(
+            !useStageSettingsStore.getState().stageTrackPillInObs,
         ),
         toggleWallpaperMacAutohideDock: () => desktop.handleToggleWallpaperMacAutohideDock(
             !useDesktopSettingsStore.getState().wallpaperMacAutohideDock,
@@ -256,5 +283,33 @@ export const buildSettingsCommandContext = (
             !useAutomixSettingsStore.getState().transitionPerformance,
         ),
         canUseTransitionPerformance: deps.canUseTransitionPerformance,
+        // Read at the press, like the settings page: none of these rebuild the context.
+        isHifiSupported: () => useHifiEngineStore.getState().supported,
+        isHifiEnabled: () => useHifiSettingsStore.getState().enabled,
+        isHifiVolumeConfirmed: () => useHifiSettingsStore.getState().volumeConfirmed,
+        setHifiEnabled: enabled => useHifiSettingsStore.getState().setEnabled(enabled),
+        toggleHifiExclusive: () => {
+            const hifi = useHifiSettingsStore.getState();
+            hifi.setExclusive(!hifi.exclusive);
+        },
+        toggleHifiNavidrome: () => {
+            const hifi = useHifiSettingsStore.getState();
+            hifi.setNavidrome(!hifi.navidrome);
+        },
+        toggleHifiSoftwareVolume: () => {
+            const hifi = useHifiSettingsStore.getState();
+            hifi.setSoftwareVolume(!hifi.softwareVolume);
+        },
+        // The HiFi page's runtime row asks the same questions (runtimeState.ts).
+        canRedetectHifiRuntime: () => {
+            const engine = useHifiEngineStore.getState();
+            return engine.supported && !isRuntimeInstalling(engine.runtime, engine.installProgress);
+        },
+        redetectHifiRuntime: () => hifiEngine.detect(),
+        canInstallHifiRuntime: () => {
+            const engine = useHifiEngineStore.getState();
+            return engine.supported && canOfferRuntimeDownload(engine.runtime, engine.installProgress, HIFI_PLATFORM);
+        },
+        installHifiRuntime: () => hifiEngine.install(),
     };
 };

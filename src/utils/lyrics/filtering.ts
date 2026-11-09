@@ -1,7 +1,10 @@
 import type { LyricData, Line } from '../../types';
-import { ensureLyricDataRenderHints } from './renderHints';
-import { finalizeParsedLyricLines, isInterludeLine } from './parserCore';
+import { isInterludeLine } from './parserCore';
 import type { LyricProcessingOptions } from './types';
+
+// src/utils/lyrics/filtering.ts
+// The single expression of the old lyric filter: checking and compiling it. A written rule of
+// lyricLineRules compiles through here, so it removes exactly the lines the old filter did.
 
 export const LYRIC_FILTER_REGEX_EXAMPLE = '^(?=.*[：:（）()])(?=.*(?:词|曲|制作|发行)).*$';
 
@@ -36,15 +39,14 @@ export const compileLyricFilterPattern = (pattern?: string | null): RegExp | nul
     }
 };
 
+// Parsing keeps interludes unless told not to. The line rules no longer run at parse time (they run
+// where lyrics are shown, see lyricLineRules), so nothing here depends on them.
 export const resolveLyricProcessingOptions = (
     options: LyricProcessingOptions = {}
-): LyricProcessingOptions => {
-    const regex = compileLyricFilterPattern(options.filterPattern);
-    return {
-        ...options,
-        includeInterludes: options.includeInterludes ?? !regex,
-    };
-};
+): LyricProcessingOptions => ({
+    ...options,
+    includeInterludes: options.includeInterludes ?? true,
+});
 
 const stripInterludes = (lines: Line[]): Line[] => lines.filter(line => !isInterludeLine(line));
 
@@ -80,26 +82,5 @@ export const buildLyricFilterPreview = (
         removedCount: lines.filter(item => item.removed).length,
         totalCount: lines.length,
         error,
-    };
-};
-
-export const applyLyricDisplayFilter = (
-    lyrics: LyricData | null | undefined,
-    pattern?: string | null
-): LyricData | null => {
-    if (!lyrics) {
-        return null;
-    }
-
-    const regex = compileLyricFilterPattern(pattern);
-    if (!regex) {
-        return ensureLyricDataRenderHints(lyrics);
-    }
-
-    const filteredLines = stripInterludes(lyrics.lines).filter(line => !regex.test(line.fullText));
-
-    return {
-        ...lyrics,
-        lines: finalizeParsedLyricLines(filteredLines, { includeInterludes: true }),
     };
 };

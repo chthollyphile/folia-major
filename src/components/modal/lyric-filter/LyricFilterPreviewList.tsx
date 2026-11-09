@@ -1,19 +1,28 @@
-import React, { useRef } from 'react';
+import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { Loader2 } from 'lucide-react';
+import type { LyricLineRule } from '../../../utils/lyrics/lyricLineRules';
 import type { LyricStaffDecision, LyricStaffPolicy } from '../../../utils/lyrics/staffCreditsPolicy';
 import type { LyricFilterPreviewRow } from './buildLyricFilterPreviewModel';
+import type { LibraryScan } from './useLyricLibraryScan';
 
 // src/components/modal/lyric-filter/LyricFilterPreviewList.tsx
 // The sample lyric of the lyric filter window: every line with its time. A removed line stays in
-// place, dimmed and struck through, with a tag that names the rule that removed it. The opening
-// credits block has a rail at its left and a head line with the verdict for this song.
+// place, dimmed and struck through, with a tag that names the rule that removed it; removed in the
+// middle of the song, the tag and a bar at its left are amber. A click on a line asks for rules
+// built from it. The opening credits block has a rail at its left and a head line with the verdict
+// for this song.
 
 interface LyricFilterPreviewListProps {
     isLoading: boolean;
     rows: LyricFilterPreviewRow[];
     staff: LyricStaffDecision;
     staffPolicy: LyricStaffPolicy;
+    /** The rule's name for a tag. */
+    ruleLabel: (rule: LyricLineRule) => string;
+    /** The line whose rules are being suggested. */
+    pickedIndex: number | null;
+    onPickLine: (row: LyricFilterPreviewRow, element: HTMLButtonElement) => void;
 }
 
 /** The rail at the left of the credits block. */
@@ -27,21 +36,48 @@ const formatLineTime = (seconds: number): string => {
     return `${String(Math.floor(tenths / 600)).padStart(2, '0')}:${((tenths % 600) / 10).toFixed(1).padStart(4, '0')}`;
 };
 
-const PreviewLine: React.FC<{ row: LyricFilterPreviewRow; railed: boolean }> = ({ row, railed }) => {
+/**
+ * A line's tag. Capped in width, the text cut short: a rule of many words would otherwise squeeze the
+ * line to a column one character wide. The mid-song mark stands after it and is never cut.
+ */
+const LineTag: React.FC<React.HTMLAttributes<HTMLSpanElement> & { text: string; mid: boolean }> = ({ text, mid, className = '', ...rest }) => {
+    const { t } = useTranslation();
+    return (
+        <span {...rest} className={`flex h-5 max-w-40 rounded-[5px] bg-[var(--st-fill)] px-1.5 text-[11px] leading-5 ${mid ? 'text-[color:var(--st-warn)]' : 'text-[color:var(--st-t2)]'} ${className}`}>
+            <span className="truncate">{text}</span>
+            {mid && <span className="ml-1 shrink-0 whitespace-nowrap">{t('lyricFilter.tagMid')}</span>}
+        </span>
+    );
+};
+
+type PreviewLineProps = {
+    row: LyricFilterPreviewRow;
+    railed: boolean;
+    picked: boolean;
+    ruleLabel: (rule: LyricLineRule) => string;
+    onPick: (row: LyricFilterPreviewRow, element: HTMLButtonElement) => void;
+};
+
+const PreviewLine: React.FC<PreviewLineProps> = ({ row, railed, picked, ruleLabel, onPick }) => {
     const { t } = useTranslation();
     const { line, removedByFilter, removedByStaff, startTime, timeMoved } = row;
     const removed = removedByFilter || removedByStaff;
-    const tag = removedByFilter ? t('lyricFilter.tagLine') : removedByStaff ? t('lyricFilter.tagStaff') : null;
-    // The tag keeps its last text while it fades out.
-    const shownTag = useRef(tag);
-    if (tag) {
-        shownTag.current = tag;
-    }
+    const midRemoved = removedByFilter && row.midSong;
+    const tag = removedByFilter
+        ? (row.rule ? ruleLabel(row.rule) : '')
+        : removedByStaff ? t('lyricFilter.tagStaff') : null;
     const textTone = removed ? 'line-through text-[color:var(--st-t3)]' : '';
 
     return (
         // The time and the tag stand beside the first line of a text that wraps or has a translation.
-        <div className={`relative grid min-h-[34px] grid-cols-[56px_minmax(0,1fr)_auto] items-start gap-x-2 px-3 py-1.5 ${railed ? RAIL_CLASS : ''}`}>
+        <button
+            type="button"
+            aria-haspopup="dialog"
+            aria-expanded={picked}
+            onClick={event => onPick(row, event.currentTarget)}
+            className={`st-t-fast group relative grid min-h-[34px] w-full grid-cols-[56px_minmax(0,1fr)_auto] items-start gap-x-2 rounded-lg px-3 py-1.5 text-left transition-colors hover:bg-[var(--st-fill)] ${picked ? 'bg-[var(--st-fill)] shadow-[0_0_0_1px_var(--st-line2)]' : ''} ${railed ? RAIL_CLASS : ''}`}
+        >
+            {midRemoved && <span aria-hidden className="absolute inset-y-1 left-0 w-0.5 rounded-full bg-[var(--st-warn)]" />}
             <time className={`st-t-move font-mono text-[11px] leading-[22px] tabular-nums transition-colors ${timeMoved && !removed ? 'text-[color:var(--st-t1)]' : 'text-[color:var(--st-t3)]'}`}>
                 {formatLineTime(startTime)}
             </time>
@@ -55,17 +91,18 @@ const PreviewLine: React.FC<{ row: LyricFilterPreviewRow; railed: boolean }> = (
                     </div>
                 )}
             </div>
-            <span
+            <LineTag
                 aria-hidden={!tag}
-                className={`st-t-move mt-px h-5 whitespace-nowrap rounded-[5px] bg-[var(--st-fill)] px-1.5 text-[11px] leading-5 text-[color:var(--st-t2)] transition-[opacity,transform] ${tag ? '' : 'translate-x-1 opacity-0'}`}
-            >
-                {tag ?? shownTag.current}
-            </span>
-        </div>
+                text={tag ?? t('lyricFilter.hoverAction')}
+                mid={midRemoved}
+                title={tag ?? undefined}
+                className={`st-t-move mt-px transition-[opacity,transform] ${tag ? '' : 'translate-x-1 opacity-0 group-hover:translate-x-0 group-hover:opacity-100'}`}
+            />
+        </button>
     );
 };
 
-const LyricFilterPreviewList: React.FC<LyricFilterPreviewListProps> = ({ isLoading, rows, staff, staffPolicy }) => {
+const LyricFilterPreviewList: React.FC<LyricFilterPreviewListProps> = ({ isLoading, rows, staff, staffPolicy, ruleLabel, pickedIndex, onPickLine }) => {
     const { t } = useTranslation();
 
     if (isLoading) {
@@ -124,9 +161,51 @@ const LyricFilterPreviewList: React.FC<LyricFilterPreviewListProps> = ({ isLoadi
                             )}
                         </div>
                     )}
-                    <PreviewLine row={row} railed={isRailed(row)} />
+                    <PreviewLine row={row} railed={isRailed(row)} picked={row.index === pickedIndex} ruleLabel={ruleLabel} onPick={onPickLine} />
                 </React.Fragment>
             ))}
+        </div>
+    );
+};
+
+
+/** The 听过的歌 tab: the lines the rules that are on remove across the songs heard, by song. */
+export const LibraryHitList: React.FC<{ scan: LibraryScan | null; songCount: number | null; ruleName: (id: string) => string }> = ({ scan, songCount, ruleName }) => {
+    const { t } = useTranslation();
+
+    if (songCount === null || !scan) {
+        return (
+            <div className="flex h-full items-center justify-center">
+                <Loader2 className="animate-spin text-[color:var(--st-t3)]" size={24} />
+            </div>
+        );
+    }
+    if (songCount === 0 || scan.songs.length === 0) {
+        return (
+            <div className="flex h-full items-center justify-center text-[13px] text-[color:var(--st-t3)]">
+                {t(songCount === 0 ? 'lyricFilter.libraryNone' : 'lyricFilter.libraryEmpty')}
+            </div>
+        );
+    }
+
+    // The scan keeps only the lines drawn here (LIBRARY_ROWS) and counts the rest.
+    const hidden = scan.removedLines - scan.songs.reduce((count, song) => count + song.lines.length, 0);
+
+    return (
+        <div className="pb-5">
+            {scan.songs.map(song => (
+                <div key={song.key} className="pt-3">
+                    <div className="px-3 pb-1 text-xs text-[color:var(--st-t2)]">{song.title ?? t('lyricFilter.untitled')}</div>
+                    {song.lines.map((line, index) => (
+                        <div key={`${index}-${line.text}`} className="relative flex items-start justify-between gap-3 px-3 py-1">
+                            {line.mid && <span aria-hidden className="absolute inset-y-1 left-0 w-0.5 rounded-full bg-[var(--st-warn)]" />}
+                            <s className="min-w-0 text-sm leading-[22px] text-[color:var(--st-t3)]">{line.text}</s>
+                            <LineTag text={ruleName(line.ruleId)} mid={line.mid} title={ruleName(line.ruleId)} className="mt-px shrink-0" />
+                        </div>
+                    ))}
+                </div>
+            ))}
+            {hidden > 0 && <div className="px-3 pt-3 text-xs text-[color:var(--st-t3)]">{t('lyricFilter.warnMore', { count: hidden })}</div>}
         </div>
     );
 };

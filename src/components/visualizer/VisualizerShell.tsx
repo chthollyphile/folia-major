@@ -48,21 +48,25 @@ interface VisualizerShellProps {
 }
 
 const PLAYER_CHROME_HOTSPOT_SIZE = 120;
+// The panel button's corner is wider and taller than the back button's: the pointer finds the
+// button (and the slide-to-palette guide on it) from further away, so the panel is easier to discover.
+const PLAYER_PANEL_HOTSPOT_WIDTH = 240;
+const PLAYER_PANEL_HOTSPOT_HEIGHT = 200;
 const TOUCH_GUIDE_DISPLAY_MS = 1400;
 const backRevealArea = (bounds: FoliumLayoutRect): FoliumLayoutRect => ({
     left: bounds.left, top: bounds.top,
     width: PLAYER_CHROME_HOTSPOT_SIZE, height: PLAYER_CHROME_HOTSPOT_SIZE,
 });
 const panelRevealArea = (bounds: FoliumLayoutRect): FoliumLayoutRect => ({
-    left: bounds.left + bounds.width - PLAYER_CHROME_HOTSPOT_SIZE,
-    top: bounds.top + bounds.height - PLAYER_CHROME_HOTSPOT_SIZE,
-    width: PLAYER_CHROME_HOTSPOT_SIZE, height: PLAYER_CHROME_HOTSPOT_SIZE,
+    left: bounds.left + bounds.width - PLAYER_PANEL_HOTSPOT_WIDTH,
+    top: bounds.top + bounds.height - PLAYER_PANEL_HOTSPOT_HEIGHT,
+    width: PLAYER_PANEL_HOTSPOT_WIDTH, height: PLAYER_PANEL_HOTSPOT_HEIGHT,
 });
 
 const isNearPlayerPanelHotspot = (clientX: number, clientY: number) => (
     typeof window !== 'undefined'
-    && clientX >= window.innerWidth - PLAYER_CHROME_HOTSPOT_SIZE
-    && clientY >= window.innerHeight - PLAYER_CHROME_HOTSPOT_SIZE
+    && clientX >= window.innerWidth - PLAYER_PANEL_HOTSPOT_WIDTH
+    && clientY >= window.innerHeight - PLAYER_PANEL_HOTSPOT_HEIGHT
 );
 
 const VisualizerShell = forwardRef<HTMLDivElement, VisualizerShellProps>(({

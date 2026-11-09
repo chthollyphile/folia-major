@@ -6,6 +6,7 @@ import { migrateLyricDataRenderHints } from '../utils/lyrics/renderHints';
 import { loadOnlineLyricsState, markOnlineLyricsPureMusic, resolveOnlineLyrics, resolveOnlineLyricsPureMusic, saveOnlineLyricsState } from '../utils/onlineLyricsState';
 import { autoMatchBestLyric } from '../utils/lyrics/autoMatchBestLyric';
 import { getPlatformLyricSource } from '../utils/lyrics/lyricSources';
+import { settlesOnOwnWordTiming } from '../utils/lyrics/ownWordTiming';
 import { createSafeObjectUrl } from '../utils/blobGuards';
 import type { AudioQualityPreference, MediaId, ProviderAudioSource } from '../types/onlineMusic';
 import { omni } from './onlineMusic/omni';
@@ -204,6 +205,18 @@ export async function loadOnlineSongLyrics(
     const preferredCachedLyrics = resolveOnlineLyrics(onlineLyricsState, cachedLyrics);
     const hasAuthoritativeLyricsSelection = onlineLyricsState?.lyricsSource === 'imported'
         || Boolean(onlineLyricsState?.hasOnlineOverride);
+    // A platform whose own word timing is kept as it is (`prefersOwnWordByWord`) is not searched
+    // for another source when it is also the preferred one: the automatic pick would replace the
+    // timing the song actually has. Any other preferred source is still asked (issue #1127).
+    const keepsOwnWordByWord = (candidate: LyricData | null | undefined) => {
+        const lyricSettings = useLyricSettingsStore.getState();
+        return settlesOnOwnWordTiming({
+            ownSource: getPlatformLyricSource(song.sourceRef?.kind === 'online' ? song.sourceRef.providerId : null)?.id,
+            prefersOwn: omni.prefersOwnWordByWordLyrics(song),
+            lyrics: candidate,
+            keepOwn: lyricSettings.keepProviderWordTiming,
+        }, lyricSettings.preferredAlternativeLyricSource);
+    };
     if (preferredCachedLyrics && (hasAuthoritativeLyricsSelection || !initialSettingsLyricSettings.autoUseBestLyric)) {
         const cachedText = preferredCachedLyrics.lines.map(line => line.fullText).join('\n');
         onPureMusicChange?.(resolveOnlineLyricsPureMusic(onlineLyricsState, cachedText));
@@ -225,7 +238,8 @@ export async function loadOnlineSongLyrics(
         const effectiveLyrics = preferredPrefetchedLyrics ?? prefetched.lyrics;
 
   const settingsLyricSettings = useLyricSettingsStore.getState();
-        const shouldAutoMatch = settingsLyricSettings.autoUseBestLyric && !onlineLyricsState?.hasOnlineOverride;
+        const shouldAutoMatch = settingsLyricSettings.autoUseBestLyric && !onlineLyricsState?.hasOnlineOverride
+            && !keepsOwnWordByWord(effectiveLyrics);
 
         if (!shouldAutoMatch) {
             const effectiveText = effectiveLyrics?.lines.map(line => line.fullText).join('\n') ?? '';
@@ -270,7 +284,8 @@ export async function loadOnlineSongLyrics(
     let finalState = onlineLyricsState;
 
   const settingsLyricSettings = useLyricSettingsStore.getState();
-    const shouldAutoMatch = settingsLyricSettings.autoUseBestLyric && !onlineLyricsState?.hasOnlineOverride;
+    const shouldAutoMatch = settingsLyricSettings.autoUseBestLyric && !onlineLyricsState?.hasOnlineOverride
+        && !keepsOwnWordByWord(parsedLyrics);
 
     if (shouldAutoMatch) {
         // The lyrics in hand are already displayable, so hand them over and report done BEFORE the
@@ -292,7 +307,9 @@ export async function loadOnlineSongLyrics(
             const bestMatch = await autoMatchBestLyric(song.name, artistName, metadata.durationMs, {
                 album: metadata.album?.name,
                 preferredSource: settingsLyricSettings.preferredAlternativeLyricSource,
+                keepOwnWordTiming: settingsLyricSettings.keepProviderWordTiming,
                 alternateArtist: () => omni.getAlternateArtistName(song),
+                searchAlias: () => omni.getLyricSearchAlias(song),
                 providerCandidate: ownLyricSource
                     ? {
                         providerId: ownLyricSource.id,

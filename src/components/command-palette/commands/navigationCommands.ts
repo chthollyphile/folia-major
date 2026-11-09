@@ -44,7 +44,7 @@ export const navigationCommands: CommandPaletteCommand[] = [
     createHomeTabCommand('local', 'Open local music', 'Open local music tab', ['local music', 'local', '本地', '本地音乐']),
     createHomeTabCommand('albums', 'Open albums', 'Open albums tab', ['albums', 'album', '专辑']),
     createHomeTabCommand('navidrome', 'Open Navidrome', 'Open Navidrome tab', ['navidrome', 'navi', '服务器']),
-    createHomeTabCommand('radio', 'Open radio', 'Open radio tab', ['radio', 'fm', '电台']),
+    createHomeTabCommand('radio', 'Open radio', 'Open radio tab', ['radio', 'fm', 'recommended', '电台', '推荐']),
     {
         ...createHomeTabCommand('explore', 'Open explore', 'Open explore tab', ['explore', 'discover', 'recommendations', '探索', '推荐']),
         // Only a provider with a recommendation page of its own has the tab.

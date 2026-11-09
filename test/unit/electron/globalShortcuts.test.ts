@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 
 // test/unit/electron/globalShortcuts.test.ts
-// The main-process side of the global playback shortcuts: only the fixed-modifier accelerators are
-// registered, each apply replaces the last set touching only what changed, refusals are reported and
-// retried, and Wayland goes through the desktop portal.
+// The main-process side of the global playback shortcuts: only accelerators with at least one
+// modifier and a key on the list are registered, each apply replaces the last set touching only what
+// changed, refusals are reported and retried, and Wayland goes through the desktop portal.
 
 type Answer = { backend: 'native' | 'portal'; results: Array<{ accelerator: string; registered: boolean }> };
 
@@ -34,14 +34,37 @@ const fakeGlobalShortcut = (taken: string[] = []) => {
 };
 
 describe('createGlobalShortcutController', () => {
-    it('registers the fixed-modifier accelerators and drops anything else', () => {
+    it('registers the combinations the settings allow and drops anything else', () => {
         const globalShortcut = fakeGlobalShortcut();
         const controller = createGlobalShortcutController({ globalShortcut, onTrigger: vi.fn(), backend: 'native' });
 
-        const answer = controller.apply(['Control+Alt+Shift+P', 'Alt+P', 'Control+Alt+Shift+F4', 42, 'Control+Alt+Shift+P']);
+        const answer = controller.apply([
+            'Control+Alt+Shift+P',
+            'Shift+Space',
+            'Alt+Up',
+            'Control+F5',
+            'Super+Left',
+            'P',
+            'Space',
+            'Control+Control+P',
+            'Control+Plus',
+            'Control+Escape',
+            'Control+Alt+F25',
+            42,
+            'Control+Alt+Shift+P',
+        ]);
 
-        expect(answer).toEqual({ backend: 'native', results: [{ accelerator: 'Control+Alt+Shift+P', registered: true }] });
-        expect(globalShortcut.register).toHaveBeenCalledTimes(1);
+        expect(answer).toEqual({
+            backend: 'native',
+            results: [
+                { accelerator: 'Control+Alt+Shift+P', registered: true },
+                { accelerator: 'Shift+Space', registered: true },
+                { accelerator: 'Alt+Up', registered: true },
+                { accelerator: 'Control+F5', registered: true },
+                { accelerator: 'Super+Left', registered: true },
+            ],
+        });
+        expect(globalShortcut.register).toHaveBeenCalledTimes(5);
     });
 
     it('reports a key the system refuses and keeps the others', () => {

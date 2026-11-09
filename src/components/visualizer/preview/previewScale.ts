@@ -3,8 +3,8 @@
 // the app's window, not of the box they are in, and the Pixi styles never make a canvas smaller
 // than 320 by 240. So a picture draws the style on a stage as large as the window, where it lays
 // out as on the playing page, and scales that stage down until it covers the picture's box. The
-// big sample of the lyric style window and of Theme Park does the same, but fills its box with the
-// stage and zooms in a little.
+// big sample of the lyric style window and of Theme Park does the same in a box of the window's
+// shape, which the stage fills whole (frameStage).
 
 export type Size = { width: number; height: number };
 

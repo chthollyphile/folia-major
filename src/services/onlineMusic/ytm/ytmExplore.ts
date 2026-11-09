@@ -6,7 +6,7 @@ import { addYtmSeeds, noteYtmListened, ytmListenedSeeds, ytmRadioSongs, ytmSeedO
 import type { YtmSeed } from './ytmRadio';
 import { requestYtm } from './ytmTransport';
 import { errorMessage } from '../../../utils/errorText';
-import type { YtmWireExploreItem, YtmWireExplorePage } from './ytmTransport';
+import type { YtmWireExploreItem, YtmWireExplorePage, YtmWireSong } from './ytmTransport';
 
 // src/services/onlineMusic/ytm/ytmExplore.ts
 // The recommendation page of YouTube Music: the shelves YouTube shows the signed-in account, and
@@ -231,6 +231,18 @@ export const ytmExplore: OnlineExploreProvider = {
         const end = Number(place) + RADIO_BATCH;
         console.log(`[Ytm] Explore radio of ${id}: ${songs.slice(Number(place), end).length} further songs from place ${place}, ${Math.max(0, songs.length - end)} after them`);
         return { items: songs.slice(Number(place), end), ...(end < songs.length ? { moreCursor: radioCursor(id, end) } : {}) };
+    },
+    // A music video recorded as played is set right to its song (the main process's asShown): one
+    // played before videos in lists were shown as their songs, or one an album page lists with
+    // the album track's length and the album's picture. Its looks do not tell it, so every track
+    // is asked about, once (the record keeps which were).
+    async songsShownAs(songs) {
+        const ids = [...new Set(songs.flatMap(song => (
+            song.sourceRef?.kind === 'online' && song.sourceRef.providerId === 'ytm' ? [String(song.sourceRef.mediaId)] : []
+        )))];
+        if (ids.length === 0) return new Map();
+        const { songs: found } = await requestYtm<{ songs: Record<string, YtmWireSong | null> }>('song_versions', { ids: ids.join(',') });
+        return new Map(Object.entries(found).map(([id, song]) => [id, song && normalizeYtmSong(song)]));
     },
 };
 

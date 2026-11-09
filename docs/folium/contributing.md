@@ -13,7 +13,7 @@
 
 ## 1. 开始之前
 
-- **先确认接口边界。** 稳定扩展接口目前只有 UI 相关部分、歌词原文解析（`folium.lyrics.parse` 与 `getLyrics` 的返回形状），以及播放控制补全（音量、静音、循环模式、播放队列）、首页页面（`homeTabs`）、播放失败通知（`playback.failed`）与 main 入口的文件目录（`api.storage.paths`）；1.7 加了 main 入口向 client 推送消息（`api.rpc.send` / `folium.rpc.on`）、密钥类设置字段（`secret`）、登录状态（`folium.account`）、可以放进系统级全局快捷键的命令（`globalShortcut`）、整表替换播放队列（`folium.playback.replaceQueue`，权限 `playback.queue`），经 Omni 只读在线音源的 `folium.omni`（搜索、按 id 解析、歌词、专辑与歌手），以及音效（`folium.equalizer`：读宿主的均衡器、切换用户的音效、施加模组自己的曲线）。其余部分，尤其是 `omni.providers` 等 Omni provider 接口和平台后端直通 `platform.raw`，仍属实验接口，能力尚不能与应用内置 Omni provider 对等。在 Folium v2 发布前，请绝对不要尝试制作超出当前实验接口能力的完整音源模组；这类实现必然遇到接口缺口，浪费开发者和维护者的时间。
+- **先确认接口边界。** 稳定扩展接口目前只有 UI 相关部分、歌词原文解析（`folium.lyrics.parse` 与 `getLyrics` 的返回形状），以及播放控制补全（音量、静音、循环模式、播放队列）、首页页面（`homeTabs`）、播放失败通知（`playback.failed`）与 main 入口的文件目录（`api.storage.paths`）；1.7 加了 main 入口向 client 推送消息（`api.rpc.send` / `folium.rpc.on`）、密钥类设置字段（`secret`）、登录状态（`folium.account`）、可以放进系统级全局快捷键的命令（`globalShortcut`）、整表替换播放队列（`folium.playback.replaceQueue`，权限 `playback.queue`），经 Omni 只读在线音源的 `folium.omni`（搜索、按 id 解析、歌词、专辑与歌手），以及音效（`folium.equalizer`：读宿主的均衡器、切换用户的音效、施加模组自己的曲线）；1.8 加了歌词画布渲染质量（`folium.visualizer`：读写「动画与性能」里 canvas / WebGL 歌词样式默认跟随的全局分辨率与抗锯齿）。其余部分，尤其是 `omni.providers` 等 Omni provider 接口和平台后端直通 `platform.raw`，仍属实验接口，能力尚不能与应用内置 Omni provider 对等。在 Folium v2 发布前，请绝对不要尝试制作超出当前实验接口能力的完整音源模组；这类实现必然遇到接口缺口，浪费开发者和维护者的时间。
 - **原始音频导出模组不得上架。** 任何尝试导出 provider 的原始音频流或解密之后的原始音频文件的模组，都有极高的平台法律风险。无论采用何种实现方式，此类模组都不会上架官方模组市场。
 - **模组是可信代码，不是沙箱。** `client` 入口运行在主界面的渲染进程里，`main` 入口运行在主进程里、拥有完整的 Node.js 权限。`mod.json` 里的权限是功能开关，不是安全边界。
 - **只在桌面版可用。** 网页版和 PWA 没有模组系统。
@@ -21,7 +21,7 @@
 - **确认绑定到文件内容。** 模组目录里任何文件变化都会让确认失效，模组被自动禁用，需要重新确认。唯一的例外是开发版里仓库 `mods/` 目录中的模组，见[调试循环](#调试循环)。
 - **签名只是标识。** 发布到模组市场的模组带有 Folium 签名，安装后显示「官方认证」（先行测试渠道显示「先行测试」），但启用时同样要确认，权限也不会因此变少。
 
-当前契约版本是 Folium 1.7（见[兼容与版本](#兼容与版本)）。
+当前契约版本是 Folium 1.8（见[兼容与版本](#兼容与版本)）。
 
 ## 2. 准备开发环境
 
@@ -133,7 +133,7 @@ function mountHello(folium, container, ctx) {
 | 给内置模式加调参项 | `registries.tunings` | — | [FoliumTuningDef](api.md#foliumtuningdef)，`k3panel` |
 | 模组自己的设置 | `registries.settingsSections` | — | [FoliumSettingsSectionDef](api.md#foliumsettingssectiondef) |
 | 命令（模组面板与命令面板） | `registries.commands` | — | [FoliumCommandDef](api.md#foliumcommanddef) |
-| 系统级热键（Folia 在后台也能按，1.7） | 无参数的命令标 `globalShortcut: true`，用户在「设置 → 全局快捷键」里给它选键；不要在 main 入口用 Electron 的 `globalShortcut`。原生 Wayland 下暂不提供 | — | [FoliumCommandDef](api.md#foliumcommanddef)，规范里的「系统级全局快捷键」，`dev/folium/sample-account-console` |
+| 系统级热键（Folia 在后台也能按，1.7） | 无参数的命令标 `globalShortcut: true`，用户在「设置 → 全局快捷键」里按下组合键（一般两个以上修饰键，规则由宿主管）；不要在 main 入口用 Electron 的 `globalShortcut`。原生 Wayland 下暂不提供 | — | [FoliumCommandDef](api.md#foliumcommanddef)，规范里的「系统级全局快捷键」，`dev/folium/sample-account-console` |
 | 播放器面板里的标签页 | `registries.playerPanelTabs` | — | [FoliumPlayerPanelTabDef](api.md#foliumplayerpaneltabdef) |
 | 首页导航里的完整页面 | `registries.homeTabs`，用 `folium.ui.openHomeTab` 打开 | — | [FoliumHomeTabDef](api.md#foliumhometabdef)，[首页页面](home-tabs.md)，`dev/folium/sample-home-tab` |
 | 进度条旁的按钮、轨道上的标记 | `registries.progressButtons` / `progressLayers` | — | [FoliumProgressContext](api.md#foliumprogresscontext)，`sample-progress-bar` |
@@ -153,6 +153,8 @@ function mountHello(folium, container, ctx) {
 | 知道谁登录了在线音源、换号时丢掉旧数据（1.7） | `folium.account.getState`，变化看 `account.changed` | — | [FoliumAccountService](api.md#foliumaccountservice)，[FoliumAccountState](api.md#foliumaccountstate)，`dev/folium/sample-account-console` |
 | 读在线音源：搜歌、按存下的 `{ source, id }` 找回歌、歌词、专辑与歌手（1.7） | `folium.omni`；放和入队把拿到的歌交给 `folium.playback.playSong` / `enqueue` | 不需要（以用户在 Folia 登录的平台账号发请求，按模组限额）；放和入队需 `playback.control` | [FoliumOmniService](api.md#foliumomniservice)，[FoliumSongResolution](api.md#foliumsongresolution)，规范里的「folium.omni」，`dev/folium/sample-omni-console` |
 | 读当前均衡器、切换用户的音效、施加自己的曲线（1.7） | `folium.equalizer`，变化看 `equalizer.changed` | 读不需要；写需 `equalizer.control` | [FoliumEqualizerService](api.md#foliumequalizerservice)，规范里的「folium.equalizer」，`dev/folium/sample-equalizer-console` |
+| 读或改歌词画布的全局分辨率与抗锯齿（1.8） | `folium.visualizer.getRenderQuality` / `setRenderQuality`，变化看 `visualizer.renderQualityChanged` | 读不需要；写需 `visualizer.renderQuality` | [FoliumVisualizerService](api.md#foliumvisualizerservice)，规范里的「folium.visualizer」 |
+| 替用户切换歌词动画模式、改内置模式的样式参数、开关智能动感效果（1.8） | `folium.visualizer.listModes` / `setMode` / `setTuning` / `setBeatEffects`，变化看 `visualizer.modeChanged`、`visualizer.tuningChanged`、`visualizer.beatEffectsChanged` 的 `origin` | 读不需要；写分别需 `visualizer.mode`、`visualizer.tuning`、`visualizer.beatEffects` | [FoliumVisualizerService](api.md#foliumvisualizerservice)，[FoliumVisualizerModeInfo](api.md#foliumvisualizermodeinfo)，规范里的「folium.visualizer」 |
 | 调用 Omni 还没有的平台专有接口（后备，1.7） | `experimental['platform.raw']`，清单选用 `platform.raw`；`folium.omni` 有的不要用它读 | `platform.<平台>.read`，改动账号的接口另要 `.write` | [FoliumPlatformService](api.md#foliumplatformservice)，规范里的「platform.raw」，`dev/folium/sample-account-console` |
 
 ## 5. 写好一个模组
@@ -273,7 +275,7 @@ const mount = async (container, ctx) => {
 
 ### 系统级热键
 
-- 想让用户在 Folia 不在前台时也能按键触发模组的动作，就给一条没有参数的命令标上 `globalShortcut: true`（Folium 1.7）。它会出现在桌面版「设置 → 快捷操作 → 全局快捷键」的命令下拉框里，键由用户选，修饰键、保留键、重复键和被别的程序占用的提示都由宿主管。按下时 `run` 拿到空的 `values`，结果不显示，需要反馈就用 `folium.ui.toast`。
+- 想让用户在 Folia 不在前台时也能按键触发模组的动作，就给一条没有参数的命令标上 `globalShortcut: true`（Folium 1.7）。它会出现在桌面版「设置 → 快捷操作 → 全局快捷键」的命令下拉框里，键由用户按下组合键选定（一般两个以上修饰键），保留组合、重复组合和被别的程序占用的提示都由宿主管。按下时 `run` 拿到空的 `values`，结果不显示，需要反馈就用 `folium.ui.toast`。
 - 不要在 main 入口 `require('electron')` 拿 `globalShortcut` 自己注册，再用 `executeJavaScript` 把动作塞进窗口：那样会绕开宿主的规则，在 Windows 上独占别的程序的组合键，也可能先占走宿主自己的键，让宿主注册失败。`globalShortcut.unregisterAll()` 会把宿主的键一起清掉。
 - 媒体键（播放/暂停、上一首、下一首）由宿主经 Media Session 处理，不要抢。
 - 原生 Wayland 下暂不提供：那里的全局快捷键由桌面环境的快捷键门户接管，宿主交出去的是固定的播放命令整表。
@@ -284,7 +286,7 @@ const mount = async (container, ctx) => {
 
 ### 兼容与版本
 
-- 清单里写 `"folium": 1`。Folium 1.7 的宿主上，[API 参考](api.md)里的每个成员都在；`folium.host` 给显示和日志用。用到 1.7 新加的成员（`rpc.send` / `rpc.on`、`secret` 字段与 `secrets`、`account`、`omni`、`equalizer`、`playback.replaceQueue`）时先检查 `folium.host.folium.minor >= 7`（main 入口是 `api.host.folium.minor`；`replaceQueue` 再加上 `typeof folium.playback.replaceQueue === 'function'`）：旧宿主上没有它们（`folium.omni`、`folium.equalizer` 读出来是 `undefined`），`secret` 字段会被丢掉，分区丢完字段一个不剩时注册会抛错。`minor` 检查救不了新权限：声明了 `playback.queue` 或 `equalizer.control` 的清单在 Folium 1.6 的宿主上整份被拒（未知权限一律拒绝），模组根本装不上。要兼容 1.6，均衡器只能只读、不声明 `equalizer.control`（见规范里的「folium.equalizer」）；`replaceQueue` 离不开 `playback.queue`，用它的模组装不上 1.6（见规范里的 replaceQueue）。命令的 `globalShortcut` 不用检查：旧宿主只是不认它，命令照常出现在命令面板和模组面板里。
+- 清单里写 `"folium": 1`。Folium 1.8 的宿主上，[API 参考](api.md)里的每个成员都在；`folium.host` 给显示和日志用。用到 1.7 新加的成员（`rpc.send` / `rpc.on`、`secret` 字段与 `secrets`、`account`、`omni`、`equalizer`、`playback.replaceQueue`）时先检查 `folium.host.folium.minor >= 7`（main 入口是 `api.host.folium.minor`；`replaceQueue` 再加上 `typeof folium.playback.replaceQueue === 'function'`）：旧宿主上没有它们（`folium.omni`、`folium.equalizer` 读出来是 `undefined`），`secret` 字段会被丢掉，分区丢完字段一个不剩时注册会抛错。`minor` 检查救不了新权限：声明了 `playback.queue` 或 `equalizer.control` 的清单在 Folium 1.6 的宿主上整份被拒（未知权限一律拒绝），模组根本装不上。要兼容 1.6，均衡器只能只读、不声明 `equalizer.control`（见规范里的「folium.equalizer」）；`replaceQueue` 离不开 `playback.queue`，用它的模组装不上 1.6（见规范里的 replaceQueue）。命令的 `globalShortcut` 不用检查：旧宿主只是不认它，命令照常出现在命令面板和模组面板里。用到 1.8 的 `folium.visualizer` 时先检查 `folium.host.folium.minor >= 8`（1.7 的宿主上它读出来是 `undefined`）；声明了 `visualizer.renderQuality`、`visualizer.mode`、`visualizer.tuning` 或 `visualizer.beatEffects` 的清单在 1.7 及更早的宿主上同样整份被拒，要兼容它们就只读、不声明这些权限。
 - 为 Folium 1.5 写的模组照旧能用，用到的旧名字在「设置 → 模组」里这个模组那一行各提醒一次，`npm run folium:check` 也会列出来。改成现在的写法见 API 参考的[仍可用的旧名字](api.md#仍可用的旧名字)，Folium 2 起旧名字不再有效。
 - 实验接口（`omni.providers`、`omni.hooks`、`ponder.targets`、`player.layout`、`remote.actions`、`platform.raw`）需要在清单的 `experimental` 里选用，任何 minor 版本都可能变化。`platform.raw` 返回的是平台原始 JSON，跟着宿主钉住的后端库变，按字段防御着读。读歌曲详情、歌词、搜索、专辑与歌手先用稳定的 `folium.omni`（1.7），它给的是宿主的歌曲 DTO，可以直接交给 `playSong` / `enqueue`；`platform.raw` 只留给 `folium.omni` 没有的平台专有接口。
 - 模组更新时提升 `mod.json` 的 `version`（`MAJOR.MINOR.PATCH`）。

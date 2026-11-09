@@ -1,5 +1,6 @@
 import { HTDEMUCS_GPU_SEGMENT } from './beatThisGpu';
-import { separateStemSegment, stemSegmentStarts, stemSegmentWindow } from './stemRange';
+import { runStemPass, type StemReader } from './stemPass';
+import { stemSegmentStarts, stemSegmentWindow } from './stemRange';
 
 // src/services/analysis/drumStem.ts
 // A whole track's drum stem from htdemucs on the renderer's GPU (beatThisGpu.ts runHtdemucsGpu, the
@@ -23,15 +24,16 @@ import { separateStemSegment, stemSegmentStarts, stemSegmentWindow } from './ste
 // still separating (drumHitStream.ts). Each sample is divided once, so the stem is the same either way.
 //
 // The running sum is also what a stopped separation resumes from (analysis service plan, 2b): with
-// `progress`, the sum, the weight, the next segment and how far it is divided live in the caller's
-// object, so a separation stopped at a segment boundary can be handed back what it had - only the
-// part not yet final matters, the next segment's quarter - and carry on from that segment. The stem
-// is then the same, bit for bit, as one separated in a single go.
+// `progress`, the sum, the next segment and how far it is divided live in the caller's object (the
+// weight is worked out at each sample, stemPass.ts), so a separation stopped at a segment boundary can
+// be handed back what it had - only the part not yet final matters, the next segment's quarter - and
+// carry on from that segment. The stem is then the same, bit for bit, as one separated in a single go.
 //
-// Since the analysis service's phase 3 the grid, the window and the segments themselves are
-// stemRange.ts': with the track's `key`, a segment automix already separated (the track's head,
-// while the one before played) is taken from there rather than run again, and one automix said it
-// wants (the track's tail) is kept for it.
+// The loop itself is stemPass.ts' since the stem-pass refactor: the drums are one reader on a pass
+// that can carry the other stems' readers too. Since the analysis service's phase 3 the grid, the
+// window and the segments themselves are stemRange.ts': with the track's `key`, a segment automix
+// already separated (the track's head, while the one before played) is taken from there rather than
+// run again, and one automix said it wants (the track's tail) is kept for it.
 
 /** The triangular overlap-add window of htdemucs.cjs `buildWindow`, for one segment. */
 export const drumStemWindow = (segment: number): Float32Array => stemSegmentWindow(segment);
@@ -39,16 +41,9 @@ export const drumStemWindow = (segment: number): Float32Array => stemSegmentWind
 /** Where each segment starts, for a track of `total` samples: a step of three quarters of a segment. */
 export const drumStemSegments = (total: number, segment = HTDEMUCS_GPU_SEGMENT): number[] => stemSegmentStarts(total, segment);
 
-/**
- * The drum stem of a stereo track at 44.1 kHz, as mono (the two channels averaged), or null when any
- * segment cannot be separated now, or as soon as `keepGoing` answers false (asked before each one).
- * `onSegment` hears each finished segment's index and the count, and the stem so far: `drums` is final
- * up to `final` samples (the rest of it is not yet divided, and is not to be read).
- */
-/** Where a separation is: the running sum and weight, the next segment, and how far it is final. */
+/** Where a drum separation is: the stem (a running sum past `divided`), the next segment, and how far it is final. */
 export interface DrumStemProgress {
     drums: Float32Array;
-    weight: Float32Array;
     /** The index of the next segment to separate. */
     next: number;
     /** Samples from the start whose quotient is final (divided). */
@@ -58,11 +53,17 @@ export interface DrumStemProgress {
 /** A fresh progress for a track of `total` samples. */
 export const startDrumStem = (total: number): DrumStemProgress => ({
     drums: new Float32Array(total),
-    weight: new Float32Array(total),
     next: 0,
     divided: 0,
 });
 
+/**
+ * The drum stem of a stereo track at 44.1 kHz, as mono (the two channels averaged), or null when any
+ * segment cannot be separated now, or as soon as `keepGoing` answers false (asked before each one).
+ * `onSegment` hears each finished segment's index and the count, and the stem so far: `drums` is final
+ * up to `final` samples (the rest of it is not yet divided, and is not to be read). One drum reader on
+ * a stem pass (stemPass.ts), its window the whole of `progress.drums`.
+ */
 export const separateDrumStem = async (
     left: Float32Array,
     right: Float32Array,
@@ -72,36 +73,20 @@ export const separateDrumStem = async (
     /** The track's analysis key: segments shared with automix through stemRange.ts. */
     key?: string,
 ): Promise<Float32Array | null> => {
-    const segment = HTDEMUCS_GPU_SEGMENT;
-    const total = left.length;
-    const win = drumStemWindow(segment);
-    const starts = drumStemSegments(total, segment);
-    const { drums, weight } = progress;
-    const inLeft = new Float32Array(segment);
-    const inRight = new Float32Array(segment);
-    for (let index = progress.next; index < starts.length; index += 1) {
-        const start = starts[index];
-        if (!keepGoing()) return null;
-        const n = Math.min(segment, total - start);
-        // The last segment runs past the end of the track: zeros, as the reference pads it.
-        inLeft.fill(0);
-        inRight.fill(0);
-        inLeft.set(left.subarray(start, start + n));
-        inRight.set(right.subarray(start, start + n));
-        // On screen (时计), one unit of the scheduler's; a track left meanwhile is dropped there too.
-        const stems = await separateStemSegment(key, index, total, inLeft, inRight, 'drums', { urgency: 'onScreen', stillWanted: keepGoing, unitsLeft: starts.length - index });
-        if (!stems) return null;
-        const stem = stems[0];
-        for (let i = 0; i < n; i += 1) {
-            drums[start + i] += ((stem.left[i] + stem.right[i]) / 2) * win[i];
-            weight[start + i] += win[i];
-        }
-        // Up to where the next segment starts, nothing more will be added.
-        const final = index + 1 < starts.length ? starts[index + 1] : total;
-        for (let i = progress.divided; i < final; i += 1) drums[i] /= Math.max(weight[i], 1e-8);
-        progress.divided = final;
-        progress.next = index + 1;
-        onSegment?.(index + 1, starts.length, drums, final);
-    }
-    return drums;
+    const count = drumStemSegments(left.length).length;
+    const reader: StemReader = {
+        source: 'drums',
+        next: progress.next,
+        divided: progress.divided,
+        window: { samples: progress.drums, base: 0 },
+        read: (final) => {
+            progress.next = reader.next;
+            progress.divided = final;
+            onSegment?.(reader.next, count, progress.drums, final);
+            // The whole stem stays: the caller reads it as it likes.
+            return 0;
+        },
+    };
+    const done = await runStemPass({ left, right, readers: () => [reader], keepGoing, key });
+    return done ? progress.drums : null;
 };

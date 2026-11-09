@@ -59,6 +59,16 @@ describe('consoleLogBuffer scopes', () => {
         expect(text).toContain('[A] third');
         expect(text).not.toContain('second');
     });
+
+    it('writes an error inside a logged object by its name and message, not as {}', () => {
+        const error = new Error('Requested device not found');
+        error.name = 'NotFoundError';
+        console.warn('[App] Failed to apply audio output device', { error, sinkTarget: 'audio-context' });
+
+        expect(getConsoleLogEntries()[0].text).toBe(
+            '[App] Failed to apply audio output device {"error":"NotFoundError: Requested device not found","sinkTarget":"audio-context"}',
+        );
+    });
 });
 
 describe('console capture switch', () => {

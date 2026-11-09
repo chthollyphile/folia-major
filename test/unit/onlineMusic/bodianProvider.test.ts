@@ -56,6 +56,19 @@ describe('Bodian provider', () => {
         expect(() => normalizeBodianSong({})).toThrow('no id');
     });
 
+    // `songName` 带版本，`name` 是原名，`FSONGNAME` 是中文译名、`subtitle` 是说明（2026-11-04 实测）。
+    it('keeps the original name beside a versioned song name and offers it as the lyric search alias', async () => {
+        const song = normalizeBodianSong({ ...track, FSONGNAME: '测试译名', subtitle: '《某节目》' });
+        expect(song.sourceRef).toMatchObject({ providerData: { originalName: '测试歌曲' } });
+        await expect(bodianProvider.lyrics!.getSearchAlias!(song)).resolves.toEqual({
+            song, title: '测试歌曲', artist: '测试歌手', album: '测试专辑',
+        });
+
+        const plain = normalizeBodianSong({ ...track, songName: '测试歌曲', FSONGNAME: '测试译名' });
+        expect(plain.sourceRef).not.toHaveProperty('providerData.originalName');
+        await expect(bodianProvider.lyrics!.getSearchAlias!(plain)).resolves.toBeNull();
+    });
+
     it('preserves private/liked playlist source and counts on cache hydration', () => {
         const collection = normalizeBodianCollection({ id: 123, name: '测试歌单', musicCount: 121, sourceType: 5, isPrivate: 1, isLiked: true });
         expect(collection).toMatchObject({ providerId: 'bodian', trackCount: 121, providerData: { source: 5, isPrivate: 1 } });

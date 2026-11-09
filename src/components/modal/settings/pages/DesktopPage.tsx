@@ -28,6 +28,7 @@ const O = {
     remoteTitlebar: option(REMOTE, 'hideRemoteControlTitlebar', 'options.hideRemoteControlTitlebar'),
     remoteClickThrough: option(REMOTE, 'remoteControlClickThrough', 'options.remoteControlClickThrough'),
     remoteExpandCover: option(REMOTE, 'remoteControlExpandCover', 'options.remoteControlExpandCover'),
+    remoteTextShade: option(REMOTE, 'remoteControlTextShade', 'options.remoteControlTextShade'),
 };
 
 const PLATFORM = typeof window === 'undefined' ? undefined : window.electron?.platform;
@@ -50,6 +51,7 @@ const DesktopPage: React.FC = () => {
         remoteTitlebar: state.hideRemoteControlTitlebar,
         remoteClickThrough: state.remoteControlClickThrough,
         remoteExpandCover: state.remoteControlExpandCover,
+        remoteTextShade: state.remoteControlTextShade,
         setMinimizeToTray: state.handleToggleMinimizeToTray,
         setCloseToTray: state.handleToggleCloseToTray,
         setHideTaskbarIcon: state.handleToggleHideTaskbarIcon,
@@ -59,6 +61,7 @@ const DesktopPage: React.FC = () => {
         setRemoteTitlebar: state.handleToggleHideRemoteControlTitlebar,
         setRemoteClickThrough: state.handleToggleRemoteControlClickThrough,
         setRemoteExpandCover: state.handleToggleRemoteControlExpandCover,
+        setRemoteTextShade: state.handleToggleRemoteControlTextShade,
     })));
     const chrome = usePlayerChromeSettingsStore(useShallow(state => ({
         hideFullscreenButton: state.hideFullscreenButton,
@@ -67,7 +70,7 @@ const DesktopPage: React.FC = () => {
         setNativeMacFullscreen: state.handleToggleNativeMacFullscreenButton,
     })));
     // Counts the switches moved off their default; expand cover is on by default, so it counts when off.
-    const remoteOnCount = [desktop.remoteTaskbarIcon, desktop.remoteTitlebar, desktop.remoteClickThrough, !desktop.remoteExpandCover].filter(Boolean).length;
+    const remoteOnCount = [desktop.remoteTaskbarIcon, desktop.remoteTitlebar, desktop.remoteClickThrough, !desktop.remoteExpandCover, desktop.remoteTextShade].filter(Boolean).length;
 
     return (
         <>
@@ -127,6 +130,10 @@ const DesktopPage: React.FC = () => {
                 </Row>
                 <Row option={O.remoteExpandCover} hint={t('options.remoteControlExpandCoverHint')}>
                     <Toggle checked={desktop.remoteExpandCover} onChange={desktop.setRemoteExpandCover} />
+                </Row>
+                {/* Not greyed out: the transparent background is chosen in the remote window itself, so this page cannot tell. */}
+                <Row option={O.remoteTextShade} hint={t('options.remoteControlTextShadeHint')}>
+                    <Toggle checked={desktop.remoteTextShade} onChange={desktop.setRemoteTextShade} />
                 </Row>
             </FoldedGroup>
         </>

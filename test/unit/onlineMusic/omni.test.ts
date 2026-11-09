@@ -1,12 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { saveProviderAccountSnapshot } from '@/services/onlineMusic/providerAccountCache';
-import { omni } from '@/services/onlineMusic/omni';
+import { omni, PLAYLIST_ADD_BATCH } from '@/services/onlineMusic/omni';
 import { registerOnlineMusicProvider, unregisterOnlineMusicProvider } from '@/services/onlineMusic/providerRegistry';
 import { useOnlineProviderAccountStore } from '@/stores/useOnlineProviderAccountStore';
 import type { UnifiedSong } from '@/types';
 import type { OmniRequestRunner, OmniSongDetail, OnlineMusicProvider, ProviderCapabilities, ProviderCollection } from '@/types/onlineMusic';
 import { onlineFailureOf } from '@/services/onlineMusic/failure/onlineFailureCase';
 import { installOmniResultHooks } from '@/services/hostExtensionHooks';
+import { ARTIST_SONGS_CAP } from '@/services/onlineMusic/alignedPages';
 
 // test/unit/onlineMusic/omni.test.ts
 
@@ -74,6 +75,38 @@ describe('omni routing', () => {
         expect(summaries.find(summary => summary.providerId === 'netease')?.requiresAccount).toBe(true);
     });
 
+    it('asks the provider for the catalogue of an extra radio, and gives null where it has none', async () => {
+        const catalog = { modes: [], scenes: [], categories: [] };
+        const getPersonalFmCatalog = vi.fn(async (station?: string) => (station === 'radio' || station === undefined ? catalog : undefined));
+        registerOnlineMusicProvider({
+            ...provider(providerId, { searchSongs: async () => ({ items: [], hasMore: false, nextOffset: 0 }) }),
+            recommendations: { getPersonalFmCatalog: getPersonalFmCatalog as never },
+        });
+        registerOnlineMusicProvider(provider(otherProviderId, { searchSongs: async () => ({ items: [], hasMore: false, nextOffset: 0 }) }));
+
+        await expect(omni.getPersonalFmStationCatalog(providerId, 'radio')).resolves.toBe(catalog);
+        expect(getPersonalFmCatalog).toHaveBeenLastCalledWith('radio');
+        await expect(omni.getPersonalFmStationCatalog(providerId, 'other')).resolves.toBeNull();
+        await expect(omni.getPersonalFmStationCatalog(otherProviderId, 'radio')).resolves.toBeNull();
+        // The Personal FM's own catalogue is asked for with no station, as before.
+        await expect(omni.getPersonalFmCatalog(providerId)).resolves.toBe(catalog);
+        expect(getPersonalFmCatalog).toHaveBeenLastCalledWith();
+    });
+
+    it('hands the options of an extra radio to the active Personal FM', async () => {
+        const getPersonalFm = vi.fn(async () => [song(providerId)]);
+        registerOnlineMusicProvider({
+            ...provider(providerId, { searchSongs: async () => ({ items: [], hasMore: false, nextOffset: 0 }) }),
+            recommendations: { getPersonalFm },
+        });
+        useOnlineProviderAccountStore.getState().setActiveProviderId(providerId);
+
+        await omni.getPersonalFm({ station: 'radio', mode: 'DEFAULT', submode: null });
+        expect(getPersonalFm).toHaveBeenLastCalledWith({ station: 'radio', mode: 'DEFAULT', submode: null });
+        await omni.getPersonalFm();
+        expect(getPersonalFm).toHaveBeenLastCalledWith(undefined);
+    });
+
     it('reports songs from unavailable providers as unplayable without routing them elsewhere', () => {
         expect(omni.canPlaySong(song(missingProviderId))).toBe(false);
     });
@@ -121,6 +154,105 @@ describe('omni routing', () => {
         const target = song(providerId, 'chorus-song');
         await expect(omni.getChorusRanges(target)).resolves.toEqual([{ startTime: 10, endTime: 20 }]);
         expect(getChorusRanges).toHaveBeenCalledWith('chorus-song');
+    });
+
+    it("routes a listening ranking entry to its owner's ranking for its span, and offers no change to it", async () => {
+        const getListeningRankTracks = vi.fn(async () => ({ items: [{ ...song(providerId, 'ranked'), listenCount: 4 }], hasMore: false, nextOffset: 1 }));
+        const getPlaylistTracks = vi.fn(async () => ({ items: [], hasMore: false, nextOffset: 0 }));
+        registerOnlineMusicProvider({
+            ...provider(providerId, { searchSongs: async () => ({ items: [], hasMore: false, nextOffset: 0 }) }),
+            capabilities: { ...capabilities, mutations: true, playlistSubscription: true, playlistTrackMutations: true },
+            catalog: { getListeningRankTracks, getPlaylistTracks },
+            mutations: { subscribePlaylist: vi.fn(), updatePlaylistTracks: vi.fn() } as unknown as OnlineMusicProvider['mutations'],
+        });
+        const entry: ProviderCollection = {
+            providerId, id: 'listening-rank-week-user', type: 'listening_rank', listeningRank: 'week', name: 'Week', creator: { id: 'user', nickname: 'Listener' },
+        };
+
+        await expect(omni.getCollectionTracks(entry, { limit: 150, offset: 0 })).resolves.toMatchObject({ items: [{ listenCount: 4 }] });
+        expect(getListeningRankTracks).toHaveBeenCalledWith('week', 150, 0, entry);
+        expect(getPlaylistTracks).not.toHaveBeenCalled();
+        // An entry that names no span reads nothing.
+        await expect(omni.getCollectionTracks({ ...entry, listeningRank: undefined }, { limit: 150, offset: 0 })).resolves.toMatchObject({ items: [] });
+        expect(getListeningRankTracks).toHaveBeenCalledTimes(1);
+        // A platform that subscribes and edits playlists does neither to its ranking.
+        expect(omni.canSubscribeCollection({ ...entry, type: 'playlist' })).toBe(true);
+        expect(omni.canSubscribeCollection(entry)).toBe(false);
+        expect(omni.canEditCollectionTracks({ ...entry, type: 'playlist' })).toBe(true);
+        expect(omni.canEditCollectionTracks(entry)).toBe(false);
+    });
+
+    it("routes an artist's every song (#918) to its songs in aligned pages, and offers no change to it", async () => {
+        // A provider that pages by number: page = floor(offset / limit) + 1, the whole page whatever the offset.
+        const songIds = Array.from({ length: 1234 }, (_, index) => `s${index}`);
+        const getArtistSongs = vi.fn(async (_id: unknown, limit: number, offset: number) => {
+            const page = Math.floor(offset / limit) + 1;
+            const items = songIds.slice((page - 1) * limit, page * limit).map(mediaId => song(providerId, mediaId));
+            const nextOffset = offset + items.length;
+            return { items, total: songIds.length, hasMore: nextOffset < songIds.length, nextOffset };
+        });
+        const getPlaylistTracks = vi.fn(async () => ({ items: [], hasMore: false, nextOffset: 0 }));
+        const getSubscriptionStatus = vi.fn(async () => true);
+        const updatePlaylistTracks = vi.fn();
+        registerOnlineMusicProvider({
+            ...provider(providerId, { searchSongs: async () => ({ items: [], hasMore: false, nextOffset: 0 }) }),
+            capabilities: { ...capabilities, mutations: true, playlistSubscription: true, playlistTrackMutations: true },
+            catalog: { getArtistSongs, getPlaylistTracks, getSubscriptionStatus },
+            mutations: { subscribePlaylist: vi.fn(), updatePlaylistTracks } as unknown as OnlineMusicProvider['mutations'],
+        });
+        const entry: ProviderCollection = { providerId, id: 'artist-7', type: 'artist_songs', name: 'All songs', isOwned: false };
+
+        // The collection resource reads 150 first, then 1000 at a time from where the first page ended.
+        const first = await omni.getCollectionTracks(entry, { limit: 150, offset: 0 });
+        expect(first).toMatchObject({ total: 1234, hasMore: true, nextOffset: 150 });
+        const second = await omni.getCollectionTracks(entry, { limit: 1000, offset: first.nextOffset });
+        expect(second).toMatchObject({ total: 1234, hasMore: true, nextOffset: 1150 });
+        const third = await omni.getCollectionTracks(entry, { limit: 1000, offset: second.nextOffset });
+        expect(third).toMatchObject({ hasMore: false, nextOffset: 1234 });
+        expect([...first.items, ...second.items, ...third.items].map(item => item.id)).toEqual(songIds);
+        expect(getArtistSongs.mock.calls.every(([id, limit, offset]) => id === 'artist-7' && limit === 50 && offset % 50 === 0)).toBe(true);
+        expect(getPlaylistTracks).not.toHaveBeenCalled();
+
+        // A platform that subscribes and edits playlists does neither to it; its id is the artist's, not a playlist's.
+        expect(omni.canSubscribeCollection({ ...entry, type: 'playlist' })).toBe(true);
+        expect(omni.canSubscribeCollection(entry)).toBe(false);
+        expect(omni.canEditCollectionTracks({ ...entry, type: 'playlist' })).toBe(true);
+        expect(omni.canEditCollectionTracks(entry)).toBe(false);
+        await expect(omni.getSubscriptionStatus(entry)).resolves.toBe(false);
+        expect(getSubscriptionStatus).not.toHaveBeenCalled();
+        await expect(omni.updateCollectionTracks(entry, 'del', [song(providerId, 's1')])).rejects.toMatchObject({ code: 'unsupported' });
+        expect(updatePlaylistTracks).not.toHaveBeenCalled();
+    });
+
+    it('reads an artist of tens of thousands of songs no further than the cap', async () => {
+        const getArtistSongs = vi.fn(async (_id: unknown, limit: number, offset: number) => ({
+            items: Array.from({ length: limit }, (_, index) => song(providerId, `s${offset + index}`)),
+            total: 30000,
+            hasMore: true,
+            nextOffset: offset + limit,
+        }));
+        registerOnlineMusicProvider({
+            ...provider(providerId, { searchSongs: async () => ({ items: [], hasMore: false, nextOffset: 0 }) }),
+            catalog: { getArtistSongs },
+        });
+        const entry: ProviderCollection = { providerId, id: 'artist-7', type: 'artist_songs', name: 'All songs' };
+        const first = await omni.getCollectionTracks(entry, { limit: 150, offset: 0 });
+        expect(first).toMatchObject({ total: ARTIST_SONGS_CAP, hasMore: true, nextOffset: 150 });
+        const last = await omni.getCollectionTracks(entry, { limit: 1000, offset: ARTIST_SONGS_CAP - 500 });
+        expect(last.items).toHaveLength(500);
+        expect(last).toMatchObject({ total: ARTIST_SONGS_CAP, hasMore: false, nextOffset: ARTIST_SONGS_CAP });
+        getArtistSongs.mockClear();
+        await expect(omni.getCollectionTracks(entry, { limit: 1000, offset: ARTIST_SONGS_CAP })).resolves.toMatchObject({ items: [], hasMore: false });
+        expect(getArtistSongs).not.toHaveBeenCalled();
+    });
+
+    it('reads nothing for an artist whose provider has no song list', async () => {
+        registerOnlineMusicProvider({
+            ...provider(providerId, { searchSongs: async () => ({ items: [], hasMore: false, nextOffset: 0 }) }),
+            catalog: {},
+        });
+        const entry: ProviderCollection = { providerId, id: 'artist-7', type: 'artist_songs', name: 'All songs' };
+        await expect(omni.getCollectionTracks(entry, { limit: 150, offset: 0 })).resolves.toEqual({ items: [], hasMore: false, nextOffset: 0 });
     });
 
     it('rejects a late active-provider result after invalidation', async () => {
@@ -315,6 +447,74 @@ describe('omni routing', () => {
 
         expect(updateTracks).toHaveBeenCalledWith('add', collection, [target]);
         expect(getUserPlaylists).toHaveBeenCalledWith('user', 50, 0);
+    });
+
+    it('adds several songs to one playlist in a single provider request', async () => {
+        const updateTracks = vi.fn(async () => undefined);
+        registerOnlineMusicProvider({
+            ...provider(providerId, { searchSongs: async () => ({ items: [], hasMore: false, nextOffset: 0 }) }),
+            capabilities: { ...capabilities, mutations: true, playlistTrackMutations: true },
+            mutations: { updatePlaylistTracks: updateTracks },
+        });
+        const collection: ProviderCollection = { providerId, id: 'batch', name: 'Batch', type: 'playlist' };
+        const songs = [song(providerId, 'one'), song(providerId, 'two'), song(providerId, 'three')];
+
+        await omni.addSongsToPlaylist(songs, collection);
+
+        expect(updateTracks).toHaveBeenCalledTimes(1);
+        expect(updateTracks).toHaveBeenCalledWith('add', collection, songs);
+    });
+
+    it('splits a long batch into requests of PLAYLIST_ADD_BATCH, in order', async () => {
+        const updateTracks = vi.fn(async () => undefined);
+        registerOnlineMusicProvider({
+            ...provider(providerId, { searchSongs: async () => ({ items: [], hasMore: false, nextOffset: 0 }) }),
+            capabilities: { ...capabilities, mutations: true, playlistTrackMutations: true },
+            mutations: { updatePlaylistTracks: updateTracks },
+        });
+        const collection: ProviderCollection = { providerId, id: 'long', name: 'Long', type: 'playlist' };
+        const songs = Array.from({ length: PLAYLIST_ADD_BATCH * 2 + 3 }, (_, index) => song(providerId, `s${index}`));
+
+        await omni.addSongsToPlaylist(songs, collection);
+
+        expect(updateTracks.mock.calls.map(call => (call as unknown[])[2])).toEqual([
+            songs.slice(0, PLAYLIST_ADD_BATCH),
+            songs.slice(PLAYLIST_ADD_BATCH, PLAYLIST_ADD_BATCH * 2),
+            songs.slice(PLAYLIST_ADD_BATCH * 2),
+        ]);
+    });
+
+    it('still refreshes the account playlists when a later batch fails', async () => {
+        const updateTracks = vi.fn()
+            .mockResolvedValueOnce(undefined)
+            .mockRejectedValueOnce(new Error('rate limited'));
+        const getUserPlaylists = vi.fn(async () => ({ items: [], hasMore: false, nextOffset: 0 }));
+        registerOnlineMusicProvider({
+            ...provider(providerId, { searchSongs: async () => ({ items: [], hasMore: false, nextOffset: 0 }) }),
+            capabilities: { ...capabilities, mutations: true, playlistTrackMutations: true },
+            mutations: { updatePlaylistTracks: updateTracks },
+            library: { getUserPlaylists },
+        });
+        useOnlineProviderAccountStore.getState().updateAccount(providerId, { user: { id: 'user', nickname: 'User' } });
+        const collection: ProviderCollection = { providerId, id: 'partial', name: 'Partial', type: 'playlist' };
+        const songs = Array.from({ length: PLAYLIST_ADD_BATCH + 1 }, (_, index) => song(providerId, `p${index}`));
+
+        await expect(omni.addSongsToPlaylist(songs, collection)).rejects.toThrow('rate limited');
+        await vi.waitFor(() => expect(getUserPlaylists).toHaveBeenCalled());
+    });
+
+    it('refuses the whole batch when one song is of another provider', async () => {
+        const updateTracks = vi.fn(async () => undefined);
+        registerOnlineMusicProvider({
+            ...provider(providerId, { searchSongs: async () => ({ items: [], hasMore: false, nextOffset: 0 }) }),
+            capabilities: { ...capabilities, mutations: true, playlistTrackMutations: true },
+            mutations: { updatePlaylistTracks: updateTracks },
+        });
+        const collection: ProviderCollection = { providerId, id: 'batch', name: 'Batch', type: 'playlist' };
+
+        await expect(omni.addSongsToPlaylist([song(providerId, 'one'), song('netease', 'stray')], collection))
+            .rejects.toMatchObject({ code: 'unsupported' });
+        expect(updateTracks).not.toHaveBeenCalled();
     });
 
     it('rejects a playlist that its provider marks as non-mutable', async () => {
@@ -941,6 +1141,20 @@ describe('omni reads for callers beside the host UI', () => {
                 { id: 'artist-a', name: 'A', catalogRef: { providerId: owner, kind: 'artist', id: 'artist-a' } },
                 { id: 'artist-b', name: 'B', catalogRef: { providerId: owner, kind: 'artist', id: 'artist-b' } },
             ],
+        });
+
+        it('returns every named artist resolved from a combined collaboration label', async () => {
+            const combined = { ...listed(providerId), artists: [{ id: '', name: 'A & B' }] };
+            registerOnlineMusicProvider({
+                ...provider(providerId, { searchSongs: async () => ({ items: [], hasMore: false, nextOffset: 0 }) }),
+                capabilities: catalogCapabilities,
+                catalog: { resolveSongCatalogRefs: async () => resolved(providerId) },
+            });
+            const refs = await omni.getSongCatalogRefs(combined);
+            expect(refs.artists).toEqual([
+                { providerId, kind: 'artist', id: 'artist-a', name: 'A' },
+                { providerId, kind: 'artist', id: 'artist-b', name: 'B' },
+            ]);
         });
 
         it('reads them with one answer of the provider\'s resolver, each ref once, with its name', async () => {

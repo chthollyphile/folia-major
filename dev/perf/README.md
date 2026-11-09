@@ -3,7 +3,9 @@
 It answers one question with numbers: what does each lyric style and each background cost per
 frame, before and after a change. It measures; it changes no visual code.
 
-Windows only (processor affinity, Windows' GPU counters, the project's `electron.exe`).
+Windows only (processor affinity, Windows' GPU counters, the project's `electron.exe`) — **except
+the measuring runner itself, which also runs on macOS**; see "macOS" below. The whole-app tool in
+`dev/perf/app/` stays Windows only.
 
 **The whole app** (how long it takes to start, to change the song, to switch a page, and how much
 memory it holds) is measured by a second tool, in `dev/perf/app/`, with a README of its own
@@ -190,6 +192,31 @@ scenarios, with `--inject-css` or with a page that was not built from its commit
 two captures of different engines, and a floor that was built from another state of the code than
 folder A is of. A warning does not change the exit code.
 
+## macOS
+
+The measuring runner (`run.mjs`, `--noise`, `--truth`, `--baseline` and one-off runs) works on
+macOS through `darwin.mjs` and `darwinSampler.mjs`. The scenarios, the page, the report and the
+lock are the same files; only the platform layer is another one. What differs, honestly:
+
+| what | Windows | macOS |
+| --- | --- | --- |
+| profiles | `host`, `laptop`, `old` (affinity) | `host` only; `laptop`/`old` are refused - macOS offers no processor pinning for an unprivileged process, and a QoS class would be a different kind of slow |
+| GPU share, video memory | `GPU Engine` counters | **absent.** Nothing an unprivileged process may read counts the card (powermetrics needs root); the result files carry no `gpu.*` or `videoMemoryMb` rather than zeros, and the log says `GPU n/a` |
+| whole-machine CPU | counter, instant | sum of ps' per-process decaying averages (see `darwinSampler.mjs`), an approximation, flagged `cpuTotalApproximate` in every line |
+| screen refresh rate | video controller's mode | null - system_profiler does not tell it for the built-in display; the "follows the screen" check is off, every launch still records its `emptyFrameRate` |
+| screen kept on | `win.ps1 -Action awake` | `caffeinate -u -d -w <runner>` (same contract: turns an off screen on, ends with the runner) |
+
+`--baseline` on macOS runs everything under `host` (the large-viewport pass picks by main-thread
+time, the GPU share not existing there), so its numbers compare with an Apple Silicon machine's
+own runs, not with a Windows baseline. It writes the results JSON but no `画面底数` table:
+report.mjs's table is built around Windows' GPU columns. Per-frame main-thread time, frame
+percentiles, long frames, per-process CPU and working sets are measured exactly as on Windows.
+
+Run it the same way, from the repository root: `node dev/perf/run.mjs --profile host --set core
+--label <name>` (`host` is the default profile there, so the flag can be left off).
+`shots.mjs` (the looks-the-same tool) is not ported: its engine and clock go
+through the same rig, but nothing of it has been tried on macOS.
+
 ## The files
 
 | file | what it is |
@@ -199,8 +226,9 @@ folder A is of. A warning does not change the exit code.
 | `page.html`, `page.tsx`, `stage.tsx` | the measuring page |
 | `vite.config.ts` | builds the page as a production bundle of its own (`dev/perf/.build/dist`), and for the pictures once more in one file (`dist-shots`) |
 | `shell.cjs` | the Electron main script: one window nobody sees |
-| `rig.mjs` | build, serve, launch, DevTools protocol, Windows helper: shared by the two tools |
+| `rig.mjs` | build, serve, launch, DevTools protocol, Windows / macOS helpers: shared by the two tools |
 | `win.ps1` | processor layout, process tree with affinities, the per-second counter sampler |
+| `darwin.mjs`, `darwinSampler.mjs` | the macOS side: machine description, process tree, stray engines, keeping the display on, and the per-second `ps` sampler (no GPU counters) |
 | `run.mjs`, `report.mjs` | the runner and the table writer |
 | `shots.mjs`, `clock.js` | the looks-the-same tool, and the script it puts into the page to take it off real time |
 
@@ -228,12 +256,13 @@ measuring and in the pictures mode alike:
 1. What `LyricParserFactory.parse` does to the lines a parser has read, called without options as
    `resolveLocalSongLyrics` calls it: `finalizeParsedLyricLines` (every parser ends in it), which
    puts a line `......` into every gap of more than 3 s between two lines and before a first line
-   that starts after 3 s, and adds the render hints; then `applyLyricDisplayFilter`. The test song
-   so gets two such lines: 0.5 s to 5.5 s, and 30.25 s to 34.55 s in its pause.
+   that starts after 3 s, and adds the render hints. The line rules are not applied here; they run
+   in `createLyricsSetter` (step 2). The test song so gets two such lines: 0.5 s to 5.5 s, and
+   30.25 s to 34.55 s in its pause.
 2. `createLyricsSetter`, built as `App.tsx` builds it from the lyric settings store, which holds a
-   new user's settings here (no filter pattern; staff credits by the `smart` policy, 1.5 s minimum
+   new user's settings here (no line rules; staff credits by the `smart` policy, 1.5 s minimum
    dwell, absorbing off, no pattern of the user's). Inside it, in this order: the pure-music check,
-   the display filter, the staff-credit policy, the chorus effects (from the lines' own chorus
+   the line rules (`applyLyricLineRules`), the staff-credit policy, the chorus effects (from the lines' own chorus
    marks, else from the ranges cached for the song, else found from repeated text), the saved word
    segmentation, the render hints, and the `lyrics.transform` hook of mods (none are installed).
    The song it reads follows the store in an effect, as in the app.

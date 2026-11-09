@@ -219,6 +219,7 @@ export const toFoliumSong = (song: SongResult | null | undefined): FoliumSong | 
 // the type check until it is classed here.
 const FOLIUM_PLAYBACK_FAILURE_REASONS: Readonly<Record<OnlineFailureCaseId, FoliumPlaybackFailureReason>> = Object.freeze({
     'sign-in-needed': 'auth',
+    'account-refused': 'restricted',
     'subscription-required': 'restricted',
     'purchase-required': 'restricted',
     'entitlement-required': 'restricted',

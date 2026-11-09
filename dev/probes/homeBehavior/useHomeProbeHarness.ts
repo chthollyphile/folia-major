@@ -132,7 +132,7 @@ const INITIAL_LOCAL_STATE: HomeLocalMusicState = {
 const PROBE_ACCOUNT_TABLES: LibraryAccountHostTables = {
     logout: async () => {},
     confirmLogout: async () => true,
-    switchCleanup: { holdsSongs: () => false, resetForProviderSwitch: () => {} },
+    switchCleanup: { leaveProvider: () => {}, holdsSongsOf: () => false, dropSongsOf: () => {} },
 };
 
 /** 切换平台并当场确认（首页用例只关心切换之后的数据，不经确认框）；返回是否切了过去。 */

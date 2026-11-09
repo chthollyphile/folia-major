@@ -171,7 +171,7 @@ test('the settings section offers stay here, and the command palette switches to
     await page.addInitScript(([version, guideKey]) => {
         localStorage.clear();
         localStorage.setItem('library_suite_prompt_seen', 'true');
-        localStorage.setItem('i18nextLng', 'en');
+        localStorage.setItem('folia_app_language', 'en');
         localStorage.setItem('static_mode', 'true');
         localStorage.setItem('playback_entry_view_chosen', 'true');
         localStorage.setItem(guideKey, version);

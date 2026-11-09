@@ -214,10 +214,14 @@ pub unsafe fn handle_raw_input(l_param: LPARAM) {
         button_flags & RI_MOUSE_BUTTON_1_UP != 0
     };
 
-    // A press counts only when it lands on the desktop while the desktop is foreground. One packet
-    // can carry both transitions (a fast click), so the down is handled first and the up is not
-    // skipped — skipping it would leave the press tracked as held for good.
-    if primary_down && !PRIMARY_DOWN.load(Ordering::SeqCst) && is_desktop_foreground() {
+    // A press counts when it lands on the desktop (the top-level window under the cursor). The
+    // foreground window is not consulted: raw input arrives before the click activates its
+    // target, so a click from an app onto the desktop still sees the app in front and would be
+    // swallowed — and a window that keeps the foreground (an always-on-top overlay) would swallow
+    // every click (#1042). One packet can carry both transitions (a fast click), so the down is
+    // handled first and the up is not skipped — skipping it would leave the press tracked as held
+    // for good.
+    if primary_down && !PRIMARY_DOWN.load(Ordering::SeqCst) {
         if let Some(point) = cursor_pos() {
             if is_desktop_under(point) {
                 PRIMARY_DOWN.store(true, Ordering::SeqCst);
@@ -239,8 +243,8 @@ pub unsafe fn handle_raw_input(l_param: LPARAM) {
 
     // Wheel packets carry their delta in usButtonData as multiples of WHEEL_DELTA (semantics
     // documented on Event::MouseWheel). They are discrete, low-rate events — reported
-    // immediately instead of being spaced out, gated like a press: the desktop must be
-    // foreground and under the cursor (no drag exemption).
+    // immediately instead of being spaced out. Unlike a press, the desktop must be foreground
+    // as well as under the cursor (no drag exemption).
     let wheel_delta = mouse.Anonymous.Anonymous.usButtonData as i16;
     if button_flags & RI_MOUSE_WHEEL != 0 {
         report_wheel(0, wheel_delta);

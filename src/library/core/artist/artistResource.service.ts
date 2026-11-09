@@ -70,6 +70,7 @@ const EMPTY: Omit<LibraryArtistSnapshot, 'key'> = {
     status: 'idle',
     detail: null,
     topSongs: [],
+    hasMoreSongs: false,
     albums: [],
     albumSync: { state: 'none' },
     error: null,
@@ -149,6 +150,7 @@ export const createArtistResource = (
             status: 'ready',
             detail: detail ? mapOnlineArtistDetail(detail) : null,
             topSongs: (songsPage?.items || []).slice(0, ARTIST_TOP_SONG_LIMIT),
+            hasMoreSongs: Boolean(songsPage?.hasMore) || (songsPage?.items?.length ?? 0) > ARTIST_TOP_SONG_LIMIT,
         });
         await syncAlbums(ticket, 0);
     };

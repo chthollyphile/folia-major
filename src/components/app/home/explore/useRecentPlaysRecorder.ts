@@ -1,13 +1,16 @@
 import { useEffect, useRef } from 'react';
 import type { RefObject } from 'react';
 import type { SongResult } from '../../../../types';
-import { noteSongListened, noteSongPlayed } from './recentPlays';
+import { navidromePlayAccount, noteSongListened, noteSongPlayed } from './recentPlays';
 import { useOnlineProviderAccountStore } from '../../../../stores/useOnlineProviderAccountStore';
 import { getPlaybackSongKey, getPlaybackSourceRef } from '../../../../utils/appPlaybackGuards';
+import { usePlaybackStore } from '../../../../stores/usePlaybackStore';
+import { getObservedMedia, type ObservedMedia } from '../../../../services/hifi/hifiMediaShim';
+import { getNavidromeConfig } from '../../../../services/navidromeService';
 
 // src/components/app/home/explore/useRecentPlaysRecorder.ts
-// Writes Folia's own record of the songs played here (recentPlays.ts). A song of an online
-// platform is reported in two ways, by how much of it has really sounded: as played after a few
+// Writes Folia's own record of the songs played here (recentPlays.ts). A song (of an online
+// platform, a local file or a Navidrome server; not another app's on the stage) is reported in two ways, by how much of it has really sounded: as played after a few
 // seconds, and as listened to after half of it (four minutes of a long one). Each further length
 // of it that sounds after that is one more listening: a song on repeat, or taken back to its
 // start, is listened to again without ever being another song.
@@ -35,7 +38,7 @@ type UseRecentPlaysRecorderParams = {
  * in seconds, as `dueAt` asks for the next report; both are handed how many reports were made
  * before. Paused time and seeks add nothing. Returns what stops the following.
  */
-export const whenHeard = (audio: HTMLAudioElement, dueAt: (reports: number) => number, onHeard: (reports: number) => void): (() => void) => {
+export const whenHeard = (audio: ObservedMedia, dueAt: (reports: number) => number, onHeard: (reports: number) => void): (() => void) => {
     let heard = 0;
     let reports = 0;
     let last = audio.currentTime || 0;
@@ -56,7 +59,7 @@ export const whenHeard = (audio: HTMLAudioElement, dueAt: (reports: number) => n
 // The length of the song in seconds: that of what is sounding where the element knows it, else
 // what the catalogue says, else the usual one. Never less than twice what makes a song played: a
 // listening is not due before the song is played, nor at every step for a length that is wrong.
-const lengthOf = (audio: HTMLAudioElement, song: SongResult | null): number => {
+const lengthOf = (audio: ObservedMedia, song: SongResult | null): number => {
     const sounding = audio.duration;
     const catalogued = Number(song?.durationMs) / 1000;
     const length = Number.isFinite(sounding) && sounding > 0 ? sounding
@@ -70,9 +73,11 @@ export const useRecentPlaysRecorder = ({ audioRef, currentSong, activeDeck }: Us
     const song = useRef(currentSong);
     song.current = currentSong;
     const songKey = currentSong ? getPlaybackSongKey(currentSong) : null;
+    // On the HiFi route the song sounds through mpv, and its position is the HiFi media shim's.
+    const playbackRoute = usePlaybackStore(state => state.playbackRoute);
 
     useEffect(() => {
-        const audio = audioRef.current;
+        const audio = getObservedMedia(audioRef.current);
         if (!audio || !songKey) return undefined;
         // The first report is that the song was played, each one after it a listening. The length
         // is asked for each time: it may not be known yet when the song begins.
@@ -84,13 +89,16 @@ export const useRecentPlaysRecorder = ({ audioRef, currentSong, activeDeck }: Us
         return whenHeard(audio, dueAt, reports => {
             const heard = song.current;
             const source = heard ? getPlaybackSourceRef(heard) : null;
-            if (!heard || source?.kind !== 'online') return;
-            // The account at that moment: a listener can sign out or in during the song.
-            const account = useOnlineProviderAccountStore.getState().accounts[source.providerId]?.user;
-            const accountId = String(account?.id ?? '');
+            if (!heard || !source || source.kind === 'stage') return;
+            // The account at that moment: a listener can sign out or in during the song. A Navidrome
+            // song's is the user at its server; a local file has none.
+            const accountId = source.kind === 'online'
+                ? String(useOnlineProviderAccountStore.getState().accounts[source.providerId]?.user?.id ?? '')
+                : source.kind === 'navidrome' ? navidromePlayAccount(getNavidromeConfig()) : '';
             if (reports === 0) noteSongPlayed(heard, accountId);
             else noteSongListened(heard, accountId, lengthOf(audio, heard) * 1000, reports > 1);
         });
-        // `activeDeck`: `audioRef` names another element after an automix swap.
-    }, [audioRef, activeDeck, songKey]);
+        // `activeDeck`: `audioRef` names another element after an automix swap; `playbackRoute`: the
+        // HiFi media shim stands in for the deck.
+    }, [audioRef, activeDeck, playbackRoute, songKey]);
 };

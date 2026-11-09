@@ -69,12 +69,13 @@ export const createStaticBlockSnapshot = (
     fillStyle: string,
     shadowBlur = 0,
     shadowColor = 'transparent',
+    // 快照的光栅密度（每个世界单位几个像素）：舞台传进来的已经乘上了分辨率倍数（#929）；没传就是原来的默认。
+    rasterScale = clamp(window.devicePixelRatio || 1, 1, 2),
 ) => {
     if (typeof document === 'undefined') {
         return null;
     }
 
-    const rasterScale = clamp(window.devicePixelRatio || 1, 1, 2);
     const padding = Math.ceil(Math.max(block.fontPx * 0.32, shadowBlur + block.fontPx * 0.08, 4));
     const canvas = document.createElement('canvas');
     canvas.width = Math.max(1, Math.ceil((block.width + padding * 2) * rasterScale));

@@ -49,7 +49,7 @@ const SongActions: React.FC<SongActionsProps> = ({ like, onLocatePlayingSong, on
                         data-panel-locate
                         onClick={onLocatePlayingSong}
                         aria-label={playingFromLabel}
-                        className="st-t-fast flex h-8 min-w-0 items-center gap-1.5 rounded-full bg-[var(--st-fill)] pl-2.5 pr-3 text-xs text-[color:var(--st-t2)] transition-colors hover:bg-[var(--st-fill2)] hover:text-[color:var(--st-t1)]"
+                        className="st-t-fast flex h-8 min-w-0 items-center gap-1.5 rounded-lg bg-[var(--st-fill)] pl-2.5 pr-3 text-xs text-[color:var(--st-t2)] transition-colors hover:bg-[var(--st-fill2)] hover:text-[color:var(--st-t1)]"
                     >
                         <Crosshair size={14} className="shrink-0" />
                         <span className="truncate">{playingFrom.name}</span>

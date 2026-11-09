@@ -1,5 +1,5 @@
 import { DEFAULT_PARTITA_TUNING, type PartitaTuning } from '../../../types';
-import { defineVisualizerTuning, type StoredTuningFields } from '../tuningDefinition';
+import { defineVisualizerTuning, modNumber, MOD_SWITCH, type StoredTuningFields } from '../tuningDefinition';
 
 // src/components/visualizer/partita/tuning.ts
 // Partita's tuning: its defaults, the settings store fields it lives in, where it is stored and
@@ -22,12 +22,32 @@ const resolve = (values: Partial<PartitaTuning>, base: PartitaTuning): PartitaTu
         useSemanticLayout: values.useSemanticLayout ?? base.useSemanticLayout,
         staggerMin: Math.min(rawMin, rawMax),
         staggerMax: Math.max(rawMin, rawMax),
+        avoidOverlap: values.avoidOverlap ?? base.avoidOverlap,
     };
 };
 
 export default defineVisualizerTuning<PartitaTuning>({
     mode: 'partita',
     defaults: DEFAULT_PARTITA_TUNING,
+    // What mods may read and write (folium.visualizer.setTuning): the panel's own controls, without what the picture costs.
+    modKeys: {
+        showGuideLines: MOD_SWITCH,
+        useSemanticLayout: MOD_SWITCH,
+        staggerMin: modNumber(0, 180),
+        staggerMax: modNumber(0, 180),
+        avoidOverlap: MOD_SWITCH,
+    },
+    // As the panel's sliders (settingsPanels.tsx): one end moved past the other takes it along, rather than
+    // the merge swapping the two. Both ends given are put in order by the merge.
+    modPatch: (held, patch) => {
+        if (patch.staggerMin !== undefined && patch.staggerMax === undefined && patch.staggerMin > held.staggerMax) {
+            return { ...patch, staggerMax: patch.staggerMin };
+        }
+        if (patch.staggerMax !== undefined && patch.staggerMin === undefined && patch.staggerMax < held.staggerMin) {
+            return { ...patch, staggerMin: patch.staggerMax };
+        }
+        return patch;
+    },
     settingsKey: 'partitaTuning',
     settingsSetterKey: 'handleSetPartitaTuning',
     settingsResetterKey: 'handleResetPartitaTuning',

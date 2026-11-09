@@ -1,7 +1,7 @@
 
 
 // src/components/visualizer/monet/monetRailMasks.ts
-// 行的遮罩：上下裁切渐隐、超宽 token 右缘渐隐，以及两者的合成。
+// 行的遮罩：上下裁切渐隐、超宽 token 行尾一侧渐隐（RTL 行在左缘），以及两者的合成。
 
 export const getLineMask = (isClipped: boolean, fadePx: number) => (
     isClipped
@@ -28,10 +28,13 @@ export const getClippedTextMask = (
     return `linear-gradient(180deg, black 0px, black ${solidEndPx}px, transparent ${contentBottomPx}px)`;
 };
 
-/** Softens the right edge so a token wider than the column fades out instead of being sliced mid-glyph. */
-export const getEdgeFadeMask = (isOverflowing: boolean, fadePx: number) => (
+/**
+ * Softens the line-end edge so a token wider than the column fades out instead of being sliced mid-glyph:
+ * the right edge, or the left one for an RTL line, which overflows to its left.
+ */
+export const getEdgeFadeMask = (isOverflowing: boolean, fadePx: number, rtl = false) => (
     isOverflowing
-        ? `linear-gradient(90deg, black 0%, black calc(100% - ${fadePx}px), transparent 100%)`
+        ? `linear-gradient(${rtl ? 270 : 90}deg, black 0%, black calc(100% - ${fadePx}px), transparent 100%)`
         : undefined
 );
 

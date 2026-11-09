@@ -1,4 +1,5 @@
 import type { BravaisFormState } from './bravaisFormModel';
+import type { DailyStyleGroup, DailyStyleSelection } from '../../../types/onlineMusic';
 
 // src/library/suites/bravais/bravaisSeamModels.ts
 // B7 集合页挂在层描述上的扩展类型（设计稿 §10.2 / §10.6）：缝里的收藏星标、补页进度、状态行、结果提示、过滤输入位（每面墙都有）、
@@ -43,6 +44,15 @@ export type BravaisSeamDaily = {
     onNext?: () => void;
     refreshLabel: string;
     onRefresh?: () => void;
+    /** 默认推荐 / 风格推荐的切换（#938，平台有风格推荐才给）。 */
+    modes?: {
+        ariaLabel: string;
+        items: readonly { id: 'default' | 'style'; label: string; active: boolean; run: () => void }[];
+    };
+    /** 正在看风格推荐：日期步进换成选中的风格，点它翻出风格选择。 */
+    style?: { label: string; title: string; onOpen: () => void };
+    /** 「偏好设置」（平台声明了每日推荐的偏好入口才给）：放在「默认推荐 / 风格推荐」的位置，打开命令面板里的偏好面板。 */
+    preferences?: { label: string; onOpen: () => void };
 };
 
 /**
@@ -86,10 +96,31 @@ export type BravaisSeamForm = {
     };
     /** pick-playlist 的候选（可写的 Navidrome 歌单）。 */
     playlists?: readonly { id: string; name: string }[];
+    /**
+     * pick-daily-style 的风格分组与正在看的风格。分组还没取到时是空的，显示 labels.empty；没取到（failed）时显示
+     * failedLabel 和重试。
+     */
+    dailyStyle?: {
+        groups: readonly DailyStyleGroup[];
+        selection: DailyStyleSelection | null;
+        failed: boolean;
+        failedLabel: string;
+        retryLabel: string;
+        onRetry: () => void;
+    };
+    onPickDailyStyle?: (selection: DailyStyleSelection) => void;
     onSubmit: (value: string) => void;
     onPick?: (playlistId: string) => void;
     onStartCreate?: () => void;
     onCancel: () => void;
+};
+
+/** 元数据行上的「重新拉取」。 */
+export type BravaisSeamReload = {
+    label: string;
+    disabled: boolean;
+    pending: boolean;
+    run: () => void;
 };
 
 /** 集合层在缝里的那一部分（首页没有）。 */
@@ -104,6 +135,11 @@ export type BravaisSeamCollection = {
     status?: BravaisSeamStatus;
     notice?: BravaisSeamNotice | null;
     daily?: BravaisSeamDaily;
+    /**
+     * 重新拉取：不进「⋯ 更多」，画成元数据行（「N 首」）本身的按钮，计数后面一个刷新图标；读首页时转圈、禁用。
+     * 只有在线集合有（core 的 reload 能力 ∩ suite 声明）。
+     */
+    reload?: BravaisSeamReload;
     menu: readonly BravaisSeamMenuItem[];
     moreLabel: string;
     /** 打开列表面板（只有支持面板的层有）。 */
@@ -171,6 +207,19 @@ export type BravaisLayerEntries = {
 };
 
 /** B8 歌手页在缝里的信息块（设计稿 §10.4「缝承载 ArtistGridView 的信息」）：都是已翻译的展示文字。 */
+/**
+ * 歌手的「全部歌曲」那一层（#918，在线集合 artist_songs）：完整等级照样画成歌手页那种倾斜海报，做一点变体——
+ * 大字是歌手名、旁边的小词是「全部歌曲」，热门三首换成一个超大的歌曲数（BravaisSeamPoster）。
+ */
+export type BravaisSeamArtistSongs = {
+    /** 歌手名（海报大字）。 */
+    name: string;
+    /** 歌手头像（定妆照）。 */
+    coverUrl?: string;
+    /** 歌手的歌曲总数（平台给的；补页期间就是终点）。 */
+    trackCount: number;
+};
+
 export type BravaisSeamArtist = {
     coverUrl?: string;
     /** 别名（「又名 …」已拼好）；没有就不显示。 */
@@ -182,13 +231,23 @@ export type BravaisSeamArtist = {
     name: string;
 };
 
+/** 专辑页海报上的一个专辑歌手：targetId 有值时名字可以点，打开那位歌手的页（交给宿主的 onOpenArtist）。 */
+export type BravaisSeamAlbumArtist = {
+    name: string;
+    targetId?: number | string;
+    /** 在线平台给的目录引用，原样交给宿主。 */
+    catalogRef?: unknown;
+};
+
 /**
  * 专辑页的海报（左边钉住的凝彩海报）要的信息：封面、歌手、「专辑 · 年份」标签、元信息行（首数、总时长、流派）。
  * 只有专辑类型的集合有（歌单、每日推荐、文件夹仍是原来的竖缝）；简介在 collection.description 里。
  */
 export type BravaisSeamAlbum = {
     coverUrl?: string;
-    artists: readonly string[];
+    artists: readonly BravaisSeamAlbumArtist[];
+    /** 打开一个专辑歌手的歌手页；只有声明了 open-artist 时才有，且只对带 targetId 的歌手调用。 */
+    onOpenArtist?: (artist: BravaisSeamAlbumArtist) => void;
     /** 「专辑 · 2024」（没有年份时只有「专辑」）。 */
     kicker: string;
     /** 首数、总时长、流派，已经排好的几段。 */

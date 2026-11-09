@@ -167,6 +167,49 @@ describe('the current song module', () => {
         expect(startPlay()()).toBe(true);
     });
 
+    it('a play whose song shows is no longer overtaken once every newer play gave up, a play still on its way stays overtaken', () => {
+        const shown = startPlay();
+        expect(shown.onceShown()).toBe(true);
+
+        // A newer play starts (a click on a song whose file cannot be read) and gives up.
+        const gaveUp = startPlay();
+        expect([shown(), shown.onceShown()]).toEqual([false, false]);
+        gaveUp.abandon();
+        expect(shown.onceShown()).toBe(true);
+        // The plain answer stays: a play that was still on its way when that one started is overtaken for good.
+        expect(shown()).toBe(false);
+        // The one that gave up keeps its own answers (a countdown to the next song still asks them).
+        expect([gaveUp(), gaveUp.onceShown()]).toEqual([true, true]);
+        gaveUp.abandon();
+        expect(shown.onceShown()).toBe(true);
+
+        // Two newer plays: while one of them stands, the play before both is overtaken.
+        const handedOver = startPlay();
+        const pending = startPlay();
+        handedOver.abandon();
+        expect(shown.onceShown()).toBe(false);
+        expect(pending.onceShown()).toBe(true);
+        pending.abandon();
+        expect(shown.onceShown()).toBe(true);
+
+        // A newer play that showed its song (it never abandons) leaves it overtaken; so does a drop.
+        const landed = startPlay();
+        expect(shown.onceShown()).toBe(false);
+        landed.abandon();
+        dropPlaysInFlight();
+        expect([shown.onceShown(), landed.onceShown()]).toEqual([false, false]);
+        expect(startPlay().onceShown()).toBe(true);
+    });
+
+    it('forgets the oldest plays past the newest 64: those stay overtaken, the newer ones answer as before', () => {
+        dropPlaysInFlight();
+        const oldest = startPlay();
+        const newer = Array.from({ length: 64 }, () => startPlay());
+        newer.forEach(play => play.abandon());
+        expect(oldest.onceShown()).toBe(false);
+        expect(newer[0].onceShown()).toBe(true);
+    });
+
     it('a restore is still wanted until a song is asked for again, the same one too, or the plays in flight are dropped', () => {
         makeSongCurrent(songA);
         const restore = startRestore();
