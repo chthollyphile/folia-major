@@ -6,7 +6,6 @@
         "D190:src/services/obs/visualSettingsConfig.ts->src/components/visualizer/tuningRegistry.ts",
         "D190:src/services/ponder/pagePonderTarget.ts->src/components/modal/settings/navigation/settingsAnchorModel.ts",
         "D190:src/services/sync/settingsSnapshot.ts->src/components/visualizer/tuningRegistry.ts",
-        "D190:src/stores/useExploreFeedStore.ts->src/components/app/home/explore/exploreFeedMemory.ts",
         "D190:src/stores/usePlaybackStore.ts->src/components/app/playback/createCoverUrlResolver.ts",
         "D190:src/stores/useSettingsModalStore.ts->src/components/command-palette/pinnedCommandPreferences.ts",
         "D190:src/stores/useVisualizerSettingsStore.ts->src/components/visualizer/tuningRegistry.ts",

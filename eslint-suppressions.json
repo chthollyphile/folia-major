@@ -1729,14 +1729,6 @@
       "count": 1
     }
   },
-  "src/components/app/home/explore/exploreFeedMemory.ts": {
-    "@typescript-eslint/no-dynamic-delete": {
-      "count": 2
-    },
-    "no-restricted-globals": {
-      "count": 2
-    }
-  },
   "src/components/app/home/explore/ownSections.ts": {
     "@typescript-eslint/use-unknown-in-catch-callback-variable": {
       "count": 1
@@ -10832,6 +10824,11 @@
     },
     "@typescript-eslint/use-unknown-in-catch-callback-variable": {
       "count": 1
+    }
+  },
+  "src/stores/exploreFeedMemory.ts": {
+    "@typescript-eslint/no-dynamic-delete": {
+      "count": 2
     }
   },
   "src/stores/useAppChromeStore.ts": {
