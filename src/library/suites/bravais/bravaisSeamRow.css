@@ -337,6 +337,10 @@
 }
 
 .bravais-seam-home-row .bravais-seam-shortcut .is-label { font-size: 12px; font-weight: 500; white-space: nowrap; }
+/* 两条固定入口都留在横条里：完整横条 72px 容纳两行标签，52px 书脊容纳单行标签。 */
+.bravais-seam-home-row .bravais-seam-home-jumps.is-pinned .bravais-seam-shortcut { min-height: 32px; padding-block: 2px; }
+.bravais-seam-home-row .bravais-seam-home-jumps.is-pinned .is-label { line-height: 1.2; }
+.bravais-seam-home-row.is-compact .bravais-seam-home-jumps.is-pinned .bravais-seam-shortcut { min-height: 24px; padding-block: 5px; }
 .bravais-seam-home-row button.bravais-seam-shortcut:hover { color: var(--text-primary, #f7f4ee); background: color-mix(in srgb, currentColor 8%, transparent); }
 :root[data-reduce-motion~='lattice'] .bravais-seam-home-row .bravais-seam-shortcut { transition: none; }
 
