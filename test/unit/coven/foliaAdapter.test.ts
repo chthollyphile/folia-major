@@ -145,7 +145,7 @@ describe('folia ledger and baseline check', () => {
                 },
                 run: (_command: string, args: string[]) => {
                     calls.push(args);
-                    return { ok: true, status: 0, seconds: 1, output: JSON.stringify({ fresh: [{ level: 'error', code: 'D508', file: 'src/stores/exploreFeedMemory.ts', line: 3, key: 'k' }], known: [] }) };
+                    return { ok: true, status: 0, seconds: 1, output: JSON.stringify({ fresh: [{ level: 'error', code: 'D508', file: 'src/demo/feedMemory.ts', line: 3, key: 'k' }], known: [] }) };
                 },
                 readAt: () => null,
             });
@@ -156,7 +156,7 @@ describe('folia ledger and baseline check', () => {
             memoStore.clear();
             fs.mkdirSync(path.join(worktree, 'dev/dedicatus/lint/node_modules'), { recursive: true });
             const result = adapter.checks.dedicatus.run?.(ctx({ id: 'c2', verify: { kind: 'dedicatus', target: 'graph' } }) as never);
-            expect(result).toMatchObject({ ok: false, summary: expect.stringContaining('D508 src/stores/exploreFeedMemory.ts:3') });
+            expect(result).toMatchObject({ ok: false, summary: expect.stringContaining('D508 src/demo/feedMemory.ts:3') });
             adapter.checks.baseline.run?.(ctx({ id: 'c1', verify: { kind: 'baseline' } }) as never);
             // baseline 共用同一次 Dedicatus 的结果，只跑一遍
             expect(calls).toEqual([['dev/dedicatus/cli.mjs', '--json', '--base', 'base1', '--all']]);
