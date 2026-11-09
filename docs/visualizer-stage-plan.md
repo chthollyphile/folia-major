@@ -160,6 +160,8 @@ VisualizerRenderer
 | 手写 GL：雾笺、时计的机芯 | three.js 样式：町景、镜台（见下） |
 | Canvas2D：fume、cadenza | 模组样式（React `render`） |
 
+Bravais 和 Lattice 两面墙也不进舞台：它们是 DOM，问题在取图而不在合成，单独的计划见 `docs/wall-image-loading-plan.md`。
+
 DOM 样式每帧只有 1–4 ms，不值得迁。町景和镜台是完整的三维场景，迁进自写引擎等于重写一个三维引擎，
 它们的开销主要是片元着色器，换后端不会变快；它们留在 three.js 上，要不要换 `WebGPURenderer` 是另一件事，不在本计划里。
 
