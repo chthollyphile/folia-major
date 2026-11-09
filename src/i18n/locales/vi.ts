@@ -1130,6 +1130,7 @@ export default {
     "visualizerRandom": "Ngẫu nhiên",
     "scene": "Cảnh",
     "sceneNone": "Tắt",
+    "sceneBeta": "Beta",
     "sceneSettings": "Cài đặt cảnh",
     "sceneNoSettings": "Trang phát nhạc thường không có cài đặt cảnh",
     "sceneQuality": "Chất lượng",

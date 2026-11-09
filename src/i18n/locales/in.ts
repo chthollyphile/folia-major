@@ -1130,6 +1130,7 @@ export default {
     "visualizerRandom": "Acak",
     "scene": "Adegan",
     "sceneNone": "Mati",
+    "sceneBeta": "Beta",
     "sceneSettings": "Pengaturan adegan",
     "sceneNoSettings": "Halaman pemutar biasa tidak punya pengaturan adegan",
     "sceneQuality": "Kualitas",

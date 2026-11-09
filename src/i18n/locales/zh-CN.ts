@@ -1130,6 +1130,7 @@ export default {
     "visualizerRandom": "随机",
     "scene": "场景",
     "sceneNone": "关",
+    "sceneBeta": "Beta",
     "sceneSettings": "场景设置",
     "sceneNoSettings": "普通播放页没有场景设置",
     "sceneQuality": "画质",

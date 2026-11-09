@@ -62,7 +62,7 @@ const AppearancePage: React.FC = () => {
                 <Row option={O.lyricsAnimation} hint={t('options.lyricsRendererDesc')} onClick={onOpenVisPlayground}>
                     <Value>{randomEnabled ? t('ui.visualizerRandom') : getVisualizerModeLabel(visualizerMode, t)}</Value>
                 </Row>
-                <Row option={O.scene} onClick={onOpenSceneWindow}>
+                <Row option={O.scene} tag={t('ui.sceneBeta')} onClick={onOpenSceneWindow}>
                     <Value><ChosenSceneName /></Value>
                 </Row>
             </Group>

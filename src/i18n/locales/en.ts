@@ -1130,6 +1130,7 @@ export default {
     "visualizerRandom": "Random",
     "scene": "Scene",
     "sceneNone": "Off",
+    "sceneBeta": "Beta",
     "sceneSettings": "Scene settings",
     "sceneNoSettings": "The plain player page has no scene settings",
     "sceneQuality": "Quality",
