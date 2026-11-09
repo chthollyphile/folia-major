@@ -595,12 +595,29 @@ describe('the handoff to a rebuilt window and the current song', () => {
     });
 
     it('does not restore FM after an actual provider switch while the handoff is being read', async () => {
-        await restoreFrom({ ...snapshotOf(onlineSong), isFmMode: true }, null, () => leaveProviderForSwitch('bodian', 'qq'));
+        await restoreFrom({ ...snapshotOf(onlineSong), isFmMode: true, acceptedFmSource: {
+            providerId: 'bodian', selection: { mode: 'SCENE_RCMD', scene: '33' },
+        } }, null, () => leaveProviderForSwitch('bodian', 'qq'));
 
         expect(usePlaybackStore.getState().isFmMode).toBe(false);
         expect(usePlaybackStore.getState().acceptedFmPlayback).toBeNull();
         expect(usePlaybackStore.getState().currentSong).toMatchObject({ id: onlineSong.id });
         expect(usePlaybackStore.getState().playQueue.map(song => song.id)).toEqual([onlineSong.id, otherSong.id]);
+    });
+
+    it('restores the serialized accepted scene without reading a later provider selection', async () => {
+        const first = { mode: 'SCENE_RCMD' as const, scene: '33' };
+        usePersonalFmModeStore.setState({ catalogs: {}, providerSelections: { bodian: { mode: 'SCENE_RCMD', scene: '44' } }, stations: {} });
+        const saved = { ...snapshotOf(onlineSong), isFmMode: true, acceptedFmSource: { providerId: 'bodian', selection: first } };
+        await restoreFrom(JSON.parse(JSON.stringify(saved)));
+        expect(usePlaybackStore.getState().acceptedFmPlayback?.selection).toEqual(first);
+    });
+
+    it('keeps an explicitly empty accepted source distinct from a legacy FM snapshot', async () => {
+        await restoreFrom({ ...snapshotOf(onlineSong), isFmMode: true, acceptedFmSource: null });
+        expect(usePlaybackStore.getState().acceptedFmPlayback).toBeNull();
+        await restoreFrom({ ...snapshotOf(onlineSong), isFmMode: true });
+        expect(usePlaybackStore.getState().acceptedFmPlayback?.providerId).toBe('bodian');
     });
 
     it('restores nothing over a song that was asked for in the new window meanwhile', async () => {
@@ -1562,6 +1579,7 @@ describe('a local or Navidrome restore on the HiFi route', () => {
             usePersonalFmModeStore.setState({ stations: { bodian: { id: 'old-station', selection: { mode: 'DEFAULT', scene: null } } } });
             const pending = mountHandoff(null).handoff.captureWindowPlaybackHandoff();
             expect(pending.mainPlayback?.isFmMode).toBe(false);
+            expect(pending.mainPlayback?.acceptedFmSource).toBeNull();
             expect(pending.fmStations).toBeUndefined();
 
             usePlaybackStore.setState({ acceptedFmPlayback: {
@@ -1570,6 +1588,9 @@ describe('a local or Navidrome restore on the HiFi route', () => {
             } });
             const accepted = mountHandoff(null).handoff.captureWindowPlaybackHandoff();
             expect(accepted.mainPlayback?.isFmMode).toBe(true);
+            expect(accepted.mainPlayback?.acceptedFmSource).toEqual({
+                providerId: 'bodian', selection: { mode: 'FAMILIAR', scene: null, station: 'accepted-station' },
+            });
             expect(accepted.fmStations).toEqual({ bodian: 'accepted-station' });
 
             usePlaybackStore.setState({ acceptedFmPlayback: {
@@ -1594,6 +1615,7 @@ describe('a local or Navidrome restore on the HiFi route', () => {
             const captured = handoff.captureWindowPlaybackHandoff();
             expect(captured.mainPlayback?.isFmMode).toBe(false);
             expect(captured.activePlayback?.isFmMode).toBe(false);
+            expect(captured.mainPlayback?.acceptedFmSource).toBeNull();
             expect(captured.fmStations).toBeUndefined();
             expect(usePlaybackStore.getState().acceptedFmPlayback).toBeNull();
         });

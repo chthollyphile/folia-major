@@ -1,5 +1,6 @@
 import type { SongResult } from '../types';
 import type { PersonalFmLaunch } from '../types/personalFm';
+import type { AcceptedFmSource } from '../types/appPlayback';
 import { getOnlineProviderIdForSong, getPlaybackSongKey, isSamePlaybackSong } from '../utils/appPlaybackGuards';
 import { replacePlayQueue as replacePlaybackQueue, usePlaybackStore, type AcceptedFmPlayback } from '../stores/usePlaybackStore';
 import { getPersonalFmSelection, selectActiveStation, usePersonalFmModeStore } from '../stores/usePersonalFmModeStore';
@@ -21,6 +22,20 @@ const acceptedFmPlaybackOf = (song: SongResult | null, queue: SongResult[], isFm
 /** Called after the song and its accepted queue land; a request still waiting for audio cannot claim their origin. */
 export const noteAcceptedFmPlayback = (song: SongResult | null, queue: SongResult[], isFmMode: boolean, selection?: PersonalFmLaunch): void => {
     usePlaybackStore.getState().setAcceptedFmPlayback(acceptedFmPlaybackOf(song, queue, isFmMode, selection));
+};
+
+/** Captures the existing accepted ledger; matching songs validate it but never create a source. */
+export const captureAcceptedFmSource = (song: SongResult | null, queue: SongResult[]): AcceptedFmSource | null => {
+    const accepted = usePlaybackStore.getState().acceptedFmPlayback;
+    if (!accepted || !song || accepted.providerId !== getOnlineProviderIdForSong(song)
+        || !accepted.songKeys.has(getPlaybackSongKey(song)) || !queue.some(entry => isSamePlaybackSong(entry, song))) return null;
+    return { providerId: accepted.providerId, selection: { ...accepted.selection } };
+};
+
+/** New snapshots restore their exact source; only legacy snapshots may derive one from mode settings. */
+export const restoreAcceptedFmPlayback = (song: SongResult | null, queue: SongResult[], isFmMode: boolean, source?: AcceptedFmSource | null): void => {
+    const acceptsSource = source === undefined || Boolean(source && source.providerId === getOnlineProviderIdForSong(song));
+    noteAcceptedFmPlayback(song, queue, isFmMode && acceptsSource, source?.selection);
 };
 
 /** A whole-queue replacement updates its accepted radio origin in the same store write. */

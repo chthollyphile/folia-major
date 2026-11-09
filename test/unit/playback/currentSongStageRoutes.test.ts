@@ -65,6 +65,8 @@ const { usePlaybackRuntimeRefs } = await import('@/components/app/playback/usePl
 const { usePlaybackStore } = await import('@/stores/usePlaybackStore');
 const { useStageSettingsStore } = await import('@/stores/useStageSettingsStore');
 const { playsDroppedSoFar } = await import('@/components/app/playback/currentSong');
+const { usePersonalFmModeStore } = await import('@/stores/usePersonalFmModeStore');
+const { noteAcceptedFmPlayback } = await import('@/services/playbackQueueOrigin');
 const { resetPlaybackStore, watchCurrentSong } = await import('./currentSongWatch');
 
 const mainSong: SongResult = {
@@ -167,6 +169,38 @@ describe('stage media session and the current song', () => {
 });
 
 describe('opening the stage and the main plays in flight', () => {
+    it.each([false, true])('captures the accepted scene and restores it after settings move, including a window handoff: %s', async viaWindow => {
+        const first = { mode: 'SCENE_RCMD' as const, scene: '33' };
+        usePlaybackStore.setState({ currentSong: mainSong, playQueue: [mainSong], isFmMode: true });
+        noteAcceptedFmPlayback(mainSong, [mainSong], true, first);
+        const { stage: original, refs } = mount();
+        await original.openStagePlayer();
+        let saved = original.mainPlaybackSnapshotRef.current;
+        usePersonalFmModeStore.setState({ catalogs: {}, providerSelections: { bodian: { mode: 'SCENE_RCMD', scene: '44' } }, stations: {} });
+        if (viaWindow) {
+            const handoff = useElectronWindowPlaybackHandoff({
+                isElectronWindow: false, navigateToPlayer: vi.fn(), audioRef: refs.audioRef,
+                mainPlaybackSnapshotRef: original.mainPlaybackSnapshotRef,
+                stageStatus: null, stageSource: 'stage-api', stageLyricsClockRef: { current: {} },
+                nowPlayingTrack: null, nowPlayingLyricPayload: null, nowPlayingPaused: true,
+                nowPlayingProgressMs: 0, nowPlayingProgressQuality: 'coarse', getNowPlayingDisplayTime: () => 0,
+                restoreStagePlaybackHandoff: original.restoreStagePlaybackHandoff, setLyrics: vi.fn(), setIsLyricsLoading: vi.fn(),
+                blobUrlRef: refs.blobUrlRef, shouldAutoPlayRef: refs.shouldAutoPlay, pendingResumeTimeRef: refs.pendingResumeTimeRef,
+                lastAudioRecoverySourceRef: refs.lastAudioRecoverySourceRef,
+                currentOnlineAudioUrlFetchedAtRef: refs.currentOnlineAudioUrlFetchedAtRef,
+                applyTransparentPlayerBackground: vi.fn(), restoreCachedThemeForSong: vi.fn(async () => 'none'),
+                persistLastPlaybackCache: vi.fn(async () => undefined),
+            } as never).captureWindowPlaybackHandoff();
+            expect(handoff.activePlayback?.acceptedFmSource).toBeNull();
+            saved = JSON.parse(JSON.stringify(handoff.mainPlayback));
+        }
+        expect(saved?.acceptedFmSource).toEqual({ providerId: 'bodian', selection: first });
+        const resumed = mount().stage;
+        resumed.mainPlaybackSnapshotRef.current = saved;
+        resumed.leaveStagePlayback();
+        expect(usePlaybackStore.getState().acceptedFmPlayback?.selection).toEqual(first);
+    });
+
     it('drops them when the main player is left for the stage, and not when the stage is already open', async () => {
         const { stage } = mount();
         const atStart = playsDroppedSoFar();
@@ -330,7 +364,7 @@ describe('a saved snapshot and the current song', () => {
             } as never).captureWindowPlaybackHandoff();
             expect(handoff.mainPlayback?.isFmMode).toBe(false);
             expect(handoff.fmStations).toBeUndefined();
-            expect(stage.mainPlaybackSnapshotRef.current).toEqual({ ...saved, isFmMode: false });
+            expect(stage.mainPlaybackSnapshotRef.current).toEqual({ ...saved, isFmMode: false, acceptedFmSource: null });
 
             if (exit === 'leave') stage.leaveStagePlayback();
             else stage.interruptStagePlaybackForMainTransition();
