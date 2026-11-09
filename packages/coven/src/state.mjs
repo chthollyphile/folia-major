@@ -3,32 +3,48 @@ import path from 'node:path';
 import { BRANCH_PREFIX, TAG_PREFIX, catalogueTagOf, integrationBranchOf, nextRunNumber, runIdOf, runLabel, scopeLabel, taskBranchOf, taskLabel, tempoLabel } from './catalogue.mjs';
 import { githubIo, keysOfTask, updateClaims } from './claim.mjs';
 import { BLOCKED_CODE } from './codes.mjs';
-import { STATE_FILE, covenPath, gh, ghApiLines, git, isDryRun, loadState, localDate, nowIso, parseArgs, prLabel, readJson, requireCurrentFormat, saveState, tryGit, writeJson, writeText } from './common.mjs';
+import { STATE_FILE, covenPath, gh, ghApiLines, git, hasState, isDryRun, loadState, localDate, nowIso, parseArgs, prLabel, readJson, requireCurrentFormat, saveState, tryGit, writeJson, writeText } from './common.mjs';
 import { contractFile, isApprovedCurrent } from './contract.mjs';
+import { DECISIONS, applyDecision, closeOpenEscalations, decisionProblems, openEscalations, openItemsOf, resolutionLabel, waitingItems } from './escalations.mjs';
 import { configLabel } from './host.mjs';
 import { riskRank } from './risk.mjs';
 // packages/coven/src/state.mjs
-// 监控 session 的账本 .coven/state.json：范围、认领、任务（planner 分的组）和它们的阶段、人类介入、花费、所有 GitHub 写操作。
-// 监控 session 中途被关掉，新开的 session 读它和认领评论对账，接着往下走。
-//
-//   coven state init --scope <名字> [--live] [--owner <账号>] [--base origin/main]
-//                                取下一个作品号（真跑 Op. n，干跑 WoO n），从 base 切出集成分支 coven/op<n>，真跑时推上去占号
-//   coven state show
-//   coven state phase <任务> <阶段> [--code Dxxx] [--note …] [--session …] [--worktree …] [--branch …] [--unblock-by <账号>]
-//   coven state cost <任务> --tokens 34000          记一次用量（预算按 token 算）
-//   coven state hd <HD1–HD5> --note "…"         记一次人类介入
-//   coven state finish [--force]                  释放没完成的认领，写运行记录 .coven/runs/
-//   coven state audit                             对照 GitHub：运行期间这个账号的评论和 PR 是不是都由脚本发的
+// 监控 session 的账本 .coven/state.json：范围、认领、任务（planner 分的组）和它们的阶段、升级和维护者的决定、人类介入、
+// 每一笔用量、所有 GitHub 写操作。监控 session 中途被关掉，新开的 session 读它和认领评论对账，接着往下走。
+// 用法见 usage（coven state --help）。
+
+export const usage = () => [
+    'coven state init --scope <范围名> [--live] [--owner <账号>] [--base origin/main]',
+    '    取下一个作品号（真跑 Op. n，干跑 WoO n），从 base 切出集成分支 coven/op<n>，真跑时推上去占号',
+    'coven state show',
+    '    这次运行到哪了；没有运行时会说从哪一步开始',
+    'coven state phase <任务> <阶段> [--code Dxxx] [--note …] [--session …] [--worktree …] [--branch …] [--unblock-by <账号>]',
+    `    任务换阶段（${PHASES.join('、')}）；blocked 要带 --code，从 blocked 回去干活要 --unblock-by`,
+    'coven state cost [<任务>] --tokens <数> [--role <角色>] [--approx]',
+    '    记一笔用量。不属于任务的（planner 的、监控 session 自己的）不写任务、写 --role；只拿得到上下文大小这类估算的加 --approx',
+    'coven state hd <HD1–HD5> --note "…"',
+    '    记一次人类介入',
+    `coven state hd HD4 --escalation <升级编号> --decision ${Object.keys(DECISIONS).join('|')} --by <账号> --note "维护者选了什么"`,
+    '    记维护者对一条升级的决定：replan 把条目改回 claimed、下一次 planner 提示会带上这条决定；release 释放认领；hold 先放着，认领保持 blocked',
+    'coven state finish [--force]',
+    '    释放没完成的认领，写运行记录 .coven/runs/',
+    'coven state audit',
+    '    对照 GitHub：运行期间这个账号的评论和 PR 是不是都由脚本发的',
+].join('\n');
 
 /**
  * @typedef {{ items: string[], title?: string, risk: string, phase: string, rounds: number, tokens: number,
  *   history: Array<{ at: string, phase: string, code?: string, note?: string }>, code?: string|null, pr?: number|string|null,
  *   session?: string, worktree?: string, branch?: string, reviewHead?: string, prTitle?: string,
  *   lastVerdict?: { round: number, verdict?: string, passes: boolean, escalation?: object|null } }} CovenTask
+ * @typedef {{ id?: string, items: string[], code: string, question?: string|null, options?: string[], lean?: string|null, at?: string,
+ *   decision?: { at: string, by: string, outcome: string, note: string }|null,
+ *   resolution?: { at: string, how: string, tasks?: string[], by?: string }|null }} CovenEscalation
+ * @typedef {{ at: string, task: string|null, role: string|null, tokens: number, approx?: boolean }} CovenCost
  * @typedef {{ version: number, run: string, date: string, scope: string, owner: string, integrationBranch: string,
  *   trackingIssue: number|null, dryRun: boolean, startedAt: string, finishedAt: string|null,
  *   items: Record<string, any>, tasks: Record<string, CovenTask>, order: string[],
- *   escalations: Array<{ items: string[], code: string, question?: string|null, options?: string[] }>,
+ *   escalations: CovenEscalation[], costs?: CovenCost[],
  *   interventions: Array<{ at?: string, kind: string, note?: string|null }>,
  *   github: Array<Record<string, any>>, dryComments: Array<Record<string, any>> }} CovenState
  */
@@ -48,7 +64,7 @@ export function createState({ run, scope, owner, trackingIssue, dryRun, now = no
         run,
         date, scope, owner, integrationBranch: integrationBranchOf(run), trackingIssue, dryRun,
         startedAt: now, finishedAt: null,
-        items: {}, tasks: {}, order: [], escalations: [],
+        items: {}, tasks: {}, order: [], escalations: [], costs: [],
         interventions: [], github: [], dryComments: [],
     };
 }
@@ -110,29 +126,54 @@ export function claimChangeFor(phase, { code, from } = {}) {
     return null;
 }
 
-export const runTokens = state => Object.values(state.tasks).reduce((sum, task) => sum + (task.tokens ?? 0), 0);
+/** 不属于任何任务的用量（planner 的、监控 session 自己的），记在运行本身。 */
+const runLevelTokens = state => (state.costs ?? []).filter(entry => !entry.task).reduce((sum, entry) => sum + entry.tokens, 0);
 
-/** 运行记录：能算出人类介入次数、每个任务的时长与花费、评审轮数、升级原因（plan/coven-v1-plan.md 第 4 节的通过标准）。 */
+/** 本次运行的用量：各任务的加上不属于任务的。D813 的整次预算按它算。 */
+export const runTokens = state => Object.values(state.tasks).reduce((sum, task) => sum + (task.tokens ?? 0), 0) + runLevelTokens(state);
+
+/** 用量里有没有估算值（工作 session 报不出用量，只拿得到上下文大小）。 */
+const hasApprox = (state, task = undefined) => (state.costs ?? []).some(entry => entry.approx && (task === undefined || entry.task === task));
+
+/**
+ * 运行记录：能算出人类介入次数和每一次的内容、每个任务的时长与花费、评审轮数、全部升级和维护者的决定
+ * （plan/coven-v1-plan.md 第 4 节的通过标准）。
+ */
 export function runRecord(state, now = nowIso()) {
+    const escalations = state.escalations ?? [];
     const tasks = Object.entries(state.tasks).map(([id, task]) => {
         const first = task.history[0]?.at ?? state.startedAt;
         const last = task.history.at(-1)?.at ?? now;
+        // 任务停过的原因：阶段历史里的代码，加上它的条目升级过的（升级在任务导入之前，阶段历史里看不到）
+        const raised = escalations.filter(entry => entry.resolution?.tasks?.includes(id));
+        const codes = [...new Set([...task.history.map(entry => entry.code).filter(Boolean), ...raised.map(entry => entry.code)])];
         return {
             task: id, title: task.title ?? null, items: task.items, risk: task.risk, phase: task.phase, rounds: task.rounds,
-            tokens: task.tokens ?? 0, pr: task.pr ?? null, prTitle: task.prTitle ?? null, code: task.code ?? null,
+            tokens: task.tokens ?? 0, approxTokens: hasApprox(state, id), pr: task.pr ?? null, prTitle: task.prTitle ?? null, code: task.code ?? null,
+            codes, escalations: raised.map(entry => entry.id),
             minutes: Math.round((Date.parse(last) - Date.parse(first)) / 60_000),
         };
     });
     const interventions = {};
     for (const entry of state.interventions) interventions[entry.kind] = (interventions[entry.kind] ?? 0) + 1;
+    const overhead = {};
+    for (const entry of (state.costs ?? []).filter(cost => !cost.task)) overhead[entry.role ?? '其他'] = (overhead[entry.role ?? '其他'] ?? 0) + entry.tokens;
     return {
         run: state.run, scope: state.scope, owner: state.owner, dryRun: state.dryRun,
         startedAt: state.startedAt, finishedAt: now,
         interventions, interventionCount: state.interventions.length,
+        interventionLog: state.interventions.map(entry => ({ at: entry.at ?? null, kind: entry.kind, note: entry.note ?? null })),
         tasks,
         escalations: [
-            ...state.escalations.map(entry => ({ items: entry.items, code: entry.code, question: entry.question })),
-            ...tasks.filter(task => task.phase === 'blocked').map(task => ({ items: task.items, code: task.code, question: null })),
+            ...escalations.map(entry => ({
+                id: entry.id ?? null, items: entry.items, code: entry.code, question: entry.question ?? null, options: entry.options ?? [],
+                decision: entry.decision ?? null, resolution: entry.resolution ?? null,
+            })),
+            // 评审时升级、或者轮数和预算用完停下的任务
+            ...tasks.filter(task => task.phase === 'blocked').map(task => ({
+                id: null, items: task.items, code: task.code, question: state.tasks[task.task].lastVerdict?.escalation?.question ?? null, options: [],
+                decision: null, resolution: null, task: task.task,
+            })),
         ],
         totals: {
             tasks: tasks.length,
@@ -140,6 +181,8 @@ export function runRecord(state, now = nowIso()) {
             prs: tasks.filter(task => task.pr).length,
             blocked: tasks.filter(task => task.phase === 'blocked').length,
             tokens: runTokens(state),
+            approxTokens: hasApprox(state),
+            overhead,
             githubWrites: state.github.filter(entry => !entry.dryRun).length,
         },
     };
@@ -160,7 +203,13 @@ export function auditWrites(logged, observed) {
     };
 }
 
-function renderSummary(record) {
+const tokensLabel = (tokens, approx) => `${approx ? '约 ' : ''}${tokens} token${approx ? '（含估算值）' : ''}`;
+
+/** 运行记录里的时间写到分钟，UTC（和开始、结束时间一致）。 */
+const minuteOf = iso => (iso ? `${iso.slice(0, 16).replace('T', ' ')}Z` : '');
+
+export function renderSummary(record) {
+    const overhead = Object.entries(record.totals.overhead ?? {}).map(([role, tokens]) => `${role} ${tokens}`).join('、');
     const lines = [
         `# Coven ${runLabel(record.run)}${record.dryRun ? '（干跑）' : ''}`,
         '',
@@ -168,32 +217,50 @@ function renderSummary(record) {
         `- 时间：${record.startedAt} → ${record.finishedAt}`,
         `- 任务 ${record.totals.tasks} 个：完成 ${record.totals.done}，开 PR ${record.totals.prs}，blocked ${record.totals.blocked}`,
         `- 人类介入 ${record.interventionCount} 次：${Object.entries(record.interventions).map(([kind, count]) => `${kind} ×${count}`).join('、') || '无'}`,
-        `- 用量：${record.totals.tokens} token；GitHub 写操作 ${record.totals.githubWrites} 次`,
+        `- 用量：${tokensLabel(record.totals.tokens, record.totals.approxTokens)}${overhead ? `，其中不属于任务的 ${overhead}` : ''}；GitHub 写操作 ${record.totals.githubWrites} 次`,
         '',
-        '| 任务 | 风险 | 阶段 | 轮数 | 分钟 | token | PR | 代码 |',
+        '| 任务 | 风险 | 阶段 | 轮数 | 分钟 | token | PR | 停过 |',
         '| --- | --- | --- | --- | --- | --- | --- | --- |',
-        ...record.tasks.map(task => `| ${taskLabel(task.task, task.title)} | ${tempoLabel(task.risk)} | ${task.phase} | ${task.rounds} | ${task.minutes} | ${task.tokens} | ${prLabel(task.pr)} | ${task.code ?? ''} |`),
+        ...record.tasks.map(task => `| ${taskLabel(task.task, task.title)} | ${tempoLabel(task.risk)} | ${task.phase} | ${task.rounds} | ${task.minutes} | ${task.approxTokens ? '约 ' : ''}${task.tokens} | ${prLabel(task.pr)} | ${[...(task.codes ?? []), ...(task.escalations ?? [])].join('、')} |`),
     ];
     if (record.escalations.length > 0) {
-        lines.push('', '## 升级', ...record.escalations.map(entry => `- ${entry.code}：${entry.items.join('、')}${entry.question ? ` —— ${entry.question}` : ''}`));
+        lines.push('', '## 升级');
+        for (const entry of record.escalations) {
+            lines.push(`- ${entry.id ? `${entry.id} ` : ''}${entry.code}：${entry.items.map(item => `\`${item}\``).join('、')}${entry.task ? `（任务 ${entry.task}）` : ''}${entry.question ? ` —— ${entry.question}` : ''}`);
+            if (entry.options?.length) lines.push(`  - 选项：${entry.options.join('；')}`);
+            if (entry.decision) lines.push(`  - 决定（HD4，@${entry.decision.by}）：${entry.decision.outcome} —— ${entry.decision.note}`);
+            if (entry.id) lines.push(`  - 结果：${resolutionLabel(entry)}`);
+        }
+    }
+    if (record.interventionLog?.length) {
+        lines.push('', '## 人类介入', ...record.interventionLog.map(entry => `- ${minuteOf(entry.at)} ${entry.kind}${entry.note ? `：${entry.note}` : ''}`));
     }
     return `${lines.join('\n')}\n`;
 }
 
 function printState(state) {
+    if (state.finishedAt) console.log(`这次运行已经在 ${state.finishedAt} 收尾。新开一次从 coven scope 开始（init 会把它挪进 .coven/runs/${state.run}/）。\n`);
     console.log(`运行 ${runLabel(state.run)}${state.dryRun ? '（干跑）' : ''}：范围 ${scopeLabel(state.scope)}，集成分支 ${state.integrationBranch}，跟踪 issue ${state.trackingIssue ?? '无'}`);
-    console.log(`认领 ${Object.values(state.items).filter(item => item.claim?.state && item.claim.state !== 'released').length}/${Object.keys(state.items).length} 条；人类介入 ${state.interventions.length} 次；用量 ${runTokens(state)} token`);
+    const overhead = runLevelTokens(state);
+    console.log(`认领 ${Object.values(state.items).filter(item => item.claim?.state && item.claim.state !== 'released').length}/${Object.keys(state.items).length} 条；人类介入 ${state.interventions.length} 次；用量 ${tokensLabel(runTokens(state), hasApprox(state))}${overhead ? `（不属于任务的 ${overhead}）` : ''}`);
     for (const id of state.order.length > 0 ? state.order : Object.keys(state.tasks)) {
         const task = state.tasks[id];
         if (!task) continue;
         console.log(`  ${id.padEnd(12)} ${(task.title ?? '').padEnd(28)} ${task.risk} ${task.phase.padEnd(11)} 第 ${task.rounds} 轮${task.session ? ` session ${task.session}` : ''}${task.pr ? ` ${prLabel(task.pr)}` : ''}${task.code ? ` ${task.code}` : ''}`);
         if (task.prTitle) console.log(`  ${''.padEnd(12)} PR 标题：${task.prTitle}`);
     }
-    for (const entry of state.escalations) console.log(`  升级 ${entry.code}：${entry.items.join('、')}`);
-    const escalated = new Set(state.escalations.flatMap(entry => entry.items));
-    const unassigned = Object.keys(state.items).filter(key => !state.items[key].task && !escalated.has(key) && state.items[key].claim?.state === 'claimed');
-    if (unassigned.length > 0) console.log(`  还没分进任务的认领：${unassigned.length} 条`);
+    for (const entry of openEscalations(state)) {
+        console.log(`  升级 ${entry.id} ${entry.code}：${openItemsOf(state, entry).join('、')} —— ${resolutionLabel(entry)}${entry.decision ? `（@${entry.decision.by}：${entry.decision.note}）` : ''}`);
+    }
+    const settled = (state.escalations ?? []).length - openEscalations(state).length;
+    if (settled > 0) console.log(`  已了结的升级 ${settled} 条（运行记录里有全部）`);
+    const waiting = waitingItems(state);
+    const unassigned = Object.keys(state.items).filter(key => !state.items[key].task && !waiting.has(key) && state.items[key].claim?.state === 'claimed');
+    if (unassigned.length > 0) console.log(`  还没分进任务的认领：${unassigned.length} 条（下一步 coven prompt planner）`);
 }
+
+/** 没有 .coven/state.json：这是预期的“没有运行”，不是出错。 */
+const NO_RUN = '没有进行中的运行（这个检出里没有 .coven/state.json）。从第 1 步开始：coven scope --help 看来源，生成范围，给维护者确认后 coven state init。';
 
 /** 一次运行的文件按任务名存；新开一次运行前整批挪进 runs/<上次的运行>/，上次的批准、评审不会被同名任务带过来。 */
 const PER_RUN_DIRS = ['contracts', 'verify', 'reviews', 'prs', 'plan', 'prompts'];
@@ -254,8 +321,12 @@ function currentLogin() {
 
 export async function run(host, argv) {
     const { root: ROOT, config } = host;
-    const { positional, options } = parseArgs(argv, ['live', 'force'], ['scope', 'base', 'branch', 'owner', 'note', 'tokens', 'code', 'session', 'worktree', 'unblock-by']);
+    const { positional, options } = parseArgs(argv, ['live', 'force', 'approx'], ['scope', 'base', 'branch', 'owner', 'note', 'tokens', 'role', 'code', 'session', 'worktree', 'unblock-by', 'escalation', 'decision', 'by']);
     const [command, ...rest] = positional;
+    if (command === 'show' && !hasState(ROOT)) {
+        console.log(NO_RUN);
+        return;
+    }
     if (command === 'init') {
         const file = path.join(ROOT, STATE_FILE);
         if (fs.existsSync(file)) {
@@ -289,19 +360,30 @@ export async function run(host, argv) {
     if (command === 'hd') {
         const kind = rest[0];
         if (!/^HD[0-5]$/.test(kind ?? '')) throw new Error('hd 后面写 HD0–HD5');
+        if (options.escalation || options.decision) {
+            if (kind !== 'HD4') throw new Error('对升级的决定是 HD4：coven state hd HD4 --escalation <编号> --decision …');
+            decide(host, state, options);
+            return;
+        }
         state.interventions.push({ at: nowIso(), kind, note: options.note ?? null });
         saveState(ROOT, state);
         console.log(`记下 ${kind}（第 ${state.interventions.length} 次人类介入）。`);
         return;
     }
     if (command === 'cost') {
-        const task = state.tasks[rest[0]];
-        if (!task) throw new Error(`没有任务 ${rest[0]}`);
+        const taskId = rest[0] ?? null;
+        const role = options.role ?? null;
+        const roles = [...Object.keys(config.roles ?? {}), 'supervisor'];
+        if (role !== null && !roles.includes(role)) throw new Error(`--role 只能是 ${roles.join('、')}`);
+        const task = taskId ? state.tasks[taskId] : null;
+        if (taskId && !task) throw new Error(`没有任务 ${taskId}（这次运行的任务：${Object.keys(state.tasks).join('、') || '还没有'}）`);
+        if (!taskId && !role) throw new Error('写明记到哪个任务；不属于任务的用量（planner 没出任务时的、监控 session 自己的）不写任务，写 --role planner 之类，记到运行本身');
         const added = Number(options.tokens);
-        if (!Number.isInteger(added) || added < 0) throw new Error('--tokens 要写这次用掉的 token 数（子代理和工作 session 报出的 total tokens）');
-        task.tokens = (task.tokens ?? 0) + added;
+        if (!Number.isInteger(added) || added < 0) throw new Error('--tokens 要写这次用掉的 token 数（只拿得到上下文大小这类估算的，再加 --approx）');
+        if (task) task.tokens = (task.tokens ?? 0) + added;
+        state.costs.push({ at: nowIso(), task: taskId, role, tokens: added, ...(options.approx ? { approx: true } : {}) });
         saveState(ROOT, state);
-        console.log(`${rest[0]} 累计 ${task.tokens} token；本次运行 ${runTokens(state)} token。`);
+        console.log(`${task ? `${taskId} 累计 ${task.tokens} token` : `记到运行本身（${role}）`}；本次运行 ${tokensLabel(runTokens(state), hasApprox(state))}。`);
         return;
     }
     if (command === 'phase') {
@@ -351,6 +433,7 @@ export async function run(host, argv) {
         });
         updateClaims({ keys: open, state, config, io, change: { state: 'released' }, itemPattern: host.adapter.itemKeyPattern ?? null });
         const now = nowIso();
+        closeOpenEscalations(state, now);
         const record = runRecord(state, now);
         state.finishedAt = now;
         const stem = state.run;
@@ -377,5 +460,34 @@ export async function run(host, argv) {
         }
         return;
     }
-    throw new Error('用法：coven state init | show | phase | cost | hd | finish | audit（见文件开头）');
+    throw new Error(`用法：\n${usage()}`);
+}
+
+/**
+ * HD4：维护者对一条升级的决定。认领评论跟着改：replan 把 blocked 改回 claimed（下一次 coven prompt planner 会带上这条决定），
+ * release 释放，hold 改成（或者保持）blocked。决定和它的内容都留在账本和运行记录里，审计看得到。
+ */
+function decide(host, state, options) {
+    const { root, config } = host;
+    if (!options.escalation) throw new Error('--decision 要配 --escalation <升级编号>（coven state show 列着）');
+    const decision = { id: options.escalation, outcome: options.decision, by: options.by, note: options.note, now: nowIso() };
+    const problems = decisionProblems(state, decision);
+    if (problems.length > 0) throw new Error(`不能记这个决定：\n${problems.map(problem => `- ${problem}`).join('\n')}`);
+    const outcome = decision.outcome;
+    const current = state.escalations.find(candidate => candidate.id === decision.id);
+    const change = { replan: { state: 'claimed' }, release: { state: 'released' }, hold: { state: 'blocked', code: current.code } }[outcome];
+    // 只改状态不对的（已经是目标状态的不用再编辑评论）
+    const from = { replan: ['blocked'], release: ['claimed', 'blocked'], hold: ['claimed'] }[outcome];
+    const targets = openItemsOf(state, current).filter(key => from.includes(state.items[key]?.claim?.state));
+    if (targets.length > 0) {
+        // 先改认领评论，改成了再记决定：中途出错时什么都没记，原样重跑
+        const io = githubIo(state, config, { dryRun: isDryRun(state, config), readRemote: Boolean(state.trackingIssue), persist: () => saveState(root, state) });
+        const { lost } = updateClaims({ keys: targets, state, config, io, change, itemPattern: host.adapter.itemKeyPattern ?? null });
+        for (const item of lost) console.log(`D830 ${item.item} 已经不归这个监控 session，告诉维护者。`);
+    }
+    const entry = applyDecision(state, decision);
+    state.interventions.push({ at: decision.now, kind: 'HD4', note: `@${decision.by} 对 ${entry.id}（${entry.code}）：${outcome} —— ${decision.note}` });
+    saveState(root, state);
+    console.log(`记下 HD4（第 ${state.interventions.length} 次人类介入）：${entry.id} ${DECISIONS[outcome]}。`);
+    if (outcome === 'replan') console.log(`下一步：coven prompt planner --out .coven/prompts/planner-<轮>.md，提示里会带上这条决定。`);
 }

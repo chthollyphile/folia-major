@@ -77,7 +77,7 @@ const parseJsonOr = (text, fallback) => (text === null ? fallback : JSON.parse(t
  * 基线和抑制有没有增长（harness 的 D841）：不看契约写没写 dedicatus 项，每次都查。
  * 修掉两条、顺手登记一条新违规，或者把抑制从一个文件挪到另一个文件，总数照样变小，只比总数是挡不住的。
  * 挪文件时条目跟着改名走不算增长；拆文件时搬进新文件的基线条目按 Dedicatus 的规则抵扣。
- * 抑制这边比 CI 严：CI 跑了 ESLint，能把搬进新文件的抑制按挪过来的行抵扣；这里不跑 ESLint，拆文件带走抑制的重构会被拦下，交给维护者。
+ * 抑制这边比 CI 严：CI 能把搬进新文件的抑制按挪过来的行抵扣；这个关口只比账本文件、不看搬了哪些行，拆文件带走抑制的重构会被拦下，交给维护者。
  * @param {{ baseEntries: string[], headEntries: string[], baseSuppressions: object, headSuppressions: object, renameMap: Map<string, string>, newFiles: Set<string> }} input
  * @returns {string[]}
  */
@@ -140,10 +140,16 @@ function vitestEnv() {
     return major >= 25 && !current.includes('--no-experimental-webstorage') ? { NODE_OPTIONS: `${current} --no-experimental-webstorage`.trim() } : {};
 }
 
-function runDedicatus(ctx, target) {
-    const args = ['dev/dedicatus/cli.mjs', '--json', '--base', ctx.mergeBase, ...(target === 'all' ? ['--all'] : [])];
-    if (target === 'all' && !fs.existsSync(path.join(ctx.worktree, 'dev/dedicatus/lint/node_modules'))) {
-        return { ok: false, summary: 'worktree 里没装 ESLint 隔离环境：先在那里跑 npm run coven:setup -- --lint', findings: null };
+/**
+ * 模块图检查加上改过的文件的 ESLint（有基点时 Dedicatus 只 lint 改过的文件，和 CI 的 lint job 查的一样）。
+ * 不能只跑模块图：ESLint 有按路径生效的规则，挪文件会换规则。Op. 1 里 exploreFeedMemory 从 src/components/ 挪进 src/stores/，
+ * 直接用 localStorage 从 D411（有抑制）变成 D508（没有抑制），只跑模块图的 verify 照样全绿，要到 CI 才暴露。
+ */
+function runDedicatus(ctx) {
+    const args = ['dev/dedicatus/cli.mjs', '--json', '--base', ctx.mergeBase, '--all'];
+    if (!fs.existsSync(path.join(ctx.worktree, 'dev/dedicatus/lint/node_modules'))) {
+        // 在这次改动之前切出的集成分支上，worktree 里的 coven:setup 还是旧版（要 --lint 才装），所以直接给 lint:install
+        return { ok: false, summary: 'worktree 里没装 ESLint 隔离环境：在那里跑 npm run lint:install', findings: null };
     }
     const run = ctx.run(process.execPath, args);
     let parsed;
@@ -160,12 +166,8 @@ function runDedicatus(ctx, target) {
     };
 }
 
-/** Dedicatus 一次运行跑一遍：要 all 的时候才重跑（all 也包含模块图检查）。 */
-function dedicatusFor(ctx, target) {
-    const holder = ctx.memo('dedicatus', () => ({ value: null }));
-    if (!holder.value || (target === 'all' && holder.value.target !== 'all')) holder.value = { target, ...runDedicatus(ctx, target) };
-    return holder.value;
-}
+/** Dedicatus 一次 verify 只跑一遍，dedicatus 和 baseline 两项共用结果。 */
+const dedicatusFor = ctx => ctx.memo('dedicatus', () => runDedicatus(ctx));
 
 const checks = {
     typecheck: {
@@ -188,9 +190,10 @@ const checks = {
     },
     dedicatus: {
         deterministic: true,
-        validate: verify => (verify.target !== undefined && !['graph', 'all'].includes(verify.target) ? 'dedicatus 的 target 只能是 graph 或 all' : null),
+        // 不用写 target：模块图和改过的文件的 ESLint 总是一起跑。旧契约里的 graph、all 照样认，跑的都是这一套
+        validate: verify => (verify.target !== undefined && !['graph', 'all'].includes(verify.target) ? 'dedicatus 不用写 target（模块图和 ESLint 总是一起跑）' : null),
         run(ctx) {
-            const result = dedicatusFor(ctx, ctx.criterion.verify.target ?? 'graph');
+            const result = dedicatusFor(ctx);
             return { ok: result.ok, summary: result.summary };
         },
     },
@@ -199,8 +202,7 @@ const checks = {
         // 用 Dedicatus 的结果判断条目是不是真的消掉了，放在 dedicatus 之后
         order: 10,
         run(ctx) {
-            const holder = ctx.memo('dedicatus', () => ({ value: null }));
-            const result = dedicatusFor(ctx, holder.value?.target ?? 'graph');
+            const result = dedicatusFor(ctx);
             const findingKeys = new Set([...(result.findings?.fresh ?? []), ...(result.findings?.known ?? [])].map(finding => finding.key));
             const base = ledgersAt(ctx.readAt, ctx.mergeBase);
             const head = ledgersAt(ctx.readAt, 'HEAD');
@@ -236,7 +238,7 @@ const PLANNER_EXAMPLE = `{
       "scope": { "paths": ["src/utils/lyrics/", "test/unit/lyrics/"] },
       "criteria": [
         { "id": "c1", "description": "条目从基线消掉，Dedicatus 查不出来", "verify": { "kind": "baseline" }, "passes": false },
-        { "id": "c2", "description": "模块图没有新违规", "verify": { "kind": "dedicatus", "target": "graph" }, "passes": false },
+        { "id": "c2", "description": "模块图和改过的文件的 ESLint 都没有新的 error", "verify": { "kind": "dedicatus" }, "passes": false },
         { "id": "c3", "description": "类型检查通过", "verify": { "kind": "typecheck" }, "passes": false },
         { "id": "c4", "description": "相关单测通过", "verify": { "kind": "unit", "target": ["test/unit/lyrics/lyricMatchSources.test.ts"] }, "passes": false },
         { "id": "c5", "description": "只是搬移和改引用，没有行为变化", "verify": { "kind": "review" }, "passes": false }
@@ -260,40 +262,42 @@ const prompts = {
             '- `docs/CODEMAP.md`：模块图。',
             '',
             '对每一条，用 rg 查引用方，也查目标文件是不是被**按路径**找到的（`import.meta.glob`、测试的收集范围、检查脚本扫的目录）。',
+            '要挪的文件，再查它在新位置要守哪些 ESLint 规则：有的规则按目录生效，`dev/dedicatus/eslint/` 和 `eslint-suppressions.json` 里看得到它现在被抑制了什么。',
         ].join('\n'),
         escalateWhen: '   - 修它要挪一个按路径被找到的文件（`import.meta.glob` 等）。这类文件不能挪，见 `file-modularization`。',
         scopeNote: '基线和抑制文件不用写：它们总是允许改，但只许变小。',
         criteria: [
             '   - 重构必须有一项 `{"kind":"baseline"}`：条目从基线消掉，Dedicatus 也查不出来。',
-            '   - 一项 `{"kind":"dedicatus","target":"graph"}`：模块图没有新违规。动了 ESLint 抑制的写 `"target":"all"`。',
+            '   - 一项 `{"kind":"dedicatus"}`：模块图和改过的文件的 ESLint 都没有新的 error（和 CI 查的一样）。',
             '   - 一项 `{"kind":"typecheck"}`。',
             '   - 相关单测 `{"kind":"unit","target":["test/unit/…"]}`，只写确实存在的测试文件。',
             '   - 一项 `{"kind":"review"}`：evaluator 读 diff，确认只是搬移和改引用，没有行为变化。',
             '   - R3 再加一项 `{"kind":"preview"}` 或 `{"kind":"desktop"}`，写清楚真跑应用时要看的场景。',
         ].join('\n'),
-        extraRules: '要挪文件的任务，在 `goal` 里写明“挪文件单独一个提交，只挪不改”。',
+        extraRules: [
+            '要挪文件的任务，在 `goal` 里写明“挪文件单独一个提交，只挪不改”。',
+            '',
+            '挪出或挪进某个目录时，按路径生效的 ESLint 规则会变，旧路径上的抑制带不过去。例如组件里直接读写 `localStorage` 报 D411，挪进 `src/stores/` 以后报 D508。这类条目在 `goal` 里写清在新位置怎么满足规则；要放宽规则或者有几种做法要选的，升级。',
+        ].join('\n'),
         example: PLANNER_EXAMPLE,
     }),
-    generator: ({ contract }) => {
-        const usesLint = contract.criteria.some(criterion => criterion.verify.kind === 'dedicatus' && criterion.verify.target === 'all');
-        return {
-            setup: `先 cd 进你的 worktree 根目录，跑 \`npm run coven:setup${usesLint ? ' -- --lint' : ''}\`（装依赖${usesLint ? '和 ESLint 隔离环境' : ''}），不要链接主检出的 \`node_modules\`。有包装不上时不要自己想办法绕：\`coven:setup\` 已经按约定处理（比如云端装不上 KuGouMusicApi 时跳过它），verify 会记下来。`,
-            steps: [
-                '- 按 `skills/development-workflow` 的第 1–3 步做：读相关代码 → 改 → 自检。只改 `scope.paths` 里的文件（基线和抑制文件除外）。',
-                '- 挪文件：单独一个提交，只挪不改。`git mv` 之后改引用路径的另起一个提交，做法见 `skills/file-modularization`。挪完跑 `npm run dedicatus -- --migrate-renames`。',
-                '- 修好一条违规后，跑 `npm run dedicatus -- --prune`（基线）或 `npm run lint:prune`（抑制）删掉对应的条目。',
-                '- 自检：`npm run typecheck`、契约里列的单测、`npm run dedicatus`。',
-                '- 提交信息写中文：类型和范围照 Conventional Commits，描述用中文。',
-            ].join('\n'),
-            commitExample: 'refactor(lyrics): 把歌词来源的登录判断交给调用方',
-            forbidden: [
-                '- 改 `dev/coven/`、`packages/coven/`、`dev/dedicatus/` 的规则、`AGENTS.md`、`skills/`。',
-                '- 碰 `.dev-credentials/`。',
-                '- 加 `eslint-disable`。',
-            ].join('\n'),
-            selfChecks: 'typecheck、单测、dedicatus',
-        };
-    },
+    generator: () => ({
+        setup: '先 cd 进你的 worktree 根目录，跑 `npm run coven:setup`（装依赖和 ESLint 隔离环境），不要链接主检出的 `node_modules`。有包装不上时不要自己想办法绕：`coven:setup` 已经按约定处理（比如云端装不上 KuGouMusicApi 时跳过它），verify 会记下来。',
+        steps: [
+            '- 按 `skills/development-workflow` 的第 1–3 步做：读相关代码 → 改 → 自检。只改 `scope.paths` 里的文件（基线和抑制文件除外）。',
+            '- 挪文件：单独一个提交，只挪不改。`git mv` 之后改引用路径的另起一个提交，做法见 `skills/file-modularization`。挪完跑 `npm run dedicatus -- --migrate-renames`。',
+            '- 修好一条违规后，跑 `npm run dedicatus -- --prune`（基线）或 `npm run lint:prune`（抑制）删掉对应的条目。',
+            '- 自检：`npm run typecheck`、契约里列的单测、`npm run dedicatus -- --all`（模块图加改过的文件的 ESLint，verify 和 CI 都查这个）。',
+            '- 提交信息写中文：类型和范围照 Conventional Commits，描述用中文。',
+        ].join('\n'),
+        commitExample: 'refactor(lyrics): 把歌词来源的登录判断交给调用方',
+        forbidden: [
+            '- 改 `dev/coven/`、`packages/coven/`、`dev/dedicatus/` 的规则、`AGENTS.md`、`skills/`。',
+            '- 碰 `.dev-credentials/`。',
+            '- 加 `eslint-disable`。',
+        ].join('\n'),
+        selfChecks: 'typecheck、单测、`dedicatus -- --all`',
+    }),
     evaluator: () => ({
         reviewChecks: '   - review：diff 是不是只有搬移和改引用、没有行为变化；挪文件的提交是不是只挪不改；有没有出 `scope.paths`；有没有新加的 `eslint-disable`、基线条目或抑制条目。',
         severity: ' `skills/development-workflow` 的严重度标准',
@@ -339,8 +343,8 @@ export default defineAdapter({
     checks,
     requiredKinds: { refactor: ['baseline'] },
     worktree: {
-        flags: ['lint'],
-        setup: ({ worktree, flags }) => setupWorktree(worktree, { lint: flags.lint }),
+        // verify 每次都跑 ESLint，隔离环境总要装
+        setup: ({ worktree }) => setupWorktree(worktree, { lint: true }),
         inspect: worktree => missingPackageNotes(worktree),
     },
     prompts,
