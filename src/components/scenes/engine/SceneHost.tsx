@@ -131,12 +131,18 @@ const SceneStage: React.FC<{ definition: SceneDefinition; rendererProps: Rendere
         }));
         resizeObserver.observe(box);
 
-        const show = () => {
+        // Where the time to the first shown frame goes (ms since the effect began; the slowest frame before it is shown).
+        const startedAt = performance.now();
+        const startup: Record<string, number | boolean> = {};
+        const mark = (step: string) => { startup[step] = Math.round(performance.now() - startedAt); };
+        let slowestFrame = 0;
+        const show = (byTimeLimit = false) => {
             if (disposed || shown) return;
             shown = true;
             window.clearTimeout(readyTimer);
             setStatus('running');
-            console.info('[SceneHost] scene shown', id);
+            mark('shown');
+            console.info('[SceneHost] scene shown', id, { ...startup, slowestFrameMs: Math.round(slowestFrame), ...(byTimeLimit ? { byTimeLimit } : {}) });
         };
         const preset = () => useSceneSettingsStore.getState().sceneOptions[id]?.quality ?? manifest.quality.default;
         const settings = () => ({
@@ -177,7 +183,7 @@ const SceneStage: React.FC<{ definition: SceneDefinition; rendererProps: Rendere
             viewpoints: { chosen: () => useSceneSettingsStore.getState().sceneOptions[id]?.viewpoint ?? null },
             sound: room?.sound ?? silentSceneSound,
             on: bus.on,
-            ready: show,
+            ready: () => show(),
             log: {
                 info: (message, ...rest) => console.info(`[Scene ${id}] ${message}`, ...rest),
                 warn: (message, ...rest) => console.warn(`[Scene ${id}] ${message}`, ...rest),
@@ -225,7 +231,12 @@ const SceneStage: React.FC<{ definition: SceneDefinition; rendererProps: Rendere
             }
             previous = snapshot;
             try {
+                const frameStart = performance.now();
                 runtime?.frame({ dt: snapshot.paused ? 0 : Math.min(MAX_FRAME_DT, elapsed), now: nowMs / 1000 });
+                if (!shown) {
+                    slowestFrame = Math.max(slowestFrame, performance.now() - frameStart);
+                    if (!('firstFrame' in startup)) mark('firstFrame');
+                }
             } catch (error) {
                 fail(error);
                 return;
@@ -237,16 +248,18 @@ const SceneStage: React.FC<{ definition: SceneDefinition; rendererProps: Rendere
             try {
                 const factory = await definition.load();
                 if (disposed) return;
+                mark('loaded');
                 const created = await factory(ctx);
                 if (disposed) {
                     created.dispose();
                     return;
                 }
                 runtime = created;
+                mark('created');
                 publishSceneViewpoints(id, anchors.filter((anchor): anchor is ViewpointAnchor => anchor.kind === 'viewpoint'));
                 runtime.resize?.({ width: box.clientWidth, height: box.clientHeight, dpr: window.devicePixelRatio || 1 });
                 console.info('[SceneHost] scene loaded', id, { attempt });
-                readyTimer = window.setTimeout(show, READY_LIMIT_MS);
+                readyTimer = window.setTimeout(() => show(true), READY_LIMIT_MS);
                 frameRequest = requestAnimationFrame(tick);
             } catch (error) {
                 fail(error);

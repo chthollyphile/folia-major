@@ -26,6 +26,11 @@ export interface CinemaPostFrame {
 
 export interface CinemaPost {
     render: (renderer: THREE.WebGLRenderer, scene: THREE.Object3D, camera: THREE.Camera, frame: CinemaPostFrame) => void;
+    /**
+     * Compiles every program render() will use (the scene's and the passes'), for the targets they draw into,
+     * off the main thread where the browser can (KHR_parallel_shader_compile); resolves once they are ready.
+     */
+    compile: (renderer: THREE.WebGLRenderer, scene: THREE.Object3D, camera: THREE.Camera) => Promise<void>;
     dispose: () => void;
 }
 
@@ -257,11 +262,22 @@ export const createCinemaPost = (): CinemaPost => {
         renderer.autoClear = autoClear;
     };
 
+    // A program's key holds the colour space of where it draws: the scene and the blur passes draw into
+    // targets, the composite onto the canvas, so each is compiled with that target bound.
+    const compile = async (renderer: THREE.WebGLRenderer, scene: THREE.Object3D, camera: THREE.Camera) => {
+        const passes = new THREE.Scene();
+        [down, blur].forEach(shader => passes.add(new THREE.Mesh(geometry, shader)));
+        renderer.setRenderTarget(main);
+        const intoTargets = [renderer.compileAsync(scene, camera), renderer.compileAsync(passes, quadCamera)];
+        renderer.setRenderTarget(null);
+        await Promise.all([...intoTargets, renderer.compileAsync(new THREE.Mesh(geometry, composite), quadCamera)]);
+    };
+
     const dispose = () => {
         targets.forEach(item => item.dispose());
         [down, blur, composite].forEach(item => item.dispose());
         geometry.dispose();
     };
 
-    return { render, dispose };
+    return { render, compile, dispose };
 };

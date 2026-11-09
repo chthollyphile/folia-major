@@ -195,7 +195,10 @@ export const createRoomStage = ({ context, from, to }: RoomSlot, timers: RoomSta
             const target = active < 0 ? 0 : 1 - active;
             const load = () => {
                 const lane = current.lanes[target];
+                // The browser prepares the convolution here, on the main thread: logged, as it grows with the IR's length.
+                const loadStarted = performance.now();
                 lane.convolver.buffer = bufferOf(ir);
+                console.info(`[SceneSound] IR into the convolver in ${Math.round(performance.now() - loadStarted)} ms`);
                 lane.ir = ir;
                 // Let the fresh convolver hear one IR length of music before it is heard.
                 swapTimer = timers.set(() => {

@@ -52,6 +52,8 @@ export interface CinemaScene {
     update: (input: CinemaFrameInput) => number;
     /** Draws the frame through the lens passes. */
     render: (renderer: THREE.WebGLRenderer, camera: THREE.Camera) => void;
+    /** Compiles the shaders ahead of the first frame (see CinemaPost.compile). */
+    compile: (renderer: THREE.WebGLRenderer, camera: THREE.Camera) => Promise<void>;
     dispose: () => void;
 }
 
@@ -125,7 +127,10 @@ const ease = (current: number, target: number, rate: number, dt: number) => curr
 /** The share of each screen third the cover itself fills; the rest is the dimmed backdrop. */
 const THIRD_WEIGHTS = [0.32, 1, 0.32];
 
-export const createCinemaScene = (): CinemaScene => {
+/** Lets a frame through between the heavier builds (each 5 to 30 ms), so building the hall never holds the page for one long stretch. */
+const breathe = () => new Promise<void>(resolve => { setTimeout(resolve, 0); });
+
+export const createCinemaScene = async (): Promise<CinemaScene> => {
     const leader = createLeaderReel();
     const noise = createSmokeNoise();
     const post = createCinemaPost();
@@ -180,16 +185,20 @@ export const createCinemaScene = (): CinemaScene => {
         mesh.instanceMatrix.needsUpdate = true;
         return mesh;
     };
+    await breathe();
     const seats = instanced(buildSeatGeometry(), buildSeatMatrices());
     seats.renderOrder = 0;
     const audience = instanced(buildAudienceGeometry(), buildAudienceMatrices());
     audience.renderOrder = 0;
+    await breathe();
     const room = new THREE.Mesh(keep(buildRoomGeometry()), roomMaterial);
     room.renderOrder = 1;
+    await breathe();
     // The side curtains move in an intermission (cinemaIntermission.ts): their own mesh, hung anew only while they move.
     const curtains = buildSideCurtains();
     const curtainMesh = new THREE.Mesh(keep(curtains.geometry), roomMaterial);
     curtainMesh.renderOrder = 1;
+    await breathe();
     const intermission = createIntermission();
     const hung = { left: { top: 0, bottom: 0 }, right: { top: 0, bottom: 0 } };
     const moved = (pose: CurtainPose, last: CurtainPose) => Math.abs(pose.top - last.top) > 1e-4 || Math.abs(pose.bottom - last.bottom) > 1e-4;
@@ -377,5 +386,7 @@ export const createCinemaScene = (): CinemaScene => {
         leader.texture.dispose();
     };
 
-    return { setReel, update, render, dispose };
+    const compile = (renderer: THREE.WebGLRenderer, camera: THREE.Camera) => post.compile(renderer, scene, camera);
+
+    return { setReel, update, render, compile, dispose };
 };

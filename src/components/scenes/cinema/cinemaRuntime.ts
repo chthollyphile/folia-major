@@ -7,7 +7,7 @@ import { cinemaAcousticWorld } from './cinemaAcoustics';
 import { publishCinemaAnchors, SCREEN_CORNERS } from './cinemaAnchors';
 import { fitView, SEAT_HALF_TAN, tourRig } from './cinemaCamera';
 import { loadCinemaReel } from './cinemaReel';
-import { createCinemaScene } from './cinemaScene';
+import { createCinemaScene, type CinemaScene } from './cinemaScene';
 
 // src/components/scenes/cinema/cinemaRuntime.ts
 // The hall as a scene runtime: the kit's transparent canvas, the hall (cinemaScene.ts) filmed from the
@@ -29,14 +29,27 @@ const coveOf = (song: SceneSong) => {
     return new THREE.Color().setRGB(tinted.r / 255, tinted.g / 255, tinted.b / 255, THREE.SRGBColorSpace);
 };
 
-export const createCinemaRuntime: SceneFactory = (ctx) => {
+export const createCinemaRuntime: SceneFactory = async (ctx) => {
     // The lens passes antialias the hall themselves; the canvas is transparent where a borrowed picture shows.
     const stage = createThreeStage(ctx, { alpha: true, antialias: false, fov: 36, near: 0.1, far: 90 });
     stage.renderer.domElement.style.pointerEvents = 'none';
     stage.camera.position.set(0, 4, 18);
     publishCinemaAnchors(ctx.anchors);
     ctx.sound.setAcoustics(cinemaAcousticWorld());
-    const hall = createCinemaScene();
+    // Built in a few slices, and every shader compiled before the first frame: a program first compiled
+    // when it is drawn holds the page until it is done.
+    const started = performance.now();
+    let hall: CinemaScene | null = null;
+    try {
+        hall = await createCinemaScene();
+        const built = performance.now();
+        await hall.compile(stage.renderer, stage.camera);
+        ctx.log.info(`built in ${Math.round(built - started)} ms, shaders compiled in ${Math.round(performance.now() - built)} ms`);
+    } catch (error) {
+        hall?.dispose();
+        stage.dispose();
+        throw error;
+    }
     const disposers: (() => void)[] = [];
     let lightsUpAtEnd = false;
 
