@@ -13,6 +13,7 @@ import * as lyrics from './LyricsPage';
 import * as mods from './ModsPage';
 import * as playback from './PlaybackPage';
 import * as player from './PlayerPage';
+import * as scene from './ScenePage';
 import * as storage from './StoragePage';
 
 // src/components/modal/settings/pages/index.ts
@@ -25,6 +26,7 @@ type PageModule = { default: React.FC; OPTIONS: readonly SettingsOptionDef[] };
 const PAGE_MODULES: Record<SettingsSectionId, PageModule> = {
     appearance,
     player,
+    scene,
     home,
     playback,
     lyrics,

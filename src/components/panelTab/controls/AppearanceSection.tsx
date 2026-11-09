@@ -33,7 +33,6 @@ import { useSettingsModalStore } from '../../../stores/useSettingsModalStore';
 import { selectDisplayPlayerState, usePlaybackStore } from '../../../stores/usePlaybackStore';
 import { usePonderStore } from '../../../stores/usePonderStore';
 import { Toggle, type PictureState } from '../../modal/settings/kit';
-import SceneRow from '../../scenes/settings/SceneRow';
 import { useChosenScene } from '../../scenes/registry';
 import { resolveSceneOffered, sceneOffersBackground, sceneOffersLyricStyle } from '../../scenes/engine/scenePlacement';
 
@@ -126,7 +125,7 @@ const AppearanceSection: React.FC<AppearanceSectionProps> = ({
     // Which row's picker is open, if any (the random pool's is the style row's second one). The
     // pictures' clock runs only while one of the two rows' pictures is open: a picture moves only
     // while the pointer rests on it in an open picker. The pool's layer draws glyphs, no pictures.
-    const [openPicker, setOpenPicker] = useState<'scene' | 'style' | 'pool' | 'background' | null>(null);
+    const [openPicker, setOpenPicker] = useState<'style' | 'pool' | 'background' | null>(null);
     const picturesOpen = openPicker === 'style' || openPicker === 'background';
     const poolChipRef = useRef<HTMLButtonElement>(null);
     const isPlaying = usePlaybackStore(state => selectDisplayPlayerState(state) === PlayerState.PLAYING);
@@ -137,7 +136,7 @@ const AppearanceSection: React.FC<AppearanceSectionProps> = ({
     if (followedTheme !== pictureTheme) {
         setPictureTheme(followedTheme);
     }
-    const changeOpenPicker = (next: 'scene' | 'style' | 'pool' | 'background' | null) => {
+    const changeOpenPicker = (next: 'style' | 'pool' | 'background' | null) => {
         setOpenPicker(next);
         if (next === 'style' || next === 'background') {
             setPictureTheme(held => panelPictureTheme(held, pageTheme, { playing: isPlaying, pickerOpens: true }));
@@ -226,11 +225,6 @@ const AppearanceSection: React.FC<AppearanceSectionProps> = ({
                     background={pictureBackground}
                     making={panelMakesImages({ playing: isPlaying, pickerOpen: picturesOpen })}
                 >
-                    <SceneRow
-                        open={openPicker === 'scene'}
-                        onOpenChange={open => changeOpenPicker(open ? 'scene' : null)}
-                        onOpenMore={openVisualizerSettings}
-                    />
                     {visualizerOptions.length > 0 && (
                     <ModeStepperRow<VisualizerMode>
                         value={showsRandom ? RANDOM_VISUALIZER_CHOICE : shownVisualizerMode}

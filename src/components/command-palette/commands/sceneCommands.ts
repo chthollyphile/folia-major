@@ -1,16 +1,18 @@
 import { listScenes } from '../../scenes/registry';
 import { useSceneSettingsStore } from '../../scenes/settings/useSceneSettingsStore';
+import { useSoundTracingStore, type SoundTracingOutput } from '../../scenes/settings/useSoundTracingStore';
 import { sceneIdKind } from '../../../types/sceneIds';
 import { createToggleCommand } from '../commandFactories';
 import type { CommandPaletteCommand } from '../types';
 
 // src/components/command-palette/commands/sceneCommands.ts
 // 场景的命令：切到每个内建场景（按名单生成，id `scene-<id>`，文案在三份语言文件的 commandPalette.commands 里）、
-// 退出场景、房间声音开关和耳机/音箱（场景设置里的同两项），以及开发时用的「重新加载场景」。
+// 退出场景、声线追踪开关和耳机/音箱（设置「场景」页里的同两项），以及开发时用的「重新加载场景」。
+// 声线追踪三条命令的 id 还是 `scene-room-*`：最近用过的命令按 id 存着，改名会丢掉。
 // 模组和数据包的场景没有自己的命令，在选择器里选。
 
 const sceneActive = () => useSceneSettingsStore.getState().sceneId !== null;
-const roomOutputIs = (output: 'headphones' | 'speakers') => useSceneSettingsStore.getState().roomOutput === output;
+const outputIs = (output: SoundTracingOutput) => useSoundTracingStore.getState().output === output;
 
 export const sceneCommands: CommandPaletteCommand[] = [
     ...listScenes()
@@ -35,32 +37,32 @@ export const sceneCommands: CommandPaletteCommand[] = [
     createToggleCommand(
         'scene-room-sound',
         'visualizer',
-        'Room sound on or off',
+        'Sound tracing on or off',
         "Hear the music as in the scene's room, or as on the plain player page",
-        ['room sound', 'scene sound', '房间声音', '场景声音', '回声'],
+        ['sound tracing', 'room sound', 'scene sound', '声线追踪', '房间声音', '场景声音', '回声'],
         () => {
-            const { roomSound, setRoomSound } = useSceneSettingsStore.getState();
-            setRoomSound(!roomSound);
+            const { enabled, setEnabled } = useSoundTracingStore.getState();
+            setEnabled(!enabled);
         },
         { isAvailable: sceneActive },
     ),
     createToggleCommand(
         'scene-room-headphones',
         'visualizer',
-        'Room sound for headphones',
-        "Make the scene's room sound for listening on headphones",
-        ['headphones', 'room sound', '耳机', '房间声音'],
-        () => useSceneSettingsStore.getState().setRoomOutput('headphones'),
-        { isAvailable: () => sceneActive() && !roomOutputIs('headphones') },
+        'Sound tracing for headphones',
+        "Make the scene's sound for listening on headphones",
+        ['headphones', 'sound tracing', '耳机', '声线追踪'],
+        () => useSoundTracingStore.getState().setOutput('headphones'),
+        { isAvailable: () => sceneActive() && !outputIs('headphones') },
     ),
     createToggleCommand(
         'scene-room-speakers',
         'visualizer',
-        'Room sound for speakers',
-        "Make the scene's room sound for listening on speakers",
-        ['speakers', 'room sound', '音箱', '扬声器', '房间声音'],
-        () => useSceneSettingsStore.getState().setRoomOutput('speakers'),
-        { isAvailable: () => sceneActive() && !roomOutputIs('speakers') },
+        'Sound tracing for speakers',
+        "Make the scene's sound for listening on speakers",
+        ['speakers', 'sound tracing', '音箱', '扬声器', '声线追踪'],
+        () => useSoundTracingStore.getState().setOutput('speakers'),
+        { isAvailable: () => sceneActive() && !outputIs('speakers') },
     ),
     createToggleCommand(
         'scene-reload',

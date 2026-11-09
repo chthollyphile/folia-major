@@ -1,4 +1,4 @@
-import { Boxes, Contrast, Database, Gauge, Keyboard, LayoutGrid, Link2, Monitor, MonitorPlay, PlayCircle, SlidersHorizontal, Terminal, TextAlignStart, type LucideIcon } from 'lucide-react';
+import { Boxes, Clapperboard, Contrast, Database, Gauge, Keyboard, LayoutGrid, Link2, Monitor, MonitorPlay, PlayCircle, SlidersHorizontal, Terminal, TextAlignStart, type LucideIcon } from 'lucide-react';
 // src/components/modal/settings/navigation/settingsNavModel.ts
 // Single source of truth for the settings categories: their order in the side list, their grouping,
 // icons and names. A category is cut by what the listener is looking at or doing, so each page holds
@@ -7,6 +7,7 @@ import { Boxes, Contrast, Database, Gauge, Keyboard, LayoutGrid, Link2, Monitor,
 export type SettingsSectionId =
     | 'appearance'
     | 'player'
+    | 'scene'
     | 'home'
     | 'playback'
     | 'lyrics'
@@ -54,6 +55,7 @@ export const SETTINGS_NAV_GROUP_SPECS: GroupSpec[] = [
         sections: [
             { id: 'appearance', icon: Contrast, labelKey: 'options.settingsPageAppearance' },
             { id: 'player', icon: MonitorPlay, labelKey: 'options.settingsPagePlayer' },
+            { id: 'scene', icon: Clapperboard, labelKey: 'options.settingsPageScene' },
             { id: 'home', icon: LayoutGrid, labelKey: 'options.settingsPageHome' },
         ],
     },
