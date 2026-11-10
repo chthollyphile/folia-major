@@ -56,6 +56,20 @@ test('the playback setup page leaves the sign-in window the size the account pag
     expect(scrolling[0].scrollHeight).toBeGreaterThan(scrolling[0].clientHeight);
 });
 
+test('the risks of the Spotify app way are read where they fit, without making the window taller', async ({ page, mount }) => {
+    await page.setViewportSize(VIEWPORT);
+    await mount('loginWindow', { state: 'setup-client', lang: 'zh', motion: 'off' });
+    const before = await settled(page);
+    const panel = page.getByRole('dialog');
+    // 清单里只有一句短的；展开的那段是它自己的一行，窗口不为它变高。
+    const more = panel.getByRole('button', { name: '风险' });
+    await expect(more).toHaveAttribute('aria-expanded', 'false');
+    await more.click();
+    await expect(more).toHaveAttribute('aria-expanded', 'true');
+    await expect(panel.getByText('依赖 Spotify 未公开的内部结构', { exact: false })).toBeVisible();
+    expect(await settled(page)).toEqual(before);
+});
+
 test('the way out of a long playback setup page is reachable by scrolling', async ({ page, mount }) => {
     await page.setViewportSize(VIEWPORT);
     await mount('loginWindow', { state: 'setup-steps', lang: 'zh', motion: 'off' });

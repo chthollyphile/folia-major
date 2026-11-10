@@ -739,6 +739,11 @@ export interface ProviderSetupStep {
     detail?: string;
     /** 这一步有一个密码框。saved：已经存过一份（框里只画掩码，要换才清空）。 */
     secret?: { labelKey: string; saved: boolean };
+    /**
+     * 一段收起的详细说明：清单里只放一句短的，按「更多」才展开这一段。放不下的长说明用它，
+     * 别把清单撑出窗口。
+     */
+    more?: { labelKey: string; noteKey: string };
     actions?: ProviderSetupAction[];
 }
 

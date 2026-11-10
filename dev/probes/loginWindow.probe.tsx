@@ -162,7 +162,10 @@ const CLIENT_VIEW: ProviderSetupView = {
     noteKey: 'soloist.setup.clientNote',
     complete: true,
     steps: [
-        { id: 'app', titleKey: 'soloist.step.clientApp', noteKey: 'soloist.clientApp.ready', state: 'done' },
+        {
+            id: 'app', titleKey: 'soloist.step.clientApp', noteKey: 'soloist.clientApp.ready', state: 'done',
+            more: { labelKey: 'soloist.clientApp.more', noteKey: 'soloist.clientApp.moreNote' },
+        },
         {
             id: 'mode', titleKey: 'soloist.step.modeClient', noteKey: 'soloist.mode.clientNote', state: 'done',
             actions: [

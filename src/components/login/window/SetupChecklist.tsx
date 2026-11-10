@@ -41,6 +41,8 @@ const SetupStepRow: React.FC<{
 }> = ({ step, index, busy, running, run }) => {
     const { t } = useTranslation();
     const reduced = useKitReducedMotion();
+    // 收起的详细说明（step.more）：清单里只留一句短的，按一下才展开，窗口高度不变。
+    const [moreOpen, setMoreOpen] = useState(false);
     const [secret, setSecret] = useState('');
     // 已经存过一份：框里只画掩码，按「更换」才能填新的。
     const [changing, setChanging] = useState(false);
@@ -68,10 +70,24 @@ const SetupStepRow: React.FC<{
             <div className="min-w-0 flex-1">
                 <h4 className="text-[13px] font-semibold leading-[22px] text-[color:var(--st-t1)]">
                     {t(step.titleKey, step.params)}
+                    {/* 详细说明的入口在标题这一行：清单放不下的长说明展开才看，窗口高度不变。 */}
+                    {step.more && (
+                        <button
+                            type="button"
+                            aria-expanded={moreOpen}
+                            className="ml-1.5 align-baseline text-xs font-normal text-[color:var(--st-t2)] underline underline-offset-2 hover:no-underline"
+                            onClick={() => setMoreOpen(open => !open)}
+                        >
+                            {t(step.more.labelKey)}
+                        </button>
+                    )}
                     <span className="sr-only">{` · ${t(`login.setupState.${step.state}`)}`}</span>
                 </h4>
                 {step.noteKey && (
                     <p className="mt-0.5 whitespace-pre-line text-xs leading-[18px] text-[color:var(--st-t2)]">{t(step.noteKey, step.params)}</p>
+                )}
+                {moreOpen && step.more && (
+                    <p className="mt-0.5 whitespace-pre-line text-xs leading-[18px] text-[color:var(--st-t2)]">{t(step.more.noteKey)}</p>
                 )}
                 {step.detail && (
                     <p className="mt-1.5 select-text font-mono text-[11px] leading-4 text-[color:var(--st-t3)] [overflow-wrap:anywhere]">{step.detail}</p>

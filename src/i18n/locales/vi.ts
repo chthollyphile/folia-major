@@ -5293,7 +5293,7 @@ export default {
       "titleStandard": "Cách Spotify phát nhạc",
       "noteStandard": "Hiện Folia tự phát bài hát Spotify. Nếu tài khoản này không nhận được khóa âm thanh và bài hát không phát được, bạn có thể chuyển sang Soloist chính thức của Spotify.",
       "clientTitle": "Thiết lập ứng dụng Spotify",
-      "clientNote": "Âm thanh không qua Folia: bộ cân bằng, Automix, hiệu ứng thị giác không tác dụng. Folia chạy nó với cổng gỡ lỗi chỉ trên máy này (127.0.0.1), chạy lại khi bạn bấm phát mà nó đóng."
+      "clientNote": "Âm thanh không đi qua Folia nên bộ cân bằng và Automix không áp dụng; phổ thật có thể bật trong Cài đặt - Kết nối và tích hợp. Nó được điều khiển qua cổng gỡ lỗi chỉ 127.0.0.1.",
     },
     "noKey": {
       "title": "Tài khoản này không nhận được khóa âm thanh từ Spotify",
@@ -5353,7 +5353,9 @@ export default {
     },
     "clientApp": {
       "ready": "Đã tìm thấy ứng dụng Spotify cho máy tính.",
-      "missing": "Không tìm thấy ứng dụng Spotify cho máy tính. Hãy cài từ spotify.com/download hoặc Microsoft Store rồi phát lại."
+      "missing": "Không tìm thấy ứng dụng Spotify cho máy tính. Hãy cài từ spotify.com/download hoặc Microsoft Store rồi phát lại.",
+      "more": "Rủi ro",
+      "moreNote": "Cách phát này dựa vào cấu trúc nội bộ chưa công bố của Spotify, nên bản cập nhật của Spotify có thể làm nó hỏng; khi đó có thể đổi về cách tiêu chuẩn (Folia tự phát bài hát). Dùng nó có thể vi phạm điều khoản dịch vụ của Spotify, bạn tự chịu rủi ro.\n\nTrạng thái Spotify bị thay đổi: chỉ thu hồi những bài Folia ghi vào hàng đợi của nó (bài bạn tự xếp vẫn ở nguyên chỗ); khi lặp một bài, chế độ lặp của ứng dụng được tắt tạm thời rồi khôi phục sau đó; và Folia đóng Spotify do nó khởi động bằng cổng gỡ lỗi khi thoát (dòng này có thể tắt trong cài đặt).",
     },
     "free": {
       "title": "Đây là tài khoản miễn phí",

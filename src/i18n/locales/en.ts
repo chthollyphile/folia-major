@@ -5293,7 +5293,7 @@ export default {
       "titleStandard": "How Spotify plays",
       "noteStandard": "Folia plays Spotify's songs itself now. If this account gets no audio key and songs fail with \"cannot play here\", you can switch to Spotify's own Soloist.",
       "clientTitle": "Spotify app setup",
-      "clientNote": "Its sound does not pass through Folia, so the equalizer, Automix and visualizer do not apply. It listens on a 127.0.0.1-only debug port; Folia starts it again if closed when you play."
+      "clientNote": "Its sound does not pass through Folia, so the equalizer and Automix do not apply; the real spectrum can be turned on in the settings. It is steered over a 127.0.0.1-only debug port.",
     },
     "noKey": {
       "title": "This account gets no audio key from Spotify",
@@ -5353,7 +5353,9 @@ export default {
     },
     "clientApp": {
       "ready": "The Spotify desktop app was found.",
-      "missing": "The Spotify desktop app was not found. Install it from spotify.com/download or the Microsoft Store, then play again."
+      "missing": "The Spotify desktop app was not found. Install it from spotify.com/download or the Microsoft Store, then play again.",
+      "more": "Risks",
+      "moreNote": "This way of playing depends on Spotify's unpublished internals, so a Spotify update may break it; the standard way (Folia playing the songs itself) is the way back if it does. Using it may break Spotify's terms of service, at your own risk.\n\nSpotify state it changes: it takes back only the songs Folia wrote into its queue (the songs you queued yourself stay where they are); with repeat-one it turns the app's own track repeat off while that song plays and restores it after; and Folia closes the Spotify it started with its debug port when it quits (this row can be turned off in the settings).",
     },
     "free": {
       "title": "This is a free account",

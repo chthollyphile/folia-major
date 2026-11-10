@@ -5293,7 +5293,7 @@ export default {
       "titleStandard": "Cara Spotify diputar",
       "noteStandard": "Saat ini Folia memutar lagu Spotify sendiri. Jika akun ini tidak mendapat kunci audio dan lagu gagal diputar, Anda bisa beralih ke Soloist resmi dari Spotify.",
       "clientTitle": "Pengaturan aplikasi Spotify",
-      "clientNote": "Suaranya tidak lewat Folia: ekualiser, Automix, dan visualizer tidak berlaku. Port debug 127.0.0.1 hanya di komputer ini, dan Folia menjalankannya lagi bila tertutup saat putar."
+      "clientNote": "Suaranya tidak melewati Folia, jadi ekualiser dan Automix tidak berlaku; spektrum asli bisa dinyalakan di pengaturan. Ia dikendalikan lewat port debug khusus 127.0.0.1.",
     },
     "noKey": {
       "title": "Akun ini tidak mendapat kunci audio dari Spotify",
@@ -5353,7 +5353,9 @@ export default {
     },
     "clientApp": {
       "ready": "Aplikasi desktop Spotify ditemukan.",
-      "missing": "Aplikasi desktop Spotify tidak ditemukan. Pasang dari spotify.com/download atau Microsoft Store, lalu putar lagi."
+      "missing": "Aplikasi desktop Spotify tidak ditemukan. Pasang dari spotify.com/download atau Microsoft Store, lalu putar lagi.",
+      "more": "Risiko",
+      "moreNote": "Cara memutar ini bergantung pada struktur internal Spotify yang tidak dipublikasikan, jadi pembaruan Spotify bisa membuatnya berhenti bekerja; cara standar (Folia memutar lagunya sendiri) adalah jalan kembalinya. Memakainya bisa melanggar ketentuan layanan Spotify, risiko ditanggung sendiri.\n\nStatus Spotify yang diubah: hanya menarik kembali lagu yang Folia tulis ke antreannya (lagu yang Anda susun sendiri tetap di tempatnya); pada ulang-satu, pengulangan lagu milik aplikasi dimatikan sementara lalu dipulihkan setelahnya; dan Folia menutup Spotify yang dijalankannya dengan port debug saat keluar (baris ini bisa dimatikan di pengaturan).",
     },
     "free": {
       "title": "Ini akun gratis",

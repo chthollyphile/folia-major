@@ -5293,7 +5293,7 @@ export default {
       "titleStandard": "Spotify 播放方式",
       "noteStandard": "现在由 Folia 自己播放 Spotify 的歌曲。如果这个账号拿不到音频密钥、播放时提示账号无法播放，可以改用 Spotify 官方的 Soloist。",
       "clientTitle": "Spotify 官方客户端播放设置",
-      "clientNote": "声音不经过 Folia，均衡器、Automix 和跟着音乐跳动的效果对它不起作用。Folia 用只在本机（127.0.0.1）监听的调试端口启动它，你点播放时它没开也会被重新拉起。"
+      "clientNote": "声音不经过 Folia，均衡器和 Automix 对它不生效；要真实频谱可在设置 → 连接与集成里打开。Folia 用只在本机（127.0.0.1）监听的调试端口启动它。",
     },
     "noKey": {
       "title": "这个账号拿不到 Spotify 的音频密钥",
@@ -5353,7 +5353,9 @@ export default {
     },
     "clientApp": {
       "ready": "已找到 Spotify 桌面版。",
-      "missing": "没有找到 Spotify 桌面版。请先从 spotify.com/download 或微软商店安装，再回来播放。"
+      "missing": "没有找到 Spotify 桌面版。请先从 spotify.com/download 或微软商店安装，再回来播放。",
+      "more": "风险",
+      "moreNote": "这套播放方式依赖 Spotify 未公开的内部结构，Spotify 更新后可能失效；那时可以改回标准播放，由 Folia 自己放。用它可能违反 Spotify 的服务条款，风险自负。\n\n会改动的 Spotify 状态：只收回 Folia 写进它队列里的歌（你自己排的歌留在原处）；单曲循环期间临时关掉它自己的单曲重复，结束时恢复；退出 Folia 时默认关掉以调试端口启动的 Spotify（可以在设置里关掉这一项）。",
     },
     "free": {
       "title": "这是免费账号",

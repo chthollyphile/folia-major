@@ -18,6 +18,10 @@ import { describeSpotifyFailure } from '@/services/onlineMusic/spotify/spotifyFa
 import { spotifyProvider } from '@/services/onlineMusic/spotify/spotifyProvider';
 import { spotifyExternalPlayback } from '@/services/onlineMusic/spotify/spotifyExternalPlayback';
 import { OnlineProviderError } from '@/types/onlineMusic';
+import zhCN from '@/i18n/locales/zh-CN';
+import en from '@/i18n/locales/en';
+import inLocale from '@/i18n/locales/in';
+import viLocale from '@/i18n/locales/vi';
 import type { UnifiedSong } from '@/types';
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -272,5 +276,37 @@ describe('Spotify\'s three ways to play', () => {
 
     it('sorts the app\'s missing program as a source that is not set up', () => {
         expect(describeSpotifyFailure('audio', new OnlineProviderError('unavailable', 'x', 'spotify', 'client-missing'))).toEqual({ case: 'not-configured' });
+    });
+
+    // 控制用户的 Spotify 靠它未公开的内部结构：会失效、会改动它哪些状态，都在页面上说清楚，
+    // 但登录窗口放不下整段，所以清单里只有一句短的入口，整段是展开才看的。
+    it('carries the risks of that way on the page, behind a short line that fits the window', async () => {
+        clientOffered = true;
+        clientInstalled = true;
+        mode = 'client';
+        const view = await getSpotifySetup();
+        const app = view?.steps.find(step => step.id === 'app');
+        expect(app?.more).toEqual({ labelKey: 'soloist.clientApp.more', noteKey: 'soloist.clientApp.moreNote' });
+        // 那一句短的自己不提是谁的页面：它是这一行的，不是这个平台的。
+        expect(zhCN.soloist.clientApp.more.length).toBeLessThan(12);
+
+        const note = zhCN.soloist.clientApp.moreNote;
+        expect(note).toContain('未公开的内部结构');
+        expect(note).toContain('服务条款');
+        expect(note).toContain('风险自负');
+        // 会改动的 Spotify 状态，三件都写着。
+        expect(note).toContain('只收回');
+        expect(note).toContain('单曲重复');
+        expect(note).toContain('调试端口');
+    });
+
+    // 「跟着音乐跳动的效果对它不起作用」和真实频谱矛盾：这一页现在说的是能在设置里打开它。
+    it('does not tell the listener the bars cannot follow the music', () => {
+        for (const locale of [zhCN, en, inLocale, viLocale]) {
+            const note = locale.soloist.setup.clientNote;
+            expect(note).not.toContain('跟着音乐跳动');
+            expect(note).not.toMatch(/visualizer/i);
+            expect(note).toMatch(/spectrum|频谱|spektrum|phổ/i);
+        }
     });
 });
