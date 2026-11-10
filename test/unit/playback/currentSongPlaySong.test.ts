@@ -28,6 +28,8 @@ const env = vi.hoisted(() => ({
     externalPrepared: false,
     externalStarts: vi.fn((..._args: unknown[]) => externalHandle(Promise.resolve())),
     note: (_label: string) => {},
+    /** 控制器每次翻译的实参：带平台名的那几句要看名字有没有真的交进去。 */
+    translations: [] as { key: string; values?: Record<string, string | number> }[],
     lyricsStateFor: new Map<string, Promise<unknown>>(),
     /** Song ids whose audio address is held until the promise resolves. */
     audioGate: new Map<string, Promise<unknown>>(),
@@ -68,7 +70,13 @@ vi.mock('zustand', async importOriginal => {
 });
 vi.mock('react-i18next', () => ({
     initReactI18next: { type: '3rdParty', init: vi.fn() },
-    useTranslation: () => ({ t: (key: string) => key }),
+    // 翻译本身由 platformNamedStatusText.test.ts 用真的四份词条核对；这里记下实参，看名字有没有交进去。
+    useTranslation: () => ({
+        t: (key: string, values?: Record<string, string | number>) => {
+            env.translations.push({ key, values });
+            return key;
+        },
+    }),
 }));
 vi.mock('@/services/hostExtensionHooks', () => ({
     hasBeforePlayHook: () => Boolean(env.beforePlay),
@@ -166,6 +174,7 @@ beforeEach(() => {
     env.audioResultFor.clear();
     env.prefetchedFor.clear();
     env.coverFor.clear();
+    env.translations.length = 0;
     useStatusMessageStore.setState({ message: null });
 });
 afterEach(() => {
@@ -236,6 +245,8 @@ describe('the play that goes outside the app', () => {
         // No one pressed anything: the player is not woken, and no failure is shown.
         expect(env.externalStarts).toHaveBeenCalledWith(songA, 0, { userAction: false });
         await vi.waitFor(() => expect(messages).toContainEqual(expect.objectContaining({ type: 'info', text: 'status.externalPlayerUnreachable' })));
+        // 这一句里有 {{platform}}：名字没交进去的话，界面上留着的就是花括号。
+        expect(env.translations).toContainEqual({ key: 'status.externalPlayerUnreachable', values: { platform: 'bodian' } });
         expect(messages).not.toContainEqual(expect.objectContaining({ type: 'error' }));
         // A start the player refuses before the interface was on the song shows nothing of it: the
         // song it was on stays on screen, paused.

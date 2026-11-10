@@ -25,9 +25,17 @@ vi.mock('react', () => ({
     },
     useEffect: vi.fn(),
 }));
+// 翻译本身由 platformNamedStatusText.test.ts 用真的四份词条核对；这里记下每次调用的实参，用来看
+// 控制器有没有把平台名交进去（不带实参的话，{{platform}} 会原样留在界面上）。
+const translations = vi.hoisted(() => [] as { key: string; values?: Record<string, string | number> }[]);
 vi.mock('react-i18next', () => ({
     initReactI18next: { type: '3rdParty', init: vi.fn() },
-    useTranslation: () => ({ t: (key: string) => key }),
+    useTranslation: () => ({
+        t: (key: string, values?: Record<string, string | number>) => {
+            translations.push({ key, values });
+            return key;
+        },
+    }),
 }));
 vi.mock('@/stores/usePlaybackStore', async importOriginal => {
     const actual = await importOriginal<typeof import('@/stores/usePlaybackStore')>();
@@ -147,6 +155,7 @@ beforeEach(() => {
     audioSettings.autoSkipUnplayable = false;
     audioSettings.loopMode = 'all';
     externalSongs.ids.clear();
+    translations.length = 0;
     vi.stubGlobal('window', { setTimeout: vi.fn(() => 1), setInterval: vi.fn(() => 2), clearTimeout: vi.fn(), clearInterval: vi.fn() });
     usePlaybackStore.setState({ activePlaybackContext: 'main', currentSong: songs[0], playQueue: songs,
         playerState: PlayerState.PLAYING, isFmMode: false, audioSrc: 'https://cdn.example/1.mp3' });
@@ -631,6 +640,8 @@ describe('failures the platform says will not change', () => {
         expect(message()).toMatchObject({ type: 'info', text: 'status.songSubscriptionRequiredSkipped' });
         expect(message()?.countdown).toBeUndefined();
         expect(message()?.persistent).toBeUndefined();
+        // 这句里有 {{platform}}：名字要真的交进去，否则界面上留着花括号。
+        expect(translations).toContainEqual({ key: 'status.songSubscriptionRequiredSkipped', values: { platform: 'bodian' } });
 
         await vi.waitFor(() => expect(loader).toHaveBeenCalledTimes(2));
         expect(loader.mock.calls[1][0]).toBe(songs[2]);

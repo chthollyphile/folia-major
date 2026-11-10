@@ -60,6 +60,7 @@ import { personalFmEndingsSoFar } from '../personalFmEndings';
 import { loadOnlineSongAudio } from '../source/songAudioSource';
 import { onlineFailureToast } from '../source/onlineFailureToast';
 import { offersRetry, onlineFailureOf, stopsPlayback, type OnlineFailure } from '../../../../services/onlineMusic/failure/onlineFailureCase';
+import { platformNamedText } from '../../../../services/onlineMusic/failure/onlineFailureTexts';
 import { changeExternalPlaybackWay, grantExternalPlayerRestartConsent, playerCauseAction, playerCauseTextKeys } from '../../../../services/onlineMusic/failure/externalPlayerConsent';
 import { openLoginWindow } from '../../../login/loginWindowStore';
 import { useTranslation } from 'react-i18next';
@@ -167,10 +168,14 @@ const UNAVAILABLE_SKIP_CONFIRM_TIMEOUT_MS = 5000;
 const UNAVAILABLE_SKIP_CONFIRM_INTERVAL_MS = 1000;
 // What the one line said after a failure the platform called final says: `facts.skipAtOnce` is set by the
 // platform's own statement, and that statement will not change however often it is asked, so a queue does
-// not look up another version or count down for it.
-const SKIP_AT_ONCE_TEXT: Partial<Record<OnlineFailureCaseId, string>> = {
-    'taken-down': 'status.songUnavailableSkipped',
-    'subscription-required': 'status.songSubscriptionRequiredSkipped',
+// not look up another version or count down for it. A line that names the platform carries the wording
+// without a name as well, said when the platform is not known (see `platformNamedText`).
+const SKIP_AT_ONCE_TEXT: Partial<Record<OnlineFailureCaseId, { text: string; bare?: string }>> = {
+    'taken-down': { text: 'status.songUnavailableSkipped' },
+    'subscription-required': {
+        text: 'status.songSubscriptionRequiredSkipped',
+        bare: 'status.songSubscriptionRequiredSkippedBare',
+    },
 };
 // The nonce of a skip prompt's toast: one toast for the whole count, and a new one for the next song's,
 // even when it says the same.
@@ -189,7 +194,7 @@ const isPassingFailure = (shown: OnlineFailure) => (
 // The platforms' statements (`skipAtOnce` in OnlineFailureDetail) that say the next try ends the same
 // way: a queue skips these at once, with one line about it, instead of asking for another version or
 // counting down. Whatever case carries the mark and is not in here is skipped with no line at all.
-const skipAtOnceText = (shown: OnlineFailure): string | null => (
+const skipAtOnceText = (shown: OnlineFailure): { text: string; bare?: string } | null => (
     shown.facts.skipAtOnce === true ? SKIP_AT_ONCE_TEXT[shown.case] ?? null : null
 );
 
@@ -747,7 +752,7 @@ export function usePlaybackQueueController({
             pauseWhatIsSounding(audioRef.current);
             setPlayerState(PlayerState.PAUSED);
             setIsLyricsLoading(false);
-            setStatusMsg({ type: 'info', text: t('status.externalPlayerUnreachable') });
+            setStatusMsg({ type: 'info', text: platformNamedText(t, 'status.externalPlayerUnreachable', 'status.externalPlayerUnreachableBare', providerId) });
         };
 
         // How a failure of this play is shown. The refusals the listener can act on (sign in, a
@@ -815,7 +820,10 @@ export function usePlaybackQueueController({
             };
             if (skipsAtOnce && nextSong && canSkip) {
                 // 平台自己说了再试也是这个结果：不查别的版本，也不等倒计时，说一句就跳下一首。
-                setStatusMsg({ type: 'info', text: t(skipsAtOnce) });
+                const said = skipsAtOnce.bare
+                    ? platformNamedText(t, skipsAtOnce.text, skipsAtOnce.bare, shown.providerId ?? providerId)
+                    : t(skipsAtOnce.text);
+                setStatusMsg({ type: 'info', text: said });
                 tellFailure(shown, true);
                 skipToNextSong(nextSong, true);
                 return;
