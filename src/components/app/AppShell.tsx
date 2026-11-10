@@ -74,9 +74,10 @@ const AppShell: React.FC<AppShellProps> = ({
     const [isWindowMaximized, setIsWindowMaximized] = useState(false);
     const [isWindowFullscreen, setIsWindowFullscreen] = useState(false);
     const hasFullscreenTitlebarButton = isElectronWindow && !hideFullscreenButton;
+    const playerHeaderBlur = usePlayerChromeSettingsStore(state => state.playerHeaderBlur);
+    // 窗口按钮靠左时，锁和切歌按钮照镜像排在它们右边，离窗口左缘的距离与靠右时离右缘的一样。
     const titlebarSide = usePlayerChromeSettingsStore(state => state.titlebarSide);
     const leftControls = titlebarSide === 'left';
-    const playerHeaderBlur = usePlayerChromeSettingsStore(state => state.playerHeaderBlur);
 
     useEffect(() => {
         if (!useCustomWindowRadius || !window.electron?.isWindowMaximized) {
@@ -152,25 +153,23 @@ const AppShell: React.FC<AppShellProps> = ({
     // 播放页顶栏模糊背景：浅色主题压在深色画面上时，标题栏按钮看不清，开了就给播放页也垫上主页那层磨砂底。
     // 跟着按钮一起出现（悬停顶部或「始终显示标题栏控制按钮」），点击穿透时按钮都藏了，底也不画。
     const showsPlayerHeaderBlur = isPlayerView && playerHeaderBlur && !isMainWindowClickThroughEnabled;
-    const shouldRenderTitlebarBackdrop = !isMainWindowClickThroughEnabled && (!isPlayerView || showsPlayerHeaderBlur || useCustomWindowRadius);
+    const shouldRenderTitlebarBackdrop = !isPlayerView || showsPlayerHeaderBlur || (useCustomWindowRadius && !isMainWindowClickThroughEnabled);
     const isTitlebarBackdropVisible = isTitlebarRevealed || (showsPlayerHeaderBlur && alwaysShowMainWindowTitlebar);
     // 开了顶栏模糊时用更实的一层：0.18 的白在深色画面上只会混成深灰，浅色主题的深色按钮照样看不清，
     // 得把底色抬到接近浅色主题的底；深色主题同理压暗。透明窗口原有的 0.18 样式不变。
-    // 所有按钮中心距 44px，28px 圆形底之间留 16px，浮岛上下左右各留 4px。
-    // 模糊只垫在窗口按钮和锁按钮下方；保留独立锁与切歌胶囊，不铺满整条顶栏。
     const titlebarBackdropClassName = showsPlayerHeaderBlur
-        ? `absolute h-9 rounded-full backdrop-blur-md border ${
+        ? `absolute inset-0 backdrop-blur-md border-b ${
             isDaylight
                 ? 'bg-white/65 border-black/5 shadow-[0_8px_28px_rgba(0,0,0,0.06)]'
                 : 'bg-black/40 border-white/10 shadow-[0_8px_28px_rgba(0,0,0,0.20)]'
         }`
-        : `absolute h-9 rounded-full backdrop-blur-sm ${
+        : `absolute inset-0 backdrop-blur-sm ${
             isDaylight
                 ? isPlayerView
-                    ? 'bg-white/[0.18] border border-white/25 shadow-[0_8px_28px_rgba(0,0,0,0.06)]'
-                    : 'bg-white/[0.12] border border-white/15'
+                    ? 'bg-white/[0.18] border-b border-white/25 shadow-[0_8px_28px_rgba(0,0,0,0.06)]'
+                    : 'bg-white/[0.12] border-b border-white/15'
                 : isPlayerView
-                    ? 'bg-black/[0.18] border border-white/10 shadow-[0_8px_28px_rgba(0,0,0,0.20)]'
+                    ? 'bg-black/[0.18] border-b border-white/10 shadow-[0_8px_28px_rgba(0,0,0,0.20)]'
                     : ''
         }`;
 
@@ -185,7 +184,7 @@ const AppShell: React.FC<AppShellProps> = ({
             }}
         >
             {usesCustomWindowChrome && (
-                <div className="absolute top-1 left-0 right-0 z-[9999] h-8 pointer-events-none">
+                <div className="absolute top-0 left-0 right-0 z-[9999] h-8 pointer-events-none">
                     {shouldRenderTitlebarBackdrop && (
                         <motion.div
                             initial={false}
@@ -193,16 +192,16 @@ const AppShell: React.FC<AppShellProps> = ({
                                 opacity: isTitlebarBackdropVisible ? 1 : 0,
                             }}
                             transition={{ duration: 0.18, ease: 'easeOut' }}
-                            data-titlebar-backdrop
                             className={titlebarBackdropClassName}
-                            style={{ width: hasFullscreenTitlebarButton ? 256 : 212, top: window.electron?.platform === 'darwin' ? 2 : -2, [leftControls ? 'left' : 'right']: 8, border: `1px solid ${isDaylight ? 'rgba(0,0,0,0.12)' : 'rgba(255,255,255,0.18)'}` }}
                         />
                     )}
                     <div className="relative h-full">
                         <TitlebarDragZone active={usesCustomWindowChrome} />
                         <div
                             className={`pointer-events-auto absolute ${window.electron?.platform === 'darwin' ? 'top-1' : 'top-0'} z-20 h-full flex items-center ${
-                                leftControls ? (hasFullscreenTitlebarButton ? 'left-[232px]' : 'left-[188px]') : (hasFullscreenTitlebarButton ? 'right-[232px]' : 'right-[188px]')
+                                leftControls
+                                    ? hasFullscreenTitlebarButton ? 'left-[224px]' : 'left-[180px]'
+                                    : hasFullscreenTitlebarButton ? 'right-[224px]' : 'right-[180px]'
                             }`}
                             style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
                         >
@@ -229,11 +228,13 @@ const AppShell: React.FC<AppShellProps> = ({
                             </button>
                         </div>
                         {/* 点击穿透时窗口按钮都藏了，切歌按钮放在锁的左边，跟锁一起出现（#471）。
-                            右缘离锁 6px：锁在 right-[188px]/right-[232px]、宽 28px，这组宽 86px。
+                            右缘离锁 6px：锁在 right-[180px]/right-[224px]、宽 28px，这组宽 86px。
                             不放锁右边：那样热区要伸到离右边 84px，压住下面窗口的最小化/最大化按钮。 */}
                         <div
                             className={`pointer-events-none absolute ${window.electron?.platform === 'darwin' ? 'top-1' : 'top-0'} z-20 h-full flex items-center ${
-                                leftControls ? (hasFullscreenTitlebarButton ? 'left-[266px]' : 'left-[222px]') : (hasFullscreenTitlebarButton ? 'right-[266px]' : 'right-[222px]')
+                                leftControls
+                                    ? hasFullscreenTitlebarButton ? 'left-[258px]' : 'left-[214px]'
+                                    : hasFullscreenTitlebarButton ? 'right-[258px]' : 'right-[214px]'
                             }`}
                             // 只在点击穿透时扣出不可拖的区域：平时这组按钮不出现，标题栏这一段照常能拖窗口。
                             style={isMainWindowClickThroughEnabled ? { WebkitAppRegion: 'no-drag' } as React.CSSProperties : undefined}
@@ -244,7 +245,7 @@ const AppShell: React.FC<AppShellProps> = ({
                                 onAction={onClickThroughTransportAction}
                             />
                         </div>
-                        <div className={`pointer-events-auto absolute top-0 ${leftControls ? 'left-1' : 'right-1'} z-10 h-full`}>
+                        <div className={`pointer-events-auto absolute top-0 ${leftControls ? 'left-0' : 'right-0'} z-10 h-full`}>
                             <WindowControls
                                 side={titlebarSide}
                                 revealed={areTitlebarControlsVisible}

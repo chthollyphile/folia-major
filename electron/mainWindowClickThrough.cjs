@@ -3,7 +3,10 @@ function isCursorInsideUnlockHotspot({ bounds, cursor, hotspot, viewportWidth, v
   const width = viewportWidth == null ? bounds.width : Math.min(bounds.width, viewportWidth * scale);
   const origin = Number.isFinite(viewportOrigin) && viewportOrigin >= bounds.x && viewportOrigin + width <= bounds.x + bounds.width + 2
     ? viewportOrigin : bounds.x;
-  const right = side === 'left' ? origin + (hotspot.rightInset + hotspot.width + (hotspot.leftShift ?? 4)) * scale : origin + width - hotspot.rightInset * scale;
+  // Left-side window buttons mirror the row: the hotspot starts rightInset in from the left edge.
+  const right = side === 'left'
+    ? origin + (hotspot.rightInset + hotspot.width) * scale
+    : origin + width - hotspot.rightInset * scale;
   const top = bounds.y + hotspot.topInset * scale;
   return cursor.x >= right - hotspot.width * scale && cursor.x <= right
     && cursor.y >= top && cursor.y <= top + hotspot.height * scale;

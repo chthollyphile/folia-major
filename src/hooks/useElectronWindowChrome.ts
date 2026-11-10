@@ -27,7 +27,8 @@ export const useElectronWindowChrome = () => {
     const setIsClickThroughToggleHotspotActive = useAppChromeStore(state => state.setIsClickThroughToggleHotspotActive);
 
     useEffect(() => {
-        void window.electron?.setMainWindowClickThroughUnlockHover?.(false, window.innerWidth, lastPointer.current, titlebarSide);
+        // The main process polls the unlock hotspot itself, so it has to know which side the row is on.
+        void window.electron?.setMainWindowClickThroughUnlockHover(false, window.innerWidth, lastPointer.current, titlebarSide);
     }, [titlebarSide]);
 
     useEffect(() => {

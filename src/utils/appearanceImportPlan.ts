@@ -163,7 +163,6 @@ const FIELD_GROUPS: Record<string, ImportGroup> = {
     // The frosted bar behind the player page's titlebar. Under visualizer with the other player-page
     // switch that travels (hidePlayerTranslationSubtitle): it is part of how the playing screen looks.
     playerHeaderBlur: 'visualizer',
-    titlebarSide: 'visualizer',
 };
 
 // Fields the import applies only when the incoming value is truthy, so an incoming null means "the

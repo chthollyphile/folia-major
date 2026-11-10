@@ -7,7 +7,7 @@ const { isCursorInsideUnlockHotspot, createUnlockHoverRequests } = require('../.
 
 describe('main window click-through unlock', () => {
     it('reflects the inset hotspot for left controls in scaled and moved viewports', () => {
-        const options = { bounds: { x: 100, y: 50, width: 1200 }, hotspot: { width: 172, height: 40, rightInset: 176, topInset: 4, leftShift: 4 }, viewportWidth: 930, side: 'left' };
+        const options = { bounds: { x: 100, y: 50, width: 1200 }, hotspot: { width: 172, height: 40, rightInset: 176, topInset: 4 }, viewportWidth: 930, side: 'left' };
         expect(isCursorInsideUnlockHotspot({ ...options, cursor: { x: 340, y: 70 } })).toBe(true);
         expect(isCursorInsideUnlockHotspot({ ...options, cursor: { x: 1200, y: 70 } })).toBe(false);
         expect(isCursorInsideUnlockHotspot({ ...options, scale: 1.5, viewportOrigin: 370, viewportWidth: 600, cursor: { x: 730, y: 80 } })).toBe(true);

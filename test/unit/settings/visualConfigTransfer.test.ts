@@ -7,8 +7,6 @@ import { useThemeSettingsStore } from '@/stores/useThemeSettingsStore';
 import { useVisualizerSettingsStore } from '@/stores/useVisualizerSettingsStore';
 import type { DualTheme } from '@/types';
 import { ACTIVATE_CUSTOM_THEME_KEY, THEME_DARK_KEY } from '@/utils/appearanceImportPlan';
-import { compressConfig, decompressConfig } from '@/utils/appearanceCodec';
-import { usePlayerChromeSettingsStore } from '@/stores/usePlayerChromeSettingsStore';
 
 // test/unit/settings/visualConfigTransfer.test.ts
 // Applying an imported config: which picked field ends up in which store, and what is left alone.
@@ -34,15 +32,6 @@ const controls = (over: Partial<ConfigThemeControls> = {}): ConfigThemeControls 
 });
 
 describe('applyImportedConfig', () => {
-    it.each(['left', 'right'] as const)('round-trips and applies the %s window controls side', (side) => {
-        const previous = usePlayerChromeSettingsStore.getState().titlebarSide;
-        onTestFinished(() => usePlayerChromeSettingsStore.getState().handleSetTitlebarSide(previous));
-        const decoded = decompressConfig(compressConfig({ titlebarSide: side }));
-        expect(decoded.titlebarSide).toBe(side);
-        applyImportedConfig(decoded, ['titlebarSide'], controls());
-        expect(usePlayerChromeSettingsStore.getState().titlebarSide).toBe(side);
-    });
-
     it('applies the picked fields and leaves the others as they are', () => {
         const before = useVisualizerSettingsStore.getState().backgroundOpacity;
 

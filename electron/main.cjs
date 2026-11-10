@@ -2614,9 +2614,8 @@ const x11WallpaperWindows = new WeakSet();
 const MAIN_WINDOW_CLICK_THROUGH_UNLOCK_HOTSPOT = {
   width: 172,
   height: 40,
-  rightInset: 184,
+  rightInset: 176,
   topInset: 4,
-  leftShift: 4,
 };
 const MAIN_WINDOW_CLICK_THROUGH_UNLOCK_HOVER_INTERVAL_MS = 150;
 const DEFAULT_WINDOW_BOUNDS = {

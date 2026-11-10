@@ -117,7 +117,6 @@ export const usePlayerChromeSettingsStore = create<PlayerChromeSettingsState>((s
     playerHeaderBlur: getStoredBoolean('player_header_blur', false),
     titlebarSide: readTitlebarSide(),
     handleSetTitlebarSide: (side) => {
-        if (side !== 'left' && side !== 'right') return;
         setStoredString('window_titlebar_side', side);
         set({ titlebarSide: side });
     },
