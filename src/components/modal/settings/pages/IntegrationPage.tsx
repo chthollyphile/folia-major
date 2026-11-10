@@ -6,6 +6,7 @@ import { useDesktopSettingsStore } from '../../../../stores/useDesktopSettingsSt
 import { usePlayerChromeSettingsStore } from '../../../../stores/usePlayerChromeSettingsStore';
 import { useStageSettingsStore } from '../../../../stores/useStageSettingsStore';
 import { Button, CopyValue, Group, Reveal, Row, Status, Toggle, Value, type SettingsOptionDef } from '../kit';
+import { useExternalPlayerRestartConsent } from './integration/useExternalPlayerRestartConsent';
 import NavidromeRows from './integration/NavidromeRows';
 import { O, SERVICES, STREAMING } from './integration/options';
 import { DesktopStageRows, WebStageRows } from './integration/StageModeRows';
@@ -40,6 +41,7 @@ const IntegrationPage: React.FC = () => {
     const setHoldMediaKeys = useDesktopSettingsStore(state => state.handleToggleHoldMediaKeysForExternalPlayer);
     const externalSpectrum = useDesktopSettingsStore(state => state.externalSystemAudioSpectrum);
     const setExternalSpectrum = useDesktopSettingsStore(state => state.handleToggleExternalSystemAudioSpectrum);
+    const restartConsent = useExternalPlayerRestartConsent();
     // The rows are drawn where the player they steer exists at all: the Windows build.
     const wakesExternalPlayer = isElectron && window.electron?.platform === 'win32';
     const scrobbleEnabled = useAudioSettingsStore(state => state.neteaseScrobbleEnabled);
@@ -94,6 +96,11 @@ const IntegrationPage: React.FC = () => {
                             off until the listener asks for it. */}
                         <Row option={O.externalSpectrum} hint={t('options.externalSystemAudioSpectrumDesc')}>
                             <Toggle checked={externalSpectrum} onChange={setExternalSpectrum} />
+                        </Row>
+                        {/* The one answer that was kept: it is what lets Folia close that player when it
+                            has to reopen it, and turning it off here means it is asked again next time. */}
+                        <Row option={O.restartConsent} hint={t('options.externalPlayerRestartConsentDesc')}>
+                            <Toggle checked={restartConsent.granted} onChange={restartConsent.setGranted} />
                         </Row>
                     </>
                 )}

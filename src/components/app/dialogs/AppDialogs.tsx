@@ -16,7 +16,7 @@ type AppDialogsProps = {
 
 const AppDialogs: React.FC<AppDialogsProps> = ({ model }) => {
     countRender('AppDialogs');
-    const { statusToast, lyricMatchDialog, unavailableReplacementDialog, settingsDialog, wallpaperEntryConfirmDialog } = model;
+    const { statusToast, lyricMatchDialog, unavailableReplacementDialog, settingsDialog, wallpaperEntryConfirmDialog, externalPlayerRestartDialog } = model;
     // The settings window is the largest tree the app mounts at a click. Read deferred, it is
     // rendered in slices between frames rather than in the click's own task, which held every frame
     // (the panel closing, the picture) until all of it was built. Closing is not deferred: the
@@ -37,6 +37,7 @@ const AppDialogs: React.FC<AppDialogsProps> = ({ model }) => {
             {lyricMatchDialog && <LyricMatchDialog {...lyricMatchDialog} />}
             {unavailableReplacementDialog && <UnavailableReplacementDialog {...unavailableReplacementDialog} />}
             {wallpaperEntryConfirmDialog && <ConfirmDialog {...wallpaperEntryConfirmDialog} />}
+            {externalPlayerRestartDialog && <ConfirmDialog {...externalPlayerRestartDialog} />}
             <AnimatePresence>
                 {isSettingsShown && settingsDialog && <SettingsModal {...settingsDialog} />}
             </AnimatePresence>

@@ -94,6 +94,18 @@ export type UnavailableReplacementRequest = {
     fmEnded?: () => boolean;
 };
 
+/**
+ * The question a play of an outside player's songs asks before Folia may close the listener's
+ * player and open it again: the song waited for and the queue it was asked with, kept until the
+ * answer (the play that asked is over by then).
+ */
+export type ExternalPlayerRestartRequest = {
+    song: SongResult;
+    queue: SongResult[];
+    isFmCall: boolean;
+    options: PlaybackNavigationOptions;
+};
+
 export type PlaybackSnapshot = {
     currentSong: SongResult | null;
     lyrics: LyricData | null;

@@ -54,6 +54,8 @@ vi.mock('@/services/onlineMusic/omni', () => ({
         isExternalPlaybackPrepared: () => false, getProviderLabel: (id: string) => id, getSongReplacement: vi.fn(async () => null),
         hasSetup: vi.fn((_id: string) => false),
         getPersonalFm: vi.fn(async () => [] as UnifiedSong[]),
+        // 「改回标准播放」由 provider 自己换，这里只记一次调用。
+        leaveExternalPlaybackForStandard: vi.fn(async () => undefined),
     },
 }));
 // 外部播放的开始只记一次调用：这个用例看的是提示，不是播放器。
@@ -183,9 +185,11 @@ function controller({ skipsSoFar = 0, mainPlaybackSnapshotRef = { current: null 
         onPlayNavidromeSong,
     } as never);
     const setPendingUnavailableReplacement = stateSetters.at(-1)!;
+    // 它前面那个是「要不要关掉并重开你的播放器」的问题：和替代版本一样只能从 setter 看到。
+    const setPendingExternalPlayerRestart = stateSetters.at(-2)!;
     return {
         ...result, pause, shouldAutoPlayRef, playbackAutoSkipCountRef, blobUrlRef,
-        persistLastPlaybackCache, setLyrics, setPendingUnavailableReplacement,
+        persistLastPlaybackCache, setLyrics, setPendingUnavailableReplacement, setPendingExternalPlayerRestart,
     };
 }
 
@@ -673,6 +677,42 @@ describe('failures the platform says will not change', () => {
         expect(queue.playbackAutoSkipCountRef.current).toBe(2);
         expect(queue.pause).not.toHaveBeenCalled();
         expect(window.setTimeout).not.toHaveBeenCalled();
+    });
+
+    // 本机播放器那三种原因自己说了要人做什么：不查替代版本，也不倒计时跳过。
+    describe('failures that name the player outside the app', () => {
+        const playerFailure = (playerCause: 'player-not-installed' | 'player-not-found' | 'player-restart-consent') => ({
+            kind: 'unavailable' as const,
+            failure: onlineFailureOf({ operation: 'audio', providerId: 'spotify' }, { detail: { case: 'not-configured', playerCause } }),
+        });
+
+        it('asks before closing and reopening the listener\'s own player, and stops there', async () => {
+            loader.mockResolvedValue(playerFailure('player-restart-consent'));
+            const queue = controller();
+            await queue.playSong(songs[1], songs);
+
+            expect(queue.setPendingExternalPlayerRestart).toHaveBeenLastCalledWith(expect.objectContaining({ song: songs[1] }));
+            // No toast of its own: the question is the dialog. No countdown, no skip.
+            expect(message()).toBeNull();
+            expect(window.setTimeout).not.toHaveBeenCalled();
+            expect(getSongReplacement).not.toHaveBeenCalled();
+            expect(notified).toHaveBeenCalledWith({ song: songs[1], reason: 'not-configured', phase: 'play', willAutoSkip: false });
+        });
+
+        it.each([
+            ['player-not-installed', 'failure.externalPlayerNotInstalled', 'failure.noteExternalPlayerNotInstalled'],
+            ['player-not-found', 'failure.externalPlayerNotFound', 'failure.noteExternalPlayerNotFound'],
+        ] as const)('says what the %s player cause was, and offers the way back to the standard way', async (cause, title, note) => {
+            loader.mockResolvedValue(playerFailure(cause));
+            await controller().playSong(songs[1], songs);
+
+            const shown = message();
+            expect(shown).toMatchObject({ type: 'error', text: title, note, actionLabel: 'failure.useStandardPlayback', providerId: 'spotify' });
+            expect(window.setTimeout).not.toHaveBeenCalled();
+            shown?.onAction?.();
+            expect(vi.mocked(omni.leaveExternalPlaybackForStandard)).toHaveBeenCalledWith('spotify');
+            vi.mocked(omni.leaveExternalPlaybackForStandard).mockClear();
+        });
     });
 
     // 不带标记的两种一个字都不改：下架先查替代版本再倒计时，会员照旧停下。

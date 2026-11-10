@@ -1008,6 +1008,9 @@ export default function App() {
     const {
         pendingUnavailableReplacement,
         setPendingUnavailableReplacement,
+        pendingExternalPlayerRestart,
+        handleExternalPlayerRestartConfirm,
+        handleExternalPlayerRestartCancel,
         clearPendingUnavailableSkip,
         addOnlineSongToQueue,
         addOnlineSongsToQueue,
@@ -2386,6 +2389,9 @@ export default function App() {
         pendingUnavailableReplacement,
         setPendingUnavailableReplacement,
         handleUnavailableReplacementConfirm,
+        pendingExternalPlayerRestart,
+        handleExternalPlayerRestartConfirm,
+        handleExternalPlayerRestartCancel,
         settingsDialog,
     });
 

@@ -39,6 +39,11 @@ export const O = {
         // The machine's own sound is captured where that same Windows player sounds the songs.
         available: () => window.electron?.platform === 'win32',
     }),
+    restartConsent: option(SERVICES, 'externalPlayerRestartConsent', 'options.externalPlayerRestartConsent', {
+        electronOnly: true,
+        // One answer about that same Windows player, and the place it is taken back.
+        available: () => window.electron?.platform === 'win32',
+    }),
     transparentBackground: option(STREAMING, 'transparentPlayerBackground', 'options.transparentPlayerBackground'),
     obs: option(STREAMING, 'obsBrowserSource', 'options.obsBrowserSource', { electronOnly: true }),
     obsKeepAnimation: option(STREAMING, 'obsKeepMainWindowAnimation', 'options.obsKeepMainWindowAnimation', { electronOnly: true }),

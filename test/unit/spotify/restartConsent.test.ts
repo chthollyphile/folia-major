@@ -54,24 +54,28 @@ describe('the system-sound spectrum switch', () => {
     });
 });
 
-/** A stand-in for electron-store: the module only reads and writes single keys. */
+/** A stand-in for electron-store: the module only reads, writes and clears single keys. */
 const memoryStore = (initial: Record<string, unknown> = {}) => {
     const values = new Map(Object.entries(initial));
     return {
         get: (key: string) => values.get(key),
         set: (key: string, value: unknown) => { values.set(key, value); },
+        delete: (key: string) => { values.delete(key); },
         values,
     };
 };
 
+type ConsentStore = { get: (key: string) => unknown; set: (key: string, value: unknown) => void; delete: (key: string) => void };
+
 type ConsentModule = {
     SETTING_KEY: string;
-    read: (store: { get: (key: string) => unknown }) => boolean;
-    grant: (store: { set: (key: string, value: unknown) => void }) => boolean;
+    read: (store: ConsentStore) => boolean;
+    grant: (store: ConsentStore) => boolean;
+    revoke: (store: ConsentStore) => boolean;
     registerRestartConsentIpc: (options: {
         ipcMain: { handle: (channel: string, handler: (event: unknown, granted?: unknown) => unknown) => void };
         isTrustedSender: (event: unknown) => boolean;
-        store: { get: (key: string) => unknown; set: (key: string, value: unknown) => void };
+        store: ConsentStore;
     }) => void;
 };
 
@@ -121,13 +125,16 @@ describe('the channel that carries the agreement', () => {
         expect(handle({ sender: 'main' })).toBe(true);
     });
 
-    it('records nothing for an answer that is not a yes', () => {
-        const store = memoryStore();
+    it('records nothing for an answer that is not a yes, and takes a yes back on a no', () => {
+        const store = memoryStore({ [consentModule().SETTING_KEY]: true });
         const handle = registered(true, store);
-        for (const other of [false, 'true', 1, null, {}]) {
-            expect(handle({ sender: 'main' }, other), String(other)).toBe(false);
-        }
+        expect(handle({ sender: 'main' }, false)).toBe(false);
         expect(store.values.size).toBe(0);
+        // Only that one answer clears it: anything else is not an answer at all.
+        for (const other of ['true', 1, null, {}]) {
+            store.values.set(consentModule().SETTING_KEY, true);
+            expect(handle({ sender: 'main' }, other), String(other)).toBe(true);
+        }
     });
 
     it('refuses a window that is not the main one, before it reads or writes anything', () => {

@@ -19,9 +19,16 @@ const grant = (store) => {
     return true;
 };
 
+/** Takes the yes back (the settings row): the key goes, so the next player this app has to close is asked about again. */
+const revoke = (store) => {
+    store.delete(SETTING_KEY);
+    return false;
+};
+
 /**
  * Registers the channel. Only the main window may call it (the handler's first statement), and one
- * call both reads and answers: `true` records the agreement, no argument only asks.
+ * call both reads and answers: `true` records the agreement, `false` takes it back, no argument only
+ * asks.
  */
 const registerRestartConsentIpc = ({ ipcMain, isTrustedSender, store }) => {
     ipcMain.handle('external-player-restart-consent', (event, granted) => {
@@ -29,8 +36,9 @@ const registerRestartConsentIpc = ({ ipcMain, isTrustedSender, store }) => {
             throw new Error('Untrusted renderer attempted to read or grant the restart consent.');
         }
         if (granted === true) return grant(store);
+        if (granted === false) return revoke(store);
         return read(store);
     });
 };
 
-module.exports = { SETTING_KEY, read, grant, registerRestartConsentIpc };
+module.exports = { SETTING_KEY, read, grant, revoke, registerRestartConsentIpc };

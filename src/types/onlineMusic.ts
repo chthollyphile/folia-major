@@ -652,6 +652,13 @@ export interface OnlineExternalPlaybackProvider {
     getStatus(song: SongResult): Promise<ProviderExternalPlaybackStatus>;
     /** Whether the player's loaded track is `song` (the id in `status` may be a playback id). */
     isStatusForSong(song: SongResult, status: ProviderExternalPlaybackStatus): boolean;
+    /**
+     * Puts this provider's songs back on its standard way of playing (the way that gives this app an
+     * audio address), for a listener whose external player cannot be steered any more - not
+     * installed, a build this app no longer finds its player in. The provider changes its own way and
+     * nothing else; absent where a provider has no other way to go back to.
+     */
+    useStandardPlayback?(): Promise<void>;
 }
 
 /**
