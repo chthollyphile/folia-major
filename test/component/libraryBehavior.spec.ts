@@ -1810,34 +1810,46 @@ test.describe('[bravais-only] collection page', () => {
         return box!;
     };
     /**
-     * 元素在缝的内容层里的排版矩形（offsetLeft / offsetTop 一路加到内容层）。集合页整层倾斜着，boundingBox 给的是转过之后的
-     * 屏幕外接框；「同一行」「在它上方」「不超出纸条」这些排版关系按没转的坐标比。
+     * 元素在没倾斜的坐标里的矩形：把屏幕上的外接框按缝此刻的旋转（缝自己的，补间中是轨道的）转回去。
+     * 集合页整层倾斜着，boundingBox 给的是转过之后的屏幕外接框；「同一行」「在它上方」「不超出纸条」这些排版关系按转回去
+     * 的坐标比（各元素转的是同一个角度，相对位置就是排版上的相对位置）。
      */
     const layoutBoxOf = async (page: Page, selector: string) => {
         const locator = page.locator(`[data-library-stage="bravais"] ${selector}`).first();
         await expect(locator, selector).toBeAttached();
         return locator.evaluate((element) => {
-            const root = element.closest('.bravais-seam-content');
-            let x = 0;
-            let y = 0;
-            for (let node: HTMLElement | null = element as HTMLElement; node && node !== root; node = node.offsetParent as HTMLElement | null) {
-                x += node.offsetLeft;
-                y += node.offsetTop;
-            }
-            return { x, y, width: (element as HTMLElement).offsetWidth, height: (element as HTMLElement).offsetHeight };
+            const seam = element.closest('.bravais-seam')!;
+            const angle = [seam, seam.parentElement!].reduce((sum, node) => {
+                const transform = getComputedStyle(node).transform;
+                const matrix = new DOMMatrixReadOnly(transform === 'none' ? undefined : transform);
+                return sum + Math.atan2(matrix.b, matrix.a);
+            }, 0);
+            const rect = element.getBoundingClientRect();
+            const [centerX, centerY] = [rect.left + rect.width / 2, rect.top + rect.height / 2];
+            const [cos, sin] = [Math.cos(-angle), Math.sin(-angle)];
+            // 外接框的宽高是 w·|cos| + h·|sin| 与 w·|sin| + h·|cos|，反解出没转时的宽高（角度远小于 45°）。
+            const [c, k] = [Math.abs(cos), Math.abs(sin)];
+            const width = (rect.width * c - rect.height * k) / (c * c - k * k);
+            const height = (rect.height * c - rect.width * k) / (c * c - k * k);
+            return { x: centerX * cos - centerY * sin - width / 2, y: centerX * sin + centerY * cos - height / 2, width, height };
         });
     };
-    /** 缝里的按钮（播放全部、加入队列、列表、更多）都在视口里（屏幕上，倾斜算在内），也都在缝的纸条里（排版上）。 */
+    /**
+     * 缝里的按钮（播放全部、加入队列、列表、更多）都在视口里（屏幕上，倾斜算在内），也都在缝的纸条里（排版上；整层倾斜时
+     * 内容层底下让出的那一截 --bravais-seam-tilt-bottom 仍是纸条）。
+     */
     const expectSeamButtonsInView = async (page: Page) => {
         const viewport = page.viewportSize()!;
         const seam = await layoutBoxOf(page, '.bravais-seam-full');
+        const tiltRoom = await page.locator('[data-library-stage="bravais"] .bravais-seam-content').first()
+            .evaluate(element => parseFloat((element as HTMLElement).style.getPropertyValue('--bravais-seam-tilt-bottom')) || 0);
         for (const action of ['play-scope', 'enqueue-scope', 'list', 'more']) {
             const box = await boxOf(page, `.bravais-seam-full [data-bravais-seam-action="${action}"]`);
             expect(box.y, action).toBeGreaterThanOrEqual(0);
             expect(box.y + box.height, action).toBeLessThanOrEqual(viewport.height + 0.5);
             const laidOut = await layoutBoxOf(page, `.bravais-seam-full [data-bravais-seam-action="${action}"]`);
-            expect(laidOut.y, action).toBeGreaterThanOrEqual(seam.y);
-            expect(laidOut.y + laidOut.height, action).toBeLessThanOrEqual(seam.y + seam.height + 0.5);
+            expect(laidOut.y, action).toBeGreaterThanOrEqual(seam.y - 0.5);
+            expect(laidOut.y + laidOut.height, action).toBeLessThanOrEqual(seam.y + seam.height + tiltRoom + 0.5);
         }
     };
 
