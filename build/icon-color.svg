@@ -1,0 +1,10 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Spare multicolor version of the app icon; the official icon is public/icon.svg (black and white) -->
+  <rect x="32" y="32" width="448" height="448" rx="112" fill="#000000"/>
+
+  <!-- Capital "F" stacked from four blocks in the primary colors plus white -->
+  <rect x="141" y="86" width="88" height="156" rx="10" fill="#E3342A"/>
+  <rect x="241" y="86" width="150" height="84" rx="10" fill="#F7C918"/>
+  <rect x="141" y="254" width="200" height="80" rx="10" fill="#1F5BC6"/>
+  <rect x="141" y="346" width="88" height="80" rx="10" fill="#FFFFFF"/>
+</svg>
