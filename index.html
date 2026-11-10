@@ -64,28 +64,23 @@
       }
 
       /* 四块色块拼成的 F（版型同 public/icon.svg，配色同 build/icon-color.svg）。
-         容器按 250:340 的比例定宽，色块用百分比定位，跟着视口缩放。 */
+         容器按 250:340 的比例定宽，色块用百分比定位，跟着视口缩放。
+         循环动画：色块从上到下一块接一块向右滑一格，整个 F 像履带一样往右爬；
+         容器同时匀速向左退同样的距离，所以 F 留在原地、色块一直单向滑动，不走回头路。 */
       #app-splash .app-splash-blocks {
         position: relative;
         width: clamp(88px, 15vw, 150px);
         aspect-ratio: 250 / 340;
+        animation: app-splash-drift 2400ms linear infinite;
       }
 
-      /* 循环动画：色块像华容道一样依次滑开、再按原路滑回拼成 F。
-         只做 transform 动画，合成器线程执行，不占主线程。 */
+      /* 每块两个动画：位移一圈 2400ms，颜色四圈换完一轮（每滑一次换一个颜色）。 */
       #app-splash .app-splash-blocks span {
         position: absolute;
         border-radius: clamp(4px, 0.6vw, 6px);
-        animation: 3600ms cubic-bezier(0.65, 0, 0.35, 1) infinite;
-      }
-
-      #app-splash .app-splash-blocks .is-stem {
-        left: 0;
-        top: 0;
-        width: 35.2%;
-        height: 45.88%;
-        background-color: #e3342a;
-        animation-name: app-splash-stem;
+        animation-duration: 2400ms, 9600ms;
+        animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
+        animation-iteration-count: infinite;
       }
 
       #app-splash .app-splash-blocks .is-top {
@@ -94,7 +89,16 @@
         width: 60%;
         height: 24.71%;
         background-color: #f7c918;
-        animation-name: app-splash-top;
+        animation-name: app-splash-top-slide, app-splash-top-color;
+      }
+
+      #app-splash .app-splash-blocks .is-stem {
+        left: 0;
+        top: 0;
+        width: 35.2%;
+        height: 45.88%;
+        background-color: #e3342a;
+        animation-name: app-splash-stem-slide, app-splash-stem-color;
       }
 
       #app-splash .app-splash-blocks .is-middle {
@@ -103,7 +107,7 @@
         width: 80%;
         height: 23.53%;
         background-color: #1f5bc6;
-        animation-name: app-splash-middle;
+        animation-name: app-splash-middle-slide, app-splash-middle-color;
       }
 
       #app-splash .app-splash-blocks .is-foot {
@@ -112,7 +116,7 @@
         width: 35.2%;
         height: 23.53%;
         background-color: #ffffff;
-        animation-name: app-splash-foot;
+        animation-name: app-splash-foot-slide, app-splash-foot-color;
       }
 
       @keyframes app-splash-in {
@@ -121,57 +125,175 @@
         }
       }
 
-      /* 滑开的顺序：中横右移让路 → 竖笔下滑 → 顶横左移进竖笔空出的位置 → 底块右移；
-         回程倒着走。位移是各色块自身尺寸的百分比，前一块让开后下一块才动，互不相撞。 */
-      @keyframes app-splash-middle {
-        0%,
-        10%,
-        84%,
-        100% {
+      /* 一圈里四块各向右滑 100/250 = 40% 的容器宽度，容器就向左退 40%，首尾相接。 */
+      @keyframes app-splash-drift {
+        from {
+          transform: translateX(20%);
+        }
+        to {
+          transform: translateX(-20%);
+        }
+      }
+
+      /* 位移是色块自身宽度的百分比，都等于容器宽度的 40%。 */
+      @keyframes app-splash-top-slide {
+        0% {
           transform: translateX(0);
         }
-        18%,
-        76% {
+        22%,
+        100% {
+          transform: translateX(66.67%);
+        }
+      }
+
+      @keyframes app-splash-top-color {
+        0% {
+          background-color: #f7c918;
+        }
+        5.5% {
+          background-color: #1f5bc6;
+        }
+        25% {
+          background-color: #1f5bc6;
+        }
+        30.5% {
+          background-color: #ffffff;
+        }
+        50% {
+          background-color: #ffffff;
+        }
+        55.5% {
+          background-color: #e3342a;
+        }
+        75% {
+          background-color: #e3342a;
+        }
+        80.5%,
+        100% {
+          background-color: #f7c918;
+        }
+      }
+
+      /* 位移是色块自身宽度的百分比，都等于容器宽度的 40%。 */
+      @keyframes app-splash-stem-slide {
+        0%,
+        25% {
+          transform: translateX(0);
+        }
+        47%,
+        100% {
+          transform: translateX(113.64%);
+        }
+      }
+
+      @keyframes app-splash-stem-color {
+        0%,
+        6.25% {
+          background-color: #e3342a;
+        }
+        11.75% {
+          background-color: #f7c918;
+        }
+        31.25% {
+          background-color: #f7c918;
+        }
+        36.75% {
+          background-color: #1f5bc6;
+        }
+        56.25% {
+          background-color: #1f5bc6;
+        }
+        61.75% {
+          background-color: #ffffff;
+        }
+        81.25% {
+          background-color: #ffffff;
+        }
+        86.75%,
+        100% {
+          background-color: #e3342a;
+        }
+      }
+
+      /* 位移是色块自身宽度的百分比，都等于容器宽度的 40%。 */
+      @keyframes app-splash-middle-slide {
+        0%,
+        50% {
+          transform: translateX(0);
+        }
+        72%,
+        100% {
           transform: translateX(50%);
         }
       }
 
-      @keyframes app-splash-stem {
+      @keyframes app-splash-middle-color {
         0%,
-        18%,
-        76%,
-        100% {
-          transform: translateY(0);
+        12.5% {
+          background-color: #1f5bc6;
         }
-        26%,
+        18% {
+          background-color: #ffffff;
+        }
+        37.5% {
+          background-color: #ffffff;
+        }
+        43% {
+          background-color: #e3342a;
+        }
+        62.5% {
+          background-color: #e3342a;
+        }
         68% {
-          transform: translateY(58.97%);
+          background-color: #f7c918;
+        }
+        87.5% {
+          background-color: #f7c918;
+        }
+        93%,
+        100% {
+          background-color: #1f5bc6;
         }
       }
 
-      @keyframes app-splash-top {
+      /* 位移是色块自身宽度的百分比，都等于容器宽度的 40%。 */
+      @keyframes app-splash-foot-slide {
         0%,
-        26%,
-        68%,
-        100% {
+        75% {
           transform: translateX(0);
         }
-        34%,
-        60% {
-          transform: translateX(-66.67%);
-        }
-      }
-
-      @keyframes app-splash-foot {
-        0%,
-        34%,
-        60%,
+        97%,
         100% {
-          transform: translateX(0);
-        }
-        42%,
-        52% {
           transform: translateX(113.64%);
+        }
+      }
+
+      @keyframes app-splash-foot-color {
+        0%,
+        18.75% {
+          background-color: #ffffff;
+        }
+        24.25% {
+          background-color: #e3342a;
+        }
+        43.75% {
+          background-color: #e3342a;
+        }
+        49.25% {
+          background-color: #f7c918;
+        }
+        68.75% {
+          background-color: #f7c918;
+        }
+        74.25% {
+          background-color: #1f5bc6;
+        }
+        93.75% {
+          background-color: #1f5bc6;
+        }
+        99.25%,
+        100% {
+          background-color: #ffffff;
         }
       }
 
@@ -182,6 +304,7 @@
         }
 
         /* 不动，保持拼好的 F。 */
+        #app-splash .app-splash-blocks,
         #app-splash .app-splash-blocks span {
           animation: none;
         }
