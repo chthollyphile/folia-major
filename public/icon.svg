@@ -2,12 +2,11 @@
   <!-- Background: black rounded square -->
   <rect x="32" y="32" width="448" height="448" rx="112" fill="#000000"/>
 
-  <!-- "F" built from squares of different sizes -->
+  <!-- Capital "F" stacked from a few rectangular blocks -->
   <g fill="#FFFFFF">
-    <rect x="132" y="84" width="144" height="144" rx="10"/>
-    <rect x="288" y="84" width="104" height="104" rx="10"/>
-    <rect x="132" y="240" width="104" height="104" rx="10"/>
-    <rect x="248" y="240" width="56" height="56" rx="10"/>
-    <rect x="132" y="356" width="72" height="72" rx="10"/>
+    <rect x="141" y="80" width="250" height="84" rx="10"/>
+    <rect x="141" y="176" width="88" height="60" rx="10"/>
+    <rect x="141" y="248" width="200" height="80" rx="10"/>
+    <rect x="141" y="340" width="88" height="92" rx="10"/>
   </g>
 </svg>
