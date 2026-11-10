@@ -122,29 +122,32 @@ const CapsuleQuickActions: React.FC<CapsuleQuickActionsProps> = ({
                 // 和进度条胶囊同一层玻璃。
                 style={inline ? { color: 'var(--text-primary)' } : capsuleGlassStyle(isDaylight)}
             >
-                {commands.map(command => {
-                    const button = resolveButton(command, context);
-                    const Icon = button.icon;
-                    const title = getCommandTitle(command, t);
-                    return (
-                        <button
-                            key={command.id}
-                            type="button"
-                            data-capsule-action={command.id}
-                            disabled={button.disabled}
-                            onClick={() => button.onActivate()}
-                            className={`rounded-full ${buttonPadding} transition-colors disabled:cursor-not-allowed disabled:opacity-25 ${
-                                button.active ? 'bg-current/12' : 'opacity-70 hover:bg-current/10 hover:opacity-100'
-                            }`}
-                            title={title}
-                            aria-label={title}
-                        >
-                            <Icon size={iconSize} fill={button.filled ? 'currentColor' : 'none'} />
-                        </button>
-                    );
-                })}
+                {/* 紧凑档的这一行把命令在整行里匀开，不挤在左边；命令面板那一格连同分隔线留在最右，和最下一行的挂件位上下对齐。 */}
+                <div className={inline ? 'flex min-w-0 flex-1 items-center justify-between' : 'contents'}>
+                    {commands.map(command => {
+                        const button = resolveButton(command, context);
+                        const Icon = button.icon;
+                        const title = getCommandTitle(command, t);
+                        return (
+                            <button
+                                key={command.id}
+                                type="button"
+                                data-capsule-action={command.id}
+                                disabled={button.disabled}
+                                onClick={() => button.onActivate()}
+                                className={`rounded-full ${buttonPadding} transition-colors disabled:cursor-not-allowed disabled:opacity-25 ${
+                                    button.active ? 'bg-current/12' : 'opacity-70 hover:bg-current/10 hover:opacity-100'
+                                }`}
+                                title={title}
+                                aria-label={title}
+                            >
+                                <Icon size={iconSize} fill={button.filled ? 'currentColor' : 'none'} />
+                            </button>
+                        );
+                    })}
+                </div>
                 {commands.length > 0 && (
-                    <span aria-hidden="true" className={`mx-0.5 h-4 w-px shrink-0 bg-current opacity-15 ${inline ? 'ml-auto' : ''}`} />
+                    <span aria-hidden="true" className={`h-4 w-px shrink-0 bg-current opacity-15 ${inline ? 'mx-2' : 'mx-0.5'}`} />
                 )}
                 {/* 固定在最右：不管上面挑出了几条，总有一条路通到完整的命令面板，从进度条原地长出来。 */}
                 <button

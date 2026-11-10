@@ -1,3 +1,4 @@
+import { useWindowButtonsAtTopLeft } from '../../../../hooks/useWindowButtonsAtTopLeft';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, useMotionValue, animate, AnimatePresence, useDragControls, useIsPresent } from 'framer-motion';
 import { ChevronLeft, ListMusic, ListPlus, RefreshCw } from 'lucide-react';
@@ -342,6 +343,7 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
     morphPlan = null,
 }) => {
     const { t } = useTranslation();
+    const lowerBackButton = useWindowButtonsAtTopLeft();
     // The artist wall renders the same cards as GridView, so it follows the same look settings.
     const fullBleedCover = useGridViewSettingsStore(state => state.gridViewFullBleedCover);
     const squareCards = useGridViewSettingsStore(state => state.gridViewSquareCards) && fullBleedCover;
@@ -1317,7 +1319,7 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
             )}
 
             {/* Header Area */}
-            <div className="absolute top-0 left-0 p-6 z-30 flex items-center gap-4">
+            <div className={`absolute ${lowerBackButton ? 'top-6' : 'top-0'} left-0 p-6 z-30 flex items-center gap-4`}>
                 <button
                     // 返回按钮表示看完了（onDone）：宿主清掉浏览会话、让每套 suite 忘掉布局记录，再返回
                     // （Escape 与浏览器后退保留）。P4.5 起这条语义在宿主，不在这里清。

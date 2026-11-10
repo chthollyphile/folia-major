@@ -55,6 +55,7 @@ export const STORAGE_KEYS = [
     'main:STAGE_MODE_SOURCE',
     'main:TRANSPARENT_PLAYER_BACKGROUND',
     'main:UPDATE_CHANNEL',
+    'main:USE_NATIVE_MAC_TRAFFIC_LIGHTS',
     'main:USE_SYSTEM_PROXY_FOR_AI',
     'main:VOICE_INPUT_PAUSE_ENABLED',
     'main:WINDOW_BOUNDS',
@@ -299,6 +300,7 @@ export const STORAGE_KEYS = [
     'web:url_background_selected_id',
     'web:use_cover_color_bg',
     'web:use_native_mac_fullscreen_button',
+    'web:use_native_mac_traffic_lights',
     'web:video_layer_enabled',
     'web:video_layer_fit',
     'web:video_layer_opacity',
@@ -315,4 +317,5 @@ export const STORAGE_KEYS = [
     'web:wallpaper_mac_autohide_dock',
     'web:wallpaper_mode',
     'web:web_obs_theme_mode',
+    'web:window_titlebar_side',
 ];
