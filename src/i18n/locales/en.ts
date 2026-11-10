@@ -2090,6 +2090,8 @@ export default {
   },
   "lyricProvider": {
     "qishui": "Qishui Music",
+
+    "lxmusic": "LX Music",
     "netease": "NetEase Cloud Music",
     "qq": "QQ Music",
     "kugou": "Kugou Music",

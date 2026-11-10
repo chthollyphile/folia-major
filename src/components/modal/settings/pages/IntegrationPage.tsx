@@ -6,6 +6,7 @@ import { usePlayerChromeSettingsStore } from '../../../../stores/usePlayerChrome
 import { useStageSettingsStore } from '../../../../stores/useStageSettingsStore';
 import { Button, CopyValue, Group, Reveal, Row, Status, Toggle, Value, type SettingsOptionDef } from '../kit';
 import NavidromeRows from './integration/NavidromeRows';
+import { LxSourcePanel } from '../../../lxmusic/LxSourcePanel';
 import { O, SERVICES, STREAMING } from './integration/options';
 import { DesktopStageRows, WebStageRows } from './integration/StageModeRows';
 import SyncServerRows from './integration/SyncServerRows';
@@ -40,6 +41,9 @@ const IntegrationPage: React.FC = () => {
         <>
             <Group def={SERVICES}>
                 <NavidromeRows />
+                {/* 洛雪音源：粘贴网址或选 .js / .json 导入音源脚本，导入后洛雪平台就能取播放地址。
+                    洛雪本身免登录，选中它以后首页搜索、歌单广场、榜单与其它平台走同一套流程。 */}
+                <LxSourcePanel />
                 <SyncServerRows />
                 {isElectron && (
                     <>

@@ -2090,6 +2090,8 @@ export default {
   },
   "lyricProvider": {
     "qishui": "汽水音乐",
+
+    "lxmusic": "洛雪",
     "netease": "网易云音乐",
     "qq": "QQ 音乐",
     "kugou": "酷狗音乐",

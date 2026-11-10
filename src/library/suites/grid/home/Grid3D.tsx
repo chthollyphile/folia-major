@@ -11,6 +11,10 @@ import { useGrid3DTabKeys } from './useGrid3DTabKeys';
 import DesktopGrid3DSurface from './DesktopGrid3DSurface';
 import OnlineProviderAccountlessPanel from '../account/OnlineProviderAccountlessPanel';
 import HomeLoginPanel from '../../../../components/login/HomeLoginPanel';
+import { LxSquareToolbar } from '../../../../components/lxmusic/LxSquareToolbar';
+import { LxChartBoard } from './lx/LxChartBoard';
+import { LxAlbumWall } from './lx/LxAlbumWall';
+import { lxChartCollectionId } from '../../../../services/onlineMusic/lxmusic/lxFacade';
 import SwitcherPill from '../../../../components/login/SwitcherPill';
 import ExploreSurface from '../../../../components/app/home/explore/ExploreSurface';
 import { createOnlineGridViewCollection } from '../../../../components/app/home/gridViewCollectionAdapters';
@@ -482,6 +486,14 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                 </div>
             </div>
 
+            {/* 洛雪的歌单页：它在别家没有「我的歌单」这东西，这一屏是四家的公开广场，
+                所以要有一条能换平台、换排序、换分类的筛选。别的平台不出现这一条。 */}
+            {activeProviderId === 'lxmusic' && homeViewTab === 'playlist' && (
+                <div className="w-full mx-auto px-2 shrink-0 overflow-hidden" style={{ height: 84 }}>
+                    <LxSquareToolbar isDaylight={isDaylight} />
+                </div>
+            )}
+
             {/* Desktop Canvas Surface */}
             <div className="flex-1 min-h-0 flex flex-col items-center justify-center relative">
                 {isOnlineTab && activeAccountView === 'accountless' ? (
@@ -497,6 +509,43 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                 ) : isOnlineTab && activeAccountView === 'guest' ? (
                     // One button: it opens the sign-in window, where the platform is chosen.
                     <HomeLoginPanel account={account} />
+                ) : isOnlineTab && activeProviderId === 'lxmusic' && homeViewTab === 'radio' ? (
+                    // 洛雪没有「推荐内容」这回事：它的推荐页就是排行榜——先出平台行，选了哪家才展开那家的榜单清单。
+                    <LxChartBoard
+                        isDaylight={isDaylight}
+                        isInteractive={isInteractive}
+                        hasFloatingPlayer={Boolean(currentTrack)}
+                        onOpenChart={(chart) => {
+                            // 榜单曲目就在 Folia 自己的集合页里看：点一下是「往下走一级」，
+                            // 不是把整个洛雪工作台盖上来（那样像换了个软件）。
+                            onOpenGridView?.(createOnlineGridViewCollection({
+                                providerId: 'lxmusic',
+                                id: lxChartCollectionId(chart.platform, chart.id),
+                                name: chart.name,
+                                type: 'playlist',
+                                coverUrl: chart.coverUrl,
+                                providerData: { platform: chart.platform, nativeId: chart.id, kind: 'chart' },
+                            } as unknown as ProviderCollection, activeProviderId));
+                        }}
+                    />
+                ) : isOnlineTab && activeProviderId === 'lxmusic' && homeViewTab === 'albums' ? (
+                    // 洛雪也没有「用户专辑库」，但收藏的歌各自属于某张专辑：这一页是那些专辑的封面墙，
+                    // 点一张直接进那家的专辑页（曲目与播放都在那里）。
+                    <LxAlbumWall
+                        isDaylight={isDaylight}
+                        isInteractive={isInteractive}
+                        hasFloatingPlayer={Boolean(currentTrack)}
+                        onOpenAlbum={(platform, albumId, name, coverUrl) => {
+                            onOpenGridView?.(createOnlineGridViewCollection({
+                                providerId: 'lxmusic',
+                                id: `${platform}:${albumId}`,
+                                name,
+                                type: 'album',
+                                coverUrl,
+                                providerData: { platform, nativeId: albumId, kind: 'album' },
+                            } as unknown as ProviderCollection, activeProviderId));
+                        }}
+                    />
                 ) : homeViewTab === 'explore' ? (
                     online.canUseExplore && (
                         <ExploreSurface

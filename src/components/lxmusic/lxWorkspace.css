@@ -1,0 +1,962 @@
+/* src/components/lxmusic/lxWorkspace.css */
+/* 洛雪工作台：整页浮层（搜索 / 歌单广场 / 榜单 / 音源）。配色跟着宿主主题走，
+   白天与夜间各一组变量，由 .lx-root 上的 data-daylight 切换。 */
+
+.lx-root {
+    --lx-fg: #f4f4f6;
+    --lx-soft: rgba(244, 244, 246, 0.6);
+    --lx-faint: rgba(244, 244, 246, 0.38);
+    --lx-line: rgba(244, 244, 246, 0.12);
+    --lx-fill: rgba(244, 244, 246, 0.06);
+    --lx-fill2: rgba(244, 244, 246, 0.12);
+    --lx-sheet: rgba(10, 10, 13, 0.9);
+    --lx-accent: #e11d48;
+}
+
+.lx-root[data-daylight='true'] {
+    --lx-fg: #17171b;
+    --lx-soft: rgba(23, 23, 27, 0.62);
+    --lx-faint: rgba(23, 23, 27, 0.4);
+    --lx-line: rgba(23, 23, 27, 0.12);
+    --lx-fill: rgba(23, 23, 27, 0.05);
+    --lx-fill2: rgba(23, 23, 27, 0.1);
+    --lx-sheet: rgba(250, 250, 252, 0.94);
+}
+
+.lx-root {
+    position: fixed;
+    inset: 0;
+    z-index: 400;
+    display: flex;
+    flex-direction: column;
+    color: var(--lx-fg);
+    background: var(--lx-sheet);
+    -webkit-backdrop-filter: blur(28px) saturate(1.2);
+    backdrop-filter: blur(28px) saturate(1.2);
+    padding-top: env(safe-area-inset-top, 0px);
+    overscroll-behavior: contain;
+}
+
+.lx-header {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    padding: 10px 14px 9px;
+    border-bottom: 1px solid var(--lx-line);
+}
+
+.lx-head-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.lx-head-title {
+    display: flex;
+    align-items: baseline;
+    gap: 7px;
+    min-width: 0;
+}
+
+.lx-brand {
+    font-size: 17px;
+    font-weight: 650;
+    letter-spacing: 0.01em;
+}
+
+.lx-brand-sub {
+    font-size: 9px;
+    letter-spacing: 0.16em;
+    color: var(--lx-faint);
+}
+
+.lx-source-btn {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    height: 28px;
+    padding: 0 10px;
+    border-radius: 999px;
+    font-size: 11.5px;
+    color: var(--lx-soft);
+    background: var(--lx-fill);
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.lx-source-btn[data-active='true'] {
+    color: var(--lx-fg);
+    background: var(--lx-fill2);
+}
+
+.lx-source-btn b {
+    font-weight: 600;
+    color: var(--lx-accent);
+}
+
+.lx-icon-btn {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 999px;
+    color: var(--lx-soft);
+    background: var(--lx-fill);
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.lx-icon-btn:hover {
+    background: var(--lx-fill2);
+    color: var(--lx-fg);
+}
+
+/* 分段胶囊：一条灰底槽，选中的那个往里浮一个实心药丸。 */
+.lx-seg {
+    display: flex;
+    gap: 2px;
+    padding: 3px;
+    border-radius: 999px;
+    background: var(--lx-fill);
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+.lx-seg::-webkit-scrollbar {
+    display: none;
+}
+
+.lx-seg-item {
+    flex: 1 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    height: 30px;
+    padding: 0 11px;
+    border-radius: 999px;
+    font-size: 12.5px;
+    color: var(--lx-soft);
+    white-space: nowrap;
+    transition: background 0.16s ease, color 0.16s ease;
+}
+
+.lx-seg-item svg {
+    width: 13px;
+    height: 13px;
+    opacity: 0.8;
+}
+
+.lx-seg-item:hover {
+    color: var(--lx-fg);
+}
+
+.lx-seg-item[data-active='true'] {
+    color: #fff;
+    background: var(--lx-accent);
+    font-weight: 600;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.22);
+}
+
+.lx-seg-item[data-active='true'] svg {
+    opacity: 1;
+}
+
+.lx-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    /* overflow-y 是 auto 时，x 也按 auto 算：内容只要宽出一点点，底部就冒一条横向滚动条。
+       这里把 x 钉死，滚动能力只在竖向保留。 */
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    padding: 14px 16px calc(24px + env(safe-area-inset-bottom, 0px));
+}
+
+/* ------------------------------------------------------------ 搜索 */
+
+.lx-search-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    min-width: 0;
+}
+
+.lx-input {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 38px;
+    padding: 0 14px;
+    border-radius: 12px;
+    border: 1px solid var(--lx-line);
+    background: var(--lx-fill);
+    color: var(--lx-fg);
+    font-size: 14px;
+    outline: none;
+}
+
+.lx-input::placeholder {
+    color: var(--lx-faint);
+}
+
+.lx-input:focus {
+    border-color: var(--lx-accent);
+}
+
+.lx-btn {
+    flex: none;
+    height: 38px;
+    padding: 0 16px;
+    border-radius: 12px;
+    background: var(--lx-accent);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 600;
+    transition: opacity 0.15s ease;
+}
+
+.lx-btn:disabled {
+    opacity: 0.4;
+}
+
+.lx-btn-ghost {
+    flex: none;
+    height: 32px;
+    padding: 0 12px;
+    border-radius: 10px;
+    background: var(--lx-fill);
+    color: var(--lx-soft);
+    font-size: 12.5px;
+    transition: background 0.15s ease, color 0.15s ease;
+}
+
+.lx-btn-ghost:hover {
+    background: var(--lx-fill2);
+    color: var(--lx-fg);
+}
+
+/* ------------------------------------------------------------ 平台切换 */
+
+.lx-platforms {
+    display: flex;
+    gap: 7px;
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+.lx-platforms::-webkit-scrollbar {
+    display: none;
+}
+
+.lx-platform {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 32px;
+    padding: 0 12px 0 4px;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    font-size: 12.5px;
+    color: var(--lx-soft);
+    white-space: nowrap;
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.lx-platform:hover {
+    color: var(--lx-fg);
+}
+
+.lx-platform[data-active='true'] {
+    color: var(--lx-fg);
+    font-weight: 600;
+    /* 老 WebView 不认 color-mix 时退回灰底，不会变成透明。 */
+    background: var(--lx-fill2);
+    background: color-mix(in srgb, var(--lx-platform-color) 16%, transparent);
+    border-color: color-mix(in srgb, var(--lx-platform-color) 40%, transparent);
+}
+
+.lx-platform-mark {
+    width: 23px;
+    height: 23px;
+    flex: none;
+    display: grid;
+    place-items: center;
+    border-radius: 999px;
+    color: #fff;
+    font-size: 10.5px;
+    font-weight: 650;
+    letter-spacing: 0.01em;
+}
+
+/* ------------------------------------------------- 平台浮层 */
+
+/* 头部只挂一个「当前平台」胶囊；点开才在整页之上浮一层，不占排版高度。 */
+.lx-platform-trigger {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 30px;
+    padding: 0 9px 0 3px;
+    border-radius: 999px;
+    border: 1px solid var(--lx-line);
+    background: var(--lx-fill);
+    color: var(--lx-fg);
+    font-size: 12px;
+    font-weight: 600;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.lx-platform-trigger:hover,
+.lx-platform-trigger[aria-expanded='true'] {
+    background: var(--lx-fill2);
+    border-color: color-mix(in srgb, var(--lx-accent) 32%, transparent);
+}
+
+.lx-platform-trigger-label {
+    max-width: 88px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.lx-platform-trigger-caret {
+    color: var(--lx-soft);
+    transition: transform 0.18s ease;
+}
+
+.lx-platform-trigger-caret[data-open='true'] {
+    transform: rotate(180deg);
+}
+
+.lx-platform-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 30;
+    display: flex;
+    justify-content: flex-end;
+    align-items: flex-start;
+    padding: 60px 12px 12px;
+    background: rgba(0, 0, 0, 0.3);
+    -webkit-backdrop-filter: blur(3px);
+    backdrop-filter: blur(3px);
+    animation: lx-layer-in 0.16s ease;
+}
+
+.lx-platform-sheet {
+    width: min(312px, 84vw);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px;
+    border-radius: 16px;
+    border: 1px solid var(--lx-line);
+    background: var(--lx-sheet);
+    box-shadow: 0 20px 52px rgba(0, 0, 0, 0.42);
+    animation: lx-sheet-in 0.18s ease;
+}
+
+.lx-platform-sheet-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 2px 2px 2px 7px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--lx-soft);
+}
+
+.lx-platform-sheet-head .lx-icon-btn {
+    width: 28px;
+    height: 28px;
+}
+
+.lx-platform-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.lx-platform-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 7px 10px 7px 6px;
+    border-radius: 12px;
+    border: 1px solid transparent;
+    text-align: left;
+    color: var(--lx-soft);
+    transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.lx-platform-option:hover {
+    background: var(--lx-fill);
+    color: var(--lx-fg);
+}
+
+.lx-platform-option[data-active='true'] {
+    color: var(--lx-fg);
+    /* 老 WebView 不认 color-mix 时退回灰底，不会变成透明。 */
+    background: var(--lx-fill2);
+    background: color-mix(in srgb, var(--lx-platform-color, var(--lx-accent)) 16%, transparent);
+    border-color: color-mix(in srgb, var(--lx-platform-color, var(--lx-accent)) 40%, transparent);
+}
+
+.lx-platform-option-text {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.lx-platform-option-text b {
+    font-size: 12.5px;
+    font-weight: 600;
+}
+
+.lx-platform-option-text em {
+    font-style: normal;
+    font-size: 10.5px;
+    line-height: 1.35;
+    color: var(--lx-faint);
+}
+
+.lx-platform-option > svg {
+    flex: none;
+    color: var(--lx-accent);
+}
+
+@keyframes lx-layer-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes lx-sheet-in {
+    from { opacity: 0; transform: translateY(-6px) scale(0.98); }
+    to { opacity: 1; transform: none; }
+}
+
+.lx-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 999px;
+    flex: none;
+}
+
+/* ------------------------------------------------------------ 歌单广场 */
+
+.lx-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+    gap: 12px 10px;
+}
+
+@media (max-width: 420px) {
+    .lx-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px 9px;
+    }
+}
+
+.lx-card {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    text-align: left;
+    min-width: 0;
+}
+
+.lx-cover {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    border-radius: 9px;
+    overflow: hidden;
+    background: var(--lx-fill2);
+    display: grid;
+    place-items: center;
+    color: var(--lx-faint);
+    font-size: 20px;
+    font-weight: 600;
+}
+
+.lx-cover img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.lx-cover-count {
+    position: absolute;
+    right: 5px;
+    bottom: 5px;
+    padding: 1px 5px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.52);
+    color: #fff;
+    font-size: 9.5px;
+    line-height: 1.45;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.lx-card-title {
+    font-size: 11.5px;
+    line-height: 1.35;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.lx-card-meta {
+    font-size: 10.5px;
+    color: var(--lx-faint);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ------------------------------------------------------------ 曲目表 */
+
+.lx-tracks {
+    display: flex;
+    flex-direction: column;
+}
+
+/* 歌单 / 专辑详情：大封面 + 标题 + 播放全部 */
+.lx-detail-head {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 2px 2px 14px;
+}
+
+.lx-detail-cover {
+    width: 92px;
+    height: 92px;
+    flex: none;
+    border-radius: 13px;
+    font-size: 28px;
+}
+
+.lx-detail-text {
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.lx-detail-kind {
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    color: var(--lx-faint);
+    text-transform: uppercase;
+}
+
+.lx-detail-title {
+    font-size: 16px;
+    font-weight: 650;
+    line-height: 1.35;
+    margin-top: 5px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.lx-detail-sub {
+    font-size: 11.5px;
+    color: var(--lx-faint);
+    margin-top: 5px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.lx-detail-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--lx-line);
+    margin-bottom: 6px;
+}
+
+.lx-btn-play {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 33px;
+    padding: 0 16px;
+    border-radius: 999px;
+    font-size: 12.5px;
+}
+
+.lx-track-head-title {
+    font-size: 14.5px;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.lx-track-head-sub {
+    font-size: 11.5px;
+    color: var(--lx-faint);
+    margin-top: 3px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.lx-track {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 10px;
+    border-radius: 10px;
+    transition: background 0.12s ease;
+    cursor: default;
+}
+
+.lx-track:hover {
+    background: var(--lx-fill);
+}
+
+.lx-track-index {
+    flex: none;
+    width: 22px;
+    text-align: right;
+    font-size: 11.5px;
+    color: var(--lx-faint);
+    font-variant-numeric: tabular-nums;
+}
+
+.lx-track-main {
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.lx-track-name {
+    font-size: 13.5px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.lx-track-sub {
+    font-size: 11.5px;
+    color: var(--lx-faint);
+    margin-top: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.lx-badge {
+    flex: none;
+    padding: 1px 6px;
+    border-radius: 6px;
+    font-size: 10px;
+    line-height: 1.6;
+    color: var(--lx-soft);
+    background: var(--lx-fill2);
+    white-space: nowrap;
+}
+
+.lx-track-dur {
+    flex: none;
+    font-size: 11.5px;
+    color: var(--lx-faint);
+    font-variant-numeric: tabular-nums;
+}
+
+.lx-track-actions {
+    flex: none;
+    display: flex;
+    gap: 4px;
+}
+
+.lx-act {
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    color: var(--lx-soft);
+    transition: background 0.12s ease, color 0.12s ease;
+}
+
+.lx-act:hover {
+    background: var(--lx-fill2);
+    color: var(--lx-fg);
+}
+
+.lx-act[data-primary='true']:hover {
+    color: var(--lx-accent);
+}
+
+/* ------------------------------------------------------------ 榜单双栏 */
+
+.lx-chart-layout {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+    margin-top: 4px;
+}
+
+@media (min-width: 720px) {
+    .lx-chart-layout {
+        grid-template-columns: 196px minmax(0, 1fr);
+        gap: 18px;
+        align-items: start;
+    }
+}
+
+.lx-chart-rail {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+@media (max-width: 719px) {
+    .lx-chart-rail {
+        flex-direction: row;
+        overflow-x: auto;
+        gap: 6px;
+        padding-bottom: 2px;
+        scrollbar-width: none;
+    }
+
+    .lx-chart-rail::-webkit-scrollbar {
+        display: none;
+    }
+
+    .lx-chart-rail .lx-chip {
+        flex: none;
+    }
+}
+
+.lx-chart-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: 9px;
+    font-size: 13px;
+    color: var(--lx-soft);
+    text-align: left;
+    transition: background 0.12s ease, color 0.12s ease;
+}
+
+.lx-chart-item:hover {
+    background: var(--lx-fill);
+    color: var(--lx-fg);
+}
+
+.lx-chart-item[data-active='true'] {
+    background: var(--lx-fill2);
+    color: var(--lx-fg);
+    font-weight: 600;
+}
+
+.lx-chart-title {
+    font-size: 13px;
+    font-weight: 600;
+    margin: 2px 0 8px;
+}
+
+.lx-result-head {
+    font-size: 11.5px;
+    color: var(--lx-faint);
+    margin: 12px 2px 4px;
+}
+
+/* 说明性空态（比如「本地」这一页） */
+.lx-blank {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 9px;
+    padding: 52px 22px 24px;
+    text-align: center;
+    color: var(--lx-faint);
+}
+
+.lx-blank-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--lx-fg);
+}
+
+.lx-blank-text {
+    max-width: 290px;
+    font-size: 12px;
+    line-height: 1.8;
+}
+
+/* ------------------------------------------------------------ 提示 / 空态 */
+
+.lx-notice {
+    margin: 10px 0 0;
+    padding: 8px 12px;
+    border-radius: 10px;
+    font-size: 11.5px;
+    line-height: 1.5;
+    color: var(--lx-soft);
+    background: var(--lx-fill);
+    border: 1px solid var(--lx-line);
+}
+
+.lx-notice[data-kind='warn'] {
+    color: #f59e0b;
+    background: rgba(245, 158, 11, 0.1);
+    border-color: rgba(245, 158, 11, 0.24);
+}
+
+.lx-empty {
+    padding: 40px 12px;
+    text-align: center;
+    font-size: 12.5px;
+    color: var(--lx-faint);
+    line-height: 1.7;
+}
+
+.lx-more {
+    display: flex;
+    justify-content: center;
+    padding: 14px 0 4px;
+}
+
+/* 点了播放之后的一句回执：播放器在浮层底下，不给一句反馈会以为没反应。 */
+.lx-toast {
+    position: fixed;
+    left: 50%;
+    bottom: calc(22px + env(safe-area-inset-bottom, 0px));
+    transform: translateX(-50%);
+    z-index: 401;
+    max-width: calc(100vw - 48px);
+    padding: 8px 16px;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.74);
+    color: #fff;
+    font-size: 12.5px;
+    line-height: 1.5;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    pointer-events: none;
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    animation: lx-toast-in 0.18s ease-out;
+}
+
+@keyframes lx-toast-in {
+    from {
+        opacity: 0;
+        transform: translate(-50%, 6px);
+    }
+    to {
+        opacity: 1;
+        transform: translate(-50%, 0);
+    }
+}
+
+/* ------------------------------------------------------------ 滚动条
+
+   Windows / Chromium 下滚动条是那条粗灰条：竖向挨着右边缘，横向压在最底下，右下角还多一块
+   方块。洛雪这套界面里滚动的都是内容区，滚动条本身没有信息，所以一刀切掉——滚轮、触控板、
+   键盘的滚动照旧。 */
+.lx-root,
+.lx-root * {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.lx-root *::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
+}
+
+/* 音源面板也会单独挂进设置页（那里没有 .lx-root），所以把同样的规则按类名再写一遍。 */
+.lx-search-row,
+.lx-search-row *,
+.lx-notice,
+.lx-notice *,
+.lx-chips,
+.lx-chips *,
+.lx-track-list,
+.lx-track-list * {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.lx-search-row::-webkit-scrollbar,
+.lx-search-row::-webkit-scrollbar-thumb,
+.lx-notice::-webkit-scrollbar,
+.lx-chips::-webkit-scrollbar,
+.lx-track-list::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
+}
+
+/* ------------------------------------------------------------ 收藏列表 */
+
+/* 列表卡片没有封面图：用同一个封面位放一个图标，右下角仍是曲目数。 */
+.lx-cover-plain {
+    width: 100%;
+    border: none;
+    cursor: pointer;
+    color: var(--lx-soft);
+    background: linear-gradient(135deg, var(--lx-fill2), var(--lx-fill));
+}
+
+/* 「收进列表」的弹层：盖住工作台，点列表名直接收，或现场新建一个。 */
+.lx-save-layer {
+    position: absolute;
+    inset: 0;
+    z-index: 402;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(0, 0, 0, 0.45);
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+}
+
+.lx-save-card {
+    width: min(420px, 100%);
+    max-height: 72vh;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 16px;
+    border-radius: 18px;
+    background: var(--lx-sheet);
+    border: 1px solid var(--lx-line);
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+}
+
+.lx-save-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-weight: 600;
+    font-size: 14px;
+}
+
+.lx-save-card .lx-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}

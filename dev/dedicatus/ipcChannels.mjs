@@ -35,6 +35,7 @@ export const IPC_CHANNELS = {
     'discord-presence-get-status': { level: 'first-party', why: '现状：有来源校验' },
     'discord-presence-publish-snapshot': { level: 'first-party', why: '现状：有来源校验' },
     'fnmusic-api-request': { level: 'first-party', why: '现状：有来源校验' },
+    'lx-fetch': { level: 'first-party', why: '洛雪音源脚本跨域取数，只给第一方窗口（firstParty）' },
     'generate-theme': { level: 'first-party', why: '用用户的 AI 额度（firstParty）' },
     'get-audio-cache': { level: 'first-party', why: '读歌曲音频缓存，等于听歌记录（firstParty）' },
     'get-audio-cache-stats': { level: 'any', why: '只读音频缓存的总大小和条数' },
