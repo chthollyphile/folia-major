@@ -22,6 +22,10 @@ import { closeFoliumHomeTab, useFoliumHomeTabStore } from '../folium/registries/
 //   open, and nothing under them steps back.
 // - A page answers Escape only while the key reaches it, not from a text field. With no layer taking the key
 //   the page itself steps back through the App's navigation, the same actions its back button calls.
+//
+// The first key goes to the focus and not straight to the top window: a pick list of that window is drawn
+// outside it (a portal) and answers from where the focus is. What lies under a window leaves its keys alone
+// while the window is open (utils/keyboardTargets.ts hasBlockingWindow), so the focus being there is no harm.
 // - A mod's home page keeps every key pressed inside it for the mod. Those are not the host's to send: with
 //   the focus in such a page the step goes straight to the page, which closes.
 
