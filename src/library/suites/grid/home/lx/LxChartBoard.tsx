@@ -164,7 +164,6 @@ export const LxChartBoard = ({
                 emptyMessage={failed ? '榜单没取到，稍后再试。' : '这家暂时没有榜单目录'}
                 isDaylight={isDaylight}
                 hasFloatingPlayer={hasFloatingPlayer}
-                openOnAnyCardClick
             />
         </div>
     );

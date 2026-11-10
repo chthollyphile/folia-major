@@ -172,7 +172,10 @@ const toUnifiedSong = (item: LxApiSong): UnifiedSong => {
 
 /** UnifiedSong 的原生身份（平台 + 平台侧 id），用来跟本机收藏对账。 */
 const nativeKeyOfUnified = (song: UnifiedSong): string => {
-    const data = song.sourceRef?.providerData as Record<string, unknown> | undefined;
+    const ref = song.sourceRef;
+    const data = ref?.kind === 'online'
+        ? ref.providerData as Record<string, unknown> | undefined
+        : undefined;
     return `${String(data?.platform ?? '')}:${String(data?.nativeId ?? '')}`;
 };
 
