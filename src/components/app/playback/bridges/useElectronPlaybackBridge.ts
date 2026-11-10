@@ -458,7 +458,7 @@ export const useElectronPlaybackBridge = ({
             title: isNowPlayingStageActive ? externalTrackTitle : model.hasTrack ? model.title : null,
             artist: isNowPlayingStageActive ? externalTrackArtist : model.hasTrack ? model.artist : null,
             loopMode: model.loopMode,
-            canCycleLoop: model.hasTrack && !isNowPlayingStageActive && !model.isFmMode,
+            canCycleLoop: model.hasTrack && !model.isFmMode,
         }).catch((error) => {
             console.warn('[Electron] Failed to update playback controls', error);
         });

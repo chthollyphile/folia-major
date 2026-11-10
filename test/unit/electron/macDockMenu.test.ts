@@ -38,6 +38,7 @@ const {
         isSupported: boolean;
         getMainWindow: () => unknown;
         getLocale: () => Record<string, string>;
+        sendTransport: (action: string) => void;
     }) => {
         refresh: () => void;
         setState: (state: unknown) => void;
@@ -48,7 +49,7 @@ const {
 
 const locale = {
     dockNotPlaying: 'Not Playing',
-    dockRepeat: 'Repeat',
+    dockRepeat: 'Repeat: {mode}',
     dockRepeatOff: 'Off',
     dockRepeatAll: 'All',
     dockRepeatOne: 'One',
@@ -96,6 +97,7 @@ const makeDock = ({ isSupported = true, ready = true } = {}) => {
         isSupported,
         getMainWindow: () => mainWindow,
         getLocale: () => locale,
+        sendTransport: (action: string) => mainWindow?.webContents.send('thumbar-action', action),
     });
     return {
         dock,
@@ -119,6 +121,8 @@ describe('macDockMenu', () => {
         expect(state.hasActiveTrack).toBe(true);
         expect(state.title).toBe('A B');
         expect(state.artist).toHaveLength(100);
+        // Cut by character, so an emoji at the limit is kept whole or dropped, never halved.
+        expect(normalizeDockPlaybackState({ title: `${'a'.repeat(99)}🎵🎵` }).title).toBe(`${'a'.repeat(99)}🎵`);
         expect(state.loopMode).toBe('off');
         expect(normalizeDockPlaybackState(null)).toMatchObject({ title: '', loopMode: 'off', isPlaying: false });
     });
@@ -203,7 +207,7 @@ describe('macDockMenu', () => {
         expect(early.app.dock.setMenu).not.toHaveBeenCalled();
     });
 
-    it('forgets the main page when it navigates or crashes, but not for an iframe or another window', () => {
+    it('forgets the main page once a new document commits or it crashes, not for a blocked navigation or another window', () => {
         const { dock, menus, getWindow } = makeDock();
         const win = getWindow()!;
         const other = makeWindow();
@@ -211,12 +215,14 @@ describe('macDockMenu', () => {
         dock.attach(other);
         dock.setState(playing);
 
-        win.webContents.emit('did-start-navigation', { isMainFrame: false, isSameDocument: false });
-        win.webContents.emit('did-start-navigation', { isMainFrame: true, isSameDocument: true });
+        // A navigation will-navigate then blocks (a file dropped on the window) only ever starts.
+        win.webContents.emit('did-start-navigation', { isMainFrame: true, isSameDocument: false });
+        win.webContents.emit('did-navigate-in-page', {}, 'http://localhost:3000/#x', true);
         other.webContents.emit('render-process-gone', {}, {});
+        other.webContents.emit('did-navigate', {}, 'http://localhost:3000/');
         expect(menus.at(-1)![0].label).toBe('Song — Singer');
 
-        win.webContents.emit('did-start-navigation', { isMainFrame: true, isSameDocument: false });
+        win.webContents.emit('did-navigate', {}, 'http://localhost:3000/');
         expect(menus.at(-1)![0].label).toBe('Not Playing');
 
         dock.setState(playing);

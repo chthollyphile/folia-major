@@ -2244,8 +2244,8 @@ const APP_LOCALE_KEY = 'APP_LOCALE';
 const mainLocale = {
   'zh-CN': {
     dockNotPlaying: '未播放',
-    dockRepeat: '循环模式',
-    dockRepeatOff: '顺序播放',
+    dockRepeat: '循环模式：{mode}',
+    dockRepeatOff: '关闭循环',
     dockRepeatAll: '列表循环',
     dockRepeatOne: '单曲循环',
     dockPrevious: '上一首',
@@ -2279,8 +2279,8 @@ const mainLocale = {
   },
   'zh-TW': {
     dockNotPlaying: '未播放',
-    dockRepeat: '迴圈模式',
-    dockRepeatOff: '順序播放',
+    dockRepeat: '迴圈模式：{mode}',
+    dockRepeatOff: '關閉迴圈',
     dockRepeatAll: '清單迴圈',
     dockRepeatOne: '單曲迴圈',
     dockPrevious: '上一首',
@@ -2314,7 +2314,7 @@ const mainLocale = {
   },
   en: {
     dockNotPlaying: 'Not Playing',
-    dockRepeat: 'Repeat',
+    dockRepeat: 'Repeat: {mode}',
     dockRepeatOff: 'Off',
     dockRepeatAll: 'All',
     dockRepeatOne: 'One',
@@ -2349,7 +2349,7 @@ const mainLocale = {
   },
   in: {
     dockNotPlaying: 'Tidak diputar',
-    dockRepeat: 'Ulangi',
+    dockRepeat: 'Ulangi: {mode}',
     dockRepeatOff: 'Nonaktif',
     dockRepeatAll: 'Semua',
     dockRepeatOne: 'Satu',
@@ -2384,7 +2384,7 @@ const mainLocale = {
   },
   vi: {
     dockNotPlaying: 'Không phát',
-    dockRepeat: 'Lặp lại',
+    dockRepeat: 'Lặp lại: {mode}',
     dockRepeatOff: 'Tắt',
     dockRepeatAll: 'Tất cả',
     dockRepeatOne: 'Một bài',
@@ -2623,6 +2623,7 @@ const macDockMenu = createMacDockMenu({
   isSupported: process.platform === 'darwin',
   getMainWindow: () => mainWindow,
   getLocale: () => getMainLocale(),
+  sendTransport: (action) => sendThumbarAction(action),
 });
 let remoteControlWindow = null;
 let appTray = null;

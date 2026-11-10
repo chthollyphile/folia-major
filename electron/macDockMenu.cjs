@@ -3,8 +3,8 @@
 // electron/macDockMenu.cjs
 // The macOS Dock icon's menu: the current track, previous / play-pause / next and the repeat mode.
 // It reads the same playback state the renderer reports for the Windows taskbar buttons
-// (`thumbar-update-buttons`) and sends the same commands back (`thumbar-action`, and the remote
-// window's `cycle-loop-mode`), so there is one playback route for every platform's controls.
+// (`thumbar-update-buttons`) and sends the same commands back (`thumbar-action` through main's
+// `sendThumbarAction`, and the remote window's `cycle-loop-mode`), so there is one playback route for every platform's controls.
 
 const LOOP_MODES = ['off', 'all', 'one'];
 const TEXT_LIMIT = 100;
@@ -26,7 +26,7 @@ function createEmptyDockPlaybackState() {
 const cleanText = (value) => (
     typeof value === 'string'
     // Control characters would break the menu line; the cap keeps a long title from widening it.
-        ? value.replace(/[\x00-\x1f\x7f]/g, ' ').trim().slice(0, TEXT_LIMIT)
+        ? Array.from(value.replace(/[\x00-\x1f\x7f]/g, ' ').trim()).slice(0, TEXT_LIMIT).join('')
         : ''
 );
 
@@ -65,7 +65,7 @@ function buildDockPlaybackMenuTemplate({ state, locale, windowAvailable, onTrans
         { label: state.isPlaying ? locale.dockPause : locale.dockPlay, enabled: available, click: () => onTransport('play-pause') },
         { label: locale.dockNext, enabled: available && state.canGoNext, click: () => onTransport('next') },
         { type: 'separator' },
-        { label: `${locale.dockRepeat}: ${repeatLabel}`, enabled: available && state.canCycleLoop, click: () => onCycleLoop() },
+        { label: locale.dockRepeat.replace('{mode}', repeatLabel), enabled: available && state.canCycleLoop, click: () => onCycleLoop() },
     ];
 }
 
@@ -75,9 +75,10 @@ const templateSignature = (template) => JSON.stringify(template.map(({ type, lab
 /**
  * The Dock menu's owner. `isSupported` is false off macOS, where every call does nothing and
  * `app.dock` is never touched. `getMainWindow()` returns the current main window (or null),
- * `getLocale()` the main-process text table.
+ * `getLocale()` the main-process text table, `sendTransport(action)` the taskbar buttons' route
+ * (main's `sendThumbarAction`).
  */
-function createMacDockMenu({ app, Menu, isSupported, getMainWindow, getLocale }) {
+function createMacDockMenu({ app, Menu, isSupported, getMainWindow, getLocale, sendTransport }) {
     let state = createEmptyDockPlaybackState();
     let shownSignature = null;
 
@@ -94,7 +95,7 @@ function createMacDockMenu({ app, Menu, isSupported, getMainWindow, getLocale })
             state,
             locale: getLocale(),
             windowAvailable: Boolean(liveWindow()),
-            onTransport: (action) => liveWindow()?.webContents.send('thumbar-action', action),
+            onTransport: sendTransport,
             onCycleLoop: () => liveWindow()?.webContents.send('remote-control-command', { type: 'cycle-loop-mode' }),
         });
         const signature = templateSignature(template);
@@ -140,11 +141,9 @@ function createMacDockMenu({ app, Menu, isSupported, getMainWindow, getLocale })
                 reset();
             }
         };
-        win.webContents.on('did-start-navigation', (details) => {
-            if (details && details.isMainFrame && !details.isSameDocument) {
-                resetIfMain();
-            }
-        });
+        // did-navigate: the main frame committed a new document. Not did-start-navigation: a navigation
+        // that will-navigate then blocks (a file dropped on the window) would clear a page that stays.
+        win.webContents.on('did-navigate', resetIfMain);
         win.webContents.on('render-process-gone', resetIfMain);
     };
 
