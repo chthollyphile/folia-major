@@ -58,6 +58,15 @@ const BANDS: ExternalSpectrumBands = { ...emptySpectrumBandLevels(), spectrum: n
 const bridge = () => (typeof window === 'undefined' ? undefined : window.electron);
 
 /**
+ * The machine's sound is taken through the display-media picker, which a window may not have at all:
+ * a policy can take it away and an older runtime never had it, though the DOM type calls it always
+ * there. Read as the thing it is at runtime rather than trusted.
+ */
+const displayMediaDevices = (): MediaDevices | undefined => (
+    typeof navigator === 'undefined' ? undefined : (navigator as Navigator & { mediaDevices?: MediaDevices }).mediaDevices
+);
+
+/**
  * Whether this build can capture the machine's sound at all. Off Windows there is no loopback in
  * Streams; in the browser there is no main process to arm, and its own picker would ask the listener
  * to share a screen for nothing.
@@ -66,8 +75,7 @@ const canCapture = (): boolean => {
     const api = bridge();
     return api?.platform === 'win32'
         && typeof api.armExternalSpectrumCapture === 'function'
-        && typeof navigator !== 'undefined'
-        && typeof navigator.mediaDevices.getDisplayMedia === 'function';
+        && typeof displayMediaDevices()?.getDisplayMedia === 'function';
 };
 
 const stopTracks = (target: MediaStream | null) => {
@@ -183,7 +191,9 @@ export const startExternalSpectrumCapture = async (): Promise<void> => {
 
     if (armFailed === null) {
         try {
-            granted = await navigator.mediaDevices.getDisplayMedia({
+            const devices = displayMediaDevices();
+            if (!devices) throw new Error('this window has no display media to take the machine\'s sound with');
+            granted = await devices.getDisplayMedia({
                 // A picture is required by getDisplayMedia and never wanted here: the smallest, slowest
                 // one the handler can hand over. No frame is ever read from that track.
                 video: { frameRate: { max: 1 }, width: { max: 16 }, height: { max: 16 } },
@@ -287,14 +297,19 @@ export const startExternalSpectrumCapture = async (): Promise<void> => {
  */
 export const readCapturedExternalSpectrum = (): ExternalSpectrumBands | null => {
     const node = analyser;
-    const data = analyserBins;
-    if (state !== 'running' || !node || !data) {
+    if (state !== 'running' || !node) {
         noteCaptured(false);
         return null;
     }
 
-    // Deliberately no exception guard: without it the attempt is dead and the simulated bands are
-    // what the listener sees, which is the right answer for a capture that broke mid-song.
+    // The bin array has to be the length this analyser answers now: one made before a buffer size it
+    // has since changed is a wrong length, and reading into it throws instead of filling what it can.
+    // Remade rather than guarded, so the frame after a change draws real bands again.
+    if (!analyserBins || analyserBins.length !== node.frequencyBinCount) {
+        analyserBins = new Uint8Array(node.frequencyBinCount);
+    }
+    const data = analyserBins;
+
     node.getByteFrequencyData(data);
 
     let loudest = 0;

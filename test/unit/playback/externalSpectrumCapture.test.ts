@@ -31,6 +31,10 @@ const makeAnalyser = (data: Uint8Array) => {
             return analyser.fftSize / 2;
         },
         getByteFrequencyData: vi.fn((target: Uint8Array) => {
+            // A real analyser throws on a buffer of the wrong length rather than filling what it can.
+            if (target.length !== analyser.frequencyBinCount) {
+                throw new Error(`IndexSizeError: the array is ${target.length} long, ${analyser.frequencyBinCount} was asked`);
+            }
             target.set(data.subarray(0, Math.min(data.length, target.length)));
         }),
         connect: vi.fn(),
@@ -534,5 +538,41 @@ describe('externalSpectrumCapture', () => {
 
         expect(harness.getDisplayMedia).not.toHaveBeenCalled();
         expect(capture.readCapturedExternalSpectrum()).toBeNull();
+    });
+
+    // 一个没有 mediaDevices 的运行环境（旧内核、被策略挡掉的窗口）不该让这一句抛错：能采就采，
+    // 不能就当作不能采。
+    it('reads a missing mediaDevices as no capture rather than failing', async () => {
+        const harness = install();
+        Reflect.deleteProperty(navigator, 'mediaDevices');
+        const capture = await importCapture();
+
+        await expect(capture.startExternalSpectrumCapture()).resolves.toBeUndefined();
+        expect(harness.getDisplayMedia).not.toHaveBeenCalled();
+        expect(capture.readCapturedExternalSpectrum()).toBeNull();
+    });
+
+    // 采集中途换了 buffer 大小（页面重配、音频设备换了），按旧长度读会抛错：重建那一段再读，
+    // 一句话都不用改注释去解释「故意不加守卫」。
+    it('rebuilds the bin array when the analyser now answers another number of bins', async () => {
+        const harness = install();
+        for (let index = 0; index < 600; index += 1) harness.data[index] = 180;
+        const capture = await importCapture();
+        await capture.startExternalSpectrumCapture();
+
+        // 播放中 buffer 变大：真实的分析器在这个长度不匹配的数组上会抛错。
+        const larger = new Uint8Array(harness.data.length * 2);
+        larger.set(harness.data);
+        harness.data = larger;
+        harness.analyser.fftSize = 4096;
+
+        const bands = capture.readCapturedExternalSpectrum();
+        expect(bands).not.toBeNull();
+        expect(bands!.spectrum).toHaveLength(128);
+        expect(bands!.spectrum.some(value => value > 0)).toBe(true);
+        // 那一段按新的长度重建过，之后的帧照常读。
+        expect(capture.readCapturedExternalSpectrum()).toBe(bands);
+
+        capture.stopExternalSpectrumCapture();
     });
 });
