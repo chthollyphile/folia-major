@@ -3,7 +3,7 @@ import { compressConfig, decompressConfig } from '../../../src/utils/appearanceC
 
 // test/unit/scenes/sceneSettings.test.ts
 // The scene settings: what is kept of stored or imported values, what is stored and read back after a
-// restart, and the scene fields' trip through a config code.
+// restart. The scene settings stay out of the config code (OBS shows no scene).
 
 const memoryStorage = () => {
     const items = new Map<string, string>();
@@ -49,34 +49,17 @@ describe('scene settings', () => {
         first.useSceneSettingsStore.getState().setSceneId('cinema');
 
         const second = await loadStore();
-        expect(second.readSceneConfig()).toEqual({ sceneId: 'cinema', sceneOptions: { cinema: { viewpoint: 'R2-3', quality: 'high' } } });
+        const { sceneId, sceneOptions } = second.useSceneSettingsStore.getState();
+        expect({ sceneId, sceneOptions }).toEqual({ sceneId: 'cinema', sceneOptions: { cinema: { viewpoint: 'R2-3', quality: 'high' } } });
 
         second.useSceneSettingsStore.getState().setSceneId(null);
         expect(localStorage.getItem(second.SCENE_ID_KEY)).toBeNull();
     });
 
-    it('takes an imported config, sanitized, and leaves out what it does not carry', async () => {
-        const { useSceneSettingsStore, readSceneConfig } = await loadStore();
-        useSceneSettingsStore.getState().importSceneConfig({ sceneOptions: { cinema: { viewpoint: 'R1-1', junk: 1 } as never } });
-        expect(readSceneConfig()).toEqual({ sceneId: null, sceneOptions: { cinema: { viewpoint: 'R1-1' } } });
-        useSceneSettingsStore.getState().importSceneConfig({ sceneId: 'pkg:rooftop' });
-        expect(readSceneConfig().sceneId).toBe('pkg:rooftop');
-    });
-
-    it('merges imported options by scene id, keeping the scenes the import does not carry', async () => {
-        const { useSceneSettingsStore, readSceneConfig, mergeImportedSceneOptions } = await loadStore();
-        useSceneSettingsStore.getState().setSceneOptions('cinema', { quality: 'high' });
-        useSceneSettingsStore.getState().setSceneOptions('pkg:rooftop', { viewpoint: 'S1' });
-        useSceneSettingsStore.getState().importSceneConfig({ sceneOptions: { cinema: { viewpoint: 'R3-4' } } });
-        expect(readSceneConfig().sceneOptions).toEqual({ cinema: { viewpoint: 'R3-4' }, 'pkg:rooftop': { viewpoint: 'S1' } });
-        // What the plan diffs is what the apply leaves: junk gone, other scenes kept.
-        expect(mergeImportedSceneOptions(readSceneConfig().sceneOptions, { cinema: { viewpoint: 'R3-4', junk: 1 }, 'bad id': {} } as never))
-            .toEqual(readSceneConfig().sceneOptions);
-    });
-
-    it('carries the scene fields through a config code', () => {
+    it('leaves the scene fields out of a config code', () => {
         const config = { sceneId: 'cinema', sceneOptions: { cinema: { viewpoint: 'R3-4', quality: 'medium' } } };
-        expect(decompressConfig(compressConfig(config))).toMatchObject(config);
-        expect(decompressConfig(JSON.stringify(config))).toMatchObject(config);
+        const decoded = decompressConfig(compressConfig(config)) as Record<string, unknown>;
+        expect(decoded.sceneId).toBeUndefined();
+        expect(decoded.sceneOptions).toBeUndefined();
     });
 });

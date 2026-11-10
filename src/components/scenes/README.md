@@ -24,7 +24,7 @@ src/components/scenes/
     threeStage.ts      透明画布、尺寸、分辨率倍数、project / projectQuad
     camera.ts          viewpointRig、pathRig、phaseDirector、chooseDirectorShot
   settings/
-    useSceneSettingsStore.ts  选了哪个场景、每个场景的画质 / 视点 / 设置值（键 scene_id、scene_options）
+    useSceneSettingsStore.ts  选了哪个场景、每个场景的画质 / 视点 / 设置值（键 scene_id、scene_options）；不进外观配置码（OBS 不挂场景）
     useSoundTracingStore.ts   声线追踪开关和耳机/音箱，所有场景共用（键 scene_room_sound、scene_room_output，沿用旧名）
     SceneRow.tsx              播放面板外观区的「场景」一行，「场景设置」小浮层是 SceneSettingsPanel.tsx
     SceneWindow.tsx           设置「外观」页「场景」一行打开的窗口，照歌词样式工作台：场景卡、「场景设置」「声线追踪」两个标签
@@ -35,7 +35,7 @@ src/services/sceneSound/  房间声：acousticsTypes.ts（和声学进程的约�
                           roomIr.ts（响度补偿、缓存键）、roomStage.ts（播放链里的两路卷积）、sceneSound.ts（ctx.sound）
 ```
 
-接入点（删掉 `scenes/` 和这几处，功能就删干净了）：`src/App.tsx` 挂 `SceneHost`；`src/components/panelTab/controls/AppearanceSection.tsx` 的场景一行和过滤；设置 `AppearancePage.tsx` 的「场景」一行，`SettingsModal.tsx` 里打开 `SceneWindow` 的几行（子视图 `scene`）；`src/components/command-palette/commands/sceneCommands.ts` 和 `index.ts` 里的一行；`visualConfigTransfer.ts`、`appearanceCodec.ts`、`appearanceImportPlan.ts` 的场景字段；`usePlaybackQueueController.ts` 的 `announceQueueEnd()`；`src/services/sceneSound/` 和 `usePlaybackAudioBridge.ts` 里的 `registerRoomSlot` 一行；三份语言文件的 `ui.scene*`、`ui.soundTracing*` 和 `commandPalette.commands.scene-*`。
+接入点（删掉 `scenes/` 和这几处，功能就删干净了）：`src/App.tsx` 挂 `SceneHost`；`src/components/panelTab/controls/AppearanceSection.tsx` 的场景一行和过滤；设置 `AppearancePage.tsx` 的「场景」一行，`SettingsModal.tsx` 里打开 `SceneWindow` 的几行（子视图 `scene`）；`src/components/command-palette/commands/sceneCommands.ts` 和 `index.ts` 里的一行；`usePlaybackQueueController.ts` 的 `announceQueueEnd()`；`src/services/sceneSound/` 和 `usePlaybackAudioBridge.ts` 里的 `registerRoomSlot` 一行；三份语言文件的 `ui.scene*`、`ui.soundTracing*` 和 `commandPalette.commands.scene-*`。
 
 ## 约定（定了就不改）
 
@@ -83,7 +83,7 @@ src/services/sceneSound/  房间声：acousticsTypes.ts（和声学进程的约�
 5. 文案：三份语言文件（`en.ts`、`zh-CN.ts`、`in.ts`）的 `commandPalette.commands` 加 `scene-rooftop` 的 `title`、`description`（切换命令按名单自动生成，缺了 `commandRegistryContract.test.ts` 会失败），再更新那个测试的命令顺序快照（确认只多了 `scene-rooftop`）。场景的名字写在清单的 `name` 里，不进语言文件。
 6. 只有场景里有用户看不见的逻辑才写单元测试，放 `test/unit/scenes/`。
 
-不用改的：发现、选择器、命令、导入导出、出错时的退路、借来的歌词样式和背景怎么贴，都由名单和宿主处理。
+不用改的：发现、选择器、命令、出错时的退路、借来的歌词样式和背景怎么贴，都由名单和宿主处理。
 
 ## 借用户的歌词样式和背景
 

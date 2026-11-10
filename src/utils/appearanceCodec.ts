@@ -540,8 +540,6 @@ export const compressConfig = (config: any): string => {
     if (config.randomVisualizerModePerSong !== undefined) minified.rvms = config.randomVisualizerModePerSong;
     if (config.randomVisualizerModes !== undefined) minified.rvm = normalizeRandomVisualizerModes(config.randomVisualizerModes);
     if (config.visualizerBackgroundMode) minified.vbm = config.visualizerBackgroundMode;
-    if (config.sceneId !== undefined) minified.sc = config.sceneId;
-    if (config.sceneOptions !== undefined) minified.sco = config.sceneOptions;
     if (config.backgroundOpacity !== undefined) minified.bo = config.backgroundOpacity;
     if (config.useCoverColorBg !== undefined) minified.ccb = config.useCoverColorBg;
     if (config.disableVisualizerGeometricBackground !== undefined) minified.dvgb = config.disableVisualizerGeometricBackground;
@@ -647,8 +645,6 @@ export const decompressConfig = (str: string): any => {
         || parsed.t !== undefined
         || parsed.vm !== undefined
         || parsed.rvms !== undefined
-        || parsed.sc !== undefined
-        || parsed.sco !== undefined
         || parsed.rvm !== undefined
         || parsed.ccb !== undefined
         || parsed.dvgb !== undefined
@@ -705,8 +701,6 @@ export const decompressConfig = (str: string): any => {
         if (parsed.rvms !== undefined) decompressed.randomVisualizerModePerSong = parsed.rvms;
         if (parsed.rvm !== undefined) decompressed.randomVisualizerModes = normalizeRandomVisualizerModes(parsed.rvm);
         if (parsed.vbm) decompressed.visualizerBackgroundMode = parsed.vbm;
-        if (parsed.sc !== undefined) decompressed.sceneId = parsed.sc;
-        if (parsed.sco !== undefined) decompressed.sceneOptions = parsed.sco;
         if (parsed.bo !== undefined) decompressed.backgroundOpacity = parsed.bo;
         if (parsed.ccb !== undefined) decompressed.useCoverColorBg = parsed.ccb;
         if (parsed.dvgb !== undefined) decompressed.disableVisualizerGeometricBackground = parsed.dvgb;
@@ -802,7 +796,6 @@ export const decompressConfig = (str: string): any => {
             'libraryWallStackEdges',
             'libraryWallSeamClear', 'libraryWallSeamStyle', 'libraryWallBackdropLyrics', 'libraryWallBackdropBlur',
             'libraryWallSeamDirection',
-            'sceneId', 'sceneOptions',
             'latticeBadgeCurrentOnly',
             'playerHeaderBlur',
             'scratchpadHandleStyle',
