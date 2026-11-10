@@ -274,7 +274,7 @@ contextBridge.exposeInMainWorld('electron', {
     },
     setExternalMediaKeys: (enabled) => ipcRenderer.invoke('external-media-keys-set', enabled),
     // No argument reads whether the listener already agreed; true records the agreement.
-    spotifyClientRestartConsent: (grant) => ipcRenderer.invoke('spotify-client-restart-consent', grant),
+    externalPlayerRestartConsent: (grant) => ipcRenderer.invoke('external-player-restart-consent', grant),
     onExternalMediaKey: (callback) => {
         const listener = (_event, action) => callback(action);
         ipcRenderer.on('external-media-key', listener);

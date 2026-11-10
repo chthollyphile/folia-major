@@ -4,7 +4,7 @@ const { createSpotifyAudioFiles } = require('./audioFiles.cjs');
 const { SpotifyError, describeError, lineReason, plainWords, spotifyError, statusError, toErrorResult } = require('./errors.cjs');
 const { createSpotifySessionRepository, publicAccountId } = require('./session.cjs');
 const { createSpotifyOfficialClient } = require('./officialClient.cjs');
-const { read: restartConsented } = require('./restartConsent.cjs');
+const { read: restartConsented } = require('../restartConsent.cjs');
 const { createSpotifySignIn } = require('./signIn.cjs');
 const { createSoloist } = require('./soloist.cjs');
 

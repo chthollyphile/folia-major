@@ -24,7 +24,7 @@ const {
   createSpectrumArm,
   decideDisplayMediaRoute,
 } = require('./displayMediaRoute.cjs');
-const { SETTING_KEY: RESTART_CONSENT_SETTING_KEY, registerRestartConsentIpc } = require('./spotify/restartConsent.cjs');
+const { SETTING_KEY: RESTART_CONSENT_SETTING_KEY, registerRestartConsentIpc } = require('./restartConsent.cjs');
 const {
   GPU_PREFERENCE_SETTING_KEY,
   applyGpuPreference,
