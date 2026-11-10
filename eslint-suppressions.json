@@ -11206,16 +11206,16 @@
       "count": 2
     },
     "@typescript-eslint/no-explicit-any": {
-      "count": 80
+      "count": 76
     },
     "@typescript-eslint/no-unsafe-argument": {
       "count": 4
     },
     "@typescript-eslint/no-unsafe-assignment": {
-      "count": 483
+      "count": 473
     },
     "@typescript-eslint/no-unsafe-member-access": {
-      "count": 999
+      "count": 988
     },
     "dedicatus/restricted-apis": {
       "count": 1
