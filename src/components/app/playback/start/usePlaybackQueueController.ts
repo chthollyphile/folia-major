@@ -1357,6 +1357,20 @@ export function usePlaybackQueueController({
         }
 
         const shouldNavigateToPlayer = options?.shouldNavigateToPlayer ?? shouldNavigateToPlayerOnTrackChange;
+        // Repeat one where the player itself reported the end of the song (see NextTrackOptions):
+        // the song is heard again from its start, and the queue stays where it is. A song that never
+        // became current has nothing to start over, and steps on as it otherwise would.
+        const replaySong = options?.replayCurrent === true ? currentSong : null;
+        if (replaySong) {
+            const heldForReplay = options?.fromSong ? null : getDisplaySong?.() ?? null;
+            if (heldForReplay) endHeldTransition?.();
+            void playSong(heldForReplay ?? replaySong, playQueue, isFmMode, {
+                shouldNavigateToPlayer,
+                autoAdvance: options?.autoAdvance,
+                startAtSec: 0,
+            });
+            return;
+        }
         // Which track to step from. During a blend the queue has already advanced, so `currentSong`
         // is the one ARRIVING while the listener is still hearing - and pressing next about - the
         // one that is finishing. Stepping from the internal one is off by a song: "next" jumps over

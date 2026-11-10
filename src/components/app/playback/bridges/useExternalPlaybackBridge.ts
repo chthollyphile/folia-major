@@ -4,6 +4,7 @@ import type { NextTrackOptions } from '../../../../types/appPlayback';
 import { installExternalPlayback, subscribeExternalPlayback } from '../../../../services/onlineMusic/externalPlayback';
 import { stopExternalSpectrumCapture, syncExternalSpectrumForRoute } from '../externalSpectrumCapture';
 import { omni } from '../../../../services/onlineMusic/omni';
+import { useAudioSettingsStore } from '../../../../stores/useAudioSettingsStore';
 import { useDesktopSettingsStore } from '../../../../stores/useDesktopSettingsStore';
 import { runExternalPlayerWarmUp } from '../externalPlayerWake';
 import { onlineFailureOf } from '../../../../services/onlineMusic/failure/onlineFailureCase';
@@ -78,6 +79,15 @@ export function useExternalPlaybackBridge({ handleNextTrack, handlePrevTrack }: 
                     // Stepped on by its own controls: Folia's next song, and the queue's end stops it.
                     // A listener's press, so unlike an advance of its own it may start the player.
                     void latestRef.current.handleNextTrack({ allowStopOnMissing: true, shouldNavigateToPlayer: false });
+                    return;
+                }
+                // Repeat one: the song that ended is the one to hear again, from its start. The
+                // player is left to its own end (or to the song Folia wrote for it that it could not
+                // give up), and the queue does not step on.
+                if (useAudioSettingsStore.getState().loopMode === 'one' && !usePlaybackStore.getState().isFmMode) {
+                    void latestRef.current.handleNextTrack({
+                        allowStopOnMissing: true, shouldNavigateToPlayer: false, autoAdvance: true, replayCurrent: true,
+                    });
                     return;
                 }
                 // As <audio>'s ended handler does: nothing after this when the queue is over. The
