@@ -643,7 +643,7 @@ export function usePlaybackQueueController({
         const isPreparedExternal = isExternal && isExternalRoute() && omni.isExternalPlaybackPrepared(song);
         let loadingMessage: StatusMessage | null = null;
         if (options.manualQueueStep && !options.isAutomixAdvance) {
-            loadingMessage = beginStatusLoading(t('status.loadingSong'));
+            loadingMessage = beginStatusLoading(t(isExternal && !isPreparedExternal ? 'status.preparingExternalPlayback' : 'status.loadingSong'), isLatestPlaybackRequest);
         }
         // Another song is starting: the external player must not keep sounding while this one loads.
         if (!isExternal && isExternalRoute()) yieldExternalPlayback('another song started');
@@ -774,7 +774,7 @@ export function usePlaybackQueueController({
         const presentTakenDown = async (shown: OnlineFailure) => {
             setIsLyricsLoading(false);
             // A manual step's loader, still waiting or shown, goes on for the lookup.
-            loadingMessage ??= beginStatusLoading(t('status.loadingSong'));
+            loadingMessage ??= beginStatusLoading(t('status.loadingSong'), isLatestPlaybackRequest);
             let replacement: Awaited<ReturnType<typeof omni.getSongReplacement>> = null;
             let lookupFailure: OnlineFailure | null = null;
             try {
@@ -794,6 +794,7 @@ export function usePlaybackQueueController({
                 // The other version, if the listener takes it, is a play of its own: this one ends here,
                 // and the dialog closed leaves the song before it playing.
                 isLatestPlaybackRequest.abandon();
+                cancelStatusLoading(loadingMessage);
                 setStatusMsg(null);
                 setPendingUnavailableReplacement({
                     originalSong: song,
@@ -920,9 +921,9 @@ export function usePlaybackQueueController({
         }
 
         if (!loadingMessage && isExternal && !isPreparedExternal) {
-            loadingMessage = beginStatusLoading(t('status.preparingExternalPlayback'));
+            loadingMessage = beginStatusLoading(t('status.preparingExternalPlayback'), isLatestPlaybackRequest);
         } else if (!loadingMessage && !isExternal && !hasImmediatePrefetchedAudio && !hasCachedAudioBlob) {
-            loadingMessage = beginStatusLoading(t('status.loadingSong'));
+            loadingMessage = beginStatusLoading(t('status.loadingSong'), isLatestPlaybackRequest);
         }
 
         try {
@@ -941,6 +942,8 @@ export function usePlaybackQueueController({
                         isCurrent: isLatestPlaybackRequest,
                         onRetrying: shown => {
                             if (isLatestPlaybackRequest()) {
+                                // A play that began without a loader (its audio looked ready) still tells of the retry.
+                                loadingMessage ??= beginStatusLoading(t('status.loadingSong'), isLatestPlaybackRequest);
                                 reviseStatusLoading(loadingMessage, { text: t('status.songRetrying'), ...(shown.providerId ? { providerId: shown.providerId } : {}) });
                             }
                         },
@@ -1098,7 +1101,7 @@ export function usePlaybackQueueController({
                 onAutoMatchStart: () => {
                     // A preview clip plays as it comes and is told of as it starts (previewNotice.ts),
                     // which is when this search starts too: its notice would take the preview's place.
-                    if (!isExternal && !audioResult?.preview) loadingMessage = beginStatusLoading(t('status.matchingBestLyrics'));
+                    if (!isExternal && !audioResult?.preview) loadingMessage = beginStatusLoading(t('status.matchingBestLyrics'), isLatestPlaybackRequest);
                 },
                 onDone: () => {
                     setIsLyricsLoading(false);

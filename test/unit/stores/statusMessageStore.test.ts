@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { STATUS_LOADING_DELAY_MS, withStatusLoadingResult, beginStatusLoading, cancelStatusLoading, completeStatusLoading, failStatusLoading, reviseStatusLoading, holdStatusMessage, runStatusMessageTime, setStatusMessage, useStatusMessageStore } from '@/stores/useStatusMessageStore';
+import { STATUS_LOADING_DELAY_MS, dropWaitingStatusLoaders, withStatusLoadingResult, beginStatusLoading, cancelStatusLoading, completeStatusLoading, failStatusLoading, reviseStatusLoading, holdStatusMessage, runStatusMessageTime, setStatusMessage, useStatusMessageStore } from '@/stores/useStatusMessageStore';
 
 // test/unit/stores/statusMessageStore.test.ts
 // Guards the two properties the toast channel's callers depend on: the updater form still sees
@@ -10,6 +10,7 @@ import { STATUS_LOADING_DELAY_MS, withStatusLoadingResult, beginStatusLoading, c
 describe('status message store', () => {
     beforeEach(() => {
         useStatusMessageStore.setState({ message: null, held: false });
+        dropWaitingStatusLoaders();
     });
 
     describe('owned loaders', () => {
@@ -34,12 +35,21 @@ describe('status message store', () => {
             expect(useStatusMessageStore.getState().message).toBeNull();
         });
 
-        it('still tells a failure that came before the delay', () => {
+        it('ends silently on a failure that came before the delay', () => {
             const loading = beginStatusLoading('loading');
             failStatusLoading(loading, 'failed');
-            expect(useStatusMessageStore.getState().message).toMatchObject({ type: 'error', text: 'failed' });
             vi.advanceTimersByTime(STATUS_LOADING_DELAY_MS);
-            expect(useStatusMessageStore.getState().message?.text).toBe('failed');
+            expect(useStatusMessageStore.getState().message).toBeNull();
+        });
+
+        it('lets a new play drop an older loader still waiting', () => {
+            const older = beginStatusLoading('older');
+            dropWaitingStatusLoaders();
+            const newer = beginStatusLoading('newer');
+            vi.advanceTimersByTime(STATUS_LOADING_DELAY_MS);
+            expect(useStatusMessageStore.getState().message).toMatchObject({ activityId: newer.activityId });
+            cancelStatusLoading(older);
+            expect(useStatusMessageStore.getState().message).toMatchObject({ activityId: newer.activityId });
         });
 
         it('shows a waiting loader at once when it is revised', () => {

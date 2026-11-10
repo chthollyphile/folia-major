@@ -72,7 +72,7 @@ export const StatusToast: React.FC<{ toast: AppStatusToast }> = ({ toast }) => {
         >
             <div className="status-toast-line">
                 {/* A message about one online platform leads with that platform's mark; every other message with its type's icon. */}
-                {toast.activity ? <LoadingBars size={24} status={toast.activity} className={toast.activity === 'error' ? 'text-red-500' : toast.activity === 'success' ? 'text-green-500' : ''} /> : toast.providerId
+                {toast.activity ? <LoadingBars size={24} status={toast.activity} className={toast.activity === 'error' ? (isDaylight ? 'text-red-500' : 'text-red-400') : toast.activity === 'success' ? (isDaylight ? 'text-green-600' : 'text-green-400') : ''} /> : toast.providerId
                     ? <PlatformMark providerId={toast.providerId} size={20} />
                     : toast.type === 'error'
                         ? <AlertCircle size={18} className={`shrink-0 ${isDaylight ? 'text-red-500' : 'text-red-400'}`} />

@@ -113,14 +113,24 @@ const settlePending = (loading: StatusMessage): boolean => {
     return true;
 };
 
-/** Starts one owned loading toast, shown after `STATUS_LOADING_DELAY_MS`; a current error keeps its place. */
-export const beginStatusLoading = (text: string): StatusMessage => {
+/** Forgets every loader still waiting to show. For tests: a play one case left in flight must not show its loader in the next. */
+export const dropWaitingStatusLoaders = (): void => {
+    pendingLoaders.forEach(pending => clearTimeout(pending.timer));
+    pendingLoaders.clear();
+};
+
+/**
+ * Starts one owned loading toast, shown after `STATUS_LOADING_DELAY_MS`; a current error keeps its place.
+ * `isCurrent` says whether the operation is still wanted when the delay ends: one overtaken meanwhile
+ * (a newer play) shows nothing, even if it has not yet found out and cancelled its loader.
+ */
+export const beginStatusLoading = (text: string, isCurrent?: () => boolean): StatusMessage => {
     const id = ++activitySequence;
     const message: StatusMessage = { type: 'info', activity: 'loading', activityId: id, text, persistent: true };
     const before = useStatusMessageStore.getState().message;
     const timer = setTimeout(() => {
         pendingLoaders.delete(id);
-        showLoader(message, before);
+        if (!isCurrent || isCurrent()) showLoader(message, before);
     }, STATUS_LOADING_DELAY_MS);
     pendingLoaders.set(id, { timer, before });
     return message;
@@ -134,15 +144,12 @@ export const completeStatusLoading = (loading: StatusMessage | null, text: strin
         : previous);
 };
 
-/** A failed operation replaces its own loader; one that never showed shows the failure unless an error already does. */
+/** A failed operation turns its own shown loader into the failure; one that never showed ends silently. */
 export const failStatusLoading = (loading: StatusMessage | null, text: string): void => {
-    if (!loading) return;
-    const failure: StatusMessage = { type: 'error', activity: 'error', activityId: loading.activityId, text };
-    if (settlePending(loading)) {
-        setStatusMessage(previous => previous?.type === 'error' ? previous : failure);
-        return;
-    }
-    setStatusMessage(previous => previous?.activity === 'loading' && previous.activityId === loading.activityId ? failure : previous);
+    if (!loading || settlePending(loading)) return;
+    setStatusMessage(previous => previous?.activity === 'loading' && previous.activityId === loading.activityId
+        ? { type: 'error', activity: 'error', activityId: loading.activityId, text }
+        : previous);
 };
 
 /** Drops only the cancelled operation's own loader, shown or still waiting. */

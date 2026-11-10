@@ -120,7 +120,7 @@ vi.mock('@/utils/onlineLyricsState', () => ({
 const { usePlaybackQueueController } = await import('@/components/app/playback/start/usePlaybackQueueController');
 const { usePlaybackRuntimeRefs } = await import('@/components/app/playback/usePlaybackRuntimeRefs');
 const { usePlaybackStore } = await import('@/stores/usePlaybackStore');
-const { useStatusMessageStore, STATUS_LOADING_DELAY_MS } = await import('@/stores/useStatusMessageStore');
+const { useStatusMessageStore, STATUS_LOADING_DELAY_MS, dropWaitingStatusLoaders } = await import('@/stores/useStatusMessageStore');
 const { retireBlobUrl } = await import('@/services/playbackBlobUrls');
 const { makeSongCurrent, dropPlaysInFlight } = await import('@/components/app/playback/currentSong');
 const { dropProviderSongs } = await import('@/library/app/createLibraryAccountPort');
@@ -159,6 +159,7 @@ beforeEach(() => {
     env.prefetchedFor.clear();
     env.coverFor.clear();
     useStatusMessageStore.setState({ message: null });
+    dropWaitingStatusLoaders();
 });
 afterEach(() => {
     env.note = () => {};
@@ -247,6 +248,26 @@ describe('playSong and the current song (online)', () => {
         await new Promise(resolve => setTimeout(resolve, STATUS_LOADING_DELAY_MS + 50));
         expect(messages.filter(Boolean)).toEqual([]);
         unsubscribe();
+    });
+
+    it('lets a play overtaken within the delay leave no loader over the newer one', async () => {
+        const gateA = deferred<void>();
+        const gateB = deferred<void>();
+        env.audioGate.set('1', gateA.promise);
+        env.audioGate.set('2', gateB.promise);
+        const { queue } = mount();
+        const playA = queue.playSong(songA, [songA, songB], false, { manualQueueStep: true });
+        // The older play waits on its audio, its loader not shown yet, when the newer one starts.
+        await new Promise(resolve => setTimeout(resolve, STATUS_LOADING_DELAY_MS / 3));
+        expect(useStatusMessageStore.getState().message).toBeNull();
+        const playB = queue.playSong(songB, [songA, songB], false, { manualQueueStep: true });
+        await vi.waitFor(() => expect(useStatusMessageStore.getState().message?.activity).toBe('loading'));
+        gateB.resolve();
+        await playB;
+        // The older play still waits on its audio: what shows is the newer play's result, not a loader stuck over it.
+        expect(useStatusMessageStore.getState().message).toMatchObject({ activity: 'success' });
+        gateA.resolve();
+        await playA;
     });
 
     it('clears a cancelled manual load after its external preparation returns', async () => {
