@@ -193,6 +193,8 @@ contextBridge.exposeInMainWorld('electron', {
     quitApp: () => ipcRenderer.invoke('app-quit'),
     isWindowMaximized: () => ipcRenderer.invoke('window-is-maximized'),
     isWindowFullscreen: () => ipcRenderer.invoke('window-is-fullscreen'),
+    hasNativeTrafficLights: () => ipcRenderer.invoke('window-has-native-traffic-lights'),
+    setTrafficLightsVisible: (visible) => ipcRenderer.invoke('window-set-traffic-lights-visible', visible),
     onWindowFullscreenChanged: (callback) => {
         const listener = (_event, fullscreen) => callback(fullscreen);
         ipcRenderer.on('window-fullscreen-changed', listener);

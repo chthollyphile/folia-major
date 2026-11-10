@@ -190,6 +190,9 @@ export const buildSettingsCommandContext = (
         toggleNativeMacFullscreenButton: () => chrome.handleToggleNativeMacFullscreenButton(
             !usePlayerChromeSettingsStore.getState().useNativeMacFullscreenButton,
         ),
+        toggleNativeMacTrafficLights: () => chrome.handleToggleNativeMacTrafficLights(
+            !usePlayerChromeSettingsStore.getState().useNativeMacTrafficLights,
+        ),
         toggleAutoHideCursorWithPlayerChrome: () => chrome.handleToggleAutoHideCursorWithPlayerChrome(
             !usePlayerChromeSettingsStore.getState().autoHideCursorWithPlayerChrome,
         ),

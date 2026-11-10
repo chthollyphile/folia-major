@@ -1,4 +1,4 @@
-import { usePlayerChromeSettingsStore } from '../../../../stores/usePlayerChromeSettingsStore';
+import { useWindowButtonsAtTopLeft } from '../../../../hooks/useWindowButtonsAtTopLeft';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, useMotionValue, animate, AnimatePresence, useDragControls, useIsPresent } from 'framer-motion';
 import { ChevronLeft, ListMusic, ListPlus, RefreshCw } from 'lucide-react';
@@ -343,8 +343,7 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
     morphPlan = null,
 }) => {
     const { t } = useTranslation();
-    const titlebarSide = usePlayerChromeSettingsStore(state => state.titlebarSide);
-    const lowerBackButton = Boolean(window.electron) && titlebarSide === 'left';
+    const lowerBackButton = useWindowButtonsAtTopLeft();
     // The artist wall renders the same cards as GridView, so it follows the same look settings.
     const fullBleedCover = useGridViewSettingsStore(state => state.gridViewFullBleedCover);
     const squareCards = useGridViewSettingsStore(state => state.gridViewSquareCards) && fullBleedCover;

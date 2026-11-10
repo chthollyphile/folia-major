@@ -1020,6 +1020,8 @@ declare global {
       quitApp: () => Promise<boolean>;
       isWindowMaximized: () => Promise<boolean>;
       isWindowFullscreen: () => Promise<boolean>;
+      hasNativeTrafficLights: () => Promise<boolean>;
+      setTrafficLightsVisible: (visible: boolean) => Promise<boolean>;
       onWindowFullscreenChanged: (callback: (fullscreen: boolean) => void) => () => void;
       getWindowTransparentMode: () => Promise<boolean>;
       setWindowTransparentMode: (

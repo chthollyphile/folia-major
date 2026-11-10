@@ -1,7 +1,7 @@
 import React, { forwardRef, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { motion, MotionValue } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { usePlayerChromeSettingsStore } from '../../stores/usePlayerChromeSettingsStore';
+import { useWindowButtonsAtTopLeft } from '../../hooks/useWindowButtonsAtTopLeft';
 import { ChevronLeft } from 'lucide-react';
 import { AudioBands, Theme } from '../../types';
 import { resolveThemeFontStack, resolveThemeFontWeight } from '../../utils/fontStacks';
@@ -81,8 +81,7 @@ const VisualizerShell = forwardRef<HTMLDivElement, VisualizerShellProps>(({
     className = '',
 }, ref) => {
     const { t } = useTranslation();
-    const titlebarSide = usePlayerChromeSettingsStore(state => state.titlebarSide);
-    const lowerBackButton = typeof window !== 'undefined' && Boolean(window.electron) && titlebarSide === 'left';
+    const lowerBackButton = useWindowButtonsAtTopLeft();
     const backdrop = useContext(VisualizerBackdropContext);
     const isInBackdrop = backdrop !== null;
     const pointerArea = backdrop?.pointerArea ?? null;

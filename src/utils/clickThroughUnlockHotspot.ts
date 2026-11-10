@@ -29,6 +29,28 @@ export const CLICK_THROUGH_MEDIA_CONTROLS_RIGHT_OFFSET = 214;
 export const CLICK_THROUGH_MEDIA_CONTROLS_RIGHT_OFFSET_WITH_FULLSCREEN_BUTTON = 258;
 export const CLICK_THROUGH_MEDIA_CONTROLS_WIDTH = 86;
 
+// One window button is 44px wide (`w-11` in WindowControls).
+export const WINDOW_CONTROL_BUTTON_WIDTH = 44;
+// Room left for the macOS traffic lights when the drawn buttons share the left edge with them.
+export const NATIVE_TRAFFIC_LIGHTS_RESERVED_WIDTH = 76;
+// The lock starts 4px past the window buttons; the media group ends 6px before the lock.
+export const CLICK_THROUGH_UNLOCK_BUTTON_GAP = 4;
+export const CLICK_THROUGH_MEDIA_CONTROLS_GAP = 6;
+
+// How far the window buttons reach in from their edge. With the macOS traffic lights the drawn
+// minimize / maximize / close are gone: only remote control and fullscreen are left, and on the
+// left they start after the traffic lights. The main process shifts its hotspot by the same
+// amounts (`resolveUnlockHotspot` in electron/mainWindowClickThrough.cjs).
+export const resolveWindowControlsExtent = ({ hasFullscreenButton, nativeTrafficLights, side }: {
+    hasFullscreenButton: boolean;
+    nativeTrafficLights: boolean;
+    side: 'left' | 'right';
+}): number => {
+    const optional = hasFullscreenButton ? 1 : 0;
+    if (!nativeTrafficLights) return (4 + optional) * WINDOW_CONTROL_BUTTON_WIDTH;
+    return (side === 'left' ? NATIVE_TRAFFIC_LIGHTS_RESERVED_WIDTH : 0) + (1 + optional) * WINDOW_CONTROL_BUTTON_WIDTH;
+};
+
 // With the window buttons on the left (`titlebarSide`) the row is mirrored: the same offsets count
 // from the left edge, and the hotspot covers 176px to 348px in from the left.
 //
