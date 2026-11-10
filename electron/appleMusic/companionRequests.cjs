@@ -4,6 +4,7 @@ const { controlQueue } = require('./companionQueue.cjs');
 const { updateFavorite } = require('./companionFavorites.cjs');
 const { addPlaylistTracks } = require('./companionPlaylist.cjs');
 const { readPersonalStation } = require('./companionRadio.cjs');
+const { alignStorefront } = require('./companionStorefront.cjs');
 
 // Define the only data requests the parent may send to the isolated Apple Music page.
 const REQUEST_ID = /^[a-zA-Z0-9_-]{1,64}$/;
@@ -86,7 +87,7 @@ function validateRequest(message) {
 }
 
 // This function runs inside the Apple page; return only fields required by the provider.
-async function readFromPage(request, controlQueue, updateFavorite, addPlaylistTracks, readPersonalStation) {
+async function readFromPage(request, controlQueue, updateFavorite, addPlaylistTracks, readPersonalStation, alignStorefront) {
     try {
         const mk = window.MusicKit?.getInstance();
         const modern = mk?.api?.v3;
@@ -98,6 +99,10 @@ async function readFromPage(request, controlQueue, updateFavorite, addPlaylistTr
                 ? legacy.music(path, query, options.fetchOptions) : legacy.music(path, query)
                 : null;
         if (!call) return { ok: false, error: 'not-ready' };
+        // Starts and prepared queues play in the account's region, whatever region the page is in.
+        if (['playSong', 'playStation', 'prepareNext'].includes(request.operation)) {
+            try { await alignStorefront(mk); } catch { /* The start goes on in the page's own region. */ }
+        }
         if (request.operation === 'addPlaylistTracks') return await addPlaylistTracks(call, request.params);
         if (request.operation === 'likeSong') return await updateFavorite(call, request.params);
         if (request.operation === 'prepareNext') return await controlQueue(mk, request.operation, request.params);
@@ -205,6 +210,11 @@ async function readFromPage(request, controlQueue, updateFavorite, addPlaylistTr
                 isPlaying: mk.isPlaying === true,
                 itemId: typeof mk.nowPlayingItem?.id === 'string' ? mk.nowPlayingItem.id : '',
                 queueKeys: mk.queue ? Object.keys(mk.queue).slice(0, 12) : null,
+                // A start that will only sound a preview says so here, with the region it plays in and,
+                // where the page is in another region, what Apple said of the subscription (null: nothing yet).
+                previewOnly: mk.previewOnly === true,
+                storefront: typeof mk.storefrontId === 'string' ? mk.storefrontId.slice(0, 8) : '',
+                subscribed: typeof window.__foliaSubscribed === 'boolean' ? window.__foliaSubscribed : null,
             } };
         }
         if (Object.prototype.hasOwnProperty.call(methods, request.operation)) {
@@ -401,7 +411,7 @@ async function readFromPage(request, controlQueue, updateFavorite, addPlaylistTr
 
 // Embed validated JSON only; the parent cannot supply executable JavaScript.
 function requestExpression(request) {
-    return `(${readFromPage.toString()})(${JSON.stringify(request)}, (${controlQueue.toString()}), (${updateFavorite.toString()}), (${addPlaylistTracks.toString()}), (${readPersonalStation.toString()}))`;
+    return `(${readFromPage.toString()})(${JSON.stringify(request)}, (${controlQueue.toString()}), (${updateFavorite.toString()}), (${addPlaylistTracks.toString()}), (${readPersonalStation.toString()}), (${alignStorefront.toString()}))`;
 }
 
 // A timed-out playback can still produce sound later. Recover the document before accepting more work.

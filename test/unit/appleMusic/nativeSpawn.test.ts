@@ -104,6 +104,29 @@ describe('native WebView companion adapter', () => {
             ['navigate', 'about:blank'], ['clear', undefined], ['navigate', 'https://music.apple.com/'],
         ]);
     });
+    it('moves the page to the account region, and does not reload it again where Apple keeps it in another', async () => {
+        const info = vi.spyOn(console, 'info').mockImplementation(() => {});
+        try {
+            const account = (storefront: string) => () => ({ ok: true, data: { id: 'x', nickname: '', storefront, avatarUrl: '' } });
+            let region = 'us';
+            const f = fixture(pageAnswers({ accountStatus: () => account(region)() }), request => {
+                // From a mainland address Apple redirects every other region back to /cn.
+                if (request.operation === 'navigate') f.emit({ event: 'document', generation: 100 + f.commands.length, ready: true, url: 'https://music.apple.com/cn/new' });
+                return undefined;
+            });
+            const bridge = f.create(); instances.push(bridge); f.ready();
+            const navigations = () => f.commands.filter(request => request.operation === 'navigate').map(request => request.url);
+            expect(await send(bridge, { id: 'a1', operation: 'accountStatus' })).toMatchObject({ ok: true, data: { storefront: 'us' } });
+            expect(navigations()).toEqual(['https://music.apple.com/us/']);
+            expect(info).toHaveBeenCalledWith(expect.stringContaining('[AppleMusic] Apple keeps the page in another region'), { account: 'us', page: 'cn' });
+            expect(await send(bridge, { id: 'a2', operation: 'accountStatus' })).toMatchObject({ ok: true });
+            expect(navigations()).toHaveLength(1);
+            // Another account's region is still tried once.
+            region = 'jp';
+            await send(bridge, { id: 'a3', operation: 'accountStatus' });
+            expect(navigations()).toEqual(['https://music.apple.com/us/', 'https://music.apple.com/jp/']);
+        } finally { info.mockRestore(); }
+    });
     it('keeps the page visible from a start until the player sounds', async () => {
         let status: unknown = { ok: true, data: { isPlaying: false, starting: true, positionMs: 0 } };
         const f = fixture(pageAnswers({ playbackStatus: () => status }));

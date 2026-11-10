@@ -25,7 +25,7 @@ vi.mock('@/services/onlineMusic/netease/netease', () => ({ neteaseApi: api }));
 const omni = vi.hoisted(() => ({ getExploreFeed: vi.fn(), getExploreSectionItems: vi.fn() }));
 vi.mock('@/services/onlineMusic/omni', () => ({ omni }));
 import { createNeteaseExplore } from '@/services/onlineMusic/netease/neteaseExplore';
-import { resetExploreMemory } from '@/components/app/home/explore/exploreFeedMemory';
+import { resetExploreMemory } from '@/stores/exploreFeedMemory';
 import { useExploreFeedStore } from '@/stores/useExploreFeedStore';
 
 const LISTS = 'HOMEPAGE_BLOCK_PLAYLIST_RCMD';

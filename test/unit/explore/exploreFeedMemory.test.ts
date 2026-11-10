@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { OmniExploreItem, OmniExploreSection } from '@/types/onlineMusic';
-import { inKeptOrder, noteCollectionSaved, resetExploreMemory, withoutTakenOut } from '@/components/app/home/explore/exploreFeedMemory';
+import { inKeptOrder, noteCollectionSaved, resetExploreMemory, withoutTakenOut } from '@/stores/exploreFeedMemory';
 
 // test/unit/explore/exploreFeedMemory.test.ts — what the explore tab remembers between sessions:
 // the order of a page's sections, and the collections taken out of the library.
@@ -11,10 +11,12 @@ const titlesOf = (sections: OmniExploreSection[]) => sections.map(section => sec
 const card = (id: string, type = 'album', providerId = 'ytm'): OmniExploreItem => ({ kind: 'collection', collection: { providerId, id, type, name: id } });
 const idsOf = (items: OmniExploreItem[]) => items.map(item => (item.kind === 'collection' ? item.collection.id : 'song'));
 
-// A storage that lasts for one test, as the browser's lasts from session to session.
+// A storage that lasts for one test, as the browser's lasts from session to session. The storage
+// primitives look for a window before they touch localStorage, so the test gives them one.
 const fakeStorage = () => {
     const kept = new Map<string, string>();
     const storage = { getItem: vi.fn((key: string) => kept.get(key) ?? null), setItem: vi.fn((key: string, value: string) => { kept.set(key, value); }) };
+    vi.stubGlobal('window', {});
     vi.stubGlobal('localStorage', storage);
     return storage;
 };
