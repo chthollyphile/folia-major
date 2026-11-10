@@ -102,6 +102,8 @@ const PendoloRotatingLine: React.FC<PendoloRotatingLineProps> = ({
             return lens.length ? resolvePendoloLitOpacity(base, resolveLens(lens).light) : base;
         },
     );
+    // 轮心视角下淡到看不见的句子被透视放大、挡在两侧，不能再接点击（不立起来时不碰，和原来一样）
+    const standPointerEvents = useTransform(opacity, value => (value < 0.01 ? 'none' : 'auto'));
     const x = useTransform(lensInputs ?? [wheelRotationDeg], (values: number[]) => (lensInputs ? resolveLens(values).x : 0));
     const y = useTransform(lensInputs ?? [wheelRotationDeg], (values: number[]) => (lensInputs ? resolveLens(values).y : 0));
 
@@ -117,6 +119,8 @@ const PendoloRotatingLine: React.FC<PendoloRotatingLineProps> = ({
                 y,
                 // 先绕 X 轴立起来（字的上方朝离开表盘、略向后仰到正对相机），再在平面内转向相机
                 ...(standUp ? { rotate: standUp.rotationDeg, rotateX: standUp.tiltDeg } : null),
+                // 总是写这一项：从轮心视角切回平放时 motion 不会清掉去掉的样式键，留着 none 就点不到了
+                pointerEvents: standUp ? standPointerEvents : 'auto',
                 opacity,
                 fontFamily,
                 fontWeight,
