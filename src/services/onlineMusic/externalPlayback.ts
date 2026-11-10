@@ -144,6 +144,26 @@ const emit = (event: ExternalPlaybackEvent) => {
     }
 };
 
+/**
+ * Whether the player is only taken over: Folia was reopened onto a player already sounding a song
+ * of its own, and the listener has not picked a song here since. The player holds what it held of
+ * the listener's - the queue behind that song, the level it sounds at - and none of that was
+ * written by this run, so nothing of it is changed until the listener plays a song of their own.
+ */
+let takeoverPending = false;
+
+/**
+ * Whether nothing of the player's own state is Folia's to change yet: it was only taken over
+ * (`adoptExternalPlayback`), and no song has been started here since. Read by the queue write and
+ * the level, the two things a followed player is not changed through.
+ */
+export const isExternalTakeoverPending = () => takeoverPending;
+
+/** A song this app starts: from here the player's queue and level are Folia's again. */
+const endTakeover = () => {
+    takeoverPending = false;
+};
+
 /** Whether the current playback route is the external player. */
 export const isExternalRoute = () => usePlaybackStore.getState().playbackRoute === 'external';
 
@@ -228,6 +248,10 @@ const validDurationSec = (ms: number): number | null => (
 const refreshPreparedQueue = () => {
     const current = session;
     if (!current || !isExternalPlaybackReadyForPrefetch(current.song)) return;
+    // The player was only taken over: what it holds behind its song was the listener's before this
+    // run, and this run has not been told to hold that queue. Nothing is written into it, and
+    // nothing is taken back from it, until a song of Folia's is started here.
+    if (takeoverPending) return;
     // The player's page is loading the song it was just given (its play runs and polls inside that
     // page): a queue write sent now would compete with that load for the same page. The poll that
     // follows the start writes the tail instead.
@@ -455,6 +479,9 @@ const settingsVolume = () => {
 export function setExternalPlaybackVolume(level = settingsVolume()): void {
     const current = session;
     if (!current || !isExternalRoute()) return;
+    // The player was only taken over: the level it sounds at is the listener's own, set in the
+    // player's window, and a take-over does not put Folia's over it. A start of Folia's own does.
+    if (takeoverPending) return;
     if (sendingVolume !== null) {
         wantedVolume = level;
         return;
@@ -556,6 +583,9 @@ const writeStartSummary = (seq: number, askedAt: number, timings: ExternalStartT
  */
 export function startExternalPlayback(song: SongResult, startSec = 0, { userAction = true }: { userAction?: boolean } = {}): ExternalPlaybackStart {
     const askedAt = performance.now();
+    // A song this app starts: the player's queue and level are Folia's from here, even where it was
+    // only taken over a moment ago.
+    endTakeover();
     if (isExternalRoute()) {
         // Already on the route: within the same player replacing the track is one call, and the old
         // clock must not speak for the new song while it does. A song of another provider starts in
@@ -677,6 +707,9 @@ export async function adoptExternalPlayback(song: SongResult): Promise<boolean> 
     installExternalPlayback();
     if (!omni.canPlayExternally(song)) return false;
     stopTimer();
+    // The player is followed as it stands: what it holds behind this song and the level it sounds
+    // at are the listener's, not this run's, until a song is started here (`takeoverPending`).
+    takeoverPending = true;
     const attempt = ++attemptCounter;
     const songKey = getPlaybackSongKey(song);
     const durationSec = validDurationSec(song.durationMs) ?? null;
@@ -705,6 +738,8 @@ export async function adoptExternalPlayback(song: SongResult): Promise<boolean> 
         // Not the song: the route goes back to the app's engine. What the player has (another track
         // the old window's queue moved it to, or nothing) is nobody's now; the caller stops it.
         session = null;
+        // Nothing was taken over, so nothing of the player's is being followed.
+        takeoverPending = false;
         externalMediaShim.reset();
         withoutRouteGuard(() => setPlaybackRoute('web'));
         emit({ type: 'status' });
@@ -839,6 +874,8 @@ export function stopExternalPlayback(reason: string): void {
     const current = session;
     // No page of a session that is gone is loading anything for this app.
     startPendingAttempt = null;
+    // What was only taken over is nobody's from here: the next song starts from nothing.
+    takeoverPending = false;
     stopTimer();
     stopReclaimTimer();
     handOverOnAdoption = false;
