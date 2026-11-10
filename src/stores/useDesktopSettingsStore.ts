@@ -115,7 +115,8 @@ export type DesktopSettingsState = {
     /** Wake the external players (the platform's own player) when the app starts. Off by default:
      *  only a listener whose songs play there wants another program started at launch. */
     wakeExternalPlayersOnLaunch: boolean;
-    /** Windows desktop only: close the external player Folia started when the app quits. */
+    /** Windows desktop only: close the external player Folia started when the app quits. On by
+     *  default: a player left running is the surprise, and only turning it off keeps it. */
     closeExternalPlayerOnQuit: boolean;
     /** Keep the system media keys in Folia's hands while the external player's app runs, rather than
      *  only while it sounds a track of Folia's (measured on Windows). On by default. */
@@ -183,7 +184,7 @@ export const useDesktopSettingsStore = create<DesktopSettingsState>((set, get) =
     wallpaperMacAutohideDock: getStoredBoolean(WALLPAPER_MAC_AUTOHIDE_DOCK_STORAGE_KEY, true),
     openPlayerOnLaunch: getStoredBoolean(OPEN_PLAYER_ON_LAUNCH_STORAGE_KEY, false),
     wakeExternalPlayersOnLaunch: getStoredBoolean(WAKE_EXTERNAL_PLAYERS_ON_LAUNCH_STORAGE_KEY, false),
-    closeExternalPlayerOnQuit: getStoredBoolean(CLOSE_EXTERNAL_PLAYER_ON_QUIT_STORAGE_KEY, false),
+    closeExternalPlayerOnQuit: getStoredBoolean(CLOSE_EXTERNAL_PLAYER_ON_QUIT_STORAGE_KEY, true),
     holdMediaKeysForExternalPlayer: getStoredBoolean(HOLD_MEDIA_KEYS_FOR_EXTERNAL_PLAYER_STORAGE_KEY, true),
     externalSystemAudioSpectrum: getStoredBoolean(EXTERNAL_SYSTEM_AUDIO_SPECTRUM_STORAGE_KEY, false),
     gpuPreference: readGpuPreference(getStoredString(GPU_PREFERENCE_STORAGE_KEY, 'auto')) ?? 'auto',

@@ -35,7 +35,7 @@ export const IPC_CHANNELS = {
     'discord-presence-get-status': { level: 'first-party', why: '现状：有来源校验' },
     'discord-presence-publish-snapshot': { level: 'first-party', why: '现状：有来源校验' },
     'external-media-keys-set': { level: 'first-party', why: '第一条语句就校验 event.sender（isTrustedMainWindowContents）：只有主窗口能接管系统媒体键' },
-    'spotify-client-restart-consent': { level: 'first-party', why: '第一条语句就校验 event.sender（isTrustedMainWindowContents）：只有主窗口能写入重启 Spotify 官方客户端的同意' },
+    'external-player-restart-consent': { level: 'first-party', why: '第一条语句就校验 event.sender（isTrustedMainWindowContents）：只有主窗口能写入重启外部播放器自带程序的同意' },
     'external-spectrum-capture-arm': { level: 'first-party', why: '第一条语句就校验 event.sender（isTrustedMainWindowContents）：只有主窗口能把系统声音采集打开' },
     'external-spectrum-capture-stopped': { level: 'first-party', why: '第一条语句就校验 event.sender（isTrustedMainWindowContents）：只有主窗口能报告系统声音采集结束' },
     'fnmusic-api-request': { level: 'first-party', why: '现状：有来源校验' },

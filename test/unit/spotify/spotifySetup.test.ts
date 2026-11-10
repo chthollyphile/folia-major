@@ -271,7 +271,6 @@ describe('Spotify\'s three ways to play', () => {
     });
 
     it('sorts the app\'s missing program as a source that is not set up', () => {
-        expect(describeSpotifyFailure('audio', new OnlineProviderError('unavailable', 'x', 'spotify', 'client-missing')))
-            .toEqual({ case: 'not-configured', playerCause: 'player-not-installed' });
+        expect(describeSpotifyFailure('audio', new OnlineProviderError('unavailable', 'x', 'spotify', 'client-missing'))).toEqual({ case: 'not-configured' });
     });
 });

@@ -29,7 +29,13 @@ beforeEach(() => {
 });
 
 describe('the quit switch', () => {
-    it('is off until the listener asks for it', async () => {
+    it('is on until the listener turns it off, including for a listener who never set it', async () => {
+        const store = await loadStore(vi.fn());
+        expect(store.getState().closeExternalPlayerOnQuit).toBe(true);
+    });
+
+    it('reads an explicit no a listener kept', async () => {
+        window.localStorage.setItem(STORAGE_KEY, 'false');
         const store = await loadStore(vi.fn());
         expect(store.getState().closeExternalPlayerOnQuit).toBe(false);
     });
@@ -38,14 +44,14 @@ describe('the quit switch', () => {
         const saveSettings = vi.fn();
         const store = await loadStore(saveSettings);
 
-        store.getState().handleToggleCloseExternalPlayerOnQuit(true);
-        expect(store.getState().closeExternalPlayerOnQuit).toBe(true);
-        expect(saveSettings).toHaveBeenCalledWith(MAIN_PROCESS_KEY, true);
-        // The renderer keeps its own one (the published key): it is what the settings row reads.
-        expect(window.localStorage.getItem(STORAGE_KEY)).toBe('true');
-
         store.getState().handleToggleCloseExternalPlayerOnQuit(false);
-        expect(saveSettings).toHaveBeenLastCalledWith(MAIN_PROCESS_KEY, false);
+        expect(store.getState().closeExternalPlayerOnQuit).toBe(false);
+        expect(saveSettings).toHaveBeenCalledWith(MAIN_PROCESS_KEY, false);
+        // The renderer keeps its own one (the published key): it is what the settings row reads.
+        expect(window.localStorage.getItem(STORAGE_KEY)).toBe('false');
+
+        store.getState().handleToggleCloseExternalPlayerOnQuit(true);
+        expect(saveSettings).toHaveBeenLastCalledWith(MAIN_PROCESS_KEY, true);
     });
 });
 

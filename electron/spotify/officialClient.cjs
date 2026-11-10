@@ -1433,6 +1433,17 @@ function createSpotifyOfficialClient({
             return readStatus();
         },
 
+        // The player is let go: the media session helper and the DevTools connection are ended, and
+        // the next call builds both again. Spotify itself is left running as it is. This is what
+        // leaving Spotify's own app for another way of playing, and signing out of it, do: nothing of
+        // Folia's is left steering an app it no longer plays in, and the helper process is not left
+        // behind for the rest of the run.
+        async release() {
+            page.close();
+            mediaSession?.close();
+            stopWindowWatch();
+        },
+
         // The app is quitting: the page connection and the media session helper are let go. Nothing in
         // the page is changed, so a page that stopped answering cannot hold the quit.
         async close() {
