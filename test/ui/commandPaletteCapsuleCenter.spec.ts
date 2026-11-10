@@ -65,20 +65,19 @@ const pressUntilPaletteOpens = async (page: Page) => {
 type Gaps = { top: number; bottom: number };
 
 /**
- * 外壳里那一摞（置顶命令行 + 面板）到视口上下边的距离。外壳本身带 CENTER_INSET 的上下 padding，
- * 减掉它才是「居中之后还剩多少空」，量级的差会被 padding 掩盖，所以先扣掉再比。
+ * 外壳里那一摞（置顶命令行 + 面板）在屏幕上的上下留白。外壳自己带着上下 padding，这里不减它：
+ * 要的是屏幕上真的相等，padding 上下不等（比如上面 24、下面 32）时这里就会露出来。
  */
 const readGaps = async (page: Page): Promise<Gaps> => page.evaluate(() => {
     const frame = document.querySelector('[data-palette-frame="capsule"]') as HTMLElement | null;
     const stack = frame?.firstElementChild as HTMLElement | null;
-    if (!frame || !stack) {
+    if (!stack) {
         return { top: Number.NaN, bottom: Number.NaN };
     }
     const rect = stack.getBoundingClientRect();
-    const style = window.getComputedStyle(frame);
     return {
-        top: Math.round(rect.top - parseFloat(style.paddingTop || '0')),
-        bottom: Math.round(window.innerHeight - rect.bottom - parseFloat(style.paddingBottom || '0')),
+        top: Math.round(rect.top),
+        bottom: Math.round(window.innerHeight - rect.bottom),
     };
 });
 
@@ -105,8 +104,9 @@ test('播放条在场时命令窗口垂直居中，换窗口高度也居中', as
         await expectVerticallyCentered(page, viewport.width + '×' + viewport.height);
     }
 
-    // 矮到放不下时压的是列表高度，不是位置：面板仍在中间，且没有顶出视口。
-    const box = await palette(page).boundingBox();
-    expect(box).not.toBeNull();
-    expect(box!.y + box!.height).toBeLessThanOrEqual(420);
+    // 矮到放不下时压的是列表高度，不是位置：面板仍在中间，上下都没有出界。
+    const stackBox = await paletteFrame(page).locator(':scope > *').first().boundingBox();
+    expect(stackBox).not.toBeNull();
+    expect(stackBox!.y).toBeGreaterThanOrEqual(0);
+    expect(stackBox!.y + stackBox!.height).toBeLessThanOrEqual(420);
 });

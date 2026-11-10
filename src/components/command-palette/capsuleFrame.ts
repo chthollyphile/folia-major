@@ -58,7 +58,8 @@ export const capsuleBodyHeight = () => (
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 
 /**
- * 面板外框从胶囊形状开始的 clip-path：只露出底部胶囊那么高、那么宽的一段，圆角是胶囊的半高。
+ * 面板外框从胶囊形状开始的 clip-path：只露出面板底边、与胶囊同高同宽的一段，圆角是胶囊的半高。
+ * 面板垂直居中之后这一段不再和胶囊重合（展开完胶囊就淡出），它只负责起手的形状。
  * 和 PANEL_OPEN_CLIP 的数字个数、单位一一对应，framer-motion 才能逐项插值。
  */
 export const capsuleClipPath = (frame: CapsuleFrame) => {

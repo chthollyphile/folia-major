@@ -3,7 +3,7 @@ import { AnimatePresence, motion, type Variants } from 'framer-motion';
 import { CAPSULE_MORPH_DURATION_S, PANEL_OPEN_CLIP, PANEL_VERTICAL_INSET_PX, capsuleClipPath, type CapsuleFrame } from './capsuleFrame';
 
 // src/components/command-palette/CommandPaletteCapsuleFrame.tsx
-// The palette grown up out of the player bar instead of dropped in from the top.
+// The palette unfolded from the player bar's shape instead of dropped in from the top.
 //
 // Split out of CommandPalette like the inline frame: the panel and the pinned row are built there,
 // once, for every frame; this file only places them and unfolds them from the bar's shape.

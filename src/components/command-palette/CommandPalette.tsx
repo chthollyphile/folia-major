@@ -215,9 +215,10 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
     }
     const filterAnchor = isOpen ? liveFilterAnchor : lastFilterAnchorRef.current;
     const isInlineFrame = Boolean(filterAnchor);
-    // Opened while the player bar is on screen, the palette grows out of it instead of dropping in
-    // from the top: the bar is measured once, on the render that opens the palette, and kept for the
-    // whole session and its exit, so a bar that moves underneath does not drag the panel along.
+    // Opened while the player bar is on screen, the palette unfolds from the bar's shape instead of
+    // dropping in from the top; the panel itself is centred, not placed on the bar. The bar is
+    // measured once, on the render that opens the palette, and kept for the whole session and its
+    // exit, so a bar that moves underneath does not drag the panel along.
     const wasOpenRef = useRef(false);
     const capsuleFrameRef = useRef<CapsuleFrame | null>(null);
     // Closing measures the bar again, on the render that closes: the panel folds back into the bar
@@ -670,7 +671,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
             }}
         >
             {capsuleFrame ? (
-                // 输入行在底，正好落在胶囊原来的位置；内容在外框展开时稍晚一点淡入。
+                // 输入行在底；内容在外框展开时稍晚一点淡入。
                 <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
