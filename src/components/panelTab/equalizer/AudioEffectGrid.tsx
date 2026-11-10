@@ -1,5 +1,4 @@
 import React from 'react';
-import { Waves } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import {
     AUDIO_EFFECT_CONTROLS,
@@ -9,80 +8,76 @@ import {
     type AudioEffectId,
     type AudioEffectSettings,
 } from '../../../utils/audioEffects';
-import type { EqualizerStyles } from './equalizerStyles';
+import { Tooltip } from '../../modal/settings/kit';
+import PanelSlider from '../controls/PanelSlider';
+import EqualizerSection from './EqualizerSection';
 
 // src/components/panelTab/equalizer/AudioEffectGrid.tsx
-// Renders the non-EQ effect sliders (cutoffs, saturation, crush, wow, noise, width, space, punch).
+// The effect chain of the audio effect window (cutoffs, saturation, crush, wow, noise, width, space,
+// punch): for each effect its name, its value and a slider, in as many columns as fit: three in the
+// wide window, one in a narrow one.
+
+/** The places along a slider's travel that the effect conversions count in. */
+const SLIDER_POSITIONS = 1000;
 
 type AudioEffectGridProps = {
     effects: AudioEffectSettings;
-    styles: EqualizerStyles;
     onEffectChange: (id: AudioEffectId, value: number) => void;
     onCommit: () => void;
+    /** The sliders are out of reach (inert); the names, the values and the noise tag's hint still read. */
+    readOnly?: boolean;
 };
 
-const AudioEffectGrid: React.FC<AudioEffectGridProps> = ({ effects, styles, onEffectChange, onCommit }) => {
+const AudioEffectGrid: React.FC<AudioEffectGridProps> = ({ effects, onEffectChange, onCommit, readOnly = false }) => {
     const { t } = useTranslation();
 
     return (
-        <div className={`mt-4 rounded-2xl border p-4 ${styles.surfaceClass}`}>
-            <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-[10px] font-semibold uppercase tracking-[0.18em]">
-                <span className={`flex items-center gap-1.5 ${styles.inactiveText}`}><Waves size={13} />{t('ui.equalizerEffects')}</span>
-                <span className={`normal-case tracking-normal ${styles.inactiveText}`}>{t('ui.equalizerEffectsHint')}</span>
-            </div>
-            <div className="grid gap-x-5 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
+        <EqualizerSection title={t('ui.equalizerEffects')} hint={t('ui.equalizerEffectsHint')}>
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-x-7 gap-y-1.5 px-4 pb-3.5 pt-3">
                 {AUDIO_EFFECT_CONTROLS.map(control => {
                     const value = effects[control.id] ?? control.neutral;
                     const isNeutral = value === control.neutral;
+                    const name = t(`ui.equalizerEffect.${control.id}`);
+                    const valueText = formatAudioEffectValue(control, value);
                     return (
-                        <label key={control.id} className="flex flex-col gap-1">
-                            <span className="flex items-baseline justify-between gap-2">
-                                <span className={`flex items-baseline gap-1.5 text-[11px] font-semibold ${styles.inactiveText}`}>
-                                    {t(`ui.equalizerEffect.${control.id}`)}
-                                    {/* Shown whether or not the slider is up: the point is to answer
-                                        "where is this noise coming from" BEFORE it is turned on. */}
-                                    {control.addsNoise && (
+                        <div key={control.id} className="min-w-0">
+                            <div className="flex items-center gap-1.5 text-[13px] leading-5">
+                                <span className="truncate">{name}</span>
+                                {/* Shown whether or not the slider is up: the point is to answer
+                                    "where is this noise coming from" BEFORE it is turned on. */}
+                                {control.addsNoise && (
+                                    <Tooltip text={t('ui.equalizerEffectNoiseTagHint')} className="inline-flex shrink-0">
                                         <span
-                                            className="rounded-full border px-1.5 py-px text-[9px] font-semibold uppercase tracking-[0.08em] opacity-70"
-                                            style={isNeutral ? undefined : {
-                                                color: styles.selectedAccentColor,
-                                                borderColor: styles.selectedAccentColor,
-                                                opacity: 1,
-                                            }}
-                                            title={t('ui.equalizerEffectNoiseTagHint')}
+                                            className={`st-t-fast rounded px-[5px] text-[11px] leading-4 transition-colors ${isNeutral
+                                                ? 'bg-[var(--st-fill2)] text-[color:var(--st-t2)]'
+                                                : 'bg-[var(--st-accent)] text-[color:var(--st-on-accent)]'}`}
                                         >
                                             {t('ui.equalizerEffectNoiseTag')}
                                         </span>
-                                    )}
-                                </span>
-                                <span
-                                    className={`text-[10px] font-semibold tabular-nums ${styles.valueTextClass}`}
-                                    style={{ color: isNeutral ? undefined : styles.selectedAccentColor }}
-                                >
-                                    {formatAudioEffectValue(control, value)}
-                                </span>
-                            </span>
-                            <input
-                                type="range"
-                                min={0}
-                                max={1000}
-                                step={1}
-                                value={audioEffectToSliderPosition(control, value)}
-                                aria-label={t(`ui.equalizerEffect.${control.id}`)}
-                                onInput={event => onEffectChange(control.id, sliderPositionToAudioEffect(control, Number(event.currentTarget.value)))}
-                                onChange={event => onEffectChange(control.id, sliderPositionToAudioEffect(control, Number(event.currentTarget.value)))}
-                                onPointerUp={onCommit}
-                                onPointerCancel={onCommit}
-                                onKeyUp={onCommit}
-                                onBlur={onCommit}
-                                className={`h-1.5 w-full cursor-pointer appearance-none rounded-full ${styles.trackClass}`}
-                                style={{ accentColor: styles.isDaylight ? styles.selectedAccentColor : styles.accentColor }}
-                            />
-                        </label>
+                                    </Tooltip>
+                                )}
+                                <span className="ml-auto shrink-0 font-mono text-xs text-[color:var(--st-t2)]">{valueText}</span>
+                            </div>
+                            {/* The gap keeps the slider's focus ring clear of the name above it. */}
+                            <div inert={readOnly} className="mt-1 flex">
+                                <PanelSlider
+                                    value={audioEffectToSliderPosition(control, value) / SLIDER_POSITIONS}
+                                    label={name}
+                                    valueText={valueText}
+                                    onPreview={(place) => {
+                                        const next = sliderPositionToAudioEffect(control, place * SLIDER_POSITIONS);
+                                        // The same value writes nothing: an edit turns processing on and goes to a custom slot.
+                                        // (A press on the thumb that does not move it sends no value at all: PanelSlider.)
+                                        if (next !== value) onEffectChange(control.id, next);
+                                    }}
+                                    onCommit={onCommit}
+                                />
+                            </div>
+                        </div>
                     );
                 })}
             </div>
-        </div>
+        </EqualizerSection>
     );
 };
 

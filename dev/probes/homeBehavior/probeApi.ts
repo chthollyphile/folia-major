@@ -1,7 +1,7 @@
 import type { ProbeFault } from '../libraryBehavior/fakeProviders';
 import type { ProbeRefreshKind } from '../libraryBehavior/probeGates';
 import type { ProbeCall, ProbeRequest } from '../libraryBehavior/probeLog';
-import type { LibraryDirectoryBatchActionId, LibraryDirectorySurfaceState, LibraryDirectoryVisibilityMode } from '../../../src/library/core/contracts/directory';
+import type { LibraryDirectoryBatchActionId, LibraryDirectorySurfaceState, LibraryDirectoryVisibilityMode } from '../../../src/library/core/directory/directory.contract';
 
 // dev/probes/homeBehavior/probeApi.ts
 // 首页行为探针挂在 window 上的驱动接口。只有类型：component 用例 import 它不会把探针运行时带进 Node。
@@ -175,7 +175,7 @@ export type HomeProbeApi = {
     setLattice: (enabled: boolean) => void;
 
     // ---- suite ----
-    /** 选中的 suite（core/state/useLibrarySuiteStore）。 */
+    /** 选中的 suite（core/suite/useLibrarySuiteStore）。 */
     suite: () => string;
     /** 此刻渲染首页的 suite（选中的 suite 没实现首页时是网格）。 */
     homeSuite: () => string;

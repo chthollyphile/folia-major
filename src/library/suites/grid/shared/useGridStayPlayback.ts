@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import type { SongResult } from '../../../../types';
 import { PlayerState } from '../../../../types';
-import type { LibraryPlaybackPort } from '../../../core/contracts/ports';
+import type { LibraryPlaybackPort } from '../../../core/shared/ports.contract';
 import { selectDisplayPlayerState, usePlaybackStore } from '../../../../stores/usePlaybackStore';
 import { usePlaybackEntryViewStore } from '../../../../stores/usePlaybackEntryViewStore';
 import { getPlaybackSongKey } from '../../../../utils/appPlaybackGuards';

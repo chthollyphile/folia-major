@@ -19,6 +19,11 @@ function copyTime(value) {
   return typeof value === 'number' && Number.isFinite(value) ? value : 0;
 }
 
+// Where a preview clip starts inside its song, in milliseconds; 0 for a whole song or anything unreadable.
+function copyClipStart(value) {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0;
+}
+
 function sanitizeWord(word) {
   return {
     text: copyText(word?.text) ?? '',
@@ -42,13 +47,17 @@ function sanitizeBackgroundVocal(vocal) {
 }
 
 // Converts the internal rendering model into the stable, renderer-agnostic API shape.
-function sanitizeLyricData(lyrics, offset = 0) {
+// `clipStartMs` was added to v1 without changing any existing field: `offset` stays the manual offset,
+// and a client that knows the new field adds the clip start to the player's position (which is the
+// clip's own) to reach the lyric clock.
+function sanitizeLyricData(lyrics, offset = 0, clipStartMs = 0) {
   if (!lyrics || typeof lyrics !== 'object' || !Array.isArray(lyrics.lines)) {
     return null;
   }
 
   const result = {
     offset: copyTime(offset),
+    clipStartMs: copyClipStart(clipStartMs),
     lines: lyrics.lines.map((line) => {
       const sanitizedLine = {
         text: copyText(line?.fullText) ?? '',
@@ -180,8 +189,8 @@ function createLyricApi({
     return enabled ? start() : stop();
   };
 
-  const publishLyricData = (lyrics, offset) => {
-    currentLyrics = sanitizeLyricData(lyrics, offset);
+  const publishLyricData = (lyrics, offset, clipStartMs) => {
+    currentLyrics = sanitizeLyricData(lyrics, offset, clipStartMs);
     return true;
   };
 

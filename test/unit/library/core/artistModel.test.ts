@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { LocalSong, SongResult } from '@/types';
 import type { LocalLibraryAssignment, LocalLibraryEntity } from '@/types/localLibrary';
-import type { LibraryArtistLocalLibrary } from '@/library/core/contracts/artist';
+import type { LibraryArtistLocalLibrary } from '@/library/core/artist/artist.contract';
 import {
     appendArtistAlbums,
+    ARTIST_SONGS_COLLECTION_TYPE,
     artistAlbumCoverUrl,
     artistAlbumLink,
+    artistSongsCollection,
     deriveLocalArtist,
     filterArtistAlbums,
     localArtistEntityId,
@@ -13,14 +15,14 @@ import {
     mapOnlineArtistDetail,
     toHttpsCoverUrl,
     UNKNOWN_LOCAL_ALBUM_KEY,
-} from '@/library/core/model/artistModel';
+} from '@/library/core/artist/artistModel';
 import {
     resolveLocalCatalogEntity,
     resolveLocalCatalogLink,
     resolveLocalEntitySongIds,
     resolveLocalSongEntityId,
     buildLocalCatalogIndex,
-} from '@/library/core/model/localCatalogLinks';
+} from '@/library/core/shared/localCatalogLinks';
 
 // test/unit/library/core/artistModel.test.ts
 // 歌手页的纯变换（原 ArtistGridView 的加载分支与 useMemo）以及三处共用的本地专辑 / 歌手解析
@@ -150,6 +152,37 @@ describe('online and Navidrome mapping', () => {
         expect(mapped.albums[0]).toEqual({ id: 'al0', name: 'Album 0', coverUrl: 'url:art0', publishedAt: new Date(2001, 0, 1).getTime(), trackCount: 1 });
         expect(mapped.albums[1].coverUrl).toBeUndefined();
         expect(mapped.topSongAlbumIds).toEqual(['al0', 'al1', 'al2', 'al3', 'al4']);
+    });
+});
+
+describe('artist songs collection (#918)', () => {
+    const online = { source: 'online', providerId: 'p', type: 'artist', id: 7, name: 'Listed', coverUrl: 'listed.jpg' } as const;
+
+    it("is an online collection of the artist's id, named by the caller, with the detail's cover and count", () => {
+        expect(artistSongsCollection(online, { name: 'Main', coverUrl: 'detail.jpg', trackCount: 321 }, 'All songs by Main')).toEqual({
+            source: 'online',
+            providerId: 'p',
+            id: 7,
+            type: ARTIST_SONGS_COLLECTION_TYPE,
+            name: 'All songs by Main',
+            isOwned: false,
+            artists: [{ id: 7, name: 'Main' }],
+            coverUrl: 'detail.jpg',
+            trackCount: 321,
+        });
+        expect(ARTIST_SONGS_COLLECTION_TYPE).toBe('artist_songs');
+    });
+
+    it("falls back to the descriptor's cover and name, and leaves an unknown count out", () => {
+        const collection = artistSongsCollection(online, { name: '', trackCount: 0 }, 'All');
+        expect(collection).toMatchObject({ coverUrl: 'listed.jpg', artists: [{ id: 7, name: 'Listed' }] });
+        expect(collection).not.toHaveProperty('trackCount');
+        expect(artistSongsCollection({ ...online, coverUrl: undefined }, null, 'All')).not.toHaveProperty('coverUrl');
+    });
+
+    it('is only for online artists', () => {
+        expect(artistSongsCollection({ source: 'navidrome', type: 'artist', id: 'ar', name: 'N' }, { name: 'N' }, 'All')).toBeNull();
+        expect(artistSongsCollection({ source: 'local', type: 'artist', id: 'ar', name: 'L', songIds: [] } as never, { name: 'L' }, 'All')).toBeNull();
     });
 });
 

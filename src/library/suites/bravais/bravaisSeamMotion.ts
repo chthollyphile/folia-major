@@ -105,6 +105,15 @@ export const bravaisPopMotion = (anchor: BravaisPopAnchor, reduced: boolean) => 
     };
 };
 
+/**
+ * 缝里的菜单往哪边弹：横的信息条在视口上半时往下（bravaisSeamRow.css 按 data-bravais-seam-half 把菜单放到按钮下方），
+ * 其余往上。读的是缝节点上 renderFrame 写的属性，菜单挂载的那一次渲染里调（动画参数只在挂载时取）。
+ */
+export const seamPopAnchorFor = (element: Element | null): BravaisPopAnchor => {
+    const seam = element?.closest<HTMLElement>('[data-bravais-seam]');
+    return seam?.dataset.bravaisSeamAxis === 'y' && seam.dataset.bravaisSeamHalf === 'top' ? 'below' : 'above';
+};
+
 /** 出现 / 消失的小块（结果提示、管理隐藏的开关、扫描进度）：淡入 + 轻微位移；降级时只淡入淡出。 */
 export const bravaisRevealMotion = (reduced: boolean) => ({
     initial: reduced ? { opacity: 0 } : { opacity: 0, y: 6 },

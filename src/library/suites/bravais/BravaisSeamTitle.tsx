@@ -31,10 +31,12 @@ type BravaisSeamTitleAreaProps = {
     /** 「收起信息条」（读屏名与悬停提示）。 */
     label: string;
     onCollapse: () => void;
+    /** 横的信息条（BravaisSeamRow）：标题横排，引号按横排的方向——前面「“」、后面「”」（竖排时是右上「”」、左下「“」）。 */
+    row?: boolean;
 };
 
 /** 完整信息条的标题区域：引号 + 竖排大标题整块是一个按钮，点它收成书脊。 */
-export const BravaisSeamTitleArea: React.FC<BravaisSeamTitleAreaProps> = ({ title, fontSize, label, onCollapse }) => {
+export const BravaisSeamTitleArea: React.FC<BravaisSeamTitleAreaProps> = ({ title, fontSize, label, onCollapse, row = false }) => {
     const titleId = useId();
     const handlers = useBravaisSeamTitleClick(onCollapse);
     return (
@@ -48,11 +50,11 @@ export const BravaisSeamTitleArea: React.FC<BravaisSeamTitleAreaProps> = ({ titl
             title={label}
             {...handlers}
         >
-            <span className="bravais-seam-quote" aria-hidden>”</span>
+            <span className="bravais-seam-quote" aria-hidden>{row ? '“' : '”'}</span>
             <span className="bravais-seam-vtitle-wrap">
                 <span id={titleId} className="bravais-seam-vtitle" data-bravais-seam-title style={{ fontSize }}>{title}</span>
             </span>
-            <span className="bravais-seam-quote is-closing" aria-hidden>“</span>
+            <span className="bravais-seam-quote is-closing" aria-hidden>{row ? '”' : '“'}</span>
         </button>
     );
 };

@@ -219,7 +219,7 @@ test.describe('[bravais-only] wall chrome and shared appearance settings', () =>
             return child.textContent?.trim().split(/\s/)[0] ?? '';
         }));
         expect(order).toEqual([
-            'quick:locate-playing,shuffle-queue,generate-theme,queue,open-lattice,open-player',
+            'quick:shuffle-queue,generate-theme,queue,open-lattice,open-player,open-settings',
             'slider',
             'heading',
             'Wall',
@@ -228,16 +228,15 @@ test.describe('[bravais-only] wall chrome and shared appearance settings', () =>
         ]);
         await expect(menu.getByRole('separator', { name: 'Wall appearance', exact: true })).toBeAttached();
         // 快捷格是纯图标：可访问名是全名，格子里没有字，tooltip 带按键提示。
-        await expect(quick(page, 'locate-playing')).toHaveAccessibleName('Locate the playing song');
-        await expect(quick(page, 'locate-playing')).toHaveText('');
-        await expect(quick(page, 'locate-playing')).toHaveAttribute('title', /: \+ C/);
         await expect(quick(page, 'shuffle-queue')).toHaveAccessibleName('Shuffle the queue');
+        await expect(quick(page, 'shuffle-queue')).toHaveText('');
         await expect(quick(page, 'shuffle-queue')).toHaveAttribute('title', /: \+ R/);
         await expect(quick(page, 'generate-theme')).toHaveAccessibleName('Generate a theme for this song');
         await expect(quick(page, 'open-lattice')).toHaveAccessibleName('Go to Lattice');
         await expect(quick(page, 'open-lattice')).toHaveAttribute('title', /Ctrl \+ B/);
         await expect(quick(page, 'queue')).toHaveAccessibleName('Play queue');
         await expect(quick(page, 'open-player')).toHaveAccessibleName('Open the player');
+        await expect(quick(page, 'open-settings')).toHaveAccessibleName('Open settings');
 
         // 面板整个在屏内（不顶出顶部、不出右边）；窄屏同样放得下。
         const inside = async () => {
@@ -326,6 +325,14 @@ test.describe('[bravais-only] wall chrome and shared appearance settings', () =>
         await tools(page).click();
         await quick(page, 'open-player').click();
         await expect.poll(async () => (await calls(page, 'openPlayer')).length).toBe(1);
+        await expect(panel(page)).toHaveCount(0);
+    });
+
+    test('the last quick cell opens settings through the host and closes the panel', async ({ mount, page }) => {
+        await mountBravais(mount, page);
+        await tools(page).click();
+        await quick(page, 'open-settings').click();
+        await expect.poll(async () => (await calls(page, 'openSettings')).length).toBe(1);
         await expect(panel(page)).toHaveCount(0);
     });
 

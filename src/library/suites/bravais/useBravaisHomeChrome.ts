@@ -1,8 +1,8 @@
 import { useCallback, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { LibraryHomeSurfaceProps } from '../../core/contracts/suite';
-import type { LibraryHomeTabKey, LibraryHomeTabView } from '../../core/contracts/homeModel';
-import { isOnlineHomeTab } from '../../core/model/homeSources';
+import type { LibraryHomeSurfaceProps } from '../../core/suite/suite.contract';
+import type { LibraryHomeTabKey, LibraryHomeTabView } from '../../core/home/homeModel.contract';
+import { isOnlineHomeTab } from '../../core/home/homeSources';
 import type { BravaisSeamTab } from './bravaisLayer';
 import type { BravaisHomeSearch, BravaisHomeTool } from './bravaisHomeModels';
 import { cycleHomeSeamTab, projectHomeSeamTabs } from './bravaisHomeProjection';

@@ -1,0 +1,536 @@
+import { Theme } from '../../../types';
+import { colorWithAlpha, mixColors } from '../colorMix';
+import { rememberBounded } from '../textMeasureCache';
+
+interface ViewportSize {
+    width: number;
+    height: number;
+}
+
+interface WorldSize {
+    width: number;
+    height: number;
+}
+
+interface FumeBackgroundBounds {
+    left: number;
+    top: number;
+    right: number;
+    bottom: number;
+}
+
+type FumeBackgroundShapeKind = 'ring' | 'square' | 'cross' | 'spark';
+type FumeBackgroundAudioBand = 'bass' | 'lowMid' | 'mid' | 'vocal' | 'treble';
+type FumeBackgroundShapeColor = 'secondary' | 'accent';
+
+interface FumeBackgroundShape {
+    id: string;
+    kind: FumeBackgroundShapeKind;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    rotation: number;
+    rotationSpeed: number;
+    strokeWidth: number;
+    opacity: number;
+    color: FumeBackgroundShapeColor;
+    depth: number;
+    audioBand?: FumeBackgroundAudioBand;
+    ringGapStart?: number;
+    ringGapSize?: number;
+}
+
+export interface FumeBackgroundScene {
+    width: number;
+    height: number;
+    shapes: FumeBackgroundShape[];
+}
+
+export type FumeBackgroundAudioLevels = Partial<Record<FumeBackgroundAudioBand, number>> & {
+    power?: number;
+};
+
+interface FumeBackgroundParallax {
+    cameraX: number;
+    cameraY: number;
+    originX: number;
+    originY: number;
+    strength?: number;
+}
+
+const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
+const mix = (from: number, to: number, amount: number) => from + (to - from) * amount;
+
+const hashString = (input: string) => {
+    let hash = 2166136261;
+    for (let index = 0; index < input.length; index += 1) {
+        hash ^= input.charCodeAt(index);
+        hash = Math.imul(hash, 16777619);
+    }
+    return hash >>> 0;
+};
+
+const seeded = (seed: string) => {
+    const hash = hashString(seed);
+    return (hash % 10000) / 10000;
+};
+
+const buildShapePath = (
+    context: CanvasRenderingContext2D,
+    shape: FumeBackgroundShape,
+) => {
+    context.beginPath();
+
+    if (shape.kind === 'ring') {
+        const gapStart = shape.ringGapStart ?? -Math.PI * 0.18;
+        const gapSize = clamp(shape.ringGapSize ?? (Math.PI * 0.2), 0.18, Math.PI * 0.6);
+        context.lineCap = 'round';
+        context.ellipse(
+            0,
+            0,
+            shape.width * 0.5,
+            shape.width * 0.5,
+            0,
+            gapStart + gapSize,
+            gapStart + Math.PI * 2,
+        );
+    } else {
+        const size = shape.width;
+        if (shape.kind === 'square') {
+            context.rect(-size * 0.5, -size * 0.5, size, size);
+        } else if (shape.kind === 'cross') {
+            const arm = size * 0.3;
+            context.moveTo(-arm, -size * 0.5);
+            context.lineTo(arm, -size * 0.5);
+            context.lineTo(arm, -arm);
+            context.lineTo(size * 0.5, -arm);
+            context.lineTo(size * 0.5, arm);
+            context.lineTo(arm, arm);
+            context.lineTo(arm, size * 0.5);
+            context.lineTo(-arm, size * 0.5);
+            context.lineTo(-arm, arm);
+            context.lineTo(-size * 0.5, arm);
+            context.lineTo(-size * 0.5, -arm);
+            context.lineTo(-arm, -arm);
+            context.closePath();
+        } else {
+            const outer = size * 0.5;
+            const inner = size * 0.13;
+            context.moveTo(0, -outer);
+            context.lineTo(inner, -inner);
+            context.lineTo(outer, 0);
+            context.lineTo(inner, inner);
+            context.lineTo(0, outer);
+            context.lineTo(-inner, inner);
+            context.lineTo(-outer, 0);
+            context.lineTo(-inner, -inner);
+            context.closePath();
+        }
+    }
+};
+
+/**
+ * The two line gradients of a shape, kept from frame to frame: they depend on nothing that moves.
+ * Stale when any of the fields beside them differs from what the frame asks for (the context, the
+ * two theme colours, the opacity and the size the shape is drawn at); every use compares them, so
+ * nothing has to clear this. A new scene (buildFumeBackgroundScene) has new shape objects, and the
+ * entries of the old ones go with them.
+ */
+interface ShapeLineGradients {
+    context: CanvasRenderingContext2D;
+    secondaryColor: string;
+    accentColor: string;
+    opacity: number;
+    width: number;
+    height: number;
+    base: CanvasGradient;
+    top: CanvasGradient;
+}
+const shapeLineGradients = new WeakMap<FumeBackgroundShape, ShapeLineGradients>();
+
+const traceShape = (
+    context: CanvasRenderingContext2D,
+    shape: FumeBackgroundShape,
+) => {
+    context.save();
+    context.translate(shape.x, shape.y);
+    context.rotate(shape.rotation);
+    buildShapePath(context, shape);
+    context.stroke();
+    context.restore();
+};
+
+const normalizeBounds = (
+    bounds: FumeBackgroundBounds,
+    worldWidth: number,
+    worldHeight: number,
+): FumeBackgroundBounds => ({
+    left: clamp(Math.min(bounds.left, bounds.right), 0, worldWidth),
+    top: clamp(Math.min(bounds.top, bounds.bottom), 0, worldHeight),
+    right: clamp(Math.max(bounds.left, bounds.right), 0, worldWidth),
+    bottom: clamp(Math.max(bounds.top, bounds.bottom), 0, worldHeight),
+});
+
+const choosePaperHaloAnchor = ({
+    paperBounds,
+    worldWidth,
+    worldHeight,
+    width,
+    height,
+    seedKey,
+}: {
+    paperBounds: FumeBackgroundBounds;
+    worldWidth: number;
+    worldHeight: number;
+    width: number;
+    height: number;
+    seedKey: string;
+}) => {
+    const insideChance = seeded(`${seedKey}:inside-chance`);
+    if (insideChance < 0.22) {
+        return {
+            x: clamp(
+                mix(
+                    paperBounds.left + width * 0.12,
+                    paperBounds.right - width * 0.12,
+                    seeded(`${seedKey}:inside-x`),
+                ),
+                0,
+                worldWidth,
+            ),
+            y: clamp(
+                mix(
+                    paperBounds.top + height * 0.12,
+                    paperBounds.bottom - height * 0.12,
+                    seeded(`${seedKey}:inside-y`),
+                ),
+                0,
+                worldHeight,
+            ),
+        };
+    }
+
+    const side = Math.floor(seeded(`${seedKey}:side`) * 4) % 4;
+    const overflowX = width * mix(0.16, 0.24, seeded(`${seedKey}:overflow-x`));
+    const overflowY = height * mix(0.16, 0.24, seeded(`${seedKey}:overflow-y`));
+    const spanJitterX = width * mix(-0.18, 0.18, seeded(`${seedKey}:span-jitter-x`));
+    const spanJitterY = height * mix(-0.18, 0.18, seeded(`${seedKey}:span-jitter-y`));
+
+    if (side === 0) {
+        return {
+            x: clamp(paperBounds.left - overflowX, 0, worldWidth),
+            y: clamp(
+                mix(paperBounds.top - height * 0.12, paperBounds.bottom + height * 0.12, seeded(`${seedKey}:y`)) + spanJitterY,
+                0,
+                worldHeight,
+            ),
+        };
+    }
+
+    if (side === 1) {
+        return {
+            x: clamp(paperBounds.right + overflowX, 0, worldWidth),
+            y: clamp(
+                mix(paperBounds.top - height * 0.12, paperBounds.bottom + height * 0.12, seeded(`${seedKey}:y`)) + spanJitterY,
+                0,
+                worldHeight,
+            ),
+        };
+    }
+
+    if (side === 2) {
+        return {
+            x: clamp(
+                mix(paperBounds.left - width * 0.12, paperBounds.right + width * 0.12, seeded(`${seedKey}:x`)) + spanJitterX,
+                0,
+                worldWidth,
+            ),
+            y: clamp(paperBounds.top - overflowY, 0, worldHeight),
+        };
+    }
+
+    return {
+        x: clamp(
+            mix(paperBounds.left - width * 0.12, paperBounds.right + width * 0.12, seeded(`${seedKey}:x`)) + spanJitterX,
+            0,
+            worldWidth,
+        ),
+        y: clamp(paperBounds.bottom + overflowY, 0, worldHeight),
+    };
+};
+
+export const buildFumeBackgroundScene = ({
+    viewport,
+    world,
+    paperBounds,
+    seed,
+}: {
+    viewport: ViewportSize;
+    world: WorldSize;
+    paperBounds?: FumeBackgroundBounds;
+    seed?: string | number;
+}): FumeBackgroundScene => {
+    if (viewport.width <= 0 || viewport.height <= 0 || world.width <= 0 || world.height <= 0) {
+        return {
+            width: Math.max(world.width, viewport.width, 1),
+            height: Math.max(world.height, viewport.height, 1),
+            shapes: [],
+        };
+    }
+
+    const worldWidth = Math.max(world.width, viewport.width * 1.2);
+    const worldHeight = Math.max(world.height, viewport.height * 1.2);
+    const baseUnit = clamp(Math.min(viewport.width, viewport.height) * 0.72, 320, 760);
+    const defaultPaperBounds = {
+        left: worldWidth * 0.24,
+        top: worldHeight * 0.18,
+        right: worldWidth * 0.76,
+        bottom: worldHeight * 0.82,
+    };
+    const resolvedPaperBounds = normalizeBounds(
+        paperBounds ?? defaultPaperBounds,
+        worldWidth,
+        worldHeight,
+    );
+    const shapeKinds: FumeBackgroundShapeKind[] = ['ring', 'square', 'cross', 'ring', 'square', 'cross'];
+    const shapeCount = worldWidth > worldHeight ? 8 : 7;
+    const sparkBands: FumeBackgroundAudioBand[] = ['treble', 'vocal', 'mid', 'treble', 'lowMid'];
+    const sparkCount = worldWidth > worldHeight ? 12 : 9;
+    const sparkAreaLeft = worldWidth * 0.2;
+    const sparkAreaRight = worldWidth * 0.8;
+    const sparkAreaTop = worldHeight * 0.18;
+    const sparkAreaBottom = worldHeight * 0.82;
+    const sparkAreaWidth = sparkAreaRight - sparkAreaLeft;
+    const sparkAreaHeight = sparkAreaBottom - sparkAreaTop;
+    const sparkColumns = Math.ceil(Math.sqrt(sparkCount * (worldWidth / Math.max(worldHeight, 1))));
+    const sparkRows = Math.ceil(sparkCount / sparkColumns);
+    const sparkCellWidth = sparkAreaWidth / sparkColumns;
+    const sparkCellHeight = sparkAreaHeight / sparkRows;
+
+    const baseShapes = Array.from({ length: shapeCount }).map((_, index) => {
+        const localSeed = `${seed ?? 'fume'}:${worldWidth}:${worldHeight}:${index}`;
+        const kind = shapeKinds[index % shapeKinds.length]!;
+        const width = baseUnit * mix(0.82, 1.36, seeded(`${localSeed}:size`));
+        const height = width;
+        const anchor = choosePaperHaloAnchor({
+            paperBounds: resolvedPaperBounds,
+            worldWidth,
+            worldHeight,
+            width,
+            height,
+            seedKey: localSeed,
+        });
+
+        return {
+            id: `fume-bg-${index}`,
+            kind,
+            x: anchor.x,
+            y: anchor.y,
+            width,
+            height,
+            rotation: mix(-Math.PI * 0.2, Math.PI * 0.2, seeded(`${localSeed}:rotation`)),
+            rotationSpeed: mix(-0.045, 0.045, seeded(`${localSeed}:rotation-speed`)),
+            strokeWidth: mix(0.25, 2.1, seeded(`${localSeed}:stroke-width`)),
+            opacity: mix(0.01, 0.16, seeded(`${localSeed}:opacity`)),
+            color: (seeded(`${localSeed}:color`) > 0.5 ? 'accent' : 'secondary') as FumeBackgroundShapeColor,
+            depth: seeded(`${localSeed}:depth`),
+            ringGapStart: kind === 'ring'
+                ? mix(-Math.PI, Math.PI, seeded(`${localSeed}:gap-start`))
+                : undefined,
+            ringGapSize: kind === 'ring'
+                ? mix(Math.PI * 0.12, Math.PI * 0.24, seeded(`${localSeed}:gap-size`))
+                : undefined,
+        };
+    });
+
+    const sparkShapes = Array.from({ length: sparkCount }).map((_, index) => {
+        const localSeed = `${seed ?? 'fume'}:${worldWidth}:${worldHeight}:spark:${index}`;
+        const width = baseUnit * mix(0.1, 0.24, seeded(`${localSeed}:size`));
+        const column = index % sparkColumns;
+        const row = Math.floor(index / sparkColumns);
+        const jitterX = mix(-0.32, 0.32, seeded(`${localSeed}:jitter-x`)) * sparkCellWidth;
+        const jitterY = mix(-0.32, 0.32, seeded(`${localSeed}:jitter-y`)) * sparkCellHeight;
+        const x = clamp(sparkAreaLeft + (column + 0.5) * sparkCellWidth + jitterX, sparkAreaLeft, sparkAreaRight);
+        const y = clamp(sparkAreaTop + (row + 0.5) * sparkCellHeight + jitterY, sparkAreaTop, sparkAreaBottom);
+
+        return {
+            id: `fume-spark-${index}`,
+            kind: 'spark' as const,
+            x,
+            y,
+            width,
+            height: width,
+            rotation: mix(-Math.PI, Math.PI, seeded(`${localSeed}:rotation`)),
+            rotationSpeed: mix(-0.18, 0.18, seeded(`${localSeed}:rotation-speed`)),
+            strokeWidth: mix(0.75, 1.7, seeded(`${localSeed}:stroke-width`)),
+            opacity: mix(0.08, 0.22, seeded(`${localSeed}:opacity`)),
+            color: (seeded(`${localSeed}:color`) > 0.5 ? 'accent' : 'secondary') as FumeBackgroundShapeColor,
+            depth: seeded(`${localSeed}:depth`),
+            audioBand: sparkBands[index % sparkBands.length],
+        };
+    });
+
+    const shapes = [...baseShapes, ...sparkShapes].sort((left, right) => left.depth - right.depth);
+
+    return {
+        width: worldWidth,
+        height: worldHeight,
+        shapes,
+    };
+};
+
+// A line shape's gradient depends only on its size, its opacity and the two theme colours, none
+// of which move between frames (rotation and position are applied to the context, not baked in).
+// Built per frame it was two gradients and a dozen colour conversions per shape.
+const lineGradients = new WeakMap<CanvasRenderingContext2D, Map<string, CanvasGradient>>();
+const LINE_GRADIENT_LIMIT = 256;
+
+export const drawFumeBackground = ({
+    context,
+    scene,
+    theme,
+    time = 0,
+    audioLevels,
+    parallax,
+    objectOpacityMultiplier = 1,
+}: {
+    context: CanvasRenderingContext2D;
+    scene: FumeBackgroundScene;
+    theme: Theme;
+    time?: number;
+    audioLevels?: FumeBackgroundAudioLevels;
+    parallax?: FumeBackgroundParallax;
+    objectOpacityMultiplier?: number;
+}) => {
+    const resolvedObjectOpacityMultiplier = clamp(objectOpacityMultiplier, 0, 2);
+    let gradients = lineGradients.get(context);
+    if (!gradients) {
+        gradients = new Map();
+        lineGradients.set(context, gradients);
+    }
+    const createLineGradient = (
+        shape: FumeBackgroundShape,
+        opacity: number,
+    ) => {
+        const key = `${shape.width}|${shape.height}|${opacity}|${theme.secondaryColor}|${theme.accentColor}`;
+        const cached = gradients.get(key);
+        if (cached) return cached;
+        const gradient = context.createLinearGradient(-shape.width * 0.55, -shape.height * 0.28, shape.width * 0.55, shape.height * 0.28);
+        gradient.addColorStop(0, colorWithAlpha(theme.secondaryColor, opacity * 0.18));
+        gradient.addColorStop(0.28, colorWithAlpha(mixColors(theme.secondaryColor, theme.accentColor, 0.24), opacity * 0.58));
+        gradient.addColorStop(0.54, colorWithAlpha(mixColors(theme.secondaryColor, theme.accentColor, 0.62), opacity * 0.92));
+        gradient.addColorStop(1, colorWithAlpha(theme.accentColor, opacity * 0.7));
+        return rememberBounded(gradients, key, gradient, LINE_GRADIENT_LIMIT);
+    };
+
+    const lineGradientsOf = (
+        sceneShape: FumeBackgroundShape,
+        shape: FumeBackgroundShape,
+        opacity: number,
+    ) => {
+        const kept = shapeLineGradients.get(sceneShape);
+        if (
+            kept
+            && kept.context === context
+            && kept.secondaryColor === theme.secondaryColor
+            && kept.accentColor === theme.accentColor
+            && kept.opacity === opacity
+            && kept.width === shape.width
+            && kept.height === shape.height
+        ) {
+            return kept;
+        }
+        const made: ShapeLineGradients = {
+            context,
+            secondaryColor: theme.secondaryColor,
+            accentColor: theme.accentColor,
+            opacity,
+            width: shape.width,
+            height: shape.height,
+            base: createLineGradient(shape, opacity * 0.56),
+            top: createLineGradient(shape, opacity),
+        };
+        shapeLineGradients.set(sceneShape, made);
+        return made;
+    };
+
+    /** `sceneShape` is the scene's own object (the gradients are kept under it); `shape` is it as drawn this frame. */
+    const drawGradientGeometry = (
+        sceneShape: FumeBackgroundShape,
+        shape: FumeBackgroundShape,
+        opacity: number,
+    ) => {
+        const baseWidth = Math.max(shape.strokeWidth * 0.28, 0.14);
+        const topWidth = Math.max(shape.strokeWidth * 0.92, 0.78);
+        const gradients = lineGradientsOf(sceneShape, shape, opacity);
+
+        // One path, stroked twice: a stroke leaves the current path as it is.
+        buildShapePath(context, shape);
+        context.strokeStyle = gradients.base;
+        context.lineWidth = baseWidth;
+        context.shadowBlur = 0;
+        context.shadowColor = 'transparent';
+        context.stroke();
+
+        context.strokeStyle = gradients.top;
+        context.lineWidth = topWidth;
+        context.shadowBlur = 0;
+        context.shadowColor = 'transparent';
+        context.stroke();
+    };
+
+    for (const shape of scene.shapes) {
+        const bandValue = shape.audioBand ? audioLevels?.[shape.audioBand] : undefined;
+        const audioScale = bandValue === undefined
+            ? 1
+            : mix(0.95, 1.45, clamp((bandValue - 10) / 190, 0, 1));
+        const audioOpacityBoost = bandValue === undefined
+            ? 1
+            : mix(0.85, 1.55, clamp((bandValue - 10) / 190, 0, 1));
+
+        context.save();
+        context.lineWidth = shape.strokeWidth;
+        const shapeColor = shape.color === 'accent' ? theme.accentColor : theme.secondaryColor;
+        const layerResponse = mix(0.58, 1.16, shape.depth);
+        const parallaxStrength = parallax?.strength ?? 1;
+        const parallaxOffsetX = parallax
+            ? (parallax.cameraX - parallax.originX) * (1 - layerResponse) * parallaxStrength
+            : 0;
+        const parallaxOffsetY = parallax
+            ? (parallax.cameraY - parallax.originY) * (1 - layerResponse) * parallaxStrength
+            : 0;
+
+        const renderedShape = {
+            ...shape,
+            x: shape.x + parallaxOffsetX,
+            y: shape.y + parallaxOffsetY,
+            width: shape.width * audioScale,
+            height: shape.height * audioScale,
+            rotation: shape.rotation + time * shape.rotationSpeed,
+        };
+
+        if (shape.kind === 'spark') {
+            context.strokeStyle = colorWithAlpha(
+                shapeColor,
+                clamp(shape.opacity * audioOpacityBoost * resolvedObjectOpacityMultiplier, 0, 0.42),
+            );
+            context.lineWidth = shape.strokeWidth;
+            context.shadowBlur = 10 * audioScale;
+            context.shadowColor = colorWithAlpha(
+                shapeColor,
+                shape.opacity * audioOpacityBoost * 0.75 * resolvedObjectOpacityMultiplier,
+            );
+            traceShape(context, renderedShape);
+        } else {
+            context.translate(renderedShape.x, renderedShape.y);
+            context.rotate(renderedShape.rotation);
+            drawGradientGeometry(
+                shape,
+                renderedShape,
+                clamp(shape.opacity * audioOpacityBoost * resolvedObjectOpacityMultiplier, 0, 0.42),
+            );
+        }
+        context.restore();
+    }
+};

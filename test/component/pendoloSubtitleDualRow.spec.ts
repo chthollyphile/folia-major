@@ -65,7 +65,8 @@ test('单来源模式保持单行', async ({ mount, page }) => {
     await page.locator('[data-probe-mode="translation"]').click();
     await expect(rows).toHaveCount(1);
     await expect(rows.first()).toHaveText('早上好');
-    expect(await rows.first().evaluate(el => parseFloat(getComputedStyle(el).opacity))).toBe(1);
+    // 这一行刚才是双行里更淡的第二行，变回不透明有 200ms 的过渡：等它走完再读。
+    await expect.poll(() => rows.first().evaluate(el => parseFloat(getComputedStyle(el).opacity))).toBe(1);
 
     await page.locator('[data-probe-mode="romanization"]').click();
     await expect(rows).toHaveCount(1);

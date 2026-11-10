@@ -8,11 +8,11 @@ import { afterEach, describe, expect, it } from 'vitest';
 const { createLyricApi, sanitizeLyricData } = require('../../../electron/lyricApi.cjs') as {
     createLyricApi: (options: Record<string, unknown>) => {
         buildStatus: () => { running: boolean };
-        publishLyricData: (lyrics: unknown, offset?: number) => boolean;
+        publishLyricData: (lyrics: unknown, offset?: number, clipStartMs?: number) => boolean;
         setEnabled: (enabled: boolean) => Promise<{ enabled: boolean; running: boolean; url: string | null }>;
         stop: () => Promise<unknown>;
     };
-    sanitizeLyricData: (lyrics: unknown) => unknown;
+    sanitizeLyricData: (lyrics: unknown, offset?: number, clipStartMs?: number) => unknown;
 };
 
 const activeApis: Array<{ stop: () => Promise<unknown> }> = [];
@@ -72,6 +72,7 @@ describe('desktop lyric API', () => {
             artist: 'Artist',
             wordByWord: true,
             offset: 0,
+            clipStartMs: 0,
             lines: [{
                 text: 'Hello',
                 startTime: 1,
@@ -103,8 +104,36 @@ describe('desktop lyric API', () => {
         expect(response.headers['access-control-allow-origin']).toBe('*');
         expect(response.body).toEqual({
             offset: -250,
+            clipStartMs: 0,
             lines: [{ text: 'Line', startTime: 0, endTime: 1, words: [] }],
             wordByWord: false,
         });
+    });
+
+    it('adds where a preview clip starts without changing what offset means', async () => {
+        const port = await getFreePort();
+        const api = createLyricApi({
+            store: createStore(),
+            getMainWindow: () => null,
+            enabledSettingKey: 'TEST_LYRIC_API_ENABLED',
+            port,
+        });
+        activeApis.push(api);
+        const status = await api.setEnabled(true);
+        const lyrics = { lines: [{ fullText: 'Line', startTime: 70.5, endTime: 74.8, words: [] }] };
+
+        api.publishLyricData(lyrics, -250, 64319);
+        expect((await getJson(`${status.url}`)).body).toMatchObject({ offset: -250, clipStartMs: 64319 });
+
+        // The same lyrics moved on to the whole song: published again with no clip start.
+        api.publishLyricData(lyrics, -250, 0);
+        expect((await getJson(`${status.url}`)).body).toMatchObject({ offset: -250, clipStartMs: 0 });
+    });
+
+    it('publishes 0 for a clip start that is missing, negative or not a number', () => {
+        const lyrics = { lines: [] };
+        for (const clipStartMs of [undefined, -1, Number.NaN, Number.POSITIVE_INFINITY, '64319' as unknown as number]) {
+            expect(sanitizeLyricData(lyrics, 0, clipStartMs)).toMatchObject({ clipStartMs: 0 });
+        }
     });
 });

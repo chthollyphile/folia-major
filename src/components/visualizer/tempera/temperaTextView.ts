@@ -25,6 +25,11 @@ export interface TemperaGlyphView {
     baseY: number;
     shadowDX: number;
     shadowDY: number;
+    /**
+     * 字号即远近: 1 for the shot's biggest glyphs (nearest), down to 0 for ones well under half
+     * their size (furthest). The frame lightens far glyphs and moves them with the camera less.
+     */
+    depth: number;
 }
 
 interface TemperaTextViewOptions {
@@ -51,6 +56,8 @@ const SHADOW_OFFSET_X = 0.06;
 const SHADOW_OFFSET_Y = 0.08;
 /** The ghost is tinted by the filter, so only its opacity is its own. */
 const SHADOW_ALPHA = 0.34;
+/** Glyph size, as a share of the shot's biggest, that sits furthest back; 1 sits in front. */
+const DEPTH_FAR_SIZE = 0.4;
 export const buildTemperaTextViews = (
     pixi: PixiModule,
     options: TemperaTextViewOptions,
@@ -126,7 +133,16 @@ export const buildTemperaTextViews = (
             baseY: placement.y,
             shadowDX: placement.fontSize * SHADOW_OFFSET_X,
             shadowDY: placement.fontSize * SHADOW_OFFSET_Y,
+            depth: placement.fontSize,
         });
+    });
+
+    // Sizes become depths once the shot's biggest glyph is known.
+    const biggest = Math.max(0, ...views.map(view => view.depth));
+    views.forEach(view => {
+        view.depth = biggest > 0
+            ? Math.min(1, Math.max(0, (view.depth / biggest - DEPTH_FAR_SIZE) / (1 - DEPTH_FAR_SIZE)))
+            : 1;
     });
 
     return views;

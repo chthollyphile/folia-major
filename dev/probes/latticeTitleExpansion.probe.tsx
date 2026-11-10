@@ -21,7 +21,7 @@ function Probe() {
     } satisfies SongResult)));
     const source = useMemo(() => ({ currentTime: time, currentLineIndex: -1, lines: [], theme: DEFAULT_THEME }), [time]);
     return <div style={{ height: '100vh' }}>
-        <Lattice queue={songs} currentSong={null} playerState={PlayerState.PAUSED} currentTime={time}
+        <Lattice queue={songs} currentSong={null} playerState={PlayerState.PAUSED} currentTime={time} lyricCurrentTime={time}
             playbackDuration={180} canTogglePlayback={false} isDaylight={false} lyrics={null}
             lyricSource={source} lyricKeywordColoringEnabled={false}
             controls={{ loopMode: 'off', playback: { prev: noop, next: noop, toggleLoop: noop, shuffleQueue: noop,

@@ -79,7 +79,6 @@ const homeAnchors = {
     sections: region('homeSeam', H.sections, label('sections')),
     shortcuts: region('homeSeam', H.shortcuts, label('shortcuts')),
     account: region('homeSeam', D.account, label('account')),
-    accountPopup: region('homeSeam', H.accountPopup, label('accountPopup')),
     tools: region('homeSeam', D.tools, label('tools')),
     searchTool: region('homeSeam', D.search, label('searchTool')),
     homeMore: region('homeSeam', D.more, label('homeMore')),
@@ -106,28 +105,28 @@ const levels: PonderSceneScript = {
     anchors: stripAnchors,
     steps: [
         { kind: 'highlight', id: 'markStrip', anchor: 'strip', intensity: [0, 0.45], durationMs: 480, keyframe: true },
-        { kind: 'caption', id: 'intro', at: 'bottom', textKey: caption('levelsIntro'), pointTo: { anchor: 'strip' }, durationMs: 5000, withPrevious: true },
+        { kind: 'caption', id: 'intro', textKey: caption('levelsIntro'), pointTo: { anchor: 'strip' }, durationMs: 5000, withPrevious: true },
         { kind: 'pause', id: 'readIntro' },
 
         { kind: 'highlight', id: 'dimStrip', anchor: 'strip', intensity: [0.45, 0], durationMs: 300, keyframe: true },
         { kind: 'cursor', id: 'tapTitle', to: { anchor: 'title' }, press: 'tap', durationMs: 720, withPrevious: true },
         { kind: 'surfaceState', id: 'toSpine', anchor: 'page', state: 'spine', durationMs: 560 },
-        { kind: 'caption', id: 'spine', at: 'bottom', textKey: caption('levelsSpine'), pointTo: { anchor: 'spineTitle' }, durationMs: 5400, withPrevious: true },
+        { kind: 'caption', id: 'spine', textKey: caption('levelsSpine'), pointTo: { anchor: 'spineTitle' }, durationMs: 5400, withPrevious: true },
         { kind: 'pause', id: 'readSpine' },
 
         { kind: 'cursor', id: 'tapSpineTitle', to: { anchor: 'spineTitle' }, press: 'tap', durationMs: 620, keyframe: true },
         { kind: 'surfaceState', id: 'backToStrip', anchor: 'page', state: 'strip-again', durationMs: 520 },
         { kind: 'cursor', id: 'openMore', to: { anchor: 'more' }, press: 'tap', durationMs: 620 },
         { kind: 'surfaceState', id: 'moreOpen', anchor: 'page', state: 'strip-more', durationMs: 380 },
-        { kind: 'caption', id: 'fold', at: 'bottom', textKey: caption('levelsFold'), pointTo: { anchor: 'menuFold' }, durationMs: 4800, withPrevious: true },
+        { kind: 'caption', id: 'fold', textKey: caption('levelsFold'), pointTo: { anchor: 'menuFold' }, durationMs: 4800, withPrevious: true },
         { kind: 'pause', id: 'readFold' },
 
         { kind: 'cursor', id: 'tapFold', to: { anchor: 'menuFold' }, press: 'tap', durationMs: 600, keyframe: true },
         { kind: 'surfaceState', id: 'folded', anchor: 'page', state: 'hidden', durationMs: 600 },
-        { kind: 'caption', id: 'hidden', at: 'bottom', textKey: caption('levelsHidden'), pointTo: { anchor: 'edgeTab' }, durationMs: 5200, withPrevious: true },
+        { kind: 'caption', id: 'hidden', textKey: caption('levelsHidden'), pointTo: { anchor: 'edgeTab' }, durationMs: 5200, withPrevious: true },
         { kind: 'pause', id: 'readHidden' },
 
-        { kind: 'caption', id: 'global', at: 'bottom', textKey: caption('levelsGlobal'), durationMs: 5400, keyframe: true },
+        { kind: 'caption', id: 'global', textKey: caption('levelsGlobal'), durationMs: 5400, keyframe: true },
         { kind: 'pause', id: 'readGlobal' },
     ],
 };
@@ -139,17 +138,17 @@ const collection: PonderSceneScript = {
     anchors: stripAnchors,
     steps: [
         { kind: 'highlight', id: 'markCrumbs', anchor: 'crumbs', intensity: [0, 0.8], durationMs: 400, keyframe: true },
-        { kind: 'caption', id: 'crumbs', at: 'bottom', textKey: caption('collectionCrumbs'), pointTo: { anchor: 'crumbs' }, durationMs: 5200, withPrevious: true },
+        { kind: 'caption', id: 'crumbs', textKey: caption('collectionCrumbs'), pointTo: { anchor: 'crumbs' }, durationMs: 5200, withPrevious: true },
         { kind: 'pause', id: 'readCrumbs' },
 
         { kind: 'highlight', id: 'dimCrumbs', anchor: 'crumbs', intensity: [0.8, 0], durationMs: 300, keyframe: true },
         { kind: 'highlight', id: 'markAbout', anchor: 'about', intensity: [0, 0.8], durationMs: 400, withPrevious: true },
-        { kind: 'caption', id: 'about', at: 'bottom', textKey: caption('collectionAbout'), pointTo: { anchor: 'about' }, durationMs: 5600, withPrevious: true },
+        { kind: 'caption', id: 'about', textKey: caption('collectionAbout'), pointTo: { anchor: 'about' }, durationMs: 5600, withPrevious: true },
         { kind: 'pause', id: 'readAbout' },
 
         { kind: 'highlight', id: 'dimAbout', anchor: 'about', intensity: [0.8, 0], durationMs: 300, keyframe: true },
         { kind: 'highlight', id: 'markActions', anchor: 'actions', intensity: [0, 0.8], durationMs: 400, withPrevious: true },
-        { kind: 'caption', id: 'actions', at: 'bottom', textKey: caption('collectionActions'), pointTo: { anchor: 'actions' }, durationMs: 4800, withPrevious: true },
+        { kind: 'caption', id: 'actions', textKey: caption('collectionActions'), pointTo: { anchor: 'actions' }, durationMs: 4800, withPrevious: true },
         { kind: 'pause', id: 'readActions' },
 
         { kind: 'highlight', id: 'dimActions', anchor: 'actions', intensity: [0.8, 0], durationMs: 300, keyframe: true },
@@ -157,7 +156,7 @@ const collection: PonderSceneScript = {
         { kind: 'surfaceState', id: 'listOpen', anchor: 'page', state: 'list-panel', durationMs: 600 },
         { kind: 'cursor', id: 'hoverRow', to: { anchor: 'hoverRow', x: 0.4 }, durationMs: 520 },
         { kind: 'highlight', id: 'markLinked', anchor: 'linkedTile', intensity: [0, 0.7], durationMs: 400, withPrevious: true },
-        { kind: 'caption', id: 'list', at: 'bottom', textKey: caption('collectionList'), pointTo: { anchor: 'linkedTile' }, durationMs: 6000, withPrevious: true },
+        { kind: 'caption', id: 'list', textKey: caption('collectionList'), pointTo: { anchor: 'linkedTile' }, durationMs: 6000, withPrevious: true },
         { kind: 'pause', id: 'readList' },
     ],
 };
@@ -169,23 +168,23 @@ const homeNavigation: PonderSceneScript = {
     anchors: homeAnchors,
     steps: [
         { kind: 'highlight', id: 'markTabs', anchor: 'tabs', intensity: [0, 0.7], durationMs: 420, keyframe: true },
-        { kind: 'caption', id: 'tabs', at: 'bottom', textKey: caption('homeTabs'), pointTo: { anchor: 'tabs' }, durationMs: 5000, withPrevious: true },
+        { kind: 'caption', id: 'tabs', textKey: caption('homeTabs'), pointTo: { anchor: 'tabs' }, durationMs: 5000, withPrevious: true },
         { kind: 'pause', id: 'readTabs' },
 
         { kind: 'highlight', id: 'dimTabs', anchor: 'tabs', intensity: [0.7, 0], durationMs: 300, keyframe: true },
         { kind: 'cursor', id: 'tapLocal', to: { anchor: 'tabLocal' }, press: 'tap', durationMs: 700, withPrevious: true },
         { kind: 'surfaceState', id: 'localShown', anchor: 'page', state: 'home-local', transition: 'zoom', durationMs: 620 },
         { kind: 'keypress', id: 'cycleKeys', keys: ['F6', 'Shift F6'], at: { anchor: 'wall', y: 0.14 }, durationMs: 1200, withPrevious: true },
-        { kind: 'caption', id: 'flip', at: 'bottom', textKey: caption('homeFlip'), pointTo: { anchor: 'tabLocal' }, durationMs: 4800, withPrevious: true },
+        { kind: 'caption', id: 'flip', textKey: caption('homeFlip'), pointTo: { anchor: 'tabLocal' }, durationMs: 4800, withPrevious: true },
         { kind: 'pause', id: 'readFlip' },
 
         { kind: 'highlight', id: 'markSections', anchor: 'sections', intensity: [0, 0.8], durationMs: 400, keyframe: true },
-        { kind: 'caption', id: 'sections', at: 'bottom', textKey: caption('homeSections'), pointTo: { anchor: 'sections' }, durationMs: 5800, withPrevious: true },
+        { kind: 'caption', id: 'sections', textKey: caption('homeSections'), pointTo: { anchor: 'sections' }, durationMs: 5800, withPrevious: true },
         { kind: 'pause', id: 'readSections' },
 
         { kind: 'highlight', id: 'dimSections', anchor: 'sections', intensity: [0.8, 0], durationMs: 300, keyframe: true },
         { kind: 'highlight', id: 'markShortcuts', anchor: 'shortcuts', intensity: [0, 0.8], durationMs: 400, withPrevious: true },
-        { kind: 'caption', id: 'shortcuts', at: 'bottom', textKey: caption('homeShortcuts'), pointTo: { anchor: 'shortcuts' }, durationMs: 5800, withPrevious: true },
+        { kind: 'caption', id: 'shortcuts', textKey: caption('homeShortcuts'), pointTo: { anchor: 'shortcuts' }, durationMs: 5800, withPrevious: true },
         { kind: 'pause', id: 'readShortcuts' },
     ],
 };
@@ -197,28 +196,22 @@ const homeDock: PonderSceneScript = {
     anchors: homeAnchors,
     steps: [
         { kind: 'highlight', id: 'markAccount', anchor: 'account', intensity: [0, 0.8], durationMs: 400, keyframe: true },
-        { kind: 'caption', id: 'account', at: 'bottom', textKey: caption('dockAccount'), pointTo: { anchor: 'account' }, durationMs: 4600, withPrevious: true },
+        { kind: 'caption', id: 'account', textKey: caption('dockAccount'), pointTo: { anchor: 'account' }, durationMs: 4600, withPrevious: true },
         { kind: 'pause', id: 'readAccount' },
 
         { kind: 'highlight', id: 'dimAccount', anchor: 'account', intensity: [0.8, 0], durationMs: 300, keyframe: true },
-        { kind: 'cursor', id: 'tapAccount', to: { anchor: 'account' }, press: 'tap', durationMs: 640, withPrevious: true },
-        { kind: 'surfaceState', id: 'platforms', anchor: 'page', state: 'account-open', durationMs: 420 },
-        { kind: 'caption', id: 'platformList', at: 'bottom', textKey: caption('dockPlatforms'), pointTo: { anchor: 'accountPopup' }, durationMs: 6000, withPrevious: true },
-        { kind: 'pause', id: 'readPlatforms' },
-
-        { kind: 'surfaceState', id: 'platformsClosed', anchor: 'page', state: 'base-again', durationMs: 360, keyframe: true },
         { kind: 'highlight', id: 'markTools', anchor: 'tools', intensity: [0, 0.75], durationMs: 400, withPrevious: true },
-        { kind: 'caption', id: 'tools', at: 'bottom', textKey: caption('dockTools'), pointTo: { anchor: 'tools' }, durationMs: 4800, withPrevious: true },
+        { kind: 'caption', id: 'tools', textKey: caption('dockTools'), pointTo: { anchor: 'tools' }, durationMs: 4800, withPrevious: true },
         { kind: 'pause', id: 'readTools' },
 
         { kind: 'highlight', id: 'dimTools', anchor: 'tools', intensity: [0.75, 0], durationMs: 300, keyframe: true },
         { kind: 'cursor', id: 'tapMore', to: { anchor: 'homeMore' }, press: 'tap', durationMs: 640, withPrevious: true },
         { kind: 'surfaceState', id: 'menuShown', anchor: 'page', state: 'menu-open', durationMs: 420 },
-        { kind: 'caption', id: 'menu', at: 'bottom', textKey: caption('dockMenu'), pointTo: { anchor: 'menuPopup' }, durationMs: 5800, withPrevious: true },
+        { kind: 'caption', id: 'menu', textKey: caption('dockMenu'), pointTo: { anchor: 'menuPopup' }, durationMs: 5800, withPrevious: true },
         { kind: 'pause', id: 'readMenu' },
 
         { kind: 'surfaceState', id: 'stageShown', anchor: 'page', state: 'stage-on', durationMs: 560, keyframe: true },
-        { kind: 'caption', id: 'stage', at: 'bottom', textKey: caption('dockStage'), pointTo: { anchor: 'stageRow' }, durationMs: 4800, withPrevious: true },
+        { kind: 'caption', id: 'stage', textKey: caption('dockStage'), pointTo: { anchor: 'stageRow' }, durationMs: 4800, withPrevious: true },
         { kind: 'pause', id: 'readStage' },
     ],
 };
@@ -231,16 +224,16 @@ const filterAndSearch: PonderSceneScript = {
     steps: [
         { kind: 'keypress', id: 'typeOnWall', keys: ['L', 'O', 'V', 'E'], at: { anchor: 'wall', y: 0.18 }, durationMs: 1200, keyframe: true },
         { kind: 'surfaceState', id: 'filtering', anchor: 'page', state: 'filtering', durationMs: 600 },
-        { kind: 'caption', id: 'type', at: 'bottom', textKey: caption('filterType'), pointTo: { anchor: 'filter' }, durationMs: 5800, withPrevious: true },
+        { kind: 'caption', id: 'type', textKey: caption('filterType'), pointTo: { anchor: 'filter' }, durationMs: 5800, withPrevious: true },
         { kind: 'pause', id: 'readType' },
 
         { kind: 'keypress', id: 'filterKeys', keys: ['Esc', '↓', 'Enter'], at: { anchor: 'wall', y: 0.18 }, durationMs: 1200, keyframe: true },
-        { kind: 'caption', id: 'keys', at: 'bottom', textKey: caption('filterKeys'), pointTo: { anchor: 'filter' }, durationMs: 5400, withPrevious: true },
+        { kind: 'caption', id: 'keys', textKey: caption('filterKeys'), pointTo: { anchor: 'filter' }, durationMs: 5400, withPrevious: true },
         { kind: 'pause', id: 'readKeys' },
 
         { kind: 'cursor', id: 'tapSearch', to: { anchor: 'searchTool' }, press: 'tap', durationMs: 700, keyframe: true },
         { kind: 'surfaceState', id: 'searchOpen', anchor: 'page', state: 'search-open', durationMs: 620 },
-        { kind: 'caption', id: 'search', at: 'bottom', textKey: caption('filterSearch'), pointTo: { anchor: 'searchBox' }, durationMs: 5800, withPrevious: true },
+        { kind: 'caption', id: 'search', textKey: caption('filterSearch'), pointTo: { anchor: 'searchBox' }, durationMs: 5800, withPrevious: true },
         { kind: 'pause', id: 'readSearch' },
     ],
 };
@@ -253,16 +246,16 @@ const tools: PonderSceneScript = {
     steps: [
         { kind: 'cursor', id: 'openTools', to: { anchor: 'toolsButton' }, press: 'tap', durationMs: 720, keyframe: true },
         { kind: 'surfaceState', id: 'toolsShown', anchor: 'page', state: 'tools-open', transition: 'slide-up', durationMs: 520 },
-        { kind: 'caption', id: 'quick', at: 'bottom', textKey: caption('toolsQuick'), pointTo: { anchor: 'toolsQuick' }, durationMs: 5600, withPrevious: true },
+        { kind: 'caption', id: 'quick', textKey: caption('toolsQuick'), pointTo: { anchor: 'toolsQuick' }, durationMs: 5600, withPrevious: true },
         { kind: 'pause', id: 'readQuick' },
 
         { kind: 'highlight', id: 'markVolume', anchor: 'toolsVolume', intensity: [0, 0.8], durationMs: 400, keyframe: true },
-        { kind: 'caption', id: 'volume', at: 'bottom', textKey: caption('toolsVolume'), pointTo: { anchor: 'toolsVolume' }, durationMs: 4200, withPrevious: true },
+        { kind: 'caption', id: 'volume', textKey: caption('toolsVolume'), pointTo: { anchor: 'toolsVolume' }, durationMs: 4200, withPrevious: true },
         { kind: 'pause', id: 'readVolume' },
 
         { kind: 'highlight', id: 'dimVolume', anchor: 'toolsVolume', intensity: [0.8, 0], durationMs: 300, keyframe: true },
         { kind: 'highlight', id: 'markAppearance', anchor: 'toolsAppearance', intensity: [0, 0.75], durationMs: 400, withPrevious: true },
-        { kind: 'caption', id: 'appearance', at: 'bottom', textKey: caption('toolsAppearance'), pointTo: { anchor: 'toolsAppearance' }, durationMs: 5600, withPrevious: true },
+        { kind: 'caption', id: 'appearance', textKey: caption('toolsAppearance'), pointTo: { anchor: 'toolsAppearance' }, durationMs: 5600, withPrevious: true },
         { kind: 'pause', id: 'readAppearance' },
     ],
 };

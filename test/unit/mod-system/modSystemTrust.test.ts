@@ -31,6 +31,7 @@ stubModule('electron-store', FakeStore);
 
 const { createModSystem } = require('../../../electron/modSystem/modSystem.cjs');
 const { computeModDigest } = require('../../../electron/modSystem/modDigest.cjs');
+const { TRUST_DIALOG_LOCALE } = require('../../../electron/modSystem/approval.cjs');
 
 let root = '';
 
@@ -93,9 +94,32 @@ describe('enable approval and content changes', () => {
         expect(stateOf(launch({ isPackaged: true }), 'packaged-mod')).toMatchObject({ enabled: false, trustStale: true, devSource: false });
     });
 
+    // A build from before approvals were bound to files stored a bare `true`.
+    it('reads a stored approval that is not an object as none: the mod stays off, with no files-changed note', () => {
+        for (const [index, stored] of [true, 1, 'yes'].entries()) {
+            const modId = `old-record-${index}`;
+            writeConfirmedMod('userData/mods', modId);
+            persisted.set(`mods.enabled.${modId}`, stored);
+        }
+        const system = launch();
+        for (const index of [0, 1, 2]) {
+            expect(stateOf(system, `old-record-${index}`)).toMatchObject({ enabled: false, trustStale: false });
+        }
+    });
+
     it('still needs the first confirmation in the development source tree', () => {
         writeConfirmedMod('app/mods', 'never-enabled');
         persisted.delete('mods.enabled.never-enabled');
         expect(stateOf(launch(), 'never-enabled')).toMatchObject({ enabled: false, trustStale: false, devSource: true });
+    });
+});
+
+describe('the enable dialog text', () => {
+    // A line one language lacks would read "undefined" in the dialog there.
+    it('has the same lines in the four languages', () => {
+        const english = Object.keys(TRUST_DIALOG_LOCALE.en).sort();
+        for (const language of ['zh-CN', 'zh-TW', 'in']) {
+            expect(Object.keys(TRUST_DIALOG_LOCALE[language]).sort(), language).toEqual(english);
+        }
     });
 });

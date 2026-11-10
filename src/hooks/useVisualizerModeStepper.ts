@@ -4,6 +4,7 @@ import { getVisualizerModeLabel } from '../components/visualizer/registry';
 import type { VisualizerMode } from '../types';
 import { setStatusMessage } from '../stores/useStatusMessageStore';
 import { useVisualizerSettingsStore } from '../stores/useVisualizerSettingsStore';
+import { RANDOM_VISUALIZER_CHOICE, selectLyricStyleChoice } from '../components/visualizer/random/lyricStyleChoices';
 
 // src/hooks/useVisualizerModeStepper.ts
 // 面板里用箭头逐个切换歌词动画。每步都弹一次切换提示会刷屏，
@@ -49,7 +50,7 @@ export const useVisualizerModeStepper = (modes: VisualizerMode[]) => {
             setStatusMessage({
                 type: 'info',
                 text: t('notifications.visualizerSwitched', {
-                    mode: getVisualizerModeLabel(stateVisualizer.visualizerMode, key => t(key)),
+                    mode: stateVisualizer.randomVisualizerModePerSong ? t('ui.visualizerRandom') : getVisualizerModeLabel(stateVisualizer.visualizerMode, key => t(key)),
                 }),
             });
         }, STEP_NOTIFY_DELAY_MS);
@@ -62,8 +63,9 @@ export const useVisualizerModeStepper = (modes: VisualizerMode[]) => {
         }
 
         const stateVisualizer = useVisualizerSettingsStore.getState();
-        const target = stepFrom(stateVisualizer.visualizerMode, direction, availableModes);
-        stateVisualizer.handleSetVisualizerMode(target, { notify: false });
+        const from = stateVisualizer.randomVisualizerModePerSong ? RANDOM_VISUALIZER_CHOICE : stateVisualizer.visualizerMode;
+        const target = stepFrom(from, direction, availableModes);
+        selectLyricStyleChoice(target, mode => stateVisualizer.handleSetVisualizerMode(mode, { notify: false }), false);
         scheduleNotify();
     }, [scheduleNotify]);
 

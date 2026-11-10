@@ -16,7 +16,7 @@ const seedAndOpen = async (page: Page, storage: Record<string, string>) => {
     await page.addInitScript(([version, guideKey, entries]) => {
         localStorage.clear();
         localStorage.setItem('library_suite_prompt_seen', 'true');
-        localStorage.setItem('i18nextLng', 'en');
+        localStorage.setItem('folia_app_language', 'en');
         localStorage.setItem(guideKey, version);
         for (const [key, value] of Object.entries(entries)) localStorage.setItem(key, value);
     }, [APP_VERSION, GUIDE_VERSION_STORAGE_KEY, storage] as const);
@@ -81,19 +81,19 @@ test('mounts the video layer on the player page and Sora blank skips the WebGL c
     await expect(video).toHaveCount(0);
 });
 
-test('edits the video layer from the appearance settings', async ({ page }) => {
+test('edits the video layer from the player page settings', async ({ page }) => {
     await seedAndOpen(page, { static_mode: 'true' });
     await page.evaluate(async () => {
         const storeModulePath = '/src/stores/useSettingsModalStore.ts';
         const { useSettingsModalStore } = await import(storeModulePath);
-        useSettingsModalStore.getState().openSettings('options', 'appearance', null, 'videoLayerSettings');
+        useSettingsModalStore.getState().openSettings('options', 'player', null, 'videoLayerSettings');
     });
 
     const section = page.locator('[data-settings-anchor="videoLayerSettings"]');
-    const toggle = section.getByRole('button', { name: 'Show video behind lyrics' });
-    await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+    const toggle = section.getByRole('switch', { name: 'Show video behind lyrics' });
+    await expect(toggle).not.toBeChecked();
     await toggle.click();
-    await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+    await expect(toggle).toBeChecked();
 
     const urlInput = section.getByPlaceholder('https://example.com/loop.mp4');
     await urlInput.fill(`  ${VIDEO_URL}  `);

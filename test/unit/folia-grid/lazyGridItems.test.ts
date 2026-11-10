@@ -3,7 +3,7 @@ import {
     createLazyGridItems,
     shapeGridItem,
 } from '@/library/suites/grid/collection/lazyGridItems';
-import { buildDuplicateOccurrences, type DuplicateOccurrenceCache } from '@/library/core/model/collectionEntries';
+import { buildDuplicateOccurrences, type DuplicateOccurrenceCache } from '@/library/core/collection/collectionEntries';
 import { getPlaybackSongKey } from '@/utils/appPlaybackGuards';
 import { formatSongName } from '@/utils/songNameFormatter';
 import { getSongCoverUrl } from '@/services/onlineMusic/songMetadata';

@@ -3,13 +3,14 @@ import type { SongResult } from '../../../types';
 import type { PlaybackNavigationOptions } from '../../../types/appPlayback';
 import type { WallToolsHost, WallToolsHostSnapshot } from '../../wall/wallToolsHost';
 import { usePlaybackStore } from '../../../stores/usePlaybackStore';
+import { openSettings } from '../../../stores/useSettingsModalStore';
 
 // src/components/app/wall-tools/useAppWallToolsHost.ts
 // App 给墙面工具（components/wall 的 WallToolsButton，bravais 与 Lattice 共用）的宿主：在这里把应用的动作组装成
 // WallToolsHost，经 WallToolsDockHost 的 Provider 交给两面墙。原先 bravais 经 stage 契约的 tools 端口
 // （library/app/useLibraryStageToolsPort，已删除）拿这些动作，Lattice 拿不到；现在两面墙读同一份 host，stage 契约里不再有 tools。
 // - 生成主题、队列洗牌走命令面板的同一条命令（invokeCommandById），可用性是 canInvokeCommandById 的同一份判定；
-// - 音量预览走应用的 handlePreviewVolume；前往播放器是 navigateToPlayer；
+// - 音量预览走应用的 handlePreviewVolume；前往播放器是 navigateToPlayer；打开设置直接开设置弹窗的选项页（与播放页面板的齿轮相同）；
 // - 队列动作：点歌播放（不跳页）、下一首播放、移到末尾、移除、拖拽移动（createQueueMutations）、清空（clearQueue）、
 //   存为本地歌单（播放页队列页的同一个实现 saveCurrentQueueAsLocalPlaylist）。
 //   就地编辑之后的重新预取在 createQueueMutations.updateQueueOrder 里（播放页队列页、命令面板、浮岛同一条路），这里不再管。
@@ -65,6 +66,7 @@ export const createWallToolsHostStore = (latest: { current: WallToolsHostDeps })
             generateTheme: () => latest.current.invokeCommandById(WALL_TOOLS_THEME_COMMAND),
             previewVolume: volume => latest.current.previewVolume(volume),
             openPlayer: () => latest.current.navigateToPlayer(),
+            openSettings: () => openSettings('options'),
             // 留在墙上：点歌只换歌，不跳播放页（与 Lattice 点海报同一个调用）。
             playQueueSong: song => {
                 void latest.current.playSong(song, latest.current.playQueue, false, { shouldNavigateToPlayer: false });

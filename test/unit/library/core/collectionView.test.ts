@@ -4,7 +4,7 @@ import {
     derivePlayableTracks,
     resolveContextTracks,
     type LocalTrackSortContext,
-} from '@/library/core/model/collectionView';
+} from '@/library/core/collection/collectionView';
 import { resolveGridViewContextTracks } from '@/library/suites/grid/collection/gridViewContextActions';
 import { buildLocalQueue } from '@/services/playbackAdapters';
 import { getPlaybackSongKey } from '@/utils/appPlaybackGuards';

@@ -14,6 +14,13 @@ export const BRAVAIS_SEAM_HOME_WIDTH = 120;
 /** 书脊。 */
 export const BRAVAIS_SEAM_SPINE_WIDTH = 64;
 /**
+ * 信息条横向（设置「信息条横向」）：缝从块的横向缝隙（块行边界）裂开，墙上下分开。这三个是横条的开口高度，依次对应
+ * 完整信息条（与首页的搜索框）、首页窄缝、书脊（首页与集合层同一个高度）。
+ */
+export const BRAVAIS_SEAM_ROW_FULL_HEIGHT = 212;
+export const BRAVAIS_SEAM_ROW_HOME_HEIGHT = 72;
+export const BRAVAIS_SEAM_ROW_SPINE_HEIGHT = 52;
+/**
  * 歌手页的海报（完整等级下的歌手页缝）：宽度随视口取 46%，夹在这个范围里。海报仍是墙上的开口（与信息条同一层，
  * 从块边界裂开），只是相机把它带到视口最左边、贴边不留距离（bravaisFrame 的 poster）。
  */

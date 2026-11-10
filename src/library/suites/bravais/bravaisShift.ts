@@ -1,5 +1,5 @@
-import type { CollectionNavigationOrigin } from '../../core/contracts/collection';
-import type { LibraryNavigationContext } from '../../core/contracts/suite';
+import type { CollectionNavigationOrigin } from '../../core/collection/collection.contract';
+import type { LibraryNavigationContext } from '../../core/suite/suite.contract';
 import type { BravaisLayer } from './bravaisLayer';
 
 // src/library/suites/bravais/bravaisShift.ts

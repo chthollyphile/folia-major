@@ -38,6 +38,20 @@
     gap: 8px;
 }
 
+/* 按钮上方还有一样东西（`above`，Lattice 的定位按钮：40px 高）时，二者排成一列，与集合页的右下角一样；
+   面板与浮岛整体上移它的高度和 12px 间距。 */
+.lattice-tools.has-above {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 12px;
+}
+
+.lattice-tools.has-above .lattice-tools-stack {
+    bottom: 116px;
+    max-height: calc(100vh - var(--wall-tools-bottom, 24px) - 116px - var(--wall-tools-top-reserve));
+}
+
 .lattice-tools-panel {
     display: flex;
     flex: none;

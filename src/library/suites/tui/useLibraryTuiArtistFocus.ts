@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { artistEntryPane } from '../../core/model/artistSurface';
+import { artistEntryPane } from '../../core/artist/artistSurface';
 import {
     getLibraryBrowseSession,
     getLibrarySessionGeneration,
     registerLibrarySessionFlush,
     useLibraryBrowseSessionStore,
-} from '../../core/state/useLibraryBrowseSessionStore';
+} from '../../core/shared/useLibraryBrowseSessionStore';
 
 // src/library/suites/tui/useLibraryTuiArtistFocus.ts
 // TUI 歌手页的焦点：两栏（热门歌曲 / 专辑）各记一个条目键（song:… / album:…，与网格认同一个键），外加当前在哪一栏。
@@ -30,7 +30,7 @@ export const useLibraryTuiArtistFocus = (sessionKey: string, songKeys: readonly 
     focusedKeyRef.current = focusedKey;
     // 用户在这里动过焦点（或会话里本来就有）才写回：没动过就写第一行，会让网格回来时不再停在介绍卡上。
     const touchedRef = useRef(Boolean(initialKey));
-    /** 挂载时会话的代（见 core/state/useLibraryBrowseSessionStore）。 */
+    /** 挂载时会话的代（见 core/shared/useLibraryBrowseSessionStore）。 */
     const mountGenerationRef = useRef(getLibrarySessionGeneration(sessionKey));
 
     /** 在当前栏里移动焦点（resolve 拿到当前行号，返回新行号）。 */

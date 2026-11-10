@@ -17,6 +17,10 @@ function createWindowPlaybackHandoffStore(options = {}) {
 
   let currentHandoff = null;
   let expiresAt = 0;
+  // The handoff the main window last read, which window read it, when, and until when it was good. A
+  // window replaced before it could answer for itself (asked before its page listened, then it read this
+  // one) passes it on (`carryForward`). Memory only: a relaunch starts with no window that read anything.
+  let lastConsumed = null;
 
   const readPersisted = () => {
     if (!storage) {
@@ -64,17 +68,23 @@ function createWindowPlaybackHandoffStore(options = {}) {
 
     currentHandoff = handoff;
     expiresAt = now() + ttlMs;
+    // A newer answer supersedes whatever a window read before it.
+    lastConsumed = null;
     writePersisted();
     return true;
   };
 
-  const consume = () => {
+  // `consumer` is the window that reads it (any value compared by identity), for `carryForward`.
+  const consume = (consumer = null) => {
     if (!currentHandoff || now() > expiresAt) {
+      // A page that read nothing (a reload after a crash, a fresh start) restores nothing either.
+      lastConsumed = null;
       clear();
       return null;
     }
 
     const handoff = currentHandoff;
+    lastConsumed = consumer ? { handoff, consumer, expiresAt, consumedAt: now() } : null;
     clear();
     return handoff;
   };
@@ -88,7 +98,26 @@ function createWindowPlaybackHandoffStore(options = {}) {
     return currentHandoff;
   };
 
+  // The window `consumer` is replaced without having answered for its playback, and read a handoff at
+  // or after `readSince` (when it was asked): the request reached it before its page listened, so what
+  // it read is what it is still restoring. That goes on to the next window, with a fresh lifetime.
+  // Nothing when another window read it, when it was read before it was asked (the page answers for
+  // itself then, and its silence means something else), when it was read longer ago than it lived,
+  // or when a newer handoff waits already.
+  const carryForward = (consumer, readSince = Number.POSITIVE_INFINITY) => {
+    if (!consumer || !lastConsumed || lastConsumed.consumer !== consumer || lastConsumed.consumedAt < readSince || peek()) {
+      return false;
+    }
+    const { handoff, expiresAt: goodUntil } = lastConsumed;
+    lastConsumed = null;
+    if (now() > goodUntil) {
+      return false;
+    }
+    return save(handoff);
+  };
+
   return {
+    carryForward,
     clear,
     consume,
     peek,

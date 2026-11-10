@@ -17,7 +17,7 @@ const openPlayerPage = async (page: Page, slots?: { primary: string; secondary: 
     }) => {
         localStorage.clear();
         localStorage.setItem('library_suite_prompt_seen', 'true');
-        localStorage.setItem('i18nextLng', 'zh-CN');
+        localStorage.setItem('folia_app_language', 'zh-CN');
         localStorage.setItem('open_player_on_launch', 'true');
         localStorage.setItem('visualizer_mode', 'classic');
         localStorage.setItem('static_mode', 'true');
@@ -102,6 +102,8 @@ test.describe('思索 · 真实 DOM 里的选择器', () => {
 
         await page.getByTestId('panel-toggle').click();
         await expect(page.locator('[data-testid="unified-panel-surface"]')).toHaveCount(1, { timeout: 5000 });
+        // 面板默认开在控制页，封面那四颗按钮在封面页。
+        await page.locator('[data-ponder-panel-tab-button="cover"]').click();
 
         const targets = await hoverSelectors(page);
         // 封面四颗按钮和四个标签页各是一个目标，整块面板的选择器命中不了它们。

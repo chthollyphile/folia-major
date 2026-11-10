@@ -6,8 +6,11 @@ import './modExportPage.css';
 import { DEFAULT_THEME } from '@/services/baseThemes';
 import { getVisualizerRegistryEntry, hasVisualizerMode } from '@/components/visualizer/registry';
 import { applyVisualizerTuning, type VisualizerTuningBundle } from '@/components/visualizer/tuningRegistry';
-import { reconcileFoliumClients } from '../folium/clientLoader';
-import { hydrateFoliumParamsForExport } from '../folium/paramStore';
+import { LyricRenderQualityPinContext } from '@/components/visualizer/renderQuality/lyricRenderQualityPin';
+import { DEFAULT_LYRIC_RENDER_QUALITY } from '@/utils/lyricRenderQuality';
+import { reconcileFoliumClients } from '../runtime/clientLoader';
+import { waitForExportMode } from './exportStart';
+import { hydrateFoliumParamsForExport } from '../params/paramStore';
 import type { ModRuntimeInfo } from '../types';
 import type { AudioBands, Line, Theme, VisualizerMode } from '@/types';
 import { NO_LYRIC_LINES } from '@/utils/lyrics/noLyricLines';
@@ -23,7 +26,8 @@ interface ExportPageConfig {
     visualizerMode: string;
     visualizerTunings?: VisualizerTuningBundle | null;
     theme: Theme | null;
-    songMeta: { title?: string; artist?: string } | null;
+    /** `duration`: the exported song's length in seconds (absent or 0 when unknown). */
+    songMeta: { title?: string; artist?: string; duration?: number } | null;
     startSec?: number;
     backgroundMode?: 'none' | 'theme';
     transparent?: boolean;
@@ -107,14 +111,23 @@ const ModExportPage: React.FC = () => {
     // here, and the export service awaits this call, so the mode requested by
     // the snapshot is registered before the first frame is rendered. Param
     // values land first so the first frame already uses the user's settings.
-    const configure = useCallback(async (nextConfig: ExportPageConfig) => {
+    // The wait is for every client, with no cap of this window's own, and then
+    // for the requested style's own mod if that one is slow and still starting.
+    // When the style is a mod's and is not there once that start has ended, the
+    // answer says so and the export service stops there (exportStart.ts).
+    const configure = useCallback(async (nextConfig: ExportPageConfig): Promise<{ ok: boolean; error?: string }> => {
         hydrateFoliumParamsForExport(nextConfig.foliumParams ?? {});
         if (nextConfig.modClients?.length) {
             await reconcileFoliumClients(nextConfig.modClients, 'export');
         }
+        const problem = await waitForExportMode(nextConfig.visualizerMode);
+        if (problem) {
+            return { ok: false, error: problem };
+        }
         linesRef.current = nextConfig.lyricData?.lines ?? [];
         setConfig(nextConfig);
         applyLineIndex(Number(nextConfig.startSec ?? 0));
+        return { ok: true };
     }, [applyLineIndex]);
 
     const frameApiRef = useRef({ renderFrame, configure });
@@ -157,6 +170,7 @@ const ModExportPage: React.FC = () => {
         showText: true,
         songTitle: config?.songMeta?.title ?? null,
         songArtist: config?.songMeta?.artist ?? null,
+        duration: Number(config?.songMeta?.duration) || 0,
         paused: false,
         visualizerOpacity: 1,
         // 'theme' mode keeps the default background renderer; 'none'
@@ -179,7 +193,10 @@ const ModExportPage: React.FC = () => {
             style={{ backgroundColor: containerBackground }}
         >
             {config ? (
-                <Suspense fallback={null}>{entry.render(resolvedVisualizerProps)}</Suspense>
+                <LyricRenderQualityPinContext.Provider value={DEFAULT_LYRIC_RENDER_QUALITY}>
+                    {/* 导出固定按 1×、各样式默认的抗锯齿画：不跟「动画与性能」的挡位和样式自己的覆盖。 */}
+                    <Suspense fallback={null}>{entry.render(resolvedVisualizerProps)}</Suspense>
+                </LyricRenderQualityPinContext.Provider>
             ) : (
                 <div />
             )}

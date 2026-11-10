@@ -70,6 +70,9 @@ export const useFoliaHexViewport = ({
     const [renderedIndexes, setRenderedIndexes] = useState<number[]>([]);
     const renderedIndexesRef = useRef<number[]>([]);
     const lastVisibleCenterKeyRef = useRef('');
+    // The list the cards for that centre were taken from. A list that has changed since (an
+    // artist's albums come after the songs) has cards that centre was never asked about.
+    const lastVisibleCoordsRef = useRef<HexGridCoord[] | null>(null);
 
     useEffect(() => {
         renderedIndexesRef.current = renderedIndexes;
@@ -88,7 +91,8 @@ export const useFoliaHexViewport = ({
         const worldY = -dy;
         const centerCube = pixelToCubeCenter(worldX, worldY, spacingX, spacingY);
         const centerKey = toCubeKey(centerCube);
-        if (!force && centerKey === lastVisibleCenterKeyRef.current) return;
+        if (!force && centerKey === lastVisibleCenterKeyRef.current && coords === lastVisibleCoordsRef.current) return;
+        lastVisibleCoordsRef.current = coords;
 
         const nextIndexes = resolveVisibleHexIndexes(
             centerCube,

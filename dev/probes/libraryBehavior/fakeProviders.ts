@@ -7,6 +7,7 @@ import {
     type ProviderPage,
 } from '../../../src/types/onlineMusic';
 import { registerOnlineMusicProvider } from '../../../src/services/onlineMusic/providerRegistry';
+import { useOnlineProviderAccountStore } from '../../../src/stores/useOnlineProviderAccountStore';
 import {
     HOME_CLOUD,
     HOME_FAVORITE_ALBUM_COUNTS,
@@ -436,6 +437,12 @@ const createFakeProvider = (providerId: string, profile: FakeProviderProfile = '
     return {
         ...base,
         capabilities: { ...base.capabilities, auth: true, userLibrary: true, userAlbums: true },
+        // 应用读账户时先问平台谁登录着（account/accountRead.ts 的 askWho），没有 auth 就当没人登录、不读歌单。
+        // 假平台认探针放进账户 store 的那个用户：探针登出（clearAccount）之后它也说没人。
+        auth: {
+            getLoginStatus: async () => useOnlineProviderAccountStore.getState().accounts[providerId]?.user ?? null,
+            logout: async () => undefined,
+        },
         library: home.library,
         catalog: { ...base.catalog, getCloudTracks: home.getCloudTracks },
         recommendations: {

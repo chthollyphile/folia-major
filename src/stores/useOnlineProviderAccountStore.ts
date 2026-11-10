@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { DEFAULT_ONLINE_PROVIDER_ID } from '../types/onlineMusic';
 import type { MediaId, OnlineProviderId, ProviderCollection, ProviderUser } from '../types/onlineMusic';
 
 // src/stores/useOnlineProviderAccountStore.ts
@@ -8,8 +9,12 @@ export interface OnlineProviderAccountState {
     user: ProviderUser | null;
     collections: ProviderCollection[];
     likedSongIds: MediaId[];
-    /** Playlist-local row ids keyed by the global song hash/id; only providers that need them fill this. */
-    likedSongFileIds: Record<string, MediaId>;
+    /**
+     * What a press on a heart asked for, by song id, while its request is not settled. It is shown
+     * in place of `likedSongIds` for those songs; `likedSongIds` stays what the provider holds.
+     * Written by omni alone (see `pressSongLike`).
+     */
+    wantedLikes: Record<string, boolean>;
     error?: string;
     hydration: 'loading' | 'ready';
     freshness: 'stale' | 'refreshing' | 'fresh' | 'error';
@@ -27,8 +32,8 @@ type OnlineProviderAccountStore = {
 const ACTIVE_PROVIDER_KEY = 'active_online_provider_id';
 
 const getInitialProviderId = (): OnlineProviderId => {
-    if (typeof localStorage === 'undefined' || typeof localStorage.getItem !== 'function') return 'netease';
-    return localStorage.getItem(ACTIVE_PROVIDER_KEY) || 'netease';
+    if (typeof localStorage === 'undefined' || typeof localStorage.getItem !== 'function') return DEFAULT_ONLINE_PROVIDER_ID;
+    return localStorage.getItem(ACTIVE_PROVIDER_KEY) || DEFAULT_ONLINE_PROVIDER_ID;
 };
 
 const emptyAccount = (): OnlineProviderAccountState => ({
@@ -36,7 +41,7 @@ const emptyAccount = (): OnlineProviderAccountState => ({
     user: null,
     collections: [],
     likedSongIds: [],
-    likedSongFileIds: {},
+    wantedLikes: {},
     hydration: 'loading',
     freshness: 'stale',
 });
@@ -76,15 +81,18 @@ export const reconcileProviderCollections = (
         : reconciled;
 };
 
-// Keeps the cloud collection in the stable second slot across provider refreshes.
-const placeCloudCollectionSecond = (collections: ProviderCollection[]): ProviderCollection[] => {
+// Keeps the cloud collection in the stable second slot across provider refreshes, and the listening
+// ranking's entries right after it: a refresh of the playlists alone puts the entries it keeps first.
+const placeAccountEntriesSecond = (collections: ProviderCollection[]): ProviderCollection[] => {
     const cloud = collections.find(collection => collection.type === 'cloud');
-    if (!cloud) return collections;
+    const ranks = collections.filter(collection => collection.type === 'listening_rank');
+    if (!cloud && ranks.length === 0) return collections;
 
-    const withoutCloud = collections.filter(collection => collection !== cloud);
-    return withoutCloud.length > 0
-        ? [withoutCloud[0], cloud, ...withoutCloud.slice(1)]
-        : [cloud];
+    const entries = [...(cloud ? [cloud] : []), ...ranks];
+    const rest = collections.filter(collection => collection !== cloud && collection.type !== 'listening_rank');
+    return rest.length > 0
+        ? [rest[0], ...entries, ...rest.slice(1)]
+        : entries;
 };
 
 export const useOnlineProviderAccountStore = create<OnlineProviderAccountStore>(set => ({
@@ -104,7 +112,7 @@ export const useOnlineProviderAccountStore = create<OnlineProviderAccountStore>(
                 ...patch,
                 collections: reconcileProviderCollections(
                     previous.collections,
-                    placeCloudCollectionSecond(patch.collections),
+                    placeAccountEntriesSecond(patch.collections),
                 ),
             };
         return {

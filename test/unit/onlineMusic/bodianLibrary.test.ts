@@ -3,8 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // test/unit/onlineMusic/bodianLibrary.test.ts
 
 const request = vi.hoisted(() => vi.fn());
-vi.mock('@/services/onlineMusic/bodianTransport', () => ({ requestBodian: request }));
-import { bodianCollectionItems, bodianLibrary, clearBodianLibraryCache } from '@/services/onlineMusic/bodianLibrary';
+vi.mock('@/services/onlineMusic/bodian/bodianTransport', () => ({ requestBodian: request }));
+import { bodianCollectionItems, bodianLibrary, clearBodianLibraryCache } from '@/services/onlineMusic/bodian/bodianLibrary';
 
 beforeEach(() => { request.mockReset(); clearBodianLibraryCache(); });
 
@@ -64,10 +64,27 @@ describe('Bodian library adapter', () => {
         expect(() => bodianCollectionItems({ error: 'rejected' }, 'playLists')).toThrow();
     });
 
-    it('stops a stale-total liked page when it contains no tracks', async () => {
+    it('stops a stale-total liked page when it contains no tracks, and does not call the list whole', async () => {
         request.mockResolvedValueOnce({ list: [{ id: 1 }, { id: 2 }], total: 1000 })
             .mockResolvedValueOnce({ list: [], total: 1000 });
-        await expect(bodianLibrary.getLikedSongIds!('100')).resolves.toEqual(['1', '2']);
+        await expect(bodianLibrary.getLikedSongIds!('100')).resolves.toEqual({ ids: ['1', '2'], whole: false });
         expect(request).toHaveBeenLastCalledWith('liked_songs', { limit: 100, offset: 2 });
+    });
+
+    it('calls the liked songs whole when the list ends at its own count, and fails on an answer without the list', async () => {
+        request.mockResolvedValueOnce({ list: [{ id: 1 }, { id: 2 }], total: 2 });
+        await expect(bodianLibrary.getLikedSongIds!('100')).resolves.toEqual({ ids: ['1', '2'], whole: true });
+
+        request.mockResolvedValueOnce({});
+        await expect(bodianLibrary.getLikedSongIds!('100')).rejects.toMatchObject({ code: 'invalid-response' });
+    });
+
+    it('counts the liked songs by the count the first page of the list gives, and gives none where it names none', async () => {
+        request.mockResolvedValueOnce({ list: [{ id: 1 }, { id: 2 }], total: 5 });
+        await expect(bodianLibrary.getLikedSongCount!('100')).resolves.toBe(5);
+        expect(request.mock.calls).toEqual([['liked_songs', { limit: 100, offset: 0 }]]);
+
+        request.mockResolvedValueOnce({ list: [{ id: 1 }] });
+        await expect(bodianLibrary.getLikedSongCount!('100')).resolves.toBeNull();
     });
 });

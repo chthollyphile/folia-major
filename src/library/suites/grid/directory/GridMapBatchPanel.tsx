@@ -7,9 +7,9 @@ import ConfirmDialog from '../../../../components/shared/ConfirmDialog';
 import TextInputDialog from '../../../../components/shared/TextInputDialog';
 import GridMapBatchItemList from './GridMapBatchItemList';
 import type { GridMapBatchConfig, GridMapBatchContext, GridMapItem } from './GridMap';
-import type { LibraryDirectoryBatchActionId, LibraryDirectoryNode } from '../../../core/contracts/directory';
-import { compactDirectoryTrees, filterDirectoryTreesByItems, flattenExpandedDirectoryNodes, resolveDirectoryNodeSelection, resolveNextDirectoryNodeSelectionTarget } from '../../../core/model/directoryBatch';
-import { useLibraryDirectoryActions } from '../../../core/bindings/useLibraryDirectoryActions';
+import type { LibraryDirectoryBatchActionId, LibraryDirectoryNode } from '../../../core/directory/directory.contract';
+import { compactDirectoryTrees, filterDirectoryTreesByItems, flattenExpandedDirectoryNodes, resolveDirectoryNodeSelection, resolveNextDirectoryNodeSelectionTarget } from '../../../core/directory/directoryBatch';
+import { useLibraryDirectoryActions } from '../../../core/directory/useLibraryDirectoryActions';
 
 // src/library/suites/grid/directory/GridMapBatchPanel.tsx
 // GridMap 的批量面板：全选、目录树 / 条目清单的勾选、批量按钮与确认框。选择按 id 存在目录会话里，

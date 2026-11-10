@@ -1,5 +1,6 @@
 import type { AmllDbPlatform, LyricProviderSource, SongResult } from '../../types';
 import { getLyricProviderLabel } from './lyricSourceLabels';
+import { getPlatformLyricSource } from './lyricSources';
 import { getProviderSongMetadata } from '../../services/onlineMusic/songMetadata';
 
 // src/utils/lyrics/matchResult.ts
@@ -33,7 +34,8 @@ export const getMatchResultCoverUrl = (
     source: LyricMatchSource,
 ): string | null => {
     if (!result) return null;
-    const coverUrl = getProviderSongMetadata(result, source === 'amll' ? undefined : source).coverUrl;
+    // A platform source's result is read as that platform's song; any other carries its own platform.
+    const coverUrl = getProviderSongMetadata(result, getPlatformLyricSource(source)?.id).coverUrl;
     return coverUrl ? coverUrl.replace('http:', 'https:') : null;
 };
 

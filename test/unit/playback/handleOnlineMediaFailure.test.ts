@@ -1,12 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { handleOnlineMediaFailure } from '@/components/app/playback/handleOnlineMediaFailure';
+import { askForSong, startOfAskedSong } from '@/components/app/playback/currentSong';
+import type { OnlineRecovery, OnlineRecoveryOptions } from '@/components/app/playback/restore/createOnlineRecoveryController';
+import type { PlaybackFailureSkipOptions } from '@/components/app/playback/start/usePlaybackQueueController';
+import { mediaFailureOf, onlineFailureOf, type OnlineFailure } from '@/services/onlineMusic/failure/onlineFailureCase';
 import {
     clearCachedSongAudioDistrust,
     isCachedSongAudioDistrusted,
 } from '@/services/playbackRecovery/mediaCacheGuard';
 import { getPlaybackSongKey } from '@/utils/appPlaybackGuards';
 import type { SongResult } from '@/types';
-import type { OnlineRecoveryOptions, OnlineRecoveryResult, PlaybackFailure, PlaybackFailureSkipOptions } from '@/types/playbackFailure';
 
 // test/unit/playback/handleOnlineMediaFailure.test.ts
 
@@ -20,146 +23,137 @@ const song: SongResult = {
     sourceRef: { kind: 'online', providerId: 'qq', mediaId: '004Th6td4LaoZs' },
 };
 const songKey = getPlaybackSongKey(song);
-// 出错时的播放代次；失败交给统一策略时原样带上，策略据此判断失败是否仍属于当前这次播放。
-const GENERATION = 3;
 const streamUrl = 'https://isure.stream.qqmusic.qq.com/M800004Th6td4LaoZs.mp3?vkey=one';
+const failureOf = (caseId: 'region-restricted' | 'unreachable' | 'unknown') => onlineFailureOf({ operation: 'audio', providerId: 'qq' }, { detail: { case: caseId } });
 
 const audioWithError = (code: number | null, currentTime = 42) => ({
     error: code === null ? null : { code },
     currentTime,
 }) as unknown as HTMLAudioElement;
 
-const setup = (results: OnlineRecoveryResult[]) => {
-    const recover = vi.fn<(options: OnlineRecoveryOptions) => Promise<OnlineRecoveryResult>>();
+const setup = (results: OnlineRecovery[]) => {
+    const recover = vi.fn<(options: OnlineRecoveryOptions) => Promise<OnlineRecovery>>();
     for (const result of results) recover.mockResolvedValueOnce(result);
-    const skip = vi.fn<(failure?: PlaybackFailure, options?: PlaybackFailureSkipOptions) => void>();
+    const skip = vi.fn<(shown?: OnlineFailure, options?: PlaybackFailureSkipOptions) => void>();
     return { recover, skip };
 };
+const handle = (audioElement: HTMLAudioElement, failedSrc: string, autoplay: boolean, { recover, skip }: ReturnType<typeof setup>) => (
+    handleOnlineMediaFailure({ audioElement, failedSrc, song, autoplay, recoverOnlinePlaybackSource: recover, skipAfterPlaybackFailure: skip })
+);
 
 const flush = () => new Promise(resolve => setTimeout(resolve, 0));
 
 describe('handleOnlineMediaFailure', () => {
+    let start = 0;
     beforeEach(() => {
         clearCachedSongAudioDistrust(song);
+        vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+        askForSong(song);
+        start = startOfAskedSong();
     });
 
     it('ignores an aborted load', async () => {
-        const { recover, skip } = setup([]);
-        await handleOnlineMediaFailure({
-            audioElement: audioWithError(1), failedSrc: streamUrl, song, playbackGeneration: GENERATION, autoplay: true,
-            recoverOnlinePlaybackSource: recover, skipAfterPlaybackFailure: skip,
-        });
-        expect(recover).not.toHaveBeenCalled();
-        expect(skip).not.toHaveBeenCalled();
-    });
-
-    it.each(['recovered', 'stale'] as const)('does nothing more once the refresh is %s', async status => {
-        const { recover, skip } = setup([{ status }]);
-        await handleOnlineMediaFailure({
-            audioElement: audioWithError(3), failedSrc: streamUrl, song, playbackGeneration: GENERATION, autoplay: true,
-            recoverOnlinePlaybackSource: recover, skipAfterPlaybackFailure: skip,
-        });
-        expect(recover).toHaveBeenCalledWith({ failedSrc: streamUrl, resumeAt: 42, autoplay: true, bypassMediaCache: false });
-        expect(skip).not.toHaveBeenCalled();
-    });
-
-    it('hands the refresh failure and the failed song key to the failure policy', async () => {
-        const failure: PlaybackFailure = { reason: 'region-restricted', stage: 'refresh', providerId: 'qq' };
-        const { recover, skip } = setup([{ status: 'failed', failure }]);
-        await handleOnlineMediaFailure({
-            audioElement: audioWithError(4), failedSrc: streamUrl, song, playbackGeneration: GENERATION, autoplay: false,
-            recoverOnlinePlaybackSource: recover, skipAfterPlaybackFailure: skip,
-        });
-        expect(skip).toHaveBeenCalledTimes(1);
-        expect(skip).toHaveBeenCalledWith(failure, { failedSongKey: songKey, failedGeneration: GENERATION, retry: expect.any(Function) });
+        const deps = setup([]);
+        await handle(audioWithError(1), streamUrl, true, deps);
+        expect(deps.recover).not.toHaveBeenCalled();
+        expect(deps.skip).not.toHaveBeenCalled();
     });
 
     it.each([
-        [2, { reason: 'network', stage: 'media-element', providerId: 'qq' }],
-        [3, { reason: 'unknown', stage: 'media-element', providerId: 'qq', mediaErrorCode: 3 }],
-        [4, { reason: 'unknown', stage: 'media-element', providerId: 'qq', mediaErrorCode: 4 }],
-    ])('falls back to the media error (code %s) when no refresh was attempted', async (code, expected) => {
-        const { recover, skip } = setup([{ status: 'not-attempted' }]);
-        await handleOnlineMediaFailure({
-            audioElement: audioWithError(code), failedSrc: streamUrl, song, playbackGeneration: GENERATION, autoplay: true,
-            recoverOnlinePlaybackSource: recover, skipAfterPlaybackFailure: skip,
-        });
-        expect(skip).toHaveBeenCalledWith(expected, { failedSongKey: songKey, failedGeneration: GENERATION, retry: expect.any(Function) });
+        ['recovered', { recovered: true }],
+        ['stale', { recovered: false, stale: true }],
+    ] as const)('does nothing more once the refresh is %s', async (_label, outcome) => {
+        const deps = setup([outcome]);
+        await handle(audioWithError(3), streamUrl, true, deps);
+        expect(deps.recover).toHaveBeenCalledWith({ failedSrc: streamUrl, resumeAt: 42, autoplay: true, bypassMediaCache: false });
+        expect(deps.skip).not.toHaveBeenCalled();
     });
 
-    it('distrusts a cached blob and refreshes past the media cache', async () => {
-        const { recover, skip } = setup([{ status: 'recovered' }]);
-        expect(isCachedSongAudioDistrusted(song)).toBe(false);
-        await handleOnlineMediaFailure({
-            audioElement: audioWithError(3, 10), failedSrc: 'blob:folia/cached-audio', song, playbackGeneration: GENERATION, autoplay: true,
-            recoverOnlinePlaybackSource: recover, skipAfterPlaybackFailure: skip,
-        });
-        expect(isCachedSongAudioDistrusted(song)).toBe(true);
-        expect(recover).toHaveBeenCalledWith({
-            failedSrc: 'blob:folia/cached-audio', resumeAt: 10, autoplay: true, bypassMediaCache: true,
-        });
-        expect(skip).not.toHaveBeenCalled();
+    it('hands why the new address could not be had, with the song and its start, to the queue', async () => {
+        const failure = failureOf('region-restricted');
+        const deps = setup([{ recovered: false, failure }]);
+        await handle(audioWithError(4), streamUrl, false, deps);
+        expect(deps.skip).toHaveBeenCalledTimes(1);
+        expect(deps.skip).toHaveBeenCalledWith(failure, { failedSongKey: songKey, failedStart: start, retry: expect.any(Function) });
     });
 
-    it('captures the element state before the first await', async () => {
-        const audio = { error: { code: 2 }, currentTime: 42 } as unknown as { error: { code: number } | null; currentTime: number };
-        const { recover, skip } = setup([]);
-        recover.mockImplementationOnce(async () => {
-            // The element moves on while the refresh is in flight.
-            audio.error = null;
-            audio.currentTime = 0;
-            return { status: 'not-attempted' };
-        });
-        await handleOnlineMediaFailure({
-            audioElement: audio as unknown as HTMLAudioElement, failedSrc: streamUrl, song, playbackGeneration: GENERATION, autoplay: true,
-            recoverOnlinePlaybackSource: recover, skipAfterPlaybackFailure: skip,
-        });
-        expect(skip).toHaveBeenCalledWith(
-            { reason: 'network', stage: 'media-element', providerId: 'qq' },
-            { failedSongKey: songKey, failedGeneration: GENERATION, retry: expect.any(Function) },
+    it.each([
+        [2, 'unreachable'],
+        [3, 'audio-unplayable'],
+        [4, 'audio-unplayable'],
+    ] as const)('falls back to the media error (code %s) when no new address was asked for', async (code, caseId) => {
+        const deps = setup([{ recovered: false }]);
+        await handle(audioWithError(code), streamUrl, true, deps);
+        expect(deps.skip).toHaveBeenCalledWith(
+            expect.objectContaining({ case: caseId, operation: 'media', providerId: 'qq' }),
+            { failedSongKey: songKey, failedStart: start, retry: expect.any(Function) },
         );
     });
 
-    it('retries with force and keeps offering the same position-preserving retry after a second failure', async () => {
-        const firstFailure: PlaybackFailure = { reason: 'unknown', stage: 'refresh', providerId: 'qq' };
-        const secondFailure: PlaybackFailure = { reason: 'network', stage: 'refresh', providerId: 'qq' };
-        const { recover, skip } = setup([
-            { status: 'failed', failure: firstFailure },
-            { status: 'failed', failure: secondFailure },
-            { status: 'failed', failure: secondFailure },
-        ]);
-        await handleOnlineMediaFailure({
-            audioElement: audioWithError(3, 7), failedSrc: 'blob:folia/cached-audio', song, playbackGeneration: GENERATION, autoplay: false,
-            recoverOnlinePlaybackSource: recover, skipAfterPlaybackFailure: skip,
+    it('distrusts a cached blob and asks past the media cache', async () => {
+        const deps = setup([{ recovered: true }]);
+        expect(isCachedSongAudioDistrusted(song)).toBe(false);
+        await handle(audioWithError(3, 10), 'blob:folia/cached-audio', true, deps);
+        expect(isCachedSongAudioDistrusted(song)).toBe(true);
+        expect(deps.recover).toHaveBeenCalledWith({
+            failedSrc: 'blob:folia/cached-audio', resumeAt: 10, autoplay: true, bypassMediaCache: true,
         });
-        const { retry } = skip.mock.calls[0][1]!;
+        expect(deps.skip).not.toHaveBeenCalled();
+    });
+
+    it('reads the element before the first wait', async () => {
+        const audio = { error: { code: 2 }, currentTime: 42 } as unknown as { error: { code: number } | null; currentTime: number };
+        const deps = setup([]);
+        deps.recover.mockImplementationOnce(async () => {
+            // The element moves on while the new address is asked for.
+            audio.error = null;
+            audio.currentTime = 0;
+            return { recovered: false };
+        });
+        await handle(audio as unknown as HTMLAudioElement, streamUrl, true, deps);
+        expect(deps.skip).toHaveBeenCalledWith(
+            mediaFailureOf({ code: 2 }, 'qq'),
+            { failedSongKey: songKey, failedStart: start, retry: expect.any(Function) },
+        );
+    });
+
+    it('retries with force and keeps offering the same retry from where it failed after a second failure', async () => {
+        const firstFailure = failureOf('unknown');
+        const secondFailure = failureOf('unreachable');
+        const deps = setup([
+            { recovered: false, failure: firstFailure },
+            { recovered: false, failure: secondFailure },
+            { recovered: false, failure: secondFailure },
+        ]);
+        await handle(audioWithError(3, 7), 'blob:folia/cached-audio', false, deps);
+        const { retry } = deps.skip.mock.calls[0][1]!;
         retry!();
         await flush();
 
-        expect(recover).toHaveBeenNthCalledWith(2, { force: true, autoplay: true, resumeAt: 7, bypassMediaCache: true });
-        expect(skip).toHaveBeenCalledTimes(2);
-        expect(skip).toHaveBeenLastCalledWith(secondFailure, { failedSongKey: songKey, failedGeneration: GENERATION, retry });
+        expect(deps.recover).toHaveBeenNthCalledWith(2, { force: true, autoplay: true, resumeAt: 7, bypassMediaCache: true });
+        expect(deps.skip).toHaveBeenCalledTimes(2);
+        expect(deps.skip).toHaveBeenLastCalledWith(secondFailure, { failedSongKey: songKey, failedStart: start, retry });
 
         // The second toast's retry is the same one: forced again, and still back at 0:07 rather than from the start.
-        skip.mock.calls[1][1]!.retry!();
+        deps.skip.mock.calls[1][1]!.retry!();
         await flush();
-        expect(recover).toHaveBeenNthCalledWith(3, { force: true, autoplay: true, resumeAt: 7, bypassMediaCache: true });
-        expect(skip).toHaveBeenCalledTimes(3);
+        expect(deps.recover).toHaveBeenNthCalledWith(3, { force: true, autoplay: true, resumeAt: 7, bypassMediaCache: true });
+        expect(deps.skip).toHaveBeenCalledTimes(3);
     });
 
-    it('stays quiet when the forced retry recovers', async () => {
-        const { recover, skip } = setup([
-            { status: 'failed', failure: { reason: 'unknown', stage: 'refresh' } },
-            { status: 'recovered' },
+    it('stays quiet when the forced retry recovers, or when the song moved on meanwhile', async () => {
+        const deps = setup([
+            { recovered: false, failure: failureOf('unknown') },
+            { recovered: true },
+            { recovered: false, stale: true },
         ]);
-        await handleOnlineMediaFailure({
-            audioElement: audioWithError(4), failedSrc: streamUrl, song, playbackGeneration: GENERATION, autoplay: true,
-            recoverOnlinePlaybackSource: recover, skipAfterPlaybackFailure: skip,
-        });
-        skip.mock.calls[0][1]!.retry!();
+        await handle(audioWithError(4), streamUrl, true, deps);
+        deps.skip.mock.calls[0][1]!.retry!();
+        await flush();
+        deps.skip.mock.calls[0][1]!.retry!();
         await flush();
 
-        expect(recover).toHaveBeenCalledTimes(2);
-        expect(skip).toHaveBeenCalledTimes(1);
+        expect(deps.recover).toHaveBeenCalledTimes(3);
+        expect(deps.skip).toHaveBeenCalledTimes(1);
     });
 });

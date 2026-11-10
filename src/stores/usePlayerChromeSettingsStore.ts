@@ -3,6 +3,11 @@
 // buttons, the titlebar, the transparent background and the auto-hide behaviour.
 //
 // Split out of useSettingsUiStore.
+//
+// @note 这里除 player_header_blur 以外的设置（播放页控件、标题栏、鼠标指针、透明背景、系统材质）是用户明确决定
+// 「不进外观配置导入导出」的（2026-11-08）：配置码也用于 web 版 OBS 链接，只加 OBS 页面看得到的，
+// OBS 页面隐藏了这些控件。不要按 settings-feature-integration「视觉设置必须进
+// buildCurrentConfig / compressConfig / decompressConfig / validKeys / handleImportConfig」的规则把它们补进短码或 JSON。
 
 import { create } from 'zustand';
 import i18n from '../i18n/config';
@@ -13,12 +18,19 @@ import {
     type PlayerControlSlotActionId,
 } from '../types/playerControlSlots';
 import { PLAYER_BOTTOM_BAR_BASE_OFFSET_PX } from '../utils/playerBottomBarLayout';
-import { getStoredBoolean, setStoredBoolean } from './storagePrimitives';
+import { getStoredBoolean, setStoredBoolean, getStoredString, setStoredString } from './storagePrimitives';
 import { setStatusMessage } from './useStatusMessageStore';
 
 const PLAYER_BOTTOM_BAR_OFFSET_STORAGE_KEY = 'player_bottom_bar_offset';
 const PLAYER_CONTROL_SLOT_PRIMARY_STORAGE_KEY = 'player_control_slot_primary';
 const PLAYER_CONTROL_SLOT_SECONDARY_STORAGE_KEY = 'player_control_slot_secondary';
+
+/** All platforms default to the right; explicit choices are kept and malformed values ignored. */
+const readTitlebarSide = (): 'left' | 'right' => {
+    const fallback = 'right';
+    const value = getStoredString('window_titlebar_side', fallback);
+    return value === 'left' || value === 'right' ? value : fallback;
+};
 
 /** Reads the persisted lower-bounded offset; the viewport-dependent upper bound is applied by consumers. */
 const readStoredPlayerBottomBarOffset = (): number => {
@@ -55,12 +67,18 @@ export type PlayerChromeSettingsState = {
     alwaysShowPlayerBackButton: boolean;
     alwaysShowTrackSwitchButtons: boolean;
     alwaysShowMainWindowTitlebar: boolean;
+    /** A frosted bar behind the window titlebar on the player page, so its buttons read over any picture. */
+    playerHeaderBlur: boolean;
+    titlebarSide: 'left' | 'right';
+    handleSetTitlebarSide: (side: 'left' | 'right') => void;
     hideFullscreenButton: boolean;
     useNativeMacFullscreenButton: boolean;
+    useNativeMacTrafficLights: boolean;
     transparentPlayerBackground: boolean;
     enablePlayerPageNativeBlur: boolean;
     autoHidePlayerChrome: boolean;
     autoHideCursorWithPlayerChrome: boolean;
+    hideCursorWhenIdle: boolean;
     showOpenPanelCloseButton: boolean;
     setTransparentPlayerBackgroundFromSystem: (enabled: boolean) => void;
     handleTogglePlayerPageNativeBlur: (enable: boolean) => void;
@@ -71,12 +89,15 @@ export type PlayerChromeSettingsState = {
     handleToggleAlwaysShowPlayerBackButton: (enable: boolean) => void;
     handleToggleAlwaysShowTrackSwitchButtons: (enable: boolean) => void;
     handleToggleAlwaysShowMainWindowTitlebar: (enable: boolean) => void;
+    handleTogglePlayerHeaderBlur: (enable: boolean) => void;
     handleToggleHideFullscreenButton: (enable: boolean) => void;
     handleToggleNativeMacFullscreenButton: (enable: boolean) => void;
+    handleToggleNativeMacTrafficLights: (enable: boolean) => void;
     handleToggleTransparentPlayerBackground: (enable: boolean) => void;
     handleWallpaperTransparentRefused: () => void;
     handleToggleAutoHidePlayerChrome: (enable: boolean) => void;
     handleToggleAutoHideCursorWithPlayerChrome: (enable: boolean) => void;
+    handleToggleHideCursorWhenIdle: (enable: boolean) => void;
     handleToggleOpenPanelCloseButton: (enable: boolean) => void;
 };
 
@@ -95,14 +116,22 @@ export const usePlayerChromeSettingsStore = create<PlayerChromeSettingsState>((s
     alwaysShowPlayerBackButton: getStoredBoolean('always_show_player_back_button', false),
     alwaysShowTrackSwitchButtons: getStoredBoolean('always_show_track_switch_buttons', false),
     alwaysShowMainWindowTitlebar: getStoredBoolean('always_show_main_window_titlebar', false),
+    playerHeaderBlur: getStoredBoolean('player_header_blur', false),
+    titlebarSide: readTitlebarSide(),
+    handleSetTitlebarSide: (side) => {
+        setStoredString('window_titlebar_side', side);
+        set({ titlebarSide: side });
+    },
     hideFullscreenButton: getStoredBoolean('hide_fullscreen_button', false),
     useNativeMacFullscreenButton: getStoredBoolean('use_native_mac_fullscreen_button', false),
+    useNativeMacTrafficLights: getStoredBoolean('use_native_mac_traffic_lights', false),
     transparentPlayerBackground: getStoredBoolean('transparent_player_background', false),
     enablePlayerPageNativeBlur: getStoredBoolean('enable_player_page_native_blur', false),
     autoHidePlayerChrome: getStoredBoolean('auto_hide_player_chrome', false),
     // Rides the chrome auto-hide clock rather than owning one: the cursor goes away with the
     // controls it would have clicked. Opt-out, so auto-hide can keep the pointer if wanted.
     autoHideCursorWithPlayerChrome: getStoredBoolean('auto_hide_cursor_with_player_chrome', true),
+    hideCursorWhenIdle: getStoredBoolean('hide_cursor_when_idle', false),
     showOpenPanelCloseButton: getStoredBoolean('show_open_panel_close_button', true),
     setTransparentPlayerBackgroundFromSystem: (enabled) => {
         setStoredBoolean('transparent_player_background', enabled);
@@ -125,6 +154,14 @@ export const usePlayerChromeSettingsStore = create<PlayerChromeSettingsState>((s
         setStatusMessage({
             type: 'info',
             text: i18n.t('notifications.' + (enable ? 'cursorAutoHideOn' : 'cursorAutoHideOff')),
+        });
+    },
+    handleToggleHideCursorWhenIdle: (enable) => {
+        setStoredBoolean('hide_cursor_when_idle', enable);
+        set({ hideCursorWhenIdle: enable });
+        setStatusMessage({
+            type: 'info',
+            text: i18n.t('notifications.' + (enable ? 'cursorIdleHideOn' : 'cursorIdleHideOff')),
         });
     },
     handleToggleHidePlayerProgressBar: (enable) => {
@@ -182,6 +219,14 @@ export const usePlayerChromeSettingsStore = create<PlayerChromeSettingsState>((s
             text: i18n.t('notifications.' + (enable ? 'mainWindowTitlebarAlwaysShown' : 'mainWindowTitlebarAutoHidden')),
         });
     },
+    handleTogglePlayerHeaderBlur: (enable) => {
+        setStoredBoolean('player_header_blur', enable);
+        set({ playerHeaderBlur: enable });
+        setStatusMessage({
+            type: 'info',
+            text: i18n.t('notifications.' + (enable ? 'playerHeaderBlurOn' : 'playerHeaderBlurOff')),
+        });
+    },
     handleToggleHideFullscreenButton: (enable) => {
         setStoredBoolean('hide_fullscreen_button', enable);
         set({ hideFullscreenButton: enable });
@@ -189,6 +234,19 @@ export const usePlayerChromeSettingsStore = create<PlayerChromeSettingsState>((s
     handleToggleNativeMacFullscreenButton: (enable) => {
         setStoredBoolean('use_native_mac_fullscreen_button', enable);
         set({ useNativeMacFullscreenButton: enable });
+    },
+    handleToggleNativeMacTrafficLights: (enable) => {
+        setStoredBoolean('use_native_mac_traffic_lights', enable);
+        set({ useNativeMacTrafficLights: enable });
+        // The titlebar style is a window-creation option: the switch lands in the main process
+        // store and the new value is read the next time the main window is built.
+        if (window.electron?.saveSettings) {
+            void window.electron.saveSettings('USE_NATIVE_MAC_TRAFFIC_LIGHTS', enable);
+        }
+        setStatusMessage({
+            type: 'info',
+            text: i18n.t('notifications.restartToApplyWindowChrome'),
+        });
     },
     handleToggleHidePlayerRightPanelButton: (enable) => {
         setStoredBoolean('hide_player_right_panel_button', enable);
@@ -237,12 +295,18 @@ export const selectPlayerChromeSettingsSnapshot = (state: PlayerChromeSettingsSt
     alwaysShowPlayerBackButton: state.alwaysShowPlayerBackButton,
     alwaysShowTrackSwitchButtons: state.alwaysShowTrackSwitchButtons,
     alwaysShowMainWindowTitlebar: state.alwaysShowMainWindowTitlebar,
+    playerHeaderBlur: state.playerHeaderBlur,
+    titlebarSide: state.titlebarSide,
+    handleSetTitlebarSide: state.handleSetTitlebarSide,
     hideFullscreenButton: state.hideFullscreenButton,
     useNativeMacFullscreenButton: state.useNativeMacFullscreenButton,
+    useNativeMacTrafficLights: state.useNativeMacTrafficLights,
+    handleToggleNativeMacTrafficLights: state.handleToggleNativeMacTrafficLights,
     transparentPlayerBackground: state.transparentPlayerBackground,
     enablePlayerPageNativeBlur: state.enablePlayerPageNativeBlur,
     autoHidePlayerChrome: state.autoHidePlayerChrome,
     autoHideCursorWithPlayerChrome: state.autoHideCursorWithPlayerChrome,
+    hideCursorWhenIdle: state.hideCursorWhenIdle,
     showOpenPanelCloseButton: state.showOpenPanelCloseButton,
     handleToggleHidePlayerProgressBar: state.handleToggleHidePlayerProgressBar,
     handleSetPlayerBottomBarOffset: state.handleSetPlayerBottomBarOffset,
@@ -251,6 +315,7 @@ export const selectPlayerChromeSettingsSnapshot = (state: PlayerChromeSettingsSt
     handleToggleAlwaysShowPlayerBackButton: state.handleToggleAlwaysShowPlayerBackButton,
     handleToggleAlwaysShowTrackSwitchButtons: state.handleToggleAlwaysShowTrackSwitchButtons,
     handleToggleAlwaysShowMainWindowTitlebar: state.handleToggleAlwaysShowMainWindowTitlebar,
+    handleTogglePlayerHeaderBlur: state.handleTogglePlayerHeaderBlur,
     handleToggleHideFullscreenButton: state.handleToggleHideFullscreenButton,
     handleToggleNativeMacFullscreenButton: state.handleToggleNativeMacFullscreenButton,
     handleToggleTransparentPlayerBackground: state.handleToggleTransparentPlayerBackground,
@@ -258,6 +323,7 @@ export const selectPlayerChromeSettingsSnapshot = (state: PlayerChromeSettingsSt
     handleTogglePlayerPageNativeBlur: state.handleTogglePlayerPageNativeBlur,
     handleToggleAutoHidePlayerChrome: state.handleToggleAutoHidePlayerChrome,
     handleToggleAutoHideCursorWithPlayerChrome: state.handleToggleAutoHideCursorWithPlayerChrome,
+    handleToggleHideCursorWhenIdle: state.handleToggleHideCursorWhenIdle,
     handleToggleOpenPanelCloseButton: state.handleToggleOpenPanelCloseButton,
     handleWallpaperTransparentRefused: state.handleWallpaperTransparentRefused,
 });

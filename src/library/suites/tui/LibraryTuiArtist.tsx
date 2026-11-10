@@ -3,17 +3,18 @@ import { useIsPresent } from 'framer-motion';
 import { List, useListRef } from 'react-window';
 import { useTranslation } from 'react-i18next';
 import type { SongResult } from '../../../types';
-import type { LibraryArtistSurfaceProps } from '../../core/contracts/suite';
-import type { LibraryArtistAlbum } from '../../core/contracts/artist';
-import { useArtistResourceState } from '../../core/bindings/useArtistResourceState';
-import { useArtistView } from '../../core/bindings/useArtistView';
-import { useLibraryArtistSurfaceRegistration } from '../../core/bindings/useLibraryArtistSurfaceRegistration';
-import { artistAlbumEntryKey, artistSongEntryKey } from '../../core/model/artistSurface';
-import { resolveTrackAlbumLink, resolveTrackArtistLinks, type TrackArtistLink } from '../../core/model/trackLinks';
+import type { LibraryArtistSurfaceProps } from '../../core/suite/suite.contract';
+import type { LibraryArtistAlbum } from '../../core/artist/artist.contract';
+import { useArtistResourceState } from '../../core/artist/useArtistResourceState';
+import { useArtistView } from '../../core/artist/useArtistView';
+import { useLibraryArtistSurfaceRegistration } from '../../core/artist/useLibraryArtistSurfaceRegistration';
+import { artistAlbumEntryKey, artistSongEntryKey } from '../../core/artist/artistSurface';
+import { resolveTrackAlbumLink, resolveTrackArtistLinks, type TrackArtistLink } from '../../core/shared/trackLinks';
 import { canResolveSongCatalogRef } from '../../../services/onlineMusic/catalogRefs';
 import { useGridCommandFilter } from '../../../hooks/useGridCommandFilter';
 import { setStatusMessage } from '../../../stores/useStatusMessageStore';
 import { colorWithAlpha } from '../../../components/visualizer/colorMix';
+import { PRIMARY_MODIFIER_LABEL } from '../../../utils/platform';
 import LibraryTuiArtistHeader from './LibraryTuiArtistHeader';
 import {
     LIBRARY_TUI_ARTIST_ALBUM_COLUMNS,
@@ -125,7 +126,7 @@ const LibraryTuiArtist: React.FC<LibraryArtistSurfaceProps> = ({
         focus.persistFocus(albumKeys[row]);
         actions.openAlbum(album);
     };
-    // 歌曲行上的歌手 / 专辑链接：打开嵌套的歌手页 / 专辑（与网格卡片上的链接同一条规则，core/model/trackLinks）。
+    // 歌曲行上的歌手 / 专辑链接：打开嵌套的歌手页 / 专辑（与网格卡片上的链接同一条规则，core/shared/trackLinks）。
     const openSongArtist = (row: number, link: TrackArtistLink) => {
         const song = songs[row];
         if (!song || link.targetId === undefined) return;
@@ -264,6 +265,7 @@ const LibraryTuiArtist: React.FC<LibraryArtistSurfaceProps> = ({
                                     accentColor={accentColor}
                                     enqueueLabel={t('libraryTui.enqueue')}
                                     unavailableLabel={t('status.songUnavailableTag')}
+                                    videoLabel={t('status.songVideoTag')}
                                     artistLinks={resolveTrackArtistLinks(song, canResolveSongCatalogRef)}
                                     onOpenArtist={canOpenArtist ? link => openSongArtist(row, link) : undefined}
                                     onOpenAlbum={albumLink ? () => openSongAlbum(row, song) : undefined}
@@ -308,7 +310,7 @@ const LibraryTuiArtist: React.FC<LibraryArtistSurfaceProps> = ({
                 </>
             )}
             <footer className="shrink-0 border-t border-current/10 px-4 py-1.5 text-[11px] opacity-50">
-                {t('libraryTui.artistHints')}
+                {t('libraryTui.artistHints', { mod: PRIMARY_MODIFIER_LABEL })}
                 {(canOpenAlbum || canOpenArtist) && ` · ${t('libraryTui.hintOpenLinks')}`}
             </footer>
         </div>

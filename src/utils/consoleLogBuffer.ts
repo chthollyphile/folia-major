@@ -52,6 +52,9 @@ const format = (value: unknown): string => {
         const seen = new WeakSet<object>();
         return JSON.stringify(value, (_key, item: unknown) => {
             if (typeof item !== 'object' || item === null) return item;
+            // An Error (a DOMException too) inside an object: its name and message are on the
+            // prototype, so JSON.stringify would write `{}` - a failed setSinkId logged as "error":{}.
+            if (item instanceof Error) return `${item.name}: ${item.message}`;
             if (seen.has(item)) return '[circular]';
             seen.add(item);
             return item;
@@ -128,6 +131,23 @@ const push = (level: ConsoleLevel, args: unknown[]) => {
     if (sink) {
         try { sink(entries[entries.length - 1]); } catch { /* the sink's problem, not the caller's */ }
     }
+    listeners.forEach(listener => listener());
+};
+
+/**
+ * Lines the desktop main process wrote to its own console, into the same buffer.
+ *
+ * Not offered to the sink: the main process writes its own lines to the runtime log file, and a
+ * line sent back there would be in the file twice. Placed by the time each was written, because a
+ * line crosses the process boundary a few milliseconds late and the first batch a window receives
+ * was written before the window existed.
+ */
+export const recordMainProcessLines = (lines: ReadonlyArray<{ at: number; level: ConsoleLevel; text: string }>) => {
+    if (!capturing || !lines.length) return;
+    entries = entries
+        .concat(lines.map(({ at, level, text }) => ({ id: nextId += 1, at, level, text, scope: readScope(text) })))
+        .sort((a, b) => a.at - b.at);
+    if (entries.length > LIMIT) entries = entries.slice(entries.length - LIMIT);
     listeners.forEach(listener => listener());
 };
 

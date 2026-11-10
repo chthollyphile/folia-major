@@ -1,5 +1,4 @@
 import React, { useCallback, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { Download, ImagePlus, Loader2, Trash2 } from 'lucide-react';
 import type { TFunction } from 'i18next';
 import type { TemperaLayerImage } from '../../../types';
@@ -170,12 +169,7 @@ const TemperaImageLayerDialog: React.FC<TemperaImageLayerDialogProps> = ({
         onAddFiles(files);
     }, [onAddFiles, onImportPool]);
 
-    // Portalled to the document body like the app's other dialogs: both hosts of this panel -
-    // VisPlayground and the settings modal - animate a transformed ancestor, and a transformed
-    // ancestor is what a `position: fixed` overlay is measured against instead of the viewport.
-    if (typeof document === 'undefined') return null;
-
-    return createPortal((
+    return (
         <ThemedDialog
             isOpen={isOpen}
             onClose={requestClose}
@@ -186,7 +180,8 @@ const TemperaImageLayerDialog: React.FC<TemperaImageLayerDialogProps> = ({
             isDaylight={isDaylight}
             title={t('options.temperaImageSection') || '画布图片'}
             description={`${t('options.temperaLayerImageHint') || '每个分镜会从图片池里随机取一张，位置由对齐倾向决定。'}\n${t('options.temperaLayerImageSaveHint') || '改动会在关闭本窗口时写入。'}`}
-            maxWidthClass="max-w-3xl"
+            size="l"
+            fill
             headerActions={(
                 <button
                     type="button"
@@ -364,7 +359,7 @@ const TemperaImageLayerDialog: React.FC<TemperaImageLayerDialogProps> = ({
                 }}
             />
         </ThemedDialog>
-    ), document.body);
+    );
 };
 
 export default TemperaImageLayerDialog;

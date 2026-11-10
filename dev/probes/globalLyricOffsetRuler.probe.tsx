@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
 import GlobalLyricOffsetRuler from '../../src/components/modal/settings/GlobalLyricOffsetRuler';
+import { settingsTokens } from '../../src/components/modal/settings/kit/kitTheme';
+import { kitMotionTokens } from '../../src/components/modal/settings/kit/motion';
+import { DEFAULT_THEME } from '../../src/services/baseThemes';
 import { clampGlobalLyricTimelineOffsetMs, GLOBAL_LYRIC_TIMELINE_OFFSET_LIMIT_MS } from '../../src/stores/useLyricSettingsStore';
 import type { ProbeDefinition } from './definition';
 // dev/probes/globalLyricOffsetRuler.probe.tsx
@@ -14,7 +17,8 @@ const GlobalLyricOffsetRulerProbe: React.FC = () => {
     return (
         <div
             className="flex min-h-screen items-center justify-center p-10"
-            style={{ ['--text-accent' as string]: '#7dd3fc', ['--text-primary' as string]: '#fafafa' }}
+            // 刻度尺的颜色和动效取设置外框给的变量，平时由弹窗给，探针里自己给。
+            style={{ ['--text-primary' as string]: '#fafafa', ...settingsTokens(false, DEFAULT_THEME), ...kitMotionTokens(false) }}
             data-probe-offset={valueMs}
         >
             <div className="w-full max-w-xl rounded-2xl border border-white/10 bg-white/[0.03] p-5">
@@ -25,7 +29,6 @@ const GlobalLyricOffsetRulerProbe: React.FC = () => {
                 <GlobalLyricOffsetRuler
                     valueMs={valueMs}
                     limitMs={GLOBAL_LYRIC_TIMELINE_OFFSET_LIMIT_MS}
-                    isDaylight={false}
                     ariaLabel="Global timing offset"
                     onChange={(next) => setValueMs(clampGlobalLyricTimelineOffsetMs(next))}
                 />

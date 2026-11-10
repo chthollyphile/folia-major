@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { WALL_HANDOFF_TIMING } from '../../wall/wallHandoff';
 import { libraryStageHandsOffWall } from '../../../library/registry';
-import { useLibrarySuiteStore } from '../../../library/core/state/useLibrarySuiteStore';
+import { useLibrarySuiteStore } from '../../../library/core/suite/useLibrarySuiteStore';
 import { useAppViewStore, type AppView } from '../../../stores/useAppViewStore';
 import { resolveReducedMotion, useMotionSettingsStore } from '../../../stores/useMotionSettingsStore';
 import { useWallHandoffStore } from '../../../stores/useWallHandoffStore';

@@ -6,8 +6,8 @@
 
 - `src/services/onlineMusic/omni.ts`：统一入口及当前调用方式
 - `src/types/onlineMusic.ts`：provider adapter 合约
-- `src/services/onlineMusic/kugouProvider.ts`：酷狗实现
-- `src/hooks/useKugouLibrary.ts`、`src/library/suites/grid/home/Grid3D.tsx`、`src/library/suites/grid/collection/GridView.tsx`：当前 UI 使用点
+- `src/services/onlineMusic/kugou/kugouProvider.ts`：酷狗实现
+- `src/services/onlineMusic/account/accountRead.ts`（读账号）、`src/library/suites/grid/home/Grid3D.tsx`、`src/library/suites/grid/collection/GridView.tsx`：当前使用点
 - `docs/ku-go-api-docs.md`：酷狗接口文档
 
 ## 已对齐能力
@@ -45,6 +45,6 @@
 
 ## 非阻塞说明
 
-- 酷狗云盘曲目和音源已经支持；当前 `useKugouLibrary` 直接把云盘入口组装成 collection，因此没有重复请求一个仅用于展示的 `getCloudCollection`。
+- 酷狗云盘曲目和音源已经支持；云盘入口由酷狗 adapter 的 `library.getCloudCollection` 直接组装成 collection，不为这个仅用于展示的入口发请求。
 - `getSubscriptionStatus` 是从用户歌单列表推导的快照，不是服务端独立状态查询；用户收藏数量较大时仍受当前分页上限影响。
 - `likes` 已接入酷狗账户刷新流程，账户状态会加载“我喜欢”歌曲 ID，收藏按钮可以使用实际状态初始化。

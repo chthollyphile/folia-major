@@ -1,24 +1,45 @@
 #!/usr/bin/env node
 // dev/folium/api-docs.mjs
 // Generates docs/folium/api.md, the Folium API reference, from the public
-// contract in src/mods/folium/contract.ts (the single source of the client
-// API). The contract is written in a regular style (JSDoc, `// ----` section
-// markers, one member per `;`), so a small scanner is enough; TypeScript's JS
-// compiler API is not available with the native TypeScript 7 package.
+// contract: src/mods/folium/contract.ts (the client entry) and
+// src/mods/folium/mainContract.ts (the main entry), the single sources of the
+// API. They are written in a regular style (JSDoc, `// ----` section markers,
+// one member per `;`), so a small scanner is enough; TypeScript's JS compiler
+// API is not available with the native TypeScript 7 package.
 //
 //   node dev/folium/api-docs.mjs           write docs/folium/api.md
 //   node dev/folium/api-docs.mjs --check   exit 1 when the file is out of date
 //
 // test/unit/mod-system/foliumApiDocs.test.ts runs the check, so a contract
 // change without regenerating the reference fails the unit tests.
+//
+// Three tables in the reference come from tables of facts, imported or read as
+// they are: the registries from the kinds table (src/mods/folium/kinds.ts), the
+// events from the event types table (src/mods/folium/eventTypes.ts), and the
+// permissions, with the members each unlocks, from
+// electron/modSystem/foliumShared.json. Folium 1.6 only: the section of old
+// names that still work comes from the two deprecation tables
+// (src/mods/folium/deprecated/oldNames.ts, electron/modSystem/deprecated.cjs).
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import { FOLIUM_KINDS } from '../../src/mods/folium/kinds.ts';
+import { FOLIUM_EVENT_TYPES } from '../../src/mods/folium/eventTypes.ts';
+import { FOLIUM_OLD_CLIENT_NAMES, foliumOldNameAdvice } from '../../src/mods/folium/deprecated/oldNames.ts';
+
+const require = createRequire(import.meta.url);
+const { OLD_MAIN_NAMES, OLD_PERMISSIONS } = require('../../electron/modSystem/deprecated.cjs');
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 export const CONTRACT_PATH = path.join(ROOT, 'src', 'mods', 'folium', 'contract.ts');
+export const MAIN_CONTRACT_PATH = path.join(ROOT, 'src', 'mods', 'folium', 'mainContract.ts');
 export const OUTPUT_PATH = path.join(ROOT, 'docs', 'folium', 'api.md');
+export const SHARED_PATH = path.join(ROOT, 'electron', 'modSystem', 'foliumShared.json');
+
+/** What both sides of the mod system agree on: version, permission names, experimental names, channels. */
+export const readFoliumShared = () => JSON.parse(fs.readFileSync(SHARED_PATH, 'utf8'));
 
 // ---------------------------------------------------------------- scanning
 
@@ -66,9 +87,37 @@ const cleanComment = (raw) => raw
 
 const squash = (value) => value.replace(/\s+/g, ' ').replace(/\(\s+/g, '(').replace(/,\s*\)/g, ')').replace(/\s+\)/g, ')').trim();
 
+/* `text` without its comments (strings kept as they are). */
+const stripComments = (text) => {
+    let out = '';
+    for (let i = 0; i < text.length;) {
+        const skipped = skipCommentOrString(text, i);
+        if (skipped === -1) {
+            out += text[i];
+            i += 1;
+            continue;
+        }
+        if (text.startsWith('//', i) || text.startsWith('/*', i)) out += ' ';
+        else out += text.slice(i, skipped);
+        i = skipped;
+    }
+    return out;
+};
+
+/* The body of an inline object type (`{ … }` and nothing around it), or null for any other type. */
+const inlineObjectBody = (type) => {
+    const trimmed = type.trim();
+    if (!trimmed.startsWith('{')) return null;
+    const close = findAtDepthZero(trimmed, 1, ['}']);
+    return close === trimmed.length - 1 ? trimmed.slice(1, close) : null;
+};
+
 /*
  * Splits an interface body into members. Comments directly above a member
- * (no blank line between) become its description.
+ * (no blank line between) become its description. A member whose type is an
+ * inline object type with described members of its own (FoliumOmniProviderInfo's
+ * `supports`) carries them as `children`, and its type is shown without their
+ * comments.
  */
 const parseMembers = (body) => {
     const members = [];
@@ -94,13 +143,17 @@ const parseMembers = (body) => {
         if (!match) continue;
         const [, readonly, name, optional, rest] = match;
         const isMethod = rest.startsWith('(') || rest.startsWith('<');
+        const type = isMethod ? rest : rest.replace(/^:\s*/, '');
+        const objectBody = isMethod ? null : inlineObjectBody(type);
+        const children = objectBody !== null && /\/\*|\/\//.test(objectBody) ? parseMembers(objectBody) : [];
         members.push({
             name: name.replace(/^['"]|['"]$/g, ''),
             readonly: Boolean(readonly),
             optional: Boolean(optional),
             method: isMethod,
-            type: squash(isMethod ? rest : rest.replace(/^:\s*/, '')),
+            type: squash(stripComments(type)),
             doc: doc.join('\n\n'),
+            ...(children.length > 0 ? { children } : {}),
         });
         doc = [];
     }
@@ -168,7 +221,7 @@ const SECTION_INFO = {
     'Client API': {
         order: 1,
         title: '客户端入口',
-        intro: '模组的 `client` 入口默认导出 `activate(folium)`，参数就是 [FoliumClientApi](#foliumclientapi)，所有能力都从这里取。',
+        intro: '模组的 `client` 入口默认导出 `activate(folium)`，参数就是 [FoliumClientApi](#foliumclientapi)，所有能力都从这里取。数据文件 `folium.storage`、密钥字段的值 `folium.secrets`（Folium 1.7）和通往 main 入口的 `folium.rpc` 也在这一节。',
     },
     'Registry definitions': {
         order: 2,
@@ -183,22 +236,22 @@ const SECTION_INFO = {
     Events: {
         order: 4,
         title: '事件',
-        intro: '`folium.events.on(type, handler, { priority })`。通知只读、事后发出；钩子让处理器依次修改同一个事件对象。`omni.*` 需要选用实验接口 `omni.hooks`。',
+        intro: '`folium.events.on(type, handler, { priority })`。通知只读、事后发出；钩子让处理器依次修改同一个事件对象。',
     },
     Services: {
         order: 5,
         title: '服务',
-        intro: '`folium.playback` / `folium.ui` / `folium.net`。标注需要权限的方法未在 `mod.json` 声明对应权限时抛 `permission-denied:<权限>`；导出窗口里调用会抛 `*-unavailable-in-export-context`（`ui.icon` 除外）。',
+        intro: '`folium.playback` / `folium.ui` / `folium.net`，以及 Folium 1.7 的登录状态 `folium.account` 和经 Omni 只读在线音源的 `folium.omni`（两者都不需要权限；`folium.omni` 以用户在 Folia 登录的平台账号发请求），以及宿主均衡器 `folium.equalizer`（读不需要权限，写需 `equalizer.control`）；Folium 1.8 加了歌词显示设置 `folium.visualizer`：歌词画布渲染质量、歌词动画模式、内置模式的样式参数与智能动感效果（读不需要权限，写分别需 `visualizer.renderQuality`、`visualizer.mode`、`visualizer.tuning`、`visualizer.beatEffects`）。需要权限的方法见[权限一览](#权限一览)；导出窗口里调用会抛 `*-unavailable-in-export-context`（`ui.icon` 除外）。',
     },
     'Shared helpers': {
         order: 6,
         title: '共享工具',
-        intro: '`folium.lyrics` 与 `folium.theme`：内置歌词动画使用的同一批函数，主窗口与导出窗口都可用。`folium.lyrics.parse`（1.4）是唯一的异步方法，走本地歌词文件的解析流程。',
+        intro: '`folium.lyrics` 与 `folium.theme`：内置歌词动画使用的同一批函数，主窗口与导出窗口都可用。`folium.lyrics.parse` 是唯一的异步方法，走本地歌词文件的解析流程。',
     },
     Parameters: {
         order: 7,
-        title: '参数 schema',
-        intro: '设置分区、visualizer / background 设置、tunings 与命令参数共用 [FoliumParam](#foliumparam)。读到的值已合并默认值，写入按 schema 校验。',
+        title: '设置 schema',
+        intro: '设置分区、visualizer / background 设置、tunings 与命令参数共用 [FoliumSetting](#foliumsetting)。读到的值已合并默认值，写入按 schema 校验。',
     },
     DTOs: {
         order: 8,
@@ -210,16 +263,21 @@ const SECTION_INFO = {
         title: '实验接口',
         intro: '需要在 `mod.json` 的 `experimental` 里选用，经 `folium.experimental[name]` 访问；任何 minor 版本都可能变化。',
     },
-    Basics: {
+    'Main API': {
         order: 10,
+        title: 'main 入口（Node）',
+        intro: '`mod.json` 的 `main` 指向一个 `.cjs` / `.js` 文件，它导出的 `activate(api)`（[FoliumMainModule](#foliummainmodule)）在 Folia 的主进程里运行，参数是 [FoliumMainApi](#foliummainapi)。这一节来自 [`src/mods/folium/mainContract.ts`](../../src/mods/folium/mainContract.ts)。',
+    },
+    Basics: {
+        order: 11,
         title: '基础类型',
         intro: '',
     },
 };
 
-// Contract section whose types describe objects on the main entry's `api`. They render under
-// MAIN_ENTRY_API's heading, after its member table, instead of as a section of their own.
-export const MAIN_ENTRY_SECTION = 'Main entry';
+// The section of mainContract.ts: the types of the main entry's `api` and what it hands out. They render
+// under the main entry heading, never under the client entry.
+export const MAIN_ENTRY_SECTION = 'Main API';
 
 const anchorOf = (name) => name.toLowerCase();
 
@@ -233,17 +291,67 @@ const renderReferences = (names) => (names.length > 0
     ? `\n相关：${names.map((name) => `[${name}](#${anchorOf(name)})`).join(' · ')}\n`
     : '');
 
-const renderItem = (item, known) => {
+/* The interfaces an interface's header extends, by name: `A<T> extends B, C<D>` gives B and C. */
+const parentsOf = (item) => {
+    let rest = item.header.slice(item.name.length).trimStart();
+    if (rest.startsWith('<')) {
+        // Skip the type parameters: an `extends` inside them is a constraint, not a parent.
+        let depth = 0;
+        let end = 0;
+        for (; end < rest.length; end += 1) {
+            if (rest[end] === '<') depth += 1;
+            else if (rest[end] === '>' && (depth -= 1) === 0) break;
+        }
+        rest = rest.slice(end + 1).trimStart();
+    }
+    const match = /^extends\s+(.+)$/.exec(rest);
+    return match ? match[1].split(',').map((parent) => parent.trim().replace(/<.*$/, '')) : [];
+};
+
+/*
+ * The members an interface takes from the interfaces it extends, nearest first, each with the
+ * interface it is written in. A member the interface itself has (or a nearer one) is left out.
+ */
+const inheritedMembers = (item, interfaces) => {
+    const seen = new Set(item.members.map((member) => member.name));
+    const inherited = [];
+    const visit = (current) => {
+        for (const name of parentsOf(current)) {
+            const parent = interfaces.get(name);
+            if (!parent) continue;
+            for (const member of parent.members) {
+                if (seen.has(member.name)) continue;
+                seen.add(member.name);
+                inherited.push({ member, from: parent.name });
+            }
+            visit(parent);
+        }
+    };
+    visit(item);
+    return inherited;
+};
+
+const renderMemberRow = (member, note = '') => {
+    const name = `${member.readonly ? 'readonly ' : ''}${member.name}${member.optional ? '?' : ''}${member.method ? '()' : ''}`;
+    return `| \`${escapeCell(name)}\` | \`${escapeCell(member.type)}\` | ${escapeCell(`${note}${member.doc}`)} |`;
+};
+
+const renderItem = (item, known, interfaces) => {
     const lines = [`### ${item.name}`, ''];
     if (item.doc) lines.push(item.doc, '');
     if (item.kind === 'interface') {
         const signature = `interface ${item.header}`;
         if (signature !== `interface ${item.name}`) lines.push('```ts', signature, '```', '');
-        if (item.members.length > 0) {
+        const inherited = inheritedMembers(item, interfaces);
+        if (item.members.length > 0 || inherited.length > 0) {
             lines.push('| 成员 | 类型 | 说明 |', '| --- | --- | --- |');
             for (const member of item.members) {
-                const name = `${member.readonly ? 'readonly ' : ''}${member.name}${member.optional ? '?' : ''}${member.method ? '()' : ''}`;
-                lines.push(`| \`${escapeCell(name)}\` | \`${escapeCell(member.type)}\` | ${escapeCell(member.doc)} |`);
+                lines.push(renderMemberRow(member));
+                // The members of an inline object type, each on a row of its own under the member's name.
+                for (const child of member.children ?? []) lines.push(renderMemberRow({ ...child, name: `${member.name}.${child.name}` }));
+            }
+            for (const { member, from } of inherited) {
+                lines.push(renderMemberRow(member, `继承自 [${from}](#${anchorOf(from)})。`));
             }
         }
         const text = [item.header, ...item.members.map((member) => member.type)].join(' ');
@@ -255,77 +363,167 @@ const renderItem = (item, known) => {
     return lines.join('\n').replace(/\n{3,}/g, '\n\n').trimEnd();
 };
 
+const KINDS_HEADING = '注册表一览';
+const PERMISSIONS_HEADING = '权限一览';
+const EVENTS_HEADING = '事件一览';
+
 /*
- * The main (Node) entry API: plain JS in electron/modSystem/modApi.cjs, documented by hand. The types its
- * rows link to (the contract's MAIN_ENTRY_SECTION) are rendered right after this table.
+ * The table of registries: one row per kind, from the kinds table. The definition type of each
+ * comes from the contract's FoliumRegistries (`visualizers: FoliumRegistry<FoliumVisualizerDef>`).
  */
-const MAIN_ENTRY_API = `## main 入口（Node）
-
-\`mod.json\` 的 \`main\` 指向一个 \`.cjs\` / \`.js\` 文件，导出 \`activate(api)\`，在主进程运行，拥有完整 Node.js 权限。
-\`api\` 由 \`electron/modSystem/modApi.cjs\` 创建：
-
-\`\`\`js
-module.exports = function activate(api) {
-  api.rpc.handle('export', async (spec) => api.render.exportVideo(spec));
-  return () => { /* 可选：模组停用时清理 */ };
+const renderKinds = (items) => {
+    const registries = items.find((item) => item.name === 'FoliumRegistries');
+    const defOf = (name) => /FoliumRegistry<(\w+)/.exec(registries?.members.find((member) => member.name === name)?.type ?? '')?.[1];
+    const lines = [
+        `### ${KINDS_HEADING}`,
+        '',
+        '本表由宿主里那张条目种类表（`src/mods/folium/kinds.ts`）生成。',
+        '',
+        '| 注册表 | 用途 | 条目定义 | 需要的权限 | 导出窗口里 | 容器的 `data-folium-kind` |',
+        '| --- | --- | --- | --- | --- | --- |',
+    ];
+    for (const [name, kind] of Object.entries(FOLIUM_KINDS)) {
+        const def = defOf(name);
+        const marks = Object.keys(kind.mounts);
+        lines.push(`| ${[
+            `\`${name}\``,
+            escapeCell(kind.use),
+            def ? `[${def}](#${anchorOf(def)})` : '—',
+            kind.permission === null ? '—' : `\`${kind.permission}\``,
+            kind.uiOnly ? '不生效' : '生效',
+            marks.length > 0 ? marks.map((mark) => `\`${mark}\``).join('、') : '—',
+        ].join(' | ')} |`);
+    }
+    lines.push(
+        '',
+        '「导出窗口里不生效」的注册表在导出窗口里照常调用、照常返回句柄，但什么都不登记，所以同一份代码两边都能跑。',
+        '需要权限的注册表，模组没有在 `mod.json` 里声明这个权限时，`register` 抛 `permission-denied:<权限>`。',
+        '最后一列是这种条目的容器外层 `data-folium-kind` 属性的取值（没有容器的写 —）。',
+    );
+    return lines.join('\n');
 };
-\`\`\`
 
-| 成员 | 说明 |
-| --- | --- |
-| \`api.manifest\` | 冻结的清单副本 |
-| \`api.host\` | \`{ folium: { major, minor }, folia }\`，与客户端的 \`folium.host\` 相同 |
-| \`api.log.info / warn / error(message, details?)\` | 写入模组日志；\`error\` 会显示在模组面板 |
-| \`api.storage.data.get / set / has / delete / keys\` | 异步；需要 \`filesystem.data\`；与客户端 \`folium.storage\` 共用同一个数据文件（上限 1 MB）。更大的内容写成文件，放进 \`api.storage.paths.data\` |
-| \`api.storage.paths.data / cache\` | Folium 1.5：[FoliumModPaths](#foliummodpaths)，本模组写文件的两个目录的绝对路径。两个都是 getter：需要 \`filesystem.data\`，没有时读取即同步抛 \`permission-denied:filesystem.data\`；每次读取都会在目录不存在时先创建它，所以用的时候再读，不要存下来一直用；建不出来时（比如目录的位置上是一个文件或失效的链接）抛文件系统的错误，\`cache\` 是这样时，在模组面板里清空缓存会删掉这个条目。两个 getter 不可枚举，序列化或展开 \`api\` 不会读到它们。\`data\` 放要保留的文件；\`cache\` 放能重建的文件，用户随时可能在模组面板里清空它（模组运行时也一样），宿主不限大小，上限自己控制。\`paths\` 对象总是存在，可以用 \`'paths' in api.storage\` 判断宿主是否支持 |
-| \`api.lifecycle.onDeactivate(fn)\` | 模组被停用、重载或应用退出时调用；\`activate\` 返回的函数效果相同 |
-| \`api.runtime.getPlaybackSnapshot()\` | 当前播放状态的 [FoliumPlaybackSnapshot](#foliumplaybacksnapshot)，渲染端尚未推送时为 \`null\`；需要 \`runtime.playback\`。Folium 1.5 起还带音量 \`volume\`（0–1）、静音开关 \`muted\` 与循环模式 \`loopMode\` |
-| \`api.rpc.handle(name, fn)\` | 注册客户端 \`folium.rpc.call(name, ...args)\` 调用的函数；名称匹配 \`/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/\`，参数与返回值需可 JSON 序列化 |
-| \`api.render.exportVideo(spec)\` | 按当前歌曲、动画模式与参数导出透明视频；需要 \`render.export\` 与 ffmpeg |
-| \`api.experimental\` | 预留，目前为空 |
-`;
+/* The table of permissions: one row per permission in foliumShared.json, with the members it guards. */
+const renderPermissions = () => {
+    const lines = [
+        `### ${PERMISSIONS_HEADING}`,
+        '',
+        '本表由 `electron/modSystem/foliumShared.json` 里每个权限的 `guards` 生成，`npm run folium:check` 用同一张表查模组用到的成员。'
+            + "`platform.*` 两行例外：模组只能写成 `folium.experimental['platform.raw']`，表里的成员名只是说明；"
+            + "`folium:check` 改为按代码里 `request('<平台>', …)` 写出的平台 id 查 `platform.<平台>.read`，`.write` 要看调的是哪个接口，查不到。",
+        '',
+        '| 权限 | 解锁的成员 |',
+        '| --- | --- |',
+    ];
+    for (const [id, permission] of Object.entries(readFoliumShared().permissions)) {
+        lines.push(`| \`${id}\` | ${permission.guards.map((member) => `\`${member}\``).join('、')} |`);
+    }
+    lines.push(
+        '',
+        '`folium.*` 是 client 入口的成员，`api.*` 是 main 入口的成员；写到哪一级就管到哪一级，`folium.storage` 管它下面的全部方法。',
+        '模组没有在 `mod.json` 的 `permissions` 里声明这个权限就调用时，同步的成员抛 `permission-denied:<权限>`，异步的成员返回的 promise 以同一个错误拒绝。',
+        '`platform.<平台>.read` / `.write` 管的是实验接口 `platform.raw` 的 `request` 能调这个平台的哪一类接口：读接口要 read，改动账号的接口还要 write（表里的 `request.write` 指这一类接口，不是一个成员）；两者都要在 `experimental` 里选用 `platform.raw`，声明 write 也要同时声明 read。',
+    );
+    return lines.join('\n');
+};
 
-/* The whole reference as markdown. */
-export const renderApiDocs = (contractText) => {
-    const parsed = parseContract(contractText);
-    const mainEntryItems = parsed.filter((section) => section.title === MAIN_ENTRY_SECTION).flatMap((section) => section.items);
-    const sections = parsed
-        .filter((section) => section.title !== MAIN_ENTRY_SECTION)
+/* The table of events: one row per event type, from the event types table. */
+const renderEvents = () => {
+    const lines = [
+        `### ${EVENTS_HEADING}`,
+        '',
+        '本表由宿主里那张事件类型表（`src/mods/folium/eventTypes.ts`）生成。',
+        '',
+        '| 事件 | 方式 | 需要选用的实验接口 |',
+        '| --- | --- | --- |',
+    ];
+    for (const [name, type] of Object.entries(FOLIUM_EVENT_TYPES)) {
+        lines.push(`| \`${name}\` | ${type.dispatch === 'hook' ? '钩子' : '通知'} | ${type.experimental === null ? '—' : `\`${type.experimental}\``} |`);
+    }
+    lines.push(
+        '',
+        '每个事件带的内容见 [FoliumNotificationEvents](#foliumnotificationevents) 与 [FoliumHookEvents](#foliumhookevents)。',
+        '不在表里的名字，`folium.events.on` 抛 `unknown-event:<名字>`；需要选用实验接口的事件，没有在 `mod.json` 的 `experimental` 里选用就监听时抛 `experimental-not-declared:<接口>`。',
+    );
+    return lines.join('\n');
+};
+
+const OLD_NAMES_HEADING = '仍可用的旧名字';
+
+/*
+ * Folium 1.6 only: the names Folium 2 removes, which still work and warn, from the two deprecation tables.
+ * Step 2 deletes this and its two uses in renderApiDocs.
+ */
+const oldNamesSection = () => {
+    // A name as code; a description (it has spaces) as text.
+    const code = (text) => (/\s/.test(text) ? escapeCell(text) : `\`${escapeCell(text)}\``);
+    const now = (row) => (row.now === null ? escapeCell(foliumOldNameAdvice(row)) : code(row.now));
+    const lines = [
+        `## ${OLD_NAMES_HEADING}`,
+        '',
+        '为 Folium 1.5 写的模组在 Folium 1.x 里照旧能用下面这些名字；模组用到哪一个，设置里这个模组那一行就提醒一次。Folium 2 起它们不再有效。本表由 `src/mods/folium/deprecated/oldNames.ts` 和 `electron/modSystem/deprecated.cjs` 生成，`npm run folium:check` 用同样的表把它们列为提醒。',
+        '',
+        '| 旧名字 | 现在写 | 在哪里 |',
+        '| --- | --- | --- |',
+        ...Object.values(FOLIUM_OLD_CLIENT_NAMES).map((row) => `| ${code(row.old)} | ${now(row)} | client 入口 |`),
+        ...Object.values(OLD_MAIN_NAMES).map((row) => `| ${code(row.old)} | ${now(row)} | main 入口 |`),
+        ...Object.entries(OLD_PERMISSIONS).map(([old, id]) => `| 权限 ${code(old)} | ${code(id)} | mod.json |`),
+        '| mod.json 不认识的字段 | 只提醒；Folium 2 起是错误，模组不加载 | mod.json |',
+    ];
+    return lines.join('\n');
+};
+
+// The generated tables, by the contract section they go under, each with its heading for the contents.
+const TABLES = {
+    'Client API': { heading: PERMISSIONS_HEADING, render: renderPermissions },
+    'Registry definitions': { heading: KINDS_HEADING, render: renderKinds },
+    Events: { heading: EVENTS_HEADING, render: renderEvents },
+};
+
+/* The whole reference as markdown, from the texts of the contract and the main contract. */
+export const renderApiDocs = (contractText, mainContractText) => {
+    const sections = [...parseContract(contractText), ...parseContract(mainContractText)]
         .map((section) => ({ ...section, info: SECTION_INFO[section.title] ?? { order: 99, title: section.title, intro: '' } }))
         .sort((left, right) => left.info.order - right.info.order);
-    const known = new Set(parsed.flatMap((section) => section.items.map((item) => item.name)));
+    const items = sections.flatMap((section) => section.items);
+    const known = new Set(items.map((item) => item.name));
+    const interfaces = new Map(items.filter((item) => item.kind === 'interface').map((item) => [item.name, item]));
     const version = /FOLIUM_VERSION = Object\.freeze\(\{ major: (\d+), minor: (\d+) \}\)/.exec(contractText);
+    if (!version) throw new Error('contract.ts has no FOLIUM_VERSION = Object.freeze({ major, minor })');
 
     const out = [
-        '<!-- 本文件由 `npm run folium:api` 从 src/mods/folium/contract.ts 生成，请勿手动修改。 -->',
+        '<!-- 本文件由 `npm run folium:api` 从 src/mods/folium/contract.ts 和 mainContract.ts 生成，请勿手动修改。 -->',
         '',
         '# Folium API 参考',
         '',
-        `当前契约版本：**Folium ${version ? `${version[1]}.${version[2]}` : '1.x'}**（运行时用 \`folium.host.folium.minor\` 做功能探测）。`,
+        `当前契约版本：**Folium ${version[1]}.${version[2]}**。`,
         '',
-        '本文列出模组能用到的全部公开类型，内容直接来自契约文件 [`src/mods/folium/contract.ts`](../../src/mods/folium/contract.ts)，',
+        '本文列出模组能用到的全部公开类型，内容直接来自契约文件 [`src/mods/folium/contract.ts`](../../src/mods/folium/contract.ts)',
+        '（client 入口）与 [`src/mods/folium/mainContract.ts`](../../src/mods/folium/mainContract.ts)（main 入口），',
         '成员说明保留契约里的原文注释。平台规则（清单、权限、生命周期、安全模型）见 [Folium 规范](../../mods/README.md)，',
         '从零开始写模组、调试与发布到模组市场见 [模组开发与贡献指南](contributing.md)。',
         '',
         '## 目录',
         '',
-        ...sections.map((section) => `- **${section.info.title}**：${section.items.map((item) => `[${item.name}](#${anchorOf(item.name)})`).join(' · ')}`),
-        `- **main 入口（Node）**：${['[api 对象](#main-入口node)', ...mainEntryItems.map((item) => `[${item.name}](#${anchorOf(item.name)})`)].join(' · ')}`,
+        ...sections.map((section) => `- **${section.info.title}**：${[
+            ...(TABLES[section.title] ? [`[${TABLES[section.title].heading}](#${TABLES[section.title].heading})`] : []),
+            ...section.items.map((item) => `[${item.name}](#${anchorOf(item.name)})`),
+        ].join(' · ')}`),
+        `- **[${OLD_NAMES_HEADING}](#${OLD_NAMES_HEADING})**`,
         '',
     ];
     for (const section of sections) {
         out.push(`## ${section.info.title}`, '');
         if (section.info.intro) out.push(section.info.intro, '');
-        for (const item of section.items) out.push(renderItem(item, known), '');
+        if (TABLES[section.title]) out.push(TABLES[section.title].render(items), '');
+        for (const item of section.items) out.push(renderItem(item, known, interfaces), '');
     }
-    out.push(MAIN_ENTRY_API, '');
-    if (mainEntryItems.length > 0) out.push('只属于 main 入口的类型，同样来自契约文件：', '');
-    for (const item of mainEntryItems) out.push(renderItem(item, known), '');
+    out.push(oldNamesSection(), '');
     return `${out.join('\n').replace(/\n{3,}/g, '\n\n').trimEnd()}\n`;
 };
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-    const next = renderApiDocs(fs.readFileSync(CONTRACT_PATH, 'utf8'));
+    const next = renderApiDocs(fs.readFileSync(CONTRACT_PATH, 'utf8'), fs.readFileSync(MAIN_CONTRACT_PATH, 'utf8'));
     if (process.argv.includes('--check')) {
         const current = fs.existsSync(OUTPUT_PATH) ? fs.readFileSync(OUTPUT_PATH, 'utf8') : '';
         if (current !== next) {

@@ -4,7 +4,8 @@
 
 ## 通用约定
 
-- 除 `GET /stage/health` 外，所有 HTTP 接口都需要 `Authorization: Bearer <token>`。
+- 除 `GET /stage/health` 外，所有 HTTP 接口都需要 `Authorization: Bearer <token>`。会话封面（`GET /stage/media/session/<id>/cover` 等媒体地址）也不需要，页面直接用 `<img>` 读。
+- 本机程序不必让用户复制 token：Stage API 开着时，Folia 把地址和 token 写进连接文件（见下面「连接文件」），关掉、退出时删掉，重新生成 token 时改写。
 - `WS /stage/player/ws` 支持 `Authorization: Bearer <token>`，也支持 `?token=<token>`。
 - HTTP JSON 请求请使用 `Content-Type: application/json`。
 - `POST /stage/session` 支持 `application/json` 和 `multipart/form-data`。
@@ -79,8 +80,17 @@ interface StageLyricsSession {
   title?: string;
   artist?: string;
   album?: string;
-  lyricSource: StageLyricSource;
+  lyricSource?: StageLyricSource;
+  durationMs?: number;
+  coverUrl?: string;
+  clock?: StageLyricsClock;
   updatedAt: number;
+}
+
+interface StageLyricsClock {
+  positionMs: number;
+  paused: boolean;
+  sampledAtMs: number;
 }
 ```
 
@@ -89,8 +99,13 @@ interface StageLyricsSession {
 | `title` | `string` 可选 | 歌名。 |
 | `artist` | `string` 可选 | 艺术家。 |
 | `album` | `string` 可选 | 专辑。 |
-| `lyricSource` | `StageLyricSource` | parser-compatible 歌词来源对象。 |
-| `updatedAt` | `number` | 服务端写入时间。 |
+| `lyricSource` | `StageLyricSource` 可选 | parser-compatible 歌词来源对象。没有时只显示曲目（歌名、歌手、封面、进度），不显示歌词。 |
+| `durationMs` | `number` 可选 | 曲目长度。 |
+| `coverUrl` | `string` 可选 | 封面地址：请求里给的 http(s) 地址，或上传的封面由本服务发出的地址。 |
+| `clock` | `StageLyricsClock` 可选 | 外部播放器的时钟：`positionMs` 是它报的位置，`sampledAtMs` 是服务端收到的时刻；没暂停时 Folia 从这一刻往前推。 |
+| `updatedAt` | `number` | 服务端写入时间，也是这个会话的标识（`POST /stage/lyrics/clock` 的 `sessionUpdatedAt`）。 |
+
+有 `clock` 的会话按外部播放器的时间走：从 0 起算到 `durationMs`（没给长度时不设上限），播完停在末尾，不按 Folia 的循环模式重放；没有 `clock` 的会话照旧从第一句歌词放到最后一句。
 
 ### StageLyricSource
 
@@ -341,7 +356,7 @@ interface StageHealthResponse {
 
 ## `POST /stage/lyrics`
 
-写入 parser-compatible 歌词载荷。该接口会把当前 Stage 输入切换为 `activeEntryKind: "lyrics"`，并清空媒体会话。
+写入 parser-compatible 歌词载荷，或者一个外部播放器正在放的曲目。该接口会把当前 Stage 输入切换为 `activeEntryKind: "lyrics"`，并清空媒体会话。每次请求都是一个新会话（新的 `updatedAt`），舞台会重新载入；只是进度变了请用 `POST /stage/lyrics/clock`。
 
 ### 请求
 
@@ -350,16 +365,26 @@ interface StageLyricsRequest {
   title?: string;
   artist?: string;
   album?: string;
-  lyricSource: StageLyricSource;
+  lyricSource?: StageLyricSource;
+  durationMs?: number;
+  coverUrl?: string;
+  cover?: { mimeType: 'image/png' | 'image/jpeg' | 'image/webp' | 'image/gif'; data: string };
+  positionMs?: number;
+  paused?: boolean;
 }
 ```
 
 | 字段 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- |
-| `title` | `string` | 否 | 歌名。空字符串会被忽略。 |
+| `title` | `string` | 没有 `lyricSource` 时必填 | 歌名。空字符串会被忽略。 |
 | `artist` | `string` | 否 | 艺术家。空字符串会被忽略。 |
 | `album` | `string` | 否 | 专辑。空字符串会被忽略。 |
-| `lyricSource` | `StageLyricSource` | 是 | 歌词来源对象，见公共 schema。 |
+| `lyricSource` | `StageLyricSource` | 否 | 歌词来源对象，见公共 schema。外部播放器的歌词还没找到、找不到时不传，只显示曲目。 |
+| `durationMs` | `number` | 否 | 曲目长度，正数。 |
+| `coverUrl` | `string` | 否 | http(s) 封面地址。不能和 `cover` 同时给。 |
+| `cover` | `object` | 否 | 封面图片字节：`data` 是标准 base64（不含换行），`mimeType` 是 png、jpeg、webp 或 gif 之一。外部播放器的封面常是 `file://`，页面读不到，读出来传这个；Folia 存下后在 `coverUrl` 里给出本服务的地址（只在这个地址上，`/stage/media/current/cover` 不发它）。受 2 MiB 请求体限制。 |
+| `positionMs` | `number` | 否 | 外部播放器现在的位置。给了就成为会话的 `clock`，按外部播放器的时间走。 |
+| `paused` | `boolean` | 否 | 和 `positionMs` 一起给：外部播放器停着没有，缺省为在放。 |
 
 ### 响应 `200`
 
@@ -374,8 +399,82 @@ interface StageLyricsRequest {
 | HTTP | `code` | 条件 |
 | --- | --- | --- |
 | `400` | `INVALID_STAGE_LYRICS_JSON` | JSON 无法解析。 |
-| `400` | `INVALID_STAGE_LYRICS` | `lyricSource` 缺失、`type` 不合法或对应变体缺少必要内容。 |
+| `400` | `INVALID_STAGE_LYRICS` | 既没有 `lyricSource` 也没有 `title`，或 `lyricSource` 的 `type` 不合法、对应变体缺少必要内容。 |
+| `400` | `INVALID_STAGE_COVER` | `coverUrl` 不是 http(s) 地址，`cover` 的类型或数据不对，或两者同时给。 |
+| `400` | `INVALID_STAGE_DURATION` | `durationMs` 不是正数。 |
+| `400` | `INVALID_STAGE_LYRICS_CLOCK` | `positionMs` 是负数或不是数字，或 `paused` 不是布尔值。 |
+| `409` | `STAGE_INPUT_SUPERSEDED` | 上传封面期间又来了新的推送或清空，这次推送作废（按顺序发请求就不会遇到）。 |
 | `413` | `STAGE_BODY_TOO_LARGE` | JSON 请求体超过 2 MiB。 |
+
+## `POST /stage/lyrics/clock`
+
+移动当前歌词会话的时钟，不重新载入会话：外部播放器开始放、暂停、拖动进度时各发一次，平时隔几秒发一次纠正漂移即可，不必每秒都发。只对推送时带了 `positionMs` 的歌词会话有效。在 Folia 里按播放、暂停、拖动只动舞台上的时钟，不会传给外部播放器，下一次时钟推送会把它拉回来。
+
+### 请求
+
+```ts
+interface StageLyricsClockRequest {
+  positionMs: number;
+  paused?: boolean;
+  durationMs?: number;
+  sessionUpdatedAt?: number;
+}
+```
+
+| 字段 | 类型 | 必填 | 说明 |
+| --- | --- | --- | --- |
+| `positionMs` | `number` | 是 | 外部播放器现在的位置，非负。 |
+| `paused` | `boolean` | 否 | 停着没有；不传时沿用上一次的。 |
+| `durationMs` | `number` | 否 | 曲目长度变了（有的播放器开播后才报长度）时给。 |
+| `sessionUpdatedAt` | `number` | 否 | 这个时钟属于哪个会话（`POST /stage/lyrics` 返回的 `lyricsSession.updatedAt`）。给了而会话已经换了，返回 `409`，不会把上一首的进度用到下一首上。 |
+
+### 响应 `200`
+
+```ts
+interface StageLyricsClockResponse extends StageInputMetadata {
+  sessionUpdatedAt: number;
+  clock: StageLyricsClock;
+  durationMs?: number;
+}
+```
+
+### 主要错误
+
+| HTTP | `code` | 条件 |
+| --- | --- | --- |
+| `400` | `INVALID_STAGE_LYRICS_CLOCK` | JSON 无法解析、`positionMs` 缺失或为负、`paused` 不是布尔值。 |
+| `400` | `INVALID_STAGE_DURATION` | `durationMs` 不是正数。 |
+| `409` | `STAGE_LYRICS_SESSION_INACTIVE` | 当前没有歌词会话。 |
+| `409` | `STAGE_LYRICS_SESSION_UNCLOCKED` | 当前歌词会话推送时没带 `positionMs`，按 Folia 自己的时钟走，不接受外部时钟。 |
+| `409` | `STAGE_LYRICS_SESSION_CHANGED` | `sessionUpdatedAt` 和当前会话不符；`details.sessionUpdatedAt` 是当前会话的。 |
+
+## 连接文件
+
+Stage API 开着时，Folia 把连接信息写进一个只有当前用户能读的 JSON 文件；本机的外部程序读它就能连上，不用让用户去设置里复制 token。
+
+- Linux：`$XDG_RUNTIME_DIR/folia/stage.json`；没有 `XDG_RUNTIME_DIR` 时同下。
+- 其他系统：Folia 用户数据目录下的 `stage/connection.json`（Windows 一般是 `%APPDATA%/<应用名>/stage/connection.json`）。
+
+```ts
+interface StageConnectionFile {
+  version: 1;
+  pid: number;      // 写它的 Folia 进程；进程不在了说明文件是残留的
+  port: number;
+  baseUrl: string;  // 'http://127.0.0.1:<port>'
+  token: string;
+}
+```
+
+关闭 Stage API、Folia 退出时删除；重新生成 token 时改写。文件不存在就是 Stage API 没开。
+
+## 接入外部播放器
+
+把另一个播放器正在放的歌显示在 Folia 的舞台上（Folia 只显示，播放仍由那个播放器负责），用 `stage-api` 来源：
+
+1. 读连接文件，拿到 `baseUrl` 和 `token`。
+2. 换歌时 `POST /stage/lyrics`：`title`、`artist`、`album`、`durationMs`、封面（`coverUrl` 或 `cover`）、`positionMs` 和 `paused`；歌词已经有了就放进 `lyricSource`（逐字歌词可以用 `{ type: 'local', lrcContent, formatHint: 'qrc' }`），还没有就先不传，拿到后再带上 `lyricSource` 和当前位置重发一次。记下返回的 `lyricsSession.updatedAt`。
+3. 播放、暂停、拖动时 `POST /stage/lyrics/clock`，带上 `sessionUpdatedAt`；平时每隔几秒发一次纠正漂移。
+4. 播放器没了（关掉、没有在放的）时 `DELETE /stage/state`，舞台回到等待状态。
 
 ## `POST /stage/session`
 
@@ -468,7 +567,7 @@ interface StageSessionMultipartFiles {
 
 ## `POST /stage/player/search`
 
-把搜索请求转交给 Folia 当前接入的搜索通道，返回可供点播接口消费的候选结果。
+把搜索请求转交给 Folia 的搜索通道，返回可供点播接口消费的候选结果。不传 `provider` 时走本机网易云服务（与加入 `provider` 之前完全一致）；传了就经 omni 在那个平台搜索，用的是 Folia 里那个平台的登录状态。
 
 ### 请求
 
@@ -476,6 +575,7 @@ interface StageSessionMultipartFiles {
 interface StagePlayerSearchRequest {
   query: string;
   limit?: number;
+  provider?: string;
 }
 ```
 
@@ -483,21 +583,25 @@ interface StagePlayerSearchRequest {
 | --- | --- | --- | --- |
 | `query` | `string` | 是 | 搜索关键词。空字符串不合法。 |
 | `limit` | `number` | 否 | 返回数量。服务端会归一化到 `1..50`，默认 `10`。 |
+| `provider` | `string` | 否 | omni 平台 id，如 `qq`、`kugou`、`netease`，模组的平台是 `folium.<modid>.<name>`。字母开头，只含字母、数字、`_`、`.`、`-`，最长 64 个字符。 |
 
 ### 响应 `200`
 
 ```ts
 interface StageSearchResult {
-  songId: number;
+  songId: number | string;
   title: string;
   artists: string[];
   album: string;
   durationMs: number | null;
   coverUrl: string | null;
+  provider: string;
+  songRef: string;
 }
 
 interface StagePlayerSearchResponse extends StagePlayerOutsideInMetadata {
   query: string;
+  provider: string;
   songs: StageSearchResult[];
 }
 ```
@@ -505,8 +609,11 @@ interface StagePlayerSearchResponse extends StagePlayerOutsideInMetadata {
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
 | `query` | `string` | 标准化后的搜索关键词。 |
+| `provider` | `string` | 本次实际搜索的平台；不传 `provider` 时是 `netease`。 |
 | `songs` | `StageSearchResult[]` | 搜索结果列表。 |
-| `songs[].songId` | `number` | 歌曲 ID，后续传给 `/stage/player/play` 或队列追加接口。 |
+| `songs[].songId` | `number \| string` | 歌曲在它平台上的 ID，与用 `songRef` 点播时响应里的 `songId` 相同：网易云的歌是正整数（可以照旧直接传给点播接口），其他平台是字符串。 |
+| `songs[].provider` | `string` | 歌曲所在的平台。 |
+| `songs[].songRef` | `string` | `<provider>:<songId>`，如 `qq:97773`。传给 `/stage/player/play` 或队列追加接口的 `songId`，任何平台的歌都能这样点。 |
 | `songs[].title` | `string` | 歌名。 |
 | `songs[].artists` | `string[]` | 艺术家列表。 |
 | `songs[].album` | `string` | 专辑。 |
@@ -519,8 +626,12 @@ interface StagePlayerSearchResponse extends StagePlayerOutsideInMetadata {
 | --- | --- | --- |
 | `400` | `INVALID_STAGE_PLAYER_SEARCH_JSON` | JSON 无法解析。 |
 | `400` | `INVALID_STAGE_PLAYER_SEARCH_QUERY` | `query` 为空。 |
-| `503` | `NETEASE_API_UNAVAILABLE` | 默认网易云本地 API 不可用。 |
-| `502` | `NETEASE_SEARCH_FAILED` | 默认网易云搜索请求失败。 |
+| `400` | `INVALID_STAGE_PLAYER_SEARCH_PROVIDER` | `provider` 不是合法的平台 id。 |
+| `503` | `NETEASE_API_UNAVAILABLE` | 不传 `provider` 时，默认网易云本地 API 不可用。 |
+| `502` | `NETEASE_SEARCH_FAILED` | 不传 `provider` 时，默认网易云搜索请求失败。 |
+| `503` | `STAGE_PLAYER_SEARCH_UNAVAILABLE` | 传了 `provider`，Folia 主窗口不可用。 |
+| `502` | `STAGE_SEARCH_REJECTED` | 传了 `provider`，平台搜索失败，例如 Folia 里没有这个平台。 |
+| `504` | `STAGE_PLAYER_REQUEST_TIMEOUT` | 传了 `provider`，10 秒内没有搜索结果。 |
 
 ## `POST /stage/player/play`
 
@@ -530,14 +641,14 @@ interface StagePlayerSearchResponse extends StagePlayerOutsideInMetadata {
 
 ```ts
 interface StagePlayerPlayRequest {
-  songId: number;
+  songId: number | string;
   appendToQueue?: boolean;
 }
 ```
 
 | 字段 | 类型 | 必填 | 说明 |
 | --- | --- | --- | --- |
-| `songId` | `number` | 是 | 正整数歌曲 ID，通常来自搜索结果。 |
+| `songId` | `number \| string` | 是 | 正整数（或纯数字字符串）是本机网易云的歌曲 ID；`<provider>:<songId>`（搜索结果的 `songRef`，如 `qq:97773`）是那个平台的歌。`netease:<id>` 与 `<id>` 等价。 |
 | `appendToQueue` | `boolean` | 否 | `true` 时追加到主播放器队列，不打断当前播放；默认 `false`。 |
 
 ### 响应 `200`
@@ -545,7 +656,9 @@ interface StagePlayerPlayRequest {
 ```ts
 interface StagePlayerPlayResponse extends StagePlayerOutsideInMetadata {
   ok: true;
-  songId: number;
+  songId: number | string;
+  provider: string;
+  songRef: string;
   appendToQueue: boolean;
   changed?: boolean;
   deduplicated?: boolean;
@@ -557,7 +670,9 @@ interface StagePlayerPlayResponse extends StagePlayerOutsideInMetadata {
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
 | `ok` | `true` | 请求已被播放器接受。 |
-| `songId` | `number` | 本次请求的歌曲 ID。 |
+| `songId` | `number \| string` | 本次请求的歌曲在它平台上的 ID；本机网易云的歌是数字。 |
+| `provider` | `string` | 歌曲所在的平台。 |
+| `songRef` | `string` | `<provider>:<songId>`。 |
 | `appendToQueue` | `boolean` | 是否为队列追加模式。 |
 | `changed` | `boolean` 可选 | 队列追加时，队列是否发生变化。 |
 | `deduplicated` | `boolean` 可选 | 队列追加时，是否发生同源歌曲去重或移动。 |
@@ -569,11 +684,11 @@ interface StagePlayerPlayResponse extends StagePlayerOutsideInMetadata {
 | HTTP | `code` | 条件 |
 | --- | --- | --- |
 | `400` | `INVALID_STAGE_PLAYER_PLAY_JSON` | JSON 无法解析。 |
-| `400` | `INVALID_STAGE_PLAYER_PLAY_SONG_ID` | `songId` 不是正整数。 |
+| `400` | `INVALID_STAGE_PLAYER_PLAY_SONG_ID` | `songId` 既不是正整数，也不是 `<provider>:<songId>`。 |
 | `503` | `STAGE_PLAY_UNAVAILABLE` | Folia 主窗口不可用。 |
 | `503` | `STAGE_PLAY_CANCELED` | 请求被取消，例如 Stage 状态被清空。 |
 | `504` | `STAGE_PLAY_TIMEOUT` | 播放器 15 秒内未完成响应。 |
-| `502` | `STAGE_PLAY_REJECTED` | 渲染进程拒绝播放请求。 |
+| `502` | `STAGE_PLAY_REJECTED` | 渲染进程拒绝播放请求，例如找不到这首歌或 Folia 里没有这个平台。 |
 
 ## `GET /stage/player/status`
 
@@ -714,8 +829,8 @@ interface StagePlayerQueueGetResponse extends StagePlayerInsideOutMetadata {
 ```ts
 interface StagePlayerQueueRequest {
   action: 'append' | 'insert-next' | 'remove' | 'move' | 'select' | 'clear';
-  songId?: number;
-  songIds?: number[];
+  songId?: number | string;
+  songIds?: Array<number | string>;
   queueItemId?: string;
   fromQueueItemId?: string;
   fromIndex?: number;
@@ -727,8 +842,8 @@ interface StagePlayerQueueRequest {
 | 字段 | 类型 | 适用 action | 说明 |
 | --- | --- | --- | --- |
 | `action` | enum | 全部 | 队列动作。 |
-| `songId` | `number` | `append`、`insert-next` | 追加或插到下一首的单个歌曲 ID。 |
-| `songIds` | `number[]` | `append`、`insert-next` | 批量追加或插到下一首的歌曲 ID。服务端会过滤非正整数。 |
+| `songId` | `number \| string` | `append`、`insert-next` | 追加或插到下一首的单首歌：正整数（本机网易云）或 `<provider>:<songId>`，同 `/stage/player/play`。 |
+| `songIds` | `Array<number \| string>` | `append`、`insert-next` | 批量追加或插到下一首的歌，每项同 `songId`，可以混着不同平台。服务端会过滤读不出来的项；有可用的项时忽略 `songId`。找不到的歌不加入，全部找不到时请求失败。 |
 | `queueItemId` | `string` | `remove`、`select` | 按队列项 ID 删除或选择。 |
 | `fromQueueItemId` | `string` | `move` | 按队列项 ID 指定移动来源。 |
 | `fromIndex` | `number` | `move` | 按下标指定移动来源。 |

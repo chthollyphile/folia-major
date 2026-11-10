@@ -2,7 +2,7 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import PonderSurfaceContents from '@/components/ponder/PonderSurfaceContents';
-import { LOCAL_GRID_MAP_GEOMETRY } from '@/components/ponder/surfaces/ponderSurfaceGeometry';
+import { LOCAL_GRID_MAP_GEOMETRY } from '@/components/ponder/surfaces/library/localLibrary.geometry';
 import type { PonderSurfaceKind } from '@/types/ponder';
 
 // test/unit/ponder/ponderSurfaceContents.test.ts
@@ -141,7 +141,7 @@ describe('PonderSurfaceContents', () => {
         });
     });
 
-    it('底部界面设置画的是滑杆加「在播放页拖动调整」，不是泛化的下拉框', () => {
+    it('控制栏设置画的是滑杆加「在播放页拖动调整」，不是泛化的下拉框', () => {
         const markup = renderSurface('bottom-ui-settings');
         expect(markup).toContain('data-ponder-bottom-ui-settings');
         expect(markup).toContain('data-ponder-bottom-ui-offset-track');
@@ -155,12 +155,35 @@ describe('PonderSurfaceContents', () => {
         ['play', 'title', 'progress'].forEach(part => {
             expect(markup).toContain(`data-ponder-bar-${part}`);
         });
-        // 槽位层、随机层、音量层各画一对，所以是 6 个；同一时刻只有一层是可见的。
-        expect(markup.match(/data-ponder-bar-slot=/g)).toHaveLength(6);
+        // 槽位层、随机层、音量层、按住层各画一对，所以是 8 个；同一时刻只有一层是可见的。
+        expect(markup.match(/data-ponder-bar-slot=/g)).toHaveLength(8);
         // 随机和音量不按槽位里此刻放着什么筛，两层都必须预渲染在场。
-        ['title-hovered', 'slots-shuffle', 'slots-volume', 'collapsed'].forEach(state => {
+        ['title-hovered', 'slots-shuffle', 'slots-volume', 'slots-holding', 'collapsed'].forEach(state => {
             expect(markup).toContain(`data-ponder-surface-state="${state}"`);
         });
+        // 按住层的外圈只画在第一个槽位上：讲的是「按住这一颗」。
+        expect(markup.match(/data-ponder-bar-slot-hold/g)).toHaveLength(1);
+    });
+
+    it('胶囊上方那排快捷操作是六个操作加最右一颗命令窗口', () => {
+        const markup = renderSurface('capsule-quick-actions');
+        expect(markup).toContain('data-ponder-capsule-quick-actions');
+        expect(markup.match(/data-ponder-quick-action(?=[\s>=])/g)).toHaveLength(6);
+        expect(markup).toContain('data-ponder-quick-palette');
+    });
+
+    it('从胶囊长出来的命令窗口，输入行在结果下面', () => {
+        const markup = renderSurface('capsule-palette');
+        expect(markup).toContain('data-ponder-capsule-palette');
+        expect(markup.match(/data-ponder-capsule-palette-row/g)).toHaveLength(3);
+        expect(markup.indexOf('data-ponder-capsule-palette-input'))
+            .toBeGreaterThan(markup.lastIndexOf('data-ponder-capsule-palette-row'));
+    });
+
+    it('换按钮的浮层一格一个可放的动作', () => {
+        const markup = renderSurface('slot-picker');
+        expect(markup).toContain('data-ponder-slot-picker');
+        expect(markup.match(/data-ponder-slot-picker-option/g)).toHaveLength(11);
     });
 
     it('自定义快捷键画的是两颗键帽加一个下拉，Alt 那颗是印死的', () => {
@@ -207,7 +230,7 @@ describe('PonderSurfaceContents', () => {
         expect(markup).toContain('data-ponder-surface-state="import-plan"');
     });
 
-    it('均衡器把预设排和推子排画在同一张图上，换槽是一整层结果', () => {
+    it('音频效果器把预设排和推子排画在同一张图上，换槽是一整层结果', () => {
         const markup = renderSurface('audio-equalizer');
         expect(markup).toContain('data-ponder-audio-equalizer-structure');
         expect(markup).toContain('data-ponder-eq-presets');
@@ -217,7 +240,7 @@ describe('PonderSurfaceContents', () => {
         expect(markup).toContain('data-ponder-surface-state="custom-written"');
     });
 
-    it('调参台的热区平时不画边框，只有结果层才把它们亮出来', () => {
+    it('歌词样式窗口的热区平时不画边框，只有结果层才把它们亮出来', () => {
         const markup = renderSurface('vis-playground');
         expect(markup).toContain('data-ponder-vis-playground-structure');
         ['background', 'visualizer', 'subtitle'].forEach(region => {
@@ -227,12 +250,12 @@ describe('PonderSurfaceContents', () => {
         expect(markup.match(/data-ponder-playground-hotspot-shown/g)).toHaveLength(3);
         expect(markup).toContain('data-ponder-surface-state="hotspots-visible"');
 
-        // 右栏四页各是一层，而且每层都带一颗只管本页的复位。
-        ['section-background', 'section-visualizer', 'section-subtitle'].forEach(state => {
+        // 右栏四页各是一层，而且每层都带一颗只管本页的「默认」。
+        ['section-background', 'section-common', 'section-subtitle'].forEach(state => {
             expect(markup).toContain(`data-ponder-surface-state="${state}"`);
         });
         expect(markup.match(/data-ponder-playground-section-reset/g)).toHaveLength(4);
-        // 基础层停在「通用」：示例文本和歌词字体两行是这一页独有的。
+        // 「通用」那一层：预览文本和歌词字体两行是这一页独有的。
         expect(markup).toContain('data-ponder-playground-preview-text');
         expect(markup).toContain('data-ponder-playground-font');
         // 字幕页的内容三选一，和那颗决定字体跟不跟歌词走的开关。
@@ -240,14 +263,14 @@ describe('PonderSurfaceContents', () => {
         expect(markup).toContain('data-ponder-playground-subtitle-font');
     });
 
-    it('Theme Park 顶栏三件齐全，保存灰掉那层同时亮出「信息」那一格', () => {
+    it('Theme Park 标题栏三件齐全，保存灰掉那层同时在「信息」标签旁亮出圆点', () => {
         const markup = renderSurface('theme-park');
         expect(markup).toContain('data-ponder-theme-park-structure');
         ['target', 'reset', 'save'].forEach(part => {
             expect(markup).toContain(`data-ponder-park-${part}`);
         });
         expect(markup).toContain('data-ponder-park-mode');
-        expect(markup.match(/data-ponder-park-color-row/g)).toHaveLength(4);
+        expect(markup.match(/data-ponder-park-color-well/g)).toHaveLength(4);
         // 按不动的那颗和能解决它的那一格必须在同一层里，否则连不成一句话。
         expect(markup).toContain('data-ponder-park-save-blocked');
         expect(markup).toContain('data-ponder-park-tab-details');
@@ -256,14 +279,15 @@ describe('PonderSurfaceContents', () => {
 
     it('控制面板多出两副面孔：展开的模式列表，和 FM 下的电台页', () => {
         const markup = renderSurface('side-panel');
-        // 取景器中间那块名称是一颗按钮，它得是一块独立元素才指得住。
+        // 歌词样式那一行中间是一颗按钮，它得是一块独立元素才指得住。
         expect(markup).toContain('data-ponder-panel-mode-name');
-        expect(markup.match(/data-ponder-panel-mode-option/g)).toHaveLength(5);
-        // 列表底下那一条是「去完整设置」，不是第七个模式。
+        // 点开是三列两排的一格图。
+        expect(markup.match(/data-ponder-panel-mode-option/g)).toHaveLength(6);
+        // 图底下那一条是「更多设置」，不是第七张图。
         expect(markup).toContain('data-ponder-panel-mode-list-footer');
         expect(markup).toContain('data-ponder-surface-state="controls-mode-list"');
 
-        // 电台页没有队列行，只有一枚模式胶囊、三颗传送和一对喜欢/扔掉。
+        // 电台页没有队列行，只有一颗写着模式的按钮、三颗传送和两端的丢弃、喜欢。
         expect(markup).toContain('data-ponder-panel-fm-mode');
         expect(markup).toContain('data-ponder-panel-fm-transport');
         expect(markup.match(/data-ponder-panel-fm-action(?![-a-z])/g)).toHaveLength(2);

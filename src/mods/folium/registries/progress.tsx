@@ -1,34 +1,40 @@
-import React, { useEffect, useMemo, useRef } from 'react';
+import React, { useMemo, useRef } from 'react';
 import type { MotionValue } from 'framer-motion';
 import type {
-    FoliumControlButtonDef,
-    FoliumControlSlot,
+    FoliumProgressButtonDef,
+    FoliumProgressButtonSlot,
     FoliumProgressContext,
     FoliumProgressLayerDef,
 } from '../contract';
-import { createFoliumRegistry, useFoliumRegistryEntries, type FoliumRegistryEntry } from '../registry';
-import { FoliumMountHost } from '../FoliumMountHost';
+import { createFoliumRegistry, useFoliumRegistryEntries, type FoliumRegistryEntry } from '../../runtime/registry';
+import { FoliumMountHost } from '../../runtime/FoliumMountHost';
+import type { FoliumHostContext } from '../helpers';
+import { useFoliumListeners, useFoliumNotifyOnChange } from '../../runtime/listeners';
+import { foliumMountName } from '../kinds';
 
 // src/mods/folium/registries/progress.tsx
-// `folium.registries.controlButtons` and `folium.registries.progressLayers`:
+// `folium.registries.progressButtons` and `folium.registries.progressLayers`:
 // extensions of the host progress bar (ProgressBar.tsx, used by the floating
 // controls and Lattice). Buttons mount into the leading/trailing slots beside
 // the time labels; layers mount over the track, above the fill. Both get the
 // same FoliumProgressContext, so a layer can place markers with timeToRatio()
 // and a button can seek.
 
-const CONTROL_SLOTS: readonly FoliumControlSlot[] = ['progress.leading', 'progress.trailing'];
+const BUTTON_SLOTS: readonly FoliumProgressButtonSlot[] = ['progress.leading', 'progress.trailing'];
 
-export const controlButtonsRegistry = createFoliumRegistry<FoliumControlButtonDef>('controlButtons', {
+const PROGRESS_BUTTON = foliumMountName('progressButtons', 'progressButton');
+const PROGRESS_LAYER = foliumMountName('progressLayers', 'progressLayer');
+
+export const progressButtonsRegistry = createFoliumRegistry<FoliumProgressButtonDef>('progressButtons', {
     validate: (def) => {
-        if (!CONTROL_SLOTS.includes(def.slot)) {
-            throw new Error(`controlButtons.register: slot must be one of ${CONTROL_SLOTS.join(', ')}`);
+        if (!BUTTON_SLOTS.includes(def.slot)) {
+            throw new Error(`progressButtons.register: slot must be one of ${BUTTON_SLOTS.join(', ')}`);
         }
         if (typeof def.mount !== 'function') {
-            throw new Error('controlButtons.register: mount must be a function');
+            throw new Error('progressButtons.register: mount must be a function');
         }
         if (def.hideWhenCollapsed !== undefined && typeof def.hideWhenCollapsed !== 'boolean') {
-            throw new Error('controlButtons.register: hideWhenCollapsed must be a boolean');
+            throw new Error('progressButtons.register: hideWhenCollapsed must be a boolean');
         }
         return def;
     },
@@ -58,18 +64,18 @@ export interface FoliumProgressInputs {
 
 /*
  * One context per progress bar. Fixed per currentTime source; duration, colors
- * and the seek callback are read through refs, and subscribe() fires when the
+ * and the seek callback are read through refs, and onChange fires when the
  * duration or the colors change (a new track, a theme switch).
  */
-export const useFoliumProgressContext = (inputs: FoliumProgressInputs): FoliumProgressContext => {
+export const useFoliumProgressContext = (inputs: FoliumProgressInputs): FoliumHostContext<FoliumProgressContext> => {
     const inputsRef = useRef(inputs);
     inputsRef.current = inputs;
-    const listenersRef = useRef(new Set<() => void>());
+    const listeners = useFoliumListeners('progress subscriber');
     const { currentTime } = inputs;
-    const ctx = useMemo<FoliumProgressContext>(() => Object.freeze({
-        currentTime: Object.freeze({
+    const ctx = useMemo<FoliumHostContext<FoliumProgressContext>>(() => Object.freeze({
+        playbackTime: Object.freeze({
             get: () => currentTime.get(),
-            on: (_event: 'change', listener: (seconds: number) => void) => currentTime.on('change', listener),
+            on: (listener: (seconds: number) => void) => currentTime.on('change', listener),
         }),
         getDuration: () => inputsRef.current.duration,
         timeToRatio: (seconds: number) => {
@@ -84,21 +90,11 @@ export const useFoliumProgressContext = (inputs: FoliumProgressInputs): FoliumPr
             onSeek(duration > 0 ? Math.min(duration, Math.max(0, seconds)) : Math.max(0, seconds));
         },
         getColors: () => inputsRef.current.colors,
-        subscribe: (listener: () => void) => {
-            listenersRef.current.add(listener);
-            return () => listenersRef.current.delete(listener);
-        },
+        subscribe: listeners.subscribe,
     }), [currentTime]);
     const { duration } = inputs;
     const { fill, track, text } = inputs.colors;
-    const primedRef = useRef(false);
-    useEffect(() => {
-        if (!primedRef.current) {
-            primedRef.current = true;
-            return;
-        }
-        listenersRef.current.forEach((listener) => listener());
-    }, [duration, fill, track, text]);
+    useFoliumNotifyOnChange(listeners, [duration, fill, track, text]);
     return ctx;
 };
 
@@ -113,8 +109,8 @@ const keepClickInside = (event: React.MouseEvent) => event.stopPropagation();
  * A leading/trailing button slot. Renders nothing while no mod has a button
  * there. On a collapsed bar, buttons that asked for hideWhenCollapsed are left out.
  */
-export const FoliumControlButtonSlot: React.FC<{ slot: FoliumControlSlot; ctx: FoliumProgressContext; collapsed?: boolean }> = ({ slot, ctx, collapsed = false }) => {
-    const entries = useFoliumRegistryEntries(controlButtonsRegistry);
+export const FoliumProgressButtons: React.FC<{ slot: FoliumProgressButtonSlot; ctx: FoliumHostContext<FoliumProgressContext>; collapsed?: boolean }> = ({ slot, ctx, collapsed = false }) => {
+    const entries = useFoliumRegistryEntries(progressButtonsRegistry);
     const buttons = entries
         .filter((entry) => entry.def.slot === slot && !(collapsed && entry.def.hideWhenCollapsed))
         .sort(byOrder);
@@ -125,8 +121,8 @@ export const FoliumControlButtonSlot: React.FC<{ slot: FoliumControlSlot; ctx: F
                 <FoliumMountHost
                     key={entry.id}
                     modId={entry.modId}
-                    where={`control button ${entry.id}`}
-                    entryKind="control-button"
+                    where={`progress button ${entry.id}`}
+                    entryKind={PROGRESS_BUTTON}
                     entryId={entry.id}
                     mount={entry.def.mount}
                     ctx={ctx}
@@ -145,7 +141,7 @@ export const FoliumControlButtonSlot: React.FC<{ slot: FoliumControlSlot; ctx: F
  * clickable; a layer that wants clicks (markers that seek) sets
  * `pointer-events: auto` on exactly those elements.
  */
-export const FoliumProgressLayers: React.FC<{ ctx: FoliumProgressContext }> = ({ ctx }) => {
+export const FoliumProgressLayers: React.FC<{ ctx: FoliumHostContext<FoliumProgressContext> }> = ({ ctx }) => {
     const entries = useFoliumRegistryEntries(progressLayersRegistry);
     if (entries.length === 0) return null;
     const layers = [...entries].sort(byOrder);
@@ -156,7 +152,7 @@ export const FoliumProgressLayers: React.FC<{ ctx: FoliumProgressContext }> = ({
                     key={entry.id}
                     modId={entry.modId}
                     where={`progress layer ${entry.id}`}
-                    entryKind="progress-layer"
+                    entryKind={PROGRESS_LAYER}
                     entryId={entry.id}
                     mount={entry.def.mount}
                     ctx={ctx}

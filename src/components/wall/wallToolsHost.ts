@@ -3,7 +3,7 @@ import type { SongResult } from '../../types';
 
 // src/components/wall/wallToolsHost.ts
 // 墙面工具（WallToolsButton，Lattice 与 bravais 共用）的宿主上下文：App 在 WallToolsDockHost 上提供一份 host，
-// 两面墙的工具面板从这里拿洗牌、主题、音量预览、前往播放器与队列编辑这些「要动应用」的动作，自己不认识 App。
+// 两面墙的工具面板从这里拿洗牌、主题、音量预览、前往播放器、打开设置与队列编辑这些「要动应用」的动作，自己不认识 App。
 // 这里只 import src/types（wall 不依赖 components/app 与 library，见 test/unit/wall/wallBoundaries.test.ts）。
 // 队列数据本身不经过 host：面板与队列浮岛直接读 usePlaybackStore（playQueue、currentSong、isFmMode、activePlaybackContext）。
 // 没有 host 的地方（组件探针、Ponder 的合成界面）面板照常画，只是要宿主的那几格跳过或禁用。
@@ -29,6 +29,8 @@ export type WallToolsHost = {
     previewVolume: (volume: number) => void;
     /** 前往播放页。 */
     openPlayer: () => void;
+    /** 打开设置（选项页，与播放页面板的齿轮同一个去处）。 */
+    openSettings: () => void;
 
     // ---- 队列动作（下标都是 playQueue 里的下标）----
     /** 播放队列里的这首（不跳页，留在墙上）。 */

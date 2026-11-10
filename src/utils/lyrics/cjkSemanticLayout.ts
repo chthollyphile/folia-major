@@ -60,7 +60,6 @@ interface WordSegment {
 }
 
 const CJK_REGEX = /[\u4e00-\u9fa5\u3040-\u30ff\uac00-\ud7af]/;
-const WHITESPACE_REGEX = /^\s+$/;
 const APOSTROPHE_ONLY_REGEX = /^['’]\s*$/;
 const CONTRACTION_SUFFIX_REGEX = /^(s|t|m|d|ll|re|ve|em)\s*$/i;
 const DIRECT_CONTRACTION_REGEX = /^['’](s|t|m|d|ll|re|ve|em)\s*$/i;
@@ -139,31 +138,49 @@ const hasInlineContraction = (unit: LyricLayoutUnit) => (
     && INLINE_CONTRACTION_REGEX.test(unit.text)
 );
 
+const stripWhitespace = (text: string) => text.replace(/\s+/g, '');
+
 // Maps Intl.Segmenter output back onto parser words.
 // If any segment cannot be aligned exactly, callers fall back to one-word units instead of guessing.
+//
+// Alignment compares text with whitespace removed. Word-by-word sources keep a line's spaces inside
+// their timed words (YRC/QRC glue them onto the syllable before: 更 | 迭␣␣ | 都) or time them as
+// words of their own, while the segmenter puts every whitespace run in a segment of its own. Exact
+// matching made one such space throw the whole line back to one-word units, which scattered every
+// CJK word across rows (#990). A whitespace-only word stays with the unit before it.
 const mapSegmentsToWords = (segments: WordSegment[], words: Word[]): LyricLayoutUnit[] | null => {
     const units: LyricLayoutUnit[] = [];
     let wordIndex = 0;
 
+    const absorbWhitespaceWords = () => {
+        const previous = units[units.length - 1];
+        // Leading whitespace words have no unit before them; the first segment collects them.
+        while (previous && wordIndex < words.length && !stripWhitespace(words[wordIndex].text)) {
+            appendWordsToUnit(previous, words[wordIndex].text, [words[wordIndex]]);
+            wordIndex += 1;
+        }
+    };
+
     for (const segment of segments) {
-        const segmentText = segment.segment;
-        if (!segmentText || WHITESPACE_REGEX.test(segmentText)) {
+        const segmentKey = stripWhitespace(segment.segment);
+        if (!segmentKey) {
             continue;
         }
 
+        absorbWhitespaceWords();
         const startWordIndex = wordIndex;
-        let collectedText = '';
+        let collectedKey = '';
 
-        while (wordIndex < words.length && collectedText.length < segmentText.length) {
-            collectedText += words[wordIndex].text;
+        while (wordIndex < words.length && collectedKey.length < segmentKey.length) {
+            collectedKey += stripWhitespace(words[wordIndex].text);
             wordIndex += 1;
 
-            if (!segmentText.startsWith(collectedText)) {
+            if (!segmentKey.startsWith(collectedKey)) {
                 return null;
             }
         }
 
-        if (collectedText !== segmentText) {
+        if (collectedKey !== segmentKey) {
             return null;
         }
 
@@ -174,20 +191,24 @@ const mapSegmentsToWords = (segments: WordSegment[], words: Word[]): LyricLayout
             return null;
         }
 
+        // The unit's text is its words' text, spaces included, so it always joins back to them.
+        const segmentText = segmentWords.map(word => word.text).join('');
         if (!segment.isWordLike && units.length > 0) {
             appendWordsToUnit(units[units.length - 1], segmentText, segmentWords);
             continue;
         }
 
+        const glyphWordCount = segmentWords.filter(word => stripWhitespace(word.text)).length;
         units.push({
             text: segmentText,
             words: segmentWords,
             startTime: firstWord.startTime,
             endTime: lastWord.endTime,
-            isSemantic: Boolean(segment.isWordLike && hasCjkText(segmentText) && segmentWords.length > 1),
+            isSemantic: Boolean(segment.isWordLike && hasCjkText(segmentText) && glyphWordCount > 1),
         });
     }
 
+    absorbWhitespaceWords();
     if (wordIndex !== words.length || units.length === 0) {
         return null;
     }

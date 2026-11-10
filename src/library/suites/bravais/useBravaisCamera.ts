@@ -15,6 +15,7 @@ import { BRAVAIS_CAMERA_TWEEN_S, BRAVAIS_CULL_EDGE_MARGIN, BRAVAIS_OVERSCAN } fr
 import { rubberBand } from './bravaisFiniteWall';
 import { computeBravaisFrame, getTiltReach } from './bravaisFrame';
 import type { BravaisFrameState } from './useBravaisFrame';
+import { seamBoundsOf } from './bravaisAnchor';
 
 // src/library/suites/bravais/useBravaisCamera.ts
 // 相机：真源是视图中心（缝基准线下的世界点，B5 的约定），存在帧状态里；拖动 / 滚轮 / 惯性复用 wall 的
@@ -27,13 +28,13 @@ const MAX_RESERVED_VIEWPORTS = 3;
 const area = (bounds: Bounds) => (bounds.right - bounds.left) * (bounds.bottom - bounds.top);
 
 /**
- * 当前可见的世界范围（缝张开时两半各让出半个开口，左右再放宽一个开口宽）。倾斜时再按反转回去的视口放宽
+ * 当前可见的世界范围（缝张开时两半各让出半个开口，左右再放宽一个开口宽；横的缝放宽上下）。倾斜时再按反转回去的视口放宽
  * （getTiltReach）：支点跟着缝走，缝拖远了视口会整块偏开，不能只靠 overscan 兜着。
  */
 export const getVisibleWorldBounds = (state: BravaisFrameState): Bounds | null => {
     const { view } = state;
     if (!view) return null;
-    const bounds = getViewWorldBounds(state.center, view, { seamWidth: state.openWidth });
+    const bounds = getViewWorldBounds(state.center, view, seamBoundsOf(state));
     if (Math.abs(state.tiltDeg) < 0.001 || state.anchorX === null) return bounds;
     const { tilt } = computeBravaisFrame({
         center: state.center,
@@ -133,7 +134,7 @@ export const useBravaisCamera = ({
         if (Math.abs(target.x - from.x) < 0.5 && Math.abs(target.y - from.y) < 0.5) return;
         const view = frameRef.current.view;
         if (view) {
-            const destination = getViewWorldBounds(target, view, { seamWidth: frameRef.current.openWidth });
+            const destination = getViewWorldBounds(target, view, seamBoundsOf(frameRef.current));
             setBounds(current => {
                 if (!current) return destination;
                 const merged = {
@@ -207,7 +208,7 @@ export const useBravaisCamera = ({
     const getWorldBounds = useCallback((camera: LatticeCamera) => {
         const view = frameRef.current.view;
         if (!view) return { left: 0, right: 0, top: 0, bottom: 0 };
-        return getViewWorldBounds(viewCenterFromCamera(camera, view), view, { seamWidth: frameRef.current.openWidth });
+        return getViewWorldBounds(viewCenterFromCamera(camera, view), view, seamBoundsOf(frameRef.current));
     }, [frameRef]);
     const pointer = useWallPointerPan({
         applyCamera,

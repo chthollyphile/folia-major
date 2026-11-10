@@ -1,8 +1,10 @@
 import type { ReplayGainInfo, SongResult } from '../../types';
+import type { AudioQualityPreference } from '../../types/onlineMusic';
+import { getPlaybackSongKey } from '../../utils/appPlaybackGuards';
 import type { MigrationResult } from '../../utils/lyrics/renderHints';
-import { getCachedAudioBlob, hasCachedAudio, saveAudioBlob } from '../audioCache';
+import { getCachedAudioBlob, hasCachedAudio, removeAudioBlob, saveAudioBlob } from '../audioCache';
 import { getCachedCoverUrl, hasCachedCover, saveCoverBlob } from '../coverCache';
-import { getFromCache, saveToCache } from '../db';
+import { getFromCache, removeFromCache, saveToCache } from '../db';
 import { getLegacySongResourceCacheKeys, getSongResourceCacheKey, type SongResourceKind } from './resourceKeys';
 
 // src/services/onlineMusic/resourceCache.ts
@@ -33,8 +35,47 @@ export const getSongCacheWithLegacyMigration = async <T>(
     return null;
 };
 
-export const getCachedSongAudioBlob = async (song: SongResult): Promise<Blob | null> => {
+/**
+ * The quality level a song's cached audio was fetched at, kept beside it like the ReplayGain below.
+ *
+ * The audio key names the song and no level, so a copy fetched at one level used to answer for all
+ * of them: a song played to its end at 'standard' went on playing that copy after the quality
+ * option was moved to 'high'. A reader that passes the level it wants (playback, the prefetch pass,
+ * the end-of-song writer) now gets a miss for a copy of another one. A reader that passes none (the
+ * automix analysis and the stems, whose results are kept per song) takes any copy. So does a copy
+ * with no level saved - every copy older than this record, and the legacy NetEase ones: its level
+ * is unknown and it answers for any, as before.
+ */
+const getSongAudioLevelKey = (song: SongResult): string => `audioLevel_${getPlaybackSongKey(song)}`;
+
+/**
+ * Called after a song's audio is written from a URL (the end-of-song writer, the automix analysis
+ * read), with the level that URL was fetched at. Without one the level saved for an earlier copy
+ * is removed: it does not describe the new copy, which is then of an unknown level.
+ */
+export const saveSongAudioLevel = async (song: SongResult, level: AudioQualityPreference | undefined): Promise<void> => {
+    if (level) await saveToCache(getSongAudioLevelKey(song), level);
+    else await removeFromCache(getSongAudioLevelKey(song));
+};
+
+// Whether the song's own copy is to be passed over: it is there, and was fetched at another level
+// than the one asked for. The saved level is read first, so that such a copy is never read into
+// memory. It outlives a pruned file, so the file is asked for before the copy is called passed over.
+const isCopyOfAnotherLevel = async (
+    song: SongResult,
+    cacheKey: string,
+    level: AudioQualityPreference | undefined,
+): Promise<boolean> => {
+    if (!level) return false;
+    const saved = await getFromCache<AudioQualityPreference>(getSongAudioLevelKey(song));
+    if (!saved || saved === level || !await hasCachedAudio(cacheKey)) return false;
+    console.log(`[Cache] Copy of ${getPlaybackSongKey(song)} passed over: fetched at ${saved}, asked for ${level}`);
+    return true;
+};
+
+export const getCachedSongAudioBlob = async (song: SongResult, level?: AudioQualityPreference): Promise<Blob | null> => {
     const cacheKey = getSongResourceCacheKey('audio', song);
+    if (await isCopyOfAnotherLevel(song, cacheKey, level)) return null;
     const current = await getCachedAudioBlob(cacheKey);
     if (current) return current;
 
@@ -47,8 +88,25 @@ export const getCachedSongAudioBlob = async (song: SongResult): Promise<Blob | n
     return null;
 };
 
-export const hasCachedSongAudio = async (song: SongResult): Promise<boolean> => {
+/**
+ * Deletes the song's audio copy that was read (`size` bytes) with the level saved for it: for a
+ * copy playback found not to be the song (onlinePlayback.ts). Under the legacy keys too, which
+ * `getCachedSongAudioBlob` would otherwise copy back under the song's own key on the next read. A
+ * file written since the read is not that copy and stays, and so does the level: it is the new
+ * file's. Resolves to whether a copy was deleted.
+ */
+export const deleteCachedSongAudio = async (song: SongResult, size: number): Promise<boolean> => {
+    let deleted = false;
+    for (const cacheKey of [getSongResourceCacheKey('audio', song), ...getLegacySongResourceCacheKeys('audio', song)]) {
+        if (await removeAudioBlob(cacheKey, size)) deleted = true;
+    }
+    if (deleted) await removeFromCache(getSongAudioLevelKey(song));
+    return deleted;
+};
+
+export const hasCachedSongAudio = async (song: SongResult, level?: AudioQualityPreference): Promise<boolean> => {
     const cacheKey = getSongResourceCacheKey('audio', song);
+    if (await isCopyOfAnotherLevel(song, cacheKey, level)) return false;
     if (await hasCachedAudio(cacheKey)) return true;
 
     for (const legacyKey of getLegacySongResourceCacheKeys('audio', song)) {

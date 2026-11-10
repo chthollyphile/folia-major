@@ -1,4 +1,4 @@
-import type { TitleMetrics } from './fitSettledTitle';
+import { TITLE_MAX_LINES, type TitleMetrics } from './fitSettledTitle';
 
 // src/utils/settledTitleCache.ts — wall-level reuse of settled title measurements.
 
@@ -60,5 +60,5 @@ if (typeof document !== 'undefined' && document.fonts) {
  * separator cannot shift the fixed-arity prefix.
  */
 export function titleFitCacheKey(text: string, metrics: TitleMetrics): string {
-    return [fontsEpoch, metrics.width, metrics.lineHeight, metrics.letterSpacing, metrics.font, text].join('|');
+    return [fontsEpoch, metrics.width, metrics.lineHeight, metrics.letterSpacing, metrics.maxLines ?? TITLE_MAX_LINES, metrics.font, text].join('|');
 }

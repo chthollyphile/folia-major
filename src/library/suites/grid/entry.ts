@@ -1,5 +1,5 @@
-import type { LibraryAccountActionId } from '../../core/contracts/account';
-import type { LibraryHomeActionId, LibrarySuiteManifest } from '../../core/contracts/suite';
+import type { LibraryAccountActionId } from '../../core/account/account.contract';
+import type { LibraryHomeActionId, LibrarySuiteManifest } from '../../core/suite/suite.contract';
 import Grid3D from './home/Grid3D';
 import GridCollectionSurface from './collection/GridCollectionSurface';
 import GridArtistSurface from './artist/GridArtistSurface';
@@ -44,8 +44,8 @@ const GRID_HOME_ACTIONS: readonly LibraryHomeActionId[] = [
     'home-refresh-navidrome',
 ];
 
-// 账户：登录弹窗（二维码、QQ 两步选方式、重试、关闭、失败诊断、网易后端重启）与切换确认框（GridAccountSurface），
-// 以及首页切换器 / 连接面板上的选平台与登出（Grid3D 经账户 controller 调用）。全部 7 个动作都实现。
+// 账户：切换确认框（GridAccountSurface）；登录（二维码或浏览器、QQ 两步选方式、重来、关闭、失败详情与诊断、本地服务
+// 重启）在共用的登录窗口里，首页的登录按钮和右下角的药丸打开它，选平台与登出也在窗口里。全部 7 个动作都实现。
 const GRID_ACCOUNT_ACTIONS: readonly LibraryAccountActionId[] = [
     'account-login',
     'account-login-method',
@@ -68,6 +68,11 @@ const grid: LibrarySuiteManifest = {
                 'enqueue',
                 'play-scope',
                 'enqueue-scope',
+                // 速记簿：卡片封面右上角悬浮的「加入速记簿」、曲目侧栏行上的一颗、信息面板的「全部加入速记簿」。
+                'collect',
+                'collect-scope',
+                // 卡片封面右上角悬浮的「收藏到歌单」（应用的歌单选择器，含「我喜欢」）。
+                'save-to-playlist',
                 'filter',
                 'sort',
                 'reload',
@@ -80,6 +85,7 @@ const grid: LibrarySuiteManifest = {
                 'resync-all-folders',
                 'export-playlist',
                 'edit-entity',
+                'set-cover',
                 'organize-song-info',
                 'match-song',
                 'add-to-playlist',
@@ -95,7 +101,7 @@ const grid: LibrarySuiteManifest = {
             component: GridArtistSurface,
             // 歌手页：播放 / 入队单曲（卡片）与热门歌曲（「加入热门歌曲」按钮；播放全部只经命令面板）、筛选专辑、
             // 错误态与专辑分页失败的「重试」（重新加载 / 续页）、编辑本地歌手实体（信息面板），专辑卡与歌曲卡上的
-            // 专辑 / 歌手链接。
+            // 专辑 / 歌手链接，以及在线歌手左上角的「全部歌曲」（#918，压进一层 artist_songs 集合，由上面的集合页渲染）。
             actions: [
                 'play',
                 'enqueue',
@@ -107,6 +113,7 @@ const grid: LibrarySuiteManifest = {
                 'edit-entity',
                 'open-album',
                 'open-artist',
+                'open-all-songs',
             ],
         },
         account: { component: GridAccountSurface, actions: GRID_ACCOUNT_ACTIONS },

@@ -14,7 +14,7 @@ import {
     type AutomixStemBus,
     type AutomixStemChain,
 } from './crossfadeGraph';
-import { diagMark } from './diag'; // TEMPORARY memory-diagnostic marks
+import { diagMark } from './diag'; // stage marks into the runtime log; began as temporary memory-diagnostic marks, now also what each blend was planned with
 import {
     envelopeOf,
     singsInWindow,
@@ -41,8 +41,8 @@ import {
     type TransitionTrack,
 } from './transitionPlanner';
 import { planForMode, type TransitionSettings } from './transitionStrategy';
-import { announceTransition } from './transitionCue';
-import type { TrackProfile } from './trackProfile';
+import { announceTransition, whyCueNotDrawn, type TransitionCue } from './transitionCue';
+import { programIsWholeTrack, type TrackProfile } from './trackProfile';
 
 // src/services/automix/automixSession.ts
 // The automix state machine, with every browser and React dependency behind a port so the
@@ -63,6 +63,13 @@ import type { TrackProfile } from './trackProfile';
 
 export type AutomixDeckId = 'A' | 'B';
 export type AutomixPhase = 'idle' | 'armed' | 'fading';
+/**
+ * How a transition ended, as the screen needs to know it: `handedOver` settled onto the incoming deck,
+ * which keeps playing the track the blend was for; `cancelled` went back to the outgoing deck; `dropped`
+ * left both behind for a track the blend was not about (a skip mid-blend, a refused blend, a teardown).
+ * Only a hand-over continues the incoming track's clock - the other two are an ordinary song change.
+ */
+export type AutomixTransitionEnd = 'handedOver' | 'cancelled' | 'dropped';
 
 const otherDeck = (deck: AutomixDeckId): AutomixDeckId => (deck === 'A' ? 'B' : 'A');
 
@@ -127,8 +134,9 @@ export interface AutomixSessionPorts {
      * true on every ordinary settle (the outgoing deck played a whole tail and its reading is worth
      * keeping) and false only when a transition is cancelled back onto the outgoing deck - nothing
      * played out there, so recording the deck would file away a track that never actually finished.
+     * `end` says which way the transition went; given on every release.
      */
-    onTailSrcChange: (src: string | null, opts?: { harvest?: boolean }) => void;
+    onTailSrcChange: (src: string | null, opts?: { harvest?: boolean; end?: AutomixTransitionEnd }) => void;
     /**
      * Holds the app's autoplay while the incoming deck loads, until the blend is actually due.
      *
@@ -178,6 +186,8 @@ export const createAutomixSession = (ports: AutomixSessionPorts) => {
     /** Both offline profiles, kept from planning until the blend is actually scheduled. */
     let plannedFrom: TrackProfile | null = null;
     let plannedTo: TrackProfile | null = null;
+    /** The mode the armed plan was made in: the crossfade mode is all plain fades, and says so once in settings. */
+    let plannedMode: AutomixTransitionRequest['settings']['mode'] | null = null;
     let cleanupTimer: ReturnType<typeof setTimeout> | null = null;
     let balanceTimer: ReturnType<typeof setInterval> | null = null;
     let releaseTimer: ReturnType<typeof setTimeout> | null = null;
@@ -318,14 +328,20 @@ export const createAutomixSession = (ports: AutomixSessionPorts) => {
      * current compensation is added back on - otherwise with ReplayGain switched on the comparison would
      * credit a track with an imbalance ReplayGain had already removed.
      */
+    /*
+     * When both tracks were measured whole with BS.1770 gating (`programLoudness`), both are compared
+     * by it: a quiet intro or a wide mix then does not read as a quieter master. Only both or neither,
+     * by the same rule as above.
+     */
     const referenceDb = (
         profile: TrackProfile | null,
         chain: AutomixDeckChain,
-    ): number | null => (
-        profile === null
-            ? null
-            : profile.loudness + 20 * Math.log10(Math.max(chain.replayGain.gain.value, 1e-6))
-    );
+    ): number | null => {
+        if (profile === null) return null;
+        const gated = (side: TrackProfile | null) => programIsWholeTrack(side) && typeof side.programLoudness === 'number';
+        const level = gated(plannedFrom) && gated(plannedTo) ? profile.programLoudness! : profile.loudness;
+        return level + 20 * Math.log10(Math.max(chain.replayGain.gain.value, 1e-6));
+    };
 
     /** Live for exactly one transition. Emptied by settle, which every ending goes through. */
     let stemChains: AutomixStemChain[] = [];
@@ -683,7 +699,7 @@ export const createAutomixSession = (ports: AutomixSessionPorts) => {
      * which it did not. Nothing would ever press play again, and the listener hears the song end and then
      * silence.
      */
-    const settle = (options: { pauseTail: boolean; harvest?: boolean }) => {
+    const settle = (options: { pauseTail: boolean; harvest?: boolean; end?: AutomixTransitionEnd }) => {
         diagMark(`settle (pauseTail=${options.pauseTail})`);
         clearTimers();
         // Before the gains are put back, because the changeover node is one of them: a stem chain
@@ -734,7 +750,8 @@ export const createAutomixSession = (ports: AutomixSessionPorts) => {
         plannedFromKey = null;
         plannedFrom = null;
         plannedTo = null;
-        ports.onTailSrcChange(null, { harvest: options.harvest ?? true });
+        plannedMode = null;
+        ports.onTailSrcChange(null, { harvest: options.harvest ?? true, end: options.end ?? 'handedOver' });
         // Last, and unconditional: this is the only settle, so it is the only place that
         // can tell the screen a blend is over when the blend was cut short rather than
         // finished. A cue with a length is not enough on its own - a skipped track would
@@ -819,12 +836,19 @@ export const createAutomixSession = (ports: AutomixSessionPorts) => {
         clocks[incoming].reset();
 
         phase = 'armed';
-        diagMark(`armed -> ${request.nextKey}`);
+        // When it will start and what it was planned with, as a line in the runtime log beside the
+        // analysis worker's own (electron/analysis/host.cjs).
+        diagMark(
+            `armed -> ${request.nextKey}, ${nextPlan.style} from ${nextPlan.outStart.toFixed(2)}s`
+            + ` (in ${Math.max(0, nextPlan.outStart - request.time).toFixed(1)}s) for ${nextPlan.overlap}s,`
+            + ` profiles: outgoing ${request.from.profile ? 'yes' : 'no'}, incoming ${request.to.profile ? 'yes' : 'no'}`,
+        );
         plan = nextPlan;
         plannedNextKey = request.nextKey;
         plannedFromKey = request.fromKey;
         plannedFrom = request.from.profile ?? null;
         plannedTo = request.to.profile ?? null;
+        plannedMode = request.settings.mode;
 
         // The order matters: pin the outgoing source to the deck it is already playing on before
         // the roles change, so that deck's src string never changes and its playback is never
@@ -953,8 +977,10 @@ export const createAutomixSession = (ports: AutomixSessionPorts) => {
             );
             rampGain(context, tailChain.fade, 0, CUT_SECONDS);
             rampGain(context, activeChain.fade, 1, CUT_SECONDS);
+            // A queue that moved means the deck is playing some other track: dropped, not handed over.
+            const end = currentKey === plannedNextKey ? 'handedOver' : 'dropped';
             cleanupTimer = setTimeout(
-                () => settle({ pauseTail: true }),
+                () => settle({ pauseTail: true, end }),
                 CUT_SECONDS * 1000 + 70,
             );
             return;
@@ -1152,12 +1178,24 @@ export const createAutomixSession = (ports: AutomixSessionPorts) => {
         // fraction that means something different from the number next to it. Divided by `applied` for the
         // same reason `wall` is - a bent outgoing track counts beats faster than its own tempo says, and a
         // pulse on the untouched period would drift across the window.
-        announceTransition({
+        const cue: TransitionCue = {
             seconds: hold + wall,
             crossover: hold + wall > 0 ? (hold + wall * shape.crossover) / (hold + wall) : 0,
             periodSec: periodSec === null ? null : periodSec / applied,
             ...(shape.style === 'plainBlend' ? { plain: true } as const : {}),
-        });
+        };
+        // What actually runs, which can differ from what was armed: the shape is settled only here. And
+        // whether the animations draw it, said once per transition - they refuse in silence otherwise,
+        // and "never saw the animation" was a report with nothing in any log to explain it.
+        const notDrawn = whyCueNotDrawn(cue);
+        // Not in the crossfade mode: every handover there is a plain fade, and nothing is ever drawn.
+        if (notDrawn && plannedMode === 'automix') console.log(`[Automix] the transition animations skip this one: ${notDrawn}`);
+        diagMark(
+            `blend ${shape.style}${shape.style === plan.style ? '' : ` (planned ${plan.style})`} ${cue.seconds.toFixed(2)}s`
+            + `, profiles: outgoing ${plannedFrom ? 'yes' : 'no'}, incoming ${plannedTo ? 'yes' : 'no'}`
+            + `, ${notDrawn ? `not drawn (${notDrawn})` : 'drawable'}`,
+        );
+        announceTransition(cue);
 
         if (stemmed) {
             cleanupTimer = setTimeout(
@@ -1248,7 +1286,7 @@ export const createAutomixSession = (ports: AutomixSessionPorts) => {
         if (phase === 'armed' && key === plannedFromKey) return;
         console.log(`[Automix] transition dropped: the queue moved to "${key}" mid-blend`);
         diagMark(`dropped -> ${key}`);
-        settle({ pauseTail: true });
+        settle({ pauseTail: true, end: 'dropped' });
     };
 
     /**
@@ -1271,7 +1309,7 @@ export const createAutomixSession = (ports: AutomixSessionPorts) => {
             const outgoing = otherDeck(activeDeck);
             activeDeck = outgoing;
             ports.onActiveDeckChange(outgoing);
-            settle({ pauseTail: true, harvest: false });
+            settle({ pauseTail: true, harvest: false, end: 'cancelled' });
             return wasArmed;
         }
         settle({ pauseTail: true });
@@ -1295,7 +1333,7 @@ export const createAutomixSession = (ports: AutomixSessionPorts) => {
          * and settle would only fire spurious state updates (it drives onTailSrcChange), so the timers
          * are the whole of the work then.
          */
-        dispose: () => { if (phase === 'idle') clearTimers(); else settle({ pauseTail: true }); },
+        dispose: () => { if (phase === 'idle') clearTimers(); else settle({ pauseTail: true, end: 'dropped' }); },
     };
 };
 

@@ -25,9 +25,6 @@ type FitInput = {
 
 const DEFAULT_GAP_PX = 24;
 
-/** 缩得比这还小就没法看了，宁可让它稍微贴近外框。 */
-const MIN_SCALE = 0.45;
-
 const boundsOf = (rects: Record<string, PonderRect>) => {
     const list = Object.values(rects);
     if (list.length === 0) {
@@ -70,7 +67,8 @@ export const fitRectsToStage = ({
     const contentWidth = bounds.right - bounds.left;
     const widthScale = availableWidth > 0 && contentWidth > 0 ? availableWidth / contentWidth : 1;
 
-    const scale = Math.max(MIN_SCALE, Math.min(1, availableHeight / contentHeight, widthScale));
+    // 缩多少没有下限：可用区域是画面那块屏，屏外面就是播放控制和说明文字，图不能伸出去。
+    const scale = Math.min(1, availableHeight / contentHeight, widthScale);
     const availableBottom = availableTop + availableHeight;
     const centerX = (availableLeft + availableRight) / 2;
 

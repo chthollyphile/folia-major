@@ -5,7 +5,7 @@
 // 性格。设置面板、歌词偏移、Lab 这几处各自抄了一份几乎一样的数值，新的覆盖层一律用这里的，
 // 免得同一个动作在不同入口有不同的手感。
 //
-// @note 覆盖层的退场必须有东西撑着它多留这 240ms —— 条件为假就直接 return null 的写法
+// @note 覆盖层的退场必须有东西撑着它多留这 280ms —— 条件为假就直接 return null 的写法
 // 拿不到 exit，要把 AnimatePresence 包在那个条件外面。
 
 export const OVERLAY_TRANSITION = {

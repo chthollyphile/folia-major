@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { SongResult } from '@/types';
-import type { LibraryArtistSnapshot } from '@/library/core/contracts/artist';
-import type { LibraryCollectionDescriptor } from '@/library/core/contracts/collection';
+import type { LibraryArtistSnapshot } from '@/library/core/artist/artist.contract';
+import type { LibraryCollectionDescriptor } from '@/library/core/collection/collection.contract';
 import {
     ARTIST_SURFACE_ACTION_SOURCES,
     artistAlbumEntryKey,
@@ -11,10 +11,10 @@ import {
     resolveArtistCapabilities,
     resolveArtistSurfaceActions,
     resolveOfferedArtistActions,
-} from '@/library/core/model/artistSurface';
-import { LIBRARY_ARTIST_ACTION_IDS } from '@/library/core/model/librarySuites';
-import { useLibraryArtistSurfaceStore } from '@/library/core/state/useLibraryArtistSurfaceStore';
-import type { LibraryArtistSurfaceHandle } from '@/library/core/contracts/artist';
+} from '@/library/core/artist/artistSurface';
+import { LIBRARY_ARTIST_ACTION_IDS } from '@/library/core/suite/librarySuites';
+import { useLibraryArtistSurfaceStore } from '@/library/core/artist/useLibraryArtistSurfaceStore';
+import type { LibraryArtistSurfaceHandle } from '@/library/core/artist/artist.contract';
 
 // test/unit/library/core/artistSurface.test.ts
 // 歌手页的纯规则（P4.2）：会话键与条目键、能力（只看快照与描述）、命令面板发布「能力 ∩ 声明」，
@@ -27,6 +27,7 @@ const snapshot = (overrides: Partial<LibraryArtistSnapshot> = {}): LibraryArtist
     status: 'ready',
     detail: { name: 'Artist' },
     topSongs: [song(1), song(2)],
+    hasMoreSongs: false,
     albums: [{ id: 'al-1', name: 'One' }],
     albumSync: { state: 'none' },
     error: null,
@@ -97,6 +98,26 @@ describe('artist capabilities', () => {
         expect(failed.reload).toMatchObject({ supported: true, enabled: true });
     });
 
+    it('opens every song (#918) only for a ready online artist with more songs than the top ones', () => {
+        const more = snapshot({ hasMoreSongs: true });
+        expect(resolveArtistCapabilities({ collection: online, snapshot: more, ...counts })['open-all-songs'])
+            .toMatchObject({ supported: true, enabled: true });
+        // Supported but not yet: loading, no detail, nothing past the top songs.
+        expect(resolveArtistCapabilities({ collection: online, snapshot: snapshot(), ...counts })['open-all-songs'])
+            .toMatchObject({ supported: true, enabled: false });
+        expect(resolveArtistCapabilities({ collection: online, snapshot: snapshot({ hasMoreSongs: true, detail: null }), ...counts })['open-all-songs'].enabled)
+            .toBe(false);
+        expect(resolveArtistCapabilities({
+            collection: online,
+            snapshot: snapshot({ status: 'loading', hasMoreSongs: true }),
+            ...counts,
+        })['open-all-songs']).toMatchObject({ supported: true, enabled: false, reason: 'loading' });
+        expect(resolveArtistCapabilities({ collection: online, snapshot: null, ...counts })['open-all-songs'].enabled).toBe(false);
+        // Local and Navidrome artists keep all their songs in their albums.
+        expect(resolveArtistCapabilities({ collection: local, snapshot: more, ...counts })['open-all-songs'].supported).toBe(false);
+        expect(resolveArtistCapabilities({ collection: { source: 'navidrome' }, snapshot: more, ...counts })['open-all-songs'].supported).toBe(false);
+    });
+
     it('resumes album paging only after a page failed (a paused one resumes by itself)', () => {
         const failed = snapshot({ albumSync: { state: 'interrupted', offset: 50, reason: 'failed' } });
         const paused = snapshot({ albumSync: { state: 'interrupted', offset: 50, reason: 'paused' } });
@@ -120,6 +141,10 @@ describe('artist command surface', () => {
             .toEqual(['play-top-songs', 'edit-entity']);
         const onlineCapabilities = resolveArtistCapabilities({ collection: online, snapshot: snapshot(), ...counts });
         expect(resolveArtistSurfaceActions(onlineCapabilities, ALL_DECLARED)).toEqual(['play-top-songs', 'enqueue-top-songs', 'reload']);
+        const withMoreSongs = resolveArtistCapabilities({ collection: online, snapshot: snapshot({ hasMoreSongs: true }), ...counts });
+        expect(resolveArtistSurfaceActions(withMoreSongs, ALL_DECLARED)).toEqual(['play-top-songs', 'enqueue-top-songs', 'reload', 'open-all-songs']);
+        // A suite that does not declare it offers no palette command for it.
+        expect(resolveArtistSurfaceActions(withMoreSongs, { actions: ['play-scope', 'reload'], extraActions: [] })).toEqual(['play-top-songs', 'reload']);
     });
 
     it('offers a suite entry when declared and supported, even while it is not enabled yet', () => {

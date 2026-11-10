@@ -11,7 +11,7 @@ const STORAGE_KEY = 'folia_folium_params_v1';
 
 const loadStore = async () => {
     vi.resetModules();
-    return import('@/mods/folium/paramStore');
+    return import('@/mods/params/paramStore');
 };
 
 const schema = [
@@ -62,7 +62,7 @@ describe('folium param store', () => {
         const access = createFoliumParamAccess('a', schema);
         const other = createFoliumParamAccess('b', schema);
         const listener = vi.fn();
-        access.subscribe(listener);
+        access.onChange(listener);
         const first = access.get();
         expect(access.get()).toBe(first);
         other.set({ size: 1 });

@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
-import type { LibraryDirectoryBatchController } from '../core/contracts/directory';
+import type { LibraryDirectoryBatchController } from '../core/directory/directory.contract';
 import type { HomeSurfaceProps } from '../../components/app/home/homeSurfaceTypes';
-import { createLocalDirectoryActions } from '../core/services/localDirectoryActions';
+import { createLocalDirectoryActions } from '../core/directory/localDirectoryActions.service';
 import { createLibraryDirectoryBatchPort } from './createLibraryDirectoryBatchPort';
 
 // src/library/app/useLibraryDirectoryBatchController.ts

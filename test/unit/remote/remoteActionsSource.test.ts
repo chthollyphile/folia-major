@@ -35,7 +35,7 @@ it('scopes stage actions to the displayed song independently of native transport
             mainWindowBorderVisible: true, playerChromeHidden: false,
             exportState: { status: 'idle', presetId: null, progress: 0, elapsed: 0, duration: 0, countdown: null, filePath: null, error: null },
             isDaylight: false, isLiked: false, mainWindowWidth: 1280, mainWindowHeight: 720,
-        }), { playerChromeVisibilityMode: 'auto-hide' });
+        }), { playerChromeVisibilityMode: 'auto-hide', subtitleContentMode: 'translation' });
         const snapshot = bridge.read()!;
         expect(native.trackKey).toBeNull();
         expect(snapshot.trackKey).toBe(getPlaybackSongKey(song));

@@ -1,17 +1,18 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { LibraryHomeSurfaceProps } from '../../core/contracts/suite';
-import type { LibraryHomeTabKey } from '../../core/contracts/homeModel';
-import { cycleIndex, isOnlineHomeTab, resolveHomeSourceGroups, type LibraryHomeSourceGroup } from '../../core/model/homeSources';
-import { LOCAL_HOME_SECTIONS, localHomeSectionOfRow } from '../../core/model/localHomeModel';
-import { NAVIDROME_HOME_SECTIONS } from '../../core/model/navidromeHomeModel';
-import { useLibraryHomeSources } from '../../core/bindings/useLibraryHomeSources';
-import { useLibraryHomeOnline } from '../../core/bindings/useLibraryHomeOnline';
-import { useLibraryHomeActions } from '../../core/bindings/useLibraryHomeActions';
-import { useLibraryHomeDirectory } from '../../core/bindings/useLibraryHomeDirectory';
-import { useLibraryHomeTabsRegistration } from '../../core/bindings/useLibraryHomeSurfaceRegistration';
-import { useNavidromeHomeSectionStore } from '../../core/state/useNavidromeHomeSectionStore';
+import type { LibraryHomeSurfaceProps } from '../../core/suite/suite.contract';
+import type { LibraryHomeTabKey } from '../../core/home/homeModel.contract';
+import { cycleIndex, isOnlineHomeTab, resolveHomeSourceGroups, type LibraryHomeSourceGroup } from '../../core/home/homeSources';
+import { LOCAL_HOME_SECTIONS, localHomeSectionOfRow } from '../../core/home/localHomeModel';
+import { NAVIDROME_HOME_SECTIONS } from '../../core/home/navidrome/navidromeHomeModel';
+import { useLibraryHomeSources } from '../../core/home/useLibraryHomeSources';
+import { useLibraryHomeOnline } from '../../core/home/online/useLibraryHomeOnline';
+import { useLibraryHomeActions } from '../../core/home/useLibraryHomeActions';
+import { useLibraryHomeDirectory } from '../../core/home/useLibraryHomeDirectory';
+import { useLibraryHomeTabsRegistration } from '../../core/home/useLibraryHomeSurfaceRegistration';
+import { useNavidromeHomeSectionStore } from '../../core/home/navidrome/useNavidromeHomeSectionStore';
 import { useThemeSettingsStore } from '../../../stores/useThemeSettingsStore';
+import { PRIMARY_MODIFIER_LABEL } from '../../../utils/platform';
 import { LibraryTuiLocalList, LibraryTuiNavidromeList, LibraryTuiOnlineList } from './LibraryTuiHomeLists';
 import type { LibraryTuiPromptRequest } from './LibraryTuiPrompt';
 import { useLibraryTuiHomePageKeys } from './useLibraryTuiHomeKeyboard';
@@ -260,7 +261,7 @@ const LibraryTuiHome: React.FC<LibraryHomeSurfaceProps> = (props) => {
                 {t('libraryTui.homeHints')}
                 {` · ${t('libraryTui.homeAccountsHint')}`}
                 {activeSource === 'local' && localSectionKey === 'folders' ? ` · ${t('libraryTui.homeTreeHints')}` : ''}
-                {showBatchHints ? ` · ${t('libraryTui.homeBatchHints')}` : ''}
+                {showBatchHints ? ` · ${t('libraryTui.homeBatchHints', { mod: PRIMARY_MODIFIER_LABEL })}` : ''}
             </footer>
         </div>
     );

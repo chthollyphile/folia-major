@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { SongResult } from '@/types';
-import type { LibraryHomeCard } from '@/library/core/contracts/homeModel';
+import type { LibraryHomeCard } from '@/library/core/home/homeModel.contract';
 import {
     collectQueuedKeys,
     findNowPlayingKey,
@@ -64,6 +64,7 @@ describe('collection tracks', () => {
             title: 'One',
             subtitle: 'Singer A, Singer B',
             badge: '01',
+            badgeIsIndex: true,
             playbackKey: 'key:One',
             album: 'Album',
             artists: ['Singer A', 'Singer B'],
@@ -75,6 +76,14 @@ describe('collection tracks', () => {
     it('falls back to the album, then the unknown-artist label, for the subtitle', () => {
         const items = projectCollectionTracks(tracks.slice(1, 2), index => `entry-${index}`, describe_, 'Unknown');
         expect(items[0].subtitle).toBe('Album');
+    });
+
+    it("adds the platform's play count of a ranked song to the subtitle, where a label for it is given", () => {
+        const ranked = [{ name: 'One', listenCount: 12 }, { name: 'Two', listenCount: 0 }, { name: 'Three' }] as unknown as SongResult[];
+        const label = (count: number) => `${count} plays`;
+        expect(projectCollectionTracks(ranked, index => `entry-${index}`, describe_, 'Unknown', label).map(item => item.subtitle))
+            .toEqual(['Singer A, Singer B · 12 plays', 'Album · 0 plays', 'Singer A, Singer B']);
+        expect(projectCollectionTracks(ranked, index => `entry-${index}`, describe_, 'Unknown')[0].subtitle).toBe('Singer A, Singer B');
     });
 
     it('pads the badge to the width of the total', () => {

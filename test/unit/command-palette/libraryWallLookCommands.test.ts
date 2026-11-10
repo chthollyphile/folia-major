@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { COMMAND_PALETTE_COMMANDS } from '@/components/command-palette/commandRegistry';
 import {
     libraryWallLookPickerSurface,
+    libraryWallSeamDirectionPickerSurface,
     libraryWallSeamStylePickerSurface,
     libraryWallWindowsPickerSurface,
     readLibraryWallPick,
@@ -9,6 +10,7 @@ import {
 import type { CommandPaletteContext } from '@/components/command-palette/types';
 import type { LibraryWallLook } from '@/utils/libraryWallLook';
 import type { LibraryWallSeamStyle } from '@/utils/libraryWallSeamStyle';
+import type { LibraryWallSeamDirection } from '@/utils/libraryWallSeamDirection';
 
 // test/unit/command-palette/libraryWallLookCommands.test.ts
 // bravais 透光的两条命令（B6b②）：可用性与设置分区同一个谓词（context.settings.isLibraryWallLookAvailable，
@@ -21,6 +23,7 @@ type Settings = {
     windows: number;
     seamClear?: boolean;
     seamStyle?: LibraryWallSeamStyle;
+    seamDirection?: LibraryWallSeamDirection;
 };
 
 const createContext = (state: Settings) => {
@@ -30,6 +33,7 @@ const createContext = (state: Settings) => {
     const toggleLibraryWallSeamClear = vi.fn();
     const toggleLibraryWallBackdropLyrics = vi.fn();
     const toggleLibraryWallBackdropBlur = vi.fn();
+    const setLibraryWallSeamDirection = vi.fn((direction: LibraryWallSeamDirection) => { state.seamDirection = direction; });
     const setLibraryWallSeamStyle = vi.fn((style: LibraryWallSeamStyle) => { state.seamStyle = style; });
     const openSettings = vi.fn();
     const context = {
@@ -39,6 +43,8 @@ const createContext = (state: Settings) => {
             toggleLibraryWallSeamClear,
             toggleLibraryWallBackdropLyrics,
             toggleLibraryWallBackdropBlur,
+            libraryWallSeamDirection: () => state.seamDirection ?? 'auto',
+            setLibraryWallSeamDirection,
             libraryWallSeamClear: () => state.seamClear ?? false,
             libraryWallSeamStyle: () => state.seamStyle ?? 'paper',
             setLibraryWallSeamStyle,
@@ -58,6 +64,7 @@ const createContext = (state: Settings) => {
         toggleLibraryWallSeamClear,
         toggleLibraryWallBackdropLyrics,
         toggleLibraryWallBackdropBlur,
+        setLibraryWallSeamDirection,
         setLibraryWallSeamStyle,
         openSettings,
     };
@@ -166,13 +173,13 @@ describe('library wall windows picker', () => {
             expect(entry.isAvailable?.(createContext({ available: true, look: 'solid', windows: 3 }).context)).toBe(true);
             expect(entry.isAvailable?.(createContext({ available: false, look: 'solid', windows: 3 }).context)).toBe(false);
         }
-        expect(anchor.settingsTarget).toEqual({ subview: 'general', anchorId: 'bravaisSettings' });
+        expect(anchor.settingsTarget).toEqual({ subview: 'home', anchorId: 'bravaisSettings' });
 
         const { context, toggleLibraryWallStackEdges, openSettings } = createContext({ available: true, look: 'solid', windows: 3 });
         expect(toggle.execute('', context)).toBe(true);
         expect(toggleLibraryWallStackEdges).toHaveBeenCalledTimes(1);
         expect(anchor.execute('', context)).toBe(true);
-        expect(openSettings).toHaveBeenCalledWith('options', 'general', null, 'bravaisSettings');
+        expect(openSettings).toHaveBeenCalledWith('options', 'home', null, 'bravaisSettings');
     });
 });
 
@@ -220,6 +227,25 @@ describe('bravais info strip and backdrop commands', () => {
         expect(byLabel.map(match => readLibraryWallPick(match.command.id))).toEqual(['check']);
         expect(await byLabel[0].command.execute('', context)).toBe(true);
         expect(setLibraryWallSeamStyle).toHaveBeenCalledWith('check');
+    });
+});
+
+describe('bravais info strip direction picker', () => {
+    it('is offered while bravais is the effective suite, lists auto / auto-reverse / vertical / horizontal and applies the pick', async () => {
+        const picker = command('library-wall-seam-direction-picker');
+        expect(picker.surface).toBeDefined();
+        expect(picker.executeShortcut).toBeUndefined();
+        expect(picker.isAvailable?.(createContext({ available: true, look: 'solid', windows: 3 }).context)).toBe(true);
+        expect(picker.isAvailable?.(createContext({ available: false, look: 'solid', windows: 3 }).context)).toBe(false);
+
+        const { context, setLibraryWallSeamDirection } = createContext({ available: true, look: 'solid', windows: 3, seamDirection: 'auto' });
+        const matches = libraryWallSeamDirectionPickerSurface.buildMatches!({ context, query: '' });
+        expect(matches.map(match => readLibraryWallPick(match.command.id))).toEqual(['auto', 'auto-reverse', 'vertical', 'horizontal']);
+        expect(matches[0].command.description).toMatch(/^In use/);
+        const byLabel = libraryWallSeamDirectionPickerSurface.buildMatches!({ context, query: 'horiz' });
+        expect(byLabel.map(match => readLibraryWallPick(match.command.id))).toEqual(['horizontal']);
+        expect(await byLabel[0].command.execute('', context)).toBe(true);
+        expect(setLibraryWallSeamDirection).toHaveBeenCalledWith('horizontal');
     });
 });
 

@@ -40,9 +40,6 @@ export const prevKeyframeAt = (plan: PonderTimelinePlan, nowMs: number): number 
     return earlier.length > 0 ? earlier[earlier.length - 1].atMs : 0;
 };
 
-/** 字幕淡入是 240ms（usePonderTimeline），停得比它早就是一帧没字的画面。 */
-const CAPTION_SETTLE_MS = 300;
-
 /**
  * 跳到 atMs 之后，时间线该在哪里停住。
  *
@@ -50,10 +47,13 @@ const CAPTION_SETTLE_MS = 300;
  * 这一段还没出来，等于停在一帧空白上。所以先把这一拍播完 —— 动作和结果层做完、
  * 字幕淡入 —— 再停。上限是下一个动作的开头，不会越过去替用户多看一拍。
  * pause 类关键帧通常就是「这一拍已经讲完」的位置，原地停；但并行的结果层可以比它前面
- * 那个顺序步长（淡入 520ms 挂在 340ms 的高亮上），落点时还在半途，所以早先开始、
+ * 那个顺序步长（一段 520ms 的淡入挂在更短的高亮上），落点时还在半途，所以早先开始、
  * 此刻仍在进行的也要等完。
+ *
+ * captionSettleMs 是一段字幕从开口到「到位」要多久：它淡入、它的聚焦框走到。时长是画的人
+ * 定的（usePonderTimeline），所以由它交进来；停得比这早，就是一帧没字、或者框还在半路的画面。
  */
-export const keyframeSettleAt = (plan: PonderTimelinePlan, atMs: number): number => {
+export const keyframeSettleAt = (plan: PonderTimelinePlan, atMs: number, captionSettleMs: number): number => {
     const startsAction = (keyframeAtMs: number) => plan.entries.some(
         entry => entry.atMs === keyframeAtMs && entry.step.kind !== 'pause',
     );
@@ -64,7 +64,7 @@ export const keyframeSettleAt = (plan: PonderTimelinePlan, atMs: number): number
     for (const { step, atMs: startMs, durationMs } of plan.entries) {
         if (startMs >= limitMs || step.kind === 'pause') continue;
         // 字幕只等它淡入，不等它读完：读字幕正是停下来的目的。
-        const endMs = startMs + (step.kind === 'caption' ? CAPTION_SETTLE_MS : durationMs);
+        const endMs = startMs + (step.kind === 'caption' ? captionSettleMs : durationMs);
         // 落点之前就已做完的不用等；落点之后开始的、以及此刻还在进行的都要等。
         if (endMs > atMs) settleMs = Math.max(settleMs, endMs);
     }

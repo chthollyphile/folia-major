@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { SongResult } from '@/types';
 import { getPlaybackSongKey } from '@/utils/appPlaybackGuards';
-import { applyQueueAddBehavior } from '@/utils/queueAddBehavior';
+import { applyQueueAddBehavior, queueForPlayingNow } from '@/utils/queueAddBehavior';
 
 // test/unit/utils/queueAddBehavior.test.ts
 
@@ -62,5 +62,26 @@ describe('applyQueueAddBehavior', () => {
             'online:netease:3',
             'online:netease:2',
         ]);
+    });
+});
+
+describe('queueForPlayingNow', () => {
+    const ids = (queue: SongResult[]) => queue.map(entry => entry.id);
+    const [a, b, c, d] = [song(1), song(2), song(3), song(4)];
+
+    it('puts a song not in the queue where the add-to-queue setting puts songs', () => {
+        expect(ids(queueForPlayingNow({ queue: [a, b, c], song: d, currentSong: a, behavior: 'next' }))).toEqual([1, 4, 2, 3]);
+        expect(ids(queueForPlayingNow({ queue: [a, b, c], song: d, currentSong: a, behavior: 'append' }))).toEqual([1, 2, 3, 4]);
+    });
+
+    it('plays a song already in the queue where it stands', () => {
+        const queue = [a, b, c];
+        expect(queueForPlayingNow({ queue, song: c, currentSong: a, behavior: 'next' })).toBe(queue);
+    });
+
+    it('keeps the current song when the queue is empty, and makes a queue of the song alone with nothing playing', () => {
+        expect(ids(queueForPlayingNow({ queue: [], song: d, currentSong: a, behavior: 'next' }))).toEqual([1, 4]);
+        expect(ids(queueForPlayingNow({ queue: [], song: d, currentSong: null, behavior: 'append' }))).toEqual([4]);
+        expect(ids(queueForPlayingNow({ queue: [], song: a, currentSong: a, behavior: 'next' }))).toEqual([1]);
     });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { syncRemainingCollectionPages, type CollectionSyncPage } from '../../../../src/library/core/services/onlineCollectionSync';
+import { syncRemainingCollectionPages, type CollectionSyncPage } from '../../../../src/library/core/collection/resource/onlineCollectionSync.service';
 
 // test/unit/library/core/onlineCollectionSync.test.ts
 // 在线大歌单后台补齐：按上游 offset 收敛、单页失败重试、中断点可续传、作废后不再回调。
@@ -144,5 +144,103 @@ describe('syncRemainingCollectionPages', () => {
 
         expect(result.status).toBe('complete');
         expect(fetchPage).toHaveBeenCalledTimes(1);
+    });
+
+    it('starts reading even when the first page already reached a stale count', async () => {
+        // The first page held as many songs as the collection's count said; the provider said more.
+        const ids = Array.from({ length: 200 }, (_, index) => `s${index}`);
+        const fetchPage = vi.fn(upstream(ids, 1000));
+
+        const result = await syncRemainingCollectionPages({
+            ...baseOptions,
+            initialItems: ids.slice(0, 150).map(id => ({ id })),
+            startOffset: 150,
+            total: 150,
+            fetchPage,
+        });
+
+        expect(fetchPage).toHaveBeenCalledWith(150);
+        expect(result).toMatchObject({ status: 'complete', offset: 200, whole: true });
+        expect(result.items).toHaveLength(200);
+    });
+
+    it('ends at the total the provider itself gave, without asking past it', async () => {
+        // A provider that also says "more" whenever a page comes back full; its own answer said 150.
+        const fetchPage = vi.fn((offset: number) => Promise.resolve({ items: [], total: 150, hasMore: false, nextOffset: offset }));
+
+        const result = await syncRemainingCollectionPages({
+            ...baseOptions,
+            initialItems: Array.from({ length: 150 }, (_, index) => ({ id: `s${index}` })),
+            startOffset: 150,
+            total: 150,
+            upstreamTotal: 150,
+            fetchPage,
+        });
+
+        expect(fetchPage).not.toHaveBeenCalled();
+        expect(result).toMatchObject({ status: 'complete', offset: 150 });
+    });
+
+    it('stops on a repeated page once past a known total, and reads a repeated page within it', async () => {
+        // An upstream that ignores the offset and always says more: the total bounds it.
+        const ignoringOffset = vi.fn((offset: number) => Promise.resolve({
+            items: [{ id: 'a' }, { id: 'b' }],
+            total: 4,
+            hasMore: true,
+            nextOffset: offset + 2,
+        }));
+        const looping = await syncRemainingCollectionPages({
+            ...baseOptions,
+            initialItems: [{ id: 'a' }, { id: 'b' }],
+            startOffset: 2,
+            total: 4,
+            fetchPage: ignoringOffset,
+        });
+        expect(looping).toMatchObject({ status: 'complete', offset: 4, whole: false });
+        expect(ignoringOffset).toHaveBeenCalledTimes(1);
+
+        // A page of nothing but duplicates inside the total is read past.
+        const ids = ['a', 'b', 'a', 'b', 'c', 'd'];
+        const result = await syncRemainingCollectionPages({
+            ...baseOptions,
+            initialItems: [{ id: 'a' }, { id: 'b' }],
+            startOffset: 2,
+            total: ids.length,
+            fetchPage: upstream(ids, 2),
+        });
+        expect(result).toMatchObject({ status: 'complete', offset: 6, whole: true });
+        expect(result.items.map(item => item.id)).toEqual(['a', 'b', 'c', 'd']);
+    });
+
+    it('says the list was read whole only when the last page read said it ends there', async () => {
+        const ids = Array.from({ length: 250 }, (_, index) => `s${index}`);
+        const firstPage = ids.slice(0, 100).map(id => ({ id }));
+
+        const toTheEnd = await syncRemainingCollectionPages({
+            ...baseOptions,
+            initialItems: firstPage,
+            startOffset: 100,
+            fetchPage: upstream(ids, 100),
+        });
+        expect(toTheEnd).toMatchObject({ status: 'complete', offset: 250, whole: true });
+
+        // A count short of the list (a stale one) does not stop it while the provider says more is coming.
+        const pastAStaleCount = await syncRemainingCollectionPages({
+            ...baseOptions,
+            initialItems: firstPage,
+            startOffset: 100,
+            total: 200,
+            fetchPage: upstream(ids, 100),
+        });
+        expect(pastAStaleCount).toMatchObject({ status: 'complete', offset: 250, whole: true });
+
+        // Stopped because the pages no longer bring anything new.
+        const goingInCircles = await syncRemainingCollectionPages({
+            ...baseOptions,
+            initialItems: [{ id: 'a' }, { id: 'b' }],
+            startOffset: 2,
+            fetchPage: offset => Promise.resolve({ items: [{ id: 'a' }, { id: 'b' }], hasMore: true, nextOffset: offset + 2 }),
+        });
+        expect(goingInCircles).toMatchObject({ status: 'complete', whole: false });
     });
 });

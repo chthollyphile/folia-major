@@ -18,25 +18,25 @@ import type {
     LibraryDirectoryItem,
     LibraryDirectoryNode,
     LibraryHiddenScope,
-} from '../../../src/library/core/contracts/directory';
-import type { LibraryHomeCard } from '../../../src/library/core/contracts/homeModel';
-import { resolveDirectoryBatchActions, resolveDirectoryBatchScope, runDirectoryBatchAction } from '../../../src/library/core/model/directoryBatch';
-import { homeCardToDirectoryItem } from '../../../src/library/core/model/directoryItems';
-import { DEFAULT_DIRECTORY_SESSION_ID } from '../../../src/library/core/model/directorySession';
-import { useLibrarySuiteStore } from '../../../src/library/core/state/useLibrarySuiteStore';
+} from '../../../src/library/core/directory/directory.contract';
+import type { LibraryHomeCard } from '../../../src/library/core/home/homeModel.contract';
+import { resolveDirectoryBatchActions, resolveDirectoryBatchScope, runDirectoryBatchAction } from '../../../src/library/core/directory/directoryBatch';
+import { homeCardToDirectoryItem } from '../../../src/library/core/directory/directoryItems';
+import { DEFAULT_DIRECTORY_SESSION_ID } from '../../../src/library/core/directory/directorySession';
+import { useLibrarySuiteStore } from '../../../src/library/core/suite/useLibrarySuiteStore';
 import { switchLibrarySuite } from '../../../src/library/app/switchLibrarySuite';
 import { getLibrarySuite, listLibrarySuites, resolveLibrarySurface } from '../../../src/library/registry';
-import { useLibrarySuiteChromeStore } from '../../../src/library/core/state/useLibrarySuiteChromeStore';
+import { useLibrarySuiteChromeStore } from '../../../src/library/core/suite/useLibrarySuiteChromeStore';
 import LibraryTuiDirectory from '../../../src/library/suites/tui/LibraryTuiDirectory';
-import { getLibraryDirectorySession, useLibraryDirectorySessionStore } from '../../../src/library/core/state/useLibraryDirectorySessionStore';
-import { useLibraryDirectorySurfaceStore } from '../../../src/library/core/state/useLibraryDirectorySurfaceStore';
+import { getLibraryDirectorySession, useLibraryDirectorySessionStore } from '../../../src/library/core/directory/useLibraryDirectorySessionStore';
+import { useLibraryDirectorySurfaceStore } from '../../../src/library/core/directory/useLibraryDirectorySurfaceStore';
 import { COMMAND_PALETTE_COMMANDS, isCommandPaletteCommandEnabled } from '../../../src/components/command-palette/commandRegistry';
 import type { CommandPaletteContext } from '../../../src/components/command-palette/types';
 import { useGridSurfaceStore } from '../../../src/stores/useGridSurfaceStore';
-import { filterDirectoryByVisibility, hiddenIdsOf, isDirectoryItemHidden, isHideableDirectoryItem } from '../../../src/library/core/model/directoryVisibility';
-import { useHiddenCollectionsStore } from '../../../src/library/core/state/useHiddenCollectionsStore';
-import { useLibraryHomeSurfaceStore } from '../../../src/library/core/state/useLibraryHomeSurfaceStore';
-import { useNavidromeHomeSectionStore } from '../../../src/library/core/state/useNavidromeHomeSectionStore';
+import { filterDirectoryByVisibility, hiddenIdsOf, isDirectoryItemHidden, isHideableDirectoryItem } from '../../../src/library/core/directory/directoryVisibility';
+import { useHiddenCollectionsStore } from '../../../src/library/core/collection/useHiddenCollectionsStore';
+import { useLibraryHomeSurfaceStore } from '../../../src/library/core/home/useLibraryHomeSurfaceStore';
+import { useNavidromeHomeSectionStore } from '../../../src/library/core/home/navidrome/useNavidromeHomeSectionStore';
 import { SidePanelList } from '../../../src/components/shared/SidePanelList';
 import { addProbeFault, setProbeLatency } from '../libraryBehavior/fakeProviders';
 import { probeRefreshGate } from '../libraryBehavior/probeGates';
@@ -63,7 +63,7 @@ import {
 
 // dev/probes/homeBehavior/homeProbeApi.ts
 // `window.__homeProbe` 的实现。页签、当前列表的条目 / section / 动作 / 加载态 / 隐藏作用域 / 批量类型 / 目录树
-// 读的是 Library Core 的首页模型：首页注册在 core/state/useLibraryHomeSurfaceStore 里的句柄（任何 suite 的首页
+// 读的是 Library Core 的首页模型：首页注册在 core/home/useLibraryHomeSurfaceStore 里的句柄（任何 suite 的首页
 // 都注册它），切页签、切 section、点动作、导入歌单文件也经这些句柄——与界面上的按钮同一个函数。
 // 仍读网格组件树的（见 reactFiberProbe.ts 的说明）只剩网格专属的部分：滑条上实际显示 / 能打开的卡、地图按钮、
 // GridMap 的条目与目录会话 key、批量面板是否在场。只有两处没有 props 可调、只能点 DOM：GridMap 标题上
@@ -79,7 +79,7 @@ import {
 // - openMap / isMapOpen：TUI 的目录视图一直开着（目录会话的 openDirectoryKey 就是它）：openMap 什么都不做、返回 true，
 //   isMapOpen 在 TUI 列表在场时为 true。closeMap = 关闭目录：与 TUI 里 Esc 的最后一步同一个 store 动作
 //   （closeDirectory 丢掉会话，再 openDirectory 重新打开一个空会话），所以之后 getQuery 是 ''（网格关掉地图后是 null）。
-// - mapItems：TUI 此刻按隐藏视图与筛选词显示的条目（与 GridMap 同一个条目映射 core/model/directoryItems）。
+// - mapItems：TUI 此刻按隐藏视图与筛选词显示的条目（与 GridMap 同一个条目映射 core/directory/directoryItems）。
 // - 批量：TUI 没有「批量面板」，有批量的目录（本地 folders / albums / artists）一直可选；openPanel / closePanel 什么都不做，
 //   isBatchOpen 就是「这个目录有批量」。
 // - 隐藏：toggleHidden 与行尾按钮、命令面板同一个 store 动作；setHiddenView 直接写目录会话的隐藏视图（TUI 的
@@ -196,7 +196,7 @@ const currentHiddenIds = () => hiddenIdsOf(
 const asId = (id: string | number) => String(id);
 const nameOf = (name: unknown) => (typeof name === 'string' || typeof name === 'number' ? String(name) : '');
 
-// 首页一级页签来自首页模型（core/model/homeSources 的 resolveHomeTabs，已翻译）。
+// 首页一级页签来自首页模型（core/home/homeSources 的 resolveHomeTabs，已翻译）。
 const readTabs = (): HomeProbeTab[] => (homeTabs()?.getState().tabs ?? []).map(tab => ({
     key: tab.key as HomeTabKey,
     label: tab.label,

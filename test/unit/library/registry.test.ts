@@ -16,8 +16,8 @@ import {
     LIBRARY_ACTION_IDS,
     LIBRARY_ARTIST_ACTION_IDS,
     LIBRARY_HOME_ACTION_IDS,
-} from '@/library/core/model/librarySuites';
-import type { LibrarySuiteManifest } from '@/library/core/contracts/suite';
+} from '@/library/core/suite/librarySuites';
+import type { LibrarySuiteManifest } from '@/library/core/suite/suite.contract';
 
 // test/unit/library/registry.test.ts
 // 真实的 suite 注册表（eager glob 发现 suites/*/entry.ts）。Vitest 的 DEV 为 true，且测试配置显式
@@ -52,13 +52,14 @@ describe('library suite registry', () => {
         expect(resolveLibrarySurface('account', 'tui')).toBe(tui);
     });
 
-    it('renders the bravais account surface itself (B10) and declares all seven account actions', () => {
-        // 登录与确认在缝里（BravaisAccount），不再回退 grid 的登录弹窗。
+    it('answers bravais with the grid account surface as a whole: its sign-in is the shared window, its switch confirm grid\'s', () => {
+        // 登录在共用的登录窗口里，缝里不再有登录态 / 确认态：bravais 不声明 account surface，整体回退 grid 的确认框。
         const bravais = resolveLibrarySurface('account', 'bravais');
-        expect(bravais).toMatchObject({ suiteId: 'bravais', isFallback: false });
-        expect(bravais.component).not.toBe(resolveLibrarySurface('account', 'grid').component);
-        expect(bravais.component).toBe(getLibrarySuite('bravais')?.surfaces.account?.component);
-        expect([...bravais.declaredActions.actions].sort()).toEqual([...LIBRARY_ACCOUNT_ACTION_IDS].sort());
+        const grid = resolveLibrarySurface('account', 'grid');
+        expect(getLibrarySuite('bravais')?.surfaces.account).toBeUndefined();
+        expect(bravais).toMatchObject({ suiteId: 'grid', isFallback: true });
+        expect(bravais.component).toBe(grid.component);
+        expect(bravais.declaredActions).toBe(grid.declaredActions);
     });
 
     it('still answers a suite without an account surface with the grid one as a whole', () => {
@@ -114,7 +115,9 @@ describe('library suite registry', () => {
         expect([...resolveLibrarySurfaceActions('collection', 'grid').actions].sort()).toEqual([...LIBRARY_ACTION_IDS].sort());
         expect(resolveLibrarySurfaceActions('collection', 'grid').extraActions)
             .toEqual(['toggle-info-panel', 'toggle-track-list', 'toggle-edit-mode']);
-        // TUI 实现了除 Navidrome「加入歌单 / 新建歌单」以外的全部集合动作（那两个需要歌单选择器，只在网格里）。
+        // TUI 实现了除 Navidrome「加入歌单 / 新建歌单」、本地集合「设置封面」、速记簿（collect / collect-scope）与
+        // 「收藏到歌单」（save-to-playlist）以外的全部集合动作（前两个需要歌单选择器，只在网格里；后面几个是 TUI 冻结
+        // 之后才有的，不再加入口）。
         expect(resolveLibrarySurfaceActions('collection', 'tui')).toEqual({
             actions: [
                 'play', 'enqueue', 'play-scope', 'enqueue-scope', 'filter', 'sort', 'reload', 'resume-sync',
@@ -125,16 +128,21 @@ describe('library suite registry', () => {
             extraActions: [],
         });
         expect(LIBRARY_ACTION_IDS.filter(action => !resolveLibrarySurfaceActions('collection', 'tui').actions.includes(action)))
-            .toEqual(['add-to-playlist', 'create-playlist']);
-        // 歌手页（P4.2 / P4.3）：两套都实现了全部歌手页动作（网格的播放全部只经命令面板，TUI 还有 Ctrl+Enter）。
+            .toEqual(['collect', 'collect-scope', 'save-to-playlist', 'set-cover', 'add-to-playlist', 'create-playlist']);
+        // 歌手页（P4.2 / P4.3）：网格实现了全部歌手页动作（网格的播放全部只经命令面板）；TUI 已冻结，没有「全部歌曲」（#918）。
         expect([...resolveLibrarySurfaceActions('artist', 'grid').actions].sort()).toEqual([...LIBRARY_ARTIST_ACTION_IDS].sort());
-        expect([...resolveLibrarySurfaceActions('artist', 'tui').actions].sort()).toEqual([...LIBRARY_ARTIST_ACTION_IDS].sort());
-        // B8：bravais 的歌手页自己渲染，声明全部 10 个歌手页动作（不回退 grid）。
+        expect(LIBRARY_ARTIST_ACTION_IDS.filter(action => !resolveLibrarySurfaceActions('artist', 'tui').actions.includes(action)))
+            .toEqual(['open-all-songs']);
+        // B8：bravais 的歌手页自己渲染，声明全部 11 个歌手页动作（不回退 grid）。
         expect(resolveLibrarySurface('artist', 'bravais')).toMatchObject({ suiteId: 'bravais', isFallback: false });
         expect([...resolveLibrarySurfaceActions('artist', 'bravais').actions].sort()).toEqual([...LIBRARY_ARTIST_ACTION_IDS].sort());
-        // 首页：两套都实现了全部首页动作（网格的焦点类动作在卡片与目录树的按钮上，TUI 的在命令面板与键盘上）。
-        expect([...resolveLibrarySurfaceActions('home', 'grid').actions].sort()).toEqual([...LIBRARY_HOME_ACTION_IDS].sort());
-        expect([...resolveLibrarySurfaceActions('home', 'tui').actions].sort()).toEqual([...LIBRARY_HOME_ACTION_IDS].sort());
+        // 首页：两套都实现了探索页卡片上那一对之外的全部首页动作（网格的焦点类动作在卡片与目录树的按钮上，TUI 的在命令面板
+        // 与键盘上）；探索页歌曲卡片上的加入速记簿 / 收藏到歌单只有 bravais 声明。
+        const exploreCardActions = ['explore-collect', 'explore-save-to-playlist'];
+        const homeWithoutExploreCards = LIBRARY_HOME_ACTION_IDS.filter(action => !exploreCardActions.includes(action)).sort();
+        expect([...resolveLibrarySurfaceActions('home', 'grid').actions].sort()).toEqual(homeWithoutExploreCards);
+        expect([...resolveLibrarySurfaceActions('home', 'tui').actions].sort()).toEqual(homeWithoutExploreCards);
+        expect([...resolveLibrarySurfaceActions('home', 'bravais').actions].sort()).toEqual([...LIBRARY_HOME_ACTION_IDS].sort());
         // 账户（A5 / A6）：两套都实现全部 7 个账户动作（TUI 的诊断只复制报告，后端重启是 Enter）。
         expect(resolveLibrarySurface('account', 'grid').declaredActions).toEqual({ actions: LIBRARY_ACCOUNT_ACTION_IDS, extraActions: [] });
         expect([...resolveLibrarySurfaceActions('account', 'tui').actions].sort()).toEqual([...LIBRARY_ACCOUNT_ACTION_IDS].sort());

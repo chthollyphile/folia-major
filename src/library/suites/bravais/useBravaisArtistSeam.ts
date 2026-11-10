@@ -1,8 +1,8 @@
 import { useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { LibraryArtistSnapshot } from '../../core/contracts/artist';
-import type { LibraryArtistActionId, LibraryArtistSurfaceProps } from '../../core/contracts/suite';
-import type { ArtistView } from '../../core/bindings/useArtistView';
+import type { LibraryArtistSnapshot } from '../../core/artist/artist.contract';
+import type { LibraryArtistActionId, LibraryArtistSurfaceProps } from '../../core/suite/suite.contract';
+import type { ArtistView } from '../../core/artist/useArtistView';
 import { projectArtistStatus, resolveArtistWallPeriod } from './bravaisArtistModel';
 import type { BravaisLayerEntries, BravaisLayerWall, BravaisSeamArtist, BravaisSeamCollection, BravaisSeamFilter, BravaisSeamMenuItem } from './bravaisSeamModels';
 import type { useBravaisMutationNotice } from './useBravaisMutationNotice';

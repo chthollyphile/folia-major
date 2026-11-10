@@ -1,4 +1,4 @@
-import { getPlaybackSongKey } from '../../../../utils/appPlaybackGuards';
+import { fmNextIsUnfetchedAt, nextQueueIndex, queueIndexOf } from '../../../../utils/playbackNeighbors';
 import type { SongResult } from '../../../../types';
 // src/components/app/overlays/now-playing-toast/resolveNextUpTrack.ts
 
@@ -34,21 +34,18 @@ export const resolveNextUpTrack = ({
         return null;
     }
 
-    const songKey = getPlaybackSongKey(song);
-    const currentIndex = playQueue.findIndex(item => getPlaybackSongKey(item) === songKey);
+    const currentIndex = queueIndexOf(playQueue, song);
     // FM 只在队尾那一首上不确定：handleNextTrack 从倒数第二首起就去拉新曲目，但拉完播的是
     // nextQueue[currentIndex + 1] —— 在倒数第二首上那仍然是旧队列的最后一首，已经在手里了，
     // 所以那一首照常预览。真正没有下一首的是最后一首：它的后继是刚拉回来的第一首。
-    // 这里也不能落到下面 loopMode === 'all' 那条，FM 到底是拉新歌而不是回到队首。
-    if (isFmMode && currentIndex >= 0 && currentIndex >= playQueue.length - 1) {
+    // 这里也不能落到下面 nextQueueIndex 的列表循环那条，FM 到底是拉新歌而不是回到队首。
+    if (isFmMode && fmNextIsUnfetchedAt(playQueue.length, currentIndex)) {
         return null;
     }
 
-    if (currentIndex < 0) {
-        return fallbackToQueueHead ? playQueue[0] ?? null : null;
+    if (currentIndex < 0 && !fallbackToQueueHead) {
+        return null;
     }
-    if (currentIndex < playQueue.length - 1) {
-        return playQueue[currentIndex + 1] ?? null;
-    }
-    return loopMode === 'all' ? playQueue[0] ?? null : null;
+    const nextIndex = nextQueueIndex(playQueue.length, currentIndex, loopMode);
+    return nextIndex >= 0 ? playQueue[nextIndex] ?? null : null;
 };

@@ -2,13 +2,16 @@ import { useEffect } from 'react';
 import { useSpring, useTransform, type MotionValue } from 'framer-motion';
 import { playerBottomBarLiveOffset } from '../stores/motionSignals';
 import { usePlayerChromeSettingsStore } from '../stores/usePlayerChromeSettingsStore';
-import { useIsPlayerBottomBarHost } from '../components/floating-player/PlayerBottomBarLayoutContext';
+import { useIsPlayerBottomBarHost, usePreviewBottomBarOffset } from '../components/floating-player/PlayerBottomBarLayoutContext';
 import { useMediaQuery } from './useMediaQuery';
 import {
+    COMPACT_CAPSULE_BASE_BOTTOM_PX,
+    COMPACT_SUBTITLE_CLEARANCE_PX,
     PLAYER_BOTTOM_BAR_BASE_OFFSET_PX,
     resolvePlayerBottomComponentBottomPx,
     resolvePlayerSubtitleBottomFromPresence,
 } from '../utils/playerBottomBarLayout';
+import { useBottomDockStore } from '../stores/useBottomDockStore';
 
 // src/hooks/usePlayerBottomBarBottomPx.ts
 // 所有贴在底部基线上的组件从这里取自己的 bottom：把全局抬升量叠加到各自原有的底距上。
@@ -50,7 +53,8 @@ const SUBTITLE_PRESENCE_SPRING = { stiffness: 280, damping: 28 } as const;
  *
  * 只有播放页那棵树接入底栏布局。VisPlayground 和 Theme Park 预览渲染的是同一个字幕组件，
  * 但它们没有底栏，读全局偏移量只会让预览莫名其妙地抬高；它们走
- * PlayerBottomBarLayoutContext 的默认值，维持基线 + 净空的固定位置。
+ * PlayerBottomBarLayoutContext 的默认值，维持基线 + 净空的固定位置
+ * （缩放舞台上由 PreviewBottomBarOffsetContext 换算成框里该有的距离）。
  *
  * 在播放页内，两种位置变化的手感刻意不同：
  * - 控制条出现/消失是离散切换，走 spring，保留原来 animate.bottom 的过渡；
@@ -58,7 +62,10 @@ const SUBTITLE_PRESENCE_SPRING = { stiffness: 280, damping: 28 } as const;
  */
 export const usePlayerSubtitleBottomPx = (isPlayerChromeHidden: boolean): MotionValue<number> => {
     const isBottomBarHost = useIsPlayerBottomBarHost();
+    const previewOffset = usePreviewBottomBarOffset();
     const isControlBarHidden = usePlayerChromeSettingsStore(state => state.hidePlayerProgressBar);
+    // 紧凑档（窗口窄于 960，progress-bar v3）的胶囊更低（底距 16、高 56），字幕跟着低一截。只看播放页那棵树。
+    const isCompact = useBottomDockStore(state => state.layout === 'compact') && isBottomBarHost;
     // 底栏被整条关掉只对播放页成立；预览里那个全局开关和它无关。
     const isControlBarAbsent = isPlayerChromeHidden || (isBottomBarHost && isControlBarHidden);
     const controlBarPresence = useSpring(isControlBarAbsent ? 0 : 1, SUBTITLE_PRESENCE_SPRING);
@@ -71,8 +78,24 @@ export const usePlayerSubtitleBottomPx = (isPlayerChromeHidden: boolean): Motion
     return useTransform(
         [controlBarPresence, playerBottomBarLiveOffset],
         ([presence, offset]: number[]) => resolvePlayerSubtitleBottomFromPresence(
-            isBottomBarHost ? offset : PLAYER_BOTTOM_BAR_BASE_OFFSET_PX,
+            isBottomBarHost ? offset : previewOffset,
             presence,
+            isCompact ? COMPACT_SUBTITLE_GEOMETRY : undefined,
         ),
     );
+};
+
+const COMPACT_SUBTITLE_GEOMETRY = {
+    baseBottomPx: COMPACT_CAPSULE_BASE_BOTTOM_PX,
+    clearancePx: COMPACT_SUBTITLE_CLEARANCE_PX,
+} as const;
+
+/**
+ * 紧凑档里胶囊展开（或出了快捷行）时会盖住字幕那一带，字幕淡出让位，收起再淡回来。
+ * 只改透明度：字幕层不能用 transform 挪（下面压着 blur 辉光，多一个合成层会变色），也不该逐帧改 bottom。
+ */
+export const usePlayerSubtitleYieldsToDock = (): boolean => {
+    const isBottomBarHost = useIsPlayerBottomBarHost();
+    const yields = useBottomDockStore(state => state.layout === 'compact' && (state.capsule === 'expanded' || state.capsule === 'quick'));
+    return isBottomBarHost && yields;
 };

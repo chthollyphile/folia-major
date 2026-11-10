@@ -231,7 +231,7 @@ export async function installBaseState(
     });
 
     localStorage.clear();
-    localStorage.setItem('i18nextLng', 'en');
+    localStorage.setItem('folia_app_language', 'en');
     localStorage.setItem('default_theme_daylight', 'true');
     localStorage.setItem('static_mode', 'true');
     // 动效不再跟随系统偏好（issue #370），所以 emulateMedia({ reducedMotion: 'reduce' }) 自己
@@ -266,6 +266,8 @@ export async function installBaseState(
         // WindowControls 一挂载就订阅全屏变化并查询一次；桩里缺了它们，整个应用在首屏就抛错。
         isWindowFullscreen: async () => false,
         onWindowFullscreenChanged: () => () => {},
+        // AppShell 一挂载就问窗口带不带系统红绿灯。
+        hasNativeTrafficLights: async () => false,
       },
     });
 
@@ -446,12 +448,16 @@ export async function mockNeteaseApi(page: Page, mode: MockNeteaseMode) {
       return;
     }
 
+    // The answers carry NetEase's code as the API does: the account check (neteaseProvider.ts) and
+    // the liked-songs read treat an answer without code 200 as one NetEase never gave. The login
+    // status has it inside `data` (upstream module/login_status.js wraps the whole answer there);
+    // nobody signed in is code 200 with no profile.
     if (mode === 'guest' && !qrConfirmed) {
       if (endpoint === '/login/status') {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
-          body: JSON.stringify({ data: {} }),
+          body: JSON.stringify({ data: { code: 200, account: null, profile: null } }),
         });
         return;
       }
@@ -466,24 +472,31 @@ export async function mockNeteaseApi(page: Page, mode: MockNeteaseMode) {
     const responses: Record<string, unknown> = {
       '/login/status': {
         data: {
+          code: 200,
+          account: {
+            id: neteaseFixtures.profile.userId,
+          },
           profile: neteaseFixtures.profile,
         },
-        cookie: 'fixture-cookie',
       },
       '/user/account': {
+        code: 200,
         account: {
           id: neteaseFixtures.profile.userId,
         },
         profile: neteaseFixtures.profile,
       },
       '/user/playlist': {
+        code: 200,
         playlist: playlistPayload,
       },
       '/user/cloud': {
+        code: 200,
         count: neteaseFixtures.cloudSongs.length,
         songs: neteaseFixtures.cloudSongs,
       },
       '/likelist': {
+        code: 200,
         ids: neteaseFixtures.likedSongIds,
       },
     };

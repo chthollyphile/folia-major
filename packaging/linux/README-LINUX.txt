@@ -30,6 +30,9 @@ Linux 图形兼容性：
 - 如果仍不稳定，可使用最保守的软件渲染：
   `FOLIA_LINUX_GRAPHICS_MODE=software ./folia-major`
 - `FOLIA_LINUX_GRAPHICS_MODE=system` 恢复系统路径。调试非标准 AppImage 运行时可设置 `ELECTRON_LINUX_PACKAGED_GRAPHICS=true`。
+- X11 下智能动感模式提示没有可用的 WebGPU 时，可手动开启 Vulkan：
+  `FOLIA_LINUX_VULKAN=1 ./folia-major --ozone-platform=x11`
+  只在 X11（含 XWayland，即 `--ozone-platform=x11`）和系统图形路径下生效。原生 Wayland 下不开 Vulkan 也能用 WebGPU，开了反而会让 GPU 进程崩溃，所以这个变量在 Wayland 下会被忽略。
 
 这些变量只影响 Electron Linux 启动参数，不改变 Web 端或同步服务配置。排查时先确认可执行文件和 `resources/` 位于同一便携包目录。
 

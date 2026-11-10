@@ -79,11 +79,12 @@ test.describe('frontend screenshot coverage', () => {
     await mockNeteaseApi(page, 'guest');
 
     await openApp(page);
-    // 连接胶囊默认展开第一个可用平台（网易云），一次点击即发起登录。
-    await page.getByRole('button', { name: 'Log in to 网易云', exact: true }).click();
+    // The home button opens the sign-in window with nothing chosen; the row of the platform starts its sign-in.
+    await page.getByRole('button', { name: 'Login', exact: true }).click();
 
     const loginDialog = page.getByRole('dialog');
     await expect(loginDialog).toBeVisible();
+    await loginDialog.getByRole('option').first().click();
     await expect(loginDialog).toBeHidden({ timeout: 10_000 });
     await expect(page.getByRole('heading', { name: 'Daily Mix' }).first()).toBeVisible();
   });

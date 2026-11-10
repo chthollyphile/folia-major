@@ -1,6 +1,6 @@
 import React, { Profiler, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DEFAULT_THEME } from '../../../src/services/baseThemes';
-import type { LibrarySuiteStageProps } from '../../../src/library/core/contracts/suite';
+import type { LibrarySuiteStageProps } from '../../../src/library/core/suite/suite.contract';
 import { useBravaisLayerRegistration } from '../../../src/library/suites/bravais/useBravaisLayerRegistration';
 import BravaisStage from '../../../src/library/suites/bravais/BravaisStage';
 import type { PerfJob } from './perfConfig';

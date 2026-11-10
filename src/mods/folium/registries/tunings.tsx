@@ -1,12 +1,13 @@
 import React, { useSyncExternalStore } from 'react';
 import { getVisualizerRegistryEntry, hasVisualizerMode } from '@/components/visualizer/registry';
 import type { Theme } from '@/types';
-import type { FoliumParam, FoliumParamAccess, FoliumTuningDef } from '../contract';
-import { sanitizeFoliumParams } from '../params';
-import { createFoliumParamAccess, useFoliumParamStore } from '../paramStore';
-import { createFoliumRegistry, useFoliumRegistryEntries, type FoliumRegistryEntry } from '../registry';
-import { reportFoliumIssue } from '../status';
-import { FoliumSettingsCard } from '../FoliumSettingsCard';
+import type { FoliumSetting, FoliumSettingAccess, FoliumTuningDef } from '../contract';
+import { sanitizeFoliumParams } from '../../params/params';
+import { createFoliumParamAccess, useFoliumParamStore } from '../../params/paramStore';
+import { createFoliumRegistry, useFoliumRegistryEntries, type FoliumRegistryEntry } from '../../runtime/registry';
+import { reportFoliumIssue } from '../../runtime/status';
+import { FoliumSettingsCard } from '../../params/FoliumSettingsCard';
+import { foliumMountName } from '../kinds';
 
 // src/mods/folium/registries/tunings.tsx
 // `folium.registries.tunings`: mods tuning builtin visualizer modes. A target
@@ -21,9 +22,11 @@ import { FoliumSettingsCard } from '../FoliumSettingsCard';
 export interface StoredFoliumTuning {
     def: FoliumTuningDef;
     target: string;
-    params: FoliumParam[];
-    access: FoliumParamAccess;
+    settings: FoliumSetting[];
+    access: FoliumSettingAccess;
 }
+
+const TUNING = foliumMountName('tunings', 'settings');
 
 // target -> key -> owning tuning id
 const keyOwners = new Map<string, Map<string, string>>();
@@ -53,8 +56,8 @@ export const tuningsRegistry = createFoliumRegistry<FoliumTuningDef, StoredFoliu
             throw new Error(`tunings.register: "${target}" is not a mode with Folium tunables`);
         }
         const owners = keyOwners.get(target);
-        const params: FoliumParam[] = [];
-        sanitizeFoliumParams(def.params).forEach((param) => {
+        const settings: FoliumSetting[] = [];
+        sanitizeFoliumParams(def.settings, modId).forEach((param) => {
             const tunable = tunables[param.key];
             if (param.type !== 'number' || !tunable) {
                 reportFoliumIssue(modId, `tuning ${id}`, `"${param.key}" is not a numeric tunable of ${target}`);
@@ -73,14 +76,14 @@ export const tuningsRegistry = createFoliumRegistry<FoliumTuningDef, StoredFoliu
                 return;
             }
             const requested = typeof param.defaultValue === 'number' ? param.defaultValue : tunable.identity;
-            params.push({ ...param, min, max, defaultValue: Math.min(max, Math.max(min, requested)) });
+            settings.push({ ...param, min, max, defaultValue: Math.min(max, Math.max(min, requested)) });
         });
-        if (params.length === 0) {
+        if (settings.length === 0) {
             throw new Error(`tunings.register: no usable tunable keys for "${target}"`);
         }
-        return { def, target, params, access: createFoliumParamAccess(`tuning:${id}`, params) };
+        return { def, target, settings, access: createFoliumParamAccess(`tuning:${id}`, settings) };
     },
-    onAdd: (entry) => claimKeys(entry.def.target, entry.id, entry.def.params.map((param) => param.key)),
+    onAdd: (entry) => claimKeys(entry.def.target, entry.id, entry.def.settings.map((param) => param.key)),
     onRemove: (entry) => releaseKeys(entry.def.target, entry.id),
 });
 
@@ -107,7 +110,7 @@ export const readFoliumTunings = (target: string): Readonly<Record<string, numbe
     list.forEach((entry) => {
         if (entry.def.target !== target) return;
         const values = entry.def.access.get();
-        entry.def.params.forEach((param) => {
+        entry.def.settings.forEach((param) => {
             const value = values[param.key];
             if (typeof value === 'number') merged[param.key] = value;
         });
@@ -152,7 +155,7 @@ export const FoliumTuningCards: React.FC<{
                     key={entry.id}
                     modId={entry.modId}
                     where={`tuning ${entry.id}`}
-                    entryKind="tuning"
+                    entryKind={TUNING}
                     entryId={entry.id}
                     title={entry.def.def.label}
                     fallbackTitle={entry.id}

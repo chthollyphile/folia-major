@@ -62,7 +62,7 @@ description: Use when adding, refactoring, or reviewing frontend runtime behavio
 - `sonnet`：`VisualizerSonnet` 负责 React 外壳，`createSonnetPixiRuntime` 与 `sonnet*` helpers 负责 Pixi director；销毁 Pixi runtime、纹理池和 RAF。
 - `VisPlayground`：预览时间可以推进 MotionValue，但派生到 React state 时必须只更新当前行等低频状态。
 
-共享运行时边界是 `VisualizerRenderer.tsx` -> `runtime.ts` / `registry.tsx` / `VisualizerShell.tsx`；它同时被 App、ThemePark、VisPlayground 和 OBS source 复用。新增模式应沿 `entry.tsx` registry 接入，不要在各宿主复制渲染分支。
+共享运行时边界是 `VisualizerRenderer.tsx` -> `runtime.ts` / `registry.tsx` / `VisualizerShell.tsx`；它同时被 App、ThemePark、VisPlayground 和 OBS source 复用（宿主清单见 `src/components/visualizer/README.md` 的 Host surfaces）。新增模式应沿 `entry.tsx` registry 接入，不要在各宿主复制渲染分支。
 
 所有 visualizer 的歌词和字幕字重都必须通过 `src/utils/fontStacks.ts` 的 `resolveThemeFontWeight(theme, modeFallback)` 获取。模式设计字重只能作为 fallback，不能用 `font-bold`、`font-medium`、固定内联 `fontWeight` 或字体规格中的硬编码数字覆盖用户设置。DOM、Canvas、pretext 和光栅化路径必须使用同一个最终字重。
 
@@ -140,12 +140,12 @@ description: Use when adding, refactoring, or reviewing frontend runtime behavio
 遵守仓库职责边界；如果需要 README 背景，按 `readme-reference` 只读取相关片段：
 
 - visualizer 共享逻辑放 `components/visualizer/*` 的 runtime、registry、shell 或相邻 util。
-- 模式实现放 `components/visualizer/<mode>/`；当前模式包括 `classic`、`cadenza`、`partita`、`fume`、`cappella`、`tilt`、`claddagh`、`monet`、`diorama`、`pendolo`、`sonnet`。
-- 背景实现放 `components/visualizer/backgrounds/*`，当前 entry 为 `common`、`latent`、`monet`、`nomand`、`sora`、`url`。
+- 一个模式的全部代码（entry、tuning、设置面板、渲染器、layout、只给它用的纯函数）放 `components/visualizer/<mode>/`。当前有哪些模式看 `src/types/visualizerModes.ts` 的 `BUILTIN_VISUALIZER_MODES`，这里不抄清单。加一个模式的完整步骤见 `src/components/visualizer/README.md` 的“加一个歌词动画样式”。
+- 背景实现放 `components/visualizer/backgrounds/<name>/`，清单是同一文件的 `BUILTIN_VISUALIZER_BACKGROUND_MODES`。
 - 歌词解析真源看 `utils/lyrics/parserCore.ts`。
-- 纯分词、layout、时序映射优先放 `utils/lyrics/*`，并用单测覆盖。
+- 纯分词、layout、时序映射：只给一个模式用的放在那个模式的目录里；两个以上模式用到才放 `utils/lyrics/*`。都用单测覆盖。
 - 共享类型先看 `types.ts`。
-- 不要把新 visualizer 的设置、runtime、layout、测试辅助全部堆进单个超大组件；必要时配合 `file-modularization` skill。
+- 不要把新 visualizer 的设置、runtime、layout、测试辅助全部堆进单个超大组件；按 `file-modularization` 在模式目录里拆成几个文件。
 
 ## Review Checklist
 

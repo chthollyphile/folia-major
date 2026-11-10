@@ -15,8 +15,25 @@ exports.default = async (context) => {
     "../packaging/ffmpeg/fetch-ffmpeg.mjs"
   );
   await prepareBundledFfmpeg({ platform: context.electronPlatformName, arch });
+  // The analysis models' runtime (electron/analysis/mnn.cjs), built from the pinned MNN source.
+  const { prepareBundledMnn } = await import("./buildMnnRuntime.mjs");
+  await prepareBundledMnn({ platform: context.electronPlatformName, arch });
+  // The two models (Beat This! final0, htdemucs), verified against shared/modelManifest.json; one
+  // file each for every platform.
+  const { prepareBundledModels } = await import("./fetchModels.mjs");
+  await prepareBundledModels({ outputDir: require("path").join(context.packager.projectDir, "models") });
+  if (context.electronPlatformName === 'win32') {
+    // The Apple Music WebView2 host (electron/appleMusic/windows), compiled with MSBuild.
+    const { prepareWindowsCompanion } = require('../electron/appleMusic/windows/prepareBundle.cjs');
+    prepareWindowsCompanion({ arch, projectRoot: context.packager.projectDir });
+  }
   if (context.electronPlatformName === 'darwin') {
+    const { prepareMacCompanion } = require('../electron/appleMusic/macos/prepareBundle.cjs');
+    prepareMacCompanion({ arch, projectRoot: context.packager.projectDir });
     const { prepareBundledKoffi } = await import('../packaging/macos/prepare-koffi.mjs');
     await prepareBundledKoffi({ arch, projectRoot: context.packager.projectDir });
+    // The wallpaper's Stage Manager click guard (issue #698), a small native helper.
+    const { prepareDesktopClickGuard } = await import('../packaging/macos/build-desktop-click-guard.mjs');
+    await prepareDesktopClickGuard({ arch, projectRoot: context.packager.projectDir });
   }
 };

@@ -3,11 +3,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // test/unit/onlineMusic/bodianProvider.test.ts
 
 const request = vi.hoisted(() => vi.fn());
-vi.mock('@/services/onlineMusic/bodianTransport', () => ({
+vi.mock('@/services/onlineMusic/bodian/bodianTransport', () => ({
     requestBodian: request, getBodianTransportAvailability: () => ({ configured: true }),
 }));
-import { bodianProvider } from '@/services/onlineMusic/bodianProvider';
-import { bodianPage, normalizeBodianCollection, normalizeBodianSong, normalizeBodianUser } from '@/services/onlineMusic/bodianNormalize';
+import { bodianProvider } from '@/services/onlineMusic/bodian/bodianProvider';
+import { bodianPage, normalizeBodianCollection, normalizeBodianSong, normalizeBodianUser } from '@/services/onlineMusic/bodian/bodianNormalize';
 import { getPlaybackSongKey } from '@/utils/appPlaybackGuards';
 
 const track = { id: 228908, songName: '测试歌曲 (Live)', name: '测试歌曲', albumId: 1293, album: '测试专辑',
@@ -54,6 +54,19 @@ describe('Bodian provider', () => {
         expect(normalizeBodianSong(song)).toEqual(song);
         expect(getPlaybackSongKey(song)).toBe('online:bodian:228908');
         expect(() => normalizeBodianSong({})).toThrow('no id');
+    });
+
+    // `songName` 带版本，`name` 是原名，`FSONGNAME` 是中文译名、`subtitle` 是说明（2026-11-04 实测）。
+    it('keeps the original name beside a versioned song name and offers it as the lyric search alias', async () => {
+        const song = normalizeBodianSong({ ...track, FSONGNAME: '测试译名', subtitle: '《某节目》' });
+        expect(song.sourceRef).toMatchObject({ providerData: { originalName: '测试歌曲' } });
+        await expect(bodianProvider.lyrics!.getSearchAlias!(song)).resolves.toEqual({
+            song, title: '测试歌曲', artist: '测试歌手', album: '测试专辑',
+        });
+
+        const plain = normalizeBodianSong({ ...track, songName: '测试歌曲', FSONGNAME: '测试译名' });
+        expect(plain.sourceRef).not.toHaveProperty('providerData.originalName');
+        await expect(bodianProvider.lyrics!.getSearchAlias!(plain)).resolves.toBeNull();
     });
 
     it('preserves private/liked playlist source and counts on cache hydration', () => {
@@ -136,12 +149,17 @@ describe('Bodian provider', () => {
         await expect(bodianProvider.search!.searchSongs('测试', 50, 0)).rejects.toMatchObject({ code: 'invalid-response' });
     });
 
-    it('never stores a preview as full-track audio or routes another provider through Bodian', async () => {
-        request.mockResolvedValue({ url: 'https://audio.example.test/preview.mp3', preview: { startTime: 0, endTime: 29 } });
-        await expect(bodianProvider.playback!.getAudioSource(normalizeBodianSong(track), 'high')).rejects.toMatchObject({ code: 'preview-only' });
+    // The clip plays, with a notice, and the media cache never keeps it: both read the mark.
+    it('hands out a preview\'s URL marked as a preview, a whole song unmarked, and routes no other provider through Bodian', async () => {
+        request.mockResolvedValueOnce({ url: 'https://audio.example.test/preview.mp3', quality: 'standard', fetchedAt: 1, preview: { startTime: 0, endTime: 29 } });
+        await expect(bodianProvider.playback!.getAudioSource(normalizeBodianSong(track), 'high'))
+            .resolves.toEqual({ url: 'https://audio.example.test/preview.mp3', quality: 'standard', fetchedAt: 1, preview: true });
+        request.mockResolvedValueOnce({ url: 'https://audio.example.test/whole.mp3', quality: 'high', fetchedAt: 2 });
+        await expect(bodianProvider.playback!.getAudioSource(normalizeBodianSong(track), 'high'))
+            .resolves.toEqual({ url: 'https://audio.example.test/whole.mp3', quality: 'high', fetchedAt: 2 });
         await expect(bodianProvider.playback!.getAudioSource({ ...normalizeBodianSong(track), sourceRef: { kind: 'online', providerId: 'qq', mediaId: '228908' } }, 'high'))
             .rejects.toMatchObject({ code: 'unsupported' });
-        expect(request).toHaveBeenCalledTimes(1);
+        expect(request).toHaveBeenCalledTimes(2);
     });
 
     it.each([

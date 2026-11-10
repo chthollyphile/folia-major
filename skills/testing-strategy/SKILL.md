@@ -1,11 +1,18 @@
 ---
 name: testing-strategy
-description: Use when the task involves choosing how to validate a change in this repository, deciding whether to inspect a running dev server, run unit tests, run Playwright UI screenshot tests, or avoid unnecessary builds.
+description: Use when the task involves deciding whether a change needs a new test, choosing how to validate a change in this repository, deciding whether to inspect a running dev server, run unit tests, run Playwright UI screenshot tests, or avoid unnecessary builds, or when a test fails and you need to tell whether your change broke it.
 ---
 
 # Testing Strategy
 
-这个 skill 用于判断当前任务应该采用哪一种验证方式。
+这个 skill 用于判断当前任务该不该写新测试，以及应该采用哪一种验证方式。
+
+## 什么时候写新测试
+
+- 用的人用应用时看不出来的逻辑（分支规则、换算、存下来的数据）：加一个跑得快的逻辑测试（Vitest，毫秒级）。
+- 修好的毛病，复发时没人会马上看到的：加一个能抓住它的逻辑测试。
+- 靠看来判断的（布局、动效、时间感）：不加新的浏览器测试，也不加按真实时间计时的测试，除非维护者要求。这类改动交给维护者看。
+- 一个测试失败，先当作是你的改动弄坏的。在你改动之前的那个提交上跑一次：那里也失败，才说明不是你弄的，在交接里写一句。
 
 ## Core Rule
 
@@ -21,7 +28,7 @@ description: Use when the task involves choosing how to validate a change in thi
 
 ### 1. 前端页面样式、交互、回归截图
 
-优先使用 Playwright UI 测试：
+跑已有的 Playwright UI 测试（新的截图测试只在维护者要求时加，见上面“什么时候写新测试”）：
 
 - 命令：`npm run test:ui`
 - 更新基线：`npm run test:ui:update`
@@ -61,7 +68,7 @@ description: Use when the task involves choosing how to validate a change in thi
 
 有些问题只在真实浏览器里暴露，单测和整应用 UI 测试都盖不住：层叠与命中测试、
 Tailwind 版本相关的类名语法、StrictMode 下 effect 双调用、异步 props 到达前的中间态。
-这类情况写 Playwright component test，不要为此启动整个应用流程。
+这类情况写 Playwright component test，不要为此启动整个应用流程。它用来抓只有真实浏览器才复现的毛病，不用来判断看起来对不对。
 
 用的是 `@playwright/test` 内置的 `mount` fixture（1.62 起随包提供，不需要装
 `@playwright/experimental-ct-react`）。`dev-probe.html` 同时是它要求的 gallery 页。
@@ -115,6 +122,17 @@ Tailwind 版本相关的类名语法、StrictMode 下 effect 双调用、异步 
 - 不要额外运行 `npm run build`
 - 不要为了“确认一下”再启动第二个 dev server
 - 优先读取现有终端错误和浏览器/运行时反馈
+
+在浏览器里看开发版时，两个只在开发构建里有的捷径（`src/dev/devLaunchFlags.ts`）：
+
+- **跳过首启流程**：地址带 `?skipStartup`（或 `.env.local` 写 `VITE_SKIP_STARTUP_EXPERIENCE=true`），
+  更新说明、「资料库用哪种界面」/ 播放去处选择、思索引导都不弹。什么都不写进 localStorage，去掉参数就恢复。
+- **立刻放一首 mock 歌**：地址带 `?mockSong`，或在页面里 `await window.__foliaDev.playMockSong()`。
+  一段合成的 72 秒 120 BPM 音频 + 逐字歌词（中英日、翻译、间奏）+ 封面，写进 OPFS 后按本地文件夹导入再播放，
+  走的是真实的本地播放和歌词链路，不需要网络和登录；重复调用复用同一条曲库记录。
+  素材在 `src/dev/mockSongAssets.ts`。没有用户手势时浏览器可能拦自动播放，那就点一下播放键。
+
+两个一起用：`http://localhost:3000/?skipStartup&mockSong`。
 
 ### 6. 仅改文档、issue template、配置说明
 

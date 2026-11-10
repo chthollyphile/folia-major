@@ -7,13 +7,13 @@ import type {
     LibrarySuiteTransitions,
     LibrarySurfaceId,
     LibrarySurfacePropsMap,
-} from './core/contracts/suite';
-import { buildLibrarySuiteIndex, DEFAULT_LIBRARY_SUITE_ID, isLibrarySuiteChoiceAvailable } from './core/model/librarySuites';
+} from './core/suite/suite.contract';
+import { buildLibrarySuiteIndex, DEFAULT_LIBRARY_SUITE_ID, isLibrarySuiteChoiceAvailable } from './core/suite/librarySuites';
 
 // src/library/registry.ts
 // Library 的 suite 注册表：从各 suite 的 `suites/<id>/entry.ts` 自动发现（照 visualizer registry 的做法，
 // eager glob；entry 里除默认 suite 外的组件必须是 React.lazy），按 surface 与当前选中的 suite 解析由谁渲染——
-// 选中的 suite 没实现就回退默认 suite（grid）。纯规则在 core/model/librarySuites，这里只做发现与类型还原。
+// 选中的 suite 没实现就回退默认 suite（grid）。纯规则在 core/suite/librarySuites，这里只做发现与类型还原。
 // 只有 UI 侧（首页外壳、集合宿主、suite 切换、DEV 浮层、探针）引用它；core 与 stores 不碰。
 
 type LibrarySuiteEntryModule = { default?: LibrarySuiteManifest };

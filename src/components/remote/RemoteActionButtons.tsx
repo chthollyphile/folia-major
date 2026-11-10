@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { createFoliumIcon } from '@/mods/folium/icons';
-import { resolveFoliumLabel } from '@/mods/folium/params';
+import { resolveFoliumLabel } from '@/mods/params/params';
 import type { RemoteActionsSnapshot, RemoteControlCommand } from '@/types/remoteControl';
 import { createRemoteActionActivation } from '@/utils/remoteActionActivation';
 
@@ -9,10 +9,12 @@ import { createRemoteActionActivation } from '@/utils/remoteActionActivation';
 type ButtonClasses = { base: string; idle: string; active: string; alert: string };
 
 /** Only the host renders this bounded append area; native controls keep their layout. */
-export function RemoteActionButtons({ snapshot, visible, isDaylight, classes, sendCommand }: {
+export function RemoteActionButtons({ snapshot, visible, isDaylight, className, classes, sendCommand }: {
     snapshot: RemoteActionsSnapshot | undefined;
     visible: boolean;
     isDaylight: boolean;
+    /** Where the host places the area. */
+    className: string;
     classes: ButtonClasses;
     sendCommand: (command: RemoteControlCommand) => void;
 }) {
@@ -20,7 +22,7 @@ export function RemoteActionButtons({ snapshot, visible, isDaylight, classes, se
     if (!snapshot?.items.length) return null;
     return <div data-folium-slot="remote-actions" hidden={!visible}
         onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()}
-        className="absolute bottom-2.5 left-4 right-4 h-8 items-center gap-1 overflow-auto px-0.5"
+        className={`${className} items-center gap-1 overflow-auto px-0.5`}
         style={{ display: visible ? 'flex' : 'none', scrollbarWidth: 'thin', WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
         {snapshot.items.map((item) => {
             const label = resolveFoliumLabel(item.label, i18n.language, item.id);

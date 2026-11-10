@@ -13,7 +13,7 @@ test('does not remount a mod visualizer when the player UI changes on a lyric-le
     await page.addInitScript(([version, guideKey]) => {
         localStorage.clear();
         localStorage.setItem('library_suite_prompt_seen', 'true');
-        localStorage.setItem('i18nextLng', 'en');
+        localStorage.setItem('folia_app_language', 'en');
         localStorage.setItem('open_player_on_launch', 'true');
         localStorage.setItem('static_mode', 'true');
         localStorage.setItem(guideKey, version);
@@ -47,7 +47,7 @@ test('does not remount a mod visualizer when the player UI changes on a lyric-le
         probe.__mounts = 0;
         const api = createFoliumClientApi(
             { id: 'remount-probe', name: 'probe', version: '1.0.0', author: null, description: null, permissions: [], status: 'active', error: null, enabled: true },
-            { context: 'main', internals: null },
+            { context: 'main', experimental: {}, onRelease: () => {}, stopped: () => false },
         );
         api.registries.visualizers.register({
             id: 'count',

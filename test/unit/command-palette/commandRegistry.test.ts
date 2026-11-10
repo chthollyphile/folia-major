@@ -34,6 +34,7 @@ const createContext = (overrides: CommandPaletteContextOverrides = {}): CommandP
             volume: 0.5,
             isMuted: false,
             setVolume: vi.fn(),
+            stepVolume: vi.fn(),
             toggleMute: vi.fn(),
             toggleSongLike: vi.fn(),
             isSongLiked: false,
@@ -44,6 +45,7 @@ const createContext = (overrides: CommandPaletteContextOverrides = {}): CommandP
             personalFmSelection: { mode: 'DEFAULT' as const, scene: null },
             isPersonalFmModeSupported: true,
             setPersonalFmSelection: vi.fn(),
+            isRecommendationPreferencesOffered: () => false,
             togglePlay: vi.fn(),
             toggleLoop: vi.fn(),
             next: vi.fn(),
@@ -61,21 +63,26 @@ const createContext = (overrides: CommandPaletteContextOverrides = {}): CommandP
             setReplayGainMode: vi.fn(),
             openAudioEqualizer: vi.fn(),
             applyAudioSoundPreset: vi.fn(),
+            hasModEqualizerCurve: () => false,
+            releaseModEqualizerCurve: vi.fn(),
             runAutoMatchBestLyric: vi.fn(async () => true),
             toggleCurrentSongPureMusicMark: vi.fn(async () => true),
             canToggleCurrentSongPureMusicMark: true,
+            isHifiRoute: () => false,
+            openHifiSignalPath: vi.fn(),
         },
         navigation: {
         navigateToHome: vi.fn(),
         navigateToPlayer: vi.fn(),
         navigateToLattice: vi.fn(),
-            focusLatticeCurrentSong: vi.fn(() => true),
-            canFocusLatticeCurrentSong: true,
+            locatePlayingSongOnWall: vi.fn(),
+            locatePlayingSong: vi.fn(),
             selectHomeViewTab: vi.fn(),
             toggleBrowserFullscreen: vi.fn(async () => true),
             toggleRemoteControlWindow: vi.fn(async () => true),
             toggleMainWindowAlwaysOnTop: vi.fn(async () => true),
             isWallpaperMode: false,
+            isWindowAlwaysOnTopSupported: true,
         },
         panel: {
             setPanelTab: vi.fn(),
@@ -102,6 +109,7 @@ const createContext = (overrides: CommandPaletteContextOverrides = {}): CommandP
             canChooseLibrarySuite: vi.fn(() => true),
             chooseLibrarySuite: vi.fn(),
             isLibraryWallLookAvailable: vi.fn(() => false),
+            isGridLibraryActive: vi.fn(() => true),
             libraryWallLook: vi.fn(() => 'partial' as const),
             setLibraryWallLook: vi.fn(),
             libraryWallWindowsPerBlock: vi.fn(() => 3),
@@ -113,6 +121,8 @@ const createContext = (overrides: CommandPaletteContextOverrides = {}): CommandP
             setLibraryWallSeamStyle: vi.fn(),
             toggleLibraryWallBackdropLyrics: vi.fn(),
             toggleLibraryWallBackdropBlur: vi.fn(),
+            libraryWallSeamDirection: () => 'auto' as const,
+            setLibraryWallSeamDirection: vi.fn(),
             ponderHintVisibility: 'always' as const,
             setPonderHintVisibility: vi.fn(),
             togglePonderTouchButton: vi.fn(),
@@ -123,6 +133,7 @@ const createContext = (overrides: CommandPaletteContextOverrides = {}): CommandP
             toggleGridViewSquareCards: vi.fn(),
             canUseGridViewSquareCards: vi.fn(() => true),
             toggleLatticeVignette: vi.fn(),
+            toggleLatticeBadgeCurrentOnly: vi.fn(),
             toggleLatticeAutoFocusOnSongChange: vi.fn(),
             toggleReduceLatticeMotion: vi.fn(),
             toggleFollowSystemReducedMotion: vi.fn(),
@@ -140,23 +151,35 @@ const createContext = (overrides: CommandPaletteContextOverrides = {}): CommandP
             togglePlaybackFade: vi.fn(),
             toggleAutoSkipUnplayable: vi.fn(),
             toggleAlwaysShowMainWindowTitlebar: vi.fn(),
+            togglePlayerHeaderBlur: vi.fn(),
+            toggleTitlebarSide: vi.fn(),
             toggleHideFullscreenButton: vi.fn(),
             toggleNativeMacFullscreenButton: vi.fn(),
+            toggleNativeMacTrafficLights: vi.fn(),
             toggleAutoHideCursorWithPlayerChrome: vi.fn(),
+            toggleHideCursorWhenIdle: vi.fn(),
             canAutoScanLocalLibrary: vi.fn(() => false),
             toggleLocalLibraryAutoScan: vi.fn(),
-            canReportNeteasePlayback: vi.fn(() => false),
-            toggleNeteaseScrobble: vi.fn(),
+            canReportPlayback: vi.fn(() => false),
+            togglePlaybackReport: vi.fn(),
+            toggleAutoAiLyricSegmentation: vi.fn(),
+            toggleKeepProviderWordTiming: vi.fn(),
             voiceInputPauseSupported: false,
             modSystemEnabled: false,
             toggleVoiceInputPause: vi.fn(),
             togglePreventDisplaySleepDuringPlayback: vi.fn(),
+            toggleBackgroundThrottling: vi.fn(),
             toggleWallpaperMode: vi.fn(),
             toggleCloseToTray: vi.fn(),
             toggleHideRemoteControlTitlebar: vi.fn(),
+            toggleRemoteControlExpandCover: vi.fn(),
+            toggleRemoteControlTextShade: vi.fn(),
             unlockRemoteControl: vi.fn(),
             toggleObsKeepMainWindowAnimation: vi.fn(),
+            toggleTrackCardInObs: vi.fn(),
             toggleWallpaperMacAutohideDock: vi.fn(),
+            gpuPreference: () => 'auto',
+            setGpuPreference: vi.fn(),
             sleepTimerEnabled: false,
             setSleepTimerEnabled: vi.fn(),
             sleepTimerHours: 0,
@@ -178,6 +201,17 @@ const createContext = (overrides: CommandPaletteContextOverrides = {}): CommandP
             setTransitionMode: vi.fn(),
             toggleTransitionPerformance: vi.fn(),
             canUseTransitionPerformance: vi.fn(() => true),
+            isHifiSupported: () => true,
+            isHifiEnabled: () => false,
+            isHifiVolumeConfirmed: () => false,
+            setHifiEnabled: vi.fn(),
+            toggleHifiExclusive: vi.fn(),
+            toggleHifiNavidrome: vi.fn(),
+            toggleHifiSoftwareVolume: vi.fn(),
+            canRedetectHifiRuntime: () => true,
+            redetectHifiRuntime: vi.fn(async () => null),
+            canInstallHifiRuntime: () => false,
+            installHifiRuntime: vi.fn(async () => null),
         },
         visualizer: {
             visualizerMode: 'classic',
@@ -188,7 +222,11 @@ const createContext = (overrides: CommandPaletteContextOverrides = {}): CommandP
             setVisualizerBackgroundMode: vi.fn(),
             setMonetBackgroundTuning: vi.fn(),
             setLatentBackgroundTuning: vi.fn(),
+            cycleNebbiaBehind: vi.fn(() => 'aquarium' as const),
+            cycleNebbiaGlass: vi.fn(() => 'dew' as const),
             toggleVideoLayer: vi.fn(),
+            setSmartBeatMode: vi.fn(),
+            toggleSmartBeat: vi.fn(),
             pickVideoLayerFile: vi.fn(async () => null),
             usesWordSegmentation: true,
             lyricSegmentation: {
@@ -256,9 +294,9 @@ describe('command palette registry', () => {
         expect(match.command.id).toBe('settings-local-lyrics-priority');
         match.command.execute(match.input, context);
 
-        // The playback page is not the destination — the lyrics section inside it is, which is what
-        // an anchor-level command exists to reach.
-        expect(context.settings.openSettings).toHaveBeenCalledWith('options', 'playback', null, 'lyrics');
+        // The top of the lyrics page is not the destination — the lyrics group on it is, which is
+        // what an anchor-level command exists to reach.
+        expect(context.settings.openSettings).toHaveBeenCalledWith('options', 'lyrics', null, 'lyrics');
     });
 
     it('switches ReplayGain modes from the command palette', () => {
@@ -386,7 +424,7 @@ describe('command palette registry', () => {
 
         expect(context.shared.setStatusMsg).toHaveBeenCalledWith({
             type: 'info',
-            text: 'Sync is not enabled. Configure and enable it in Storage settings first.',
+            text: 'Sync is not enabled. Configure and enable it in Connections settings first.',
         });
     });
 
@@ -403,9 +441,9 @@ describe('command palette registry', () => {
         );
         expect(playerControlSlotsCommand).toBeDefined();
         playerControlSlotsCommand!.execute('', context);
-        // 必须带上锚点：槽位选择器在「通用」页底部的底部界面那一节里，
+        // 必须带上锚点：槽位选择器在「播放页」的控制栏那一组里，
         // 只传页面的话打开的是这一页的顶部，等于没跳过去。
-        expect(context.settings.openSettings).toHaveBeenLastCalledWith('options', 'general', null, 'bottomUiSettings');
+        expect(context.settings.openSettings).toHaveBeenLastCalledWith('options', 'player', null, 'bottomUiSettings');
 
         const [systemLanguageMatch] = getCommandPaletteMatches('跟随系统');
         expect(systemLanguageMatch.command.id).toBe('settings-language-system');
@@ -479,6 +517,24 @@ describe('command palette registry', () => {
 
         expect(getCommandPaletteMatches('清空队列', createContext())
             .some(entry => entry.command.id === 'playback-clear-queue')).toBe(false);
+    });
+
+    it('switches Nebbia\'s window scene and front glass, only while Nebbia is on screen', () => {
+        const context = createContext({ visualizer: { visualizerMode: 'nebbia' } });
+
+        const [scene] = getCommandPaletteMatches('切换窗外', context);
+        expect(scene.command.id).toBe('visualizer-nebbia-behind-cycle');
+        expect(scene.command.execute(scene.input, context)).toBe(true);
+        expect(context.visualizer.cycleNebbiaBehind).toHaveBeenCalled();
+        expect(context.shared.setStatusMsg).toHaveBeenCalledWith({ type: 'success', text: 'Outside the window: aquarium' });
+
+        const [glass] = getCommandPaletteMatches('glass style', context);
+        expect(glass.command.id).toBe('visualizer-nebbia-glass-cycle');
+        expect(glass.command.execute(glass.input, context)).toBe(true);
+        expect(context.visualizer.cycleNebbiaGlass).toHaveBeenCalled();
+
+        expect(getCommandPaletteMatches('切换玻璃', createContext())
+            .some(entry => entry.command.id === 'visualizer-nebbia-glass-cycle')).toBe(false);
     });
 
     it('matches commands by Chinese keyword and pinyin', () => {
@@ -713,7 +769,11 @@ describe('command palette registry', () => {
             'settings-general',
         ];
 
-        expect(getCommandPaletteMatches('', createContext(), recentIds).map(match => match.command.id))
+        // Two queued songs: shuffle is only offered when there is something to shuffle.
+        const context = createContext({
+            playback: { queue: [{ id: 1, name: 'One' }, { id: 2, name: 'Two' }] as unknown as SongResult[] },
+        });
+        expect(getCommandPaletteMatches('', context, recentIds).map(match => match.command.id))
             .toEqual(recentIds);
     });
 
@@ -821,6 +881,20 @@ describe('command palette registry', () => {
         }
     });
 
+    it('hides the always-on-top command where the window cannot stay on top (native Wayland)', () => {
+        vi.stubGlobal('window', { electron: {} });
+
+        try {
+            const context = createContext();
+            context.navigation.isWindowAlwaysOnTopSupported = false;
+
+            const matches = getCommandPaletteMatches('主窗口置顶', context);
+            expect(matches.map(match => match.command.id)).not.toContain('desktop-toggle-main-window-always-on-top');
+        } finally {
+            vi.unstubAllGlobals();
+        }
+    });
+
     it('toggles the desktop-local lyrics API', async () => {
         const getLyricApiStatus = vi.fn().mockResolvedValue({ enabled: false, running: false });
         const setLyricApiEnabled = vi.fn().mockResolvedValue({ enabled: true, running: true });
@@ -846,6 +920,19 @@ describe('command palette registry', () => {
             expect(match.command.id).toBe('desktop-toggle-prevent-display-sleep');
             await match.command.execute('', context);
             expect(context.settings.togglePreventDisplaySleepDuringPlayback).toHaveBeenCalled();
+        } finally {
+            vi.unstubAllGlobals();
+        }
+    });
+
+    it('matches and executes the desktop background throttling toggle', async () => {
+        vi.stubGlobal('window', { electron: {} });
+        try {
+            const context = createContext();
+            const [match] = getCommandPaletteMatches('后台节流', context);
+            expect(match.command.id).toBe('desktop-toggle-background-throttling');
+            await match.command.execute('', context);
+            expect(context.settings.toggleBackgroundThrottling).toHaveBeenCalled();
         } finally {
             vi.unstubAllGlobals();
         }
@@ -979,13 +1066,25 @@ describe('personal FM withdraws the queue commands', () => {
     // 才活着——所以 FM 播放期间这些命令整体下线，而不是让用户操作完才发现掉出了电台。
     const QUEUE_COMMAND_IDS = ['queue', 'playback-shuffle', 'playback-clear-queue'];
 
-    const availableIds = (isFmMode: boolean) => getAvailableCommandPaletteCommands(createContext({
-        playback: { isFmMode, queue: [{ id: 1, name: 'Song' } as unknown as SongResult] },
+    const queueOf = (length: number) => Array.from({ length }, (_, index) => (
+        { id: index + 1, name: `Song ${index + 1}` } as unknown as SongResult
+    ));
+    // 两首：只有一首时「打乱队列」本来就不出现。
+    const availableIds = (isFmMode: boolean, queue = queueOf(2)) => getAvailableCommandPaletteCommands(createContext({
+        playback: { isFmMode, queue },
     })).map(command => command.id);
 
     it('offers them while Personal FM is off', () => {
         const ids = availableIds(false);
         QUEUE_COMMAND_IDS.forEach(id => expect(ids).toContain(id));
+    });
+
+    it('offers shuffle only for a queue of more than one song', () => {
+        expect(availableIds(false, queueOf(0))).not.toContain('playback-shuffle');
+        expect(availableIds(false, queueOf(1))).not.toContain('playback-shuffle');
+        expect(availableIds(false, queueOf(2))).toContain('playback-shuffle');
+        // 没有 app 时（固定命令的选择器、契约测试）照旧列出来。
+        expect(COMMAND_PALETTE_COMMANDS.find(command => command.id === 'playback-shuffle')?.isAvailable?.(undefined)).toBe(true);
     });
 
     it('withdraws them while Personal FM is on air', () => {
@@ -1078,14 +1177,16 @@ describe('play and pause commands', () => {
 
 
 describe('lattice focus command', () => {
+    // The command is the wall's locate button from the keyboard, and is there when that button is: while a song plays.
+    const playing = { currentSong: { id: 1, name: 'Song' } as unknown as SongResult };
     it.each(['home', 'player', 'lattice'] as const)('gates focus to lattice from %s', view => {
-        const context = createContext({ scope: { view, filter: null } });
+        const context = createContext({ scope: { view, filter: null }, shared: playing });
         const ids = getAvailableCommandPaletteCommands(context).map(command => command.id);
         expect(ids.includes('lattice-focus-current')).toBe(view === 'lattice');
     });
     it('uses c in execute mode only on lattice', () => {
         const resolveInView = (view: 'player' | 'lattice') => resolveExecuteShortcut(
-            buildExecuteShortcutIndex(getAvailableCommandPaletteCommands(createContext({ scope: { view, filter: null } }))),
+            buildExecuteShortcutIndex(getAvailableCommandPaletteCommands(createContext({ scope: { view, filter: null }, shared: playing }))),
             'c',
         );
         const playerResolution = resolveInView('player');
@@ -1094,14 +1195,14 @@ describe('lattice focus command', () => {
         expect(playerResolution.status === 'exact' && playerResolution.command.id).toBe('panel-cover');
         expect(latticeResolution.status === 'exact' && latticeResolution.command.id).toBe('lattice-focus-current');
     });
-    it('uses the registered wall action and is unavailable without a current queue song', async () => {
-        const focusLatticeCurrentSong = vi.fn(() => true);
-        const context = createContext({ scope: { view: 'lattice', filter: null }, navigation: { focusLatticeCurrentSong } });
+    it('presses the locate of the wall and is unavailable while no song plays', async () => {
+        const locatePlayingSongOnWall = vi.fn();
+        const context = createContext({ scope: { view: 'lattice', filter: null }, shared: playing, navigation: { locatePlayingSongOnWall } });
         const command = getAvailableCommandPaletteCommands(context).find(command => command.id === 'lattice-focus-current')!;
         expect(await command.execute('', context)).toBe(true);
-        expect(focusLatticeCurrentSong).toHaveBeenCalledOnce();
+        expect(locatePlayingSongOnWall).toHaveBeenCalledOnce();
         expect(getAvailableCommandPaletteCommands(createContext({
-            scope: { view: 'lattice', filter: null }, navigation: { canFocusLatticeCurrentSong: false },
+            scope: { view: 'lattice', filter: null },
         })).some(command => command.id === 'lattice-focus-current')).toBe(false);
     });
 });

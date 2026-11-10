@@ -51,7 +51,7 @@ const createState = () => {
       Object.assign(state, patch);
       listeners.forEach((listener) => listener());
     },
-    subscribe: (listener) => {
+    onChange: (listener) => {
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
@@ -72,7 +72,7 @@ const normalizeFeed = (payload) => {
 export default function activate(folium) {
   const shared = createState();
 
-  const settings = folium.registries.settingsSections.register({
+  const section = folium.registries.settingsSections.register({
     id: 'progress-extras',
     label: { 'zh-CN': '进度条增强', en: 'Progress bar extras' },
     description: { 'zh-CN': '标记数据源、刷新间隔与样式。', en: 'Marker feed, refresh interval and style.' },
@@ -122,7 +122,7 @@ export default function activate(folium) {
   };
 
   // ---- external dynamic data
-  let timer = null;
+  let stopPolling = () => {};
   let generation = 0;
   const resolveUrl = (template) => {
     const song = folium.playback.getState().song;
@@ -132,7 +132,7 @@ export default function activate(folium) {
       .replaceAll('{artist}', encodeURIComponent(song?.artist ?? ''));
   };
   const fetchFeed = async () => {
-    const { feedUrl } = settings.params.get();
+    const { feedUrl } = section.settings.get();
     if (!feedUrl) {
       shared.set({ feed: [], error: null });
       return;
@@ -150,16 +150,17 @@ export default function activate(folium) {
     }
   };
   const restartPolling = () => {
-    if (timer !== null) clearInterval(timer);
-    const { refreshSec } = settings.params.get();
-    timer = setInterval(fetchFeed, Math.max(2, Number(refreshSec) || 5) * 1000);
+    stopPolling();
+    const { refreshSec } = section.settings.get();
+    // folium.every: the host stops the timer when the mod stops.
+    stopPolling = folium.every(Math.max(2, Number(refreshSec) || 5) * 1000, () => { void fetchFeed(); });
     void fetchFeed();
   };
 
   // ---- styles, toggled by the setting
   let styleHandle = null;
   const syncStyle = () => {
-    const enabled = Boolean(settings.params.get().styleEnabled);
+    const enabled = Boolean(section.settings.get().styleEnabled);
     if (enabled && !styleHandle) {
       styleHandle = folium.registries.styles.register({ id: 'progress-look', css: STYLE_CSS });
     } else if (!enabled && styleHandle) {
@@ -168,8 +169,8 @@ export default function activate(folium) {
     }
   };
 
-  // ---- the button
-  folium.registries.controlButtons.register({
+  // ---- the button (the host keeps its clicks inside it, away from the floating capsule)
+  folium.registries.progressButtons.register({
     id: 'bookmark',
     slot: 'progress.trailing',
     mount(container, ctx) {
@@ -182,16 +183,13 @@ export default function activate(folium) {
       paint();
       button.addEventListener('mouseenter', () => { button.style.opacity = '1'; });
       button.addEventListener('mouseleave', () => { button.style.opacity = '0.7'; });
-      button.addEventListener('click', (event) => {
-        event.stopPropagation();
-        void addBookmark(ctx.currentTime.get());
+      button.addEventListener('click', () => {
+        void addBookmark(ctx.playbackTime.get());
       });
       container.appendChild(button);
-      const off = ctx.subscribe(paint);
-      return () => {
-        off();
-        button.remove();
-      };
+      // The host stops it when the button is removed.
+      ctx.onChange(paint);
+      return () => button.remove();
     },
   });
 
@@ -222,10 +220,8 @@ export default function activate(folium) {
           'pointer-events:auto',
           'cursor:pointer',
         ].join(';');
-        element.addEventListener('click', (event) => {
-          event.stopPropagation();
-          ctx.seek(seconds);
-        });
+        // The host keeps the click inside the layer.
+        element.addEventListener('click', () => ctx.seek(seconds));
         return element;
       };
 
@@ -242,22 +238,22 @@ export default function activate(folium) {
       };
 
       render();
-      const offShared = shared.subscribe(render);
-      const offCtx = ctx.subscribe(render);
+      // The host stops ctx.onChange with the layer; the mod's own state is the mod's to leave.
+      ctx.onChange(render);
+      const offShared = shared.onChange(render);
       return () => {
         offShared();
-        offCtx();
         root.remove();
       };
     },
   });
 
-  // ---- wiring
-  const offSettings = settings.params.subscribe(() => {
+  // ---- wiring: the host drops these listeners when the mod stops.
+  section.settings.onChange(() => {
     syncStyle();
     restartPolling();
   });
-  const offSong = folium.events.on('playback.songChanged', () => {
+  folium.events.on('playback.songChanged', () => {
     void loadBookmarks();
     void fetchFeed();
   });
@@ -265,10 +261,8 @@ export default function activate(folium) {
   restartPolling();
   void loadBookmarks();
 
+  // A feed answer that arrives after the mod stopped is dropped.
   return () => {
-    offSettings();
-    offSong();
-    if (timer !== null) clearInterval(timer);
     generation += 1;
   };
 }

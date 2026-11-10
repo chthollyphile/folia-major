@@ -9,6 +9,17 @@ const MAX_STDERR_CHARS = 32 * 1024;
 
 const appendBounded = (current, chunk) => `${current}${String(chunk)}`.slice(-MAX_STDERR_CHARS);
 
+const DSD_INPUT = /\.(dsf|dff)$/i;
+/**
+ * The one rate DSD is brought down to; every other source keeps its own.
+ *
+ * FFmpeg decodes DSD at an eighth of its bit rate: 352.8 kHz for DSD64, 1411.2 kHz for DSD256,
+ * which the FLAC encoder refuses outright. Even the rates it accepts are mostly the modulator's
+ * noise shaping, an incompressible 13 Mb/s per DSD64 track in the cache. 88.2 kHz divides every
+ * 44.1 kHz-family DSD rate exactly and is still above the 44.1/48 kHz most output devices mix at.
+ */
+const DSD_PCM_RATE = 88200;
+
 const runProcess = ({ executable, args, spawnProcess = spawn, signal, timeoutMs = 30 * 60 * 1000 }) => new Promise((resolve, reject) => {
     let stderr = '';
     let settled = false;
@@ -58,6 +69,7 @@ const encodeArgs = (inputPath, outputPath, format) => [
     '-i', inputPath,
     '-map', '0:a:0', '-vn', '-sn', '-dn', '-map_metadata', '-1',
     '-ac', '2',
+    ...(DSD_INPUT.test(inputPath) ? ['-ar', String(DSD_PCM_RATE)] : []),
     ...(format === 'flac'
         ? ['-c:a', 'flac', '-compression_level', '5', '-f', 'flac']
         : ['-c:a', 'pcm_s16le', '-f', 'wav']),
@@ -81,4 +93,4 @@ const transcodeAudioFile = async ({ executable, inputPath, outputPath, format, s
     return { size: stat.size };
 };
 
-module.exports = { encodeArgs, runProcess, transcodeAudioFile, validateArgs };
+module.exports = { DSD_PCM_RATE, encodeArgs, runProcess, transcodeAudioFile, validateArgs };

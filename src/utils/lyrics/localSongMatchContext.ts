@@ -1,9 +1,10 @@
 import type { LocalSong } from '../../types';
+import { getPlatformLyricSource, type PlatformLyricSource } from './lyricSources';
 
 // src/utils/lyrics/localSongMatchContext.ts
 
 export interface LocalSongMetadataLyricCandidate {
-    source: 'netease' | 'qq' | 'kugou';
+    source: PlatformLyricSource;
     songId: number | string;
 }
 
@@ -37,9 +38,9 @@ export const buildLocalSongLyricMatchContext = (
         || song.onlineMetadata?.album?.name
         || song.importedMetadata.albumName
         || '';
-    const source = song.onlineMetadata?.source;
+    const source = getPlatformLyricSource(song.onlineMetadata?.source);
     const songId = song.onlineMetadata?.songId;
-    const hasSelectedIdentity = (source === 'netease' || source === 'qq' || source === 'kugou')
+    const hasSelectedIdentity = source?.localMetadataIdentity === true
         && songId !== undefined
         && songId !== null
         && String(songId).trim() !== '';
@@ -51,7 +52,7 @@ export const buildLocalSongLyricMatchContext = (
         durationMs: song.duration || 0,
         ...(hasSelectedIdentity ? {
             metadataCandidate: {
-                source,
+                source: source.id,
                 songId,
             },
         } : {}),

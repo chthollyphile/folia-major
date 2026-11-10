@@ -1,5 +1,7 @@
+import type { SeamAxis } from '../../../components/wall/seamPlan';
 import {
     BRAVAIS_SEAM_FULL_WIDTH,
+    BRAVAIS_SEAM_ROW_FULL_HEIGHT,
     BRAVAIS_SEAM_POSTER_MAX_WIDTH,
     BRAVAIS_SEAM_POSTER_MIN_WIDTH,
     BRAVAIS_SEAM_POSTER_VIEWPORT_RATIO,
@@ -21,6 +23,8 @@ import {
 // 优先级：表单 > 面板（折叠时除外）> 过滤的临时展开 > 用户选的等级。用户的等级不被改写，只是暂时不生效。
 // B9 首页：目录树面板与列表面板同一种开口（panel）；全局搜索框开着时首页窄缝临时展开成完整宽度（search，
 // 折叠时除外——搜索态没有书脊这一级，只能折叠）。首页的表单态在面板里（底部翻牌），不占整条缝。
+// 信息条横向（设置）：首页窄缝 / 书脊、完整信息条 / 书脊与首页的搜索框从块的横向缝隙裂开（轴 'y'，宽度是横条的高度）；
+// 面板、表单（有列表）与歌手 / 专辑海报仍是竖的开口（轴 'x'）。换轴时缝先合上、再在另一个方向张开（useBravaisSeam）。
 
 /** 列表面板的开口：min(420, 视口 − 52)。 */
 export const BRAVAIS_PANEL_MAX_WIDTH = 420;
@@ -39,10 +43,19 @@ export const resolvePosterWidth = (viewportWidth: number) => Math.round(Math.max
     Math.min(BRAVAIS_SEAM_POSTER_MAX_WIDTH, viewportWidth * BRAVAIS_SEAM_POSTER_VIEWPORT_RATIO),
 ));
 
-export type BravaisSeamContentVariant = BravaisSeamVariant | 'panel' | 'form' | 'search' | 'poster' | BravaisAccountSeamVariant;
+export type BravaisSeamContentVariant = BravaisSeamVariant | 'panel' | 'form' | 'search' | 'poster';
 
-/** B10：账户的登录态 / 确认态（不属于任何一层，见 bravaisAccountStore）。 */
-export type BravaisAccountSeamVariant = 'login' | 'confirm';
+/** 信息条横向时走横向的那几套内容；面板、表单、海报总是竖的。 */
+const ROW_VARIANTS: ReadonlySet<BravaisSeamContentVariant> = new Set(['home', 'home-spine', 'full', 'spine', 'search']);
+
+/**
+ * 一套内容开在哪个方向：'x' 是竖的缝（墙左右分开），'y' 是横的（墙上下分开）。折叠（none）没有方向，给 null——
+ * 锚点留在原来的方向上，恢复时再看要不要换。
+ */
+export const resolveSeamAxis = (variant: BravaisSeamContentVariant, horizontal: boolean): SeamAxis | null => {
+    if (variant === 'none') return null;
+    return horizontal && ROW_VARIANTS.has(variant) ? 'y' : 'x';
+};
 
 export type BravaisSeamTargetInput = {
     surface: BravaisLayerSurface;
@@ -56,6 +69,8 @@ export type BravaisSeamTargetInput = {
     searchOpen?: boolean;
     /** 这一层可以画海报（歌手页、专辑页，无限拼贴；过滤生效的有限拼贴不行）。由 stage 判定，这里不看 surface。 */
     poster?: boolean;
+    /** 信息条此刻横着开（useLibraryWallLookStore 的 seamDirection 按视口解析后的结果）。 */
+    horizontal?: boolean;
 };
 
 /** 这一刻的生效等级：过滤框、面板、表单都要求完整的缝。 */
@@ -63,7 +78,9 @@ export const resolveEffectiveSeamLevel = ({ level, formOpen, panelOpen, filterOp
     formOpen || filterOpen || (panelOpen && level !== 'hidden') ? 'full' : level
 );
 
+/** 开口宽度与内容；方向由 resolveSeamAxis 按内容与「信息条横向」另算。 */
 export const resolveSeamTarget = (input: BravaisSeamTargetInput): { width: number; variant: BravaisSeamContentVariant } => {
+    const row = Boolean(input.horizontal);
     // 整条缝翻成表单只在集合层与歌手页（B8）上有；首页的表单在目录树面板底部（B9），不占整条缝。
     // 面板三层都有：集合 / 歌手是列表面板，首页是目录树（只在有批量的那几行，hasPanel 由 surface 给）。
     if (input.surface !== 'home' && input.formOpen) return { width: BRAVAIS_SEAM_FULL_WIDTH, variant: 'form' };
@@ -72,34 +89,24 @@ export const resolveSeamTarget = (input: BravaisSeamTargetInput): { width: numbe
         return { width: resolvePanelWidth(input.viewportWidth), variant: 'panel' };
     }
     if (input.surface === 'home' && input.searchOpen && input.level !== 'hidden') {
-        return { width: BRAVAIS_SEAM_FULL_WIDTH, variant: 'search' };
+        return { width: row ? BRAVAIS_SEAM_ROW_FULL_HEIGHT : BRAVAIS_SEAM_FULL_WIDTH, variant: 'search' };
     }
     const level = resolveEffectiveSeamLevel(input);
     // 歌手海报只在用户选的完整等级上：过滤框的临时展开、面板、表单都回到普通的缝（它们排在前面或改写了等级）。
     if (input.poster && input.level === 'full' && !input.filterOpen) {
         return { width: resolvePosterWidth(input.viewportWidth), variant: 'poster' };
     }
-    return { width: resolveSeamOpenWidth(input.surface, level), variant: resolveSeamVariant(input.surface, level) };
+    return { width: resolveSeamOpenWidth(input.surface, level, row ? 'y' : 'x'), variant: resolveSeamVariant(input.surface, level) };
 };
 
-/** 一套内容的排版宽度（翻转不重排：跟着此刻渲染的那一套走）。 */
-export const resolveVariantWidth = (variant: BravaisSeamContentVariant, viewportWidth: number) => {
-    if (variant === 'form' || variant === 'search' || variant === 'login' || variant === 'confirm') return BRAVAIS_SEAM_FULL_WIDTH;
+/** 一套内容的排版宽度（翻转不重排：跟着此刻渲染的那一套走）；横向的缝给横条的排版高度。 */
+export const resolveVariantWidth = (variant: BravaisSeamContentVariant, viewportWidth: number, axis: SeamAxis | null = 'x') => {
+    if (variant === 'search') return axis === 'y' ? BRAVAIS_SEAM_ROW_FULL_HEIGHT : BRAVAIS_SEAM_FULL_WIDTH;
+    if (variant === 'form') return BRAVAIS_SEAM_FULL_WIDTH;
     if (variant === 'panel') return resolvePanelWidth(viewportWidth);
     if (variant === 'poster') return resolvePosterWidth(viewportWidth);
-    return seamVariantWidth(variant);
+    return seamVariantWidth(variant, axis ?? 'x');
 };
-
-/**
- * B10：stage 用的开口——账户的登录态 / 确认态压过层上的一切（表单、面板、搜索、过滤、等级，折叠也一样）：选中未登录的
- * 平台后缝强制拉到完整宽度（300px，放得下 200px 的二维码），关掉或答复后回到原来的开口（用户的等级不被改写）。
- */
-export const resolveStageSeamTarget = (
-    input: BravaisSeamTargetInput,
-    account: BravaisAccountSeamVariant | null,
-): { width: number; variant: BravaisSeamContentVariant } => (
-    account ? { width: BRAVAIS_SEAM_FULL_WIDTH, variant: account } : resolveSeamTarget(input)
-);
 
 /**
  * 缝里的内容换不换（整条翻不翻）的身份：按层 key。首页换页签（`home:<页签>`）同样整条翻一次（2026-10-09 用户：与原型

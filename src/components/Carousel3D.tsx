@@ -3,6 +3,7 @@ import { motion, useMotionValue, useTransform, animate, AnimatePresence } from '
 import { Loader2, Disc, Map as MapIcon, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { getSizedCoverUrl } from '../utils/coverUrl';
+import { hasBlockingWindow } from '../utils/keyboardTargets';
 
 // Convert HTTP to HTTPS only for Netease CDN URLs
 const toSafeUrl = (url?: string): string | undefined => {
@@ -230,6 +231,7 @@ const Carousel3D: React.FC<Carousel3DProps> = ({
         const THROTTLE_MS = 100;
 
         const handleKeyDown = (e: KeyboardEvent) => {
+            if (hasBlockingWindow()) return;
             if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
             
             if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {

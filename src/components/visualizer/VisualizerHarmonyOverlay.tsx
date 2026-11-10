@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion, type MotionValue, useMotionValueEvent, useTransform } from 'framer-motion';
 import type { Line, LyricBackgroundVocal, SubtitleContentMode, Theme, Word } from '../../types';
 import { resolveThemeFontStack, resolveThemeFontWeight, resolveThemeTranslationFontStack } from '../../utils/fontStacks';
@@ -32,6 +32,15 @@ interface VisualizerHarmonyOverlayProps {
 }
 
 const EMPTY_HARMONY_SNAPSHOT: HarmonySnapshot = { signature: '', lines: [] };
+
+/** How far below the stage's top the harmony line sits, in the stage's pixels. */
+export const HARMONY_TOP_PX = 76;
+
+/**
+ * Where the harmony line sits instead. A preview that crops the stage's top (VisPlaygroundSampleStage)
+ * moves it so the line keeps its distance below the box's top; elsewhere it stays HARMONY_TOP_PX.
+ */
+export const HarmonyTopContext = createContext(HARMONY_TOP_PX);
 
 interface HarmonyTextPart {
     key: string;
@@ -201,7 +210,7 @@ const VisualizerHarmonyOverlay: React.FC<VisualizerHarmonyOverlayProps> = ({
     }, [currentTime, updateSnapshot]);
 
     useMotionValueEvent(currentTime, 'change', updateSnapshot);
-    const harmonyTopPx = 76;
+    const harmonyTopPx = useContext(HarmonyTopContext);
 
     return (
         <AnimatePresence>

@@ -1,5 +1,5 @@
 import React from 'react';
-import type { LibrarySuiteStageProps } from '../core/contracts/suite';
+import type { LibrarySuiteStageProps } from '../core/suite/suite.contract';
 import type { ResolvedLibraryStage } from '../registry';
 import { useLibraryPlayerOcclusionReporter } from './useLibraryPlayerOcclusionReporter';
 

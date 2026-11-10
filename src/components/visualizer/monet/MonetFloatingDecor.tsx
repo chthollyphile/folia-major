@@ -1,29 +1,12 @@
 import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
 import type { Theme } from '../../../types';
-import { colorWithAlpha } from '../colorMix';
 import { useLucideIcons } from '../../../hooks/useLucideIcons';
 import { getLucideIconStatus, resolveLucideIcon } from '../../../services/lucideIconResolver';
 
 // src/components/visualizer/monet/MonetFloatingDecor.tsx
-// Renders gentle floating decorative particles for the Monet visualizer.
-// Uses theme lyricsIcons (lucide) when available; falls back to cherry-blossom petals.
-
-/** Simple SVG cherry-blossom petal used as fallback when no theme icons are provided. */
-const SakuraPetal: React.FC<{ size: number; color: string }> = ({ size, color }) => (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path
-            d="M12 3C14.5 5.5 16.8 9 16 14C15.2 19 13.5 21 12 21C10.5 21 8.8 19 8 14C7.2 9 9.5 5.5 12 3Z"
-            fill={color}
-        />
-        <path
-            d="M12 6C12 6 11.3 10.5 11.3 14.5C11.3 17.5 12 20 12 20"
-            stroke={colorWithAlpha(color, 0.35)}
-            strokeWidth="0.45"
-            strokeLinecap="round"
-        />
-    </svg>
-);
+// Renders gentle floating decorative particles for the Monet visualizer: the theme's lyricsIcons
+// (lucide). A theme without icons has none.
 
 interface FloatingParticle {
     id: number;
@@ -34,7 +17,7 @@ interface FloatingParticle {
     duration: number;
     delay: number;
     opacity: number;
-    iconName: string | null;
+    iconName: string;
     reverse: boolean;
 }
 
@@ -45,11 +28,11 @@ interface MonetFloatingDecorProps {
 
 const PARTICLE_COUNT = 10;
 
-/** Generates a stable set of floating particles seeded by the available icon list. */
+/** Generates a stable set of floating particles seeded by the available icon list; some slots stay empty. */
 const buildParticles = (availableIcons: string[]): FloatingParticle[] =>
-    Array.from({ length: PARTICLE_COUNT }, (_, i) => {
-        const useIcon = availableIcons.length > 0 && ((i * 37 + 11) % 100) > 20;
-        return {
+    Array.from({ length: PARTICLE_COUNT }, (_, i) => i)
+        .filter(i => availableIcons.length > 0 && ((i * 37 + 11) % 100) > 20)
+        .map(i => ({
             id: i,
             x: ((i * 127 + 43) % 80) + 10,
             y: ((i * 211 + 17) % 80) + 5,
@@ -58,12 +41,9 @@ const buildParticles = (availableIcons: string[]): FloatingParticle[] =>
             duration: 20 + ((i * 71) % 20),
             delay: ((i * 41) % 80) / 10,
             opacity: 0.06 + ((i * 31) % 12) / 100,
-            iconName: useIcon
-                ? availableIcons[i % availableIcons.length]
-                : null,
+            iconName: availableIcons[i % availableIcons.length],
             reverse: i % 2 === 0,
-        };
-    });
+        }));
 
 const MonetFloatingDecor: React.FC<MonetFloatingDecorProps> = ({
     theme,
@@ -78,18 +58,16 @@ const MonetFloatingDecor: React.FC<MonetFloatingDecorProps> = ({
         [availableIcons.join(',')],
     );
 
-    const petalColor = colorWithAlpha(theme.secondaryColor, 0.55);
-
-    /** Resolves the visual element for a single particle. */
+    /** Resolves the visual element for a single particle: nothing while its chunk loads or for an unknown name. */
     const renderParticleContent = (p: FloatingParticle) => {
-        // Hold the spot while the icon's chunk loads rather than flashing a petal first.
-        if (p.iconName && getLucideIconStatus(p.iconName) === 'loading') return null;
+        if (getLucideIconStatus(p.iconName) === 'loading') return null;
         const Icon = resolveLucideIcon(p.iconName);
-        if (Icon) {
-            return <Icon size={p.size} strokeWidth={1} absoluteStrokeWidth color={theme.secondaryColor} />;
-        }
-        return <SakuraPetal size={p.size} color={petalColor} />;
+        return Icon ? <Icon size={p.size} strokeWidth={1} absoluteStrokeWidth color={theme.secondaryColor} /> : null;
     };
+
+    if (particles.length === 0) {
+        return null;
+    }
 
     if (staticMode) {
         return (

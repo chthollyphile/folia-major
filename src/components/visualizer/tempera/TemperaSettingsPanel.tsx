@@ -1,69 +1,94 @@
-import React, { useMemo } from 'react';
+import React, { useCallback } from 'react';
 import { DEFAULT_TEMPERA_TUNING, type TemperaColorMode, type TemperaTuning } from '../../../types';
-import { colorWithAlpha } from '../colorMix';
+import { Group, PictureGrid, Reveal, Row, type SettingsGroupDef } from '../../modal/settings/kit';
 import type { VisualizerSettingsPanelProps } from '../definition';
-import VisualizerPresetGroup, { type VisualizerPresetOption } from '../VisualizerPresetGroup';
-import { TemperaRangeControl, TemperaSettingsSection } from './TemperaSettingsControls';
+import { SliderRow, times, ToggleRow } from '../panelRows';
+import LyricRenderQualityRows from '../renderQuality/LyricRenderQualityRows';
 import TemperaImageLayerControls from './TemperaImageLayerControls';
+import { resolveTemperaPalette } from './temperaPalette';
 
 // src/components/visualizer/tempera/TemperaSettingsPanel.tsx
-// Keeps Tempera's tuning controls adjacent to the mode implementation.
-const TemperaSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
+// Keeps Tempera's tuning controls adjacent to the mode implementation: seven groups of the settings kit
+// (渲染一组是分辨率 / 抗锯齿，#929).
+const IMAGE_GROUP: SettingsGroupDef = { id: 'vis-tempera-image', titleKey: 'options.temperaImageSection' };
+const QUALITY_GROUP: SettingsGroupDef = { id: 'vis-tempera-quality', titleKey: 'options.temperaQualitySection' };
+/** 分辨率倍数（乘在上面的纹理分辨率上）与抗锯齿，默认跟随「动画与性能」的全局挡位（#929）。 */
+const RENDER_GROUP: SettingsGroupDef = { id: 'vis-tempera-render', titleKey: 'options.lyricRenderSection' };
+const MOTION_GROUP: SettingsGroupDef = { id: 'vis-tempera-motion', titleKey: 'options.temperaMotionSection' };
+const POST_PROCESS_GROUP: SettingsGroupDef = { id: 'vis-tempera-post-process', titleKey: 'options.temperaPostProcessSection' };
+const LYRIC_GROUP: SettingsGroupDef = { id: 'vis-tempera-lyric', titleKey: 'options.temperaLyricSection' };
+const DISPLAY_GROUP: SettingsGroupDef = { id: 'vis-tempera-display', titleKey: 'options.temperaDisplaySection' };
+
+const COLOR_MODES: Array<{ value: TemperaColorMode; labelKey: string }> = [
+    { value: 'duo', labelKey: 'options.temperaColorModeDuo' },
+    { value: 'mono', labelKey: 'options.temperaColorModeMono' },
+    { value: 'gradient', labelKey: 'options.temperaColorModeGradient' },
+];
+
+const MOTION_CONTROLS: Array<{ key: Extract<keyof TemperaTuning, 'cameraIntensity' | 'glyphMotion'>; labelKey: string }> = [
+    { key: 'cameraIntensity', labelKey: 'options.temperaCameraIntensity' },
+    { key: 'glyphMotion', labelKey: 'options.temperaGlyphMotion' },
+];
+
+/** 墨染奥行's three strengths; its ink takes the beat effect's own strength in 智能动感. */
+const DEPTH_CONTROLS: Array<{ key: Extract<keyof TemperaTuning, 'depthOfField' | 'depthPan' | 'glyphDepth'>; labelKey: string }> = [
+    { key: 'depthOfField', labelKey: 'options.temperaDepthOfField' },
+    { key: 'depthPan', labelKey: 'options.temperaDepthPan' },
+    { key: 'glyphDepth', labelKey: 'options.temperaGlyphDepth' },
+];
+
+const POST_PROCESS_CONTROLS: Array<{
+    key: Extract<keyof TemperaTuning, 'postProcessGrain' | 'postProcessContrast' | 'postProcessRgbShift' | 'postProcessVignette' | 'postProcessLensDistortion'>;
+    labelKey: string;
+    max: number;
+}> = [
+    { key: 'postProcessGrain', labelKey: 'options.temperaPostProcessGrain', max: 1 },
+    { key: 'postProcessContrast', labelKey: 'options.temperaPostProcessContrast', max: 1 },
+    { key: 'postProcessRgbShift', labelKey: 'options.temperaPostProcessRgbShift', max: 1 },
+    { key: 'postProcessVignette', labelKey: 'options.temperaPostProcessVignette', max: 2 },
+    { key: 'postProcessLensDistortion', labelKey: 'options.temperaPostProcessLensDistortion', max: 2 },
+];
+
+const VISIBILITY_CONTROLS: Array<{
+    key: Extract<keyof TemperaTuning, 'showBlocks' | 'showDecor' | 'showCornerMarks' | 'textInversion' | 'enableTransitions'>;
+    labelKey: string;
+}> = [
+    { key: 'showBlocks', labelKey: 'options.temperaShowBlocks' },
+    { key: 'showDecor', labelKey: 'options.temperaShowDecor' },
+    { key: 'showCornerMarks', labelKey: 'options.temperaShowCornerMarks' },
+    { key: 'textInversion', labelKey: 'options.temperaTextInversion' },
+    { key: 'enableTransitions', labelKey: 'options.temperaEnableTransitions' },
+];
+
+const TemperaSettingsPanel: React.FC<VisualizerSettingsPanelProps<TemperaTuning>> = ({
     t,
     isDaylight,
     theme,
     rangeInputClass,
-    controlCardBg,
-    temperaTuning = DEFAULT_TEMPERA_TUNING,
-    onTemperaTuningChange,
+    tuning: temperaTuning = DEFAULT_TEMPERA_TUNING,
+    onTuningChange: onTemperaTuningChange,
     onSliderPointerDown,
     onSliderCommit,
 }) => {
-    const booleanOptions: VisualizerPresetOption<boolean>[] = useMemo(() => ([
-        { value: true, label: t('options.temperaToggleOn') || '开启' },
-        { value: false, label: t('options.temperaToggleOff') || '关闭' },
-    ]), [t]);
+    const drag = { onDragStart: onSliderPointerDown, onDragEnd: onSliderCommit };
 
-    const colorModeOptions: VisualizerPresetOption<TemperaColorMode>[] = useMemo(() => ([
-        { value: 'duo', label: t('options.temperaColorModeDuo') || '主题双色' },
-        { value: 'mono', label: t('options.temperaColorModeMono') || '黑白灰' },
-        { value: 'gradient', label: t('options.temperaColorModeGradient') || '封面渐变' },
-    ]), [t]);
-
-    const visibilityControls: Array<{
-        key: Extract<keyof TemperaTuning, 'showBlocks' | 'showDecor' | 'showCornerMarks' | 'textInversion' | 'enableTransitions'>;
-        label: string;
-    }> = [
-        { key: 'showBlocks', label: t('options.temperaShowBlocks') || '色块场景' },
-        { key: 'showDecor', label: t('options.temperaShowDecor') || '装饰元素' },
-        { key: 'showCornerMarks', label: t('options.temperaShowCornerMarks') || '边角线框' },
-        { key: 'textInversion', label: t('options.temperaTextInversion') || '文字动态反色' },
-        { key: 'enableTransitions', label: t('options.temperaEnableTransitions') || '场景转场' },
-    ];
-
-    const motionControls: Array<{
-        key: Extract<keyof TemperaTuning, 'cameraIntensity' | 'glyphMotion'>;
-        label: string;
-    }> = [
-        { key: 'cameraIntensity', label: t('options.temperaCameraIntensity') },
-        { key: 'glyphMotion', label: t('options.temperaGlyphMotion') },
-    ];
+    // A colour mode as the renderer resolves it for this theme (no cover at hand): the paper, the
+    // three block colours as bands, and the ink as a line of text.
+    const colorModePicture = useCallback((colorMode: TemperaColorMode) => {
+        const palette = resolveTemperaPalette(theme, { colorMode });
+        return (
+            <span className="absolute inset-0 flex items-end" style={{ backgroundColor: palette.paper }}>
+                <span className="absolute left-[14%] top-[22%] h-1.5 w-[44%] rounded-sm" style={{ backgroundColor: palette.ink }} />
+                <span className="h-[42%] flex-1" style={{ backgroundColor: palette.blockA }} />
+                <span className="h-[56%] flex-1" style={{ backgroundColor: palette.blockB }} />
+                <span className="h-[70%] flex-1" style={{ backgroundColor: palette.blockC }} />
+            </span>
+        );
+    }, [theme]);
 
     return (
-        <div
-            className="rounded-[24px] border border-white/10 p-4 space-y-4"
-            style={{ backgroundColor: controlCardBg }}
-        >
-            <div className="space-y-1">
-                <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                    {t('options.temperaSettings')}
-                </div>
-                <div className="text-xs opacity-50" style={{ color: 'var(--text-secondary)' }}>
-                    {t('options.temperaSettingsDesc')}
-                </div>
-            </div>
-
-            <TemperaSettingsSection title={t('options.temperaImageSection') || '画布图片'}>
+        <>
+            <Group def={IMAGE_GROUP}>
                 <TemperaImageLayerControls
                     images={temperaTuning.layerImages}
                     depth={temperaTuning.layerImageDepth}
@@ -72,183 +97,136 @@ const TemperaSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
                     isDaylight={isDaylight}
                     onCommit={patch => onTemperaTuningChange?.(patch)}
                 />
-            </TemperaSettingsSection>
+            </Group>
 
-            <TemperaSettingsSection title={t('options.temperaQualitySection')}>
-                <div
-                    className="rounded-2xl border p-3.5 space-y-2.5"
-                    style={{
-                        borderColor: colorWithAlpha(theme.secondaryColor, isDaylight ? 0.18 : 0.14),
-                        backgroundColor: colorWithAlpha(theme.backgroundColor, isDaylight ? 0.24 : 0.34),
-                    }}
-                >
-                    <TemperaRangeControl
-                        label={t('options.temperaTextureResolution')}
-                        value={temperaTuning.textureResolution}
-                        min={0.5}
-                        max={4}
-                        step={0.25}
-                        rangeInputClass={rangeInputClass}
-                        onChange={textureResolution => onTemperaTuningChange?.({ textureResolution })}
-                        onPointerDown={onSliderPointerDown}
-                        onPointerUp={onSliderCommit}
-                    />
-                    <p className="text-xs leading-relaxed opacity-60" style={{ color: 'var(--text-secondary)' }}>
-                        {t('options.temperaTexturePerformanceWarning')}
-                    </p>
-                </div>
-            </TemperaSettingsSection>
+            <Group def={QUALITY_GROUP}>
+                <SliderRow
+                    {...drag}
+                    label={t('options.temperaTextureResolution')}
+                    value={temperaTuning.textureResolution}
+                    min={0.5}
+                    max={4}
+                    step={0.25}
+                    format={times}
+                    onChange={textureResolution => onTemperaTuningChange?.({ textureResolution })}
+                />
+                <Row notice={t('options.temperaTexturePerformanceWarning')} />
+            </Group>
 
-            <TemperaSettingsSection title={t('options.temperaMotionSection')}>
-                {motionControls.map(control => (
-                    <TemperaRangeControl
+            <Group def={RENDER_GROUP}>
+                <LyricRenderQualityRows
+                    value={temperaTuning.render}
+                    onChange={patch => onTemperaTuningChange?.({ render: { ...temperaTuning.render, ...patch } })}
+                />
+            </Group>
+
+            <Group def={MOTION_GROUP}>
+                {MOTION_CONTROLS.map(control => (
+                    <SliderRow
+                        {...drag}
                         key={control.key}
-                        label={control.label}
+                        label={t(control.labelKey)}
                         value={temperaTuning[control.key]}
-                        rangeInputClass={rangeInputClass}
+                        min={0}
+                        max={2}
+                        step={0.05}
+                        format={times}
                         onChange={value => onTemperaTuningChange?.({ [control.key]: value })}
-                        onPointerDown={onSliderPointerDown}
-                        onPointerUp={onSliderCommit}
                     />
                 ))}
-                <TemperaRangeControl
-                    label={t('options.temperaGlyphSettleStretch') || '逐字入场时序'}
+                <SliderRow
+                    {...drag}
+                    label={t('options.temperaGlyphSettleStretch')}
+                    note={t('options.temperaGlyphSettleStretchHint')}
                     value={temperaTuning.glyphSettleStretch}
                     min={0}
                     max={1}
                     step={0.05}
-                    rangeInputClass={rangeInputClass}
+                    format={times}
                     onChange={glyphSettleStretch => onTemperaTuningChange?.({ glyphSettleStretch })}
-                    onPointerDown={onSliderPointerDown}
-                    onPointerUp={onSliderCommit}
                 />
-                <p className="text-xs leading-relaxed opacity-55" style={{ color: 'var(--text-secondary)' }}>
-                    {t('options.temperaGlyphSettleStretchHint')
-                        || '0 = 每字用同样的短窗口快速落位，切镜前画面已静止，适合快歌；1 = 整个分镜的字精确落在歌词结束那一刻，全程都在动，适合慢歌。'}
-                </p>
-                <VisualizerPresetGroup
+                <Row label={t('options.temperaDepthStrength')} hint={t('options.temperaDepthStrengthHint')} />
+                {DEPTH_CONTROLS.map(control => (
+                    <SliderRow
+                        {...drag}
+                        sub
+                        key={control.key}
+                        label={t(control.labelKey)}
+                        value={temperaTuning[control.key]}
+                        min={0}
+                        max={2}
+                        step={0.05}
+                        format={times}
+                        onChange={value => onTemperaTuningChange?.({ [control.key]: value })}
+                    />
+                ))}
+                <Row
                     label={t('options.temperaColorMode')}
-                    value={temperaTuning.colorMode}
-                    options={colorModeOptions}
-                    onChange={colorMode => onTemperaTuningChange?.({ colorMode })}
-                    isDaylight={isDaylight}
-                    theme={theme}
+                    below={(
+                        <PictureGrid
+                            className="-mx-4"
+                            columns={3}
+                            label={t('options.temperaColorMode')}
+                            value={temperaTuning.colorMode}
+                            options={COLOR_MODES.map(mode => ({ value: mode.value, label: t(mode.labelKey) }))}
+                            picture={colorModePicture}
+                            onChange={colorMode => onTemperaTuningChange?.({ colorMode })}
+                        />
+                    )}
                 />
-            </TemperaSettingsSection>
+            </Group>
 
-            <TemperaSettingsSection title={t('options.temperaPostProcessSection') || '后处理'}>
-                <VisualizerPresetGroup
-                    label={t('options.temperaPostProcessEnabled') || '整体后处理滤镜'}
-                    value={temperaTuning.postProcessEnabled}
-                    options={booleanOptions}
+            <Group def={POST_PROCESS_GROUP}>
+                <ToggleRow
+                    label={t('options.temperaPostProcessEnabled')}
+                    checked={temperaTuning.postProcessEnabled}
                     onChange={postProcessEnabled => onTemperaTuningChange?.({ postProcessEnabled })}
-                    isDaylight={isDaylight}
-                    theme={theme}
                 />
-                {temperaTuning.postProcessEnabled && (
-                    <>
-                        <VisualizerPresetGroup
-                            label={t('options.temperaPostProcessTextureCompression') || '后处理纹理压缩'}
-                            value={temperaTuning.postProcessTextureCompression}
-                            options={booleanOptions}
-                            onChange={postProcessTextureCompression => onTemperaTuningChange?.({ postProcessTextureCompression })}
-                            isDaylight={isDaylight}
-                            theme={theme}
-                        />
-                        <p className="text-xs leading-relaxed opacity-55" style={{ color: 'var(--text-secondary)' }}>
-                            {t('options.temperaPostProcessTextureCompressionHint')
-                                || '开启后后处理在 1x 纹理上运算再拉伸到画布，降低GPU和显存压力'}
-                        </p>
-                        <TemperaRangeControl
-                            label={t('options.temperaPostProcessGrain') || '胶片颗粒'}
-                            value={temperaTuning.postProcessGrain}
-                            min={0}
-                            max={1}
-                            step={0.05}
-                            rangeInputClass={rangeInputClass}
-                            onChange={postProcessGrain => onTemperaTuningChange?.({ postProcessGrain })}
-                            onPointerDown={onSliderPointerDown}
-                            onPointerUp={onSliderCommit}
-                        />
-                        <TemperaRangeControl
-                            label={t('options.temperaPostProcessContrast') || '对比度增强'}
-                            value={temperaTuning.postProcessContrast}
-                            min={0}
-                            max={1}
-                            step={0.05}
-                            rangeInputClass={rangeInputClass}
-                            onChange={postProcessContrast => onTemperaTuningChange?.({ postProcessContrast })}
-                            onPointerDown={onSliderPointerDown}
-                            onPointerUp={onSliderCommit}
-                        />
-                        <TemperaRangeControl
-                            label={t('options.temperaPostProcessRgbShift') || 'RGB 色差'}
-                            value={temperaTuning.postProcessRgbShift}
-                            min={0}
-                            max={1}
-                            step={0.05}
-                            rangeInputClass={rangeInputClass}
-                            onChange={postProcessRgbShift => onTemperaTuningChange?.({ postProcessRgbShift })}
-                            onPointerDown={onSliderPointerDown}
-                            onPointerUp={onSliderCommit}
-                        />
-                        <TemperaRangeControl
-                            label={t('options.temperaPostProcessVignette') || '暗角'}
-                            value={temperaTuning.postProcessVignette}
-                            min={0}
-                            max={2}
-                            step={0.05}
-                            rangeInputClass={rangeInputClass}
-                            onChange={postProcessVignette => onTemperaTuningChange?.({ postProcessVignette })}
-                            onPointerDown={onSliderPointerDown}
-                            onPointerUp={onSliderCommit}
-                        />
-                        <TemperaRangeControl
-                            label={t('options.temperaPostProcessLensDistortion') || '透镜扭曲'}
-                            value={temperaTuning.postProcessLensDistortion}
-                            min={0}
-                            max={2}
-                            step={0.05}
-                            rangeInputClass={rangeInputClass}
-                            onChange={postProcessLensDistortion => onTemperaTuningChange?.({ postProcessLensDistortion })}
-                            onPointerDown={onSliderPointerDown}
-                            onPointerUp={onSliderCommit}
-                        />
-                    </>
-                )}
-            </TemperaSettingsSection>
-
-            <TemperaSettingsSection title={t('options.temperaLyricSection') || '歌词分镜'}>
-                <VisualizerPresetGroup
-                    label={t('options.temperaWholeLineLyrics') || '整句显示歌词'}
-                    value={temperaTuning.wholeLineLyrics}
-                    options={booleanOptions}
-                    onChange={wholeLineLyrics => onTemperaTuningChange?.({ wholeLineLyrics })}
-                    isDaylight={isDaylight}
-                    theme={theme}
-                />
-                <p className="text-xs leading-relaxed opacity-55" style={{ color: 'var(--text-secondary)' }}>
-                    {t('options.temperaWholeLineLyricsHint')
-                        || '关闭时一句歌词按 2~4 词切成多个分镜，字号可以放得很大；开启后整句留在同一个分镜里，长句会自动缩小字号。'}
-                </p>
-            </TemperaSettingsSection>
-
-            <TemperaSettingsSection title={t('options.temperaDisplaySection')}>
-                <div className="grid gap-4 sm:grid-cols-2">
-                    {visibilityControls.map(control => (
-                        <VisualizerPresetGroup
+                <Reveal when={temperaTuning.postProcessEnabled}>
+                    <ToggleRow
+                        sub
+                        label={t('options.temperaPostProcessTextureCompression')}
+                        note={t('options.temperaPostProcessTextureCompressionHint')}
+                        checked={temperaTuning.postProcessTextureCompression}
+                        onChange={postProcessTextureCompression => onTemperaTuningChange?.({ postProcessTextureCompression })}
+                    />
+                    {POST_PROCESS_CONTROLS.map(control => (
+                        <SliderRow
+                            {...drag}
+                            sub
                             key={control.key}
-                            label={control.label}
+                            label={t(control.labelKey)}
                             value={temperaTuning[control.key]}
-                            options={booleanOptions}
-                            onChange={(next) => onTemperaTuningChange?.({ [control.key]: next })}
-                            isDaylight={isDaylight}
-                            theme={theme}
+                            min={0}
+                            max={control.max}
+                            step={0.05}
+                            format={times}
+                            onChange={value => onTemperaTuningChange?.({ [control.key]: value })}
                         />
                     ))}
-                </div>
-            </TemperaSettingsSection>
-        </div>
+                </Reveal>
+            </Group>
+
+            <Group def={LYRIC_GROUP}>
+                <ToggleRow
+                    label={t('options.temperaWholeLineLyrics')}
+                    note={t('options.temperaWholeLineLyricsHint')}
+                    checked={temperaTuning.wholeLineLyrics}
+                    onChange={wholeLineLyrics => onTemperaTuningChange?.({ wholeLineLyrics })}
+                />
+            </Group>
+
+            <Group def={DISPLAY_GROUP}>
+                {VISIBILITY_CONTROLS.map(control => (
+                    <ToggleRow
+                        key={control.key}
+                        label={t(control.labelKey)}
+                        checked={temperaTuning[control.key]}
+                        onChange={(next) => onTemperaTuningChange?.({ [control.key]: next })}
+                    />
+                ))}
+            </Group>
+        </>
     );
 };
 

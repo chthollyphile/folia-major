@@ -279,10 +279,11 @@ describe('OpenAI-compatible key endpoint binding', () => {
 
         await expect(runAiJsonCompletion({
             store: credentials.settingsView,
+            task: 'theme',
             systemPrompt: 'sys',
             sourcePrompt: 'src',
             customFetch,
-            maxTokens: 64,
+            answerTokens: 64,
         })).rejects.toThrow(/OPENAI_API_KEY is not configured/);
         expect(customFetch).not.toHaveBeenCalled();
     });

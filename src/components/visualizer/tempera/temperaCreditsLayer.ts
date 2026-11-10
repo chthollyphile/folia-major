@@ -1,5 +1,5 @@
 import type { TemperaTuning, Theme } from '../../../types';
-import { destroyPixiContainerChildren, destroyPixiDisplayTree } from '../pixiDisplayResources';
+import { destroyPixiContainerChildren, destroyPixiDisplayTree } from '../pixi/pixiDisplayResources';
 import {
     buildTemperaCreditsPoster,
     hasTemperaCreditsMetadata,

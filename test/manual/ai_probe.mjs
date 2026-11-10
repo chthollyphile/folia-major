@@ -8,7 +8,9 @@ import path from 'node:path';
 import process from 'node:process';
 import {
   SEGMENTATION_GEMINI_GENERATION_CONFIG,
+  SEGMENTATION_GEMINI_SCHEMA,
   SEGMENTATION_JSON_SCHEMA,
+  SEGMENTATION_MAX_OUTPUT_TOKENS,
   SEGMENTATION_SCHEMA_NAME,
   buildSegmentationSourcePrompt,
   buildSegmentationSystemPrompt,
@@ -82,13 +84,14 @@ const runThroughAppClient = async (config, systemPrompt, sourcePrompt) => {
   try {
     const content = await client.runAiJsonCompletion({
       store,
+      task: 'segmentation',
       systemPrompt,
       sourcePrompt,
       schema: SEGMENTATION_JSON_SCHEMA,
       schemaName: SEGMENTATION_SCHEMA_NAME,
-      geminiResponseSchema: undefined,
+      geminiSchema: SEGMENTATION_GEMINI_SCHEMA,
       customFetch: (url, options) => fetch(url, options),
-      maxTokens: 4096,
+      answerTokens: SEGMENTATION_MAX_OUTPUT_TOKENS,
     });
     console.log(`  app client: ok in ${ms(start)} · ${content.length} bytes`);
     return Math.round(performance.now() - start);

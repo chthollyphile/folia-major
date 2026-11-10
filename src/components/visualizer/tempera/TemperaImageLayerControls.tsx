@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ImagePlus, Settings2 } from 'lucide-react';
 import type { TemperaLayerImage } from '../../../types';
+import { Row, Value } from '../../modal/settings/kit';
 import { DEFAULT_TEMPERA_LAYER_IMAGE, TEMPERA_MAX_LAYER_IMAGES } from '../../../types';
 import {
     clearTemperaLayerImage,
@@ -25,8 +25,8 @@ import TemperaImageLayerDialog, {
 import { useTemperaLayerImageThumbnails } from './useTemperaLayerImageThumbnails';
 
 // src/components/visualizer/tempera/TemperaImageLayerControls.tsx
-// Summary row for the user's own canvas images (character art, logos, textures): a strip of
-// previews and the way into the dialog where they are actually managed. The files go straight
+// Summary row for the user's own canvas images (character art, logos, textures): a row of the
+// settings kit with a strip of previews, and the way into the dialog where they are actually managed. The files go straight
 // to IndexedDB; only ids and placement are written back to the tuning.
 //
 // Everything the dialog edits is held here as a draft and written to the tuning only when the
@@ -418,35 +418,14 @@ const TemperaImageLayerControls: React.FC<TemperaImageLayerControlsProps> = ({
     }, [busy, draft.layerImages, reportPoolResult, t]);
 
     return (
-        <div className="space-y-3">
-            {/* The hint gets the panel's full width. Inside the button it had to share the row
-                with the previews, which in a 360px settings column left it one word wide. */}
-            <p className="text-xs leading-relaxed opacity-55" style={{ color: 'var(--text-secondary)' }}>
-                {t('options.temperaLayerImageHint') || '每个分镜会从图片池里随机取一张，位置由对齐倾向决定。'}
-            </p>
-            <button
-                type="button"
+        <>
+            <Row
                 onClick={open}
-                className={`flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition-colors ${
-                    isDaylight
-                        ? 'border-black/10 bg-black/[0.04] hover:bg-black/[0.07]'
-                        : 'border-white/10 bg-white/5 hover:bg-white/10'
-                }`}
-            >
-                {images.length === 0 ? (
-                    <span
-                        className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-dashed ${isDaylight ? 'border-black/15' : 'border-white/15'}`}
-                        style={{ color: 'var(--text-secondary)' }}
-                    >
-                        <ImagePlus size={16} className="opacity-60" />
-                    </span>
-                ) : (
-                    <span className="flex shrink-0 -space-x-2">
+                note={t('options.temperaLayerImageHint')}
+                label={images.length === 0 ? t('options.temperaAddLayerImage') : (
+                    <span className="flex -space-x-2">
                         {images.slice(0, 4).map(image => (
-                            <span
-                                key={image.id}
-                                className={`h-12 w-12 overflow-hidden rounded-xl border ${isDaylight ? 'border-black/15 bg-black/10' : 'border-white/15 bg-black/30'}`}
-                            >
+                            <span key={image.id} className="h-10 w-10 shrink-0 overflow-hidden rounded-lg bg-[var(--st-fill)] shadow-[0_0_0_1px_var(--st-line)]">
                                 {thumbnails.get(image.id) && (
                                     <img
                                         src={thumbnails.get(image.id)}
@@ -456,27 +435,19 @@ const TemperaImageLayerControls: React.FC<TemperaImageLayerControlsProps> = ({
                                 )}
                             </span>
                         ))}
-                        {images.length > 4 && (
-                            <span
-                                className={`flex h-12 w-12 items-center justify-center rounded-xl border text-xs ${isDaylight ? 'border-black/15 bg-black/[0.06]' : 'border-white/15 bg-black/50'}`}
-                                style={{ color: 'var(--text-secondary)' }}
-                            >
-                                +{images.length - 4}
-                            </span>
-                        )}
                     </span>
                 )}
-                <span className="ml-auto shrink-0 text-sm" style={{ color: 'var(--text-primary)' }}>
-                    {images.length === 0
-                        ? (t('options.temperaAddLayerImage') || '添加图片')
-                        : t('options.temperaImagePoolCount', {
+            >
+                {images.length > 0 && (
+                    <Value>
+                        {t('options.temperaImagePoolCount', {
                             defaultValue: '{{count}} / {{max}}',
                             count: images.length,
                             max: TEMPERA_MAX_LAYER_IMAGES,
                         })}
-                </span>
-                <Settings2 size={16} className="shrink-0 opacity-50" style={{ color: 'var(--text-secondary)' }} />
-            </button>
+                    </Value>
+                )}
+            </Row>
 
             <TemperaImageLayerDialog
                 isOpen={isDialogOpen}
@@ -499,7 +470,7 @@ const TemperaImageLayerControls: React.FC<TemperaImageLayerControlsProps> = ({
                 onExportPool={() => void exportPool()}
                 busy={busy}
             />
-        </div>
+        </>
     );
 };
 

@@ -10,7 +10,7 @@ import {
 // src/components/modal/settings/MotionReductionSettingsSection.tsx
 // 「降低动态效果」的控制面：一个跟随系统的总开关，加每个受影响界面各自的降级开关。
 //
-// 读 store 而不是接一串 props，和 LatticeSettingsSection / GridViewSettingsSection 同一个路子，
+// 读 store 而不是接一串 props，和 GridViewSettingsSection 同一个路子，
 // 这样命令面板的 surface 能直接复用这一个组件，不必再维护一份会漂移的 UI 副本。
 
 type MotionReductionSettingsSectionProps = {

@@ -453,7 +453,8 @@ export const navidromeApi = {
         return false;
     },
 
-    getRandomSongs: async (config: NavidromeConfig, size: number = 100): Promise<SubsonicSong[]> => {
+    // null when the songs could not be read; an empty list is the server saying there are none.
+    getRandomSongs: async (config: NavidromeConfig, size: number = 100): Promise<SubsonicSong[] | null> => {
         try {
             const res = await fetchSubsonic<RandomSongsResponse>(config, 'getRandomSongs', {
                 size: size.toString(),
@@ -464,10 +465,11 @@ export const navidromeApi = {
         } catch (e) {
             console.error('[Navidrome] getRandomSongs failed:', e);
         }
-        return [];
+        return null;
     },
 
-    getStarred2: async (config: NavidromeConfig): Promise<SubsonicSong[]> => {
+    // null when the songs could not be read; an empty list is the server saying there are none.
+    getStarred2: async (config: NavidromeConfig): Promise<SubsonicSong[] | null> => {
         try {
             const res = await fetchSubsonic<Starred2Response>(config, 'getStarred2');
             if (res['subsonic-response'].status === 'ok') {
@@ -476,7 +478,7 @@ export const navidromeApi = {
         } catch (e) {
             console.error('[Navidrome] getStarred2 failed:', e);
         }
-        return [];
+        return null;
     },
 
     // Star a song on the Navidrome server
@@ -693,6 +695,10 @@ export const navidromeApi = {
                 path: song.path,
                 bitRate: song.bitRate,
                 suffix: song.suffix,
+                contentType: song.contentType,
+                bitDepth: song.bitDepth,
+                samplingRate: song.samplingRate,
+                channelCount: song.channelCount,
                 starred: song.starred,
                 replayGain: song.replayGain,
             },

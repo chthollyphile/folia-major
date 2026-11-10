@@ -12,7 +12,7 @@ const tls = require('tls');
 //    但 TUN 模式的代理会在网络层接管，表现为 DNS 返回 198.18.0.0/15 的 fake-ip；
 // 3. 每个上游域名：DNS 给了哪些地址 → 对第一个 IPv4、第一个 IPv6 地址各做一次 TCP + TLS 握手（分开测，
 //    才分得清「只有 IPv6 这条路被重置」）→ 一次真实的 HTTPS 请求（用服务器的 Date 头算本机时钟偏差）。
-// 结果是结构化数据，结论（verdict）由渲染进程的 core/model/loginSelfCheckRules 推出，报告里两者都有。
+// 结果是结构化数据，结论（verdict）由渲染进程的 core/account/loginSelfCheckRules 推出，报告里两者都有。
 // 每一项都有超时，各域名并行，整体在十秒左右结束。
 
 const DEFAULT_TIMEOUT_MS = 5000;

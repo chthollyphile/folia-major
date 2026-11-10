@@ -10,7 +10,7 @@
 // Line endings are normalised to "\n" as well. The same tools write "\r\r\n" or a bare "\r", and
 // the LRC parser splits on "\n" only, so the leftover "\r" made every line fail to match.
 
-import { krcDecrypt } from './providers/krcDecrypt';
+import { krcDecrypt } from '../../services/onlineMusic/kugou/krcDecrypt';
 
 const KRC_MAGIC = [0x6b, 0x72, 0x63, 0x31]; // "krc1"
 

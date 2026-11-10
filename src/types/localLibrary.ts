@@ -1,3 +1,5 @@
+import type { PlatformLyricSource } from '../utils/lyrics/lyricSources';
+
 // src/types/localLibrary.ts
 // Defines stable local-library identities independently from file paths and online source ids.
 
@@ -18,7 +20,10 @@ export interface LocalLibraryEntity {
 export type LocalLibraryAssignmentOrigin = 'import' | 'auto-match' | 'manual-match' | 'manual' | 'split';
 
 export type LocalSongTitleOrigin = 'import' | 'auto-match' | 'manual-match';
-export type LocalSongMetadataSource = 'netease' | 'qq' | 'kugou';
+// Every lyric source that is a platform: a lyric matched from one brings that platform's metadata
+// along. The metadata dialog searches NetEase, QQ and KuGou only; `spotify` comes only with lyrics
+// matched from Spotify.
+export type LocalSongMetadataSource = PlatformLyricSource;
 
 export interface LocalSongImportedMetadata {
   title: string;

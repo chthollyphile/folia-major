@@ -1,8 +1,7 @@
 import type { LocalSong, LyricProviderSource, SongResult } from '../types';
 import type { LocalSongMetadataSource } from '../types/localLibrary';
-import { getOnlineMusicProvider } from './onlineMusic/providerRegistry';
 import { getProviderSongMetadata } from './onlineMusic/songMetadata';
-import { searchQQLyrics } from '../utils/lyrics/providers/qqLyricProvider';
+import { getLyricSourceAccess } from '../utils/lyrics/lyricMatchSources';
 import { calculateMatchScoreDetails } from '../utils/lyrics/matchScore';
 import { buildLyricSearchQuery } from '../utils/lyrics/searchQuery';
 import {
@@ -135,13 +134,7 @@ export async function searchOnlineMetadata(
     if (!safeQuery) return [];
     throwIfAborted(options.signal);
     const limit = options.limit ?? 10;
-    const results = source === 'netease' || source === 'kugou'
-        ? ((await waitForProvider(
-            getOnlineMusicProvider(source)?.search?.searchSongs(safeQuery, limit, 0)
-                || Promise.resolve({ items: [], hasMore: false, nextOffset: 0 }),
-            options.signal,
-        )).items as SongResult[])
-        : await waitForProvider(searchQQLyrics(safeQuery, 1, limit), options.signal);
+    const results = await waitForProvider(getLyricSourceAccess(source).search(safeQuery, limit, target), options.signal);
     throwIfAborted(options.signal);
     return results
         .map(result => normalizeOnlineMetadataCandidate(source, result, target))

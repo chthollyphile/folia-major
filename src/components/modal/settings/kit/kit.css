@@ -1,0 +1,169 @@
+/* src/components/modal/settings/kit/kit.css
+   What the settings kit draws with plain CSS: the things that depend on where an element sits (a
+   row's hairline, the focus mark) or that are a move between two states (unfolding, a page coming
+   in). Every duration and easing is a variable of kit/motion.ts, set on the settings window. */
+
+/* ---- the focus mark: one ring in the accent colour, for whatever the keyboard reaches. Text fields
+   mark focus with their border and are left out. */
+.st-window :focus-visible:not(input, textarea, select) {
+    outline: 2px solid var(--st-accent);
+    outline-offset: 2px;
+}
+
+/* A part that fills its card to the edge draws the ring inside itself: the card clips. */
+.st-window .st-focus-inside:focus-visible {
+    outline-offset: -2px;
+}
+
+.st-slider:focus-visible {
+    outline: none;
+}
+
+.st-slider:focus-visible::-webkit-slider-thumb {
+    box-shadow: 0 0 0 2px var(--st-card), 0 0 0 4px var(--st-accent);
+}
+
+.st-slider::-webkit-slider-thumb {
+    transition: transform var(--st-dur-fast) var(--st-ease-out);
+}
+
+.st-slider:active::-webkit-slider-thumb {
+    transform: scale(1.15);
+}
+
+/* ---- the stacked slider: the box its row keeps controls in gives way, so the slider's value ends
+   the label's line and its track spans the row under it. A disabled row dims the two parts itself. */
+.st-row > div:has(> .st-slider-stacked),
+.st-slider-stacked {
+    display: contents;
+}
+
+.st-row > div[inert]:has(> .st-slider-stacked) > .st-slider-stacked > * {
+    opacity: 0.4;
+}
+
+/* ---- transitions of the vocabulary, beside a Tailwind transition-* class that names the properties */
+.st-t-fast {
+    transition-duration: var(--st-dur-fast);
+    transition-timing-function: var(--st-ease-standard);
+}
+
+.st-t-move {
+    transition-duration: var(--st-dur-move);
+    transition-timing-function: var(--st-ease-out);
+}
+
+.st-t-unfold {
+    transition-duration: var(--st-dur-unfold);
+    transition-timing-function: var(--st-ease-out);
+}
+
+/* ---- a row's hairline: above every row but the first of its card */
+.st-row::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: 16px;
+    height: 1px;
+    background: var(--st-line);
+}
+
+.st-row[data-sub]::before {
+    left: 40px;
+}
+
+.st-card > .st-row:first-child::before,
+.st-card > .st-unfold:first-child > div > .st-row:first-child::before {
+    display: none;
+}
+
+/* ---- unfolding: a grid row that grows from nothing to its content's height */
+.st-unfold {
+    display: grid;
+    grid-template-rows: 0fr;
+    opacity: 0;
+    visibility: hidden;
+    transition:
+        grid-template-rows var(--st-dur-unfold) var(--st-ease-out),
+        opacity var(--st-dur-unfold) var(--st-ease-out),
+        visibility 0s linear var(--st-dur-unfold);
+}
+
+.st-unfold[data-open] {
+    grid-template-rows: 1fr;
+    opacity: 1;
+    visibility: visible;
+    transition-delay: 0s;
+}
+
+.st-unfold[data-instant] {
+    transition: none;
+}
+
+.st-unfold > div {
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+}
+
+/* ---- a part that scrolls inside itself (the text area) gets the thin scrollbar of the page */
+.st-scroll::-webkit-scrollbar {
+    width: 12px;
+}
+
+.st-scroll::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.st-scroll::-webkit-scrollbar-thumb {
+    border: 4px solid transparent;
+    border-radius: 6px;
+    background: var(--st-fill2);
+    background-clip: content-box;
+}
+
+/* ---- a layer that opens from a control (Popover): it comes with `move` and leaves with `fast`.
+   A window that sets no motion variables gets both at once, so the layer never stays behind. */
+@keyframes st-pop-in {
+    from {
+        opacity: 0;
+        transform: translateY(var(--st-pop-shift)) scale(0.98);
+    }
+}
+
+@keyframes st-pop-out {
+    to {
+        opacity: 0;
+        transform: translateY(var(--st-pop-shift)) scale(0.98);
+    }
+}
+
+.st-pop {
+    animation: st-pop-in var(--st-dur-move, 0s) var(--st-ease-out, ease) backwards;
+}
+
+.st-pop[data-leaving] {
+    animation: st-pop-out var(--st-dur-fast, 0s) var(--st-ease-standard, ease) forwards;
+}
+
+/* ---- a page, or the search results, coming in */
+@keyframes st-page-in {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+}
+
+.st-page-in {
+    animation: st-page-in var(--st-dur-move) var(--st-ease-out) backwards;
+}
+
+/* ---- the colour parts (ColorPicker, ColorField): the offered colour that is the colour now wears
+   a ring, held off the swatch by a gap in the colour of the surface under it. */
+.st-swatch[aria-pressed='true'] {
+    box-shadow:
+        inset 0 0 0 1px var(--st-line2),
+        0 0 0 2px var(--st-swatch-gap, var(--st-card)),
+        0 0 0 3.5px var(--st-t1);
+}

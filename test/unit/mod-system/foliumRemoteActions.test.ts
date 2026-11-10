@@ -3,9 +3,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { FoliumRemoteActionDef, FoliumRemoteActionsContext } from '../../../src/mods/folium/contract';
 import { FOLIUM_VERSION } from '../../../src/mods/folium/contract';
 import { registerRemoteActions, remoteActionsRegistry, resolveRemoteActions, subscribeRemoteActions } from '../../../src/mods/folium/registries/remoteActions';
-import { useFoliumStatusStore } from '../../../src/mods/folium/status';
+import { clearFoliumIssues, getFoliumIssues } from '../../../src/mods/runtime/status';
 
 // test/unit/mod-system/foliumRemoteActions.test.ts
+// A failure is read with getFoliumIssues: the status store itself is written at most once a second.
+const MOD_IDS = ['mod-a', 'mod-b', 'broken', 'good', 'duplicate', 'sparse', 'unbounded', 'first', 'later', 'disabled'];
 const require = createRequire(import.meta.url);
 const { validateManifest } = require('../../../electron/modSystem/manifest.cjs');
 const context: FoliumRemoteActionsContext = Object.freeze({ song: null, state: 'paused' });
@@ -16,16 +18,16 @@ const disposers = new Set<() => void>();
 afterEach(() => {
     disposers.forEach(dispose => dispose()); disposers.clear();
     remoteActionsRegistry.list().forEach(entry => remoteActionsRegistry.unregister(entry.id));
-    useFoliumStatusStore.setState({ issues: {} });
+    MOD_IDS.forEach(clearFoliumIssues);
     vi.restoreAllMocks();
 });
 
 describe('experimental remote.actions registry', () => {
-    it('recognizes only the new opt-in without changing stable Folium 1.5', () => {
+    it('recognizes only the new opt-in without changing the stable Folium version', () => {
         const manifest = { id: 'sample', name: 'Sample', version: '1.0.0', folium: 1, client: 'client.mjs', experimental: ['remote.actions'] };
         expect(validateManifest(manifest).ok).toBe(true);
         expect(validateManifest({ ...manifest, experimental: ['remote.ui'] }).ok).toBe(false);
-        expect(FOLIUM_VERSION).toEqual({ major: 1, minor: 5 });
+        expect(FOLIUM_VERSION).toEqual({ major: 1, minor: 8 });
     });
 
     it('namespaces actions by mod and group, keeping group order and complete locale maps', () => {
@@ -108,7 +110,7 @@ describe('experimental remote.actions registry', () => {
         registerRemoteActions('broken', { id: 'room', actions: () => [action(patch as Partial<FoliumRemoteActionDef>)] });
         registerRemoteActions('good', { id: 'room', actions: () => [action()] });
         expect(resolveRemoteActions(context).map(item => item.id)).toEqual(['good:room:like']);
-        expect(useFoliumStatusStore.getState().issues.broken).toHaveLength(1);
+        expect(getFoliumIssues('broken')).toHaveLength(1);
     });
 
     it('rejects duplicate ids, sparse arrays, and unbounded results without consuming them', () => {
@@ -119,7 +121,7 @@ describe('experimental remote.actions registry', () => {
         registerRemoteActions('sparse', { id: 'room', actions: () => new Array(2) });
         registerRemoteActions('unbounded', { id: 'room', actions: () => enormous });
         expect(resolveRemoteActions(context)).toEqual([]);
-        expect(Object.keys(useFoliumStatusStore.getState().issues)).toEqual(['duplicate', 'sparse', 'unbounded']);
+        expect(['duplicate', 'sparse', 'unbounded'].map((id) => getFoliumIssues(id).length)).toEqual([1, 1, 1]);
     });
 
     it('skips owners removed by another group and a group that removes itself while resolving', () => {
@@ -142,7 +144,7 @@ describe('experimental remote.actions registry', () => {
         const result = resolveRemoteActions(context);
         await expect(result[0].run()).rejects.toThrow('disabled'); expect(run).not.toHaveBeenCalled();
         await expect(result[1].run()).rejects.toThrow('RPC failed');
-        expect(useFoliumStatusStore.getState().issues.broken.at(-1)?.message).toBe('RPC failed');
+        expect(getFoliumIssues('broken').at(-1)?.message).toBe('RPC failed');
         expect(remoteActionsRegistry.list()).toHaveLength(2);
     });
 });

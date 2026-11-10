@@ -16,6 +16,24 @@ async function enterPositioning(page: Page): Promise<void> {
     await expect(page.locator(ROOT)).toHaveAttribute('data-probe-positioning', 'on');
 }
 
+/** 播放入口写进探针页用的同一份 store；路径放变量里，免得类型检查去解析浏览器里的模块地址。 */
+async function setPlaybackEntryView(page: Page, view: 'player' | 'lattice'): Promise<void> {
+    await page.evaluate(async (next) => {
+        const modulePath = '/src/stores/usePlaybackEntryViewStore.ts';
+        const { usePlaybackEntryViewStore } = await import(modulePath);
+        usePlaybackEntryViewStore.getState().setPlaybackEntryView(next);
+    }, view);
+}
+
+/** 命令面板被请求打开过几次（探针里没有面板，请求本身就是它会打开的证据）。 */
+async function paletteRequestSeq(page: Page): Promise<number> {
+    return page.evaluate(async () => {
+        const modulePath = '/src/stores/useAppViewStore.ts';
+        const { useAppViewStore } = await import(modulePath);
+        return useAppViewStore.getState().commandPaletteRequest.seq as number;
+    });
+}
+
 /** 等胶囊的 layout spring 停下来，否则量到的是动画中间帧 */
 async function settleCapsule(page: Page): Promise<void> {
     const capsule = page.locator(CAPSULE).first();
@@ -182,6 +200,8 @@ test.describe('capsule navigation', () => {
     });
 
     test('clicking the capsule hot area activates its configured destination', async ({ page }) => {
+        // 播放入口设成歌曲墙时，播放页上点胶囊仍然去墙；只有本来是空操作的那一下才改成开命令面板。
+        await setPlaybackEntryView(page, 'lattice');
         const capsule = page.locator(CAPSULE).first();
         await expect(capsule).toBeVisible();
 
@@ -189,6 +209,79 @@ test.describe('capsule navigation', () => {
         await capsule.click({ position: { x: 20, y: 2 } });
 
         await expect(page.locator(ROOT)).toHaveAttribute('data-probe-player-navigations', '1');
+        expect(await paletteRequestSeq(page)).toBe(0);
+    });
+
+    test('on the player page the capsule hot area opens the command palette instead', async ({ page }) => {
+        await setPlaybackEntryView(page, 'player');
+        const capsule = page.locator(CAPSULE).first();
+        await expect(capsule).toBeVisible();
+
+        await capsule.click({ position: { x: 20, y: 2 } });
+
+        await expect.poll(() => paletteRequestSeq(page)).toBe(1);
+        await expect(page.locator(ROOT)).toHaveAttribute('data-probe-player-navigations', '0');
+    });
+
+    test('dragging along the capsule, just off the 6px seek track, does not open the palette (#1056)', async ({ page }) => {
+        await setPlaybackEntryView(page, 'player');
+        const capsule = page.locator(CAPSULE).first();
+        await expect(capsule).toBeVisible();
+        await capsule.hover();
+        await settleCapsule(page);
+        // 真实鼠标：按在进度条正上方几像素的胶囊空白处，横着拖开再松开，浏览器照常在胶囊上补发 click。
+        const track = (await page.locator('input[type="range"]').first().boundingBox())!;
+        const y = track.y - 12;
+        await page.mouse.move(track.x + 10, y);
+        await page.mouse.down();
+        for (let step = 1; step <= 6; step += 1) {
+            await page.mouse.move(track.x + 10 + step * 15, y);
+        }
+        await page.mouse.up();
+
+        expect(await paletteRequestSeq(page)).toBe(0);
+        await expect(page.locator(ROOT)).toHaveAttribute('data-probe-player-navigations', '0');
+
+        // 下一次按在胶囊本身上的点击照常开面板，手抖挪了几像素也算点。
+        const point = { x: track.x + 10, y };
+        await page.mouse.move(point.x, point.y);
+        await page.mouse.down();
+        await page.mouse.move(point.x + 4, point.y + 2);
+        await page.mouse.up();
+        await expect.poll(() => paletteRequestSeq(page)).toBe(1);
+    });
+
+    test('a click that follows a press on the seek track lands nowhere else (#1056)', async ({ page }) => {
+        await setPlaybackEntryView(page, 'player');
+        await expect(page.locator(CAPSULE).first()).toBeVisible();
+        // 按在进度条上，补发的 click 却落到了胶囊上（拖动中进度条被换掉时就是这样）。
+        await page.evaluate(() => {
+            const range = document.querySelector('input[type="range"]')!;
+            range.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'mouse', pointerId: 1 }));
+            range.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerType: 'mouse', pointerId: 1 }));
+            range.closest('.rounded-full.cursor-pointer')!.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+        });
+        expect(await paletteRequestSeq(page)).toBe(0);
+
+        // 键盘和读屏发的 click 没有按下（detail 为 0），哪怕上一下按在进度条上也照常放行。
+        await page.evaluate(() => {
+            const range = document.querySelector('input[type="range"]')!;
+            range.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'mouse', pointerId: 1 }));
+            (range.closest('.rounded-full.cursor-pointer') as HTMLElement).click();
+        });
+        await expect.poll(() => paletteRequestSeq(page)).toBe(1);
+    });
+
+    test('a touch tap on the collapsed capsule only unfolds it', async ({ page }) => {
+        await setPlaybackEntryView(page, 'player');
+        // 触屏上点收起的胶囊是展开它的手势：按下时胶囊还收着，这一下不能直接弹出命令面板。
+        await page.locator(CAPSULE).first().evaluate(element => {
+            element.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'touch', pointerId: 7 }));
+            element.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerType: 'touch', pointerId: 7 }));
+            (element as HTMLElement).click();
+        });
+
+        expect(await paletteRequestSeq(page)).toBe(0);
     });
 });
 

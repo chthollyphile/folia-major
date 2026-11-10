@@ -1,0 +1,10 @@
+{
+  "folium": 1,
+  "id": "sample-aurora-visualizer",
+  "name": "虹光歌词动画（样例）",
+  "version": "1.0.1",
+  "author": "Folia Mod Samples",
+  "description": "通过 Folium 注册的全屏歌词动画：当前句居中展示，逐字虹光扫过。纯渲染端模组（只有 client 入口），可用于播放、预览与透明导出。",
+  "client": "client.mjs",
+  "preview": "preview.jpg"
+}

@@ -330,6 +330,8 @@ describe('localMusicService', () => {
             'Track.aif',
             'Track.aiff',
             'Track.caf',
+            'Track.dsf',
+            'Track.dff',
         ];
         const selectedHandle = new FakeDirectoryHandle('Music', [
             ...fallbackFileNames.map(name => new FakeFileHandle(name, { type: 'application/octet-stream' })),

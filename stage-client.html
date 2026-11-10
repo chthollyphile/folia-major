@@ -107,7 +107,7 @@
                         <article class="endpoint-chip-card">
                             <span class="method-chip method-post">POST</span>
                             <code>/stage/player/search</code>
-                            <p class="hint">Search Netease songs.</p>
+                            <p class="hint">Search Netease or any omni provider.</p>
                         </article>
                         <article class="endpoint-chip-card">
                             <span class="method-chip method-post">POST</span>
@@ -365,7 +365,7 @@
                     </div>
                     <div class="endpoint-layout">
                         <article class="doc-card">
-                            <p class="hint">搜索网易云结果，返回歌曲列表。结果可直接触发 `/stage/player/play` 或追加到主播放器队列。</p>
+                            <p class="hint">搜索歌曲，返回歌曲列表。不传 `provider` 时走本机网易云服务；传了就经 omni 在那个平台搜索。结果的 `songRef` 可直接交给 `/stage/player/play` 或追加到主播放器队列。</p>
                             <div class="meta-grid">
                                 <div><span class="meta-label">Auth</span><span>Bearer token</span></div>
                                 <div><span class="meta-label">Content-Type</span><span>application/json</span></div>
@@ -374,6 +374,7 @@
                             <dl class="field-list">
                                 <div><dt>query</dt><dd>必填，歌曲 / 歌手 / 专辑关键词。</dd></div>
                                 <div><dt>limit</dt><dd>可选，结果数量上限。</dd></div>
+                                <div><dt>provider</dt><dd>可选，omni 平台 id（如 `qq`、`kugou`）。不合法返回 `400 INVALID_STAGE_PLAYER_SEARCH_PROVIDER`；主窗口不可用返回 `503 STAGE_PLAYER_SEARCH_UNAVAILABLE`；平台搜索失败返回 `502 STAGE_SEARCH_REJECTED`。</dd></div>
                             </dl>
                             <h4>cURL example</h4>
                             <pre id="search-example" class="code-example"></pre>
@@ -390,6 +391,10 @@
                                     <input id="search-limit" type="number" min="1" max="50" value="5" />
                                 </label>
                             </div>
+                            <label>
+                                <span>Provider</span>
+                                <input id="search-provider" type="text" value="" placeholder="Empty = local Netease service; or qq / kugou / ..." />
+                            </label>
                             <pre id="search-preview" class="request-preview"></pre>
                             <div id="search-status" class="status-line">No request sent yet.</div>
                             <pre id="search-response" class="response-output compact"></pre>
@@ -414,7 +419,7 @@
                             </div>
                             <h4>Body fields</h4>
                             <dl class="field-list">
-                                <div><dt>songId</dt><dd>必填，正整数歌曲 ID。</dd></div>
+                                <div><dt>songId</dt><dd>必填。正整数是本机网易云的歌曲 ID；`&lt;provider&gt;:&lt;songId&gt;`（如 `qq:97773`，即搜索结果的 `songRef`）是那个平台的歌。</dd></div>
                                 <div><dt>appendToQueue</dt><dd>可选，`true` 时只追加到主播放队列，不打断当前播放。（注：Folia 存在自动去重机制，同一歌曲不会在队列中出现两次，若已在队列中则会被移动到目标位置，并通过返回值的 `deduplicated` 字段体现。）</dd></div>
                             </dl>
                             <h4>cURL example</h4>
@@ -558,7 +563,7 @@
                             </div>
                             <h4>POST action</h4>
                             <dl class="field-list">
-                                <div><dt>append / insert-next</dt><dd>需要 `songId` 或 `songIds`。（注：Folia 会对歌曲自动去重，若歌曲已在队列中则会被直接移动到目标位置，不会重复添加；请求本身如果有重复歌曲也会被合并。响应的 `deduplicated` 字段会体现去重状态。）</dd></div>
+                                <div><dt>append / insert-next</dt><dd>需要 `songId` 或 `songIds`，每项是正整数（本机网易云）或 `&lt;provider&gt;:&lt;songId&gt;`，可以混着不同平台。（注：Folia 会对歌曲自动去重，若歌曲已在队列中则会被直接移动到目标位置，不会重复添加；请求本身如果有重复歌曲也会被合并。响应的 `deduplicated` 字段会体现去重状态。）</dd></div>
                                 <div><dt>remove / select</dt><dd>需要 `queueItemId` 或 `index`，`select` 会切到该队列项播放。使用 `queueItemId` 时会严格校验项匹配度。</dd></div>
                                 <div><dt>move</dt><dd>需要 `fromQueueItemId` 或 `fromIndex`，并提供 `toIndex`。使用 `queueItemId` 时会严格校验项匹配度。</dd></div>
                                 <div><dt>clear</dt><dd>清空队列中非当前播放项。</dd></div>
@@ -582,7 +587,7 @@
                                 </label>
                                 <label>
                                     <span>Song ID</span>
-                                    <input id="player-queue-song-id" type="number" min="1" value="123456" />
+                                    <input id="player-queue-song-id" type="text" value="123456" placeholder="123456 or qq:97773" />
                                 </label>
                             </div>
                             <div class="grid two">

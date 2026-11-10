@@ -4,12 +4,12 @@ import type {
     LibraryDirectoryBatchContext,
     LibraryDirectoryBatchActionId,
     LibraryDirectoryVisibilityMode,
-} from '../../core/contracts/directory';
-import type { LibraryDeclaredActions } from '../../core/contracts/suite';
-import type { LibraryMutationResult } from '../../core/contracts/mutations';
-import { filterDeclaredDirectorySurfaceActions, resolveDirectorySurfaceActions } from '../../core/model/directorySurface';
-import { isHideableDirectoryItem } from '../../core/model/directoryVisibility';
-import { useLibraryDirectorySurfaceRegistration } from '../../core/bindings/useLibraryDirectorySurfaceRegistration';
+} from '../../core/directory/directory.contract';
+import type { LibraryDeclaredActions } from '../../core/suite/suite.contract';
+import type { LibraryMutationResult } from '../../core/collection/mutations/mutations.contract';
+import { filterDeclaredDirectorySurfaceActions, resolveDirectorySurfaceActions } from '../../core/directory/directorySurface';
+import { isHideableDirectoryItem } from '../../core/directory/directoryVisibility';
+import { useLibraryDirectorySurfaceRegistration } from '../../core/directory/useLibraryDirectorySurfaceRegistration';
 import type { BravaisHomeEntry } from './bravaisHomeProjection';
 
 // src/library/suites/bravais/useBravaisHomeDirectorySurface.ts

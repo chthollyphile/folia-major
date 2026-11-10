@@ -1,6 +1,7 @@
 import { pickAdjacentRect, type WallDirection, type WallRect } from '../../../components/wall/wallNavigation';
-import { getBlockSlots, type WallSlot } from '../../../components/wall/wallSlots';
+import type { WallSlot } from '../../../components/wall/wallSlots';
 import { BRAVAIS_METRICS } from './bravaisConstants';
+import { BRAVAIS_BLOCK_SHAPE, type BravaisWallShape } from './bravaisWallShape';
 
 // src/library/suites/bravais/bravaisNavigation.ts
 // 方向键在 bravais 墙上走到哪一张（纯计算）：打分复用 wall 的 pickAdjacentRect（与 Lattice 的
@@ -14,10 +15,13 @@ export const findAdjacentSlot = (
     {
         drawn = slot => slot,
         hasContent,
+        shape = BRAVAIS_BLOCK_SHAPE,
     }: {
         /** slot 此刻画在哪（聚焦卡所在的块已让位）。 */
         drawn?: (slot: WallSlot) => WallRect;
         hasContent: (slot: WallSlot) => boolean;
+        /** 墙的形状：块按它取（探索形状的地是座位与标题）。 */
+        shape?: BravaisWallShape;
     },
 ): WallSlot | null => {
     const source = drawn(from);
@@ -25,7 +29,7 @@ export const findAdjacentSlot = (
         const candidates: Array<{ value: WallSlot; rect: WallRect }> = [];
         for (let row = from.row - radius; row <= from.row + radius; row += 1) {
             for (let column = from.column - radius; column <= from.column + radius; column += 1) {
-                for (const slot of getBlockSlots(column, row, BRAVAIS_METRICS)) {
+                for (const slot of shape.blockSlots(column, row)) {
                     if (slot.key === from.key || !hasContent(slot)) continue;
                     candidates.push({ value: slot, rect: drawn(slot) });
                 }

@@ -13,7 +13,7 @@ import {
     Star,
 } from 'lucide-react';
 import PonderSurfaceStateLayer, { PonderSurfaceBase, type PonderSurfaceStateRegistrar } from './PonderSurfaceStateLayer';
-import { relativeRectStyle } from './ponderSurfaceGeometry';
+import { relativeRectStyle } from './relativeRectStyle';
 import {
     BRAVAIS_EDGE_TAB,
     BRAVAIS_PANEL_GEOMETRY as P,

@@ -15,6 +15,7 @@ import {
     buildStageSessionRequest,
     buildStageStatusRequest,
     type StageRequestBuildResult,
+    type StageSongRefInput,
 } from '../../../src/utils/stageClientDemo';
 import type { StageSearchResult } from '../../../src/types';
 
@@ -74,6 +75,7 @@ const sessionExampleMultipart = getElement<HTMLElement>('session-example-multipa
 
 const searchQueryInput = getElement<HTMLInputElement>('search-query');
 const searchLimitInput = getElement<HTMLInputElement>('search-limit');
+const searchProviderInput = getElement<HTMLInputElement>('search-provider');
 const searchPreview = getElement<HTMLElement>('search-preview');
 const searchStatus = getElement<HTMLElement>('search-status');
 const searchResponse = getElement<HTMLElement>('search-response');
@@ -260,15 +262,15 @@ const renderSearchResults = (songs: StageSearchResult[]) => {
     }
 
     searchResults.innerHTML = songs.map((song) => `
-        <article class="stage-result-card" data-song-id="${song.songId}">
+        <article class="stage-result-card" data-song-ref="${song.songRef}">
             <div class="doc-head">
                 <div>
                     <strong>${song.title}</strong>
                     <p class="hint">${song.artists.join(' / ') || 'Unknown artist'}${song.album ? ` · ${song.album}` : ''}</p>
                 </div>
                 <div class="button-row">
-                    <button type="button" class="secondary" data-play-song="${song.songId}">Play In Folia</button>
-                    <button type="button" class="secondary" data-queue-song="${song.songId}">Add To Queue</button>
+                    <button type="button" class="secondary" data-play-song="${song.songRef}">Play In Folia</button>
+                    <button type="button" class="secondary" data-queue-song="${song.songRef}">Add To Queue</button>
                 </div>
             </div>
             <pre class="request-preview compact">${syntaxHighlightJson(formatJson(song))}</pre>
@@ -305,6 +307,7 @@ const buildSearchRequestFromInputs = () => buildStageSearchRequest({
     token: tokenInput.value,
     query: searchQueryInput.value,
     limit: Number(searchLimitInput.value) || 10,
+    provider: searchProviderInput.value,
 });
 
 const buildPlayerStatusRequestFromInputs = () => buildStagePlayerStatusRequest(baseUrlInput.value, tokenInput.value);
@@ -322,7 +325,7 @@ const buildPlayerQueueRequestFromInputs = () => buildStagePlayerQueueRequest({
     baseUrl: baseUrlInput.value,
     token: tokenInput.value,
     action: playerQueueActionInput.value as 'append' | 'insert-next' | 'remove' | 'move' | 'select' | 'clear',
-    songId: Number(playerQueueSongIdInput.value) || undefined,
+    songId: playerQueueSongIdInput.value.trim() || undefined,
     queueItemId: playerQueueItemIdInput.value,
     fromQueueItemId: playerQueueFromItemIdInput.value,
     index: (playerQueueActionInput.value === 'remove' || playerQueueActionInput.value === 'select') && playerQueueIndexInput.value !== '' ? Number(playerQueueIndexInput.value) : undefined,
@@ -511,7 +514,7 @@ const runSearchRequest = async () => {
     }
 };
 
-const runPlayRequest = async (songId: number, appendToQueue = false) => {
+const runPlayRequest = async (songId: StageSongRefInput, appendToQueue = false) => {
     const request = buildStagePlayRequest({
         baseUrl: baseUrlInput.value,
         token: tokenInput.value,
@@ -712,12 +715,12 @@ searchResults.addEventListener('click', (event) => {
         return;
     }
 
-    const songId = Number(target.dataset.playSong || target.dataset.queueSong);
-    if (!Number.isInteger(songId) || songId <= 0) {
+    const songRef = target.dataset.playSong || target.dataset.queueSong;
+    if (!songRef) {
         return;
     }
 
-    void runPlayRequest(songId, target.dataset.queueSong === String(songId));
+    void runPlayRequest(songRef, target.dataset.queueSong === songRef);
 });
 
 [
@@ -736,6 +739,7 @@ searchResults.addEventListener('click', (event) => {
     lyricsFormatInput,
     searchQueryInput,
     searchLimitInput,
+    searchProviderInput,
     playerControlActionInput,
     playerControlPositionInput,
     playerQueueActionInput,

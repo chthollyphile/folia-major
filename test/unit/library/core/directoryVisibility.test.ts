@@ -10,8 +10,8 @@ import {
     resolveVisibleDirectoryIndex,
     setHiddenCollection,
     toggleHiddenCollection,
-} from '@/library/core/model/directoryVisibility';
-import type { LibraryHiddenCollections } from '@/library/core/contracts/directory';
+} from '@/library/core/directory/directoryVisibility';
+import type { LibraryHiddenCollections } from '@/library/core/directory/directory.contract';
 
 // test/unit/library/core/directoryVisibility.test.ts
 // 隐藏项的产品语义（见 directoryVisibility 的文件头）：只有歌单类可隐藏；按作用域记、互不影响；

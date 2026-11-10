@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { LibraryArtistSurfaceHandle, LibraryArtistSurfaceState } from '../../../src/library/core/contracts/artist';
+import type { LibraryArtistSurfaceHandle, LibraryArtistSurfaceState } from '../../../src/library/core/artist/artist.contract';
 import { COMMAND_PALETTE_COMMANDS, isCommandPaletteCommandEnabled } from '../../../src/components/command-palette/commandRegistry';
 import type { CommandPaletteContext } from '../../../src/components/command-palette/types';
 
@@ -40,6 +40,7 @@ describe('artist commands', () => {
             'artist-reload',
             'artist-retry-albums',
             'artist-edit-entity',
+            'artist-open-all-songs',
         ]);
     });
 
@@ -47,6 +48,14 @@ describe('artist commands', () => {
         expect(available(contextWith(null))).toEqual([]);
         expect(available(contextWith(handle(['play-top-songs', 'reload'])))).toEqual(['artist-play-top-songs', 'artist-reload']);
         expect(available(contextWith(handle(['retry-albums', 'edit-entity'])))).toEqual(['artist-retry-albums', 'artist-edit-entity']);
+        expect(available(contextWith(handle(['open-all-songs'])))).toEqual(['artist-open-all-songs']);
+    });
+
+    it("open the artist's every song through the artist page", async () => {
+        const artist = handle(['open-all-songs']);
+        const open = COMMAND_PALETTE_COMMANDS.find(command => command.id === 'artist-open-all-songs')!;
+        expect(await open.execute('', contextWith(artist))).toBe(true);
+        expect(artist.run).toHaveBeenCalledWith('open-all-songs');
     });
 
     it('hand the action to the artist page and carry no global shortcut', async () => {

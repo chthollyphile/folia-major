@@ -6,11 +6,11 @@ import {
     isGridSurfaceActionDeclared,
     runGridSurfaceAction,
     type GridSurfaceParams,
-} from '@/library/core/model/collectionSurface';
-import { LIBRARY_ACTION_IDS } from '@/library/core/model/librarySuites';
-import { EMPTY_COLLECTION_MUTATION_SNAPSHOT } from '@/library/core/model/collectionMutationCapabilities';
-import type { LibraryDeclaredActions } from '@/library/core/contracts/suite';
-import { resolveCollectionSyncCounts } from '@/library/core/model/collectionProgress';
+} from '@/library/core/collection/collectionSurface';
+import { LIBRARY_ACTION_IDS } from '@/library/core/suite/librarySuites';
+import { EMPTY_COLLECTION_MUTATION_SNAPSHOT } from '@/library/core/collection/mutations/collectionMutationCapabilities';
+import type { LibraryDeclaredActions } from '@/library/core/suite/suite.contract';
+import { resolveCollectionSyncCounts } from '@/library/core/collection/collectionProgress';
 
 // test/unit/library/core/collectionSurface.test.ts
 // 只有核心动作的 renderer（没有信息面板、侧栏、编辑模式）注册到命令面板时，
@@ -54,6 +54,19 @@ describe('core collection surface', () => {
         runGridSurfaceAction('play-filtered', params);
         expect(params.playFiltered).toHaveBeenCalledTimes(1);
     });
+
+    it('publishes collect-filtered only when the host can collect, the scope has songs and the suite declares it', () => {
+        const collectFiltered = vi.fn();
+        expect(buildGridSurfaceState(core()).availableActions).not.toContain('collect-filtered');
+        expect(buildGridSurfaceState(core({ collectFiltered, filteredTrackCount: 0 })).availableActions).not.toContain('collect-filtered');
+        const undeclared: LibraryDeclaredActions = { actions: ['play-scope', 'enqueue-scope'], extraActions: [] };
+        expect(buildGridSurfaceState(core({ collectFiltered, declaredActions: undeclared })).availableActions).not.toContain('collect-filtered');
+
+        const params = core({ collectFiltered });
+        expect(buildGridSurfaceState(params).availableActions).toContain('collect-filtered');
+        runGridSurfaceAction('collect-filtered', params);
+        expect(collectFiltered).toHaveBeenCalledTimes(1);
+    });
 });
 
 /** 网格那样什么分支都打开的参数：每个命令都可用，好看出声明过滤掉了哪些。 */
@@ -66,11 +79,13 @@ const everything = (declaredActions?: LibraryDeclaredActions): GridSurfaceParams
     canOrganizeSongInfo: true,
     canExportPlaylist: true,
     canEditEntity: true,
+    canSetCover: true,
     canEditPlaylist: true,
     canToggleSubscribe: true,
     toggleInfoPanel: vi.fn(),
     resyncFolder: vi.fn(),
     toggleSubscribe: vi.fn(),
+    collectFiltered: vi.fn(),
     declaredActions,
 });
 
@@ -138,5 +153,7 @@ describe('collection sync counts', () => {
         expect(resolveCollectionSyncCounts(1500, 3000)).toEqual({ loaded: (1500).toLocaleString(), total: (3000).toLocaleString() });
         expect(resolveCollectionSyncCounts(10, undefined)).toBeNull();
         expect(resolveCollectionSyncCounts(10, 0)).toBeNull();
+        // More loaded than the recorded count: the count is stale, so no "180 / 150".
+        expect(resolveCollectionSyncCounts(180, 150)).toBeNull();
     });
 });

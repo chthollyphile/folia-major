@@ -2,10 +2,11 @@ import { describe, expect, it, vi } from 'vitest';
 import type { SongResult } from '@/types';
 import type { OmniPage, ProviderCollection } from '@/types/onlineMusic';
 import { OmniError } from '@/types/onlineMusic';
-import type { OnlineGridViewCollectionDescriptor } from '@/library/core/contracts/collection';
-import { createOnlineCollectionResource, type OnlineCollectionResourceDeps } from '@/library/core/services/onlineCollectionResource';
-import { ONLINE_TRACKS_CACHE_SCHEMA_VERSION, type OnlineTracksCacheEntry } from '@/library/core/services/onlineCollectionCache';
+import type { OnlineGridViewCollectionDescriptor } from '@/library/core/collection/collection.contract';
+import { createOnlineCollectionResource, UNVERSIONED_COLLECTION_REUSE_MS, type OnlineCollectionResourceDeps } from '@/library/core/collection/resource/onlineCollectionResource.service';
+import { ONLINE_TRACKS_CACHE_SCHEMA_VERSION, type OnlineTracksCacheEntry } from '@/library/core/collection/resource/onlineCollectionCache.service';
 import { getPlaybackSongKey } from '@/utils/appPlaybackGuards';
+import { createCollectionResourceRegistry } from '@/library/core/collection/resource/collectionResourceRegistry.service';
 
 // test/unit/library/core/onlineCollectionResource.test.ts
 // 在线集合资源：读缓存 → 首页 → 后台补页的规则与 GridView 原先一致；请求归属在资源上，
@@ -86,6 +87,116 @@ const harness = (
     };
 };
 
+describe('online collection resource: unversioned memory reuse', () => {
+    it('avoids another first-page request after leaving and reopening, then refetches after expiry', async () => {
+        vi.useFakeTimers();
+        try {
+            let time = 1000;
+            const descriptor = playlist({ tracksUpdatedAt: undefined, trackCount: 10 });
+            const h = harness(songs(10), { now: () => time });
+            const registry = createCollectionResourceRegistry({ releaseGraceMs: 0 });
+            const create = () => createOnlineCollectionResource('k', h.deps);
+            const first = registry.peekOrCreate('k', descriptor, create);
+            const release = registry.retain(first)!;
+            first.ensure(descriptor, {});
+            await settle();
+            release();
+            vi.advanceTimersByTime(1);
+
+            const reopened = registry.peekOrCreate('k', descriptor, create);
+            expect(reopened).toBe(first);
+            const releaseAgain = registry.retain(reopened)!;
+            reopened.ensure(descriptor, {});
+            await settle();
+            expect(h.deps.getCollectionTracks).toHaveBeenCalledTimes(1);
+            releaseAgain();
+            vi.advanceTimersByTime(1);
+
+            time += UNVERSIONED_COLLECTION_REUSE_MS;
+            const expired = registry.peekOrCreate('k', descriptor, create);
+            expect(expired).not.toBe(first);
+            const releaseExpired = registry.retain(expired)!;
+            expired.ensure(descriptor, {});
+            await settle();
+            expect(h.deps.getCollectionTracks).toHaveBeenCalledTimes(2);
+            releaseExpired();
+            vi.advanceTimersByTime(1);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    // artist_songs: an artist's every song (#918), back from an album opened from it.
+    it.each(['playlist', 'album', 'artist_songs'] as const)('reuses a loaded %s only until its original deadline', async type => {
+        let time = 1000;
+        const descriptor = playlist({ type, tracksUpdatedAt: undefined, trackCount: 10 });
+        const h = harness(songs(10), { now: () => time });
+        const resource = createOnlineCollectionResource('k', h.deps);
+        resource.ensure(descriptor, {});
+        await settle();
+        resource.pause();
+
+        expect(resource.canReuse(descriptor)).toBe(true);
+        expect(resource.canReuse({ ...descriptor, trackCount: 11 })).toBe(false);
+        time += UNVERSIONED_COLLECTION_REUSE_MS - 1;
+        resource.ensure(descriptor, {});
+        expect(resource.canReuse(descriptor)).toBe(true);
+        expect(h.pages).toHaveLength(1);
+        time += 1;
+        expect(resource.canReuse(descriptor)).toBe(false);
+    });
+
+    it('reuses a successfully loaded empty playlist without accepting an unversioned disk snapshot', async () => {
+        const descriptor = playlist({ tracksUpdatedAt: undefined, trackCount: 0 });
+        const h = harness([], {}, {
+            tracks: songs(2, 'stale'), snapshotTime: 0, schemaVersion: ONLINE_TRACKS_CACHE_SCHEMA_VERSION,
+            nextOffset: 2, hasMore: false,
+        });
+        const resource = createOnlineCollectionResource('k', h.deps);
+        resource.ensure(descriptor, {});
+        await settle();
+        expect(h.pages).toHaveLength(1);
+        expect(resource.getSnapshot().tracks).toEqual([]);
+        expect(resource.canReuse(descriptor)).toBe(true);
+    });
+
+    it.each(['daily_recommendations', 'radio', 'cloud'] as const)('does not retain dynamic %s collections using the fallback', async type => {
+        const descriptor = playlist({ type, tracksUpdatedAt: undefined, trackCount: 10 });
+        const h = harness(songs(10));
+        const resource = createOnlineCollectionResource('k', h.deps);
+        resource.ensure(descriptor, {});
+        await settle();
+        expect(resource.canReuse(descriptor)).toBe(false);
+    });
+
+    it('bypasses the kept tracks on refresh and refuses to reuse a failed refresh', async () => {
+        const descriptor = playlist({ tracksUpdatedAt: undefined, trackCount: 10 });
+        const h = harness(songs(10));
+        const resource = createOnlineCollectionResource('k', h.deps);
+        resource.ensure(descriptor, {});
+        await settle();
+        expect(resource.canReuse(descriptor)).toBe(true);
+        vi.mocked(h.deps.getCollectionTracks).mockRejectedValueOnce(new Error('refresh failed'));
+        resource.reload();
+        await settle();
+        expect(h.deps.getCollectionTracks).toHaveBeenCalledTimes(2);
+        expect(h.deps.readCache).toHaveBeenCalledTimes(1);
+        expect(resource.canReuse(descriptor)).toBe(false);
+    });
+
+    it.each(['removeTracks', 'removeAt'] as const)('invalidates memory reuse after %s', async operation => {
+        const descriptor = playlist({ tracksUpdatedAt: undefined, trackCount: 10 });
+        const h = harness(songs(10));
+        const resource = createOnlineCollectionResource('k', h.deps);
+        resource.ensure(descriptor, {});
+        await settle();
+        if (operation === 'removeTracks') await resource.removeTracks(track => track.id === 's-0');
+        else resource.removeAt(0, getPlaybackSongKey(song(0)));
+        expect(resource.getSnapshot().tracks).toHaveLength(9);
+        expect(resource.canReuse(descriptor)).toBe(false);
+    });
+});
+
 describe('online collection resource: loading', () => {
     it('uses a valid cache without asking for the first page, then fills the rest from the cached cursor', async () => {
         const all = songs(300);
@@ -137,6 +248,62 @@ describe('online collection resource: loading', () => {
         expect(h.pages).toEqual([{ offset: 0, limit: 150 }, { offset: 150, limit: 1000 }]);
         expect(resource.getSnapshot().tracks).toHaveLength(210);
         expect(h.writes.at(-1)?.snapshotTime).toBe(TARGET_TIME);
+    });
+
+    it('reads past a stale track count while the pages say more is coming', async () => {
+        // NetEase's track pages carry no total and say "more" whenever a page comes back full; the
+        // liked list's count was read when it held 150 songs, and it holds 200 now.
+        const all = songs(200);
+        const h = harness(all, {
+            getCollectionTracks: vi.fn(async (_collection, page) => {
+                h.pages.push(page);
+                const items = all.slice(page.offset, page.offset + page.limit);
+                return { items, hasMore: items.length === page.limit, nextOffset: page.offset + items.length };
+            }),
+        });
+        const resource = createOnlineCollectionResource('k', h.deps);
+        resource.ensure(playlist({ trackCount: 150 }), {});
+        await settle();
+
+        expect(h.pages).toEqual([{ offset: 0, limit: 150 }, { offset: 150, limit: 1000 }]);
+        expect(resource.getSnapshot().tracks).toHaveLength(200);
+        expect(resource.getSnapshot().sync.status).toBe('none');
+    });
+
+    it('asks no page past the total the provider gave, even when the last page said more', async () => {
+        // Some providers say "more" whenever a page comes back full, and give their own total besides.
+        const all = songs(1150);
+        const h = harness(all, {
+            getCollectionTracks: vi.fn(async (_collection, page) => {
+                h.pages.push(page);
+                const items = all.slice(page.offset, page.offset + page.limit);
+                return { items, total: all.length, hasMore: items.length === page.limit, nextOffset: page.offset + items.length };
+            }),
+        });
+        const resource = createOnlineCollectionResource('k', h.deps);
+        resource.ensure(playlist({ trackCount: 150 }), {});
+        await settle();
+
+        expect(h.pages).toEqual([{ offset: 0, limit: 150 }, { offset: 150, limit: 1000 }]);
+        expect(resource.getSnapshot().tracks).toHaveLength(1150);
+    });
+
+    it('reads on when the first page gave a total no larger than itself and said more', async () => {
+        // A provider whose count is only the page's own count: 150 rows, "150 in all", more to come.
+        const all = songs(250);
+        const h = harness(all, {
+            getCollectionTracks: vi.fn(async (_collection, page) => {
+                h.pages.push(page);
+                const items = all.slice(page.offset, page.offset + page.limit);
+                return { items, total: items.length, hasMore: items.length === page.limit, nextOffset: page.offset + items.length };
+            }),
+        });
+        const resource = createOnlineCollectionResource('k', h.deps);
+        resource.ensure(playlist({ trackCount: undefined }), {});
+        await settle();
+
+        expect(h.pages).toEqual([{ offset: 0, limit: 150 }, { offset: 150, limit: 1000 }]);
+        expect(resource.getSnapshot().tracks).toHaveLength(250);
     });
 
     it('fills the detail track count from the page total, and keeps it when the detail has none', async () => {
@@ -217,7 +384,8 @@ describe('online collection resource: background sync', () => {
         const resource = createOnlineCollectionResource('k', h.deps);
         resource.ensure(playlist({ trackCount: 400 }), {});
         await settle();
-        expect(resource.getSnapshot().sync).toEqual({ status: 'interrupted', message: 'page down', offset: 150 });
+        // What was thrown goes with it (`cause`): the page sorts it into a named case before it says it.
+        expect(resource.getSnapshot().sync).toMatchObject({ status: 'interrupted', message: 'page down', offset: 150 });
         expect(resource.getSnapshot().tracks).toHaveLength(150);
 
         h.pages.length = 0;
@@ -369,5 +537,20 @@ describe('online collection resource: edit bridge', () => {
         await done;
         expect(resource.getSnapshot()).toMatchObject({ status: 'ready' });
         expect(ids(resource.getSnapshot().tracks)).toEqual(['history-0', 'history-1']);
+    });
+
+    it('drops the failure of the first read once a replacement comes in', async () => {
+        const h = harness(songs(5));
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+        vi.spyOn(console, 'warn').mockImplementation(() => {});
+        vi.mocked(h.deps.getCollectionTracks).mockRejectedValueOnce(new Error('offline'));
+        const resource = createOnlineCollectionResource('k', h.deps);
+        resource.ensure(playlist({ trackCount: 5 }), {});
+        await settle();
+        expect(resource.getSnapshot().status).toBe('error');
+        expect(resource.getSnapshot().error).not.toBeNull();
+
+        expect(await resource.replaceAll(async () => songs(2, 'other'))).toBe(true);
+        expect(resource.getSnapshot()).toMatchObject({ status: 'ready', error: null });
     });
 });

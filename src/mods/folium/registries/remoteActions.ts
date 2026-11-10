@@ -1,7 +1,7 @@
 import type { FoliumRemoteActionDef, FoliumRemoteActionsContext, FoliumRemoteActionsDef, FoliumRemoteActionsHandle } from '../contract';
 import { hasFoliumIcon } from '../icons';
-import { createFoliumRegistry, foliumId, type FoliumRegistryEntry } from '../registry';
-import { reportFoliumIssue } from '../status';
+import { createFoliumRegistry, foliumId, type FoliumRegistryEntry } from '../../runtime/registry';
+import { reportFoliumIssue } from '../../runtime/status';
 
 // src/mods/folium/registries/remoteActions.ts
 // Main-window action groups; the companion receives only serialized button data.

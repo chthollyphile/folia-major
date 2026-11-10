@@ -1,7 +1,7 @@
 import type { Page } from '@playwright/test';
 import { expect, test } from './fixtures';
 import type { GridSurfaceActionId } from '../../src/types/gridCommandSurface';
-import { GRID_SURFACE_ACTION_SOURCES } from '../../src/library/core/model/collectionSurface';
+import { GRID_SURFACE_ACTION_SOURCES } from '../../src/library/core/collection/collectionSurface';
 import type { ProbeCallKind } from '../../dev/probes/libraryBehavior/probeLog';
 import type { ProbeFixtureId } from '../../dev/probes/libraryBehavior/fixtureRules';
 import {
@@ -1043,7 +1043,7 @@ test.describe('navigation', () => {
     });
 });
 
-// P4.4：集合里曲目上的专辑 / 歌手链接（网格：卡片上的名字；TUI：行上的按钮）。core 的规则同一份（core/model/trackLinks），
+// P4.4：集合里曲目上的专辑 / 歌手链接（网格：卡片上的名字；TUI：行上的按钮）。core 的规则同一份（core/shared/trackLinks），
 // 打开时压入的描述由宿主解析；压栈之前两套都把焦点写回会话，返回之后焦点回到那一项。
 for (const renderer of RENDERERS) {
 test.describe(`[${renderer}] nested opens from collection entries`, () => {
@@ -1995,6 +1995,25 @@ test.describe('[bravais-only] collection page', () => {
         // 恢复到折叠前的等级（完整信息条）。
         await expect(seam).toHaveAttribute('data-bravais-seam-level', 'full');
         await expect(seam).toHaveAttribute('data-bravais-seam', 'full');
+    });
+
+    test('reloading is the track count itself, not an entry of the more menu', async ({ mount, page }) => {
+        await openPublic(mount, page);
+        const seam = seamOf(page);
+        const count = seam.locator('.bravais-seam-full .bravais-seam-meta > button');
+        await expect(count).toHaveAttribute('data-bravais-seam-action', 'reload');
+        await expect(count).toHaveAttribute('title', 'Reload');
+        await expect(count).toContainText(/\d/);
+        await expect(count.locator('svg')).toHaveCount(1);
+        await seam.locator('.bravais-seam-full [data-bravais-seam-action="more"]').click();
+        await expect(seam.locator('[data-bravais-seam-menu]')).toBeVisible();
+        await expect(seam.locator('[data-bravais-seam-menu] [data-bravais-seam-action="reload"]')).toHaveCount(0);
+        await page.keyboard.press('Escape');
+
+        await clearLog(page);
+        await count.click();
+        await expect.poll(async () => (await requests(page, 'playlistTracks')).some(request => request.offset === 0)).toBe(true);
+        await waitForScope(page, publicScope());
     });
 
     test('the more menu floats above the buttons: nothing in the strip moves, and a click elsewhere or Escape closes it', async ({ mount, page }) => {

@@ -25,16 +25,16 @@ const collectSourceFiles = async (relativeDir: string): Promise<string[]> => {
     return files.flat();
 };
 
-describe('lyrics architecture', () => {
+describe('D113 lyrics architecture', () => {
     it('keeps Netease call sites on the shared processing helper', async () => {
         const directProcessingCallSites = [
-            'src/services/onlineMusic/neteaseProvider.ts',
+            'src/services/onlineMusic/netease/neteaseProvider.ts',
         ];
         const delegatedProcessingCallSites = [
-            'src/components/modal/LyricMatchModal.tsx',
-            'src/components/modal/NaviLyricMatchModal.tsx',
-            'src/components/app/playback/restorePlaybackSource.ts',
-            'src/hooks/useLibraryPlaybackController.ts',
+            'src/components/modal/lyric-match/localSongMatch.ts',
+            'src/components/modal/lyric-match/navidromeSongMatch.ts',
+            'src/components/app/playback/restore/restorePlaybackSource.ts',
+            'src/components/app/playback/start/useLibraryPlaybackController.ts',
             'src/services/localMusicService.ts',
             'src/services/prefetchService.ts',
             'src/services/onlinePlayback.ts',
@@ -88,6 +88,20 @@ describe('lyrics architecture', () => {
         expect(workerContent).not.toContain('buildTimedWords');
         expect(lrcWrapperContent).toContain('parseCoreLRC');
         expect(yrcWrapperContent).toContain('parseCoreYRC');
+    });
+
+    it('gives every auto-match of an online song the way to the artist\'s other name', async () => {
+        const callers = [
+            'src/services/onlinePlayback.ts',
+            'src/services/prefetchService.ts',
+            'src/components/app/playback/start/useLibraryPlaybackController.ts',
+        ];
+
+        for (const file of callers) {
+            const content = await readRepoFile(file);
+            expect(content, file).toMatch(/alternateArtist: \(\) => omni\.getAlternateArtistName\(/);
+            expect(content, file).toMatch(/searchAlias: \(\) => omni\.getLyricSearchAlias\(/);
+        }
     });
 
     it('keeps multi-source orchestration independent from the active Omni provider', async () => {

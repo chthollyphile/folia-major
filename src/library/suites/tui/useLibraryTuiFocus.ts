@@ -1,18 +1,18 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import type { CollectionView } from '../../core/bindings/useCollectionView';
-import { resolveRowAfterRemoval } from '../../core/model/collectionEntries';
+import type { CollectionView } from '../../core/collection/useCollectionView';
+import { resolveRowAfterRemoval } from '../../core/collection/collectionEntries';
 import {
     getLibraryBrowseSession,
     getLibrarySessionGeneration,
     registerLibrarySessionFlush,
     useLibraryBrowseSessionStore,
-} from '../../core/state/useLibraryBrowseSessionStore';
+} from '../../core/shared/useLibraryBrowseSessionStore';
 
 // src/library/suites/tui/useLibraryTuiFocus.ts
 // TUI 的焦点按条目键记，而不是按行号：筛选变了、分页追加了，同一首仍是同一首；
 // 焦点那首不在当前行里时落到第一行。初值取自浏览会话（例如刚从网格切过来）。
 // 例外是删除：焦点条目被删掉（或被替换）之后，焦点落在原位置的下一行，删的是最后一行就落到上一行
-// （core/model/collectionEntries 的 resolveRowAfterRemoval）。
+// （core/collection/collectionEntries 的 resolveRowAfterRemoval）。
 // 写回会话（P4.4）：播放、压入嵌套的专辑 / 歌手页之前写一次（persistFocus），换 suite 的冲刷与卸载时再写一次
 // （flushFocus）——后两者只在用户在这里动过焦点时才写：没动过就写，会把会话里的焦点（例如网格记下的那首、
 // 还没分页到的那首）盖成第一行。
@@ -68,7 +68,7 @@ export const useLibraryTuiFocus = (sessionKey: string, view: CollectionView, com
     currentKeyRef.current = focusedRow >= 0 ? rowKeys[focusedRow] || null : null;
     /** 用户在这里动过焦点（移动、点击、删除、播放 / 打开）。 */
     const touchedRef = useRef(false);
-    /** 挂载时会话的代（见 core/state/useLibraryBrowseSessionStore）。 */
+    /** 挂载时会话的代（见 core/shared/useLibraryBrowseSessionStore）。 */
     const mountGenerationRef = useRef(getLibrarySessionGeneration(sessionKey));
 
     const moveFocus = useCallback((resolve: (current: number) => number) => {

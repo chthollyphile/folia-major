@@ -255,7 +255,7 @@ unsafe fn detect_worker_for_monitor(monitor: HMONITOR) -> Option<WorkerCandidate
 
 /// Attaches `hwnd` below the desktop icons, returning the WorkerW it was parented into and the
 /// desktop architecture. The window itself decides which monitor is filled: the main process
-/// creates it on the display the app window was on (see electron/windowsWallpaperTarget.cjs).
+/// creates it on the display the app window was on (see electron/wallpaper/windowsWallpaperTarget.cjs).
 /// 0x052C is sent **only when no WorkerW exists**: re-sending while a raised WorkerW is alive
 /// makes Explorer tear down and rebuild the whole hierarchy, destroying our attached window
 /// and looping forever (Seelen UI trap fix).
@@ -375,7 +375,7 @@ pub(crate) fn ensure_thread_dpi_awareness() {
 /// coordinates (the classic WorkerW spans the whole virtual screen, so the client origin can
 /// be offset — Seelen handlers.rs does the same conversion from the virtual screen rect).
 /// Which monitor that is follows from where the main process placed the window; the helper has no
-/// say in it (multi-display targeting lives in electron/windowsWallpaperTarget.cjs).
+/// say in it (multi-display targeting lives in electron/wallpaper/windowsWallpaperTarget.cjs).
 pub unsafe fn reassert_geometry(hwnd: HWND) {
     let monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
     reassert_geometry_on_monitor(hwnd, monitor);

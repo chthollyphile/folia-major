@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { LibraryNavigationContext } from '../../core/contracts/suite';
+import type { LibraryNavigationContext } from '../../core/suite/suite.contract';
 import { buildBravaisCrumbs, type BravaisCrumb } from './bravaisCrumbs';
 import type { BravaisLayer } from './bravaisLayer';
 import './bravaisCrumbs.css';

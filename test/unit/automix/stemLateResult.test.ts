@@ -29,7 +29,7 @@ vi.mock('@/services/audioCache', () => ({
 }));
 vi.mock('@/services/onlineMusic/resourceCache', () => ({ getCachedSongAudioBlob }));
 
-import { refreshModelAvailability } from '@/services/automix/modelAvailability';
+import { refreshModelAvailability } from '@/services/analysis/modelAvailability';
 import { ensureStems, setWantedStems, stemWindowKey } from '@/services/automix/stems';
 
 const SAMPLES = 1024;

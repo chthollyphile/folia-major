@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import fs from 'fs';
 import {
     CONTRACT_PATH,
+    MAIN_CONTRACT_PATH,
     MAIN_ENTRY_SECTION,
     OUTPUT_PATH,
     parseContract as parseContractJs,
@@ -9,7 +10,8 @@ import {
 } from '../../../dev/folium/api-docs.mjs';
 
 // test/unit/mod-system/foliumApiDocs.test.ts
-// docs/folium/api.md is generated from src/mods/folium/contract.ts. These pin
+// docs/folium/api.md is generated from src/mods/folium/contract.ts and
+// src/mods/folium/mainContract.ts. These pin
 // that the reference is current (a contract change must come with
 // `npm run folium:api`), that every exported type is in it, that every
 // public declaration and member carries a description, and that types land
@@ -20,11 +22,13 @@ interface ParsedItem {
     doc: string;
     header?: string;
     source?: string;
-    members?: { name: string; doc: string; type: string }[];
+    members?: { name: string; doc: string; type: string; children?: { name: string; doc: string }[] }[];
 }
 const parseContract = (text: string) => parseContractJs(text) as unknown as { title: string; items: ParsedItem[] }[];
 
 const contract = fs.readFileSync(CONTRACT_PATH, 'utf8');
+const mainContract = fs.readFileSync(MAIN_CONTRACT_PATH, 'utf8');
+const contracts = [contract, mainContract];
 
 /* Folium type names an item's signature mentions (header, member types, or type source). */
 const signatureNames = (item: ParsedItem) => {
@@ -34,22 +38,26 @@ const signatureNames = (item: ParsedItem) => {
 
 describe('Folium API reference', () => {
     it('is up to date with the contract (run `npm run folium:api`)', () => {
-        expect(fs.readFileSync(OUTPUT_PATH, 'utf8')).toBe(renderApiDocs(contract));
+        expect(fs.readFileSync(OUTPUT_PATH, 'utf8')).toBe(renderApiDocs(contract, mainContract));
     });
 
     it('covers every exported declaration', () => {
-        const exported = [...contract.matchAll(/^export (?:interface|type|const) (\w+)/gm)].map((match) => match[1]).sort();
-        const documented = parseContract(contract).flatMap((section) => section.items.map((item) => item.name)).sort();
+        const exported = contracts.flatMap((text) => [...text.matchAll(/^export (?:interface|type|const) (\w+)/gm)].map((match) => match[1])).sort();
+        const documented = contracts.flatMap((text) => parseContract(text)).flatMap((section) => section.items.map((item) => item.name)).sort();
         expect(documented).toEqual(exported);
     });
 
     it('describes every declaration and member', () => {
         const missing: string[] = [];
-        for (const section of parseContract(contract)) {
+        for (const section of contracts.flatMap((text) => parseContract(text))) {
             for (const item of section.items) {
                 if (!item.doc) missing.push(item.name);
                 for (const member of item.members ?? []) {
                     if (!member.doc) missing.push(`${item.name}.${member.name}`);
+                    // The members of an inline object type (FoliumOmniProviderInfo's `supports`) too.
+                    for (const child of member.children ?? []) {
+                        if (!child.doc) missing.push(`${item.name}.${member.name}.${child.name}`);
+                    }
                 }
             }
         }
@@ -74,19 +82,18 @@ describe('Folium API reference', () => {
         expect(client!.items.map((item) => item.name).filter((name) => !reachable.has(name))).toEqual([]);
     });
 
-    it('lists main-entry-only types under the main entry heading, linked from its member table', () => {
-        const sections = parseContract(contract);
-        const mainEntry = sections.find((section) => section.title === MAIN_ENTRY_SECTION)?.items ?? [];
+    // Main-entry types live in mainContract.ts; none of the client contract's sections may claim one.
+    it('lists main-entry-only types under the main entry heading, linked from its contents line', () => {
+        const mainEntry = parseContract(mainContract).find((section) => section.title === MAIN_ENTRY_SECTION)?.items ?? [];
         expect(mainEntry.map((item) => item.name)).toContain('FoliumModPaths');
 
-        const misplaced = sections
-            .filter((section) => section.title !== MAIN_ENTRY_SECTION)
+        const misplaced = parseContract(contract)
             .flatMap((section) => section.items)
-            .filter((item) => /main entr(?:y|ies) only/i.test(item.doc))
+            .filter((item) => /main entr(?:y|ies) only/i.test(item.doc) || item.name === 'FoliumModPaths')
             .map((item) => item.name);
         expect(misplaced).toEqual([]);
 
-        const docs = renderApiDocs(contract);
+        const docs = renderApiDocs(contract, mainContract);
         const chapter = docs.indexOf('\n## main 入口（Node）\n');
         expect(chapter).toBeGreaterThan(-1);
         const toc = docs.split('\n').find((line) => line.startsWith('- **main 入口（Node）**'));

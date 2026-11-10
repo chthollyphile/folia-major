@@ -1,8 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import { buildAppOverlaysModel } from '../../../src/components/app/overlays/buildAppOverlaysModel';
 import { shouldShowNowPlayingToast } from '../../../src/components/app/overlays/now-playing-toast/nowPlayingToastVisibility';
-import { useLatticeControlsStore } from '../../../src/stores/useLatticeControlsStore';
+import { wallPageKey } from '../../../src/components/app/lattice/wallLocate';
+import { useAppViewStore } from '../../../src/stores/useAppViewStore';
+import { usePlaybackStore } from '../../../src/stores/usePlaybackStore';
+import { usePlayingSongLocatorStore } from '../../../src/stores/usePlayingSongLocatorStore';
 import { PlayerState, type SongResult } from '../../../src/types';
+import { getPlaybackSongKey } from '../../../src/utils/appPlaybackGuards';
 
 // test/unit/stage/nowPlayingToastVisibility.test.ts
 
@@ -22,7 +26,7 @@ describe('now playing toast visibility', () => {
         expect(shouldShowNowPlayingToast({ mode: 'never', view: 'lattice', showOnHome: true })).toBe(false);
     });
 
-    it('routes a Lattice card click to the registered current-song focus action', () => {
+    it('routes a Lattice card click to the locate of the wall', () => {
         const song: SongResult = {
             id: 'now',
             name: 'Now',
@@ -31,8 +35,9 @@ describe('now playing toast visibility', () => {
             durationMs: 180000,
             sourceRef: { kind: 'online', providerId: 'netease', mediaId: 'now' },
         };
-        const focus = vi.fn();
-        const unregister = useLatticeControlsStore.getState().registerFocus(focus);
+        // The locator asks about the song the player has, on the wall that is up.
+        usePlaybackStore.setState({ currentSong: song, playQueue: [song] });
+        useAppViewStore.setState({ view: 'lattice', latticeSource: 'queue' });
         const navigateToPlayer = vi.fn();
         const openSongCardPanel = vi.fn();
         const model = buildAppOverlaysModel({
@@ -55,14 +60,18 @@ describe('now playing toast visibility', () => {
             openSongCardPanel,
             stageTrackPillOpenPlayerLabel: 'Open player',
             stageTrackPillOpenSongCardLabel: 'Open song card',
-            stageTrackPillFocusLatticeLabel: 'Focus current song',
+            stageTrackPillFocusLatticeLabel: 'Locate the playing song on this page',
         } as unknown as Parameters<typeof buildAppOverlaysModel>[0]);
 
-        expect(model.nowPlayingToast?.activateLabel).toBe('Focus current song');
+        expect(model.nowPlayingToast?.activateLabel).toBe('Locate the playing song on this page');
         model.nowPlayingToast?.onActivate?.();
-        expect(focus).toHaveBeenCalledOnce();
+        expect(usePlayingSongLocatorStore.getState().request).toMatchObject({
+            collectionKey: wallPageKey('queue'), songKey: getPlaybackSongKey(song), waits: false,
+        });
         expect(navigateToPlayer).not.toHaveBeenCalled();
         expect(openSongCardPanel).not.toHaveBeenCalled();
-        unregister();
+        usePlayingSongLocatorStore.getState().setRequest(null);
+        usePlaybackStore.setState({ currentSong: null, playQueue: [] });
+        useAppViewStore.setState({ view: 'home' });
     });
 });

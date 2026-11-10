@@ -1,12 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import {
+    COMPACT_CAPSULE_BASE_BOTTOM_PX,
+    COMPACT_SUBTITLE_CLEARANCE_PX,
     PLAYER_BOTTOM_BAR_BASE_OFFSET_PX,
     PLAYER_BOTTOM_BAR_SUBTITLE_CLEARANCE_PX,
     clampPlayerBottomBarOffset,
     resolvePlayerBottomBarMaxOffset,
     resolvePlayerBottomComponentBottomPx,
+    resolveBottomLayout,
     resolvePlayerSubtitleBottomFromPresence,
+    resolveUnscaledSubtitleBarOffset,
 } from '../../../src/utils/playerBottomBarLayout';
+import { frameStage, stageBelowBox } from '../../../src/components/visualizer/preview/previewScale';
 
 // test/unit/utils/playerBottomBarLayout.test.ts
 
@@ -86,5 +91,99 @@ describe('resolvePlayerSubtitleBottomFromPresence', () => {
 
     it('stays pinned to the baseline while the bar is absent, whatever the offset', () => {
         expect(resolvePlayerSubtitleBottomFromPresence(300, 0)).toBe(PLAYER_BOTTOM_BAR_BASE_OFFSET_PX);
+    });
+});
+
+describe('resolveUnscaledSubtitleBarOffset', () => {
+    it('keeps the subtitle 112 box pixels up once the stage is scaled', () => {
+        for (const scale of [1, 0.63, 0.4]) {
+            const stageBottom = resolvePlayerSubtitleBottomFromPresence(resolveUnscaledSubtitleBarOffset(scale), 1);
+            expect(stageBottom * scale).toBeCloseTo(112);
+        }
+    });
+
+    it('keeps the subtitle 112 box pixels up on a zoomed stage cut below the box', () => {
+        const box = { width: 1158, height: 1038 };
+        for (const zoom of [1, 1.15, 1.3]) {
+            const framed = frameStage({ width: 1840, height: 1160 }, box, 1, true, zoom)!;
+            const { scale } = framed.place;
+            const offset = resolveUnscaledSubtitleBarOffset(scale, stageBelowBox(framed, box));
+            const subtitleBottomInStage = resolvePlayerSubtitleBottomFromPresence(offset, 1);
+            const stageBottomInBox = framed.frame.top + framed.place.top + framed.stage.height * scale;
+            expect(box.height - (stageBottomInBox - subtitleBottomInStage * scale)).toBeCloseTo(112);
+        }
+    });
+
+    it('keeps the subtitle the distance asked for above the box\'s bottom', () => {
+        const box = { width: 1158, height: 1038 };
+        for (const zoom of [1.15, 1.3]) {
+            const framed = frameStage({ width: 1840, height: 1160 }, box, 1, true, zoom)!;
+            const { scale } = framed.place;
+            const offset = resolveUnscaledSubtitleBarOffset(scale, stageBelowBox(framed, box), 90);
+            const subtitleBottomInStage = resolvePlayerSubtitleBottomFromPresence(offset, 1);
+            const stageBottomInBox = framed.frame.top + framed.place.top + framed.stage.height * scale;
+            expect(box.height - (stageBottomInBox - subtitleBottomInStage * scale)).toBeCloseTo(90);
+        }
+    });
+
+    it('keeps the lyric window\'s subtitle where the unzoomed stage put it, inside a wide box', () => {
+        const windowSize = { width: 1840, height: 1160 };
+        const box = { width: 1158, height: 655 };
+        const unzoomedScale = frameStage(windowSize, box, 1, true)!.place.scale;
+        for (const zoom of [1.15, 1.3]) {
+            const framed = frameStage(windowSize, box, 1, true, zoom)!;
+            const { scale } = framed.place;
+            const offset = resolveUnscaledSubtitleBarOffset(scale, stageBelowBox(framed, box), 112 * (scale / zoom));
+            const subtitleBottomInStage = resolvePlayerSubtitleBottomFromPresence(offset, 1);
+            const stageBottomInBox = framed.frame.top + framed.place.top + framed.stage.height * scale;
+            // The zoom crops the stage below the box; the subtitle still sits 112 x the unzoomed scale up.
+            expect(stageBelowBox(framed, box)).toBeGreaterThan(2);
+            expect(box.height - (stageBottomInBox - subtitleBottomInStage * scale)).toBeCloseTo(112 * unzoomedScale);
+        }
+    });
+
+    it('is the baseline on an unscaled stage', () => {
+        expect(resolveUnscaledSubtitleBarOffset(1)).toBe(PLAYER_BOTTOM_BAR_BASE_OFFSET_PX);
+    });
+});
+
+describe('resolveBottomLayout (progress-bar v3)', () => {
+    it('splits at 960 when there is no previous layout', () => {
+        expect(resolveBottomLayout(959, null)).toBe('compact');
+        expect(resolveBottomLayout(960, null)).toBe('desktop');
+        expect(resolveBottomLayout(375, null)).toBe('compact');
+    });
+
+    it('keeps the previous layout inside the 944-975 band', () => {
+        expect(resolveBottomLayout(950, 'desktop')).toBe('desktop');
+        expect(resolveBottomLayout(970, 'compact')).toBe('compact');
+        expect(resolveBottomLayout(944, 'desktop')).toBe('desktop');
+        expect(resolveBottomLayout(975, 'compact')).toBe('compact');
+    });
+
+    it('switches once the window leaves the band', () => {
+        expect(resolveBottomLayout(943, 'desktop')).toBe('compact');
+        expect(resolveBottomLayout(976, 'compact')).toBe('desktop');
+    });
+
+    it('keeps the previous layout for a width it cannot read', () => {
+        expect(resolveBottomLayout(Number.NaN, 'compact')).toBe('compact');
+        expect(resolveBottomLayout(0, null)).toBe('desktop');
+    });
+});
+
+describe('resolvePlayerSubtitleBottomFromPresence in the compact layout', () => {
+    const compact = { baseBottomPx: COMPACT_CAPSULE_BASE_BOTTOM_PX, clearancePx: COMPACT_SUBTITLE_CLEARANCE_PX };
+
+    it('sits 16px above the 56px capsule that sits 16px from the bottom', () => {
+        expect(resolvePlayerSubtitleBottomFromPresence(PLAYER_BOTTOM_BAR_BASE_OFFSET_PX, 1, compact)).toBe(88);
+    });
+
+    it('drops to the compact baseline when the control bar is gone', () => {
+        expect(resolvePlayerSubtitleBottomFromPresence(PLAYER_BOTTOM_BAR_BASE_OFFSET_PX, 0, compact)).toBe(COMPACT_CAPSULE_BASE_BOTTOM_PX);
+    });
+
+    it('follows a lifted baseline by the same amount', () => {
+        expect(resolvePlayerSubtitleBottomFromPresence(PLAYER_BOTTOM_BAR_BASE_OFFSET_PX + 40, 1, compact)).toBe(128);
     });
 });

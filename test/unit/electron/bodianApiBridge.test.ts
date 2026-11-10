@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 // test/unit/electron/bodianApiBridge.test.ts — host persistence and IPC; protocol tests live in the API repository.
 
 const require = createRequire(import.meta.url);
-const { createBodianApiBridge } = require('../../../electron/bodianApiBridge.cjs');
+const { createBodianApiBridge } = require('../../../electron/bodian/bodianApiBridge.cjs');
 const { createSessionRepository, SESSION_KEY } = require('../../../electron/bodian/session.cjs');
 const { createBodianMediaPolicy } = require('../../../electron/bodian/mediaCors.cjs');
 const { createWire } = require('../../helpers/bodianWire.cjs');
@@ -69,6 +69,28 @@ describe('Bodian desktop bridge', () => {
         expect(repository.get().token).toBe('fixture-private');
         expect(store.get(SESSION_KEY)).toBeUndefined();
     });
+    it('replaces what is stored where a new login cannot be sealed, and leaves it where it cannot be written', () => {
+        const store = createStore();
+        createSessionRepository({ store, safeStorage: cipher() }).set(account);
+        const sealed = store.get(SESSION_KEY);
+        const warn = vi.fn();
+        const unsealed = createSessionRepository({ store, safeStorage: { ...cipher(), isEncryptionAvailable: () => false }, warn });
+        unsealed.set({ ...account, token: 'fixture-other' });
+        unsealed.set({ ...account, token: 'fixture-third' });
+        expect(store.get(SESSION_KEY)).toBeUndefined();
+        store.set(SESSION_KEY, sealed);
+        expect(unsealed.get().token).toBe('fixture-third');
+        expect(warn).toHaveBeenCalledTimes(1);
+        const locked = { ...store, set: () => { throw Object.assign(new Error('locked'), { code: 'EPERM' }); } };
+        const lockedWarn = vi.fn();
+        createSessionRepository({ store: locked, safeStorage: cipher(), warn: lockedWarn }).set({ ...account, token: 'fixture-other' });
+        expect(store.get(SESSION_KEY)).toBe(sealed);
+        expect(lockedWarn).toHaveBeenLastCalledWith('[BodianSession] Login could not be stored; what is stored stays as it was', expect.objectContaining({ code: 'EPERM' }));
+        // Another account's login that cannot be written: the one stored before goes, so it does not come back at a later start.
+        createSessionRepository({ store: locked, safeStorage: cipher(), warn: lockedWarn }).set({ uid: '456', token: 'fixture-another', user: { ...account.user, id: '456' } });
+        expect(store.get(SESSION_KEY)).toBeUndefined();
+        expect(lockedWarn).toHaveBeenLastCalledWith('[BodianSession] Login could not be stored; the one of another account stored before was removed', expect.objectContaining({ code: 'EPERM' }));
+    });
     it('uses the package to clear a rejected persisted session', async () => {
         const store = createStore(), safeStorage = cipher();
         createSessionRepository({ store, safeStorage }).set(account);
@@ -77,6 +99,44 @@ describe('Bodian desktop bridge', () => {
         const result = await bridge.request('user_albums');
         expect(result).toMatchObject({ ok: false, error: { code: 'auth-required' } });
         expect(JSON.stringify(result)).not.toContain('fixture-private');
+        expect(store.get(SESSION_KEY)).toBeUndefined();
+    });
+    it.each([
+        ['without OS encryption', { isEncryptionAvailable: () => false }],
+        ['on the plaintext Linux backend', { getSelectedStorageBackend: () => 'basic_text' }],
+    ])('keeps a stored session this run could not read %s when a request is refused, and removes it on a sign-out', async (_case, locked) => {
+        const store = createStore(), safeStorage = cipher();
+        createSessionRepository({ store, safeStorage }).set(account);
+        const sealed = store.get(SESSION_KEY);
+        const requestFactory = vi.fn();
+        const bridge = createBodianApiBridge({ store, safeStorage: { ...cipher(), ...locked }, requestFactory, warn: vi.fn() });
+        expect(await bridge.request('user_albums')).toMatchObject({ ok: false, error: { code: 'auth-required' } });
+        expect(store.get(SESSION_KEY)).toBe(sealed);
+        expect(requestFactory).not.toHaveBeenCalled();
+        await bridge.request('logout');
+        expect(store.get(SESSION_KEY)).toBeUndefined();
+    });
+    it.each([
+        ['without OS encryption', { isEncryptionAvailable: () => false }],
+        ['on the plaintext Linux backend', { getSelectedStorageBackend: () => 'basic_text' }],
+    ])('does not answer a stored session it cannot read %s as nobody, and nobody once signed out', async (_case, locked) => {
+        const store = createStore();
+        createSessionRepository({ store, safeStorage: cipher() }).set(account);
+        const bridge = createBodianApiBridge({ store, safeStorage: { ...cipher(), ...locked }, requestFactory: vi.fn(), warn: vi.fn() });
+        const unknown = { ok: false, error: { code: 'unavailable', message: 'The stored Bodian sign-in cannot be read now' } };
+        expect(await bridge.request('login_status')).toEqual(unknown);
+        await bridge.request('user_albums');
+        expect(await bridge.request('login_status')).toEqual(unknown);
+        await bridge.request('logout');
+        expect(await bridge.request('login_status')).toEqual({ ok: true, data: null });
+    });
+    it('treats a stored session the keychain will not unseal while encryption works as nothing stored', async () => {
+        const store = createStore();
+        createSessionRepository({ store, safeStorage: cipher() }).set(account);
+        const refused = { ...cipher(), decryptString: () => { throw new Error('refused'); } };
+        const bridge = createBodianApiBridge({ store, safeStorage: refused, requestFactory: vi.fn(), warn: vi.fn() });
+        expect(await bridge.request('login_status')).toEqual({ ok: true, data: null });
+        expect(await bridge.request('user_albums')).toMatchObject({ ok: false, error: { code: 'auth-required' } });
         expect(store.get(SESSION_KEY)).toBeUndefined();
     });
     it('preserves the package region restriction and encrypted session through the bridge', async () => {

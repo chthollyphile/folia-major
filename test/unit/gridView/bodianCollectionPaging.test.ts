@@ -1,12 +1,12 @@
 import { createRequire } from 'node:module';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { bodianCatalog } from '../../../src/services/onlineMusic/bodianCatalog';
-import { createCollectionTrackSnapshot, readCollectionTrackSnapshot } from '../../../src/library/core/services/collectionTrackSnapshot';
+import { bodianCatalog } from '../../../src/services/onlineMusic/bodian/bodianCatalog';
+import { createCollectionTrackSnapshot, readCollectionTrackSnapshot } from '../../../src/library/core/collection/resource/collectionTrackSnapshot.service';
 import {
     syncRemainingCollectionPages,
     ONLINE_COLLECTION_BACKGROUND_PAGE_SIZE as GRID_BACKGROUND_BATCH_SIZE,
     ONLINE_COLLECTION_FIRST_PAGE_SIZE as GRID_INITIAL_BATCH_SIZE,
-} from '../../../src/library/core/services/onlineCollectionSync';
+} from '../../../src/library/core/collection/resource/onlineCollectionSync.service';
 import { createBodianApi } from 'bodian-music-api';
 
 // test/unit/gridView/bodianCollectionPaging.test.ts

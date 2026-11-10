@@ -1,4 +1,5 @@
 import { splitCombinedTimeline } from './timelineSplitter';
+import { formatLrcTimestamp } from './lrcTimestamp';
 
 export interface EmbeddedLrcNormalizationResult {
     mainText: string;
@@ -15,17 +16,6 @@ export interface EmbeddedUsltLikeTag {
 export interface EmbeddedStructuredLyricLine {
     start?: number;
     value?: string;
-}
-
-function formatStructuredTimestamp(totalMs: number): string {
-    const safeTotalMs = Math.max(0, totalMs);
-    const minutes = Math.floor(safeTotalMs / 60000);
-    const seconds = Math.floor((safeTotalMs % 60000) / 1000);
-    const ms = safeTotalMs % 1000;
-    const mm = minutes.toString().padStart(2, '0');
-    const ss = seconds.toString().padStart(2, '0');
-    const xx = Math.floor(ms / 10).toString().padStart(2, '0');
-    return `[${mm}:${ss}.${xx}]`;
 }
 
 function isTranslationUsltTag(tag: EmbeddedUsltLikeTag): boolean {
@@ -108,7 +98,7 @@ export function normalizeEmbeddedStructuredLyrics(
     [...groups.entries()]
         .sort((a, b) => a[0] - b[0])
         .forEach(([start, values]) => {
-            const prefix = formatStructuredTimestamp(start);
+            const prefix = formatLrcTimestamp(start);
             if (values[0]) {
                 mainLines.push(`${prefix}${values[0]}`);
             }

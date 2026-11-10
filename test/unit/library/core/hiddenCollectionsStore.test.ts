@@ -18,7 +18,7 @@ const loadStore = async (initial?: string, options: { throwOnSet?: boolean } = {
         setItem,
     });
     vi.resetModules();
-    const { useHiddenCollectionsStore } = await import('@/library/core/state/useHiddenCollectionsStore');
+    const { useHiddenCollectionsStore } = await import('@/library/core/collection/useHiddenCollectionsStore');
     return { useHiddenCollectionsStore, storage, setItem };
 };
 

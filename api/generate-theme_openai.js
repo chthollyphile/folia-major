@@ -1,15 +1,19 @@
-import { detectOpenAICompatibleProvider, sendOpenAICompatibleRequest, } from '../shared/openAICompatibleRequest.mjs';
+import { sendOpenAICompatibleRequest } from '../shared/openAICompatibleRequest.mjs';
+import { budgetFor } from '../shared/ai/aiTasks.mjs';
+import { runAttempts } from '../shared/ai/attemptRunner.mjs';
+import { MAX_ERROR_BODY_CHARS, buildCompatibleBody, exhaustedByReasoning, withErrorHint } from '../shared/ai/compatibleBody.mjs';
+import { getAiAdapter, resolveAiConnection } from '../shared/ai/providerRegistry.mjs';
 import { sanitizeDualTheme } from "../shared/themeSanitizer.mjs";
 // 当前文件：Vercel OpenAI 兼容主题生成函数的 TypeScript 源文件。
 export const config = {
     runtime: 'edge', // Use edge runtime for fetch support
 };
 const DEFAULT_OPENAI_CHAT_COMPLETIONS_URL = 'https://api.openai.com/v1/chat/completions';
-const DEFAULT_OPENAI_MODEL = 'gpt-5.6-luna';
 const DEFAULT_OPENAI_TEMPERATURE = 0.7;
-const DEEPSEEK_DEFAULT_MODEL = 'deepseek-v4-flash';
 const THEME_JSON_SCHEMA_NAME = 'dual_theme';
-const THEME_MAX_OUTPUT_TOKENS = 4096;
+// What the theme answer itself needs. Attempts that leave the model thinking get room for that on
+// top (shared/ai/aiTasks.mjs), so this is the same 8192 the desktop asks with.
+const THEME_MAX_OUTPUT_TOKENS = 8192;
 const THEME_JSON_SCHEMA = {
     type: 'object',
     additionalProperties: false,
@@ -104,23 +108,6 @@ const normalizeOpenAIChatCompletionsUrl = (rawUrl) => {
         return trimmedUrl.replace(/\/+$/, '');
     }
 };
-const resolveOpenAICompatibleModel = (apiUrl, configuredModel) => {
-    const trimmedModel = configuredModel?.trim();
-    if (trimmedModel) {
-        return trimmedModel;
-    }
-    try {
-        const hostname = new URL(apiUrl).hostname.toLowerCase();
-        if (hostname === 'api.deepseek.com' || hostname.endsWith('.deepseek.com')) {
-            return DEEPSEEK_DEFAULT_MODEL;
-        }
-    }
-    catch {
-        // Fall back to the generic OpenAI default when URL parsing fails.
-    }
-    return DEFAULT_OPENAI_MODEL;
-};
-const providerSupportsStructuredOutputs = (provider) => provider === 'openai';
 const extractProviderErrorMessage = (payload) => {
     if (!payload || typeof payload !== 'object') {
         return null;
@@ -138,8 +125,7 @@ const extractProviderErrorMessage = (payload) => {
     const message = payload.message;
     return typeof message === 'string' ? message : null;
 };
-const formatOpenAICompatibleError = async (response) => {
-    const rawText = await response.text();
+const formatOpenAICompatibleErrorText = (response, rawText) => {
     let detail = rawText.trim();
     try {
         const parsed = JSON.parse(rawText);
@@ -213,35 +199,6 @@ ${JSON.stringify(THEME_JSON_SCHEMA, null, 2)}` : '';
 const buildThemeSourcePrompt = (snippet, isPureMusic, songTitle) => `Pure instrumental: ${isPureMusic ? 'yes' : 'no'}
 ${isPureMusic && songTitle ? `Song title: ${songTitle}\n` : ''}Source snippet:
 ${snippet}`;
-const buildOpenAICompatibleRequestBody = (model, provider, systemPrompt, sourcePrompt, temperature) => {
-    const messages = [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: sourcePrompt }
-    ];
-    if (providerSupportsStructuredOutputs(provider)) {
-        return {
-            model,
-            messages,
-            temperature,
-            max_completion_tokens: THEME_MAX_OUTPUT_TOKENS,
-            response_format: {
-                type: 'json_schema',
-                json_schema: {
-                    name: THEME_JSON_SCHEMA_NAME,
-                    strict: true,
-                    schema: THEME_JSON_SCHEMA
-                }
-            }
-        };
-    }
-    return {
-        model,
-        messages,
-        temperature,
-        max_tokens: 8192,
-        response_format: { type: 'json_object' }
-    };
-};
 const extractResponseContentText = (message) => {
     if (!message) {
         return null;
@@ -262,6 +219,75 @@ const extractResponseContentText = (message) => {
     }
     return null;
 };
+/**
+ * The theme JSON text, walking the provider adapter's theme attempts through the shared runner:
+ * the provider comes from the address's host (the registry the desktop uses; this route speaks
+ * only the OpenAI-compatible protocol, so anything else is the custom adapter), and an attempt
+ * whose reasoning switch is rejected by name, or whose reasoning ate the budget, gives way to the
+ * next. Any other failure is thrown as the provider's own error line.
+ */
+const requestThemeContent = async ({ apiUrl, apiKey, model, adapterId, temperature, systemPrompt, sourcePrompt }) => {
+    const adapter = getAiAdapter(adapterId);
+    return runAttempts({
+        adapter,
+        task: 'theme',
+        url: apiUrl,
+        model,
+        attempts: adapter.attempts('theme', model),
+        log: (line) => console.log(line),
+        describeEmpty: (result) => (result.exhausted
+            ? `Model "${model}" used its entire output budget on reasoning and returned no theme.`
+            : 'Failed to generate theme JSON'),
+        send: async (attempt) => {
+            const response = await sendOpenAICompatibleRequest({
+                apiUrl,
+                provider: adapter.id,
+                rejectsFormat: adapter.rejectedParameter,
+                body: buildCompatibleBody(adapter, {
+                    task: 'theme',
+                    model,
+                    attempt,
+                    systemPrompt,
+                    sourcePrompt,
+                    schema: THEME_JSON_SCHEMA,
+                    schemaName: THEME_JSON_SCHEMA_NAME,
+                    budget: budgetFor('theme', THEME_MAX_OUTPUT_TOKENS, attempt),
+                    temperature,
+                }),
+                init: {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${apiKey}`,
+                    },
+                    signal: AbortSignal.timeout(120_000),
+                },
+            });
+            if (!response.ok) {
+                // errorText is for people; errorBody keeps error.param and error.code for the runner.
+                const rawText = await response.text();
+                const errorText = formatOpenAICompatibleErrorText(response, rawText);
+                // A warning, not an error: the runner may still move on to the next attempt. A final
+                // failure is logged by the handler ("Error generating theme").
+                console.warn(`[ai] theme ${attempt.label} failed: ${errorText}`);
+                return withErrorHint(adapter, {
+                    ok: false,
+                    status: response.status,
+                    errorText,
+                    errorBody: rawText.slice(0, MAX_ERROR_BODY_CHARS),
+                });
+            }
+            const data = await response.json();
+            const choice = data.choices?.[0];
+            return {
+                ok: true,
+                status: response.status,
+                content: extractResponseContentText(choice?.message),
+                exhausted: exhaustedByReasoning(choice, data.usage, adapter),
+            };
+        },
+    });
+};
 export default async function handler(req) {
     if (req.method !== 'POST') {
         return new Response(JSON.stringify({ error: 'Method Not Allowed' }), {
@@ -278,13 +304,19 @@ export default async function handler(req) {
             });
         }
         const apiKey = process.env.OPENAI_API_KEY;
+        // The provider comes from the address's host, the same registry the desktop uses; this
+        // route speaks only the OpenAI-compatible protocol, so anything else is the custom adapter.
+        const connection = resolveAiConnection({
+            AI_PROVIDER: 'openai',
+            OPENAI_API_URL: process.env.OPENAI_API_URL,
+            OPENAI_API_MODEL: process.env.OPENAI_API_MODEL,
+        }, { protocols: ['openai'] });
         const apiUrl = normalizeOpenAIChatCompletionsUrl(process.env.OPENAI_API_URL);
-        const model = resolveOpenAICompatibleModel(apiUrl, process.env.OPENAI_API_MODEL);
+        const model = connection.model;
         const configuredTemperature = Number.parseFloat(process.env.OPENAI_API_TEMPERATURE?.trim() || '');
         const temperature = Number.isFinite(configuredTemperature) && configuredTemperature >= 0 && configuredTemperature <= 2
             ? configuredTemperature
             : DEFAULT_OPENAI_TEMPERATURE;
-        const provider = detectOpenAICompatibleProvider(apiUrl);
         if (!apiKey) {
             console.error("OpenAI API Key is missing in server environment.");
             return new Response(JSON.stringify({ error: 'Server configuration error' }), {
@@ -296,29 +328,9 @@ export default async function handler(req) {
         const snippet = lyricsText.slice(0, 2000);
         const systemPrompt = buildThemeSystemPrompt(true);
         const sourcePrompt = buildThemeSourcePrompt(snippet, isPureMusic, songTitle);
-        const response = await sendOpenAICompatibleRequest({
-            apiUrl,
-            provider,
-            body: buildOpenAICompatibleRequestBody(model, provider, systemPrompt, sourcePrompt, temperature),
-            init: {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${apiKey}`,
-                },
-                signal: AbortSignal.timeout(120_000),
-            },
+        const content = await requestThemeContent({
+            apiUrl, apiKey, model, adapterId: connection.adapterId, temperature, systemPrompt, sourcePrompt,
         });
-        if (!response.ok) {
-            const errorMessage = await formatOpenAICompatibleError(response);
-            console.error("OpenAI API Error:", errorMessage);
-            throw new Error(errorMessage);
-        }
-        const data = await response.json();
-        const content = extractResponseContentText(data.choices[0]?.message);
-        if (!content) {
-            throw new Error("Failed to generate theme JSON");
-        }
         // Attempt to parse JSON
         let dualTheme;
         let jsonStr = content.trim();

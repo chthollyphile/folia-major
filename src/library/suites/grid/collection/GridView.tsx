@@ -1,6 +1,7 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useWindowButtonsAtTopLeft } from '../../../../hooks/useWindowButtonsAtTopLeft';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { motion, useMotionValue, animate, AnimatePresence, useDragControls, useIsPresent } from 'framer-motion';
-import { ChevronLeft, Disc, Download, Play, Plus, Loader2, Heart, ListPlus, Pencil, RefreshCw, Trash2, Star, Tags } from 'lucide-react';
+import { ChevronLeft, Crosshair, Disc, Download, ImagePlus, Play, Plus, Loader2, Heart, ListPlus, NotebookPen, Pencil, RefreshCw, Trash2, Star, Tags } from 'lucide-react';
 import GridPanelToggleIndicator from '../shared/GridPanelToggleIndicator';
 import { useTranslation } from 'react-i18next';
 import { SongResult, type LocalSong, type StatusMessage, Theme, type UnifiedSong } from '../../../../types';
@@ -8,9 +9,18 @@ import { isSongUnavailable } from '../../../../services/onlineMusic/songAvailabi
 import { formatSongName } from '../../../../utils/songNameFormatter';
 import { getSizedCoverUrl } from '../../../../utils/coverUrl';
 import { getSongCoverUrl } from '../../../../services/onlineMusic/songMetadata';
+import { resolveCollectionArtistCatalogId } from '../../../../services/onlineMusic/catalogRefs';
 import { colorWithAlpha } from '../../../../components/visualizer/colorMix';
+import { onlineFailureOf, type OnlineFailure } from '../../../../services/onlineMusic/failure/onlineFailureCase';
+import { onlineFailureMessage } from '../../../../services/onlineMusic/failure/onlineFailureTexts';
+import { getPlaybackSongKey } from '../../../../utils/appPlaybackGuards';
+import { GridLocateButton } from '../../../../components/app/playing-song-locator/GridLocateButton';
+import { usePlaybackStore } from '../../../../stores/usePlaybackStore';
+import { usePlayingSongLocatorStore } from '../../../../stores/usePlayingSongLocatorStore';
+import { answerLocateRequest, locatePlayingSongOnPage } from '../../../../components/app/playing-song-locator/playingSongLocator';
+import { resolveLocateStep } from '../../../../components/app/playing-song-locator/resolveLocateStep';
 import { useFoliaHexViewport } from '../shared/useFoliaHexViewport';
-import { PolaroidCard, type GridItem } from '../shared/PolaroidCard';
+import { PolaroidCard, fullBleedScrim, type GridItem } from '../shared/PolaroidCard';
 import type { GridPlaybackMark } from '../shared/useGridStayPlayback';
 import { squareGridCardBox } from '../shared/gridCardLayout';
 import {
@@ -22,8 +32,14 @@ import {
     type StoredGridViewNavigationState,
 } from '../shared/gridViewRestore';
 import {
+    CARD_TITLE_ATTR,
     GRID_CARD_ITEM_ID_ATTR,
+    MORPH_FRAME_ATTR,
+    MORPH_TARGET_ATTR,
 } from '../transitions/gridMorphContract';
+import { useMorphPageExit } from '../transitions/collectionMorphStore';
+import { playFlyIn } from '../transitions/morphFlyIn';
+import { handOverStandIn, type StandInHandover } from '../transitions/standInHandover';
 import {
     collectionMorphEntranceTravel,
     collectionMorphFlyIn,
@@ -36,41 +52,45 @@ import {
     applyHexCardFrameStyles,
     computeHexCardFrame,
     createHexCardFrameStyleCache,
+    HEX_CARD_CENTER_SCALE,
     type HexCardFrameStyleCache,
 } from '../shared/hexCardTransform';
 import PlaylistSelectionDialog from '../../../../components/shared/PlaylistSelectionDialog';
 import TextInputDialog from '../../../../components/shared/TextInputDialog';
 import ConfirmDialog from '../../../../components/shared/ConfirmDialog';
+import GridDailyRecommendationControls from './GridDailyRecommendationControls';
 import { SidePanelList, TrackListItem } from '../../../../components/shared/SidePanelList';
 import { GridListSearchButton } from '../../../../components/shared/GridListSearchButton';
 import { LocalTrackSortDirectionButton, LocalTrackSortMenu } from '../../../../components/shared/LocalTrackSortMenu';
-import { CustomSelect } from '../../../../components/shared/CustomSelect';
 import { deriveProgressiveLoadingState } from '../shared/progressiveGrid';
 import { useProgressiveItemEntrance } from '../shared/useProgressiveItemEntrance';
 import { useLocalCoverPreloader } from '../../../../hooks/useLocalCoverPreloader';
 import { formatLocalAlbumTrackLabel } from '../../../../utils/localSongSorting';
-import { resolveCollectionSyncCounts } from '../../../core/model/collectionProgress';
-import { buildCoreSurfaceParams, buildGridSurfaceState, runGridSurfaceAction } from '../../../core/model/collectionSurface';
+import { resolveCollectionSyncCounts } from '../../../core/collection/collectionProgress';
+import { buildCoreSurfaceParams, buildGridSurfaceState, runGridSurfaceAction } from '../../../core/collection/collectionSurface';
 import { useGridSurfaceRegistration } from '../../../../hooks/useGridSurfaceRegistration';
-import type { CollectionResource } from '../../../core/contracts/resource';
-import type { CollectionMutationController, LibraryMutationResult } from '../../../core/contracts/mutations';
-import type { LibraryDeclaredActions } from '../../../core/contracts/suite';
+import type { CollectionResource } from '../../../core/shared/resource.contract';
+import type { CollectionMutationController, LibraryMutationResult } from '../../../core/collection/mutations/mutations.contract';
+import type { LibraryDeclaredActions } from '../../../core/suite/suite.contract';
+import type { LibraryCollectOrigin } from '../../../core/shared/ports.contract';
 import { useSidePanelBottomPx } from '../../../../hooks/usePlayerBottomBarBottomPx';
 import { hasBlockingWindow } from '../../../../utils/keyboardTargets';
 import { useGridViewSettingsStore } from '../../../../stores/useGridViewSettingsStore';
-import { collectionKey } from '../../../core/model/collectionIdentity';
-import { useCollectionResourceState } from '../../../core/bindings/useCollectionResourceState';
-import { useCollectionMutationSnapshot } from '../../../core/bindings/useCollectionMutations';
-import { useCollectionView } from '../../../core/bindings/useCollectionView';
-import { useCommittedQuery } from '../../../core/bindings/useCommittedQuery';
-import { useLibrarySessionQuery } from '../../../core/bindings/useLibrarySessionQuery';
+import { collectionKey } from '../../../core/collection/collectionIdentity';
+import { useCollectionResourceState } from '../../../core/collection/resource/useCollectionResourceState';
+import { useCollectionMutationSnapshot } from '../../../core/collection/mutations/useCollectionMutations';
+import { useCollectionView } from '../../../core/collection/useCollectionView';
+import { useCommittedQuery } from '../../../core/shared/useCommittedQuery';
+import { resolveCollectionArtistLinks } from '../../../core/shared/collectionArtistLinks';
+import { useLibrarySessionQuery } from '../../../core/shared/useLibrarySessionQuery';
 import { useGridCommandFilter } from '../../../../hooks/useGridCommandFilter';
 import {
     getLibraryBrowseSession,
     registerLibrarySessionFlush,
     useLibraryBrowseSessionStore,
-} from '../../../core/state/useLibraryBrowseSessionStore';
-import { useLocalTrackSortStore } from '../../../core/state/useLocalTrackSortStore';
+} from '../../../core/shared/useLibraryBrowseSessionStore';
+import { useLocalTrackSortStore } from '../../../core/directory/useLocalTrackSortStore';
+import { formatAlbumDuration } from '../../../core/collection/albumDuration';
 
 interface GridViewProps {
     title: string;
@@ -93,15 +113,22 @@ interface GridViewProps {
     collection?: any;
     onPlayAll?: (songs: SongResult[]) => void;
     onAddAllToQueue?: (songs: SongResult[], options?: { suppressToast?: boolean }) => number | void;
+    /** 收进速记簿：聚焦卡片与曲目侧栏行上的一首（suite 声明了 collect 才给）。出处由这里按显示的集合名补上。 */
+    collectTrack?: (songs: SongResult[], origin?: LibraryCollectOrigin) => void;
+    /** 收进速记簿：信息面板与命令面板的当前范围（声明了 collect-scope 才给）。 */
+    collectScope?: (songs: SongResult[], origin?: LibraryCollectOrigin) => void;
+    /** 卡片上悬浮的「收藏到歌单」：应用的歌单选择器（声明了 save-to-playlist 才给），能不能给某首由 canSaveToPlaylist 说。 */
+    saveToPlaylist?: (songs: SongResult[]) => void;
+    canSaveToPlaylist?: (track: SongResult) => boolean;
     onSelectAlbum?: (albumId: number | string, album?: any, track?: SongResult) => void;
     onSelectArtist?: (artistId: number | string, artist?: any, track?: SongResult) => void;
     /**
-     * 曲目的来源：加载、缓存、后台补页、错误与重新拉取都在资源里（见 library/core/services）。
+     * 曲目的来源：加载、缓存、后台补页、错误与重新拉取都在资源里（见 library/core/collection/resource）。
      * 宿主持有它，切换 renderer 不会重新请求。
      */
     resource?: CollectionResource | null;
     /**
-     * 集合的变更动作控制器（宿主按集合会话持有，见 library/core/services/collectionMutations）：删条目、订阅、
+     * 集合的变更动作控制器（宿主按集合会话持有，见 library/core/collection/mutations/collectionMutations.service）：删条目、订阅、
      * 改名、删除、重扫、导出、加入歌单……都经它，按钮的可见与可点也读它的快照。没有时（性能探针）什么都不支持。
      */
     mutations?: CollectionMutationController | null;
@@ -109,14 +136,21 @@ interface GridViewProps {
     onStatusMessage?: (message: StatusMessage) => void;
     isInteractive?: boolean;
     /**
-     * Optional shared-element「移形换影」plan. Either way every non-hero card
-     * flies in from outside the viewport toward its grid slot in a distance
-     * sequence; `kind: 'morph'` additionally means the overlay's composite is
-     * currently covering the hero, so the hero stays hidden and dissolves in as
-     * the composite fades, while `kind: 'cascade'` (a push with no covering
-     * composite) must leave the hero visible — hiding it there would just show
-     * an empty slot for 340ms. Absent for every existing caller, so behavior is
-     * unchanged unless the collection morph hands it in.
+     * The key the app's navigation knows this page by: collectionKey of the descriptor it was
+     * opened with. `collection` may be a refreshed copy with another key (a local album or artist
+     * takes the id of the entity it was merged into).
+     */
+    navigationKey?: string;
+    /**
+     * Optional shared-element「移形换影」plan, as it stands when the page is
+     * first rendered. Either way every non-hero card settles into its grid
+     * slot from a short push, in a distance sequence; `kind: 'morph'`
+     * additionally means a cover is flying to this page: the page puts up a
+     * stand-in card at the hero's place, showing the plan's `coverUrl`, for
+     * the cover to land on, which then hands over to the hero. `kind:
+     * 'cascade'` (no cover flying) leaves the hero visible. Absent for every
+     * other caller, so behavior is unchanged unless the collection morph
+     * hands it in.
      */
     morphPlan?: CollectionMorphPlan | null;
     /**
@@ -127,6 +161,9 @@ interface GridViewProps {
 }
 
 const EMPTY_TRACKS: SongResult[] = [];
+// What a page that is given no `items` has for them: the one list, render after render. A list
+// made anew in every render made the grid's items anew, and with them every card on the page.
+const NO_ITEMS: GridItem[] = [];
 // Card box and hex spacing per container-width breakpoint. Module scope so the memo above
 // reads as "pick a breakpoint, then apply the square-card option" rather than hiding the
 // table inside it.
@@ -208,22 +245,10 @@ const formatAlbumDate = (timestamp?: number) => {
     return date.toLocaleDateString();
 };
 
-const formatAlbumDuration = (duration?: number) => {
-    if (!duration || !Number.isFinite(duration)) return '';
-    const totalSeconds = duration > 10000 ? Math.round(duration / 1000) : Math.round(duration);
-    const hours = Math.floor(totalSeconds / 3600);
-    const minutes = Math.floor((totalSeconds % 3600) / 60);
-    const seconds = totalSeconds % 60;
-    if (hours > 0) {
-        return `${hours}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
-    }
-    return `${minutes}:${String(seconds).padStart(2, '0')}`;
-};
-
 export const GridView: React.FC<GridViewProps> = ({
     title,
     subtitle,
-    items = [],
+    items = NO_ITEMS,
     mode,
     onBack,
     onDone,
@@ -237,6 +262,10 @@ export const GridView: React.FC<GridViewProps> = ({
     collection,
     onPlayAll,
     onAddAllToQueue,
+    collectTrack,
+    collectScope,
+    saveToPlaylist,
+    canSaveToPlaylist,
     onSelectAlbum,
     onSelectArtist,
     resource = null,
@@ -244,10 +273,12 @@ export const GridView: React.FC<GridViewProps> = ({
     localSongs,
     onStatusMessage,
     isInteractive = true,
+    navigationKey,
     morphPlan = null,
     declaredActions,
 }) => {
     const { t } = useTranslation();
+    const lowerBackButton = useWindowButtonsAtTopLeft();
     const bottomBarPanelBottomPx = useSidePanelBottomPx();
     const fullBleedCover = useGridViewSettingsStore(state => state.gridViewFullBleedCover);
     // Only the full-bleed layout can be square: the polaroid frame needs the extra height for the
@@ -255,6 +286,24 @@ export const GridView: React.FC<GridViewProps> = ({
     const squareCards = useGridViewSettingsStore(state => state.gridViewSquareCards) && fullBleedCover;
     const minCardScale = useGridViewSettingsStore(state => state.gridViewMinCardScale);
     const minCardOpacity = useGridViewSettingsStore(state => state.gridViewMinCardOpacity);
+    // The stand-in: a card at the hero's place that a cover flying to this page lands on. It is
+    // there from the first render (the overlay measures it in the commit that mounts the page),
+    // shows the picture that flies, and is the loading card for as long as no track has come.
+    // The plan is gone some half a second later; the stand-in is the page's own from then on.
+    // `gone`: it has handed over and is off the page, while the hero is still coming to rest.
+    const [standIn, setStandIn] = useState<{ coverUrl: string | null; title: string | null; gone?: boolean } | null>(() => (
+        morphPlan?.kind === 'morph' ? { coverUrl: morphPlan.coverUrl ?? null, title: morphPlan.title ?? null } : null
+    ));
+    const standInCardRef = useRef<HTMLDivElement>(null);
+    const standInHandoverRef = useRef<StandInHandover | null>(null);
+    const pageExit = useMorphPageExit();
+    // What the cards enter by. A page a cover flew to keeps its plan for as long as the stand-in
+    // shows: its cards may come seconds after the flight, and still take the hero's place under it.
+    // And until the hero has come to rest: the plan's end renders every card again, which is
+    // not to fall into the middle of the hero's turn.
+    // The plan's kind and not the plan: the page's own plan takes over from the flight's when that
+    // is taken back (at landing), and every card would be rendered again for a plan that says the same.
+    const entranceKind = morphPlan?.kind ?? (standIn ? 'morph' : null);
     const containerRef = useRef<HTMLDivElement>(null);
     const dragControls = useDragControls();
     const [focusedIndex, setFocusedIndex] = useState(0);
@@ -384,12 +433,22 @@ export const GridView: React.FC<GridViewProps> = ({
     const backgroundLoading = resourceSnapshot?.sync.status === 'syncing';
     // 后台补齐中断时记下原因和上游 offset：界面要能说明为什么少了歌，重试要从中断处续上。
     const backgroundLoadError = resourceSnapshot?.sync.status === 'interrupted'
-        ? { message: resourceSnapshot.sync.message, offset: resourceSnapshot.sync.offset }
+        ? { message: resourceSnapshot.sync.message, offset: resourceSnapshot.sync.offset, cause: resourceSnapshot.sync.cause }
         : null;
     // 在线集合加载失败必须和「集合确实是空的」分开显示：两者都渲染成空网格的话，
     // provider 侧的鉴权、协议或网络故障在界面上就完全不可见。
     // 存判别式而不是成品文案：翻译要在渲染时做，切换语言才能跟着变。
     const loadError = resourceSnapshot?.error ?? null;
+    // An online collection's failure, sorted into a named case (onlineFailureOf) from what was
+    // thrown, which the resource hands on: the empty page and the background banner say which case
+    // it is, and not the program's own sentence.
+    const collectionProviderId = collection?.source === 'online' ? collection.providerId : undefined;
+    const failureOf = (cause: unknown, notPublic = false): OnlineFailure => onlineFailureOf(
+        { operation: 'collection', providerId: collectionProviderId },
+        cause !== undefined ? { error: cause } : { detail: notPublic ? { case: 'not-public' } : {} },
+    );
+    const loadFailure = loadError && isOnlineResource ? failureOf(loadError.cause, loadError.kind === 'not-public') : null;
+    const backgroundFailure = backgroundLoadError ? failureOf(backgroundLoadError.cause) : null;
     const collectionDetail = resourceSnapshot?.detail ?? null;
     // 变更动作的状态（订阅、每日推荐的日期与次数、进行中标记、候选歌单）、来源分支与能力都在控制器里，
     // 网格只订阅；按钮的可见 / 可点条件是原先 GridView 的分支布尔逐字搬过去的（见 collectionMutationCapabilities）。
@@ -482,6 +541,17 @@ export const GridView: React.FC<GridViewProps> = ({
     } = mutationBranches;
     // 改名成功、宿主的描述还没跟上时，显示控制器记下的新名字（不改描述本身，它可能是导航栈里共用的对象）。
     const collectionName: string | undefined = mutationSnapshot.renamedTo ?? collection?.name;
+    // 收进速记簿时记下的出处：和标题一样用改名后的名字。身份稳定：onCollectTrack 在卡片渲染的依赖里。
+    const onCollectTrack = useMemo(() => {
+        if (!collectTrack) return undefined;
+        const origin = collectionName ? { label: collectionName } : undefined;
+        return (track: SongResult) => collectTrack([track], origin);
+    }, [collectTrack, collectionName]);
+    const onCollectAll = useMemo(() => {
+        if (!collectScope) return undefined;
+        const origin = collectionName ? { label: collectionName } : undefined;
+        return (songs: SongResult[]) => collectScope(songs, origin);
+    }, [collectScope, collectionName]);
     const localSongsById = useMemo(() => new Map(localSongs?.map(song => [song.id, song])), [localSongs]);
     // 只有能选专辑号排序的本地列表才挂轨道号；本地歌单等自定义顺序的列表不属于这个语境。
     const getAlbumTrackLabel = useCallback((track: SongResult): string | null => {
@@ -491,7 +561,7 @@ export const GridView: React.FC<GridViewProps> = ({
         const localSong = localSongsById.get(localRef.songId);
         return localSong ? formatLocalAlbumTrackLabel(localSong) : null;
     }, [localSongsById, supportsLocalTrackSorting]);
-    // 隐藏、本地排序、筛选与操作范围的规则见 library/core/model/collectionView（专辑归属以本地曲库的
+    // 隐藏、本地排序、筛选与操作范围的规则见 library/core/collection/collectionView（专辑归属以本地曲库的
     // 专辑实体为准）；别的 renderer 用同一个 hook，所以同一个筛选在两边命中同一批歌。
     const localSortContext = useMemo(() => (
         supportsLocalTrackSorting
@@ -564,6 +634,7 @@ export const GridView: React.FC<GridViewProps> = ({
     const handleExportLocalPlaylist = useCallback(() => void mutations?.exportPlaylist(), [mutations]);
     const handleOrganizeSongInfo = useCallback(() => void mutations?.organizeSongInfo(), [mutations]);
     const handleEditEntity = useCallback(() => void mutations?.editEntity(), [mutations]);
+    const handleSetCover = useCallback(() => void mutations?.setCover(), [mutations]);
 
     const handleAddNavidromeCollectionToPlaylist = useCallback(async (playlistId: string | number) => {
         await mutations?.addToPlaylist(playlistId, playableTracks);
@@ -588,19 +659,24 @@ export const GridView: React.FC<GridViewProps> = ({
         void handleSourceEditToggle();
     }, [canEditOwnedPlaylist, canEditProviderPlaylist, handleSourceEditToggle]);
 
-    // 订阅状态在控制器第一次被订阅时取；进行中再点由控制器挡掉（按钮也禁用）。
+    // 订阅状态在控制器第一次被订阅时取。星星一按就变：控制器先改显示，再在后台问平台，请求期间再按只改「要的」，
+    // 请求跟着它走；平台没答应时星星回到平台上的样子，这里说一句（按下时的那一页已经关了也说）。
     const playlistSubscribed = mutationSnapshot.subscribed;
-    const handleToggleSubscribe = () => {
-        void mutations?.toggleSubscribe();
+    const [starPresses, setStarPresses] = useState(0);
+    const handleToggleSubscribe = async () => {
+        if (!mutations) return;
+        setStarPresses(count => count + 1);
+        const result = await mutations.toggleSubscribe();
+        if (!result.ok && result.reason === 'failed') {
+            onStatusMessage?.({
+                type: 'error',
+                text: t(mutations.getSnapshot().subscribed ? 'status.collectionUnsaveFailed' : 'status.collectionSaveFailed'),
+                nonce: Date.now(),
+            });
+        }
     };
 
-    // Switches the virtual playlist between today's recommendations and a supported history date.
-    const handleDailyRecommendationDateChange = useCallback(async (date: string, afresh = false) => {
-        if (!mutations || !mutationCapabilities.dailyDate.supported) return;
-        setIsEditMode(false);
-        // 整表替换经控制器交给资源（加载中状态、作废晚到结果都在那里）；失败时保持原样，日期也不切。
-        await mutations.setDailyDate(date, { afresh });
-    }, [mutationCapabilities.dailyDate.supported, mutations]);
+    const exitEditMode = useCallback(() => setIsEditMode(false), []);
 
     // 删一个条目（每日推荐是「不喜欢并换一首」）：先按住展示，控制器在上游确认后立即提交给资源；成功就给卡片
     // 打上 removing 播退出动画，动画结束再放开展示，失败立即放开。entryKey 就是卡片 id：重复序号在完整的
@@ -630,10 +706,10 @@ export const GridView: React.FC<GridViewProps> = ({
                 text: t('home.noMoreDailyRecommendations'),
                 nonce: Date.now(),
             });
-        } else if (result.reason === 'failed' && isDailyRecommendationsCollection) {
+        } else if (result.reason === 'failed') {
             onStatusMessage?.({
                 type: 'error',
-                text: t('home.dislikeRecommendationFailed'),
+                text: isDailyRecommendationsCollection ? t('home.dislikeRecommendationFailed') : t('home.removeTrackFailed'),
                 nonce: Date.now(),
             });
         }
@@ -798,7 +874,9 @@ export const GridView: React.FC<GridViewProps> = ({
         }, delayMs);
     }, [commitFocusedIndex]);
 
-    // Keep the active focusedIndex centered when baseCoords changes on resize
+    // Keep the focused card centred when the spacing of the cards changes (the window crossed a
+    // size breakpoint): the offset the grid stands at then points somewhere else. Cards that
+    // join the ones there move nothing: every card keeps its place, and so does the view.
     useEffect(() => {
         if (baseCoords.length > 0 && focusedIndex >= 0 && focusedIndex < baseCoords.length) {
             const targetX = -baseCoords[focusedIndex].baseX;
@@ -807,7 +885,7 @@ export const GridView: React.FC<GridViewProps> = ({
             dragY.set(targetY);
             updateRenderedIndexesForViewport(targetX, targetY, true);
         }
-    }, [baseCoords, updateRenderedIndexesForViewport]);
+    }, [layoutConfig.spacingX, layoutConfig.spacingY]);
 
     // Recenter the viewport on target item coordinate offset
     const centerOnIndex = (index: number, snap = true) => {
@@ -898,11 +976,21 @@ export const GridView: React.FC<GridViewProps> = ({
         return () => element.removeEventListener('wheel', handleViewportWheel);
     }, [handleViewportWheel]);
 
-    // Center on the first item initially
+    // Centre on the first card when cards first appear, and when the filter changes which ones
+    // are shown. Not when further cards join the ones there: an online collection is read page
+    // by page (15 or 100 songs a page on YouTube Music), and every page that arrived pulled the
+    // listener back to the first card from wherever they had scrolled to.
+    const firstCardShownForRef = useRef<string | null>(null);
     useEffect(() => {
+        if (gridItems.length === 0) {
+            firstCardShownForRef.current = null;
+            return;
+        }
         if (pendingRestoreStateRef.current && !hasRestoredNavigationRef.current) return;
+        const shownFor = firstCardShownForRef.current;
+        firstCardShownForRef.current = deferredSearchQuery;
         if (hasRestoredNavigationRef.current) return;
-        if (gridItems.length > 0) {
+        if (shownFor !== deferredSearchQuery) {
             centerOnIndex(0, false);
         }
     }, [deferredSearchQuery, gridItems.length]);
@@ -983,7 +1071,7 @@ export const GridView: React.FC<GridViewProps> = ({
         // index 0: a resumed grid may be scrolled anywhere, and radiating from
         // a stale index-0 slot skews the whole cascade.
         const heroIndex = morphHeroIndex;
-        if (!morphPlan || heroIndex < 0 || baseCoords[heroIndex] === undefined) {
+        if (!entranceKind || heroIndex < 0 || baseCoords[heroIndex] === undefined) {
             return null;
         }
         const hero = baseCoords[heroIndex];
@@ -991,7 +1079,7 @@ export const GridView: React.FC<GridViewProps> = ({
         const reach = collectionMorphEntranceTravel(containerSize);
         const spacing = Math.max(layoutConfig.spacingX, layoutConfig.spacingY) || 1;
         return { hero, reach, spacing };
-    }, [baseCoords, containerSize, layoutConfig.spacingX, layoutConfig.spacingY, morphHeroIndex, morphPlan]);
+    }, [baseCoords, containerSize, layoutConfig.spacingX, layoutConfig.spacingY, morphHeroIndex, entranceKind]);
 
     const memoizedCards = useMemo(() => {
         return renderedIndexes.map((idx) => {
@@ -1007,15 +1095,15 @@ export const GridView: React.FC<GridViewProps> = ({
             const trackKey = String(item.id);
             const isRemovingTrack = removingTrackKeys.has(trackKey);
             // 「移形换影」: the hero (the card the viewport restores onto + centres)
-            // stays static while `kind === 'morph'` (the overlay's composite is
-            // covering it); every other card that is actually on screen settles
-            // into its slot from a short radial push, staggered by distance.
+            // stays in its place while `kind === 'morph'` (the stand-in covers it,
+            // and hands over to it); every other card that is actually on screen
+            // settles into its slot from a short radial push, staggered by distance.
             //
             // 屏外的卡不参与：渲染环本身带 200px 缓冲，那些卡用户根本看不见，却要付一次
             // 动画（大歌单打开时正是这些并发的动画和首帧的挂载一起把主线程压住）。
             const cardOnScreen = initialFrame.display !== 'none' && Number.parseFloat(initialFrame.opacity) > 0.05;
-            const isMorphHero = Boolean(morphPlan?.kind === 'morph' && cardFlyInOffset && idx === morphHeroIndex);
-            const isMorphFlyIn = Boolean(morphPlan && cardFlyInOffset && cardOnScreen && !isMorphHero);
+            const isMorphHero = Boolean(entranceKind === 'morph' && cardFlyInOffset && idx === morphHeroIndex);
+            const isMorphFlyIn = Boolean(entranceKind && cardFlyInOffset && cardOnScreen && !isMorphHero);
             const morphFlyIn = isMorphFlyIn
                 ? collectionMorphFlyIn(
                     { x: coord.baseX, y: coord.baseY },
@@ -1059,12 +1147,15 @@ export const GridView: React.FC<GridViewProps> = ({
                     } as React.CSSProperties}
                 >
                     <motion.div
+                        // The fly-in is the card's own Web Animation, begun in the commit that
+                        // mounts it (see morphFlyIn.ts). To framer the card is at rest from the start.
+                        ref={morphFlyIn ? card => playFlyIn(card, morphFlyIn) : undefined}
                         initial={isMorphHero
-                            // 揭晓时带一丝等比放大（0.985 → 1）：纯透明度会读成「闪一下」，
-                            // 一点点尺度收势才是 Apple 那种「内容落定」的手感。
-                            ? { opacity: 0, scale: 0.985 }
+                            // Not shown until the stand-in hands over to it: the handover
+                            // holds it and brings it in (standInHandover.ts).
+                            ? false
                             : isMorphFlyIn
-                                ? { opacity: 0, x: morphFlyIn!.x, y: morphFlyIn!.y, scale: 0.94 }
+                                ? false
                                 : animateEntrance
                                     ? { opacity: 0, scale: 0.98, rotateY: -90 }
                                     : false}
@@ -1090,28 +1181,9 @@ export const GridView: React.FC<GridViewProps> = ({
                         }}
                         transition={isRemovingTrack
                             ? { duration: TRACK_REMOVAL_ANIMATION_MS / 1000, times: [0, 0.72, 1], ease: TRACK_REMOVAL_BEZIER }
-                            : isMorphHero
-                                // Reveal while the overlay is still fading out so
-                                // the hero (cover, title, heart/queue buttons)
-                                // dissolves in rather than popping in. 这个延迟只要不晚于
-                                // 合成层自己的淡出起点即可；转场提速后原来那 0.34s 会留下
-                                // 「两边都看不见」的空档。
-                                ? {
-                                    opacity: { delay: 0.12, duration: 0.3, ease: 'easeOut' },
-                                    // 尺度收势比透明度稍长，走 Apple 那条 ease：落定时「稳」下来。
-                                    scale: { delay: 0.12, duration: 0.42, ease: [0.32, 0.72, 0, 1] },
-                                    x: { duration: 0 },
-                                    y: { duration: 0 },
-                                }
-                                : isMorphFlyIn
-                                    // 一条 Apple 的 ease 补间，而不是每张卡一条 spring：
-                                    // 观感上整片网格是「一起落定」的（不会各自过冲），
-                                    // 成本上每帧只做插值，不跑弹簧积分 —— 大歌单打开时
-                                    // 这里同时有几十条动画在跑。
-                                    ? { duration: 0.5, ease: [0.32, 0.72, 0, 1], delay: morphFlyIn!.delay }
-                                    : morphPlan
-                                        ? { duration: 0.01 }
-                                        : { duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
+                            : entranceKind
+                                ? { duration: 0.01 }
+                                : { duration: 0.42, ease: [0.22, 1, 0.36, 1] }}
                         style={{
                             transformStyle: 'preserve-3d',
                             transformOrigin: 'center center',
@@ -1162,6 +1234,13 @@ export const GridView: React.FC<GridViewProps> = ({
                                         onAddTrackToQueue(item.rawTrack);
                                     }
                                 }}
+                                // 封面右上角悬浮才出现的两颗（每张歌曲卡片都有，平时看不见）。
+                                onCollect={mode === 'tracks' && onCollectTrack && item.rawTrack
+                                    ? () => onCollectTrack(item.rawTrack!)
+                                    : undefined}
+                                onSaveToPlaylist={mode === 'tracks' && saveToPlaylist && item.rawTrack && canSaveToPlaylist?.(item.rawTrack)
+                                    ? () => saveToPlaylist([item.rawTrack!])
+                                    : undefined}
                                 isFocused={idx === focusedIndex}
                                 playbackMark={mode === 'tracks' ? trackPlaybackMark?.(item.rawTrack) ?? null : null}
                             />
@@ -1202,6 +1281,9 @@ export const GridView: React.FC<GridViewProps> = ({
         onSelectArtist,
         onSelectAlbum,
         onAddTrackToQueue,
+        onCollectTrack,
+        saveToPlaylist,
+        canSaveToPlaylist,
         trackPlaybackMark,
         canMatchSong,
         mutations,
@@ -1211,7 +1293,7 @@ export const GridView: React.FC<GridViewProps> = ({
         shouldAnimateItemEntrance,
         cardFlyInOffset,
         morphHeroIndex,
-        morphPlan,
+        entranceKind,
     ]);
 
     // Refs for direct DOM manipulation — eliminates per-card useTransform subscriptions
@@ -1380,12 +1462,105 @@ export const GridView: React.FC<GridViewProps> = ({
         backgroundLoading
     );
     const showLoading = progressiveLoading.initialLoading;
+    // The stand-in hands over to the hero card (standInHandover.ts). Looked at after every
+    // commit: the handover starts in the commit that mounts the hero, which is held out of sight
+    // from then on, and is told once the flight to the stand-in is over (the plan is gone). The
+    // stand-in goes when the handover says so.
+    useLayoutEffect(() => {
+        const standInCard = standInCardRef.current;
+        if (!standIn || !standInCard) {
+            standInHandoverRef.current?.cancel();
+            standInHandoverRef.current = null;
+            return;
+        }
+        if (!standInHandoverRef.current) {
+            const hero = cardWrapperRefs.current[morphHeroIndex]?.firstElementChild;
+            const hasHero = hero instanceof HTMLElement;
+            // No hero is to come to a page whose flight is over and that has stopped reading
+            // with no cards, or shows cards with the hero not among them. Cards that have been
+            // read are mounted a commit later: until then one may come.
+            const noHeroToCome = !morphPlan && !showLoading && (gridItems.length === 0 || renderedIndexes.length > 0);
+            if (hasHero || noHeroToCome) {
+                standInHandoverRef.current = handOverStandIn(
+                    standInCard,
+                    hasHero ? hero : null,
+                    () => setStandIn(current => current && { ...current, gone: true }),
+                    () => setStandIn(null),
+                );
+            }
+        }
+        if (!morphPlan) standInHandoverRef.current?.land();
+    });
+    useEffect(() => () => {
+        standInHandoverRef.current?.cancel();
+        standInHandoverRef.current = null;
+    }, []);
+
+    // "Where is the song that is playing" (app/playing-song-locator/playingSongLocator.ts): this page answers the
+    // question put to it. A song among its cards is centred. One that is not is reported once no
+    // filter hides any card: at once to the page's own button, and to a question the page was
+    // opened for once no further card can come. The answer is that the song is not here where
+    // the list is whole, and that the page cannot tell where it is not (cards are still to come,
+    // or the reading failed). Declared after the effects that place the grid when it opens, so
+    // that on a page opened for this the song's card is where it ends.
+    const playingSongKey = usePlaybackStore(state => (state.currentSong ? getPlaybackSongKey(state.currentSong) : null));
+    const locateRequest = usePlayingSongLocatorStore(state => state.request);
+    const isPlayingSongHere = useMemo(() => (
+        mode === 'tracks' && playingSongKey !== null && displayTracks.some(track => getPlaybackSongKey(track) === playingSongKey)
+    ), [displayTracks, mode, playingSongKey]);
+    // Further cards may still come while the resource reads its first page or fills the rest in
+    // the background; a read that failed (the first page, a page of the background fill, or a
+    // Navidrome read) brings nothing more and leaves the list short of what it did not reach. The
+    // snapshot says both in one update with the tracks they speak of.
+    const hasReadFailed = Boolean(loadError || backgroundLoadError);
+    const cardsStillArriving = isLoading || loading || backgroundLoading;
+    const pageKey = navigationKey ?? collectionKey(collection);
+    const isLocateAsked = locateRequest !== null && mode === 'tracks' && locateRequest.collectionKey === pageKey;
+    const locateOnThisPage = useCallback(() => locatePlayingSongOnPage(pageKey), [pageKey]);
+    // Counts the times the song was found: the list beside the grid goes to its row each time,
+    // also when the grid already stood on its card.
+    const [locatedTimes, setLocatedTimes] = useState(0);
+    // The row of the focused card in that list. The list holds every track; under a filter the
+    // grid has fewer cards, and the card's index among them is another song's row.
+    const listFocusedIndex = useMemo(() => {
+        const track = hasSearchQuery ? gridItems[focusedIndex]?.rawTrack : undefined;
+        const row = track ? displayTracks.indexOf(track) : -1;
+        return row >= 0 ? row : focusedIndex;
+    }, [displayTracks, focusedIndex, gridItems, hasSearchQuery]);
+    useEffect(() => {
+        if (!locateRequest || !isActive || !isLocateAsked) return;
+        const index = gridItems.findIndex(item => item.rawTrack !== undefined && getPlaybackSongKey(item.rawTrack) === locateRequest.songKey);
+        const step = resolveLocateStep({
+            isHere: index >= 0,
+            isFiltered: Boolean(searchQuery || hasSearchQuery),
+            waits: locateRequest.waits,
+            cardsStillArriving,
+            hasReadFailed,
+        });
+        if (step.kind === 'wait') return;
+        if (step.kind === 'unfilter') {
+            // A filter may be what hides it: it is looked for again among all the cards.
+            if (searchQuery) setSearchQuery('');
+            return;
+        }
+        if (step.answer === true) {
+            centerOnIndex(index, true);
+            setLocatedTimes(times => times + 1);
+        } else if (step.answer === 'unread') {
+            // Why the page took its list for not whole, for the day a listener sees a whole one called so.
+            console.log(`[Locate] The list is not whole: ${displayTracks.length} tracks, reading ${isLoading || loading}, filling up ${backgroundLoading}, failed ${hasReadFailed}`);
+        }
+        answerLocateRequest(locateRequest.nonce, step.answer);
+    }, [backgroundLoading, cardsStillArriving, displayTracks.length, gridItems, hasReadFailed, hasSearchQuery, isActive, isLoading, isLocateAsked, loading, locateRequest, searchQuery]);
     // 大歌单要分几十页补齐，只写「加载中」用户会以为歌丢了；拿得到总数就把进度写出来。
     const backgroundSyncTotal = collectionDetail?.trackCount ?? collection?.trackCount;
     const backgroundSyncCounts = resolveCollectionSyncCounts(tracks.length, backgroundSyncTotal);
     const backgroundSyncLabel = backgroundLoadError
         ? (backgroundSyncCounts ? t('playlist.syncInterruptedProgress', backgroundSyncCounts) : t('playlist.syncInterrupted'))
         : (backgroundSyncCounts ? t('playlist.syncProgress', backgroundSyncCounts) : t('playlist.loading'));
+    // What went wrong, said in the empty page and in the background banner's hover text.
+    const loadFailureSaid = loadFailure && !hasSearchQuery ? onlineFailureMessage(loadFailure, t) : null;
+    const backgroundFailureSaid = backgroundFailure ? onlineFailureMessage(backgroundFailure, t) : null;
 
     const displayCollection = mutationSnapshot.renamedTo && collection ? { ...collection, name: mutationSnapshot.renamedTo } : collection;
     const infoCollection = collectionDetail ? { ...displayCollection, ...collectionDetail } : displayCollection;
@@ -1396,7 +1571,7 @@ export const GridView: React.FC<GridViewProps> = ({
 
     // Everything the palette is allowed to do to this grid, and the branch rules that decide which
     // of it applies. Declared next to the buttons it mirrors so the two cannot disagree; the actual
-    // gating and dispatch live in ../library/core/model/collectionSurface.
+    // gating and dispatch live in ../library/core/collection/collectionSurface.
     // core 动作（播放范围、排序、重新拉取、来源维护、订阅）与 TUI 同一个构建函数、同一份控制器快照；
     // 网格只补自己的信息面板、曲目侧栏与编辑模式。
     const gridSurfaceParams = buildCoreSurfaceParams({
@@ -1411,6 +1586,7 @@ export const GridView: React.FC<GridViewProps> = ({
         canReloadOnlineCollection: canReloadOnlineCollection && !loading,
         playFiltered: () => onPlayAll?.(contextActionTracks),
         enqueueFiltered: () => onAddAllToQueue?.(contextActionTracks),
+        collectFiltered: onCollectAll ? () => onCollectAll(contextActionTracks) : undefined,
         reloadOnlineCollection,
         mutationSnapshot,
         mutations: mutations ?? null,
@@ -1431,7 +1607,10 @@ export const GridView: React.FC<GridViewProps> = ({
         run: (action) => runGridSurfaceAction(action, gridSurfaceParams),
     });
 
-    const albumArtists = Array.isArray(infoCollection?.artists) ? infoCollection.artists : [];
+    // 专辑歌手：能打开的才做成按钮（与 Bravais 专辑海报同一条规则，在线的问平台，占位 id 不当真）。
+    const albumArtists = infoCollection && Array.isArray(infoCollection.artists)
+        ? resolveCollectionArtistLinks(infoCollection, resolveCollectionArtistCatalogId)
+        : [];
     const albumAlias = infoCollection?.aliases?.[0];
     const albumPublishedAt = infoCollection?.publishedAt;
     const albumPublisher = infoCollection?.publisher;
@@ -1443,7 +1622,7 @@ export const GridView: React.FC<GridViewProps> = ({
             data-library-surface="collection"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            exit={pageExit}
             className="fixed inset-0 z-[110] flex flex-col justify-between overflow-hidden select-none"
             style={{
                 backgroundColor: 'var(--bg-color)',
@@ -1462,16 +1641,16 @@ export const GridView: React.FC<GridViewProps> = ({
                     />
                 </div>
             )}
-            {/* 把「我是当前这层网格」写在卡片容器上：移形换影的测量只在这个子树里找卡片，
-                否则正在退出的上一层网格会被当成落点。订阅关在子组件里，见 ActiveGridMarker。 */}
-            <ActiveGridMarker target={containerRef} />
+            {/* 「我是当前这层网格」的标记，放在根节点里：移形换影的测量只在这个子树里找卡片和
+                落点，否则正在退出的上一层网格会被当成落点。订阅关在子组件里，见 ActiveGridMarker。 */}
+            <ActiveGridMarker />
 
             {/* Back Button */}
             <button
                 // 返回按钮表示看完了（onDone）：宿主清掉浏览会话、让每套 suite 忘掉布局记录（网格的 sessionStorage
                 // 记录经 entry 的 layout.forget），再返回。Escape 与浏览器后退保留（onBack）。P4.5 起不在这里清。
                 onClick={onDone}
-                className="absolute left-6 top-5 w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-lg hover:scale-105 active:scale-95 z-[70]"
+                className={`absolute left-6 ${lowerBackButton ? 'top-12' : 'top-5'} w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-lg hover:scale-105 active:scale-95 z-[70]`}
                 style={{
                     backgroundColor: isDaylight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.08)',
                     backdropFilter: 'blur(8px)',
@@ -1487,8 +1666,12 @@ export const GridView: React.FC<GridViewProps> = ({
                     disabled={!backgroundLoadError}
                     className="absolute right-6 top-5 z-[70] flex items-center gap-2 rounded-full px-3 py-2 text-xs tabular-nums backdrop-blur-md disabled:cursor-default"
                     style={{ backgroundColor: 'color-mix(in srgb, var(--bg-color) 65%, transparent)' }}
-                    title={backgroundLoadError
-                        ? t('playlist.syncFailedHint', { error: backgroundLoadError.message })
+                    title={backgroundFailureSaid
+                        ? t('playlist.syncFailedHint', {
+                            error: backgroundFailureSaid.quote
+                                ? `${backgroundFailureSaid.title}: ${[backgroundFailureSaid.quote.text, backgroundFailureSaid.quote.code].filter(Boolean).join(' ')}`
+                                : backgroundFailureSaid.title,
+                        })
                         : backgroundSyncLabel}
                 >
                     <RefreshCw size={14} className={progressiveLoading.backgroundLoading ? 'animate-spin' : ''} />
@@ -1553,20 +1736,35 @@ export const GridView: React.FC<GridViewProps> = ({
                 style={{ touchAction: 'none' }}
             >
                 {showLoading ? (
-                    <div className="flex flex-col items-center gap-4 opacity-50">
-                        <Loader2 className="animate-spin" size={32} />
-                        <span className="text-sm font-semibold font-sans">{t('playlist.loading')}</span>
-                    </div>
+                    // (The stand-in says it where it shows: both stand at the middle.)
+                    !standIn && (
+                        <div className="flex flex-col items-center gap-4 opacity-50">
+                            <Loader2 className="animate-spin" size={32} />
+                            <span className="text-sm font-semibold font-sans">{t('playlist.loading')}</span>
+                        </div>
+                    )
                 ) : gridItems.length === 0 ? (
                     <div className="max-w-md px-6 text-center text-sm font-sans opacity-40">
-                        {loadError && !hasSearchQuery
-                            ? (loadError.kind === 'not-public'
-                                ? t('playlist.loadNotPublic')
-                                : t('playlist.loadFailed', { error: loadError.message }))
-                            : hasSearchQuery ? (t('home.gridSearchNoResults')) : (t('home.loadingLibrary'))}
+                        {loadFailureSaid
+                            ? (
+                                <>
+                                    <p>{loadFailureSaid.title}</p>
+                                    {loadFailureSaid.note && <p>{loadFailureSaid.note}</p>}
+                                    {loadFailureSaid.quote && (
+                                        <p className="mt-1 text-xs [overflow-wrap:anywhere]">
+                                            {loadFailureSaid.quote.text}
+                                            {loadFailureSaid.quote.code && <code className="ml-1.5 font-mono">{loadFailureSaid.quote.code}</code>}
+                                        </p>
+                                    )}
+                                </>
+                            )
+                            : hasSearchQuery ? (t('home.gridSearchNoResults'))
+                                // Given no tracks because their read failed: not a collection that holds none.
+                                : loadError && !hasSearchQuery ? t('playlist.loadFailedPlain') : (t('home.loadingLibrary'))}
                     </div>
                 ) : (
                     <motion.div
+                        data-grid-canvas
                         drag
                         dragListener={false}
                         dragControls={dragControls}
@@ -1593,6 +1791,58 @@ export const GridView: React.FC<GridViewProps> = ({
                         <AnimatePresence initial={false}>
                             {memoizedCards}
                         </AnimatePresence>
+                    </motion.div>
+                )}
+
+                {/* The stand-in: where the centred card stands (the middle of this box, at the
+                    centred card's scale), in a card's frame. Not on the canvas, so a drag does
+                    not move it from under a cover in flight. It goes when its handover to the
+                    hero card says so, by then turned edge-on or faded out: nothing here takes it
+                    off the screen. `perspective` as the cards' own boxes have it, for its turn. */}
+                {standIn && !standIn.gone && (
+                    <motion.div
+                        aria-hidden="true"
+                        className="absolute left-1/2 top-1/2 z-[60] pointer-events-none"
+                        style={{ x: '-50%', y: '-50%', scale: HEX_CARD_CENTER_SCALE, perspective: '1200px' }}
+                    >
+                        <div
+                            ref={standInCardRef}
+                            {...{ [MORPH_FRAME_ATTR]: '' }}
+                            {...(fullBleedCover ? { [MORPH_TARGET_ATTR]: '' } : {})}
+                            className={`relative rounded-xl border shadow-lg theme-polaroid-card ${fullBleedCover ? 'overflow-hidden' : 'p-3'}`}
+                            style={{ width: layoutConfig.cardWidth, [fullBleedCover ? 'height' : 'minHeight']: layoutConfig.cardHeight }}
+                        >
+                            <div
+                                {...(fullBleedCover ? {} : { [MORPH_TARGET_ATTR]: '' })}
+                                className={fullBleedCover
+                                    ? 'absolute inset-0 bg-zinc-200/60 dark:bg-zinc-800/60'
+                                    : 'relative w-full aspect-square rounded-lg overflow-hidden bg-zinc-200/60 dark:bg-zinc-800/60 shadow-inner'}
+                            >
+                                {standIn.coverUrl && (
+                                    <img src={standIn.coverUrl} alt="" draggable={false} decoding="sync" className="absolute inset-0 h-full w-full object-cover" />
+                                )}
+                            </div>
+                            {fullBleedCover && <div className="absolute inset-0" style={{ backgroundImage: fullBleedScrim(isDaylight) }} />}
+                            {/* The title that flies with the cover (the clicked card's; the
+                                collection's own where that card has none), where a card's
+                                title stands, and under it what the page is doing. */}
+                            <div className={fullBleedCover ? 'absolute inset-x-0 bottom-0 flex flex-col gap-1 p-3 text-left' : 'pt-3 text-left'}>
+                                <div
+                                    {...{ [CARD_TITLE_ATTR]: '' }}
+                                    className={fullBleedCover
+                                        ? 'text-sm font-bold tracking-tight leading-snug line-clamp-3 whitespace-normal break-words'
+                                        : 'text-s font-bold tracking-tight opacity-90 max-w-full line-clamp-4 whitespace-normal break-words'}
+                                >
+                                    {standIn.title ?? collectionName ?? title}
+                                </div>
+                                {showLoading && (
+                                    <div className="mt-1 flex items-center gap-2 text-xs font-semibold font-sans opacity-60">
+                                        <Loader2 className="animate-spin shrink-0" size={14} />
+                                        <span className="truncate">{t('playlist.loading')}</span>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
                     </motion.div>
                 )}
 
@@ -1625,22 +1875,18 @@ export const GridView: React.FC<GridViewProps> = ({
                                             e.stopPropagation();
                                             void handleToggleSubscribe();
                                         }}
-                                        disabled={mutationSnapshot.subscribing}
                                         className="absolute bottom-3 right-3 w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-lg active:scale-90 z-10 border border-white/10 hover:scale-105 cursor-pointer backdrop-blur-md"
                                         style={{
                                             backgroundColor: isDaylight ? 'rgba(255,255,255,0.75)' : 'rgba(0,0,0,0.5)',
                                         }}
                                         title={playlistSubscribed ? (isOnlineAlbum ? t('options.unsubscribeAlbum') : t('options.unsubscribePlaylist')) : (isOnlineAlbum ? t('options.subscribeAlbum') : t('options.subscribePlaylist'))}
                                     >
-                                        {mutationSnapshot.subscribing ? (
-                                            <Loader2 size={18} className="animate-spin opacity-60" style={{ color: 'var(--text-primary)' }} />
-                                        ) : (
-                                            <Star
-                                                size={18}
-                                                className={playlistSubscribed ? "text-yellow-500 fill-yellow-500" : "opacity-60 hover:opacity-100"}
-                                                style={{ color: playlistSubscribed ? undefined : 'var(--text-primary)' }}
-                                            />
-                                        )}
+                                        <Star
+                                            key={starPresses}
+                                            size={18}
+                                            className={`${starPresses > 0 ? 'star-pop ' : ''}${playlistSubscribed ? 'text-yellow-500 fill-yellow-500' : 'opacity-60 hover:opacity-100'}`}
+                                            style={{ color: playlistSubscribed ? undefined : 'var(--text-primary)' }}
+                                        />
                                     </button>
                                 )}
                             </div>
@@ -1687,35 +1933,15 @@ export const GridView: React.FC<GridViewProps> = ({
                                         {infoCollection?.playCount !== undefined && <span> • {infoCollection.playCount} {t('playlist.plays')}</span>}
                                     </div>
                                     {isDailyRecommendationsCollection && (
-                                        <div className="mt-3 space-y-2">
-                                            <div className="flex items-center gap-2">
-                                                <div className="min-w-0 flex-1">
-                                                    <CustomSelect
-                                                        value={mutationSnapshot.dailyDate}
-                                                        onChange={date => void handleDailyRecommendationDateChange(date)}
-                                                        options={[
-                                                            { value: '', label: t('home.todayRecommendations') },
-                                                            ...mutationSnapshot.dailyHistoryDates.map(date => ({ value: date, label: date })),
-                                                        ]}
-                                                        placeholder={t('home.todayRecommendations')}
-                                                        ariaLabel={t('home.recommendationDate')}
-                                                        disabled={loading}
-                                                        isDaylight={isDaylight}
-                                                        theme={theme}
-                                                    />
-                                                </div>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => void handleDailyRecommendationDateChange('', true)}
-                                                    disabled={loading || Boolean(mutationSnapshot.dailyDate)}
-                                                    title={t('home.refreshRecommendations')}
-                                                    aria-label={t('home.refreshRecommendations')}
-                                                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 transition-colors hover:bg-white/10 disabled:opacity-30"
-                                                >
-                                                    <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-                                                </button>
-                                            </div>
-                                        </div>
+                                        <GridDailyRecommendationControls
+                                            mutations={mutations}
+                                            snapshot={mutationSnapshot}
+                                            loading={loading}
+                                            isDaylight={isDaylight}
+                                            theme={theme}
+                                            onBeforeSwitch={exitEditMode}
+                                            onStatusMessage={onStatusMessage}
+                                        />
                                     )}
                                     {isAlbumCollection && (
                                         <div className="mt-3 space-y-1.5 text-xs opacity-60" style={{ color: 'var(--text-secondary)' }}>
@@ -1724,15 +1950,19 @@ export const GridView: React.FC<GridViewProps> = ({
                                             )}
                                             {albumArtists.length > 0 ? (
                                                 <div className="flex flex-wrap gap-x-2 gap-y-1">
-                                                    {albumArtists.map((artist: { id: string | number; name: string }, index: number) => (
-                                                        <button
-                                                            key={`${artist.id}-${index}`}
-                                                            type="button"
-                                                            onClick={() => onSelectArtist?.(artist.id, artist)}
-                                                            className="font-semibold hover:underline"
-                                                        >
-                                                            {artist.name}
-                                                        </button>
+                                                    {albumArtists.map(({ artist, targetId }, index) => (
+                                                        targetId !== undefined && onSelectArtist ? (
+                                                            <button
+                                                                key={`${artist.id}-${index}`}
+                                                                type="button"
+                                                                onClick={() => onSelectArtist(targetId, artist)}
+                                                                className="font-semibold hover:underline"
+                                                            >
+                                                                {artist.name}
+                                                            </button>
+                                                        ) : (
+                                                            <span key={`${artist.id}-${index}`} className="font-semibold">{artist.name}</span>
+                                                        )
                                                     ))}
                                                 </div>
                                             ) : null}
@@ -1802,6 +2032,21 @@ export const GridView: React.FC<GridViewProps> = ({
                                         ? t('playlist.addFilteredTracksToQueue', { count: contextActionTracks.length })
                                         : t('navidrome.addToQueue')}
                                 </button>
+                                {onCollectAll && (
+                                    <button
+                                        onClick={() => {
+                                            if (contextActionTracks.length > 0) onCollectAll(contextActionTracks);
+                                        }}
+                                        disabled={contextActionTracks.length === 0}
+                                        data-grid-action="collect-scope"
+                                        className="w-full py-2.5 rounded-full text-xs font-semibold bg-zinc-800/10 dark:bg-zinc-100/10 hover:bg-zinc-900 hover:text-zinc-100 dark:hover:bg-zinc-100 dark:hover:text-zinc-900 transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 cursor-pointer"
+                                    >
+                                        <NotebookPen size={14} />
+                                        {hasSearchQuery
+                                            ? t('scratchpad.collectFiltered', { count: contextActionTracks.length })
+                                            : t('scratchpad.collectScope')}
+                                    </button>
+                                )}
                                 {canAddNavidromeToPlaylist && (
                                     <button
                                         onClick={() => setIsPlaylistPickerOpen(true)}
@@ -1888,6 +2133,15 @@ export const GridView: React.FC<GridViewProps> = ({
                                         })}
                                     </button>
                                 )}
+                                {mutationCapabilities.setCover.supported && (
+                                    <button
+                                        onClick={handleSetCover}
+                                        className="w-full py-2.5 rounded-full text-xs font-semibold bg-zinc-800/10 dark:bg-zinc-100/10 hover:bg-zinc-900 hover:text-zinc-100 dark:hover:bg-zinc-100 dark:hover:text-zinc-900 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                                    >
+                                        <ImagePlus size={14} />
+                                        {t('localCollectionCover.menuLabel')}
+                                    </button>
+                                )}
                                 {mutationCapabilities.deleteCollection.supported && (
                                     <button
                                         onClick={() => isLocalFolderCollection ? setIsDeleteFolderOpen(true) : void handleDeleteSourceCollection()}
@@ -1952,6 +2206,16 @@ export const GridView: React.FC<GridViewProps> = ({
                     listTitle={t('playlist.viewTracks')}
                     searchTitle={t('home.gridSearchPlaceholder')}
                     onOpenList={() => setShowSidePanel(true)}
+                    above={playingSongKey !== null && collection ? (
+                        <GridLocateButton
+                            isDaylight={isDaylight}
+                            accentColor={theme.accentColor}
+                            isHere={isPlayingSongHere}
+                            isSeeking={isLocateAsked}
+                            title={t('playlist.locatePlaying')}
+                            onLocate={locateOnThisPage}
+                        />
+                    ) : undefined}
                 />
             )}
 
@@ -1964,7 +2228,8 @@ export const GridView: React.FC<GridViewProps> = ({
                     items={displayTracks}
                     itemHeight={60}
                     isDaylight={isDaylight}
-                    focusedIndex={focusedIndex}
+                    focusedIndex={listFocusedIndex}
+                    revealTimes={locatedTimes}
                     hideTitle={supportsLocalTrackSorting}
                     headerLeadingActions={supportsLocalTrackSorting ? (
                         <LocalTrackSortDirectionButton
@@ -1972,12 +2237,29 @@ export const GridView: React.FC<GridViewProps> = ({
                             onDirectionChange={handleLocalTrackSortDirectionChange}
                         />
                     ) : undefined}
-                    headerActions={supportsLocalTrackSorting ? (
-                        <LocalTrackSortMenu
-                            field={localTrackSortField}
-                            onFieldChange={handleLocalTrackSortFieldChange}
-                        />
-                    ) : undefined}
+                    headerActions={(
+                        <>
+                            {/* The same question as the button over the grid: is the playing song on this page. */}
+                            {playingSongKey !== null && collection && (
+                                <button
+                                    type="button"
+                                    data-list-locate={isPlayingSongHere ? 'here' : 'elsewhere'}
+                                    title={t('playlist.locatePlaying')}
+                                    aria-label={t('playlist.locatePlaying')}
+                                    onClick={locateOnThisPage}
+                                    className="p-1.5 rounded-full hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
+                                >
+                                    <Crosshair size={18} style={{ color: isPlayingSongHere ? theme.accentColor : undefined }} />
+                                </button>
+                            )}
+                            {supportsLocalTrackSorting && (
+                                <LocalTrackSortMenu
+                                    field={localTrackSortField}
+                                    onFieldChange={handleLocalTrackSortFieldChange}
+                                />
+                            )}
+                        </>
+                    )}
                     renderItem={(track, index, style) => (
                         <TrackListItem
                             key={`${track.id}-${index}`}
@@ -1985,7 +2267,7 @@ export const GridView: React.FC<GridViewProps> = ({
                             index={index}
                             style={style}
                             isUnavailable={isSongUnavailable(track)}
-                            isActive={index === focusedIndex}
+                            isActive={index === listFocusedIndex}
                             albumTrackLabel={getAlbumTrackLabel(track)}
                             onPlay={() => {
                                 onSelectTrack?.(track, playableTracks);
@@ -1993,6 +2275,7 @@ export const GridView: React.FC<GridViewProps> = ({
                             onAddToQueue={onAddTrackToQueue ? () => {
                                 onAddTrackToQueue(track);
                             } : undefined}
+                            onCollect={onCollectTrack ? () => onCollectTrack(track) : undefined}
                         />
                     )}
                 />

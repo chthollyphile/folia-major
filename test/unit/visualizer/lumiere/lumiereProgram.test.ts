@@ -8,7 +8,7 @@ import {
     findLumiereParagraphIndexAtTime,
     REOPEN_GAP,
 } from '@/components/visualizer/lumiere/lumiereProgram';
-import { classifyParagraph, draftParagraphs, resolveParagraphGapThreshold, buildStructureLines } from '@/components/visualizer/lumiere/lumiereStructure';
+import { classifyParagraph, draftParagraphs, resolveParagraphGapThreshold, buildStructureLines } from '@/components/visualizer/paragraphStructure';
 import {
     chooseLumiereTransition,
     LUMIERE_TRANSITIONS,

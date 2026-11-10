@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { planFlip } from '@/components/wall/flipPlan';
-import { getBlockSize, getBlockSlots, getWallSlot } from '@/components/wall/wallSlots';
+import { getBlockSlots, getWallSlot } from '@/components/wall/wallSlots';
 import type { BravaisItem, BravaisLayer } from '@/library/suites/bravais/bravaisLayer';
 import {
     createBravaisDisplay,
@@ -122,9 +122,9 @@ describe('finding slots', () => {
     it('finds the copy of an item nearest to the seam point', () => {
         const display = createBravaisDisplay(layer('a', items('t', 30)), null);
         const point = { x: 0, y: 0 };
-        const slot = findItemSlotNear(display, 't3', point, getBlockSize(metrics), block);
+        const slot = findItemSlotNear(display, 't3', point);
         expect(slot && resolveSlotItem(display, slot)?.key).toBe('t3');
-        expect(findItemSlotNear(display, 'missing', point, getBlockSize(metrics), block)).toBeNull();
+        expect(findItemSlotNear(display, 'missing', point)).toBeNull();
     });
 });
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { LibraryCollectionDescriptor } from '@/library/core/contracts/collection';
+import type { LibraryCollectionDescriptor } from '@/library/core/collection/collection.contract';
 import { formatAlbumDuration, projectBravaisSeamAlbum } from '@/library/suites/bravais/bravaisAlbumModel';
 import { resolveAlbumComposition } from '@/library/suites/bravais/bravaisPosterComposition';
 import { albumPaletteVars, resolveBravaisAlbumPalette } from '@/library/suites/bravais/bravaisPosterPalette';
@@ -10,12 +10,14 @@ import { parseColorChannels } from '@/components/visualizer/colorMix';
 // 强调色挑封面上又饱和、又和色块差得开的那个。
 
 const labels = { kind: '专辑', trackCount: (count: number) => `${count} 首` };
+// 在线歌手的规则在 catalogRefs 里单测；这里只认 catalogRef。
+const resolveOnlineArtist = (_providerId: string, artist: { catalogRef?: { id: string | number } }) => artist.catalogRef?.id;
 const collection = (patch: Partial<LibraryCollectionDescriptor>) => ({ id: 'c', name: 'Cedar', type: 'album', ...patch }) as unknown as LibraryCollectionDescriptor;
 
 describe('album seam projection', () => {
     it('only exists for albums', () => {
-        expect(projectBravaisSeamAlbum({ collection: collection({ type: 'playlist' }), detail: null, trackCount: 3, labels })).toBeUndefined();
-        expect(projectBravaisSeamAlbum({ collection: collection({}), detail: null, trackCount: 0, labels })).toEqual({
+        expect(projectBravaisSeamAlbum({ collection: collection({ type: 'playlist' }), detail: null, trackCount: 3, labels, resolveOnlineArtist })).toBeUndefined();
+        expect(projectBravaisSeamAlbum({ collection: collection({}), detail: null, trackCount: 0, labels, resolveOnlineArtist })).toEqual({
             coverUrl: undefined, artists: [], kicker: '专辑', facts: [],
         });
     });
@@ -23,17 +25,34 @@ describe('album seam projection', () => {
     it('lays the detail over the descriptor and reads the year from the release time', () => {
         const album = projectBravaisSeamAlbum({
             collection: collection({ coverUrl: 'a.jpg', artists: [{ id: '1', name: 'Old' }] } as Partial<LibraryCollectionDescriptor>),
-            detail: { artists: [{ id: '2', name: 'Singer' }], publishedAt: Date.UTC(2021, 5, 1), albumDuration: 1830_000, albumGenre: 'Dream Pop' } as never,
+            detail: { artists: [{ id: '2', name: 'Singer' }], publishedAt: Date.UTC(2021, 5, 1), albumDuration: 1830, albumGenre: 'Dream Pop' } as never,
             trackCount: 10,
             labels,
+            resolveOnlineArtist,
         });
-        expect(album).toEqual({ coverUrl: 'a.jpg', artists: ['Singer'], kicker: '专辑 · 2021', facts: ['10 首', '30:30', 'Dream Pop'] });
+        expect(album).toEqual({ coverUrl: 'a.jpg', artists: [{ name: 'Singer', targetId: '2' }], kicker: '专辑 · 2021', facts: ['10 首', '30:30', 'Dream Pop'] });
     });
 
-    it('formats durations in seconds or milliseconds', () => {
+    // #1058：带 id 的专辑歌手可以点开（本地的用实体 id，在线的带着目录引用）；只有一串名字时不能点。
+    it('marks which album artists can be opened', () => {
+        const project = (patch: Partial<LibraryCollectionDescriptor>) => projectBravaisSeamAlbum({ collection: collection(patch), detail: null, trackCount: 1, labels, resolveOnlineArtist })!.artists;
+        expect(project({ artists: [{ id: 'raw', entityId: 'artist-entity', name: 'Local' }] } as Partial<LibraryCollectionDescriptor>))
+            .toEqual([{ name: 'Local', targetId: 'artist-entity' }]);
+        const catalogRef = { providerId: 'appleMusic', kind: 'artist', id: '7' };
+        expect(project({ source: 'online', providerId: 'appleMusic', artists: [{ id: '7', name: 'Online', catalogRef }, { id: '3', name: 'Stand-in' }] } as Partial<LibraryCollectionDescriptor>))
+            .toEqual([{ name: 'Online', targetId: '7', catalogRef }, { name: 'Stand-in' }]);
+        expect(project({ source: 'navidrome', artists: [{ id: 'ar-1', name: 'Navi' }, { id: '', name: 'Unlinked' }] } as Partial<LibraryCollectionDescriptor>))
+            .toEqual([{ name: 'Navi', targetId: 'ar-1' }, { name: 'Unlinked' }]);
+        expect(project({ albumArtist: 'A, B' })).toEqual([{ name: 'A, B' }]);
+    });
+
+    // 单位是秒：超过 10000 秒（约 2 小时 47 分）的专辑以前被当成毫秒，显示成十几秒。
+    it('formats durations in seconds, long albums included', () => {
         expect(formatAlbumDuration(245)).toBe('4:05');
-        expect(formatAlbumDuration(3_725_000)).toBe('1:02:05');
+        expect(formatAlbumDuration(3725)).toBe('1:02:05');
+        expect(formatAlbumDuration(12_000)).toBe('3:20:00');
         expect(formatAlbumDuration(undefined)).toBe('');
+        expect(formatAlbumDuration(0)).toBe('');
     });
 });
 

@@ -2,13 +2,13 @@ import { PONDER_TARGET_CATEGORIES, type PonderTargetCategory, type PonderTargetD
 
 // src/components/ponder/ponderRegistry.ts
 // 可教学目标的注册表。照 dev/probes/registry.ts 和 visualizer registry 的做法：
-// 新增一个目标只要在 targets/ 下加一个 *.target.ts 并默认导出定义，这里不用改。
+// 新增一个目标只要在 targets/ 下它那一屏的文件夹里加一个 *.target.ts 并默认导出定义，这里不用改。
 //
 // eager 加载是有意的 —— 这些文件只有声明式数据，没有 animejs、没有组件，
 // 不会把教程层那个懒加载 chunk 拖进 bootstrap。
 
 const targetModules = import.meta.glob<{ default: PonderTargetDefinition }>(
-    './targets/*.target.ts',
+    './targets/**/*.target.ts',
     { eager: true },
 );
 

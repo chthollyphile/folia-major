@@ -26,6 +26,8 @@ import { usePlaybackStore } from '../stores/usePlaybackStore';
 import { useAppChromeStore } from '../stores/useAppChromeStore';
 import { setIsPanelOpen } from '../stores/useAppViewStore';
 import { currentTime } from '../stores/motionSignals';
+import { isHifiRoute } from '../services/hifi/hifiPlayback';
+import { isExternalRoute } from '../services/onlineMusic/externalPlayback';
 
 // src/hooks/useElectronVideoExportController.ts
 // Records the real player window so audio.currentTime remains the single animation clock.
@@ -67,6 +69,28 @@ export const useElectronVideoExportController = ({
 
     const startExport = useCallback(async (preset: VideoExportPreset, startMode: 'from-start' | 'current') => {
         if (!isElectronWindow || runningRef.current) {
+            return;
+        }
+
+        // The recording takes its sound from the deck's captureStream(); on the HiFi route mpv
+        // sounds the song outside the page, so there is nothing to record.
+        if (isHifiRoute()) {
+            setExportState({
+                ...idleVideoExportState(),
+                status: 'error',
+                presetId: preset.id,
+                error: t('hifi.videoExportUnavailable'),
+            });
+            return;
+        }
+        // A song a platform sounds in a player of its own never reaches the deck either.
+        if (isExternalRoute()) {
+            setExportState({
+                ...idleVideoExportState(),
+                status: 'error',
+                presetId: preset.id,
+                error: t('status.externalVideoExportUnavailable'),
+            });
             return;
         }
 

@@ -10,7 +10,23 @@ import { isPrimaryModifierPressed, isSecondaryModifierPressed } from './platform
 // hooks 层去 import 它等于反向依赖组件层。
 
 /**
+ * 事件目标是不是设置里正在录键的按键框（settings/kit/KeyCapture）。录键时每一个键都是它的，
+ * 带修饰键的快捷键也要让路。
+ *
+ * 按键框自己的监听挂在 window 的捕获阶段，但比应用启动时就挂上的那些晚，拦不住它们；
+ * 所以它在按钮上挂 data-folia-key-capture，先运行的监听来问这里。
+ */
+export const isKeyCaptureTarget = (target: EventTarget | null) => (
+    target instanceof Element && target.matches('[data-folia-key-capture="true"]')
+);
+
+/**
  * 事件目标是不是正在接收文本输入。是的话，所有裸字母快捷键都必须让路。
+ *
+ * 三种不是文本框的也算：展开着的下拉（components/shared/CustomSelect，焦点在它的按钮上，
+ * 键入的字母是在找选项）、正在录键的按键框、打开着的菜单里的条目（settings/kit/Menu，
+ * role="menu"：空格和回车是选这一条，方向键是换一条）。下拉和菜单在冒泡阶段拦键，拦不住
+ * window 上捕获阶段的监听（思索的按住 G），菜单也不拦空格和回车，所以写在这里。
  */
 export const isTextEntryTarget = (target: EventTarget | null) => {
     if (!(target instanceof HTMLElement)) {
@@ -21,8 +37,25 @@ export const isTextEntryTarget = (target: EventTarget | null) => {
     return tagName === 'input'
         || tagName === 'textarea'
         || tagName === 'select'
-        || target.isContentEditable;
+        || target.isContentEditable
+        || target.matches('[role="combobox"][aria-expanded="true"]')
+        || target.closest('[role="menu"]') !== null
+        || isKeyCaptureTarget(target);
 };
+
+const SLIDER_KEYS = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End']);
+
+/**
+ * 这一下按键是不是落在应用自己画的滑杆（role="slider"，比如面板的音量）上、并且是滑杆自己要用的键。
+ * 是的话，方向键的全局快捷键（播放页的快退快进、上一首下一首）要让路，否则一下按键做两件事。
+ *
+ * 滑杆不算文本输入：焦点在它上面时空格和字母快捷键照常可用，所以不并进 isTextEntryTarget。
+ */
+export const isSliderKey = (event: Pick<KeyboardEvent, 'target' | 'key'>) => (
+    event.target instanceof Element
+    && event.target.matches('[role="slider"]')
+    && SLIDER_KEYS.has(event.key)
+);
 
 /**
  * 当前有没有模态窗口声明自己接管了键盘。
@@ -80,4 +113,14 @@ export const isCommandPaletteShortcut = (event: KeyboardEvent): boolean => (
     && !isSecondaryModifierPressed(event)
     && !event.altKey
     && !event.shiftKey
+);
+
+/**
+ * 当前有没有打开的对话框（components/shared/Sheet.tsx）。
+ *
+ * 比 hasBlockingWindow 窄。对话框画在所有窗口和命令面板之上，所以它开着时，连命令面板的
+ * 打开键和空格的播放/暂停也要让路；别的窗口（歌词时间线、网格上的筛选框）开着时，这两样照常可用。
+ */
+export const hasOpenSheet = () => Boolean(
+    document.querySelector('[data-folia-sheet="true"]')
 );

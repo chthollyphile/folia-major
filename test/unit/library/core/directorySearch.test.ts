@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { matchesDirectorySearch } from '@/library/core/model/directorySearch';
+import { matchesDirectorySearch } from '@/library/core/directory/directorySearch';
 
 // test/unit/library/core/directorySearch.test.ts
 

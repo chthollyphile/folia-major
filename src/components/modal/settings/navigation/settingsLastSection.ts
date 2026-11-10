@@ -31,7 +31,7 @@ export const getAvailableSettingsSectionIds = ({ isElectron }: SettingsSectionAv
 
 /**
  * Which options-tab section a subview target lands on. `lyricFilter` and `globalLyricOffset` are
- * secondary panels opened from the playback section, so closing them falls back to it. The overlay
+ * secondary panels opened from the lyrics section, so closing them falls back to it. The overlay
  * workbenches (`visualizer`, `themePark`) have no section of their own and return null.
  */
 export const sectionForSettingsSubview = (subview: SettingsSubviewId | null | undefined): SettingsSectionId | null => {
@@ -39,7 +39,7 @@ export const sectionForSettingsSubview = (subview: SettingsSubviewId | null | un
         return null;
     }
     if (subview === 'globalLyricOffset' || subview === 'lyricFilter') {
-        return 'playback';
+        return 'lyrics';
     }
     const isSection = SETTINGS_NAV_GROUP_SPECS.some(group => group.sections.some(section => section.id === subview));
     return isSection ? (subview as SettingsSectionId) : null;

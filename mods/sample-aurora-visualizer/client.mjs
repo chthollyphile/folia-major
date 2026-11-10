@@ -6,12 +6,13 @@
 //   - `ctx.lines` / `ctx.song` are fixed for one mount (the host remounts on a
 //     new song), so the DOM is built once per song, not per line;
 //   - the current line comes from `ctx.getLineIndex()`, read every frame;
-//   - continuous time arrives via `ctx.currentTime.on('change')`, never React state;
-//   - `ctx.subscribe` covers changes that happen while time stands still
+//   - continuous time arrives via `ctx.onLyricTime`, never React state;
+//   - `ctx.onChange` covers changes that happen while time stands still
 //     (paused + theme switch), so the frame is repainted then too;
-//   - lines and the theme have the same shape builtin modes get (Folium 1.3),
-//     and fonts resolve through `folium.theme` exactly as they do, with the
-//     user's lyric size from `ctx.getDisplay().lyricsFontScale`.
+//   - the host stops both when the mount ends, so the disposer only clears up;
+//   - lines and the theme have the same shape builtin modes get, and fonts
+//     resolve through `folium.theme` exactly as they do, with the user's lyric
+//     size from `ctx.getDisplay().lyricsFontScale`.
 
 const paintSpans = (spans, timeSec) => {
   spans.forEach(({ el, start, end }) => {
@@ -102,16 +103,14 @@ const mountAurora = (folium, container, ctx) => {
   };
 
   applyTheme();
-  paint(ctx.currentTime.get());
-  const offTime = ctx.currentTime.on('change', paint);
-  const offChanges = ctx.subscribe(() => {
+  paint(ctx.lyricTime.get());
+  ctx.onLyricTime(paint);
+  ctx.onChange(() => {
     applyTheme();
-    paint(ctx.currentTime.get());
+    paint(ctx.lyricTime.get());
   });
 
   return () => {
-    offTime();
-    offChanges();
     shell.remove();
     spans = [];
   };

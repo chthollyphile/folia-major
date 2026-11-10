@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { HexColorPicker } from 'react-colorful';
 import { ImagePlus, Trash2 } from 'lucide-react';
 import {
@@ -8,25 +8,19 @@ import {
     type MonetBackgroundSource,
     type MonetBackgroundTuning,
     type MonetBackgroundWashColorMode,
-    type Theme,
 } from '../../../../types';
-import { colorWithAlpha } from '../../colorMix';
-import BackgroundToggleRow from '../BackgroundToggleRow';
+import { Button, Group, PictureGrid, Reveal, Row, Segmented, Value, type SettingsGroupDef } from '../../../modal/settings/kit';
+import { percent, SliderRow, ToggleRow } from '../../panelRows';
 
 // src/components/visualizer/backgrounds/monet/MonetBackgroundSettingsCard.tsx
-// Background settings for the shell-level Monet image layer.
-interface PresetOption<T> {
-    label: string;
-    value: T;
-    disabled?: boolean;
-}
+// Background settings for the shell-level Monet image layer: four groups of the settings kit.
+const SOURCE_GROUP: SettingsGroupDef = { id: 'bg-monet-source', titleKey: 'options.monetGroupBackgroundSource' };
+const LAYOUT_GROUP: SettingsGroupDef = { id: 'bg-monet-layout', titleKey: 'options.monetGroupLayoutPosition' };
+const FILTERS_GROUP: SettingsGroupDef = { id: 'bg-monet-filters', titleKey: 'options.monetGroupFiltersPostProcessing' };
+const TINT_GROUP: SettingsGroupDef = { id: 'bg-monet-tint', titleKey: 'options.monetGroupColorTintWash' };
 
 interface MonetBackgroundSettingsCardProps {
     t: (key: string) => string;
-    isDaylight: boolean;
-    theme: Theme;
-    controlCardBg: string;
-    rangeInputClass: string;
     tuning?: MonetBackgroundTuning;
     onTuningChange?: (patch: Partial<MonetBackgroundTuning>) => void;
     monetBackgroundImage?: MonetBackgroundImage | null;
@@ -36,108 +30,6 @@ interface MonetBackgroundSettingsCardProps {
     onSliderPointerDown?: () => void;
     onSliderCommit?: () => void;
 }
-
-interface SliderControlProps {
-    label: string;
-    valueLabel: string;
-    value: number;
-    min: number;
-    max: number;
-    step: number;
-    onChange: (value: number) => void;
-    rangeInputClass: string;
-    onSliderPointerDown?: () => void;
-    onSliderCommit?: () => void;
-}
-
-const SectionLabel: React.FC<{ children: React.ReactNode; theme: Theme; }> = ({ children, theme }) => (
-    <div className="text-xs font-medium uppercase tracking-[0.24em] opacity-45" style={{ color: theme.secondaryColor }}>
-        {children}
-    </div>
-);
-
-const PresetGroup = <T,>({
-    label,
-    value,
-    options,
-    onChange,
-    isDaylight,
-    theme,
-}: {
-    label: string;
-    value: T;
-    options: PresetOption<T>[];
-    onChange: (value: T) => void;
-    isDaylight: boolean;
-    theme: Theme;
-}) => (
-    <div className="space-y-2.5">
-        <SectionLabel theme={theme}>{label}</SectionLabel>
-        <div className="flex flex-wrap gap-2">
-            {options.map(option => {
-                const isActive = option.value === value;
-                return (
-                    <button
-                        key={String(option.value)}
-                        type="button"
-                        onClick={() => {
-                            if (!option.disabled) {
-                                onChange(option.value);
-                            }
-                        }}
-                        disabled={option.disabled}
-                        className="rounded-full border px-3 py-2 text-sm transition-all disabled:cursor-not-allowed disabled:opacity-45"
-                        style={{
-                            color: option.disabled ? colorWithAlpha(theme.secondaryColor, 0.72) : theme.primaryColor,
-                            borderColor: isActive ? theme.accentColor : colorWithAlpha(theme.secondaryColor, isDaylight ? 0.18 : 0.14),
-                            backgroundColor: isActive
-                                ? colorWithAlpha(theme.accentColor, isDaylight ? 0.1 : 0.16)
-                                : colorWithAlpha(theme.backgroundColor, isDaylight ? 0.24 : 0.34),
-                            boxShadow: isActive ? `inset 0 0 0 1px ${theme.accentColor}` : 'none',
-                        }}
-                    >
-                        {option.label}
-                    </button>
-                );
-            })}
-        </div>
-    </div>
-);
-
-const SliderControl: React.FC<SliderControlProps> = ({
-    label,
-    valueLabel,
-    value,
-    min,
-    max,
-    step,
-    onChange,
-    rangeInputClass,
-    onSliderPointerDown,
-    onSliderCommit,
-}) => (
-    <div className="space-y-2">
-        <div className="flex items-center justify-between gap-3 text-sm" style={{ color: 'var(--text-primary)' }}>
-            <span>{label}</span>
-            <span className="font-mono opacity-70" style={{ color: 'var(--text-secondary)' }}>
-                {valueLabel}
-            </span>
-        </div>
-        <input
-            type="range"
-            min={min}
-            max={max}
-            step={step}
-            value={value}
-            onChange={(event) => onChange(parseFloat(event.target.value))}
-            onPointerDown={onSliderPointerDown}
-            onPointerUp={onSliderCommit}
-            onPointerCancel={onSliderCommit}
-            onBlur={onSliderCommit}
-            className={rangeInputClass}
-        />
-    </div>
-);
 
 const clampValue = (value: number, min: number, max: number, fallback: number) => (
     Number.isFinite(value)
@@ -154,12 +46,20 @@ const normalizeHexInput = (value: string) => {
     return null;
 };
 
+/** Where the picture lies: on one half, fading into the page, or over all of it. */
+const layoutPicture = (layout: MonetBackgroundLayout) => (
+    <span
+        className="absolute inset-0"
+        style={{
+            backgroundImage: layout === 'full-overlay'
+                ? 'linear-gradient(var(--st-t3), var(--st-t3))'
+                : 'linear-gradient(90deg, var(--st-t3) 30%, transparent 62%)',
+        }}
+    />
+);
+
 export const MonetBackgroundSettingsCard: React.FC<MonetBackgroundSettingsCardProps> = ({
     t,
-    isDaylight,
-    theme,
-    controlCardBg,
-    rangeInputClass,
     tuning = DEFAULT_MONET_BACKGROUND_TUNING,
     onTuningChange,
     monetBackgroundImage,
@@ -186,23 +86,7 @@ export const MonetBackgroundSettingsCard: React.FC<MonetBackgroundSettingsCardPr
         backgroundDriftStrength: clampValue(tuning.backgroundDriftStrength ?? DEFAULT_MONET_BACKGROUND_TUNING.backgroundDriftStrength, 0, 1, DEFAULT_MONET_BACKGROUND_TUNING.backgroundDriftStrength),
         backgroundStreaksEnabled: tuning.backgroundStreaksEnabled ?? DEFAULT_MONET_BACKGROUND_TUNING.backgroundStreaksEnabled,
     };
-
-    const sourceOptions = useMemo<PresetOption<MonetBackgroundSource>[]>(() => ([
-        { value: 'cover-derived', label: t('options.monetBackgroundSourceCover') },
-        {
-            value: 'uploaded-global',
-            label: t('options.monetBackgroundSourceUploaded'),
-            disabled: !monetBackgroundImage && !isLoadingMonetBackgroundImage,
-        },
-    ]), [isLoadingMonetBackgroundImage, monetBackgroundImage, t]);
-    const layoutOptions = useMemo<PresetOption<MonetBackgroundLayout>[]>(() => ([
-        { value: 'half-pane-gradient', label: t('options.monetLayoutHalfPane') },
-        { value: 'full-overlay', label: t('options.monetLayoutFullOverlay') },
-    ]), [t]);
-    const washModeOptions = useMemo<PresetOption<MonetBackgroundWashColorMode>[]>(() => ([
-        { value: 'theme', label: t('options.monetBackgroundWashTheme') },
-        { value: 'custom', label: t('options.monetBackgroundWashCustom') },
-    ]), [t]);
+    const drag = { onDragStart: onSliderPointerDown, onDragEnd: onSliderCommit };
 
     const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const files = Array.from(event.target.files ?? []);
@@ -222,65 +106,40 @@ export const MonetBackgroundSettingsCard: React.FC<MonetBackgroundSettingsCardPr
     };
 
     return (
-        <div className="rounded-[24px] border p-4 space-y-4" style={{ backgroundColor: controlCardBg, borderColor: colorWithAlpha(theme.secondaryColor, 0.16) }}>
-            <div className="space-y-1">
-                <div className="text-sm font-medium" style={{ color: theme.primaryColor }}>
-                    {t('options.monetBackgroundSettings')}
-                </div>
-                <div className="text-xs opacity-70" style={{ color: theme.secondaryColor }}>
-                    {t('options.monetBackgroundSettingsDesc')}
-                </div>
-            </div>
-
-            {/* Section 1: Background Source */}
-            <div className="space-y-3.5 rounded-[18px] border border-white/5 p-3.5 bg-black/5 dark:bg-white/5">
-                <div className="text-xs font-semibold uppercase tracking-wider opacity-65" style={{ color: theme.accentColor }}>
-                    {t('options.monetGroupBackgroundSource')}
-                </div>
-                <PresetGroup
-                    label={t('options.monetBackgroundSource')}
-                    value={resolvedTuning.backgroundSource}
-                    options={sourceOptions}
-                    onChange={(value) => onTuningChange?.({ backgroundSource: value })}
-                    isDaylight={isDaylight}
-                    theme={theme}
-                />
-
-                <div className="space-y-2.5">
-                    <SectionLabel theme={theme}>{t('options.monetUploadBackground')}</SectionLabel>
-                    <div className="flex flex-wrap items-center gap-2">
-                        <button
-                            type="button"
-                            onClick={() => fileInputRef.current?.click()}
-                            disabled={isLoadingMonetBackgroundImage || !onUploadMonetBackgroundImage}
-                            className="inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm transition-all disabled:cursor-not-allowed disabled:opacity-45"
-                            style={{
-                                color: theme.primaryColor,
-                                borderColor: colorWithAlpha(theme.secondaryColor, isDaylight ? 0.18 : 0.14),
-                                backgroundColor: colorWithAlpha(theme.backgroundColor, isDaylight ? 0.24 : 0.34),
-                            }}
-                        >
-                            <ImagePlus size={15} />
-                            <span>{t('options.monetUploadBackground')}</span>
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => void onClearMonetBackgroundImage?.()}
-                            disabled={!monetBackgroundImage || !onClearMonetBackgroundImage}
-                            className="inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm transition-all disabled:cursor-not-allowed disabled:opacity-45"
-                            style={{
-                                color: theme.primaryColor,
-                                borderColor: colorWithAlpha(theme.secondaryColor, isDaylight ? 0.18 : 0.14),
-                                backgroundColor: colorWithAlpha(theme.backgroundColor, isDaylight ? 0.24 : 0.34),
-                            }}
-                        >
-                            <Trash2 size={15} />
-                            <span>{t('options.monetClearBackground')}</span>
-                        </button>
-                    </div>
-                    <div className="text-xs opacity-60" style={{ color: 'var(--text-secondary)' }}>
-                        {feedback || monetBackgroundImage?.name || '-'}
-                    </div>
+        <>
+            <Group def={SOURCE_GROUP}>
+                <Row label={t('options.monetBackgroundSource')}>
+                    <Segmented<MonetBackgroundSource>
+                        value={resolvedTuning.backgroundSource}
+                        options={[
+                            { value: 'cover-derived', label: t('options.monetBackgroundSourceCover') },
+                            {
+                                value: 'uploaded-global',
+                                label: t('options.monetBackgroundSourceUploaded'),
+                                disabled: !monetBackgroundImage && !isLoadingMonetBackgroundImage,
+                            },
+                        ]}
+                        onChange={(value) => onTuningChange?.({ backgroundSource: value })}
+                    />
+                </Row>
+                <Row
+                    label={t('options.monetUploadBackground')}
+                    hint={feedback || monetBackgroundImage?.name || '-'}
+                >
+                    <Button
+                        icon={ImagePlus}
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isLoadingMonetBackgroundImage || !onUploadMonetBackgroundImage}
+                    >
+                        {t('options.monetUploadBackground')}
+                    </Button>
+                    <Button
+                        icon={Trash2}
+                        onClick={() => void onClearMonetBackgroundImage?.()}
+                        disabled={!monetBackgroundImage || !onClearMonetBackgroundImage}
+                    >
+                        {t('options.monetClearBackground')}
+                    </Button>
                     <input
                         ref={fileInputRef}
                         type="file"
@@ -288,170 +147,148 @@ export const MonetBackgroundSettingsCard: React.FC<MonetBackgroundSettingsCardPr
                         className="hidden"
                         onChange={(event) => void handleFileChange(event)}
                     />
-                </div>
-            </div>
+                </Row>
+            </Group>
 
-            {/* Section 2: Layout & Position */}
-            <div className="space-y-3.5 rounded-[18px] border border-white/5 p-3.5 bg-black/5 dark:bg-white/5">
-                <div className="text-xs font-semibold uppercase tracking-wider opacity-65" style={{ color: theme.accentColor }}>
-                    {t('options.monetGroupLayoutPosition')}
-                </div>
-                <PresetGroup
+            <Group def={LAYOUT_GROUP}>
+                <Row
                     label={t('options.monetBackgroundLayout')}
-                    value={resolvedTuning.backgroundLayout}
-                    options={layoutOptions}
-                    onChange={(value) => onTuningChange?.({ backgroundLayout: value })}
-                    isDaylight={isDaylight}
-                    theme={theme}
+                    below={(
+                        <PictureGrid<MonetBackgroundLayout>
+                            className="-mx-4"
+                            columns={4}
+                            label={t('options.monetBackgroundLayout')}
+                            value={resolvedTuning.backgroundLayout}
+                            options={[
+                                { value: 'half-pane-gradient', label: t('options.monetLayoutHalfPane') },
+                                { value: 'full-overlay', label: t('options.monetLayoutFullOverlay') },
+                            ]}
+                            picture={layoutPicture}
+                            onChange={(value) => onTuningChange?.({ backgroundLayout: value })}
+                        />
+                    )}
                 />
-
-                {resolvedTuning.backgroundLayout === 'half-pane-gradient' && (
-                    <SliderControl
+                <Reveal when={resolvedTuning.backgroundLayout === 'half-pane-gradient'}>
+                    <SliderRow
+                        {...drag}
+                        sub
                         label={t('options.monetHalfPaneOffsetX')}
-                        valueLabel={`${Math.round(resolvedTuning.backgroundHalfPaneOffsetX)}%`}
+                        value={resolvedTuning.backgroundHalfPaneOffsetX}
                         min={-40}
                         max={40}
                         step={2}
-                        value={resolvedTuning.backgroundHalfPaneOffsetX}
+                        format={(value) => `${Math.round(value)}%`}
                         onChange={(value) => onTuningChange?.({ backgroundHalfPaneOffsetX: value })}
-                        rangeInputClass={rangeInputClass}
-                        onSliderPointerDown={onSliderPointerDown}
-                        onSliderCommit={onSliderCommit}
                     />
-                )}
-
-                <BackgroundToggleRow
+                </Reveal>
+                <ToggleRow
                     label={t('options.monetBackgroundDriftEnabled')}
-                    description={t('options.monetBackgroundDriftEnabledDesc')}
+                    note={t('options.monetBackgroundDriftEnabledDesc')}
                     checked={resolvedTuning.backgroundDriftEnabled}
                     onChange={backgroundDriftEnabled => onTuningChange?.({ backgroundDriftEnabled })}
-                    theme={theme}
                 />
-
-                {resolvedTuning.backgroundDriftEnabled && (
-                    <SliderControl
+                <Reveal when={resolvedTuning.backgroundDriftEnabled}>
+                    <SliderRow
+                        {...drag}
+                        sub
                         label={t('options.monetBackgroundDriftStrength')}
-                        valueLabel={`${Math.round(resolvedTuning.backgroundDriftStrength * 100)}%`}
+                        value={resolvedTuning.backgroundDriftStrength}
                         min={0}
                         max={1}
                         step={0.05}
-                        value={resolvedTuning.backgroundDriftStrength}
+                        format={percent}
                         onChange={(value) => onTuningChange?.({ backgroundDriftStrength: value })}
-                        rangeInputClass={rangeInputClass}
-                        onSliderPointerDown={onSliderPointerDown}
-                        onSliderCommit={onSliderCommit}
                     />
-                )}
-            </div>
+                </Reveal>
+            </Group>
 
-            {/* Section 3: Filters & Post-processing */}
-            <div className="space-y-3.5 rounded-[18px] border border-white/5 p-3.5 bg-black/5 dark:bg-white/5">
-                <div className="text-xs font-semibold uppercase tracking-wider opacity-65" style={{ color: theme.accentColor }}>
-                    {t('options.monetGroupFiltersPostProcessing')}
-                </div>
-                <SliderControl
+            <Group def={FILTERS_GROUP}>
+                <SliderRow
+                    {...drag}
                     label={t('options.monetBackgroundBlur')}
-                    valueLabel={`${Math.round(resolvedTuning.backgroundBlurPx)}px`}
+                    value={resolvedTuning.backgroundBlurPx}
                     min={0}
                     max={60}
                     step={2}
-                    value={resolvedTuning.backgroundBlurPx}
+                    format={(value) => `${Math.round(value)}px`}
                     onChange={(value) => onTuningChange?.({ backgroundBlurPx: value })}
-                    rangeInputClass={rangeInputClass}
-                    onSliderPointerDown={onSliderPointerDown}
-                    onSliderCommit={onSliderCommit}
                 />
-                <SliderControl
+                <SliderRow
+                    {...drag}
                     label={t('options.monetBackgroundSaturation')}
-                    valueLabel={`${Math.round(resolvedTuning.backgroundSaturation * 100)}%`}
+                    value={resolvedTuning.backgroundSaturation}
                     min={0}
                     max={2}
                     step={0.05}
-                    value={resolvedTuning.backgroundSaturation}
+                    format={percent}
                     onChange={(value) => onTuningChange?.({ backgroundSaturation: value })}
-                    rangeInputClass={rangeInputClass}
-                    onSliderPointerDown={onSliderPointerDown}
-                    onSliderCommit={onSliderCommit}
                 />
-                <SliderControl
+                <SliderRow
+                    {...drag}
                     label={t('options.monetBackgroundGrayscale')}
-                    valueLabel={`${Math.round(resolvedTuning.backgroundGrayscale * 100)}%`}
-                    min={0}
-                    max={1}
-                    step={0.02}
                     value={resolvedTuning.backgroundGrayscale}
+                    min={0}
+                    max={1}
+                    step={0.02}
+                    format={percent}
                     onChange={(value) => onTuningChange?.({ backgroundGrayscale: value })}
-                    rangeInputClass={rangeInputClass}
-                    onSliderPointerDown={onSliderPointerDown}
-                    onSliderCommit={onSliderCommit}
                 />
-            </div>
+            </Group>
 
-            {/* Section 4: Color Tint & Wash */}
-            <div className="space-y-3.5 rounded-[18px] border border-white/5 p-3.5 bg-black/5 dark:bg-white/5">
-                <div className="text-xs font-semibold uppercase tracking-wider opacity-65" style={{ color: theme.accentColor }}>
-                    {t('options.monetGroupColorTintWash')}
-                </div>
-                <SliderControl
+            <Group def={TINT_GROUP}>
+                <SliderRow
+                    {...drag}
                     label={t('options.monetBackgroundOverlayOpacity')}
-                    valueLabel={`${Math.round(resolvedTuning.backgroundOverlayOpacity * 100)}%`}
-                    min={0}
-                    max={1}
-                    step={0.02}
                     value={resolvedTuning.backgroundOverlayOpacity}
-                    onChange={(value) => onTuningChange?.({ backgroundOverlayOpacity: value })}
-                    rangeInputClass={rangeInputClass}
-                    onSliderPointerDown={onSliderPointerDown}
-                    onSliderCommit={onSliderCommit}
-                />
-                <SliderControl
-                    label={t('options.monetBackgroundWash')}
-                    valueLabel={`${Math.round(resolvedTuning.backgroundWash * 100)}%`}
                     min={0}
                     max={1}
                     step={0.02}
-                    value={resolvedTuning.backgroundWash}
-                    onChange={(value) => onTuningChange?.({ backgroundWash: value })}
-                    rangeInputClass={rangeInputClass}
-                    onSliderPointerDown={onSliderPointerDown}
-                    onSliderCommit={onSliderCommit}
+                    format={percent}
+                    onChange={(value) => onTuningChange?.({ backgroundOverlayOpacity: value })}
                 />
-
-                <BackgroundToggleRow
+                <SliderRow
+                    {...drag}
+                    label={t('options.monetBackgroundWash')}
+                    value={resolvedTuning.backgroundWash}
+                    min={0}
+                    max={1}
+                    step={0.02}
+                    format={percent}
+                    onChange={(value) => onTuningChange?.({ backgroundWash: value })}
+                />
+                <ToggleRow
                     label={t('options.monetBackgroundStreaksEnabled')}
-                    description={t('options.monetBackgroundStreaksEnabledDesc')}
+                    note={t('options.monetBackgroundStreaksEnabledDesc')}
                     checked={resolvedTuning.backgroundStreaksEnabled}
                     onChange={backgroundStreaksEnabled => onTuningChange?.({ backgroundStreaksEnabled })}
-                    theme={theme}
                 />
-
-                <PresetGroup
-                    label={t('options.monetBackgroundWashColorMode')}
-                    value={resolvedTuning.backgroundWashColorMode}
-                    options={washModeOptions}
-                    onChange={(value) => onTuningChange?.({ backgroundWashColorMode: value })}
-                    isDaylight={isDaylight}
-                    theme={theme}
-                />
-
-                {resolvedTuning.backgroundWashColorMode === 'custom' && (
-                    <div className="space-y-3 rounded-[20px] border p-3" style={{ borderColor: colorWithAlpha(theme.secondaryColor, 0.14), backgroundColor: colorWithAlpha(theme.backgroundColor, 0.2) }}>
-                        <div className="flex items-center justify-between gap-3">
-                            <div className="text-sm" style={{ color: theme.primaryColor }}>
-                                {t('options.monetBackgroundWashCustomColor')}
-                            </div>
-                            <div className="rounded-full px-3 py-1 text-xs font-mono" style={{ color: theme.backgroundColor, backgroundColor: resolvedTuning.backgroundWashCustomColor }}>
-                                {resolvedTuning.backgroundWashCustomColor.toUpperCase()}
-                            </div>
-                        </div>
-                        <HexColorPicker
-                            color={resolvedTuning.backgroundWashCustomColor}
-                            onChange={(value) => onTuningChange?.({ backgroundWashCustomColor: value })}
-                            style={{ width: '100%', height: 180 }}
-                        />
-                    </div>
-                )}
-            </div>
-        </div>
+                <Row label={t('options.monetBackgroundWashColorMode')}>
+                    <Segmented<MonetBackgroundWashColorMode>
+                        value={resolvedTuning.backgroundWashColorMode}
+                        options={[
+                            { value: 'theme', label: t('options.monetBackgroundWashTheme') },
+                            { value: 'custom', label: t('options.monetBackgroundWashCustom') },
+                        ]}
+                        onChange={(value) => onTuningChange?.({ backgroundWashColorMode: value })}
+                    />
+                </Row>
+                <Reveal when={resolvedTuning.backgroundWashColorMode === 'custom'}>
+                    <Row
+                        sub
+                        label={t('options.monetBackgroundWashCustomColor')}
+                        below={(
+                            <HexColorPicker
+                                color={resolvedTuning.backgroundWashCustomColor}
+                                onChange={(value) => onTuningChange?.({ backgroundWashCustomColor: value })}
+                                style={{ width: '100%', height: 180 }}
+                            />
+                        )}
+                    >
+                        <span className="h-4 w-4 rounded-full shadow-[0_0_0_1px_var(--st-line)]" style={{ backgroundColor: resolvedTuning.backgroundWashCustomColor }} />
+                        <Value>{resolvedTuning.backgroundWashCustomColor.toUpperCase()}</Value>
+                    </Row>
+                </Reveal>
+            </Group>
+        </>
     );
 };

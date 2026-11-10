@@ -1,0 +1,68 @@
+/* src/components/visualizer/backgrounds/common/GeometricBackground.css */
+/* The loops of the geometric background (GeometricBackground.tsx). Each element gives its own
+   duration and delay, and its numbers as custom properties; a delay shows the loop's first frame. A
+   paused scene holds every loop where it is. */
+
+@keyframes geometric-drift {
+    0% {
+        transform: translate(calc(-15px * var(--geometric-dir)), calc(30px * var(--geometric-dir))) rotate(var(--geometric-rotate));
+    }
+    50% {
+        transform: translate(calc(15px * var(--geometric-dir)), calc(-30px * var(--geometric-dir))) rotate(calc(var(--geometric-rotate) + 180deg));
+    }
+    100% {
+        transform: translate(calc(-15px * var(--geometric-dir)), calc(30px * var(--geometric-dir))) rotate(calc(var(--geometric-rotate) + 360deg));
+    }
+}
+
+@keyframes geometric-pulse {
+    0%,
+    100% {
+        opacity: 0;
+    }
+    50% {
+        opacity: var(--geometric-peak);
+    }
+}
+
+@keyframes geometric-rise {
+    0% {
+        transform: translateY(0);
+        opacity: 0;
+    }
+    50% {
+        opacity: var(--geometric-peak);
+    }
+    100% {
+        transform: translateY(-100px);
+        opacity: 0;
+    }
+}
+
+.geometric-drift,
+.geometric-pulse,
+.geometric-rise {
+    animation-iteration-count: infinite;
+    animation-fill-mode: backwards;
+}
+
+.geometric-drift {
+    animation-name: geometric-drift;
+    animation-timing-function: linear;
+}
+
+.geometric-pulse {
+    animation-name: geometric-pulse;
+    animation-timing-function: ease-in-out;
+}
+
+.geometric-rise {
+    animation-name: geometric-rise;
+    animation-timing-function: linear;
+}
+
+.geometric-paused .geometric-drift,
+.geometric-paused .geometric-pulse,
+.geometric-paused .geometric-rise {
+    animation-play-state: paused;
+}

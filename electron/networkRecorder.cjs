@@ -4,7 +4,8 @@ const diagnosticsChannel = require('diagnostics_channel');
 const { AsyncLocalStorage } = require('async_hooks');
 
 // electron/networkRecorder.cjs
-// 主进程出站请求的连接层记录：网易与 QQ 两个内嵌后端都经 Node 的 http/https（axios、ws）访问上游，
+// 出站请求的连接层记录：内嵌后端经 Node 的 http/https（axios、ws）访问上游。diagnostics_channel 只看得到
+// 本线程的请求，所以每个线程各开一份：主进程里的记 QQ，网易的工作线程（neteaseApiWorker.cjs）里另有一份。
 // 这里订阅 Node 的 diagnostics_channel，按域名认出属于哪个 provider，记下每个请求的完整连接过程：
 // DNS 给了哪些地址、逐个尝试了哪些地址（Happy Eyeballs）、最后连上谁（v4 / v6）、TCP 与 TLS 各用了多久、
 // 失败在哪一步（dns / tcp / tls / 等响应）、Node 的错误码。上游 request 会把 err.code 吞掉，只剩一句 message，

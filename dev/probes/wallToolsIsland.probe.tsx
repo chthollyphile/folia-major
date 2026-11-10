@@ -69,6 +69,7 @@ const PROBE_HOST: WallToolsHost = {
     generateTheme: () => record({ kind: 'generateTheme' }),
     previewVolume: () => record({ kind: 'previewVolume' }),
     openPlayer: () => record({ kind: 'openPlayer' }),
+    openSettings: () => record({ kind: 'openSettings' }),
     playQueueSong: song => {
         record({ kind: 'playQueueSong', id: String(song.id) });
         usePlaybackStore.getState().setCurrentSong(song);

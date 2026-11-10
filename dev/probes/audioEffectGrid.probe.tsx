@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import AudioEffectGrid from '../../src/components/panelTab/equalizer/AudioEffectGrid';
-import { buildEqualizerStyles } from '../../src/components/panelTab/equalizer/equalizerStyles';
+import { SettingsKitThemeContext, settingsTokens } from '../../src/components/modal/settings/kit/kitTheme';
+import { kitMotionTokens } from '../../src/components/modal/settings/kit/motion';
 import { createNeutralAudioEffects, type AudioEffectId } from '../../src/utils/audioEffects';
 import { AUDIO_SOUND_PRESETS } from '../../src/utils/audioPresets';
 import { DEFAULT_THEME, DAYLIGHT_THEME } from '../../src/services/baseThemes';
@@ -14,7 +15,7 @@ import type { ProbeDefinition } from './definition';
  * 在安静的前奏上，它们听起来就是「这版本坏了」，而不是「我开了个效果器」。标注要
  * 在滑块还没推上去的时候就看得见，所以中性和激活两种状态都得检查。
  *
- * 两种主题都挂出来，是因为标注用的是 selectedAccentColor，白天配色下它是另一个值。
+ * 两种主题都挂出来，是因为激活时标注用的是强调色（--st-accent），亮色和暗色下是两个值。
  */
 const PRESETS = ['flat', 'lofi', 'radio', 'vocal'] as const;
 
@@ -37,20 +38,27 @@ const AudioEffectGridProbe: React.FC = () => {
                     </button>
                 ))}
             </div>
-            {[false, true].map(isDaylight => (
-                <div
-                    key={String(isDaylight)}
-                    data-probe-daylight={String(isDaylight)}
-                    className={isDaylight ? 'rounded-2xl bg-zinc-200 p-4' : 'rounded-2xl bg-zinc-900 p-4'}
-                >
-                    <AudioEffectGrid
-                        effects={effects}
-                        styles={buildEqualizerStyles(isDaylight, isDaylight ? DAYLIGHT_THEME : DEFAULT_THEME)}
-                        onEffectChange={onEffectChange}
-                        onCommit={() => {}}
-                    />
-                </div>
-            ))}
+            {[false, true].map((isDaylight) => {
+                const theme = isDaylight ? DAYLIGHT_THEME : DEFAULT_THEME;
+                return (
+                    <div
+                        key={String(isDaylight)}
+                        data-probe-daylight={String(isDaylight)}
+                        // 效果链用设置窗口的共用变量画，文字颜色、颜色和动效变量平时由对话框外框给，探针里自己给；
+                        // 宽度和对话框里那一块一样，所以也是三列。
+                        className="st-window w-full max-w-[864px] rounded-2xl bg-[var(--st-win)] p-4 text-[color:var(--st-t1)]"
+                        style={{
+                            ['--text-primary' as string]: theme.primaryColor,
+                            ...settingsTokens(isDaylight, theme),
+                            ...kitMotionTokens(false),
+                        }}
+                    >
+                        <SettingsKitThemeContext.Provider value={{ isDaylight, theme }}>
+                            <AudioEffectGrid effects={effects} onEffectChange={onEffectChange} onCommit={() => {}} />
+                        </SettingsKitThemeContext.Provider>
+                    </div>
+                );
+            })}
         </div>
     );
 };

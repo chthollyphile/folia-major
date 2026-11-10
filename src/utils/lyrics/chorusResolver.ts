@@ -1,5 +1,5 @@
 import type { ChorusRange, OnlineProviderId, ProviderLyricsResult } from '../../types/onlineMusic';
-import { applyDetectedChorusEffects, applyNeteaseChorusByTime } from './chorusEffects';
+import { applyDetectedChorusEffects, applyChorusRangesByTime } from './chorusEffects';
 
 // src/utils/lyrics/chorusResolver.ts
 
@@ -43,7 +43,7 @@ export const resolveProviderLyricsChorus = async (
         return {
             result: {
                 ...providerResult,
-                lyrics: applyNeteaseChorusByTime(lyrics, chorusRanges),
+                lyrics: applyChorusRangesByTime(lyrics, chorusRanges),
                 chorusRanges,
             },
             mode: 'native',

@@ -1,20 +1,20 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { LibraryDirectoryBatchConfig, LibraryHiddenScope } from '../../core/contracts/directory';
-import type { LibraryHomeCard } from '../../core/contracts/homeModel';
-import type { LibraryDeclaredActions } from '../../core/contracts/suite';
-import type { LibraryHomeCardSource } from '../../core/model/homeSpecialCards';
-import { isHideableDirectoryItem } from '../../core/model/directoryVisibility';
-import { useLibraryDirectorySessionStore } from '../../core/state/useLibraryDirectorySessionStore';
-import { useLibraryDirectoryQuery } from '../../core/bindings/useLibraryDirectoryQuery';
-import { useLibraryDirectorySelection } from '../../core/bindings/useLibraryDirectorySelection';
-import { useLibraryDirectoryVisibility } from '../../core/bindings/useLibraryDirectoryVisibility';
-import { useLibraryDirectoryScope } from '../../core/bindings/useLibraryDirectoryScope';
-import { useLibraryDirectoryActions } from '../../core/bindings/useLibraryDirectoryActions';
-import { useHiddenCollections } from '../../core/bindings/useHiddenCollections';
+import type { LibraryDirectoryBatchConfig, LibraryHiddenScope } from '../../core/directory/directory.contract';
+import type { LibraryHomeCard } from '../../core/home/homeModel.contract';
+import type { LibraryDeclaredActions } from '../../core/suite/suite.contract';
+import type { LibraryHomeCardSource } from '../../core/home/homeSpecialCards';
+import { isHideableDirectoryItem } from '../../core/directory/directoryVisibility';
+import { useLibraryDirectorySessionStore } from '../../core/directory/useLibraryDirectorySessionStore';
+import { useLibraryDirectoryQuery } from '../../core/directory/useLibraryDirectoryQuery';
+import { useLibraryDirectorySelection } from '../../core/directory/useLibraryDirectorySelection';
+import { useLibraryDirectoryVisibility } from '../../core/directory/useLibraryDirectoryVisibility';
+import { useLibraryDirectoryScope } from '../../core/directory/useLibraryDirectoryScope';
+import { useLibraryDirectoryActions } from '../../core/directory/useLibraryDirectoryActions';
+import { useHiddenCollections } from '../../core/collection/useHiddenCollections';
 import type { BravaisItemKind, BravaisLayer, BravaisSeamModel } from './bravaisLayer';
 import type { BravaisHomeAccount, BravaisHomeSection, BravaisHomeShortcut, BravaisHomeTool } from './bravaisHomeModels';
-import type { BravaisLayerEntries, BravaisSeamFilter, BravaisSeamMenuItem } from './bravaisSeamModels';
+import type { BravaisLayerEntries, BravaisSeamFilter, BravaisSeamMenuItem, BravaisWallHint } from './bravaisSeamModels';
 import { createHomeItemCache, projectHomeShortcuts, projectHomeWallItems, resolveHomeWallMode, toHomeEntry } from './bravaisHomeProjection';
 import type { BravaisHomeChrome } from './useBravaisHomeChrome';
 import { useBravaisDirectoryPanel } from './useBravaisDirectoryPanel';
@@ -67,6 +67,8 @@ export type BravaisHomeDirectoryProps = {
     isLoading: boolean;
     /** 没有卡片时缝里的说明（登录过期、未配置、空曲库、空列表）；fb3：未登录时不给（缝里只有「连接在线平台」入口）。 */
     emptyMessage?: string;
+    /** 没有卡片、又是因为还没连在线平台 / 还没导入本地文件夹时，墙面上的背景说明（bravaisEmptyWallHint）。 */
+    wallHint?: BravaisWallHint;
     /** 缝的元数据行（来源）。 */
     meta: string;
     sections?: readonly BravaisHomeSection[];
@@ -102,6 +104,7 @@ const BravaisHomeDirectory: React.FC<BravaisHomeDirectoryProps> = ({
     items,
     isLoading,
     emptyMessage,
+    wallHint,
     meta,
     sections,
     onSelectSection,
@@ -237,7 +240,8 @@ const BravaisHomeDirectory: React.FC<BravaisHomeDirectoryProps> = ({
         filterKey,
         planCount,
         loading: isLoading && items.length === 0,
-    }), [filterKey, isLoading, items.length, planCount]);
+        hint: items.length === 0 ? wallHint : undefined,
+    }), [filterKey, isLoading, items.length, planCount, wallHint]);
 
     // 回调执行时读最新的映射（身份稳定，层描述不因它们换身份）。
     const latest = useRef({ displayItems, onOpen, toggleHidden, openShortcut });

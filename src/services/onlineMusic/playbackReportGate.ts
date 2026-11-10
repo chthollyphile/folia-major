@@ -1,5 +1,5 @@
 import type { SongResult } from '../../types';
-import type { OmniPlaybackReport } from '../../types/onlineMusic';
+import type { OmniPlaybackReport, OmniProviderId } from '../../types/onlineMusic';
 import { getPlaybackSourceRef } from '../../utils/appPlaybackGuards';
 import { useOnlineProviderAccountStore } from '../../stores/useOnlineProviderAccountStore';
 import { omni } from './omni';
@@ -20,7 +20,7 @@ export const MAX_REPORTS_PER_HOUR = 60;
 /**
  * How long a report may stay in flight before the gate stops waiting for it.
  *
- * The NetEase transport has no timeout of its own, so a dead proxy, a sleeping serverless backend
+ * A provider's transport may have no timeout of its own, so a dead proxy, a sleeping serverless backend
  * or a black-holing firewall leaves the request pending forever. Without a deadline `inFlight` would
  * never clear and every later report in the session would be dropped as "still in flight" - the
  * feature would switch itself off silently. Losing the race does not cancel the request; it only
@@ -41,25 +41,34 @@ export const resetPlaybackReportGate = (): void => {
     inFlight = false;
 };
 
-/** The provider is registered, declares the capability, and is configured on this build. */
-export const isNeteaseScrobbleSupported = (): boolean => {
-    try {
-        return Boolean(omni.getProviderCapabilities('netease').playbackReports)
-            && omni.getProviderAvailability('netease').configured;
-    } catch {
-        return false;
-    }
+type Accounts = ReturnType<typeof useOnlineProviderAccountStore.getState>['accounts'];
+
+/** The providers that take a listening report: registered, declaring the capability, configured on this build. */
+const reportingProviderIds = (): OmniProviderId[] => omni.getProviderSummaries()
+    .filter(provider => provider.availability.configured && omni.getProviderCapabilities(provider.providerId).playbackReports)
+    .map(provider => provider.providerId);
+
+// With a song, only the song's own provider is asked.
+const isReadyIn = (accounts: Accounts, song?: SongResult): boolean => {
+    const source = song ? getPlaybackSourceRef(song) : null;
+    return reportingProviderIds().some(providerId => (
+        (!source || (source.kind === 'online' && source.providerId === providerId))
+        && accounts[providerId]?.status === 'authenticated'
+    ));
 };
 
 /**
- * Supported AND signed in. Anonymous reports mean nothing to an account feature, so the settings
- * panel and the command palette both gate on this - through this one function, so neither can
- * offer a state the other refuses.
+ * A provider takes listening reports AND its account is signed in. Anonymous reports mean nothing
+ * to an account feature, so the settings panel and the command palette both gate on this - through
+ * this one function, so neither can offer a state the other refuses. Given a song, the answer is
+ * for the provider that song belongs to.
  */
-export const isNeteaseScrobbleReady = (): boolean => (
-    isNeteaseScrobbleSupported()
-    && useOnlineProviderAccountStore.getState().accounts.netease?.status === 'authenticated'
+export const isPlaybackReportReady = (song?: SongResult): boolean => (
+    isReadyIn(useOnlineProviderAccountStore.getState().accounts, song)
 );
+
+/** The same answer for a component: it follows an account signing in or out while it is shown. */
+export const usePlaybackReportReady = (): boolean => useOnlineProviderAccountStore(state => isReadyIn(state.accounts));
 
 /**
  * Sends one report if the rate allows it. Returns whether it was sent.

@@ -1,8 +1,8 @@
-import {
-  detectOpenAICompatibleProvider,
-  rejectsOpenAICompatibleParameter,
-  sendOpenAICompatibleRequest,
-} from './openAICompatibleRequest.mjs';
+import { sendOpenAICompatibleRequest } from './openAICompatibleRequest.mjs';
+import { budgetFor } from './ai/aiTasks.mjs';
+import { runAttempts } from './ai/attemptRunner.mjs';
+import { MAX_ERROR_BODY_CHARS, buildCompatibleBody, exhaustedByReasoning, withErrorHint } from './ai/compatibleBody.mjs';
+import { getAiAdapter, resolveAiConnection } from './ai/providerRegistry.mjs';
 
 // shared/lyricSegmentationService.mjs
 // Server-side lyric word segmentation, shared by the Vercel edge handler and the Cloudflare
@@ -14,7 +14,6 @@ import {
 // build there is no user-facing setting here: the web deployment owns the credentials.
 
 import {
-  REASONING_SUPPRESSION_ATTEMPTS,
   SEGMENTATION_GEMINI_GENERATION_CONFIG,
   SEGMENTATION_JSON_SCHEMA,
   SEGMENTATION_MAX_OUTPUT_TOKENS,
@@ -25,8 +24,6 @@ import {
 } from './lyricSegmentationPrompt.mjs';
 
 const DEFAULT_OPENAI_CHAT_COMPLETIONS_URL = 'https://api.openai.com/v1/chat/completions';
-const DEFAULT_OPENAI_MODEL = 'gpt-5.6-luna';
-const DEEPSEEK_DEFAULT_MODEL = 'deepseek-v4-flash';
 const DEFAULT_OPENAI_TEMPERATURE = 0.7;
 const GEMINI_ENDPOINT =
   'https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent';
@@ -43,6 +40,16 @@ const timeoutSignal = (timeoutMs) => (
 );
 
 const isAbort = (error) => error && (error.name === 'TimeoutError' || error.name === 'AbortError');
+
+/** An address without its credentials and query: what a message may show of it. */
+const addressForMessage = (rawUrl) => {
+  try {
+    const parsed = new URL(rawUrl);
+    return `${parsed.origin}${parsed.pathname}`;
+  } catch {
+    return 'the AI service';
+  }
+};
 
 /** Thrown with an HTTP status so both adapters can map failures without re-deriving them. */
 export class SegmentationRequestError extends Error {
@@ -78,22 +85,6 @@ const normalizeOpenAIChatCompletionsUrl = (rawUrl) => {
   }
 };
 
-const resolveOpenAICompatibleModel = (apiUrl, configuredModel) => {
-  const trimmedModel = typeof configuredModel === 'string' ? configuredModel.trim() : '';
-  if (trimmedModel) {
-    return trimmedModel;
-  }
-  try {
-    const hostname = new URL(apiUrl).hostname.toLowerCase();
-    if (hostname === 'api.deepseek.com' || hostname.endsWith('.deepseek.com')) {
-      return DEEPSEEK_DEFAULT_MODEL;
-    }
-  } catch {
-    // Fall back to the generic OpenAI default when URL parsing fails.
-  }
-  return DEFAULT_OPENAI_MODEL;
-};
-
 const resolveTemperature = (value) => {
   const temperature = Number.parseFloat(String(value ?? '').trim());
   return Number.isFinite(temperature) && temperature >= 0 && temperature <= 2
@@ -101,8 +92,8 @@ const resolveTemperature = (value) => {
     : DEFAULT_OPENAI_TEMPERATURE;
 };
 
-const readErrorDetail = async (response) => {
-  const rawText = await response.text();
+/** The provider's own message out of a raw error body, or the body itself when it is not JSON. */
+const errorDetailOf = (rawText) => {
   try {
     const parsed = JSON.parse(rawText);
     const error = parsed && parsed.error;
@@ -114,6 +105,8 @@ const readErrorDetail = async (response) => {
   }
   return rawText.trim();
 };
+
+const readErrorDetail = async (response) => errorDetailOf(await response.text());
 
 const extractContentText = (message) => {
   if (!message) return null;
@@ -131,20 +124,17 @@ const extractContentText = (message) => {
   return null;
 };
 
-/** Remembers the working request shape per endpoint+model, so probing is paid once per instance. */
-const reasoningAttemptCache = new Map();
-
-const exhaustedByReasoning = (choice, usage) => {
+// `exhausted` is the runner's verdict (exhaustedByReasoning with the adapter, so a provider's own
+// words for a cut-off answer count too), the same one it moved down on.
+const describeEmpty = (choice, usage, model, exhausted) => {
   const reasoningTokens = usage?.completion_tokens_details?.reasoning_tokens;
-  const hasReasoning = Boolean(reasoningTokens || choice?.message?.reasoning_content);
-  return hasReasoning && choice?.finish_reason === 'length';
-};
-
-const describeEmpty = (choice, usage, model) => {
-  const reasoningTokens = usage?.completion_tokens_details?.reasoning_tokens;
-  if (exhaustedByReasoning(choice, usage)) {
-    return `Model "${model}" used its entire output budget on reasoning (${reasoningTokens} tokens)`
-      + ' and returned no answer. Configure a non-reasoning model for this deployment.';
+  if (exhausted) {
+    const tokens = typeof reasoningTokens === 'number' ? ` (${reasoningTokens} tokens)` : '';
+    const finishReason = choice?.finish_reason;
+    const how = finishReason && finishReason !== 'length'
+      ? `stopped while still reasoning${tokens} (finish_reason: ${finishReason})`
+      : `used its entire output budget on reasoning${tokens}`;
+    return `Model "${model}" ${how} and returned no answer. Configure a non-reasoning model for this deployment.`;
   }
   return `Model "${model}" returned an empty response`
     + `${choice?.finish_reason ? ` (finish_reason: ${choice.finish_reason})` : ''}.`;
@@ -154,12 +144,13 @@ const describeEmpty = (choice, usage, model) => {
  * Sends one request, returning the outcome rather than throwing, so the ladder can decide.
  * Mirrors sendOpenAICompatible in electron/aiTextClient.cjs.
  */
-const sendOpenAICompatible = async (apiUrl, apiKey, body, fetchImpl) => {
+const sendOpenAICompatible = async (apiUrl, apiKey, adapter, body, fetchImpl) => {
   let response;
   try {
     response = await sendOpenAICompatibleRequest({
       apiUrl,
-      provider: detectOpenAICompatibleProvider(apiUrl),
+      provider: adapter.id,
+      rejectsFormat: adapter.rejectedParameter,
       body,
       init: {
         method: 'POST',
@@ -170,17 +161,20 @@ const sendOpenAICompatible = async (apiUrl, apiKey, body, fetchImpl) => {
     });
   } catch (error) {
     if (isAbort(error)) {
-      throw new SegmentationRequestError(`Request to ${apiUrl} timed out`, 504);
+      throw new SegmentationRequestError(`Request to ${addressForMessage(apiUrl)} timed out`, 504);
     }
     throw error;
   }
 
   if (!response.ok) {
-    const detail = await readErrorDetail(response);
+    // errorText is for people; errorBody keeps error.param and error.code for the ladder.
+    const rawText = await response.text();
+    const detail = errorDetailOf(rawText);
     return {
       ok: false,
       status: response.status,
       errorText: `OpenAI compatible API error (${response.status})${detail ? `: ${detail}` : ''}`,
+      errorBody: rawText.slice(0, MAX_ERROR_BODY_CHARS),
     };
   }
 
@@ -190,76 +184,46 @@ const sendOpenAICompatible = async (apiUrl, apiKey, body, fetchImpl) => {
 };
 
 /**
- * Walks REASONING_SUPPRESSION_ATTEMPTS instead of assuming what the deployment configured. The
- * base URL and model are env, so they can name anything; the working shape is discovered and then
- * cached. See the ladder's definition for the measurements behind it.
+ * Walks the provider adapter's segmentation attempts instead of assuming what the deployment
+ * configured. The base URL and model are env, so they can name anything: the provider is inferred
+ * from the URL's host (only OpenAI-compatible ones here; anything else is the custom adapter, whose
+ * attempts are the generic REASONING_SUPPRESSION_ATTEMPTS ladder), and the working shape is
+ * discovered and then remembered by the shared runner. See the ladder's definition for the
+ * measurements behind it.
  */
 const runOpenAICompatible = async (lines, env, fetchImpl) => {
-  const apiUrl = normalizeOpenAIChatCompletionsUrl(env.OPENAI_API_URL);
-  const model = resolveOpenAICompatibleModel(apiUrl, env.OPENAI_API_MODEL);
-  const provider = detectOpenAICompatibleProvider(apiUrl);
+  const connection = resolveAiConnection({ ...env, AI_PROVIDER: 'openai' }, { protocols: ['openai'] });
+  const adapter = getAiAdapter(connection.adapterId);
+  const apiUrl = normalizeOpenAIChatCompletionsUrl(connection.apiUrl);
+  const { model } = connection;
   const temperature = resolveTemperature(env.OPENAI_API_TEMPERATURE);
+  const systemPrompt = buildSegmentationSystemPrompt();
+  const sourcePrompt = buildSegmentationSourcePrompt(lines);
 
-  const messages = [
-    { role: 'system', content: buildSegmentationSystemPrompt() },
-    { role: 'user', content: buildSegmentationSourcePrompt(lines) },
-  ];
-
-  // Only OpenAI itself accepts json_schema; everyone else rejects it and gets plain JSON mode.
-  const responseFormat = provider === 'openai'
-    ? {
-      type: 'json_schema',
-      json_schema: { name: SEGMENTATION_SCHEMA_NAME, strict: true, schema: SEGMENTATION_JSON_SCHEMA },
-    }
-    : { type: 'json_object' };
-
-  const cacheKey = `${apiUrl}|${model}`;
-  const learned = reasoningAttemptCache.get(cacheKey);
-  const firstIndex = typeof learned === 'number' ? learned : 0;
-
-  let lastEmpty = null;
-  for (let index = firstIndex; index < REASONING_SUPPRESSION_ATTEMPTS.length; index += 1) {
-    const { params } = REASONING_SUPPRESSION_ATTEMPTS[index];
-    const isLastAttempt = index === REASONING_SUPPRESSION_ATTEMPTS.length - 1;
-    const budget = isLastAttempt ? SEGMENTATION_MAX_OUTPUT_TOKENS * 4 : SEGMENTATION_MAX_OUTPUT_TOKENS;
-    // DeepSeek's official switch belongs to segmentation policy, not the generic HTTP transport.
-    const reasoningParams = provider === 'deepseek'
-      ? { thinking: { type: 'disabled' }, ...params }
-      : params;
-
-    const result = await sendOpenAICompatible(apiUrl, env.OPENAI_API_KEY, {
-      model,
-      messages,
-      temperature,
-      [provider === 'openai' ? 'max_completion_tokens' : 'max_tokens']: budget,
-      ...reasoningParams,
-      response_format: responseFormat,
-    }, fetchImpl);
-
-    if (!result.ok) {
-      if (!isLastAttempt
-        && Object.keys(params).some((key) => rejectsOpenAICompatibleParameter(result.status, result.errorText, key))) {
-        continue;
-      }
-      throw new SegmentationRequestError(result.errorText, 502);
-    }
-
-    if (result.content) {
-      reasoningAttemptCache.set(cacheKey, index);
-      return result.content;
-    }
-
-    lastEmpty = result;
-    if (!isLastAttempt && exhaustedByReasoning(result.choice, result.usage)) {
-      continue;
-    }
-    break;
-  }
-
-  throw new SegmentationRequestError(
-    describeEmpty(lastEmpty?.choice, lastEmpty?.usage, model),
-    502,
-  );
+  return runAttempts({
+    adapter,
+    task: 'segmentation',
+    url: apiUrl,
+    model,
+    attempts: adapter.attempts('segmentation', model),
+    describeEmpty: (result) => describeEmpty(result.choice, result.usage, model, result.exhausted),
+    fail: (message) => new SegmentationRequestError(message, 502),
+    send: async (attempt) => {
+      const body = buildCompatibleBody(adapter, {
+        task: 'segmentation',
+        model,
+        attempt,
+        systemPrompt,
+        sourcePrompt,
+        schema: SEGMENTATION_JSON_SCHEMA,
+        schemaName: SEGMENTATION_SCHEMA_NAME,
+        budget: budgetFor('segmentation', SEGMENTATION_MAX_OUTPUT_TOKENS, attempt),
+        temperature,
+      });
+      const result = await sendOpenAICompatible(apiUrl, env.OPENAI_API_KEY, adapter, body, fetchImpl);
+      return result.ok ? { ...result, exhausted: exhaustedByReasoning(result.choice, result.usage, adapter) } : withErrorHint(adapter, result);
+    },
+  });
 };
 
 const runGemini = async (lines, env, fetchImpl) => {

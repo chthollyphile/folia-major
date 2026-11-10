@@ -84,7 +84,7 @@ test.describe('切歌交接', () => {
         await stamp(page);
 
         // 正在播放 → 预告下一首 → 那首真的播起来，全程同一个 DOM 节点。
-        // 文案取英文：components project 的 fixtures 把 i18nextLng 钉成 en，这条用例以前没有
+        // 文案取英文：components project 的 fixtures 把 folia_app_language 钉成 en，这条用例以前没有
         // 种子、读的是浏览器默认语言，钉住之后才是确定的。
         await page.locator('[data-probe-action="next-up"]').click();
         await expect(card).toContainText('Next playing');
@@ -152,18 +152,16 @@ test('短标题也不会把卡片缩到 240px 以下', async ({ mount, page }) =
     expect(box.width).toBeGreaterThanOrEqual(240);
 });
 
-// 描边自己就沿着上边缘画，两条亮线隔着几个像素并排，读起来是好几层边框套在一起。
-test('混音期间收掉顶部的扫光条', async ({ mount, page }) => {
+// 卡片改成圆头长条（progress-bar v3，和进度条胶囊同一种形状）后，顶上那条进场扫光去掉了：
+// 混音时描边沿着边缘画，也不会再和它并排成两条亮线。
+test('卡片是圆头长条，没有顶部的扫光条', async ({ mount, page }) => {
     await mount('nowPlayingToastTransitionBorder');
-    const sheen = page.locator('[data-toast-sheen]');
-    await expect(sheen).toBeAttached();
-    await page.waitForTimeout(700);
-    expect(Number(await sheen.evaluate(el => getComputedStyle(el).opacity))).toBeGreaterThan(0.9);
-
-    await page.locator('[data-probe-action="cue"]').click();
-    await expect(page.locator('canvas')).toBeVisible({ timeout: 10_000 });
-    await page.waitForTimeout(900);
-    expect(Number(await sheen.evaluate(el => getComputedStyle(el).opacity))).toBeLessThan(0.05);
+    const card = page.locator('[data-toast-card]');
+    await expect(card).toBeVisible();
+    await expect(page.locator('[data-toast-sheen]')).toHaveCount(0);
+    const radius = await card.evaluate(el => parseFloat(getComputedStyle(el).borderTopLeftRadius));
+    const height = (await card.boundingBox())!.height;
+    expect(radius).toBeGreaterThanOrEqual(height / 2 - 0.5);
 });
 
 // 封面 URL 非空但加载不出来（探针里的 track-b 指向一个失效 blob，形状和媒体缓存 revoke 掉的

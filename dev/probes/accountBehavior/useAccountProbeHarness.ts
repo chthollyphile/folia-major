@@ -3,10 +3,10 @@ import type { OnlineMusicProvider, OnlineProviderId } from '../../../src/types/o
 import type { HomeViewModel } from '../../../src/components/app/home/buildHomeModel';
 import type { HomeLocalMusicState, HomeSurfaceProps } from '../../../src/components/app/home/homeSurfaceTypes';
 import type { LocalLibraryCatalogSnapshot } from '../../../src/hooks/useLocalLibraryCatalog';
-import type { LibraryAccountController } from '../../../src/library/core/contracts/account';
+import type { LibraryAccountController } from '../../../src/library/core/account/account.contract';
 import { useLibraryAccountController } from '../../../src/library/app/useLibraryAccountController';
-import { useLibraryAccountProviders } from '../../../src/library/core/bindings/useLibraryAccount';
-import { resolveActiveProviderSummary } from '../../../src/library/core/model/accountRules';
+import { useLibraryAccountProviders } from '../../../src/library/core/account/useLibraryAccount';
+import { resolveActiveProviderSummary } from '../../../src/library/core/account/accountRules';
 import { omni } from '../../../src/services/onlineMusic/omni';
 import {
     listOnlineMusicProviders,
@@ -14,10 +14,10 @@ import {
     unregisterOnlineMusicProvider,
 } from '../../../src/services/onlineMusic/providerRegistry';
 import { useOnlineProviderAccountStore } from '../../../src/stores/useOnlineProviderAccountStore';
-import { useNeteaseApiStatusStore } from '../../../src/stores/useNeteaseApiStatusStore';
+import { useNeteaseApiStatusStore } from '../../../src/services/onlineMusic/netease/useNeteaseApiStatusStore';
 import { useCollectionNavigationStore } from '../../../src/stores/useCollectionNavigationStore';
-import { useLibrarySuiteStore } from '../../../src/library/core/state/useLibrarySuiteStore';
-import { DEFAULT_LIBRARY_SUITE_ID } from '../../../src/library/core/model/librarySuites';
+import { useLibrarySuiteStore } from '../../../src/library/core/suite/useLibrarySuiteStore';
+import { DEFAULT_LIBRARY_SUITE_ID } from '../../../src/library/core/suite/librarySuites';
 import { DEFAULT_THEME } from '../../../src/services/baseThemes';
 import { PROBE_SURFACE_CALLBACKS } from '../libraryBehavior/probeSurfaceCallbacks';
 import {
@@ -165,19 +165,11 @@ const refreshProbeAccount = async (providerId: OnlineProviderId): Promise<boolea
 // 宿主登出：先记一笔，再走 omni.logout 和清账户（酷狗等 provider 的登出还会清自己的完整登录态）。
 const logoutProbeAccount = async (providerId: OnlineProviderId): Promise<void> => {
     recordAccountCall({ op: 'host-logout', providerId });
-    await omni.logout(providerId);
+    await omni.signOutAccount(providerId);
     useOnlineProviderAccountStore.getState().clearAccount(providerId);
 };
 
 const AUTH_PROVIDER_IDS = ACCOUNT_PROVIDERS.filter(rule => rule.auth).map(rule => rule.id);
-// mod 源没有刷新器和登出器，与 App 一致（App 的两张表只有内置 provider）。
-const REFRESHERS: Partial<Record<OnlineProviderId, () => Promise<unknown>>> = Object.fromEntries(
-    AUTH_PROVIDER_IDS.map(providerId => [providerId, () => refreshProbeAccount(providerId)]),
-);
-const LOGOUTS: Partial<Record<OnlineProviderId, () => Promise<void>>> = Object.fromEntries(
-    AUTH_PROVIDER_IDS.map(providerId => [providerId, () => logoutProbeAccount(providerId)]),
-);
-
 const INITIAL_LOCAL_STATE: HomeLocalMusicState = {
     activeRow: 0,
     selectedGroup: null,
@@ -193,12 +185,13 @@ const EMPTY_CATALOG: LocalLibraryCatalogSnapshot = {
     entities: [],
     assignments: [],
     ready: true,
+    failed: false,
     reload: async () => {},
 };
 
 const NO_OP = () => {};
 
-const PROBE_ACCOUNT_TABLES = { refreshers: REFRESHERS, logouts: LOGOUTS, switchCleanup: probeSwitchCleanup };
+const PROBE_ACCOUNT_TABLES = { logout: logoutProbeAccount, confirmLogout: async () => true, switchCleanup: probeSwitchCleanup };
 
 export type AccountProbeModel = {
     model: HomeViewModel;

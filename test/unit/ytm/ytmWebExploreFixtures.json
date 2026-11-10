@@ -1,0 +1,173 @@
+{
+  "home": {
+    "contents": {
+      "singleColumnBrowseResultsRenderer": {
+        "tabs": [
+          {
+            "tabRenderer": {
+              "content": {
+                "sectionListRenderer": {
+                  "contents": [
+                    {
+                      "musicCarouselShelfRenderer": {
+                        "header": {"musicCarouselShelfBasicHeaderRenderer":{"title":{"runs":[{"text":"猜你喜欢"}]}}},
+                        "contents": [
+                          {"musicResponsiveListItemRenderer":{"thumbnail":{"musicThumbnailRenderer":{"thumbnail":{"thumbnails":[{"url":"https://yt3.googleusercontent.com/3u2I3Is1dSFuJC5LwBlCZHfRZkwYtjO2kLu1mh4IAZLQMqQQeHmQSm1MxcGhNjKZhXFy-pOuKSXy2Sjp=w60-h60-l90-rj","width":60,"height":60},{"url":"https://yt3.googleusercontent.com/3u2I3Is1dSFuJC5LwBlCZHfRZkwYtjO2kLu1mh4IAZLQMqQQeHmQSm1MxcGhNjKZhXFy-pOuKSXy2Sjp=w120-h120-l90-rj","width":120,"height":120}]}}},"flexColumns":[{"musicResponsiveListItemFlexColumnRenderer":{"text":{"runs":[{"text":"要去什麼地方","navigationEndpoint":{"watchEndpoint":{"videoId":"hlmE_MrxmE4","playlistId":"RDAMVMhlmE_MrxmE4","watchEndpointMusicSupportedConfigs":{"watchEndpointMusicConfig":{"musicVideoType":"MUSIC_VIDEO_TYPE_ATV"}}}}}]}}},{"musicResponsiveListItemFlexColumnRenderer":{"text":{"runs":[{"text":"田馥甄 Hebe Tien","navigationEndpoint":{"browseEndpoint":{"browseId":"UCGkj4uoWx_1BA2tF9Q-9Y6w","browseEndpointContextSupportedConfigs":{"browseEndpointContextMusicConfig":{"pageType":"MUSIC_PAGE_TYPE_ARTIST"}}}}},{"text":" • "},{"text":"播放次数：178万"}]}}},{"musicResponsiveListItemFlexColumnRenderer":{"text":{"runs":[{"text":"要去什麼地方","navigationEndpoint":{"browseEndpoint":{"browseId":"MPREb_u7qEnkYzhPn","browseEndpointContextSupportedConfigs":{"browseEndpointContextMusicConfig":{"pageType":"MUSIC_PAGE_TYPE_ALBUM"}}}}}]}}}],"playlistItemData":{"videoId":"hlmE_MrxmE4"}}},
+                          {"musicResponsiveListItemRenderer":{"thumbnail":{"musicThumbnailRenderer":{"thumbnail":{"thumbnails":[{"url":"https://yt3.googleusercontent.com/0zd99oykz1u3Jq2OfHFuvRt6uYBvICuVd4FoiUevpmwklCtpRe9Aid5FaO0Qozq3polze6BXVY16n_02eQ=w60-h60-l90-rj","width":60,"height":60},{"url":"https://yt3.googleusercontent.com/0zd99oykz1u3Jq2OfHFuvRt6uYBvICuVd4FoiUevpmwklCtpRe9Aid5FaO0Qozq3polze6BXVY16n_02eQ=w120-h120-l90-rj","width":120,"height":120}]}}},"flexColumns":[{"musicResponsiveListItemFlexColumnRenderer":{"text":{"runs":[{"text":"此刻 (《早春晴朗》电视剧情深限定曲&片尾曲)","navigationEndpoint":{"watchEndpoint":{"videoId":"35xRyC7JwqA","playlistId":"RDAMVM35xRyC7JwqA","watchEndpointMusicSupportedConfigs":{"watchEndpointMusicConfig":{"musicVideoType":"MUSIC_VIDEO_TYPE_ATV"}}}}}]}}},{"musicResponsiveListItemFlexColumnRenderer":{"text":{"runs":[{"text":"袁娅维TIA RAY","navigationEndpoint":{"browseEndpoint":{"browseId":"UCLwXq93s0xEsi9qfRq4H8rw","browseEndpointContextSupportedConfigs":{"browseEndpointContextMusicConfig":{"pageType":"MUSIC_PAGE_TYPE_ARTIST"}}}}},{"text":" • "},{"text":"播放次数：272万"}]}}},{"musicResponsiveListItemFlexColumnRenderer":{"text":{"runs":[{"text":"早春晴朗 影视原声带","navigationEndpoint":{"browseEndpoint":{"browseId":"MPREb_xBsTHMF65YV","browseEndpointContextSupportedConfigs":{"browseEndpointContextMusicConfig":{"pageType":"MUSIC_PAGE_TYPE_ALBUM"}}}}}]}}}],"playlistItemData":{"videoId":"35xRyC7JwqA"}}}
+                        ]
+                      }
+                    },
+                    {
+                      "musicTastebuilderShelfRenderer": {}
+                    },
+                    {
+                      "musicCarouselShelfRenderer": {
+                        "header": {"musicCarouselShelfBasicHeaderRenderer":{"title":{"runs":[{"text":"Your fav decades, on repeat!"}]}}},
+                        "contents": [
+                          {"musicTwoRowItemRenderer":{"thumbnailRenderer":{"musicThumbnailRenderer":{"thumbnail":{"thumbnails":[{"url":"https://yt3.googleusercontent.com/LrhmnIOalyCLH5KhzVX-YAMwW6SK5fZmoPwy4k-qhz0F5gyMMubiV3F3Jdw4oVLWcQlujndobuhnZLE=w226-h226-l90-rj","width":226,"height":226},{"url":"https://yt3.googleusercontent.com/LrhmnIOalyCLH5KhzVX-YAMwW6SK5fZmoPwy4k-qhz0F5gyMMubiV3F3Jdw4oVLWcQlujndobuhnZLE=w544-h544-l90-rj","width":544,"height":544}]}}},"aspectRatio":"MUSIC_TWO_ROW_ITEM_THUMBNAIL_ASPECT_RATIO_SQUARE","title":{"runs":[{"text":"华语金曲重温","navigationEndpoint":{"browseEndpoint":{"browseId":"VLRDCLAK5uy_mjAJiE8flpX8OlujSbgylHKFYt-4smINE","browseEndpointContextSupportedConfigs":{"browseEndpointContextMusicConfig":{"pageType":"MUSIC_PAGE_TYPE_PLAYLIST"}}}}}]},"subtitle":{"runs":[{"text":"周杰倫"},{"text":"、"},{"text":"张惠妹"},{"text":"、"},{"text":" JOLIN蔡依林"},{"text":"、"},{"text":"Fish Leong"}]},"navigationEndpoint":{"browseEndpoint":{"browseId":"VLRDCLAK5uy_mjAJiE8flpX8OlujSbgylHKFYt-4smINE","browseEndpointContextSupportedConfigs":{"browseEndpointContextMusicConfig":{"pageType":"MUSIC_PAGE_TYPE_PLAYLIST"}}}}}},
+                          {"musicTwoRowItemRenderer":{"thumbnailRenderer":{"musicThumbnailRenderer":{"thumbnail":{"thumbnails":[{"url":"https://yt3.googleusercontent.com/VGxWK75H8M5k3r2I89b7Tg9Mi1JPNkCtc9IOkAfpznmJu4N7toBj_PB2Fubc_sFHa8CZ1MqSb6AqVTE=w226-h226-l90-rj","width":226,"height":226},{"url":"https://yt3.googleusercontent.com/VGxWK75H8M5k3r2I89b7Tg9Mi1JPNkCtc9IOkAfpznmJu4N7toBj_PB2Fubc_sFHa8CZ1MqSb6AqVTE=w544-h544-l90-rj","width":544,"height":544}]}}},"aspectRatio":"MUSIC_TWO_ROW_ITEM_THUMBNAIL_ASPECT_RATIO_SQUARE","title":{"runs":[{"text":"1980年代西洋金曲精选","navigationEndpoint":{"browseEndpoint":{"browseId":"VLRDCLAK5uy_lMzHW51iFg1Kx0d_2EHpzbOgCrwtu8cgI","browseEndpointContextSupportedConfigs":{"browseEndpointContextMusicConfig":{"pageType":"MUSIC_PAGE_TYPE_PLAYLIST"}}}}}]},"subtitle":{"runs":[{"text":"Michael Jackson"},{"text":"、"},{"text":"Prince & The Revolution"},{"text":"、"},{"text":"Madonna"},{"text":"、"},{"text":"Foreigner"}]},"navigationEndpoint":{"browseEndpoint":{"browseId":"VLRDCLAK5uy_lMzHW51iFg1Kx0d_2EHpzbOgCrwtu8cgI","browseEndpointContextSupportedConfigs":{"browseEndpointContextMusicConfig":{"pageType":"MUSIC_PAGE_TYPE_PLAYLIST"}}}}}}
+                        ]
+                      }
+                    }
+                  ],
+                  "continuations": [
+                    {
+                      "nextContinuationData": {"continuation":"home-part-2"}
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "homeFurther": {
+    "continuationContents": {
+      "sectionListContinuation": {
+        "contents": [
+          {
+            "musicCarouselShelfRenderer": {
+              "header": {"musicCarouselShelfBasicHeaderRenderer":{"title":{"runs":[{"text":"新曲上线","navigationEndpoint":{"browseEndpoint":{"browseId":"FEmusic_new_releases_albums"}}}]}}},
+              "contents": [
+                {"musicTwoRowItemRenderer":{"thumbnailRenderer":{"musicThumbnailRenderer":{"thumbnail":{"thumbnails":[{"url":"https://yt3.googleusercontent.com/kBcuA3LdN4JVt1xpexolju__SeICdgmkGXSYqcCLvsxMM6AIelevXqUQYNFO45mWF7SaMqDwOfRXvNzMxQ=w226-h226-l90-rj","width":226,"height":226},{"url":"https://yt3.googleusercontent.com/kBcuA3LdN4JVt1xpexolju__SeICdgmkGXSYqcCLvsxMM6AIelevXqUQYNFO45mWF7SaMqDwOfRXvNzMxQ=w544-h544-l90-rj","width":544,"height":544}]}}},"aspectRatio":"MUSIC_TWO_ROW_ITEM_THUMBNAIL_ASPECT_RATIO_SQUARE","title":{"runs":[{"text":"我是真的爱上你","navigationEndpoint":{"browseEndpoint":{"browseId":"MPREb_YEPqr4JxylO","browseEndpointContextSupportedConfigs":{"browseEndpointContextMusicConfig":{"pageType":"MUSIC_PAGE_TYPE_ALBUM"}}}}}]},"subtitle":{"runs":[{"text":"专辑"},{"text":" • "},{"text":"大头针R&B","navigationEndpoint":{"browseEndpoint":{"browseId":"UCaISzPHm7uP3J69mt9_pFjA","browseEndpointContextSupportedConfigs":{"browseEndpointContextMusicConfig":{"pageType":"MUSIC_PAGE_TYPE_ARTIST"}}}}}]},"navigationEndpoint":{"browseEndpoint":{"browseId":"MPREb_YEPqr4JxylO","browseEndpointContextSupportedConfigs":{"browseEndpointContextMusicConfig":{"pageType":"MUSIC_PAGE_TYPE_ALBUM"}}}}}},
+                {"musicTwoRowItemRenderer":{"thumbnailRenderer":{"musicThumbnailRenderer":{"thumbnail":{"thumbnails":[{"url":"https://yt3.googleusercontent.com/B1zOKPFrZBSw5wRaU7IG1LKTjLGiUjAnCfeLyVI09Er6IOhR28vy4TCkStEwgavX3HUVEUXGuoglOILdqw=w226-h226-l90-rj","width":226,"height":226},{"url":"https://yt3.googleusercontent.com/B1zOKPFrZBSw5wRaU7IG1LKTjLGiUjAnCfeLyVI09Er6IOhR28vy4TCkStEwgavX3HUVEUXGuoglOILdqw=w544-h544-l90-rj","width":544,"height":544}]}}},"aspectRatio":"MUSIC_TWO_ROW_ITEM_THUMBNAIL_ASPECT_RATIO_SQUARE","title":{"runs":[{"text":"看淡","navigationEndpoint":{"browseEndpoint":{"browseId":"MPREb_YheDhv8tCEV","browseEndpointContextSupportedConfigs":{"browseEndpointContextMusicConfig":{"pageType":"MUSIC_PAGE_TYPE_ALBUM"}}}}}]},"subtitle":{"runs":[{"text":"单曲"},{"text":" • "},{"text":"半吨兄弟","navigationEndpoint":{"browseEndpoint":{"browseId":"UCH3FqEslBKkQgGebRJk2KsA","browseEndpointContextSupportedConfigs":{"browseEndpointContextMusicConfig":{"pageType":"MUSIC_PAGE_TYPE_ARTIST"}}}}}]},"navigationEndpoint":{"browseEndpoint":{"browseId":"MPREb_YheDhv8tCEV","browseEndpointContextSupportedConfigs":{"browseEndpointContextMusicConfig":{"pageType":"MUSIC_PAGE_TYPE_ALBUM"}}}}}}
+              ]
+            }
+          },
+          {
+            "musicCarouselShelfRenderer": {
+              "header": {"musicCarouselShelfBasicHeaderRenderer":{"title":{"runs":[{"text":"为你推荐的精选播放列表","navigationEndpoint":{"browseEndpoint":{"browseId":"FEmusic_moods_and_genres"}}}]}}},
+              "contents": [
+                {"musicTwoRowItemRenderer":{"thumbnailRenderer":{"musicThumbnailRenderer":{"thumbnail":{"thumbnails":[{"url":"https://yt3.googleusercontent.com/79TOdoZ1jNPxZtMJ_ZJwX82o0DN7Cse_8YetoOlTxZqTMcIMi6BqNzY0HsUND-g7I6HCOkCoPxA=s192","width":192,"height":192},{"url":"https://yt3.googleusercontent.com/79TOdoZ1jNPxZtMJ_ZJwX82o0DN7Cse_8YetoOlTxZqTMcIMi6BqNzY0HsUND-g7I6HCOkCoPxA=s576","width":576,"height":576}]}}},"aspectRatio":"MUSIC_TWO_ROW_ITEM_THUMBNAIL_ASPECT_RATIO_SQUARE","title":{"runs":[{"text":"台湾百佳音乐视频","navigationEndpoint":{"browseEndpoint":{"browseId":"VLPL4fGSI1pDJn4eKyK8APGwl0S0wgyHvQyU","browseEndpointContextSupportedConfigs":{"browseEndpointContextMusicConfig":{"pageType":"MUSIC_PAGE_TYPE_PLAYLIST"}}}}}]},"subtitle":{"runs":[{"text":"排行榜"},{"text":" • "},{"text":"YouTube Charts","navigationEndpoint":{"browseEndpoint":{"browseId":"FEmusic_charts","browseEndpointContextSupportedConfigs":{"browseEndpointContextMusicConfig":{"pageType":"MUSIC_PAGE_TYPE_USER_CHANNEL"}}}}}]},"navigationEndpoint":{"browseEndpoint":{"browseId":"VLPL4fGSI1pDJn4eKyK8APGwl0S0wgyHvQyU","browseEndpointContextSupportedConfigs":{"browseEndpointContextMusicConfig":{"pageType":"MUSIC_PAGE_TYPE_PLAYLIST"}}}}}},
+                {"musicTwoRowItemRenderer":{"thumbnailRenderer":{"musicThumbnailRenderer":{"thumbnail":{"thumbnails":[{"url":"https://yt3.googleusercontent.com/BZdybUVkz6ZSbQssO9WNpIHMqaC8vi6OX7iguJILb_tWwkvFUXGzrQuVCtdqGrAVlCET_gIb0LDZ=s192","width":192,"height":192},{"url":"https://yt3.googleusercontent.com/BZdybUVkz6ZSbQssO9WNpIHMqaC8vi6OX7iguJILb_tWwkvFUXGzrQuVCtdqGrAVlCET_gIb0LDZ=s576","width":576,"height":576}]}}},"aspectRatio":"MUSIC_TWO_ROW_ITEM_THUMBNAIL_ASPECT_RATIO_SQUARE","title":{"runs":[{"text":"台湾时下流行 20 曲","navigationEndpoint":{"browseEndpoint":{"browseId":"VLOLAK5uy_k7TCLTpyYJf-tuuxK3NgI7SoEEw_2nvAI","browseEndpointContextSupportedConfigs":{"browseEndpointContextMusicConfig":{"pageType":"MUSIC_PAGE_TYPE_PLAYLIST"}}}}}]},"subtitle":{"runs":[{"text":"排行榜"},{"text":" • "},{"text":"YouTube Charts","navigationEndpoint":{"browseEndpoint":{"browseId":"FEmusic_charts","browseEndpointContextSupportedConfigs":{"browseEndpointContextMusicConfig":{"pageType":"MUSIC_PAGE_TYPE_USER_CHANNEL"}}}}}]},"navigationEndpoint":{"browseEndpoint":{"browseId":"VLOLAK5uy_k7TCLTpyYJf-tuuxK3NgI7SoEEw_2nvAI","browseEndpointContextSupportedConfigs":{"browseEndpointContextMusicConfig":{"pageType":"MUSIC_PAGE_TYPE_PLAYLIST"}}}}}}
+              ]
+            }
+          }
+        ]
+      }
+    }
+  },
+  "explore": {
+    "contents": {
+      "singleColumnBrowseResultsRenderer": {
+        "tabs": [
+          {
+            "tabRenderer": {
+              "content": {
+                "sectionListRenderer": {
+                  "contents": [
+                    {
+                      "gridRenderer": {
+                        "items": [
+                          {"musicNavigationButtonRenderer":{"buttonText":{"runs":[{"text":"新发行"}]}}}
+                        ]
+                      }
+                    },
+                    {
+                      "musicCarouselShelfRenderer": {
+                        "header": {"musicCarouselShelfBasicHeaderRenderer":{"title":{"runs":[{"text":"新专辑与单曲","navigationEndpoint":{"browseEndpoint":{"browseId":"FEmusic_new_releases_albums"}}}]}}},
+                        "contents": [
+                          {"musicTwoRowItemRenderer":{"thumbnailRenderer":{"musicThumbnailRenderer":{"thumbnail":{"thumbnails":[{"url":"https://yt3.googleusercontent.com/kBcuA3LdN4JVt1xpexolju__SeICdgmkGXSYqcCLvsxMM6AIelevXqUQYNFO45mWF7SaMqDwOfRXvNzMxQ=w226-h226-l90-rj","width":226,"height":226},{"url":"https://yt3.googleusercontent.com/kBcuA3LdN4JVt1xpexolju__SeICdgmkGXSYqcCLvsxMM6AIelevXqUQYNFO45mWF7SaMqDwOfRXvNzMxQ=w544-h544-l90-rj","width":544,"height":544}]}}},"aspectRatio":"MUSIC_TWO_ROW_ITEM_THUMBNAIL_ASPECT_RATIO_SQUARE","title":{"runs":[{"text":"我是真的爱上你","navigationEndpoint":{"browseEndpoint":{"browseId":"MPREb_YEPqr4JxylO","browseEndpointContextSupportedConfigs":{"browseEndpointContextMusicConfig":{"pageType":"MUSIC_PAGE_TYPE_ALBUM"}}}}}]},"subtitle":{"runs":[{"text":"专辑"},{"text":" • "},{"text":"大头针R&B","navigationEndpoint":{"browseEndpoint":{"browseId":"UCaISzPHm7uP3J69mt9_pFjA","browseEndpointContextSupportedConfigs":{"browseEndpointContextMusicConfig":{"pageType":"MUSIC_PAGE_TYPE_ARTIST"}}}}}]},"navigationEndpoint":{"browseEndpoint":{"browseId":"MPREb_YEPqr4JxylO","browseEndpointContextSupportedConfigs":{"browseEndpointContextMusicConfig":{"pageType":"MUSIC_PAGE_TYPE_ALBUM"}}}}}}
+                        ]
+                      }
+                    },
+                    {
+                      "musicCarouselShelfRenderer": {
+                        "header": {"musicCarouselShelfBasicHeaderRenderer":{"title":{"runs":[{"text":"心情与流派","navigationEndpoint":{"browseEndpoint":{"browseId":"FEmusic_moods_and_genres"}}}]}}},
+                        "contents": [
+                          {"musicNavigationButtonRenderer":{"buttonText":{"runs":[{"text":"悲伤"}]}}},
+                          {"musicNavigationButtonRenderer":{"buttonText":{"runs":[{"text":"锻炼"}]}}}
+                        ]
+                      }
+                    },
+                    {
+                      "musicCarouselShelfRenderer": {
+                        "header": {"musicCarouselShelfBasicHeaderRenderer":{"title":{"runs":[{"text":"时下流行","navigationEndpoint":{"browseEndpoint":{"browseId":"VLOLAK5uy_k7TCLTpyYJf-tuuxK3NgI7SoEEw_2nvAI","browseEndpointContextSupportedConfigs":{"browseEndpointContextMusicConfig":{"pageType":"MUSIC_PAGE_TYPE_PLAYLIST"}}}}}]}}},
+                        "contents": [
+                          {"musicResponsiveListItemRenderer":{"thumbnail":{"musicThumbnailRenderer":{"thumbnail":{"thumbnails":[{"url":"https://yt3.googleusercontent.com/a3S5KEaITHTExYtig-yNn3QoRP_9Y_qPz0Fo6lWAWKQ6cIUZtcf3tUKLGOO9ZouwwNc9q9bsAqBGpYft=w60-h60-l90-rj","width":60,"height":60},{"url":"https://yt3.googleusercontent.com/a3S5KEaITHTExYtig-yNn3QoRP_9Y_qPz0Fo6lWAWKQ6cIUZtcf3tUKLGOO9ZouwwNc9q9bsAqBGpYft=w120-h120-l90-rj","width":120,"height":120}]}}},"flexColumns":[{"musicResponsiveListItemFlexColumnRenderer":{"text":{"runs":[{"text":"甲乙丙丁Strangers (合唱版)","navigationEndpoint":{"watchEndpoint":{"videoId":"R48yZyjztBg","playlistId":"OLAK5uy_k7TCLTpyYJf-tuuxK3NgI7SoEEw_2nvAI","watchEndpointMusicSupportedConfigs":{"watchEndpointMusicConfig":{"musicVideoType":"MUSIC_VIDEO_TYPE_ATV"}}}}}]}}},{"musicResponsiveListItemFlexColumnRenderer":{"text":{"runs":[{"text":"李佳薇","navigationEndpoint":{"browseEndpoint":{"browseId":"UCDpqylW4FIjfrqepHH6fVcw","browseEndpointContextSupportedConfigs":{"browseEndpointContextMusicConfig":{"pageType":"MUSIC_PAGE_TYPE_ARTIST"}}}}},{"text":"和"},{"text":"张新成","navigationEndpoint":{"browseEndpoint":{"browseId":"UCkeXcJ0uEgItA6SMfreEubA","browseEndpointContextSupportedConfigs":{"browseEndpointContextMusicConfig":{"pageType":"MUSIC_PAGE_TYPE_ARTIST"}}}}}]}}},{"musicResponsiveListItemFlexColumnRenderer":{"text":{"runs":[{"text":"甲乙丙丁Strangers (合唱版)","navigationEndpoint":{"browseEndpoint":{"browseId":"MPREb_IfGu7Gt2q8z","browseEndpointContextSupportedConfigs":{"browseEndpointContextMusicConfig":{"pageType":"MUSIC_PAGE_TYPE_ALBUM"}}}}}]}}}],"playlistItemData":{"videoId":"R48yZyjztBg"}}},
+                          {"musicResponsiveListItemRenderer":{"thumbnail":{"musicThumbnailRenderer":{"thumbnail":{"thumbnails":[{"url":"https://i.ytimg.com/vi/1yBjFEpG3xQ/hqdefault.jpg?sqp=-oaymwEWCJADEOEBIAQqCggAEOADGC0guwJIWg&rs=AMzJL3kdETxKGHdu-9ftis_ErceBtLT8ng","width":400,"height":225}]}}},"flexColumns":[{"musicResponsiveListItemFlexColumnRenderer":{"text":{"runs":[{"text":"要去什麼地方","navigationEndpoint":{"watchEndpoint":{"videoId":"1yBjFEpG3xQ","playlistId":"OLAK5uy_k7TCLTpyYJf-tuuxK3NgI7SoEEw_2nvAI","watchEndpointMusicSupportedConfigs":{"watchEndpointMusicConfig":{"musicVideoType":"MUSIC_VIDEO_TYPE_OMV"}}}}}]}}},{"musicResponsiveListItemFlexColumnRenderer":{"text":{"runs":[{"text":"Hebe 田馥甄","navigationEndpoint":{"browseEndpoint":{"browseId":"UCGkj4uoWx_1BA2tF9Q-9Y6w","browseEndpointContextSupportedConfigs":{"browseEndpointContextMusicConfig":{"pageType":"MUSIC_PAGE_TYPE_ARTIST"}}}}},{"text":" • "},{"text":"135万次观看"}]}}},{"musicResponsiveListItemFlexColumnRenderer":{"text":{}}}],"playlistItemData":{"videoId":"1yBjFEpG3xQ"}}},
+                          {"musicResponsiveListItemRenderer":{"thumbnail":{"musicThumbnailRenderer":{"thumbnail":{"thumbnails":[{"url":"https://i.ytimg.com/vi/PL9o0xj7RyM/hqdefault.jpg?sqp=-oaymwEWCJADEOEBIAQqCggAEOADGC0guwJIWg&rs=AMzJL3mIWHZePfs_3AYUEesJvDHJ6m4w5A","width":400,"height":225}]}}},"flexColumns":[{"musicResponsiveListItemFlexColumnRenderer":{"text":{"runs":[{"text":"YUQI 'I Like You' Official Music Video","navigationEndpoint":{"watchEndpoint":{"videoId":"PL9o0xj7RyM","playlistId":"OLAK5uy_k7TCLTpyYJf-tuuxK3NgI7SoEEw_2nvAI","watchEndpointMusicSupportedConfigs":{"watchEndpointMusicConfig":{"musicVideoType":"MUSIC_VIDEO_TYPE_OMV"}}}}}]}}},{"musicResponsiveListItemFlexColumnRenderer":{"text":{"runs":[{"text":"i-dle (아이들)","navigationEndpoint":{"browseEndpoint":{"browseId":"UCritGVo7pLJLUS8wEu32vow","browseEndpointContextSupportedConfigs":{"browseEndpointContextMusicConfig":{"pageType":"MUSIC_PAGE_TYPE_USER_CHANNEL"}}}}},{"text":" • "},{"text":"245万次观看"}]}}},{"musicResponsiveListItemFlexColumnRenderer":{"text":{}}}],"playlistItemData":{"videoId":"PL9o0xj7RyM"}}}
+                        ]
+                      }
+                    },
+                    {
+                      "musicCarouselShelfRenderer": {
+                        "header": {"musicCarouselShelfBasicHeaderRenderer":{"title":{"runs":[{"text":"新音乐视频","navigationEndpoint":{"browseEndpoint":{"browseId":"FEmusic_new_releases_videos"}}}]}}},
+                        "contents": [
+                          {"musicTwoRowItemRenderer":{"thumbnailRenderer":{"musicThumbnailRenderer":{"thumbnail":{"thumbnails":[{"url":"https://i.ytimg.com/vi/0lXbg9H42jc/hqdefault.jpg?sqp=-oaymwEWCJADEOEBIAQqCggAEOADGC0guwJIWg&rs=AMzJL3nf1wFRlDK7zAjhltx8ke35lvTFtw","width":400,"height":225},{"url":"https://i.ytimg.com/vi/0lXbg9H42jc/hq720.jpg?sqp=-oaymwEKCKAGEMIDIABIWg&rs=AMzJL3mgvhEf6u6aS9khGS7sIZdvtRFqnA","width":800,"height":450}]}}},"aspectRatio":"MUSIC_TWO_ROW_ITEM_THUMBNAIL_ASPECT_RATIO_RECTANGLE_16_9","title":{"runs":[{"text":"No Era Para Mí | FireVolk"}]},"subtitle":{"runs":[{"text":"FireVolk","navigationEndpoint":{"browseEndpoint":{"browseId":"UCCTAmJyy3lwopWTqkZGNXXw","browseEndpointContextSupportedConfigs":{"browseEndpointContextMusicConfig":{"pageType":"MUSIC_PAGE_TYPE_USER_CHANNEL"}}}}},{"text":" • "},{"text":"2.3万次观看"}]},"navigationEndpoint":{"watchEndpoint":{"videoId":"0lXbg9H42jc","watchEndpointMusicSupportedConfigs":{"watchEndpointMusicConfig":{"musicVideoType":"MUSIC_VIDEO_TYPE_OMV"}}}}}},
+                          {"musicTwoRowItemRenderer":{"thumbnailRenderer":{"musicThumbnailRenderer":{"thumbnail":{"thumbnails":[{"url":"https://i.ytimg.com/vi/wjWud5YXNT4/hqdefault.jpg?sqp=-oaymwEWCJADEOEBIAQqCggAEOADGC0guwJIWg&rs=AMzJL3kwa6nKEv7b7PVOdcyo9MGHTpS0hQ","width":400,"height":225},{"url":"https://i.ytimg.com/vi/wjWud5YXNT4/hq720.jpg?sqp=-oaymwEKCKAGEMIDIABIWg&rs=AMzJL3k5ZDzife4Mh4VvsXCdryMnOt1IQw","width":800,"height":450}]}}},"aspectRatio":"MUSIC_TWO_ROW_ITEM_THUMBNAIL_ASPECT_RATIO_RECTANGLE_16_9","title":{"runs":[{"text":"Me Acostumbré a Tu Ausencia"}]},"subtitle":{"runs":[{"text":"FireVolk","navigationEndpoint":{"browseEndpoint":{"browseId":"UCweU4ua1zvliFuBO9gdPnbw","browseEndpointContextSupportedConfigs":{"browseEndpointContextMusicConfig":{"pageType":"MUSIC_PAGE_TYPE_ARTIST"}}}}},{"text":" • "},{"text":"4.1万次观看"}]},"navigationEndpoint":{"watchEndpoint":{"videoId":"wjWud5YXNT4","watchEndpointMusicSupportedConfigs":{"watchEndpointMusicConfig":{"musicVideoType":"MUSIC_VIDEO_TYPE_OMV"}}}}}},
+                          {"musicTwoRowItemRenderer":{"thumbnailRenderer":{"musicThumbnailRenderer":{"thumbnail":{"thumbnails":[{"url":"https://i.ytimg.com/vi/YfjXn0Q2PhY/hqdefault.jpg?sqp=-oaymwEWCJADEOEBIAQqCggAEOADGC0guwJIWg&rs=AMzJL3mTJyJQIkG76CnLDE5EMfWnCqYj8Q","width":400,"height":225},{"url":"https://i.ytimg.com/vi/YfjXn0Q2PhY/hq720.jpg?sqp=-oaymwEKCKAGEMIDIABIWg&rs=AMzJL3k-f0eA4Jp-y37BZWGOgrFFs2cfyQ","width":800,"height":450}]}}},"aspectRatio":"MUSIC_TWO_ROW_ITEM_THUMBNAIL_ASPECT_RATIO_RECTANGLE_16_9","title":{"runs":[{"text":"Vaelissed - Never look back (Official Music Video)","navigationEndpoint":{"browseEndpoint":{"browseId":"MPEDYfjXn0Q2PhY","browseEndpointContextSupportedConfigs":{"browseEndpointContextMusicConfig":{"pageType":"MUSIC_PAGE_TYPE_NON_MUSIC_AUDIO_TRACK_PAGE"}}}}}]},"subtitle":{"runs":[{"text":"3分钟53秒"},{"text":" • "},{"text":"Vaelissed","navigationEndpoint":{"browseEndpoint":{"browseId":"UCnSaV5p9fstSONyLFzy04pg","browseEndpointContextSupportedConfigs":{"browseEndpointContextMusicConfig":{"pageType":"MUSIC_PAGE_TYPE_ARTIST"}}}}}]},"navigationEndpoint":{"browseEndpoint":{"browseId":"MPEDYfjXn0Q2PhY","browseEndpointContextSupportedConfigs":{"browseEndpointContextMusicConfig":{"pageType":"MUSIC_PAGE_TYPE_NON_MUSIC_AUDIO_TRACK_PAGE"}}}}}},
+                          {"musicTwoRowItemRenderer":{"thumbnailRenderer":{"musicThumbnailRenderer":{"thumbnail":{"thumbnails":[{"url":"https://i.ytimg.com/vi/_Jad5guA7jQ/hqdefault.jpg?sqp=-oaymwEWCJADEOEBIAQqCggAEOADGC0guwJIWg&rs=AMzJL3nYfX0lyUMLCtnuQqJCxUneleXI6g","width":400,"height":225},{"url":"https://i.ytimg.com/vi/_Jad5guA7jQ/hq720.jpg?sqp=-oaymwEKCKAGEMIDIABIWg&rs=AMzJL3mviqxi6dwjns6NezeGSWLps2DYEw","width":800,"height":450}]}}},"aspectRatio":"MUSIC_TWO_ROW_ITEM_THUMBNAIL_ASPECT_RATIO_RECTANGLE_16_9","title":{"runs":[{"text":"Amor De Antes"}]},"subtitle":{"runs":[{"text":"Herencia De Grandes"},{"text":"和"},{"text":"Grupo Firme","navigationEndpoint":{"browseEndpoint":{"browseId":"UCJKREB2c3dO8dgdo8FtdO_A","browseEndpointContextSupportedConfigs":{"browseEndpointContextMusicConfig":{"pageType":"MUSIC_PAGE_TYPE_ARTIST"}}}}},{"text":" • "},{"text":"308万次观看"}]},"navigationEndpoint":{"watchEndpoint":{"videoId":"_Jad5guA7jQ","watchEndpointMusicSupportedConfigs":{"watchEndpointMusicConfig":{"musicVideoType":"MUSIC_VIDEO_TYPE_OMV"}}}}}}
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "charts": {
+    "contents": {
+      "singleColumnBrowseResultsRenderer": {
+        "tabs": [
+          {
+            "tabRenderer": {
+              "content": {
+                "sectionListRenderer": {
+                  "contents": [
+                    {
+                      "musicShelfRenderer": {}
+                    },
+                    {
+                      "musicCarouselShelfRenderer": {
+                        "header": {"musicCarouselShelfBasicHeaderRenderer":{"title":{"runs":[{"text":"视频排行榜"}]}}},
+                        "contents": [
+                          {"musicTwoRowItemRenderer":{"thumbnailRenderer":{"musicThumbnailRenderer":{"thumbnail":{"thumbnails":[{"url":"https://yt3.googleusercontent.com/Lr5TY1tj7DLXKhNG-mNhoy3dTLNHNV7-quATT-4MtcZABXWf5Gwxg5DesFOhtkowGZtKCBFpDaY=s192","width":192,"height":192},{"url":"https://yt3.googleusercontent.com/Lr5TY1tj7DLXKhNG-mNhoy3dTLNHNV7-quATT-4MtcZABXWf5Gwxg5DesFOhtkowGZtKCBFpDaY=s576","width":576,"height":576}]}}},"aspectRatio":"MUSIC_TWO_ROW_ITEM_THUMBNAIL_ASPECT_RATIO_SQUARE","title":{"runs":[{"text":"热门音频视频每日排行榜 - 台湾","navigationEndpoint":{"browseEndpoint":{"browseId":"VLPL4fGSI1pDJn6MIkp4QMHxyQjHqf_jAwJ0","browseEndpointContextSupportedConfigs":{"browseEndpointContextMusicConfig":{"pageType":"MUSIC_PAGE_TYPE_PLAYLIST"}}}}}]},"subtitle":{"runs":[{"text":"排行榜"},{"text":" • "},{"text":"YouTube Charts","navigationEndpoint":{"browseEndpoint":{"browseId":"FEmusic_charts","browseEndpointContextSupportedConfigs":{"browseEndpointContextMusicConfig":{"pageType":"MUSIC_PAGE_TYPE_USER_CHANNEL"}}}}}]},"navigationEndpoint":{"browseEndpoint":{"browseId":"VLPL4fGSI1pDJn6MIkp4QMHxyQjHqf_jAwJ0","browseEndpointContextSupportedConfigs":{"browseEndpointContextMusicConfig":{"pageType":"MUSIC_PAGE_TYPE_PLAYLIST"}}}}}}
+                        ]
+                      }
+                    },
+                    {
+                      "musicCarouselShelfRenderer": {
+                        "header": {"musicCarouselShelfBasicHeaderRenderer":{"title":{"runs":[{"text":"最爱的音乐人"}]}}},
+                        "contents": [
+                          {"musicResponsiveListItemRenderer":{"thumbnail":{"musicThumbnailRenderer":{"thumbnail":{"thumbnails":[{"url":"https://yt3.googleusercontent.com/5vqNE8l4iYKmNCHd_YIgknhMF-W4ROcG5H7ZbdfOudxTcNSIIJrf9WpctLh43GlzFLmmcpMUxRQ918Kv=w60-h60-p-l90-rj","width":60,"height":60},{"url":"https://yt3.googleusercontent.com/5vqNE8l4iYKmNCHd_YIgknhMF-W4ROcG5H7ZbdfOudxTcNSIIJrf9WpctLh43GlzFLmmcpMUxRQ918Kv=w120-h120-p-l90-rj","width":120,"height":120}]}}},"flexColumns":[{"musicResponsiveListItemFlexColumnRenderer":{"text":{"runs":[{"text":"周杰倫"}]}}},{"musicResponsiveListItemFlexColumnRenderer":{"text":{"runs":[{"text":"342万位订阅者"}]}}}],"navigationEndpoint":{"browseEndpoint":{"browseId":"UCL2MDNdwEtV6aYUgNjFQGZA","browseEndpointContextSupportedConfigs":{"browseEndpointContextMusicConfig":{"pageType":"MUSIC_PAGE_TYPE_ARTIST"}}}}}},
+                          {"musicResponsiveListItemRenderer":{"thumbnail":{"musicThumbnailRenderer":{"thumbnail":{"thumbnails":[{"url":"https://lh3.googleusercontent.com/wqU60Xc7Q-9V3by066vBYHGY_ZGgUlmWPioYTmmBtHkb2GUueMV4-0O1ddzSV7t0gYYDCIdbyjKCWw=w60-h60-p-l90-rj","width":60,"height":60},{"url":"https://lh3.googleusercontent.com/wqU60Xc7Q-9V3by066vBYHGY_ZGgUlmWPioYTmmBtHkb2GUueMV4-0O1ddzSV7t0gYYDCIdbyjKCWw=w120-h120-p-l90-rj","width":120,"height":120}]}}},"flexColumns":[{"musicResponsiveListItemFlexColumnRenderer":{"text":{"runs":[{"text":"A-Lin"}]}}},{"musicResponsiveListItemFlexColumnRenderer":{"text":{"runs":[{"text":"35.3万位订阅者"}]}}}],"navigationEndpoint":{"browseEndpoint":{"browseId":"UCh8MAQTB0y4JMTROjINKenA","browseEndpointContextSupportedConfigs":{"browseEndpointContextMusicConfig":{"pageType":"MUSIC_PAGE_TYPE_ARTIST"}}}}}}
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

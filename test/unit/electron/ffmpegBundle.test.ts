@@ -8,8 +8,8 @@ import {
 // Locks the release/target mapping without performing network access in unit tests.
 
 describe("bundled Folia FFmpeg manifest", () => {
-  it("pins the Folia FFmpeg release whose macOS binaries load only system libraries", () => {
-    expect(FFMPEG_RELEASE_TAG).toBe("v8.1.2-folia.3");
+  it("pins the Folia FFmpeg release that reads DSDIFF and whose macOS binaries load only system libraries", () => {
+    expect(FFMPEG_RELEASE_TAG).toBe("v8.1.2-folia.5");
     for (const asset of Object.values(FFMPEG_ASSETS)) {
       expect(asset.sha256).toMatch(/^[a-f0-9]{64}$/);
     }

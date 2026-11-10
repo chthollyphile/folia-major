@@ -1,8 +1,8 @@
 import { expect, test } from './fixtures';
 
 // test/component/pixiVisualizerResize.spec.ts
-// Use the existing real-Pixi probe to catch shared texture-pool regressions across all three modes.
-for (const mode of ['sonnet', 'tempera', 'lumiere']) {
+// Use the existing real-Pixi probe to catch shared texture-pool regressions across the Pixi modes.
+for (const mode of ['sonnet', 'tempera', 'lumiere', 'hanabi']) {
     for (const paused of [false, true]) {
         test(`${mode} resizes without destroyed shader bindings (${paused ? 'paused' : 'playing'})`, async ({ page }) => {
             const bindingWarnings: string[] = [];
@@ -44,7 +44,7 @@ for (const mode of ['sonnet', 'tempera', 'lumiere']) {
 test('nested Pixi filters render after a resize prunes their pass textures', async ({ page }) => {
     await page.goto('/dev-probe.html');
     const sizes = await page.evaluate(async () => {
-        const loadPixiUrl = '/src/components/visualizer/loadPixi.ts';
+        const loadPixiUrl = '/src/components/visualizer/pixi/loadPixi.ts';
         const { loadPixi } = await import(/* @vite-ignore */ loadPixiUrl);
         const pixi: typeof import('pixi.js') = await loadPixi();
         const app = new pixi.Application();
@@ -67,4 +67,47 @@ test('nested Pixi filters render after a resize prunes their pass textures', asy
         }
     });
     expect(sizes).toEqual([347, 229]);
+});
+
+// 花火的烟花层挂着共享的 bloom：一颗刚升空的火星、几乎出画的烟花，滤镜区域只有一两个像素宽，一级都降不了。
+// 那时 bloom 曾取到空的降采样链、抛错中断整帧，后面画的字整层不见。这里在真浏览器里画一个 1x1 的精灵，
+// 确认这一帧不抛错、画在它后面的东西照常画出来。
+test('bloom on a filter region too small to downsample passes the input through', async ({ page }) => {
+    const errors: string[] = [];
+    page.on('pageerror', error => errors.push(error.message));
+    await page.goto('/dev-probe.html');
+    const result = await page.evaluate(async () => {
+        const loadPixiUrl = '/src/components/visualizer/pixi/loadPixi.ts';
+        const bloomUrl = '/src/components/visualizer/pixi/bloomFilter.ts';
+        const { loadPixi } = await import(/* @vite-ignore */ loadPixiUrl);
+        const { createBloomFilter } = await import(/* @vite-ignore */ bloomUrl);
+        const pixi: typeof import('pixi.js') = await loadPixi();
+        const app = new pixi.Application();
+        await app.init({ width: 200, height: 200, resolution: 1, preference: 'webgl', autoStart: false, sharedTicker: false, backgroundAlpha: 0 });
+        const spark = new pixi.Container();
+        const dot = new pixi.Sprite(pixi.Texture.WHITE);
+        dot.width = 1;
+        dot.height = 1;
+        spark.addChild(dot);
+        spark.filters = [createBloomFilter(pixi, { strength: 1, threshold: 0.2, knee: 0.25, levels: 5, spread: 0.85, tint: [1, 1, 1], padding: 0 })];
+        // 画在 bloom 之后的东西（像场景里的字）。
+        const after = new pixi.Graphics().rect(100, 100, 50, 50).fill(0xff0000);
+        app.stage.addChild(spark, after);
+        let error: string | null = null;
+        let pixel: number[] = [];
+        try {
+            app.render();
+            const extracted = app.renderer.extract.pixels(app.stage);
+            const index = (120 * extracted.width + 120) * 4;
+            pixel = Array.from(extracted.pixels.slice(index, index + 4));
+        } catch (caught) {
+            error = String(caught);
+        } finally {
+            app.destroy(true, { children: true });
+        }
+        return { error, pixel };
+    });
+    expect(result.error).toBeNull();
+    expect(result.pixel).toEqual([255, 0, 0, 255]);
+    expect(errors).toEqual([]);
 });

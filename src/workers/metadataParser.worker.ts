@@ -1,6 +1,8 @@
 import { parseBlob } from 'music-metadata';
 import { repairFlacMetadata } from '../utils/flacMetadataRepair';
 import { hasLegacyId3Tags, repairLatin1DecodedGbkText } from '../utils/legacyTagTextRepair';
+import { formatLrcTimestamp } from '../utils/lyrics/lrcTimestamp';
+import { withMetadataParserTypeHint } from '../utils/metadataParserTypeHint';
 
 interface ParsedLyricLine {
     text?: string;
@@ -51,14 +53,6 @@ async function hashCoverBytes(bytes: BufferSource): Promise<string | undefined> 
     if (!crypto?.subtle) return undefined;
     const digest = await crypto.subtle.digest('SHA-256', bytes);
     return `sha256:${toHex(new Uint8Array(digest))}`;
-}
-
-function formatLrcTimestamp(timestampMs: number): string {
-    const safeTimestamp = Math.max(0, Math.floor(timestampMs));
-    const minutes = Math.floor(safeTimestamp / 60000);
-    const seconds = Math.floor((safeTimestamp % 60000) / 1000);
-    const centiseconds = Math.floor((safeTimestamp % 1000) / 10);
-    return `[${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}.${centiseconds.toString().padStart(2, '0')}]`;
 }
 
 function syncTextToLrc(syncText: ParsedLyricLine[] | undefined, timeStampFormat?: number): string | undefined {
@@ -153,7 +147,7 @@ function getDurationFromParsedMetadata(durationSeconds?: number): number {
 }
 
 async function extractEmbeddedMetadata(file: File, includeCover = false): Promise<EmbeddedMetadataResult> {
-    const parsingInput = await repairFlacMetadata(file, includeCover);
+    const parsingInput = withMetadataParserTypeHint(await repairFlacMetadata(file, includeCover), file.name);
     const parsed = await parseBlob(parsingInput, includeCover ? undefined : { skipCovers: true });
 
     let originalLyric: string | undefined;

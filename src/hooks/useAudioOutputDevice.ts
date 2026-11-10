@@ -20,6 +20,9 @@ type AudioOutputDeviceParams = {
     gainNodeRef: MutableRefObject<GainNode | null>;
 };
 
+// 自动重新套用失败、已经提示过的那个设备（见下面的 catch）。
+let silentFailureReportedFor: string | null = null;
+
 export const useAudioOutputDevice = ({
     audioRef,
     audioContextRef,
@@ -70,6 +73,7 @@ export const useAudioOutputDevice = ({
 
                 await audioSinkTarget.setSinkId(normalizedTargetDeviceId);
                 persistAudioOutputDeviceId(targetDeviceId);
+                silentFailureReportedFor = null;
 
                 if (audioElement && shouldPauseBeforeSwitch && wasPlaying) {
                     try {
@@ -105,6 +109,17 @@ export const useAudioOutputDevice = ({
                     targetDeviceId: normalizedTargetDeviceId,
                     sinkTarget: audioSinkTarget === audioContext ? 'audio-context' : 'audio-element',
                 });
+                // 自动重新套用（换歌、元素重建）失败时以前不说话：设置里还写着选的设备，声音却从系统默认设备出来。
+                // 同一个设备只说一次，换过设备或套用成功过再说。
+                if (!reportError && normalizedTargetDeviceId && silentFailureReportedFor !== normalizedTargetDeviceId) {
+                    silentFailureReportedFor = normalizedTargetDeviceId;
+                    const missing = error instanceof DOMException && error.name === 'NotFoundError';
+                    setStatusMsg({
+                        type: 'error',
+                        text: t(missing ? 'options.audioOutputMissing' : 'options.audioOutputNotApplied'),
+                        note: t('options.audioOutputFallbackNote'),
+                    });
+                }
 
                 if (audioElement && wasPlaying && audioElement.paused) {
                     try {
@@ -125,7 +140,7 @@ export const useAudioOutputDevice = ({
         }
 
         return false;
-    }, [persistAudioOutputDeviceId]);
+    }, [persistAudioOutputDeviceId, t]);
 
     useEffect(() => {
         const audioElement = audioRef.current as HTMLAudioElement | null;

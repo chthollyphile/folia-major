@@ -6,7 +6,6 @@ export type UnifiedLyric = LyricData;
 
 export interface LyricProcessingOptions {
     includeInterludes?: boolean;
-    filterPattern?: string | null;
     songId?: number;
     fetchChorusRanges?: (songId: number) => Promise<Array<{ startTime: number; endTime: number }>>;
 }

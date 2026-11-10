@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { LibraryDirectoryNode } from '@/library/core/contracts/directory';
-import type { LibraryHomeCard } from '@/library/core/contracts/homeModel';
+import type { LibraryDirectoryNode } from '@/library/core/directory/directory.contract';
+import type { LibraryHomeCard } from '@/library/core/home/homeModel.contract';
 import { getWallSlot } from '@/components/wall/wallSlots';
 import {
     createHomeItemCache,
@@ -152,6 +152,20 @@ describe('projectHomeShortcuts', () => {
             ['daily', 'Daily', 'card:daily_recommendations:daily_recommendations', false],
         ]);
         expect(projectHomeShortcuts([card('rec', 'playlist'), card('al', 'album')], { source: 'online', hiddenIds: new Set(), isDirect })).toEqual([]);
+    });
+
+    it('puts an extra provider radio next to the Personal FM, once, and leaves other scene cards out', () => {
+        const cards = [
+            card('personal_fm', 'radio', { name: 'FM' }),
+            card('scene-1', 'radio', { raw: { personalFm: { mode: 'SCENE_RCMD', scene: '1' } } }),
+            card('station-1', 'radio', { name: 'Radio One', raw: { personalFm: { mode: 'DEFAULT', scene: null, station: 'radio' } } }),
+            card('station-2', 'radio', { raw: { personalFm: { mode: 'DEFAULT', scene: null, station: 'radio2' } } }),
+        ];
+        const shortcuts = projectHomeShortcuts(cards, { source: 'online', hiddenIds: new Set(), isDirect });
+        expect(shortcuts.map(entry => [entry.special, entry.label, entry.itemKey])).toEqual([
+            ['personal-fm', 'FM', 'card:radio:personal_fm'],
+            ['fm-station', 'Radio One', 'card:radio:station-1'],
+        ]);
     });
 
     it('leaves out hidden ones and reads the identity per source', () => {

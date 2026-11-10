@@ -1,4 +1,4 @@
-import { SEAM_EDGE_MARGIN, getSeamGeometry, getSeamSplitOffsets, nearestSeamBoundaryX } from '../../../components/wall/seamPlan';
+import { SEAM_EDGE_MARGIN, getSeamGeometry, getSeamGeometryY, getSeamSplitOffsets, nearestSeamBoundaryX, type SeamAxis } from '../../../components/wall/seamPlan';
 import { cameraFromViewCenter, getViewLineX, type WallView, type WallViewCenter } from '../../../components/wall/wallView';
 import { BRAVAIS_METRICS } from './bravaisConstants';
 
@@ -6,12 +6,16 @@ import { BRAVAIS_METRICS } from './bravaisConstants';
 // 每一帧要写到 DOM 上的几何（纯计算）：墙的左右两半各自的 transform、缝的屏幕位置与宽度、缝内容的透明度、
 // 边缘标签在不在、在哪一侧。缝开在块边界上，没有磁贴跨过它，所以墙按锚点分成左右两个世界层，各自平移让出
 // 半个开口（加半个 GAP），不需要裁剪。stage 在相机移动、缝开合时调用它，只写 transform / 尺寸，不经过 React。
+// 信息条横向时锚点是块行边界的世界 y（anchorY）：墙分上下两半（仍叫 left / right，left 是上半），各自上下让开，缝是
+// 一道横跨视口的横条；边缘标签仍在左右侧边（横条贴着上下边收起时标签在左边）。海报总是竖的，倾斜只跟着竖的缝。
 
 export type BravaisFrameInput = {
     center: WallViewCenter;
     view: WallView;
     /** 缝锚点的世界 x；没有层时为 null（墙合拢，没有缝）。 */
     anchorX: number | null;
+    /** 横向的缝的锚点（块行边界的世界 y）；与 anchorX 至多一个不是 null。 */
+    anchorY?: number | null;
     /** 此刻（动画中）的目标开口宽度，屏幕 px。 */
     openWidth: number;
     /** 缝里此刻渲染的那套内容的排版宽度（翻转不重排：不跟目标宽度走）。 */
@@ -31,7 +35,8 @@ export type BravaisFrame = {
     left: { x: number; y: number };
     right: { x: number; y: number };
     scale: number;
-    seam: { x: number; width: number; visible: boolean };
+    /** 缝的方向：'x' 竖的（x 是中线的屏幕 x），'y' 横的（y 是中线的屏幕 y）；width 都是开口（横条是高度）。 */
+    seam: { axis: SeamAxis; x: number; y: number; width: number; visible: boolean };
     /** 缝内容的透明度：开口比排版宽度窄时随之淡出。 */
     contentOpacity: number;
     /** 边缘标签：自动出屏收起（collapsed）或手动折叠（hidden）时出现。 */
@@ -45,14 +50,27 @@ const contentOpacityFor = (width: number, contentWidth: number) => (
     Math.max(0, Math.min(1, (width / Math.max(contentWidth, 1) - 0.35) / 0.65))
 );
 
-export const computeBravaisFrame = ({ center, view, anchorX, openWidth, contentWidth, hidden, poster = false, tiltDeg = 0 }: BravaisFrameInput): BravaisFrame => {
+export const computeBravaisFrame = ({ center, view, anchorX, anchorY = null, openWidth, contentWidth, hidden, poster = false, tiltDeg = 0 }: BravaisFrameInput): BravaisFrame => {
     const camera = cameraFromViewCenter(center, view);
+    if (anchorX === null && anchorY !== null) {
+        const geometry = getSeamGeometryY({ anchorY, cameraY: center.y, openWidth, view });
+        const offsets = getSeamSplitOffsets(geometry.width, view.scale, BRAVAIS_METRICS);
+        return {
+            left: { x: camera.x, y: camera.y + offsets.left },
+            right: { x: camera.x, y: camera.y + offsets.right },
+            scale: view.scale,
+            seam: { axis: 'y', x: view.width / 2, y: geometry.screenY, width: geometry.width, visible: geometry.width >= 1 },
+            contentOpacity: contentOpacityFor(geometry.width, Math.max(contentWidth, 1)),
+            tab: { visible: hidden || geometry.collapsed, side: 'left' },
+            tilt: { deg: 0, pivotX: 0, pivotY: 0 },
+        };
+    }
     if (anchorX === null) {
         return {
             left: { x: camera.x, y: camera.y },
             right: { x: camera.x, y: camera.y },
             scale: view.scale,
-            seam: { x: view.width / 2, width: 0, visible: false },
+            seam: { axis: 'x', x: view.width / 2, y: view.height / 2, width: 0, visible: false },
             contentOpacity: 0,
             tab: { visible: false, side: 'left' },
             tilt: { deg: 0, pivotX: 0, pivotY: 0 },
@@ -65,13 +83,34 @@ export const computeBravaisFrame = ({ center, view, anchorX, openWidth, contentW
         left: { x: camera.x + offsets.left, y: camera.y },
         right: { x: camera.x + offsets.right, y: camera.y },
         scale: view.scale,
-        seam: { x: geometry.screenX, width: geometry.width, visible: geometry.width >= 1 },
+        seam: { axis: 'x', x: geometry.screenX, y: view.height / 2, width: geometry.width, visible: geometry.width >= 1 },
         // 原型：(开口 / 排版宽度 − .35) / .65，开到三成五以下就看不见。
         contentOpacity: contentOpacityFor(geometry.width, layoutWidth),
         tab: { visible: hidden || geometry.collapsed, side: geometry.side },
         // 倾斜绕缝的右缘、视口半高转：两半墙与缝一起转，是同一张纸。
         tilt: { deg: tiltDeg, pivotX: geometry.screenX + geometry.width / 2, pivotY: view.height / 2 },
     };
+};
+
+/**
+ * 空墙说明（BravaisWallHint）占的横向区间（屏幕 px）：缝两侧较宽的那一边，一样宽时取右边；缝不在屏上（没有层、
+ * 合拢、折叠）时是整个视口。缝随墙移动、开合，这个区间每帧跟着变（useBravaisFrame 写到说明的 left / width 上）。
+ */
+export const wallHintSpan = (frame: BravaisFrame, viewWidth: number): { left: number; width: number } => {
+    if (!frame.seam.visible || frame.seam.axis !== 'x') return { left: 0, width: viewWidth };
+    const seamLeft = Math.min(viewWidth, Math.max(0, frame.seam.x - frame.seam.width / 2));
+    const seamRight = Math.min(viewWidth, Math.max(0, frame.seam.x + frame.seam.width / 2));
+    const rightRoom = viewWidth - seamRight;
+    return rightRoom >= seamLeft ? { left: seamRight, width: rightRoom } : { left: 0, width: seamLeft };
+};
+
+/** 空墙说明占的纵向区间：横向的缝上下较高的那一边（一样高时取下边）；竖的缝或缝不在屏上时是整个视口高。 */
+export const wallHintRowSpan = (frame: BravaisFrame, viewHeight: number): { top: number; height: number } => {
+    if (!frame.seam.visible || frame.seam.axis !== 'y') return { top: 0, height: viewHeight };
+    const seamTop = Math.min(viewHeight, Math.max(0, frame.seam.y - frame.seam.width / 2));
+    const seamBottom = Math.min(viewHeight, Math.max(0, frame.seam.y + frame.seam.width / 2));
+    const below = viewHeight - seamBottom;
+    return below >= seamTop ? { top: seamBottom, height: below } : { top: 0, height: seamTop };
 };
 
 /** 缝贴着视口边时从多远开始收窄：海报贴边不收（它就该占满左边），其余沿用墙的边距。 */
@@ -179,3 +218,28 @@ export const withTilt = (transform: string, tilt: BravaisFrame['tilt']) => (
         ? transform
         : `translate(${tilt.pivotX}px, ${tilt.pivotY}px) rotate(${tilt.deg}deg) translate(${-tilt.pivotX}px, ${-tilt.pivotY}px) ${transform}`
 );
+
+/**
+ * 缝的两层 transform：外面的轨道（.bravais-seam-track）只平移、自己成合成层，缝本身只在倾斜落定后带一段 2D 旋转。
+ * 合成层被合成器整块转过去时，里面的字是先按没转的样子光栅化、再当图片旋转重采样的，会发糊；旋转写在不成层的缝上，
+ * 字就带着旋转直接画进轨道那一层（清楚）。代价是旋转角变化时要重画缝，所以倾斜补间期间（tiltSettled 为 false）
+ * 仍整块交给合成器转，落定后才换过来。落定时轨道的平移取整到设备像素：没转的合成层停在半像素上同样会糊。
+ * 两种写法在屏幕上是同一个几何：绕 p 转再平移 x0 = 先平移 x0、再在缝自己的坐标里绕 p − x0 转。转轴在缝自己的坐标里
+ * 是缝的右缘（宽度）、视口半高，拖动时不变，缝的 transform 也就不变、不重画；取整丢掉的那不到半个设备像素不补回来
+ * （补回来转轴就跟着拖动逐帧变了），缝相对两半墙最多差这么一点。
+ */
+export const seamTransforms = (frame: BravaisFrame, { tiltSettled, devicePixelRatio }: { tiltSettled: boolean; devicePixelRatio: number }) => {
+    const { seam, tilt } = frame;
+    if (seam.axis === 'y') return { track: `translate3d(0, ${seam.y - seam.width / 2}px, 0)`, seam: '' };
+    const left = seam.x - seam.width / 2;
+    if (Math.abs(tilt.deg) < 0.001) return { track: `translate3d(${left}px, 0, 0)`, seam: '' };
+    if (!tiltSettled) return { track: withTilt(`translate3d(${left}px, 0, 0)`, tilt), seam: '' };
+    const ratio = devicePixelRatio > 0 ? devicePixelRatio : 1;
+    const round = (value: number) => Math.round(value * 100) / 100;
+    const pivotX = round(tilt.pivotX - left);
+    const pivotY = round(tilt.pivotY);
+    return {
+        track: `translate3d(${Math.round(left * ratio) / ratio}px, 0, 0)`,
+        seam: `translate(${pivotX}px, ${pivotY}px) rotate(${tilt.deg}deg) translate(${-pivotX}px, ${-pivotY}px)`,
+    };
+};

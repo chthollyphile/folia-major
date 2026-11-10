@@ -1,16 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import type { MediaId } from '@/types/onlineMusic';
-import type { LibraryCollectionDescriptor } from '@/library/core/contracts/collection';
-import type { CollectionResourceKind } from '@/library/core/contracts/resource';
-import type { LibraryMutationPort } from '@/library/core/contracts/ports';
-import { isCloudDriveCollection } from '@/library/core/model/collectionIdentity';
+import type { LibraryCollectionDescriptor } from '@/library/core/collection/collection.contract';
+import type { CollectionResourceKind } from '@/library/core/shared/resource.contract';
+import type { LibraryMutationPort } from '@/library/core/shared/ports.contract';
+import { isCloudDriveCollection } from '@/library/core/collection/collectionIdentity';
 import {
     EMPTY_COLLECTION_MUTATION_SNAPSHOT,
     resolveCollectionMutationBranches,
     resolveCollectionMutationCapabilities,
     resolveEntryRemovalKind,
     type CollectionMutationCapabilityState,
-} from '@/library/core/model/collectionMutationCapabilities';
+} from '@/library/core/collection/mutations/collectionMutationCapabilities';
 
 // test/unit/library/core/collectionMutationCapabilities.test.ts
 // 变更能力的规则与 GridView 原先的分支布尔逐项对照：下面的 gridViewReference 是 GridView.tsx 里
@@ -36,7 +36,6 @@ const toSourceActions = (port: LibraryMutationPort) => ({
     },
 });
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 // GridView.tsx（P1 末）里的分支布尔与按钮条件，原样。
 const gridViewReference = ({
     collection,
@@ -133,7 +132,6 @@ const gridViewReference = ({
         },
     };
 };
-/* eslint-enable @typescript-eslint/no-explicit-any */
 
 const noop = async () => {};
 const FULL_PORT: LibraryMutationPort = {
@@ -304,6 +302,30 @@ describe('collection mutation branches match GridView', () => {
     });
 });
 
+describe('an artist\'s every song (#918)', () => {
+    it('is no playlist: nothing to edit, save, rename, delete or take songs out of, even where the provider edits playlists', () => {
+        // The id is the artist's. Even marked as the listener's own, the type keeps it read-only.
+        const allSongs: LibraryCollectionDescriptor = {
+            source: 'online', providerId: 'editable', type: 'artist_songs', id: 7, name: 'All songs', isOwned: true, creator: { id: 'u1', nickname: 'Me' },
+        };
+        const { branches, capabilities } = resolveFor(allSongs);
+        expect(branches).toMatchObject({
+            isOnlinePlaylist: false,
+            isOnlineAlbum: false,
+            canEditOwnedPlaylist: false,
+            canEditProviderPlaylist: false,
+            canEditPlaylist: false,
+            showSubscribeButton: false,
+            isCloudDrive: false,
+            isDailyRecommendationsCollection: false,
+        });
+        expect(resolveEntryRemovalKind(branches, FULL_PORT)).toBeNull();
+        for (const action of ['removeEntry', 'subscribe', 'editCollection', 'rename', 'deleteCollection', 'addToPlaylist', 'createPlaylist', 'dailyDate'] as const) {
+            expect(capabilities[action].supported, action).toBe(false);
+        }
+    });
+});
+
 describe('entry removal kind', () => {
     const find = (predicate: (descriptor: LibraryCollectionDescriptor) => boolean) => DESCRIPTORS.find(predicate)!;
 
@@ -352,11 +374,11 @@ describe('collection mutation capabilities: state', () => {
         expect(resolveFor(localAlbum, { state }).capabilities.editEntity).toEqual({ supported: true, enabled: true, pending: false });
     });
 
-    it('reports a running subscription toggle as pending', () => {
+    it('keeps the subscription toggle pressable while its request runs (the star shows a press at once)', () => {
         const album = DESCRIPTORS.find(d => d.source === 'online' && d.providerId === 'editable' && d.type === 'album')!;
         expect(resolveFor(album).capabilities.subscribe).toEqual({ supported: true, enabled: true, pending: false });
         expect(resolveFor(album, { state: { ...IDLE, subscribing: true } }).capabilities.subscribe)
-            .toEqual({ supported: true, enabled: false, pending: true, reason: 'pending' });
+            .toEqual({ supported: true, enabled: true, pending: false });
     });
 
     it('serializes daily and Navidrome removals, lets song-keyed removals run side by side', () => {

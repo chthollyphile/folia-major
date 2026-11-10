@@ -10,10 +10,10 @@ export const isRomanizationCandidate = (text: string): boolean => {
 export function splitCombinedTimeline(rawText: string): { main: string, trans: string, romanization: string } {
     if (!rawText) return { main: '', trans: '', romanization: '' };
 
-    const timeRegex = /\[(\d{2}):(\d{2})[.:](\d{2,3})\]/g;
-    const enhancedAngleRegex = /<\d{2}:\d{2}[.:]\d{2,3}>/;
-    const enhancedAngleTimestampRegex = /<\d{2}:\d{2}[.:]\d{2,3}>/g;
-    const enhancedBracketRegex = /^\s*\[\d{2}:\d{2}[.:]\d{2,3}\][^\[\]\n]+(?:\[\d{2}:\d{2}[.:]\d{2,3}\][^\[\]\n]*)+$/;
+    const timeRegex = /\[(\d{2,3}):(\d{2})[.:](\d{2,3})\]/g;
+    const enhancedAngleRegex = /<\d{2,3}:\d{2}[.:]\d{2,3}>/;
+    const enhancedAngleTimestampRegex = /<\d{2,3}:\d{2}[.:]\d{2,3}>/g;
+    const enhancedBracketRegex = /^\s*\[\d{2,3}:\d{2}[.:]\d{2,3}\][^\[\]\n]+(?:\[\d{2,3}:\d{2}[.:]\d{2,3}\][^\[\]\n]*)+$/;
     const lines = rawText.split('\n').map(l => l.trim()).filter(Boolean);
 
     const extracted: Array<{

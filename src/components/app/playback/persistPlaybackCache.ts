@@ -1,4 +1,4 @@
-import { saveToCache } from '../../../services/db';
+import { removeFromCache, saveToCache } from '../../../services/db';
 import type { SongResult, UnifiedSong } from '../../../types';
 import { isStagePlaybackSong, normalizePlaybackSongSource } from '../../../utils/appPlaybackGuards';
 
@@ -25,5 +25,13 @@ export const persistPlaybackCache = async (song: SongResult | null, queue: SongR
     await Promise.all([
         saveToCache('last_song', sanitizedSong),
         saveToCache('last_queue', sanitizedQueue),
+    ]);
+};
+
+// Forgets the saved song and queue, so the next launch restores nothing: the player was emptied.
+export const forgetPlaybackCache = async () => {
+    await Promise.all([
+        removeFromCache('last_song'),
+        removeFromCache('last_queue'),
     ]);
 };

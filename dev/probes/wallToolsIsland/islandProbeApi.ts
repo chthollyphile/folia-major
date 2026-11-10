@@ -15,7 +15,8 @@ export type IslandProbeCall = {
         | 'shuffleQueue'
         | 'generateTheme'
         | 'previewVolume'
-        | 'openPlayer';
+        | 'openPlayer'
+        | 'openSettings';
     /** 点歌播放：歌的 id。 */
     id?: string;
     index?: number;

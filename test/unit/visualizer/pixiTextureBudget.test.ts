@@ -3,7 +3,7 @@ import {
     TEXTURE_POOL_MAX_RESOLUTION_DROP,
     snapResolutionToTexturePool,
     texturePoolAxis,
-} from '@/components/visualizer/pixiTextureBudget';
+} from '@/components/visualizer/pixi/pixiTextureBudget';
 
 // test/unit/visualizer/pixiTextureBudget.test.ts
 // Pixi bills a filter pass for its power-of-two pool bucket, not for the frame inside it, so the

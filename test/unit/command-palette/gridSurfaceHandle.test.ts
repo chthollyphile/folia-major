@@ -5,11 +5,11 @@ import {
     runGridSurfaceAction,
     type CoreSurfaceInputs,
     type GridSurfaceParams,
-} from '../../../src/library/core/model/collectionSurface';
-import { EMPTY_COLLECTION_MUTATION_SNAPSHOT } from '../../../src/library/core/model/collectionMutationCapabilities';
+} from '../../../src/library/core/collection/collectionSurface';
+import { EMPTY_COLLECTION_MUTATION_SNAPSHOT } from '../../../src/library/core/collection/mutations/collectionMutationCapabilities';
 import { resolveLibrarySurfaceActions } from '../../../src/library/registry';
-import type { CollectionMutationController, CollectionMutationSnapshot } from '../../../src/library/core/contracts/mutations';
-import type { LibraryCapability } from '../../../src/library/core/contracts/capability';
+import type { CollectionMutationController, CollectionMutationSnapshot } from '../../../src/library/core/collection/mutations/mutations.contract';
+import type { LibraryCapability } from '../../../src/library/core/shared/capability.contract';
 
 // test/unit/command-palette/gridSurfaceHandle.test.ts
 // 分支规则只写在这里一处，命令侧只问 availableActions。所以「哪个分支给哪些动作」必须由测试兜住：
@@ -24,6 +24,7 @@ const params = (overrides: Partial<GridSurfaceParams> = {}): GridSurfaceParams =
     canOrganizeSongInfo: false,
     canExportPlaylist: false,
     canEditEntity: false,
+    canSetCover: false,
     canEditPlaylist: false,
     canToggleSubscribe: false,
     canReloadOnlineCollection: false,
@@ -47,6 +48,7 @@ const params = (overrides: Partial<GridSurfaceParams> = {}): GridSurfaceParams =
     organizeSongInfo: vi.fn(),
     exportPlaylist: vi.fn(),
     editEntity: vi.fn(),
+    setCover: vi.fn(),
     toggleEditMode: vi.fn(),
     toggleSubscribe: vi.fn(),
     reloadOnlineCollection: vi.fn(),
@@ -168,9 +170,13 @@ const fakeController = (snapshot: CollectionMutationSnapshot) => {
         addToPlaylist: vi.fn(ok),
         createPlaylist: vi.fn(ok),
         editEntity: vi.fn(ok),
+        setCover: vi.fn(ok),
         organizeSongInfo: vi.fn(ok),
         matchSong: vi.fn(ok),
         setDailyDate: vi.fn(ok),
+        showDailyStyle: vi.fn(ok),
+        setDailyStyle: vi.fn(ok),
+        loadDailyStyleGroups: vi.fn(),
         dispose: vi.fn(),
     } satisfies CollectionMutationController;
 };

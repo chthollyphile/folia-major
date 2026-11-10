@@ -1,4 +1,4 @@
-import type { LibraryHomeTabKey } from '../../../library/core/contracts/homeModel';
+import type { LibraryHomeTabKey } from '../../../library/core/home/homeModel.contract';
 import { closeFoliumHomeTab, useFoliumHomeTabStore } from '../../../mods/folium/registries/homeTabs';
 import { subscribeCollectionOpen } from '../../../stores/useCollectionNavigationStore';
 import { useSearchNavigationStore } from '../../../stores/useSearchNavigationStore';

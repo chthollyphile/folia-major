@@ -91,7 +91,7 @@ docker compose up -d --force-recreate gateway backend
 
 ## QQ 音乐服务
 
-`qq-api` 由 npm 包 `@yakult-green-tea/qq-music-api` 提供，网页端通过 gateway 的 `/qq/` 访问，支持 QQ 扫码和微信扫码两种登录方式。独立部署方式、环境变量表、serverless 支持情况与常见错误见 [`qq-api/README.md`](./qq-api/README.md)。
+`qq-api` 由 npm 包 `@yakult-green-tea/qq-music-api` 提供，网页端通过 gateway 的 `/qq/` 访问，支持手机 QQ 扫码、微信扫码和 QQ 音乐 App 扫码三种登录方式。独立部署方式、环境变量表、serverless 支持情况与常见错误见 [`qq-api/README.md`](./qq-api/README.md)。
 
 装置状态存放在具名卷 `qq-api-state`（容器内 `/app/.auth-state/qq-device.json`），只包含 Android device 识别值。配置 `QQ_AUTH_SESSION_PATH` 与 `QQ_SESSION_SECRET` 后，同一个卷还会保存独立的加密登录态文件；默认不保存账号凭证。QIMEI 与 device session 跨容器重启复用，因此正常更新不需要重新注册装置。
 

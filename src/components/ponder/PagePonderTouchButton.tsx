@@ -1,11 +1,15 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Lightbulb } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { useReducedMotionFor } from '../../hooks/useReducedMotionFor';
 import { useSupportsFinePointer } from '../../hooks/useSupportsFinePointer';
 import { useAppViewStore } from '../../stores/useAppViewStore';
 import { usePonderStore } from '../../stores/usePonderStore';
 import { useSettingsModalStore } from '../../stores/useSettingsModalStore';
 import { openCurrentPagePonder } from '../../services/ponder/pagePonderTarget';
+import type { Theme } from '../../types';
+import { ponderMotionTokens } from './ponderMotion';
+import { ponderLayerTokens, ponderWindowTokens } from './ponderTheme';
 
 // src/components/ponder/PagePonderTouchButton.tsx
 // 触屏上代替 Ctrl+G 的入口。
@@ -27,13 +31,14 @@ const REVEAL_MS = 4000;
 const HOTSPOT_SIZE_PX = 96;
 
 type PagePonderTouchButtonProps = {
-    accent: string;
+    theme?: Theme;
     isDaylight: boolean;
 };
 
 /** Touch-only equivalent of Ctrl+G. It deliberately has no component-target API. */
-const PagePonderTouchButton: React.FC<PagePonderTouchButtonProps> = ({ accent, isDaylight }) => {
+const PagePonderTouchButton: React.FC<PagePonderTouchButtonProps> = ({ theme, isDaylight }) => {
     const { t } = useTranslation();
+    const calm = useReducedMotionFor('uiMicroMotion');
     const isCoarsePointer = !useSupportsFinePointer();
     const hasSession = usePonderStore(state => state.session !== null);
     const isOnboardingOpen = useSettingsModalStore(state => state.isUserGuideModalOpen);
@@ -125,14 +130,19 @@ const PagePonderTouchButton: React.FC<PagePonderTouchButtonProps> = ({ accent, i
                 openCurrentPagePonder();
             }}
             aria-label={t('ponder.openPage')}
-            title={t('ponder.openPage')}
             // 收起来之后不可点：留着可点的话，右上角会变成一块看不见却能按的地方。
-            className={`fixed right-5 top-5 z-[190] flex h-12 w-12 items-center justify-center rounded-full border shadow-lg backdrop-blur-md transition-all duration-200 active:scale-95 ${
-                isRevealed ? 'opacity-100' : 'pointer-events-none -translate-y-2 opacity-0'
-            } ${isDaylight ? 'border-black/10 bg-white/80' : 'border-white/15 bg-zinc-900/80'}`}
-            style={{ color: accent }}
+            // 出来时淡入、从略小长到位；关了微动效就只淡入淡出。
+            className={`fixed right-5 top-5 z-[190] h-12 w-12 rounded-full transition-[opacity,transform] active:scale-95 ${
+                isRevealed ? 'pd-t-enter opacity-100' : `pd-t-base pointer-events-none opacity-0 ${calm ? '' : 'scale-[0.94]'}`
+            }`}
+            style={{ ...ponderLayerTokens(isDaylight, theme), ...ponderMotionTokens(calm) }}
         >
-            <Lightbulb size={20} aria-hidden="true" />
+            <span
+                className="grid h-full w-full place-items-center rounded-full bg-[var(--st-card)] text-[color:var(--st-t1)] shadow-[0_0_0_1px_var(--st-line),0_8px_20px_rgba(0,0,0,0.25)]"
+                style={ponderWindowTokens(isDaylight, theme, calm)}
+            >
+                <Lightbulb size={20} aria-hidden="true" />
+            </span>
         </button>
     );
 };

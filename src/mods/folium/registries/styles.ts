@@ -1,5 +1,5 @@
 import type { FoliumStyleDef } from '../contract';
-import { createFoliumRegistry } from '../registry';
+import { createFoliumRegistry } from '../../runtime/registry';
 
 // src/mods/folium/registries/styles.ts
 // `folium.registries.styles`: mod CSS for the host page. Each entry becomes one

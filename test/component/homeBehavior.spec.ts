@@ -373,7 +373,7 @@ test.describe(`[${suite}] provider switch`, () => {
 
     // P3.0 记下的缺陷，P3.3 修复后转正：原先收藏专辑 / 电台的加载 effect 先于「切 provider 清空」的 effect 执行，
     // 判断 `favoriteAlbums.length === 0` 时读到的还是上一个 provider 的列表，于是不加载，新 provider 的收藏专辑
-    // 一直不出现。现在两份数据是首页资源（core/services/onlineHomeFeeds），绑定在同一个 effect 里先换归属再 ensure。
+    // 一直不出现。现在两份数据是首页资源（core/home/online/onlineHomeFeeds.service），绑定在同一个 effect 里先换归属再 ensure。
     test('switching provider after the albums tab has loaded shows the new provider\'s albums', async ({ mount, page }) => {
         await mountHome(mount, page, suite);
         await setTab(page, 'albums');

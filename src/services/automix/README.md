@@ -3,6 +3,13 @@
 播放器「混音过渡」功能的全部实现。业务代码集中在本目录，目录外接线集中列在[目录外接线点](#目录外接线点)。
 单元测试位于 `test/unit/automix/`，与本目录文件一一对应。
 
+> **改动须知**：本目录的参数和决策规则（门槛、权重、时长、曲线形状、放置规则）只由 @AZURE-HUAI 修改，
+> 其他人请不要改动。这些都是在 @AZURE-HUAI 的测试工作台上逐条试听、对比后定下的，代码和本文档只记了结论，
+> 没有完整的推导过程与数据：只看代码里的参数，无法进行有效的升级与优化，改了听感还可能变差。
+>
+> 会改变证据层输出的改动也算在内（换模型、换推理运行时、改前处理），因为决策层读的就是这些输出。
+> 只改 import 路径、日志文字、类型标注这类不改变结果的改动不受此限。
+
 ---
 
 ## 1. 概览
@@ -34,7 +41,7 @@ Automix 回答一个问题：**上一首快放完了，下一首该怎么接进�
 | `trackProfile.ts` | 离线分析主体：BPM（全曲 + 尾段）、小节线位置、响度（LUFS）、首尾调性、三频段占比、段落边界、前奏终点、结尾形态（收束 / 断开） |
 | `signalAnalysis.ts` | 上下层共用的数学：K 计权、自相关测速、`estimateDownbeat`、重拍相位、交叉曲线、分频段曲线、平衡修正、`fft` |
 | `profileService.ts` | `trackProfile` 的 I/O 侧：字节来源、何时允许下载、结果存储、运行时缓存 |
-| `beatThis.ts` | Beat This! 模型的**前处理契约**：梅尔频谱、分块、峰值挑选、结果折算成 `{offset, period}` 网格。**不含模型权重与推理** |
+| `../analysis/beatThis.ts` | Beat This! 模型的**前处理契约**：梅尔频谱、分块、峰值挑选、结果折算成 `{offset, period}` 网格。**不含模型权重与推理** |
 | `stems.ts` | htdemucs 分离的**窗口管理**：只分离首/尾各 30 秒，缓存四个窗口，回答"本构建能否分离" |
 | `stemGesture.ts` | 分离手法的**纯算术**：人声如何退场、鼓 / 贝斯 / 其余各在何时交接。无音频节点 |
 | `expansionGesture.ts` | 表现模式的**纯算术 + 采样渲染**：build-up 打多重、落在哪几拍、把抽拉 / 升调 / 甩盘写成样本。无音频节点（见 §6.7） |
@@ -74,13 +81,15 @@ Automix 回答一个问题：**上一首快放完了，下一首该怎么接进�
 prefetchService
   └─ ensureTrackProfile(song)          profileService.ts
        ├─ fetch(Range) → decodeAudioData
-       ├─ analyseBeatGrid(mono)        beatThis.ts   → utilityProcess → ONNX
+       ├─ analyseBeatGrid(mono)        ../analysis/beatThis.ts → beatThisGpu.ts → 渲染进程 Worker（WebGPU）
+       │                                             没有 GPU 导出或设备时 → utilityProcess → ONNX
        └─ analyseTrack(pcm)            trackProfile.ts
             └─ TrackProfile { bpm, downbeatOffset, lufs, key, sections, leadOut, ... }
 
         [ 准备阶段，当前曲目开始播放时 ]
 useAutomixDecks
-  └─ ensureStems({ song, role })       stems.ts      → utilityProcess → htdemucs
+  └─ ensureStems({ song, role })       stems.ts      → 默认 GPU：analysis 调度层 → stemRange.ts（与智能动感共用分段）
+       │                                             没有 GPU、GPU 失败或赶不上截止时间 → utilityProcess → MNN htdemucs（调度层定线程档）
        └─ TrackStems { drums, bass, other, vocals }  首尾各 30 秒
 
         [ 排程阶段，距歌尾 AUTOMIX_ARM_LEAD_SEC 秒 ]
@@ -253,6 +262,10 @@ stem 之和与元素逐样本相同"这个换手前提所要求的。
 
 ### 6.4 推理进程隔离
 
+> 现在的运行时是 MNN（`electron/analysis/mnn.cjs`，koffi 调用编进 app 的 `libfolia_mnn`），
+> `run` 在 koffi 的线程上跑、真正异步；下面是上一版 onnxruntime-node 时的实测，也是模型至今仍留在
+> `utilityProcess` 里的原因。
+
 **`onnxruntime-node` 的 `run()` 看似异步，实则不是。**
 其 JS 包装是 `new Promise(r => setImmediate(() => r(session.run(...))))`，内层 `session.run`
 是同步 N-API 调用——`setImmediate` 只决定阻塞从哪个 tick 开始。实测：用 10 ms 定时器围绕一段
@@ -269,7 +282,14 @@ htdemucs，**应触发 150 次处只触发 1 次**；模型加载期间 361 次�
 | 主进程最长停顿 | ~1450 ms | **25 ms** |
 | 主进程 RSS | 530 MB+ | **131 MB** |
 
-子进程闲置两分钟后整体退出（比释放 session 干净：整个进程的内存都归还）。
+automix 关着时，子进程闲置两分钟后整体退出（比释放 session 干净：整个进程的内存都归还）。
+automix 开着时不按闲置退出，htdemucs 常驻；关掉 automix（或切到 crossfade）时主进程发 `release`，
+worker 在自己进程里释放模型。
+
+更正（PR #750 复审，2026-10-19）：htdemucs 在哪台机器上都不再常驻，没有 GPU 的也一样。worker 每次分完
+1 分钟没有新请求就在自己进程里释放它（`worker.cjs` 的 `STEMS_IDLE_MS`），automix 开着时子进程也闲置两分钟后退出；
+关掉 automix 时主进程照旧发 `release`，立刻释放。重新加载约 0.5 秒（实测 2 线程 516 ms、3 线程 500 ms），
+释放让 worker 的 rss 从 487 MB 降到 137 MB。
 
 **`intraOpNumThreads` 必须显式设置，默认值是错的。**
 onnxruntime 默认每逻辑核一线程，24 核机器实测每段 3547 ms——比 12 线程的 1438 ms **慢 2.5 倍**。
@@ -421,7 +441,7 @@ build-up 占据 `swap` 之前的若干小节，**结束于 `swap`**。所谓的 
 小节线一侧从未单独做过听感对比，仅有客观数据：内置估算器在 30 首中仅回答 12 首、其中约半数正确
 （≈ 20% 可用），对比 Beat This! 的 F = 1.0000。
 
-浏览器构建另需注意：不存在本地 netease API 服务（桌面版由 `electron/neteaseApiStartup.cjs` 拉起），
+浏览器构建另需注意：不存在本地 netease API 服务（桌面版由 `electron/netease/neteaseApiStartup.cjs` 拉起），
 须指向已部署实例；且音频元素带 `crossOrigin="anonymous"`，音频 CDN 必须返回 CORS 头，否则连播放都不可行。
 
 ---
@@ -431,13 +451,13 @@ build-up 占据 `swap` 之前的若干小节，**结束于 `swap`**。所谓的 
 | 位置 | 使用了什么 | 原因 |
 | --- | --- | --- |
 | `src/App.tsx` | `useAutomixDecks`、`clearTrackProfileRuntime` | 渲染两个 `<audio>`、转发事件；切换音源商时清运行时缓存 |
-| `src/hooks/usePlaybackAudioBridge.ts` | `rampGain`、`AutomixDeckChain`、`autoplayHeld` | 播放桥拥有节点链上 ReplayGain 那一级（每路 deck 各一个，在汇合点之前，故 `referenceDb` 要把它读进来）；过渡待命期间它压住自动播放。**两路 deck 接进共用的 `mixNode`，均衡器、效果器、音量、分析器依次接在其后**——均衡器与分析器因此永远作用于两曲之和，两种模式一视同仁 |
+| `src/components/app/playback/bridges/usePlaybackAudioBridge.ts` | `rampGain`、`AutomixDeckChain`、`autoplayHeld` | 播放桥拥有节点链上 ReplayGain 那一级（每路 deck 各一个，在汇合点之前，故 `referenceDb` 要把它读进来）；过渡待命期间它压住自动播放。**两路 deck 接进共用的 `mixNode`，均衡器、效果器、音量、分析器依次接在其后**——均衡器与分析器因此永远作用于两曲之和，两种模式一视同仁 |
 | `src/services/playbackGraph.ts` | `buildPlaybackGraph` | 汇合点之后的接线顺序都在这一个函数里，可被断言。音量推子在效果器**之后**：黑胶噪声、比特降质、punch 是绝对效果，推子在其上游会改变它们做什么而不是多响（实测数据写在该文件顶部）。均衡器是相对的，故不受此位置影响 |
 | `src/services/prefetchService.ts` | `ensureTrackProfile` | 预取下几首时顺带分析 |
-| `src/components/app/overlays/AutomixTransitionAnimation.tsx` / `src/hooks/useElectronPlaybackBridge.ts` | `subscribeToTransitionCue` | 主窗口绘制与实际音频跨度一致的 AutoMix 过渡环；Electron 桥把 AutoMix 或 Crossfade 的同一个实际 cue 投影进 Remote 快照，使封面、标题与背景交接对齐音频 crossover。设置页 preview cue 带 `preview` 标记，不会发布到 Remote。每次排上日程的交接都会广播，纯淡化带 `plain` 标记：两个动画走 `shouldDrawCue` 拒掉它，Remote 故意不问，它对的是音频而不是混音 |
-| `electron/analysis/worker.cjs` | `onnxruntime-node` + `models/*.onnx` | 两个模型都在此，运行于不拥有窗口的进程（见 §6.4） |
-| `electron/analysis/host.cjs` | `utilityProcess` | 主进程侧：拉起 worker、匹配请求与回复、闲置两分钟终止、崩溃自动重试一次 |
-| `electron/preload.cjs` / `electron/main.cjs` | `automix-beat-this`、`automix-htdemucs` | 两个 IPC 通道，主进程仅转发 |
+| `src/components/app/overlays/AutomixTransitionAnimation.tsx` / `src/components/app/playback/bridges/useElectronPlaybackBridge.ts` | `subscribeToTransitionCue` | 主窗口绘制与实际音频跨度一致的 AutoMix 过渡环；Electron 桥把 AutoMix 或 Crossfade 的同一个实际 cue 投影进 Remote 快照，使封面、标题与背景交接对齐音频 crossover。设置页 preview cue 带 `preview` 标记，不会发布到 Remote。每次排上日程的交接都会广播，纯淡化带 `plain` 标记：两个动画走 `shouldDrawCue` 拒掉它，Remote 故意不问，它对的是音频而不是混音 |
+| `electron/analysis/worker.cjs` | `mnn.cjs`（MNN）+ 安装包里的 `models/htdemucs-wgsl.bin`、`models/beat_this-wgsl.bin`（与 GPU 共用的同两个文件） | htdemucs 与 beat_this 的 CPU 退路都在此，运行于不拥有窗口的进程（见 §6.4） |
+| `electron/analysis/host.cjs` | `utilityProcess` | 主进程侧：拉起 worker、匹配请求与回复、automix 关着时闲置两分钟终止（更正，PR #750 复审，2026-10-19：开着时也是）、关掉 automix 时让 worker 释放 htdemucs、崩溃自动重试一次 |
+| `electron/preload.cjs` / `electron/main.cjs` | `automix-beat-this`、`automix-htdemucs`、`automix-enabled`、`automix-beat-this-gpu-weights` | IPC 通道，主进程仅转发 |
 | `src/stores/useSettingsUiStore.ts` | `automixEnabled`、`transitionMode`、`crossfadeMaxSec`、`transitionPerformance` | 总开关 + 策略选择 + 交叉淡化长度 + 表现模式。开关同时挂在 `components/panelTab/controls/VolumeRow.tsx`，完整设置区在 `components/modal/settings/TransitionSettingsSection.tsx` |
 
 ---

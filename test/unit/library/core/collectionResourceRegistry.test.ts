@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { LibraryCollectionDescriptor } from '@/library/core/contracts/collection';
-import type { CollectionResource, CollectionResourceKind } from '@/library/core/contracts/resource';
-import { createCollectionResourceRegistry } from '@/library/core/services/collectionResourceRegistry';
+import type { LibraryCollectionDescriptor } from '@/library/core/collection/collection.contract';
+import type { CollectionResource, CollectionResourceKind } from '@/library/core/shared/resource.contract';
+import { createCollectionResourceRegistry } from '@/library/core/collection/resource/collectionResourceRegistry.service';
 
 // test/unit/library/core/collectionResourceRegistry.test.ts
 // 资源生命周期：StrictMode 的「挂载 → 卸载 → 挂载」不能造成重复请求；只 peek 不 retain 的实例

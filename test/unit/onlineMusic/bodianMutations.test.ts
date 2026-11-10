@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { bodianMutations } from '@/services/onlineMusic/bodianMutations';
+import { bodianMutations } from '@/services/onlineMusic/bodian/bodianMutations';
 
 // test/unit/onlineMusic/bodianMutations.test.ts
 
 const mocks = vi.hoisted(() => ({ request: vi.fn(), clear: vi.fn() }));
-vi.mock('@/services/onlineMusic/bodianTransport', () => ({ requestBodian: mocks.request }));
-vi.mock('@/services/onlineMusic/bodianLibrary', () => ({ clearBodianLibraryCache: mocks.clear }));
+vi.mock('@/services/onlineMusic/bodian/bodianTransport', () => ({ requestBodian: mocks.request }));
+vi.mock('@/services/onlineMusic/bodian/bodianLibrary', () => ({ clearBodianLibraryCache: mocks.clear }));
 beforeEach(() => vi.resetAllMocks());
 
 describe('Bodian mutation adapter', () => {

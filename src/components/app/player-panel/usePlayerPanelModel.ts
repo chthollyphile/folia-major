@@ -11,7 +11,7 @@ import { useAudioSettingsStore } from '../../../stores/useAudioSettingsStore';
 import { useVisualizerSettingsStore } from '../../../stores/useVisualizerSettingsStore';
 import { usePlayerChromeSettingsStore } from '../../../stores/usePlayerChromeSettingsStore';
 import { useOnlineProviderAccountStore } from '../../../stores/useOnlineProviderAccountStore';
-import { selectDisplayCoverUrl, selectDisplayLyrics, usePlaybackStore } from '../../../stores/usePlaybackStore';
+import { selectDisplayCoverUrl, selectDisplayLyrics, selectDisplayPlayerState, usePlaybackStore } from '../../../stores/usePlaybackStore';
 import type { LocalSong, SongResult } from '../../../types';
 import type { LocalLibraryCatalogSnapshot } from '../../../hooks/useLocalLibraryCatalog';
 import type { CollectionNavigationOrigin } from '../../../stores/useCollectionNavigationStore';
@@ -26,7 +26,6 @@ import { buildPlayerPanelModel, type PlayerPanelDeps, type PlayerPanelViewModel 
 type PlayerPanelModelInputs = PlayerPanelDeps & {
     /** Liked-state sources: local files answer from disk, the rest from the provider's set. */
     isLocalSongLiked: (song: SongResult) => boolean;
-    likedSongIds: Set<string | number>;
     /** Chrome flag computed by buildPlayerViewFlags; combined with the runtime hidden state here. */
     shouldHidePlayerRightPanelButton: boolean;
     localSongs: LocalSong[];
@@ -38,7 +37,7 @@ type PlayerPanelModelInputs = PlayerPanelDeps & {
 };
 
 /**
- * The player panel model with its 28 ambient values filled in here instead of in App.tsx.
+ * The player panel model with its 27 ambient values filled in here instead of in App.tsx.
  *
  * This is the block that made the "add one field, edit five places" problem concrete: it was 277
  * lines of App.tsx, ~140 of which were the four collection-entry closures now living in
@@ -46,7 +45,6 @@ type PlayerPanelModelInputs = PlayerPanelDeps & {
  */
 export const usePlayerPanelModel = ({
     isLocalSongLiked,
-    likedSongIds,
     shouldHidePlayerRightPanelButton,
     localSongs,
     localLibraryCatalog,
@@ -55,7 +53,6 @@ export const usePlayerPanelModel = ({
 }: PlayerPanelModelInputs): PlayerPanelViewModel => {
     const { t } = useTranslation();
     const isPanelOpen = useAppViewStore(state => state.isPanelOpen);
-    const panelTab = useAppViewStore(state => state.panelTab);
     const isPlayerChromeHidden = useAppChromeStore(state => state.isPlayerChromeHidden);
     const isPanelGuideHotspotActive = useAppChromeStore(state => state.isPlayerPanelGuideHotspotActive);
     const starredNavidromeSongIds = useLibraryStore(state => state.starredNavidromeSongIds);
@@ -68,7 +65,8 @@ export const usePlayerPanelModel = ({
     const transparentPlayerBackground = usePlayerChromeSettingsStore(state => state.transparentPlayerBackground);
     const showOpenPanelCloseButton = usePlayerChromeSettingsStore(state => state.showOpenPanelCloseButton);
     const currentSong = usePlaybackStore(state => state.currentSong);
-    const playerState = usePlaybackStore(state => state.playerState);
+    // Only the FM tab's play button reads it, so the shown state, not the raw one.
+    const playerState = usePlaybackStore(selectDisplayPlayerState);
     const isFmMode = usePlaybackStore(state => state.isFmMode);
     const replayGainMode = usePlaybackStore(state => state.replayGainMode);
     const lyricTimelineOffsetMs = usePlaybackStore(state => state.lyricTimelineOffsetMs);
@@ -83,12 +81,16 @@ export const usePlayerPanelModel = ({
     useOnlineProviderAccountStore(state => (
         currentSongProviderId ? state.accounts[currentSongProviderId]?.likedSongIds : undefined
     ));
+    // The same for a heart just pressed: what it asked for is shown until its request is settled.
+    useOnlineProviderAccountStore(state => (
+        currentSongProviderId ? state.accounts[currentSongProviderId]?.wantedLikes : undefined
+    ));
 
     // Recomputed every render, never memoised. `isLocalSongLiked` arrives through
     // useStableActionSurface, so its identity is permanent (see the warning in
     // useStableCallbacks.ts) and a memo keyed on it answers with the first render's value forever:
     // favouriting a local song left this heart dark while the bottom bar's inline copy updated.
-    const isLiked = resolveSongLiked(currentSong, { isLocalSongLiked, starredNavidromeSongIds, likedSongIds });
+    const isLiked = resolveSongLiked(currentSong, { isLocalSongLiked, starredNavidromeSongIds });
 
     const collectionEntries = useMemo(() => createPlayerPanelCollectionEntries({
         currentSong,
@@ -105,7 +107,6 @@ export const usePlayerPanelModel = ({
         ...deps,
         ...collectionEntries,
         isPanelOpen,
-        panelTab,
         coverUrl: displayCoverUrl,
         isLiked,
         hasLyrics: Boolean(displayLyrics),
@@ -135,7 +136,6 @@ export const usePlayerPanelModel = ({
         ...Object.values(deps),
         collectionEntries,
         isPanelOpen,
-        panelTab,
         displayCoverUrl,
         isLiked,
         displayLyrics,

@@ -6,7 +6,7 @@ let lyricsWorker: Worker | null = null;
 let workerRequestId = 0;
 const workerCallbacks = new Map<string, (data: LyricData | null) => void>();
 
-type WorkerLyricProcessingOptions = Pick<LyricProcessingOptions, 'includeInterludes' | 'filterPattern'>;
+type WorkerLyricProcessingOptions = Pick<LyricProcessingOptions, 'includeInterludes'>;
 
 // Keeps orchestration-only values such as provider callbacks outside the structured-clone boundary.
 export const toWorkerLyricProcessingOptions = (
@@ -15,7 +15,6 @@ export const toWorkerLyricProcessingOptions = (
     if (!options) return undefined;
     return {
         ...(options.includeInterludes !== undefined ? { includeInterludes: options.includeInterludes } : {}),
-        ...(options.filterPattern !== undefined ? { filterPattern: options.filterPattern } : {}),
     };
 };
 

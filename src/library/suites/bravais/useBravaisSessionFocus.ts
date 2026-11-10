@@ -4,7 +4,7 @@ import {
     getLibrarySessionGeneration,
     registerLibrarySessionFlush,
     useLibraryBrowseSessionStore,
-} from '../../core/state/useLibraryBrowseSessionStore';
+} from '../../core/shared/useLibraryBrowseSessionStore';
 
 // src/library/suites/bravais/useBravaisSessionFocus.ts
 // 集合页的焦点写回浏览会话（与 TUI 的 useLibraryTuiFocus 同一套约定）：stage 每次挪键盘焦点就经层描述的

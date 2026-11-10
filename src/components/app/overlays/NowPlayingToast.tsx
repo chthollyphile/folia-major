@@ -6,9 +6,16 @@ import type { Theme } from '../../../types';
 import { useTransitionBorderCue } from './now-playing-toast/useTransitionBorderCue';
 import { usePlayerBottomBarBottomPx } from '../../../hooks/usePlayerBottomBarBottomPx';
 import { usePlayerOverlayObstacle } from '../../../hooks/usePlayerOverlayLayout';
+import { useNowPlayingCardLayoutStore } from './now-playing-toast/nowPlayingCardLayoutStore';
+import { useNowPlayingCardPosition } from './now-playing-toast/useNowPlayingCardPosition';
+import { NowPlayingCardPositioner } from './now-playing-toast/NowPlayingCardPositioner';
+import type { NowPlayingCardPosition } from '../../../utils/nowPlayingCardPosition';
+import { useBottomDockStore } from '../../../stores/useBottomDockStore';
+import { useNowPlayingCardVisibility } from './now-playing-toast/useNowPlayingCardVisibility';
 
 // src/components/app/overlays/NowPlayingToast.tsx
-// 播放器与 Lattice 左下角的 now playing 卡片（playing-toast 样式：圆角 2xl、44px 封面、底部滑入）。
+// 播放器与 Lattice 上的 now playing 卡片（playing-toast 样式：圆角 2xl、44px 封面、底部滑入），默认在左下角，
+// 位置可在设置或命令面板里拖动调整（见 now-playing-toast/useNowPlayingCardPosition.ts）。
 // 歌名上方带 "正在播放 / 接下来播放" 标签。
 // 显示模式：auto=显示 timeoutSec 秒后淡出（换歌重新计时），always=常驻，never=不渲染。
 // isNextUp=自动切歌预览（automix 混合或普通曲目结束倒计时）：强制显示下一首并挂
@@ -22,8 +29,20 @@ import { usePlayerOverlayObstacle } from '../../../hooks/usePlayerOverlayLayout'
 // 混音开始前有几秒（arm 早于 fade）足够它加载完。
 const NowPlayingToastTransitionBorder = lazy(() => import('./now-playing-toast/NowPlayingToastTransitionBorder'));
 
-/** 卡片圆角，和下面的 rounded-2xl 对齐；描边要按它算圆角 */
-const CARD_RADIUS = 16;
+/** 平时卡片从左边滑进来的起点。 */
+const CARD_ENTER_X = -32;
+
+/**
+ * 卡片进场的起点。刚从紧凑档换回桌面档（600 ms 内）时，卡片是从胶囊左端“拿出来”的：起点是紧凑胶囊里
+ * 封面的位置（胶囊居中、两侧留 12、最宽 520，封面在胶囊左内边 8 处），减去卡片自己的左边距 24。
+ * 只按窗口宽度算，不量元素；模组加宽胶囊时起点差几十像素，只是滑得长一点。
+ */
+const resolveCardEnterX = (): number => {
+    if (typeof window === 'undefined' || typeof performance === 'undefined') return CARD_ENTER_X;
+    const { layout, layoutChangedAt } = useBottomDockStore.getState();
+    if (layout !== 'desktop' || layoutChangedAt === 0 || performance.now() - layoutChangedAt > 600) return CARD_ENTER_X;
+    return Math.max(12, (window.innerWidth - 520) / 2) + 8 - 24;
+};
 
 export type StageTrackPillMode = 'auto' | 'always' | 'never';
 
@@ -31,6 +50,8 @@ export interface NowPlayingToastSong {
     title: string;
     artist: string | null;
     coverUrl: string | null;
+    /** 专辑名；只有紧凑档展开的胶囊（progress-bar v3）用它，卡片自己不画。 */
+    album?: string | null;
 }
 
 type NowPlayingToastProps = {
@@ -51,6 +72,8 @@ type NowPlayingToastProps = {
     onActivate?: () => void;
     /** onActivate 的无障碍名字，说清楚点下去会发生什么 */
     activateLabel?: string;
+    /** 卡片位置；不给就读设置里存的那个（OBS 浏览器源读不到主窗口的设置，由它传进来） */
+    position?: NowPlayingCardPosition | null;
 };
 
 const NowPlayingToast: React.FC<NowPlayingToastProps> = ({
@@ -64,6 +87,7 @@ const NowPlayingToast: React.FC<NowPlayingToastProps> = ({
     theme,
     onActivate,
     activateLabel,
+    position: positionOverride,
 }) => {
     const { t } = useTranslation();
 
@@ -86,20 +110,24 @@ const NowPlayingToast: React.FC<NowPlayingToastProps> = ({
 
     // 可见性状态机：never 不渲染；always 常驻；auto 换歌重新计时。
     // isNextUp（预览下一首）挂起计时，翻回 false 后（即使 trackKey 没变）重新计时。
-    const [visible, setVisible] = useState(mode !== 'never');
-    const holdOpen = mode === 'always' || isNextUp || transitionCue !== null;
-    const hideDelayMs = Math.max(3, Math.min(60, Math.round(timeoutSec))) * 1000;
+    // 紧凑档里胶囊左端那一份用的是同一个 hook（useNowPlayingCardVisibility）。
+    const isPositioning = useNowPlayingCardLayoutStore(state => state.isPositioning);
+    const visible = useNowPlayingCardVisibility({
+        mode,
+        timeoutSec,
+        trackKey,
+        isNextUp,
+        isMixing: transitionCue !== null,
+        isPositioning,
+    });
+    // 窗口从紧凑档拉宽、卡片因此重新出现时，从胶囊左端滑回来（progress-bar v3）；平时照旧从左边滑进。
+    // 起点只按窗口宽度算（胶囊居中、最宽 520），不量元素；只在挂载那一刻读一次，之后的进场照旧。
+    const [enterX, setEnterX] = useState(resolveCardEnterX);
     useEffect(() => {
-        if (mode === 'never') {
-            setVisible(false);
-            return;
-        }
-        setVisible(true);
-        if (holdOpen) return;
-        // 上一轮的 cleanup 一定在本轮之前跑完，所以不需要额外记 timeout id
-        const timer = window.setTimeout(() => setVisible(false), hideDelayMs);
+        if (enterX === CARD_ENTER_X) return;
+        const timer = window.setTimeout(() => setEnterX(CARD_ENTER_X), 600);
         return () => window.clearTimeout(timer);
-    }, [mode, hideDelayMs, trackKey, holdOpen]);
+    }, [enterX]);
 
     // 描边要的是卡片的实际尺寸（内容撑出来的，没有固定宽高），所以量一下外层容器：
     // 它是 fixed 且没给宽度，会收缩到卡片大小，而且不会随 trackKey 重挂。
@@ -132,21 +160,36 @@ const NowPlayingToast: React.FC<NowPlayingToastProps> = ({
         return () => observer.disconnect();
     }, [visible]);
 
+    const position = useNowPlayingCardPosition(frameRef, cardSize, bottomBarBottomPx, visible, invalidateLayout, positionOverride);
+
     return (
+        <>
         <AnimatePresence>
             {visible && (
                 <motion.div
                     ref={setFrameRef}
                     onUpdate={invalidateLayout}
-                    initial={{ opacity: 0, x: -32 }}
+                    initial={{ opacity: 0, x: isPositioning ? 0 : enterX }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -16 }}
-                    transition={{ duration: 0.35, ease: 'easeOut' }}
+                    // 从胶囊左端滑回来那一下和挂件的平移同一条曲线、同一个时长（bottomDock.css 的 --dock-ease、480ms）。
+                    transition={enterX === CARD_ENTER_X
+                        ? { duration: 0.35, ease: 'easeOut' }
+                        : { duration: 0.48, ease: [0.32, 0.72, 0, 1] }}
                     // 底边跟右下角面板开关按钮和中间的进度条胶囊落在同一条基线上，
                     // 由共享 MotionValue 直接驱动 bottom（默认 32，即原来的 bottom-8）。
-                    style={{ bottom: bottomBarBottomPx }}
-                    className="pointer-events-none fixed left-6 z-40"
+                    style={position.style}
+                    data-now-playing-card=""
+                    className={`pointer-events-none fixed w-max max-w-[calc(100vw-48px)] ${isPositioning ? 'z-[65]' : 'z-40'}`}
                 >
+                    {/* 让位层：960–1119 px 之间胶囊展开会碰到卡片，卡片按 <html data-capsule> 淡出（bottomDock.css）。
+                        单独一层、不归 framer 管：framer 每帧写的 opacity 不能再被 CSS 过渡拖慢。 */}
+                    <div
+                        data-card-yield={isPositioning ? 'off' : ''}
+                        className="relative"
+                        // 让位的淡出带一点位移，走完请 player.layout 量一次（CSS 过渡不触发它自己的测量）。
+                        onTransitionEnd={invalidateLayout}
+                    >
                     {/* 描边排在卡片前面：卡片自己是 relative，绘制顺序上压在描边上头，所以
                         描边内侧那一半被卡片背景盖住，露在外面的是外侧 + 辉光。
                         AnimatePresence 在这儿单独开一层，混音结束时描边自己淡出，不用等卡片；
@@ -161,7 +204,7 @@ const NowPlayingToast: React.FC<NowPlayingToastProps> = ({
                                     startAtMs={transitionCue.startAtMs}
                                     cardWidth={cardSize.width}
                                     cardHeight={cardSize.height}
-                                    cardRadius={CARD_RADIUS}
+                                    cardRadius={cardSize.height / 2}
                                     isDaylight={isDaylight}
                                     theme={theme}
                                 />
@@ -185,33 +228,22 @@ const NowPlayingToast: React.FC<NowPlayingToastProps> = ({
                         data-toast-card=""
                         type="button"
                         layout="size"
-                        onClick={onActivate}
-                        disabled={!onActivate}
-                        aria-label={onActivate ? activateLabel : undefined}
-                        initial={{ opacity: 0, x: -24 }}
+                        onClick={isPositioning ? event => event.preventDefault() : onActivate}
+                        {...(isPositioning ? position.handlers : {})}
+                        disabled={!onActivate && !isPositioning}
+                        aria-label={isPositioning ? t('options.stageTrackPillReposition') : onActivate ? activateLabel : undefined}
+                        style={isPositioning ? { touchAction: 'none', outline: '2px solid currentColor', outlineOffset: 3 } : undefined}
+                        initial={{ opacity: 0, x: isPositioning ? 0 : -24 }}
                         animate={{ opacity: 1, x: 0 }}
-                        whileTap={onActivate ? { opacity: 0.85 } : undefined}
+                        whileTap={onActivate && !isPositioning ? { opacity: 0.85 } : undefined}
                         transition={{ duration: 0.35, ease: 'easeOut' }}
-                        className={`relative flex min-w-[240px] items-center gap-3 overflow-hidden rounded-2xl border p-2 pr-4 text-left backdrop-blur-xl shadow-lg transition-colors ${
+                        className={`relative flex min-w-[min(240px,calc(100vw-48px))] max-w-[calc(100vw-48px)] items-center gap-3 overflow-hidden rounded-full border p-2 pr-5 text-left backdrop-blur-xl shadow-lg transition-colors ${
                             isDaylight ? 'border-black/10 bg-white/35 text-zinc-900' : 'border-white/10 bg-black/35 text-white'
-                        } ${onActivate
+                        } ${isPositioning ? 'pointer-events-auto cursor-grab select-none active:cursor-grabbing' : onActivate
                             ? `pointer-events-auto cursor-pointer ${isDaylight ? 'hover:bg-white/55' : 'hover:bg-black/55'}`
                             : ''}`}
                     >
-                        {/* 顶部光线（进场的横向扫光）。混音期间收掉：描边现在正压在卡片边框上，
-                            再叠一条亮线就是同一条边上两层东西，读起来是好几层边框套在一起。 */}
-                        <motion.span
-                            aria-hidden
-                            data-toast-sheen=""
-                            initial={{ scaleX: 0 }}
-                            animate={{ scaleX: 1, opacity: transitionCue ? 0 : 1 }}
-                            transition={{ duration: 0.5, ease: 'easeOut' }}
-                            className={`absolute inset-x-0 top-0 h-[2px] origin-left ${
-                                isDaylight
-                                    ? 'bg-gradient-to-r from-transparent via-black/40 to-transparent'
-                                    : 'bg-gradient-to-r from-transparent via-white/50 to-transparent'
-                            }`}
-                        />
+                        {/* 原来顶上有一条进场扫光；卡片改成圆头长条（和胶囊同一种形状，progress-bar v3）后去掉了。 */}
                         {/* 封面和文字块也带 layout：卡片的尺寸补间是靠 transform 做的，途中
                             没有自己 layout 的子节点会被一起拉扁。带上它俩，framer 会逐层把缩放
                             反解掉，封面不变形、歌名不横向压扁。 */}
@@ -221,7 +253,7 @@ const NowPlayingToast: React.FC<NowPlayingToastProps> = ({
                             // cover" from "fell back" - the difference used to be invisible from
                             // the outside, which is how the blank square went unnoticed.
                             data-toast-cover={coverSrc ? 'image' : 'placeholder'}
-                            className={`relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-lg ${
+                            className={`relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full ${
                                 isDaylight ? 'bg-zinc-200' : 'bg-zinc-800'
                             }`}
                         >
@@ -281,9 +313,12 @@ const NowPlayingToast: React.FC<NowPlayingToastProps> = ({
                             </div>
                         </motion.div>
                     </motion.button>
+                    </div>
                 </motion.div>
             )}
         </AnimatePresence>
+        {isPositioning && <NowPlayingCardPositioner isDaylight={isDaylight} onSave={position.save} onCancel={position.cancel} onReset={position.reset} />}
+        </>
     );
 };
 

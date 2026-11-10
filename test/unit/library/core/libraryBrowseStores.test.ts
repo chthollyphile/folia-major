@@ -5,7 +5,7 @@ import {
     getLibrarySessionGeneration,
     registerLibrarySessionFlush,
     useLibraryBrowseSessionStore,
-} from '@/library/core/state/useLibraryBrowseSessionStore';
+} from '@/library/core/shared/useLibraryBrowseSessionStore';
 
 // test/unit/library/core/libraryBrowseStores.test.ts
 // 浏览会话（筛选词、语义焦点）按集合分开、有上限；「把焦点写回会话」的回调只认最后注册的那个。
@@ -86,7 +86,7 @@ describe('local track sort store', () => {
             setItem: (key: string, value: string) => storage.set(key, value),
         });
         vi.resetModules();
-        const { useLocalTrackSortStore } = await import('@/library/core/state/useLocalTrackSortStore');
+        const { useLocalTrackSortStore } = await import('@/library/core/directory/useLocalTrackSortStore');
 
         expect(useLocalTrackSortStore.getState()).toMatchObject({ field: 'albumTrack', direction: 'asc' });
         useLocalTrackSortStore.getState().setField('fileLastModified');

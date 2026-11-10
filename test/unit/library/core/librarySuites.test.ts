@@ -13,11 +13,11 @@ import {
     LIBRARY_SURFACE_IDS,
     resolveDeclaredMutationActions,
     resolveLibrarySuiteInitialChoice,
-} from '@/library/core/model/librarySuites';
-import { EMPTY_COLLECTION_MUTATION_SNAPSHOT } from '@/library/core/model/collectionMutationCapabilities';
-import type { LibraryActionId, LibrarySuiteManifest } from '@/library/core/contracts/suite';
-import type { LibraryAccountActionId } from '@/library/core/contracts/account';
-import type { CollectionMutationCapabilities } from '@/library/core/contracts/mutations';
+} from '@/library/core/suite/librarySuites';
+import { EMPTY_COLLECTION_MUTATION_SNAPSHOT } from '@/library/core/collection/mutations/collectionMutationCapabilities';
+import type { LibraryActionId, LibrarySuiteManifest } from '@/library/core/suite/suite.contract';
+import type { LibraryAccountActionId } from '@/library/core/account/account.contract';
+import type { CollectionMutationCapabilities } from '@/library/core/collection/mutations/mutations.contract';
 
 // test/unit/library/core/librarySuites.test.ts
 // suite 清单的纯规则：回退默认 suite、清单自检、声明与 core 能力取交集。喂的是假清单，不经过 glob。

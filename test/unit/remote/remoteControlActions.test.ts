@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { FoliumRemoteActionDef, FoliumRemoteActionsContext } from '../../../src/mods/folium/contract';
 import { registerRemoteActions, remoteActionsRegistry, subscribeRemoteActions } from '../../../src/mods/folium/registries/remoteActions';
-import { useFoliumStatusStore } from '../../../src/mods/folium/status';
+import { clearFoliumIssues, getFoliumIssues } from '../../../src/mods/runtime/status';
 import { createRemoteControlActionBridge } from '../../../src/services/remoteControlActions';
 import { createRemoteActionActivation } from '../../../src/utils/remoteActionActivation';
 
@@ -21,7 +21,8 @@ const source = (trackKey: string | null = 'track-a') => ({
 
 afterEach(() => {
     [...remoteActionsRegistry.list()].forEach(entry => remoteActionsRegistry.unregister(entry.id));
-    useFoliumStatusStore.setState({ issues: {} });
+    // The status store is written at most once a second; getFoliumIssues reads the record itself.
+    ['test', 'one', 'two'].forEach(clearFoliumIssues);
     vi.restoreAllMocks();
 });
 
@@ -224,7 +225,7 @@ describe('remote mod-action bridge', () => {
         const bridge = createRemoteControlActionBridge(() => source());
         const snapshot = bridge.read()!;
         expect(await bridge.activate(createRemoteActionActivation(snapshot, snapshot.items[0]))).toBe(false);
-        expect(useFoliumStatusStore.getState().issues.test).toEqual([
+        expect(getFoliumIssues('test')).toEqual([
             expect.objectContaining({ message: 'remote failure' }),
         ]);
         expect(await bridge.activate(createRemoteActionActivation(snapshot, snapshot.items[1]))).toBe(true);

@@ -1,5 +1,5 @@
 import { loadConfig, loadTemplateLines } from '../../../.github/scripts/triage/io/context.mjs';
-import { formatQrLoginDiagnosticReport } from '@/utils/qrLoginDiagnosticReport';
+import { formatLoginDiagnosticReport as formatQrLoginDiagnosticReport } from '@/services/onlineMusic/login/loginDiagnosticReport';
 
 // test/unit/triage/helpers.ts
 // triage 单测共用的配置、模板与 issue 构造器。

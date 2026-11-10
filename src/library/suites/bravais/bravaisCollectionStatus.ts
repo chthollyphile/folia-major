@@ -1,6 +1,6 @@
-import type { CollectionLoadError, CollectionLoadStatus, CollectionSyncState } from '../../core/contracts/resource';
-import type { LibraryMutationResult } from '../../core/contracts/mutations';
-import type { CollectionSyncCounts } from '../../core/model/collectionProgress';
+import type { CollectionLoadError, CollectionLoadStatus, CollectionSyncState } from '../../core/shared/resource.contract';
+import type { LibraryMutationResult } from '../../core/collection/mutations/mutations.contract';
+import type { CollectionSyncCounts } from '../../core/collection/collectionProgress';
 import type { BravaisSeamStatus, BravaisSeamSync } from './bravaisSeamModels';
 
 // src/library/suites/bravais/bravaisCollectionStatus.ts

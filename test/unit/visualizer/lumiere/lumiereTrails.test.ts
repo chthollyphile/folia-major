@@ -3,7 +3,7 @@ import type { Line } from '@/types';
 import { LUMIERE_PROFILES } from '@/components/visualizer/lumiere/catalog';
 import { createLyricWindow, type LyricWindowFrame, type WindowTypography } from '@/components/visualizer/lumiere/text/lyricWindow';
 import { installFakeTextMeasure } from './lumiereFixtures';
-import { FakeGraphics, fakePixi, fakeSprites } from './lumiereWindowFakes';
+import { FakeContainer, FakeGraphics, fakePixi, fakeSprites } from './lumiereWindowFakes';
 
 // test/unit/visualizer/lumiere/lumiereTrails.test.ts
 // 隐藏轨迹覆盖强制飞行、纵横交错与横竖切换：立即清空线层，不改变字的位置，重新打开可恢复径迹。
@@ -51,7 +51,8 @@ describe('歌词轨迹线可实时隐藏', () => {
             seed: 'hidden-trails',
             sprites: fakeSprites,
         });
-        const tracks = window.view.children[1] as unknown as FakeGraphics;
+        // 径迹层在自己的渲染组里（window.view 的第二个子节点）。
+        const tracks = (window.view.children[1] as unknown as FakeContainer).children[0] as FakeGraphics;
         window.update(FRAME);
         const anchor = window.glyphAnchor(1, 0, FRAME.time);
         expect(tracks.visible).toBe(true);

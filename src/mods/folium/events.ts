@@ -1,5 +1,6 @@
 import type { FoliumDisposer, FoliumEventMap, FoliumEventPriority } from './contract';
-import { reportFoliumIssue } from './status';
+import { callFoliumMod, timeFoliumMod } from '../runtime/guard';
+import { reportFoliumIssue } from '../runtime/status';
 
 // src/mods/folium/events.ts
 // The Folium event bus. Handlers run in priority order (highest first; equal
@@ -73,20 +74,9 @@ export const removeFoliumEventHandlers = (modId: string) => {
 
 export const hasFoliumEventHandlers = (type: keyof FoliumEventMap) => (handlersByType.get(type)?.length ?? 0) > 0;
 
+// The gate catches a throw and a rejected promise, and does the timing for the budget warning.
 const runSync = (registration: Registration, type: string, event: unknown) => {
-    const started = performance.now();
-    try {
-        const result = registration.handler(event);
-        if (result && typeof (result as Promise<void>).catch === 'function') {
-            (result as Promise<void>).catch((error) => reportFoliumIssue(registration.modId, `event ${type}`, error));
-        }
-    } catch (error) {
-        reportFoliumIssue(registration.modId, `event ${type}`, error);
-    }
-    const elapsed = performance.now() - started;
-    if (elapsed > SYNC_BUDGET_MS) {
-        console.warn(`[Folium:${registration.modId}] ${type} handler took ${elapsed.toFixed(1)}ms`);
-    }
+    callFoliumMod(registration.modId, `event ${type}`, () => registration.handler(event), SYNC_BUDGET_MS);
 };
 
 /** Notification: every handler sees the same frozen payload; nothing is awaited. */
@@ -95,6 +85,22 @@ export const emitFoliumEvent = <K extends keyof FoliumEventMap>(type: K, payload
     if (!list || list.length === 0) return;
     const event = Object.freeze({ ...payload });
     list.forEach((registration) => runSync(registration, type, event));
+};
+
+/**
+ * Folium 1.7: a notification whose payload is each mod's own (`playback.queueChanged`'s `byThisMod`). As
+ * emitFoliumEvent otherwise: synchronous, and one frozen payload per mod, which that mod's handlers share.
+ */
+export const emitFoliumEventPerMod = <K extends keyof FoliumEventMap>(type: K, payloadFor: (modId: string) => FoliumEventMap[K]) => {
+    const list = handlersByType.get(type);
+    if (!list || list.length === 0) return;
+    const payloads = new Map<string, unknown>();
+    list.forEach((registration) => {
+        if (!payloads.has(registration.modId)) {
+            payloads.set(registration.modId, Object.freeze({ ...payloadFor(registration.modId) }));
+        }
+        runSync(registration, type, payloads.get(registration.modId));
+    });
 };
 
 /** Synchronous hook: handlers mutate `event` in order; async handlers are not awaited. */
@@ -123,7 +129,8 @@ export const dispatchFoliumHookAsync = async <K extends keyof FoliumEventMap>(
         let timer: ReturnType<typeof setTimeout> | null = null;
         try {
             await Promise.race([
-                Promise.resolve().then(() => registration.handler(event)),
+                // Timed and counted by the gate; a failure stays this loop's to report.
+                Promise.resolve().then(() => timeFoliumMod(registration.modId, `hook ${type}`, () => registration.handler(event))),
                 new Promise<void>((_, reject) => {
                     timer = setTimeout(() => reject(new Error(`timed out after ${ASYNC_TIMEOUT_MS}ms`)), ASYNC_TIMEOUT_MS);
                 }),

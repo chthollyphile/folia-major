@@ -1,70 +1,66 @@
 import type { SongResult } from '../../../types';
-import type {
-    OnlineRecoveryOptions,
-    OnlineRecoveryResult,
-    PlaybackFailure,
-    PlaybackFailureSkipOptions,
-} from '../../../types/playbackFailure';
 import { distrustCachedSongAudio } from '../../../services/playbackRecovery/mediaCacheGuard';
-import { classifyMediaPlaybackFailure } from '../../../services/playbackRecovery/onlinePlaybackFailure';
+import { logOnlineFailure, mediaFailureOf, type OnlineFailure } from '../../../services/onlineMusic/failure/onlineFailureCase';
 import { getOnlineProviderIdForSong, getPlaybackSongKey } from '../../../utils/appPlaybackGuards';
+import { startOfAskedSong } from './currentSong';
+import type { OnlineRecovery, OnlineRecoveryOptions } from './restore/createOnlineRecoveryController';
+import type { PlaybackFailureSkipOptions } from './start/usePlaybackQueueController';
 
 // src/components/app/playback/handleOnlineMediaFailure.ts
-// <audio> 播放在线源出错时的处理：刷新一次音源，拿不到时把结构化原因交给统一的失败策略。
+// The player could not play an online song's audio (its media element's `error`): the address is asked
+// for once more, and where that cannot help either, why the song does not play is handed to the queue
+// (skipAfterPlaybackFailure), which tells it and decides whether to skip.
+
+// The load was stopped on purpose (a new source was set): not a failure.
+const MEDIA_ERR_ABORTED = 1;
 
 export interface OnlineMediaFailureInput {
     audioElement: HTMLAudioElement;
     failedSrc: string;
-    song: SongResult;                 // 在线歌曲（不是本地、Navidrome 或 stage）
-    playbackGeneration: number;       // 出错时的播放代次（playbackGenerationRef.current），由调用方在 onError 里同步读取
+    // An online song (not a local, Navidrome or stage one).
+    song: SongResult;
     autoplay: boolean;
-    recoverOnlinePlaybackSource: (options: OnlineRecoveryOptions) => Promise<OnlineRecoveryResult>;
-    skipAfterPlaybackFailure: (failure?: PlaybackFailure, options?: PlaybackFailureSkipOptions) => void;
+    recoverOnlinePlaybackSource: (options: OnlineRecoveryOptions) => Promise<OnlineRecovery>;
+    skipAfterPlaybackFailure: (shown?: OnlineFailure, options?: PlaybackFailureSkipOptions) => void;
 }
 
-/** 在线源的媒体元素错误：先刷新一次 URL；拿到结构化原因后交给统一策略，陈旧结果直接丢弃。 */
 export const handleOnlineMediaFailure = async ({
     audioElement,
     failedSrc,
     song,
-    playbackGeneration,
     autoplay,
     recoverOnlinePlaybackSource,
     skipAfterPlaybackFailure,
 }: OnlineMediaFailureInput): Promise<void> => {
-    // 第一次 await 之前取齐现场：之后元素可能已换源，歌曲也可能已切换。
-    const mediaCode = audioElement.error?.code ?? null;
+    // All read before the first wait: by then the element may have a new source, and another song may play.
+    const mediaError = audioElement.error;
+    if (mediaError?.code === MEDIA_ERR_ABORTED) return;
     const resumeAt = audioElement.currentTime;
     const failedSongKey = getPlaybackSongKey(song);
-    // 同一首歌重新点播落地后 key 不变、代次变：旧失败据此不再算当前，不会暂停或打扰新的那次播放。
-    const failedGeneration = playbackGeneration;
-    const providerId = getOnlineProviderIdForSong(song) ?? undefined;
+    // The same song played again keeps its key but is another start: this failure is not about it.
+    const failedStart = startOfAskedSong();
+    const mediaFailure = mediaFailureOf(mediaError, getOnlineProviderIdForSong(song) ?? undefined);
+    logOnlineFailure(mediaFailure);
 
-    // MEDIA_ERR_ABORTED：加载被主动中止（通常是换源），不是失败。
-    const mediaFailure = classifyMediaPlaybackFailure(mediaCode, { providerId });
-    if (!mediaFailure) return;
-
-    // 缓存 blob 解码失败时，本会话内不再信任这份缓存，刷新也绕过它直接问 provider。
+    // A copy from the media cache that cannot be decoded is not trusted again in this session: the
+    // address is asked of the platform, past the cache.
     const isBlob = failedSrc.startsWith('blob:');
-    if (isBlob) {
-        distrustCachedSongAudio(song);
-    }
+    if (isBlob) distrustCachedSongAudio(song);
 
-    // 手动重试：跳过按媒体文件的去重再刷新一次，并回到出错时的位置。
-    // 仍失败就再次展示原因，并再给这同一个重试：不落回队列控制器默认的重试（那会经 playSong 从头播放）。
+    // The retry the listener can press: the address once more (the same file may be asked for again),
+    // from where it failed. Failing again, the reason is told again, with this same retry.
     const retry = (): void => {
         void recoverOnlinePlaybackSource({ force: true, autoplay: true, resumeAt, bypassMediaCache: isBlob })
             .then(retried => {
-                if (retried.status === 'failed') {
-                    skipAfterPlaybackFailure(retried.failure, { failedSongKey, failedGeneration, retry });
+                if (!retried.recovered && !retried.stale) {
+                    skipAfterPlaybackFailure(retried.failure ?? mediaFailure, { failedSongKey, failedStart, retry });
                 }
             });
     };
 
-    const result = await recoverOnlinePlaybackSource({ failedSrc, resumeAt, autoplay, bypassMediaCache: isBlob });
-    if (result.status === 'recovered' || result.status === 'stale') return;
-
-    // not-attempted：同一个媒体文件刷新过仍然出错，或不适用刷新，只能按媒体错误码给出原因。
-    const failure = result.status === 'failed' ? result.failure : mediaFailure;
-    skipAfterPlaybackFailure(failure, { failedSongKey, failedGeneration, retry });
+    const recovery = await recoverOnlinePlaybackSource({ failedSrc, resumeAt, autoplay, bypassMediaCache: isBlob });
+    if (recovery.recovered || recovery.stale) return;
+    // An online song that cannot be played says why: what asking for its address again came to, or
+    // else the media error's code.
+    skipAfterPlaybackFailure(recovery.failure ?? mediaFailure, { failedSongKey, failedStart, retry });
 };

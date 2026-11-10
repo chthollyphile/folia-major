@@ -64,8 +64,11 @@ describe('settingsLastSection', () => {
         });
 
         it('returns null for an id that no longer exists', () => {
-            const storage = createStorage({ [SETTINGS_LAST_SECTION_STORAGE_KEY]: 'someRemovedSection' });
-            expect(readLastSettingsSection(DESKTOP, storage)).toBeNull();
+            // 'lab' is a category an older build could have stored; it has since been dissolved.
+            for (const id of ['someRemovedSection', 'lab']) {
+                const storage = createStorage({ [SETTINGS_LAST_SECTION_STORAGE_KEY]: id });
+                expect(readLastSettingsSection(DESKTOP, storage)).toBeNull();
+            }
         });
 
         it('returns null for subview ids that are not sidebar sections', () => {
@@ -111,13 +114,13 @@ describe('settingsLastSection', () => {
 
     describe('sectionForSettingsSubview', () => {
         it('maps section subviews to themselves', () => {
-            expect(sectionForSettingsSubview('lab')).toBe('lab');
+            expect(sectionForSettingsSubview('player')).toBe('player');
             expect(sectionForSettingsSubview('mods')).toBe('mods');
         });
 
-        it('maps the playback secondary panels back to playback', () => {
-            expect(sectionForSettingsSubview('lyricFilter')).toBe('playback');
-            expect(sectionForSettingsSubview('globalLyricOffset')).toBe('playback');
+        it('maps the lyrics secondary panels back to lyrics', () => {
+            expect(sectionForSettingsSubview('lyricFilter')).toBe('lyrics');
+            expect(sectionForSettingsSubview('globalLyricOffset')).toBe('lyrics');
         });
 
         it('has no section for overlay workbenches or empty targets', () => {
@@ -153,8 +156,8 @@ describe('settingsLastSection', () => {
 
         it('lets an explicit subview beat the memory', () => {
             const storage = createStorage({ [SETTINGS_LAST_SECTION_STORAGE_KEY]: 'storage' });
-            expect(resolveInitialSettingsSection({ initialSubview: 'lab', hasInitialAnchor: false, ...WEB }, storage)).toBe('lab');
-            expect(resolveInitialSettingsSection({ initialSubview: 'lyricFilter', hasInitialAnchor: false, ...WEB }, storage)).toBe('playback');
+            expect(resolveInitialSettingsSection({ initialSubview: 'player', hasInitialAnchor: false, ...WEB }, storage)).toBe('player');
+            expect(resolveInitialSettingsSection({ initialSubview: 'lyricFilter', hasInitialAnchor: false, ...WEB }, storage)).toBe('lyrics');
         });
 
         it('does not let the memory leak behind an overlay target', () => {

@@ -47,18 +47,19 @@ export const cameraFromViewCenter = (center: WallViewCenter, view: WallView): Wa
 
 /**
  * World rect on screen around a view centre. An open seam pushes the two halves apart, so the
- * horizontal span is widened by the seam width on both sides (as the prototype's culling does).
+ * horizontal span is widened by the seam width on both sides (as the prototype's culling does);
+ * a seam between two block rows (`seamHeight`) widens the vertical span the same way.
  */
 export const getViewWorldBounds = (
     center: WallViewCenter,
     view: WallView,
-    { seamWidth = 0, overscan = 0 }: { seamWidth?: number; overscan?: number } = {},
+    { seamWidth = 0, seamHeight = 0, overscan = 0 }: { seamWidth?: number; seamHeight?: number; overscan?: number } = {},
 ): Bounds => {
     const lineX = getViewLineX(view);
     return {
         left: center.x - (lineX + seamWidth) / view.scale - overscan,
         right: center.x + (view.width - lineX + seamWidth) / view.scale + overscan,
-        top: center.y - view.height / 2 / view.scale - overscan,
-        bottom: center.y + view.height / 2 / view.scale + overscan,
+        top: center.y - (view.height / 2 + seamHeight) / view.scale - overscan,
+        bottom: center.y + (view.height / 2 + seamHeight) / view.scale + overscan,
     };
 };

@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import type { VisualizerBackgroundConfig } from './backgrounds/definition';
+import { backgroundTuningConfig, getBackgroundTunings } from './tuningRegistry';
 import { useVisualizerSettingsStore } from '../../stores/useVisualizerSettingsStore';
 import { useVisualizerAssetStore } from '../../stores/useVisualizerAssetStore';
 import { useThemeSettingsStore } from '../../stores/useThemeSettingsStore';
@@ -17,13 +18,13 @@ export const useVisualizerBackgroundConfig = (): VisualizerBackgroundConfig => {
         opacity: state.backgroundOpacity,
         disableGeometricBackground: state.disableVisualizerGeometricBackground,
         disableVignette: state.disableVisualizerVignette,
-        monetBackgroundTuning: state.monetBackgroundTuning,
-        nomandBackgroundTuning: state.nomandBackgroundTuning,
-        latentBackgroundTuning: state.latentBackgroundTuning,
-        soraBackgroundTuning: state.soraBackgroundTuning,
         urlBackgroundList: state.urlBackgroundList,
         urlBackgroundSelectedId: state.urlBackgroundSelectedId,
     })));
+    // The backgrounds' tunings, under the store's field names: which there are, their declarations say.
+    const tunings = useVisualizerSettingsStore(useShallow(state => Object.fromEntries(
+        getBackgroundTunings().map(tuning => [tuning.settingsKey, (state as unknown as Record<string, unknown>)[tuning.settingsKey]]),
+    )));
     const monetBackgroundImage = useVisualizerAssetStore(state => state.monetBackgroundImage);
     // Cover-derived tinting is a theme preference, not a visualizer one.
     const useCoverColorBg = useThemeSettingsStore(state => state.useCoverColorBg);
@@ -37,13 +38,10 @@ export const useVisualizerBackgroundConfig = (): VisualizerBackgroundConfig => {
             disableVignette: settings.disableVignette,
         },
         customImage: monetBackgroundImage,
-        monet: { tuning: settings.monetBackgroundTuning },
-        nomand: { tuning: settings.nomandBackgroundTuning },
-        latent: { tuning: settings.latentBackgroundTuning },
-        sora: { tuning: settings.soraBackgroundTuning },
+        ...backgroundTuningConfig(tunings),
         url: {
             items: settings.urlBackgroundList,
             selectedId: settings.urlBackgroundSelectedId,
         },
-    }), [settings, monetBackgroundImage, useCoverColorBg]);
+    }), [settings, tunings, monetBackgroundImage, useCoverColorBg]);
 };

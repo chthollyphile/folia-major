@@ -17,7 +17,8 @@ description: Use when the user refers to repository-specific spoken terms - home
 | 口头说法 | 名字 |
 | --- | --- |
 | 主入口 / 总装配 | `App`，区域边界看 `AppShell`、`Home`、`PlayerPanel`、`AppOverlays`、`AppDialogs` |
-| 当前歌曲 / 播放队列 / 状态提示 | `App` 里的 `currentSong` / `playQueue` / `statusMsg` |
+| 当前歌曲 / 播放队列 | `usePlaybackStore` 的 `currentSong` / `playQueue`（`App` 从这里读） |
+| 状态提示 | `useStatusMessageStore`、`setStatusMessage` |
 | home/player 切换 / 最后视图 | `useAppNavigation` |
 | 搜索词 / 搜索结果 / 搜索来源 tab / 首页 tab | `useSearchNavigationStore` |
 | 集合导航栈 / 当前集合 | `useCollectionNavigationStore` |
@@ -36,7 +37,7 @@ description: Use when the user refers to repository-specific spoken terms - home
 | Navidrome 首页面 | `NavidromeGrid3DView`、`useNavidromeGridLibrary` |
 | 本地库扫描 / 索引 / 重扫 | `useLocalLibraryCatalog` → `localLibraryCatalogService`、`localMusicService`、`localLibraryIndex` |
 | 本地文件夹 / 本地歌单 / 实体编辑 | `entityEditorModel`、`localPlaylistService` |
-| 在线 provider 账号 / 登录 | `useOnlineProviderAccountStore`、`useOnlineProvider*` hooks |
+| 在线 provider 账号 / 登录 | `useOnlineProviderAccountStore`、`useOnlineProviderPlatform`；登录窗口 `LoginHost`（`App.tsx` 挂一次）、`openLoginWindow`（`loginWindowStore`）；账户 controller `useLibraryAccountController` |
 
 ## 资料库 suite / bravais 墙
 
@@ -66,7 +67,7 @@ bravais 的口头说法大多来自它的设计稿（不在仓库里，常用的
 | 批量模式 | 目录树面板开着时的首页本地层；core 侧 `useLibraryDirectorySelection` |
 | 管理隐藏视图 | `useLibraryDirectoryVisibility`（`browse` / `manage` / `manage-hidden-only`） |
 | 表单态（改名、删除确认、加入歌单） | `reduceBravaisForm`、`BravaisSeamFormView` |
-| 缝里的登录态 / 确认态 / 平台切换 | `BravaisAccount` → `bravaisAccountStore` → `BravaisSeamAccount`；平台切换 `BravaisSeamAccountSwitcher` |
+| 缝里的账户入口（点了打开登录窗口） | `BravaisSeamAccountSwitcher`（`useBravaisHomeAccount`）；窗口本身 `src/components/login/LoginHost`，`openLoginWindow` |
 | 移除的两段翻牌 | `detectRemovedEntries`、`maskRemovedEntries` |
 | 整墙出场 / 入场（换页签、从搜索 / 播放页进出） | `planWallWave`、`BravaisEntrance`；换层种类 `resolveShiftKind`（push / back / replace / enter / exit） |
 | 降低动态效果（bravais） | `resolveBravaisReducedTransitions` |
@@ -92,7 +93,7 @@ bravais 的口头说法大多来自它的设计稿（不在仓库里，常用的
 | 右侧播放器面板 / unified panel | 入口 `PlayerPanel` → `buildPlayerPanelModel`；旧实现仍在 `UnifiedPanel` |
 | 封面 / 控制 / 队列 tab 等 | `panelTab` 目录下的 `*Tab` |
 | overlay / dialog 总装配 | `AppOverlays` + `buildAppOverlaysModel`、`AppDialogs` + `buildAppDialogsModel` |
-| 设置弹窗 | `SettingsModal`；外观导入导出在 `AppearanceSettingsSubview` |
+| 设置弹窗 | `SettingsModal`；外观导入导出在 `ConfigTransferRows`、`visualConfigTransfer` |
 | 命令面板 | `commandRegistry`、`CommandPalette`、`useCommandPaletteContext` |
 | 加入歌单 | `AddToPlaylistHost` |
 
@@ -112,8 +113,9 @@ bravais 的口头说法大多来自它的设计稿（不在仓库里，常用的
 | 口头说法 | 名字 |
 | --- | --- |
 | 在线歌曲的一切（搜索/歌词/音频/歌单/账户） | `omni` —— 这是公共边界，普通调用只经过它 |
-| 网易云 / 酷狗 provider | `neteaseProvider`、`kugouProvider`、`kugouTransport` —— 实现边界，UI/hook/store 不应直连 |
-| provider 注册 / 账号缓存 | `providerRegistry`、`providerAccountCache`、`providerStorage` |
+| 某个平台的 provider | `neteaseProvider`、`kugouProvider`、`qqProvider`、`bodianProvider`、`ytmProvider`、`spotifyProvider`；请求在各自的 `*Transport`（网易云是 `neteaseApi`）—— 实现边界，UI/hook/store 不应直连 |
+| provider 注册 / 账号缓存 | `providerRegistry`（唯一的平台清单）、`providerAccountCache`、`providerStorage` |
+| 探索页 | `ExploreSurface`、`useExploreFeedStore`；平台那边是 `*Explore`（`createNeteaseExplore` 等）和 `exploreReads` |
 | Navidrome / Subsonic | `navidromeService` —— **不是** Omni provider |
 
 ## 歌词 / Visualizer
@@ -126,7 +128,7 @@ bravais 的口头说法大多来自它的设计稿（不在仓库里，常用的
 | 逐字 / grapheme timing | `graphemeTiming` |
 | visualizer 统一入口 / 背景 | `VisualizerRenderer`、`VisualizerBackgroundRenderer` |
 | visualizer shared props / tuning | `tuningRegistry`，以及 visualizer 目录下的 `definition` |
-| 某个模式 | 模式目录下的 `entry.tsx`；模式清单直接看 `src/components/visualizer/` 下有哪些目录，别信写死的列表 |
+| 某个模式 | 模式目录下的 `entry.tsx`；内建模式的 id 清单是 `BUILTIN_VISUALIZER_MODES`（registry 启动时和目录核对），别信文档里抄的列表 |
 | 字体栈 / 颜色混合 | `fontStacks`、`colorMix` |
 
 ## 持久化 / 同步 / 部署
@@ -135,12 +137,13 @@ bravais 的口头说法大多来自它的设计稿（不在仓库里，常用的
 | --- | --- |
 | 同步 / R2 / 主题 registry | `syncCoordinator`、`syncClient`、`syncRepository`、`settingsSnapshot`、`themeSyncRegistry` |
 | IndexedDB / 各类缓存 | `appDatabase`、`binaryAssetStore`、`coverCache`、`themeCache` |
-| Electron 主进程 / bridge | `electron/` 下的 `main.cjs`、`preload.cjs`、`stageApi.cjs`、`kugouApiBridge.cjs` |
+| Electron 主进程 / bridge | `electron/` 下的 `main.cjs`、`preload.cjs`、`stageApi.cjs`；各平台的桥 `kugouApiBridge`、`bodianApiBridge`、`ytmApiBridge`、`spotifyApiBridge` |
 | Sync Server | `sync-server/src/` 下的 `app.ts`（路由/协议）、`node.ts`、`cloudflare.ts`、`d1-emulator.ts`；Worker 包装在 `worker/index.ts` |
 | Docker Web stack | `deploy/docker/` |
 
 ## 名字对不上时的判断顺序
 
+0. 说的是一个功能（某个平台、登录、探索页、某个歌词样式）→ 先找这个功能自己的目录，新代码按功能放在一起。
 1. 带“页面 / 视图 / 弹窗 / tab” → 先看 `components/app/*`，再看具体展示组件。
 2. 带“状态 / 导航 / 偏好 / 当前模式” → 先看 `hooks` 和 `stores`。
 3. 带“模型 / 装配 / 派生” → 找相邻的 `build*` / `create*`。

@@ -1,4 +1,10 @@
-import { setConsoleLogSink, type ConsoleLogEntry } from '../../utils/consoleLogBuffer';
+import {
+    isConsoleCaptureEnabled,
+    recordMainProcessLines,
+    setConsoleLogSink,
+    subscribeToConsoleLog,
+    type ConsoleLogEntry,
+} from '../../utils/consoleLogBuffer';
 
 // src/services/debug/debugModule.ts
 // The renderer's half of the developer debug module: the switches, and the pipe that sends console
@@ -15,6 +21,8 @@ export interface DebugModuleSnapshot {
     available: boolean;
     runtimeLogEnabled: boolean;
     runtimeLogMode: DebugLogMode;
+    /** The session-log switch as the main process last heard it. See `syncCapture`. */
+    consoleCaptureEnabled: boolean;
     memoryMonitorEnabled: boolean;
     memoryLogEnabled: boolean;
     memoryLogMode: DebugLogMode;
@@ -28,6 +36,7 @@ const UNAVAILABLE: DebugModuleSnapshot = {
     available: false,
     runtimeLogEnabled: false,
     runtimeLogMode: 'append',
+    consoleCaptureEnabled: true,
     memoryMonitorEnabled: false,
     memoryLogEnabled: false,
     memoryLogMode: 'overwrite',
@@ -77,7 +86,7 @@ export const refreshDebugModule = async () => {
  * would show a filename nothing is writing to.
  */
 export const setDebugModuleState = async (patch: Partial<Pick<DebugModuleSnapshot,
-    'runtimeLogEnabled' | 'runtimeLogMode' | 'memoryMonitorEnabled' | 'memoryLogEnabled' | 'memoryLogMode' | 'memoryIntervalMs'>>) => {
+    'runtimeLogEnabled' | 'runtimeLogMode' | 'consoleCaptureEnabled' | 'memoryMonitorEnabled' | 'memoryLogEnabled' | 'memoryLogMode' | 'memoryIntervalMs'>>) => {
     try {
         adopt(await bridge()?.debugSetState?.(patch));
     } catch {
@@ -161,6 +170,22 @@ const enqueue = (entry: ConsoleLogEntry) => {
 };
 
 /**
+ * Keeps the main process told whether the session log is on.
+ *
+ * The switch lives in the renderer, because the browser build has it too. The main process owns
+ * the log file and its own console lines, and off has to mean off for those as well: nothing in
+ * the panel and a file still being written is two answers to one switch. Null until the main
+ * process has said what it holds, and for good in the browser build.
+ */
+let captureAtMain: boolean | null = null;
+const syncCapture = () => {
+    const enabled = isConsoleCaptureEnabled();
+    if (captureAtMain === null || captureAtMain === enabled) return;
+    captureAtMain = enabled;
+    void setDebugModuleState({ consoleCaptureEnabled: enabled });
+};
+
+/**
  * Starts the module. Idempotent, and safe to call before the main process has answered.
  *
  * Called from bootstrap rather than from a component: the lines worth having are the startup ones,
@@ -171,9 +196,19 @@ export const installDebugModule = () => {
     if (installed || typeof window === 'undefined') return;
     installed = true;
     setConsoleLogSink(enqueue);
+    // The main process's console joins the panel, whether or not the file is being written.
+    bridge()?.onDebugMainLines?.(recordMainProcessLines);
     // A buffered line is worth less than the crash it was recorded during.
     window.addEventListener('pagehide', flush);
     // The first answer decides the fate of everything logged before it arrived. `finally`, not
     // `then`: a rejected refresh leaves the snapshot UNAVAILABLE, which is the correct "discard" case.
-    void refreshDebugModule().finally(settleStartupBuffer);
+    void refreshDebugModule().finally(() => {
+        // Before the startup lines are sent: the main process opens the file on this message, and
+        // the lines behind it are then written, not dropped.
+        captureAtMain = snapshot.available ? snapshot.consoleCaptureEnabled : null;
+        syncCapture();
+        settleStartupBuffer();
+    });
+    // The buffer tells its listeners about the switch as well as about every line.
+    subscribeToConsoleLog(syncCapture);
 };

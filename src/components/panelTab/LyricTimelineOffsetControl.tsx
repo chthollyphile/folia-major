@@ -1,14 +1,18 @@
 import React from 'react';
-import { RotateCcw, ChevronLeft, ChevronRight } from 'lucide-react';
+import { RotateCcw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useDebouncedFocusSync } from '../../hooks/useDebouncedFocusSync';
+import { PanelIconButton } from './shell/PanelIconButton';
+import { PanelRow } from './shell/PanelRow';
+import { Stepper } from './shell/Stepper';
 
 // src/components/panelTab/LyricTimelineOffsetControl.tsx
+// One row of the song's tab: how many milliseconds the playing song's lyrics are moved, in steps of
+// 250 or typed, and a button that puts it back to 0.
 
 type LyricTimelineOffsetControlProps = {
     offsetMs: number;
     onOffsetChange: (offsetMs: number) => void;
-    isDaylight: boolean;
 };
 
 const STEP_MS = 250;
@@ -17,77 +21,31 @@ const STEP_MS = 250;
 const LyricTimelineOffsetControl: React.FC<LyricTimelineOffsetControlProps> = ({
     offsetMs,
     onOffsetChange,
-    isDaylight,
 }) => {
     const { t } = useTranslation();
     const [localOffsetMs, setLocalOffsetMs] = useDebouncedFocusSync(offsetMs, onOffsetChange, 20);
-    const [inputValue, setInputValue] = React.useState(localOffsetMs.toString());
-
-    React.useEffect(() => {
-        setInputValue(localOffsetMs.toString());
-    }, [localOffsetMs]);
-
-    const buttonHover = isDaylight ? 'hover:bg-black/10 active:bg-black/15' : 'hover:bg-white/10 active:bg-white/15';
+    const hasOffset = localOffsetMs !== 0;
 
     return (
-        <div className="flex items-center justify-between md:pr-8">
-            <div className="flex shrink-0 items-center gap-1">
-                <label className="text-[11px] font-semibold opacity-50 uppercase tracking-wider">
-                    {t('localMusic.lyricTimelineOffset')}
-                </label>
-                {localOffsetMs !== 0 && (
-                    <button
-                        type="button"
-                        onClick={() => setLocalOffsetMs(0)}
-                        className={`rounded-md p-1 opacity-80 transition-colors ${isDaylight ? 'hover:bg-black/10' : 'hover:bg-white/10'}`}
-                        title={t('localMusic.resetLyricTimelineOffset')}
-                    >
-                        <RotateCcw size={12} />
-                    </button>
-                )}
-            </div>
-            <div className="flex items-center">
-                <button
-                    type="button"
-                    onClick={() => setLocalOffsetMs(localOffsetMs - STEP_MS)}
-                    className={`p-1 rounded-md transition-colors opacity-70 hover:opacity-100 ${buttonHover}`}
-                    title="-250ms"
-                >
-                    <ChevronLeft size={14} />
-                </button>
-
-                <div className="mx-0.5 flex w-16 items-center justify-center bg-transparent">
-                    <input
-                        type="number"
-                        step={STEP_MS}
-                        value={inputValue}
-                        onChange={(event) => {
-                            const val = event.target.value;
-                            setInputValue(val);
-                            if (val === '' || val === '-') {
-                                return;
-                            }
-                            const parsed = Number.parseInt(val, 10);
-                            if (Number.isFinite(parsed)) {
-                                setLocalOffsetMs(parsed);
-                            }
-                        }}
-                        className="w-10 min-w-0 bg-transparent py-0.5 text-right text-xs font-mono outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                        aria-label={t('localMusic.lyricTimelineOffset')}
-                    />
-                    <span className="text-[10px] opacity-50 ml-0.5 font-mono">ms</span>
-                </div>
-
-                <button
-                    type="button"
-                    onClick={() => setLocalOffsetMs(localOffsetMs + STEP_MS)}
-                    className={`p-1 rounded-md transition-colors opacity-70 hover:opacity-100 ${buttonHover}`}
-                    title="+250ms"
-                >
-                    <ChevronRight size={14} />
-                </button>
-            </div>
-        </div>
+        <PanelRow label={t('localMusic.lyricTimelineOffset')}>
+            {/* Keeps its place at 0, where there is nothing to put back, so the number beside it does not move. */}
+            <span
+                inert={!hasOffset}
+                className={`st-t-move inline-flex transition-[opacity,scale,visibility] ${hasOffset ? '' : 'invisible scale-[0.8] opacity-0'}`}
+            >
+                <PanelIconButton size="s" label={t('localMusic.resetLyricTimelineOffset')} onClick={() => setLocalOffsetMs(0)}>
+                    <RotateCcw size={15} />
+                </PanelIconButton>
+            </span>
+            <Stepper
+                value={localOffsetMs}
+                onChange={next => setLocalOffsetMs(Math.round(next))}
+                step={STEP_MS}
+                unit="ms"
+                signed
+                label={t('localMusic.lyricTimelineOffset')}
+            />
+        </PanelRow>
     );
 };
 

@@ -3,8 +3,8 @@
   "version": 1,
   "modId": "sample-aurora-visualizer",
   "modVersion": "1.0.1",
-  "digest": "sha256:c150fae14af8213777fc5e528f096470d7e1bc654df0b16cb10ca5498d21b14f",
+  "digest": "sha256:3e0ddf28c74e3ab773f6e2a30fc84b1eebd63716f7d8efcca2432bb1d61e94d8",
   "keyId": "folium-2026-1",
-  "signedAt": "2026-09-24T19:10:07.802Z",
-  "signature": "HvQ3lleWDEGID6QTsYwNnQrjZLDD4Yn5fJfXqK8Amo/uzqrVpxL6alobAfqFy12SC7zFvxcWPziFwWgYm2h5CQ=="
+  "signedAt": "2026-10-17T07:54:59.476Z",
+  "signature": "aYzsQGHgsZ6nSAqX2yx8yK7pO9dLRL2J4PWDUfSUplGUfjLwAbAP0sxlzd+mB21sVkyh7j4ky3sSypBTPvcLCg=="
 }

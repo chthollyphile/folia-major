@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { LocalLibraryGroup, SongResult } from '@/types';
-import type { LibraryHomeNotice, LibraryHomePort, LibraryHomeScanProgress } from '@/library/core/contracts/homeModel';
-import type { LibraryCollectionDescriptor } from '@/library/core/contracts/collection';
-import { createLibraryHomeActions } from '@/library/core/services/libraryHomeActions';
+import type { LibraryHomeNotice, LibraryHomePort, LibraryHomeScanProgress } from '@/library/core/home/homeModel.contract';
+import type { LibraryCollectionDescriptor } from '@/library/core/collection/collection.contract';
+import { createLibraryHomeActions } from '@/library/core/home/libraryHomeActions.service';
 
 // test/unit/library/core/libraryHomeActions.test.ts
 // 首页动作层（原 Grid3D 的导入、私人 FM、打开卡片）：三个导入共用的「忙」、本地不可用时的提示、有新歌才刷新、

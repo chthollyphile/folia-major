@@ -1,6 +1,6 @@
 // Copyright (c) 2026 chthollyphile
 import type { IconNode } from 'lucide-react';
-import { resolveLucideIcon } from '../../../../services/lucideIconResolver';
+import { resolveLucideIconNode } from '../../../../services/lucideIconResolver';
 import type { Point } from './lineArt';
 
 // src/components/visualizer/lumiere/lineart/iconPaths.ts
@@ -309,23 +309,6 @@ export const iconNodeToPolylines = (node: IconNode): IconPolyline[] => (
     })
 );
 
-/**
- * 取 lucide-react 图标组件里的 IconNode：组件是 forwardRef，它的 render 只是
- * createElement(Icon, { iconNode, ... })（1.48 起是 { icon: { node, ... } }），不跑 hooks，直接调用即可拿到节点数据，
- * 不必渲染 SVG 再解析。
- */
-const readIconNode = (name: string): IconNode | null => {
-    const icon = resolveLucideIcon(name) as unknown as { render?: (props: object, ref: null) => unknown } | null;
-    if (!icon || typeof icon.render !== 'function') return null;
-    try {
-        const element = icon.render({}, null) as { props?: { iconNode?: unknown; icon?: { node?: unknown } } } | null;
-        const node = element?.props?.iconNode ?? element?.props?.icon?.node;
-        return Array.isArray(node) ? node as IconNode : null;
-    } catch {
-        return null;
-    }
-};
-
 const cache = new Map<string, IconPolyline[] | null>();
 
 /**
@@ -335,7 +318,7 @@ const cache = new Map<string, IconPolyline[] | null>();
  */
 export const lucideIconPolylines = (name: string): IconPolyline[] | null => {
     if (cache.has(name)) return cache.get(name)!;
-    const node = readIconNode(name);
+    const node = resolveLucideIconNode(name);
     if (!node) return null;
     const polylines = iconNodeToPolylines(node).filter(polyline => polyline.points.length > 1);
     const value = polylines.length > 0 ? polylines : null;

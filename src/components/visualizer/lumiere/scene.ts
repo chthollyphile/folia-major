@@ -4,7 +4,7 @@ import type { Line, Theme } from '../../../types';
 import { createRng } from './lumiereRandom';
 import { resolveThemeFontStack, resolveThemeFontWeight } from '../../../utils/fontStacks';
 import type { LumiereAudioFrame, TransformParams } from './lumiereKernel';
-import { createBloomFilter, type BloomFilter } from './light/bloomFilter';
+import { createBloomFilter, type BloomFilter } from '../pixi/bloomFilter';
 import { BURST_DURATION, burstLightBoost, createCrossBurst, MAX_BURSTS, planBursts, type BurstEvent } from './light/crossBurst';
 import { createLightField } from './light/lightFieldShader';
 import { createMotes, type MotesLayer } from './light/motes';

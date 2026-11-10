@@ -532,130 +532,6 @@ test.describe('[bravais-only] whole-wall entrance and exit from a source', () =>
     });
 });
 
-// 合并 B10：账户的登录态 / 确认态不属于任何一层——换层（压栈、返回、来源整墙入场 / 出场，降低动效时的淡入淡出）途中与
-// 之后缝都还是账户变体，面包屑不出现；切 suite 的 reset 不碰账户表单；答复后缝回到当前层自己的开口（面包屑回来）。
-test.describe('[bravais-only] the account seam over layer shifts', () => {
-    const confirmForm = (page: Page) => seam(page).locator('[data-bravais-account-confirm]');
-    const askSwitch = async (page: Page) => {
-        await seam(page).locator('[data-bravais-account-toggle="strip"]').click();
-        await stage(page).locator(`[data-bravais-account-list] [data-bravais-account-provider="${PROBE_PROVIDER_B}"] [role="menuitemradio"]`).click();
-        await expect(confirmForm(page)).toHaveAttribute('data-bravais-account-confirm', PROBE_PROVIDER_B);
-    };
-    const expectAccountSeam = async (page: Page) => {
-        await expect(seam(page)).toHaveAttribute('data-bravais-seam', 'confirm');
-        await expect(confirmForm(page)).toBeVisible();
-        await expect(seam(page).locator('[data-bravais-crumbs]')).toHaveCount(0);
-    };
-    const closeAll = (page: Page) => page.evaluate(async () => {
-        const modulePath = '/src/stores/useCollectionNavigationStore.ts';
-        const { notifyCollectionPop, useCollectionNavigationStore } = await import(/* @vite-ignore */ modulePath);
-        notifyCollectionPop(null);
-        useCollectionNavigationStore.getState().clear();
-    });
-    const openFromSearch = (page: Page, descriptor: unknown) => page.evaluate(async collection => {
-        const modulePath = '/src/stores/useCollectionNavigationStore.ts';
-        const { useCollectionNavigationStore } = await import(/* @vite-ignore */ modulePath);
-        useCollectionNavigationStore.getState().openRoot(collection, 'search');
-    }, descriptor);
-    const firstDescriptor = (page: Page) => page.evaluate(async () => {
-        const modulePath = '/src/stores/useCollectionNavigationStore.ts';
-        const { useCollectionNavigationStore } = await import(/* @vite-ignore */ modulePath);
-        return useCollectionNavigationStore.getState().snapshot!.stack[0] as unknown;
-    });
-
-    const walkShifts = async (page: Page) => {
-        await askSwitch(page);
-        await expectAccountSeam(page);
-
-        // 压栈（首页卡片）→ 返回：缝一直是确认态。
-        await card(page, 'card:playlist:owned').locator('article').dispatchEvent('click');
-        await expect.poll(async () => (await stack(page)).length).toBe(1);
-        await expect(stage(page)).toHaveAttribute('data-bravais-shift', 'push');
-        await expectAccountSeam(page);
-        await settled(page);
-        await expectAccountSeam(page);
-        const descriptor = await firstDescriptor(page);
-        await closeAll(page);
-        await expect(stage(page)).toHaveAttribute('data-bravais-shift', 'back');
-        await expect(stage(page)).toHaveAttribute('data-bravais-layer', 'home:playlist');
-        await expectAccountSeam(page);
-        await settled(page);
-
-        // 来源是搜索：整墙入场 → 出场，缝同样不动。
-        await openFromSearch(page, descriptor);
-        await expect(stage(page)).toHaveAttribute('data-bravais-shift', 'enter');
-        await expectAccountSeam(page);
-        await settled(page);
-        await expectAccountSeam(page);
-        await closeAll(page);
-        await expect(stage(page)).toHaveAttribute('data-bravais-shift', 'exit');
-        await expectAccountSeam(page);
-        await settled(page);
-
-        // 切 suite 时宿主调的 reset 只丢起点磁贴，不碰账户表单。
-        await page.evaluate(async () => {
-            const modulePath = '/src/library/suites/bravais/bravaisTransitions.ts';
-            const { resetBravaisTransitions } = await import(/* @vite-ignore */ modulePath);
-            resetBravaisTransitions();
-        });
-        await expectAccountSeam(page);
-
-        // 再从搜索打开、在集合层上答复：缝回到集合层的完整信息条，面包屑回来（根是 Search）。
-        await openFromSearch(page, descriptor);
-        await expectAccountSeam(page);
-        await settled(page);
-        await confirmForm(page).locator('[data-bravais-form-action="cancel"]').click();
-        await expect(confirmForm(page)).toHaveCount(0);
-        await expect(seam(page)).toHaveAttribute('data-bravais-seam', 'full');
-        await expect(seam(page).locator('[data-bravais-crumb="root"]')).toHaveText('Search');
-        expect(await page.evaluate(() => window.__homeProbe!.activeProvider())).toBe(PROBE_PROVIDER_A);
-    };
-
-    test('a pending switch keeps the seam through push, back and a whole-wall entrance / exit; crumbs return after the answer', async ({ mount, page }) => {
-        await mountBravais(mount, page);
-        await walkShifts(page);
-    });
-
-    test('the half-turn towards the account form leaves the old content inert', async ({ mount, page }) => {
-        await mountBravais(mount, page);
-        await settled(page);
-        // 记下缝每次变化时「此刻渲染的内容」与内容层是否 inert（翻转的半圈很短，轮询抓不稳）。
-        await page.evaluate(() => {
-            const seamElement = document.querySelector<HTMLElement>('[data-bravais-seam]')!;
-            const log: { variant: string | null; inert: boolean; hidden: string | null }[] = [];
-            const snap = () => {
-                const body = seamElement.querySelector<HTMLElement>('.bravais-seam-body')!;
-                const entry = { variant: seamElement.dataset.bravaisSeam ?? null, inert: body.inert, hidden: body.getAttribute('aria-hidden') };
-                const last = log.at(-1);
-                if (!last || last.variant !== entry.variant || last.inert !== entry.inert || last.hidden !== entry.hidden) log.push(entry);
-            };
-            snap();
-            new MutationObserver(snap).observe(seamElement, { attributes: true, subtree: true, attributeFilter: ['inert', 'aria-hidden', 'data-bravais-seam'] });
-            (window as Window & { __seamLog?: typeof log }).__seamLog = log;
-        });
-        await askSwitch(page);
-        await expectAccountSeam(page);
-        const log = await page.evaluate(() => (window as Window & { __seamLog?: unknown[] }).__seamLog);
-        // 翻出去的半圈：渲染的还是首页窄缝，内容层已经 inert / aria-hidden；翻到确认态后解除。
-        expect(log).toContainEqual({ variant: 'home', inert: true, hidden: 'true' });
-        expect(log?.at(-1)).toEqual({ variant: 'confirm', inert: false, hidden: null });
-        expect(log?.at(0)).toEqual({ variant: 'home', inert: false, hidden: null });
-
-        // 答复后翻回首页窄缝：外层不 inert（翻出去的确认表单自己 inert），翻完窄缝可点。
-        await confirmForm(page).locator('[data-bravais-form-action="cancel"]').click();
-        await expect(seam(page)).toHaveAttribute('data-bravais-seam', 'home');
-        await expect(seam(page).locator('.bravais-seam-body')).not.toHaveAttribute('inert', /.*/);
-        await expect(seam(page).locator('.bravais-seam-body')).not.toHaveAttribute('aria-hidden', /.*/);
-        await expect(seam(page).locator('[data-bravais-account-toggle="strip"]')).toBeEnabled();
-    });
-
-    test('with reduced motion the fades leave the account seam in place too', async ({ mount, page }) => {
-        await page.addInitScript(() => localStorage.setItem('reduce_motion_lattice', 'true'));
-        await mountBravais(mount, page);
-        await walkShifts(page);
-    });
-});
-
 // fb2：首页窄缝（120px）重排。页签竖排、一列一个；纵向放不下全名时（按测量，不按断点）缩成一个字，全名留在
 // title / aria-label；导航区与工具格互不重叠，整体在播放条安全区之上。
 // fb2 第二轮：「书库」是页头最上面一行小字。缩减顺序（都按测量）：先隐藏标题（视觉隐藏，读屏仍有）→ 再缩页签
@@ -933,10 +809,8 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
         await expect(seam(page)).toHaveAttribute('data-bravais-seam', 'home');
     });
 
-    // fb4：账户入口贴在工具格正上方；点开后平台列表从入口往上弹出（scale + 位移，从底边长出来），盖在导航区上，
-    // 页签的缩减级别与页头的位置都不变；再点入口、Esc、点别处都收起。登出是当前那一行右侧的小图标。
-    // 2026-10-09：列表从缝的侧面弹出到墙上（挂在 stage 根节点上，不在缝里）。
-    const accountList = (page: Page) => stage(page).locator('[data-bravais-account-list]');
+    // 账户入口贴在工具格正上方；点它打开共用的登录窗口（src/components/login/loginWindowStore.ts）。窗口本身挂在
+    // App 最外层（LoginHost），探针页没有挂它，所以读窗口的开关：开没开、开在哪个平台上。
     const headSnapshot = (page: Page) => root(page).evaluate(element => ({
         fit: element.getAttribute('data-bravais-home-fit'),
         tabs: [...element.querySelectorAll<HTMLElement>('[data-bravais-tab]')].map(tab => {
@@ -944,42 +818,12 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
             return [tab.textContent, Math.round(rect.top), Math.round(rect.height)];
         }),
     }));
-    type ListFrame = { scale: number; opacity: number };
-    /** 点开之前装一个逐帧记录：列表每一帧的 transform 缩放与不透明度。 */
-    const watchListFrames = (page: Page) => page.evaluate(() => {
-        const frames: { scale: number; opacity: number }[] = [];
-        (window as Window & { __accountFrames?: typeof frames }).__accountFrames = frames;
-        const started = performance.now();
-        const tick = () => {
-            const list = document.querySelector<HTMLElement>('[data-bravais-account-list]');
-            if (list) {
-                const style = getComputedStyle(list);
-                const matrix = new DOMMatrixReadOnly(style.transform === 'none' ? undefined : style.transform);
-                frames.push({ scale: Math.hypot(matrix.a, matrix.b), opacity: Number(style.opacity) });
-            }
-            if (performance.now() - started < 1500) requestAnimationFrame(tick);
-        };
-        requestAnimationFrame(tick);
+    const loginWindow = (page: Page) => page.evaluate(async () => {
+        const modulePath = '/src/components/login/loginWindowStore.ts';
+        const { useLoginWindowStore } = await import(/* @vite-ignore */ modulePath);
+        const { isOpen, providerId } = useLoginWindowStore.getState();
+        return { isOpen, providerId };
     });
-    const listFrames = (page: Page) => page.evaluate(() => (window as Window & { __accountFrames?: ListFrame[] }).__accountFrames ?? []);
-
-    /** 列表在缝的侧面（墙上，与缝不重叠）、底边与入口底边对齐、往上长、不出 stage 顶端（等弹出动画放完再量）。 */
-    const expectListAbove = async (page: Page) => {
-        await expect.poll(async () => {
-            const frames = await listFrames(page);
-            const last = frames.at(-1);
-            return last ? Math.abs(last.scale - 1) < 0.001 && last.opacity > 0.999 : false;
-        }).toBe(true);
-        const toggle = (await seam(page).locator('[data-bravais-account-slot] [data-bravais-account-toggle]').boundingBox())!;
-        const seamBox = (await seam(page).boundingBox())!;
-        const stageBox = (await stage(page).boundingBox())!;
-        const list = (await accountList(page).boundingBox())!;
-        const side = await accountList(page).getAttribute('data-bravais-account-list-side');
-        if (side === 'right') expect(list.x).toBeGreaterThanOrEqual(seamBox.x + seamBox.width - 0.5);
-        else expect(list.x + list.width).toBeLessThanOrEqual(seamBox.x + 0.5);
-        expect(Math.abs((list.y + list.height) - (toggle.y + toggle.height))).toBeLessThanOrEqual(1);
-        expect(list.y).toBeGreaterThanOrEqual(stageBox.y - 0.5);
-    };
 
     test('typing on the home spine opens the narrow seam for the page filter and folds back once the input ends', async ({ page }) => {
         await resize(page, 900, 820);
@@ -1005,102 +849,31 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
         await expect(seam(page).locator('[data-bravais-seam-action="filter"]')).toHaveCount(0);
     });
 
-    test('the account entry sits right above the tools and its list pops out sideways onto the wall without changing the tab fit', async ({ page }) => {
+    test('the account entry sits right above the tools and opens the login window on the current platform without changing the tab fit', async ({ page }) => {
         const layout = await expectTidy(page);
         expect(layout.account).not.toBeNull();
         const before = await headSnapshot(page);
         expect(before.fit).toBe('titled');
+        expect(await loginWindow(page)).toEqual({ isOpen: false, providerId: null });
 
-        await watchListFrames(page);
         await seam(page).locator('[data-bravais-account-toggle="strip"]').click();
-        await expect(seam(page).locator('[data-bravais-account-slot] [data-bravais-account]')).toHaveAttribute('data-bravais-account', 'panel');
-        await expect(accountList(page)).toBeVisible();
-        await expectListAbove(page);
-        // 弹出：开头几帧缩小、半透明，最后落到原尺寸。
-        const frames = await listFrames(page);
-        expect(frames.some(frame => frame.scale < 0.97)).toBe(true);
-        expect(frames.some(frame => frame.opacity < 0.9)).toBe(true);
-        // 列表开着：页签的级别、位置、尺寸都没变。
+        await expect.poll(() => loginWindow(page)).toEqual({ isOpen: true, providerId: PROBE_PROVIDER_A });
         expect(await headSnapshot(page)).toEqual(before);
         await expectTidy(page);
-
-        // 登出是当前那一行右侧的图标按钮（可访问名是登出文案），行本身仍是选平台的 menuitemradio。
-        const current = accountList(page).locator(`[data-bravais-account-provider="${PROBE_PROVIDER_A}"]`);
-        const logout = current.getByRole('button', { name: 'Logout', exact: true });
-        await expect(logout).toHaveCount(1);
-        await expect(logout).toHaveText('');
-        await expect(logout).toHaveAttribute('title', 'Logout');
-        const rowBox = (await current.getByRole('menuitemradio').boundingBox())!;
-        const logoutBox = (await logout.boundingBox())!;
-        expect(logoutBox.x).toBeGreaterThanOrEqual(rowBox.x + rowBox.width - 0.5);
-        expect(Math.abs((logoutBox.y + logoutBox.height / 2) - (rowBox.y + rowBox.height / 2))).toBeLessThanOrEqual(4);
-        await expect(accountList(page).locator('[data-bravais-account-logout]')).toHaveCount(1);
-
-        // 再点入口收起；Esc 收起；点别处收起。
-        await seam(page).locator('[data-bravais-account-toggle="strip"]').click();
-        await expect(accountList(page)).toHaveCount(0);
-        await seam(page).locator('[data-bravais-account-toggle="strip"]').click();
-        await expect(accountList(page)).toBeVisible();
-        await page.keyboard.press('Escape');
-        await expect(accountList(page)).toHaveCount(0);
-        await seam(page).locator('[data-bravais-account-toggle="strip"]').click();
-        await expect(accountList(page)).toBeVisible();
-        const title = (await root(page).locator('[data-bravais-home-title]').boundingBox())!;
-        await page.mouse.click(title.x + title.width / 2, title.y + title.height / 2);
-        await expect(accountList(page)).toHaveCount(0);
-        expect(await headSnapshot(page)).toEqual(before);
     });
 
-    test('at a short height the open list scrolls inside itself and the one-letter tabs stay as they were', async ({ page }) => {
-        await resize(page, 520);
-        await expect(root(page)).toHaveAttribute('data-bravais-home-fit', 'short');
-        await expectTidy(page);
-        const before = await headSnapshot(page);
-        await watchListFrames(page);
-        await seam(page).locator('[data-bravais-account-toggle="strip"]').click();
-        await expect(accountList(page)).toBeVisible();
-        await expectListAbove(page);
-        expect(await headSnapshot(page)).toEqual(before);
-        // 每一行都还够得着（列表在里面滚）。
-        const rows = accountList(page).locator('[data-bravais-account-provider]');
-        await rows.last().scrollIntoViewIfNeeded();
-        await expect(rows.last()).toBeInViewport();
-    });
-
-    test('with reduced motion the list only fades in', async ({ page }) => {
-        await page.evaluate(async () => {
-            const modulePath = '/src/stores/useMotionSettingsStore.ts';
-            const { useMotionSettingsStore } = await import(/* @vite-ignore */ modulePath);
-            useMotionSettingsStore.getState().handleToggleReducedMotionSurface('uiMicroMotion', true);
-        });
-        await watchListFrames(page);
-        await seam(page).locator('[data-bravais-account-toggle="strip"]').click();
-        await expect(accountList(page)).toBeVisible();
-        await expectListAbove(page);
-        const frames = await listFrames(page);
-        expect(frames.length).toBeGreaterThan(0);
-        expect(frames.every(frame => Math.abs(frame.scale - 1) < 0.001)).toBe(true);
-    });
-
-    test('on the spine the account icon sits above the tools and opens the narrow seam with the list popped out sideways', async ({ page }) => {
+    test('on the spine the account icon sits above the tools and opens the login window', async ({ page }) => {
         await resize(page, 900, 820);
         await expect(seam(page)).toHaveAttribute('data-bravais-seam', 'home-spine');
         const layout = await expectTidy(page, 64);
         expect(layout.account).not.toBeNull();
         await expect(seam(page).locator('[data-bravais-account-slot] [data-bravais-account-toggle="compact"]')).toBeVisible();
 
-        await watchListFrames(page);
         await seam(page).locator('[data-bravais-account-toggle="compact"]').click();
-        await expect(seam(page)).toHaveAttribute('data-bravais-seam', 'home');
-        await expect.poll(async () => Math.round((await seam(page).boundingBox())?.width ?? 0)).toBe(120);
-        await expect(accountList(page)).toBeVisible();
-        await expectListAbove(page);
-        await page.keyboard.press('Escape');
-        await expect(accountList(page)).toHaveCount(0);
-        await expect(seam(page)).toHaveAttribute('data-bravais-seam', 'home');
+        await expect.poll(() => loginWindow(page)).toEqual({ isOpen: true, providerId: PROBE_PROVIDER_A });
     });
-    // fb8（用户实测）：「⋯」菜单盖住后面的账户入口（不透明底，层级在账户位之上）；菜单与平台列表互斥。
-    test('the more menu is opaque and covers the account entry; it and the account list never stay open together', async ({ page }) => {
+    // fb8（用户实测）：「⋯」菜单盖住后面的账户入口（不透明底，层级在账户位之上）。
+    test('the more menu is opaque and covers the account entry', async ({ page }) => {
         await expectTidy(page);
         const toggle = seam(page).locator('[data-bravais-account-toggle="strip"]');
         const more = seam(page).locator('.bravais-seam-tools [data-bravais-seam-action="more"]');
@@ -1127,26 +900,6 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
         const heights = await menu.locator('button').evaluateAll(buttons => buttons.map(button => button.getBoundingClientRect().height));
         expect(Math.max(...heights) - Math.min(...heights)).toBeLessThanOrEqual(1);
 
-        // 菜单开着时用键盘打开平台列表：菜单收起。
-        await toggle.focus();
-        await page.keyboard.press('Enter');
-        await expect(accountList(page)).toBeVisible();
-        await expect(menu).toHaveCount(0);
-        await expect(more).toHaveAttribute('aria-expanded', 'false');
-        // 反过来：列表开着时用键盘打开菜单，列表收起。
-        await more.focus();
-        await page.keyboard.press('Enter');
-        await expect(menu).toBeVisible();
-        await expect(accountList(page)).toHaveCount(0);
-        await expect(toggle).toHaveAttribute('aria-expanded', 'false');
-        // 鼠标同样：点入口（先点别处收起菜单）开列表，再点「⋯」开菜单，列表收起。
-        await page.keyboard.press('Escape');
-        await expect(menu).toHaveCount(0);
-        await toggle.click();
-        await expect(accountList(page)).toBeVisible();
-        await more.click();
-        await expect(menu).toBeVisible();
-        await expect(accountList(page)).toHaveCount(0);
     });
 
     // fb8：入口是 grid 切换器的样子——头像 / 平台徽章 + 名字，不写账户状态（状态在可访问名与 title 里）。
@@ -1172,18 +925,6 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
         await expect.poll(() => image.evaluate(node => (node as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
         await expect(toggle.locator('[data-bravais-account-avatar="badge"]')).toHaveCount(0);
         await expect(toggle.locator('.is-name')).toHaveText(nickname);
-
-        // 列表的行：头像 / 徽章 + 平台名，当前已登录那一行下面是昵称；状态与「切换至 X」在可访问名里。
-        await toggle.click();
-        await expect(accountList(page)).toBeVisible();
-        const current = accountList(page).locator(`[data-bravais-account-provider="${PROBE_PROVIDER_A}"] [role="menuitemradio"]`);
-        await expect(current.locator('img[data-bravais-account-avatar="image"]')).toBeVisible();
-        await expect(current.locator('.is-name')).toHaveText(PROBE_PROVIDER_A);
-        await expect(current.locator('.is-note')).toHaveText(nickname);
-        const other = accountList(page).locator(`[data-bravais-account-provider="${PROBE_PROVIDER_B}"] [role="menuitemradio"]`);
-        await expect(other.locator('[data-bravais-account-avatar="badge"]')).toBeVisible();
-        await expect(other).toHaveAccessibleName(new RegExp(`^${PROBE_PROVIDER_B} · ${homeUserName(PROBE_PROVIDER_B)} · Switch to `));
-        await expect(accountList(page).getByText('Not signed in', { exact: true })).toHaveCount(0);
     });
 
     test('the collection more menu is opaque too', async ({ page }) => {

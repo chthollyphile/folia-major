@@ -1,6 +1,6 @@
-import type { LibrarySuiteId } from '../core/contracts/suite';
-import { flushLibrarySession } from '../core/state/useLibraryBrowseSessionStore';
-import { useLibrarySuiteStore } from '../core/state/useLibrarySuiteStore';
+import type { LibrarySuiteId } from '../core/suite/suite.contract';
+import { flushLibrarySession } from '../core/shared/useLibraryBrowseSessionStore';
+import { useLibrarySuiteStore } from '../core/suite/useLibrarySuiteStore';
 import { hasLibrarySuite, listLibrarySuites, resolveActiveLibrarySuiteId } from '../registry';
 
 // src/library/app/switchLibrarySuite.ts

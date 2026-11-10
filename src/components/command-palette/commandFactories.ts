@@ -1,13 +1,13 @@
-import type { HomeViewTab, ReplayGainMode, VisualizerMode } from '../../types';
+import type { HomeViewTab, ReplayGainMode, VisualizerBackgroundMode, VisualizerMode } from '../../types';
 import type { AppLanguagePreference } from '../../i18n/config';
 import type { PanelTab } from '../UnifiedPanel';
 import type { AudioEqualizerModeId } from '../../utils/audioEqualizer';
 import type { GridSurfaceActionId } from '../../types/gridCommandSurface';
-import type { LibraryDirectorySurfaceActionId } from '../../library/core/contracts/directory';
-import { useLibraryHomeSurfaceStore } from '../../library/core/state/useLibraryHomeSurfaceStore';
-import type { LibraryArtistSurfaceActionId } from '../../library/core/contracts/artist';
-import type { LibrarySuiteChromeActionMeta } from '../../library/core/contracts/suiteChrome';
-import { libraryChromeCommandId } from '../../library/core/model/suiteChrome';
+import type { LibraryDirectorySurfaceActionId } from '../../library/core/directory/directory.contract';
+import { useLibraryHomeSurfaceStore } from '../../library/core/home/useLibraryHomeSurfaceStore';
+import type { LibraryArtistSurfaceActionId } from '../../library/core/artist/artist.contract';
+import type { LibrarySuiteChromeActionMeta } from '../../library/core/suite/suiteChrome.contract';
+import { libraryChromeCommandId } from '../../library/core/suite/suiteChrome';
 import { settingsAnchorSubview, type SettingsAnchorId } from '../modal/settings/navigation/settingsAnchorModel';
 import type { CommandPaletteCommand, CommandPaletteContext, CommandPaletteGroup } from './types';
 
@@ -26,7 +26,7 @@ export const createToggleCommand = (
     description: string,
     keywords: string[],
     run: (context: CommandPaletteContext) => void,
-    options: Pick<CommandPaletteCommand, 'platform' | 'isAvailable' | 'icon' | 'openHotkey' | 'executeShortcut'> = {},
+    options: Pick<CommandPaletteCommand, 'platform' | 'isAvailable' | 'icon' | 'openHotkey' | 'executeShortcut' | 'capsuleAction'> = {},
 ): CommandPaletteCommand => defineCommand({
     id,
     group,
@@ -313,6 +313,23 @@ export const createVisualizerCommand = (
     keywords,
     execute: (_input, context) => {
         context.visualizer.setVisualizerMode(mode);
+        return true;
+    },
+});
+
+export const createBackgroundCommand = (
+    mode: VisualizerBackgroundMode,
+    title: string,
+    description: string,
+    keywords: string[]
+): CommandPaletteCommand => ({
+    id: `background-${mode}`,
+    group: 'visualizer',
+    title,
+    description,
+    keywords,
+    execute: (_input, context) => {
+        context.visualizer.setVisualizerBackgroundMode(mode);
         return true;
     },
 });

@@ -7,16 +7,18 @@ import {
     type LibraryWallLook,
 } from '../../../utils/libraryWallLook';
 import { LIBRARY_WALL_SEAM_STYLES, type LibraryWallSeamStyle } from '../../../utils/libraryWallSeamStyle';
+import { LIBRARY_WALL_SEAM_DIRECTIONS, type LibraryWallSeamDirection } from '../../../utils/libraryWallSeamDirection';
 
 // src/components/command-palette/surfaces/libraryWallLookSurface.ts
-// bravais 墙面的三个 picker：透光档位（实色 / 部分透明 / 全透明）、部分透明时的每块窗数（1–6）、信息条实色模式的预设
-// （主题纸色 / 印刷 / 磨砂 / 图案）。输入框筛选，方向键移动，
+// bravais 墙面的四个 picker：透光档位（实色 / 部分透明 / 全透明）、部分透明时的每块窗数（1–6）、信息条实色模式的预设
+// （主题纸色 / 印刷 / 磨砂 / 图案）、信息条的方向（自动 / 自动（反向）/ 竖向 / 横向）。输入框筛选，方向键移动，
 // Enter 或点击生效。当前值与 setter 都来自 settings 命名空间（useLibraryWallLookStore 经 context 透出），
 // 这里不 import store 或 registry，命令注册表保持纯 TS。两个 picker 共用一个列表视图。
 
 const LOOK_PICK_PREFIX = 'library-wall-look-pick-';
 const WINDOWS_PICK_PREFIX = 'library-wall-windows-pick-';
 const SEAM_STYLE_PICK_PREFIX = 'library-wall-seam-style-pick-';
+const SEAM_DIRECTION_PICK_PREFIX = 'library-wall-seam-direction-pick-';
 
 type Translate = CommandPaletteContext['shared']['t'];
 
@@ -42,6 +44,7 @@ export const readLibraryWallPick = (commandId: string): string => {
     if (commandId.startsWith(LOOK_PICK_PREFIX)) return commandId.slice(LOOK_PICK_PREFIX.length);
     if (commandId.startsWith(WINDOWS_PICK_PREFIX)) return commandId.slice(WINDOWS_PICK_PREFIX.length);
     if (commandId.startsWith(SEAM_STYLE_PICK_PREFIX)) return commandId.slice(SEAM_STYLE_PICK_PREFIX.length);
+    if (commandId.startsWith(SEAM_DIRECTION_PICK_PREFIX)) return commandId.slice(SEAM_DIRECTION_PICK_PREFIX.length);
     return '';
 };
 
@@ -67,6 +70,28 @@ const SEAM_STYLE_TEXT: Record<LibraryWallSeamStyle, { label: [string, string]; d
 };
 
 export const libraryWallSeamStyleLabel = (style: LibraryWallSeamStyle, t: Translate): string => t(...SEAM_STYLE_TEXT[style].label);
+
+// 与设置分区同一组文案键（utils/libraryWallSeamDirection 的 LIBRARY_WALL_SEAM_DIRECTION_TEXT），这里带上英文兜底。
+const SEAM_DIRECTION_TEXT: Record<LibraryWallSeamDirection, { label: [string, string]; description: [string, string] }> = {
+    auto: {
+        label: ['options.bravaisSeamDirectionAuto', 'Automatic'],
+        description: ['options.bravaisSeamDirectionAutoDesc', 'A row on tall screens, a column on wide ones.'],
+    },
+    'auto-reverse': {
+        label: ['options.bravaisSeamDirectionAutoReverse', 'Automatic (reversed)'],
+        description: ['options.bravaisSeamDirectionAutoReverseDesc', 'A column on tall screens, a row on wide ones.'],
+    },
+    vertical: {
+        label: ['options.bravaisSeamDirectionVertical', 'Vertical'],
+        description: ['options.bravaisSeamDirectionVerticalDesc', 'Opens between two block columns; the wall parts left and right.'],
+    },
+    horizontal: {
+        label: ['options.bravaisSeamDirectionHorizontal', 'Horizontal'],
+        description: ['options.bravaisSeamDirectionHorizontalDesc', 'Opens between two block rows; the wall parts top and bottom.'],
+    },
+};
+
+export const libraryWallSeamDirectionLabel = (direction: LibraryWallSeamDirection, t: Translate): string => t(...SEAM_DIRECTION_TEXT[direction].label);
 
 const activeText = (t: Translate) => t('commandPalette.libraryWallPicker.active', 'In use');
 
@@ -184,6 +209,23 @@ const buildSeamStyleMatches = (context: CommandPaletteContext, query: string): C
     return buildRowMatches(SEAM_STYLE_PICK_PREFIX, rows, query);
 };
 
+const buildSeamDirectionMatches = (context: CommandPaletteContext, query: string): CommandPaletteMatch[] => {
+    const { t } = context.shared;
+    const current = context.settings.libraryWallSeamDirection();
+    const rows = LIBRARY_WALL_SEAM_DIRECTIONS.map((direction): PickerRow => {
+        const title = libraryWallSeamDirectionLabel(direction, t);
+        const description = t(...SEAM_DIRECTION_TEXT[direction].description);
+        return {
+            value: direction,
+            title,
+            description: direction === current ? `${activeText(t)} · ${description}` : description,
+            matchQuery: normalizedQuery => firstIndexIn([title, direction], normalizedQuery),
+            apply: next => next.settings.setLibraryWallSeamDirection(direction),
+        };
+    });
+    return buildRowMatches(SEAM_DIRECTION_PICK_PREFIX, rows, query);
+};
+
 const sharedProps = ({ matches, activeIndex, setActiveIndex, executeMatch, isDaylight, theme, isExecuting }: Parameters<NonNullable<CommandPaletteSurface['mapProps']>>[0]) => ({
     matches,
     activeIndex,
@@ -227,5 +269,17 @@ export const libraryWallSeamStylePickerSurface: CommandPaletteSurface = {
         headerTitle: args.context.shared.t('commandPalette.commands.library-wall-seam-style-picker.title', 'Pick info strip style'),
         selectedValue: args.context.settings.libraryWallSeamStyle(),
         selectedLabel: libraryWallSeamStyleLabel(args.context.settings.libraryWallSeamStyle(), args.context.shared.t),
+    }),
+};
+
+export const libraryWallSeamDirectionPickerSurface: CommandPaletteSurface = {
+    load: () => import('./LibraryWallPickerSurfaceView'),
+    useLiveQuery: true,
+    buildMatches: ({ context, query }) => buildSeamDirectionMatches(context, query),
+    mapProps: args => ({
+        ...sharedProps(args),
+        headerTitle: args.context.shared.t('commandPalette.commands.library-wall-seam-direction-picker.title', 'Pick info strip direction'),
+        selectedValue: args.context.settings.libraryWallSeamDirection(),
+        selectedLabel: libraryWallSeamDirectionLabel(args.context.settings.libraryWallSeamDirection(), args.context.shared.t),
     }),
 };

@@ -4,7 +4,8 @@ import { describe, expect, it, vi } from 'vitest';
 // test/unit/electron/qqBackend.test.ts
 // QQ 后端：拉起步骤、打包缺包时的 unavailable、以及挂在包内部的诊断钩子（用假的包文件，不加载真包）。
 
-const { createQqBackend, installQqLoginHooks } = require('../../../electron/qqBackend.cjs') as {
+const { createQqBackend, describeFailureError, installQqLoginHooks } = require('../../../electron/qq/qqBackend.cjs') as {
+    describeFailureError: (error: unknown) => { stack?: string[] };
     createQqBackend: (options: Record<string, unknown>) => {
         start: () => Promise<void>;
         stop: () => Promise<void>;
@@ -120,6 +121,23 @@ describe('QQ login hooks', () => {
     });
 });
 
+describe('QQ failure stack', () => {
+    it('keeps only the part of each frame inside the package, so no user folder is stored', () => {
+        const error = new Error('failed');
+        error.stack = [
+            'Error: failed',
+            '    at QrLoginService.failSession (C:\\Users\\Jane Doe\\AppData\\Local\\Programs\\folia\\resources\\app.asar\\node_modules\\@yakult-green-tea\\qq-music-api\\dist\\src\\qrLogin.node.js:185:23)',
+            '    at C:\\Users\\Jane Doe\\AppData\\Local\\Programs\\folia\\resources\\app.asar\\electron\\qq\\qqBackend.cjs:80:9',
+            '    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)',
+        ].join('\n');
+        expect(describeFailureError(error).stack).toEqual([
+            'at QrLoginService.failSession (@yakult-green-tea/qq-music-api/dist/src/qrLogin.node.js:185:23)',
+            'at electron/qq/qqBackend.cjs:80:9',
+            'at process.processTicksAndRejections (node:internal/process/task_queues:105:5)',
+        ]);
+    });
+});
+
 describe('QQ backend lifecycle', () => {
     const quietLogger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
 
@@ -156,6 +174,35 @@ describe('QQ backend lifecycle', () => {
 
         await backend.stop();
         expect(close).toHaveBeenCalledOnce();
+    });
+
+    it('tells the renderer when the encrypted sign-in store could not be read at start', async () => {
+        const fake = createFakePackage();
+        const { createQqAuthSessionRepository } = require('../../../electron/qq/qqAuthSessionRepository.cjs');
+        const authSessionRepository = createQqAuthSessionRepository({
+            store: { get: () => 'ciphertext', set: vi.fn(), delete: vi.fn() },
+            safeStorage: { isEncryptionAvailable: () => false },
+        });
+        // 包加载时就读仓库，读不出只记一行日志（sessionState.js restore），照常监听。
+        const startServer = vi.fn(async ({ authSessionRepository: repository }: { authSessionRepository: { load: () => unknown } }) => {
+            try { repository.load(); } catch { /* the package logs qq-auth.auth-session.load-failed */ }
+            return { close: vi.fn() };
+        });
+        const backend = createQqBackend({
+            broadcast: vi.fn(),
+            authSessionRepository,
+            logger: quietLogger,
+            resolvePackageRoot: () => PACKAGE_ROOT,
+            startServer,
+            loadFile: fake.loadFile,
+        });
+
+        await backend.start();
+
+        expect(backend.getStatus()).toMatchObject({ status: 'running', sessionStoreUnreadable: true });
+        // 这次运行里扫码登录：仓库把读不出的那份删掉，之后问到的状态就是读得出。
+        try { authSessionRepository.save([{ token: 'this-run' }]); } catch { /* the package logs qq-auth.auth-session.save-failed */ }
+        expect(backend.getStatus()).toMatchObject({ status: 'running', sessionStoreUnreadable: false });
     });
 
     it('names the failed step in the status error', async () => {

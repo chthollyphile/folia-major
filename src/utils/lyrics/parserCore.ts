@@ -1,6 +1,7 @@
 import { LyricData, Line, Word } from '../../types';
 import type { TimedLyricFormat } from './formatDetection';
 import { annotateLyricLines } from './renderHints';
+import { buildTimedWords, estimateLrcLineEndTime } from './estimatedLineTiming';
 import type { LyricProcessingOptions } from './types';
 import { TTMLParser } from '@applemusic-like-lyrics/ttml';
 import { DOMParser } from '@xmldom/xmldom';
@@ -43,10 +44,11 @@ interface ParsedTimedEntriesResult {
     isSorted: boolean;
 }
 
-const GLOBAL_LRC_TIME_REGEX = /\[(\d{2}):(\d{2})[.:](\d{2,3})\]/g;
-const GLOBAL_ANGLE_TIME_REGEX = /<(\d{2}):(\d{2})[.:](\d{2,3})>/g;
-const LRC_LINE_TIME_REGEX = /^\[(\d{2}):(\d{2})[.:](\d{2,3})\]/;
-const LEADING_LRC_TAGS_REGEX = /^((?:\[(?:\d{2}):(?:\d{2})[.:](?:\d{2,3})\])+)(.*)$/;
+// Minutes have two digits, or three in a track of a hundred minutes and more.
+const GLOBAL_LRC_TIME_REGEX = /\[(\d{2,3}):(\d{2})[.:](\d{2,3})\]/g;
+const GLOBAL_ANGLE_TIME_REGEX = /<(\d{2,3}):(\d{2})[.:](\d{2,3})>/g;
+const LRC_LINE_TIME_REGEX = /^\[(\d{2,3}):(\d{2})[.:](\d{2,3})\]/;
+const LEADING_LRC_TAGS_REGEX = /^((?:\[(?:\d{2,3}):(?:\d{2})[.:](?:\d{2,3})\])+)(.*)$/;
 const LRC_METADATA_REGEX = /^\[(ti|ar):([^\]]*)\]$/i;
 // Mirrors LX Music's own `timeExp` (lrc-file-parser): 1..3 colon-separated fields plus a fraction,
 // so `[ss.ms]`, `[mm:ss.ms]` and `[hh:mm:ss.ms]` all parse.
@@ -54,67 +56,6 @@ const AWLRC_LINE_REGEX = /^\[(\d{1,3}(?::\d{1,3}){0,2})\.(\d{1,3})\](.*)$/;
 // LX normalises KRC's three-field syllable tag down to two fields, but accept the original as well.
 const AWLRC_WORD_REGEX = /<(\d+),(\d+)(?:,\d+)?>([^<]*)/g;
 export const INTERLUDE_FULL_TEXT = '......';
-
-const buildTimedWords = (text: string, startTime: number, endTime: number): Word[] => {
-    const duration = Math.max(endTime - startTime, 0.1);
-    const rawTokens = text.split(/\s+/).filter(token => token);
-    const words: Word[] = [];
-    const tokens: Array<{ text: string; weight: number }> = [];
-    let totalWeight = 0;
-
-    for (const token of rawTokens) {
-        if (/[\u4e00-\u9fa5\u3040-\u30ff\uac00-\ud7af]/.test(token)) {
-            token.split('').forEach(char => {
-                const isPunctuation = /[，。！？、：；"'）]/.test(char);
-                const weight = isPunctuation ? 0 : 1;
-                tokens.push({ text: char, weight });
-                totalWeight += weight;
-            });
-        } else {
-            const weight = 1 + (token.length * 0.15);
-            tokens.push({ text: token, weight });
-            totalWeight += weight;
-        }
-    }
-
-    if (totalWeight === 0) {
-        totalWeight = 1;
-    }
-
-    const activeDuration = duration * 0.9;
-    const timePerWeight = activeDuration / totalWeight;
-    let currentWordStart = startTime;
-
-    tokens.forEach(token => {
-        const wordDuration = token.weight * timePerWeight;
-        const finalDuration = Math.max(wordDuration, 0.05);
-
-        words.push({
-            text: token.text,
-            startTime: currentWordStart,
-            endTime: currentWordStart + finalDuration
-        });
-
-        if (token.weight > 0) {
-            currentWordStart += wordDuration;
-        } else {
-            currentWordStart += 0.05;
-        }
-    });
-
-    if (words.length > 0) {
-        const lastWord = words[words.length - 1];
-        if (lastWord.endTime > endTime) {
-            const scale = (endTime - startTime) / (lastWord.endTime - startTime);
-            words.forEach(word => {
-                word.startTime = startTime + ((word.startTime - startTime) * scale);
-                word.endTime = startTime + ((word.endTime - startTime) * scale);
-            });
-        }
-    }
-
-    return words;
-};
 
 export const isInterludeLine = (line: Pick<Line, 'fullText'>): boolean => line.fullText === INTERLUDE_FULL_TEXT;
 
@@ -466,13 +407,7 @@ export const parseLRC = (
         const next = sortedRawEntries[index + 1];
         const translation = translations[index];
 
-        let duration = next ? next.startTime - current.startTime : 5;
-        const estimatedReadingTime = current.text.length * 0.5;
-        if (duration > estimatedReadingTime + 2 && duration > 5) {
-            duration = Math.min(duration, estimatedReadingTime + 2);
-        }
-
-        const endTime = current.startTime + duration;
+        const endTime = estimateLrcLineEndTime(current.text, current.startTime, next?.startTime);
         lines.push({
             words: buildTimedWords(current.text, current.startTime, endTime),
             startTime: current.startTime,
@@ -815,6 +750,42 @@ export const parseVTT = (
     return { lines: finalizeParsedLyricLines(lines, options), isWordByWord: false };
 };
 
+const ITUNES_TTML_NAMESPACE = 'http://music.apple.com/lyric-ttml-internal';
+
+type XmlDomElement = NonNullable<ReturnType<InstanceType<typeof DOMParser>['parseFromString']>['documentElement']>;
+
+const getLocalName = (node: { localName?: string | null; nodeName: string; }): string =>
+    node.localName || node.nodeName.split(':').pop() || '';
+
+// The AMLL parser silently drops every <p> without an `itunes:key`. AMLL TTML Tool and the store's
+// own lyric TTML always write one, but TTML from other tools (LRC converters and the like) usually does not, and
+// such a file would parse to zero lines. Give unkeyed lines a unique key before AMLL reads them.
+const ensureTtmlLineKeys = (documentElement: XmlDomElement | null): void => {
+    if (!documentElement) return;
+    const lines = Array.from(documentElement.getElementsByTagName('*'))
+        .filter(element => getLocalName(element) === 'p');
+    // Same lookup as AMLL's getAttr: any attribute whose local name is `key`.
+    const readKey = (element: XmlDomElement) => Array.from(element.attributes)
+        .find(attribute => getLocalName(attribute) === 'key')?.value;
+    const usedKeys = new Set(lines.map(readKey).filter((key): key is string => Boolean(key)));
+    let nextIndex = 1;
+    lines.forEach((line) => {
+        if (readKey(line)) return;
+        while (usedKeys.has(`L${nextIndex}`)) nextIndex += 1;
+        const key = `L${nextIndex}`;
+        usedKeys.add(key);
+        line.setAttributeNS(ITUNES_TTML_NAMESPACE, 'itunes:key', key);
+    });
+};
+
+const ttmlDomParser = {
+    parseFromString: (source: string, mimeType: string) => {
+        const document = new DOMParser().parseFromString(source, mimeType as 'application/xml');
+        ensureTtmlLineKeys(document.documentElement);
+        return document;
+    },
+};
+
 export const parseTTML = (
     ttmlString: string,
     _translationString: string = '',
@@ -822,7 +793,7 @@ export const parseTTML = (
     _romanizationString: string = ''
 ): LyricData => {
     const ttmlResult = TTMLParser.parse(ttmlString.replace(/^\uFEFF/, ''), {
-        domParser: new DOMParser(),
+        domParser: ttmlDomParser as unknown as globalThis.DOMParser,
     });
     const parsed = buildLyricDataFromTTMLResult(ttmlResult, buildTimedWords);
     const adapted = {
@@ -830,7 +801,7 @@ export const parseTTML = (
         lines: finalizeParsedLyricLines(parsed.lines, options),
     };
 
-    console.log('[TTML] Adapted lyric data for visualizers:', adapted);
+    console.log('[TTML] Adapted lyric data for visualizers:', { lineCount: adapted.lines.length });
 
     return adapted;
 };

@@ -1,7 +1,7 @@
 import i18n from '@/i18n/config';
 import type { PonderSceneScript, PonderTargetDefinition } from '@/types/ponder';
 import type { FoliumLabel } from './contract';
-import { resolveFoliumLabel } from './params';
+import { resolveFoliumLabel } from '../params/params';
 
 // src/mods/folium/ponderText.ts
 // Text in a mod's Ponder target. The host renders every Ponder string through t(key), and a mod has
@@ -14,7 +14,7 @@ import { resolveFoliumLabel } from './params';
 // (just the frame). The host's own default is the command palette's skeleton, which would put a
 // search bar and command rows inside every panel a mod sketches.
 
-/** A mod's text: literal, or per language (`{ 'zh-CN': '…', en: '…' }`). */
+/** A mod's text: literal, or per language (`{ 'zh-CN': '…', 'zh-TW': '…', en: '…' }`). */
 export type FoliumPonderText = string | FoliumLabel;
 
 type Resources = Record<string, string>;

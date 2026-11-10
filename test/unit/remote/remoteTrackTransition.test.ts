@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
-    mapTrackHandoffProgress,
     resolveStoppedTrackHandoffProgress,
     resolveTransitionClock,
 } from '../../../src/components/remote/remoteTrackTransition';
+import { mapTrackHandoffProgress } from '../../../src/services/automix/handoffProgress';
 
 // test/unit/remote/remoteTrackTransition.test.ts
 // 遥控窗口的进度条提示与内容交接必须共用实际混音 cue。

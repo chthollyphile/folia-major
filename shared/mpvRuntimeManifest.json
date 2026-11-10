@@ -1,0 +1,97 @@
+{
+  "_comment": [
+    "HiFi 后端可以替用户下载的 mpv：mpv-player/mpv 官方 GitHub release 的资产，bytes 和 sha256 来自实际下载。",
+    "electron/hifi/mpvRuntimeInstaller.cjs 按 `<platform>-<arch>` 取构建，装进 userData/hifi-runtime/mpv/<version>/；",
+    "electron/hifi/mpvRuntime.cjs 只认这里列出的版本目录。旧版本留在列表里，已装的旧版本才认得出来。",
+    "Windows 选 msvc 构建：mpv.exe 在 zip 根目录、静态链接 CRT。0.41.0 的 zip 里带 200 多 MB 的 mpv.pdb，解压时跳过；0.42.0 起 pdb 拆成单独的 -pdb.zip，不下。",
+    "macOS 的 zip 里只有一个 mpv.tar.gz（mpv.app 在里面）：先 ditto 解 zip，再用系统 tar 解它。",
+    "macOS 构建的最低系统版本取自 Mach-O 的 LC_BUILD_VERSION（Info.plist 没写）。0.41.0：Apple Silicon 是 macos-14，Intel 只有 macos-15；0.42.0 两个都只有 macos-15 起的构建，macOS 14 的 Apple Silicon 由 mpvRuntime.cjs 的 resolveInstallTarget 退回 0.41.0，所以 0.41.0 的构建不能删。",
+    "官方 0.41.0 构建的 `mpv --version` 打印 `mpv v0.41.0-dev-g41f6a6450`，这是它们 CI 里 git describe 找不到标签时的写法；0.42.0 打印的是干净的 `mpv v0.42.0`。",
+    "列出的版本不能低于 mpvRuntime.cjs 的 MIN_MPV_VERSION（0.39.0）：更旧的 mpv 认不得启动参数，检测会跳过它。",
+    "mirrors 是原址之后依次试的镜像，`{url}` 换成构建的 url：国内直连 GitHub 没响应、卡住或太慢时换到 gh-proxy。镜像是第三方的，给的字节照样按 bytes 和 sha256 核对。",
+    "设置页另给夸克、百度网盘让用户手动下（HifiEngineGroup.tsx 的 MPV_DRIVE_LINKS，文件在「原生音频组件」文件夹）：换推荐版本时那里的 zip 也要换；macOS 14 的 Apple Silicon 退回的那个旧版本（现在是 0.41.0 的 macos-14-arm）也要留在那里。"
+  ],
+  "schema": 1,
+  "mirrors": [
+    "https://gh-proxy.com/{url}"
+  ],
+  "recommended": "0.42.0",
+  "versions": [
+    {
+      "version": "0.42.0",
+      "releasePage": "https://github.com/mpv-player/mpv/releases/tag/v0.42.0",
+      "builds": {
+        "win32-x64": {
+          "url": "https://github.com/mpv-player/mpv/releases/download/v0.42.0/mpv-v0.42.0-x86_64-pc-windows-msvc.zip",
+          "bytes": 28696222,
+          "sha256": "8dd69cbab079086765fa5d873c09513b2834b85d146c1301718a757e8c0595ef",
+          "archive": "zip",
+          "executable": "mpv.exe"
+        },
+        "win32-arm64": {
+          "url": "https://github.com/mpv-player/mpv/releases/download/v0.42.0/mpv-v0.42.0-aarch64-pc-windows-msvc.zip",
+          "bytes": 26137532,
+          "sha256": "8e7d12a532dea783d891ee97eeee2c3c052be71e5644abad6dffb615396c035d",
+          "archive": "zip",
+          "executable": "mpv.exe"
+        },
+        "darwin-arm64": {
+          "url": "https://github.com/mpv-player/mpv/releases/download/v0.42.0/mpv-v0.42.0-macos-15-arm.zip",
+          "bytes": 48835385,
+          "sha256": "be1b8d2445e6880860869c080b8710dee189721f1fa4689840db6a2c10d7be69",
+          "archive": "zip+tar.gz",
+          "tarball": "mpv.tar.gz",
+          "executable": "mpv.app/Contents/MacOS/mpv",
+          "minOsVersion": "15.0"
+        },
+        "darwin-x64": {
+          "url": "https://github.com/mpv-player/mpv/releases/download/v0.42.0/mpv-v0.42.0-macos-15-intel.zip",
+          "bytes": 53343668,
+          "sha256": "2d2f34350ff844b6014c35f21ca142937275e19c0c673150a8564fcd2f3bfa14",
+          "archive": "zip+tar.gz",
+          "tarball": "mpv.tar.gz",
+          "executable": "mpv.app/Contents/MacOS/mpv",
+          "minOsVersion": "15.0"
+        }
+      }
+    },
+    {
+      "version": "0.41.0",
+      "releasePage": "https://github.com/mpv-player/mpv/releases/tag/v0.41.0",
+      "builds": {
+        "win32-x64": {
+          "url": "https://github.com/mpv-player/mpv/releases/download/v0.41.0/mpv-v0.41.0-x86_64-pc-windows-msvc.zip",
+          "bytes": 77205127,
+          "sha256": "4e197f729f5071c6772f35fffd96e0f36e3e8a044bd9479b136bb09b7c6a80ff",
+          "archive": "zip",
+          "executable": "mpv.exe"
+        },
+        "win32-arm64": {
+          "url": "https://github.com/mpv-player/mpv/releases/download/v0.41.0/mpv-v0.41.0-aarch64-pc-windows-msvc.zip",
+          "bytes": 71498137,
+          "sha256": "a822abeffd0ac88951f4084f3425f949842aa17d616f880637ebe9041e482e97",
+          "archive": "zip",
+          "executable": "mpv.exe"
+        },
+        "darwin-arm64": {
+          "url": "https://github.com/mpv-player/mpv/releases/download/v0.41.0/mpv-v0.41.0-macos-14-arm.zip",
+          "bytes": 43693888,
+          "sha256": "5c96f9b21355fc0a11d2e2161ad65f33031070e9fb3f6bd9865fb459b94587e6",
+          "archive": "zip+tar.gz",
+          "tarball": "mpv.tar.gz",
+          "executable": "mpv.app/Contents/MacOS/mpv",
+          "minOsVersion": "14.0"
+        },
+        "darwin-x64": {
+          "url": "https://github.com/mpv-player/mpv/releases/download/v0.41.0/mpv-v0.41.0-macos-15-intel.zip",
+          "bytes": 49288843,
+          "sha256": "41003617ab4f7784394b5ddea7ce51b3e0838e8cfc8166ad1a378b2eda3b583c",
+          "archive": "zip+tar.gz",
+          "tarball": "mpv.tar.gz",
+          "executable": "mpv.app/Contents/MacOS/mpv",
+          "minOsVersion": "15.0"
+        }
+      }
+    }
+  ]
+}

@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 // test/unit/electron/qqApiStartup.test.ts
 
-const { QQ_API_MODULE, isModuleNotFound, startQqApi } = require('../../../electron/qqApiStartup.cjs') as {
+const { QQ_API_MODULE, isModuleNotFound, startQqApi } = require('../../../electron/qq/qqApiStartup.cjs') as {
     QQ_API_MODULE: string;
     isModuleNotFound: (error: unknown) => boolean;
     startQqApi: (options: Record<string, unknown>) => Promise<{

@@ -1,16 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import type { LibraryDirectoryItem, LibraryDirectoryNode } from '@/library/core/contracts/directory';
-import type { LibraryHomeTabView } from '@/library/core/contracts/homeModel';
-import { resolveDirectoryRows } from '@/library/core/model/directoryTree';
-import { homeCardToDirectoryItem, resolveDirectoryFolderLabel } from '@/library/core/model/directoryItems';
+import type { LibraryDirectoryItem, LibraryDirectoryNode } from '@/library/core/directory/directory.contract';
+import type { LibraryHomeTabView } from '@/library/core/home/homeModel.contract';
+import { resolveDirectoryRows } from '@/library/core/directory/directoryTree';
+import { homeCardToDirectoryItem, resolveDirectoryFolderLabel } from '@/library/core/directory/directoryItems';
 import {
     DIRECTORY_SURFACE_ACTION_SOURCES,
     filterDeclaredDirectorySurfaceActions,
     resolveDirectorySurfaceActions,
-} from '@/library/core/model/directorySurface';
-import { resolveDirectoryBatchCapabilities, resolveDirectoryBatchContext } from '@/library/core/model/directoryBatch';
-import { resolveHomeSourceGroups } from '@/library/core/model/homeSources';
-import { LIBRARY_HOME_ACTION_IDS } from '@/library/core/model/librarySuites';
+} from '@/library/core/directory/directorySurface';
+import { resolveDirectoryBatchCapabilities, resolveDirectoryBatchContext } from '@/library/core/directory/directoryBatch';
+import { resolveHomeSourceGroups } from '@/library/core/home/homeSources';
+import { LIBRARY_HOME_ACTION_IDS } from '@/library/core/suite/librarySuites';
 
 // test/unit/library/core/directoryTree.test.ts
 // P3.4 给列表形态的首页（TUI）补的纯规则：目录的「列表 / 树」行（文件夹树与条目对上，对不上的节点只表达层级，

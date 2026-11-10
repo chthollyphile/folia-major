@@ -1,5 +1,5 @@
-import type { LibraryDirectoryBatchConfig, LibraryHiddenScope } from '../../../src/library/core/contracts/directory';
-import type { LibraryHomeCard } from '../../../src/library/core/contracts/homeModel';
+import type { LibraryDirectoryBatchConfig, LibraryHiddenScope } from '../../../src/library/core/directory/directory.contract';
+import type { LibraryHomeCard } from '../../../src/library/core/home/homeModel.contract';
 import BravaisHomeDirectory from '../../../src/library/suites/bravais/BravaisHomeDirectory';
 import { closeBravaisPanel, openBravaisPanel } from '../../../src/library/suites/bravais/bravaisPanelHistory';
 import { useBravaisUiStore } from '../../../src/library/suites/bravais/bravaisUiStore';

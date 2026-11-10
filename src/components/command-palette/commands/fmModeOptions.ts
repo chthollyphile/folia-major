@@ -1,8 +1,9 @@
 import {
-    PERSONAL_FM_MODES,
-    PERSONAL_FM_SCENES,
+    DEFAULT_PERSONAL_FM_CATALOG,
+    personalFmEntryLabel,
     type PersonalFmSelection,
 } from '../../../services/onlineMusic/fmModes';
+import { defineCommand } from '../commandFactories';
 import type { CommandPaletteCommand, CommandPaletteContext, CommandPaletteMatch } from '../types';
 
 // src/components/command-palette/commands/fmModeOptions.ts
@@ -41,22 +42,23 @@ type PersonalFmOption = {
 
 const buildOptions = (context: CommandPaletteContext): PersonalFmOption[] => {
     const t = context.shared.t;
+    const catalog = context.playback.personalFmCatalog ?? DEFAULT_PERSONAL_FM_CATALOG;
     return [
-        ...PERSONAL_FM_MODES.map(entry => ({
+        ...catalog.modes.map(entry => ({
             id: `${MODE_ID_PREFIX}${entry.id}`,
-            label: t(entry.labelKey, entry.labelFallback),
+            label: personalFmEntryLabel(entry, t),
             matchId: entry.id,
             keywords: entry.keywords,
             // Picking SCENE_RCMD from the mode row keeps the scene already in effect, so the row
             // acts as a label for the scene below it rather than a dead end.
             selection: entry.id === 'SCENE_RCMD'
-                ? { mode: 'SCENE_RCMD' as const, scene: context.playback.personalFmSelection.scene }
+                ? { mode: 'SCENE_RCMD' as const, scene: context.playback.personalFmSelection.scene ?? catalog.scenes[0]?.id ?? null }
                 : { mode: entry.id, scene: null },
         })),
         // A scene carries its mode with it: clicking one selects SCENE_RCMD in the same step.
-        ...PERSONAL_FM_SCENES.map(entry => ({
+        ...catalog.scenes.map(entry => ({
             id: `${SCENE_ID_PREFIX}${entry.id}`,
-            label: t(entry.labelKey, entry.labelFallback),
+            label: personalFmEntryLabel(entry, t),
             matchId: entry.id,
             keywords: entry.keywords,
             selection: { mode: 'SCENE_RCMD' as const, scene: entry.id },
@@ -64,7 +66,7 @@ const buildOptions = (context: CommandPaletteContext): PersonalFmOption[] => {
     ];
 };
 
-const toCommand = (option: PersonalFmOption): CommandPaletteCommand => ({
+const toCommand = (option: PersonalFmOption): CommandPaletteCommand => defineCommand({
     id: option.id,
     group: 'playback',
     title: option.label,

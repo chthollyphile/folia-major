@@ -1,5 +1,6 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { SheetButton } from './Sheet';
 import ThemedDialog from './ThemedDialog';
 
 interface TextInputDialogProps {
@@ -36,13 +37,6 @@ const TextInputDialog: React.FC<TextInputDialogProps> = ({
         }
     }, [initialValue, isOpen]);
 
-    const inputClass = isDaylight
-        ? 'bg-black/[0.04] border-black/10 text-zinc-900 placeholder:text-zinc-400'
-        : 'bg-white/[0.06] border-white/10 text-white placeholder:text-white/30';
-    const cancelClass = isDaylight
-        ? 'bg-zinc-100/80 hover:bg-zinc-200 border-zinc-200 text-zinc-700'
-        : 'bg-white/5 hover:bg-white/10 border-white/10 text-white';
-
     const handleConfirm = async () => {
         const trimmedValue = value.trim();
         if (!trimmedValue) {
@@ -67,27 +61,18 @@ const TextInputDialog: React.FC<TextInputDialogProps> = ({
             description={description}
             footer={(
                 <>
-                    <button
-                        type="button"
-                        onClick={onClose}
-                        disabled={isSubmitting}
-                        className={`rounded-full border px-5 py-2.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${cancelClass}`}
-                    >
+                    <SheetButton onClick={onClose} disabled={isSubmitting}>
                         {t('localMusic.cancel')}
-                    </button>
-                    <button
-                        type="button"
-                        onClick={handleConfirm}
-                        disabled={isSubmitting || !value.trim()}
-                        className="rounded-full bg-sky-500 px-5 py-2.5 text-sm font-medium text-white shadow-lg shadow-sky-500/20 transition-colors hover:bg-sky-600 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
+                    </SheetButton>
+                    <SheetButton variant="primary" onClick={handleConfirm} disabled={isSubmitting || !value.trim()}>
                         {confirmLabel || t('localMusic.save')}
-                    </button>
+                    </SheetButton>
                 </>
             )}
         >
             <input
-                autoFocus
+                // The sheet puts focus here when it opens.
+                data-autofocus
                 type="text"
                 value={value}
                 onChange={(event) => setValue(event.target.value)}
@@ -98,7 +83,7 @@ const TextInputDialog: React.FC<TextInputDialogProps> = ({
                     }
                 }}
                 placeholder={placeholder}
-                className={`w-full rounded-2xl border px-4 py-3 text-sm outline-none transition-colors focus:border-sky-400 ${inputClass}`}
+                className="st-t-fast h-9 w-full rounded-lg border border-transparent bg-[var(--st-fill)] px-3 text-[13px] text-[color:var(--st-t1)] outline-none transition-colors placeholder:text-[color:var(--st-t3)] focus:border-[var(--st-accent)]"
             />
         </ThemedDialog>
     );

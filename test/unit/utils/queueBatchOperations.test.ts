@@ -54,6 +54,27 @@ describe('queue batch operations', () => {
         expect(result.affectedCount).toBe(1);
     });
 
+    // Elsewhere the current song is the first entry with its key (queueIndexOf). Here the entry
+    // that is the very object playing wins, and the key only decides when no entry is that object.
+    it('takes the playing object as the current entry when the same song is queued twice', () => {
+        const first = song(1, 'first entry');
+        const second = song(1, 'second entry');
+        const queue = [first, song(2), second, song(3)];
+
+        const removed = applyQueueBatchOperation({ queue, targetIndices: [0, 2], currentSong: second, action: 'remove' });
+        expect(removed.nextQueue).toEqual([queue[1], second, queue[3]]);
+        expect(removed.skippedCurrentCount).toBe(1);
+
+        const movedNext = applyQueueBatchOperation({ queue, targetIndices: [3], currentSong: second, action: 'next' });
+        expect(movedNext.nextQueue).toEqual([first, queue[1], second, queue[3]]);
+        expect(movedNext.changed).toBe(false);
+
+        // A copy of the song that is no entry of the queue: the first entry with its key.
+        const byKey = applyQueueBatchOperation({ queue, targetIndices: [0, 2], currentSong: song(1), action: 'remove' });
+        expect(byKey.nextQueue).toEqual([first, queue[1], queue[3]]);
+        expect(byKey.skippedCurrentCount).toBe(1);
+    });
+
     it('reports no change when only the current song is targeted', () => {
         const queue = [song(1), song(2)];
         const result = applyQueueBatchOperation({

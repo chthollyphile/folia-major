@@ -23,7 +23,7 @@ import type { SongResult, Theme } from '@/types';
 import { PlayerState } from '@/types';
 import { usePlaybackStore } from '@/stores/usePlaybackStore';
 import { currentTime } from '@/stores/motionSignals';
-import { useFoliumHostBridge } from '@/mods/folium/hostBridge';
+import { useFoliumHostBridge } from '@/mods/runtime/hostBridge';
 import { addFoliumEventHandler, removeFoliumEventHandlers } from '@/mods/folium/events';
 
 // test/unit/mod-system/foliumSeekDetection.test.ts

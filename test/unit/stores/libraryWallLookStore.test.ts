@@ -22,6 +22,7 @@ const WINDOWS_KEY = 'library_wall_windows_per_block';
 const STACK_EDGES_KEY = 'library_wall_stack_edges';
 const SEAM_CLEAR_KEY = 'library_wall_seam_clear';
 const SEAM_STYLE_KEY = 'library_wall_seam_style';
+const SEAM_DIRECTION_KEY = 'library_wall_seam_direction';
 const BACKDROP_LYRICS_KEY = 'library_wall_backdrop_lyrics';
 const BACKDROP_BLUR_KEY = 'library_wall_backdrop_blur';
 
@@ -239,5 +240,23 @@ describe('useLibraryWallLookStore', () => {
         expect((await loadStore({ [SEAM_CLEAR_KEY]: 'false' })).getState().seamClear).toBe(false);
         expect((await loadStore({ [SEAM_CLEAR_KEY]: 'false' }, { throwOnGet: true })).getState().seamClear).toBe(true);
         expect((await loadStore({ [BACKDROP_BLUR_KEY]: 'true' }, { throwOnGet: true })).getState().backdropBlur).toBe(false);
+    });
+
+    // 信息条方向：默认自动（按视口形状）；三个取值以外的回默认后再写，读不到也按默认。
+    it('opens the info strip by the screen shape by default and persists a fixed direction', async () => {
+        const store = await loadStore();
+        expect(store.getState().seamDirection).toBe('auto');
+        expect(storage.size).toBe(0);
+
+        store.getState().setSeamDirection('horizontal');
+        expect(storage.get(SEAM_DIRECTION_KEY)).toBe('horizontal');
+        const restarted = await loadStore(Object.fromEntries(storage));
+        expect(restarted.getState().seamDirection).toBe('horizontal');
+
+        restarted.getState().setSeamDirection('sideways' as never);
+        expect(storage.get(SEAM_DIRECTION_KEY)).toBe('auto');
+        expect((await loadStore({ [SEAM_DIRECTION_KEY]: 'Vertical' })).getState().seamDirection).toBe('auto');
+        expect((await loadStore({ [SEAM_DIRECTION_KEY]: 'vertical' })).getState().seamDirection).toBe('vertical');
+        expect((await loadStore({ [SEAM_DIRECTION_KEY]: 'vertical' }, { throwOnGet: true })).getState().seamDirection).toBe('auto');
     });
 });

@@ -22,23 +22,28 @@ import {
 } from '../../components/app/home/gridViewCollectionAdapters';
 import { createLibraryPlaybackPort } from './createLibraryPlaybackPort';
 import { createLibraryMutationPort } from './createLibraryMutationPort';
-import { useCollectionResource } from '../core/bindings/useCollectionResource';
-import { useCollectionMutations } from '../core/bindings/useCollectionMutations';
-import { useArtistResource } from '../core/bindings/useArtistResource';
-import type { LocalLibraryCatalogSnapshot } from '../../hooks/useLocalLibraryCatalog';
+import { useCollectionResource } from '../core/collection/resource/useCollectionResource';
+import { useCollectionMutations } from '../core/collection/mutations/useCollectionMutations';
+import { useArtistResource } from '../core/artist/useArtistResource';
+import type { LibraryLocalCatalogSnapshot } from '../core/home/home.contract';
 import { LocalLibraryEntityPanel } from '../../components/modal/LocalLibraryEntityPanel';
 import { LocalFolderSongInfoPanel } from '../../components/modal/LocalFolderSongInfoPanel';
 import { LocalSongMetadataMatchDialog } from '../../components/modal/LocalSongMetadataMatchDialog';
+import { useScratchpadStore } from '../../stores/useScratchpadStore';
+import LocalCollectionCoverDialog from '../../components/local-collection-cover/LocalCollectionCoverDialog';
+import { resolveLocalCollectionCover } from '../core/collection/cover/localCollectionCover';
+import { useLocalCollectionCoverUrls } from '../core/collection/cover/useLocalCollectionCoverUrls';
 import { followEntityRedirect } from '../../utils/localLibraryIndex';
-import { buildLocalCatalogIndex, resolveLocalCatalogLink } from '../core/model/localCatalogLinks';
+import { buildLocalCatalogIndex, resolveLocalCatalogLink } from '../core/shared/localCatalogLinks';
 import { resolveSongCatalogRef } from '../../services/onlineMusic/catalogRefs';
 import type { HomeSurfaceProps } from '../../components/app/home/homeSurfaceTypes';
 import { useThemeSettingsStore } from '../../stores/useThemeSettingsStore';
+import { useAppViewStore } from '../../stores/useAppViewStore';
 import { countRender } from '../../dev/renderCount';
 import { useLibraryBackdrop } from './useLibraryBackdrop';
-import { useLibrarySuiteStore } from '../core/state/useLibrarySuiteStore';
-import { useLibraryBrowseSessionStore } from '../core/state/useLibraryBrowseSessionStore';
-import type { LibraryNavigationContext, LibrarySurfaceId } from '../core/contracts/suite';
+import { useLibrarySuiteStore } from '../core/suite/useLibrarySuiteStore';
+import { useLibraryBrowseSessionStore } from '../core/shared/useLibraryBrowseSessionStore';
+import type { LibraryNavigationContext, LibrarySurfaceId } from '../core/suite/suite.contract';
 import {
     forgetLibraryLayouts,
     hasLibrarySuiteChoice,
@@ -46,18 +51,18 @@ import {
     resolveLibraryStage,
     resolveLibrarySurface,
 } from '../registry';
-import { resolveLibraryLayerPresentation } from '../core/model/libraryStage';
-import { projectNavigationTrail, resolveCollectionPush } from '../core/model/collectionNavigation';
+import { resolveLibraryLayerPresentation } from '../core/suite/libraryStage';
+import { projectNavigationTrail, resolveCollectionPush } from '../core/collection/collectionNavigation';
 import { LIBRARY_HOME_SESSION_KEY } from './librarySuiteChoice';
 import LibrarySuiteStageSlot from './LibrarySuiteStageSlot';
 
 // src/library/app/GridViewOverlayHost.tsx
 // Hosts the GridView overlay outside Grid3D so it can be opened/restored independently.
 // R3 起集合层与歌手页经 registry 解析：当前选中的 suite 实现了就由它渲染，否则回退默认 suite（grid）。
-// 宿主只交出契约里的输入（core/contracts/suite）；网格专属的转场（移形换影的入场计划、返回时的测量、
+// 宿主只交出契约里的输入（core/suite/suite.contract）；网格专属的转场（移形换影的入场计划、返回时的测量、
 // 常驻的转场层）由网格 entry 的 transitions 提供，宿主不再直接 import 任何 suite。
 // B1 起还挂生效 suite 的常驻舞台（manifest 的 stage，见 LibrarySuiteStageSlot）：当前层归带 stage 的 suite 时
-// 不垫背景板、不藏首页（规则在 core/model/libraryStage）；grid / TUI 没有 stage，行为不变。
+// 不垫背景板、不藏首页（规则在 core/suite/libraryStage）；grid / TUI 没有 stage，行为不变。
 //
 // 返回的语义（P4.5，同一个手势在每套 suite 里含义相同）：
 // - 返回按钮 = 完成（onDone）：清掉这一层的浏览会话，让每套 suite 忘掉这一层的布局记录，再返回；
@@ -105,6 +110,10 @@ type GridViewOverlayHostProps = {
     ) => React.ReactNode;
 };
 
+// How long the home surface stays shown under a collection page that opens: longer than the
+// page's own fade to opaque (0.3s), which is what covers it.
+const HOME_HIDDEN_AFTER_SECONDS = 0.45;
+
 const getPersistentCoverUrl = (url?: string) => (
     url && !url.startsWith('blob:') ? url : undefined
 );
@@ -143,7 +152,7 @@ const resolveLocalCollectionCoverUrlFromTracks = (
 const resolveLiveLocalCollection = (
     collection: LocalGridViewCollectionDescriptor,
     surfaceProps: HomeSurfaceProps,
-    catalog: LocalLibraryCatalogSnapshot,
+    catalog: LibraryLocalCatalogSnapshot,
 ): LocalGridViewCollectionDescriptor | null => {
     if (!collection.playlistId) {
         return refreshLocalGridViewCollection(
@@ -205,11 +214,35 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
         layerSuiteId: transitionOwner.suiteId,
     });
     const stageNavigation = useMemo(() => toNavigationContext(collectionSnapshot), [collectionSnapshot]);
+    // What is under a page: the home grid and the Explore page (`children`). Home put up while
+    // the poster wall is being left for a page has that page over it from its first frame, and
+    // is left for the wall again: they are not mounted for it, until a page closes onto the
+    // home screen itself. Asked of the moment this host is put up, and of no page: put up
+    // later (the app is back from the player), it mounts them under whatever page it has. (A
+    // flight back to the wall keeps this host for a moment in the wall's view, with no page:
+    // what is not mounted is not mounted for that either.)
+    const isHomeView = useAppViewStore(state => state.view === 'home');
+    const [isSurfaceMounted, setIsSurfaceMounted] = useState(() => (
+        !selectedCollection || !useAppViewStore.getState().isLatticeLeftForPage
+    ));
+    if (!isSurfaceMounted && !selectedCollection && isHomeView) {
+        setIsSurfaceMounted(true);
+    }
+    // In the wall's view this host is up only for a flight back to the wall. Where the home grid
+    // is mounted under that page (the host was put up anew, back from the player), it stays
+    // hidden once the page is gone: the wall fades in over the page, not over the home screen.
+    // (A suite with a stage draws the wall's handoff itself, and is left as it is.)
+    const isWallView = useAppViewStore(state => state.view === 'lattice');
+    const isSurfaceHidden = layerPresentation.hideHome || (isWallView && !stage);
+    const isSurfaceCovered = Boolean(selectedCollection) || (isWallView && !stage);
     const [resolvedLocalCollectionCoverUrl, setResolvedLocalCollectionCoverUrl] = useState<string | undefined>(undefined);
     const [navidromePlaylistItems, setNavidromePlaylistItems] = useState<Array<{ id: string | number; name: string; description?: string; }>>([]);
     const [editingEntityId, setEditingEntityId] = useState<string | null>(null);
     const [organizingFolder, setOrganizingFolder] = useState<LocalGridViewCollectionDescriptor | null>(null);
     const [matchingSongId, setMatchingSongId] = useState<string | null>(null);
+    const [coverEditingCollection, setCoverEditingCollection] = useState<LocalGridViewCollectionDescriptor | null>(null);
+    // 本地集合的自定义封面（键 → URL）：盖在下面由曲目推出来的自动封面上。
+    const localCollectionCoverUrls = useLocalCollectionCoverUrls();
     const selectedCollectionKey = collectionKey(selectedCollection);
     const refreshedSelectedCollection = useMemo(() => {
         if (!selectedCollection || !isLocalGridViewCollection(selectedCollection)) {
@@ -244,14 +277,18 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
             return liveSelectedCollection;
         }
 
-        const coverUrl = resolvedLocalCollectionCoverUrl
-            || getPersistentCoverUrl(liveSelectedCollection.coverUrl);
+        // 设了自定义封面就用它（固定不变）；否则是由曲目推出来的自动封面。自动封面另外带着，画曲目的地方
+        // （Bravais 的专辑墙）用它：集合封面不影响集合里的歌。（自定义封面是 blob: 地址，getPersistentCoverUrl
+        // 不会把导航栈里带着的那张当成自动封面。）
+        const automaticCoverUrl = resolvedLocalCollectionCoverUrl || getPersistentCoverUrl(liveSelectedCollection.coverUrl);
+        const coverUrl = resolveLocalCollectionCover(liveSelectedCollection, automaticCoverUrl, localCollectionCoverUrls);
 
         return {
             ...liveSelectedCollection,
             coverUrl,
+            automaticCoverUrl: automaticCoverUrl ?? null,
         };
-    }, [liveSelectedCollection, resolvedLocalCollectionCoverUrl]);
+    }, [liveSelectedCollection, localCollectionCoverUrls, resolvedLocalCollectionCoverUrl]);
 
     // 本地集合的曲目在渲染期算好：放在 effect 里的话，新打开的网格第一帧会带着上一个集合的曲目。
     const localTracks = useMemo(() => (
@@ -279,7 +316,18 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
         local: artistLocalLibrary,
     });
     // 播放与入队的语义集中在端口里，网格与别的 renderer 共用。
-    const playbackPort = useMemo(() => createLibraryPlaybackPort(surfaceProps), [surfaceProps]);
+    // A collection page of tracks: what is played from it is said to be started there (the
+    // navigation's descriptor of the page on show), so that "locate the playing song" knows
+    // which page to come back to. An artist's page is no such page.
+    const playbackPort = useMemo(() => createLibraryPlaybackPort(
+        selectedCollection && selectedCollection.type !== 'artist'
+            ? {
+                ...surfaceProps,
+                onPlaySong: (track, queue) => surfaceProps.onPlaySong(track, queue, false, selectedCollection),
+                onPlayAll: surfaceProps.onPlayAll && ((songs) => surfaceProps.onPlayAll?.(songs, selectedCollection)),
+            }
+            : surfaceProps,
+    ), [selectedCollection, surfaceProps]);
 
     const openGridView = useCallback((collection: GridViewCollectionDescriptor) => {
         onOpenCollection(collection);
@@ -560,7 +608,7 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
     // 「完成」（任意 suite 的返回按钮）：清掉这一层的浏览会话，让每套 suite 忘掉这一层的布局记录，再返回。
     // 键与 suite 用的会话键一致：歌手页是导航栈那一层的 collectionKey（= 歌手资源的 key），集合是显示用描述的
     // collectionKey（本地集合在 catalog 就绪后可能换 id，两个都清）。先清再返回：正在离开的 TUI 卸载时想写回焦点，
-    // 会被会话的「代」挡住（core/state/useLibraryBrowseSessionStore）。
+    // 会被会话的「代」挡住（core/shared/useLibraryBrowseSessionStore）。
     const handleDoneCollection = useCallback(() => {
         const keys = new Set([selectedCollectionKey, collectionKey(displaySelectedCollection)].filter(Boolean));
         const sessions = useLibraryBrowseSessionStore.getState();
@@ -578,6 +626,7 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
         t,
         dialogs: {
             editEntity: setEditingEntityId,
+            editCover: setCoverEditingCollection,
             organizeFolder: setOrganizingFolder,
             matchSong: setMatchingSongId,
         },
@@ -612,6 +661,26 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
     const matchingSong = matchingSongId
         ? surfaceProps.localSongs.find(song => song.id === matchingSongId)
         : undefined;
+    // 本地实体、歌曲信息、手动匹配这几个弹窗和首页层在同一个层叠上下文里，盖不过左边的速记簿：开着时让它藏起来。
+    const isScratchpadCovered = Boolean(editingEntity || organizingFolder || matchingSong);
+    useEffect(() => {
+        useScratchpadStore.getState().setCovered(isScratchpadCovered);
+    }, [isScratchpadCovered]);
+    useEffect(() => () => useScratchpadStore.getState().setCovered(false), []);
+
+    // 封面对话框列的是集合此刻的歌（导航栈里的描述可能落后于曲库，取刷新过的那一份）。
+    const coverEditingTarget = coverEditingCollection && liveSelectedCollection
+        && isLocalGridViewCollection(liveSelectedCollection)
+        && collectionKey(liveSelectedCollection) === collectionKey(coverEditingCollection)
+        ? liveSelectedCollection
+        : coverEditingCollection;
+    const coverEditingSongs = useMemo(() => {
+        if (!coverEditingTarget) return [];
+        const songsById = new Map(surfaceProps.localSongs.map(song => [song.id, song]));
+        return coverEditingTarget.songIds
+            .map(songId => songsById.get(songId))
+            .filter((song): song is LocalSong => Boolean(song));
+    }, [coverEditingTarget, surfaceProps.localSongs]);
     const matchingSongAssignment = matchingSongId
         ? localLibraryCatalog.assignments.find(assignment => assignment.songId === matchingSongId)
         : undefined;
@@ -620,13 +689,18 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
         <>
             <div
                 className="absolute inset-0"
-                aria-hidden={Boolean(selectedCollection)}
+                aria-hidden={isSurfaceCovered}
                 style={{
-                    visibility: layerPresentation.hideHome ? 'hidden' : 'visible',
-                    pointerEvents: selectedCollection ? 'none' : 'auto',
+                    visibility: isSurfaceHidden ? 'hidden' : 'visible',
+                    // Hidden only once the page that opens has covered it. The home surface
+                    // paints a tint and a blur over what the player draws behind it; taken
+                    // away at the click, while the page was still see-through, they left that
+                    // picture bare for the first frames, which showed as a flash.
+                    transition: `visibility 0s linear ${selectedCollection ? HOME_HIDDEN_AFTER_SECONDS : 0}s`,
+                    pointerEvents: isSurfaceCovered ? 'none' : 'auto',
                 }}
             >
-                {children(openGridView, isInteractive && !selectedCollection)}
+                {isSurfaceMounted && children(openGridView, isInteractive && !selectedCollection)}
             </div>
             {/* 生效 suite 的常驻舞台：首页之上、背景板与集合层之下；始终占这个位置，打开 / 关闭集合不重挂。 */}
             <LibrarySuiteStageSlot
@@ -656,9 +730,6 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
                     />
                 )}
             </AnimatePresence>
-            {SUITE_OVERLAYS.map(({ suiteId: overlaySuiteId, Overlay }) => (
-                <Overlay key={overlaySuiteId} enabled={backdrop.enabled && transitionOwner.suiteId === overlaySuiteId} />
-            ))}
             <AnimatePresence initial={false}>
                 {displaySelectedCollection && (
                     // key 带上实际渲染它的 suite：切换 suite 时集合层换一个实例；两个都回退到网格的 suite 之间
@@ -678,6 +749,7 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
                                 onDone={handleDoneCollection}
                                 onOpenAlbum={handlePushAlbumCollection}
                                 onOpenArtist={handlePushArtistCollection}
+                                onOpenCollection={handlePushCollection}
                                 onPopTo={onPopCollectionTo}
                             />
                         </React.Suspense>
@@ -705,6 +777,12 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
                     )
                 )}
             </AnimatePresence>
+            {/* After the pages: a transition layer's layout effect measures the page that has just
+                mounted (the grid's cover lands on it in that commit), and a component later in the
+                tree has its layout effects run later. */}
+            {SUITE_OVERLAYS.map(({ suiteId: overlaySuiteId, Overlay }) => (
+                <Overlay key={overlaySuiteId} enabled={backdrop.enabled && transitionOwner.suiteId === overlaySuiteId} />
+            ))}
             {/* 首页上也有（切换的是首页 surface；没有集合会话要冲刷，用首页的固定 key）；歌手页上也有（P4.3 起 TUI 实现了歌手页，
                 冲刷的是这一层歌手页的会话——键与歌手资源的 key 相同）。 */}
             {DevLibraryRendererSwitch && HAS_SUITE_CHOICE && (isInteractive || displaySelectedCollection) && (
@@ -739,6 +817,14 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
                         await localLibraryCatalog.reload();
                         await surfaceProps.onRefreshLocalSongs();
                     }}
+                />
+            )}
+            {coverEditingTarget && (
+                <LocalCollectionCoverDialog
+                    collection={coverEditingTarget}
+                    songs={coverEditingSongs}
+                    isDaylight={isDaylight}
+                    onClose={() => setCoverEditingCollection(null)}
                 />
             )}
             {matchingSong && (

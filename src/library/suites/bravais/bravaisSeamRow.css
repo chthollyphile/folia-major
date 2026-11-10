@@ -1,0 +1,441 @@
+/* src/library/suites/bravais/bravaisSeamRow.css
+   信息条横向（设置「信息条横向」）：缝从块的横向缝隙裂开成一道横跨视口的横条（data-bravais-seam-axis="y"）。
+   位置与高度由 stage 每帧写（translateY + height，useBravaisFrame）；内容按「此刻渲染的那一套」的高度排版、竖直居中，
+   开合途中被横条裁掉（翻转不重排，与竖的缝同一个做法）。开口落定后（data-bravais-seam-settled）不裁：「⋯」菜单可以伸出
+   横条，横条在视口上半时往下弹、下半时往上弹（data-bravais-seam-half）。
+   横条里的三套排法：首页窄缝 / 书脊（.bravais-seam-home-row）、完整信息条（.bravais-seam-row.is-full）、书脊
+   （.bravais-seam-row.is-spine）；首页的搜索框沿用竖的组件、在这里改成横着排。 */
+
+/* ---------- 横条本身 ---------- */
+
+.bravais-seam[data-bravais-seam-axis='y'] {
+    top: 0;
+    right: 0;
+    bottom: auto;
+    left: 0;
+    width: auto;
+    height: 0;
+}
+
+.bravais-seam[data-bravais-seam-axis='y'][data-bravais-seam-settled] { overflow: visible; }
+
+.bravais-seam[data-bravais-seam-axis='y'] .bravais-seam-content {
+    top: 50%;
+    right: 0;
+    bottom: auto;
+    left: 0;
+    /* 横条里的排法按横条自己的宽度换（手机竖屏等窄屏，见文件末尾的容器查询）。 */
+    container: bravais-seam-row / inline-size;
+}
+
+/* 横条不贴底，不给播放条留安全区（竖的缝把它绑在内边距上，内联写的，所以要 !important）。 */
+.bravais-seam[data-bravais-seam-axis='y'] .bravais-seam-body { padding-bottom: 0 !important; }
+
+/* 菜单往哪边弹：横条在视口上半时往下（竖的缝里一律往上）。 */
+.bravais-seam[data-bravais-seam-axis='y'][data-bravais-seam-half='top'] .bravais-seam-more-anchor > .bravais-seam-menu {
+    top: calc(100% + 6px);
+    bottom: auto;
+}
+
+.bravais-seam[data-bravais-seam-axis='y'][data-bravais-seam-half='top'] .bravais-seam-menu.is-home {
+    top: calc(100% + 8px);
+    bottom: auto;
+}
+
+/* 空墙说明：横条上下哪边高就画在哪边（useBravaisFrame 写 top / height），上下留白收窄一些。 */
+.bravais-root[data-bravais-seam-axis='y'] .bravais-wall-hint { padding-block: 32px 96px; }
+
+/* ---------- 完整信息条 ---------- */
+
+.bravais-seam-row {
+    box-sizing: border-box;
+    height: 100%;
+}
+
+.bravais-seam-row.is-full {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px max(24px, 3vw) 16px;
+}
+
+.bravais-seam-row-head {
+    display: flex;
+    min-height: 32px;
+    flex: none;
+    align-items: center;
+    gap: 20px;
+}
+
+.bravais-seam-row-head > .bravais-seam-crumbs { min-width: 0; flex: 1 1 auto; }
+.bravais-seam-row-filter { min-width: 180px; flex: 0 1 320px; }
+.bravais-seam .bravais-seam-row-filter > .bravais-seam-filter-field { height: 32px; }
+
+.bravais-seam-row-main {
+    display: grid;
+    min-height: 0;
+    flex: 1 1 auto;
+    /* 标题栏按标题自己的宽度，最多占一半左右（长标题折两行）；剩下的给元数据 / 简介。 */
+    grid-template-columns: fit-content(48%) minmax(0, 1fr) auto;
+    align-items: stretch;
+    gap: 32px;
+}
+
+/* 标题区域横过来：一对引号贴着大标题的左上与右下，大标题横排、最多两行。仍是「收起信息条」按钮。 */
+.bravais-seam .bravais-seam-row .bravais-seam-title-area {
+    min-width: 0;
+    max-height: 100%;
+    align-self: center;
+    flex-direction: row;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+}
+
+.bravais-seam-row .bravais-seam-quote { flex: none; align-self: flex-start; padding-top: 0.15em; font-size: 36px; line-height: 0.9; }
+.bravais-seam-row .bravais-seam-quote.is-closing { align-self: flex-end; padding: 0 0 0.15em; }
+.bravais-seam-row .bravais-seam-vtitle-wrap { min-width: 0; flex: 0 1 auto; justify-content: flex-start; }
+
+.bravais-seam .bravais-seam-row .bravais-seam-vtitle {
+    display: -webkit-box;
+    max-height: none;
+    overflow: hidden;
+    line-height: 1.15;
+    letter-spacing: 0.01em;
+    text-align: left;
+    overflow-wrap: anywhere;
+    writing-mode: horizontal-tb;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+.bravais-seam-row-info {
+    display: flex;
+    min-width: 0;
+    min-height: 0;
+    flex-direction: column;
+    justify-content: safe center;
+    gap: 8px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+}
+
+.bravais-seam-row-info > * { flex: none; }
+
+.bravais-seam-row-side {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    justify-content: center;
+    align-items: stretch;
+    gap: 8px;
+}
+
+.bravais-seam-row-side .bravais-seam-actions { flex-wrap: nowrap; justify-content: flex-end; }
+.bravais-seam-row-side .bravais-seam-more-anchor .bravais-seam-actions { justify-content: flex-end; }
+
+/* 「⋯ 更多」菜单：竖的缝里与按钮行同宽；横条里按钮行可能只剩两个图标（窄屏、没有播放全部时），菜单靠右、至少 200px。 */
+.bravais-seam .bravais-seam-row-side .bravais-seam-more-anchor > .bravais-seam-menu { left: auto; right: 0; min-width: 200px; }
+
+/* ---------- 书脊 ---------- */
+
+.bravais-seam-row.is-spine {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 max(20px, 2.4vw);
+}
+
+.bravais-seam-row.is-spine > * { flex: none; }
+.bravais-seam-row.is-spine > .bravais-seam-spacer { flex: 1 1 auto; min-width: 0; }
+.bravais-seam-row.is-spine .bravais-seam-icon { width: 34px; height: 34px; }
+
+.bravais-seam .bravais-seam-row.is-spine .bravais-seam-vtitle {
+    min-width: 0;
+    flex: 0 1 auto;
+    overflow: hidden;
+    padding: 2px 6px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    writing-mode: horizontal-tb;
+}
+
+.bravais-seam .bravais-seam-row.is-spine .bravais-seam-vtitle > span { overflow: hidden; text-overflow: ellipsis; }
+
+.bravais-seam-row-count {
+    max-width: 24vw;
+    overflow: hidden;
+    color: var(--bravais-seam-ink-soft);
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ---------- 首页窄缝 / 首页书脊 ---------- */
+
+.bravais-seam-home-row {
+    display: flex;
+    height: 100%;
+    box-sizing: border-box;
+    align-items: center;
+    gap: 14px;
+    padding: 0 max(20px, 2.4vw);
+}
+
+.bravais-seam-home-row > * { flex: none; }
+.bravais-seam-home-row > .bravais-seam-spacer { flex: 1 1 auto; min-width: 0; }
+.bravais-seam-home-row.is-compact { gap: 10px; }
+.bravais-seam-home-row.is-compact .bravais-seam-icon { width: 34px; height: 34px; }
+
+.bravais-seam-home-row .bravais-seam-home-title {
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: 0.3em;
+    white-space: nowrap;
+}
+
+.bravais-seam-home-row .bravais-seam-tabs { flex-direction: row; gap: 4px; }
+
+.bravais-seam .bravais-seam-home-row .bravais-seam-home-tab {
+    position: relative;
+    isolation: isolate;
+    padding: 8px 12px;
+    border: 1px solid transparent;
+    border-radius: 10px;
+    color: var(--bravais-seam-ink-soft);
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.15;
+    letter-spacing: 0.12em;
+    white-space: nowrap;
+    background: none;
+    cursor: pointer;
+    writing-mode: horizontal-tb;
+}
+
+.bravais-seam .bravais-seam-home-row.is-compact .bravais-seam-home-tab { padding: 5px 9px; font-size: 12px; letter-spacing: 0.06em; }
+/* 页签缩成一个字（放不下全名时）：方块一些、不加字距。 */
+.bravais-seam .bravais-seam-home-row .bravais-seam-tabs.is-short .bravais-seam-home-tab { min-width: 34px; padding-inline: 8px; letter-spacing: 0; text-align: center; }
+.bravais-seam .bravais-seam-home-row .bravais-seam-home-tab:hover:not(:disabled) { border-color: color-mix(in srgb, currentColor 26%, transparent); }
+.bravais-seam .bravais-seam-home-row .bravais-seam-home-tab.is-active {
+    color: var(--text-primary, #f7f4ee);
+    background: color-mix(in srgb, currentColor 14%, transparent);
+}
+.bravais-seam .bravais-seam-home-row .bravais-seam-home-tab:disabled { opacity: 0.35; cursor: default; }
+
+/* 导航段：「书库」、页签、扫描进度、二级切换、直达入口、管理隐藏、状态排成一行，是横条里唯一可伸缩的一段。各级退让
+   之后仍放不下（useBravaisSeamRowFit 的 overflowing）就在这一段里横向滚（滚动条不画，右边淡出提示后面还有）。 */
+.bravais-seam-home-row > .bravais-seam-home-row-nav {
+    display: flex;
+    min-width: 0;
+    flex: 1 1 auto;
+    align-items: center;
+    gap: 16px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior: contain;
+    scrollbar-width: none;
+}
+
+.bravais-seam-home-row-nav::-webkit-scrollbar { display: none; }
+.bravais-seam-home-row-nav > *,
+.bravais-seam-home-row-body > * { flex: none; }
+.bravais-seam-home-row-nav.is-overflowing { mask-image: linear-gradient(to right, #000 calc(100% - 24px), transparent); }
+.bravais-seam-home-row.is-compact > .bravais-seam-home-row-nav { gap: 10px; }
+
+/* 中段那几块直接是导航段的一项（同一个间距、同一处滚）；容器只用来让用例找到它们。 */
+.bravais-seam-home-row-body { display: contents; }
+
+/* 测量副本：各级导航段与两种账户入口，按内容宽排、看不见、不占位。 */
+.bravais-seam-home-row > .bravais-seam-home-row-measure {
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    visibility: hidden;
+    pointer-events: none;
+}
+
+.bravais-seam-home-row-measure > * { width: max-content; flex: none; }
+/* 带名字的账户入口与真的那个一样封顶（.bravais-seam-row-account），长昵称不会让账户提早缩成头像。 */
+.bravais-seam-home-row-measure > [data-bravais-row-measure='account-full'] { max-width: 220px; }
+.bravais-seam-home-row-measure > .bravais-seam-home-row-nav { display: flex; align-items: center; gap: 16px; }
+.bravais-seam-home-row.is-compact .bravais-seam-home-row-measure > .bravais-seam-home-row-nav { gap: 10px; }
+
+.bravais-seam-home-row .bravais-seam-scan {
+    max-width: 260px;
+    overflow: hidden;
+    color: var(--bravais-seam-ink-soft);
+    font-size: 11px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.bravais-seam-home-row .bravais-seam-sections { flex-direction: row; gap: 2px; }
+
+.bravais-seam-home-row .bravais-seam-section {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 9px;
+    border: 0;
+    border-radius: 10px;
+    color: var(--bravais-seam-ink-soft);
+    background: none;
+    cursor: pointer;
+}
+
+.bravais-seam-home-row .bravais-seam-section svg { width: 16px; height: 16px; flex: none; }
+.bravais-seam-home-row .bravais-seam-section .is-label { font-size: 12px; font-weight: 700; letter-spacing: 0.08em; white-space: nowrap; }
+.bravais-seam-home-row button.bravais-seam-section:hover { color: var(--text-primary, #f7f4ee); background: color-mix(in srgb, currentColor 8%, transparent); }
+.bravais-seam-home-row .bravais-seam-section.is-active { color: var(--text-accent, var(--text-primary, #f7f4ee)); }
+
+/* 二级切换的选中：强调色 + 底下一道细线（竖的缝里是侧边那一道）。 */
+.bravais-seam-home-row .bravais-seam-section.is-active::before {
+    position: absolute;
+    right: 9px;
+    bottom: 1px;
+    left: 9px;
+    height: 2px;
+    border-radius: 1px;
+    background: currentColor;
+    content: '';
+    animation: bravais-seam-section-row-rule-in 240ms cubic-bezier(.2, .7, .25, 1);
+}
+
+@keyframes bravais-seam-section-row-rule-in { from { transform: scaleX(0); } }
+:root:is([data-reduce-motion~='lattice'], [data-reduce-motion~='collectionMorph']) .bravais-seam-home-row .bravais-seam-section.is-active::before {
+    animation: bravais-seam-fade-in 180ms ease-out;
+}
+
+/* 直达入口：一道竖的分隔线，后面一排横的短名按钮。 */
+.bravais-seam-home-row .bravais-seam-home-jumps { display: flex; width: auto; align-items: center; }
+.bravais-seam-home-row .bravais-seam-shortcuts-wrap { flex-direction: row; align-items: center; gap: 10px; padding-top: 0; }
+.bravais-seam-home-row .bravais-seam-shortcuts-rule { width: 1px; height: 18px; margin: 0; }
+.bravais-seam-home-row .bravais-seam-shortcuts { width: auto; flex-direction: row; align-items: center; gap: 2px; }
+
+.bravais-seam-home-row .bravais-seam-shortcut {
+    padding: 6px 8px;
+    border: 0;
+    border-radius: 10px;
+    color: var(--bravais-seam-ink-soft);
+    background: none;
+    cursor: pointer;
+    transition: background-color 140ms ease, color 140ms ease;
+}
+
+.bravais-seam-home-row .bravais-seam-shortcut .is-label { font-size: 12px; font-weight: 500; white-space: nowrap; }
+.bravais-seam-home-row button.bravais-seam-shortcut:hover { color: var(--text-primary, #f7f4ee); background: color-mix(in srgb, currentColor 8%, transparent); }
+:root[data-reduce-motion~='lattice'] .bravais-seam-home-row .bravais-seam-shortcut { transition: none; }
+
+/* 管理隐藏：标题 + 两个按钮排成一行。 */
+.bravais-seam-home-row .bravais-seam-manage {
+    width: auto;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 6px 5px 12px;
+    white-space: nowrap;
+}
+
+.bravais-seam .bravais-seam-home-row .bravais-seam-manage button { padding: 4px 10px; }
+
+.bravais-seam-row-status {
+    max-width: 320px;
+    overflow: hidden;
+    color: var(--bravais-seam-ink-soft);
+    font-size: 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.bravais-seam-home-row > .bravais-seam-home-filter { width: 240px; }
+
+.bravais-seam-row-account { max-width: 220px; }
+.bravais-seam-home-row .bravais-seam-account { width: auto; }
+.bravais-seam-home-row .bravais-account-switcher { width: auto; }
+
+/* 账户入口：横条里头像与名字横排（竖的窄缝太窄才竖排）。 */
+.bravais-seam .bravais-seam-home-row .bravais-account-entry {
+    width: auto;
+    flex-direction: row;
+    gap: 8px;
+    padding: 5px 12px 5px 6px;
+}
+
+.bravais-seam-home-row .bravais-account-connect .is-name { white-space: nowrap; }
+
+/* 工具格排成一行；「⋯」菜单从工具格弹出（层级高于账户入口）。 */
+.bravais-seam-home-row > .bravais-seam-dock { z-index: 4; width: auto; flex-direction: row; align-items: center; gap: 10px; }
+.bravais-seam-home-row .bravais-seam-tools { display: flex; gap: 6px; }
+.bravais-seam-home-row .bravais-seam-tools .bravais-seam-icon { width: 38px; height: 38px; }
+.bravais-seam-home-row.is-compact .bravais-seam-tools .bravais-seam-icon { width: 34px; height: 34px; }
+.bravais-seam-home-row .bravais-seam-tools .bravais-seam-icon.is-wide { width: auto; padding: 0 10px; }
+.bravais-seam-home-row .bravais-seam-notice { margin-top: 0; }
+.bravais-seam-home-row .bravais-seam-menu.is-home { right: 0; left: auto; min-width: 200px; }
+
+/* ---------- 首页的搜索框（沿用 BravaisSeamSearch）：面包屑一行，下面输入框与「搜索」并排，说明在最后 ---------- */
+
+.bravais-seam[data-bravais-seam-axis='y'] .bravais-seam-search {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto auto 1fr;
+    align-content: center;
+    column-gap: 16px;
+    row-gap: 12px;
+    padding: 14px max(24px, 3vw) 16px;
+}
+
+.bravais-seam[data-bravais-seam-axis='y'] .bravais-seam-search > .bravais-seam-crumbs { grid-column: 1 / -1; }
+.bravais-seam[data-bravais-seam-axis='y'] .bravais-seam-search > .bravais-search-form { max-width: 720px; grid-column: 1; }
+.bravais-seam[data-bravais-seam-axis='y'] .bravais-seam-search > .bravais-form-buttons { grid-column: 2; grid-row: 2; align-self: center; }
+.bravais-seam[data-bravais-seam-axis='y'] .bravais-seam-search > .bravais-search-hint { margin: 0; grid-column: 1 / -1; }
+
+/* ---------- 窄的横条（手机竖屏等，横条宽度 < 600px） ----------
+   完整信息条：三栏改成上下两行——上面是标题（一行，字号收小），下面左边是计数 / 简介、右边是一排只有图标的动作
+   （文字仍在按钮里，读屏照读）。面包屑与过滤位共用第一行，过滤位收窄。书脊：计数不画，标题拿到剩下的宽度。
+   这个文件比 bravais.css 先加载，同优先级的规则会被它盖掉，所以这里的选择器都带上 .bravais-seam。 */
+@container bravais-seam-row (max-width: 600px) {
+    .bravais-seam .bravais-seam-row.is-full { gap: 6px; padding: 8px 14px 10px; }
+    .bravais-seam .bravais-seam-row-head { gap: 10px; min-height: 30px; }
+    .bravais-seam .bravais-seam-row-filter { min-width: 0; flex: 0 1 46%; }
+
+    .bravais-seam .bravais-seam-row-main {
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-rows: auto minmax(0, 1fr);
+        grid-template-areas: 'title title' 'info side';
+        gap: 6px 12px;
+    }
+
+    .bravais-seam .bravais-seam-row .bravais-seam-title-area { grid-area: title; align-self: start; margin: -4px -8px; padding: 4px 8px; }
+    .bravais-seam .bravais-seam-row-info { grid-area: info; justify-content: flex-start; }
+    .bravais-seam .bravais-seam-row-side { grid-area: side; flex-direction: row; align-items: center; align-self: start; gap: 2px; }
+
+    .bravais-seam .bravais-seam-row .bravais-seam-quote { display: none; }
+    .bravais-seam .bravais-seam-row.is-full .bravais-seam-vtitle { font-size: 26px !important; -webkit-line-clamp: 1; }
+
+    /* 动作只留图标：按钮里的字收成 0 号（仍是按钮的可访问名），图标尺寸是写死的。 */
+    .bravais-seam .bravais-seam-row-side .bravais-seam-actions { gap: 2px; }
+    .bravais-seam .bravais-seam-row-side .bravais-chrome-button {
+        min-width: 36px;
+        min-height: 36px;
+        justify-content: center;
+        gap: 0;
+        padding: 0 9px;
+        font-size: 0;
+    }
+    .bravais-seam .bravais-seam-row-side .bravais-chrome-button svg { width: 16px; height: 16px; }
+
+    .bravais-seam .bravais-seam-row.is-spine { gap: 6px; padding: 0 12px; }
+    .bravais-seam .bravais-seam-row.is-spine > .bravais-seam-row-count { display: none; }
+
+    .bravais-seam .bravais-seam-home-row { gap: 8px; padding: 0 12px; }
+    .bravais-seam .bravais-seam-home-row > .bravais-seam-home-filter { width: 150px; }
+    .bravais-seam .bravais-seam-home-row .bravais-seam-tools { gap: 2px; }
+}
+

@@ -65,23 +65,6 @@ export const resolveTransitionClock = (timing: RemoteTransitionTiming): {
     };
 };
 
-/** Maps cue time through a peaked-speed curve while keeping 50% on the audio crossover. */
-export const mapTrackHandoffProgress = (timeProgress: number, crossover: number): number => {
-    const safeProgress = clamp01(timeProgress);
-    const safeCrossover = clamp01(crossover);
-
-    // crossover 落在端点时「50% 对齐 crossover」无解：硬套会让第一帧（或最后一帧）
-    // 直接跳掉半个不透明度。此时退回线性，曲线两端仍然连续。
-    const crossoverAlignedProgress = safeCrossover <= 0 || safeCrossover >= 1
-        ? safeProgress
-        : safeProgress <= safeCrossover
-            ? 0.5 * safeProgress / safeCrossover
-            : 0.5 + 0.5 * (safeProgress - safeCrossover) / (1 - safeCrossover);
-
-    // smoothstep 的速度是一座中间高、两端低的抛物线：快速穿过双标题都明显可见的区域。
-    return crossoverAlignedProgress * crossoverAlignedProgress * (3 - 2 * crossoverAlignedProgress);
-};
-
 /**
  * 交接停下时该停在哪一端。
  * - B 已经成为当前曲目：停在终点。

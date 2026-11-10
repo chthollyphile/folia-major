@@ -94,7 +94,9 @@ export const createLineArt = (
 ): LineArtLayer => {
     const { height, spec } = options;
     const view = new pixi.Container();
-    const pathsHolder = new pixi.Container();
+    // 描线期间每帧都有线在重画。Pixi 8 里重画过的 Graphics 会让它所在的渲染组把绘制指令整组重排，原来就是整个舞台；
+    // 各条线放进自己的渲染组，重排的只有这些线。画的先后不变。
+    const pathsHolder = new pixi.Container({ isRenderGroup: true });
     const nodesHolder = new pixi.Container();
     view.addChild(pathsHolder, nodesHolder);
 

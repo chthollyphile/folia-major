@@ -385,7 +385,7 @@ test('tui: reselecting the current native tab from the palette closes a page the
     // 命令面板重选当前页签：TUI 的页签句柄照契约通知宿主（onNativeTabSelected），homeViewTab 不变也能关掉页面。
     expect(await page.evaluate(async key => {
         const factoryPath = '/src/components/command-palette/commandFactories.ts';
-        const surfacePath = '/src/library/core/state/useLibraryHomeSurfaceStore.ts';
+        const surfacePath = '/src/library/core/home/useLibraryHomeSurfaceStore.ts';
         const { createHomeTabCommand } = await import(factoryPath);
         const { useLibraryHomeSurfaceStore } = await import(surfacePath);
         const handled = Boolean(useLibraryHomeSurfaceStore.getState().tabs);

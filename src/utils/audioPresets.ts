@@ -3,6 +3,10 @@ import { DEFAULT_AUDIO_EFFECT_SETTINGS, type AudioEffectSettings } from './audio
 // src/utils/audioPresets.ts
 // Defines built-in sound presets: each one carries both an EQ curve and a full effect chain state.
 
+// These six ids are promised to mods through FoliumEqualizerPresetId: in all of Folium 1.x
+// `folium.equalizer.setMode` must keep taking them. To retire a preset, point its old id at the closest
+// one left in the map of src/mods/runtime/equalizer/hostEqualizer.ts; "the contract's ids stay usable in
+// 1.x" in test/unit/mod-system/foliumEqualizer.test.ts holds it there.
 export type AudioSoundPresetId = 'flat' | 'lofi' | 'radio' | 'hall' | 'vocal' | 'bass';
 
 export type AudioSoundPreset = {

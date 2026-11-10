@@ -3,8 +3,8 @@
   "version": 1,
   "modId": "visualizer52hz",
   "modVersion": "1.0.1",
-  "digest": "sha256:a39803db7b3028adfb03dc10b2af3cb4d4da47f989c37965048049f38cf00447",
+  "digest": "sha256:b6e83ca5cd092538638c97012c0ecdb1a0a69f5a3eafc263672cd582fc9519b7",
   "keyId": "folium-2026-1",
-  "signedAt": "2026-09-24T19:10:07.806Z",
-  "signature": "MsffiB5+QlI7xpkGNyrL6zsTxh7lLsladxZcYwr1woEVXnWAHpk0CaywyOSaEc/tgLd2qQ6cNU0SSIr4x+GxAw=="
+  "signedAt": "2026-10-17T07:54:59.486Z",
+  "signature": "vglB4fDOBP047UosomTe2YZfqPxMX7tnJYrg1YY52DMzeKaGKQoIClgZ5QzAYJKcku+9EKZKpjSJ5sXxzmkKDw=="
 }

@@ -1,0 +1,10 @@
+{
+  "folium": 1,
+  "id": "sample-omni-console",
+  "name": "在线音源（样例）",
+  "version": "1.0.0",
+  "author": "Folia Mod Samples",
+  "description": "Folium 1.7 示范：经 folium.omni 只读宿主的在线音源。列出音源，搜歌并用游标翻页，看一首歌的详情、歌词前几行和专辑曲目，把存下的 { source, id } 在重启后解析回能播放的歌。folium.omni 不需要权限，但以你在 Folia 登录的平台账号发请求；playback.control 只用于「加入队列」，filesystem.data 只用于存键。",
+  "client": "client.mjs",
+  "permissions": ["playback.control", "filesystem.data"]
+}

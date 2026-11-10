@@ -6,6 +6,7 @@ import { useSettingsModalStore } from '../../stores/useSettingsModalStore';
 import { useThemeSettingsStore } from '../../stores/useThemeSettingsStore';
 import { openCurrentPagePonder } from '../../services/ponder/pagePonderTarget';
 import type { Theme } from '../../types';
+import { PRIMARY_MODIFIER_LABEL } from '../../utils/platform';
 
 // src/components/modal/UserGuideModal.tsx
 // 版本后的旧帮助轮播已由 Ponder 取代。这个门只教入口；真正的页面说明在 Ponder 里完成。
@@ -46,18 +47,18 @@ export const UserGuideModal: React.FC<{ theme?: Theme | null }> = ({ theme }) =>
                             {t('ponder.onboarding.title')}
                         </h2>
                         <p className="mx-auto mt-3 max-w-sm text-sm leading-6 opacity-65">
-                            {t(supportsFinePointer ? 'ponder.onboarding.description' : 'ponder.onboarding.touchDescription')}
+                            {t(supportsFinePointer ? 'ponder.onboarding.description' : 'ponder.onboarding.touchDescription', { mod: PRIMARY_MODIFIER_LABEL })}
                         </p>
 
                         {supportsFinePointer && (
-                            <div className="mt-7 flex items-center justify-center gap-2" aria-label={t('ponder.onboarding.shortcut')}>
-                                <kbd className="rounded-lg border px-3 py-2 font-mono text-sm">Ctrl</kbd>
+                            <div className="mt-7 flex items-center justify-center gap-2" aria-label={t('ponder.onboarding.shortcut', { mod: PRIMARY_MODIFIER_LABEL })}>
+                                <kbd className="rounded-lg border px-3 py-2 font-mono text-sm">{PRIMARY_MODIFIER_LABEL}</kbd>
                                 <span className="opacity-40">+</span>
                                 <kbd className="rounded-lg border px-3 py-2 font-mono text-sm">G</kbd>
                             </div>
                         )}
 
-                        {/* 按钮始终在：这一步完不成就出不去，指针判断一旦错了，没有键盘的人只看到 Ctrl+G 会被卡死。 */}
+                        {/* 按钮始终在：这一步完不成就出不去，指针判断一旦错了，没有键盘的人只看到 Ctrl/Cmd+G 会被卡死。 */}
                         <button
                             type="button"
                             data-testid="ponder-onboarding-open-button"

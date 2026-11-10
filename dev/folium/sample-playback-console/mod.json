@@ -4,8 +4,8 @@
   "name": "播放控制台（样例）",
   "version": "1.0.0",
   "author": "Folia Mod Samples",
-  "description": "Folium 1.5 示范：在首页页面里调音量、静音与循环模式，分页浏览并点播播放队列，记录无法播放的歌曲。演示 homeTabs / ui.openHomeTab / playback 的 1.5 方法与事件 / api.storage.paths。",
+  "description": "Folium 1.5 示范：在首页页面里调音量、静音与循环模式，分页浏览并点播播放队列，记录无法播放的歌曲。演示 homeTabs / ui.openHomeTab / playback 的 1.5 方法与事件 / api.storage.paths。1.7：replaceQueue 把队列倒过来。",
   "main": "index.cjs",
   "client": "client.mjs",
-  "permissions": ["playback.control", "filesystem.data"]
+  "permissions": ["playback.control", "playback.queue", "filesystem.data"]
 }

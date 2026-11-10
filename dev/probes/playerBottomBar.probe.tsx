@@ -10,11 +10,22 @@ import { PLAYER_BOTTOM_BAR_BASE_OFFSET_PX } from '../../src/utils/playerBottomBa
 import { PlayerState } from '../../src/types';
 import type { PlayerControlSlotActionId } from '../../src/components/floating-player/playerControlSlotActions';
 import { GridListSearchButton } from '../../src/components/shared/GridListSearchButton';
-import OnlineProviderSwitcher from '../../src/library/suites/grid/account/OnlineProviderSwitcher';
+import SwitcherPill from '../../src/components/login/SwitcherPill';
 import type { ProbeDefinition } from './definition';
+import { probeAccountController } from './probeAccountController';
 // dev/probes/playerBottomBar.probe.tsx
 
 const currentTime = motionValue(42);
+
+const PILL_ACCOUNT = probeAccountController([{
+    providerId: 'netease',
+    displayName: 'NetEase Cloud Music',
+    shortName: 'NetEase',
+    availability: { configured: true },
+    status: 'anonymous',
+    user: null,
+    collections: [],
+}], 'netease');
 
 /**
  * 底部基线的两件事只在真实浏览器里暴露：
@@ -127,22 +138,7 @@ const PlayerBottomBarProbe: React.FC = () => {
                 searchTitle="Probe search"
                 onOpenList={() => { }}
             />
-            <OnlineProviderSwitcher
-                providers={[{
-                    providerId: 'netease',
-                    displayName: 'NetEase Cloud Music',
-                    shortName: 'NetEase',
-                    availability: { configured: true },
-                    status: 'anonymous',
-                    user: null,
-                    collections: [],
-                }]}
-                activeProviderId="netease"
-                isDaylight={false}
-                onSelect={() => { }}
-                onLogout={() => { }}
-                onBackToPlayer={() => { }}
-            />
+            <SwitcherPill account={PILL_ACCOUNT} onBackToPlayer={() => { }} />
         </div>
     );
 };

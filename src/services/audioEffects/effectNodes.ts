@@ -4,6 +4,10 @@
 export type AudioEffectNodes = {
     highpass: BiquadFilterNode;
     lowpass: BiquadFilterNode;
+    /** Carries the signal around the two cutoff filters while both sit at their neutral ends. */
+    filterBypass: GainNode;
+    /** Carries the filtered signal once either cutoff is moved; crossfaded against filterBypass. */
+    filterReturn: GainNode;
     drive: WaveShaperNode;
     crush: WaveShaperNode;
     wowDelay: DelayNode;
@@ -68,6 +72,8 @@ export const createAudioEffectNodes = (context: AudioContext): AudioEffectNodes 
     return {
         highpass,
         lowpass,
+        filterBypass: createGain(1),
+        filterReturn: createGain(0),
         drive,
         crush,
         wowDelay,
@@ -89,9 +95,17 @@ export const createAudioEffectNodes = (context: AudioContext): AudioEffectNodes 
 
 // Connects the serial path plus the parallel reverb and noise returns.
 export const connectAudioEffectNodes = (nodes: AudioEffectNodes, input: AudioNode, output: AudioNode) => {
+    // The cutoff filters sit on a branch of their own instead of in line. Even at their neutral ends
+    // (20 Hz, 20 kHz) a biquad is not transparent: the 20 Hz high-pass turns the phase of the bass
+    // by tens of degrees, which moves where the peaks land. On a loud master that lifted peaks just
+    // under full scale to well past it (about +1.3 dB on one track), clipped at the output while every
+    // effect was off. Neutral now takes the bypass, which is the signal untouched.
+    input.connect(nodes.filterBypass);
     input.connect(nodes.highpass);
     nodes.highpass.connect(nodes.lowpass);
-    nodes.lowpass.connect(nodes.drive);
+    nodes.lowpass.connect(nodes.filterReturn);
+    nodes.filterBypass.connect(nodes.drive);
+    nodes.filterReturn.connect(nodes.drive);
     nodes.drive.connect(nodes.crush);
     nodes.crush.connect(nodes.wowDelay);
     nodes.wowDelay.connect(nodes.stereoInput);
@@ -116,10 +130,12 @@ export const connectAudioEffectNodes = (nodes: AudioEffectNodes, input: AudioNod
 };
 
 export const disconnectAudioEffectNodes = (nodes: AudioEffectNodes, input: AudioNode) => {
-    try {
-        input.disconnect(nodes.highpass);
-    } catch {
-        // The source may already be torn down with the audio context.
+    for (const entry of [nodes.highpass, nodes.filterBypass]) {
+        try {
+            input.disconnect(entry);
+        } catch {
+            // The source may already be torn down with the audio context.
+        }
     }
     Object.values(nodes).forEach(node => node.disconnect());
 };

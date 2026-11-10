@@ -1,22 +1,25 @@
 import React, { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
-import { AlertCircle, ChevronLeft, ChevronRight, Inbox, List, Loader2, MoreHorizontal, RefreshCw, SearchX, Star } from 'lucide-react';
+import { AlertCircle, ChevronDown, ChevronLeft, ChevronRight, Inbox, List, Loader2, MoreHorizontal, RefreshCw, SearchX, SlidersHorizontal, Star, Tags } from 'lucide-react';
 import type {
     BravaisSeamCollection as BravaisSeamCollectionModel,
+    BravaisSeamReload,
     BravaisSeamStatus,
     BravaisSeamSubscribe,
     BravaisSeamTone,
 } from './bravaisSeamModels';
 import { BravaisSeamFlipText } from './BravaisSeamFlip';
 import { useBravaisReducedTransitions } from './bravaisMotion';
-import { bravaisPopMotion, bravaisRevealMotion } from './bravaisSeamMotion';
+import { bravaisPopMotion, bravaisRevealMotion, seamPopAnchorFor } from './bravaisSeamMotion';
 import './bravaisCollection.css';
 
 // src/library/suites/bravais/BravaisSeamCollection.tsx
 // 完整信息条里集合层的那几块（设计稿 §10.1 放置原则、§10.2、§10.6）：
 // （过滤输入位每面墙都有，在 BravaisSeamFilterField。）
-// - 收藏星标（subscribing 时转圈；fb10 起在按钮行末尾）；元数据行的补页进度（中断时整行是「续传」）；每日推荐的日期步进；
+// - 元数据行（「N 首」）：集合能重新拉取时整行是一个按钮，计数后面一个刷新图标（不再进「⋯ 更多」）；
+// - 收藏星标（subscribing 时转圈；fb10 起在按钮行末尾）；元数据行的补页进度（中断时整行是「续传」）；每日推荐的日期步进
+//   （平台有风格推荐时上面多一行「默认推荐 / 风格推荐」，看风格推荐时步进换成选中的风格；平台声明了偏好入口时那个位置是「偏好设置」）；
 // - 状态行：加载中、错误（重试）、空、过滤无结果（清除过滤）——图标与文案各不相同；
 // - 高频动作之外的「列表」与「⋯ 更多」（低频的集合动作，内联展开，不弹浮层）；fb10：「⋯ 更多」末尾是「折叠信息条」
 //   （原来面包屑行右侧的「折叠」按钮挪进来，歌手页没有集合动作时菜单里只有它）；
@@ -66,7 +69,31 @@ export const BravaisSeamStar: React.FC<{ subscribe: BravaisSeamSubscribe }> = ({
     </button>
 );
 
-/** 元数据行的补页进度、每日推荐的日期步进。 */
+/**
+ * 元数据行（「N 首」，过滤中是匹配数）。给了 `reload` 时计数就是「重新拉取」按钮：计数照常翻页，后面跟一个刷新图标，
+ * 读首页时图标转圈、按钮禁用。完整信息条（竖 / 横）与专辑海报共用，外观的类名由各处给；按钮套在带这个类名的
+ * 元素里面，所在行的排版（专辑海报事实行的基线对齐与「·」分隔）照旧落在外层。
+ */
+export const BravaisSeamMetaLine: React.FC<{
+    meta: string;
+    reload?: BravaisSeamReload;
+    className: string;
+    as?: 'div' | 'span';
+}> = ({ meta, reload, className, as = 'div' }) => {
+    if (!reload) return <BravaisSeamFlipText as={as} flipKey={meta} className={className}>{meta}</BravaisSeamFlipText>;
+    const Tag = as;
+    return (
+        <Tag className={className}>
+            <button type="button" className="bravais-seam-meta-reload" data-bravais-seam-action="reload"
+                disabled={reload.disabled} title={reload.label} aria-label={meta ? `${meta} · ${reload.label}` : reload.label} onClick={reload.run}>
+                {meta && <BravaisSeamFlipText flipKey={meta}>{meta}</BravaisSeamFlipText>}
+                <RefreshCw aria-hidden className={reload.pending ? 'animate-spin' : undefined} />
+            </button>
+        </Tag>
+    );
+};
+
+/** 元数据行的补页进度、每日推荐的日期步进与风格推荐。 */
 export const BravaisSeamCollectionMeta: React.FC<{ collection: BravaisSeamCollectionModel }> = ({ collection }) => {
     const { sync, daily } = collection;
     return (
@@ -82,7 +109,33 @@ export const BravaisSeamCollectionMeta: React.FC<{ collection: BravaisSeamCollec
                     {sync.label}
                 </div>
             ))}
-            {daily && (
+            {daily?.preferences && (
+                <button type="button" className="bravais-seam-daily-style" data-bravais-seam-action="daily-preferences"
+                    title={daily.preferences.label} onClick={daily.preferences.onOpen}>
+                    <SlidersHorizontal aria-hidden />
+                    <span className="bravais-seam-daily-label">{daily.preferences.label}</span>
+                </button>
+            )}
+            {daily?.modes && (
+                <div className="bravais-seam-daily-modes" role="group" aria-label={daily.modes.ariaLabel} data-bravais-daily-modes>
+                    {daily.modes.items.map(item => (
+                        <button key={item.id} type="button" className={`bravais-seam-daily-mode${item.active ? ' is-active' : ''}`}
+                            data-bravais-seam-action={`daily-mode-${item.id}`} aria-pressed={item.active} disabled={daily.disabled}
+                            onClick={item.active ? undefined : item.run}>
+                            {item.label}
+                        </button>
+                    ))}
+                </div>
+            )}
+            {daily?.style && (
+                <button type="button" className="bravais-seam-daily-style" data-bravais-seam-action="daily-style" disabled={daily.disabled}
+                    title={daily.style.title} aria-label={daily.style.title} onClick={daily.style.onOpen}>
+                    <Tags aria-hidden />
+                    <BravaisSeamFlipText flipKey={daily.style.label} className="bravais-seam-daily-label">{daily.style.label}</BravaisSeamFlipText>
+                    <ChevronDown aria-hidden />
+                </button>
+            )}
+            {daily && !daily.style && (
                 <div className="bravais-seam-daily" role="group" aria-label={daily.ariaLabel} data-bravais-daily>
                     <button type="button" className="bravais-seam-icon" data-bravais-seam-action="daily-previous" disabled={daily.disabled || !daily.onPrevious}
                         onClick={daily.onPrevious} aria-label="‹">
@@ -118,8 +171,9 @@ export const BravaisSeamCollectionMenu: React.FC<{
     const { t } = useTranslation();
     const [isOpen, setIsOpen] = useState(false);
     const reduced = useBravaisReducedTransitions();
-    const pop = bravaisPopMotion('above', reduced);
     const anchorRef = useRef<HTMLDivElement>(null);
+    // 横的信息条在视口上半时菜单往下弹（按钮行一直挂着，anchorRef 在打开菜单的那次渲染里已经有值）。
+    const pop = bravaisPopMotion(seamPopAnchorFor(anchorRef.current), reduced);
     const reveal = bravaisRevealMotion(reduced);
     const items = collection?.menu ?? [];
     const hasMenu = items.length > 0 || Boolean(fold);

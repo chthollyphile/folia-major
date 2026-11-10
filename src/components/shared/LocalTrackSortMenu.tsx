@@ -22,6 +22,7 @@ export const LocalTrackSortMenu: React.FC<LocalTrackSortMenuProps> = ({ field, o
     const { t } = useTranslation();
     const [isOpen, setIsOpen] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
+    const buttonRef = useRef<HTMLButtonElement>(null);
     const StrategyIcon = FIELD_ICONS[field] ?? Type;
 
     useEffect(() => {
@@ -36,8 +37,20 @@ export const LocalTrackSortMenu: React.FC<LocalTrackSortMenuProps> = ({ field, o
     }, []);
 
     return (
-        <div ref={containerRef} data-ponder="local-track-sorting" className="relative shrink-0">
+        <div
+            ref={containerRef}
+            data-ponder="local-track-sorting"
+            className="relative shrink-0"
+            // Escape, with the focus on the button or in the list, closes the list and nothing else.
+            onKeyDown={(event) => {
+                if (event.key !== 'Escape' || !isOpen) return;
+                event.stopPropagation();
+                setIsOpen(false);
+                buttonRef.current?.focus();
+            }}
+        >
             <button
+                ref={buttonRef}
                 type="button"
                 onClick={() => setIsOpen(current => !current)}
                 aria-label={t('localMusic.sortSongs')}

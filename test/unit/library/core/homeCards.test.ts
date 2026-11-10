@@ -8,7 +8,7 @@ import {
     getProviderCollectionArtistLabel,
     isPersonalFmCard,
     onlineCardCollection,
-} from '@/library/core/model/homeCards';
+} from '@/library/core/home/homeCards';
 
 // test/unit/library/core/homeCards.test.ts
 // 在线首页卡片的视图模型（原样搬自 Grid3D）：字段映射、电台页签的伪条目（私人 FM、每日推荐）、
@@ -68,6 +68,11 @@ describe('online home cards', () => {
         // 推荐歌单的描述是它自己的描述，没有就用创建者；summary 同描述。
         expect(cards[2]).toMatchObject({ description: 'Curator', summary: 'Curator' });
         expect(cards[2].raw).toMatchObject({ id: 'r1', description: 'Curator', summary: 'Curator' });
+    });
+
+    it('leaves the FM card out when the provider handed over no FM song', () => {
+        const cards = buildOnlineRadioCards({ hasPersonalFm: false, dailyCoverUrl: '', dailyCount: 1, recommended: [] }, { t });
+        expect(cards.map(card => card.id)).toEqual(['daily_recommendations']);
     });
 
     it('the FM card shows the current FM mode when the provider has modes', () => {

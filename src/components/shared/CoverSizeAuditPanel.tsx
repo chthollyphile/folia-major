@@ -8,6 +8,7 @@ import {
     MAX_TRACKED_URLS,
     type CoverSizeSample,
 } from '../../services/debug/coverSizeSamples';
+import { copyText } from '../../utils/system/clipboard';
 
 // src/components/shared/CoverSizeAuditPanel.tsx
 // Requested cover size against delivered cover size, on whatever the session actually loaded.
@@ -213,7 +214,7 @@ const CoverSizeAuditPanel: React.FC<{ isDaylight: boolean; panelClass: string }>
                             <button
                                 type="button"
                                 className="mt-1 text-[10px] underline opacity-60"
-                                onClick={() => { void navigator.clipboard?.writeText(ignored.map(sample => sample.url).join('\n')); }}
+                                onClick={() => { void copyText(ignored.map(sample => sample.url).join('\n')); }}
                             >
                                 copy all {ignored.length}
                             </button>

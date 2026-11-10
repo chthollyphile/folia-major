@@ -1,5 +1,5 @@
 import { LyricData } from '../../types';
-import type { NeteaseChorusRange } from './chorusEffects';
+import type { ChorusRange } from './chorusEffects';
 import { detectTimedLyricFormat } from './formatDetection';
 import { resolveLyricProcessingOptions } from './filtering';
 import { hasNeteasePureMusicFlag, isPureMusicLyricText } from './pureMusic';
@@ -16,14 +16,14 @@ export interface ExtractedNeteaseLyricPayload {
 
 export interface ProcessedNeteaseLyricsResult extends ExtractedNeteaseLyricPayload {
     lyrics: LyricData | null;
-    chorusRanges?: NeteaseChorusRange[];
+    chorusRanges?: ChorusRange[];
 }
 
 export const clearNeteaseChorusRangesCache = (): void => {
     // Kept as a compatibility no-op; chorus range caching is owned by the provider.
 };
 
-export const parseNeteaseChorusRanges = (chorusRes: any): NeteaseChorusRange[] => {
+export const parseNeteaseChorusRanges = (chorusRes: any): ChorusRange[] => {
     if (!chorusRes || chorusRes.code !== 200) {
         return [];
     }

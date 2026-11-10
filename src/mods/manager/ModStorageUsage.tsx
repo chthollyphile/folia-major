@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { formatByteSize } from '@/utils/formatByteSize';
 import { useModsStore } from '../useModsStore';
 import type { ModRuntimeInfo } from '../types';
+import type { FoliumPermissionId } from '../folium/shared';
 import type { ModManagerClasses } from './modManagerClasses';
 import { translateModError } from './modErrors';
 
@@ -15,7 +16,7 @@ import { translateModError } from './modErrors';
 // panel's only way to remove it.
 
 /** The permission that gives a mod its data file and its `paths.data` / `paths.cache` directories. */
-export const MOD_FILES_PERMISSION = 'filesystem.data';
+export const MOD_FILES_PERMISSION: FoliumPermissionId = 'filesystem.data';
 
 /** A line for the manager's notice slot. */
 export type ModNotice = { kind: 'ok' | 'error'; text: string };

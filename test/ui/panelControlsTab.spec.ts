@@ -18,7 +18,7 @@ const openPlayerPage = async (page: import('@playwright/test').Page, bottomBarOf
     }) => {
         localStorage.clear();
         localStorage.setItem('library_suite_prompt_seen', 'true');
-        localStorage.setItem('i18nextLng', 'zh-CN');
+        localStorage.setItem('folia_app_language', 'zh-CN');
         localStorage.setItem('open_player_on_launch', 'true');
         localStorage.setItem('visualizer_mode', 'classic');
         localStorage.setItem('static_mode', 'true');
@@ -42,7 +42,7 @@ const openControlsTab = async (page: import('@playwright/test').Page) => {
     await openPlayerPage(page);
     await page.getByTestId('panel-toggle').locator('button').last().click();
     await page.waitForTimeout(500);
-    await page.getByTitle('控制', { exact: true }).click();
+    await page.getByRole('button', { name: '控制', exact: true }).click();
     await page.waitForTimeout(600);
 };
 
@@ -69,7 +69,7 @@ const openOnlineLyricsTab = async (page: import('@playwright/test').Page) => {
     const panelToggleButton = page.getByTestId('panel-toggle').getByRole('button');
     await expect(panelToggleButton).toBeVisible();
     await panelToggleButton.click();
-    await page.getByTitle('Lyrics', { exact: true }).click();
+    await page.getByRole('button', { name: 'Lyrics', exact: true }).click();
     await expect(page.getByRole('spinbutton', { name: 'Timeline Offset' })).toBeVisible();
 };
 
@@ -102,7 +102,7 @@ test('steps lyric modes with the arrows and opens the full list from the name', 
     expect(await readVisualizerMode(page)).toBe('classic');
 
     // 右箭头逐个前进：注册表顺序里 classic 的下一个。
-    const lyricRow = page.locator('div.space-y-1 > div').first();
+    const lyricRow = page.locator('[data-ponder="lyric-style"] > div').first();
     await lyricRow.getByRole('button', { name: '歌词样式 +' }).click();
     await page.waitForTimeout(200);
     expect(await readVisualizerMode(page)).toBe('cadenza');
@@ -112,15 +112,22 @@ test('steps lyric modes with the arrows and opens the full list from the name', 
     await page.waitForTimeout(200);
     expect(await readVisualizerMode(page)).toBe('classic');
 
-    // 点名称展开完整列表，并且底部有「更多设置」入口。
+    // 点中间那一块展开全部样式的小图，并且底部有「更多设置」入口。
     await lyricRow.getByRole('button', { name: '歌词样式', exact: true }).click();
-    const list = page.getByRole('listbox', { name: '歌词样式' });
+    const list = page.getByRole('radiogroup', { name: '歌词样式' });
     await expect(list).toBeVisible();
-    await expect(list.getByRole('option')).toHaveCount(14);
-    await expect(list.getByRole('option', { name: '静止' })).toBeVisible();
+    // 注册表中的样式之外，还有一个随机选择入口。
+    const modeCount = await page.evaluate(async () => {
+        const registryModulePath = '/src/components/visualizer/registry.tsx';
+        const { VISUALIZER_REGISTRY } = await import(registryModulePath);
+        return (VISUALIZER_REGISTRY as unknown[]).length;
+    });
+    await expect(list.getByRole('radio')).toHaveCount(modeCount + 1);
+    await expect(list.getByRole('radio', { name: '随机', exact: true })).toBeVisible();
+    await expect(list.getByRole('radio', { name: '静止' })).toBeVisible();
     await expect(page.getByText('更多设置', { exact: true })).toBeVisible();
 
-    await list.getByRole('option', { name: '云阶' }).click();
+    await list.getByRole('radio', { name: '云阶' }).click();
     await page.waitForTimeout(200);
     expect(await readVisualizerMode(page)).toBe('partita');
 });
@@ -129,7 +136,7 @@ test('shows the word segmentation button only for the modes built from word spli
     await openControlsTab(page);
     expect(await readVisualizerMode(page)).toBe('classic');
 
-    const lyricRow = page.locator('div.space-y-1 > div').first();
+    const lyricRow = page.locator('[data-ponder="lyric-style"] > div').first();
     const segmentationButton = lyricRow.getByRole('button', { name: '歌词分词调整' });
 
     // classic 在注册表里标了 usesWordSegmentation。
@@ -159,13 +166,15 @@ test('lifts the open right panel with the configured bottom bar baseline', async
 
     const panel = page.getByTestId('unified-panel-surface');
     await expect(panel).toBeVisible();
+    // 面板从手柄的圆心长出来，长完之前下边缘还在动。
+    await page.waitForTimeout(500);
     const box = await panel.boundingBox();
     const viewport = page.viewportSize();
     expect(box).not.toBeNull();
     expect(viewport).not.toBeNull();
 
-    // 桌面端面板保留原来的 8px 下边距，但基线和底栏共用同一个实时偏移。
-    expect(viewport!.height - box!.y - box!.height).toBeCloseTo(bottomBarOffset + 8, 0);
+    // 面板整个在手柄上方：下边缘比基线高出手柄的 48px 加 12px 间距，基线和底栏共用同一个实时偏移。
+    expect(viewport!.height - box!.y - box!.height).toBeCloseTo(bottomBarOffset + 60, 0);
     // 抬高时同步收缩滚动面板，不能把顶部推出视口。
     expect(box!.y).toBeGreaterThanOrEqual(48);
 });
@@ -228,7 +237,7 @@ test('steps straight through sonnet without an interstitial dialog', async ({ pa
     });
     await page.waitForTimeout(300);
 
-    const lyricRow = page.locator('div.space-y-1 > div').first();
+    const lyricRow = page.locator('[data-ponder="lyric-style"] > div').first();
     await lyricRow.getByRole('button', { name: `歌词样式 ${stepDirection}` }).click();
     await page.waitForTimeout(400);
 
@@ -239,8 +248,9 @@ test('steps straight through sonnet without an interstitial dialog', async ({ pa
 test('closes the audio effect dialog with Escape', async ({ page }) => {
     await openControlsTab(page);
 
-    await page.getByRole('button', { name: '打开音频均衡器' }).click();
-    const equalizerTitle = page.getByText('音频效果器', { exact: true });
+    await page.getByRole('button', { name: '音频效果器', exact: true }).click();
+    // 面板上那一块也叫这个名字，所以按窗口的标题找。
+    const equalizerTitle = page.getByRole('heading', { name: '音频效果器', exact: true });
     await expect(equalizerTitle).toBeVisible();
 
     await page.keyboard.press('Escape');
@@ -250,10 +260,10 @@ test('closes the audio effect dialog with Escape', async ({ page }) => {
 test('cycles the open panel tabs with Tab and wraps around', async ({ page }) => {
     await openControlsTab(page);
 
-    const coverTab = page.getByTitle('封面', { exact: true });
-    const controlsTab = page.getByTitle('控制', { exact: true });
-    const queueTab = page.getByTitle('播放列表', { exact: true });
-    const accountTab = page.getByTitle('账户', { exact: true });
+    const coverTab = page.getByRole('button', { name: '封面', exact: true });
+    const controlsTab = page.getByRole('button', { name: '控制', exact: true });
+    const queueTab = page.getByRole('button', { name: '播放列表', exact: true });
+    const accountTab = page.getByRole('button', { name: '账户', exact: true });
 
     await expect(controlsTab).toHaveAttribute('aria-pressed', 'true');
     await page.keyboard.press('Tab');

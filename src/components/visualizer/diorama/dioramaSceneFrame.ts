@@ -130,6 +130,8 @@ export interface DioramaUnitPlanes {
     glowMeshes: Array<THREE.Mesh | null>;
     soulMats: Array<THREE.MeshBasicMaterial | null>;
     soulMeshes: Array<THREE.Mesh | null>;
+    /** Each unit's three planes, grouped so the beat hop (智能动感模式) moves them together; at rest otherwise. */
+    unitGroups: Array<THREE.Group | null>;
 }
 
 export interface DioramaActiveUnitsInput {

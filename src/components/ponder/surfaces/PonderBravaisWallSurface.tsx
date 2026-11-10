@@ -1,7 +1,7 @@
 import React from 'react';
 import { ChevronDown, ChevronLeft, Mouse } from 'lucide-react';
 import PonderSurfaceStateLayer, { PonderSurfaceBase, type PonderSurfaceStateRegistrar } from './PonderSurfaceStateLayer';
-import { relativeRectStyle } from './ponderSurfaceGeometry';
+import { relativeRectStyle } from './relativeRectStyle';
 import {
     BRAVAIS_ARTIST_SLOT,
     BRAVAIS_BACK_RINGS,

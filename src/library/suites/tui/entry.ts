@@ -1,6 +1,6 @@
 import React from 'react';
-import type { LibraryAccountActionId } from '../../core/contracts/account';
-import type { LibrarySuiteManifest } from '../../core/contracts/suite';
+import type { LibraryAccountActionId } from '../../core/account/account.contract';
+import type { LibrarySuiteManifest } from '../../core/suite/suite.contract';
 
 // src/library/suites/tui/entry.ts
 // 终端风格的列表 suite（开发验证专用，默认关闭）。显式设置 VITE_LIBRARY_TUI=true 才在开发版启用；
@@ -16,12 +16,11 @@ const LibraryTuiArtist = ENABLE_TUI ? React.lazy(() => import('./LibraryTuiArtis
 const LibraryTuiAccount = ENABLE_TUI ? React.lazy(() => import('./LibraryTuiAccount')) : null;
 
 // 账户（LibraryTuiAccount 与首页在线页签的平台列表）：全部 7 个动作都实现。
-// - account-login / account-login-method / account-switch-confirm：方框里的二维码与状态行、↑↓ 选登录方式、Enter 主动作
-//   （选方式 / 重试 / 重启后端）、Esc 关闭；切换确认 Enter / Esc。
+// - account-switch-confirm：方框里的切换确认，Enter / Esc（LibraryTuiAccount）。
 // - account-select / account-logout：首页在线页签的平台列表（未登录时就是页签内容，已登录时 F2 打开），Enter 选平台、
 //   Delete 登出当前且已登录的平台。
-// - account-login-diagnostics：失败后 F4（或点按钮）把诊断报告复制到剪贴板；不带「去 GitHub 反馈」的入口。
-// - account-backend-restart：网易本地后端故障时 Enter（或点按钮）重启，恢复后自动要码。
+// - account-login / account-login-method / account-login-diagnostics / account-backend-restart：选未登录的平台打开共用的
+//   登录窗口（src/components/login），选方式、失败详情与诊断、本地服务重启都在窗口里。
 const TUI_ACCOUNT_ACTIONS: readonly LibraryAccountActionId[] = [
     'account-login',
     'account-login-method',

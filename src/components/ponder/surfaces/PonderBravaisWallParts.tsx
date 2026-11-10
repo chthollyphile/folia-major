@@ -4,7 +4,6 @@ import {
     Blinds,
     Check,
     ChevronLeft,
-    Crosshair,
     Disc3,
     FoldHorizontal,
     Heart,
@@ -26,7 +25,7 @@ import {
     X,
     type LucideIcon,
 } from 'lucide-react';
-import { relativeRectStyle } from './ponderSurfaceGeometry';
+import { relativeRectStyle } from './relativeRectStyle';
 import {
     BRAVAIS_SEAM_TABS,
     BRAVAIS_TOOLS_QUICK,
@@ -55,7 +54,7 @@ const KIND_LABEL_KEYS: Record<BravaisWallItem['kind'], string> = {
     feed: 'libraryBravais.kind.feed',
 };
 /** 首页窄缝的四个页签（歌单 / 电台 / 专辑 / 本地），文案与真实页签同一份。 */
-const SEAM_TAB_KEYS = ['home.playlists', 'home.radio', 'home.albums', 'localMusic.folder'] as const;
+const SEAM_TAB_KEYS = ['home.playlists', 'home.radioTab', 'home.albums', 'localMusic.folder'] as const;
 const SPECIAL_ICONS: Record<BravaisSpecial, LucideIcon> = {
     liked: Heart,
     'personal-fm': Radio,
@@ -311,7 +310,7 @@ export type BravaisLook = keyof typeof LOOK_VALUE_KEYS;
 /** 工具面板：顶上六格纯图标一次性动作、音量、「墙面外观」下的透光 / 叠色、开关灯。 */
 export const BravaisToolsPanel: React.FC<{ accent: string; look: BravaisLook }> = ({ accent, look }) => {
     const { t } = useTranslation();
-    const quick: LucideIcon[] = [Crosshair, Shuffle, Sparkles, ListMusic, PanelsTopLeft, Disc3];
+    const quick: LucideIcon[] = [Shuffle, Sparkles, ListMusic, PanelsTopLeft, Disc3, Settings];
     return (
         <div
             data-ponder-bravais-tools-panel={look}

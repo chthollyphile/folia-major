@@ -1,7 +1,7 @@
 import type { SongResult } from '../../../types';
-import type { LibraryArtistAlbum, LibraryArtistAlbumSync, LibraryArtistLoadError, LibraryArtistSnapshot } from '../../core/contracts/artist';
-import { ARTIST_ALBUM_PAGE_SIZE, artistAlbumCoverUrl } from '../../core/model/artistModel';
-import { artistAlbumEntryKey, artistSongEntryKey } from '../../core/model/artistSurface';
+import type { LibraryArtistAlbum, LibraryArtistAlbumSync, LibraryArtistLoadError, LibraryArtistSnapshot } from '../../core/artist/artist.contract';
+import { ARTIST_ALBUM_PAGE_SIZE, artistAlbumCoverUrl } from '../../core/artist/artistModel';
+import { artistAlbumEntryKey, artistSongEntryKey } from '../../core/artist/artistSurface';
 import type { BravaisItem } from './bravaisLayer';
 import { formatDuration, formatEntryBadge, type TrackDescription } from './bravaisProjection';
 import { formatCollectionBadge, resolveCollectionTrackCount } from './bravaisTileForm';
@@ -49,6 +49,7 @@ export const projectArtistItems = ({
             subtitle: description.artists.join(', ') || description.album || unknownArtist,
             coverUrl: description.coverUrl,
             badge: formatEntryBadge(index, topSongs.length),
+            badgeIsIndex: true,
             playbackKey: description.playbackKey,
             album: description.album || undefined,
             artists: description.artists,

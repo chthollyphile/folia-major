@@ -15,6 +15,9 @@ export type StatusSetter = React.Dispatch<React.SetStateAction<StatusMessage | n
 
 type StatusMessageState = {
     message: StatusMessage | null;
+    /** The pointer or the keyboard focus rests on the shown toast: its display time stands still.
+     *  A new message starts unheld. */
+    held: boolean;
     /** Accepts the updater form because callers reason about the previous toast (see
      *  usePlaybackQueueController, which clears only a persistent one). */
     setMessage: StatusSetter;
@@ -22,11 +25,13 @@ type StatusMessageState = {
 
 export const useStatusMessageStore = create<StatusMessageState>((set) => ({
     message: null,
-    setMessage: (next) => set(state => ({
-        message: typeof next === 'function'
+    held: false,
+    setMessage: (next) => set(state => {
+        const message = typeof next === 'function'
             ? (next as (prev: StatusMessage | null) => StatusMessage | null)(state.message)
-            : next,
-    })),
+            : next;
+        return message === state.message ? { message } : { message, held: false };
+    }),
 }));
 
 /**
@@ -40,3 +45,36 @@ export const setStatusMessage: StatusSetter = (next) => {
 
 /** Subscribe to the current toast. Only the component that renders it should call this. */
 export const useStatusMessage = () => useStatusMessageStore(state => state.message);
+
+/** The toast says whether the pointer or the focus rests on it. */
+export const holdStatusMessage = (held: boolean) => {
+    if (useStatusMessageStore.getState().held !== held) useStatusMessageStore.setState({ held });
+};
+
+/**
+ * Runs a shown message's display time: `onEnd` once `ms` have gone by while it was not held.
+ * Returns the function that stops it.
+ */
+export const runStatusMessageTime = (ms: number, onEnd: () => void): (() => void) => {
+    let left = ms;
+    let startedAt = 0;
+    let timer: number | null = null;
+    const stand = () => {
+        if (timer === null) return;
+        window.clearTimeout(timer);
+        timer = null;
+        left -= Date.now() - startedAt;
+    };
+    const follow = (held: boolean) => {
+        if (held) return stand();
+        if (timer !== null) return;
+        startedAt = Date.now();
+        timer = window.setTimeout(onEnd, left);
+    };
+    follow(useStatusMessageStore.getState().held);
+    const stopWatching = useStatusMessageStore.subscribe(state => follow(state.held));
+    return () => {
+        stopWatching();
+        stand();
+    };
+};

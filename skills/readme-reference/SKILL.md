@@ -9,11 +9,13 @@ README 是导航线索，不是代码真相。先按任务读取相关小片段�
 
 ## Source selection
 
-- 产品能力、脚本、Electron、Vercel、API：`README.md`（根 README 只读，不在本任务中修改）。
+- 产品能力、脚本、Electron、Vercel、API：`README.md`。
 - `src/` 入口、模块职责、app-level 装配：`src/README.md`。
-- visualizer 共享入口、模式、背景、性能约定：`src/components/visualizer/README.md`。
-- Partita layout、sticky punctuation、预热和缓存：`src/components/visualizer/partita/README.md`。
-- 在线歌曲 Omni/provider 边界：`src/services/onlineMusic/README.md` + `src/services/onlineMusic/omni.ts`。
+- visualizer 共享入口、模式、背景、性能约定，以及加一个歌词动画样式的清单：`src/components/visualizer/README.md`。
+- Partita layout、sticky punctuation、预热和缓存：`src/components/visualizer/partita/README.md`；Tempera：`src/components/visualizer/tempera/README.md`。
+- 在线歌曲 Omni/provider 边界、各平台的实测记录、接入一个新平台的清单：`src/services/onlineMusic/README.md` + `src/services/onlineMusic/omni.ts`；平台接入探索页：`src/services/onlineMusic/EXPLORE_ADAPTER.md`。
+- 歌词样式和背景的性能测量：`dev/perf/README.md`。
+- 自动混音：`src/services/automix/README.md`。
 - 同步 API、Node/Cloudflare/Docker 部署：`sync-server/README.md`。
 - Docker Web stack、端口、环境变量和 smoke test：`deploy/docker/README.md`。
 - Linux 便携包和 Electron 图形模式：`packaging/linux/README-LINUX.txt` + `electron/main.cjs`。
@@ -42,8 +44,8 @@ rg -n "Node|/health|/settings|/themes|compose" sync-server/README.md deploy/dock
 
 ## Repository-specific traps
 
-- 当前 app-level 目录是 `src/components/app/*`，旧的 `components/app/views/*`、`SearchResultsOverlay`、`src/components/LocalMusicView.tsx`、`src/components/local/*` 和 `src/components/navidrome/*` 不应作为新入口。
-- Visualizer 模式由 `src/components/visualizer/registry.tsx` 从各模式 `entry.tsx` 发现；当前不能只按旧文档中的 classic/cadenza/partita 列表理解。
+- 当前 app-level 目录是 `src/components/app/*`。已经删掉、但旧文档里还会出现的页面和名字，见 `skills/codebase-navigation/SKILL.md` 的“这些名字已经不是当前入口”。
+- Visualizer 模式由 `src/components/visualizer/registry.tsx` 从各模式 `entry.tsx` 发现；内建样式的 id 清单是 `src/types/visualizerModes.ts` 的 `BUILTIN_VISUALIZER_MODES`，不要按文档里抄的列表理解。
 - 在线歌曲普通调用必须经过 `src/services/onlineMusic/omni.ts`；Navidrome 是独立 `src/services/navidromeService.ts`，不能仅凭“在线”一词混为一谈。
 - `src/App.tsx` 是历史大型编排文件；README 只提供入口关系，不代表新逻辑应继续写入其中。
 - Sync Server 的 Node engine 当前以 `sync-server/package.json` 和根 `package.json` 为准，不要复制旧的 Node 18 说明。

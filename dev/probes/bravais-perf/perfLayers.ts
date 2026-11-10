@@ -1,4 +1,4 @@
-import type { LibraryHomeCard } from '../../../src/library/core/contracts/homeModel';
+import type { LibraryHomeCard } from '../../../src/library/core/home/homeModel.contract';
 import type { BravaisLayer } from '../../../src/library/suites/bravais/bravaisLayer';
 import { projectCollectionTracks, projectHomeCards, type TrackDescription } from '../../../src/library/suites/bravais/bravaisProjection';
 import type { SongResult } from '../../../src/types';

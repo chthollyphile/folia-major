@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { motionValue } from 'framer-motion';
 import FloatingPlayerControls from '../../src/components/FloatingPlayerControls';
-import { controlButtonsRegistry } from '../../src/mods/folium/registries/progress';
+import { progressButtonsRegistry } from '../../src/mods/folium/registries/progress';
 import { createFoliumIcon } from '../../src/mods/folium/icons';
 import type { FoliumProgressContext } from '../../src/mods/folium/contract';
 import { PlayerState } from '../../src/types';
@@ -42,13 +42,13 @@ const PlayerBarModButtonsProbe: React.FC = () => {
 
     useEffect(() => {
         if (!buttons) return undefined;
-        MOD_BUTTONS.forEach((def) => controlButtonsRegistry.register('probe-mod', {
+        MOD_BUTTONS.forEach((def) => progressButtonsRegistry.register('probe-mod', {
             id: def.id,
             slot: def.slot,
             order: 'order' in def ? def.order : undefined,
             mount: mountModButton(def.icon),
         }));
-        return () => controlButtonsRegistry.unregisterAll('probe-mod');
+        return () => progressButtonsRegistry.unregisterAll('probe-mod');
     }, [buttons]);
 
     useEffect(() => {

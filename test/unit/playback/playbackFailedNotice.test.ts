@@ -8,7 +8,7 @@ import { installPlaybackFailedListener, notifyPlaybackFailed, type PlaybackFaile
 
 const notice: PlaybackFailedNotice = {
     song: { id: 1, name: 'Song', artists: [], album: { id: 0, name: '' }, durationMs: 0 } as unknown as SongResult,
-    reason: 'network',
+    reason: 'unreachable',
     phase: 'play',
     willAutoSkip: false,
 };

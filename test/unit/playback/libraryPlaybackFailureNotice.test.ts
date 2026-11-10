@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // test/unit/playback/libraryPlaybackFailureNotice.test.ts
-// 本地与 Navidrome 点歌失败不经过 presenter，各自弹一条错误消息；这里锁定它们同样报告一次
+// 本地与 Navidrome 点歌失败各自弹一条错误消息；这里锁定它们同样报告一次
 // （hostExtensionHooks.notifyPlaybackFailed → Folium playback.failed），phase 'play'，没有原因码，不自动跳过。
 
 const env = vi.hoisted(() => {
@@ -62,12 +62,12 @@ vi.mock('@/services/navidromeService', async importOriginal => {
 
 import React, { act, useRef } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { useLibraryPlaybackController } from '@/hooks/useLibraryPlaybackController';
+import { useLibraryPlaybackController } from '@/components/app/playback/start/useLibraryPlaybackController';
+import { startPlay } from '@/components/app/playback/currentSong';
 import { installPlaybackFailedListener } from '@/services/hostExtensionHooks';
 import { getAudioFromLocalSong } from '@/services/localMusicService';
 import { useStatusMessageStore } from '@/stores/useStatusMessageStore';
 import type { LocalSong } from '@/types';
-import type { LibraryPlayOptions } from '@/types/appPlayback';
 import type { NavidromeSong } from '@/types/navidrome';
 
 const localSong = {
@@ -96,8 +96,8 @@ const navidromeSong = {
 } as unknown as NavidromeSong;
 
 type Controller = {
-    onPlayLocalSong: (song: LocalSong, queue?: LocalSong[], options?: LibraryPlayOptions) => Promise<void>;
-    onPlayNavidromeSong: (song: NavidromeSong, queue?: NavidromeSong[], options?: LibraryPlayOptions) => Promise<void>;
+    onPlayLocalSong: (song: LocalSong, queue?: LocalSong[]) => Promise<void>;
+    onPlayNavidromeSong: (song: NavidromeSong, queue?: NavidromeSong[]) => Promise<void>;
 };
 
 const deferred = <T,>() => {
@@ -114,6 +114,7 @@ let root: Root;
 
 const Probe: React.FC = () => {
     const anyRef = useRef<unknown>(null);
+    const lyricsLoadingWrites = useRef(0);
     controller = useLibraryPlaybackController({
         likedSongIds: new Set<string>(),
         setLyrics: () => {},
@@ -127,6 +128,7 @@ const Probe: React.FC = () => {
         shouldAutoPlayRef: anyRef,
         currentSongRef: anyRef,
         currentOnlineAudioUrlFetchedAtRef: anyRef,
+        lyricsLoadingWritesRef: lyricsLoadingWrites,
     } as never) as unknown as Controller;
     return null;
 };
@@ -178,16 +180,16 @@ describe('library playback failure reports', () => {
     });
 });
 
-// 等待期间用户换了歌：旧请求的失败已不是用户眼前的事，既不提示也不报告（否则按契约在 willAutoSkip 为 false 时调 next() 的模组会跳过用户的新歌）。
+// 等待期间用户换了歌（一次新的播放开始了，currentSong.ts 的 startPlay）：旧请求的失败已不是用户眼前的事，
+// 既不提示也不报告（否则按契约在 willAutoSkip 为 false 时调 next() 的模组会跳过用户的新歌）。
 describe('library playback failures of a replaced pick', () => {
-    it('neither shows nor reports a local file read the caller says was replaced', async () => {
+    it('neither shows nor reports a local file read a newer play has replaced', async () => {
         const read = deferred<string | null>();
         vi.mocked(getAudioFromLocalSong).mockReturnValueOnce(read.promise);
-        let current = true;
         let playing!: Promise<void>;
-        act(() => { playing = controller.onPlayLocalSong(localSong, [], { isCurrent: () => current }); });
+        act(() => { playing = controller.onPlayLocalSong(localSong, []); });
 
-        current = false;
+        startPlay();
         await act(async () => { read.resolve(null); await playing; });
         expect(useStatusMessageStore.getState().message).toBeNull();
         expect(listener).not.toHaveBeenCalled();
@@ -213,11 +215,10 @@ describe('library playback failures of a replaced pick', () => {
         env.navidromeConfig = naviConfig;
         const lookup = deferred<unknown>();
         env.matchLookup = () => lookup.promise;
-        let current = true;
         let playing!: Promise<void>;
-        act(() => { playing = controller.onPlayNavidromeSong(navidromeSong, [], { isCurrent: () => current }); });
+        act(() => { playing = controller.onPlayNavidromeSong(navidromeSong, []); });
 
-        current = stillCurrent;
+        if (!stillCurrent) startPlay();
         await act(async () => { lookup.reject(new Error('cache read failed')); await playing; });
         expect(listener).toHaveBeenCalledTimes(reports);
         expect(useStatusMessageStore.getState().message).toEqual(

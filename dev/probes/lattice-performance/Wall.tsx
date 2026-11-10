@@ -16,7 +16,7 @@ export function Wall({ count }: { count: number }) {
         album: { id: 1, name: 'Probe' }, durationMs: 180000,
         sourceRef: { kind: 'online', providerId: 'netease', mediaId: `perf-${index}` },
     })), [count]);
-    return <Lattice queue={queue} currentSong={null} playerState={PlayerState.PAUSED} currentTime={time}
+    return <Lattice queue={queue} currentSong={null} playerState={PlayerState.PAUSED} currentTime={time} lyricCurrentTime={time}
         playbackDuration={180} canTogglePlayback={false} isDaylight={false} lyrics={null}
         lyricSource={{ currentTime: time, currentLineIndex: -1, lines: [], theme: DEFAULT_THEME }} lyricKeywordColoringEnabled={false}
         controls={{ loopMode: 'off', playback: { prev: noop, next: noop, toggleLoop: noop, shuffleQueue: noop,

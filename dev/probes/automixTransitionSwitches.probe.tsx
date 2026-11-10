@@ -43,7 +43,7 @@ const AutomixTransitionSwitchesProbe: React.FC = () => {
 
     const buttonClass = 'rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-semibold text-zinc-200 hover:bg-white/10';
 
-    /** 一字不差照抄 TransitionSettingsSection 里那个开关的 onClick。 */
+    /** 照抄设置「播放控制」页（pages/PlaybackPage.tsx 的 animationChip）里那个开关做的两件事：先写开关，再广播预览。 */
     const flip = (renderer: TransitionRenderer, on: boolean, toggle: (next: boolean) => void) => {
         const next = !on;
         toggle(next);

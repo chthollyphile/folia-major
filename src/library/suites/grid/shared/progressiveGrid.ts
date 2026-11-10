@@ -9,4 +9,4 @@ export const deriveProgressiveLoadingState = (
     backgroundLoading: itemCount > 0 && (initialSourcesLoading || backgroundSourceLoading),
 });
 
-// 分页去重属于集合数据本身，搬到了 library/core/model/collectionPaging；调用方直接引用 core 的实现。
+// 分页去重属于集合数据本身，搬到了 library/core/collection/collectionPaging；调用方直接引用 core 的实现。

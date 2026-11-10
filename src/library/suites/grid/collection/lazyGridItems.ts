@@ -3,7 +3,7 @@ import { getSongCoverUrl } from '../../../../services/onlineMusic/songMetadata';
 import { formatSongName } from '../../../../utils/songNameFormatter';
 import type { GridItem } from '../shared/polaroidCardParts';
 import type { SongResult } from '../../../../types';
-import { formatEntryKey } from '../../../core/model/collectionEntries';
+import { formatEntryKey } from '../../../core/collection/collectionEntries';
 
 // src/library/suites/grid/collection/lazyGridItems.ts
 // 网格项的**惰性**塑形。抽出来是为了两件事：这一段的正确性很细（id 里的重复序号、增量缓存），
@@ -13,7 +13,7 @@ import { formatEntryKey } from '../../../core/model/collectionEntries';
 // 而网格一次只渲染视口附近的几十张卡；分页每来一页还会整表重算一次（累计 O(N²/Batch)），
 // 正好落在用户刚点开、转场还在飞的窗口里。
 
-// 重复序号的扫描与条目键属于集合本身而不是网格，搬到了 library/core/model/collectionEntries；
+// 重复序号的扫描与条目键属于集合本身而不是网格，搬到了 library/core/collection/collectionEntries；
 // 调用方直接引用 core 的规则，这里只接收扫描结果并按需塑形网格项。
 
 /** 一首曲目 → 一个网格项。与 GridView 早先的 eager 版本逐字段一致。 */

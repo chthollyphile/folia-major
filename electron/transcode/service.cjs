@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const { Readable } = require('stream');
 const { pipeline } = require('stream/promises');
-const { resolveFfmpeg, TRANSCODE_RUNTIME_DIR } = require('../modSystem/ffmpeg.cjs');
+const { resolveFfmpeg, TRANSCODE_RUNTIME_DIR } = require('../ffmpeg.cjs');
 const { transcodeAudioFile } = require('./runner.cjs');
 const {
     buildTranscodeCacheKey,

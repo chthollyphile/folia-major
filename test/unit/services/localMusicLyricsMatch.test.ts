@@ -3,7 +3,7 @@ import type { LocalSong } from '@/types';
 import { matchLyrics } from '@/services/localMusicService';
 import { autoMatchBestLyric } from '@/utils/lyrics/autoMatchBestLyric';
 import { applyMatchedMetadata } from '@/services/localLibraryCatalogService';
-import { neteaseApi } from '@/services/netease';
+import { neteaseApi } from '@/services/onlineMusic/netease/netease';
 import { getLocalLibraryCatalogSnapshot } from '@/services/localLibraryEntityRepository';
 
 // test/unit/services/localMusicLyricsMatch.test.ts
@@ -19,7 +19,7 @@ vi.mock('@/services/localLibraryCatalogService', () => ({ applyMatchedMetadata: 
 vi.mock('@/services/localLibraryEntityRepository', () => ({
     getLocalLibraryCatalogSnapshot: vi.fn().mockResolvedValue({ entities: [], assignments: [] }),
 }));
-vi.mock('@/services/netease', () => ({
+vi.mock('@/services/onlineMusic/netease/netease', () => ({
     neteaseApi: {
         cloudSearch: vi.fn(),
         getLyric: vi.fn(),

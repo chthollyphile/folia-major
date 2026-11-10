@@ -13,7 +13,7 @@ import {
 // Owns the Theme Park editing session: one draft per edit target (AI / custom) so switching
 // targets never loses unsaved work, plus the throttled color writes the picker drags through.
 
-const COLOR_THROTTLE_MS = 33; // ~30fps, same budget as the quick editor
+const COLOR_THROTTLE_MS = 33; // ~30fps
 
 type UseThemeParkDraftOptions = {
     aiTheme: DualTheme | null;
@@ -207,3 +207,6 @@ export const useThemeParkDraft = ({
         buildFinalTheme,
     };
 };
+
+/** The editing session as the editor's parts are handed it. */
+export type ThemeParkEditor = ReturnType<typeof useThemeParkDraft>;

@@ -7,7 +7,7 @@ import {
     buildLocalCatalogIndex,
     resolveLocalCatalogLink,
     resolveLocalSongEntityId,
-} from '../../../library/core/model/localCatalogLinks';
+} from '../../../library/core/shared/localCatalogLinks';
 import { isLocalPlaybackSong } from '../../../utils/appPlaybackGuards';
 import { getSongAlbumLabel, getSongArtistLabel, getSongCoverUrl } from '../../../services/onlineMusic/songMetadata';
 
@@ -45,7 +45,7 @@ export const createPlayerPanelCollectionEntries = ({
     navigateToCollection,
     t,
 }: PlayerPanelCollectionEntriesParams): PlayerPanelCollectionEntries => {
-    // 当前这首本地歌归属的专辑 / 歌手：解析规则与宿主的嵌套打开、歌手页同一份（core/model/localCatalogLinks）。
+    // 当前这首本地歌归属的专辑 / 歌手：解析规则与宿主的嵌套打开、歌手页同一份（core/shared/localCatalogLinks）。
     const resolveCurrentLocalLink = (kind: 'album' | 'artist', requestedEntityId?: string) => {
         if (!currentSong || !isLocalPlaybackSong(currentSong)) return null;
         const catalogIndex = buildLocalCatalogIndex(localLibraryCatalog);

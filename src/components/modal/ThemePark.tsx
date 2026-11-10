@@ -1,5 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { motion } from 'framer-motion';
+import React, { useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
 import {
@@ -9,38 +8,37 @@ import {
     MonetPortraitImage,
     SongResult,
     SubtitleContentMode,
+    SubtitleOverlayLayout,
     Theme,
     VisualizerMode,
 } from '../../types';
-import { getVisualizerModeLabel } from '../visualizer/registry';
-import { normalizeThemeHexColor } from '../../services/themeSanitizer';
 import { BASE_DUAL_THEME } from '../../services/baseThemes';
 import type { ThemeCacheSongKey } from '../../services/themeCache';
-import { extractColors } from '../../utils/colorExtractor';
-import { buildRecommendedColors } from '../../utils/themeEditorPalette';
 import { useThemeQuickEditorStore } from '../../stores/useThemeQuickEditorStore';
 import type { VisualizerTuningBundle } from '../visualizer/tuningRegistry';
 import type { VisualizerBackgroundConfig } from '../visualizer/backgrounds/definition';
+import StudioWindow from '../shared/StudioWindow';
+import { useSettingsKitTheme } from './settings/kit';
 import ThemePreview from './theme-park/ThemeParkPreview';
-import ThemeParkHeader from './theme-park/ThemeParkHeader';
-import ThemeParkColorPanel from './theme-park/ThemeParkColorPanel';
-import ThemeParkDetailsPanel from './theme-park/ThemeParkDetailsPanel';
-import ThemeParkContentPanel from './theme-park/ThemeParkContentPanel';
-import ThemeParkAiPanel from './theme-park/ThemeParkAiPanel';
+import { ThemeParkHeaderActions, ThemeParkHeaderSlot } from './theme-park/ThemeParkHeader';
+import ThemeParkColumn from './theme-park/ThemeParkColumn';
 import { useThemeParkDraft } from './theme-park/useThemeParkDraft';
 import { useThemeParkPreviewClock } from './theme-park/useThemeParkPreviewClock';
-import {
-    isDualThemeNameValid,
-    type EditableMode,
-    type ThemeEditTarget,
-    type ThemeParkTab,
-} from './theme-park/themeParkDraft';
+import type { PreviewSource } from '../visualizer/preview/PreviewSourceSwitch';
+import { useLivePreviewFeed } from '../visualizer/preview/useLivePreviewFeed';
+import { useStillClockPulse } from '../visualizer/preview/stillClockPulse';
+import { useThemeRecommendedColors } from './theme-park/useThemeRecommendedColors';
+import { isDualThemeNameValid } from './theme-park/themeParkDraft';
 
 // src/components/modal/ThemePark.tsx
 // Full theme editor: live visualizer preview on the left, and a tabbed editor on the right that
 // covers every editable Theme field (colors, names/descriptions, word colors and lyric icons,
 // plus the manual AI JSON round trip). The edit target — the song's AI theme or the saved custom
 // theme — is chosen inside the editor; both drafts stay alive while the modal is open.
+//
+// The window itself is the shared work-window shell (StudioWindow): this file puts three pieces on
+// it that take no layout from it: what the title bar holds beside the title (ThemeParkHeader's two
+// parts), the sample (ThemeParkPreview) and the editing column (ThemeParkColumn).
 
 interface ThemeParkProps {
     initialTheme: DualTheme;
@@ -55,6 +53,7 @@ interface ThemeParkProps {
     monetPortraitImage?: MonetPortraitImage | null;
     showSubtitleTranslation?: boolean;
     subtitleContentMode?: SubtitleContentMode;
+    subtitleOverlayLayout?: SubtitleOverlayLayout;
     lyricsFontStyle: Theme['fontStyle'];
     lyricsFontScale: number;
     lyricsFontWeight?: number | null;
@@ -63,13 +62,6 @@ interface ThemeParkProps {
     onSaveCustomTheme: (dualTheme: DualTheme) => void;
     onSaveAiTheme: (dualTheme: DualTheme, song: SongResult | null, songKey: ThemeCacheSongKey | null) => void;
 }
-
-const TABS: Array<{ id: ThemeParkTab; labelKey: string; }> = [
-    { id: 'colors', labelKey: 'theme.tabColors' },
-    { id: 'details', labelKey: 'theme.tabDetails' },
-    { id: 'content', labelKey: 'theme.tabContent' },
-    { id: 'ai', labelKey: 'theme.tabAi' },
-];
 
 const ThemePark: React.FC<ThemeParkProps> = ({
     initialTheme,
@@ -84,6 +76,7 @@ const ThemePark: React.FC<ThemeParkProps> = ({
     monetPortraitImage = null,
     showSubtitleTranslation = true,
     subtitleContentMode,
+    subtitleOverlayLayout,
     lyricsFontStyle,
     lyricsFontScale,
     lyricsFontWeight,
@@ -93,10 +86,14 @@ const ThemePark: React.FC<ThemeParkProps> = ({
     onSaveAiTheme,
 }) => {
     const { t } = useTranslation();
-    const isMouseDownOnOverlayRef = useRef(false);
+    // The app's own theme colours the window; the sample alone shows the theme being edited.
+    const { theme: appTheme } = useSettingsKitTheme();
     const [isPaused, setIsPaused] = useState(false);
-    const [activeTab, setActiveTab] = useState<ThemeParkTab>('colors');
-    const [coverColors, setCoverColors] = useState<string[]>([]);
+    const [previewSource, setPreviewSource] = useState<PreviewSource>('builtin');
+    const previewBoxRef = useRef<HTMLDivElement>(null);
+    // What the player shows now, when the sample is set aside for it; null while it has no lyrics.
+    const livePreview = useLivePreviewFeed({ enabled: previewSource === 'live', paused: isPaused, stageRef: previewBoxRef });
+    const liveContent = livePreview.content;
 
     // Shared theme-editing context (also feeding the quick editor): the live AI / custom themes
     // plus the current song, so a saved AI theme lands on the right cache entry.
@@ -114,24 +111,7 @@ const ThemePark: React.FC<ThemeParkProps> = ({
         })),
     );
 
-    const {
-        target,
-        setTarget,
-        mode,
-        setMode,
-        activeColorKey,
-        setActiveColorKey,
-        draft,
-        safeDraft,
-        baseTheme,
-        updateColorThrottled,
-        updateColorInstant,
-        updateModeField,
-        updateSharedField,
-        replaceDraft,
-        reset,
-        buildFinalTheme,
-    } = useThemeParkDraft({
+    const editor = useThemeParkDraft({
         aiTheme,
         customTheme,
         bgMode,
@@ -139,19 +119,16 @@ const ThemePark: React.FC<ThemeParkProps> = ({
         isDaylight,
         defaultCustomTheme: BASE_DUAL_THEME,
     });
+    const { target, setTarget, mode, draft, safeDraft, baseTheme, reset, buildFinalTheme } = editor;
 
-    const { currentTime, audioPower, audioBands, currentLineIndex } = useThemeParkPreviewClock(visualizerMode, isPaused);
+    // The sample's clock rests while the live picture is drawn.
+    const sampleClock = useThemeParkPreviewClock(visualizerMode, isPaused || liveContent !== null);
+    // The sample, paused, has no change of time for a style mounted anew (a switch from the live picture).
+    useStillClockPulse({ time: sampleClock.currentTime, still: isPaused && liveContent === null, boxRef: previewBoxRef, restartKey: previewSource });
+    const { currentTime, audioPower, audioBands } = liveContent ? livePreview : sampleClock;
+    const currentLineIndex = liveContent ? liveContent.currentLineIndex : sampleClock.currentLineIndex;
 
-    const glassBg = isDaylight ? 'bg-white/70' : 'bg-zinc-950/88';
-    const borderColor = isDaylight ? 'border-black/5' : 'border-white/10';
-    const controlCardBg = isDaylight ? 'rgba(255,255,255,0.56)' : 'rgba(255,255,255,0.04)';
-    const overlayBackground = isDaylight ? 'rgba(255,255,255,0.72)' : 'rgba(0,0,0,0.65)';
-    const visualizerModeLabel = getVisualizerModeLabel(visualizerMode, t);
-
-    const recommendedColors = useMemo(
-        () => buildRecommendedColors(baseTheme, coverColors),
-        [baseTheme, coverColors],
-    );
+    const recommendedColors = useThemeRecommendedColors(baseTheme, coverUrl, 4);
 
     const previewTheme = useMemo<DualTheme>(() => ({
         light: {
@@ -170,12 +147,6 @@ const ThemePark: React.FC<ThemeParkProps> = ({
 
     const isNameValid = isDualThemeNameValid(draft);
 
-    const handleHexCommit = () => {
-        updateModeField({
-            [activeColorKey]: normalizeThemeHexColor(draft[mode][activeColorKey], baseTheme[mode][activeColorKey]),
-        });
-    };
-
     const handleSave = () => {
         if (!isNameValid) {
             return;
@@ -189,152 +160,58 @@ const ThemePark: React.FC<ThemeParkProps> = ({
         }
     };
 
-    // 仅当 mouse down 和 click 都在 overlay 元素本身发生时才触发关闭，
-    // 避免在调色板拖拽鼠标至外部松开时误触关闭。
-    const handleOverlayMouseDown = (event: React.MouseEvent) => {
-        isMouseDownOnOverlayRef.current = event.target === event.currentTarget;
-    };
-
-    const handleOverlayClick = (event: React.MouseEvent) => {
-        if (event.target === event.currentTarget && isMouseDownOnOverlayRef.current) {
-            onClose();
-        }
-    };
-
     const targetHint = target === 'custom'
         ? (customTheme ? t('theme.targetCustomHint') : t('theme.targetCustomNewHint'))
         : (aiTheme ? t('theme.targetAiHint') : t('theme.targetAiNewHint'));
 
     return (
-        <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.22, ease: 'easeOut' }}
-            className="fixed inset-0 z-[140] backdrop-blur-xl p-3 sm:p-5"
-            style={{ backgroundColor: overlayBackground }}
-            onMouseDown={handleOverlayMouseDown}
-            onClick={handleOverlayClick}
-        >
-            <motion.div
-                initial={{ opacity: 0, y: 18, scale: 0.98 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: 18, scale: 0.98 }}
-                transition={{ duration: 0.2, ease: 'easeOut' }}
-                onClick={(event) => event.stopPropagation()}
-                data-ponder="theme-park"
-                className={`mx-auto flex h-full max-w-7xl flex-col overflow-hidden rounded-[32px] border ${borderColor} ${glassBg} shadow-[0_24px_80px_rgba(0,0,0,0.28)]`}
-            >
-                <ThemeParkHeader
-                    target={target}
-                    targetHint={targetHint}
-                    isDaylight={isDaylight}
-                    canSave={isNameValid}
-                    onTargetChange={setTarget}
-                    onReset={reset}
-                    onSave={handleSave}
-                    onClose={onClose}
+        <StudioWindow
+            title={t('theme.themePark')}
+            onBack={onClose}
+            backLabel={t('ui.back')}
+            isDaylight={isDaylight}
+            theme={appTheme}
+            ponderId="theme-park"
+            slot={<ThemeParkHeaderSlot target={target} targetHint={targetHint} onTargetChange={setTarget} />}
+            actions={<ThemeParkHeaderActions target={target} canSave={isNameValid} onReset={reset} onSave={handleSave} />}
+            stage={(
+                <ThemePreview
+                    theme={previewTheme[mode]}
+                    mode={mode}
+                    name={draft[mode].name ?? ''}
+                    description={draft[mode].description ?? ''}
+                    visualizerMode={visualizerMode}
+                    visualizerTunings={visualizerTunings}
+                    staticMode={staticMode}
+                    visualizerOpacity={visualizerOpacity}
+                    backgroundConfig={backgroundConfig}
+                    cappellaCustomEmojiImages={cappellaCustomEmojiImages}
+                    cappellaCustomAvatarImages={cappellaCustomAvatarImages}
+                    monetPortraitImage={monetPortraitImage}
+                    showSubtitleTranslation={showSubtitleTranslation}
+                    subtitleContentMode={subtitleContentMode}
+                    subtitleOverlayLayout={subtitleOverlayLayout}
+                    lyricsFontScale={lyricsFontScale}
+                    currentTime={currentTime}
+                    progressTime={liveContent ? livePreview.playbackTime : sampleClock.currentTime}
+                    currentLineIndex={currentLineIndex}
+                    audioPower={audioPower}
+                    audioBands={audioBands}
+                    isPaused={isPaused}
+                    onTogglePause={() => setIsPaused(previous => !previous)}
+                    previewSource={previewSource}
+                    onPreviewSourceChange={setPreviewSource}
+                    liveContent={liveContent}
+                    boxRef={previewBoxRef}
                 />
-
-                <div className="grid min-h-0 flex-1 gap-4 p-4 sm:p-6 lg:grid-cols-[minmax(0,1.2fr)_380px] lg:items-stretch">
-                    <div className="min-h-[300px] lg:min-h-0 lg:h-full">
-                        <ThemePreview
-                            theme={previewTheme[mode]}
-                            mode={mode}
-                            visualizerMode={visualizerMode}
-                            visualizerTunings={visualizerTunings}
-                            visualizerModeLabel={visualizerModeLabel}
-                            staticMode={staticMode}
-                            visualizerOpacity={visualizerOpacity}
-                            backgroundConfig={backgroundConfig}
-                            cappellaCustomEmojiImages={cappellaCustomEmojiImages}
-                            cappellaCustomAvatarImages={cappellaCustomAvatarImages}
-                            monetPortraitImage={monetPortraitImage}
-                            showSubtitleTranslation={showSubtitleTranslation}
-                            subtitleContentMode={subtitleContentMode}
-                            lyricsFontScale={lyricsFontScale}
-                            currentTime={currentTime}
-                            currentLineIndex={currentLineIndex}
-                            audioPower={audioPower}
-                            audioBands={audioBands}
-                            isPaused={isPaused}
-                            onTogglePause={() => setIsPaused(previous => !previous)}
-                        />
-                    </div>
-
-                    <div className="relative z-30 min-h-0 overflow-y-auto pr-1 custom-scrollbar">
-                        <div
-                            className="space-y-4 rounded-[24px] border border-white/10 p-4"
-                            style={{ backgroundColor: controlCardBg }}
-                        >
-                            <div className="grid grid-cols-4 gap-1 rounded-full bg-white/5 p-1">
-                                {TABS.map(({ id, labelKey }) => (
-                                    <button
-                                        key={id}
-                                        type="button"
-                                        onClick={() => setActiveTab(id)}
-                                        className="truncate rounded-full px-2 py-2 text-xs transition-colors"
-                                        style={{
-                                            color: 'var(--text-primary)',
-                                            backgroundColor: activeTab === id
-                                                ? (isDaylight ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.12)')
-                                                : 'transparent',
-                                        }}
-                                    >
-                                        {t(labelKey)}
-                                    </button>
-                                ))}
-                            </div>
-
-                            {activeTab === 'colors' && (
-                                <ThemeParkColorPanel
-                                    mode={mode}
-                                    onModeChange={setMode}
-                                    activeColorKey={activeColorKey}
-                                    onActiveColorKeyChange={setActiveColorKey}
-                                    safeDraft={safeDraft}
-                                    rawColorValue={draft[mode][activeColorKey]}
-                                    recommendedColors={recommendedColors}
-                                    isDaylight={isDaylight}
-                                    onColorDrag={updateColorThrottled}
-                                    onColorPick={updateColorInstant}
-                                    onHexInput={(value) => updateModeField({ [activeColorKey]: value })}
-                                    onHexCommit={handleHexCommit}
-                                />
-                            )}
-
-                            {activeTab === 'details' && (
-                                <ThemeParkDetailsPanel
-                                    draft={draft}
-                                    onFieldChange={(fieldMode: EditableMode, patch) => updateModeField(patch, fieldMode)}
-                                />
-                            )}
-
-                            {activeTab === 'content' && (
-                                <ThemeParkContentPanel
-                                    wordColors={draft.dark.wordColors ?? []}
-                                    lyricsIcons={draft.dark.lyricsIcons ?? []}
-                                    accentColor={safeDraft[mode].accentColor}
-                                    onWordColorsChange={(wordColors) => updateSharedField({ wordColors })}
-                                    onLyricsIconsChange={(lyricsIcons) => updateSharedField({ lyricsIcons })}
-                                />
-                            )}
-
-                            {activeTab === 'ai' && (
-                                <ThemeParkAiPanel
-                                    promptSourceText={promptSourceText}
-                                    isPureMusic={isPureMusic}
-                                    songTitle={songTitle}
-                                    buildFinalTheme={buildFinalTheme}
-                                    fallbackTheme={baseTheme}
-                                    onImportTheme={replaceDraft}
-                                />
-                            )}
-                        </div>
-                    </div>
-                </div>
-            </motion.div>
-        </motion.div>
+            )}
+        >
+            <ThemeParkColumn
+                editor={editor}
+                recommendedColors={recommendedColors}
+                promptSource={{ promptSourceText, isPureMusic, songTitle }}
+            />
+        </StudioWindow>
     );
 };
 

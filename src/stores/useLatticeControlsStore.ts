@@ -1,23 +1,14 @@
 import { create } from 'zustand';
 
 // src/stores/useLatticeControlsStore.ts
-// The mounted wall publishes its focus action and the visibility of its current-song chrome.
+// The mounted wall publishes the visibility of its current-song chrome.
 type LatticeControlsState = {
-    focusCurrentSong: (() => void) | null;
     isCurrentSongPosterVisible: boolean;
-    registerFocus: (action: (() => void) | null) => () => void;
     setCurrentSongPosterVisible: (visible: boolean) => void;
 };
 
-export const useLatticeControlsStore = create<LatticeControlsState>((set, get) => ({
-    focusCurrentSong: null,
+export const useLatticeControlsStore = create<LatticeControlsState>(set => ({
     isCurrentSongPosterVisible: true,
-    registerFocus: action => {
-        set({ focusCurrentSong: action });
-        return () => {
-            if (get().focusCurrentSong === action) set({ focusCurrentSong: null });
-        };
-    },
     setCurrentSongPosterVisible: visible => set(state => (
         state.isCurrentSongPosterVisible === visible
             ? state
@@ -28,10 +19,3 @@ export const useLatticeControlsStore = create<LatticeControlsState>((set, get) =
 export const setLatticeCurrentSongPosterVisible = (visible: boolean) => (
     useLatticeControlsStore.getState().setCurrentSongPosterVisible(visible)
 );
-
-export const focusLatticeCurrentSong = () => {
-    const action = useLatticeControlsStore.getState().focusCurrentSong;
-    if (!action) return false;
-    action();
-    return true;
-};

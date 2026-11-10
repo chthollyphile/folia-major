@@ -1,9 +1,9 @@
-import { PlayerState, type LyricData, type PlaybackContext, type SongResult, type StagePlayerSnapshot } from '../types';
+import { PlayerState, type LyricData, type PlaybackContext, type SongResult, type StagePlayerSnapshot, type SubtitleContentMode } from '../types';
 import type { PlayerChromeVisibilityMode, RemoteControlSnapshot, RemoteTrackTransition } from '../types/remoteControl';
 import type { VideoExportState } from '../types/videoExport';
 import { getPlaybackSongKey, isLocalPlaybackSong } from './appPlaybackGuards';
 import { buildStagePlayerSnapshot } from './stagePlayerSnapshot';
-import { resolvePlaybackNeighbors } from './playbackNeighbors';
+import { queueIndexOf, resolvePlaybackNeighbors } from './playbackNeighbors';
 import { resolvePlaybackSongArtist, resolvePlaybackSongCoverUrl } from './playbackSongMeta';
 
 // src/utils/playbackSyncBridge.ts
@@ -76,6 +76,7 @@ export interface RemoteControlSnapshotOptions {
     lyrics?: LyricData | null;
     includeLyrics?: boolean;
     playerChromeVisibilityMode: PlayerChromeVisibilityMode;
+    subtitleContentMode: SubtitleContentMode;
     trackTransition?: RemoteTrackTransition | null;
 }
 
@@ -132,17 +133,15 @@ export const buildPlaybackSyncBridgeModel = ({
     sampledAt = Date.now(),
 }: BuildPlaybackSyncBridgeModelArgs): PlaybackSyncBridgeModel => {
     const hasTrack = !isStageActive && Boolean(currentSong);
-    const currentSongKey = currentSong ? getPlaybackSongKey(currentSong) : null;
-    const currentIndex = currentSongKey
-        ? playQueue.findIndex(song => getPlaybackSongKey(song) === currentSongKey)
-        : -1;
-    const hasQueueNeighbors = playQueue.length > 1;
-    const canGoPrevious = hasTrack && (currentIndex > 0 || (effectiveLoopMode === 'all' && hasQueueNeighbors));
-    const canGoNext = hasTrack && (
-        isFmMode ||
-        currentIndex >= 0 && currentIndex < playQueue.length - 1 ||
-        (effectiveLoopMode === 'all' && hasQueueNeighbors)
-    );
+    const currentIndex = queueIndexOf(playQueue, currentSong);
+    // The same answer as the main window's arrows: enabled exactly when the press does something.
+    const neighbors = resolvePlaybackNeighbors({
+        playQueue,
+        currentSong,
+        loopMode: effectiveLoopMode,
+        isFmMode,
+        isStageActive,
+    });
     const safeCurrentTimeSec = Math.max(0, clampFiniteNumber(currentTimeSec));
     const safeDurationSec = Math.max(0, clampFiniteNumber(durationSec));
 
@@ -162,8 +161,8 @@ export const buildPlaybackSyncBridgeModel = ({
         playerState,
         loopMode: effectiveLoopMode,
         isFmMode,
-        canGoPrevious,
-        canGoNext,
+        canGoPrevious: neighbors.prev.canGo,
+        canGoNext: neighbors.next.canGo,
         controlsDisabled: controlsDisabled || !hasTrack,
         isStageActive,
         transparentModeEnabled,
@@ -230,6 +229,7 @@ export const buildRemoteControlSnapshotFromPlaybackSyncBridge = (
     isDaylight: model.isDaylight,
     ...(options.includeLyrics ? { lyrics: options.lyrics ?? null } : {}),
     lyricOffsetMs: model.lyricOffsetMs,
+    subtitleContentMode: options.subtitleContentMode,
     isLiked: model.isLiked,
     updatedAt: model.sampledAt,
     mainWindowWidth: model.mainWindowWidth,

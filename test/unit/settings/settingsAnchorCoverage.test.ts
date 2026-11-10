@@ -1,69 +1,37 @@
-import fs from 'node:fs';
-import path from 'node:path';
+// @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
-import { SETTINGS_ANCHOR_DEFINITIONS, SETTINGS_ANCHOR_SECTION } from '../../../src/components/modal/settings/navigation/settingsAnchorModel';
+import { SETTINGS_ANCHOR_DEFINITIONS } from '../../../src/components/modal/settings/navigation/settingsAnchorModel';
+import type { SettingsSectionId } from '../../../src/components/modal/settings/navigation/settingsNavModel';
+import { SETTINGS_PAGE_OPTIONS } from '../../../src/components/modal/settings/pages';
 
 // test/unit/settings/settingsAnchorCoverage.test.ts
-// The sidebar table of contents only lists sections wrapped in <SettingsAnchor>. Two of these live
-// in files rendered by a different subview (PinnedCommandSettings, TransitionSettingsSection), so a
-// plain <section> slipping back in is easy to miss by eye and invisible until the entry disappears.
+// A command or a link that names an anchor also names, through settingsAnchorModel, the page to
+// open it on. Both halves are invisible when wrong: the command still runs, it just lands nowhere.
+// This holds the table against the options the pages declare.
 
-const SETTINGS_DIR = path.join(process.cwd(), 'src/components/modal/settings');
+const declared = Object.entries(SETTINGS_ANCHOR_DEFINITIONS) as [string, { section: string }][];
 
-const settingsFiles = fs.readdirSync(SETTINGS_DIR)
-    .filter(name => name.endsWith('.tsx'))
-    .map(name => path.join(SETTINGS_DIR, name));
+describe('settings anchors', () => {
+    // The page carries the id itself: it is the id of a group or of an option among the options
+    // the page declares, which is what a landing looks for. A string that merely appears in the
+    // page's source is no proof.
+    it('are each carried by the page of their category, as a group or an option it declares', () => {
+        const nowhere = declared
+            .filter(([id, definition]) => !SETTINGS_PAGE_OPTIONS[definition.section as SettingsSectionId]
+                .some(declaredOption => declaredOption.id === id || declaredOption.group.id === id))
+            .map(([id, definition]) => `${id} is not on the ${definition.section} page`);
 
-describe('settings section anchors', () => {
-    it.each(settingsFiles.map(file => [path.basename(file), file]))('uses SettingsAnchor instead of a bare section in %s', (_name, file) => {
-        expect(fs.readFileSync(file, 'utf8')).not.toMatch(/<section[\s>]/);
+        expect(nowhere).toEqual([]);
     });
 
-    it('registers a unique anchor id per rendered section', () => {
-        const ids = settingsFiles.flatMap(file => (
-            [...fs.readFileSync(file, 'utf8').matchAll(/<SettingsAnchor anchorId="([^"]+)"/g)].map(match => match[1])
-        ));
+    // A landing looks for the id on the page the table names. The same id on a second page is a
+    // second place the command could have meant, and nothing says which.
+    it('are each declared on one page only', () => {
+        const pages = Object.entries(SETTINGS_PAGE_OPTIONS) as [string, readonly { id: string; group: { id: string } }[]][];
+        const elsewhere = declared.flatMap(([id, definition]) => pages
+            .filter(([section, options]) => section !== definition.section && options.some(row => row.id === id || row.group.id === id))
+            .map(([section]) => `${id} is also on the ${section} page`));
 
-        expect(ids.length).toBeGreaterThan(20);
-
-        // stageMode is declared twice on purpose: the Electron and web panels are mutually exclusive.
-        const duplicates = ids.filter((id, index) => ids.indexOf(id) !== index);
-        expect(duplicates).toEqual(['stageMode']);
-    });
-
-    // A settings command that names an anchor also names, through this table, the page to open it
-    // on. Both halves are invisible when wrong: the command still runs, it just lands somewhere
-    // else. So the table is held against the anchors actually rendered, in both directions.
-    it('declares a section for exactly the anchors that are rendered', () => {
-        const rendered = new Set(settingsFiles.flatMap(file => (
-            [...fs.readFileSync(file, 'utf8').matchAll(/<SettingsAnchor anchorId="([^"]+)"/g)].map(match => match[1])
-        )));
-        const declared = new Set(Object.keys(SETTINGS_ANCHOR_SECTION));
-
-        expect([...rendered].filter(id => !declared.has(id))).toEqual([]);
-        expect([...declared].filter(id => !rendered.has(id))).toEqual([]);
-    });
-
-    it('keeps playback navigation in the same order as the rendered settings', () => {
-        const source = fs.readFileSync(path.join(SETTINGS_DIR, 'PlaybackSettingsSubview.tsx'), 'utf8');
-        const renderedOrder = [
-            ['queueSettings', 'anchorId="queueSettings"'],
-            ['scrobbleSettings', 'anchorId="scrobbleSettings"'],
-            ['transitionSettings', '<TransitionSettingsSection'],
-            ['replayGainSettings', 'anchorId="replayGainSettings"'],
-            ['lyrics', 'anchorId="lyrics"'],
-            ['audioOutputSettings', 'anchorId="audioOutputSettings"'],
-        ]
-            .map(([id, marker]) => {
-                expect(source, `${marker} missing`).toContain(marker);
-                return { id, position: source.indexOf(marker) };
-            })
-            .sort((a, b) => a.position - b.position)
-            .map(entry => entry.id);
-        const navigationOrder = Object.entries(SETTINGS_ANCHOR_DEFINITIONS)
-            .filter(([, definition]) => definition.section === 'playback')
-            .map(([id]) => id);
-
-        expect(renderedOrder).toEqual(navigationOrder);
+        expect(elsewhere).toEqual([]);
     });
 });

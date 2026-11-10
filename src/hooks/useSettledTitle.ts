@@ -97,19 +97,21 @@ export function useSettledTitle(text: string, expanded: boolean, options?: Optio
     //
     // A read cannot catch every difference - a cut a grapheme or two short still occupies three
     // lines - so a fit the model cannot predict skips the read and goes straight to the browser.
+    //
+    // A read that agrees is noted in a ref, not in state. As state it rendered every new title a
+    // second time; React runs this effect right after the sync commit of the fit, so that render
+    // was still pending when the wall's next pan update came, every commit of a fast pan left work
+    // behind, and after 50 in a row React stopped the wall with "maximum update depth" (#185).
+    const confirmed = useRef<Fit | null>(null);
     useEffect(() => {
         const node = ref.current;
-        if (!node || !fitter || !fit || fit.checked || fit.source !== text || viewport.resizing) return;
-        const confirm = (value: string) => setFit(current => (
-            current === fit ? { ...current, value, checked: true } : current
-        ));
-        if (fit.predictable && !titleFitNeedsCorrection(node, text, fit.value)) {
-            confirm(fit.value);
-            return;
-        }
-        const corrected = fitTitle(node, text, { width: `${fit.metrics.width}px` });
+        if (!node || !fitter || !fit || fit.checked || confirmed.current === fit || fit.source !== text || viewport.resizing) return;
+        confirmed.current = fit;
+        if (fit.predictable && !titleFitNeedsCorrection(node, text, fit.value, fit.metrics.maxLines)) return;
+        const corrected = fitTitle(node, text, { width: `${fit.metrics.width}px`, maxLines: fit.metrics.maxLines });
         cache.set(fit.key, corrected);
-        confirm(corrected);
+        if (corrected === fit.value) return;
+        setFit(current => (current === fit ? { ...current, value: corrected, checked: true } : current));
     }, [cache, fit, fitter, text, viewport.resizing]);
 
     return {

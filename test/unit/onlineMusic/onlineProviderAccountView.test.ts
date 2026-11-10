@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canSwitchToProviderDirectly, resolveOnlineProviderAccountView } from '@/library/core/model/onlineProviderAccountView';
+import { canSwitchToProviderDirectly, resolveOnlineProviderAccountView } from '@/library/core/account/onlineProviderAccountView';
 import type { ProviderAccountSummary } from '@/types/onlineMusic';
 
 // test/unit/onlineMusic/onlineProviderAccountView.test.ts
@@ -62,7 +62,7 @@ describe('picking a provider', () => {
         expect(canSwitchToProviderDirectly(accountlessProvider())).toBe(true);
     });
 
-    it('starts a login for a provider that needs an account and has none', () => {
+    it('leaves a provider that needs an account and has none to the sign-in window', () => {
         expect(canSwitchToProviderDirectly(provider('unknown'))).toBe(false);
         expect(canSwitchToProviderDirectly(provider('anonymous'))).toBe(false);
         expect(canSwitchToProviderDirectly({ ...provider('anonymous'), requiresAccount: true })).toBe(false);

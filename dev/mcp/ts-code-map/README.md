@@ -51,7 +51,7 @@ buildHomeModel  src/components/app/home/buildHomeModel.ts:64
 ```
 
 响应时间：`find_symbol` 首次 ~250ms（含 project 加载），之后全部工具在 4–72ms。
-模块图每次重建耗时 ~59ms（1298 个文件、3729 条边）。
+模块图每次重建耗时 ~0.3s（3523 个文件、12683 条边；import 按词读，见下面「依赖图的三个校正」）。
 十个工具的 schema 常驻上下文约 5.5KB。
 
 ## 自检与排障
@@ -93,8 +93,14 @@ node dev/mcp/ts-code-map/cli.mjs doctor   # 环境检查：tsgo / git / rg 是�
 
 - `impact` 和 `change_context` 给的是**传递闭包上界**，会高估影响面。输出里会标明 depth 和
   截断情况，别当成精确答案。
-- 模块图只收 git 跟踪的源文件。`.svg` / `.png` / `.json` 这类资源 import 不进图（实测仓库里
-  有 8 个这样的 import，都是资源，不是解析失败）。
+- 模块图只收 git 跟踪的源文件。`.css` / `.png` / `.json` 这类资源 import 不进图（实测仓库里
+  有 58 个这样的 import，其中 48 个是只为副作用的 `import './x.css'`；都是资源，不是解析失败）。
+- 读 import 只切词、不建语法树，`/` 是除号还是正则按前一个词猜（`)`、`]`、`}` 后面一律当除号）；
+  JSX 文本也按普通代码切词，里面落单的引号只影响到行尾，落单的反引号会一直吞到下一个反引号。
+- 类型位置的 `import()` 靠前后的词认：前一个词是 `typeof`，或 `import('./x')` 后面接 `.名字` 而不是调用，
+  就和 `import type` 一样算仅类型（全仓约 370 处）；带 options 的 `import('./x', {...}).T` 认不出，按动态 import 算。
+  测试里经 `vi.mock` / `vi.importActual` 的字符串加载的模块不算 import，这类边如果只剩类型注解里的
+  `typeof import()`，会标成仅类型。
 
 - `callees` 默认略过 `node_modules/` 和 `.d.ts` 里的条目（否则 `Array.filter`、`Array.find`
   这类会淹掉真正的项目内调用），略过数量会在输出末尾说明。
@@ -112,15 +118,25 @@ node dev/mcp/ts-code-map/cli.mjs doctor   # 环境检查：tsgo / git / rg 是�
 工具访问文件前会比对 mtime，变了就整篇重推给 tsgo。所以 agent 边查边改不会拿到过期结果。
 同时打开的文档超过 40 个时按 LRU 关闭最旧的。
 
-## 依赖图的两个校正
+## 依赖图的三个校正
 
 写的时候踩到、值得记下来：
 
 1. **`import type` 必须和值导入分开。** 全仓 3729 条边里有 891 条（24%）是纯类型边，它们在
    运行时根本不存在。不区分的话，「谁依赖这个模块」会被严重高估——例如 `src/stores` 看起来
    import 了 `src/components/UnifiedPanel.tsx`（像是违反分层），实际只是 `import type { PanelTab }`。
+   反过来，一对文件之间只要还有一条值导入（含动态 `import()`、glob），这条边就是运行时依赖：
+   全是 `import type`（或类型位置的 `import('./x').T`、`typeof import('./x')`）才算纯类型边。
+   早先只要有一条 `import type` 就整条算纯类型，全仓 158 条既 `import type` 又值导入的边因此被
+   分层检查和 UI 传染跳过。
 2. **别写死剥 `b/` 前缀。** 这个仓库开了 `diff.mnemonicPrefix`，`git diff` 的前缀是 `w/` 而不是
    `b/`，写死会得到错的路径。统一加 `--no-prefix`。
+3. **import 要按词读，不能逐行正则。** 早先的正则（`[^;\n]*?`）不跨行，写成多行的
+   `import {\n  a,\n} from '...'` 整条进不了图：全仓漏了约 780 条边，分层检查也就看不见经由它们的违规。
+   现在 `graph/specifiers.mjs` 先切词再读语句，注释、字符串、模板串里的「import」自然不算；
+   只为副作用的 `import './x'` 以前也读不到，现在一并收进图。切词是自己写的：codemap-sync 不装依赖，
+   生成器只能用 Node 内置模块；TS 7 的 npm 包里 JS 端也只有标着 unstable 的 scanner，碰到 `#000`
+   这种 `#` 还会原地死循环。写的时候拿那个 scanner 当参照比过，全仓逐文件读出的说明符一致。
 
 
 ## 环境依赖（都是可选的）

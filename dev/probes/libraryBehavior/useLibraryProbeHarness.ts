@@ -9,7 +9,7 @@ import {
     createOnlineGridViewCollection,
     type GridViewCollectionDescriptor,
 } from '../../../src/components/app/home/gridViewCollectionAdapters';
-import { buildLocalHomeGroups } from '../../../src/library/core/model/localHomeModel';
+import { buildLocalHomeGroups } from '../../../src/library/core/home/localHomeModel';
 import { getLocalCoverAssetUrl } from '../../../src/services/localCoverAssetUrl';
 import { useLocalLibraryCatalog, type LocalLibraryCatalogSnapshot } from '../../../src/hooks/useLocalLibraryCatalog';
 import {
@@ -17,12 +17,12 @@ import {
     useCollectionNavigationStore,
     type CollectionNavigationSnapshot,
 } from '../../../src/stores/useCollectionNavigationStore';
-import { resolveCollectionPopTo } from '../../../src/library/core/model/collectionNavigation';
-import type { CollectionNavigationOrigin } from '../../../src/library/core/contracts/collection';
+import { resolveCollectionPopTo } from '../../../src/library/core/collection/collectionNavigation';
+import type { CollectionNavigationOrigin } from '../../../src/library/core/collection/collection.contract';
 import { useOnlineProviderAccountStore } from '../../../src/stores/useOnlineProviderAccountStore';
-import { useLibrarySuiteStore } from '../../../src/library/core/state/useLibrarySuiteStore';
-import { DEFAULT_LIBRARY_SUITE_ID } from '../../../src/library/core/model/librarySuites';
-import { useLibraryBrowseSessionStore } from '../../../src/library/core/state/useLibraryBrowseSessionStore';
+import { useLibrarySuiteStore } from '../../../src/library/core/suite/useLibrarySuiteStore';
+import { DEFAULT_LIBRARY_SUITE_ID } from '../../../src/library/core/suite/librarySuites';
+import { useLibraryBrowseSessionStore } from '../../../src/library/core/shared/useLibraryBrowseSessionStore';
 import { unregisterOnlineMusicProvider } from '../../../src/services/onlineMusic/providerRegistry';
 import { DEFAULT_THEME } from '../../../src/services/baseThemes';
 import {
@@ -82,6 +82,7 @@ const STATIC_CATALOG: LocalLibraryCatalogSnapshot = {
     entities: [],
     assignments: [],
     ready: true,
+    failed: false,
     reload: async () => {},
 };
 

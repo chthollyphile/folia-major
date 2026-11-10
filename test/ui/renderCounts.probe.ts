@@ -47,7 +47,7 @@ const openApp = async (page: import('@playwright/test').Page, view: 'player' | '
     await page.addInitScript(([version, guideKey, startView]) => {
         localStorage.clear();
         localStorage.setItem('library_suite_prompt_seen', 'true');
-        localStorage.setItem('i18nextLng', 'zh-CN');
+        localStorage.setItem('folia_app_language', 'zh-CN');
         localStorage.setItem('open_player_on_launch', startView === 'player' ? 'true' : 'false');
         localStorage.setItem('visualizer_mode', 'classic');
         localStorage.setItem('static_mode', 'true');
@@ -218,7 +218,7 @@ const openWall = async (page: import('@playwright/test').Page) => {
     await page.addInitScript(([version, guideKey]) => {
         localStorage.clear();
         localStorage.setItem('library_suite_prompt_seen', 'true');
-        localStorage.setItem('i18nextLng', 'en');
+        localStorage.setItem('folia_app_language', 'en');
         localStorage.setItem('static_mode', 'true');
         localStorage.setItem(guideKey, version);
     }, [APP_VERSION, GUIDE_VERSION_STORAGE_KEY]);

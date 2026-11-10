@@ -1,4 +1,4 @@
-import type { LibrarySuiteId } from '../core/contracts/suite';
+import type { LibrarySuiteId } from '../core/suite/suite.contract';
 import { getActiveLibrarySuiteId, useActiveLibrarySuiteId } from './librarySuiteChoice';
 
 // src/library/app/bravaisLibraryActive.ts

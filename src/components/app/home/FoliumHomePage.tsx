@@ -2,19 +2,19 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChevronLeft } from 'lucide-react';
 import type { FoliumHomeTabDef } from '../../../mods/folium/contract';
-import type { FoliumRegistryEntry } from '../../../mods/folium/registry';
-import type { LibraryHomeExtraTab } from '../../../library/core/contracts/suite';
-import type { LibraryHomeData } from '../../../library/core/contracts/home';
-import type { LibraryAccountController } from '../../../library/core/contracts/account';
-import { useLibraryHomeSources } from '../../../library/core/bindings/useLibraryHomeSources';
+import type { FoliumRegistryEntry } from '../../../mods/runtime/registry';
+import type { LibraryHomeExtraTab } from '../../../library/core/suite/suite.contract';
+import type { LibraryHomeData } from '../../../library/core/home/home.contract';
+import type { LibraryAccountController } from '../../../library/core/account/account.contract';
+import { useLibraryHomeSources } from '../../../library/core/home/useLibraryHomeSources';
 import { useThemeSettingsStore } from '../../../stores/useThemeSettingsStore';
-import { FoliumMountHost } from '../../../mods/folium/FoliumMountHost';
+import { FoliumMountHost } from '../../../mods/runtime/FoliumMountHost';
 import { toFoliumTheme } from '../../../mods/folium/dto';
 import { closeFoliumHomeTab } from '../../../mods/folium/registries/homeTabs';
 import { useFoliumPanelContext } from '../../../mods/folium/registries/useFoliumPanelContext';
-import { resolveFoliumLabel } from '../../../mods/folium/params';
+import { resolveFoliumLabel } from '../../../mods/params/params';
 import { isCommandPaletteShortcut, isTextEntryTarget } from '../../../utils/keyboardTargets';
-import { useLibraryHomeSurfaceStore } from '../../../library/core/state/useLibraryHomeSurfaceStore';
+import { useLibraryHomeSurfaceStore } from '../../../library/core/home/useLibraryHomeSurfaceStore';
 import { selectNativeHomeTabFromPage } from './useFoliumHomeNavigation';
 import {
     claimHomePageFocus,

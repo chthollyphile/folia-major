@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="QQ Music alternative icon">
+  <defs>
+    <linearGradient id="music-gradient" x1="8" y1="7" x2="56" y2="58" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2588FF"/>
+      <stop offset="1" stop-color="#8638F9"/>
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="56" height="56" rx="18" fill="url(#music-gradient)"/>
+
+  <g fill="#FFFFFF">
+    <circle cx="23.4" cy="43.0" r="6"/>
+    <circle cx="40.8" cy="39.6" r="6"/>
+  </g>
+
+  <g fill="none" stroke="#FFFFFF" stroke-width="5.2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M26.8 43.0V18.9L44.2 14.5V39.6"/>
+  </g>
+</svg>

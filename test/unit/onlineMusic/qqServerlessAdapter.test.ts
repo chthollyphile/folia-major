@@ -222,7 +222,7 @@ describe('QQ serverless deployment adapters', () => {
         });
 
         it('surfaces a failed channel call instead of reporting an empty observation', async () => {
-            // 静默回空会让 checkQr 一路回 801：二维码明明已经废了，界面却一直转。
+            // 静默回空会让 checkLogin 一路回 801：二维码明明已经废了，界面却一直转。
             const fake = createNamespace(() => new Response('{}', { status: 500 }));
             await handleQq(new Request('https://folia.example/api/qq/login/qr/check'), {
                 QQ_SESSION_SECRET: 'secret',

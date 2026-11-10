@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { LibrarySuiteStageProps } from '../../../src/library/core/contracts/suite';
+import type { LibrarySuiteStageProps } from '../../../src/library/core/suite/suite.contract';
 import type { BravaisItemKind, BravaisLayer } from '../../../src/library/suites/bravais/bravaisLayer';
 import BravaisStage from '../../../src/library/suites/bravais/BravaisStage';
 import { useBravaisLayerRegistration } from '../../../src/library/suites/bravais/useBravaisLayerRegistration';

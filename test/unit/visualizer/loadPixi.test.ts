@@ -9,11 +9,11 @@ const glProgram = { defaultOptions: {} as { preferredFragmentPrecision?: string 
 const installCompat = vi.fn();
 
 vi.mock('pixi.js', () => ({ GlProgram: glProgram }));
-vi.mock('@/components/visualizer/pixiFilterPoolCompat', () => ({ installPixiFilterPoolCompat: installCompat }));
+vi.mock('@/components/visualizer/pixi/pixiFilterPoolCompat', () => ({ installPixiFilterPoolCompat: installCompat }));
 
 describe('loadPixi', () => {
     it('raises the fragment shader precision default to highp', async () => {
-        const { loadPixi } = await import('@/components/visualizer/loadPixi');
+        const { loadPixi } = await import('@/components/visualizer/pixi/loadPixi');
 
         expect(glProgram.defaultOptions.preferredFragmentPrecision).toBeUndefined();
 

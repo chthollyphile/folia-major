@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { DEFAULT_SONNET_TUNING, PlayerState } from '../../src/types';
 import {
     buildObsBrowserSourceConfigSignature,
+    buildObsBrowserSourceClock,
     buildLegacyObsBrowserSourceBackgroundConfig,
     downsampleObsSpectrum,
     ObsBrowserSourceConfigPublicationTracker,
@@ -182,6 +183,20 @@ describe('obsBrowserSource utilities', () => {
         expect(legacy.urlBackgroundList).toEqual([
             { id: 'page', url: 'https://example.com', note: 'Example' },
         ]);
+    });
+
+    it('does not overwrite the manual offset when publishing a preview-adjusted clock', () => {
+        const original = {
+            currentTime: 2, duration: 30, playerState: PlayerState.PLAYING,
+            sentAtMs: 1000, playbackRate: 1, lyricOffsetMs: 500,
+        };
+        const published = buildObsBrowserSourceClock(original, 30000);
+        expect(original.lyricOffsetMs).toBe(500);
+        expect(published.lyricOffsetMs).toBe(-29500);
+        expect(resolveObsBrowserSourceClockTime(published, 1000)).toBe(31.5);
+        // The seek detector converts this back to media time before comparing with currentTime.
+        expect(resolveObsBrowserSourceClockTime(published, 2000) + published.lyricOffsetMs! / 1000).toBe(3);
+        expect(buildObsBrowserSourceClock(original, 0)).toEqual(original);
     });
 
     it('extrapolates playing clock snapshots', () => {

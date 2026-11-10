@@ -6,13 +6,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const requestMock = vi.hoisted(() => vi.fn());
 const transportState = vi.hoisted(() => ({ hasSession: true }));
 
-vi.mock('@/services/onlineMusic/qqTransport', () => ({
+vi.mock('@/services/onlineMusic/qq/qqTransport', () => ({
     hasQqSession: () => transportState.hasSession,
+    hasUsableQqSession: () => transportState.hasSession,
     requestQq: requestMock,
 }));
 
-import { canEditQqPlaylistTracks, getQqSubscriptionStatus, qqMutations } from '@/services/onlineMusic/qqMutations';
-import { normalizeQqCollection, normalizeQqSong } from '@/services/onlineMusic/qqNormalize';
+import { canEditQqPlaylistTracks, getQqSubscriptionStatus, qqMutations } from '@/services/onlineMusic/qq/qqMutations';
+import { normalizeQqCollection, normalizeQqSong } from '@/services/onlineMusic/qq/qqNormalize';
 import { OnlineProviderError, type ProviderCollection } from '@/types/onlineMusic';
 
 // GetPlaylistByUin 的自建条目带 dirName（据此判为自建）；收藏条目是另一套字段。
@@ -244,5 +245,40 @@ describe('QQ subscription status', () => {
         transportState.hasSession = true;
         await expect(getQqSubscriptionStatus('playlist', 'not-a-tid')).resolves.toBe(false);
         expect(requestMock).not.toHaveBeenCalled();
+    });
+});
+
+// 3.3.3：建自己的歌单（「建立、改名与删除自己的普通歌单」），以及探索页的排行榜、电台卡片不给收藏。
+describe('QQ playlist creation and what may be saved', () => {
+    beforeEach(() => {
+        requestMock.mockReset();
+        transportState.hasSession = true;
+    });
+
+    it('makes an empty playlist of the account\'s own, named as the backend read it back', async () => {
+        requestMock.mockResolvedValueOnce({ code: 200, tid: 70009, dirId: 9, name: '新歌单', verified: true });
+
+        const created = await qqMutations.createPlaylist!('新歌单');
+
+        expect(requestMock).toHaveBeenCalledWith('user_playlist_create', {}, { name: '新歌单' });
+        expect(created).toMatchObject({ providerId: 'qq', id: 70009, name: '新歌单', type: 'playlist', isOwned: true, trackCount: 0 });
+        // 和读账号时的自建条目同一个形状：能直接往里加歌。
+        expect(canEditQqPlaylistTracks(created)).toBe(true);
+    });
+
+    it('takes an answer without the playlist for a failure, and sends once', async () => {
+        requestMock.mockResolvedValueOnce({ code: 200, verified: true });
+
+        await expect(qqMutations.createPlaylist!('新歌单')).rejects.toMatchObject({ code: 'invalid-response' });
+        expect(requestMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('offers no saving of a chart or a radio station', () => {
+        const chart = normalizeQqCollection({ id: 'toplist-26', title: '示例榜', providerData: { list: 'toplist', listId: 26 } });
+        const radio = normalizeQqCollection({ id: 'radio-101', title: '示例电台', providerData: { list: 'radio', listId: 101 } });
+
+        expect(qqMutations.canSubscribe!(chart)).toBe(false);
+        expect(qqMutations.canSubscribe!(radio)).toBe(false);
+        expect(qqMutations.canSubscribe!(favourite)).toBe(true);
     });
 });

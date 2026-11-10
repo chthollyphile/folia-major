@@ -2,6 +2,7 @@ import React, { memo, useLayoutEffect, useRef, useState, type MouseEvent, type M
 import { WallTitle } from '../../../components/wall/WallTitle';
 import { useWallPosterArtwork } from '../../../components/wall/useWallPosterArtwork';
 import { parseWallSlotKey } from '../../../components/wall/wallSlots';
+import { isWallDoubleClickOn, noteWallPress } from '../../../components/wall/wallDoubleClick';
 import { countRender } from '../../../dev/renderCount';
 import { getSizedCoverUrl } from '../../../utils/coverUrl';
 import {
@@ -15,6 +16,7 @@ import { resolveTileTransition, type BravaisEntrance, type BravaisFlipStep } fro
 import type { BravaisItem } from './bravaisLayer';
 import { bravaisFaceKey, type BravaisTileKind } from './bravaisLook';
 import BravaisFocusCardBody, { type BravaisFocusCardActions } from './BravaisFocusCardBody';
+import BravaisTileQuickActions, { BRAVAIS_QUICK_ACTIONS_MIN_WIDTH } from './BravaisTileQuickActions';
 import BravaisTileMarks, { BravaisTileBadge } from './BravaisTileMarks';
 import { useBravaisArtistTone } from './bravaisArtistTone';
 import { noteCoverFlightSource } from './bravaisCoverFlight';
@@ -60,6 +62,8 @@ const pointerStayed = (event: MouseEvent<HTMLElement>) => (
 export type BravaisTileHandlers = BravaisFocusCardActions & {
     /** 点了这张磁贴（拖动后的残余点击已在外面吞掉）。 */
     activate: (slotKey: string) => void;
+    /** 双击了这张磁贴（#834）：歌曲直接播放，不用再点聚焦卡上的播放键。 */
+    playFromWall: (slotKey: string) => void;
     /** B9：首页歌单类卡片的眼睛按钮（directory-toggle-hidden）。 */
     toggleHidden?: (slotKey: string) => void;
 };
@@ -240,9 +244,14 @@ function BravaisTile({
     // B11 整墙入场：只按 token 认（入场途中的数据更新沿用同一个 entrance，不重启）。已经在放的翻牌 / 波次让给它；
     // 落回之前保持抬起（fill backwards），刚挂载的磁贴也一样落回。入场窗口过了才挂载的不动。
     const entranceToken = entrance?.token ?? null;
+    // 挂载时（第一次渲染）带着的入场：按它认「这次入场时刚挂载」。不按 effect 跑没跑过认——StrictMode 挂载后会卸载
+    // 再挂载一遍（清理会取消落回），重放时仍要认作挂载、重新排落回。
+    const mountEntranceTokenRef = useRef(entranceToken);
     useLayoutEffect(() => {
         const face = faceRef.current;
         if (!entrance || !face) return;
+        // 只给这一刻挂载的磁贴（探索页原地重排：留在原地的不动，正在放的入场也不打断）。
+        if (entrance.mountsOnly && entrance.token !== mountEntranceTokenRef.current) return;
         const now = performance.now();
         if (now >= entrance.until) return;
         const stagger = entrance.reduced ? 0 : getWaveStagger(rect, entrance.corner, BRAVAIS_METRICS);
@@ -273,6 +282,8 @@ function BravaisTile({
     );
     const isTrack = display?.kind === 'track';
     const isWindow = face.kind === 'window';
+    // 探索形状的 section 标题：只有字（序号、标题、这一段有几项哪几种），不能点、不进键盘走位（它不是条目）。
+    const isHeading = face.kind === 'heading';
     const cover = display ? (coverUrl ? `url("${coverUrl}")` : fallbackBackground(display.key)) : undefined;
     const isCurrent = Boolean(display && nowPlayingKey && display.key === nowPlayingKey);
     const isExpanded = expanded && isTrack;
@@ -297,8 +308,11 @@ function BravaisTile({
         ? null
         : art.mode === 'mosaic' ? mosaicPlacement(rect, parseWallSlotKey(slotKey) ?? { column: 0, row: 0 }) : artSpots ? shardPlacement(artSpots, display.key, rect) : null;
 
+    const pressKey = `bravais:${slotKey}:${display?.key ?? ''}`;
     const handleClick = (event: MouseEvent<HTMLElement>) => {
-        if (event.target instanceof Element && event.target.closest('button')) return;
+        const onButton = event.target instanceof Element && Boolean(event.target.closest('button'));
+        noteWallPress(event, onButton ? '' : pressKey);
+        if (onButton) return;
         if (didDragRef.current) {
             didDragRef.current = false;
             return;
@@ -308,6 +322,13 @@ function BravaisTile({
             noteCoverFlightSource(event.currentTarget.parentElement, display.key, slotKey, display.coverUrl);
         }
         handlers.activate(slotKey);
+    };
+
+    // 双击 = 两下单击（第一下已经展开了聚焦卡）之后再播放；双击在按钮上的归按钮自己。第一下点的必须就是这张、显示的
+    // 还是同一项：双击歌单 / 专辑卡时第一下已经推入新层、第一首翻进了这个 slot，那不算双击了这首歌。
+    const handleDoubleClick = (event: MouseEvent<HTMLElement>) => {
+        if (event.target instanceof Element && event.target.closest('button')) return;
+        if (isTrack && isWallDoubleClickOn(pressKey)) handlers.playFromWall(slotKey);
     };
 
     const style = {
@@ -323,10 +344,10 @@ function BravaisTile({
             className={`bravais-tile${isExpanded ? ' is-expanded' : ''}${keyboardFocused ? ' is-focused' : ''}`}
             style={style}
             data-bravais-slot={slotKey}
-            data-bravais-kind={isWindow ? 'window' : display?.kind ?? 'wall'}
+            data-bravais-kind={isWindow ? 'window' : isHeading ? 'heading' : display?.kind ?? 'wall'}
             data-bravais-see-through={face.seeThrough || undefined}
             data-library-entry={isTrack ? display?.key : undefined}
-            data-library-card={display && !isTrack ? display.key : undefined}
+            data-library-card={display && !isTrack && !isHeading ? display.key : undefined}
             data-bravais-focused={keyboardFocused || undefined}
             data-bravais-expanded={isExpanded || undefined}
             data-bravais-current={isCurrent || undefined}
@@ -342,17 +363,27 @@ function BravaisTile({
         >
             <article
                 ref={faceRef}
-                className={`lattice-poster bravais-tile-face${display ? '' : isWindow ? ' is-window' : ' is-wall'}${face.seeThrough ? ' is-see-through' : ''}${isExpanded ? ' is-expanded' : ''}${keyboardFocused ? ' is-focused' : ''}${isCurrent ? ' is-current' : ''}${display?.unavailable ? ' is-unavailable' : ''}${linked && display ? ' is-linked' : ''}${display?.dimmed ? ' is-dimmed' : ''}${display?.selected ? ' is-selected' : ''}${isStack ? ' is-stack' : ''}${isPortrait ? ' is-portrait' : ''}`}
-                style={display && !face.seeThrough ? { backgroundImage: cover } : undefined}
+                className={`lattice-poster bravais-tile-face${isHeading ? ' is-heading' : display ? '' : isWindow ? ' is-window' : ' is-wall'}${face.seeThrough ? ' is-see-through' : ''}${isExpanded ? ' is-expanded' : ''}${keyboardFocused ? ' is-focused' : ''}${isCurrent ? ' is-current' : ''}${display?.unavailable ? ' is-unavailable' : ''}${linked && display ? ' is-linked' : ''}${display?.dimmed ? ' is-dimmed' : ''}${display?.selected ? ' is-selected' : ''}${isStack ? ' is-stack' : ''}${isPortrait ? ' is-portrait' : ''}`}
+                style={display && !face.seeThrough && !isHeading ? { backgroundImage: cover } : undefined}
                 data-bravais-art={art?.mode}
-                role={display ? (isExpanded ? 'group' : 'button') : undefined}
+                role={display && !isHeading ? (isExpanded ? 'group' : 'button') : undefined}
                 aria-label={display ? `${display.title} · ${display.subtitle}${display.trackCountLabel ? ` · ${display.trackCountLabel}` : ''}` : undefined}
                 aria-expanded={isTrack ? isExpanded : undefined}
                 tabIndex={-1}
                 onMouseDown={isWindow ? preventFocus : undefined}
                 onClick={handleClick}
+                onDoubleClick={handleDoubleClick}
             >
-                {display && (
+                {display && isHeading && (
+                    <>
+                        <BravaisTileBadge item={display} current={false} />
+                        <span className="lattice-poster-copy">
+                            {display.title && <WallTitle title={display.title} expanded={false} targetPosterWidth={rect.width} maxLines={2} />}
+                            {display.subtitle && <small>{display.subtitle}</small>}
+                        </span>
+                    </>
+                )}
+                {display && !isHeading && (
                     <>
                         {drawsPortrait && (
                             <span
@@ -398,6 +429,10 @@ function BravaisTile({
                                 actions={handlers}
                             />
                         ) : (
+                            <>
+                            {rect.width >= BRAVAIS_QUICK_ACTIONS_MIN_WIDTH && (
+                                <BravaisTileQuickActions slotKey={slotKey} item={display} actions={handlers} />
+                            )}
                             <span className="lattice-poster-copy">
                                 <WallTitle
                                     title={display.title}
@@ -407,6 +442,7 @@ function BravaisTile({
                                 />
                                 {display.subtitle && <small>{display.subtitle}</small>}
                             </span>
+                            </>
                         )}
                     </>
                 )}

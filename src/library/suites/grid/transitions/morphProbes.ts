@@ -1,20 +1,25 @@
 import {
     COLLECTION_MORPH_MIN_RECT_WIDTH,
-    isNearViewportCenter,
-    type CollectionMorphGeometry,
-    type CollectionMorphHeroMeasured,
+    type CollectionMorphCard,
+    type CollectionMorphFrame,
     type CollectionMorphRect,
-    type CollectionMorphSquadGhost,
+    type CollectionMorphTitle,
 } from './morphGeometry';
 import {
     ACTIVE_GRID_ATTR,
-    ARTIST_AVATAR_ATTR,
-    ARTIST_BIO_TITLE_ATTR,
     ARTIST_INTRO_ATTR,
     CARD_TITLE_ATTR,
     GRID3D_CARD_INDEX_ATTR,
     GRID_CARD_ITEM_ID_ATTR,
+    LATTICE_TILE_ATTR,
+    LATTICE_WALL_ATTR,
+    LEAVING_GRID_ATTR,
+    MORPH_FRAME_ATTR,
+    MORPH_SHADE_ATTR,
+    MORPH_SOURCE_ATTR,
+    MORPH_TARGET_ATTR,
 } from './gridMorphContract';
+import { settleStandInHandover } from './standInHandover';
 
 // src/library/suites/grid/transitions/morphProbes.ts
 // The morph's measuring tape: every rectangle the transition flies is read here,
@@ -22,21 +27,32 @@ import {
 // gridMorphContract.ts (the single handshake shared with the grid components).
 //
 // Deliberately store-free. This module only measures and (optionally) reports
-// clicks; the store owns state and the overlay owns lifecycle, so there is no
+// clicks, with one exception: before the centred card is measured, a stand-in that is
+// handing over to it is brought to the end of that (probeCentredCard). The store owns
+// state and the overlay owns lifecycle, so there is no
 // import cycle and the probes stay testable in isolation. The capture-phase
 // click listener lives behind attachMorphCapture so it is attached by a React
 // effect and disposed with it, instead of running as a module side effect on
 // every HMR reload.
 
-/** 采集结果：矩形与文案齐了，但还不属于任何一次导航（导航快照由调用方在任何 React
+/** 采集结果：卡片量好了，但还不属于任何一次导航（导航快照由调用方在任何 React
  * onClick 生效之前补上，见 attachMorphCapture 的 capture 阶段语义）。 */
-export interface CollectionMorphCapture extends CollectionMorphGeometry {
+export interface CollectionMorphCapture extends CollectionMorphCard {
     sourceKey: string | null;
 }
 
 export type MorphCaptureHandler = (capture: CollectionMorphCapture) => void;
 
-const viewportOf = () => ({ width: window.innerWidth, height: window.innerHeight });
+/** A card on the page: what a flight needs of it, and the elements that draw it. */
+export interface MeasuredCard extends CollectionMorphCard {
+    /** The element that draws the picture; null for a box that holds none yet. */
+    picture: HTMLElement | null;
+    /** The whole card: what is hidden while a carrier stands for it. */
+    card: HTMLElement;
+}
+
+/** The card alone, without the elements it was read off. */
+export const cardOf = ({ picture: _picture, card: _card, ...measured }: MeasuredCard): CollectionMorphCard => measured;
 
 export const rectOfElement = (el: Element | null): CollectionMorphRect | null => {
     if (!el) return null;
@@ -45,34 +61,144 @@ export const rectOfElement = (el: Element | null): CollectionMorphRect | null =>
     return { x: r.left, y: r.top, width: r.width, height: r.height };
 };
 
-/**
- * 一张卡片的标题行。优先读 `data-folia-card-title`（PolaroidCard 写入的显式契约）；
- * 类名子串只是给还没接上契约的卡片兜底，并且刻意不再用 `[class*="title"]` ——
- * 那一条会先命中标题的外层 `group/song-title` 包裹层，量到的是包裹盒而不是文字盒。
- */
-const resolveCardTitleElement = (card: Element): Element | null => (
-    card.querySelector(`[${CARD_TITLE_ATTR}]`)
-    ?? card.querySelector('h3, [class*="font-bold"], [class*="line-clamp"]')
-);
+// How many elements above a picture are asked for the corners it is cut to.
+const CLIP_SEARCH_DEPTH = 4;
 
-/** 量标题的落点；量不到就退回卡片外框。 */
-const titleOrFrame = (root: Element, fallback: CollectionMorphRect): CollectionMorphRect => (
-    rectOfElement(resolveCardTitleElement(root)) ?? fallback
+/**
+ * The corner radius a picture is drawn with, in screen pixels. The corners are seldom the
+ * picture's own: a box around it has the radius and cuts it (`overflow: hidden`), sometimes
+ * with a border between, which takes its width off the radius the picture is left with. A
+ * card drawn scaled (the centred card of a grid) has its radius scaled with it.
+ */
+const drawnRadiusOf = (picture: HTMLElement, root: Element, rect: CollectionMorphRect): number => {
+    let element: HTMLElement | null = picture;
+    for (let depth = 0; element && depth <= CLIP_SEARCH_DEPTH; depth += 1) {
+        const style = getComputedStyle(element);
+        const box = element.getBoundingClientRect();
+        const scale = element.offsetWidth > 0 ? box.width / element.offsetWidth : 1;
+        const stated = style.borderTopLeftRadius;
+        const radius = (stated.endsWith('%') ? (Number.parseFloat(stated) / 100) * element.offsetWidth : Number.parseFloat(stated)) * scale;
+        if (radius > 0 && (element === picture || style.overflowX !== 'visible')) {
+            const inset = Math.max(0, rect.x - box.left);
+            return Math.max(0, Math.min(radius - inset, rect.width / 2, rect.height / 2));
+        }
+        if (element === root) break;
+        element = element.parentElement;
+    }
+    return 0;
+};
+
+const frameOf = (element: HTMLElement | null): CollectionMorphFrame | null => {
+    const rect = rectOfElement(element);
+    if (!element || !rect) {
+        return null;
+    }
+    const style = getComputedStyle(element);
+    return {
+        rect,
+        radius: drawnRadiusOf(element, element, rect),
+        background: style.backgroundColor,
+        border: `${style.borderTopWidth} ${style.borderTopStyle} ${style.borderTopColor}`,
+        shadow: style.boxShadow,
+        // The theme's text colour is a variable on the app's root element, which the carrier
+        // (under <body>) is not inside: it is read here, off the card, as a value.
+        edge: style.getPropertyValue('--text-primary').trim() || style.color,
+    };
+};
+
+// What makes a line of text look as it does, by React's style name and by CSS's.
+const TITLE_STYLES: Array<[string, string]> = [
+    ['fontFamily', 'font-family'], ['fontSize', 'font-size'], ['fontWeight', 'font-weight'], ['fontStyle', 'font-style'],
+    ['letterSpacing', 'letter-spacing'], ['lineHeight', 'line-height'], ['color', 'color'], ['textAlign', 'text-align'],
+    ['textShadow', 'text-shadow'], ['textTransform', 'text-transform'], ['whiteSpace', 'white-space'],
+    ['wordBreak', 'word-break'], ['overflowWrap', 'overflow-wrap'], ['textOverflow', 'text-overflow'],
+    ['WebkitLineClamp', '-webkit-line-clamp'], ['opacity', 'opacity'],
+];
+
+const titleOf = (element: HTMLElement | null): CollectionMorphTitle | null => {
+    const rect = rectOfElement(element);
+    const text = element?.textContent?.trim() ?? '';
+    if (!element || !rect || !text) {
+        return null;
+    }
+    const computed = getComputedStyle(element);
+    return {
+        rect,
+        text,
+        width: element.offsetWidth,
+        height: element.offsetHeight,
+        fontSize: Number.parseFloat(computed.fontSize) || 14,
+        style: Object.fromEntries(TITLE_STYLES.map(([name, property]) => [name, computed.getPropertyValue(property)])),
+    };
+};
+
+/**
+ * The layer a card draws over its picture, where it marks one (MORPH_SHADE_ATTR): the background
+ * that element is drawn with, with the card's own colours in it as values. The carrier, which is
+ * outside the card, draws the same layer from it.
+ */
+const shadeOf = (card: HTMLElement): string | null => {
+    const layer = card.querySelector<HTMLElement>(`[${MORPH_SHADE_ATTR}]`);
+    return layer ? getComputedStyle(layer).background || null : null;
+};
+
+/**
+ * The card at `root`: its picture, and its frame and title where it has them. `root` is the card
+ * itself, or a box of it that holds the picture (a landing place); the frame is looked for around
+ * it and inside it, the title inside whichever is the outer. Null where there is no picture,
+ * unless `evenBare`: the box itself then stands for the picture (an artist that has none).
+ */
+export const measureCard = (root: Element | null, evenBare = false): MeasuredCard | null => {
+    if (!(root instanceof HTMLElement)) {
+        return null;
+    }
+    const picture = root instanceof HTMLImageElement ? root : root.querySelector<HTMLImageElement>('img');
+    const rect = rectOfElement(picture) ?? (evenBare ? rectOfElement(root) : null);
+    if (!rect) {
+        return null;
+    }
+    const frame = root.closest<HTMLElement>(`[${MORPH_FRAME_ATTR}]`) ?? root.querySelector<HTMLElement>(`[${MORPH_FRAME_ATTR}]`);
+    const card = frame?.contains(root) ? frame : root;
+    return {
+        rect,
+        radius: drawnRadiusOf(picture ?? root, root, rect),
+        url: picture ? picture.currentSrc || picture.getAttribute('src') || null : null,
+        proportions: picture && picture.naturalWidth > 0 && picture.naturalHeight > 0 ? picture.naturalWidth / picture.naturalHeight : 0,
+        frame: frameOf(frame),
+        title: titleOf(card.querySelector<HTMLElement>(`[${CARD_TITLE_ATTR}]`)),
+        shade: shadeOf(card),
+        picture,
+        card,
+    };
+};
+
+const markedRoot = (attribute: string): HTMLElement | null => (
+    typeof document === 'undefined' ? null : document.querySelector(`[${attribute}]`)?.parentElement ?? null
 );
 
 /**
  * 当前活动的详情网格根。出栈的旧网格在退出动画期间仍留在 DOM 里，并且带着同样的
- * 卡片属性；不限定范围就会量到旧网格的卡片 —— 那正是「飞行目标偶尔是上一页那张卡」
- * 的来源。GridView / ArtistGridView 里的 ActiveGridMarker 用 framer 的 useIsPresent()
- * 把这个属性写在卡片容器上，所以同一时刻只可能有一个。属性缺失时退回整篇文档，保证
- * 转场不会因为标记丢失而整个失效。没有 document（单测、非浏览器上下文）时返回 null。
+ * 卡片属性；不限定范围就会量到旧网格的卡片。GridView / ArtistGridView 在自己的根节点里放了
+ * 一个 ActiveGridMarker：它（按 framer 的 useIsPresent()）只在还没开始退出的那一层里带着
+ * 这个属性，所以同一时刻只可能有一个，它的父元素就是当前那一层。标记缺失时
+ * 退回整篇文档，保证转场不会因为标记丢失而整个失效。没有 document（单测、非浏览器上下文）时
+ * 返回 null。
  */
 export const activeGridRoot = (): ParentNode | null => {
     if (typeof document === 'undefined') {
         return null;
     }
-    return document.querySelector(`[${ACTIVE_GRID_ATTR}]`) ?? document;
+    return markedRoot(ACTIVE_GRID_ATTR) ?? document;
 };
+
+/** The page that is leaving (its marker says so from the commit that takes it off the navigation); null where none is. */
+export const leavingGridRoot = (): HTMLElement | null => markedRoot(LEAVING_GRID_ATTR);
+
+// The source key of the poster wall's grown tile is this and the tile's id.
+const LATTICE_KEY = 'lattice:';
+
+/** The source key of the poster wall's tile with this id, grown. */
+export const latticeSourceKey = (tileId: string): string => `${LATTICE_KEY}${tileId}`;
 
 const cardSelectorForSourceKey = (sourceKey: string): string | null => {
     if (sourceKey.startsWith('grid3d:')) {
@@ -81,227 +207,119 @@ const cardSelectorForSourceKey = (sourceKey: string): string | null => {
     if (sourceKey.startsWith('item:')) {
         return `[${GRID_CARD_ITEM_ID_ATTR}="${CSS.escape(sourceKey.slice('item:'.length))}"]`;
     }
+    if (sourceKey.startsWith('source:')) {
+        return `[${MORPH_SOURCE_ATTR}="${CSS.escape(sourceKey.slice('source:'.length))}"]`;
+    }
+    if (sourceKey.startsWith(LATTICE_KEY)) {
+        return `[${LATTICE_TILE_ATTR}="${CSS.escape(sourceKey.slice(LATTICE_KEY.length))}"]`;
+    }
     return null;
 };
 
 /**
- * 按 sourceKey 找卡片元素。`scope: 'active-grid'` 是嵌套返回用的：被点的那张卡在新挂载的
- * 上一层网格里，而正在退出的当前页（例如歌手页）可能恰好也有同一个 item id，文档级查询
- * 会先命中它，落点就会飞到一张正在消失的卡上。
+ * Whether the card a source key stands for, not on the page now, is still to come: the poster
+ * wall's tile, while the wall is on the page. The navigation back to the wall puts it up anew,
+ * and it measures itself before it draws a tile. A flight back to such a card waits for it.
  */
-export const findMorphCard = (
-    sourceKey: string | null,
-    scope: 'document' | 'active-grid' = 'document',
-): HTMLElement | null => {
+export const isCardToCome = (sourceKey: string | null): boolean => (
+    Boolean(sourceKey?.startsWith(LATTICE_KEY))
+    && typeof document !== 'undefined'
+    && document.querySelector(`[${LATTICE_WALL_ATTR}]`) !== null
+);
+
+/** The card a source key stands for, where it is under `root` now (the whole page by default). */
+export const findMorphCard = (sourceKey: string | null, root?: ParentNode | null): HTMLElement | null => {
     if (!sourceKey || typeof document === 'undefined') {
         return null;
     }
     const selector = cardSelectorForSourceKey(sourceKey);
-    if (!selector) {
-        return null;
-    }
-    const root = scope === 'active-grid' ? activeGridRoot() : document;
-    return root?.querySelector<HTMLElement>(selector) ?? null;
+    return selector ? (root ?? document).querySelector<HTMLElement>(selector) : null;
 };
 
-// Locates the detail grid's hero card — the visible card closest to the
-// viewport centre, which GridView puts at focusedIndex on open — and measures
-// its cover image and title line, the counterparts the home card morphs into.
-// Shared by the overlay (flight target) and the host (reverse-flight source).
-//
-// 每张卡的矩形只读一次：这个函数在飞行期间每 70ms 跑一次，而大歌单的渲染环里有几十张卡，
-// 多读一遍就是每帧多几十次强制布局。选中的那张复用已经读到的矩形，不再重读。
-export const probeHeroTargets = (): CollectionMorphHeroMeasured | null => {
-    const root = activeGridRoot();
-    if (!root) {
-        return null;
+/**
+ * Where a flight into the active page lands: the page's stand-in (GridView) or the artist's
+ * picture (ArtistGridView). Both carry MORPH_TARGET_ATTR and have no entrance of their own: each
+ * is at its place and size in the commit that mounts it, which is the commit that mounts its
+ * page. The artist's picture is in a card that moves with the grid, and on a page that is come
+ * back to it is a landing place only once the artist has been read.
+ * Where the box holds no picture yet (an artist without one), the box itself is the landing.
+ */
+export const probeMorphTarget = (): MeasuredCard | null => (
+    measureCard(activeGridRoot()?.querySelector(`[${MORPH_TARGET_ATTR}]`) ?? null, true)
+);
+
+/**
+ * The card at the middle of the page under `root`: the page's landing place while it still shows
+ * a picture (the stand-in of a page whose cards have not come; the artist's picture, where it is
+ * marked as a landing place), else the card nearest the middle of the window, which is the one
+ * the grid is centred on.
+ */
+export const centredCardOf = (root: ParentNode): MeasuredCard | null => {
+    const landing = measureCard(root.querySelector(`[${MORPH_TARGET_ATTR}]`));
+    if (landing) {
+        return landing;
     }
-    const viewport = viewportOf();
-    const cx = viewport.width / 2;
-    const cy = viewport.height / 2;
-    let hero: HTMLElement | null = null;
-    let heroFrame: CollectionMorphRect | null = null;
-    let bestDistSq = Infinity;
+    const cx = window.innerWidth / 2;
+    const cy = window.innerHeight / 2;
+    let nearest: HTMLElement | null = null;
+    let nearestDistSq = Infinity;
     for (const el of root.querySelectorAll<HTMLElement>(`[${GRID_CARD_ITEM_ID_ATTR}]`)) {
         const rect = rectOfElement(el);
         if (!rect) {
             continue;
         }
-        const dX = rect.x + rect.width / 2 - cx;
-        const dY = rect.y + rect.height / 2 - cy;
-        const distSq = dX * dX + dY * dY;
-        if (distSq < bestDistSq) {
-            bestDistSq = distSq;
-            hero = el;
-            heroFrame = rect;
+        const distSq = (rect.x + rect.width / 2 - cx) ** 2 + (rect.y + rect.height / 2 - cy) ** 2;
+        if (distSq < nearestDistSq) {
+            nearestDistSq = distSq;
+            nearest = el;
         }
     }
-    if (!hero || !heroFrame) {
-        return null;
-    }
-    const frame = heroFrame;
-    const heroImg = hero.querySelector<HTMLImageElement>('img');
-    const cover = rectOfElement(heroImg) ?? frame;
-    const coverUrl = heroImg?.getAttribute('src') ?? null;
-    const titleEl = resolveCardTitleElement(hero);
-    const title = titleOrFrame(hero, frame);
-    const titleText = (titleEl?.textContent ?? '').trim();
-    return {
-        frame,
-        cover,
-        coverUrl,
-        title,
-        titleText,
-        key: hero.getAttribute(GRID_CARD_ITEM_ID_ATTR) ?? '',
-        coverReady: !heroImg || heroImg.complete,
-    };
+    return measureCard(nearest);
 };
 
-// Probes the artist page's intro cluster — the circular avatar (the hero the
-// clicked song card morphs onto) and the bio card's big title line. Used when
-// the navigation's ACTIVE collection is an artist detail: the generic hero
-// probe would instead latch onto a random song/album card somewhere off-centre.
-// `round: true` tells the overlay to animate its cover's border radius toward
-// a circle for this landing.
-export const probeArtistIntroTargets = (): CollectionMorphHeroMeasured | null => {
+/**
+ * The card a flight back starts from: the one at the middle of the active page. A handover of
+ * that page's stand-in that is under way is ended first, which changes the page.
+ */
+export const probeCentredCard = (): MeasuredCard | null => {
+    // A stand-in that is turning over into the centred card: measured in mid-turn, either is a sliver.
+    settleStandInHandover();
     const root = activeGridRoot();
-    if (!root) {
-        return null;
-    }
-    const avatarEl = root.querySelector<HTMLElement>(`[${ARTIST_AVATAR_ATTR}]`);
-    if (!avatarEl) {
-        return null;
-    }
-    const avatarImg = avatarEl.querySelector<HTMLImageElement>('img');
-    const frame = rectOfElement(avatarEl);
-    const cover = rectOfElement(avatarImg) ?? frame;
-    const coverUrl = avatarImg?.getAttribute('src') ?? null;
-    const titleEl = root.querySelector<HTMLElement>(`[${ARTIST_BIO_TITLE_ATTR}]`);
-    const title = rectOfElement(titleEl) ?? frame;
-    const titleText = (titleEl?.textContent ?? '').trim();
-    if (!frame || !cover || !title) {
-        return null;
-    }
-    return {
-        frame,
-        cover,
-        coverUrl,
-        title,
-        titleText,
-        key: 'artist-intro',
-        coverReady: !avatarImg || avatarImg.complete,
-        round: true,
-    };
+    return root ? centredCardOf(root) : null;
 };
 
-// Snapshots the nearest visible cards (except the centered hero, and except the
-// artist page's intro cluster) — with cover url and title — the instant the user
-// backs out. The detail grid unmounts right after, so these ghosts are what the
-// exit animation scatters outward. Capped at SQUAD_GHOST_LIMIT nearest cards and
-// sorted by distance: blurred scatter layers are the reason exits jank, so
-// fewer, cheaper ghosts keep the dissolve smooth while the backdrop handles the
-// rest.
-export const SQUAD_GHOST_LIMIT = 16;
-
-export const probeGridSquadRects = (): CollectionMorphSquadGhost[] => {
-    const root = activeGridRoot();
-    if (!root) {
-        return [];
+/**
+ * The card a source key stands for, as it is drawn now; null when the card is not on the page,
+ * or is drawn too small to fly to (COLLECTION_MORPH_MIN_RECT_WIDTH).
+ */
+export const measureSourceCard = (sourceKey: string | null): MeasuredCard | null => {
+    const card = findMorphCard(sourceKey);
+    if (!card || card.getBoundingClientRect().width < COLLECTION_MORPH_MIN_RECT_WIDTH) {
+        return null;
     }
-    const wrappers = Array.from(
-        root.querySelectorAll<HTMLElement>(`[${GRID_CARD_ITEM_ID_ATTR}]`),
-    );
-    const viewport = viewportOf();
-    const ghosts: Array<{ ghost: CollectionMorphSquadGhost; distSq: number }> = [];
-    for (const el of wrappers) {
-        const r = el.getBoundingClientRect();
-        if (r.width < 1 || r.height < 1) {
-            continue;
-        }
-        const rect: CollectionMorphRect = { x: r.left, y: r.top, width: r.width, height: r.height };
-        // Skip the centered hero (distance < 100px): it has its own reverse morph.
-        if (isNearViewportCenter(rect, viewport)) {
-            continue;
-        }
-        const cover = el.querySelector('img');
-        const titleEl = resolveCardTitleElement(el);
-        const dX = rect.x + rect.width / 2 - viewport.width / 2;
-        const dY = rect.y + rect.height / 2 - viewport.height / 2;
-        ghosts.push({
-            distSq: dX * dX + dY * dY,
-            ghost: {
-                rect,
-                coverUrl: cover?.getAttribute('src') ?? null,
-                titleText: (titleEl?.textContent ?? '').trim(),
-            },
-        });
-    }
-    return ghosts
-        .sort((a, b) => a.distSq - b.distSq)
-        .slice(0, SQUAD_GHOST_LIMIT)
-        .map((entry) => entry.ghost);
+    return measureCard(card);
 };
 
-// Resolves every morphable element straight off the clicked card's DOM. The
-// card is a real element inside Grid3DSlider / the detail grid, so the
-// rectangles are exact and the cover url is the same <img> the user was looking
-// at — no second network fetch, no layout drift between the two views.
-export const captureClickedCard = (target: Element): CollectionMorphCapture | null => {
-    const frameRect = target.getBoundingClientRect();
-    if (frameRect.width < COLLECTION_MORPH_MIN_RECT_WIDTH || frameRect.height < 1) {
+// Resolves the clicked card straight off its DOM: the rectangles are exact and the
+// picture is the same <img> the user was looking at — no second network fetch.
+export const captureClickedCard = (card: HTMLElement): CollectionMorphCapture | null => {
+    if (card.getBoundingClientRect().width < COLLECTION_MORPH_MIN_RECT_WIDTH) {
         return null;
     }
-    const cover = target.querySelector<HTMLImageElement>('img');
-    const coverRect = cover ? cover.getBoundingClientRect() : frameRect;
-    const titleEl = resolveCardTitleElement(target);
-    const titleRect = titleEl ? titleEl.getBoundingClientRect() : null;
-    const sourceKey = target instanceof HTMLElement
-        ? (target.dataset.grid3dIndex !== undefined
-            ? `grid3d:${target.dataset.grid3dIndex}`
-            : target.dataset.foliaGridItemId !== undefined
-                ? `item:${target.dataset.foliaGridItemId}`
-                : null)
-        : null;
-    return {
-        frame: { x: frameRect.left, y: frameRect.top, width: frameRect.width, height: frameRect.height },
-        cover: { x: coverRect.left, y: coverRect.top, width: coverRect.width, height: coverRect.height },
-        coverUrl: cover?.src ?? null,
-        title: titleRect
-            ? { x: titleRect.left, y: titleRect.top, width: titleRect.width, height: titleRect.height }
-            : null,
-        titleText: titleEl?.textContent?.trim() ?? '',
-        sourceKey,
-    };
-};
-
-// Re-measures a stored card through its sourceKey and returns the live
-// geometry. The home surface stays mounted (just visibility-hidden) while a
-// collection is open, but its layout can still shift (player bar appearing,
-// focus changes, slider re-layout) — flying back onto the click-time rectangle
-// then lands visibly off (the "drifts to lower-left" symptom). Reading the live
-// rect right before the reverse flight keeps the landing pixel-exact. A card
-// scrolled out of the rendered window cannot be measured: the caller keeps the
-// click-time rectangles in that case.
-export const measureCardGeometry = (sourceKey: string | null): CollectionMorphGeometry | null => {
-    const el = findMorphCard(sourceKey, 'document');
-    if (!el) {
+    const measured = measureCard(card);
+    if (!measured) {
         return null;
     }
-    const frame = rectOfElement(el);
-    if (!frame || frame.width < COLLECTION_MORPH_MIN_RECT_WIDTH) {
-        return null;
-    }
-    const img = el.querySelector<HTMLImageElement>('img');
-    const cover = rectOfElement(img) ?? frame;
-    const titleEl = resolveCardTitleElement(el);
-    const title = rectOfElement(titleEl);
-    return {
-        frame,
-        cover,
-        coverUrl: img?.getAttribute('src') ?? null,
-        title,
-        titleText: (titleEl?.textContent ?? '').trim(),
-    };
+    const sourceKey = card.dataset.grid3dIndex !== undefined
+        ? `grid3d:${card.dataset.grid3dIndex}`
+        : card.dataset.foliaGridItemId !== undefined
+            ? `item:${card.dataset.foliaGridItemId}`
+            : card.dataset.foliaMorphSource !== undefined
+                ? `source:${card.dataset.foliaMorphSource}`
+                : card.dataset.foliaLatticeTile !== undefined
+                    ? `${LATTICE_KEY}${card.dataset.foliaLatticeTile}`
+                    : null;
+    return { ...cardOf(measured), sourceKey };
 };
 
 /**
@@ -321,7 +339,7 @@ export const attachMorphCapture = (handler: MorphCaptureHandler): (() => void) =
         if (!(target instanceof Element)) {
             return;
         }
-        const card = target.closest<HTMLElement>(`[${GRID3D_CARD_INDEX_ATTR}], [${GRID_CARD_ITEM_ID_ATTR}]`);
+        const card = target.closest<HTMLElement>(`[${GRID3D_CARD_INDEX_ATTR}], [${GRID_CARD_ITEM_ID_ATTR}], [${MORPH_SOURCE_ATTR}]`);
         if (!card) {
             return;
         }

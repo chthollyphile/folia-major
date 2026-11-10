@@ -4,7 +4,7 @@
   "name": "52Hz",
   "version": "1.0.1",
   "author": "Folia Mod Samples",
-  "description": "PixiJS 歌词动画：当前句整句出现并逐字点亮，每个节拍从字形轮廓外发出一圈年轮，响度决定粗细与亮度；纯音乐时从随机髓心生长。演示 visualizers + settings + ctx.audio（Folium 1.2）+ 思索教程（ponder.targets），以及模组自带第三方库（vendor/pixi.min.mjs）。",
+  "description": "PixiJS 歌词动画：当前句整句出现并逐字点亮，每个节拍从字形轮廓外发出一圈年轮，响度决定粗细与亮度；纯音乐时从随机髓心生长。演示 visualizers + settings + ctx.audio + 思索教程（ponder.targets），以及模组自带第三方库（vendor/pixi.min.mjs）。",
   "client": "client.mjs",
   "preview": "preview.jpg",
   "experimental": [

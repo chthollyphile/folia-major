@@ -23,8 +23,8 @@ import type {
     ModSetEnabledResult,
     ModStorageUsageResult,
 } from './types';
-import { reconcileFoliumClients } from './folium/clientLoader';
-import { restoreSavedFoliumSelections } from './folium/missingEntries';
+import { reconcileFoliumClients } from './runtime/clientLoader';
+import { restoreSavedFoliumSelections } from './runtime/missingEntries';
 
 // src/mods/useModsStore.ts
 // Renderer-side state for the mod system panel. All mutations flow through the
@@ -33,11 +33,16 @@ import { restoreSavedFoliumSelections } from './folium/missingEntries';
 
 const MAX_LOG_ENTRIES = 50;
 
+/** The `data-settings-row` of a mod's row in the manager, so the settings window can land on it. */
+export const modSettingsRowId = (modId: string) => `mod:${modId}`;
+
 interface ModsStoreState {
     bridgeAvailable: boolean;
     mods: ModRuntimeInfo[];
     ffmpeg: ModFfmpegStatus;
     directories: string[];
+    /** This run of the app was started (or its window reopened) without mods; nothing is stored. */
+    startSkipped: boolean;
     selectedModId: string | null;
     exportProgress: ModExportProgress | null;
     logs: ModLogEntry[];
@@ -60,6 +65,7 @@ export const useModsStore = create<ModsStoreState>((set, get) => ({
     mods: [],
     ffmpeg: { available: false, path: null, version: null, candidates: [] },
     directories: [],
+    startSkipped: false,
     selectedModId: null,
     exportProgress: null,
     logs: [],
@@ -73,6 +79,7 @@ export const useModsStore = create<ModsStoreState>((set, get) => ({
                 mods: payload.mods,
                 ffmpeg: payload.ffmpeg,
                 directories: payload.directories,
+                startSkipped: payload.startSkipped,
                 selectedModId: payload.mods.some((mod) => mod.id === selectedModId)
                     ? selectedModId
                     : payload.mods[0]?.id ?? null,

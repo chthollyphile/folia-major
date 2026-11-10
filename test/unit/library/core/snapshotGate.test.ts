@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { createSnapshotGate, type GateApplyMode } from '@/library/core/model/snapshotGate';
-import { resolveReloadCapability, resolveScopeCapability } from '@/library/core/model/collectionCapabilities';
+import { createSnapshotGate, type GateApplyMode } from '@/library/core/shared/snapshotGate';
+import { resolveReloadCapability, resolveScopeCapability } from '@/library/core/collection/collectionCapabilities';
 
 // test/unit/library/core/snapshotGate.test.ts
 // 快照门：紧急更新立即提交，后台更新走 transition；拖拽中暂存最新的一份，放手再提交。

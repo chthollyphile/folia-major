@@ -33,7 +33,7 @@ function RemoteActionsProbe() {
             trackTransition: null, controlsDisabled: false, isStageActive: false, transparentModeEnabled: false,
             mainWindowClickThroughEnabled: false, mainWindowAlwaysOnTop: false, mainWindowBorderVisible: false,
             playerChromeHidden: false, playerChromeVisibilityMode: 'auto-hide', exportState: idleVideoExportState(),
-            isDaylight: false, isLiked: false, canLike: true, updatedAt: 0,
+            isDaylight: false, isLiked: false, canLike: true, subtitleContentMode: 'translation', updatedAt: 0,
         };
         const bridge = createRemoteControlActionBridge(() => ({
             trackKey: state.trackKey,
@@ -61,7 +61,7 @@ function RemoteActionsProbe() {
             enable: () => {
                 if (dispose) return;
                 const mod = { id: 'sample-remote-actions', permissions: [], experimental: ['remote.actions'] } as unknown as ModRuntimeInfo;
-                const api = createFoliumClientApi(mod, { context: 'main', internals: null, experimental: createFoliumExperimental(mod) });
+                const api = createFoliumClientApi(mod, { context: 'main', experimental: createFoliumExperimental(mod), onRelease: () => {}, stopped: () => false });
                 dispose = activate({ ...api, log: { ...api.log, info: (message: string) => log.push(message) } });
             },
             disable, log, commands, results,

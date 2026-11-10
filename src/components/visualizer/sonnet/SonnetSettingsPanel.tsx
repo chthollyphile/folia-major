@@ -1,225 +1,145 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { DEFAULT_SONNET_TUNING, type SonnetOuterFrameMode, type SonnetTuning } from '../../../types';
-import { colorWithAlpha } from '../colorMix';
+import { Group, Reveal, Row, Segmented, type SettingsGroupDef } from '../../modal/settings/kit';
 import type { VisualizerSettingsPanelProps } from '../definition';
-import VisualizerPresetGroup, { type VisualizerPresetOption } from '../VisualizerPresetGroup';
-import { SonnetRangeControl, SonnetSettingsSection } from './SonnetSettingsControls';
+import { SliderRow, times, ToggleRow } from '../panelRows';
+import LyricRenderQualityRows from '../renderQuality/LyricRenderQualityRows';
 
 // src/components/visualizer/sonnet/SonnetSettingsPanel.tsx
-// Keeps Sonnet's tuning controls adjacent to the mode implementation.
-const SonnetSettingsPanel: React.FC<VisualizerSettingsPanelProps> = ({
+// Keeps Sonnet's tuning controls adjacent to the mode implementation: five groups of the settings kit
+// (渲染一组是分辨率 / 抗锯齿，#929).
+const QUALITY_GROUP: SettingsGroupDef = { id: 'vis-sonnet-quality', titleKey: 'options.sonnetQualitySection' };
+/** 分辨率倍数（乘在上面的纹理分辨率上）与抗锯齿，默认跟随「动画与性能」的全局挡位（#929）。 */
+const RENDER_GROUP: SettingsGroupDef = { id: 'vis-sonnet-render', titleKey: 'options.lyricRenderSection' };
+const MOTION_GROUP: SettingsGroupDef = { id: 'vis-sonnet-motion', titleKey: 'options.sonnetMotionSection' };
+const POST_PROCESS_GROUP: SettingsGroupDef = { id: 'vis-sonnet-post-process', titleKey: 'options.sonnetPostProcessSection' };
+const DISPLAY_GROUP: SettingsGroupDef = { id: 'vis-sonnet-display', titleKey: 'options.sonnetDisplaySection' };
+
+type PostProcessKey = Extract<keyof SonnetTuning, 'postProcessGrain' | 'postProcessContrast' | 'postProcessRgbShift' | 'postProcessLensDistortion' | 'postProcessLensDispersion' | 'postProcessHalftone' | 'postProcessVignette'>;
+
+const POST_PROCESS_CONTROLS: Array<{ key: PostProcessKey; labelKey: string; max: number }> = [
+    { key: 'postProcessGrain', labelKey: 'options.sonnetPostProcessGrain', max: 1 },
+    { key: 'postProcessContrast', labelKey: 'options.sonnetPostProcessContrast', max: 1 },
+    { key: 'postProcessRgbShift', labelKey: 'options.sonnetPostProcessRgbShift', max: 1 },
+    { key: 'postProcessLensDistortion', labelKey: 'options.sonnetPostProcessLensDistortion', max: 2 },
+    { key: 'postProcessLensDispersion', labelKey: 'options.sonnetPostProcessLensDispersion', max: 1 },
+    { key: 'postProcessHalftone', labelKey: 'options.sonnetPostProcessHalftone', max: 1 },
+    { key: 'postProcessVignette', labelKey: 'options.sonnetPostProcessVignette', max: 2 },
+];
+
+const MOTION_CONTROLS: Array<{ key: Extract<keyof SonnetTuning, 'cameraIntensity' | 'typographyMotion' | 'mgDensity'>; labelKey: string }> = [
+    { key: 'cameraIntensity', labelKey: 'options.sonnetCameraIntensity' },
+    { key: 'typographyMotion', labelKey: 'options.sonnetTypographyMotion' },
+    { key: 'mgDensity', labelKey: 'options.sonnetMgDensity' },
+];
+
+const VISIBILITY_CONTROLS: Array<{
+    key: Extract<keyof SonnetTuning, 'showOnlyText' | 'showGuide' | 'showBackgroundMg' | 'showFixedGeo' | 'showGiantDecorativeText' | 'showBackgroundDecor' | 'enableTransitions'>;
+    labelKey: string;
+}> = [
+    { key: 'showOnlyText', labelKey: 'options.sonnetShowOnlyText' },
+    { key: 'showGuide', labelKey: 'options.sonnetShowGuide' },
+    { key: 'showBackgroundMg', labelKey: 'options.sonnetShowBackgroundMg' },
+    { key: 'showFixedGeo', labelKey: 'options.sonnetShowFixedGeo' },
+    { key: 'showGiantDecorativeText', labelKey: 'options.sonnetShowGiantDecorativeText' },
+    { key: 'showBackgroundDecor', labelKey: 'options.sonnetShowBackgroundDecor' },
+    { key: 'enableTransitions', labelKey: 'options.sonnetEnableTransitions' },
+];
+
+const SonnetSettingsPanel: React.FC<VisualizerSettingsPanelProps<SonnetTuning>> = ({
     t,
-    isDaylight,
-    theme,
-    rangeInputClass,
-    controlCardBg,
-    sonnetTuning = DEFAULT_SONNET_TUNING,
-    onSonnetTuningChange,
+    tuning: sonnetTuning = DEFAULT_SONNET_TUNING,
+    onTuningChange: onSonnetTuningChange,
     onSliderPointerDown,
     onSliderCommit,
 }) => {
-    const booleanOptions: VisualizerPresetOption<boolean>[] = useMemo(() => ([
-        { value: true, label: t('options.sonnetToggleOn') },
-        { value: false, label: t('options.sonnetToggleOff') },
-    ]), [t]);
-
-    const outerFrameOptions: VisualizerPresetOption<SonnetOuterFrameMode>[] = useMemo(() => ([
-        { value: 'none', label: t('options.sonnetOuterFrameNone') },
-        { value: 'frame', label: t('options.sonnetOuterFrameFrame') },
-        { value: 'full', label: t('options.sonnetOuterFrameFull') },
-    ]), [t]);
-
-    const visibilityControls: Array<{
-        key: Extract<keyof SonnetTuning, 'showOnlyText' | 'showGuide' | 'showBackgroundMg' | 'showFixedGeo' | 'showGiantDecorativeText' | 'showBackgroundDecor' | 'enableTransitions'>;
-        label: string;
-    }> = [
-        { key: 'showOnlyText', label: t('options.sonnetShowOnlyText') },
-        { key: 'showGuide', label: t('options.sonnetShowGuide') },
-        { key: 'showBackgroundMg', label: t('options.sonnetShowBackgroundMg') },
-        { key: 'showFixedGeo', label: t('options.sonnetShowFixedGeo') },
-        { key: 'showGiantDecorativeText', label: t('options.sonnetShowGiantDecorativeText') },
-        { key: 'showBackgroundDecor', label: t('options.sonnetShowBackgroundDecor') },
-        { key: 'enableTransitions', label: t('options.sonnetEnableTransitions') },
-    ];
-
-    const motionControls: Array<{
-        key: Extract<keyof SonnetTuning, 'cameraIntensity' | 'typographyMotion' | 'mgDensity'>;
-        label: string;
-    }> = [
-        { key: 'cameraIntensity', label: t('options.sonnetCameraIntensity') },
-        { key: 'typographyMotion', label: t('options.sonnetTypographyMotion') },
-        { key: 'mgDensity', label: t('options.sonnetMgDensity') },
-    ];
+    const drag = { onDragStart: onSliderPointerDown, onDragEnd: onSliderCommit };
 
     return (
-        <div
-            className="rounded-[24px] border border-white/10 p-4 space-y-4"
-            style={{ backgroundColor: controlCardBg }}
-        >
-            <div className="space-y-1">
-                <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
-                    {t('options.sonnetSettings')}
-                </div>
-                <div className="text-xs opacity-50" style={{ color: 'var(--text-secondary)' }}>
-                    {t('options.sonnetSettingsDesc')}
-                </div>
-            </div>
+        <>
+            <Group def={QUALITY_GROUP}>
+                <SliderRow
+                    {...drag}
+                    label={t('options.sonnetTextureResolution')}
+                    value={sonnetTuning.textureResolution}
+                    min={0.5}
+                    max={4}
+                    step={0.25}
+                    format={times}
+                    onChange={textureResolution => onSonnetTuningChange?.({ textureResolution })}
+                />
+                <Row notice={t('options.sonnetTexturePerformanceWarning')} />
+            </Group>
 
-            <SonnetSettingsSection title={t('options.sonnetQualitySection')}>
-                <div
-                    className="rounded-2xl border p-3.5 space-y-2.5"
-                    style={{
-                        borderColor: colorWithAlpha(theme.secondaryColor, isDaylight ? 0.18 : 0.14),
-                        backgroundColor: colorWithAlpha(theme.backgroundColor, isDaylight ? 0.24 : 0.34),
-                    }}
-                >
-                    <SonnetRangeControl
-                        label={t('options.sonnetTextureResolution')}
-                        value={sonnetTuning.textureResolution}
-                        min={0.5}
-                        max={4}
-                        step={0.25}
-                        rangeInputClass={rangeInputClass}
-                        onChange={textureResolution => onSonnetTuningChange?.({ textureResolution })}
-                        onPointerDown={onSliderPointerDown}
-                        onPointerUp={onSliderCommit}
-                    />
-                    <p className="text-xs leading-relaxed opacity-60" style={{ color: 'var(--text-secondary)' }}>
-                        {t('options.sonnetTexturePerformanceWarning')}
-                    </p>
-                </div>
-            </SonnetSettingsSection>
+            <Group def={RENDER_GROUP}>
+                <LyricRenderQualityRows
+                    value={sonnetTuning.render}
+                    onChange={patch => onSonnetTuningChange?.({ render: { ...sonnetTuning.render, ...patch } })}
+                />
+            </Group>
 
-            <SonnetSettingsSection title={t('options.sonnetMotionSection')}>
-                {motionControls.map(control => (
-                    <SonnetRangeControl
+            <Group def={MOTION_GROUP}>
+                {MOTION_CONTROLS.map(control => (
+                    <SliderRow
+                        {...drag}
                         key={control.key}
-                        label={control.label}
+                        label={t(control.labelKey)}
                         value={sonnetTuning[control.key]}
-                        rangeInputClass={rangeInputClass}
+                        min={0}
+                        max={2}
+                        step={0.05}
+                        format={times}
                         onChange={value => onSonnetTuningChange?.({ [control.key]: value })}
-                        onPointerDown={onSliderPointerDown}
-                        onPointerUp={onSliderCommit}
                     />
                 ))}
-            </SonnetSettingsSection>
+            </Group>
 
-            <SonnetSettingsSection title={t('options.sonnetPostProcessSection')}>
-                <VisualizerPresetGroup
+            <Group def={POST_PROCESS_GROUP}>
+                <ToggleRow
                     label={t('options.sonnetPostProcessEnabled')}
-                    value={sonnetTuning.postProcessEnabled}
-                    options={booleanOptions}
+                    checked={sonnetTuning.postProcessEnabled}
                     onChange={postProcessEnabled => onSonnetTuningChange?.({ postProcessEnabled })}
-                    isDaylight={isDaylight}
-                    theme={theme}
                 />
-                {sonnetTuning.postProcessEnabled && (
-                    <>
-                        <SonnetRangeControl
-                            label={t('options.sonnetPostProcessGrain')}
-                            value={sonnetTuning.postProcessGrain}
-                            min={0}
-                            max={1}
-                            step={0.05}
-                            rangeInputClass={rangeInputClass}
-                            onChange={postProcessGrain => onSonnetTuningChange?.({ postProcessGrain })}
-                            onPointerDown={onSliderPointerDown}
-                            onPointerUp={onSliderCommit}
-                        />
-                        <SonnetRangeControl
-                            label={t('options.sonnetPostProcessContrast')}
-                            value={sonnetTuning.postProcessContrast}
-                            min={0}
-                            max={1}
-                            step={0.05}
-                            rangeInputClass={rangeInputClass}
-                            onChange={postProcessContrast => onSonnetTuningChange?.({ postProcessContrast })}
-                            onPointerDown={onSliderPointerDown}
-                            onPointerUp={onSliderCommit}
-                        />
-                        <SonnetRangeControl
-                            label={t('options.sonnetPostProcessRgbShift') || 'RGB 色差'}
-                            value={sonnetTuning.postProcessRgbShift}
-                            min={0}
-                            max={1}
-                            step={0.05}
-                            rangeInputClass={rangeInputClass}
-                            onChange={postProcessRgbShift => onSonnetTuningChange?.({ postProcessRgbShift })}
-                            onPointerDown={onSliderPointerDown}
-                            onPointerUp={onSliderCommit}
-                        />
-                        <SonnetRangeControl
-                            label={t('options.sonnetPostProcessLensDistortion')}
-                            value={sonnetTuning.postProcessLensDistortion}
-                            min={0}
-                            max={2}
-                            step={0.05}
-                            rangeInputClass={rangeInputClass}
-                            onChange={postProcessLensDistortion => onSonnetTuningChange?.({ postProcessLensDistortion })}
-                            onPointerDown={onSliderPointerDown}
-                            onPointerUp={onSliderCommit}
-                        />
-                        <SonnetRangeControl
-                            label={t('options.sonnetPostProcessLensDispersion')}
-                            value={sonnetTuning.postProcessLensDispersion}
-                            min={0}
-                            max={1}
-                            step={0.05}
-                            rangeInputClass={rangeInputClass}
-                            onChange={postProcessLensDispersion => onSonnetTuningChange?.({ postProcessLensDispersion })}
-                            onPointerDown={onSliderPointerDown}
-                            onPointerUp={onSliderCommit}
-                        />
-                        <SonnetRangeControl
-                            label={t('options.sonnetPostProcessHalftone')}
-                            value={sonnetTuning.postProcessHalftone}
-                            min={0}
-                            max={1}
-                            step={0.05}
-                            rangeInputClass={rangeInputClass}
-                            onChange={postProcessHalftone => onSonnetTuningChange?.({ postProcessHalftone })}
-                            onPointerDown={onSliderPointerDown}
-                            onPointerUp={onSliderCommit}
-                        />
-                        <SonnetRangeControl
-                            label={t('options.sonnetPostProcessVignette')}
-                            value={sonnetTuning.postProcessVignette}
-                            min={0}
-                            max={2}
-                            step={0.05}
-                            rangeInputClass={rangeInputClass}
-                            onChange={postProcessVignette => onSonnetTuningChange?.({ postProcessVignette })}
-                            onPointerDown={onSliderPointerDown}
-                            onPointerUp={onSliderCommit}
-                        />
-                    </>
-                )}
-            </SonnetSettingsSection>
-
-            <SonnetSettingsSection title={t('options.sonnetDisplaySection')}>
-                <VisualizerPresetGroup
-                    label={t('options.sonnetOuterFrameMode')}
-                    value={sonnetTuning.outerFrameMode}
-                    options={outerFrameOptions}
-                    onChange={outerFrameMode => onSonnetTuningChange?.({ outerFrameMode })}
-                    isDaylight={isDaylight}
-                    theme={theme}
-                />
-                <div className="grid gap-4 sm:grid-cols-2">
-                    {visibilityControls.map(control => (
-                        <VisualizerPresetGroup
+                <Reveal when={sonnetTuning.postProcessEnabled}>
+                    {POST_PROCESS_CONTROLS.map(control => (
+                        <SliderRow
+                            {...drag}
+                            sub
                             key={control.key}
-                            label={control.label}
+                            label={t(control.labelKey)}
                             value={sonnetTuning[control.key]}
-                            options={booleanOptions}
-                            onChange={(next) => onSonnetTuningChange?.({ [control.key]: next })}
-                            isDaylight={isDaylight}
-                            theme={theme}
+                            min={0}
+                            max={control.max}
+                            step={0.05}
+                            format={times}
+                            onChange={value => onSonnetTuningChange?.({ [control.key]: value })}
                         />
                     ))}
-                </div>
-            </SonnetSettingsSection>
-        </div>
+                </Reveal>
+            </Group>
+
+            <Group def={DISPLAY_GROUP}>
+                <Row label={t('options.sonnetOuterFrameMode')}>
+                    <Segmented<SonnetOuterFrameMode>
+                        value={sonnetTuning.outerFrameMode}
+                        options={[
+                            { value: 'none', label: t('options.sonnetOuterFrameNone') },
+                            { value: 'frame', label: t('options.sonnetOuterFrameFrame') },
+                            { value: 'full', label: t('options.sonnetOuterFrameFull') },
+                        ]}
+                        onChange={outerFrameMode => onSonnetTuningChange?.({ outerFrameMode })}
+                    />
+                </Row>
+                {VISIBILITY_CONTROLS.map(control => (
+                    <ToggleRow
+                        key={control.key}
+                        label={t(control.labelKey)}
+                        checked={sonnetTuning[control.key]}
+                        onChange={(next) => onSonnetTuningChange?.({ [control.key]: next })}
+                    />
+                ))}
+            </Group>
+        </>
     );
 };
 

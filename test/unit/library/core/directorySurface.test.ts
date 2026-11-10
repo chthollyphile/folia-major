@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { resolveDirectorySurfaceActions } from '@/library/core/model/directorySurface';
-import { resolveDirectoryBatchCapabilities, resolveDirectoryBatchContext } from '@/library/core/model/directoryBatch';
-import { useLibraryDirectorySurfaceStore } from '@/library/core/state/useLibraryDirectorySurfaceStore';
-import type { LibraryDirectoryItem, LibraryDirectorySurfaceHandle, LibraryDirectorySurfaceState } from '@/library/core/contracts/directory';
+import { resolveDirectorySurfaceActions } from '@/library/core/directory/directorySurface';
+import { resolveDirectoryBatchCapabilities, resolveDirectoryBatchContext } from '@/library/core/directory/directoryBatch';
+import { useLibraryDirectorySurfaceStore } from '@/library/core/directory/useLibraryDirectorySurfaceStore';
+import type { LibraryDirectoryItem, LibraryDirectorySurfaceHandle, LibraryDirectorySurfaceState } from '@/library/core/directory/directory.contract';
 
 // test/unit/library/core/directorySurface.test.ts
 // 目录的命令面板 surface：动作是否可用与批量面板按钮同源（core 的批量能力）；注册的交接与 grid surface

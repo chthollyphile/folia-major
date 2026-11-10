@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createCollectionTrackSnapshot, readCollectionTrackSnapshot } from '../../../src/library/core/services/collectionTrackSnapshot';
+import { createCollectionTrackSnapshot, readCollectionTrackSnapshot } from '../../../src/library/core/collection/resource/collectionTrackSnapshot.service';
 
 // test/unit/gridView/collectionTrackSnapshot.test.ts
 

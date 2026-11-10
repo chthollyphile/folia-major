@@ -2,11 +2,11 @@ import { describe, expect, it, vi } from 'vitest';
 import type { TFunction } from 'i18next';
 import type { SongResult } from '@/types';
 import type { OmniCollection } from '@/types/onlineMusic';
-import type { OnlineGridViewCollectionDescriptor } from '@/library/core/contracts/collection';
-import { createCollectionTrackSnapshot } from '@/library/core/services/collectionTrackSnapshot';
-import { createOnlineCollectionResource } from '@/library/core/services/onlineCollectionResource';
-import { createRadioFeed } from '@/library/core/services/onlineHomeFeeds';
-import { buildOnlineRadioCards } from '@/library/core/model/homeCards';
+import type { OnlineGridViewCollectionDescriptor } from '@/library/core/collection/collection.contract';
+import { createCollectionTrackSnapshot } from '@/library/core/collection/resource/collectionTrackSnapshot.service';
+import { createOnlineCollectionResource } from '@/library/core/collection/resource/onlineCollectionResource.service';
+import { createRadioFeed } from '@/library/core/home/online/onlineHomeFeeds.service';
+import { buildOnlineRadioCards } from '@/library/core/home/homeCards';
 
 // test/unit/library/core/onlinePaginationCompatibility.test.ts
 // 保留 main 的混合分页游标缓存与每日推荐能力语义，不让目录迁移退回按可见行数恢复。
@@ -67,7 +67,7 @@ describe('main pagination compatibility in Library Core', () => {
 
     it('does not expose Daily Recommendations when the owning provider lacks it', async () => {
         const feed = createRadioFeed({
-            getHomeFeed: async () => ({ personalFm: [], dailySongs: [], recommendedCollections: [] }),
+            getHomeFeed: async () => ({ personalFm: [song('fm')], dailySongs: [], recommendedCollections: [] }),
             songCoverUrl: () => '', supportsDailySongs: () => false,
         });
         feed.setOwner({ providerId: 'bodian', userId: 'u' });

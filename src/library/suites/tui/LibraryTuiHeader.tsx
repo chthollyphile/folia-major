@@ -1,10 +1,10 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import type { LibraryCollectionDescriptor } from '../../core/contracts/collection';
-import type { CollectionResourceSnapshot } from '../../core/contracts/resource';
-import type { LibraryCapability } from '../../core/contracts/capability';
-import type { CollectionMutationSnapshot } from '../../core/contracts/mutations';
-import { resolveCollectionSyncCounts } from '../../core/model/collectionProgress';
+import type { LibraryCollectionDescriptor } from '../../core/collection/collection.contract';
+import type { CollectionResourceSnapshot } from '../../core/shared/resource.contract';
+import type { LibraryCapability } from '../../core/shared/capability.contract';
+import type { CollectionMutationSnapshot } from '../../core/collection/mutations/mutations.contract';
+import { resolveCollectionSyncCounts } from '../../core/collection/collectionProgress';
 
 // src/library/suites/tui/LibraryTuiHeader.tsx
 // TUI 的状态栏：返回、集合名（改名后显示新名字）、订阅星标、来源、加载进度（中断时可续传）、重新拉取、

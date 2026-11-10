@@ -15,14 +15,14 @@ This rule applies to search, song detail, audio URLs, availability/replacement, 
 
 `omni` is a facade, not a raw-response escape hatch. Callers consume `UnifiedSong`, `OmniCollection`, `OmniPage`, `OmniLyricsResult`, `OmniAudioSource`, `OmniUser`, and `OmniError`; never make caller code depend on provider-specific field names or envelopes.
 
-Current provider implementation map: `providerRegistry.ts` selects capabilities, `providerAccountCache.ts` and `providerStorage.ts` retain account/session state, `neteaseProvider.ts` and `kugouProvider.ts` normalize provider data, and `kugouTransport.ts` owns KuGou transport details. `navidromeService.ts` is a separate Subsonic service, not an Omni provider.
+Current provider implementation map: `providerRegistry.ts` is the one list of providers and selects capabilities; `providerAccountCache.ts` and `providerStorage.ts` retain account/session state; each platform keeps its code in a folder named by its id (`netease/`, `kugou/`, `qq/`, `bodian/`, `ytm/`, `spotify/` under `src/services/onlineMusic/`), where `<id>Provider.ts` normalizes provider data and `<id>Transport.ts` owns the raw requests (NetEase's requests are in `netease/netease.ts`). `navidromeService.ts` is a separate Subsonic service, not an Omni provider. To add a platform, follow the checklist "接入一个新平台" in `src/services/onlineMusic/README.md`.
 
 ## Decide the boundary before coding
 
 Classify the requested behavior as one of these:
 
 - **Single-provider flow**: the user is browsing, playing, editing, or reading data belonging to the active provider or to the provider that owns a song/collection. Use an `omni` method that routes by active provider, song source, or collection provider.
-- **Explicit provider selection**: the UI lets the user choose one provider. Still use `omni`, normally `searchProviderSongs`, `getProviderUserPlaylists`, `getProviderCapabilities`, or another provider-explicit Omni method. Selecting a provider is not by itself a reason to bypass Omni.
+- **Explicit provider selection**: the UI lets the user choose one provider. Still use `omni`, normally `searchProviderSongs`, `getProviderCapabilities`, or another provider-explicit Omni method. Selecting a provider is not by itself a reason to bypass Omni.
 - **Cross-provider flow**: the product behavior intentionally combines two or more providers, such as comparison, federated search, fallback across providers, duplicate review, or migration. Implement an app/service-level orchestrator that calls Omni's provider-explicit methods and preserves each result's source identity.
 - **Provider implementation**: the change adds or repairs one adapter's transport, request mapping, raw-response unwrapping, or normalization. Only the provider adapter and transport layers may use that provider's raw API. Keep the result behind the Omni contract.
 
@@ -106,11 +106,13 @@ Direct provider calls are still not the default for cross-provider features. Use
 | Component / hook / store | `omni` and shared source-aware utilities | provider registry, provider adapter, transport, raw API |
 | Ordinary app-level service | `omni`; source-aware utilities | concrete provider calls |
 | Cross-provider orchestrator | `omni` provider-explicit methods; provider summaries/capabilities | dropping `providerId`, comparing numeric IDs alone |
-| `src/services/onlineMusic/*Provider.ts` | its own transport and adapter helpers; normalize into shared types | leaking raw response shapes to callers |
-| `src/services/onlineMusic/*Transport.ts` | HTTP/IPC/provider protocol | UI or product orchestration |
+| `src/services/onlineMusic/*/*Provider.ts` | its own transport and adapter helpers; normalize into shared types | leaking raw response shapes to callers |
+| `src/services/onlineMusic/*/*Transport.ts` | HTTP/IPC/provider protocol | UI or product orchestration |
 | Tests | test the layer being changed; Omni tests for routing, adapter tests for normalization | fixtures that pretend raw provider data is the public contract |
 
 If Omni lacks a normal capability, add the capability to `src/types/onlineMusic.ts` and `src/services/onlineMusic/omni.ts`, then implement it in each applicable adapter. Do not create a second public bypass around Omni.
+
+One platform's rule stays with the platform. Shared code asks a capability or an adapter member, not a platform id. `test/unit/onlineMusic/omniArchitecture.test.ts` counts the lines outside a platform's own folders that name it, against the list in `test/unit/onlineMusic/platformNamePlaces.ts`; a count may only go down. Do not unify two platforms' code only because it looks alike.
 
 ## Identity and normalization rules
 

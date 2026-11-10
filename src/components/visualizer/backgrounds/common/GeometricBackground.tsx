@@ -3,6 +3,7 @@ import { AnimatePresence, motion, MotionValue, useSpring, useTransform } from 'f
 import { AudioBands, Theme } from '../../../../types';
 import { useLucideIcons } from '../../../../hooks/useLucideIcons';
 import { getLucideIconStatus, resolveLucideIcon } from '../../../../services/lucideIconResolver';
+import './GeometricBackground.css';
 
 // src/components/visualizer/backgrounds/common/GeometricBackground.tsx
 
@@ -16,13 +17,14 @@ interface GeometricBackgroundProps {
   paused?: boolean;
 }
 
-type ShapeType = 'circle' | 'square' | 'triangle' | 'cross' | 'icon';
+type ShapeType = 'circle' | 'square' | 'triangle' | 'cross';
 type ScaleKey = 'bass' | 'lowMid' | 'mid' | 'vocal' | 'treble' | 'default';
 
 interface BackgroundShape {
   id: number;
   type: ShapeType;
-  iconName: string | null;
+  /** Which of the theme's icons the shape shows instead, as a share of their count; null for never. */
+  iconSlot: number | null;
   initialX: number;
   initialY: number;
   size: number;
@@ -54,8 +56,6 @@ const getShapeScaleKey = (shape: BackgroundShape): ScaleKey => {
       return 'mid';
     case 'cross':
       return 'treble';
-    case 'icon':
-      return 'vocal';
     default:
       return 'default';
   }
@@ -73,21 +73,40 @@ const getShapeClipPath = (shapeType: ShapeType) => {
   return 'none';
 };
 
-const getShapeBaseStyle = (shape: BackgroundShape, theme: Theme) => {
+const getShapeFaceStyle = (shape: BackgroundShape, theme: Theme) => {
   const isCircleOrSquare = shape.type === 'circle' || shape.type === 'square';
   const useStroke = isCircleOrSquare && !shape.filled;
 
   return {
-    left: `${shape.initialX}%`,
-    top: `${shape.initialY}%`,
-    width: shape.size,
-    height: shape.size,
     border: useStroke ? `1px solid ${theme.secondaryColor}` : 'none',
     backgroundColor: !useStroke ? theme.secondaryColor : 'transparent',
     borderRadius: shape.type === 'circle' ? '50%' : '0%',
     opacity: shape.opacity,
     clipPath: getShapeClipPath(shape.type),
   };
+};
+
+/** Where a shape sits, and its drift and turn (GeometricBackground.css). */
+const getShapeDriftStyle = (shape: BackgroundShape) => ({
+  left: `${shape.initialX}%`,
+  top: `${shape.initialY}%`,
+  width: shape.size,
+  height: shape.size,
+  animationDuration: `${shape.duration}s`,
+  animationDelay: `${shape.delay}s`,
+  '--geometric-dir': shape.reverse ? -1 : 1,
+  '--geometric-rotate': `${shape.initialRotation}deg`,
+}) as React.CSSProperties;
+
+/**
+ * The theme icon an icon slot shows: 'loading' while its chunk is still on the way, null where the
+ * theme has none or the name is not an icon.
+ */
+const getShapeIcon = (shape: BackgroundShape, icons: string[]): ReturnType<typeof resolveLucideIcon> | 'loading' => {
+  if (shape.iconSlot === null || icons.length === 0) return null;
+  const name = icons[Math.floor(shape.iconSlot * icons.length)];
+  if (getLucideIconStatus(name) === 'loading') return 'loading';
+  return resolveLucideIcon(name);
 };
 
 const VignetteOverlay: React.FC<{ disabled?: boolean }> = ({ disabled = false }) => (
@@ -99,76 +118,12 @@ const VignetteOverlay: React.FC<{ disabled?: boolean }> = ({ disabled = false })
   )
 );
 
-const StaticGeometricScene: React.FC<{
-  theme: Theme;
-  shapes: BackgroundShape[];
-  particles: BackgroundParticle[];
-  hideShapes: boolean;
-  disableVignette: boolean;
-}> = ({ theme, shapes, particles, hideShapes, disableVignette }) => (
-  <div className="absolute inset-0">
-    {!hideShapes && (
-      <>
-        {shapes.map((shape) => {
-          if (shape.type === 'icon' && shape.iconName) {
-            if (getLucideIconStatus(shape.iconName) === 'loading') return null;
-            const IconComponent = resolveLucideIcon(shape.iconName);
-
-            if (IconComponent) {
-              return (
-                <div
-                  key={shape.id}
-                  className="absolute flex items-center justify-center"
-                  style={{
-                    left: `${shape.initialX}%`,
-                    top: `${shape.initialY}%`,
-                    width: shape.size,
-                    height: shape.size,
-                    color: theme.secondaryColor,
-                    opacity: shape.opacity,
-                    transform: `rotate(${shape.initialRotation}deg)`,
-                  }}
-                >
-                  <IconComponent size={shape.size} strokeWidth={1} absoluteStrokeWidth />
-                </div>
-              );
-            }
-          }
-
-          return (
-            <div
-              key={shape.id}
-              className="absolute"
-              style={{
-                ...getShapeBaseStyle(shape, theme),
-                transform: `rotate(${shape.initialRotation}deg)`,
-              }}
-            />
-          );
-        })}
-
-        {particles.map((particle) => (
-          <div
-            key={`p-${particle.id}`}
-            className="absolute rounded-full"
-            style={{
-              backgroundColor: theme.accentColor,
-              width: particle.size,
-              height: particle.size,
-              left: `${particle.left}%`,
-              top: `${particle.top}%`,
-              opacity: particle.opacity,
-            }}
-          />
-        ))}
-      </>
-    )}
-
-    <VignetteOverlay disabled={disableVignette} />
-  </div>
-);
-
-const AnimatedGeometricScene: React.FC<{
+/*
+ * The shapes and particles. Each moves on a CSS loop of its own; a pause holds every loop where it
+ * is and play goes on from there, so pausing (also the moment the next track loads) moves nothing.
+ * The colours follow a new theme over a second, as the base colour does.
+ */
+const GeometricScene: React.FC<{
   theme: Theme;
   audioPower: MotionValue<number>;
   audioBands?: AudioBands;
@@ -176,7 +131,8 @@ const AnimatedGeometricScene: React.FC<{
   particles: BackgroundParticle[];
   hideShapes: boolean;
   disableVignette: boolean;
-}> = ({ theme, audioPower, audioBands, shapes, particles, hideShapes, disableVignette }) => {
+  paused: boolean;
+}> = ({ theme, audioPower, audioBands, shapes, particles, hideShapes, disableVignette, paused }) => {
   const useBandScale = (value: MotionValue<number> | undefined) => {
     const source = value || audioPower;
     const spring = useSpring(source, { stiffness: 300, damping: 30 }) as unknown as MotionValue<number>;
@@ -191,100 +147,64 @@ const AnimatedGeometricScene: React.FC<{
     treble: useBandScale(audioBands?.treble),
     default: useBandScale(audioPower),
   };
+  const icons = theme.lyricsIcons || [];
 
   return (
-    <div className="absolute inset-0">
+    <div className={paused ? 'absolute inset-0 geometric-paused' : 'absolute inset-0'}>
       {!hideShapes && (
         <>
           {shapes.map((shape) => {
-            if (shape.type === 'icon' && shape.iconName) {
-              // The icon's chunk is still loading: leave the slot empty rather than flash the square fallback.
-              if (getLucideIconStatus(shape.iconName) === 'loading') return null;
-              const IconComponent = resolveLucideIcon(shape.iconName);
-
-              if (IconComponent) {
-                return (
-                  <motion.div
-                    key={shape.id}
-                    className="absolute flex items-center justify-center"
-                    style={{
-                      left: `${shape.initialX}%`,
-                      top: `${shape.initialY}%`,
-                      width: shape.size,
-                      height: shape.size,
-                      color: theme.secondaryColor,
-                      scale: scales.vocal,
-                    }}
-                    animate={{
-                      y: shape.reverse ? [-30, 30, -30] : [30, -30, 30],
-                      x: shape.reverse ? [15, -15, 15] : [-15, 15, -15],
-                      rotate: [shape.initialRotation, shape.initialRotation + 360],
-                      opacity: [0, shape.opacity * 3, 0],
-                    }}
-                    transition={{
-                      duration: shape.duration,
-                      repeat: Infinity,
-                      ease: 'linear',
-                      delay: shape.delay,
-                      opacity: {
-                        duration: shape.duration * 0.5,
-                        repeat: Infinity,
-                        ease: 'easeInOut',
-                        delay: shape.delay,
-                      },
-                    }}
-                  >
-                    <IconComponent size={shape.size} strokeWidth={1} absoluteStrokeWidth />
-                  </motion.div>
-                );
-              }
-            }
+            // While the icon's chunk is still loading the slot shows neither its face nor the icon, rather
+            // than flash the face before the icon comes in.
+            const icon = getShapeIcon(shape, icons);
+            const IconComponent = icon === 'loading' ? null : icon;
 
             return (
-              <motion.div
-                key={shape.id}
-                className="absolute"
-                style={{
-                  ...getShapeBaseStyle(shape, theme),
-                  scale: scales[getShapeScaleKey(shape)],
-                }}
-                animate={{
-                  y: shape.reverse ? [-30, 30, -30] : [30, -30, 30],
-                  x: shape.reverse ? [15, -15, 15] : [-15, 15, -15],
-                  rotate: [shape.initialRotation, shape.initialRotation + 360],
-                }}
-                transition={{
-                  duration: shape.duration,
-                  repeat: Infinity,
-                  ease: 'linear',
-                  delay: shape.delay,
-                }}
-              />
+              <div key={shape.id} className="absolute geometric-drift" style={getShapeDriftStyle(shape)}>
+                <motion.div
+                  className="w-full h-full transition-[color,background-color,border-color,opacity] duration-1000"
+                  style={{
+                    ...getShapeFaceStyle(shape, theme),
+                    ...(icon !== null ? { opacity: 0 } : {}),
+                    scale: scales[getShapeScaleKey(shape)],
+                  }}
+                />
+                {/* An icon slot keeps its pulse running whether the theme has icons or not, so
+                    icons arriving or leaving cross-fade with the face instead of restarting it. */}
+                {shape.iconSlot !== null && (
+                  <div className="absolute inset-0 transition-opacity duration-1000" style={{ opacity: IconComponent ? 1 : 0 }}>
+                    <motion.div
+                      className="w-full h-full flex items-center justify-center geometric-pulse transition-colors duration-1000"
+                      style={{
+                        color: theme.secondaryColor,
+                        scale: scales.vocal,
+                        animationDuration: `${shape.duration * 0.5}s`,
+                        animationDelay: `${shape.delay}s`,
+                        '--geometric-peak': shape.opacity * 3,
+                      } as React.ComponentProps<typeof motion.div>['style']}
+                    >
+                      {IconComponent && <IconComponent size={shape.size} strokeWidth={1} absoluteStrokeWidth />}
+                    </motion.div>
+                  </div>
+                )}
+              </div>
             );
           })}
 
           {particles.map((particle) => (
-            <motion.div
+            <div
               key={`p-${particle.id}`}
-              className="absolute rounded-full"
+              className="absolute rounded-full geometric-rise transition-colors duration-1000"
               style={{
                 backgroundColor: theme.accentColor,
                 width: particle.size,
                 height: particle.size,
                 left: `${particle.left}%`,
                 top: `${particle.top}%`,
-                opacity: particle.opacity,
-              }}
-              animate={{
-                y: [0, -100],
-                opacity: [0, particle.opacity, 0],
-              }}
-              transition={{
-                duration: particle.duration,
-                repeat: Infinity,
-                ease: 'linear',
-                delay: particle.delay,
-              }}
+                animationDuration: `${particle.duration}s`,
+                animationDelay: `${particle.delay}s`,
+                '--geometric-peak': particle.opacity,
+              } as React.CSSProperties}
             />
           ))}
         </>
@@ -304,31 +224,29 @@ const GeometricLayer: React.FC<GeometricBackgroundProps> = ({
   disableVignette = false,
   paused = false,
 }) => {
-  // Re-renders the scenes below as the theme's icons arrive.
+  // Re-renders the scene below as the theme's icons arrive.
   useLucideIcons(theme.lyricsIcons);
 
+  // Laid out from the seed alone. The theme often comes after the song, each time with a new icon
+  // list: it only changes what an icon slot shows (getShapeIcon), in its place.
   const shapes = useMemo<BackgroundShape[]>(() => {
-    const shapeTypes: Array<Exclude<ShapeType, 'icon'>> = ['circle', 'square', 'triangle', 'cross'];
-    const availableIcons = theme.lyricsIcons || [];
+    const shapeTypes: ShapeType[] = ['circle', 'square', 'triangle', 'cross'];
 
-    let iconCount = 0;
+    let iconSlots = 0;
     return Array.from({ length: 15 }).map((_, index) => {
-      const wantIcon = availableIcons.length > 0 && Math.random() > 0.7;
-      const useIcon = wantIcon && iconCount < 6;
-      if (useIcon) {
-        iconCount += 1;
+      const iconSlot = iconSlots < 6 && Math.random() > 0.7 ? Math.random() : null;
+      if (iconSlot !== null) {
+        iconSlots += 1;
       }
-
-      const iconName = useIcon ? availableIcons[Math.floor(Math.random() * availableIcons.length)] : null;
 
       return {
         id: index,
-        type: useIcon ? 'icon' : shapeTypes[Math.floor(Math.random() * shapeTypes.length)],
-        iconName,
+        type: shapeTypes[Math.floor(Math.random() * shapeTypes.length)],
+        iconSlot,
         initialX: Math.random() * 100,
         initialY: Math.random() * 100,
         size: 40 + Math.random() * 100,
-        duration: useIcon ? 20 + Math.random() * 20 : 30 + Math.random() * 30,
+        duration: iconSlot !== null ? 20 + Math.random() * 20 : 30 + Math.random() * 30,
         delay: Math.random() * 5,
         opacity: 0.11 + Math.random() * 0.08,
         reverse: Math.random() > 0.5,
@@ -336,7 +254,7 @@ const GeometricLayer: React.FC<GeometricBackgroundProps> = ({
         initialRotation: Math.random() * 360,
       };
     });
-  }, [theme.lyricsIcons, seed]);
+  }, [seed]);
 
   const particles = useMemo<BackgroundParticle[]>(() => (
     Array.from({ length: 20 }).map((_, index) => ({
@@ -353,30 +271,21 @@ const GeometricLayer: React.FC<GeometricBackgroundProps> = ({
   return (
     <motion.div
       className="absolute inset-0"
-      initial={{ opacity: 0 }}
+      initial={false}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.6, ease: 'easeInOut' }}
     >
-      {paused ? (
-        <StaticGeometricScene
-          theme={theme}
-          shapes={shapes}
-          particles={particles}
-          hideShapes={hideShapes}
-          disableVignette={disableVignette}
-        />
-      ) : (
-        <AnimatedGeometricScene
-          theme={theme}
-          audioPower={audioPower}
-          audioBands={audioBands}
-          shapes={shapes}
-          particles={particles}
-          hideShapes={hideShapes}
-          disableVignette={disableVignette}
-        />
-      )}
+      <GeometricScene
+        theme={theme}
+        audioPower={audioPower}
+        audioBands={audioBands}
+        shapes={shapes}
+        particles={particles}
+        hideShapes={hideShapes}
+        disableVignette={disableVignette}
+        paused={paused}
+      />
     </motion.div>
   );
 };
@@ -390,7 +299,10 @@ const GeometricBackground: React.FC<GeometricBackgroundProps> = React.memo((prop
           initial={false} propagates via context to ALL nested motion components,
           causing keyframe animations with repeat:Infinity to never be dispatched
           on mount. Removing it allows the container to fade in (0.6s) and all
-          child keyframe animations to start normally on every mount. */}
+          child keyframe animations to start normally on every mount.
+          The layer itself now shows at once (initial={false} on GeometricLayer's own
+          motion.div, which does not reach its children): a new seed is a new copy of
+          the background, which the background layer around it brings in. */}
       <AnimatePresence mode="sync">
         <GeometricLayer key={layerKey} {...props} />
       </AnimatePresence>

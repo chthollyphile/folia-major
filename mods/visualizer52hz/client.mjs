@@ -6,8 +6,9 @@
 // grow their rings from random piths (see stage.mjs).
 //
 // What it exercises in Folium: a visualizer with a settings schema, the audio
-// analyser (ctx.audio, Folium 1.2), song-clock-driven rendering that also works
-// in previews and the export window, and a third-party library shipped inside
+// analyser (ctx.audio), lyric-clock-driven rendering on the host's frame loop
+// (ctx.onFrame) that also works in previews and the export window, and a
+// third-party library shipped inside
 // the mod (vendor/pixi.min.mjs), since mod clients cannot resolve bare imports,
 // and a Ponder tutorial through the experimental `ponder.targets` (ponder.mjs).
 
@@ -66,9 +67,6 @@ const settings = [
 ];
 
 export default function activate(folium) {
-  if (folium.host.folium.minor < 2) {
-    folium.log.warn('52Hz needs Folium 1.2 for audio; rings will not follow the music on this host.');
-  }
   folium.registries.visualizers.register({
     id: 'rings',
     label: { 'zh-CN': '52Hz', en: '52Hz' },
@@ -76,8 +74,8 @@ export default function activate(folium) {
     mount: (container, ctx) => mount52Hz(folium, container, ctx),
     settings,
   });
-  // Ponder is main-window only, and per-language text needs Folium 1.2.
-  if (folium.env.context === 'main' && folium.host.folium.minor >= 2) {
+  // Ponder is main-window only.
+  if (folium.env.context === 'main') {
     folium.experimental['ponder.targets'].register(ponderTarget);
   }
 }

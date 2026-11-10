@@ -4,6 +4,9 @@ import type { Theme } from '../../types';
 // src/components/visualizer/glowWordVariants.ts
 // classic / partita 的 GlowWord 用的 framer-motion variants：外层容器（位置 / 缩放 / 旋转）与正文层（颜色 / 模糊）。
 
+/** An active word grows to its config scale times this; glowWordOverlap.ts reserves room for it. */
+export const GLOW_WORD_ACTIVE_SCALE = 1.4;
+
 // Container motion is the "body" of each word.
 // waiting/active/passed all reuse the same layout config but interpret it differently.
 export const buildGlowWordLayoutVariants = (
@@ -20,7 +23,7 @@ export const buildGlowWordLayoutVariants = (
     }),
     active: ({ config }: any) => ({
         opacity: 1,
-        scale: isNaN(config.scale) ? 1.5 : config.scale * 1.4,
+        scale: isNaN(config.scale) ? 1.5 : config.scale * GLOW_WORD_ACTIVE_SCALE,
         x: config.x,
         y: config.y,
         rotate: config.rotate,

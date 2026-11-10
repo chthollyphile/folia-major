@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { SongResult } from '../../../src/types';
+import { closeSettings, useSettingsModalStore } from '../../../src/stores/useSettingsModalStore';
 import {
     WALL_TOOLS_SHUFFLE_COMMAND,
     WALL_TOOLS_THEME_COMMAND,
@@ -91,6 +92,16 @@ describe('createWallToolsHostStore', () => {
         expect(deps.clearQueue).toHaveBeenCalledTimes(1);
         await host.saveQueueAsPlaylist('Mix');
         expect(deps.saveCurrentQueueAsLocalPlaylist).toHaveBeenCalledWith('Mix');
+    });
+
+    it('opens the settings dialog on its options tab', () => {
+        const { host } = createWallToolsHostStore({ current: makeDeps() });
+        closeSettings();
+        host.openSettings();
+        const state = useSettingsModalStore.getState().settingsModalState;
+        expect(state.isOpen).toBe(true);
+        expect(state.initialTab).toBe('options');
+        closeSettings();
     });
 
     it('passes a failed save through as a rejection', async () => {

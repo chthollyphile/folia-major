@@ -5,7 +5,7 @@ import {
     resolveLyricSubtitleTracks,
     resolveSingleTrackSubtitleMode,
 } from '@/utils/lyrics/alternateText';
-import { resolveFoliumDisplay } from '@/mods/folium/stageContext';
+import { resolveFoliumDisplay } from '@/mods/folium/registries/stageContext';
 import { showsLatticeTranslation } from '@/components/app/lattice/lyrics/latticeLyricLayout';
 import type { LatticeLyricInput } from '@/components/app/lattice/lyrics/types';
 import type { Line } from '@/types';

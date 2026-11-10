@@ -15,7 +15,7 @@ const {
   isWallpaperWrapped,
   isX11WallpaperMode,
   createWallpaperWatchdog,
-} = require('../../../electron/wallpaperWatchdog.cjs') as {
+} = require('../../../electron/wallpaper/wallpaperWatchdog.cjs') as {
   WALLPAPER_MODE_SETTING_KEY: string;
   WALLPAPER_WRAPPED_CRASH_COUNT_KEY: string;
   isWallpaperModeEnabled: (store: StoreLike) => boolean;

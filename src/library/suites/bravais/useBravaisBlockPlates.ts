@@ -5,6 +5,7 @@ import {
     buildPlateBlock,
     collectMountedBlocks,
     EMPTY_PLATE_BLOCKS,
+    isAboveAnchor,
     isLeftOfAnchor,
     isSamePlateBlock,
     type PlateBlock,
@@ -20,12 +21,14 @@ import {
 // - 聚焦卡让位（展开、换卡、收起 / 换块时的归位）期间，受影响的块由 useBravaisReflowDriver 与磁贴同一帧逐帧重画；
 //   这里只给落定的路径。
 // - 实色档不挂（stage 根节点画墙面）。
+// - 横的缝（anchorY）：块按行分上下两半（left 是上半），缝边上那一行的底板止于 / 铺到缝的边沿。
 
 type CachedBlock = {
     display: BravaisDisplay;
     expandedSlotKey: string | null;
     reflow: ReadonlyMap<string, PlateRect>;
     anchorX: number | null;
+    anchorY: number | null;
     block: PlateBlock;
 };
 
@@ -36,6 +39,7 @@ export const useBravaisBlockPlates = ({
     expandedSlotKey,
     reflow,
     anchorX,
+    anchorY = null,
 }: {
     /** 透明档才挂底板。 */
     enabled: boolean;
@@ -44,6 +48,7 @@ export const useBravaisBlockPlates = ({
     expandedSlotKey: string | null;
     reflow: ReadonlyMap<string, PlateRect>;
     anchorX: number | null;
+    anchorY?: number | null;
 }): PlateBlockSet => {
     const cacheRef = useRef(new Map<string, CachedBlock>());
 
@@ -60,18 +65,21 @@ export const useBravaisBlockPlates = ({
             const cached = previous.get(key);
             let block: PlateBlock;
             if (cached && cached.display === display && cached.expandedSlotKey === expandedSlotKey
-                && cached.reflow === reflow && cached.anchorX === anchorX) {
+                && cached.reflow === reflow && cached.anchorX === anchorX && cached.anchorY === anchorY) {
                 block = cached.block;
             } else {
-                const fresh = buildPlateBlock(column, row, display, expandedSlotKey, reflow, anchorX);
+                const fresh = buildPlateBlock(column, row, display, expandedSlotKey, reflow, anchorX, anchorY);
                 block = cached && isSamePlateBlock(cached.block, fresh) ? cached.block : fresh;
             }
-            next.set(key, { display, expandedSlotKey, reflow, anchorX, block });
-            (isLeftOfAnchor(column, anchorX) ? left : right).push(block);
+            next.set(key, { display, expandedSlotKey, reflow, anchorX, anchorY, block });
+            const before = anchorY !== null
+                ? isAboveAnchor(row, anchorY, display.shape.blockSize)
+                : isLeftOfAnchor(column, anchorX, display.shape.blockSize);
+            (before ? left : right).push(block);
         }
         cacheRef.current = next;
         return { left, right };
-    }, [anchorX, display, enabled, expandedSlotKey, reflow, slots]);
+    }, [anchorX, anchorY, display, enabled, expandedSlotKey, reflow, slots]);
 
     return plates;
 };

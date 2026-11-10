@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FoliumContextKind, FoliumStageContext, FoliumStageLayerDef } from '@/mods/folium/contract';
-import { createFoliumRegistry } from '@/mods/folium/registry';
-import { bindFoliumStageRegistry } from '@/mods/folium/stageRegistry';
+import { createFoliumRegistry } from '@/mods/runtime/registry';
+import { bindFoliumStageRegistry } from '@/mods/folium/registries/stageRegistry';
 
 // test/unit/mod-system/foliumStageLayout.test.ts
 // Stage subscriptions own geometry demand; registration and mount lifetimes
@@ -36,7 +36,7 @@ const setup = (options: { optIn?: boolean; preview?: boolean; context?: FoliumCo
     const base = {
         isPreview: options.preview ?? false,
         getLayout: () => null,
-        subscribe: (listener: () => void) => {
+        onChange: (listener: () => void) => {
             baseListeners.add(listener);
             return () => baseListeners.delete(listener);
         },
@@ -45,10 +45,11 @@ const setup = (options: { optIn?: boolean; preview?: boolean; context?: FoliumCo
     const handle = bound.register({
         id: 'layer', slot: 'app.overlay', mount: (_container, ctx) => {
             contexts.push(ctx);
-            if (options.throwMount) { ctx.subscribe(() => {}); throw new Error('failed mount'); }
+            if (options.throwMount) { ctx.onChange(() => {}); throw new Error('failed mount'); }
         },
     });
-    const mount = () => registry.get(handle.id)!.def.mount({} as HTMLElement, base);
+    // A synchronous mount here: what the bound mount hands back is the disposer.
+    const mount = () => registry.get(handle.id)!.def.mount({} as HTMLElement, base) as (() => void) | undefined;
     return { registry, bound, handle, contexts, mount, baseListeners };
 };
 
@@ -60,7 +61,7 @@ describe('stage context layout subscriptions', () => {
         expect(ctx.getLayout()).toBeNull();
         expect(state.subscribe).not.toHaveBeenCalled();
         const first = vi.fn(); const second = vi.fn();
-        const stopFirst = ctx.subscribe(first); const stopSecond = ctx.subscribe(second);
+        const stopFirst = ctx.onChange(first); const stopSecond = ctx.onChange(second);
         expect(state.subscribe).toHaveBeenCalledTimes(1);
         expect(ctx.getLayout()).toBe(state.snapshot);
         state.listeners.forEach((listener) => listener());
@@ -79,7 +80,7 @@ describe('stage context layout subscriptions', () => {
     ])('keeps layout inert in %s while ordinary stage notifications work', (_name, options) => {
         const fixture = setup(options); const dispose = fixture.mount();
         const ctx = fixture.contexts[0]; const listener = vi.fn();
-        ctx.subscribe(listener);
+        ctx.onChange(listener);
         expect(ctx.getLayout()).toBeNull(); expect(state.subscribe).not.toHaveBeenCalled();
         fixture.baseListeners.forEach((notify) => notify());
         expect(listener).toHaveBeenCalledTimes(1);
@@ -89,30 +90,30 @@ describe('stage context layout subscriptions', () => {
     it('does not observe or expose layout on the OBS/remote app surface', () => {
         state.main = false;
         const fixture = setup(); const dispose = fixture.mount();
-        fixture.contexts[0].subscribe(() => {});
+        fixture.contexts[0].onChange(() => {});
         expect(fixture.contexts[0].getLayout()).toBeNull();
         expect(state.subscribe).not.toHaveBeenCalled(); dispose?.();
     });
 
     it.each(['unregister', 'disable'] as const)('invalidates retained contexts immediately on %s', (action) => {
         const fixture = setup(); const dispose = fixture.mount(); const ctx = fixture.contexts[0];
-        ctx.subscribe(() => {});
+        ctx.onChange(() => {});
         if (action === 'unregister') fixture.handle.unregister();
         else fixture.registry.unregisterAll('demo');
         expect(state.listeners.size).toBe(0); expect(fixture.baseListeners.size).toBe(0);
         expect(ctx.getLayout()).toBeNull();
-        ctx.subscribe(() => {});
+        ctx.onChange(() => {});
         expect(state.subscribe).toHaveBeenCalledTimes(1);
         dispose?.();
     });
 
     it('gives effect replay a fresh scope and never reactivates the old one', () => {
         const fixture = setup(); const firstDispose = fixture.mount(); const first = fixture.contexts[0];
-        first.subscribe(() => {}); firstDispose?.();
+        first.onChange(() => {}); firstDispose?.();
         const secondDispose = fixture.mount(); const second = fixture.contexts[1];
         expect(second).not.toBe(first);
-        first.subscribe(() => {}); expect(state.listeners.size).toBe(0);
-        second.subscribe(() => {}); expect(state.listeners.size).toBe(1);
+        first.onChange(() => {}); expect(state.listeners.size).toBe(0);
+        second.onChange(() => {}); expect(state.listeners.size).toBe(1);
         expect(first.getLayout()).toBeNull(); expect(second.getLayout()).toBe(state.snapshot);
         firstDispose?.(); expect(state.listeners.size).toBe(1);
         secondDispose?.(); expect(state.listeners.size).toBe(0);
@@ -120,19 +121,19 @@ describe('stage context layout subscriptions', () => {
 
     it('does not revive a retained context when the same registration id is reused', () => {
         const fixture = setup(); const dispose = fixture.mount(); const old = fixture.contexts[0];
-        old.subscribe(() => {}); fixture.handle.unregister();
+        old.onChange(() => {}); fixture.handle.unregister();
         let fresh: FoliumStageContext | undefined;
         fixture.bound.register({ id: 'layer', slot: 'app.overlay', mount: (_container, ctx) => { fresh = ctx; } });
         const nextDispose = fixture.mount();
-        old.subscribe(() => {}); expect(state.listeners.size).toBe(0);
-        fresh!.subscribe(() => {}); expect(state.listeners.size).toBe(1);
+        old.onChange(() => {}); expect(state.listeners.size).toBe(0);
+        fresh!.onChange(() => {}); expect(state.listeners.size).toBe(1);
         fixture.handle.unregister(); expect(state.listeners.size).toBe(1);
         dispose?.(); nextDispose?.(); expect(state.listeners.size).toBe(0);
     });
 
     it('counts each subscription even when the callback is reused', () => {
         const fixture = setup(); const dispose = fixture.mount(); const ctx = fixture.contexts[0];
-        const listener = vi.fn(); const first = ctx.subscribe(listener); const second = ctx.subscribe(listener);
+        const listener = vi.fn(); const first = ctx.onChange(listener); const second = ctx.onChange(listener);
         first(); expect(state.listeners.size).toBe(1);
         second(); expect(state.listeners.size).toBe(0);
         dispose?.();
@@ -142,7 +143,7 @@ describe('stage context layout subscriptions', () => {
         const fixture = setup({ throwMount: true });
         expect(fixture.mount).toThrow('failed mount');
         expect(state.listeners.size).toBe(0); expect(fixture.baseListeners.size).toBe(0);
-        fixture.contexts[0].subscribe(() => {});
+        fixture.contexts[0].onChange(() => {});
         expect(state.subscribe).toHaveBeenCalledTimes(1);
     });
 });

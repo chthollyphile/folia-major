@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest';
 // Electron or a real display.
 
 const require = createRequire(import.meta.url);
-const { createWindowsWallpaperTargetResolver, isUsableDisplayId } = require('../../../electron/windowsWallpaperTarget.cjs') as {
+const { createWindowsWallpaperTargetResolver, isUsableDisplayId } = require('../../../electron/wallpaper/windowsWallpaperTarget.cjs') as {
   createWindowsWallpaperTargetResolver: (options: ResolverOptions) => Resolver;
   isUsableDisplayId: (id: unknown) => boolean;
 };
@@ -34,6 +34,7 @@ interface ResolverOptions {
   };
   getStoredBounds?: () => Bounds | null;
   getMainWindow?: () => FakeWindow | null;
+  getDisplayChoice?: () => { id: number; bounds: Bounds; label: string } | null;
 }
 
 interface FakeWindow {
@@ -44,6 +45,8 @@ interface FakeWindow {
 
 interface Resolver {
   resolve: () => FakeDisplay | null;
+  peek: () => FakeDisplay | null;
+  current: () => { id: number; bounds: Bounds } | null;
   rememberFromWindow: (win: FakeWindow | null) => FakeDisplay | null;
   clear: () => void;
 }
@@ -206,5 +209,56 @@ describe('windows wallpaper target display', () => {
     // Window creation goes through this call, so it must resolve to something usable instead of
     // propagating the error.
     expect(resolver.resolve()).toEqual(PRIMARY);
+  });
+
+  it('puts the display chosen in Settings before the live ordinary window', () => {
+    const resolver = createWindowsWallpaperTargetResolver({
+      screen: createScreen([PRIMARY, SECONDARY]),
+      getStoredBounds: () => PRIMARY.bounds,
+      // The app window sits on the primary display; the choice names the secondary.
+      getMainWindow: () => createFakeWindow({ x: 100, y: 100, width: 800, height: 600 }),
+      getDisplayChoice: () => ({ id: SECONDARY.id, bounds: SECONDARY.bounds, label: '' }),
+    });
+
+    expect(resolver.resolve()).toEqual(SECONDARY);
+  });
+
+  it('goes back to the order without a choice while the chosen display is unplugged', () => {
+    const displays = [PRIMARY, SECONDARY];
+    const resolver = createWindowsWallpaperTargetResolver({
+      screen: createScreen(displays),
+      getStoredBounds: () => PRIMARY.bounds,
+      getMainWindow: () => null,
+      getDisplayChoice: () => ({ id: SECONDARY.id, bounds: SECONDARY.bounds, label: '' }),
+    });
+
+    expect(resolver.resolve()).toEqual(SECONDARY);
+
+    // Unplugged: neither the choice nor the session target can be matched, so the stored geometry
+    // decides, as it does without a choice.
+    displays.splice(0, displays.length, PRIMARY);
+    expect(resolver.resolve()).toEqual(PRIMARY);
+
+    // Plugged back in: the choice outranks the session target the fallback left behind.
+    displays.push(SECONDARY);
+    expect(resolver.resolve()).toEqual(SECONDARY);
+  });
+
+  it('answers where a wallpaper would go without changing where this session is', () => {
+    let choice: { id: number; bounds: Bounds; label: string } | null = null;
+    const resolver = createWindowsWallpaperTargetResolver({
+      screen: createScreen([PRIMARY, SECONDARY]),
+      getStoredBounds: () => PRIMARY.bounds,
+      getMainWindow: () => null,
+      getDisplayChoice: () => choice,
+    });
+
+    expect(resolver.current()).toBeNull();
+    expect(resolver.resolve()).toEqual(PRIMARY);
+    expect(resolver.current()).toEqual({ id: PRIMARY.id, bounds: PRIMARY.bounds });
+
+    choice = { id: SECONDARY.id, bounds: SECONDARY.bounds, label: '' };
+    expect(resolver.peek()).toEqual(SECONDARY);
+    expect(resolver.current()).toEqual({ id: PRIMARY.id, bounds: PRIMARY.bounds });
   });
 });
