@@ -2,7 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 // dev/dedicatus/storageKeys/scanStorageKeys.mjs
 // 读出仓库里持久化的键（D507）：渲染进程的 localStorage / sessionStorage（含 `storage()?.getItem` 这类本地包装）、
-// storagePrimitives、providerStorage、useOneTimeHint，主进程 electron-store 的 store.get / set / delete / has。
+// storagePrimitives、providerStorage、useOneTimeHint，主进程 electron-store 的 store.get / set / delete / has，
+// 以及渲染进程经 saveSettings 写进主进程的键。
 // 按文本扫描：键是字符串字面量，或者 `const NAME = '字面量'` 定义的常量。常量先认本文件的定义，
 // 再认从相对路径导入的那个文件的定义，最后才认全仓唯一的同名定义（同名不同值的常量各文件都有：SESSION_KEY、STORAGE_KEY）。
 // 模板字符串、`NAME + 变量` 只记到变化部分之前的前缀，写成 `前缀*`。
@@ -101,6 +102,11 @@ const RENDERER_CALLS = [
 ];
 /** providerStorage：键是“平台:键”。 */
 const PROVIDER_CALL = /\b(?:readProviderSessionValue|writeProviderSessionValue|removeProviderSessionValue)\(\s*([^,)]+),\s*([^,)]+)/g;
+/**
+ * 渲染进程经 `window.electron.saveSettings(键, 值)` 写进主进程 electron-store 的键：主进程那边是通用的
+ * `store.set(key, value)`，扫不出键名，只能在这里认（2026-11-08 演习：#668 直接读已有的 STAGE_MODE_SOURCE 被当成新键）。
+ */
+const MAIN_FROM_RENDERER_CALL = /\bsaveSettings\??\.?\(\s*([^,)]+)/g;
 const MAIN_CALL = /\bstore\.(?:get|set|delete|has)\(\s*([^,)]+)/g;
 /** 键的读写本身就在这些文件里（参数是变量），不当成键的出处。 */
 const HELPER_FILES = new Set(['src/stores/storagePrimitives.ts', 'src/services/onlineMusic/providerStorage.ts', 'src/hooks/useOneTimeHint.ts']);
@@ -126,6 +132,10 @@ export function scanStorageKeys(root) {
             const provider = keyOf(match[1], file, resolve);
             const key = keyOf(match[2], file, resolve);
             if (provider && key) keys.add(`provider:${provider}:${key}`);
+        }
+        for (const match of text.matchAll(MAIN_FROM_RENDERER_CALL)) {
+            const key = keyOf(match[1], file, resolve);
+            if (key) keys.add(`main:${key}`);
         }
     }
     for (const file of mainFiles) {

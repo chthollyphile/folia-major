@@ -1,3 +1,6 @@
+import { execFileSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
@@ -10,7 +13,8 @@ import {
     suppressionGrowthWithTransfers,
 } from '../../../dev/dedicatus/baseline.mjs';
 import { findNoteChanges, isNoteComment, noteBlockLines } from '../../../dev/dedicatus/checks/notes.mjs';
-import { addedFiles, changedLines, movedLines, parseDiff, renames, writtenLines } from '../../../dev/dedicatus/diff.mjs';
+import { addedFiles, changedLines, movedLines, parseDiff, renames, withUntracked, writtenLines } from '../../../dev/dedicatus/diff.mjs';
+import { untrackedFiles } from '../../../dev/dedicatus/git.mjs';
 import { actualCounts, codeForMessage, selectNewFindings, staleSuppressions, toFindings } from '../../../dev/dedicatus/eslint/run.mjs';
 
 // test/unit/dedicatus/diffAndSelection.test.ts
@@ -52,6 +56,31 @@ const diff = source(
 
 describe('dedicatus diff parsing', () => {
     const files = parseDiff(diff);
+
+    // 2026-11-08 云端实测：代理常在 git add 之前跑检查，git diff 不含未跟踪的新文件，里面的问题一条都不报
+    it('counts files not yet added to git as new, every line written', () => {
+        const dir = mkdtempSync(path.join(tmpdir(), 'dedicatus-untracked-'));
+        try {
+            execFileSync('git', ['init', '--quiet'], { cwd: dir });
+            mkdirSync(path.join(dir, 'src'));
+            writeFileSync(path.join(dir, 'src/fresh.ts'), 'const a = 1;\nexport default a;\n');
+            writeFileSync(path.join(dir, 'cover.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 0, 1]));
+            writeFileSync(path.join(dir, '.gitignore'), 'ignored.ts\n');
+            writeFileSync(path.join(dir, 'ignored.ts'), 'x\n');
+            const untracked = untrackedFiles(dir);
+            expect(untracked.map(entry => entry.file).sort()).toEqual(['.gitignore', 'src/fresh.ts']);
+            const merged = withUntracked([], untracked.filter(entry => entry.file === 'src/fresh.ts'));
+            expect(addedFiles(merged)).toEqual(new Set(['src/fresh.ts']));
+            expect(writtenLines(merged).get('src/fresh.ts')).toEqual(new Set([1, 2]));
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+
+    it('does not add an untracked file twice when the diff already has it', () => {
+        const merged = withUntracked(files, [{ file: files[0].newPath ?? '', text: 'x\n' }]);
+        expect(merged).toHaveLength(files.length);
+    });
 
     it('reads headers only before the first hunk, and records renames, new files and deletions', () => {
         expect(files.map(file => [file.oldPath, file.newPath])).toEqual([
@@ -298,6 +327,45 @@ describe('dedicatus eslint selection', () => {
             touched: new Set(['src/big/part.ts']),
         });
         expect(keys(split)).toEqual(['D403:src/big/part.ts:2:1:@typescript-eslint/no-explicit-any', 'D002:src/big/part.ts:adopt']);
+    });
+
+    // #1048 演习：新加的 isRemoteStageSource 让旧 hook 缺依赖，问题报在没改的依赖数组那一行
+    it('claims hook dependency problems whose hook holds a written line, naming a written variable first', () => {
+        const root = path.resolve('/repo');
+        const source = [
+            'export function useThing() {', //  1
+            '    const a = useCallback(() => {', //  2  旧的：多了 currentTime
+            '        tick();', //  3
+            '    }, [currentTime]);', //  4
+            '    const b = useCallback(() => {', //  5
+            '        if (isRemoteStageSource()) stop();', //  6  新写的行
+            '    }, []);', //  7
+            '    const c = useCallback(() => {', //  8
+            '        log(currentTime); // 改了注释', //  9  新写的行，但问题和它无关
+            '    }, [currentTime, setDuration]);', // 10
+            '}', // 11
+        ].join('\n');
+        const deps = 'react-hooks/exhaustive-deps';
+        const findings = toFindings(root, [{
+            filePath: path.join(root, 'src', 'thing.ts'),
+            source,
+            messages: [
+                { ruleId: deps, line: 4, column: 8, message: "React Hook useCallback has an unnecessary dependency: 'currentTime'." },
+                { ruleId: deps, line: 7, column: 8, message: "React Hook useCallback has a missing dependency: 'isRemoteStageSource'." },
+                { ruleId: deps, line: 10, column: 8, message: "React Hook useCallback has an unnecessary dependency: 'setDuration'." },
+            ],
+        }]);
+        expect(findings[1]).toMatchObject({ span: [5, 7], names: ['isRemoteStageSource'] });
+        const result = selectNewFindings(findings, {
+            suppressions: { 'src/thing.ts': { [deps]: { count: 2 } } },
+            written: new Map([['src/thing.ts', new Set([6, 9])]]),
+            touched: new Set(['src/thing.ts']),
+            writtenWords: new Map([['src/thing.ts', new Set(['if', 'isRemoteStageSource', 'stop', 'log', 'currentTime'])]]),
+        });
+        // 只多了 1 条：认领 hook 里有新写的行、又点名了新写的变量的那条；输出里不带挑选用的字段
+        expect(result.map(item => item.line)).toEqual([7]);
+        expect(result[0]).not.toHaveProperty('span');
+        expect(result[0]).not.toHaveProperty('names');
     });
 
     it('keeps directive problems and finds codes written after a rule prefix', () => {

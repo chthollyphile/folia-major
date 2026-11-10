@@ -231,6 +231,54 @@ describe('Apple Music companion requests', () => {
         expect(result).toMatchObject({ ok: true });
     });
 
+    it('plays in the account region on a page Apple kept in another, and says whether it plays previews', async () => {
+        const mk: Record<string, any> = {
+            api: { music: vi.fn() },
+            isAuthorized: true,
+            storefrontId: 'cn',
+            storefrontCountryCode: 'us',
+            playbackMode: 0,
+            get previewOnly() { return this.playbackMode === 0; },
+            hasMusicSubscription: vi.fn(async () => true),
+            play: vi.fn(async () => {}),
+        };
+        let queuedIn: unknown[] = [];
+        mk.setQueue = vi.fn(async () => { queuedIn = [mk.storefrontId, mk.playbackMode]; });
+        const request = validateRequest({ id: '5', operation: 'playSong', params: { catalogId: '123' } });
+        const window = { MusicKit: { getInstance: () => mk, PlaybackMode: { PREVIEW_ONLY: 0, MIXED_CONTENT: 1 } } };
+        const result = await runInNewContext(requestExpression(request), { window, setTimeout, clearTimeout });
+        expect(queuedIn).toEqual(['us', 1]);
+        expect(result).toMatchObject({ ok: true, data: { previewOnly: false, storefront: 'us', subscribed: true } });
+    });
+
+    it('aligns the region before a station and a prepared queue too, not for other requests', async () => {
+        const regionAfter = async (operation: string, params: Record<string, unknown> = {}) => {
+            const mk = {
+                api: { music: vi.fn(async () => ({ data: { data: [] } })) }, isAuthorized: true, storefrontId: 'cn', storefrontCountryCode: 'us',
+                playbackMode: 1, setQueue: vi.fn(async () => {}), play: vi.fn(async () => {}),
+            };
+            const window = { MusicKit: { getInstance: () => mk, PlaybackMode: { PREVIEW_ONLY: 0, MIXED_CONTENT: 1 } } };
+            await runInNewContext(requestExpression(validateRequest({ id: '1', operation, params })), { window, setTimeout, clearTimeout });
+            return mk.storefrontId;
+        };
+        expect(await regionAfter('playStation', { stationId: 'ra.123' })).toBe('us');
+        expect(await regionAfter('prepareNext', { catalogId: '1', nextIds: ['2'] })).toBe('us');
+        expect(await regionAfter('playbackStatus')).toBe('cn');
+        expect(await regionAfter('pause')).toBe('cn');
+    });
+
+    it('starts in the page region when aligning fails', async () => {
+        const mk: Record<string, any> = {
+            api: { music: vi.fn() }, isAuthorized: true, storefrontCountryCode: 'us',
+            get storefrontId() { return 'cn'; }, set storefrontId(_value) { throw new Error('read-only'); },
+            setQueue: vi.fn(async () => {}), play: vi.fn(async () => {}),
+        };
+        const request = validateRequest({ id: '5', operation: 'playSong', params: { catalogId: '123' } });
+        const result = await runInNewContext(requestExpression(request), { window: { MusicKit: { getInstance: () => mk } } });
+        expect(mk.setQueue).toHaveBeenCalledOnce();
+        expect(result).toMatchObject({ ok: true, data: { storefront: 'cn' } });
+    });
+
     it('sets the page player volume and accepts only a level from 0 to 1', async () => {
         expect(validateRequest({ id: '1', operation: 'setVolume', params: { volume: 1.5 } })).toBeNull();
         expect(validateRequest({ id: '1', operation: 'setVolume', params: { volume: -0.1 } })).toBeNull();

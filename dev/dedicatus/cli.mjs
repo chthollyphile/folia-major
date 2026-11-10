@@ -23,8 +23,8 @@ import { checkModIntegration } from './checks/modIntegration.mjs';
 import { checkStartupWeight } from './checks/startupWeight.mjs';
 import { checkNotes } from './checks/notes.mjs';
 import { CODE_PATTERN, DEFAULT_MODE, codeInfo } from './codes.mjs';
-import { addedFiles, movedLines, parseDiff, renames, writtenLines } from './diff.mjs';
-import { diffFrom, extractTree, hasRef, resolveBase, showAt } from './git.mjs';
+import { addedFiles, movedLines, parseDiff, renames, withUntracked, writtenLines } from './diff.mjs';
+import { diffFrom, extractTree, hasRef, resolveBase, showAt, untrackedFiles } from './git.mjs';
 import { levelOf, printGithub, printJson, printText } from './report.mjs';
 // dev/dedicatus/cli.mjs
 // Dedicatus 的命令行入口（npm run dedicatus）。默认跑模块图检查（分层边界、循环依赖）并和基线对账；
@@ -76,12 +76,12 @@ function parseArgs(argv) {
     return options;
 }
 
-/** 比较基点和这次的 diff。没指定时本机有 origin/main 就用它。 */
+/** 比较基点和这次的 diff（含还没 git add 的新文件）。没指定时本机有 origin/main 就用它。 */
 function loadDiffContext(options) {
     const ref = options.base === undefined ? (hasRef(root, AUTO_BASE) ? AUTO_BASE : null) : options.base;
     if (!ref) return { base: null, files: [], written: null, moved: new Map(), renameMap: new Map(), newFiles: new Set(), touched: new Set() };
     const base = resolveBase(root, ref);
-    const files = parseDiff(diffFrom(root, base));
+    const files = withUntracked(parseDiff(diffFrom(root, base)), untrackedFiles(root));
     const touched = new Set(files.flatMap(file => [file.oldPath, file.newPath]).filter(Boolean));
     return { base, files, written: writtenLines(files), moved: movedLines(files), renameMap: renames(files), newFiles: addedFiles(files), touched };
 }
@@ -138,10 +138,19 @@ async function adoptMoved(context) {
     const present = new Set(current.map(finding => finding.key));
     const adopted = current.filter(finding => context.newFiles.has(finding.file)).map(finding => finding.key);
     saveBaseline(root, [...loadBaseline(root).filter(key => present.has(key)), ...adopted]);
-    const { adoptSuppressions } = await import('./eslint/run.mjs');
-    const linted = adoptSuppressions(root, files);
+    const { adoptSuppressions, scopedLintTargets } = await import('./eslint/run.mjs');
+    const linted = adoptSuppressions(root, files, scopedLintTargets(context.files));
     console.error(`[Dedicatus] 已登记 ${adopted.length} 条基线、${linted} 个文件的 ESLint 抑制，并删掉了记多的条目。`);
 }
+
+/** 比较基点上没有某个记账文件时的提醒（warning，不阻断）。 */
+const staleBaseWarning = (base, file) => ({
+    code: 'D004',
+    level: 'warning',
+    file,
+    message: `比较基点 ${base.slice(0, 9)} 上还没有 ${file}：基点可能太旧（本机先 git fetch 再跑，或者用 --base 指定），这次没查它有没有变大（D001）`,
+    key: `D004:${file}:stale-base`,
+});
 
 /** 模块图检查：边界 + 环，和基线对账；有比较基点时再查基线增长与 @note。 */
 function runGraphChecks(options, context) {
@@ -188,6 +197,8 @@ function finishGraphChecks(options, context, entries, comparison, baseState) {
     }
 
     if (context.base) {
+        // 基点上没有基线文件：基点太旧（本机的 origin/main 没 fetch），D001 没法查，要明说而不是悄悄跳过（2026-11-08 云端实测）
+        if (baseEntries === null) fresh.push(staleBaseWarning(context.base, BASELINE_FILE));
         const { growth } = baselineGrowthWithTransfers(entries, baseEntries, context.renameMap, context.newFiles);
         for (const key of growth) {
             fresh.push({ code: 'D001', file: BASELINE_FILE, message: `基线新增了条目：${key}（基线只减不增，修掉违规而不是登记它）`, key: `D001:${key}` });
@@ -247,9 +258,11 @@ async function main() {
 }
 
 main().catch(error => {
-    // 工具自己坏了（参数、配置、基线文件格式、找不到比较基点）：D004。report 模式下也不让 CI 变红，但要看得见。
+    // 工具自己坏了（参数、配置、基线文件格式、找不到比较基点、ESLint 没跑完或没装）：D004，退出码 2，不能显示成“通过”
+    // （2026-11-08 云端实测：被 OOM 杀掉的 lint 只留一条 D004，退出码却是 0，代理以为过了）。
+    // 只有 GitHub Actions 上的 report 模式例外：模块图检查在必需的 “Run unit tests” 任务里，工具自己的故障不挡 PR，注解照样标红。
     const text = String(error?.message ?? error);
     console.error(`[Dedicatus] D004 配置或运行出错：${text}`);
     if (process.env.GITHUB_ACTIONS) console.log(`::error title=D004::${text.replace(/%/g, '%25').replace(/\r/g, '%0D').replace(/\n/g, '%0A')}`);
-    process.exitCode = activeMode === 'enforce' ? 2 : 0;
+    process.exitCode = process.env.GITHUB_ACTIONS && activeMode === 'report' ? 0 : 2;
 });

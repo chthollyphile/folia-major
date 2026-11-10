@@ -193,6 +193,8 @@ contextBridge.exposeInMainWorld('electron', {
     quitApp: () => ipcRenderer.invoke('app-quit'),
     isWindowMaximized: () => ipcRenderer.invoke('window-is-maximized'),
     isWindowFullscreen: () => ipcRenderer.invoke('window-is-fullscreen'),
+    hasNativeTrafficLights: () => ipcRenderer.invoke('window-has-native-traffic-lights'),
+    setTrafficLightsVisible: (visible) => ipcRenderer.invoke('window-set-traffic-lights-visible', visible),
     onWindowFullscreenChanged: (callback) => {
         const listener = (_event, fullscreen) => callback(fullscreen);
         ipcRenderer.on('window-fullscreen-changed', listener);
@@ -211,7 +213,7 @@ contextBridge.exposeInMainWorld('electron', {
     setKeyCaptureActive: (active) => ipcRenderer.send('key-capture-active', active === true),
     getMainWindowClickThroughEnabled: () => ipcRenderer.invoke('window-get-click-through'),
     setMainWindowClickThroughEnabled: (enabled) => ipcRenderer.invoke('window-set-click-through', enabled),
-    setMainWindowClickThroughUnlockHover: (active, viewportWidth, coordinates) => ipcRenderer.invoke('window-set-click-through-unlock-hover', active, viewportWidth, coordinates),
+    setMainWindowClickThroughUnlockHover: (active, viewportWidth, coordinates, side) => ipcRenderer.invoke('window-set-click-through-unlock-hover', active, viewportWidth, coordinates, side),
     getMainWindowAlwaysOnTop: () => ipcRenderer.invoke('window-get-always-on-top'),
     setMainWindowAlwaysOnTop: (enabled) => ipcRenderer.invoke('window-set-always-on-top', enabled),
     onMainWindowClickThroughChanged: (callback) => {

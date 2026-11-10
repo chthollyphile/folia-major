@@ -8,6 +8,7 @@ import { usePlayerChromeSettingsStore } from '../../../../../stores/usePlayerChr
 import { isScratchpadHandleStyle, useScratchpadSettingsStore } from '../../../../../stores/useScratchpadSettingsStore';
 import { useStageSettingsStore } from '../../../../../stores/useStageSettingsStore';
 import { useThemeSettingsStore } from '../../../../../stores/useThemeSettingsStore';
+import { normalizeLyricRenderQuality } from '../../../../../utils/lyricRenderQuality';
 import { useTypographySettingsStore } from '../../../../../stores/useTypographySettingsStore';
 import { useVisualizerAssetStore } from '../../../../../stores/useVisualizerAssetStore';
 import { useVisualizerSettingsStore } from '../../../../../stores/useVisualizerSettingsStore';
@@ -139,6 +140,9 @@ export const applyImportedConfig = (config: any, keys: string[], theme: ConfigTh
     }
     if (has('visualizerOpacity')) {
         storeVisualizer.handleSetVisualizerOpacity(config.visualizerOpacity);
+    }
+    if (has('lyricRenderQuality')) {
+        storeVisualizer.handleSetLyricRenderQuality(normalizeLyricRenderQuality((config as { lyricRenderQuality?: unknown }).lyricRenderQuality));
     }
     if (has('playerHeaderBlur')) {
         usePlayerChromeSettingsStore.getState().handleTogglePlayerHeaderBlur(Boolean(config.playerHeaderBlur));

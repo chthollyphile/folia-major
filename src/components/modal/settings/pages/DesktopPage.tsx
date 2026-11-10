@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
 import { useDesktopSettingsStore } from '../../../../stores/useDesktopSettingsStore';
 import { usePlayerChromeSettingsStore } from '../../../../stores/usePlayerChromeSettingsStore';
-import { FoldedGroup, Group, Reveal, Row, Toggle, option, type SettingsGroupDef, type SettingsOptionDef } from '../kit';
+import { FoldedGroup, Group, Reveal, Row, Toggle, Segmented, option, type SettingsGroupDef, type SettingsOptionDef } from '../kit';
 import { WallpaperDisplayRow } from './desktop/WallpaperDisplayRow';
 import { hasWallpaperDisplayChoice } from './desktop/wallpaperDisplays';
 
@@ -18,8 +18,10 @@ const O = {
     minimizeToTray: option(WINDOW, 'minimizeToTray', 'options.minimizeToTray'),
     closeToTray: option(WINDOW, 'closeToTray', 'options.closeToTray'),
     hideTaskbarIcon: option(WINDOW, 'hideTaskbarIcon', 'options.hideTaskbarIcon'),
+    titlebarSide: option(WINDOW, 'titlebarSide', 'options.titlebarSide'),
     hideFullscreenButton: option(WINDOW, 'hideFullscreenButton', 'options.hideFullscreenButton'),
     nativeMacFullscreen: option(WINDOW, 'useNativeMacFullscreenButton', 'options.useNativeMacFullscreenButton'),
+    nativeMacTrafficLights: option(WINDOW, 'useNativeMacTrafficLights', 'options.useNativeMacTrafficLights'),
     wallpaperMode: option(WINDOW, 'wallpaperMode', 'options.wallpaperMode'),
     // Drawn only with more than one display connected, where wallpaper mode can use any of them.
     wallpaperDisplay: option(WINDOW, 'wallpaperDisplay', 'options.wallpaperDisplay', { available: hasWallpaperDisplayChoice }),
@@ -34,7 +36,7 @@ const O = {
 const PLATFORM = typeof window === 'undefined' ? undefined : window.electron?.platform;
 const IS_MAC = PLATFORM === 'darwin';
 const HAS_WALLPAPER_MODE = IS_MAC || PLATFORM === 'win32' || PLATFORM === 'linux';
-const MAC_ONLY: SettingsOptionDef[] = [O.nativeMacFullscreen, O.wallpaperDock];
+const MAC_ONLY: SettingsOptionDef[] = [O.nativeMacFullscreen, O.nativeMacTrafficLights, O.wallpaperDock];
 
 // The search lists the two macOS rows only on macOS.
 export const OPTIONS: SettingsOptionDef[] = Object.values(O).filter(row => IS_MAC || !MAC_ONLY.includes(row));
@@ -64,10 +66,14 @@ const DesktopPage: React.FC = () => {
         setRemoteTextShade: state.handleToggleRemoteControlTextShade,
     })));
     const chrome = usePlayerChromeSettingsStore(useShallow(state => ({
+        titlebarSide: state.titlebarSide,
+        setTitlebarSide: state.handleSetTitlebarSide,
         hideFullscreenButton: state.hideFullscreenButton,
         nativeMacFullscreen: state.useNativeMacFullscreenButton,
+        trafficLights: state.useNativeMacTrafficLights,
         setHideFullscreenButton: state.handleToggleHideFullscreenButton,
         setNativeMacFullscreen: state.handleToggleNativeMacFullscreenButton,
+        setTrafficLights: state.handleToggleNativeMacTrafficLights,
     })));
     // Counts the switches moved off their default; expand cover is on by default, so it counts when off.
     const remoteOnCount = [desktop.remoteTaskbarIcon, desktop.remoteTitlebar, desktop.remoteClickThrough, !desktop.remoteExpandCover, desktop.remoteTextShade].filter(Boolean).length;
@@ -87,12 +93,25 @@ const DesktopPage: React.FC = () => {
                 <Reveal when={desktop.hideTaskbarIcon}>
                     <Row sub notice={t('options.hideTaskbarIconNotice')} />
                 </Reveal>
+                <Row option={O.titlebarSide} hint={t('options.titlebarSideDesc')}>
+                    <Segmented value={chrome.titlebarSide} onChange={chrome.setTitlebarSide}
+                        options={[{ value: 'left', label: t('options.titlebarSideLeft') }, { value: 'right', label: t('options.titlebarSideRight') }]} />
+                </Row>
                 <Row option={O.hideFullscreenButton} hint={t('options.hideFullscreenButtonDesc')}>
                     <Toggle checked={chrome.hideFullscreenButton} onChange={chrome.setHideFullscreenButton} />
                 </Row>
                 {IS_MAC && (
                     <Row option={O.nativeMacFullscreen} hint={t('options.useNativeMacFullscreenButtonDesc')}>
                         <Toggle checked={chrome.nativeMacFullscreen} onChange={chrome.setNativeMacFullscreen} />
+                    </Row>
+                )}
+                {IS_MAC && (
+                    <Row
+                        option={O.nativeMacTrafficLights}
+                        hint={t('options.useNativeMacTrafficLightsDesc')}
+                        note={t('options.useNativeMacTrafficLightsNotice')}
+                    >
+                        <Toggle checked={chrome.trafficLights} onChange={chrome.setTrafficLights} />
                     </Row>
                 )}
                 {HAS_WALLPAPER_MODE && (

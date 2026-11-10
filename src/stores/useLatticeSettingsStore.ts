@@ -4,6 +4,10 @@ import { getStoredBoolean, getStoredString, setStoredBoolean } from './storagePr
 // src/stores/useLatticeSettingsStore.ts
 // Persistent queue-collage preferences. Deliberately separate from useLatticeControlsStore: that
 // store only publishes runtime state of the currently mounted wall.
+//
+// @note lattice_vignette、lattice_auto_focus_on_song_change、lattice_lights_on、lattice_poster_tint_*（4 个）、wall_tools_queue_island_open 是用户明确决定「不进外观配置导入导出」的设置（2026-11-08）：配置码也用于 web 版 OBS 链接，
+// 只加 OBS 页面看得到的，这些在 OBS 页面上看不到。不要按 settings-feature-integration「视觉设置必须进
+// buildCurrentConfig / compressConfig / decompressConfig / validKeys / handleImportConfig」的规则把它们补进短码或 JSON。
 
 const LATTICE_VIGNETTE_KEY = 'lattice_vignette';
 const LATTICE_AUTO_FOCUS_ON_SONG_CHANGE_KEY = 'lattice_auto_focus_on_song_change';
