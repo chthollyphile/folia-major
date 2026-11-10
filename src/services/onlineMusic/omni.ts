@@ -14,6 +14,7 @@ import type {
     OmniCollection,
     OmniExploreItemsPage,
     OmniExplorePage,
+    PrepareNextOptions,
     OmniHistoryEntry,
     OmniLyricsResult,
     OmniPage,
@@ -1141,10 +1142,10 @@ export const omni = {
         return getOnlineMusicProviderForSong(song)?.externalPlayback?.isPrepared?.(song) === true;
     },
 
-    async prepareExternalPlaybackQueue(song: SongResult, upcoming: SongResult[]): Promise<void> {
+    async prepareExternalPlaybackQueue(song: SongResult, upcoming: SongResult[], options?: PrepareNextOptions): Promise<void> {
         const provider = providerForSong(song);
         if (!provider.externalPlayback?.prepareNext) return;
-        await runRequest(provider, 'audio', () => provider.externalPlayback!.prepareNext!(song, upcoming));
+        await runRequest(provider, 'audio', () => provider.externalPlayback!.prepareNext!(song, upcoming, options));
     },
 
     async pauseExternalPlayback(song: SongResult): Promise<void> {

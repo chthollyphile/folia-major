@@ -378,7 +378,7 @@ describe('external playback route', () => {
         expect(omniMock.prepareExternalPlaybackQueue).toHaveBeenLastCalledWith(song, []);
         usePlaybackStore.setState({ playQueue: [song, next] });
         useAudioSettingsStore.setState({ loopMode: 'one' });
-        expect(omniMock.prepareExternalPlaybackQueue).toHaveBeenLastCalledWith(song, []);
+        expect(omniMock.prepareExternalPlaybackQueue).toHaveBeenLastCalledWith(song, [], { retract: true });
         useAudioSettingsStore.setState({ loopMode: 'off' });
     });
 

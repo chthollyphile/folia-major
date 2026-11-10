@@ -22,7 +22,8 @@ import { describeSpotifyFailure } from '@/services/onlineMusic/spotify/spotifyFa
 import { normalizeSpotifySong } from '@/services/onlineMusic/spotify/spotifyNormalize';
 import {
     PREPARED_SONGS, PREPARED_SONGS_UNCLEARABLE,
-    canSteerSpotifyApp, resetSpotifyClientPlayback, spotifyClientAttempt, spotifyClientPlayback, statusOfClient,
+    canSteerSpotifyApp, resetSpotifyClientPlayback, spotifyClientAttempt, spotifyClientPlayback,
+    spotifyClientWrittenTrackIds, statusOfClient,
 } from '@/services/onlineMusic/spotify/spotifyClientPlayback';
 import { spotifyExternalPlayback } from '@/services/onlineMusic/spotify/spotifyExternalPlayback';
 import { readSpotifyPlaybackMode, setSpotifyPlaybackMode } from '@/services/onlineMusic/spotify/spotifySoloistPlayback';
@@ -326,6 +327,28 @@ describe('the songs that follow', () => {
         expect(spotifyClientAttempt()?.nextIds).toEqual([]);
     });
 
+    it('records nothing as written where the app emptied its queue and refused the songs back', async () => {
+        // The clear ran and the songs were refused: the app holds none of them, and the songs the
+        // listener had queued there are not songs of Folia's. The write is not a failure of the play.
+        const [a, b] = ['a', 'b'].map(songOf);
+        await spotifyClientPlayback.play!(a, 0);
+        request.mockImplementation(async (operation: string) => {
+            if (operation === 'client_play') return 'loaded';
+            if (operation === 'client_queue') {
+                return { aborted: false, cleared: true, restored: false, canClear: true, written: [], read: [] };
+            }
+            return { available: true };
+        });
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+        await expect(spotifyClientPlayback.prepareNext!(a, [b])).resolves.toBeUndefined();
+
+        expect(spotifyClientAttempt()?.nextIds).toEqual([]);
+        expect(spotifyClientPlayback.isPrepared!(b)).toBe(false);
+        expect(warn.mock.calls.map(call => String(call[0])).join('\n')).toContain('were lost');
+        warn.mockRestore();
+    });
+
     it('remembers only the queue the app took, so a failed write is tried again', async () => {
         const a = songOf('a');
         const b = songOf('b');
@@ -340,6 +363,43 @@ describe('the songs that follow', () => {
         await spotifyClientPlayback.prepareNext!(a, [b]);
         expect(request).toHaveBeenLastCalledWith('client_queue', { ids: [id('b')], queued: [] });
         expect(spotifyClientPlayback.isPrepared!(b)).toBe(true);
+    });
+});
+
+describe('the names held of the songs written', () => {
+    it('lets go of them once a start emptied the app queue', async () => {
+        const [a, b] = ['a', 'b'].map(songOf);
+        await spotifyClientPlayback.play!(a, 0);
+        await spotifyClientPlayback.prepareNext!(a, [b]);
+        expect(spotifyClientWrittenTrackIds()).toEqual([id('b')]);
+
+        // A start empties the app's queue where it can, so the song written behind this one is not
+        // there any more: its name is held for nothing.
+        await spotifyClientPlayback.play!(b, 0);
+        expect(spotifyClientWrittenTrackIds()).toEqual([]);
+    });
+
+    it('lets go of the one the app moved on to by itself', async () => {
+        const [a, b] = ['a', 'b'].map(songOf);
+        await spotifyClientPlayback.play!(a, 0);
+        await spotifyClientPlayback.prepareNext!(a, [b]);
+        expect(spotifyClientWrittenTrackIds()).toEqual([id('b')]);
+
+        // The app ends this song and goes on to the one Folia wrote behind it: that song is the
+        // app's own track now, so its name is no longer held for reading a move the app made.
+        statusOfClient(playing(id('a')));
+        const handedOver = statusOfClient(playing(id('b')));
+        expect(handedOver.ended).toBe(true);
+        expect(spotifyClientWrittenTrackIds()).toEqual([]);
+    });
+
+    it('lets go of every one of them when the run is forgotten', async () => {
+        const [a, b] = ['a', 'b'].map(songOf);
+        await spotifyClientPlayback.play!(a, 0);
+        await spotifyClientPlayback.prepareNext!(a, [b]);
+
+        resetSpotifyClientPlayback();
+        expect(spotifyClientWrittenTrackIds()).toEqual([]);
     });
 });
 
@@ -416,6 +476,48 @@ describe('the fallback answer', () => {
 
         const status = statusOfClient(degraded({ title: 'Song (With You)', artist: 'Artist' }));
         expect(status.ended).toBe(true);
+    });
+
+    it('ends the session when the title it shows is a song Folia had written and then took back', async () => {
+        // Repeat one: the songs behind this one were written and, where the app can empty its queue,
+        // taken back. A tail the app could not give up still plays, and read coarsely it is only its
+        // title and artist that say which song it is. That one playing now is this song ending - the
+        // app moved on by itself - and not the listener pressing next.
+        const [a, b] = ['a', 'b'].map(songOf);
+        await spotifyClientPlayback.play!(a, 0);
+        statusOfClient(playing(id('a')));
+        request.mockImplementation(async (operation: string, params?: unknown) => {
+            if (operation === 'client_play') return 'loaded';
+            if (operation === 'client_queue') {
+                const ids = (params as { ids?: string[] }).ids ?? [];
+                return { aborted: false, cleared: false, canClear: false, written: ids, read: ids };
+            }
+            return { available: true };
+        });
+        await spotifyClientPlayback.prepareNext!(a, [b]);
+        // Steered coarsely from here: nothing is written, and the retract leaves the queue as it is.
+        statusOfClient(degraded({ title: 'Song a', artist: 'Artist' }));
+        request.mockClear();
+        await spotifyClientPlayback.prepareNext!(a, [], { retract: true });
+
+        const status = statusOfClient(degraded({ title: 'Song b', artist: 'Artist' }));
+        expect(status.ended).toBe(true);
+        expect(status.skipped).toBeUndefined();
+    });
+
+    it('treats a title Folia never wrote as the listener stepping the app itself', async () => {
+        // The record names the songs Folia put behind this one. A title that is none of them was not
+        // the app moving on by itself but the listener using the app's own controls, and it is pulled
+        // back exactly as the app's own answer is.
+        const [a, b] = ['a', 'b'].map(songOf);
+        await spotifyClientPlayback.play!(a, 0);
+        statusOfClient(playing(id('a')));
+        await spotifyClientPlayback.prepareNext!(a, [b]);
+        statusOfClient(degraded({ title: 'Song a', artist: 'Artist' }));
+
+        const status = statusOfClient(degraded({ title: 'Something Else', artist: 'Somebody' }));
+        expect(status.ended).toBe(true);
+        expect(status.skipped).toBe('next');
     });
 
     it('keeps the session when the title it shows is the same song', async () => {
@@ -847,6 +949,67 @@ describe('the queue a window writes into the app own player', () => {
         expect(request).not.toHaveBeenCalledWith('client_queue', expect.anything());
         expect(app.queue).toEqual([id('b'), id('c'), id('d')]);
         expect(spotifyClientAttempt()?.nextIds).toEqual([id('b'), id('c'), id('d')]);
+    });
+
+    it('reads the app going on to a song it could not give up as this song ending, not as a press', async () => {
+        const app = fakeApp({ clear: 'none' });
+        answerInPage(app);
+        const [a, b] = ['a', 'b'].map(songOf);
+        await spotifyClientPlayback.play!(a, 0);
+        await prepare(a, [b]);
+        statusOfClient(playing(app.current()));
+
+        // Repeat one, where the app cannot empty its queue: what Folia wrote stays behind this one,
+        // and Folia has nothing left to put there.
+        await spotifyClientPlayback.prepareNext!(a, [], { retract: true });
+        expect(app.queue).toEqual([id('b')]);
+
+        // The app goes on to the first of them by itself. That song is Folia's own queue, so this is
+        // the end of the song playing - not the listener pressing next in the app.
+        expect(app.advance()).toBe(id('b'));
+        const status = statusOfClient(playing(app.current()));
+        expect(status.ended).toBe(true);
+        expect(status.skipped).toBeUndefined();
+    });
+
+    it('hands over the song it wrote when nothing was taken back', async () => {
+        const app = fakeApp({ clear: 'none' });
+        answerInPage(app);
+        const [a, b] = ['a', 'b'].map(songOf);
+        await spotifyClientPlayback.play!(a, 0);
+        await prepare(a, [b]);
+        statusOfClient(playing(app.current()));
+
+        // No repeat one was asked for, so nothing is taken back: the song Folia wrote is what
+        // follows this one, and the record still names it.
+        expect(spotifyClientAttempt()?.nextIds).toEqual([id('b')]);
+
+        // The app goes on to it by itself: a handoff to Folia's own queue, and the play that follows
+        // adopts that song instead of starting it again.
+        expect(app.advance()).toBe(id('b'));
+        const status = statusOfClient(playing(app.current()));
+        expect(status.ended).toBe(true);
+        expect(status.skipped).toBeUndefined();
+        expect(spotifyClientPlayback.isPrepared!(b)).toBe(true);
+        request.mockClear();
+        await spotifyClientPlayback.play!(b, 0);
+        expect(request).not.toHaveBeenCalledWith('client_play', expect.anything());
+    });
+
+    it('takes back the songs it wrote when the queue is asked to go on to nothing', async () => {
+        const app = fakeApp({ clear: 'works' });
+        answerInPage(app);
+        const [a, b, c, d] = ['a', 'b', 'c', 'd'].map(songOf);
+        await spotifyClientPlayback.play!(a, 0);
+        await prepare(a, [b, c, d]);
+        expect(app.queue).toEqual([id('b'), id('c'), id('d')]);
+
+        // Repeat one, where the page is asked to empty what Folia wrote: the songs behind this one
+        // would play after it wherever the app can be steered on, and repeat one goes on to nothing.
+        await spotifyClientPlayback.prepareNext!(a, [], { retract: true });
+
+        expect(app.queue).toEqual([]);
+        expect(spotifyClientAttempt()?.nextIds).toEqual([]);
     });
 
     it('drops a write a newer play took the app from, and records nothing of it', async () => {

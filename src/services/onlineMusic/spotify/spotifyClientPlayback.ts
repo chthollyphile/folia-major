@@ -45,6 +45,11 @@ type SpotifyClientPlayAnswer = 'loaded' | 'preempted' | 'not-loaded' | 'advertis
  */
 type SpotifyClientQueueAnswer = {
     cleared?: boolean;
+    /**
+     * Whether the songs the queue held were given back after it was emptied: false where the app
+     * refused them. Such a write took the songs the listener queued in the app and wrote none.
+     */
+    restored?: boolean;
     written?: string[];
     read?: string[] | null;
     canClear?: boolean | null;
@@ -52,6 +57,17 @@ type SpotifyClientQueueAnswer = {
 };
 /** A track change this close to the end of the song Folia asked for is that song ending. */
 const END_TOLERANCE_MS = 3000;
+
+/** A song by the names the media session shows it with: it names no id, so the two sides compare names. */
+interface ShownTrack {
+    title: string;
+    artist: string;
+}
+
+/** A song's names as a coarse read would show them. */
+const shownTrackOf = (song: SongResult): ShownTrack => ({
+    title: song.name, artist: artistNamesOf(song),
+});
 
 interface Attempt {
     id: string;
@@ -78,6 +94,12 @@ interface Attempt {
     previousId: string;
     /** The app was moved to another track by its own controls and Folia already pulled it back once. */
     pulledBack: boolean;
+    /**
+     * The title and artist of the songs Folia put behind this one, or took back from there. The
+     * media session names no track, so a coarse read is told apart by its names: one of these is the
+     * app moving on to the queue Folia wrote, and any other song was picked with the app's controls.
+     */
+    behindTracks: ShownTrack[];
 }
 
 let attempt: Attempt | null = null;
@@ -91,6 +113,13 @@ let probing: Promise<boolean> | null = null;
  * write goes by: a song written once is not written again while it is held.
  */
 let writtenIds: string[] = [];
+
+/**
+ * The names of the songs written into the app's queue, by id: the record of ids is what a write goes
+ * by, and this is what a coarse read of the app is told apart by, since the media session names no
+ * track at all.
+ */
+const writtenTracks = new Map<string, ShownTrack>();
 /**
  * Whether the app's queue can be emptied, as the first write of this run found it. Null until then:
  * a queue that may only grow is given one song, which is what leaves room to put the order right.
@@ -189,8 +218,8 @@ const shownArtistNames = (shown: string): string[] => {
  * are not known here is never taken for it.
  */
 const namesThatSong = (song: SongResult, data: SpotifyWireClientStatus): boolean => {
-    const title = String(data.title ?? '').trim();
-    const shownArtist = String(data.artist ?? '').trim();
+    const title = (data.title ?? '').trim();
+    const shownArtist = (data.artist ?? '').trim();
     const name = String(song.name ?? '').trim();
     if (!title || !shownArtist || !name) return false;
     if (plainTitle(title) !== plainTitle(name)) return false;
@@ -254,6 +283,15 @@ const writeClientQueue = async (ids: string[]): Promise<SpotifyClientQueueAnswer
         console.info('[SpotifyClient] a play took the app while the songs that follow were being written; nothing was written');
         return null;
     }
+    // The queue was emptied and the songs it held were refused: what the app queue held is gone with
+    // it, and nothing of this write is there. Said here, since the page's own line stays in its
+    // console and the run's log is Folia's.
+    // A refusal of that kind is answered, not thrown: the caller keeps its prepared-queue key and
+    // the write is not made again for this song. Writing again would empty the queue a second time,
+    // and take whatever the listener put there meanwhile with it.
+    if (answer.restored === false) {
+        console.warn('[SpotifyClient] the songs the app queue held were lost: it refused to take them back');
+    }
     const written = (Array.isArray(answer?.written) ? answer.written : [])
         .filter((id): id is string => typeof id === 'string');
     const read = Array.isArray(answer?.read) ? answer.read.filter((id): id is string => typeof id === 'string') : null;
@@ -281,8 +319,28 @@ const writeClientQueue = async (ids: string[]): Promise<SpotifyClientQueueAnswer
  */
 const recordTail = (current: Attempt, ids: string[], answer: SpotifyClientQueueAnswer): void => {
     current.nextIds = ids.filter(id => writtenIds.includes(id));
+    // Every name, whether the app took it or is still holding it: a queue that cannot be emptied keeps
+    // the songs taken back from it, and the app going on to one of them is read by its name.
+    current.behindTracks = ids.map(id => writtenTracks.get(id)).filter((track): track is ShownTrack => Boolean(track));
     current.confirmedIds = (Array.isArray(answer.read) ? answer.read.filter((id): id is string => typeof id === 'string') : [])
         .filter(id => ids.includes(id));
+};
+
+/**
+ * Whether the title and artist a coarse read shows are one of the songs Folia put behind the song
+ * playing, or took back from there. Names are compared as the session writes them - it reports only
+ * the leading artist of a track - so a title and one whole artist name are what is needed.
+ */
+const namesBehindTrack = (current: Attempt, data: SpotifyWireClientStatus): boolean => {
+    const title = (data.title ?? '').trim();
+    const shownArtist = (data.artist ?? '').trim();
+    if (!title || !shownArtist) return false;
+    const shown = shownArtistNames(shownArtist);
+    return current.behindTracks.some(track => {
+        if (plainTitle(track.title) !== plainTitle(title)) return false;
+        return track.artist.split(', ').map(artist => plainName(artist)).filter(Boolean)
+            .some(artist => shown.includes(artist));
+    });
 };
 
 /** Turns what the app said into Folia's status for the song it asked for. */
@@ -310,10 +368,23 @@ export const statusOfClient = (data: SpotifyWireClientStatus): ProviderExternalP
     if (!current) return status;
     if (fallback) {
         // The media session names no track, so the app's own move to another song is read from the
-        // title it shows: the external session ends and Folia's queue takes the next song.
+        // title and artist it shows. A song of the names Folia wrote behind this one - or took back
+        // from there, since a queue that cannot be emptied keeps them - is the app moving on by
+        // itself: the external session ends and Folia's own queue takes the next song. Any other
+        // song was picked with the app's controls, and is pulled back as one is on the app's own
+        // answer, so repeat one replays this song instead of the app's pick.
         if (current.hasPlayed && namesAnotherTrack(current, data)) {
-            console.info('[SpotifyClient] Spotify moved on to another track; the external session ends');
-            return ended(current);
+            if (namesBehindTrack(current, data)) {
+                console.info('[SpotifyClient] Spotify moved on to the track Folia wrote next; the external session ends');
+                return ended(current);
+            }
+            // The app's own answer says which way it went by the id it names; a coarse read has no id
+            // to compare with the song before this one, so the step is on, as an unknown track always
+            // is. Pulled back once only, and a second read of the same other song is left alone.
+            if (current.pulledBack) return status;
+            current.pulledBack = true;
+            console.info('[SpotifyClient] Spotify was moved to another track by its own controls; Folia\'s queue goes next');
+            return { ...ended(current), skipped: 'next' };
         }
         if (isPlaying) current.hasPlayed = true;
         current.positionMs = data.positionMs;
@@ -330,6 +401,9 @@ export const statusOfClient = (data: SpotifyWireClientStatus): ProviderExternalP
         // the app's own track, not something still waiting behind this one.
         handoffId = id;
         writtenIds = writtenIds.filter(queued => queued !== id);
+        // The app plays this one now: its name is held only while it is one of the songs behind the
+        // song Folia asked for.
+        writtenTracks.delete(id);
         return ended(current);
     }
     if (id && current.hasPlayed && current.durationMs > 0 && current.positionMs >= current.durationMs - END_TOLERANCE_MS) {
@@ -378,7 +452,7 @@ export const spotifyClientPlayback: OnlineExternalPlaybackProvider = {
         const id = songIdOf(song);
         return id !== null && (handoffId === id || Boolean(attempt?.hasPlayed && attempt.nextIds[0] === id));
     },
-    async prepareNext(song, upcoming) {
+    async prepareNext(song, upcoming, options) {
         const current = attempt;
         if (!current || current.id !== songIdOf(song)) return;
         // The media session names no track: what the app would move on to cannot be checked, so
@@ -395,11 +469,30 @@ export const spotifyClientPlayback: OnlineExternalPlaybackProvider = {
             const id = songIdOf(next);
             if (!id || ids.length >= most) break;
             ids.push(id);
+            // The names are kept for as long as the run: a coarse read names no track, and these are
+            // what a song coming up in the app is told apart by (see `behindTracks`).
+            writtenTracks.set(id, shownTrackOf(next));
         }
-        // A song that goes on to nothing - repeat one, or the end of the queue - writes nothing.
-        // The app's own queue is left as it is: emptying it here would throw away what the listener
-        // put in it for a list that has nothing to say.
-        if (ids.length === 0) return;
+        // More than one song to follow: the successors are written behind this one, and the app moves
+        // on to the first of them by itself. A song that goes on to nothing - the end of the queue,
+        // or repeat one - writes nothing, and the app's queue is left as it is: emptying it for a
+        // list that has nothing to say would take back what the listener put there.
+        // Repeat one is the one case that does write: the app would otherwise go on to whatever it
+        // still holds behind this song, so the songs Folia wrote there are taken back - only those,
+        // since the songs the listener queued in the app are given back by the write itself, and only
+        // where the app can empty its queue. A queue that cannot be emptied keeps them, and the replay
+        // of this song is what covers that case.
+        if (ids.length === 0) {
+            // A play of a newer song owns the app now: this one leaves the queue to it.
+            if (options?.retract !== true || writtenIds.length === 0 || attempt !== current) return;
+            const takenBack = await writeClientQueue([]);
+            if (!takenBack || attempt !== current) return;
+            // A queue that could not be emptied still holds them, and the record keeps naming them:
+            // the app going on to one of them is then read as the end of this song, the handoff it
+            // would have been before repeat one was asked for, and not as the listener pressing next.
+            recordTail(current, [...new Set(writtenIds)], takenBack);
+            return;
+        }
         // Already what the app was given behind this song, in this order: there is nothing to write.
         if (ids.join() === current.nextIds.join()) return;
         const answer = await writeClientQueue(ids);
@@ -427,6 +520,7 @@ export const spotifyClientPlayback: OnlineExternalPlaybackProvider = {
             id, name: String(song.name ?? ''), artist: artistNamesOf(song),
             hasPlayed: adopt, positionMs: startMs, durationMs: song.durationMs ?? 0,
             nextIds: carried, confirmedIds: carriedConfirmed, degraded: false,
+            behindTracks: carried.map(held => writtenTracks.get(held)).filter((track): track is ShownTrack => Boolean(track)),
             previousId, pulledBack: false,
         };
         if (adopt) {
@@ -455,7 +549,13 @@ export const spotifyClientPlayback: OnlineExternalPlaybackProvider = {
         }
         // A start empties the app's queue where it can, so what Folia wrote before is not behind this
         // song any more. Where it cannot empty one, those songs are still there and stay written.
-        if (queueClearable === true) writtenIds = [];
+        if (queueClearable === true) {
+            writtenIds = [];
+            // The names are held only for the songs a coarse read can name: an emptied queue holds
+            // none of them, and a name kept for nothing would read the listener's own pick as a song
+            // Folia wrote.
+            writtenTracks.clear();
+        }
         console.info('[SpotifyClient] The app plays the song');
     },
     // The attempt of the window that started the song died with it: a fresh one lets prepareNext
@@ -473,6 +573,7 @@ export const spotifyClientPlayback: OnlineExternalPlaybackProvider = {
             id, name: String(song.name ?? ''), artist: artistNamesOf(song),
             hasPlayed: true, positionMs: 0, durationMs: song.durationMs ?? 0,
             nextIds: carried, confirmedIds: carriedConfirmed, degraded: false,
+            behindTracks: carried.map(held => writtenTracks.get(held)).filter((track): track is ShownTrack => Boolean(track)),
             previousId: '', pulledBack: false,
         };
     },
@@ -604,8 +705,12 @@ export const resetSpotifyClientPlayback = (): void => {
     handoffId = null;
     probing = null;
     writtenIds = [];
+    writtenTracks.clear();
     queueClearable = null;
 };
 
 /** Test seam: what is held of the song asked for. */
 export const spotifyClientAttempt = (): Attempt | null => attempt;
+
+/** Test seam: the ids whose names are held for the app's own coarse reads. */
+export const spotifyClientWrittenTrackIds = (): string[] => [...writtenTracks.keys()];

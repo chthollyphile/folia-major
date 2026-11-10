@@ -522,6 +522,18 @@ export interface ExternalPlaybackStartOptions {
 }
 
 /**
+ * What a prepared queue is asked for besides the songs themselves.
+ */
+export interface PrepareNextOptions {
+    /**
+     * The songs that follow go on to nothing (repeat one): what an earlier write left in the player's
+     * own queue is taken back where the player can be emptied, so the player does not go on to a song
+     * Folia is no longer stepping to.
+     */
+    retract?: boolean;
+}
+
+/**
  * A player outside Folia that a provider steers: the provider's song plays there (inside a page
  * this app cannot route as audio), and the app drives the transport and follows its clock.
  * Only the song's own provider can answer these calls.
@@ -570,7 +582,7 @@ export interface OnlineExternalPlaybackProvider {
     /** False only for songs this external route already knows it cannot start; no network reads. */
     canPlay?(song: SongResult): boolean;
     /** Prepare a bounded successor queue without interrupting the current song. */
-    prepareNext?(song: SongResult, upcoming: SongResult[]): Promise<void>;
+    prepareNext?(song: SongResult, upcoming: SongResult[], options?: PrepareNextOptions): Promise<void>;
     /** Whether a handoff can reuse an already prepared successor (not a guarantee of buffered audio). */
     isPrepared?(song: SongResult): boolean;
     /** Starts `song` in the player at `startSec`, replacing whatever it played; resolves once started. */

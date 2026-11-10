@@ -940,7 +940,8 @@ describe('a queue write in the app', () => {
     const idOf = (letter: string) => letter.repeat(22);
     const trackUri = (letter: string) => 'spotify:track:' + idOf(letter);
     type Answer = {
-        aborted?: boolean; canClear: boolean | null; cleared: boolean; written: string[]; read: string[] | null;
+        aborted?: boolean; canClear: boolean | null; cleared: boolean; restored?: boolean;
+        written: string[]; read: string[] | null;
     };
     const writeQueue = (new Function('return (' + String(QUEUE_SOURCE) + ')')()) as (input: unknown) => Promise<Answer>;
 
@@ -1056,6 +1057,74 @@ describe('a queue write in the app', () => {
         expect(answer.aborted).toBe(true);
         expect(answer.written).toEqual([]);
         expect(app.added).toEqual([]);
+    });
+
+    it('gives back the songs the listener queued in the app itself, and takes back only Folia own', async () => {
+        // The listener added songs of their own beside the ones Folia wrote behind this one. Writing
+        // nothing takes Folia's back and leaves theirs, in the order they put them in.
+        const app = playerWith(['u', 'c', 'v'], 'works');
+        const answer = await write(app.api, [], [idOf('c')]);
+
+        expect(answer.cleared).toBe(true);
+        expect(answer.written).toEqual([]);
+        expect(app.held).toEqual([idOf('u'), idOf('v')]);
+        expect(app.added).toEqual([idOf('u'), idOf('v')]);
+    });
+
+    it('gives back nothing where the listener queued nothing of their own', async () => {
+        const app = playerWith(['c', 'd'], 'works');
+        const answer = await write(app.api, [], [idOf('c'), idOf('d')]);
+
+        expect(answer.written).toEqual([]);
+        expect(app.added).toEqual([]);
+        expect(app.held).toEqual([]);
+    });
+
+    it('leaves a queue it cannot empty as it is, songs of the listener included', async () => {
+        // Nothing was emptied, so there is nothing to give back: Folia wrote nothing and took nothing.
+        const app = playerWith(['u', 'c'], 'noop');
+        const answer = await write(app.api, [], [idOf('c')]);
+
+        expect(answer.cleared).toBe(false);
+        expect(answer.written).toEqual([]);
+        expect(app.added).toEqual([]);
+        expect(app.held).toEqual([idOf('u'), idOf('c')]);
+    });
+
+    it('puts the songs the listener queued back where they were, not before the songs of Folia own', async () => {
+        // The listener queued one song of their own behind the ones Folia wrote: the clear takes it
+        // too, and it is given back at the place it held, Folia's songs filling theirs again.
+        const app = playerWith(['c', 'd', 'u'], 'works');
+        const answer = await write(app.api, ['e', 'f'], [idOf('c'), idOf('d')]);
+
+        expect(answer.written).toEqual([idOf('e'), idOf('f')]);
+        expect(app.held).toEqual([idOf('e'), idOf('f'), idOf('u')]);
+    });
+
+    it('keeps the songs the listener queued twice, one entry each', async () => {
+        // A song the listener put in the queue twice is there twice: giving one of them back loses
+        // a place they made on purpose.
+        const app = playerWith(['u', 'c', 'u'], 'works');
+        const answer = await write(app.api, ['e'], [idOf('c')]);
+
+        expect(answer.written).toEqual([idOf('e')]);
+        expect(app.held).toEqual([idOf('u'), idOf('e'), idOf('u')]);
+    });
+
+    it('says the queue was emptied but not put back when giving the songs back fails, and never fails the write', async () => {
+        // The clear already ran: the songs are gone from the app, and a write that throws here would
+        // leave the caller believing nothing happened at all.
+        const app = playerWith(['u', 'c'], 'works');
+        (app.api.player as { addToQueue: () => Promise<void> }).addToQueue = async () => { throw new Error('the queue was refused'); };
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+        const answer = await write(app.api, ['e'], [idOf('c')]);
+
+        expect(answer.cleared).toBe(true);
+        expect(answer.restored).toBe(false);
+        expect(answer.written).toEqual([]);
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('[SpotifyClient]'), expect.any(Error));
+        warn.mockRestore();
     });
 
     it('takes the generation of a page loaded again as it stands', async () => {

@@ -26,8 +26,8 @@ export const spotifyExternalPlayback: OnlineExternalPlaybackProvider = {
     subscribeMediaKeysWanted: listener => subscribeSpotifyPlaybackMode(listener),
     canPlay: song => current().canPlay?.(song) ?? true,
     isPrepared: song => current().isPrepared?.(song) ?? false,
-    async prepareNext(song, upcoming) {
-        await current().prepareNext?.(song, upcoming);
+    async prepareNext(song, upcoming, options) {
+        await current().prepareNext?.(song, upcoming, options);
     },
     play: (song, startSec, options) => current().play(song, startSec, options),
     adopt: song => current().adopt?.(song),
