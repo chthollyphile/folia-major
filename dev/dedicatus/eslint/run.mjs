@@ -17,7 +17,7 @@ const RUNTIME = 'dev/dedicatus/lint';
 /** 要检查的目录和文件。显式列出而不是扫 `.`：主检出里 .claude/worktrees 下还嵌着别的工作树。 */
 export const LINT_TARGETS = [
     'src', 'test', 'dev', 'electron', 'shared', 'api', 'api-ts', 'worker', 'packaging', 'build', 'deploy', 'public',
-    'skills', 'sync-server', '.github/scripts', '*.ts', '*.js', '*.mjs',
+    'skills', 'sync-server', '.github/scripts', 'packages', '*.ts', '*.js', '*.mjs',
 ];
 const LINTABLE = /\.(ts|tsx|mts|cts|js|jsx|mjs|cjs)$/;
 /** 一次交给 ESLint 的文件太多时改成全仓跑：Windows 的命令行最长 32767 个字符。 */

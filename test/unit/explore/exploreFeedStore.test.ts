@@ -8,7 +8,7 @@ import type { OmniExploreItem, OmniExploreSection } from '@/types/onlineMusic';
 const omni = vi.hoisted(() => ({ getExploreFeed: vi.fn(), getExploreSectionItems: vi.fn() }));
 vi.mock('@/services/onlineMusic/omni', () => ({ omni }));
 import { exploreScroll, useExploreFeedStore } from '@/stores/useExploreFeedStore';
-import { resetExploreMemory } from '@/components/app/home/explore/exploreFeedMemory';
+import { resetExploreMemory } from '@/stores/exploreFeedMemory';
 
 const item = (id: string): OmniExploreItem => ({ kind: 'collection', collection: { providerId: 'ytm', id, name: id, type: 'playlist' } });
 const section = (id: string, extra: Partial<OmniExploreSection> = {}): OmniExploreSection => ({ id, title: id, items: [item(`${id}-1`)], ...extra });

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { omni } from '../services/onlineMusic/omni';
-import { inKeptOrder, noteCollectionSaved, withoutTakenOut } from '../components/app/home/explore/exploreFeedMemory';
+import { inKeptOrder, noteCollectionSaved, withoutTakenOut } from './exploreFeedMemory';
 import type { UnifiedSong } from '../types';
 import type { OmniCollection, OmniExploreItem, OmniExploreSection } from '../types/onlineMusic';
 import { errorMessage } from '../utils/errorText';
