@@ -681,10 +681,11 @@ describe('failures the platform says will not change', () => {
 
     // 本机播放器那三种原因自己说了要人做什么：不查替代版本，也不倒计时跳过。
     describe('failures that name the player outside the app', () => {
-        const playerFailure = (playerCause: 'player-not-installed' | 'player-not-found' | 'player-restart-consent') => ({
+        const playerFailureFor = (playerCause: 'player-not-installed' | 'player-not-found' | 'player-restart-consent') => ({
             kind: 'unavailable' as const,
             failure: onlineFailureOf({ operation: 'audio', providerId: 'spotify' }, { detail: { case: 'not-configured', playerCause } }),
         });
+        const playerFailure = playerFailureFor;
 
         it('asks before closing and reopening the listener\'s own player, and stops there', async () => {
             loader.mockResolvedValue(playerFailure('player-restart-consent'));
@@ -703,6 +704,8 @@ describe('failures the platform says will not change', () => {
             ['player-not-installed', 'failure.externalPlayerNotInstalled', 'failure.noteExternalPlayerNotInstalled'],
             ['player-not-found', 'failure.externalPlayerNotFound', 'failure.noteExternalPlayerNotFound'],
         ] as const)('says what the %s player cause was, and offers the way back to the standard way', async (cause, title, note) => {
+            // 平台自己的设置清单也在这条失败上（not-configured），但这里该给的是「改回标准播放」：
+            // 那个人要的是换一种放得了的方式，不是回去看清单。
             loader.mockResolvedValue(playerFailure(cause));
             await controller().playSong(songs[1], songs);
 
@@ -712,6 +715,17 @@ describe('failures the platform says will not change', () => {
             shown?.onAction?.();
             expect(vi.mocked(omni.leaveExternalPlaybackForStandard)).toHaveBeenCalledWith('spotify');
             vi.mocked(omni.leaveExternalPlaybackForStandard).mockClear();
+        });
+
+        it('keeps the way back to the standard way even where the platform has a setup checklist', async () => {
+            // Spotify 有设置清单，而「没装客户端」也是 not-configured：清单不能把那颗按钮换掉，
+            // 否则这台机器上就没有任何「改回标准播放」的出路。
+            vi.mocked(omni.hasSetup).mockReturnValue(true);
+            loader.mockResolvedValue(playerFailureFor('player-not-installed'));
+            await controller().playSong(songs[1], songs);
+
+            expect(message()).toMatchObject({ actionLabel: 'failure.useStandardPlayback', text: 'failure.externalPlayerNotInstalled' });
+            vi.mocked(omni.hasSetup).mockReturnValue(false);
         });
     });
 

@@ -243,6 +243,9 @@ const withSignInAction = (
             },
         };
     }
+    // 本机播放器那几种原因自己带了该做的事（改回标准播放）：平台上的设置清单不能把它换掉，否则
+    // 「没装客户端」这类失败在这台机器上就一条出路也没有了。
+    if (playerCauseAction(shown) === 'change-way') return said;
     const setUp = (shown.case === 'account-refused' || shown.case === 'not-configured') && shown.providerId && omni.hasSetup(shown.providerId) ? shown.providerId : undefined;
     return setUp ? {
         ...said,
