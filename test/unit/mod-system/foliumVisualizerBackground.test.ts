@@ -142,6 +142,7 @@ describe('setBackground', () => {
 
     it('checks the permission, then the id; a type that is none now throws and writes nothing', () => {
         expect(() => reader().setBackground('nomand')).toThrow('permission-denied:visualizer.background');
+        expect(() => reader().setBackground('mod:gone:video')).toThrow('permission-denied:visualizer.background');
         expect(() => bgMod().setBackground('mod:gone:video')).toThrow(TypeError);
         expect(() => bgMod().setBackground(undefined as unknown as string)).toThrow('invalid-arguments');
         expect(settings().visualizerBackgroundMode).toBeNull();
@@ -237,6 +238,7 @@ describe('the animation intensity', () => {
     it('checks the permission, then the value, and accepts a write that changes nothing', () => {
         mountApp();
         expect(() => reader().setAnimationIntensity('calm')).toThrow('permission-denied:visualizer.animationIntensity');
+        expect(() => reader().setAnimationIntensity('wild' as FoliumAnimationIntensity)).toThrow('permission-denied:visualizer.animationIntensity');
         expect(() => bgMod().setAnimationIntensity('wild' as FoliumAnimationIntensity)).toThrow(TypeError);
         act(() => { expect(bgMod().setAnimationIntensity('normal')).toEqual({ ok: true, intensity: 'normal' }); });
         expect(seen).toEqual([]);

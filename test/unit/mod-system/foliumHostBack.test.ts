@@ -139,13 +139,42 @@ describe('a window that has the keyboard', () => {
         expect(noneCalled(nav)).toBe(true);
     });
 
-    it('gets the key itself when the focus is not inside it, and on the focused element when it is', () => {
+    it('hears the key where the focus is first, then on itself when no layer took it there', () => {
         const { dialog, button } = keyboardWindow();
         const heard = hearEscape();
         stepFoliumHostBack(navigation());
+        expect(heard).toEqual([document.body, dialog]);
+        heard.length = 0;
         button.focus();
         stepFoliumHostBack(navigation());
-        expect(heard).toEqual([dialog, button]);
+        expect(heard).toEqual([button]);
+    });
+
+    it('closes through a handler on its own element, which a key pressed with the focus elsewhere never reaches', () => {
+        const { dialog } = keyboardWindow();
+        const closed = vi.fn();
+        dialog.addEventListener('keydown', (event) => { if (event.key === 'Escape') closed(); });
+        expect(stepFoliumHostBack(navigation())).toBe(true);
+        expect(closed).toHaveBeenCalledTimes(1);
+    });
+
+    it('leaves the key to a layer that answers it only from where the focus is, as a picker over a work window does', () => {
+        const { dialog } = keyboardWindow();
+        const closedWindow = vi.fn();
+        dialog.addEventListener('keydown', closedWindow);
+        // As StudioWindow's layer: with the focus on nothing it takes the key on the document and stops it.
+        const closedLayer = vi.fn();
+        const onDocument = (event: KeyboardEvent) => {
+            if (event.target !== document.body) return;
+            closedLayer();
+            event.preventDefault();
+            event.stopPropagation();
+        };
+        document.addEventListener('keydown', onDocument);
+        cleanups.push(() => document.removeEventListener('keydown', onDocument));
+        expect(stepFoliumHostBack(navigation())).toBe(true);
+        expect(closedLayer).toHaveBeenCalledTimes(1);
+        expect(closedWindow).not.toHaveBeenCalled();
     });
 
     it('is the one drawn last when several are open', () => {
@@ -153,7 +182,15 @@ describe('a window that has the keyboard', () => {
         const { dialog } = keyboardWindow();
         const heard = hearEscape();
         stepFoliumHostBack(navigation());
-        expect(heard).toEqual([dialog]);
+        expect(heard).toEqual([document.body, dialog]);
+    });
+
+    it('takes the step and stays when it does not answer Escape at all', () => {
+        const { dialog } = keyboardWindow();
+        const nav = navigation();
+        expect(stepFoliumHostBack(nav)).toBe(true);
+        expect(dialog.isConnected).toBe(true);
+        expect(noneCalled(nav)).toBe(true);
     });
 
     it('is not a mod\'s home page, which steps back as a page', () => {
@@ -200,6 +237,46 @@ describe('the page on screen', () => {
         useAppViewStore.setState({ view: 'lattice' });
         const nav = navigation();
         expect(stepFoliumHostBack(nav)).toBe(true);
+        expect(nav.backFromWall).toHaveBeenCalledTimes(1);
+    });
+
+    it('lets the wall answer first with the focus outside it: an open card closes before the wall is left', () => {
+        useAppViewStore.setState({ view: 'lattice' });
+        // As the wall's field: its ladder is a handler on the element, and always takes the key.
+        const field = document.createElement('div');
+        field.className = 'lattice-field';
+        let cardOpen = true;
+        const left = vi.fn();
+        field.addEventListener('keydown', (event) => {
+            if (event.key !== 'Escape') return;
+            event.preventDefault();
+            event.stopPropagation();
+            if (cardOpen) cardOpen = false;
+            else left();
+        });
+        const outside = document.createElement('button');
+        document.body.append(field, outside);
+        outside.focus();
+        const nav = navigation();
+        expect(stepFoliumHostBack(nav)).toBe(true);
+        expect(cardOpen).toBe(false);
+        expect(left).not.toHaveBeenCalled();
+        expect(stepFoliumHostBack(nav)).toBe(true);
+        expect(left).toHaveBeenCalledTimes(1);
+        // The wall left through its own handler: the step did not leave it a second time.
+        expect(nav.backFromWall).not.toHaveBeenCalled();
+    });
+
+    it('does not take the library wall under another view for the queue wall', () => {
+        useAppViewStore.setState({ view: 'lattice' });
+        const library = document.createElement('div');
+        library.className = 'lattice-field bravais-field';
+        const heard = vi.fn();
+        library.addEventListener('keydown', heard);
+        document.body.appendChild(library);
+        const nav = navigation();
+        expect(stepFoliumHostBack(nav)).toBe(true);
+        expect(heard).not.toHaveBeenCalled();
         expect(nav.backFromWall).toHaveBeenCalledTimes(1);
     });
 

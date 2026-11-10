@@ -38,12 +38,15 @@ type PanelTabIcon = React.ComponentType<{ size?: number }>;
 // One component for each icon name, so a tab's icon keeps its identity from render to render.
 const namedTabIcons = new Map<string, PanelTabIcon>();
 
+// A lucide icon name as `folium.ui.icon` takes it: lower-case words joined by hyphens.
+const LUCIDE_ICON_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
 /**
  * The icon of a mod's tab (Folium 1.9): the lucide icon its definition names, loaded on first use like every
  * icon a mod names; the puzzle while it loads, for a name lucide does not have, and for a tab that names none.
  */
 export const foliumPanelTabIcon = (name: unknown): PanelTabIcon => {
-    if (typeof name !== 'string' || !name.trim()) return Puzzle;
+    if (typeof name !== 'string' || !LUCIDE_ICON_NAME.test(name)) return Puzzle;
     let icon = namedTabIcons.get(name);
     if (!icon) {
         const names = [lucideExportName(name)];

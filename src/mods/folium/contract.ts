@@ -931,8 +931,9 @@ export interface FoliumPlayerPanelTabDef {
     order?: number;
     /**
      * Folium 1.9: the tab's icon, a lucide icon name as `folium.ui.icon` takes it (e.g. "message-circle").
-     * The panel draws it on the tab's button, alone when the tab row is too narrow for labels. Left out, or
-     * a name the host's lucide version does not have, the tab keeps the puzzle icon. An older host ignores it.
+     * The panel draws it when the tab row is too narrow for every label: the tabs that are not open show
+     * their icon alone. Left out, or a name the host's lucide version does not have, the tab keeps the
+     * puzzle icon. An older host ignores it.
      */
     icon?: string;
     /** Draws the tab into its container. */
@@ -1464,14 +1465,17 @@ export interface FoliumUiService {
     openVolume(): void;
     /**
      * Folium 1.9: goes back one level, as one press of Escape does. The topmost thing that can step back
-     * takes it: an open dialog, the command palette or the settings window closes (a dialog that cannot
-     * close yet, busy with work, still takes it and stays); then what a page has open over itself (a
-     * focused card, a list panel, a filter); then the page: the player panel closes, the player and the
-     * wall return to where they were opened from, a collection page returns to the one before it, the
-     * search page and a mod's home page close. Returns true when the host took it, false when there was
-     * nothing to go back from (the home page with nothing open): a mod that binds a mouse button to it
-     * lets the click through then. One call is one level; never call it in a loop. An older host has no
-     * `back`: check `folium.host.folium.minor >= 9` first.
+     * takes it: an open dialog, the command palette or the settings window closes; then what a page has
+     * open over itself (a focused card, a list panel, a filter); then the page: the player panel closes,
+     * the player and the wall return to where they were opened from, a collection page returns to the one
+     * before it, the search page and a mod's home page close. Returns true when the host took it, false
+     * when there was nothing to go back from (the home page with nothing open): a mod that binds a mouse
+     * button to it lets the click through then. An open window always takes it, also one that stays open:
+     * a dialog busy with work, or one that Escape does not close; nothing under it moves. Unlike the key
+     * it never leaves fullscreen. One call is one level: never call it in a loop, and not from a handler
+     * of the Escape key, which the host answers itself. Call it on the press of the button
+     * (`pointerdown`), before the host's own "press outside closes" handling takes a level of its own.
+     * An older host has no `back`: check `folium.host.folium.minor >= 9` first.
      */
     back(): boolean;
     /**
@@ -2342,7 +2346,10 @@ export interface FoliumVisualizerService {
     getAnimationIntensity(): FoliumAnimationIntensity;
     /**
      * Folium 1.9: sets the animation intensity, as the chip in the player panel does. A value this contract
-     * does not list throws a TypeError. Needs `visualizer.animationIntensity`.
+     * does not list throws a TypeError. While the app is still starting (no theme on screen yet) it throws
+     * an Error whose message is `visualizer-unavailable-in-main-context`, as `folium.ui` does then: write
+     * from an event or a user action rather than straight from `activate`. Needs
+     * `visualizer.animationIntensity`.
      */
     setAnimationIntensity(value: FoliumAnimationIntensity): FoliumAnimationIntensityWriteResult;
 }

@@ -51,6 +51,12 @@ describe('foliumPanelTabIcon', () => {
         expect(foliumPanelTabIcon(42)).toBe(Puzzle);
     });
 
+    it('takes the names `folium.ui.icon` takes and no other spelling', () => {
+        expect(foliumPanelTabIcon('MessageCircle')).toBe(Puzzle);
+        expect(foliumPanelTabIcon(' message-circle ')).toBe(Puzzle);
+        expect(foliumPanelTabIcon('message-circle')).not.toBe(Puzzle);
+    });
+
     it('is one component for each name, so a tab\'s icon is not remounted from render to render', () => {
         expect(foliumPanelTabIcon('message-circle')).toBe(foliumPanelTabIcon('message-circle'));
         expect(foliumPanelTabIcon('message-circle')).not.toBe(foliumPanelTabIcon('info'));

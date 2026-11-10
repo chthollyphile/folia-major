@@ -1328,6 +1328,7 @@ export default function activate(folium) {
 
 **动画强度**：`getAnimationIntensity()` 返回 `'calm'`、`'normal'` 或 `'chaotic'`，就是播放页面板里的动画强度；`setAnimationIntensity(value)` 改它，不是这三个值时抛 `TypeError`。
 返回 `{ ok: true, intensity }` 或 `{ ok: false, reason }`。以后的 minor 可能加新的档位：不认识的当作 `normal`。
+应用还在启动、主题还没上屏时写它会抛 `visualizer-unavailable-in-main-context`（和那时调 `folium.ui` 一样）：在事件或用户操作里写，不要在 `activate` 里直接写。
 
 **事件**：`visualizer.backgroundChanged`（`{ background, origin }`，同一任务合成一次，改了又改回去不发）和 `visualizer.animationIntensityChanged`（`{ intensity, origin }`）。
 `origin` 和别的 `visualizer.*` 事件一样，说是用户还是哪个模组改的。动画强度也在主题里（`theme.animationIntensity`），所以它变的时候 `theme.changed` 也会发。
@@ -1338,18 +1339,29 @@ export default function activate(folium) {
 
 `folium.ui.back()` 请宿主返回一层，给把鼠标按键或手势绑成「返回」的模组用。它和用户按一下 Esc 是同一条路：最上面能返回的界面接这一下。
 
-- 开着对话框、命令面板或设置窗口：关掉最上面的那个。正忙、暂时不能关的对话框也算接了（它不关，下面的页面也不动）。
+- 开着对话框、命令面板或设置窗口：关掉最上面的那个。开着的窗口总是算接了，不关的也一样：正忙、暂时不能关的对话框，
+  或者本来就不响应 Esc 的窗口，它留着，下面的页面也不动。
 - 页面自己开着的东西（聚焦的卡片、列表面板、过滤词）：先收起它。
 - 再往下是页面本身：播放页先收起面板，再回到来的地方；歌曲墙回到来的地方；集合页回到上一层；搜索页和模组的首页页面关掉。
 
-宿主接了返回 `true`，没有可返回的界面（首页、什么都没开）返回 `false`。一次调用只退一层，不要在循环里调用。导出窗口里抛 `ui-unavailable-in-export-context`。
+宿主接了返回 `true`，没有可返回的界面（首页、什么都没开）返回 `false`。一次调用只退一层，不要在循环里调用，也不要在 Esc 的按键监听里调用（Esc 宿主自己会应答，再调一次就退了两层）。
+和 Esc 不同的一处：它不退出全屏。导出窗口里抛 `ui-unavailable-in-export-context`。
+
+在按下的那一刻（`pointerdown`，捕获阶段）调用，不要等到 `contextmenu`：宿主里不少弹出层是「在外面按下就关」，等到 `contextmenu` 时它已经关了，`back()` 会再退一层。
 
 ```js
-// 右键返回：宿主接了就拦下右键菜单，Shift + 右键保留原来的菜单。
-window.addEventListener('contextmenu', (event) => {
-  if (event.shiftKey || folium.host.folium.minor < 9) return;
-  if (folium.ui.back()) event.preventDefault();
-});
+// 右键返回：按下时退一层；宿主接了就拦下随后的右键菜单，Shift + 右键保留原来的菜单。
+if (folium.host.folium.minor >= 9) {
+  let taken = false;
+  window.addEventListener('pointerdown', (event) => {
+    if (event.button !== 2) return;
+    taken = !event.shiftKey && folium.ui.back();
+  }, true);
+  window.addEventListener('contextmenu', (event) => {
+    if (taken) event.preventDefault();
+    taken = false;
+  }, true);
+}
 ```
 
 ## main 入口（Node）
