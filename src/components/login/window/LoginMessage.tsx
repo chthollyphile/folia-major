@@ -33,6 +33,8 @@ type LoginMessageProps = {
     sceneKey: string;
     headline: string;
     note?: string;
+    /** 下面还有自己的一页（配置清单）：不要最小高度，整页从上面排下来。 */
+    compact?: boolean;
     /** 平台或者本地服务自己的话。 */
     quote?: { who: string; text: string; code?: string };
     /** 登录方式：一个分段的选择，选了之后还留着，可以再换。 */
@@ -104,13 +106,13 @@ const WaitButton: React.FC<{ failure: LoginFailure; action: MessageAction }> = (
     );
 };
 
-export const LoginMessage: React.FC<LoginMessageProps> = ({ sceneKey, headline, note, quote, methods, actions, waitFor, details, steps }) => {
+export const LoginMessage: React.FC<LoginMessageProps> = ({ sceneKey, headline, note, compact = false, quote, methods, actions, waitFor, details, steps }) => {
     const { t } = useTranslation();
     const reduced = useKitReducedMotion();
     const [first, ...rest] = actions;
 
     return (
-        <div className="flex min-h-[200px] min-w-0 flex-1 flex-col">
+        <div className={`flex min-w-0 flex-1 flex-col ${compact ? '' : 'min-h-[200px]'}`}>
             {methods && (
                 <div className="mb-4 self-start">
                     <Segmented

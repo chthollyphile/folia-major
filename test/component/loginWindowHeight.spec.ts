@@ -37,22 +37,31 @@ test('the playback setup page leaves the sign-in window the size the account pag
     const account = await settled(page);
     expect(await scrollers(page)).toEqual([]);
 
-    for (const state of ['setup-client', 'setup-steps', 'setup-nokey']) {
-        await mount('loginWindow', { state, lang: 'zh', motion: 'off' });
-        // Same window, same size: a page of it does not make it taller.
-        expect(await settled(page)).toEqual(account);
-        const scrolling = await scrollers(page);
-        expect(scrolling.length).toBeGreaterThan(0);
-        expect(scrolling[0].scrollHeight).toBeGreaterThan(scrolling[0].clientHeight);
+    // Spotify's own app needs nothing set up but to be installed, and an account that cannot play
+    // gets one step: both pages fit as they are, in every language the app is written in.
+    for (const lang of ['zh', 'en', 'in', 'vi']) {
+        for (const state of ['setup-client', 'setup-nokey']) {
+            await mount('loginWindow', { state, lang, motion: 'off' });
+            // Same window, same size: the page does not make it taller, and it does not scroll either.
+            expect(await settled(page), `${lang} ${state}`).toEqual(account);
+            expect(await scrollers(page), `${lang} ${state}`).toEqual([]);
+        }
     }
+
+    // The checklist of the Soloist way is longer than the window, so it still scrolls inside it.
+    await mount('loginWindow', { state: 'setup-steps', lang: 'zh', motion: 'off' });
+    expect(await settled(page)).toEqual(account);
+    const scrolling = await scrollers(page);
+    expect(scrolling.length).toBeGreaterThan(0);
+    expect(scrolling[0].scrollHeight).toBeGreaterThan(scrolling[0].clientHeight);
 });
 
-test('the way out of the playback setup page is reachable by scrolling', async ({ page, mount }) => {
+test('the way out of a long playback setup page is reachable by scrolling', async ({ page, mount }) => {
     await page.setViewportSize(VIEWPORT);
-    await mount('loginWindow', { state: 'setup-client', lang: 'zh', motion: 'off' });
+    await mount('loginWindow', { state: 'setup-steps', lang: 'zh', motion: 'off' });
     const before = await settled(page);
     const panel = page.getByRole('dialog');
-    const back = panel.getByRole('button', { name: '改用 Soloist 播放' });
+    const back = panel.getByRole('button', { name: '返回' }).or(panel.getByRole('button', { name: '稍后再说' })).first();
 
     // Below the fold at first, inside the window once the window's own body is scrolled.
     expect((await back.boundingBox())!.y).toBeGreaterThan(before.height);

@@ -5276,11 +5276,11 @@ export default {
       "titleStandard": "Cách Spotify phát nhạc",
       "noteStandard": "Hiện Folia tự phát bài hát Spotify. Nếu tài khoản này không nhận được khóa âm thanh và bài hát không phát được, bạn có thể chuyển sang Soloist chính thức của Spotify.",
       "clientTitle": "Thiết lập ứng dụng Spotify",
-      "clientNote": "Ứng dụng Spotify cho máy tính được cài trên máy này và tự gửi âm thanh ra đầu ra của hệ thống; Folia điều khiển nó và theo vị trí của nó để hiển thị lời. Folia khởi chạy nó với cổng gỡ lỗi chỉ lắng nghe trên máy này (127.0.0.1), và khởi chạy lại khi bạn bấm phát mà nó đã đóng. Âm thanh không đi qua Folia nên bộ cân bằng, Automix và các hiệu ứng theo nhạc của Folia không có tác dụng."
+      "clientNote": "Âm thanh không qua Folia: bộ cân bằng, Automix, hiệu ứng thị giác không tác dụng. Folia chạy nó với cổng gỡ lỗi chỉ trên máy này (127.0.0.1), chạy lại khi bạn bấm phát mà nó đóng."
     },
     "noKey": {
       "title": "Tài khoản này không nhận được khóa âm thanh từ Spotify",
-      "note": "Spotify không cấp khóa âm thanh cho tài khoản này, nên cách phát của Folia không phát được bài hát của nó (thường gặp với tài khoản tạo từ cuối năm 2024). Bạn có thể phát qua Soloist chính thức của Spotify: tải chương trình Soloist, tạo khóa API bằng tài khoản Premium, rồi chọn thiết bị một lần trong ứng dụng Spotify. Danh sách phát, lời bài hát và tìm kiếm không bị ảnh hưởng."
+      "note": "Spotify không cấp khóa âm thanh cho tài khoản này (thường gặp từ cuối 2024), nên Folia không tự phát được bài của nó. Hãy phát qua Soloist chính thức: tải Soloist, tạo khóa API với tài khoản Premium, rồi chọn thiết bị một lần trong ứng dụng Spotify. Danh sách phát, lời và tìm kiếm không bị ảnh hưởng."
     },
     "step": {
       "program": "Chương trình Soloist",
@@ -5295,7 +5295,7 @@ export default {
       "standardNote": "Folia tự phát bài hát Spotify.",
       "soloistNote": "Soloist phát bài hát Spotify.",
       "noKeyNote": "Cách phát của Folia không phát được bài hát của tài khoản này.",
-      "clientNote": "Ứng dụng Spotify phát bài hát Spotify; âm thanh không đi qua Folia.",
+      "clientNote": "Ứng dụng Spotify phát bài hát Spotify.",
       "freeNote": "Đây là tài khoản miễn phí: Spotify không cho Folia tự phát bài hát."
     },
     "program": {

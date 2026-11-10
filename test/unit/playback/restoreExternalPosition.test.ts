@@ -513,6 +513,95 @@ describe('a session restored onto a player that is on another track', () => {
         expect(playMock).not.toHaveBeenCalled();
     });
 
+    it('keeps the song asked for while the take-over waited on the screen where the take-over fails', async () => {
+        // The take-over waits on the player; the listener's play of another song lands while it waits
+        // and arms its own intent to play, which is what starts that song.
+        const shouldAutoPlayRef = { current: false };
+        runningStatusMock.mockImplementation(async () => status('bodian-other', true));
+        adoptMock.mockImplementation(async () => {
+            shouldAutoPlayRef.current = true;
+            askForSong(following);
+            return false;
+        });
+
+        await restore({ queue, shouldAutoPlayRef });
+
+        // That ask keeps the screen: the remembered song is not shown again behind it.
+        expect(setCurrentSongMock).not.toHaveBeenCalledWith(song);
+        expect(setPlayQueueMock).not.toHaveBeenCalled();
+        // Nor is the position of the remembered song shown behind it.
+        expect(setCurrentTimeMock).not.toHaveBeenCalled();
+        // The intent the play that overtook the restore armed is left to it: nothing here clears it.
+        expect(shouldAutoPlayRef.current).toBe(true);
+    });
+
+    it('writes nothing of the track where another song was asked for while the take-over waited', async () => {
+        const shouldAutoPlayRef = { current: false };
+        runningStatusMock.mockImplementation(async () => status('bodian-other', true));
+        adoptMock.mockImplementation(async () => {
+            shouldAutoPlayRef.current = true;
+            askForSong(following);
+            return true;
+        });
+
+        await restore({ queue, shouldAutoPlayRef });
+
+        // The ask owns the queue now: the track taken over is not put in it and not saved with it.
+        expect(setPlayQueueMock).not.toHaveBeenCalled();
+        expect(persistMock).not.toHaveBeenCalled();
+        // And nothing of the track taken over is read for a screen the ask owns: no theme, no lyrics.
+        expect(themeMock.mock.calls.some(([target]) => target === otherSong)).toBe(false);
+        expect(loadLyricsMock).not.toHaveBeenCalled();
+        // The take-over has the player, but the song asked for meanwhile is the one this window starts.
+        expect(shouldAutoPlayRef.current).toBe(true);
+    });
+
+    it('keeps a second ask for this same song apart from the ask the take-over made', async () => {
+        // The key cannot tell this song asked for again from the ask the take-over made itself, so
+        // the take-over's own start tells them apart. Such an ask is a play of this song: it shows it
+        // and arms its own intent, and the queue of the take-over is not written behind it.
+        const shouldAutoPlayRef = { current: false };
+        runningStatusMock.mockImplementation(async () => status('bodian-other', true));
+        adoptMock.mockImplementation(async () => {
+            shouldAutoPlayRef.current = true;
+            askForSong(otherSong);
+            return true;
+        });
+
+        await restore({ queue, shouldAutoPlayRef });
+
+        // The play that asked for this song again armed its own intent: it is not cleared here.
+        expect(shouldAutoPlayRef.current).toBe(true);
+        expect(setPlayQueueMock).not.toHaveBeenCalled();
+        expect(persistMock).not.toHaveBeenCalled();
+        expect(themeMock.mock.calls.some(([target]) => target === otherSong)).toBe(false);
+        expect(loadLyricsMock).not.toHaveBeenCalled();
+    });
+
+
+    it('keeps the play that asked for a song while the paused track was shown', async () => {
+        // The paused track is shown through a change of song, which every subscriber sees at once: an
+        // ask that lands there is a listener's play, and it arms the intent that starts that song.
+        const shouldAutoPlayRef = { current: false };
+        runningStatusMock.mockImplementation(async () => status('bodian-other', false));
+        let asked = false;
+        setCurrentSongMock.mockImplementation((shown: unknown) => {
+            if (asked || (shown as { id?: string } | null)?.id !== 'bodian-other') return;
+            asked = true;
+            shouldAutoPlayRef.current = true;
+            askForSong(following);
+        });
+
+        await restore({ queue, shouldAutoPlayRef });
+
+        expect(asked).toBe(true);
+        // The intent the play armed is left to it: nothing here clears it.
+        expect(shouldAutoPlayRef.current).toBe(true);
+        expect(setPlayQueueMock).not.toHaveBeenCalled();
+        // Nor is the position of the paused track shown on the song asked for instead.
+        expect(setCurrentTimeMock).not.toHaveBeenCalled();
+    });
+
     it('drops a track looked up after another song was asked for', async () => {
         runningStatusMock.mockImplementation(async () => status('bodian-other', true));
         getSongDetailMock.mockImplementation(async () => {

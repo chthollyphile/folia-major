@@ -277,6 +277,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                         sceneKey={sceneKey}
                         headline={headline}
                         note={note}
+                        compact={scene === 'setup'}
                         quote={quote}
                         methods={login && login.methods.length > 0 && chosen?.lead === 'sign-in' && scene !== 'reading' && scene !== 'checking' && scene !== 'setup' ? {
                             options: login.methods.map(method => ({ value: method.id, label: t(method.labelKey), icon: loginMethodIcon(method.iconKey) })),
@@ -290,6 +291,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                     />
                 )}
             below={details ? <Unfold open={detailsOpen}>{details}</Unfold> : checklist}
+            compact={scene === 'setup'}
         />
         {shownDone && providerId && <LoginDoneFlight parts={doneParts} providerId={providerId} label={label} user={summary?.user ?? null} />}
         </>

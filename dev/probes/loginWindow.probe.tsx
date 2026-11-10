@@ -21,7 +21,7 @@ import { probeAccountController } from './probeAccountController';
  * state of the sign-in is made up here and handed to the window's screen. Nothing is requested;
  * the code is a pattern drawn in this file, the accounts are samples.
  *
- * Opened by hand: ?probe=loginWindow&state=<state>&theme=dark|light&count=6…12&lang=zh|en
+ * Opened by hand: ?probe=loginWindow&state=<state>&theme=dark|light&count=6…12&lang=zh|en|in|vi
  * state: none, preparing, code, scanned, reading, expired, methods, methods-code, browser-ready,
  * browser-opening, browser, account (syncing=1: its data is syncing; syncing=other: another platform's is), account-other, account-nameless (signed in, no profile),
  * account-gone (the sign-in ran out while the account was shown), accountless, off, or fail-<case id>.
@@ -38,7 +38,14 @@ import { probeAccountController } from './probeAccountController';
  * is the same for a sign-in in the browser (no "scanned" step). motion=off turns the app's
  * reduce-motion setting on: no animation, the window closes when the account is read.
  */
-type ProbeProps = { state?: string; theme?: 'dark' | 'light'; count?: number; lang?: 'zh' | 'en'; motion?: 'on' | 'off' };
+type ProbeProps = { state?: string; theme?: 'dark' | 'light'; count?: number; lang?: ProbeLang; motion?: 'on' | 'off' };
+
+/** The languages the window is drawn in here, and what i18next calls each of them. */
+type ProbeLang = 'zh' | 'en' | 'in' | 'vi';
+const LANGUAGES: Record<ProbeLang, string> = { zh: 'zh-CN', en: 'en', in: 'in', vi: 'vi' };
+const langOf = (value: string | null | undefined): ProbeLang => (
+    value === 'en' || value === 'in' || value === 'vi' ? value : 'zh'
+);
 
 /** When the played sign-in is scanned, confirmed and read: ms after the probe mounts. */
 const PLAY = { scanned: 300, confirmed: 300 + 1300, read: 300 + 2100 };
@@ -244,13 +251,13 @@ function LoginWindowProbe(props: ProbeProps) {
     const state = props.state ?? query.get('state') ?? 'none';
     const theme = props.theme ?? (query.get('theme') === 'light' ? 'light' : 'dark');
     const count = props.count ?? Number(query.get('count') ?? 6);
-    const lang = props.lang ?? (query.get('lang') === 'en' ? 'en' : 'zh');
+    const lang = props.lang ?? langOf(query.get('lang'));
     const { i18n } = useTranslation();
     const [isOpen, setIsOpen] = useState(true);
     const [said, setSaid] = useState('');
     const [shown, setShown] = useState(() => shownFor(state));
     useEffect(() => setShown(shownFor(state)), [state]);
-    useEffect(() => { void i18n.changeLanguage(lang === 'en' ? 'en' : 'zh-CN'); }, [i18n, lang]);
+    useEffect(() => { void i18n.changeLanguage(LANGUAGES[lang]); }, [i18n, lang]);
 
     // The played sign-in: how far it has got (0 waiting, 1 scanned, 2 confirmed, 3 the account is read),
     // and whether the animation after it is on. What LoginHost does in the app is done here by hand.

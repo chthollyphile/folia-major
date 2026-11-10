@@ -58,7 +58,7 @@ const SetupStepRow: React.FC<{
     };
 
     return (
-        <li className="flex gap-3 border-t border-[var(--st-line)] py-3.5 first:border-t-0">
+        <li className="flex gap-3 border-t border-[var(--st-line)] py-2 first:border-t-0">
             <span
                 aria-hidden
                 className={`st-t-fast mt-0.5 grid h-[22px] w-[22px] shrink-0 place-items-center rounded-full text-xs font-semibold tabular-nums transition-colors ${MARK_CLASS[step.state]}`}
@@ -147,7 +147,7 @@ export const SetupChecklist: React.FC<SetupChecklistProps> = ({ view, busy, onAc
     };
 
     return (
-        <div className="mt-5 border-t border-[var(--st-line)] pt-1">
+        <div className="mt-2 border-t border-[var(--st-line)] pt-1">
             <ol className="m-0 list-none p-0">
                 {view.steps.map((step, index) => (
                     <SetupStepRow key={step.id} step={step} index={index} busy={busy} running={running} run={run} />

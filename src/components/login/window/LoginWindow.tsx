@@ -19,7 +19,7 @@ const WIDTH = 772;
 /** Sheet 在窗口四周留的边。 */
 const MARGIN = 16;
 const REST_HEIGHT = 420;
-/** 宽版面里那一块画的中心在窗口里的位置：圈从这里往外走。 */
+/** 宽版面里那一块画的中心在窗口里的位置：圈从这里往外走。只对 200 见方的页面成立（配置清单是 100）。 */
 const TILE_CENTER = { x: 212 + 24 + 100, y: 130 + 100 };
 /** 标题前面那个记号的大小。 */
 const LEAD = 24;
@@ -98,6 +98,8 @@ type LoginWindowProps = {
     message: React.ReactNode;
     /** 那一块画和话的下面：展开的详情、平台给的配置清单。它不改变窗口的大小，装不下就在窗口里滚动。 */
     below?: React.ReactNode;
+    /** 下面那一块是自己的一页（配置清单）：那一块画不再照二维码的高度居中，整页从上面排下来。 */
+    compact?: boolean;
     /** 按下去打开窗口的那个东西在哪：窗口从那一边出来。 */
     origin?: LoginOrigin | null;
     /** 铺在窗口上面的东西（登录成功的那一面颜色）；`narrow` 是窄版面。 */
@@ -109,7 +111,7 @@ type LoginWindowProps = {
 };
 
 export const LoginWindow: React.FC<LoginWindowProps> = ({
-    isOpen, onClose, title, closeTip, providerId, providerLabel, rings, column, tile, message, below, origin = null, overlay, quiet = false, leavesThrough = false,
+    isOpen, onClose, title, closeTip, providerId, providerLabel, rings, column, tile, message, below, compact = false, origin = null, overlay, quiet = false, leavesThrough = false,
 }) => {
     const narrow = useNarrow();
     const still = useKitReducedMotion();
@@ -160,7 +162,7 @@ export const LoginWindow: React.FC<LoginWindowProps> = ({
                 )}
                 overlay={overlay && <div className="absolute inset-0" style={colour}>{overlay(narrow)}</div>}
             >
-                <div style={colour} data-login-still={still || undefined} className={narrow ? 'flex flex-col gap-4' : 'pb-1 pt-[70px]'}>
+                <div style={colour} data-login-still={still || undefined} className={narrow ? 'flex flex-col gap-4' : `pb-1 ${compact ? 'pt-2' : 'pt-[70px]'}`}>
                     {narrow && <div className={`-mx-2 ${fades}`}>{column('row')}</div>}
                     <div className={narrow ? 'flex flex-col items-center gap-4' : 'flex gap-6'}>
                         {tile}
