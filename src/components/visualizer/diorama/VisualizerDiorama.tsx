@@ -258,7 +258,6 @@ const VisualizerDiorama: React.FC<VisualizerDioramaProps> = (props) => {
         };
         raf = requestAnimationFrame(watch);
         return () => cancelAnimationFrame(raf);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [seed, lyricsSig, committedSong.seed, committedSig, currentTime]);
     const gatedSeed = committedSong.seed;
     const gatedLines = committedSong.lines;

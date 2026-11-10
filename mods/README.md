@@ -584,6 +584,11 @@ CSS 放进 `@layer folium-mods`（在 Tailwind 各层之后声明），不用 `!
 `folium.registries.styles.register({ id: 'wider', css: ':root { --folium-player-bar-extra: 56px; }' })`。
 这个变量只有一个值，几个模组同时设置时后注册的生效。
 
+窗口窄于 960 px 时胶囊进紧凑档（`<html data-bottom-layout="compact">`）：最宽 520 px 再加这个变量，两侧至少留 12 px；
+收起时左半边是歌曲的封面和歌名，进度条是歌名下的细条（不显示时间，`hideWhenCollapsed` 的按钮照样不出），
+歌曲卡片设成限时或不显示时换回带时间的那条；展开后是完整的进度行。面板按钮挂在胶囊右端，`player.layout` 里
+它们仍是各自的障碍物。
+
 ## 事件
 
 `folium.events.on(type, handler, { priority })`，优先级 `highest / high / normal / low / lowest`，同级按注册顺序。

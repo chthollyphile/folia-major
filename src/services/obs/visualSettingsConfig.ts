@@ -49,6 +49,8 @@ export function buildVisualSettingsConfig(): Record<string, unknown> {
     // several renderers, so a web overlay without it animates where the main window does not.
     staticMode: storeThemeSettings.staticMode,
     visualizerOpacity: storeVisualizer.visualizerOpacity,
+    // 歌词画布的分辨率与抗锯齿：OBS 页面读不到本机的设置，只能经配置码带过去（用户 2026-11-08 定，只带 OBS 页面看得到的）。
+    lyricRenderQuality: storeVisualizer.lyricRenderQuality,
     hidePlayerTranslationSubtitle: storeTypographySettings.hidePlayerTranslationSubtitle,
     showSubtitleTranslation: storeTypographySettings.showSubtitleTranslation,
     subtitleContentMode: storeTypographySettings.subtitleContentMode,

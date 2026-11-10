@@ -3552,6 +3552,7 @@ export default {
     "gpuPreferenceActive": "In use",
     "visualizerFrameRateValue": "Limit",
     "lyricRenderScale": "Lyric canvas resolution",
+    "importFieldLyricRenderQuality": "Lyric canvas resolution and anti-aliasing",
     "lyricRenderScaleDesc": "Lyric styles drawn with canvas or WebGL (Machi, Hanabi, Lumiere, Nebbia and others) render at this multiple; 1× is each style's usual sharpness, above 1× supersamples for finer edges at more GPU cost. Every style follows this unless its own settings pick a value.",
     "lyricAntialias": "Lyric canvas anti-aliasing",
     "lyricAntialiasDesc": "Auto keeps each style's own default; On smooths geometric edges (lines, cards, blocks of color) at the cost of video memory and a little frame rate. Every style follows this by default.",

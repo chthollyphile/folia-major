@@ -1,0 +1,31 @@
+{
+  "name": "coven",
+  "version": "0.1.0",
+  "private": true,
+  "description": "半自动的代码库维护编排：coven: 认领、契约与关口、planner / generator / evaluator 三个角色、只进集成分支的 PR。项目通过适配层接入。",
+  "type": "module",
+  "bin": {
+    "coven": "bin/coven.mjs"
+  },
+  "exports": {
+    ".": "./src/index.mjs",
+    "./adapter": "./src/adapter.mjs"
+  },
+  "files": [
+    "bin",
+    "src",
+    "roles",
+    "skill",
+    "compass",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "vitest run --dir test"
+  },
+  "devDependencies": {
+    "vitest": ">=3"
+  }
+}
