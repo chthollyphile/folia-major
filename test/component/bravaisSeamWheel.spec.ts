@@ -129,7 +129,7 @@ const panelListScroll = (page: Page) => page.evaluate(() => {
  * SEAM_WHEEL_REPEAT_GAP_MS（30），判据 2 的间隔那一条就失效，相等的平台期会被当成新的一手。
  * 所以这里用 page.clock：先 install 再 pauseAt，之后的页面时间只由 runFor 推进。
  * 暂停之后那次读数顺带钉住「接管的是页面里的 performance.now」——真浏览器里跑一次，不是只看文档：
- * 读一次、runFor(16) 之后再读一次，差值必须正好 16（没接管时这个差值会是几十毫秒）。
+ * 读一次、runFor(16) 之后再读一次，差值必须正好 16（没接管时这个差值会是几毫秒）。
  */
 const pauseSeamClock = async (page: Page) => {
     await page.clock.install({ time: new Date('2030-01-01T00:00:00Z') });

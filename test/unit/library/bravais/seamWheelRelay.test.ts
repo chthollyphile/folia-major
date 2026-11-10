@@ -548,7 +548,7 @@ describe('缝里的滚轮接到墙上', () => {
         }
     });
 
-    it('尾巴里 ≥3px 与 <3px 交替（24,2,24,2,…）、间隔 16ms：链条不续，一直不推墙', () => {
+    it('尾巴里 ≥3px 与 <3px 交替（24,2,24,2,…）、间隔 16ms：第 4 个 24（第 7 发）推墙', () => {
         const { root, blurb } = buildSeam();
         stubScroll(blurb, 'y', { content: 420, size: 240, position: 0 });
         const forward = wallHandler();
@@ -557,14 +557,65 @@ describe('缝里的滚轮接到墙上', () => {
         try {
             expect(wheel(blurb, { deltaY: 24 }).defaultPrevented).toBe(false);
             stubScroll(blurb, 'y', { content: 420, size: 240, position: 180 });
-            // 比较对象只取上一次不小于 3px 的增量，小于 3px 的那一发则把链条断开：24,2,24,2… 里那些 24
-            // 每一次都从 1 重新起算，永远数不到第 4 次。以前小于 3px 的那一发照样写进比较对象，24 一直
-            // 「没变小」，第 4 个 24 就被当成恒定连转的滚轮交给墙了。
-            for (const deltaY of [2, 24, 2, 24, 2, 24, 2, 24]) {
+            // 小于 3px 的那一发完全忽略：不计数、不清零、也不动比较基准。24 始终和上一次不小于 3px 的增量
+            // （还是 24）比，所以这条链一路数下去，第 4 个 24 就是第 7 发，按恒定连转的滚轮交给墙。
+            for (const deltaY of [2, 24, 2, 24, 2]) {
                 clock.advance(GLIDE_GAP_MS);
                 expect(wheel(blurb, { deltaY }).defaultPrevented).toBe(false);
             }
             expect(forward).not.toHaveBeenCalled();
+            clock.advance(GLIDE_GAP_MS);
+            expect(wheel(blurb, { deltaY: 24 }).defaultPrevented).toBe(true);
+            expect(forward).toHaveBeenCalledTimes(1);
+        } finally {
+            clock.restore();
+            detach();
+        }
+    });
+
+    it('无级滚轮夹进 1~2px（33,2,33,2,…）、间隔 16ms：第 4 个 33（第 7 发）推墙', () => {
+        const { root, blurb } = buildSeam();
+        stubScroll(blurb, 'y', { content: 420, size: 240, position: 0 });
+        const forward = wallHandler();
+        const detach = attachSeamWheelRelay(root, forward);
+        const clock = seamClock();
+        try {
+            // Magic Mouse / 精度触控板夹在中间的 1~2px 不该把恒定 33px 的连转打断：没有这一条，缝里滚到头
+            // 之后整段都是 0 推墙，墙不动。
+            expect(wheel(blurb, { deltaY: HIGH_RES_PX }).defaultPrevented).toBe(false);
+            stubScroll(blurb, 'y', { content: 420, size: 240, position: 180 });
+            for (const deltaY of [2, HIGH_RES_PX, 2, HIGH_RES_PX, 2]) {
+                clock.advance(GLIDE_GAP_MS);
+                expect(wheel(blurb, { deltaY }).defaultPrevented).toBe(false);
+            }
+            expect(forward).not.toHaveBeenCalled();
+            clock.advance(GLIDE_GAP_MS);
+            expect(wheel(blurb, { deltaY: HIGH_RES_PX }).defaultPrevented).toBe(true);
+            expect(forward).toHaveBeenCalledTimes(1);
+        } finally {
+            clock.restore();
+            detach();
+        }
+    });
+
+    it('无级滚轮的两格之间夹 1px（33,33,1,33,33,1,…）、间隔 16ms：第 4 个 33 推墙', () => {
+        const { root, blurb } = buildSeam();
+        stubScroll(blurb, 'y', { content: 420, size: 240, position: 0 });
+        const forward = wallHandler();
+        const detach = attachSeamWheelRelay(root, forward);
+        const clock = seamClock();
+        try {
+            expect(wheel(blurb, { deltaY: HIGH_RES_PX }).defaultPrevented).toBe(false);
+            stubScroll(blurb, 'y', { content: 420, size: 240, position: 180 });
+            // 两格连在一起、中间只漏一发 1px 是精度触控板的常态：1px 不计数也不清零，33,33 照常累加。
+            for (const deltaY of [HIGH_RES_PX, 1, HIGH_RES_PX]) {
+                clock.advance(GLIDE_GAP_MS);
+                expect(wheel(blurb, { deltaY }).defaultPrevented).toBe(false);
+            }
+            expect(forward).not.toHaveBeenCalled();
+            clock.advance(GLIDE_GAP_MS);
+            expect(wheel(blurb, { deltaY: HIGH_RES_PX }).defaultPrevented).toBe(true);
+            expect(forward).toHaveBeenCalledTimes(1);
         } finally {
             clock.restore();
             detach();
