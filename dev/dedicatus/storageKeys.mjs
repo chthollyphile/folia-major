@@ -54,7 +54,7 @@ export const STORAGE_KEYS = [
     'main:SPOTIFY_SESSION_V1',
     'main:SPOTIFY_SOLOIST_V1',
     'main:STAGE_MODE_SOURCE',
-    'main:spotifyClientRestartConsented',
+    'main:externalPlayerRestartConsented',
     'main:TRANSPARENT_PLAYER_BACKGROUND',
     'main:UPDATE_CHANNEL',
     'main:USE_NATIVE_MAC_TRAFFIC_LIGHTS',

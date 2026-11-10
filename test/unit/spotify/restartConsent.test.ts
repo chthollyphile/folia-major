@@ -81,7 +81,7 @@ describe('the agreement to restart the external player\'s own app', () => {
     it('is unset in a store that never held it, and answers no', () => {
         const { SETTING_KEY, read: readConsent } = consentModule();
         const store = memoryStore();
-        expect(SETTING_KEY).toBe('spotifyClientRestartConsented');
+        expect(SETTING_KEY).toBe('externalPlayerRestartConsented');
         expect(store.values.has(SETTING_KEY)).toBe(false);
         expect(readConsent(store)).toBe(false);
     });

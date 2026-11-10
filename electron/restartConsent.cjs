@@ -5,10 +5,10 @@
 // once, and the answer is kept in the main process's electron-store so a later run reads it instead
 // of asking again. Unset means no - only a `true` written after the listener said yes counts, and
 // the generic settings write in main.cjs refuses this key, so nothing else can stand in for it.
-// The key it is kept under is the one it was published as, so its name is the only place that still
-// says which player asked first.
+// Its name says what the answer is about rather than which player asked first: a first-party app
+// steered over its DevTools port is any of them.
 
-const SETTING_KEY = 'spotifyClientRestartConsented';
+const SETTING_KEY = 'externalPlayerRestartConsented';
 
 /** Whether the listener agreed, from what the store holds: anything but `true` is a no. */
 const read = (store) => store.get(SETTING_KEY) === true;
