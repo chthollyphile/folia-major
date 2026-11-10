@@ -24,6 +24,21 @@ export const spotifyExternalPlayback: OnlineExternalPlaybackProvider = {
     holdsMediaKeysWhileRunning: () => current().holdsMediaKeysWhileRunning?.() === true,
     // The way Spotify plays is picked in Folia's own setup, which changes nothing else the app reads.
     subscribeMediaKeysWanted: listener => subscribeSpotifyPlaybackMode(listener),
+    // Both programs sound the song outside every page of the app, so both take the machine's own
+    // sound for a real spectrum; the other three are the official app's alone. Read from whichever
+    // way is on, so the answers follow a change of it.
+    get capturesSystemAudio() {
+        return current().capturesSystemAudio === true;
+    },
+    get startsWithoutWaiting() {
+        return current().startsWithoutWaiting === true;
+    },
+    get backsOffStatusPolls() {
+        return current().backsOffStatusPolls === true;
+    },
+    get holdsMediaKeysWhilePlaying() {
+        return current().holdsMediaKeysWhilePlaying === true;
+    },
     canPlay: song => current().canPlay?.(song) ?? true,
     isPrepared: song => current().isPrepared?.(song) ?? false,
     async prepareNext(song, upcoming) {

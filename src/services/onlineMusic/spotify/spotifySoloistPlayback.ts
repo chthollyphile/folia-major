@@ -98,6 +98,9 @@ export const spotifyClientOffered = (): boolean => clientOffered;
 export const spotifyPlaybackMode = (): SpotifyPlaybackMode => mode;
 
 export const spotifySoloistPlayback: OnlineExternalPlaybackProvider = {
+    // The program sounds the song on its own, so a real spectrum needs the machine's own sound. Its
+    // start does answer, its status is cheap, and it registers no media session of its own.
+    capturesSystemAudio: true,
     canPlay: song => {
         try {
             requireSpotifySong(song);

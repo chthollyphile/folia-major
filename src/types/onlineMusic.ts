@@ -567,6 +567,31 @@ export interface OnlineExternalPlaybackProvider {
      * decides, which the app already follows from the player's answers.
      */
     subscribeMediaKeysWanted?(listener: () => void): () => void;
+    /**
+     * The player sounds the song outside every page of the app, so nothing here can measure it: a
+     * real spectrum of the song needs the machine's own sound, captured as a whole. True where the
+     * audio never passes through the app; absent or false where it does, and nothing is captured.
+     */
+    capturesSystemAudio?: boolean;
+    /**
+     * The interface may show the song as playing as soon as the start is asked for, without waiting
+     * for the player to confirm it took the song. True for a player whose start is an instruction
+     * with no dependable answer; absent or false where the confirmation arrives with the start.
+     */
+    startsWithoutWaiting?: boolean;
+    /**
+     * The status polls space themselves out while this player is the one sounding the song: its
+     * answers arrive slowly or cost it something. True where that is so; absent or false keeps the
+     * polls at the app's own cadence.
+     */
+    backsOffStatusPolls?: boolean;
+    /**
+     * The system media keys belong to Folia while a song this route started sounds here, even where
+     * the player registers no media session of its own: a key the app let go would reach nothing.
+     * True where the keys are held for the song alone; absent or false leaves them to the rules
+     * above.
+     */
+    holdsMediaKeysWhilePlaying?: boolean;
     /** False only for songs this external route already knows it cannot start; no network reads. */
     canPlay?(song: SongResult): boolean;
     /** Prepare a bounded successor queue without interrupting the current song. */
@@ -606,6 +631,22 @@ export interface OnlineExternalPlaybackProvider {
     getStatus(song: SongResult): Promise<ProviderExternalPlaybackStatus>;
     /** Whether the player's loaded track is `song` (the id in `status` may be a playback id). */
     isStatusForSong(song: SongResult, status: ProviderExternalPlaybackStatus): boolean;
+}
+
+/**
+ * What an external player declared about how it plays, each answer false where the provider
+ * declared nothing (see OnlineExternalPlaybackProvider). Read for the app's own decisions only;
+ * nothing here starts, pauses or asks the player anything.
+ */
+export interface ExternalPlaybackTraits {
+    /** A real spectrum of the song has to be taken from the machine's own sound. */
+    capturesSystemAudio: boolean;
+    /** The interface may move on before the player confirms it took the song. */
+    startsWithoutWaiting: boolean;
+    /** The status polls space themselves out while this player sounds the song. */
+    backsOffStatusPolls: boolean;
+    /** The keys are held for as long as a song this route started sounds in it. */
+    holdsMediaKeysWhilePlaying: boolean;
 }
 
 /** An alternate title and artist that belong to the same song. */
