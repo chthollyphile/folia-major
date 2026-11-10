@@ -22,6 +22,10 @@ const {
 const { createSpotifyApiBridge, SPOTIFY_OPERATIONS } = require('../../../electron/spotify/spotifyApiBridge.cjs');
 const { spotifyError } = require('../../../electron/spotify/errors.cjs');
 
+import { OnlineProviderError } from '@/types/onlineMusic';
+import { onlineFailureOf, stopsPlayback } from '@/services/onlineMusic/failure/onlineFailureCase';
+import { describeSpotifyFailure } from '@/services/onlineMusic/spotify/spotifyFailure';
+
 const TRACK = '4uLU6hMCjMI75M1A2tKUQC';
 // A call that cannot reach the page costs three connections: the call itself, the look again with
 // the cached player dropped, and the call once more (officialClient.cjs's `evaluateInPage`).
@@ -580,6 +584,33 @@ describe('the bridge over the official client', () => {
         officialClient.play.mockRejectedValueOnce(spotifyError('unavailable', 'The Spotify app is not installed'));
         expect(await bridge.request('client_play', { id: TRACK })).toMatchObject({ ok: false, error: { code: 'unavailable' } });
         await bridge.shutdown();
+    });
+});
+
+describe('what the app\'s failures mean for Folia', () => {
+    it('says the player was not found inside the app apart from the app not being installed', () => {
+        expect(describeSpotifyFailure('audio', new OnlineProviderError('unavailable', 'x', 'spotify', 'player-not-found')))
+            .toEqual({ case: 'unreachable', playerCause: 'player-not-found' });
+        expect(describeSpotifyFailure('audio', new OnlineProviderError('unavailable', 'x', 'spotify', 'player-not-installed')))
+            .toEqual({ case: 'not-configured', playerCause: 'player-not-installed' });
+        // The app not being on this computer is the same answer it always was: a source not set up.
+        expect(describeSpotifyFailure('audio', new OnlineProviderError('unavailable', 'x', 'spotify', 'client-missing')))
+            .toEqual({ case: 'not-configured' });
+    });
+
+    it('says the listener has not agreed to close their Spotify, and stops where it is', () => {
+        const said = describeSpotifyFailure('audio', new OnlineProviderError('unavailable', 'x', 'spotify', 'player-restart-consent'));
+        expect(said).toEqual({ case: 'not-configured', playerCause: 'player-restart-consent' });
+        const shown = onlineFailureOf({ operation: 'audio', providerId: 'spotify' }, { detail: said! });
+        expect(shown.facts.playerCause).toBe('player-restart-consent');
+        expect(stopsPlayback(shown)).toBe(true);
+    });
+
+    it('keeps a player cause it does not know out of the failure it shows', () => {
+        const shown = onlineFailureOf({ operation: 'audio', providerId: 'spotify' }, {
+            detail: { case: 'unreachable', playerCause: 'player-went-for-a-walk' as never },
+        });
+        expect(shown.facts.playerCause).toBeUndefined();
     });
 });
 

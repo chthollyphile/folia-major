@@ -10,7 +10,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // A start answers the word the app answers with: it took the track. Every other call answers
 // the probe's answer unless the test says otherwise.
-const request = vi.hoisted(() => vi.fn(async (operation: string): Promise<unknown> => (
+const request = vi.hoisted(() => vi.fn(async (operation: string, _params?: unknown): Promise<unknown> => (
     operation === 'client_play' ? 'loaded' : { available: true }
 )));
 vi.mock('@/services/onlineMusic/spotify/spotifyTransport', () => ({
