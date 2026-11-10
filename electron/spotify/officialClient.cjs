@@ -60,7 +60,8 @@ const FIRST_SESSION_CALL_LIMIT_MS = 20000;
 // another program must not hold a play open for ever.
 const CONNECT_LIMIT_MS = 4000;
 // After a start that failed, an ordinary call goes to the media session for this long instead of
-// starting Spotify again; a listener's own play asks once more regardless.
+// starting Spotify again; a listener's own play asks once more regardless. A start that was never
+// made because the restart was not agreed to leaves nothing to cool down: Spotify is untouched.
 const RESTART_COOLDOWN_MS = 30000;
 // How often one run of Folia may close and start Spotify again. A run that spent it stays on
 // the media session until Folia is started again.
@@ -1310,9 +1311,14 @@ function createSpotifyOfficialClient({
         throw lastError ?? spotifyError('unavailable', 'Spotify\'s player was not found', undefined, 'player-not-found');
     }
 
+    // A start that was given up because the restart was never agreed to is not a start that failed:
+    // Spotify was not touched, so there is nothing to cool down. Only a start that really went wrong
+    // keeps the next ordinary call off Spotify for a while, and a listener who says yes to the
+    // question right after it is asked plays at once.
+    const START_GIVEN_UP_UNTOUCHED = 'player-restart-consent';
     const ensure = options => {
         starting ||= start(options).then(() => { failedStartAt = 0; }, error => {
-            failedStartAt = Date.now();
+            if (error?.reason !== START_GIVEN_UP_UNTOUCHED) failedStartAt = Date.now();
             throw error;
         }).finally(() => { starting = null; });
         return starting;

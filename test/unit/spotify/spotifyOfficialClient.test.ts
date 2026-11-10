@@ -619,6 +619,46 @@ describe('what a call may do to Spotify', () => {
         await app.client.close();
     });
 
+    it('plays at once when the listener agrees after a play was stopped for the question', async () => {
+        FakeSocket.failuresLeft = FAILED_CONNECTIONS;
+        const app = makeClient({ running: true, portAnswers: false, appDirectory: makeLauncherDirectory(), consented: false });
+        await expect(app.client.play({ id: TRACK, startMs: 0 })).rejects.toMatchObject({ code: 'unavailable', reason: 'player-restart-consent' });
+        expect(app.taskkills()).toBe(0);
+
+        // The listener said yes in the question that play raised: that play goes ahead at once.
+        // Spotify was not touched by the start that was never made, so there is no cool-down of a
+        // failed start to wait out, and the app is closed and started again as they agreed.
+        app.consent.value = true;
+        FakeSocket.failuresLeft = FAILED_CONNECTIONS;
+        await expect(app.client.play({ id: TRACK, startMs: 0 })).resolves.toBe('loaded');
+        expect(app.taskkills()).toBe(1);
+        expect(app.spotifySpawns()).toBe(1);
+        await app.client.close();
+    });
+
+    it('still holds a play back for thirty seconds after a start that really failed', async () => {
+        FakeSocket.failuresLeft = FAILED_CONNECTIONS;
+        playerNeverFound(() => true);
+        const app = makeClient({ running: false, portAnswers: false, appDirectory: makeLauncherDirectory() });
+        await expect(app.client.play({ id: TRACK, startMs: 0 })).rejects.toMatchObject({ code: 'unavailable', reason: 'player-not-found' });
+        expect(app.spotifySpawns()).toBe(1);
+
+        // That start failed for real: the page loaded and showed no player. A play a moment later is
+        // told the app cannot be reached instead of starting it once more.
+        FakeSocket.failuresLeft = FAILED_CONNECTIONS;
+        await expect(app.client.play({ id: TRACK, startMs: 0 })).rejects.toMatchObject({
+            code: 'unavailable', message: 'The Spotify app cannot be reached',
+        });
+        expect(app.spotifySpawns()).toBe(1);
+
+        // Past the cool-down, a play starts it again.
+        vi.setSystemTime(Date.now() + 31000);
+        FakeSocket.failuresLeft = FAILED_CONNECTIONS;
+        await expect(app.client.play({ id: TRACK, startMs: 0 })).rejects.toMatchObject({ code: 'unavailable', reason: 'player-not-found' });
+        expect(app.spotifySpawns()).toBe(2);
+        await app.client.close();
+    });
+
     it('starts a Spotify that is not running without asking anything', async () => {
         FakeSocket.failuresLeft = FAILED_CONNECTIONS;
         const app = makeClient({ running: false, portAnswers: false, appDirectory: makeLauncherDirectory(), consented: false });
