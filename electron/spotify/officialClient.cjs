@@ -290,6 +290,12 @@ const START_QUEUE_SOURCE = `async ({ api, owned, replaceQueue }) => {
   // A clear that ran and left songs behind emptied nothing: it is not emptied again for this run.
   const left = heldIds();
   if (left && left.length > 0) return { cleared: false, canClear: false, written: [], read: left };
+  // A queue that cannot be read back after the clear says nothing either way: it is no proof that the
+  // songs are gone, so this start claims neither that it emptied the queue nor that the app can empty
+  // it at all. canClear is left unknown rather than answered, and the caller keeps what it already
+  // knows, as a write does with a queue it cannot read (QUEUE_SOURCE).
+  const emptied = Boolean(left) && left.length === 0;
+  if (!emptied) return { cleared: false, canClear: null, written: [], read: left };
   if (!before) return { cleared: true, canClear: true, written: [], read: left };
   // A whole list of the listener's replaced Folia's queue: the queue they had built in the app goes
   // with it, their own songs included, and nothing is put back. Every other start takes back only the

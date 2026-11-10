@@ -370,6 +370,26 @@ describe('the queue a start leaves of the listener\'s own', () => {
         expect(answer.written).toEqual([]);
         expect(app.held).toEqual([idOf('u')]);
     });
+
+    // 清空之后读不出队列（getState 抛错、或几种名字都说不清）时，没有证据说这一份队列被清掉了：
+    // 不能对整轮声称「能清」。QUEUE_SOURCE 在同样的情况下保留原来的判断（:206-219），这里照它来。
+    it('claims nothing about emptying the queue where it cannot be read back', async () => {
+        const held = [idOf('u')];
+        let cleared = false;
+        const api = { player: {
+            getState: () => {
+                // 清空之前读得出，清空之后就读不出了：这一份说不清，不是空的。
+                if (cleared) throw new Error('the state is not readable now');
+                return { nextTracks: held.map(id => ({ uri: 'spotify:track:' + id })) };
+            },
+            clearQueue: async () => { cleared = true; },
+            addToQueue: () => { throw new Error('nothing may be put back: nothing is known to be gone'); },
+        } };
+        const answer = await call(api, ['b']);
+
+        expect(answer.canClear).not.toBe(true);
+        expect(answer.cleared).toBe(false);
+    });
 });
 
 
