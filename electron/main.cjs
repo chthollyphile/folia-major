@@ -87,6 +87,7 @@ const { createQqAuthSessionRepository } = require('./qq/qqAuthSessionRepository.
 const { DEFAULT_DISCORD_APPLICATION_ID, createDiscordPresenceController } = require('./discordPresence.cjs');
 const { createVoiceInputPauseMonitor } = require('./voiceInputPause.cjs');
 const { createWindowSystemMenuGuard } = require('./windowSystemMenu.cjs');
+const { createMacDockMenu } = require('./macDockMenu.cjs');
 const { createDisplaySleepBlocker } = require('./displaySleepBlocker.cjs');
 const { createVideoExportFileWriter } = require('./videoExportFileWriter.cjs');
 const { finalizeVideoExportFile } = require('./videoExportMp4.cjs');
@@ -2245,6 +2246,15 @@ const mainProcessStartupPromise = prepareMainProcessStartup();
 const APP_LOCALE_KEY = 'APP_LOCALE';
 const mainLocale = {
   'zh-CN': {
+    dockNotPlaying: '未播放',
+    dockRepeat: '循环模式：{mode}',
+    dockRepeatOff: '关闭循环',
+    dockRepeatAll: '列表循环',
+    dockRepeatOne: '单曲循环',
+    dockPrevious: '上一首',
+    dockPlay: '播放',
+    dockPause: '暂停',
+    dockNext: '下一首',
     trayShowWindow: '显示窗口',
     trayHideWindow: '隐藏窗口',
     trayOpenRemote: '遥控窗口',
@@ -2271,6 +2281,15 @@ const mainLocale = {
     crashClose: '关闭',
   },
   'zh-TW': {
+    dockNotPlaying: '未播放',
+    dockRepeat: '迴圈模式：{mode}',
+    dockRepeatOff: '關閉迴圈',
+    dockRepeatAll: '清單迴圈',
+    dockRepeatOne: '單曲迴圈',
+    dockPrevious: '上一首',
+    dockPlay: '播放',
+    dockPause: '暫停',
+    dockNext: '下一首',
     trayShowWindow: '顯示視窗',
     trayHideWindow: '隱藏視窗',
     trayOpenRemote: '遙控視窗',
@@ -2297,6 +2316,15 @@ const mainLocale = {
     crashClose: '關閉',
   },
   en: {
+    dockNotPlaying: 'Not Playing',
+    dockRepeat: 'Repeat: {mode}',
+    dockRepeatOff: 'Off',
+    dockRepeatAll: 'All',
+    dockRepeatOne: 'One',
+    dockPrevious: 'Previous Track',
+    dockPlay: 'Play',
+    dockPause: 'Pause',
+    dockNext: 'Next Track',
     trayShowWindow: 'Show Window',
     trayHideWindow: 'Hide Window',
     trayOpenRemote: 'Remote Window',
@@ -2323,6 +2351,15 @@ const mainLocale = {
     crashClose: 'Close',
   },
   in: {
+    dockNotPlaying: 'Tidak diputar',
+    dockRepeat: 'Ulangi: {mode}',
+    dockRepeatOff: 'Nonaktif',
+    dockRepeatAll: 'Semua',
+    dockRepeatOne: 'Satu',
+    dockPrevious: 'Lagu Sebelumnya',
+    dockPlay: 'Putar',
+    dockPause: 'Jeda',
+    dockNext: 'Lagu Berikutnya',
     trayShowWindow: 'Tampilkan Jendela',
     trayHideWindow: 'Sembunyikan Jendela',
     trayOpenRemote: 'Jendela Remote',
@@ -2349,6 +2386,15 @@ const mainLocale = {
     crashClose: 'Tutup',
   },
   vi: {
+    dockNotPlaying: 'Không phát',
+    dockRepeat: 'Lặp lại: {mode}',
+    dockRepeatOff: 'Tắt',
+    dockRepeatAll: 'Tất cả',
+    dockRepeatOne: 'Một bài',
+    dockPrevious: 'Bài trước',
+    dockPlay: 'Phát',
+    dockPause: 'Tạm dừng',
+    dockNext: 'Bài tiếp theo',
     trayShowWindow: 'Hiện cửa sổ',
     trayHideWindow: 'Ẩn cửa sổ',
     trayOpenRemote: 'Cửa sổ điều khiển',
@@ -2573,6 +2619,15 @@ installCrashHandlers({
 
 let mainWindow = null;
 let modSystem = null;
+// macOS only; off macOS every call on it does nothing.
+const macDockMenu = createMacDockMenu({
+  app,
+  Menu,
+  isSupported: process.platform === 'darwin',
+  getMainWindow: () => mainWindow,
+  getLocale: () => getMainLocale(),
+  sendTransport: (action) => sendThumbarAction(action),
+});
 let remoteControlWindow = null;
 let appTray = null;
 let latestRemoteControlSnapshot = null;
@@ -3412,6 +3467,8 @@ async function enableDesktopLyricsLeavingWallpaperMode() {
 }
 
 function refreshTrayMenu() {
+  // The Dock menu shares the tray's triggers (locale, window coming and going); it skips unchanged menus.
+  macDockMenu.refresh();
   if (!appTray) {
     return;
   }
@@ -5999,6 +6056,8 @@ function createWindow(options = {}) {
     x11WallpaperWindows.add(win);
   }
 
+  macDockMenu.attach(win);
+
   // A window that stops answering: with mods running, offer to wait or to reopen without them.
   win.on('unresponsive', () => {
     win.__stoppedAnswering = true;
@@ -6154,6 +6213,7 @@ function createWindow(options = {}) {
   win.on('closed', () => {
     if (mainWindow === win) {
       mainWindow = null;
+      macDockMenu.reset();
       // macOS keeps the app running when its window is closed, so no `before-quit` follows: for
       // the mods' start note, closing the window is the normal way out there (see `before-quit`).
       // Not for a page that had stopped answering: that is what the note is for.
@@ -7833,6 +7893,8 @@ ipcMain.handle('thumbar-update-buttons', (event, state) => {
     throw new Error('Untrusted renderer attempted to update taskbar controls.');
   }
 
+  // One report feeds both: the Windows taskbar buttons and the macOS Dock menu.
+  macDockMenu.setState(state);
   return updateWindowThumbarButtons({
     hasActiveTrack: Boolean(state?.hasActiveTrack),
     canGoPrevious: Boolean(state?.canGoPrevious),

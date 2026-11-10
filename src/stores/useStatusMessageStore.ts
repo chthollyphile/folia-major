@@ -23,13 +23,23 @@ type StatusMessageState = {
     setMessage: StatusSetter;
 };
 
+let activitySequence = 0;
+
 export const useStatusMessageStore = create<StatusMessageState>((set) => ({
     message: null,
     held: false,
     setMessage: (next) => set(state => {
-        const message = typeof next === 'function'
+        let message = typeof next === 'function'
             ? (next as (prev: StatusMessage | null) => StatusMessage | null)(state.message)
             : next;
+        if (message !== state.message && message) {
+            if (message.activity === 'loading' && message.activityId === undefined) {
+                message = { ...message, activityId: ++activitySequence };
+            } else if (state.message?.activity === 'loading' && state.message.activityId !== undefined
+                && !message.activity && (message.type === 'success' || message.type === 'error')) {
+                message = { ...message, activity: message.type, activityId: state.message.activityId };
+            }
+        }
         return message === state.message ? { message } : { message, held: false };
     }),
 }));
@@ -77,4 +87,94 @@ export const runStatusMessageTime = (ms: number, onEnd: () => void): (() => void
         stopWatching();
         stand();
     };
+};
+
+/**
+ * How long an operation's loader waits before it shows. A load that ends sooner shows nothing at all,
+ * neither the loader nor its result: a toast that flashes up and away for a quick answer only distracts.
+ */
+export const STATUS_LOADING_DELAY_MS = 300;
+
+/** Loaders begun but not shown yet: activity id → the timer that shows it and the toast shown when it began. */
+const pendingLoaders = new Map<number, { timer: ReturnType<typeof setTimeout>; before: StatusMessage | null }>();
+
+/** Shows a loader unless an error, or a toast set after the loader began, holds the place. */
+const showLoader = (message: StatusMessage, before: StatusMessage | null) => {
+    setStatusMessage(previous => previous?.type === 'error' || (previous !== null && previous !== before) ? previous : message);
+};
+
+/** Takes a loader out of waiting; says whether it was still waiting (so it never showed). */
+const settlePending = (loading: StatusMessage): boolean => {
+    const id = loading.activityId;
+    const pending = id === undefined ? undefined : pendingLoaders.get(id);
+    if (id === undefined || !pending) return false;
+    clearTimeout(pending.timer);
+    pendingLoaders.delete(id);
+    return true;
+};
+
+/** Forgets every loader still waiting to show. For tests: a play one case left in flight must not show its loader in the next. */
+export const dropWaitingStatusLoaders = (): void => {
+    pendingLoaders.forEach(pending => clearTimeout(pending.timer));
+    pendingLoaders.clear();
+};
+
+/**
+ * Starts one owned loading toast, shown after `STATUS_LOADING_DELAY_MS`; a current error keeps its place.
+ * `isCurrent` says whether the operation is still wanted when the delay ends: one overtaken meanwhile
+ * (a newer play) shows nothing, even if it has not yet found out and cancelled its loader.
+ */
+export const beginStatusLoading = (text: string, isCurrent?: () => boolean): StatusMessage => {
+    const id = ++activitySequence;
+    const message: StatusMessage = { type: 'info', activity: 'loading', activityId: id, text, persistent: true };
+    const before = useStatusMessageStore.getState().message;
+    const timer = setTimeout(() => {
+        pendingLoaders.delete(id);
+        if (!isCurrent || isCurrent()) showLoader(message, before);
+    }, STATUS_LOADING_DELAY_MS);
+    pendingLoaders.set(id, { timer, before });
+    return message;
+};
+
+/** Only this operation's still-visible loader becomes its result; one that never showed ends silently. */
+export const completeStatusLoading = (loading: StatusMessage | null, text: string): void => {
+    if (!loading || settlePending(loading)) return;
+    setStatusMessage(previous => previous?.activity === 'loading' && previous.activityId === loading.activityId
+        ? { type: 'success', activity: 'success', activityId: loading.activityId, text, durationMs: 850 }
+        : previous);
+};
+
+/** A failed operation turns its own shown loader into the failure; one that never showed ends silently. */
+export const failStatusLoading = (loading: StatusMessage | null, text: string): void => {
+    if (!loading || settlePending(loading)) return;
+    setStatusMessage(previous => previous?.activity === 'loading' && previous.activityId === loading.activityId
+        ? { type: 'error', activity: 'error', activityId: loading.activityId, text }
+        : previous);
+};
+
+/** Drops only the cancelled operation's own loader, shown or still waiting. */
+export const cancelStatusLoading = (loading: StatusMessage | null): void => {
+    if (!loading || settlePending(loading)) return;
+    setStatusMessage(previous => previous?.activity === 'loading' && previous.activityId === loading.activityId ? null : previous);
+};
+
+/** Changes what this operation's loader says (a retry); one still waiting shows at once with the new words. */
+export const reviseStatusLoading = (loading: StatusMessage | null, patch: Partial<StatusMessage>): void => {
+    if (!loading) return;
+    if (settlePending(loading)) {
+        setStatusMessage(previous => previous?.type === 'error' ? previous : { ...loading, ...patch });
+        return;
+    }
+    setStatusMessage(previous => previous?.activity === 'loading' && previous.activityId === loading.activityId
+        ? { ...previous, ...patch }
+        : previous);
+};
+
+/** Decorate before callers retain a toast by identity (for example a skip countdown). */
+export const withStatusLoadingResult = (message: StatusMessage): StatusMessage => {
+    const previous = useStatusMessageStore.getState().message;
+    return previous?.activity === 'loading' && previous.activityId !== undefined
+        && (message.type === 'success' || message.type === 'error')
+        ? { ...message, activity: message.type, activityId: previous.activityId }
+        : message;
 };

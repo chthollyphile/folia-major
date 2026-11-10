@@ -5,16 +5,17 @@ import type { OnlineProviderId, ProviderAccountSummary } from '../../types/onlin
 // 它们排成什么顺序，切换器上画哪一个。都是纯函数。
 
 /** 一行（一个平台）此刻的状态。'off'：这个构建够不着它（没有配置），不能选。 */
-export type RowStatus = 'signed-in' | 'ran-out' | 'signed-out' | 'accountless' | 'off';
+export type RowStatus = 'signed-in' | 'ran-out' | 'signed-out' | 'accountless' | 'off' | 'checking';
 
 export const rowStatus = (provider: ProviderAccountSummary): RowStatus => {
     if (!provider.availability.configured) return 'off';
     if (provider.requiresAccount === false) return 'accountless';
     if (provider.status === 'authenticated') return 'signed-in';
+    if (provider.status === 'unknown' || provider.hydration === 'loading') return 'checking';
     return provider.error === 'auth-required' ? 'ran-out' : 'signed-out';
 };
 
-const RANK: Record<RowStatus, number> = { 'signed-in': 1, 'ran-out': 2, 'signed-out': 3, accountless: 3, off: 3 };
+const RANK: Record<RowStatus, number> = { 'signed-in': 1, 'ran-out': 2, 'signed-out': 3, accountless: 3, off: 3, checking: 3 };
 
 /**
  * 那一列的顺序：正在用的（也就是上次用的）平台在最前，然后是已登录的、登录失效的，其余按注册的顺序。
