@@ -52,13 +52,18 @@ export type SubtitleContentMode = 'translation' | 'romanization' | 'both' | 'non
 // One row of the shared bottom subtitle overlay: the line on screen, the line after it, or the line on screen's translation / romanization.
 export type SubtitleOverlayRowSource = 'current' | 'next' | 'translation' | 'romanization';
 export type SubtitleOverlayFollowRow = Exclude<SubtitleOverlayRowSource, 'current'>;
-// The shared bottom subtitle overlay's rows, top to bottom, joined with '+' (stored and carried as this string).
-// One row is the current line, its translation or its romanization; two or three rows open with the current line,
-// and each row after it is the next line, the translation or the romanization.
-export type SubtitleOverlayLayout =
-  | Exclude<SubtitleOverlayRowSource, 'next'>
-  | `current+${SubtitleOverlayFollowRow}`
-  | `current+${SubtitleOverlayFollowRow}+${SubtitleOverlayFollowRow}`;
+// The shared bottom subtitle overlay's rows, top to bottom, joined with '+'.
+// The first row is the current line, its translation or its romanization (so a stack can leave the original text out);
+// each row after it is the next line, the translation or the romanization.
+export type SubtitleOverlayFirstRow = Exclude<SubtitleOverlayRowSource, 'next'>;
+export type SubtitleOverlayRowsLayout =
+  | SubtitleOverlayFirstRow
+  | `${SubtitleOverlayFirstRow}+${SubtitleOverlayFollowRow}`
+  | `${SubtitleOverlayFirstRow}+${SubtitleOverlayFollowRow}+${SubtitleOverlayFollowRow}`;
+// A line the rows have nothing for (a translation row on a song without one) previews the coming lyrics instead.
+// The '|only' ending turns that off: the overlay then shows its rows and nothing else.
+// Stored and carried as this string.
+export type SubtitleOverlayLayout = SubtitleOverlayRowsLayout | `${SubtitleOverlayRowsLayout}|only`;
 
 export interface LyricAgent {
   id: string;
