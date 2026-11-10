@@ -1,6 +1,6 @@
 import { useCallback, useRef, type RefObject } from 'react';
 import { formatWorldTransform, type WallView, type WallViewCenter } from '../../../components/wall/wallView';
-import { computeBravaisFrame, posterSafeArea, seamTransforms, wallHintRowSpan, wallHintSpan, withTilt } from './bravaisFrame';
+import { computeBravaisFrame, posterSafeArea, seamTiltInsets, seamTransforms, wallHintRowSpan, wallHintSpan, withTilt } from './bravaisFrame';
 
 // src/library/suites/bravais/useBravaisFrame.ts
 // stage 每帧要写的那几样（相机、缝的锚点与动画中的开口、缝内容的排版宽度、是否折叠）放在一个可变的 ref 里，
@@ -8,6 +8,9 @@ import { computeBravaisFrame, posterSafeArea, seamTransforms, wallHintRowSpan, w
 // 边缘标签的显隐与侧别、空墙说明的区间，不经过 React（frontend-runtime-guardrails：拖动、补间期间没有逐帧 setState）。
 // 横向的缝（anchorY）写的是缝的 translateY 与高度，另记横条是否张开落定（data-bravais-seam-settled，落定时不裁内容）
 // 与它在视口的上半还是下半（data-bravais-seam-half，菜单往另一边弹）。
+// 整层倾斜着时（tiltDeg 不是 0，竖的缝）缝上挂 data-bravais-seam-tilted：缝上下多出一截出血、盖住转过去之后露出来的角
+// （bravais.css），内容上下缩进到转过去之后仍在视口里（seamTiltInsets，写成 --bravais-seam-tilt-top / -bottom）。海报有自己
+// 常驻的出血与安全区（bravaisPoster.css、posterSafeArea），不看这两样。
 
 export type BravaisFrameState = {
     view: WallView | null;
@@ -24,6 +27,8 @@ export type BravaisFrameState = {
     poster: boolean;
     /** 整层此刻的倾斜角（度；补间中逐帧变）。 */
     tiltDeg: number;
+    /** 倾斜正在补间去的角度（不补间时等于 tiltDeg）：聚焦卡的相机让位按转到位之后的样子算（useBravaisFocus）。 */
+    tiltTargetDeg: number;
     /** 倾斜没在补间：缝的旋转画进轨道那一层（字清楚），补间中整块交给合成器转（bravaisFrame 的 seamTransforms）。 */
     tiltSettled: boolean;
 };
@@ -52,11 +57,12 @@ export const useBravaisFrame = (refs: BravaisFrameRefs) => {
         hidden: false,
         poster: false,
         tiltDeg: 0,
+        tiltTargetDeg: 0,
         tiltSettled: true,
     });
     /** 上一次写给轨道与缝的 transform（连同写给的节点）：只在变了时写（读回的 style.transform 会被浏览器规范化，不能拿来比）。 */
-    const writtenRef = useRef<{ trackNode: HTMLElement | null; track: string; seamNode: HTMLElement | null; seam: string }>({
-        trackNode: null, track: '', seamNode: null, seam: '',
+    const writtenRef = useRef<{ trackNode: HTMLElement | null; track: string; seamNode: HTMLElement | null; seam: string; insetsNode: HTMLElement | null; insets: string }>({
+        trackNode: null, track: '', seamNode: null, seam: '', insetsNode: null, insets: '',
     });
 
     const renderFrame = useCallback(() => {
@@ -112,6 +118,12 @@ export const useBravaisFrame = (refs: BravaisFrameRefs) => {
             }
             const visibility = frame.seam.visible ? 'visible' : 'hidden';
             if (seamElement.style.visibility !== visibility) seamElement.style.visibility = visibility;
+            // 倾斜着的竖缝上下多出一截出血（样式按这个属性给，海报除外：它的出血常驻）。
+            const tilted = frame.seam.axis === 'x' && Math.abs(frame.tilt.deg) >= 0.001;
+            if (tilted !== (seamElement.dataset.bravaisSeamTilted !== undefined)) {
+                if (tilted) seamElement.dataset.bravaisSeamTilted = '';
+                else delete seamElement.dataset.bravaisSeamTilted;
+            }
         }
         const contentElement = seamContent.current;
         if (contentElement) {
@@ -122,6 +134,17 @@ export const useBravaisFrame = (refs: BravaisFrameRefs) => {
                 : { scale: 1, offsetY: 0 };
             contentElement.style.setProperty('--bravais-poster-safe-scale', safe.scale.toFixed(4));
             contentElement.style.setProperty('--bravais-poster-safe-y', `${safe.offsetY.toFixed(1)}px`);
+            // 倾斜的信息条 / 书脊 / 首页窄缝：内容上下缩进（按这套内容的排版宽度算，拖动时不变；只在变了时写，补间中逐帧变）。
+            // 缝里画着海报时样式不读这两个变量（海报用上面的安全区）。
+            const insets = seamTiltInsets({ width: state.contentWidth, height: state.view.height, deg: frame.tilt.deg });
+            const insetsKey = `${insets.top.toFixed(1)}px ${insets.bottom.toFixed(1)}px`;
+            const written = writtenRef.current;
+            if (written.insetsNode !== contentElement || written.insets !== insetsKey) {
+                contentElement.style.setProperty('--bravais-seam-tilt-top', `${insets.top.toFixed(1)}px`);
+                contentElement.style.setProperty('--bravais-seam-tilt-bottom', `${insets.bottom.toFixed(1)}px`);
+                written.insetsNode = contentElement;
+                written.insets = insetsKey;
+            }
         }
         const tabElement = tab.current;
         if (tabElement) {

@@ -8,6 +8,7 @@ import { BRAVAIS_METRICS } from './bravaisConstants';
 // 半个开口（加半个 GAP），不需要裁剪。stage 在相机移动、缝开合时调用它，只写 transform / 尺寸，不经过 React。
 // 信息条横向时锚点是块行边界的世界 y（anchorY）：墙分上下两半（仍叫 left / right，left 是上半），各自上下让开，缝是
 // 一道横跨视口的横条；边缘标签仍在左右侧边（横条贴着上下边收起时标签在左边）。海报总是竖的，倾斜只跟着竖的缝。
+// 倾斜（tiltDeg）不分页面：首页、集合页与海报都是同一段旋转，转多少由 bravaisTilt 按缝里的内容定。
 
 export type BravaisFrameInput = {
     center: WallViewCenter;
@@ -27,7 +28,7 @@ export type BravaisFrameInput = {
      * （planPosterOpening）。
      */
     poster?: boolean;
-    /** 整层（两半墙与缝）此刻的倾斜角（度；海报在场时转过去，见 BRAVAIS_POSTER_TILT_DEG）。 */
+    /** 整层（两半墙与缝）此刻的倾斜角（度；各种页面转多少见 BRAVAIS_TILT_DEG）。 */
     tiltDeg?: number;
 };
 
@@ -187,6 +188,37 @@ export const posterSafeArea = ({ width, height, deg }: { width: number; height: 
     return { scale: lo, offsetY };
 };
 
+/** 屏幕上的一点绕支点转 deg 度（与 CSS 的 rotate 同向：y 轴朝下，正 = 顺时针）；倾斜的各处换算共用这一个。 */
+export const rotateAround = (x: number, y: number, pivot: { pivotX: number; pivotY: number }, deg: number) => {
+    const radians = (deg * Math.PI) / 180;
+    const cos = Math.cos(radians);
+    const sin = Math.sin(radians);
+    const dx = x - pivot.pivotX;
+    const dy = y - pivot.pivotY;
+    return { x: pivot.pivotX + dx * cos - dy * sin, y: pivot.pivotY + dx * sin + dy * cos };
+};
+
+/**
+ * 倾斜的缝（信息条、书脊、首页窄缝；海报另有 posterSafeArea）里，内容上下各要缩进多少（屏幕 px）：缝绕右缘、视口半高转过去
+ * 之后，内容那一列的四个角仍落在视口的上下缘之内（左下的按钮、左上的面包屑不被切掉）。只看上下——这种缝不贴着视口边，
+ * 左右不会转出去。随角度连续变化（0° 时是 0），只跟内容的排版宽度、视口高度与角度有关，拖动时不变。
+ */
+export const seamTiltInsets = ({ width, height, deg }: { width: number; height: number; deg: number }) => {
+    if (Math.abs(deg) < 0.001 || width <= 0 || height <= 0) return { top: 0, bottom: 0 };
+    const radians = (deg * Math.PI) / 180;
+    const cos = Math.cos(radians);
+    const sin = Math.sin(radians);
+    const half = height / 2;
+    // 内容的角相对转轴（缝右缘、半高）：rx ∈ {−width, 0}，转过去后屏幕 y = half + rx·sin + ry·cos。
+    // 上缘 ry = top − half 要 ≥ 0，取 rx·sin 最小的那个角；下缘 ry = half − bottom 要 ≤ height，取最大的那个。
+    const lift = Math.min(0, -width * sin);
+    const drop = Math.max(0, -width * sin);
+    return {
+        top: Math.max(0, half - (half + lift) / cos),
+        bottom: Math.max(0, half - (half - drop) / cos),
+    };
+};
+
 /**
  * 倾斜时视口在「没倾斜的屏幕坐标」里的外接框，相对 [0, 宽] × [0, 高] 各边挪了多少（px，往外为正、往里为负）：视口四个角
  * 按倾斜反转回去（u = R⁻¹(s − pivot) + pivot）。支点跟着缝在屏幕上走——缝被拖到视口外很远时，反转回去的视口整块平移开
@@ -194,14 +226,9 @@ export const posterSafeArea = ({ width, height, deg }: { width: number; height: 
  */
 export const getTiltReach = (view: { width: number; height: number }, tilt: BravaisFrame['tilt']) => {
     if (Math.abs(tilt.deg) < 0.001) return { left: 0, right: 0, top: 0, bottom: 0 };
-    const radians = (-tilt.deg * Math.PI) / 180;
-    const cos = Math.cos(radians);
-    const sin = Math.sin(radians);
-    const corners = [[0, 0], [view.width, 0], [0, view.height], [view.width, view.height]].map(([x, y]) => {
-        const dx = x - tilt.pivotX;
-        const dy = y - tilt.pivotY;
-        return { x: tilt.pivotX + dx * cos - dy * sin, y: tilt.pivotY + dx * sin + dy * cos };
-    });
+    const corners = [[0, 0], [view.width, 0], [0, view.height], [view.width, view.height]].map(([x, y]) => (
+        rotateAround(x, y, tilt, -tilt.deg)
+    ));
     const xs = corners.map(corner => corner.x);
     const ys = corners.map(corner => corner.y);
     return {

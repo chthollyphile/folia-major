@@ -30,14 +30,17 @@ const area = (bounds: Bounds) => (bounds.right - bounds.left) * (bounds.bottom -
 /**
  * 当前可见的世界范围（缝张开时两半各让出半个开口，左右再放宽一个开口宽；横的缝放宽上下）。倾斜时再按反转回去的视口放宽
  * （getTiltReach）：支点跟着缝走，缝拖远了视口会整块偏开，不能只靠 overscan 兜着。
+ * center 缺省是此刻的视图中心；给别的中心就是「相机到了那里时」的可见范围（补间的目的地、拖动与滚轮的下一步）——
+ * 这几处也得按倾斜算：缝在远处时倾斜的视口整块偏开，按没倾斜的范围预留，飞行途中墙是空的；按没倾斜的范围判断
+ * 「快到边缘」，每一帧都会重新裁剪。
  */
-export const getVisibleWorldBounds = (state: BravaisFrameState): Bounds | null => {
+export const getVisibleWorldBounds = (state: BravaisFrameState, center: WallViewCenter = state.center): Bounds | null => {
     const { view } = state;
     if (!view) return null;
-    const bounds = getViewWorldBounds(state.center, view, seamBoundsOf(state));
+    const bounds = getViewWorldBounds(center, view, seamBoundsOf(state));
     if (Math.abs(state.tiltDeg) < 0.001 || state.anchorX === null) return bounds;
     const { tilt } = computeBravaisFrame({
-        center: state.center,
+        center,
         view,
         anchorX: state.anchorX,
         openWidth: state.openWidth,
@@ -132,9 +135,8 @@ export const useBravaisCamera = ({
         stopCamera();
         const from = { ...frameRef.current.center };
         if (Math.abs(target.x - from.x) < 0.5 && Math.abs(target.y - from.y) < 0.5) return;
-        const view = frameRef.current.view;
-        if (view) {
-            const destination = getViewWorldBounds(target, view, seamBoundsOf(frameRef.current));
+        const destination = getVisibleWorldBounds(frameRef.current, target);
+        if (destination) {
             setBounds(current => {
                 if (!current) return destination;
                 const merged = {
@@ -208,7 +210,7 @@ export const useBravaisCamera = ({
     const getWorldBounds = useCallback((camera: LatticeCamera) => {
         const view = frameRef.current.view;
         if (!view) return { left: 0, right: 0, top: 0, bottom: 0 };
-        return getViewWorldBounds(viewCenterFromCamera(camera, view), view, seamBoundsOf(frameRef.current));
+        return getVisibleWorldBounds(frameRef.current, viewCenterFromCamera(camera, view)) ?? { left: 0, right: 0, top: 0, bottom: 0 };
     }, [frameRef]);
     const pointer = useWallPointerPan({
         applyCamera,

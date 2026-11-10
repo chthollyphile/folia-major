@@ -31,7 +31,8 @@ import { useBravaisKeyboard } from './useBravaisKeyboard';
 import { useBravaisBlockPlates } from './useBravaisBlockPlates';
 import { useBravaisReflowDriver } from './useBravaisReflowDriver';
 import { useBravaisPlayerSafeArea } from './useBravaisPlayerSafeArea';
-import { useBravaisPosterTilt } from './useBravaisPosterTilt';
+import { resolveBravaisTiltDeg } from './bravaisTilt';
+import { useBravaisTilt } from './useBravaisTilt';
 import { albumPaletteVars, posterPaletteVars, resolvePosterPaletteSources, useBravaisPosterPalette } from './bravaisPosterPalette';
 import { useBravaisSeam } from './useBravaisSeam';
 import { useBravaisViewport } from './useBravaisViewport';
@@ -241,13 +242,20 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
         checkCull: camera.checkCull,
     });
     const { bottomPx, getBottomInset } = useBravaisPlayerSafeArea();
-    // 歌手海报在场时整层（两半墙与缝）一起倾斜，倾斜着照样拖动、滚动（useBravaisPosterTilt）。从横的信息条换过来时
-    // 等横条合上、竖的海报换上来再转（横条在场时帧里没有倾斜，提前开始补间会在换方向那一刻跳一下）。
-    useBravaisPosterTilt({
+    // 整层（两半墙与缝）一起倾斜，倾斜着照样拖动、滚动（useBravaisTilt）。转多少按缝里要画的内容定（bravaisTilt：歌手 / 专辑
+    // 海报、首页、集合页各一个角度，见 BRAVAIS_TILT_DEG）。从横的信息条换过来时等横条合上、竖的缝换上来再转（横条在场时
+    // 帧里没有倾斜，提前开始补间会在换方向那一刻跳一下）。
+    useBravaisTilt({
         frameRef,
         renderFrame,
         checkCull: camera.checkCull,
-        poster: seamTarget.variant === 'poster' && seamTarget.width > 0 && seam.rendered.axis !== 'y',
+        deg: resolveBravaisTiltDeg({
+            variant: seamTarget.variant,
+            openWidth: seamTarget.width,
+            targetAxis: seamTarget.axis,
+            renderedAxis: seam.rendered.axis,
+            reducedMotion,
+        }),
         reducedMotion,
     });
 

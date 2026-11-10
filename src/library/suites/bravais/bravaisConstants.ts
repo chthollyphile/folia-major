@@ -27,16 +27,23 @@ export const BRAVAIS_SEAM_ROW_SPINE_HEIGHT = 52;
 export const BRAVAIS_SEAM_POSTER_MIN_WIDTH = 520;
 export const BRAVAIS_SEAM_POSTER_MAX_WIDTH = 680;
 export const BRAVAIS_SEAM_POSTER_VIEWPORT_RATIO = 0.46;
-/** 海报在场时整层（两半墙与缝）倾斜的角度（度，负 = 逆时针），绕海报右缘、视口半高转。 */
-export const BRAVAIS_POSTER_TILT_DEG = -10;
+/**
+ * 整层（两半墙与缝）倾斜的角度（度，负 = 逆时针，0 = 不倾斜），绕缝的右缘、视口半高转。按缝里此刻要画的那一套内容取
+ * （bravaisTilt 的 resolveBravaisTiltDeg）：
+ * - home：首页的窄缝与书脊；
+ * - collection：集合页（歌单、专辑与歌手页不画海报时）的信息条与书脊；
+ * - poster：歌手 / 专辑海报。
+ * 面板、表单、首页的搜索框与横向的缝不倾斜。要改某一种页面的倾斜角只改这张表。
+ */
+export const BRAVAIS_TILT_DEG: Record<'home' | 'collection' | 'poster', number> = { home: 0, collection: 0, poster: -10 };
 /**
  * 倾斜的补间：张开时等裂缝先走一小段（DELAY）再转，转得比开口与相机慢一点，三者一起落定；回正跟着缝合上走。
  * 缓动两头都平（ease-in-out），不是一下子甩过去。
  */
-export const BRAVAIS_POSTER_TILT_IN_DELAY_S = 0.12;
-export const BRAVAIS_POSTER_TILT_IN_S = 0.95;
-export const BRAVAIS_POSTER_TILT_OUT_S = 0.5;
-export const BRAVAIS_POSTER_TILT_EASE = [0.45, 0, 0.2, 1] as const;
+export const BRAVAIS_TILT_IN_DELAY_S = 0.12;
+export const BRAVAIS_TILT_IN_S = 0.95;
+export const BRAVAIS_TILT_OUT_S = 0.5;
+export const BRAVAIS_TILT_EASE = [0.45, 0, 0.2, 1] as const;
 /** 视口窄于它时默认收成书脊（设计稿 §5 的 NARROW_VW）。 */
 export const BRAVAIS_NARROW_VIEWPORT_PX = 900;
 
