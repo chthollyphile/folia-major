@@ -146,6 +146,7 @@
 - `dev/probes/ponderHint.probe.tsx`
 - `dev/probes/ponderPageSurfaces.probe.tsx`
 - `dev/probes/remoteActions.probe.tsx`
+- `dev/probes/sceneHost.probe.tsx`
 - `dev/probes/settingsHelpActions.probe.tsx`
 - `dev/probes/settingsNavigation.probe.tsx`
 - `dev/probes/subtitleOverlayRows.probe.tsx`
@@ -248,6 +249,10 @@
 - `src/components/ponder/targets/studio/lyricStyle.target.ts`
 - `src/components/ponder/targets/studio/themePark.target.ts`
 - `src/components/ponder/targets/studio/visPlayground.target.ts`
+
+### `src/components/scenes/registry.ts`
+
+- `src/components/scenes/cinema/entry.ts`
 
 ### `src/components/visualizer/backgrounds/registry.tsx`
 
