@@ -16,6 +16,10 @@ optdepends=(
 )
 provides=('folia-major')
 conflicts=('folia-major')
+# Prebuilt Electron/Chromium binaries ship without usable debug info (e.g. split-DWARF
+# references to .dwo files that are not in the release archive). Stripping them gains
+# nothing and makepkg's debug step only produces empty -debug packages and gdb-add-index errors.
+options=('!strip' '!debug')
 source=(
   "https://github.com/chthollyphile/folia-major/releases/download/v${pkgver}/folia-major-${pkgver}-linux-x64.tar.gz"
   'folia-major.desktop'
