@@ -78,7 +78,8 @@ export const useBravaisFocus = ({
                     center: frame.poster || !centered ? frame.center : plain(),
                     view,
                     anchorX: frame.anchorX,
-                    openWidth: frame.openWidth,
+                    // 与倾斜一样按落定后的样子量：开口正在张开时用张开后的宽度（两半墙让出的是整个开口）。
+                    openWidth: seamWidth,
                     contentWidth: frame.contentWidth,
                     hidden: frame.hidden,
                     poster: frame.poster,

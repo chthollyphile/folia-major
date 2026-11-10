@@ -27,13 +27,24 @@ export type BravaisTiltInput = {
     targetAxis: SeamAxis | null;
     /** 缝里此刻画着的内容的方向：横条还没合上时不转（横条在场时帧里没有倾斜，提前开始补间会在换方向那一刻跳一下）。 */
     renderedAxis: SeamAxis | null;
+    /**
+     * 这一层此刻是有限拼贴（过滤、批量、只看隐藏）：不倾斜。有限态的相机范围按没倾斜的视口算（wall/finiteWall），倾斜着
+     * 离缝远的磁贴会被抬出或压出屏幕、拖不回来；海报同样只画在无限拼贴上。
+     */
+    finite: boolean;
     /** 降低动态效果（lattice）时不倾斜。 */
     reducedMotion: boolean;
 };
 
-/** 整层的目标倾斜角（度）。只有竖的缝张开着才倾斜：支点是缝的右缘，横的缝与没有缝时帧里没有倾斜（computeBravaisFrame）。 */
-export const resolveBravaisTiltDeg = ({ variant, openWidth, targetAxis, renderedAxis, reducedMotion }: BravaisTiltInput): number => {
-    if (reducedMotion || openWidth <= 0 || targetAxis !== 'x' || renderedAxis === 'y') return 0;
+/**
+ * 整层的目标倾斜角（度）。只有竖的缝张开着才倾斜：支点是缝的右缘，横的缝与没有缝时帧里没有倾斜（computeBravaisFrame）。
+ * table 缺省是出厂的那张表（测试里换一张，各种页面的角度互不相同才分得清走的是哪一格）。
+ */
+export const resolveBravaisTiltDeg = (
+    { variant, openWidth, targetAxis, renderedAxis, finite, reducedMotion }: BravaisTiltInput,
+    table: Record<BravaisTiltPage, number> = BRAVAIS_TILT_DEG,
+): number => {
+    if (reducedMotion || finite || openWidth <= 0 || targetAxis !== 'x' || renderedAxis === 'y') return 0;
     const page = resolveBravaisTiltPage(variant);
-    return page ? BRAVAIS_TILT_DEG[page] : 0;
+    return page ? table[page] : 0;
 };

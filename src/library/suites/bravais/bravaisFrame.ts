@@ -200,8 +200,9 @@ export const rotateAround = (x: number, y: number, pivot: { pivotX: number; pivo
 
 /**
  * 倾斜的缝（信息条、书脊、首页窄缝；海报另有 posterSafeArea）里，内容上下各要缩进多少（屏幕 px）：缝绕右缘、视口半高转过去
- * 之后，内容那一列的四个角仍落在视口的上下缘之内（左下的按钮、左上的面包屑不被切掉）。只看上下——这种缝不贴着视口边，
- * 左右不会转出去。随角度连续变化（0° 时是 0），只跟内容的排版宽度、视口高度与角度有关，拖动时不变。
+ * 之后，内容那一列的四个角仍落在视口的上下缘之内（左下的按钮不被切掉）。只管上下：缝停在离视口左右边很近的地方
+ * （SEAM_EDGE_MARGIN）时，转过去的上端 / 下端仍会横着出屏约 高度 / 2 × |sin|，这里不处理。随角度连续变化（0° 时是 0），
+ * 只跟内容的排版宽度、视口高度与角度有关，拖动时不变。
  */
 export const seamTiltInsets = ({ width, height, deg }: { width: number; height: number; deg: number }) => {
     if (Math.abs(deg) < 0.001 || width <= 0 || height <= 0) return { top: 0, bottom: 0 };

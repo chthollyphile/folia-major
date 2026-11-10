@@ -254,6 +254,7 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
             openWidth: seamTarget.width,
             targetAxis: seamTarget.axis,
             renderedAxis: seam.rendered.axis,
+            finite: layer?.mode === 'finite',
             reducedMotion,
         }),
         reducedMotion,

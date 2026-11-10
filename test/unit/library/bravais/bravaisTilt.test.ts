@@ -5,16 +5,21 @@ import { resolveBravaisTiltDeg, resolveBravaisTiltPage, type BravaisTiltInput } 
 
 // test/unit/library/bravais/bravaisTilt.test.ts
 // 整层的倾斜角：哪一套缝的内容算哪一种页面（首页 / 集合页 / 海报，各取 BRAVAIS_TILT_DEG 里的角度），什么时候不倾斜
-// （面板、表单、搜索框、折叠、横向的缝、合上的缝、降低动态效果），以及倾斜的信息条里内容上下缩进多少。
+// （面板、表单、搜索框、折叠、横向的缝、合上的缝、有限拼贴、降低动态效果），以及倾斜的信息条里内容上下缩进多少。
 
 const input = (patch: Partial<BravaisTiltInput> = {}): BravaisTiltInput => ({
     variant: 'poster',
     openWidth: 600,
     targetAxis: 'x',
     renderedAxis: 'x',
+    finite: false,
     reducedMotion: false,
     ...patch,
 });
+
+// 每一格角度都不一样、都不是 0：出厂的表里首页与集合页是 0，拿它测分不清「取了这一格」和「没倾斜」。
+const TABLE = { home: -4, collection: -6, poster: -10 };
+const tilt = (patch: Partial<BravaisTiltInput> = {}) => resolveBravaisTiltDeg(input(patch), TABLE);
 
 describe('resolveBravaisTiltPage', () => {
     it('groups the seam contents by page kind', () => {
@@ -28,36 +33,50 @@ describe('resolveBravaisTiltPage', () => {
     it('keeps panels, forms, the home search and the folded seam upright', () => {
         for (const variant of ['panel', 'form', 'search', 'none'] as const) {
             expect(resolveBravaisTiltPage(variant)).toBeNull();
-            expect(resolveBravaisTiltDeg(input({ variant }))).toBe(0);
+            expect(tilt({ variant })).toBe(0);
         }
     });
 });
 
 describe('resolveBravaisTiltDeg', () => {
-    it('takes each page kind from the one table', () => {
-        expect(resolveBravaisTiltDeg(input({ variant: 'poster' }))).toBe(BRAVAIS_TILT_DEG.poster);
-        expect(resolveBravaisTiltDeg(input({ variant: 'home' }))).toBe(BRAVAIS_TILT_DEG.home);
-        expect(resolveBravaisTiltDeg(input({ variant: 'home-spine' }))).toBe(BRAVAIS_TILT_DEG.home);
-        expect(resolveBravaisTiltDeg(input({ variant: 'full' }))).toBe(BRAVAIS_TILT_DEG.collection);
-        expect(resolveBravaisTiltDeg(input({ variant: 'spine' }))).toBe(BRAVAIS_TILT_DEG.collection);
+    it('takes each page kind from its own entry of the table', () => {
+        expect(tilt({ variant: 'poster' })).toBe(-10);
+        expect(tilt({ variant: 'home' })).toBe(-4);
+        expect(tilt({ variant: 'home-spine' })).toBe(-4);
+        expect(tilt({ variant: 'full' })).toBe(-6);
+        expect(tilt({ variant: 'spine' })).toBe(-6);
     });
 
-    it('tilts the artist and album poster and leaves the home and collection pages as they ship', () => {
-        expect(BRAVAIS_TILT_DEG.poster).toBe(-10);
-        expect(BRAVAIS_TILT_DEG.home).toBe(0);
-        expect(BRAVAIS_TILT_DEG.collection).toBe(0);
+    it('reads the shipped table by default: the poster tilts, the home and collection pages stay upright', () => {
+        expect(BRAVAIS_TILT_DEG).toEqual({ home: 0, collection: 0, poster: -10 });
+        expect(resolveBravaisTiltDeg(input({ variant: 'poster' }))).toBe(-10);
+        expect(resolveBravaisTiltDeg(input({ variant: 'home' }))).toBe(0);
+        expect(resolveBravaisTiltDeg(input({ variant: 'full' }))).toBe(0);
     });
 
-    it('straightens while the seam is shut, with reduced motion, and for a seam that runs across', () => {
-        expect(resolveBravaisTiltDeg(input({ openWidth: 0 }))).toBe(0);
-        expect(resolveBravaisTiltDeg(input({ reducedMotion: true }))).toBe(0);
-        expect(resolveBravaisTiltDeg(input({ variant: 'full', targetAxis: 'y', renderedAxis: 'y' }))).toBe(0);
-        expect(resolveBravaisTiltDeg(input({ variant: 'none', targetAxis: null }))).toBe(0);
+    // 下面每一条只动一个条件，其余都是「会倾斜」的样子（集合页的信息条，表里 −6）。
+    it('straightens while the seam is shut', () => {
+        expect(tilt({ variant: 'full', openWidth: 0 })).toBe(0);
+    });
+
+    it('straightens with reduced motion', () => {
+        expect(tilt({ variant: 'full', reducedMotion: true })).toBe(0);
+    });
+
+    it('straightens on a finite wall (a filter is on)', () => {
+        expect(tilt({ variant: 'full', finite: true })).toBe(0);
+        expect(tilt({ variant: 'home', finite: true })).toBe(0);
+    });
+
+    it('does not tilt a seam that is going to run across, even before the upright one has left', () => {
+        expect(tilt({ variant: 'full', targetAxis: 'y', renderedAxis: 'x' })).toBe(0);
+        expect(tilt({ variant: 'full', targetAxis: null, renderedAxis: 'x' })).toBe(0);
     });
 
     it('waits for a row strip to close before turning for the upright seam that replaces it', () => {
-        expect(resolveBravaisTiltDeg(input({ renderedAxis: 'y' }))).toBe(0);
-        expect(resolveBravaisTiltDeg(input({ renderedAxis: null }))).toBe(BRAVAIS_TILT_DEG.poster);
+        expect(tilt({ variant: 'full', targetAxis: 'x', renderedAxis: 'y' })).toBe(0);
+        expect(tilt({ variant: 'full', targetAxis: 'x', renderedAxis: null })).toBe(-6);
+        expect(tilt({ variant: 'full', targetAxis: 'x', renderedAxis: 'x' })).toBe(-6);
     });
 });
 

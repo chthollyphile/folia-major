@@ -33,7 +33,11 @@ export const BRAVAIS_SEAM_POSTER_VIEWPORT_RATIO = 0.46;
  * - home：首页的窄缝与书脊；
  * - collection：集合页（歌单、专辑与歌手页不画海报时）的信息条与书脊；
  * - poster：歌手 / 专辑海报。
- * 面板、表单、首页的搜索框与横向的缝不倾斜。要改某一种页面的倾斜角只改这张表。
+ * 面板、表单、首页的搜索框、横向的缝与有限拼贴（过滤中）不倾斜。
+ * home / collection 现在是 0：把它们改成别的角度，倾斜、裁剪、缝的出血与内容缩进、聚焦卡让位都跟着走，但还有几处是按
+ * 「只有海报会倾斜」写的，改之前先看一遍——缝贴着视口左右边时内容的上端 / 下端会横着出屏（seamTiltInsets 只管上下）；
+ * 倾斜着换锚点（边缘标签「在这里裂开」、换层）墙会竖着跳一下；翻牌 / 入场范围与第一次按方向键的落点按没倾斜的视口判断
+ * （useBravaisDisplay、useBravaisInteractions）；翻牌交接（useBravaisWallHandoff）量磁贴时墙还没回正；空墙说明不跟着转。
  */
 export const BRAVAIS_TILT_DEG: Record<'home' | 'collection' | 'poster', number> = { home: 0, collection: 0, poster: -10 };
 /**
