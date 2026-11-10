@@ -882,7 +882,7 @@ export default {
       "obs-toggle-keep-main-window-animation": { "title": "OBS: pertahankan animasi jendela utama", "description": "Aktifkan atau nonaktifkan animasi jendela utama saat OBS terhubung" },
       "obs-toggle-track-card": { "title": "OBS: tampilkan kartu lagu yang diputar", "description": "Aktifkan atau nonaktifkan kartu lagu yang diputar di sumber browser OBS" },
       "external-player-wake-on-launch": { "title": "Bangunkan pemutar eksternal saat Folia dibuka", "description": "Atur apakah pemutar yang membunyikan lagu Anda ikut dijalankan saat Folia dibuka" },
-      "external-player-close-on-quit": { "title": "Tutup pemutar eksternal saat Folia keluar", "description": "Atur apakah aplikasi Spotify yang dijalankan Folia ditutup saat Folia keluar" },
+      "external-player-close-on-quit": { "title": "Tutup pemutar eksternal saat Folia keluar", "description": "Atur apakah pemutar eksternal yang dijalankan Folia ditutup saat Folia keluar" },
     "external-player-hold-media-keys": { "title": "Pegang tombol media saat memakai aplikasi resmi", "description": "Atur apakah Folia terus memegang tombol media sistem selama aplikasi pemutar eksternal berjalan" },
       "external-player-system-audio-spectrum": { "title": "Spektrum asli untuk pemutar eksternal", "description": "Atur apakah spektrum digambar dari suara komputer atau dari posisi pemutaran" },
       "desktop-toggle-lyric-api": { "title": "API Lirik", "description": "Alihkan endpoint lirik lokal tanpa autentikasi" },

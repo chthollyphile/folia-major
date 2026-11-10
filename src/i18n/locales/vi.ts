@@ -882,7 +882,7 @@ export default {
       "obs-toggle-keep-main-window-animation": { "title": "OBS: giữ hiệu ứng động cửa sổ chính", "description": "Bật/tắt giữ hiệu ứng động ở cửa sổ chính khi kết nối OBS" },
       "obs-toggle-track-card": { "title": "OBS: hiện thẻ bài đang phát", "description": "Bật/tắt vẽ thẻ bài đang phát trong nguồn trình duyệt OBS" },
       "external-player-wake-on-launch": { "title": "Đánh thức trình phát ngoài khi mở Folia", "description": "Bật/tắt việc khởi động trình phát phát nhạc khi mở Folia" },
-      "external-player-close-on-quit": { "title": "Đóng trình phát ngoài khi thoát Folia", "description": "Bật/tắt việc đóng ứng dụng Spotify do Folia khởi động khi thoát Folia" },
+      "external-player-close-on-quit": { "title": "Đóng trình phát ngoài khi thoát Folia", "description": "Bật/tắt việc đóng trình phát ngoài do Folia khởi động khi thoát Folia" },
     "external-player-hold-media-keys": { "title": "Giữ phím media khi dùng ứng dụng chính thức", "description": "Bật/tắt việc Folia giữ phím media hệ thống trong suốt thời gian ứng dụng phát ngoài chạy" },
       "external-player-system-audio-spectrum": { "title": "Phổ thật cho trình phát bên ngoài", "description": "Bật/tắt việc vẽ phổ từ âm thanh của máy hay mô phỏng theo tiến độ phát" },
       "desktop-toggle-lyric-api": { "title": "API lời bài hát", "description": "Bật/tắt endpoint lời bài hát nội bộ không cần xác thực" },

@@ -882,7 +882,7 @@ export default {
       "obs-toggle-keep-main-window-animation": { "title": "OBS 连接时保持主窗口动画", "description": "切换 OBS 连接时主窗口是否继续渲染歌词动画" },
       "obs-toggle-track-card": { "title": "OBS 浏览器源显示歌曲信息卡片", "description": "切换 OBS 浏览器源里是否也画歌曲信息卡片" },
       "external-player-wake-on-launch": { "title": "打开 Folia 时唤起外部播放器", "description": "切换打开 Folia 时是否一并启动出声的播放器" },
-      "external-player-close-on-quit": { "title": "Folia 退出时关闭外部播放器", "description": "切换 Folia 退出时是否关闭它启动的 Spotify" },
+      "external-player-close-on-quit": { "title": "Folia 退出时关闭外部播放器", "description": "切换 Folia 退出时是否关闭它启动的外部播放器" },
     "external-player-hold-media-keys": { "title": "使用官方客户端时接管媒体键", "description": "切换外部播放器的官方客户端在运行时是否一直由 Folia 接管系统媒体键" },
       "external-player-system-audio-spectrum": { "title": "外部播放器的真实频谱", "description": "切换频谱按整机声音绘制，还是按播放进度模拟" },
       "desktop-toggle-lyric-api": { "title": "歌词接口", "description": "切换本地免鉴权歌词接口" },

@@ -882,7 +882,7 @@ export default {
       "obs-toggle-keep-main-window-animation": { "title": "OBS: keep main window animation", "description": "Toggle whether the main window keeps its animation while OBS is connected" },
       "obs-toggle-track-card": { "title": "OBS: show the now playing card", "description": "Toggle whether the now playing card is drawn in the OBS browser source" },
       "external-player-wake-on-launch": { "title": "Wake the external player with Folia", "description": "Toggle starting the player that sounds your songs when Folia opens" },
-      "external-player-close-on-quit": { "title": "Close the external player when Folia quits", "description": "Toggle closing the Spotify app Folia started when the app quits" },
+      "external-player-close-on-quit": { "title": "Close the external player when Folia quits", "description": "Toggle closing the external player Folia started when the app quits" },
     "external-player-hold-media-keys": { "title": "Hold the media keys with the official app", "description": "Toggle keeping the system media keys in Folia while the external player app runs" },
       "external-player-system-audio-spectrum": { "title": "Real spectrum for the external player", "description": "Toggle drawing the bars from the machine's own sound or from the playing position" },
       "desktop-toggle-lyric-api": { "title": "Lyrics API", "description": "Toggle the local unauthenticated lyrics endpoint" },
