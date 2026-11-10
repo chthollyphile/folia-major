@@ -38,6 +38,8 @@ const IntegrationPage: React.FC = () => {
     const setCloseExternalPlayerOnQuit = useDesktopSettingsStore(state => state.handleToggleCloseExternalPlayerOnQuit);
     const holdMediaKeys = useDesktopSettingsStore(state => state.holdMediaKeysForExternalPlayer);
     const setHoldMediaKeys = useDesktopSettingsStore(state => state.handleToggleHoldMediaKeysForExternalPlayer);
+    const externalSpectrum = useDesktopSettingsStore(state => state.externalSystemAudioSpectrum);
+    const setExternalSpectrum = useDesktopSettingsStore(state => state.handleToggleExternalSystemAudioSpectrum);
     // The rows are drawn where the player they steer exists at all: the Windows build.
     const wakesExternalPlayer = isElectron && window.electron?.platform === 'win32';
     const scrobbleEnabled = useAudioSettingsStore(state => state.neteaseScrobbleEnabled);
@@ -86,6 +88,12 @@ const IntegrationPage: React.FC = () => {
                             nothing of the build that cannot run it. */}
                         <Row option={O.holdMediaKeys} hint={t('options.holdMediaKeysForExternalPlayerDesc')}>
                             <Toggle checked={holdMediaKeys} onChange={setHoldMediaKeys} />
+                        </Row>
+                        {/* The bars of that route, from the machine's own sound rather than from the
+                            playing position: it captures everything the machine sounds, so the row is
+                            off until the listener asks for it. */}
+                        <Row option={O.externalSpectrum} hint={t('options.externalSystemAudioSpectrumDesc')}>
+                            <Toggle checked={externalSpectrum} onChange={setExternalSpectrum} />
                         </Row>
                     </>
                 )}

@@ -284,6 +284,17 @@ export const settingsCommands: CommandPaletteCommand[] = [
         context => context.settings.toggleCloseExternalPlayerOnQuit(),
         { platform: ['win'] },
     ),
+    // The bars of that same route: from the machine's own sound, which is everything the machine
+    // sounds, so it stays off until the listener asks for it (externalSpectrumCapture.ts).
+    createToggleCommand(
+        'external-player-system-audio-spectrum',
+        'settings',
+        'Real spectrum for the external player',
+        'Toggle drawing the bars from the machine’s own sound instead of the playing position',
+        ['real spectrum', 'system audio', 'spectrum', 'visualizer', '真实频谱', '系统声音', '频谱', '采集'],
+        context => context.settings.toggleExternalSystemAudioSpectrum(),
+        { platform: ['win'] },
+    ),
     // The same player's media session: while its app runs the keys stay Folia's, so a press never
     // reaches that app's own queue (electron/mediaKeys.cjs, useMediaKeyTakeoverBridge.ts). That app is
     // the Windows one, so this command is the Windows build's.

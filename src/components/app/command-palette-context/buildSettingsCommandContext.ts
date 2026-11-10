@@ -264,6 +264,9 @@ export const buildSettingsCommandContext = (
         toggleCloseExternalPlayerOnQuit: () => desktop.handleToggleCloseExternalPlayerOnQuit(
             !useDesktopSettingsStore.getState().closeExternalPlayerOnQuit,
         ),
+        toggleExternalSystemAudioSpectrum: () => desktop.handleToggleExternalSystemAudioSpectrum(
+            !useDesktopSettingsStore.getState().externalSystemAudioSpectrum,
+        ),
         toggleWallpaperMacAutohideDock: () => desktop.handleToggleWallpaperMacAutohideDock(
             !useDesktopSettingsStore.getState().wallpaperMacAutohideDock,
         ),
