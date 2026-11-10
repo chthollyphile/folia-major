@@ -120,7 +120,7 @@ vi.mock('@/utils/onlineLyricsState', () => ({
 const { usePlaybackQueueController } = await import('@/components/app/playback/start/usePlaybackQueueController');
 const { usePlaybackRuntimeRefs } = await import('@/components/app/playback/usePlaybackRuntimeRefs');
 const { usePlaybackStore } = await import('@/stores/usePlaybackStore');
-const { useStatusMessageStore } = await import('@/stores/useStatusMessageStore');
+const { useStatusMessageStore, STATUS_LOADING_DELAY_MS } = await import('@/stores/useStatusMessageStore');
 const { retireBlobUrl } = await import('@/services/playbackBlobUrls');
 const { makeSongCurrent, dropPlaysInFlight } = await import('@/components/app/playback/currentSong');
 const { dropProviderSongs } = await import('@/library/app/createLibraryAccountPort');
@@ -227,12 +227,26 @@ describe('playSong and the current song (online)', () => {
         const { queue } = mount();
         await queue.handleNextTrack(manual ? undefined : { allowStopOnMissing: true, shouldNavigateToPlayer: false });
         await vi.waitFor(() => expect(env.externalStarts).toHaveBeenCalled());
-        if (manual) expect(useStatusMessageStore.getState().message).toMatchObject({ activity: 'loading', text: 'status.loadingSong' });
-        else expect(useStatusMessageStore.getState().message).toBeNull();
+        // The loader shows once the start has taken longer than its delay.
+        if (manual) await vi.waitFor(() => expect(useStatusMessageStore.getState().message).toMatchObject({ activity: 'loading', text: 'status.loadingSong' }));
+        else {
+            await new Promise(resolve => setTimeout(resolve, STATUS_LOADING_DELAY_MS + 50));
+            expect(useStatusMessageStore.getState().message).toBeNull();
+        }
         gate.resolve();
         await vi.waitFor(() => expect(usePlaybackStore.getState().currentSong?.id).toBe('2'));
         if (manual) expect(useStatusMessageStore.getState().message).toMatchObject({ activity: 'success', text: 'status.loadingComplete' });
         else expect(useStatusMessageStore.getState().message).toBeNull();
+    });
+
+    it('shows neither loader nor result for a manual step that lands within the delay', async () => {
+        const messages: unknown[] = [];
+        const unsubscribe = useStatusMessageStore.subscribe(state => { messages.push(state.message); });
+        const { queue } = mount();
+        await queue.playSong(songA, [songA, songB], false, { manualQueueStep: true });
+        await new Promise(resolve => setTimeout(resolve, STATUS_LOADING_DELAY_MS + 50));
+        expect(messages.filter(Boolean)).toEqual([]);
+        unsubscribe();
     });
 
     it('clears a cancelled manual load after its external preparation returns', async () => {
@@ -243,7 +257,7 @@ describe('playSong and the current song (online)', () => {
         const { queue } = mount();
         const play = queue.playSong(songA, [songA, songB], false, { manualQueueStep: true });
         await vi.waitFor(() => expect(env.externalStarts).toHaveBeenCalled());
-        expect(useStatusMessageStore.getState().message?.activity).toBe('loading');
+        await vi.waitFor(() => expect(useStatusMessageStore.getState().message?.activity).toBe('loading'));
         dropPlaysInFlight();
         gate.resolve();
         await play;
@@ -286,7 +300,7 @@ describe('playSong and the current song (online)', () => {
         await vi.waitFor(() => expect(env.lyricCallbacks.has('1')).toBe(true));
         const callbacks = env.lyricCallbacks.get('1') as unknown as { onAutoMatchStart: () => void };
         callbacks.onAutoMatchStart();
-        expect(useStatusMessageStore.getState().message?.activity).toBe('loading');
+        await vi.waitFor(() => expect(useStatusMessageStore.getState().message?.activity).toBe('loading'));
         emptyThePlayer(refs);
         gate.resolve();
         await play;
@@ -297,9 +311,13 @@ describe('playSong and the current song (online)', () => {
         env.external = true;
         const messages: unknown[] = [];
         const unsubscribe = useStatusMessageStore.subscribe(state => { messages.push(state.message); });
+        const gate = deferred<void>();
+        env.externalStarts.mockImplementationOnce(async () => { await gate.promise; });
         const { queue } = mount();
-        await queue.playSong(songA, [songA, songB]);
-        expect(messages).toContainEqual(expect.objectContaining({ text: 'status.preparingExternalPlayback' }));
+        const play = queue.playSong(songA, [songA, songB]);
+        await vi.waitFor(() => expect(messages).toContainEqual(expect.objectContaining({ text: 'status.preparingExternalPlayback' })));
+        gate.resolve();
+        await play;
         expect(messages).not.toContainEqual(expect.objectContaining({ text: 'status.loadingSong' }));
         unsubscribe();
     });

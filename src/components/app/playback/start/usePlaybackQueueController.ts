@@ -53,7 +53,7 @@ import type { SearchKind, SearchReturnView, SearchSource } from '../../../../sto
 import { dispatchSearchTrackAction } from '../../search/searchTrackActions';
 import { playbackFade } from '../../../../services/playbackFade';
 import { getProviderSongMetadata } from '../../../../services/onlineMusic/songMetadata';
-import { setStatusMessage as setStatusMsg, beginStatusLoading, completeStatusLoading, failStatusLoading, cancelStatusLoading, withStatusLoadingResult } from '../../../../stores/useStatusMessageStore';
+import { setStatusMessage as setStatusMsg, beginStatusLoading, completeStatusLoading, failStatusLoading, cancelStatusLoading, reviseStatusLoading, withStatusLoadingResult } from '../../../../stores/useStatusMessageStore';
 import { setAudioSrc, setCachedCoverUrl, setCurrentLineIndex, setCurrentSong, setDuration, setIsFmMode, setPlayQueue, setPlayerState, startLoadingToPlay, usePlaybackStore } from '../../../../stores/usePlaybackStore';
 import { askedSongKeyRef, askForSong, keepSongsOfProvidersStanding, playsDroppedSoFar, providerDropsSoFar, providerPlaysDroppedSoFar, showSong, startOfAskedSong, startPlay, withdrawAsk } from '../currentSong';
 import { personalFmEndingsSoFar } from '../personalFmEndings';
@@ -773,7 +773,8 @@ export function usePlaybackQueueController({
         // none counts down to the next song.
         const presentTakenDown = async (shown: OnlineFailure) => {
             setIsLyricsLoading(false);
-            loadingMessage = beginStatusLoading(t('status.loadingSong'));
+            // A manual step's loader, still waiting or shown, goes on for the lookup.
+            loadingMessage ??= beginStatusLoading(t('status.loadingSong'));
             let replacement: Awaited<ReturnType<typeof omni.getSongReplacement>> = null;
             let lookupFailure: OnlineFailure | null = null;
             try {
@@ -940,9 +941,7 @@ export function usePlaybackQueueController({
                         isCurrent: isLatestPlaybackRequest,
                         onRetrying: shown => {
                             if (isLatestPlaybackRequest()) {
-                                setStatusMsg(previous => previous?.activity === 'loading' && previous.activityId === loadingMessage?.activityId
-                                    ? { ...previous, text: t('status.songRetrying'), ...(shown.providerId ? { providerId: shown.providerId } : {}) }
-                                    : previous);
+                                reviseStatusLoading(loadingMessage, { text: t('status.songRetrying'), ...(shown.providerId ? { providerId: shown.providerId } : {}) });
                             }
                         },
                     },

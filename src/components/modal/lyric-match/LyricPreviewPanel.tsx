@@ -1,4 +1,3 @@
-import { LoadingBars } from '../../shared/LoadingBars';
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Music, Sparkles, Languages } from 'lucide-react';
@@ -7,6 +6,7 @@ import { SongResult, LyricData, Line } from '../../../types';
 import { findLatestActiveLineIndex } from '../../../utils/appPlaybackHelpers';
 import { fetchLyricsForMatchSource } from '../../../utils/lyrics/lyricMatchSources';
 import type { LyricMatchSource } from '../../../utils/lyrics/matchResult';
+import { LoadingBars } from '../../shared/LoadingBars';
 
 // src/components/modal/lyric-match/LyricPreviewPanel.tsx
 // 歌词预览面板组件：支持逐字高亮与自适应水平滚动，切换行带平滑淡入淡出动画，右上角绝对定位状态标签。

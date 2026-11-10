@@ -3,7 +3,7 @@ import { animate, motion, motionValue, useAnimationFrame, useMotionValue, useTra
 import type { AnimationPlaybackControls, MotionValue, Transition } from 'framer-motion';
 import { useReducedMotionFor } from '../../hooks/useReducedMotionFor';
 
-// 从提供的 MorphLoader 提取 bars 及成功、失败变形，共用四根笔画和原始动画参数。
+// 加载指示：四根跳动的竖条，结束时同样四笔变形成对勾（成功）或叉号（失败）。
 
 export type LoadingBarsStatus = 'loading' | 'success' | 'error';
 
@@ -19,8 +19,6 @@ export interface LoadingBarsProps {
     /** Stroke thickness in grid units. */
     strokeWidth?: number;
     className?: string;
-    /** Runs after every result stroke and its final pop have finished. */
-    onSettled?: () => void;
 }
 
 /** One stroke: a center, a chord length, a direction in degrees, a bend (1 / radius), a width, and an opacity. */
@@ -78,7 +76,7 @@ function Stroke({ values, wave }: { values: Record<Key, MotionValue<number>>; wa
 
 export function LoadingBars({
     status = 'loading', size = 32, strokeWidth = 2.5,
-    className, onSettled,
+    className,
 }: LoadingBarsProps) {
     const reduced = useReducedMotionFor('uiMicroMotion');
     const shape = status === 'loading' ? 'bars' : status;
@@ -91,8 +89,6 @@ export function LoadingBars({
     const amount = useMotionValue(status === 'loading' ? 1 : 0);
     const pop = useMotionValue(1);
     const clock = useRef(0);
-    const settledRef = useRef(onSettled);
-    useLayoutEffect(() => { settledRef.current = onSettled; }, [onSettled]);
     const shapeRef = useRef(shape);
     useLayoutEffect(() => { shapeRef.current = shape; }, [shape]);
 
@@ -116,20 +112,13 @@ export function LoadingBars({
             amount.set(settling ? 0 : 1);
             waves.forEach(wave => wave.set({}));
             pop.set(1);
-            if (!settling) return;
-            const timer = window.setTimeout(() => settledRef.current?.(), 450);
-            return () => window.clearTimeout(timer);
+            return;
         }
         controls.push(animate(amount, settling ? 0 : 1, settling ? { duration: .2, ease: [.2, .8, .2, 1] } : { duration: .3, ease: [.2, .8, .2, 1] }));
         if (settling) {
             controls.push(animate(pop, [1, 1.14, 1], { duration: .42, times: [0, .35, 1], ease: ['easeOut', 'easeInOut'] }));
         }
-        let active = true;
-        if (settling) void Promise.all(controls.map(control => Promise.resolve(control))).then(() => {
-            if (active) settledRef.current?.();
-        });
         return () => {
-            active = false;
             controls.forEach(control => control.stop());
         };
     }, [shape, strokeWidth, reduced, amount, pop, strokes, waves]);

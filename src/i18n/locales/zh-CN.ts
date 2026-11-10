@@ -584,7 +584,7 @@ export default {
     "coverThemeApplied": "已根据封面生成主题：{{themeName}}",
     "aiFallbackThemeUsed": "AI功能未配置，使用内置主题",
     "playbackError": "播放出错",
-    "loadingComplete": "载入完成",
+    "loadingComplete": "加载完成",
     "loadingSong": "正在获取歌曲链接",
     "preparingExternalPlayback": "正在准备播放",
     "dataSynced": "数据同步成功",

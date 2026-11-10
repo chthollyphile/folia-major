@@ -89,33 +89,78 @@ export const runStatusMessageTime = (ms: number, onEnd: () => void): (() => void
     };
 };
 
-/** Starts one owned loading toast; a current error keeps its place. */
+/**
+ * How long an operation's loader waits before it shows. A load that ends sooner shows nothing at all,
+ * neither the loader nor its result: a toast that flashes up and away for a quick answer only distracts.
+ */
+export const STATUS_LOADING_DELAY_MS = 300;
+
+/** Loaders begun but not shown yet: activity id → the timer that shows it and the toast shown when it began. */
+const pendingLoaders = new Map<number, { timer: ReturnType<typeof setTimeout>; before: StatusMessage | null }>();
+
+/** Shows a loader unless an error, or a toast set after the loader began, holds the place. */
+const showLoader = (message: StatusMessage, before: StatusMessage | null) => {
+    setStatusMessage(previous => previous?.type === 'error' || (previous !== null && previous !== before) ? previous : message);
+};
+
+/** Takes a loader out of waiting; says whether it was still waiting (so it never showed). */
+const settlePending = (loading: StatusMessage): boolean => {
+    const id = loading.activityId;
+    const pending = id === undefined ? undefined : pendingLoaders.get(id);
+    if (id === undefined || !pending) return false;
+    clearTimeout(pending.timer);
+    pendingLoaders.delete(id);
+    return true;
+};
+
+/** Starts one owned loading toast, shown after `STATUS_LOADING_DELAY_MS`; a current error keeps its place. */
 export const beginStatusLoading = (text: string): StatusMessage => {
-    const message: StatusMessage = { type: 'info', activity: 'loading', activityId: ++activitySequence, text, persistent: true };
-    setStatusMessage(previous => previous?.type === 'error' ? previous : message);
+    const id = ++activitySequence;
+    const message: StatusMessage = { type: 'info', activity: 'loading', activityId: id, text, persistent: true };
+    const before = useStatusMessageStore.getState().message;
+    const timer = setTimeout(() => {
+        pendingLoaders.delete(id);
+        showLoader(message, before);
+    }, STATUS_LOADING_DELAY_MS);
+    pendingLoaders.set(id, { timer, before });
     return message;
 };
 
-/** Only this operation's still-visible loader can become its result. */
+/** Only this operation's still-visible loader becomes its result; one that never showed ends silently. */
 export const completeStatusLoading = (loading: StatusMessage | null, text: string): void => {
-    if (!loading) return;
+    if (!loading || settlePending(loading)) return;
     setStatusMessage(previous => previous?.activity === 'loading' && previous.activityId === loading.activityId
         ? { type: 'success', activity: 'success', activityId: loading.activityId, text, durationMs: 850 }
         : previous);
 };
 
-/** A failed operation only replaces its own loading indicator. */
+/** A failed operation replaces its own loader; one that never showed shows the failure unless an error already does. */
 export const failStatusLoading = (loading: StatusMessage | null, text: string): void => {
     if (!loading) return;
-    setStatusMessage(previous => previous?.activity === 'loading' && previous.activityId === loading.activityId
-        ? { type: 'error', activity: 'error', activityId: loading.activityId, text }
-        : previous);
+    const failure: StatusMessage = { type: 'error', activity: 'error', activityId: loading.activityId, text };
+    if (settlePending(loading)) {
+        setStatusMessage(previous => previous?.type === 'error' ? previous : failure);
+        return;
+    }
+    setStatusMessage(previous => previous?.activity === 'loading' && previous.activityId === loading.activityId ? failure : previous);
 };
 
-/** Drops only the cancelled operation's own pending indicator. */
+/** Drops only the cancelled operation's own loader, shown or still waiting. */
 export const cancelStatusLoading = (loading: StatusMessage | null): void => {
-    if (!loading) return;
+    if (!loading || settlePending(loading)) return;
     setStatusMessage(previous => previous?.activity === 'loading' && previous.activityId === loading.activityId ? null : previous);
+};
+
+/** Changes what this operation's loader says (a retry); one still waiting shows at once with the new words. */
+export const reviseStatusLoading = (loading: StatusMessage | null, patch: Partial<StatusMessage>): void => {
+    if (!loading) return;
+    if (settlePending(loading)) {
+        setStatusMessage(previous => previous?.type === 'error' ? previous : { ...loading, ...patch });
+        return;
+    }
+    setStatusMessage(previous => previous?.activity === 'loading' && previous.activityId === loading.activityId
+        ? { ...previous, ...patch }
+        : previous);
 };
 
 /** Decorate before callers retain a toast by identity (for example a skip countdown). */

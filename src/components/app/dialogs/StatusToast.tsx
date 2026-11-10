@@ -4,7 +4,7 @@ import { motion, useIsPresent } from 'framer-motion';
 import { PlatformMark } from '../../login/PlatformMark';
 import { useReducedMotionFor } from '../../../hooks/useReducedMotionFor';
 import { usePlayerOverlayObstacle } from '../../../hooks/usePlayerOverlayLayout';
-import { holdStatusMessage, setStatusMessage } from '../../../stores/useStatusMessageStore';
+import { holdStatusMessage } from '../../../stores/useStatusMessageStore';
 import type { AppStatusToast } from './buildAppDialogsModel';
 import { LoadingBars } from '../../shared/LoadingBars';
 import './statusToast.css';
@@ -72,10 +72,7 @@ export const StatusToast: React.FC<{ toast: AppStatusToast }> = ({ toast }) => {
         >
             <div className="status-toast-line">
                 {/* A message about one online platform leads with that platform's mark; every other message with its type's icon. */}
-                {toast.activity ? <LoadingBars size={24} status={toast.activity} onSettled={() => {
-                    if (toast.persistent || toast.countdown || toast.onAction) return;
-                    setStatusMessage(previous => previous?.activityId === toast.activityId && previous?.activity === toast.activity ? null : previous);
-                }} className={toast.activity === 'error' ? 'text-red-500' : toast.activity === 'success' ? 'text-green-500' : ''} /> : toast.providerId
+                {toast.activity ? <LoadingBars size={24} status={toast.activity} className={toast.activity === 'error' ? 'text-red-500' : toast.activity === 'success' ? 'text-green-500' : ''} /> : toast.providerId
                     ? <PlatformMark providerId={toast.providerId} size={20} />
                     : toast.type === 'error'
                         ? <AlertCircle size={18} className={`shrink-0 ${isDaylight ? 'text-red-500' : 'text-red-400'}`} />

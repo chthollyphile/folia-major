@@ -1,4 +1,3 @@
-import { LoadingBars } from '../../shared/LoadingBars';
 import React, { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Check, FileAudio, Music, Search, X } from 'lucide-react';
@@ -15,6 +14,7 @@ import { formatSongName } from '../../../utils/songNameFormatter';
 import { DurationMatchBadge } from '../DurationMatchBadge';
 import { LyricPreviewPanel } from './LyricPreviewPanel';
 import type { LyricMatchSearch } from './useLyricMatchSearch';
+import { LoadingBars } from '../../shared/LoadingBars';
 
 // src/components/modal/lyric-match/LyricMatchWindow.tsx
 // The window for matching lyrics to a song by hand: source tabs, a search box, the results, and
