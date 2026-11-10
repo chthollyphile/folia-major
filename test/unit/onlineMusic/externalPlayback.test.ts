@@ -209,6 +209,47 @@ describe('a start that runs on after the interface', () => {
         expect(omniMock.prepareExternalPlaybackQueue).toHaveBeenLastCalledWith(song, [], { retract: true });
     });
 
+    it('says an end was heard only once the player had said this song was playing', async () => {
+        const ends: { heard?: boolean }[] = [];
+        const unsubscribe = engine.subscribeExternalPlayback(event => {
+            if (event.type === 'ended') ends.push(event);
+        });
+        // The player never says it plays this song, and then reports it over: a start that never
+        // landed answers with an end of its own, and a replay of it would restart nothing.
+        let answers = 0;
+        omniMock.getExternalPlaybackStatus.mockImplementation(async () => (
+            answers++ === 0 ? status({ isPlaying: false, positionMs: 0 }) : status({ isPlaying: false, positionMs: 0, ended: true })
+        ));
+        const start = engine.startExternalPlayback(song, 0);
+        engine.announceExternalPlayback();
+        await start.seeded;
+        await vi.advanceTimersByTimeAsync(600);
+
+        expect(ends).toHaveLength(1);
+        expect(ends[0].heard).toBe(false);
+        unsubscribe();
+    });
+
+    it('says an end was heard where the player said this song was playing', async () => {
+        const ends: { heard?: boolean }[] = [];
+        const unsubscribe = engine.subscribeExternalPlayback(event => {
+            if (event.type === 'ended') ends.push(event);
+        });
+        let positionMs = 5000;
+        omniMock.getExternalPlaybackStatus.mockImplementation(async () => (
+            positionMs > 0 ? status({ positionMs }) : status({ isPlaying: false, positionMs: 0, ended: true })
+        ));
+        const start = engine.startExternalPlayback(song, 0);
+        engine.announceExternalPlayback();
+        await start.seeded;
+        positionMs = 0;
+        await vi.advanceTimersByTimeAsync(600);
+
+        expect(ends).toHaveLength(1);
+        expect(ends[0].heard).toBe(true);
+        unsubscribe();
+    });
+
     it('times a start in one line that names the start and every part of it', async () => {
         const info = vi.spyOn(console, 'info').mockImplementation(() => {});
         const start = engine.startExternalPlayback(song, 0);

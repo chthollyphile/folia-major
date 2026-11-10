@@ -53,7 +53,9 @@ const PREPARED_QUEUE_START_LIMIT_MS = 15_000;
 export type ExternalPlaybackEvent =
     | { type: 'status' }
     // `skipped`: the player was moved off the song by its own controls, not by its end.
-    | { type: 'ended'; skipped?: 'next' | 'previous' }
+    // `heard`: the player confirmed playing this very song at some point, so the end is that song's
+    // own end. A song whose start never landed can report an end without ever having sounded.
+    | { type: 'ended'; skipped?: 'next' | 'previous'; heard?: boolean }
     | { type: 'failure'; error: unknown }
     | { type: 'foreign-track' }
     // The player fell back to a coarser channel (or came back to its precise one): said once an episode.
@@ -289,13 +291,16 @@ const markPaused = (positionSec: number) => {
 const markEnded = (positionSec: number) => {
     if (!session || session.ended) return;
     session.ended = true;
+    // Read before `playing` is cleared: it is true only once the player itself said it was sounding
+    // this song, so an end without it is not that song's end (see `ExternalPlaybackEvent`).
+    const heard = session.playing;
     session.playing = false;
     syncClock(positionSec, true, performance.now(), false);
     externalMediaShim.markEnded();
     setPlayerState(PlayerState.PAUSED);
     const skipped = session.skipped;
     session.skipped = undefined;
-    emit(skipped ? { type: 'ended', skipped } : { type: 'ended' });
+    emit(skipped ? { type: 'ended', skipped, heard } : { type: 'ended', heard });
     emit({ type: 'status' });
 };
 

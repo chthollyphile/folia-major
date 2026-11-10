@@ -1362,7 +1362,9 @@ export function usePlaybackQueueController({
         // became current has nothing to start over, and steps on as it otherwise would.
         const replaySong = options?.replayCurrent === true ? currentSong : null;
         if (replaySong) {
-            const heldForReplay = options?.fromSong ? null : getDisplaySong?.() ?? null;
+            // Repeat one replays what the listener sees: nothing that replays a song steps from
+            // another one (`fromSong`), so the held transition is always the one to end here.
+            const heldForReplay = getDisplaySong?.() ?? null;
             if (heldForReplay) endHeldTransition?.();
             void playSong(heldForReplay ?? replaySong, playQueue, isFmMode, {
                 shouldNavigateToPlayer,

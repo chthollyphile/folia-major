@@ -83,8 +83,12 @@ export function useExternalPlaybackBridge({ handleNextTrack, handlePrevTrack }: 
                 }
                 // Repeat one: the song that ended is the one to hear again, from its start. The
                 // player is left to its own end (or to the song Folia wrote for it that it could not
-                // give up), and the queue does not step on.
-                if (useAudioSettingsStore.getState().loopMode === 'one' && !usePlaybackStore.getState().isFmMode) {
+                // give up), and the queue does not step on. Only for a song the player said it was
+                // playing: an end reported before that one ever sounded is not its own end, and
+                // replaying it there would restart it where it stands, over and over.
+                if (event.heard
+                    && useAudioSettingsStore.getState().loopMode === 'one'
+                    && !usePlaybackStore.getState().isFmMode) {
                     void latestRef.current.handleNextTrack({
                         allowStopOnMissing: true, shouldNavigateToPlayer: false, autoAdvance: true, replayCurrent: true,
                     });

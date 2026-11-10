@@ -19,13 +19,13 @@ const env = vi.hoisted(() => ({
     next: vi.fn(),
     prev: vi.fn(),
     /** 播放器那边的起始，按 startExternalPlayback 交给播放路径的样子记下来。 */
-    externalStarts: vi.fn(() => ({
+    externalStarts: vi.fn().mockReturnValue({
         attempt: 1,
         askedAt: 0,
         started: Promise.resolve(),
         seeded: Promise.resolve(),
         timings: { prepareMs: 0, playMs: null, statusMs: null, lyricsMs: null, visibleMs: null, coverMs: null },
-    })),
+    }),
 }));
 
 vi.mock('react', () => ({
@@ -194,7 +194,7 @@ describe('播放器自己放到一首的结尾时', () => {
     it('单曲循环下重播这一首，不往前走', () => {
         env.loopMode = 'one';
         const fire = InstallBridge();
-        fire({ type: 'ended' });
+        fire({ type: 'ended', heard: true });
 
         expect(env.next).toHaveBeenCalledTimes(1);
         expect(env.next).toHaveBeenCalledWith(expect.objectContaining({ replayCurrent: true }));
@@ -226,6 +226,35 @@ describe('播放器自己放到一首的结尾时', () => {
 
         expect(env.next.mock.calls[0][0]).not.toHaveProperty('replayCurrent');
     });
+
+    it('这一首没响过就报放完，不重播，照常往前走', () => {
+        env.loopMode = 'one';
+        const fire = InstallBridge();
+        // 播放器自己一直没确认在放这一首（起播就没落地），这时候的放完不是它放完的。
+        fire({ type: 'ended', heard: false });
+
+        expect(env.next).toHaveBeenCalledTimes(1);
+        expect(env.next.mock.calls[0][0]).not.toHaveProperty('replayCurrent');
+    });
+
+    it('单曲循环下用户自己按上一首，走上一首而不是重播这一首', () => {
+        env.loopMode = 'one';
+        const fire = InstallBridge();
+        fire({ type: 'ended', skipped: 'previous', heard: true });
+
+        expect(env.next).not.toHaveBeenCalled();
+        expect(env.prev).toHaveBeenCalledTimes(1);
+        // 队首没有更早的歌时才从头放这一首，这里照旧交给上一首那条路。
+        expect(env.prev).toHaveBeenCalledWith({ replayCurrentAtStart: true });
+    });
+
+    it('这一首真放过才重播', () => {
+        env.loopMode = 'one';
+        const fire = InstallBridge();
+        fire({ type: 'ended', heard: true });
+
+        expect(env.next.mock.calls[0][0]).toHaveProperty('replayCurrent', true);
+    });
 });
 
 describe('单曲循环下这一首放完，接到真的队列上', () => {
@@ -235,7 +264,7 @@ describe('单曲循环下这一首放完，接到真的队列上', () => {
         usePlaybackStore.setState({ currentSong: songA, playQueue: [songA, songB], duration: 1 });
         const fire = InstallOnRealQueue();
         // 降级模式下播放器只报这一首放完了，不带 skipped，队列也清不回自己名下。
-        fire({ type: 'ended' });
+        fire({ type: 'ended', heard: true });
 
         expect(env.externalStarts).toHaveBeenCalledTimes(1);
         // 当前这首、从 0 起；这次是 Folia 自己往前走的，所以不算用户的按键。
