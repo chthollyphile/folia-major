@@ -33,7 +33,16 @@
     "lint:install": "npm ci --prefix dev/dedicatus/lint --no-audit --no-fund",
     "lint:fix": "node dev/dedicatus/eslint/eslint.mjs --fix",
     "lint:fix-style": "node dev/dedicatus/eslint/fixStyle.mjs",
-    "lint:prune": "node dev/dedicatus/eslint/eslint.mjs --prune-suppressions",
+    "lint:prune": "node dev/dedicatus/eslint/prune.mjs",
+    "coven:scope": "node packages/coven/bin/coven.mjs scope",
+    "coven:state": "node packages/coven/bin/coven.mjs state",
+    "coven:claim": "node packages/coven/bin/coven.mjs claim",
+    "coven:prompt": "node packages/coven/bin/coven.mjs prompt",
+    "coven:contract": "node packages/coven/bin/coven.mjs contract",
+    "coven:verify": "node packages/coven/bin/coven.mjs verify",
+    "coven:pr": "node packages/coven/bin/coven.mjs pr",
+    "coven:setup": "node packages/coven/bin/coven.mjs setup",
+    "coven:compass": "node packages/coven/bin/coven.mjs compass",
     "test": "vitest run -c vitest.config.ts",
     "test:unit": "vitest run -c vitest.config.ts",
     "test:unit:watch": "vitest -c vitest.config.ts",
@@ -355,5 +364,8 @@
   },
   "optionalDependencies": {
     "@lox-audioserver/node-librespot": "0.5.1"
+  },
+  "coven": {
+    "config": "dev/coven/config.json"
   }
 }

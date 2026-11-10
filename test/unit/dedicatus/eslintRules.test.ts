@@ -41,7 +41,9 @@ describe('dedicatus eslint code mapping', () => {
     it('maps rule ids, code-prefixed messages and directive problems to codes', () => {
         expect(codeForMessage({ ruleId: '@typescript-eslint/no-floating-promises', message: 'x' })).toBe('D401');
         expect(codeForMessage({ ruleId: 'no-restricted-syntax', message: 'D410：不用系统 <select>' })).toBe('D410');
-        expect(codeForMessage({ ruleId: '@typescript-eslint/no-unnecessary-condition', message: 'x' })).toBe('D490');
+        expect(codeForMessage({ ruleId: '@typescript-eslint/no-unnecessary-boolean-literal-compare', message: 'x' })).toBe('D490');
+        // 多余的条件判断单独编号，是 warning（2026-11-08）
+        expect(codeForMessage({ ruleId: '@typescript-eslint/no-unnecessary-condition', message: 'x' })).toBe('D491');
         expect(codeForMessage({ ruleId: null, message: "Unused eslint-disable directive (no problems were reported from 'x')." })).toBe('D420');
         expect(codeForMessage({ ruleId: 'foo/bar', message: "Definition for rule 'foo/bar' was not found." })).toBe('D420');
         expect(codeForMessage({ ruleId: null, fatal: true, message: 'Parsing error' })).toBe('D004');

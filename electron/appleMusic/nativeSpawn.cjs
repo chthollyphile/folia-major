@@ -3,7 +3,7 @@
 const { EventEmitter } = require('node:events');
 const { createHash } = require('node:crypto');
 const { createRequestDispatcher, validateRequest } = require('./companionRequests.cjs');
-const { storefrontTarget } = require('./companionStorefront.cjs');
+const { storefrontTarget, pageStorefront } = require('./companionStorefront.cjs');
 
 // Commands that start the player; the page must be visible until it sounds.
 const STARTS = new Set(['playSong', 'playStation', 'resume']);
@@ -106,6 +106,10 @@ function createNativeSpawn({ spawnProcess, timeoutMs = 25000, pinLimitMs = PIN_L
         let currentUrl = 'about:blank';
         let buffered = '';
         let sessionBusy = false;
+        // Account regions Apple sent the page away from in this run (from a mainland address every
+        // other region lands on /cn). Moving there again would only reload the page, and stop what
+        // it plays; MusicKit follows the account's region in place (companionStorefront.cjs).
+        const keptAway = new Set();
         let exitTimer;
         const pending = new Map();
 
@@ -220,8 +224,16 @@ function createNativeSpawn({ spawnProcess, timeoutMs = 25000, pinLimitMs = PIN_L
                     visibility.after(request.operation, result, arrival);
                 }
                 if (request.operation === 'accountStatus' && result.ok) {
-                    const target = storefrontTarget(currentUrl, result.data?.storefront);
+                    const account = result.data?.storefront;
+                    const target = keptAway.has(account) ? null : storefrontTarget(currentUrl, account);
                     if (target && !(await navigate(target))) result = { ok: false, error: 'not-ready' };
+                    else if (target) {
+                        const landed = pageStorefront(currentUrl);
+                        if (landed && landed !== account) {
+                            keptAway.add(account);
+                            console.info('[AppleMusic] Apple keeps the page in another region; playback follows the account region in place', { account, page: landed });
+                        }
+                    }
                 }
                 if (bridge.connected) bridge.emit('message', { ...result, id: request.id });
             })().catch(() => {

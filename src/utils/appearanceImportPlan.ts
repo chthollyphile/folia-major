@@ -73,6 +73,7 @@ const FIELD_GROUPS: Record<string, ImportGroup> = {
     randomVisualizerModePerSong: 'visualizer',
     randomVisualizerModes: 'visualizer',
     visualizerOpacity: 'visualizer',
+    lyricRenderQuality: 'visualizer',
     hidePlayerTranslationSubtitle: 'visualizer',
     showSubtitleTranslation: 'visualizer',
     subtitleContentMode: 'visualizer',

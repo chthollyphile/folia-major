@@ -348,8 +348,10 @@ export type CommandPaletteSettingsContext = {
     toggleAlwaysShowTrackSwitchButtons: () => void;
     toggleAlwaysShowMainWindowTitlebar: () => void;
     togglePlayerHeaderBlur: () => void;
+    toggleTitlebarSide: () => void;
     toggleHideFullscreenButton: () => void;
     toggleNativeMacFullscreenButton: () => void;
+    toggleNativeMacTrafficLights: () => void;
     toggleAutoHideCursorWithPlayerChrome: () => void;
     toggleHideCursorWhenIdle: () => void;
     /** Lab switch: whether the restored session starts playing by itself on launch. */

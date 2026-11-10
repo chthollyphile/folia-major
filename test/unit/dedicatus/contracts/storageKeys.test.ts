@@ -52,6 +52,7 @@ describe('D507 scanner resolves constants per file', () => {
     write('src/keys.ts', "export const SHARED_KEY = 'shared_key';\nexport const PREFIX = 'pre:';\n");
     write('src/use.ts', "import { SHARED_KEY as KEY, PREFIX } from './keys';\nlocalStorage.getItem(KEY);\nstorage()?.setItem(PREFIX + id, '1');\n");
     write('src/other.ts', "const SHARED_KEY = 'other_value';\n");
+    write('src/settings.ts', "await window.electron?.saveSettings?.('CLOSE_TO_TRAY', true);\nwindow.electron.saveSettings(FLAG_KEY, 1);\nconst FLAG_KEY = 'SOME_FLAG';\n");
 
     it('keeps both keys when two files define the same constant name', () => {
         expect(scanStorageKeys(dir)).toEqual(expect.arrayContaining(['main:A_SESSION', 'main:B_SESSION']));
@@ -59,5 +60,10 @@ describe('D507 scanner resolves constants per file', () => {
 
     it('follows a renamed relative import, and a constant plus a variable becomes a prefix', () => {
         expect(scanStorageKeys(dir)).toEqual(expect.arrayContaining(['web:shared_key', 'web:pre:*']));
+    });
+
+    // 主进程那边是通用的 store.set(key, value)，键名只在渲染进程的 saveSettings 调用里（#668 演习）
+    it('reads the main-process keys the renderer writes through saveSettings', () => {
+        expect(scanStorageKeys(dir)).toEqual(expect.arrayContaining(['main:CLOSE_TO_TRAY', 'main:SOME_FLAG']));
     });
 });

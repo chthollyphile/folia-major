@@ -19,7 +19,8 @@ export function readCodecShortKeys(root) {
         const opens = /^(?:export )?const (compress\w+|\w+_SHORT_KEYS) = /.exec(line);
         if (opens) scope = opens[1];
         else if (/^(?:export )?(?:const|function) /.test(line)) scope = null;
-        const top = /minified\.(\w+) = .*?\bconfig\.(\w+)/.exec(line);
+        // 新字段按类型写成 `(minified as ConfigFields).x = (config as ConfigFields).y`，一样认
+        const top = /\bminified(?: as \w+\))?\.(\w+) = .*?\bconfig(?: as \w+\))?\.(\w+)/.exec(line);
         if (top) {
             pairs.add(`config.${top[2]}=${top[1]}`);
             continue;

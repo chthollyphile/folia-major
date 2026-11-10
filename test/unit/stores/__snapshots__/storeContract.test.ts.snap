@@ -32,6 +32,7 @@ exports[`store contract > keeps every localStorage key the stores read or write 
   "folia_crossfade_max_sec",
   "folia_enable_media_cache",
   "folia_enable_transcode_fallback",
+  "folia_explore_memory",
   "folia_hifi_audio_device",
   "folia_hifi_audio_device_label",
   "folia_hifi_dsd_mode",

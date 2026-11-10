@@ -100,6 +100,7 @@
 - `online-song-omni-routing`：在线歌曲的搜索、播放、歌词、歌单、账户和跨平台数据流都经过 Omni，只有平台的 adapter 和 transport 直接接触原始接口。
 - `kugou-provider-alignment`：开发时按 `docs/ku-go-api-docs.md`、`.env.local` 中的真实酷狗服务和 `.dev-credentials/kugou.json` 对齐酷狗 provider 的请求与响应，不猜接口结构。
 - `prepare-folia-release`：稳定版本发布流程：汇总上个稳定版本以来用的人能感到的变化，更新新功能介绍、桌面与 Docker 版本号，并生成可手动粘贴的 Markdown release note。
+- `coven-supervisor`：维护者让 Coven 处理一个范围（v1 只做“按 Dedicatus 基线重构”）时，本 session 当监控者：认领、交 planner 写契约、递给维护者批准、派 generator 工作 session、每轮新开 evaluator 评审、开指向集成分支的 PR、收尾；写 GitHub 只走 coven 的脚本（harness 在 `packages/coven/`，不依赖 Folia；Folia 的适配层在 `dev/coven/`）。
 - `run-desktop`：启动并驱动 Electron 桌面版（隔离的 profile，后台驱动加单条命令的客户端：截图、点击、填表、在页面和主进程里求值、读日志），在真的桌面构建里验证主进程、preload IPC 和桌面专属设置的改动。
 
 四份开发者指南：

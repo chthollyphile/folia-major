@@ -96,9 +96,20 @@ describe('buildObsAppearanceFromShortcode', () => {
 
     // An older link carries none of the above. Leaving each undefined is what lets the renderer apply
     // its own default, so a pre-existing OBS source keeps rendering exactly as it did.
+    // 用户 2026-11-08 定：配置码只加 OBS 页面看得到的；歌词画布的分辨率与抗锯齿在 OBS 页面看得到，进了配置码（短码 lrq）
+    it('carries the lyric render quality, read into valid values', () => {
+        const withQuality = compressConfig({ visualizerMode: 'monet', lyricRenderQuality: { scale: 1.5, antialias: 'on' } });
+        expect(buildObsAppearanceFromShortcode(withQuality, { isDaylight: false, transparent: false }).lyricRenderQuality)
+            .toEqual({ scale: 1.5, antialias: 'on' });
+        const mangled = compressConfig({ visualizerMode: 'monet', lyricRenderQuality: { scale: 9, antialias: 'sharp' } });
+        expect(buildObsAppearanceFromShortcode(mangled, { isDaylight: false, transparent: false }).lyricRenderQuality)
+            .toEqual({ scale: 1, antialias: 'auto' });
+    });
+
     it('leaves the newer fields undefined for a link that predates them', () => {
         const legacy = compressConfig({ visualizerMode: 'monet' });
         const a = buildObsAppearanceFromShortcode(legacy, { isDaylight: false, transparent: false });
+        expect(a.lyricRenderQuality).toBeUndefined();
         expect(a.subtitleOverlayOpacity).toBeUndefined();
         expect(a.showHarmonySubtitle).toBeUndefined();
         expect(a.harmonySubtitleBackground).toBeUndefined();

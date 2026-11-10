@@ -361,6 +361,8 @@ const registeredSites = {
     create(context) {
         const file = repoPath(context);
         const visitors = {};
+        // 同一函数同一行只报一次：`{ state: 'unavailable', reason: 'taken-down' }` 会被两个选择器各命中一次（#891 演习）
+        const reported = new Set();
         for (const entry of context.options[0]?.entries ?? []) {
             if (!matchesAny(file, entry.include ?? ['**'])) continue;
             if (matchesAny(file, (entry.allowFiles ?? []).map(item => item.path))) continue;
@@ -372,6 +374,9 @@ const registeredSites = {
                     const fn = enclosingFunctionName(context.sourceCode, node);
                     if (Object.hasOwn(sitesHere, fn)) return;
                     if (entry.allowInsideDevGuard && insideDevGuard(context.sourceCode, node)) return;
+                    const key = `${entry.code}\u0000${fn}\u0000${node.loc.start.line}`;
+                    if (reported.has(key)) return;
+                    reported.add(key);
                     context.report({ node, messageId: 'unregistered', data: { code: entry.code, message: entry.message, fn } });
                 };
             }
@@ -973,23 +978,28 @@ const effectCleanup = {
 /** 界面文字：含两个以上字母或汉字。纯符号、数字、单个字母不算。 */
 const HUMAN_TEXT = /[A-Za-z぀-ヿ一-鿿]{2,}/;
 const TEXT_ATTRIBUTES = new Set(['title', 'aria-label', 'placeholder', 'alt', 'aria-description']);
+/** 网址、主机名、IP、主机:端口（地址栏的示例值，#689 演习的 `localhost:8765`）：不翻译。 */
+const ADDRESS = /^(?:[a-z][\w+.-]*:\/\/\S+|(?:localhost|\d{1,3}(?:\.\d{1,3}){3}|[\w-]+(?:\.[\w-]+)+)(?::\d+)?(?:\/\S*)?)$/i;
+const escapeRegExp = text => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /**
- * D443：JSX 文本和 title、aria-label、placeholder、alt 里的字面文字走 i18n（t()），三份语言文件一起加（AGENTS.md）。
- * 品牌名之类不翻译的写进 allow。
+ * D443：JSX 文本和 title、aria-label、placeholder、alt 里的字面文字尽量走 i18n（t()），三份语言文件一起加（AGENTS.md）。
+ * warning，不阻断。品牌名、产品名、单位写进 allow：文字里去掉它们以后不剩别的字才算没问题（`OpenSubsonic (` 也认）。
  */
 const uiLiteralText = {
     meta: {
         type: 'suggestion',
         docs: { description: '界面文字走 i18n（D443）' },
         schema: [{ type: 'object', properties: { allow: { type: 'array', items: { type: 'string' } } }, additionalProperties: false }],
-        messages: { literal: 'D443：界面文字“{{text}}”写死在代码里：走 t()，en、zh-CN、in 三份语言文件一起加。' },
+        messages: { literal: 'D443：界面文字“{{text}}”写死在代码里：最好走 t()，en、zh-CN、in 三份语言文件一起加。' },
     },
     create(context) {
-        const allow = new Set(context.options[0]?.allow ?? []);
+        const allowed = [...(context.options[0]?.allow ?? [])].sort((a, b) => b.length - a.length);
+        const names = allowed.length > 0 ? new RegExp(`(?<![A-Za-z])(?:${allowed.map(escapeRegExp).join('|')})(?![A-Za-z])`, 'g') : null;
         const check = (node, raw) => {
             const text = raw.replace(/\s+/g, ' ').trim();
-            if (!text || allow.has(text) || !HUMAN_TEXT.test(text)) return;
+            if (!text || ADDRESS.test(text)) return;
+            if (!HUMAN_TEXT.test(names ? text.replace(names, ' ') : text)) return;
             context.report({ node, messageId: 'literal', data: { text: text.length > 30 ? `${text.slice(0, 30)}…` : text } });
         };
         return {

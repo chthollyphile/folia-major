@@ -14,11 +14,9 @@ const CATEGORIES = ['playlist', 'lyrics', 'cover', 'analysis', 'volumeBalance', 
 
 /**
  * 还没归进清理分类的种类，写明原因；归好以后删掉这一条。
- * theme：主题缓存进了 metadata_cache 表，但设置页的“清除缓存”没有分类认它（2026-11-08 发现，待维护者决定归哪一类）。
+ * （2026-11-08 的 theme 已经不是资源种类了：没有任何地方按它取缓存，歌曲的 AI 主题存在 dual_theme_ 键下，见 services/themeCache.ts。）
  */
-const KNOWN_UNCATEGORIZED: Record<string, string> = {
-    theme: '待决定归哪个清理分类',
-};
+const KNOWN_UNCATEGORIZED: Record<string, string> = {};
 
 /** resourceKeys.ts 里的 SongResourceKind，以及 getSongResourceCacheKey 会用到的带版本的写法。 */
 const resourceKinds = () => {
@@ -33,7 +31,7 @@ describe('D509 every song resource cache key has a table and a cleanup category'
     const kinds = resourceKinds();
 
     it('reads the resource kinds, so the pattern still matches something', () => {
-        expect(kinds).toEqual(expect.arrayContaining(['audio', 'lyric', 'cover', 'theme', 'replayGain', 'cover_v2']));
+        expect(kinds).toEqual(expect.arrayContaining(['audio', 'lyric', 'cover', 'replayGain', 'cover_v2']));
     });
 
     it('keeps each kind out of the api_cache fall-through table', () => {

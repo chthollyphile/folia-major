@@ -10,15 +10,18 @@ const SUMMARY_LIMIT = 30;
 const FOLD_AT = 3;
 /** 风格类（缩进、引号、换行）：都能自动修。 */
 const STYLE_CODE = /^D43[0-2]$/;
-/** 通用的 ESLint 规则（typescript-eslint、react-hooks、通用约定、抑制注释、其他严格规则）。 */
-const GENERIC_CODE = /^D4([0-2]\d|90)$/;
+/** 通用的 ESLint 规则（typescript-eslint、react-hooks、通用约定、抑制注释、其他严格规则、多余的条件判断）。 */
+const GENERIC_CODE = /^D4([0-2]\d|9\d)$/;
 export const FIX_STYLE_COMMAND = 'npm run lint:fix-style';
 
 /** 一条结果的级别：结果自己带的（合成的提示是 notice），否则按代码表。 */
 export const levelOf = finding => finding.level ?? codeInfo(finding.code)?.level ?? 'error';
 
-/** 排序：项目规则（边界、播放、凭据、IPC……）在前，通用 ESLint 规则其次，风格最后。 */
-const rankOf = finding => (STYLE_CODE.test(finding.code) ? 2 : GENERIC_CODE.test(finding.code) ? 1 : 0);
+/**
+ * 排序：项目规则（边界、播放、凭据、IPC……）在前，通用 ESLint 规则其次，风格再次；合成的提示（notice：“另有 N 条
+ * 不在新写的行上”）放最后，它们没有行号、作者也改不了，排在前面会把真问题挤出 GitHub 的前 10 条注解（#741 演习里占了 8 条）。
+ */
+const rankOf = finding => (finding.level === 'notice' ? 3 : STYLE_CODE.test(finding.code) ? 2 : GENERIC_CODE.test(finding.code) ? 1 : 0);
 
 /**
  * 给人看的版本：项目规则排在最前面。GitHub 注解和 job summary 还要合并（fold）：风格问题每个“文件 × 规则”合成一行，
