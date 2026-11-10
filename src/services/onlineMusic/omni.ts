@@ -1192,32 +1192,6 @@ export const omni = {
         await provider.externalPlayback.useStandardPlayback();
     },
 
-    // Whether the system media keys belong to the external player while it sounds this song: the one
-    // that keeps a media session of its own takes a key Folia gave back, so Folia holds it instead.
-    holdsExternalPlaybackMediaKeys(song: SongResult): boolean {
-        return getOnlineMusicProviderForSong(song)?.externalPlayback?.holdsMediaKeys?.() === true;
-    },
-
-    // Whether some player asks for the system media keys for as long as Folia runs, not only while a
-    // track of Folia's sounds in it: that player's own program keeps a media session of its own
-    // between songs, so a key Folia let go is taken by it (the provider's declaration says why). The
-    // app asks no provider which song is on screen: the answer is about that program, not a track.
-    wantsMediaKeyTakeoverWhileRunning(): boolean {
-        return listOnlineMusicProviders().some(provider => provider.externalPlayback?.holdsMediaKeysWhileRunning?.() === true);
-    },
-
-    // Told when that answer may have changed: the way a player plays is picked in its own setup, and
-    // nothing of Folia's state changes with it. A provider that cannot be told is asked on every
-    // change of Folia's state instead.
-    subscribeMediaKeyTakeoverWanted(listener: () => void): () => void {
-        const stops = listOnlineMusicProviders()
-            .map(provider => provider.externalPlayback?.subscribeMediaKeysWanted?.(listener))
-            .filter((stop): stop is () => void => typeof stop === 'function');
-        return () => {
-            for (const stop of stops) stop();
-        };
-    },
-
     async seekExternalPlayback(song: SongResult, seconds: number): Promise<void> {
         const provider = providerForSong(song);
         if (!provider.externalPlayback) return unsupported(provider.id, 'externalPlayback');

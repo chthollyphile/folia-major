@@ -26,8 +26,6 @@ import {
 import {
     SAME_PRESS_MS, createMediaKeyPressGate, isRepeatedMediaKeyPress,
 } from '@/utils/mediaKeyPressGate';
-import { spotifyExternalPlayback } from '@/services/onlineMusic/spotify/spotifyExternalPlayback';
-import { readSpotifyPlaybackMode } from '@/services/onlineMusic/spotify/spotifySoloistPlayback';
 
 const require = createRequire(import.meta.url);
 const { MEDIA_KEYS, createMediaKeyTakeover } = require('../../../electron/mediaKeys.cjs');
@@ -268,24 +266,3 @@ describe('the wish sent to the main process', () => {
     });
 });
 
-describe('a player asking for the keys for the whole run', () => {
-    it('asks while its app is the way it plays, and tells the app the moment that changes', async () => {
-        const heard = vi.fn();
-        const stop = spotifyExternalPlayback.subscribeMediaKeysWanted?.(heard);
-        request.mockResolvedValueOnce({ mode: 'client', soloist: true, client: true });
-        await readSpotifyPlaybackMode();
-        expect(spotifyExternalPlayback.holdsMediaKeysWhileRunning?.()).toBe(true);
-
-        // Back to the standard way: the keys are let go, and the app is told at once (the listener's
-        // second press must not keep waiting for a store change that never comes).
-        request.mockResolvedValueOnce({ mode: 'standard', soloist: true, client: true });
-        await readSpotifyPlaybackMode();
-        expect(spotifyExternalPlayback.holdsMediaKeysWhileRunning?.()).toBe(false);
-        expect(heard).toHaveBeenCalledTimes(2);
-        stop?.();
-        // A listener let go hears nothing more.
-        request.mockResolvedValueOnce({ mode: 'client', soloist: true, client: true });
-        await readSpotifyPlaybackMode();
-        expect(heard).toHaveBeenCalledTimes(2);
-    });
-});

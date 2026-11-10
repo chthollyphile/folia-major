@@ -1,6 +1,6 @@
 import type { OnlineExternalPlaybackProvider } from '../../../types/onlineMusic';
 import { spotifyClientPlayback } from './spotifyClientPlayback';
-import { readSpotifyPlaybackMode, setSpotifyPlaybackMode, spotifyPlaybackMode, spotifySoloistPlayback, subscribeSpotifyPlaybackMode } from './spotifySoloistPlayback';
+import { readSpotifyPlaybackMode, setSpotifyPlaybackMode, spotifyPlaybackMode, spotifySoloistPlayback } from './spotifySoloistPlayback';
 
 // src/services/onlineMusic/spotify/spotifyExternalPlayback.ts
 // Spotify's external player is one of two programs, by the way Spotify plays (spotifySoloistPlayback.ts
@@ -19,16 +19,6 @@ export const spotifyExternalPlayback: OnlineExternalPlaybackProvider = {
         await setSpotifyPlaybackMode('standard');
     },
     isUnreachableFailure: error => (current().isUnreachableFailure?.(error) ?? false),
-    // Only the official app keeps a media session of its own with its own queue in it: the keys are
-    // held while that session sounds, so a press cannot reach Spotify's queue instead of Folia's.
-    // Soloist registers no such session, and its keys stay the ones the app's own media session has.
-    holdsMediaKeys: () => current().holdsMediaKeys?.() === true,
-    // Spotify's own app keeps its media session between Folia's songs too, so while it is the way
-    // Spotify plays, the keys stay Folia's for as long as Folia runs (the setting that asks for them
-    // is the desktop settings'). Soloist registers no session of its own: its keys stay the app's.
-    holdsMediaKeysWhileRunning: () => current().holdsMediaKeysWhileRunning?.() === true,
-    // The way Spotify plays is picked in Folia's own setup, which changes nothing else the app reads.
-    subscribeMediaKeysWanted: listener => subscribeSpotifyPlaybackMode(listener),
     // Both programs sound the song outside every page of the app, so both take the machine's own
     // sound for a real spectrum; the other three are the official app's alone. Read from whichever
     // way is on, so the answers follow a change of it.

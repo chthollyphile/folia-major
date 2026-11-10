@@ -1156,8 +1156,8 @@ describe('the queue a window writes into the app own player', () => {
 
 
 describe('the media keys and the failures that stop an advance', () => {
-    it('declares that its app keeps a media session of its own (the keys are held)', () => {
-        expect(spotifyClientPlayback.holdsMediaKeys?.()).toBe(true);
+    it('declares that a song started here keeps the keys with Folia', () => {
+        expect(spotifyClientPlayback.holdsMediaKeysWhilePlaying).toBe(true);
     });
 
     it('counts only the app being out of reach as unreachable', () => {
@@ -1175,17 +1175,17 @@ describe('the media keys and the failures that stop an advance', () => {
         // Soloist takes no keys: its own program registers no media session with a queue of its own.
         request.mockResolvedValueOnce({ mode: 'soloist', soloist: true, client: true });
         await readSpotifyPlaybackMode();
-        expect(spotifyExternalPlayback.holdsMediaKeys?.()).toBe(false);
+        expect(spotifyExternalPlayback.holdsMediaKeysWhilePlaying).toBe(false);
         expect(spotifyExternalPlayback.stopsAutoAdvanceWhenUnreachable?.()).toBe(false);
 
         request.mockResolvedValueOnce({ mode: 'client', soloist: true, client: true });
         await readSpotifyPlaybackMode();
-        expect(spotifyExternalPlayback.holdsMediaKeys?.()).toBe(true);
+        expect(spotifyExternalPlayback.holdsMediaKeysWhilePlaying).toBe(true);
         expect(spotifyExternalPlayback.stopsAutoAdvanceWhenUnreachable?.()).toBe(true);
 
         // The standard way has no external player at all.
         await setSpotifyPlaybackMode('standard');
-        expect(spotifyExternalPlayback.holdsMediaKeys?.()).toBe(false);
+        expect(spotifyExternalPlayback.holdsMediaKeysWhilePlaying).toBe(false);
     });
 });
 

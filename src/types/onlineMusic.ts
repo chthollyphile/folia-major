@@ -573,28 +573,6 @@ export interface OnlineExternalPlaybackProvider {
      */
     isUnreachableFailure?(error: unknown): boolean;
     /**
-     * Whether the system media keys belong to this player while a track of Folia's sounds in it
-     * (the player registers a media session of its own, so a key Folia does not hold goes to it).
-     * True only where the player is steered by its own program with its own queue; absent or false
-     * leaves the keys to the app's own media session.
-     */
-    holdsMediaKeys?(): boolean;
-    /**
-     * Whether this player asks for the system media keys for as long as Folia runs, not only while a
-     * track of Folia's sounds in it: its own program keeps a media session of its own between those
-     * tracks too, so a key let go while Folia is idle, on another route or after that program stopped
-     * is taken by it and never comes back to Folia. Read only where the listener left the setting
-     * that holds the keys for the whole run on; absent or false leaves the keys to the session rule
-     * above.
-     */
-    holdsMediaKeysWhileRunning?(): boolean;
-    /**
-     * Notified when `holdsMediaKeysWhileRunning` may have changed - the way this player plays is picked
-     * in its own setup, which is not a change of Folia's state. Absent where nothing but the session
-     * decides, which the app already follows from the player's answers.
-     */
-    subscribeMediaKeysWanted?(listener: () => void): () => void;
-    /**
      * The player sounds the song outside every page of the app, so nothing here can measure it: a
      * real spectrum of the song needs the machine's own sound, captured as a whole. True where the
      * audio never passes through the app; absent or false where it does, and nothing is captured.
