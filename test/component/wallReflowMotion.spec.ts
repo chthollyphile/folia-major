@@ -192,7 +192,11 @@ test.describe('[bravais] focus reflow motion', () => {
         await tile(page, slot!).locator('article').click();
         await expect(page.locator('.bravais-tile[data-library-entry]').first()).toBeAttached();
         await expect(stage(page)).not.toHaveAttribute('data-bravais-settling', /.*/, { timeout: 10_000 });
-        await page.waitForTimeout(300);
+        // 把缝折叠起来再量：歌单页的缝张开着时整层倾斜，无头浏览器（软件渲染）里倾斜的层逐帧合成慢、帧间隔拉长，按帧量到的
+        // 时长会被拖晚，量的就不是让位弹簧了。折叠后整层回正，这里只管弹簧本身。
+        expect(await page.evaluate(() => window.__homeProbe!.runChrome('seam-hide'))).toBe(true);
+        await expect(page.locator('[data-bravais-seam]')).toHaveAttribute('data-bravais-seam-level', 'hidden');
+        await page.waitForTimeout(900);
     });
 
     test('expanding, folding back and switching blocks all ride the Lattice spring, without overshoot', async ({ page }) => {

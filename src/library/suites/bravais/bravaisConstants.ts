@@ -30,14 +30,12 @@ export const BRAVAIS_SEAM_POSTER_VIEWPORT_RATIO = 0.46;
 /**
  * 整层（两半墙与缝）倾斜的角度（度，负 = 逆时针，0 = 不倾斜），绕缝的右缘、视口半高转。按缝里此刻要画的那一套内容取
  * （bravaisTilt 的 resolveBravaisTiltDeg）：
- * - home：首页的窄缝与书脊；
+ * - home：首页的窄缝与书脊（不倾斜）；
  * - collection：集合页（歌单、专辑与歌手页不画海报时）的信息条与书脊；
  * - poster：歌手 / 专辑海报。
  * 面板、表单、首页的搜索框、横向的缝与有限拼贴（过滤中）不倾斜。
- * home / collection 现在是 0：把它们改成别的角度，倾斜、裁剪、缝的出血与内容缩进、聚焦卡让位都跟着走，但还有几处是按
- * 「只有海报会倾斜」写的，改之前先看一遍——缝贴着视口左右边时内容的上端 / 下端会横着出屏（seamTiltInsets 只管上下）；
- * 倾斜着换锚点（边缘标签「在这里裂开」、换层）墙会竖着跳一下；翻牌 / 入场范围与第一次按方向键的落点按没倾斜的视口判断
- * （useBravaisDisplay、useBravaisInteractions）；翻牌交接（useBravaisWallHandoff）量磁贴时墙还没回正；空墙说明不跟着转。
+ * 倾斜、裁剪、缝的出血与内容缩进、排开口时离视口边多留的那一段、聚焦卡让位、换锚点时墙不跳，都按这张表的角度走。
+ * 还没管的两处，改 home 之前要看：空墙说明（BravaisWallHint，只在首页）不跟着转；信息条设成横向时不倾斜。
  */
 export const BRAVAIS_TILT_DEG: Record<'home' | 'collection' | 'poster', number> = { home: 0, collection: -4, poster: -10 };
 /**

@@ -1809,14 +1809,35 @@ test.describe('[bravais-only] collection page', () => {
         expect(box, selector).not.toBeNull();
         return box!;
     };
-    /** 缝里的按钮（播放全部、加入队列、列表、更多）都在视口里，也都在缝的纸条里。 */
+    /**
+     * 元素在缝的内容层里的排版矩形（offsetLeft / offsetTop 一路加到内容层）。集合页整层倾斜着，boundingBox 给的是转过之后的
+     * 屏幕外接框；「同一行」「在它上方」「不超出纸条」这些排版关系按没转的坐标比。
+     */
+    const layoutBoxOf = async (page: Page, selector: string) => {
+        const locator = page.locator(`[data-library-stage="bravais"] ${selector}`).first();
+        await expect(locator, selector).toBeAttached();
+        return locator.evaluate((element) => {
+            const root = element.closest('.bravais-seam-content');
+            let x = 0;
+            let y = 0;
+            for (let node: HTMLElement | null = element as HTMLElement; node && node !== root; node = node.offsetParent as HTMLElement | null) {
+                x += node.offsetLeft;
+                y += node.offsetTop;
+            }
+            return { x, y, width: (element as HTMLElement).offsetWidth, height: (element as HTMLElement).offsetHeight };
+        });
+    };
+    /** 缝里的按钮（播放全部、加入队列、列表、更多）都在视口里（屏幕上，倾斜算在内），也都在缝的纸条里（排版上）。 */
     const expectSeamButtonsInView = async (page: Page) => {
         const viewport = page.viewportSize()!;
-        const seam = await boxOf(page, '.bravais-seam-full');
+        const seam = await layoutBoxOf(page, '.bravais-seam-full');
         for (const action of ['play-scope', 'enqueue-scope', 'list', 'more']) {
             const box = await boxOf(page, `.bravais-seam-full [data-bravais-seam-action="${action}"]`);
             expect(box.y, action).toBeGreaterThanOrEqual(0);
-            expect(box.y + box.height, action).toBeLessThanOrEqual(Math.min(viewport.height, seam.y + seam.height) + 0.5);
+            expect(box.y + box.height, action).toBeLessThanOrEqual(viewport.height + 0.5);
+            const laidOut = await layoutBoxOf(page, `.bravais-seam-full [data-bravais-seam-action="${action}"]`);
+            expect(laidOut.y, action).toBeGreaterThanOrEqual(seam.y);
+            expect(laidOut.y + laidOut.height, action).toBeLessThanOrEqual(seam.y + seam.height + 0.5);
         }
     };
 
@@ -2029,7 +2050,12 @@ test.describe('[bravais-only] collection page', () => {
         // 打开菜单不推挤：按钮行与上面的播放按钮都没动；菜单在「⋯ 更多」上方。
         expect(await more.boundingBox()).toEqual(before.more);
         expect(await play.boundingBox()).toEqual(before.play);
-        await expect.poll(async () => (await menu.boundingBox())!.y + (await menu.boundingBox())!.height).toBeLessThanOrEqual(before.more!.y);
+        // 上下关系按排版坐标比（整层倾斜着，屏幕外接框是转过的）。
+        const moreBox = await layoutBoxOf(page, '.bravais-seam-full [data-bravais-seam-action="more"]');
+        await expect.poll(async () => {
+            const menuBox = await layoutBoxOf(page, '[data-bravais-seam-menu]');
+            return menuBox.y + menuBox.height;
+        }).toBeLessThanOrEqual(moreBox.y);
         await page.keyboard.press('Escape');
         await expect(menu).toHaveCount(0);
         await expect(seam).toHaveAttribute('data-bravais-seam-level', 'full');
@@ -2048,9 +2074,9 @@ test.describe('[bravais-only] collection page', () => {
         await expect(star).toHaveAccessibleName('Subscribe Playlist');
         await expect(star).toHaveAttribute('aria-pressed', 'false');
         // 同一行：与「播放全部」竖直方向重叠；靠右（这一行的最后一个，右边缘贴着行尾）。
-        const play = await boxOf(page, '.bravais-seam-full [data-bravais-seam-action="play-scope"]');
-        const starBox = await boxOf(page, '.bravais-seam-full [data-bravais-seam-action="subscribe"]');
-        const rowBox = await boxOf(page, '.bravais-seam-full .bravais-seam-actions.is-scope');
+        const play = await layoutBoxOf(page, '.bravais-seam-full [data-bravais-seam-action="play-scope"]');
+        const starBox = await layoutBoxOf(page, '.bravais-seam-full [data-bravais-seam-action="subscribe"]');
+        const rowBox = await layoutBoxOf(page, '.bravais-seam-full .bravais-seam-actions.is-scope');
         expect(starBox.y).toBeLessThan(play.y + play.height);
         expect(starBox.y + starBox.height).toBeGreaterThan(play.y);
         expect(starBox.x).toBeGreaterThan(play.x + play.width);
