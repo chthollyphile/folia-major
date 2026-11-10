@@ -17,7 +17,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const require = createRequire(import.meta.url);
 const {
-    PLAY_STATE_SOURCE, QUEUE_SOURCE, START_QUEUE_SOURCE, START_WAIT_SOURCE,
+    PLAY_STATE_SOURCE, QUEUE_SOURCE, RESTORE_STATE_SOURCE, START_QUEUE_SOURCE, START_WAIT_SOURCE,
     createSpotifyOfficialClient, isAdvertisementItem, repeatModeOf, statusFromMediaSession, statusFromPlayerState,
 } = require('../../../electron/spotify/officialClient.cjs');
 const { createSpotifyApiBridge, SPOTIFY_OPERATIONS } = require('../../../electron/spotify/spotifyApiBridge.cjs');
@@ -516,6 +516,19 @@ describe('the repeat and the shuffle Folia put back', () => {
         await app.client.close();
     });
 
+    it('forgets one the listener changed themselves meanwhile, rather than trying it again', async () => {
+        playedWith({ repeat: 'one', shuffle: true });
+        const app = makeClient({ running: true, portAnswers: true });
+        await app.client.play({ id: TRACK, startMs: 0 });
+        // The page found both set to something else than what Folia left: they are the listener's
+        // own now, and a record of them would only write over that at the next restore.
+        handle = () => ({ value: { repeat: 'theirs', shuffle: 'theirs' } });
+
+        await expect(app.client.restoreUserState()).resolves.toEqual({ repeat: null, shuffle: null });
+        expect(app.client.changedState()).toEqual({ repeat: null, shuffle: null });
+        await app.client.close();
+    });
+
     it('keeps one the player refused, so it is tried again', async () => {
         playedWith({ repeat: 'one', shuffle: true });
         const app = makeClient({ running: true, portAnswers: true });
@@ -555,6 +568,76 @@ describe('the repeat and the shuffle Folia put back', () => {
         expect(app.spotifySpawns()).toBe(0);
         expect(app.taskkills()).toBe(0);
         await app.client.close();
+    });
+});
+
+describe('the repeat and the shuffle a restore puts back in the page', () => {
+    type Restore = (input: unknown) => Promise<{ repeat: unknown; shuffle: unknown }>;
+    const restore = (new Function('return (' + String(RESTORE_STATE_SOURCE) + ')')()) as Restore;
+
+    /** A player that reports this repeat and shuffle, and records every call the source made on it. */
+    const playerSaying = (state: { repeat?: number; shuffle?: boolean; unreadable?: boolean }) => {
+        const player: Record<string, unknown> = {
+            calls: [] as string[],
+            repeat: state.repeat ?? 0,
+            shuffle: state.shuffle ?? false,
+            getState() {
+                if (state.unreadable) throw new Error('the state is not readable now');
+                return { repeat: player.repeat, shuffle: player.shuffle };
+            },
+            setRepeat: async (value: number) => { (player.calls as string[]).push('setRepeat ' + value); player.repeat = value; },
+            setShuffle: async (value: boolean) => { (player.calls as string[]).push('setShuffle ' + value); player.shuffle = value; },
+        };
+        return player;
+    };
+    const restoreWith = (player: Record<string, unknown>, repeat: number | null, shuffle: boolean) =>
+        restore({ api: { player }, repeat, shuffle });
+
+    it('puts the repeat of the track back where it is still the one Folia turned off', async () => {
+        // Folia left the app with repeat off; nothing came between that and the restore.
+        const player = playerSaying({ repeat: 0 });
+        await expect(restoreWith(player, 2, false)).resolves.toMatchObject({ repeat: true });
+        expect(player.calls).toEqual(['setRepeat 2']);
+    });
+
+    it('leaves alone a repeat the listener set to the list meanwhile', async () => {
+        // The listener had repeat of the track, Folia turned it off, and they then asked for the
+        // list: that is a setting of their own made after the play, not Folia's to undo.
+        const player = playerSaying({ repeat: 1 });
+        await expect(restoreWith(player, 2, false)).resolves.toMatchObject({ repeat: 'theirs' });
+        expect(player.calls).toEqual([]);
+    });
+
+    it('leaves alone a repeat the listener turned to the track again meanwhile', async () => {
+        const player = playerSaying({ repeat: 2 });
+        await expect(restoreWith(player, 2, false)).resolves.toMatchObject({ repeat: 'theirs' });
+        expect(player.calls).toEqual([]);
+    });
+
+    it('turns a shuffle back on where it is still the off Folia left it as', async () => {
+        const player = playerSaying({ shuffle: false });
+        await expect(restoreWith(player, null, true)).resolves.toMatchObject({ shuffle: true });
+        expect(player.calls).toEqual(['setShuffle true']);
+    });
+
+    it('leaves alone a shuffle the listener turned on meanwhile', async () => {
+        const player = playerSaying({ shuffle: true });
+        await expect(restoreWith(player, null, true)).resolves.toMatchObject({ shuffle: 'theirs' });
+        expect(player.calls).toEqual([]);
+    });
+
+    it('changes nothing at all where the player state cannot be read, and says so', async () => {
+        // Without a state there is no sign the value is still Folia's, so both are kept for the next
+        // restore rather than written over a setting the listener may have made after the play.
+        const player = playerSaying({ unreadable: true });
+        await expect(restoreWith(player, 2, true)).resolves.toMatchObject({ repeat: false, shuffle: false, read: false });
+        expect(player.calls).toEqual([]);
+    });
+
+    it('touches only what the play changed', async () => {
+        const player = playerSaying({ repeat: 1, shuffle: true });
+        await expect(restoreWith(player, null, false)).resolves.toMatchObject({ repeat: false, shuffle: false });
+        expect(player.calls).toEqual([]);
     });
 });
 

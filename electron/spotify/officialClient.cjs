@@ -342,14 +342,34 @@ const PLAY_STATE_SOURCE = `async ({ api }) => {
 
 // What a play changed of the listener's own, put back as it was. `repeat` is Spotify's own number
 // (2 the track, 1 the list) or null where this play changed none, and `shuffle` says whether it
-// turned a shuffle off. A player that refuses a call leaves that one as it is.
+// turned a shuffle off. Each one is written back only where the app still holds the value the play
+// left it at - repeat off, shuffle off. A value the listener set themselves after the play is theirs
+// and is never written over: it answers 'theirs', which is read as done rather than tried again.
+// The state is read first, and where it cannot be read nothing is written at all: without it there
+// is no sign the value is still the one Folia wrote, so the record is kept for a later restore.
+// A player that refuses a call leaves that one as it is.
 const RESTORE_STATE_SOURCE = `async ({ api, repeat, shuffle }) => {
-  const put = { repeat: false, shuffle: false };
+  const put = { repeat: false, shuffle: false, read: true };
+  if (repeat === null && !shuffle) return put;
+  let s = null;
+  try { s = typeof api.player.getState === 'function' ? api.player.getState() : null; } catch { s = null; }
+  if (!s || typeof s !== 'object') {
+    put.read = false;
+    return put;
+  }
   if (repeat !== null && typeof api.player.setRepeat === 'function') {
-    try { await api.player.setRepeat(repeat); put.repeat = true; } catch { /* left as it is */ }
+    if (s.repeat === 0) {
+      try { await api.player.setRepeat(repeat); put.repeat = true; } catch { /* left as it is */ }
+    } else {
+      put.repeat = 'theirs';
+    }
   }
   if (shuffle && typeof api.player.setShuffle === 'function') {
-    try { await api.player.setShuffle(true); put.shuffle = true; } catch { /* left as it is */ }
+    if (s.shuffle === false) {
+      try { await api.player.setShuffle(true); put.shuffle = true; } catch { /* left as it is */ }
+    } else {
+      put.shuffle = 'theirs';
+    }
   }
   return put;
 }`;
@@ -1585,9 +1605,12 @@ function createSpotifyOfficialClient({
 
         // Puts the listener's own repeat and shuffle back as this run found them, and forgets them: it
         // is what leaving this way of playing, signing out and quitting do, so the app is left the
-        // way its listener had it. A player that cannot be reached is left alone rather than started
-        // for it - starting Spotify to put two settings back would be a change of its own - so the
-        // record stays, and the next call tries again. Answers what was put back, for the log.
+        // way its listener had it. A value the listener changed themselves after the play is left as
+        // they set it, and its record goes with this call rather than being tried again; a state that
+        // cannot be read leaves both records in place. A player that cannot be reached is left alone
+        // rather than started for it - starting Spotify to put two settings back would be a change of
+        // its own - so the record stays, and the next call tries again. Answers what is still to be
+        // put back, for the log and for a quit that holds for it.
         async restoreUserState({ allowStart = false } = {}) {
             const repeat = changedRepeat;
             const shuffle = changedShuffle;
@@ -1603,11 +1626,22 @@ function createSpotifyOfficialClient({
                 warn('[SpotifyClient] the listener\'s own repeat and shuffle could not be put back; they are kept and tried again', error);
                 return changedState();
             }
+            // A state that could not be read says nothing about either one: both records stay for the
+            // next call, which asks again rather than writing over a value of the listener's.
+            if (put?.read === false) {
+                log('[SpotifyClient] Spotify\'s repeat and shuffle could not be read; what is to be put back is kept and tried again');
+                return changedState();
+            }
+            // Written back, or found to be the listener's own now: either way this record is done.
             if (put?.repeat) changedRepeat = null;
             if (put?.shuffle) changedShuffle = null;
-            const putBack = [put?.repeat ? 'repeat' : null, put?.shuffle ? 'shuffle' : null].filter(Boolean);
+            const putBack = [put?.repeat === true ? 'repeat' : null, put?.shuffle === true ? 'shuffle' : null].filter(Boolean);
+            const keptByListener = [put?.repeat === 'theirs' ? 'repeat' : null, put?.shuffle === 'theirs' ? 'shuffle' : null].filter(Boolean);
             if (putBack.length) log('[SpotifyClient] the listener\'s own ' + putBack.join(' and ') + ' were put back as they were');
-            return { repeat: put?.repeat ? null : changedRepeat, shuffle: put?.shuffle ? null : changedShuffle };
+            if (keptByListener.length) {
+                log('[SpotifyClient] the listener\'s own ' + keptByListener.join(' and ') + ' were changed in Spotify meanwhile and are left as they are');
+            }
+            return { repeat: changedRepeat, shuffle: changedShuffle };
         },
 
         // The player's state; from the media session (then `fallback` is set and no track is named)
