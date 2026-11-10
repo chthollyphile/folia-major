@@ -12,7 +12,6 @@ import {
     DEFAULT_SONNET_TUNING,
     DEFAULT_TEMPERA_TUNING,
     type DualTheme,
-    type PendoloTuning,
     type Theme,
 } from '../types';
 import { normalizeRandomVisualizerModes } from './randomVisualizerModes';
@@ -361,41 +360,18 @@ const decompressMonet = (o: any): any => ({
     showPortraitDragHanger: o.mpdh !== undefined ? o.mpdh : DEFAULT_MONET_TUNING.showPortraitDragHanger,
 });
 
-const compressPendolo = (tuning: unknown) => {
-    const t = tuning as PendoloTuning;
-    return {
-        sgd: t.showGearDecor,
-        scg: t.showCenterGradient,
-        sco: t.showCoverOnWatchFace,
-        elg: t.enableLineGlow,
-        // 镜像、倾斜、分层视差、轮心视角（#1146）
-        mir: t.mirrorLayout,
-        tlt: t.tiltDeg,
-        tla: t.tiltAxisDeg,
-        plx: t.parallaxDepth,
-        hv: t.hubView,
-        hvh: t.hubViewHeight,
-        hvb: t.hubViewBack,
-    };
-};
-type PendoloShortCode = Partial<ReturnType<typeof compressPendolo>>;
-// 没有这几项的旧短码是平放的表盘：缺的按默认值补，导入后不会留着当前的倾斜
-const decompressPendolo = (code: unknown): Partial<PendoloTuning> => {
-    const o = code as PendoloShortCode;
-    return {
-        showGearDecor: o.sgd || DEFAULT_PENDOLO_TUNING.showGearDecor,
-        showCenterGradient: o.scg !== undefined ? o.scg : DEFAULT_PENDOLO_TUNING.showCenterGradient,
-        showCoverOnWatchFace: o.sco !== undefined ? o.sco : DEFAULT_PENDOLO_TUNING.showCoverOnWatchFace,
-        enableLineGlow: o.elg !== undefined ? o.elg : DEFAULT_PENDOLO_TUNING.enableLineGlow,
-        mirrorLayout: o.mir !== undefined ? o.mir : DEFAULT_PENDOLO_TUNING.mirrorLayout,
-        tiltDeg: o.tlt !== undefined ? o.tlt : DEFAULT_PENDOLO_TUNING.tiltDeg,
-        tiltAxisDeg: o.tla !== undefined ? o.tla : DEFAULT_PENDOLO_TUNING.tiltAxisDeg,
-        parallaxDepth: o.plx !== undefined ? o.plx : DEFAULT_PENDOLO_TUNING.parallaxDepth,
-        hubView: o.hv !== undefined ? o.hv : DEFAULT_PENDOLO_TUNING.hubView,
-        hubViewHeight: o.hvh !== undefined ? o.hvh : DEFAULT_PENDOLO_TUNING.hubViewHeight,
-        hubViewBack: o.hvb !== undefined ? o.hvb : DEFAULT_PENDOLO_TUNING.hubViewBack,
-    };
-};
+const compressPendolo = (t: any): any => ({
+    sgd: t.showGearDecor,
+    scg: t.showCenterGradient,
+    sco: t.showCoverOnWatchFace,
+    elg: t.enableLineGlow,
+});
+const decompressPendolo = (o: any): any => ({
+    showGearDecor: o.sgd || DEFAULT_PENDOLO_TUNING.showGearDecor,
+    showCenterGradient: o.scg !== undefined ? o.scg : DEFAULT_PENDOLO_TUNING.showCenterGradient,
+    showCoverOnWatchFace: o.sco !== undefined ? o.sco : DEFAULT_PENDOLO_TUNING.showCoverOnWatchFace,
+    enableLineGlow: o.elg !== undefined ? o.elg : DEFAULT_PENDOLO_TUNING.enableLineGlow,
+});
 
 const compressSonnet = (t: any): any => ({
     ci: t.cameraIntensity,
