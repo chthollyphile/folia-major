@@ -24,6 +24,10 @@ const omniMock = vi.hoisted(() => ({
     })),
     isExternalPlaybackStatusForSong: vi.fn((_song: unknown, _status: ProviderExternalPlaybackStatus) => true),
     adoptExternalPlayback: vi.fn((_song: unknown) => {}),
+    // The player these blocks pin is the one that declared both of them: Spotify's own app.
+    externalPlaybackTraits: vi.fn(() => ({
+        capturesSystemAudio: true, startsWithoutWaiting: true, backsOffStatusPolls: true, holdsMediaKeysWhilePlaying: true,
+    })),
 }));
 
 vi.mock('@/services/onlineMusic/omni', () => ({ omni: omniMock }));

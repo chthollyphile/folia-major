@@ -209,11 +209,14 @@ const deferred = <T,>() => {
 };
 
 // What `startExternalPlayback` hands the play path: the player's side of a start, still running.
-const externalHandle = (started: Promise<void>) => ({
+// `waited` is what a player that declared nothing makes the play path wait for before it shows the
+// song; it is the start here, and a test that needs the wait held passes its own.
+const externalHandle = (started: Promise<void>, waited: Promise<void> = Promise.resolve()) => ({
     attempt: 1,
     askedAt: performance.now(),
     started,
     seeded: started.then(() => undefined, () => undefined),
+    waited,
     timings: { prepareMs: 0, playMs: null, statusMs: null, lyricsMs: null, visibleMs: null, coverMs: null },
 });
 
@@ -322,6 +325,23 @@ describe('playSong and the current song (online)', () => {
         unsubscribe();
     });
 
+
+    it('shows nothing of an external song until the player that answers has taken it', async () => {
+        env.external = true;
+        // A player whose start answers (Apple Music's companion): the play path shows the song only
+        // once the player has it and the clock is seeded, which is the wait it has always taken.
+        const taken = deferred<void>();
+        env.externalStarts.mockImplementation(() => externalHandle(Promise.resolve(), taken.promise));
+        const { queue } = mount();
+        const playing = queue.playSong(songA, [songA, songB]);
+        await vi.waitFor(() => expect(env.externalStarts).toHaveBeenCalled());
+        for (let tick = 0; tick < 10; tick++) await Promise.resolve();
+        expect(usePlaybackStore.getState().currentSong).toBeNull();
+
+        taken.resolve();
+        await playing;
+        expect(usePlaybackStore.getState().currentSong?.id).toBe('1');
+    });
 
     it('shows preparation feedback on a cold external start', async () => {
         env.external = true;

@@ -1057,6 +1057,10 @@ export function usePlaybackQueueController({
 
         const onlineLyricsState = await loadOnlineLyricsState(song);
         markStart('lyricsMs');
+        // A player whose start answers is shown only once it has the song and the clock is seeded,
+        // which is the wait this play has always taken there; a player whose start is an instruction
+        // hands the play path back at once (see `ExternalPlaybackStart.waited`).
+        if (externalStart) await externalStart.waited;
         // Overtaken during that wait, or the player gave the song up meanwhile: nothing of this song
         // is shown, and the queue stays as it is.
         if (!isLatestPlaybackRequest() || externalStartStopped) {

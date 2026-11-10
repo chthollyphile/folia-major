@@ -21,6 +21,10 @@ const omniMock = vi.hoisted(() => ({
         mediaId: 'a', isPlaying: true, positionMs: 1000, durationMs: 200000, ended: false,
     })),
     isExternalPlaybackStatusForSong: vi.fn(() => true),
+    // Apple Music's own player declared nothing about how it plays.
+    externalPlaybackTraits: vi.fn(() => ({
+        capturesSystemAudio: false, startsWithoutWaiting: false, backsOffStatusPolls: false, holdsMediaKeysWhilePlaying: false,
+    })),
 }));
 
 vi.mock('@/services/onlineMusic/omni', () => ({ omni: omniMock }));
@@ -93,9 +97,11 @@ describe('shuffling the queue of an external song', () => {
         expect(omniMock.prepareExternalPlaybackQueue).toHaveBeenCalledWith(a, [b, c], undefined);
 
         // The shuffle of the queue Folia holds: the songs after this one are now others, and the
-        // player is told the new order rather than the one prepared before it.
+        // player is told the new order rather than the one prepared before it. This player declared
+        // nothing about how it plays, so it is offered the two successors this route always prepared
+        // (a player that reads its own queue ahead, Spotify's own app, is offered three).
         usePlaybackStore.setState({ playQueue: [a, d, b, c] });
         await vi.advanceTimersByTimeAsync(600);
-        expect(omniMock.prepareExternalPlaybackQueue).toHaveBeenLastCalledWith(a, [d, b, c], undefined);
+        expect(omniMock.prepareExternalPlaybackQueue).toHaveBeenLastCalledWith(a, [d, b], undefined);
     });
 });
