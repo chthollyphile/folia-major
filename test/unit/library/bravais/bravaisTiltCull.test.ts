@@ -7,6 +7,7 @@ import { BRAVAIS_CULL_EDGE_MARGIN, BRAVAIS_OVERSCAN, BRAVAIS_SEAM_FULL_WIDTH, BR
 import { computeBravaisFrame, rotateAround } from '@/library/suites/bravais/bravaisFrame';
 import { getVisibleWorldBounds, needsRecull, useBravaisCamera } from '@/library/suites/bravais/useBravaisCamera';
 import type { BravaisFrameState } from '@/library/suites/bravais/useBravaisFrame';
+import { useBravaisFrame } from '@/library/suites/bravais/useBravaisFrame';
 import { useBravaisTilt } from '@/library/suites/bravais/useBravaisTilt';
 
 // test/unit/library/bravais/bravaisTiltCull.test.ts
@@ -42,6 +43,7 @@ const stateAt = (patch: Partial<BravaisFrameState> = {}): BravaisFrameState => (
     poster: false,
     tiltDeg: -10,
     tiltTargetDeg: -10,
+    seamTiltDeg: 0,
     tiltSettled: true,
     ...patch,
 });
@@ -250,7 +252,7 @@ describe('culling a tilted wall: wiring', () => {
         const renderFrame = vi.fn();
         const checkCull = vi.fn();
         const Probe = ({ deg }: { deg: number }) => {
-            useBravaisTilt({ frameRef, renderFrame, checkCull, deg, reducedMotion: false });
+            useBravaisTilt({ frameRef, renderFrame, checkCull, deg, seamDeg: 0, reducedMotion: false });
             return null;
         };
         act(() => root.render(createElement(Probe, { deg: 0 })));
@@ -262,14 +264,89 @@ describe('culling a tilted wall: wiring', () => {
         // 一开始转就记下要转到的角度（让位、缝的出血与内容缩进按它给），补间中缝交给合成器转。
         expect(frameRef.current.tiltTargetDeg).toBe(-10);
         expect(frameRef.current.tiltSettled).toBe(false);
+        const before = renderFrame.mock.calls.length;
         turn.options.onUpdate?.(-4);
         expect(frameRef.current.tiltDeg).toBe(-4);
-        expect(renderFrame).toHaveBeenCalledTimes(1);
+        expect(renderFrame).toHaveBeenCalledTimes(before + 1);
         // 途中只问「快到边缘了吗」，不强制裁剪。
         expect(checkCull.mock.calls).toEqual([[]]);
         turn.options.onUpdate?.(-10);
         turn.options.onComplete?.();
         expect(frameRef.current.tiltSettled).toBe(true);
         expect(checkCull.mock.calls[checkCull.mock.calls.length - 1]).toEqual([true]);
+    });
+});
+
+describe('dressing a tilted seam', () => {
+    let container: HTMLDivElement;
+    let root: Root;
+
+    beforeEach(() => {
+        animateCalls.length = 0;
+        container = document.createElement('div');
+        document.body.appendChild(container);
+        root = createRoot(container);
+    });
+
+    afterEach(() => {
+        act(() => root.unmount());
+        container.remove();
+    });
+
+    /** 挂真的帧与倾斜：缝与内容层是两个真节点，读写它们身上的属性与变量。 */
+    const mount = () => {
+        const seam = document.createElement('div');
+        const content = document.createElement('div');
+        const node = <T extends HTMLElement>(current: T | null = null) => ({ current });
+        const refs = {
+            left: node<HTMLDivElement>(), right: node<HTMLDivElement>(), seam: node(seam), seamTrack: node<HTMLDivElement>(),
+            seamContent: node(content), tab: node<HTMLButtonElement>(), hint: node<HTMLDivElement>(),
+        };
+        const handle: { frame: ReturnType<typeof useBravaisFrame> | null } = { frame: null };
+        const Probe = ({ deg, seamDeg }: { deg: number; seamDeg: number }) => {
+            const frame = useBravaisFrame(refs);
+            handle.frame = frame;
+            // 第一次渲染就把视口与缝放进帧状态（stage 在量到视口后写）。
+            if (!frame.stateRef.current.view) Object.assign(frame.stateRef.current, stateAt({ tiltDeg: 0, tiltTargetDeg: 0 }));
+            useBravaisTilt({ frameRef: frame.stateRef, renderFrame: frame.renderFrame, checkCull: () => undefined, deg, seamDeg, reducedMotion: false });
+            return null;
+        };
+        const render = (deg: number, seamDeg: number) => act(() => root.render(createElement(Probe, { deg, seamDeg })));
+        const dressed = () => ({
+            tilted: seam.dataset.bravaisSeamTilted !== undefined,
+            bottom: parseFloat(content.style.getPropertyValue('--bravais-seam-tilt-bottom')),
+        });
+        return { render, dressed, frame: () => handle.frame! };
+    };
+
+    it('leaves the content that is flipping away alone while the page turns to a tilted one', () => {
+        // 首页（表里 0°）翻到海报：目标角度已经是 −10，缝里画着的还是首页的内容（seamDeg 0）。
+        const { render, dressed, frame } = mount();
+        render(0, 0);
+        expect(dressed()).toEqual({ tilted: false, bottom: 0 });
+        render(-10, 0);
+        expect(frame().stateRef.current.tiltTargetDeg).toBe(-10);
+        expect(dressed()).toEqual({ tilted: false, bottom: 0 });
+        // 补间走到一半也一样。
+        animateCalls[animateCalls.length - 1]!.options.onUpdate?.(-6);
+        expect(dressed()).toEqual({ tilted: false, bottom: 0 });
+    });
+
+    it('dresses the seam once for the content it draws, not frame by frame', () => {
+        // 画着的内容属于倾斜 −6° 的页面：整层还没开始转，出血与缩进已经按落定的角度给好。
+        const { render, dressed, frame } = mount();
+        render(-6, -6);
+        const landed = dressed();
+        expect(landed.tilted).toBe(true);
+        expect(landed.bottom).toBeGreaterThan(20);
+        const turn = animateCalls[animateCalls.length - 1]!;
+        for (const value of [-1, -3, -5, -6]) {
+            turn.options.onUpdate?.(value);
+            expect(dressed()).toEqual(landed);
+        }
+        // 这套内容不再倾斜（换成面板、过滤生效）：一次撤掉，不等回正补间。
+        render(0, 0);
+        expect(dressed()).toEqual({ tilted: false, bottom: 0 });
+        expect(frame().stateRef.current.seamTiltDeg).toBe(0);
     });
 });

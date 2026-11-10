@@ -1,5 +1,5 @@
 import { animate } from 'framer-motion';
-import { useEffect, useRef, type MutableRefObject } from 'react';
+import { useEffect, useLayoutEffect, useRef, type MutableRefObject } from 'react';
 import {
     BRAVAIS_TILT_EASE,
     BRAVAIS_TILT_IN_DELAY_S,
@@ -25,6 +25,7 @@ export const useBravaisTilt = ({
     renderFrame,
     checkCull,
     deg,
+    seamDeg,
     reducedMotion,
 }: {
     frameRef: MutableRefObject<BravaisFrameState>;
@@ -32,8 +33,15 @@ export const useBravaisTilt = ({
     checkCull: (force?: boolean) => void;
     /** 整层该转到的角度（度；0 = 回正）。 */
     deg: number;
+    /** 缝里此刻画着的那套内容落定时的角度（度）：缝的出血与内容缩进按它给（useBravaisFrame 的 seamTiltDeg）。 */
+    seamDeg: number;
     reducedMotion: boolean;
 }) => {
+    // 缝的出血与内容缩进跟着画着的内容走：与内容换上来同一次提交里写（先于绘制），不等倾斜补间。
+    useLayoutEffect(() => {
+        frameRef.current.seamTiltDeg = seamDeg;
+        renderFrame();
+    }, [frameRef, renderFrame, seamDeg]);
     const animationRef = useRef<{ stop: () => void } | null>(null);
     useEffect(() => {
         const to = deg;

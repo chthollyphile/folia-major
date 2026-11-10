@@ -244,19 +244,15 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
     const { bottomPx, getBottomInset } = useBravaisPlayerSafeArea();
     // 整层（两半墙与缝）一起倾斜，倾斜着照样拖动、滚动（useBravaisTilt）。转多少按缝里要画的内容定（bravaisTilt：歌手 / 专辑
     // 海报、首页、集合页各一个角度，见 BRAVAIS_TILT_DEG）。从横的信息条换过来时等横条合上、竖的缝换上来再转（横条在场时
-    // 帧里没有倾斜，提前开始补间会在换方向那一刻跳一下）。
+    // 帧里没有倾斜，提前开始补间会在换方向那一刻跳一下）。缝的出血与内容缩进另按缝里此刻画着的那套内容取同一张表
+    // （seamDeg）：正要翻走的旧内容不跟着下一页的角度变。
+    const tiltGates = { openWidth: seamTarget.width, finite: layer?.mode === 'finite', reducedMotion };
     useBravaisTilt({
         frameRef,
         renderFrame,
         checkCull: camera.checkCull,
-        deg: resolveBravaisTiltDeg({
-            variant: seamTarget.variant,
-            openWidth: seamTarget.width,
-            targetAxis: seamTarget.axis,
-            renderedAxis: seam.rendered.axis,
-            finite: layer?.mode === 'finite',
-            reducedMotion,
-        }),
+        deg: resolveBravaisTiltDeg({ ...tiltGates, variant: seamTarget.variant, targetAxis: seamTarget.axis, renderedAxis: seam.rendered.axis }),
+        seamDeg: resolveBravaisTiltDeg({ ...tiltGates, variant: seam.rendered.variant, targetAxis: seam.rendered.axis, renderedAxis: seam.rendered.axis }),
         reducedMotion,
     });
 
