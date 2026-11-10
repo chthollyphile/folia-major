@@ -55,6 +55,13 @@ export type PlaybackNavigationOptions = {
      * the app, and a player that cannot be reached stops it where it is instead of failing it.
      */
     autoAdvance?: boolean;
+    /**
+     * Set only where the play replaces the whole play queue with a list of its own (a playlist,
+     * album or list played from its first song, a mod's `replaceQueue`): the player outside the app
+     * is then told to take that list as the queue, and what it held behind this song - the songs the
+     * listener queued there included - goes with the queue that was replaced.
+     */
+    replaceQueue?: boolean;
 };
 
 export type NextTrackOptions = PlaybackNavigationOptions & {
