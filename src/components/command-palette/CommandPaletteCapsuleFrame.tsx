@@ -1,15 +1,15 @@
 import React from 'react';
 import { AnimatePresence, motion, type Variants } from 'framer-motion';
-import { CAPSULE_MORPH_DURATION_S, PANEL_OPEN_CLIP, capsuleClipPath, type CapsuleFrame } from './capsuleFrame';
+import { CAPSULE_MORPH_DURATION_S, PANEL_OPEN_CLIP, PANEL_VERTICAL_INSET_PX, capsuleClipPath, type CapsuleFrame } from './capsuleFrame';
 
 // src/components/command-palette/CommandPaletteCapsuleFrame.tsx
 // The palette grown up out of the player bar instead of dropped in from the top.
 //
 // Split out of CommandPalette like the inline frame: the panel and the pinned row are built there,
-// once, for every frame; this file only places them over the bar and unfolds them from its shape.
+// once, for every frame; this file only places them and unfolds them from the bar's shape.
 
 type CommandPaletteCapsuleFrameProps = {
-    /** The bar as it was when the palette opened: where the panel sits and what it unfolds from. */
+    /** The bar as it was when the palette opened: what the panel unfolds from. */
     frame: CapsuleFrame;
     /** The bar as it is when the palette closes: what the panel folds back into. */
     exitFrame: CapsuleFrame;
@@ -64,8 +64,12 @@ const CommandPaletteCapsuleFrame: React.FC<CommandPaletteCapsuleFrameProps> = ({
             <motion.div
                 data-folia-keyboard-window="true"
                 data-palette-frame="capsule"
-                className={`fixed inset-0 z-[150] flex items-end justify-center px-4 ${hasClearBackdrop ? '' : 'backdrop-blur-md'}`}
-                style={{ ...backdropStyle, paddingBottom: frame.bottomGap }}
+                className={`fixed inset-0 z-[150] flex items-center justify-center px-4 ${hasClearBackdrop ? '' : 'backdrop-blur-md'}`}
+                style={{
+                    ...backdropStyle,
+                    paddingTop: PANEL_VERTICAL_INSET_PX,
+                    paddingBottom: PANEL_VERTICAL_INSET_PX,
+                }}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1, transition: { duration: 0.2 } }}
                 // The backdrop outlasts the panel folding back into the bar, or the fold plays out

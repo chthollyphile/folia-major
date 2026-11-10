@@ -14,7 +14,6 @@ const frame = (overrides: Partial<CapsuleFrame> = {}): CapsuleFrame => ({
     left: 352,
     width: 320,
     height: 72,
-    bottomGap: 32,
     viewportWidth: 1024,
     ...overrides,
 });
@@ -49,9 +48,9 @@ describe('capsuleClipPath', () => {
 });
 
 describe('capsuleBodyHeight', () => {
-    it('在原来的 min(496px, 50vh) 上再加「胶囊上方放得下」一条，仍交给 CSS 解', () => {
-        expect(capsuleBodyHeight(frame())).toBe('min(496px, 50vh, calc(100vh - 192px))');
-        expect(capsuleBodyHeight(frame({ bottomGap: 300.4 }))).toBe('min(496px, 50vh, calc(100vh - 460px))');
+    it('在原来的 min(496px, 50vh) 上再加「居中后上下留白放得下」一条，仍交给 CSS 解', () => {
+        // 居中留白 24×2 + body 以外的 160，和胶囊本身多高、贴在哪无关。
+        expect(capsuleBodyHeight()).toBe('min(496px, 50vh, calc(100vh - 208px))');
     });
 });
 

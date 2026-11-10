@@ -1,13 +1,18 @@
 // src/components/command-palette/capsuleFrame.ts
-// 面板从进度条胶囊原地长出来时用到的几何：打开那一刻量一次胶囊，算出面板贴底的位置、
-// body 在胶囊上方还放得下多高，以及从胶囊形状展开到整块面板的 clip-path 起点。
+// 面板从进度条胶囊原地长出来时用到的几何：打开那一刻量一次胶囊，算出面板垂直居中后
+// body 还放得下多高，以及从胶囊形状展开到整块面板的 clip-path 起点。
 
 /** 面板最宽 42rem（max-w-2xl），两侧各留 1rem（外层 px-4）。 */
 const PANEL_MAX_WIDTH_PX = 672;
 const PANEL_SIDE_GUTTER_PX = 16;
 /**
+ * 面板垂直居中，离视口上下边至少留这么宽：外层按它留出上下 padding，body 的可用高度
+ * 也扣掉这两条，窗口再矮面板也不会顶到边上。
+ */
+export const PANEL_VERTICAL_INSET_PX = 24;
+/**
  * body 以外占掉的高度：底部输入行、顶上的置顶命令行，再留一点到屏幕顶的空。
- * body 只在胶囊抬得很高、窗口又矮时才会被这一项压低，平时仍是 min(496px, 50vh)。
+ * body 只在窗口很矮时才会被这一项压低，平时仍是 min(496px, 50vh)。
  */
 const PANEL_CHROME_PX = 160;
 /** 展开后的面板圆角，和 rounded-3xl 一致。 */
@@ -25,8 +30,6 @@ export type CapsuleFrame = {
     left: number;
     width: number;
     height: number;
-    /** 胶囊下沿到视口底的距离：面板下沿贴在这里。 */
-    bottomGap: number;
     viewportWidth: number;
 };
 
@@ -43,14 +46,13 @@ export const readCapsuleFrame = (anchor: HTMLElement | null): CapsuleFrame | nul
         left: rect.left,
         width: rect.width,
         height: rect.height,
-        bottomGap: Math.max(0, window.innerHeight - rect.bottom),
         viewportWidth: window.innerWidth,
     };
 };
 
-/** 胶囊模式下 body 的高度：原来的 min(496px, 50vh)，再加上「胶囊上方放得下」这一条。仍由 CSS 解出。 */
-export const capsuleBodyHeight = (frame: CapsuleFrame) => (
-    `min(496px, 50vh, calc(100vh - ${Math.round(frame.bottomGap + PANEL_CHROME_PX)}px))`
+/** 胶囊模式下 body 的高度：原来的 min(496px, 50vh)，再加上「居中后上下留白放得下」这一条。仍由 CSS 解出。 */
+export const capsuleBodyHeight = () => (
+    `min(496px, 50vh, calc(100vh - ${PANEL_VERTICAL_INSET_PX * 2 + PANEL_CHROME_PX}px))`
 );
 
 const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);

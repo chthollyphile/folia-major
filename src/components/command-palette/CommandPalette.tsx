@@ -532,8 +532,8 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
             <div
                 data-testid="command-palette-body"
                 className={`overflow-y-auto p-2 ${capsuleFrame ? '' : 'h-[min(496px,50vh)]'} ${isReversedList ? 'flex flex-col-reverse' : ''}`}
-                // 胶囊模式另加「胶囊上方放得下」这一条上限，仍由 CSS 解出；匹配列表倒着排，第一名贴着底部的输入框。
-                style={capsuleFrame ? { height: capsuleBodyHeight(capsuleFrame) } : undefined}
+                // 胶囊模式另加「居中后上下留白放得下」这一条上限，仍由 CSS 解出；匹配列表倒着排，第一名贴着底部的输入框。
+                style={capsuleFrame ? { height: capsuleBodyHeight() } : undefined}
                 onTouchStart={() => inputRef.current?.blur()}
             >
                 <CommandPaletteSyntaxHints
