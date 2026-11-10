@@ -31,6 +31,13 @@ const SOLOIST_REASONS: Record<string, OnlineFailureDetail> = {
     // Spotify's own desktop app is not on this computer (spotifyClientPlayback.ts): installing it, or
     // another way to play, mends it, so the failure offers the setup checklist as well.
     'client-missing': { case: 'not-configured' },
+    // Spotify's own player named the track as one it will not play, before any wait ran out
+    // (spotifyClientPlayback.ts): the song is taken down, and Folia already has that case and its
+    // words for a song a platform took down. One it refuses for the free account alone names a plan
+    // instead, and Folia has that case too. Neither will play however often it is tried, so a queue
+    // that counts down to a skip skips them at once.
+    'track-unavailable': { case: 'taken-down', skipAtOnce: true },
+    'premium-only': { case: 'subscription-required', skipAtOnce: true },
 };
 
 export const describeSpotifyFailure = (_operation: OnlineFailureOperation, error: unknown): OnlineFailureDetail | null => {

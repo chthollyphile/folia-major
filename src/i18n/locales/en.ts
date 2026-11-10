@@ -636,6 +636,8 @@ export default {
     "latticeUnavailableInFm": "Lattice does not support Personal FM mode",
     "latticeFmOpenedInPlayer": "Lattice does not support Personal FM mode. Opened the standard player instead",
     "noPlayableSongs": "No playable songs in this list",
+    "songUnavailableSkipped": "Song unavailable, skipped",
+    "songSubscriptionRequiredSkipped": "Spotify Premium required, skipped",
     "songUnavailableTag": "Unavailable",
     "songVideoTag": "MV",
     "queueShuffled": "Queue shuffled",

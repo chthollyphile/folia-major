@@ -636,6 +636,8 @@ export default {
     "latticeUnavailableInFm": "Lattice 不支持私人 FM 模式",
     "latticeFmOpenedInPlayer": "Lattice 不支持私人 FM 模式，已使用普通播放器打开",
     "noPlayableSongs": "列表中没有可播放的歌曲",
+    "songUnavailableSkipped": "歌曲已下架，已跳过",
+    "songSubscriptionRequiredSkipped": "需要 Spotify 会员，已跳过",
     "songUnavailableTag": "已下架",
     "songVideoTag": "MV",
     "queueShuffled": "播放队列已打乱",

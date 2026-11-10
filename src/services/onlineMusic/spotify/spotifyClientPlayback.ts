@@ -37,7 +37,23 @@ export const PREPARED_SONGS_UNCLEARABLE = 1;
  * What the app's own answer to a start says: it took the track, a newer start took over, it took
  * the track but an advertisement of a free account still runs before it, or it never got to it.
  */
-type SpotifyClientPlayAnswer = 'loaded' | 'preempted' | 'not-loaded' | 'advertisement';
+type SpotifyClientPlayAnswer = 'loaded' | 'preempted' | 'not-loaded' | 'advertisement' | SpotifyClientTrackUnavailable;
+
+// Spotify named this track as one it will not play: its own player's code and the reasons beside it
+// (ONE_TRACK_UNPLAYABLE with NOT_AVAILABLE_IN_CURRENT_REGION and the like). Nothing was waited out,
+// and this song is taken down rather than a start that merely went wrong. `premium-only` is the same
+// answer with the free account as the only reason the page gives: that song is not gone, and a plan
+// plays it.
+interface SpotifyClientTrackUnavailable {
+    answer: 'unavailable' | 'premium-only';
+    code?: string;
+    reasons?: string[];
+}
+
+const isTrackUnavailable = (answer: unknown): answer is SpotifyClientTrackUnavailable => {
+    const said = typeof answer === 'object' && answer !== null ? (answer as { answer?: unknown }).answer : null;
+    return said === 'unavailable' || said === 'premium-only';
+};
 /**
  * What the app answers a queue write: whether it emptied its queue first, the ids it took, the ids
  * its queue names afterwards, whether it can empty its queue at all, and whether a newer play took
@@ -447,6 +463,20 @@ export const spotifyClientPlayback: OnlineExternalPlaybackProvider = {
         if (answer === 'advertisement') {
             console.info('[SpotifyClient] an advertisement plays before the song; the app follows it');
             return;
+        }
+        // Spotify said it will not play this track at all: the song is taken down, which Folia shows
+        // with the words it already has for one, and the queue moves on instead of stopping. A track
+        // its own player refuses for the free account alone is not taken down: that one is shown as
+        // needing a plan, and the queue moves on the same way.
+        if (isTrackUnavailable(answer)) {
+            console.warn('[SpotifyClient] Spotify will not play this song', {
+                answer: answer.answer, code: answer.code, reasons: (answer.reasons ?? []).join(', '),
+            });
+            const planOnly = answer.answer === 'premium-only';
+            throw new OnlineProviderError(
+                'not-playable', 'Spotify will not play this song', 'spotify',
+                planOnly ? 'premium-only' : 'track-unavailable',
+            );
         }
         // The app took the call and never got to the track: that is a failure of this song.
         // One track Spotify will not load says nothing about the next one.
