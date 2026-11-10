@@ -2685,7 +2685,7 @@ export default {
     "playerHeaderBlur": "Blurred Player Header",
     "playerHeaderBlurDesc": "Puts the home page's frosted bar behind the window buttons on the player page, so they stay readable over a dark picture in the light theme.",
     "titlebarSide": "Window controls position",
-    "titlebarSideDesc": "Choose which side contains window controls. The player back button moves down when controls are on the left.",
+    "titlebarSideDesc": "Choose which side contains window controls. Back buttons in the top-left corner move down when controls are on the left.",
     "titlebarSideLeft": "Left",
     "titlebarSideRight": "Right",
     "hideFullscreenButton": "Hide fullscreen button",

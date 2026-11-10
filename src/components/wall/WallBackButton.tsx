@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { useWindowButtonsAtTopLeft } from '../../hooks/useWindowButtonsAtTopLeft';
 import { ChevronLeft } from 'lucide-react';
 import './WallBackButton.css';
 
@@ -50,10 +49,9 @@ type WallBackButtonProps = {
 
 export default function WallBackButton({ label, onBack, concealed = false }: WallBackButtonProps) {
     const revealed = useCornerReveal(concealed);
-    const lowerForTitlebar = useWindowButtonsAtTopLeft();
     const className = concealed ? `lattice-back is-concealed${revealed ? ' is-revealed' : ''}` : 'lattice-back';
     return (
-        <button type="button" className={`${className}${lowerForTitlebar ? ' is-below-titlebar' : ''}`} onClick={onBack} aria-label={label} title={label}>
+        <button type="button" className={className} onClick={onBack} aria-label={label} title={label}>
             <ChevronLeft size={20} />
         </button>
     );

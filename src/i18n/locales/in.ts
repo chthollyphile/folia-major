@@ -2685,7 +2685,7 @@ export default {
     "playerHeaderBlur": "Header Pemutar Buram",
     "playerHeaderBlurDesc": "Memasang bilah buram seperti di beranda di belakang tombol jendela pada halaman pemutar, agar tetap terbaca di atas gambar gelap saat tema terang.",
     "titlebarSide": "Posisi tombol jendela",
-    "titlebarSideDesc": "Pilih sisi tombol jendela. Tombol kembali pemutar turun saat tombol jendela di kiri.",
+    "titlebarSideDesc": "Pilih sisi tombol jendela. Tombol kembali di pojok kiri atas turun saat tombol jendela di kiri.",
     "titlebarSideLeft": "Kiri",
     "titlebarSideRight": "Kanan",
     "hideFullscreenButton": "Sembunyikan tombol layar penuh",

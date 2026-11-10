@@ -51,6 +51,9 @@ export const resolveWindowControlsExtent = ({ hasFullscreenButton, nativeTraffic
     return (side === 'left' ? NATIVE_TRAFFIC_LIGHTS_RESERVED_WIDTH : 0) + (1 + optional) * WINDOW_CONTROL_BUTTON_WIDTH;
 };
 
+// With the window buttons on the left (`titlebarSide`) the row is mirrored: the same offsets count
+// from the left edge, and the hotspot covers 176px to 348px in from the left.
+//
 // Whether a viewport point lies inside the unlock hotspot of a window `viewportWidth` px wide.
 // With the window buttons on the left the whole row is mirrored, so the point is mirrored too.
 export const isWithinClickThroughUnlockHotspot = (
