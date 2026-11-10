@@ -284,9 +284,11 @@ export const settingsCommands: CommandPaletteCommand[] = [
         context => context.settings.toggleCloseExternalPlayerOnQuit(),
         { platform: ['win'] },
     ),
-    // The same player's media session: while its app runs the keys stay Folia's, so a press never
-    // reaches that app's own queue (electron/mediaKeys.cjs, useMediaKeyTakeoverBridge.ts). That app is
-    // the Windows one, so this command is the Windows build's.
+    // The same player's media keys: while such a song of Folia's sounds in it the keys stay Folia's,
+    // so a press never reaches that app's own queue (electron/mediaKeys.cjs,
+    // useMediaKeyTakeoverBridge.ts). Switching this off leaves them to the upstream media session on
+    // every route, a song in that player included. That app is the Windows one, so this command is
+    // the Windows build's.
     createToggleCommand(
         'external-player-hold-media-keys',
         'settings',

@@ -48,9 +48,11 @@
   - 采的是整机声音：浏览器和其他播放器的声音也会混进来，免费账号的广告也会照实跳动。
   - 暂停或无声时停在最后一帧，不跳变。
   - 采集不到时（非 Windows、网页版、系统不允许、从开播起就静音）回退到按播放进度模拟，有声音后自动回到真实频谱。
-  - 没有开关，Windows 桌面版一直尝试。
-- **媒体键**：这种方式开着、Folia 在运行时，媒体键一直由 Folia 接管。
-  - 上一首、播放暂停、下一首都走 Folia 的队列，不会让 Spotify 在它自己的队列里往下走；只在换回标准或 Soloist 方式、或者退出 Folia 时还给系统。
+  - 只有三件事同时成立才采：路由是外部播放、这个提供方声明了 `capturesSystemAudio`、设置里的 `externalSystemAudioSpectrum` 打开（默认关）。没声明这一项的提供方（Apple Music 等）永远不采。
+  - 设置在播放中切换即时生效：关掉当场停采集并解除 arm，重新打开同一首歌里也会重新尝试。
+- **媒体键**：只有「Folia 发起、正在外部播放器里放、且该提供方声明了 `holdsMediaKeysWhilePlaying`」这一种情形才接管；其余一律还给上游的媒体会话。
+  - 上一首、播放暂停、下一首都走 Folia 的队列，不会让 Spotify 在它自己的队列里往下走。
+  - 放本地/内置播放器的歌、外部播放器空闲或已经停下时都释放；接管来源以「Folia 发起或已被 Folia 接管控制」为准（窗口重建时接管的那首算 Folia 发起）。
   - 接管范围只限这种方式：Soloist 和 Apple Music 的媒体键还是上游本来的行为（走 `useMediaSessionBridge` 的媒体会话）。
   - 按键在各种状态下都由 Folia 处理：
     - **外部播放停了**（手动停、失败中止）：按播放算用户主动操作，重新唤起 Spotify 并从停下时的歌曲与进度继续（沿用"拉起、最多强杀 1 次、拉起时进托盘"的规则）；上一首、下一首照常走 Folia 的队列。
@@ -86,7 +88,7 @@
   - 打开 Folia 时唤起外部播放器（只在官方客户端播放开着时生效，默认关）；
   - Folia 退出时关闭 Spotify（默认关）：本次运行由 Folia 拉起、退出时还开着的 Spotify，或者带着 Folia 打开的调试端口在运行的 Spotify，都会关掉。
     关的动作是 `taskkill /IM Spotify.exe /F`，按进程名结束，所以同一台电脑上你自己另外开着的那份 Spotify 也会被一起关掉；
-  - **使用官方客户端时始终接管媒体键**（默认开）：按上面那条规则一直占着；关掉时只在 Spotify 正放着 Folia 的歌（含暂停）时占着，队列放完、离开外部路由、外部播放停下就还给系统。占着期间浏览器等其他程序收不到媒体键。
+  - **使用官方客户端时接管媒体键**（默认开）：开着时按上面那条规则，只在 Spotify 正放着 Folia 发起的歌（含暂停）时占着；关掉时一律不占，媒体键全按上游行为走应用自己的媒体会话。放本地歌、Spotify 空闲或停下、队列放完、离开外部路由都会还给系统。占着期间浏览器等其他程序收不到媒体键。
 
 ## 找不到 Spotify 桌面版时
 
@@ -132,7 +134,7 @@
 | 随机调试端口 | 用这种方式放一首，看日志里 `[SpotifyClient] Spotify's DevTools port is …` 报出的端口是否每次不同、是否读自 `DevToolsActivePort` 或监听端口扫描 | 待补 |
 | 免费账号片头广告 | 免费账号点一首平时会先出广告的歌：广告期间不报"无法播放"、不触发自动跳过，广告结束后正常起播 | 待补 |
 | 暂停时的媒体键 | 暂停后按键盘播放键 / 任务栏媒体控件：应当由 Folia 恢复，而不是 Spotify 自己恢复 | 待补 |
-| 媒体键不越界 | 切到 Soloist 或 Apple Music 播放，媒体键应当回到上游行为（不再由 Folia 接管）；关掉"始终接管媒体键"后，队列放完、离开外部路由、外部播放停下时也应该还给系统 | 待补 |
+| 媒体键不越界 | 切到 Soloist 或 Apple Music 播放，媒体键应当回到上游行为（不再由 Folia 接管）；关掉"接管媒体键"后，任何时候都不占；队列放完、离开外部路由、外部播放停下、在放本地歌时也应该还给系统 | 待补 |
 | 媒体键在三种状态下（始终接管开着） | 队列放完时按播放或下一首就从第一首重新开始、按上一首重放最后一首；在放本地歌时按键控制 Folia；Spotify 停下后按播放重新唤起并从停下处继续 | 待补 |
 | 同一次按键只跑一次 | 占着时按一次键只应该有一次响应（`globalShortcut` 与 Folia 自己的媒体会话不应各跑一遍） | 待补 |
 | 自动续播的三类失败 | 正常续播；手动退出 Spotify 后续播（应停在这首并提示连不上）；播放一首放不了的歌（应走原来的失败流程与跳过倒计时） | 待补 |
@@ -142,7 +144,7 @@
 
 - 主进程：`electron/spotify/officialClient.cjs`（启动、调试端口与端口发现、播放器调用、媒体会话）、`spotifyApiBridge.cjs`（`playback_mode`、`client_*` 操作、退出时关闭）、`../quitShutdown.cjs`（哪一次退出去问各个 bridge 关闭）。
 - **媒体键是通用的**，不在这个目录里：`electron/mediaKeys.cjs`（与 `quitShutdown.cjs` 同级）只管在 `globalShortcut` 上占住三个键并把手势交给渲染进程；要不要占、按键做什么由下面这条通用 bridge 决定。
-- 页面：`src/services/onlineMusic/spotify/spotifyClientPlayback.ts`（外部播放路由的实现）、`spotifyExternalPlayback.ts`（按当前方式在 Soloist 和官方客户端之间分派，并声明这种方式要一直占着媒体键）、`spotifySetup.ts`（配置清单）。
+- 页面：`src/services/onlineMusic/spotify/spotifyClientPlayback.ts`（外部播放路由的实现）、`spotifyExternalPlayback.ts`（按当前方式在 Soloist 和官方客户端之间分派，并声明这种方式在放 Folia 的歌时占着媒体键）、`spotifySetup.ts`（配置清单）。
 - 公共部分：`src/components/app/playback/bridges/useMediaKeyTakeoverBridge.ts`（通用的媒体键接管：问 omni 要不要占、按一次键跑播放暂停和上一首下一首、队列放完时重新开始、外部停了之后重新唤起都在这里，与路由无关）。
   - `externalPlayback.ts` 里的 `skipped`：播放器被它自己的控件换了歌；同一处还有降级状态。
   - `externalPlayerWake.ts`：启动时唤起。
@@ -151,5 +153,5 @@
   - `spectrumBands.ts`：频谱折成本机播放用的同一套频段。
   - `electron/displayMediaRoute.cjs` 与 `main.cjs` 的 `setupDisplayMediaRequestHandler`：一个 session 只有一个 display-media handler，视频导出和频谱在这里分派。
   - 采集只在外部路由上起，离开就停；采集期间主窗口不进入后台节流，即使后台节流开关开着也一样。
-- 平台只声明、通用层不认平台：`OnlineExternalPlaybackProvider` 的 `holdsMediaKeys`（它的会话在放时占着）和 `holdsMediaKeysWhileRunning`（它的程序在跑就一直占着）由 `spotifyExternalPlayback.ts` 按当前方式回答，omni 汇总成 `wantsMediaKeyTakeoverWhileRunning()`。
+- 平台只声明、通用层不认平台：`OnlineExternalPlaybackProvider` 的 `holdsMediaKeysWhilePlaying`（放 Folia 发起的歌时占着）由 `spotifyExternalPlayback.ts` 按当前方式回答，omni 用 `externalPlaybackTraits(song)` 读出来；要不要占由 `useMediaKeyTakeoverBridge.ts` 决定。
 

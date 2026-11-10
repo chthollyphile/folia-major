@@ -16,7 +16,8 @@ import type { TransportButtonAction } from './useTransportCommandRefs';
 // docs/spotify-official-client.md). Who may ask for them is the provider's own declaration, answered
 // through omni: Folia knows only that some player asks, never which one. Held, a press runs Folia's own
 // transport and queue on whatever route the song on screen sounds: that program's player, this app's
-// decks, or mpv.
+// decks, or mpv. Where no provider declares them, nothing is held and the app's own media session
+// behaves exactly as it did before this route existed.
 
 type PlaySong = (
     song: SongResult,
@@ -25,31 +26,42 @@ type PlaySong = (
     options?: PlaybackNavigationOptions,
 ) => Promise<void>;
 
-/** What the decision to hold the keys is made of. Read anew on every change, never remembered. */
+/**
+ * What the decision to hold the keys is made of. Read anew on every change, never remembered.
+ *
+ * The song is the whole answer: `getExternalSong` is the track this window started in the player (or
+ * adopted from a window it replaced), and it is null while Folia's own decks sound or the player
+ * holds nothing. A track the player's own window put on is paused by Folia and never becomes the
+ * session's song (externalPlayback's `applyStatus`), so it is not one Folia answers for.
+ */
 export type MediaKeyHoldFacts = {
-    /** The setting: hold them for as long as that player's program runs, not only while it sounds a song. */
-    holdWhileRunning: boolean;
-    /** A player of another program asks for them for as long as Folia runs (see omni). */
-    playerAsksForAsLongAsFoliaRuns: boolean;
+    /** The switch: let Folia hold the keys at all. */
+    settingOn: boolean;
     /** The route the song on screen sounds on. */
     route: string;
-    /** The song the external player holds, null when it holds none (nothing started, or it stopped). */
+    /** The song this window started in the external player, null when it holds none. */
     externalSong: SongResult | null;
-    /** That song's player keeps a media session of its own, so a key given back is taken by it. */
-    sessionDeclares: boolean;
+    /** That song's player declared the keys are Folia's while it sounds (see omni). */
+    holdsMediaKeysWhilePlaying: boolean;
 };
 
 /**
- * Whether Folia holds the media keys now.
+ * Whether Folia holds the media keys now: only while a song it started sounds in a player whose
+ * provider declares `holdsMediaKeysWhilePlaying`, and only with the listener's switch on.
  *
- * With the setting on it is the whole run while that player asks for them: giving them back at the end
- * of a queue, on leaving that route or once the program stopped would hand the next press to it. With
- * the setting off, only while that player's session exists (a paused one too).
+ * Every other state is the upstream behaviour, where the app's own media session keeps the keys:
+ * a local or built-in song sounding, the external player idle or stopped, the switch off, and a
+ * player that declares nothing about the keys (Soloist). A key Folia does not hold goes to whichever
+ * program the system hands it to, exactly as before this route existed - a player whose session is
+ * left to itself keeps its own behaviour, which is what the provider declares by leaving the field
+ * out.
  */
-export const shouldHoldMediaKeys = (facts: MediaKeyHoldFacts): boolean => {
-    if (facts.holdWhileRunning && facts.playerAsksForAsLongAsFoliaRuns) return true;
-    return facts.route === 'external' && facts.externalSong !== null && facts.sessionDeclares;
-};
+export const shouldHoldMediaKeys = (facts: MediaKeyHoldFacts): boolean => (
+    facts.settingOn
+    && facts.route === 'external'
+    && facts.externalSong !== null
+    && facts.holdsMediaKeysWhilePlaying
+);
 
 /**
  * Whether the queue has played itself out: the last song ended with no next one, which is what
@@ -147,11 +159,10 @@ type UseMediaKeyTakeoverBridgeParams = {
 const readHoldFacts = (): MediaKeyHoldFacts => {
     const song = getExternalSong();
     return {
-        holdWhileRunning: useDesktopSettingsStore.getState().holdMediaKeysForExternalPlayer,
-        playerAsksForAsLongAsFoliaRuns: omni.wantsMediaKeyTakeoverWhileRunning(),
+        settingOn: useDesktopSettingsStore.getState().holdMediaKeysForExternalPlayer,
         route: usePlaybackStore.getState().playbackRoute,
         externalSong: song,
-        sessionDeclares: song !== null && omni.holdsExternalPlaybackMediaKeys(song),
+        holdsMediaKeysWhilePlaying: song !== null && omni.externalPlaybackTraits(song).holdsMediaKeysWhilePlaying,
     };
 };
 
@@ -175,8 +186,8 @@ export function useMediaKeyTakeoverBridge({ runTransportAction, playSong }: UseM
                     : '[MediaKeys] the media keys could not be given back', error);
             },
         );
-        // Read anew rather than remembered: the answer changes with the setting, the way the player
-        // plays, the route and the player's session. Nothing is sent while it stays the same.
+        // Read anew rather than remembered: the answer changes with the setting, the route and the
+        // song the player holds. Nothing is sent while it stays the same.
         const applyHold = () => holder.apply(shouldHoldMediaKeys(readHoldFacts()));
 
         const runPress = (action: TransportButtonAction) => {
@@ -210,13 +221,10 @@ export function useMediaKeyTakeoverBridge({ runTransportAction, playSong }: UseM
         holder.apply(shouldHoldMediaKeys(readHoldFacts()), true);
         const stopPlaybackWatch = usePlaybackStore.subscribe(applyHold);
         const stopSettingsWatch = useDesktopSettingsStore.subscribe(applyHold);
-        // Every answer of the player, a paused session's included: the session coming or going is
-        // what the answer turns on when the setting is off.
+        // Every answer of the player: the song it holds, and whether it is sounding one at all, is
+        // what the answer turns on.
         const stopPlayerWatch = subscribeExternalPlayback(applyHold);
-        // The way the player plays (which decides whether it asks at all) is picked in its setup.
-        const stopAskingWatch = omni.subscribeMediaKeyTakeoverWanted(applyHold);
         return () => {
-            stopAskingWatch();
             stopPlayerWatch();
             stopSettingsWatch();
             stopPlaybackWatch();
