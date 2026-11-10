@@ -4,6 +4,7 @@ const { createSpotifyAudioFiles } = require('./audioFiles.cjs');
 const { SpotifyError, describeError, lineReason, plainWords, spotifyError, statusError, toErrorResult } = require('./errors.cjs');
 const { createSpotifySessionRepository, publicAccountId } = require('./session.cjs');
 const { createSpotifyOfficialClient } = require('./officialClient.cjs');
+const { read: restartConsented } = require('./restartConsent.cjs');
 const { createSpotifySignIn } = require('./signIn.cjs');
 const { createSoloist } = require('./soloist.cjs');
 
@@ -322,7 +323,9 @@ function createSpotifyApiBridge({
   let availability = null;
   let availabilityReadAt = 0;
   // Its own fetch: the Spotify app is on this computer, never behind the partition's proxy.
-  const client = () => (officialClient ??= createSpotifyOfficialClient({ log, warn }));
+  // The listener's answer about restarting their Spotify is read from the store it is kept in, at
+  // the moment the app would be closed (officialClient.cjs).
+  const client = () => (officialClient ??= createSpotifyOfficialClient({ log, warn, restartConsented: () => restartConsented(store) }));
 
   const handlers = {
     async login_start(params) {

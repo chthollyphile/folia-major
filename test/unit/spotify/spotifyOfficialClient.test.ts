@@ -194,6 +194,8 @@ type ClientOptions = {
     activePort?: number;
     /** What `netstat -ano` answers: the loopback listeners of the machine, as it lays them out. */
     netstat?: string;
+    /** Whether the listener already agreed to a restart. Default true: most tests are about the restart. */
+    consented?: boolean;
 };
 
 const makeClient = (options: ClientOptions = {}) => {
@@ -237,9 +239,12 @@ const makeClient = (options: ClientOptions = {}) => {
     const env = root ? { LOCALAPPDATA: root } : {};
     const warn = vi.fn();
     const log = vi.fn();
+    // Whether the listener already agreed to Folia closing and starting Spotify again: a plain
+    // object, so a test can answer no and then yes in the same run.
+    const consent = { value: options.consented !== false };
     const client = createSpotifyOfficialClient({
         platform: 'win32', env, fetch, spawnProcess, runFile, waitFor, log, warn,
-        port: options.port ?? 9283,
+        port: options.port ?? 9283, restartConsented: () => consent.value,
     });
     // The script a PowerShell was started with: -EncodedCommand is UTF-16LE in base64.
     const scriptOf = (args: string[]) => Buffer.from(String(args[args.indexOf('-EncodedCommand') + 1] ?? ''), 'base64').toString('utf16le');
@@ -251,7 +256,7 @@ const makeClient = (options: ClientOptions = {}) => {
     const spotifySpawns = () => spawned.filter(file => !/powershell\.exe$/i.test(file)).length;
     const taskkills = () => runFile.mock.calls.filter(call => String(call[0]).includes('taskkill')).length;
     const tasklists = () => runFile.mock.calls.filter(call => String(call[0]).includes('tasklist')).length;
-    return { client, runFile, spawnProcess, spawned, procs, fetch, log, warn, helperSpawns, watchSpawns, spotifySpawns, taskkills, tasklists, scriptOf };
+    return { client, consent, runFile, spawnProcess, spawned, procs, fetch, log, warn, helperSpawns, watchSpawns, spotifySpawns, taskkills, tasklists, scriptOf };
 };
 
 beforeEach(() => {
@@ -332,6 +337,42 @@ describe('what a call may do to Spotify', () => {
         await app.client.close();
     });
 
+    it('does not close a Spotify the listener runs when the restart was never agreed to', async () => {
+        FakeSocket.failuresLeft = FAILED_CONNECTIONS;
+        const app = makeClient({ running: true, portAnswers: false, appDirectory: makeLauncherDirectory(), consented: false });
+        // Spotify is the listener's, running without Folia's port: closing it is a question they have
+        // not answered, so the call stops where it stands and names that answer as its reason.
+        await expect(app.client.play({ id: TRACK, startMs: 0 })).rejects.toMatchObject({
+            code: 'unavailable', reason: 'player-restart-consent',
+        });
+        expect(app.taskkills()).toBe(0);
+        expect(app.spotifySpawns()).toBe(0);
+        await app.client.close();
+    });
+
+    it('closes and starts Spotify once the listener agreed, and remembers the answer for the run', async () => {
+        FakeSocket.failuresLeft = FAILED_CONNECTIONS;
+        const app = makeClient({ running: true, portAnswers: false, appDirectory: makeLauncherDirectory(), consented: false });
+        await expect(app.client.launch()).rejects.toMatchObject({ reason: 'player-restart-consent' });
+        expect(app.taskkills()).toBe(0);
+        // The listener said yes while the player was still up: the next press goes ahead.
+        app.consent.value = true;
+        await expect(app.client.launch()).resolves.toBe(true);
+        expect(app.taskkills()).toBe(1);
+        expect(app.spotifySpawns()).toBe(1);
+        await app.client.close();
+    });
+
+    it('starts a Spotify that is not running without asking anything', async () => {
+        FakeSocket.failuresLeft = FAILED_CONNECTIONS;
+        const app = makeClient({ running: false, portAnswers: false, appDirectory: makeLauncherDirectory(), consented: false });
+        // Nothing is closed, so there is no question to answer: the app is only started.
+        await expect(app.client.launch()).resolves.toBe(true);
+        expect(app.taskkills()).toBe(0);
+        expect(app.spotifySpawns()).toBe(1);
+        await app.client.close();
+    });
+
     it('does not ask again within the cool-down after a start that failed', async () => {
         FakeSocket.alwaysFail = true;
         const app = makeClient({ running: true, portAnswers: false, appDirectory: mkdtempSync(join(tmpdir(), 'folia-empty-')) });
@@ -341,6 +382,29 @@ describe('what a call may do to Spotify', () => {
 
         await expect(app.client.play({ id: TRACK, startMs: 0 })).rejects.toMatchObject({ code: 'unavailable' });
         expect(app.fetch.mock.calls.filter(call => String(call[0]).includes('/json/version')).length).toBe(askedOnce);
+        await app.client.close();
+    });
+
+    it('gives the app eight seconds to show its player, not the twenty-five a cold start has', async () => {
+        // A page that never finds the player: whatever Spotify's build does to its React tree, the
+        // wait for it is short, so a restart that cannot be steered fails rather than hangs the press.
+        FakeSocket.failuresLeft = FAILED_CONNECTIONS;
+        handle = expression => ({ value: expression.includes('window.__foliaPlay') ? 'loaded' : false });
+        const app = makeClient({ running: true, portAnswers: false, appDirectory: makeLauncherDirectory() });
+        const startedAt = Date.now();
+        await expect(app.client.play({ id: TRACK, startMs: 0 })).rejects.toMatchObject({ code: 'unavailable', reason: 'player-not-found' });
+        expect(Date.now() - startedAt).toBeLessThan(15000);
+        await app.client.close();
+    });
+
+    it('keeps its long wait for a cold start', async () => {
+        FakeSocket.failuresLeft = FAILED_CONNECTIONS;
+        handle = expression => ({ value: expression.includes('window.__foliaPlay') ? 'loaded' : false });
+        const app = makeClient({ running: false, portAnswers: false, appDirectory: makeLauncherDirectory() });
+        const startedAt = Date.now();
+        // A start from nothing is what Spotify needs the whole wait for: only the restart is short.
+        await expect(app.client.launch()).rejects.toBeTruthy();
+        expect(Date.now() - startedAt).toBeGreaterThanOrEqual(20000);
         await app.client.close();
     });
 

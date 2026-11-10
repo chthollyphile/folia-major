@@ -19,6 +19,7 @@ vi.mock('@/services/onlineMusic/spotify/spotifyTransport', () => ({
 }));
 import { OnlineProviderError } from '@/types/onlineMusic';
 import { describeSpotifyFailure } from '@/services/onlineMusic/spotify/spotifyFailure';
+import { onlineFailureOf, stopsPlayback } from '@/services/onlineMusic/failure/onlineFailureCase';
 import { normalizeSpotifySong } from '@/services/onlineMusic/spotify/spotifyNormalize';
 import {
     PREPARED_SONGS, PREPARED_SONGS_UNCLEARABLE,
@@ -461,10 +462,39 @@ describe('an app that is not there', () => {
     it('fails the song with a reason that opens the setup checklist, and never plays it in Folia', async () => {
         request.mockResolvedValueOnce({ available: false });
         await expect(spotifyClientPlayback.play!(songOf('a'), 0)).rejects.toMatchObject({ code: 'unavailable', cause: 'client-missing' });
-        expect(describeSpotifyFailure('audio', new OnlineProviderError('unavailable', 'x', 'spotify', 'client-missing'))).toEqual({ case: 'not-configured' });
+        expect(describeSpotifyFailure('audio', new OnlineProviderError('unavailable', 'x', 'spotify', 'client-missing')))
+            .toEqual({ case: 'not-configured', playerCause: 'player-not-installed' });
         // Nothing but the question was sent to the app.
         expect(request).toHaveBeenCalledTimes(1);
         expect(request).toHaveBeenCalledWith('client_probe');
+    });
+
+    it('says the player was not found inside the app apart from the app not being installed', async () => {
+        // The app is there and its press went through, but the player Folia steers was not found in
+        // its page: that is the app being unsteerable, not the song, and not a missing program.
+        expect(describeSpotifyFailure('audio', new OnlineProviderError('unavailable', 'x', 'spotify', 'player-not-found')))
+            .toEqual({ case: 'unreachable', playerCause: 'player-not-found' });
+        expect(describeSpotifyFailure('audio', new OnlineProviderError('unavailable', 'x', 'spotify', 'player-not-installed')))
+            .toEqual({ case: 'not-configured', playerCause: 'player-not-installed' });
+        expect(describeSpotifyFailure('audio', new OnlineProviderError('unavailable', 'x', 'spotify', 'client-missing')))
+            .toEqual({ case: 'not-configured', playerCause: 'player-not-installed' });
+    });
+
+    it('says the listener has not agreed to close their Spotify, and stops where it is', () => {
+        // The listener's own Spotify runs without Folia's port and they have not agreed to a restart:
+        // nothing was closed, so the failure says that answer is what is missing.
+        const said = describeSpotifyFailure('audio', new OnlineProviderError('unavailable', 'x', 'spotify', 'player-restart-consent'));
+        expect(said).toEqual({ case: 'not-configured', playerCause: 'player-restart-consent' });
+        const shown = onlineFailureOf({ operation: 'audio', providerId: 'spotify' }, { detail: said! });
+        expect(shown.facts.playerCause).toBe('player-restart-consent');
+        expect(stopsPlayback(shown)).toBe(true);
+    });
+
+    it('keeps a player cause it does not know out of the failure it shows', () => {
+        const shown = onlineFailureOf({ operation: 'audio', providerId: 'spotify' }, {
+            detail: { case: 'unreachable', playerCause: 'player-went-for-a-walk' as never },
+        });
+        expect(shown.facts.playerCause).toBeUndefined();
     });
 
     it('asks again for the next song: installing the app later is enough, no restart of Folia', async () => {

@@ -315,6 +315,10 @@ export type OnlineFailureCaseId =
 // 没有成功的是哪一种请求：一首歌的播放地址，或者一个集合（歌单、专辑）的歌曲。
 export type OnlineFailureOperation = 'audio' | 'collection';
 
+// 本机播放器这条路自己的失败原因，和平台无关：播放器没装、装了却找不到它内部那个播放器，或者
+// 用户还没同意为了让 Folia 接上而关掉并重开他自己的播放器。平台报这一句，界面按它分开说。
+export type OnlinePlayerFailureCause = 'player-not-installed' | 'player-not-found' | 'player-restart-consent';
+
 // provider 对一次没有成功的请求知道的事实。只放可以公开贴出来的内容：不含 cookie、token、IP 或账号信息。
 export interface OnlineFailureDetail {
     // 只有 provider 认得出是哪一种情况时，由它直接点名；不点名就由共用的规则按下面的事实去分。
@@ -331,6 +335,8 @@ export interface OnlineFailureDetail {
     likelyCause?: 'sign-in' | 'subscription' | 'region';
     // 发出请求时这个平台没有登录的账号：要登录的失败说「登录后才能播放」，不说「登录已失效」。
     signedOut?: boolean;
+    // 本机播放器这条路失败的那一种情况，平台无关（OnlinePlayerFailureCause）。
+    playerCause?: OnlinePlayerFailureCause;
 }
 
 export type ProviderErrorCode =

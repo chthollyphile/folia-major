@@ -38,6 +38,10 @@ const STATUS_PORT_SEARCHES = 2;
 const STATUS_PORT_SEARCH_GAP_MS = 3000;
 const PORT_PROBE_LIMIT_MS = 600;
 const LAUNCH_WAIT_MS = 25000;
+// How long a start waits for the player inside the app when it first closed a Spotify the listener
+// already had open. Such a Spotify has its build loaded already, and one whose UI changed answers no
+// player at all: a press must not be held for the whole of a cold start's wait for it.
+const PLAYER_FIND_WAIT_MS = 8000;
 // How long a play waits for its track: the time the track itself makes no progress (a free account's
 // advertisement does not count against it), and the whole wait, advertisement and all.
 const START_LIMIT_MS = 5000;
@@ -785,9 +789,11 @@ function createMediaSession({ spawnProcess, warn, shellPath = 'powershell.exe', 
 
 // `env` names the folders the launcher is looked for in; `platform` is process.platform. `port` is
 // the DevTools port to ask for: 0 (the default) lets Spotify's CEF pick one, which is then looked for.
+// `restartConsented` answers whether the listener agreed to Folia closing and starting their Spotify
+// again: without a yes the app they have open is not touched (restartConsent.cjs keeps the answer).
 function createSpotifyOfficialClient({
     env = process.env, platform = process.platform, fetch = globalThis.fetch, port = 0,
-    spawnProcess = spawn, runFile = execFile, waitFor = wait,
+    spawnProcess = spawn, runFile = execFile, waitFor = wait, restartConsented = () => false,
     log = (...args) => console.log(...args), warn = (...args) => console.warn(...args),
 } = {}) {
     // Windows' own tools are run by their absolute path: a process started with a PATH another
@@ -1012,15 +1018,24 @@ function createSpotifyOfficialClient({
         // The Spotify processes running before this start: a window of one of them is the listener's, and
         // stays where it is.
         let skipPids = [];
+        // Whether this start closed a Spotify the listener already had open, which is the wait the
+        // shorter one below belongs to.
+        let closedTheirs = false;
         if (!answers) {
             const launcher = findLauncher(env);
-            if (!launcher) throw spotifyError('unavailable', 'The Spotify app is not installed');
+            if (!launcher) throw spotifyError('unavailable', 'The Spotify app is not installed', undefined, 'player-not-installed');
             if (await spotifyIsRunning()) {
                 if (!allowRestart) throw spotifyError('unavailable', 'Spotify runs without its DevTools port', 'this call may not restart it');
+                // Closing the app the listener has open is theirs to agree to, and the question is
+                // asked once (restartConsent.cjs): no answer means their Spotify stays as it is.
+                if (!restartConsented()) {
+                    throw spotifyError('unavailable', 'Spotify runs without its DevTools port', 'the listener has not agreed to a restart', 'player-restart-consent');
+                }
                 if (forceRestarts >= MAX_FORCE_RESTARTS) {
                     throw spotifyError('unavailable', 'Spotify runs without its DevTools port', `a restart already spent this run (${forceRestarts})`);
                 }
                 forceRestarts += 1;
+                closedTheirs = true;
                 log(restart ? '[SpotifyClient] Spotify is started again, as asked' : '[SpotifyClient] Spotify runs without the DevTools port; it is started again with it');
                 page.close();
                 await stopSpotify();
@@ -1059,7 +1074,7 @@ function createSpotifyOfficialClient({
             startedByUs = true;
             log('[SpotifyClient] Spotify was started with the DevTools port');
         }
-        const deadline = Date.now() + LAUNCH_WAIT_MS;
+        const deadline = Date.now() + (closedTheirs ? PLAYER_FIND_WAIT_MS : LAUNCH_WAIT_MS);
         let lastError = null;
         let rounds = 0;
         try {
@@ -1084,7 +1099,7 @@ function createSpotifyOfficialClient({
             // The start is over, hidden window or not: the watcher goes with it.
             stopWindowWatch();
         }
-        throw lastError ?? spotifyError('unavailable', 'Spotify\'s player was not found');
+        throw lastError ?? spotifyError('unavailable', 'Spotify\'s player was not found', undefined, 'player-not-found');
     }
 
     const ensure = options => {
