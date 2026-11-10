@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="coven-token" content="%COVEN_TOKEN%">
+    <title>Coven Compass</title>
+    <link rel="stylesheet" href="/compass.css">
+    <script src="/compass.js" defer></script>
+</head>
+<body>
+    <header class="top">
+        <div class="brand">
+            <span class="brand-mark" aria-hidden="true"></span>
+            <span class="brand-name">Coven Compass</span>
+            <span class="brand-repo" id="repo"></span>
+        </div>
+        <nav class="tabs" role="tablist" aria-label="Compass">
+            <button type="button" role="tab" id="tab-btn-run" data-tab="run" aria-controls="tab-run" aria-selected="true">运行</button>
+            <button type="button" role="tab" id="tab-btn-claims" data-tab="claims" aria-controls="tab-claims" aria-selected="false">认领</button>
+            <button type="button" role="tab" id="tab-btn-scope" data-tab="scope" aria-controls="tab-scope" aria-selected="false">划范围</button>
+            <button type="button" role="tab" id="tab-btn-history" data-tab="history" aria-controls="tab-history" aria-selected="false">历史</button>
+        </nav>
+        <div class="status" id="status" aria-live="polite"></div>
+    </header>
+    <main>
+        <section class="tab" id="tab-run" role="tabpanel" aria-labelledby="tab-btn-run"></section>
+        <section class="tab" id="tab-claims" role="tabpanel" aria-labelledby="tab-btn-claims" hidden></section>
+        <section class="tab" id="tab-scope" role="tabpanel" aria-labelledby="tab-btn-scope" hidden></section>
+        <section class="tab" id="tab-history" role="tabpanel" aria-labelledby="tab-btn-history" hidden></section>
+    </main>
+    <footer class="foot">只读本机的 <code>.coven/</code> 和跟踪 issue 的评论；只会写 <code>.coven/scopes/</code> 下的范围文件，不写 GitHub。</footer>
+</body>
+</html>
