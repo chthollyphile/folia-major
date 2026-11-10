@@ -7,6 +7,13 @@ import type { ProviderExternalPlaybackStatus } from '@/types/onlineMusic';
 // The route that follows a player outside the app: it starts the song there, follows the player's
 // clock between answers, pauses when another engine takes over, and moves the queue on at the end.
 
+// What the provider of the song declared about its player: nothing, as Apple Music declares.
+const traits = vi.hoisted(() => ({
+    declared: {
+        capturesSystemAudio: false, startsWithoutWaiting: false, backsOffStatusPolls: false, holdsMediaKeysWhilePlaying: false,
+    } as Record<string, boolean>,
+}));
+
 const omniMock = vi.hoisted(() => ({
     canPlayExternally: vi.fn(() => true),
     canPlaySong: vi.fn(() => true),
@@ -21,6 +28,7 @@ const omniMock = vi.hoisted(() => ({
     })),
     isExternalPlaybackStatusForSong: vi.fn((_song: unknown, _status: ProviderExternalPlaybackStatus) => true),
     adoptExternalPlayback: vi.fn((_song: unknown) => {}),
+    externalPlaybackTraits: vi.fn(() => traits.declared),
 }));
 
 vi.mock('@/services/onlineMusic/omni', () => ({ omni: omniMock }));
@@ -46,12 +54,15 @@ const status = (overrides: Partial<ProviderExternalPlaybackStatus> = {}): Provid
 
 const flush = () => vi.advanceTimersByTimeAsync(0);
 
-/** Makes the status polling fail up to its back-off cap: four refusals, the next ask already 10s away. */
+/**
+ * Makes the status asks fail four times in a row: this player declared nothing, so every one of them
+ * is retried after the same two seconds, and the next ask is two seconds away again.
+ */
 const backOffStatusAsks = async () => {
     omniMock.getExternalPlaybackStatus.mockRejectedValue(new Error('playback-failed'));
     omniMock.getExternalPlaybackStatus.mockClear();
     const seen: number[] = [];
-    for (const step of [500, 2000, 4000, 8000]) {
+    for (const step of [500, 2000, 2000, 2000]) {
         await vi.advanceTimersByTimeAsync(step);
         seen.push(omniMock.getExternalPlaybackStatus.mock.calls.length);
     }
@@ -468,42 +479,32 @@ describe('external playback route', () => {
         expect(engine.getExternalSong()).toBeNull();
     });
 
-    it('asks a player that stopped answering ever more rarely, and one answer puts the ordinary rate back', async () => {
+    it('retries a player that stopped answering after the same two seconds every time, and one answer puts the half second back', async () => {
         await engine.beginExternalPlayback(song, 0);
         engine.announceExternalPlayback();
-        // The player stopped answering (it was closed, or its page is gone): every poll fails.
+        // The player stopped answering (it was closed, or its page is gone): every poll fails, and
+        // this player declared nothing about its answers, so the retry rate never grows.
         omniMock.getExternalPlaybackStatus.mockRejectedValue(new Error('playback-failed'));
         omniMock.getExternalPlaybackStatus.mockClear();
         await vi.advanceTimersByTimeAsync(500);
         expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(1);
-        // The next ask comes 2s after the first failure.
-        await vi.advanceTimersByTimeAsync(1999);
-        expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(1);
-        await vi.advanceTimersByTimeAsync(1);
-        expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(2);
-        // One more failure: 4s.
-        await vi.advanceTimersByTimeAsync(3999);
-        expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(2);
-        await vi.advanceTimersByTimeAsync(1);
-        expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(3);
-        // One more: 8s.
-        await vi.advanceTimersByTimeAsync(7999);
-        expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(3);
-        await vi.advanceTimersByTimeAsync(1);
-        expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(4);
-        // The cap of 10s: it does not grow further, and the machine is not asked more often either.
-        await vi.advanceTimersByTimeAsync(10000);
-        expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(5);
+        for (const asks of [2, 3, 4]) {
+            await vi.advanceTimersByTimeAsync(1999);
+            expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(asks - 1);
+            await vi.advanceTimersByTimeAsync(1);
+            expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(asks);
+        }
         // One answer puts the ordinary 500ms back.
         omniMock.getExternalPlaybackStatus.mockResolvedValue(status());
-        await vi.advanceTimersByTimeAsync(10000);
-        expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(6);
+        await vi.advanceTimersByTimeAsync(2000);
+        expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(5);
         await vi.advanceTimersByTimeAsync(500);
-        expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(7);
+        expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(6);
     });
 
-    // The player answered one of Folia's own commands, so it is still there: the next ask must not wait on the failure rate.
-    it('puts the ordinary rate back when the player answers a press of the listener', async () => {
+    // A player that answers one of Folia's own commands is there, but its asks keep the app's own
+    // cadence here: nothing about a command says when this player may be asked again.
+    it('moves no ask forward when the player answers a press of the listener', async () => {
         await engine.beginExternalPlayback(song, 0);
         engine.announceExternalPlayback();
         await backOffStatusAsks();
@@ -511,30 +512,38 @@ describe('external playback route', () => {
         omniMock.getExternalPlaybackStatus.mockResolvedValue(status());
         expect(engine.resumeExternalPlayback()).toBe(true);
         await flush();
-        // A press of play must not wait on the retry rate of a failure either.
+        // The retry that was already two seconds away is the next ask, not one pulled forward now.
+        expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(4);
         await vi.advanceTimersByTimeAsync(500);
+        expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(4);
+        await vi.advanceTimersByTimeAsync(1500);
         expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(5);
     });
 
-    it('does the same for a pause and for the volume the app writes there', async () => {
+    it('moves no ask forward for a pause the player took either', async () => {
         await engine.beginExternalPlayback(song, 0);
         engine.announceExternalPlayback();
         await backOffStatusAsks();
 
-        // A pause too: the player took the pause.
+        // The player took the pause: the next ask stays where the retry put it.
         omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ isPlaying: false }));
         expect(engine.pauseExternalPlayback()).toBe(true);
         await flush();
         await vi.advanceTimersByTimeAsync(500);
-        expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(5);
+        expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(4);
+    });
 
-        // Same for the volume Folia writes there: a good write says the page is still there.
+    it('moves no ask forward for the volume the app writes there', async () => {
+        await engine.beginExternalPlayback(song, 0);
+        engine.announceExternalPlayback();
         await backOffStatusAsks();
+
+        // A good write says the page is still there, and says nothing about when to ask it next.
         useAudioSettingsStore.setState({ volume: 0.5 });
         await flush();
         expect(omniMock.setExternalPlaybackVolume).toHaveBeenLastCalledWith(song, 0.5);
         await vi.advanceTimersByTimeAsync(500);
-        expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(5);
+        expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(4);
     });
     // Two providers play through players of their own (the companion, Spotify's Soloist): a song of
     // one does not replace a track sounding in the other.

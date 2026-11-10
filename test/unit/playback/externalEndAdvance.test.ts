@@ -24,6 +24,7 @@ const env = vi.hoisted(() => ({
         askedAt: 0,
         started: Promise.resolve(),
         seeded: Promise.resolve(),
+        waited: Promise.resolve(),
         timings: { prepareMs: 0, playMs: null, statusMs: null, lyricsMs: null, visibleMs: null, coverMs: null },
     }),
 }));
