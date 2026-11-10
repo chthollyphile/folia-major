@@ -282,7 +282,6 @@ afterEach(() => {
 
 describe('the queue a start leaves of the listener\'s own', () => {
     const idOf = (letter: string) => letter.repeat(22);
-    const trackUri = (letter: string) => 'spotify:track:' + idOf(letter);
     type Answer = { cleared?: boolean; canClear?: boolean | null; restored?: boolean; written: string[]; read: string[] | null };
     const startQueue = (new Function('return (' + String(START_QUEUE_SOURCE) + ')')()) as (input: unknown) => Promise<Answer>;
 
