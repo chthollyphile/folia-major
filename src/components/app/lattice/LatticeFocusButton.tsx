@@ -8,6 +8,7 @@ import { PRIMARY_MODIFIER_LABEL } from '../../../utils/platform';
 import WallToolsButton from '../../wall/WallToolsButton';
 import type { WallToolsQuickAction } from '../../wall/WallToolsRows';
 import { GridLocateButton } from '../playing-song-locator/GridLocateButton';
+import { useRegisterWallLocate } from '../playing-song-locator/useRegisterWallLocate';
 import type { LatticeTile } from './latticeModel';
 import { locatePlayingSongOnWall, useWallPageKey } from './wallLocate';
 
@@ -36,6 +37,14 @@ export default function LatticeFocusButton({ isDaylight, tiles, onGoHome }: { is
         label: t('wallTools.goHome'),
         onSelect: onGoHome,
     } : undefined;
+
+    // 紧凑档里上方的定位按钮不画，定位由进度条胶囊的封面按（progress-bar v3）。
+    useRegisterWallLocate('lattice', playingSongKey !== null ? {
+        run: locatePlayingSongOnWall,
+        isHere: isPlayingSongHere,
+        isSeeking: isLocateAsked,
+        title: t('playlist.locatePlaying'),
+    } : null, true);
 
     return (
         <WallToolsButton

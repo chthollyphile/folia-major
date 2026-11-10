@@ -25,7 +25,7 @@ const collectSourceFiles = async (relativeDir: string): Promise<string[]> => {
     return files.flat();
 };
 
-describe('lyrics architecture', () => {
+describe('D113 lyrics architecture', () => {
     it('keeps Netease call sites on the shared processing helper', async () => {
         const directProcessingCallSites = [
             'src/services/onlineMusic/netease/neteaseProvider.ts',

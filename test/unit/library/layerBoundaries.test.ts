@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { libraryLayerOf } from '../../../dev/mcp/ts-code-map/libraryLayers.mjs';
 
 // test/unit/library/layerBoundaries.test.ts
-// src/library 的分层约束，按源码文本检查（与 storeContract 同样的做法），和 codemap.mjs 的 BOUNDARY_RULES 同一套规则：
+// src/library 的分层约束，按源码文本检查（与 storeContract 同样的做法），和 dev/dedicatus/rules.mjs 的 BOUNDARY_RULES 同一套规则：
 // - core 不依赖 React 动画、组件目录、suites、app 与 registry——换 suite 不该牵动它；
 // - core 按功能分文件夹，层由文件名说（libraryLayers.mjs：*.contract、*.service、use*Store、use*，其余是 model）；
 //   层之间按 contracts ← model ← services / state ← bindings 的方向：契约只引用契约与 src/types，

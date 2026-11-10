@@ -22,6 +22,11 @@ interface ProgressBarProps {
     edgeStyle?: 'rounded' | 'square';
     /** The collapsed floating capsule: mod buttons with hideWhenCollapsed stay out. */
     collapsed?: boolean;
+    /**
+     * 'line': the thin bar under the song in the compact capsule (progress-bar v3): no time labels,
+     * a 3px track, and a taller invisible hit area so it can still be dragged.
+     */
+    variant?: 'default' | 'line';
 }
 
 
@@ -44,7 +49,9 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
     disabled = false,
     edgeStyle = 'rounded',
     collapsed = false,
+    variant = 'default',
 }) => {
+    const isLine = variant === 'line';
     const progressRef = useRef<HTMLDivElement>(null);
     const thumbRef = useRef<HTMLDivElement>(null);
     const timeRef = useRef<HTMLSpanElement>(null);
@@ -177,7 +184,7 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
 
     return (
         <div
-            className="flex items-center gap-3 w-full select-none"
+            className={`flex items-center w-full select-none ${isLine ? 'gap-2' : 'gap-3'}`}
             data-folium-part="progress.root"
             style={{
                 '--folium-progress-fill': primaryColor,
@@ -189,14 +196,14 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
 
             <span
                 ref={timeRef}
-                className="text-[10px] font-mono font-medium opacity-60 w-8 text-right text-[var(--folium-progress-text)]"
+                className={`text-[10px] font-mono font-medium opacity-60 w-8 text-right text-[var(--folium-progress-text)] ${isLine ? 'hidden' : ''}`}
                 data-folium-part="progress.time"
             >
                 00:00
             </span>
 
             <div
-                className={`relative h-1.5 flex-1 flex items-center group bg-[var(--folium-progress-track)] ${edgeStyle === 'rounded' ? 'rounded-sm md:rounded-full' : ''} ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
+                className={`relative flex-1 flex items-center group bg-[var(--folium-progress-track)] ${isLine ? 'h-[3px]' : 'h-1.5'} ${edgeStyle === 'rounded' ? 'rounded-sm md:rounded-full' : ''} ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}
                 data-folium-part="progress.track"
             >
                 <div
@@ -234,13 +241,13 @@ const ProgressBar: React.FC<ProgressBarProps> = ({
                     onInput={handleInput}
                     onChange={() => { }} // React requires this
                     onClick={(e) => e.stopPropagation()}
-                    className={`absolute inset-0 w-full h-full opacity-0 ${disabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                    className={`absolute w-full opacity-0 ${isLine ? 'inset-x-0 -top-1.5 h-[calc(100%+12px)]' : 'inset-0 h-full'} ${disabled ? 'cursor-not-allowed' : 'cursor-pointer'}`}
                 />
                 <FoliumProgressLayers ctx={foliumCtx} />
             </div>
 
             <span
-                className="text-[10px] font-mono font-medium opacity-60 w-8 text-[var(--folium-progress-text)]"
+                className={`text-[10px] font-mono font-medium opacity-60 w-8 text-[var(--folium-progress-text)] ${isLine ? 'hidden' : ''}`}
                 data-folium-part="progress.duration"
             >
                 {formatTime(duration)}
