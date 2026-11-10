@@ -85,6 +85,8 @@ const LOADING_GRACE_MS = 500;
  * 再开翻，让那一块落在 Lattice 还静止的时候，而不是落在 Lattice 海报翻出（Framer 逐帧）的途中。
  */
 const SEE_THROUGH_SETTLE_MS = 280;
+/** 回正的补间比缝合上晚起步不到一帧：量位置前多等这么久（两帧）。 */
+const TILT_SETTLE_SLACK_MS = 34;
 
 const toRect = (rect: DOMRect): WallHandoffRect => ({ x: rect.left, y: rect.top, width: rect.width, height: rect.height });
 
@@ -159,6 +161,9 @@ export const useBravaisWallHandoff = ({
         if (role !== 'out' || !flip || phase !== 'closing' || sessionId === null) return undefined;
         const seamMs = frameRef.current.openWidth > 0.5 && !reducedMotion ? BRAVAIS_SEAM_TWEEN_S * 1000 : 0;
         const veilMs = seeThrough && !reducedMotion ? VEIL_FADE_MS : 0;
+        // 整层倾斜着（歌单的信息条、海报）：缝合上时一起回正（useBravaisTilt 的 quickOut，同一个时长），多等两帧让它落定——
+        // 下面量磁贴的位置、给对齐点都按没倾斜的墙算。
+        const tiltMs = Math.abs(frameRef.current.tiltDeg) >= 0.001 && !reducedMotion ? BRAVAIS_SEAM_TWEEN_S * 1000 + TILT_SETTLE_SLACK_MS : 0;
         let frame: number | null = null;
         const timer = setTimeout(() => {
             frame = requestAnimationFrame(() => {
@@ -186,7 +191,7 @@ export const useBravaisWallHandoff = ({
                     },
                 });
             });
-        }, Math.max(seamMs, veilMs));
+        }, Math.max(seamMs, veilMs, tiltMs));
         return () => {
             clearTimeout(timer);
             if (frame !== null) cancelAnimationFrame(frame);

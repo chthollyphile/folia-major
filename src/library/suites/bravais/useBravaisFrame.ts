@@ -35,6 +35,8 @@ export type BravaisFrameState = {
     seamTiltDeg: number;
     /** 倾斜没在补间：缝的旋转画进轨道那一层（字清楚），补间中整块交给合成器转（bravaisFrame 的 seamTransforms）。 */
     tiltSettled: boolean;
+    /** 倾斜着换锚点时两半墙垫的那一段（屏幕 px，补间到 0；bravaisFrame 的 liftY / reanchorLift）。 */
+    tiltLiftY: number;
 };
 
 export type BravaisFrameRefs = {
@@ -64,6 +66,7 @@ export const useBravaisFrame = (refs: BravaisFrameRefs) => {
         tiltTargetDeg: 0,
         seamTiltDeg: 0,
         tiltSettled: true,
+        tiltLiftY: 0,
     });
     /** 上一次写给轨道与缝的 transform（连同写给的节点）：只在变了时写（读回的 style.transform 会被浏览器规范化，不能拿来比）。 */
     const writtenRef = useRef<{ trackNode: HTMLElement | null; track: string; seamNode: HTMLElement | null; seam: string; insetsNode: HTMLElement | null; insets: string }>({
@@ -83,6 +86,7 @@ export const useBravaisFrame = (refs: BravaisFrameRefs) => {
             hidden: state.hidden,
             poster: state.poster,
             tiltDeg: state.tiltDeg,
+            liftY: state.tiltLiftY,
         });
         const { left, right, seam, seamTrack, seamContent, tab, hint } = refs;
         if (left.current) left.current.style.transform = withTilt(formatWorldTransform(frame.left.x, frame.left.y, frame.scale), frame.tilt);

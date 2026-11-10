@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BRAVAIS_TILT_DEG } from '@/library/suites/bravais/bravaisConstants';
-import { rotateAround, seamTiltInsets } from '@/library/suites/bravais/bravaisFrame';
+import { reanchorLift, rotateAround, seamTiltInsets, tiltEdgeRoom, type BravaisFrameInput } from '@/library/suites/bravais/bravaisFrame';
+import { tiltedScreenBox } from '@/library/suites/bravais/bravaisTiltReveal';
 import { resolveBravaisTiltDeg, resolveBravaisTiltPage, type BravaisTiltInput } from '@/library/suites/bravais/bravaisTilt';
 
 // test/unit/library/bravais/bravaisTilt.test.ts
@@ -47,11 +48,12 @@ describe('resolveBravaisTiltDeg', () => {
         expect(tilt({ variant: 'spine' })).toBe(-6);
     });
 
-    it('reads the shipped table by default: the poster tilts, the home and collection pages stay upright', () => {
-        expect(BRAVAIS_TILT_DEG).toEqual({ home: 0, collection: 0, poster: -10 });
+    it('reads the shipped table by default: the home stays upright, playlists lean a little, the poster the most', () => {
+        expect(BRAVAIS_TILT_DEG).toEqual({ home: 0, collection: -4, poster: -10 });
         expect(resolveBravaisTiltDeg(input({ variant: 'poster' }))).toBe(-10);
         expect(resolveBravaisTiltDeg(input({ variant: 'home' }))).toBe(0);
-        expect(resolveBravaisTiltDeg(input({ variant: 'full' }))).toBe(0);
+        expect(resolveBravaisTiltDeg(input({ variant: 'full' }))).toBe(-4);
+        expect(resolveBravaisTiltDeg(input({ variant: 'spine' }))).toBe(-4);
     });
 
     // 下面每一条只动一个条件，其余都是「会倾斜」的样子（集合页的信息条，表里 −6）。
@@ -129,5 +131,78 @@ describe('seamTiltInsets', () => {
 
     it('grows from nothing with the angle, so the content does not jump when the turn starts', () => {
         expect(seamTiltInsets({ width: 300, height: 900, deg: -0.05 }).bottom).toBeLessThan(0.5);
+    });
+});
+
+describe('reanchorLift', () => {
+    const view = { width: 1440, height: 900, scale: 0.76 };
+    const frameAt = (patch: Partial<BravaisFrameInput> = {}): BravaisFrameInput => ({
+        center: { x: 0, y: 0 },
+        view,
+        anchorX: 3000,
+        openWidth: 0,
+        contentWidth: 300,
+        hidden: false,
+        tiltDeg: -4,
+        ...patch,
+    });
+    /** 一个世界点此刻画在屏幕上的哪里（两半墙的让位、倾斜与垫的那一截都算上）。 */
+    const drawn = (frame: BravaisFrameInput, x: number, y: number) => {
+        const box = tiltedScreenBox({ x, y, width: 0, height: 0 }, frame);
+        return { x: box.left, y: box.top };
+    };
+    // 缝被拖到右边 3000 世界单位外（收起了），在视口里另一条块边界上重新裂开。
+    const next = 0;
+    const pivotShift = (3000 - next) * view.scale;
+
+    it('is nothing without a tilt, without a seam, or when the anchor does not move', () => {
+        expect(reanchorLift(frameAt({ tiltDeg: 0 }), next)).toBe(0);
+        expect(reanchorLift(frameAt({ anchorX: null }), next)).toBe(0);
+        expect(reanchorLift(frameAt(), null)).toBe(0);
+        expect(reanchorLift(frameAt(), 3000)).toBeCloseTo(0);
+    });
+
+    it('keeps the wall where it was when the anchor jumps under a tilt', () => {
+        for (const tiltDeg of [-4, -10, 6]) {
+            const before = frameAt({ tiltDeg });
+            const lift = reanchorLift(before, next);
+            // 墙上的一点（两条锚点都在它右边，落在同一半面）。
+            const [x, y] = [-600, 250];
+            const from = drawn(before, x, y);
+            const jumped = drawn({ ...before, anchorX: next }, x, y);
+            const held = drawn({ ...before, anchorX: next, liftY: lift }, x, y);
+            // 不垫：顺着纸的竖向跳了约 支点挪的距离 × |sin|。
+            expect(Math.hypot(jumped.x - from.x, jumped.y - from.y)).toBeGreaterThan(pivotShift * Math.abs(Math.sin(tiltDeg * Math.PI / 180)) * 0.95);
+            // 垫上：只剩垂直于纸竖向的那一点（支点挪的距离 × (1 − cos)）。
+            const left = Math.hypot(held.x - from.x, held.y - from.y);
+            expect(left).toBeLessThanOrEqual(pivotShift * (1 - Math.cos(tiltDeg * Math.PI / 180)) + 0.01);
+        }
+    });
+
+    it('measures the pivot as it is drawn at that moment, opening included', () => {
+        // 新缝立刻张着 300（开口没有归零）：支点还多挪了半个开口。
+        const closed = reanchorLift(frameAt(), next);
+        const open = reanchorLift(frameAt({ openWidth: 300 }), next);
+        expect(open - closed).toBeCloseTo(150 * Math.sin(-4 * Math.PI / 180));
+    });
+});
+
+describe('tiltEdgeRoom', () => {
+    it('is the sideways reach of a tilted seam end: half the viewport height times |sin|', () => {
+        expect(tiltEdgeRoom(900, 0)).toBe(0);
+        expect(tiltEdgeRoom(900, -4)).toBeCloseTo(450 * Math.sin(4 * Math.PI / 180));
+        expect(tiltEdgeRoom(900, 4)).toBeCloseTo(tiltEdgeRoom(900, -4));
+    });
+
+    it('covers how far the ends of a tilted strip lean out past its own left and right edges', () => {
+        // 缝的右缘半高是转轴。逆时针（负）：上端往左、下端往右；往外探出缝自己左右缘的距离不超过它。
+        const [width, height, deg] = [300, 900, -4];
+        const pivot = { pivotX: width, pivotY: height / 2 };
+        const room = tiltEdgeRoom(height, deg);
+        const xs = [[0, 0], [width, 0], [0, height], [width, height]].map(([x, y]) => rotateAround(x, y, pivot, deg).x);
+        expect(0 - Math.min(...xs)).toBeGreaterThan(room * 0.9);
+        expect(0 - Math.min(...xs)).toBeLessThanOrEqual(room + 0.01);
+        expect(Math.max(...xs) - width).toBeGreaterThan(room * 0.9);
+        expect(Math.max(...xs) - width).toBeLessThanOrEqual(room + 0.01);
     });
 });

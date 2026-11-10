@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { SEAM_EDGE_MARGIN } from '@/components/wall/seamPlan';
 import { getViewLineX } from '@/components/wall/wallView';
-import { computeBravaisFrame, planPosterOpening, type BravaisFrameInput } from '@/library/suites/bravais/bravaisFrame';
+import { computeBravaisFrame, planPosterOpening, tiltEdgeRoom, type BravaisFrameInput } from '@/library/suites/bravais/bravaisFrame';
 import { BRAVAIS_SEAM_FULL_WIDTH } from '@/library/suites/bravais/bravaisConstants';
 import { tiltedScreenBox, resolveTiltedRevealCenter } from '@/library/suites/bravais/bravaisTiltReveal';
 
@@ -123,7 +123,7 @@ describe('tilted info strip reveal', () => {
 
     it('reopens the strip, edge margin included, when coming back to a tile that fits beside it', () => {
         // 相机在右边：缝被视口左边挤窄了（中线在屏幕 x = 100，整条张开要 150 + 边距）。磁贴就在缝右边、本来就看得见，
-        // 不用挪也行；能让缝整条张开时挪到那里——缝的左缘离视口左边正好留出 SEAM_EDGE_MARGIN。
+        // 不用挪也行；能让缝整条张开时挪到那里——缝的左缘离视口左边正好留出 SEAM_EDGE_MARGIN 加倾斜要的那一段。
         const squeezed = { x: anchorX + (getViewLineX(view) - 100) / view.scale, y: 0 };
         expect(computeBravaisFrame(stripFrame(squeezed)).seam.width).toBeLessThan(STRIP - 1);
         const rect = tileAt(300, -100);
@@ -133,7 +133,8 @@ describe('tilted info strip reveal', () => {
         expectOnScreen(rect, stripFrame(next));
         const drawn = computeBravaisFrame(stripFrame(next));
         expect(drawn.seam.width).toBeCloseTo(STRIP);
-        expect(drawn.seam.x - drawn.seam.width / 2).toBeCloseTo(SEAM_EDGE_MARGIN, 0);
+        // 倾斜着多留一段：转过去的上端不横着出屏。
+        expect(drawn.seam.x - drawn.seam.width / 2).toBeCloseTo(SEAM_EDGE_MARGIN + tiltEdgeRoom(view.height, -6), 0);
     });
 
     it('lets the strip go when the tile is too far to show beside it', () => {

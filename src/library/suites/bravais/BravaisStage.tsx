@@ -220,6 +220,22 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
         return resolveSeamAxis(resolveSeamTarget(seamInputFor(target)).variant, horizontal) ?? (horizontal ? 'y' : 'x');
     }, [seamInputFor]);
 
+    // 这一层的缝落定时整层倾斜多少度（与下面交给 useBravaisTilt 的同一张表、同一套条件；排开口时据此离视口边多留一段）。
+    const reducedMotionRef = useRef(reducedMotion);
+    reducedMotionRef.current = reducedMotion;
+    const tiltFor = useCallback((target: BravaisLayer) => {
+        const resolved = resolveSeamTarget(seamInputFor(target));
+        const axis = resolveSeamAxis(resolved.variant, seamHorizontalRef.current);
+        return resolveBravaisTiltDeg({
+            variant: resolved.variant,
+            openWidth: resolved.width,
+            targetAxis: axis,
+            renderedAxis: axis,
+            finite: target.mode === 'finite',
+            reducedMotion: reducedMotionRef.current,
+        });
+    }, [seamInputFor]);
+
     const camera = useBravaisCamera({ frameRef, renderFrame, fieldRef, reducedMotion });
     // 墙此刻的显示（useBravaisDisplay 提交时就写进它）：形状从它读，换形状的同一次提交里各处就按新形状找 slot。
     const displayBridgeRef = useRef<BravaisDisplay | null>(null);
@@ -240,6 +256,7 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
         reducedTransitions,
         tweenCamera: camera.tweenTo,
         checkCull: camera.checkCull,
+        tiltFor,
     });
     const { bottomPx, getBottomInset } = useBravaisPlayerSafeArea();
     // 整层（两半墙与缝）一起倾斜，倾斜着照样拖动、滚动（useBravaisTilt）。转多少按缝里要画的内容定（bravaisTilt：歌手 / 专辑
@@ -253,6 +270,8 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
         checkCull: camera.checkCull,
         deg: resolveBravaisTiltDeg({ ...tiltGates, variant: seamTarget.variant, targetAxis: seamTarget.axis, renderedAxis: seam.rendered.axis }),
         seamDeg: resolveBravaisTiltDeg({ ...tiltGates, variant: seam.rendered.variant, targetAxis: seam.rendered.axis, renderedAxis: seam.rendered.axis }),
+        // 翻牌交接：缝一合上就量磁贴的位置，回正要赶上（useBravaisWallHandoff）。
+        quickOut: handoff.seamClosed,
         reducedMotion,
     });
 
@@ -285,6 +304,7 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
         openWidthFor,
         posterFor,
         axisFor,
+        tiltFor,
         setCameraRange: camera.setRange,
         setAnchor: seam.setAnchor,
         planOpening: seam.planOpening,

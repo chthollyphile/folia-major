@@ -3,11 +3,21 @@ import { act, createElement, type MutableRefObject, type PointerEvent } from 're
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Bounds } from '@/components/wall/layout';
-import { BRAVAIS_CULL_EDGE_MARGIN, BRAVAIS_OVERSCAN, BRAVAIS_SEAM_FULL_WIDTH, BRAVAIS_SEAM_HOME_WIDTH } from '@/library/suites/bravais/bravaisConstants';
-import { computeBravaisFrame, rotateAround } from '@/library/suites/bravais/bravaisFrame';
+import {
+    BRAVAIS_CULL_EDGE_MARGIN,
+    BRAVAIS_OVERSCAN,
+    BRAVAIS_SEAM_FULL_WIDTH,
+    BRAVAIS_SEAM_HOME_WIDTH,
+    BRAVAIS_SEAM_TWEEN_S,
+    BRAVAIS_TILT_OUT_S,
+} from '@/library/suites/bravais/bravaisConstants';
+import { computeBravaisFrame, reanchorLift, rotateAround } from '@/library/suites/bravais/bravaisFrame';
 import { getVisibleWorldBounds, needsRecull, useBravaisCamera } from '@/library/suites/bravais/useBravaisCamera';
 import type { BravaisFrameState } from '@/library/suites/bravais/useBravaisFrame';
 import { useBravaisFrame } from '@/library/suites/bravais/useBravaisFrame';
+import { columnAnchor } from '@/library/suites/bravais/bravaisAnchor';
+import { BRAVAIS_BLOCK_SHAPE } from '@/library/suites/bravais/bravaisWallShape';
+import { useBravaisSeam } from '@/library/suites/bravais/useBravaisSeam';
 import { useBravaisTilt } from '@/library/suites/bravais/useBravaisTilt';
 
 // test/unit/library/bravais/bravaisTiltCull.test.ts
@@ -19,7 +29,7 @@ import { useBravaisTilt } from '@/library/suites/bravais/useBravaisTilt';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-type AnimateOptions = { onUpdate?: (value: number) => void; onComplete?: () => void };
+type AnimateOptions = { duration?: number; onUpdate?: (value: number) => void; onComplete?: () => void };
 const animateCalls: Array<{ from: number; to: number; options: AnimateOptions }> = [];
 vi.mock('framer-motion', async importOriginal => ({
     ...(await importOriginal<Record<string, unknown>>()),
@@ -45,6 +55,7 @@ const stateAt = (patch: Partial<BravaisFrameState> = {}): BravaisFrameState => (
     tiltTargetDeg: -10,
     seamTiltDeg: 0,
     tiltSettled: true,
+    tiltLiftY: 0,
     ...patch,
 });
 
@@ -59,6 +70,7 @@ const worldAt = (state: BravaisFrameState, screenX: number, screenY: number) => 
         hidden: state.hidden,
         poster: state.poster,
         tiltDeg: state.tiltDeg,
+        liftY: state.tiltLiftY,
     });
     const flat = rotateAround(screenX, screenY, frame.tilt, -frame.tilt.deg);
     const seamLeft = frame.seam.x - frame.seam.width / 2;
@@ -132,6 +144,32 @@ describe('culling a tilted wall', () => {
         const far = getVisibleWorldBounds(stateAt({ center: { x: 9000, y: 0 } }))!;
         const untilted = getVisibleWorldBounds(stateAt({ center: { x: 9000, y: 0 }, tiltDeg: 0 }))!;
         expect(Math.abs(far.top - untilted.top)).toBeGreaterThan(1000);
+    });
+
+    it('follows the wall while it is held back after a re-anchor', () => {
+        // 倾斜着换锚点时两半墙垫了一截（tiltLiftY，屏幕 px）：看到的世界范围跟着挪，屏幕仍然盖得住。
+        for (const tiltLiftY of [-180, 240]) {
+            const state = stateAt({ center: { x: 400, y: 0 }, tiltLiftY });
+            expectScreenCovered(state);
+            const held = getVisibleWorldBounds(state)!;
+            const settled = getVisibleWorldBounds(stateAt({ center: { x: 400, y: 0 } }))!;
+            expect(held.top - settled.top).toBeCloseTo(-tiltLiftY / view.scale);
+            expect(held.bottom - settled.bottom).toBeCloseTo(-tiltLiftY / view.scale);
+        }
+    });
+
+    it('can leave the seam widening out and add an overscan (flip ranges, the first arrow key)', () => {
+        const state = stateAt({ center: { x: 9000, y: 0 } });
+        const full = getVisibleWorldBounds(state)!;
+        const plain = getVisibleWorldBounds(state, undefined, { seam: false })!;
+        const wide = getVisibleWorldBounds(state, undefined, { overscan: 300 })!;
+        // 不按缝放宽：左右各少一个开口宽，上下不变；仍然是倾斜后的范围（与没倾斜的差着近千）。
+        expect(plain.left - full.left).toBeCloseTo(BRAVAIS_SEAM_FULL_WIDTH / view.scale);
+        expect(full.right - plain.right).toBeCloseTo(BRAVAIS_SEAM_FULL_WIDTH / view.scale);
+        expect(plain.top).toBeCloseTo(full.top);
+        expect(Math.abs(plain.top - getVisibleWorldBounds(stateAt({ center: { x: 9000, y: 0 }, tiltDeg: 0 }), undefined, { seam: false })!.top)).toBeGreaterThan(1000);
+        for (const side of ['left', 'top'] as const) expect(full[side] - wide[side]).toBeCloseTo(300);
+        for (const side of ['right', 'bottom'] as const) expect(wide[side] - full[side]).toBeCloseTo(300);
     });
 
     it('answers for another camera position the same as being there (flight destinations, the next drag step)', () => {
@@ -274,6 +312,108 @@ describe('culling a tilted wall: wiring', () => {
         turn.options.onComplete?.();
         expect(frameRef.current.tiltSettled).toBe(true);
         expect(checkCull.mock.calls[checkCull.mock.calls.length - 1]).toEqual([true]);
+    });
+});
+
+describe('straightening and re-anchoring a tilted wall: wiring', () => {
+    let container: HTMLDivElement;
+    let root: Root;
+
+    beforeEach(() => {
+        animateCalls.length = 0;
+        container = document.createElement('div');
+        document.body.appendChild(container);
+        root = createRoot(container);
+    });
+
+    afterEach(() => {
+        act(() => root.unmount());
+        container.remove();
+    });
+
+    it('straightens in step with the seam closing for a handoff, at its own pace otherwise', () => {
+        const durations = (quickOut: boolean) => {
+            animateCalls.length = 0;
+            const frameRef: MutableRefObject<BravaisFrameState> = { current: stateAt({ tiltDeg: -4, tiltTargetDeg: -4 }) };
+            const Probe = ({ deg }: { deg: number }) => {
+                useBravaisTilt({ frameRef, renderFrame: () => undefined, checkCull: () => undefined, deg, seamDeg: 0, quickOut: deg === 0 && quickOut, reducedMotion: false });
+                return null;
+            };
+            act(() => root.render(createElement(Probe, { deg: -4 })));
+            act(() => root.render(createElement(Probe, { deg: 0 })));
+            return animateCalls.map(call => call.options.duration);
+        };
+        expect(durations(false)).toEqual([BRAVAIS_TILT_OUT_S]);
+        expect(durations(true)).toEqual([BRAVAIS_SEAM_TWEEN_S]);
+        expect(BRAVAIS_SEAM_TWEEN_S).toBeLessThan(BRAVAIS_TILT_OUT_S);
+    });
+
+    it('holds the wall in place when the anchor jumps under a tilt, then lets it slide', () => {
+        // 缝在 3000 世界单位外（收起了），整层 −4°；换到视口里的一条块边界上。
+        const frameRef: MutableRefObject<BravaisFrameState> = { current: stateAt({ anchorX: null, center: { x: 0, y: 0 }, openWidth: 0, tiltDeg: -4, tiltTargetDeg: -4 }) };
+        const renderFrame = vi.fn();
+        const checkCull = vi.fn();
+        const handle: { seam: ReturnType<typeof useBravaisSeam> | null } = { seam: null };
+        const contentRef = { current: document.createElement('div') };
+        const Probe = () => {
+            handle.seam = useBravaisSeam({
+                frameRef,
+                renderFrame,
+                layer: null,
+                target: { width: 0, variant: 'none', axis: null },
+                viewportWidth: view.width,
+                contentRef,
+                reducedMotion: false,
+                reducedTransitions: false,
+                tweenCamera: () => undefined,
+                checkCull,
+                getShape: () => BRAVAIS_BLOCK_SHAPE,
+                tiltFor: () => 0,
+            });
+            return null;
+        };
+        act(() => root.render(createElement(Probe)));
+        // 第一次给锚点：之前没有缝，不用垫。
+        act(() => handle.seam!.setAnchor(columnAnchor(3000)));
+        expect(frameRef.current.tiltLiftY).toBe(0);
+        expect(animateCalls).toHaveLength(0);
+        const before = { ...frameRef.current };
+        const expected = reanchorLift({ ...before, view }, 0);
+        expect(Math.abs(expected)).toBeGreaterThan(100);
+        act(() => handle.seam!.setAnchor(columnAnchor(0)));
+        expect(frameRef.current.anchorX).toBe(0);
+        expect(frameRef.current.tiltLiftY).toBeCloseTo(expected);
+        // 垫上的那一截补间回 0，途中补裁剪，落定时再裁剪一次。
+        expect(animateCalls).toHaveLength(1);
+        const slide = animateCalls[0]!;
+        expect(slide.from).toBeCloseTo(expected);
+        expect(slide.to).toBe(0);
+        slide.options.onUpdate?.(expected / 2);
+        expect(frameRef.current.tiltLiftY).toBeCloseTo(expected / 2);
+        expect(checkCull).toHaveBeenLastCalledWith();
+        slide.options.onUpdate?.(0);
+        slide.options.onComplete?.();
+        expect(frameRef.current.tiltLiftY).toBe(0);
+        expect(checkCull).toHaveBeenLastCalledWith(true);
+    });
+
+    it('does not hold anything when the wall is not tilted', () => {
+        const frameRef: MutableRefObject<BravaisFrameState> = { current: stateAt({ anchorX: 3000, center: { x: 0, y: 0 }, openWidth: 0, tiltDeg: 0, tiltTargetDeg: 0 }) };
+        const handle: { seam: ReturnType<typeof useBravaisSeam> | null } = { seam: null };
+        const contentRef = { current: document.createElement('div') };
+        const Probe = () => {
+            handle.seam = useBravaisSeam({
+                frameRef, renderFrame: () => undefined, layer: null, target: { width: 0, variant: 'none', axis: null }, viewportWidth: view.width,
+                contentRef, reducedMotion: false, reducedTransitions: false, tweenCamera: () => undefined, checkCull: () => undefined,
+                getShape: () => BRAVAIS_BLOCK_SHAPE, tiltFor: () => 0,
+            });
+            return null;
+        };
+        act(() => root.render(createElement(Probe)));
+        act(() => handle.seam!.setAnchor(columnAnchor(0)));
+        expect(frameRef.current.anchorX).toBe(0);
+        expect(frameRef.current.tiltLiftY).toBe(0);
+        expect(animateCalls).toHaveLength(0);
     });
 });
 

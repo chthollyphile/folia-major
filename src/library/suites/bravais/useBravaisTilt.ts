@@ -1,6 +1,7 @@
 import { animate } from 'framer-motion';
 import { useEffect, useLayoutEffect, useRef, type MutableRefObject } from 'react';
 import {
+    BRAVAIS_SEAM_TWEEN_S,
     BRAVAIS_TILT_EASE,
     BRAVAIS_TILT_IN_DELAY_S,
     BRAVAIS_TILT_IN_S,
@@ -26,6 +27,7 @@ export const useBravaisTilt = ({
     checkCull,
     deg,
     seamDeg,
+    quickOut = false,
     reducedMotion,
 }: {
     frameRef: MutableRefObject<BravaisFrameState>;
@@ -35,6 +37,8 @@ export const useBravaisTilt = ({
     deg: number;
     /** 缝里此刻画着的那套内容落定时的角度（度）：缝的出血与内容缩进按它给（useBravaisFrame 的 seamTiltDeg）。 */
     seamDeg: number;
+    /** 回正要赶上缝合上（翻牌交接：缝一合上就量磁贴的位置，那时墙得已经回正）：回正的时长换成开口补间的时长。 */
+    quickOut?: boolean;
     reducedMotion: boolean;
 }) => {
     // 缝的出血与内容缩进跟着画着的内容走：与内容换上来同一次提交里写（先于绘制），不等倾斜补间。
@@ -68,7 +72,7 @@ export const useBravaisTilt = ({
         const turningIn = Math.abs(to) > Math.abs(from);
         frameRef.current.tiltSettled = false;
         animationRef.current = animate(from, to, {
-            duration: turningIn ? BRAVAIS_TILT_IN_S : BRAVAIS_TILT_OUT_S,
+            duration: turningIn ? BRAVAIS_TILT_IN_S : quickOut ? BRAVAIS_SEAM_TWEEN_S : BRAVAIS_TILT_OUT_S,
             delay: turningIn ? BRAVAIS_TILT_IN_DELAY_S : 0,
             ease: [...BRAVAIS_TILT_EASE],
             onUpdate: value => {
@@ -83,6 +87,6 @@ export const useBravaisTilt = ({
                 checkCull(true);
             },
         });
-    }, [checkCull, deg, frameRef, reducedMotion, renderFrame]);
+    }, [checkCull, deg, frameRef, quickOut, reducedMotion, renderFrame]);
     useEffect(() => () => animationRef.current?.stop(), []);
 };

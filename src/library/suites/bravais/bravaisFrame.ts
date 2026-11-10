@@ -30,6 +30,11 @@ export type BravaisFrameInput = {
     poster?: boolean;
     /** 整层（两半墙与缝）此刻的倾斜角（度；各种页面转多少见 BRAVAIS_TILT_DEG）。 */
     tiltDeg?: number;
+    /**
+     * 两半墙沿纸自己的竖向多挪的一段（屏幕 px，转之前的坐标；缝不跟着挪）：倾斜着换锚点时支点瞬间换了位置，墙会顺着纸的
+     * 竖向跳一截，这一段把它垫回去、再补间到 0（reanchorLift、useBravaisSeam）。平常是 0。
+     */
+    liftY?: number;
 };
 
 export type BravaisFrame = {
@@ -51,7 +56,7 @@ const contentOpacityFor = (width: number, contentWidth: number) => (
     Math.max(0, Math.min(1, (width / Math.max(contentWidth, 1) - 0.35) / 0.65))
 );
 
-export const computeBravaisFrame = ({ center, view, anchorX, anchorY = null, openWidth, contentWidth, hidden, poster = false, tiltDeg = 0 }: BravaisFrameInput): BravaisFrame => {
+export const computeBravaisFrame = ({ center, view, anchorX, anchorY = null, openWidth, contentWidth, hidden, poster = false, tiltDeg = 0, liftY = 0 }: BravaisFrameInput): BravaisFrame => {
     const camera = cameraFromViewCenter(center, view);
     if (anchorX === null && anchorY !== null) {
         const geometry = getSeamGeometryY({ anchorY, cameraY: center.y, openWidth, view });
@@ -81,8 +86,8 @@ export const computeBravaisFrame = ({ center, view, anchorX, anchorY = null, ope
     const offsets = getSeamSplitOffsets(geometry.width, view.scale, BRAVAIS_METRICS);
     const layoutWidth = Math.max(contentWidth, 1);
     return {
-        left: { x: camera.x + offsets.left, y: camera.y },
-        right: { x: camera.x + offsets.right, y: camera.y },
+        left: { x: camera.x + offsets.left, y: camera.y + liftY },
+        right: { x: camera.x + offsets.right, y: camera.y + liftY },
         scale: view.scale,
         seam: { axis: 'x', x: geometry.screenX, y: view.height / 2, width: geometry.width, visible: geometry.width >= 1 },
         // 原型：(开口 / 排版宽度 − .35) / .65，开到三成五以下就看不见。
@@ -199,10 +204,31 @@ export const rotateAround = (x: number, y: number, pivot: { pivotX: number; pivo
 };
 
 /**
+ * 倾斜着把缝的锚点换到 nextAnchorX（相机不动）时，两半墙要垫的那一段（屏幕 px，computeBravaisFrame 的 liftY）。支点跟着缝，
+ * 锚点一换支点横着挪了 Δ，整面墙随之平移 (I − R)·(Δ, 0)：顺着纸的竖向是 −Δ·sin，垂直于它只有 Δ·(1 − cos)（4° 时是 Δ 的
+ * 0.24%，不管）。垫上 Δ·sin 墙就留在原地，再由调用方补间到 0（墙顺着纸滑过去，不是跳过去）。没倾斜、没有竖的缝时是 0。
+ */
+export const reanchorLift = (input: BravaisFrameInput, nextAnchorX: number | null): number => {
+    const deg = input.tiltDeg ?? 0;
+    if (Math.abs(deg) < 0.001 || input.anchorX === null || nextAnchorX === null || (input.anchorY ?? null) !== null) return 0;
+    const before = computeBravaisFrame(input).tilt.pivotX;
+    const after = computeBravaisFrame({ ...input, anchorX: nextAnchorX }).tilt.pivotX;
+    return (after - before) * Math.sin((deg * Math.PI) / 180);
+};
+
+/**
+ * 倾斜的缝（不是海报）离视口左右边要多留的距离（屏幕 px）：缝绕右缘、视口半高转过去之后，上端往一边、下端往另一边各横移
+ * 约 高度 / 2 × |sin|；排开口（useBravaisSeam 的 planOpening）与让位（bravaisTiltReveal）时把它加在 SEAM_EDGE_MARGIN 上，
+ * 缝落定时面包屑与底下的按钮不横着出屏。拖动不受它限制（缝照旧贴着边才收窄）。
+ */
+export const tiltEdgeRoom = (viewHeight: number, deg: number) => (
+    Math.abs(deg) < 0.001 ? 0 : (viewHeight / 2) * Math.abs(Math.sin((deg * Math.PI) / 180))
+);
+
+/**
  * 倾斜的缝（信息条、书脊、首页窄缝；海报另有 posterSafeArea）里，内容上下各要缩进多少（屏幕 px）：缝绕右缘、视口半高转过去
- * 之后，内容那一列的四个角仍落在视口的上下缘之内（左下的按钮不被切掉）。只管上下：缝停在离视口左右边很近的地方
- * （SEAM_EDGE_MARGIN）时，转过去的上端 / 下端仍会横着出屏约 高度 / 2 × |sin|，这里不处理。随角度连续变化（0° 时是 0），
- * 只跟内容的排版宽度、视口高度与角度有关，拖动时不变。
+ * 之后，内容那一列的四个角仍落在视口的上下缘之内（左下的按钮不被切掉）。只管上下；左右靠排开口时多留的 tiltEdgeRoom。
+ * 随角度连续变化（0° 时是 0），只跟内容的排版宽度、视口高度与角度有关，拖动时不变。
  */
 export const seamTiltInsets = ({ width, height, deg }: { width: number; height: number; deg: number }) => {
     if (Math.abs(deg) < 0.001 || width <= 0 || height <= 0) return { top: 0, bottom: 0 };

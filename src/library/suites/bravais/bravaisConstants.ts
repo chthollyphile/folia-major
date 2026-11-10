@@ -39,7 +39,7 @@ export const BRAVAIS_SEAM_POSTER_VIEWPORT_RATIO = 0.46;
  * 倾斜着换锚点（边缘标签「在这里裂开」、换层）墙会竖着跳一下；翻牌 / 入场范围与第一次按方向键的落点按没倾斜的视口判断
  * （useBravaisDisplay、useBravaisInteractions）；翻牌交接（useBravaisWallHandoff）量磁贴时墙还没回正；空墙说明不跟着转。
  */
-export const BRAVAIS_TILT_DEG: Record<'home' | 'collection' | 'poster', number> = { home: 0, collection: 0, poster: -10 };
+export const BRAVAIS_TILT_DEG: Record<'home' | 'collection' | 'poster', number> = { home: 0, collection: -4, poster: -10 };
 /**
  * 倾斜的补间：张开时等裂缝先走一小段（DELAY）再转，转得比开口与相机慢一点，三者一起落定；回正跟着缝合上走。
  * 缓动两头都平（ease-in-out），不是一下子甩过去。
