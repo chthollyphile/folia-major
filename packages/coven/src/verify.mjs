@@ -14,10 +14,14 @@ import { riskRank, sensitiveRiskOf } from './risk.mjs';
 //   D807  实际改到的路径没超出契约的风险级
 //   D841  适配层账本（Folia：Dedicatus 基线和 ESLint 抑制）没有任何一条增长
 // 前面几道关口（clean、D801、D804、D803、D807）没过就不跑工作区里的代码。确定性验收项怎么跑由适配层的 checks 定。
-//
-//   coven verify --task <任务> --worktree <工作 session 的 worktree> [--base <集成分支>]
-//
 // 结果：.coven/verify/<任务>-<提交前 7 位>.json，并复制一份为 <任务>-latest.json。
+
+export const usage = () => [
+    'coven verify --task <任务> --worktree <工作 worktree 的路径> [--base <分支>]',
+    '  在工作 worktree 里跑关口（clean、D801/D804、D803、D807、D841）和契约里确定性的验收项，',
+    '  结果写进 .coven/verify/<任务>-<提交>.json 和 <任务>-latest.json，给 evaluator 和 coven pr 用。',
+    '  --base 默认是本次运行的集成分支；开 PR 只认和集成分支比的结果，平时不要写。',
+].join('\n');
 
 const TIMEOUT_MS = 15 * 60_000;
 const GATES = ['clean', 'D801', 'D804', 'D803', 'D807'];

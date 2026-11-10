@@ -42,7 +42,7 @@
 | 字段 | 内容 |
 | --- | --- |
 | `id` | 名字 |
-| `sources` | 范围的来源：`{ <名字>: { describe, options?, list({ root, options }) } }`。`list` 返回条目 `{ key, kind, paths, code?, riskPaths?, note? }`，`options` 是这个来源收的命令行选项 |
+| `sources` | 范围的来源：`{ <名字>: { describe, options?, list({ root, options }), hints?({ root }) } }`。`list` 返回条目 `{ key, kind, paths, code?, riskPaths?, note? }`，`options` 是这个来源收的命令行选项。`hints` 可选，返回 `{ <选项>: [{ value, label?, count? }] }`，Compass 拿它给选项列候选值 |
 | `itemKeyPattern` | 可选：维护者手写的认领首行里，条目 key 长什么样（不能带 g、y 标志）；不给就认反引号包着的第一个 token |
 | `baseRisk(item)` | 条目本身的基础风险级（R0–R4）；harness 再按 `risk` 表的路径往上调 |
 | `ledger` | 可选：“只减不增”的账本，`{ files, growth({ readBase, readHead, renameMap, newFiles }) }`。`files` 是相对文件路径。账本文件任何任务都能改，但 `growth` 报出的增长一律拦下（D841）；删掉账本文件也该报 |
@@ -55,18 +55,37 @@
 
 ## 命令
 
+每个命令都认 `--help`，列出它的子命令和选项。
+
 | 命令 | 做什么 |
 | --- | --- |
-| `coven scope` | 从适配层的来源生成范围，逐条算风险级（HD1）。`--help` 列出来源和它们的选项 |
-| `coven state` | 账本 `.coven/state.json`：开始（取作品号、切集成分支）、阶段流转、人类介入、用量、收尾、审计 |
+| `coven scope` | 从适配层的来源生成范围，逐条算风险级（HD1）。`--help` 还会列出来源和它们的选项 |
+| `coven state` | 账本 `.coven/state.json`：开始（取作品号、切集成分支）、阶段流转、升级的决定（HD4）、人类介入、用量、收尾、审计 |
 | `coven claim` | `coven:` 认领评论：认领、续租、改状态、释放 |
 | `coven prompt` | 把角色模板填成提示 |
 | `coven contract` | 导入 planner 的契约（给任务编号）、给人看、批准（HD2）、记录评审结论 |
 | `coven verify` | 在工作 worktree 里跑关口和确定性验收项 |
 | `coven pr` | 开 PR、合并，只进集成分支 |
 | `coven setup` | 按适配层准备一个工作 worktree |
+| `coven compass` | Coven Compass：本机网页，看运行和认领、划范围、看历史（见下一节） |
 
 写 GitHub 的命令（claim、pr，以及会改认领评论的 state）只在有 `.coven/state.json` 的检出里能跑，也就是监控 session 那里。
+
+## Coven Compass
+
+`coven compass [--port 4317] [--open]` 在监控 session 的检出里起一个本机网页（只听 `127.0.0.1`），给维护者看和划范围用：
+
+| 页 | 内容 |
+| --- | --- |
+| 运行 | 这次运行的任务、阶段、轮数、用量、PR，升级和维护者的决定，人类介入的时间线；每几秒自动刷新 |
+| 认领 | 借本机 `gh` 读跟踪 issue 上的认领评论，用和脚本同一套判定（`resolveClaims`）列出每个条目归谁、租约到几点、有没有冲突和过期；标出哪些是这个检出的 |
+| 划范围 | 选适配层的来源，按它的选项（`hints` 给候选值）列出候选，风险级和敏感原因由脚本算；勾选后存成 `.coven/scopes/<名字>.json`：条目和 `coven scope` 生成的一样，`source` 另外记下每组勾选用的来源和选项。读过认领后，候选上会标出谁持有，并写明是什么时候读的 |
+| 历史 | `.coven/runs/` 下的运行记录和总结 |
+
+- 它只会写 `.coven/scopes/` 下的范围文件：不写 GitHub，不改 `.coven/state.json`。存范围时按同样的来源和选项重新列一遍：页面传回来的条目对象不算数，有条目已经列不出来（比如刚被修掉），整份拒绝，重新列一次再存。正在跑的运行用的范围不能覆盖；已有的同名范围要页面确认才覆盖；账本读不了时只能存新名字。
+- 存好范围不等于开始运行：把范围名交给监控 session，它照常 `coven state init --scope <名字>` 并记 HD1。
+- 防护：只认 Host 是 `127.0.0.1` 或 `localhost` 的请求（挡 DNS 重绑定），别的网站发来的请求（Origin 不对）一律拒绝；接口要带页面里的一次性令牌；页面带严格的 CSP，来自 GitHub 和账本的文字都按纯文本放进页面。
+- 页面是 `compass/` 下的三个静态文件，没有构建步骤、没有依赖。
 
 ## 关口
 
@@ -79,7 +98,8 @@
   - 有一项没过就不能开 PR（D802）。
 - **verify 的顺序**：clean → D801/D804 → D803 → D807 → D841。前面几道关口没过，就不跑工作区里的代码。
 - **评审**：每轮新开 evaluator，最多 `maxReviewRounds` 轮，还不过就 blocked（D811）。结论绑定 verify 跑的那个提交和契约指纹：之后有新提交，就要重新评审。blocked 的任务要维护者 `--unblock-by` 才能回去干活。
-- **预算**：按 token 算，到了就 blocked（D813）。
+- **升级（HD4）**：planner 不能自己定的条目进 `escalations`，导入时编号 `e1`、`e2`……，之后不删。维护者的决定用 `coven state hd HD4 --escalation <编号> --decision replan|release|hold` 记：`replan` 把条目的认领改回 claimed，下一份 planner 提示带上上一轮的问题和这条决定；`release` 释放认领；`hold` 先放着。条目分进任务、被释放、被新的升级取代时，这条升级记下怎么了结的，运行记录里全部保留。
+- **预算**：按 token 算，到了就 blocked（D813）。用量用 `coven state cost` 一笔一笔记：属于任务的记到任务上；不属于任务的（planner、监控 session 自己）写 `--role`，记到运行本身，算进整次预算；只拿得到估算值的加 `--approx`，总结里标“约”。
 - **开 PR 和合并**：先续租，再核对条目还归自己（D830）。只合目标是集成分支、提交就是评审看过的那个的 PR。
 
 ## 代号
@@ -115,6 +135,7 @@
 - 只认维护者（OWNER、MEMBER、COLLABORATOR）发的；别人发的忽略（D831）。
 - 租约内的有效认领里，评论创建得最早的持有条目，晚到的让出（D830）。按 `claimId` 区分，同一位维护者开两个监控 session 也不会撞车。
 - 租约过期、没人续的可以接手（D832）。接手方在新认领里点名接手了谁，被接手的那条之后再续租也不算数。自己的租约过期了、又没人接手，原地续上。
+- 续租时，一小时内续过（或改过状态）的不再编辑评论：监控 session 每次被唤醒都续租，每次都编辑的话，评论的编辑历史全是噪音。续租之后租约总还剩 `leaseHours` 减一小时以上。换状态（working、blocked、done……）总会编辑，顺带续上租约。
 - 维护者手动处理时也可以手写一条 `coven: claimed @自己 · \`<条目 key>\``，监控 session 会尊重它。
 
 ## 本地文件（`.coven/`，宿主仓库要 git 忽略）
@@ -127,7 +148,7 @@
 | `verify/<任务>-<提交>.json`、`<任务>-latest.json` | 确定性检查的结果 |
 | `reviews/<任务>-r<轮>.md` | 评审记录 |
 | `prs/<任务>.md` | PR 正文 |
-| `runs/` | 运行记录和总结；新开一次运行时，上一次的契约、评审等整批挪进 `runs/<运行>/` |
+| `runs/` | 运行记录和总结（任务、升级和维护者的决定、每次人类介入的内容、用量）；新开一次运行时，上一次的契约、评审等整批挪进 `runs/<运行>/` |
 
 ## 代码
 

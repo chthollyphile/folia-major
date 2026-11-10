@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import adapter, { baseRisk, baselineItems, baselineShrink, growthProblems, lintItems, lintKey } from '../../../dev/coven/adapter.mjs';
+import adapter, { baseRisk, baselineHints, baselineItems, baselineShrink, growthProblems, lintHints, lintItems, lintKey } from '../../../dev/coven/adapter.mjs';
 import config from '../../../dev/coven/config.json';
 import { blockedPackagesIn, missingPackageNotes, withoutPackages } from '../../../dev/coven/setupWorktree.mjs';
 import { validateAdapter } from '../../../packages/coven/src/adapter.mjs';
@@ -70,6 +70,28 @@ describe('folia scope sources', () => {
             expect.objectContaining({ key: 'lint:@stylistic/quotes@src/demo/', code: 'D431', count: 1 }),
         ]);
         expect(baseRisk(items[0])).toBe('R0');
+        // 套在一起的前缀只按外面那个出条目：两个条目盖住同样的文件，分进两个任务就会改同一批文件
+        expect(lintItems(suppressions, { rules: ['@stylistic/indent'], prefixes: ['src/demo/', 'src/', 'src/demo/'] }).map(item => item.key)).toEqual([lintKey('@stylistic/indent', 'src/')]);
+    });
+
+    // Compass 里给来源选项列候选值
+    it('offers the codes in the baseline and the rules and folders in the suppressions as option hints', () => {
+        expect(baselineHints(['D190:a.ts->b.ts', 'D190:c.ts->d.ts', 'D301:e.ts', 'D999:gone.ts']).codes).toEqual([
+            { value: 'D190', label: expect.any(String), count: 2 },
+            { value: 'D301', label: expect.any(String), count: 1 },
+        ]);
+        const hints = lintHints({
+            'src/demo/a.ts': { '@stylistic/indent': { count: 3 }, '@stylistic/quotes': { count: 1 } },
+            'src/demo/deep/b.ts': { '@stylistic/indent': { count: 2 } },
+            'root.ts': { '@stylistic/quotes': { count: 9 } },
+        }, { maxPaths: 3 });
+        expect(hints.rules).toEqual([
+            { value: '@stylistic/quotes', label: 'D431', count: 10 },
+            { value: '@stylistic/indent', label: 'D430', count: 5 },
+        ]);
+        // 目录到第三层，按抑制数排，截到 maxPaths；根目录下的文件不算目录
+        expect(hints.paths).toEqual([{ value: 'src/', label: '各规则合计', count: 6 }, { value: 'src/demo/', label: '各规则合计', count: 6 }, { value: 'src/demo/deep/', label: '各规则合计', count: 2 }]);
+        expect(typeof adapter.sources.lint.hints).toBe('function');
     });
 });
 
@@ -125,7 +147,44 @@ describe('folia ledger and baseline check', () => {
     it('checks the shape of unit and dedicatus criteria', () => {
         expect(adapter.checks.unit.validate?.({ kind: 'unit', target: ['test/unit/a.test.ts; curl evil'] })).toContain('unit 要写 target');
         expect(adapter.checks.unit.validate?.({ kind: 'unit', target: ['test/unit/a.test.ts'] })).toBeNull();
-        expect(adapter.checks.dedicatus.validate?.({ kind: 'dedicatus', target: 'everything' })).toContain('graph 或 all');
+        expect(adapter.checks.dedicatus.validate?.({ kind: 'dedicatus', target: 'everything' })).toContain('不用写 target');
+        // 旧契约里的 graph、all 照样认
+        expect(adapter.checks.dedicatus.validate?.({ kind: 'dedicatus' })).toBeNull();
+        expect(adapter.checks.dedicatus.validate?.({ kind: 'dedicatus', target: 'graph' })).toBeNull();
+    });
+
+    // Op. 1：挪出 src/components/ 后 D411 变成 D508，只跑模块图的 verify 看不见，要到 CI 的 lint 才暴露
+    it('always lints the changed files, even when the contract only asked for the module graph', () => {
+        const worktree = fs.mkdtempSync(path.join(os.tmpdir(), 'coven-folia-lint-'));
+        try {
+            const calls: string[][] = [];
+            const memoStore = new Map<string, unknown>();
+            const ctx = (criterion: object) => ({
+                worktree, mergeBase: 'base1', criterion, contract: { items: [] },
+                memo: <T>(key: string, compute: () => T): T => {
+                    if (!memoStore.has(key)) memoStore.set(key, compute());
+                    return memoStore.get(key) as T;
+                },
+                run: (_command: string, args: string[]) => {
+                    calls.push(args);
+                    return { ok: true, status: 0, seconds: 1, output: JSON.stringify({ fresh: [{ level: 'error', code: 'D508', file: 'src/demo/feedMemory.ts', line: 3, key: 'k' }], known: [] }) };
+                },
+                readAt: () => null,
+            });
+            const missing = adapter.checks.dedicatus.run?.(ctx({ id: 'c2', verify: { kind: 'dedicatus', target: 'graph' } }) as never);
+            expect(missing).toMatchObject({ ok: false, summary: expect.stringContaining('npm run lint:install') });
+            expect(calls).toEqual([]);
+
+            memoStore.clear();
+            fs.mkdirSync(path.join(worktree, 'dev/dedicatus/lint/node_modules'), { recursive: true });
+            const result = adapter.checks.dedicatus.run?.(ctx({ id: 'c2', verify: { kind: 'dedicatus', target: 'graph' } }) as never);
+            expect(result).toMatchObject({ ok: false, summary: expect.stringContaining('D508 src/demo/feedMemory.ts:3') });
+            adapter.checks.baseline.run?.(ctx({ id: 'c1', verify: { kind: 'baseline' } }) as never);
+            // baseline 共用同一次 Dedicatus 的结果，只跑一遍
+            expect(calls).toEqual([['dev/dedicatus/cli.mjs', '--json', '--base', 'base1', '--all']]);
+        } finally {
+            fs.rmSync(worktree, { recursive: true, force: true });
+        }
     });
 });
 
@@ -151,9 +210,13 @@ describe('folia role prompts', () => {
         expect(planner).toContain('`skills/file-modularization/SKILL.md`');
         expect(planner).toContain('{"kind":"baseline"}');
         expect(planner).toContain('"title": "lyric-match-sources"');
+        expect(planner).toContain('挪进 `src/stores/` 以后报 D508');
+        expect(checked.worktree.flags).toEqual([]);
         const generator = renderTemplate(readTemplate('generator'), generatorVars(state, config, checked, contract, null));
-        // 契约要跑 ESLint：准备步骤带上 --lint；装不上的包不要自己绕
-        expect(generator).toContain('npm run coven:setup -- --lint');
+        // 准备步骤总是装 ESLint 隔离环境（verify 每次都跑 ESLint）；装不上的包不要自己绕
+        expect(generator).toContain('`npm run coven:setup`（装依赖和 ESLint 隔离环境）');
+        expect(generator).not.toContain('--lint');
+        expect(generator).toContain('`npm run dedicatus -- --all`');
         expect(generator).toContain('不要自己想办法绕');
         expect(generator).toContain('npm run dedicatus -- --migrate-renames');
         expect(generator).toContain('先 cd 进你的 worktree 根目录');

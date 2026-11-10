@@ -35,14 +35,31 @@ export function writeText(file, text) {
 
 /** 只有监控 session 的检出里才有 .coven/state.json；写 GitHub 的命令先过这一关。 */
 export function requireSupervisor(root) {
-    const file = path.join(root, STATE_FILE);
-    if (!fs.existsSync(file)) {
+    if (!hasState(root)) {
         throw new Error(`${STATE_FILE} 不存在：只有监控 session 能执行这个命令（先 coven state init）。工作 session 不做任何 GitHub 写操作。`);
     }
-    return requireCurrentFormat(readJson(file));
+    return requireCurrentFormat(loadState(root));
 }
 
-export const loadState = root => readJson(path.join(root, STATE_FILE));
+export const hasState = root => fs.existsSync(path.join(root, STATE_FILE));
+
+/**
+ * 读账本，补上后来加的字段：costs（每一笔用量，含不属于任务的 planner 用量）、升级的编号。
+ * 这些字段加在同一个格式版本里，旧账本读进来照样能接着跑。
+ */
+export function loadState(root) {
+    const state = readJson(path.join(root, STATE_FILE));
+    if (state && typeof state === 'object') {
+        state.costs ??= [];
+        state.escalations ??= [];
+        state.escalations.forEach((entry, index) => {
+            entry.id ??= `e${index + 1}`;
+            entry.decision ??= null;
+            entry.resolution ??= null;
+        });
+    }
+    return state;
+}
 
 /** 账本的格式版本：2 起运行和任务用乐谱编目的代号（catalogue.mjs）。 */
 export const STATE_VERSION = 2;
@@ -65,6 +82,7 @@ export const isDryRun = (state, config) => Boolean(state?.dryRun) || !config.hd0
 
 function run(command, args, options = {}) {
     const result = spawnSync(command, args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, ...options });
+    if (result.error?.code === 'ETIMEDOUT') throw new Error(`${command} ${args.slice(0, 3).join(' ')} 过了 ${Math.round(options.timeout / 1000)} 秒还没返回，已经停掉`);
     if (result.error) throw new Error(`${command} 没跑起来：${result.error.message}`);
     if (result.status !== 0 && !options.allowFailure) {
         throw new Error(`${command} ${args.slice(0, 3).join(' ')} 失败（退出码 ${result.status}）：${(result.stderr || result.stdout).trim().slice(0, 2000)}`);
@@ -80,12 +98,23 @@ export function tryGit(cwd, args) {
     return { ok: result.status === 0, status: result.status, output: `${result.stdout}${result.stderr}`.trim() };
 }
 
-export const gh = (args, options) => run('gh', args, options).stdout;
+/** gh 卡住（网络、登录弹窗）时不要一直等：监控 session 和 Compass 都是一条一条同步调用的，卡一条就全停。 */
+const GH_TIMEOUT_MS = 120_000;
+
+export const gh = (args, options) => run('gh', args, { timeout: GH_TIMEOUT_MS, ...options }).stdout;
 
 /** gh api 的分页结果，配 --jq 输出一行一个 JSON。 */
 export function ghApiLines(endpoint, jq) {
     const out = gh(['api', '--paginate', endpoint, '--jq', jq]);
     return out.split('\n').filter(line => line.trim()).map(line => JSON.parse(line));
+}
+
+/** 参数里有 --help（或 -h）：命令行入口接住它，打印这个命令的用法，什么都不做。每个命令都先解析参数再动手。 */
+export class HelpRequested extends Error {
+    constructor() {
+        super('要看用法：coven <命令> --help');
+        this.name = 'HelpRequested';
+    }
 }
 
 /**
@@ -100,6 +129,8 @@ export function parseArgs(argv, flags = [], values = []) {
     const options = {};
     for (let i = 0; i < argv.length; i++) {
         const arg = argv[i];
+        // 只在选项的位置认 --help：`--note -h` 里的 -h 是 --note 的值，照常往下走
+        if (arg === '--help' || arg === '-h') throw new HelpRequested();
         if (!arg.startsWith('--')) {
             positional.push(arg);
             continue;

@@ -4,18 +4,21 @@ import path from 'node:path';
 import { BLOCKED_CODE } from './codes.mjs';
 import { TITLE, isTaskId, nextTaskNumber, taskIdOf, taskLabel, tempoLabel } from './catalogue.mjs';
 import { covenPath, loadState, nowIso, parseArgs, readJson, requireCurrentFormat, saveState, trackedFilesUnder, writeJson, writeText } from './common.mjs';
+import { escalatedItems, recordEscalations, waitingItems } from './escalations.mjs';
 import { RISKS, maxRisk, riskRank, scopeRiskOf } from './risk.mjs';
 // packages/coven/src/contract.mjs
 // 契约：每个任务一份，列出目标、不做什么、能动的路径和验收项。HD2 批准的那一版存成 .approved.json，
-// 之后只允许翻验收项的 passes（D804），diff 不能出 scope.paths（D803），有一项没过就不能开 PR（D802）。
-//
-//   coven contract import <planner 输出的 JSON>   按顺序给任务编号（op<n>-no<k>），写入契约，在状态文件里登记任务和分组
-//   coven contract show <任务>                      给维护者看（HD2）
-//   coven contract approve <任务> --by <账号>       HD2 批准；R0/R1 用 --auto 跳过 HD2；批准过的只有维护者要求时 --reapprove
-//   coven contract verdict <任务> <evaluator 输出的 JSON>   按评审结论翻 passes，写评审记录
+// 之后只允许翻验收项的 passes（D804），diff 不能出 scope.paths（D803），有一项没过就不能开 PR（D802）。用法见 usage（coven contract --help）。
 //
 // 验收种类（verify.kind）由适配层的 checks 定：确定性的由 coven verify 跑出结果，其余由 evaluator 判断。
 // 适配层账本里的文件（ledger.files，Folia 是基线和抑制文件）任何任务都可以改，但只许变小（verify 的 D841）。
+
+export const usage = () => [
+    'coven contract import <planner 输出的 JSON>        按 order 给任务编号（op<n>-no<k>），写入契约，登记任务和升级',
+    'coven contract show <任务>                         给维护者看（HD2）',
+    'coven contract approve <任务> --by <账号>           HD2 批准；R0/R1 用 --auto；批准过的只有维护者要求时加 --reapprove',
+    'coven contract verdict <任务> <evaluator 输出的 JSON>  按评审结论翻 passes，写评审记录',
+].join('\n');
 
 export const ACTIONS = ['refactor', 'issue-to-pr', 'fix'];
 
@@ -185,9 +188,17 @@ export function renderContract(contract) {
         '',
         '| 项 | 内容 | 验证 | 通过 |',
         '| --- | --- | --- | --- |',
-        ...contract.criteria.map(criterion => `| ${criterion.id} | ${criterion.description.replace(/\|/g, '\\|')} | ${criterion.verify.kind}${criterion.verify.target ? ` \`${[].concat(criterion.verify.target).join(' ')}\`` : ''} | ${criterion.passes ? '✅' : '⬜'} |`),
+        ...contract.criteria.map(criterion => `| ${criterion.id} | ${cell(criterion.description)} | ${cell(verifyLabel(criterion.verify))} | ${criterion.passes ? '✅' : '⬜'} |`),
     ];
     return lines.join('\n');
+}
+
+const cell = text => String(text).replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
+
+/** 验收项的验证方式：种类、target，以及适配层自己加的其他字段（表格里要看得到全部，提示里不再另贴一份 JSON）。 */
+function verifyLabel({ kind, target, ...rest }) {
+    const extra = Object.keys(rest).length > 0 ? ` ${JSON.stringify(rest)}` : '';
+    return `${kind}${target ? ` \`${[].concat(target).join(' ')}\`` : ''}${extra}`;
 }
 
 export function renderReview(task, round, verdict) {
@@ -279,32 +290,41 @@ export function planImportProblems(state, scope, plan, validateOptions = {}) {
             covered.add(item);
         }
     }
+    // 还在等维护者决定（或者决定先放着）的升级条目不能直接分进任务：那样升级会被记成“分进了任务”，HD4 就被绕过去了
+    const waiting = waitingItems(state);
+    for (const contract of plan.tasks ?? []) {
+        for (const item of contract.items ?? []) {
+            if (waiting.has(item)) errors.push(`${contract.task}：条目 ${item} 在升级 ${waiting.get(item)} 里等维护者决定（coven state hd HD4 --escalation ${waiting.get(item)} --decision replan …）`);
+        }
+    }
+    const escalated = escalatedItems(state);
     for (const escalation of plan.escalations ?? []) {
         if (!BLOCKED_CODE.test(escalation.code ?? '')) errors.push(`升级项的 code 要是 D8xx（收到 ${escalation.code}）`);
+        if (!Array.isArray(escalation.items) || escalation.items.length === 0) errors.push('升级项要写 items（升级的是哪些条目）');
         for (const item of escalation.items ?? []) {
             if (covered.has(item)) errors.push(`条目 ${item} 既分进了任务、又列在升级里（或者升级里重复）`);
-            else if (!available.has(item) && !state.escalations.some(entry => entry.items.includes(item))) errors.push(`升级的条目 ${item} 不是这个监控 session 认领着的`);
+            else if (!available.has(item) && !escalated.has(item)) errors.push(`升级的条目 ${item} 不是这个监控 session 认领着的`);
             covered.add(item);
         }
     }
-    const uncovered = [...available].filter(item => !covered.has(item) && state.items[item].claim.state === 'claimed' && !state.escalations.some(entry => entry.items.includes(item)));
+    // 维护者决定重新规划的条目 planner 也要分配，漏了要提示；还在等决定的不算漏
+    const uncovered = [...available].filter(item => !covered.has(item) && state.items[item].claim.state === 'claimed' && !waiting.has(item));
     return { errors, uncovered, fromBlocked };
 }
 
-/** 把检查过的 planner 输出登记进状态文件（契约文件由调用方写）。 */
+/**
+ * 把检查过的 planner 输出登记进状态文件（契约文件由调用方写）。升级不删：条目分进任务的记下由哪个任务了结（escalations.mjs）。
+ * @returns {{ escalations: string[] }} 新登记的升级编号
+ */
 export function applyPlanImport(state, plan, now = nowIso()) {
-    const imported = new Set();
     for (const contract of plan.tasks ?? []) {
         state.tasks[contract.task] = { items: contract.items, title: contract.title, risk: contract.risk, phase: 'planning', rounds: 0, tokens: 0, history: [{ at: now, phase: 'planning' }] };
-        for (const item of contract.items) {
-            state.items[item].task = contract.task;
-            imported.add(item);
-        }
+        for (const item of contract.items) state.items[item].task = contract.task;
         if (!state.order.includes(contract.task)) state.order.push(contract.task);
     }
-    // 升级过的条目分进了任务，就不再算升级
-    state.escalations = [...state.escalations.map(entry => ({ ...entry, items: entry.items.filter(item => !imported.has(item)) })), ...(plan.escalations ?? [])].filter(entry => entry.items.length > 0);
+    const escalations = recordEscalations(state, plan.escalations ?? [], now);
     if (plan.order) state.order = [...plan.order.filter(id => state.tasks[id]), ...state.order.filter(id => !plan.order.includes(id))];
+    return { escalations };
 }
 
 /**
@@ -376,10 +396,15 @@ export async function run(host, argv) {
         const { errors, uncovered, fromBlocked } = planImportProblems(state, scope, plan, validateOptions);
         if (errors.length > 0) throw new Error(`planner 的输出不合格，什么都没导入：\n${errors.join('\n')}`);
         for (const contract of plan.tasks ?? []) writeJson(contractFile(root, contract.task), contract);
-        applyPlanImport(state, plan);
+        const { escalations } = applyPlanImport(state, plan);
         saveState(root, state);
-        console.log(`登记了 ${(plan.tasks ?? []).length} 个任务，${(plan.escalations ?? []).length} 条新的升级。`);
+        console.log(`登记了 ${(plan.tasks ?? []).length} 个任务，${escalations.length} 条新的升级。`);
         for (const contract of plan.tasks ?? []) console.log(`  ${contract.task}  ${taskLabel(contract.task, contract.title)}`);
+        for (const id of escalations) {
+            const entry = state.escalations.find(candidate => candidate.id === id);
+            console.log(`  升级 ${id}（${entry.code}）：${entry.items.join('、')}${entry.question ? ` —— ${entry.question}` : ''}`);
+        }
+        if (escalations.length > 0) console.log(`升级的条目先 coven claim set --items <条目,…> --state blocked --code <代码>，再把问题交给维护者；维护者的决定用 coven state hd HD4 --escalation <编号> 记。`);
         if (fromBlocked.length > 0) console.log(`这些条目原来标成 blocked，开工前先 coven claim set --items ${fromBlocked.join(',')} --state claimed`);
         if (uncovered.length > 0) console.log(`这些认领着的条目 planner 没有分配：${uncovered.join('，')}`);
         return;
@@ -429,5 +454,5 @@ export async function run(host, argv) {
         console.log(record.lastVerdict.passes ? `第 ${round} 轮通过（提交 ${verify.head.slice(0, 7)}），可以 coven pr --task ${task} …` : `第 ${round} 轮没过：问题清单在 .coven/reviews/${task}-r${round}.md`);
         return;
     }
-    throw new Error('用法：coven contract import <文件> | show <任务> | approve <任务> (--by <账号> [--reapprove] | --auto) | verdict <任务> <文件>');
+    throw new Error(`用法：\n${usage()}`);
 }

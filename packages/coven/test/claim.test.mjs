@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { claimItems, parseClaimComment, renderClaimComment, resolveClaims, unheldItems, updateClaims } from '../src/claim.mjs';
-import { parseArgs } from '../src/common.mjs';
+import { HelpRequested, parseArgs } from '../src/common.mjs';
 
 // packages/coven/test/claim.test.mjs
 // coven: 认领协议的判定（plan/coven-semi-auto-plan.md 第 4 节）：只认维护者、先到先得、租约过期可接手、
@@ -196,9 +196,31 @@ describe('coven claim recovery', () => {
         const later = NOW + 13 * 3600_000;
         expect(unheldItems({ keys: [ITEM], state, config, io: issue, now: later })).toHaveLength(1);
         const renewed = updateClaims({ keys: [ITEM], state, config, io: issue, now: later });
-        expect(renewed).toEqual({ updated: [ITEM], lost: [] });
+        expect(renewed).toEqual({ updated: [ITEM], lost: [], fresh: [] });
         expect(issue.comments).toHaveLength(1);
         expect(unheldItems({ keys: [ITEM], state, config, io: issue, now: later })).toEqual([]);
+    });
+
+    // Op. 1：33 分钟的运行里评论被编辑了 9 次，5 次只是续租，最近两次只隔 16 秒
+    it('leaves the comment alone when it was renewed within the last hour, and keeps the lease near full otherwise', () => {
+        const issue = fakeIssue();
+        const state = freshState();
+        claimItems({ keys: [ITEM], state, config, io: issue, now: NOW });
+        const edits = [];
+        const io = { ...issue, edit: (...args) => { edits.push(args); issue.edit(...args); } };
+        const soon = updateClaims({ keys: [ITEM], state, config, io, now: NOW + 40 * 60_000 });
+        expect(soon).toEqual({ updated: [], lost: [], fresh: [ITEM] });
+        expect(edits).toEqual([]);
+        // 换状态照样编辑（顺带续上租约）
+        expect(updateClaims({ keys: [ITEM], state, config, io, change: { state: 'working', pr: 7 }, now: NOW + 50 * 60_000 }).updated).toEqual([ITEM]);
+        expect(edits).toHaveLength(1);
+        expect(updateClaims({ keys: [ITEM], state, config, io, now: NOW + 70 * 60_000 }).fresh).toEqual([ITEM]);
+        // 上次编辑过了一小时多才续：续完租约还剩差不多 12 小时，监控 session 等一晚上也不会过期
+        const later = NOW + 50 * 60_000 + 61 * 60_000;
+        expect(updateClaims({ keys: [ITEM], state, config, io, now: later }).updated).toEqual([ITEM]);
+        expect(edits).toHaveLength(2);
+        expect(issue.comments[0].body).toMatch(/^coven: working @alice \(PR #7\)/);
+        expect(unheldItems({ keys: [ITEM], state, config, io: issue, now: later + 11 * 3600_000 })).toEqual([]);
     });
 
     it('does not revive a lapsed claim that someone took over', () => {
@@ -217,5 +239,11 @@ describe('coven command line', () => {
     it('rejects an unknown option instead of treating it as "not given"', () => {
         expect(() => parseArgs(['set', '--tasks', 'x'], [], ['task', 'items', 'state'])).toThrow('--tasks');
         expect(parseArgs(['set', '--task', 'x', '--dry-run'], ['dry-run'], ['task'])).toEqual({ positional: ['set'], options: { task: 'x', 'dry-run': true } });
+    });
+
+    it('asks for help only where an option can stand, not inside an option value', () => {
+        expect(() => parseArgs(['set', '--help'], [], ['task'])).toThrow(HelpRequested);
+        expect(() => parseArgs(['-h'], [], [])).toThrow(HelpRequested);
+        expect(parseArgs(['hd', 'HD1', '--note', '-h'], [], ['note'])).toEqual({ positional: ['hd', 'HD1'], options: { note: '-h' } });
     });
 });

@@ -4,15 +4,20 @@ import { covenPath, gh, ghApiLines, isDryRun, nowIso, parseArgs, prLabel, readJs
 // packages/coven/src/claim.mjs
 // `coven:` 认领协议（plan/coven-semi-auto-plan.md 第 4 节）：多位维护者各自跑监控 session 时，不处理同一条。
 // 一条认领从头到尾只用同一条评论，状态变了就编辑它。判定只看维护者（OWNER、MEMBER、COLLABORATOR）发的评论，
-// 按 claimId 而不是账号区分，所以同一位维护者开两个监控 session 也不会撞车。
-//
-//   coven claim status                       范围里每条现在归谁
-//   coven claim claim [--items k1,k2]        认领空闲的条目（发评论 → 再读一次 → 输了就让出）
-//   coven claim renew                        续租自己的认领（监控 session 每次被唤醒时跑；coven pr 开 PR、合并前也会自己续）
-//   coven claim set --task <id> --state working --pr 12   改认领状态（一般由 coven state、coven pr 代劳）
-//   coven claim release                      收尾：释放所有没完成的认领
-//
+// 按 claimId 而不是账号区分，所以同一位维护者开两个监控 session 也不会撞车。用法见 usage（coven claim --help）。
 // 干跑（状态文件 dryRun，或配置 hd0Confirmed 为 false）时评论只记在 .coven/state.json 的 dryComments 里，GitHub 上什么都不发。
+
+export const usage = () => [
+    'coven claim status                          范围里每条现在归谁（读认领评论）',
+    'coven claim claim [--items <条目,…>]         认领空闲的条目：发评论 → 再读一次 → 输了就让出（D830）',
+    'coven claim renew                           续租自己的认领；一小时内续过的只核对、不改评论',
+    'coven claim set (--task <任务> | --items <条目,…>) --state <状态> [--pr <号>] [--code Dxxx]',
+    '                                            改认领状态（一般由 coven state、coven pr 代劳）',
+    'coven claim release                         释放所有没完成的认领（一般由 coven state finish 代劳）',
+    '',
+    `状态：${SETTABLE_STATES.join('、')}；blocked 要带 --code，working 要带 --pr。`,
+    '加 --dry-run 只记在本地，不写 GitHub。',
+].join('\n');
 
 export const MAINTAINER_ASSOCIATIONS = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
 export const CLAIM_STATES = ['claimed', 'working', 'blocked', 'handed-off', 'released', 'done'];
@@ -334,11 +339,18 @@ const defaultItemOf = (issue, keys) => (keys.length === 1 && /^(?:issue|pr):/.te
 /**
  * 改自己的认领：续租（state 不变、租约往后推）或换状态（working / blocked / done / released）。
  * 改之前先判定一次：条目已经不归自己（被接手、被更早的认领占了）就不改，记进 lost。
- * @returns {{ updated: string[], lost: Array<{ item: string, holder: Claim|null }> }}
+ * 只续租、不换状态时，一小时内续过（或改过状态）的不再改评论，记进 fresh：监控 session 每次被唤醒都续租，
+ * 每次都编辑的话，评论的编辑历史和审计日志全是噪音（Op. 1：33 分钟编辑了 9 次，5 次只是续租，最近两次只隔 16 秒）。
+ * 只跳过刚续过的，续租之后租约总还剩 leaseHours 减一小时以上：监控 session 等维护者一晚上，认领也不会提前过期。
+ * @returns {{ updated: string[], lost: Array<{ item: string, holder: Claim|null }>, fresh: string[] }}
  */
 export function updateClaims({ keys, state, config, io, change = {}, now = Date.now(), itemPattern = null }) {
     const updated = [];
     const lost = [];
+    const fresh = [];
+    const renewOnly = Object.keys(change).length === 0;
+    const leaseMs = config.leaseHours * 3600_000;
+    const freshAbove = leaseMs - Math.min(3600_000, leaseMs / 2);
     const relevant = keys.filter(key => state.items[key]?.commentId && ACTIVE_STATES.has(state.items[key].claim?.state));
     for (const [issue, itemKeys] of groupByTarget(relevant, state, io.dryRun)) {
         const resolved = resolveClaims(io.list(issue), { now, leaseHours: config.leaseHours, defaultItem: defaultItemOf(issue, itemKeys), itemPattern });
@@ -351,6 +363,10 @@ export function updateClaims({ keys, state, config, io, change = {}, now = Date.
             const ownExpired = !holder && resolution.expired.some(claim => claim.claimId === mine.claimId);
             if (holder?.claimId !== mine.claimId && !ownExpired) {
                 lost.push({ item: key, holder });
+                continue;
+            }
+            if (renewOnly && holder && timeOf(holder.leaseUntil) - now > freshAbove) {
+                fresh.push(key);
                 continue;
             }
             const next = { ...mine.claim, ...change };
@@ -378,7 +394,7 @@ export function updateClaims({ keys, state, config, io, change = {}, now = Date.
             lost.push({ item: key, holder });
         }
     }
-    return { updated, lost };
+    return { updated, lost, fresh };
 }
 
 /**
@@ -453,11 +469,11 @@ export async function run(host, argv) {
         if (command === 'set' && !SETTABLE_STATES.includes(change.state)) throw new Error(`--state 只能是 ${SETTABLE_STATES.join('、')}`);
         if (change.state === 'blocked' && !change.code) throw new Error('blocked 要带 --code（D810–D813 等）');
         if (change.state === 'working' && !change.pr) throw new Error('working 要带 --pr');
-        const { updated, lost } = updateClaims({ keys: pick(), state, config, io, change, itemPattern });
+        const { updated, lost, fresh } = updateClaims({ keys: pick(), state, config, io, change, itemPattern });
         saveState(root, state);
-        console.log(`${dryRun ? '[干跑] ' : ''}改了 ${updated.length} 条认领。`);
+        console.log(`${dryRun ? '[干跑] ' : ''}改了 ${updated.length} 条认领${fresh.length > 0 ? `；${fresh.length} 条一小时内续过，没动评论` : ''}。`);
         for (const entry of lost) console.log(`  D830 ${entry.item} 已经不归这个监控 session：${entry.holder ? `@${entry.holder.owner} 持有` : '没有有效认领'}。停掉这条的工作，告诉维护者。`);
         return;
     }
-    throw new Error('用法：coven claim status | claim [--items …] | renew | set --task <id> --state <状态> [--pr n] [--code Dxxx] | release');
+    throw new Error(`用法：\n${usage()}`);
 }

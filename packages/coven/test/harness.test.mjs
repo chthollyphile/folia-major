@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { validateAdapter } from '../src/adapter.mjs';
 import { configPathOf, validateConfig } from '../src/host.mjs';
@@ -186,6 +187,43 @@ describe('coven setup guard', () => {
         } finally {
             fs.rmSync(root, { recursive: true, force: true });
         }
+    });
+});
+
+describe('coven command line help', () => {
+    let root;
+    const bin = fileURLToPath(new URL('../bin/coven.mjs', import.meta.url));
+    const coven = (...args) => spawnSync(process.execPath, [bin, ...args], { cwd: root, encoding: 'utf8' });
+    beforeEach(() => {
+        root = fs.mkdtempSync(path.join(os.tmpdir(), 'coven-help-'));
+        spawnSync('git', ['init', '-q'], { cwd: root });
+        const config = {
+            adapter: fileURLToPath(new URL('fixtures/adapter.mjs', import.meta.url)), repo: 'o/r', leaseHours: 12, timeZone: 'UTC', timeZoneLabel: 'UTC',
+            concurrency: 1, maxReviewRounds: 2, risk: riskRules,
+            roles: { planner: { model: 'm', effort: 'high' }, generator: { model: 'm', effort: 'high' }, evaluator: { model: 'm', effort: 'high' } },
+        };
+        fs.writeFileSync(path.join(root, 'coven.config.json'), JSON.stringify(config));
+    });
+    afterEach(() => fs.rmSync(root, { recursive: true, force: true }));
+
+    // Op. 1：只有 scope 认 --help，别的命令把它当成不认识的选项
+    it('answers --help for every command without doing anything', () => {
+        for (const command of ['scope', 'state', 'claim', 'prompt', 'contract', 'verify', 'pr', 'setup', 'compass']) {
+            const result = coven(command, '--help');
+            expect(result.status, `${command}: ${result.stderr}`).toBe(0);
+            expect(result.stdout).toContain(`coven ${command}`);
+        }
+        expect(coven('scope', '--help').stdout).toContain('todo');
+        expect(coven('--help').stdout).toContain('coven <命令> --help');
+        expect(fs.existsSync(path.join(root, '.coven'))).toBe(false);
+    });
+
+    // Op. 1：新检出里 state show 报“找不到 state.json”，像出错；手册第 0 步正要靠它判断“没有运行”
+    it('says there is no run instead of failing when state.json is missing', () => {
+        const result = coven('state', 'show');
+        expect(result.status).toBe(0);
+        expect(result.stdout).toContain('没有进行中的运行');
+        expect(coven('claim', 'status').stderr).toContain('只有监控 session 能执行');
     });
 });
 

@@ -48,6 +48,7 @@ export default defineAdapter({
                 { key: 'todo:src/app/registry.ts', kind: 'todo', code: 'T2', paths: ['src/app/registry.ts'], tags: ['y'], note: '碰启动顺序' },
                 { key: 'todo:style', kind: 'todo', code: 'S1', paths: ['src/b.ts'], riskPaths: ['src/b.ts', 'src/c.ts'], tags: ['x'] },
             ].filter(item => (options.tags ?? []).length === 0 || item.tags.some(tag => options.tags.includes(tag))),
+            hints: () => ({ tags: [{ value: 'x', count: 2 }, { value: 'y', count: 1 }] }),
         },
     },
     itemKeyPattern: /todo:[^\s`·]+/,

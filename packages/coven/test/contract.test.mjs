@@ -142,7 +142,7 @@ describe('coven contract gates', () => {
     const freshState = () => ({
         run: 'op3',
         tasks: {},
-        escalations: [{ items: ['D190:x.ts->y.ts'], code: 'D812' }],
+        escalations: [{ id: 'e1', items: ['D190:x.ts->y.ts'], code: 'D812', question: '挪还是放行？', decision: null, resolution: null }],
         order: [],
         items: {
             [ITEM]: { claim: { state: 'claimed' } },
@@ -174,13 +174,54 @@ describe('coven contract gates', () => {
     it('turns an escalated item into a task once the maintainer decides', () => {
         const state = freshState();
         const later = { tasks: [contract({ task: 'op3-no2', title: 'move-y', items: ['D190:x.ts->y.ts'] })] };
+        // 维护者还没决定：不能直接分进任务（否则升级被记成“分进了任务”，HD4 就被绕过了）
+        expect(planImportProblems(state, scope, later, kinds).errors.join('\n')).toContain('在升级 e1 里等维护者决定');
+        state.escalations[0].decision = { at: 't', by: 'alice', outcome: 'hold', note: '先放着' };
+        expect(planImportProblems(state, scope, later, kinds).errors.join('\n')).toContain('在升级 e1 里等维护者决定');
+        state.escalations[0].decision = { at: 't', by: 'alice', outcome: 'replan', note: '挪' };
         const { errors, fromBlocked } = planImportProblems(state, scope, later, kinds);
         expect(errors).toEqual([]);
         expect(fromBlocked).toEqual(['D190:x.ts->y.ts']);
-        applyPlanImport(state, later);
-        expect(state.escalations).toEqual([]);
+        applyPlanImport(state, later, '2026-11-09T02:00:00.000Z');
+        // 升级不删：记下由哪个任务了结，运行记录里看得到这个任务曾经因为 D812 停过（Op. 1 的问题）
+        expect(state.escalations).toEqual([expect.objectContaining({ id: 'e1', code: 'D812', resolution: { at: '2026-11-09T02:00:00.000Z', how: 'tasks', tasks: ['op3-no2'] } })]);
         expect(state.order).toEqual(['op3-no2']);
         expect(state.tasks['op3-no2'].title).toBe('move-y');
+        // 了结的升级里的条目不再算升级：再导入一次同一条会被拒（它已经分进任务了）
+        expect(planImportProblems(state, scope, { tasks: [], escalations: [{ items: ['D190:x.ts->y.ts'], code: 'D812' }] }, kinds).errors.join('\n')).toContain('不是这个监控 session 认领着的');
+    });
+
+    it('numbers new escalations and lets a re-escalation supersede the old one', () => {
+        const state = freshState();
+        const plan = { tasks: [contract()], escalations: [{ items: ['D190:x.ts->y.ts'], code: 'D812', question: '新的问题', options: ['a', 'b'] }] };
+        expect(planImportProblems(state, scope, plan, kinds).errors).toEqual([]);
+        expect(applyPlanImport(state, plan, '2026-11-09T03:00:00.000Z')).toEqual({ escalations: ['e2'] });
+        expect(state.escalations.map(entry => [entry.id, entry.resolution?.how ?? null])).toEqual([['e1', 'superseded'], ['e2', null]]);
+        expect(state.escalations[0].resolution).toMatchObject({ supersededBy: ['e2'] });
+        expect(state.escalations[1]).toMatchObject({ question: '新的问题', options: ['a', 'b'], decision: null });
+        expect(planImportProblems(state, scope, { tasks: [], escalations: [{ code: 'D812' }] }, kinds).errors.join('\n')).toContain('升级项要写 items');
+    });
+
+    // 评审发现：e1 [a, b] 决定 replan，planner 只把 a 再升级，b 不能跟着丢掉维护者的决定
+    it('keeps the rest of an escalation and its decision when only part of it is escalated again', () => {
+        const A = 'D190:a.ts->b.ts';
+        const B = 'D190:c.ts->d.ts';
+        const wide = { items: [...scope.items, { key: A, risk: 'R2' }, { key: B, risk: 'R2' }] };
+        const state = {
+            run: 'op3', tasks: {}, order: [],
+            escalations: [{ id: 'e1', items: [A, B], code: 'D812', question: '?', decision: { at: 't', by: 'alice', outcome: 'replan', note: '都挪' }, resolution: null }],
+            items: { [A]: { claim: { state: 'claimed' } }, [B]: { claim: { state: 'claimed' } } },
+        };
+        const plan = { tasks: [], escalations: [{ items: [A], code: 'D812', question: '挪 a 要改测试收集范围' }] };
+        const { errors, uncovered } = planImportProblems(state, wide, plan, kinds);
+        expect(errors).toEqual([]);
+        // 维护者决定重新规划的 b 没分配：要提示
+        expect(uncovered).toEqual([B]);
+        applyPlanImport(state, plan, '2026-11-09T03:00:00.000Z');
+        expect(state.escalations[0]).toMatchObject({ resolution: null, movedTo: { [A]: 'e2' }, decision: { outcome: 'replan' } });
+        applyPlanImport(state, { tasks: [contract({ task: 'op3-no1', title: 'move-b', items: [B] })] }, '2026-11-09T04:00:00.000Z');
+        expect(state.escalations[0].resolution).toEqual({ at: '2026-11-09T04:00:00.000Z', how: 'tasks', tasks: ['op3-no1'], supersededBy: ['e2'] });
+        expect(state.escalations[1].resolution).toBeNull();
     });
 
     it('numbers planner tasks in order, after the tasks this run already has', () => {
@@ -211,6 +252,14 @@ describe('coven contract gates', () => {
 
     it('shows the catalogue name and the tempo to the maintainer', () => {
         expect(renderContract(contract()).split('\n')[0]).toBe('### Op. 3 No. 1 "lyric-match-sources" · Andante（R2） · refactor');
+    });
+
+    // 提示里不再另贴一份 JSON：适配层在 verify 里加的字段，表格里也要看得到
+    it('renders every verify field in the table, escaping pipes and line breaks', () => {
+        const shown = renderContract(contract({
+            criteria: [{ id: 'c1', description: '真跑：a | b\n第二行', verify: { kind: 'preview', target: 'home', scenario: '打开首页' }, passes: false }],
+        }));
+        expect(shown).toContain('| c1 | 真跑：a \\| b 第二行 | preview `home` {"scenario":"打开首页"} | ⬜ |');
     });
 
     it('does not let an approval be overwritten without the maintainer, and rechecks the risk', () => {
