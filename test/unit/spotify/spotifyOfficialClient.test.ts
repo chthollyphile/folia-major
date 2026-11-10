@@ -17,7 +17,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const require = createRequire(import.meta.url);
 const {
-    PLAY_STATE_SOURCE, QUEUE_SOURCE, START_WAIT_SOURCE,
+    PLAY_STATE_SOURCE, QUEUE_SOURCE, START_QUEUE_SOURCE, START_WAIT_SOURCE,
     createSpotifyOfficialClient, isAdvertisementItem, repeatModeOf, statusFromMediaSession, statusFromPlayerState,
 } = require('../../../electron/spotify/officialClient.cjs');
 const { createSpotifyApiBridge, SPOTIFY_OPERATIONS } = require('../../../electron/spotify/spotifyApiBridge.cjs');
@@ -278,7 +278,91 @@ afterEach(() => {
     vi.useRealTimers();
 });
 
-// --- the repeat and the shuffle Folia has to change, and what it changed of them -------------
+// --- the queue a start leaves alone, driven by a stand-in player -------------------------------
+
+describe('the queue a start leaves of the listener\'s own', () => {
+    const idOf = (letter: string) => letter.repeat(22);
+    const trackUri = (letter: string) => 'spotify:track:' + idOf(letter);
+    type Answer = { cleared?: boolean; canClear?: boolean | null; restored?: boolean; written: string[]; read: string[] | null };
+    const startQueue = (new Function('return (' + String(START_QUEUE_SOURCE) + ')')()) as (input: unknown) => Promise<Answer>;
+
+    /** A player holding `start` behind the song playing, with the queue API the test gives it. */
+    const playerWith = (start: string[], clearQueue?: 'works' | 'noop') => {
+        const held = start.map(idOf);
+        const added: string[] = [];
+        const player: Record<string, unknown> = {
+            getState: () => ({ nextTracks: held.map(id => ({ uri: 'spotify:track:' + id })) }),
+            addToQueue: (entries: { uri: string }[]) => {
+                for (const entry of entries) { held.push(entry.uri.slice(14)); added.push(entry.uri.slice(14)); }
+            },
+        };
+        if (clearQueue === 'works') player.clearQueue = async () => { held.length = 0; };
+        if (clearQueue === 'noop') player.clearQueue = async () => {};
+        return { api: { player }, held, added };
+    };
+    const call = (api: unknown, owned: string[] = []) => startQueue({ api, owned: owned.map(idOf) });
+
+    it('keeps a song the listener queued in the app, where it was', async () => {
+        // The listener queued one of their own in Spotify's window, then picked a song in Folia: a
+        // start empties the queue for its own reason, and that song is not Folia's to take.
+        const app = playerWith(['u'], 'works');
+        const answer = await call(app.api);
+
+        expect(answer.cleared).toBe(true);
+        expect(answer.written).toEqual([]);
+        expect(app.held).toEqual([idOf('u')]);
+    });
+
+    it('keeps every song the listener queued, in the order they were in', async () => {
+        const app = playerWith(['u', 'v'], 'works');
+        await call(app.api);
+        expect(app.held).toEqual([idOf('u'), idOf('v')]);
+    });
+
+    it('leaves the listener\'s songs among Folia\'s where they were, and takes back only Folia\'s', async () => {
+        // Folia wrote b and c behind this song, the listener put u between them: the two of Folia's
+        // were played or are gone, and u keeps the place it held.
+        const app = playerWith(['b', 'u'], 'works');
+        await call(app.api, ['b']);
+        expect(app.held).toEqual([idOf('u')]);
+    });
+
+    it('changes nothing where the app cannot empty its queue', async () => {
+        // A queue that only grows: emptying it would be the only way to take a song back, so
+        // nothing of the listener's is touched and nothing is written here.
+        const app = playerWith(['u'], 'noop');
+        const answer = await call(app.api, ['b']);
+
+        expect(answer.cleared).toBe(false);
+        expect(answer.canClear).toBe(false);
+        expect(answer.written).toEqual([]);
+        expect(app.held).toEqual([idOf('u')]);
+        expect(app.added).toEqual([]);
+    });
+
+    it('says the songs could not be put back rather than failing the start', async () => {
+        const app = playerWith(['u'], 'works');
+        (app.api.player as Record<string, unknown>).addToQueue = () => { throw new Error('refused'); };
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+        const answer = await call(app.api);
+        // The start itself goes on: only the listener's songs are gone, and that is said.
+        expect(answer.restored).toBe(false);
+        expect(answer.written).toEqual([]);
+        expect(warn).toHaveBeenCalled();
+        warn.mockRestore();
+    });
+
+    it('empties nothing where the app offers no clearQueue', async () => {
+        const app = playerWith(['u'], undefined);
+        const answer = await call(app.api, ['b']);
+
+        expect(answer.cleared).toBe(false);
+        expect(answer.written).toEqual([]);
+        expect(app.held).toEqual([idOf('u')]);
+    });
+});
+
 
 describe('the repeat and the shuffle a play changes in the page', () => {
     type Changed = { repeat: string | null; shuffle: boolean | null };

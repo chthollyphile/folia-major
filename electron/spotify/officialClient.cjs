@@ -237,6 +237,59 @@ const QUEUE_SOURCE = `async ({ api, uris, queued, probed, generation }) => {
   return { aborted: false, canClear, cleared, restored: true, written: added, read: readQueue() };
 }`;
 
+// A start's own emptying of the app's queue, run in the page. The app's queue is also where the
+// listener puts songs of their own, and a start used to empty it wholly: what it took that Folia
+// never wrote is given back, in the order it was in, and never counted as a song of Folia's.
+//
+// `owned` is the caller's record - the ids it wrote that the app has not played yet. Only those
+// places are Folia's, and a start writes nothing of its own into the queue: the song it starts is
+// played by its own call, and the songs that follow it are put there by the queue write after. So
+// what is given back is exactly the listener's songs, in the order they held. A player that cannot
+// empty its queue, or one whose clear left songs behind, is left as it is and said so: nothing is
+// taken from the listener then, and the queue write that follows adds to it.
+const START_QUEUE_SOURCE = `async ({ api, owned }) => {
+  // The tracks the app plays after the one playing, as its state names them; null where none of its
+  // names says anything (an alias left empty, an entry shape this does not know).
+  const heldIds = () => {
+    let s;
+    try { s = api.player.getState(); } catch { return null; }
+    let sawEmpty = false;
+    for (const key of ['nextTracks', 'nextItems', 'queue']) {
+      const list = s && s[key];
+      if (!Array.isArray(list)) continue;
+      if (list.length === 0) { sawEmpty = true; continue; }
+      const ids = [];
+      for (const entry of list) {
+        const uri = typeof entry === 'string' ? entry : String((entry && (entry.uri || (entry.track && entry.track.uri))) || '');
+        if (uri.indexOf('spotify:track:') === 0) ids.push(uri.slice(14));
+      }
+      if (ids.length) return ids;
+    }
+    return sawEmpty ? [] : null;
+  };
+  if (typeof api.player.clearQueue !== 'function') return { cleared: false, canClear: false, written: [], read: null };
+  const mine = new Set(Array.isArray(owned) ? owned : []);
+  // What the queue held before the clear, and the songs of the listener's among them.
+  const before = heldIds();
+  try { await api.player.clearQueue(); } catch { return { cleared: false, canClear: false, written: [], read: null }; }
+  // A clear that ran and left songs behind emptied nothing: it is not emptied again for this run.
+  const left = heldIds();
+  if (left && left.length > 0) return { cleared: false, canClear: false, written: [], read: left };
+  if (!before) return { cleared: true, canClear: true, written: [], read: left };
+  const theirs = before.filter(id => !mine.has(id));
+  if (theirs.length) {
+    try {
+      await api.player.addToQueue(theirs.map(id => ({ uri: 'spotify:track:' + id })));
+    } catch (error) {
+      // The clear has already run, so the listener's songs are gone with it: said rather than
+      // failing the start, which the caller would read as a song that never loaded.
+      console.warn('[SpotifyClient] the songs the app queue held could not be put back after it was emptied', error);
+      return { cleared: true, canClear: true, restored: false, written: [], read: heldIds() };
+    }
+  }
+  return { cleared: true, canClear: true, restored: true, written: [], read: heldIds() };
+}`;
+
 // The listener's own repeat and shuffle, as far as one play has to change them, run in the page.
 // Only what would stop Folia's queue from being played as written is touched, and what was changed
 // is answered so it can be put back afterwards (`RESTORE_STATE_SOURCE`).
@@ -1349,25 +1402,31 @@ function createSpotifyOfficialClient({
         // again. An advance Folia made by itself passes false: the app it could not reach stays
         // as it is.
         //
+        // `written` is the caller's record of the songs it put in the app's queue and the app has not
+        // played: emptying that queue takes the listener's own songs with it, so they are given back
+        // where they were (`START_QUEUE_SOURCE`). A queue the app cannot empty is left as it is.
+        //
         // The repeat and the shuffle are changed only where they would stop Folia's queue from being
         // played as written (`PLAY_STATE_SOURCE`), and what was changed of the listener's own is kept
         // for `restoreUserState`. The answer carries that record as `changed`, so a caller that asked
         // for the song knows what of the listener's the play took; the other answers are the app's
         // own words.
-        async play({ id, startMs = 0, userAction = true }) {
+        async play({ id, startMs = 0, userAction = true, written = [] }) {
             const uri = trackUri(id);
             const from = Math.max(0, Math.round(Number(startMs) || 0));
+            const owned = Array.isArray(written) ? written.filter(id => typeof id === 'string') : [];
             // The number a queue write of this song is allowed to see: anything else there is a start that
             // came later, and a write that belongs to the song before it.
             playSerial += 1;
             const serial = playSerial;
             const answered = await call(`
         const uri = ${JSON.stringify(uri)};
+        const owned = ${JSON.stringify(owned)};
         // A newer play makes this one stop after its next wait, before it can seek or change the
         // repeat of the track the listener asked for afterwards.
         window.__foliaPlay = ${serial};
         const current = () => window.__foliaPlay === ${serial};
-        if (typeof api.player.clearQueue === 'function') await api.player.clearQueue();
+        const emptied = await (${START_QUEUE_SOURCE})({ api, owned });
         if (!current()) return 'preempted';
         await api.player.play({ uri }, {}, {});
         if (!current()) return 'preempted';
@@ -1386,7 +1445,7 @@ function createSpotifyOfficialClient({
         const changed = await (${PLAY_STATE_SOURCE})({ api });
         if (!current()) return 'preempted';
         if (${from} > 0) await api.player.seekTo(${from});
-        return { answer: 'loaded', changed };
+        return { answer: 'loaded', changed, emptied };
       `, { allowStart: userAction, retry: false, limitMs: START_CALL_LIMIT_MS });
             // Spotify named this track as one it will not play: the wait stopped there instead of
             // running its five seconds out, and what the page said is kept for the renderer's failure.
@@ -1397,6 +1456,16 @@ function createSpotifyOfficialClient({
             // A start that loaded answers what of the listener's it changed; every other answer is the
             // page's own word and carries nothing of that.
             if (!answered || answered.answer !== 'loaded') return answered;
+            // The queue took the songs of this start where it could empty itself: what the listener
+            // had queued in the app is put back among them, and only Folia's places were taken.
+            if (answered.emptied?.restored === false) {
+                warn('[SpotifyClient] the songs the listener had queued in Spotify could not be put back after its queue was emptied');
+                queueClearable = false;
+            } else if (answered.emptied?.cleared === true) {
+                // A queue that emptied for this start is empty behind it: nothing of this run's tail is
+                // still in it, so the next write fills it whole.
+                queueClearable = true;
+            }
             const changed = answered.changed ?? {};
             // The first play of the run that changes one keeps what the listener had: a later play
             // finds the app the way Folia left it, and its own value of that one says nothing.
@@ -1540,6 +1609,6 @@ function createSpotifyOfficialClient({
 }
 
 module.exports = {
-    CDP_PORT, MAX_QUEUED, PLAY_STATE_SOURCE, QUEUE_SOURCE, RESTORE_STATE_SOURCE, START_WAIT_SOURCE,
+    CDP_PORT, MAX_QUEUED, PLAY_STATE_SOURCE, QUEUE_SOURCE, RESTORE_STATE_SOURCE, START_QUEUE_SOURCE, START_WAIT_SOURCE,
     createSpotifyOfficialClient, findLauncher, isAdvertisementItem, repeatModeOf, statusFromMediaSession, statusFromPlayerState,
 };
