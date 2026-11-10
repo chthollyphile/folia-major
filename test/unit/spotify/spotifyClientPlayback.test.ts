@@ -32,9 +32,10 @@ import type { SongResult } from '@/types';
 
 // The page's own queue code, run here as the app runs it: the two layers are mocked apart in every
 // other case, and a song written twice is exactly what the seam between them can produce.
-const { MAX_QUEUED, QUEUE_SOURCE } = createRequire(import.meta.url)('../../../electron/spotify/officialClient.cjs') as {
+const { MAX_QUEUED, QUEUE_SOURCE, START_QUEUE_SOURCE } = createRequire(import.meta.url)('../../../electron/spotify/officialClient.cjs') as {
     MAX_QUEUED: number;
     QUEUE_SOURCE: string;
+    START_QUEUE_SOURCE: string;
 };
 
 const id = (letter: string) => letter.repeat(22);
@@ -103,7 +104,7 @@ describe('a song the app is playing', () => {
     it('answers for the song Folia asked for, and names the track it holds', async () => {
         const a = songOf('a');
         await spotifyClientPlayback.play!(a, 0);
-        expect(request).toHaveBeenCalledWith('client_play', { id: id('a'), startMs: 0, userAction: true });
+        expect(request).toHaveBeenCalledWith('client_play', { id: id('a'), startMs: 0, userAction: true, written: [], replaceQueue: false });
 
         const status = statusOfClient(playing(id('a')));
         expect(status.mediaId).toBe(id('a'));
@@ -534,7 +535,7 @@ describe('the fallback answer', () => {
 describe('a start and where it stopped', () => {
     it('tells the desktop side that no one pressed play for an advance of its own', async () => {
         await spotifyClientPlayback.play!(songOf('a'), 0, { userAction: false });
-        expect(request).toHaveBeenCalledWith('client_play', { id: id('a'), startMs: 0, userAction: false });
+        expect(request).toHaveBeenCalledWith('client_play', { id: id('a'), startMs: 0, userAction: false, written: [], replaceQueue: false });
     });
 
     it('says nothing when a newer play took the app', async () => {
@@ -773,6 +774,9 @@ describe('the queue a window writes into the app own player', () => {
     const writeInPage = (new Function('return (' + QUEUE_SOURCE + ')')()) as (input: unknown) => Promise<{
         aborted?: boolean; canClear: boolean | null; cleared: boolean; written: string[]; read: string[] | null;
     }>;
+    const startQueueInPage = (new Function('return (' + START_QUEUE_SOURCE + ')')()) as (input: unknown) => Promise<{
+        cleared: boolean; canClear: boolean | null; restored?: boolean; written: string[]; read: string[] | null;
+    }>;
 
     /**
      * The app as the page drives it: the songs it holds behind the one playing, in the order it will
@@ -798,8 +802,11 @@ describe('the queue a window writes into the app own player', () => {
         if (options.clear === 'noop') player.clearQueue = async () => {};
         return {
             player, queue, given,
-            /** A start: the app plays that track, and empties its queue for it where it can. */
-            begin: (next: string) => { playing = next; if (options.clear === 'works') queue.length = 0; },
+            /**
+             * A start: the app plays that track. Emptying the queue is the start's own call
+             * (`START_QUEUE_SOURCE`), not the player's play, so it is not done here.
+             */
+            begin: (next: string) => { playing = next; },
             /** The app ends the track it plays and moves on to the first song of its own queue. */
             advance: () => { playing = queue.shift() ?? ''; return playing; },
             current: () => playing,
@@ -822,6 +829,17 @@ describe('the queue a window writes into the app own player', () => {
                 // A start takes the next generation and writes it into the page, as the client does.
                 generation += 1;
                 (window as unknown as { __foliaPlay?: number }).__foliaPlay = generation;
+                // The start's own emptying of the queue: only the songs of Folia's record are its own,
+                // and the listener's are given back where they held. A player that cannot empty its
+                // queue keeps it, and the write below adds to it.
+                const emptied = await startQueueInPage({
+                    api: { player: app.player },
+                    owned: (params as { written?: string[] }).written ?? [],
+                    // Passed on as the client passes it: a play that replaces the whole queue takes
+                    // the app's queue with it, and gives none of it back.
+                    replaceQueue: (params as { replaceQueue?: boolean }).replaceQueue === true,
+                });
+                if (typeof emptied.canClear === 'boolean') probed = emptied.canClear;
                 app.begin((params as { id: string }).id);
                 return 'loaded';
             }
@@ -851,6 +869,64 @@ describe('the queue a window writes into the app own player', () => {
         expect(adopted.skipped).toBeUndefined();
         await spotifyClientPlayback.play!(songOf(next), 0);
     };
+
+    it('keeps a song the listener queued in the app when Folia plays a song of its own', async () => {
+        // The listener put 'u' in Spotify's own queue, then played 'a' in Folia: the start empties
+        // that queue for its own reason, and 'u' is theirs, not Folia's to take.
+        const app = fakeApp({ clear: 'works', start: [id('u')] });
+        answerInPage(app);
+        await spotifyClientPlayback.play!(songOf('a'), 0);
+
+        expect(app.queue).toEqual([id('u')]);
+        // The songs that follow are written behind it, so 'u' stays ahead of them where it was.
+        await prepare(songOf('a'), [songOf('b'), songOf('c')]);
+        expect(app.queue).toEqual([id('u'), id('b'), id('c')]);
+    });
+
+    it('takes the app queue whole where the listener played a whole list here', async () => {
+        // The listener played a playlist in Folia: that list replaces the queue Folia holds, so the
+        // queue they built in Spotify's window goes with the queue it replaced - both the songs of
+        // Folia's and their own, and none of them is put back.
+        const app = fakeApp({ clear: 'works', start: [id('u'), id('b'), id('v')] });
+        answerInPage(app);
+        await spotifyClientPlayback.play!(songOf('a'), 0, { replaceQueue: true });
+
+        expect(request).toHaveBeenCalledWith('client_play', expect.objectContaining({ replaceQueue: true }));
+        expect(app.queue).toEqual([]);
+        // What follows the new song is Folia's list, with nothing of the listener's left among it.
+        await prepare(songOf('a'), [songOf('b'), songOf('c')]);
+        expect(app.queue).toEqual([id('b'), id('c')]);
+    });
+
+    it('keeps those songs where the same play is not a whole list', async () => {
+        // A single song played, a skip, and an advance of Folia's own are not a list: the same
+        // player is emptied of the songs Folia wrote only, and the listener's are given back.
+        const app = fakeApp({ clear: 'works', start: [id('u'), id('v')] });
+        answerInPage(app);
+        await spotifyClientPlayback.play!(songOf('a'), 0);
+
+        expect(request).toHaveBeenCalledWith('client_play', expect.objectContaining({ replaceQueue: false }));
+        expect(app.queue).toEqual([id('u'), id('v')]);
+    });
+
+    it('rewrites its own part of the queue when Folia gains a song, and leaves the listener\'s where they are', async () => {
+        // Folia wrote b behind a, the listener then queued u in Spotify's window, and a song was
+        // added to Folia's queue: the tail Folia wrote is written again with c on it, while u keeps
+        // the place it held.
+        const app = fakeApp({ clear: 'works' });
+        answerInPage(app);
+        const [a, b, c] = ['a', 'b', 'c'].map(songOf);
+        await spotifyClientPlayback.play!(a, 0);
+        await prepare(a, [b]);
+        expect(app.queue).toEqual([id('b')]);
+
+        (app.player.addToQueue as (entries: { uri: string }[]) => void)([{ uri: 'spotify:track:' + id('u') }]);
+        expect(app.queue).toEqual([id('b'), id('u')]);
+
+        // The queue Folia holds now runs a, b, then c: its own part is written again, u is untouched.
+        await spotifyClientPlayback.prepareNext!(a, [b, c]);
+        expect(app.queue).toEqual([id('b'), id('u'), id('c')]);
+    });
 
     it('never holds a song twice, over four songs in a row', async () => {
         const app = fakeApp({ clear: 'works' });

@@ -554,7 +554,14 @@ export const spotifyClientPlayback: OnlineExternalPlaybackProvider = {
         // An advance Folia made by itself is not a press: the desktop side is told so, and does not
         // start or restart Spotify for it: that one stops there when the app cannot be reached.
         const userAction = options.userAction !== false;
-        const answer = await requestSpotify<SpotifyClientPlayAnswer>('client_play', { id, startMs, userAction });
+        // The songs this run wrote into the app's queue that it has not played: a start empties that
+        // queue, and only these places are Folia's. What the listener queued there is given back
+        // where it was, so a song they put in Spotify's window is not taken by Folia's start - except
+        // where this play replaces the whole queue with a list of Folia's, which is the listener
+        // asking for that list and nothing else, and then the app's queue is emptied whole.
+        const answer = await requestSpotify<SpotifyClientPlayAnswer>('client_play', {
+            id, startMs, userAction, written: writtenIds, replaceQueue: options.replaceQueue === true,
+        });
         // A newer start replaced this one: nothing went wrong, and there is nothing to report.
         if (answer === 'preempted') {
             console.info('[SpotifyClient] a newer play took the app; this one stops');

@@ -684,6 +684,9 @@ export function usePlaybackQueueController({
             isAutomixAdvance: undefined,
             autoAdvance: undefined,
             queueRewritten: undefined,
+            // The list this play replaced is replaced once: a skip or a retry after it plays within
+            // the queue that came of it, and the player's queue is Folia's by then.
+            replaceQueue: undefined,
             startAtSec: undefined,
             autoplay: undefined,
             quietLoadedToast: undefined,
@@ -1006,7 +1009,10 @@ export function usePlaybackQueueController({
                 // and the name, lyrics and cover of this song are already known here. An advance Folia
                 // made by itself may not wake or restart the player; how a start that fails is taken
                 // is `onExternalStartFailure` above.
-                externalStart = startExternalPlayback(song, options.startAtSec ?? 0, { userAction: options.autoAdvance !== true });
+                externalStart = startExternalPlayback(song, options.startAtSec ?? 0, {
+                    userAction: options.autoAdvance !== true,
+                    ...(options.replaceQueue === true ? { replaceQueue: true } : {}),
+                });
                 void externalStart.started.then(undefined, onExternalStartFailure);
             } else {
                 // Where the platform could not be reached the load asks again by itself while this play is
@@ -1251,7 +1257,7 @@ export function usePlaybackQueueController({
             return;
         }
 
-        void playSong(firstPlayableSong, retainedSongs, false);
+        void playSong(firstPlayableSong, retainedSongs, false, { replaceQueue: true });
     }, [getPlayableOnlineQueue, playSong, setStatusMsg, t]);
 
     // 「插进队列播放」（速记簿的行、搜索结果的播放）：已在队列里的直接播，位置不动；不在的照设置里「加入播放队列」
@@ -1919,7 +1925,7 @@ export function usePlaybackQueueController({
     }, [handleStagePlayerQueueRequest]);
 
     const shuffleQueue = useCallback(() => {
-        if (!playQueue || !canShuffleQueue(playQueue.length, isFmMode, isNowPlayingStageActive)) return;
+        if (!canShuffleQueue(playQueue.length, isFmMode, isNowPlayingStageActive)) return;
 
         const currentSongKey = currentSong ? getPlaybackSongKey(currentSong) : null;
         let songsToShuffle: SongResult[] = [];

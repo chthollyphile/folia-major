@@ -528,6 +528,12 @@ export interface ExternalPlaybackStartOptions {
      * cannot take the song instead.
      */
     userAction?: boolean;
+    /**
+     * The listener played a whole list in Folia, so the queue behind this song is replaced rather
+     * than followed: a player that keeps a queue of its own may empty it whole, the songs the
+     * listener queued in it included. Every other start takes back only the songs Folia wrote there.
+     */
+    replaceQueue?: boolean;
 }
 
 /**

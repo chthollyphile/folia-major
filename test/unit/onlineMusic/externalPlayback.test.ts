@@ -58,6 +58,118 @@ const deferred = () => {
     return { promise, resolve };
 };
 
+describe('a player taken over, before the listener picks a song of their own', () => {
+    // A take-over follows what the player is already sounding: the listener left Spotify playing,
+    // and Folia is reopened onto it. Nothing of what it holds behind that song was written by this
+    // run, and its level was set by the listener, so neither is Folia's to change yet.
+    beforeEach(() => {
+        vi.useFakeTimers();
+        engine.installExternalPlayback();
+        engine.stopExternalPlayback('test reset');
+        usePlaybackStore.setState({
+            playbackRoute: 'web', audioSrc: null, playerState: PlayerState.IDLE, duration: 0, currentSong: null,
+            playQueue: [song, b, c], isFmMode: false,
+        });
+        omniMock.getExternalPlaybackStatus.mockReset().mockResolvedValue(status());
+        omniMock.isExternalPlaybackStatusForSong.mockReset().mockReturnValue(true);
+        omniMock.prepareExternalPlaybackQueue.mockClear();
+        omniMock.setExternalPlaybackVolume.mockReset().mockResolvedValue(undefined);
+        omniMock.pauseExternalPlayback.mockReset().mockResolvedValue(undefined);
+        useAudioSettingsStore.setState({ volume: 1, isMuted: false });
+    });
+
+    afterEach(() => {
+        engine.stopExternalPlayback('test end');
+        usePlaybackStore.setState({ playbackRoute: 'web', audioSrc: null, playerState: PlayerState.IDLE, playQueue: [] });
+        vi.useRealTimers();
+    });
+
+    it('takes the player over without changing its level', async () => {
+        // The listener's own level was set in Spotify's window: a take-over does not replace it.
+        const taken = await engine.adoptExternalPlayback(song);
+        expect(taken).toBe(true);
+        expect(engine.isExternalTakeoverPending()).toBe(true);
+        expect(omniMock.setExternalPlaybackVolume).not.toHaveBeenCalled();
+    });
+
+    it('writes nothing of the songs that follow while the player is only taken over', async () => {
+        await engine.adoptExternalPlayback(song);
+        // The queue edits a poll makes on its own: every one of them would write into the app's
+        // queue, which this run has not been told to hold.
+        engine.announceExternalPlayback();
+        await vi.advanceTimersByTimeAsync(3000);
+
+        expect(omniMock.prepareExternalPlaybackQueue).not.toHaveBeenCalled();
+    });
+
+    it('leaves the level alone when the app follows its own stored volume, until they pick a song', async () => {
+        // The level the slider shows is the one an earlier run left; following it here would put
+        // Folia's number over the one the listener set in Spotify's window.
+        await engine.adoptExternalPlayback(song);
+        engine.setExternalPlaybackVolume(0.25, 'sync');
+        useAudioSettingsStore.setState({ volume: 0.3 });
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(omniMock.setExternalPlaybackVolume).not.toHaveBeenCalled();
+    });
+
+    it('passes on a level the listener moves in Folia while the player is only taken over', async () => {
+        // Dragging Folia's slider or pressing a volume key here is the listener's own change, made in
+        // this window: it reaches the player even though the app does not write the level by itself.
+        await engine.adoptExternalPlayback(song);
+        engine.previewExternalPlaybackVolume(0.25);
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(omniMock.setExternalPlaybackVolume).toHaveBeenCalledWith(song, 0.25);
+        // The take-over still stands: the app's own level is not written on its own afterwards.
+        expect(engine.isExternalTakeoverPending()).toBe(true);
+    });
+
+    it('keeps a level the listener set while a write was in flight, after the take-over', async () => {
+        // A drag's second level is still the listener's when the first write returns: it is sent, not
+        // dropped as if the app had asked for it.
+        await engine.adoptExternalPlayback(song);
+        let finish!: () => void;
+        omniMock.setExternalPlaybackVolume.mockImplementationOnce(() => new Promise<void>(done => { finish = done; }));
+        engine.previewExternalPlaybackVolume(0.4);
+        engine.previewExternalPlaybackVolume(0.2);
+        expect(omniMock.setExternalPlaybackVolume).toHaveBeenCalledTimes(1);
+        finish();
+        await vi.advanceTimersByTimeAsync(0);
+        expect(omniMock.setExternalPlaybackVolume).toHaveBeenLastCalledWith(song, 0.2);
+    });
+
+    it('writes them and sets the level again once the listener picks a song of their own', async () => {
+        await engine.adoptExternalPlayback(song);
+        expect(engine.isExternalTakeoverPending()).toBe(true);
+
+        const start = engine.startExternalPlayback(b, 0);
+        expect(engine.isExternalTakeoverPending()).toBe(false);
+        engine.announceExternalPlayback();
+        await start.seeded;
+        await vi.advanceTimersByTimeAsync(1500);
+
+        // Folia plays that song now: the level is its own, and the songs that follow are written.
+        expect(omniMock.setExternalPlaybackVolume).toHaveBeenCalled();
+        expect(omniMock.prepareExternalPlaybackQueue).toHaveBeenCalled();
+    });
+
+    it('is no take-over for a start that is not one, so a plain play writes from the first poll', async () => {
+        const start = engine.startExternalPlayback(song, 0);
+        expect(engine.isExternalTakeoverPending()).toBe(false);
+        engine.announceExternalPlayback();
+        await start.seeded;
+        await vi.advanceTimersByTimeAsync(1500);
+
+        expect(omniMock.prepareExternalPlaybackQueue).toHaveBeenCalled();
+        expect(omniMock.setExternalPlaybackVolume).toHaveBeenCalled();
+    });
+
+    it('ends the take-over where the app is let go, so the next song starts from nothing', async () => {
+        await engine.adoptExternalPlayback(song);
+        engine.stopExternalPlayback('the listener left this way of playing');
+        expect(engine.isExternalTakeoverPending()).toBe(false);
+    });
+});
+
 describe('a start that runs on after the interface', () => {
     beforeEach(() => {
         vi.useFakeTimers();
