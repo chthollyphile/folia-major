@@ -330,10 +330,9 @@ export const createAccountReads = <R>(deps: AccountReadsDeps<R>) => {
                 store().clearAccount(providerId);
             }
         }
-        // While nobody is shown and the platform is asked, such an adapter's account shows as
-        // being found out; the others' shows nobody.
+        // While the platform is identifying the account, do not report a signed-out user.
         store().updateAccount(providerId, {
-            ...(showsKept && !shownUser(providerId) ? { status: 'unknown' as const, hydration: 'loading' as const } : {}),
+            ...(!shownUser(providerId) ? { status: 'unknown' as const, hydration: 'loading' as const } : {}),
             freshness: 'refreshing',
             error: undefined,
         });

@@ -1295,6 +1295,10 @@ export enum PlayerState {
 }
 
 export interface StatusMessage {
+  /** Shows a decorative loader beside the visible status text. */
+  activity?: 'loading' | 'success' | 'error';
+  /** Keeps one loader mounted while its strokes morph into the result. */
+  activityId?: number;
   type: 'error' | 'success' | 'info';
   text: string;
   /** A second line under the text: what to do about it. */

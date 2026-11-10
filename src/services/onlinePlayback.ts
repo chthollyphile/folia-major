@@ -189,10 +189,11 @@ export async function loadOnlineSongLyrics(
         onPureMusicChange?: (isPureMusic: boolean) => void;
         onStateChange?: (state: OnlineLyricsState | null) => void;
         onAutoMatchStart?: () => void;
+        onAutoMatchError?: () => void;
         onDone: () => void;
     }
 ): Promise<void> {
-    const { isCurrent, onLyrics, onPureMusicChange, onStateChange, onAutoMatchStart, onDone } = callbacks;
+    const { isCurrent, onLyrics, onPureMusicChange, onStateChange, onAutoMatchStart, onAutoMatchError, onDone } = callbacks;
     const lyricCacheKey = getSongResourceCacheKey('lyric', song);
     const onlineLyricsState = await loadOnlineLyricsState(song);
   const initialSettingsLyricSettings = useLyricSettingsStore.getState();
@@ -351,6 +352,7 @@ export async function loadOnlineSongLyrics(
             }
         } catch (error) {
             console.warn('[OnlinePlayback] Failed to auto-match best lyric:', error);
+            if (isCurrent()) onAutoMatchError?.();
         }
     }
 

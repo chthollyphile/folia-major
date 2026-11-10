@@ -17,6 +17,7 @@ import type { BravaisHomeAccount } from './bravaisHomeModels';
 const describeProviderStatus = (provider: ProviderAccountSummary, t: TFunction): string => {
     if (!provider.availability.configured) return t('libraryBravaisAccount.notConfigured');
     if (provider.requiresAccount === false) return t('home.providerNoAccount');
+    if (provider.status === 'unknown' || provider.hydration === 'loading') return t('login.rowChecking');
     return provider.user?.nickname || t('libraryBravaisAccount.notSignedIn');
 };
 
@@ -31,6 +32,7 @@ export const useBravaisHomeAccount = (account: LibraryAccountController, online:
     const opensOn = guest ? null : activeProviderId;
     const onOpen = useCallback((pressed: Element | null) => openLoginWindow(opensOn, pressed), [opensOn]);
     return useMemo<BravaisHomeAccount>(() => ({
+        checking: online.accountView === 'resolving',
         providerId: online.providerId,
         providerLabel: online.providerLabel,
         detail,
@@ -40,5 +42,5 @@ export const useBravaisHomeAccount = (account: LibraryAccountController, online:
         connectLabel: t('libraryBravaisHome.connect'),
         toggleLabel: t('home.switchOnlineProvider'),
         onOpen,
-    }), [avatarUrl, detail, guest, nickname, onOpen, online.providerId, online.providerLabel, t]);
+    }), [avatarUrl, detail, guest, nickname, onOpen, online.providerId, online.providerLabel, online.accountView, t]);
 };
