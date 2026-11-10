@@ -126,7 +126,8 @@ const BravaisSeamHomeRow: React.FC<{
                 aria-label={t('libraryBravais.seamFold')} title={t('libraryBravais.seamFold')}>
                 <FoldHorizontal aria-hidden />
             </button>
-            <div ref={navRef} className={`bravais-seam-home-row-nav${fit.overflowing ? ' is-overflowing' : ''}`}>
+            {/* 放不下时这一行横向滚（bravaisSeamRow.css）：标记给 bravaisSeamWheel 的快速判断用。 */}
+            <div ref={navRef} className={`bravais-seam-home-row-nav${fit.overflowing ? ' is-overflowing' : ''}`} data-wheel-scroll-region>
                 {/* 「书库」放不下时视觉隐藏（读屏仍读得到，页签列的 aria-label 也是它）。 */}
                 {!compact && (
                     <div className={`bravais-seam-home-title${titled ? '' : ' is-hidden'}`} data-bravais-home-title={titled ? 'shown' : 'hidden'}>
