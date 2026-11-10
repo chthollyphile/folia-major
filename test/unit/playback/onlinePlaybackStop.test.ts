@@ -53,11 +53,12 @@ vi.mock('@/services/onlineMusic/omni', () => ({
         canPlaySong: () => true, canPlayExternally: (song: { id: string }) => externalSongs.ids.has(song.id),
         isExternalPlaybackPrepared: () => false, getProviderLabel: (id: string) => id, getSongReplacement: vi.fn(async () => null),
         hasSetup: vi.fn((_id: string) => false),
+        getPersonalFm: vi.fn(async () => [] as UnifiedSong[]),
     },
 }));
 // 外部播放的开始只记一次调用：这个用例看的是提示，不是播放器。
 vi.mock('@/services/onlineMusic/externalPlayback', async importOriginal => ({
-    ...await importOriginal<typeof import('@/services/onlineMusic/externalPlayback')>(),
+    ...(await importOriginal<object>()),
     startExternalPlayback: vi.fn(() => ({
         attempt: 1, askedAt: 0, started: Promise.resolve(), seeded: Promise.resolve(),
         timings: { prepareMs: 0, playMs: null, statusMs: null, lyricsMs: null, visibleMs: null, coverMs: null },
@@ -541,6 +542,55 @@ describe('failures the platform says will not change', () => {
         // 跳过去的下一首照旧起播，跳过那句话不被它的起播顶掉。
         await vi.waitFor(() => expect(loader).toHaveBeenCalledTimes(2));
         expect(loader.mock.calls[1][0]).toBe(songs[2]);
+        expect(message()).toMatchObject({ type: 'info', text: 'status.songUnavailableSkipped' });
+        expect(queue.playbackAutoSkipCountRef.current).toBe(1);
+    });
+
+    // 同一句话在 FM 续曲这条「跳过去」的路上也要留住：那一批还在路上的时候 FM 关掉了。
+    it('keeps the line about the skipped song when FM ends while the next batch comes', async () => {
+        const wait = deferred<LoaderResult>();
+        loader.mockReturnValueOnce(wait.promise).mockReturnValueOnce(new Promise(() => undefined));
+        const batch = deferred<UnifiedSong[]>();
+        vi.mocked(omni.getPersonalFm).mockReturnValueOnce(batch.promise);
+        usePlaybackStore.setState({ isFmMode: true, currentSong: songs[0], playQueue: songs });
+        const queue = controller();
+        const playing = queue.playSong(songs[1], songs, true);
+        await vi.waitFor(() => expect(loader).toHaveBeenCalledOnce());
+        // 这一首还在等音源时，整份队列被换掉了；跳下一首因此改走 handleNextTrack，会先去拉下一批曲目。
+        noteWholeQueueWrite();
+        usePlaybackStore.setState({ playQueue: [...songs] });
+        wait.resolve(atOnce('taken-down'));
+        await playing;
+        await vi.waitFor(() => expect(omni.getPersonalFm).toHaveBeenCalledOnce());
+
+        // 那一批还在路上时 FM 关了（换了平台、点了别处）：拉回来的歌丢掉，这一步按普通队列往下走。
+        usePlaybackStore.setState({ isFmMode: false });
+        batch.resolve([]);
+
+        await vi.waitFor(() => expect(loader).toHaveBeenCalledTimes(2));
+        expect(loader.mock.calls[1][0]).toBe(songs[2]);
+        expect(message()).toMatchObject({ type: 'info', text: 'status.songUnavailableSkipped' });
+        expect(queue.playbackAutoSkipCountRef.current).toBe(1);
+    });
+
+    it('keeps the line about the skipped song when the next song comes from the FM queue', async () => {
+        const wait = deferred<LoaderResult>();
+        loader.mockReturnValueOnce(wait.promise).mockReturnValueOnce(new Promise(() => undefined));
+        vi.mocked(omni.getPersonalFm).mockResolvedValueOnce([makeSong('9')]);
+        // 正在放的是 FM：跳过要走的 handleNextTrack 会先去拉下一批曲目。
+        usePlaybackStore.setState({ isFmMode: true, currentSong: songs[0], playQueue: songs });
+        const queue = controller();
+        const playing = queue.playSong(songs[1], songs, true);
+        await vi.waitFor(() => expect(loader).toHaveBeenCalledOnce());
+        // 这一首还在等音源时，整份队列被换掉了，跳下一首改由 handleNextTrack 走 store 里这份队列。
+        noteWholeQueueWrite();
+        usePlaybackStore.setState({ playQueue: [...songs] });
+        wait.resolve(atOnce('taken-down'));
+        await playing;
+
+        await vi.waitFor(() => expect(loader).toHaveBeenCalledTimes(2));
+        // 拉回来的新曲目接在队列后面，跳过去的是这一首，提示照旧是跳过的那句。
+        expect(loader.mock.calls[1][0]).toMatchObject({ id: songs[2].id });
         expect(message()).toMatchObject({ type: 'info', text: 'status.songUnavailableSkipped' });
         expect(queue.playbackAutoSkipCountRef.current).toBe(1);
     });

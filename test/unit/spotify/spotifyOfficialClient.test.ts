@@ -1049,6 +1049,17 @@ describe('a start an advertisement plays before', () => {
         await expect(runRefusing(() => inItem)).resolves.toMatchObject({ answer: 'unavailable' });
     });
 
+    it('takes a track named by the error\'s item or track, and one named there as another song either way', async () => {
+        // The error may name the track in any of three places; whichever one it uses, a song that is not
+        // this start's is not this start's answer, and the wait goes on as it does without one.
+        const inItem = { code: 'ONE_TRACK_UNPLAYABLE', reasons: ['NOT_AVAILABLE'], item: { uri: OTHER.uri } };
+        await expect(runRefusing(() => inItem)).resolves.toBe('not-loaded');
+        const inTrack = { code: 'ONE_TRACK_UNPLAYABLE', reasons: ['NOT_AVAILABLE'], track: { uri: OTHER.uri } };
+        await expect(runRefusing(() => inTrack)).resolves.toBe('not-loaded');
+        const both = { code: 'ONE_TRACK_UNPLAYABLE', reasons: ['NOT_AVAILABLE'], item: { uri: OTHER.uri }, track: { uri: OTHER.uri } };
+        await expect(runRefusing(() => both)).resolves.toBe('not-loaded');
+    });
+
     it('reads no track from the error\'s context track', async () => {
         // The context track is the list the app was playing, not the song this start asked for: named
         // there, it says nothing about which track went, so the refusal is the one every start gets.
