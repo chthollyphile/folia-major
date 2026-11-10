@@ -280,6 +280,16 @@ describe('Spotify requests as the account', () => {
         expect(SPOTIFY_OPERATIONS).toContain('query');
     });
 
+    // 这个操作没有任何调用方：渲染进程的 SpotifyOperation 从没有过它，主进程用它自己的
+    // restoreClientState 在离开这种方式、登出、退出时恢复（D30）。留一个没人调的入口只会让人以为
+    // 停止外部播放时会恢复。
+    it('carries no operation for restoring the player state', async () => {
+        expect(SPOTIFY_OPERATIONS).not.toContain('client_restore_state');
+        const { bridge } = setup(() => json({ data: {} }));
+        const answer = await bridge.request('client_restore_state');
+        expect(answer.ok).toBe(false);
+    });
+
     it('renews a token about to run out, once for requests made together, and keeps the new one', async () => {
         const { bridge, store, fetch } = setup(url => (url.includes('/api/token')
             ? json({ access_token: 'renewed-private', expires_in: 3600 }) : json({ data: {} })));

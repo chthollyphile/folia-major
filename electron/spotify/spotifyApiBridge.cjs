@@ -24,7 +24,7 @@ const SPOTIFY_OPERATIONS = Object.freeze([
   // Spotify's own desktop app as the player (officialClient.cjs). `client_probe` answers whether
   // the app is on this computer at all, without starting anything.
   'client_launch', 'client_restart', 'client_play', 'client_queue', 'client_pause', 'client_resume', 'client_seek', 'client_volume',
-  'client_status', 'client_status_found', 'client_probe', 'client_restore_state',
+  'client_status', 'client_status_found', 'client_probe',
 ]);
 // How Spotify plays here: 'standard' (librespot, in this process, audio.cjs), 'soloist' (Spotify's
 // own Soloist program on this computer, soloist.cjs) or 'client' (Spotify's desktop app, steered
@@ -657,10 +657,6 @@ function createSpotifyApiBridge({
       availabilityReadAt = now();
       return availability;
     },
-    // The listener's own repeat and shuffle of Spotify's app, put back as this run found them: it is
-    // what leaving this way of playing, signing out and quitting do (officialClient.cjs,
-    // `restoreUserState`). Never starts Spotify for it.
-    client_restore_state: () => client().restoreUserState(),
 
     // Spotify's own lyrics, timed by line. Without the platform header the service answers 400.
     async lyrics(params) {
