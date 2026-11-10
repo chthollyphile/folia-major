@@ -195,6 +195,7 @@ import { usePlayerBottomBarPositioningEntry } from './hooks/usePlayerBottomBarPo
 import { PlayerBottomBarLayoutContext } from './components/floating-player/PlayerBottomBarLayoutContext';
 import { useFoliumHostBridge } from './mods/runtime/hostBridge';
 import { useFoliumHostActions } from './mods/runtime/hostActions';
+import { useFoliumAnimationIntensity } from './mods/runtime/visualizer/hostAnimationIntensity';
 import { refreshPrefetchAfterQueueEdit } from './services/prefetchService';
 import { FoliumStageLayerSlot } from './mods/folium/registries/stageLayers';
 import { runsOnWindows } from './utils/platform';
@@ -701,6 +702,7 @@ export default function App() {
     // Folium: publish what is on screen to the main process (runtime snapshot
     // for main-side mods and the export service).
     useFoliumHostBridge(theme, isDaylight);
+    useFoliumAnimationIntensity(theme, setTheme);
 
     useThemeQuickEditorContext({
         aiTheme,
@@ -2113,6 +2115,10 @@ export default function App() {
         enqueue: addOnlineSongToQueue,
         navigateToPlayer,
         navigateToHome,
+        navigateBackFromPlayer,
+        navigateBackFromLattice,
+        backCollection,
+        closeSearchView,
         shuffleQueue,
         toggleLike: handleLike,
         openVolume: () => commandPalette.invokeCommandById('playback-volume'),

@@ -1,13 +1,20 @@
 import i18n from '@/i18n/config';
+import {
+    DEFAULT_VISUALIZER_BACKGROUND_MODE,
+    VISUALIZER_BACKGROUND_REGISTRY,
+    getVisualizerBackgroundModeLabel,
+    hasVisualizerBackgroundMode,
+} from '@/components/visualizer/backgrounds/registry';
 import { VISUALIZER_REGISTRY, getVisualizerModeLabel, hasVisualizerMode } from '@/components/visualizer/registry';
 import type { VisualizerModTuningKey, VisualizerTuningAdapter } from '@/components/visualizer/tuningDefinition';
 import { getVisualizerTuning } from '@/components/visualizer/tuningRegistry';
 import { offeredBeatEffects, resolveBeatEffectPartStrength, resolveBeatEffectSetting, type BeatEffectDef } from '@/services/beatFx/beatEffects';
 import { useVisualizerSettingsStore } from '@/stores/useVisualizerSettingsStore';
 import type { LyricRenderQuality, SmartBeatSettings } from '@/types';
-import { isBuiltinVisualizerMode } from '@/types/visualizerModes';
+import { isBuiltinVisualizerBackgroundMode, isBuiltinVisualizerMode } from '@/types/visualizerModes';
 import type { ModRuntimeInfo } from '../../types';
 import type {
+    FoliumBackgroundInfo,
     FoliumBeatEffectInfo,
     FoliumBeatEffectState,
     FoliumBeatEffectsState,
@@ -21,13 +28,15 @@ import type {
 } from '../../folium/contract';
 import { emitFoliumEvent, hasFoliumEventHandlers } from '../../folium/events';
 import { registerFoliumVisualizerSource, type FoliumCheckedBeatEffectPatch, type FoliumVisualizerSource } from '../../folium/visualizer/service';
+import { readFoliumAnimationIntensity, writeFoliumAnimationIntensity } from './hostAnimationIntensity';
 
 // src/mods/runtime/visualizer/hostVisualizer.ts
 // The main window's source of `folium.visualizer` and of the `visualizer.*` events (Folium 1.8). The visualizer
 // settings store is the one place the lyric display settings live: a mod's write goes through the store's
 // action, the same one the settings page or the player panel calls, and the styles follow the store. A
 // style's own render override, its picture-cost settings and the 智能动感模式 switch are never written here.
-// Installed in the main window only (mainWindowStart.ts).
+// Installed in the main window only (mainWindowStart.ts). Folium 1.9 adds the background type, a store value
+// as the rest, and the animation intensity, which the theme carries (hostAnimationIntensity.ts).
 //
 // The host's LyricRenderScale / LyricAntialias and the contract's FoliumLyricRenderScale / FoliumLyricAntialias
 // are the same lists: the store's value is handed to mods as it is, and a mod's checked value to the store,
@@ -161,6 +170,18 @@ const buildFoliumModes = (): readonly FoliumVisualizerModeInfo[] => Object.freez
     });
 }));
 
+// ---------------------------------------------------------------- Backgrounds
+
+/** The background types there are now, in the order of the background picker. */
+const buildFoliumBackgrounds = (): readonly FoliumBackgroundInfo[] => Object.freeze(VISUALIZER_BACKGROUND_REGISTRY.map((entry) => Object.freeze({
+    id: entry.mode,
+    label: getVisualizerBackgroundModeLabel(entry.mode, (key) => i18n.t(key)),
+    kind: isBuiltinVisualizerBackgroundMode(entry.mode) ? 'builtin' as const : 'mod' as const,
+})));
+
+/** The background type the user has picked: the store's, or the default while none was ever picked. */
+const pickedBackground = (): string => useVisualizerSettingsStore.getState().visualizerBackgroundMode ?? DEFAULT_VISUALIZER_BACKGROUND_MODE;
+
 // ---------------------------------------------------------------- Writes
 
 // The mod whose write is in the store's action right now: the store's subscribers run inside it.
@@ -238,6 +259,19 @@ export const FOLIUM_HOST_VISUALIZER_SOURCE: FoliumVisualizerSource = Object.free
         if (changed) console.info(`[FoliumVisualizer] ${mod.id} changed the beat effects ${Object.keys(patch).join(', ')}`);
         return changed;
     },
+    listBackgrounds: buildFoliumBackgrounds,
+    getBackground: pickedBackground,
+    hasBackground: (id: string) => hasVisualizerBackgroundMode(id),
+    setBackground: (mod: ModRuntimeInfo, id: string) => {
+        if (!hasVisualizerBackgroundMode(id)) return false;
+        const before = pickedBackground();
+        asMod(mod, () => useVisualizerSettingsStore.getState().handleSetVisualizerBackgroundMode(id));
+        const changed = pickedBackground() !== before;
+        if (changed) console.info(`[FoliumVisualizer] ${mod.id} switched the background type to ${id}`);
+        return changed;
+    },
+    getAnimationIntensity: readFoliumAnimationIntensity,
+    setAnimationIntensity: writeFoliumAnimationIntensity,
 });
 
 // ---------------------------------------------------------------- Events
@@ -250,7 +284,7 @@ const currentOrigin = (): FoliumVisualizerChangeOrigin => (
 );
 
 /*
- * The events made once per task (render quality, each mode's tuning, the beat effects): the changes of a task
+ * The events made once per task (render quality, each mode's tuning, the beat effects, the background type): the changes of a task
  * gathered under a key, one event a microtask after the first, read from the value as it settled, with the
  * origin of the last change. A value that ends where it began fires none. The signatures are kept up to date
  * while no mod listens, so a mod that starts listening later is not told of changes that came before it.
@@ -291,6 +325,7 @@ const noteChange = (key: string) => {
 
 const RENDER_QUALITY_EVENT = 'renderQuality';
 const BEAT_EFFECTS_EVENT = 'beatEffects';
+const BACKGROUND_EVENT = 'background';
 const tuningEventKey = (mode: string) => `tuning:${mode}`;
 
 /* The modes whose tuning mods may set, with the store field each is held in. */
@@ -311,6 +346,7 @@ const onVisualizerSettingsChange = (state: VisualizerSettingsState, previous: Vi
     }
     if (state.lyricRenderQuality !== previous.lyricRenderQuality) noteChange(RENDER_QUALITY_EVENT);
     if (state.smartBeat !== previous.smartBeat) noteChange(BEAT_EFFECTS_EVENT);
+    if (state.visualizerBackgroundMode !== previous.visualizerBackgroundMode) noteChange(BACKGROUND_EVENT);
     const now = state as unknown as Fields;
     const before = previous as unknown as Fields;
     for (const { mode, field } of watchedTunings) {
@@ -337,6 +373,13 @@ export const installFoliumHostVisualizer = () => {
         emit: (origin) => {
             if (!hasFoliumEventHandlers('visualizer.beatEffectsChanged')) return;
             emitFoliumEvent('visualizer.beatEffectsChanged', { state: buildFoliumBeatEffects(), origin });
+        },
+    });
+    taskEvents.set(BACKGROUND_EVENT, {
+        signature: pickedBackground,
+        emit: (origin) => {
+            if (!hasFoliumEventHandlers('visualizer.backgroundChanged')) return;
+            emitFoliumEvent('visualizer.backgroundChanged', { background: pickedBackground(), origin });
         },
     });
     watchedTunings = modTuningFields();

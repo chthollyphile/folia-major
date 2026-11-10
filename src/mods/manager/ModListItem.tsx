@@ -303,6 +303,17 @@ export const ModListItem: React.FC<ModListItemProps> = ({
                                     {t('mods.visualizerBeatEffectsHint')}
                                 </div>
                             ) : null}
+                            {/* Folium 1.9: the background type and the animation intensity. */}
+                            {mod.permissions.includes('visualizer.background') ? (
+                                <div className="text-[11px] opacity-60" style={{ color: 'var(--text-secondary)' }}>
+                                    {t('mods.visualizerBackgroundHint')}
+                                </div>
+                            ) : null}
+                            {mod.permissions.includes('visualizer.animationIntensity') ? (
+                                <div className="text-[11px] opacity-60" style={{ color: 'var(--text-secondary)' }}>
+                                    {t('mods.visualizerAnimationIntensityHint')}
+                                </div>
+                            ) : null}
                             {mod.trustStale ? (
                                 <div className={`flex items-start gap-2 text-xs rounded-lg border px-3 py-2 ${classes.warning}`}>
                                     <TriangleAlert size={14} className="mt-px shrink-0" />

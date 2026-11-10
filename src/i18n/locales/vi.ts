@@ -1405,6 +1405,8 @@ export default {
     "visualizerModeHint": "Chuyển kiểu hoạt họa lời bài hát của bạn, như khi bạn đổi trong bảng phát nhạc.",
     "visualizerTuningHint": "Thay đổi tùy chọn của các kiểu lời bài hát tích hợp (trừ cài đặt chất lượng).",
     "visualizerBeatEffectsHint": "Bật tắt hiệu ứng nhịp của chế độ nhịp thông minh và chỉnh cường độ; bản thân chế độ nhịp thông minh vẫn do bạn quyết định, nhưng ở chế độ Bật các hiệu ứng được bật sẽ khiến GPU phân tích bài mới.",
+    "visualizerBackgroundHint": "Chuyển kiểu nền của trình phát (trừ hình ảnh và tùy chọn riêng của từng nền).",
+    "visualizerAnimationIntensityHint": "Thay đổi cường độ hiệu ứng của lời bài hát và nền.",
     "signatureVerified": "Đã xác minh",
     "signatureVerifiedDetail": "Mang chữ ký Folium chính thức hợp lệ ({{key}}): nguồn và nội dung đã được Folium kiểm duyệt và không bị thay đổi sau khi ký. Khi bật vẫn chạy với toàn quyền ứng dụng.",
     "signatureBeta": "Bản thử nghiệm sớm (Beta)",

@@ -1405,6 +1405,8 @@ export default {
     "visualizerModeHint": "会切换你的歌词动画样式，和你在播放页切换一样。",
     "visualizerTuningHint": "会改写内置歌词样式的选项（画质设置除外）。",
     "visualizerBeatEffectsHint": "会开关智能动感模式的动感效果、调整强度；智能动感模式本身仍由你决定，但在「开启」下打开的效果会让 GPU 分析新歌。",
+    "visualizerBackgroundHint": "会切换播放页的背景（各背景自己的图片和选项除外）。",
+    "visualizerAnimationIntensityHint": "会调整歌词和背景动画的强度。",
     "signatureVerified": "官方认证",
     "signatureVerifiedDetail": "带有有效的 Folium 官方签名（{{key}}）：来源与内容经过官方审查，签名后未被修改。它启用后仍以应用的完整权限运行。",
     "signatureBeta": "先行测试",

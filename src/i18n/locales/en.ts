@@ -1405,6 +1405,8 @@ export default {
     "visualizerModeHint": "Switches your lyric animation style, as you do in the player panel.",
     "visualizerTuningHint": "Changes the options of the builtin lyric styles (quality settings excepted).",
     "visualizerBeatEffectsHint": "Switches the beat effects of smart beat mode on or off and changes their strength; smart beat mode itself stays yours, but under On the effects switched on make the GPU analyse new songs.",
+    "visualizerBackgroundHint": "Switches the background type of the player (each background's own pictures and options excepted).",
+    "visualizerAnimationIntensityHint": "Changes the animation intensity of the lyrics and the background.",
     "signatureVerified": "Verified",
     "signatureVerifiedDetail": "Carries a valid official Folium signature ({{key}}): its source and content were reviewed by Folium and have not changed since signing. Once enabled it still runs with the app's full privileges.",
     "signatureBeta": "Preview",

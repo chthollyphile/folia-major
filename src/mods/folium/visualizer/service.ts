@@ -1,5 +1,9 @@
 import type { ModRuntimeInfo } from '../../types';
 import type {
+    FoliumAnimationIntensity,
+    FoliumAnimationIntensityWriteResult,
+    FoliumBackgroundInfo,
+    FoliumBackgroundWriteResult,
     FoliumBeatEffectPatch,
     FoliumBeatEffectsState,
     FoliumBeatEffectsWriteResult,
@@ -21,7 +25,8 @@ import type { FoliumStoppedCheck } from '../api';
 import type { FoliumPermissionId } from '../shared';
 
 // src/mods/folium/visualizer/service.ts
-// `folium.visualizer` (Folium 1.8) as a mod sees it, and the seam it goes through. Like equalizer/service.ts
+// `folium.visualizer` (Folium 1.8; the background and the animation intensity 1.9) as a mod sees it, and the
+// seam it goes through. Like equalizer/service.ts
 // this module is loaded in the export window too, so it imports no store and nothing of runtime/: the main
 // window installs the source (runtime/visualizer/hostVisualizer.ts, which reads and writes the visualizer
 // settings store). Here: the checks in the order the contract gives, the values made to fit what each key
@@ -58,6 +63,15 @@ export interface FoliumVisualizerSource {
     beatEffectPartsOf(id: string): readonly string[] | null;
     /** Writes checked changes as the modes' settings do, for this mod; whether anything changed. */
     setBeatEffects(mod: ModRuntimeInfo, patch: Readonly<Record<string, FoliumCheckedBeatEffectPatch>>): boolean;
+    listBackgrounds(): readonly FoliumBackgroundInfo[];
+    getBackground(): string;
+    /** Whether `id` is a background type now. */
+    hasBackground(id: string): boolean;
+    /** Switches to the background type as the background picker does, for this mod; whether anything changed. */
+    setBackground(mod: ModRuntimeInfo, id: string): boolean;
+    getAnimationIntensity(): FoliumAnimationIntensity;
+    /** Sets the intensity as the player panel's chip does, for this mod; whether anything changed. Throws while the App is not there to take it. */
+    setAnimationIntensity(mod: ModRuntimeInfo, value: FoliumAnimationIntensity): boolean;
 }
 
 let visualizerSource: FoliumVisualizerSource | null = null;
@@ -82,16 +96,27 @@ const antialiasComplete: FoliumRenderValuesMissing<FoliumLyricAntialias, typeof 
 void scalesComplete;
 void antialiasComplete;
 
+/*
+ * The levels the contract promises for 1.x (FoliumAnimationIntensity); setAnimationIntensity takes these and no
+ * others. Keyed by the contract's type, so a level it gains or loses fails to compile here.
+ */
+const ANIMATION_INTENSITY_LEVELS: Record<FoliumAnimationIntensity, true> = { calm: true, normal: true, chaotic: true };
+export const FOLIUM_ANIMATION_INTENSITIES: readonly FoliumAnimationIntensity[] = Object.freeze(
+    Object.keys(ANIMATION_INTENSITY_LEVELS) as FoliumAnimationIntensity[],
+);
+
 /** The strength range of a beat effect and of each of its parts, as the modes' settings have it (services/beatFx/beatEffects.ts). */
 export const FOLIUM_BEAT_EFFECT_STRENGTH_MAX = BEAT_EFFECT_STRENGTH_MAX;
 
-/** The four kinds of write, each with the permission it needs and an allowance of its own. */
-type WriteKind = 'renderQuality' | 'mode' | 'tuning' | 'beatEffects';
+/** The kinds of write, each with the permission it needs and an allowance of its own. */
+type WriteKind = 'renderQuality' | 'mode' | 'tuning' | 'beatEffects' | 'background' | 'animationIntensity';
 const PERMISSION_OF: Record<WriteKind, FoliumPermissionId> = {
     renderQuality: 'visualizer.renderQuality',
     mode: 'visualizer.mode',
     tuning: 'visualizer.tuning',
     beatEffects: 'visualizer.beatEffects',
+    background: 'visualizer.background',
+    animationIntensity: 'visualizer.animationIntensity',
 };
 
 /** The shortest time between two counted writes of one kind by one mod. */
@@ -288,7 +313,13 @@ export const createFoliumVisualizerService = (
         // Counted before it lands: the host tells the mods of a change synchronously, so a write a mod makes
         // from that callback must find this one counted already, or it slips past the allowance (#1000).
         countWrite(key, now);
-        if (!apply()) uncountWrite(key, now);
+        let changed = false;
+        try {
+            changed = apply();
+        } finally {
+            // Also a write the source could not take (it throws): nothing landed, nothing is counted.
+            if (!changed) uncountWrite(key, now);
+        }
         return done();
     };
 
@@ -361,6 +392,35 @@ export const createFoliumVisualizerService = (
                 () => beatEffectsUnchanged(source.getBeatEffects(), checked),
                 () => source.setBeatEffects(mod, checked),
                 () => Object.freeze({ ok: true as const, state: source.getBeatEffects(), ignored: frozenIgnored }),
+            );
+        },
+        listBackgrounds: () => sourceOf().listBackgrounds(),
+        getBackground: () => sourceOf().getBackground(),
+        setBackground: (id: string): FoliumBackgroundWriteResult => {
+            requirePermission('background');
+            const source = sourceOf();
+            if (typeof id !== 'string' || !source.hasBackground(id)) throw invalid(`"${id}" is not a background type`);
+            return write(
+                'background',
+                'visualizer.setBackground',
+                () => source.getBackground() === id,
+                () => source.setBackground(mod, id),
+                () => Object.freeze({ ok: true as const, background: source.getBackground() }),
+            );
+        },
+        getAnimationIntensity: () => sourceOf().getAnimationIntensity(),
+        setAnimationIntensity: (value: FoliumAnimationIntensity): FoliumAnimationIntensityWriteResult => {
+            requirePermission('animationIntensity');
+            const source = sourceOf();
+            if (!isListed(FOLIUM_ANIMATION_INTENSITIES, value)) {
+                throw invalid(`the animation intensity must be one of ${FOLIUM_ANIMATION_INTENSITIES.join(', ')}`);
+            }
+            return write(
+                'animationIntensity',
+                'visualizer.setAnimationIntensity',
+                () => source.getAnimationIntensity() === value,
+                () => source.setAnimationIntensity(mod, value),
+                () => Object.freeze({ ok: true as const, intensity: source.getAnimationIntensity() }),
             );
         },
     });

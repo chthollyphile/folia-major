@@ -9,7 +9,7 @@
 // that goes: FoliumLegacyLyricsResult, which getLyrics may still answer.
 
 /** The Folium version this host implements; mods read it at runtime as `folium.host.folium`. */
-export const FOLIUM_VERSION = Object.freeze({ major: 1, minor: 8 });
+export const FOLIUM_VERSION = Object.freeze({ major: 1, minor: 9 });
 
 /** `modid:name`, like a Forge ResourceLocation. The mod id part is added by the host. */
 export type FoliumId = string;
@@ -929,6 +929,13 @@ export interface FoliumPlayerPanelTabDef {
     label: FoliumLabel;
     /** Tab order; default 500. */
     order?: number;
+    /**
+     * Folium 1.9: the tab's icon, a lucide icon name as `folium.ui.icon` takes it (e.g. "message-circle").
+     * The panel draws it when the tab row is too narrow for every label: the tabs that are not open show
+     * their icon alone. Left out, or a name the host's lucide version does not have, the tab keeps the
+     * puzzle icon. An older host ignores it.
+     */
+    icon?: string;
     /** Draws the tab into its container. */
     mount: FoliumMount<FoliumPanelContext>;
 }
@@ -1171,6 +1178,24 @@ export interface FoliumNotificationEvents {
      */
     'visualizer.beatEffectsChanged': {
         readonly state: FoliumBeatEffectsState;
+        readonly origin: FoliumVisualizerChangeOrigin;
+    };
+    /**
+     * Folium 1.9: the background type changed (`folium.visualizer.getBackground()`), whoever changed it. One
+     * event for all the changes of one task; its origin is the last of them. Changes that end where they began
+     * fire none. Not emitted in the export window.
+     */
+    'visualizer.backgroundChanged': {
+        readonly background: string;
+        readonly origin: FoliumVisualizerChangeOrigin;
+    };
+    /**
+     * Folium 1.9: the animation intensity changed (`folium.visualizer.getAnimationIntensity()`), whoever changed
+     * it. `theme.changed` fires for the same change, as the theme carries the intensity too. Not emitted in
+     * the export window.
+     */
+    'visualizer.animationIntensityChanged': {
+        readonly intensity: FoliumAnimationIntensity;
         readonly origin: FoliumVisualizerChangeOrigin;
     };
 }
@@ -1438,6 +1463,21 @@ export interface FoliumUiService {
     navigate(view: 'home' | 'player'): void;
     /** Opens the host volume panel (the command palette's volume command). */
     openVolume(): void;
+    /**
+     * Folium 1.9: goes back one level, as one press of Escape does. The topmost thing that can step back
+     * takes it: an open dialog, the command palette or the settings window closes; then what a page has
+     * open over itself (a focused card, a list panel, a filter); then the page: the player panel closes,
+     * the player and the wall return to where they were opened from, a collection page returns to the one
+     * before it, the search page and a mod's home page close. Returns true when the host took it, false
+     * when there was nothing to go back from (the home page with nothing open): a mod that binds a mouse
+     * button to it lets the click through then. An open window always takes it, also one that stays open:
+     * a dialog busy with work, or one that Escape does not close; nothing under it moves. Unlike the key
+     * it never leaves fullscreen. One call is one level: never call it in a loop, and not from a handler
+     * of the Escape key, which the host answers itself. Call it on the press of the button
+     * (`pointerdown`), before the host's own "press outside closes" handling takes a level of its own.
+     * An older host has no `back`: check `folium.host.folium.minor >= 9` first.
+     */
+    back(): boolean;
     /**
      * Lets the user pick a local file; null when cancelled. With `persist`
      * the pick is remembered for this mod and the handle carries
@@ -2042,9 +2082,10 @@ export type FoliumRenderQualityWriteResult =
 export type FoliumVisualizerChangeOrigin = FoliumRenderQualityChangeOrigin;
 
 /**
- * Folium 1.8: why the host did not take a `setMode`, `setTuning` or `setBeatEffects`, as for `setRenderQuality`
- * (FoliumRenderQualityRefusal): `stopped` or `rate-limited`. Each of the four kinds of write has its own
- * allowance (see FoliumVisualizerService). Treat a reason you do not know as `rate-limited`.
+ * Folium 1.8: why the host did not take a `setMode`, `setTuning` or `setBeatEffects` (and, Folium 1.9, a
+ * `setBackground` or `setAnimationIntensity`), as for `setRenderQuality` (FoliumRenderQualityRefusal):
+ * `stopped` or `rate-limited`. Each kind of write has its own allowance (see FoliumVisualizerService). Treat
+ * a reason you do not know as `rate-limited`.
  */
 export type FoliumVisualizerWriteRefusal = FoliumRenderQualityRefusal;
 
@@ -2177,12 +2218,41 @@ export type FoliumBeatEffectsWriteResult =
     | { readonly ok: true; readonly state: FoliumBeatEffectsState; readonly ignored: readonly string[] }
     | { readonly ok: false; readonly reason: FoliumVisualizerWriteRefusal };
 
+/** Folium 1.9: a background type, as `folium.visualizer.listBackgrounds()` gives it. Frozen. */
+export interface FoliumBackgroundInfo {
+    /** The background id: a builtin's (`latent`, `monet`) or a mod's (`mod:<modid>:<id>`). What `setBackground` takes. */
+    readonly id: string;
+    /** Its name in the background picker, in the user's language. */
+    readonly label: string;
+    /** `builtin` or `mod`. */
+    readonly kind: 'builtin' | 'mod';
+}
+
+/**
+ * Folium 1.9: the animation intensity, the chip in the player panel: how lively the lyric styles and the
+ * backgrounds move. `setAnimationIntensity` takes each of these for all of Folium 1.x; later minors may add
+ * levels: read one you do not know as `normal`.
+ */
+export type FoliumAnimationIntensity = 'calm' | 'normal' | 'chaotic';
+
+/** Folium 1.9: the outcome of a `setBackground`; `background` is the background type after it. */
+export type FoliumBackgroundWriteResult =
+    | { readonly ok: true; readonly background: string }
+    | { readonly ok: false; readonly reason: FoliumVisualizerWriteRefusal };
+
+/** Folium 1.9: the outcome of a `setAnimationIntensity`; `intensity` is the animation intensity after it. */
+export type FoliumAnimationIntensityWriteResult =
+    | { readonly ok: true; readonly intensity: FoliumAnimationIntensity }
+    | { readonly ok: false; readonly reason: FoliumVisualizerWriteRefusal };
+
 /**
  * Folium 1.8: `folium.visualizer`, the host's settings of the lyric display that mods may share: the global
  * lyric render quality (FoliumLyricRenderQuality), the lyric animation mode, the tuning of the builtin modes
- * (the keys each declares, FoliumTuningKeyInfo) and the beat effects of 智能动感模式. Reading needs no
- * permission; each kind of write needs its own: `setRenderQuality` `visualizer.renderQuality`, `setMode`
- * `visualizer.mode`, `setTuning` `visualizer.tuning`, `setBeatEffects` `visualizer.beatEffects`. A write is the
+ * (the keys each declares, FoliumTuningKeyInfo) and the beat effects of 智能动感模式; Folium 1.9 adds the
+ * background type and the animation intensity. Reading needs no permission; each kind of write needs its
+ * own: `setRenderQuality` `visualizer.renderQuality`, `setMode` `visualizer.mode`, `setTuning`
+ * `visualizer.tuning`, `setBeatEffects` `visualizer.beatEffects`, `setBackground` `visualizer.background`,
+ * `setAnimationIntensity` `visualizer.animationIntensity`. A write is the
  * same as the user making the change in the settings or the player panel: what shows the setting changes with
  * it, the styles follow it (a style may rebuild its renderer for it), and it is kept across restarts. A style's
  * own render override, its picture-cost settings (resolution, render quality) and the 智能动感模式 switch
@@ -2200,7 +2270,8 @@ export type FoliumBeatEffectsWriteResult =
  * Main window only: in the export window every method throws an Error whose message is
  * `visualizer-unavailable-in-export-context` (a visualizer of yours that also renders there checks
  * `folium.env.context` first). The main entry has no `visualizer`; ask the client over `rpc`. An older host
- * has no `folium.visualizer`: check `folium.host.folium.minor >= 8` first. Malformed arguments throw a
+ * has no `folium.visualizer`: check `folium.host.folium.minor >= 8` first (`>= 9` for the background and the
+ * animation intensity). Malformed arguments throw a
  * TypeError (`invalid-arguments: …`); a write without its permission throws `permission-denied:<permission>`.
  */
 export interface FoliumVisualizerService {
@@ -2253,6 +2324,34 @@ export interface FoliumVisualizerService {
      * changes nothing. Needs `visualizer.beatEffects`.
      */
     setBeatEffects(patch: Readonly<Record<string, FoliumBeatEffectPatch>>): FoliumBeatEffectsWriteResult;
+    /**
+     * Folium 1.9: the background types there are now, builtin and from mods, in the order of the background
+     * picker. Frozen; a mod background comes and goes with its mod.
+     */
+    listBackgrounds(): readonly FoliumBackgroundInfo[];
+    /**
+     * Folium 1.9: the background type the user has picked. Synchronous; follow changes with
+     * `visualizer.backgroundChanged`. A mod's background can stay picked after its mod stopped (the host draws
+     * its default one meanwhile), so the id may be none of `listBackgrounds()` for that time.
+     */
+    getBackground(): string;
+    /**
+     * Folium 1.9: switches to the background type `id` (one of `listBackgrounds()`), as the user does in the
+     * background picker. An `id` that is not a background now throws a TypeError. The type only: what a type
+     * draws from (the picture of `monet`, the list of `url`, each type's own options) stays as the user set
+     * it, so a type the user never set up draws its empty state. Needs `visualizer.background`.
+     */
+    setBackground(id: string): FoliumBackgroundWriteResult;
+    /** Folium 1.9: the animation intensity now. Synchronous; follow changes with `visualizer.animationIntensityChanged`. */
+    getAnimationIntensity(): FoliumAnimationIntensity;
+    /**
+     * Folium 1.9: sets the animation intensity, as the chip in the player panel does. A value this contract
+     * does not list throws a TypeError. While the app is still starting (no theme on screen yet) it throws
+     * an Error whose message is `visualizer-unavailable-in-main-context`, as `folium.ui` does then: write
+     * from an event or a user action rather than straight from `activate`. Needs
+     * `visualizer.animationIntensity`.
+     */
+    setAnimationIntensity(value: FoliumAnimationIntensity): FoliumAnimationIntensityWriteResult;
 }
 
 // ---------------------------------------------------------------- Experimental
