@@ -119,7 +119,7 @@ const PendoloClockworkCanvas: React.FC<PendoloClockworkCanvasProps> = ({
     const motionStateRef = useRef(createPendoloClockworkMotionState());
     const lastTimestampRef = useRef<number | null>(null);
     const coverImageRef = useRef<HTMLImageElement | null>(null);
-    // 封面图源不带 CORS 时 WebGL 传不了，这一张要走 Canvas2D。带 CORS 的请求一失败就记下，不等上传报错；
+    // 封面图源不带 CORS 时 WebGL 传不了，这一张要走 Canvas2D。不带 CORS 的重试加载成功就记下，不等上传报错；
     // 按图源记住，下一首同一图源的封面一换上就走 2D，后端不会每首歌先 WebGL 再 2D 来回切
     const coverNeeds2dRef = useRef(false);
     const noCorsCoverOriginsRef = useRef(new Set<string>());
@@ -239,19 +239,19 @@ const PendoloClockworkCanvas: React.FC<PendoloClockworkCanvasProps> = ({
             next.onload = () => {
                 if (cancelled) return;
                 coverImageRef.current = next;
-                if (crossOrigin) {
-                    coverNeeds2dRef.current = false;
-                    noCorsCoverOriginsRef.current.delete(origin);
-                }
+                // 不带 CORS 才加载得到的，才算这个图源没有 CORS；带 CORS 加载成功就把记录删掉
+                coverNeeds2dRef.current = !crossOrigin;
+                if (crossOrigin) noCorsCoverOriginsRef.current.delete(origin);
+                else noCorsCoverOriginsRef.current.add(origin);
             };
             next.onerror = () => {
                 if (cancelled) return;
                 if (crossOrigin) {
-                    coverNeeds2dRef.current = true;
-                    noCorsCoverOriginsRef.current.add(origin);
                     load(false);
                 } else {
+                    // 两次都没加载到（404、离线）：没有封面可画，照常走 WebGL，也不记这个图源
                     coverImageRef.current = null;
+                    coverNeeds2dRef.current = false;
                 }
             };
             next.src = coverUrl;
