@@ -63,6 +63,20 @@ type Harness = {
 
 const BIN_COUNT = 1024;
 
+/** What the route reports to the capture: whether it wants the machine's sound at all. */
+type Facts = { route: string; capturesSystemAudio: boolean; settingOn: boolean };
+
+/**
+ * The three together, as the one answer the route reports. The provider declares nothing by default:
+ * a capture only ever starts where it does.
+ */
+const factsOf = (over: Partial<Facts> = {}): Facts => ({
+    route: 'external',
+    capturesSystemAudio: true,
+    settingOn: true,
+    ...over,
+});
+
 const install = (options: InstallOptions = {}): Harness => {
     const data = new Uint8Array(BIN_COUNT);
     const analyser = makeAnalyser(data);
@@ -401,26 +415,83 @@ describe('externalSpectrumCapture', () => {
         });
     });
 
+    it('never arms for a route, a setting or a provider that does not ask for the machine\'s sound', async () => {
+        const harness = install();
+        const capture = await importCapture();
+        // The arm is spent from a promise chain: nothing can be read as "not armed" before it settles.
+        const settle = () => new Promise(resolve => setTimeout(resolve, 20));
+
+        // Another route sounds its own decks: the machine is never captured.
+        capture.syncExternalSpectrumForRoute(factsOf({ route: 'standard' }), true);
+        await settle();
+        expect(harness.arm).not.toHaveBeenCalled();
+        expect(harness.getDisplayMedia).not.toHaveBeenCalled();
+
+        // The switch is off (its default): the bars follow the song's own progress instead.
+        capture.syncExternalSpectrumForRoute(factsOf({ settingOn: false }), true);
+        await settle();
+        expect(harness.arm).not.toHaveBeenCalled();
+        expect(harness.getDisplayMedia).not.toHaveBeenCalled();
+
+        // A player that declared nothing about where its sound goes (Apple Music and the like) is
+        // never captured, whatever the switch says and however many songs it plays.
+        capture.syncExternalSpectrumForRoute(factsOf({ capturesSystemAudio: false }), true);
+        capture.syncExternalSpectrumForRoute(factsOf({ capturesSystemAudio: false }), true);
+        await settle();
+        expect(harness.arm).not.toHaveBeenCalled();
+        expect(harness.getDisplayMedia).not.toHaveBeenCalled();
+        expect(capture.readCapturedExternalSpectrum()).toBeNull();
+    });
+
     it('starts with the external route, keeps the one capture across songs and stops when it leaves', async () => {
         const harness = install();
         harness.data[10] = 140;
         const capture = await importCapture();
+        const wants = factsOf();
 
         // Another route sounds its own decks: the machine is never captured.
-        capture.syncExternalSpectrumForRoute('standard', true);
+        capture.syncExternalSpectrumForRoute({ ...wants, route: 'standard' }, true);
         expect(harness.getDisplayMedia).not.toHaveBeenCalled();
 
-        capture.syncExternalSpectrumForRoute('external', true);
+        capture.syncExternalSpectrumForRoute(wants, true);
         await vi.waitFor(() => expect(capture.readCapturedExternalSpectrum()).not.toBeNull());
 
         // A song change asks for nothing new while the capture is up.
-        capture.syncExternalSpectrumForRoute('external', true);
+        capture.syncExternalSpectrumForRoute(wants, true);
         expect(harness.getDisplayMedia).toHaveBeenCalledOnce();
 
-        capture.syncExternalSpectrumForRoute('standard', false);
+        capture.syncExternalSpectrumForRoute({ ...wants, route: 'standard' }, false);
         for (const track of harness.granted.tracks) expect(track.stop).toHaveBeenCalledOnce();
         expect(harness.context.close).toHaveBeenCalledOnce();
         expect(capture.readCapturedExternalSpectrum()).toBeNull();
+    });
+
+    it('stops the moment the switch is turned off, arm and all, and starts again when it comes back', async () => {
+        const harness = install();
+        harness.data[10] = 140;
+        const capture = await importCapture();
+        const wants = factsOf();
+
+        capture.syncExternalSpectrumForRoute(wants, true);
+        await vi.waitFor(() => expect(capture.readCapturedExternalSpectrum()).not.toBeNull());
+        expect(harness.stopped).not.toHaveBeenCalled();
+
+        // Turned off mid-song, on the same route and the same song.
+        capture.syncExternalSpectrumForRoute({ ...wants, settingOn: false }, true);
+        for (const track of harness.granted.tracks) expect(track.stop).toHaveBeenCalledOnce();
+        expect(harness.context.close).toHaveBeenCalledOnce();
+        // The main process is told, so the arm it spent on the grant is the renderer's no longer and
+        // the window may be throttled again.
+        expect(harness.stopped).toHaveBeenCalledOnce();
+        expect(capture.readCapturedExternalSpectrum()).toBeNull();
+
+        // Turned back on mid-song: a fresh attempt rather than a wait for the next song.
+        capture.syncExternalSpectrumForRoute(wants, true);
+        await vi.waitFor(() => expect(capture.readCapturedExternalSpectrum()).not.toBeNull());
+        expect(harness.getDisplayMedia).toHaveBeenCalledTimes(2);
+        expect(harness.arm.mock.calls.filter(call => call[0] === true)).toHaveLength(2);
+
+        capture.stopExternalSpectrumCapture();
     });
 
     it('stops every track and closes its context when the route leaves the external player', async () => {
