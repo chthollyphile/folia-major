@@ -96,7 +96,10 @@ export const createRoomSound = ({
 
     const isAvailable = () => {
         available ??= (api ? api.available() : Promise.resolve({ ok: false, reason: 'no acoustics process' }))
-            .catch((error: unknown) => ({ ok: false, reason: String(error) }))
+            .catch((error: unknown) => {
+                console.warn('[SceneSound] could not ask whether room sound is available', error);
+                return { ok: false, reason: String(error) };
+            })
             .then(({ ok, reason }) => {
                 if (!ok) console.info('[SceneSound] room sound unavailable, music plays dry:', reason);
                 return ok;

@@ -90,7 +90,7 @@ const writeCachedRoom = async (dir, result, bassCutoffHz) => {
         await fs.promises.rename(`${file}.tmp`, file);
         await pruneCache(dir);
     } catch (error) {
-        console.warn(`[acoustics] could not cache the room: ${error?.message || error}`);
+        console.warn('[acoustics] could not cache the room', error);
     }
 };
 
@@ -172,7 +172,10 @@ const createAcousticsHost = ({ app, ipcMain, isTrusted, libraryFile, getCacheDir
     /** Whether Steam Audio loads on this machine; asked once, in the worker, so a bad library cannot take this process down. */
     const available = () => {
         availability ??= (libraryFile
-            ? ask('available').then(() => ({ ok: true }), error => ({ ok: false, reason: error.message }))
+            ? ask('available').then(() => ({ ok: true }), (error) => {
+                console.warn('[acoustics] Steam Audio did not load', error);
+                return { ok: false, reason: error.message };
+            })
             : Promise.resolve({ ok: false, reason: 'no Steam Audio library in this build (npm run steam-audio:fetch)' })
         ).then((answer) => {
             console.log(`[acoustics] Steam Audio ${STEAM_AUDIO_VERSION} ${answer.ok ? `available (${libraryFile})` : `unavailable: ${answer.reason}`}`);

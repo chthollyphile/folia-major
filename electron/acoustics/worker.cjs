@@ -26,6 +26,10 @@ process.parentPort.on('message', ({ data }) => {
         .then(() => handle(data))
         .then(
             result => process.parentPort.postMessage({ id, result }),
-            error => process.parentPort.postMessage({ id, error: String(error?.message || error) }),
+            (error) => {
+                // Logged here with its stack (the output is forwarded into the main process's log); only the message crosses back.
+                console.warn(`[acoustics] ${data.kind} failed`, error);
+                process.parentPort.postMessage({ id, error: String(error?.message || error) });
+            },
         );
 });
