@@ -32,11 +32,12 @@ const boxes = defineScene({
         background: { host: 'none' },
         quality: QUALITY,
     },
-    load: async () => (ctx) => {
+    load: () => Promise.resolve((ctx) => {
         const canvas = document.createElement('canvas');
         canvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%';
         ctx.container.appendChild(canvas);
-        const g = canvas.getContext('2d')!;
+        const g = canvas.getContext('2d');
+        if (!g) throw new Error('probe: no 2D context');
         // A WebGL context only so the probe can lose it (the host loads the scene again once, then falls back).
         const gl = document.createElement('canvas').getContext('webgl');
         if (gl) ctx.container.appendChild(gl.canvas as HTMLCanvasElement);
@@ -97,14 +98,12 @@ const boxes = defineScene({
                 canvas.remove();
             },
         };
-    },
+    }),
 });
 
 const broken = defineScene({
     manifest: { ...boxes.manifest, id: 'mod:probe:broken', name: { en: 'Probe broken', 'zh-CN': '探针坏场景' } },
-    load: async () => {
-        throw new Error('probe: this scene fails to load on purpose');
-    },
+    load: () => Promise.reject(new Error('probe: this scene fails to load on purpose')),
 });
 
 const LINES: Line[] = [3, 7, 11, 25, 29].map((start, index) => ({
@@ -120,7 +119,8 @@ const probeCover = () => {
     const canvas = document.createElement('canvas');
     canvas.width = 512;
     canvas.height = 512;
-    const g = canvas.getContext('2d')!;
+    const g = canvas.getContext('2d');
+    if (!g) return '';
     const gradient = g.createLinearGradient(0, 0, 512, 512);
     gradient.addColorStop(0, '#3b82f6');
     gradient.addColorStop(1, '#f43f5e');

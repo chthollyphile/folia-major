@@ -34,6 +34,12 @@ const WANTED = {
     'steamaudio/THIRDPARTY.md': ['win-x64', 'linux-x64', 'mac-x64', 'mac-arm64'],
 };
 
+/** Whether the SDK has a library for an electron-builder target (platform as electronPlatformName, arch as its name). */
+export const hasSteamAudioFor = (platform, arch) => {
+    const folder = `${{ darwin: 'mac', win32: 'win' }[platform] ?? platform}-${arch}`;
+    return Object.entries(WANTED).some(([entry, folders]) => !entry.endsWith('.md') && folders.includes(folder));
+};
+
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const baseName = (entry) => entry.slice(entry.lastIndexOf('/') + 1);
 const targets = () => Object.entries(WANTED).flatMap(([entry, folders]) => folders.map(folder => join(VENDOR_DIR, folder, baseName(entry))));

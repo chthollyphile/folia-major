@@ -101,9 +101,9 @@ export const createIntermission = (): CinemaIntermission => {
         }
         first = false;
         state.left.top = carriage;
-        state.left.bottom = hems[0]!.at;
+        state.left.bottom = hems[0].at;
         state.right.top = carriage;
-        state.right.bottom = hems[1]!.at;
+        state.right.bottom = hems[1].at;
         return state;
     };
 

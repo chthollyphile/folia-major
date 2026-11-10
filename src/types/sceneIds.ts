@@ -47,7 +47,7 @@ export const assertBuiltinSceneList = (discovered: readonly string[], declared: 
     if (missing.length === 0 && stale.length === 0) return;
     throw new Error(
         '[SceneRegistry] src/types/sceneIds.ts 的 BUILTIN_SCENE_IDS 与 scenes/*/entry.ts 不一致：'
-        + `${missing.length > 0 ? ` 缺少 ${missing.join(', ')}；` : ''}`
-        + `${stale.length > 0 ? ` 多出 ${stale.join(', ')}；` : ''}`,
+        + (missing.length > 0 ? ` 缺少 ${missing.join(', ')}；` : '')
+        + (stale.length > 0 ? ` 多出 ${stale.join(', ')}；` : ''),
     );
 };

@@ -155,8 +155,8 @@ export const createCinemaScene = async (): Promise<CinemaScene> => {
         uFoot: { value: 0.9 },
         uDay: { value: 0 },
         uBoxLamp: { value: 1 },
-        uTexA: { value: leader.texture as THREE.Texture },
-        uTexB: { value: leader.texture as THREE.Texture },
+        uTexA: { value: leader.texture },
+        uTexB: { value: leader.texture },
         uAspectA: { value: 1 },
         uAspectB: { value: 1 },
         uChange: { value: 1 },
@@ -353,7 +353,7 @@ export const createCinemaScene = async (): Promise<CinemaScene> => {
             mixed.addScalar(day * 0.32);
             light.copy(mixed).multiplyScalar(screenPower);
             projected.add(light);
-            light.multiplyScalar(uncovered[index]!);
+            light.multiplyScalar(uncovered[index]);
             average.add(light);
         });
         average.multiplyScalar(1 / 3);

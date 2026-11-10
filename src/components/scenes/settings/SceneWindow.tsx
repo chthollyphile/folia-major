@@ -69,7 +69,7 @@ const SceneOwnSettings: React.FC<{ manifest: SceneManifest }> = ({ manifest }) =
     const options = useSceneSettingsStore(state => state.sceneOptions[manifest.id]);
     const setSceneOptions = useSceneSettingsStore(state => state.setSceneOptions);
     const seats = useSceneViewpoints(manifest.id);
-    const schema = manifest.settings ?? [];
+    const schema = useMemo(() => manifest.settings ?? [], [manifest.settings]);
     const values = useMemo(() => mergeFoliumParamValues(schema, options?.values), [schema, options?.values]);
 
     return (

@@ -24,8 +24,10 @@ exports.default = async (context) => {
   await prepareBundledModels({ outputDir: require("path").join(context.packager.projectDir, "models") });
   // Steam Audio, the scene engine's room sound (electron/acoustics/): every desktop platform's library,
   // from the pinned official SDK zip; extraResources takes this target's build/steam-audio/${os}-${arch}.
-  const { prepareSteamAudio } = await import("./fetchSteamAudio.mjs");
-  await prepareSteamAudio();
+  // A target the SDK has no library for (Linux arm64) skips the download: the app runs without room sound.
+  const { prepareSteamAudio, hasSteamAudioFor } = await import("./fetchSteamAudio.mjs");
+  if (hasSteamAudioFor(context.electronPlatformName, arch)) await prepareSteamAudio();
+  else console.log(`[steam-audio] no library for ${context.electronPlatformName}-${arch}, skipped`);
   if (context.electronPlatformName === 'win32') {
     // The Apple Music WebView2 host (electron/appleMusic/windows), compiled with MSBuild.
     const { prepareWindowsCompanion } = require('../electron/appleMusic/windows/prepareBundle.cjs');

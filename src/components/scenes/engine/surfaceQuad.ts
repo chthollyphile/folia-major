@@ -39,15 +39,17 @@ const basisToPoints = (p: readonly (readonly [number, number])[]): Matrix3 => {
  * behind the camera keeps its sign and the browser clips that part; plain corners solve the four-point map.
  */
 export const quadHomography = (width: number, height: number, quad: ScreenQuad): Matrix3 => {
-    if (quad.every(point => point.w !== undefined)) {
+    const ws = quad.map(point => point.w);
+    if (ws.every((w): w is number => w !== undefined)) {
         const [p0, p1, , p3] = quad;
+        const [w0, w1, , w3] = ws;
         const h = [
             (p1.x - p0.x) / width, (p3.x - p0.x) / height, p0.x,
             (p1.y - p0.y) / width, (p3.y - p0.y) / height, p0.y,
-            (p1.w! - p0.w!) / width, (p3.w! - p0.w!) / height, p0.w!,
+            (w1 - w0) / width, (w3 - w0) / height, w0,
         ];
         // Scaled by a positive number only: the sign of w is what says which part is behind the camera.
-        const scale = Math.max(...quad.map(point => Math.abs(point.w!)), 1e-9);
+        const scale = Math.max(...ws.map(w => Math.abs(w)), 1e-9);
         return h.map(value => value / scale);
     }
     // Basis order: top-left, top-right, bottom-left, then bottom-right.

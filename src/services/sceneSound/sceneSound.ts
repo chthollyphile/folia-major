@@ -107,10 +107,12 @@ export const createRoomSound = ({
     const fetchIr = (request: RoomRequest) => {
         let entry = irs.get(request.key);
         if (!entry) {
-            entry = api!.computeRoom(request);
+            if (!api) return Promise.reject(new Error('no acoustics process'));
+            entry = api.computeRoom(request);
             entry.catch(() => irs.delete(request.key));
             irs.set(request.key, entry);
-            if (irs.size > KEPT_IRS) irs.delete(irs.keys().next().value!);
+            const oldest = irs.keys().next();
+            if (irs.size > KEPT_IRS && !oldest.done) irs.delete(oldest.value);
         }
         return entry;
     };

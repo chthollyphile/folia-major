@@ -33,9 +33,9 @@ export const createSceneEventBus = (fail: (error: unknown) => void): SceneEventB
     return {
         on: (type, fn) => {
             const set = listeners.get(type) ?? new Set();
-            set.add(fn as Listener);
+            set.add(fn);
             listeners.set(type, set);
-            return () => { set.delete(fn as Listener); };
+            return () => { set.delete(fn); };
         },
         emit: (type, event) => {
             for (const listener of [...(listeners.get(type) ?? [])]) {

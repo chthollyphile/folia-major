@@ -217,7 +217,7 @@ export const createCinemaPost = (volume: THREE.ShaderMaterial): CinemaPost => {
     };
     const downInto = (renderer: THREE.WebGLRenderer, from: THREE.WebGLRenderTarget, into: THREE.WebGLRenderTarget, bright: boolean) => {
         down.uniforms.uSource.value = from.texture;
-        down.uniforms.uTexel.value.set(1 / from.width, 1 / from.height);
+        (down.uniforms.uTexel.value as THREE.Vector2).set(1 / from.width, 1 / from.height);
         down.uniforms.uBright.value = bright ? 1 : 0;
         down.uniforms.uFromDepth.value = from === main ? 1 : 0;
         pass(renderer, down, into);
@@ -225,10 +225,10 @@ export const createCinemaPost = (volume: THREE.ShaderMaterial): CinemaPost => {
     /** Blurs pair[0] in place through pair[1], `spread` texels between taps. */
     const blurPair = (renderer: THREE.WebGLRenderer, pair: THREE.WebGLRenderTarget[], spread: number) => {
         blur.uniforms.uSource.value = pair[0].texture;
-        blur.uniforms.uStep.value.set(spread / pair[0].width, 0);
+        (blur.uniforms.uStep.value as THREE.Vector2).set(spread / pair[0].width, 0);
         pass(renderer, blur, pair[1]);
         blur.uniforms.uSource.value = pair[1].texture;
-        blur.uniforms.uStep.value.set(0, spread / pair[0].height);
+        (blur.uniforms.uStep.value as THREE.Vector2).set(0, spread / pair[0].height);
         pass(renderer, blur, pair[0]);
     };
 
@@ -250,11 +250,11 @@ export const createCinemaPost = (volume: THREE.ShaderMaterial): CinemaPost => {
         renderer.setRenderTarget(main);
         renderer.render(scene, camera);
         [down, composite, volume].forEach(item => {
-            item.uniforms.uInvProj.value.copy(camera.projectionMatrixInverse);
+            (item.uniforms.uInvProj.value as THREE.Matrix4).copy(camera.projectionMatrixInverse);
             item.uniforms.uFocus.value = frame.focus;
             item.uniforms.uAperture.value = frame.aperture;
         });
-        volume.uniforms.uEye.value.setFromMatrixPosition(camera.matrixWorld);
+        (volume.uniforms.uEye.value as THREE.Vector3).setFromMatrixPosition(camera.matrixWorld);
         pass(renderer, volume, air);
 
         downInto(renderer, main, half[0], false);
@@ -265,7 +265,7 @@ export const createCinemaPost = (volume: THREE.ShaderMaterial): CinemaPost => {
         blurPair(renderer, bloom, 1.5);
         blurPair(renderer, bloom, 3.2);
 
-        composite.uniforms.uResolution.value.set(width, height);
+        (composite.uniforms.uResolution.value as THREE.Vector2).set(width, height);
         composite.uniforms.uTime.value = frame.time;
         composite.uniforms.uGrain.value = frame.grain;
         composite.uniforms.uVignette.value = frame.vignette;

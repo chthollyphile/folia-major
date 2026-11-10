@@ -244,7 +244,7 @@ const sharedFor = (a) => {
     try {
         embree = create('iplEmbreeDeviceCreate', h => a.embreeCreate(context, Buffer.alloc(8), h));
     } catch (error) {
-        console.warn(`[acoustics] no Embree, using Steam Audio's own ray tracer: ${error.message}`);
+        console.warn('[acoustics] no Embree, using the ray tracer of Steam Audio itself', error);
     }
     shared = { context, embree, hrtfs: new Map() };
     return shared;
