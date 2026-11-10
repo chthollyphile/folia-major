@@ -174,3 +174,48 @@ describe('one press reaching both paths', () => {
         expect(runTransportAction).not.toHaveBeenCalled();
     });
 });
+
+describe('what the bridge asks the main process for', () => {
+    it('asks for nothing while the app\'s own decks sound the song', async () => {
+        // A local or built-in song: the keys stay the app's own media session's, as before this route.
+        usePlaybackStore.setState({ playbackRoute: 'web', currentSong: { id: 'local' } as never });
+        renderBothPaths();
+        await act(async () => { await Promise.resolve(); });
+
+        // The mount's unconditional wish, and nothing that asks for them.
+        expect(setExternalMediaKeys).toHaveBeenCalled();
+        for (const call of setExternalMediaKeys.mock.calls) expect(call[0]).toBe(false);
+    });
+
+    it('asks for nothing while the external player holds no song, and gives back the keys it held', async () => {
+        usePlaybackStore.setState({ playbackRoute: 'external', currentSong: { id: 'gone' } as never });
+        renderBothPaths();
+        await act(async () => { await Promise.resolve(); });
+        for (const call of setExternalMediaKeys.mock.calls) expect(call[0]).toBe(false);
+
+        // The player stopped on that route: still nothing is held.
+        setExternalMediaKeys.mockClear();
+        await act(async () => {
+            usePlaybackStore.setState({ playbackRoute: 'external', currentSong: null });
+        });
+        await act(async () => { await Promise.resolve(); });
+        for (const call of setExternalMediaKeys.mock.calls) expect(call[0]).toBe(false);
+    });
+
+    it('asks for nothing for a player that did not declare the keys while its song sounds', async () => {
+        // The route and a song are both there, but no provider declared this one as Folia's: the keys
+        // stay the app's own media session's. That is what the switch alone must never override.
+        usePlaybackStore.setState({ playbackRoute: 'external', currentSong: { id: 'x' } as never });
+        renderBothPaths();
+        await act(async () => { await Promise.resolve(); });
+        for (const call of setExternalMediaKeys.mock.calls) expect(call[0]).toBe(false);
+
+        // The provider declares nothing here either, so a store change asks for nothing new.
+        setExternalMediaKeys.mockClear();
+        await act(async () => {
+            usePlaybackStore.setState({ playbackRoute: 'external', currentSong: { id: 'y' } as never });
+        });
+        await act(async () => { await Promise.resolve(); });
+        for (const call of setExternalMediaKeys.mock.calls) expect(call[0]).toBe(false);
+    });
+});

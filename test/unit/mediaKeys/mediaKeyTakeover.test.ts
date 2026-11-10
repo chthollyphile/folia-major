@@ -93,42 +93,43 @@ describe('the module that holds the keys', () => {
 });
 
 const factsOf = (over: Partial<MediaKeyHoldFacts> = {}): MediaKeyHoldFacts => ({
-    holdWhileRunning: true,
-    playerAsksForAsLongAsFoliaRuns: true,
-    route: 'web',
-    externalSong: null,
-    sessionDeclares: false,
+    settingOn: true,
+    route: 'external',
+    externalSong: song,
+    holdsMediaKeysWhilePlaying: true,
     ...over,
 });
 
 describe('whether Folia holds the media keys', () => {
-    it('holds them for the whole run while the setting is on and a player asks for them', () => {
-        // The three states that let go when only a sounding song counts: the queue played out (Folia
-        // idle), a song of Folia's own sounding, and the player's own session gone after it stopped.
-        expect(shouldHoldMediaKeys(factsOf({ route: 'web' }))).toBe(true);
-        expect(shouldHoldMediaKeys(factsOf({ route: 'hifi' }))).toBe(true);
-        expect(shouldHoldMediaKeys(factsOf({ route: 'external', externalSong: null }))).toBe(true);
-        expect(shouldHoldMediaKeys(factsOf({ route: 'external', externalSong: song, sessionDeclares: true }))).toBe(true);
+    it('holds them while a song Folia started sounds in the player that declares them', () => {
+        expect(shouldHoldMediaKeys(factsOf())).toBe(true);
+        // Paused is the same session, still Folia's to answer for: a press resumes it.
+        expect(shouldHoldMediaKeys(factsOf())).toBe(true);
     });
 
-    it('lets them go the moment that player stops asking, which is a change of the way it plays', () => {
-        // Back to the standard way, or to the player that registers no media session of its own: no
-        // player asks any more and nothing is held - the release the listener asked for.
-        expect(shouldHoldMediaKeys(factsOf({ playerAsksForAsLongAsFoliaRuns: false }))).toBe(false);
-        // Unless a session of its own is still there and the player declares it: that one holds while
-        // it sounds.
-        expect(shouldHoldMediaKeys(factsOf({ playerAsksForAsLongAsFoliaRuns: false, route: 'external', externalSong: song, sessionDeclares: true }))).toBe(true);
+    it('lets them go while the app\'s own engine sounds the song', () => {
+        // A local song, a Navidrome one, anything the app's own decks play: nothing is held, so the
+        // listener's other programs keep the keys the way they always had.
+        for (const route of ['web', 'standard', 'hifi']) {
+            expect(shouldHoldMediaKeys(factsOf({ route })), route).toBe(false);
+        }
     });
 
-    it('with the setting off, holds only while that player sounds a song of Folia\'s', () => {
-        const off = { holdWhileRunning: false, route: 'external', sessionDeclares: true } as const;
-        expect(shouldHoldMediaKeys(factsOf({ ...off, externalSong: song }))).toBe(true);
-        // Its session is gone (it stopped, or its song ended), the queue is over, or Folia is the one
-        // sounding: nothing is held.
-        expect(shouldHoldMediaKeys(factsOf({ ...off, externalSong: null }))).toBe(false);
-        expect(shouldHoldMediaKeys(factsOf({ ...off, externalSong: song, route: 'web' }))).toBe(false);
-        // A player that declares no session of its own keeps the app's own media session either way.
-        expect(shouldHoldMediaKeys(factsOf({ ...off, sessionDeclares: false, externalSong: song }))).toBe(false);
+    it('lets them go while the external player holds nothing, and after it stopped', () => {
+        expect(shouldHoldMediaKeys(factsOf({ externalSong: null }))).toBe(false);
+        // Idle is idle on whatever route: not a second rule.
+        expect(shouldHoldMediaKeys(factsOf({ route: 'web', externalSong: null }))).toBe(false);
+    });
+
+    it('holds them only for a player that declares them Folia\'s while its song sounds', () => {
+        // A player that registers no session of its own and declares nothing keeps the app's own
+        // media session, the way it always did.
+        expect(shouldHoldMediaKeys(factsOf({ holdsMediaKeysWhilePlaying: false }))).toBe(false);
+    });
+
+    it('holds nothing at all while the listener has the takeover switched off', () => {
+        expect(shouldHoldMediaKeys(factsOf({ settingOn: false }))).toBe(false);
+        expect(shouldHoldMediaKeys(factsOf({ settingOn: false, route: 'web' }))).toBe(false);
     });
 });
 

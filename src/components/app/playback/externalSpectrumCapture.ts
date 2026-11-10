@@ -15,6 +15,17 @@ const RETRY_MAX_MS = 10 * 60_000;
 
 type CaptureState = 'idle' | 'starting' | 'running';
 
+/**
+ * What the route reports about the machine's sound: where the song sounds, whether its player
+ * declared that its sound never passes through any page of the app, and whether the listener left
+ * the switch for capturing the machine's own sound on. All three have to hold for a capture.
+ */
+export type ExternalSpectrumRequest = {
+    route: string;
+    capturesSystemAudio: boolean;
+    settingOn: boolean;
+};
+
 let state: CaptureState = 'idle';
 let stream: MediaStream | null = null;
 let audioContext: AudioContext | null = null;
@@ -32,6 +43,12 @@ let failureLogged = false;
 let showingCaptured = false;
 /** Bumped whenever the capture is released, so an attempt still in flight sees that it is unwanted. */
 let generation = 0;
+/**
+ * Whether the route wanted the machine's sound at the last sync. Coming back to wanting it (the
+ * listener's switch, or a song whose provider declares the capture) is a fresh attempt even though
+ * no song changed.
+ */
+let wantedSinceLastSync = false;
 let failures = 0;
 let retryAfterMs = 0;
 
@@ -328,17 +345,28 @@ export const readCapturedExternalSpectrum = (): ExternalSpectrumBands | null => 
 };
 
 /**
- * Drives the capture from the route the playback store reports: held exactly as long as the route is
- * the external player's, because Folia's own decks would otherwise be captured too once it sounds a
- * song itself. A new song gets a fresh attempt, in case the capture died with the player that carried
- * the last one; every other store change leaves the running capture alone.
+ * Drives the capture from what the route reports: held exactly as long as the machine's sound is
+ * wanted, because Folia's own decks would otherwise be captured too once it sounds a song itself.
+ *
+ * Wanting it takes all three of the route, the provider's declaration and the listener's switch. A
+ * player that declares nothing about where its sound goes never has anything captured, whatever the
+ * switch says; off Windows the arm is refused too (see canCapture).
+ *
+ * `songChanged` gets a fresh attempt, in case the capture died with the player that carried the last
+ * one. Coming back to wanting it - the switch turned on mid-song, or a song whose provider declares
+ * the capture after one that did not - is the same fresh attempt, so a switch is not left waiting
+ * for the next song. Every other store change leaves the running capture alone.
  */
-export const syncExternalSpectrumForRoute = (route: string, songChanged: boolean): void => {
-    if (route !== 'external') {
+export const syncExternalSpectrumForRoute = (request: ExternalSpectrumRequest, songChanged: boolean): void => {
+    const wanted = request.route === 'external' && request.capturesSystemAudio && request.settingOn;
+    if (!wanted) {
+        wantedSinceLastSync = false;
         stopExternalSpectrumCapture();
         return;
     }
-    if (!songChanged) return;
+    const cameBack = !wantedSinceLastSync;
+    wantedSinceLastSync = true;
+    if (!songChanged && !cameBack) return;
     void startExternalSpectrumCapture();
 };
 

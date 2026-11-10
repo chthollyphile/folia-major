@@ -43,22 +43,34 @@ export function useExternalPlaybackBridge({ handleNextTrack, handlePrevTrack }: 
     }, []);
 
     // The external route's real spectrum, where the build can capture the machine's own sound: held
-    // exactly as long as the route is the external player's, because Folia's own decks would
-    // otherwise be captured too once it sounds a song itself. A new track gets a fresh attempt, in
-    // case the capture died with the player that carried the last one.
+    // exactly as long as that sound is wanted, because Folia's own decks would otherwise be captured
+    // too once it sounds a song itself. Wanting it takes the route, the provider's declaration and
+    // the listener's switch (externalSpectrumCapture). A new track gets a fresh attempt, in case the
+    // capture died with the player that carried the last one; so does turning the switch back on
+    // mid-song, and a song whose provider declares the capture after one that did not.
     useEffect(() => {
-        const sync = (
-            state: ReturnType<typeof usePlaybackStore.getState>,
-            previous?: ReturnType<typeof usePlaybackStore.getState>,
-        ) => {
-            const songChanged = !previous
-                || previous.playbackRoute !== 'external'
-                || previous.currentSong !== state.currentSong;
-            syncExternalSpectrumForRoute(state.playbackRoute, songChanged);
+        const sync = (songChanged: boolean) => {
+            const state = usePlaybackStore.getState();
+            const song = state.currentSong;
+            syncExternalSpectrumForRoute({
+                route: state.playbackRoute,
+                capturesSystemAudio: song !== null && omni.externalPlaybackTraits(song).capturesSystemAudio,
+                settingOn: useDesktopSettingsStore.getState().externalSystemAudioSpectrum,
+            }, songChanged);
         };
-        sync(usePlaybackStore.getState());
-        const unsubscribe = usePlaybackStore.subscribe(sync);
+        const onPlaybackChange = (
+            state: ReturnType<typeof usePlaybackStore.getState>,
+            previous: ReturnType<typeof usePlaybackStore.getState>,
+        ) => {
+            sync(previous.playbackRoute !== 'external' || previous.currentSong !== state.currentSong);
+        };
+        sync(true);
+        const unsubscribe = usePlaybackStore.subscribe(onPlaybackChange);
+        // The switch lives in the desktop settings store, not the playback store: turning it off has
+        // to end a running capture at once, without waiting for a store change that never comes.
+        const unsubscribeSettings = useDesktopSettingsStore.subscribe(() => sync(false));
         return () => {
+            unsubscribeSettings();
             unsubscribe();
             stopExternalSpectrumCapture();
         };
