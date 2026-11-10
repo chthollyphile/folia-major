@@ -138,6 +138,8 @@ export const onlineFailureOf = (
         retryAfterMs: typeof wait === 'number' && Number.isFinite(wait) && wait >= 0 ? wait : undefined,
         likelyCause: detail.likelyCause && LIKELY_CAUSES.has(detail.likelyCause) ? detail.likelyCause : undefined,
         signedOut: at.signedOut === true || detail.signedOut === true ? true : undefined,
+        // 平台自己说的、再问也不会变的结果：这个标记跟着失败走到界面上，由播放的那一侧决定不再等。
+        skipAtOnce: detail.skipAtOnce === true ? true : undefined,
         // 共用的代号是几个固定的词；一个 mod 自己造的错可以在这里放任何东西，只收字符串和数。
         errorCode: thrown ? codeText(thrown.code) as ProviderErrorCode | undefined : undefined,
         timedOut: error instanceof OnlineRequestTimeout ? true : undefined,

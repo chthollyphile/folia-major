@@ -636,6 +636,8 @@ export default {
     "latticeUnavailableInFm": "Lattice không hỗ trợ chế độ FM cá nhân",
     "latticeFmOpenedInPlayer": "Lattice không hỗ trợ chế độ FM cá nhân. Đã mở bằng trình phát chuẩn",
     "noPlayableSongs": "Không có bài hát khả dụng trong danh sách",
+    "songUnavailableSkipped": "Bài hát đã bị gỡ, đã bỏ qua",
+    "songSubscriptionRequiredSkipped": "Cần Spotify Premium, đã bỏ qua",
     "songUnavailableTag": "Không khả dụng",
     "songVideoTag": "MV",
     "queueShuffled": "Đã xáo trộn hàng đợi",

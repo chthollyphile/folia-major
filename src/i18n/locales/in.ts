@@ -636,6 +636,8 @@ export default {
     "latticeUnavailableInFm": "Lattice tidak mendukung mode Personal FM",
     "latticeFmOpenedInPlayer": "Lattice tidak mendukung mode Personal FM. Pemutar standar dibuka sebagai gantinya",
     "noPlayableSongs": "Tidak ada lagu yang bisa diputar di daftar ini",
+    "songUnavailableSkipped": "Lagu telah dihapus, dilewati",
+    "songSubscriptionRequiredSkipped": "Perlu langganan Spotify Premium, dilewati",
     "songUnavailableTag": "Tidak Tersedia",
     "songVideoTag": "MV",
     "queueShuffled": "Antrean diacak",

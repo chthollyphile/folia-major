@@ -258,17 +258,74 @@ const isAdvertisementItem = item => Boolean(item && (
 // come: only the time with no advertisement on the screen counts against the start, and the whole wait
 // is capped, so a start can neither fail on an advertisement nor hang on one that does not end.
 // Answers 'loaded' (the track is the one loaded), 'advertisement' (the app took the track and an
-// advertisement still runs before it: the status reads follow it), 'not-loaded' (the track never came)
-// or 'preempted' (a newer play took the app). A source string because it is the page's code; a test
-// drives it with a stand-in player.
+// advertisement still runs before it: the status reads follow it), 'not-loaded' (the track never came),
+// 'unavailable' (the page says it will not play this track, with the code and reasons it gave),
+// 'premium-only' (the same, with the account's plan as the only reason it gives) or 'preempted' (a
+// newer play took the app). A source string because it is the page's code; a test drives it with a
+// stand-in player.
 const START_WAIT_SOURCE = `async ({ api, uri, isAd, current, sleep }) => {
   let waited = 0;
   let total = 0;
   let lastWasAd = false;
+  // A track Spotify will not play is named by the player itself as soon as it is asked for, and no
+  // wait makes it come: it is read on every look, and a code and reasons such as
+  // ONE_TRACK_UNPLAYABLE with NOT_AVAILABLE_IN_CURRENT_REGION are answered as they are. A reason that
+  // says the free account is what stops it, and no other, is not the track being gone: that one is
+  // answered as its own thing, and the song is shown as one a plan would play. Every other error, an
+  // error of another shape, and a player that throws while its error is read say nothing about this
+  // track, and the wait goes on as it does without one.
+  // The error is the page's own record of the last track it was told to play, so it outlives the
+  // start that made it: one look does not say this start failed. A refusal read once is held and
+  // read again one look later (refusedFor below), and an error that names a track of its own speaks
+  // only about that track - an error naming none is the player's own answer for what it is playing,
+  // and the second look is what speaks for it.
+  // Only the fields that name the track the app was told to play: the context track of an error is the
+  // list it plays from, so naming one there would read a song of the list as this start's own answer.
+  const errorTrackUri = error => {
+    for (const value of [error?.uri, error?.item?.uri, error?.track?.uri]) {
+      if (typeof value === 'string' && value) return value;
+    }
+    return null;
+  };
+  const refusal = () => {
+    try {
+      const error = api.player?._contextPlayer?.getError?.();
+      const words = r => r.toUpperCase().replace(/[^A-Z]/g, '');
+      const code = typeof error?.code === 'string' ? words(error.code) : '';
+      const reasons = Array.isArray(error?.reasons) ? error.reasons.filter(r => typeof r === 'string') : [];
+      const gone = reasons.map(words).filter(r => r.indexOf('NOTAVAILABLE') === 0);
+      if (code !== 'ONETRACKUNPLAYABLE' || gone.length === 0) return null;
+      const planOnly = gone.length === 1 && gone[0] === 'NOTAVAILABLEINNONPREMIUM';
+      return { answered: { answer: planOnly ? 'premium-only' : 'unavailable', code: error.code, reasons }, trackUri: errorTrackUri(error) };
+    } catch {
+      return null;
+    }
+  };
+  const refusedFor = () => {
+    const read = refusal();
+    if (!read) return null;
+    if (read.trackUri && read.trackUri !== uri) return null;
+    return read.answered;
+  };
+  // The refusal of the look before, held until the next look says the same: a track named once and
+  // gone from the player's error by the next look is the error of the song before this one.
+  let heldRefusal = null;
   while (true) {
     const s = api.player.getState();
     if (s && s.item && s.item.uri === uri) return 'loaded';
+    // An advertisement on the screen says nothing about the track this start asked for: the error the
+    // page keeps is then the one of the song before this start, and a free account's start is exactly
+    // where an advertisement plays. No refusal is taken while one is on, and the one held before it is
+    // dropped, so the look right after the advertisement is this start's first one again: a refusal
+    // read there is held and read once more, as it is for a start with no advertisement at all.
     lastWasAd = isAd(s && s.item);
+    const refused = lastWasAd ? null : refusedFor();
+    if (refused) {
+      if (heldRefusal && heldRefusal.answer === refused.answer) return refused;
+      heldRefusal = refused;
+    } else {
+      heldRefusal = null;
+    }
     total += 100;
     if (!lastWasAd) waited += 100;
     if (waited >= ${START_LIMIT_MS} || total >= ${AD_START_LIMIT_MS}) return lastWasAd ? 'advertisement' : 'not-loaded';
@@ -1239,8 +1296,10 @@ function createSpotifyOfficialClient({
         //
         // Answers where it stopped: 'loaded' when the track is the one playing, 'preempted' when a
         // newer play took over (nothing went wrong), 'advertisement' when the app took the track and an
-        // advertisement still runs before it (the status reads follow it), and 'not-loaded' when Spotify
-        // never got to the track.
+        // advertisement still runs before it (the status reads follow it), 'not-loaded' when Spotify
+        // never got to the track, { answer: 'unavailable' } carrying the page's code and reasons when
+        // Spotify says it will not play this track at all, and { answer: 'premium-only' } when the only
+        // reason it gives is the free account (a plan would play it, so it is not taken down).
         // `userAction` says a listener asked for this song; only then may Spotify be started or started
         // again. An advance Folia made by itself passes false: the app it could not reach stays
         // as it is.
@@ -1251,7 +1310,7 @@ function createSpotifyOfficialClient({
             // came later, and a write that belongs to the song before it.
             playSerial += 1;
             const serial = playSerial;
-            return call(`
+            const answer = await call(`
         const uri = ${JSON.stringify(uri)};
         // A newer play makes this one stop after its next wait, before it can seek or change the
         // repeat of the track the listener asked for afterwards.
@@ -1270,6 +1329,7 @@ function createSpotifyOfficialClient({
         // meanwhile is never seeked into. An advertisement still on the screen is an accepted
         // start rather than a track that never came (the status reads follow it, and
         // statusOfClient.ts reads an advertisement as the song still loading).
+        if (waited && (waited.answer === 'unavailable' || waited.answer === 'premium-only')) return waited;
         if (waited !== 'loaded') return waited;
         if (!current()) return 'preempted';
         const s = api.player.getState();
@@ -1279,6 +1339,12 @@ function createSpotifyOfficialClient({
         if (${from} > 0) await api.player.seekTo(${from});
         return 'loaded';
       `, { allowStart: userAction, retry: false, limitMs: START_CALL_LIMIT_MS });
+            // Spotify named this track as one it will not play: the wait stopped there instead of
+            // running its five seconds out, and what the page said is kept for the renderer's failure.
+            if (answer && (answer.answer === 'unavailable' || answer.answer === 'premium-only')) {
+                warn('[SpotifyClient] Spotify will not play this track (' + answer.answer + '): ' + answer.code + ' [' + answer.reasons.join(', ') + ']');
+            }
+            return answer;
         },
 
         // The songs that are to follow, put in Spotify's queue so it moves on to them by itself. The

@@ -331,6 +331,9 @@ export interface OnlineFailureDetail {
     likelyCause?: 'sign-in' | 'subscription' | 'region';
     // 发出请求时这个平台没有登录的账号：要登录的失败说「登录后才能播放」，不说「登录已失效」。
     signedOut?: boolean;
+    // 再试多少次也是这个结果，平台亲口这么说的（下架、只给会员放）。开了「自动跳过不能播放的歌」
+    // 时，这种失败不等倒计时结束。
+    skipAtOnce?: boolean;
 }
 
 export type ProviderErrorCode =
