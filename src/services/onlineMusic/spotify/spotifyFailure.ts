@@ -30,7 +30,7 @@ const SOLOIST_REASONS: Record<string, OnlineFailureDetail> = {
     'soloist-refused': { case: 'refused' },
     // Spotify's own desktop app is not on this computer (spotifyClientPlayback.ts): installing it, or
     // another way to play, mends it, so the failure offers the setup checklist as well.
-    'client-missing': { case: 'not-configured' },
+    'client-missing': { case: 'not-configured', playerCause: 'player-not-installed' },
     // Spotify's own player named the track as one it will not play, before any wait ran out
     // (spotifyClientPlayback.ts): the song is taken down, and Folia already has that case and its
     // words for a song a platform took down. One it refuses for the free account alone names a plan
@@ -38,6 +38,15 @@ const SOLOIST_REASONS: Record<string, OnlineFailureDetail> = {
     // that counts down to a skip skips them at once.
     'track-unavailable': { case: 'taken-down', skipAtOnce: true },
     'premium-only': { case: 'subscription-required', skipAtOnce: true },
+    // The app is installed but its player was not found inside it, or it was not found soon enough:
+    // Spotify's own build is what did not answer, so the failure is the app being unsteerable rather
+    // than the song (electron/spotify/officialClient.cjs names both).
+    'player-not-found': { case: 'unreachable', playerCause: 'player-not-found' },
+    'player-not-installed': { case: 'not-configured', playerCause: 'player-not-installed' },
+    // The listener has a Spotify open without Folia's DevTools port and has not agreed to Folia
+    // closing it (electron/spotify/restartConsent.cjs): the app is theirs to close, so this stops
+    // where it is, and only their answer moves it on.
+    'player-restart-consent': { case: 'not-configured', playerCause: 'player-restart-consent' },
 };
 
 export const describeSpotifyFailure = (_operation: OnlineFailureOperation, error: unknown): OnlineFailureDetail | null => {
