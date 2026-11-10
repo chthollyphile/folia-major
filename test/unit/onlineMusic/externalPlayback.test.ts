@@ -102,13 +102,39 @@ describe('a player taken over, before the listener picks a song of their own', (
         expect(omniMock.prepareExternalPlaybackQueue).not.toHaveBeenCalled();
     });
 
-    it('leaves the level alone when the listener changes it from Folia as well, until they pick a song', async () => {
-        // Dragging Folia's slider is the listener's own change, not a start Folia makes: the level
-        // it asks for is still not one Folia may put on a player it only follows.
+    it('leaves the level alone when the app follows its own stored volume, until they pick a song', async () => {
+        // The level the slider shows is the one an earlier run left; following it here would put
+        // Folia's number over the one the listener set in Spotify's window.
+        await engine.adoptExternalPlayback(song);
+        engine.setExternalPlaybackVolume(0.25, 'sync');
+        useAudioSettingsStore.setState({ volume: 0.3 });
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(omniMock.setExternalPlaybackVolume).not.toHaveBeenCalled();
+    });
+
+    it('passes on a level the listener moves in Folia while the player is only taken over', async () => {
+        // Dragging Folia's slider or pressing a volume key here is the listener's own change, made in
+        // this window: it reaches the player even though the app does not write the level by itself.
         await engine.adoptExternalPlayback(song);
         engine.previewExternalPlaybackVolume(0.25);
         await vi.advanceTimersByTimeAsync(1000);
-        expect(omniMock.setExternalPlaybackVolume).not.toHaveBeenCalled();
+        expect(omniMock.setExternalPlaybackVolume).toHaveBeenCalledWith(song, 0.25);
+        // The take-over still stands: the app's own level is not written on its own afterwards.
+        expect(engine.isExternalTakeoverPending()).toBe(true);
+    });
+
+    it('keeps a level the listener set while a write was in flight, after the take-over', async () => {
+        // A drag's second level is still the listener's when the first write returns: it is sent, not
+        // dropped as if the app had asked for it.
+        await engine.adoptExternalPlayback(song);
+        let finish!: () => void;
+        omniMock.setExternalPlaybackVolume.mockImplementationOnce(() => new Promise<void>(done => { finish = done; }));
+        engine.previewExternalPlaybackVolume(0.4);
+        engine.previewExternalPlaybackVolume(0.2);
+        expect(omniMock.setExternalPlaybackVolume).toHaveBeenCalledTimes(1);
+        finish();
+        await vi.advanceTimersByTimeAsync(0);
+        expect(omniMock.setExternalPlaybackVolume).toHaveBeenLastCalledWith(song, 0.2);
     });
 
     it('writes them and sets the level again once the listener picks a song of their own', async () => {
