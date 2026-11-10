@@ -37,10 +37,14 @@ const MAX_PORT_CANDIDATES = 32;
 const STATUS_PORT_SEARCHES = 2;
 const STATUS_PORT_SEARCH_GAP_MS = 3000;
 const PORT_PROBE_LIMIT_MS = 600;
+// The first of the two waits a start makes: how long the app itself is waited for - its process, its
+// DevTools port and a page that answers a script - whichever way the start began (from nothing, after
+// closing a Spotify the listener had open, or joining one already running).
 const LAUNCH_WAIT_MS = 25000;
-// How long a start waits for the player inside the app when it first closed a Spotify the listener
-// already had open. Such a Spotify has its build loaded already, and one whose UI changed answers no
-// player at all: a press must not be held for the whole of a cold start's wait for it.
+// The second wait, which begins only once that page has finished loading: how long the player inside
+// the app is looked for. A build whose UI changed loads its page and answers no player at all, so a
+// press must not be held for the whole of the first wait for it; a page that is still loading has not
+// started this one, so a slow start keeps the whole of the first.
 const PLAYER_FIND_WAIT_MS = 8000;
 // How long a play waits for its track: the time the track itself makes no progress (a free account's
 // advertisement does not count against it), and the whole wait, advertisement and all.
@@ -131,6 +135,13 @@ const FORGET_APIS = `(() => {
 
 // The body of one call in the page, with the APIs as `api`.
 const inPage = body => `(async () => { const api = ${FIND_APIS}; if (!api) throw new Error('player-unavailable'); ${body} })()`;
+
+// Runs in the Spotify page: whether the app's own main interface has finished loading. The page that
+// answers a script is not the page that is ready - a document still loading has a React tree without
+// the player in it - so this is what starts the short wait for the player find below. The document
+// being complete is the signal Spotify's own shell gives: its UI is mounted by then, and the main
+// element it mounts into is there.
+const PAGE_LOADED = `(() => document.readyState === 'complete' && Boolean(document.getElementById('main')))()`;
 
 // The player's state as it stands, read in the page and turned into Folia's status here
 // (`statusFromPlayerState`). Page and process share one clock: both run on this computer.
@@ -1104,9 +1115,6 @@ function createSpotifyOfficialClient({
         // The Spotify processes running before this start: a window of one of them is the listener's, and
         // stays where it is.
         let skipPids = [];
-        // Whether this start closed a Spotify the listener already had open, which is the wait the
-        // shorter one below belongs to.
-        let closedTheirs = false;
         if (!answers) {
             const launcher = findLauncher(env);
             if (!launcher) throw spotifyError('unavailable', 'The Spotify app is not installed', undefined, 'player-not-installed');
@@ -1121,7 +1129,6 @@ function createSpotifyOfficialClient({
                     throw spotifyError('unavailable', 'Spotify runs without its DevTools port', `a restart already spent this run (${forceRestarts})`);
                 }
                 forceRestarts += 1;
-                closedTheirs = true;
                 log(restart ? '[SpotifyClient] Spotify is started again, as asked' : '[SpotifyClient] Spotify runs without the DevTools port; it is started again with it');
                 page.close();
                 await stopSpotify();
@@ -1160,11 +1167,15 @@ function createSpotifyOfficialClient({
             startedByUs = true;
             log('[SpotifyClient] Spotify was started with the DevTools port');
         }
-        const deadline = Date.now() + (closedTheirs ? PLAYER_FIND_WAIT_MS : LAUNCH_WAIT_MS);
+        // The first wait: the app, its DevTools port and a page that answers a script.
+        const deadline = Date.now() + LAUNCH_WAIT_MS;
+        // The second, for the player inside that page. It begins at the first round the page says it
+        // has finished loading, and the moment it began is kept, so a later round cannot move it.
+        let findDeadline = 0;
         let lastError = null;
         let rounds = 0;
         try {
-            while (Date.now() < deadline) {
+            while (Date.now() < (findDeadline || deadline)) {
                 rounds += 1;
                 // The fallback sweep runs at the first round a window can exist: measured, Spotify shows its
                 // window 0.5-1.1 s after the alias is run, so a sweep at 1.4 s is a window on the screen for
@@ -1175,6 +1186,14 @@ function createSpotifyOfficialClient({
                         if (spawned) await sweepSpotifyWindows(skipPids);
                         return;
                     }
+                    // A page answered a script, so what a round before it failed with is stale: a start
+                    // that ends on a wait of its own is the player not being found, not a connection
+                    // that has worked ever since.
+                    lastError = null;
+                    // A page that answers a script is not a page that is ready, and which of the two
+                    // waits the player is looked for under is decided by the app's own interface
+                    // having finished loading.
+                    if (!findDeadline && await page.evaluate(PAGE_LOADED)) findDeadline = Date.now() + PLAYER_FIND_WAIT_MS;
                 } catch (error) {
                     lastError = error;
                     page.close();
@@ -1185,6 +1204,7 @@ function createSpotifyOfficialClient({
             // The start is over, hidden window or not: the watcher goes with it.
             stopWindowWatch();
         }
+        if (findDeadline) log(`[SpotifyClient] Spotify loaded its page and answered no player in ${PLAYER_FIND_WAIT_MS / 1000} s`);
         throw lastError ?? spotifyError('unavailable', 'Spotify\'s player was not found', undefined, 'player-not-found');
     }
 

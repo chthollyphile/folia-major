@@ -390,25 +390,79 @@ describe('what a call may do to Spotify', () => {
         await app.client.close();
     });
 
-    it('gives the app eight seconds to show its player, not the twenty-five a cold start has', async () => {
-        // A page that never finds the player: whatever Spotify's build does to its React tree, the
-        // wait for it is short, so a restart that cannot be steered fails rather than hangs the press.
+    // The wait for the player belongs to the page, not to the way the start began: a build whose UI
+    // changed answers no player at all however long it is waited for, and the wait for the app and its
+    // page is a different wait from the one for the player inside it. A press is held to the short
+    // wait once the page says it has finished loading - a cold start, a Spotify closed and started
+    // again, and a Spotify already running alike - and a page still loading keeps the whole of the
+    // long one.
+    const playerNeverFound = (loaded: () => boolean, found: () => boolean = () => false) => {
+        handle = expression => {
+            if (expression.includes('window.__foliaPlay')) return { details: 'Error: player-unavailable' };
+            if (expression.includes('document.readyState')) return { value: loaded() };
+            return { value: found() };
+        };
+    };
+
+    it('ends a cold start whose page loaded but showed no player after eight seconds', async () => {
         FakeSocket.failuresLeft = FAILED_CONNECTIONS;
-        handle = expression => ({ value: expression.includes('window.__foliaPlay') ? 'loaded' : false });
-        const app = makeClient({ running: true, portAnswers: false, appDirectory: makeLauncherDirectory() });
+        playerNeverFound(() => true);
+        const app = makeClient({ running: false, portAnswers: false, appDirectory: makeLauncherDirectory() });
         const startedAt = Date.now();
         await expect(app.client.play({ id: TRACK, startMs: 0 })).rejects.toMatchObject({ code: 'unavailable', reason: 'player-not-found' });
+        expect(Date.now() - startedAt).toBeGreaterThanOrEqual(8000);
         expect(Date.now() - startedAt).toBeLessThan(15000);
         await app.client.close();
     });
 
-    it('keeps its long wait for a cold start', async () => {
+    it('gives the same eight seconds to a Spotify it closed and started again', async () => {
         FakeSocket.failuresLeft = FAILED_CONNECTIONS;
-        handle = expression => ({ value: expression.includes('window.__foliaPlay') ? 'loaded' : false });
+        playerNeverFound(() => true);
+        const app = makeClient({ running: true, portAnswers: false, appDirectory: makeLauncherDirectory() });
+        const startedAt = Date.now();
+        await expect(app.client.play({ id: TRACK, startMs: 0 })).rejects.toMatchObject({ code: 'unavailable', reason: 'player-not-found' });
+        expect(app.taskkills()).toBe(1);
+        expect(Date.now() - startedAt).toBeGreaterThanOrEqual(8000);
+        expect(Date.now() - startedAt).toBeLessThan(15000);
+        await app.client.close();
+    });
+
+    it('gives the same eight seconds to a Spotify it joined, without closing or starting it', async () => {
+        playerNeverFound(() => true);
+        const app = makeClient({ running: true, portAnswers: true });
+        const startedAt = Date.now();
+        await expect(app.client.play({ id: TRACK, startMs: 0 })).rejects.toMatchObject({ code: 'unavailable', reason: 'player-not-found' });
+        expect(app.taskkills()).toBe(0);
+        expect(app.spotifySpawns()).toBe(0);
+        expect(Date.now() - startedAt).toBeGreaterThanOrEqual(8000);
+        expect(Date.now() - startedAt).toBeLessThan(15000);
+        await app.client.close();
+    });
+
+    it('keeps its long wait for a page that is still loading', async () => {
+        FakeSocket.failuresLeft = FAILED_CONNECTIONS;
+        const startedAt = Date.now();
+        // The page says it is loaded long after the start, and its player shows up past the short
+        // wait: the short wait is counted from the page, not from the start.
+        const loadedAt = startedAt + 18000;
+        const playerAt = startedAt + 23000;
+        handle = expression => {
+            if (expression.includes('window.__foliaPlay')) return { value: 'loaded' };
+            if (expression.includes('document.readyState')) return { value: Date.now() >= loadedAt };
+            return { value: Date.now() >= playerAt };
+        };
+        const app = makeClient({ running: false, portAnswers: false, appDirectory: makeLauncherDirectory() });
+        await expect(app.client.play({ id: TRACK, startMs: 0 })).resolves.toBe('loaded');
+        expect(Date.now() - startedAt).toBeGreaterThanOrEqual(20000);
+        await app.client.close();
+    });
+
+    it('keeps its long wait for a page that never loads', async () => {
+        FakeSocket.failuresLeft = FAILED_CONNECTIONS;
+        playerNeverFound(() => false);
         const app = makeClient({ running: false, portAnswers: false, appDirectory: makeLauncherDirectory() });
         const startedAt = Date.now();
-        // A start from nothing is what Spotify needs the whole wait for: only the restart is short.
-        await expect(app.client.launch()).rejects.toBeTruthy();
+        await expect(app.client.launch()).rejects.toMatchObject({ code: 'unavailable', reason: 'player-not-found' });
         expect(Date.now() - startedAt).toBeGreaterThanOrEqual(20000);
         await app.client.close();
     });
