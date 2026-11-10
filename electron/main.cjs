@@ -2225,6 +2225,15 @@ const mainProcessStartupPromise = prepareMainProcessStartup();
 const APP_LOCALE_KEY = 'APP_LOCALE';
 const mainLocale = {
   'zh-CN': {
+    dockNotPlaying: '未播放',
+    dockRepeat: '循环模式',
+    dockRepeatOff: '顺序播放',
+    dockRepeatAll: '列表循环',
+    dockRepeatOne: '单曲循环',
+    trayPrevious: '上一首',
+    trayPlay: '播放',
+    trayPause: '暂停',
+    trayNext: '下一首',
     trayShowWindow: '显示窗口',
     trayHideWindow: '隐藏窗口',
     trayOpenRemote: '遥控窗口',
@@ -2251,6 +2260,15 @@ const mainLocale = {
     crashClose: '关闭',
   },
   'zh-TW': {
+    dockNotPlaying: '未播放',
+    dockRepeat: '迴圈模式',
+    dockRepeatOff: '順序播放',
+    dockRepeatAll: '清單迴圈',
+    dockRepeatOne: '單曲迴圈',
+    trayPrevious: '上一首',
+    trayPlay: '播放',
+    trayPause: '暫停',
+    trayNext: '下一首',
     trayShowWindow: '顯示視窗',
     trayHideWindow: '隱藏視窗',
     trayOpenRemote: '遙控視窗',
@@ -2277,6 +2295,15 @@ const mainLocale = {
     crashClose: '關閉',
   },
   en: {
+    dockNotPlaying: 'Not Playing',
+    dockRepeat: 'Repeat',
+    dockRepeatOff: 'Off',
+    dockRepeatAll: 'All',
+    dockRepeatOne: 'One',
+    trayPrevious: 'Previous Track',
+    trayPlay: 'Play',
+    trayPause: 'Pause',
+    trayNext: 'Next Track',
     trayShowWindow: 'Show Window',
     trayHideWindow: 'Hide Window',
     trayOpenRemote: 'Remote Window',
@@ -2303,6 +2330,15 @@ const mainLocale = {
     crashClose: 'Close',
   },
   in: {
+    dockNotPlaying: 'Tidak diputar',
+    dockRepeat: 'Ulangi',
+    dockRepeatOff: 'Nonaktif',
+    dockRepeatAll: 'Semua',
+    dockRepeatOne: 'Satu',
+    trayPrevious: 'Lagu Sebelumnya',
+    trayPlay: 'Putar',
+    trayPause: 'Jeda',
+    trayNext: 'Lagu Berikutnya',
     trayShowWindow: 'Tampilkan Jendela',
     trayHideWindow: 'Sembunyikan Jendela',
     trayOpenRemote: 'Jendela Remote',
@@ -2329,6 +2365,15 @@ const mainLocale = {
     crashClose: 'Tutup',
   },
   vi: {
+    dockNotPlaying: 'Không phát',
+    dockRepeat: 'Lặp lại',
+    dockRepeatOff: 'Tắt',
+    dockRepeatAll: 'Tất cả',
+    dockRepeatOne: 'Một bài',
+    trayPrevious: 'Bài trước',
+    trayPlay: 'Phát',
+    trayPause: 'Tạm dừng',
+    trayNext: 'Bài tiếp theo',
     trayShowWindow: 'Hiện cửa sổ',
     trayHideWindow: 'Ẩn cửa sổ',
     trayOpenRemote: 'Cửa sổ điều khiển',
@@ -2552,6 +2597,7 @@ installCrashHandlers({
 
 
 let mainWindow = null;
+let trayPlaybackState = { hasActiveTrack: false, canGoPrevious: false, canGoNext: false, isPlaying: false, title: '', artist: '', loopMode: 'off', canCycleLoop: false };
 let modSystem = null;
 let remoteControlWindow = null;
 let appTray = null;
@@ -3378,12 +3424,33 @@ async function enableDesktopLyricsLeavingWallpaperMode() {
   refreshTrayMenu();
 }
 
+function buildMacPlaybackMenu(locale) {
+  const available = Boolean(mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed() && !mainWindow.webContents.isLoading() && trayPlaybackState.hasActiveTrack);
+  const trackLabel = trayPlaybackState.title
+    ? [trayPlaybackState.title, trayPlaybackState.artist].filter(Boolean).join(' — ')
+    : locale.dockNotPlaying;
+  const repeatLabel = { off: locale.dockRepeatOff, all: locale.dockRepeatAll, one: locale.dockRepeatOne }[trayPlaybackState.loopMode];
+  return [
+    { label: trackLabel, enabled: false },
+    { type: 'separator' },
+    { label: locale.trayPrevious, enabled: available && trayPlaybackState.canGoPrevious, click: () => sendThumbarAction('previous') },
+    { label: trayPlaybackState.isPlaying ? locale.trayPause : locale.trayPlay, enabled: available, click: () => sendThumbarAction('play-pause') },
+    { label: locale.trayNext, enabled: available && trayPlaybackState.canGoNext, click: () => sendThumbarAction('next') },
+    { type: 'separator' },
+    { label: `${locale.dockRepeat}: ${repeatLabel}`, enabled: available && trayPlaybackState.canCycleLoop, click: () => {
+      if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
+        mainWindow.webContents.send('remote-control-command', { type: 'cycle-loop-mode' });
+      }
+    } },
+  ];
+}
+
 function refreshTrayMenu() {
+  const locale = getMainLocale();
+  if (process.platform === 'darwin') app.dock.setMenu(Menu.buildFromTemplate(buildMacPlaybackMenu(locale)));
   if (!appTray) {
     return;
   }
-
-  const locale = getMainLocale();
   const hasMainWindow = Boolean(mainWindow && !mainWindow.isDestroyed());
   const remoteOpen = Boolean(remoteControlWindow && !remoteControlWindow.isDestroyed());
   const wallpaperOn = isWallpaperModeEnabled();
@@ -3554,6 +3621,7 @@ function ensureTray() {
     appTray = new Tray(createTrayIconImage());
   } catch (error) {
     console.error('[Electron] Failed to create tray icon', error);
+    refreshTrayMenu();
     return null;
   }
 
@@ -5949,6 +6017,20 @@ function createWindow(options = {}) {
     x11WallpaperWindows.add(win);
   }
 
+  if (process.platform === 'darwin') {
+    win.webContents.on('did-start-loading', () => {
+      if (win !== mainWindow) return;
+      trayPlaybackState = { hasActiveTrack: false, canGoPrevious: false, canGoNext: false, isPlaying: false, title: '', artist: '', loopMode: 'off', canCycleLoop: false };
+      refreshTrayMenu();
+    });
+    win.webContents.on('did-stop-loading', () => { if (win === mainWindow) refreshTrayMenu(); });
+    win.webContents.on('render-process-gone', () => {
+      if (win !== mainWindow) return;
+      trayPlaybackState = { hasActiveTrack: false, canGoPrevious: false, canGoNext: false, isPlaying: false, title: '', artist: '', loopMode: 'off', canCycleLoop: false };
+      refreshTrayMenu();
+    });
+  }
+
   // A window that stops answering: with mods running, offer to wait or to reopen without them.
   win.on('unresponsive', () => {
     win.__stoppedAnswering = true;
@@ -6082,6 +6164,8 @@ function createWindow(options = {}) {
   win.on('closed', () => {
     if (mainWindow === win) {
       mainWindow = null;
+      trayPlaybackState = { hasActiveTrack: false, canGoPrevious: false, canGoNext: false, isPlaying: false, title: '', artist: '', loopMode: 'off', canCycleLoop: false };
+      refreshTrayMenu();
       // macOS keeps the app running when its window is closed, so no `before-quit` follows: for
       // the mods' start note, closing the window is the normal way out there (see `before-quit`).
       // Not for a page that had stopped answering: that is what the note is for.
@@ -7738,12 +7822,21 @@ ipcMain.handle('thumbar-update-buttons', (event, state) => {
     throw new Error('Untrusted renderer attempted to update taskbar controls.');
   }
 
-  return updateWindowThumbarButtons({
+  const nextState = {
     hasActiveTrack: Boolean(state?.hasActiveTrack),
     canGoPrevious: Boolean(state?.canGoPrevious),
     canGoNext: Boolean(state?.canGoNext),
     isPlaying: Boolean(state?.isPlaying),
-  });
+    title: typeof state?.title === 'string' ? state.title.replace(/[\x00-\x1f\x7f]/g, ' ').trim().slice(0, 100) : '',
+    artist: typeof state?.artist === 'string' ? state.artist.replace(/[\x00-\x1f\x7f]/g, ' ').trim().slice(0, 100) : '',
+    loopMode: ['off', 'all', 'one'].includes(state?.loopMode) ? state.loopMode : 'off',
+    canCycleLoop: Boolean(state?.canCycleLoop),
+  };
+  if (process.platform === 'darwin' && Object.keys(nextState).some(key => nextState[key] !== trayPlaybackState[key])) {
+    trayPlaybackState = nextState;
+    refreshTrayMenu();
+  }
+  return updateWindowThumbarButtons(nextState);
 });
 
 ipcMain.handle('remote-control-open', (event) => {
