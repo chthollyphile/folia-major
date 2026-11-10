@@ -75,17 +75,9 @@ const AppShell: React.FC<AppShellProps> = ({
     const [isWindowFullscreen, setIsWindowFullscreen] = useState(false);
     const hasFullscreenTitlebarButton = isElectronWindow && !hideFullscreenButton;
     const playerHeaderBlur = usePlayerChromeSettingsStore(state => state.playerHeaderBlur);
-    const useNativeMacTrafficLights = usePlayerChromeSettingsStore(state => state.useNativeMacTrafficLights);
-    // mac 上开了原生红绿灯时，右上角只剩遥控/全屏按钮，锁与切歌组贴着它们排；
-    // 关掉时右上角仍是全家桶，沿用 Windows 的宽度。
-    const isMacPlatform = window.electron?.platform === 'darwin';
-    const macChromeCompact = isMacPlatform && useNativeMacTrafficLights;
-    const clickThroughLockRightClass = macChromeCompact
-        ? (hasFullscreenTitlebarButton ? 'right-[92px]' : 'right-[48px]')
-        : (hasFullscreenTitlebarButton ? 'right-[224px]' : 'right-[180px]');
-    const clickThroughTransportRightClass = macChromeCompact
-        ? (hasFullscreenTitlebarButton ? 'right-[126px]' : 'right-[82px]')
-        : (hasFullscreenTitlebarButton ? 'right-[258px]' : 'right-[214px]');
+    // 窗口按钮靠左时，锁和切歌按钮照镜像排在它们右边，离窗口左缘的距离与靠右时离右缘的一样。
+    const titlebarSide = usePlayerChromeSettingsStore(state => state.titlebarSide);
+    const leftControls = titlebarSide === 'left';
 
     useEffect(() => {
         if (!useCustomWindowRadius || !window.electron?.isWindowMaximized) {
@@ -180,16 +172,6 @@ const AppShell: React.FC<AppShellProps> = ({
                     ? 'bg-black/[0.18] border-b border-white/10 shadow-[0_8px_28px_rgba(0,0,0,0.20)]'
                     : ''
         }`;
-    // macOS 原生红绿灯跟标题栏按钮同节奏：平时和点击穿透时藏掉，悬停顶部或常驻设置时放出。
-    // 全屏由系统自动隐藏/唤出，这里照常联动不会打架。仅在设置开启时接管。
-    useEffect(() => {
-        if (!isMacPlatform || !useNativeMacTrafficLights || !window.electron?.setTrafficLightsVisible) {
-            return;
-        }
-        void window.electron.setTrafficLightsVisible(
-            areTitlebarControlsVisible && !isMainWindowClickThroughEnabled,
-        );
-    }, [isMacPlatform, useNativeMacTrafficLights, areTitlebarControlsVisible, isMainWindowClickThroughEnabled]);
 
     return (
         <div
@@ -216,7 +198,11 @@ const AppShell: React.FC<AppShellProps> = ({
                     <div className="relative h-full">
                         <TitlebarDragZone active={usesCustomWindowChrome} />
                         <div
-                            className={`pointer-events-auto absolute ${isMacPlatform ? 'top-1' : 'top-0'} z-20 h-full flex items-center ${clickThroughLockRightClass}`}
+                            className={`pointer-events-auto absolute ${window.electron?.platform === 'darwin' ? 'top-1' : 'top-0'} z-20 h-full flex items-center ${
+                                leftControls
+                                    ? hasFullscreenTitlebarButton ? 'left-[224px]' : 'left-[180px]'
+                                    : hasFullscreenTitlebarButton ? 'right-[224px]' : 'right-[180px]'
+                            }`}
                             style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
                         >
                             <button
@@ -245,7 +231,11 @@ const AppShell: React.FC<AppShellProps> = ({
                             右缘离锁 6px：锁在 right-[180px]/right-[224px]、宽 28px，这组宽 86px。
                             不放锁右边：那样热区要伸到离右边 84px，压住下面窗口的最小化/最大化按钮。 */}
                         <div
-                            className={`pointer-events-none absolute ${isMacPlatform ? 'top-1' : 'top-0'} z-20 h-full flex items-center ${clickThroughTransportRightClass}`}
+                            className={`pointer-events-none absolute ${window.electron?.platform === 'darwin' ? 'top-1' : 'top-0'} z-20 h-full flex items-center ${
+                                leftControls
+                                    ? hasFullscreenTitlebarButton ? 'left-[258px]' : 'left-[214px]'
+                                    : hasFullscreenTitlebarButton ? 'right-[258px]' : 'right-[214px]'
+                            }`}
                             // 只在点击穿透时扣出不可拖的区域：平时这组按钮不出现，标题栏这一段照常能拖窗口。
                             style={isMainWindowClickThroughEnabled ? { WebkitAppRegion: 'no-drag' } as React.CSSProperties : undefined}
                         >
@@ -255,8 +245,9 @@ const AppShell: React.FC<AppShellProps> = ({
                                 onAction={onClickThroughTransportAction}
                             />
                         </div>
-                        <div className="pointer-events-auto absolute top-0 right-0 z-10 h-full">
+                        <div className={`pointer-events-auto absolute top-0 ${leftControls ? 'left-0' : 'right-0'} z-10 h-full`}>
                             <WindowControls
+                                side={titlebarSide}
                                 revealed={areTitlebarControlsVisible}
                                 isDaylight={isDaylight}
                                 isMainWindowClickThroughEnabled={isMainWindowClickThroughEnabled}

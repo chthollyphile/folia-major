@@ -5389,6 +5389,7 @@ function isCursorInsideMainWindowClickThroughUnlockHotspot() {
   // Docked DevTools can make the page narrower than the native window.
   return isCursorInsideUnlockHotspot({
     bounds, cursor, hotspot: MAIN_WINDOW_CLICK_THROUGH_UNLOCK_HOTSPOT,
+    side: mainWindowUnlockHoverRequests.getSide(),
     viewportWidth: process.platform === 'darwin' ? mainWindowUnlockHoverRequests.getViewportWidth() : null,
     viewportOrigin: process.platform === 'darwin' ? mainWindowUnlockHoverRequests.getViewportOrigin(bounds) : null,
     scale,
@@ -7520,12 +7521,12 @@ ipcMain.handle('window-set-click-through', (event, enabled) => {
   return setMainWindowClickThroughEnabled(enabled);
 });
 
-ipcMain.handle('window-set-click-through-unlock-hover', (event, active, viewportWidth, coordinates) => {
+ipcMain.handle('window-set-click-through-unlock-hover', (event, active, viewportWidth, coordinates, side) => {
   if (!isTrustedMainWindowContents(event.sender)) {
     return false;
   }
 
-  return mainWindowUnlockHoverRequests.handle(active, viewportWidth, coordinates, mainWindow.getBounds(), mainWindow.webContents.getZoomFactor());
+  return mainWindowUnlockHoverRequests.handle(active, viewportWidth, coordinates, mainWindow.getBounds(), mainWindow.webContents.getZoomFactor(), side);
 });
 
 ipcMain.handle('window-get-always-on-top', (event) => {

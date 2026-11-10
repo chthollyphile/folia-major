@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
 import { useDesktopSettingsStore } from '../../../../stores/useDesktopSettingsStore';
 import { usePlayerChromeSettingsStore } from '../../../../stores/usePlayerChromeSettingsStore';
-import { FoldedGroup, Group, Reveal, Row, Toggle, option, type SettingsGroupDef, type SettingsOptionDef } from '../kit';
+import { FoldedGroup, Group, Reveal, Row, Toggle, Segmented, option, type SettingsGroupDef, type SettingsOptionDef } from '../kit';
 import { WallpaperDisplayRow } from './desktop/WallpaperDisplayRow';
 import { hasWallpaperDisplayChoice } from './desktop/wallpaperDisplays';
 
@@ -18,6 +18,7 @@ const O = {
     minimizeToTray: option(WINDOW, 'minimizeToTray', 'options.minimizeToTray'),
     closeToTray: option(WINDOW, 'closeToTray', 'options.closeToTray'),
     hideTaskbarIcon: option(WINDOW, 'hideTaskbarIcon', 'options.hideTaskbarIcon'),
+    titlebarSide: option(WINDOW, 'titlebarSide', 'options.titlebarSide'),
     hideFullscreenButton: option(WINDOW, 'hideFullscreenButton', 'options.hideFullscreenButton'),
     nativeMacFullscreen: option(WINDOW, 'useNativeMacFullscreenButton', 'options.useNativeMacFullscreenButton'),
     nativeMacTrafficLights: option(WINDOW, 'useNativeMacTrafficLights', 'options.useNativeMacTrafficLights'),
@@ -65,6 +66,8 @@ const DesktopPage: React.FC = () => {
         setRemoteTextShade: state.handleToggleRemoteControlTextShade,
     })));
     const chrome = usePlayerChromeSettingsStore(useShallow(state => ({
+        titlebarSide: state.titlebarSide,
+        setTitlebarSide: state.handleSetTitlebarSide,
         hideFullscreenButton: state.hideFullscreenButton,
         nativeMacFullscreen: state.useNativeMacFullscreenButton,
         trafficLights: state.useNativeMacTrafficLights,
@@ -90,6 +93,10 @@ const DesktopPage: React.FC = () => {
                 <Reveal when={desktop.hideTaskbarIcon}>
                     <Row sub notice={t('options.hideTaskbarIconNotice')} />
                 </Reveal>
+                <Row option={O.titlebarSide} hint={t('options.titlebarSideDesc')}>
+                    <Segmented value={chrome.titlebarSide} onChange={chrome.setTitlebarSide}
+                        options={[{ value: 'left', label: t('options.titlebarSideLeft') }, { value: 'right', label: t('options.titlebarSideRight') }]} />
+                </Row>
                 <Row option={O.hideFullscreenButton} hint={t('options.hideFullscreenButtonDesc')}>
                     <Toggle checked={chrome.hideFullscreenButton} onChange={chrome.setHideFullscreenButton} />
                 </Row>

@@ -317,4 +317,5 @@ export const STORAGE_KEYS = [
     'web:wallpaper_mac_autohide_dock',
     'web:wallpaper_mode',
     'web:web_obs_theme_mode',
+    'web:window_titlebar_side',
 ];

@@ -30,11 +30,14 @@ export const CLICK_THROUGH_MEDIA_CONTROLS_RIGHT_OFFSET_WITH_FULLSCREEN_BUTTON = 
 export const CLICK_THROUGH_MEDIA_CONTROLS_WIDTH = 86;
 
 // Whether a viewport point lies inside the unlock hotspot of a window `viewportWidth` px wide.
+// With the window buttons on the left the whole row is mirrored, so the point is mirrored too.
 export const isWithinClickThroughUnlockHotspot = (
     clientX: number,
     clientY: number,
     viewportWidth: number,
+    side: 'left' | 'right' = 'right',
 ): boolean => {
+    if (side === 'left') clientX = viewportWidth - clientX;
     const right = viewportWidth - CLICK_THROUGH_UNLOCK_HOTSPOT.rightInset;
     const left = right - CLICK_THROUGH_UNLOCK_HOTSPOT.width;
     const top = CLICK_THROUGH_UNLOCK_HOTSPOT.topInset;

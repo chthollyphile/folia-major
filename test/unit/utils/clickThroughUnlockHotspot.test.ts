@@ -21,6 +21,18 @@ const VIEWPORT_WIDTH = 1920;
 const BUTTON_CENTER_Y = 16;
 
 describe('click-through unlock hotspot', () => {
+    it('mirrors the hotspot for left-side window buttons without enabling the opposite edge', () => {
+        // Mirrored AppShell offsets: the lock at left-[180px]/left-[224px], the media group at
+        // left-[214px]/left-[258px], each as wide as on the right.
+        const lockRight = CLICK_THROUGH_UNLOCK_BUTTON_RIGHT_OFFSET_WITH_FULLSCREEN_BUTTON + CLICK_THROUGH_UNLOCK_BUTTON_WIDTH;
+        const mediaRight = CLICK_THROUGH_MEDIA_CONTROLS_RIGHT_OFFSET_WITH_FULLSCREEN_BUTTON + CLICK_THROUGH_MEDIA_CONTROLS_WIDTH;
+        for (let x = CLICK_THROUGH_UNLOCK_BUTTON_RIGHT_OFFSET; x <= Math.max(lockRight, mediaRight); x += 1) {
+            expect(isWithinClickThroughUnlockHotspot(x, BUTTON_CENTER_Y, VIEWPORT_WIDTH, 'left')).toBe(true);
+        }
+        expect(isWithinClickThroughUnlockHotspot(30, 20, VIEWPORT_WIDTH, 'left')).toBe(false);
+        expect(isWithinClickThroughUnlockHotspot(VIEWPORT_WIDTH - 240, 20, VIEWPORT_WIDTH, 'left')).toBe(false);
+    });
+
     it.each([
         ['without the fullscreen button', CLICK_THROUGH_UNLOCK_BUTTON_RIGHT_OFFSET],
         ['with the fullscreen button', CLICK_THROUGH_UNLOCK_BUTTON_RIGHT_OFFSET_WITH_FULLSCREEN_BUTTON],
