@@ -8,29 +8,29 @@
 
 /** Which quit asks the bridges to shut down (see the file header). */
 function createQuitShutdownGate() {
-  // Set by the quit that comes back after the bridges held it: that quit has been asked already.
-  let resumed = false;
-  return {
+    // Set by the quit that comes back after the bridges held it: that quit has been asked already.
+    let resumed = false;
+    return {
     /** Marks the quit that comes back after the bridges held it. */
-    resume() {
-      resumed = true;
-    },
-    /**
+        resume() {
+            resumed = true;
+        },
+        /**
      * Whether this `before-quit` must ask the bridges. The mark is spent here, because the quit it
      * belongs to has arrived; a quit nobody held starts out asking.
      *
      * `holding`: a quit the bridges held is still under way, so this one is that quit asked for again,
      * not a new quit to ask for.
      */
-    asks({ holding = false } = {}) {
-      // Spent by whichever quit arrives, the held one included: a quit that comes while the bridges
-      // still hold another is the quit they were asked for, and the quit after it is a new one.
-      const wasResumed = resumed;
-      resumed = false;
-      if (holding) return false;
-      return !wasResumed;
-    },
-  };
+        asks({ holding = false } = {}) {
+            // Spent by whichever quit arrives, the held one included: a quit that comes while the bridges
+            // still hold another is the quit they were asked for, and the quit after it is a new one.
+            const wasResumed = resumed;
+            resumed = false;
+            if (holding) return false;
+            return !wasResumed;
+        },
+    };
 }
 
 module.exports = { createQuitShutdownGate };

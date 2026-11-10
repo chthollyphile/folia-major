@@ -170,7 +170,8 @@ const adoptRunningTrack = async (
         if (!await adoptExternalPlayback(track)) {
             // The player did not hold the track any more: the remembered song is the song this app
             // shows again, and nothing of the track was written anywhere. The player is left as it is.
-            makeSongCurrent(song);
+            // A song asked for while the take-over waited keeps the screen.
+            if (askedSongKeyRef.current === getPlaybackSongKey(track)) makeSongCurrent(song);
             return false;
         }
         dropPlayIntent(options.shouldAutoPlayRef);
@@ -184,6 +185,8 @@ const adoptRunningTrack = async (
         if (durationMs > 0) setDuration(durationMs / 1000);
         showExternalPosition(track, running.positionMs, () => !stillCurrent());
     }
+    // A song asked for while the take-over waited owns the queue now: nothing of this track is written.
+    if (askedSongKeyRef.current !== getPlaybackSongKey(track)) return true;
     const queue = queueWithRunningTrack(options.queueBase(), track, song);
     options.setPlayQueue?.(queue);
     void options.persistLastPlaybackCache?.(track, queue);
