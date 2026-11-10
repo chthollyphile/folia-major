@@ -3,11 +3,15 @@
 // 稳定部分有删除或改写的行、而大版本（electron/modSystem/foliumShared.json 的 version.major）没变，报 error；
 // 稳定部分有新增的行、而小版本没变，也报 error（新增稳定接口要升 minor）。注释的改动不算；实验部分
 // （“---- Experimental”一节，以及文档注释带实验标记的声明或成员，见 experimentalLines）不受限。
+// 写着版本号的那一行（FOLIUM_VERSION）不算接口：升 minor 就是改它，它该怎么变由上面两条管。
 
 export const FOLIUM_TYPES = 'mods/folium.d.ts';
 export const FOLIUM_VERSION_FILE = 'electron/modSystem/foliumShared.json';
 
 const isComment = text => /^\s*(\/\/|\/\*|\*)/.test(text) || text.trim() === '';
+
+/** 生成的类型里写着契约版本号的那一行。 */
+const isVersionLine = text => /^export declare const FOLIUM_VERSION\b/.test(text);
 
 /** 文档注释里的实验标记：EXPERIMENTAL，或者 “(experimental, `omni.hooks`)” 这样的括注；只是提到 experimental 这个词的不算。 */
 const EXPERIMENTAL_MARK = /EXPERIMENTAL|\(experimental\b/;
@@ -86,8 +90,9 @@ export function checkFoliumApi(files, { readBase, readCurrent }) {
     if (before === null || after === null) return [];
     const oldFlags = experimentalLines(before);
     const newFlags = experimentalLines(after);
-    const removed = diff.removed.filter(entry => !isComment(entry.text) && !oldFlags[entry.oldLine]);
-    const added = diff.added.filter(entry => !isComment(entry.text) && !newFlags[entry.newLine]);
+    const counts = text => !isComment(text) && !isVersionLine(text);
+    const removed = diff.removed.filter(entry => counts(entry.text) && !oldFlags[entry.oldLine]);
+    const added = diff.added.filter(entry => counts(entry.text) && !newFlags[entry.newLine]);
     // 改一行在 diff 里是一删一加：成对的算“改动”，只报一次（按删除行）
     const removedTexts = new Set(removed.map(entry => entry.text.trim()));
     const addedOnly = added.filter(entry => !removedTexts.has(entry.text.trim()));

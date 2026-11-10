@@ -54,6 +54,7 @@ const appActions = (overrides: Partial<FoliumAppActions> = {}): FoliumAppActions
     play: vi.fn(), pause: vi.fn(), toggle: vi.fn(), seek: vi.fn(), seekToLyricTime: vi.fn(),
     next: vi.fn(), previous: vi.fn(), playSong: vi.fn(), playQueueSong: vi.fn(), enqueue: vi.fn(),
     navigateToPlayer: vi.fn(), navigateToHome: vi.fn(),
+    navigateBackFromPlayer: vi.fn(), navigateBackFromLattice: vi.fn(), backCollection: vi.fn(), closeSearchView: vi.fn(),
     shuffleQueue: vi.fn(), toggleLike: vi.fn(), openVolume: vi.fn(),
     isLiked: false, controlsDisabled: false, isLyricsLoading: false,
     persistQueue: vi.fn(async () => undefined), refreshQueuePrefetch: vi.fn(),

@@ -1405,6 +1405,8 @@ export default {
     "visualizerModeHint": "Mengganti gaya animasi lirik Anda, seperti yang Anda lakukan di panel pemutar.",
     "visualizerTuningHint": "Mengubah opsi gaya lirik bawaan (kecuali pengaturan kualitas).",
     "visualizerBeatEffectsHint": "Menyalakan atau mematikan efek ketukan mode ketukan pintar dan mengubah kekuatannya; mode ketukan pintar itu sendiri tetap Anda yang memilih, tetapi saat Aktif efek yang dinyalakan membuat GPU menganalisis lagu baru.",
+    "visualizerBackgroundHint": "Mengganti jenis latar belakang pemutar (kecuali gambar dan opsi setiap latar belakang).",
+    "visualizerAnimationIntensityHint": "Mengubah intensitas animasi lirik dan latar belakang.",
     "signatureVerified": "Terverifikasi",
     "signatureVerifiedDetail": "Memiliki tanda tangan resmi Folium yang valid ({{key}}): sumber dan isinya telah ditinjau Folium dan tidak berubah sejak ditandatangani. Setelah diaktifkan, mod tetap berjalan dengan hak penuh aplikasi.",
     "signatureBeta": "Pratinjau",
