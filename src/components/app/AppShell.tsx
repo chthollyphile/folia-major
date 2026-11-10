@@ -75,6 +75,9 @@ const AppShell: React.FC<AppShellProps> = ({
     const [isWindowFullscreen, setIsWindowFullscreen] = useState(false);
     const hasFullscreenTitlebarButton = isElectronWindow && !hideFullscreenButton;
     const playerHeaderBlur = usePlayerChromeSettingsStore(state => state.playerHeaderBlur);
+    // 窗口按钮靠左时，锁和切歌按钮照镜像排在它们右边，离窗口左缘的距离与靠右时离右缘的一样。
+    const titlebarSide = usePlayerChromeSettingsStore(state => state.titlebarSide);
+    const leftControls = titlebarSide === 'left';
 
     useEffect(() => {
         if (!useCustomWindowRadius || !window.electron?.isWindowMaximized) {
@@ -176,6 +179,8 @@ const AppShell: React.FC<AppShellProps> = ({
             className="fixed inset-0 w-full h-full flex flex-col overflow-hidden font-sans transition-colors duration-500"
             style={{
                 ...appStyle,
+                // 窗口按钮靠左时，墙面左上角那一排（返回、刷新、分区）下移 28px 让开标题栏，见 WallBackButton.css。
+                ...(usesCustomWindowChrome && leftControls ? { '--window-buttons-drop': '28px' } : null),
                 borderRadius: shouldApplyWindowRadius ? resolveWindowCornerRadius(window.electron?.platform ?? '') : undefined,
                 boxShadow: showTransparentWindowBorder ? 'inset 0 0 0 1px rgba(255,255,255,0.24)' : undefined,
             }}
@@ -196,7 +201,9 @@ const AppShell: React.FC<AppShellProps> = ({
                         <TitlebarDragZone active={usesCustomWindowChrome} />
                         <div
                             className={`pointer-events-auto absolute ${window.electron?.platform === 'darwin' ? 'top-1' : 'top-0'} z-20 h-full flex items-center ${
-                                hasFullscreenTitlebarButton ? 'right-[224px]' : 'right-[180px]'
+                                leftControls
+                                    ? hasFullscreenTitlebarButton ? 'left-[224px]' : 'left-[180px]'
+                                    : hasFullscreenTitlebarButton ? 'right-[224px]' : 'right-[180px]'
                             }`}
                             style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
                         >
@@ -227,7 +234,9 @@ const AppShell: React.FC<AppShellProps> = ({
                             不放锁右边：那样热区要伸到离右边 84px，压住下面窗口的最小化/最大化按钮。 */}
                         <div
                             className={`pointer-events-none absolute ${window.electron?.platform === 'darwin' ? 'top-1' : 'top-0'} z-20 h-full flex items-center ${
-                                hasFullscreenTitlebarButton ? 'right-[258px]' : 'right-[214px]'
+                                leftControls
+                                    ? hasFullscreenTitlebarButton ? 'left-[258px]' : 'left-[214px]'
+                                    : hasFullscreenTitlebarButton ? 'right-[258px]' : 'right-[214px]'
                             }`}
                             // 只在点击穿透时扣出不可拖的区域：平时这组按钮不出现，标题栏这一段照常能拖窗口。
                             style={isMainWindowClickThroughEnabled ? { WebkitAppRegion: 'no-drag' } as React.CSSProperties : undefined}
@@ -238,8 +247,9 @@ const AppShell: React.FC<AppShellProps> = ({
                                 onAction={onClickThroughTransportAction}
                             />
                         </div>
-                        <div className="pointer-events-auto absolute top-0 right-0 z-10 h-full">
+                        <div className={`pointer-events-auto absolute top-0 ${leftControls ? 'left-0' : 'right-0'} z-10 h-full`}>
                             <WindowControls
+                                side={titlebarSide}
                                 revealed={areTitlebarControlsVisible}
                                 isDaylight={isDaylight}
                                 isMainWindowClickThroughEnabled={isMainWindowClickThroughEnabled}

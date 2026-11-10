@@ -6,7 +6,8 @@
    square-everything rule is deliberately overridden. */
 .lattice-back {
     position: absolute;
-    top: 20px;
+    /* --window-buttons-drop：窗口按钮靠左时 AppShell 设的下移量，让开标题栏；借用这个类的刷新钮、分区胶囊一起下移。 */
+    top: calc(20px + var(--window-buttons-drop, 0px));
     left: 24px;
     z-index: 5;
     display: grid;
@@ -56,5 +57,5 @@
 :root[data-reduce-motion~='lattice'] .lattice-back.is-concealed { transition: none; }
 
 @media (max-width: 640px) {
-    .lattice-back { top: 14px; left: 16px; }
+    .lattice-back { top: calc(14px + var(--window-buttons-drop, 0px)); left: 16px; }
 }
