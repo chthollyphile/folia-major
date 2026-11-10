@@ -37,7 +37,15 @@ const MAX_PORT_CANDIDATES = 32;
 const STATUS_PORT_SEARCHES = 2;
 const STATUS_PORT_SEARCH_GAP_MS = 3000;
 const PORT_PROBE_LIMIT_MS = 600;
+// The first of the two waits a start makes: how long the app itself is waited for - its process, its
+// DevTools port and a page that answers a script - whichever way the start began (from nothing, after
+// closing a Spotify the listener had open, or joining one already running).
 const LAUNCH_WAIT_MS = 25000;
+// The second wait, which begins only once that page has finished loading: how long the player inside
+// the app is looked for. A build whose UI changed loads its page and answers no player at all, so a
+// press must not be held for the whole of the first wait for it; a page that is still loading has not
+// started this one, so a slow start keeps the whole of the first.
+const PLAYER_FIND_WAIT_MS = 8000;
 // How long a play waits for its track: the time the track itself makes no progress (a free account's
 // advertisement does not count against it), and the whole wait, advertisement and all.
 const START_LIMIT_MS = 5000;
@@ -127,6 +135,13 @@ const FORGET_APIS = `(() => {
 
 // The body of one call in the page, with the APIs as `api`.
 const inPage = body => `(async () => { const api = ${FIND_APIS}; if (!api) throw new Error('player-unavailable'); ${body} })()`;
+
+// Runs in the Spotify page: whether the app's own main interface has finished loading. The page that
+// answers a script is not the page that is ready - a document still loading has a React tree without
+// the player in it - so this is what starts the short wait for the player find below. The document
+// being complete is the signal Spotify's own shell gives: its UI is mounted by then, and the main
+// element it mounts into is there.
+const PAGE_LOADED = `(() => document.readyState === 'complete' && Boolean(document.getElementById('main')))()`;
 
 // The player's state as it stands, read in the page and turned into Folia's status here
 // (`statusFromPlayerState`). Page and process share one clock: both run on this computer.
@@ -871,9 +886,11 @@ function createMediaSession({ spawnProcess, warn, shellPath = 'powershell.exe', 
 
 // `env` names the folders the launcher is looked for in; `platform` is process.platform. `port` is
 // the DevTools port to ask for: 0 (the default) lets Spotify's CEF pick one, which is then looked for.
+// `restartConsented` answers whether the listener agreed to Folia closing and starting their Spotify
+// again: without a yes the app they have open is not touched (restartConsent.cjs keeps the answer).
 function createSpotifyOfficialClient({
     env = process.env, platform = process.platform, fetch = globalThis.fetch, port = 0,
-    spawnProcess = spawn, runFile = execFile, waitFor = wait,
+    spawnProcess = spawn, runFile = execFile, waitFor = wait, restartConsented = () => false,
     log = (...args) => console.log(...args), warn = (...args) => console.warn(...args),
 } = {}) {
     // Windows' own tools are run by their absolute path: a process started with a PATH another
@@ -1100,9 +1117,14 @@ function createSpotifyOfficialClient({
         let skipPids = [];
         if (!answers) {
             const launcher = findLauncher(env);
-            if (!launcher) throw spotifyError('unavailable', 'The Spotify app is not installed');
+            if (!launcher) throw spotifyError('unavailable', 'The Spotify app is not installed', undefined, 'player-not-installed');
             if (await spotifyIsRunning()) {
                 if (!allowRestart) throw spotifyError('unavailable', 'Spotify runs without its DevTools port', 'this call may not restart it');
+                // Closing the app the listener has open is theirs to agree to, and the question is
+                // asked once (restartConsent.cjs): no answer means their Spotify stays as it is.
+                if (!restartConsented()) {
+                    throw spotifyError('unavailable', 'Spotify runs without its DevTools port', 'the listener has not agreed to a restart', 'player-restart-consent');
+                }
                 if (forceRestarts >= MAX_FORCE_RESTARTS) {
                     throw spotifyError('unavailable', 'Spotify runs without its DevTools port', `a restart already spent this run (${forceRestarts})`);
                 }
@@ -1145,11 +1167,15 @@ function createSpotifyOfficialClient({
             startedByUs = true;
             log('[SpotifyClient] Spotify was started with the DevTools port');
         }
+        // The first wait: the app, its DevTools port and a page that answers a script.
         const deadline = Date.now() + LAUNCH_WAIT_MS;
+        // The second, for the player inside that page. It begins at the first round the page says it
+        // has finished loading, and the moment it began is kept, so a later round cannot move it.
+        let findDeadline = 0;
         let lastError = null;
         let rounds = 0;
         try {
-            while (Date.now() < deadline) {
+            while (Date.now() < (findDeadline || deadline)) {
                 rounds += 1;
                 // The fallback sweep runs at the first round a window can exist: measured, Spotify shows its
                 // window 0.5-1.1 s after the alias is run, so a sweep at 1.4 s is a window on the screen for
@@ -1160,6 +1186,14 @@ function createSpotifyOfficialClient({
                         if (spawned) await sweepSpotifyWindows(skipPids);
                         return;
                     }
+                    // A page answered a script, so what a round before it failed with is stale: a start
+                    // that ends on a wait of its own is the player not being found, not a connection
+                    // that has worked ever since.
+                    lastError = null;
+                    // A page that answers a script is not a page that is ready, and which of the two
+                    // waits the player is looked for under is decided by the app's own interface
+                    // having finished loading.
+                    if (!findDeadline && await page.evaluate(PAGE_LOADED)) findDeadline = Date.now() + PLAYER_FIND_WAIT_MS;
                 } catch (error) {
                     lastError = error;
                     page.close();
@@ -1170,7 +1204,8 @@ function createSpotifyOfficialClient({
             // The start is over, hidden window or not: the watcher goes with it.
             stopWindowWatch();
         }
-        throw lastError ?? spotifyError('unavailable', 'Spotify\'s player was not found');
+        if (findDeadline) log(`[SpotifyClient] Spotify loaded its page and answered no player in ${PLAYER_FIND_WAIT_MS / 1000} s`);
+        throw lastError ?? spotifyError('unavailable', 'Spotify\'s player was not found', undefined, 'player-not-found');
     }
 
     const ensure = options => {
@@ -1416,6 +1451,17 @@ function createSpotifyOfficialClient({
                 else log('[SpotifyClient] this status read found no DevTools port for Spotify (' + which + ')');
             }
             return readStatus();
+        },
+
+        // The player is let go: the media session helper and the DevTools connection are ended, and
+        // the next call builds both again. Spotify itself is left running as it is. This is what
+        // leaving Spotify's own app for another way of playing, and signing out of it, do: nothing of
+        // Folia's is left steering an app it no longer plays in, and the helper process is not left
+        // behind for the rest of the run.
+        async release() {
+            page.close();
+            mediaSession?.close();
+            stopWindowWatch();
         },
 
         // The app is quitting: the page connection and the media session helper are let go. Nothing in

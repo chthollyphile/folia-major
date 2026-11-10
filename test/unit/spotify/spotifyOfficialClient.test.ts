@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createRequire } from 'node:module';
@@ -21,6 +21,10 @@ const {
 } = require('../../../electron/spotify/officialClient.cjs');
 const { createSpotifyApiBridge, SPOTIFY_OPERATIONS } = require('../../../electron/spotify/spotifyApiBridge.cjs');
 const { spotifyError } = require('../../../electron/spotify/errors.cjs');
+
+import { OnlineProviderError } from '@/types/onlineMusic';
+import { onlineFailureOf, stopsPlayback } from '@/services/onlineMusic/failure/onlineFailureCase';
+import { describeSpotifyFailure } from '@/services/onlineMusic/spotify/spotifyFailure';
 
 const TRACK = '4uLU6hMCjMI75M1A2tKUQC';
 // A call that cannot reach the page costs three connections: the call itself, the look again with
@@ -132,7 +136,8 @@ class FakeSocket {
             this.onmessage?.({ data: JSON.stringify({ id: command.id, result: { result: { value: outcome.value } } }) });
         });
     }
-    close() { this.onclose?.(); }
+    closed = false;
+    close() { this.closed = true; this.onclose?.(); }
 }
 
 const mediaAnswers: Record<string, unknown> = {};
@@ -194,6 +199,8 @@ type ClientOptions = {
     activePort?: number;
     /** What `netstat -ano` answers: the loopback listeners of the machine, as it lays them out. */
     netstat?: string;
+    /** Whether the listener already agreed to a restart. Default true: most tests are about the restart. */
+    consented?: boolean;
 };
 
 const makeClient = (options: ClientOptions = {}) => {
@@ -237,9 +244,12 @@ const makeClient = (options: ClientOptions = {}) => {
     const env = root ? { LOCALAPPDATA: root } : {};
     const warn = vi.fn();
     const log = vi.fn();
+    // Whether the listener already agreed to Folia closing and starting Spotify again: a plain
+    // object, so a test can answer no and then yes in the same run.
+    const consent = { value: options.consented !== false };
     const client = createSpotifyOfficialClient({
         platform: 'win32', env, fetch, spawnProcess, runFile, waitFor, log, warn,
-        port: options.port ?? 9283,
+        port: options.port ?? 9283, restartConsented: () => consent.value,
     });
     // The script a PowerShell was started with: -EncodedCommand is UTF-16LE in base64.
     const scriptOf = (args: string[]) => Buffer.from(String(args[args.indexOf('-EncodedCommand') + 1] ?? ''), 'base64').toString('utf16le');
@@ -251,7 +261,7 @@ const makeClient = (options: ClientOptions = {}) => {
     const spotifySpawns = () => spawned.filter(file => !/powershell\.exe$/i.test(file)).length;
     const taskkills = () => runFile.mock.calls.filter(call => String(call[0]).includes('taskkill')).length;
     const tasklists = () => runFile.mock.calls.filter(call => String(call[0]).includes('tasklist')).length;
-    return { client, runFile, spawnProcess, spawned, procs, fetch, log, warn, helperSpawns, watchSpawns, spotifySpawns, taskkills, tasklists, scriptOf };
+    return { client, consent, runFile, spawnProcess, spawned, procs, fetch, log, warn, helperSpawns, watchSpawns, spotifySpawns, taskkills, tasklists, scriptOf };
 };
 
 beforeEach(() => {
@@ -332,6 +342,42 @@ describe('what a call may do to Spotify', () => {
         await app.client.close();
     });
 
+    it('does not close a Spotify the listener runs when the restart was never agreed to', async () => {
+        FakeSocket.failuresLeft = FAILED_CONNECTIONS;
+        const app = makeClient({ running: true, portAnswers: false, appDirectory: makeLauncherDirectory(), consented: false });
+        // Spotify is the listener's, running without Folia's port: closing it is a question they have
+        // not answered, so the call stops where it stands and names that answer as its reason.
+        await expect(app.client.play({ id: TRACK, startMs: 0 })).rejects.toMatchObject({
+            code: 'unavailable', reason: 'player-restart-consent',
+        });
+        expect(app.taskkills()).toBe(0);
+        expect(app.spotifySpawns()).toBe(0);
+        await app.client.close();
+    });
+
+    it('closes and starts Spotify once the listener agreed, and remembers the answer for the run', async () => {
+        FakeSocket.failuresLeft = FAILED_CONNECTIONS;
+        const app = makeClient({ running: true, portAnswers: false, appDirectory: makeLauncherDirectory(), consented: false });
+        await expect(app.client.launch()).rejects.toMatchObject({ reason: 'player-restart-consent' });
+        expect(app.taskkills()).toBe(0);
+        // The listener said yes while the player was still up: the next press goes ahead.
+        app.consent.value = true;
+        await expect(app.client.launch()).resolves.toBe(true);
+        expect(app.taskkills()).toBe(1);
+        expect(app.spotifySpawns()).toBe(1);
+        await app.client.close();
+    });
+
+    it('starts a Spotify that is not running without asking anything', async () => {
+        FakeSocket.failuresLeft = FAILED_CONNECTIONS;
+        const app = makeClient({ running: false, portAnswers: false, appDirectory: makeLauncherDirectory(), consented: false });
+        // Nothing is closed, so there is no question to answer: the app is only started.
+        await expect(app.client.launch()).resolves.toBe(true);
+        expect(app.taskkills()).toBe(0);
+        expect(app.spotifySpawns()).toBe(1);
+        await app.client.close();
+    });
+
     it('does not ask again within the cool-down after a start that failed', async () => {
         FakeSocket.alwaysFail = true;
         const app = makeClient({ running: true, portAnswers: false, appDirectory: mkdtempSync(join(tmpdir(), 'folia-empty-')) });
@@ -341,6 +387,83 @@ describe('what a call may do to Spotify', () => {
 
         await expect(app.client.play({ id: TRACK, startMs: 0 })).rejects.toMatchObject({ code: 'unavailable' });
         expect(app.fetch.mock.calls.filter(call => String(call[0]).includes('/json/version')).length).toBe(askedOnce);
+        await app.client.close();
+    });
+
+    // The wait for the player belongs to the page, not to the way the start began: a build whose UI
+    // changed answers no player at all however long it is waited for, and the wait for the app and its
+    // page is a different wait from the one for the player inside it. A press is held to the short
+    // wait once the page says it has finished loading - a cold start, a Spotify closed and started
+    // again, and a Spotify already running alike - and a page still loading keeps the whole of the
+    // long one.
+    const playerNeverFound = (loaded: () => boolean, found: () => boolean = () => false) => {
+        handle = expression => {
+            if (expression.includes('window.__foliaPlay')) return { details: 'Error: player-unavailable' };
+            if (expression.includes('document.readyState')) return { value: loaded() };
+            return { value: found() };
+        };
+    };
+
+    it('ends a cold start whose page loaded but showed no player after eight seconds', async () => {
+        FakeSocket.failuresLeft = FAILED_CONNECTIONS;
+        playerNeverFound(() => true);
+        const app = makeClient({ running: false, portAnswers: false, appDirectory: makeLauncherDirectory() });
+        const startedAt = Date.now();
+        await expect(app.client.play({ id: TRACK, startMs: 0 })).rejects.toMatchObject({ code: 'unavailable', reason: 'player-not-found' });
+        expect(Date.now() - startedAt).toBeGreaterThanOrEqual(8000);
+        expect(Date.now() - startedAt).toBeLessThan(15000);
+        await app.client.close();
+    });
+
+    it('gives the same eight seconds to a Spotify it closed and started again', async () => {
+        FakeSocket.failuresLeft = FAILED_CONNECTIONS;
+        playerNeverFound(() => true);
+        const app = makeClient({ running: true, portAnswers: false, appDirectory: makeLauncherDirectory() });
+        const startedAt = Date.now();
+        await expect(app.client.play({ id: TRACK, startMs: 0 })).rejects.toMatchObject({ code: 'unavailable', reason: 'player-not-found' });
+        expect(app.taskkills()).toBe(1);
+        expect(Date.now() - startedAt).toBeGreaterThanOrEqual(8000);
+        expect(Date.now() - startedAt).toBeLessThan(15000);
+        await app.client.close();
+    });
+
+    it('gives the same eight seconds to a Spotify it joined, without closing or starting it', async () => {
+        playerNeverFound(() => true);
+        const app = makeClient({ running: true, portAnswers: true });
+        const startedAt = Date.now();
+        await expect(app.client.play({ id: TRACK, startMs: 0 })).rejects.toMatchObject({ code: 'unavailable', reason: 'player-not-found' });
+        expect(app.taskkills()).toBe(0);
+        expect(app.spotifySpawns()).toBe(0);
+        expect(Date.now() - startedAt).toBeGreaterThanOrEqual(8000);
+        expect(Date.now() - startedAt).toBeLessThan(15000);
+        await app.client.close();
+    });
+
+    it('keeps its long wait for a page that is still loading', async () => {
+        FakeSocket.failuresLeft = FAILED_CONNECTIONS;
+        const startedAt = Date.now();
+        // The page says it is loaded long after the start, and its player shows up past the short
+        // wait: the short wait is counted from the page, not from the start.
+        const loadedAt = startedAt + 18000;
+        const playerAt = startedAt + 23000;
+        handle = expression => {
+            if (expression.includes('window.__foliaPlay')) return { value: 'loaded' };
+            if (expression.includes('document.readyState')) return { value: Date.now() >= loadedAt };
+            return { value: Date.now() >= playerAt };
+        };
+        const app = makeClient({ running: false, portAnswers: false, appDirectory: makeLauncherDirectory() });
+        await expect(app.client.play({ id: TRACK, startMs: 0 })).resolves.toBe('loaded');
+        expect(Date.now() - startedAt).toBeGreaterThanOrEqual(20000);
+        await app.client.close();
+    });
+
+    it('keeps its long wait for a page that never loads', async () => {
+        FakeSocket.failuresLeft = FAILED_CONNECTIONS;
+        playerNeverFound(() => false);
+        const app = makeClient({ running: false, portAnswers: false, appDirectory: makeLauncherDirectory() });
+        const startedAt = Date.now();
+        await expect(app.client.launch()).rejects.toMatchObject({ code: 'unavailable', reason: 'player-not-found' });
+        expect(Date.now() - startedAt).toBeGreaterThanOrEqual(20000);
         await app.client.close();
     });
 
@@ -361,6 +484,52 @@ describe('what a call may do to Spotify', () => {
         const tools = app.runFile.mock.calls.map(call => String(call[0]));
         expect(tools.some(file => file.endsWith('tasklist.exe') && file.includes('System32'))).toBe(true);
         expect(tools.some(file => file.endsWith('taskkill.exe') && file.includes('System32'))).toBe(true);
+        await app.client.close();
+    });
+});
+
+describe('letting the player go', () => {
+    const openSockets = () => FakeSocket.sockets.filter(socket => !socket.closed);
+    // The page answers everything, and the media session answers what the page cannot: the helper is
+    // started only for a call that goes to it, so one is forced there on purpose.
+    const steerBothWays = async (app: ReturnType<typeof makeClient>) => {
+        handle = () => ({ value: true });
+        await app.client.status();
+        expect(openSockets().length).toBe(1);
+        handle = () => ({ details: 'Error: the page does not answer' });
+        mediaAnswers.pause = true;
+        await expect(app.client.pause()).resolves.toBe(true);
+        expect(app.helperSpawns()).toBe(1);
+    };
+
+    it('ends the media session helper and the DevTools connection, and builds both again on the next call', async () => {
+        const app = makeClient({ running: true, portAnswers: true });
+        await steerBothWays(app);
+
+        await app.client.release();
+
+        // Both are let go: the PowerShell helper is ended, and the DevTools connection is closed.
+        expect(app.procs.every((proc: any) => proc.kill.mock.calls.length > 0)).toBe(true);
+        expect(openSockets().length).toBe(0);
+        // Spotify itself is not closed: letting the player go is not the listener closing it.
+        expect(app.taskkills()).toBe(0);
+
+        // Used again, both are made again: the page is opened, and a fresh helper answers.
+        handle = () => ({ value: true });
+        await app.client.status();
+        expect(openSockets().length).toBe(1);
+        handle = () => ({ details: 'Error: the page does not answer' });
+        mediaAnswers.pause = true;
+        await expect(app.client.pause()).resolves.toBe(true);
+        expect(app.helperSpawns()).toBe(2);
+        await app.client.close();
+    });
+
+    it('lets go of what was never started without failing', async () => {
+        const app = makeClient({ running: false, portAnswers: false });
+        await expect(app.client.release()).resolves.toBeUndefined();
+        expect(app.helperSpawns()).toBe(0);
+        expect(openSockets().length).toBe(0);
         await app.client.close();
     });
 });
@@ -472,6 +641,65 @@ describe('the bridge over the official client', () => {
     });
 });
 
+describe('what the app\'s failures mean for Folia', () => {
+    it('says the player was not found inside the app apart from the app not being installed', () => {
+        expect(describeSpotifyFailure('audio', new OnlineProviderError('unavailable', 'x', 'spotify', 'player-not-found')))
+            .toEqual({ case: 'unreachable', playerCause: 'player-not-found' });
+        expect(describeSpotifyFailure('audio', new OnlineProviderError('unavailable', 'x', 'spotify', 'player-not-installed')))
+            .toEqual({ case: 'not-configured', playerCause: 'player-not-installed' });
+        // The app not being on this computer is the same answer it always was: a source not set up.
+        expect(describeSpotifyFailure('audio', new OnlineProviderError('unavailable', 'x', 'spotify', 'client-missing')))
+            .toEqual({ case: 'not-configured' });
+    });
+
+    it('says the listener has not agreed to close their Spotify, and stops where it is', () => {
+        const said = describeSpotifyFailure('audio', new OnlineProviderError('unavailable', 'x', 'spotify', 'player-restart-consent'));
+        expect(said).toEqual({ case: 'not-configured', playerCause: 'player-restart-consent' });
+        const shown = onlineFailureOf({ operation: 'audio', providerId: 'spotify' }, { detail: said! });
+        expect(shown.facts.playerCause).toBe('player-restart-consent');
+        expect(stopsPlayback(shown)).toBe(true);
+    });
+
+    it('keeps a player cause it does not know out of the failure it shows', () => {
+        const shown = onlineFailureOf({ operation: 'audio', providerId: 'spotify' }, {
+            detail: { case: 'unreachable', playerCause: 'player-went-for-a-walk' as never },
+        });
+        expect(shown.facts.playerCause).toBeUndefined();
+    });
+});
+
+describe('closing Spotify at the quit', () => {
+    // main.cjs cannot be imported (requiring it boots the app), so what it hands the bridges is read
+    // from the file itself, the way test/unit/electron/ipcSecurity.test.ts pins its own wiring.
+    const mainCjs = readFileSync(join(import.meta.dirname, '../../../electron/main.cjs'), 'utf8');
+
+    it('closes the player at the quit for a listener who never set the switch', async () => {
+        const client = {
+            launch: vi.fn(async () => true), restart: vi.fn(async () => true), play: vi.fn(async () => true),
+            queue: vi.fn(async () => 0), pause: vi.fn(async () => true), resume: vi.fn(async () => true),
+            seek: vi.fn(async () => true), setVolume: vi.fn(async () => true), status: vi.fn(async () => ({ id: TRACK })),
+            available: vi.fn(() => ({ available: true })), closeForQuit: vi.fn(async () => true), close: vi.fn(async () => {}),
+        };
+        // The switch is the main process's to read, and a listener who never set it reads as on:
+        // only a stored false turns it off.
+        const site = mainCjs.match(/const closePlayerOnQuit = store\.get\(CLOSE_EXTERNAL_PLAYER_ON_QUIT_SETTING_KEY\)[^;]*;/)?.[0] ?? '';
+        expect(site).not.toBe('');
+        expect(site).toContain('!== false');
+        expect(site).not.toContain('=== true');
+        // And a session held for it is the one that closes the app.
+        const bridge = createSpotifyApiBridge({
+            store: { get: () => undefined, set: () => {}, delete: () => {} }, safeStorage: {}, fetch: vi.fn(),
+            openExternal: vi.fn(), officialClient: client, now: () => 0, log: () => {}, warn: () => {},
+        });
+        await expect(bridge.shutdown({ closePlayerOnQuit: true })).resolves.toBeUndefined();
+        expect(client.closeForQuit).toHaveBeenCalled();
+    });
+
+    it('keeps the store key the renderer writes', () => {
+        expect(mainCjs).toContain("const CLOSE_EXTERNAL_PLAYER_ON_QUIT_SETTING_KEY = 'CLOSE_EXTERNAL_PLAYER_ON_QUIT';");
+    });
+});
+
 describe('the quit, the helper and the port', () => {
     const makeBridge = (officialClient: any) => createSpotifyApiBridge({
         store: { get: () => undefined, set: () => {}, delete: () => {} }, safeStorage: {}, fetch: vi.fn(),
@@ -534,7 +762,7 @@ describe('the quit, the helper and the port', () => {
     it('ends the quit within its limit even when taskkill hangs', async () => {
         const app = makeClient({ portAnswers: true });
         const timeouts: unknown[] = [];
-        app.runFile.mockImplementation((file: string, _args: string[], options: { timeout?: number }, _callback: (error: Error | null, stdout?: string) => void) => {
+        app.runFile.mockImplementation((file: string, args: string[], options: { timeout?: number }) => {
             if (String(file).includes('taskkill')) {
                 timeouts.push(options.timeout);
                 return; // never answers: a taskkill that hangs

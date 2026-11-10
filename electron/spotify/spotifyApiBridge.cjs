@@ -4,6 +4,7 @@ const { createSpotifyAudioFiles } = require('./audioFiles.cjs');
 const { SpotifyError, describeError, lineReason, plainWords, spotifyError, statusError, toErrorResult } = require('./errors.cjs');
 const { createSpotifySessionRepository, publicAccountId } = require('./session.cjs');
 const { createSpotifyOfficialClient } = require('./officialClient.cjs');
+const { read: restartConsented } = require('../restartConsent.cjs');
 const { createSpotifySignIn } = require('./signIn.cjs');
 const { createSoloist } = require('./soloist.cjs');
 
@@ -137,8 +138,10 @@ function createSpotifyApiBridge({
   };
   const setPlaybackMode = mode => {
     if (!PLAYBACK_MODES.includes(mode) || (mode === 'soloist' && !soloist) || (mode === 'client' && !clientOffered) || mode === playbackMode()) return;
+    const leavingClient = playbackMode() === 'client';
     store.set(PLAYBACK_KEY, mode);
     log(`[Spotify] Plays through ${PLAYBACK_MODE_NAMES[mode]} from now on`);
+    if (leavingClient) releasePlayer();
   };
   // The way to play picked with a sign-in, kept until Spotify approves it.
   let signingInWith = null;
@@ -322,7 +325,16 @@ function createSpotifyApiBridge({
   let availability = null;
   let availabilityReadAt = 0;
   // Its own fetch: the Spotify app is on this computer, never behind the partition's proxy.
-  const client = () => (officialClient ??= createSpotifyOfficialClient({ log, warn }));
+  // The listener's answer about restarting their Spotify is read from the store it is kept in, at
+  // the moment the app would be closed (officialClient.cjs).
+  const client = () => (officialClient ??= createSpotifyOfficialClient({ log, warn, restartConsented: () => restartConsented(store) }));
+  // Ends what steered Spotify's own app: the media session helper process and the DevTools
+  // connection (officialClient.cjs, release). Spotify itself keeps running; the next call builds both
+  // again. A player that was never made has nothing to let go.
+  const releasePlayer = () => {
+    if (!officialClient?.release) return;
+    officialClient.release().catch(error => warn('[Spotify] Spotify\'s player could not be let go', error));
+  };
 
   const handlers = {
     async login_start(params) {
@@ -397,6 +409,8 @@ function createSpotifyApiBridge({
       const saved = repo.get();
       repo.clear();
       audio.clear();
+      // The account Spotify's own app was steered as is gone: what steered it goes too.
+      releasePlayer();
       log(`[Spotify] Signed out${saved ? '' : ' (nobody was signed in)'}`);
       return true;
     },

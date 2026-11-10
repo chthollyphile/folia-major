@@ -10,8 +10,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 //   - the renderer switch 「用整机声音出频谱」 (useDesktopSettingsStore.externalSystemAudioSpectrum),
 //     off until the listener asks for it, kept under its own published key;
 //   - the main process's record of the listener's agreement to restarting Spotify's own app
-//     (electron/spotify/restartConsent.cjs), unset until it is given, and only ever `true`;
-//   - spotify-client-restart-consent, answered to the main window alone.
+//     (electron/restartConsent.cjs), unset until it is given, and only ever `true`;
+//   - external-player-restart-consent, answered to the main window alone.
 
 const rootDir = path.resolve(__dirname, '../../..');
 const require = createRequire(import.meta.url);
@@ -75,13 +75,13 @@ type ConsentModule = {
     }) => void;
 };
 
-const consentModule = (): ConsentModule => require(path.join(rootDir, 'electron/spotify/restartConsent.cjs'));
+const consentModule = (): ConsentModule => require(path.join(rootDir, 'electron/restartConsent.cjs'));
 
 describe('the agreement to restart the external player\'s own app', () => {
     it('is unset in a store that never held it, and answers no', () => {
         const { SETTING_KEY, read: readConsent } = consentModule();
         const store = memoryStore();
-        expect(SETTING_KEY).toBe('spotifyClientRestartConsented');
+        expect(SETTING_KEY).toBe('externalPlayerRestartConsented');
         expect(store.values.has(SETTING_KEY)).toBe(false);
         expect(readConsent(store)).toBe(false);
     });
@@ -104,7 +104,7 @@ describe('the channel that carries the agreement', () => {
     const registered = (trusted: boolean, store: ReturnType<typeof memoryStore>) => {
         let handler: ((event: unknown, granted?: unknown) => unknown) | null = null;
         consentModule().registerRestartConsentIpc({
-            ipcMain: { handle: (channel, answer) => { expect(channel).toBe('spotify-client-restart-consent'); handler = answer; } },
+            ipcMain: { handle: (channel, answer) => { expect(channel).toBe('external-player-restart-consent'); handler = answer; } },
             isTrustedSender: () => trusted,
             store,
         });
@@ -141,7 +141,7 @@ describe('the channel that carries the agreement', () => {
         // main.cjs cannot be imported (requiring it boots the app), so what it hands the module is
         // pinned here, the way test/unit/electron/ipcSecurity.test.ts pins its own wiring.
         const mainCjs = read('electron/main.cjs');
-        expect(mainCjs).toContain("require('./spotify/restartConsent.cjs')");
+        expect(mainCjs).toContain("require('./restartConsent.cjs')");
         const site = mainCjs.match(/registerRestartConsentIpc\(\{[\s\S]{0,300}?\}\);/)?.[0] ?? '';
         expect(site).not.toBe('');
         expect(site).toContain('isTrustedSender: event => isTrustedMainWindowContents(event.sender)');
@@ -151,8 +151,22 @@ describe('the channel that carries the agreement', () => {
         expect(saveSettings).toMatch(/key === RESTART_CONSENT_SETTING_KEY\) \{\n\s*return getPublicSettings\(\);/);
     });
 
+    it('is registered in the IPC table under a name that names no platform', () => {
+        const table = read('dev/dedicatus/ipcChannels.mjs');
+        expect(table).toContain("'external-player-restart-consent': { level: 'first-party'");
+        expect(table).not.toContain('spotify-client-restart-consent');
+        for (const file of ['electron/preload.cjs', 'src/vite-env.d.ts', 'electron/restartConsent.cjs']) {
+            expect(read(file), file).not.toContain('spotify-client-restart-consent');
+        }
+        // The stored key stays where it was published (SETTING_KEY): only the channel and the call
+        // the renderer makes are named after what they carry rather than after one player.
+        for (const file of ['electron/preload.cjs', 'src/vite-env.d.ts']) {
+            expect(read(file), file).not.toContain('spotifyClientRestartConsent');
+        }
+    });
+
     it('exposes one call in preload, which the renderer types', () => {
-        expect(read('electron/preload.cjs')).toContain("spotifyClientRestartConsent: (grant) => ipcRenderer.invoke('spotify-client-restart-consent', grant),");
-        expect(read('src/vite-env.d.ts')).toContain('spotifyClientRestartConsent: (grant?: boolean) => Promise<boolean>;');
+        expect(read('electron/preload.cjs')).toContain("externalPlayerRestartConsent: (grant) => ipcRenderer.invoke('external-player-restart-consent', grant),");
+        expect(read('src/vite-env.d.ts')).toContain('externalPlayerRestartConsent: (grant?: boolean) => Promise<boolean>;');
     });
 });
