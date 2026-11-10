@@ -1474,6 +1474,8 @@ export default function App() {
         getDisplayAudioElement: automix.getDisplayElement,
         effectiveLoopMode,
         isNowPlayingStageActive,
+        externalTrackTitle: nowPlayingTrack?.title ?? nowPlayingLyricPayload?.title ?? null,
+        externalTrackArtist: nowPlayingTrack?.artist ?? nowPlayingLyricPayload?.artist ?? null,
         mediaSessionPlayRef,
         mediaSessionPauseRef,
         mediaSessionPrevRef,
