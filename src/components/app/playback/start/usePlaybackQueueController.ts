@@ -17,7 +17,7 @@ import type { ThemeCacheSongKey } from '../../../../services/themeCache';
 import { loadOnlineLyricsState } from '../../../../utils/onlineLyricsState';
 import { PlayerState, type StageExternalPlayRequest, type StagePlayerQueueDiffOp, type StagePlayerQueueRequest, type StagePlayerSnapshot } from '../../../../types';
 import type { LocalSong, QueueAddBehavior, SongResult, StatusMessage, UnifiedSong } from '../../../../types';
-import type { AudioQualityPreference, MediaId } from '../../../../types/onlineMusic';
+import type { AudioQualityPreference, MediaId, OnlineFailureCaseId } from '../../../../types/onlineMusic';
 import type { NextTrackOptions, PlaybackNavigationOptions, UnavailableReplacementRequest } from '../../../../types/appPlayback';
 import type { NavidromeSong } from '../../../../types/navidrome';
 import {
@@ -164,6 +164,13 @@ type UsePlaybackQueueControllerParams = {
 const MAX_UNAVAILABLE_AUTO_SKIP_COUNT = 2;
 const UNAVAILABLE_SKIP_CONFIRM_TIMEOUT_MS = 5000;
 const UNAVAILABLE_SKIP_CONFIRM_INTERVAL_MS = 1000;
+// What the one line said after a failure the platform called final says: `facts.skipAtOnce` is set by the
+// platform's own statement, and that statement will not change however often it is asked, so a queue does
+// not look up another version or count down for it.
+const SKIP_AT_ONCE_TEXT: Partial<Record<OnlineFailureCaseId, string>> = {
+    'taken-down': 'status.songUnavailableSkipped',
+    'subscription-required': 'status.songSubscriptionRequiredSkipped',
+};
 // The nonce of a skip prompt's toast: one toast for the whole count, and a new one for the next song's,
 // even when it says the same.
 let skipPromptCount = 0;
@@ -176,6 +183,13 @@ const readAutoSkipUnplayable = () => useAudioSettingsStore.getState().autoSkipUn
 // version that failed this way is told as that, not as the song being taken down.
 const isPassingFailure = (shown: OnlineFailure) => (
     shown.case === 'unreachable' || shown.case === 'retry-later' || shown.case === 'local-service-stopped'
+);
+
+// The platforms' statements (`skipAtOnce` in OnlineFailureDetail) that say the next try ends the same
+// way: a queue skips these at once, with one line about it, instead of asking for another version or
+// counting down. Whatever case carries the mark and is not in here is skipped with no line at all.
+const skipAtOnceText = (shown: OnlineFailure): string | null => (
+    shown.facts.skipAtOnce === true ? SKIP_AT_ONCE_TEXT[shown.case] ?? null : null
 );
 
 // The stops that leave the current song where it is pause what actually sounds it. On the HiFi route that
@@ -726,35 +740,54 @@ export function usePlaybackQueueController({
                 setPlayerState(PlayerState.IDLE);
                 setStatusMsg(withSignInAction(shown, said, t));
             };
+            const nextSong = getNextPlayableQueueSong(queueContext, song, asFm());
+            const canSkip = Boolean(nextSong) && skipCount < MAX_UNAVAILABLE_AUTO_SKIP_COUNT;
+            // 平台自己说了再试也是这个结果：不查别的版本，也不等倒计时，直接跳下一首。
+            const skipsAtOnce = skipAtOnceText(shown);
+            // The move to the next song, whether a countdown came first or the platform said it at once.
+            // `quiet`: the next song's own 'loading' toast stays away, so the line about this failure is
+            // the one that shows (`quietLoadedToast`, the same switch the HiFi bridge asks for).
+            const skipToNextSong = (fallbackSong: SongResult, quiet = false) => {
+                // The queue was replaced whole meanwhile: the skip steps through the queue and FM of now
+                // from this song (from the first entry when the new queue does not hold it), as a skip
+                // after a failure mid-song does.
+                if (queueRewritten()) {
+                    void latestQueueActionsRef.current.handleNextTrack({
+                        fromSong: song,
+                        allowStopOnMissing: true,
+                        unavailableSkipCount: skipCount + 1,
+                        shouldNavigateToPlayer: deferredPlayOptions.shouldNavigateToPlayer,
+                        ...(quiet ? { quietLoadedToast: true } : {}),
+                    });
+                    return;
+                }
+                // A queue given here and not yet in the store is the one kept; else the queue of now,
+                // so that edits made meanwhile are not undone.
+                const targetQueue = readClickTimeQueue() ?? newQueue;
+                if (onFmLanding && asFm() && playSongCallIdRef.current === playSongCallId) registerPersonalFmLanding(targetQueue, onFmLanding);
+                // 这一次是真要跳：这一轮排列必须写回 store，被记录的就是被播放的那一份。
+                void latestQueueActionsRef.current.playSong(getNextPlayableQueueSong(targetQueue, song, asFm()) ?? fallbackSong, targetQueue, asFm(), {
+                    ...deferredPlayOptions,
+                    unavailableSkipCount: skipCount + 1,
+                    ...(quiet ? { quietLoadedToast: true } : {}),
+                });
+            };
+            if (skipsAtOnce && nextSong && canSkip) {
+                // 平台自己说了再试也是这个结果：不查别的版本，也不等倒计时，说一句就跳下一首。
+                setStatusMsg({ type: 'info', text: t(skipsAtOnce) });
+                tellFailure(shown, true);
+                skipToNextSong(nextSong, true);
+                return;
+            }
             if (stopsPlayback(shown, readAutoSkipUnplayable())) {
                 stopHere();
                 tellFailure(shown, false);
                 return;
             }
-            const nextSong = getNextPlayableQueueSong(queueContext, song, asFm());
-            if (nextSong && skipCount < MAX_UNAVAILABLE_AUTO_SKIP_COUNT) {
+            if (nextSong && canSkip) {
                 showTimedSkipPrompt(said, () => {
                     if (!isLatestPlaybackRequest()) return;
-                    // The queue was replaced whole meanwhile: the skip steps through the queue and FM of now
-                    // from this song (from the first entry when the new queue does not hold it), as a skip
-                    // after a failure mid-song does.
-                    if (queueRewritten()) {
-                        void latestQueueActionsRef.current.handleNextTrack({
-                            fromSong: song,
-                            allowStopOnMissing: true,
-                            unavailableSkipCount: skipCount + 1,
-                            shouldNavigateToPlayer: deferredPlayOptions.shouldNavigateToPlayer,
-                        });
-                        return;
-                    }
-                    // A queue given here and not yet in the store is the one kept; else the queue of now,
-                    // so that edits made meanwhile are not undone.
-                    const targetQueue = readClickTimeQueue() ?? newQueue;
-                    if (onFmLanding && asFm() && playSongCallIdRef.current === playSongCallId) registerPersonalFmLanding(targetQueue, onFmLanding);
-                    void latestQueueActionsRef.current.playSong(getNextPlayableQueueSong(targetQueue, song, asFm()) ?? nextSong, targetQueue, asFm(), {
-                        ...deferredPlayOptions,
-                        unavailableSkipCount: skipCount + 1,
-                    });
+                    skipToNextSong(nextSong);
                 }, stopsPlayback(shown) ? () => { if (isLatestPlaybackRequest()) stopHere(); } : undefined);
                 tellFailure(shown, true);
                 return;
@@ -783,8 +816,13 @@ export function usePlaybackQueueController({
 
         // A song taken down (the platform's record says so) looks for another version first: found, the
         // dialog offers it. A lookup that could not reach the platform is told as that; one that found
-        // none counts down to the next song.
+        // none counts down to the next song. A platform that named the song taken down is not looked up:
+        // it said the next try ends the same way, and `presentOnlineFailure` moves on at once.
         const presentTakenDown = async (shown: OnlineFailure) => {
+            if (skipAtOnceText(shown)) {
+                presentOnlineFailure(shown);
+                return;
+            }
             setIsLyricsLoading(false);
             setStatusMsg({ type: 'info', text: t('status.loadingSong') });
             let replacement: Awaited<ReturnType<typeof omni.getSongReplacement>> = null;
@@ -922,9 +960,13 @@ export function usePlaybackQueueController({
             return;
         }
 
-        if (isExternal && !isPreparedExternal) {
+        if (isExternal && !isPreparedExternal && options.quietLoadedToast !== true) {
+            // `quietLoadedToast` keeps this line away as well: the song before this one was skipped for a
+            // failure the toast says, and a skip into the external player is the case it is asked for.
             setStatusMsg({ type: 'info', text: t('status.preparingExternalPlayback') });
-        } else if (!isExternal && !hasImmediatePrefetchedAudio && !hasCachedAudioBlob) {
+        } else if (!isExternal && !hasImmediatePrefetchedAudio && !hasCachedAudioBlob && options.quietLoadedToast !== true) {
+            // `quietLoadedToast`: the toast on screen is why the song before it left (a failure it was
+            // skipped for), and this one's loading line would take its place before it can be read.
             setStatusMsg({ type: 'info', text: t('status.loadingSong') });
         }
 
@@ -1417,6 +1459,7 @@ export function usePlaybackQueueController({
                         unavailableSkipCount: options?.unavailableSkipCount,
                         isAutomixAdvance: options?.isAutomixAdvance,
                         autoAdvance: options?.autoAdvance,
+                        quietLoadedToast: options?.quietLoadedToast,
                     });
                 } else if (options?.allowStopOnMissing) {
                     stopAtQueueEnd();
@@ -1444,6 +1487,7 @@ export function usePlaybackQueueController({
                     unavailableSkipCount: options?.unavailableSkipCount,
                     isAutomixAdvance: options?.isAutomixAdvance,
                     autoAdvance: options?.autoAdvance,
+                    quietLoadedToast: options?.quietLoadedToast,
                 });
             } else if (options?.allowStopOnMissing) {
                 stopAtQueueEnd();
@@ -1459,6 +1503,7 @@ export function usePlaybackQueueController({
                 unavailableSkipCount: options?.unavailableSkipCount,
                 isAutomixAdvance: options?.isAutomixAdvance,
                 autoAdvance: options?.autoAdvance,
+                quietLoadedToast: options?.quietLoadedToast,
             });
         } else if (options?.allowStopOnMissing) {
             stopAtQueueEnd();

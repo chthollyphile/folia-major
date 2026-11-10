@@ -43,8 +43,10 @@ export type PlaybackNavigationOptions = {
      */
     autoplay?: boolean;
     /**
-     * The play's own progress and success toasts ('loading', 'loaded') are not shown: the toast that
-     * is showing (why the song left HiFi) stays. Only onPlayLocalSong and onPlayNavidromeSong read it.
+     * The play's own progress and success toasts ('loading', 'loaded', the external player's own
+     * 'preparing' line) are not shown: the toast that is showing stays (why the song left HiFi, or the
+     * line about the song skipped just before this one). Read where a play puts those lines on screen,
+     * the external player's start included, and by onPlayLocalSong and onPlayNavidromeSong.
      */
     quietLoadedToast?: boolean;
     /**
