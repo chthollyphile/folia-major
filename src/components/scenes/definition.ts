@@ -219,7 +219,11 @@ export interface SceneContext {
     /** 场景的盒子；画布由场景自己放进去，或用 kit/threeStage。 */
     readonly container: HTMLElement;
     readonly manifest: SceneManifest;
-    readonly host: { kind: 'player' | 'preview' | 'obs'; staticMode: boolean; reducedMotion: boolean };
+    /**
+     * 宿主的情况。staticMode、reducedMotion（「减少动态效果」的 uiMicroMotion 一面）每次读都是当下的值，
+     * 场景每帧读，用户改了设置不用重载场景。影厅在 reducedMotion 时不随音乐律动、暂停不演幕间。
+     */
+    readonly host: { readonly kind: 'player' | 'preview' | 'obs'; readonly staticMode: boolean; readonly reducedMotion: boolean };
     readonly song: SongSignals;
     readonly lyrics: LyricSignals;
     readonly music: MusicSignals;

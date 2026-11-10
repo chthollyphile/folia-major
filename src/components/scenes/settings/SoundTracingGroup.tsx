@@ -23,7 +23,7 @@ const SoundTracingGroup: React.FC = () => {
 
     return (
         <Group def={SOUND} bare>
-            <Row label={t('ui.soundTracing')} hint={supported ? undefined : t('ui.soundTracingUnsupported')} disabled={!supported}>
+            <Row desktopOnly label={t('ui.soundTracing')} hint={supported ? undefined : t('ui.soundTracingUnsupported')} disabled={!supported}>
                 <Toggle checked={on} onChange={setEnabled} disabled={!supported} />
             </Row>
             <Reveal when={on}>

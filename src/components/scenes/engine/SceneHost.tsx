@@ -154,7 +154,12 @@ const SceneStage: React.FC<{ definition: SceneDefinition; rendererProps: Rendere
         const ctx: SceneContext = {
             container: box,
             manifest,
-            host: { kind: 'player', staticMode: Boolean(propsRef.current.staticMode), reducedMotion: reducedMotionRef.current },
+            host: {
+                kind: 'player',
+                // Read when asked, so a change of either setting reaches the running scene.
+                get staticMode() { return Boolean(propsRef.current.staticMode); },
+                get reducedMotion() { return reducedMotionRef.current; },
+            },
             song: signals.song,
             lyrics: signals.lyrics,
             music: signals.music,
@@ -199,8 +204,8 @@ const SceneStage: React.FC<{ definition: SceneDefinition; rendererProps: Rendere
             on: bus.on,
             ready: () => show(),
             log: {
-                info: (message, ...rest) => console.info(`[Scene ${id}] ${message}`, ...rest),
-                warn: (message, ...rest) => console.warn(`[Scene ${id}] ${message}`, ...rest),
+                info: (message, ...rest) => console.info(`[Scene] ${id}: ${message}`, ...rest),
+                warn: (message, ...rest) => console.warn(`[Scene] ${id}: ${message}`, ...rest),
             },
         };
 
@@ -238,7 +243,7 @@ const SceneStage: React.FC<{ definition: SceneDefinition; rendererProps: Rendere
                     const handoff = signals.song.handoff();
                     if (handoff) emit(type, { next: handoff.song });
                 } else if (type === 'lineChange') emit(type, { index: snapshot.lineIndex, line: signals.lyrics.lines()[snapshot.lineIndex] ?? null });
-                else if (type === 'phaseChange') emit(type, { phase: snapshot.phase, previous: previous!.phase });
+                else if (type === 'phaseChange') emit(type, { phase: snapshot.phase, previous: previous?.phase ?? snapshot.phase });
                 else if (type === 'seek') emit(type, { time: snapshot.time });
                 else emit(type, {});
                 if (disposed) return;

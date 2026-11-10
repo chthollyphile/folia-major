@@ -40,7 +40,7 @@ const SceneSettingsPanel: React.FC<SceneSettingsPanelProps> = ({ manifest, ancho
     const options = useSceneSettingsStore(state => state.sceneOptions[manifest.id]);
     const setSceneOptions = useSceneSettingsStore(state => state.setSceneOptions);
     const seats = useSceneViewpoints(manifest.id);
-    const schema = manifest.settings ?? [];
+    const schema = useMemo(() => manifest.settings ?? [], [manifest.settings]);
     const values = useMemo(() => mergeFoliumParamValues(schema, options?.values), [schema, options?.values]);
     const qualities = QUALITIES.map(value => ({ value, label: t(`ui.sceneQuality_${value}`) }));
     const tracing = useSoundTracingStore(state => state.enabled);
@@ -48,7 +48,8 @@ const SceneSettingsPanel: React.FC<SceneSettingsPanelProps> = ({ manifest, ancho
     const setTracing = useSoundTracingStore(state => state.setEnabled);
     const setOutput = useSoundTracingStore(state => state.setOutput);
     const outputs = OUTPUTS.map(value => ({ value, label: t(`ui.soundTracingOutput_${value}`) }));
-    const tracesSound = manifest.sound?.music === 'speakers';
+    // Sound tracing runs in the desktop app's acoustics process; the web build has none.
+    const tracesSound = manifest.sound?.music === 'speakers' && typeof window !== 'undefined' && Boolean(window.electron);
 
     return (
         <Popover anchorRef={anchorRef} open={open} onClose={onClose} fill aria-label={t('ui.sceneSettings')} className="flex flex-col gap-3 rounded-[14px] px-4 pb-3 pt-2">

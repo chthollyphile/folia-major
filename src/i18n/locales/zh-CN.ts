@@ -1053,6 +1053,7 @@ export default {
       "visualizer-picker": { "title": "选择可视化", "description": "浏览歌词动画模式，点击即可切换" },
       "background-picker": { "title": "选择背景", "description": "浏览背景布局，点击即可切换" },
       "visualizer-still": { "title": "可视化：静止", "description": "切换到低占用的静态可视化" },
+      "settings-scene": { "title": "场景设置", "description": "打开场景窗口" },
       "scene-cinema": { "title": "场景：影厅", "description": "播放页变成影厅，你的歌词样式和背景放在荧幕上" },
       "scene-exit": { "title": "退出场景", "description": "播放页回到歌词样式和背景" },
       "scene-room-sound": { "title": "声线追踪开关", "description": "音乐像在场景的房间里听，或回到普通播放页的声音" },

@@ -1053,6 +1053,7 @@ export default {
       "visualizer-picker": { "title": "Pick a visualizer", "description": "Browse lyric animation modes and click one to switch" },
       "background-picker": { "title": "Pick a background", "description": "Browse background layouts and click one to switch" },
       "visualizer-still": { "title": "Visualizer: Still", "description": "Switch to the static low-resource visualizer" },
+      "settings-scene": { "title": "Scene settings", "description": "Open the scene window" },
       "scene-cinema": { "title": "Scene: Cinema", "description": "Turn the player page into the cinema hall, your lyric style and background on its screen" },
       "scene-exit": { "title": "Leave the scene", "description": "Back to the lyric style and background on the player page" },
       "scene-room-sound": { "title": "Sound tracing on or off", "description": "Hear the music as in the scene's room, or as on the plain player page" },

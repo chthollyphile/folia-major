@@ -1053,6 +1053,7 @@ export default {
       "visualizer-picker": { "title": "Chọn hiệu ứng thị giác", "description": "Duyệt chế độ hoạt họa lời và nhấp để chuyển" },
       "background-picker": { "title": "Chọn nền", "description": "Duyệt bố cục nền và nhấp để chuyển" },
       "visualizer-still": { "title": "Hiệu ứng thị giác: Still", "description": "Chuyển sang hiệu ứng tĩnh tiết kiệm tài nguyên" },
+      "settings-scene": { "title": "Cài đặt cảnh", "description": "Mở cửa sổ cảnh" },
       "scene-cinema": { "title": "Cảnh: Rạp chiếu phim", "description": "Biến trang phát nhạc thành rạp chiếu phim, kiểu lời bài hát và nền của bạn hiện trên màn chiếu" },
       "scene-exit": { "title": "Rời cảnh", "description": "Quay lại kiểu lời bài hát và nền trên trang phát nhạc" },
       "scene-room-sound": { "title": "Bật hoặc tắt dò tia âm thanh", "description": "Nghe nhạc như trong phòng của cảnh, hoặc như trên trang phát nhạc thường" },

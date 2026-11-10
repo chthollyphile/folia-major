@@ -29,7 +29,7 @@ export function useExternalPlaybackBridge({ handleNextTrack }: UseExternalPlayba
         return subscribeExternalPlayback(event => {
             if (event.type === 'ended') {
                 // As <audio>'s ended handler does: nothing after this when the queue is over.
-                void latestRef.current.handleNextTrack({ allowStopOnMissing: true, shouldNavigateToPlayer: false });
+                void latestRef.current.handleNextTrack({ allowStopOnMissing: true, playedToEnd: true, shouldNavigateToPlayer: false });
                 return;
             }
             if (event.type === 'foreign-track') {

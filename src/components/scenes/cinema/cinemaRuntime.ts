@@ -135,14 +135,16 @@ export const createCinemaRuntime: SceneFactory = async (ctx) => {
             fitView(camera, SEAT_HALF_TAN);
             camera.updateMatrixWorld();
             renderer.getDrawingBufferSize(bufferSize);
+            // Reduced motion: the hall does not pulse with the music, and a pause plays no intermission (as in static mode).
+            const calm = ctx.host.reducedMotion;
             const shutter = hall.update({
                 dt,
                 running,
-                power: ctx.music.power(),
-                bass: ctx.music.bands().bass,
+                power: calm ? 0 : ctx.music.power(),
+                bass: calm ? 0 : ctx.music.bands().bass,
                 lightsUp: lightsByHand || lightsUpAtEnd,
                 curtainsOnPause: closeOnPause,
-                still: ctx.host.staticMode,
+                still: ctx.host.staticMode || calm,
                 cove,
                 camera,
                 bufferSize,

@@ -1,8 +1,8 @@
-import { listScenes } from '../../scenes/registry';
+import { getScene, listScenes } from '../../scenes/registry';
 import { useSceneSettingsStore } from '../../scenes/settings/useSceneSettingsStore';
 import { useSoundTracingStore, type SoundTracingOutput } from '../../scenes/settings/useSoundTracingStore';
 import { sceneIdKind } from '../../../types/sceneIds';
-import { createToggleCommand } from '../commandFactories';
+import { createSettingsCommand, createToggleCommand } from '../commandFactories';
 import type { CommandPaletteCommand } from '../types';
 
 // src/components/command-palette/commands/sceneCommands.ts
@@ -12,9 +12,12 @@ import type { CommandPaletteCommand } from '../types';
 // 模组和数据包的场景没有自己的命令，在选择器里选。
 
 const sceneActive = () => useSceneSettingsStore.getState().sceneId !== null;
+/** Same check as the scene window's sound tracing row (SoundTracingGroup.tsx): the chosen scene plays music through its speakers. */
+const sceneHasRoomSound = () => getScene(useSceneSettingsStore.getState().sceneId)?.manifest.sound?.music === 'speakers';
 const outputIs = (output: SoundTracingOutput) => useSoundTracingStore.getState().output === output;
 
 export const sceneCommands: CommandPaletteCommand[] = [
+    createSettingsCommand('settings-scene', 'Scene settings', 'Open the scene window', ['scene', 'cinema', '场景', '影厅', '场景设置'], 'options', 'scene'),
     ...listScenes()
         .filter(scene => sceneIdKind(scene.manifest.id) === 'builtin')
         .map(scene => createToggleCommand(
@@ -44,7 +47,7 @@ export const sceneCommands: CommandPaletteCommand[] = [
             const { enabled, setEnabled } = useSoundTracingStore.getState();
             setEnabled(!enabled);
         },
-        { isAvailable: sceneActive },
+        { isAvailable: sceneHasRoomSound, platform: ['electron'] },
     ),
     createToggleCommand(
         'scene-room-headphones',
@@ -53,7 +56,7 @@ export const sceneCommands: CommandPaletteCommand[] = [
         "Make the scene's sound for listening on headphones",
         ['headphones', 'sound tracing', '耳机', '声线追踪'],
         () => useSoundTracingStore.getState().setOutput('headphones'),
-        { isAvailable: () => sceneActive() && !outputIs('headphones') },
+        { isAvailable: () => sceneHasRoomSound() && !outputIs('headphones'), platform: ['electron'] },
     ),
     createToggleCommand(
         'scene-room-speakers',
@@ -62,7 +65,7 @@ export const sceneCommands: CommandPaletteCommand[] = [
         "Make the scene's sound for listening on speakers",
         ['speakers', 'sound tracing', '音箱', '扬声器', '声线追踪'],
         () => useSoundTracingStore.getState().setOutput('speakers'),
-        { isAvailable: () => sceneActive() && !outputIs('speakers') },
+        { isAvailable: () => sceneHasRoomSound() && !outputIs('speakers'), platform: ['electron'] },
     ),
     createToggleCommand(
         'scene-reload',
