@@ -11,7 +11,7 @@ const Store = require('electron-store').default || require('electron-store');
 const crypto = require('crypto');
 const { createStageApi } = require('./stageApi.cjs');
 const { resolveStageConnectionFilePath } = require('./stageConnectionFile.cjs');
-const { isCursorInsideUnlockHotspot, createUnlockHoverRequests } = require('./mainWindowClickThrough.cjs');
+const { isCursorInsideUnlockHotspot, createUnlockHoverRequests, resolveUnlockHotspot } = require('./mainWindowClickThrough.cjs');
 const { createModSystem } = require('./modSystem/modSystem.cjs');
 const { MOD_PROTOCOL_PRIVILEGED_SCHEME } = require('./modSystem/modProtocol.cjs');
 const { createWindowPlaybackHandoffStore } = require('./windowPlaybackHandoff.cjs');
@@ -5388,7 +5388,11 @@ function isCursorInsideMainWindowClickThroughUnlockHotspot() {
   const scale = process.platform === 'darwin' ? mainWindow.webContents.getZoomFactor() : 1;
   // Docked DevTools can make the page narrower than the native window.
   return isCursorInsideUnlockHotspot({
-    bounds, cursor, hotspot: MAIN_WINDOW_CLICK_THROUGH_UNLOCK_HOTSPOT,
+    bounds, cursor,
+    hotspot: resolveUnlockHotspot(MAIN_WINDOW_CLICK_THROUGH_UNLOCK_HOTSPOT, {
+      nativeTrafficLights: mainWindow.__nativeTrafficLights === true,
+      side: mainWindowUnlockHoverRequests.getSide(),
+    }),
     side: mainWindowUnlockHoverRequests.getSide(),
     viewportWidth: process.platform === 'darwin' ? mainWindowUnlockHoverRequests.getViewportWidth() : null,
     viewportOrigin: process.platform === 'darwin' ? mainWindowUnlockHoverRequests.getViewportOrigin(bounds) : null,
@@ -5943,6 +5947,8 @@ function createWindow(options = {}) {
     throw error;
   }
   win.__wallpaperWindowTransparent = useTransparentWindow;
+  // 这个窗口是不是带着系统红绿灯建的：设置改了要到下次建窗才生效，渲染层和解锁热区都按窗口实际的样子来。
+  win.__nativeTrafficLights = useMacNativeTrafficLights;
   win.__wallpaperGeometry = useWallpaperGeometry;
   win.__transparentFullscreen = false;
 
@@ -6052,9 +6058,9 @@ function createWindow(options = {}) {
   isolateFirstPartyWindow(win);
   if (useMacNativeTrafficLights) {
     // 先藏起来，等渲染层按标题栏 reveal 再放出，避免启动时红绿灯常驻在沉浸页面上。
-    // 常驻标题栏设置的用户由渲染层随即打开。
+    // 常驻标题栏设置的用户由渲染层随即打开（那个设置只存在渲染层，这里读不到）。
     try {
-      win.setWindowButtonVisibility(readStoredBoolean('always_show_main_window_titlebar', false));
+      win.setWindowButtonVisibility(false);
     } catch {
       // setWindowButtonVisibility 只在 macOS 且窗口带红绿灯时有意义。
     }
@@ -7458,7 +7464,7 @@ ipcMain.handle('window-set-traffic-lights-visible', (event, visible) => {
   if (!isTrustedMainWindowContents(event.sender) || !mainWindow || mainWindow.isDestroyed()) {
     return false;
   }
-  if (process.platform !== 'darwin' || typeof mainWindow.setWindowButtonVisibility !== 'function') {
+  if (mainWindow.__nativeTrafficLights !== true || typeof mainWindow.setWindowButtonVisibility !== 'function') {
     return false;
   }
   try {
@@ -7467,6 +7473,14 @@ ipcMain.handle('window-set-traffic-lights-visible', (event, visible) => {
   } catch {
     return false;
   }
+});
+
+// 当前主窗口是不是带系统红绿灯建的。设置重启后才生效，渲染层靠它决定还画不画自绘的窗口按钮。
+ipcMain.handle('window-has-native-traffic-lights', (event) => {
+  if (!isTrustedMainWindowContents(event.sender) || !mainWindow || mainWindow.isDestroyed()) {
+    return false;
+  }
+  return mainWindow.__nativeTrafficLights === true;
 });
 
 ipcMain.handle('window-get-transparent-mode', (event) => {

@@ -131,6 +131,7 @@ export const IPC_CHANNELS = {
     'window-get-always-on-top': { level: 'first-party', why: '现状：有来源校验' },
     'window-get-click-through': { level: 'first-party', why: '现状：有来源校验' },
     'window-get-transparent-mode': { level: 'first-party', why: '现状：有来源校验' },
+    'window-has-native-traffic-lights': { level: 'first-party', why: '读主窗口是否带 mac 原生红绿灯（firstParty）' },
     'window-is-fullscreen': { level: 'first-party', why: '现状：有来源校验' },
     'window-is-maximized': { level: 'any', why: '只读主窗口是否最大化' },
     'window-minimize': { level: 'first-party', why: '操作主窗口（firstParty）' },

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Copy, Maximize, Minimize, Minus, Radio, Square, X } from 'lucide-react';
 import { usePlayerChromeSettingsStore } from '../stores/usePlayerChromeSettingsStore';
+import { useNativeTrafficLights } from '../hooks/useNativeTrafficLights';
 
 export default function WindowControls({
     side = 'right',
@@ -20,6 +21,8 @@ export default function WindowControls({
     const [isMaximized, setIsMaximized] = useState(false);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const useNativeMacFullscreenButton = usePlayerChromeSettingsStore(state => state.useNativeMacFullscreenButton);
+    // 窗口带系统红绿灯时，最小化/最大化/关闭由系统接管，这里只剩遥控和全屏。
+    const nativeTrafficLights = useNativeTrafficLights();
     const electron = window.electron;
     const isMac = electron?.platform === 'darwin';
     const usesNativeFullscreen = isMac && (useNativeMacFullscreenButton || isFullscreen);
@@ -154,8 +157,8 @@ export default function WindowControls({
             } as React.CSSProperties}
         >
             {side === 'left'
-                ? <>{closeControl}{minimizeControl}{maximizeControl}{fullscreenControl}{remoteControl}</>
-                : <>{remoteControl}{fullscreenControl}{minimizeControl}{maximizeControl}{closeControl}</>}
+                ? <>{!nativeTrafficLights && <>{closeControl}{minimizeControl}{maximizeControl}</>}{fullscreenControl}{remoteControl}</>
+                : <>{remoteControl}{fullscreenControl}{!nativeTrafficLights && <>{minimizeControl}{maximizeControl}{closeControl}</>}</>}
         </div>
     );
 }

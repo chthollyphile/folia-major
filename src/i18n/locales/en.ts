@@ -1103,6 +1103,7 @@ export default {
       "settings-toggle-titlebar-side": {"title": "Switch window controls side", "description": "Move window controls between left and right"},
       "settings-toggle-player-header-blur": { "title": "Blurred player header", "description": "Toggle a frosted bar behind the window titlebar on the player page so its buttons stay readable" },
       "settings-toggle-fullscreen-titlebar-button": { "title": "Toggle fullscreen button visibility", "description": "Show or hide the fullscreen button in the desktop window controls" },
+      "settings-toggle-native-mac-traffic-lights": { "title": "Native macOS traffic lights", "description": "Use the system traffic lights in place of the drawn minimize, maximize and close buttons; applies after a restart" },
       "settings-toggle-native-mac-fullscreen-button": { "title": "Native macOS fullscreen button", "description": "Toggle whether the macOS window control enters native fullscreen instead of maximizing" },
       "settings-toggle-cursor-auto-hide": { "title": "Hide cursor with player controls", "description": "Toggle whether the mouse pointer disappears together with the auto-hidden player controls" },
       "settings-toggle-cursor-idle-hide": { "title": "Hide cursor when idle", "description": "Toggle whether the mouse pointer hides on its own after a pause while the controls stay visible" },

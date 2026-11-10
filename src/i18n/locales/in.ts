@@ -1103,6 +1103,7 @@ export default {
       "settings-toggle-titlebar-side": {"title": "Ganti sisi tombol jendela", "description": "Pindahkan tombol jendela antara kiri dan kanan"},
       "settings-toggle-player-header-blur": { "title": "Header pemutar buram", "description": "Alihkan bilah buram di belakang bilah judul jendela di halaman pemutar agar tombolnya tetap terbaca" },
       "settings-toggle-fullscreen-titlebar-button": { "title": "Alihkan visibilitas tombol layar penuh", "description": "Tampilkan atau sembunyikan tombol layar penuh di kontrol jendela desktop" },
+      "settings-toggle-native-mac-traffic-lights": { "title": "Lampu lalu lintas macOS asli", "description": "Pakai lampu lalu lintas sistem sebagai pengganti tombol minimalkan, maksimalkan, dan tutup yang digambar; berlaku setelah mulai ulang" },
       "settings-toggle-native-mac-fullscreen-button": { "title": "Tombol layar penuh asli macOS", "description": "Alihkan kontrol jendela macOS ke layar penuh asli alih-alih memaksimalkan" },
       "settings-toggle-cursor-auto-hide": { "title": "Sembunyikan kursor bersama kontrol pemutar", "description": "Alihkan apakah penunjuk tetikus ikut menghilang bersama kontrol pemutar yang tersembunyi otomatis" },
       "settings-toggle-cursor-idle-hide": { "title": "Sembunyikan kursor saat diam", "description": "Alihkan apakah penunjuk tetikus menghilang sendiri setelah diam sementara kontrol tetap tampil" },

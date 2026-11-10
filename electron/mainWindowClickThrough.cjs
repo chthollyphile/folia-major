@@ -12,6 +12,18 @@ function isCursorInsideUnlockHotspot({ bounds, cursor, hotspot, viewportWidth, v
     && cursor.y >= top && cursor.y <= top + hotspot.height * scale;
 }
 
+// With the macOS traffic lights the drawn minimize / maximize / close are gone, so the lock and the
+// media buttons sit three buttons (132px) closer to the edge. On the left they also clear the
+// traffic lights (76px). Same numbers as resolveWindowControlsExtent in clickThroughUnlockHotspot.ts.
+const NATIVE_TRAFFIC_LIGHTS_DROPPED_BUTTONS_WIDTH = 132;
+const NATIVE_TRAFFIC_LIGHTS_RESERVED_WIDTH = 76;
+
+function resolveUnlockHotspot(hotspot, { nativeTrafficLights = false, side = 'right' } = {}) {
+  if (!nativeTrafficLights) return hotspot;
+  const shift = NATIVE_TRAFFIC_LIGHTS_DROPPED_BUTTONS_WIDTH - (side === 'left' ? NATIVE_TRAFFIC_LIGHTS_RESERVED_WIDTH : 0);
+  return { ...hotspot, rightInset: hotspot.rightInset - shift };
+}
+
 function createUnlockHoverRequests({ platform, pollCursor, setHover }) {
   let side = 'right';
   let viewportWidth = null;
@@ -34,4 +46,4 @@ function createUnlockHoverRequests({ platform, pollCursor, setHover }) {
   };
 }
 
-module.exports = { isCursorInsideUnlockHotspot, createUnlockHoverRequests };
+module.exports = { isCursorInsideUnlockHotspot, createUnlockHoverRequests, resolveUnlockHotspot };

@@ -1103,6 +1103,7 @@ export default {
       "settings-toggle-titlebar-side": {"title": "切换窗口按钮位置", "description": "在左侧与右侧之间切换窗口按钮"},
       "settings-toggle-player-header-blur": { "title": "播放页顶栏模糊背景", "description": "切换播放页标题栏后面的磨砂底，让按钮在任何画面上都看得清" },
       "settings-toggle-fullscreen-titlebar-button": { "title": "切换全屏按钮显示状态", "description": "显示或隐藏桌面窗口控制按钮中的全屏按钮" },
+      "settings-toggle-native-mac-traffic-lights": { "title": "macOS 原生红绿灯", "description": "用系统红绿灯替代自绘的最小化、最大化和关闭按钮，重启后生效" },
       "settings-toggle-native-mac-fullscreen-button": { "title": "macOS 原生全屏按钮", "description": "切换 macOS 窗口控制按钮进入原生全屏而非最大化" },
       "settings-toggle-cursor-auto-hide": { "title": "隐藏控制栏时一并隐藏鼠标", "description": "切换控制栏自动隐藏时鼠标指针是否一起消失" },
       "settings-toggle-cursor-idle-hide": { "title": "空闲时隐藏鼠标", "description": "切换鼠标静止时是否自动隐藏指针而控制栏保持显示" },

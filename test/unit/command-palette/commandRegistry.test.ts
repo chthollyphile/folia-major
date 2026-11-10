@@ -155,6 +155,7 @@ const createContext = (overrides: CommandPaletteContextOverrides = {}): CommandP
             toggleTitlebarSide: vi.fn(),
             toggleHideFullscreenButton: vi.fn(),
             toggleNativeMacFullscreenButton: vi.fn(),
+            toggleNativeMacTrafficLights: vi.fn(),
             toggleAutoHideCursorWithPlayerChrome: vi.fn(),
             toggleHideCursorWhenIdle: vi.fn(),
             canAutoScanLocalLibrary: vi.fn(() => false),

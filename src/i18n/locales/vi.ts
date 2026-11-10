@@ -1103,6 +1103,7 @@ export default {
       "settings-toggle-titlebar-side": {"title": "Đổi phía nút cửa sổ", "description": "Chuyển các nút cửa sổ giữa bên trái và bên phải"},
       "settings-toggle-player-header-blur": { "title": "Làm mờ thanh đầu trình phát", "description": "Bật/tắt thanh mờ kính phía sau thanh tiêu đề cửa sổ ở trang trình phát để các nút luôn dễ đọc" },
       "settings-toggle-fullscreen-titlebar-button": { "title": "Bật/tắt hiển thị nút toàn màn hình", "description": "Hiện hoặc ẩn nút toàn màn hình trong cụm điều khiển cửa sổ" },
+      "settings-toggle-native-mac-traffic-lights": { "title": "Đèn giao thông macOS gốc", "description": "Dùng đèn giao thông hệ thống thay cho các nút thu nhỏ, phóng to và đóng tự vẽ; có hiệu lực sau khi khởi động lại" },
       "settings-toggle-native-mac-fullscreen-button": { "title": "Nút toàn màn hình macOS gốc", "description": "Bật/tắt nút điều khiển macOS vào chế độ toàn màn hình gốc thay vì phóng to" },
       "settings-toggle-cursor-auto-hide": { "title": "Ẩn con trỏ chuột cùng thanh điều khiển", "description": "Bật/tắt tự động ẩn con trỏ chuột cùng lúc với thanh điều khiển phát" },
       "settings-toggle-cursor-idle-hide": { "title": "Ẩn con trỏ chuột khi không hoạt động", "description": "Bật/tắt tự động ẩn con trỏ chuột khi dừng di chuột trong khi thanh điều khiển vẫn hiển thị" },
