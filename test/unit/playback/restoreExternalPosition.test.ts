@@ -578,6 +578,30 @@ describe('a session restored onto a player that is on another track', () => {
         expect(loadLyricsMock).not.toHaveBeenCalled();
     });
 
+
+    it('keeps the play that asked for a song while the paused track was shown', async () => {
+        // The paused track is shown through a change of song, which every subscriber sees at once: an
+        // ask that lands there is a listener's play, and it arms the intent that starts that song.
+        const shouldAutoPlayRef = { current: false };
+        runningStatusMock.mockImplementation(async () => status('bodian-other', false));
+        let asked = false;
+        setCurrentSongMock.mockImplementation((shown: unknown) => {
+            if (asked || (shown as { id?: string } | null)?.id !== 'bodian-other') return;
+            asked = true;
+            shouldAutoPlayRef.current = true;
+            askForSong(following);
+        });
+
+        await restore({ queue, shouldAutoPlayRef });
+
+        expect(asked).toBe(true);
+        // The intent the play armed is left to it: nothing here clears it.
+        expect(shouldAutoPlayRef.current).toBe(true);
+        expect(setPlayQueueMock).not.toHaveBeenCalled();
+        // Nor is the position of the paused track shown on the song asked for instead.
+        expect(setCurrentTimeMock).not.toHaveBeenCalled();
+    });
+
     it('drops a track looked up after another song was asked for', async () => {
         runningStatusMock.mockImplementation(async () => status('bodian-other', true));
         getSongDetailMock.mockImplementation(async () => {
