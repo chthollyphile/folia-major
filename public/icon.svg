@@ -4,9 +4,9 @@
 
   <!-- Capital "F" stacked from a few rectangular blocks -->
   <g fill="#FFFFFF">
-    <rect x="141" y="80" width="250" height="84" rx="10"/>
-    <rect x="141" y="176" width="88" height="60" rx="10"/>
-    <rect x="141" y="248" width="200" height="80" rx="10"/>
-    <rect x="141" y="340" width="88" height="92" rx="10"/>
+    <rect x="141" y="86" width="88" height="156" rx="10"/>
+    <rect x="241" y="86" width="150" height="84" rx="10"/>
+    <rect x="141" y="254" width="200" height="80" rx="10"/>
+    <rect x="141" y="346" width="88" height="80" rx="10"/>
   </g>
 </svg>
