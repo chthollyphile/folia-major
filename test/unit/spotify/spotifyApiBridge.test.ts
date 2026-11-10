@@ -686,6 +686,31 @@ describe('Spotify playback ways: standard and Soloist', () => {
         expect(client.available).toHaveBeenCalledTimes(1);
     });
 
+    it('lets the player go when the way to play changes or the account signs out', async () => {
+        const client = Object.assign(fakeClient(), { release: vi.fn(async () => {}) });
+        const { bridge, signInWith } = build({ officialClient: client });
+        await signInWith('client');
+        expect((await bridge.request('playback_mode')).data.mode).toBe('client');
+
+        // Leaving Spotify's own app for another way of playing: the helper process and the DevTools
+        // connection go with it, so nothing of Folia's keeps steering an app it no longer plays in.
+        await bridge.request('playback_mode', { mode: 'soloist' });
+        expect(client.release).toHaveBeenCalledTimes(1);
+
+        // Signing out does the same: the account the app was steered as is gone.
+        await signInWith('client');
+        await bridge.request('logout');
+        expect(client.release).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not let the player go when the same way is picked again', async () => {
+        const client = Object.assign(fakeClient(), { release: vi.fn(async () => {}) });
+        const { bridge, signInWith } = build({ officialClient: client });
+        await signInWith('client');
+        await bridge.request('playback_mode', { mode: 'client' });
+        expect(client.release).not.toHaveBeenCalled();
+    });
+
     it('does not check the audio key of an account that plays through Spotify\'s own app', async () => {
         const resolveAudioFileAsync = vi.fn(async () => ({ cdnUrl: 'https://cdn.test/f', keyHex: '00'.repeat(16), format: 'OGG_VORBIS_160' }));
         const openSession = vi.fn(async () => ({ resolveAudioFileAsync, close: vi.fn(async () => {}) }));

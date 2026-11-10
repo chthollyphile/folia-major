@@ -132,7 +132,8 @@ class FakeSocket {
             this.onmessage?.({ data: JSON.stringify({ id: command.id, result: { result: { value: outcome.value } } }) });
         });
     }
-    close() { this.onclose?.(); }
+    closed = false;
+    close() { this.closed = true; this.onclose?.(); }
 }
 
 const mediaAnswers: Record<string, unknown> = {};
@@ -425,6 +426,52 @@ describe('what a call may do to Spotify', () => {
         const tools = app.runFile.mock.calls.map(call => String(call[0]));
         expect(tools.some(file => file.endsWith('tasklist.exe') && file.includes('System32'))).toBe(true);
         expect(tools.some(file => file.endsWith('taskkill.exe') && file.includes('System32'))).toBe(true);
+        await app.client.close();
+    });
+});
+
+describe('letting the player go', () => {
+    const openSockets = () => FakeSocket.sockets.filter(socket => !socket.closed);
+    // The page answers everything, and the media session answers what the page cannot: the helper is
+    // started only for a call that goes to it, so one is forced there on purpose.
+    const steerBothWays = async (app: ReturnType<typeof makeClient>) => {
+        handle = () => ({ value: true });
+        await app.client.status();
+        expect(openSockets().length).toBe(1);
+        handle = () => ({ details: 'Error: the page does not answer' });
+        mediaAnswers.pause = true;
+        await expect(app.client.pause()).resolves.toBe(true);
+        expect(app.helperSpawns()).toBe(1);
+    };
+
+    it('ends the media session helper and the DevTools connection, and builds both again on the next call', async () => {
+        const app = makeClient({ running: true, portAnswers: true });
+        await steerBothWays(app);
+
+        await app.client.release();
+
+        // Both are let go: the PowerShell helper is ended, and the DevTools connection is closed.
+        expect(app.procs.every((proc: any) => proc.kill.mock.calls.length > 0)).toBe(true);
+        expect(openSockets().length).toBe(0);
+        // Spotify itself is not closed: letting the player go is not the listener closing it.
+        expect(app.taskkills()).toBe(0);
+
+        // Used again, both are made again: the page is opened, and a fresh helper answers.
+        handle = () => ({ value: true });
+        await app.client.status();
+        expect(openSockets().length).toBe(1);
+        handle = () => ({ details: 'Error: the page does not answer' });
+        mediaAnswers.pause = true;
+        await expect(app.client.pause()).resolves.toBe(true);
+        expect(app.helperSpawns()).toBe(2);
+        await app.client.close();
+    });
+
+    it('lets go of what was never started without failing', async () => {
+        const app = makeClient({ running: false, portAnswers: false });
+        await expect(app.client.release()).resolves.toBeUndefined();
+        expect(app.helperSpawns()).toBe(0);
+        expect(openSockets().length).toBe(0);
         await app.client.close();
     });
 });
