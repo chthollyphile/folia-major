@@ -273,6 +273,8 @@ contextBridge.exposeInMainWorld('electron', {
         return () => ipcRenderer.removeListener('global-shortcut-triggered', listener);
     },
     setExternalMediaKeys: (enabled) => ipcRenderer.invoke('external-media-keys-set', enabled),
+    // No argument reads whether the listener already agreed; true records the agreement.
+    spotifyClientRestartConsent: (grant) => ipcRenderer.invoke('spotify-client-restart-consent', grant),
     onExternalMediaKey: (callback) => {
         const listener = (_event, action) => callback(action);
         ipcRenderer.on('external-media-key', listener);

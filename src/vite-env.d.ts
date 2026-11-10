@@ -1077,6 +1077,7 @@ declare global {
       onGlobalShortcut: (callback: (accelerator: string) => void) => () => void;
       /** Holds the system media keys (true) or gives them back (false), for the time an external player sounds the song. */
       setExternalMediaKeys: (enabled: boolean) => Promise<{ enabled: boolean; held: string[] }>;
+    spotifyClientRestartConsent: (grant?: boolean) => Promise<boolean>;
       onExternalMediaKey: (callback: (action: ElectronTaskbarControlAction) => void) => () => void;
       updateTaskbarControls: (state: ElectronTaskbarControlState) => Promise<boolean>;
       onTaskbarControl: (callback: (action: ElectronTaskbarControlAction) => void) => () => void;

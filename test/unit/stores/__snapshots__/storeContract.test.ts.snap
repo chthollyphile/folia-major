@@ -21,6 +21,7 @@ exports[`store contract > keeps every localStorage key the stores read or write 
   "disable_home_dynamic_background",
   "enable_home_dynamic_background",
   "enable_media_cache",
+  "external_system_audio_spectrum",
   "folia.dailyRecommendations.mode",
   "folia.personalFm.providerSelections",
   "folia.personalFm.selection",

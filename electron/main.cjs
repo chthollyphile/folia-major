@@ -24,6 +24,7 @@ const {
   createSpectrumArm,
   decideDisplayMediaRoute,
 } = require('./displayMediaRoute.cjs');
+const { SETTING_KEY: RESTART_CONSENT_SETTING_KEY, registerRestartConsentIpc } = require('./spotify/restartConsent.cjs');
 const {
   GPU_PREFERENCE_SETTING_KEY,
   applyGpuPreference,
@@ -6852,6 +6853,14 @@ ipcMain.handle('external-spectrum-capture-stopped', (event) => {
   return true;
 });
 
+// The listener's agreement to Folia restarting the external player's own app: asked of the main
+// window only, answered once, and kept in this store (the module says why).
+registerRestartConsentIpc({
+  ipcMain,
+  isTrustedSender: event => isTrustedMainWindowContents(event.sender),
+  store,
+});
+
 ipcMain.handle('get-settings', firstParty('get-settings', () => {
   return getPublicSettings();
 }));
@@ -6928,6 +6937,11 @@ ipcMain.handle('save-settings', firstParty('save-settings', (event, key, value) 
   // The HiFi key is the old home of the approved mpv path (now in a file of main's own): nothing
   // reads it any more, and the renderer has no business writing it.
   if (key === 'DISCORD_RICH_PRESENCE_APPLICATION_ID' || isReservedAiCredentialKey(key) || isReservedHifiSettingKey(key)) {
+    return getPublicSettings();
+  }
+  // The restart consent is the listener's answer to one question, written by its own channel above:
+  // a generic settings write must not stand in for it.
+  if (key === RESTART_CONSENT_SETTING_KEY) {
     return getPublicSettings();
   }
   if (isAiCredentialKey(key)) {
