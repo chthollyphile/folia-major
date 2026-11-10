@@ -59,12 +59,16 @@ vi.mock('@/services/onlineMusic/omni', () => ({
         canPlayExternally: () => env.external,
         isExternalPlaybackPrepared: () => false,
         canPlaySong: () => true,
+        externalPlaybackTraits: () => ({ capturesSystemAudio: false }),
         getProviderLabel: (id: string) => id,
     },
 }));
 vi.mock('@/components/app/playback/externalPlayerWake', () => ({ runExternalPlayerWarmUp: vi.fn(async () => undefined) }));
 vi.mock('@/stores/useDesktopSettingsStore', () => ({
-    useDesktopSettingsStore: { getState: () => ({ wakeExternalPlayersOnLaunch: false }) },
+    useDesktopSettingsStore: {
+        getState: () => ({ wakeExternalPlayersOnLaunch: false, externalSystemAudioSpectrum: false }),
+        subscribe: () => () => {},
+    },
 }));
 vi.mock('@/stores/useAudioSettingsStore', () => {
     const read = () => ({

@@ -165,8 +165,9 @@ describe('什么算用一个新列表替换播放队列', () => {
 
         // 加入队列不动外面播放器的队列：标记整条路上都不出现，不是给个 false 了事。
         expect(env.externalStarts).toHaveBeenCalledWith(songC, 0, { userAction: true });
-        // 歌按设置的入队位置进入队列（默认加在末尾），队列本身没有被整张换掉。
-        expect(usePlaybackStore.getState().playQueue.map(song => song.id)).toEqual(['1', '2', '3']);
+        // 歌按设置的入队位置进入队列（默认加在末尾），队列本身没有被整张换掉。起播的等待（`waited`）
+        // 让这一步落在起播之后，所以等队列落定再看。
+        await vi.waitFor(() => expect(usePlaybackStore.getState().playQueue.map(song => song.id)).toEqual(['1', '2', '3']));
     });
 
     it('普通切歌不是替换', async () => {
