@@ -123,9 +123,10 @@ export const drawChar = (ink: InkContext, c: LaidChar, T: number, clarityIn: num
     let local = T - (fadeIn ? c.t : c.wt);
     const k = MASK_SCALE, cs = Math.cos(c.rot), sn = Math.sin(c.rot);
     ctx.setTransform(cs * c.s * k, sn * c.s * k, -sn * c.s * k, cs * c.s * k, (c.x - c.s / 2 * (cs - sn)) * k, (c.y - c.s / 2 * (sn + cs)) * k);
-    // 笔画多的字笔画收细一点，不然挤在一起糊成一团；最细 8 像素的下限也跟着收，不然字小时下限盖过了收细
+    // 笔画多的字笔画收细一点，不然挤在一起糊成一团。宽度按字号（em）缩放：原来 8×thin 像素的下限在字号小于 8 / strokeWidth
+    // （默认约 89 像素）时盖过笔画粗细设置，字越小笔画相对越粗、堵住字腔。只留 0.6 个遮罩纹素的下限，半分辨率遮罩上细笔画不断成点
     const thin = clamp(Math.sqrt(9 / g.strokes.length), 0.55, 1);
-    const width = Math.max(ink.strokeWidth * thin, 8 * thin / c.s);
+    const width = Math.max(ink.strokeWidth * thin, 0.6 / (MASK_SCALE * c.s));
     const drips: [GlyphStroke, Drip, number][] = [];
     g.strokes.forEach((st, si) => {
         const dur = fadeIn ? 0 : inkTime * st.len / g.total;
