@@ -602,6 +602,20 @@ export interface PendoloTuning {
   showCenterGradient?: boolean;
   showCoverOnWatchFace?: boolean;
   enableLineGlow?: boolean;
+  /** 歌词左右镜像（#1124）：表盘移到右边、歌词弧线在左；wheelCenterX 改从右边缘量。 */
+  mirrorLayout?: boolean;
+  /** 表盘倾斜（度，正值时倾斜轴上方往屏幕里退）：表盘平面带透视地转出屏幕，0 是平放。 */
+  tiltDeg?: number;
+  /** 倾斜轴的方向（度）：0 是水平轴（前后俯仰），±90 是竖直轴（左右偏转）。 */
+  tiltAxisDeg?: number;
+  /** 分层视差强度：倾斜时齿轮、摆轮、歌词按各自高度浮在表盘上方，0 是全在一个平面上。 */
+  parallaxDepth?: number;
+  /** 轮心视角：相机在轮心后上方、顺着刻度针看向焦点句，代替倾斜；只在 WebGL 下生效。 */
+  hubView?: boolean;
+  /** 轮心视角的相机高度（轮盘半径的倍数）：低时贴着表盘平视，高时接近俯视。 */
+  hubViewHeight?: number;
+  /** 轮心视角的相机从轮心沿刻度针反方向后退多远（轮盘半径的倍数），0 是正在轮心上方。 */
+  hubViewBack?: number;
 }
 
 export const DEFAULT_PENDOLO_TUNING: PendoloTuning = {
@@ -616,6 +630,13 @@ export const DEFAULT_PENDOLO_TUNING: PendoloTuning = {
   showCenterGradient: true,
   showCoverOnWatchFace: false,
   enableLineGlow: false,
+  mirrorLayout: false,
+  tiltDeg: 0,
+  tiltAxisDeg: 0,
+  parallaxDepth: 1,
+  hubView: false,
+  hubViewHeight: 1.4,
+  hubViewBack: 1.2,
 };
 
 export type SonnetOuterFrameMode = 'none' | 'frame' | 'full';

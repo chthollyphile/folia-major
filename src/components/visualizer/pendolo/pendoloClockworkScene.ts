@@ -26,6 +26,22 @@ export interface PendoloClockworkFrameInput extends PendoloClockworkLayout {
     showCenterGradient: boolean;
     showCover: boolean;
     coverImage: CanvasImageSource | null;
+    /**
+     * 表盘平面到屏幕的 3x3 投影（相对轮心，行主序，pendoloDialProjection.ts），镜像或倾斜时才有；
+     * 没有时按原来的方式画。
+     */
+    projection?: Float32Array | null;
+    /** 投影是不是带透视（倾斜不为 0）；false 时它是仿射的（只有镜像）。 */
+    projectionPerspective?: boolean;
+    /** 歌词左右镜像：投影里已经翻过，封面贴图要再翻回来，字才不是反的。 */
+    mirrored?: boolean;
+    /**
+     * 分层视差：各层高度（轮盘半径的比例）乘上它就是 CSS px；只在倾斜时大于 0。`parallaxLift` 和
+     * `parallaxInvFocal` 是投影的抬高方向与 1/视距（pendoloDialProjection.ts）。
+     */
+    parallaxScalePx?: number;
+    parallaxLift?: [number, number, number];
+    parallaxInvFocal?: number;
 }
 
 export interface PendoloClockworkPalette {
@@ -144,12 +160,17 @@ export const resolvePendoloClockworkBox = (
     viewportWidth: number,
     viewportHeight: number,
     hasCenterGradient: boolean,
+    mirrored = false,
+    tilted = false,
 ): PendoloClockworkBox => {
+    // 倾斜时近侧被透视放大、可能伸到圆外，盒子直接取整个视口
+    if (tilted) return { left: 0, top: 0, width: Math.max(0, viewportWidth), height: Math.max(0, viewportHeight) };
     const reach = resolveClockworkReach(baseRadius, hasCenterGradient);
-    const rightReach = Math.max(reach, lyricRingRadius + 16);
-    const left = Math.max(0, Math.floor(centerX - reach));
+    // 焦点轴的箭头伸向歌词那一侧，镜像时那一侧在左
+    const sideReach = Math.max(reach, lyricRingRadius + 16);
+    const left = Math.max(0, Math.floor(centerX - (mirrored ? sideReach : reach)));
     const top = Math.max(0, Math.floor(centerY - reach));
-    const right = Math.min(viewportWidth, Math.ceil(centerX + rightReach));
+    const right = Math.min(viewportWidth, Math.ceil(centerX + (mirrored ? reach : sideReach)));
     const bottom = Math.min(viewportHeight, Math.ceil(centerY + reach));
 
     return {

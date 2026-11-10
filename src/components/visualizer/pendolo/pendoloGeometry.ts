@@ -16,6 +16,13 @@ export interface PendoloLineItem {
     scale: number;
 }
 
+/** 轮心的屏幕横坐标：wheelCenterX 原样从左边缘量，镜像时从右边缘量。 */
+export const resolvePendoloWheelCenterX = (viewportWidth: number, tuning: PendoloTuning) => (
+    tuning.mirrorLayout === true
+        ? viewportWidth * (1 - tuning.wheelCenterX)
+        : viewportWidth * tuning.wheelCenterX
+);
+
 /**
  * Calculates wheel geometry and placement for lyric lines along the pendulum escapement arc.
  */
@@ -29,7 +36,10 @@ export function calculatePendoloWheelLayout(
     radiusOffsetPx = 0,
     lineBlockHeights?: number[],
 ): PendoloLineItem[] {
-    const centerX = viewportWidth * tuning.wheelCenterX;
+    // 镜像时轮心从右边缘量，弧线朝左展开；上下方向不变（后面的句子仍往下排）
+    const mirrored = tuning.mirrorLayout === true;
+    const centerX = resolvePendoloWheelCenterX(viewportWidth, tuning);
+    const sideSign = mirrored ? -1 : 1;
     const centerY = viewportHeight * tuning.wheelCenterY;
     const baseRadius = Math.min(viewportWidth, viewportHeight) * tuning.arcRadius + radiusOffsetPx;
 
@@ -82,7 +92,7 @@ export function calculatePendoloWheelLayout(
         if (Math.abs(rawAngleRad) >= Math.PI / 2) continue;
 
         // Cartesian coordinates on screen relative to center on left edge
-        const x = centerX + baseRadius * Math.cos(rawAngleRad);
+        const x = centerX + sideSign * baseRadius * Math.cos(rawAngleRad);
         const y = centerY + baseRadius * Math.sin(rawAngleRad);
 
         const isActive = hasActive && i === activeIndex;
