@@ -135,7 +135,7 @@ export const createMediaKeyHoldSender = (
                 console.warn(wanted
                     ? '[MediaKeys] the system did not give Folia the media keys'
                     : '[MediaKeys] the system still holds the media keys', answer);
-            }, error => {
+            }, (error: unknown) => {
                 if (settles(wanted)) onError(wanted, error);
             });
         },
@@ -144,7 +144,7 @@ export const createMediaKeyHoldSender = (
             if (held === false && inFlight !== true) return;
             inFlight = null;
             held = false;
-            void Promise.resolve(send(false)).catch(error => onError(false, error));
+            void Promise.resolve(send(false)).catch((error: unknown) => onError(false, error));
         },
     };
 };
@@ -176,10 +176,12 @@ export function useMediaKeyTakeoverBridge({ runTransportAction, playSong }: UseM
 
     useEffect(() => {
         const electron = window.electron;
-        if (!electron?.setExternalMediaKeys || !electron.onExternalMediaKey) return;
+        if (!electron) return;
+        const { setExternalMediaKeys, onExternalMediaKey } = electron;
+        if (typeof setExternalMediaKeys !== 'function' || typeof onExternalMediaKey !== 'function') return;
 
         const holder = createMediaKeyHoldSender(
-            wanted => electron.setExternalMediaKeys(wanted),
+            wanted => setExternalMediaKeys(wanted),
             (wanted, error) => {
                 console.warn(wanted
                     ? '[MediaKeys] the media keys could not be taken'
@@ -197,7 +199,7 @@ export function useMediaKeyTakeoverBridge({ runTransportAction, playSong }: UseM
                 latestRef.current.runTransportAction(action);
                 return;
             }
-            const song = plan === 'restart-list' ? state.playQueue[0] : state.playQueue[state.playQueue.length - 1];
+            const song = plan === 'restart-list' ? state.playQueue.at(0) : state.playQueue.at(-1);
             if (!song) return;
             console.info(`[MediaKeys] the queue is over; ${action} plays ${plan === 'restart-list' ? 'the list from its first song' : 'the song that just ended'} again`);
             void latestRef.current.playSong(song, state.playQueue, state.isFmMode, {
@@ -206,7 +208,7 @@ export function useMediaKeyTakeoverBridge({ runTransportAction, playSong }: UseM
             });
         };
 
-        const stopListening = electron.onExternalMediaKey(action => {
+        const stopListening = onExternalMediaKey(action => {
             // The app's own media session may receive the same press (useMediaSessionBridge): the two
             // paths share this record, so the press runs once.
             if (!mediaKeyPressGate.claim(action)) {

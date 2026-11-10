@@ -1,26 +1,28 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const translateMock = vi.hoisted(() => vi.fn((key: string, _options?: Record<string, unknown>) => key));
+const translateMock = vi.hoisted(() => vi.fn((key: string) => key));
 const setDurationMock = vi.hoisted(() => vi.fn());
 const setCurrentTimeMock = vi.hoisted(() => vi.fn());
 const canPlayExternallyMock = vi.hoisted(() => vi.fn(() => true));
 const runningPositionMock = vi.hoisted(() => vi.fn(async (): Promise<number | null> => null));
 const runningStatusMock = vi.hoisted(() => vi.fn(async (): Promise<unknown> => null));
-const adoptMock = vi.hoisted(() => vi.fn(async (_song: unknown): Promise<boolean> => false));
+const adoptMock = vi.hoisted(() => vi.fn(async (): Promise<boolean> => false));
 const pauseMock = vi.hoisted(() => vi.fn(async () => undefined));
 const resumeMock = vi.hoisted(() => vi.fn(async () => undefined));
 const playMock = vi.hoisted(() => vi.fn(async () => undefined));
 const seekMock = vi.hoisted(() => vi.fn(async () => undefined));
 const warmUpMock = vi.hoisted(() => vi.fn(async () => undefined));
-const getSongDetailMock = vi.hoisted(() => vi.fn(async (_providerId: string, _id: string): Promise<unknown> => null));
+const getSongDetailMock = vi.hoisted(() => vi.fn(async (): Promise<unknown> => null));
 const loadLyricsMock = vi.hoisted(() => vi.fn(async () => undefined));
 const setPlayQueueMock = vi.hoisted(() => vi.fn());
 const setCurrentSongMock = vi.hoisted(() => vi.fn());
 const persistMock = vi.hoisted(() => vi.fn(async () => undefined));
-const themeMock = vi.hoisted(() => vi.fn(async (
-    _song: unknown,
-    _options?: { allowLastUsedFallback?: boolean; preserveCurrentOnMiss?: boolean; isCurrent?: () => boolean },
-): Promise<unknown> => undefined));
+/** 一次主题恢复的签名：用例要读出「读回来晚了还认不认当前这首」这个守卫。 */
+type ThemeRestoreCall = (
+    song: unknown,
+    options?: { allowLastUsedFallback?: boolean; preserveCurrentOnMiss?: boolean; isCurrent?: () => boolean },
+) => Promise<unknown>;
+const themeMock = vi.hoisted(() => vi.fn<ThemeRestoreCall>(async () => undefined));
 const playbackState = vi.hoisted(() => ({ currentSong: null as unknown, playQueue: [] as unknown[] }));
 
 vi.mock('@/i18n/config', () => ({ default: { t: translateMock, on: () => {}, language: 'en' } }));

@@ -20,7 +20,7 @@ export const resolveRunningTrack = async (
 ): Promise<SongResult | null> => {
     const providerId = getOnlineProviderIdForSong(song);
     if (!providerId || !running.mediaId) return null;
-    let track: SongResult | null = null;
+    let track: SongResult | null;
     try {
         track = await omni.getSongDetail(providerId, running.mediaId);
     } catch (error) {

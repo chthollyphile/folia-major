@@ -144,7 +144,7 @@ let queueClearable: boolean | null = null;
 
 /** Whether this build can reach the desktop side at all: the Windows desktop app only. */
 const spotifyTransportReady = (): boolean => (
-    typeof window !== 'undefined' && typeof window.electron?.spotifyRequest === 'function' && window.electron?.platform === 'win32'
+    typeof window !== 'undefined' && typeof window.electron?.spotifyRequest === 'function' && window.electron.platform === 'win32'
 );
 
 /** The steering runs on the Windows desktop app only. */
@@ -159,7 +159,7 @@ export const canSteerSpotifyApp = (): boolean => spotifyTransportReady();
 export const probeSpotifyClientApp = async (): Promise<boolean> => {
     if (!spotifyTransportReady()) return false;
     probing ??= requestSpotify<{ available?: boolean }>('client_probe')
-        .then(answer => answer?.available === true, error => {
+        .then(answer => answer.available === true, (error: unknown) => {
             console.warn('[SpotifyClient] whether Spotify\'s app is installed could not be read', error);
             return true;
         })
@@ -171,12 +171,19 @@ const songIdOf = (song: SongResult): string | null => {
     try { return requireSpotifySong(song); } catch { return null; }
 };
 
+/** One artist entry's name: the provider keeps them as words or as objects with a name. */
+const artistNameOf = (artist: unknown): string => {
+    if (typeof artist === 'string') return artist;
+    const name = (artist as { name?: unknown } | null | undefined)?.name;
+    return typeof name === 'string' ? name : '';
+};
+
 /** The song's artist names, one entry each, as the provider lists them. */
 const artistNameListOf = (song: SongResult): string[] => {
     const artists = (song as { artists?: unknown }).artists;
     if (!Array.isArray(artists)) return [];
     return artists
-        .map(artist => (typeof artist === 'string' ? artist : String((artist as { name?: unknown })?.name ?? '')))
+        .map(artist => (typeof artist === 'string' ? artist : artistNameOf(artist)))
         .filter(Boolean);
 };
 
@@ -189,7 +196,7 @@ const ended = (current: Attempt): ProviderExternalPlaybackStatus => ({
 });
 
 // NFKC folds the full-width letters and brackets a Chinese layout types into their plain forms.
-const plainName = (text: unknown): string => String(text ?? '').normalize('NFKC').trim().toLocaleLowerCase();
+const plainName = (text: unknown): string => (typeof text === 'string' ? text : '').normalize('NFKC').trim().toLocaleLowerCase();
 
 /** A title without the trailing credit "(feat. …)", "(ft. …)" or "(featuring …)", which the two sides need not write alike. A "(with …)" stays: it is part of the title, not a credit. */
 const plainTitle = (text: unknown): string => plainName(text).replace(/\s*[([]\s*(?:featuring|feat\.?|ft\.?)\b[^)\]]*[)\]]\s*$/i, '');
@@ -208,10 +215,10 @@ const mentionsArtist = (wanted: string, shown: string): boolean => {
  * and the answer is "no".
  */
 const namesAnotherTrack = (current: Attempt, data: SpotifyWireClientStatus): boolean => {
-    const title = String(data.title ?? '').trim();
+    const title = (data.title ?? '').trim();
     if (!title || !current.name) return false;
     if (plainTitle(title) !== plainTitle(current.name)) return true;
-    const artist = String(data.artist ?? '').trim();
+    const artist = (data.artist ?? '').trim();
     return Boolean(artist && current.artist) && !mentionsArtist(current.artist, artist);
 };
 
@@ -236,7 +243,7 @@ const shownArtistNames = (shown: string): string[] => {
 const namesThatSong = (song: SongResult, data: SpotifyWireClientStatus): boolean => {
     const title = (data.title ?? '').trim();
     const shownArtist = (data.artist ?? '').trim();
-    const name = String(song.name ?? '').trim();
+    const name = song.name.trim();
     if (!title || !shownArtist || !name) return false;
     if (plainTitle(title) !== plainTitle(name)) return false;
     const shown = shownArtistNames(shownArtist);
@@ -248,12 +255,12 @@ const namesThatSong = (song: SongResult, data: SpotifyWireClientStatus): boolean
 
 /** The one line of a read refused: what the app shows, and what Folia holds, so a pasted log says why. */
 const logAnotherTrack = (song: SongResult, data: SpotifyWireClientStatus): void => {
-    const id = String(data.id ?? '').trim();
+    const id = data.id.trim();
     // The app's own player names the track and no title.
     const shown = id
         ? `the track ${id}`
-        : `"${String(data.title ?? '').trim()}" by "${String(data.artist ?? '').trim()}"`;
-    const held = `"${String(song.name ?? '').trim()}" by "${artistNamesOf(song)}"`;
+        : `"${(data.title ?? '').trim()}" by "${(data.artist ?? '').trim()}"`;
+    const held = `"${song.name.trim()}" by "${artistNamesOf(song)}"`;
     console.info(`[SpotifyClient] the app is on another track, so no position is read: it plays ${shown}, Folia holds ${held}`);
 };
 
@@ -295,7 +302,7 @@ const tailAfter = (list: string[], id: string): string[] => {
  */
 const writeClientQueue = async (ids: string[]): Promise<SpotifyClientQueueAnswer | null> => {
     const answer = await requestSpotify<SpotifyClientQueueAnswer>('client_queue', { ids, queued: writtenIds });
-    if (answer?.aborted === true) {
+    if (answer.aborted === true) {
         console.info('[SpotifyClient] a play took the app while the songs that follow were being written; nothing was written');
         return null;
     }
@@ -308,18 +315,18 @@ const writeClientQueue = async (ids: string[]): Promise<SpotifyClientQueueAnswer
     if (answer.restored === false) {
         console.warn('[SpotifyClient] the songs the app queue held were lost: it refused to take them back');
     }
-    const written = (Array.isArray(answer?.written) ? answer.written : [])
+    const written = (Array.isArray(answer.written) ? answer.written : [])
         .filter((id): id is string => typeof id === 'string');
-    const read = Array.isArray(answer?.read) ? answer.read.filter((id): id is string => typeof id === 'string') : null;
+    const read = Array.isArray(answer.read) ? answer.read.filter((id): id is string => typeof id === 'string') : null;
     // An emptied queue holds only what this write put there. One that could not be emptied still
     // holds what was written before it, and whatever the app itself names: a tail a window before
     // this one wrote, or songs the listener queued in the app. None of those is written again.
-    const kept: string[] = answer?.cleared === true ? [] : [...writtenIds, ...(read ?? [])];
+    const kept: string[] = answer.cleared === true ? [] : [...writtenIds, ...(read ?? [])];
     for (const id of written) if (!kept.includes(id)) kept.push(id);
     writtenIds = kept;
-    queueClearable = typeof answer?.canClear === 'boolean' ? answer.canClear : null;
+    queueClearable = typeof answer.canClear === 'boolean' ? answer.canClear : null;
     // Said on every write, the ones that went as asked included (docs/client-logging.md).
-    const lede = answer?.cleared === true ? 'its queue was emptied first' : 'it kept its queue';
+    const lede = answer.cleared === true ? 'its queue was emptied first' : 'it kept its queue';
     const saw = read === null
         ? 'it does not say what it holds'
         : `${read.length} read back, ${read.length === written.length && written.every(id => read.includes(id)) ? 'the same songs' : 'not the same songs'}`;
@@ -531,8 +538,8 @@ export const spotifyClientPlayback: OnlineExternalPlaybackProvider = {
         const carriedConfirmed = adopt ? tailAfter(attempt?.confirmedIds ?? [], id) : [];
         handoffId = null;
         attempt = {
-            id, name: String(song.name ?? ''), artist: artistNamesOf(song),
-            hasPlayed: adopt, positionMs: startMs, durationMs: song.durationMs ?? 0,
+            id, name: song.name, artist: artistNamesOf(song),
+            hasPlayed: adopt, positionMs: startMs, durationMs: song.durationMs,
             nextIds: carried, confirmedIds: carriedConfirmed, degraded: false,
             behindTracks: carried.map(held => writtenTracks.get(held)).filter((track): track is ShownTrack => Boolean(track)),
             previousId, pulledBack: false,
@@ -605,8 +612,8 @@ export const spotifyClientPlayback: OnlineExternalPlaybackProvider = {
         const carriedConfirmed = tailAfter(attempt?.confirmedIds ?? [], id);
         handoffId = null;
         attempt = {
-            id, name: String(song.name ?? ''), artist: artistNamesOf(song),
-            hasPlayed: true, positionMs: 0, durationMs: song.durationMs ?? 0,
+            id, name: song.name, artist: artistNamesOf(song),
+            hasPlayed: true, positionMs: 0, durationMs: song.durationMs,
             nextIds: carried, confirmedIds: carriedConfirmed, degraded: false,
             behindTracks: carried.map(held => writtenTracks.get(held)).filter((track): track is ShownTrack => Boolean(track)),
             previousId: '', pulledBack: false,
@@ -679,12 +686,12 @@ export const spotifyClientPlayback: OnlineExternalPlaybackProvider = {
         // An answer that names the track comes from the app's own player: the id decides, whatever
         // artist names its page lists. Only a media session's answer, which names no track, is read
         // by the title and artist it shows. A refused read says both sides, once.
-        const shownId = String(data.id ?? '').trim();
+        const shownId = data.id.trim();
         if (!(shownId ? shownId === songIdOf(song) : namesThatSong(song, data))) {
             logAnotherTrack(song, data);
             return null;
         }
-        return Math.max(0, Math.round(Number(data.positionMs) || 0));
+        return Math.max(0, Math.round(data.positionMs || 0));
     },
     // What the app has for a song Folia did not start, as a session restore finds it: the read brings
     // this run's one search for the app's DevTools port, so an app left running is named by the track

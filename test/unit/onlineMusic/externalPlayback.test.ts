@@ -14,16 +14,16 @@ const omniMock = vi.hoisted(() => ({
     canPlayExternally: vi.fn(() => true),
     canPlaySong: vi.fn(() => true),
     prepareExternalPlaybackQueue: vi.fn(async () => {}),
-    playSongExternally: vi.fn(async (_song: unknown, _startSec: number) => {}),
-    pauseExternalPlayback: vi.fn(async (_song: unknown) => {}),
-    resumeExternalPlayback: vi.fn(async (_song: unknown) => {}),
-    seekExternalPlayback: vi.fn(async (_song: unknown, _seconds: number) => {}),
-    setExternalPlaybackVolume: vi.fn(async (_song: unknown, _volume: number) => {}),
-    getExternalPlaybackStatus: vi.fn(async (_song: unknown): Promise<ProviderExternalPlaybackStatus> => ({
+    playSongExternally: vi.fn(async () => {}),
+    pauseExternalPlayback: vi.fn(async () => {}),
+    resumeExternalPlayback: vi.fn(async () => {}),
+    seekExternalPlayback: vi.fn(async () => {}),
+    setExternalPlaybackVolume: vi.fn(async () => {}),
+    getExternalPlaybackStatus: vi.fn(async (): Promise<ProviderExternalPlaybackStatus> => ({
         mediaId: '123', isPlaying: true, positionMs: 5000, durationMs: 200000, ended: false,
     })),
-    isExternalPlaybackStatusForSong: vi.fn((_song: unknown, _status: ProviderExternalPlaybackStatus) => true),
-    adoptExternalPlayback: vi.fn((_song: unknown) => {}),
+    isExternalPlaybackStatusForSong: vi.fn(() => true),
+    adoptExternalPlayback: vi.fn(() => {}),
     // The player these blocks pin is the one that declared both of them: Spotify's own app.
     externalPlaybackTraits: vi.fn(() => ({
         capturesSystemAudio: true, startsWithoutWaiting: true, backsOffStatusPolls: true, holdsMediaKeysWhilePlaying: true,

@@ -1,5 +1,5 @@
 import i18n from '../../../../i18n/config';
-import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
+import type { Dispatch, RefObject, SetStateAction } from 'react';
 import { getCachedCoverUrl, loadCachedOrFetchCover } from '../../../../services/coverCache';
 import { getLocalSongs } from '../../../../services/db';
 import { applyLocalLibraryEntityDisplay, buildUnifiedLocalSong } from '../../../../services/playbackAdapters';
@@ -86,7 +86,7 @@ const showRunningExternalPosition = async (song: SongResult, overtaken: () => bo
 };
 
 /** The intent to play the caller armed, dropped where nothing of this window plays the song. */
-const dropPlayIntent = (shouldAutoPlayRef?: MutableRefObject<boolean>): void => {
+const dropPlayIntent = (shouldAutoPlayRef?: RefObject<boolean>): void => {
     if (shouldAutoPlayRef) shouldAutoPlayRef.current = false;
 };
 
@@ -99,7 +99,7 @@ type RestoreSongTheme = (songId: ThemeCacheSongKey | SongResult, options?: {
 
 /** What a restore offers a track the player moved on to while it shows it. */
 type RunningTrackRestoreOptions = {
-    shouldAutoPlayRef?: MutableRefObject<boolean>;
+    shouldAutoPlayRef?: RefObject<boolean>;
     userId?: MediaId;
     setLyrics: (nextLyrics: LyricData | null) => void;
     setPlayQueue?: SetState<SongResult[]>;
@@ -203,7 +203,7 @@ const adoptRunningTrack = async (
     // lands after the listener moved on applies nothing.
     void options.restoreCachedThemeForSong?.(track, {
         allowLastUsedFallback: true, preserveCurrentOnMiss: false, isCurrent: stillCurrent,
-    }).catch(error => {
+    }).catch((error: unknown) => {
         console.warn('[restorePlaybackSourceForSong] The theme of the track taken over could not be restored', error);
     });
     await loadRunningTrackDetails(track, options, stillCurrent);
@@ -258,8 +258,8 @@ export type RestorePlaybackSourceOutcome = 'restored' | 'failed' | 'stale';
 type RestorePlaybackSourceParams = {
     audioQuality: AudioQualityPreference;
     userId?: MediaId;
-    blobUrlRef: MutableRefObject<string | null>;
-    currentOnlineAudioUrlFetchedAtRef: MutableRefObject<number | null>;
+    blobUrlRef: RefObject<string | null>;
+    currentOnlineAudioUrlFetchedAtRef: RefObject<number | null>;
     setPlayQueue?: SetState<SongResult[]>;
     setLyrics: (nextLyrics: LyricData | null) => void;
     restoreCachedThemeForSong?: RestoreSongTheme;
@@ -285,7 +285,7 @@ type RestorePlaybackSourceParams = {
      * <audio>'s loadedmetadata spends it; a local or Navidrome song restored on the HiFi route starts
      * there and spends it here. Not given: it starts at its beginning.
      */
-    pendingResumeTimeRef?: MutableRefObject<number | null>;
+    pendingResumeTimeRef?: RefObject<number | null>;
     /**
      * A session read back at launch, rather than a window hand-off: a provider's own player outlives
      * this app, so it may still be running the remembered song where the listener left it. That one
@@ -298,12 +298,12 @@ type RestorePlaybackSourceParams = {
      * The caller's intent to play, taken by the restore where it takes a running player over: what
      * sounds there is the player's own, so nothing of this window's autoplay is left to fire.
      */
-    shouldAutoPlayRef?: MutableRefObject<boolean>;
+    shouldAutoPlayRef?: RefObject<boolean>;
 };
 
 // null on the HiFi route, which makes no blob URL: the one that was there is revoked all the same.
 const replaceBlobUrl = (
-    blobUrlRef: MutableRefObject<string | null>,
+    blobUrlRef: RefObject<string | null>,
     nextBlobUrl: string | null,
 ) => {
     if (blobUrlRef.current) {
@@ -323,7 +323,7 @@ const restoredSongRoute = async (kind: 'local' | 'navidrome', songKey: string): 
 };
 
 /** The time a HiFi restore starts at: what the caller left to resume at, spent here. */
-const takeResumeTime = (pendingResumeTimeRef: MutableRefObject<number | null> | undefined): number => {
+const takeResumeTime = (pendingResumeTimeRef: RefObject<number | null> | undefined): number => {
     const startSec = pendingResumeTimeRef?.current ?? 0;
     if (pendingResumeTimeRef) pendingResumeTimeRef.current = null;
     return startSec;

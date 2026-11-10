@@ -183,7 +183,7 @@ const readState = (start: boolean) => requestSpotify<SoloistWireState>('soloist_
 /** Whether Spotify's app is on this computer (a look at its launcher on disk, kept for a minute). */
 const readClient = () => requestSpotify<ClientWireState>('client_probe');
 
-const offeredBy = (answer: { soloist: boolean; client?: boolean }): OfferedModes => ({ soloist: answer.soloist === true, client: answer.client === true });
+const offeredBy = (answer: { soloist: boolean; client?: boolean }): OfferedModes => ({ soloist: answer.soloist, client: answer.client === true });
 
 /** The checklist now. Soloist is started only when it is the way Spotify plays. */
 export const getSpotifySetup = async (): Promise<ProviderSetupView | null> => {

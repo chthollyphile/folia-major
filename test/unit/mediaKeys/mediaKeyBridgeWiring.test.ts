@@ -28,7 +28,7 @@ type ActionHandler = (details?: unknown) => void | Promise<void>;
 /** The handlers the media session has attached, by action name. */
 const handlers = new Map<string, ActionHandler>();
 
-const runTransportAction = vi.fn((_action: string) => {});
+const runTransportAction = vi.fn(() => {});
 const playSong = vi.fn(async () => {});
 const play = vi.fn(async () => {});
 const pause = vi.fn(() => {});

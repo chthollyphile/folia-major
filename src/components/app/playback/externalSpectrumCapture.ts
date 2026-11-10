@@ -67,7 +67,7 @@ const canCapture = (): boolean => {
     return api?.platform === 'win32'
         && typeof api.armExternalSpectrumCapture === 'function'
         && typeof navigator !== 'undefined'
-        && typeof navigator.mediaDevices?.getDisplayMedia === 'function';
+        && typeof navigator.mediaDevices.getDisplayMedia === 'function';
 };
 
 const stopTracks = (target: MediaStream | null) => {
@@ -86,7 +86,7 @@ const closeCaptureResources = (heldStream: MediaStream | null, heldContext: Audi
     stopTracks(heldStream);
     if (!heldContext) return;
     try {
-        void Promise.resolve(heldContext.close()).catch(error => {
+        void Promise.resolve(heldContext.close()).catch((error: unknown) => {
             console.warn('[ExternalSpectrum] Could not close the capture context', error);
         });
     } catch (error) {
@@ -98,7 +98,7 @@ const closeCaptureResources = (heldStream: MediaStream | null, heldContext: Audi
 const noteCaptureStopped = () => {
     const api = bridge();
     if (typeof api?.noteExternalSpectrumCaptureStopped !== 'function') return;
-    void Promise.resolve(api.noteExternalSpectrumCaptureStopped()).catch(error => {
+    void Promise.resolve(api.noteExternalSpectrumCaptureStopped()).catch((error: unknown) => {
         console.warn('[ExternalSpectrum] Could not report the end of the capture', error);
     });
 };
@@ -230,9 +230,7 @@ export const startExternalSpectrumCapture = async (): Promise<void> => {
 
     let context: AudioContext | null = null;
     try {
-        const AudioContextClass = window.AudioContext
-            || (window as Window & typeof globalThis & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-        context = new AudioContextClass();
+        context = new window.AudioContext();
         // Chromium hands over a suspended context until the page may play, and an analyser on one
         // answers silence for ever: a context that will not run is a failed attempt, not a quiet one.
         await context.resume();
@@ -273,7 +271,7 @@ export const startExternalSpectrumCapture = async (): Promise<void> => {
         // The capture can end on its own (a revoked sharing session, a device that went away): the
         // next frame finds nothing to read and the simulated bands take over.
         for (const track of granted.getTracks()) {
-            track.addEventListener?.('ended', release);
+            track.addEventListener('ended', release);
         }
         console.log('[ExternalSpectrum] Analysing the machine\'s sound');
     } catch (error) {

@@ -76,7 +76,12 @@ function answerSpotifyCall(operation: SpotifyOperation, params: SpotifyParams, n
         }, limitMs);
         call.then(
             value => { clearTimeout(timer); resolve(value); },
-            error => { clearTimeout(timer); reject(error); },
+            (error: unknown) => {
+                clearTimeout(timer);
+                // The reason the app gave is passed on as it is; one that is no Error is wrapped, since
+                // a rejection carrying anything else has no stack to read.
+                reject(error instanceof Error ? error : new Error(String(error), { cause: error }));
+            },
         );
     });
 }

@@ -293,7 +293,7 @@ export function usePlaybackVisualizerBridge({
             audioBands.mid.set(bands.mid);
             audioBands.vocal.set(bands.vocal);
             audioBands.treble.set(bands.treble);
-            audioBands.spectrum?.set(bands.spectrum);
+            audioBands.spectrum.set(bands.spectrum);
         } else {
             const time = Date.now() / 2000;
             const breath = (Math.sin(time) + 1) * 20;

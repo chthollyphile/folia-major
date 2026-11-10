@@ -9,11 +9,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 type FakeTrack = {
     kind: string;
     stop: () => void;
-    addEventListener?: (type: string, listener: () => void) => void;
+    // A real track is an EventTarget: the capture listens for the stream ending on its own.
+    addEventListener: (type: string, listener: () => void) => void;
 };
 
 const makeStream = (kinds: string[]) => {
-    const tracks: FakeTrack[] = kinds.map(kind => ({ kind, stop: vi.fn() }));
+    const tracks: FakeTrack[] = kinds.map(kind => ({ kind, stop: vi.fn(), addEventListener: vi.fn() }));
     const stream = {
         getTracks: () => tracks,
         getAudioTracks: () => tracks.filter(track => track.kind === 'audio'),
@@ -150,12 +151,11 @@ const importCapture = async () => {
 };
 
 let warned: ReturnType<typeof vi.spyOn>;
-let logged: ReturnType<typeof vi.spyOn>;
 let informed: ReturnType<typeof vi.spyOn>;
 
 beforeEach(() => {
     warned = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    logged = vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.spyOn(console, 'log').mockImplementation(() => {});
     informed = vi.spyOn(console, 'info').mockImplementation(() => {});
 });
 

@@ -11,7 +11,7 @@ import { describe, expect, it, vi } from 'vitest';
 // played-out queue, which is where the transport has nothing left to step to.
 
 // The way Spotify plays is read from the desktop side, which only the "does its app ask" case needs.
-const request = vi.hoisted(() => vi.fn(async (_operation: string, _params?: unknown): Promise<unknown> => ({ available: true })));
+const request = vi.hoisted(() => vi.fn(async (): Promise<unknown> => ({ available: true })));
 vi.mock('@/services/onlineMusic/spotify/spotifyTransport', () => ({
     requestSpotify: request,
     getSpotifyTransportAvailability: () => ({ configured: true }),
