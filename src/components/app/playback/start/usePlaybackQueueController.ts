@@ -18,7 +18,7 @@ import { loadOnlineLyricsState } from '../../../../utils/onlineLyricsState';
 import { PlayerState, type StageExternalPlayRequest, type StagePlayerQueueDiffOp, type StagePlayerQueueRequest, type StagePlayerSnapshot } from '../../../../types';
 import type { LocalSong, QueueAddBehavior, SongResult, StatusMessage, UnifiedSong } from '../../../../types';
 import type { AudioQualityPreference, MediaId, OnlineFailureCaseId } from '../../../../types/onlineMusic';
-import type { NextTrackOptions, PlaybackNavigationOptions, UnavailableReplacementRequest } from '../../../../types/appPlayback';
+import type { NextTrackOptions, PlaybackNavigationOptions, UnavailableReplacementRequest, ExternalPlayerRestartRequest } from '../../../../types/appPlayback';
 import type { NavidromeSong } from '../../../../types/navidrome';
 import {
     getOnlineProviderIdForSong,
@@ -60,6 +60,7 @@ import { personalFmEndingsSoFar } from '../personalFmEndings';
 import { loadOnlineSongAudio } from '../source/songAudioSource';
 import { onlineFailureToast } from '../source/onlineFailureToast';
 import { offersRetry, onlineFailureOf, stopsPlayback, type OnlineFailure } from '../../../../services/onlineMusic/failure/onlineFailureCase';
+import { changeExternalPlaybackWay, grantExternalPlayerRestartConsent, playerCauseAction, playerCauseTextKeys } from '../../../../services/onlineMusic/failure/externalPlayerConsent';
 import { openLoginWindow } from '../../../login/loginWindowStore';
 import { useTranslation } from 'react-i18next';
 import { currentTime } from '../../../../stores/motionSignals';
@@ -203,6 +204,26 @@ const pauseWhatIsSounding = (audio: HTMLAudioElement | null) => {
     if (isExternalRoute()) yieldExternalPlayback('the song stops');
 };
 
+// 本机播放器没装、或者装了却找不到里面那个播放器时说的那句话，和它的出口：改回标准播放。两句话都不提
+// 是哪个平台（原因由平台的 provider 点名，见 failure/externalPlayerConsent.ts），平台名只在有平台时插进去。
+const playerCauseSaid = (shown: OnlineFailure, t: (key: string, values?: Record<string, string | number>) => string): StatusMessage => {
+    const cause = shown.facts.playerCause;
+    const texts = cause ? playerCauseTextKeys(cause) : null;
+    if (!texts) return onlineFailureToast(shown, t);
+    const platform = shown.providerId ? omni.getProviderLabel(shown.providerId) : '';
+    return {
+        type: 'error',
+        text: t(texts.title, { platform }),
+        ...(texts.note ? { note: t(texts.note) } : {}),
+        ...(shown.providerId ? { providerId: shown.providerId } : {}),
+        actionLabel: t('failure.useStandardPlayback'),
+        onAction: () => {
+            setStatusMsg(null);
+            void changeExternalPlaybackWay(shown);
+        },
+    };
+};
+
 // A sign-in that has run out comes with the button that opens the sign-in window for that platform.
 // An account the platform will not play for, where the platform has a setup checklist (another way to
 // play, for one), comes with the button that opens that checklist; so does a source not set up yet.
@@ -323,6 +344,8 @@ export function usePlaybackQueueController({
     const searchSourceTab = useSearchNavigationStore(state => state.searchSourceTab);
     const searchReturnView = useSearchNavigationStore(state => state.searchReturnView);
 
+    // 还没同意 Folia 关掉并重开他自己那个播放器时，那首歌停在这里等回答：弹窗、回答之后的两次重试都读它。
+    const [pendingExternalPlayerRestart, setPendingExternalPlayerRestart] = useState<ExternalPlayerRestartRequest | null>(null);
     const [pendingUnavailableReplacement, setPendingUnavailableReplacement] = useState<UnavailableReplacementRequest | null>(null);
 
     const appendOnlineSongsToMainQueue = useCallback((songs: SongResult[], options?: { suppressToast?: boolean }) => {
@@ -736,7 +759,19 @@ export function usePlaybackQueueController({
             // overtaken (`onceShown` in currentSong.ts). Its own answer stays, for the countdown's skip and its cancel.
             isLatestPlaybackRequest.abandon();
             setIsLyricsLoading(false);
-            const said = onlineFailureToast(shown, t);
+            // 本机播放器那三种说了自己原因的情况有各自要人做的事，不问倒计时也不跳下一首：跳过去也一样放不了。
+            const playerAction = playerCauseAction(shown);
+            if (playerAction === 'restart-consent') {
+                // 播放器开着，但没有 Folia 说话的那个端口，而人还没同意关掉它重开：问一次，等回答。
+                shouldAutoPlayRef.current = false;
+                pauseWhatIsSounding(audioRef.current);
+                setPlayerState(PlayerState.IDLE);
+                setStatusMsg(null);
+                setPendingExternalPlayerRestart({ song, queue: queueContext, isFmCall: asFm(), options: deferredPlayOptions });
+                tellFailure(shown, false);
+                return;
+            }
+            const said = playerAction === 'change-way' ? playerCauseSaid(shown, t) : onlineFailureToast(shown, t);
             const stopHere = () => {
                 shouldAutoPlayRef.current = false;
                 pauseWhatIsSounding(audioRef.current);
@@ -1373,6 +1408,27 @@ export function usePlaybackQueueController({
         }
     }, [buildQueueWithReplacementSong, pendingUnavailableReplacement, playSong, setStatusMsg, t]);
 
+    // 同意关掉并重开他自己那个播放器：先记下同意（之后不再问），再把刚才停下的那首歌重新放一遍。
+    const handleExternalPlayerRestartConfirm = useCallback(async () => {
+        const pending = pendingExternalPlayerRestart;
+        if (!pending) return;
+        setPendingExternalPlayerRestart(null);
+        await grantExternalPlayerRestartConsent();
+        // 回答之前整个队列可能已经换过：按回答这一刻的队列重放，队列里没有这首就只放这一首。
+        const live = usePlaybackStore.getState();
+        const liveQueue = live.playQueue;
+        const queue = liveQueue.some(queuedSong => isSamePlaybackSong(queuedSong, pending.song))
+            ? liveQueue
+            : pending.queue;
+        void playSong(pending.song, queue, live.isFmMode, pending.options);
+    }, [pendingExternalPlayerRestart, playSong]);
+
+    // 不同意：不关他的播放器，也不重试这一首，只说一句为什么没放。
+    const handleExternalPlayerRestartCancel = useCallback(() => {
+        setPendingExternalPlayerRestart(null);
+        setStatusMsg({ type: 'info', text: t('status.externalPlayerRestartDeclined') });
+    }, [t]);
+
     const handleSearchResultAddToQueue = useCallback((track: UnifiedSong) => {
         dispatchSearchTrackAction(track, {
             localSongs,
@@ -1972,6 +2028,9 @@ export function usePlaybackQueueController({
     return useStableActionSurface({
         pendingUnavailableReplacement,
         setPendingUnavailableReplacement,
+        pendingExternalPlayerRestart,
+        handleExternalPlayerRestartConfirm,
+        handleExternalPlayerRestartCancel,
         clearPendingUnavailableSkip,
         addOnlineSongToQueue,
         addOnlineSongsToQueue,

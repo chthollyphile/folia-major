@@ -1,6 +1,6 @@
 import type { OnlineExternalPlaybackProvider } from '../../../types/onlineMusic';
 import { spotifyClientPlayback } from './spotifyClientPlayback';
-import { readSpotifyPlaybackMode, spotifyPlaybackMode, spotifySoloistPlayback, subscribeSpotifyPlaybackMode } from './spotifySoloistPlayback';
+import { readSpotifyPlaybackMode, setSpotifyPlaybackMode, spotifyPlaybackMode, spotifySoloistPlayback, subscribeSpotifyPlaybackMode } from './spotifySoloistPlayback';
 
 // src/services/onlineMusic/spotify/spotifyExternalPlayback.ts
 // Spotify's external player is one of two programs, by the way Spotify plays (spotifySoloistPlayback.ts
@@ -13,6 +13,11 @@ const current = (): OnlineExternalPlaybackProvider => (spotifyPlaybackMode() ===
 export const spotifyExternalPlayback: OnlineExternalPlaybackProvider = {
     // Spotify's own app is not started again by an advance of Folia's own; Soloist's failures are reported.
     stopsAutoAdvanceWhenUnreachable: () => spotifyPlaybackMode() === 'client',
+    // The way back out: an app that is not installed, or a build whose player Folia no longer finds,
+    // is played by Folia itself instead (the standard way). The other program is left as it is.
+    async useStandardPlayback() {
+        await setSpotifyPlaybackMode('standard');
+    },
     isUnreachableFailure: error => (current().isUnreachableFailure?.(error) ?? false),
     // Only the official app keeps a media session of its own with its own queue in it: the keys are
     // held while that session sounds, so a press cannot reach Spotify's queue instead of Folia's.

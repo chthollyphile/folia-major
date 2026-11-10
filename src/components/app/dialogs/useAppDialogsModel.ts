@@ -19,6 +19,7 @@ export const useAppDialogsModel = (deps: AppDialogsDeps) => {
     const isDaylight = useThemeSettingsStore(state => state.isDaylight);
     const currentSong = usePlaybackStore(state => state.currentSong);
     const wallpaperEntryConfirmDialog = useWallpaperEntryConfirmDialog(isDaylight);
+    const externalPlayerRestartDialog = useExternalPlayerRestartDialog(deps, isDaylight);
 
     return useMemo(() => buildAppDialogsModel({
         ...deps,
@@ -26,10 +27,35 @@ export const useAppDialogsModel = (deps: AppDialogsDeps) => {
         isDaylight,
         currentSong,
         wallpaperEntryConfirmDialog,
+        externalPlayerRestartDialog,
         // Spread rather than `deps`: the caller passes an object literal, so depending on the object
         // would rebuild this every render. The key set is fixed by the call site.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }), [...Object.values(deps), statusMsg, isDaylight, currentSong, wallpaperEntryConfirmDialog]);
+    }), [...Object.values(deps), statusMsg, isDaylight, currentSong, wallpaperEntryConfirmDialog, externalPlayerRestartDialog]);
+};
+
+/**
+ * Props for the "close and reopen your player?" ConfirmDialog: asked once, the first time a play in
+ * the listener's own player needs it closed to be steered (the answer is kept by the main process).
+ * Confirming closes and reopens it and plays the song again; a cancel leaves the player alone.
+ */
+export const useExternalPlayerRestartDialog = (
+    deps: Pick<AppDialogsDeps, 'pendingExternalPlayerRestart' | 'handleExternalPlayerRestartConfirm' | 'handleExternalPlayerRestartCancel'>,
+    isDaylight: boolean,
+) => {
+    const { t } = useTranslation();
+    const isOpen = Boolean(deps.pendingExternalPlayerRestart);
+
+    return useMemo(() => ({
+        isOpen,
+        isDaylight,
+        title: t('status.externalPlayerRestartTitle'),
+        description: t('status.externalPlayerRestartDescription'),
+        confirmText: t('status.externalPlayerRestartConfirm'),
+        cancelText: t('status.externalPlayerRestartCancel'),
+        onConfirm: () => void deps.handleExternalPlayerRestartConfirm(),
+        onClose: deps.handleExternalPlayerRestartCancel,
+    }), [isOpen, isDaylight, t, deps]);
 };
 
 /**

@@ -1184,6 +1184,14 @@ export const omni = {
         };
     },
 
+    // 一个播放不了的外部播放器（没装、版本改了找不到里面的播放器）之后，把平台的歌换回它自己的标准播放：
+    // 平台自己换，共用层不认是哪一种播放方式。没有别的路可回的 provider 什么都不做。
+    async leaveExternalPlaybackForStandard(providerId: OmniProviderId): Promise<void> {
+        const provider = getOnlineMusicProvider(providerId);
+        if (!provider?.externalPlayback?.useStandardPlayback) return;
+        await provider.externalPlayback.useStandardPlayback();
+    },
+
     // Whether the system media keys belong to the external player while it sounds this song: the one
     // that keeps a media session of its own takes a key Folia gave back, so Folia holds it instead.
     holdsExternalPlaybackMediaKeys(song: SongResult): boolean {

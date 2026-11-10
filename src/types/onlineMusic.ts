@@ -658,6 +658,13 @@ export interface OnlineExternalPlaybackProvider {
     getStatus(song: SongResult): Promise<ProviderExternalPlaybackStatus>;
     /** Whether the player's loaded track is `song` (the id in `status` may be a playback id). */
     isStatusForSong(song: SongResult, status: ProviderExternalPlaybackStatus): boolean;
+    /**
+     * Puts this provider's songs back on its standard way of playing (the way that gives this app an
+     * audio address), for a listener whose external player cannot be steered any more - not
+     * installed, a build this app no longer finds its player in. The provider changes its own way and
+     * nothing else; absent where a provider has no other way to go back to.
+     */
+    useStandardPlayback?(): Promise<void>;
 }
 
 /**
@@ -738,6 +745,11 @@ export interface ProviderSetupStep {
     detail?: string;
     /** 这一步有一个密码框。saved：已经存过一份（框里只画掩码，要换才清空）。 */
     secret?: { labelKey: string; saved: boolean };
+    /**
+     * 一段收起的详细说明：清单里只放一句短的，按「更多」才展开这一段。放不下的长说明用它，
+     * 别把清单撑出窗口。
+     */
+    more?: { labelKey: string; noteKey: string };
     actions?: ProviderSetupAction[];
 }
 

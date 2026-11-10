@@ -59,17 +59,18 @@ vi.mock('@/services/onlineMusic/omni', () => ({
         canPlayExternally: () => env.external,
         isExternalPlaybackPrepared: () => false,
         canPlaySong: () => true,
-        externalPlaybackTraits: () => ({ capturesSystemAudio: false }),
         getProviderLabel: (id: string) => id,
+        // The bridge asks a song's provider whether it can give the real spectrum; none of these do.
+        externalPlaybackTraits: () => ({ capturesSystemAudio: false }),
     },
 }));
 vi.mock('@/components/app/playback/externalPlayerWake', () => ({ runExternalPlayerWarmUp: vi.fn(async () => undefined) }));
-vi.mock('@/stores/useDesktopSettingsStore', () => ({
-    useDesktopSettingsStore: {
-        getState: () => ({ wakeExternalPlayersOnLaunch: false, externalSystemAudioSpectrum: false }),
-        subscribe: () => () => {},
-    },
-}));
+vi.mock('@/stores/useDesktopSettingsStore', () => {
+    // The bridge also follows the spectrum switch, so the store it follows has to be subscribable.
+    const read = () => ({ wakeExternalPlayersOnLaunch: false, externalSystemAudioSpectrum: false });
+    const store = (selector?: (state: unknown) => unknown) => (selector ? selector(read()) : read());
+    return { useDesktopSettingsStore: Object.assign(store, { getState: read, subscribe: () => () => {} }) };
+});
 vi.mock('@/stores/useAudioSettingsStore', () => {
     const read = () => ({
         loopMode: env.loopMode,

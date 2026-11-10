@@ -155,6 +155,9 @@ const clientView = (read: ClientWireState, offered: OfferedModes): ProviderSetup
             titleKey: 'soloist.step.clientApp',
             noteKey: read.available ? 'soloist.clientApp.ready' : 'soloist.clientApp.missing',
             state: read.available ? 'done' : 'error',
+            // 控制这台电脑上的 Spotify 靠的是它未公开的内部结构，可能因它的更新失效，也可能不合它的服务条款；
+            // 会改动它哪些状态也在这里说清楚。一句短的留在清单里，长的那段展开才看（窗口不能再高）。
+            more: { labelKey: 'soloist.clientApp.more', noteKey: 'soloist.clientApp.moreNote' },
         },
         modeStep('client', offered),
     ],
