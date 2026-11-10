@@ -193,11 +193,11 @@ const AppShell: React.FC<AppShellProps> = ({
         }`;
 
     // mac 系统红绿灯跟标题栏按钮同节奏：平时和点击穿透时藏掉，悬停顶部或常驻设置时放出。
-    // 全屏由系统自动隐藏/唤出，这里照常联动不会打架。
+    // 全屏由系统自动隐藏/唤出，这里照常联动不会打架。不画自绘标题栏时（壁纸模式）一律藏着。
     useEffect(() => {
         if (!nativeTrafficLights) return;
-        void window.electron?.setTrafficLightsVisible(areTitlebarControlsVisible && !isMainWindowClickThroughEnabled);
-    }, [nativeTrafficLights, areTitlebarControlsVisible, isMainWindowClickThroughEnabled]);
+        void window.electron?.setTrafficLightsVisible(usesCustomWindowChrome && areTitlebarControlsVisible && !isMainWindowClickThroughEnabled);
+    }, [nativeTrafficLights, usesCustomWindowChrome, areTitlebarControlsVisible, isMainWindowClickThroughEnabled]);
 
     return (
         <div

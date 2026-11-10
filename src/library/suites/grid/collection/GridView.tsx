@@ -1,4 +1,4 @@
-import { usePlayerChromeSettingsStore } from '../../../../stores/usePlayerChromeSettingsStore';
+import { useWindowButtonsAtTopLeft } from '../../../../hooks/useWindowButtonsAtTopLeft';
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { motion, useMotionValue, animate, AnimatePresence, useDragControls, useIsPresent } from 'framer-motion';
 import { ChevronLeft, Crosshair, Disc, Download, ImagePlus, Play, Plus, Loader2, Heart, ListPlus, NotebookPen, Pencil, RefreshCw, Trash2, Star, Tags } from 'lucide-react';
@@ -278,8 +278,7 @@ export const GridView: React.FC<GridViewProps> = ({
     declaredActions,
 }) => {
     const { t } = useTranslation();
-    const titlebarSide = usePlayerChromeSettingsStore(state => state.titlebarSide);
-    const lowerBackButton = Boolean(window.electron) && titlebarSide === 'left';
+    const lowerBackButton = useWindowButtonsAtTopLeft();
     const bottomBarPanelBottomPx = useSidePanelBottomPx();
     const fullBleedCover = useGridViewSettingsStore(state => state.gridViewFullBleedCover);
     // Only the full-bleed layout can be square: the polaroid frame needs the extra height for the

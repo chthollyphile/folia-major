@@ -95,7 +95,7 @@ describe('click-through unlock hotspot', () => {
             expect(inside(fromEdge)).toBe(true);
         }
         // The buttons that are always drawn (and the traffic lights on the left) stay outside it;
-        // the hotspot is one rectangle for both layouts, so it does reach over the fullscreen button.
+        // the hotspot is one rectangle for both layouts, so with the fullscreen button drawn it reaches over the button next to the lock.
         expect(inside(resolveWindowControlsExtent({ hasFullscreenButton: false, nativeTrafficLights, side }) - 1)).toBe(false);
     });
 

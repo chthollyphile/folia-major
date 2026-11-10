@@ -1,4 +1,4 @@
-import { usePlayerChromeSettingsStore } from '../../../../stores/usePlayerChromeSettingsStore';
+import { useWindowButtonsAtTopLeft } from '../../../../hooks/useWindowButtonsAtTopLeft';
 import React, { useCallback, useEffect, useMemo, useRef, useState, useDeferredValue } from 'react';
 import { motion, useMotionValue, animate, AnimatePresence, useDragControls } from 'framer-motion';
 import { Check, ChevronLeft, Disc, Eye, EyeOff, ListFilter, X } from 'lucide-react';
@@ -266,8 +266,7 @@ export const GridMap: React.FC<GridMapProps> = ({
     ponderPageScope = 'grid-page',
 }) => {
     const { t } = useTranslation();
-    const titlebarSide = usePlayerChromeSettingsStore(state => state.titlebarSide);
-    const lowerBackButton = Boolean(window.electron) && titlebarSide === 'left';
+    const lowerBackButton = useWindowButtonsAtTopLeft();
     const bottomBarPanelBottomPx = useSidePanelBottomPx();
     const containerRef = useRef<HTMLDivElement>(null);
     const dragControls = useDragControls();

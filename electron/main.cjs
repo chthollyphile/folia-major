@@ -760,7 +760,9 @@ async function relaunchForWallpaperModeChange(nextEnabled, expectedGeneration = 
       // present simple full screen correctly anymore (measured: content 33pt low, empty
       // menu-bar strip above the wallpaper — sticky for the life of the window). Rebuild
       // it so the entry runs on a fresh window, like the always-correct startup path.
-      if (mainWindow && !mainWindow.isDestroyed() && mainWindow.__macAlwaysOnTopElectronTouched === true) {
+      // 带系统红绿灯的窗口同样重建：壁纸模式要完全无边框的窗口，这时设置已写入，重建出来的就没有红绿灯。
+      if (mainWindow && !mainWindow.isDestroyed()
+        && (mainWindow.__macAlwaysOnTopElectronTouched === true || mainWindow.__nativeTrafficLights === true)) {
         await rebuildMainWindowForMacWallpaper();
       }
       enterMacWallpaperMode();
@@ -6104,7 +6106,15 @@ function createWindow(options = {}) {
   win.on('unmaximize', () => {
     saveWindowState(win);
   });
-  win.on('close', () => {
+  win.on('close', (event) => {
+    // 系统红灯（以及 Cmd+W）直接关窗，不经过 window-close 通道。开了「关闭到托盘」时照自绘的关闭键办：
+    // 藏进托盘，不销毁窗口，歌接着放。退出应用（Cmd+Q、托盘的退出）先走 before-quit，照常关。
+    if (win.__nativeTrafficLights === true && !isAppQuitting && !isWallpaperModeEnabled()
+      && readStoredBoolean(CLOSE_TO_TRAY_SETTING_KEY, false) && appTray) {
+      event.preventDefault();
+      hideMainWindow();
+      return;
+    }
     saveWindowState(win);
   });
   win.on('closed', () => {

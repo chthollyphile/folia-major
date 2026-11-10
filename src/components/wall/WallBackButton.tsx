@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { usePlayerChromeSettingsStore } from '../../stores/usePlayerChromeSettingsStore';
+import { useWindowButtonsAtTopLeft } from '../../hooks/useWindowButtonsAtTopLeft';
 import { ChevronLeft } from 'lucide-react';
 import './WallBackButton.css';
 
@@ -50,8 +50,7 @@ type WallBackButtonProps = {
 
 export default function WallBackButton({ label, onBack, concealed = false }: WallBackButtonProps) {
     const revealed = useCornerReveal(concealed);
-    const side = usePlayerChromeSettingsStore(state => state.titlebarSide);
-    const lowerForTitlebar = Boolean(window.electron) && side === 'left';
+    const lowerForTitlebar = useWindowButtonsAtTopLeft();
     const className = concealed ? `lattice-back is-concealed${revealed ? ' is-revealed' : ''}` : 'lattice-back';
     return (
         <button type="button" className={`${className}${lowerForTitlebar ? ' is-below-titlebar' : ''}`} onClick={onBack} aria-label={label} title={label}>
