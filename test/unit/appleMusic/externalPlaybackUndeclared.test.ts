@@ -188,6 +188,50 @@ describe('a provider that declared nothing about its player', () => {
         expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(2);
     });
 
+    // Repeat one on this route is the bridge's: the player reports the end of a song it confirmed
+    // playing, and the song is started again rather than the queue stepping on. Nothing of that is a
+    // declaration, so it is the same for every player - a song that never sounded is the one exception.
+    it('says an end was heard only for a song the player confirmed playing', async () => {
+        const ends: { heard?: boolean }[] = [];
+        const unsubscribe = engine.subscribeExternalPlayback(event => {
+            if (event.type === 'ended') ends.push(event);
+        });
+        let answers = 0;
+        omniMock.getExternalPlaybackStatus.mockImplementation(async () => (
+            answers++ === 0 ? status({ isPlaying: false, positionMs: 0 }) : status({ isPlaying: false, positionMs: 0, ended: true })
+        ));
+        const start = engine.startExternalPlayback(song, 0);
+        await start.waited;
+        engine.announceExternalPlayback();
+        await vi.advanceTimersByTimeAsync(600);
+
+        // The start never landed, so this end is not the song's own: repeating it here would restart
+        // a song that never played.
+        expect(ends).toHaveLength(1);
+        expect(ends[0].heard).toBe(false);
+        unsubscribe();
+    });
+
+    it('says an end was heard for a song the player did play, which repeat one replays', async () => {
+        const ends: { heard?: boolean }[] = [];
+        const unsubscribe = engine.subscribeExternalPlayback(event => {
+            if (event.type === 'ended') ends.push(event);
+        });
+        let positionMs = 5000;
+        omniMock.getExternalPlaybackStatus.mockImplementation(async () => (
+            positionMs > 0 ? status({ positionMs }) : status({ isPlaying: false, positionMs: 0, ended: true })
+        ));
+        const start = engine.startExternalPlayback(song, 0);
+        await start.waited;
+        engine.announceExternalPlayback();
+        positionMs = 0;
+        await vi.advanceTimersByTimeAsync(600);
+
+        expect(ends).toHaveLength(1);
+        expect(ends[0].heard).toBe(true);
+        unsubscribe();
+    });
+
     it('reads the declarations of the song it is asked to play, on every song', async () => {
         await engine.beginExternalPlayback(song, 0);
         expect(omniMock.externalPlaybackTraits).toHaveBeenCalledWith(song);
