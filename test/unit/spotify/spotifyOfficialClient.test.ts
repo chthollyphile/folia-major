@@ -636,6 +636,27 @@ describe('what a call may do to Spotify', () => {
         await app.client.close();
     });
 
+    it('still asks before a play that follows a wake-up stopped for the question', async () => {
+        FakeSocket.failuresLeft = FAILED_CONNECTIONS;
+        const app = makeClient({ running: true, portAnswers: false, appDirectory: makeLauncherDirectory(), consented: false });
+        // The wake-up at launch (client_launch) and a play are the same start: the listener has not
+        // agreed to a restart, so the wake-up stops where it stands. The renderer swallows that
+        // failure, and the first song is what tells the listener about it.
+        await expect(app.client.launch()).rejects.toMatchObject({ code: 'unavailable', reason: 'player-restart-consent' });
+        expect(app.taskkills()).toBe(0);
+        expect(app.spotifySpawns()).toBe(0);
+
+        // That wake-up was not a start that failed: Spotify was never touched, so there is no
+        // cool-down to wait out. The play must raise the question in its own words rather than
+        // report an app it cannot reach, or the listener is never asked.
+        await expect(app.client.play({ id: TRACK, startMs: 0 })).rejects.toMatchObject({
+            code: 'unavailable', reason: 'player-restart-consent',
+        });
+        expect(app.taskkills()).toBe(0);
+        expect(app.spotifySpawns()).toBe(0);
+        await app.client.close();
+    });
+
     it('still holds a play back for thirty seconds after a start that really failed', async () => {
         FakeSocket.failuresLeft = FAILED_CONNECTIONS;
         playerNeverFound(() => true);
