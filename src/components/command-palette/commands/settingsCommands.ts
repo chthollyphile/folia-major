@@ -285,12 +285,14 @@ export const settingsCommands: CommandPaletteCommand[] = [
         { platform: ['win'] },
     ),
     // The bars of that same route: from the machine's own sound, which is everything the machine
-    // sounds, so it stays off until the listener asks for it (externalSpectrumCapture.ts).
+    // sounds, so it stays off until the listener asks for it (externalSpectrumCapture.ts). The strings
+    // here are the fallback the registry's own text is resolved over (`commandText.ts`), written like
+    // the commands around them: no em dash, no curly apostrophe, the same phrase as the settings row.
     createToggleCommand(
         'external-player-system-audio-spectrum',
         'settings',
         'Real spectrum for the external player',
-        'Toggle drawing the bars from the machine’s own sound instead of the playing position',
+        'Toggle drawing the bars from the machine\'s own sound or from the playing position',
         ['real spectrum', 'system audio', 'spectrum', 'visualizer', '真实频谱', '系统声音', '频谱', '采集'],
         context => context.settings.toggleExternalSystemAudioSpectrum(),
         { platform: ['win'] },

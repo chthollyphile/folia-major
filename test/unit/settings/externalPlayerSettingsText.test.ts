@@ -20,6 +20,9 @@ const SHARED_KEYS = [
     'closeExternalPlayerOnQuitDesc',
     'holdMediaKeysForExternalPlayer',
     'holdMediaKeysForExternalPlayerDesc',
+    'externalPlayerRestartConsent',
+    'externalPlayerRestartConsentDesc',
+    'externalSystemAudioSpectrum',
     'externalSystemAudioSpectrumDesc',
 ];
 
@@ -56,5 +59,32 @@ describe('the shared settings rows of the external player', () => {
             expect(locale.options.holdMediaKeysForExternalPlayer, `${language} title`).not.toMatch(ALWAYS_WORDS);
             expect(locale.options.holdMediaKeysForExternalPlayerDesc, `${language} hint`).not.toMatch(ALWAYS_WORDS);
         }
+    });
+
+    // 这一行说的是「使用某种客户端时才…」：接管是按歌算的，和哪一种客户端无关，标题里不该点名。
+    it('does not name a way of playing in the media keys title', () => {
+        const NAMES_A_CLIENT = /official|官方|resmi|chính thức/i;
+        for (const [language, locale] of Object.entries(LOCALES)) {
+            expect(locale.options.holdMediaKeysForExternalPlayer, `${language} title`)
+                .not.toMatch(NAMES_A_CLIENT);
+        }
+    });
+
+    // 开关标题要是「做这件事」的动宾短语，不是一句陈述：读的人要知道打开它意味着允许什么。
+    it('states the restart consent as what the switch allows, in every language', () => {
+        for (const [language, locale] of Object.entries(LOCALES)) {
+            expect(locale.options.externalPlayerRestartConsent, `${language} title`).toBeTruthy();
+            expect(locale.options.externalPlayerRestartConsentDesc, `${language} hint`).toBeTruthy();
+        }
+        // 四份都说的是「允许 / 让 Folia 重启」，不是「Folia 已经可以重启」这种状态陈述。
+        expect(zhCN.options.externalPlayerRestartConsent).toMatch(/^允许|^让/);
+        expect(en.options.externalPlayerRestartConsent).toMatch(/^(Let|Allow)\b/);
+        expect(inLocale.options.externalPlayerRestartConsent).toMatch(/^(Izinkan|Biarkan)\b/);
+        expect(viLocale.options.externalPlayerRestartConsent).toMatch(/^(Cho phép|Để)\b/);
+    });
+
+    it('tells the Vietnamese reader that turning the switch off asks again next time', () => {
+        expect(viLocale.options.externalPlayerRestartConsentDesc.trim().endsWith('Tắt mục này thì lần gặp sau sẽ hỏi lại.'))
+            .toBe(true);
     });
 });
