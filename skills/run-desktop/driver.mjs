@@ -34,10 +34,10 @@ commands:
   click <selector>            Playwright click on the first match
   click-text <text>           click a button by accessible name, else the first element with that text
   fill <selector> <value>     fill an input
-  type <text> | press <key>   keyboard input (press takes Playwright names: Control+k, Escape, Enter)
+  type <text> | press <key>   keyboard input (press takes Playwright names: ControlOrMeta+k = Cmd on macOS, Escape, Enter)
   text [selector]             innerText of the selector (default: body)
   wait <selector> [ms]        wait until the selector is visible (default 10000 ms)
-  palette <query>             Ctrl+K, type the query, Enter: runs the top command-palette result
+  palette <query>             Ctrl+K (Cmd+K on macOS), type the query, Enter: runs the top command-palette result
   windows | page <index>      list windows / switch the page the other commands act on
   logs [n] | console [n]      last n lines of main-process output / renderer console (default 50)
   reload                      reload the current page
@@ -262,7 +262,7 @@ async function runServer(flags) {
       return 'visible';
     },
     async palette(args) {
-      await page.keyboard.press('Control+k');
+      await page.keyboard.press('ControlOrMeta+k');
       await sleep(600);
       await page.keyboard.type(args.join(' '), { delay: 30 });
       await sleep(600);
