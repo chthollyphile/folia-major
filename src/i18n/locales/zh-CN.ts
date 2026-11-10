@@ -5276,7 +5276,7 @@ export default {
       "titleStandard": "Spotify 播放方式",
       "noteStandard": "现在由 Folia 自己播放 Spotify 的歌曲。如果这个账号拿不到音频密钥、播放时提示账号无法播放，可以改用 Spotify 官方的 Soloist。",
       "clientTitle": "Spotify 官方客户端播放设置",
-      "clientNote": "Spotify 桌面版装在这台电脑上，自己把声音送到系统输出；Folia 控制它，并跟着它的进度显示歌词。Folia 会以只在本机（127.0.0.1）监听的调试端口启动它，你点播放时它没开也会被重新拉起。声音不经过 Folia，所以 Folia 的均衡器、Automix 和跟着音乐跳动的效果对它不起作用。"
+      "clientNote": "声音不经过 Folia，均衡器、Automix 和跟着音乐跳动的效果对它不起作用。Folia 用只在本机（127.0.0.1）监听的调试端口启动它，你点播放时它没开也会被重新拉起。"
     },
     "noKey": {
       "title": "这个账号拿不到 Spotify 的音频密钥",
@@ -5295,7 +5295,7 @@ export default {
       "standardNote": "Spotify 的歌曲由 Folia 自己播放。",
       "soloistNote": "Spotify 的歌曲由 Soloist 播放。",
       "noKeyNote": "Folia 自己的播放方式放不了这个账号的歌。",
-      "clientNote": "Spotify 的歌曲由 Spotify 桌面版播放，声音不经过 Folia。",
+      "clientNote": "Spotify 的歌曲由 Spotify 桌面版播放。",
       "freeNote": "这是免费账号，Spotify 不允许 Folia 自己播放它的歌。"
     },
     "program": {

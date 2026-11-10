@@ -5276,11 +5276,11 @@ export default {
       "titleStandard": "Cara Spotify diputar",
       "noteStandard": "Saat ini Folia memutar lagu Spotify sendiri. Jika akun ini tidak mendapat kunci audio dan lagu gagal diputar, Anda bisa beralih ke Soloist resmi dari Spotify.",
       "clientTitle": "Pengaturan aplikasi Spotify",
-      "clientNote": "Aplikasi desktop Spotify terpasang di komputer ini dan mengirim suaranya sendiri ke keluaran sistem; Folia mengendalikannya dan mengikuti posisinya untuk lirik. Folia menjalankannya dengan port debug yang hanya mendengarkan di komputer ini (127.0.0.1), dan menjalankannya lagi saat Anda menekan putar dan aplikasi tertutup. Suaranya tidak melewati Folia, sehingga ekualiser, Automix, dan efek yang mengikuti musik tidak berlaku."
+      "clientNote": "Suaranya tidak lewat Folia: ekualiser, Automix, dan visualizer tidak berlaku. Port debug 127.0.0.1 hanya di komputer ini, dan Folia menjalankannya lagi bila tertutup saat putar."
     },
     "noKey": {
       "title": "Akun ini tidak mendapat kunci audio dari Spotify",
-      "note": "Spotify tidak memberi akun ini kunci audio, sehingga cara Folia sendiri tidak bisa memutar lagunya (umum untuk akun yang dibuat sejak akhir 2024). Anda bisa memutar lewat Soloist resmi dari Spotify: unduh program Soloist, buat kunci API dengan akun Premium, lalu pilih perangkat sekali di aplikasi Spotify. Playlist, lirik, dan pencarian tidak terpengaruh."
+      "note": "Spotify tidak memberi akun ini kunci audio (umum sejak akhir 2024), sehingga cara Folia sendiri tidak bisa memutar lagunya. Pakai Soloist resmi dari Spotify: unduh Soloist, buat kunci API dengan akun Premium, lalu pilih perangkat sekali di aplikasi Spotify. Playlist, lirik, dan pencarian tidak terpengaruh."
     },
     "step": {
       "program": "Program Soloist",
@@ -5295,7 +5295,7 @@ export default {
       "standardNote": "Folia memutar lagu Spotify sendiri.",
       "soloistNote": "Soloist memutar lagu Spotify.",
       "noKeyNote": "Cara Folia sendiri tidak bisa memutar lagu akun ini.",
-      "clientNote": "Aplikasi desktop Spotify memutar lagu Spotify; suaranya tidak melewati Folia.",
+      "clientNote": "Aplikasi desktop Spotify memutar lagu Spotify.",
       "freeNote": "Ini akun gratis: Spotify tidak mengizinkan Folia memutar lagunya sendiri."
     },
     "program": {

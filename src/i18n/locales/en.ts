@@ -5276,11 +5276,11 @@ export default {
       "titleStandard": "How Spotify plays",
       "noteStandard": "Folia plays Spotify's songs itself now. If this account gets no audio key and songs fail with \"cannot play here\", you can switch to Spotify's own Soloist.",
       "clientTitle": "Spotify app setup",
-      "clientNote": "The Spotify desktop app is installed on this computer and sends its sound to the system output itself; Folia steers it and follows its position for the lyrics. Folia starts it with a debugging port that listens on this computer only (127.0.0.1), and starts it again when you press play and it is closed. Its sound does not pass through Folia, so Folia's equalizer, Automix and the effects that move with the music do not apply to it."
+      "clientNote": "Its sound does not pass through Folia, so the equalizer, Automix and visualizer do not apply. It listens on a 127.0.0.1-only debug port; Folia starts it again if closed when you play."
     },
     "noKey": {
       "title": "This account gets no audio key from Spotify",
-      "note": "Spotify gives this account no audio key, so Folia's own way cannot play its songs (common for accounts made since late 2024). You can play through Spotify's own Soloist instead: download the Soloist program, make an API key with a Premium account, and pick the device once in a Spotify app. Playlists, lyrics and search are not affected."
+      "note": "Spotify gives this account no audio key, so Folia's own way cannot play its songs (common since late 2024). Play through Spotify's own Soloist instead: download Soloist, make an API key with a Premium account, and pick the device once in a Spotify app. Playlists, lyrics and search are unaffected."
     },
     "step": {
       "program": "Soloist program",
@@ -5295,7 +5295,7 @@ export default {
       "standardNote": "Folia plays Spotify's songs itself.",
       "soloistNote": "Soloist plays Spotify's songs.",
       "noKeyNote": "Folia's own way cannot play this account's songs.",
-      "clientNote": "The Spotify desktop app plays Spotify's songs; its sound does not pass through Folia.",
+      "clientNote": "The Spotify desktop app plays Spotify's songs.",
       "freeNote": "This is a free account: Spotify does not let Folia play its songs itself."
     },
     "program": {
