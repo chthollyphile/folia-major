@@ -2683,7 +2683,7 @@ export default {
     "playerHeaderBlur": "Làm mờ thanh đầu trình phát",
     "playerHeaderBlurDesc": "Đặt thanh mờ kính của trang chủ phía sau các nút cửa sổ ở trang trình phát, để chúng vẫn dễ đọc trên ảnh tối khi dùng giao diện sáng.",
     "titlebarSide": "Vị trí nút cửa sổ",
-    "titlebarSideDesc": "Chọn phía hiển thị nút cửa sổ. Nút quay lại của trình phát sẽ hạ xuống khi các nút ở bên trái.",
+    "titlebarSideDesc": "Chọn phía hiển thị nút cửa sổ. Các nút quay lại ở góc trên bên trái sẽ hạ xuống khi các nút ở bên trái.",
     "titlebarSideLeft": "Bên trái",
     "titlebarSideRight": "Bên phải",
     "hideFullscreenButton": "Ẩn nút toàn màn hình",

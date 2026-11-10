@@ -179,6 +179,8 @@ const AppShell: React.FC<AppShellProps> = ({
             className="fixed inset-0 w-full h-full flex flex-col overflow-hidden font-sans transition-colors duration-500"
             style={{
                 ...appStyle,
+                // 窗口按钮靠左时，墙面左上角那一排（返回、刷新、分区）下移 28px 让开标题栏，见 WallBackButton.css。
+                ...(usesCustomWindowChrome && leftControls ? { '--window-buttons-drop': '28px' } : null),
                 borderRadius: shouldApplyWindowRadius ? resolveWindowCornerRadius(window.electron?.platform ?? '') : undefined,
                 boxShadow: showTransparentWindowBorder ? 'inset 0 0 0 1px rgba(255,255,255,0.24)' : undefined,
             }}

@@ -29,6 +29,9 @@ export const CLICK_THROUGH_MEDIA_CONTROLS_RIGHT_OFFSET = 214;
 export const CLICK_THROUGH_MEDIA_CONTROLS_RIGHT_OFFSET_WITH_FULLSCREEN_BUTTON = 258;
 export const CLICK_THROUGH_MEDIA_CONTROLS_WIDTH = 86;
 
+// With the window buttons on the left (`titlebarSide`) the row is mirrored: the same offsets count
+// from the left edge, and the hotspot covers 176px to 348px in from the left.
+//
 // Whether a viewport point lies inside the unlock hotspot of a window `viewportWidth` px wide.
 // With the window buttons on the left the whole row is mirrored, so the point is mirrored too.
 export const isWithinClickThroughUnlockHotspot = (

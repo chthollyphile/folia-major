@@ -2683,7 +2683,7 @@ export default {
     "playerHeaderBlur": "播放页顶栏模糊背景",
     "playerHeaderBlurDesc": "在播放页的窗口按钮后面垫上和主页一样的磨砂底，浅色主题遇上深色画面时按钮也看得清。",
     "titlebarSide": "窗口按钮位置",
-    "titlebarSideDesc": "选择窗口按钮所在的一侧。靠左时，播放页返回按钮会下移以避免重叠。",
+    "titlebarSideDesc": "选择窗口按钮所在的一侧。靠左时，各页面左上角的返回按钮会下移以避免重叠。",
     "titlebarSideLeft": "左侧",
     "titlebarSideRight": "右侧",
     "hideFullscreenButton": "隐藏全屏按钮",
