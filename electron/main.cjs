@@ -6712,7 +6712,9 @@ app.on('before-quit', (event) => {
   // ignores it.
   let held = [];
   if (quitShutdownGate.asks({ holding: isQuitHeldForAccounts })) {
-    const closePlayerOnQuit = store.get(CLOSE_EXTERNAL_PLAYER_ON_QUIT_SETTING_KEY) === true;
+    // Unset reads as on: closing the external player with Folia is what a listener expects, and
+    // only an explicit no turns it off. The renderer keeps the same default for its own row.
+    const closePlayerOnQuit = store.get(CLOSE_EXTERNAL_PLAYER_ON_QUIT_SETTING_KEY) !== false;
     held = quitHoldingBridges.map(bridge => bridge.shutdown({ closePlayerOnQuit })).filter(Boolean);
   }
   if (held.length > 0 && !isQuitHeldForAccounts) {

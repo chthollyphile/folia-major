@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events';
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createRequire } from 'node:module';
@@ -583,6 +583,38 @@ describe('the bridge over the official client', () => {
     });
 });
 
+describe('closing Spotify at the quit', () => {
+    // main.cjs cannot be imported (requiring it boots the app), so what it hands the bridges is read
+    // from the file itself, the way test/unit/electron/ipcSecurity.test.ts pins its own wiring.
+    const mainCjs = readFileSync(join(import.meta.dirname, '../../../electron/main.cjs'), 'utf8');
+
+    it('closes the player at the quit for a listener who never set the switch', async () => {
+        const client = {
+            launch: vi.fn(async () => true), restart: vi.fn(async () => true), play: vi.fn(async () => true),
+            queue: vi.fn(async () => 0), pause: vi.fn(async () => true), resume: vi.fn(async () => true),
+            seek: vi.fn(async () => true), setVolume: vi.fn(async () => true), status: vi.fn(async () => ({ id: TRACK })),
+            available: vi.fn(() => ({ available: true })), closeForQuit: vi.fn(async () => true), close: vi.fn(async () => {}),
+        };
+        // The switch is the main process's to read, and a listener who never set it reads as on:
+        // only a stored false turns it off.
+        const site = mainCjs.match(/const closePlayerOnQuit = store\.get\(CLOSE_EXTERNAL_PLAYER_ON_QUIT_SETTING_KEY\)[^;]*;/)?.[0] ?? '';
+        expect(site).not.toBe('');
+        expect(site).toContain('!== false');
+        expect(site).not.toContain('=== true');
+        // And a session held for it is the one that closes the app.
+        const bridge = createSpotifyApiBridge({
+            store: { get: () => undefined, set: () => {}, delete: () => {} }, safeStorage: {}, fetch: vi.fn(),
+            openExternal: vi.fn(), officialClient: client, now: () => 0, log: () => {}, warn: () => {},
+        });
+        await expect(bridge.shutdown({ closePlayerOnQuit: true })).resolves.toBeUndefined();
+        expect(client.closeForQuit).toHaveBeenCalled();
+    });
+
+    it('keeps the store key the renderer writes', () => {
+        expect(mainCjs).toContain("const CLOSE_EXTERNAL_PLAYER_ON_QUIT_SETTING_KEY = 'CLOSE_EXTERNAL_PLAYER_ON_QUIT';");
+    });
+});
+
 describe('the quit, the helper and the port', () => {
     const makeBridge = (officialClient: any) => createSpotifyApiBridge({
         store: { get: () => undefined, set: () => {}, delete: () => {} }, safeStorage: {}, fetch: vi.fn(),
@@ -645,7 +677,7 @@ describe('the quit, the helper and the port', () => {
     it('ends the quit within its limit even when taskkill hangs', async () => {
         const app = makeClient({ portAnswers: true });
         const timeouts: unknown[] = [];
-        app.runFile.mockImplementation((file: string, _args: string[], options: { timeout?: number }, _callback: (error: Error | null, stdout?: string) => void) => {
+        app.runFile.mockImplementation((file: string, args: string[], options: { timeout?: number }) => {
             if (String(file).includes('taskkill')) {
                 timeouts.push(options.timeout);
                 return; // never answers: a taskkill that hangs
