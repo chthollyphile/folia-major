@@ -19,6 +19,7 @@ vi.mock('@/services/onlineMusic/spotify/spotifyTransport', () => ({
 }));
 import { OnlineProviderError } from '@/types/onlineMusic';
 import { describeSpotifyFailure } from '@/services/onlineMusic/spotify/spotifyFailure';
+import { onlineFailureOf } from '@/services/onlineMusic/failure/onlineFailureCase';
 import { normalizeSpotifySong } from '@/services/onlineMusic/spotify/spotifyNormalize';
 import {
     PREPARED_SONGS, PREPARED_SONGS_UNCLEARABLE,
@@ -446,6 +447,42 @@ describe('a start and where it stopped', () => {
         await expect(spotifyClientPlayback.play!(songOf('a'), 0)).rejects.toMatchObject({ code: 'not-playable' });
         // One track the app did not load does not retire the app for the rest of the run.
         expect(canSteerSpotifyApp()).toBe(true);
+    });
+
+    it('reports a song Spotify will not play as the case Folia already has for a taken-down song', async () => {
+        request.mockResolvedValueOnce({ available: true })
+            .mockResolvedValueOnce({ answer: 'unavailable', code: 'ONE_TRACK_UNPLAYABLE', reasons: ['NOT_AVAILABLE'] });
+        await expect(spotifyClientPlayback.play!(songOf('a'), 0)).rejects.toMatchObject({
+            code: 'not-playable', cause: 'track-unavailable',
+        });
+        // The song is taken down rather than missing its audio: Folia shows it as it shows one.
+        expect(describeSpotifyFailure('audio', new OnlineProviderError('not-playable', 'x', 'spotify', 'track-unavailable')))
+            .toEqual({ case: 'taken-down', skipAtOnce: true });
+        expect(canSteerSpotifyApp()).toBe(true);
+    });
+
+    it('reports a song only a paying account may play as needing a plan', async () => {
+        // The player said the free account is what stops this track: it is not taken down, and Folia
+        // shows it with the words it has for a song that needs a membership.
+        request.mockResolvedValueOnce({ available: true })
+            .mockResolvedValueOnce({ answer: 'premium-only', code: 'ONE_TRACK_UNPLAYABLE', reasons: ['NOT_AVAILABLE_IN_NON_PREMIUM'] });
+        await expect(spotifyClientPlayback.play!(songOf('a'), 0)).rejects.toMatchObject({
+            code: 'not-playable', cause: 'premium-only',
+        });
+        expect(canSteerSpotifyApp()).toBe(true);
+    });
+
+    it('marks both ways Spotify refuses a track as one to skip at once', () => {
+        const failure = (reason: string) => describeSpotifyFailure('audio', new OnlineProviderError('not-playable', 'x', 'spotify', reason));
+        expect(failure('track-unavailable')).toEqual({ case: 'taken-down', skipAtOnce: true });
+        expect(failure('premium-only')).toEqual({ case: 'subscription-required', skipAtOnce: true });
+    });
+
+    it('leaves every other failed start as a song without audio', async () => {
+        request.mockResolvedValueOnce({ available: true }).mockResolvedValueOnce('not-loaded');
+        const failed = await spotifyClientPlayback.play!(songOf('a'), 0).then(() => null, (error: unknown) => error);
+        expect(failed).toMatchObject({ code: 'not-playable' });
+        expect(onlineFailureOf({ operation: 'audio', providerId: 'spotify' }, { error: failed }).case).toBe('no-audio');
     });
 
     it('keeps steering when an advance of its own could not reach the app', async () => {

@@ -46,11 +46,24 @@ vi.mock('@/stores/useSearchNavigationStore', () => ({
     useSearchNavigationStore: (selector: (state: unknown) => unknown) => selector({}),
 }));
 vi.mock('@/services/hostExtensionHooks', () => ({ hasBeforePlayHook: () => false, lyricsForNoLyrics: () => null, notifyPlaybackFailed: vi.fn() }));
+// 这些歌由平台自己的播放器放（Spotify 官方客户端就是这样）：跳过去的下一首走的是外部分支。
+const externalSongs = vi.hoisted(() => ({ ids: new Set<string>() }));
 vi.mock('@/services/onlineMusic/omni', () => ({
     omni: {
-        canPlaySong: () => true, canPlayExternally: () => false, getProviderLabel: (id: string) => id, getSongReplacement: vi.fn(async () => null),
+        canPlaySong: () => true, canPlayExternally: (song: { id: string }) => externalSongs.ids.has(song.id),
+        isExternalPlaybackPrepared: () => false, getProviderLabel: (id: string) => id, getSongReplacement: vi.fn(async () => null),
         hasSetup: vi.fn((_id: string) => false),
     },
+}));
+// 外部播放的开始只记一次调用：这个用例看的是提示，不是播放器。
+vi.mock('@/services/onlineMusic/externalPlayback', async importOriginal => ({
+    ...await importOriginal<typeof import('@/services/onlineMusic/externalPlayback')>(),
+    startExternalPlayback: vi.fn(() => ({
+        attempt: 1, askedAt: 0, started: Promise.resolve(), seeded: Promise.resolve(),
+        timings: { prepareMs: 0, playMs: null, statusMs: null, lyricsMs: null, visibleMs: null, coverMs: null },
+    })),
+    announceExternalPlayback: vi.fn(),
+    isExternalRoute: () => false,
 }));
 vi.mock('@/services/onlineMusic/songAvailability', () => ({ askPlayedSong: () => null, isSongUnavailable: vi.fn(() => false) }));
 vi.mock('@/services/onlineMusic/resourceCache', () => ({
@@ -86,6 +99,7 @@ const { mediaFailureOf, onlineFailureOf } = await import('@/services/onlineMusic
 const { useLoginWindowStore } = await import('@/components/login/loginWindowStore');
 const { neteaseAnswerError } = await import('@/services/onlineMusic/netease/neteaseFailure');
 const { hifiTransport } = await import('@/services/hifi/hifiPlayback');
+const { noteWholeQueueWrite } = await import('@/services/wholeQueueWrites');
 const notified = vi.mocked(notifyPlaybackFailed);
 const getSongReplacement = vi.mocked(omni.getSongReplacement);
 
@@ -128,6 +142,8 @@ beforeEach(() => {
     vi.mocked(loadOnlineLyricsState).mockReset().mockImplementation(async () => null);
     vi.mocked(getCachedSongCoverUrl).mockReset().mockImplementation(async () => null);
     audioSettings.autoSkipUnplayable = false;
+    audioSettings.loopMode = 'all';
+    externalSongs.ids.clear();
     vi.stubGlobal('window', { setTimeout: vi.fn(() => 1), setInterval: vi.fn(() => 2), clearTimeout: vi.fn(), clearInterval: vi.fn() });
     usePlaybackStore.setState({ activePlaybackContext: 'main', currentSong: songs[0], playQueue: songs,
         playerState: PlayerState.PLAYING, isFmMode: false, audioSrc: 'https://cdn.example/1.mp3' });
@@ -462,6 +478,173 @@ describe('taken-down songs', () => {
         expect(window.setTimeout).not.toHaveBeenCalled();
         expect(message()).toMatchObject({ type: 'error', text: 'status.songUnavailable' });
         expect(message()?.onAction).toBeUndefined();
+    });
+
+    // 一次下架不等于每次都下架，但连着下架也不该一直跳下去：跳过两次后照「歌曲已下架」停下。
+    it('counts two taken-down songs down and stops at the third', async () => {
+        const longQueue = [...songs, ...['4', '5'].map(makeSong)];
+        loader.mockResolvedValue(unavailable('taken-down'));
+        usePlaybackStore.setState({ playQueue: longQueue });
+        const queue = controller();
+        await queue.playSong(longQueue[0], longQueue);
+
+        for (let skipped = 1; skipped <= 2; skipped += 1) {
+            countdownSkip();
+            await vi.waitFor(() => expect(loader).toHaveBeenCalledTimes(skipped + 1));
+            await vi.waitFor(() => expect(queue.playbackAutoSkipCountRef.current).toBe(skipped));
+        }
+        await vi.waitFor(() => expect(message()).toMatchObject({ text: 'status.songUnavailable' }));
+        expect(message()?.countdown).toBeUndefined();
+        expect(window.setTimeout).toHaveBeenCalledTimes(2);
+        expect(loader.mock.calls.map(([song]) => song)).toEqual([longQueue[0], longQueue[1], longQueue[2]]);
+        // 下架不打断播放：只是不再往下跳，队列和界面照旧。
+        expect(queue.pause).not.toHaveBeenCalled();
+    });
+
+    // 单曲循环只重复正在播的这首，不解释一首放不了的歌：它照队列往下一首跳，而不是停在原地重放。
+    it('moves on in single-song repeat instead of counting the same song down again', async () => {
+        audioSettings.loopMode = 'one';
+        loader.mockResolvedValueOnce(unavailable('taken-down')).mockReturnValueOnce(new Promise(() => undefined));
+        const queue = controller();
+        await queue.playSong(songs[1], songs);
+        expect(message()).toMatchObject({ text: 'status.songUnavailable', persistent: true, countdown: { text: 'failure.skipCountdown' } });
+
+        countdownSkip();
+        await vi.waitFor(() => expect(loader).toHaveBeenCalledTimes(2));
+        expect(loader.mock.calls[1][0]).toBe(songs[2]);
+        expect(loader.mock.calls[1][0]).not.toBe(songs[1]);
+        expect(queue.playbackAutoSkipCountRef.current).toBe(1);
+    });
+});
+
+// 平台说这首再试也是这个结果（下架、只给会员放）：不查替代版本、不倒计时、不停下，直接跳下一首，说一句就走。
+describe('failures the platform says will not change', () => {
+    const atOnce = (caseId: OnlineFailureCaseId) => ({
+        kind: 'unavailable' as const,
+        failure: onlineFailureOf({ operation: 'audio', providerId: 'bodian' }, { detail: { case: caseId, skipAtOnce: true } }),
+    });
+
+    // 一首歌等它的时候整份队列被换掉过：跳下一首改由 handleNextTrack 走 store 里现在这份队列，
+    // 不经过 playSong 的 options。跳过那句话同样得留下，所以 quiet 标记也得带过去。
+    it('keeps the line about the skipped song when the queue was replaced while the song waited', async () => {
+        const wait = deferred<LoaderResult>();
+        loader.mockReturnValueOnce(wait.promise).mockReturnValueOnce(new Promise(() => undefined));
+        const queue = controller();
+        const playing = queue.playSong(songs[1], songs);
+        await vi.waitFor(() => expect(loader).toHaveBeenCalledOnce());
+        // 这一首还在等音源时，整份队列被换掉了（模组的 replaceQueue、它的撤销）。
+        noteWholeQueueWrite();
+        usePlaybackStore.setState({ playQueue: [...songs, ...['4', '5'].map(makeSong)] });
+        wait.resolve(atOnce('taken-down'));
+        await playing;
+
+        // 跳过去的下一首照旧起播，跳过那句话不被它的起播顶掉。
+        await vi.waitFor(() => expect(loader).toHaveBeenCalledTimes(2));
+        expect(loader.mock.calls[1][0]).toBe(songs[2]);
+        expect(message()).toMatchObject({ type: 'info', text: 'status.songUnavailableSkipped' });
+        expect(queue.playbackAutoSkipCountRef.current).toBe(1);
+    });
+
+    it('skips a taken-down song at once, saying so, without looking up another version', async () => {
+        loader.mockResolvedValueOnce(atOnce('taken-down')).mockReturnValueOnce(new Promise(() => undefined));
+        const queue = controller();
+        await queue.playSong(songs[1], songs);
+        expect(getSongReplacement).not.toHaveBeenCalled();
+        expect(window.setTimeout).not.toHaveBeenCalled();
+        expect(queue.pause).not.toHaveBeenCalled();
+        // Not "never called": `playSong` clears a previous song's dialog of another version on every
+        // play, and this song's own play (above) is one of them, as is the skip's. What must not happen
+        // is a dialog about this song: no lookup ran, so none can be offered.
+        expect(queue.setPendingUnavailableReplacement).not.toHaveBeenCalledWith(expect.objectContaining({ originalSong: songs[1] }));
+        expect(message()).toMatchObject({ type: 'info', text: 'status.songUnavailableSkipped' });
+        expect(message()?.countdown).toBeUndefined();
+        expect(message()?.persistent).toBeUndefined();
+        expect(message()?.actionLabel).toBeUndefined();
+
+        await vi.waitFor(() => expect(loader).toHaveBeenCalledTimes(2));
+        expect(loader.mock.calls[1][0]).toBe(songs[2]);
+        expect(queue.playbackAutoSkipCountRef.current).toBe(1);
+    });
+
+    it('skips a song the account may not play at once, saying a membership is needed', async () => {
+        loader.mockResolvedValueOnce(atOnce('subscription-required')).mockReturnValueOnce(new Promise(() => undefined));
+        const queue = controller();
+        await queue.playSong(songs[1], songs);
+        expect(getSongReplacement).not.toHaveBeenCalled();
+        expect(window.setTimeout).not.toHaveBeenCalled();
+        expect(queue.pause).not.toHaveBeenCalled();
+        expect(usePlaybackStore.getState().playerState).not.toBe(PlayerState.IDLE);
+        expect(message()).toMatchObject({ type: 'info', text: 'status.songSubscriptionRequiredSkipped' });
+        expect(message()?.countdown).toBeUndefined();
+        expect(message()?.persistent).toBeUndefined();
+
+        await vi.waitFor(() => expect(loader).toHaveBeenCalledTimes(2));
+        expect(loader.mock.calls[1][0]).toBe(songs[2]);
+        expect(queue.playbackAutoSkipCountRef.current).toBe(1);
+    });
+
+    // 单曲循环重复的是正在播的这首；一首放不了的歌不能一直重放它，照样往队列下一首跳。
+    it('moves on in single-song repeat as well', async () => {
+        audioSettings.loopMode = 'one';
+        loader.mockResolvedValueOnce(atOnce('taken-down')).mockReturnValueOnce(new Promise(() => undefined));
+        const queue = controller();
+        await queue.playSong(songs[1], songs);
+        await vi.waitFor(() => expect(loader).toHaveBeenCalledTimes(2));
+        expect(loader.mock.calls[1][0]).toBe(songs[2]);
+        expect(queue.playbackAutoSkipCountRef.current).toBe(1);
+    });
+
+    // 跳过去的下一首由平台自己的播放器放（官方客户端播放就是这样）时，下一首会把界面改成
+    // 「正在准备播放」；跳过那句话还得在，否则它连一帧都留不下。
+    it.each([
+        ['taken-down', 'status.songUnavailableSkipped'],
+        ['subscription-required', 'status.songSubscriptionRequiredSkipped'],
+    ] as const)('keeps the line about the skipped %s song when the next one starts in the external player', async (caseId, text) => {
+        externalSongs.ids.add(String(songs[2].id));
+        // 外部播放不取音源：下一首自己那段起播走完，就是 store 换了当前歌。
+        loader.mockResolvedValueOnce(atOnce(caseId));
+        const queue = controller();
+        await queue.playSong(songs[1], songs);
+
+        await vi.waitFor(() => expect(usePlaybackStore.getState().currentSong).toMatchObject({ id: songs[2].id }));
+        expect(message()).toMatchObject({ type: 'info', text });
+        expect(queue.playbackAutoSkipCountRef.current).toBe(1);
+    });
+
+    // 连着遇到的照旧计数：跳过两次后停下，和倒计时跳过一样。
+    it('stops after the same number of songs in a row', async () => {
+        const longQueue = [...songs, ...['4', '5'].map(makeSong)];
+        loader.mockResolvedValue(atOnce('taken-down'));
+        usePlaybackStore.setState({ playQueue: longQueue });
+        const queue = controller();
+        await queue.playSong(longQueue[0], longQueue);
+        await vi.waitFor(() => expect(loader).toHaveBeenCalledTimes(3));
+        await vi.waitFor(() => expect(message()).toMatchObject({ type: 'error', text: 'status.songUnavailable' }));
+        expect(queue.playbackAutoSkipCountRef.current).toBe(2);
+        expect(queue.pause).not.toHaveBeenCalled();
+        expect(window.setTimeout).not.toHaveBeenCalled();
+    });
+
+    // 不带标记的两种一个字都不改：下架先查替代版本再倒计时，会员照旧停下。
+    it('leaves a taken-down song without the mark counting down as before', async () => {
+        loader.mockResolvedValueOnce(unavailable('taken-down')).mockReturnValueOnce(new Promise(() => undefined));
+        const queue = controller();
+        await queue.playSong(songs[1], songs);
+        expect(getSongReplacement).toHaveBeenCalledWith(songs[1]);
+        expect(window.setTimeout).toHaveBeenCalledOnce();
+        expect(message()).toMatchObject({ text: 'status.songUnavailable', persistent: true, countdown: { text: 'failure.skipCountdown' } });
+    });
+
+    it('leaves a song the account may not play without the mark stopping as before', async () => {
+        loader.mockResolvedValue(unavailable('subscription-required'));
+        const queue = controller();
+        await queue.playSong(songs[1], songs);
+        expect(queue.pause).toHaveBeenCalledOnce();
+        expect(usePlaybackStore.getState().playerState).toBe(PlayerState.IDLE);
+        expect(getSongReplacement).not.toHaveBeenCalled();
+        expect(window.setTimeout).not.toHaveBeenCalled();
+        expect(loader).toHaveBeenCalledOnce();
+        expect(message()).toMatchObject({ type: 'error', text: 'status.songSubscriptionRequired' });
     });
 });
 

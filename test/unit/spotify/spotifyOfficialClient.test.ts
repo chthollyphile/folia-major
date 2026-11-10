@@ -933,6 +933,130 @@ describe('a start an advertisement plays before', () => {
         let looks = 0;
         await expect(run([{ item: AD }], () => ++looks < 3)).resolves.toBe('preempted');
     });
+
+    // The page's player keeps the error of the last track it was told to play on its context
+    // player: a track Spotify will not play is named there at once instead of being waited out.
+    const refusing = (states: unknown[], getError: () => unknown) => {
+        let look = 0;
+        return {
+            getState: () => states[Math.min(look++, states.length - 1)],
+            _contextPlayer: { getError },
+        };
+    };
+    const runRefusing = (getError: () => unknown, states: unknown[] = [{ item: OTHER }]) => startWait({
+        api: { player: refusing(states, getError) }, uri: TRACK_URI, isAd: isAdvertisementItem,
+        current: () => true, sleep: () => Promise.resolve(),
+    });
+
+    it('answers a track the page says cannot be played without waiting the start out', async () => {
+        await expect(runRefusing(() => ({ code: 'ONE_TRACK_UNPLAYABLE', reasons: ['NOT_AVAILABLE'] })))
+            .resolves.toEqual({ answer: 'unavailable', code: 'ONE_TRACK_UNPLAYABLE', reasons: ['NOT_AVAILABLE'] });
+    });
+
+    it('reads the error whatever the case and spacing of its words', async () => {
+        await expect(runRefusing(() => ({ code: 'one_track_unplayable', reasons: ['NOT_AVAILABLE_IN_CURRENT_REGION'] })))
+            .resolves.toMatchObject({ answer: 'unavailable', code: 'one_track_unplayable' });
+    });
+
+    it('answers a track only a paying account may play as its own answer', async () => {
+        // NOT_AVAILABLE_IN_NON_PREMIUM alone says the free account is what stops it, which is not the
+        // song being taken down: the renderer shows it as needing a plan.
+        await expect(runRefusing(() => ({ code: 'ONE_TRACK_UNPLAYABLE', reasons: ['NOT_AVAILABLE_IN_NON_PREMIUM'] })))
+            .resolves.toEqual({ answer: 'premium-only', code: 'ONE_TRACK_UNPLAYABLE', reasons: ['NOT_AVAILABLE_IN_NON_PREMIUM'] });
+        await expect(runRefusing(() => ({ code: 'one_track_unplayable', reasons: ['not_available_in_non_premium'] })))
+            .resolves.toMatchObject({ answer: 'premium-only' });
+    });
+
+    it('answers a track that is gone as well as out of a free account as unavailable', async () => {
+        // A reason beside NOT_AVAILABLE_IN_NON_PREMIUM says the track itself is gone: the song is
+        // taken down rather than one a plan would bring back.
+        await expect(runRefusing(() => ({
+            code: 'ONE_TRACK_UNPLAYABLE',
+            reasons: ['NOT_AVAILABLE_IN_NON_PREMIUM', 'NOT_AVAILABLE_IN_CURRENT_REGION'],
+        }))).resolves.toMatchObject({ answer: 'unavailable' });
+    });
+
+    it('waits the start out for an error that names something else', async () => {
+        // A code or a reason of another kind says nothing about this track: the track may still come.
+        await expect(runRefusing(() => ({ code: 'OTHER', reasons: ['NOT_AVAILABLE'] }))).resolves.toBe('not-loaded');
+        await expect(runRefusing(() => ({ code: 'ONE_TRACK_UNPLAYABLE', reasons: ['SOMETHING'] }))).resolves.toBe('not-loaded');
+    });
+
+    it('waits the start out when the page has no error to read', async () => {
+        await expect(runRefusing(() => null)).resolves.toBe('not-loaded');
+        await expect(runRefusing(() => ({}))).resolves.toBe('not-loaded');
+        await expect(runRefusing(() => 'nonsense')).resolves.toBe('not-loaded');
+    });
+
+    it('waits the start out when reading the error throws', async () => {
+        // The page's own state reads are made defensively everywhere: one that throws says nothing.
+        await expect(runRefusing(() => { throw new Error('gone'); })).resolves.toBe('not-loaded');
+    });
+
+    // The page's player keeps the error of the last track it was told to play: a song before this one
+    // may still be named there, so one look at it does not say this start failed.
+    const refusedEachLook = (errors: unknown[]) => {
+        let look = 0;
+        return () => errors[Math.min(look++, errors.length - 1)];
+    };
+
+    it('waits the start out when the page names a track gone on the first look only', async () => {
+        const gone = { code: 'ONE_TRACK_UNPLAYABLE', reasons: ['NOT_AVAILABLE'] };
+        await expect(runRefusing(refusedEachLook([gone, null]))).resolves.toBe('not-loaded');
+    });
+
+    it('answers a refusal that is still there one look later, on the second look', async () => {
+        const getError = vi.fn(refusedEachLook([{ code: 'ONE_TRACK_UNPLAYABLE', reasons: ['NOT_AVAILABLE'] }]));
+        await expect(runRefusing(getError)).resolves.toMatchObject({ answer: 'unavailable' });
+        expect(getError).toHaveBeenCalledTimes(2);
+    });
+
+    it('answers a refusal of the free account on the second look as well', async () => {
+        const getError = vi.fn(refusedEachLook([{ code: 'ONE_TRACK_UNPLAYABLE', reasons: ['NOT_AVAILABLE_IN_NON_PREMIUM'] }]));
+        await expect(runRefusing(getError)).resolves.toMatchObject({ answer: 'premium-only' });
+        expect(getError.mock.calls.length).toBeLessThanOrEqual(2);
+    });
+
+    // 免费账号点歌常常先放一段广告，而页面留着的错误是上一首的：广告在屏上时它说的不是点的那首。
+    const goneEachLook = () => ({ code: 'ONE_TRACK_UNPLAYABLE', reasons: ['NOT_AVAILABLE'] });
+
+    it('does not answer an unavailable song while an advertisement plays', async () => {
+        // The error stays the same on every look and the advertisement never ends: the start is the
+        // advertisement's, not the track being gone.
+        await expect(runRefusing(goneEachLook, [{ item: AD }])).resolves.toBe('advertisement');
+    });
+
+    it('answers a refusal that outlives the advertisement, on the second look after it', async () => {
+        await expect(runRefusing(goneEachLook, [{ item: AD }, { item: AD }, { item: OTHER }]))
+            .resolves.toMatchObject({ answer: 'unavailable' });
+    });
+
+    it('counts the refusal again from the advertisement\'s end', async () => {
+        // An advertisement on the screen drops the refusal held before it: the look right after it is
+        // the first one, and a refusal read there alone is still the error of the song before this one.
+        const readOnce = refusedEachLook([goneEachLook(), null]);
+        await expect(runRefusing(readOnce, [{ item: AD }, { item: AD }, { item: OTHER }, { item: OTHER }]))
+            .resolves.toBe('not-loaded');
+    });
+
+    it('takes the track an error names instead of the one the start asked for', async () => {
+        // An error that names a track of its own is this start's only when it names this track.
+        const other = { code: 'ONE_TRACK_UNPLAYABLE', reasons: ['NOT_AVAILABLE'], uri: OTHER.uri };
+        await expect(runRefusing(() => other)).resolves.toBe('not-loaded');
+        const own = { code: 'ONE_TRACK_UNPLAYABLE', reasons: ['NOT_AVAILABLE'], track: { uri: TRACK_URI } };
+        await expect(runRefusing(() => own)).resolves.toMatchObject({ answer: 'unavailable' });
+        const inItem = { code: 'ONE_TRACK_UNPLAYABLE', reasons: ['NOT_AVAILABLE'], item: { uri: TRACK_URI } };
+        await expect(runRefusing(() => inItem)).resolves.toMatchObject({ answer: 'unavailable' });
+    });
+
+    it('reads no track from the error\'s context track', async () => {
+        // The context track is the list the app was playing, not the song this start asked for: named
+        // there, it says nothing about which track went, so the refusal is the one every start gets.
+        const contextOnly = { code: 'ONE_TRACK_UNPLAYABLE', reasons: ['NOT_AVAILABLE'], contextTrack: { uri: OTHER.uri } };
+        await expect(runRefusing(() => contextOnly)).resolves.toMatchObject({ answer: 'unavailable' });
+        const ownBesideContext = { code: 'ONE_TRACK_UNPLAYABLE', reasons: ['NOT_AVAILABLE'], uri: TRACK_URI, contextTrack: { uri: OTHER.uri } };
+        await expect(runRefusing(() => ownBesideContext)).resolves.toMatchObject({ answer: 'unavailable' });
+    });
 });
 // --- the songs that follow, written into the app's queue, driven by a stand-in player ------------
 
