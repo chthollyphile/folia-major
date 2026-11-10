@@ -710,6 +710,33 @@ describe('what a call may do to Spotify', () => {
         await app.client.close();
     });
 
+    // 页面说加载完了就算加载完：不靠 app 里某个 id（Spotify 改版会换掉它，那时这个判断永远为假，
+    // 于是一路空等到第一段的上限）。这里页面 complete、body 在，但既没有 #main 也找不到播放器。
+    it('ends within eight seconds without an element id it was never promised', async () => {
+        FakeSocket.failuresLeft = FAILED_CONNECTIONS;
+        const asked: string[] = [];
+        handle = expression => {
+            asked.push(expression);
+            if (expression.includes('window.__foliaPlay')) return { details: 'Error: player-unavailable' };
+            if (expression.includes('document.readyState')) {
+                // 一个改过版的界面：complete 与 body 都在，但界面里那个 id 已经没有了。
+                // 只有不去问元素 id 的写法才判得出来「页面加载完了」。
+                return { value: !expression.includes('getElementById') };
+            }
+            return { value: false };
+        };
+        const app = makeClient({ running: false, portAnswers: false, appDirectory: makeLauncherDirectory() });
+        const startedAt = Date.now();
+        await expect(app.client.play({ id: TRACK, startMs: 0 })).rejects.toMatchObject({ code: 'unavailable', reason: 'player-not-found' });
+        // 短的那一段照样是 8 秒：不是空等完 25 秒才知道找不到播放器。
+        expect(Date.now() - startedAt).toBeGreaterThanOrEqual(8000);
+        expect(Date.now() - startedAt).toBeLessThan(15000);
+        const askedLoaded = asked.filter(expression => expression.includes('document.readyState'));
+        expect(askedLoaded.length).toBeGreaterThan(0);
+        for (const expression of askedLoaded) expect(expression).not.toContain('getElementById');
+        await app.client.close();
+    });
+
     it('keeps its long wait for a page that is still loading', async () => {
         FakeSocket.failuresLeft = FAILED_CONNECTIONS;
         const startedAt = Date.now();

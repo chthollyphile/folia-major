@@ -138,10 +138,12 @@ const inPage = body => `(async () => { const api = ${FIND_APIS}; if (!api) throw
 
 // Runs in the Spotify page: whether the app's own main interface has finished loading. The page that
 // answers a script is not the page that is ready - a document still loading has a React tree without
-// the player in it - so this is what starts the short wait for the player find below. The document
-// being complete is the signal Spotify's own shell gives: its UI is mounted by then, and the main
-// element it mounts into is there.
-const PAGE_LOADED = `(() => document.readyState === 'complete' && Boolean(document.getElementById('main')))()`;
+// the player in it - so this is what starts the short wait for the player find below.
+// The document being complete is the signal, and nothing narrower: a build may mount its interface
+// into any element, or none, so an id it happens to use now is not something to wait on. Asked for one
+// that a later version stopped using, this answered false for the whole of the first wait and a player
+// that was never going to appear was looked for until that wait ran out.
+const PAGE_LOADED = `(() => document.readyState === 'complete' && document.body !== null)()`;
 
 // The player's state as it stands, read in the page and turned into Folia's status here
 // (`statusFromPlayerState`). Page and process share one clock: both run on this computer.
