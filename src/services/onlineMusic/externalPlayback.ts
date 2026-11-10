@@ -53,7 +53,9 @@ const PREPARED_QUEUE_START_LIMIT_MS = 15_000;
 export type ExternalPlaybackEvent =
     | { type: 'status' }
     // `skipped`: the player was moved off the song by its own controls, not by its end.
-    | { type: 'ended'; skipped?: 'next' | 'previous' }
+    // `heard`: the player confirmed playing this very song at some point, so the end is that song's
+    // own end. A song whose start never landed can report an end without ever having sounded.
+    | { type: 'ended'; skipped?: 'next' | 'previous'; heard?: boolean }
     | { type: 'failure'; error: unknown }
     | { type: 'foreign-track' }
     // The player fell back to a coarser channel (or came back to its precise one): said once an episode.
@@ -235,11 +237,19 @@ const refreshPreparedQueue = () => {
         console.warn(`[ExternalPlayback] the start has not landed in ${PREPARED_QUEUE_START_LIMIT_MS / 1000}s: the prepared queue is written again`, { attempt: startPendingAttempt });
     }
     const state = usePlaybackStore.getState();
-    const next = externalQueueSuccessors(current.song, state.playQueue, useAudioSettingsStore.getState().loopMode, state.isFmMode, omni.canPlaySong, PREPARED_TAIL);
-    const key = JSON.stringify(next.map(getPlaybackSongKey));
+    // Repeat one: the player goes on to nothing after this song, and what an earlier write left in
+    // its own queue is taken back where it can be emptied.
+    const loopMode = useAudioSettingsStore.getState().loopMode;
+    const retract = loopMode === 'one';
+    const next = externalQueueSuccessors(current.song, state.playQueue, loopMode, state.isFmMode, omni.canPlaySong, PREPARED_TAIL);
+    // The mode is part of the key: repeat one and the end of a queue both hand the player nothing, and
+    // the second one has nothing to take back.
+    const key = JSON.stringify([next.map(getPlaybackSongKey), retract]);
     if (current.preparedQueueKey === key) return;
     current.preparedQueueKey = key;
-    void omni.prepareExternalPlaybackQueue(current.song, next).catch(error => {
+    // Only repeat one asks for a take-back: every other call is the plain one, with no options to read.
+    const preparation = omni.prepareExternalPlaybackQueue(current.song, next, retract ? { retract: true } : undefined);
+    void preparation.catch((error: unknown) => {
         // A newer song dropped this queued preparation: nothing went wrong.
         if (session !== current) return;
         if (current.preparedQueueKey === key) current.preparedQueueKey = '';
@@ -281,13 +291,16 @@ const markPaused = (positionSec: number) => {
 const markEnded = (positionSec: number) => {
     if (!session || session.ended) return;
     session.ended = true;
+    // Read before `playing` is cleared: it is true only once the player itself said it was sounding
+    // this song, so an end without it is not that song's end (see `ExternalPlaybackEvent`).
+    const heard = session.playing;
     session.playing = false;
     syncClock(positionSec, true, performance.now(), false);
     externalMediaShim.markEnded();
     setPlayerState(PlayerState.PAUSED);
     const skipped = session.skipped;
     session.skipped = undefined;
-    emit(skipped ? { type: 'ended', skipped } : { type: 'ended' });
+    emit(skipped ? { type: 'ended', skipped, heard } : { type: 'ended', heard });
     emit({ type: 'status' });
 };
 

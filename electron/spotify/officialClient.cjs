@@ -148,6 +148,9 @@ const STATE_BODY = `
 // songs than were written, and a player that only adds can never take one back, so the read is used
 // for the log and for whether the app can empty its queue at all: `probed`, null until this run's
 // first write asks, and the answer kept until a later clear shows the app cannot do it after all.
+// Emptying the queue is the app's own, and it takes the songs the listener queued there too: what the
+// queue held that the caller's record does not own is put back, in its order, before the songs this
+// write adds, so only the songs of Folia's are ever taken back.
 // `generation` is the play this write belongs to, and a play that started meanwhile has emptied the
 // queue for songs of its own.
 const QUEUE_SOURCE = `async ({ api, uris, queued, probed, generation }) => {
@@ -202,10 +205,36 @@ const QUEUE_SOURCE = `async ({ api, uris, queued, probed, generation }) => {
   if (window.__foliaPlay !== generation) {
     return { aborted: true, canClear, cleared: false, written: [], read: null };
   }
-  const written = (cleared ? uris : uris.filter(uri => !held.has(uri.slice(14)) && !(before || []).includes(uri.slice(14))))
+  const added = (cleared ? uris : uris.filter(uri => !held.has(uri.slice(14)) && !(before || []).includes(uri.slice(14))))
     .map(uri => uri.slice(14));
-  if (written.length) await api.player.addToQueue(written.map(id => ({ uri: 'spotify:track:' + id })));
-  return { aborted: false, canClear, cleared, written, read: readQueue() };
+  // The clear took every song the app held, and the app's queue is also where the listener puts songs
+  // of their own. Those are not in the caller's record, so the places they held are given back to
+  // them, in the order they were in, and never counted as songs of Folia's: a later take-back leaves
+  // them alone. The places Folia wrote take the songs of this write, in this write's order, so the
+  // listener's songs keep their place among them; what this write has beyond those places follows
+  // them. A song the listener queued twice held two places, and gets both of them back.
+  const toAdd = [];
+  let next = 0;
+  for (const id of cleared ? (before || []) : []) {
+    if (held.has(id) || uris.includes('spotify:track:' + id)) {
+      // A place of Folia's: the song this write puts there, or none where it writes fewer.
+      if (next < added.length) toAdd.push(added[next++]);
+    } else toAdd.push(id);
+  }
+  while (next < added.length) toAdd.push(added[next++]);
+  // The clear has already run, so a queue that cannot take these songs back leaves the listener
+  // without the songs they queued: an answer of its own says so rather than failing the whole write,
+  // which the caller would read as a queue it never emptied.
+  if (toAdd.length) {
+    try {
+      await api.player.addToQueue(toAdd.map(id => ({ uri: 'spotify:track:' + id })));
+    } catch (error) {
+      console.warn('[SpotifyClient] the songs to follow could not be put back after the queue was emptied', error);
+      return { aborted: false, canClear, cleared, restored: false, written: [], read: readQueue() };
+    }
+  }
+  // Only the songs of Folia's are reported as written: the record decides what a take-back takes.
+  return { aborted: false, canClear, cleared, restored: true, written: added, read: readQueue() };
 }`;
 
 // Spotify's repeat (0 off, 1 the list, 2 the track) by the names the renderer sends.

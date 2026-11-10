@@ -151,7 +151,103 @@ describe('a start that runs on after the interface', () => {
         await start.seeded;
         await vi.advanceTimersByTimeAsync(500);
         expect(omniMock.prepareExternalPlaybackQueue).toHaveBeenCalledTimes(1);
-        expect(omniMock.prepareExternalPlaybackQueue).toHaveBeenCalledWith(song, [b, c]);
+        expect(omniMock.prepareExternalPlaybackQueue).toHaveBeenCalledWith(song, [b, c], undefined);
+    });
+
+    it('writes the take-back picked while a start is still landing, once that start lands', async () => {
+        const playing = deferred();
+        omniMock.playSongExternally.mockImplementation(() => playing.promise);
+        // The player reports real progress: two answers apart the position moves, which is what lets
+        // the tail be written at all.
+        let positionMs = 0;
+        omniMock.getExternalPlaybackStatus.mockImplementation(async () => {
+            positionMs += 1000;
+            return status({ positionMs });
+        });
+        const start = engine.startExternalPlayback(song, 0);
+        engine.announceExternalPlayback();
+        // Repeat one is picked while the player is still taking the song. Nothing is written now, and
+        // not because a write was held back: no answer of this song has come yet, so there is no tail
+        // to write and none to take back either.
+        useAudioSettingsStore.setState({ loopMode: 'one' });
+        await vi.advanceTimersByTimeAsync(1500);
+        expect(omniMock.prepareExternalPlaybackQueue).not.toHaveBeenCalled();
+
+        // The start lands, the player answers as playing, and the take-back the new mode asks for is
+        // written on the first answers that follow rather than being left out for this song.
+        playing.resolve();
+        await start.seeded;
+        await vi.advanceTimersByTimeAsync(2000);
+        expect(omniMock.prepareExternalPlaybackQueue).toHaveBeenCalledTimes(1);
+        expect(omniMock.prepareExternalPlaybackQueue).toHaveBeenCalledWith(song, [], { retract: true });
+    });
+
+    it('writes the take-back again when repeat one is picked although nothing follows either way', async () => {
+        useAudioSettingsStore.setState({ loopMode: 'off' });
+        // The player reports real progress, which is what lets the tail be written at all.
+        let positionMs = 0;
+        omniMock.getExternalPlaybackStatus.mockImplementation(async () => {
+            positionMs += 1000;
+            return status({ positionMs });
+        });
+        // Nothing follows this song, so the tail is empty in both modes: only the take-back tells
+        // repeat one apart from the end of a queue.
+        usePlaybackStore.setState({ playQueue: [song] });
+        const start = engine.startExternalPlayback(song, 0);
+        engine.announceExternalPlayback();
+        await start.seeded;
+        await vi.advanceTimersByTimeAsync(2000);
+        expect(omniMock.prepareExternalPlaybackQueue).toHaveBeenCalledTimes(1);
+        expect(omniMock.prepareExternalPlaybackQueue).toHaveBeenLastCalledWith(song, [], undefined);
+
+        // Repeat one: the songs an earlier write left behind this one are taken back, even though
+        // the tail it writes is the same empty one. A key of the tail alone would read this as the
+        // write just made and send nothing.
+        useAudioSettingsStore.setState({ loopMode: 'one' });
+        await vi.advanceTimersByTimeAsync(1);
+        expect(omniMock.prepareExternalPlaybackQueue).toHaveBeenCalledTimes(2);
+        expect(omniMock.prepareExternalPlaybackQueue).toHaveBeenLastCalledWith(song, [], { retract: true });
+    });
+
+    it('says an end was heard only once the player had said this song was playing', async () => {
+        const ends: { heard?: boolean }[] = [];
+        const unsubscribe = engine.subscribeExternalPlayback(event => {
+            if (event.type === 'ended') ends.push(event);
+        });
+        // The player never says it plays this song, and then reports it over: a start that never
+        // landed answers with an end of its own, and a replay of it would restart nothing.
+        let answers = 0;
+        omniMock.getExternalPlaybackStatus.mockImplementation(async () => (
+            answers++ === 0 ? status({ isPlaying: false, positionMs: 0 }) : status({ isPlaying: false, positionMs: 0, ended: true })
+        ));
+        const start = engine.startExternalPlayback(song, 0);
+        engine.announceExternalPlayback();
+        await start.seeded;
+        await vi.advanceTimersByTimeAsync(600);
+
+        expect(ends).toHaveLength(1);
+        expect(ends[0].heard).toBe(false);
+        unsubscribe();
+    });
+
+    it('says an end was heard where the player said this song was playing', async () => {
+        const ends: { heard?: boolean }[] = [];
+        const unsubscribe = engine.subscribeExternalPlayback(event => {
+            if (event.type === 'ended') ends.push(event);
+        });
+        let positionMs = 5000;
+        omniMock.getExternalPlaybackStatus.mockImplementation(async () => (
+            positionMs > 0 ? status({ positionMs }) : status({ isPlaying: false, positionMs: 0, ended: true })
+        ));
+        const start = engine.startExternalPlayback(song, 0);
+        engine.announceExternalPlayback();
+        await start.seeded;
+        positionMs = 0;
+        await vi.advanceTimersByTimeAsync(600);
+
+        expect(ends).toHaveLength(1);
+        expect(ends[0].heard).toBe(true);
+        unsubscribe();
     });
 
     it('times a start in one line that names the start and every part of it', async () => {

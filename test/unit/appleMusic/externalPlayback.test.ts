@@ -373,12 +373,12 @@ describe('external playback route', () => {
         usePlaybackStore.setState({ playQueue: [song, next] });
         await engine.beginExternalPlayback(song, 0);
         engine.announceExternalPlayback();
-        expect(omniMock.prepareExternalPlaybackQueue).toHaveBeenLastCalledWith(song, [next]);
+        expect(omniMock.prepareExternalPlaybackQueue).toHaveBeenLastCalledWith(song, [next], undefined);
         usePlaybackStore.setState({ playQueue: [song] });
-        expect(omniMock.prepareExternalPlaybackQueue).toHaveBeenLastCalledWith(song, []);
+        expect(omniMock.prepareExternalPlaybackQueue).toHaveBeenLastCalledWith(song, [], undefined);
         usePlaybackStore.setState({ playQueue: [song, next] });
         useAudioSettingsStore.setState({ loopMode: 'one' });
-        expect(omniMock.prepareExternalPlaybackQueue).toHaveBeenLastCalledWith(song, []);
+        expect(omniMock.prepareExternalPlaybackQueue).toHaveBeenLastCalledWith(song, [], { retract: true });
         useAudioSettingsStore.setState({ loopMode: 'off' });
     });
 

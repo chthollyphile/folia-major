@@ -58,6 +58,12 @@ export type PlaybackNavigationOptions = {
 export type NextTrackOptions = PlaybackNavigationOptions & {
     allowStopOnMissing?: boolean;
     /**
+     * Set only by a provider's own player reporting the end of a song while the queue repeats one
+     * song: this song starts over from its beginning instead of the queue stepping on. A press of
+     * next, and a player its listener stepped by its own controls, never carry it.
+     */
+    replayCurrent?: boolean;
+    /**
      * The track to step from, when it is deliberately NOT the one the listener can see.
      *
      * Next/previous normally step from the displayed track, because during a blend the queue has
