@@ -127,6 +127,21 @@ describe('a player taken over, before the listener picks a song of their own', (
         expect(engine.isExternalTakeoverPending()).toBe(true);
     });
 
+    it('passes on muting and unmuting in Folia while the player is only taken over', async () => {
+        // The mute button, its command-palette entry and the volume keys are the listener's own
+        // presses in this window, like the slider: the player is told while it is only taken over.
+        await engine.adoptExternalPlayback(song);
+        useAudioSettingsStore.getState().handleSetMuted(true);
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(omniMock.setExternalPlaybackVolume).toHaveBeenCalledWith(song, 0);
+
+        useAudioSettingsStore.getState().handleSetMuted(false);
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(omniMock.setExternalPlaybackVolume).toHaveBeenLastCalledWith(song, 1);
+        // The take-over still stands: it is a press, not the app following its own level.
+        expect(engine.isExternalTakeoverPending()).toBe(true);
+    });
+
     it('keeps a level the listener set while a write was in flight, after the take-over', async () => {
         // A drag's second level is still the listener's when the first write returns: it is sent, not
         // dropped as if the app had asked for it.

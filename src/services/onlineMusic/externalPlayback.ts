@@ -547,6 +547,15 @@ export function setExternalPlaybackVolume(level = settingsVolume(), source: Exte
     });
 }
 
+/**
+ * The mute switch, as the listener pressed it in Folia. Muted is a level of 0 for a player that has no
+ * mute of its own here, and unmuting hands back the level the app is left at. It is a press rather than
+ * the app following its own level, so a player that was only taken over is told about it.
+ */
+export function setExternalPlaybackMuted(): void {
+    setExternalPlaybackVolume(settingsVolume(), 'user');
+}
+
 /** A slider drag or a volume key: the level the listener is moving to, heard from the external player. */
 export function previewExternalPlaybackVolume(volume: number): void {
     if (!isExternalRoute()) return;
@@ -1019,7 +1028,11 @@ export const installExternalPlayback = (): void => {
     externalMediaShim.setClockReader(() => getExternalPosition());
     useAudioSettingsStore.subscribe((state, previous) => {
         if (state.loopMode !== previous.loopMode) refreshPreparedQueue();
-        if (state.volume !== previous.volume || state.isMuted !== previous.isMuted) setExternalPlaybackVolume();
+        // Muting is only ever a press in this window: nothing of the app's own turns it on or off,
+        // so it goes to the player like the slider does, even while the player is only taken over.
+        // The level the app follows by itself stays held back there.
+        if (state.isMuted !== previous.isMuted) setExternalPlaybackMuted();
+        else if (state.volume !== previous.volume) setExternalPlaybackVolume();
     });
     usePlaybackStore.subscribe((state, previous) => {
         if (ownWriteDepth > 0) return;
