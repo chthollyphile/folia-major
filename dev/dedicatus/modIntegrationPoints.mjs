@@ -21,6 +21,9 @@ export const MOD_INTEGRATION_POINTS = [
     'src/components/modal/settings/pages/ModsPage.tsx',
     'src/components/modal/settings/pages/storage/visualConfigTransfer.ts',
     'src/components/remote/RemoteActionButtons.tsx', // README 没写（待补）
+    'src/components/scenes/settings/SceneRow.tsx',
+    'src/components/scenes/settings/SceneSettingsPanel.tsx',
+    'src/components/scenes/settings/SceneWindow.tsx',
     'src/components/visualizer/VisualizerBackdrop.tsx',
     'src/components/visualizer/VisualizerShell.tsx',
     'src/components/visualizer/preview/LyricStylePicture.tsx',

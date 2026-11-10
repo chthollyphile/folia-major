@@ -104,6 +104,9 @@ const { discoverUpdateVersion, settleWithin } = require('./updateCheckMirrors.cj
 const { resolveCacheLimit, selectEvictions } = require('./audioCachePrune.cjs');
 const { removeAudioCacheFileOfSize } = require('./audioCacheRemove.cjs');
 const { createAnalysisHost } = require('./analysis/host.cjs');
+const { createAcousticsHost } = require('./acoustics/host.cjs');
+const { steamAudioLibraryPath } = require('./acoustics/phonon.cjs');
+const { createSceneScreenHost } = require('./scenes/screenCapture.cjs');
 const { createDebugHost, runtimeLine } = require('./debug/debugHost.cjs');
 const { createCrashLog, installCrashHandlers, flushPageStorage } = require('./debug/crashLog.cjs');
 const { measureLeftovers, removeDownloadedLeftovers } = require('./analysis/modelPaths.cjs');
@@ -2977,6 +2980,17 @@ logLinuxVulkanChoice(linuxVulkan, linuxGraphicsMode);
 const analysisHost = createAnalysisHost({
   app, ipcMain, getModelsDir: getBundledModelsDirectory, isTrustedSender: isFirstPartyWindowContents,
 });
+
+// The scene engine's room sound (window.electron.sceneAcoustics): Steam Audio in a child process of its own,
+// rooms cached under userData. Only the main window plays scenes. See electron/acoustics/host.cjs.
+createAcousticsHost({
+  app, ipcMain,
+  isTrusted: (event) => isTrustedMainWindowContents(event.sender),
+  libraryFile: steamAudioLibraryPath({ packaged: app.isPackaged, resourcesPath: process.resourcesPath, appRoot: path.join(__dirname, '..') }),
+  getCacheDir: () => path.join(app.getPath('userData'), 'scene-acoustics'),
+});
+// A small picture of a scene's screen, which lights the scene (window.electron.sceneScreen). See electron/scenes/screenCapture.cjs.
+createSceneScreenHost({ ipcMain, isTrusted: (event) => isTrustedMainWindowContents(event.sender) });
 
 function buildPlaybackSyncBridgeStatus() {
   return {
@@ -6386,12 +6400,9 @@ app.whenReady().then(async () => {
     app.setAppUserModelId(WINDOWS_APP_USER_MODEL_ID);
   }
   logGpuPreference(gpuPreferenceApplied);
-  if (process.platform === 'win32') {
-    // Late, so the DxDiag pass behind the read stays out of startup; the settings page may read it sooner.
-    setTimeout(() => {
-      readActiveGpu().catch(error => console.warn('[Gpu] Could not read the active adapter', error));
-    }, 10_000);
-  }
+  // The active adapter is read only when the settings page asks: the 'complete' info behind it holds the
+  // GPU process's main thread about half a second (CollectDawnInfo), and every window's frames stop with it.
+  // Measured 2026-11-10: read 10 s after launch, it froze the picture 0.5 s on every start.
 
   if (process.platform === 'linux' && typeof safeStorage.getSelectedStorageBackend === 'function') {
     const backend = safeStorage.getSelectedStorageBackend();

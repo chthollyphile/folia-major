@@ -52,6 +52,7 @@ subview 只是调用方；新增字段要同时改这两处，光改 subview 不
 - bravais 资料库墙的「透光」偏好（`src/stores/useLibraryWallLookStore.ts` 的 `look` 与 `windowsPerBlock`，设置在「主页与歌单」页「Bravais 墙面」一组，`pages/BravaisWallGroup.tsx`）。它影响视觉，但用户决定不进外观配置的短码 / JSON（2026-10-06），store 头部的 `@note` 写明了这一点。它照常接命令面板（`library-wall-look-picker` / `library-wall-windows-picker`）与 bravais 的外观动作。同一 store 的集合叠页边开关 `collectionStackEdges`、信息条的材质 `seamClear` / `seamStyle` 与墙后画面的 `backdropLyrics` / `backdropBlur` **不在**这个例外里，照规则进了导入导出（`libraryWallStackEdges` / `libraryWallSeamClear` / `libraryWallSeamStyle` / `libraryWallBackdropLyrics` / `libraryWallBackdropBlur`）。
 - 资料库界面（UI suite）的选择（`useLibrarySuiteStore`）是界面偏好，不是视觉调参，同样不进导入导出。
 - 2026-11-08 复核 Dedicatus 登记表（`dev/dedicatus/appearanceDestinations.mjs`）里还没去向的外观键时，用户定：配置码也用于 web 版 OBS 链接，只加 OBS 页面看得到的。于是 Lattice 队列拼贴墙的设置、播放页控件与标题栏（`player_header_blur` 除外，它早已在配置码里）、鼠标指针、透明背景与系统材质、速记簿把手、舞台 / PlayerCap 等本机集成开关、明暗模式和首页动态背景都不进导入导出；OBS 页面看得到的三个渲染设置里只加了歌词画布的分辨率与抗锯齿（`lyricRenderQuality`，短码 `lrq`，OBS 页面经 `LyricRenderQualityGlobalContext` 用它），帧率上限和辉光模糊量化不进。各 store 头部的 `@note` 写明了这一点，登记表里逐个写了原因。
+- 场景（`src/components/scenes/settings/useSceneSettingsStore.ts` 的 `sceneId` 与各场景的画质、座位、设置值，`useSoundTracingStore.ts` 的声线追踪）按上一条不进导入导出：OBS 页面不挂场景。store 头部的 `@note` 写明了这一点；场景照常接命令面板（`sceneCommands.ts`）。
 
 新增类似的例外时，必须是用户明确的决定，并在 store 或设置组件的注释里写明，防止后来者按规则补回去。
 
