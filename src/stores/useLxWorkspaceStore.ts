@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { LxPublicPlatform } from '../services/onlineMusic/lxmusic/lxPublicApi';
+import type { LxPublicPlatform } from '../services/onlineMusic/lxmusic/lxFacade';
 
 // src/stores/useLxWorkspaceStore.ts
 // 「洛雪工作台」的开合与当前页签。放在 store 里是因为入口在登录页（Library 那棵树），

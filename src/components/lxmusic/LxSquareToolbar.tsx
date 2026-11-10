@@ -9,7 +9,7 @@ import {
     lxApiPlaylistTags,
     type LxPublicPlatform,
     type LxSquareTagCatalog,
-} from '../../services/onlineMusic/lxmusic/lxPublicApi';
+} from '../../services/onlineMusic/lxmusic/lxFacade';
 import { LxPlatformPicker } from './LxPlatformPicker';
 import { LxCategoryPicker } from './LxCategoryPicker';
 
@@ -24,7 +24,7 @@ import { LxCategoryPicker } from './LxCategoryPicker';
 //     两层目录都在这一个浮层里点完，页面高度一格不占（两行芯片原来会把卡流往下压）。
 //
 // 分类组与标签都来自那家自己的分类目录接口，不是写死的文案：
-// 见 lxPublicApi 的 lxApiPlaylistTags —— 拿到的 id 直接就是该家「按标签取歌单」的参数。
+// 见 lxmusicTransport 的 lxApiPlaylistTags —— 拿到的 id 直接就是该家「按标签取歌单」的参数。
 
 const PLATFORM_KEYS: ReadonlyArray<LxPublicPlatform | 'all'> = ['all', 'wy', 'tx', 'kg', 'kw'];
 

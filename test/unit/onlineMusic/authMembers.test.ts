@@ -50,7 +50,7 @@ const AUTH_MEMBERS: Record<string, string[]> = {
         'checkLogin', 'describeLoginFailure', 'getLoginForm', 'getLoginStatus', 'getLoginTexts', 'logout', 'startLogin', 'submitLoginForm',
     ],
     // 洛雪不连账号：免登录，登出不动已导入的音源，所以只有两个必需成员。
-    lxmusic: ['getLoginStatus', 'logout'],
+    lxmusic: ['getLoginStatus', 'getLoginTexts', 'logout'],
 };
 
 describe('the sign-in members of each built-in platform', () => {

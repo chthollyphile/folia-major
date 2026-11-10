@@ -1795,6 +1795,8 @@ export default {
     "loginNoteBodian": "Mở ứng dụng Bodian Music quét mã QR và xác nhận đăng nhập",
     "loginTitleFnMusic": "Đăng nhập fnOS Music",
     "loginNoteFnMusic": "Nhập địa chỉ máy chủ và tài khoản fnOS Music để phát nhạc từ NAS của bạn",
+    "loginTitleLxmusic": "Nguồn LX Music",
+    "loginNoteLxmusic": "LX Music không dùng tài khoản: hãy nhập script nguồn của bạn để tìm và phát. Script do bạn cung cấp, Folia không kèm sẵn.",
     "loginTitleYtm": "Đăng nhập YouTube Music",
     "loginTitleAppleMusic": "Đăng nhập Apple Music",
     "loginNoteAppleMusic": "Đăng nhập trong cửa sổ Apple. Mật khẩu của bạn chỉ được gửi cho Apple.",
@@ -2108,6 +2110,7 @@ export default {
     "ytm": "YT Music",
     "spotify": "Spotify",
     "qishui": "Qishui",
+    "lxmusic": "LX Music",
     "fnmusic": "fnOS",
   },
   "globalLyricOffset": {

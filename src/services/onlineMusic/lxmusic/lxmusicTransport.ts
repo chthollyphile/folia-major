@@ -1,4 +1,4 @@
-// src/services/onlineMusic/lxmusic/lxPublicApi.ts
+// src/services/onlineMusic/lxmusic/lxmusicTransport.ts
 //
 // 洛雪的「平台侧」：直接读各家公开接口，把搜索结果、歌单广场、排行榜取回来。
 //

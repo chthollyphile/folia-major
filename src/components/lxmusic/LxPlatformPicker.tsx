@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type FC, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, ChevronDown } from 'lucide-react';
-import { LX_PUBLIC_PLATFORMS, type LxPublicPlatform } from '../../services/onlineMusic/lxmusic/lxPublicApi';
+import { LX_PUBLIC_PLATFORMS, type LxPublicPlatform } from '../../services/onlineMusic/lxmusic/lxFacade';
 
 // src/components/lxmusic/LxPlatformPicker.tsx
 // 洛雪那几家平台（网易云 / QQ / 酷狗 / 酷我，外加「全部平台」）的统一选择器。

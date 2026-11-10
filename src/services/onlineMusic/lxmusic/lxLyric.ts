@@ -5,9 +5,9 @@
 // 歌恰恰都在 QQ 上。所以这里补上 QQ 与酷狗的歌词，再留一层「按歌名+歌手去网易云搜同款」的兜底：
 // 三成以上「没歌词」的歌其实是别家平台的同一首歌。
 //
-// 请求都走 lxPublicApi 的同一个出口（桌面走 IPC，安卓走原生 OkHttp），不谈 host 白名单。
+// 请求都走 lxmusicTransport 的同一个出口（桌面走 IPC，安卓走原生 OkHttp），不谈 host 白名单。
 
-import { httpGetText, parseLooseJson } from './lxPublicApi';
+import { httpGetText, parseLooseJson } from './lxmusicTransport';
 
 type Raw = Record<string, unknown>;
 

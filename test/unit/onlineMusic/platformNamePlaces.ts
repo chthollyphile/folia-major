@@ -151,7 +151,7 @@ export const PLATFORM_NAME_PLACES: Record<string, PlatformNamePlace> = {
     'src/services/nativeAndroidBridge.ts': { n: { lxmusic: 2 }, kind: 'doc', why: '洛雪 provider 的接入点（宿主层）' },
     'src/services/nativeRemoteAudio.ts': { n: { lxmusic: 2 }, kind: 'doc', why: '洛雪 provider 的接入点（宿主层）' },
     'src/services/onlineMusic/lxmusic/lxLyric.ts': { n: { netease: 3, qq: 7, kugou: 6 }, kind: 'question', why: '洛雪（LX Music）的音源聚合层：按平台 id 调公开接口，随本次洛雪 provider 一并入场' },
-    'src/services/onlineMusic/lxmusic/lxPublicApi.ts': { n: { netease: 72, qq: 62, kugou: 59, ytm: 1 }, kind: 'question', why: '洛雪（LX Music）的音源聚合层：按平台 id 调公开接口，随本次洛雪 provider 一并入场' },
+    'src/services/onlineMusic/lxmusic/lxmusicTransport.ts': { n: { netease: 72, qq: 62, kugou: 59, ytm: 1 }, kind: 'question', why: '洛雪（LX Music）的音源聚合层：按平台 id 调公开接口，随本次洛雪 provider 一并入场' },
     'src/services/onlineMusic/lxmusic/lxSquareCollections.ts': { n: { netease: 3, qq: 1, kugou: 1 }, kind: 'question', why: '洛雪（LX Music）的音源聚合层：按平台 id 调公开接口，随本次洛雪 provider 一并入场' },
     'src/services/onlineMusic/lxmusic/lxTypes.ts': { n: { netease: 4, qq: 4, kugou: 4 }, kind: 'question', why: '洛雪（LX Music）的音源聚合层：按平台 id 调公开接口，随本次洛雪 provider 一并入场' },
     'src/services/onlineMusic/lxmusic/lxmusicProvider.ts': { n: { netease: 8, qq: 3, kugou: 4 }, kind: 'question', why: '洛雪（LX Music）的音源聚合层：按平台 id 调公开接口，随本次洛雪 provider 一并入场' },
@@ -159,5 +159,5 @@ export const PLATFORM_NAME_PLACES: Record<string, PlatformNamePlace> = {
     'src/components/ui/index.tsx': { n: { lxmusic: 2 }, kind: 'doc', why: '洛雪组件用的轻量控件入口（按钮/输入框的薄包装）' },
     'src/services/proxiedUrl.ts': { n: { lxmusic: 1 }, kind: 'doc', why: '桌面端不拼代理地址，只解释洛雪为何返回原地址' },
     'src/library/suites/grid/home/lx/LxAlbumWall.tsx': { n: { kugou: 2, lxmusic: 6 }, kind: 'question', why: '首页专辑页签在洛雪下的形态（收藏歌拼成封面墙），与首页同一条滑轨' },
-    'src/library/suites/grid/home/lx/LxChartBoard.tsx': { n: { netease: 2, qq: 1, kugou: 1, lxmusic: 6 }, kind: 'question', why: '首页推荐页签在洛雪下的形态（排行榜），与首页同一条滑轨' },
+    'src/library/suites/grid/home/lx/LxChartBoard.tsx': { n: { netease: 2, qq: 1, kugou: 1, lxmusic: 7 }, kind: 'question', why: '首页推荐页签在洛雪下的形态（排行榜），与首页同一条滑轨；+1 是洛雪改动后 import 走门面的注释' },
 };

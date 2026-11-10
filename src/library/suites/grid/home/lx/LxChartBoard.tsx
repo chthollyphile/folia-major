@@ -5,7 +5,7 @@ import {
     lxApiCharts,
     type LxApiChart,
     type LxPublicPlatform,
-} from '../../../../../services/onlineMusic/lxmusic/lxPublicApi';
+} from '../../../../../services/onlineMusic/lxmusic/lxFacade';
 import { useLxWorkspaceStore } from '../../../../../stores/useLxWorkspaceStore';
 import { Grid3DSlider, type Grid3DSliderItem } from '../Grid3DSlider';
 import { LxPlatformPicker, type LxPlatformKey } from '../../../../../components/lxmusic/LxPlatformPicker';
@@ -21,7 +21,7 @@ import { LxPlatformPicker, type LxPlatformKey } from '../../../../../components/
 //     （工作台是另一套界面，点一下像换了个软件，用户明确否掉了）。
 //
 // 榜单清单不是写死的几条：每家都是该家自己的目录接口（网易云/酷我是固定榜表，
-// QQ/酷狗直接读它们的榜单目录），四家合计一百多个榜，见 lxPublicApi 的 lxApiCharts。
+// QQ/酷狗直接读它们的榜单目录），四家合计一百多个榜，见 lxmusicTransport 的 lxApiCharts。
 
 export type LxChartTarget = { platform: LxPublicPlatform; id: string; name: string; coverUrl?: string };
 

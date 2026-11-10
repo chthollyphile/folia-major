@@ -13,7 +13,7 @@ import {
     type LxApiChart,
     type LxApiRadioProgram,
     type LxPublicPlatform,
-} from '../../services/onlineMusic/lxmusic/lxPublicApi';
+} from '../../services/onlineMusic/lxmusic/lxFacade';
 import { LxTrackList } from './LxTrackList';
 import { LxMinePanel } from './LxMinePanel';
 import {

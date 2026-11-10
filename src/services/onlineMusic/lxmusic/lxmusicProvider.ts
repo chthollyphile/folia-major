@@ -2,7 +2,7 @@
 // 「洛雪音源」provider。
 //
 // 分工照 LX 客户端来：
-//   · 搜索 / 歌单广场 / 榜单 / 歌单与专辑曲目 —— 走 lxPublicApi 里各家的公开网页接口，不需要账号；
+//   · 搜索 / 歌单广场 / 榜单 / 歌单与专辑曲目 —— 走 lxmusicTransport 里各家的公开网页接口，不需要账号；
 //   · 播放地址 / 歌词 —— 优先用公开接口（酷我有免费直链、网易云有公开歌词），取不到时交给导入的 LX 音源
 //     （LX 自定义音源只干这件事：把 musicUrl / lyric / pic 续出来）。
 //
@@ -62,7 +62,7 @@ import {
     type LxApiPage,
     type LxApiSong,
     type LxPublicPlatform,
-} from './lxPublicApi';
+} from './lxmusicTransport';
 
 // ---------------------------------------------------------------- id 编解码
 
@@ -725,7 +725,7 @@ export const lxmusicProvider: OnlineMusicProvider = {
     displayName: '洛雪音源',
     shortName: '洛雪',
     shortNameKey: 'onlineProviderName.lxmusic',
-    mark: { letter: '雪', color: '#e11d48' },
+    mark: { letter: '雪', color: '#7c3aed' },
     getAvailability: () => ({ configured: true }),
     /*
      * 洛雪不连账号：导入音源脚本就能用，没有扫码也没有表单。但宿主要求每个 provider 都答得出
@@ -733,6 +733,8 @@ export const lxmusicProvider: OnlineMusicProvider = {
      * 登出不动已导入的音源与偏好（它们存在本机，见 lxSourceStore / lxPreferences）。
      */
     auth: {
+        // 登录窗格按这个标题与说明展示；洛雪不用账号，说明写的是“导入音源脚本”。
+        getLoginTexts: () => ({ title: 'home.loginTitleLxmusic', note: 'home.loginNoteLxmusic' }),
         async getLoginStatus() {
             return { id: 'lxmusic-local', nickname: '洛雪音源' };
         },
@@ -1234,7 +1236,7 @@ export const lxmusicProvider: OnlineMusicProvider = {
     },
 };
 
-// 以下是给「洛雪工作台」页面用的：把平台侧的数据顺手暴露出去，页面不必再认识 lxPublicApi。
+// 以下是给「洛雪工作台」页面用的：把平台侧的数据顺手暴露出去，页面不必再认识 lxmusicTransport。
 export const lxBrowse = {
     platforms: LX_PUBLIC_PLATFORM_KEYS,
     charts: lxApiCharts,

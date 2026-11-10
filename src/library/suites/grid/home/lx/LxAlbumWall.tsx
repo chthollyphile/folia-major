@@ -4,7 +4,7 @@ import {
     LX_PUBLIC_PLATFORMS,
     lxApiAlbumName,
     type LxPublicPlatform,
-} from '../../../../../services/onlineMusic/lxmusic/lxPublicApi';
+} from '../../../../../services/onlineMusic/lxmusic/lxFacade';
 import { ensureLxLikedSongsHydrated, getLxLikedSongs, subscribeLxLikedSongs } from '../../../../../services/onlineMusic/lxmusic/lxLikedSongs';
 import { getLxSavedPlaylists, subscribeLxSavedPlaylists, type LxSavedSong } from '../../../../../services/onlineMusic/lxmusic/lxSavedPlaylists';
 import { lxSavedAlbumCollectionId } from '../../../../../services/onlineMusic/lxmusic/lxFacade';

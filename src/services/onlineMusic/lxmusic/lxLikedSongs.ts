@@ -13,7 +13,7 @@
 import type { UnifiedSong } from '../../../types';
 import { fromSavedSong, toSavedSong, type LxSavedSong } from './lxSavedPlaylists';
 import { readLxLocalLikes } from './lxLocalLikes';
-import { lxApiSongById, type LxApiSong, type LxPublicPlatform } from './lxPublicApi';
+import { lxApiSongById, type LxApiSong, type LxPublicPlatform } from './lxmusicTransport';
 
 const PUBLIC_PLATFORMS: ReadonlyArray<string> = ['wy', 'tx', 'kg', 'kw'];
 

@@ -44,6 +44,7 @@ describe('what each platform declares for the sign-in window', () => {
             spotify: { letter: 'S', color: '#22c55e' },
             qishui: { letter: '汽', color: '#19a58c' },
             appleMusic: { letter: 'A', color: '#fa243c' },
+            lxmusic: { letter: '雪', color: '#7c3aed' },
         });
     });
 
@@ -64,6 +65,7 @@ describe('what each platform declares for the sign-in window', () => {
             spotify: { title: 'home.loginTitleSpotify', note: 'home.loginNoteSpotify' },
             qishui: { title: 'home.loginTitleQishui', note: 'home.loginNoteQishui' },
             appleMusic: { title: 'home.loginTitleAppleMusic', note: 'home.loginNoteAppleMusic' },
+            lxmusic: { title: 'home.loginTitleLxmusic', note: 'home.loginNoteLxmusic' },
         });
     });
 

@@ -4,7 +4,7 @@ import { Button, TextField, TextArea, Checkbox } from '../ui';
 import { lxSourceStore } from '../../services/onlineMusic/lxmusic/lxSourceStore';
 import { importLxSourceFromFile, importLxSourceFromUrl, type ImportResult } from '../../services/onlineMusic/lxmusic/lxImportService';
 import type { LxSource } from '../../services/onlineMusic/lxmusic/lxTypes';
-import { LX_PUBLIC_PLATFORMS } from '../../services/onlineMusic/lxmusic/lxPublicApi';
+import { LX_PUBLIC_PLATFORMS } from '../../services/onlineMusic/lxmusic/lxFacade';
 import {
     formatPlaybackDiagnostics,
     clearPlaybackDiagnostics,
