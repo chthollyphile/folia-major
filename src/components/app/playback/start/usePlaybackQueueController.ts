@@ -1417,7 +1417,7 @@ export function usePlaybackQueueController({
     const handleExternalPlayerRestartCancel = useCallback(() => {
         setPendingExternalPlayerRestart(null);
         setStatusMsg({ type: 'info', text: t('status.externalPlayerRestartDeclined') });
-    }, [setStatusMsg, t]);
+    }, [t]);
 
     const handleSearchResultAddToQueue = useCallback((track: UnifiedSong) => {
         dispatchSearchTrackAction(track, {

@@ -84,7 +84,7 @@ describe('the row that asks for the machine’s own sound', () => {
         const store = await loadStore();
         store.setState({ externalSystemAudioSpectrum: false });
         const context = { settings: { toggleExternalSystemAudioSpectrum: () => store.getState().handleToggleExternalSystemAudioSpectrum(!store.getState().externalSystemAudioSpectrum) } };
-        command?.execute('', context as unknown as Parameters<NonNullable<typeof command>['execute']>[1]);
+        void command?.execute('', context as unknown as Parameters<NonNullable<typeof command>['execute']>[1]);
         expect(store.getState().externalSystemAudioSpectrum).toBe(true);
     }, 30000);
 

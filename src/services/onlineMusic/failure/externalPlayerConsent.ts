@@ -41,7 +41,7 @@ export const playerCauseTextKeys = (
 /** 人是不是已经同意过（一个不记得这件事的窗口答否，与主进程的默认一致）。 */
 export const readExternalPlayerRestartConsent = async (): Promise<boolean> => {
     try {
-        return await window.electron?.externalPlayerRestartConsent?.() === true;
+        return await window.electron?.externalPlayerRestartConsent() === true;
     } catch (error) {
         console.warn('[OnlineMusic] The restart consent could not be read', error);
         return false;
@@ -51,7 +51,7 @@ export const readExternalPlayerRestartConsent = async (): Promise<boolean> => {
 /** 记下这次同意：之后再遇到同一个播放器就不会再问。 */
 export const grantExternalPlayerRestartConsent = async (): Promise<boolean> => {
     try {
-        return await window.electron?.externalPlayerRestartConsent?.(true) === true;
+        return await window.electron?.externalPlayerRestartConsent(true) === true;
     } catch (error) {
         console.warn('[OnlineMusic] The restart consent could not be granted', error);
         return false;
@@ -61,7 +61,7 @@ export const grantExternalPlayerRestartConsent = async (): Promise<boolean> => {
 /** 撤销同意：下次再遇到就重新问。 */
 export const revokeExternalPlayerRestartConsent = async (): Promise<void> => {
     try {
-        await window.electron?.externalPlayerRestartConsent?.(false);
+        await window.electron?.externalPlayerRestartConsent(false);
     } catch (error) {
         console.warn('[OnlineMusic] The restart consent could not be revoked', error);
     }
