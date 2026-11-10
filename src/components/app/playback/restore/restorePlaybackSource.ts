@@ -37,7 +37,7 @@ import { currentTime } from '../../../../stores/motionSignals';
 import { useOnlineProviderAccountStore } from '../../../../stores/useOnlineProviderAccountStore';
 import { setStatusMessage as setStatusMsg, useStatusMessageStore } from '../../../../stores/useStatusMessageStore';
 import { setActiveLocalLyricsSource, setAudioSrc, setCachedCoverUrl, setCurrentSong, setDuration, usePlaybackStore } from '../../../../stores/usePlaybackStore';
-import { askedSongKeyRef, keepSongsOfProvidersStanding, makeSongCurrent, providerDropsSoFar, replaceShownSong } from '../currentSong';
+import { askedSongKeyRef, keepSongsOfProvidersStanding, makeSongCurrent, providerDropsSoFar, replaceShownSong, startOfAskedSong } from '../currentSong';
 import { onlineFailureToast } from '../source/onlineFailureToast';
 import { loadLocalSongAudio, loadLocalSongHifiSource, loadNavidromeSongAudio, loadOnlineSongAudio } from '../source/songAudioSource';
 import { queueWithRunningTrack, resolveRunningTrack } from './runningTrack';
@@ -163,22 +163,31 @@ const adoptRunningTrack = async (
     const track = await resolveRunningTrack(song, running, () => !overtaken());
     if (!track) return false;
     makeSongCurrent(track);
-    // Asked of the track from here on: this song has been asked for, so the remembered one's token
-    // says nothing about it any more.
-    const stillCurrent = () => askedSongKeyRef.current === getPlaybackSongKey(track);
+    // The take-over's own ask of the track, kept apart from an ask for that same song landing while
+    // it waits: the key cannot tell two asks of one song apart, and a play of this song asks again.
+    const trackKey = getPlaybackSongKey(track);
+    const askedStart = startOfAskedSong();
+    // Asked of the track from here on, after every wait: a song asked for meanwhile owns the screen
+    // and the queue now, so nothing of the track is written. The remembered one's token says nothing
+    // about the track any more, hence the key and the start of the ask instead.
+    const notOvertaken = () => askedSongKeyRef.current === trackKey && startOfAskedSong() === askedStart;
+    const stillCurrent = notOvertaken;
     if (running.isPlaying) {
         if (!await adoptExternalPlayback(track)) {
             // The player did not hold the track any more: the remembered song is the song this app
             // shows again, and nothing of the track was written anywhere. The player is left as it is.
             // A song asked for while the take-over waited keeps the screen.
-            if (askedSongKeyRef.current === getPlaybackSongKey(track)) makeSongCurrent(song);
+            if (notOvertaken()) makeSongCurrent(song);
             return false;
         }
-        dropPlayIntent(options.shouldAutoPlayRef);
+        // The player sounds the track, so the restore's own intent to play is dropped - but only
+        // where nothing asked for a song meanwhile: a play that did armed the intent that starts it.
+        if (notOvertaken()) dropPlayIntent(options.shouldAutoPlayRef);
     } else {
         // Paused there: shown where the player has it, and from there the press of play starts it.
-        // A player nobody started here is not taken over, so no intent to play is left to start it.
-        dropPlayIntent(options.shouldAutoPlayRef);
+        // A player nobody started here is not taken over, so no intent to play is left to start it -
+        // unless a song was asked for while the take-over waited, whose play starts that one.
+        if (notOvertaken()) dropPlayIntent(options.shouldAutoPlayRef);
         // The progress bar reads this track's own length: the duration still held is the remembered
         // song's, which is another one. The player's own answer comes first.
         const durationMs = running.durationMs > 0 ? running.durationMs : track.durationMs;
@@ -186,7 +195,7 @@ const adoptRunningTrack = async (
         showExternalPosition(track, running.positionMs, () => !stillCurrent());
     }
     // A song asked for while the take-over waited owns the queue now: nothing of this track is written.
-    if (askedSongKeyRef.current !== getPlaybackSongKey(track)) return true;
+    if (!notOvertaken()) return true;
     const queue = queueWithRunningTrack(options.queueBase(), track, song);
     options.setPlayQueue?.(queue);
     void options.persistLastPlaybackCache?.(track, queue);
