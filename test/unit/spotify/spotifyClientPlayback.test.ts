@@ -1645,6 +1645,9 @@ describe('repeat one carried out by the app\'s own repeat of the track', () => {
 
         const status = statusOfClient(playing(id('a'), { positionMs: 0 }));
         expect(status.replayed).toBeUndefined();
+    });
+});
+
 describe('the track the watcher of the app reads', () => {
     // Watched every few seconds for the whole of a run: it must ask for the read that carries the
     // watcher's own, slower port-search budget, never the one a session restore spends.

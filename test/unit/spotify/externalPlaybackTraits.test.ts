@@ -99,7 +99,7 @@ describe('what the providers declare', () => {
 });
 
 describe('omni.externalPlaybackTraits', () => {
-    it('reads the official app's declarations and its limit while that is the way Spotify plays', async () => {
+    it('reads the official app\'s declarations and its limit while that is the way Spotify plays', async () => {
         await pickWay('client');
         expect(omni.externalPlaybackTraits(songOn('spotify'))).toEqual({
             capturesSystemAudio: true,
