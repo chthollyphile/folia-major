@@ -632,7 +632,7 @@ export interface OnlineExternalPlaybackProvider {
      * themselves is left as theirs. The answer says what the player holds afterwards, which is what
      * tells a repeat the player carries out itself from one it never took.
      */
-    setTrackRepeat?(on: boolean): Promise<ExternalTrackRepeatAnswer | void>;
+    setTrackRepeat?(on: boolean): Promise<ExternalTrackRepeatAnswer | undefined>;
     /** False only for songs this external route already knows it cannot start; no network reads. */
     canPlay?(song: SongResult): boolean;
     /** Prepare a bounded successor queue without interrupting the current song. */

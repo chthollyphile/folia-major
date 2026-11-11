@@ -1430,7 +1430,7 @@ describe('the state a session restore reads', () => {
 
 describe('repeat one carried out by the app\'s own repeat of the track', () => {
     it('reads the listener\'s own press beside the end of the song as their press, not as the song ending', async () => {
-        const [a, b] = ['a', 'b'].map(songOf);
+        const [a] = ['a', 'b'].map(songOf);
         await spotifyClientPlayback.play!(a, 0);
         await spotifyClientPlayback.setTrackRepeat!(true);
         // The song is in its last seconds, the app repeats the track, and the listener pressed next
@@ -1445,7 +1445,7 @@ describe('repeat one carried out by the app\'s own repeat of the track', () => {
     });
 
     it('reads a track change beside the end of the song as the song ending where the app does not repeat it', async () => {
-        const [a, b] = ['a', 'b'].map(songOf);
+        const [a] = ['a', 'b'].map(songOf);
         await spotifyClientPlayback.play!(a, 0);
         statusOfClient(playing(id('a'), { positionMs: 198500 }));
 

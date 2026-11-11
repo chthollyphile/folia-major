@@ -54,7 +54,7 @@ export const spotifyExternalPlayback: OnlineExternalPlaybackProvider = {
     pause: () => current().pause(),
     resume: () => current().resume(),
     seek: seconds => current().seek(seconds),
-    setTrackRepeat: on => current().setTrackRepeat?.(on) ?? Promise.resolve(),
+    setTrackRepeat: on => current().setTrackRepeat?.(on) ?? Promise.resolve(undefined),
     setVolume: volume => current().setVolume?.(volume) ?? Promise.resolve(),
     // Only the way that runs Spotify's own app can be running a track Folia is not: Soloist's player
     // is steered by Folia alone, so it answers nothing here.

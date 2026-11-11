@@ -52,12 +52,12 @@ interface SpotifyClientLoaded {
 
 /** Whether a start took the track, whichever of the two shapes it answered in. */
 const isLoadedAnswer = (answer: SpotifyClientPlayAnswer): answer is 'loaded' | SpotifyClientLoaded => (
-    answer === 'loaded' || (typeof answer === 'object' && answer !== null && answer.answer === 'loaded')
+    answer === 'loaded' || (typeof answer === 'object' && answer.answer === 'loaded')
 );
 
 /** The repeat the app holds after a start, where that start said: null for every other answer. */
 const repeatAfterStart = (answer: 'loaded' | SpotifyClientLoaded): number | null => (
-    typeof answer === 'object' && answer !== null && typeof answer.repeat === 'number' ? answer.repeat : null
+    typeof answer === 'object' && typeof answer.repeat === 'number' ? answer.repeat : null
 );
 
 // Spotify named this track as one it will not play: its own player's code and the reasons beside it
@@ -755,7 +755,7 @@ export const spotifyClientPlayback: OnlineExternalPlaybackProvider = {
         // as the app's own only once that value is known to be the track's.
         if (attempt) attempt.nativeRepeat = false;
         try {
-            const answer = await requestSpotify<{ read?: boolean; changed?: boolean; now?: number | null }>('client_repeat', { on });
+            const answer = await requestSpotify<{ read?: boolean; changed?: boolean; now?: number | null } | null>('client_repeat', { on });
             // The repeat the app holds afterwards is the only sign that it repeats this song by
             // itself: a write it refused, a read that could not be made and the listener's own value
             // all leave another one, and repeat one is then Folia's own replay of the song.
