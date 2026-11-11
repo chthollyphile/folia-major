@@ -57,6 +57,7 @@ const { makeSongCurrent } = await import('@/components/app/playback/currentSong'
 const { usePlaybackStore } = await import('@/stores/usePlaybackStore');
 const { PlayerState } = await import('@/types');
 const { useAudioSettingsStore } = await import('@/stores/useAudioSettingsStore');
+const { PLAYBACK_DECK_ATTRIBUTE } = await import('@/components/hifi/useWebEngineYield');
 
 const songOn = (mediaId: string, name = mediaId): SongResult => ({
     id: mediaId,
@@ -87,6 +88,19 @@ const other = songOn('456', 'Another');
 const status = (overrides: Partial<ProviderExternalPlaybackStatus> = {}): ProviderExternalPlaybackStatus => ({
     mediaId: '123', isPlaying: true, positionMs: 10000, durationMs: 200000, ended: false, ...overrides,
 });
+
+/** A deck of this window: jsdom plays nothing, so its play state is set by hand and its pause is recorded. */
+const deckElement = (deck: string) => {
+    const element = document.createElement('audio');
+    element.setAttribute(PLAYBACK_DECK_ATTRIBUTE, deck);
+    element.setAttribute('src', `blob:deck-${deck}`);
+    let paused = true;
+    Object.defineProperty(element, 'paused', { configurable: true, get: () => paused });
+    element.pause = vi.fn(() => { paused = true; });
+    element.load = vi.fn(() => {});
+    document.body.appendChild(element);
+    return { element, startSounding: () => { paused = false; } };
+};
 
 describe('a player that follows the listener\'s own changes', () => {
     beforeEach(() => {
@@ -270,6 +284,83 @@ describe('a player that follows the listener\'s own changes', () => {
         expect(usePlaybackStore.getState().currentSong).toEqual(other);
         expect(engine.getExternalSong()).not.toEqual(songOn('789', 'Asked for'));
         expect(engine.getExternalSong()).not.toEqual(songOn('456', 'Another'));
+    });
+
+    // The take-over only stops what this window plays once it knows the answer is still the one it
+    // was asked for: a song started here while the player was read owns the speakers then, and
+    // emptying the deck under it would leave the listener's own press silent.
+    const deferredStatus = () => {
+        let resolve!: (value: ProviderExternalPlaybackStatus) => void;
+        const promise = new Promise<ProviderExternalPlaybackStatus>(done => { resolve = done; });
+        return { promise, resolve };
+    };
+    // A deck of this window sounding a song the listener started: the press of play here, while the
+    // file of the song it plays was still being read.
+    const soundingDeck = () => {
+        const deck = deckElement('A');
+        deck.startSounding();
+        usePlaybackStore.setState({ playerState: PlayerState.PLAYING });
+        return deck;
+    };
+
+    it('leaves a local song started here sounding where it was asked for while the player was taken over', async () => {
+        const adopted = deferredStatus();
+        omniMock.getExternalPlaybackStatus.mockImplementation(() => adopted.promise);
+
+        const taking = takeOverRunningPlayer(song, status());
+        await flush();
+        // The press of play here: another song owns the screen and a deck of this window sounds it.
+        const deck = soundingDeck();
+        makeSongCurrent(localSong);
+        adopted.resolve(status());
+
+        await expect(taking).resolves.toBe('untouched');
+        expect(usePlaybackStore.getState().currentSong).toEqual(localSong);
+        expect(deck.element.pause).not.toHaveBeenCalled();
+        expect(deck.element.hasAttribute('src')).toBe(true);
+        expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PLAYING);
+    });
+
+    it('leaves it sounding where the same song was asked for again while the player took the track', async () => {
+        const adopted = deferredStatus();
+        omniMock.getSongDetail.mockResolvedValue(other);
+        omniMock.getExternalPlaybackStatus.mockImplementation(() => adopted.promise);
+
+        const taking = takeOverRunningPlayer(song, status({ mediaId: '456', positionMs: 3000 }));
+        await flush();
+        await flush();
+        // The same track played again from here: a new start, and a deck of this window sounds it.
+        const deck = soundingDeck();
+        makeSongCurrent(other);
+        adopted.resolve(status({ mediaId: '456' }));
+
+        await expect(taking).resolves.toBe('untouched');
+        expect(deck.element.pause).not.toHaveBeenCalled();
+        expect(deck.element.hasAttribute('src')).toBe(true);
+        expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PLAYING);
+    });
+
+    // A paused track is taken over as well where the caller follows the listener's own window, so
+    // the same song played again here while the player was asked about it keeps its deck too.
+    it('leaves it sounding where the same song was asked for again while a paused track was taken over', async () => {
+        const adopted = deferredStatus();
+        omniMock.getSongDetail.mockResolvedValue(other);
+        omniMock.getExternalPlaybackStatus.mockImplementation(() => adopted.promise);
+
+        const taking = takeOverRunningPlayer(song, status({ mediaId: '456', isPlaying: false, positionMs: 3000 }), {
+            adoptsPausedTrack: true,
+        });
+        await flush();
+        await flush();
+        // The same track played again here: a new start, and a deck of this window sounds it.
+        const deck = soundingDeck();
+        makeSongCurrent(other);
+        adopted.resolve(status({ mediaId: '456', isPlaying: false }));
+
+        await taking;
+        expect(deck.element.pause).not.toHaveBeenCalled();
+        expect(deck.element.hasAttribute('src')).toBe(true);
+        expect(usePlaybackStore.getState().currentSong).toEqual(other);
     });
 
     // A player that moved on to another track and was paused there: the session goes with the

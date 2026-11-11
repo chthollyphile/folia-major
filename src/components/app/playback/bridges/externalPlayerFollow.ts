@@ -110,7 +110,6 @@ export const takeOverRunningPlayer = async (
         // A player that answers through its coarse channel is not taken over: the app cannot steer it.
         if (running.isPlaying && running.degraded !== true) {
             const adopted = await adoptExternalPlayback(remembered);
-            if (adopted) stopLocalDecksForTakeOver();
             // A song asked for while the player was taken over owns the screen: the route just taken
             // is given up rather than left following a song nobody shows. A play of that song may have
             // begun a session of its own meanwhile, and that one is left sounding.
@@ -118,6 +117,7 @@ export const takeOverRunningPlayer = async (
                 // Either way nothing of this window plays the song now: what sounds there is the
                 // player's, and a take-over that failed left the route to this app. So the intent the
                 // caller armed is dropped with it, as the window hand-off's restore drops its own.
+                if (adopted) stopLocalDecksForTakeOver();
                 options.spendPlayIntent?.();
                 if (adopted) return 'adopted';
             } else {
@@ -168,7 +168,7 @@ const settleTrackTakeOver = async (
             return 'untouched';
         }
         // This window sounds nothing of the track from here: the player has it.
-        stopLocalDecksForTakeOver();
+        if (stillCurrent()) stopLocalDecksForTakeOver();
         // The player took the track under another song that is now on screen: it is this window's
         // again and nothing of the track is shown, so it is given up as a stop gives it up.
         if (!stillCurrent()) {
@@ -190,7 +190,7 @@ const settleTrackTakeOver = async (
     if (options.adoptsPausedTrack === true && stillCurrent()) {
         const adopted = await adoptExternalPlayback(track);
         if (adopted) {
-            stopLocalDecksForTakeOver();
+            if (stillCurrent()) stopLocalDecksForTakeOver();
             if (!stillCurrent()) {
                 yieldExternalPlayback('another song was asked for while the paused track was taken over', adopted);
                 return 'untouched';
