@@ -29,6 +29,13 @@ const STATUS_RETRY_INTERVAL_MS = 2000;
 const STATUS_RETRY_MAX_INTERVAL_MS = 10000;
 /** How far a position answer may be extrapolated, as `hifiClock` does. */
 const MAX_SAMPLE_AGE_SEC = 1;
+/**
+ * How long the app's own call to move its player may take, in milliseconds. One call answers it, and
+ * the main process gives every call of that kind CALL_LIMIT_MS (electron/<id>/officialClient.cjs):
+ * the move is not given a shorter one. Every status ask is held while it is in flight, so the
+ * position is extrapolated for the whole of this time rather than for `MAX_SAMPLE_AGE_SEC`.
+ */
+export const PLAYER_CALL_LIMIT_MS = 8000;
 /** A player that stopped this close to the length has finished the track. */
 const END_TOLERANCE_SEC = 0.75;
 /**
@@ -94,6 +101,12 @@ type ExternalSession = {
     positionRevision: number;
     seekPending: boolean;
     seeking: boolean;
+    /**
+     * A move landed and no answer has reported the player's position since: the next playing answer
+     * says where the player is now, not where a tick that arrived late says it was, so it is followed
+     * even where it is a little behind the spot the listener dropped the bar on.
+     */
+    afterSeek: boolean;
 };
 
 export const externalMediaShim = new MediaShim('external:');
@@ -306,11 +319,14 @@ const refreshPreparedQueue = () => {
     });
 };
 
-const syncClock = (positionSec: number, paused: boolean, sampledAtMs: number, holdBackward: boolean) => {
+const syncClock = (positionSec: number, paused: boolean, sampledAtMs: number, holdBackward: boolean, maxExtrapolationSec?: number) => {
     if (!session) return;
     paused ||= session.live;
     const ageSec = paused ? 0 : Math.min(Math.max(0, (performance.now() - sampledAtMs) / 1000), MAX_SAMPLE_AGE_SEC);
-    session.clock.sync({ positionSec: positionSec + ageSec, samplePositionSec: positionSec, paused, nowMs: performance.now(), holdBackward });
+    session.clock.sync({
+        positionSec: positionSec + ageSec, samplePositionSec: positionSec, paused, nowMs: performance.now(), holdBackward,
+        ...(maxExtrapolationSec === undefined ? {} : { maxExtrapolationSec }),
+    });
 };
 
 const markPlaying = (positionSec: number, preserveClock = false) => {
@@ -386,8 +402,16 @@ const applyStatus = (status: ProviderExternalPlaybackStatus, sampledAtMs: number
     current.live = status.live === true;
     if (status.ended && status.skipped) current.skipped = status.skipped;
     if (status.isPlaying && status.mediaId && !status.seeking) {
-        if (current.live || (current.sampledPosition !== null && positionSec > current.sampledPosition + 0.05)) current.prefetchReady = true;
-        current.sampledPosition = positionSec;
+        if (current.afterSeek) {
+            // The answer right after a move may still name the position from before it: what it shows
+            // is a jump across the song, not the song sounding on, so it counts as nothing and the
+            // progress is told from an answer that came after it.
+            current.prefetchReady = false;
+            current.sampledPosition = null;
+        } else {
+            if (current.live || (current.sampledPosition !== null && positionSec > current.sampledPosition + 0.05)) current.prefetchReady = true;
+            current.sampledPosition = positionSec;
+        }
     } else {
         current.prefetchReady = false;
         current.sampledPosition = null;
@@ -446,7 +470,12 @@ const applyStatus = (status: ProviderExternalPlaybackStatus, sampledAtMs: number
         if (!current.playing) {
             markPlaying(positionSec);
         } else {
-            syncClock(positionSec, false, sampledAtMs, true);
+            // The first answer after a move is where the player is now: a position a little behind the
+            // spot the bar was dropped on is its own (it loads the song from around there), and holding
+            // the bar at that spot would freeze it and the lyrics until the player caught up.
+            const holdBackward = !current.afterSeek;
+            current.afterSeek = false;
+            syncClock(positionSec, false, sampledAtMs, holdBackward);
             emit({ type: 'status' });
         }
         // Only a player-confirmed start/resume may release deferred preparation.
@@ -660,7 +689,7 @@ export function startExternalPlayback(song: SongResult, startSec = 0, { userActi
     session = {
         song, songKey, attempt, clock, durationSec, traits,
         announced: false, playing: false, starting: false, sampledPosition: Math.max(0, startSec), prefetchReady: false, live: false, ended: false, foreign: false,
-        degraded: false, handedOver: false, preparedQueueKey: '', positionRevision: 0, seekPending: false, seeking: false,
+        degraded: false, handedOver: false, preparedQueueKey: '', positionRevision: 0, seekPending: false, seeking: false, afterSeek: false,
     };
     failureNoted = false;
     pollFailures = 0;
@@ -782,7 +811,7 @@ export async function adoptExternalPlayback(song: SongResult): Promise<boolean> 
     session = {
         song, songKey, attempt, clock, durationSec,
         announced: false, playing: false, starting: false, sampledPosition: null, prefetchReady: false, live: false, ended: false, foreign: false,
-        degraded: false, traits: omni.externalPlaybackTraits(song), handedOver: false, preparedQueueKey: '', positionRevision: 0, seekPending: false, seeking: false,
+        degraded: false, traits: omni.externalPlaybackTraits(song), handedOver: false, preparedQueueKey: '', positionRevision: 0, seekPending: false, seeking: false, afterSeek: false,
     };
     failureNoted = false;
     externalMediaShim.beginTrack(songKey);
@@ -1008,14 +1037,28 @@ export const seekExternalPlayback = (timeSec: number, { resume = false }: { resu
     current.seekPending = true;
     current.prefetchReady = false;
     current.sampledPosition = null;
-    current.clock.sync({ positionSec: target, paused: !current.playing, holdBackward: false });
+    // No status ask answers while the move is in flight (see `poll`), so this position is the only
+    // one the bar and the lyrics have until the player takes it: it runs on for as long as the app's
+    // call for that move may go unanswered, instead of the second a tick-er's clock is given.
+    current.clock.sync({
+        positionSec: target, paused: !current.playing, holdBackward: false, maxExtrapolationSec: PLAYER_CALL_LIMIT_MS / 1000,
+    });
     externalMediaShim.markSeeked();
+    const askedAt = performance.now();
     void omni.seekExternalPlayback(current.song, target).catch(error => {
         if (session !== current || current.positionRevision !== revision) return;
         console.warn('[ExternalPlayback] seek failed', error);
         emit({ type: 'failure', error });
     }).finally(() => {
-        if (session === current && current.positionRevision === revision) current.seekPending = false;
+        if (session === current && current.positionRevision === revision) {
+            current.seekPending = false;
+            // The player has the move: the ask held for it is let go now rather than on its own half
+            // second, and the answer that follows says where the player is after it.
+            current.afterSeek = true;
+            if (isExternalRoute()) schedulePoll(0);
+        }
+        // How long the move itself took, which is what says whether the clock had room to run on.
+        console.info('[ExternalPlayback] seek returned', { ms: Math.round(performance.now() - askedAt) });
     });
     if (resume && !current.playing) resumeExternalPlayback();
     return true;

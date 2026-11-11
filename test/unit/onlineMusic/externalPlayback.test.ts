@@ -486,8 +486,12 @@ describe('a move the player takes seconds to take', () => {
 
         expect(engine.seekExternalPlayback(60)).toBe(true);
         // The move landed. The app asks the player again at once, and the player answers from where it
-        // loads the song - eight tenths of a second short of the spot the bar was dropped on.
-        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ positionMs: 59200, isPlaying: true }));
+        // loads the song - eight tenths of a second short of the spot the bar was dropped on - and
+        // runs on from there as it sounds the song.
+        const landedAt = performance.now();
+        omniMock.getExternalPlaybackStatus.mockImplementation(async () => (
+            status({ positionMs: 59200 + Math.round(performance.now() - landedAt), isPlaying: true })
+        ));
         await vi.advanceTimersByTimeAsync(0);
         await vi.advanceTimersByTimeAsync(0);
 
