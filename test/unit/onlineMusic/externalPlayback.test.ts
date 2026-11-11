@@ -1230,6 +1230,42 @@ describe('a move the player takes seconds to take', () => {
         expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PLAYING);
         engine.externalMediaShim.removeEventListener('seeked', onSeeked);
     });
+
+    it('keeps running on from the drop while the answers still name the old spot', async () => {
+        // Stands for the ways of playing that declare no limit for a move, Apple Music among them: the
+        // call for the move itself takes most of a second, and the answers that follow it still name the
+        // spot the song stood on until the player has loaded the new one. Giving such a read up used to
+        // write nothing at all, so the clock ran the one second a move in flight is given out and then
+        // stood there until the reads it is allowed ran out - the bar and the lyrics stopped under a song
+        // that is playing, which a listener saw as a hitch after the drop.
+        omniMock.externalPlaybackTraits.mockReturnValue(omniMock.NONE_DECLARED);
+        await startFrom(10000);
+        const taking = deferred();
+        omniMock.seekExternalPlayback.mockImplementationOnce(() => taking.promise);
+        expect(engine.seekExternalPlayback(60)).toBe(true);
+        await vi.advanceTimersByTimeAsync(800);
+        taking.resolve();
+        await vi.advanceTimersByTimeAsync(20);
+        const landedAt = performance.now();
+        omniMock.getExternalPlaybackStatus.mockImplementation(async () => (
+            status({ positionMs: performance.now() < landedAt + 750 ? 10500 : 60300 + Math.round(performance.now() - landedAt) })
+        ));
+
+        const seen = await readings(2500);
+        // A poll interval - the 500 ms the player is asked at - is all that may pass without the bar
+        // moving: the move has a spot and the player has not left it, so the clock goes on from there
+        // for as long as that spot is held for it.
+        let stillMs = 0;
+        let longest = 0;
+        for (let index = 1; index < seen.length; index++) {
+            stillMs = seen[index] > seen[index - 1] ? 0 : stillMs + SAMPLE_MS;
+            longest = Math.max(longest, stillMs);
+        }
+        expect(longest).toBeLessThanOrEqual(500);
+        // And it never goes back to the line the song stood on before the drop.
+        expect(Math.min(...seen)).toBeGreaterThan(59.9);
+        expect(seen[seen.length - 1]).toBeGreaterThan(61.5);
+    });
 });
 
 describe('the limits the Spotify transport puts on the app own calls', () => {

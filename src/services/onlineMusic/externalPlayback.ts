@@ -520,8 +520,20 @@ const syncClock = (positionSec: number, paused: boolean, sampledAtMs: number, ho
         paused,
         nowMs: performance.now(),
         holdBackward,
-        ...(session.seekPending ? { maxExtrapolationSec: seekExtrapolationSec(session) } : {}),
+        ...(session.seekPending || session.seekSettledAtSec !== null ? { maxExtrapolationSec: seekExtrapolationSec(session) } : {}),
     });
+};
+
+/**
+ * Writes where the bar was dropped on again, under the limit the move is given, so the clock goes on
+ * from there for another stretch of the same length. A read this window gives up carries no position
+ * of its own, and saying nothing at all leaves the clock to the limit of the last write it got: it
+ * runs that out and then stands still under a song that is playing, for as long as the reads go on
+ * naming the spot before the move. Nothing moves where the clock already stands.
+ */
+const holdSettledMoveSpot = () => {
+    if (!session || session.seekSettledAtSec === null) return;
+    syncClock(session.clock.read(), false, performance.now(), false);
 };
 
 const markPlaying = (positionSec: number, preserveClock = false) => {
@@ -679,11 +691,21 @@ const applyStatus = (status: ProviderExternalPlaybackStatus, sampledAtMs: number
     // one: what a move does to the spot the player reports does not depend on it sounding the song.
     // The player's own turn of the song is never one of them: it says where the song now stands, and a
     // turn that follows a drop closely lands inside the window that spot is held for.
+    // A read that says the player is seeking is let through untouched, as the player's own window and
+    // not this one: the answer reports a move still running, and the spot it names is read by the
+    // seeking branch below. A player that answers a drop with seeking state it never clears - Apple
+    // Music answers a drag with state 6 and holds it - keeps naming the spot before the drop, and that
+    // read is followed here the way it always was. Holding it would need the seeking answer itself to
+    // be judged against the drop, which is what this window is for; that is left as it stands so the
+    // seeking answers of every player read the same.
     const settledMoveRead = status.replayed !== true && status.mediaId !== ''
         && status.seeking !== true && isSettledMoveRead(current, positionSec);
     // A read that still names the spot before the move applies everything it says about the player -
     // it is stopped, or it has started - and nothing it says about where the song stands: that is the
-    // spot the bar was dropped on, which the clock already runs on from.
+    // spot the bar was dropped on, which the clock already runs on from. What it gets instead of a
+    // position is another stretch of the limit the move is given, so the bar goes on moving rather than
+    // running that limit out and standing still for the rest of the window.
+    if (settledMoveRead) holdSettledMoveSpot();
     const settledSpotSec = settledMoveRead ? current.seekSettledAtSec ?? positionSec : positionSec;
     if (status.isPlaying && status.mediaId && !status.seeking) {
         if (current.afterSeek || settledMoveRead) {
