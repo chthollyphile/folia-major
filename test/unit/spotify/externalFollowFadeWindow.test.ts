@@ -49,7 +49,7 @@ vi.mock('@/services/onlineMusic/omni', () => ({ omni: omniMock }));
 
 const engine = await import('@/services/onlineMusic/externalPlayback');
 const { followRunningExternalPlayer, followsPlayerChangesForShownSong } = await import('@/components/app/playback/bridges/externalPlayerFollow');
-const { usePlaybackStore } = await import('@/stores/usePlaybackStore');
+const { usePlaybackStore, setPlayerState } = await import('@/stores/usePlaybackStore');
 const { PlayerState } = await import('@/types');
 const { useAudioSettingsStore } = await import('@/stores/useAudioSettingsStore');
 const { consumeProgrammaticPause, playbackFade, registerPlaybackFadeGraph, PAUSE_DRAIN_MS, PLAYBACK_FADE_SECONDS } = await import('@/services/playbackFade');
@@ -192,6 +192,40 @@ describe('a local song still sounding while its pause fades out', () => {
         expect(deck.element.hasAttribute('src')).toBe(false);
         // Its pause event is this app's own: read as the listener's, it would pause the taken song.
         expect(consumeProgrammaticPause(deck.element)).toBe(true);
+    });
+
+    // The mark itself: one event is recognised, and the listener's next one is theirs again.
+    it('recognises the emptied deck\'s pause once, and no more', async () => {
+        const onSettled = vi.fn();
+        const { following, deck } = await readAfterThePress(onSettled);
+
+        await expect(following).resolves.toBe('adopted');
+        expect(consumeProgrammaticPause(deck.element)).toBe(true);
+        expect(consumeProgrammaticPause(deck.element)).toBe(false);
+    });
+
+    // The pause event the emptied deck fires arrives after the take-over put another song on screen.
+    // Read as the listener's own it drops the transport to PAUSED over a player that is sounding, so
+    // the mark has to be consumed by it - once, and no more: a mark left standing would swallow the
+    // listener's next real pause. The handler is the one App.tsx's onPause runs, first line first.
+    it('does not let that deck\'s pause event pause the song the player sounds', async () => {
+        const onSettled = vi.fn();
+        const { following, deck } = await readAfterThePress(onSettled);
+        const onPause = (event: { currentTarget: HTMLAudioElement }) => {
+            if (consumeProgrammaticPause(event.currentTarget)) return;
+            setPlayerState(PlayerState.PAUSED);
+        };
+
+        await expect(following).resolves.toBe('adopted');
+        expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PLAYING);
+
+        // The event the emptied deck fires for the pause of the take-over.
+        onPause({ currentTarget: deck.element });
+        expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PLAYING);
+        // The mark is spent with that one event: the listener's own next pause is theirs again.
+        expect(consumeProgrammaticPause(deck.element)).toBe(false);
+        onPause({ currentTarget: deck.element });
+        expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PAUSED);
     });
 
     it('drops the pause the fade-out was still going to make', async () => {
