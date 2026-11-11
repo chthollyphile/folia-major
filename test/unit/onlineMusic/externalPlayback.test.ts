@@ -796,6 +796,20 @@ describe('a move the player takes seconds to take', () => {
         return longest;
     };
 
+    /**
+     * What the bar and the lyrics read every SAMPLE_MS for `spanMs`, the first reading taken where the
+     * test stands: a timeline the listener dropped the bar on must run forward from there and never
+     * come back to the spot the song stood on before the drop.
+     */
+    const readings = async (spanMs: number): Promise<number[]> => {
+        const seen: number[] = [engine.getExternalPosition()];
+        for (let waited = 0; waited < spanMs; waited += SAMPLE_MS) {
+            await vi.advanceTimersByTimeAsync(SAMPLE_MS);
+            seen.push(engine.getExternalPosition());
+        }
+        return seen;
+    };
+
     beforeEach(() => {
         vi.useFakeTimers();
         engine.installExternalPlayback();
@@ -1059,6 +1073,78 @@ describe('a move the player takes seconds to take', () => {
         taking.resolve();
         await vi.advanceTimersByTimeAsync(500);
         expect(engine.getExternalPosition()).toBeGreaterThan(59.8);
+    });
+
+    it('stays on the spot the bar was dropped on when the answer right after the move still names the old one', async () => {
+        // Spotify's app answers a move in about 20 ms, long before it has loaded the track at the new
+        // spot: the read taken at once still names where the song stood before the drop. Following
+        // that one took the bar and the lyrics back to the old line for a whole poll - the flicker a
+        // listener saw on every drop, worse than before the move was followed at all.
+        await startFrom(10000);
+        expect(engine.seekExternalPlayback(60)).toBe(true);
+        await vi.advanceTimersByTimeAsync(20);
+        // Every read for the first three quarters of a second still names the old spot, then the
+        // player's own answer arrives.
+        const stillOld = performance.now() + 750;
+        omniMock.getExternalPlaybackStatus.mockImplementation(async () => (
+            status({ positionMs: performance.now() < stillOld ? 10500 : 60300, isPlaying: true })
+        ));
+
+        const seen = await readings(2000);
+        // Never back to the old line: the timeline runs forward from the drop and never returns.
+        for (let index = 1; index < seen.length; index++) expect(seen[index]).toBeGreaterThanOrEqual(seen[index - 1] - 1e-6);
+        expect(Math.min(...seen)).toBeGreaterThanOrEqual(59.9);
+    });
+
+    it('does not jump forward to the spot the song stood on before a move back', async () => {
+        // A drag back is the same in the other direction: the read taken before the player took the
+        // move names the spot the song stood on, which is ahead of the drop. Following it would put
+        // the lyrics a whole line on and pull them back a poll later.
+        await startFrom(60000);
+        expect(engine.seekExternalPlayback(30)).toBe(true);
+        await vi.advanceTimersByTimeAsync(20);
+        const stillOld = performance.now() + 750;
+        omniMock.getExternalPlaybackStatus.mockImplementation(async () => (
+            status({ positionMs: performance.now() < stillOld ? 60500 : 30300, isPlaying: true })
+        ));
+
+        const seen = await readings(2000);
+        for (let index = 1; index < seen.length; index++) expect(seen[index]).toBeGreaterThanOrEqual(seen[index - 1] - 1e-6);
+        expect(Math.max(...seen)).toBeLessThan(30.5);
+    });
+
+    it('holds a drag dropped again on top of a move the player has not taken yet', async () => {
+        // Two drops in a row: the first is answered before the player moved, and the second is asked
+        // for on top of it. What the player answers meanwhile names the spot both were sent from.
+        await startFrom(10000);
+        expect(engine.seekExternalPlayback(60)).toBe(true);
+        await vi.advanceTimersByTimeAsync(20);
+        omniMock.getExternalPlaybackStatus.mockImplementation(async () => status({ positionMs: 10500, isPlaying: true }));
+        await vi.advanceTimersByTimeAsync(300);
+
+        const second = performance.now();
+        expect(engine.seekExternalPlayback(120)).toBe(true);
+        await vi.advanceTimersByTimeAsync(20);
+        omniMock.getExternalPlaybackStatus.mockImplementation(async () => (
+            status({ positionMs: performance.now() < second + 750 ? 10500 : 120300, isPlaying: true })
+        ));
+
+        const seen = await readings(2000);
+        for (let index = 1; index < seen.length; index++) expect(seen[index]).toBeGreaterThanOrEqual(seen[index - 1] - 1e-6);
+        expect(Math.min(...seen)).toBeGreaterThanOrEqual(119.9);
+    });
+
+    it('takes the player\'s own word when it never answers the spot the bar was dropped on', async () => {
+        // A player that jumps somewhere else entirely has said where the song is: after the few reads
+        // that spot is held for, the answer stands rather than holding the bar off for good.
+        await startFrom(10000);
+        expect(engine.seekExternalPlayback(60)).toBe(true);
+        await vi.advanceTimersByTimeAsync(20);
+        omniMock.getExternalPlaybackStatus.mockImplementation(async () => status({ positionMs: 30000, isPlaying: true }));
+
+        await vi.advanceTimersByTimeAsync(3000);
+        expect(engine.getExternalPosition()).toBeGreaterThan(31);
+        expect(engine.getExternalPosition()).toBeLessThan(34);
     });
 });
 
