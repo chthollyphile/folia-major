@@ -9,7 +9,8 @@ export type SpotifyOperation =
     | 'login_start' | 'login_check' | 'login_cancel' | 'login_open' | 'login_status' | 'logout'
     | 'query' | 'radio' | 'lyrics' | 'audio' | 'audio_kept' | 'audio_keep' | 'audio_probe' | 'library' | 'playlist_edit' | 'playlist_create'
     | 'playback_mode' | 'soloist_state' | 'soloist_pick' | 'soloist_key' | 'soloist_restart' | 'soloist_open'
-    | 'soloist_play' | 'soloist_pause' | 'soloist_resume' | 'soloist_seek' | 'soloist_volume' | 'soloist_status';
+    | 'soloist_play' | 'soloist_pause' | 'soloist_resume' | 'soloist_seek' | 'soloist_volume' | 'soloist_status'
+    | 'soloist_repeat';
 // The queries the main process sends for the renderer (`RENDERER_QUERIES` in the bridge).
 export type SpotifyQuery =
     | 'home' | 'homeSection' | 'browsePage' | 'queryWhatsNewFeed' | 'libraryV3' | 'fetchLibraryTracks' | 'fetchPlaylist'

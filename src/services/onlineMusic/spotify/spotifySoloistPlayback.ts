@@ -92,6 +92,10 @@ export const spotifySoloistPlayback: OnlineExternalPlaybackProvider = {
     async setVolume(volume) {
         await requestSpotify('soloist_volume', { volume: Math.round(Math.max(0, Math.min(1, volume)) * 100) });
     },
+    // Folia's single loop as the program's own track repeat: it goes round with no gap.
+    async setRepeatOne(enabled) {
+        await requestSpotify('soloist_repeat', { enabled });
+    },
     async getStatus(): Promise<ProviderExternalPlaybackStatus> {
         const status = await requestSpotify<SoloistWireStatus>('soloist_status');
         if (!status.running) throw new OnlineProviderError('unavailable', 'Spotify Soloist is not running', 'spotify', 'soloist-gone');
