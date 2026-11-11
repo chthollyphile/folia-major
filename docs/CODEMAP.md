@@ -59,6 +59,7 @@
 | 32+ | `src/components/modal/settings/kit/motion.ts` |
 | 32+ | `src/components/ponder/surfaces/relativeRectStyle.ts` |
 | 32+ | `src/components/ponder/surfaces/surfaceDeclarations.ts` |
+| 32+ | `src/components/visualizer/backgrounds/definition.ts` |
 | 32+ | `src/components/visualizer/colorMix.ts` |
 | 32+ | `src/components/visualizer/hanabi/types.ts` |
 | 32+ | `src/components/visualizer/machi/engine/materials.ts` |
