@@ -98,9 +98,19 @@ const IntegrationPage: React.FC = () => {
                             <Toggle checked={externalSpectrum} onChange={setExternalSpectrum} />
                         </Row>
                         {/* The one answer that was kept: it is what lets Folia close that player when it
-                            has to reopen it, and turning it off here means it is asked again next time. */}
-                        <Row option={O.restartConsent} hint={t('options.externalPlayerRestartConsentDesc')}>
-                            <Toggle checked={restartConsent.granted} onChange={restartConsent.setGranted} />
+                            has to reopen it, and turning it off here means it is asked again next time.
+                            Nothing is drawn while the main process has not answered: a switch that
+                            cannot be read is not a switch that is off. */}
+                        <Row
+                            option={O.restartConsent}
+                            hint={t('options.externalPlayerRestartConsentDesc')}
+                            disabled={restartConsent.granted === null}
+                        >
+                            <Toggle
+                                checked={restartConsent.granted === true}
+                                onChange={restartConsent.setGranted}
+                                disabled={restartConsent.granted === null}
+                            />
                         </Row>
                     </>
                 )}

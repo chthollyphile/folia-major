@@ -15,20 +15,30 @@ const read = (store) => store.get(SETTING_KEY) === true;
 
 /** Keeps the listener's yes. There is nothing to write for a no: the key stays unset. */
 const grant = (store) => {
-    store.set(SETTING_KEY, true);
-    return true;
+    try {
+        store.set(SETTING_KEY, true);
+    } catch { /* read below says whether it went */ }
+    return read(store);
 };
 
-/** Takes the yes back (the settings row): the key goes, so the next player this app has to close is asked about again. */
+/**
+ * Takes the yes back (the settings row): the key goes, so the next player this app has to close is
+ * asked about again. Answers what the store holds afterwards rather than what was asked for: a store
+ * that could not clear the key still has the yes in force, and the switch that is drawn from this
+ * answer has to show the agreement that is really there instead of a no that never landed.
+ */
 const revoke = (store) => {
-    store.delete(SETTING_KEY);
-    return false;
+    try {
+        store.delete(SETTING_KEY);
+    } catch { /* read below says whether it went */ }
+    return read(store);
 };
 
 /**
  * Registers the channel. Only the main window may call it (the handler's first statement), and one
  * call both reads and answers: `true` records the agreement, `false` takes it back, no argument only
- * asks.
+ * asks. Every answer is what the store holds afterwards, so a write that did not land is never
+ * reported as done.
  */
 const registerRestartConsentIpc = ({ ipcMain, isTrustedSender, store }) => {
     ipcMain.handle('external-player-restart-consent', (event, granted) => {

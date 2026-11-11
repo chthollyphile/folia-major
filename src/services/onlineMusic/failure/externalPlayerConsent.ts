@@ -36,19 +36,22 @@ export const playerCauseTextKeys = (
 };
 
 // 同意与否只经 preload 的那一个通道（electron/preload.cjs，IPC 在 electron/restartConsent.cjs）：
-// 主进程只认一个 `true`，别的都当没同意过。
+// 主进程只认一个 `true`，别的都当没同意过。答回来的是主进程**现在记着什么**，不是刚才按了什么；
+// 问不到（没有桌面端、通道抛了）答 null，那既不是「同意过」也不是「没同意过」，设置里那一行据此
+// 不画成关，免得把「问不到」说成「已经撤销」。
 
-/** 人是不是已经同意过（一个不记得这件事的窗口答否，与主进程的默认一致）。 */
-export const readExternalPlayerRestartConsent = async (): Promise<boolean> => {
+/** 人是不是已经同意过；问不到主进程时答 null。 */
+export const readExternalPlayerRestartConsent = async (): Promise<boolean | null> => {
     try {
-        return await window.electron?.externalPlayerRestartConsent() === true;
+        const answer = await window.electron?.externalPlayerRestartConsent();
+        return typeof answer === 'boolean' ? answer : null;
     } catch (error) {
         console.warn('[OnlineMusic] The restart consent could not be read', error);
-        return false;
+        return null;
     }
 };
 
-/** 记下这次同意：之后再遇到同一个播放器就不会再问。 */
+/** 记下这次同意：之后再遇到同一个播放器就不会再问。答的是主进程记着的，没写进去就是 false。 */
 export const grantExternalPlayerRestartConsent = async (): Promise<boolean> => {
     try {
         return await window.electron?.externalPlayerRestartConsent(true) === true;
@@ -58,12 +61,14 @@ export const grantExternalPlayerRestartConsent = async (): Promise<boolean> => {
     }
 };
 
-/** 撤销同意：下次再遇到就重新问。 */
-export const revokeExternalPlayerRestartConsent = async (): Promise<void> => {
+/** 撤销同意：下次再遇到就重新问。答的是撤销之后主进程记着的：true 说明那次同意还在。 */
+export const revokeExternalPlayerRestartConsent = async (): Promise<boolean | null> => {
     try {
-        await window.electron?.externalPlayerRestartConsent(false);
+        const answer = await window.electron?.externalPlayerRestartConsent(false);
+        return typeof answer === 'boolean' ? answer : null;
     } catch (error) {
         console.warn('[OnlineMusic] The restart consent could not be revoked', error);
+        return null;
     }
 };
 
