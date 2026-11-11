@@ -597,6 +597,13 @@ export interface OnlineExternalPlaybackProvider {
      * above.
      */
     holdsMediaKeysWhilePlaying?: boolean;
+    /**
+     * How long this way of playing may take to move its player, in milliseconds: the limit its main
+     * process puts on the call, so a move asked for by dragging the bar is not read as over when it
+     * has not been answered yet. Absent leaves the clock the second `hifiClock` gives every player,
+     * which is what a move that answers at once asks for.
+     */
+    seekLimitMs?: number;
     /** False only for songs this external route already knows it cannot start; no network reads. */
     canPlay?(song: SongResult): boolean;
     /** Prepare a bounded successor queue without interrupting the current song. */
@@ -659,6 +666,11 @@ export interface ExternalPlaybackTraits {
     backsOffStatusPolls: boolean;
     /** The keys are held for as long as a song this route started sounds in it. */
     holdsMediaKeysWhilePlaying: boolean;
+    /**
+     * How long a move of this player may take, in milliseconds, or null for a way of playing that
+     * declared nothing: the clock then keeps the second `hifiClock` gives every player.
+     */
+    seekLimitMs: number | null;
 }
 
 /** An alternate title and artist that belong to the same song. */

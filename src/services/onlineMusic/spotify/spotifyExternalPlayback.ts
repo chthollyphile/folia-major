@@ -34,6 +34,11 @@ export const spotifyExternalPlayback: OnlineExternalPlaybackProvider = {
     get holdsMediaKeysWhilePlaying() {
         return current().holdsMediaKeysWhilePlaying === true;
     },
+    // Both programs give a call a limit of their own, and the one that is on says which: a move of
+    // the song runs on under it while the program is taking it.
+    get seekLimitMs() {
+        return current().seekLimitMs;
+    },
     canPlay: song => current().canPlay?.(song) ?? true,
     isPrepared: song => current().isPrepared?.(song) ?? false,
     async prepareNext(song, upcoming, options) {

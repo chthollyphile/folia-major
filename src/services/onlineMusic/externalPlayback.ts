@@ -29,15 +29,6 @@ const STATUS_RETRY_INTERVAL_MS = 2000;
 const STATUS_RETRY_MAX_INTERVAL_MS = 10000;
 /** How far a position answer may be extrapolated, as `hifiClock` does. */
 const MAX_SAMPLE_AGE_SEC = 1;
-/**
- * How long the app's own call to move its player may take, in milliseconds. One call answers it, and
- * the main process gives every call of that kind CALL_LIMIT_MS (electron/<id>/officialClient.cjs):
- * the move is not given a shorter one. Every status ask is held while it is in flight, so the
- * position is extrapolated for the whole of this time rather than for `MAX_SAMPLE_AGE_SEC`.
- */
-export const PLAYER_CALL_LIMIT_MS = 8000;
-/** The same limit in the seconds the clock counts in. */
-const PLAYER_CALL_LIMIT_SEC = PLAYER_CALL_LIMIT_MS / 1000;
 /** A player that stopped this close to the length has finished the track. */
 const END_TOLERANCE_SEC = 0.75;
 /**
@@ -321,6 +312,16 @@ const refreshPreparedQueue = () => {
     });
 };
 
+/**
+ * How far this session's clock may run while a move is in flight, in seconds: what the way of
+ * playing declared (`seekLimitMs`), and the second `hifiClock` gives every player where it declared
+ * nothing.
+ */
+const seekExtrapolationSec = (current: ExternalSession): number => {
+    const limitMs = current.traits.seekLimitMs;
+    return typeof limitMs === 'number' && Number.isFinite(limitMs) && limitMs > 0 ? limitMs / 1000 : MAX_SAMPLE_AGE_SEC;
+};
+
 const syncClock = (positionSec: number, paused: boolean, sampledAtMs: number, holdBackward: boolean) => {
     if (!session) return;
     paused ||= session.live;
@@ -334,7 +335,7 @@ const syncClock = (positionSec: number, paused: boolean, sampledAtMs: number, ho
         paused,
         nowMs: performance.now(),
         holdBackward,
-        ...(session.seekPending ? { maxExtrapolationSec: PLAYER_CALL_LIMIT_SEC } : {}),
+        ...(session.seekPending ? { maxExtrapolationSec: seekExtrapolationSec(session) } : {}),
     });
 };
 
@@ -1045,6 +1046,9 @@ export const seekExternalPlayback = (timeSec: number, { resume = false }: { resu
     const target = Math.max(0, current.durationSec === null ? timeSec : Math.min(timeSec, current.durationSec));
     current.ended = false;
     const revision = ++current.positionRevision;
+    // Where the player stood before the move: a move it refuses leaves it there, and the bar goes back
+    // to this the moment the refusal is known rather than to whatever a later answer happens to say.
+    const beforeSec = current.clock.read();
     current.seekPending = true;
     current.prefetchReady = false;
     current.sampledPosition = null;
@@ -1052,20 +1056,31 @@ export const seekExternalPlayback = (timeSec: number, { resume = false }: { resu
     // one the bar and the lyrics have until the player takes it: it runs on for as long as the app's
     // call for that move may go unanswered, instead of the second a tick-er's clock is given.
     current.clock.sync({
-        positionSec: target, paused: !current.playing, holdBackward: false, maxExtrapolationSec: PLAYER_CALL_LIMIT_SEC,
+        positionSec: target, paused: !current.playing, holdBackward: false, maxExtrapolationSec: seekExtrapolationSec(current),
     });
     externalMediaShim.markSeeked();
     const askedAt = performance.now();
+    let refused = false;
     void omni.seekExternalPlayback(current.song, target).catch(error => {
         if (session !== current || current.positionRevision !== revision) return;
+        refused = true;
         console.warn('[ExternalPlayback] seek failed', error);
+        // The player never left the spot it stood on, so the bar returns to it at once: waiting for the
+        // next answer would leave it running on from a target the player never went to, and jumping back
+        // when that answer came. It runs on from there as the song is playing now - a press that came
+        // with the move is the listener's - and under the second every sync that is not a move in flight
+        // is given, that limit having belonged to a move the player never took. No ask is held for it
+        // either: the poll asked for below is the player's own word on where it is.
+        current.clock.sync({ positionSec: beforeSec, paused: !current.playing, holdBackward: false });
         emit({ type: 'failure', error });
+        emit({ type: 'status' });
     }).finally(() => {
         if (session === current && current.positionRevision === revision) {
             current.seekPending = false;
             // The player has the move: the ask held for it is let go now rather than on its own half
-            // second, and the answer that follows says where the player is after it.
-            current.afterSeek = true;
+            // second, and the answer that follows says where the player is after it. A move that was
+            // refused is not one the player took, so nothing is read as the answer right after it.
+            current.afterSeek = !refused;
             if (isExternalRoute()) schedulePoll(0);
         }
         // How long the move itself took, which is what says whether the clock had room to run on.
