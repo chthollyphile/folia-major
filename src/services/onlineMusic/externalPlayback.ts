@@ -653,18 +653,17 @@ const markPlaying = (positionSec: number, preserveClock = false) => {
     }
     session.playing = true;
     session.ended = false;
+    // The song goes on, so the direction a read taken before it was shown gave to an end that is no
+    // longer one belongs to that end alone: held here, it made the song's own end, minutes later,
+    // step the queue the way the listener went before the song had even started.
+    session.skipped = undefined;
     if (!preserveClock) syncClock(positionSec, false, performance.now(), true);
     externalMediaShim.markPlaying();
     if (usePlaybackStore.getState().playerState !== PlayerState.PLAYING) setPlayerState(PlayerState.PLAYING);
     emit({ type: 'status' });
 };
 
-/**
- * Says the player is stopped, at `positionSec`. `holdLimitSec` says how far the bar may stand ahead of
- * that spot and stay there, for an answer that loads the spot the bar was dropped on after running on
- * from it.
- */
-const markPaused = (positionSec: number, holdLimitSec?: number) => {
+const markPaused = (positionSec: number) => {
     if (!session) return;
     // A stopped song stands where it is: the line it stood on stops running, and so does the time it is
     // given to load the drop, until it sounds again.
@@ -676,7 +675,7 @@ const markPaused = (positionSec: number, holdLimitSec?: number) => {
     session.sampledPosition = null;
     // This answer is where the player stands after the move: the next playing one is read as progress.
     session.afterSeek = false;
-    syncClock(positionSec, true, performance.now(), true, holdLimitSec);
+    syncClock(positionSec, true, performance.now(), true);
     externalMediaShim.markPaused();
     const playback = usePlaybackStore.getState();
     // The song is on screen and the player is stopped: paused, never still "loading" or idle.
@@ -987,11 +986,10 @@ const applyStatus = (status: ProviderExternalPlaybackStatus, sampledAtMs: number
     // The stop is the player's and stands; the spot is the one the bar was dropped on where the answer
     // still names where the song stood. A pause that wrote that spot would put the bar and the lyrics
     // back on the old line for a whole poll, the same step back a playing answer is kept from.
-    // A stopped answer that is the spot the player landed on is followed for the spot it names, and
-    // held where the bar already stands for the stretch it ran ahead of it while the old line was
-    // named: writing the spot straight down would fall back the whole wait the player took.
-    if (!staleMoveRead && landedHoldSec !== null) current.landingHoldSec = landedHoldSec;
-    markPaused(settledSpotSec, current.landingHoldSec ?? undefined);
+    // The answer that loads the spot is written down as it comes, the stretch the bar ran ahead of it
+    // included: a stopped song shows where the player stands, and a bar held ahead of that spot stands
+    // ahead of it for as long as the song stays stopped.
+    markPaused(settledSpotSec);
 };
 
 async function poll(): Promise<void> {
