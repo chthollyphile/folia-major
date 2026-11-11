@@ -817,7 +817,12 @@ export function startExternalPlayback(song: SongResult, startSec = 0, { userActi
     session = {
         song, songKey, attempt, clock, durationSec, traits,
         announced: false, playing: false, starting: false, sampledPosition: Math.max(0, startSec), prefetchReady: false, live: false, ended: false, foreign: false,
-        degraded: false, trackRepeat: startsLooping ? true : null, trackRepeatAsked: startsLooping, trackRepeatPending: false, handedOver: false, preparedQueueKey: '', positionRevision: 0, seekPending: false, seekBeforeSec: null, seeking: false, afterSeek: false,
+        // What the player holds of its repeat is unknown here even where this start asked for one of
+        // its own: an ask is not an answer, and a player may refuse it. The record stays unknown and
+        // the first sync after the song is shown asks the player what it holds. Where the start did
+        // carry the ask, that sync asks for the same value again and the player, already repeating
+        // the track, writes nothing.
+        degraded: false, trackRepeat: null, trackRepeatAsked: false, trackRepeatPending: false, handedOver: false, preparedQueueKey: '', positionRevision: 0, seekPending: false, seekBeforeSec: null, seeking: false, afterSeek: false,
     };
     failureNoted = false;
     pollFailures = 0;

@@ -520,6 +520,30 @@ describe('a start that runs on after the interface', () => {
         expect(omniMock.setExternalTrackRepeat).toHaveBeenLastCalledWith(song, false);
     });
 
+    it('takes the player\'s answer for a repeat one it was started in, never the start itself', async () => {
+        omniMock.setExternalTrackRepeat.mockClear();
+        useAudioSettingsStore.setState({ loopMode: 'one' });
+        // The start asked the player for its repeat of the track and the player would not repeat it:
+        // what it holds afterwards is no repeat, which is the value the answer names.
+        omniMock.setExternalTrackRepeat.mockImplementation(async () => ({ read: true, changed: false, now: 0 }));
+        const start = engine.startExternalPlayback(song, 0);
+        engine.announceExternalPlayback();
+        await start.seeded;
+        await vi.advanceTimersByTimeAsync(1000);
+
+        // The start carried the ask, and that ask is not an answer: the app confirms what the player
+        // holds before its own replay of repeat one is given up for the player's.
+        expect(omniMock.setExternalTrackRepeat).toHaveBeenCalledWith(song, true);
+        // A record taken from the start would have said the player repeats the track, and every
+        // later trigger for the value it already holds would have passed it by.
+        useAudioSettingsStore.setState({ loopMode: 'all' });
+        await vi.advanceTimersByTimeAsync(1);
+        useAudioSettingsStore.setState({ loopMode: 'one' });
+        await vi.advanceTimersByTimeAsync(1);
+        expect(omniMock.setExternalTrackRepeat).toHaveBeenCalledTimes(3);
+        expect(omniMock.setExternalTrackRepeat).toHaveBeenLastCalledWith(song, true);
+    });
+
     it('asks the player again for the repeat an earlier write never got an answer for', async () => {
         omniMock.setExternalTrackRepeat.mockClear();
         useAudioSettingsStore.setState({ loopMode: 'one' });
@@ -527,6 +551,8 @@ describe('a start that runs on after the interface', () => {
         engine.announceExternalPlayback();
         await start.seeded;
         await vi.advanceTimersByTimeAsync(1000);
+        // The confirm that follows the start of a song in repeat one, counted on its own below.
+        omniMock.setExternalTrackRepeat.mockClear();
 
         // The off never got an answer: what the player holds is unknown, so the app cannot take the
         // value it asked for as the one it has.
@@ -573,10 +599,12 @@ describe('a start that runs on after the interface', () => {
         await start.seeded;
         await vi.advanceTimersByTimeAsync(1000);
 
-        // The start carries it: the setting is never turned off here and on again a moment later,
-        // and no second call follows the start for a repeat it already left in place.
+        // The start carries it: the setting is never turned off here and on again a moment later.
+        // What that start left is confirmed once afterwards, for the same value it already asked
+        // for: a start is no answer, so the record is what that confirm reads back from the player.
         expect(omniMock.playSongExternally).toHaveBeenCalledWith(song, 0, { userAction: true, singleLoop: true });
-        expect(omniMock.setExternalTrackRepeat).not.toHaveBeenCalled();
+        expect(omniMock.setExternalTrackRepeat).toHaveBeenCalledTimes(1);
+        expect(omniMock.setExternalTrackRepeat).toHaveBeenLastCalledWith(song, true);
 
         // Leaving repeat one for the next song's start hands the value back once.
         useAudioSettingsStore.setState({ loopMode: 'off' });
@@ -593,9 +621,11 @@ describe('a start that runs on after the interface', () => {
         await start.seeded;
         await vi.advanceTimersByTimeAsync(1000);
 
-        // Repeat one is the player's own repeat of the track, asked for in the start itself.
+        // Repeat one is the player's own repeat of the track, asked for in the start itself and
+        // confirmed once after it.
         expect(omniMock.playSongExternally).toHaveBeenCalledWith(song, 0, { userAction: true, singleLoop: true });
-        expect(omniMock.setExternalTrackRepeat).not.toHaveBeenCalled();
+        expect(omniMock.setExternalTrackRepeat).toHaveBeenCalledTimes(1);
+        expect(omniMock.setExternalTrackRepeat).toHaveBeenLastCalledWith(song, true);
 
         // Personal FM never repeats one song: the player's own repeat has to go, or it sounds this
         // song again where it ends and the station never moves on.
