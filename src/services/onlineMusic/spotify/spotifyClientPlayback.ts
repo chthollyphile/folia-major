@@ -37,7 +37,28 @@ export const PREPARED_SONGS_UNCLEARABLE = 1;
  * What the app's own answer to a start says: it took the track, a newer start took over, it took
  * the track but an advertisement of a free account still runs before it, or it never got to it.
  */
-type SpotifyClientPlayAnswer = 'loaded' | 'preempted' | 'not-loaded' | 'advertisement' | SpotifyClientTrackUnavailable;
+type SpotifyClientPlayAnswer = 'loaded' | 'preempted' | 'not-loaded' | 'advertisement' | SpotifyClientTrackUnavailable | SpotifyClientLoaded;
+
+/**
+ * A start that took the track, in repeat one of Folia's: the repeat the app holds afterwards rides
+ * beside the word every start answers. Only that value says the app's own repeat of the track is
+ * the one repeating this song - a refused write leaves another one, and a read that could not be
+ * made says none - so repeat one stays Folia's own replay wherever it is not the track.
+ */
+interface SpotifyClientLoaded {
+    answer: 'loaded';
+    repeat: number | null;
+}
+
+/** Whether a start took the track, whichever of the two shapes it answered in. */
+const isLoadedAnswer = (answer: SpotifyClientPlayAnswer): answer is 'loaded' | SpotifyClientLoaded => (
+    answer === 'loaded' || (typeof answer === 'object' && answer !== null && answer.answer === 'loaded')
+);
+
+/** The repeat the app holds after a start, where that start said: null for every other answer. */
+const repeatAfterStart = (answer: 'loaded' | SpotifyClientLoaded): number | null => (
+    typeof answer === 'object' && answer !== null && typeof answer.repeat === 'number' ? answer.repeat : null
+);
 
 // Spotify named this track as one it will not play: its own player's code and the reasons beside it
 // (ONE_TRACK_UNPLAYABLE with NOT_AVAILABLE_IN_CURRENT_REGION and the like). Nothing was waited out,
@@ -602,7 +623,12 @@ export const spotifyClientPlayback: OnlineExternalPlaybackProvider = {
             id, startMs, userAction, written: writtenIds, replaceQueue: options.replaceQueue === true,
             ...(singleLoop ? { singleLoop: true } : {}),
         });
-        if (singleLoop) attempt.nativeRepeat = true;
+        if (singleLoop) {
+            // Only where the app says its own repeat of the track is on: the start answered with the
+            // value it holds afterwards, and a write it refused, a read that could not be made and a
+            // repeat it turned off leave another one, which is Folia's own replay of this song.
+            attempt.nativeRepeat = isLoadedAnswer(answer) && repeatAfterStart(answer) === 2;
+        }
         // A newer start replaced this one: nothing went wrong, and there is nothing to report.
         if (answer === 'preempted') {
             console.info('[SpotifyClient] a newer play took the app; this one stops');
@@ -630,7 +656,7 @@ export const spotifyClientPlayback: OnlineExternalPlaybackProvider = {
         }
         // The app took the call and never got to the track: that is a failure of this song.
         // One track Spotify will not load says nothing about the next one.
-        if (answer !== 'loaded') {
+        if (!isLoadedAnswer(answer)) {
             throw new OnlineProviderError('not-playable', 'The Spotify app did not load the song', 'spotify');
         }
         // A start empties the app's queue where it can, so what Folia wrote before is not behind this
@@ -690,7 +716,7 @@ export const spotifyClientPlayback: OnlineExternalPlaybackProvider = {
                 id: current.id, startMs: Math.max(0, Math.round(current.positionMs)), userAction: true,
             });
             if (answer === 'preempted') return;
-            if (answer !== 'loaded') throw new OnlineProviderError('not-playable', 'The Spotify app did not load the song', 'spotify');
+            if (!isLoadedAnswer(answer)) throw new OnlineProviderError('not-playable', 'The Spotify app did not load the song', 'spotify');
             // A song asked for in the meantime owns the queue now.
             if (attempt !== current || prepared.length === 0) return;
             try {
@@ -724,14 +750,20 @@ export const spotifyClientPlayback: OnlineExternalPlaybackProvider = {
     // listener's own repeat was is kept and put back by the desktop side, so off is the same restore
     // that leaving this way of playing makes: a value they changed themselves meanwhile is theirs.
     async setTrackRepeat(on) {
-        // Held before the call: a read that lands while it is in flight belongs to the turn the app
-        // is already making, and no answer of this play may be read as one that has to be covered.
-        if (attempt) attempt.nativeRepeat = on;
+        // Nothing of the app's own repeat is assumed while the call is in flight: a read that lands
+        // before it answers belongs to whatever the app held then, and a turn of this song is read
+        // as the app's own only once that value is known to be the track's.
+        if (attempt) attempt.nativeRepeat = false;
         try {
-            await requestSpotify<{ read?: boolean; changed?: boolean }>('client_repeat', { on });
+            const answer = await requestSpotify<{ read?: boolean; changed?: boolean; now?: number | null }>('client_repeat', { on });
+            // The repeat the app holds afterwards is the only sign that it repeats this song by
+            // itself: a write it refused, a read that could not be made and the listener's own value
+            // all leave another one, and repeat one is then Folia's own replay of the song.
+            if (attempt) attempt.nativeRepeat = on && answer?.now === 2;
         } catch (error) {
             // The song still plays and Folia's own replay still covers repeat one: said once here
             // rather than failing the song.
+            if (attempt) attempt.nativeRepeat = false;
             console.warn('[SpotifyClient] repeat one could not be turned over to the app\'s own repeat', error);
         }
     },

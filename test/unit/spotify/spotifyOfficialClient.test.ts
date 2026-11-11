@@ -501,10 +501,12 @@ describe('the repeat and the shuffle a play changes in the page', () => {
         expect(player.calls).toEqual(['setRepeat 2']);
     });
 
-    it('says only what the app holds afterwards where the player would not repeat the track', async () => {
+    it('says nothing was left where the player would not repeat the track', async () => {
+        // A call the app refused wrote nothing: the value it found is the listener's own, so no
+        // restore of a later play may take it for one Folia left behind.
         const player = playerAt({ repeat: 0 });
         player.setRepeat = async () => { throw new Error('refused'); };
-        await expect(settleInRepeatOneWith(player)).resolves.toMatchObject({ repeat: null, left: 0 });
+        await expect(settleInRepeatOneWith(player)).resolves.toMatchObject({ repeat: null, left: null });
     });
 
     it('turns a shuffle off in a start in repeat one as well, and says so once', async () => {
@@ -639,7 +641,7 @@ describe('the repeat and the shuffle Folia put back', () => {
                 : true,
         });
         const app = makeClient({ running: true, portAnswers: true });
-        await expect(app.client.play({ id: TRACK, startMs: 0, singleLoop: true })).resolves.toBe('loaded');
+        await expect(app.client.play({ id: TRACK, startMs: 0, singleLoop: true })).resolves.toEqual({ answer: 'loaded', repeat: 2 });
         expect(app.client.changedState()).toEqual({ repeat: 'off', shuffle: null });
 
         const scripts: string[] = [];
@@ -660,11 +662,11 @@ describe('the repeat and the shuffle Folia put back', () => {
         // window - is not a value of Folia's to put back.
         handle = expression => ({
             value: expression.includes('window.__foliaPlay')
-                ? { answer: 'loaded', changed: { repeat: null, shuffle: null, left: 0 } }
+                ? { answer: 'loaded', changed: { repeat: null, shuffle: null, left: null } }
                 : true,
         });
         const app = makeClient({ running: true, portAnswers: true });
-        await expect(app.client.play({ id: TRACK, startMs: 0, singleLoop: true })).resolves.toBe('loaded');
+        await expect(app.client.play({ id: TRACK, startMs: 0, singleLoop: true })).resolves.toEqual({ answer: 'loaded', repeat: null });
         expect(app.client.changedState()).toEqual({ repeat: null, shuffle: null });
 
         const scripts: string[] = [];
@@ -686,7 +688,7 @@ describe('the repeat and the shuffle Folia put back', () => {
         const app = makeClient({ running: true, portAnswers: true });
         // The word a start has always answered stays the one it answers; the repeat rides beside it,
         // which is what tells the renderer the app's own repeat is the one repeating this song.
-        await expect(app.client.play({ id: TRACK, startMs: 0, singleLoop: true })).resolves.toBe(2);
+        await expect(app.client.play({ id: TRACK, startMs: 0, singleLoop: true })).resolves.toEqual({ answer: 'loaded', repeat: 2 });
         await app.client.close();
     });
 
@@ -718,7 +720,7 @@ describe('the repeat and the shuffle Folia put back', () => {
         });
         const app = makeClient({ running: true, portAnswers: true });
         await app.client.play({ id: TRACK, startMs: 0, singleLoop: true });
-        handle = () => ({ value: { repeat: true, shuffle: false } });
+        handle = () => ({ value: { repeat: true, shuffle: false, now: 0 } });
         // Put back: the listener's own value is written where the app still holds what Folia left.
         await expect(app.client.setTrackRepeat({ on: false })).resolves.toMatchObject({ read: true, now: 0 });
         await app.client.close();

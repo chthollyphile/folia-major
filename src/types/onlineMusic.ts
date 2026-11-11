@@ -629,9 +629,10 @@ export interface OnlineExternalPlaybackProvider {
      * The player's own repeat of the track, on or off, for a player that declared
      * `loopsTrackNatively`. What it found is kept in the same record a start uses: only where the
      * player still holds what this route wrote is it written over, and a value the listener set
-     * themselves is left as theirs.
+     * themselves is left as theirs. The answer says what the player holds afterwards, which is what
+     * tells a repeat the player carries out itself from one it never took.
      */
-    setTrackRepeat?(on: boolean): Promise<void>;
+    setTrackRepeat?(on: boolean): Promise<ExternalTrackRepeatAnswer | void>;
     /** False only for songs this external route already knows it cannot start; no network reads. */
     canPlay?(song: SongResult): boolean;
     /** Prepare a bounded successor queue without interrupting the current song. */
@@ -678,6 +679,19 @@ export interface OnlineExternalPlaybackProvider {
      * nothing else; absent where a provider has no other way to go back to.
      */
     useStandardPlayback?(): Promise<void>;
+}
+
+/**
+ * What a player answered a repeat of the track: whether the repeat could be read at all, whether
+ * this call changed the value the caller found, and the repeat the player holds afterwards in its
+ * own numbers (0 off, 1 the list, 2 the track) or null where it could not be read. Only a player
+ * holding the track's repeat repeats the song by itself; every other answer leaves repeat one to
+ * the app's own replay.
+ */
+export interface ExternalTrackRepeatAnswer {
+    read: boolean;
+    changed: boolean;
+    now: number | null;
 }
 
 /**

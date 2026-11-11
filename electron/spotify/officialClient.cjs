@@ -353,7 +353,9 @@ const PLAY_STATE_SOURCE = `async ({ api, singleLoop = false }) => {
     // value back: the track once this call has it repeating one, and the value it had before where the
     // call was refused or never made. Read off the one state read at the top rather than read again -
     // this is the only writer of the repeat here, so a second read could only say what this one says.
-    let left = before;
+    // A call the app refused wrote nothing: the value it found is not one of Folia's, so the answer
+    // names none, and no restore of a later play may take that value for one Folia left behind.
+    let left = before === 2 ? 2 : null;
     if (before !== null && canRepeat && before !== 2) {
       try {
         await api.player.setRepeat(2);
@@ -388,7 +390,7 @@ const PLAY_STATE_SOURCE = `async ({ api, singleLoop = false }) => {
 // while repeat one is the app's own repeat of it. A value of the listener's own made after that
 // change is a different number, so one record covers both changes without ever writing over them.
 const RESTORE_STATE_SOURCE = `async ({ api, repeat, shuffle, repeatExpected = 0 }) => {
-  const put = { repeat: false, shuffle: false, read: true };
+  const put = { repeat: false, shuffle: false, read: true, now: null };
   if (repeat === null && !shuffle) return put;
   let s = null;
   try { s = typeof api.player.getState === 'function' ? api.player.getState() : null; } catch { s = null; }
@@ -396,12 +398,18 @@ const RESTORE_STATE_SOURCE = `async ({ api, repeat, shuffle, repeatExpected = 0 
     put.read = false;
     return put;
   }
+  // What the app holds of the repeat afterwards: the value written back here, the value it kept
+  // where a call of its own was refused, and the listener's own value where that one is theirs to
+  // hold. A player that names no repeat answers none.
   if (repeat !== null && typeof api.player.setRepeat === 'function') {
     if (s.repeat === repeatExpected) {
-      try { await api.player.setRepeat(repeat); put.repeat = true; } catch { /* left as it is */ }
+      try { await api.player.setRepeat(repeat); put.repeat = true; put.now = repeat; } catch { put.now = typeof s.repeat === 'number' ? s.repeat : null; }
     } else {
       put.repeat = 'theirs';
+      put.now = typeof s.repeat === 'number' ? s.repeat : null;
     }
+  } else if (typeof s.repeat === 'number') {
+    put.now = s.repeat;
   }
   if (shuffle && typeof api.player.setShuffle === 'function') {
     if (s.shuffle === false) {
@@ -1673,7 +1681,12 @@ function createSpotifyOfficialClient({
                     + (single ? ' had to be changed for repeat one' : ' had to be changed for Folia\'s order')
                     + '; it is put back when this way is left');
             }
-            return 'loaded';
+            // A start in repeat one answers the repeat the app holds after it beside the word it took
+            // the track with: the renderer reads the app's own turn of the song only where that value
+            // is the track, and null says nothing wrote one. Every other start answers that word alone.
+            return single
+                ? { answer: 'loaded', repeat: typeof changed.left === 'number' ? changed.left : null }
+                : 'loaded';
         },
 
         // The songs that are to follow, put in Spotify's queue so it moves on to them by itself. The
@@ -1734,11 +1747,11 @@ function createSpotifyOfficialClient({
                     answer = await call(`return (${REPEAT_TRACK_SOURCE})({ api });`, { retry: false });
                 } catch (error) {
                     warn('[SpotifyClient] repeat of the track could not be turned on for repeat one', error);
-                    return { read: false, changed: false };
+                    return { read: false, changed: false, now: null };
                 }
                 if (!answer?.read) {
                     log('[SpotifyClient] Spotify\'s repeat could not be read; repeat one is left to Folia\'s own replay');
-                    return { read: false, changed: false };
+                    return { read: false, changed: false, now: null };
                 }
                 const changed = answer.before !== 2 && answer.now === 2;
                 if (changed && changedRepeat === null) changedRepeat = repeatNameOf(REPEAT_MODES, answer.before);
@@ -1747,13 +1760,17 @@ function createSpotifyOfficialClient({
                         leftRepeat = 2;
                         log('[SpotifyClient] repeat one is Spotify\'s own repeat of the track; the listener\'s repeat is put back when it goes off');
                     }
-                    return { read: true, changed };
+                    return { read: true, changed, now: 2 };
                 }
                 warn('[SpotifyClient] Spotify would not repeat the track; repeat one replays the song itself instead');
-                return { read: true, changed: false };
+                // The value the app kept: what it holds afterwards, which is what tells the renderer
+                // that no turn of this song is the app's own.
+                return { read: true, changed: false, now: answer.now };
             }
-            await this.restoreUserState({ only: 'repeat' });
-            return { read: true, changed: false };
+            const put = await this.restoreUserState({ only: 'repeat', withRepeatValue: true });
+            // The value the app holds after the restore: what was put back, the value it kept where a
+            // call of its own was refused, and the listener's own where they changed it meanwhile.
+            return { read: true, changed: false, now: typeof put?.now === 'number' ? put.now : null };
         },
 
         // What a play of this run changed of the listener's own repeat and shuffle, as it was before:
@@ -1773,11 +1790,13 @@ function createSpotifyOfficialClient({
         // `only: 'repeat'` puts back the repeat alone and leaves the shuffle for the call that leaves
         // this way of playing: repeat one going off is no reason to shuffle the queue Folia is going
         // on to play.
-        async restoreUserState({ allowStart = false, only = null } = {}) {
+        async restoreUserState({ allowStart = false, only = null, withRepeatValue = false } = {}) {
             const withShuffle = only !== 'repeat';
             const repeat = changedRepeat;
             const shuffle = withShuffle ? changedShuffle : null;
-            if (repeat === null && shuffle === null) return changedState();
+            // What is still to be put back, and - where the page could be asked - the repeat the app
+            // holds now, which the caller that put one back reads to know what it left behind.
+            if (repeat === null && shuffle === null) return withRepeatValue ? { ...changedState(), now: null } : changedState();
             let put;
             try {
                 put = await call(`
@@ -1787,13 +1806,13 @@ function createSpotifyOfficialClient({
       `, { allowStart, retry: false });
             } catch (error) {
                 warn('[SpotifyClient] the listener\'s own repeat and shuffle could not be put back; they are kept and tried again', error);
-                return changedState();
+                return withRepeatValue ? { ...changedState(), now: null } : changedState();
             }
             // A state that could not be read says nothing about either one: both records stay for the
             // next call, which asks again rather than writing over a value of the listener's.
             if (put?.read === false) {
                 log('[SpotifyClient] Spotify\'s repeat and shuffle could not be read; what is to be put back is kept and tried again');
-                return changedState();
+                return withRepeatValue ? { ...changedState(), now: null } : changedState();
             }
             // Written back, or found to be the listener's own now: either way this record is done.
             if (put?.repeat) changedRepeat = null;
@@ -1804,7 +1823,9 @@ function createSpotifyOfficialClient({
             if (keptByListener.length) {
                 log('[SpotifyClient] the listener\'s own ' + keptByListener.join(' and ') + ' were changed in Spotify meanwhile and are left as they are');
             }
-            return { repeat: changedRepeat, shuffle: changedShuffle };
+            return withRepeatValue
+                ? { ...changedState(), now: typeof put?.now === 'number' ? put.now : null }
+                : changedState();
         },
 
         // The player's state; from the media session (then `fallback` is set and no track is named)
