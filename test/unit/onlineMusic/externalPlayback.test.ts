@@ -440,6 +440,35 @@ describe('a start that runs on after the interface', () => {
         unsubscribe();
     });
 
+    it('forgets the direction of a skip once the song was taken back and played on', async () => {
+        // The read taken before the song was on screen is a skip of the player's own. The listener then
+        // resumes the song before it is shown, which says the song goes on: the end that read carried is
+        // not the song's after all. The direction it named belonged to that end only, and held past it
+        // it made the song's own end, minutes later, step the queue the way the listener went before
+        // the song had even started.
+        const answers = [
+            status({ positionMs: 5000, isPlaying: false, ended: true, skipped: 'previous' }),
+            status({ positionMs: 5000, isPlaying: true }),
+            status({ positionMs: 199000, isPlaying: true }),
+            status({ positionMs: 200000, isPlaying: false, ended: true }),
+        ];
+        omniMock.getExternalPlaybackStatus.mockImplementation(async () => answers.shift() ?? status({ positionMs: 200000, isPlaying: false, ended: true }));
+        const ends: { skipped?: string }[] = [];
+        const start = engine.startExternalPlayback(song, 0);
+        await start.seeded;
+        const unsubscribe = engine.subscribeExternalPlayback(event => {
+            if (event.type === 'ended') ends.push(event);
+        });
+        engine.resumeExternalPlayback();
+        engine.announceExternalPlayback();
+        await vi.advanceTimersByTimeAsync(3000);
+
+        // One end, the one the song ran to: the end before it was taken back, and its direction with it.
+        expect(ends).toHaveLength(1);
+        expect(ends[0].skipped).toBeUndefined();
+        unsubscribe();
+    });
+
     it('says an end was not heard where a buffering read preceded the end of a song that had played', async () => {
         // Repeat one replays the song that ended only where the player said this song was sounding
         // (useExternalPlaybackBridge reads that as `heard`). A player that answers "still buffering"
@@ -1421,13 +1450,14 @@ describe('a move the player takes seconds to take', () => {
         expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PAUSED);
     });
 
-    it('holds the bar where it stands once the pause it was given lands on the drop', async () => {
+    it('shows the spot the player landed on once the pause it was given lands on the drop', async () => {
         // The bar is dropped on a playing song and the player goes on naming the line the song stood on
         // while the bar runs on from the drop; the listener stops the song before that answers, and the
-        // answer that loads the spot comes back stopped. That read is followed for the spot, and the
-        // stretch the bar ran ahead of it is the wait the player took to load it: taking the spot there
-        // put the bar and the lyrics back by that whole stretch, which is the same step back a playing
-        // answer is already kept from.
+        // answer that loads the spot comes back stopped. A stopped song shows where the player stands:
+        // that spot is written down as it comes, and the stretch the bar ran ahead of it while the old
+        // line was named falls back once. Held where it stood instead, the bar stayed that far ahead of
+        // the player for as long as the song stayed stopped, which is a bar and a lyric line the
+        // listener cannot read the song from.
         await startFrom(10000);
         const movedAt = performance.now();
         expect(engine.seekExternalPlayback(60)).toBe(true);
@@ -1445,12 +1475,19 @@ describe('a move the player takes seconds to take', () => {
         expect(engine.pauseExternalPlayback()).toBe(true);
 
         const seen: number[] = [engine.getExternalPosition()];
-        for (let waited = 0; waited < 1500; waited += SAMPLE_MS) {
+        for (let waited = 0; waited < 20000; waited += SAMPLE_MS) {
             await vi.advanceTimersByTimeAsync(SAMPLE_MS);
             seen.push(engine.getExternalPosition());
         }
-        console.log('[paused landing] stood=' + held.toFixed(2) + ' min=' + Math.min(...seen).toFixed(2));
-        expect(largestDrop([held, ...seen])).toBeLessThanOrEqual(0);
+        const last = seen[seen.length - 1];
+        console.log('[paused landing] stood=' + held.toFixed(2) + ' min=' + Math.min(...seen).toFixed(2) + ' last=' + last.toFixed(2));
+        // The spot the player landed on is what a stopped song shows. The only step back is the stretch
+        // the bar ran ahead of it, taken once when that answer lands.
+        expect(Math.min(...seen)).toBeCloseTo(60, 1);
+        expect(largestDrop([held, ...seen])).toBeLessThanOrEqual(held - 60 + 0.5);
+        expect(Math.max(...seen)).toBeLessThanOrEqual(held);
+        // Twenty seconds of a stopped song later the bar is still where the player stands.
+        expect(last).toBeCloseTo(60, 1);
         expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PAUSED);
     });
 
