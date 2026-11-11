@@ -467,7 +467,7 @@ const RELEASE_STATE_SOURCE = `async ({ api, keep = null, expected = 0 }) => {
     if (!writable) return { read: true, action: 'none', now: before };
     try { await api.player.setRepeat(0); return { read: true, action: 'release', now: 0 }; } catch { return { read: true, action: 'none', now: before }; }
   }
-  if (keep !== null && before === expected) {
+  if (keep !== null && before === expected && keep !== 2) {
     if (!writable) return { read: true, action: 'none', now: before };
     try { await api.player.setRepeat(keep); return { read: true, action: 'put', now: keep }; } catch { return { read: true, action: 'none', now: before }; }
   }

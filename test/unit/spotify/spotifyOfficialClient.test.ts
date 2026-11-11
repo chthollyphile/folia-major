@@ -1148,6 +1148,15 @@ describe('the repeat of the track given back when repeat one goes off', () => {
         expect(player.calls).toEqual([]);
     });
 
+    it('never writes a recorded repeat of the track on, since that is what stalls Folia', async () => {
+        // The record names the listener's own repeat of the track, and the app still holds what
+        // Folia left - which is no repeat at all. Writing the track's repeat back would hand the
+        // song to Spotify to play again, so nothing is written: the value holding it was never left.
+        const player = playerHolding(0);
+        await expect(release({ api: { player }, keep: 2, expected: 0 })).resolves.toEqual({ read: true, action: 'none', now: 0 });
+        expect(player.calls).toEqual([]);
+    });
+
     it('writes nothing and says it could read nothing where the state cannot be read', async () => {
         const player = playerHolding(2);
         player.getState = () => { throw new Error('the state is not readable now'); };
