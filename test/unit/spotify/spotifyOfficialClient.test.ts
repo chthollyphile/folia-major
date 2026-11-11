@@ -1316,6 +1316,7 @@ describe('the bridge over the official client', () => {
         launch: vi.fn(async () => true), restart: vi.fn(async () => true), play: vi.fn(async () => true),
         queue: vi.fn(async () => 0), pause: vi.fn(async () => true), resume: vi.fn(async () => true),
         seek: vi.fn(async () => true), setVolume: vi.fn(async () => true), status: vi.fn(async () => ({ id: TRACK })),
+        setTrackRepeat: vi.fn(async () => ({ read: true, changed: false, now: 2 })),
         available: vi.fn(() => ({ available: true })), closeForQuit: vi.fn(async () => true), close: vi.fn(async () => {}),
     });
 
@@ -1357,6 +1358,11 @@ describe('the bridge over the official client', () => {
         expect(officialClient.seek).toHaveBeenCalledWith({ ms: 1200 });
         expect(await bridge.request('client_volume', { value: 0.4 })).toMatchObject({ ok: true });
         expect(officialClient.setVolume).toHaveBeenCalledWith({ value: 0.4 });
+        expect(await bridge.request('client_repeat', { on: true })).toMatchObject({ ok: true, data: { now: 2 } });
+        expect(officialClient.setTrackRepeat).toHaveBeenCalledWith({ on: true });
+        // Only a plain true turns the repeat of the track on; anything else is a write of off.
+        expect(await bridge.request('client_repeat', { on: 'true' })).toMatchObject({ ok: true });
+        expect(officialClient.setTrackRepeat).toHaveBeenLastCalledWith({ on: false });
         expect(await bridge.request('client_pause')).toMatchObject({ ok: true });
         expect(officialClient.pause).toHaveBeenCalled();
         // A call the app refused reaches the renderer as the code it gave, not as a success.

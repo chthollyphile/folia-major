@@ -941,6 +941,26 @@ describe('the limits the Spotify transport puts on the app own calls', () => {
         expect(warn).toHaveBeenCalledWith(expect.stringContaining('client_status did not answer within 1500ms'));
     });
 
+    it('fails a repeat write the app never answers, so repeat one is not held by a wedged page', async () => {
+        vi.useFakeTimers();
+        const { requestSpotify } = await import('@/services/onlineMusic/spotify/spotifyTransport');
+        bridge(() => new Promise(() => {}));
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+        let outcome: string | null = null;
+        void requestSpotify('client_repeat', { on: true }).then(
+            () => { outcome = 'answered'; },
+            (error: Error) => { outcome = error.message; },
+        );
+        await vi.advanceTimersByTimeAsync(1499);
+        expect(outcome).toBeNull();
+        expect(warn).not.toHaveBeenCalledWith(expect.stringContaining('did not answer'));
+
+        await vi.advanceTimersByTimeAsync(1);
+        expect(outcome).toContain('client_repeat within 1500ms');
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('client_repeat did not answer within 1500ms'));
+    });
+
     it('gives a queue write the longer limit the app needs for it', async () => {
         vi.useFakeTimers();
         const { requestSpotify } = await import('@/services/onlineMusic/spotify/spotifyTransport');

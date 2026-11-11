@@ -47,16 +47,18 @@ export interface SpotifyWireClientStatus {
 export type SpotifyWireRepeatMode = 'off' | 'all' | 'one';
 
 /**
- * How long the app may take on a call that only reads what it holds or writes the level it sounds
- * at. A responsive page answers these inside one poll; a page wedged on a dialog, or a DevTools port
- * that stopped answering, is not coming back within seconds, and something waits on every answer (a
- * status read holds the next poll, a queue write holds the queue). `client_play` is not here: it
- * waits for the song the app is loading, and the main process already limits it.
+ * How long the app may take on a call that only reads what it holds or writes one setting of it: the
+ * level it sounds at, its repeat of the track. A responsive page answers these inside one poll; a
+ * page wedged on a dialog, or a DevTools port that stopped answering, is not coming back within
+ * seconds, and something waits on every answer (a status read holds the next poll, a repeat write
+ * holds repeat one, a queue write holds the queue). `client_play` is not here: it waits for the song
+ * the app is loading, and the main process already limits it.
  */
 const CLIENT_CALL_LIMITS_MS: Partial<Record<SpotifyOperation, number>> = {
     client_status: 1500,
     client_status_found: 1500,
     client_volume: 1500,
+    client_repeat: 1500,
     client_queue: 4000,
 };
 
