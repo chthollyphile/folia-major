@@ -84,6 +84,13 @@ const MAX_QUEUED = 5;
 // A Windows tool is given at most this long: a tasklist or a taskkill that hangs must not hold a play
 // or the quit.
 const TOOL_LIMIT_MS = 2000;
+/**
+ * Whether an answer of `spotifyIsRunning` is a yes. It is one here when the tasklist named the app,
+ * and where the restart-consent branch is merged it stays one only for 'running': 'unknown' is the
+ * tasklist that could not be read, and the app may well be running then, so a search of the follow
+ * looks for nothing on that answer rather than spending the run's own allowance on a guess.
+ */
+const spotifyRuns = answer => answer === true || answer === 'running';
 // Never less than this: a wait of a few milliseconds only ever fails, and `timeout: 0` means no limit
 // at all to execFile.
 const TOOL_LIMIT_FLOOR_MS = 100;
@@ -1971,14 +1978,16 @@ function createSpotifyOfficialClient({
         // whole allowance six seconds in could not follow the app again until Folia was restarted. A
         // look costs a read of the port file and a netstat, so they are at least
         // STATUS_FOLLOW_SEARCH_GAP_MS apart and at most STATUS_FOLLOW_SEARCHES in a run, and none is
-        // made where the app is not running at all - the run has nothing to look for. The allowance is
-        // given back when `ensure` starts a Spotify of its own: that start opens a new port to look for.
+        // made where the app is not running at all - the run has nothing to look for. Judging whether
+        // it runs is itself one tasklist, taken at most once a minute for that reason. The allowance
+        // is given back when `ensure` starts a Spotify of its own: that start opens a new port to
+        // look for.
         async statusFollowing() {
             const searching = !requestedPort && !foundPort
         && followPortSearches < STATUS_FOLLOW_SEARCHES
         && Date.now() - followPortSearchedAt >= STATUS_FOLLOW_SEARCH_GAP_MS
         && spotifyInstalled()
-        && await spotifyIsRunning();
+        && spotifyRuns(await spotifyIsRunning());
             if (searching) {
                 followPortSearches += 1;
                 followPortSearchedAt = Date.now();
@@ -2019,5 +2028,5 @@ function createSpotifyOfficialClient({
 module.exports = {
     CDP_PORT, MAX_QUEUED, PLAY_STATE_SOURCE, QUEUE_SOURCE, RELEASE_STATE_SOURCE, REPEAT_TRACK_SOURCE, RESTORE_STATE_SOURCE,
     START_QUEUE_SOURCE, START_WAIT_SOURCE,
-    createSpotifyOfficialClient, findLauncher, isAdvertisementItem, repeatModeOf, repeatNameOf, repeatWordsOf, statusFromMediaSession, statusFromPlayerState,
+    createSpotifyOfficialClient, findLauncher, isAdvertisementItem, repeatModeOf, repeatNameOf, repeatWordsOf, spotifyRuns, statusFromMediaSession, statusFromPlayerState,
 };
