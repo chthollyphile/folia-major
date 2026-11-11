@@ -40,8 +40,9 @@ describe('coverUrl utilities', () => {
             .toBe('https://y.gtimg.cn/music/photo_new/T002R300x300M000album-mid.jpg?max_age=2592000');
         expect(getSizedCoverUrl(coverUrl, 512))
             .toBe('https://y.gtimg.cn/music/photo_new/T002R800x800M000album-mid.jpg?max_age=2592000');
+        // The original album asset is a multi-megapixel JPEG; the largest bucket answers instead.
         expect(getSizedCoverUrl(coverUrl, 1024))
-            .toBe('https://y.gtimg.cn/music/photo_new/T002M000album-mid.jpg?max_age=2592000');
+            .toBe('https://y.gtimg.cn/music/photo_new/T002R800x800M000album-mid.jpg?max_age=2592000');
     });
 
     it('restores the canonical QQ Music original without a display-size sentinel', () => {
@@ -101,11 +102,12 @@ describe('coverUrl utilities', () => {
             'https://p1.music.126.net/abc/109951.jpg?param=512y512',
             'https://p1.music.126.net/abc/109951.jpg?param=1024y1024',
         ]);
-        // QQ has three assets, so the ladder collapses onto them instead of inventing a fourth.
+        // QQ has two usable album assets; the top step asks for the larger one rather than the
+        // original, whose decode is what the wall cannot afford.
         expect(COVER_SIZE_STEPS.map(step => getSizedCoverUrl(qq, step))).toEqual([
             'https://y.gtimg.cn/music/photo_new/T002R300x300M000album-mid.jpg',
             'https://y.gtimg.cn/music/photo_new/T002R800x800M000album-mid.jpg',
-            'https://y.gtimg.cn/music/photo_new/T002M000album-mid.jpg',
+            'https://y.gtimg.cn/music/photo_new/T002R800x800M000album-mid.jpg',
         ]);
         expect(COVER_SIZE_STEPS.map(step => getSizedCoverUrl(local, step))).toEqual([
             `${local}?size=512`,

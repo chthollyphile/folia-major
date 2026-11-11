@@ -130,9 +130,16 @@ export const getSizedCoverUrl = (url: string | null | undefined, size: number): 
         }
 
         if (isQqCoverUrl(urlObj)) {
+            // An album cover's own asset is a multi-megapixel JPEG (3000×3000 measured): decoding one
+            // blocked a wall frame for ~240 ms, and the wall asks for its largest bucket on every
+            // expanded card. Past the largest CDN bucket the 800px asset answers for an album cover
+            // instead — a card is at most ~920 device pixels across, so it is the same picture on
+            // screen without the decode. A singer image keeps the original: the CDN's buckets for
+            // those are not the album ladder, and the wall shows them small.
+            const albumCover = /T002(?:R\d+x\d+)?M000/.test(urlObj.pathname);
             const qqCoverSize = normalizedSize <= QQ_COVER_SMALL_SIZE
                 ? QQ_COVER_SMALL_SIZE
-                : normalizedSize <= QQ_COVER_LARGE_SIZE ? QQ_COVER_LARGE_SIZE : null;
+                : normalizedSize <= QQ_COVER_LARGE_SIZE || albumCover ? QQ_COVER_LARGE_SIZE : null;
             return withQqCoverSize(urlObj, qqCoverSize);
         }
 
