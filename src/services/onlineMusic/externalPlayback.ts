@@ -60,6 +60,9 @@ export type ExternalPlaybackEvent =
     | { type: 'ended'; skipped?: 'next' | 'previous'; heard?: boolean }
     | { type: 'failure'; error: unknown }
     | { type: 'foreign-track' }
+    // A player whose listener changes what it plays from its own window moved on to a track Folia
+    // did not ask for: that track is taken over by the bridge, and this session ends with it.
+    | { type: 'track-changed'; status: ProviderExternalPlaybackStatus }
     // The player fell back to a coarser channel (or came back to its precise one): said once an episode.
     | { type: 'degraded'; active: boolean }
 
@@ -510,10 +513,17 @@ const applyStatus = (status: ProviderExternalPlaybackStatus, sampledAtMs: number
     }
     if (status.mediaId && !omni.isExternalPlaybackStatusForSong(current.song, status)) {
         if (!current.announced) return;
-        // The player is on a track this app did not ask for (someone used its own window). Stop it
-        // rather than let a song Folia knows nothing about keep sounding under Folia's controls.
         if (!current.foreign) {
             current.foreign = true;
+            // A player whose listener changes what it plays from its own window is followed: the
+            // track it moved on to is looked up and taken over by the bridge, and this session ends
+            // with the take-over. A player that declared nothing has the track stopped instead: a
+            // song Folia knows nothing about must not keep sounding under Folia's controls.
+            if (current.traits.followsPlayerChanges) {
+                console.info('[ExternalPlayback] the player has another track; it is taken over');
+                emit({ type: 'track-changed', status });
+                return;
+            }
             console.warn('[ExternalPlayback] the player has another track; it is paused');
             void omni.pauseExternalPlayback(current.song).catch(() => {});
             markPaused(positionSec);
@@ -1080,6 +1090,20 @@ export function releaseUnclaimedExternalTrack(song: SongResult, reason: string):
         console.warn('[ExternalPlayback] the player nobody took over could not be paused', error);
     });
 }
+
+/**
+ * A track the player moved on to by itself could not be taken over (its platform has no such track
+ * any more, the lookup failed): the player is stopped rather than left sounding a song Folia knows
+ * nothing about, as a player that declared nothing is stopped the moment it moves on.
+ */
+export const stopForeignExternalPlayback = (): void => {
+    const current = session;
+    if (!current || !current.foreign) return;
+    console.warn('[ExternalPlayback] the track the player moved on to could not be taken over; it is paused');
+    void omni.pauseExternalPlayback(current.song).catch(() => {});
+    markPaused(current.clock.read());
+    emit({ type: 'foreign-track' });
+};
 
 /**
  * The app has put the song on screen: from now on the player drives the transport, the shim and

@@ -164,14 +164,14 @@ describe('a player that follows the listener\'s own changes', () => {
         engine.announceExternalPlayback();
         omniMock.getExternalPlaybackRunningStatus.mockResolvedValue(status());
 
-        await expect(followRunningExternalPlayer()).resolves.toBe('none');
+        await expect(followRunningExternalPlayer()).resolves.toBe('untouched');
         expect(omniMock.getExternalPlaybackRunningStatus).not.toHaveBeenCalled();
     });
 
     it('does nothing while the player is paused', async () => {
         omniMock.getExternalPlaybackRunningStatus.mockResolvedValue(status({ isPlaying: false }));
 
-        await expect(followRunningExternalPlayer()).resolves.toBe('none');
+        await expect(followRunningExternalPlayer()).resolves.toBe('untouched');
         expect(engine.getExternalSong()).toBeNull();
         expect(usePlaybackStore.getState().playerState).not.toBe(PlayerState.PLAYING);
     });
@@ -179,7 +179,7 @@ describe('a player that follows the listener\'s own changes', () => {
     it('does nothing where nothing is playing in the player at all', async () => {
         omniMock.getExternalPlaybackRunningStatus.mockResolvedValue(null);
 
-        await expect(followRunningExternalPlayer()).resolves.toBe('none');
+        await expect(followRunningExternalPlayer()).resolves.toBe('untouched');
         expect(engine.getExternalSong()).toBeNull();
     });
 
@@ -193,7 +193,7 @@ describe('a player that follows the listener\'s own changes', () => {
         };
         omniMock.getExternalPlaybackRunningStatus.mockResolvedValue(status());
 
-        await expect(followRunningExternalPlayer()).resolves.toBe('none');
+        await expect(followRunningExternalPlayer()).resolves.toBe('untouched');
         expect(omniMock.getExternalPlaybackRunningStatus).not.toHaveBeenCalled();
         expect(engine.getExternalSong()).toBeNull();
     });
@@ -202,7 +202,7 @@ describe('a player that follows the listener\'s own changes', () => {
         omniMock.canPlayExternally.mockReturnValue(false);
         omniMock.getExternalPlaybackRunningStatus.mockResolvedValue(status());
 
-        await expect(followRunningExternalPlayer()).resolves.toBe('none');
+        await expect(followRunningExternalPlayer()).resolves.toBe('untouched');
         expect(omniMock.getExternalPlaybackRunningStatus).not.toHaveBeenCalled();
     });
 
@@ -212,7 +212,7 @@ describe('a player that follows the listener\'s own changes', () => {
             return status();
         });
 
-        await expect(followRunningExternalPlayer()).resolves.toBe('none');
+        await expect(followRunningExternalPlayer()).resolves.toBe('untouched');
         expect(engine.getExternalSong()).toBeNull();
     });
 

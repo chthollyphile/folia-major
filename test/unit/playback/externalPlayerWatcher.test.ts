@@ -30,6 +30,8 @@ vi.mock('@/services/onlineMusic/externalPlayback', () => ({
     subscribeExternalPlayback: () => () => {},
     isExternalRoute: () => env.externalRoute,
     getExternalSong: () => env.externalSong,
+    isExternalTakeoverPending: () => false,
+    stopForeignExternalPlayback: () => {},
 }));
 vi.mock('@/components/app/playback/externalSpectrumCapture', () => ({
     stopExternalSpectrumCapture: () => {},
@@ -59,7 +61,9 @@ vi.mock('@/stores/usePlaybackStore', () => {
     return { usePlaybackStore: Object.assign(store, { getState: read, subscribe: () => () => {} }) };
 });
 vi.mock('@/components/app/playback/bridges/externalPlayerFollow', () => ({
+    followsPlayerChangesForShownSong: () => env.traits.followsPlayerChanges === true,
     followRunningExternalPlayer: () => env.follow(),
+    adoptPlayerTrack: vi.fn(async () => 'untouched'),
 }));
 
 const { useExternalPlaybackBridge } = await import('@/components/app/playback/bridges/useExternalPlaybackBridge');

@@ -522,7 +522,10 @@ export const spotifyClientPlayback: OnlineExternalPlaybackProvider = {
     // for eight seconds: that is the default the main process gives every call it makes (CALL_LIMIT_MS
     // in electron/spotify/officialClient.cjs), while the hop that falls back to the system media
     // session has a limit of its own, so no call is promised to answer within it - a call that runs
-    // past it leaves the bar standing at the limit it extrapolated to until an answer comes.
+    // past it leaves the bar standing at the limit it extrapolated to until an answer comes; and the
+    // listener keeps using Spotify's own window beside Folia, so what they start there is followed
+    // rather than stopped.
+    followsPlayerChanges: true,
     capturesSystemAudio: true,
     startsWithoutWaiting: true,
     backsOffStatusPolls: true,

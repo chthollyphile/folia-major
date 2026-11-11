@@ -40,7 +40,8 @@ import { setActiveLocalLyricsSource, setAudioSrc, setCachedCoverUrl, setCurrentS
 import { askedSongKeyRef, keepSongsOfProvidersStanding, makeSongCurrent, providerDropsSoFar, replaceShownSong, startOfAskedSong } from '../currentSong';
 import { onlineFailureToast } from '../source/onlineFailureToast';
 import { loadLocalSongAudio, loadLocalSongHifiSource, loadNavidromeSongAudio, loadOnlineSongAudio } from '../source/songAudioSource';
-import { queueWithRunningTrack, resolveRunningTrack } from './runningTrack';
+import { queueWithRunningTrack } from './runningTrack';
+import { namesItsTrack, showTrackPosition, takeOverRunningPlayer } from '../bridges/externalPlayerFollow';
 import { useLyricSettingsStore } from '../../../../stores/useLyricSettingsStore';
 import { useHifiSettingsStore } from '../../../../stores/useHifiSettingsStore';
 import { beginHifiTrack, hifiRouteFor, releaseUnclaimedHifiTrack, whenHifiRuntimeKnown } from '../../../../services/hifi/hifiPlayback';
@@ -109,11 +110,6 @@ type RunningTrackRestoreOptions = {
     restoreCachedThemeForSong?: RestoreSongTheme;
 };
 
-/** Whether the player named the track it is on, rather than only its coarse channel or an advertisement. */
-const namesItsTrack = (status: ProviderExternalPlaybackStatus): boolean => (
-    status.mediaId !== '' && status.advertisement !== true && status.degraded !== true
-);
-
 /**
  * The track taken over is shown with its own details, loaded as a song change loads them: its cover
  * and its lyrics. A load that lands after the listener moved on writes nothing.
@@ -146,71 +142,6 @@ const loadRunningTrackDetails = async (
 };
 
 /**
- * A player that outlived the app and moved on to another track by itself: the track it names is
- * looked up, made the song this app shows, put in the queue in front of the remembered song, and
- * taken over where it is still playing - the external route, its clock and the media keys follow it
- * as they follow any song of this app. Nothing is started, resumed or paused for it. The remembered
- * song stays the song on screen where the track cannot be looked up, and is the song on screen again
- * where the take-over does not hold.
- */
-const adoptRunningTrack = async (
-    song: SongResult,
-    running: ProviderExternalPlaybackStatus,
-    overtaken: () => boolean,
-    options: RunningTrackRestoreOptions,
-): Promise<boolean> => {
-    // A late answer landing after another song was asked for leaves everything as it is.
-    const track = await resolveRunningTrack(song, running, () => !overtaken());
-    if (!track) return false;
-    makeSongCurrent(track);
-    // The take-over's own ask of the track, kept apart from an ask for that same song landing while
-    // it waits: the key cannot tell two asks of one song apart, and a play of this song asks again.
-    const trackKey = getPlaybackSongKey(track);
-    const askedStart = startOfAskedSong();
-    // Asked of the track from here on, after every wait: a song asked for meanwhile owns the screen
-    // and the queue now, so nothing of the track is written. The remembered one's token says nothing
-    // about the track any more, hence the key and the start of the ask instead.
-    const notOvertaken = () => askedSongKeyRef.current === trackKey && startOfAskedSong() === askedStart;
-    const stillCurrent = notOvertaken;
-    if (running.isPlaying) {
-        if (!await adoptExternalPlayback(track)) {
-            // The player did not hold the track any more: the remembered song is the song this app
-            // shows again, and nothing of the track was written anywhere. The player is left as it is.
-            // A song asked for while the take-over waited keeps the screen.
-            if (notOvertaken()) makeSongCurrent(song);
-            return false;
-        }
-        // The player sounds the track, so the restore's own intent to play is dropped - but only
-        // where nothing asked for a song meanwhile: a play that did armed the intent that starts it.
-        if (notOvertaken()) dropPlayIntent(options.shouldAutoPlayRef);
-    } else {
-        // Paused there: shown where the player has it, and from there the press of play starts it.
-        // A player nobody started here is not taken over, so no intent to play is left to start it -
-        // unless a song was asked for while the take-over waited, whose play starts that one.
-        if (notOvertaken()) dropPlayIntent(options.shouldAutoPlayRef);
-        // The progress bar reads this track's own length: the duration still held is the remembered
-        // song's, which is another one. The player's own answer comes first.
-        const durationMs = running.durationMs > 0 ? running.durationMs : track.durationMs;
-        if (durationMs > 0) setDuration(durationMs / 1000);
-        showExternalPosition(track, running.positionMs, () => !stillCurrent());
-    }
-    // A song asked for while the take-over waited owns the queue now: nothing of this track is written.
-    if (!notOvertaken()) return true;
-    const queue = queueWithRunningTrack(options.queueBase(), track, song);
-    options.setPlayQueue?.(queue);
-    void options.persistLastPlaybackCache?.(track, queue);
-    // The track is the song this app shows now, so its own theme is the one to show: a read that
-    // lands after the listener moved on applies nothing.
-    void options.restoreCachedThemeForSong?.(track, {
-        allowLastUsedFallback: true, preserveCurrentOnMiss: false, isCurrent: stillCurrent,
-    }).catch((error: unknown) => {
-        console.warn('[restorePlaybackSourceForSong] The theme of the track taken over could not be restored', error);
-    });
-    await loadRunningTrackDetails(track, options, stillCurrent);
-    return true;
-};
-
-/**
  * The remembered song's own player outlived the app: read once what it has now. A player sounding
  * this song is taken over as it stands - the external route, its clock, the media keys and the songs
  * that follow it are the ones this app follows anyway - and the intent to play the restore armed is
@@ -234,21 +165,30 @@ const resumeRunningExternalPlayback = async (
         console.warn('[restorePlaybackSourceForSong] The player could not say what it has; the song stays paused at its beginning', error);
     }
     if (overtaken()) return;
-    if (running !== null && omni.isExternalPlaybackStatusForSong(song, running)) {
-        // A player that answers through its coarse channel is not taken over: the app cannot steer it.
-        if (running.isPlaying && running.degraded !== true) {
-            const adopted = await adoptExternalPlayback(song);
-            // Either way nothing of this window plays the song now: what sounds there is the player's,
-            // and a take-over that failed left the route to this app. So the intent the caller armed
-            // is dropped with it, as the window hand-off's restore drops its own.
-            dropPlayIntent(options.shouldAutoPlayRef);
-            if (adopted) return;
-        }
-        showExternalPosition(song, running.positionMs, overtaken);
+    if (running === null) {
+        await showRunningExternalPosition(song, overtaken);
         return;
     }
-    if (running !== null && namesItsTrack(running) && await adoptRunningTrack(song, running, overtaken, options)) return;
-    await showRunningExternalPosition(song, overtaken);
+    const outcome = await takeOverRunningPlayer(song, running, {
+        isWanted: () => !overtaken(),
+        spendPlayIntent: () => dropPlayIntent(options.shouldAutoPlayRef),
+        onTrackTaken: async (track, adopted, stillCurrent) => {
+            void adopted;
+            if (!stillCurrent()) return;
+            const queue = queueWithRunningTrack(options.queueBase(), track, song);
+            options.setPlayQueue?.(queue);
+            void options.persistLastPlaybackCache?.(track, queue);
+            void options.restoreCachedThemeForSong?.(track, {
+                allowLastUsedFallback: true, preserveCurrentOnMiss: false, isCurrent: stillCurrent,
+            }).catch((error: unknown) => {
+                console.warn('[restorePlaybackSourceForSong] The theme of the track taken over could not be restored', error);
+            });
+            await loadRunningTrackDetails(track, options, stillCurrent);
+        },
+    });
+    // A track the player turned out not to hold, and one that names no track of its own: where the
+    // player says, the remembered song's own position is shown.
+    if (outcome === 'untouched') await showRunningExternalPosition(song, overtaken);
 };
 
 // 'restored': the song plays from a fresh source. 'failed': it could not be restored (what went

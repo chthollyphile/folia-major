@@ -20,8 +20,8 @@ export const spotifyExternalPlayback: OnlineExternalPlaybackProvider = {
     },
     isUnreachableFailure: error => (current().isUnreachableFailure?.(error) ?? false),
     // Both programs sound the song outside every page of the app, so both take the machine's own
-    // sound for a real spectrum; the other three are the official app's alone. Read from whichever
-    // way is on, so the answers follow a change of it.
+    // sound for a real spectrum; the rest are the official app's alone. Read from whichever way is
+    // on, so the answers follow a change of it.
     get capturesSystemAudio() {
         return current().capturesSystemAudio === true;
     },
@@ -43,6 +43,11 @@ export const spotifyExternalPlayback: OnlineExternalPlaybackProvider = {
     // steered by Folia alone, as every other player is.
     get loopsTrackNatively() {
         return current().loopsTrackNatively === true;
+    },
+    // The listener uses Spotify's own window by hand; Soloist is steered from here alone, so a
+    // change made in it is not one to follow.
+    get followsPlayerChanges() {
+        return current().followsPlayerChanges === true;
     },
     canPlay: song => current().canPlay?.(song) ?? true,
     isPrepared: song => current().isPrepared?.(song) ?? false,

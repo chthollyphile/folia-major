@@ -603,6 +603,14 @@ export interface OnlineExternalPlaybackProvider {
      */
     backsOffStatusPolls?: boolean;
     /**
+     * The listener changes what this player plays from the player's own window, and the app follows
+     * those changes instead of stopping them: a track started there is taken over as it stands (the
+     * song shown, the clock, the transport), and the player's own queue and level are left alone
+     * until a song is started here. True for a player the listener keeps using by hand; absent or
+     * false for one this app alone steers and for one whose changes stop the playback.
+     */
+    followsPlayerChanges?: boolean;
+    /**
      * The system media keys belong to Folia while a song this route started sounds here, even where
      * the player registers no media session of its own: a key the app let go would reach nothing.
      * True where the keys are held for the song alone; absent or false leaves them to the rules
@@ -715,6 +723,8 @@ export interface ExternalPlaybackTraits {
     seekLimitMs: number | null;
     /** Repeat one is the player's own repeat of the track, not the app's replay. */
     loopsTrackNatively: boolean;
+    /** A track the listener starts in the player's own window is taken over, not stopped. */
+    followsPlayerChanges: boolean;
 }
 
 /** An alternate title and artist that belong to the same song. */

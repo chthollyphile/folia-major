@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { NextTrackOptions } from '../../../../types/appPlayback';
-import { installExternalPlayback, subscribeExternalPlayback } from '../../../../services/onlineMusic/externalPlayback';
+import { getExternalSong, installExternalPlayback, isExternalRoute, isExternalTakeoverPending, stopForeignExternalPlayback, subscribeExternalPlayback } from '../../../../services/onlineMusic/externalPlayback';
 import { stopExternalSpectrumCapture, syncExternalSpectrumForRoute } from '../externalSpectrumCapture';
 import { omni } from '../../../../services/onlineMusic/omni';
 import { useAudioSettingsStore } from '../../../../stores/useAudioSettingsStore';
@@ -11,6 +11,7 @@ import { onlineFailureOf } from '../../../../services/onlineMusic/failure/online
 import { setStatusMessage } from '../../../../stores/useStatusMessageStore';
 import { usePlaybackStore } from '../../../../stores/usePlaybackStore';
 import { onlineFailureToast } from '../source/onlineFailureToast';
+import { adoptPlayerTrack, followsPlayerChangesForShownSong, followRunningExternalPlayer } from './externalPlayerFollow';
 
 // src/components/app/playback/bridges/useExternalPlaybackBridge.ts
 // The React side of the external playback route: mounts its guard and shim, moves the queue on
@@ -18,7 +19,12 @@ import { onlineFailureToast } from '../source/onlineFailureToast';
 // do. Transport controls live with the other routes' (usePlaybackTransportController), and the
 // system media keys with useMediaKeyTakeoverBridge, which holds them across every route.
 // The queue is Folia's while the player sounds: a step the player made by its own controls (reported
-// as an end with `skipped`) is pulled back to the queue.
+// as an end with `skipped`) is pulled back to the queue. A player the listener keeps using by hand
+// (`followsPlayerChanges`) is watched instead: a track they start there becomes the song this app
+// shows, whether a song of Folia's was sounding in the player or nothing was.
+
+/** How often a player the listener keeps using is read while nothing of Folia's sounds in it. */
+const PLAYER_WATCH_INTERVAL_MS = 3000;
 
 type UseExternalPlaybackBridgeParams = {
     handleNextTrack: (options?: NextTrackOptions) => Promise<void> | void;
@@ -114,6 +120,25 @@ export function useExternalPlaybackBridge({ handleNextTrack, handlePrevTrack }: 
                 });
                 return;
             }
+            if (event.type === 'track-changed') {
+                // The player's own window moved it on: the track it names is taken over in place of
+                // the song on screen, and the take-over's own session replaces this one. Where the
+                // track cannot be looked up, the player is stopped as it always was.
+                const current = usePlaybackStore.getState().currentSong;
+                void (current
+                    ? adoptPlayerTrack(current, event.status, {
+                        isWanted: () => isExternalRoute() && getExternalSong()?.sourceRef?.kind === 'online',
+                        onTrackTaken: async () => undefined,
+                    })
+                    : Promise.resolve('untouched')
+                ).then(outcome => {
+                    if (outcome !== 'adopted') stopForeignExternalPlayback();
+                }, (error: unknown) => {
+                    console.warn('[ExternalPlayback] the track the player moved on to could not be taken over', error);
+                    stopForeignExternalPlayback();
+                });
+                return;
+            }
             if (event.type === 'foreign-track') {
                 setStatusMessage({ type: 'info', text: latestRef.current.t('status.externalPlayerMovedOn') });
                 return;
@@ -133,5 +158,67 @@ export function useExternalPlaybackBridge({ handleNextTrack, handlePrevTrack }: 
                 ));
             }
         });
+    }, []);
+
+    // A player the listener keeps using beside Folia (`followsPlayerChanges`) is read slowly while
+    // nothing of Folia's sounds in it: what they start there - another song, or the first one of the
+    // evening - becomes the song this app shows, as a take-over at launch would. A session of this
+    // route is not read again (its own polls follow the player), the page is not read while it is
+    // hidden, and one read is on its way at a time. Reading a player starts nothing: a player that
+    // is closed stays closed, and one left running is only asked what it is on.
+    useEffect(() => {
+        // A page is what makes a player watchable at all: the read is skipped where there is none.
+        if (typeof document === 'undefined') return;
+        let timer: ReturnType<typeof setTimeout> | null = null;
+        let running = false;
+        let stopped = false;
+        const stop = () => {
+            if (timer !== null) clearTimeout(timer);
+            timer = null;
+        };
+        const arm = () => {
+            stop();
+            if (stopped) return;
+            timer = setTimeout(() => {
+                timer = null;
+                void tick();
+            }, PLAYER_WATCH_INTERVAL_MS);
+        };
+        const tick = async () => {
+            if (stopped) return;
+            if (running || document.visibilityState === 'hidden') {
+                arm();
+                return;
+            }
+            // Nothing to watch where a session of this route already follows the player (its own polls
+            // are the read), and nothing where the song on screen plays in a player whose listener
+            // does not drive it by hand.
+            const following = isExternalRoute() && getExternalSong() !== null;
+            if (following || !followsPlayerChangesForShownSong()) {
+                arm();
+                return;
+            }
+            running = true;
+            try {
+                await followRunningExternalPlayer();
+            } catch (error) {
+                console.warn('[ExternalPlayback] the player the listener uses could not be read', error);
+            } finally {
+                running = false;
+                arm();
+            }
+        };
+        // A page shown again after a while reads the player at once rather than a full interval later.
+        const onVisibility = () => {
+            if (document.visibilityState === 'hidden') stop();
+            else arm();
+        };
+        document.addEventListener('visibilitychange', onVisibility);
+        arm();
+        return () => {
+            stopped = true;
+            stop();
+            document.removeEventListener('visibilitychange', onVisibility);
+        };
     }, []);
 }
