@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BRAVAIS_TILT_DEG } from '@/library/suites/bravais/bravaisConstants';
-import { reanchorLift, rotateAround, seamTiltInsets, tiltEdgeRoom, type BravaisFrameInput } from '@/library/suites/bravais/bravaisFrame';
+import { reanchorLift, rotateAround, seamPlanEdge, seamTiltInsets, tiltEdgeRoom, type BravaisFrameInput } from '@/library/suites/bravais/bravaisFrame';
 import { tiltedScreenBox } from '@/library/suites/bravais/bravaisTiltReveal';
 import { resolveBravaisTiltDeg, resolveBravaisTiltPage, type BravaisTiltInput } from '@/library/suites/bravais/bravaisTilt';
 
@@ -204,5 +204,15 @@ describe('tiltEdgeRoom', () => {
         expect(0 - Math.min(...xs)).toBeLessThanOrEqual(room + 0.01);
         expect(Math.max(...xs) - width).toBeGreaterThan(room * 0.9);
         expect(Math.max(...xs) - width).toBeLessThanOrEqual(room + 0.01);
+    });
+
+    it('is added to the planning margin only when the viewport has room for it on both sides', () => {
+        const room = tiltEdgeRoom(900, -4);
+        expect(seamPlanEdge({ view: { width: 1440, height: 900 }, openWidth: 300, tiltDeg: -4, edge: 14 })).toBeCloseTo(14 + room);
+        expect(seamPlanEdge({ view: { width: 1440, height: 900 }, openWidth: 300, tiltDeg: 0, edge: 14 })).toBe(14);
+        // 正好放得下 / 差一点放不下。
+        const fits = 300 + 2 * (14 + room);
+        expect(seamPlanEdge({ view: { width: fits, height: 900 }, openWidth: 300, tiltDeg: -4, edge: 14 })).toBeCloseTo(14 + room);
+        expect(seamPlanEdge({ view: { width: fits - 1, height: 900 }, openWidth: 300, tiltDeg: -4, edge: 14 })).toBe(14);
     });
 });

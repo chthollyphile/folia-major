@@ -3,7 +3,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState, type Mutable
 import { SEAM_EDGE_MARGIN, blockSeamPlan, blockSeamPlanY, getSeamGeometry, getSeamGeometryY, type SeamAxis } from '../../../components/wall/seamPlan';
 import type { WallViewCenter } from '../../../components/wall/wallView';
 import { BRAVAIS_METRICS, BRAVAIS_SEAM_TWEEN_S, BRAVAIS_TILT_EASE, BRAVAIS_TILT_OUT_S } from './bravaisConstants';
-import { planPosterOpening, reanchorLift, seamEdgeFor, tiltEdgeRoom } from './bravaisFrame';
+import { liftForPivotShift, planPosterOpening, seamEdgeFor, seamPlanEdge, tiltPivotX } from './bravaisFrame';
 import type { BravaisLayer } from './bravaisLayer';
 import { useBravaisSeamStore } from './bravaisSeamLevel';
 import { resolveSeamContentIdentity, resolveVariantWidth, type BravaisSeamContentVariant } from './bravaisSeamTarget';
@@ -132,31 +132,59 @@ export const useBravaisSeam = ({
         });
     }, [checkCull, frameRef, reducedMotion, renderFrame]);
 
+    /** 此刻倾斜的支点在屏幕上的 x（没倾斜、没有竖的缝时是 null）。 */
+    const pivotNow = useCallback(() => {
+        const state = frameRef.current;
+        return state.view ? tiltPivotX({
+            center: state.center,
+            view: state.view,
+            anchorX: state.anchorX,
+            anchorY: state.anchorY,
+            openWidth: state.openWidth,
+            contentWidth: state.contentWidth,
+            hidden: state.hidden,
+            poster: state.poster,
+            tiltDeg: state.tiltDeg,
+        }) : null;
+    }, [frameRef]);
+    /**
+     * 这一轮同步代码里第一次换锚点之前的支点。垫多少要等这一轮跑完再量（微任务，仍在绘制之前）：调用方换完锚点常常紧接着
+     * 把开口归零、或让相机跟着锚点瞬移同样的距离（换形状时缝在屏幕上不动）——按那时真正画出来的支点算，才不多垫。
+     */
+    const pivotBeforeRef = useRef<number | null>(null);
+    const aliveRef = useRef(true);
+    useEffect(() => {
+        aliveRef.current = true;
+        return () => { aliveRef.current = false; };
+    }, []);
+    const holdWall = useCallback(() => {
+        const before = pivotBeforeRef.current;
+        pivotBeforeRef.current = null;
+        const after = pivotNow();
+        if (!aliveRef.current || before === null || after === null) return;
+        const lift = liftForPivotShift(after - before, frameRef.current.tiltDeg);
+        if (Math.abs(lift) < 0.5) return;
+        frameRef.current.tiltLiftY += lift;
+        settleLift();
+        renderFrame();
+        checkCull();
+    }, [checkCull, frameRef, pivotNow, renderFrame, settleLift]);
+
     /** 立即换上锚点（帧状态 + React state，墙按它分两半）。倾斜着换时墙留在原地、再滑过去（见文件头）。 */
     const applyAnchor = useCallback((next: BravaisAnchor) => {
         const state = frameRef.current;
-        const lift = state.view && next.y === null
-            ? reanchorLift({
-                center: state.center,
-                view: state.view,
-                anchorX: state.anchorX,
-                anchorY: state.anchorY,
-                openWidth: state.openWidth,
-                contentWidth: state.contentWidth,
-                hidden: state.hidden,
-                poster: state.poster,
-                tiltDeg: state.tiltDeg,
-            }, next.x)
-            : 0;
+        if (pivotBeforeRef.current === null) {
+            const before = pivotNow();
+            if (before !== null) {
+                pivotBeforeRef.current = before;
+                queueMicrotask(holdWall);
+            }
+        }
         state.anchorX = next.x;
         state.anchorY = next.y;
-        if (lift !== 0) {
-            state.tiltLiftY += lift;
-            settleLift();
-        }
         setAnchorState(current => (current.x === next.x && current.y === next.y ? current : next));
         renderFrame();
-    }, [frameRef, renderFrame, settleLift]);
+    }, [frameRef, holdWall, pivotNow, renderFrame]);
 
     /** 缝锚点（缺省是帧状态里的）此刻在不在屏内（在就沿用它的块边界）。 */
     const isAnchorOnScreen = useCallback((anchor?: BravaisAnchor) => {
@@ -214,7 +242,7 @@ export const useBravaisSeam = ({
             blockWidth: shape.blockSize.width,
             preferX,
             // 要倾斜的缝离视口左右边多留一段：转过去之后上端 / 下端不横着出屏。
-            edge: SEAM_EDGE_MARGIN + tiltEdgeRoom(view.height, tiltDeg),
+            edge: seamPlanEdge({ view, openWidth: width, tiltDeg, edge: SEAM_EDGE_MARGIN }),
         });
         return { anchor: columnAnchor(plan.x), center: { x: plan.cameraX, y: center.y } };
     }, [frameRef, getShape]);
@@ -524,9 +552,8 @@ export const useBravaisSeam = ({
     const reopenHere = useCallback(() => {
         if (!layer || targetWidth <= 0) return;
         const plan = planOpening(frameRef.current.center, targetWidth, null, isPoster, getShape(), targetAxis ?? 'x', tiltFor(layer));
-        // 先把开口归零再换锚点：倾斜着换锚点时垫给墙的那一截按换的那一刻画出来的样子算（新缝从 0 张开）。
-        tweenWidth(targetWidth, 0);
         setAnchor(plan.anchor);
+        tweenWidth(targetWidth, 0);
         tweenCamera(plan.center);
     }, [frameRef, getShape, isPoster, layer, planOpening, setAnchor, targetAxis, targetWidth, tiltFor, tweenCamera, tweenWidth]);
 

@@ -31,7 +31,7 @@ import { useBravaisKeyboard } from './useBravaisKeyboard';
 import { useBravaisBlockPlates } from './useBravaisBlockPlates';
 import { useBravaisReflowDriver } from './useBravaisReflowDriver';
 import { useBravaisPlayerSafeArea } from './useBravaisPlayerSafeArea';
-import { resolveBravaisTiltDeg } from './bravaisTilt';
+import { resolveBravaisTiltDeg, resolveBravaisTiltPage } from './bravaisTilt';
 import { useBravaisTilt } from './useBravaisTilt';
 import { albumPaletteVars, posterPaletteVars, resolvePosterPaletteSources, useBravaisPosterPalette } from './bravaisPosterPalette';
 import { useBravaisSeam } from './useBravaisSeam';
@@ -261,15 +261,22 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
     const { bottomPx, getBottomInset } = useBravaisPlayerSafeArea();
     // 整层（两半墙与缝）一起倾斜，倾斜着照样拖动、滚动（useBravaisTilt）。转多少按缝里要画的内容定（bravaisTilt：歌手 / 专辑
     // 海报、首页、集合页各一个角度，见 BRAVAIS_TILT_DEG）。从横的信息条换过来时等横条合上、竖的缝换上来再转（横条在场时
-    // 帧里没有倾斜，提前开始补间会在换方向那一刻跳一下）。缝的出血与内容缩进另按缝里此刻画着的那套内容取同一张表
-    // （seamDeg）：正要翻走的旧内容不跟着下一页的角度变。
-    const tiltGates = { openWidth: seamTarget.width, finite: layer?.mode === 'finite', reducedMotion };
+    // 帧里没有倾斜，提前开始补间会在换方向那一刻跳一下）。缝里画着信息条 / 书脊 / 首页窄缝时内容随角度缩进（面板、表单、
+    // 搜索框与海报不缩进）。
+    const renderedTiltPage = resolveBravaisTiltPage(seam.rendered.variant);
     useBravaisTilt({
         frameRef,
         renderFrame,
         checkCull: camera.checkCull,
-        deg: resolveBravaisTiltDeg({ ...tiltGates, variant: seamTarget.variant, targetAxis: seamTarget.axis, renderedAxis: seam.rendered.axis }),
-        seamDeg: resolveBravaisTiltDeg({ ...tiltGates, variant: seam.rendered.variant, targetAxis: seam.rendered.axis, renderedAxis: seam.rendered.axis }),
+        deg: resolveBravaisTiltDeg({
+            variant: seamTarget.variant,
+            openWidth: seamTarget.width,
+            targetAxis: seamTarget.axis,
+            renderedAxis: seam.rendered.axis,
+            finite: layer?.mode === 'finite',
+            reducedMotion,
+        }),
+        seamFollowsTilt: renderedTiltPage !== null && renderedTiltPage !== 'poster',
         // 翻牌交接：缝一合上就量磁贴的位置，回正要赶上（useBravaisWallHandoff）。
         quickOut: handoff.seamClosed,
         reducedMotion,

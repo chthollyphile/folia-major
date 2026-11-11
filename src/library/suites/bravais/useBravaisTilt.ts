@@ -26,7 +26,7 @@ export const useBravaisTilt = ({
     renderFrame,
     checkCull,
     deg,
-    seamDeg,
+    seamFollowsTilt,
     quickOut = false,
     reducedMotion,
 }: {
@@ -35,17 +35,17 @@ export const useBravaisTilt = ({
     checkCull: (force?: boolean) => void;
     /** 整层该转到的角度（度；0 = 回正）。 */
     deg: number;
-    /** 缝里此刻画着的那套内容落定时的角度（度）：缝的出血与内容缩进按它给（useBravaisFrame 的 seamTiltDeg）。 */
-    seamDeg: number;
+    /** 缝里此刻画着的是会跟着整层倾斜的内容（信息条、书脊、首页窄缝）：内容随角度缩进（useBravaisFrame）。 */
+    seamFollowsTilt: boolean;
     /** 回正要赶上缝合上（翻牌交接：缝一合上就量磁贴的位置，那时墙得已经回正）：回正的时长换成开口补间的时长。 */
     quickOut?: boolean;
     reducedMotion: boolean;
 }) => {
-    // 缝的出血与内容缩进跟着画着的内容走：与内容换上来同一次提交里写（先于绘制），不等倾斜补间。
+    // 内容缩进跟着画着的内容走：与内容换上来同一次提交里写（先于绘制）。
     useLayoutEffect(() => {
-        frameRef.current.seamTiltDeg = seamDeg;
+        frameRef.current.seamFollowsTilt = seamFollowsTilt;
         renderFrame();
-    }, [frameRef, renderFrame, seamDeg]);
+    }, [frameRef, renderFrame, seamFollowsTilt]);
     const animationRef = useRef<{ stop: () => void } | null>(null);
     useEffect(() => {
         const to = deg;

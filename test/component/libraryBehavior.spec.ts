@@ -1814,9 +1814,24 @@ test.describe('[bravais-only] collection page', () => {
      * 集合页整层倾斜着，boundingBox 给的是转过之后的屏幕外接框；「同一行」「在它上方」「不超出纸条」这些排版关系按转回去
      * 的坐标比（各元素转的是同一个角度，相对位置就是排版上的相对位置）。
      */
+    /** 缝此刻转了多少（弧度）：缝自己的旋转，补间中是轨道的。 */
+    const seamAngle = (page: Page) => page.locator('[data-library-stage="bravais"] .bravais-seam').first().evaluate((seam) => (
+        [seam, seam.parentElement!].reduce((sum, node) => {
+            const transform = getComputedStyle(node).transform;
+            const matrix = new DOMMatrixReadOnly(transform === 'none' ? undefined : transform);
+            return sum + Math.atan2(matrix.b, matrix.a);
+        }, 0)
+    ));
+    /** 等整层转到位（刚进歌单页时还在转过去）：转的途中内容的缩进逐像素在变，前后两次量到的不是同一个样子。 */
+    const tiltSettled = (page: Page) => expect.poll(async () => {
+        const before = await seamAngle(page);
+        await page.waitForTimeout(150);
+        return Math.abs(await seamAngle(page) - before) < 1e-6;
+    }, { timeout: 10_000 }).toBe(true);
     const layoutBoxOf = async (page: Page, selector: string) => {
         const locator = page.locator(`[data-library-stage="bravais"] ${selector}`).first();
         await expect(locator, selector).toBeAttached();
+        await tiltSettled(page);
         return locator.evaluate((element) => {
             const seam = element.closest('.bravais-seam')!;
             const angle = [seam, seam.parentElement!].reduce((sum, node) => {
@@ -1902,6 +1917,8 @@ test.describe('[bravais-only] collection page', () => {
         await open(page, 'online-owned-twice');
         const text = description(page);
         await expect(text).toHaveAttribute('data-bravais-collection-description', 'collapsed');
+        // 整层还在转过去时内容的缩进逐像素在变（描述跟着让位）：转到位再量高度，后面收起时才对得上。
+        await tiltSettled(page);
         // 首尾空白去掉，段落之间的换行原样保留（纯文本，pre-wrap）。
         expect(await text.evaluate(element => element.textContent)).toBe(PROBE_LONG_DESCRIPTION.trim());
         await expect(text).toHaveCSS('white-space', 'pre-wrap');

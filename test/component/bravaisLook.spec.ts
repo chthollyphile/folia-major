@@ -100,7 +100,9 @@ const watchPlateWrites = (page: Page, blockKey: string) => page.evaluate((key) =
     const measure = (svg: SVGSVGElement) => {
         const origin = translateOf(svg);
         const box = { left: origin.x, top: origin.y, right: origin.x + svg.viewBox.baseVal.width, bottom: origin.y + svg.viewBox.baseVal.height };
-        const scale = translateOf(svg.closest('.lattice-world')!).scale;
+        // 底板与它盖着的磁贴在同一个世界层（同一半面墙）里：只跟这一层里的窗磁贴比。
+        const world = svg.closest('.lattice-world')!;
+        const scale = translateOf(world).scale;
         const holes = [...svg.querySelector('path')!.getAttribute('d')!.matchAll(/M(-?[\d.]+) (-?[\d.]+)h(-?[\d.]+)v(-?[\d.]+)/g)]
             .slice(1)
             .map(match => ({
@@ -110,7 +112,7 @@ const watchPlateWrites = (page: Page, blockKey: string) => page.evaluate((key) =
                 bottom: box.top + Number(match[2]) + Number(match[4]),
             }));
         const windows: Rect[] = [];
-        document.querySelectorAll<HTMLElement>(`.bravais-tile[data-bravais-slot^="${key},"][data-bravais-kind="window"]`).forEach((tile) => {
+        world.querySelectorAll<HTMLElement>(`.bravais-tile[data-bravais-slot^="${key},"][data-bravais-kind="window"]`).forEach((tile) => {
             const at = translateOf(tile);
             const style = getComputedStyle(tile);
             const rect = { left: at.x, top: at.y, right: at.x + parseFloat(style.width), bottom: at.y + parseFloat(style.height) };

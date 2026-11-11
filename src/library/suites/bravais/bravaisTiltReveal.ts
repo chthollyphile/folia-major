@@ -1,6 +1,6 @@
 import type { RevealRect } from '../../../components/wall/revealRect';
 import { getViewLineX, type WallViewCenter } from '../../../components/wall/wallView';
-import { computeBravaisFrame, rotateAround, seamEdgeFor, tiltEdgeRoom, type BravaisFrameInput } from './bravaisFrame';
+import { computeBravaisFrame, rotateAround, seamEdgeFor, seamPlanEdge, type BravaisFrameInput } from './bravaisFrame';
 
 // src/library/suites/bravais/bravaisTiltReveal.ts
 // 整层倾斜着时（歌手页 / 专辑页的海报，以及 BRAVAIS_TILT_DEG 里给了角度的首页、集合页）键盘焦点与聚焦卡的相机让位。
@@ -84,7 +84,7 @@ export const resolveTiltedRevealCenter = (input: TiltedRevealInput): WallViewCen
     // 上端 / 下端不横着出屏，与排开口时一样）：能在这里看全磁贴就停在这里。
     const view = frame.view;
     const lineX = getViewLineX(view);
-    const need = seamWidth / 2 + seamEdgeFor(Boolean(frame.poster)) + (frame.poster ? 0 : tiltEdgeRoom(view.height, frame.tiltDeg ?? 0));
+    const need = seamWidth / 2 + seamPlanEdge({ view, openWidth: seamWidth, tiltDeg: frame.poster ? 0 : frame.tiltDeg ?? 0, edge: seamEdgeFor(Boolean(frame.poster)) });
     const openLow = frame.anchorX - (view.width - need - lineX) / view.scale;
     const openHigh = frame.anchorX + (lineX - need) / view.scale;
     const openX = Math.min(openHigh, Math.max(openLow, free.x));

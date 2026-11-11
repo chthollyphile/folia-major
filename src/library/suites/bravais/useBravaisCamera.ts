@@ -66,6 +66,24 @@ export const getVisibleWorldBounds = (
     };
 };
 
+/**
+ * 翻牌、整墙波次与入场量的两个范围：视口本身（不按缝放宽；波次与入场从它的左上角量）和「会动的那一片」（按缝放宽、再外扩
+ * overscan；之外的磁贴直接换、不翻）。都是倾斜后的可见范围——缝在远处时倾斜的视口整块偏开，按没倾斜的算，屏上的磁贴会被
+ * 当成屏外的硬切。
+ */
+export const getFlipRanges = (state: BravaisFrameState, overscan: number): { viewport: Bounds; visible: Bounds } | null => {
+    const viewport = getVisibleWorldBounds(state, undefined, { seam: false });
+    const visible = getVisibleWorldBounds(state, undefined, { overscan });
+    return viewport && visible ? { viewport, visible } : null;
+};
+
+/** 此刻在屏上的 slot（第一次按方向键从它们里挑离缝最近的）：同样按倾斜后的可见范围。 */
+export const filterOnScreenSlots = <Slot extends { x: number; y: number; width: number; height: number }>(state: BravaisFrameState, slots: readonly Slot[]): Slot[] => {
+    const visible = getVisibleWorldBounds(state, undefined, { seam: false });
+    if (!visible) return [];
+    return slots.filter(slot => slot.x < visible.right && slot.x + slot.width > visible.left && slot.y < visible.bottom && slot.y + slot.height > visible.top);
+};
+
 /** 可见范围离已裁剪范围的边缘还剩不到一截 overscan 时才需要重新裁剪。 */
 export const needsRecull = (visible: Bounds, culled: Bounds | null) => {
     if (!culled) return true;

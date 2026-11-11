@@ -209,8 +209,8 @@
     height: 100%;
 }
 
-/* 缝里画着的内容属于要倾斜的页面时（首页、集合页给了倾斜角，见 bravaisConstants 的 BRAVAIS_TILT_DEG；属性由 stage
- * 按画着的内容写，useBravaisFrame）：缝上下各多出一截出血，转过去之后视口上下两头不露出缝后面的东西；transform-origin 跟着挪，仍对准
+/* 整层倾斜着时（集合页等给了倾斜角，见 bravaisConstants 的 BRAVAIS_TILT_DEG；属性由 stage 按帧里此刻的角度写，回正途中
+ * 也在，useBravaisFrame）：缝上下各多出一截出血，转过去之后视口上下两头不露出缝后面的东西；transform-origin 跟着挪，仍对准
  * 屏幕原点。内容层仍是视口那么高，再缩进到转过去之后还在视口里的范围（--bravais-seam-tilt-top / -bottom，bravaisFrame 的
  * seamTiltInsets）。海报有自己常驻的出血与安全区（bravaisPoster.css）；两边的出血一样高，缝里的内容在信息条与海报之间
  * 翻的时候缝不跳。 */

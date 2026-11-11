@@ -209,12 +209,19 @@ export const rotateAround = (x: number, y: number, pivot: { pivotX: number; pivo
  * 0.24%，不管）。垫上 Δ·sin 墙就留在原地，再由调用方补间到 0（墙顺着纸滑过去，不是跳过去）。没倾斜、没有竖的缝时是 0。
  */
 export const reanchorLift = (input: BravaisFrameInput, nextAnchorX: number | null): number => {
-    const deg = input.tiltDeg ?? 0;
-    if (Math.abs(deg) < 0.001 || input.anchorX === null || nextAnchorX === null || (input.anchorY ?? null) !== null) return 0;
-    const before = computeBravaisFrame(input).tilt.pivotX;
-    const after = computeBravaisFrame({ ...input, anchorX: nextAnchorX }).tilt.pivotX;
-    return (after - before) * Math.sin((deg * Math.PI) / 180);
+    const before = tiltPivotX(input);
+    const after = tiltPivotX({ ...input, anchorX: nextAnchorX });
+    return before === null || after === null ? 0 : liftForPivotShift(after - before, input.tiltDeg ?? 0);
 };
+
+/** 倾斜的支点此刻在屏幕上的 x（缝的右缘）；没倾斜、没有竖的缝时是 null。 */
+export const tiltPivotX = (input: BravaisFrameInput): number | null => {
+    if (Math.abs(input.tiltDeg ?? 0) < 0.001 || input.anchorX === null || (input.anchorY ?? null) !== null) return null;
+    return computeBravaisFrame(input).tilt.pivotX;
+};
+
+/** 支点横着挪了 shift（屏幕 px）时两半墙要垫的那一段（见 reanchorLift）。 */
+export const liftForPivotShift = (shift: number, deg: number) => shift * Math.sin((deg * Math.PI) / 180);
 
 /**
  * 倾斜的缝（不是海报）离视口左右边要多留的距离（屏幕 px）：缝绕右缘、视口半高转过去之后，上端往一边、下端往另一边各横移
@@ -224,6 +231,15 @@ export const reanchorLift = (input: BravaisFrameInput, nextAnchorX: number | nul
 export const tiltEdgeRoom = (viewHeight: number, deg: number) => (
     Math.abs(deg) < 0.001 ? 0 : (viewHeight / 2) * Math.abs(Math.sin((deg * Math.PI) / 180))
 );
+
+/**
+ * 排一道 openWidth 宽的缝时离视口左右边留多少：平常的边距，倾斜着再加 tiltEdgeRoom。视口窄到放不下「开口 + 两边都多留」
+ * 时不多留（多留只会把缝挤到一边、另一边反被边距挤窄），回到平常的边距。
+ */
+export const seamPlanEdge = ({ view, openWidth, tiltDeg, edge }: { view: { width: number; height: number }; openWidth: number; tiltDeg: number; edge: number }) => {
+    const room = tiltEdgeRoom(view.height, tiltDeg);
+    return view.width >= openWidth + 2 * (edge + room) ? edge + room : edge;
+};
 
 /**
  * 倾斜的缝（信息条、书脊、首页窄缝；海报另有 posterSafeArea）里，内容上下各要缩进多少（屏幕 px）：缝绕右缘、视口半高转过去

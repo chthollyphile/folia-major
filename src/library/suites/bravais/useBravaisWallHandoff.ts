@@ -88,6 +88,19 @@ const SEE_THROUGH_SETTLE_MS = 280;
 /** 回正的补间比缝合上晚起步不到一帧：量位置前多等这么久（两帧）。 */
 const TILT_SETTLE_SLACK_MS = 34;
 
+/**
+ * 进 Lattice · closing 要等多久再量磁贴的位置：缝合上（开口补间）、veil 盖上，以及整层回正——歌单的信息条、海报在场时
+ * 整层倾斜着，缝合上时一起回正（useBravaisTilt 的 quickOut，同一个时长），多等两帧让它落定；量位置、给对齐点都按没倾斜的
+ * 墙算。降低动态效果时都不等。
+ */
+export const handoffCloseWaitMs = ({ openWidth, tiltDeg, seeThrough, reducedMotion }: { openWidth: number; tiltDeg: number; seeThrough: boolean; reducedMotion: boolean }) => {
+    if (reducedMotion) return 0;
+    const seamMs = openWidth > 0.5 ? BRAVAIS_SEAM_TWEEN_S * 1000 : 0;
+    const veilMs = seeThrough ? VEIL_FADE_MS : 0;
+    const tiltMs = Math.abs(tiltDeg) >= 0.001 ? BRAVAIS_SEAM_TWEEN_S * 1000 + TILT_SETTLE_SLACK_MS : 0;
+    return Math.max(seamMs, veilMs, tiltMs);
+};
+
 const toRect = (rect: DOMRect): WallHandoffRect => ({ x: rect.left, y: rect.top, width: rect.width, height: rect.height });
 
 const viewportRect = (): WallHandoffRect => ({ x: 0, y: 0, width: window.innerWidth, height: window.innerHeight });
@@ -159,11 +172,7 @@ export const useBravaisWallHandoff = ({
     // 进 Lattice · closing：等缝合上、veil 盖上，量好起点与对齐信息报回去。
     useEffect(() => {
         if (role !== 'out' || !flip || phase !== 'closing' || sessionId === null) return undefined;
-        const seamMs = frameRef.current.openWidth > 0.5 && !reducedMotion ? BRAVAIS_SEAM_TWEEN_S * 1000 : 0;
-        const veilMs = seeThrough && !reducedMotion ? VEIL_FADE_MS : 0;
-        // 整层倾斜着（歌单的信息条、海报）：缝合上时一起回正（useBravaisTilt 的 quickOut，同一个时长），多等两帧让它落定——
-        // 下面量磁贴的位置、给对齐点都按没倾斜的墙算。
-        const tiltMs = Math.abs(frameRef.current.tiltDeg) >= 0.001 && !reducedMotion ? BRAVAIS_SEAM_TWEEN_S * 1000 + TILT_SETTLE_SLACK_MS : 0;
+        const waitMs = handoffCloseWaitMs({ openWidth: frameRef.current.openWidth, tiltDeg: frameRef.current.tiltDeg, seeThrough, reducedMotion });
         let frame: number | null = null;
         const timer = setTimeout(() => {
             frame = requestAnimationFrame(() => {
@@ -191,7 +200,7 @@ export const useBravaisWallHandoff = ({
                     },
                 });
             });
-        }, Math.max(seamMs, veilMs, tiltMs));
+        }, waitMs);
         return () => {
             clearTimeout(timer);
             if (frame !== null) cancelAnimationFrame(frame);

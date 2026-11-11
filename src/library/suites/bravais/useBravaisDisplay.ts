@@ -43,7 +43,7 @@ import { takeBravaisRemovalOrigin } from './bravaisUiStore';
 import type { BravaisFrameState } from './useBravaisFrame';
 import type { BravaisOpeningPlan } from './useBravaisSeam';
 import { anchorAxis, anchorOf, columnAnchor, rowAnchor, seamPointOf, type BravaisAnchor } from './bravaisAnchor';
-import { getVisibleWorldBounds } from './useBravaisCamera';
+import { getFlipRanges } from './useBravaisCamera';
 import { planWallWave, WALL_WAVE_EXIT_TOTAL_MS, WALL_WAVE_IN_MS, WALL_WAVE_MAX_DELAY_MS } from './bravaisWallWave';
 import { isSourceOrigin, layerMatchesNavigation, resolveShiftKind, type BravaisShiftKind } from './bravaisShift';
 
@@ -262,13 +262,13 @@ export const useBravaisDisplay = (layer: BravaisLayer | null, controls: BravaisD
     const planFlipFor = useCallback((before: BravaisDisplay | null, after: BravaisDisplay, origin: FlipOrigin, slots?: readonly WallSlot[]) => {
         const { frameRef, slotsRef } = latestControls.current;
         // 「在不在屏上」按倾斜后的可见范围算（缝在远处时倾斜的视口整块偏开）。
-        const visible = getVisibleWorldBounds(frameRef.current, undefined, { overscan: FLIP_OVERSCAN });
-        if (!visible) return null;
+        const ranges = getFlipRanges(frameRef.current, FLIP_OVERSCAN);
+        if (!ranges) return null;
         flipTokenRef.current += 1;
         const plan = planFlip({
             changes: diffDisplays(before, after, slots ?? slotsRef.current),
             origin,
-            visible,
+            visible: ranges.visible,
             metrics: BRAVAIS_METRICS,
         });
         return { steps: toFlipSteps(flipTokenRef.current, plan), durationMs: plan.durationMs };
@@ -277,14 +277,13 @@ export const useBravaisDisplay = (layer: BravaisLayer | null, controls: BravaisD
     /** 整墙出场 → 入场：从视口左上角量波次（视口加 overscan 以内的磁贴动，其余直接换）。 */
     const planWaveFor = useCallback((before: BravaisDisplay | null, after: BravaisDisplay) => {
         const { frameRef, slotsRef } = latestControls.current;
-        const viewport = getVisibleWorldBounds(frameRef.current, undefined, { seam: false });
-        const visible = getVisibleWorldBounds(frameRef.current, undefined, { overscan: FLIP_OVERSCAN });
-        if (!viewport || !visible) return null;
+        const ranges = getFlipRanges(frameRef.current, FLIP_OVERSCAN);
+        if (!ranges) return null;
         flipTokenRef.current += 1;
         const plan = planWallWave({
             changes: diffDisplays(before, after, slotsRef.current),
-            viewport,
-            visible,
+            viewport: ranges.viewport,
+            visible: ranges.visible,
             metrics: BRAVAIS_METRICS,
         });
         return { steps: toWaveSteps(flipTokenRef.current, plan), durationMs: plan.durationMs };
@@ -293,7 +292,7 @@ export const useBravaisDisplay = (layer: BravaisLayer | null, controls: BravaisD
     /** 整墙入场（B11）：从此刻视口的左上角量错开，入场窗口 = 最大错开 + 落回时长（降低动效时是 0.18s 的淡入）。 */
     const planEntrance = useCallback((): BravaisEntrance | null => {
         const { frameRef, reducedTransitions } = latestControls.current;
-        const bounds = getVisibleWorldBounds(frameRef.current, undefined, { seam: false });
+        const bounds = getFlipRanges(frameRef.current, FLIP_OVERSCAN)?.viewport;
         if (!bounds) return null;
         flipTokenRef.current += 1;
         const startedAt = performance.now();

@@ -11,8 +11,11 @@ import {
     BRAVAIS_SEAM_TWEEN_S,
     BRAVAIS_TILT_OUT_S,
 } from '@/library/suites/bravais/bravaisConstants';
-import { computeBravaisFrame, reanchorLift, rotateAround } from '@/library/suites/bravais/bravaisFrame';
-import { getVisibleWorldBounds, needsRecull, useBravaisCamera } from '@/library/suites/bravais/useBravaisCamera';
+import { computeBravaisFrame, reanchorLift, rotateAround, tiltEdgeRoom } from '@/library/suites/bravais/bravaisFrame';
+import { SEAM_EDGE_MARGIN } from '@/components/wall/seamPlan';
+import { getViewLineX } from '@/components/wall/wallView';
+import { filterOnScreenSlots, getFlipRanges, getVisibleWorldBounds, needsRecull, useBravaisCamera } from '@/library/suites/bravais/useBravaisCamera';
+import { handoffCloseWaitMs } from '@/library/suites/bravais/useBravaisWallHandoff';
 import type { BravaisFrameState } from '@/library/suites/bravais/useBravaisFrame';
 import { useBravaisFrame } from '@/library/suites/bravais/useBravaisFrame';
 import { columnAnchor } from '@/library/suites/bravais/bravaisAnchor';
@@ -53,7 +56,7 @@ const stateAt = (patch: Partial<BravaisFrameState> = {}): BravaisFrameState => (
     poster: false,
     tiltDeg: -10,
     tiltTargetDeg: -10,
-    seamTiltDeg: 0,
+    seamFollowsTilt: false,
     tiltSettled: true,
     tiltLiftY: 0,
     ...patch,
@@ -170,6 +173,31 @@ describe('culling a tilted wall', () => {
         expect(Math.abs(plain.top - getVisibleWorldBounds(stateAt({ center: { x: 9000, y: 0 }, tiltDeg: 0 }), undefined, { seam: false })!.top)).toBeGreaterThan(1000);
         for (const side of ['left', 'top'] as const) expect(full[side] - wide[side]).toBeCloseTo(300);
         for (const side of ['right', 'bottom'] as const) expect(wide[side] - full[side]).toBeCloseTo(300);
+    });
+
+    it('gives the flip, wave and entrance ranges on the tilted view', () => {
+        // 缝在 9000 之外：倾斜的视口整块偏开近千，翻牌的范围得跟着走（按没倾斜的算，屏上的磁贴会被当成屏外的硬切）。
+        const state = stateAt({ center: { x: 9000, y: 0 } });
+        const ranges = getFlipRanges(state, 160)!;
+        expectScreenCovered(state, ranges.visible);
+        expect(ranges.viewport).toEqual(getVisibleWorldBounds(state, undefined, { seam: false }));
+        expect(ranges.visible).toEqual(getVisibleWorldBounds(state, undefined, { overscan: 160 }));
+        const flat = getFlipRanges({ ...state, tiltDeg: 0 }, 160)!;
+        expect(Math.abs(ranges.viewport.top - flat.viewport.top)).toBeGreaterThan(1000);
+        expect(getFlipRanges(stateAt({ view: null }), 160)).toBeNull();
+    });
+
+    it('finds the slots on the tilted screen for the first arrow key', () => {
+        const state = stateAt({ center: { x: 9000, y: 0 } });
+        // 屏幕正中画着的世界点周围放一个 slot（在屏上），再在「没倾斜时的屏幕正中」放一个（倾斜后早就不在屏上了）。
+        const middle = worldAt(state, view.width / 2, view.height / 2)!;
+        const onScreen = { key: 'on', x: middle.x - 50, y: middle.y - 50, width: 100, height: 100 };
+        const flatMiddle = worldAt({ ...state, tiltDeg: 0 }, view.width / 2, view.height / 2)!;
+        const offScreen = { key: 'off', x: flatMiddle.x - 50, y: flatMiddle.y - 50, width: 100, height: 100 };
+        expect(Math.abs(flatMiddle.y - middle.y)).toBeGreaterThan(1000);
+        expect(filterOnScreenSlots(state, [onScreen, offScreen]).map(slot => slot.key)).toEqual(['on']);
+        expect(filterOnScreenSlots({ ...state, tiltDeg: 0 }, [onScreen, offScreen]).map(slot => slot.key)).toEqual(['off']);
+        expect(filterOnScreenSlots(stateAt({ view: null }), [onScreen])).toEqual([]);
     });
 
     it('answers for another camera position the same as being there (flight destinations, the next drag step)', () => {
@@ -290,7 +318,7 @@ describe('culling a tilted wall: wiring', () => {
         const renderFrame = vi.fn();
         const checkCull = vi.fn();
         const Probe = ({ deg }: { deg: number }) => {
-            useBravaisTilt({ frameRef, renderFrame, checkCull, deg, seamDeg: 0, reducedMotion: false });
+            useBravaisTilt({ frameRef, renderFrame, checkCull, deg, seamFollowsTilt: false, reducedMotion: false });
             return null;
         };
         act(() => root.render(createElement(Probe, { deg: 0 })));
@@ -336,7 +364,7 @@ describe('straightening and re-anchoring a tilted wall: wiring', () => {
             animateCalls.length = 0;
             const frameRef: MutableRefObject<BravaisFrameState> = { current: stateAt({ tiltDeg: -4, tiltTargetDeg: -4 }) };
             const Probe = ({ deg }: { deg: number }) => {
-                useBravaisTilt({ frameRef, renderFrame: () => undefined, checkCull: () => undefined, deg, seamDeg: 0, quickOut: deg === 0 && quickOut, reducedMotion: false });
+                useBravaisTilt({ frameRef, renderFrame: () => undefined, checkCull: () => undefined, deg, seamFollowsTilt: false, quickOut: deg === 0 && quickOut, reducedMotion: false });
                 return null;
             };
             act(() => root.render(createElement(Probe, { deg: -4 })));
@@ -348,17 +376,14 @@ describe('straightening and re-anchoring a tilted wall: wiring', () => {
         expect(BRAVAIS_SEAM_TWEEN_S).toBeLessThan(BRAVAIS_TILT_OUT_S);
     });
 
-    it('holds the wall in place when the anchor jumps under a tilt, then lets it slide', () => {
-        // 缝在 3000 世界单位外（收起了），整层 −4°；换到视口里的一条块边界上。
-        const frameRef: MutableRefObject<BravaisFrameState> = { current: stateAt({ anchorX: null, center: { x: 0, y: 0 }, openWidth: 0, tiltDeg: -4, tiltTargetDeg: -4 }) };
-        const renderFrame = vi.fn();
-        const checkCull = vi.fn();
+    /** 挂真的缝（没有层：只用它换锚点、排开口）。 */
+    const mountSeam = (frameRef: MutableRefObject<BravaisFrameState>, checkCull: (force?: boolean) => void = () => undefined) => {
         const handle: { seam: ReturnType<typeof useBravaisSeam> | null } = { seam: null };
         const contentRef = { current: document.createElement('div') };
         const Probe = () => {
             handle.seam = useBravaisSeam({
                 frameRef,
-                renderFrame,
+                renderFrame: () => undefined,
                 layer: null,
                 target: { width: 0, variant: 'none', axis: null },
                 viewportWidth: view.width,
@@ -373,14 +398,23 @@ describe('straightening and re-anchoring a tilted wall: wiring', () => {
             return null;
         };
         act(() => root.render(createElement(Probe)));
+        return () => handle.seam!;
+    };
+    /** 换锚点（连同同一轮同步代码里紧跟着做的事），再让微任务跑完——垫多少是那时量的。 */
+    const reanchor = (run: () => void) => act(async () => { run(); });
+
+    it('holds the wall in place when the anchor jumps under a tilt, then lets it slide', async () => {
+        // 缝在 3000 世界单位外（收起了），整层 −4°；换到视口里的一条块边界上。
+        const frameRef: MutableRefObject<BravaisFrameState> = { current: stateAt({ anchorX: null, center: { x: 0, y: 0 }, openWidth: 0, tiltDeg: -4, tiltTargetDeg: -4 }) };
+        const checkCull = vi.fn();
+        const seam = mountSeam(frameRef, checkCull);
         // 第一次给锚点：之前没有缝，不用垫。
-        act(() => handle.seam!.setAnchor(columnAnchor(3000)));
+        await reanchor(() => seam().setAnchor(columnAnchor(3000)));
         expect(frameRef.current.tiltLiftY).toBe(0);
         expect(animateCalls).toHaveLength(0);
-        const before = { ...frameRef.current };
-        const expected = reanchorLift({ ...before, view }, 0);
+        const expected = reanchorLift({ ...frameRef.current, view }, 0);
         expect(Math.abs(expected)).toBeGreaterThan(100);
-        act(() => handle.seam!.setAnchor(columnAnchor(0)));
+        await reanchor(() => seam().setAnchor(columnAnchor(0)));
         expect(frameRef.current.anchorX).toBe(0);
         expect(frameRef.current.tiltLiftY).toBeCloseTo(expected);
         // 垫上的那一截补间回 0，途中补裁剪，落定时再裁剪一次。
@@ -397,23 +431,58 @@ describe('straightening and re-anchoring a tilted wall: wiring', () => {
         expect(checkCull).toHaveBeenLastCalledWith(true);
     });
 
-    it('does not hold anything when the wall is not tilted', () => {
+    it('holds nothing when the camera jumps along with the anchor (the seam stays put on screen)', async () => {
+        // 换形状时锚点吸到新形状的块边界、相机瞬移同样的距离：缝在屏幕上没动，支点没动，墙不用垫。
+        const frameRef: MutableRefObject<BravaisFrameState> = { current: stateAt({ anchorX: 600, center: { x: 400, y: 0 }, openWidth: 0, tiltDeg: -4, tiltTargetDeg: -4 }) };
+        const seam = mountSeam(frameRef);
+        await reanchor(() => {
+            seam().setAnchor(columnAnchor(1220));
+            frameRef.current.center = { x: 400 + 620, y: 0 };
+        });
+        expect(frameRef.current.anchorX).toBe(1220);
+        expect(frameRef.current.tiltLiftY).toBe(0);
+        expect(animateCalls).toHaveLength(0);
+    });
+
+    it('does not hold anything when the wall is not tilted', async () => {
         const frameRef: MutableRefObject<BravaisFrameState> = { current: stateAt({ anchorX: 3000, center: { x: 0, y: 0 }, openWidth: 0, tiltDeg: 0, tiltTargetDeg: 0 }) };
-        const handle: { seam: ReturnType<typeof useBravaisSeam> | null } = { seam: null };
-        const contentRef = { current: document.createElement('div') };
-        const Probe = () => {
-            handle.seam = useBravaisSeam({
-                frameRef, renderFrame: () => undefined, layer: null, target: { width: 0, variant: 'none', axis: null }, viewportWidth: view.width,
-                contentRef, reducedMotion: false, reducedTransitions: false, tweenCamera: () => undefined, checkCull: () => undefined,
-                getShape: () => BRAVAIS_BLOCK_SHAPE, tiltFor: () => 0,
-            });
-            return null;
-        };
-        act(() => root.render(createElement(Probe)));
-        act(() => handle.seam!.setAnchor(columnAnchor(0)));
+        const seam = mountSeam(frameRef);
+        await reanchor(() => seam().setAnchor(columnAnchor(0)));
         expect(frameRef.current.anchorX).toBe(0);
         expect(frameRef.current.tiltLiftY).toBe(0);
         expect(animateCalls).toHaveLength(0);
+    });
+
+    it('plans a tilted strip further from the viewport edge, unless the viewport is too narrow for that', () => {
+        const frameRef: MutableRefObject<BravaisFrameState> = { current: stateAt({ anchorX: null, center: { x: 0, y: 0 }, openWidth: 0, tiltDeg: 0, tiltTargetDeg: 0 }) };
+        const seam = mountSeam(frameRef);
+        const width = BRAVAIS_SEAM_FULL_WIDTH;
+        // 想沿用的锚点画在屏幕 x = 60：离左边太近，相机得让位。
+        const prefer = columnAnchor((60 - getViewLineX(view)) / view.scale);
+        const leftEdgeOf = (tiltDeg: number, state = frameRef.current) => {
+            const plan = seam().planOpening({ x: 0, y: 0 }, width, prefer, false, BRAVAIS_BLOCK_SHAPE, 'x', tiltDeg);
+            return getViewLineX(state.view!) + (plan.anchor.x! - plan.center.x) * state.view!.scale - width / 2;
+        };
+        expect(leftEdgeOf(0)).toBeCloseTo(SEAM_EDGE_MARGIN);
+        expect(leftEdgeOf(-4)).toBeCloseTo(SEAM_EDGE_MARGIN + tiltEdgeRoom(view.height, -4));
+        // 视口窄到放不下「开口 + 两边都多留」：不多留，与不倾斜时一样排。
+        const narrow = { width: width + 2 * SEAM_EDGE_MARGIN + 20, height: view.height, scale: view.scale };
+        frameRef.current.view = narrow;
+        const flatLeft = leftEdgeOf(0);
+        expect(leftEdgeOf(-4)).toBeCloseTo(flatLeft);
+    });
+
+    it('waits for the wall to straighten before a handoff measures the tiles', () => {
+        const seamMs = BRAVAIS_SEAM_TWEEN_S * 1000;
+        // 没倾斜：只等缝合上（与改动前一样）；倾斜着：回正与缝合上同一个时长，再多等不到三帧。
+        expect(handoffCloseWaitMs({ openWidth: 300, tiltDeg: 0, seeThrough: false, reducedMotion: false })).toBe(seamMs);
+        const tilted = handoffCloseWaitMs({ openWidth: 300, tiltDeg: -4, seeThrough: false, reducedMotion: false });
+        expect(tilted).toBeGreaterThan(seamMs);
+        expect(tilted).toBeLessThanOrEqual(seamMs + 50);
+        expect(handoffCloseWaitMs({ openWidth: 300, tiltDeg: -10, seeThrough: false, reducedMotion: false })).toBe(tilted);
+        // 缝已经合上、也没倾斜：不等；降低动态效果：都不等。
+        expect(handoffCloseWaitMs({ openWidth: 0, tiltDeg: 0, seeThrough: false, reducedMotion: false })).toBe(0);
+        expect(handoffCloseWaitMs({ openWidth: 300, tiltDeg: -4, seeThrough: true, reducedMotion: true })).toBe(0);
     });
 });
 
@@ -443,50 +512,70 @@ describe('dressing a tilted seam', () => {
             seamContent: node(content), tab: node<HTMLButtonElement>(), hint: node<HTMLDivElement>(),
         };
         const handle: { frame: ReturnType<typeof useBravaisFrame> | null } = { frame: null };
-        const Probe = ({ deg, seamDeg }: { deg: number; seamDeg: number }) => {
+        const Probe = ({ deg, follows }: { deg: number; follows: boolean }) => {
             const frame = useBravaisFrame(refs);
             handle.frame = frame;
             // 第一次渲染就把视口与缝放进帧状态（stage 在量到视口后写）。
             if (!frame.stateRef.current.view) Object.assign(frame.stateRef.current, stateAt({ tiltDeg: 0, tiltTargetDeg: 0 }));
-            useBravaisTilt({ frameRef: frame.stateRef, renderFrame: frame.renderFrame, checkCull: () => undefined, deg, seamDeg, reducedMotion: false });
+            useBravaisTilt({ frameRef: frame.stateRef, renderFrame: frame.renderFrame, checkCull: () => undefined, deg, seamFollowsTilt: follows, reducedMotion: false });
             return null;
         };
-        const render = (deg: number, seamDeg: number) => act(() => root.render(createElement(Probe, { deg, seamDeg })));
+        const render = (deg: number, follows: boolean) => act(() => root.render(createElement(Probe, { deg, follows })));
         const dressed = () => ({
             tilted: seam.dataset.bravaisSeamTilted !== undefined,
             bottom: parseFloat(content.style.getPropertyValue('--bravais-seam-tilt-bottom')),
         });
-        return { render, dressed, frame: () => handle.frame! };
+        /** 最近一次起的倾斜补间走到 value（落定时连 onComplete 一起）。 */
+        const turnTo = (value: number, land = false) => {
+            const turn = animateCalls[animateCalls.length - 1]!;
+            turn.options.onUpdate?.(value);
+            if (land) turn.options.onComplete?.();
+        };
+        return { render, dressed, turnTo };
     };
 
-    it('leaves the content that is flipping away alone while the page turns to a tilted one', () => {
-        // 首页（表里 0°）翻到海报：目标角度已经是 −10，缝里画着的还是首页的内容（seamDeg 0）。
-        const { render, dressed, frame } = mount();
-        render(0, 0);
+    it('lets the strip content follow the turn, in whole pixels, and keeps the bleed until the wall is upright again', () => {
+        // 歌单页的信息条（跟着倾斜的内容）：转过去时内容顺着缩进，落定后不再变。
+        const { render, dressed, turnTo } = mount();
+        render(0, true);
         expect(dressed()).toEqual({ tilted: false, bottom: 0 });
-        render(-10, 0);
-        expect(frame().stateRef.current.tiltTargetDeg).toBe(-10);
+        render(-4, true);
+        // 还没开始转（延迟、缓入起点）：没有出血、不缩进——内容不在转之前先跳一下。
         expect(dressed()).toEqual({ tilted: false, bottom: 0 });
-        // 补间走到一半也一样。
-        animateCalls[animateCalls.length - 1]!.options.onUpdate?.(-6);
+        turnTo(-2);
+        const half = dressed();
+        expect(half.tilted).toBe(true);
+        expect(half.bottom).toBeGreaterThan(5);
+        turnTo(-4, true);
+        const landed = dressed();
+        expect(landed.tilted).toBe(true);
+        expect(landed.bottom).toBeGreaterThan(half.bottom);
+        expect(Number.isInteger(landed.bottom)).toBe(true);
+        // 过滤生效、进 Lattice（目标回到 0，画着的还是这条信息条）：回正途中出血还在、内容顺着放回去，到 0 才撤掉。
+        render(0, true);
+        expect(dressed()).toEqual(landed);
+        turnTo(-2);
+        expect(dressed()).toEqual(half);
+        turnTo(0, true);
         expect(dressed()).toEqual({ tilted: false, bottom: 0 });
     });
 
-    it('dresses the seam once for the content it draws, not frame by frame', () => {
-        // 画着的内容属于倾斜 −6° 的页面：整层还没开始转，出血与缩进已经按落定的角度给好。
-        const { render, dressed, frame } = mount();
-        render(-6, -6);
-        const landed = dressed();
-        expect(landed.tilted).toBe(true);
-        expect(landed.bottom).toBeGreaterThan(20);
-        const turn = animateCalls[animateCalls.length - 1]!;
-        for (const value of [-1, -3, -5, -6]) {
-            turn.options.onUpdate?.(value);
-            expect(dressed()).toEqual(landed);
-        }
-        // 这套内容不再倾斜（换成面板、过滤生效）：一次撤掉，不等回正补间。
-        render(0, 0);
+    it('leaves panels, forms and the content flipping away to a poster without the inset, but still bleeds while tilted', () => {
+        const { render, dressed, turnTo } = mount();
+        // 首页（不倾斜）翻到海报：目标 −10°，缝里画着的还是首页的内容。翻出的那 160ms 里角度几乎还是 0，内容不动。
+        render(0, true);
+        render(-10, true);
+        turnTo(-0.2);
+        expect(dressed().bottom).toBeLessThanOrEqual(1);
+        // 换成不跟着倾斜的内容（面板、表单、搜索框；海报的样式不读这个变量）：不缩进；整层还倾斜着，出血照旧。
+        render(-10, false);
+        turnTo(-10, true);
+        expect(dressed()).toEqual({ tilted: true, bottom: 0 });
+        // 面板开着回正：途中出血还在（纸条两头不露楔形），内容始终不缩进。
+        render(0, false);
+        turnTo(-5);
+        expect(dressed()).toEqual({ tilted: true, bottom: 0 });
+        turnTo(0, true);
         expect(dressed()).toEqual({ tilted: false, bottom: 0 });
-        expect(frame().stateRef.current.seamTiltDeg).toBe(0);
     });
 });
