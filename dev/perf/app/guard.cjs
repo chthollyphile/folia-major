@@ -154,8 +154,19 @@ checkFolders('at load');
 // and the worker starts the Python sidecar). Such a process would have its own fs, sockets and
 // child_process, with none of the stand-ins of this file: it is refused like the others. The
 // caller gets a child that ends at once with code 1 and answers nothing.
+// One exception: the scene room sound's worker (electron/acoustics/worker.cjs) starts no child and
+// opens no socket; it runs with guardWorker.cjs's locks put on first, as a worker thread does.
+const ACOUSTICS_WORKER = path.join('electron', 'acoustics', 'worker.cjs');
 const silentUtilityProcess = {
-    fork: (modulePath, args) => Object.assign(deadChild(spawnRefusal('utilityProcess.fork', modulePath, args)), { postMessage: () => {} }),
+    fork: (modulePath, args, options = {}) => {
+        if (path.normalize(String(modulePath)).endsWith(ACOUSTICS_WORKER)) {
+            say('utility-started', { file: String(modulePath).slice(-120) });
+            return electron.utilityProcess.fork(modulePath, args, {
+                ...options, execArgv: [...(options.execArgv ?? []), '--require', path.join(__dirname, 'guardWorker.cjs')],
+            });
+        }
+        return Object.assign(deadChild(spawnRefusal('utilityProcess.fork', modulePath, args)), { postMessage: () => {} });
+    },
 };
 
 // -------------------------------------------------------------------------------------------------

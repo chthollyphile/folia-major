@@ -19,6 +19,7 @@ import {
     CompactExpandedView,
     type CompactCapsuleCard,
     type CompactCapsuleInfo,
+    type CompactCapsuleMeta,
 } from './CompactCapsuleViews';
 
 // src/components/floating-player/compact/CompactCapsuleContent.tsx
@@ -172,6 +173,15 @@ const CompactCapsuleContent: React.FC<CompactCapsuleContentProps> = ({
             {currentSong?.name || noTrackText}
         </div>
     );
+    // 封面旁边的字跟着封面走：卡片不在场（没有封面）就不写。预告时封面是下一首的，字也写下一首，带“接下来播放”小标。
+    const isNextUp = card !== null && card.isNextUp && card.nextUp !== null;
+    const meta: CompactCapsuleMeta | null = card !== null && card.mode !== 'never' && cardSong !== null
+        ? isNextUp
+            ? { label: t('ui.stageTrackPillNext'), primary: cardSong.title, secondary: cardSong.artist }
+            : cardSong.artist
+                ? { label: null, primary: cardSong.artist, secondary: cardSong.album ?? null }
+                : { label: null, primary: cardSong.album ?? null, secondary: null }
+        : null;
     const progressRow = isHifiRoute
         ? <HifiProgressRow className="w-full" isDaylight={isDaylight} disabled={controlsDisabled}>{progressBar('full', false)}</HifiProgressRow>
         : progressBar('full', false);
@@ -192,6 +202,8 @@ const CompactCapsuleContent: React.FC<CompactCapsuleContentProps> = ({
             titleRow={titleRow}
             progressRow={progressRow}
             cover={cover}
+            meta={meta}
+            primaryColor={primaryColor}
             slotPrimary={(
                 <PlayerControlSlotButton
                     actionId={slotPrimary}

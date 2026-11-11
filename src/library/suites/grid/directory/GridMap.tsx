@@ -1,3 +1,4 @@
+import { useWindowButtonsAtTopLeft } from '../../../../hooks/useWindowButtonsAtTopLeft';
 import React, { useCallback, useEffect, useMemo, useRef, useState, useDeferredValue } from 'react';
 import { motion, useMotionValue, animate, AnimatePresence, useDragControls } from 'framer-motion';
 import { Check, ChevronLeft, Disc, Eye, EyeOff, ListFilter, X } from 'lucide-react';
@@ -265,6 +266,7 @@ export const GridMap: React.FC<GridMapProps> = ({
     ponderPageScope = 'grid-page',
 }) => {
     const { t } = useTranslation();
+    const lowerBackButton = useWindowButtonsAtTopLeft();
     const bottomBarPanelBottomPx = useSidePanelBottomPx();
     const containerRef = useRef<HTMLDivElement>(null);
     const dragControls = useDragControls();
@@ -993,7 +995,7 @@ export const GridMap: React.FC<GridMapProps> = ({
             <div className="absolute top-0 left-0 right-0 flex items-center justify-between px-6 py-5 z-[70] bg-gradient-to-b from-black/10 to-transparent">
                 <button
                     onClick={onBack}
-                    className="w-10 h-10 rounded-full flex items-center justify-center transition-all pointer-events-auto shadow-lg hover:scale-105 active:scale-95"
+                    className={`relative ${lowerBackButton ? 'top-7' : ''} w-10 h-10 rounded-full flex items-center justify-center transition-all pointer-events-auto shadow-lg hover:scale-105 active:scale-95`}
                     style={{
                         backgroundColor: isDaylight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.08)',
                         backdropFilter: 'blur(8px)',

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { COVER_SIZE_STEPS, describeCoverUrl, getCoverIdentity, getOriginalCoverUrl, getSizedCoverUrl, resolveCoverSizeStep } from '@/utils/coverUrl';
+import { COVER_MAX_SIZE, COVER_SIZE_STEPS, describeCoverUrl, getCoverIdentity, getOriginalCoverUrl, getSizedCoverUrl, resolveCoverSizeStep } from '@/utils/coverUrl';
 
 // test/unit/utils/coverUrl.test.ts
 
@@ -40,8 +40,9 @@ describe('coverUrl utilities', () => {
             .toBe('https://y.gtimg.cn/music/photo_new/T002R300x300M000album-mid.jpg?max_age=2592000');
         expect(getSizedCoverUrl(coverUrl, 512))
             .toBe('https://y.gtimg.cn/music/photo_new/T002R800x800M000album-mid.jpg?max_age=2592000');
+        // The original album asset runs to 3000×3000; the 1200 bucket answers instead.
         expect(getSizedCoverUrl(coverUrl, 1024))
-            .toBe('https://y.gtimg.cn/music/photo_new/T002M000album-mid.jpg?max_age=2592000');
+            .toBe('https://y.gtimg.cn/music/photo_new/T002R1200x1200M000album-mid.jpg?max_age=2592000');
     });
 
     it('restores the canonical QQ Music original without a display-size sentinel', () => {
@@ -49,9 +50,18 @@ describe('coverUrl utilities', () => {
             .toBe('https://y.gtimg.cn/music/photo_new/T002M000album-mid.jpg?max_age=2592000');
     });
 
-    it('uses the original QQ Music singer image for large y.qq.com cover requests', () => {
+    it('caps large QQ Music singer image requests at the 1200 bucket', () => {
         expect(getSizedCoverUrl('https://y.qq.com/music/photo_new/T001R150x150M000singer-mid.jpg', 1024))
+            .toBe('https://y.qq.com/music/photo_new/T001R1200x1200M000singer-mid.jpg');
+        expect(getOriginalCoverUrl('https://y.qq.com/music/photo_new/T001R150x150M000singer-mid.jpg'))
             .toBe('https://y.qq.com/music/photo_new/T001M000singer-mid.jpg');
+    });
+
+    it('restores the Netease original by dropping the resize parameter', () => {
+        expect(getOriginalCoverUrl('https://p1.music.126.net/abc/109951.jpg?param=1024y1024'))
+            .toBe('https://p1.music.126.net/abc/109951.jpg');
+        expect(getOriginalCoverUrl('https://p1.music.126.net/abc/109951.jpg'))
+            .toBe('https://p1.music.126.net/abc/109951.jpg');
     });
 
     it('derives QQ Music thumbnails from an original cover URL', () => {
@@ -87,8 +97,12 @@ describe('coverUrl utilities', () => {
         expect(resolveCoverSizeStep(1024)).toBe(1024);
     });
 
-    it('leaves boxes past the top step without a bucket, so callers keep the provider asset', () => {
+    it('leaves boxes past the top step without a bucket, so callers ask for the cap', () => {
         expect(resolveCoverSizeStep(1025)).toBe(Number.POSITIVE_INFINITY);
+        expect(getSizedCoverUrl('https://p1.music.126.net/abc/109951.jpg', COVER_MAX_SIZE))
+            .toBe('https://p1.music.126.net/abc/109951.jpg?param=1200y1200');
+        expect(getSizedCoverUrl('https://y.gtimg.cn/music/photo_new/T002M000album-mid.jpg', COVER_MAX_SIZE))
+            .toBe('https://y.gtimg.cn/music/photo_new/T002R1200x1200M000album-mid.jpg');
     });
 
     it('keeps every step on a variant the providers actually serve', () => {
@@ -101,11 +115,12 @@ describe('coverUrl utilities', () => {
             'https://p1.music.126.net/abc/109951.jpg?param=512y512',
             'https://p1.music.126.net/abc/109951.jpg?param=1024y1024',
         ]);
-        // QQ has three assets, so the ladder collapses onto them instead of inventing a fourth.
+        // QQ has no 1024 bucket (R1024 answers 404); the top step rounds up to its 1200 one rather
+        // than to the original, whose decode is what the wall cannot afford.
         expect(COVER_SIZE_STEPS.map(step => getSizedCoverUrl(qq, step))).toEqual([
             'https://y.gtimg.cn/music/photo_new/T002R300x300M000album-mid.jpg',
             'https://y.gtimg.cn/music/photo_new/T002R800x800M000album-mid.jpg',
-            'https://y.gtimg.cn/music/photo_new/T002M000album-mid.jpg',
+            'https://y.gtimg.cn/music/photo_new/T002R1200x1200M000album-mid.jpg',
         ]);
         expect(COVER_SIZE_STEPS.map(step => getSizedCoverUrl(local, step))).toEqual([
             `${local}?size=512`,

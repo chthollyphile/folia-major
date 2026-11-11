@@ -1,7 +1,6 @@
 import { useCallback, useMemo, useRef, type MutableRefObject, type RefObject } from 'react';
-import { getViewWorldBounds, type WallViewCenter } from '../../../components/wall/wallView';
+import type { WallViewCenter } from '../../../components/wall/wallView';
 import type { WallDirection } from '../../../components/wall/wallNavigation';
-import { overlaps } from '../../../components/wall/layout';
 import type { WallSlot } from '../../../components/wall/wallSlots';
 import { BRAVAIS_BLOCK_SHAPE, shapeSlotFromKey, type BravaisWallShape } from './bravaisWallShape';
 import { findNearestSlot, resolveSlotFace, resolveSlotItem, type BravaisDisplay } from './bravaisDisplay';
@@ -20,6 +19,7 @@ import { canTakeSeamFocus, resolveSeamEntry, resolveSeamStep } from './bravaisSe
 import { BRAVAIS_SEAM_FLIP_ATTRIBUTE } from './bravaisSeamMotion';
 import type { BravaisTileHandlers } from './BravaisTile';
 import type { BravaisFrameState } from './useBravaisFrame';
+import { filterOnScreenSlots, getVisibleWorldBounds } from './useBravaisCamera';
 import type { useBravaisFocus } from './useBravaisFocus';
 import { seamPointOf } from './bravaisAnchor';
 import { selectDisplayPlayerState, usePlaybackStore } from '../../../stores/usePlaybackStore';
@@ -221,14 +221,9 @@ export const useBravaisInteractions = ({
 
     /** 第一次按方向键：落在屏内离缝最近的有内容磁贴。 */
     const seedSlot = useCallback(() => {
-        const { view, center } = frameRef.current;
-        if (!view) return null;
-        const visible = getViewWorldBounds(center, view);
-        const onScreen = slotsRef.current.filter(slot => overlaps(
-            { left: slot.x, right: slot.x + slot.width, top: slot.y, bottom: slot.y + slot.height },
-            visible,
-        ));
-        return findNearestSlot(onScreen, seamPointOf(frameRef.current), hasContent);
+        // 按倾斜后的可见范围找（缝在远处时倾斜的视口整块偏开）。
+        if (!frameRef.current.view) return null;
+        return findNearestSlot(filterOnScreenSlots(frameRef.current, slotsRef.current), seamPointOf(frameRef.current), hasContent);
     }, [frameRef, hasContent, slotsRef]);
 
     const focusWall = useCallback(() => fieldRef.current?.focus({ preventScroll: true }), [fieldRef]);
@@ -428,9 +423,8 @@ export const useBravaisInteractions = ({
             shortcut.open();
             return;
         }
-        const { view, center } = frameRef.current;
         const slot = findDisplayItemSlot(display, shortcut.itemKey, seamPointOf(frameRef.current));
-        const visible = view ? getViewWorldBounds(center, view) : null;
+        const visible = getVisibleWorldBounds(frameRef.current, undefined, { seam: false });
         const onScreen = slot && visible
             && slot.centerX >= visible.left && slot.centerX <= visible.right
             && slot.centerY >= visible.top && slot.centerY <= visible.bottom;

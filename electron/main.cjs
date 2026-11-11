@@ -11,7 +11,8 @@ const Store = require('electron-store').default || require('electron-store');
 const crypto = require('crypto');
 const { createStageApi } = require('./stageApi.cjs');
 const { resolveStageConnectionFilePath } = require('./stageConnectionFile.cjs');
-const { isCursorInsideUnlockHotspot, createUnlockHoverRequests } = require('./mainWindowClickThrough.cjs');
+const { isCursorInsideUnlockHotspot, createUnlockHoverRequests, resolveUnlockHotspot } = require('./mainWindowClickThrough.cjs');
+const { shouldHideToTrayOnClose, shouldRebuildBeforeMacWallpaper, shouldRebuildAfterMacWallpaper } = require('./nativeTrafficLights.cjs');
 const { createModSystem } = require('./modSystem/modSystem.cjs');
 const { MOD_PROTOCOL_PRIVILEGED_SCHEME } = require('./modSystem/modProtocol.cjs');
 const { createWindowPlaybackHandoffStore } = require('./windowPlaybackHandoff.cjs');
@@ -86,6 +87,7 @@ const { createQqAuthSessionRepository } = require('./qq/qqAuthSessionRepository.
 const { DEFAULT_DISCORD_APPLICATION_ID, createDiscordPresenceController } = require('./discordPresence.cjs');
 const { createVoiceInputPauseMonitor } = require('./voiceInputPause.cjs');
 const { createWindowSystemMenuGuard } = require('./windowSystemMenu.cjs');
+const { createMacDockMenu } = require('./macDockMenu.cjs');
 const { createDisplaySleepBlocker } = require('./displaySleepBlocker.cjs');
 const { createVideoExportFileWriter } = require('./videoExportFileWriter.cjs');
 const { finalizeVideoExportFile } = require('./videoExportMp4.cjs');
@@ -102,6 +104,9 @@ const { discoverUpdateVersion, settleWithin } = require('./updateCheckMirrors.cj
 const { resolveCacheLimit, selectEvictions } = require('./audioCachePrune.cjs');
 const { removeAudioCacheFileOfSize } = require('./audioCacheRemove.cjs');
 const { createAnalysisHost } = require('./analysis/host.cjs');
+const { createAcousticsHost } = require('./acoustics/host.cjs');
+const { steamAudioLibraryPath } = require('./acoustics/phonon.cjs');
+const { createSceneScreenHost } = require('./scenes/screenCapture.cjs');
 const { createDebugHost, runtimeLine } = require('./debug/debugHost.cjs');
 const { createCrashLog, installCrashHandlers, flushPageStorage } = require('./debug/crashLog.cjs');
 const { measureLeftovers, removeDownloadedLeftovers } = require('./analysis/modelPaths.cjs');
@@ -760,12 +765,28 @@ async function relaunchForWallpaperModeChange(nextEnabled, expectedGeneration = 
       // present simple full screen correctly anymore (measured: content 33pt low, empty
       // menu-bar strip above the wallpaper — sticky for the life of the window). Rebuild
       // it so the entry runs on a fresh window, like the always-correct startup path.
-      if (mainWindow && !mainWindow.isDestroyed() && mainWindow.__macAlwaysOnTopElectronTouched === true) {
+      // 带系统红绿灯的窗口同样重建：壁纸模式要完全无边框的窗口，这时设置已写入，重建出来的就没有红绿灯。
+      // 进不去（桥不可用、没有输入监控权限）或还在原生全屏时不重建，见 nativeTrafficLights.cjs。
+      const hasLiveWindow = mainWindow && !mainWindow.isDestroyed();
+      const wallpaperController = getMacWallpaperController();
+      const rebuildForTrafficLights = hasLiveWindow && shouldRebuildBeforeMacWallpaper({
+        nativeTrafficLights: mainWindow.__nativeTrafficLights === true,
+        canEnterWallpaper: Boolean(wallpaperController && wallpaperController.isAvailable() && wallpaperController.hasPermission()),
+        fullscreen: mainWindow.isFullScreen(),
+      });
+      if (hasLiveWindow && (mainWindow.__macAlwaysOnTopElectronTouched === true || rebuildForTrafficLights)) {
         await rebuildMainWindowForMacWallpaper();
       }
       enterMacWallpaperMode();
     } else {
       exitMacWallpaperMode();
+      // 壁纸会话用的是无边框窗口；开着「原生红绿灯」时退出后重建一次，红绿灯才回得来。
+      if (mainWindow && !mainWindow.isDestroyed() && shouldRebuildAfterMacWallpaper({
+        settingEnabled: readStoredBoolean(USE_NATIVE_MAC_TRAFFIC_LIGHTS_SETTING_KEY, false),
+        nativeTrafficLights: mainWindow.__nativeTrafficLights === true,
+      })) {
+        await rebuildMainWindowForMacWallpaper();
+      }
     }
     return;
   }
@@ -2225,6 +2246,15 @@ const mainProcessStartupPromise = prepareMainProcessStartup();
 const APP_LOCALE_KEY = 'APP_LOCALE';
 const mainLocale = {
   'zh-CN': {
+    dockNotPlaying: '未播放',
+    dockRepeat: '循环模式：{mode}',
+    dockRepeatOff: '关闭循环',
+    dockRepeatAll: '列表循环',
+    dockRepeatOne: '单曲循环',
+    dockPrevious: '上一首',
+    dockPlay: '播放',
+    dockPause: '暂停',
+    dockNext: '下一首',
     trayShowWindow: '显示窗口',
     trayHideWindow: '隐藏窗口',
     trayOpenRemote: '遥控窗口',
@@ -2251,6 +2281,15 @@ const mainLocale = {
     crashClose: '关闭',
   },
   'zh-TW': {
+    dockNotPlaying: '未播放',
+    dockRepeat: '迴圈模式：{mode}',
+    dockRepeatOff: '關閉迴圈',
+    dockRepeatAll: '清單迴圈',
+    dockRepeatOne: '單曲迴圈',
+    dockPrevious: '上一首',
+    dockPlay: '播放',
+    dockPause: '暫停',
+    dockNext: '下一首',
     trayShowWindow: '顯示視窗',
     trayHideWindow: '隱藏視窗',
     trayOpenRemote: '遙控視窗',
@@ -2277,6 +2316,15 @@ const mainLocale = {
     crashClose: '關閉',
   },
   en: {
+    dockNotPlaying: 'Not Playing',
+    dockRepeat: 'Repeat: {mode}',
+    dockRepeatOff: 'Off',
+    dockRepeatAll: 'All',
+    dockRepeatOne: 'One',
+    dockPrevious: 'Previous Track',
+    dockPlay: 'Play',
+    dockPause: 'Pause',
+    dockNext: 'Next Track',
     trayShowWindow: 'Show Window',
     trayHideWindow: 'Hide Window',
     trayOpenRemote: 'Remote Window',
@@ -2303,6 +2351,15 @@ const mainLocale = {
     crashClose: 'Close',
   },
   in: {
+    dockNotPlaying: 'Tidak diputar',
+    dockRepeat: 'Ulangi: {mode}',
+    dockRepeatOff: 'Nonaktif',
+    dockRepeatAll: 'Semua',
+    dockRepeatOne: 'Satu',
+    dockPrevious: 'Lagu Sebelumnya',
+    dockPlay: 'Putar',
+    dockPause: 'Jeda',
+    dockNext: 'Lagu Berikutnya',
     trayShowWindow: 'Tampilkan Jendela',
     trayHideWindow: 'Sembunyikan Jendela',
     trayOpenRemote: 'Jendela Remote',
@@ -2329,6 +2386,15 @@ const mainLocale = {
     crashClose: 'Tutup',
   },
   vi: {
+    dockNotPlaying: 'Không phát',
+    dockRepeat: 'Lặp lại: {mode}',
+    dockRepeatOff: 'Tắt',
+    dockRepeatAll: 'Tất cả',
+    dockRepeatOne: 'Một bài',
+    dockPrevious: 'Bài trước',
+    dockPlay: 'Phát',
+    dockPause: 'Tạm dừng',
+    dockNext: 'Bài tiếp theo',
     trayShowWindow: 'Hiện cửa sổ',
     trayHideWindow: 'Ẩn cửa sổ',
     trayOpenRemote: 'Cửa sổ điều khiển',
@@ -2553,6 +2619,15 @@ installCrashHandlers({
 
 let mainWindow = null;
 let modSystem = null;
+// macOS only; off macOS every call on it does nothing.
+const macDockMenu = createMacDockMenu({
+  app,
+  Menu,
+  isSupported: process.platform === 'darwin',
+  getMainWindow: () => mainWindow,
+  getLocale: () => getMainLocale(),
+  sendTransport: (action) => sendThumbarAction(action),
+});
 let remoteControlWindow = null;
 let appTray = null;
 let latestRemoteControlSnapshot = null;
@@ -2647,6 +2722,8 @@ const REMOTE_CONTROL_ALWAYS_ON_TOP_SETTING_KEY = 'REMOTE_CONTROL_ALWAYS_ON_TOP';
 const REMOTE_CONTROL_SKIP_TASKBAR_SETTING_KEY = 'REMOTE_CONTROL_SKIP_TASKBAR';
 const MAIN_WINDOW_ALWAYS_ON_TOP_SETTING_KEY = 'MAIN_WINDOW_ALWAYS_ON_TOP';
 const TRANSPARENT_PLAYER_BACKGROUND_SETTING_KEY = 'TRANSPARENT_PLAYER_BACKGROUND';
+// macOS 原生红绿灯（设置 → 桌面）：默认关，开了才把自绘的最小化/最大化/关闭换成系统红绿灯。
+const USE_NATIVE_MAC_TRAFFIC_LIGHTS_SETTING_KEY = 'USE_NATIVE_MAC_TRAFFIC_LIGHTS';
 const VOICE_INPUT_PAUSE_ENABLED_SETTING_KEY = 'VOICE_INPUT_PAUSE_ENABLED';
 const PREVENT_DISPLAY_SLEEP_DURING_PLAYBACK_SETTING_KEY = 'PREVENT_DISPLAY_SLEEP_DURING_PLAYBACK';
 // Master switch for the experimental mod system. Off by default: with it off no
@@ -2903,6 +2980,17 @@ logLinuxVulkanChoice(linuxVulkan, linuxGraphicsMode);
 const analysisHost = createAnalysisHost({
   app, ipcMain, getModelsDir: getBundledModelsDirectory, isTrustedSender: isFirstPartyWindowContents,
 });
+
+// The scene engine's room sound (window.electron.sceneAcoustics): Steam Audio in a child process of its own,
+// rooms cached under userData. Only the main window plays scenes. See electron/acoustics/host.cjs.
+createAcousticsHost({
+  app, ipcMain,
+  isTrusted: (event) => isTrustedMainWindowContents(event.sender),
+  libraryFile: steamAudioLibraryPath({ packaged: app.isPackaged, resourcesPath: process.resourcesPath, appRoot: path.join(__dirname, '..') }),
+  getCacheDir: () => path.join(app.getPath('userData'), 'scene-acoustics'),
+});
+// A small picture of a scene's screen, which lights the scene (window.electron.sceneScreen). See electron/scenes/screenCapture.cjs.
+createSceneScreenHost({ ipcMain, isTrusted: (event) => isTrustedMainWindowContents(event.sender) });
 
 function buildPlaybackSyncBridgeStatus() {
   return {
@@ -3379,6 +3467,8 @@ async function enableDesktopLyricsLeavingWallpaperMode() {
 }
 
 function refreshTrayMenu() {
+  // The Dock menu shares the tray's triggers (locale, window coming and going); it skips unchanged menus.
+  macDockMenu.refresh();
   if (!appTray) {
     return;
   }
@@ -5386,7 +5476,12 @@ function isCursorInsideMainWindowClickThroughUnlockHotspot() {
   const scale = process.platform === 'darwin' ? mainWindow.webContents.getZoomFactor() : 1;
   // Docked DevTools can make the page narrower than the native window.
   return isCursorInsideUnlockHotspot({
-    bounds, cursor, hotspot: MAIN_WINDOW_CLICK_THROUGH_UNLOCK_HOTSPOT,
+    bounds, cursor,
+    hotspot: resolveUnlockHotspot(MAIN_WINDOW_CLICK_THROUGH_UNLOCK_HOTSPOT, {
+      nativeTrafficLights: mainWindow.__nativeTrafficLights === true,
+      side: mainWindowUnlockHoverRequests.getSide(),
+    }),
+    side: mainWindowUnlockHoverRequests.getSide(),
     viewportWidth: process.platform === 'darwin' ? mainWindowUnlockHoverRequests.getViewportWidth() : null,
     viewportOrigin: process.platform === 'darwin' ? mainWindowUnlockHoverRequests.getViewportOrigin(bounds) : null,
     scale,
@@ -5882,6 +5977,12 @@ function createWindow(options = {}) {
   // window remembers what it was built as so the reconcile path can detect mismatches.
   const useTransparentWindow = isTransparentPlayerBackgroundEnabled()
     && !(useWindowsWallpaper && !isWindowsWallpaperTransparentSupported());
+  // macOS 正常模式：开了「原生红绿灯」设置才用 hidden 标题栏替代自绘窗口按钮；
+  // 壁纸模式仍是完全无边框，沉进桌面层的窗口不能带着红绿灯。默认关，关时与主线行为一致。
+  const useMacNativeTrafficLights = process.platform === 'darwin'
+    && !isWallpaperModeEnabled()
+    && !useWallpaperGeometry
+    && readStoredBoolean(USE_NATIVE_MAC_TRAFFIC_LIGHTS_SETTING_KEY, false);
   const enableNativeBlur = store.get('enable_player_page_native_blur') === true;
   let win;
   try {
@@ -5890,7 +5991,11 @@ function createWindow(options = {}) {
       type: useDesktopWindowType ? 'desktop' : undefined,
       minWidth: 350,
       minHeight: 100,
-      frame: false,
+      // macOS 正常模式：hidden 标题栏保留系统红绿灯，内容仍铺满整窗；
+      // 其余平台（以及 mac 壁纸模式）保持完全无边框。
+      ...(useMacNativeTrafficLights
+        ? { titleBarStyle: 'hidden', trafficLightPosition: { x: 14, y: 11 } }
+        : { frame: false }),
       transparent: useTransparentWindow,
       hasShadow: !useTransparentWindow,
       // Windows wallpaper mode must drop WS_THICKFRAME entirely: with it, Windows treats the
@@ -5930,6 +6035,8 @@ function createWindow(options = {}) {
     throw error;
   }
   win.__wallpaperWindowTransparent = useTransparentWindow;
+  // 这个窗口是不是带着系统红绿灯建的：设置改了要到下次建窗才生效，渲染层和解锁热区都按窗口实际的样子来。
+  win.__nativeTrafficLights = useMacNativeTrafficLights;
   win.__wallpaperGeometry = useWallpaperGeometry;
   win.__transparentFullscreen = false;
 
@@ -5948,6 +6055,8 @@ function createWindow(options = {}) {
   if (useDesktopWindowType) {
     x11WallpaperWindows.add(win);
   }
+
+  macDockMenu.attach(win);
 
   // A window that stops answering: with mods running, offer to wait or to reopen without them.
   win.on('unresponsive', () => {
@@ -6037,6 +6146,15 @@ function createWindow(options = {}) {
 
   mainWindow = win;
   isolateFirstPartyWindow(win);
+  if (useMacNativeTrafficLights) {
+    // 先藏起来，等渲染层按标题栏 reveal 再放出，避免启动时红绿灯常驻在沉浸页面上。
+    // 常驻标题栏设置的用户由渲染层随即打开（那个设置只存在渲染层，这里读不到）。
+    try {
+      win.setWindowButtonVisibility(false);
+    } catch {
+      // setWindowButtonVisibility 只在 macOS 且窗口带红绿灯时有意义。
+    }
+  }
   backgroundThrottling.attach(win);
   ensureTray();
   setMainWindowSkipTaskbarEnabled(mainWindowSkipTaskbarEnabled);
@@ -6076,12 +6194,26 @@ function createWindow(options = {}) {
   win.on('unmaximize', () => {
     saveWindowState(win);
   });
-  win.on('close', () => {
+  win.on('close', (event) => {
+    // 系统红灯（以及 Cmd+W）直接关窗，不经过 window-close 通道。开了「关闭到托盘」时照自绘的关闭键办：
+    // 藏进托盘，不销毁窗口，歌接着放。退出应用（Cmd+Q、托盘的退出）先走 before-quit，照常关。
+    if (shouldHideToTrayOnClose({
+      nativeTrafficLights: win.__nativeTrafficLights === true,
+      isAppQuitting,
+      wallpaperMode: isWallpaperModeEnabled(),
+      closeToTray: readStoredBoolean(CLOSE_TO_TRAY_SETTING_KEY, false),
+      hasTray: Boolean(appTray),
+    })) {
+      event.preventDefault();
+      hideMainWindow();
+      return;
+    }
     saveWindowState(win);
   });
   win.on('closed', () => {
     if (mainWindow === win) {
       mainWindow = null;
+      macDockMenu.reset();
       // macOS keeps the app running when its window is closed, so no `before-quit` follows: for
       // the mods' start note, closing the window is the normal way out there (see `before-quit`).
       // Not for a page that had stopped answering: that is what the note is for.
@@ -6268,12 +6400,9 @@ app.whenReady().then(async () => {
     app.setAppUserModelId(WINDOWS_APP_USER_MODEL_ID);
   }
   logGpuPreference(gpuPreferenceApplied);
-  if (process.platform === 'win32') {
-    // Late, so the DxDiag pass behind the read stays out of startup; the settings page may read it sooner.
-    setTimeout(() => {
-      readActiveGpu().catch(error => console.warn('[Gpu] Could not read the active adapter', error));
-    }, 10_000);
-  }
+  // The active adapter is read only when the settings page asks: the 'complete' info behind it holds the
+  // GPU process's main thread about half a second (CollectDawnInfo), and every window's frames stop with it.
+  // Measured 2026-11-10: read 10 s after launch, it froze the picture 0.5 s on every start.
 
   if (process.platform === 'linux' && typeof safeStorage.getSelectedStorageBackend === 'function') {
     const backend = safeStorage.getSelectedStorageBackend();
@@ -6806,7 +6935,8 @@ ipcMain.handle('save-settings', firstParty('save-settings', (event, key, value) 
     key === WALLPAPER_ENTRY_CONFIRMED_SETTING_KEY ||
     key === WALLPAPER_FORWARD_MOUSE_SETTING_KEY ||
     key === WALLPAPER_ZGUARD_SETTING_KEY ||
-    key === WALLPAPER_MAC_AUTOHIDE_DOCK_SETTING_KEY
+    key === WALLPAPER_MAC_AUTOHIDE_DOCK_SETTING_KEY ||
+    key === USE_NATIVE_MAC_TRAFFIC_LIGHTS_SETTING_KEY
   ) {
     nextValue = Boolean(value);
   }
@@ -7429,6 +7559,31 @@ ipcMain.handle('window-is-fullscreen', (event) => {
   return isMainWindowFullscreen(mainWindow);
 });
 
+// macOS 原生红绿灯显隐：渲染层把标题栏 reveal / 点击穿透状态同步过来。
+// 全屏时系统自己会藏，这里照常设置也不会冲突。
+ipcMain.handle('window-set-traffic-lights-visible', (event, visible) => {
+  if (!isTrustedMainWindowContents(event.sender) || !mainWindow || mainWindow.isDestroyed()) {
+    return false;
+  }
+  if (mainWindow.__nativeTrafficLights !== true || typeof mainWindow.setWindowButtonVisibility !== 'function') {
+    return false;
+  }
+  try {
+    mainWindow.setWindowButtonVisibility(visible === true);
+    return true;
+  } catch {
+    return false;
+  }
+});
+
+// 当前主窗口是不是带系统红绿灯建的。设置重启后才生效，渲染层靠它决定还画不画自绘的窗口按钮。
+ipcMain.handle('window-has-native-traffic-lights', (event) => {
+  if (!isTrustedMainWindowContents(event.sender) || !mainWindow || mainWindow.isDestroyed()) {
+    return false;
+  }
+  return mainWindow.__nativeTrafficLights === true;
+});
+
 ipcMain.handle('window-get-transparent-mode', (event) => {
   if (!isTrustedMainWindowContents(event.sender)) {
     return false;
@@ -7481,12 +7636,12 @@ ipcMain.handle('window-set-click-through', (event, enabled) => {
   return setMainWindowClickThroughEnabled(enabled);
 });
 
-ipcMain.handle('window-set-click-through-unlock-hover', (event, active, viewportWidth, coordinates) => {
+ipcMain.handle('window-set-click-through-unlock-hover', (event, active, viewportWidth, coordinates, side) => {
   if (!isTrustedMainWindowContents(event.sender)) {
     return false;
   }
 
-  return mainWindowUnlockHoverRequests.handle(active, viewportWidth, coordinates, mainWindow.getBounds(), mainWindow.webContents.getZoomFactor());
+  return mainWindowUnlockHoverRequests.handle(active, viewportWidth, coordinates, mainWindow.getBounds(), mainWindow.webContents.getZoomFactor(), side);
 });
 
 ipcMain.handle('window-get-always-on-top', (event) => {
@@ -7738,6 +7893,8 @@ ipcMain.handle('thumbar-update-buttons', (event, state) => {
     throw new Error('Untrusted renderer attempted to update taskbar controls.');
   }
 
+  // One report feeds both: the Windows taskbar buttons and the macOS Dock menu.
+  macDockMenu.setState(state);
   return updateWindowThumbarButtons({
     hasActiveTrack: Boolean(state?.hasActiveTrack),
     canGoPrevious: Boolean(state?.canGoPrevious),

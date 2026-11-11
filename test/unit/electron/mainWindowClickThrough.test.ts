@@ -6,6 +6,17 @@ const require = createRequire(import.meta.url);
 const { isCursorInsideUnlockHotspot, createUnlockHoverRequests } = require('../../../electron/mainWindowClickThrough.cjs');
 
 describe('main window click-through unlock', () => {
+    it('reflects the inset hotspot for left controls in scaled and moved viewports', () => {
+        const options = { bounds: { x: 100, y: 50, width: 1200 }, hotspot: { width: 172, height: 40, rightInset: 176, topInset: 4 }, viewportWidth: 930, side: 'left' };
+        expect(isCursorInsideUnlockHotspot({ ...options, cursor: { x: 340, y: 70 } })).toBe(true);
+        expect(isCursorInsideUnlockHotspot({ ...options, cursor: { x: 1200, y: 70 } })).toBe(false);
+        expect(isCursorInsideUnlockHotspot({ ...options, scale: 1.5, viewportOrigin: 370, viewportWidth: 600, cursor: { x: 730, y: 80 } })).toBe(true);
+        const requests = createUnlockHoverRequests({ platform: 'darwin', pollCursor: () => true, setHover: vi.fn() });
+        expect(requests.getSide()).toBe('right');
+        requests.handle(false, 930, undefined, options.bounds, 1, 'left');
+        expect(requests.getSide()).toBe('left');
+    });
+
     it('uses the page width when DevTools narrows the window', () => {
         const options = {
             bounds: { x: 100, y: 50, width: 1200 },

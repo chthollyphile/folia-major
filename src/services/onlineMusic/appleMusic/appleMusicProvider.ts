@@ -320,6 +320,12 @@ export function createAppleMusicProvider(getAvailability: () => ProviderAvailabi
                 }
                 await requestAppleMusic('setVolume', { volume: Math.round(Math.min(1, Math.max(0, volume)) * 1000) / 1000 });
             },
+            // Folia's single loop as MusicKit's own repeat of one track; its list repeat stays off.
+            async setRepeatOne(enabled) {
+                // A live station has no track to go round: its repeat stays off (playStation sets it so).
+                if (liveStationId && enabled) return;
+                await requestAppleMusic('setRepeatOne', { enabled });
+            },
             async getStatus(song: SongResult) {
                 const attempt = playback;
                 const data = await requestAppleMusic<unknown>('playbackStatus');

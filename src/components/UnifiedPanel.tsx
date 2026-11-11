@@ -1,5 +1,5 @@
 import React from 'react';
-import { AudioLines, Disc, SlidersHorizontal, ListMusic, FileAudio, FileText, Radio, Cloud, Puzzle } from 'lucide-react';
+import { AudioLines, Disc, SlidersHorizontal, ListMusic, FileAudio, FileText, Radio, Cloud } from 'lucide-react';
 import { locatePlayingSong } from './app/playing-song-locator/playingSongLocator';
 import { useTranslation } from 'react-i18next';
 import { Album, Artist, SongResult, Theme, PlayerState, ReplayGainMode, ThemeMode, VisualizerMode } from '../types';
@@ -267,7 +267,7 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
         tabs.splice(1, 0, { id: 'onlineLyrics' as PanelTab, label: t('localMusic.lyrics'), icon: FileText });
     }
 
-    foliumTabs.forEach((tab) => tabs.push({ id: tab.id, label: tab.label, icon: Puzzle }));
+    foliumTabs.forEach((tab) => tabs.push({ id: tab.id, label: tab.label, icon: tab.icon }));
 
     // A mod tab can vanish while open (mod disabled or reloaded): fall back to the cover tab.
     const currentTabExists = tabs.some((tab) => tab.id === currentTab);

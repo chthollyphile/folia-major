@@ -59,6 +59,7 @@
 | 32+ | `src/components/modal/settings/kit/motion.ts` |
 | 32+ | `src/components/ponder/surfaces/relativeRectStyle.ts` |
 | 32+ | `src/components/ponder/surfaces/surfaceDeclarations.ts` |
+| 32+ | `src/components/visualizer/backgrounds/definition.ts` |
 | 32+ | `src/components/visualizer/colorMix.ts` |
 | 32+ | `src/components/visualizer/hanabi/types.ts` |
 | 32+ | `src/components/visualizer/machi/engine/materials.ts` |
@@ -71,6 +72,7 @@
 | 32+ | `src/library/core/account/account.contract.ts` |
 | 32+ | `src/library/core/directory/directory.contract.ts` |
 | 32+ | `src/library/core/home/homeModel.contract.ts` |
+| 32+ | `src/library/suites/bravais/bravaisConstants.ts` |
 | 32+ | `src/library/suites/bravais/bravaisLayer.ts` |
 | 32+ | `src/mods/types.ts` |
 | 32+ | `src/services/baseThemes.ts` |
@@ -146,6 +148,7 @@
 - `dev/probes/ponderHint.probe.tsx`
 - `dev/probes/ponderPageSurfaces.probe.tsx`
 - `dev/probes/remoteActions.probe.tsx`
+- `dev/probes/sceneHost.probe.tsx`
 - `dev/probes/settingsHelpActions.probe.tsx`
 - `dev/probes/settingsNavigation.probe.tsx`
 - `dev/probes/subtitleOverlayRows.probe.tsx`
@@ -248,6 +251,10 @@
 - `src/components/ponder/targets/studio/lyricStyle.target.ts`
 - `src/components/ponder/targets/studio/themePark.target.ts`
 - `src/components/ponder/targets/studio/visPlayground.target.ts`
+
+### `src/components/scenes/registry.ts`
+
+- `src/components/scenes/cinema/entry.ts`
 
 ### `src/components/visualizer/backgrounds/registry.tsx`
 

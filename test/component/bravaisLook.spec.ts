@@ -82,37 +82,59 @@ const openCollection = async (page: Page) => {
 
 /**
  * 每次块底板的路径被写（MutationObserver 的微任务，与写入同一帧）：记下是哪一块，并把路径里的洞对照块里窗磁贴
- * 此刻的实际位置（getBoundingClientRect；磁贴越出块外框的部分先裁掉，洞本来就裁到外框里）。
+ * 此刻的实际位置（世界层里的坐标；磁贴越出块外框的部分先裁掉，洞本来就裁到外框里）。
  */
 const watchPlateWrites = (page: Page, blockKey: string) => page.evaluate((key) => {
     const countWindow = window as CountWindow;
     countWindow.__plateWrites = [];
     countWindow.__reflowError = [];
+    // 洞与窗磁贴都按世界层里的坐标量（块底板与磁贴在同一个世界层里，各自的 translate + 尺寸），再乘世界层的缩放换成屏幕
+    // 像素：集合页整层倾斜着，getBoundingClientRect 给的是转过之后的外接框，拿它对不上。
+    const translateOf = (element: Element) => {
+        const transform = getComputedStyle(element).transform;
+        const matrix = new DOMMatrixReadOnly(transform === 'none' ? undefined : transform);
+        return { x: matrix.m41, y: matrix.m42, scale: Math.hypot(matrix.a, matrix.b) };
+    };
+    type Rect = { left: number; top: number; right: number; bottom: number };
+    const MISALIGNED = 99;
     const measure = (svg: SVGSVGElement) => {
-        const box = svg.getBoundingClientRect();
-        const ratio = box.width / svg.viewBox.baseVal.width;
+        const origin = translateOf(svg);
+        const box = { left: origin.x, top: origin.y, right: origin.x + svg.viewBox.baseVal.width, bottom: origin.y + svg.viewBox.baseVal.height };
+        // 底板与它盖着的磁贴在同一个世界层（同一半面墙）里：只跟这一层里的窗磁贴比。
+        const world = svg.closest('.lattice-world')!;
+        const scale = translateOf(world).scale;
         const holes = [...svg.querySelector('path')!.getAttribute('d')!.matchAll(/M(-?[\d.]+) (-?[\d.]+)h(-?[\d.]+)v(-?[\d.]+)/g)]
             .slice(1)
             .map(match => ({
-                left: box.left + Number(match[1]) * ratio,
-                top: box.top + Number(match[2]) * ratio,
-                right: box.left + (Number(match[1]) + Number(match[3])) * ratio,
-                bottom: box.top + (Number(match[2]) + Number(match[4])) * ratio,
+                left: box.left + Number(match[1]),
+                top: box.top + Number(match[2]),
+                right: box.left + Number(match[1]) + Number(match[3]),
+                bottom: box.top + Number(match[2]) + Number(match[4]),
             }));
-        let worst = 0;
-        document.querySelectorAll<HTMLElement>(`.bravais-tile[data-bravais-slot^="${key},"][data-bravais-kind="window"]`).forEach((tile) => {
-            const rect = tile.getBoundingClientRect();
-            const clipped = {
+        const windows: Rect[] = [];
+        world.querySelectorAll<HTMLElement>(`.bravais-tile[data-bravais-slot^="${key},"][data-bravais-kind="window"]`).forEach((tile) => {
+            const at = translateOf(tile);
+            const style = getComputedStyle(tile);
+            const rect = { left: at.x, top: at.y, right: at.x + parseFloat(style.width), bottom: at.y + parseFloat(style.height) };
+            windows.push({
                 left: Math.max(box.left, rect.left),
                 top: Math.max(box.top, rect.top),
                 right: Math.min(box.right, rect.right),
                 bottom: Math.min(box.bottom, rect.bottom),
-            };
-            worst = Math.max(worst, Math.min(...holes.map(hole => Math.max(
-                Math.abs(hole.left - clipped.left), Math.abs(hole.top - clipped.top),
-                Math.abs(hole.right - clipped.right), Math.abs(hole.bottom - clipped.bottom),
-            ))));
+            });
         });
+        // 让位途中两张窗磁贴会叠在一起，洞是它们的并集（路径把并集切成几条矩形），所以不逐张对矩形：窗磁贴往里收 1.5 屏幕像素
+        // 的四个角与中心都落在某个洞里，洞往里收同样多的四个角与中心也都落在某张窗磁贴里——两边的并集在 1.5 像素内重合。
+        // 对得上记 0，对不上记 MISALIGNED（下面断言 < 1.5）。
+        const tolerance = 1.5 / scale;
+        const probes = (rect: Rect) => (rect.right - rect.left <= tolerance * 2 || rect.bottom - rect.top <= tolerance * 2 ? [] : [
+            [rect.left + tolerance, rect.top + tolerance], [rect.right - tolerance, rect.top + tolerance],
+            [rect.left + tolerance, rect.bottom - tolerance], [rect.right - tolerance, rect.bottom - tolerance],
+            [(rect.left + rect.right) / 2, (rect.top + rect.bottom) / 2],
+        ]);
+        const covered = (rects: Rect[], [x, y]: number[]) => rects.some(rect => x! >= rect.left && x! <= rect.right && y! >= rect.top && y! <= rect.bottom);
+        const aligned = windows.flatMap(probes).every(point => covered(holes, point)) && holes.flatMap(probes).every(point => covered(windows, point));
+        const worst = aligned ? 0 : MISALIGNED;
         countWindow.__reflowError!.push(worst);
     };
     new MutationObserver((records) => {
