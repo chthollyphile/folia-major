@@ -1,12 +1,12 @@
-import type { SongResult } from '../../../../types';
+import { PlayerState, type SongResult } from '../../../../types';
 import type { ProviderExternalPlaybackStatus } from '../../../../types/onlineMusic';
 import { adoptExternalPlayback, getExternalSong, isExternalRoute, yieldExternalPlayback } from '../../../../services/onlineMusic/externalPlayback';
 import { omni } from '../../../../services/onlineMusic/omni';
 import { currentTime } from '../../../../stores/motionSignals';
 import { setDuration, usePlaybackStore } from '../../../../stores/usePlaybackStore';
-import { getPlaybackSongKey } from '../../../../utils/appPlaybackGuards';
+import { getOnlineProviderIdForSong, getPlaybackSongKey } from '../../../../utils/appPlaybackGuards';
 import { askedSongKeyRef, makeSongCurrent, startOfAskedSong } from '../currentSong';
-import { resolveRunningTrack } from '../restore/runningTrack';
+import { resolveRunningTrack, resolveRunningTrackOf } from '../restore/runningTrack';
 
 // src/components/app/playback/bridges/externalPlayerFollow.ts
 // What a player outside the app holds, taken over as it stands: the song it is sounding, or the
@@ -198,22 +198,34 @@ const settleTrackTakeOver = async (
 
 /**
  * Reads the player of the song on screen once and takes over whatever it is playing: that song, or
- * the track it moved on to. Nothing is read where no player of this kind is wanted (no song, a song
- * without an external player, a way of playing that does not follow its listener) and where a
- * session of this route already follows the player, whose own polls are the read. Reading a player
- * starts, resumes and pauses nothing, so a player nobody uses is not woken by it.
+ * the track it moved on to. Nothing is read where no player of this kind is wanted (no song, a way
+ * of playing that does not follow its listener) and where a session of this route already follows the
+ * player, whose own polls are the read. A screen showing a song that never plays in this player - a
+ * file of the listener's own, a song of another platform - is read too, as long as Folia is not
+ * sounding it: what they start in the player's own window then is still the listener's own doing.
+ * Reading a player starts, resumes and pauses nothing, so a player nobody uses is not woken by it.
  */
 export const followRunningExternalPlayer = async (
     options: RunningPlayerTakeOverOptions = {},
 ): Promise<RunningPlayerOutcome> => {
     const shown = usePlaybackStore.getState().currentSong;
     if (!shown) return 'untouched';
-    if (!omni.canPlayExternally(shown)) return 'untouched';
-    if (!omni.externalPlaybackTraits(shown).followsPlayerChanges) return 'untouched';
+    // The way of playing that follows its listener's own window, whoever is on screen: only one way
+    // declares it, and it is not read at all where none does.
+    const followProviderId = omni.followingPlayerChangesProviderId();
+    if (!followProviderId) return 'untouched';
+    // A song of that player is read as that song; a song of another kind (a file of the listener's
+    // own, another platform's) is read off the player itself, which could never have held it.
+    const shownPlaysThere = omni.canPlayExternally(shown) && getOnlineProviderIdForSong(shown) === followProviderId;
+    // Folia sounding a song of its own and the listener's player sounding one too would be two
+    // songs at once: nothing is followed while this app is the one making the sound.
+    if (isFoliaSoundingSong()) return 'untouched';
     if (isExternalRoute() && getExternalSong() !== null) return 'untouched';
     let running: ProviderExternalPlaybackStatus | null;
     try {
-        running = await omni.getExternalPlaybackRunningStatus(shown);
+        running = shownPlaysThere
+            ? await omni.getExternalPlaybackRunningStatus(shown)
+            : await omni.getExternalPlaybackRunningTrack(followProviderId);
     } catch (error) {
         console.warn('[externalPlayerFollow] The player could not say what it has', error);
         return 'untouched';
@@ -221,15 +233,32 @@ export const followRunningExternalPlayer = async (
     // A song asked for while the player was read owns the screen now: nothing of that read is acted on.
     if (!isShownSong(shown) || !(options.isWanted?.() ?? true)) return 'untouched';
     // Only what the player is actually playing is taken over: a pause there is the listener's own,
-    // and the press of play in Folia is what starts it.
+    // and the press of play in Folia is what starts it. The track looked up is the song this app
+    // shows from here, whichever song the screen held while it was read.
     if (!running || !running.isPlaying || running.degraded === true || running.advertisement === true) return 'untouched';
+    if (!shownPlaysThere) {
+        const track = await resolveRunningTrackOf(followProviderId, running, () => isShownSong(shown) && (options.isWanted?.() ?? true));
+        if (!track) return 'untouched';
+        makeSongCurrent(track);
+        return await settleTrackTakeOver(track, track, running, options);
+    }
     return await takeOverRunningPlayer(shown, running, options);
 };
 
-/** Whether the song on screen plays in a player whose own window the listener keeps using. */
-export const followsPlayerChangesForShownSong = (): boolean => {
-    const shown = usePlaybackStore.getState().currentSong;
-    if (!shown) return false;
-    if (!omni.canPlayExternally(shown)) return false;
-    return omni.externalPlaybackTraits(shown).followsPlayerChanges;
-};
+/**
+ * Whether Folia itself is making sound now: its own engine playing a song. A paused or idle screen
+ * is silent, whatever song it holds, and so is a screen whose song is only taken over.
+ */
+const isFoliaSoundingSong = (): boolean => usePlaybackStore.getState().playerState === PlayerState.PLAYING;
+
+/**
+ * Whether the song on screen is watched for what the listener starts in a player of their own: a way
+ * of playing that follows its listener's own window has to be the one that is set, and Folia must not
+ * be the one making the sound. The screen's song may be of any kind: a file of the listener's own, a
+ * song of another platform, or nothing this player could ever hold.
+ */
+export const followsPlayerChangesForShownSong = (): boolean => (
+    usePlaybackStore.getState().currentSong !== null
+    && !isFoliaSoundingSong()
+    && omni.followingPlayerChangesProviderId() !== null
+);

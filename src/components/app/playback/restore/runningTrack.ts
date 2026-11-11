@@ -1,5 +1,5 @@
 import type { SongResult } from '../../../../types';
-import type { ProviderExternalPlaybackStatus } from '../../../../types/onlineMusic';
+import type { OnlineProviderId, ProviderExternalPlaybackStatus } from '../../../../types/onlineMusic';
 import { omni } from '../../../../services/onlineMusic/omni';
 import { isSongUnavailable } from '../../../../services/onlineMusic/songAvailability';
 import { getOnlineProviderIdForSong, getPlaybackSongKey } from '../../../../utils/appPlaybackGuards';
@@ -19,7 +19,26 @@ export const resolveRunningTrack = async (
     isWanted: () => boolean,
 ): Promise<SongResult | null> => {
     const providerId = getOnlineProviderIdForSong(song);
-    if (!providerId || !running.mediaId) return null;
+    if (!providerId) return null;
+    return await lookUpTrackOf(providerId, running, isWanted);
+};
+
+/**
+ * The same lookup for a player whose song this app cannot name: the way of playing that follows its
+ * listener is read off the provider, while the screen holds a song no player of that kind could hold.
+ */
+export const resolveRunningTrackOf = async (
+    providerId: OnlineProviderId,
+    running: ProviderExternalPlaybackStatus,
+    isWanted: () => boolean,
+): Promise<SongResult | null> => lookUpTrackOf(providerId, running, isWanted);
+
+const lookUpTrackOf = async (
+    providerId: OnlineProviderId,
+    running: ProviderExternalPlaybackStatus,
+    isWanted: () => boolean,
+): Promise<SongResult | null> => {
+    if (!running.mediaId) return null;
     let track: SongResult | null;
     try {
         track = await omni.getSongDetail(providerId, running.mediaId);

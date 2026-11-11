@@ -25,7 +25,7 @@ const traits = vi.hoisted(() => ({
 }));
 
 const omniMock = vi.hoisted(() => ({
-    canPlayExternally: vi.fn(() => true),
+    canPlayExternally: vi.fn((_song?: SongResult) => true),
     canPlaySong: vi.fn(() => true),
     prepareExternalPlaybackQueue: vi.fn(async () => {}),
     playSongExternally: vi.fn(async () => {}),
@@ -44,12 +44,15 @@ const omniMock = vi.hoisted(() => ({
     getSongDetail: vi.fn(async (): Promise<SongResult | null> => null),
     adoptExternalPlayback: vi.fn(() => {}),
     externalPlaybackTraits: vi.fn(() => traits.declared),
+    followsPlayerChangesOf: vi.fn(() => traits.declared.followsPlayerChanges === true),
+    followingPlayerChangesProviderId: vi.fn((): string | null => (traits.declared.followsPlayerChanges === true ? 'spotify' : null)),
+    getExternalPlaybackRunningTrack: vi.fn(async (): Promise<ProviderExternalPlaybackStatus | null> => null),
 }));
 
 vi.mock('@/services/onlineMusic/omni', () => ({ omni: omniMock }));
 
 const engine = await import('@/services/onlineMusic/externalPlayback');
-const { followRunningExternalPlayer, adoptPlayerTrack } = await import('@/components/app/playback/bridges/externalPlayerFollow');
+const { followRunningExternalPlayer, followsPlayerChangesForShownSong, adoptPlayerTrack } = await import('@/components/app/playback/bridges/externalPlayerFollow');
 const { makeSongCurrent } = await import('@/components/app/playback/currentSong');
 const { usePlaybackStore } = await import('@/stores/usePlaybackStore');
 const { PlayerState } = await import('@/types');
@@ -63,6 +66,20 @@ const songOn = (mediaId: string, name = mediaId): SongResult => ({
     durationMs: 200000,
     sourceRef: { kind: 'online', providerId: 'spotify', mediaId },
 });
+
+/** A song of the listener's own library, and one of another platform: neither plays in Spotify. */
+const localSong: SongResult = {
+    ...songOn('local-1', 'Local'),
+    id: 'local-1',
+    isLocal: true,
+    localRef: { songId: 'local-1' },
+    sourceRef: { kind: 'local', mediaId: 'local-1' },
+} as SongResult;
+const appleSong: SongResult = {
+    ...songOn('am-1', 'Apple'),
+    id: 'am-1',
+    sourceRef: { kind: 'online', providerId: 'appleMusic', mediaId: 'am-1' },
+};
 
 const song = songOn('123', 'Example');
 const other = songOn('456', 'Another');
@@ -319,5 +336,122 @@ describe('a player that follows the listener\'s own changes', () => {
         await expect(followRunningExternalPlayer()).resolves.toBe('adopted');
         expect(engine.getExternalSong()).toEqual(other);
         expect(usePlaybackStore.getState().currentSong).toEqual(other);
+    });
+});
+
+// The screen shows something that never plays in Spotify - a file of the listener's own, a song of
+// another platform - and Folia is not sounding it. What they then start in Spotify's own window is
+// followed all the same: the way of playing declares it, no session of this route holds the player,
+// and nothing of Folia's is coming out of the speakers to be doubled. What the screen shows is
+// replaced by the track the player names.
+describe('a screen of another kind of song, with Folia silent', () => {
+    beforeEach(() => {
+        vi.useFakeTimers();
+        engine.installExternalPlayback();
+        engine.stopExternalPlayback('test reset');
+        traits.declared = {
+            capturesSystemAudio: true,
+            startsWithoutWaiting: true,
+            backsOffStatusPolls: true,
+            holdsMediaKeysWhilePlaying: true,
+            followsPlayerChanges: true,
+        };
+        omniMock.canPlayExternally.mockReset().mockReturnValue(true);
+        omniMock.getExternalPlaybackStatus.mockReset().mockResolvedValue(status({ mediaId: '456' }));
+        omniMock.getExternalPlaybackRunningStatus.mockReset().mockResolvedValue(status({ mediaId: '456' }));
+        omniMock.getExternalPlaybackRunningTrack.mockReset().mockResolvedValue(status({ mediaId: '456' }));
+        omniMock.getSongDetail.mockReset().mockResolvedValue(songOn('456', 'Another'));
+        omniMock.prepareExternalPlaybackQueue.mockReset().mockResolvedValue(undefined);
+        omniMock.setExternalPlaybackVolume.mockReset().mockResolvedValue(undefined);
+        omniMock.playSongExternally.mockReset().mockResolvedValue(undefined);
+        omniMock.pauseExternalPlayback.mockReset().mockResolvedValue(undefined);
+        useAudioSettingsStore.setState({ volume: 1, isMuted: false });
+    });
+
+    afterEach(() => {
+        engine.stopExternalPlayback('test end');
+        usePlaybackStore.setState({ playbackRoute: 'web', audioSrc: null, playerState: PlayerState.IDLE, playQueue: [] });
+        vi.useRealTimers();
+        vi.restoreAllMocks();
+    });
+
+    it('follows what is started in the player while a local song is on a paused screen', async () => {
+        usePlaybackStore.setState({
+            playbackRoute: 'web', audioSrc: null, playerState: PlayerState.PAUSED,
+            currentSong: localSong, playQueue: [localSong], isFmMode: false,
+        });
+
+        await expect(followRunningExternalPlayer()).resolves.toBe('adopted');
+
+        expect(usePlaybackStore.getState().currentSong).toEqual(songOn('456', 'Another'));
+        expect(engine.getExternalSong()).toEqual(songOn('456', 'Another'));
+        expect(engine.isExternalRoute()).toBe(true);
+        // Taken over, never started: nothing here wakes, resumes or pauses the player.
+        expect(omniMock.playSongExternally).not.toHaveBeenCalled();
+        expect(omniMock.pauseExternalPlayback).not.toHaveBeenCalled();
+    });
+
+    it('follows it while another platform\'s song is on a paused screen too', async () => {
+        usePlaybackStore.setState({
+            playbackRoute: 'web', audioSrc: null, playerState: PlayerState.PAUSED,
+            currentSong: appleSong, playQueue: [appleSong], isFmMode: false,
+        });
+
+        await expect(followRunningExternalPlayer()).resolves.toBe('adopted');
+        expect(usePlaybackStore.getState().currentSong).toEqual(songOn('456', 'Another'));
+    });
+
+    it('follows it for a song of another platform that no external player can sound', async () => {
+        // Apple Music, whose own player this is not: the song on screen plays in no player at all.
+        omniMock.canPlayExternally.mockImplementation((_song?: SongResult) => (
+            _song?.sourceRef?.kind === 'online' && _song.sourceRef.providerId === 'spotify'
+        ));
+        usePlaybackStore.setState({
+            playbackRoute: 'web', audioSrc: null, playerState: PlayerState.IDLE,
+            currentSong: appleSong, playQueue: [appleSong], isFmMode: false,
+        });
+
+        await expect(followRunningExternalPlayer()).resolves.toBe('adopted');
+        expect(usePlaybackStore.getState().currentSong).toEqual(songOn('456', 'Another'));
+        expect(engine.getExternalSong()).toEqual(songOn('456', 'Another'));
+    });
+
+    it('reads nothing while Folia itself is sounding a song', async () => {
+        usePlaybackStore.setState({
+            playbackRoute: 'web', audioSrc: 'https://audio.test/local-1', playerState: PlayerState.PLAYING,
+            currentSong: localSong, playQueue: [localSong], isFmMode: false,
+        });
+
+        await expect(followRunningExternalPlayer()).resolves.toBe('untouched');
+        expect(omniMock.getExternalPlaybackRunningStatus).not.toHaveBeenCalled();
+        expect(usePlaybackStore.getState().currentSong).toEqual(localSong);
+    });
+
+    it('drops the answer where the caller stopped wanting it while the player was read', async () => {
+        usePlaybackStore.setState({
+            playbackRoute: 'web', audioSrc: null, playerState: PlayerState.PAUSED,
+            currentSong: localSong, playQueue: [localSong], isFmMode: false,
+        });
+        // The watcher's guard answers for a page that went away while the read was on its way.
+        let wanted = true;
+        omniMock.getExternalPlaybackRunningTrack.mockImplementation(async () => {
+            wanted = false;
+            return status({ mediaId: '456' });
+        });
+
+        await expect(followRunningExternalPlayer({ isWanted: () => wanted })).resolves.toBe('untouched');
+        expect(usePlaybackStore.getState().currentSong).toEqual(localSong);
+        expect(engine.getExternalSong()).toBeNull();
+    });
+
+    it('is watched while Folia is silent, whatever song the screen holds', () => {
+        usePlaybackStore.setState({
+            playbackRoute: 'web', audioSrc: null, playerState: PlayerState.PAUSED,
+            currentSong: localSong, playQueue: [localSong], isFmMode: false,
+        });
+        expect(followsPlayerChangesForShownSong()).toBe(true);
+
+        usePlaybackStore.setState({ playerState: PlayerState.PLAYING });
+        expect(followsPlayerChangesForShownSong()).toBe(false);
     });
 });

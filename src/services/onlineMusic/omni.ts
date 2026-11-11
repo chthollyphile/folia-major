@@ -1271,6 +1271,34 @@ export const omni = {
         return await external.runningStatus(song);
     },
 
+    // What a provider's own player has, asked of the provider rather than of a song: for the player
+    // a way of playing follows while the screen shows a song of another kind, which that player
+    // could never hold. Read by the provider's id, since no song here is that player's. A read only,
+    // as the one above is, and nothing where the provider cannot be asked without steering it.
+    async getExternalPlaybackRunningTrack(providerId: OmniProviderId): Promise<ProviderExternalPlaybackStatus | null> {
+        const external = getOnlineMusicProvider(providerId)?.externalPlayback;
+        if (!external?.runningTrack) return null;
+        return await external.runningTrack();
+    },
+
+    // Whether the way of playing a provider is on now follows what the listener does in the player's
+    // own window (the trait above, read without a song of that provider to name it).
+    followsPlayerChangesOf(providerId: OmniProviderId): boolean {
+        return getOnlineMusicProvider(providerId)?.externalPlayback?.followsPlayerChanges === true;
+    },
+
+    // The way of playing whose listener keeps using the player's own window, for a screen holding a
+    // song that player could never sound: the one that declared it, read off the providers rather
+    // than off a song. Null where no way of playing declares it now.
+    followingPlayerChangesProviderId(): OmniProviderId | null {
+        for (const provider of listOnlineMusicProviders()) {
+            if (provider.capabilities.externalPlayback && provider.externalPlayback?.followsPlayerChanges === true) {
+                return provider.id;
+            }
+        }
+        return null;
+    },
+
     // The quality levels a provider tells apart, lowest first (`OnlinePlaybackProvider.audioQualityLevels`;
     // standard, high, lossless and hires without it): the ones the quality option shows for it.
     // Read anew on every call: a provider's list may change with its account.

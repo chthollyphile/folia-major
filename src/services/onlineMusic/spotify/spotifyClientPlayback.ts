@@ -840,6 +840,34 @@ export const spotifyClientPlayback: OnlineExternalPlaybackProvider = {
             return null;
         }
     },
+    // The track the app has now, whoever asked for it: the listener may have started something in
+    // Spotify's own window while Folia shows a song of another kind, so no song of this app is
+    // compared with the answer. A read only, and one that names no track of its own (the coarse
+    // channel, an advertisement) answers null, so nothing is taken over on a name that cannot be
+    // steered. It carries the same one port search a restore's first read brings.
+    async runningTrack() {
+        let data: SpotifyWireClientStatus;
+        try {
+            data = await requestSpotify<SpotifyWireClientStatus>('client_status_found');
+        } catch (error) {
+            console.warn('[SpotifyClient] the app could not say which track it is on', error);
+            return null;
+        }
+        if (data.ad || data.fallback === true) return null;
+        // Read as the app's own answer, never through `statusOfClient`: that one compares the track
+        // with the song Folia asked for and reports an end or a step of its own, which is nothing
+        // this caller acts on.
+        const id = data.id.trim();
+        if (!id) return null;
+        return {
+            mediaId: id,
+            isPlaying: !data.isPaused && !data.isBuffering,
+            positionMs: Math.max(0, data.positionMs || 0),
+            durationMs: Math.max(0, data.durationMs || 0),
+            ended: false,
+            starting: !data.isPaused && data.isBuffering,
+        };
+    },
     async getStatus() {
         return statusOfClient(await requestSpotify<SpotifyWireClientStatus>('client_status'));
     },
