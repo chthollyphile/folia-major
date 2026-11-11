@@ -450,6 +450,10 @@ const repeatModeOf = name => {
     return REPEAT_MODES[name];
 };
 const repeatNameOf = (modes, value) => Object.keys(modes).find(name => modes[name] === value) ?? null;
+// What the log calls each repeat, by the name `repeatNameOf` gives it: a start that changed one of
+// the listener's says which repeat it found, and off is a value of its own.
+const REPEAT_WORDS = Object.freeze({ off: 'repeat that was off', all: 'repeat of the list', one: 'repeat of the track' });
+const repeatWordsOf = name => (Object.hasOwn(REPEAT_WORDS, name) ? REPEAT_WORDS[name] : null);
 
 // What Spotify marks as an advertisement (metadata.is_advertisement, measured as the string 'true').
 const isAdvertisementItem = item => Boolean(item && (
@@ -1675,8 +1679,10 @@ function createSpotifyOfficialClient({
                 leftRepeat = 0;
             }
             if (changed.repeat || changed.shuffle === true) {
+                // The value it found, named as it was: a repeat of the track, of the list, or one that
+                // was off. Naming them all the track would say the app repeated this song already.
                 log('[SpotifyClient] the listener\'s own '
-                    + [changed.repeat ? 'repeat of the track' : null, changed.shuffle === true ? 'shuffle' : null]
+                    + [changed.repeat ? repeatWordsOf(changed.repeat) : null, changed.shuffle === true ? 'shuffle' : null]
                         .filter(Boolean).join(' and ')
                     + (single ? ' had to be changed for repeat one' : ' had to be changed for Folia\'s order')
                     + '; it is put back when this way is left');
@@ -1886,5 +1892,5 @@ function createSpotifyOfficialClient({
 
 module.exports = {
     CDP_PORT, MAX_QUEUED, PLAY_STATE_SOURCE, QUEUE_SOURCE, REPEAT_TRACK_SOURCE, RESTORE_STATE_SOURCE, START_QUEUE_SOURCE, START_WAIT_SOURCE,
-    createSpotifyOfficialClient, findLauncher, isAdvertisementItem, repeatModeOf, statusFromMediaSession, statusFromPlayerState,
+    createSpotifyOfficialClient, findLauncher, isAdvertisementItem, repeatModeOf, repeatNameOf, repeatWordsOf, statusFromMediaSession, statusFromPlayerState,
 };

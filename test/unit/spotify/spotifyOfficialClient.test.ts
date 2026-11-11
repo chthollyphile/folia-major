@@ -18,7 +18,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const require = createRequire(import.meta.url);
 const {
     PLAY_STATE_SOURCE, QUEUE_SOURCE, REPEAT_TRACK_SOURCE, RESTORE_STATE_SOURCE, START_QUEUE_SOURCE, START_WAIT_SOURCE,
-    createSpotifyOfficialClient, isAdvertisementItem, repeatModeOf, statusFromMediaSession, statusFromPlayerState,
+    createSpotifyOfficialClient, isAdvertisementItem, repeatModeOf, repeatWordsOf, statusFromMediaSession, statusFromPlayerState,
 } = require('../../../electron/spotify/officialClient.cjs');
 const { createSpotifyApiBridge, SPOTIFY_OPERATIONS } = require('../../../electron/spotify/spotifyApiBridge.cjs');
 const { spotifyError } = require('../../../electron/spotify/errors.cjs');
@@ -545,6 +545,22 @@ describe('the repeat and the shuffle Folia put back', () => {
         await expect(app.client.play({ id: TRACK, startMs: 0 })).resolves.toBe('loaded');
         expect(app.client.changedState()).toEqual({ repeat: 'one', shuffle: true });
         await app.client.close();
+    });
+
+    it('says in the log which repeat it found rather than calling them all the track', async () => {
+        // The three values a play can find, each named as it was: off, the list, the track itself.
+        for (const [repeat, words] of [['off', 'repeat that was off'], ['all', 'repeat of the list'], ['one', 'repeat of the track']]) {
+            playedWith({ repeat });
+            const app = makeClient({ running: true, portAnswers: true });
+            await expect(app.client.play({ id: TRACK, startMs: 0 })).resolves.toBe('loaded');
+            const said = app.log.mock.calls.map(call => String(call[0]))
+                .filter(line => line.includes('had to be changed for Folia\'s order'));
+            expect(said).toEqual([expect.stringContaining(words)]);
+            await app.client.close();
+        }
+        // The words are the ones `repeatNameOf` names the values with, and nothing else is one.
+        expect([repeatWordsOf('off'), repeatWordsOf('all'), repeatWordsOf('one')]).toEqual(['repeat that was off', 'repeat of the list', 'repeat of the track']);
+        expect(repeatWordsOf(null)).toBeNull();
     });
 
     it('keeps the first original of a run, never the one Folia itself set', async () => {
