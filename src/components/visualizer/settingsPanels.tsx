@@ -10,6 +10,7 @@ import { DioramaEffectSettings } from './diorama/DioramaEffectSettings';
 import { resolveDioramaMoteCircumference, resolveDioramaMoteRadial } from './diorama/dioramaMoteField';
 import { percent, SliderRow, times } from './panelRows';
 import LyricRenderQualityRows from './renderQuality/LyricRenderQualityRows';
+import { CLADDAGH_POSITION_LIMIT_PERCENT } from './claddagh/tuning';
 import { DEFAULT_LYRIC_RENDER_OVERRIDE } from '../../utils/lyricRenderQuality';
 
 // src/components/visualizer/settingsPanels.tsx
@@ -812,7 +813,12 @@ export const CladdaghSettingsPanel: React.FC<VisualizerSettingsPanelProps<Cladda
         showAxisLine: claddaghTuning.showAxisLine ?? DEFAULT_CLADDAGH_TUNING.showAxisLine,
         letterSpacingOffset: clampCladdaghLetterSpacingOffset(claddaghTuning.letterSpacingOffset ?? DEFAULT_CLADDAGH_TUNING.letterSpacingOffset),
     };
+    const positionX = claddaghTuning.positionX ?? 0;
+    const positionY = claddaghTuning.positionY ?? 0;
+    const showTranslation = claddaghTuning.showTranslation ?? false;
     const drag = { onDragStart: onSliderPointerDown, onDragEnd: onSliderCommit };
+    const signedPercent = (value: number) => `${value > 0 ? '+' : ''}${Math.round(value)}%`;
+    const spacingPx = (value: number) => `${value > 0 ? '+' : ''}${value.toFixed(1)}px`;
 
     return (
         <Group def={CLADDAGH_GROUP}>
@@ -838,6 +844,26 @@ export const CladdaghSettingsPanel: React.FC<VisualizerSettingsPanelProps<Cladda
             />
             <SliderRow
                 {...drag}
+                label={t('options.claddaghPositionX')}
+                value={positionX}
+                min={-CLADDAGH_POSITION_LIMIT_PERCENT}
+                max={CLADDAGH_POSITION_LIMIT_PERCENT}
+                step={1}
+                format={signedPercent}
+                onChange={(value) => onCladdaghTuningChange({ positionX: value })}
+            />
+            <SliderRow
+                {...drag}
+                label={t('options.claddaghPositionY')}
+                value={positionY}
+                min={-CLADDAGH_POSITION_LIMIT_PERCENT}
+                max={CLADDAGH_POSITION_LIMIT_PERCENT}
+                step={1}
+                format={signedPercent}
+                onChange={(value) => onCladdaghTuningChange({ positionY: value })}
+            />
+            <SliderRow
+                {...drag}
                 label={t('options.claddaghEllipseTiltDeg')}
                 value={resolvedTuning.ellipseTiltDeg}
                 min={0}
@@ -859,9 +885,39 @@ export const CladdaghSettingsPanel: React.FC<VisualizerSettingsPanelProps<Cladda
                 min={-5}
                 max={20}
                 step={0.5}
-                format={(value) => `${value > 0 ? '+' : ''}${value.toFixed(1)}px`}
+                format={spacingPx}
                 onChange={(value) => onCladdaghTuningChange?.({ letterSpacingOffset: value })}
             />
+            <Row label={t('options.claddaghShowTranslation')}>
+                <Toggle
+                    checked={showTranslation}
+                    onChange={(next) => onCladdaghTuningChange({ showTranslation: next })}
+                />
+            </Row>
+            <Reveal when={showTranslation}>
+                <SliderRow
+                    {...drag}
+                    sub
+                    label={t('options.claddaghTranslationScale')}
+                    value={claddaghTuning.translationScale ?? 1}
+                    min={0.5}
+                    max={2}
+                    step={0.05}
+                    format={times}
+                    onChange={(value) => onCladdaghTuningChange({ translationScale: value })}
+                />
+                <SliderRow
+                    {...drag}
+                    sub
+                    label={t('options.claddaghTranslationLetterSpacingOffset')}
+                    value={claddaghTuning.translationLetterSpacingOffset ?? 0}
+                    min={-5}
+                    max={20}
+                    step={0.5}
+                    format={spacingPx}
+                    onChange={(value) => onCladdaghTuningChange({ translationLetterSpacingOffset: value })}
+                />
+            </Reveal>
         </Group>
     );
 };

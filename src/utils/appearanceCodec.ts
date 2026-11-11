@@ -11,7 +11,9 @@ import {
     DEFAULT_SMART_BEAT_SETTINGS,
     DEFAULT_SONNET_TUNING,
     DEFAULT_TEMPERA_TUNING,
+    type CladdaghTuning,
     type DualTheme,
+    type MonetTuning,
     type Theme,
 } from '../types';
 import { normalizeRandomVisualizerModes } from './randomVisualizerModes';
@@ -119,16 +121,35 @@ const decompressFume = (o: any): any => ({
     heroScale: o.hs !== undefined ? o.hs : 1,
 });
 
-const compressCladdagh = (t: any): any => ({
-    fsr: t.focusScaleRatio,
-    rs: t.radiusScale,
-    etd: t.ellipseTiltDeg,
-});
-const decompressCladdagh = (o: any): any => ({
-    focusScaleRatio: o.fsr !== undefined ? o.fsr : DEFAULT_CLADDAGH_TUNING.focusScaleRatio,
-    radiusScale: o.rs !== undefined ? o.rs : DEFAULT_CLADDAGH_TUNING.radiusScale,
-    ellipseTiltDeg: o.etd !== undefined ? o.etd : DEFAULT_CLADDAGH_TUNING.ellipseTiltDeg,
-});
+const compressCladdagh = (tuning: unknown) => {
+    const t = tuning as CladdaghTuning;
+    return {
+        fsr: t.focusScaleRatio,
+        rs: t.radiusScale,
+        etd: t.ellipseTiltDeg,
+        // 圆环位置与翻译（#1124）
+        cpx: t.positionX,
+        cpy: t.positionY,
+        cst: t.showTranslation,
+        cts: t.translationScale,
+        ctl: t.translationLetterSpacingOffset,
+    };
+};
+type CladdaghShortCode = Partial<ReturnType<typeof compressCladdagh>>;
+// 没有这几项的旧短码：圆环在正中、不显示翻译
+const decompressCladdagh = (code: unknown): Partial<CladdaghTuning> => {
+    const o = code as CladdaghShortCode;
+    return {
+        focusScaleRatio: o.fsr !== undefined ? o.fsr : DEFAULT_CLADDAGH_TUNING.focusScaleRatio,
+        radiusScale: o.rs !== undefined ? o.rs : DEFAULT_CLADDAGH_TUNING.radiusScale,
+        ellipseTiltDeg: o.etd !== undefined ? o.etd : DEFAULT_CLADDAGH_TUNING.ellipseTiltDeg,
+        positionX: o.cpx !== undefined ? o.cpx : DEFAULT_CLADDAGH_TUNING.positionX,
+        positionY: o.cpy !== undefined ? o.cpy : DEFAULT_CLADDAGH_TUNING.positionY,
+        showTranslation: o.cst !== undefined ? o.cst : DEFAULT_CLADDAGH_TUNING.showTranslation,
+        translationScale: o.cts !== undefined ? o.cts : DEFAULT_CLADDAGH_TUNING.translationScale,
+        translationLetterSpacingOffset: o.ctl !== undefined ? o.ctl : DEFAULT_CLADDAGH_TUNING.translationLetterSpacingOffset,
+    };
+};
 
 const compressCappella = (t: any): any => ({
     sem: t.showEmoMessages,
@@ -337,28 +358,45 @@ const decompressSoraBackground = (o: any): any => ({
     blank: o.bl !== undefined ? o.bl : DEFAULT_SORA_BACKGROUND_TUNING.blank,
 });
 
-const compressMonet = (t: any): any => ({
-    kce: t.keywordColoringEnabled,
-    msd: t.showDescription,
-    mav: t.showAudioVisualization,
-    mas: t.audioStyle,
-    mfs: t.fontScale,
-    mps: t.portraitSource,
-    pox: t.portraitOffsetX,
-    mpy: t.portraitStyle,
-    mpdh: t.showPortraitDragHanger,
-});
-const decompressMonet = (o: any): any => ({
-    keywordColoringEnabled: o.kce !== undefined ? o.kce : DEFAULT_MONET_TUNING.keywordColoringEnabled,
-    showDescription: o.msd !== undefined ? o.msd : DEFAULT_MONET_TUNING.showDescription,
-    showAudioVisualization: o.mav !== undefined ? o.mav : DEFAULT_MONET_TUNING.showAudioVisualization,
-    audioStyle: o.mas || DEFAULT_MONET_TUNING.audioStyle,
-    fontScale: o.mfs !== undefined ? o.mfs : DEFAULT_MONET_TUNING.fontScale,
-    portraitSource: o.mps || DEFAULT_MONET_TUNING.portraitSource,
-    portraitOffsetX: o.pox !== undefined ? o.pox : DEFAULT_MONET_TUNING.portraitOffsetX,
-    portraitStyle: o.mpy || DEFAULT_MONET_TUNING.portraitStyle,
-    showPortraitDragHanger: o.mpdh !== undefined ? o.mpdh : DEFAULT_MONET_TUNING.showPortraitDragHanger,
-});
+const compressMonet = (tuning: unknown) => {
+    const t = tuning as MonetTuning;
+    return {
+        kce: t.keywordColoringEnabled,
+        msd: t.showDescription,
+        mav: t.showAudioVisualization,
+        mas: t.audioStyle,
+        mfs: t.fontScale,
+        mps: t.portraitSource,
+        pox: t.portraitOffsetX,
+        mpy: t.portraitStyle,
+        mpdh: t.showPortraitDragHanger,
+        // 镜像、自定义描述、描述与拖动按钮的三态显示（#1124）
+        mmir: t.mirrorLayout,
+        mcd: t.customDescription,
+        mdv: t.descriptionVisibility,
+        mhv: t.portraitHangerVisibility,
+    };
+};
+type MonetShortCode = Partial<ReturnType<typeof compressMonet>>;
+const decompressMonet = (code: unknown): Partial<MonetTuning> => {
+    const o = code as MonetShortCode;
+    return {
+        keywordColoringEnabled: o.kce !== undefined ? o.kce : DEFAULT_MONET_TUNING.keywordColoringEnabled,
+        showDescription: o.msd !== undefined ? o.msd : DEFAULT_MONET_TUNING.showDescription,
+        showAudioVisualization: o.mav !== undefined ? o.mav : DEFAULT_MONET_TUNING.showAudioVisualization,
+        audioStyle: o.mas || DEFAULT_MONET_TUNING.audioStyle,
+        fontScale: o.mfs !== undefined ? o.mfs : DEFAULT_MONET_TUNING.fontScale,
+        portraitSource: o.mps || DEFAULT_MONET_TUNING.portraitSource,
+        portraitOffsetX: o.pox !== undefined ? o.pox : DEFAULT_MONET_TUNING.portraitOffsetX,
+        portraitStyle: o.mpy || DEFAULT_MONET_TUNING.portraitStyle,
+        showPortraitDragHanger: o.mpdh !== undefined ? o.mpdh : DEFAULT_MONET_TUNING.showPortraitDragHanger,
+        mirrorLayout: o.mmir !== undefined ? o.mmir : DEFAULT_MONET_TUNING.mirrorLayout,
+        customDescription: o.mcd !== undefined ? o.mcd : DEFAULT_MONET_TUNING.customDescription,
+        // 旧短码只有开关：开是自动隐藏，关是隐藏（monet/tuning.ts 的 resolveMonetChromeVisibility 补齐）
+        descriptionVisibility: o.mdv,
+        portraitHangerVisibility: o.mhv,
+    };
+};
 
 const compressPendolo = (t: any): any => ({
     sgd: t.showGearDecor,

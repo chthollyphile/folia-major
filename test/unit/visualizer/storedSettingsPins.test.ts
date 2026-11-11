@@ -112,7 +112,10 @@ const CURRENT: Record<string, unknown> = {
         hidePrintSymbols: true, disableGeometricBackground: false, backgroundObjectOpacity: 0.3, textHoldRatio: 0.7,
         cameraTrackingMode: 'stepped', cameraSpeed: 1.4, glowIntensity: 0.6, heroScale: 1.2,
     },
-    claddagh_tuning: { focusScaleRatio: 0.9, radiusScale: 1.2, ellipseTiltDeg: 30, showAxisLine: false, letterSpacingOffset: 4 },
+    claddagh_tuning: {
+        focusScaleRatio: 0.9, radiusScale: 1.2, ellipseTiltDeg: 30, showAxisLine: false, letterSpacingOffset: 4,
+        positionX: -12, positionY: 8, showTranslation: true, translationScale: 1.3, translationLetterSpacingOffset: 2,
+    },
     cappella_tuning: { showEmoMessages: false, emojiPackSource: 'custom', avatarSource: 'color' },
     tilt_tuning: { splitProbability: 0.4, tiltStyleProbability: 0.6, colorScheme: 'swap' },
     diorama_tuning: {
@@ -126,6 +129,7 @@ const CURRENT: Record<string, unknown> = {
         ...DEFAULT_MONET_TUNING,
         keywordColoringEnabled: !DEFAULT_MONET_TUNING.keywordColoringEnabled, showDescription: !DEFAULT_MONET_TUNING.showDescription,
         audioStyle: 'line', fontScale: 1.2, portraitSource: 'custom', portraitOffsetX: -40, portraitStyle: 'rectangular',
+        descriptionVisibility: 'hidden', portraitHangerVisibility: 'always', mirrorLayout: true, customDescription: 'Late night',
         render: { scale: 0.5, antialias: 'global' },
     },
     pendolo_tuning: {

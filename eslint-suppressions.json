@@ -5383,7 +5383,7 @@
   },
   "src/components/visualizer/monet/MonetSettingsPanel.tsx": {
     "@typescript-eslint/no-unnecessary-condition": {
-      "count": 20
+      "count": 18
     },
     "@typescript-eslint/no-useless-default-assignment": {
       "count": 1
@@ -11206,16 +11206,16 @@
       "count": 2
     },
     "@typescript-eslint/no-explicit-any": {
-      "count": 80
+      "count": 72
     },
     "@typescript-eslint/no-unsafe-argument": {
       "count": 4
     },
     "@typescript-eslint/no-unsafe-assignment": {
-      "count": 483
+      "count": 455
     },
     "@typescript-eslint/no-unsafe-member-access": {
-      "count": 999
+      "count": 966
     },
     "dedicatus/restricted-apis": {
       "count": 1

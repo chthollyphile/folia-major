@@ -1,9 +1,16 @@
 import React from 'react';
 import { AlignLeft, AudioWaveform, Move } from 'lucide-react';
-import { DEFAULT_MONET_TUNING, type MonetTuning } from '../../../types';
-import { QuickControlToggle } from '../../shared/QuickControlChip';
+import { DEFAULT_MONET_TUNING, MONET_CHROME_VISIBILITIES, type MonetChromeVisibility, type MonetTuning } from '../../../types';
+import { cycleValue, QuickControlToggle } from '../../shared/QuickControlChip';
 import { defineVisualizer, type VisualizerQuickControlsProps } from '../definition';
 import { MonetSettingsPanel } from './MonetSettingsPanel';
+import { resolveMonetChromeVisibility } from './tuning';
+
+const CHROME_VISIBILITY_LABEL_KEYS: Record<MonetChromeVisibility, string> = {
+    auto: 'options.monetChromeVisibilityAuto',
+    always: 'options.monetChromeVisibilityAlways',
+    hidden: 'options.monetChromeVisibilityHidden',
+};
 
 const VisualizerMonet = React.lazy(() => import('./VisualizerMonet'));
 
@@ -47,20 +54,22 @@ export default defineVisualizer({
     },
     renderSettingsPanel: props => <MonetSettingsPanel {...props} />,
     renderQuickControls: ({ tuning, onTuningChange, t }: VisualizerQuickControlsProps<MonetTuning>) => {
-        const showHanger = tuning.showPortraitDragHanger ?? true;
+        // The description and the drag handle each step through auto-hide, always shown and hidden on a click.
+        const description = resolveMonetChromeVisibility(tuning.descriptionVisibility, tuning.showDescription);
+        const hanger = resolveMonetChromeVisibility(tuning.portraitHangerVisibility, tuning.showPortraitDragHanger);
         return (
             <>
                 <QuickControlToggle
-                    active={tuning.showDescription}
-                    label={t('options.monetShowDescription')}
-                    onToggle={() => onTuningChange({ showDescription: !tuning.showDescription })}
+                    active={description !== 'hidden'}
+                    label={`${t('options.monetShowDescription')}: ${t(CHROME_VISIBILITY_LABEL_KEYS[description])}`}
+                    onToggle={() => onTuningChange({ descriptionVisibility: cycleValue(MONET_CHROME_VISIBILITIES, description) })}
                 >
                     <AlignLeft size={14} />
                 </QuickControlToggle>
                 <QuickControlToggle
-                    active={showHanger}
-                    label={t('options.monetPortraitDragHanger')}
-                    onToggle={() => onTuningChange({ showPortraitDragHanger: !showHanger })}
+                    active={hanger !== 'hidden'}
+                    label={`${t('options.monetPortraitDragHanger')}: ${t(CHROME_VISIBILITY_LABEL_KEYS[hanger])}`}
+                    onToggle={() => onTuningChange({ portraitHangerVisibility: cycleValue(MONET_CHROME_VISIBILITIES, hanger) })}
                 >
                     <Move size={14} />
                 </QuickControlToggle>

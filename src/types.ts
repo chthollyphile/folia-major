@@ -554,7 +554,18 @@ export interface CladdaghTuning {
   radiusScale: number;
   ellipseTiltDeg: number;
   showAxisLine: boolean;
+  /** 主歌词字符间距（px，每个字间隙额外加的量）。 */
   letterSpacingOffset: number;
+  /** 圆环中心的左右位置（#1124）：相对画面宽度的百分比，0 是正中，正值往右。 */
+  positionX?: number;
+  /** 圆环中心的上下位置（#1124）：相对画面高度的百分比，0 是正中，正值往下。 */
+  positionY?: number;
+  /** 在每句主歌词下方沿圆环显示翻译（#1124）。 */
+  showTranslation?: boolean;
+  /** 翻译字号相对默认（主歌词的一半）的倍率。 */
+  translationScale?: number;
+  /** 翻译字符间距（px），同 letterSpacingOffset 的算法。 */
+  translationLetterSpacingOffset?: number;
 }
 
 export const DEFAULT_CLADDAGH_TUNING: CladdaghTuning = {
@@ -563,6 +574,11 @@ export const DEFAULT_CLADDAGH_TUNING: CladdaghTuning = {
   ellipseTiltDeg: 45,
   showAxisLine: true,
   letterSpacingOffset: 0,
+  positionX: 0,
+  positionY: 0,
+  showTranslation: false,
+  translationScale: 1,
+  translationLetterSpacingOffset: 0,
 };
 
 export type CappellaEmojiPackSource = 'builtin' | 'custom';
@@ -1095,7 +1111,11 @@ export type NomandBackgroundEffect = 'dithering' | 'fluted-glass' | 'paper-textu
 export type LatentBackgroundDisplayMode = 'dithering' | 'mesh' | 'both';
 export type LatentBackgroundColorSource = 'cover-theme' | 'cover-only';
 export type MonetAudioStyle = 'bar' | 'line';
-export type MonetPortraitSource = 'cover' | 'custom';
+// 'none' 不显示肖像，只留歌词（#1124）。
+export type MonetPortraitSource = 'cover' | 'custom' | 'none';
+// 莫奈的歌曲描述和封面拖动按钮：鼠标移上去才出现（原来的样子）、一直显示、不显示。
+export type MonetChromeVisibility = 'auto' | 'always' | 'hidden';
+export const MONET_CHROME_VISIBILITIES: readonly MonetChromeVisibility[] = ['auto', 'always', 'hidden'];
 export type BuiltinVisualizerBackgroundMode = 'common' | 'monet' | 'nomand' | 'latent' | 'url' | 'sora';
 export type VisualizerBackgroundMode = BuiltinVisualizerBackgroundMode | (string & {});
 
@@ -1176,14 +1196,24 @@ export interface MonetTuning {
   /** 分辨率与抗锯齿（#929）：默认跟随「动画与性能」里的全局挡位（utils/lyricRenderQuality.ts）。 */
   render: LyricRenderOverride;
   keywordColoringEnabled: boolean;
+  /** Whether the description shows at all; kept equal to `descriptionVisibility !== 'hidden'` for older readers. */
   showDescription: boolean;
+  /** How the song description shows. Older tunings have only `showDescription`: on is 'auto'. */
+  descriptionVisibility?: MonetChromeVisibility;
   showAudioVisualization: boolean;
   audioStyle: MonetAudioStyle;
   fontScale: number;
   portraitSource: MonetPortraitSource;
   portraitOffsetX?: number;
   portraitStyle?: 'square' | 'rectangular';
+  /** Whether the drag handle shows at all; kept equal to `portraitHangerVisibility !== 'hidden'` for older readers. */
   showPortraitDragHanger?: boolean;
+  /** How the portrait's drag handle shows. Older tunings have only `showPortraitDragHanger`: on is 'auto'. */
+  portraitHangerVisibility?: MonetChromeVisibility;
+  /** 歌词左右镜像（#1124）：肖像在左、文字靠右排，整个画面左右对称。 */
+  mirrorLayout?: boolean;
+  /** 自定义的歌曲描述；空着就显示主题自带的描述。 */
+  customDescription?: string;
 }
 
 export const DEFAULT_MONET_BACKGROUND_TUNING: MonetBackgroundTuning = {
@@ -1253,6 +1283,7 @@ export const DEFAULT_MONET_TUNING: MonetTuning = {
   render: { scale: 'global', antialias: 'global' },
   keywordColoringEnabled: true,
   showDescription: true,
+  descriptionVisibility: 'auto',
   showAudioVisualization: true,
   audioStyle: 'bar',
   fontScale: 1.2,
@@ -1260,6 +1291,9 @@ export const DEFAULT_MONET_TUNING: MonetTuning = {
   portraitOffsetX: 0,
   portraitStyle: 'square',
   showPortraitDragHanger: true,
+  portraitHangerVisibility: 'auto',
+  mirrorLayout: false,
+  customDescription: '',
 };
 
 export interface StoredCappellaEmojiImage {
