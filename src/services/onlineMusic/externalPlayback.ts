@@ -664,9 +664,9 @@ const markPlaying = (positionSec: number, preserveClock = false) => {
 };
 
 /**
- * Writes a stopped song down. `holdLimitSec` is the longest stretch the bar may be held ahead of the
+ * Writes a stopped song down. holdLimitSec is the longest stretch the bar may be held ahead of the
  * spot written here where it was already past it: a pause that is written down while a move of the
- * listener's is still being held leaves the bar ahead of the spot the player lands on, and `0` says
+ * listener's is still being held leaves the bar ahead of the spot the player lands on, and zero says
  * that lead belongs to the wait for the spot and not to the pause - a stopped song shows where the
  * player stands, so the bar and the lyrics step back the lead once and stand there for the whole
  * pause. Left out, the route's own limit applies, which is what every pause that is not a drop's own
@@ -1006,7 +1006,7 @@ const applyStatus = (status: ProviderExternalPlaybackStatus, sampledAtMs: number
     // on is not one the pause keeps: the song was stopped while the player was still loading the spot,
     // and a stopped song stands where the player put it rather than where the bar ran on to. That lead
     // could be any length up to the limit a move is given, and held here it stood for as long as the
-    // song stayed stopped (D45).
+    // song stayed stopped.
     markPaused(settledSpotSec, settledMove ? 0 : undefined);
 };
 
