@@ -2,9 +2,11 @@ import { PlayerState, type SongResult } from '../../../../types';
 import type { ProviderExternalPlaybackStatus } from '../../../../types/onlineMusic';
 import { adoptExternalPlayback, getExternalSong, isExternalRoute, yieldExternalPlayback } from '../../../../services/onlineMusic/externalPlayback';
 import { omni } from '../../../../services/onlineMusic/omni';
+import { markProgrammaticPause, playbackFade } from '../../../../services/playbackFade';
 import { currentTime } from '../../../../stores/motionSignals';
 import { setDuration, usePlaybackStore } from '../../../../stores/usePlaybackStore';
 import { getOnlineProviderIdForSong, getPlaybackSongKey } from '../../../../utils/appPlaybackGuards';
+import { findPlaybackDecks, unloadDeck } from '../../../hifi/useWebEngineYield';
 import { askedSongKeyRef, makeSongCurrent, startOfAskedSong } from '../currentSong';
 import { resolveRunningTrack, resolveRunningTrackOf } from '../restore/runningTrack';
 
@@ -66,6 +68,22 @@ const namesItsTrack = (status: ProviderExternalPlaybackStatus): boolean => (
     status.mediaId !== '' && status.advertisement !== true && status.degraded !== true
 );
 
+/**
+ * The player is this app's now: nothing of this window may sound beside it. A pause pressed a moment
+ * before the take-over only ramped the gain down, and the deck itself is paused about 200ms later -
+ * by a pending pause the transport drops once another song is on screen. The fade is dropped and the
+ * decks are paused and emptied here, which a null source on its own does not do. Each pause is marked
+ * as this app's own: left unmarked, the deck's pause event would drop the transport to PAUSED over
+ * the song the player is sounding.
+ */
+const stopLocalDecksForTakeOver = (): void => {
+    playbackFade.cancel();
+    findPlaybackDecks(null).forEach(deck => {
+        markProgrammaticPause(deck);
+        unloadDeck(deck);
+    });
+};
+
 /** Whether `song` is the song this app shows now. */
 const isShownSong = (song: SongResult): boolean => {
     const shown = usePlaybackStore.getState().currentSong;
@@ -92,6 +110,7 @@ export const takeOverRunningPlayer = async (
         // A player that answers through its coarse channel is not taken over: the app cannot steer it.
         if (running.isPlaying && running.degraded !== true) {
             const adopted = await adoptExternalPlayback(remembered);
+            if (adopted) stopLocalDecksForTakeOver();
             // A song asked for while the player was taken over owns the screen: the route just taken
             // is given up rather than left following a song nobody shows. A play of that song may have
             // begun a session of its own meanwhile, and that one is left sounding.
@@ -148,6 +167,8 @@ const settleTrackTakeOver = async (
             if (stillCurrent()) makeSongCurrent(remembered);
             return 'untouched';
         }
+        // This window sounds nothing of the track from here: the player has it.
+        stopLocalDecksForTakeOver();
         // The player took the track under another song that is now on screen: it is this window's
         // again and nothing of the track is shown, so it is given up as a stop gives it up.
         if (!stillCurrent()) {
@@ -169,6 +190,7 @@ const settleTrackTakeOver = async (
     if (options.adoptsPausedTrack === true && stillCurrent()) {
         const adopted = await adoptExternalPlayback(track);
         if (adopted) {
+            stopLocalDecksForTakeOver();
             if (!stillCurrent()) {
                 yieldExternalPlayback('another song was asked for while the paused track was taken over', adopted);
                 return 'untouched';
@@ -239,11 +261,18 @@ export const followRunningExternalPlayer = async (
     return await takeOverRunningPlayer(shown, running, options);
 };
 
+/** Whether a deck of this window is still sounding: paused after the fade-out, or finished, is silence. */
+const isDeckSounding = (): boolean => findPlaybackDecks(null).some(deck => !deck.paused && !deck.ended);
+
 /**
- * Whether Folia itself is making sound now: its own engine playing a song. A paused or idle screen
+ * Whether Folia itself is making sound now: its own engine playing a song. A deck still sounding is
+ * sound even where the screen already reads paused - the transport shows PAUSED at the press, and
+ * the fade-out pauses the element about 200ms later. A paused or idle screen with no deck sounding
  * is silent, whatever song it holds, and so is a screen whose song is only taken over.
  */
-const isFoliaSoundingSong = (): boolean => usePlaybackStore.getState().playerState === PlayerState.PLAYING;
+const isFoliaSoundingSong = (): boolean => (
+    usePlaybackStore.getState().playerState === PlayerState.PLAYING || isDeckSounding()
+);
 
 /**
  * Whether the song on screen is watched for what the listener starts in a player of their own: a way

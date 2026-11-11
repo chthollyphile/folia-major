@@ -52,7 +52,7 @@ const { followRunningExternalPlayer, followsPlayerChangesForShownSong } = await 
 const { usePlaybackStore } = await import('@/stores/usePlaybackStore');
 const { PlayerState } = await import('@/types');
 const { useAudioSettingsStore } = await import('@/stores/useAudioSettingsStore');
-const { playbackFade, registerPlaybackFadeGraph, PAUSE_DRAIN_MS, PLAYBACK_FADE_SECONDS } = await import('@/services/playbackFade');
+const { consumeProgrammaticPause, playbackFade, registerPlaybackFadeGraph, PAUSE_DRAIN_MS, PLAYBACK_FADE_SECONDS } = await import('@/services/playbackFade');
 const { PLAYBACK_DECK_ATTRIBUTE } = await import('@/components/hifi/useWebEngineYield');
 
 const songOn = (mediaId: string, name = mediaId): SongResult => ({
@@ -190,6 +190,8 @@ describe('a local song still sounding while its pause fades out', () => {
         expect(engine.getExternalSong()).toEqual(track);
         expect(deck.element.pause).toHaveBeenCalled();
         expect(deck.element.hasAttribute('src')).toBe(false);
+        // Its pause event is this app's own: read as the listener's, it would pause the taken song.
+        expect(consumeProgrammaticPause(deck.element)).toBe(true);
     });
 
     it('drops the pause the fade-out was still going to make', async () => {
