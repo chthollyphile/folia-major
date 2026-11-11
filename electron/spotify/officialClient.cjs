@@ -1979,9 +1979,10 @@ function createSpotifyOfficialClient({
         // look costs a read of the port file and a netstat, so they are at least
         // STATUS_FOLLOW_SEARCH_GAP_MS apart and at most STATUS_FOLLOW_SEARCHES in a run, and none is
         // made where the app is not running at all - the run has nothing to look for. Judging whether
-        // it runs is itself one tasklist, taken at most once a minute for that reason. The allowance
-        // is given back when `ensure` starts a Spotify of its own: that start opens a new port to
-        // look for.
+        // it runs is itself one tasklist, and it is asked only on the read that would otherwise go on
+        // to look, so a read that is not due for a look, or has no allowance left, costs none; the
+        // gap is what keeps that to at most one a minute. The allowance is given back when `ensure`
+        // starts a Spotify of its own: that start opens a new port to look for.
         async statusFollowing() {
             const searching = !requestedPort && !foundPort
         && followPortSearches < STATUS_FOLLOW_SEARCHES
