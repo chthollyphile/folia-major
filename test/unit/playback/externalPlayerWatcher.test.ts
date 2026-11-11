@@ -152,8 +152,27 @@ describe('the watcher of a player that follows its listener', () => {
         await vi.advanceTimersByTimeAsync(10_000);
         expect(env.follow).toHaveBeenCalledTimes(1);
 
+        // Shown again: that read is the first, and the ordinary interval goes on from there.
         setHidden(false);
+        await vi.advanceTimersByTimeAsync(0);
+        expect(env.follow).toHaveBeenCalledTimes(2);
         await vi.advanceTimersByTimeAsync(3000);
+        expect(env.follow).toHaveBeenCalledTimes(3);
+    });
+
+    it('reads the player as soon as the page shows again, not a whole interval later', async () => {
+        MountBridge();
+        await vi.advanceTimersByTimeAsync(3000);
+        expect(env.follow).toHaveBeenCalledTimes(1);
+
+        setHidden(true);
+        await vi.advanceTimersByTimeAsync(10_000);
+        expect(env.follow).toHaveBeenCalledTimes(1);
+
+        // The page is the listener's again: waiting out the interval would leave what they just
+        // started in the player unseen for up to three seconds.
+        setHidden(false);
+        await vi.advanceTimersByTimeAsync(0);
         expect(env.follow).toHaveBeenCalledTimes(2);
     });
 

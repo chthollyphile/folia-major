@@ -76,7 +76,8 @@ export const isShownSong = (song: SongResult): boolean => {
  * Takes over what a player holds for `remembered`, the song this app shows: a player sounding that
  * very song is taken over as it stands, and one on another track, named by the id it carries, has
  * that track looked up, made the song this app shows and taken over in its place. A paused track is
- * only shown where it is, and a track that cannot be looked up leaves everything as it was.
+ * only shown where it is - unless the caller asks for a pause to be taken over too
+ * (`adoptsPausedTrack`) - and a track that cannot be looked up leaves everything as it was.
  */
 export const takeOverRunningPlayer = async (
     remembered: SongResult,

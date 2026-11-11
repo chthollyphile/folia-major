@@ -213,8 +213,17 @@ export function useExternalPlaybackBridge({ handleNextTrack, handlePrevTrack }: 
         };
         // A page shown again after a while reads the player at once rather than a full interval later.
         const onVisibility = () => {
-            if (document.visibilityState === 'hidden') stop();
-            else arm();
+            if (document.visibilityState === 'hidden') {
+                stop();
+                return;
+            }
+            // A read already on its way arms the next one itself; one that is not goes now.
+            if (running) {
+                arm();
+                return;
+            }
+            stop();
+            void tick();
         };
         document.addEventListener('visibilitychange', onVisibility);
         arm();
