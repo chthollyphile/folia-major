@@ -569,19 +569,30 @@ describe('a start that runs on after the interface', () => {
     it('takes the song round again where the player repeats it, and never ends or steps past it', async () => {
         const events: string[] = [];
         const unsubscribe = engine.subscribeExternalPlayback(event => events.push(event.type));
+        // What the media observers are told: the song coming round again is a move back to its
+        // start, said the way a seek is, so the position and the lyrics start over with it.
+        const seeked: number[] = [];
+        const onSeeked = () => seeked.push(engine.getExternalPosition());
+        engine.externalMediaShim.addEventListener('seeked', onSeeked);
         useAudioSettingsStore.setState({ loopMode: 'one' });
         omniMock.getExternalPlaybackStatus.mockImplementation(async () => status({ positionMs: 30000 }));
         const start = engine.startExternalPlayback(song, 0);
         engine.announceExternalPlayback();
         await start.seeded;
+        seeked.length = 0;
 
         // The player's own repeat sounded the song again from its start: the same song, at its
         // beginning, with no end and no step on.
-        omniMock.getExternalPlaybackStatus.mockImplementation(async () => status({ positionMs: 200 }));
+        omniMock.getExternalPlaybackStatus.mockImplementation(async () => status({ positionMs: 200, replayed: true }));
         await vi.advanceTimersByTimeAsync(600);
         expect(events).not.toContain('ended');
         expect(engine.getExternalPosition()).toBeLessThan(2);
         expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PLAYING);
+        // The shim was told, and told it at the start: the observers that read it a moment later see
+        // the song from its beginning rather than the position the turn came from.
+        expect(seeked).toHaveLength(1);
+        expect(seeked[0]).toBeLessThan(2);
+        engine.externalMediaShim.removeEventListener('seeked', onSeeked);
         unsubscribe();
     });
 

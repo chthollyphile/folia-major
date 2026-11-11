@@ -790,6 +790,104 @@ describe('the repeat and the shuffle Folia put back', () => {
     });
 });
 
+describe('the listener\'s own repeat across one run', () => {
+    /**
+     * A stand-in page whose player holds one repeat value, as Spotify's own does: each call answers
+     * the way the source it runs would, and every value written to it is recorded.
+     */
+    const pageOf = (initial: number) => {
+        const state = { repeat: initial, scripts: [] as string[], written: [] as number[] };
+        handle = expression => {
+            state.scripts.push(expression);
+            const put = (value: number) => { state.repeat = value; state.written.push(value); };
+            // The play: a start in repeat one keeps or turns on the app's repeat of the track, every
+            // other start turns it off and keeps what it found.
+            if (expression.includes('window.__foliaPlay')) {
+                if (expression.includes('singleLoop: true')) {
+                    const before = state.repeat;
+                    if (before === 2) return { value: { answer: 'loaded', changed: { repeat: null, shuffle: null }, left: 2 } };
+                    put(2);
+                    return { value: { answer: 'loaded', changed: { repeat: before === 1 ? 'all' : 'off', shuffle: null }, left: 2 } };
+                }
+                if (state.repeat === 2) {
+                    put(0);
+                    return { value: { answer: 'loaded', changed: { repeat: 'one', shuffle: null } } };
+                }
+                return { value: { answer: 'loaded', changed: { repeat: null, shuffle: null } } };
+            }
+            // The restore: the listener's own value goes back only where the app still holds the one
+            // Folia left, and a value they set meanwhile is theirs.
+            if (expression.includes('repeatExpected:')) {
+                const wanted = /const repeat = (\d+|null)/.exec(expression)?.[1] ?? 'null';
+                const expected = Number(/repeatExpected: (\d+|null)/.exec(expression)?.[1] ?? 'null');
+                if (wanted === 'null') return { value: { repeat: false, shuffle: false, read: true, now: state.repeat } };
+                if (state.repeat !== expected) return { value: { repeat: 'theirs', shuffle: false, read: true, now: state.repeat } };
+                put(Number(wanted));
+                return { value: { repeat: true, shuffle: false, read: true, now: state.repeat } };
+            }
+            // Repeat one handed to the app's own repeat of the track.
+            const before = state.repeat;
+            if (before !== 2) put(2);
+            return { value: { read: true, before, now: 2 } };
+        };
+        return state;
+    };
+
+    it('turns the listener\'s own repeat off by a play, on for repeat one, and writes it back when that goes off', async () => {
+        const state = pageOf(2);
+        const app = makeClient({ running: true, portAnswers: true });
+
+        // A song started in another mode: the app's repeat of the track would stall Folia's queue, so
+        // it is turned off, and the value it was is kept as the listener's own.
+        await expect(app.client.play({ id: TRACK, startMs: 0 })).resolves.toBe('loaded');
+        expect(state.repeat).toBe(0);
+        expect(app.client.changedState()).toEqual({ repeat: 'one', shuffle: null });
+
+        // Repeat one while the song plays: the app's own repeat of the track goes on, and the value
+        // kept is still the one the listener had.
+        await expect(app.client.setTrackRepeat({ on: true })).resolves.toEqual({ read: true, changed: true, now: 2 });
+        expect(state.repeat).toBe(2);
+        expect(app.client.changedState()).toEqual({ repeat: 'one', shuffle: null });
+
+        // Repeat one goes off: their repeat of the track goes back, once.
+        await expect(app.client.setTrackRepeat({ on: false })).resolves.toMatchObject({ read: true, now: 2 });
+        expect(state.repeat).toBe(2);
+        expect(state.written).toEqual([0, 2, 2]);
+        expect(app.client.changedState()).toEqual({ repeat: null, shuffle: null });
+
+        // Leaving this way of playing has nothing of theirs left to put back: the record went with
+        // that write, and no call is made for it.
+        const scripts = state.scripts.length;
+        await expect(app.client.restoreUserState()).resolves.toEqual({ repeat: null, shuffle: null });
+        expect(state.scripts.length).toBe(scripts);
+        await app.client.close();
+    });
+
+    it('leaves the repeat the listener set themselves during repeat one, and writes nothing back', async () => {
+        for (const theirs of [0, 1]) {
+            const state = pageOf(2);
+            const app = makeClient({ running: true, portAnswers: true });
+            await app.client.play({ id: TRACK, startMs: 0 });
+            await app.client.setTrackRepeat({ on: true });
+
+            // They turned the app's repeat to this of their own while repeat one went on.
+            state.repeat = theirs;
+            const written = state.written.length;
+            await expect(app.client.setTrackRepeat({ on: false })).resolves.toMatchObject({ read: true });
+            // Their value is theirs: nothing is written over it, and the record goes all the same.
+            expect(state.written.length).toBe(written);
+            expect(state.repeat).toBe(theirs);
+            expect(app.client.changedState()).toEqual({ repeat: null, shuffle: null });
+
+            // What is left is still nothing: a restore after that writes nothing either.
+            const scripts = state.scripts.length;
+            await expect(app.client.restoreUserState()).resolves.toEqual({ repeat: null, shuffle: null });
+            expect(state.scripts.length).toBe(scripts);
+            await app.client.close();
+        }
+    });
+});
+
 describe('the repeat and the shuffle a restore puts back in the page', () => {
     type Restore = (input: unknown) => Promise<{ repeat: unknown; shuffle: unknown }>;
     const restore = (new Function('return (' + String(RESTORE_STATE_SOURCE) + ')')()) as Restore;
