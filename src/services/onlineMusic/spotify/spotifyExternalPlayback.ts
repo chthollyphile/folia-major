@@ -60,6 +60,14 @@ export const spotifyExternalPlayback: OnlineExternalPlaybackProvider = {
     resume: () => current().resume(),
     seek: seconds => current().seek(seconds),
     setTrackRepeat: on => current().setTrackRepeat?.(on) ?? Promise.resolve(undefined),
+    // Soloist's own single repeat, which Folia's repeat one is handed to while that is the way
+    // Spotify plays. Spotify's own app repeats the track through `setTrackRepeat` above instead, so
+    // this answers nothing there: the route would otherwise take the app's repeat for the one the
+    // hifi way sets and leave Folia's own replay out of the song that goes round.
+    get setRepeatOne() {
+        const player = current();
+        return player.setRepeatOne ? player.setRepeatOne.bind(player) : undefined;
+    },
     setVolume: volume => current().setVolume?.(volume) ?? Promise.resolve(),
     // Only the way that runs Spotify's own app can be running a track Folia is not: Soloist's player
     // is steered by Folia alone, so it answers nothing here.
