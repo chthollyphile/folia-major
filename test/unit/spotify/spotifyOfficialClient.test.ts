@@ -2925,6 +2925,42 @@ describe('the status read the watcher of the app makes', () => {
         await app.client.close();
     });
 
+    it('asks whether the app runs at most once every fifteen seconds while it is off', async () => {
+        playingPage();
+        const app = makeClient({
+            running: false, port: 0, netstat: oneListener, portAnswers: true, appDirectory: makeLauncherDirectory(),
+        });
+        // Read every three seconds for five minutes: one tasklist every fifteen seconds, not one per read.
+        for (let second = 0; second < 300; second += 3) {
+            await expect(app.client.statusFollowing()).resolves.toMatchObject({ fallback: true });
+            vi.setSystemTime(Date.now() + 3000);
+        }
+        expect(app.tasklists()).toBe(20);
+        expect(netstats(app)).toBe(0);
+        await app.client.close();
+    });
+
+    it('looks again as soon as fifteen seconds pass and the app has been started', async () => {
+        playingPage();
+        const options: ClientOptions = {
+            running: false, port: 0, netstat: oneListener, portAnswers: true, appDirectory: makeLauncherDirectory(),
+        };
+        const app = makeClient(options);
+        await expect(app.client.statusFollowing()).resolves.toMatchObject({ fallback: true });
+        expect(app.tasklists()).toBe(1);
+        // A read three seconds later is inside the gap: the machine is not asked again.
+        vi.setSystemTime(Date.now() + 3000);
+        await expect(app.client.statusFollowing()).resolves.toMatchObject({ fallback: true });
+        expect(app.tasklists()).toBe(1);
+        // The listener started the app meanwhile: the next read that is due finds it and looks at once.
+        options.running = true;
+        vi.setSystemTime(Date.now() + 12000);
+        await expect(app.client.statusFollowing()).resolves.toMatchObject({ id: TRACK });
+        expect(app.tasklists()).toBe(2);
+        expect(netstats(app)).toBe(1);
+        await app.client.close();
+    });
+
     it('leaves the two looks a session restore has unspent', async () => {
         playingPage();
         const app = makeClient({
