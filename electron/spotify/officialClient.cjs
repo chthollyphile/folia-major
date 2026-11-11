@@ -443,17 +443,15 @@ const REPEAT_TRACK_SOURCE = `async ({ api }) => {
 // Repeat of the track given back when repeat one goes off, run in the page. The app may be left
 // repeating this song by itself - the listener had it on before the run, or a start in repeat one
 // kept theirs - and that would sound this song again where Folia's queue moves on, so it is never
-// left on here. `keep` is the value the record says was the listener's, or null for none: it goes
-// back where the app still holds the repeat this run left (`expected`), and where it is the track
-// itself it is turned off rather than written on, since a repeat of the track is what keeps Folia
-// from moving on. A value the listener set themselves after the run is different from `expected`
-// and is theirs, so nothing is written over it. A state that cannot be read changes nothing and
-// says so, which is what leaves both the record and the repeat for the next call.
-//
-// A repeat of the track is turned off before the record is read: it is the one value Folia cannot
-// play on from, and it holds this song whatever the listener did to the app meanwhile - a value
-// they turned to the track themselves after the run is no different to watch. A value they set
-// that repeats nothing by itself is theirs and is left as it is, record and all.
+// left on here. `keep` is the value the record says was the listener's, or null for none, and a
+// repeat of the track found is decided by that record alone: a recorded value that is not the track
+// goes back itself - it repeats nothing by itself, so Folia plays on from its queue, and an off
+// written over it would lose what they had - while a record of the track itself, or no record at
+// all, is turned off, since the track is what Folia cannot play on from. Any other value found is
+// the one this run left (`expected`), so the record goes back where the app still holds it; a value
+// they set themselves after the run is different from `expected` and is theirs, so nothing is
+// written over it. A state that cannot be read changes nothing and says so, which is what leaves
+// both the record and the repeat for the next call.
 //
 // `action` is what became of the repeat: 'put' a recorded value back, 'release' turned the app's own
 // repeat of the track off, 'theirs' a value the listener set meanwhile, 'none' nothing to do.
@@ -463,8 +461,18 @@ const RELEASE_STATE_SOURCE = `async ({ api, keep = null, expected = 0 }) => {
   if (!s || typeof s !== 'object') return { read: false, action: 'none', now: null };
   const before = typeof s.repeat === 'number' ? s.repeat : null;
   const writable = typeof api.player.setRepeat === 'function';
+  // A repeat of the track is the one value nothing may be left on, and the record alone says what
+  // becomes of it: a recorded value that is not the track goes back, since it repeats nothing by
+  // itself and Folia plays on from its queue - an off written over it would lose what the listener
+  // had. A record of the track itself, or no record at all, is turned off: the track is what Folia
+  // cannot play on from, and with no record there is nothing of theirs to write back. What the app
+  // holds is not compared here - a repeat of the track keeps this song whatever the listener did
+  // meanwhile, so even one they turned to the track themselves is turned off.
   if (before === 2) {
     if (!writable) return { read: true, action: 'none', now: before };
+    if (keep !== null && keep !== 2) {
+      try { await api.player.setRepeat(keep); return { read: true, action: 'put', now: keep }; } catch { return { read: true, action: 'none', now: before }; }
+    }
     try { await api.player.setRepeat(0); return { read: true, action: 'release', now: 0 }; } catch { return { read: true, action: 'none', now: before }; }
   }
   if (keep !== null && before === expected && keep !== 2) {
@@ -1830,16 +1838,24 @@ function createSpotifyOfficialClient({
                 return { read: false, changed: false, now: null };
             }
             // A recorded value went back, or turned out to be the listener's own now: either way the
-            // record is done. A repeat of the track found with no record is theirs, and the value this
-            // run left it at was off, which is what a restore reads before writing it back.
+            // record is done.
             if (answer.action === 'put' || answer.action === 'theirs') changedRepeat = null;
             if (answer.action === 'theirs') {
                 log('[SpotifyClient] the listener\'s own repeat was changed in Spotify meanwhile and is left as it is');
             }
             if (answer.action === 'release') {
-                changedRepeat = 'one';
+                // The app holds no repeat after this call, whatever the record says: that is what a
+                // restore reads before writing a value back.
                 leftRepeat = 0;
-                log('[SpotifyClient] Spotify was left repeating the track with no record of it being the listener\'s; it is turned off and put back when this way is left');
+                // A repeat of the track turned off with no record is the listener's own, and this run
+                // is what took it away: it is kept as the one to put back when this way of playing is
+                // left. A record stops here instead - one naming the track is that same value and
+                // needs nothing added, and a record of any other value was put back above, not
+                // released.
+                if (changedRepeat === null) {
+                    changedRepeat = 'one';
+                    log('[SpotifyClient] Spotify was left repeating the track with no record of it being the listener\'s; it is turned off and put back when this way is left');
+                }
             } else if (answer.action === 'put') {
                 log('[SpotifyClient] the listener\'s own repeat was put back as it was');
             }

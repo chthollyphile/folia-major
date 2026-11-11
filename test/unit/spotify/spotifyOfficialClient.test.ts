@@ -126,21 +126,24 @@ class FakeSocket {
         this.expressions.push(expression);
         if (FakeSocket.muteSend) return;
         // The page evaluates the script and awaits it, so a stand-in that runs one of the app's own
-        // sources answers the promise its evaluation makes.
-        Promise.resolve(handle(expression)).then(outcome => {
-            queueMicrotask(() => {
-                if (outcome.error !== undefined) {
-                    // A DevTools protocol error: the call failed, and no answer came with it.
-                    this.onmessage?.({ data: JSON.stringify({ id: command.id, error: { code: -32000, message: outcome.error } }) });
-                    return;
-                }
-                if (outcome.details !== undefined) {
-                    this.onmessage?.({ data: JSON.stringify({ id: command.id, result: { exceptionDetails: { text: outcome.details, exception: { description: outcome.details } } } }) });
-                    return;
-                }
-                this.onmessage?.({ data: JSON.stringify({ id: command.id, result: { result: { value: outcome.value } } }) });
+        // sources answers the promise its evaluation makes. A script that throws is the page's own
+        // exception, which the caller reads as the call having failed.
+        void Promise.resolve()
+            .then(() => handle(expression))
+            .then(outcome => {
+                queueMicrotask(() => {
+                    if (outcome.error !== undefined) {
+                        // A DevTools protocol error: the call failed, and no answer came with it.
+                        this.onmessage?.({ data: JSON.stringify({ id: command.id, error: { code: -32000, message: outcome.error } }) });
+                        return;
+                    }
+                    if (outcome.details !== undefined) {
+                        this.onmessage?.({ data: JSON.stringify({ id: command.id, result: { exceptionDetails: { text: outcome.details, exception: { description: outcome.details } } } }) });
+                        return;
+                    }
+                    this.onmessage?.({ data: JSON.stringify({ id: command.id, result: { result: { value: outcome.value } } }) });
+                });
             });
-        });
     }
     closed = false;
     close() { this.closed = true; this.onclose?.(); }
@@ -1174,20 +1177,30 @@ describe('the repeat of the track given back when repeat one goes off', () => {
         return player;
     };
 
-    it('turns the repeat of the track off even where a record names another value', async () => {
-        // Folia left the app repeating nothing, and the listener had the list repeat before the run.
-        // They then turned the track's repeat on in Spotify's own window: the value the record names
-        // is not what the app holds, but a repeat of the track is the one value Folia cannot play on
-        // from, so it is turned off here rather than read as the listener's own and left in place.
+    it('puts a recorded value back even where the app is still repeating the track', async () => {
+        // Folia left the app repeating the track for a repeat one of its own, and the listener had
+        // the list repeat before the run. Repeat one going off finds the track still repeating: that
+        // is Folia's own write, so the record decides what becomes of it - their list repeat goes
+        // back rather than being turned off, and turning it off would lose what they had.
         const player = playerHolding(2);
-        await expect(release({ api: { player }, keep: 1, expected: 0 })).resolves.toEqual({ read: true, action: 'release', now: 0 });
-        expect(player.calls).toEqual(['setRepeat 0']);
-        expect(player.repeat).toBe(0);
+        await expect(release({ api: { player }, keep: 1, expected: 2 })).resolves.toEqual({ read: true, action: 'put', now: 1 });
+        expect(player.calls).toEqual(['setRepeat 1']);
+        expect(player.repeat).toBe(1);
     });
 
     it('turns it off with no record either, as the one value nothing may be left on', async () => {
+        // Nothing of the listener's was recorded, and the app is repeating the track: there is no
+        // value of theirs to write back, and the track is what Folia cannot play on from.
         const player = playerHolding(2);
         await expect(release({ api: { player }, keep: null, expected: 2 })).resolves.toEqual({ read: true, action: 'release', now: 0 });
+        expect(player.calls).toEqual(['setRepeat 0']);
+    });
+
+    it('turns it off where the record names the track itself', async () => {
+        // A record naming the track is the listener's own repeat of it, and it is no value to write
+        // back either: writing it on would hand this song to Spotify to sound again.
+        const player = playerHolding(2);
+        await expect(release({ api: { player }, keep: 2, expected: 2 })).resolves.toEqual({ read: true, action: 'release', now: 0 });
         expect(player.calls).toEqual(['setRepeat 0']);
     });
 

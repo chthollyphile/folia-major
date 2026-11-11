@@ -333,6 +333,10 @@ const syncExternalTrackRepeat = (current: ExternalSession, { askOff = false }: {
         // back a value a play of Folia's is relying on.
         if (!wanted && current.trackRepeat !== true && !current.trackRepeatAsked) return;
     }
+    // A write already on its way owns the player: this trigger is dropped rather than queued behind
+    // it, and the caller that answered re-asks for the mode it reads. Nothing else ever clears the
+    // pending mark - there is no timer here, and no retry of its own - so a write that is never
+    // answered holds this off until the transport's own 1500ms client_repeat timeout settles it.
     if (session !== current || current.trackRepeatPending) return;
     current.trackRepeat = null;
     current.trackRepeatAsked = true;
@@ -350,7 +354,10 @@ const syncExternalTrackRepeat = (current: ExternalSession, { askOff = false }: {
         // trigger was dropped as one waiting for this write: the setting is asked for again now that
         // the player has answered, for what the mode reads, so it is never left repeating a song
         // where Folia no longer repeats it. What this write asked for is the comparison, not what
-        // the player holds: a write nobody answered leaves the mode the only thing to go by.
+        // the player holds: a write nobody answered leaves the mode the only thing to go by. This
+        // re-ask keeps its `askOff`, and an off it asks for is sent only because the write above set
+        // `trackRepeatAsked` - without that mark the guard in the ask would read the off as already
+        // done and skip it.
         if (isRepeatOneSong() !== wanted) syncExternalTrackRepeat(current, { askOff });
     }).catch((error: unknown) => {
         // The song keeps playing, and the app's own replay of repeat one still covers it. What the
@@ -360,7 +367,9 @@ const syncExternalTrackRepeat = (current: ExternalSession, { askOff = false }: {
             current.trackRepeat = null;
             // A mode picked while this write was on its way is asked for here the way it is after an
             // answer: no failure is repeated for a mode that has not moved on, so a player that
-            // refuses every write is asked once per change of the mode rather than in a loop.
+            // refuses every write is asked once per change of the mode rather than in a loop. The
+            // off this re-ask sends relies on `trackRepeatAsked`, which the write above set before
+            // it failed, to get past the guard that reads a never-asked player's off as done.
             if (isRepeatOneSong() !== wanted) syncExternalTrackRepeat(current, { askOff });
         }
         console.warn('[ExternalPlayback] repeat one could not be handed to the player\'s own repeat', error);
