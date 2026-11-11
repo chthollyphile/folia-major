@@ -17,7 +17,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const require = createRequire(import.meta.url);
 const {
-    PLAY_STATE_SOURCE, QUEUE_SOURCE, REPEAT_TRACK_SOURCE, RESTORE_STATE_SOURCE, START_QUEUE_SOURCE, START_WAIT_SOURCE,
+    PLAY_STATE_SOURCE, QUEUE_SOURCE, RELEASE_STATE_SOURCE, REPEAT_TRACK_SOURCE, RESTORE_STATE_SOURCE, START_QUEUE_SOURCE, START_WAIT_SOURCE,
     createSpotifyOfficialClient, isAdvertisementItem, repeatModeOf, repeatWordsOf, statusFromMediaSession, statusFromPlayerState,
 } = require('../../../electron/spotify/officialClient.cjs');
 const { createSpotifyApiBridge, SPOTIFY_OPERATIONS } = require('../../../electron/spotify/spotifyApiBridge.cjs');
@@ -1096,6 +1096,63 @@ describe('repeat one carried out by Spotify\'s own repeat of the track', () => {
         const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
         await expect(turnOn({ api: { player } })).resolves.toEqual({ read: true, before: 0, now: 0 });
         warn.mockRestore();
+    });
+});
+
+describe('the repeat of the track given back when repeat one goes off', () => {
+    type Release = (input: unknown) => Promise<{ read: boolean; action: string; now: number | null }>;
+    const release = (new Function('return (' + String(RELEASE_STATE_SOURCE) + ')')()) as Release;
+
+    /** A player that reports this repeat and records every call the source made on it. */
+    const playerHolding = (repeat: number, { refuses = false }: { refuses?: boolean } = {}) => {
+        const player: Record<string, unknown> = {
+            calls: [] as string[],
+            repeat,
+            getState() { return { repeat: player.repeat }; },
+            setRepeat: async (value: number) => {
+                if (refuses) throw new Error('refused');
+                (player.calls as string[]).push('setRepeat ' + value);
+                player.repeat = value;
+            },
+        };
+        return player;
+    };
+
+    it('turns the repeat of the track off even where a record names another value', async () => {
+        // Folia left the app repeating nothing, and the listener had the list repeat before the run.
+        // They then turned the track's repeat on in Spotify's own window: the value the record names
+        // is not what the app holds, but a repeat of the track is the one value Folia cannot play on
+        // from, so it is turned off here rather than read as the listener's own and left in place.
+        const player = playerHolding(2);
+        await expect(release({ api: { player }, keep: 1, expected: 0 })).resolves.toEqual({ read: true, action: 'release', now: 0 });
+        expect(player.calls).toEqual(['setRepeat 0']);
+        expect(player.repeat).toBe(0);
+    });
+
+    it('turns it off with no record either, as the one value nothing may be left on', async () => {
+        const player = playerHolding(2);
+        await expect(release({ api: { player }, keep: null, expected: 2 })).resolves.toEqual({ read: true, action: 'release', now: 0 });
+        expect(player.calls).toEqual(['setRepeat 0']);
+    });
+
+    it('puts a recorded value back where the app still holds what Folia left', async () => {
+        const player = playerHolding(0);
+        await expect(release({ api: { player }, keep: 1, expected: 0 })).resolves.toEqual({ read: true, action: 'put', now: 1 });
+        expect(player.calls).toEqual(['setRepeat 1']);
+    });
+
+    it('leaves a value the listener set meanwhile alone where it repeats nothing by itself', async () => {
+        // The list repeat is the listener's own, and it does not hold this song: nothing is written.
+        const player = playerHolding(1);
+        await expect(release({ api: { player }, keep: 0, expected: 0 })).resolves.toEqual({ read: true, action: 'theirs', now: 1 });
+        expect(player.calls).toEqual([]);
+    });
+
+    it('writes nothing and says it could read nothing where the state cannot be read', async () => {
+        const player = playerHolding(2);
+        player.getState = () => { throw new Error('the state is not readable now'); };
+        await expect(release({ api: { player }, keep: 1, expected: 0 })).resolves.toEqual({ read: false, action: 'none', now: null });
+        expect(player.calls).toEqual([]);
     });
 });
 

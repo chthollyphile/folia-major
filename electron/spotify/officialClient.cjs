@@ -450,6 +450,11 @@ const REPEAT_TRACK_SOURCE = `async ({ api }) => {
 // and is theirs, so nothing is written over it. A state that cannot be read changes nothing and
 // says so, which is what leaves both the record and the repeat for the next call.
 //
+// A repeat of the track is turned off before the record is read: it is the one value Folia cannot
+// play on from, and it holds this song whatever the listener did to the app meanwhile - a value
+// they turned to the track themselves after the run is no different to watch. A value they set
+// that repeats nothing by itself is theirs and is left as it is, record and all.
+//
 // `action` is what became of the repeat: 'put' a recorded value back, 'release' turned the app's own
 // repeat of the track off, 'theirs' a value the listener set meanwhile, 'none' nothing to do.
 const RELEASE_STATE_SOURCE = `async ({ api, keep = null, expected = 0 }) => {
@@ -458,14 +463,16 @@ const RELEASE_STATE_SOURCE = `async ({ api, keep = null, expected = 0 }) => {
   if (!s || typeof s !== 'object') return { read: false, action: 'none', now: null };
   const before = typeof s.repeat === 'number' ? s.repeat : null;
   const writable = typeof api.player.setRepeat === 'function';
-  if (keep !== null && before === expected && keep !== 2) {
+  if (before === 2) {
+    if (!writable) return { read: true, action: 'none', now: before };
+    try { await api.player.setRepeat(0); return { read: true, action: 'release', now: 0 }; } catch { return { read: true, action: 'none', now: before }; }
+  }
+  if (keep !== null && before === expected) {
     if (!writable) return { read: true, action: 'none', now: before };
     try { await api.player.setRepeat(keep); return { read: true, action: 'put', now: keep }; } catch { return { read: true, action: 'none', now: before }; }
   }
   if (keep !== null && before !== expected) return { read: true, action: 'theirs', now: before };
-  if (before !== 2) return { read: true, action: 'none', now: before };
-  if (!writable) return { read: true, action: 'none', now: before };
-  try { await api.player.setRepeat(0); return { read: true, action: 'release', now: 0 }; } catch { return { read: true, action: 'none', now: before }; }
+  return { read: true, action: 'none', now: before };
 }`;
 
 // Spotify's repeat (0 off, 1 the list, 2 the track) by the names the renderer sends.
