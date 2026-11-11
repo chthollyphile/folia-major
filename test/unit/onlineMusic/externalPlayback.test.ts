@@ -6,9 +6,10 @@ import type { ProviderExternalPlaybackStatus } from '@/types/onlineMusic';
 // test/unit/onlineMusic/externalPlayback.test.ts
 // What a start costs the interface: it hands the play path back as soon as the session and the route
 // are ready and loads the song in the player afterwards, the queue write waits for that start to
-// land, and every start is timed in one line that names its number. The last block pins the limits
-// the Spotify transport puts on the app's own status, level and queue calls, which is what makes a
-// wedged page fail instead of holding the queue.
+// land, and every start is timed in one line that names its number. The block before the last one
+// pins the position while a move the player takes seconds to take is in flight, and the last block
+// pins the limits the Spotify transport puts on the app's own status, level and queue calls, which is
+// what makes a wedged page fail instead of holding the queue.
 
 const omniMock = vi.hoisted(() => ({
     canPlayExternally: vi.fn(() => true),
@@ -33,6 +34,7 @@ const omniMock = vi.hoisted(() => ({
 vi.mock('@/services/onlineMusic/omni', () => ({ omni: omniMock }));
 
 const engine = await import('@/services/onlineMusic/externalPlayback');
+const { createHifiClock, MAX_EXTRAPOLATION_SEC } = await import('@/services/hifi/hifiClock');
 const { usePlaybackStore } = await import('@/stores/usePlaybackStore');
 const { PlayerState } = await import('@/types');
 const { useAudioSettingsStore } = await import('@/stores/useAudioSettingsStore');
@@ -397,6 +399,112 @@ describe('a start that runs on after the interface', () => {
         expect(summary[0]).toContain('lyrics 4ms');
         expect(summary[0]).toContain('cover 9ms');
         info.mockRestore();
+    });
+});
+
+describe('a move the player takes seconds to take', () => {
+    // Dragging the bar asks the player to move, and the app's call for it may take seconds: Spotify's
+    // own app answers a call within CALL_LIMIT_MS in electron/spotify/officialClient.cjs. Every status
+    // ask is held while the move is in flight, so the clock has only its own extrapolation to run on
+    // for the whole of that time - a second of it, as `hifiClock` allows mpv, leaves the bar and the
+    // lyrics standing at the target until the player answers again.
+    const SAMPLE_MS = 50;
+
+    /**
+     * Reads the position every SAMPLE_MS of fake time for `spanMs` and answers the longest stretch in
+     * which it did not move. A clock that stops counting while the player is still taking a move, or
+     * while it catches up with one it took, is a bar and a lyric line standing still under a song that
+     * is playing.
+     */
+    const longestStall = async (spanMs: number): Promise<number> => {
+        let previous = engine.getExternalPosition();
+        let stillMs = 0;
+        let longest = 0;
+        for (let waited = 0; waited < spanMs; waited += SAMPLE_MS) {
+            await vi.advanceTimersByTimeAsync(SAMPLE_MS);
+            const position = engine.getExternalPosition();
+            stillMs = position > previous ? 0 : stillMs + SAMPLE_MS;
+            longest = Math.max(longest, stillMs);
+            previous = position;
+        }
+        return longest;
+    };
+
+    beforeEach(() => {
+        vi.useFakeTimers();
+        engine.installExternalPlayback();
+        engine.stopExternalPlayback('test reset');
+        usePlaybackStore.setState({
+            playbackRoute: 'web', audioSrc: null, playerState: PlayerState.IDLE, duration: 0, currentSong: null,
+            playQueue: [song, b, c], isFmMode: false,
+        });
+        omniMock.playSongExternally.mockReset().mockResolvedValue(undefined);
+        omniMock.pauseExternalPlayback.mockReset().mockResolvedValue(undefined);
+        omniMock.seekExternalPlayback.mockReset().mockResolvedValue(undefined);
+        omniMock.setExternalPlaybackVolume.mockReset().mockResolvedValue(undefined);
+        omniMock.prepareExternalPlaybackQueue.mockReset().mockResolvedValue(undefined);
+        omniMock.getExternalPlaybackStatus.mockReset().mockResolvedValue(status());
+        omniMock.isExternalPlaybackStatusForSong.mockReset().mockReturnValue(true);
+        useAudioSettingsStore.setState({ volume: 1, isMuted: false });
+    });
+
+    afterEach(() => {
+        engine.stopExternalPlayback('test end');
+        usePlaybackStore.setState({ playbackRoute: 'web', audioSrc: null, playerState: PlayerState.IDLE, playQueue: [] });
+        vi.useRealTimers();
+        vi.restoreAllMocks();
+    });
+
+    it('keeps the position moving while the player is still taking the move', async () => {
+        const start = engine.startExternalPlayback(song, 0);
+        engine.announceExternalPlayback();
+        await start.seeded;
+        // The song is playing from 10 s: the clock runs on between the player's answers.
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ positionMs: 10000, isPlaying: true }));
+        await vi.advanceTimersByTimeAsync(500);
+
+        const taking = deferred();
+        omniMock.seekExternalPlayback.mockImplementation(() => taking.promise);
+        expect(engine.seekExternalPlayback(60)).toBe(true);
+        expect(engine.getExternalPosition()).toBeCloseTo(60, 1);
+
+        // The player has not answered yet - every status ask is held while the move is in flight - so
+        // the bar goes on from where the listener dropped it instead of waiting one second and stopping.
+        expect(await longestStall(3000)).toBeLessThanOrEqual(150);
+        expect(engine.getExternalPosition()).toBeGreaterThan(62.5);
+
+        taking.resolve();
+        await vi.advanceTimersByTimeAsync(0);
+    });
+
+    it('does not stand still while the player catches up with a move it has taken', async () => {
+        const start = engine.startExternalPlayback(song, 0);
+        engine.announceExternalPlayback();
+        await start.seeded;
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ positionMs: 10000, isPlaying: true }));
+        await vi.advanceTimersByTimeAsync(500);
+
+        expect(engine.seekExternalPlayback(60)).toBe(true);
+        // The move landed. The app asks the player again at once, and the player answers from where it
+        // loads the song - eight tenths of a second short of the spot the bar was dropped on.
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ positionMs: 59200, isPlaying: true }));
+        await vi.advanceTimersByTimeAsync(0);
+        await vi.advanceTimersByTimeAsync(0);
+
+        // One answer's step back is the player's own and is followed; standing there until it catches
+        // up is the bar and the lyrics frozen under a song that is playing.
+        expect(engine.getExternalPosition()).toBeLessThan(60);
+        expect(await longestStall(3000)).toBeLessThanOrEqual(150);
+        expect(engine.getExternalPosition()).toBeGreaterThan(59.8);
+    });
+
+    it('leaves the HiFi clock at one second where no move asked for more', async () => {
+        // The limit a moved bar may run under belongs to that move: mpv's clock keeps the second it
+        // always had, and a clock that is never told otherwise is not given a longer one.
+        expect(MAX_EXTRAPOLATION_SEC).toBe(1);
+        const clock = createHifiClock();
+        clock.sync({ positionSec: 30, paused: false, durationSec: 200, nowMs: 0 });
+        expect(clock.read(3000)).toBe(31);
     });
 });
 
