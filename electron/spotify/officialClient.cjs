@@ -46,6 +46,11 @@ const STATUS_PORT_SEARCH_GAP_MS = 3000;
 // after two looks six seconds in could not follow the app again until Folia itself was restarted.
 const STATUS_FOLLOW_SEARCHES = 6;
 const STATUS_FOLLOW_SEARCH_GAP_MS = 60000;
+// Judging whether the app runs is a tasklist of its own, and a watcher that read it on every read would
+// ask the machine every few seconds for the whole of a run in which Spotify is closed. So an answer of
+// "not running" is kept for this long: a read inside the gap does not ask again, and the app the
+// listener starts is found by the first read after it.
+const STATUS_FOLLOW_RUNNING_CHECK_GAP_MS = 15000;
 const PORT_PROBE_LIMIT_MS = 600;
 // The first of the two waits a start makes: how long the app itself is waited for - its process, its
 // DevTools port and a page that answers a script - whichever way the start began (from nothing, after
@@ -1174,6 +1179,10 @@ function createSpotifyOfficialClient({
     // port that start opens is a new one to look for, and it has a watcher's whole allowance.
     let followPortSearches = 0;
     let followPortSearchedAt = 0;
+    // When the watcher last heard that the app is not running: a read within
+    // STATUS_FOLLOW_RUNNING_CHECK_GAP_MS of that answer does not ask the machine again. Given back
+    // with the searches above when `ensure` starts a Spotify of its own, which is one running here.
+    let followRunningCheckedAt = 0;
     // The play this run is on: a start takes the next number and writes it into the page, and a queue
     // write says which one it belongs to, so a write handed over before a start is dropped instead of
     // putting the songs of the song before behind the new one.
@@ -1306,6 +1315,17 @@ function createSpotifyOfficialClient({
             resolve(/Spotify\.exe/i.test(String(stdout)) ? 'running' : 'stopped');
         });
     });
+
+    // The same question for the watcher of the app, which asks it every few seconds for the whole of a
+    // run: an answer of "not running" is kept for STATUS_FOLLOW_RUNNING_CHECK_GAP_MS, so a run with
+    // Spotify closed costs one tasklist every fifteen seconds rather than one per read. An app that
+    // runs is asked about again on the next read, which is what finds one the listener closes.
+    const spotifyIsRunningForFollow = async () => {
+        if (followRunningCheckedAt && Date.now() - followRunningCheckedAt < STATUS_FOLLOW_RUNNING_CHECK_GAP_MS) return false;
+        const answer = await spotifyIsRunning();
+        followRunningCheckedAt = spotifyRuns(answer) ? 0 : Date.now();
+        return answer;
+    };
 
     // The Spotify processes running now, by id: a window opened by one of them is the listener's, and
     // the one a start creates is the only one Folia hides.
@@ -1458,6 +1478,7 @@ function createSpotifyOfficialClient({
             // action when Folia is reopened, and a start does not hand it a second one.
             followPortSearches = 0;
             followPortSearchedAt = 0;
+            followRunningCheckedAt = 0;
             // CEF refuses a WebSocket that carries an Origin header it was not told to accept, and Folia's
             // own DevTools client sends none (measured: Node's WebSocket sends no Origin). So no origin is
             // allowed when the port is not known yet — a wildcard would let any page in a browser reach the
@@ -1981,14 +2002,16 @@ function createSpotifyOfficialClient({
         // made where the app is not running at all - the run has nothing to look for. Judging whether
         // it runs is itself one tasklist, and it is asked only on the read that would otherwise go on
         // to look, so a read that is not due for a look, or has no allowance left, costs none; the
-        // gap is what keeps that to at most one a minute. The allowance is given back when `ensure`
-        // starts a Spotify of its own: that start opens a new port to look for.
+        // gap is what keeps that to at most one a minute, and the answer of a closed app is kept for
+        // STATUS_FOLLOW_RUNNING_CHECK_GAP_MS besides, so a run with Spotify closed asks the machine
+        // at most once every fifteen seconds rather than on every read. The allowance is given back
+        // when `ensure` starts a Spotify of its own: that start opens a new port to look for.
         async statusFollowing() {
             const searching = !requestedPort && !foundPort
         && followPortSearches < STATUS_FOLLOW_SEARCHES
         && Date.now() - followPortSearchedAt >= STATUS_FOLLOW_SEARCH_GAP_MS
         && spotifyInstalled()
-        && spotifyRuns(await spotifyIsRunning());
+        && spotifyRuns(await spotifyIsRunningForFollow());
             if (searching) {
                 followPortSearches += 1;
                 followPortSearchedAt = Date.now();

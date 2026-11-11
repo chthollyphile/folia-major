@@ -175,7 +175,8 @@ const settleTrackTakeOver = async (
         }
         // This window sounds nothing of the track from here: the player has it. Where the player took
         // the track under another song that is now on screen, it is this window's again and nothing of
-        // the track is shown, so it is given up as a stop gives it up.
+        // the track is shown, so it is given up as a stop gives it up. The two asks answer alike, and
+        // the stop below changes neither the key of the song it asked about nor when that song began.
         if (stillCurrent()) {
             stopLocalDecksForTakeOver();
         } else {

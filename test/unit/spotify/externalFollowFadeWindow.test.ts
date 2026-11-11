@@ -112,7 +112,9 @@ describe('a local song still sounding while its pause fades out', () => {
 
     beforeEach(() => {
         vi.useFakeTimers();
-        // Every test starts from an untouched autoplay intent, as an app that has not played has.
+        // The intent starts unspent. It is true rather than the app's own false, so a handler that
+        // never touched it still reads as unspent, and an assertion can tell a spent intent from an
+        // untouched one.
         shouldAutoPlay.current = true;
         engine.installExternalPlayback();
         engine.stopExternalPlayback('test reset');
