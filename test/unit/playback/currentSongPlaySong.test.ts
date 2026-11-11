@@ -391,6 +391,27 @@ describe('playSong and the current song (online)', () => {
         unsubscribe();
     });
 
+    it('shows no loader for a manual step that asked for a quiet load', async () => {
+        // A manual queue step that asked for a quiet load (a skip after a failure whose toast is still
+        // read): the loader is what would settle over that toast, so none is begun.
+        env.external = true;
+        env.externalPrepared = true;
+        const gate = deferred<void>();
+        env.externalStarts.mockImplementationOnce(() => externalHandle(gate.promise, gate.promise));
+        const messages: unknown[] = [];
+        const unsubscribe = useStatusMessageStore.subscribe(state => { messages.push(state.message); });
+        const { queue } = mount();
+        const play = queue.playSong(songA, [songA, songB], false, { manualQueueStep: true, quietLoadedToast: true });
+        await vi.waitFor(() => expect(env.externalStarts).toHaveBeenCalled());
+        // Longer than the loader waits before it shows: one begun here would be up by now.
+        await new Promise(resolve => setTimeout(resolve, STATUS_LOADING_DELAY_MS + 50));
+        expect(messages.filter(Boolean)).toEqual([]);
+        gate.resolve();
+        await play;
+        expect(messages.filter(Boolean)).toEqual([]);
+        unsubscribe();
+    });
+
     it('lets a play overtaken within the delay leave no loader over the newer one', async () => {
         const gateA = deferred<void>();
         const gateB = deferred<void>();

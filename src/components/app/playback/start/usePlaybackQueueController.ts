@@ -688,7 +688,9 @@ export function usePlaybackQueueController({
         // Capture readiness before beginning the new attempt resets its preparation context.
         const isPreparedExternal = isExternal && isExternalRoute() && omni.isExternalPlaybackPrepared(song);
         let loadingMessage: StatusMessage | null = null;
-        if (options.manualQueueStep && !options.isAutomixAdvance) {
+        // A manual step that asked for a quiet load begins no loader here either: the load below skips
+        // one for the same reason, and one begun here would still show over that toast.
+        if (options.manualQueueStep && !options.isAutomixAdvance && options.quietLoadedToast !== true) {
             loadingMessage = beginStatusLoading(t(isExternal && !isPreparedExternal ? 'status.preparingExternalPlayback' : 'status.loadingSong'), isLatestPlaybackRequest);
         }
         // Another song is starting: the external player must not keep sounding while this one loads.

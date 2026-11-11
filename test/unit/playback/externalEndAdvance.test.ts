@@ -216,6 +216,8 @@ describe('播放器自己放到一首的结尾时', () => {
 
         expect(env.next).toHaveBeenCalledTimes(1);
         expect(env.next).toHaveBeenCalledWith(expect.objectContaining({ replayCurrent: true }));
+        // A replay is not the queue playing out: it may not count as an end of the queue.
+        expect(env.next.mock.calls[0][0]).not.toHaveProperty('playedToEnd');
     });
 
     it('别的循环模式下照常切下一首，不带重播', () => {
@@ -225,7 +227,7 @@ describe('播放器自己放到一首的结尾时', () => {
 
         expect(env.next).toHaveBeenCalledTimes(1);
         expect(env.next.mock.calls[0][0]).not.toHaveProperty('replayCurrent');
-        expect(env.next).toHaveBeenCalledWith(expect.objectContaining({ autoAdvance: true }));
+        expect(env.next).toHaveBeenCalledWith(expect.objectContaining({ autoAdvance: true, playedToEnd: true }));
     });
 
     it('私人 FM 里不走单曲循环：队列到头就停，不重播', () => {
@@ -243,6 +245,8 @@ describe('播放器自己放到一首的结尾时', () => {
         fire({ type: 'ended', skipped: 'next' });
 
         expect(env.next.mock.calls[0][0]).not.toHaveProperty('replayCurrent');
+        // A step of its own is no end of the queue, however far it is from the song that ended.
+        expect(env.next.mock.calls[0][0]).not.toHaveProperty('playedToEnd');
     });
 
     it('这一首没响过就报放完，不重播，照常往前走', () => {
