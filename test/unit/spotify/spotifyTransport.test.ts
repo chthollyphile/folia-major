@@ -27,7 +27,7 @@ describe('how long a read of the app is waited for', () => {
     // The look the main process makes on this very read answers well after the old 1.5 s wait.
     it('keeps the answer of the watcher read that the port search delayed', async () => {
         const answer = { id: 'x'.repeat(22), ad: false, isPaused: false, isBuffering: false, positionMs: 1000, durationMs: 200000 };
-        window.electron = electronOf((_operation, _params) => new Promise(resolve => {
+        window.electron = electronOf(() => new Promise(resolve => {
             setTimeout(() => resolve({ ok: true, data: answer }), 3000);
         }));
 
