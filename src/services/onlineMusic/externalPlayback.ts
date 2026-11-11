@@ -88,8 +88,25 @@ type ExternalSession = {
     degraded: boolean;
     /** What the song's provider declared about its player (`omni.externalPlaybackTraits`). */
     traits: ExternalPlaybackTraits;
-    /** What this session last asked of the player's own repeat of the track, or null for nothing. */
+    /**
+     * What the player is known to hold of its own repeat of the track: true and false for the values
+     * it answered with, null for one nobody knows - never asked, or asked and not answered. A value
+     * only becomes known from the player's own account of it, so a write that timed out, failed or
+     * was answered with the other value is asked again on the next trigger rather than being taken
+     * as the value it asked for.
+     */
     trackRepeat: boolean | null;
+    /**
+     * This session has written the player's repeat at least once: what the player holds may be a
+     * value of Folia's even where the answer never came, so turning it off is a real ask rather
+     * than one made for a value the start itself left as the listener had it.
+     */
+    trackRepeatAsked: boolean;
+    /**
+     * A write of that repeat is on its way: what the player holds is unknown until it answers, so a
+     * trigger that lands meanwhile waits for that answer rather than asking twice for one setting.
+     */
+    trackRepeatPending: boolean;
     /** The player now belongs to the window replacing this one: answers are no longer acted on. */
     handedOver: boolean;
     preparedQueueKey: string;
@@ -293,18 +310,40 @@ const isRepeatOneSong = (): boolean => (
  * follow is written into its queue. Only a song of Folia's that sounds now asks for it: a player that
  * was merely taken over is the listener's, and leaving this way of playing puts back what was found.
  * A player that declared no repeat of its own is not asked, and repeat one stays the app's replay.
+ *
+ * What the player holds is only ever its own answer: a write moves the record to what the answer
+ * says it holds now - the track for an on, anything but the track for an off - and a write that
+ * failed or was never answered leaves it unknown, so the next trigger asks again instead of leaving
+ * a song repeating where nothing repeats it, or stepping past a repeat that is still on.
  */
 const syncExternalTrackRepeat = (current: ExternalSession) => {
     if (!current.traits.loopsTrackNatively || takeoverPending) return;
     const wanted = isRepeatOneSong();
     if (current.trackRepeat === wanted) return;
-    // Only a repeat this session turned on is turned off again: where it never asked for one, the
+    // Only a repeat the app knows the player holds is turned off: where it never asked for one, the
     // start itself left the app's repeat as the listener had it, and an off here would put back a
     // value a play of Folia's is relying on.
-    if (!wanted && current.trackRepeat !== true) return;
-    current.trackRepeat = wanted;
-    void omni.setExternalTrackRepeat(current.song, wanted).catch((error: unknown) => {
-        // The song keeps playing, and the app's own replay of repeat one still covers it.
+    if (!wanted && current.trackRepeat !== true && !current.trackRepeatAsked) return;
+    if (session !== current || current.trackRepeatPending) return;
+    current.trackRepeat = null;
+    current.trackRepeatAsked = true;
+    current.trackRepeatPending = true;
+    void omni.setExternalTrackRepeat(current.song, wanted).then((answer) => {
+        // A song asked for in the meantime owns the player: its record is not this answer's.
+        if (session !== current) return;
+        current.trackRepeatPending = false;
+        // What the player says it holds: the track for an on, anything else for an off. An answer
+        // naming no value says nothing, and one the write was refused leaves what the player holds -
+        // which is what the next trigger asks about.
+        const now = typeof answer?.now === 'number' ? answer.now : null;
+        current.trackRepeat = now === null ? null : now === 2;
+    }).catch((error: unknown) => {
+        // The song keeps playing, and the app's own replay of repeat one still covers it. What the
+        // player holds is unknown, so the next trigger asks again.
+        if (session === current) {
+            current.trackRepeatPending = false;
+            current.trackRepeat = null;
+        }
         console.warn('[ExternalPlayback] repeat one could not be handed to the player\'s own repeat', error);
     });
 };
@@ -759,7 +798,7 @@ export function startExternalPlayback(song: SongResult, startSec = 0, { userActi
     session = {
         song, songKey, attempt, clock, durationSec, traits,
         announced: false, playing: false, starting: false, sampledPosition: Math.max(0, startSec), prefetchReady: false, live: false, ended: false, foreign: false,
-        degraded: false, trackRepeat: startsLooping ? true : null, handedOver: false, preparedQueueKey: '', positionRevision: 0, seekPending: false, seekBeforeSec: null, seeking: false, afterSeek: false,
+        degraded: false, trackRepeat: startsLooping ? true : null, trackRepeatAsked: startsLooping, trackRepeatPending: false, handedOver: false, preparedQueueKey: '', positionRevision: 0, seekPending: false, seekBeforeSec: null, seeking: false, afterSeek: false,
     };
     failureNoted = false;
     pollFailures = 0;
@@ -884,7 +923,7 @@ export async function adoptExternalPlayback(song: SongResult): Promise<boolean> 
         announced: false, playing: false, starting: false, sampledPosition: null, prefetchReady: false, live: false, ended: false, foreign: false,
         // The traits are read as the take-over starts and held for the session, as a start holds them:
         // what is followed is the way of playing this song was picked up from.
-        degraded: false, traits: omni.externalPlaybackTraits(song), trackRepeat: null, handedOver: false, preparedQueueKey: '', positionRevision: 0, seekPending: false, seekBeforeSec: null, seeking: false, afterSeek: false,
+        degraded: false, traits: omni.externalPlaybackTraits(song), trackRepeat: null, trackRepeatAsked: false, trackRepeatPending: false, handedOver: false, preparedQueueKey: '', positionRevision: 0, seekPending: false, seekBeforeSec: null, seeking: false, afterSeek: false,
     };
     failureNoted = false;
     externalMediaShim.beginTrack(songKey);

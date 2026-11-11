@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SongResult } from '@/types';
-import type { ProviderExternalPlaybackStatus, ExternalPlaybackTraits } from '@/types/onlineMusic';
+import type { ProviderExternalPlaybackStatus, ExternalPlaybackTraits, ExternalTrackRepeatAnswer } from '@/types/onlineMusic';
 
 // test/unit/onlineMusic/externalPlayback.test.ts
 // What a start costs the interface: it hands the play path back as soon as the session and the route
@@ -31,7 +31,7 @@ const omniMock = vi.hoisted(() => {
         resumeExternalPlayback: vi.fn(async () => {}),
         seekExternalPlayback: vi.fn(async () => {}),
         setExternalPlaybackVolume: vi.fn(async () => {}),
-        setExternalTrackRepeat: vi.fn(async () => {}),
+        setExternalTrackRepeat: vi.fn(async (): Promise<ExternalTrackRepeatAnswer | null | undefined> => undefined),
         getExternalPlaybackStatus: vi.fn(async (): Promise<ProviderExternalPlaybackStatus> => ({
             mediaId: '123', isPlaying: true, positionMs: 5000, durationMs: 200000, ended: false,
         })),
@@ -226,6 +226,9 @@ describe('a start that runs on after the interface', () => {
             playbackRoute: 'web', audioSrc: null, playerState: PlayerState.IDLE, duration: 0, currentSong: null,
             playQueue: [song, b, c], isFmMode: false,
         });
+        omniMock.getExternalPlaybackStatus.mockReset().mockResolvedValue(status());
+        omniMock.isExternalPlaybackStatusForSong.mockReset().mockReturnValue(true);
+        omniMock.setExternalTrackRepeat.mockReset().mockResolvedValue(undefined);
         omniMock.prepareExternalPlaybackQueue.mockClear();
         omniMock.playSongExternally.mockReset().mockResolvedValue(undefined);
         omniMock.pauseExternalPlayback.mockReset().mockResolvedValue(undefined);
@@ -233,6 +236,7 @@ describe('a start that runs on after the interface', () => {
         omniMock.setExternalPlaybackVolume.mockReset().mockResolvedValue(undefined);
         omniMock.getExternalPlaybackStatus.mockReset().mockResolvedValue(status());
         omniMock.isExternalPlaybackStatusForSong.mockReset().mockReturnValue(true);
+        omniMock.setExternalTrackRepeat.mockReset().mockResolvedValue(undefined);
         useAudioSettingsStore.setState({ volume: 1, isMuted: false });
     });
 
@@ -451,6 +455,50 @@ describe('a start that runs on after the interface', () => {
         // Another mode, and the listener's own repeat goes back where it was.
         useAudioSettingsStore.setState({ loopMode: 'all' });
         await vi.advanceTimersByTimeAsync(1);
+        expect(omniMock.setExternalTrackRepeat).toHaveBeenLastCalledWith(song, false);
+    });
+
+    it('asks the player again for the repeat an earlier write never got an answer for', async () => {
+        omniMock.setExternalTrackRepeat.mockClear();
+        useAudioSettingsStore.setState({ loopMode: 'one' });
+        const start = engine.startExternalPlayback(song, 0);
+        engine.announceExternalPlayback();
+        await start.seeded;
+        await vi.advanceTimersByTimeAsync(1000);
+
+        // The off never got an answer: what the player holds is unknown, so the app cannot take the
+        // value it asked for as the one it has.
+        omniMock.setExternalTrackRepeat.mockImplementation(async () => null);
+        useAudioSettingsStore.setState({ loopMode: 'all' });
+        await vi.advanceTimersByTimeAsync(1);
+        expect(omniMock.setExternalTrackRepeat).toHaveBeenLastCalledWith(song, false);
+
+        // Another change of the way it plays asks again, rather than reading the unknown as done.
+        useAudioSettingsStore.setState({ loopMode: 'off' });
+        await vi.advanceTimersByTimeAsync(1);
+        expect(omniMock.setExternalTrackRepeat).toHaveBeenCalledTimes(2);
+        expect(omniMock.setExternalTrackRepeat).toHaveBeenLastCalledWith(song, false);
+    });
+
+    it('asks again for an off the player answered while still repeating the track', async () => {
+        omniMock.setExternalTrackRepeat.mockClear();
+        useAudioSettingsStore.setState({ loopMode: 'off' });
+        const start = engine.startExternalPlayback(song, 0);
+        engine.announceExternalPlayback();
+        await start.seeded;
+
+        // Repeat one is handed over, and then taken back: the player answers the off with the value
+        // it still holds, which is the track's repeat - the one value the next trigger must ask on.
+        omniMock.setExternalTrackRepeat.mockImplementation(async () => ({ read: true, changed: false, now: 2 }));
+        useAudioSettingsStore.setState({ loopMode: 'one' });
+        await vi.advanceTimersByTimeAsync(1);
+        useAudioSettingsStore.setState({ loopMode: 'all' });
+        await vi.advanceTimersByTimeAsync(1);
+        expect(omniMock.setExternalTrackRepeat).toHaveBeenLastCalledWith(song, false);
+
+        useAudioSettingsStore.setState({ loopMode: 'off' });
+        await vi.advanceTimersByTimeAsync(1);
+        expect(omniMock.setExternalTrackRepeat).toHaveBeenCalledTimes(3);
         expect(omniMock.setExternalTrackRepeat).toHaveBeenLastCalledWith(song, false);
     });
 
