@@ -15,11 +15,15 @@
 //  - 播放流：GET /music/api/v1/track/stream?guid= 直接回原始音频文件（实测 200 audio/x-flac），不分音质
 //
 // FN Connect 中继（外网登录）：
-//  - 登录框整段只填一个 FN ID（DNS 标签字符，不含协议 / 端口 / 路径）→ 解析为 https://<fnid>.fnos.net（外网中继）；
-//    填 IP / 域名 / 带协议或端口的地址（含 http://mynas 这类局域网单段主机名）→ 原样走局域网直连。
-//  - FN Connect 网关要求 API 请求带 Cookie: mode=relay 才放行；只在服务器主机是 *.fnos.net 时携带
-//    （每次请求按地址现算，不另存标志），*.fnos.net 一律走 https。
-//  - 中继走公网 *.fnos.net，证书校验严格（rejectUnauthorized 只对私网自签名 NAS 放行）。
+//  - 飞牛有两个中继集群：5ddd.com（新）与 fnos.net（旧），两者并存，一个 FN ID 只开在其中一个上
+//    （NAS 端「设置 → 远程访问」里选集群）。
+//  - 登录框整段只填一个 FN ID（DNS 标签字符，不含协议 / 端口 / 路径）→ 先试 https://<fnid>.5ddd.com，
+//    没拿到 fnOS 的答复（解析不到、连不上、回的不是 JSON）再试 https://<fnid>.fnos.net；填 IP / 域名 / 带协议或端口的地址（含 http://mynas 这类
+//    局域网单段主机名）→ 原样走局域网直连。
+//  - 网页入口的路径式写法 5ddd.com/<fnid>、fnos.net/<fnid>（含 www.）改写成对应的子域名（路径式地址回的是网页，不转发 API）。
+//  - 中继主机一律走 https、只取主机不留路径（用户可能整段复制浏览器地址栏）。
+//  - Cookie: mode=relay 只对 fnos.net 集群携带（每次请求按地址现算，不另存标志）；5ddd.com 实测不带即可登录（issue #1149）。
+//  - 中继走公网，证书校验严格（rejectUnauthorized 只对私网自签名 NAS 放行）。
 //
 // 安全约定（与桌面端其他平台的主进程桥一致）：
 //  - 服务器地址与凭据（token）只存在主进程：safeStorage 加密后写入 store，渲染进程只发操作。
@@ -49,33 +53,40 @@ const CONFIG_STORE_KEY = 'fnmusic-config';
 // deviceId 不是凭据（登录还要密码），单独明文存：登出清掉配置后再登录仍用同一台设备，不在 NAS 上多出一台 Folia。
 const DEVICE_STORE_KEY = 'fnmusic-device-id';
 
-// —— FN Connect 中继（外网登录）支持：登录框填纯 FN ID → 自动走 https://<fnid>.fnos.net ——
-// FN Connect 网关要求登录请求带 Cookie: mode=relay，否则 302 到 HTML 登录页；
-// 中继地址（*.fnos.net）的后续 API/媒体请求同样需要 mode=relay 才能放行。
-const RELAY_DOMAIN = 'fnos.net';
+// —— FN Connect 中继（外网登录）支持：登录框填纯 FN ID → 依次试两个集群的 https://<fnid>.<集群域名> ——
+// 顺序即尝试顺序：新集群 5ddd.com 在前（飞牛要求迁过去，多数 FN ID 在这里），旧集群 fnos.net 在后。
+// relayCookie：fnos.net 网关要求带 Cookie: mode=relay 才放行（cf25ce57 起的约定）；
+// 5ddd.com 实测不带就能登录（issue #1149），没验证过带上的效果，先不带。
+const RELAY_CLUSTERS = [
+  { domain: '5ddd.com', relayCookie: false },
+  { domain: 'fnos.net', relayCookie: true },
+];
 const RELAY_COOKIE = 'mode=relay';
 
-// FN ID 是 fnos.net 下的一段主机名：只收 DNS 标签字符。# ? @ \ 之类的字符会被 URL 解析成别的主机或片段，不能拼。
+// FN ID 是集群域名下的一段主机名：只收 DNS 标签字符。# ? @ \ 之类的字符会被 URL 解析成别的主机或片段，不能拼。
 const FN_ID_PATTERN = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i;
 
-/** 智能识别服务器地址：整段输入就是一个 FN ID → https://<fnid>.fnos.net（FN Connect 中继）；
- *  其余原样返回（局域网直连，交给 normalizeBase 补协议/校验）。写了协议、端口、路径的单段主机名
- *  （http://mynas、mynas:5666）照旧直连；localhost 永远是本机。 */
-const resolveServer = (input) => {
+/** 智能识别服务器地址，返回按顺序尝试的候选地址：整段输入就是一个 FN ID → 每个集群一个
+ *  https://<fnid>.<集群域名>（FN Connect 中继）；其余原样返回一个（交给 normalizeBase 补协议/校验）。
+ *  写了协议、端口、路径的单段主机名（http://mynas、mynas:5666）照旧直连；localhost 永远是本机。 */
+const resolveServerCandidates = (input) => {
   const s = String(input ?? '').trim();
   if (FN_ID_PATTERN.test(s) && s.toLowerCase() !== 'localhost') {
-    return `https://${s.toLowerCase()}.${RELAY_DOMAIN}`;
+    return RELAY_CLUSTERS.map(cluster => `https://${s.toLowerCase()}.${cluster.domain}`);
   }
-  return s;
+  return [s];
 };
 
-/** 主机名是否为 FN Connect 中继（*.fnos.net）。 */
-const isRelayHostname = hostname => String(hostname || '').toLowerCase().endsWith(`.${RELAY_DOMAIN}`);
+/** 主机名所在的 FN Connect 中继集群（<fnid>.5ddd.com / <fnid>.fnos.net），不是中继回 null。 */
+const relayClusterOf = (hostname) => {
+  const host = String(hostname || '').toLowerCase();
+  return RELAY_CLUSTERS.find(cluster => host.endsWith(`.${cluster.domain}`)) ?? null;
+};
 
-/** 已规范化的服务器地址是否走 FN Connect 中继：按主机名判定，不看路径。 */
-const isRelayBase = (base) => {
+/** 已规范化的服务器地址是否要带 mode=relay：按主机名判定所在集群，不看路径。 */
+const usesRelayCookie = (base) => {
   try {
-    return isRelayHostname(new URL(base).hostname);
+    return Boolean(relayClusterOf(new URL(base).hostname)?.relayCookie);
   } catch {
     return false;
   }
@@ -89,7 +100,8 @@ const buildAuthCookie = ({ token, relay }) => {
   return parts.length ? parts.join('; ') : null;
 };
 
-/** 规范化用户填的服务器地址：没写协议按 http（fnOS 默认 5666 端口是 HTTP），只收 http/https，去掉末尾斜杠。不合法回 null。 */
+/** 规范化用户填的服务器地址：没写协议按 http（fnOS 默认 5666 端口是 HTTP），只收 http/https，去掉末尾斜杠。
+ *  FN Connect 中继：路径式入口 <集群域名>/<fnid> 改写成 <fnid>.<集群域名>；中继主机一律 https、只留主机。不合法回 null。 */
 const normalizeBase = (value) => {
   const raw = String(value || '').trim();
   if (!raw) return null;
@@ -98,8 +110,17 @@ const normalizeBase = (value) => {
     const url = new URL(withScheme);
     if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
     if (!url.hostname) return null;
-    // FN Connect 中继走公网：*.fnos.net 一律 https（用户抄地址时漏了协议也不明文发密码摘要）。
-    if (url.protocol === 'http:' && isRelayHostname(url.hostname)) url.protocol = 'https:';
+    // 路径式入口（浏览器里的 https://5ddd.com/<fnid>）回的是网页，不转发 API：改写成子域名。
+    const host = url.hostname.toLowerCase();
+    const firstSegment = url.pathname.split('/').filter(Boolean)[0] ?? '';
+    const pathCluster = RELAY_CLUSTERS.find(cluster => host === cluster.domain || host === `www.${cluster.domain}`);
+    if (pathCluster && FN_ID_PATTERN.test(firstSegment)) {
+      return `https://${firstSegment.toLowerCase()}.${pathCluster.domain}`;
+    }
+    // 中继走公网：一律 https（用户漏写协议时也不明文发密码摘要），只留主机（API 挂在根路径，复制来的页面路径会拼坏请求）。
+    if (relayClusterOf(url.hostname)) {
+      return `https://${url.host}`;
+    }
     return `${url.origin}${url.pathname}`.replace(/\/+$/, '');
   } catch {
     return null;
@@ -196,7 +217,8 @@ const performRequest = async ({
     return {
       ok: false,
       status: 0,
-      error: { code: 'network', message: error instanceof Error ? error.message : String(error) },
+      // errno：Node 的系统错误码（如 ENOTFOUND），登录据此判断 FN ID 是否不在这个中继集群上。
+      error: { code: 'network', message: error instanceof Error ? error.message : String(error), errno: error?.code ?? null },
     };
   }
   const envelope = parseJsonEnvelope(response.raw);
@@ -269,7 +291,7 @@ const createFnmusicApiBridge = ({ store, safeStorage }) => {
       if (value != null) targetUrl.searchParams.set(key, String(value));
     }
     const headers = { Accept: '*/*' };
-    const authCookie = buildAuthCookie({ token: config.token, relay: isRelayBase(config.base) });
+    const authCookie = buildAuthCookie({ token: config.token, relay: usesRelayCookie(config.base) });
     if (authCookie) headers.Cookie = authCookie;
     if (range) headers.Range = range;
     const transport = targetUrl.protocol === 'https:' ? https : http;
@@ -350,35 +372,53 @@ const createFnmusicApiBridge = ({ store, safeStorage }) => {
     },
 
     /** 登录：POST /music/api/v1/user/password-login，密码 SHA-256，成功后加密保存配置。
-     *  服务器地址支持：局域网直连（IP[:端口]）与 FN Connect 中继（纯 FN ID → https://<fnid>.fnos.net）。 */
+     *  服务器地址支持：局域网直连（IP[:端口]）与 FN Connect 中继（纯 FN ID → 依次试 https://<fnid>.5ddd.com、https://<fnid>.fnos.net）。 */
     async login({ base: rawBase, username, password, deviceId }) {
       if (!rawBase || !username || !password) {
         return { ok: false, status: 0, error: { code: 'invalid-params', message: '登录缺少服务器地址 / 账号 / 密码' } };
       }
-      // 先识别 FN ID（纯短码 → 中继），再交给 normalizeBase 补协议/校验。
-      const base = normalizeBase(resolveServer(rawBase));
-      if (!base) {
+      // 先识别 FN ID（纯短码 → 各中继集群的候选地址），再交给 normalizeBase 补协议/校验。
+      const bases = resolveServerCandidates(rawBase).map(normalizeBase);
+      if (!bases.length || bases.some(base => !base)) {
         return { ok: false, status: 0, error: { code: 'invalid-base', message: '服务器地址无效' } };
       }
-      // 地址是否走 FN Connect 中继：按主机名 *.fnos.net 判定（仅此情形带 mode=relay cookie）。
-      const relay = isRelayBase(base);
-      log(`登录走${relay ? ' FN Connect 中继' : '局域网直连'} host=${new URL(base).host}`);
       // 持久复用 deviceId：同一台机器登录同一 NAS 不产生新设备（与飞牛网页端一致）；登出之后也留着。
       const storedDeviceId = store.get(DEVICE_STORE_KEY);
       const effectiveDeviceId = deviceId
         || (typeof storedDeviceId === 'string' && storedDeviceId ? storedDeviceId : '')
         || readConfig()?.deviceId
         || crypto.randomBytes(16).toString('hex');
-      const result = await performRequest({
-        base,
-        method: 'POST',
-        path: '/music/api/v1/user/password-login',
-        body: { username, password: SHA256(password), deviceId: effectiveDeviceId },
-        // 中继地址必须带 mode=relay cookie：FN Connect 网关放行 API 的必要条件；局域网直连不带。
-        relay,
-        // 登录接口实测不校验 authx 签名（2026-10-28 服务端实测：无 authx 同样 code 0 登录成功），
-        // 全接口也不做签名（见文件头注释），排除电脑系统时钟偏差导致签名校验失败的变量。
-      });
+      let base = bases[0];
+      let result = null;
+      const failures = [];
+      for (const candidate of bases) {
+        base = candidate;
+        // 中继地址按集群决定是否带 mode=relay（fnos.net 带，5ddd.com 不带）；局域网直连不带。
+        const relay = usesRelayCookie(base);
+        log(`登录走${relayClusterOf(new URL(base).hostname) ? ' FN Connect 中继' : '局域网直连'} host=${new URL(base).host}`);
+        result = await performRequest({
+          base,
+          method: 'POST',
+          path: '/music/api/v1/user/password-login',
+          body: { username, password: SHA256(password), deviceId: effectiveDeviceId },
+          relay,
+          // 登录接口实测不校验 authx 签名（2026-10-28 服务端实测：无 authx 同样 code 0 登录成功），
+          // 全接口也不做签名（见文件头注释），排除电脑系统时钟偏差导致签名校验失败的变量。
+        });
+        // 拿到 fnOS 的 JSON 答复（登录成功，或业务码如 120001 密码错）就是找对了集群，到此为止。
+        // 其余失败（域名解析不到、代理 fake-ip 下的连接重置或超时、劫持页证书不符、网关回的网页）都换下一个集群：
+        // 不能只认 ENOTFOUND，很多网络对不存在的域名也会给出一个地址。两个集群都是飞牛官方的 https 中继，证书严格校验。
+        if (result.ok || typeof result.error?.code === 'number') break;
+        failures.push(`${new URL(base).host}: ${result.error?.errno || result.error?.code || 'unknown'}`);
+      }
+      if (!result.ok && typeof result.error?.code !== 'number' && bases.length > 1) {
+        log(`FN Connect 两个中继集群都没有连上这个 FN ID: ${failures.join('; ')}`);
+        return {
+          ok: false,
+          status: 0,
+          error: { code: 'network', message: `FN Connect 上没有连上这个 FN ID：可能 FN ID 不对，或者当前网络连不上中继（${failures.join('；')}）`, errno: result.error?.errno ?? null },
+        };
+      }
       if (!result.ok) return result;
       if (!result.data?.userToken || !result.data?.user) {
         return {
@@ -400,7 +440,7 @@ const createFnmusicApiBridge = ({ store, safeStorage }) => {
     async logout() {
       const config = readConfig();
       if (config?.base && config.token) {
-        await performRequest({ base: config.base, method: 'POST', path: '/music/api/v1/user/logout', token: config.token, relay: isRelayBase(config.base) });
+        await performRequest({ base: config.base, method: 'POST', path: '/music/api/v1/user/logout', token: config.token, relay: usesRelayCookie(config.base) });
       }
       writeConfig(null);
       return { ok: true, status: 200, data: null };
@@ -412,7 +452,7 @@ const createFnmusicApiBridge = ({ store, safeStorage }) => {
       if (!config?.base) {
         return { ok: false, status: 0, error: { code: 'unconfigured', message: '飞牛尚未配置服务器' } };
       }
-      return performRequest({ base: config.base, method: method || 'GET', path, params, body, token: config.token, relay: isRelayBase(config.base) });
+      return performRequest({ base: config.base, method: method || 'GET', path, params, body, token: config.token, relay: usesRelayCookie(config.base) });
     },
 
     /** 播放地址：返回 folia-fnmusic:// 协议 URL（协议 handler 实时转发，URL 不带凭据）。 */
@@ -435,4 +475,4 @@ const createFnmusicApiBridge = ({ store, safeStorage }) => {
   };
 };
 
-module.exports = { createFnmusicApiBridge, performRequest, resolveServer, buildAuthCookie, FN_MUSIC_SCHEME, FN_MUSIC_PRIVILEGED_SCHEME };
+module.exports = { createFnmusicApiBridge, performRequest, resolveServerCandidates, normalizeBase, buildAuthCookie, FN_MUSIC_SCHEME, FN_MUSIC_PRIVILEGED_SCHEME };
