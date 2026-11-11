@@ -172,6 +172,7 @@ const { onlineFailureOf } = await import('@/services/onlineMusic/failure/onlineF
 const { usePersonalFmModeStore } = await import('@/stores/usePersonalFmModeStore');
 const { useAudioSettingsStore } = await import('@/stores/useAudioSettingsStore');
 const { noteQueueStart, queueStartsSoFar } = await import('@/components/app/playback/start/queueStarts');
+const { onQueueEnd } = await import('@/components/scenes/engine/queueEnd');
 const { registerPersonalFmLanding } = await import('@/components/app/playback/start/personalFmLanding');
 const { usePlaybackTransportController } = await import('@/components/app/playback/bridges/usePlaybackTransportController');
 // React is mocked above; the probe invokes the real hook in this test's retained render harness.
@@ -1593,5 +1594,22 @@ describe('a Stage API add', () => {
         expect(complete).toHaveBeenCalledWith(expect.objectContaining({
             requestId: 'p1', ok: false, error: 'Song qq:1 was not found.',
         }));
+    });
+});
+
+describe('the end of the queue', () => {
+    it('tells a scene the queue played out only when the last track played to its end', async () => {
+        playerWith([a, b], b);
+        const heard = vi.fn();
+        const stop = onQueueEnd(heard);
+        try {
+            // A skip after a failure, or an audio error, that finds no next track stops without it.
+            await mount().queue.handleNextTrack({ allowStopOnMissing: true, fromSong: b });
+            expect(heard).not.toHaveBeenCalled();
+            await mount().queue.handleNextTrack({ allowStopOnMissing: true, playedToEnd: true });
+            expect(heard).toHaveBeenCalledTimes(1);
+        } finally {
+            stop();
+        }
     });
 });

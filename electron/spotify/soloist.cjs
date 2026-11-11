@@ -138,6 +138,9 @@ function createSoloist({
   let playAsked = 0;
   // The volume Folia last asked for (0 to 100), given to a program started later as its first one.
   let volume = null;
+  // Folia's single loop: the program repeats the track asked for by itself (no gap). Its list
+  // repeat stays off whatever this is: what comes after a track is Folia's queue.
+  let repeatOne = false;
 
   const dataDir = () => dataDirectory();
   const endpoint = () => {
@@ -254,8 +257,22 @@ function createSoloist({
           if (Number.isFinite(told) && told > 0) wanted.durationMs = told;
           if (stoppedAtEnd()) endWanted('it stopped at its end');
           // From its end back to its start without being asked (a seek Folia sends moves `lastMs`
-          // first): the program finished the track and went back, as at the end of a list.
-          else if (nearEnd(before, wanted.durationMs) && positionNow() + END_SLACK_MS < before) endWanted('it went back to its start');
+          // first): the program finished the track and went back, as at the end of a list. Under
+          // single repeat that is the track going round again, and it plays on, but only while the
+          // program still plays (it buffers as it goes round: seen 2026-11-11) and does not say its
+          // repeat is off: a repeat that did not take ends the track as before, and the renderer
+          // then starts it again itself.
+          else if (nearEnd(before, wanted.durationMs) && positionNow() + END_SLACK_MS < before) {
+            if (repeatOne && (playback?.status === 'playing' || playback?.status === 'buffering') && playback?.options?.repeat !== 'off') {
+              wanted.lastMs = positionNow();
+              log(`[Soloist] ${wanted.uri} went round (single repeat)`);
+            } else {
+              // Under single repeat, what the program said instead of going round is the evidence.
+              endWanted(repeatOne
+                ? `it went back to its start; single repeat did not take (status ${playback?.status}, repeat ${JSON.stringify(playback?.options?.repeat ?? null)})`
+                : 'it went back to its start');
+            }
+          }
         }
       } else if (wanted.seen && nearEnd(wanted.lastMs ?? 0, wanted.durationMs)) {
         endWanted(`the program went on to ${uri ?? 'nothing'}`);
@@ -546,12 +563,14 @@ function createSoloist({
     pausedByUs = false;
     // The same track played again: where it stopped last time is not where it is going to be.
     if (playback?.item?.uri === uri) playback = { ...playback, position: null, positionAt: now() };
-    if (playback?.options?.repeat !== 'off') {
-      send('set_repeat_track', { enabled: false });
+    if (repeatOne || playback?.options?.repeat !== 'off') {
+      send('set_repeat_track', { enabled: repeatOne });
       send('set_repeat_context', { enabled: false });
     }
     send('play', { uri });
     await until(() => playback?.item?.uri === uri && (playback.status === 'playing' || playback.status === 'buffering'), PLAY_LIMIT_MS, `play ${uri}`);
+    // Said again now the track is loaded: a repeat sent with nothing loaded may have been refused.
+    if (repeatOne) send('set_repeat_track', { enabled: true });
     // Only now: a seek sent with the play would be applied to the track before it.
     if (startMs > 1000) send('seek', { position_ms: Math.round(startMs) });
   };
@@ -675,6 +694,14 @@ function createSoloist({
         if (playback) playback = { ...playback, position: { position_ms: at, timestamp_ms: now(), speed: playback.status === 'playing' ? 1 : 0 }, positionAt: now() };
         send('seek', { position_ms: at });
       });
+    },
+
+    // Folia's single loop, kept for every later play and sent at once to a program that plays the
+    // track asked for. Never starts the program: a play sets it when one comes.
+    setRepeatOne(enabled) {
+      if (repeatOne !== (enabled === true)) log(`[Soloist] Single repeat ${enabled === true ? 'on' : 'off'}`);
+      repeatOne = enabled === true;
+      if (socket && wanted && !wanted.ended) send('set_repeat_track', { enabled: repeatOne });
     },
 
     async setVolume(level) {

@@ -1171,6 +1171,14 @@ export const omni = {
         await runRequest(provider, 'audio', () => provider.externalPlayback!.setVolume!(volume));
     },
 
+    // A player without its own single-track repeat is left alone: the route starts the track again itself.
+    async setExternalPlaybackRepeatOne(song: SongResult, enabled: boolean): Promise<void> {
+        const provider = providerForSong(song);
+        const player = provider.externalPlayback;
+        if (!player?.setRepeatOne) return;
+        await runRequest(provider, 'audio', () => player.setRepeatOne?.(enabled) ?? Promise.resolve());
+    },
+
     async getExternalPlaybackStatus(song: SongResult): Promise<ProviderExternalPlaybackStatus> {
         const provider = providerForSong(song);
         if (!provider.externalPlayback) return unsupported(provider.id, 'externalPlayback');

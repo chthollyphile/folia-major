@@ -117,7 +117,7 @@ const fakeActions = () => ({
     getQueue: vi.fn(() => ({ items: [], length: 0, currentIndex: -1, kind: 'queue' as const, version: 'v' })),
     playQueueItem: vi.fn(async () => true),
     replaceQueue: vi.fn(() => ({ status: 'replaced' as const, version: 'v2', length: 0, currentIndex: -1 })),
-    toast: vi.fn(), openPlayerPanel: vi.fn(), navigate: vi.fn(), openVolume: vi.fn(),
+    toast: vi.fn(), openPlayerPanel: vi.fn(), navigate: vi.fn(), openVolume: vi.fn(), back: vi.fn(() => true),
     getLyricLines: () => [], refreshLyrics: vi.fn(),
 });
 

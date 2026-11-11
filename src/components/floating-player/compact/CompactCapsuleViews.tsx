@@ -37,6 +37,13 @@ export type CompactCapsuleInfo = {
     label: string | null;
 };
 
+/** 展开时封面旁边的字。平时是歌手 / 专辑；预告下一首时是小标 + 下一首的歌名 / 歌手（封面那时也是下一首的）。 */
+export type CompactCapsuleMeta = {
+    label: string | null;
+    primary: string | null;
+    secondary: string | null;
+};
+
 const NowPlayingToastTransitionBorder = lazy(() => import('../../app/overlays/now-playing-toast/NowPlayingToastTransitionBorder'));
 
 /** 紧凑胶囊的圆角：收起是 56 高的胶囊，展开后是圆角卡片，两种形状用同一个半径。 */
@@ -186,6 +193,9 @@ type CompactExpandedViewProps = {
     progressRow: ReactNode;
     /** 封面；卡片不在场时为 null。 */
     cover: ReactNode | null;
+    /** 封面旁边的两行字（歌手 / 专辑，预告时是下一首）；卡片不在场或没有可写的为 null。 */
+    meta: CompactCapsuleMeta | null;
+    primaryColor: string;
     slotPrimary: ReactNode;
     slotSecondary: ReactNode;
     playButton: ReactNode;
@@ -194,14 +204,17 @@ type CompactExpandedViewProps = {
 
 /**
  * 展开的紧凑胶囊。最下一行和收起时那一行一模一样：左边封面，右边播放键、分隔线和挂件位，离底边的距离也一样
- * （下边距 4 + 48 高的一行，中心离底 28）。展开、收起之间封面、播放键、右端按钮都不挪不变，只有中间的歌名
- * 换成两个槽位；圆形的封面和播放键隔着槽位，不挨在一起。
+ * （下边距 4 + 48 高的一行，中心离底 28）。展开、收起之间封面、播放键、右端按钮都不挪不变，只有中间那一块
+ * 换内容：封面旁边是歌手和专辑（歌名已经在标题行），两个槽位靠在播放键左边。和收起时一样左边是封面加字、
+ * 右边是控件，中间不留空。
  */
 export const CompactExpandedView: React.FC<CompactExpandedViewProps> = ({
     quickRow,
     titleRow,
     progressRow,
     cover,
+    meta,
+    primaryColor,
     slotPrimary,
     slotSecondary,
     playButton,
@@ -218,9 +231,19 @@ export const CompactExpandedView: React.FC<CompactExpandedViewProps> = ({
         <div className="compact-reveal min-w-0 px-3">{progressRow}</div>
         <div className="flex h-12 items-center gap-2 px-1">
             {cover}
-            <div className="compact-swap flex min-w-0 flex-1 items-center gap-1 px-1">
-                {slotPrimary}
-                {slotSecondary}
+            {/* 这一块自己是容器：窄到两行字只剩三四个字符（约 360 以下的手机）时不写字，两个槽位在封面和播放键之间匀开。 */}
+            <div className="compact-swap @container min-w-0 flex-1">
+                <div className="flex items-center gap-1 @max-[159px]:justify-around">
+                    <div className="flex min-w-0 flex-1 flex-col justify-center gap-0.5 px-1 select-none @max-[159px]:hidden" style={{ color: primaryColor }} data-compact-meta>
+                        {meta?.label && (
+                            <span className="h-[10px] truncate text-[9px] font-semibold uppercase leading-[10px] tracking-[0.14em] opacity-60">{meta.label}</span>
+                        )}
+                        {meta?.primary && <span className="truncate text-[13px] font-medium leading-4">{meta.primary}</span>}
+                        {meta?.secondary && <span className="truncate text-[11px] leading-[14px] opacity-60">{meta.secondary}</span>}
+                    </div>
+                    {slotPrimary}
+                    {slotSecondary}
+                </div>
             </div>
             {playButton}
             {hasCompanion && (

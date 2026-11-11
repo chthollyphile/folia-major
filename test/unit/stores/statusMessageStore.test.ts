@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { holdStatusMessage, runStatusMessageTime, setStatusMessage, useStatusMessageStore } from '@/stores/useStatusMessageStore';
+import { STATUS_LOADING_DELAY_MS, dropWaitingStatusLoaders, withStatusLoadingResult, beginStatusLoading, cancelStatusLoading, completeStatusLoading, failStatusLoading, reviseStatusLoading, holdStatusMessage, runStatusMessageTime, setStatusMessage, useStatusMessageStore } from '@/stores/useStatusMessageStore';
 
 // test/unit/stores/statusMessageStore.test.ts
 // Guards the two properties the toast channel's callers depend on: the updater form still sees
@@ -10,6 +10,105 @@ import { holdStatusMessage, runStatusMessageTime, setStatusMessage, useStatusMes
 describe('status message store', () => {
     beforeEach(() => {
         useStatusMessageStore.setState({ message: null, held: false });
+        dropWaitingStatusLoaders();
+    });
+
+    describe('owned loaders', () => {
+        beforeEach(() => { vi.useFakeTimers(); });
+        afterEach(() => { vi.useRealTimers(); });
+        const shown = (text: string) => {
+            const loading = beginStatusLoading(text);
+            vi.advanceTimersByTime(STATUS_LOADING_DELAY_MS);
+            return loading;
+        };
+
+        it('shows nothing for a load that ends before the delay', () => {
+            const quick = beginStatusLoading('quick');
+            vi.advanceTimersByTime(STATUS_LOADING_DELAY_MS - 1);
+            expect(useStatusMessageStore.getState().message).toBeNull();
+            completeStatusLoading(quick, 'done');
+            vi.advanceTimersByTime(STATUS_LOADING_DELAY_MS);
+            expect(useStatusMessageStore.getState().message).toBeNull();
+            const dropped = beginStatusLoading('dropped');
+            cancelStatusLoading(dropped);
+            vi.advanceTimersByTime(STATUS_LOADING_DELAY_MS);
+            expect(useStatusMessageStore.getState().message).toBeNull();
+        });
+
+        it('ends silently on a failure that came before the delay', () => {
+            const loading = beginStatusLoading('loading');
+            failStatusLoading(loading, 'failed');
+            vi.advanceTimersByTime(STATUS_LOADING_DELAY_MS);
+            expect(useStatusMessageStore.getState().message).toBeNull();
+        });
+
+        it('lets a new play drop an older loader still waiting', () => {
+            const older = beginStatusLoading('older');
+            dropWaitingStatusLoaders();
+            const newer = beginStatusLoading('newer');
+            vi.advanceTimersByTime(STATUS_LOADING_DELAY_MS);
+            expect(useStatusMessageStore.getState().message).toMatchObject({ activityId: newer.activityId });
+            cancelStatusLoading(older);
+            expect(useStatusMessageStore.getState().message).toMatchObject({ activityId: newer.activityId });
+        });
+
+        it('shows a waiting loader at once when it is revised', () => {
+            const loading = beginStatusLoading('loading');
+            reviseStatusLoading(loading, { text: 'retrying' });
+            expect(useStatusMessageStore.getState().message).toMatchObject({ activity: 'loading', activityId: loading.activityId, text: 'retrying' });
+            vi.advanceTimersByTime(STATUS_LOADING_DELAY_MS);
+            expect(useStatusMessageStore.getState().message?.text).toBe('retrying');
+        });
+
+        it('does not cover a toast set while it waited', () => {
+            beginStatusLoading('loading');
+            setStatusMessage({ type: 'info', text: 'preview' });
+            vi.advanceTimersByTime(STATUS_LOADING_DELAY_MS);
+            expect(useStatusMessageStore.getState().message?.text).toBe('preview');
+        });
+
+        it('keeps the loader identity for success and rejects an older completion', () => {
+            const first = shown('first');
+            const second = shown('second');
+            completeStatusLoading(first, 'old result');
+            expect(useStatusMessageStore.getState().message).toBe(second);
+            completeStatusLoading(second, 'done');
+            expect(useStatusMessageStore.getState().message).toMatchObject({ activity: 'success', activityId: second.activityId, text: 'done' });
+            expect(useStatusMessageStore.getState().message?.persistent).not.toBe(true);
+        });
+
+        it('morphs a failure without losing its actions or countdown', () => {
+            const loading = shown('loading');
+            const onAction = vi.fn();
+            const countdown = { text: 'skip', seconds: 5, totalMs: 5000 };
+            setStatusMessage({ type: 'error', text: 'failed', persistent: true, countdown, onAction });
+            expect(useStatusMessageStore.getState().message).toMatchObject({ activity: 'error', activityId: loading.activityId, text: 'failed', persistent: true, countdown, onAction });
+            completeStatusLoading(loading, 'late success');
+            expect(useStatusMessageStore.getState().message?.text).toBe('failed');
+        });
+
+        it('keeps the predecorated failure identity used by countdown updates', () => {
+            shown('loading');
+            const failure = withStatusLoadingResult({ type: 'error', text: 'failed', persistent: true });
+            setStatusMessage(failure);
+            expect(useStatusMessageStore.getState().message).toBe(failure);
+            setStatusMessage(previous => previous === failure ? { ...failure, text: 'next second' } : previous);
+            expect(useStatusMessageStore.getState().message?.text).toBe('next second');
+        });
+
+        it('does not cover an error or fail a newer loading operation', () => {
+            setStatusMessage({ type: 'error', text: 'error' });
+            const hidden = shown('loading');
+            completeStatusLoading(hidden, 'done');
+            expect(useStatusMessageStore.getState().message?.text).toBe('error');
+            setStatusMessage(null);
+            const first = shown('first');
+            const second = shown('second');
+            failStatusLoading(first, 'old error');
+            expect(useStatusMessageStore.getState().message).toBe(second);
+            failStatusLoading(second, 'failed');
+            expect(useStatusMessageStore.getState().message).toMatchObject({ activity: 'error', text: 'failed', activityId: second.activityId });
+        });
     });
 
     it('stores a message set directly', () => {

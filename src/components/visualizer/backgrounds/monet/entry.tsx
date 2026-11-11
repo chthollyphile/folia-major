@@ -4,6 +4,7 @@ import { DEFAULT_MONET_BACKGROUND_TUNING, type MonetBackgroundSource, type Monet
 import { MonetBackgroundSettingsCard } from './MonetBackgroundSettingsCard';
 import MonetBackgroundLayer, { resolveMonetSourceUrl } from './MonetBackgroundLayer';
 import { defineVisualizerBackground } from '../definition';
+import { getOriginalCoverUrl } from '../../../../utils/coverUrl';
 import { QuickControlChip, QuickControlToggle } from '../../../shared/QuickControlChip';
 
 // src/components/visualizer/backgrounds/monet/entry.tsx
@@ -13,6 +14,11 @@ const SOURCE_LABEL_KEYS: Record<MonetBackgroundSource, string> = {
     'cover-derived': 'options.monetBackgroundSourceCover',
     'uploaded-global': 'options.monetBackgroundSourceUploaded',
 };
+
+// The picture fills the screen, so where the cover URL carries a size it is read back to the provider's
+// original rather than kept at the backdrop's 1024 step, which some serve smaller than the screen. No
+// cover stays no cover, so the uploaded image still stands in for it.
+const fullCover = (coverUrl: string | null | undefined) => (coverUrl ? getOriginalCoverUrl(coverUrl) : coverUrl);
 
 export default defineVisualizerBackground({
     mode: 'monet',
@@ -29,11 +35,11 @@ export default defineVisualizerBackground({
     // The picture is made from the cover, or from the uploaded image where that comes first. The theme
     // colours change in place, with the picture's own crossfade.
     song: ({ config, coverUrl }) => [
-        resolveMonetSourceUrl(coverUrl, config?.customImage, config?.monet?.tuning ?? DEFAULT_MONET_BACKGROUND_TUNING),
+        resolveMonetSourceUrl(fullCover(coverUrl), config?.customImage, config?.monet?.tuning ?? DEFAULT_MONET_BACKGROUND_TUNING),
     ],
     render: ({ config, coverUrl, theme, isDaylight, staticMode }) => (
         <MonetBackgroundLayer
-            coverUrl={coverUrl}
+            coverUrl={fullCover(coverUrl)}
             monetBackgroundImage={config?.customImage}
             theme={theme}
             isDaylight={isDaylight}

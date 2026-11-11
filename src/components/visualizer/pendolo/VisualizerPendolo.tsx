@@ -12,14 +12,16 @@ import VisualizerShell from '../VisualizerShell';
 import PendoloClockworkCanvas from './PendoloClockworkCanvas';
 import { resolveThemeFontStack, resolveThemeFontWeight, resolveThemeTranslationFontStack } from '../../../utils/fontStacks';
 import { resolveSubtitleContentMode } from '../../../utils/lyrics/alternateText';
-import { calculatePendoloWheelLayout } from './pendoloGeometry';
+import { calculatePendoloWheelLayout, resolvePendoloWheelCenterX } from './pendoloGeometry';
+import { buildPendoloDialProjection, buildPendoloHubViewProjection, buildPendoloLayerProjection, buildPendoloTiltProjection, resolvePendoloPlaneCssTransform, resolvePendoloSpaceCssTransform } from './pendoloDialProjection';
+import { PENDOLO_BALANCE_ICON_HEIGHT, PENDOLO_LYRIC_LAYER_HEIGHT } from './pendoloParallax';
 import PendoloActiveLyricSweep from './PendoloActiveLyricSweep';
 import { buildPendoloTextLayout } from './pendoloTextLayout';
 import { buildPendoloSubtitleFontSpec, resolvePendoloSubtitleTracks, sumPendoloSubtitleTrackHeights } from './pendoloSubtitleTracks';
 import { resolvePendoloChorusPresentation, resolvePendoloMotionProfile } from './pendoloMotionProfile';
 import { resolvePendoloPointWave } from './pendoloBeatFx';
 import { resolvePendoloFallbackAnchorIndex } from './pendoloTimeline';
-import PendoloRotatingLine from './PendoloRotatingLine';
+import PendoloRotatingLine, { type PendoloStandUp } from './PendoloRotatingLine';
 import { resolvePendoloWaveReach, usePendoloBeatFx } from './usePendoloBeatFx';
 import { useVisualizerSettingsStore } from '../../../stores/useVisualizerSettingsStore';
 import { smartBeatActive } from '../../../services/beatFx/beatEffects';
@@ -52,6 +54,19 @@ const clampScrollSteps = (steps: number) => {
  * Renders lyrics arranged in an adjustable circular arc on the left side of the screen.
  * Advance of song lines triggers a springy mechanical escapement ratchet step and subtle balance wheel motion.
  */
+/**
+ * 轮心视角下非焦点句的不透明度倍数：立起来以后离焦点句越近越容易和它叠在一起，所以越近越淡。
+ * 紧挨着的前后句最淡（0.18），往外每一句加一档，到第 4 句回到原来的不透明度。
+ */
+const PENDOLO_STAND_SIDE_LINE_ALPHA_MIN = 0.18;
+const PENDOLO_STAND_SIDE_LINE_FULL_DISTANCE = 4;
+const resolvePendoloStandSideLineAlpha = (distance: number) => Math.min(
+    1,
+    // 间奏时没有焦点句，最近的两句离刻度针只有半档：按紧挨着的一句算，不再往下压
+    PENDOLO_STAND_SIDE_LINE_ALPHA_MIN
+        + ((1 - PENDOLO_STAND_SIDE_LINE_ALPHA_MIN) * (Math.max(1, distance) - 1)) / (PENDOLO_STAND_SIDE_LINE_FULL_DISTANCE - 1),
+);
+
 const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
     const {
         currentTime,
@@ -352,7 +367,10 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
     const fontFamily = useMemo(() => resolveThemeFontStack(theme), [theme]);
     const fontWeight = useMemo(() => resolveThemeFontWeight(theme, 400), [theme]);
 
-    const centerX = viewportSize.width * pendoloTuning.wheelCenterX;
+    // 歌词左右镜像（#1124）：表盘在右、弧线朝左；关着时 sideSign 是 1，一切和原来一样
+    const mirrored = pendoloTuning.mirrorLayout === true;
+    const sideSign = mirrored ? -1 : 1;
+    const centerX = resolvePendoloWheelCenterX(viewportSize.width, pendoloTuning);
     const centerY = viewportSize.height * pendoloTuning.wheelCenterY;
     const baseRadius = Math.min(viewportSize.width, viewportSize.height) * pendoloTuning.arcRadius;
     const lyricRadiusOffset = Math.min(viewportSize.width, viewportSize.height) * 0.06;
@@ -361,7 +379,42 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
     const maxItemX = centerX + baseRadius;
     const availableTextWidth = Math.max(
         140,
-        Math.min(viewportSize.width * 0.46, viewportSize.width - maxItemX - 48),
+        Math.min(viewportSize.width * 0.46, mirrored ? centerX - baseRadius - 48 : viewportSize.width - maxItemX - 48),
+    );
+    // 表盘倾斜：歌词和摆轮图标放在一层里整体按倾斜投影（它们已经按镜像排过），表盘画布还要先镜像
+    // Canvas2D 回退画不了透视，歌词层却是 matrix3d 透视加视差，两边会对不上：回退时整体不倾斜
+    const [clockworkWebgl, setClockworkWebgl] = useState(true);
+    const requestedTiltDeg = pendoloTuning.tiltDeg ?? 0;
+    const tiltDeg = clockworkWebgl ? requestedTiltDeg : 0;
+    const tiltAxisDeg = pendoloTuning.tiltAxisDeg ?? 0;
+    // 轮心视角：相机在轮心后上方，顺着刻度针看向焦点句；代替倾斜，同样只在 WebGL 下生效
+    const requestedHubView = pendoloTuning.hubView === true;
+    const hubView = clockworkWebgl && requestedHubView;
+    // 相机至少要比最高的一层（摆轮图标）高一截，不然那几层会跑到相机上面、从底下被看到
+    const hubCameraHeightPx = baseRadius * Math.max(
+        pendoloTuning.hubViewHeight ?? DEFAULT_PENDOLO_TUNING.hubViewHeight ?? 1.4,
+        PENDOLO_BALANCE_ICON_HEIGHT * (pendoloTuning.parallaxDepth ?? 1) + 0.15,
+    );
+    // 相机从轮心沿刻度针反方向后退这么远，越过轮心看向焦点句，整套齿轮在近处
+    const hubCameraBackPx = baseRadius * (pendoloTuning.hubViewBack ?? 1.2);
+    const tiltProjection = useMemo(
+        () => (hubView
+            ? buildPendoloHubViewProjection(
+                hubCameraHeightPx,
+                hubCameraBackPx,
+                lyricRingRadius,
+                sideSign,
+                centerX,
+                centerY,
+                viewportSize.width,
+                viewportSize.height,
+            )
+            : buildPendoloTiltProjection(tiltDeg, tiltAxisDeg, viewportSize.width, viewportSize.height)),
+        [centerX, centerY, hubCameraBackPx, hubCameraHeightPx, hubView, lyricRingRadius, sideSign, tiltAxisDeg, tiltDeg, viewportSize.height, viewportSize.width],
+    );
+    const dialProjection = useMemo(
+        () => buildPendoloDialProjection(tiltProjection, mirrored),
+        [mirrored, tiltProjection],
     );
 
     // Escapement angular shift calculation
@@ -390,7 +443,11 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
         tickSpring,
         value => -(value - targetLineIndex) * angleStepRad * (180 / Math.PI),
     );
-    const textRotationCorrectionDeg = useTransform(wheelRotationDeg, value => -value * 0.65);
+    // 镜像时轨道反着转，弧线在屏幕上才和原版对称地走
+    const railRotationDeg = useTransform(wheelRotationDeg, value => value * sideSign);
+    const textRotationCorrectionDeg = useTransform(railRotationDeg, value => -value * 0.65);
+    // 轮心视角下句子立起来：抵掉轨道的转角，字的横向朝相机的右手（布局里是 (0, sideSign)）
+    const standUpRotationDeg = useTransform(railRotationDeg, value => sideSign * 90 - value);
     const gearRotationAngleRad = useTransform(tickSpring, value => value * angleStepRad);
 
     // Pendolo lays subtitles out inside its own clockwork layout, not the shared bottom subtitle. 'both' stacks
@@ -475,10 +532,45 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
         return `radial-gradient(circle closest-side, ${at(0)} 0%, ${at(0)} 45%, ${at(PENDOLO_HALO_ALPHA * 0.15)} 65%, `
             + `${at(PENDOLO_HALO_ALPHA)} 88%, ${at(0)} 100%)`;
     }, [beatFx.color]);
-    const balanceGearX = centerX + baseRadius * 0.2;
+    // 镜像时摆轮翻到轮心另一侧；倾斜由外面的表盘平面层统一投影
+    const balanceGearX = centerX + sideSign * baseRadius * 0.2;
     const balanceGearY = centerY - baseRadius * 0.75;
+    // 倾斜时歌词和摆轮图标所在的那一层：和表盘画布同一个矩阵，字也躺在表盘平面上。
+    // 不倾斜时这层没有 transform / zIndex，不成层叠上下文，画面和原来一样。
+    // 冲击环是 plus-lighter 叠加，不能再包一层（那层会把它隔离、叠加失效），所以把同一个矩阵直接
+    // 放在它自己的 transform 最前面；它的盒子以轮心为中心，默认的变换原点就是轮心。
+    const planeCssTransform = tiltProjection.flat ? null : resolvePendoloPlaneCssTransform(tiltProjection);
+    const haloTransformTemplate = useCallback(
+        (_: unknown, generated: string) => `${planeCssTransform} ${generated === 'none' ? '' : generated}`,
+        [planeCssTransform],
+    );
+    // 分层视差：摆轮图标和歌词各自浮在表盘平面上方一段高度，按各自那一层的投影画；
+    // 只在倾斜时有高度（parallaxScalePx 为 0 时两层都是表盘平面本身）。
+    const parallaxScalePx = tiltProjection.flat ? 0 : (pendoloTuning.parallaxDepth ?? 1) * baseRadius;
+    const resolveLayerStyle = (heightRatio: number, zIndex: number, standUp = false): React.CSSProperties | undefined => {
+        if (tiltProjection.flat) return undefined;
+        const layer = buildPendoloLayerProjection(tiltProjection, heightRatio * parallaxScalePx);
+        return {
+            transform: standUp ? resolvePendoloSpaceCssTransform(layer) : resolvePendoloPlaneCssTransform(layer),
+            transformOrigin: `${centerX}px ${centerY}px`,
+            transformStyle: standUp ? 'preserve-3d' : undefined,
+            zIndex,
+        };
+    };
+    const iconLayerStyle = resolveLayerStyle(PENDOLO_BALANCE_ICON_HEIGHT, 1);
+    // 轮心视角下歌词立起来：图层带上高度方向（z），轨道层也保留 3D，句子各自绕底边转起来
+    const standLyrics = hubView;
+    // 字面正对相机：上方取相机的上方 (s·H, 0, D')，绕底边转 -atan2(D', H)；相机越高、字越往后仰
+    const standUpTiltDeg = (-Math.atan2(lyricRingRadius + hubCameraBackPx, hubCameraHeightPx) * 180) / Math.PI;
+    const lyricStandUp = useMemo<PendoloStandUp | undefined>(
+        () => (standLyrics ? { rotationDeg: standUpRotationDeg, tiltDeg: standUpTiltDeg } : undefined),
+        [standLyrics, standUpRotationDeg, standUpTiltDeg],
+    );
+    const lyricLayerStyle = resolveLayerStyle(PENDOLO_LYRIC_LAYER_HEIGHT, 2, standLyrics);
     // The balance's icon is DOM over the canvas: it moves with the shockwave lens as the balance
     // wheel under it does in the shader (0 while off, so it stays exactly where it was).
+    // 立起来时句子以中点对着刻度针，放大也从中点放，不然放大的那部分全堆到一侧
+    const textOrigin = standLyrics ? 'center center' : mirrored ? 'right center' : 'left center';
     const balanceLensInputs = [beatFx.waveRadius, beatFx.waveBand, beatFx.waveStrength, beatFx.waveX, beatFx.waveY];
     const balanceIconX = useTransform(balanceLensInputs, ([radius, band, strength, x, y]: number[]) => (
         resolvePendoloPointWave(balanceGearX - centerX - x, balanceGearY - centerY - y, radius, band, strength).x
@@ -505,6 +597,7 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
                     <motion.div
                         aria-hidden
                         className="absolute pointer-events-none"
+                        transformTemplate={planeCssTransform ? haloTransformTemplate : undefined}
                         style={{
                             left: centerX - haloReach,
                             top: centerY - haloReach,
@@ -549,7 +642,13 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
                     beatFxRef={beatFx.shared}
                     renderScale={clockworkRenderScale}
                     antialias={clockworkAntialias}
+                    mirrored={mirrored}
+                    projection={dialProjection}
+                    parallaxScalePx={parallaxScalePx}
+                    depthStencil={(requestedTiltDeg !== 0 || requestedHubView) && (pendoloTuning.parallaxDepth ?? 1) > 0}
+                    onBackendChange={setClockworkWebgl}
                 />
+                <div className="absolute inset-0 pointer-events-none" style={iconLayerStyle}>
                 {pendoloTuning.showGearDecor !== 'none' && (
                     <div
                         className="absolute pointer-events-none"
@@ -570,7 +669,9 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
                         </motion.div>
                     </div>
                 )}
+                </div>
 
+                <div className="absolute inset-0 pointer-events-none" style={lyricLayerStyle}>
                 {/* Lyric Wheel Arc Items */}
                 {showText && (
                     <motion.div
@@ -578,9 +679,10 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
                         className="absolute inset-0 w-full h-full pointer-events-auto"
                         style={{
                             zIndex: 2,
-                            rotate: wheelRotationDeg,
+                            rotate: railRotationDeg,
                             transformOrigin: `${centerX}px ${centerY}px`,
                             WebkitTransform: 'translateZ(0)',
+                            transformStyle: standLyrics ? 'preserve-3d' : undefined,
                         }}
                     >
                         {lineItems.map((item) => {
@@ -603,9 +705,14 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
                             return (
                                 <PendoloRotatingLine
                                     key={item.line.id ?? `pendolo-line-${item.index}`}
-                                    wheelRotationDeg={wheelRotationDeg}
+                                    wheelRotationDeg={railRotationDeg}
+                                    mirrored={mirrored}
+                                    railWidth={viewportSize.width}
                                     baseAngleDeg={item.angleDeg}
-                                    baseOpacity={item.alpha}
+                                    // 轮心视角下突出焦点句：离它越近的句子越淡
+                                    baseOpacity={standLyrics && !isFocal
+                                        ? item.alpha * resolvePendoloStandSideLineAlpha(item.distanceFromActive)
+                                        : item.alpha}
                                     left={item.x}
                                     top={item.y}
                                     hubX={centerX}
@@ -615,6 +722,7 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
                                     waveStrength={beatFx.waveStrength}
                                     waveX={beatFx.waveX}
                                     waveY={beatFx.waveY}
+                                    standUp={lyricStandUp}
                                     fontFamily={fontFamily}
                                     fontWeight={fontWeight}
                                     canSeek={Boolean(onLyricLineSeek)}
@@ -625,13 +733,20 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
                                 >
                                     <motion.div
                                         className="inline-block"
-                                        style={{ rotate: textRotationCorrectionDeg, transformOrigin: 'left center', WebkitTransform: 'translateZ(0)' }}
+                                        style={{
+                                            rotate: standLyrics ? 0 : textRotationCorrectionDeg,
+                                            // 立起来时句子的中点对准锚点（刻度针的方向），不再从锚点往一侧排开
+                                            x: standLyrics ? (mirrored ? '50%' : '-50%') : 0,
+                                            transformOrigin: textOrigin,
+                                            WebkitTransform: 'translateZ(0)',
+                                        }}
                                     >
                                     <div
                                         className="relative inline-block"
                                         style={{
-                                            transform: `rotate(${item.angleDeg * 0.35}deg) scale(${item.scale}) translateZ(0)`,
-                                            transformOrigin: 'left center',
+                                            transform: `rotate(${standLyrics ? 0 : sideSign * item.angleDeg * 0.35}deg) scale(${item.scale}) translateZ(0)`,
+                                            transformOrigin: textOrigin,
+                                            textAlign: standLyrics ? 'center' : mirrored ? 'right' : undefined,
                                             isolation: 'isolate',
                                         }}
                                     >
@@ -639,7 +754,7 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
                                         initial={false}
                                         animate={{ scale: chorusPresentation.haloScale }}
                                         transition={{ duration: chorusPresentation.transitionDuration, ease: 'easeOut' }}
-                                        style={{ transformOrigin: 'left center' }}
+                                        style={{ transformOrigin: textOrigin }}
                                     >
                                         {chorusPresentation.isActive && (
                                             <motion.div
@@ -650,12 +765,12 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
                                                 transition={{ duration: chorusPresentation.transitionDuration, ease: 'easeOut' }}
                                                 style={{
                                                     inset: '-0.7em -1.1em',
-                                                    background: `radial-gradient(circle at 42% 50%, ${colorWithAlpha(accentTextColor, 0.14 * chorusPresentation.haloOpacity)} 0%, ${colorWithAlpha(accentTextColor, 0.035 * chorusPresentation.haloOpacity)} 55%, transparent 82%)`,
+                                                    background: `radial-gradient(circle at ${mirrored ? 58 : 42}% 50%, ${colorWithAlpha(accentTextColor, 0.14 * chorusPresentation.haloOpacity)} 0%, ${colorWithAlpha(accentTextColor, 0.035 * chorusPresentation.haloOpacity)} 55%, transparent 82%)`,
                                                     filter: `blur(${Math.round(10 * motionProfile.chorusGlowMultiplier)}px)`,
                                                 }}
                                             />
                                         )}
-                                    <div style={{ transform: 'translateY(-50%)' }}>
+                                    <div style={{ transform: standLyrics ? 'translateY(-100%)' : 'translateY(-50%)' }}>
                                             {showChorusMarker && (
                                                 <span
                                                     aria-hidden
@@ -663,7 +778,7 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
                                                     style={{
                                                         width: '0.42em',
                                                         height: '0.42em',
-                                                        left: '-0.95em',
+                                                        ...(mirrored ? { right: '-0.95em' } : { left: '-0.95em' }),
                                                         top: '0.52em',
                                                         backgroundColor: accentTextColor,
                                                         boxShadow: `0 0 7px ${colorWithAlpha(accentTextColor, 0.58)}`,
@@ -685,6 +800,8 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
                                                         isChorus={chorusPresentation.isActive}
                                                         accentMix={chorusPresentation.accentMix}
                                                         chorusGlowMultiplier={chorusPresentation.glowMultiplier}
+                                                        alignRight={mirrored}
+                                                        alignCenter={standLyrics}
                                                     />
                                                 ) : (
                                                     <div
@@ -735,6 +852,7 @@ const VisualizerPendolo: React.FC<VisualizerSharedProps> = (props) => {
                         })}
                     </motion.div>
                 )}
+                </div>
                 </motion.div>
             </div>
         </VisualizerShell>

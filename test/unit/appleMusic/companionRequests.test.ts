@@ -290,6 +290,22 @@ describe('Apple Music companion requests', () => {
         expect(mk.volume).toBe(0.25);
     });
 
+    it('sets the page player repeat of one track, never its list repeat', async () => {
+        expect(validateRequest({ id: '1', operation: 'setRepeatOne', params: { enabled: 'yes' } })).toBeNull();
+        expect(validateRequest({ id: '1', operation: 'setRepeatOne', params: {} })).toBeNull();
+        const mk = { api: { music: vi.fn() }, setRepeatMode: vi.fn() };
+        for (const enabled of [true, false]) {
+            const request = validateRequest({ id: '1', operation: 'setRepeatOne', params: { enabled } });
+            expect(await runInNewContext(requestExpression(request), { window: { MusicKit: { getInstance: () => mk } } }))
+                .toMatchObject({ ok: true });
+        }
+        expect(mk.setRepeatMode.mock.calls).toEqual([[1], [0]]);
+        const plain = { api: { music: vi.fn() }, repeatMode: 0 };
+        const request = validateRequest({ id: '1', operation: 'setRepeatOne', params: { enabled: true } });
+        await runInNewContext(requestExpression(request), { window: { MusicKit: { getInstance: () => plain } } });
+        expect(plain.repeatMode).toBe(1);
+    });
+
     it('accepts only a bounded start position for a song', () => {
         expect(validateRequest({ id: '1', operation: 'playSong', params: { catalogId: '123', startSec: 12.5 } }))
             .toMatchObject({ params: { catalogId: '123', startSec: 12.5 } });
@@ -328,7 +344,7 @@ describe('Apple Music companion requests', () => {
         };
         expect(await runInNewContext(requestExpression(request), { window: { MusicKit: { getInstance: () => mk } } })).toEqual({
             ok: true, data: {
-                itemId: 'i.library', catalogId: '123', isPlaying: false, state: 5, queueLength: 1, queueKeys: ['length'], positionMs: 42500, durationMs: 200000,
+                itemId: 'i.library', catalogId: '123', isPlaying: false, state: 5, repeatMode: null, queueLength: 1, queueKeys: ['length'], positionMs: 42500, durationMs: 200000,
             },
         });
     });

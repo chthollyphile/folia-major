@@ -242,7 +242,7 @@ export class NebbiaRuntime {
 
     private resize() {
         // 量排版尺寸，不量 getBoundingClientRect：样式小图和样式窗口的大样张把窗口大的舞台缩小了画（preview/previewScale.ts），
-        // 量到缩小后的尺寸，整首就排在小画布上，字小到笔画宽度被 8 像素的下限盖过，调笔画粗细看不出变化（#963）
+        // 量到缩小后的尺寸，整首就排在小画布上，字号算小（#963 当时表现为笔画被 8 像素的下限盖过，调笔画粗细看不出变化）
         const { clientWidth: width, clientHeight: height } = this.input.host;
         if (width < 1 || height < 1) return;
         const sized = width !== this.W || height !== this.H;

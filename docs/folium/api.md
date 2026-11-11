@@ -2,7 +2,7 @@
 
 # Folium API 参考
 
-当前契约版本：**Folium 1.8**。
+当前契约版本：**Folium 1.9**。
 
 本文列出模组能用到的全部公开类型，内容直接来自契约文件 [`src/mods/folium/contract.ts`](../../src/mods/folium/contract.ts)
 （client 入口）与 [`src/mods/folium/mainContract.ts`](../../src/mods/folium/mainContract.ts)（main 入口），
@@ -15,7 +15,7 @@
 - **注册表与条目**：[注册表一览](#注册表一览) · [FoliumVisualizerDef](#foliumvisualizerdef) · [FoliumTuningDef](#foliumtuningdef) · [FoliumCommandContext](#foliumcommandcontext) · [FoliumCommandDef](#foliumcommanddef) · [FoliumBackgroundContext](#foliumbackgroundcontext) · [FoliumBackgroundDef](#foliumbackgrounddef) · [FoliumStageSlot](#foliumstageslot) · [FoliumStageLayerDef](#foliumstagelayerdef) · [FoliumSettingsSectionDef](#foliumsettingssectiondef) · [FoliumPlayerPanelTabDef](#foliumplayerpaneltabdef) · [FoliumHomeTabDef](#foliumhometabdef) · [FoliumProgressContext](#foliumprogresscontext) · [FoliumProgressButtonSlot](#foliumprogressbuttonslot) · [FoliumProgressButtonDef](#foliumprogressbuttondef) · [FoliumProgressLayerDef](#foliumprogresslayerdef) · [FoliumStyleDef](#foliumstyledef) · [FoliumRegistryHandle](#foliumregistryhandle) · [FoliumSettingsSectionHandle](#foliumsettingssectionhandle) · [FoliumRegistry](#foliumregistry) · [FoliumRegistries](#foliumregistries)
 - **宿主容器与上下文**：[FoliumMount](#foliummount) · [FoliumSize](#foliumsize) · [FoliumMountHelpers](#foliummounthelpers) · [FoliumPanelContext](#foliumpanelcontext) · [FoliumSettingsPanelContext](#foliumsettingspanelcontext) · [FoliumClock](#foliumclock) · [FoliumSurface](#foliumsurface) · [FoliumAudioBands](#foliumaudiobands) · [FoliumAudio](#foliumaudio) · [FoliumDisplay](#foliumdisplay) · [FoliumStageContext](#foliumstagecontext)
 - **事件**：[事件一览](#事件一览) · [FoliumEventPriority](#foliumeventpriority) · [FoliumPlaybackFailureReason](#foliumplaybackfailurereason) · [FoliumNotificationEvents](#foliumnotificationevents) · [FoliumLyricsTransformEvent](#foliumlyricstransformevent) · [FoliumBeforePlayEvent](#foliumbeforeplayevent) · [FoliumOmniLyricsEvent](#foliumomnilyricsevent) · [FoliumOmniAudioEvent](#foliumomniaudioevent) · [FoliumHookEvents](#foliumhookevents) · [FoliumEventMap](#foliumeventmap) · [FoliumEvents](#foliumevents)
-- **服务**：[FoliumPlaybackService](#foliumplaybackservice) · [FoliumFileHandle](#foliumfilehandle) · [FoliumIconOptions](#foliumiconoptions) · [FoliumUiService](#foliumuiservice) · [FoliumFetchInit](#foliumfetchinit) · [FoliumFetchResponse](#foliumfetchresponse) · [FoliumLyricsService](#foliumlyricsservice) · [FoliumNetService](#foliumnetservice) · [FoliumAccountState](#foliumaccountstate) · [FoliumAccountService](#foliumaccountservice) · [FoliumSongKey](#foliumsongkey) · [FoliumOmniProviderInfo](#foliumomniproviderinfo) · [FoliumOmniPage](#foliumomnipage) · [FoliumSongResolution](#foliumsongresolution) · [FoliumSongDetails](#foliumsongdetails) · [FoliumOmniLyrics](#foliumomnilyrics) · [FoliumCollectionKey](#foliumcollectionkey) · [FoliumCollection](#foliumcollection) · [FoliumOmniErrorCode](#foliumomnierrorcode) · [FoliumOmniService](#foliumomniservice) · [FoliumEqualizerBand](#foliumequalizerband) · [FoliumEqualizerPresetId](#foliumequalizerpresetid) · [FoliumEqualizerCustomId](#foliumequalizercustomid) · [FoliumEqualizerUserMode](#foliumequalizerusermode) · [FoliumEqualizerMode](#foliumequalizermode) · [FoliumEqualizerState](#foliumequalizerstate) · [FoliumEqualizerChangeOrigin](#foliumequalizerchangeorigin) · [FoliumEqualizerRefusal](#foliumequalizerrefusal) · [FoliumEqualizerWriteResult](#foliumequalizerwriteresult) · [FoliumEqualizerService](#foliumequalizerservice) · [FoliumLyricRenderScale](#foliumlyricrenderscale) · [FoliumLyricAntialias](#foliumlyricantialias) · [FoliumLyricRenderQuality](#foliumlyricrenderquality) · [FoliumRenderQualityChangeOrigin](#foliumrenderqualitychangeorigin) · [FoliumRenderQualityRefusal](#foliumrenderqualityrefusal) · [FoliumRenderQualityWriteResult](#foliumrenderqualitywriteresult) · [FoliumVisualizerChangeOrigin](#foliumvisualizerchangeorigin) · [FoliumVisualizerWriteRefusal](#foliumvisualizerwriterefusal) · [FoliumTuningKeyInfo](#foliumtuningkeyinfo) · [FoliumTuningValue](#foliumtuningvalue) · [FoliumVisualizerTuning](#foliumvisualizertuning) · [FoliumBeatEffectSource](#foliumbeateffectsource) · [FoliumBeatEffectPartInfo](#foliumbeateffectpartinfo) · [FoliumBeatEffectInfo](#foliumbeateffectinfo) · [FoliumVisualizerModeInfo](#foliumvisualizermodeinfo) · [FoliumBeatEffectState](#foliumbeateffectstate) · [FoliumSmartBeatMode](#foliumsmartbeatmode) · [FoliumBeatEffectsState](#foliumbeateffectsstate) · [FoliumBeatEffectPatch](#foliumbeateffectpatch) · [FoliumModeWriteResult](#foliummodewriteresult) · [FoliumTuningWriteResult](#foliumtuningwriteresult) · [FoliumBeatEffectsWriteResult](#foliumbeateffectswriteresult) · [FoliumVisualizerService](#foliumvisualizerservice)
+- **服务**：[FoliumPlaybackService](#foliumplaybackservice) · [FoliumFileHandle](#foliumfilehandle) · [FoliumIconOptions](#foliumiconoptions) · [FoliumUiService](#foliumuiservice) · [FoliumFetchInit](#foliumfetchinit) · [FoliumFetchResponse](#foliumfetchresponse) · [FoliumLyricsService](#foliumlyricsservice) · [FoliumNetService](#foliumnetservice) · [FoliumAccountState](#foliumaccountstate) · [FoliumAccountService](#foliumaccountservice) · [FoliumSongKey](#foliumsongkey) · [FoliumOmniProviderInfo](#foliumomniproviderinfo) · [FoliumOmniPage](#foliumomnipage) · [FoliumSongResolution](#foliumsongresolution) · [FoliumSongDetails](#foliumsongdetails) · [FoliumOmniLyrics](#foliumomnilyrics) · [FoliumCollectionKey](#foliumcollectionkey) · [FoliumCollection](#foliumcollection) · [FoliumOmniErrorCode](#foliumomnierrorcode) · [FoliumOmniService](#foliumomniservice) · [FoliumEqualizerBand](#foliumequalizerband) · [FoliumEqualizerPresetId](#foliumequalizerpresetid) · [FoliumEqualizerCustomId](#foliumequalizercustomid) · [FoliumEqualizerUserMode](#foliumequalizerusermode) · [FoliumEqualizerMode](#foliumequalizermode) · [FoliumEqualizerState](#foliumequalizerstate) · [FoliumEqualizerChangeOrigin](#foliumequalizerchangeorigin) · [FoliumEqualizerRefusal](#foliumequalizerrefusal) · [FoliumEqualizerWriteResult](#foliumequalizerwriteresult) · [FoliumEqualizerService](#foliumequalizerservice) · [FoliumLyricRenderScale](#foliumlyricrenderscale) · [FoliumLyricAntialias](#foliumlyricantialias) · [FoliumLyricRenderQuality](#foliumlyricrenderquality) · [FoliumRenderQualityChangeOrigin](#foliumrenderqualitychangeorigin) · [FoliumRenderQualityRefusal](#foliumrenderqualityrefusal) · [FoliumRenderQualityWriteResult](#foliumrenderqualitywriteresult) · [FoliumVisualizerChangeOrigin](#foliumvisualizerchangeorigin) · [FoliumVisualizerWriteRefusal](#foliumvisualizerwriterefusal) · [FoliumTuningKeyInfo](#foliumtuningkeyinfo) · [FoliumTuningValue](#foliumtuningvalue) · [FoliumVisualizerTuning](#foliumvisualizertuning) · [FoliumBeatEffectSource](#foliumbeateffectsource) · [FoliumBeatEffectPartInfo](#foliumbeateffectpartinfo) · [FoliumBeatEffectInfo](#foliumbeateffectinfo) · [FoliumVisualizerModeInfo](#foliumvisualizermodeinfo) · [FoliumBeatEffectState](#foliumbeateffectstate) · [FoliumSmartBeatMode](#foliumsmartbeatmode) · [FoliumBeatEffectsState](#foliumbeateffectsstate) · [FoliumBeatEffectPatch](#foliumbeateffectpatch) · [FoliumModeWriteResult](#foliummodewriteresult) · [FoliumTuningWriteResult](#foliumtuningwriteresult) · [FoliumBeatEffectsWriteResult](#foliumbeateffectswriteresult) · [FoliumBackgroundInfo](#foliumbackgroundinfo) · [FoliumAnimationIntensity](#foliumanimationintensity) · [FoliumBackgroundWriteResult](#foliumbackgroundwriteresult) · [FoliumAnimationIntensityWriteResult](#foliumanimationintensitywriteresult) · [FoliumVisualizerService](#foliumvisualizerservice)
 - **共享工具**：[FoliumWordSegment](#foliumwordsegment) · [FoliumWordColorRange](#foliumwordcolorrange) · [FoliumLyricsHelpers](#foliumlyricshelpers) · [FoliumThemeHelpers](#foliumthemehelpers)
 - **设置 schema**：[FoliumSettingType](#foliumsettingtype) · [FoliumSettingOption](#foliumsettingoption) · [FoliumSetting](#foliumsetting) · [FoliumSettingValues](#foliumsettingvalues) · [FoliumSettingAccess](#foliumsettingaccess)
 - **数据结构**：[FoliumLyricRuby](#foliumlyricruby) · [FoliumLyricSyllable](#foliumlyricsyllable) · [FoliumLyricAlternateText](#foliumlyricalternatetext) · [FoliumWord](#foliumword) · [FoliumBackgroundVocal](#foliumbackgroundvocal) · [FoliumLineTimingClass](#foliumlinetimingclass) · [FoliumLineTransitionMode](#foliumlinetransitionmode) · [FoliumWordRevealMode](#foliumwordrevealmode) · [FoliumLineRenderHints](#foliumlinerenderhints) · [FoliumLine](#foliumline) · [FoliumTheme](#foliumtheme) · [FoliumSong](#foliumsong) · [FoliumPlaybackState](#foliumplaybackstate) · [FoliumLoopMode](#foliumloopmode) · [FoliumQueueItem](#foliumqueueitem) · [FoliumQueueSnapshot](#foliumqueuesnapshot) · [FoliumQueueChange](#foliumqueuechange) · [FoliumQueueReplaceRefusal](#foliumqueuereplacerefusal) · [FoliumQueueReplaced](#foliumqueuereplaced) · [FoliumQueueReplaceRefused](#foliumqueuereplacerefused) · [FoliumQueueReplaceResult](#foliumqueuereplaceresult) · [FoliumPlaybackSnapshot](#foliumplaybacksnapshot) · [FoliumLyricFormat](#foliumlyricformat) · [FoliumLyricsTrack](#foliumlyricstrack) · [FoliumLyricsResult](#foliumlyricsresult) · [FoliumLegacyLyricsResult](#foliumlegacylyricsresult) · [FoliumParsedLyrics](#foliumparsedlyrics)
@@ -43,6 +43,8 @@
 | `visualizer.mode` | `folium.visualizer.setMode` |
 | `visualizer.tuning` | `folium.visualizer.setTuning` |
 | `visualizer.beatEffects` | `folium.visualizer.setBeatEffects` |
+| `visualizer.background` | `folium.visualizer.setBackground` |
+| `visualizer.animationIntensity` | `folium.visualizer.setAnimationIntensity` |
 | `render.export` | `api.render.exportVideo` |
 | `net.fetch` | `folium.net.fetch` |
 | `net.embed` | `folium.ui.embed` |
@@ -347,6 +349,7 @@ A tab in the player panel. `folium.ui.openPlayerPanel(id)` opens it.
 | `id` | `string` | Local id; pass it to `folium.ui.openPlayerPanel`. |
 | `label` | `FoliumLabel` | Tab title. |
 | `order?` | `number` | Tab order; default 500. |
+| `icon?` | `string` | Folium 1.9: the tab's icon, a lucide icon name as `folium.ui.icon` takes it (e.g. "message-circle"). The panel draws it when the tab row is too narrow for every label: the tabs that are not open show their icon alone. Left out, or a name the host's lucide version does not have, the tab keeps the puzzle icon. An older host ignores it. |
 | `mount` | `FoliumMount<FoliumPanelContext>` | Draws the tab into its container. |
 
 相关：[FoliumLabel](#foliumlabel) · [FoliumMount](#foliummount) · [FoliumPanelContext](#foliumpanelcontext)
@@ -727,6 +730,8 @@ interface FoliumStageContext extends FoliumMountHelpers
 | `visualizer.renderQualityChanged` | 通知 | — |
 | `visualizer.tuningChanged` | 通知 | — |
 | `visualizer.beatEffectsChanged` | 通知 | — |
+| `visualizer.backgroundChanged` | 通知 | — |
+| `visualizer.animationIntensityChanged` | 通知 | — |
 | `lyrics.transform` | 钩子 | — |
 | `playback.beforePlay` | 钩子 | — |
 | `omni.lyricsResolved` | 钩子 | `omni.hooks` |
@@ -777,8 +782,10 @@ Read-only notifications, emitted after the fact.
 | `visualizer.renderQualityChanged` | `{ readonly quality: FoliumLyricRenderQuality; readonly origin: FoliumRenderQualityChangeOrigin; }` | Folium 1.8: the global lyric render quality changed (`folium.visualizer.getRenderQuality()`), whoever changed it. One event for all the changes of one task; its origin is the last of them. Changes that end where they began fire none, and neither does a change to one style's own override. Not emitted in the export window. |
 | `visualizer.tuningChanged` | `{ readonly mode: string; readonly tuning: FoliumVisualizerTuning; readonly origin: FoliumVisualizerChangeOrigin; }` | Folium 1.8: the tuning of builtin mode `mode` changed (`folium.visualizer.getTuning(mode)`), whoever changed it; only the keys mods may set count. One event per mode for all the changes of one task; its origin is the last of them. Changes that end where they began fire none. Not emitted in the export window. |
 | `visualizer.beatEffectsChanged` | `{ readonly state: FoliumBeatEffectsState; readonly origin: FoliumVisualizerChangeOrigin; }` | Folium 1.8: a beat effect's setting or the 智能动感模式 switch changed (`folium.visualizer.getBeatEffects()`), whoever changed it. One event for all the changes of one task; its origin is the last of them. Changes that end where they began fire none. Not emitted in the export window. |
+| `visualizer.backgroundChanged` | `{ readonly background: string; readonly origin: FoliumVisualizerChangeOrigin; }` | Folium 1.9: the background type changed (`folium.visualizer.getBackground()`), whoever changed it. One event for all the changes of one task; its origin is the last of them. Changes that end where they began fire none. Not emitted in the export window. |
+| `visualizer.animationIntensityChanged` | `{ readonly intensity: FoliumAnimationIntensity; readonly origin: FoliumVisualizerChangeOrigin; }` | Folium 1.9: the animation intensity changed (`folium.visualizer.getAnimationIntensity()`), whoever changed it. `theme.changed` fires for the same change, as the theme carries the intensity too. Not emitted in the export window. |
 
-相关：[FoliumSong](#foliumsong) · [FoliumPlaybackState](#foliumplaybackstate) · [FoliumLine](#foliumline) · [FoliumVisualizerChangeOrigin](#foliumvisualizerchangeorigin) · [FoliumTheme](#foliumtheme) · [FoliumLoopMode](#foliumloopmode) · [FoliumQueueChange](#foliumqueuechange) · [FoliumPlaybackFailureReason](#foliumplaybackfailurereason) · [FoliumAccountState](#foliumaccountstate) · [FoliumEqualizerState](#foliumequalizerstate) · [FoliumEqualizerChangeOrigin](#foliumequalizerchangeorigin) · [FoliumLyricRenderQuality](#foliumlyricrenderquality) · [FoliumRenderQualityChangeOrigin](#foliumrenderqualitychangeorigin) · [FoliumVisualizerTuning](#foliumvisualizertuning) · [FoliumBeatEffectsState](#foliumbeateffectsstate)
+相关：[FoliumSong](#foliumsong) · [FoliumPlaybackState](#foliumplaybackstate) · [FoliumLine](#foliumline) · [FoliumVisualizerChangeOrigin](#foliumvisualizerchangeorigin) · [FoliumTheme](#foliumtheme) · [FoliumLoopMode](#foliumloopmode) · [FoliumQueueChange](#foliumqueuechange) · [FoliumPlaybackFailureReason](#foliumplaybackfailurereason) · [FoliumAccountState](#foliumaccountstate) · [FoliumEqualizerState](#foliumequalizerstate) · [FoliumEqualizerChangeOrigin](#foliumequalizerchangeorigin) · [FoliumLyricRenderQuality](#foliumlyricrenderquality) · [FoliumRenderQualityChangeOrigin](#foliumrenderqualitychangeorigin) · [FoliumVisualizerTuning](#foliumvisualizertuning) · [FoliumBeatEffectsState](#foliumbeateffectsstate) · [FoliumAnimationIntensity](#foliumanimationintensity)
 
 ### FoliumLyricsTransformEvent
 
@@ -880,7 +887,7 @@ The event bus, as `folium.events`.
 
 ## 服务
 
-`folium.playback` / `folium.ui` / `folium.net`，以及 Folium 1.7 的登录状态 `folium.account` 和经 Omni 只读在线音源的 `folium.omni`（两者都不需要权限；`folium.omni` 以用户在 Folia 登录的平台账号发请求），以及宿主均衡器 `folium.equalizer`（读不需要权限，写需 `equalizer.control`）；Folium 1.8 加了歌词显示设置 `folium.visualizer`：歌词画布渲染质量、歌词动画模式、内置模式的样式参数与智能动感效果（读不需要权限，写分别需 `visualizer.renderQuality`、`visualizer.mode`、`visualizer.tuning`、`visualizer.beatEffects`）。需要权限的方法见[权限一览](#权限一览)；导出窗口里调用会抛 `*-unavailable-in-export-context`（`ui.icon` 除外）。
+`folium.playback` / `folium.ui` / `folium.net`，以及 Folium 1.7 的登录状态 `folium.account` 和经 Omni 只读在线音源的 `folium.omni`（两者都不需要权限；`folium.omni` 以用户在 Folia 登录的平台账号发请求），以及宿主均衡器 `folium.equalizer`（读不需要权限，写需 `equalizer.control`）；Folium 1.8 加了歌词显示设置 `folium.visualizer`：歌词画布渲染质量、歌词动画模式、内置模式的样式参数与智能动感效果（读不需要权限，写分别需 `visualizer.renderQuality`、`visualizer.mode`、`visualizer.tuning`、`visualizer.beatEffects`）；Folium 1.9 加了返回一层的 `folium.ui.back()`，以及 `folium.visualizer` 的背景类型与动画强度（写分别需 `visualizer.background`、`visualizer.animationIntensity`）。需要权限的方法见[权限一览](#权限一览)；导出窗口里调用会抛 `*-unavailable-in-export-context`（`ui.icon` 除外）。
 
 ### FoliumPlaybackService
 
@@ -945,6 +952,7 @@ Options for `folium.ui.icon`.
 | `openHomeTab()` | `(tabId: string): void` | Opens this mod's registered home tab (local id). Rejects unknown tabs. |
 | `navigate()` | `(view: 'home' \| 'player'): void` | Switches to the home or player view. |
 | `openVolume()` | `(): void` | Opens the host volume panel (the command palette's volume command). |
+| `back()` | `(): boolean` | Folium 1.9: goes back one level, as one press of Escape does. The topmost thing that can step back takes it: an open dialog, the command palette or the settings window closes; then what a page has open over itself (a focused card, a list panel, a filter); then the page: the player panel closes, the player and the wall return to where they were opened from, a collection page returns to the one before it, the search page and a mod's home page close. Returns true when the host took it, false when there was nothing to go back from (the home page with nothing open): a mod that binds a mouse button to it lets the click through then. An open window always takes it, also one that stays open: a dialog busy with work, or one that Escape does not close; nothing under it moves. Unlike the key it never leaves fullscreen. One call is one level: never call it in a loop, and not from a handler of the Escape key, which the host answers itself. Call it on the press of the button (`pointerdown`), before the host's own "press outside closes" handling takes a level of its own. An older host has no `back`: check `folium.host.folium.minor >= 9` first. |
 | `pickFile()` | `(options?: { accept?: 'video' \| 'audio' \| 'image' \| 'any'; persist?: boolean }): Promise<FoliumFileHandle \| null>` | Lets the user pick a local file; null when cancelled. With `persist` the pick is remembered for this mod and the handle carries a `grantId` for restoreFile. |
 | `restoreFile()` | `(grantId: string): Promise<FoliumFileHandle \| null>` | A file this mod picked with `persist`, as a fresh session handle. Null when the grant is unknown to this mod or the file is gone. |
 | `releaseFile()` | `(grantId: string): Promise<void>` | Forgets a persisted grant. URLs already handed out keep working this session. |
@@ -1445,9 +1453,10 @@ type FoliumVisualizerChangeOrigin = FoliumRenderQualityChangeOrigin
 
 ### FoliumVisualizerWriteRefusal
 
-Folium 1.8: why the host did not take a `setMode`, `setTuning` or `setBeatEffects`, as for `setRenderQuality`
-(FoliumRenderQualityRefusal): `stopped` or `rate-limited`. Each of the four kinds of write has its own
-allowance (see FoliumVisualizerService). Treat a reason you do not know as `rate-limited`.
+Folium 1.8: why the host did not take a `setMode`, `setTuning` or `setBeatEffects` (and, Folium 1.9, a
+`setBackground` or `setAnimationIntensity`), as for `setRenderQuality` (FoliumRenderQualityRefusal):
+`stopped` or `rate-limited`. Each kind of write has its own allowance (see FoliumVisualizerService). Treat
+a reason you do not know as `rate-limited`.
 
 ```ts
 type FoliumVisualizerWriteRefusal = FoliumRenderQualityRefusal
@@ -1615,13 +1624,55 @@ type FoliumBeatEffectsWriteResult = | { readonly ok: true; readonly state: Foliu
 
 相关：[FoliumBeatEffectsState](#foliumbeateffectsstate) · [FoliumVisualizerWriteRefusal](#foliumvisualizerwriterefusal)
 
+### FoliumBackgroundInfo
+
+Folium 1.9: a background type, as `folium.visualizer.listBackgrounds()` gives it. Frozen.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `readonly id` | `string` | The background id: a builtin's (`latent`, `monet`) or a mod's (`mod:<modid>:<id>`). What `setBackground` takes. |
+| `readonly label` | `string` | Its name in the background picker, in the user's language. |
+| `readonly kind` | `'builtin' \| 'mod'` | `builtin` or `mod`. |
+
+### FoliumAnimationIntensity
+
+Folium 1.9: the animation intensity, the chip in the player panel: how lively the lyric styles and the
+backgrounds move. `setAnimationIntensity` takes each of these for all of Folium 1.x; later minors may add
+levels: read one you do not know as `normal`.
+
+```ts
+type FoliumAnimationIntensity = 'calm' | 'normal' | 'chaotic'
+```
+
+### FoliumBackgroundWriteResult
+
+Folium 1.9: the outcome of a `setBackground`; `background` is the background type after it.
+
+```ts
+type FoliumBackgroundWriteResult = | { readonly ok: true; readonly background: string } | { readonly ok: false; readonly reason: FoliumVisualizerWriteRefusal }
+```
+
+相关：[FoliumVisualizerWriteRefusal](#foliumvisualizerwriterefusal)
+
+### FoliumAnimationIntensityWriteResult
+
+Folium 1.9: the outcome of a `setAnimationIntensity`; `intensity` is the animation intensity after it.
+
+```ts
+type FoliumAnimationIntensityWriteResult = | { readonly ok: true; readonly intensity: FoliumAnimationIntensity } | { readonly ok: false; readonly reason: FoliumVisualizerWriteRefusal }
+```
+
+相关：[FoliumAnimationIntensity](#foliumanimationintensity) · [FoliumVisualizerWriteRefusal](#foliumvisualizerwriterefusal)
+
 ### FoliumVisualizerService
 
 Folium 1.8: `folium.visualizer`, the host's settings of the lyric display that mods may share: the global
 lyric render quality (FoliumLyricRenderQuality), the lyric animation mode, the tuning of the builtin modes
-(the keys each declares, FoliumTuningKeyInfo) and the beat effects of 智能动感模式. Reading needs no
-permission; each kind of write needs its own: `setRenderQuality` `visualizer.renderQuality`, `setMode`
-`visualizer.mode`, `setTuning` `visualizer.tuning`, `setBeatEffects` `visualizer.beatEffects`. A write is the
+(the keys each declares, FoliumTuningKeyInfo) and the beat effects of 智能动感模式; Folium 1.9 adds the
+background type and the animation intensity. Reading needs no permission; each kind of write needs its
+own: `setRenderQuality` `visualizer.renderQuality`, `setMode` `visualizer.mode`, `setTuning`
+`visualizer.tuning`, `setBeatEffects` `visualizer.beatEffects`, `setBackground` `visualizer.background`,
+`setAnimationIntensity` `visualizer.animationIntensity`. A write is the
 same as the user making the change in the settings or the player panel: what shows the setting changes with
 it, the styles follow it (a style may rebuild its renderer for it), and it is kept across restarts. A style's
 own render override, its picture-cost settings (resolution, render quality) and the 智能动感模式 switch
@@ -1639,7 +1690,8 @@ refused `rate-limited`. A write that changes nothing is accepted, does not count
 Main window only: in the export window every method throws an Error whose message is
 `visualizer-unavailable-in-export-context` (a visualizer of yours that also renders there checks
 `folium.env.context` first). The main entry has no `visualizer`; ask the client over `rpc`. An older host
-has no `folium.visualizer`: check `folium.host.folium.minor >= 8` first. Malformed arguments throw a
+has no `folium.visualizer`: check `folium.host.folium.minor >= 8` first (`>= 9` for the background and the
+animation intensity). Malformed arguments throw a
 TypeError (`invalid-arguments: …`); a write without its permission throws `permission-denied:<permission>`.
 
 | 成员 | 类型 | 说明 |
@@ -1653,8 +1705,13 @@ TypeError (`invalid-arguments: …`); a write without its permission throws `per
 | `setTuning()` | `(mode: string, patch: Readonly<Record<string, FoliumTuningValue>>): FoliumTuningWriteResult` | Changes the tuning of builtin mode `mode`, as its settings do: the keys `patch` has, the others as they are, whether or not the mode is on screen. A key the mode does not offer is ignored (`ignored`); a value of the wrong type, a number that is not finite, a choice not listed, or a `patch` that is no object throws a TypeError, and nothing is written. A number outside its range is clamped; the value a key holds now is taken as it is, so a tuning `getTuning` read writes back unchanged. `{}` changes nothing. Needs `visualizer.tuning`. |
 | `getBeatEffects()` | `(): FoliumBeatEffectsState` | The beat effects of every builtin mode now, and the user's 智能动感模式 switch. Follow changes with `visualizer.beatEffectsChanged`. |
 | `setBeatEffects()` | `(patch: Readonly<Record<string, FoliumBeatEffectPatch>>): FoliumBeatEffectsWriteResult` | Changes beat effects, as each mode's settings do: `patch` is FoliumBeatEffectPatch by effect id, the fields given, the others as they are. An id no mode offers is ignored (`ignored`), and so is a part key the effect has no part for; an `on` that is no boolean, a strength that is no finite number, or a patch that is no object throws a TypeError, and nothing is written. Never changes the 智能动感模式 switch. `{}` changes nothing. Needs `visualizer.beatEffects`. |
+| `listBackgrounds()` | `(): readonly FoliumBackgroundInfo[]` | Folium 1.9: the background types there are now, builtin and from mods, in the order of the background picker. Frozen; a mod background comes and goes with its mod. |
+| `getBackground()` | `(): string` | Folium 1.9: the background type the user has picked. Synchronous; follow changes with `visualizer.backgroundChanged`. A mod's background can stay picked after its mod stopped (the host draws its default one meanwhile), so the id may be none of `listBackgrounds()` for that time. |
+| `setBackground()` | `(id: string): FoliumBackgroundWriteResult` | Folium 1.9: switches to the background type `id` (one of `listBackgrounds()`), as the user does in the background picker. An `id` that is not a background now throws a TypeError. The type only: what a type draws from (the picture of `monet`, the list of `url`, each type's own options) stays as the user set it, so a type the user never set up draws its empty state. Needs `visualizer.background`. |
+| `getAnimationIntensity()` | `(): FoliumAnimationIntensity` | Folium 1.9: the animation intensity now. Synchronous; follow changes with `visualizer.animationIntensityChanged`. |
+| `setAnimationIntensity()` | `(value: FoliumAnimationIntensity): FoliumAnimationIntensityWriteResult` | Folium 1.9: sets the animation intensity, as the chip in the player panel does. A value this contract does not list throws a TypeError. While the app is still starting (no theme on screen yet) it throws an Error whose message is `visualizer-unavailable-in-main-context`, as `folium.ui` does then: write from an event or a user action rather than straight from `activate`. Needs `visualizer.animationIntensity`. |
 
-相关：[FoliumLyricRenderQuality](#foliumlyricrenderquality) · [FoliumRenderQualityWriteResult](#foliumrenderqualitywriteresult) · [FoliumVisualizerModeInfo](#foliumvisualizermodeinfo) · [FoliumModeWriteResult](#foliummodewriteresult) · [FoliumVisualizerTuning](#foliumvisualizertuning) · [FoliumTuningValue](#foliumtuningvalue) · [FoliumTuningWriteResult](#foliumtuningwriteresult) · [FoliumBeatEffectsState](#foliumbeateffectsstate) · [FoliumBeatEffectPatch](#foliumbeateffectpatch) · [FoliumBeatEffectsWriteResult](#foliumbeateffectswriteresult)
+相关：[FoliumLyricRenderQuality](#foliumlyricrenderquality) · [FoliumRenderQualityWriteResult](#foliumrenderqualitywriteresult) · [FoliumVisualizerModeInfo](#foliumvisualizermodeinfo) · [FoliumModeWriteResult](#foliummodewriteresult) · [FoliumVisualizerTuning](#foliumvisualizertuning) · [FoliumTuningValue](#foliumtuningvalue) · [FoliumTuningWriteResult](#foliumtuningwriteresult) · [FoliumBeatEffectsState](#foliumbeateffectsstate) · [FoliumBeatEffectPatch](#foliumbeateffectpatch) · [FoliumBeatEffectsWriteResult](#foliumbeateffectswriteresult) · [FoliumBackgroundInfo](#foliumbackgroundinfo) · [FoliumBackgroundWriteResult](#foliumbackgroundwriteresult) · [FoliumAnimationIntensity](#foliumanimationintensity) · [FoliumAnimationIntensityWriteResult](#foliumanimationintensitywriteresult)
 
 ## 共享工具
 
@@ -2562,7 +2619,7 @@ What `api.render.exportVideo` resolves to.
 The Folium version this host implements; mods read it at runtime as `folium.host.folium`.
 
 ```ts
-const FOLIUM_VERSION = Object.freeze({ major: 1, minor: 8 })
+const FOLIUM_VERSION = Object.freeze({ major: 1, minor: 9 })
 ```
 
 ### FoliumId

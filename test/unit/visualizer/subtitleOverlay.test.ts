@@ -72,6 +72,37 @@ describe('VisualizerSubtitleOverlay content resolution', () => {
         expect(texts('current+next')).toEqual(['Hello', 'World']);
     });
 
+    it('stacks translation and romanization without the original text', () => {
+        expect(resolve('romanization+translation').rows).toEqual([
+            { key: 'romanization', source: 'romanization', text: 'Harō' },
+            { key: 'translation', source: 'translation', text: '你好' },
+        ]);
+        expect(texts('translation+romanization')).toEqual(['你好', 'Harō']);
+        expect(texts('translation+next')).toEqual(['你好', 'World']);
+        expect(texts('romanization+translation', { activeLine: { ...activeLine, romanization: undefined } })).toEqual(['你好']);
+    });
+
+    it('previews the upcoming lines for such a stack on a line with neither, unless it shows its rows only', () => {
+        const bare = { ...activeLine, romanization: undefined, translation: undefined };
+        expect(resolve('romanization+translation', { activeLine: bare }).upcomingLines).toEqual([nextLine, lineAfterNext]);
+        const strict = resolve('romanization+translation|only', { activeLine: bare });
+        expect(strict.rows).toEqual([]);
+        expect(strict.upcomingLines).toEqual([]);
+    });
+
+    it('does not let the coming lines stand in for a line that has none of its own rows', () => {
+        const bare = { ...activeLine, romanization: undefined, translation: undefined };
+        const content = resolve('translation+next', { activeLine: bare });
+        expect(content.rows).toEqual([]);
+        expect(content.upcomingLines).toEqual([nextLine, lineAfterNext]);
+
+        const strict = resolve('translation+next|only', { activeLine: bare });
+        expect(strict.rows).toEqual([]);
+        expect(strict.upcomingLines).toEqual([]);
+
+        expect(resolve('current+next', { activeLine: { ...activeLine, fullText: '//' } }).rows).toEqual([]);
+    });
+
     it('stacks three rows in order, taking the upcoming lines one after another', () => {
         expect(texts('current+romanization+translation')).toEqual(['Hello', 'Harō', '你好']);
         expect(texts('current+translation+next')).toEqual(['Hello', '你好', 'World']);
@@ -111,6 +142,16 @@ describe('VisualizerSubtitleOverlay content resolution', () => {
         expect(content.shouldRenderOverlay).toBe(true);
         expect(content.rows).toEqual([]);
         expect(content.upcomingLines).toEqual([nextLine, lineAfterNext]);
+    });
+
+    it('shows nothing for such a line when the layout shows its rows only', () => {
+        const content = resolve('romanization|only', { activeLine: { ...activeLine, romanization: undefined } });
+
+        expect(content.shouldRenderOverlay).toBe(true);
+        expect(content.rows).toEqual([]);
+        expect(content.upcomingLines).toEqual([]);
+        expect(texts('romanization|only')).toEqual(['Harō']);
+        expect(texts('current+translation+next|only')).toEqual(['Hello', '你好', 'World']);
     });
 
     it('keeps the line just sung up in a gap, with the lines that follow it', () => {

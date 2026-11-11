@@ -35,6 +35,7 @@ describe('the platform column', () => {
         expect(rowStatus(row('a', signedIn))).toBe('signed-in');
         expect(rowStatus(row('a', ranOut))).toBe('ran-out');
         expect(rowStatus(row('a'))).toBe('signed-out');
+        expect(rowStatus(row('a', { status: 'unknown', hydration: 'loading' }))).toBe('checking');
         expect(rowStatus(row('a', { requiresAccount: false }))).toBe('accountless');
         // Out of reach wins over everything: such a row cannot be chosen, whoever was signed in there.
         expect(rowStatus(row('a', { ...signedIn, ...off }))).toBe('off');
@@ -148,6 +149,7 @@ describe('what a chosen row leads to', () => {
         expect(rowLeadsTo('signed-out')).toBe('sign-in');
         expect(rowLeadsTo('ran-out')).toBe('sign-in');
         expect(rowLeadsTo('off')).toBeNull();
+        expect(rowLeadsTo('checking')).toBe('sign-in');
     });
 });
 
