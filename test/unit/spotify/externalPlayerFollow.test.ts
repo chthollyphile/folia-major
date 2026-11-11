@@ -293,4 +293,31 @@ describe('a player that follows the listener\'s own changes', () => {
         expect(engine.getExternalSong()).toEqual(other);
         expect(omniMock.pauseExternalPlayback).not.toHaveBeenCalled();
     });
+
+    // The track the player moved on to could not be looked up, so the player was stopped there: the
+    // session is nobody's from that moment, and what the listener starts in the player's own window
+    // afterwards is followed again rather than skipped for the rest of the run.
+    it('follows the player again after a track it could not follow was stopped', async () => {
+        await engine.beginExternalPlayback(song, 0);
+        engine.announceExternalPlayback();
+        // A poll sees a track this app did not ask for, which is the bridge's to take over.
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ mediaId: '456' }));
+        omniMock.isExternalPlaybackStatusForSong.mockReturnValueOnce(false);
+        await vi.advanceTimersByTimeAsync(500);
+        // The lookup behind that take-over found nothing, so the player is stopped where it stands.
+        engine.stopForeignExternalPlayback();
+
+        // Nothing of this route holds the player now, so the slow read is the one that sees it again.
+        expect(engine.getExternalSong()).toBeNull();
+        expect(engine.isExternalRoute()).toBe(false);
+        expect(engine.isExternalTakeoverPending()).toBe(false);
+
+        omniMock.getSongDetail.mockResolvedValue(other);
+        omniMock.getExternalPlaybackRunningStatus.mockResolvedValue(status({ mediaId: '456' }));
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ mediaId: '456' }));
+
+        await expect(followRunningExternalPlayer()).resolves.toBe('adopted');
+        expect(engine.getExternalSong()).toEqual(other);
+        expect(usePlaybackStore.getState().currentSong).toEqual(other);
+    });
 });

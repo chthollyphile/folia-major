@@ -1094,15 +1094,21 @@ export function releaseUnclaimedExternalTrack(song: SongResult, reason: string):
 /**
  * A track the player moved on to by itself could not be taken over (its platform has no such track
  * any more, the lookup failed): the player is stopped rather than left sounding a song Folia knows
- * nothing about, as a player that declared nothing is stopped the moment it moves on.
+ * nothing about, as a player that declared nothing is stopped the moment it moves on. This route is
+ * left with it, the way a stop leaves it, so nothing holds the player for the rest of the run: a
+ * reader that watches a player the listener keeps using (a way of playing that follows its own
+ * window) sees what they start there afterwards instead of a session that would skip it.
  */
 export const stopForeignExternalPlayback = (): void => {
     const current = session;
     if (!current || !current.foreign) return;
     console.warn('[ExternalPlayback] the track the player moved on to could not be taken over; it is paused');
-    void omni.pauseExternalPlayback(current.song).catch(() => {});
+    // Shown paused, and said once as it always was: the player moved on, and this song is not it.
     markPaused(current.clock.read());
     emit({ type: 'foreign-track' });
+    stopExternalPlayback('the track the player moved on to could not be taken over');
+    // The app's own engine has the song again: the route is not the player's any more.
+    withoutRouteGuard(() => setPlaybackRoute('web'));
 };
 
 /**
