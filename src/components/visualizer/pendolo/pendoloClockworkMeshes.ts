@@ -4,13 +4,15 @@ import {
     resolvePendoloClockworkAnchors,
     type PendoloClockworkFrameInput,
 } from './pendoloClockworkScene';
+import { PENDOLO_PART_BASE_SUFFIX, resolvePendoloPartHeight } from './pendoloParallax';
 
 // src/components/visualizer/pendolo/pendoloClockworkMeshes.ts
 // Cached local-space mesh with per-vertex partId; one draw, uniform transform table.
 
 /** x,y,rgba,partId */
 export const PENDOLO_MESH_STRIDE = 7;
-export const PENDOLO_MAX_PARTS = 32;
+/** 部件上限：原来的部件（约 24 个）加上分层视差时各齿轮的低处线。 */
+export const PENDOLO_MAX_PARTS = 44;
 /** Canvas2D's default miterLimit; sharper joins are bevelled, as Canvas2D does. */
 const PENDOLO_MITER_LIMIT = 10;
 
@@ -28,6 +30,19 @@ export interface PendoloCachedPart {
     getOrigin: (motion: PendoloMotionSample) => { x: number; y: number };
     /** Spin around origin in radians. */
     getRotation: (motion: PendoloMotionSample) => number;
+    /** 分层视差里离表盘平面的高度（轮盘半径的比例，pendoloParallax.ts）。 */
+    height: number;
+}
+
+/**
+ * 分层视差时的一块齿轮顶面（遮挡用，只写深度不出颜色）：在 faceData 里，[fanStart, fanStart+fanCount)
+ * 是齿形围出的整块面，[holeStart, holeStart+holeCount) 是要从面上抠掉的洞（透过洞看得到下层）。
+ */
+export interface PendoloOccluderFace {
+    fanStart: number;
+    fanCount: number;
+    holeStart: number;
+    holeCount: number;
 }
 
 export interface PendoloCachedScene {
@@ -35,12 +50,39 @@ export interface PendoloCachedScene {
     data: Float32Array;
     parts: PendoloCachedPart[];
     vertexCount: number;
+    /** 分层视差时各齿轮顶面的网格（同样的顶点格式）；没有视差时不生成。 */
+    faceData?: Float32Array;
+    faces?: PendoloOccluderFace[];
 }
+
+/**
+ * 齿轮上的轮廓线：外缘齿形（polyline），以及辐条轮的轮毂圈、轮缘圈和上面的洞（circle）。
+ * 记下来给分层视差补「低处线」（齿轮底面上的同一条线）用。
+ */
+type PendoloGearOutline = {
+    partKey: string;
+    lineWidth: number;
+    rgba: [number, number, number, number];
+} & (
+    | { kind: 'polyline'; pts: Array<{ x: number; y: number }> }
+    | { kind: 'circle'; cx: number; cy: number; radius: number; segments: number }
+);
 
 class PendoloMeshBuilder {
     private data: number[] = [];
 
     private activePartId = 0;
+
+    /** 当前在画的部件的 key（pushPart 设）。 */
+    activePartKey = '';
+
+    /** 不为 null 时，appendGearLocal 把画过的齿形记在这里（分层视差开着时）。 */
+    gearOutlines: PendoloGearOutline[] | null = null;
+
+    /** 不为 null 时记下齿轮的面（齿形）和面上的洞，分层视差时算遮挡用。 */
+    faceOutlines: Array<{ partKey: string; pts: Array<{ x: number; y: number }>; filled: boolean }> | null = null;
+
+    faceHoles: Array<{ partKey: string; cx: number; cy: number; radius: number }> | null = null;
 
     get vertexCount() {
         return this.data.length / PENDOLO_MESH_STRIDE;
@@ -225,6 +267,33 @@ class PendoloMeshBuilder {
         }
     }
 
+    /**
+     * 分层视差的齿轮侧壁：沿齿形每一段立一块四边形，上沿顶点属于 `topPartId`（齿轮本身），下沿属于
+     * `bottomPartId`（它的低处线），原点、转角相同、高度不同，投影后连成齿轮的侧面。被齿轮自己顶面
+     * 挡住的那一半靠深度测试剔掉，只露出朝外的一侧。
+     */
+    appendWall(
+        points: Array<{ x: number; y: number }>,
+        topPartId: number,
+        bottomPartId: number,
+        rgba: [number, number, number, number],
+    ) {
+        const [r, g, b, a] = rgba;
+        const vert = (p: { x: number; y: number }, partId: number) => {
+            this.data.push(p.x, p.y, r, g, b, a, partId);
+        };
+        for (let i = 0; i < points.length; i++) {
+            const p0 = points[i];
+            const p1 = points[(i + 1) % points.length];
+            vert(p0, topPartId);
+            vert(p0, bottomPartId);
+            vert(p1, topPartId);
+            vert(p1, topPartId);
+            vert(p0, bottomPartId);
+            vert(p1, bottomPartId);
+        }
+    }
+
     appendArrowHead(tipX: number, tipY: number, rgba: [number, number, number, number]) {
         const [r, g, b, a] = rgba;
         this.pushTri(tipX, tipY - 4, tipX + 8, tipY, tipX, tipY + 4, r, g, b, a);
@@ -260,6 +329,8 @@ export const buildPendoloClockworkCacheKey = (input: PendoloClockworkFrameInput)
         input.showGearDecor,
         input.primaryTextColor,
         input.accentTextColor,
+        // 视差开着时多出齿轮的低处线和侧壁
+        input.parallaxScalePx ? 'parallax' : '',
     ].join('|')
 );
 
@@ -295,6 +366,8 @@ const appendGearLocal = (
     const pts = gearTeethPointsLocal(radius, teethCount, toothDepth);
     if (fill) mesh.appendFilledPolygonFromCenter(0, 0, pts, parseRgba(fill));
     mesh.appendPolyline(pts, lineWidth, parseRgba(stroke), true);
+    mesh.gearOutlines?.push({ partKey: mesh.activePartKey, kind: 'polyline', pts, lineWidth, rgba: parseRgba(stroke) });
+    mesh.faceOutlines?.push({ partKey: mesh.activePartKey, pts, filled: Boolean(fill) });
 };
 
 const appendSpokedWheelLocal = (
@@ -303,8 +376,13 @@ const appendSpokedWheelLocal = (
     stroke: string, lineWidth: number,
 ) => {
     const rgba = parseRgba(stroke);
-    mesh.appendCircleStroke(0, 0, hubR, lineWidth, rgba);
-    mesh.appendCircleStroke(0, 0, rimR, lineWidth, rgba);
+    // 轮毂圈、轮缘圈和洞在分层视差时也要有低处线：透过洞能看到洞的下沿
+    const circle = (cx: number, cy: number, radius: number, segments = 64) => {
+        mesh.appendCircleStroke(cx, cy, radius, lineWidth, rgba, segments);
+        mesh.gearOutlines?.push({ partKey: mesh.activePartKey, kind: 'circle', cx, cy, radius, segments, lineWidth, rgba });
+    };
+    circle(0, 0, hubR);
+    circle(0, 0, rimR);
     const angleStep = (Math.PI * 2) / spokeCount;
     for (let i = 0; i < spokeCount; i++) {
         const a = i * angleStep;
@@ -318,7 +396,8 @@ const appendSpokedWheelLocal = (
     const holeR = (rimR - hubR) * 0.22;
     for (let i = 0; i < spokeCount; i++) {
         const a = i * angleStep + angleStep * 0.5;
-        mesh.appendCircleStroke(midR * Math.cos(a), midR * Math.sin(a), holeR, lineWidth, rgba, 24);
+        circle(midR * Math.cos(a), midR * Math.sin(a), holeR, 24);
+        mesh.faceHoles?.push({ partKey: mesh.activePartKey, cx: midR * Math.cos(a), cy: midR * Math.sin(a), radius: holeR });
     }
 };
 
@@ -386,11 +465,19 @@ export const buildPendoloClockworkCachedScene = (
             }
             partId = parts.length;
             partKeys.set(transformKey, partId);
-            parts.push({ getOrigin, getRotation });
+            parts.push({ getOrigin, getRotation, height: resolvePendoloPartHeight(transformKey) });
         }
         mesh.setActivePartId(partId);
+        mesh.activePartKey = transformKey;
         build();
     };
+    // 分层视差：每个齿轮除了自己高度上的这圈（高处线），再在低一个齿轮厚度的地方补一圈齿形（低处线）
+    const parallax = Boolean(input.parallaxScalePx);
+    if (parallax) {
+        mesh.gearOutlines = [];
+        mesh.faceOutlines = [];
+        mesh.faceHoles = [];
+    }
 
     pushPart('main-static', () => {
         const ringRgba = parseRgba(palette.primaryAlpha15);
@@ -400,6 +487,9 @@ export const buildPendoloClockworkCachedScene = (
         const bevel = parseRgba(palette.bevelRing);
         mesh.appendCircleStroke(0, 0, baseRadius * 0.88, 0.8, bevel);
         mesh.appendCircleStroke(0, 0, baseRadius * 0.92, 0.8, bevel);
+    }, mainOrigin, fixedRotation(0));
+    // 中心宝石单独一个部件：分层视差时要浮在太阳轮上面，不能留在表盘平面被盖住。顶点顺序和原来一样
+    pushPart('main-jewel', () => {
         appendJewelLocal(mesh, 4.5, 2.5, palette.jewelStrokeColor, palette.jewelFillColor, 1.2, 0.8);
     }, mainOrigin, fixedRotation(0));
 
@@ -573,12 +663,107 @@ export const buildPendoloClockworkCachedScene = (
         mesh.appendArrowHead(centerX + anchors.focalAxisEndRadius, centerY, axis);
     }, fixedOrigin(0, 0), fixedRotation(0));
 
+    if (!parallax || !mesh.gearOutlines?.length) {
+        return {
+            key,
+            data: mesh.toFloat32(),
+            parts,
+            vertexCount: mesh.vertexCount,
+        };
+    }
+    // 低处线画在最前面，被上面的齿轮（和它们的填色）盖住；跟着各自齿轮的原点和转角走
+    const base = new PendoloMeshBuilder();
+    // 同一个部件的低处线共用一个部件编号（同一原点、转角和高度）
+    const baseIds = new Map<string, number>();
+    for (const outline of mesh.gearOutlines) {
+        const sourceId = partKeys.get(outline.partKey);
+        if (sourceId === undefined) continue;
+        const source = parts[sourceId];
+        let baseId = baseIds.get(outline.partKey);
+        if (baseId === undefined) {
+            if (parts.length >= PENDOLO_MAX_PARTS) {
+                console.warn('[pendoloClockworkMeshes] exceeded PENDOLO_MAX_PARTS (gear bases)');
+                continue;
+            }
+            baseId = parts.length;
+            baseIds.set(outline.partKey, baseId);
+            parts.push({
+                getOrigin: source.getOrigin,
+                getRotation: source.getRotation,
+                height: resolvePendoloPartHeight(`${outline.partKey}${PENDOLO_PART_BASE_SUFFIX}`),
+            });
+        }
+        base.setActivePartId(baseId);
+        if (outline.kind === 'polyline') {
+            // 齿形一圈：高处线和低处线之间补上侧壁，齿轮看起来是立在下层上的一块
+            const [wr, wg, wb, wa] = outline.rgba;
+            base.appendWall(outline.pts, sourceId, baseId, [wr, wg, wb, wa * PENDOLO_GEAR_WALL_ALPHA]);
+            base.setActivePartId(baseId);
+            base.appendPolyline(outline.pts, outline.lineWidth, outline.rgba, true);
+        } else {
+            base.appendCircleStroke(outline.cx, outline.cy, outline.radius, outline.lineWidth, outline.rgba, outline.segments);
+        }
+    }
+    const front = base.toFloat32();
+    const back = mesh.toFloat32();
+    const data = new Float32Array(front.length + back.length);
+    data.set(front, 0);
+    data.set(back, front.length);
+    const occluders = buildOccluderFaces(mesh, partKeys, parseRgba(palette.secondGearFill));
     return {
         key,
-        data: mesh.toFloat32(),
+        data,
         parts,
-        vertexCount: mesh.vertexCount,
+        vertexCount: base.vertexCount + mesh.vertexCount,
+        faceData: occluders.data,
+        faces: occluders.faces,
     };
+};
+
+/** 齿轮侧壁相对齿形描边的不透明度。 */
+const PENDOLO_GEAR_WALL_ALPHA = 0.18;
+
+/** 洞所在的部件和它要抠的那块面不是同一个部件时（转向不同），在这里对上。 */
+const HOLE_FACE_PART: Record<string, string> = {
+    'second-spoke': 'second-spin',
+};
+
+/**
+ * 分层视差的遮挡面：每个齿轮的齿形围成一块面（从中心扇形三角化），面上的洞是圆盘。
+ * 每个顶点带自己部件的编号，跟着各自的原点、转角和高度走；洞可以属于别的部件（秒轮的辐条）。
+ * 本身没有填色的齿轮（行星轮、过桥轮）挡住下面的底色后会像个黑洞，面上补一层淡淡的 `unfilledRgba`。
+ */
+const buildOccluderFaces = (
+    mesh: PendoloMeshBuilder,
+    partKeys: Map<string, number>,
+    unfilledRgba: [number, number, number, number],
+) => {
+    const out = new PendoloMeshBuilder();
+    const faces: PendoloOccluderFace[] = [];
+    const holeRgba: [number, number, number, number] = [0, 0, 0, 0];
+    for (const face of mesh.faceOutlines ?? []) {
+        const partId = partKeys.get(face.partKey);
+        if (partId === undefined) continue;
+        const fanStart = out.vertexCount;
+        out.setActivePartId(partId);
+        out.appendFilledPolygonFromCenter(0, 0, face.pts, face.filled ? holeRgba : unfilledRgba);
+        const fanCount = out.vertexCount - fanStart;
+        const holeStart = out.vertexCount;
+        for (const hole of mesh.faceHoles ?? []) {
+            const owner = HOLE_FACE_PART[hole.partKey] ?? hole.partKey;
+            if (owner !== face.partKey) continue;
+            const holePart = partKeys.get(hole.partKey);
+            if (holePart === undefined) continue;
+            out.setActivePartId(holePart);
+            const pts = Array.from({ length: 24 }, (_, i) => {
+                const a = (i * Math.PI * 2) / 24;
+                return { x: hole.cx + hole.radius * Math.cos(a), y: hole.cy + hole.radius * Math.sin(a) };
+            });
+            out.appendFilledPolygonFromCenter(hole.cx, hole.cy, pts, holeRgba);
+        }
+        faces.push({ fanStart, fanCount, holeStart, holeCount: out.vertexCount - holeStart });
+    }
+    return { data: out.toFloat32(), faces };
 };
 
 /** Fills parallel origin/rotation tables for the single-draw uniform path. */

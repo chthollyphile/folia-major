@@ -77,7 +77,7 @@ export const buildAppDialogsModel = ({
         ? {
             ...statusMsg,
             isDaylight,
-            toastKey: `${statusMsg.type}:${statusMsg.text}:${statusMsg.nonce ?? 0}`,
+            toastKey: statusMsg.activityId !== undefined ? `activity:${statusMsg.activityId}` : `${statusMsg.type}:${statusMsg.text}:${statusMsg.nonce ?? 0}`,
         }
         : null,
     // The window for matching lyrics by hand is one; the playing song's kind says how it is filled.

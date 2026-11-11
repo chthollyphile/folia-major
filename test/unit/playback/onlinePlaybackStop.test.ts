@@ -73,7 +73,7 @@ vi.mock('@/utils/onlineLyricsState', () => ({ loadOnlineLyricsState: vi.fn(async
 const { useEffect } = await import('react');
 const { usePlaybackQueueController } = await import('@/components/app/playback/start/usePlaybackQueueController');
 const { usePlaybackStore } = await import('@/stores/usePlaybackStore');
-const { useStatusMessageStore } = await import('@/stores/useStatusMessageStore');
+const { useStatusMessageStore, dropWaitingStatusLoaders } = await import('@/stores/useStatusMessageStore');
 const { loadOnlineSongAudioSource } = await import('@/services/onlinePlayback');
 const { isSongUnavailable } = await import('@/services/onlineMusic/songAvailability');
 const { omni } = await import('@/services/onlineMusic/omni');
@@ -134,6 +134,7 @@ beforeEach(() => {
     // The song that plays is the one the player was last asked for (currentSong.ts), as App leaves it.
     askForSong(songs[0]);
     useStatusMessageStore.setState({ message: null });
+    dropWaitingStatusLoaders();
 });
 afterEach(() => {
     effectCleanups.splice(0).forEach(cleanup => cleanup());

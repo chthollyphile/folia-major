@@ -44,14 +44,19 @@ const mountBravais = async (mount: (id: string) => Promise<unknown>, page: Page)
     await settled(page);
 };
 
-/** 一张此刻完整在视口中部、没被缝盖住的磁贴（slot key）。 */
+/**
+ * 一张此刻在视口中部、没被缝盖住的磁贴（slot key）。集合页整层倾斜着：磁贴与缝的外接框都是转过的（缝还带上下的出血），
+ * 所以按磁贴的中心点找——中心在视口中部、最上层就是它自己。
+ */
 const middleTile = (page: Page, attribute: 'data-library-card' | 'data-library-entry') => page.evaluate(name => {
-    const seamRect = document.querySelector('[data-bravais-seam]')?.getBoundingClientRect();
-    const fits = (rect: DOMRect) => rect.left > 200 && rect.top > 120
-        && rect.right < window.innerWidth - 200 && rect.bottom < window.innerHeight - 200
-        && (!seamRect || seamRect.width < 1 || rect.right < seamRect.left - 4 || rect.left > seamRect.right + 4);
-    const tile = [...document.querySelectorAll<HTMLElement>(`.bravais-tile[${name}]`)]
-        .find(element => fits(element.getBoundingClientRect()));
+    const tile = [...document.querySelectorAll<HTMLElement>(`.bravais-tile[${name}]`)].find((element) => {
+        const rect = element.getBoundingClientRect();
+        const x = rect.left + rect.width / 2;
+        const y = rect.top + rect.height / 2;
+        if (x < 320 || y < 240 || x > window.innerWidth - 320 || y > window.innerHeight - 320) return false;
+        const hit = document.elementFromPoint(x, y);
+        return Boolean(hit && element.contains(hit));
+    });
     return tile?.dataset.bravaisSlot ?? null;
 }, attribute);
 

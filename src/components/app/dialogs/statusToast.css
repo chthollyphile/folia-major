@@ -59,6 +59,9 @@
     --toast-shadow: 0 12px 32px rgba(15, 15, 30, 0.12);
 }
 
+/* The loader and the result it turns into share one 24px slot. */
+.status-toast.has-activity .status-toast-line { gap: 8px; }
+
 .status-toast.has-buttons { padding-right: 9px; }
 .status-toast.is-leaving { pointer-events: none; }
 

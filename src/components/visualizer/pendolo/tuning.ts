@@ -1,5 +1,6 @@
 import { DEFAULT_PENDOLO_TUNING, type PendoloTuning } from '../../../types';
 import { normalizeLyricRenderOverride } from '../../../utils/lyricRenderQuality';
+import { PENDOLO_HUB_VIEW_BACK_MAX, PENDOLO_HUB_VIEW_BACK_MIN, PENDOLO_HUB_VIEW_HEIGHT_MAX, PENDOLO_HUB_VIEW_HEIGHT_MIN, PENDOLO_TILT_LIMIT_DEG } from './pendoloDialProjection';
 import { defineVisualizerTuning, modNumber, MOD_SWITCH, modChoice, numberWithin, type StoredTuningFields } from '../tuningDefinition';
 
 // src/components/visualizer/pendolo/tuning.ts
@@ -32,6 +33,27 @@ const resolve = (values: Partial<PendoloTuning>, base: PendoloTuning): PendoloTu
     enableLineGlow: typeof values.enableLineGlow === 'boolean'
         ? values.enableLineGlow
         : base.enableLineGlow ?? DEFAULT_PENDOLO_TUNING.enableLineGlow,
+    mirrorLayout: typeof values.mirrorLayout === 'boolean'
+        ? values.mirrorLayout
+        : base.mirrorLayout ?? DEFAULT_PENDOLO_TUNING.mirrorLayout,
+    tiltDeg: numberWithin(values.tiltDeg, base.tiltDeg ?? 0, -PENDOLO_TILT_LIMIT_DEG, PENDOLO_TILT_LIMIT_DEG),
+    tiltAxisDeg: numberWithin(values.tiltAxisDeg, base.tiltAxisDeg ?? 0, -90, 90),
+    parallaxDepth: numberWithin(values.parallaxDepth, base.parallaxDepth ?? DEFAULT_PENDOLO_TUNING.parallaxDepth ?? 1, 0, 2),
+    hubView: typeof values.hubView === 'boolean'
+        ? values.hubView
+        : base.hubView ?? DEFAULT_PENDOLO_TUNING.hubView,
+    hubViewHeight: numberWithin(
+        values.hubViewHeight,
+        base.hubViewHeight ?? DEFAULT_PENDOLO_TUNING.hubViewHeight ?? 1.4,
+        PENDOLO_HUB_VIEW_HEIGHT_MIN,
+        PENDOLO_HUB_VIEW_HEIGHT_MAX,
+    ),
+    hubViewBack: numberWithin(
+        values.hubViewBack,
+        base.hubViewBack ?? DEFAULT_PENDOLO_TUNING.hubViewBack ?? 1.2,
+        PENDOLO_HUB_VIEW_BACK_MIN,
+        PENDOLO_HUB_VIEW_BACK_MAX,
+    ),
 });
 
 export default defineVisualizerTuning<PendoloTuning>({
@@ -48,6 +70,13 @@ export default defineVisualizerTuning<PendoloTuning>({
         showCenterGradient: MOD_SWITCH,
         showCoverOnWatchFace: MOD_SWITCH,
         enableLineGlow: MOD_SWITCH,
+        mirrorLayout: MOD_SWITCH,
+        tiltDeg: modNumber(-PENDOLO_TILT_LIMIT_DEG, PENDOLO_TILT_LIMIT_DEG),
+        tiltAxisDeg: modNumber(-90, 90),
+        parallaxDepth: modNumber(0, 2),
+        hubView: MOD_SWITCH,
+        hubViewHeight: modNumber(PENDOLO_HUB_VIEW_HEIGHT_MIN, PENDOLO_HUB_VIEW_HEIGHT_MAX),
+        hubViewBack: modNumber(PENDOLO_HUB_VIEW_BACK_MIN, PENDOLO_HUB_VIEW_BACK_MAX),
     },
     settingsKey: 'pendoloTuning',
     settingsSetterKey: 'handleSetPendoloTuning',

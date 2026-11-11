@@ -47,6 +47,8 @@ export const FOLIUM_EVENT_TYPES = {
     'visualizer.renderQualityChanged': { dispatch: 'notification', experimental: null },
     'visualizer.tuningChanged': { dispatch: 'notification', experimental: null },
     'visualizer.beatEffectsChanged': { dispatch: 'notification', experimental: null },
+    'visualizer.backgroundChanged': { dispatch: 'notification', experimental: null },
+    'visualizer.animationIntensityChanged': { dispatch: 'notification', experimental: null },
     'lyrics.transform': { dispatch: 'hook', experimental: null },
     'playback.beforePlay': { dispatch: 'hook', experimental: null },
     'omni.lyricsResolved': { dispatch: 'hook', experimental: 'omni.hooks' },

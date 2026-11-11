@@ -1,9 +1,9 @@
 import { animate } from 'framer-motion';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type MutableRefObject, type RefObject } from 'react';
-import { blockSeamPlan, blockSeamPlanY, getSeamGeometry, getSeamGeometryY, type SeamAxis } from '../../../components/wall/seamPlan';
+import { SEAM_EDGE_MARGIN, blockSeamPlan, blockSeamPlanY, getSeamGeometry, getSeamGeometryY, type SeamAxis } from '../../../components/wall/seamPlan';
 import type { WallViewCenter } from '../../../components/wall/wallView';
-import { BRAVAIS_METRICS, BRAVAIS_SEAM_TWEEN_S } from './bravaisConstants';
-import { planPosterOpening, seamEdgeFor } from './bravaisFrame';
+import { BRAVAIS_METRICS, BRAVAIS_SEAM_TWEEN_S, BRAVAIS_TILT_EASE, BRAVAIS_TILT_OUT_S } from './bravaisConstants';
+import { liftForPivotShift, planPosterOpening, seamEdgeFor, seamPlanEdge, tiltPivotX } from './bravaisFrame';
 import type { BravaisLayer } from './bravaisLayer';
 import { useBravaisSeamStore } from './bravaisSeamLevel';
 import { resolveSeamContentIdentity, resolveVariantWidth, type BravaisSeamContentVariant } from './bravaisSeamTarget';
@@ -25,6 +25,9 @@ import type { BravaisWallShape } from './bravaisWallShape';
 // 换方向途中来的目标宽度不另起补间，张开时取最新的；沿用的锚点若是按别的宽度排的（面板换成海报），张开前按新宽度重排。
 // 换层要先换墙的形状时（useBravaisDisplay 的 beginShapeChange，出场放完才给锚点），换层编排先 awaitAnchor：合上后只换内容、
 // 开口留在 0，等锚点来了再张开（不先在临时的边界上张开、再跳到真的那条）。换方向途中折叠了：合上时照样换上给的锚点。
+// 整层倾斜着换锚点（边缘标签「在这里裂开」、锚点不在屏内时换等级、换层）：支点跟着缝，锚点一换墙会顺着纸的竖向跳一截。
+// 换的那一刻给两半墙垫上这一截（帧状态的 tiltLiftY，bravaisFrame 的 reanchorLift），再补间到 0——墙滑过去，不是跳过去。
+// 要倾斜的缝（不是海报）排开口时离视口左右边多留一段（tiltEdgeRoom），转过去之后内容的上端 / 下端不横着出屏。
 
 export type BravaisRenderedSeam = {
     variant: BravaisSeamContentVariant;
@@ -53,6 +56,7 @@ export const useBravaisSeam = ({
     checkCull,
     getShape,
     onAxisSettled,
+    tiltFor,
 }: {
     frameRef: MutableRefObject<BravaisFrameState>;
     renderFrame: () => void;
@@ -72,6 +76,8 @@ export const useBravaisSeam = ({
     getShape: () => BravaisWallShape;
     /** 缝换完方向、在新方向上开始张开（换层编排据此重算有限态的相机范围）。 */
     onAxisSettled?: () => void;
+    /** 这一层的缝落定时整层倾斜多少度（bravaisTilt；排开口时据此多留边距）。 */
+    tiltFor: (layer: BravaisLayer) => number;
 }) => {
     const level = useBravaisSeamStore(state => state.level);
     const [anchor, setAnchorState] = useState<BravaisAnchor>(NO_ANCHOR);
@@ -86,6 +92,8 @@ export const useBravaisSeam = ({
     tweenCameraRef.current = tweenCamera;
     const latestTargetRef = useRef({ layer, targetVariant, targetAxis });
     latestTargetRef.current = { layer, targetVariant, targetAxis };
+    const tiltForRef = useRef(tiltFor);
+    tiltForRef.current = tiltFor;
     /** 换完内容后要不要转进来（翻转的后半段）、焦点还给谁。 */
     const pendingInRef = useRef<{ fromNone: boolean; reduced: boolean; focused: HTMLElement | null; toggleByKeyboard: boolean } | null>(null);
     /**
@@ -98,13 +106,85 @@ export const useBravaisSeam = ({
     const onAxisSettledRef = useRef(onAxisSettled);
     onAxisSettledRef.current = onAxisSettled;
 
-    /** 立即换上锚点（帧状态 + React state，墙按它分两半）。 */
+    /** 倾斜着换锚点时垫给两半墙的那一截，补间回 0（每帧只写帧状态与 DOM，途中快到裁剪边缘时补裁剪）。 */
+    const liftAnimationRef = useRef<{ stop: () => void } | null>(null);
+    const settleLift = useCallback(() => {
+        liftAnimationRef.current?.stop();
+        liftAnimationRef.current = null;
+        const from = frameRef.current.tiltLiftY;
+        if (Math.abs(from) < 0.5 || reducedMotion) {
+            frameRef.current.tiltLiftY = 0;
+            return;
+        }
+        // 两头都平的缓动（与倾斜回正同一条）：先慢后快再慢地滑过去；相机补间那种一上来就冲的曲线在这里看着仍像跳。
+        liftAnimationRef.current = animate(from, 0, {
+            duration: BRAVAIS_TILT_OUT_S,
+            ease: [...BRAVAIS_TILT_EASE],
+            onUpdate: value => {
+                frameRef.current.tiltLiftY = value;
+                renderFrame();
+                checkCull();
+            },
+            onComplete: () => {
+                liftAnimationRef.current = null;
+                checkCull(true);
+            },
+        });
+    }, [checkCull, frameRef, reducedMotion, renderFrame]);
+
+    /** 此刻倾斜的支点在屏幕上的 x（没倾斜、没有竖的缝时是 null）。 */
+    const pivotNow = useCallback(() => {
+        const state = frameRef.current;
+        return state.view ? tiltPivotX({
+            center: state.center,
+            view: state.view,
+            anchorX: state.anchorX,
+            anchorY: state.anchorY,
+            openWidth: state.openWidth,
+            contentWidth: state.contentWidth,
+            hidden: state.hidden,
+            poster: state.poster,
+            tiltDeg: state.tiltDeg,
+        }) : null;
+    }, [frameRef]);
+    /**
+     * 这一轮同步代码里第一次换锚点之前的支点。垫多少要等这一轮跑完再量（微任务，仍在绘制之前）：调用方换完锚点常常紧接着
+     * 把开口归零、或让相机跟着锚点瞬移同样的距离（换形状时缝在屏幕上不动）——按那时真正画出来的支点算，才不多垫。
+     */
+    const pivotBeforeRef = useRef<number | null>(null);
+    const aliveRef = useRef(true);
+    useEffect(() => {
+        aliveRef.current = true;
+        return () => { aliveRef.current = false; };
+    }, []);
+    const holdWall = useCallback(() => {
+        const before = pivotBeforeRef.current;
+        pivotBeforeRef.current = null;
+        const after = pivotNow();
+        if (!aliveRef.current || before === null || after === null) return;
+        const lift = liftForPivotShift(after - before, frameRef.current.tiltDeg);
+        if (Math.abs(lift) < 0.5) return;
+        frameRef.current.tiltLiftY += lift;
+        settleLift();
+        renderFrame();
+        checkCull();
+    }, [checkCull, frameRef, pivotNow, renderFrame, settleLift]);
+
+    /** 立即换上锚点（帧状态 + React state，墙按它分两半）。倾斜着换时墙留在原地、再滑过去（见文件头）。 */
     const applyAnchor = useCallback((next: BravaisAnchor) => {
-        frameRef.current.anchorX = next.x;
-        frameRef.current.anchorY = next.y;
+        const state = frameRef.current;
+        if (pivotBeforeRef.current === null) {
+            const before = pivotNow();
+            if (before !== null) {
+                pivotBeforeRef.current = before;
+                queueMicrotask(holdWall);
+            }
+        }
+        state.anchorX = next.x;
+        state.anchorY = next.y;
         setAnchorState(current => (current.x === next.x && current.y === next.y ? current : next));
         renderFrame();
-    }, [frameRef, renderFrame]);
+    }, [frameRef, holdWall, pivotNow, renderFrame]);
 
     /** 缝锚点（缺省是帧状态里的）此刻在不在屏内（在就沿用它的块边界）。 */
     const isAnchorOnScreen = useCallback((anchor?: BravaisAnchor) => {
@@ -123,7 +203,8 @@ export const useBravaisSeam = ({
     /**
      * 要张开 `width` 的缝：选块边界、算相机的最小让位（相对 `center`，返回锚点与让位后的视图中心）。`prefer` 是想沿用的
      * 锚点（与 `axis` 同一个方向才算数）。poster（歌手海报）：照样从块边界裂开，相机把它带到视口最左边
-     * （bravaisFrame 的 planPosterOpening）。axis 'y'：横的缝，开在块行边界上，相机上下让位。
+     * （bravaisFrame 的 planPosterOpening）。axis 'y'：横的缝，开在块行边界上，相机上下让位。tiltDeg：这道缝落定时
+     * 整层的倾斜角（海报不看它：海报贴着视口边，内容另有安全区）。
      */
     const planOpening = useCallback((
         center: WallViewCenter,
@@ -132,6 +213,7 @@ export const useBravaisSeam = ({
         poster = false,
         shape = getShape(),
         axis: SeamAxis = 'x',
+        tiltDeg = 0,
     ): BravaisOpeningPlan => {
         const { view } = frameRef.current;
         if (!view) return { anchor: prefer ?? anchorOf(frameRef.current), center };
@@ -159,6 +241,8 @@ export const useBravaisSeam = ({
             // 缝开在墙此刻形状的块边界上（探索形状的块含街）。
             blockWidth: shape.blockSize.width,
             preferX,
+            // 要倾斜的缝离视口左右边多留一段：转过去之后上端 / 下端不横着出屏。
+            edge: seamPlanEdge({ view, openWidth: width, tiltDeg, edge: SEAM_EDGE_MARGIN }),
         });
         return { anchor: columnAnchor(plan.x), center: { x: plan.cameraX, y: center.y } };
     }, [frameRef, getShape]);
@@ -236,7 +320,7 @@ export const useBravaisSeam = ({
         const poster = latest.targetVariant === 'poster';
         let next = pending.anchor && anchorAxis(pending.anchor) === latest.targetAxis ? pending.anchor : null;
         if (next && width > 0 && (pending.planWidth !== width || pending.poster !== poster)) {
-            const plan = planOpening(frameRef.current.center, width, next, poster, getShape(), latest.targetAxis);
+            const plan = planOpening(frameRef.current.center, width, next, poster, getShape(), latest.targetAxis, latest.layer ? tiltForRef.current(latest.layer) : 0);
             next = plan.anchor;
             tweenCameraRef.current(plan.center);
         }
@@ -248,7 +332,7 @@ export const useBravaisSeam = ({
                 return;
             }
             if (width > 0) {
-                const plan = planOpening(frameRef.current.center, width, null, poster, getShape(), latest.targetAxis);
+                const plan = planOpening(frameRef.current.center, width, null, poster, getShape(), latest.targetAxis, latest.layer ? tiltForRef.current(latest.layer) : 0);
                 next = plan.anchor;
                 tweenCameraRef.current(plan.center);
             }
@@ -345,11 +429,11 @@ export const useBravaisSeam = ({
         if (previous.layerKey !== layerKey || previous.width === targetWidth) return;
         if (!layer || targetWidth <= 0) return;
         const axis = targetAxis ?? 'x';
-        const plan = planOpening(frameRef.current.center, targetWidth, isAnchorOnScreen() ? anchorOf(frameRef.current) : null, isPoster, getShape(), axis);
+        const plan = planOpening(frameRef.current.center, targetWidth, isAnchorOnScreen() ? anchorOf(frameRef.current) : null, isPoster, getShape(), axis, tiltFor(layer));
         const current = anchorOf(frameRef.current);
         if (plan.anchor.x !== current.x || plan.anchor.y !== current.y) setAnchor(plan.anchor);
         tweenCamera(plan.center);
-    }, [frameRef, getShape, isAnchorOnScreen, isPoster, layer, layerKey, planOpening, setAnchor, targetAxis, targetWidth, tweenCamera]);
+    }, [frameRef, getShape, isAnchorOnScreen, isPoster, layer, layerKey, planOpening, setAnchor, targetAxis, targetWidth, tiltFor, tweenCamera]);
 
     // 缝里的内容：换层（首页换页签也是换层，2026-10-09 起整条翻）或换形态时翻转（转到 90° 换内容与排版宽度），同一层的
     // 数据更新就地刷新（渲染时取最新的层）。
@@ -460,17 +544,18 @@ export const useBravaisSeam = ({
 
     useEffect(() => () => {
         widthAnimationRef.current?.stop();
+        liftAnimationRef.current?.stop();
         switchRef.current = null;
     }, []);
 
     /** 自动出屏收起后，在当前视口里裂开一道新缝（不拉回原锚点，设计稿 §5）。 */
     const reopenHere = useCallback(() => {
         if (!layer || targetWidth <= 0) return;
-        const plan = planOpening(frameRef.current.center, targetWidth, null, isPoster, getShape(), targetAxis ?? 'x');
+        const plan = planOpening(frameRef.current.center, targetWidth, null, isPoster, getShape(), targetAxis ?? 'x', tiltFor(layer));
         setAnchor(plan.anchor);
         tweenWidth(targetWidth, 0);
         tweenCamera(plan.center);
-    }, [frameRef, getShape, isPoster, layer, planOpening, setAnchor, targetAxis, targetWidth, tweenCamera, tweenWidth]);
+    }, [frameRef, getShape, isPoster, layer, planOpening, setAnchor, targetAxis, targetWidth, tiltFor, tweenCamera, tweenWidth]);
 
     /** 此刻缝本该张开却被挤到屏外收起了（边缘标签在场）。 */
     const isCollapsed = useCallback(() => {

@@ -116,13 +116,13 @@ afterEach(() => {
 });
 
 describe('app start, where the kept account waits for the platform to name the user', () => {
-    it('shows nobody until the platform has answered, and nobody after it names nobody', async () => {
+    it('shows a pending account until the platform answers, then shows its signed-out result', async () => {
         keep({ user, collections: [list('kept')] });
         const status = held<ProviderUser | null>();
         platform({ auth: { getLoginStatus: vi.fn(() => status.promise) } });
 
         const read = omni.readAccount(providerId, 'start');
-        expect(account()).toMatchObject({ status: 'anonymous', hydration: 'ready', user: null, collections: [], freshness: 'refreshing' });
+        expect(account()).toMatchObject({ status: 'unknown', hydration: 'loading', user: null, collections: [], freshness: 'refreshing' });
         status.answer(null);
 
         await expect(read).resolves.toBe('nobody');
@@ -298,6 +298,17 @@ describe.each([
         await expect(omni.readAccount(providerId, 'start')).resolves.toBe('nobody');
         expect(account()).toMatchObject({ status: 'anonymous', user: null, collections: [], error: 'runtime-unavailable' });
         expect(auth.getLoginStatus).not.toHaveBeenCalled();
+    });
+
+    it.each(['start', 'sync', 'sign-in'] as const)('shows checking without a user during %s, then shows the result', async reason => {
+        const status = held<ProviderUser | null>();
+        const { auth } = platform({ auth: { getLoginStatus: vi.fn(() => status.promise) } });
+        const read = omni.readAccount(providerId, reason);
+        await vi.waitFor(() => expect(auth.getLoginStatus).toHaveBeenCalledTimes(1));
+        expect(account()).toMatchObject({ status: 'unknown', hydration: 'loading', user: null, freshness: 'refreshing' });
+        status.answer(null);
+        await expect(read).resolves.toBe('nobody');
+        expect(account()).toMatchObject({ status: 'anonymous', hydration: 'ready', user: null, freshness: 'fresh' });
     });
 
     // QQ names some accounts with neither an id nor a name: the user the adapter gives is the sign.
@@ -861,6 +872,7 @@ describe.each([
 
             const entered = omni.accountMoment('home-entered');
             const again = omni.accountMoment('home-entered');
+            expect(account()).toMatchObject({ status: 'unknown', hydration: 'loading', user: null, freshness: 'refreshing' });
             status.answer(user);
 
             await expect(Promise.all([entered, again])).resolves.toEqual(['read', 'read']);

@@ -42,6 +42,7 @@ const RENDER_GONE_NAMES = [
 
 const CLOSED_NAMES = [
     'win',
+    'macDockMenu',
     'mainWindow',
     'process',
     'modSystem',
@@ -136,6 +137,7 @@ describe('main.cjs: mpv stops when the page driving it is gone for good', () => 
             remoteControlWindow: null,
             ytmSandbox: { destroy: () => {} },
             refreshTrayMenu: () => {},
+            macDockMenu: { reset: () => {} },
             ...overrides,
         };
         const handler = compileHandler(closedBody, CLOSED_NAMES, '');

@@ -50,6 +50,8 @@ export interface NowPlayingToastSong {
     title: string;
     artist: string | null;
     coverUrl: string | null;
+    /** 专辑名；只有紧凑档展开的胶囊（progress-bar v3）用它，卡片自己不画。 */
+    album?: string | null;
 }
 
 type NowPlayingToastProps = {

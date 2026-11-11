@@ -26,7 +26,8 @@ export type PlaybackGraph = {
     /**
      * Play/pause fade, unity at rest. Its own node because the volume node is rewritten by
      * syncOutputGain on every volume, mute and track start, and the deck gains belong to automix.
-     * Owned by services/playbackFade; nothing else may write it.
+     * Owned by services/playbackFade; nothing else may write it. Wired straight into gainNode: a
+     * scene's room (services/sceneSound/roomStage) is the only thing that ever sits between them.
      */
     fadeNode: GainNode;
     effectChain: AudioEffectChain;
@@ -78,29 +79,32 @@ export const buildPlaybackGraph = ({
      * this is inaudible to anyone who leaves the effects off.
      */
     const gainNode = context.createGain();
+
+    // The play/pause fade sits between the effects and the volume. Both only multiply, so this order
+    // sounds sample for sample like volume-then-fade; it is here so a scene's room can go between
+    // the two (scene-engine-design.md 4.10): a pause stops feeding the hall and its tail rings out,
+    // while mute and volume still act at once, tail included. With no room the fade feeds the volume
+    // directly, so nothing is added to the path.
+    const fadeNode = context.createGain();
     const effectChain = createAudioEffectChain({
         context,
         input: equalizerOutput,
-        output: gainNode,
+        output: fadeNode,
         effects: settings.effects,
         enabled: settings.enabled,
     });
-
-    // After the volume so the fade multiplies whatever level the listener chose, and before the
-    // analyser so the visualiser fades with the sound.
-    const fadeNode = context.createGain();
-    gainNode.connect(fadeNode);
+    fadeNode.connect(gainNode);
 
     // The analyser stays last, so the visualiser draws what is actually being heard - including
-    // the volume the listener set.
-    fadeNode.connect(analyser);
+    // the volume the listener set and, in a scene, its room.
+    gainNode.connect(analyser);
     analyser.connect(context.destination);
 
     // Once per audio context. Printed rather than assumed because the ORDER is the fix: if this
     // ever reads "volume" before "effects" again, the vinyl noise has stopped answering the
     // volume control and the bit crush has gone back to tracking it.
     console.log(
-        '[AudioContext] graph: decks -> mix -> equaliser -> effects -> volume -> fade -> analyser -> out'
+        '[AudioContext] graph: decks -> mix -> equaliser -> effects -> fade -> [room] -> volume -> analyser -> out'
         + ` (equaliser ${settings.enabled ? 'on' : 'flat'},`
         + ` noise ${settings.effects.noise}, crush ${settings.effects.crush}, punch ${settings.effects.punch})`,
     );

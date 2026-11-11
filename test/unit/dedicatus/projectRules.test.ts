@@ -126,6 +126,27 @@ describe('D513 Folium stable interface', () => {
         const major = checkFoliumApi(files, { readBase: read('{ "major": 1, "minor": 8 }', types), readCurrent: read('{ "major": 2, "minor": 0 }', after) });
         expect(major).toEqual([]);
     });
+
+    it('lets a minor bump rewrite the version line itself', () => {
+        const versionLine = (minor: number) => `export declare const FOLIUM_VERSION: { readonly major: 1; readonly minor: ${minor} };`;
+        const files = parseDiff([
+            'diff --git a/mods/folium.d.ts b/mods/folium.d.ts',
+            '--- a/mods/folium.d.ts',
+            '+++ b/mods/folium.d.ts',
+            '@@ -1,2 +1,3 @@',
+            `-${versionLine(8)}`,
+            `+${versionLine(9)}`,
+            ' export interface FoliumPlayback {',
+            '+    pause(): void;',
+        ].join('\n'));
+        const before = [versionLine(8), 'export interface FoliumPlayback {', '}'].join('\n');
+        const after = [versionLine(9), 'export interface FoliumPlayback {', '    pause(): void;', '}'].join('\n');
+        const read = (minor: number, text: string) => (file: string) => (file === 'mods/folium.d.ts' ? text : `{ "version": { "major": 1, "minor": ${minor} } }`);
+        expect(checkFoliumApi(files, { readBase: read(8, before), readCurrent: read(9, after) })).toEqual([]);
+        // 版本行改了、foliumShared.json 的小版本却没跟上：新增的那一行照报。
+        const stale = checkFoliumApi(files, { readBase: read(8, before), readCurrent: read(8, after) });
+        expect(stale.map(finding => finding.key)).toEqual(['D513:added']);
+    });
 });
 
 describe('D306 startup closure', () => {

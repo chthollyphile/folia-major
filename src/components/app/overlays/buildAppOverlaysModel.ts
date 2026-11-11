@@ -9,7 +9,7 @@ import { PlayerState } from '../../../types';
 import type { SongResult, UnifiedSong, LyricData } from '../../../types';
 import { resolvePlaybackNeighbors } from '../../../utils/playbackNeighbors';
 import { getPlaybackSongKey } from '../../../utils/appPlaybackGuards';
-import { getSongArtistLabel } from '../../../services/onlineMusic/songMetadata';
+import { getSongAlbumLabel, getSongArtistLabel } from '../../../services/onlineMusic/songMetadata';
 import { setPlayerState } from '../../../stores/usePlaybackStore';
 import { locatePlayingSongOnWall } from '../lattice/wallLocate';
 import { setIsDevDebugOverlayVisible, setIsMemoryMonitorVisible } from '../../../stores/useAppChromeStore';
@@ -115,7 +115,7 @@ export type AppOverlaysDeps = {
     invokeCommandById: (commandId: string) => void;
     canInvokeCommandById: (commandId: string) => boolean;
     /** 自动切歌预览（下一首）；isNextUp 时整卡展示它 */
-    stageNextUp: { title: string; artist: string | null; coverUrl: string | null } | null;
+    stageNextUp: { title: string; artist: string | null; coverUrl: string | null; album?: string | null } | null;
     /** 预览态：接下来播放标签 + 挂起 auto 隐藏计时 */
     stageIsNextUp: boolean;
     /** 当前页面 + 显示模式允许卡片在场（歌词页总是，首页看设置）；App 里算好的单一来源 */
@@ -200,6 +200,7 @@ export const buildAppOverlaysModel = ({
                 title: currentSong.name || '',
                 artist: getSongArtistLabel(currentSong) || null,
                 coverUrl: coverUrl || null,
+                album: getSongAlbumLabel(currentSong) || null,
             },
             trackKey: getPlaybackSongKey(currentSong),
             isDaylight,

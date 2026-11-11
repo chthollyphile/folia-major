@@ -64,6 +64,8 @@ export interface FoliumHostActions {
     openPlayerPanel: (tab: string | null) => void;
     navigate: (view: 'home' | 'player') => void;
     openVolume: () => void;
+    /** Folium 1.9: one level back, as the host's Escape goes; false when there was nothing to go back from. */
+    back: () => boolean;
     /** The lines on screen now, as DTOs; empty when there are none. */
     getLyricLines: () => readonly FoliumLine[];
     /** Runs `lyrics.transform` again on the displayed song's untransformed lyrics; nothing while they load. */
@@ -268,6 +270,7 @@ export const createFoliumUiService = (mod: ModRuntimeInfo, context: FoliumContex
         requireActions('ui', context).navigate(view);
     },
     openVolume: () => requireActions('ui', context).openVolume(),
+    back: () => requireActions('ui', context).back(),
     pickFile: async (options: { accept?: 'video' | 'audio' | 'image' | 'any'; persist?: boolean } = {}) => {
         requireMain('ui', context);
         const response = await invokeModPickFile(mod.id, options.accept ?? 'any', options.persist === true);

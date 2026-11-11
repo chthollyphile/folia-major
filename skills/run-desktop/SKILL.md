@@ -81,10 +81,10 @@ node skills/run-desktop/driver.mjs quit
 | `main-eval <js>` | 在主进程求值，作用域里有 `electron`（如 `electron.app.getPath('userData')`） |
 | `click <selector>` / `click-text <text>` | Playwright 点击；`click-text` 先按按钮可访问名精确匹配，再按文字 |
 | `fill <selector> <value>` | 填输入框 |
-| `type <text>` / `press <key>` | 键盘；`press` 用 Playwright 键名：`Control+k`、`Escape`、`Enter` |
+| `type <text>` / `press <key>` | 键盘；`press` 用 Playwright 键名：`ControlOrMeta+k`（macOS 上是 Cmd，应用在 mac 只认 Cmd）、`Escape`、`Enter` |
 | `text [selector]` | 读 innerText，默认 body |
 | `wait <selector> [ms]` | 等元素可见，默认 10 秒 |
-| `palette <query>` | Ctrl+K → 输入 → 回车，执行命令面板第一条结果（打开设置页最快：`palette desktop`） |
+| `palette <query>` | Ctrl+K（macOS 上 Cmd+K）→ 输入 → 回车，执行命令面板第一条结果（打开设置页最快：`palette desktop`） |
 | `windows` / `page <index>` | 列窗口 / 切换后续命令作用的窗口 |
 | `logs [n]` / `console [n]` | 主进程输出 / 渲染层 console 的最后 n 行 |
 | `reload` | 重载当前页面 |

@@ -652,6 +652,27 @@ exports[`mod tuning keys > are pinned, so a renamed or dropped key is a visible 
     "enableLineGlow": {
       "type": "boolean",
     },
+    "hubView": {
+      "type": "boolean",
+    },
+    "hubViewBack": {
+      "max": 3,
+      "min": 0.2,
+      "type": "number",
+    },
+    "hubViewHeight": {
+      "max": 3,
+      "min": 0.4,
+      "type": "number",
+    },
+    "mirrorLayout": {
+      "type": "boolean",
+    },
+    "parallaxDepth": {
+      "max": 2,
+      "min": 0,
+      "type": "number",
+    },
     "showCenterGradient": {
       "type": "boolean",
     },
@@ -669,6 +690,16 @@ exports[`mod tuning keys > are pinned, so a renamed or dropped key is a visible 
     "tickSnappiness": {
       "max": 2,
       "min": 0.5,
+      "type": "number",
+    },
+    "tiltAxisDeg": {
+      "max": 90,
+      "min": -90,
+      "type": "number",
+    },
+    "tiltDeg": {
+      "max": 70,
+      "min": -70,
       "type": "number",
     },
     "wheelCenterX": {

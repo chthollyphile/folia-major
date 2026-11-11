@@ -30,14 +30,25 @@ const area = (bounds: Bounds) => (bounds.right - bounds.left) * (bounds.bottom -
 /**
  * 当前可见的世界范围（缝张开时两半各让出半个开口，左右再放宽一个开口宽；横的缝放宽上下）。倾斜时再按反转回去的视口放宽
  * （getTiltReach）：支点跟着缝走，缝拖远了视口会整块偏开，不能只靠 overscan 兜着。
+ * 翻牌 / 入场的范围、第一次按方向键的落点这些「在不在屏上」的判断也用它（不按缝放宽时给 seam: false）。
+ * center 缺省是此刻的视图中心；给别的中心就是「相机到了那里时」的可见范围（补间的目的地、拖动与滚轮的下一步）——
+ * 这几处也得按倾斜算：缝在远处时倾斜的视口整块偏开，按没倾斜的范围预留，飞行途中墙是空的；按没倾斜的范围判断
+ * 「快到边缘」，每一帧都会重新裁剪。
  */
-export const getVisibleWorldBounds = (state: BravaisFrameState): Bounds | null => {
+export const getVisibleWorldBounds = (
+    state: BravaisFrameState,
+    center: WallViewCenter = state.center,
+    { seam = true, overscan = 0 }: { /** 按缝的开口放宽（缺省放宽）。 */ seam?: boolean; /** 四周再多算的世界距离。 */ overscan?: number } = {},
+): Bounds | null => {
     const { view } = state;
     if (!view) return null;
-    const bounds = getViewWorldBounds(state.center, view, seamBoundsOf(state));
+    const flat = getViewWorldBounds(center, view, { ...(seam ? seamBoundsOf(state) : {}), overscan });
+    // 倾斜着换锚点时垫的那一段（两半墙在屏幕上多挪了 tiltLiftY，看到的世界范围反着挪）。
+    const lift = state.anchorX === null ? 0 : state.tiltLiftY / view.scale;
+    const bounds = lift === 0 ? flat : { ...flat, top: flat.top - lift, bottom: flat.bottom - lift };
     if (Math.abs(state.tiltDeg) < 0.001 || state.anchorX === null) return bounds;
     const { tilt } = computeBravaisFrame({
-        center: state.center,
+        center,
         view,
         anchorX: state.anchorX,
         openWidth: state.openWidth,
@@ -53,6 +64,24 @@ export const getVisibleWorldBounds = (state: BravaisFrameState): Bounds | null =
         top: bounds.top - reach.top / view.scale,
         bottom: bounds.bottom + reach.bottom / view.scale,
     };
+};
+
+/**
+ * 翻牌、整墙波次与入场量的两个范围：视口本身（不按缝放宽；波次与入场从它的左上角量）和「会动的那一片」（按缝放宽、再外扩
+ * overscan；之外的磁贴直接换、不翻）。都是倾斜后的可见范围——缝在远处时倾斜的视口整块偏开，按没倾斜的算，屏上的磁贴会被
+ * 当成屏外的硬切。
+ */
+export const getFlipRanges = (state: BravaisFrameState, overscan: number): { viewport: Bounds; visible: Bounds } | null => {
+    const viewport = getVisibleWorldBounds(state, undefined, { seam: false });
+    const visible = getVisibleWorldBounds(state, undefined, { overscan });
+    return viewport && visible ? { viewport, visible } : null;
+};
+
+/** 此刻在屏上的 slot（第一次按方向键从它们里挑离缝最近的）：同样按倾斜后的可见范围。 */
+export const filterOnScreenSlots = <Slot extends { x: number; y: number; width: number; height: number }>(state: BravaisFrameState, slots: readonly Slot[]): Slot[] => {
+    const visible = getVisibleWorldBounds(state, undefined, { seam: false });
+    if (!visible) return [];
+    return slots.filter(slot => slot.x < visible.right && slot.x + slot.width > visible.left && slot.y < visible.bottom && slot.y + slot.height > visible.top);
 };
 
 /** 可见范围离已裁剪范围的边缘还剩不到一截 overscan 时才需要重新裁剪。 */
@@ -132,9 +161,8 @@ export const useBravaisCamera = ({
         stopCamera();
         const from = { ...frameRef.current.center };
         if (Math.abs(target.x - from.x) < 0.5 && Math.abs(target.y - from.y) < 0.5) return;
-        const view = frameRef.current.view;
-        if (view) {
-            const destination = getViewWorldBounds(target, view, seamBoundsOf(frameRef.current));
+        const destination = getVisibleWorldBounds(frameRef.current, target);
+        if (destination) {
             setBounds(current => {
                 if (!current) return destination;
                 const merged = {
@@ -208,7 +236,7 @@ export const useBravaisCamera = ({
     const getWorldBounds = useCallback((camera: LatticeCamera) => {
         const view = frameRef.current.view;
         if (!view) return { left: 0, right: 0, top: 0, bottom: 0 };
-        return getViewWorldBounds(viewCenterFromCamera(camera, view), view, seamBoundsOf(frameRef.current));
+        return getVisibleWorldBounds(frameRef.current, viewCenterFromCamera(camera, view)) ?? { left: 0, right: 0, top: 0, bottom: 0 };
     }, [frameRef]);
     const pointer = useWallPointerPan({
         applyCamera,
