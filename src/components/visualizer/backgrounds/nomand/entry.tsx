@@ -16,9 +16,9 @@ const SOURCE_LABEL_KEYS: Record<NomandBackgroundSource, string> = {
     'uploaded-global': 'options.monetBackgroundSourceUploaded',
 };
 
-// The picture fills the screen, so it is made from the provider's original rather than the backdrop's
-// 1024 step, which some providers serve smaller than the screen. No cover stays no cover, so the
-// uploaded image still stands in for it.
+// The picture fills the screen, so where the cover URL carries a size it is read back to the provider's
+// original rather than kept at the backdrop's 1024 step, which some serve smaller than the screen. No
+// cover stays no cover, so the uploaded image still stands in for it.
 const fullCover = (coverUrl: string | null | undefined) => (coverUrl ? getOriginalCoverUrl(coverUrl) : coverUrl);
 
 export default defineVisualizerBackground({

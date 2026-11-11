@@ -66,7 +66,7 @@ export const getOriginalCoverUrl = (url: string | null | undefined): string => {
 
     try {
         const urlObj = new URL(trimmedUrl);
-        if (NETEASE_COVER_HOST_PATTERN.test(urlObj.hostname) && urlObj.searchParams.has('param')) {
+        if (urlObj.hostname.includes('126.net') && urlObj.searchParams.has('param')) {
             urlObj.searchParams.delete('param');
             return urlObj.toString();
         }
