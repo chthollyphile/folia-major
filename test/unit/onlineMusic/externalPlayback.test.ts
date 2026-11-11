@@ -1390,6 +1390,39 @@ describe('a move the player takes seconds to take', () => {
         expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PAUSED);
     });
 
+    it('holds the bar where it stands once the pause it was given lands on the drop', async () => {
+        // The bar is dropped on a playing song and the player goes on naming the line the song stood on
+        // while the bar runs on from the drop; the listener stops the song before that answers, and the
+        // answer that loads the spot comes back stopped. That read is followed for the spot, and the
+        // stretch the bar ran ahead of it is the wait the player took to load it: taking the spot there
+        // put the bar and the lyrics back by that whole stretch, which is the same step back a playing
+        // answer is already kept from.
+        await startFrom(10000);
+        const movedAt = performance.now();
+        expect(engine.seekExternalPlayback(60)).toBe(true);
+        await vi.advanceTimersByTimeAsync(20);
+        const stillOld = performance.now() + 2500;
+        omniMock.getExternalPlaybackStatus.mockImplementation(async () => status({
+            positionMs: performance.now() < stillOld ? 10000 + Math.round(performance.now() - movedAt) : 60000,
+            isPlaying: performance.now() < stillOld,
+        }));
+
+        // The bar runs on from the drop while the old line is named, and the song is stopped there.
+        await vi.advanceTimersByTimeAsync(2400);
+        const held = engine.getExternalPosition();
+        expect(held).toBeGreaterThan(61.9);
+        expect(engine.pauseExternalPlayback()).toBe(true);
+
+        const seen: number[] = [engine.getExternalPosition()];
+        for (let waited = 0; waited < 1500; waited += SAMPLE_MS) {
+            await vi.advanceTimersByTimeAsync(SAMPLE_MS);
+            seen.push(engine.getExternalPosition());
+        }
+        console.log('[paused landing] stood=' + held.toFixed(2) + ' min=' + Math.min(...seen).toFixed(2));
+        expect(largestDrop([held, ...seen])).toBeLessThanOrEqual(0);
+        expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PAUSED);
+    });
+
     it('stays on the drop where a paused song is dragged a short way and lands slowly', async () => {
         // The song is stopped where the listener left it, and the bar is dragged a few seconds off that
         // spot. The player answers the move at once and loads the new spot seconds later, naming the
