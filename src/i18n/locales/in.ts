@@ -2857,6 +2857,7 @@ export default {
     "holdMediaKeysForExternalPlayerDesc": "Aktif: tombol media jadi milik Folia hanya selama pemutar eksternal membunyikan lagu yang dijalankan atau diambil alih Folia (dijeda pun dihitung). Lagu lokal, pemutar yang menganggur atau berhenti, dan keluar dari rute eksternal mengembalikannya. Nonaktif: tidak pernah dipegang, dan sesi media hulu memegangnya seperti sebelumnya. Selama Folia memegangnya, program lain tidak menerima tombol media.",
     "externalPlayerRestartConsent": "Izinkan Folia memulai ulang pemutar eksternal",
     "externalPlayerRestartConsentDesc": "Folia mengendalikan pemutar itu lewat port DevTools-nya. Bila ia terbuka tanpa port itu dan Anda sudah setuju sekali, Folia menutupnya lalu membukanya lagi dengan cara yang bisa dikendalikan, dan lagu yang sedang diputar terputus. Matikan ini dan pemutar seperti itu akan ditanyakan lagi lain kali.",
+    "externalPlayerRestartConsentUnread": "Status saat ini tidak dapat dibaca, jadi ini belum bisa diubah",
     "externalSystemAudioSpectrum": "Spektrum asli (rekam suara sistem)",
     "externalSystemAudioSpectrumDesc": "Saat pemutar eksternal memutar, Folia merekam keluaran suara komputer ini dan menganalisisnya di memori untuk menggambar spektrum. Tidak direkam ke berkas dan tidak disimpan. Nonaktif secara bawaan; saat nonaktif, spektrum mengikuti posisi pemutaran.",
     "wallpaperMode": "Mode wallpaper",

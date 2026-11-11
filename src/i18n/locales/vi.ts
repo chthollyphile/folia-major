@@ -2857,6 +2857,7 @@ export default {
     "holdMediaKeysForExternalPlayerDesc": "Bật: phím media thuộc về Folia chỉ khi trình phát ngoài đang phát bài do Folia khởi động hoặc đã tiếp quản (tạm dừng cũng tính). Bài cục bộ, trình phát rảnh hoặc đã dừng, và rời khỏi tuyến ngoài đều trả lại. Tắt: không bao giờ giữ, phiên media thượng nguồn giữ như trước. Trong lúc Folia giữ phím, ứng dụng khác không nhận được phím media.",
     "externalPlayerRestartConsent": "Cho phép Folia khởi động lại trình phát ngoài",
     "externalPlayerRestartConsentDesc": "Folia điều khiển trình phát đó qua cổng DevTools. Khi nó đang mở mà không có cổng này và bạn đã đồng ý một lần, Folia sẽ đóng rồi mở lại theo cách nó điều khiển được, và bài đang phát sẽ bị ngắt. Tắt mục này thì lần gặp sau sẽ hỏi lại.",
+    "externalPlayerRestartConsentUnread": "Không đọc được trạng thái hiện tại nên tạm thời chưa đổi được",
     "externalSystemAudioSpectrum": "Phổ thật (thu âm thanh hệ thống)",
     "externalSystemAudioSpectrumDesc": "Khi trình phát bên ngoài phát nhạc, Folia thu âm thanh đầu ra của máy này và phân tích trong bộ nhớ để vẽ phổ. Không ghi âm và không lưu lại. Mặc định tắt; khi tắt, phổ được mô phỏng theo tiến độ phát.",
     "wallpaperMode": "Chế độ hình nền",

@@ -2857,6 +2857,7 @@ export default {
     "holdMediaKeysForExternalPlayerDesc": "开着时，只有外部播放器正在放 Folia 发起的、或者已经被 Folia 接管的歌，媒体键才由 Folia 处理（暂停也算）；放本地歌、播放器空闲或停下、离开外部播放都还给系统。关掉时一律不占，全按上游的媒体会话走。接管期间其他程序收不到媒体键。",
     "externalPlayerRestartConsent": "允许 Folia 重启外部播放器",
     "externalPlayerRestartConsentDesc": "Folia 需要有调试端口才控制得了外部播放器；它没带着端口开着时，问过你一次并得到同意后，Folia 会关掉它再以能控制的方式打开，正在放的歌会被中断。关掉这一项，下次再遇到就重新问你。",
+    "externalPlayerRestartConsentUnread": "读不到当前状态，暂时无法修改",
     "externalSystemAudioSpectrum": "真实频谱（采集系统声音）",
     "externalSystemAudioSpectrumDesc": "外部播放器播放时，采集本机输出的声音在内存中分析、画出频谱。不录制、不保存。默认关闭；关闭时频谱按播放进度模拟。",
     "wallpaperMode": "壁纸模式",

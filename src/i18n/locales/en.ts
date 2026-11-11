@@ -2857,6 +2857,7 @@ export default {
     "holdMediaKeysForExternalPlayerDesc": "On: the keys are Folia's only while the external player sounds a song Folia started or took over (paused counts). Local songs, an idle or stopped player, and leaving the external route give them back. Off: never held, and the upstream media session has them as before. While Folia holds them, other programs receive no media keys.",
     "externalPlayerRestartConsent": "Let Folia restart the external player",
     "externalPlayerRestartConsentDesc": "Folia steers that player over its DevTools port. When it is open without that port and you have agreed once, Folia closes it and opens it again in a way it can steer, which interrupts whatever it was playing. Turn this off and the next such player is asked about again.",
+    "externalPlayerRestartConsentUnread": "The current state could not be read, so this cannot be changed for now",
     "externalSystemAudioSpectrum": "Real spectrum (capture system audio)",
     "externalSystemAudioSpectrumDesc": "While an external player plays, Folia captures this computer's own output and analyses it in memory to draw the spectrum. Nothing is recorded or kept. Off by default; off, the bars follow the playing position instead.",
     "wallpaperMode": "Wallpaper mode",

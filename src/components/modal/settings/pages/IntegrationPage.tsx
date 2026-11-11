@@ -100,10 +100,13 @@ const IntegrationPage: React.FC = () => {
                         {/* The one answer that was kept: it is what lets Folia close that player when it
                             has to reopen it, and turning it off here means it is asked again next time.
                             Nothing is drawn while the main process has not answered: a switch that
-                            cannot be read is not a switch that is off. */}
+                            cannot be read is not a switch that is off, so the row says the state could
+                            not be read instead of telling the listener what turning it off does. */}
                         <Row
                             option={O.restartConsent}
-                            hint={t('options.externalPlayerRestartConsentDesc')}
+                            hint={t(restartConsent.granted === null
+                                ? 'options.externalPlayerRestartConsentUnread'
+                                : 'options.externalPlayerRestartConsentDesc')}
                             disabled={restartConsent.granted === null}
                         >
                             <Toggle
