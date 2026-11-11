@@ -810,6 +810,40 @@ describe('a move the player takes seconds to take', () => {
         return seen;
     };
 
+    /**
+     * Drags the bar from `fromSec` to `targetSec` and answers the way a player that takes `delayMs`
+     * to load the drop does: until then every answer names the line the song stood on, moving along
+     * it as the song sounds, and from then on the drop and the time gone by since it landed. Returns
+     * what the bar and the lyrics read every SAMPLE_MS for a stretch past the landing.
+     */
+    const gridCell = async (fromSec: number, targetSec: number, delayMs: number): Promise<number[]> => {
+        await startFrom(fromSec * 1000);
+        const askedAt = performance.now();
+        omniMock.getExternalPlaybackStatus.mockImplementation(async () => {
+            const elapsed = performance.now() - askedAt;
+            return status({
+                positionMs: Math.round(elapsed < delayMs
+                    ? fromSec * 1000 + elapsed
+                    : targetSec * 1000 + (elapsed - delayMs)),
+                isPlaying: true,
+            });
+        });
+        expect(engine.seekExternalPlayback(targetSec)).toBe(true);
+        const seen: number[] = [engine.getExternalPosition()];
+        for (let waited = 0; waited < delayMs + 3000; waited += SAMPLE_MS) {
+            await vi.advanceTimersByTimeAsync(SAMPLE_MS);
+            seen.push(engine.getExternalPosition());
+        }
+        return seen;
+    };
+
+    /** The furthest the bar and the lyrics fell back between two readings, in seconds. */
+    const largestDrop = (seen: number[]): number => {
+        let largest = 0;
+        for (let index = 1; index < seen.length; index++) largest = Math.max(largest, seen[index - 1] - seen[index]);
+        return largest;
+    };
+
     beforeEach(() => {
         vi.useFakeTimers();
         engine.installExternalPlayback();
@@ -1413,6 +1447,137 @@ describe('a move the player takes seconds to take', () => {
         // And it never goes back to the line the song stood on before the drop.
         expect(Math.min(...seen)).toBeGreaterThan(59.9);
         expect(seen[seen.length - 1]).toBeGreaterThan(61.5);
+    });
+
+    it('holds the old line still instead of reading it again from wherever it was last named', async () => {
+        // The old line runs on from where the song stood, and every read of it is judged against that
+        // one line - never against the read given up last. Reading each one from the last gave up let
+        // the line follow the song until it met the drop: a player that took three seconds to load the
+        // spot had its own answer for the drop read as one more old line, and the bar fell the whole
+        // three seconds back a poll after it had already arrived.
+        const seen = await gridCell(10, 60, 3000);
+        expect(largestDrop(seen)).toBe(0);
+    });
+
+    it('keeps one timeline where the old line and the window of the drop cannot be told apart', async () => {
+        // A drop of three seconds stands far enough from the line it stood on to be told apart, and the
+        // player takes three seconds to load it. The reads in between name the old line moving on -
+        // which is the very spot the drop is on. Read as the old line, then as the old line again once
+        // the player's own answer for the drop arrived, the bar ran on from the drop and fell back to
+        // it, and fell back a second time when the hold ran out.
+        const seen = await gridCell(10, 13, 3000);
+        for (let index = 1; index < seen.length; index++) expect(seen[index]).toBeGreaterThanOrEqual(seen[index - 1] - 1e-6);
+    });
+
+    it('takes the player own answer for the drop on every delay it may take to load it', async () => {
+        const distances = [3, 4, 6, 10, 50, -20];
+        const delays = [0.02, 0.75, 1.6, 2.5, 3, 4, 4.8];
+        const rows: { distance: number; delay: number; drop: number }[] = [];
+        for (const distance of distances) {
+            const fromSec = distance > 0 ? 10 : 60;
+            for (const delay of delays) {
+                const seen = await gridCell(fromSec, fromSec + distance, Math.round(delay * 1000));
+                rows.push({ distance, delay, drop: largestDrop(seen) });
+                engine.stopExternalPlayback('next cell');
+                usePlaybackStore.setState({
+                    playbackRoute: 'web', audioSrc: null, playerState: PlayerState.IDLE, currentSong: null, playQueue: [song, b, c],
+                });
+            }
+        }
+        // Every cell says how far the bar and the lyrics fell back, before anything is asserted on it.
+        console.log('[grid] ' + rows.map(row => `${row.distance}@${row.delay}s=${row.drop.toFixed(2)}`).join(' '));
+        for (const row of rows) {
+            // A drop further from the old line than the wait it took to load it has nowhere to be
+            // mistaken for: every read it gives is either the old line or the drop's own, and the bar
+            // never falls off the drop.
+            const toldApart = Math.abs(row.distance) >= row.delay + 2;
+            // Nearer than that, a read could be either and is followed: the bar may step back to it,
+            // but never further than the wait itself (D38).
+            expect(row.drop, `d=${row.distance} delay=${row.delay}`).toBeLessThanOrEqual(toldApart ? 0 : row.delay);
+        }
+    }, 120000);
+
+    it('stays on the drop for as long as a paused player names the old line, whatever the wait', async () => {
+        for (const delay of [3000, 10000]) {
+            await startFrom(10000);
+            omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ positionMs: 10200, isPlaying: false }));
+            await vi.advanceTimersByTimeAsync(500);
+            expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PAUSED);
+
+            expect(engine.seekExternalPlayback(60)).toBe(true);
+            await vi.advanceTimersByTimeAsync(20);
+            // A stopped move is answered the way a playing one is: the player names the spot the song
+            // stood on until it has loaded the new one, and a stopped line does not run on.
+            omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ positionMs: 10200, isPlaying: false }));
+            const kept: number[] = [];
+            for (let waited = 0; waited < delay; waited += SAMPLE_MS) {
+                await vi.advanceTimersByTimeAsync(SAMPLE_MS);
+                kept.push(engine.getExternalPosition());
+            }
+            expect(Math.min(...kept), `delay=${delay}`).toBeGreaterThanOrEqual(59.9);
+            expect(Math.max(...kept), `delay=${delay}`).toBeLessThanOrEqual(60.5);
+            expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PAUSED);
+
+            engine.stopExternalPlayback('next delay');
+            usePlaybackStore.setState({
+                playbackRoute: 'web', audioSrc: null, playerState: PlayerState.IDLE, currentSong: null, playQueue: [song, b, c],
+            });
+        }
+    }, 120000);
+
+    it('does not carry a skip the player named on a read of the old line over to the song own end', async () => {
+        // The player answers the move long before it loads the spot, and the read it gives there is the
+        // line the song stood on reaching its own end - with the skip its own controls made on the way
+        // there. That skip belongs to the answer given up: the song's real end comes later, and the
+        // queue must not step the way that skip went.
+        await startFrom(199000);
+        const ended: { skipped?: string }[] = [];
+        const unsubscribe = engine.subscribeExternalPlayback((event) => {
+            if (event.type === 'ended') ended.push(event);
+        });
+        expect(engine.seekExternalPlayback(0)).toBe(true);
+        await vi.advanceTimersByTimeAsync(20);
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ positionMs: 199600, isPlaying: false, ended: true, skipped: 'next' }));
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(ended).toHaveLength(0);
+
+        // The player loads the start and goes on from there, then runs the song out for real.
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ positionMs: 1000, isPlaying: true }));
+        await vi.advanceTimersByTimeAsync(500);
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ positionMs: 199900, isPlaying: false, ended: true }));
+        await vi.advanceTimersByTimeAsync(500);
+
+        expect(ended).toHaveLength(1);
+        expect(ended[0].skipped).toBeUndefined();
+        unsubscribe();
+    });
+
+    it('counts the five seconds a playing move is given from the moment the move landed', async () => {
+        // What the player is given to load the spot is counted from the answer that took the move: the
+        // reads before then are the ones it is given up for. Counting from the ask, or from the first
+        // read given up, ended the hold early where the call for the move itself took a while.
+        await startFrom(10000);
+        const taking = deferred();
+        omniMock.seekExternalPlayback.mockImplementationOnce(() => taking.promise);
+        expect(engine.seekExternalPlayback(60)).toBe(true);
+        // The call itself takes a second and a half, and the song has not gone on for any of it.
+        await vi.advanceTimersByTimeAsync(1500);
+        taking.resolve();
+        await vi.advanceTimersByTimeAsync(20);
+        const landedAt = performance.now();
+        omniMock.getExternalPlaybackStatus.mockImplementation(async () => (
+            status({ positionMs: 10000 + Math.round(performance.now() - landedAt), isPlaying: true })
+        ));
+
+        // Four and a half seconds after the move landed every read still names the old line, and the
+        // drop is still held: the move has not had its five seconds yet.
+        await vi.advanceTimersByTimeAsync(4500);
+        expect(engine.getExternalPosition()).toBeGreaterThan(63);
+
+        // Past them the player's own line stands.
+        await vi.advanceTimersByTimeAsync(1500);
+        expect(engine.getExternalPosition()).toBeGreaterThan(15);
+        expect(engine.getExternalPosition()).toBeLessThan(20);
     });
 });
 
