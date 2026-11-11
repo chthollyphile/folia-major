@@ -1135,20 +1135,165 @@ describe('a move the player takes seconds to take', () => {
         expect(Math.min(...seen)).toBeGreaterThanOrEqual(119.9);
     });
 
-    it('takes the player\'s own word when it never answers the spot the bar was dropped on', async () => {
-        // A player that jumps somewhere else altogether has said where the song is: after the few reads
-        // that spot is held for, the answer stands rather than holding the bar off for good.
+    it('takes the player\'s own word once five seconds of playing have gone by on the old spot', async () => {
+        // A player that never loads the spot the bar was dropped on has said where the song is: the
+        // drop is held for the five seconds of playing a move is given, and past them the answer
+        // stands rather than holding the bar off the player's own line for good.
+        await startFrom(10000);
+        const landedAt = performance.now();
+        expect(engine.seekExternalPlayback(60)).toBe(true);
+        await vi.advanceTimersByTimeAsync(20);
+        omniMock.getExternalPlaybackStatus.mockImplementation(async () => (
+            status({ positionMs: 10000 + Math.round(performance.now() - landedAt), isPlaying: true })
+        ));
+
+        // Held on the drop for those five seconds: the clock runs on from the spot the bar was dropped
+        // on while every answer still names the line the song stood on.
+        await vi.advanceTimersByTimeAsync(4500);
+        expect(engine.getExternalPosition()).toBeGreaterThan(63);
+
+        // The playing time a move is given is over, and the player's own line stands.
+        await vi.advanceTimersByTimeAsync(1500);
+        expect(engine.getExternalPosition()).toBeGreaterThan(15);
+        expect(engine.getExternalPosition()).toBeLessThan(20);
+    });
+
+    it('stays on the drop while a playing player names the old line for longer than the window it used to get', async () => {
+        // A player that answers the move at once and loads the spot only a second and a half later goes
+        // on naming the line the song stood on, the song moving along it. Giving that line up after a
+        // window and a few reads took the bar and the lyrics back to where the song stood before the
+        // drop, which a listener saw as the timeline flickering on every one of them.
+        await startFrom(10000);
+        const movedAt = performance.now();
+        expect(engine.seekExternalPlayback(60)).toBe(true);
+        await vi.advanceTimersByTimeAsync(20);
+        const stillOld = performance.now() + 1600;
+        const landedAt = stillOld;
+        omniMock.getExternalPlaybackStatus.mockImplementation(async () => (
+            status({
+                positionMs: performance.now() < stillOld
+                    ? 10000 + Math.round(performance.now() - movedAt)
+                    : 60000 + Math.round(performance.now() - landedAt),
+                isPlaying: true,
+            })
+        ));
+
+        const seen = await readings(3000);
+        // One timeline going forward: no step back while the old line is held off, nor where the
+        // player's own answer for the drop arrives.
+        for (let index = 1; index < seen.length; index++) expect(seen[index]).toBeGreaterThanOrEqual(seen[index - 1] - 1e-6);
+        // And never back near the line the song stood on before the drop.
+        expect(Math.min(...seen)).toBeGreaterThan(59.9);
+    });
+
+    it('stays on the drop while a paused player names the old line for longer than the window it used to get', async () => {
+        await startFrom(10000);
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ positionMs: 10200, isPlaying: false }));
+        await vi.advanceTimersByTimeAsync(500);
+        expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PAUSED);
+
+        expect(engine.seekExternalPlayback(60)).toBe(true);
+        await vi.advanceTimersByTimeAsync(20);
+        const landedAt = performance.now();
+        omniMock.getExternalPlaybackStatus.mockImplementation(async () => (
+            status({ positionMs: performance.now() < landedAt + 1600 ? 10200 : 60200, isPlaying: false })
+        ));
+
+        const seen = await readings(3000);
+        for (let index = 1; index < seen.length; index++) expect(seen[index]).toBeGreaterThanOrEqual(seen[index - 1] - 1e-6);
+        expect(Math.min(...seen)).toBeGreaterThanOrEqual(59.9);
+        // A stopped song stands where it is put: nothing of the hold sets it running.
+        expect(Math.max(...seen)).toBeLessThanOrEqual(60.5);
+    });
+
+    it('holds a paused song on the drop while the player names the old line, and gives it five seconds of playing', async () => {
+        await startFrom(10000);
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ positionMs: 10200, isPlaying: false }));
+        await vi.advanceTimersByTimeAsync(500);
+        expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PAUSED);
+
+        expect(engine.seekExternalPlayback(60)).toBe(true);
+        await vi.advanceTimersByTimeAsync(20);
+        // Ten seconds of a stopped player still naming the spot the song stood on: a stopped song holds
+        // the old line off for as long as the reads name it, with no window running out.
+        const held: number[] = [];
+        for (let waited = 0; waited < 10000; waited += SAMPLE_MS) {
+            await vi.advanceTimersByTimeAsync(SAMPLE_MS);
+            held.push(engine.getExternalPosition());
+        }
+        expect(Math.min(...held)).toBeGreaterThanOrEqual(59.9);
+        expect(Math.max(...held)).toBeLessThanOrEqual(60.5);
+        expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PAUSED);
+
+        // The listener starts it again: the player goes on from where it stood, so its answers still
+        // name the old line, and the bar runs on from the drop under the limit the move is given.
+        const resumedAt = performance.now();
+        expect(engine.resumeExternalPlayback()).toBe(true);
+        omniMock.getExternalPlaybackStatus.mockImplementation(async () => (
+            status({ positionMs: 10200 + Math.round(performance.now() - resumedAt), isPlaying: true })
+        ));
+        const running = await readings(4500);
+        for (let index = 1; index < running.length; index++) expect(running[index]).toBeGreaterThanOrEqual(running[index - 1] - 1e-6);
+        expect(Math.min(...running)).toBeGreaterThan(59.9);
+        expect(running[running.length - 1]).toBeGreaterThan(64);
+
+        // Five seconds of playing is what the hold is given: past them the player's own line stands.
+        await vi.advanceTimersByTimeAsync(1500);
+        expect(engine.getExternalPosition()).toBeGreaterThan(15);
+        expect(engine.getExternalPosition()).toBeLessThan(20);
+    });
+
+    it('does not end the song on a read that still names the spot it stood on before a move back', async () => {
+        // The listener drags from the last second of the song back to its start; the player answers the
+        // move, and the read taken before it loads the start is the song's own end. Reading that as the
+        // end stopped the song the listener had just dropped at the beginning.
+        await startFrom(199000);
+        const ended: unknown[] = [];
+        const unsubscribe = engine.subscribeExternalPlayback((event) => {
+            if (event.type === 'ended') ended.push(event);
+        });
+        expect(engine.seekExternalPlayback(0)).toBe(true);
+        await vi.advanceTimersByTimeAsync(20);
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ positionMs: 199800, isPlaying: false, ended: true }));
+        await vi.advanceTimersByTimeAsync(1000);
+
+        expect(ended).toHaveLength(0);
+        expect(engine.getExternalPosition()).toBeLessThan(1);
+        expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PAUSED);
+
+        // The read that loads the start is the player's own word, and is followed as it comes.
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ positionMs: 300, isPlaying: true }));
+        await vi.advanceTimersByTimeAsync(500);
+        expect(engine.getExternalPosition()).toBeLessThan(1.5);
+        unsubscribe();
+    });
+
+    it('follows an answer naming a spot that is neither the drop nor the line before it', async () => {
+        // A player that moved the song somewhere of its own has said where it is: nothing is held off.
         await startFrom(10000);
         expect(engine.seekExternalPlayback(60)).toBe(true);
         await vi.advanceTimersByTimeAsync(20);
-        omniMock.getExternalPlaybackStatus.mockImplementation(async () => status({ positionMs: 30000, isPlaying: true }));
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ positionMs: 30000, isPlaying: true }));
+        await vi.advanceTimersByTimeAsync(500);
 
-        // Held at the drop for the window, then the player's own answer: the clock stands on 30 s.
-        await vi.advanceTimersByTimeAsync(600);
-        expect(engine.getExternalPosition()).toBeGreaterThan(60);
-        await vi.advanceTimersByTimeAsync(3000);
-        expect(engine.getExternalPosition()).toBeGreaterThan(30.9);
-        expect(engine.getExternalPosition()).toBeLessThan(32);
+        expect(engine.getExternalPosition()).toBeGreaterThan(29.9);
+        expect(engine.getExternalPosition()).toBeLessThan(31.5);
+    });
+
+    it('does not hold an answer off where the drop is too close to the line it stood on', async () => {
+        // A second either way is as far apart as the two lines can be told: dropping the bar beside the
+        // spot the song stood on leaves every read the player's own.
+        await startFrom(20000);
+        const movedAt = performance.now();
+        expect(engine.seekExternalPlayback(18.5)).toBe(true);
+        await vi.advanceTimersByTimeAsync(20);
+        omniMock.getExternalPlaybackStatus.mockImplementation(async () => (
+            status({ positionMs: 20000 + Math.round(performance.now() - movedAt), isPlaying: true })
+        ));
+        await vi.advanceTimersByTimeAsync(500);
+
+        expect(engine.getExternalPosition()).toBeGreaterThan(19.9);
+        expect(engine.getExternalPosition()).toBeLessThan(21);
     });
 
     it('stays on the spot the bar was dropped on when the paused player still names the old one', async () => {
@@ -1176,8 +1321,7 @@ describe('a move the player takes seconds to take', () => {
         expect(engine.getExternalPosition()).toBeGreaterThanOrEqual(59);
         expect(Math.min(...seen)).toBeGreaterThanOrEqual(59);
         // A paused song stands where it is put: what keeps a playing clock from standing still must not
-        // set a stopped one running, here or anywhere in the window the drop is held for.
-        console.log('[PAUSED-SEEN]', JSON.stringify(seen.map(v => Number(v.toFixed(2)))));
+        // set a stopped one running, here or anywhere the drop is held for.
         expect(Math.max(...seen)).toBeLessThanOrEqual(60.5);
 
         // The answer that loads the spot stands as it comes: a stopped answer is followed as it always was.
