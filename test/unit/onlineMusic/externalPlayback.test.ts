@@ -1491,6 +1491,78 @@ describe('a move the player takes seconds to take', () => {
         expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PAUSED);
     });
 
+    // Dropping the bar on a playing song and stopping it right after it: the move is held by the app's
+    // own call, which is what the bar runs on from the drop for, and the player loads the spot a
+    // second and a half later. A stopped song shows where the player stands, so the bar stands the
+    // lead it ran up past the spot the player lands on for one poll at most, never for the pause.
+    const pauseLeads = [0.5, 1, 1.5, 1.9, 2.0, 2.5, 5];
+
+    it.each(pauseLeads)(
+        'stands where the player stopped where the bar was %s s ahead of it',
+        async (leadSec) => {
+            await startFrom(10000);
+            const taking = deferred();
+            omniMock.seekExternalPlayback.mockImplementationOnce(() => taking.promise);
+            // The move is in flight, so the player is asked nothing and the bar runs on from the drop.
+            expect(engine.seekExternalPlayback(60)).toBe(true);
+            await vi.advanceTimersByTimeAsync(leadSec * 1000);
+            expect(engine.getExternalPosition()).toBeCloseTo(60 + leadSec, 1);
+            // The listener stops the song there, before the player has taken the spot.
+            expect(engine.pauseExternalPlayback()).toBe(true);
+
+            // The player takes the move, and goes on naming the line the song stood on until it has
+            // loaded the spot the bar was dropped on a second and a half later, where it then stands.
+            const landingAt = performance.now() + 1500;
+            omniMock.getExternalPlaybackStatus.mockImplementation(async () => status({
+                positionMs: performance.now() < landingAt ? 10000 : 60000,
+                isPlaying: false,
+            }));
+            taking.resolve();
+            await vi.advanceTimersByTimeAsync(0);
+
+            // Half a minute of a stopped song later the bar and the lyrics stand where the player
+            // stands, whatever lead the bar had run up before the pause was written down.
+            let landed = 0;
+            for (let waited = 0; waited < 30000; waited += SAMPLE_MS) {
+                await vi.advanceTimersByTimeAsync(SAMPLE_MS);
+                if (waited === 3000) landed = engine.getExternalPosition();
+            }
+            const last = engine.getExternalPosition();
+            console.log('[pause lead] lead=' + leadSec.toFixed(1) + ' landed=' + landed.toFixed(2) + ' last=' + last.toFixed(2));
+            expect(Math.abs(last - 60)).toBeLessThanOrEqual(0.01);
+            expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PAUSED);
+        },
+        60000,
+    );
+
+    it('keeps the bar from stepping back where a plain pause finds the player a little behind it', async () => {
+        // No drag is involved: the song is playing and the listener stops it. The clock runs on
+        // between the player's answers, so the answer saying the song is stopped names a spot a little
+        // behind the bar. Nothing of the timeline may step back for that.
+        const startedAt = performance.now();
+        omniMock.getExternalPlaybackStatus.mockImplementation(async () => status({
+            positionMs: Math.round(10000 + (performance.now() - startedAt)),
+            isPlaying: true,
+        }));
+        await startFrom(10000);
+        await vi.advanceTimersByTimeAsync(1500);
+        const stood = engine.getExternalPosition();
+        expect(stood).toBeGreaterThan(10.5);
+
+        expect(engine.pauseExternalPlayback()).toBe(true);
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ positionMs: Math.round((stood - 0.3) * 1000), isPlaying: false }));
+        const seen: number[] = [engine.getExternalPosition()];
+        for (let waited = 0; waited < 3000; waited += SAMPLE_MS) {
+            await vi.advanceTimersByTimeAsync(SAMPLE_MS);
+            seen.push(engine.getExternalPosition());
+        }
+        const last = seen[seen.length - 1];
+        console.log('[plain pause] stood=' + stood.toFixed(2) + ' last=' + last.toFixed(2));
+        expect(largestDrop(seen)).toBeLessThanOrEqual(0.01);
+        expect(last).toBeCloseTo(stood, 1);
+        expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PAUSED);
+    });
+
     // The grid below is one cell per way a drop lands: a song that is playing and one that is stopped,
     // the bar moved forward and back, and the wait the player takes to load the spot. Every cell says
     // the same two things of the timeline: it never steps back, and where the song is playing it never
