@@ -420,6 +420,26 @@ describe('a start that runs on after the interface', () => {
         unsubscribe();
     });
 
+    it('keeps the direction of a skip the player made before the song was on screen', async () => {
+        // The player moved past the song by its own controls while it was still being started: the read
+        // that seeds the session is already the song's end, with the direction the player went. The end
+        // is reported when the window puts the song on screen, and without that direction the queue
+        // steps the way the listener did not ask for.
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ positionMs: 5000, isPlaying: false, ended: true, skipped: 'next' }));
+        const ends: { skipped?: string }[] = [];
+        const start = engine.startExternalPlayback(song, 0);
+        await start.seeded;
+        const unsubscribe = engine.subscribeExternalPlayback(event => {
+            if (event.type === 'ended') ends.push(event);
+        });
+        engine.announceExternalPlayback();
+        await vi.advanceTimersByTimeAsync(500);
+
+        expect(ends).toHaveLength(1);
+        expect(ends[0].skipped).toBe('next');
+        unsubscribe();
+    });
+
     it('says an end was not heard where a buffering read preceded the end of a song that had played', async () => {
         // Repeat one replays the song that ended only where the player said this song was sounding
         // (useExternalPlaybackBridge reads that as `heard`). A player that answers "still buffering"
