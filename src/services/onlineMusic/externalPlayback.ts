@@ -873,6 +873,11 @@ const applyStatus = (status: ProviderExternalPlaybackStatus, sampledAtMs: number
         current.playing = status.isPlaying;
         current.seeking = status.seeking === true;
         if (status.ended || (status.isPlaying === false && atEnd)) current.ended = true;
+        // The direction of that end is taken here as well: the player moves past a song by its own
+        // controls while the app is still starting it as readily as after it is on screen, and the end
+        // this read becomes is reported from the announcement. Left to the branch below, the direction
+        // of every such skip was lost and the queue stepped the way the listener did not ask for.
+        if (status.ended && status.skipped) current.skipped = status.skipped;
         return;
     }
     // An accepted start that is still buffering is loading, not a pause of the listener's.
