@@ -529,11 +529,12 @@ const syncClock = (positionSec: number, paused: boolean, sampledAtMs: number, ho
  * from there for another stretch of the same length. A read this window gives up carries no position
  * of its own, and saying nothing at all leaves the clock to the limit of the last write it got: it
  * runs that out and then stands still under a song that is playing, for as long as the reads go on
- * naming the spot before the move. Nothing moves where the clock already stands.
+ * naming the spot before the move. Nothing moves where the clock already stands, and a stopped song
+ * is left stopped: the write says what the session already says about the sound.
  */
 const holdSettledMoveSpot = () => {
     if (!session || session.seekSettledAtSec === null) return;
-    syncClock(session.clock.read(), false, performance.now(), false);
+    syncClock(session.clock.read(), !session.playing, performance.now(), false);
 };
 
 const markPlaying = (positionSec: number, preserveClock = false) => {

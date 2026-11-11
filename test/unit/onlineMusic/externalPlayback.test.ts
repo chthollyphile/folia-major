@@ -1175,6 +1175,10 @@ describe('a move the player takes seconds to take', () => {
         expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PAUSED);
         expect(engine.getExternalPosition()).toBeGreaterThanOrEqual(59);
         expect(Math.min(...seen)).toBeGreaterThanOrEqual(59);
+        // A paused song stands where it is put: what keeps a playing clock from standing still must not
+        // set a stopped one running, here or anywhere in the window the drop is held for.
+        console.log('[PAUSED-SEEN]', JSON.stringify(seen.map(v => Number(v.toFixed(2)))));
+        expect(Math.max(...seen)).toBeLessThanOrEqual(60.5);
 
         // The answer that loads the spot stands as it comes: a stopped answer is followed as it always was.
         omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ positionMs: 60200, isPlaying: false }));
