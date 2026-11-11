@@ -1,20 +1,24 @@
 import React from 'react';
 import type { SubtitleOverlayFollowRow, SubtitleOverlayLayout } from '../../../types';
-import { Reveal, Row, Segmented, Select, Value } from '../../modal/settings/kit';
+import { Reveal, Row, Segmented, Select, Toggle } from '../../modal/settings/kit';
 import {
     getSubtitleOverlayRowCount,
     getSubtitleOverlayRows,
     SUBTITLE_OVERLAY_FOLLOW_ROWS,
     SUBTITLE_OVERLAY_SINGLE_ROWS,
+    subtitleOverlayPreviewsUpcoming,
     withSubtitleOverlayRow,
     withSubtitleOverlayRowCount,
+    withSubtitleOverlayUpcomingPreview,
     type SubtitleOverlayRowCount,
     type SubtitleOverlaySingleRow,
 } from '../../../utils/lyrics/subtitleOverlayLayout';
 
 // src/components/visualizer/window/SubtitleOverlayRowsSetting.tsx
 // The bottom subtitle's rows in the lyric style window's 字幕 page: how many, then what each one shows.
-// Two or three rows always open with the current line, so the first row is a choice only on its own.
+// The first row can be the translation or the romanization as well as the current line, so a stack can leave the
+// original text out. A layout without the current line also says what a line with none of its content shows:
+// the coming lyrics, or nothing.
 
 const ROW_COUNT_KEYS: Record<SubtitleOverlayRowCount, string> = {
     1: 'options.subtitleOverlayRowsOne',
@@ -68,19 +72,24 @@ const SubtitleOverlayRowsSetting: React.FC<SubtitleOverlayRowsSettingProps> = ({
                 />
             </Row>
             <Row sub label={t(ROW_LABEL_KEYS[0])}>
-                {count === 1 ? (
-                    <Select<SubtitleOverlaySingleRow>
-                        value={rows[0] as SubtitleOverlaySingleRow}
-                        options={singleOptions}
-                        disabled={disabled}
-                        onChange={source => onChange?.(withSubtitleOverlayRow(layout, 0, source))}
-                    />
-                ) : (
-                    <Value>{t(SOURCE_KEYS.current)}</Value>
-                )}
+                <Select<SubtitleOverlaySingleRow>
+                    value={rows[0] as SubtitleOverlaySingleRow}
+                    options={singleOptions}
+                    disabled={disabled}
+                    onChange={source => onChange?.(withSubtitleOverlayRow(layout, 0, source))}
+                />
             </Row>
             <Reveal when={count >= 2}>{followRow(1)}</Reveal>
             <Reveal when={count === 3}>{followRow(2)}</Reveal>
+            <Reveal when={rows[0] !== 'current'}>
+                <Row sub label={t('options.subtitleOverlayUpcomingFallback')} note={t('options.subtitleOverlayUpcomingFallbackDesc')}>
+                    <Toggle
+                        checked={subtitleOverlayPreviewsUpcoming(layout)}
+                        disabled={disabled}
+                        onChange={next => onChange?.(withSubtitleOverlayUpcomingPreview(layout, next))}
+                    />
+                </Row>
+            </Reveal>
         </>
     );
 };

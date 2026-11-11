@@ -65,6 +65,38 @@ test('单行布局只显示自己那一行，这一句没有时改为预览接�
     await expect(page.getByText('こんにちは')).toBeVisible();
 });
 
+test('布局只显示自己的行（|only）时，这一句没有就什么都不显示', async ({ mount, page }) => {
+    await mount('subtitleOverlayRows');
+    const rows = page.locator('[data-subtitle-track]');
+
+    await page.locator('[data-probe-layout="translation|only"]').click();
+    await expect(rows).toHaveCount(1);
+    await expect(rows.first()).toHaveText('早安');
+
+    await page.locator('[data-probe-line="neither"]').click();
+    await expect(rows).toHaveCount(0);
+    await expect(page.getByText('こんにちは')).toHaveCount(0);
+});
+
+test('第一行不是当前句的双行布局不显示歌词原文', async ({ mount, page }) => {
+    await mount('subtitleOverlayRows');
+    const rows = page.locator('[data-subtitle-track]');
+
+    await page.locator('[data-probe-layout="romanization+translation"]').click();
+    await expect(rows).toHaveCount(2);
+    await expect(rows.nth(0)).toHaveText('ohayou');
+    await expect(rows.nth(1)).toHaveText('早安');
+    await expect(page.getByText('おはよう')).toHaveCount(0);
+
+    await page.locator('[data-probe-line="neither"]').click();
+    await expect(rows).toHaveCount(0);
+    await expect(page.getByText('こんにちは')).toBeVisible();
+
+    await page.locator('[data-probe-layout="romanization+translation|only"]').click();
+    await expect(rows).toHaveCount(0);
+    await expect(page.getByText('こんにちは')).toHaveCount(0);
+});
+
 test('两行「下一句」依次是接下来的两句', async ({ mount, page }) => {
     await mount('subtitleOverlayRows');
     const rows = page.locator('[data-subtitle-track]');

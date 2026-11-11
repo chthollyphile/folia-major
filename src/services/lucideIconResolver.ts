@@ -38,6 +38,12 @@ const isLucideIcon = (value: unknown): value is LucideIcon => (
 // lucide-react names each export after its kebab-case file: `arrow-down-0-1` -> `ArrowDown01`.
 const toPascalCase = (key: string) => key.replace(/(?:^|-)(\w)/g, (_, char: string) => char.toUpperCase());
 
+/**
+ * The export name of an icon named as on lucide.dev (`message-circle` -> `MessageCircle`), for callers that
+ * hold the kebab-case name (`folium.ui.icon` names) and render through the lookups below.
+ */
+export const lucideExportName = (iconName: string): string => toPascalCase(iconName.trim());
+
 /** Builds the name tables lucide-react's barrel exports, from the keys of its dynamicIconImports map. */
 const buildIconTable = (loaders: Record<string, IconLoader>): IconTable => {
     const keysByName = new Map<string, string>();

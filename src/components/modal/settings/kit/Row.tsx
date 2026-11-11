@@ -50,13 +50,15 @@ type RowProps = {
     disabled?: boolean;
     /** An option that only does something in the desktop app: on the web the row says so in a small tag and is disabled. */
     desktopOnly?: boolean;
+    /** A small tag beside the label, such as Beta. */
+    tag?: React.ReactNode;
     /** Spans the row's width under the label line. */
     below?: React.ReactNode;
     /** The control, or controls, at the right end. */
     children?: React.ReactNode;
 };
 
-export const Row: React.FC<RowProps> = ({ option, label, notice, hint, note, sub, onClick, disabled: disabledByPage, desktopOnly, below, children }) => {
+export const Row: React.FC<RowProps> = ({ option, label, notice, hint, note, sub, onClick, disabled: disabledByPage, desktopOnly, tag, below, children }) => {
     const { t } = useTranslation();
     const [noteOpen, setNoteOpen] = useState(false);
     const linkRef = useRef<HTMLButtonElement>(null);
@@ -112,6 +114,9 @@ export const Row: React.FC<RowProps> = ({ option, label, notice, hint, note, sub
                     <div className="relative min-w-0 flex-[1_1_140px]">
                         <div className="flex items-center gap-1.5 text-sm leading-5 text-[color:var(--st-t1)]">
                             <span id={naming.labelId} className={`min-w-0${disabled ? ' opacity-40' : ''}`}>{text}</span>
+                            {tag && (
+                                <span className="shrink-0 rounded bg-[var(--st-fill)] px-1.5 text-[11px] leading-[18px] text-[color:var(--st-t2)]">{tag}</span>
+                            )}
                             {notHere && (
                                 <span className="shrink-0 rounded bg-[var(--st-fill)] px-1.5 text-[11px] leading-[18px] text-[color:var(--st-t2)]">
                                     {t('options.settingsDesktopOnly')}

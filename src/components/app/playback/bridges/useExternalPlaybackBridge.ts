@@ -107,8 +107,11 @@ export function useExternalPlaybackBridge({ handleNextTrack, handlePrevTrack }: 
                     return;
                 }
                 // As <audio>'s ended handler does: nothing after this when the queue is over. The
-                // player moved on by itself, so this play may not wake it again.
-                void latestRef.current.handleNextTrack({ allowStopOnMissing: true, shouldNavigateToPlayer: false, autoAdvance: true });
+                // player moved on by itself, so this play may not wake it again; a song that played
+                // to its end is what may count as the queue having played out.
+                void latestRef.current.handleNextTrack({
+                    allowStopOnMissing: true, shouldNavigateToPlayer: false, autoAdvance: true, playedToEnd: true,
+                });
                 return;
             }
             if (event.type === 'foreign-track') {

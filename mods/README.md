@@ -174,6 +174,8 @@ client 只能用相对路径 import 模组目录里的 `.mjs/.js`，**不能 imp
 | `visualizer.mode` | 1.8：`folium.visualizer.setMode`（切换歌词动画模式，和用户在播放页切换一样） |
 | `visualizer.tuning` | 1.8：`folium.visualizer.setTuning`（改写内置歌词模式的样式参数，画质设置除外） |
 | `visualizer.beatEffects` | 1.8：`folium.visualizer.setBeatEffects`（开关智能动感效果、调强度；智能动感模式本身不能改） |
+| `visualizer.background` | 1.9：`folium.visualizer.setBackground`（切换背景类型，和用户在背景选择器里切换一样） |
+| `visualizer.animationIntensity` | 1.9：`folium.visualizer.setAnimationIntensity`（改动画强度，和用户在播放页面板里改一样） |
 | `net.fetch` | `folium.net.fetch()`（经主进程代发，不受 CORS 限制） |
 | `net.embed` | `folium.ui.embed()`，还需要 `embedOrigins` |
 | `stageLayers` | `registries.stageLayers`（往播放页上画东西） |
@@ -187,6 +189,7 @@ client 只能用相对路径 import 模组目录里的 `.mjs/.js`，**不能 imp
 启用确认窗口里不会为它多写一句，见 [folium.omni](#foliumomni17)。`folium.equalizer` 的读和 `equalizer.changed` 也不需要权限；
 写需要 `equalizer.control`，启用确认窗口和模组面板会为它写一句「会改写你的音效设置」，见 [folium.equalizer](#foliumequalizer17)。
 `folium.visualizer` 的读和 `visualizer.*` 事件同样不需要权限；`setRenderQuality` 需要 `visualizer.renderQuality`，`setMode`、`setTuning`、`setBeatEffects` 分别需要 `visualizer.mode`、`visualizer.tuning`、`visualizer.beatEffects`，启用确认窗口和模组面板会为每个写一句说明，见 [folium.visualizer](#foliumvisualizer18)。
+1.9 的 `setBackground`、`setAnimationIntensity` 分别需要 `visualizer.background`、`visualizer.animationIntensity`，同样各有一句说明，见[背景类型与动画强度](#背景类型与动画强度19)。
 
 每个权限解锁的成员以 API 参考的[权限一览](../docs/folium/api.md#权限一览)为准，`npm run folium:check` 用同一张表查模组。
 `platform.*` 例外：`folium:check` 只按代码里 `request('<平台>', …)` 写出的平台 id 查 `platform.<平台>.read`，平台 id 是变量时只提示一句，`.write` 查不到（要看调的接口）。
@@ -238,7 +241,7 @@ export default function activate(folium) {
 | `account.getState(providerId?)` | 1.7。在线音源的登录状态，不需要权限。见 [folium.account](#foliumaccount17) |
 | `omni.*` | 1.7。经 Omni 只读在线音源：搜索、按 `{ source, id }` 解析、歌词、专辑与歌手；不需要权限，以你在 Folia 登录的平台账号发请求。见 [folium.omni](#foliumomni17) |
 | `equalizer.*` | 1.7。宿主的图形均衡器：`getState()` 读当前听到的均衡器（不需要权限）；`setMode` 切到宿主已有的音效、`applyCurve` 施加本模组的曲线、`releaseCurve` 撤下它（需 `equalizer.control`）。见 [folium.equalizer](#foliumequalizer17) |
-| `visualizer.*` | 1.8。歌词画布的全局渲染质量：`getRenderQuality()` 读（不需要权限），`setRenderQuality(patch)` 改（需 `visualizer.renderQuality`）；歌词动画模式 `listModes()` / `getMode()` / `setMode(id)`（需 `visualizer.mode`）、内置模式的样式参数 `getTuning(mode)` / `setTuning(mode, patch)`（需 `visualizer.tuning`）、智能动感效果 `getBeatEffects()` / `setBeatEffects(patch)`（需 `visualizer.beatEffects`）。见 [folium.visualizer](#foliumvisualizer18) |
+| `visualizer.*` | 1.8。歌词画布的全局渲染质量：`getRenderQuality()` 读（不需要权限），`setRenderQuality(patch)` 改（需 `visualizer.renderQuality`）；歌词动画模式 `listModes()` / `getMode()` / `setMode(id)`（需 `visualizer.mode`）、内置模式的样式参数 `getTuning(mode)` / `setTuning(mode, patch)`（需 `visualizer.tuning`）、智能动感效果 `getBeatEffects()` / `setBeatEffects(patch)`（需 `visualizer.beatEffects`）；1.9 加了背景类型 `listBackgrounds()` / `getBackground()` / `setBackground(id)`（需 `visualizer.background`）与动画强度 `getAnimationIntensity()` / `setAnimationIntensity(value)`（需 `visualizer.animationIntensity`）。见 [folium.visualizer](#foliumvisualizer18) |
 | `every(ms, fn)` / `onDispose(fn)` | 定时调用、登记清理函数；模组停掉时宿主替它停掉定时、调用清理函数。见[现成的函数](../docs/folium/contributing.md#现成的函数) |
 | `lyrics` / `theme` | 内置模式共用的函数，见[歌词与主题](#歌词与主题)；导出窗口里也能用。`lyrics.parse` 把歌词原文交给宿主解析；`lyrics.getLines()`、`lyrics.refresh()` 读正在显示的歌词（导出窗口里不能用） |
 | `experimental[name]` | 选用了才能访问，否则抛 `experimental-not-declared:<name>` |
@@ -521,8 +524,22 @@ folium.registries.commands.register({
 
 ### playerPanelTabs
 
-`mount(container, ctx: FoliumPanelContext)`；标签用拼图图标，标题取 `label`。`folium.ui.openPlayerPanel('<id>')`
+`mount(container, ctx: FoliumPanelContext)`；标题取 `label`。`folium.ui.openPlayerPanel('<id>')`
 可以直接打开它。模组停用时若正开着它，面板回到封面页。
+
+1.9 起可以用 `icon` 给标签指定图标，写 lucide 图标名，和 `folium.ui.icon` 用的是同一套名字（例如 `'message-circle'`）。
+面板窄到放不下文字时，没选中的标签只显示图标，几个模组的标签靠它区分。不写 `icon`、或者写了宿主这版 lucide 里没有的名字，
+标签用拼图图标，不报错；旧宿主忽略这个字段。
+
+```js
+folium.registries.playerPanelTabs.register({
+  id: 'comments',
+  label: { 'zh-CN': '评论', en: 'Comments' },
+  icon: 'message-circle',
+  order: 120,
+  mount(container, ctx) { /* … */ },
+});
+```
 
 ### homeTabs
 
@@ -615,6 +632,8 @@ CSS 放进 `@layer folium-mods`（在 Tailwind 各层之后声明），不用 `!
 | `visualizer.renderQualityChanged` | 1.8。`{ quality, origin }`：歌词画布的全局分辨率或抗锯齿变了，`origin` 说是谁改的（`user` / `mod`），同一任务合成一次。见 [folium.visualizer](#foliumvisualizer18) |
 | `visualizer.tuningChanged` | 1.8。`{ mode, tuning, origin }`：某个内置模式对模组开放的样式参数变了，同一任务每个模式合成一次。见 [folium.visualizer](#foliumvisualizer18) |
 | `visualizer.beatEffectsChanged` | 1.8。`{ state, origin }`：智能动感效果或智能动感模式开关变了，同一任务合成一次。见 [folium.visualizer](#foliumvisualizer18) |
+| `visualizer.backgroundChanged` | 1.9。`{ background, origin }`：背景类型变了，同一任务合成一次。见[背景类型与动画强度](#背景类型与动画强度19) |
+| `visualizer.animationIntensityChanged` | 1.9。`{ intensity, origin }`：动画强度变了。见[背景类型与动画强度](#背景类型与动画强度19) |
 
 **`playback.failed`**只在用户看得见「这首歌放不了」时报一次：
 
@@ -767,6 +786,7 @@ folium.events.on('playback.queueChanged', (event) => {
 | `openHomeTab(tabId)` | 切到首页并打开本模组注册的首页页面；没注册的 id 抛 `home-tab-not-registered:<id>`。见 [homeTabs](#hometabs) |
 | `navigate('home' \| 'player')` | 页面导航 |
 | `openVolume()` | 打开宿主的音量面板（命令面板里的音量命令） |
+| `back()` | 1.9。返回一层，和按一下 Esc 相同；宿主接了返回 `true`，没有可返回的界面返回 `false`。见 [folium.ui.back](#foliumuiback19) |
 | `pickFile({ accept: 'video' \| 'audio' \| 'image' \| 'any', persist })` | 原生选择框；返回 `{ url, name, size }` 或 `null`。`url` 是本次会话有效的 `folia-mod://_files/...`，支持 Range，可直接做 `<video>` 的 src。`persist: true` 时宿主记住这次选择，返回值多一个不透明的 `grantId` |
 | `restoreFile(grantId)` | 把之前 `persist` 选中的文件换成本次会话的新句柄（含同一个 `grantId`）；授权不属于本模组或文件已不存在时返回 `null`，后者的授权随即作废。模组始终拿不到文件路径 |
 | `releaseFile(grantId)` | 放弃授权；已经发出的 URL 本次会话内仍然有效 |
@@ -1276,6 +1296,74 @@ export default function activate(folium) {
 **权限与旧宿主**：启用确认窗口和模组面板会为三个新权限各写一句说明（`visualizer.beatEffects` 那句也说明了「开启」下打开效果会让 GPU 分析新歌）。声明了它们的清单在 Folium 1.7 及更早的宿主上**整份被拒**；
 要兼容旧宿主就只读、不声明这些权限，用 `folium.host.folium.minor >= 8` 判断。
 
+#### 背景类型与动画强度（1.9）
+
+1.9 把另外两项面向所有歌词模式的设置也放进 `folium.visualizer`：**背景类型**和**动画强度**。读不需要权限，写各要一个：`visualizer.background`、`visualizer.animationIntensity`。
+写入等同用户自己在播放页面板或背景选择器里改：界面跟着变，重启后还在。
+
+```js
+export default function activate(folium) {
+  if (folium.host.folium.minor < 9 || folium.env.context !== 'main') return;
+  const { visualizer } = folium;
+  let userTookOver = false;
+
+  folium.events.on('visualizer.backgroundChanged', ({ origin }) => {
+    if (origin.kind === 'mod' && origin.modId === folium.modId) return;
+    userTookOver = true;
+  });
+
+  folium.events.on('playback.songChanged', ({ song }) => {
+    if (userTookOver || !song) return;
+    const calm = /piano|ambient/i.test(song.title);
+    if (visualizer.listBackgrounds().some((background) => background.id === 'latent')) visualizer.setBackground('latent');
+    visualizer.setAnimationIntensity(calm ? 'calm' : 'normal');
+  });
+}
+```
+
+**背景类型**：`listBackgrounds()` 按背景选择器的顺序列出现有的背景类型（内置的和模组提供的），冻结的 `{ id, label, kind }`；模组提供的 id 是 `mod:<模组 id>:<id>`，随模组来去。
+`getBackground()` 读用户选中的背景类型。`setBackground(id)` 切过去，和用户在背景选择器里切换一样；`id` 不是现有的背景类型时抛 `TypeError`。
+它只换类型：每种背景自己的素材和选项（例如自定义图片、网址背景的列表）仍是用户设的，用户没设置过的类型会显示它的空状态。
+模组提供的背景在模组停掉之后可能还留在选中状态（宿主这时画默认背景），所以 `getBackground()` 读到的 id 那段时间可能不在 `listBackgrounds()` 里。返回 `{ ok: true, background }` 或 `{ ok: false, reason }`。
+
+**动画强度**：`getAnimationIntensity()` 返回 `'calm'`、`'normal'` 或 `'chaotic'`，就是播放页面板里的动画强度；`setAnimationIntensity(value)` 改它，不是这三个值时抛 `TypeError`。
+返回 `{ ok: true, intensity }` 或 `{ ok: false, reason }`。以后的 minor 可能加新的档位：不认识的当作 `normal`。
+应用还在启动、主题还没上屏时写它会抛 `visualizer-unavailable-in-main-context`（和那时调 `folium.ui` 一样）：在事件或用户操作里写，不要在 `activate` 里直接写。
+
+**事件**：`visualizer.backgroundChanged`（`{ background, origin }`，同一任务合成一次，改了又改回去不发）和 `visualizer.animationIntensityChanged`（`{ intensity, origin }`）。
+`origin` 和别的 `visualizer.*` 事件一样，说是用户还是哪个模组改的。动画强度也在主题里（`theme.animationIntensity`），所以它变的时候 `theme.changed` 也会发。
+
+**检查顺序与限频**和上面几种写入相同，这两种写入各有各的额度。声明了这两个权限的清单在 Folium 1.8 及更早的宿主上**整份被拒**；要兼容旧宿主就只读、不声明权限，用 `folium.host.folium.minor >= 9` 判断。
+
+### folium.ui.back（1.9）
+
+`folium.ui.back()` 请宿主返回一层，给把鼠标按键或手势绑成「返回」的模组用。它和用户按一下 Esc 是同一条路：最上面能返回的界面接这一下。
+
+- 开着对话框、命令面板或设置窗口：关掉最上面的那个。开着的窗口总是算接了，不关的也一样：正忙、暂时不能关的对话框，
+  或者本来就不响应 Esc 的窗口，它留着，下面的页面也不动。
+- 页面自己开着的东西（聚焦的卡片、列表面板、过滤词）：先收起它。
+- 再往下是页面本身：播放页先收起面板，再回到来的地方；歌曲墙回到来的地方；集合页回到上一层；搜索页和模组的首页页面关掉。
+
+宿主接了返回 `true`，没有可返回的界面（首页、什么都没开）返回 `false`。一次调用只退一层，不要在循环里调用，也不要在 Esc 的按键监听里调用（Esc 宿主自己会应答，再调一次就退了两层）。
+和 Esc 不同的一处：它不退出全屏。导出窗口里抛 `ui-unavailable-in-export-context`。
+
+在按下的那一刻（`pointerdown`，捕获阶段）调用，不要等到 `contextmenu`：宿主里不少弹出层是「在外面按下就关」，等到 `contextmenu` 时它已经关了，`back()` 会再退一层。
+
+```js
+// 右键返回：按下时退一层；宿主接了就拦下随后的右键菜单，Shift + 右键保留原来的菜单。
+if (folium.host.folium.minor >= 9) {
+  let taken = false;
+  window.addEventListener('pointerdown', (event) => {
+    if (event.button !== 2) return;
+    taken = !event.shiftKey && folium.ui.back();
+  }, true);
+  window.addEventListener('contextmenu', (event) => {
+    if (taken) event.preventDefault();
+    taken = false;
+  }, true);
+}
+```
+
 ## main 入口（Node）
 
 ```js
@@ -1603,8 +1691,8 @@ const { body, accountKey } = await platform.request('netease', 'user_record', { 
 
 ## 版本与演进
 
-- 清单里的 `folium: 1` 是 major；宿主通过 `folium.host.folium.minor` / `api.host.folium.minor` 暴露 minor。当前是 Folium 1.8，契约里的每个成员 1.8 的宿主上都有；
-  用到 1.7 新加的成员时先检查 `minor >= 7`，用到 1.8 新加的成员时先检查 `minor >= 8`，旧宿主上没有它们。
+- 清单里的 `folium: 1` 是 major；宿主通过 `folium.host.folium.minor` / `api.host.folium.minor` 暴露 minor。当前是 Folium 1.9，契约里的每个成员 1.9 的宿主上都有；
+  用到 1.7 新加的成员时先检查 `minor >= 7`，用到 1.8 新加的成员时先检查 `minor >= 8`，用到 1.9 新加的成员时先检查 `minor >= 9`，旧宿主上没有它们。
 - 1.x 内只做新增：可选的清单字段、新注册表、新事件、新服务方法、新权限、新设置字段类型、新公开 part。
 - DTO（`contract.ts`）字段只增不减；宿主内部类型不出现在任何稳定契约里。
 - 删除或改变语义必须升 major；之前至少有一个 minor 在日志里标记废弃。
@@ -1613,6 +1701,14 @@ const { body, accountKey } = await platform.request('netease', 'user_record', { 
   旧名字和现在的写法见 API 参考的[仍可用的旧名字](../docs/folium/api.md#仍可用的旧名字)，`npm run folium:check` 也会列出来。
 - 模组停掉之后，它原来那个 `folium` 对象的 `register` 和 `events.on` 不再生效；挂载结束之后经 `ctx` 订的监听同样不再生效。
 - 监听属于订阅它的那一次挂载：同一个函数在两处挂载里各订一次，每次变化各调用一次。
+
+**Folium 1.9 的变化**（都是新增，为 1.8 写的模组不用改）：
+
+- 返回一层：`folium.ui.back()`，和按一下 Esc 相同，返回宿主有没有接。稳定，不需要权限。见 [folium.ui.back](#foliumuiback19)。
+- 播放器面板标签的图标：`playerPanelTabs` 的定义加可选的 `icon`（lucide 图标名）。稳定，旧宿主忽略它。见 [playerPanelTabs](#playerpaneltabs)。
+- 背景类型与动画强度：`folium.visualizer` 的 `listBackgrounds`、`getBackground` / `setBackground`、`getAnimationIntensity` / `setAnimationIntensity`，
+  通知事件 `visualizer.backgroundChanged`、`visualizer.animationIntensityChanged`；新权限 `visualizer.background`、`visualizer.animationIntensity`（写需要，读不需要）。
+  稳定。见[背景类型与动画强度](#背景类型与动画强度19)。
 
 **Folium 1.8 的变化**（都是新增，为 1.7 写的模组不用改）：
 

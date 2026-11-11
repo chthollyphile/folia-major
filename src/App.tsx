@@ -3,7 +3,7 @@ import { AnimatePresence, motion, useMotionValueEvent } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { ChevronLeft } from 'lucide-react';
 import { loadCachedOrFetchCover } from './services/coverCache';
-import VisualizerRenderer from './components/visualizer/VisualizerRenderer';
+import SceneHost from './components/scenes/engine/SceneHost';
 import CommandPalette from './components/command-palette/CommandPalette';
 import AddToPlaylistHost from './components/app/AddToPlaylistHost';
 import ScratchpadHost from './components/app/scratchpad/ScratchpadHost';
@@ -196,6 +196,7 @@ import { usePlayerBottomBarPositioningEntry } from './hooks/usePlayerBottomBarPo
 import { PlayerBottomBarLayoutContext } from './components/floating-player/PlayerBottomBarLayoutContext';
 import { useFoliumHostBridge } from './mods/runtime/hostBridge';
 import { useFoliumHostActions } from './mods/runtime/hostActions';
+import { useFoliumAnimationIntensity } from './mods/runtime/visualizer/hostAnimationIntensity';
 import { refreshPrefetchAfterQueueEdit } from './services/prefetchService';
 import { FoliumStageLayerSlot } from './mods/folium/registries/stageLayers';
 import { runsOnWindows } from './utils/platform';
@@ -672,6 +673,7 @@ export default function App() {
     });
     const {
         theme,
+        songThemePair,
         setTheme,
         aiTheme,
         customTheme,
@@ -701,6 +703,7 @@ export default function App() {
     // Folium: publish what is on screen to the main process (runtime snapshot
     // for main-side mods and the export service).
     useFoliumHostBridge(theme, isDaylight);
+    useFoliumAnimationIntensity(theme, setTheme);
 
     useThemeQuickEditorContext({
         aiTheme,
@@ -1485,6 +1488,8 @@ export default function App() {
         getDisplayAudioElement: automix.getDisplayElement,
         effectiveLoopMode,
         isNowPlayingStageActive,
+        externalTrackTitle: nowPlayingTrack?.title ?? nowPlayingLyricPayload?.title ?? null,
+        externalTrackArtist: nowPlayingTrack?.artist ?? nowPlayingLyricPayload?.artist ?? null,
         mediaSessionPlayRef,
         mediaSessionPauseRef,
         mediaSessionPrevRef,
@@ -2121,6 +2126,10 @@ export default function App() {
         enqueue: addOnlineSongToQueue,
         navigateToPlayer,
         navigateToHome,
+        navigateBackFromPlayer,
+        navigateBackFromLattice,
+        backCollection,
+        closeSearchView,
         shuffleQueue,
         toggleLike: handleLike,
         openVolume: () => commandPalette.invokeCommandById('playback-volume'),
@@ -2646,7 +2655,9 @@ export default function App() {
                 // If single loop is active, native loop handles it.
                 // If not, we handle queue logic.
                 if (effectiveLoopMode !== 'one') {
-                    void handleNextTrack({ allowStopOnMissing: true, shouldNavigateToPlayer: false, autoAdvance: true });
+                    void handleNextTrack({
+                        allowStopOnMissing: true, shouldNavigateToPlayer: false, autoAdvance: true, playedToEnd: true,
+                    });
                 }
             }}
             onLoadedMetadata={(e) => {
@@ -2707,7 +2718,9 @@ export default function App() {
                         return;
                     }
 
-                    void handleNextTrack({ allowStopOnMissing: true, shouldNavigateToPlayer: false, autoAdvance: true });
+                    void handleNextTrack({
+                        allowStopOnMissing: true, shouldNavigateToPlayer: false, autoAdvance: true, playedToEnd: true,
+                    });
                     return;
                 }
 
@@ -2885,7 +2898,7 @@ export default function App() {
                 onClick={handleContainerClick}
             >
                 <PlayerBottomBarLayoutContext.Provider value={currentView === 'player'}>
-                    {shouldMountVisualizer && <VisualizerRenderer {...visualizerRendererModel} animateStyleSwitch />}
+                    {shouldMountVisualizer && <SceneHost {...visualizerRendererModel} songThemePair={songThemePair} animateStyleSwitch />}
                 </PlayerBottomBarLayoutContext.Provider>
             </div>
 

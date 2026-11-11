@@ -106,6 +106,8 @@ export type BravaisHomeSearch = {
  * 入口打开共用的登录窗口：换平台、登录、退出都在窗口里。
  */
 export type BravaisHomeAccount = {
+    /** 正在确认平台的登录状态。 */
+    checking?: boolean;
     providerId: string;
     providerLabel: string;
     /** B10：当前平台的账户状态（昵称 / 未登录 / 无需登录）。fb8 起只进入口的可访问名与 title，不直接显示。 */

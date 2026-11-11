@@ -48,4 +48,17 @@ describe('linuxDesktopIntegration', () => {
     expect(pkgbuildContent).toContain(desktopHash);
     expect(srcinfoContent).toContain(desktopHash);
   });
+
+  it('disables makepkg strip/debug for the prebuilt AUR package (#1138)', () => {
+    // Prebuilt Electron binaries carry incomplete split-DWARF; makepkg strip/debug only yields gdb-add-index errors.
+    const pkgbuildContent = fs.readFileSync(aurPkgbuildPath, 'utf8');
+    const srcinfoContent = fs.readFileSync(aurSrcinfoPath, 'utf8');
+    const updateScript = fs.readFileSync(path.join(rootDir, 'packaging/aur/folia-major-bin/update.sh'), 'utf8');
+
+    expect(pkgbuildContent).toMatch(/^options=\('!strip' '!debug'\)$/m);
+    for (const content of [srcinfoContent, updateScript]) {
+      expect(content).toMatch(/^\toptions = !strip$/m);
+      expect(content).toMatch(/^\toptions = !debug$/m);
+    }
+  });
 });

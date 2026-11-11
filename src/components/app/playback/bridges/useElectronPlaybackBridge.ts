@@ -64,6 +64,8 @@ type UseElectronPlaybackBridgeOptions = {
     getDisplayAudioElement?: () => HTMLAudioElement | null;
     effectiveLoopMode: 'off' | 'all' | 'one';
     isNowPlayingStageActive: boolean;
+    externalTrackTitle: string | null;
+    externalTrackArtist: string | null;
     mediaSessionPlayRef: RefObject<() => Promise<void>>;
     mediaSessionPauseRef: RefObject<() => void>;
     mediaSessionPrevRef: RefObject<() => void>;
@@ -110,6 +112,8 @@ export const useElectronPlaybackBridge = ({
     getDisplayAudioElement,
     effectiveLoopMode,
     isNowPlayingStageActive,
+    externalTrackTitle,
+    externalTrackArtist,
     mediaSessionPlayRef,
     mediaSessionPauseRef,
     mediaSessionPrevRef,
@@ -448,13 +452,18 @@ export const useElectronPlaybackBridge = ({
             return;
         }
 
-        void window.electron.updateTaskbarControls(
-            buildTaskbarControlsFromPlaybackSyncBridge(buildPlaybackSyncBridgeModelFromCurrentState())
-        ).catch((error) => {
-            console.warn('[Electron] Failed to update Windows taskbar controls', error);
+        const model = buildPlaybackSyncBridgeModelFromCurrentState();
+        void window.electron.updateTaskbarControls({
+            ...buildTaskbarControlsFromPlaybackSyncBridge(model),
+            title: isNowPlayingStageActive ? externalTrackTitle : model.hasTrack ? model.title : null,
+            artist: isNowPlayingStageActive ? externalTrackArtist : model.hasTrack ? model.artist : null,
+            loopMode: model.loopMode,
+            canCycleLoop: model.hasTrack && !model.isFmMode,
+        }).catch((error) => {
+            console.warn('[Electron] Failed to update playback controls', error);
         });
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [currentSong, effectiveLoopMode, isFmMode, isNowPlayingStageActive, playQueue, playbackRoute, playerState]);
+    }, [currentSong, effectiveLoopMode, externalTrackTitle, externalTrackArtist, isFmMode, isNowPlayingStageActive, playQueue, playbackRoute, playerState]);
 
     // System/IME voice input pauses playback and resumes it afterwards. Resume only
     // fires when this bridge caused the pause and the track is still paused, so a

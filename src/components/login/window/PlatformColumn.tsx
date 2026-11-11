@@ -60,7 +60,7 @@ const RowNote: React.FC<{ row: ProviderAccountSummary; status: RowStatus }> = ({
             </span>
         );
     }
-    const text = status === 'ran-out' ? t('login.rowRanOut')
+    const text = status === 'checking' ? t('login.rowChecking') : status === 'ran-out' ? t('login.rowRanOut')
         : status === 'accountless' ? t('home.providerNoAccount')
             : status === 'off' ? t(row.availability.messageKey ?? 'home.providerNotConfigured') : t('login.rowSignedOut');
     return (
@@ -163,7 +163,7 @@ export const PlatformColumn: React.FC<PlatformColumnProps> = ({ rows, chosenId, 
 
     const fade = (more.before || more.after) ? `linear-gradient(${lie === 'column' ? 'to bottom' : 'to right'}, ${more.before ? 'transparent, #000 30px' : '#000'}, ${more.after ? '#000 calc(100% - 30px), transparent' : '#000'})` : undefined;
     const stateText = (status: ReturnType<typeof rowStatus>, messageKey?: string): string | null => (
-        status === 'signed-in' ? t('login.rowSignedIn') : status === 'ran-out' ? t('login.rowRanOut') : status === 'off' ? t(messageKey ?? 'home.providerNotConfigured') : null
+        status === 'checking' ? t('login.rowChecking') : status === 'signed-in' ? t('login.rowSignedIn') : status === 'ran-out' ? t('login.rowRanOut') : status === 'off' ? t(messageKey ?? 'home.providerNotConfigured') : null
     );
 
     return (
@@ -214,8 +214,9 @@ export const PlatformColumn: React.FC<PlatformColumnProps> = ({ rows, chosenId, 
                             aria-label={state ? `${name} · ${state}` : undefined}
                             aria-selected={chosen}
                             aria-disabled={status === 'off' || undefined}
+                            aria-busy={status === 'checking' || undefined}
                             onMouseEnter={() => { if (status !== 'off') setPointed(row.providerId); }}
-                            onClick={() => { if (status !== 'off') onChoose(row); }}
+                            onClick={() => { if (canChoose(row)) onChoose(row); }}
                             className={`st-t-fast relative flex items-center rounded-lg transition-colors ${tall ? `${ROW_SIZE} w-full gap-3 px-2.5` : 'h-9 max-w-[168px] shrink-0 gap-2.5 px-2'} ${status === 'off' ? 'cursor-default opacity-[0.42]' : 'cursor-pointer'} ${bright ? 'text-[color:var(--st-t1)]' : 'text-[color:var(--st-t2)]'}`}
                         >
                             {/* 选中的那一行左边一道平台的颜色：高亮跟着指针走，这一道留在选中的行上。 */}

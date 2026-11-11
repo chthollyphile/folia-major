@@ -56,7 +56,19 @@ vi.mock('@/components/app/playback/externalPlayerWake', () => ({ runExternalPlay
 vi.mock('@/stores/useDesktopSettingsStore', () => ({
     useDesktopSettingsStore: { getState: () => ({ wakeExternalPlayersOnLaunch: false }) },
 }));
-vi.mock('@/stores/useStatusMessageStore', () => ({ setStatusMessage: vi.fn() }));
+// The queue controller begins, settles and cancels loaders around these plays: the store is a
+// stand-in of the same shape, so the play path finds every function it uses and none of them show.
+vi.mock('@/stores/useStatusMessageStore', () => ({
+    setStatusMessage: vi.fn(),
+    STATUS_LOADING_DELAY_MS: 300,
+    beginStatusLoading: vi.fn(() => ({ type: 'info', activity: 'loading', activityId: 1, text: 'x', persistent: true })),
+    completeStatusLoading: vi.fn(),
+    failStatusLoading: vi.fn(),
+    cancelStatusLoading: vi.fn(),
+    reviseStatusLoading: vi.fn(),
+    withStatusLoadingResult: vi.fn((message) => message),
+    useStatusMessageStore: Object.assign(vi.fn(), { getState: () => ({ message: null }), setState: vi.fn(), subscribe: vi.fn(() => () => {}) }),
+}));
 vi.mock('@/services/onlineMusic/failure/onlineFailureCase', () => ({
     onlineFailureOf: () => ({}),
     offersRetry: () => false,

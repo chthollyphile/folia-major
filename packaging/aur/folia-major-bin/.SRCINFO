@@ -12,11 +12,13 @@ pkgbase = folia-major-bin
 	optdepends = xdg-utils: desktop integration helpers
 	provides = folia-major
 	conflicts = folia-major
+	options = !strip
+	options = !debug
 	source = https://github.com/chthollyphile/folia-major/releases/download/v0.1.4/folia-major-0.1.4-linux-x64.tar.gz
 	source = folia-major.desktop
 	source = folia-major.png
 	sha256sums = SKIP
 	sha256sums = d4e077790a260ae00ff9ec6f859f6add8f404e45674968e9ae085be17b2e0d43
-	sha256sums = cffe4a4fe5608706e2522de3b4cd8cc174357a9310493f107553794831312054
+	sha256sums = 0a32e50a248e2acdb73fa6a802dae973a74db55b11a848845044a4b43ea2e3d8
 
 pkgname = folia-major-bin

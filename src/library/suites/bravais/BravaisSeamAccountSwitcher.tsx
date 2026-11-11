@@ -9,7 +9,7 @@ import './bravaisAccount.css';
 // 已登录时按钮是头像 + 昵称，窗口开在正在用的平台上；无需登录的平台是记号 + 平台名；没有人登录时是连接图标 +
 // 「连接在线平台」，窗口不替用的人选平台。换平台、登录、退出登录都在那个窗口里（平台再多也只是窗口左边那一列长一些）。
 // 平台名与账户状态进 aria-label / title。书脊上只留一个图标按钮，点它也直接打开窗口。
-// data-bravais-account：已登录 signed-in，未登录 guest。
+// data-bravais-account：已登录 signed-in，未登录 guest，正在确认 checking。
 
 const BravaisSeamAccountSwitcher: React.FC<{
     account: BravaisHomeAccount;
@@ -34,7 +34,7 @@ const BravaisSeamAccountSwitcher: React.FC<{
             <span className="bravais-account-switcher">
                 <span className={`bravais-account-entry ${account.guest ? 'bravais-account-connect' : 'bravais-account-toggle'}`}>
                     <span className="bravais-account-avatar" />
-                    <span className="is-name">{account.guest ? account.connectLabel : account.nickname ?? account.providerLabel}</span>
+                    <span className="is-name">{account.checking ? account.detail : account.guest ? account.connectLabel : account.nickname ?? account.providerLabel}</span>
                 </span>
             </span>
         );
@@ -52,11 +52,11 @@ const BravaisSeamAccountSwitcher: React.FC<{
     }
 
     return (
-        <div className={`bravais-account-switcher${account.guest ? ' is-guest' : ''}`} data-bravais-account={account.guest ? 'guest' : 'signed-in'}>
+        <div className={`bravais-account-switcher${account.guest ? ' is-guest' : ''}`} data-bravais-account={account.checking ? 'checking' : account.guest ? 'guest' : 'signed-in'}>
             <button type="button" className={`bravais-account-entry ${account.guest ? 'bravais-account-connect' : 'bravais-account-toggle'}`}
                 data-bravais-account-toggle={account.guest ? 'connect' : 'strip'} aria-haspopup="dialog" aria-label={label} title={label} onClick={open}>
                 {picture}
-                <span className="is-name">{account.guest ? account.connectLabel : account.nickname ?? account.providerLabel}</span>
+                <span className="is-name">{account.checking ? account.detail : account.guest ? account.connectLabel : account.nickname ?? account.providerLabel}</span>
             </button>
         </div>
     );

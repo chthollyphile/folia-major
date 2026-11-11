@@ -21,7 +21,7 @@
 - **确认绑定到文件内容。** 模组目录里任何文件变化都会让确认失效，模组被自动禁用，需要重新确认。唯一的例外是开发版里仓库 `mods/` 目录中的模组，见[调试循环](#调试循环)。
 - **签名只是标识。** 发布到模组市场的模组带有 Folium 签名，安装后显示「官方认证」（先行测试渠道显示「先行测试」），但启用时同样要确认，权限也不会因此变少。
 
-当前契约版本是 Folium 1.8（见[兼容与版本](#兼容与版本)）。
+当前契约版本是 Folium 1.9（见[兼容与版本](#兼容与版本)）。
 
 ## 2. 准备开发环境
 
@@ -155,6 +155,8 @@ function mountHello(folium, container, ctx) {
 | 读当前均衡器、切换用户的音效、施加自己的曲线（1.7） | `folium.equalizer`，变化看 `equalizer.changed` | 读不需要；写需 `equalizer.control` | [FoliumEqualizerService](api.md#foliumequalizerservice)，规范里的「folium.equalizer」，`dev/folium/sample-equalizer-console` |
 | 读或改歌词画布的全局分辨率与抗锯齿（1.8） | `folium.visualizer.getRenderQuality` / `setRenderQuality`，变化看 `visualizer.renderQualityChanged` | 读不需要；写需 `visualizer.renderQuality` | [FoliumVisualizerService](api.md#foliumvisualizerservice)，规范里的「folium.visualizer」 |
 | 替用户切换歌词动画模式、改内置模式的样式参数、开关智能动感效果（1.8） | `folium.visualizer.listModes` / `setMode` / `setTuning` / `setBeatEffects`，变化看 `visualizer.modeChanged`、`visualizer.tuningChanged`、`visualizer.beatEffectsChanged` 的 `origin` | 读不需要；写分别需 `visualizer.mode`、`visualizer.tuning`、`visualizer.beatEffects` | [FoliumVisualizerService](api.md#foliumvisualizerservice)，[FoliumVisualizerModeInfo](api.md#foliumvisualizermodeinfo)，规范里的「folium.visualizer」 |
+| 替用户切换背景类型、改动画强度（1.9） | `folium.visualizer.listBackgrounds` / `setBackground` / `setAnimationIntensity`，变化看 `visualizer.backgroundChanged`、`visualizer.animationIntensityChanged` 的 `origin` | 读不需要；写分别需 `visualizer.background`、`visualizer.animationIntensity` | [FoliumVisualizerService](api.md#foliumvisualizerservice)，规范里的「背景类型与动画强度」 |
+| 把鼠标按键或手势绑成「返回一层」（1.9） | `folium.ui.back()`，返回宿主有没有接 | — | [FoliumUiService](api.md#foliumuiservice)，规范里的「folium.ui.back」 |
 | 调用 Omni 还没有的平台专有接口（后备，1.7） | `experimental['platform.raw']`，清单选用 `platform.raw`；`folium.omni` 有的不要用它读 | `platform.<平台>.read`，改动账号的接口另要 `.write` | [FoliumPlatformService](api.md#foliumplatformservice)，规范里的「platform.raw」，`dev/folium/sample-account-console` |
 
 ## 5. 写好一个模组
@@ -286,7 +288,7 @@ const mount = async (container, ctx) => {
 
 ### 兼容与版本
 
-- 清单里写 `"folium": 1`。Folium 1.8 的宿主上，[API 参考](api.md)里的每个成员都在；`folium.host` 给显示和日志用。用到 1.7 新加的成员（`rpc.send` / `rpc.on`、`secret` 字段与 `secrets`、`account`、`omni`、`equalizer`、`playback.replaceQueue`）时先检查 `folium.host.folium.minor >= 7`（main 入口是 `api.host.folium.minor`；`replaceQueue` 再加上 `typeof folium.playback.replaceQueue === 'function'`）：旧宿主上没有它们（`folium.omni`、`folium.equalizer` 读出来是 `undefined`），`secret` 字段会被丢掉，分区丢完字段一个不剩时注册会抛错。`minor` 检查救不了新权限：声明了 `playback.queue` 或 `equalizer.control` 的清单在 Folium 1.6 的宿主上整份被拒（未知权限一律拒绝），模组根本装不上。要兼容 1.6，均衡器只能只读、不声明 `equalizer.control`（见规范里的「folium.equalizer」）；`replaceQueue` 离不开 `playback.queue`，用它的模组装不上 1.6（见规范里的 replaceQueue）。命令的 `globalShortcut` 不用检查：旧宿主只是不认它，命令照常出现在命令面板和模组面板里。用到 1.8 的 `folium.visualizer` 时先检查 `folium.host.folium.minor >= 8`（1.7 的宿主上它读出来是 `undefined`）；声明了 `visualizer.renderQuality`、`visualizer.mode`、`visualizer.tuning` 或 `visualizer.beatEffects` 的清单在 1.7 及更早的宿主上同样整份被拒，要兼容它们就只读、不声明这些权限。
+- 清单里写 `"folium": 1`。Folium 1.9 的宿主上，[API 参考](api.md)里的每个成员都在；`folium.host` 给显示和日志用。用到 1.7 新加的成员（`rpc.send` / `rpc.on`、`secret` 字段与 `secrets`、`account`、`omni`、`equalizer`、`playback.replaceQueue`）时先检查 `folium.host.folium.minor >= 7`（main 入口是 `api.host.folium.minor`；`replaceQueue` 再加上 `typeof folium.playback.replaceQueue === 'function'`）：旧宿主上没有它们（`folium.omni`、`folium.equalizer` 读出来是 `undefined`），`secret` 字段会被丢掉，分区丢完字段一个不剩时注册会抛错。`minor` 检查救不了新权限：声明了 `playback.queue` 或 `equalizer.control` 的清单在 Folium 1.6 的宿主上整份被拒（未知权限一律拒绝），模组根本装不上。要兼容 1.6，均衡器只能只读、不声明 `equalizer.control`（见规范里的「folium.equalizer」）；`replaceQueue` 离不开 `playback.queue`，用它的模组装不上 1.6（见规范里的 replaceQueue）。命令的 `globalShortcut` 不用检查：旧宿主只是不认它，命令照常出现在命令面板和模组面板里。用到 1.8 的 `folium.visualizer` 时先检查 `folium.host.folium.minor >= 8`（1.7 的宿主上它读出来是 `undefined`）；声明了 `visualizer.renderQuality`、`visualizer.mode`、`visualizer.tuning` 或 `visualizer.beatEffects` 的清单在 1.7 及更早的宿主上同样整份被拒，要兼容它们就只读、不声明这些权限。用到 1.9 新加的成员（`folium.ui.back`、`folium.visualizer` 的背景类型与动画强度）时先检查 `folium.host.folium.minor >= 9`；声明了 `visualizer.background` 或 `visualizer.animationIntensity` 的清单在 1.8 及更早的宿主上整份被拒，要兼容它们就只读。`playerPanelTabs` 的 `icon` 不用检查：旧宿主只是不认它，标签照常用拼图图标。
 - 为 Folium 1.5 写的模组照旧能用，用到的旧名字在「设置 → 模组」里这个模组那一行各提醒一次，`npm run folium:check` 也会列出来。改成现在的写法见 API 参考的[仍可用的旧名字](api.md#仍可用的旧名字)，Folium 2 起旧名字不再有效。
 - 实验接口（`omni.providers`、`omni.hooks`、`ponder.targets`、`player.layout`、`remote.actions`、`platform.raw`）需要在清单的 `experimental` 里选用，任何 minor 版本都可能变化。`platform.raw` 返回的是平台原始 JSON，跟着宿主钉住的后端库变，按字段防御着读。读歌曲详情、歌词、搜索、专辑与歌手先用稳定的 `folium.omni`（1.7），它给的是宿主的歌曲 DTO，可以直接交给 `playSong` / `enqueue`；`platform.raw` 只留给 `folium.omni` 没有的平台专有接口。
 - 模组更新时提升 `mod.json` 的 `version`（`MAJOR.MINOR.PATCH`）。
