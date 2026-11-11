@@ -4129,6 +4129,29 @@ export default {
         "description": "Sau khi đăng nhập, danh sách phát riêng tư của bạn nay có thể tải bài hát với phân trang thực tế. Máy chủ tự lưu trữ cần chạy qq-music-api 3.1.2 trở lên; phiên bản cũ hơn sẽ tự động quay về cơ chế dự phòng, và danh sách phát không đọc được sẽ báo rõ là danh sách không công khai thay vì hiển thị trống."
       }
     },
+    "v0_7_28": {
+      "intro": "Chào mừng bạn đến với 0.7.28, Mimiambol Update—một bản cập nhật lớn. Phiên bản này thêm cảnh rạp chiếu phim, biểu tượng ứng dụng mới, nút cửa sổ đặt được bên trái hoặc phải, và tùy chọn mới cho một số kiểu lời bài hát.",
+      "scenes": {
+        "title": "Cảnh: Rạp chiếu phim (Beta)",
+        "description": "Trang phát nhạc có thể biến thành rạp chiếu phim, kiểu lời bài hát và nền của bạn hiện trên màn chiếu; kéo để nhìn xung quanh. Bật ở hàng Cảnh trong trang Giao diện. Trên bản desktop, Dò tia âm thanh khiến nhạc nghe như đang phát trong rạp."
+      },
+      "newLook": {
+        "title": "Biểu tượng và hiệu ứng tải mới",
+        "description": "Biểu tượng ứng dụng mới: chữ F ghép từ bốn khối. Màn hình khởi động giờ là các khối màu trượt; khi chuyển bài và tải lời bài hát đều hiện cùng các chấm tải, và lúc khởi động có báo đang kiểm tra trạng thái đăng nhập."
+      },
+      "windowControls": {
+        "title": "Nút cửa sổ",
+        "description": "Nút cửa sổ có thể đặt bên trái hoặc bên phải. Trên macOS bạn có thể dùng đèn giao thông gốc, và menu Dock điều khiển được việc phát nhạc."
+      },
+      "styleOptions": {
+        "title": "Tùy chọn mới cho kiểu lời",
+        "description": "Monet có thể lật gương, ẩn chân dung và hiện mô tả tự viết. Mặt đồng hồ của Pendolo có thể nghiêng, tách lớp và chuyển sang góc nhìn trục. Claddagh có thể dời vị trí và hiện bản dịch dọc theo vòng."
+      },
+      "moreDetails": {
+        "title": "Cải tiến khác",
+        "description": "Ảnh bìa sắc nét hơn. Lặp một bài giờ áp dụng cả với Soloist và Apple Music. iOS Safari tiếp tục phát khi chạy nền. Tài khoản Apple Music khu vực khác phát được trọn bài trên mạng Trung Quốc đại lục. Thanh dưới ở màn hình hẹp giờ là một viên nang liền. Đã sửa lỗi hình đứng nửa giây khoảng 10 giây sau khi khởi động."
+      }
+    },
     "v0_7_27": {
       "intro": "Chào mừng bạn đến với 0.7.27. Spotify có thêm cách phát Soloist, nên tài khoản không nhận được khóa âm thanh vẫn nghe được nhạc; âm lượng và tắt tiếng của Apple Music giờ đã hoạt động, thư viện có thêm Tất cả bài hát, và lời từng từ có sẵn sẽ nhường cho nguồn lời bạn ưu tiên; và fnOS Music đăng nhập được từ bên ngoài mạng LAN bằng FN ID.",
       "soloist": {

@@ -4129,6 +4129,29 @@ export default {
         "description": "Setelah masuk, playlist pribadi buatan Anda kini dapat memuat lagu dengan paging sungguhan. Backend yang di-host sendiri harus memakai qq-music-api 3.1.2 atau lebih baru; backend lama beralih otomatis, dan playlist yang tidak dapat dibaca kini menjelaskan bahwa playlist itu tidak publik, alih-alih tampil kosong tanpa keterangan."
       }
     },
+    "v0_7_28": {
+      "intro": "Selamat datang di 0.7.28, Mimiambol Update—sebuah pembaruan besar. Versi ini menghadirkan adegan bioskop, ikon aplikasi baru, tombol jendela di kiri atau kanan, dan opsi baru untuk beberapa gaya lirik.",
+      "scenes": {
+        "title": "Adegan: Bioskop (Beta)",
+        "description": "Halaman pemutar bisa menjadi bioskop, dengan gaya lirik dan latar Anda di layarnya; seret untuk melihat sekeliling. Aktifkan di baris Adegan pada halaman Tampilan. Di desktop, Pelacakan suara membuat musik terdengar seperti diputar di dalam bioskop."
+      },
+      "newLook": {
+        "title": "Ikon dan animasi memuat baru",
+        "description": "Ikon aplikasi baru: huruf F dari empat balok. Layar pembuka kini berisi balok warna yang bergeser; saat ganti lagu dan memuat lirik muncul titik memuat yang sama, dan saat mulai ada tanda bahwa status masuk sedang diperiksa."
+      },
+      "windowControls": {
+        "title": "Tombol jendela",
+        "description": "Tombol jendela bisa diletakkan di kiri atau kanan. Di macOS Anda bisa memakai lampu lalu lintas asli, dan menu Dock bisa mengontrol pemutaran."
+      },
+      "styleOptions": {
+        "title": "Opsi gaya lirik baru",
+        "description": "Monet bisa dicerminkan, menyembunyikan potret, dan menampilkan deskripsi sendiri. Dial Pendolo bisa dimiringkan, dibagi lapisan, dan beralih ke tampilan poros. Claddagh bisa dipindah dan menampilkan terjemahan di sepanjang cincin."
+      },
+      "moreDetails": {
+        "title": "Peningkatan lainnya",
+        "description": "Sampul lebih tajam. Ulangi satu lagu kini berlaku untuk Soloist dan Apple Music. iOS Safari tetap memutar di latar belakang. Akun Apple Music dari wilayah lain memutar lagu penuh di jaringan Tiongkok daratan. Bilah bawah di layar sempit kini satu kapsul. Diperbaiki: layar berhenti setengah detik sekitar 10 detik setelah mulai."
+      }
+    },
     "v0_7_27": {
       "intro": "Selamat datang di 0.7.27. Spotify mendapat pemutaran Soloist, sehingga akun yang tidak mendapat kunci audio tetap bisa memutar lagu; volume dan bisu Apple Music kini berfungsi, pustakanya menambah Semua lagu, dan lirik per kata bawaannya mengalah pada sumber lirik prioritasmu; dan fnOS Music bisa masuk dari luar jaringan lokal dengan FN ID.",
       "soloist": {

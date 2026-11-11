@@ -4129,6 +4129,29 @@ export default {
         "description": "When signed in, your own private playlists now load their songs, with real paging. Self-hosted backends must run qq-music-api 3.1.2 or later; older backends fall back automatically, and a playlist that cannot be read now says it is not public instead of silently showing as empty."
       }
     },
+    "v0_7_28": {
+      "intro": "Welcome to 0.7.28, the Mimiambol Update—a major update. It adds the cinema hall scene, a new app icon, window controls on either side, and new options for several lyric styles.",
+      "scenes": {
+        "title": "Scene: Cinema (Beta)",
+        "description": "The player page can become a cinema hall, with your lyric style and background on its screen; drag to look around. Turn it on in the Scene row of the Appearance page. On desktop, Sound tracing makes the music sound like it is playing in the hall."
+      },
+      "newLook": {
+        "title": "New icon and loading animations",
+        "description": "A new app icon: an F built from four blocks. The splash screen now shows sliding colour blocks; switching songs and loading lyrics show the same loading dots, and startup tells you while it checks your sign-in."
+      },
+      "windowControls": {
+        "title": "Window controls",
+        "description": "Window controls can sit on the left or the right. On macOS you can use the native traffic lights, and the Dock menu can control playback."
+      },
+      "styleOptions": {
+        "title": "New lyric style options",
+        "description": "Monet can be mirrored, hide the portrait and show a custom description. Pendolo's dial can tilt, split into layers and switch to a hub view. Claddagh can be moved and shows translations along the ring."
+      },
+      "moreDetails": {
+        "title": "More improvements",
+        "description": "Sharper covers. Repeat one now works with Soloist and Apple Music. iOS Safari keeps playing in the background. Apple Music accounts from other regions play full songs on mainland China networks. The narrow-screen bottom bar is now a single capsule. Fixed a half-second freeze about 10 seconds after startup."
+      }
+    },
     "v0_7_27": {
       "intro": "Welcome to 0.7.27. Spotify gains Soloist playback, so accounts that cannot get audio keys can still play; Apple Music’s volume and mute now work, the library gets All songs, and its built-in word-timed lyrics give way to your preferred lyric source; and fnOS Music can sign in from outside your LAN with an FN ID.",
       "soloist": {
