@@ -1077,7 +1077,7 @@ export function useLibraryPlaybackController({
             }
 
             if (!coverUrl) {
-                coverUrl = getProviderSongMetadata(navidromeSong).coverUrl || navidromeApi.getCoverArtUrl(config, navidromeId);
+                coverUrl = getProviderSongMetadata(navidromeSong).coverUrl || navidromeApi.getCoverArtUrl(config, navidromeId, 600);
             }
 
             // The HiFi route also takes the file's format from the server's record: its signal path shows it.
