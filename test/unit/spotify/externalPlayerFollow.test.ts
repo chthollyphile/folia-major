@@ -52,7 +52,7 @@ const omniMock = vi.hoisted(() => ({
 vi.mock('@/services/onlineMusic/omni', () => ({ omni: omniMock }));
 
 const engine = await import('@/services/onlineMusic/externalPlayback');
-const { followRunningExternalPlayer, followsPlayerChangesForShownSong, adoptPlayerTrack } = await import('@/components/app/playback/bridges/externalPlayerFollow');
+const { followRunningExternalPlayer, followsPlayerChangesForShownSong, takeOverRunningPlayer } = await import('@/components/app/playback/bridges/externalPlayerFollow');
 const { makeSongCurrent } = await import('@/components/app/playback/currentSong');
 const { usePlaybackStore } = await import('@/stores/usePlaybackStore');
 const { PlayerState } = await import('@/types');
@@ -259,7 +259,7 @@ describe('a player that follows the listener\'s own changes', () => {
         engine.announceExternalPlayback();
         omniMock.getSongDetail.mockImplementation(() => lookup.promise);
 
-        const adopting = adoptPlayerTrack(song, status({ mediaId: '456', positionMs: 3000 }), {
+        const adopting = takeOverRunningPlayer(song, status({ mediaId: '456', positionMs: 3000 }), {
             isWanted: () => engine.isExternalRoute() && engine.getExternalSong() !== null,
         });
         await flush();
@@ -281,7 +281,7 @@ describe('a player that follows the listener\'s own changes', () => {
         omniMock.getSongDetail.mockResolvedValue(other);
         omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ mediaId: '456', isPlaying: false, positionMs: 3000 }));
 
-        await expect(adoptPlayerTrack(song, status({ mediaId: '456', isPlaying: false, positionMs: 3000 }), {
+        await expect(takeOverRunningPlayer(song, status({ mediaId: '456', isPlaying: false, positionMs: 3000 }), {
             adoptsPausedTrack: true,
         })).resolves.toBe('adopted');
         expect(usePlaybackStore.getState().currentSong).toEqual(other);
@@ -304,7 +304,7 @@ describe('a player that follows the listener\'s own changes', () => {
         omniMock.getSongDetail.mockResolvedValue(other);
         omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ mediaId: '456', positionMs: 3000 }));
 
-        await expect(adoptPlayerTrack(song, status({ mediaId: '456', positionMs: 3000 }))).resolves.toBe('adopted');
+        await expect(takeOverRunningPlayer(song, status({ mediaId: '456', positionMs: 3000 }))).resolves.toBe('adopted');
         expect(omniMock.getSongDetail).toHaveBeenCalledWith('spotify', '456');
         expect(usePlaybackStore.getState().currentSong).toEqual(other);
         expect(engine.getExternalSong()).toEqual(other);

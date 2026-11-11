@@ -63,7 +63,7 @@ vi.mock('@/stores/usePlaybackStore', () => {
 vi.mock('@/components/app/playback/bridges/externalPlayerFollow', () => ({
     followsPlayerChangesForShownSong: () => env.traits.followsPlayerChanges === true,
     followRunningExternalPlayer: () => env.follow(),
-    adoptPlayerTrack: vi.fn(async () => 'untouched'),
+    takeOverRunningPlayer: vi.fn(async () => 'untouched'),
 }));
 
 const { useExternalPlaybackBridge } = await import('@/components/app/playback/bridges/useExternalPlaybackBridge');

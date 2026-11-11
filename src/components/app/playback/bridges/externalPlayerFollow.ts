@@ -54,7 +54,7 @@ export type RunningPlayerTakeOverOptions = {
  * Shows a position on a song: never past its end, where a song shown at its end starts over as a
  * replay does, and never where what is on screen was overtaken while the take-over waited.
  */
-export const showTrackPosition = (song: SongResult, positionMs: number | null, overtaken: () => boolean): void => {
+const showTrackPosition = (song: SongResult, positionMs: number | null, overtaken: () => boolean): void => {
     if (positionMs === null || !Number.isFinite(positionMs) || positionMs <= 0) return;
     if (overtaken()) return;
     const seconds = positionMs / 1000;
@@ -62,12 +62,12 @@ export const showTrackPosition = (song: SongResult, positionMs: number | null, o
 };
 
 /** Whether the player named the track it is on, rather than only its coarse channel or an advertisement. */
-export const namesItsTrack = (status: ProviderExternalPlaybackStatus): boolean => (
+const namesItsTrack = (status: ProviderExternalPlaybackStatus): boolean => (
     status.mediaId !== '' && status.advertisement !== true && status.degraded !== true
 );
 
 /** Whether `song` is the song this app shows now. */
-export const isShownSong = (song: SongResult): boolean => {
+const isShownSong = (song: SongResult): boolean => {
     const shown = usePlaybackStore.getState().currentSong;
     return shown !== null && getPlaybackSongKey(shown) === getPlaybackSongKey(song);
 };
@@ -118,18 +118,6 @@ export const takeOverRunningPlayer = async (
     makeSongCurrent(track);
     return await settleTrackTakeOver(track, remembered, running, options);
 };
-
-/**
- * The track a player this app is already steering moved on to from its own window: that track is
- * looked up and taken over in place of the song on screen, the player going on sounding. A track
- * that cannot be looked up takes nothing at all, so the caller stops the player rather than let a
- * song Folia knows nothing about keep sounding under its controls.
- */
-export const adoptPlayerTrack = async (
-    remembered: SongResult,
-    running: ProviderExternalPlaybackStatus,
-    options: RunningPlayerTakeOverOptions = {},
-): Promise<RunningPlayerOutcome> => takeOverRunningPlayer(remembered, running, options);
 
 /**
  * The second half of a take-over of another track: the player either holds it now (the session is

@@ -11,7 +11,7 @@ import { onlineFailureOf } from '../../../../services/onlineMusic/failure/online
 import { setStatusMessage } from '../../../../stores/useStatusMessageStore';
 import { usePlaybackStore } from '../../../../stores/usePlaybackStore';
 import { onlineFailureToast } from '../source/onlineFailureToast';
-import { adoptPlayerTrack, followsPlayerChangesForShownSong, followRunningExternalPlayer } from './externalPlayerFollow';
+import { followsPlayerChangesForShownSong, followRunningExternalPlayer, takeOverRunningPlayer } from './externalPlayerFollow';
 
 // src/components/app/playback/bridges/useExternalPlaybackBridge.ts
 // The React side of the external playback route: mounts its guard and shim, moves the queue on
@@ -128,7 +128,7 @@ export function useExternalPlaybackBridge({ handleNextTrack, handlePrevTrack }: 
                 // cannot be looked up, the player is stopped as it always was.
                 const current = usePlaybackStore.getState().currentSong;
                 void (current
-                    ? adoptPlayerTrack(current, event.status, {
+                    ? takeOverRunningPlayer(current, event.status, {
                         isWanted: () => isExternalRoute() && getExternalSong() !== null,
                         adoptsPausedTrack: true,
                     })
