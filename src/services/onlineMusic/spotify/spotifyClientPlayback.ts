@@ -137,7 +137,7 @@ interface Attempt {
     /** The app was moved to another track by its own controls and Folia already pulled it back once. */
     pulledBack: boolean;
     /**
-     * Repet one is this song carried out by the app's own repeat of the track: the app then sounds
+     * Repeat one is this song carried out by the app's own repeat of the track: the app then sounds
      * the same track again from its start, and a read that names the same track further back is
      * that turn rather than anything Folia asked for.
      */
