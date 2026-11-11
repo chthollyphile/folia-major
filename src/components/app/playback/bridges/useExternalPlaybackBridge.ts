@@ -122,12 +122,15 @@ export function useExternalPlaybackBridge({ handleNextTrack, handlePrevTrack }: 
             }
             if (event.type === 'track-changed') {
                 // The player's own window moved it on: the track it names is taken over in place of
-                // the song on screen, and the take-over's own session replaces this one. Where the
-                // track cannot be looked up, the player is stopped as it always was.
+                // the song on screen, and the take-over's own session replaces this one. A track the
+                // listener left paused there is taken over the same way, so the press of play goes on
+                // with what the screen shows; the player itself is never paused. Where the track
+                // cannot be looked up, the player is stopped as it always was.
                 const current = usePlaybackStore.getState().currentSong;
                 void (current
                     ? adoptPlayerTrack(current, event.status, {
                         isWanted: () => isExternalRoute() && getExternalSong() !== null,
+                        adoptsPausedTrack: true,
                     })
                     : Promise.resolve('untouched')
                 ).then(outcome => {

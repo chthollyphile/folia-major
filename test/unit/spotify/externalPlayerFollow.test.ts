@@ -169,14 +169,6 @@ describe('a player that follows the listener\'s own changes', () => {
         expect(omniMock.getExternalPlaybackRunningStatus).not.toHaveBeenCalled();
     });
 
-    it('does nothing while the player is paused', async () => {
-        omniMock.getExternalPlaybackRunningStatus.mockResolvedValue(status({ isPlaying: false }));
-
-        await expect(followRunningExternalPlayer()).resolves.toBe('untouched');
-        expect(engine.getExternalSong()).toBeNull();
-        expect(usePlaybackStore.getState().playerState).not.toBe(PlayerState.PLAYING);
-    });
-
     it('does nothing where nothing is playing in the player at all', async () => {
         omniMock.getExternalPlaybackRunningStatus.mockResolvedValue(null);
 
@@ -261,6 +253,30 @@ describe('a player that follows the listener\'s own changes', () => {
         expect(usePlaybackStore.getState().currentSong).toEqual(other);
         expect(engine.getExternalSong()).not.toEqual(songOn('789', 'Asked for'));
         expect(engine.getExternalSong()).not.toEqual(songOn('456', 'Another'));
+    });
+
+    // A player that moved on to another track and was paused there: the session goes with the
+    // screen, so the press of play in Folia continues that track rather than the one the player left.
+    it('takes a track the player moved on to over even where it is paused there', async () => {
+        await engine.beginExternalPlayback(song, 0);
+        engine.announceExternalPlayback();
+        omniMock.playSongExternally.mockClear();
+        omniMock.getSongDetail.mockResolvedValue(other);
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ mediaId: '456', isPlaying: false, positionMs: 3000 }));
+
+        await expect(adoptPlayerTrack(song, status({ mediaId: '456', isPlaying: false, positionMs: 3000 }), {
+            adoptsPausedTrack: true,
+        })).resolves.toBe('adopted');
+        expect(usePlaybackStore.getState().currentSong).toEqual(other);
+        expect(engine.getExternalSong()).toEqual(other);
+        expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PAUSED);
+        expect(omniMock.pauseExternalPlayback).not.toHaveBeenCalled();
+        expect(omniMock.playSongExternally).not.toHaveBeenCalled();
+
+        // The press of play is the track on screen: the player is asked for that one, not the one it left.
+        engine.resumeExternalPlayback();
+        expect(omniMock.resumeExternalPlayback).toHaveBeenCalledWith(other);
+        expect(omniMock.resumeExternalPlayback).not.toHaveBeenCalledWith(song);
     });
 
     // B1: Folia did start this song, and the listener moved the player on to another track from its

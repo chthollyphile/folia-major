@@ -41,6 +41,13 @@ export type RunningPlayerTakeOverOptions = {
      * track lands on the next song.
      */
     onTrackTaken?: (track: SongResult, stillCurrent: () => boolean) => Promise<void> | void;
+    /**
+     * A track the player is paused on is taken over as it stands, rather than only shown where it is:
+     * the session is the track the screen shows, so the press of play continues it. Meant for the
+     * way of playing whose listener keeps using the player's own window, whose pause there is the
+     * listener's own choice of track. A caller that leaves it out (a restore) only shows the pause.
+     */
+    adoptsPausedTrack?: boolean;
 };
 
 /**
@@ -162,9 +169,23 @@ const settleTrackTakeOver = async (
         await options.onTrackTaken?.(track, stillCurrent);
         return 'adopted';
     }
-    // Paused there: shown where the player has it, and from there the press of play starts it. A
-    // player nobody started here is not taken over, so no intent to play is left to start it -
-    // unless a song was asked for while the take-over waited, whose play starts that one.
+    // Paused there: where the caller follows the player's own window, the track is taken over as it
+    // stands as well, so the session is the track the screen shows and the press of play continues
+    // that one rather than the song the player left behind. Nothing is started for it, and the intent
+    // to play the caller armed is dropped - unless a song was asked for while the take-over waited.
+    // A caller that does not ask for this (a restore, whose pause there is only shown) keeps showing
+    // the track where it is.
+    if (options.adoptsPausedTrack === true && stillCurrent() && await adoptExternalPlayback(track)) {
+        if (!stillCurrent()) {
+            yieldExternalPlayback('another song was asked for while the paused track was taken over');
+            return 'untouched';
+        }
+        options.spendPlayIntent?.();
+        await options.onTrackTaken?.(track, stillCurrent);
+        return 'adopted';
+    }
+    // The player did not hold the track after all: it is shown where it is, and the press of play
+    // starts it. A song asked for while the take-over waited keeps the screen and its own play.
     if (stillCurrent()) options.spendPlayIntent?.();
     // The progress bar reads this track's own length: the duration still held is the remembered
     // song's, which is another one. The player's own answer comes first.
