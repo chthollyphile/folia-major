@@ -71,10 +71,16 @@ const namesItsTrack = (status: ProviderExternalPlaybackStatus): boolean => (
 /**
  * The player is this app's now: nothing of this window may sound beside it. A pause pressed a moment
  * before the take-over only ramped the gain down, and the deck itself is paused about 200ms later -
- * by a pending pause the transport drops once another song is on screen. The fade is dropped and the
- * decks are paused and emptied here, which a null source on its own does not do. Each pause is marked
- * as this app's own: left unmarked, the deck's pause event would drop the transport to PAUSED over
- * the song the player is sounding.
+ * by a pending pause the transport drops once another song is on screen. That pending pause is not
+ * what this can rely on: otherwise the deck would be stopped by a pause that may belong to another
+ * song, or not stopped at all once the pause is dropped, so the fade is dropped and the decks are
+ * paused and emptied here, which a null source on its own does not do. Each pause is marked as this
+ * app's own: left unmarked, the deck's pause event would drop the transport to PAUSED over the song
+ * the player is sounding.
+ *
+ * Only a take-over that still answers for the song it was asked for stops them, never one a listener
+ * overtook: a song started in this window meanwhile is the one they just pressed play on, and it
+ * keeps its deck.
  */
 const stopLocalDecksForTakeOver = (): void => {
     playbackFade.cancel();
@@ -261,7 +267,12 @@ export const followRunningExternalPlayer = async (
     return await takeOverRunningPlayer(shown, running, options);
 };
 
-/** Whether a deck of this window is still sounding: paused after the fade-out, or finished, is silence. */
+/**
+ * Whether a deck of this window is still sounding: paused after the fade-out, or finished, is silence.
+ * `paused` is the element's own, and it is trustworthy only because `unloadDeck` follows its pause
+ * with a `load()`: that empties the element and leaves it paused, so a deck a hand-off has let go of
+ * reads paused here instead of as the sound it was making a moment before.
+ */
 const isDeckSounding = (): boolean => findPlaybackDecks(null).some(deck => !deck.paused && !deck.ended);
 
 /**
