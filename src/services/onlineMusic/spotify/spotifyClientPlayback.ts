@@ -302,6 +302,9 @@ const PORT_SEARCH_RETRY_MS = 3000;
 /**
  * The app asked once more where its DevTools port is, a few seconds after a read the media session
  * answered. A read that fails again leaves the first answer standing.
+ *
+ * This spends the restore's own budget (two looks a run, a few seconds apart), which is a thing done
+ * when Folia is reopened. The watcher's read carries a budget of its own and never touches this one.
  */
 const askAgainWhereItsPortIs = async (first: SpotifyWireClientStatus): Promise<SpotifyWireClientStatus> => {
     await new Promise(resolve => setTimeout(resolve, PORT_SEARCH_RETRY_MS));
@@ -844,11 +847,16 @@ export const spotifyClientPlayback: OnlineExternalPlaybackProvider = {
     // Spotify's own window while Folia shows a song of another kind, so no song of this app is
     // compared with the answer. A read only, and one that names no track of its own (the coarse
     // channel, an advertisement) answers null, so nothing is taken over on a name that cannot be
-    // steered. It carries the same one port search a restore's first read brings.
+    // steered.
+    //
+    // It is read every few seconds for the whole of a run, so it spends no restore's port search: it
+    // asks for `client_status_follow`, which looks for the port on the slow budget the watcher has
+    // (a minute apart, six in a run, and only while the app runs without a port Folia has found), so
+    // a Spotify this run did not start can still be followed once it opens one.
     async runningTrack() {
         let data: SpotifyWireClientStatus;
         try {
-            data = await requestSpotify<SpotifyWireClientStatus>('client_status_found');
+            data = await requestSpotify<SpotifyWireClientStatus>('client_status_follow');
         } catch (error) {
             console.warn('[SpotifyClient] the app could not say which track it is on', error);
             return null;

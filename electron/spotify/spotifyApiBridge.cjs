@@ -24,7 +24,7 @@ const SPOTIFY_OPERATIONS = Object.freeze([
   // Spotify's own desktop app as the player (officialClient.cjs). `client_probe` answers whether
   // the app is on this computer at all, without starting anything.
   'client_launch', 'client_restart', 'client_play', 'client_queue', 'client_pause', 'client_resume', 'client_seek', 'client_volume',
-  'client_status', 'client_status_found', 'client_probe', 'client_repeat',
+  'client_status', 'client_status_found', 'client_status_follow', 'client_probe', 'client_repeat',
 ]);
 // How Spotify plays here: 'standard' (librespot, in this process, audio.cjs), 'soloist' (Spotify's
 // own Soloist program on this computer, soloist.cjs) or 'client' (Spotify's desktop app, steered
@@ -654,6 +654,11 @@ function createSpotifyApiBridge({
     // `setTrackRepeat`). The listener's own repeat is kept the way a play keeps it, and put back when
     // repeat one goes off or where this way of playing is left.
     client_repeat: params => client().setTrackRepeat({ on: params?.on === true }),
+    // The same state for the watcher that follows what the app is playing. It is read every few
+    // seconds, so it never spends a restore's search: it looks for the port on a slower, longer
+    // budget of its own (officialClient.cjs's STATUS_FOLLOW_SEARCHES), and only where the app runs
+    // without a port Folia has found.
+    client_status_follow: () => client().statusFollowing(),
     // Whether Spotify's app is on this computer, answered from a cached look at the launcher.
     async client_probe() {
       if (availability && now() - availabilityReadAt < AVAILABILITY_TTL_MS) return availability;
