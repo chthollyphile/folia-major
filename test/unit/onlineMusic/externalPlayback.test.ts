@@ -837,6 +837,31 @@ describe('a move the player takes seconds to take', () => {
         return seen;
     };
 
+    /**
+     * The same drag on a song the listener has stopped: the player stands on the spot the song was
+     * paused at, and goes on naming it until it has loaded the spot the bar was dropped on, where it
+     * then stands. Returns what the bar and the lyrics read every SAMPLE_MS for a stretch past the
+     * landing.
+     */
+    const pausedGridCell = async (fromSec: number, targetSec: number, delayMs: number): Promise<number[]> => {
+        await startFrom(fromSec * 1000);
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ positionMs: fromSec * 1000, isPlaying: false }));
+        await vi.advanceTimersByTimeAsync(500);
+        expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PAUSED);
+        const askedAt = performance.now();
+        omniMock.getExternalPlaybackStatus.mockImplementation(async () => status({
+            positionMs: Math.round(performance.now() - askedAt < delayMs ? fromSec * 1000 : targetSec * 1000),
+            isPlaying: false,
+        }));
+        expect(engine.seekExternalPlayback(targetSec)).toBe(true);
+        const seen: number[] = [engine.getExternalPosition()];
+        for (let waited = 0; waited < delayMs + 3000; waited += SAMPLE_MS) {
+            await vi.advanceTimersByTimeAsync(SAMPLE_MS);
+            seen.push(engine.getExternalPosition());
+        }
+        return seen;
+    };
+
     /** The furthest the bar and the lyrics fell back between two readings, in seconds. */
     const largestDrop = (seen: number[]): number => {
         let largest = 0;
@@ -1364,6 +1389,33 @@ describe('a move the player takes seconds to take', () => {
         expect(engine.getExternalPosition()).toBeCloseTo(60.2, 1);
         expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PAUSED);
     });
+
+    it('stays on the drop where a paused song is dragged a short way and lands slowly', async () => {
+        // The song is stopped where the listener left it, and the bar is dragged a few seconds off that
+        // spot. The player answers the move at once and loads the new spot seconds later, naming the
+        // spot the song stood on for all of it: a stopped line goes on naming it however long the wait.
+        // A window that went on growing from the ask took that line for the drop's own towards the end
+        // of the wait, and the bar and the lyrics fell back the whole drag at once.
+        const distances = [3, 4, 5, -3, -4, -5];
+        const delays = [1500, 3000, 5000];
+        const rows: { distance: number; delay: number; drop: number }[] = [];
+        for (const distance of distances) {
+            const fromSec = distance > 0 ? 10 : 60;
+            for (const delay of delays) {
+                const seen = await pausedGridCell(fromSec, fromSec + distance, delay);
+                rows.push({ distance, delay, drop: largestDrop(seen) });
+                engine.stopExternalPlayback('next cell');
+                usePlaybackStore.setState({
+                    playbackRoute: 'web', audioSrc: null, playerState: PlayerState.IDLE, currentSong: null, playQueue: [song, b, c],
+                });
+            }
+        }
+        // Every cell says how far the bar and the lyrics fell back, before anything is asserted on it.
+        console.log('[paused grid] ' + rows.map(row => `${row.distance}@${row.delay}ms=${row.drop.toFixed(2)}`).join(' '));
+        for (const row of rows) {
+            expect(row.drop, `d=${row.distance} delay=${row.delay}`).toBeLessThanOrEqual(0);
+        }
+    }, 120000);
 
     it('keeps the spot the bar was dropped on where a paused session hears a playing answer with the old one', async () => {
         // The session is paused where the listener stopped it, and a drop is made without asking the
