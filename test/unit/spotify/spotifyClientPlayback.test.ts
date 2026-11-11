@@ -1427,6 +1427,33 @@ describe('the state a session restore reads', () => {
 });
 
 describe('repeat one carried out by the app\'s own repeat of the track', () => {
+    it('reads the listener\'s own press beside the end of the song as their press, not as the song ending', async () => {
+        const [a, b] = ['a', 'b'].map(songOf);
+        await spotifyClientPlayback.play!(a, 0);
+        await spotifyClientPlayback.setTrackRepeat!(true);
+        // The song is in its last seconds, the app repeats the track, and the listener pressed next
+        // in Spotify's own window: the app names another track from right beside this song's end.
+        // Where the song is when they press says nothing about why it moved - the app's own repeat
+        // would bring this same track round - so the press is read as the press it is.
+        statusOfClient(playing(id('a'), { positionMs: 198500 }));
+
+        const status = statusOfClient(playing(id('b'), { positionMs: 0 }));
+        expect(status.ended).toBe(true);
+        expect(status.skipped).toBe('next');
+    });
+
+    it('reads a track change beside the end of the song as the song ending where the app does not repeat it', async () => {
+        const [a, b] = ['a', 'b'].map(songOf);
+        await spotifyClientPlayback.play!(a, 0);
+        statusOfClient(playing(id('a'), { positionMs: 198500 }));
+
+        // No repeat of the track: the app went on to something of its own when this song ran out,
+        // which is what the end of the song reads as.
+        const status = statusOfClient(playing(id('b'), { positionMs: 0 }));
+        expect(status.ended).toBe(true);
+        expect(status.skipped).toBeUndefined();
+    });
+
     it('goes round to the start of the song when the bar is dragged to its end', async () => {
         const [a, b] = ['a', 'b'].map(songOf);
         await spotifyClientPlayback.play!(a, 0);

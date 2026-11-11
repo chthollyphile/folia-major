@@ -452,7 +452,12 @@ export const statusOfClient = (data: SpotifyWireClientStatus): ProviderExternalP
         writtenTracks.delete(id);
         return ended(current);
     }
-    if (id && current.hasPlayed && current.durationMs > 0 && current.positionMs >= current.durationMs - END_TOLERANCE_MS) {
+    // Where the song is no sign of why the app left it: with the app repeating this track, a change
+    // to another one beside the end of it is still the listener's own press, and calling it the end
+    // of the song stepped the queue on where they asked for the next track.
+    const besideEnd = !current.nativeRepeat && id && current.hasPlayed && current.durationMs > 0
+        && current.positionMs >= current.durationMs - END_TOLERANCE_MS;
+    if (besideEnd) {
         // The song ran out and the app went on to a song of its own (its autoplay): the asked-for song
         // is over; Folia's next play replaces what the app chose.
         return ended(current);
