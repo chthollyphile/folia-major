@@ -1677,7 +1677,7 @@ describe('a move the player takes seconds to take', () => {
         // Four and a half seconds after the move landed every read still names the old line, and the
         // drop is still held: the move has not had its five seconds yet.
         await vi.advanceTimersByTimeAsync(4500);
-        expect(engine.getExternalPosition()).toBeGreaterThan(62.5);
+        expect(engine.getExternalPosition()).toBeGreaterThan(63);
 
         // Past them the player's own line stands.
         await vi.advanceTimersByTimeAsync(1500);
