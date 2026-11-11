@@ -173,11 +173,12 @@ const settleTrackTakeOver = async (
             if (stillCurrent()) makeSongCurrent(remembered);
             return 'untouched';
         }
-        // This window sounds nothing of the track from here: the player has it.
-        if (stillCurrent()) stopLocalDecksForTakeOver();
-        // The player took the track under another song that is now on screen: it is this window's
-        // again and nothing of the track is shown, so it is given up as a stop gives it up.
-        if (!stillCurrent()) {
+        // This window sounds nothing of the track from here: the player has it. Where the player took
+        // the track under another song that is now on screen, it is this window's again and nothing of
+        // the track is shown, so it is given up as a stop gives it up.
+        if (stillCurrent()) {
+            stopLocalDecksForTakeOver();
+        } else {
             yieldExternalPlayback('another song was asked for while the player took the track', adopted);
             return 'untouched';
         }
@@ -196,8 +197,9 @@ const settleTrackTakeOver = async (
     if (options.adoptsPausedTrack === true && stillCurrent()) {
         const adopted = await adoptExternalPlayback(track);
         if (adopted) {
-            if (stillCurrent()) stopLocalDecksForTakeOver();
-            if (!stillCurrent()) {
+            if (stillCurrent()) {
+                stopLocalDecksForTakeOver();
+            } else {
                 yieldExternalPlayback('another song was asked for while the paused track was taken over', adopted);
                 return 'untouched';
             }
