@@ -241,5 +241,30 @@ describe('coverUrl utilities', () => {
             expect(getCoverIdentity(cover)).toBe(getCoverIdentity(getSizedCoverUrl(cover, 256)));
             expect(describeCoverUrl(cover)).toEqual({ provider: 'google', requestedSize: 544 });
         });
+
+        it('leaves look-alike paths it has no rule for untouched', () => {
+            const avatar = 'https://imge.kugou.com/kugouicon/165/20200101/a.jpg';
+            const wideApple = 'https://is1-ssl.mzstatic.com/image/thumb/x/cover.jpg/1200x630bb.jpg';
+            const suffixedApple = 'https://is1-ssl.mzstatic.com/image/thumb/x/cover.jpg/512x512bb-60.jpg';
+            const still = 'https://i.ytimg.com/vi/abcdefghijk/hqdefault.jpg';
+            const other = 'https://img1.kuwo.cn.example.test/star/albumcover/240/1.jpg';
+            for (const url of [avatar, wideApple, suffixedApple, still, other]) {
+                expect(getSizedCoverUrl(url, 1024)).toBe(url);
+            }
+        });
+
+        it('serves Kuwo singer pictures past 800 like album covers', () => {
+            expect(getSizedCoverUrl('https://img1.kuwo.cn/star/starheads/240/s4s1/1.jpg', 1024))
+                .toBe('https://img1.kuwo.cn/star/starheads/1024/s4s1/1.jpg');
+        });
+
+        it('reads the new hosts back to their originals', () => {
+            expect(getOriginalCoverUrl('https://is1-ssl.mzstatic.com/image/thumb/x/cover.jpg/512x512bb.jpg'))
+                .toBe('https://is1-ssl.mzstatic.com/image/thumb/x/cover.jpg/5000x5000bb.jpg');
+            expect(getOriginalCoverUrl('https://lh3.googleusercontent.com/abc=w544-h544-l90-rj'))
+                .toBe('https://lh3.googleusercontent.com/abc=s0');
+            expect(getOriginalCoverUrl('https://img1.kuwo.cn/star/albumcover/240/1.jpg'))
+                .toBe('https://img1.kuwo.cn/star/albumcover/1200/1.jpg');
+        });
     });
 });

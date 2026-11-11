@@ -23,6 +23,7 @@ const QQ_PLAYLIST_COVER_SIZES = [150, 300, 600] as const;
 // Apple's artwork CDN names the box in the file name (`…/512x512bb.jpg`) and renders any size into it.
 const APPLE_COVER_HOST_PATTERN = /(?:^|\.)mzstatic\.com$/i;
 const APPLE_COVER_PATH_PATTERN = /\/(\d+)x(\d+)([a-z]{2})?\.(jpe?g|png|webp)$/i;
+const APPLE_COVER_ORIGINAL_BOX = 5000;
 // Google's picture hosts take the size as an ending (`=w544-h544-l90-rj`) and serve any size named.
 const GOOGLE_COVER_HOST_PATTERN = /\.(?:googleusercontent|ggpht)\.com$/i;
 const GOOGLE_COVER_SIZE_PATTERN = /=w(\d+)-h(\d+)((?:-[^=/]*)?)$/;
@@ -121,7 +122,14 @@ export const getOriginalCoverUrl = (url: string | null | undefined): string => {
         }
         if (isKuwoCoverUrl(urlObj)) {
             const originalSize = Number(KUWO_COVER_PATH_PATTERN.exec(urlObj.pathname)?.[2]);
-            return withKuwoCoverSize(urlObj, Math.max(KUWO_COVER_LARGE_SIZE, originalSize));
+            return withKuwoCoverSize(urlObj, Math.max(COVER_MAX_SIZE, originalSize));
+        }
+        // Apple fits the picture into the box and stops at the original (5000 measured; 100000 is
+        // refused); Google's `=s0` ending is the original itself.
+        if (isAppleCoverUrl(urlObj)) return withAppleCoverSize(urlObj, APPLE_COVER_ORIGINAL_BOX);
+        if (isGoogleCoverUrl(urlObj)) {
+            urlObj.pathname = urlObj.pathname.replace(GOOGLE_COVER_SIZE_PATTERN, '=s0');
+            return urlObj.toString();
         }
         return isQqCoverUrl(urlObj) ? withQqCoverSize(urlObj, null) : trimmedUrl;
     } catch {
@@ -131,8 +139,8 @@ export const getOriginalCoverUrl = (url: string | null | undefined): string => {
 
 /**
  * Names the artwork a cover URL points at, ignoring what only changes how it is fetched: the query
- * string and fragment, the protocol, Netease's interchangeable pN hosts, and the size QQ, KuGou and
- * Kuwo write into the path. Two URLs with the same key show the same picture, so callers can
+ * string and fragment, the protocol, Netease's interchangeable pN hosts, and the size QQ, KuGou,
+ * Kuwo and Apple write into the path (or Google into its ending). Two URLs with the same key show the same picture, so callers can
  * compare covers (one album cover shared by every track, a cover flying back to its tile) without
  * being fooled by the CDN handing the same file out under different names.
  */
@@ -239,7 +247,7 @@ export const getSizedCoverUrl = (url: string | null | undefined, size: number): 
 /**
  * Widths a card is allowed to ask for. The steps double, so a box has to change gear by a factor
  * of two before its artwork is refetched, and every one of them lands on something the providers
- * actually serve: QQ rounds 256 up to its own 300 bucket, 512 up to 800 and 1024 up to 1200; Kuwo uses 240 and 800. Local thumbnails are
+ * actually serve: QQ rounds 256 up to its own 300 bucket, 512 up to 800 and 1024 up to 1200; Kuwo uses 240 and 800 below that and the size given above. Local thumbnails are
  * stored at exactly 512 and 1024, and Netease, KuGou and Navidrome resize to the number given.
  * Quantising also keeps the URL shared between cards showing the same song at similar sizes, which
  * is what lets the browser hand them all one decoded bitmap.
