@@ -137,6 +137,20 @@ describe('the channel that carries the agreement', () => {
         }
     });
 
+    it('answers what is really kept after taking a yes back, not what was asked for', () => {
+        const { SETTING_KEY } = consentModule();
+        // A store that could not clear the key still holds the yes: the answer says so, so the switch
+        // that is drawn from it shows the agreement that is still in force rather than a no that never
+        // reached the store.
+        const stuck = memoryStore({ [SETTING_KEY]: true });
+        stuck.delete = () => {};
+        expect(registered(true, stuck)({ sender: 'main' }, false)).toBe(true);
+        expect(consentModule().read(stuck)).toBe(true);
+
+        // The ordinary case is the no it always was.
+        expect(registered(true, memoryStore({ [SETTING_KEY]: true }))({ sender: 'main' }, false)).toBe(false);
+    });
+
     it('refuses a window that is not the main one, before it reads or writes anything', () => {
         const store = memoryStore();
         const handle = registered(false, store);

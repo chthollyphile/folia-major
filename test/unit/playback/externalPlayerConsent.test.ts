@@ -74,9 +74,27 @@ describe('the agreement itself', () => {
         Object.defineProperty(window, 'electron', { value: undefined, configurable: true, writable: true });
         vi.resetModules();
         const module = await import('@/services/onlineMusic/failure/externalPlayerConsent');
-        expect(await module.readExternalPlayerRestartConsent()).toBe(false);
+        // 问不到就是问不到：不问作答，也不把「问不到」说成「没同意过」。设置里那一行据此不画成关。
+        expect(await module.readExternalPlayerRestartConsent()).toBeNull();
         expect(await module.grantExternalPlayerRestartConsent()).toBe(false);
-        await expect(module.revokeExternalPlayerRestartConsent()).resolves.toBeUndefined();
+        expect(await module.revokeExternalPlayerRestartConsent()).toBeNull();
+    });
+
+    it('answers what the main process keeps after taking a yes back, not what was asked for', async () => {
+        // 设置里那一行画的是「主进程现在记着什么」，不是「刚才按了什么」。主进程没能删掉那次同意
+        // 时它仍然是同意着的，撤销要把这个事实答回来，否则开关画成关而 Folia 之后照样不问你。
+        const module = await load(async (grant?: boolean) => (grant === false ? true : true));
+        expect(await module.revokeExternalPlayerRestartConsent()).toBe(true);
+
+        const revoked = await load(async (grant?: boolean) => grant === true);
+        expect(await revoked.revokeExternalPlayerRestartConsent()).toBe(false);
+    });
+
+    it('says nothing was confirmed when the answer never came', async () => {
+        // 通道抛了（例如窗口不是设置里那一行信任的那个）：撤销没有发生，不能答成「已经不是同意着了」。
+        const module = await load(async () => { throw new Error('Untrusted renderer'); });
+        expect(await module.revokeExternalPlayerRestartConsent()).toBeNull();
+        expect(await module.readExternalPlayerRestartConsent()).toBeNull();
     });
 
     it('keeps only a yes, and a no clears what was kept', () => {
