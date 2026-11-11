@@ -25,7 +25,7 @@ const traits = vi.hoisted(() => ({
 }));
 
 const omniMock = vi.hoisted(() => ({
-    canPlayExternally: vi.fn((_song?: SongResult) => true),
+    canPlayExternally: vi.fn<(song: SongResult) => boolean>(() => true),
     canPlaySong: vi.fn(() => true),
     prepareExternalPlaybackQueue: vi.fn(async () => {}),
     playSongExternally: vi.fn(async () => {}),
@@ -403,8 +403,8 @@ describe('a screen of another kind of song, with Folia silent', () => {
 
     it('follows it for a song of another platform that no external player can sound', async () => {
         // Apple Music, whose own player this is not: the song on screen plays in no player at all.
-        omniMock.canPlayExternally.mockImplementation((_song?: SongResult) => (
-            _song?.sourceRef?.kind === 'online' && _song.sourceRef.providerId === 'spotify'
+        omniMock.canPlayExternally.mockImplementation((song: SongResult) => (
+            song.sourceRef?.kind === 'online' && song.sourceRef.providerId === 'spotify'
         ));
         usePlaybackStore.setState({
             playbackRoute: 'web', audioSrc: null, playerState: PlayerState.IDLE,

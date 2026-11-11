@@ -76,7 +76,7 @@ vi.mock('@/components/app/playback/bridges/externalPlayerFollow', () => ({
 const { useExternalPlaybackBridge } = await import('@/components/app/playback/bridges/useExternalPlaybackBridge');
 
 /** Mounts the bridge and hands back the listener the route reports through. */
-const mountBridge = () => {
+const MountBridge = () => {
     env.effects.length = 0;
     env.listener = null;
     useExternalPlaybackBridge({ handleNextTrack: vi.fn(), handlePrevTrack: vi.fn() });
@@ -105,7 +105,7 @@ describe('the track the player moved on to', () => {
     });
 
     it('takes it over in place of the song on screen, a pause there included', async () => {
-        const fire = mountBridge();
+        const fire = MountBridge();
 
         fire({ type: 'track-changed', status: env.status });
         await vi.advanceTimersByTimeAsync(0);
@@ -119,7 +119,7 @@ describe('the track the player moved on to', () => {
     });
 
     it('never stops the player for a track it took over', async () => {
-        const fire = mountBridge();
+        const fire = MountBridge();
 
         fire({ type: 'track-changed', status: env.status });
         await vi.advanceTimersByTimeAsync(0);
@@ -131,7 +131,7 @@ describe('the track the player moved on to', () => {
     // one is. Stopping there left a paused track on screen with its player stopped behind it.
     it('never stops the player for a track it only showed paused', async () => {
         env.outcome = 'shown';
-        const fire = mountBridge();
+        const fire = MountBridge();
 
         fire({ type: 'track-changed', status: env.status });
         await vi.advanceTimersByTimeAsync(0);
@@ -142,7 +142,7 @@ describe('the track the player moved on to', () => {
 
     it('stops the player where nothing of the track could be taken', async () => {
         env.outcome = 'untouched';
-        const fire = mountBridge();
+        const fire = MountBridge();
 
         fire({ type: 'track-changed', status: env.status });
         await vi.advanceTimersByTimeAsync(0);
@@ -153,7 +153,7 @@ describe('the track the player moved on to', () => {
     it('stops the player where the take-over threw', async () => {
         const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
         env.adopt.mockImplementation(() => Promise.reject(new Error('the lookup failed')));
-        const fire = mountBridge();
+        const fire = MountBridge();
 
         fire({ type: 'track-changed', status: env.status });
         await vi.advanceTimersByTimeAsync(0);
