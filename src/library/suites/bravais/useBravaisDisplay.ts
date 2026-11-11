@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type MutableRefObject } from 'react';
 import { planFlip, type FlipOrigin } from '../../../components/wall/flipPlan';
-import { getViewWorldBounds, type WallView, type WallViewCenter } from '../../../components/wall/wallView';
+import type { WallView, WallViewCenter } from '../../../components/wall/wallView';
 import type { WallSlot } from '../../../components/wall/wallSlots';
 import type { WallCameraRange } from '../../../components/wall/finiteWall';
 import type { SeamAxis } from '../../../components/wall/seamPlan';
@@ -42,7 +42,8 @@ import { takeBravaisPendingOrigin } from './bravaisStageStore';
 import { takeBravaisRemovalOrigin } from './bravaisUiStore';
 import type { BravaisFrameState } from './useBravaisFrame';
 import type { BravaisOpeningPlan } from './useBravaisSeam';
-import { anchorAxis, anchorOf, columnAnchor, rowAnchor, seamBoundsOf, seamPointOf, type BravaisAnchor } from './bravaisAnchor';
+import { anchorAxis, anchorOf, columnAnchor, rowAnchor, seamPointOf, type BravaisAnchor } from './bravaisAnchor';
+import { getFlipRanges } from './useBravaisCamera';
 import { planWallWave, WALL_WAVE_EXIT_TOTAL_MS, WALL_WAVE_IN_MS, WALL_WAVE_MAX_DELAY_MS } from './bravaisWallWave';
 import { isSourceOrigin, layerMatchesNavigation, resolveShiftKind, type BravaisShiftKind } from './bravaisShift';
 
@@ -93,9 +94,11 @@ export type BravaisDisplayControls = {
     posterFor: (layer: BravaisLayer) => boolean;
     /** 这一层的缝开在哪个方向（信息条横向时的信息条是 'y'；折叠时是恢复后会用的方向）。 */
     axisFor: (layer: BravaisLayer) => SeamAxis;
+    /** 这一层的缝落定时整层倾斜多少度（bravaisTilt；planOpening 据此离视口边多留一段）。 */
+    tiltFor: (layer: BravaisLayer) => number;
     setAnchor: (anchor: BravaisAnchor) => void;
     /** prefer：想沿用的锚点（同方向才算数）；shape：缝开在哪种形状的块边界上（缺省是显示着的那一层的形状）。 */
-    planOpening: (center: WallViewCenter, width: number, prefer: BravaisAnchor | null, poster?: boolean, shape?: BravaisWallShape, axis?: SeamAxis) => BravaisOpeningPlan;
+    planOpening: (center: WallViewCenter, width: number, prefer: BravaisAnchor | null, poster?: boolean, shape?: BravaisWallShape, axis?: SeamAxis, tiltDeg?: number) => BravaisOpeningPlan;
     /** 换层要先换墙的形状、且缝要换方向：让缝合上后等 finishShapeChange 给锚点再张开（useBravaisSeam 的 awaitAnchor）。 */
     awaitAnchor?: () => void;
     /** 锚点（缺省是墙上此刻的）在不在屏内。 */
@@ -258,13 +261,14 @@ export const useBravaisDisplay = (layer: BravaisLayer | null, controls: BravaisD
 
     const planFlipFor = useCallback((before: BravaisDisplay | null, after: BravaisDisplay, origin: FlipOrigin, slots?: readonly WallSlot[]) => {
         const { frameRef, slotsRef } = latestControls.current;
-        const { view, center } = frameRef.current;
-        if (!view) return null;
+        // 「在不在屏上」按倾斜后的可见范围算（缝在远处时倾斜的视口整块偏开）。
+        const ranges = getFlipRanges(frameRef.current, FLIP_OVERSCAN);
+        if (!ranges) return null;
         flipTokenRef.current += 1;
         const plan = planFlip({
             changes: diffDisplays(before, after, slots ?? slotsRef.current),
             origin,
-            visible: getViewWorldBounds(center, view, { ...seamBoundsOf(frameRef.current), overscan: FLIP_OVERSCAN }),
+            visible: ranges.visible,
             metrics: BRAVAIS_METRICS,
         });
         return { steps: toFlipSteps(flipTokenRef.current, plan), durationMs: plan.durationMs };
@@ -273,13 +277,13 @@ export const useBravaisDisplay = (layer: BravaisLayer | null, controls: BravaisD
     /** 整墙出场 → 入场：从视口左上角量波次（视口加 overscan 以内的磁贴动，其余直接换）。 */
     const planWaveFor = useCallback((before: BravaisDisplay | null, after: BravaisDisplay) => {
         const { frameRef, slotsRef } = latestControls.current;
-        const { view, center } = frameRef.current;
-        if (!view) return null;
+        const ranges = getFlipRanges(frameRef.current, FLIP_OVERSCAN);
+        if (!ranges) return null;
         flipTokenRef.current += 1;
         const plan = planWallWave({
             changes: diffDisplays(before, after, slotsRef.current),
-            viewport: getViewWorldBounds(center, view),
-            visible: getViewWorldBounds(center, view, { ...seamBoundsOf(frameRef.current), overscan: FLIP_OVERSCAN }),
+            viewport: ranges.viewport,
+            visible: ranges.visible,
             metrics: BRAVAIS_METRICS,
         });
         return { steps: toWaveSteps(flipTokenRef.current, plan), durationMs: plan.durationMs };
@@ -288,10 +292,9 @@ export const useBravaisDisplay = (layer: BravaisLayer | null, controls: BravaisD
     /** 整墙入场（B11）：从此刻视口的左上角量错开，入场窗口 = 最大错开 + 落回时长（降低动效时是 0.18s 的淡入）。 */
     const planEntrance = useCallback((): BravaisEntrance | null => {
         const { frameRef, reducedTransitions } = latestControls.current;
-        const { view, center } = frameRef.current;
-        if (!view) return null;
+        const bounds = getFlipRanges(frameRef.current, FLIP_OVERSCAN)?.viewport;
+        if (!bounds) return null;
         flipTokenRef.current += 1;
-        const bounds = getViewWorldBounds(center, view);
         const startedAt = performance.now();
         const durationMs = reducedTransitions ? BRAVAIS_REDUCED_FADE_MS : WALL_WAVE_MAX_DELAY_MS + WALL_WAVE_IN_MS;
         return { token: flipTokenRef.current, corner: { left: bounds.left, top: bounds.top }, startedAt, until: startedAt + durationMs, reduced: reducedTransitions };
@@ -401,7 +404,7 @@ export const useBravaisDisplay = (layer: BravaisLayer | null, controls: BravaisD
         // 换层：与平常的换层同一套开口规划（缝不在屏内时另开一道、歌手海报带到最左边、开口变宽时相机让位）。
         const width = change.preferAnchor === undefined ? 0 : controlsNow.openWidthFor(layer);
         if (width > 0) {
-            const plan = controlsNow.planOpening(center, width, change.preferAnchor ? anchor : null, controlsNow.posterFor(layer), draft.shape, axis);
+            const plan = controlsNow.planOpening(center, width, change.preferAnchor ? anchor : null, controlsNow.posterFor(layer), draft.shape, axis, controlsNow.tiltFor(layer));
             anchor = plan.anchor;
             center = plan.center;
         }
@@ -444,7 +447,7 @@ export const useBravaisDisplay = (layer: BravaisLayer | null, controls: BravaisD
             const axis = controlsNow.axisFor(layer);
             let anchor = anchorOnShape(draft.shape, axis, memoryAnchor(memory), center);
             if (width > 0) {
-                const plan = controlsNow.planOpening(center, width, anchor, controlsNow.posterFor(layer), draft.shape, axis);
+                const plan = controlsNow.planOpening(center, width, anchor, controlsNow.posterFor(layer), draft.shape, axis, controlsNow.tiltFor(layer));
                 anchor = plan.anchor;
                 center = plan.center;
             }
@@ -640,7 +643,7 @@ export const useBravaisDisplay = (layer: BravaisLayer | null, controls: BravaisD
         // 新层的缝换了方向时不沿用（planOpening 只认同方向的），合上后在新方向上张开（useBravaisSeam）。
         if (width > 0) {
             const preferAnchor = leaving || controlsNow.isAnchorOnScreen(anchor);
-            const plan = controlsNow.planOpening(center, width, preferAnchor ? anchor : null, controlsNow.posterFor(layer), previous.shape, controlsNow.axisFor(layer));
+            const plan = controlsNow.planOpening(center, width, preferAnchor ? anchor : null, controlsNow.posterFor(layer), previous.shape, controlsNow.axisFor(layer), controlsNow.tiltFor(layer));
             anchor = plan.anchor;
             center = plan.center;
         }

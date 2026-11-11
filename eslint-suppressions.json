@@ -7708,11 +7708,6 @@
       "count": 1
     }
   },
-  "src/library/suites/bravais/useBravaisPosterTilt.ts": {
-    "@typescript-eslint/no-deprecated": {
-      "count": 1
-    }
-  },
   "src/library/suites/bravais/useBravaisReflowDriver.ts": {
     "@eslint-community/eslint-comments/require-description": {
       "count": 1
@@ -7725,6 +7720,11 @@
     }
   },
   "src/library/suites/bravais/useBravaisSeam.ts": {
+    "@typescript-eslint/no-deprecated": {
+      "count": 1
+    }
+  },
+  "src/library/suites/bravais/useBravaisTilt.ts": {
     "@typescript-eslint/no-deprecated": {
       "count": 1
     }
