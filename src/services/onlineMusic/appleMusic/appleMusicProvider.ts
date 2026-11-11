@@ -220,12 +220,13 @@ export function createAppleMusicProvider(getAvailability: () => ProviderAvailabi
         // it is word-level, the automatic pick must not replace it with another source's.
         lyrics: { getLyrics: readLyrics, getSearchAlias: getAppleMusicLyricSearchAlias, prefersOwnWordByWord: true },
         // Apple's audio never leaves its page: these calls steer the companion's MusicKit player.
-        // A library song is played by its catalog id, which the companion puts in the queue. The one
-        // move it can be given answers from the page itself, and the companion's dispatcher waits
-        // twenty seconds for that answer (createRequestDispatcher in
-        // electron/appleMusic/companionRequests.cjs).
+        // A library song is played by its catalog id, which the companion puts in the queue.
+        // Nothing is declared about how long a move of the player may take: the twenty seconds the
+        // companion's dispatcher waits (createRequestDispatcher in
+        // electron/appleMusic/companionRequests.cjs) is the ceiling on the whole request, not how
+        // long a move of the song takes, and a longer limit for moves is the general layer's - it is
+        // not carried over to this player.
         externalPlayback: {
-            seekLimitMs: 20000,
             canPlay: song => Boolean(appleMusicLiveStationId(song)) || isAppleMusicSongPlayable(song),
             isPrepared(song) {
                 try {

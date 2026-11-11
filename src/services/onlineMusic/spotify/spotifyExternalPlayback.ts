@@ -34,8 +34,8 @@ export const spotifyExternalPlayback: OnlineExternalPlaybackProvider = {
     get holdsMediaKeysWhilePlaying() {
         return current().holdsMediaKeysWhilePlaying === true;
     },
-    // Both programs give a call a limit of their own, and the one that is on says which: a move of
-    // the song runs on under it while the program is taking it.
+    // Only the official app gives its calls a limit to declare; Soloist declares none, so this
+    // answers nothing while that is the way Spotify plays.
     get seekLimitMs() {
         return current().seekLimitMs;
     },

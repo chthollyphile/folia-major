@@ -63,24 +63,24 @@ describe('what the providers declare', () => {
         });
     });
 
-    it('Soloist declares that a real spectrum needs the machine\'s own sound, and its own ten seconds', () => {
+    it('Soloist declares that a real spectrum needs the machine\'s own sound, and no limit for a move', () => {
         expect(spotifySoloistPlayback.capturesSystemAudio).toBe(true);
         expect(spotifySoloistPlayback.startsWithoutWaiting).toBeUndefined();
         expect(spotifySoloistPlayback.backsOffStatusPolls).toBeUndefined();
         expect(spotifySoloistPlayback.holdsMediaKeysWhilePlaying).toBeUndefined();
-        // A seek waits its turn behind a play in electron/spotify/soloist.cjs, and a play is given
-        // PLAY_LIMIT_MS (ten seconds) to take the track.
-        expect(spotifySoloistPlayback.seekLimitMs).toBe(10000);
+        // A seek waits its turn behind a play in electron/spotify/soloist.cjs, which is how long the
+        // play before it may hold it: nothing here is how long a move itself takes.
+        expect(spotifySoloistPlayback.seekLimitMs).toBeUndefined();
     });
 
-    it('Apple Music\'s own player declares none of the four, and the twenty seconds its page is given', () => {
+    it('Apple Music\'s own player declares nothing of them', () => {
         expect(appleMusicProvider.externalPlayback?.capturesSystemAudio).toBeUndefined();
         expect(appleMusicProvider.externalPlayback?.startsWithoutWaiting).toBeUndefined();
         expect(appleMusicProvider.externalPlayback?.backsOffStatusPolls).toBeUndefined();
         expect(appleMusicProvider.externalPlayback?.holdsMediaKeysWhilePlaying).toBeUndefined();
-        // createRequestDispatcher in electron/appleMusic/companionRequests.cjs gives an answer of the
-        // page twenty seconds before it replaces the document it came from.
-        expect(appleMusicProvider.externalPlayback?.seekLimitMs).toBe(20000);
+        // The twenty seconds createRequestDispatcher in electron/appleMusic/companionRequests.cjs
+        // waits are the ceiling on the whole request, not how long a move of the song takes.
+        expect(appleMusicProvider.externalPlayback?.seekLimitMs).toBeUndefined();
     });
 });
 
@@ -96,13 +96,13 @@ describe('omni.externalPlaybackTraits', () => {
         });
     });
 
-    it('reads Soloist\'s one and its own limit while that is the way Spotify plays', async () => {
+    it('reads Soloist\'s one and no limit while that is the way Spotify plays', async () => {
         await pickWay('soloist');
-        expect(omni.externalPlaybackTraits(songOn('spotify'))).toEqual({ ...NONE, capturesSystemAudio: true, seekLimitMs: 10000 });
+        expect(omni.externalPlaybackTraits(songOn('spotify'))).toEqual({ ...NONE, capturesSystemAudio: true });
     });
 
-    it('answers false everywhere for Apple Music, and its own limit', () => {
-        expect(omni.externalPlaybackTraits(songOn('appleMusic'))).toEqual({ ...NONE, seekLimitMs: 20000 });
+    it('answers false everywhere, with no limit, for Apple Music', () => {
+        expect(omni.externalPlaybackTraits(songOn('appleMusic'))).toEqual(NONE);
     });
 
     it('answers false everywhere, with no limit, for a song no provider owns', () => {
@@ -122,6 +122,7 @@ describe('the Spotify facade follows the way that is on', () => {
         expect(spotifyExternalPlayback.startsWithoutWaiting).toBe(false);
         expect(spotifyExternalPlayback.backsOffStatusPolls).toBe(false);
         expect(spotifyExternalPlayback.holdsMediaKeysWhilePlaying).toBe(false);
-        expect(spotifyExternalPlayback.seekLimitMs).toBe(10000);
+        // Only the official app declares a limit for a move, so the facade has none to hand on here.
+        expect(spotifyExternalPlayback.seekLimitMs).toBeUndefined();
     });
 });

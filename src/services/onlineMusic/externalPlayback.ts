@@ -93,6 +93,13 @@ type ExternalSession = {
     preparedQueueKey: string;
     positionRevision: number;
     seekPending: boolean;
+    /**
+     * Where the player stood before the first move that is still in flight, in seconds: a move asked
+     * for on top of one the player has not taken yet is sent from that same spot, so a refusal of it
+     * takes the bar back there rather than to the target the move it replaced was sent from. Null
+     * while no move is in flight.
+     */
+    seekBeforeSec: number | null;
     seeking: boolean;
     /**
      * A move landed and no answer has reported the player's position since: the next playing answer
@@ -696,12 +703,14 @@ export function startExternalPlayback(song: SongResult, startSec = 0, { userActi
     clock.setDuration(durationSec);
     clock.sync({ positionSec: Math.max(0, startSec), paused: true });
     // What this song's provider declared: a start that is no answer at all, asks that space themselves
-    // out. Every other player keeps the app's own waiting and cadence.
+    // out. Every other player keeps the app's own waiting and cadence. Read once here and held for
+    // the session: what the session follows is the way of playing it was started with, even where
+    // that way changes under a song that is already sounding.
     const traits = omni.externalPlaybackTraits(song);
     session = {
         song, songKey, attempt, clock, durationSec, traits,
         announced: false, playing: false, starting: false, sampledPosition: Math.max(0, startSec), prefetchReady: false, live: false, ended: false, foreign: false,
-        degraded: false, handedOver: false, preparedQueueKey: '', positionRevision: 0, seekPending: false, seeking: false, afterSeek: false,
+        degraded: false, handedOver: false, preparedQueueKey: '', positionRevision: 0, seekPending: false, seekBeforeSec: null, seeking: false, afterSeek: false,
     };
     failureNoted = false;
     pollFailures = 0;
@@ -823,7 +832,9 @@ export async function adoptExternalPlayback(song: SongResult): Promise<boolean> 
     session = {
         song, songKey, attempt, clock, durationSec,
         announced: false, playing: false, starting: false, sampledPosition: null, prefetchReady: false, live: false, ended: false, foreign: false,
-        degraded: false, traits: omni.externalPlaybackTraits(song), handedOver: false, preparedQueueKey: '', positionRevision: 0, seekPending: false, seeking: false, afterSeek: false,
+        // The traits are read as the take-over starts and held for the session, as a start holds them:
+        // what is followed is the way of playing this song was picked up from.
+        degraded: false, traits: omni.externalPlaybackTraits(song), handedOver: false, preparedQueueKey: '', positionRevision: 0, seekPending: false, seekBeforeSec: null, seeking: false, afterSeek: false,
     };
     failureNoted = false;
     externalMediaShim.beginTrack(songKey);
@@ -1048,7 +1059,11 @@ export const seekExternalPlayback = (timeSec: number, { resume = false }: { resu
     const revision = ++current.positionRevision;
     // Where the player stood before the move: a move it refuses leaves it there, and the bar goes back
     // to this the moment the refusal is known rather than to whatever a later answer happens to say.
-    const beforeSec = current.clock.read();
+    // A move asked for while another is still in flight keeps the spot that one was sent from: the
+    // player takes the two as one, it has still not left that spot, and a refusal of the one asked
+    // for last must not put the bar on the target the one before it was only sent to.
+    const beforeSec = current.seekBeforeSec ?? current.clock.read();
+    current.seekBeforeSec = beforeSec;
     current.seekPending = true;
     current.prefetchReady = false;
     current.sampledPosition = null;
@@ -1077,6 +1092,9 @@ export const seekExternalPlayback = (timeSec: number, { resume = false }: { resu
     }).finally(() => {
         if (session === current && current.positionRevision === revision) {
             current.seekPending = false;
+            // The move is settled, taken or refused: the next one is sent from wherever the player is
+            // then, which the answer this poll asks for says.
+            current.seekBeforeSec = null;
             // The player has the move: the ask held for it is let go now rather than on its own half
             // second, and the answer that follows says where the player is after it. A move that was
             // refused is not one the player took, so nothing is read as the answer right after it.

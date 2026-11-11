@@ -9,9 +9,10 @@ import type { ProviderExternalPlaybackStatus, ExternalPlaybackTraits } from '@/t
 // land, and every start is timed in one line that names its number. The block before the last one
 // pins the position while a move the player takes seconds to take is in flight - for as long as the
 // way of playing declared with `seekLimitMs`, and a second where it declared nothing - that a move the
-// player refuses puts the bar back at once, and that a move of a song that is gone lands nowhere. The
-// last block pins the limits the Spotify transport puts on the app's own status, level and queue
-// calls, which is what makes a wedged page fail instead of holding the queue.
+// player refuses puts the bar back at once, to the spot the first move still in flight was sent from
+// rather than to the target the one it replaced was sent to, and that a move of a song that is gone
+// lands nowhere. The last block pins the limits the Spotify transport puts on the app's own status,
+// level and queue calls, which is what makes a wedged page fail instead of holding the queue.
 
 const omniMock = vi.hoisted(() => {
     /** What a way of playing that declared nothing about its moves answers (`omni.externalPlaybackTraits`). */
@@ -587,10 +588,45 @@ describe('a move the player takes seconds to take', () => {
         expect(engine.getExternalPosition()).toBeLessThan(stoodAt + 1.5);
     });
 
+    it('takes the bar back to where the listener first moved the song from when a drag made on top of another is refused', async () => {
+        await startFrom(18000);
+        // The listener drags once and the player is still taking that move the whole time.
+        const taking = deferred();
+        omniMock.seekExternalPlayback.mockImplementationOnce(() => taking.promise);
+        const stoodAt = engine.getExternalPosition();
+        engine.seekExternalPlayback(60);
+        await vi.advanceTimersByTimeAsync(2000);
+        expect(engine.getExternalPosition()).toBeGreaterThan(60);
+
+        // A second drag while the first is still in flight replaces it in the bar.
+        const refused = deferred();
+        omniMock.seekExternalPlayback.mockImplementationOnce(() => refused.promise);
+        engine.seekExternalPlayback(30);
+        await vi.advanceTimersByTimeAsync(1000);
+        expect(engine.getExternalPosition()).toBeGreaterThan(30.9);
+
+        // The answer that follows a move is held here, so what the bar says is the spot a refused
+        // move puts it on and nothing else.
+        const held = deferredStatus();
+        omniMock.getExternalPlaybackStatus.mockImplementation(() => held.promise);
+        refused.reject(new Error('seek refused'));
+        await vi.advanceTimersByTimeAsync(0);
+
+        // The player took neither move: it still stands where it stood before the listener dragged at
+        // all, which is where the bar goes back to, not the spot the first drag left it running from.
+        expect(engine.getExternalPosition()).toBeCloseTo(stoodAt, 1);
+        expect(engine.getExternalPosition()).toBeLessThan(19);
+
+        taking.resolve();
+        await vi.advanceTimersByTimeAsync(0);
+        held.resolve(status({ positionMs: 18000, isPlaying: true }));
+        await vi.advanceTimersByTimeAsync(0);
+    });
+
     it('keeps the second it always had where the way of playing declared no limit for a move', async () => {
-        // Apple Music's companion answers a move from its own page without the main process's longer
-        // limit on the call: a player that declared nothing is extrapolated as it always was, so a move
-        // in flight leaves the bar where one second takes it rather than eight.
+        // Stands for the ways of playing that declare no limit for a move: neither Apple Music nor
+        // Soloist declares one. Such a player is extrapolated as it always was, so a move in flight
+        // leaves the bar where one second takes it rather than the eight the official app declares.
         omniMock.externalPlaybackTraits.mockReturnValue(omniMock.NONE_DECLARED);
         await startFrom(10000);
         const taking = deferred();
