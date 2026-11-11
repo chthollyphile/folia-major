@@ -1150,6 +1150,64 @@ describe('a move the player takes seconds to take', () => {
         expect(engine.getExternalPosition()).toBeGreaterThan(30.9);
         expect(engine.getExternalPosition()).toBeLessThan(32);
     });
+
+    it('stays on the spot the bar was dropped on when the paused player still names the old one', async () => {
+        // A song paused where the listener left it, then dropped somewhere else and paused again right
+        // after the drop: every answer the player gives is a stopped one, and the first of them still
+        // names where the song stood before the drop. Taking that position for the pause put the bar and
+        // the lyrics back on the old line for a whole poll, which is the same flicker the playing reads
+        // are already kept from.
+        await startFrom(10000);
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ positionMs: 10200, isPlaying: false }));
+        await vi.advanceTimersByTimeAsync(500);
+        expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PAUSED);
+
+        expect(engine.seekExternalPlayback(60)).toBe(true);
+        await vi.advanceTimersByTimeAsync(20);
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ positionMs: 10500, isPlaying: false }));
+        const seen: number[] = [];
+        for (let waited = 0; waited < 1000; waited += SAMPLE_MS) {
+            await vi.advanceTimersByTimeAsync(SAMPLE_MS);
+            seen.push(engine.getExternalPosition());
+        }
+
+        // The pause is the player's, and the spot is the one the bar was dropped on: never the old line.
+        expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PAUSED);
+        expect(engine.getExternalPosition()).toBeGreaterThanOrEqual(59);
+        expect(Math.min(...seen)).toBeGreaterThanOrEqual(59);
+
+        // The answer that loads the spot stands as it comes: a stopped answer is followed as it always was.
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ positionMs: 60200, isPlaying: false }));
+        await vi.advanceTimersByTimeAsync(500);
+        expect(engine.getExternalPosition()).toBeCloseTo(60.2, 1);
+        expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PAUSED);
+    });
+
+    it('keeps the spot the bar was dropped on where a paused session hears a playing answer with the old one', async () => {
+        // The session is paused where the listener stopped it, and a drop is made without asking the
+        // player to start again. The first answer says it is playing - the player took the move and went
+        // on by itself - but still names the spot the song stood on before the drop: reading that answer
+        // as the start of the song's play put the bar and the lyrics back on the old line.
+        await startFrom(10000);
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ positionMs: 10200, isPlaying: false }));
+        await vi.advanceTimersByTimeAsync(500);
+        expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PAUSED);
+
+        expect(engine.seekExternalPlayback(60)).toBe(true);
+        await vi.advanceTimersByTimeAsync(20);
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ positionMs: 10500, isPlaying: true }));
+        await vi.advanceTimersByTimeAsync(500);
+
+        // The play is taken, and so is the spot the bar was dropped on: never the old line.
+        expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PLAYING);
+        expect(engine.getExternalPosition()).toBeGreaterThanOrEqual(59);
+
+        // The answer that loads the spot is followed as any playing answer is.
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ positionMs: 60200, isPlaying: true }));
+        await vi.advanceTimersByTimeAsync(500);
+        expect(engine.getExternalPosition()).toBeGreaterThan(59.9);
+        expect(engine.getExternalPosition()).toBeLessThan(61);
+    });
 });
 
 describe('the limits the Spotify transport puts on the app own calls', () => {

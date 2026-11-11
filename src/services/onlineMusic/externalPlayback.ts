@@ -478,6 +478,11 @@ const seekExtrapolationSec = (current: ExternalSession): number => {
  * and the player's own answer for it is read as it comes. The answers are given up this way only
  * inside `SEEK_SETTLE_WINDOW_MS` and for `SEEK_SETTLE_READS` of them: a player that moved the song
  * somewhere else altogether has said where it is, and its word stands.
+ *
+ * A stopped answer is read the same way. Dragging the bar and pausing right after it, or dropping it
+ * on a song already stopped, leaves every read of the window a stopped one, and the player answers
+ * the move the same way it does a playing one: it names the spot the song stood on until it loads the
+ * new one. What such a read says about the sound - the song is stopped - is the player's and stands.
  */
 const isSettledMoveRead = (current: ExternalSession, positionSec: number): boolean => {
     if (current.seekSettledAtSec === null) return false;
@@ -670,9 +675,14 @@ const applyStatus = (status: ProviderExternalPlaybackStatus, sampledAtMs: number
     if (status.ended && status.skipped) current.skipped = status.skipped;
     // A move the player answered, whose spot it has not loaded yet: the reads taken before it does
     // are where the song stood, and reading the song's progress off one of them reads a jump across
-    // the song rather than the song sounding on.
-    const settledMoveRead = status.isPlaying && status.mediaId !== '' && status.seeking !== true
+    // the song rather than the song sounding on. A stopped answer is one of them as much as a playing
+    // one: what a move does to the spot the player reports does not depend on it sounding the song.
+    const settledMoveRead = status.mediaId !== '' && status.seeking !== true
         && isSettledMoveRead(current, positionSec);
+    // A read that still names the spot before the move applies everything it says about the player -
+    // it is stopped, or it has started - and nothing it says about where the song stands: that is the
+    // spot the bar was dropped on, which the clock already runs on from.
+    const settledSpotSec = settledMoveRead ? current.seekSettledAtSec ?? positionSec : positionSec;
     if (status.isPlaying && status.mediaId && !status.seeking) {
         if (current.afterSeek || settledMoveRead) {
             // The answer right after a move may still name the position from before it: what it shows
@@ -697,7 +707,7 @@ const applyStatus = (status: ProviderExternalPlaybackStatus, sampledAtMs: number
             if (usePlaybackStore.getState().duration !== durationSec) setDuration(durationSec);
         }
     }
-    const atEnd = durationSec !== null && positionSec >= durationSec - END_TOLERANCE_SEC;
+    const atEnd = durationSec !== null && settledSpotSec >= durationSec - END_TOLERANCE_SEC;
     // Before the app has shown the song, the player's answers only fill in the session: the
     // transport, the shim and the media observers belong to the song on screen until then.
     if (!current.announced) {
@@ -779,7 +789,9 @@ const applyStatus = (status: ProviderExternalPlaybackStatus, sampledAtMs: number
             externalMediaShim.markSeeked();
             emit({ type: 'status' });
         } else if (!current.playing) {
-            markPlaying(positionSec);
+            // The play the answer says is taken, and so is the spot the bar was dropped on: a read that
+            // still names where the song stood is not the spot the song starts from here.
+            markPlaying(settledSpotSec);
         } else if (settledMoveRead) {
             // The spot the bar was dropped on stands: the clock keeps running from there rather than
             // being pulled back to where the song stood before the drop. Nothing is written and no
@@ -798,7 +810,10 @@ const applyStatus = (status: ProviderExternalPlaybackStatus, sampledAtMs: number
         refreshPreparedQueue();
         return;
     }
-    markPaused(positionSec);
+    // The stop is the player's and stands; the spot is the one the bar was dropped on where the answer
+    // still names where the song stood. A pause that wrote that spot would put the bar and the lyrics
+    // back on the old line for a whole poll, the same step back a playing answer is kept from.
+    markPaused(settledSpotSec);
 };
 
 async function poll(): Promise<void> {
