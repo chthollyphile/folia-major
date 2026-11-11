@@ -680,7 +680,7 @@ describe('a start that runs on after the interface', () => {
         omniMock.playSongExternally.mockClear();
         omniMock.externalPlaybackTraits.mockReturnValue({
             capturesSystemAudio: true, startsWithoutWaiting: true, backsOffStatusPolls: true, holdsMediaKeysWhilePlaying: true,
-            loopsTrackNatively: false,
+            seekLimitMs: null, loopsTrackNatively: false,
         });
         useAudioSettingsStore.setState({ loopMode: 'one' });
         const start = engine.startExternalPlayback(song, 0);
@@ -766,7 +766,7 @@ describe('a move the player takes seconds to take', () => {
     /** What Spotify's own app declares (src/services/onlineMusic/spotify/spotifyClientPlayback.ts). */
     const DECLARED: ExternalPlaybackTraits = {
         capturesSystemAudio: true, startsWithoutWaiting: true, backsOffStatusPolls: true, holdsMediaKeysWhilePlaying: true,
-        seekLimitMs: 8000,
+        seekLimitMs: 8000, loopsTrackNatively: true,
     };
 
     /**
