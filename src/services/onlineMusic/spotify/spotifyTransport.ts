@@ -53,11 +53,18 @@ export type SpotifyWireRepeatMode = 'off' | 'all' | 'one';
  * seconds, and something waits on every answer (a status read holds the next poll, a repeat write
  * holds repeat one, a queue write holds the queue). `client_play` is not here: it waits for the song
  * the app is loading, and the main process already limits it.
+ *
+ * `client_status_follow` is the one exception, and it is longer on purpose: the call that carries the
+ * watcher's own port search, taken on this very read where the app runs without a port Folia has
+ * found. That search reads the app's port file and runs a netstat over the machine's loopback
+ * listeners, which took up to about 5.6 seconds in the worst case measured - so a wait of a poll's
+ * length threw away the answer of every read the search landed on. Only the watcher asks for it, once
+ * every few seconds, so a long wait here holds nothing but its own next poll.
  */
 const CLIENT_CALL_LIMITS_MS: Partial<Record<SpotifyOperation, number>> = {
     client_status: 1500,
     client_status_found: 1500,
-    client_status_follow: 1500,
+    client_status_follow: 6000,
     client_volume: 1500,
     client_repeat: 1500,
     client_queue: 4000,
