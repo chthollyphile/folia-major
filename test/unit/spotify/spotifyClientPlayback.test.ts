@@ -1588,6 +1588,33 @@ describe('repeat one carried out by the app\'s own repeat of the track', () => {
         expect(status.ended).toBe(false);
     });
 
+    it('leaves a newer song\'s own repeat record alone when a repeat answers after it replaced this one', async () => {
+        const [a, b] = ['a', 'b'].map(songOf);
+        await spotifyClientPlayback.play!(a, 0);
+        // A repeat asked for the song the app plays now, answered only after another song was asked
+        // for: what came back belongs to that song, and the app is on this one by then.
+        let answer!: (value: unknown) => void;
+        request.mockImplementation(async (operation: string, params?: unknown) => {
+            if (operation === 'client_repeat') return new Promise(resolve => { answer = resolve; });
+            if (operation === 'client_play') return 'loaded';
+            if (operation === 'client_queue') return queueTaken(params);
+            return { available: true };
+        });
+        const asked = spotifyClientPlayback.setTrackRepeat!(true);
+        const next = songOf('b');
+        await spotifyClientPlayback.play!(next, 0);
+        expect(spotifyClientAttempt()?.id).toBe(id('b'));
+        expect(spotifyClientAttempt()?.nativeRepeat).toBe(false);
+
+        answer({ read: true, changed: true, now: 2 });
+        await asked;
+        // The new song never had its repeat confirmed, so the answer of the one before may not say
+        // it did: the record of this attempt stays as it was made.
+        expect(spotifyClientAttempt()?.id).toBe(id('b'));
+        expect(spotifyClientAttempt()?.nativeRepeat).toBe(false);
+        expect(b.name).toBe('Song b');
+    });
+
     it('leaves a start in repeat one to the app\'s repeat only where the app says it holds it', async () => {
         const a = songOf('a');
         // The start answers the repeat the app holds after it: the track, which is what the app then

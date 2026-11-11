@@ -476,6 +476,13 @@ export const statusOfClient = (data: SpotifyWireClientStatus): ProviderExternalP
     // Where the song is no sign of why the app left it: with the app repeating this track, a change
     // to another one beside the end of it is still the listener's own press, and calling it the end
     // of the song stepped the queue on where they asked for the next track.
+    //
+    // This asks only whether the app repeats the track, while the turn of the song above also reads
+    // the repeat a coarse answer shows. The difference is deliberate: a turn needs the app's repeat
+    // held by the song that is playing, but calling a song over on the strength of a position only
+    // ever steps Folia's queue on, so here the answer has to be the one this run wrote and saw. A
+    // repeat the app keeps on its own leaves the position to speak for nothing, and the press below
+    // is what reads it.
     const besideEnd = !current.nativeRepeat && id && current.hasPlayed && current.durationMs > 0
         && current.positionMs >= current.durationMs - END_TOLERANCE_MS;
     if (besideEnd) {
@@ -614,20 +621,26 @@ export const spotifyClientPlayback: OnlineExternalPlaybackProvider = {
         // where this play replaces the whole queue with a list of Folia's, which is the listener
         // asking for that list and nothing else, and then the app's queue is emptied whole.
         //
-        // `singleLoop` says Folia is in repeat one: the start then keeps or turns on the app's own
-        // repeat of the track in the same call, so a song started in repeat one is never turned off
-        // and on again around the start (`setTrackRepeat` covers the mode changing while it plays).
-        // Only this provider declares a repeat of its own, so the flag is passed on as it came.
+        // `singleLoop` says Folia is in repeat one: the start then keeps the app's own repeat of the
+        // track where it is already on, and turns it on where it is not, in the same call - so a song
+        // started in repeat one is never turned off and on again around the start (`setTrackRepeat`
+        // covers the mode changing while the song plays). Only this provider declares a repeat of its
+        // own, so the flag is passed on as it came.
         const singleLoop = options.singleLoop === true;
+        // The attempt this start belongs to, kept across the wait: a newer start replaces it, and the
+        // answer that lands afterwards is then about a song the app no longer plays.
+        const owner = attempt;
         const answer = await requestSpotify<SpotifyClientPlayAnswer>('client_play', {
             id, startMs, userAction, written: writtenIds, replaceQueue: options.replaceQueue === true,
             ...(singleLoop ? { singleLoop: true } : {}),
         });
-        if (singleLoop) {
-            // Only where the app says its own repeat of the track is on: the start answered with the
-            // value it holds afterwards, and a write it refused, a read that could not be made and a
-            // repeat it turned off leave another one, which is Folia's own replay of this song.
-            attempt.nativeRepeat = isLoadedAnswer(answer) && repeatAfterStart(answer) === 2;
+        if (singleLoop && owner && attempt === owner) {
+            // The app's own repeat of the track is what carries this song round again, and this
+            // start either kept the one it found or turned one on: what it answers is the value the
+            // app holds afterwards. Only that value being the track's makes the turn the app's own;
+            // a write it refused, a read that could not be made and a repeat the app keeps another
+            // way all leave Folia's own replay of this song in charge.
+            owner.nativeRepeat = isLoadedAnswer(answer) && repeatAfterStart(answer) === 2;
         }
         // A newer start replaced this one: nothing went wrong, and there is nothing to report.
         if (answer === 'preempted') {
@@ -750,20 +763,23 @@ export const spotifyClientPlayback: OnlineExternalPlaybackProvider = {
     // listener's own repeat was is kept and put back by the desktop side, so off is the same restore
     // that leaving this way of playing makes: a value they changed themselves meanwhile is theirs.
     async setTrackRepeat(on) {
+        // The attempt this call belongs to: a newer song asked for while the call is in flight makes
+        // its answer say nothing about the app's repeat now, and the record of that one is its own.
+        const owner = attempt;
         // Nothing of the app's own repeat is assumed while the call is in flight: a read that lands
         // before it answers belongs to whatever the app held then, and a turn of this song is read
         // as the app's own only once that value is known to be the track's.
-        if (attempt) attempt.nativeRepeat = false;
+        if (owner) owner.nativeRepeat = false;
         try {
             const answer = await requestSpotify<{ read?: boolean; changed?: boolean; now?: number | null } | null>('client_repeat', { on });
             // The repeat the app holds afterwards is the only sign that it repeats this song by
             // itself: a write it refused, a read that could not be made and the listener's own value
             // all leave another one, and repeat one is then Folia's own replay of the song.
-            if (attempt) attempt.nativeRepeat = on && answer?.now === 2;
+            if (attempt === owner && owner) owner.nativeRepeat = on && answer?.now === 2;
         } catch (error) {
             // The song still plays and Folia's own replay still covers repeat one: said once here
             // rather than failing the song.
-            if (attempt) attempt.nativeRepeat = false;
+            if (attempt === owner && owner) owner.nativeRepeat = false;
             console.warn('[SpotifyClient] repeat one could not be turned over to the app\'s own repeat', error);
         }
     },
