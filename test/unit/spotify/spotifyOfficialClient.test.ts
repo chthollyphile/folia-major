@@ -17,7 +17,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const require = createRequire(import.meta.url);
 const {
-    PLAY_STATE_SOURCE, QUEUE_SOURCE, RESTORE_STATE_SOURCE, START_QUEUE_SOURCE, START_WAIT_SOURCE,
+    PLAY_STATE_SOURCE, QUEUE_SOURCE, REPEAT_TRACK_SOURCE, RESTORE_STATE_SOURCE, START_QUEUE_SOURCE, START_WAIT_SOURCE,
     createSpotifyOfficialClient, isAdvertisementItem, repeatModeOf, statusFromMediaSession, statusFromPlayerState,
 } = require('../../../electron/spotify/officialClient.cjs');
 const { createSpotifyApiBridge, SPOTIFY_OPERATIONS } = require('../../../electron/spotify/spotifyApiBridge.cjs');
@@ -407,9 +407,11 @@ describe('the repeat and the shuffle a play changes in the page', () => {
     const playerAt = (state: { repeat?: number; shuffle?: boolean; shuffleKnown?: boolean } = {}) => {
         const player: Record<string, unknown> = {
             calls: [] as string[],
+            reads: 0,
             repeat: state.repeat ?? 0,
             shuffle: state.shuffle ?? false,
             getState() {
+                (player.reads as number) += 1;
                 const shown: Record<string, unknown> = { repeat: this.repeat };
                 // A player that does not report a shuffle at all says nothing about it.
                 if (state.shuffleKnown !== false) shown.shuffle = this.shuffle;
@@ -473,6 +475,57 @@ describe('the repeat and the shuffle a play changes in the page', () => {
         const player = playerAt({ repeat: 2 });
         player.setRepeat = async () => { throw new Error('refused'); };
         await expect(settleWith(player)).resolves.toEqual({ repeat: null, shuffle: null });
+    });
+
+    // Repeat one of Folia's is the app's own repeat of the track: a start made while Folia is in it
+    // keeps that repeat or turns it on in this same call. Turning it off here and on again a moment
+    // later (setTrackRepeat) would be two writes of one setting, and a read between them would see a
+    // repeat that is neither.
+    const settleInRepeatOneWith = async (player: Record<string, unknown>) => settle({ api: { player }, singleLoop: true });
+
+    it('keeps a repeat of the track a start in repeat one finds', async () => {
+        const player = playerAt({ repeat: 2 });
+        await expect(settleInRepeatOneWith(player)).resolves.toMatchObject({ repeat: null, shuffle: null, left: 2 });
+        expect(player.calls).toEqual([]);
+    });
+
+    it('turns the repeat of the track on for a start in repeat one, and keeps the value it found', async () => {
+        const player = playerAt({ repeat: 0 });
+        await expect(settleInRepeatOneWith(player)).resolves.toMatchObject({ repeat: 'off', shuffle: null, left: 2 });
+        expect(player.calls).toEqual(['setRepeat 2']);
+    });
+
+    it('keeps a repeat of the list as the listener\'s own, and still repeats the track', async () => {
+        const player = playerAt({ repeat: 1 });
+        await expect(settleInRepeatOneWith(player)).resolves.toMatchObject({ repeat: 'all', left: 2 });
+        expect(player.calls).toEqual(['setRepeat 2']);
+    });
+
+    it('says only what the app holds afterwards where the player would not repeat the track', async () => {
+        const player = playerAt({ repeat: 0 });
+        player.setRepeat = async () => { throw new Error('refused'); };
+        await expect(settleInRepeatOneWith(player)).resolves.toMatchObject({ repeat: null, left: 0 });
+    });
+
+    it('turns a shuffle off in a start in repeat one as well, and says so once', async () => {
+        const player = playerAt({ repeat: 2, shuffle: true });
+        await expect(settleInRepeatOneWith(player)).resolves.toMatchObject({ repeat: null, shuffle: true, left: 2 });
+        expect(player.calls).toEqual(['setShuffle false']);
+    });
+
+    // A start in repeat one reads the player once: what it holds is the one account of both the value
+    // it has to keep and the value it leaves, and a second read could only repeat the first - while
+    // costing the page a round trip in the middle of a start.
+    it('reads the player once, whatever it found and whatever it did', async () => {
+        for (const repeat of [0, 1, 2]) {
+            const player = playerAt({ repeat, shuffle: true });
+            await settleInRepeatOneWith(player);
+            expect(player.reads).toBe(1);
+        }
+        const refused = playerAt({ repeat: 0, shuffle: true });
+        refused.setRepeat = async () => { throw new Error('refused'); };
+        await settleInRepeatOneWith(refused);
+        expect(refused.reads).toBe(1);
     });
 });
 
@@ -575,6 +628,57 @@ describe('the repeat and the shuffle Folia put back', () => {
         expect(app.taskkills()).toBe(0);
         await app.client.close();
     });
+
+    it('reads back the value a start in repeat one left, so that value is what a restore compares against', async () => {
+        // A start made in repeat one leaves the app repeating the track: what a restore finds then
+        // is still Folia's, and the listener's own value goes back. A start of anything else leaves
+        // it off, which is the other value that same record covers.
+        handle = expression => ({
+            value: expression.includes('window.__foliaPlay')
+                ? { answer: 'loaded', changed: { repeat: 'off', shuffle: null, left: 2 } }
+                : true,
+        });
+        const app = makeClient({ running: true, portAnswers: true });
+        await expect(app.client.play({ id: TRACK, startMs: 0, singleLoop: true })).resolves.toBe('loaded');
+        expect(app.client.changedState()).toEqual({ repeat: 'off', shuffle: null });
+
+        const scripts: string[] = [];
+        handle = expression => {
+            scripts.push(expression);
+            return { value: { repeat: true, shuffle: false } };
+        };
+        await expect(app.client.restoreUserState()).resolves.toEqual({ repeat: null, shuffle: null });
+        // The repeat goes to the value the listener had, and it is written only where the app still
+        // holds the track repeat this run left.
+        expect(scripts.some(script => script.includes('const repeat = 0') && script.includes('repeatExpected: 2'))).toBe(true);
+        await app.client.close();
+    });
+
+    it('leaves the shuffle for leaving this way of playing when repeat one goes off', async () => {
+        // Repeat one going off puts the repeat back and nothing else: the shuffle belongs to leaving
+        // this way of playing, and turning it back on here would reorder the queue Folia is about to
+        // play from.
+        handle = expression => ({
+            value: expression.includes('window.__foliaPlay')
+                ? { answer: 'loaded', changed: { repeat: 'off', shuffle: true, left: 0 } }
+                : true,
+        });
+        const app = makeClient({ running: true, portAnswers: true });
+        await app.client.play({ id: TRACK, startMs: 0 });
+        expect(app.client.changedState()).toEqual({ repeat: 'off', shuffle: true });
+
+        const scripts: string[] = [];
+        handle = expression => {
+            scripts.push(expression);
+            return { value: { repeat: true, shuffle: false } };
+        };
+        await expect(app.client.setTrackRepeat({ on: false })).resolves.toMatchObject({ read: true });
+        // The script named the repeat alone: the shuffle it turned off is still Folia's to put back
+        // when this way of playing is left.
+        expect(scripts.some(script => script.includes('const repeat = 0') && script.includes('const shuffle = false'))).toBe(true);
+        expect(app.client.changedState()).toEqual({ repeat: null, shuffle: true });
+        await app.client.close();
+    });
 });
 
 describe('the repeat and the shuffle a restore puts back in the page', () => {
@@ -644,6 +748,63 @@ describe('the repeat and the shuffle a restore puts back in the page', () => {
         const player = playerSaying({ repeat: 1, shuffle: true });
         await expect(restoreWith(player, null, false)).resolves.toMatchObject({ repeat: false, shuffle: false });
         expect(player.calls).toEqual([]);
+    });
+});
+
+describe('repeat one carried out by Spotify\'s own repeat of the track', () => {
+    type Repeat = (input: unknown) => Promise<{ read: boolean; before: number | null; now: number | null }>;
+    const turnOn = (new Function('return (' + String(REPEAT_TRACK_SOURCE) + ')')()) as Repeat;
+
+
+    /** A player that reports this repeat and records every call the source made on it. */
+    const playerRepeating = (state: { repeat?: number | null; unreadable?: boolean; refuses?: boolean }) => {
+        const player: Record<string, unknown> = {
+            calls: [] as string[],
+            repeat: state.repeat ?? 0,
+            getState() {
+                if (state.unreadable) throw new Error('the state is not readable now');
+                return { repeat: player.repeat };
+            },
+            setRepeat: async (value: number) => {
+                if (state.refuses) throw new Error('refused');
+                (player.calls as string[]).push('setRepeat ' + value);
+                player.repeat = value;
+            },
+        };
+        return player;
+    };
+
+    it('turns repeat of the track on and says what it was', async () => {
+        const player = playerRepeating({ repeat: 0 });
+        await expect(turnOn({ api: { player } })).resolves.toEqual({ read: true, before: 0, now: 2 });
+        expect(player.calls).toEqual(['setRepeat 2']);
+    });
+
+    it('leaves a repeat of the track it already holds alone', async () => {
+        const player = playerRepeating({ repeat: 2 });
+        await expect(turnOn({ api: { player } })).resolves.toEqual({ read: true, before: 2, now: 2 });
+        expect(player.calls).toEqual([]);
+    });
+
+    it('keeps a repeat of the list it found, and still turns the track on', async () => {
+        // A play names one track uri and no context, so repeat of the track repeats this song and
+        // nothing else: the list repeat it found is what goes back when repeat one goes off.
+        const player = playerRepeating({ repeat: 1 });
+        await expect(turnOn({ api: { player } })).resolves.toEqual({ read: true, before: 1, now: 2 });
+        expect(player.calls).toEqual(['setRepeat 2']);
+    });
+
+    it('changes nothing, and says it could read nothing, where the player will not say', async () => {
+        const player = playerRepeating({ unreadable: true });
+        await expect(turnOn({ api: { player } })).resolves.toEqual({ read: false, before: null, now: null });
+        expect(player.calls).toEqual([]);
+    });
+
+    it('says the repeat is still off where the player refuses the call', async () => {
+        const player = playerRepeating({ repeat: 0, refuses: true });
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        await expect(turnOn({ api: { player } })).resolves.toEqual({ read: true, before: 0, now: 0 });
+        warn.mockRestore();
     });
 });
 
@@ -1077,7 +1238,7 @@ describe('the bridge over the official client', () => {
     it('offers no operation the renderer never called', async () => {
         const officialClient = makeOfficialClient();
         const bridge = makeBridge(officialClient);
-        for (const operation of ['client_next', 'client_previous', 'client_repeat']) {
+        for (const operation of ['client_next', 'client_previous', 'client_shuffle']) {
             expect(SPOTIFY_OPERATIONS).not.toContain(operation);
             expect(await bridge.request(operation, {})).toMatchObject({ ok: false, error: { code: 'unsupported' } });
         }

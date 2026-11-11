@@ -1425,3 +1425,100 @@ describe('the state a session restore reads', () => {
         }
     });
 });
+
+describe('repeat one carried out by the app\'s own repeat of the track', () => {
+    it('goes round to the start of the song when the bar is dragged to its end', async () => {
+        const [a, b] = ['a', 'b'].map(songOf);
+        await spotifyClientPlayback.play!(a, 0);
+        // Repeat one: the song that followed was written and then taken back, so nothing Folia wrote
+        // is behind this one, and the app repeats this track itself.
+        await spotifyClientPlayback.prepareNext!(a, [b]);
+        await spotifyClientPlayback.prepareNext!(a, [], { retract: true });
+        await spotifyClientPlayback.setTrackRepeat!(true);
+        statusOfClient(playing(id('a'), { positionMs: 30000 }));
+
+        // The bar is dragged to the far right. The app repeats the track, so the read that follows
+        // names this same song at its start: that is the song heard again, not the end of it, and
+        // Folia's queue does not step on to the next song of the list.
+        await spotifyClientPlayback.seek!(200);
+        const status = statusOfClient(playing(id('a'), { positionMs: 0 }));
+        expect(status.ended).toBe(false);
+        expect(status.skipped).toBeUndefined();
+        expect(status.replayed).toBe(true);
+        expect(status.mediaId).toBe(id('a'));
+    });
+
+    it('reads a drag back as a seek where the app no longer repeats the track', async () => {
+        const a = songOf('a');
+        await spotifyClientPlayback.play!(a, 0);
+        await spotifyClientPlayback.setTrackRepeat!(true);
+        statusOfClient(playing(id('a'), { positionMs: 60000 }));
+
+        // The listener turned the app's repeat off in Spotify's own window: a read that names this
+        // song further back is their drag, not the app taking the song round again.
+        const status = statusOfClient(playing(id('a'), { positionMs: 0, repeat: 'off' }));
+        expect(status.replayed).toBeUndefined();
+        expect(status.ended).toBe(false);
+        expect(status.skipped).toBeUndefined();
+    });
+
+    it('never steps on to the next song of the list while the app repeats the track itself', async () => {
+        const a = songOf('a');
+        await spotifyClientPlayback.play!(a, 0);
+        await spotifyClientPlayback.setTrackRepeat!(true);
+        let positionMs = 1000;
+        // The song plays round and round: every read names it, and its position starts over.
+        for (const read of [30000, 199000, 0, 1000, 200000, 0]) {
+            const status = statusOfClient(playing(id('a'), { positionMs: read }));
+            expect(status.ended).toBe(false);
+            expect(status.skipped).toBeUndefined();
+            positionMs = read;
+        }
+        expect(positionMs).toBe(0);
+    });
+
+    it('keeps the song when a coarse read still names it, however near its own end it was', async () => {
+        const [a, b] = ['a', 'b'].map(songOf);
+        await spotifyClientPlayback.play!(a, 0);
+        statusOfClient(playing(id('a')));
+        await spotifyClientPlayback.prepareNext!(a, [b]);
+        await spotifyClientPlayback.setTrackRepeat!(true);
+        // The media session answers instead of the app's own player: it names no track, and the
+        // position it carries is the only sign of how far the song got.
+        statusOfClient(degraded({ positionMs: 1000, title: 'Song a', artist: 'Artist' }));
+        statusOfClient(degraded({ positionMs: 199500, title: 'Song a', artist: 'Artist' }));
+
+        // It is still this song at its own end, and the app repeats it: nothing steps on.
+        const status = statusOfClient(degraded({ positionMs: 199900, title: 'Song a', artist: 'Artist' }));
+        expect(status.ended).toBe(false);
+        expect(status.skipped).toBeUndefined();
+    });
+
+    it('reads a name Folia never wrote by the name, never by where the song had got to', async () => {
+        // How far the song had got is no sign of what became of it: the same answer reads the same
+        // way near its end as far from it. Guessing from it called the listener's own press the end
+        // of the song, and the song's end their press.
+        const [a, b] = ['a', 'b'].map(songOf);
+        await spotifyClientPlayback.play!(a, 0);
+        statusOfClient(playing(id('a')));
+        await spotifyClientPlayback.prepareNext!(a, [b]);
+        statusOfClient(degraded({ positionMs: 1000, title: 'Song a', artist: 'Artist' }));
+        statusOfClient(degraded({ positionMs: 199500, title: 'Song a', artist: 'Artist' }));
+
+        const status = statusOfClient(degraded({ positionMs: 199900, title: 'Something Else', artist: 'Somebody' }));
+        expect(status.ended).toBe(true);
+        expect(status.skipped).toBe('next');
+    });
+
+    it('still pulls a coarse answer far from the end of the song back to Folia queue', async () => {
+        const [a, b] = ['a', 'b'].map(songOf);
+        await spotifyClientPlayback.play!(a, 0);
+        statusOfClient(playing(id('a')));
+        await spotifyClientPlayback.prepareNext!(a, [b]);
+        statusOfClient(degraded({ positionMs: 1000, title: 'Song a', artist: 'Artist' }));
+
+        const status = statusOfClient(degraded({ positionMs: 1000, title: 'Something Else', artist: 'Somebody' }));
+        expect(status.ended).toBe(true);
+        expect(status.skipped).toBe('next');
+    });
+});

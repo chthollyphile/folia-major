@@ -19,6 +19,7 @@ const omniMock = vi.hoisted(() => {
     const NONE_DECLARED = {
         capturesSystemAudio: false, startsWithoutWaiting: false, backsOffStatusPolls: false, holdsMediaKeysWhilePlaying: false,
         seekLimitMs: null as number | null,
+        loopsTrackNatively: false,
     };
     return {
         NONE_DECLARED,
@@ -30,6 +31,7 @@ const omniMock = vi.hoisted(() => {
         resumeExternalPlayback: vi.fn(async () => {}),
         seekExternalPlayback: vi.fn(async () => {}),
         setExternalPlaybackVolume: vi.fn(async () => {}),
+        setExternalTrackRepeat: vi.fn(async () => {}),
         getExternalPlaybackStatus: vi.fn(async (): Promise<ProviderExternalPlaybackStatus> => ({
             mediaId: '123', isPlaying: true, positionMs: 5000, durationMs: 200000, ended: false,
         })),
@@ -42,6 +44,7 @@ const omniMock = vi.hoisted(() => {
             backsOffStatusPolls: true,
             holdsMediaKeysWhilePlaying: true,
             seekLimitMs: 8000,
+            loopsTrackNatively: true,
         })),
     };
 });
@@ -403,6 +406,121 @@ describe('a start that runs on after the interface', () => {
 
         expect(ends).toHaveLength(1);
         expect(ends[0].heard).toBe(true);
+        unsubscribe();
+    });
+
+    it('says an end was not heard where a buffering read preceded the end of a song that had played', async () => {
+        // Repeat one replays the song that ended only where the player said this song was sounding
+        // (useExternalPlaybackBridge reads that as `heard`). A player that answers "still buffering"
+        // in the last seconds of a song it had been playing clears that flag, so the end that
+        // follows is reported as one that was never heard and the queue steps on. Pinned here as it
+        // stands: the song did sound, and the reading is what the bridge goes by.
+        const ends: { heard?: boolean }[] = [];
+        const unsubscribe = engine.subscribeExternalPlayback(event => {
+            if (event.type === 'ended') ends.push(event);
+        });
+        const answers = [
+            status({ positionMs: 5000 }),
+            status({ isPlaying: false, starting: true, positionMs: 199000 }),
+            status({ isPlaying: false, positionMs: 200000, ended: true }),
+        ];
+        omniMock.getExternalPlaybackStatus.mockImplementation(async () => answers.shift() ?? status({ isPlaying: false, positionMs: 200000, ended: true }));
+        const start = engine.startExternalPlayback(song, 0);
+        engine.announceExternalPlayback();
+        await start.seeded;
+        await vi.advanceTimersByTimeAsync(2000);
+
+        expect(ends).toHaveLength(1);
+        expect(ends[0].heard).toBe(false);
+        unsubscribe();
+    });
+
+    it('hands repeat one to the player\'s own repeat of the track, and takes it back when it goes off', async () => {
+        omniMock.setExternalTrackRepeat.mockClear();
+        useAudioSettingsStore.setState({ loopMode: 'off' });
+        const start = engine.startExternalPlayback(song, 0);
+        engine.announceExternalPlayback();
+        await start.seeded;
+
+        // Repeat one is the player's own repeat of the track: it sounds the song again by itself,
+        // so no start is asked for at its end.
+        useAudioSettingsStore.setState({ loopMode: 'one' });
+        await vi.advanceTimersByTimeAsync(1);
+        expect(omniMock.setExternalTrackRepeat).toHaveBeenLastCalledWith(song, true);
+
+        // Another mode, and the listener's own repeat goes back where it was.
+        useAudioSettingsStore.setState({ loopMode: 'all' });
+        await vi.advanceTimersByTimeAsync(1);
+        expect(omniMock.setExternalTrackRepeat).toHaveBeenLastCalledWith(song, false);
+    });
+
+    it('asks for the repeat of the track in the start itself when the song starts in repeat one', async () => {
+        omniMock.setExternalTrackRepeat.mockClear();
+        omniMock.playSongExternally.mockClear();
+        useAudioSettingsStore.setState({ loopMode: 'one' });
+        const start = engine.startExternalPlayback(song, 0);
+        engine.announceExternalPlayback();
+        await start.seeded;
+        await vi.advanceTimersByTimeAsync(1000);
+
+        // The start carries it: the setting is never turned off here and on again a moment later,
+        // and no second call follows the start for a repeat it already left in place.
+        expect(omniMock.playSongExternally).toHaveBeenCalledWith(song, 0, { userAction: true, singleLoop: true });
+        expect(omniMock.setExternalTrackRepeat).not.toHaveBeenCalled();
+
+        // Leaving repeat one for the next song's start hands the value back once.
+        useAudioSettingsStore.setState({ loopMode: 'off' });
+        await vi.advanceTimersByTimeAsync(1);
+        expect(omniMock.setExternalTrackRepeat).toHaveBeenLastCalledWith(song, false);
+    });
+
+    it('asks the player nothing of repeat when a song of Folia\'s starts on a player without one', async () => {
+        omniMock.setExternalTrackRepeat.mockClear();
+        omniMock.playSongExternally.mockClear();
+        omniMock.externalPlaybackTraits.mockReturnValue({
+            capturesSystemAudio: true, startsWithoutWaiting: true, backsOffStatusPolls: true, holdsMediaKeysWhilePlaying: true,
+            loopsTrackNatively: false,
+        });
+        useAudioSettingsStore.setState({ loopMode: 'one' });
+        const start = engine.startExternalPlayback(song, 0);
+        engine.announceExternalPlayback();
+        await start.seeded;
+        await vi.advanceTimersByTimeAsync(1000);
+
+        // Apple Music and the other players have no repeat of their own here: repeat one stays the
+        // app's own replay, and nothing is asked of them.
+        expect(omniMock.setExternalTrackRepeat).not.toHaveBeenCalled();
+    });
+
+    it('says nothing of repeat for a player that was only taken over', async () => {
+        omniMock.setExternalTrackRepeat.mockClear();
+        useAudioSettingsStore.setState({ loopMode: 'one' });
+        await engine.adoptExternalPlayback(song);
+        engine.announceExternalPlayback();
+        await vi.advanceTimersByTimeAsync(1000);
+
+        // The app follows the listener's own song here, and this run was not told to hold it: what
+        // repeat it has is theirs until a song of Folia's is started.
+        expect(omniMock.setExternalTrackRepeat).not.toHaveBeenCalled();
+        expect(engine.isExternalTakeoverPending()).toBe(true);
+    });
+
+    it('takes the song round again where the player repeats it, and never ends or steps past it', async () => {
+        const events: string[] = [];
+        const unsubscribe = engine.subscribeExternalPlayback(event => events.push(event.type));
+        useAudioSettingsStore.setState({ loopMode: 'one' });
+        omniMock.getExternalPlaybackStatus.mockImplementation(async () => status({ positionMs: 30000 }));
+        const start = engine.startExternalPlayback(song, 0);
+        engine.announceExternalPlayback();
+        await start.seeded;
+
+        // The player's own repeat sounded the song again from its start: the same song, at its
+        // beginning, with no end and no step on.
+        omniMock.getExternalPlaybackStatus.mockImplementation(async () => status({ positionMs: 200 }));
+        await vi.advanceTimersByTimeAsync(600);
+        expect(events).not.toContain('ended');
+        expect(engine.getExternalPosition()).toBeLessThan(2);
+        expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PLAYING);
         unsubscribe();
     });
 
