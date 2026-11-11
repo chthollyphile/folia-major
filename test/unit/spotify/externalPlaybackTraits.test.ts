@@ -3,8 +3,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 // test/unit/spotify/externalPlaybackTraits.test.ts — what each provider declares about how its
 // external player plays (src/types/onlineMusic.ts, OnlineExternalPlaybackProvider): a real spectrum
 // that needs the machine's own sound, a start the interface does not wait on, spaced-out status
-// polls, and the keys held while a song of Folia's sounds. omni.externalPlaybackTraits reads them
-// and answers false for anything a provider left out, which is what Apple Music does.
+// polls, the keys held while a song of Folia's sounds, and how long a move of the player may take.
+// omni.externalPlaybackTraits reads them and answers false, with no limit, for anything a provider
+// left out.
 
 const requestSpotify = vi.fn();
 vi.mock('@/services/onlineMusic/spotify/spotifyTransport', () => ({
@@ -37,6 +38,7 @@ const NONE = {
     startsWithoutWaiting: false,
     backsOffStatusPolls: false,
     holdsMediaKeysWhilePlaying: false,
+    seekLimitMs: null,
 };
 
 const pickWay = async (mode: 'soloist' | 'client') => {
@@ -51,65 +53,75 @@ afterEach(() => {
 });
 
 describe('what the providers declare', () => {
-    it('the official app declares all four', () => {
+    it('the official app declares all four, and the eight seconds its every call is given', () => {
         expect(spotifyClientPlayback).toMatchObject({
             capturesSystemAudio: true,
             startsWithoutWaiting: true,
             backsOffStatusPolls: true,
             holdsMediaKeysWhilePlaying: true,
+            seekLimitMs: 8000,
         });
     });
 
-    it('Soloist declares only that a real spectrum needs the machine\'s own sound', () => {
+    it('Soloist declares that a real spectrum needs the machine\'s own sound, and its own ten seconds', () => {
         expect(spotifySoloistPlayback.capturesSystemAudio).toBe(true);
         expect(spotifySoloistPlayback.startsWithoutWaiting).toBeUndefined();
         expect(spotifySoloistPlayback.backsOffStatusPolls).toBeUndefined();
         expect(spotifySoloistPlayback.holdsMediaKeysWhilePlaying).toBeUndefined();
+        // A seek waits its turn behind a play in electron/spotify/soloist.cjs, and a play is given
+        // PLAY_LIMIT_MS (ten seconds) to take the track.
+        expect(spotifySoloistPlayback.seekLimitMs).toBe(10000);
     });
 
-    it('Apple Music\'s own player declares none of them', () => {
+    it('Apple Music\'s own player declares none of the four, and the twenty seconds its page is given', () => {
         expect(appleMusicProvider.externalPlayback?.capturesSystemAudio).toBeUndefined();
         expect(appleMusicProvider.externalPlayback?.startsWithoutWaiting).toBeUndefined();
         expect(appleMusicProvider.externalPlayback?.backsOffStatusPolls).toBeUndefined();
         expect(appleMusicProvider.externalPlayback?.holdsMediaKeysWhilePlaying).toBeUndefined();
+        // createRequestDispatcher in electron/appleMusic/companionRequests.cjs gives an answer of the
+        // page twenty seconds before it replaces the document it came from.
+        expect(appleMusicProvider.externalPlayback?.seekLimitMs).toBe(20000);
     });
 });
 
 describe('omni.externalPlaybackTraits', () => {
-    it('reads the official app\'s four while that is the way Spotify plays', async () => {
+    it('reads the official app\'s four and its limit while that is the way Spotify plays', async () => {
         await pickWay('client');
         expect(omni.externalPlaybackTraits(songOn('spotify'))).toEqual({
             capturesSystemAudio: true,
             startsWithoutWaiting: true,
             backsOffStatusPolls: true,
             holdsMediaKeysWhilePlaying: true,
+            seekLimitMs: 8000,
         });
     });
 
-    it('reads Soloist\'s one while that is the way Spotify plays', async () => {
+    it('reads Soloist\'s one and its own limit while that is the way Spotify plays', async () => {
         await pickWay('soloist');
-        expect(omni.externalPlaybackTraits(songOn('spotify'))).toEqual({ ...NONE, capturesSystemAudio: true });
+        expect(omni.externalPlaybackTraits(songOn('spotify'))).toEqual({ ...NONE, capturesSystemAudio: true, seekLimitMs: 10000 });
     });
 
-    it('answers false everywhere for Apple Music, which declared nothing', () => {
-        expect(omni.externalPlaybackTraits(songOn('appleMusic'))).toEqual(NONE);
+    it('answers false everywhere for Apple Music, and its own limit', () => {
+        expect(omni.externalPlaybackTraits(songOn('appleMusic'))).toEqual({ ...NONE, seekLimitMs: 20000 });
     });
 
-    it('answers false everywhere for a song no provider owns', () => {
+    it('answers false everywhere, with no limit, for a song no provider owns', () => {
         expect(omni.externalPlaybackTraits(songOn('no-such-provider'))).toEqual(NONE);
     });
 });
 
 describe('the Spotify facade follows the way that is on', () => {
-    it('hands every one of the four to whichever program plays now', async () => {
+    it('hands every one of them to whichever program plays now', async () => {
         await pickWay('client');
         expect(spotifyExternalPlayback.capturesSystemAudio).toBe(true);
         expect(spotifyExternalPlayback.startsWithoutWaiting).toBe(true);
+        expect(spotifyExternalPlayback.seekLimitMs).toBe(8000);
 
         await pickWay('soloist');
         expect(spotifyExternalPlayback.capturesSystemAudio).toBe(true);
         expect(spotifyExternalPlayback.startsWithoutWaiting).toBe(false);
         expect(spotifyExternalPlayback.backsOffStatusPolls).toBe(false);
         expect(spotifyExternalPlayback.holdsMediaKeysWhilePlaying).toBe(false);
+        expect(spotifyExternalPlayback.seekLimitMs).toBe(10000);
     });
 });
