@@ -36,6 +36,8 @@ const MAX_SAMPLE_AGE_SEC = 1;
  * position is extrapolated for the whole of this time rather than for `MAX_SAMPLE_AGE_SEC`.
  */
 export const PLAYER_CALL_LIMIT_MS = 8000;
+/** The same limit in the seconds the clock counts in. */
+const PLAYER_CALL_LIMIT_SEC = PLAYER_CALL_LIMIT_MS / 1000;
 /** A player that stopped this close to the length has finished the track. */
 const END_TOLERANCE_SEC = 0.75;
 /**
@@ -319,13 +321,20 @@ const refreshPreparedQueue = () => {
     });
 };
 
-const syncClock = (positionSec: number, paused: boolean, sampledAtMs: number, holdBackward: boolean, maxExtrapolationSec?: number) => {
+const syncClock = (positionSec: number, paused: boolean, sampledAtMs: number, holdBackward: boolean) => {
     if (!session) return;
     paused ||= session.live;
     const ageSec = paused ? 0 : Math.min(Math.max(0, (performance.now() - sampledAtMs) / 1000), MAX_SAMPLE_AGE_SEC);
+    // While a move is in flight no answer will come for it (see `poll`, `seekExternalPlayback`): a
+    // sync written then - a resume the move asked for, a pause it was given - runs on under the same
+    // longer limit, or it would put the bar back to the second it stood still for.
     session.clock.sync({
-        positionSec: positionSec + ageSec, samplePositionSec: positionSec, paused, nowMs: performance.now(), holdBackward,
-        ...(maxExtrapolationSec === undefined ? {} : { maxExtrapolationSec }),
+        positionSec: positionSec + ageSec,
+        samplePositionSec: positionSec,
+        paused,
+        nowMs: performance.now(),
+        holdBackward,
+        ...(session.seekPending ? { maxExtrapolationSec: PLAYER_CALL_LIMIT_SEC } : {}),
     });
 };
 
@@ -345,6 +354,8 @@ const markPaused = (positionSec: number) => {
     session.starting = false;
     session.prefetchReady = false;
     session.sampledPosition = null;
+    // This answer is where the player stands after the move: the next playing one is read as progress.
+    session.afterSeek = false;
     syncClock(positionSec, true, performance.now(), true);
     externalMediaShim.markPaused();
     const playback = usePlaybackStore.getState();
@@ -1041,7 +1052,7 @@ export const seekExternalPlayback = (timeSec: number, { resume = false }: { resu
     // one the bar and the lyrics have until the player takes it: it runs on for as long as the app's
     // call for that move may go unanswered, instead of the second a tick-er's clock is given.
     current.clock.sync({
-        positionSec: target, paused: !current.playing, holdBackward: false, maxExtrapolationSec: PLAYER_CALL_LIMIT_MS / 1000,
+        positionSec: target, paused: !current.playing, holdBackward: false, maxExtrapolationSec: PLAYER_CALL_LIMIT_SEC,
     });
     externalMediaShim.markSeeked();
     const askedAt = performance.now();
