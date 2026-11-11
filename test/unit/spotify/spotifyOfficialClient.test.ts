@@ -90,7 +90,9 @@ describe('repeat modes', () => {
 // --- the app itself, with the page it is steered in replaced by a stand-in ---------------
 
 type Outcome = { value?: unknown; details?: string; error?: string };
-let handle: (expression: string) => Outcome = () => ({ value: true });
+// A page runs the script it is given and answers what it says: a handler that runs a source of the
+// app's own answers a promise, which is read the way the page's own await would read it.
+let handle: (expression: string) => Outcome | Promise<Outcome> = () => ({ value: true });
 
 /** One DevTools socket of the stand-in page, opened, refused or left hanging by the test. */
 class FakeSocket {
@@ -123,18 +125,21 @@ class FakeSocket {
         const expression = String(command.params && command.params.expression ? command.params.expression : '');
         this.expressions.push(expression);
         if (FakeSocket.muteSend) return;
-        const outcome = handle(expression);
-        queueMicrotask(() => {
-            if (outcome.error !== undefined) {
-                // A DevTools protocol error: the call failed, and no answer came with it.
-                this.onmessage?.({ data: JSON.stringify({ id: command.id, error: { code: -32000, message: outcome.error } }) });
-                return;
-            }
-            if (outcome.details !== undefined) {
-                this.onmessage?.({ data: JSON.stringify({ id: command.id, result: { exceptionDetails: { text: outcome.details, exception: { description: outcome.details } } } }) });
-                return;
-            }
-            this.onmessage?.({ data: JSON.stringify({ id: command.id, result: { result: { value: outcome.value } } }) });
+        // The page evaluates the script and awaits it, so a stand-in that runs one of the app's own
+        // sources answers the promise its evaluation makes.
+        Promise.resolve(handle(expression)).then(outcome => {
+            queueMicrotask(() => {
+                if (outcome.error !== undefined) {
+                    // A DevTools protocol error: the call failed, and no answer came with it.
+                    this.onmessage?.({ data: JSON.stringify({ id: command.id, error: { code: -32000, message: outcome.error } }) });
+                    return;
+                }
+                if (outcome.details !== undefined) {
+                    this.onmessage?.({ data: JSON.stringify({ id: command.id, result: { exceptionDetails: { text: outcome.details, exception: { description: outcome.details } } } }) });
+                    return;
+                }
+                this.onmessage?.({ data: JSON.stringify({ id: command.id, result: { result: { value: outcome.value } } }) });
+            });
         });
     }
     closed = false;
@@ -795,12 +800,24 @@ describe('the repeat and the shuffle Folia put back', () => {
 });
 
 describe('the listener\'s own repeat across one run', () => {
+    // Repeat one going off runs the app's own source against the stand-in player, rather than a
+    // second copy of its rules here: the order the record and the value held are read in is the
+    // whole of that source's behaviour, and a stand-in that repeats it would pass whatever the
+    // source did. Every call it makes on the player is recorded as a write of the page's own.
+    const runRelease = (new Function('return (' + String(RELEASE_STATE_SOURCE) + ')')()) as
+        (input: unknown) => Promise<{ read: boolean; action: string; now: number | null }>;
+
     /**
      * A stand-in page whose player holds one repeat value, as Spotify's own does: each call answers
      * the way the source it runs would, and every value written to it is recorded.
      */
     const pageOf = (initial: number) => {
         const state = { repeat: initial, scripts: [] as string[], written: [] as number[] };
+        // The player the app's own source is given: the one repeat value the page holds.
+        const player = {
+            getState: () => ({ repeat: state.repeat }),
+            setRepeat: async (value: number) => { state.repeat = value; state.written.push(value); },
+        };
         handle = expression => {
             state.scripts.push(expression);
             const put = (value: number) => { state.repeat = value; state.written.push(value); };
@@ -829,24 +846,14 @@ describe('the listener\'s own repeat across one run', () => {
                 put(Number(wanted));
                 return { value: { repeat: true, shuffle: false, read: true, now: state.repeat } };
             }
-            // Repeat one going off: the app's own repeat of the track is not left on, since it would
-            // sound this song again where Folia's queue moves on. A repeat the listener had is put
-            // back where the app still holds what Folia left, and one it no longer holds is theirs.
+            // Repeat one going off: the app's own source, run against this page's player. The record
+            // and the value the run left go to it as the call writes them, so a source that reads
+            // them in the wrong order is caught here rather than by a second copy of its rules.
             if (expression.includes('const keep =')) {
-                const wanted = /const keep = (\d+|null)/.exec(expression)?.[1] ?? 'null';
-                const expected = Number(/expected: (\d+|null)/.exec(expression)?.[1] ?? 'null');
-                if (wanted !== 'null') {
-                    if (state.repeat !== expected) return { value: { read: true, action: 'theirs', now: state.repeat } };
-                    if (wanted === '2') {
-                        put(0);
-                        return { value: { read: true, action: 'release', now: 0 } };
-                    }
-                    put(Number(wanted));
-                    return { value: { read: true, action: 'put', now: state.repeat } };
-                }
-                if (state.repeat !== 2) return { value: { read: true, action: 'none', now: state.repeat } };
-                put(0);
-                return { value: { read: true, action: 'release', now: 0 } };
+                const keep = /const keep = (null|\d+)/.exec(expression)?.[1] ?? 'null';
+                const expected = Number(/expected: (null|\d+)/.exec(expression)?.[1] ?? '0');
+                return runRelease({ api: { player }, keep: keep === 'null' ? null : Number(keep), expected })
+                    .then(value => ({ value }));
             }
             // Repeat one handed to the app's own repeat of the track.
             const before = state.repeat;
@@ -921,6 +928,55 @@ describe('the listener\'s own repeat across one run', () => {
         expect(state.repeat).toBe(1);
         expect(state.written).toEqual([2, 1]);
         expect(app.client.changedState()).toEqual({ repeat: null, shuffle: null });
+        await app.client.close();
+    });
+
+    it('puts a recorded repeat of the list back where the app is still repeating the track', async () => {
+        // The listener had the list repeat before Folia started in repeat one, so the record names
+        // it. The app is repeating the track when repeat one goes off: that is Folia's own write,
+        // not a value of the listener's, so the record goes back rather than the track being turned
+        // off. Turning it off would lose their list repeat and leave the app repeating nothing.
+        const state = pageOf(1);
+        const app = makeClient({ running: true, portAnswers: true });
+        await app.client.play({ id: TRACK, startMs: 0, singleLoop: true });
+        expect(app.client.changedState()).toEqual({ repeat: 'all', shuffle: null });
+        expect(state.repeat).toBe(2);
+
+        // Repeat one handed to the app's own repeat, which is what it holds going off.
+        await app.client.setTrackRepeat({ on: true });
+        expect(state.repeat).toBe(2);
+
+        await expect(app.client.setTrackRepeat({ on: false })).resolves.toEqual({ read: true, changed: false, now: 1 });
+        expect(state.repeat).toBe(1);
+        expect(state.written).toEqual([2, 1]);
+        // The record is done: their value is back, so leaving this way of playing writes nothing.
+        expect(app.client.changedState()).toEqual({ repeat: null, shuffle: null });
+        const written = state.written.length;
+        await app.client.restoreUserState();
+        expect(state.written.length).toBe(written);
+        expect(state.repeat).toBe(1);
+        await app.client.close();
+    });
+
+    it('puts a recorded off back where the app is still repeating the track', async () => {
+        // The listener had no repeat at all before Folia started in repeat one, and the record names
+        // that. A repeat of the track found going off is the one Folia left, so what goes back is
+        // their off, and nothing is left for the leaving to write.
+        const state = pageOf(0);
+        const app = makeClient({ running: true, portAnswers: true });
+        await app.client.play({ id: TRACK, startMs: 0, singleLoop: true });
+        expect(app.client.changedState()).toEqual({ repeat: 'off', shuffle: null });
+        expect(state.repeat).toBe(2);
+
+        await expect(app.client.setTrackRepeat({ on: false })).resolves.toEqual({ read: true, changed: false, now: 0 });
+        expect(state.repeat).toBe(0);
+        expect(state.written).toEqual([2, 0]);
+        expect(app.client.changedState()).toEqual({ repeat: null, shuffle: null });
+
+        // Their off is already the app's: leaving this way of playing writes nothing.
+        const written = state.written.length;
+        await app.client.restoreUserState();
+        expect(state.written.length).toBe(written);
         await app.client.close();
     });
 
