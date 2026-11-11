@@ -1203,6 +1203,24 @@ describe('the quit, the helper and the port', () => {
         expect(app.taskkills()).toBe(2);
     });
 
+    it('does not take a start made on top of an unseen Spotify for one of its own', async () => {
+        // tasklist says nothing about whether Spotify runs, and the listener agreed to a restart: the
+        // start is made on top of whatever is there, which is the launcher handing the command line to
+        // an app that may already be up. Nothing there proves this run started it, so the quit must not
+        // close it as the app this run started.
+        FakeSocket.failuresLeft = FAILED_CONNECTIONS;
+        const app = makeClient({ tasklistFails: true, portAnswers: false, appDirectory: makeLauncherDirectory(), consented: true });
+        await expect(app.client.play({ id: TRACK, startMs: 0 })).resolves.toBe('loaded');
+        expect(app.taskkills()).toBe(0);
+        expect(app.spotifySpawns()).toBe(1);
+
+        // The DevTools port answers for nobody at the quit either: with nothing saying Folia started
+        // that Spotify, there is nothing to close.
+        app.fetch.mockImplementation((async () => ({ ok: false, json: async () => ({}) })) as never);
+        await expect(app.client.closeForQuit()).resolves.toBe(false);
+        expect(app.taskkills()).toBe(0);
+    });
+
     it('does not close a Spotify this run started and the listener closed meanwhile', async () => {
         // The page cannot be reached at first, so the play starts Spotify with the port, as a
         // listener's play may.
