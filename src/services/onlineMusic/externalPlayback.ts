@@ -32,6 +32,12 @@ const MAX_SAMPLE_AGE_SEC = 1;
 /** A player that stopped this close to the length has finished the track. */
 const END_TOLERANCE_SEC = 0.75;
 /**
+ * Under the player's own single repeat, a playing answer this close to the start after one this
+ * close to the end is the track going round again (answers are half a second apart; Soloist's own
+ * end reading allows 2.5 s), not a seek of the listener's: those are sent from here and fenced off.
+ */
+const REPEAT_WRAP_SLACK_SEC = 3;
+/**
  * A window that handed its player over is destroyed once its replacement shows, a second or two
  * later. Still here after this long, it was not replaced (the main process refused or gave up the
  * rebuild): it follows the player again.
@@ -173,6 +179,10 @@ let startPendingOverdueNoted = false;
 let startCounter = 0;
 /** The coarser channel is told once in a run of Folia, not once per episode. */
 let degradedNotified = false;
+/** The single repeat last sent to the player, or null when unknown (a new start, a failed write). */
+let appliedRepeatOne: boolean | null = null;
+/** A failed repeat write is tried again on each answer; it is said once until one succeeds. */
+let repeatFailureNoted = false;
 const listeners = new Set<(event: ExternalPlaybackEvent) => void>();
 
 const emit = (event: ExternalPlaybackEvent) => {
@@ -478,8 +488,75 @@ const markPaused = (positionSec: number) => {
     emit({ type: 'status' });
 };
 
+/** Single loop, outside Personal FM (which never repeats a song): the track plays again rather than the queue moving on. */
+const loopsCurrentTrack = () => (
+    useAudioSettingsStore.getState().loopMode === 'one' && !usePlaybackStore.getState().isFmMode
+);
+
+// Single loop where the player did not go round by itself (it has no `setRepeatOne`, or the repeat
+// did not take): the track that ended is started again from its start in the same player, as
+// <audio loop> does on the web route; the queue is never told. Started anew rather than sought
+// back: a player that finished a track may no longer hold it (Soloist goes on to a track of its
+// own, MusicKit's queue is over). Answers sampled before the restart are dropped by the revision.
+const replayEndedTrack = (current: ExternalSession) => {
+    const revision = ++current.positionRevision;
+    current.ended = false;
+    // Still playing as far as the transport goes: a pause pressed while the restart lands is a
+    // pause (both players take it after the start), not a resume of a player shown as playing.
+    current.playing = true;
+    current.seekPending = true;
+    current.prefetchReady = false;
+    current.sampledPosition = null;
+    current.clock.sync({ positionSec: 0, paused: true, holdBackward: false });
+    externalMediaShim.markSeeked();
+    console.info('[ExternalPlayback] single loop: the track starts again', { songKey: current.songKey });
+    void omni.playSongExternally(current.song, 0).then(() => {
+        // A start may have put the player's own repeat back to off (MusicKit's does): sent again.
+        if (session !== current) return;
+        appliedRepeatOne = null;
+        syncExternalRepeatOne();
+    }, (error: unknown) => {
+        if (session !== current || current.positionRevision !== revision) return;
+        console.warn('[ExternalPlayback] the track could not be started again for single loop', error);
+        // Left ended and paused at its end: the player may go on answering "ended", and that must
+        // not start it again (and say so again) every half second. Play from the listener restarts it.
+        markPaused(current.durationSec ?? 0);
+        current.ended = true;
+        emit({ type: 'failure', error });
+    }).finally(() => {
+        if (session === current && current.positionRevision === revision) current.seekPending = false;
+    });
+};
+
+/**
+ * Hands the player its own single repeat when it has one (`setRepeatOne`), as the hifi route sets
+ * mpv's loop-file: the player then goes round by itself with no gap. Sent on every start and on
+ * every change of the loop mode or of Personal FM; a player without it is left to `replayEndedTrack`.
+ */
+function syncExternalRepeatOne(): void {
+    const current = session;
+    if (!current || current.handedOver || !isExternalRoute()) return;
+    const wanted = loopsCurrentTrack();
+    if (appliedRepeatOne === wanted) return;
+    appliedRepeatOne = wanted;
+    void omni.setExternalPlaybackRepeatOne(current.song, wanted).then(() => {
+        repeatFailureNoted = false;
+    }, (error: unknown) => {
+        // Unknown again: the next answer from the player sends it again (see poll).
+        if (appliedRepeatOne === wanted) appliedRepeatOne = null;
+        if (!repeatFailureNoted) {
+            repeatFailureNoted = true;
+            console.warn('[ExternalPlayback] the player single repeat could not be set', error);
+        }
+    });
+}
+
 const markEnded = (positionSec: number) => {
     if (!session || session.ended) return;
+    if (loopsCurrentTrack()) {
+        replayEndedTrack(session);
+        return;
+    }
     session.ended = true;
     // Read before `playing` is cleared: it is true only once the player itself said it was sounding
     // this song, so an end without it is not that song's end (see `ExternalPlaybackEvent`).
@@ -498,6 +575,7 @@ const applyStatus = (status: ProviderExternalPlaybackStatus, sampledAtMs: number
     if (!session || session.handedOver) return;
     const current = session;
     const positionSec = status.positionMs / 1000;
+    const previousSample = current.sampledPosition;
     // A late completion belonging to the previous song cannot fill or finish the new session.
     if (!current.announced && !status.mediaId) return;
     // Told before the song is on screen too: the fallback is about the player rather than the track.
@@ -576,6 +654,20 @@ const applyStatus = (status: ProviderExternalPlaybackStatus, sampledAtMs: number
         emit({ type: 'status' });
         return;
     }
+    // The player was told to repeat the track and stops for a moment at its start right after it
+    // was heard near the end: MusicKit goes round so (playing, then stopped with no item for one
+    // answer, then playing from the start: seen 2026-11-11). That is the track going round, not a
+    // pause of the listener's; a stop that lasts is a pause on the next answer (no sample then).
+    const durationKnown = current.durationSec;
+    if (!status.isPlaying && !status.ended && appliedRepeatOne === true && loopsCurrentTrack() && current.playing
+        && durationKnown !== null && previousSample !== null && previousSample >= durationKnown - REPEAT_WRAP_SLACK_SEC
+        && positionSec < REPEAT_WRAP_SLACK_SEC) {
+        console.info('[ExternalPlayback] single loop: the player is going round', { songKey: current.songKey });
+        syncClock(positionSec, false, sampledAtMs, false);
+        externalMediaShim.markSeeked();
+        emit({ type: 'status' });
+        return;
+    }
     // The player has no track: it is between starts, or the start it was asked for did not take.
     // That is a pause to wait through, never another song of the listener's.
     if (!status.mediaId) {
@@ -607,7 +699,21 @@ const applyStatus = (status: ProviderExternalPlaybackStatus, sampledAtMs: number
     }
     if (status.isPlaying) {
         if (current.ended) current.ended = false;
-        if (!current.playing) {
+        // The player's own single repeat went round: from near the end to near the start. Soloist
+        // buffers as it goes round, so the answer before may have been a buffering one (shown as
+        // loading, `playing` false): then the clock, held where it was, says where it came from.
+        const cameFromSec = current.playing ? previousSample : current.clock.read();
+        const wentRound = loopsCurrentTrack() && durationSec !== null && cameFromSec !== null
+            && cameFromSec >= durationSec - REPEAT_WRAP_SLACK_SEC && positionSec < REPEAT_WRAP_SLACK_SEC;
+        if (wentRound) {
+            // The clock goes back with it, and the observers hear a seek, as <audio loop> fires one
+            // when it goes round.
+            console.info('[ExternalPlayback] single loop: the player went round', { songKey: current.songKey });
+            if (current.playing) syncClock(positionSec, false, sampledAtMs, false);
+            else markPlaying(positionSec);
+            externalMediaShim.markSeeked();
+            emit({ type: 'status' });
+        } else if (!current.playing) {
             markPlaying(positionSec);
         } else {
             // The first answer after a move is where the player is now: a position a little behind the
@@ -640,6 +746,8 @@ async function poll(): Promise<void> {
         applyStatus(status, (startedAt + performance.now()) / 2);
         failureNoted = false;
         pollFailures = 0;
+        // A repeat write that failed (or was skipped while handed over) is sent again.
+        if (appliedRepeatOne === null) syncExternalRepeatOne();
     } catch (error) {
         // Handed over meanwhile: a failed answer says nothing this window acts on either.
         if (session !== current || current.handedOver || !isExternalRoute() || current.positionRevision !== positionRevision) return;
@@ -857,6 +965,9 @@ export function startExternalPlayback(song: SongResult, startSec = 0, { userActi
     appliedVolume = null;
     volumeFailureNoted = false;
     setExternalPlaybackVolume();
+    // Its single repeat too, for the same reasons; sent again below once it has the song.
+    appliedRepeatOne = null;
+    syncExternalRepeatOne();
     startPendingAttempt = attempt;
     startPendingSince = askedAt;
     startPendingOverdueNoted = false;
@@ -902,6 +1013,8 @@ export function startExternalPlayback(song: SongResult, startSec = 0, { userActi
         volumeEpoch += 1;
         appliedVolume = null;
         setExternalPlaybackVolume();
+        appliedRepeatOne = null;
+        syncExternalRepeatOne();
         // The incoming clock is seeded from what the player has, without waiting for the answer: the
         // poll that follows asks the same question half a second later, so waiting here only holds
         // whoever asked for the start.
@@ -1010,6 +1123,8 @@ export async function adoptExternalPlayback(song: SongResult): Promise<ExternalT
     appliedVolume = null;
     volumeFailureNoted = false;
     setExternalPlaybackVolume();
+    appliedRepeatOne = null;
+    syncExternalRepeatOne();
     applyStatus(status, sampledAt);
     announceExternalPlayback();
     if (session?.attempt !== attempt || !isExternalRoute()) return { attempt };
@@ -1083,6 +1198,9 @@ export function reclaimExternalPlayback(reason: string): void {
     if (!current?.handedOver) return;
     current.handedOver = false;
     console.info('[ExternalPlayback] took the player back: the window was not replaced', { reason, songKey: current.songKey });
+    // The loop mode may have changed while it was handed over: its repeat is said again.
+    appliedRepeatOne = null;
+    syncExternalRepeatOne();
     if (isExternalRoute()) schedulePoll(0);
 }
 
@@ -1169,6 +1287,13 @@ export function stopExternalPlayback(reason: string): void {
     void omni.pauseExternalPlayback(current.song).catch(error => {
         console.warn('[ExternalPlayback] the player could not be paused as the route is left', error);
     });
+    // Its own repeat is not left on behind Folia (Soloist is a Connect device other apps may play to).
+    if (appliedRepeatOne === true) {
+        void omni.setExternalPlaybackRepeatOne(current.song, false).catch((error: unknown) => {
+            console.warn('[ExternalPlayback] the player single repeat could not be turned off as the route is left', error);
+        });
+    }
+    appliedRepeatOne = null;
 }
 
 /**
@@ -1287,6 +1412,7 @@ export const installExternalPlayback = (): void => {
     useAudioSettingsStore.subscribe((state, previous) => {
         if (state.loopMode !== previous.loopMode) {
             refreshPreparedQueue();
+            syncExternalRepeatOne();
             // How the song is to end moved: the off is asked for whatever the record says, since the
             // repeat it has to clear may be one the listener turned on in the player's own window.
             if (session) syncExternalTrackRepeat(session, { askOff: true });
@@ -1322,6 +1448,7 @@ export const installExternalPlayback = (): void => {
             // asks for the off the same way a change of the mode does.
             if (state.isFmMode !== previous.isFmMode && session) syncExternalTrackRepeat(session, { askOff: true });
         }
+        if (state.isFmMode !== previous.isFmMode) syncExternalRepeatOne();
     });
 };
 

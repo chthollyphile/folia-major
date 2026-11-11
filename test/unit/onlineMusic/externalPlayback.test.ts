@@ -32,6 +32,7 @@ const omniMock = vi.hoisted(() => {
         resumeExternalPlayback: vi.fn(async () => {}),
         seekExternalPlayback: vi.fn(async () => {}),
         setExternalPlaybackVolume: vi.fn(async () => {}),
+        setExternalPlaybackRepeatOne: vi.fn<(song: unknown, enabled: boolean) => Promise<void>>(async () => {}),
         setExternalTrackRepeat: vi.fn(async (): Promise<ExternalTrackRepeatAnswer | null | undefined> => undefined),
         getExternalPlaybackStatus: vi.fn(async (): Promise<ProviderExternalPlaybackStatus> => ({
             mediaId: '123', isPlaying: true, positionMs: 5000, durationMs: 200000, ended: false,
@@ -109,7 +110,9 @@ describe('a player taken over, before the listener picks a song of their own', (
         omniMock.prepareExternalPlaybackQueue.mockClear();
         omniMock.setExternalPlaybackVolume.mockReset().mockResolvedValue(undefined);
         omniMock.pauseExternalPlayback.mockReset().mockResolvedValue(undefined);
-        useAudioSettingsStore.setState({ volume: 1, isMuted: false });
+        // The loop mode is part of what a start follows (`loopsCurrentTrack`), and a case that left
+        // repeat one on would hand it to the next one: an end there would replay instead of being said.
+        useAudioSettingsStore.setState({ volume: 1, isMuted: false, loopMode: 'off' });
     });
 
     afterEach(() => {
@@ -239,7 +242,9 @@ describe('a start that runs on after the interface', () => {
         omniMock.getExternalPlaybackStatus.mockReset().mockResolvedValue(status());
         omniMock.isExternalPlaybackStatusForSong.mockReset().mockReturnValue(true);
         omniMock.setExternalTrackRepeat.mockReset().mockResolvedValue(undefined);
-        useAudioSettingsStore.setState({ volume: 1, isMuted: false });
+        // The loop mode is part of what a start follows (`loopsCurrentTrack`), and a case that left
+        // repeat one on would hand it to the next one: an end there would replay instead of being said.
+        useAudioSettingsStore.setState({ volume: 1, isMuted: false, loopMode: 'off' });
     });
 
     afterEach(() => {

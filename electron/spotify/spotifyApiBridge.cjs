@@ -25,6 +25,7 @@ const SPOTIFY_OPERATIONS = Object.freeze([
   // the app is on this computer at all, without starting anything.
   'client_launch', 'client_restart', 'client_play', 'client_queue', 'client_pause', 'client_resume', 'client_seek', 'client_volume',
   'client_status', 'client_status_found', 'client_status_follow', 'client_probe', 'client_repeat',
+  'soloist_repeat',
 ]);
 // How Spotify plays here: 'standard' (librespot, in this process, audio.cjs), 'soloist' (Spotify's
 // own Soloist program on this computer, soloist.cjs) or 'client' (Spotify's desktop app, steered
@@ -564,6 +565,12 @@ function createSpotifyApiBridge({
 
     async soloist_volume(params) {
       await requireSoloist().setVolume(params.volume);
+      return true;
+    },
+
+    async soloist_repeat(params) {
+      if (typeof params.enabled !== 'boolean') throw spotifyError('invalid-response', 'Invalid Soloist repeat');
+      requireSoloist().setRepeatOne(params.enabled);
       return true;
     },
 

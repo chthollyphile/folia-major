@@ -685,6 +685,13 @@ export interface OnlineExternalPlaybackProvider {
      * advertisement, a player that cannot be reached - is null.
      */
     runningTrack?(): Promise<ProviderExternalPlaybackStatus | null>;
+    /**
+     * Turns the player's own single-track repeat on or off: on, it plays the track again by itself
+     * at its end (no gap), its position going from the end back to the start. Only single loop:
+     * what plays after a track is always Folia's queue, so the player's list repeat stays off.
+     * Without it (or when the player still reports an end), the route starts the track again itself.
+     */
+    setRepeatOne?(enabled: boolean): Promise<void>;
     /** The player's state now, from no cache. */
     getStatus(song: SongResult): Promise<ProviderExternalPlaybackStatus>;
     /** Whether the player's loaded track is `song` (the id in `status` may be a playback id). */
