@@ -41,7 +41,7 @@ import { askedSongKeyRef, keepSongsOfProvidersStanding, makeSongCurrent, provide
 import { onlineFailureToast } from '../source/onlineFailureToast';
 import { loadLocalSongAudio, loadLocalSongHifiSource, loadNavidromeSongAudio, loadOnlineSongAudio } from '../source/songAudioSource';
 import { queueWithRunningTrack } from './runningTrack';
-import { namesItsTrack, showTrackPosition, takeOverRunningPlayer } from '../bridges/externalPlayerFollow';
+import { takeOverRunningPlayer } from '../bridges/externalPlayerFollow';
 import { useLyricSettingsStore } from '../../../../stores/useLyricSettingsStore';
 import { useHifiSettingsStore } from '../../../../stores/useHifiSettingsStore';
 import { beginHifiTrack, hifiRouteFor, releaseUnclaimedHifiTrack, whenHifiRuntimeKnown } from '../../../../services/hifi/hifiPlayback';
@@ -172,8 +172,7 @@ const resumeRunningExternalPlayback = async (
     const outcome = await takeOverRunningPlayer(song, running, {
         isWanted: () => !overtaken(),
         spendPlayIntent: () => dropPlayIntent(options.shouldAutoPlayRef),
-        onTrackTaken: async (track, adopted, stillCurrent) => {
-            void adopted;
+        onTrackTaken: async (track, stillCurrent) => {
             if (!stillCurrent()) return;
             const queue = queueWithRunningTrack(options.queueBase(), track, song);
             options.setPlayQueue?.(queue);

@@ -36,11 +36,11 @@ export type RunningPlayerTakeOverOptions = {
     /** The player sounds a song: the caller's own intent to play is spent, nothing here starts it. */
     spendPlayIntent?: () => void;
     /**
-     * The track is now the song this app shows and the player holds it as `adopted`, or only shows
-     * it paused: the caller writes what belongs to that song there. `stillCurrent` answers for a
-     * read that lands after the listener moved on, so nothing of the track lands on the next song.
+     * The track is now the song this app shows: the caller writes what belongs to that song there.
+     * `stillCurrent` answers for a read that lands after the listener moved on, so nothing of the
+     * track lands on the next song.
      */
-    onTrackTaken?: (track: SongResult, adopted: boolean, stillCurrent: () => boolean) => Promise<void> | void;
+    onTrackTaken?: (track: SongResult, stillCurrent: () => boolean) => Promise<void> | void;
 };
 
 /**
@@ -137,7 +137,7 @@ const settleTrackTakeOver = async (
         // The player sounds the track, so the caller's own intent to play is spent - but only where
         // nothing asked for a song meanwhile: a play that did armed the intent that starts it.
         if (stillCurrent()) options.spendPlayIntent?.();
-        await options.onTrackTaken?.(track, true, stillCurrent);
+        await options.onTrackTaken?.(track, stillCurrent);
         return 'adopted';
     }
     // Paused there: shown where the player has it, and from there the press of play starts it. A
@@ -149,7 +149,7 @@ const settleTrackTakeOver = async (
     const durationMs = running.durationMs > 0 ? running.durationMs : track.durationMs;
     if (durationMs > 0) setDuration(durationMs / 1000);
     showTrackPosition(track, running.positionMs, () => !stillCurrent());
-    await options.onTrackTaken?.(track, false, stillCurrent);
+    await options.onTrackTaken?.(track, stillCurrent);
     return 'shown';
 };
 

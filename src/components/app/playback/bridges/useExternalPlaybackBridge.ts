@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { NextTrackOptions } from '../../../../types/appPlayback';
-import { getExternalSong, installExternalPlayback, isExternalRoute, isExternalTakeoverPending, stopForeignExternalPlayback, subscribeExternalPlayback } from '../../../../services/onlineMusic/externalPlayback';
+import { getExternalSong, installExternalPlayback, isExternalRoute, stopForeignExternalPlayback, subscribeExternalPlayback } from '../../../../services/onlineMusic/externalPlayback';
 import { stopExternalSpectrumCapture, syncExternalSpectrumForRoute } from '../externalSpectrumCapture';
 import { omni } from '../../../../services/onlineMusic/omni';
 import { useAudioSettingsStore } from '../../../../stores/useAudioSettingsStore';
@@ -127,8 +127,7 @@ export function useExternalPlaybackBridge({ handleNextTrack, handlePrevTrack }: 
                 const current = usePlaybackStore.getState().currentSong;
                 void (current
                     ? adoptPlayerTrack(current, event.status, {
-                        isWanted: () => isExternalRoute() && getExternalSong()?.sourceRef?.kind === 'online',
-                        onTrackTaken: async () => undefined,
+                        isWanted: () => isExternalRoute() && getExternalSong() !== null,
                     })
                     : Promise.resolve('untouched')
                 ).then(outcome => {

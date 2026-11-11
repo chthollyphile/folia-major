@@ -68,8 +68,12 @@ vi.mock('@/components/app/playback/bridges/externalPlayerFollow', () => ({
 
 const { useExternalPlaybackBridge } = await import('@/components/app/playback/bridges/useExternalPlaybackBridge');
 
-/** Mounts the bridge: every effect runs, and what they returned is kept for the unmount. */
-const mountBridge = () => {
+/**
+ * Mounts the bridge: every effect it declares runs, and what each returned is kept for the
+ * unmount. Named as a component because that is what it stands in for: the hook is only ever
+ * called while one is being mounted.
+ */
+const MountBridge = () => {
     env.effects.length = 0;
     useExternalPlaybackBridge({ handleNextTrack: vi.fn(), handlePrevTrack: vi.fn() });
     for (const effect of env.effects) effect.cleanup = effect.run() as (() => void) | undefined;
@@ -102,7 +106,7 @@ describe('the watcher of a player that follows its listener', () => {
     });
 
     it('reads the player every three seconds', async () => {
-        mountBridge();
+        MountBridge();
         expect(env.follow).not.toHaveBeenCalled();
 
         await vi.advanceTimersByTimeAsync(2999);
@@ -115,7 +119,7 @@ describe('the watcher of a player that follows its listener', () => {
 
     it('never reads a way of playing that declared it does not follow', async () => {
         env.traits = { followsPlayerChanges: false };
-        mountBridge();
+        MountBridge();
 
         await vi.advanceTimersByTimeAsync(10_000);
         expect(env.follow).not.toHaveBeenCalled();
@@ -124,7 +128,7 @@ describe('the watcher of a player that follows its listener', () => {
     it('never reads while a session of this route already follows the player', async () => {
         env.externalRoute = true;
         env.externalSong = env.currentSong;
-        mountBridge();
+        MountBridge();
 
         await vi.advanceTimersByTimeAsync(10_000);
         expect(env.follow).not.toHaveBeenCalled();
@@ -133,14 +137,14 @@ describe('the watcher of a player that follows its listener', () => {
     it('reads again where the route is the external one but no player is held', async () => {
         env.externalRoute = true;
         env.externalSong = null;
-        mountBridge();
+        MountBridge();
 
         await vi.advanceTimersByTimeAsync(3000);
         expect(env.follow).toHaveBeenCalledTimes(1);
     });
 
     it('stops while the page is hidden and picks the player up again when it shows', async () => {
-        mountBridge();
+        MountBridge();
         await vi.advanceTimersByTimeAsync(3000);
         expect(env.follow).toHaveBeenCalledTimes(1);
 
@@ -154,7 +158,7 @@ describe('the watcher of a player that follows its listener', () => {
     });
 
     it('stops with the bridge', async () => {
-        mountBridge();
+        MountBridge();
         await vi.advanceTimersByTimeAsync(3000);
         expect(env.follow).toHaveBeenCalledTimes(1);
 
@@ -166,7 +170,7 @@ describe('the watcher of a player that follows its listener', () => {
     it('asks nothing more while the previous read is still on its way', async () => {
         let settle!: (value: string) => void;
         env.follow.mockImplementation(() => new Promise(resolve => { settle = resolve; }));
-        mountBridge();
+        MountBridge();
 
         await vi.advanceTimersByTimeAsync(9000);
         expect(env.follow).toHaveBeenCalledTimes(1);
