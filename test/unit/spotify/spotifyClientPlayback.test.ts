@@ -1645,5 +1645,33 @@ describe('repeat one carried out by the app\'s own repeat of the track', () => {
 
         const status = statusOfClient(playing(id('a'), { positionMs: 0 }));
         expect(status.replayed).toBeUndefined();
+describe('the track the watcher of the app reads', () => {
+    // Watched every few seconds for the whole of a run: it must ask for the read that carries the
+    // watcher's own, slower port-search budget, never the one a session restore spends.
+    it('asks for the watcher read, which carries no restore budget', async () => {
+        request.mockImplementation(async () => playing(id('a')));
+
+        const status = await spotifyClientPlayback.runningTrack!();
+
+        expect(status?.mediaId).toBe(id('a'));
+        expect(status?.isPlaying).toBe(true);
+        expect(request.mock.calls.filter(call => call[0] === 'client_status_follow')).toHaveLength(1);
+        expect(request.mock.calls.filter(call => call[0] === 'client_status_found')).toHaveLength(0);
+    });
+
+    it('asks nothing of a restore when it is read over and over', async () => {
+        request.mockImplementation(async () => degraded());
+
+        for (let read = 0; read < 20; read += 1) await spotifyClientPlayback.runningTrack!();
+
+        // Twenty reads, three seconds apart: twenty of the watcher's, and not one of the restore's.
+        expect(request.mock.calls.filter(call => call[0] === 'client_status_follow')).toHaveLength(20);
+        expect(request.mock.calls.filter(call => call[0] === 'client_status_found')).toHaveLength(0);
+    });
+
+    it('answers nothing where the app named no track of its own', async () => {
+        request.mockResolvedValueOnce(degraded());
+
+        await expect(spotifyClientPlayback.runningTrack!()).resolves.toBeNull();
     });
 });

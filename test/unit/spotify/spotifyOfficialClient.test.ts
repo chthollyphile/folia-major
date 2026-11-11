@@ -2861,6 +2861,122 @@ describe('the status read a session restore asks for', () => {
     });
 });
 
+// The read the watcher of the app makes (externalPlayerFollow): every few seconds for the whole of a
+// run. It must never spend the two looks a restore has, and it must still find a port that appears
+// long after the run began.
+describe('the status read the watcher of the app makes', () => {
+    const netstats = (app: ReturnType<typeof makeClient>) => app.runFile.mock.calls
+        .filter(call => String(call[0]).includes('netstat')).length;
+    const playingPage = () => {
+        handle = expression => (expression.includes('getState')
+            ? { value: { item: { uri: 'spotify:track:' + TRACK }, isPaused: false, isBuffering: false, positionAsOfTimestamp: 1000, timestamp: Date.now(), duration: 200000, repeat: 0 } }
+            : { value: true });
+    };
+    const oneListener = ['  TCP    127.0.0.1:54124        0.0.0.0:0              LISTENING       4321'].join(NEWLINE);
+
+    it('finds the port of an app started long after the run began', async () => {
+        playingPage();
+        // The first six seconds: the app runs, but its DevTools port is not there yet.
+        const options: ClientOptions = {
+            running: true, port: 0, netstat: '', portAnswers: false, appDirectory: makeLauncherDirectory(),
+        };
+        const app = makeClient(options);
+        await expect(app.client.statusFollowing()).resolves.toMatchObject({ fallback: true });
+        vi.setSystemTime(Date.now() + 3000);
+        await expect(app.client.statusFollowing()).resolves.toMatchObject({ fallback: true });
+        // The app opened its port after those two looks: the watcher still finds it, a minute later.
+        options.portAnswers = true;
+        options.netstat = oneListener;
+        vi.setSystemTime(Date.now() + 60000);
+        await expect(app.client.statusFollowing()).resolves.toMatchObject({ id: TRACK });
+        // Read again, in the same second: the port is kept, and nothing is searched for.
+        const searched = netstats(app);
+        await expect(app.client.statusFollowing()).resolves.toMatchObject({ id: TRACK });
+        expect(netstats(app)).toBe(searched);
+        expect(app.spotifySpawns()).toBe(0);
+        expect(app.taskkills()).toBe(0);
+        await app.client.close();
+    });
+
+    it('looks for the port no more than six times in a run, and no closer than a minute', async () => {
+        playingPage();
+        const app = makeClient({
+            running: true, port: 0, netstat: '', portAnswers: false, listOk: false, appDirectory: makeLauncherDirectory(),
+        });
+        // Read every three seconds for ten minutes: one look a minute, six in all.
+        for (let second = 0; second < 600; second += 3) {
+            await app.client.statusFollowing();
+            vi.setSystemTime(Date.now() + 3000);
+        }
+        expect(netstats(app)).toBe(6);
+        await app.client.close();
+    });
+
+    it('looks for nothing where the app is not running at all', async () => {
+        playingPage();
+        const app = makeClient({
+            running: false, port: 0, netstat: oneListener, portAnswers: true, appDirectory: makeLauncherDirectory(),
+        });
+        for (let second = 0; second < 300; second += 3) {
+            await expect(app.client.statusFollowing()).resolves.toMatchObject({ fallback: true });
+            vi.setSystemTime(Date.now() + 3000);
+        }
+        expect(netstats(app)).toBe(0);
+        await app.client.close();
+    });
+
+    it('leaves the two looks a session restore has unspent', async () => {
+        playingPage();
+        const app = makeClient({
+            running: true, port: 0, netstat: '', portAnswers: false, listOk: false, appDirectory: makeLauncherDirectory(),
+        });
+        // The watcher read every three seconds for two minutes first, as it does in a run.
+        for (let second = 0; second < 120; second += 3) {
+            await app.client.statusFollowing();
+            vi.setSystemTime(Date.now() + 3000);
+        }
+        const byWatcher = netstats(app);
+        expect(byWatcher).toBe(2);
+        // A restore reopened here still has both of its own.
+        await app.client.statusWithPortSearch();
+        expect(netstats(app)).toBe(byWatcher + 1);
+        vi.setSystemTime(Date.now() + 3000);
+        await app.client.statusWithPortSearch();
+        expect(netstats(app)).toBe(byWatcher + 2);
+        vi.setSystemTime(Date.now() + 60000);
+        await app.client.statusWithPortSearch();
+        expect(netstats(app)).toBe(byWatcher + 2);
+        await app.client.close();
+    });
+
+    it('gives the watcher its whole allowance again where Folia started Spotify itself', async () => {
+        playingPage();
+        const options: ClientOptions = {
+            running: true, port: 0, netstat: '', portAnswers: false, appDirectory: makeLauncherDirectory(),
+        };
+        const app = makeClient(options);
+        // The app runs without a port Folia can find, and the watcher spends all six looks.
+        for (let second = 0; second < 400; second += 60) {
+            await app.client.statusFollowing();
+            vi.setSystemTime(Date.now() + 60000);
+        }
+        expect(netstats(app)).toBe(6);
+        // Folia closes and starts that app itself, and that start finds no port either: the app it
+        // opened shows its port only afterwards.
+        await expect(app.client.restart()).rejects.toBeTruthy();
+        expect(app.taskkills()).toBe(1);
+        expect(app.spotifySpawns()).toBe(1);
+        // The port is there now, and the watcher looks for it with its whole allowance again: what it
+        // spent belongs to the Spotify that is gone, not to the one the start opened.
+        options.netstat = oneListener;
+        options.portAnswers = true;
+        playingPage();
+        vi.setSystemTime(Date.now() + 60000);
+        await expect(app.client.statusFollowing()).resolves.toMatchObject({ id: TRACK });
+        await app.client.close();
+    });
+});
+
 describe('the bridge log', () => {
     const makeBridgeWith = (officialClient: unknown) => {
         const warn = vi.fn();
