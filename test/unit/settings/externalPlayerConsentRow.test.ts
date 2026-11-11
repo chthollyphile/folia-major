@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import React, { act } from 'react';
+import type * as ReactI18next from 'react-i18next';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import IntegrationPage from '@/components/modal/settings/pages/IntegrationPage';
@@ -20,7 +21,7 @@ const LOCALES = { 'zh-CN': zhCN, en, in: inLocale, vi: viLocale };
 
 // The page's own text is the keys here: what is pinned is which key the row asks for.
 vi.mock('react-i18next', async importOriginal => {
-    const actual = await importOriginal<typeof import('react-i18next')>();
+    const actual = await importOriginal<typeof ReactI18next>();
     return { ...actual, useTranslation: () => ({ t: (key: string) => key }) };
 });
 
