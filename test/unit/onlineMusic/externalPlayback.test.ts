@@ -1482,9 +1482,9 @@ describe('a move the player takes seconds to take', () => {
         const last = seen[seen.length - 1];
         console.log('[paused landing] stood=' + held.toFixed(2) + ' min=' + Math.min(...seen).toFixed(2) + ' last=' + last.toFixed(2));
         // The spot the player landed on is what a stopped song shows. The only step back is the stretch
-        // the bar ran ahead of it, taken once when that answer lands.
+        // the bar ran ahead of it while the old line was named, taken once when that answer lands.
         expect(Math.min(...seen)).toBeCloseTo(60, 1);
-        expect(largestDrop([held, ...seen])).toBeLessThanOrEqual(held - 60 + 0.5);
+        expect(largestDrop([held, ...seen])).toBeCloseTo(held - 60, 1);
         expect(Math.max(...seen)).toBeLessThanOrEqual(held);
         // Twenty seconds of a stopped song later the bar is still where the player stands.
         expect(last).toBeCloseTo(60, 1);
