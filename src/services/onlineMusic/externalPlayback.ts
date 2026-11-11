@@ -677,8 +677,10 @@ const applyStatus = (status: ProviderExternalPlaybackStatus, sampledAtMs: number
     // are where the song stood, and reading the song's progress off one of them reads a jump across
     // the song rather than the song sounding on. A stopped answer is one of them as much as a playing
     // one: what a move does to the spot the player reports does not depend on it sounding the song.
-    const settledMoveRead = status.mediaId !== '' && status.seeking !== true
-        && isSettledMoveRead(current, positionSec);
+    // The player's own turn of the song is never one of them: it says where the song now stands, and a
+    // turn that follows a drop closely lands inside the window that spot is held for.
+    const settledMoveRead = status.replayed !== true && status.mediaId !== ''
+        && status.seeking !== true && isSettledMoveRead(current, positionSec);
     // A read that still names the spot before the move applies everything it says about the player -
     // it is stopped, or it has started - and nothing it says about where the song stands: that is the
     // spot the bar was dropped on, which the clock already runs on from.
@@ -755,10 +757,11 @@ const applyStatus = (status: ProviderExternalPlaybackStatus, sampledAtMs: number
     // Repeat one the player carries out itself: the same song came round again, so this is a move
     // back to its start, said the way a seek is - the media observers report the position again and
     // the song is never ended or stepped past. Its lyrics follow the clock, which starts over here.
-    // A read of an unloaded move is not that turn: it names the spot the song stood on before the
-    // drop, and taking it for the song starting over is the same step back the move itself is read
-    // by. Where the app repeats the track and the bar was dragged forward, it reads like one.
-    if (status.replayed === true && !settledMoveRead) {
+    // The player's own turn is never a read of a move it has not loaded: it is the answer itself, and
+    // it lands a moment after a drop as readily as anywhere else - where repeat one follows a bar
+    // dragged forward, the two fall inside the same window. A read of an unloaded move names no turn
+    // of its own (see `isSettledMoveRead`), so it never reaches here as one.
+    if (status.replayed === true) {
         current.ended = false;
         current.clock.sync({ positionSec, paused: false, holdBackward: false });
         externalMediaShim.markSeeked();

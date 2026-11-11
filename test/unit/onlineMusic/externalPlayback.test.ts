@@ -1208,6 +1208,28 @@ describe('a move the player takes seconds to take', () => {
         expect(engine.getExternalPosition()).toBeGreaterThan(59.9);
         expect(engine.getExternalPosition()).toBeLessThan(61);
     });
+
+    it('takes the player\'s own turn of the song even right after a move', async () => {
+        // Repeat one the player carries out itself is said the way a seek is, and it lands a moment after
+        // a drop: the answer names the song's start, which is nowhere near the spot the bar was dropped
+        // on. Judged against that spot it looked like a read the player had not loaded the move for, so
+        // the song's own turn was given up and the bar and the lyrics stayed on the old line.
+        await startFrom(190000);
+        expect(engine.seekExternalPlayback(199)).toBe(true);
+        await vi.advanceTimersByTimeAsync(20);
+        const seeked: number[] = [];
+        const onSeeked = () => seeked.push(engine.getExternalPosition());
+        engine.externalMediaShim.addEventListener('seeked', onSeeked);
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ positionMs: 200, replayed: true }));
+
+        await vi.advanceTimersByTimeAsync(500);
+        // The song starts over: the spot it is at is its own beginning, and the observers were told there.
+        expect(engine.getExternalPosition()).toBeLessThan(2);
+        expect(seeked).toHaveLength(1);
+        expect(seeked[0]).toBeLessThan(2);
+        expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PLAYING);
+        engine.externalMediaShim.removeEventListener('seeked', onSeeked);
+    });
 });
 
 describe('the limits the Spotify transport puts on the app own calls', () => {
