@@ -1110,7 +1110,8 @@ describe('a move the player takes seconds to take', () => {
 
         const seen = await readings(2000);
         for (let index = 1; index < seen.length; index++) expect(seen[index]).toBeGreaterThanOrEqual(seen[index - 1] - 1e-6);
-        expect(Math.max(...seen)).toBeLessThan(30.5);
+        // It runs on from the drop - the two seconds read here - and never reaches the 60 s it stood on.
+        expect(Math.max(...seen)).toBeLessThan(33);
     });
 
     it('holds a drag dropped again on top of a move the player has not taken yet', async () => {
@@ -1135,16 +1136,19 @@ describe('a move the player takes seconds to take', () => {
     });
 
     it('takes the player\'s own word when it never answers the spot the bar was dropped on', async () => {
-        // A player that jumps somewhere else entirely has said where the song is: after the few reads
+        // A player that jumps somewhere else altogether has said where the song is: after the few reads
         // that spot is held for, the answer stands rather than holding the bar off for good.
         await startFrom(10000);
         expect(engine.seekExternalPlayback(60)).toBe(true);
         await vi.advanceTimersByTimeAsync(20);
         omniMock.getExternalPlaybackStatus.mockImplementation(async () => status({ positionMs: 30000, isPlaying: true }));
 
+        // Held at the drop for the window, then the player's own answer: the clock stands on 30 s.
+        await vi.advanceTimersByTimeAsync(600);
+        expect(engine.getExternalPosition()).toBeGreaterThan(60);
         await vi.advanceTimersByTimeAsync(3000);
-        expect(engine.getExternalPosition()).toBeGreaterThan(31);
-        expect(engine.getExternalPosition()).toBeLessThan(34);
+        expect(engine.getExternalPosition()).toBeGreaterThan(30.9);
+        expect(engine.getExternalPosition()).toBeLessThan(32);
     });
 });
 
