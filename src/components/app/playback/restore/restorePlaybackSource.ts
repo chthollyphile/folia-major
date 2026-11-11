@@ -29,7 +29,6 @@ import { resolveLocalSongLyrics } from '../../../../utils/lyrics/localSongLyrics
 import { loadOnlineLyricsState, resolveOnlineLyrics } from '../../../../utils/onlineLyricsState';
 import type { AudioQualityPreference, MediaId, ProviderExternalPlaybackStatus } from '../../../../types/onlineMusic';
 import { omni } from '../../../../services/onlineMusic/omni';
-import { adoptExternalPlayback } from '../../../../services/onlineMusic/externalPlayback';
 import { onlineFailureOf, type OnlineFailure } from '../../../../services/onlineMusic/failure/onlineFailureCase';
 import { getCachedSongCoverUrl, getSongCacheWithLegacyMigration } from '../../../../services/onlineMusic/resourceCache';
 import { getSongCoverUrl } from '../../../../services/onlineMusic/songMetadata';
@@ -37,7 +36,7 @@ import { currentTime } from '../../../../stores/motionSignals';
 import { useOnlineProviderAccountStore } from '../../../../stores/useOnlineProviderAccountStore';
 import { setStatusMessage as setStatusMsg, useStatusMessageStore } from '../../../../stores/useStatusMessageStore';
 import { setActiveLocalLyricsSource, setAudioSrc, setCachedCoverUrl, setCurrentSong, setDuration, usePlaybackStore } from '../../../../stores/usePlaybackStore';
-import { askedSongKeyRef, keepSongsOfProvidersStanding, makeSongCurrent, providerDropsSoFar, replaceShownSong, startOfAskedSong } from '../currentSong';
+import { askedSongKeyRef, keepSongsOfProvidersStanding, providerDropsSoFar, replaceShownSong } from '../currentSong';
 import { onlineFailureToast } from '../source/onlineFailureToast';
 import { loadLocalSongAudio, loadLocalSongHifiSource, loadNavidromeSongAudio, loadOnlineSongAudio } from '../source/songAudioSource';
 import { queueWithRunningTrack } from './runningTrack';
