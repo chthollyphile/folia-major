@@ -1256,6 +1256,11 @@ function createSpotifyOfficialClient({
         const answers = !restart && await debugPortAnswers();
         // Whether this call started the Spotify it now waits for: only then is its window Folia's to tuck away.
         let spawned = false;
+        // Whether this start was made without knowing whether Spotify runs. The launcher hands its
+        // command line to an app that is already up (one instance per user), so such a start may have
+        // been the listener's app reopening rather than a Spotify this run created: the quit cannot
+        // treat it as one Folia started.
+        let startedOnUnseen = false;
         // The Spotify processes running before this start: a window of one of them is the listener's, and
         // stays where it is.
         let skipPids = [];
@@ -1274,9 +1279,17 @@ function createSpotifyOfficialClient({
                 }
                 if (running === 'unknown') {
                     // Nothing said Spotify was closed, so nothing here may close it: the start is made
-                    // on top of whatever is there, and a restart the listener already agreed to is
-                    // what it might be. Closing an app that may not be running would only spend the
-                    // run's one restart on a taskkill that has nothing to do.
+                    // on top of whatever is there. And a start made on top of it is the restart the
+                    // listener agreed to - the launcher of a one-instance app hands the command line to
+                    // the app that is already up, which reopens it with the DevTools port - so it is
+                    // only made at all after that yes above. Still nothing is closed: a taskkill cannot
+                    // go after a process that may not exist, and would spend the run's one restart on
+                    // it.
+                    //
+                    // What follows is not recorded as a Spotify this run started: whether the app that
+                    // answers is the listener's reopened or one this call created was never asked, and
+                    // the quit closes only what it can show was its own.
+                    startedOnUnseen = true;
                     log('[SpotifyClient] tasklist could not say whether Spotify runs; it is started without closing it first');
                 } else {
                     if (forceRestarts >= MAX_FORCE_RESTARTS) {
@@ -1319,7 +1332,10 @@ function createSpotifyOfficialClient({
             spawned = true;
             child.on?.('error', error => warn('[SpotifyClient] Spotify could not be started', error));
             child.unref?.();
-            startedByUs = true;
+            // A start made without knowing whether Spotify runs proves nothing about who created the
+            // app that answers, so it is not what makes the app one of this run's; a start that was
+            // already this run's stays so.
+            if (!startedOnUnseen) startedByUs = true;
             log('[SpotifyClient] Spotify was started with the DevTools port');
         }
         // The first wait: the app, its DevTools port and a page that answers a script.
