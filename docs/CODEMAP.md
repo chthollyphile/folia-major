@@ -71,6 +71,7 @@
 | 32+ | `src/library/core/account/account.contract.ts` |
 | 32+ | `src/library/core/directory/directory.contract.ts` |
 | 32+ | `src/library/core/home/homeModel.contract.ts` |
+| 32+ | `src/library/suites/bravais/bravaisConstants.ts` |
 | 32+ | `src/library/suites/bravais/bravaisLayer.ts` |
 | 32+ | `src/mods/types.ts` |
 | 32+ | `src/services/baseThemes.ts` |
