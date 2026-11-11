@@ -50,6 +50,7 @@ vi.mock('@/services/onlineMusic/omni', () => ({ omni: omniMock }));
 
 const engine = await import('@/services/onlineMusic/externalPlayback');
 const { followRunningExternalPlayer, adoptPlayerTrack } = await import('@/components/app/playback/bridges/externalPlayerFollow');
+const { makeSongCurrent } = await import('@/components/app/playback/currentSong');
 const { usePlaybackStore } = await import('@/stores/usePlaybackStore');
 const { PlayerState } = await import('@/types');
 const { useAudioSettingsStore } = await import('@/stores/useAudioSettingsStore');
@@ -214,6 +215,52 @@ describe('a player that follows the listener\'s own changes', () => {
 
         await expect(followRunningExternalPlayer()).resolves.toBe('untouched');
         expect(engine.getExternalSong()).toBeNull();
+    });
+
+    // The lookup of a track the player names waits on the platform's network. A song the listener
+    // asked for in Folia while it waited owns the screen when the answer comes back: nothing of the
+    // track lands on it, and no session replaces the one that song has.
+    const deferredTrack = () => {
+        let resolve!: (value: SongResult | null) => void;
+        const promise = new Promise<SongResult | null>(done => { resolve = done; });
+        return { promise, resolve };
+    };
+    const flush = () => vi.advanceTimersByTimeAsync(0);
+
+    it('leaves the screen alone where a song was asked for while the track was looked up', async () => {
+        const lookup = deferredTrack();
+        omniMock.getExternalPlaybackRunningStatus.mockResolvedValue(status({ mediaId: '456' }));
+        omniMock.getSongDetail.mockImplementation(() => lookup.promise);
+
+        const following = followRunningExternalPlayer();
+        await flush();
+        expect(omniMock.getSongDetail).toHaveBeenCalledWith('spotify', '456');
+        makeSongCurrent(other);
+        lookup.resolve(songOn('789', 'Asked for'));
+
+        await expect(following).resolves.toBe('untouched');
+        expect(usePlaybackStore.getState().currentSong).toEqual(other);
+        expect(engine.getExternalSong()).toBeNull();
+        expect(engine.isExternalRoute()).toBe(false);
+    });
+
+    it('leaves the screen alone where a song was asked for while the player took the track', async () => {
+        const lookup = deferredTrack();
+        await engine.beginExternalPlayback(song, 0);
+        engine.announceExternalPlayback();
+        omniMock.getSongDetail.mockImplementation(() => lookup.promise);
+
+        const adopting = adoptPlayerTrack(song, status({ mediaId: '456', positionMs: 3000 }), {
+            isWanted: () => engine.isExternalRoute() && engine.getExternalSong() !== null,
+        });
+        await flush();
+        makeSongCurrent(other);
+        lookup.resolve(songOn('789', 'Asked for'));
+
+        await expect(adopting).resolves.toBe('untouched');
+        expect(usePlaybackStore.getState().currentSong).toEqual(other);
+        expect(engine.getExternalSong()).not.toEqual(songOn('789', 'Asked for'));
+        expect(engine.getExternalSong()).not.toEqual(songOn('456', 'Another'));
     });
 
     // B1: Folia did start this song, and the listener moved the player on to another track from its

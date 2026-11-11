@@ -7,6 +7,7 @@ const canPlayExternallyMock = vi.hoisted(() => vi.fn(() => true));
 const runningPositionMock = vi.hoisted(() => vi.fn(async (): Promise<number | null> => null));
 const runningStatusMock = vi.hoisted(() => vi.fn(async (): Promise<unknown> => null));
 const adoptMock = vi.hoisted(() => vi.fn(async (): Promise<boolean> => false));
+const yieldMock = vi.hoisted(() => vi.fn());
 const pauseMock = vi.hoisted(() => vi.fn(async () => undefined));
 const resumeMock = vi.hoisted(() => vi.fn(async () => undefined));
 const playMock = vi.hoisted(() => vi.fn(async () => undefined));
@@ -53,8 +54,12 @@ vi.mock('@/services/onlineMusic/omni', () => ({
     },
 }));
 // The player taken over: a session restore that finds it playing the remembered song hands it to
-// the external route, which is this call and nothing else.
-vi.mock('@/services/onlineMusic/externalPlayback', () => ({ adoptExternalPlayback: adoptMock }));
+// the external route, which is this call and nothing else. A route a song asked for meanwhile has
+// taken from it is given up by the other export.
+vi.mock('@/services/onlineMusic/externalPlayback', () => ({
+    adoptExternalPlayback: adoptMock,
+    yieldExternalPlayback: yieldMock,
+}));
 vi.mock('@/stores/motionSignals', () => ({
     currentTime: { get: () => 0, set: setCurrentTimeMock },
 }));
