@@ -119,7 +119,7 @@ describe('a player taken over, before the listener picks a song of their own', (
     it('takes the player over without changing its level', async () => {
         // The listener's own level was set in Spotify's window: a take-over does not replace it.
         const taken = await engine.adoptExternalPlayback(song);
-        expect(taken).toBe(true);
+        expect(taken).toMatchObject({ attempt: expect.any(Number) });
         expect(engine.isExternalTakeoverPending()).toBe(true);
         expect(omniMock.setExternalPlaybackVolume).not.toHaveBeenCalled();
     });

@@ -93,7 +93,8 @@ export const takeOverRunningPlayer = async (
         if (running.isPlaying && running.degraded !== true) {
             const adopted = await adoptExternalPlayback(remembered);
             // A song asked for while the player was taken over owns the screen: the route just taken
-            // is given up rather than left following a song nobody shows.
+            // is given up rather than left following a song nobody shows. A play of that song may have
+            // begun a session of its own meanwhile, and that one is left sounding.
             if (wanted()) {
                 // Either way nothing of this window plays the song now: what sounds there is the
                 // player's, and a take-over that failed left the route to this app. So the intent the
@@ -101,7 +102,7 @@ export const takeOverRunningPlayer = async (
                 options.spendPlayIntent?.();
                 if (adopted) return 'adopted';
             } else {
-                if (adopted) yieldExternalPlayback('another song was asked for while the player was taken over');
+                if (adopted) yieldExternalPlayback('another song was asked for while the player was taken over', adopted);
                 return 'untouched';
             }
         }
@@ -139,7 +140,8 @@ const settleTrackTakeOver = async (
         // A song asked for while the track was shown owns the screen: the player is left as it is
         // rather than asked to hold a track nothing on screen belongs to.
         if (!stillCurrent()) return 'untouched';
-        if (!await adoptExternalPlayback(track)) {
+        const adopted = await adoptExternalPlayback(track);
+        if (!adopted) {
             // The player did not hold the track any more: the remembered song is the song this app
             // shows again, and nothing of the track was written anywhere. The player is left as it is.
             // A song asked for while the take-over waited keeps the screen.
@@ -149,7 +151,7 @@ const settleTrackTakeOver = async (
         // The player took the track under another song that is now on screen: it is this window's
         // again and nothing of the track is shown, so it is given up as a stop gives it up.
         if (!stillCurrent()) {
-            yieldExternalPlayback('another song was asked for while the player took the track');
+            yieldExternalPlayback('another song was asked for while the player took the track', adopted);
             return 'untouched';
         }
         // The player sounds the track, so the caller's own intent to play is spent - but only where
@@ -164,14 +166,17 @@ const settleTrackTakeOver = async (
     // to play the caller armed is dropped - unless a song was asked for while the take-over waited.
     // A caller that does not ask for this (a restore, whose pause there is only shown) keeps showing
     // the track where it is.
-    if (options.adoptsPausedTrack === true && stillCurrent() && await adoptExternalPlayback(track)) {
-        if (!stillCurrent()) {
-            yieldExternalPlayback('another song was asked for while the paused track was taken over');
-            return 'untouched';
+    if (options.adoptsPausedTrack === true && stillCurrent()) {
+        const adopted = await adoptExternalPlayback(track);
+        if (adopted) {
+            if (!stillCurrent()) {
+                yieldExternalPlayback('another song was asked for while the paused track was taken over', adopted);
+                return 'untouched';
+            }
+            options.spendPlayIntent?.();
+            await options.onTrackTaken?.(track, stillCurrent);
+            return 'adopted';
         }
-        options.spendPlayIntent?.();
-        await options.onTrackTaken?.(track, stillCurrent);
-        return 'adopted';
     }
     // The player did not hold the track after all: it is shown where it is, and the press of play
     // starts it. A song asked for while the take-over waited keeps the screen and its own play.

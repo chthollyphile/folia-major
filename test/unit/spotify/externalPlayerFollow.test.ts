@@ -296,6 +296,54 @@ describe('a player that follows the listener\'s own changes', () => {
         expect(omniMock.resumeExternalPlayback).not.toHaveBeenCalledWith(song);
     });
 
+    // The take-over is announced, and the listener presses play in Folia on that very announcement:
+    // a session of its own takes the player, sounding another song. The take-over that was in flight
+    // is nobody's from that moment, so giving it up must not stop the song the listener asked for.
+    it('leaves a song asked for while the player was taken over sounding', async () => {
+        const askedFor = songOn('789', 'Asked for');
+        omniMock.getExternalPlaybackRunningStatus.mockResolvedValue(status({ mediaId: '456' }));
+        omniMock.getSongDetail.mockResolvedValue(other);
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ mediaId: '456' }));
+        let started = false;
+        const unsubscribe = engine.subscribeExternalPlayback(event => {
+            if (event.type !== 'status' || started) return;
+            started = true;
+            engine.startExternalPlayback(askedFor, 0);
+            makeSongCurrent(askedFor);
+        });
+
+        await expect(followRunningExternalPlayer()).resolves.toBe('untouched');
+        unsubscribe();
+
+        expect(engine.getExternalSong()).toEqual(askedFor);
+        expect(engine.isExternalRoute()).toBe(true);
+        expect(usePlaybackStore.getState().currentSong).toEqual(askedFor);
+        // The player is the song asked for, and nothing of the take-over paused it.
+        expect(omniMock.pauseExternalPlayback).not.toHaveBeenCalled();
+    });
+
+    // The same where the player never left the song on screen: the take-over is of this very song,
+    // and the song asked for meanwhile is the one that keeps sounding.
+    it('leaves that song sounding where the player was on the song this app showed', async () => {
+        const askedFor = songOn('789', 'Asked for');
+        omniMock.getExternalPlaybackRunningStatus.mockResolvedValue(status());
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status());
+        let started = false;
+        const unsubscribe = engine.subscribeExternalPlayback(event => {
+            if (event.type !== 'status' || started) return;
+            started = true;
+            engine.startExternalPlayback(askedFor, 0);
+            makeSongCurrent(askedFor);
+        });
+
+        await expect(followRunningExternalPlayer()).resolves.toBe('untouched');
+        unsubscribe();
+
+        expect(engine.getExternalSong()).toEqual(askedFor);
+        expect(engine.isExternalRoute()).toBe(true);
+        expect(omniMock.pauseExternalPlayback).not.toHaveBeenCalled();
+    });
+
     // B1: Folia did start this song, and the listener moved the player on to another track from its
     // own window.
     it('hands the track the player moved on to over without pausing it', async () => {
