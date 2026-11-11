@@ -458,6 +458,39 @@ describe('a start that runs on after the interface', () => {
         expect(omniMock.setExternalTrackRepeat).toHaveBeenLastCalledWith(song, false);
     });
 
+    it('sends the repeat a mode change asked for while an earlier write of it was still on its way', async () => {
+        omniMock.setExternalTrackRepeat.mockClear();
+        useAudioSettingsStore.setState({ loopMode: 'off' });
+        const start = engine.startExternalPlayback(song, 0);
+        engine.announceExternalPlayback();
+        await start.seeded;
+        await vi.advanceTimersByTimeAsync(1);
+
+        // Repeat one hands the repeat to the player, and that write is still on its way.
+        const asking = deferred();
+        omniMock.setExternalTrackRepeat.mockImplementationOnce(async () => {
+            await asking.promise;
+            return { read: true, changed: true, now: 2 };
+        });
+        useAudioSettingsStore.setState({ loopMode: 'one' });
+        await vi.advanceTimersByTimeAsync(1);
+        expect(omniMock.setExternalTrackRepeat).toHaveBeenLastCalledWith(song, true);
+        expect(omniMock.setExternalTrackRepeat).toHaveBeenCalledTimes(1);
+
+        // Another mode picked while that write is pending waits for it rather than asking twice.
+        useAudioSettingsStore.setState({ loopMode: 'all' });
+        await vi.advanceTimersByTimeAsync(1);
+        expect(omniMock.setExternalTrackRepeat).toHaveBeenCalledTimes(1);
+
+        // The answer lands, and the mode picked meanwhile is asked for as well: without that second
+        // ask the change would be lost with no later trigger, and the player would repeat the song.
+        omniMock.setExternalTrackRepeat.mockImplementation(async () => ({ read: true, changed: false, now: 0 }));
+        asking.resolve();
+        await vi.advanceTimersByTimeAsync(1);
+        expect(omniMock.setExternalTrackRepeat).toHaveBeenCalledTimes(2);
+        expect(omniMock.setExternalTrackRepeat).toHaveBeenLastCalledWith(song, false);
+    });
+
     it('asks the player again for the repeat an earlier write never got an answer for', async () => {
         omniMock.setExternalTrackRepeat.mockClear();
         useAudioSettingsStore.setState({ loopMode: 'one' });

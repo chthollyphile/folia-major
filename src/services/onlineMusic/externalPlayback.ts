@@ -337,12 +337,22 @@ const syncExternalTrackRepeat = (current: ExternalSession) => {
         // which is what the next trigger asks about.
         const now = typeof answer?.now === 'number' ? answer.now : null;
         current.trackRepeat = now === null ? null : now === 2;
+        // A mode picked while this write was on its way asked for the other value, and its own
+        // trigger was dropped as one waiting for this write: the setting is asked for again now that
+        // the player has answered, for what the mode reads, so it is never left repeating a song
+        // where Folia no longer repeats it. What this write asked for is the comparison, not what
+        // the player holds: a write nobody answered leaves the mode the only thing to go by.
+        if (isRepeatOneSong() !== wanted) syncExternalTrackRepeat(current);
     }).catch((error: unknown) => {
         // The song keeps playing, and the app's own replay of repeat one still covers it. What the
         // player holds is unknown, so the next trigger asks again.
         if (session === current) {
             current.trackRepeatPending = false;
             current.trackRepeat = null;
+            // A mode picked while this write was on its way is asked for here the way it is after an
+            // answer: no failure is repeated for a mode that has not moved on, so a player that
+            // refuses every write is asked once per change of the mode rather than in a loop.
+            if (isRepeatOneSong() !== wanted) syncExternalTrackRepeat(current);
         }
         console.warn('[ExternalPlayback] repeat one could not be handed to the player\'s own repeat', error);
     });
