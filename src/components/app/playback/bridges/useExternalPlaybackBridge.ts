@@ -131,7 +131,8 @@ export function useExternalPlaybackBridge({ handleNextTrack, handlePrevTrack }: 
                     })
                     : Promise.resolve('untouched')
                 ).then(outcome => {
-                    if (outcome !== 'adopted') stopForeignExternalPlayback();
+                    // A track shown paused is on screen now too: the player is left where it is.
+                    if (outcome === 'untouched') stopForeignExternalPlayback();
                 }, (error: unknown) => {
                     console.warn('[ExternalPlayback] the track the player moved on to could not be taken over', error);
                     stopForeignExternalPlayback();
