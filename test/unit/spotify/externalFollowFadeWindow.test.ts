@@ -54,6 +54,7 @@ const { PlayerState } = await import('@/types');
 const { useAudioSettingsStore } = await import('@/stores/useAudioSettingsStore');
 const { consumeProgrammaticPause, playbackFade, registerPlaybackFadeGraph, PAUSE_DRAIN_MS, PLAYBACK_FADE_SECONDS } = await import('@/services/playbackFade');
 const { PLAYBACK_DECK_ATTRIBUTE } = await import('@/components/hifi/useWebEngineYield');
+const { isHifiRoute } = await import('@/services/hifi/hifiRouteGuard');
 
 const songOn = (mediaId: string, name = mediaId): SongResult => ({
     id: mediaId,
@@ -106,8 +107,13 @@ const fakeGraph = () => {
 };
 
 describe('a local song still sounding while its pause fades out', () => {
+    /** App.tsx's `shouldAutoPlay`: the intent to play, which a pause read as the listener's spends. */
+    const shouldAutoPlay = { current: true };
+
     beforeEach(() => {
         vi.useFakeTimers();
+        // Every test starts from an untouched autoplay intent, as an app that has not played has.
+        shouldAutoPlay.current = true;
         engine.installExternalPlayback();
         engine.stopExternalPlayback('test reset');
         traits.declared = {
@@ -207,14 +213,36 @@ describe('a local song still sounding while its pause fades out', () => {
     // The pause event the emptied deck fires arrives after the take-over put another song on screen.
     // Read as the listener's own it drops the transport to PAUSED over a player that is sounding, so
     // the mark has to be consumed by it - once, and no more: a mark left standing would swallow the
-    // listener's next real pause. The handler is the one App.tsx's onPause runs, first line first.
+    // listener's next real pause.
+    //
+    // The handler below is App.tsx's onPause (the audio element's), guard for guard and in its own
+    // order, with what the test stands in for named at each line. Only two things are stood in for,
+    // both of them values App.tsx holds in its own render: `isActiveDeck` is
+    // `element === audioRef.current` there, so the deck the test made IS the active deck and any
+    // other element is not; and the autoplay intent is a plain object with a `current` rather than
+    // App's ref. The route guard, the fade's mark and the transport are the app's own modules.
+    const pauseHandler = (element: HTMLAudioElement | null) => {
+        // App.tsx: the four early-outs, then the intent, then the transport state.
+        return (event: { currentTarget: HTMLAudioElement }) => {
+            // A pause that flushing a fade-out made, while a new song is already being set up.
+            if (consumeProgrammaticPause(event.currentTarget)) return;
+            // The Web engine yielding to mpv pauses the deck: the HiFi song's intent stays.
+            if (isHifiRoute()) return;
+            // App.tsx asks its automix session; here the deck under test is the active one.
+            if (event.currentTarget !== element) return;
+            // A deck whose source failed fires pause right after error; that is the error path's.
+            if (event.currentTarget.error) return;
+            shouldAutoPlay.current = false;
+            if (!event.currentTarget.ended) {
+                setPlayerState(PlayerState.PAUSED);
+            }
+        };
+    };
+
     it('does not let that deck\'s pause event pause the song the player sounds', async () => {
         const onSettled = vi.fn();
         const { following, deck } = await readAfterThePress(onSettled);
-        const onPause = (event: { currentTarget: HTMLAudioElement }) => {
-            if (consumeProgrammaticPause(event.currentTarget)) return;
-            setPlayerState(PlayerState.PAUSED);
-        };
+        const onPause = pauseHandler(deck.element);
 
         await expect(following).resolves.toBe('adopted');
         expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PLAYING);
@@ -222,8 +250,28 @@ describe('a local song still sounding while its pause fades out', () => {
         // The event the emptied deck fires for the pause of the take-over.
         onPause({ currentTarget: deck.element });
         expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PLAYING);
+        // Nothing of the listener's intent was spent by an event that was not theirs.
+        expect(shouldAutoPlay.current).toBe(true);
         // The mark is spent with that one event: the listener's own next pause is theirs again.
         expect(consumeProgrammaticPause(deck.element)).toBe(false);
+        onPause({ currentTarget: deck.element });
+        expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PAUSED);
+        expect(shouldAutoPlay.current).toBe(false);
+    });
+
+    // The same handler with the mark taken away: the very same event is read as the listener's, which
+    // is what the mark exists to prevent. Without this the test above cannot tell a handler that
+    // dropped the event apart from one that never looked at the mark at all.
+    it('pauses the transport on that same event once the mark is not there', async () => {
+        const onSettled = vi.fn();
+        const { following, deck } = await readAfterThePress(onSettled);
+        const onPause = pauseHandler(deck.element);
+
+        await expect(following).resolves.toBe('adopted');
+        expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PLAYING);
+
+        // The mark the deck was emptied under is spent before its event arrives.
+        expect(consumeProgrammaticPause(deck.element)).toBe(true);
         onPause({ currentTarget: deck.element });
         expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PAUSED);
     });
