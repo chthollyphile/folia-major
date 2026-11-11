@@ -654,6 +654,97 @@ describe('the repeat and the shuffle Folia put back', () => {
         await app.client.close();
     });
 
+    it('keeps no record where a start in repeat one could not write the repeat at all', async () => {
+        // The listener's own repeat was off and the start could not write the track one: Folia left
+        // nothing of it behind, so the value the app holds afterwards - theirs, set in Spotify's own
+        // window - is not a value of Folia's to put back.
+        handle = expression => ({
+            value: expression.includes('window.__foliaPlay')
+                ? { answer: 'loaded', changed: { repeat: null, shuffle: null, left: 0 } }
+                : true,
+        });
+        const app = makeClient({ running: true, portAnswers: true });
+        await expect(app.client.play({ id: TRACK, startMs: 0, singleLoop: true })).resolves.toBe('loaded');
+        expect(app.client.changedState()).toEqual({ repeat: null, shuffle: null });
+
+        const scripts: string[] = [];
+        handle = expression => {
+            scripts.push(expression);
+            return { value: { repeat: true, shuffle: false } };
+        };
+        await expect(app.client.restoreUserState()).resolves.toEqual({ repeat: null, shuffle: null });
+        expect(scripts).toEqual([]);
+        await app.client.close();
+    });
+
+    it('answers the repeat a start in repeat one left for the renderer, without changing the word it answers', async () => {
+        handle = expression => ({
+            value: expression.includes('window.__foliaPlay')
+                ? { answer: 'loaded', changed: { repeat: 'off', shuffle: null, left: 2 } }
+                : true,
+        });
+        const app = makeClient({ running: true, portAnswers: true });
+        // The word a start has always answered stays the one it answers; the repeat rides beside it,
+        // which is what tells the renderer the app's own repeat is the one repeating this song.
+        await expect(app.client.play({ id: TRACK, startMs: 0, singleLoop: true })).resolves.toBe(2);
+        await app.client.close();
+    });
+
+    it('answers the repeat the app holds after a repeat of the track was written', async () => {
+        handle = expression => {
+            if (expression.includes('setRepeat(2)') || expression.includes('api.player.setRepeat')) return { value: { read: true, before: 0, now: 2 } };
+            return { value: { answer: 'loaded', changed: {} } };
+        };
+        const app = makeClient({ running: true, portAnswers: true });
+        await expect(app.client.setTrackRepeat({ on: true })).resolves.toEqual({ read: true, changed: true, now: 2 });
+        await app.client.close();
+    });
+
+    it('answers no repeat where the app would not take the repeat of the track', async () => {
+        handle = expression => {
+            if (expression.includes('api.player.setRepeat')) return { value: { read: true, before: 0, now: 0 } };
+            return { value: { answer: 'loaded', changed: {} } };
+        };
+        const app = makeClient({ running: true, portAnswers: true });
+        await expect(app.client.setTrackRepeat({ on: true })).resolves.toEqual({ read: true, changed: false, now: 0 });
+        await app.client.close();
+    });
+
+    it('answers a repeat put back as the value the restore left', async () => {
+        handle = expression => ({
+            value: expression.includes('window.__foliaPlay')
+                ? { answer: 'loaded', changed: { repeat: 'off', shuffle: null, left: 2 } }
+                : true,
+        });
+        const app = makeClient({ running: true, portAnswers: true });
+        await app.client.play({ id: TRACK, startMs: 0, singleLoop: true });
+        handle = () => ({ value: { repeat: true, shuffle: false } });
+        // Put back: the listener's own value is written where the app still holds what Folia left.
+        await expect(app.client.setTrackRepeat({ on: false })).resolves.toMatchObject({ read: true, now: 0 });
+        await app.client.close();
+    });
+
+    it('leaves a value the listener set after a repeat one of Folia that wrote nothing', async () => {
+        // The app would not take the repeat of the track: Folia wrote nothing, so the repeat the
+        // listener then sets in Spotify's own window is theirs, and no restore may write over it.
+        handle = expression => ({
+            value: expression.includes('window.__foliaPlay')
+                ? { answer: 'loaded', changed: { repeat: null, shuffle: null, left: 0 } }
+                : true,
+        });
+        const app = makeClient({ running: true, portAnswers: true });
+        await app.client.play({ id: TRACK, startMs: 0, singleLoop: true });
+        // The listener turned the repeat of the track on themselves after that start.
+        const scripts: string[] = [];
+        handle = expression => {
+            scripts.push(expression);
+            return { value: { repeat: 'theirs', shuffle: 'theirs' } };
+        };
+        await expect(app.client.setTrackRepeat({ on: false })).resolves.toMatchObject({ read: true });
+        expect(scripts).toEqual([]);
+        await app.client.close();
+    });
+
     it('leaves the shuffle for leaving this way of playing when repeat one goes off', async () => {
         // Repeat one going off puts the repeat back and nothing else: the shuffle belongs to leaving
         // this way of playing, and turning it back on here would reorder the queue Folia is about to

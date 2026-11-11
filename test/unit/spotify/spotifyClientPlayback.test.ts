@@ -95,6 +95,8 @@ beforeEach(() => {
     request.mockImplementation(async (operation: string, params?: unknown) => {
         if (operation === 'client_play') return 'loaded';
         if (operation === 'client_queue') return queueTaken(params);
+        // The app takes the repeat of the track: a test about a refusal answers instead.
+        if (operation === 'client_repeat') return { read: true, changed: false, now: 2 };
         return { available: true };
     });
     resetSpotifyClientPlayback();
@@ -1547,5 +1549,74 @@ describe('repeat one carried out by the app\'s own repeat of the track', () => {
         const status = statusOfClient(degraded({ positionMs: 1000, title: 'Something Else', artist: 'Somebody' }));
         expect(status.ended).toBe(true);
         expect(status.skipped).toBe('next');
+    });
+
+    it('keeps repeat one as Folia\'s own replay where the app would not turn its repeat of the track on', async () => {
+        const a = songOf('a');
+        await spotifyClientPlayback.play!(a, 0);
+        // The desktop side answers with the repeat the app holds afterwards: off, so nothing of this
+        // song is handed over to the app and Folia's own replay is what carries repeat one.
+        request.mockImplementation(async (operation: string, params?: unknown) => {
+            if (operation === 'client_repeat') return { read: true, changed: false, now: 0 };
+            if (operation === 'client_play') return 'loaded';
+            if (operation === 'client_queue') return queueTaken(params);
+            return { available: true };
+        });
+        await spotifyClientPlayback.setTrackRepeat!(true);
+        statusOfClient(playing(id('a'), { positionMs: 60000 }));
+
+        // A read that names this song further back is the listener's own drag: without the app's
+        // repeat the song would never come round by itself, so it is no turn of the song.
+        const status = statusOfClient(playing(id('a'), { positionMs: 0 }));
+        expect(status.replayed).toBeUndefined();
+    });
+
+    it('reads a read back into the song\'s turn once the app says it holds its repeat of the track', async () => {
+        const a = songOf('a');
+        await spotifyClientPlayback.play!(a, 0);
+        request.mockImplementation(async (operation: string, params?: unknown) => {
+            if (operation === 'client_repeat') return { read: true, changed: true, now: 2 };
+            if (operation === 'client_play') return 'loaded';
+            if (operation === 'client_queue') return queueTaken(params);
+            return { available: true };
+        });
+        await spotifyClientPlayback.setTrackRepeat!(true);
+        statusOfClient(playing(id('a'), { positionMs: 60000 }));
+
+        const status = statusOfClient(playing(id('a'), { positionMs: 0 }));
+        expect(status.replayed).toBe(true);
+        expect(status.ended).toBe(false);
+    });
+
+    it('leaves a start in repeat one to the app\'s repeat only where the app says it holds it', async () => {
+        const a = songOf('a');
+        // The start answers the repeat the app holds after it: the track, which is what the app then
+        // sounds again by itself.
+        request.mockImplementation(async (operation: string, params?: unknown) => {
+            if (operation === 'client_play') return { answer: 'loaded', repeat: 2 };
+            if (operation === 'client_queue') return queueTaken(params);
+            return { available: true };
+        });
+        await spotifyClientPlayback.play!(a, 0, { singleLoop: true });
+        statusOfClient(playing(id('a'), { positionMs: 60000 }));
+
+        const status = statusOfClient(playing(id('a'), { positionMs: 0 }));
+        expect(status.replayed).toBe(true);
+    });
+
+    it('keeps Folia\'s own replay of a start in repeat one the app did not leave the repeat on', async () => {
+        const a = songOf('a');
+        // A player that refused the write leaves the repeat where it was, and the start says so: no
+        // repeat of the track is the app's, so a read further back is a drag and not the turn.
+        request.mockImplementation(async (operation: string, params?: unknown) => {
+            if (operation === 'client_play') return { answer: 'loaded', repeat: null };
+            if (operation === 'client_queue') return queueTaken(params);
+            return { available: true };
+        });
+        await spotifyClientPlayback.play!(a, 0, { singleLoop: true });
+        statusOfClient(playing(id('a'), { positionMs: 60000 }));
+
+        const status = statusOfClient(playing(id('a'), { positionMs: 0 }));
+        expect(status.replayed).toBeUndefined();
     });
 });
