@@ -191,4 +191,55 @@ describe('coverUrl utilities', () => {
         expect(getCoverIdentity('https://example.test/a.jpg')).not.toBe(getCoverIdentity('https://other.test/a.jpg'));
         expect(getCoverIdentity(undefined)).toBe('');
     });
+
+    describe('size rules for the hosts measured on 2026-11-11', () => {
+        it('resizes KuGou playlist covers like song art', () => {
+            const cover = 'http://imge.kugou.com/soft/collection/150/20260414/20260414170554928435.png';
+            expect(getSizedCoverUrl(cover, 1024))
+                .toBe('http://imge.kugou.com/soft/collection/1024/20260414/20260414170554928435.png');
+            expect(getCoverIdentity(cover)).toBe(getCoverIdentity(getSizedCoverUrl(cover, 256)));
+        });
+
+        it('recognises the sycdn and kwcdn Kuwo hosts and serves 1024 and the cap past 800', () => {
+            expect(getSizedCoverUrl('http://img2.sycdn.kuwo.cn/star/albumcover/120/s3s22/95/1.jpg', 256))
+                .toBe('http://img2.sycdn.kuwo.cn/star/albumcover/240/s3s22/95/1.jpg');
+            expect(getSizedCoverUrl('http://img1.kwcdn.kuwo.cn/star/albumcover/240/s3s22/95/1.jpg', 1024))
+                .toBe('http://img1.kwcdn.kuwo.cn/star/albumcover/1024/s3s22/95/1.jpg');
+            expect(getSizedCoverUrl('https://img1.kuwo.cn/star/albumcover/240/s3s22/95/1.jpg', COVER_MAX_SIZE))
+                .toBe('https://img1.kuwo.cn/star/albumcover/1200/s3s22/95/1.jpg');
+            expect(getSizedCoverUrl('https://img1.kuwo.cn/star/albumcover/240/s3s22/95/1.jpg', 4000))
+                .toBe('https://img1.kuwo.cn/star/albumcover/1200/s3s22/95/1.jpg');
+        });
+
+        it('puts QQ playlist covers on their 150, 300 and 600 buckets', () => {
+            const cover = 'https://qpic.y.qq.com/music_cover/abcdef/300?n=1';
+            expect(COVER_SIZE_STEPS.map(step => getSizedCoverUrl(cover, step))).toEqual([
+                'https://qpic.y.qq.com/music_cover/abcdef/300?n=1',
+                'https://qpic.y.qq.com/music_cover/abcdef/600?n=1',
+                'https://qpic.y.qq.com/music_cover/abcdef/600?n=1',
+            ]);
+            expect(getSizedCoverUrl(cover, 120)).toBe('https://qpic.y.qq.com/music_cover/abcdef/150?n=1');
+            expect(describeCoverUrl(cover)).toEqual({ provider: 'qq', requestedSize: 300 });
+        });
+
+        it('writes the size into an Apple artwork file name, keeping its box and format', () => {
+            const cover = 'https://is1-ssl.mzstatic.com/image/thumb/Music126/v4/90/79/ce/x/cover.jpg/512x512bb.jpg';
+            expect(getSizedCoverUrl(cover, 1024))
+                .toBe('https://is1-ssl.mzstatic.com/image/thumb/Music126/v4/90/79/ce/x/cover.jpg/1024x1024bb.jpg');
+            expect(getSizedCoverUrl(cover.replace('bb.jpg', 'bb.webp'), 256))
+                .toBe('https://is1-ssl.mzstatic.com/image/thumb/Music126/v4/90/79/ce/x/cover.jpg/256x256bb.webp');
+            expect(getCoverIdentity(cover)).toBe(getCoverIdentity(getSizedCoverUrl(cover, 256)));
+            expect(describeCoverUrl(cover)).toEqual({ provider: 'apple', requestedSize: 512 });
+        });
+
+        it('writes the size into a square Google picture ending and leaves wide ones alone', () => {
+            const cover = 'https://lh3.googleusercontent.com/abc_DEF-1=w544-h544-l90-rj';
+            expect(getSizedCoverUrl(cover, 1024)).toBe('https://lh3.googleusercontent.com/abc_DEF-1=w1024-h1024-l90-rj');
+            expect(getSizedCoverUrl('https://yt3.ggpht.com/abc=w60-h60', 256)).toBe('https://yt3.ggpht.com/abc=w256-h256');
+            const banner = 'https://lh3.googleusercontent.com/abc=w1440-h600-p-l90-rj';
+            expect(getSizedCoverUrl(banner, 512)).toBe(banner);
+            expect(getCoverIdentity(cover)).toBe(getCoverIdentity(getSizedCoverUrl(cover, 256)));
+            expect(describeCoverUrl(cover)).toEqual({ provider: 'google', requestedSize: 544 });
+        });
+    });
 });

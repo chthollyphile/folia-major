@@ -111,7 +111,7 @@ export const PLATFORM_NAME_PLACES: Record<string, PlatformNamePlace> = {
     'src/utils/appPlaybackGuards.ts': { n: { netease: 1 }, kind: 'stored', why: 'the platform of a stored song that names none' },
     'src/utils/appPlaybackHelpers.ts': { n: { kugou: 3 }, kind: 'stored', why: 'URL hosts' },
     'src/utils/consoleLogBuffer.ts': { n: { kugou: 1 }, kind: 'doc' },
-    'src/utils/coverUrl.ts': { n: { netease: 6, qq: 21, kugou: 14, bodian: 1 }, kind: 'question', why: 'how each platform\'s picture host is asked for a size; the code has only the URL to go by; raised by the upstream merge 2026-10-17' },
+    'src/utils/coverUrl.ts': { n: { netease: 6, qq: 36, kugou: 14, bodian: 1 }, kind: 'question', why: 'how each platform\'s picture host is asked for a size; the code has only the URL to go by; raised by the upstream merge 2026-10-17' },
     'src/utils/fmQueue.ts': { n: { qq: 1 }, kind: 'doc' },
     'src/utils/lyrics/LyricParserFactory.ts': { n: { netease: 3 }, kind: 'lyric' },
     'src/utils/lyrics/adapters/LocalFileLyricAdapter.ts': { n: { kugou: 1 }, kind: 'doc' },
