@@ -634,7 +634,7 @@ export const spotifyClientPlayback: OnlineExternalPlaybackProvider = {
             id, startMs, userAction, written: writtenIds, replaceQueue: options.replaceQueue === true,
             ...(singleLoop ? { singleLoop: true } : {}),
         });
-        if (singleLoop && owner && attempt === owner) {
+        if (singleLoop && attempt === owner) {
             // The app's own repeat of the track is what carries this song round again, and this
             // start either kept the one it found or turned one on: what it answers is the value the
             // app holds afterwards. Only that value being the track's makes the turn the app's own;
