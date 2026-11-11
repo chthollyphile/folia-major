@@ -278,6 +278,16 @@ const validDurationSec = (ms: number): number | null => (
 );
 
 /**
+ * Whether the song on screen is in repeat one as the app's own settings read it: repeat one is on
+ * and nothing else decides where the song goes next. Personal FM is that other thing: it always goes
+ * on to the station's next song, so a repeat one picked before it does not hold the song, and a
+ * player that would repeat it by itself would never let the station move on.
+ */
+const isRepeatOneSong = (): boolean => (
+    useAudioSettingsStore.getState().loopMode === 'one' && !usePlaybackStore.getState().isFmMode
+);
+
+/**
  * Repeat one, carried out by the player's own repeat of the track where it has one: the player then
  * sounds the song again by itself, so no start is asked for at its end and nothing of the songs that
  * follow is written into its queue. Only a song of Folia's that sounds now asks for it: a player that
@@ -286,7 +296,7 @@ const validDurationSec = (ms: number): number | null => (
  */
 const syncExternalTrackRepeat = (current: ExternalSession) => {
     if (!current.traits.loopsTrackNatively || takeoverPending) return;
-    const wanted = useAudioSettingsStore.getState().loopMode === 'one' && !usePlaybackStore.getState().isFmMode;
+    const wanted = isRepeatOneSong();
     if (current.trackRepeat === wanted) return;
     // Only a repeat this session turned on is turned off again: where it never asked for one, the
     // start itself left the app's repeat as the listener had it, and an off here would put back a
@@ -320,9 +330,11 @@ const refreshPreparedQueue = () => {
     }
     const state = usePlaybackStore.getState();
     // Repeat one: the player goes on to nothing after this song, and what an earlier write left in
-    // its own queue is taken back where it can be emptied.
+    // its own queue is taken back where it can be emptied. Personal FM goes on to nothing of this
+    // queue either, so it takes back the same way: the player would otherwise sound a song of the
+    // list Folia is not stepping to when this one ends instead of the station's next.
     const loopMode = useAudioSettingsStore.getState().loopMode;
-    const retract = loopMode === 'one';
+    const retract = isRepeatOneSong() || state.isFmMode;
     // A player that reads its own queue ahead (only the one whose start is an instruction, the app
     // steered by its own program) is offered the three songs it may hold room for; every other player
     // is offered the two this route has always prepared, and drops what it has no room for.
@@ -742,7 +754,7 @@ export function startExternalPlayback(song: SongResult, startSec = 0, { userActi
     // Repeat one, handed to the player's own repeat of the track: the start asks for it in the same
     // call that plays the song, so the setting is never turned off and on again around a start of
     // Folia's own. A player with no repeat of its own is started as every start is.
-    const loopOne = singleLoop ?? (useAudioSettingsStore.getState().loopMode === 'one' && !usePlaybackStore.getState().isFmMode);
+    const loopOne = singleLoop ?? isRepeatOneSong();
     const startsLooping = loopOne && traits.loopsTrackNatively;
     session = {
         song, songKey, attempt, clock, durationSec, traits,
@@ -1179,7 +1191,13 @@ export const installExternalPlayback = (): void => {
             stopExternalPlayback('the stage took the song');
             withoutRouteGuard(() => setPlaybackRoute('web'));
         }
-        if (state.playQueue !== previous.playQueue || state.isFmMode !== previous.isFmMode) refreshPreparedQueue();
+        // Personal FM decides where the song goes next as much as the mode does: its answers follow
+        // the station and the player's own repeat of the track, both of which is what the song's
+        // end is read by.
+        if (state.playQueue !== previous.playQueue || state.isFmMode !== previous.isFmMode) {
+            refreshPreparedQueue();
+            if (state.isFmMode !== previous.isFmMode && session) syncExternalTrackRepeat(session);
+        }
     });
 };
 

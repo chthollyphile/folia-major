@@ -474,6 +474,67 @@ describe('a start that runs on after the interface', () => {
         expect(omniMock.setExternalTrackRepeat).toHaveBeenLastCalledWith(song, false);
     });
 
+    it('takes the player\'s repeat of the track back when the listener goes to personal FM, and asks for it again on the way out', async () => {
+        omniMock.setExternalTrackRepeat.mockClear();
+        omniMock.playSongExternally.mockClear();
+        useAudioSettingsStore.setState({ loopMode: 'one' });
+        const start = engine.startExternalPlayback(song, 0);
+        engine.announceExternalPlayback();
+        await start.seeded;
+        await vi.advanceTimersByTimeAsync(1000);
+
+        // Repeat one is the player's own repeat of the track, asked for in the start itself.
+        expect(omniMock.playSongExternally).toHaveBeenCalledWith(song, 0, { userAction: true, singleLoop: true });
+        expect(omniMock.setExternalTrackRepeat).not.toHaveBeenCalled();
+
+        // Personal FM never repeats one song: the player's own repeat has to go, or it sounds this
+        // song again where it ends and the station never moves on.
+        usePlaybackStore.setState({ isFmMode: true });
+        await vi.advanceTimersByTimeAsync(1);
+        expect(omniMock.setExternalTrackRepeat).toHaveBeenLastCalledWith(song, false);
+
+        // Out of FM with the mode still repeat one: the player's own repeat is asked for again.
+        usePlaybackStore.setState({ isFmMode: false });
+        await vi.advanceTimersByTimeAsync(1);
+        expect(omniMock.setExternalTrackRepeat).toHaveBeenLastCalledWith(song, true);
+    });
+
+    it('starts a song in personal FM without the player\'s repeat of the track, whatever the mode is', async () => {
+        omniMock.playSongExternally.mockClear();
+        omniMock.setExternalTrackRepeat.mockClear();
+        useAudioSettingsStore.setState({ loopMode: 'one' });
+        usePlaybackStore.setState({ isFmMode: true });
+        const start = engine.startExternalPlayback(song, 0);
+        engine.announceExternalPlayback();
+        await start.seeded;
+        await vi.advanceTimersByTimeAsync(1000);
+
+        expect(omniMock.playSongExternally).toHaveBeenCalledWith(song, 0, { userAction: true });
+        expect(omniMock.setExternalTrackRepeat).not.toHaveBeenCalled();
+    });
+
+    it('takes back what an earlier write left behind the song when the listener goes to personal FM', async () => {
+        // The player reports real progress, which is what lets the queue be written at all.
+        let positionMs = 0;
+        omniMock.getExternalPlaybackStatus.mockImplementation(async () => {
+            positionMs += 1000;
+            return status({ positionMs });
+        });
+        useAudioSettingsStore.setState({ loopMode: 'off' });
+        const start = engine.startExternalPlayback(song, 0);
+        engine.announceExternalPlayback();
+        await start.seeded;
+        await vi.advanceTimersByTimeAsync(2000);
+        expect(omniMock.prepareExternalPlaybackQueue).toHaveBeenLastCalledWith(song, [b, c], undefined);
+
+        // Personal FM goes on to nothing by itself here: the station moves on when the song ends, so
+        // what an earlier write left in the player's own queue is taken back - the player would
+        // otherwise sound that song instead of the one the station plays next.
+        usePlaybackStore.setState({ isFmMode: true });
+        await vi.advanceTimersByTimeAsync(1);
+        expect(omniMock.prepareExternalPlaybackQueue).toHaveBeenLastCalledWith(song, [], { retract: true });
+    });
+
     it('asks the player nothing of repeat when a song of Folia\'s starts on a player without one', async () => {
         omniMock.setExternalTrackRepeat.mockClear();
         omniMock.playSongExternally.mockClear();
