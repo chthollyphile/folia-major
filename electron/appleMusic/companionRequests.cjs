@@ -140,6 +140,7 @@ async function readFromPage(request, controlQueue, updateFavorite, addPlaylistTr
                 ...(window.__foliaStart?.pending && !window.__foliaStart.cancelled ? { starting: true } : {}),
                 // MusicKit's own state tells "stopped" and "ended" apart from a pause.
                 state: Number.isInteger(state) ? state : null,
+                repeatMode: Number.isInteger(mk.repeatMode) ? mk.repeatMode : null,
                 queueLength,
                 queueKeys: queue ? Object.keys(queue).slice(0, 12) : null,
                 positionMs: Number.isFinite(position) && position >= 0 ? Math.round(position * 1000) : 0,
@@ -184,7 +185,8 @@ async function readFromPage(request, controlQueue, updateFavorite, addPlaylistTr
                 else if ('repeatMode' in mk) mk.repeatMode = mode;
                 else return { ok: false, error: 'unsupported' };
             } catch { return { ok: false, error: 'playback-failed' }; }
-            return { ok: true, data: {} };
+            // What the player holds afterwards, read back: the caller logs it (a number, no words).
+            return { ok: true, data: { repeatMode: Number.isInteger(mk.repeatMode) ? mk.repeatMode : null } };
         }
         const methods = { pause: 'pause', resume: 'play', seek: 'seekToTime' };
         if (request.operation === 'playSong') {

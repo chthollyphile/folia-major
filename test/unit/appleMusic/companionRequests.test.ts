@@ -344,7 +344,7 @@ describe('Apple Music companion requests', () => {
         };
         expect(await runInNewContext(requestExpression(request), { window: { MusicKit: { getInstance: () => mk } } })).toEqual({
             ok: true, data: {
-                itemId: 'i.library', catalogId: '123', isPlaying: false, state: 5, queueLength: 1, queueKeys: ['length'], positionMs: 42500, durationMs: 200000,
+                itemId: 'i.library', catalogId: '123', isPlaying: false, state: 5, repeatMode: null, queueLength: 1, queueKeys: ['length'], positionMs: 42500, durationMs: 200000,
             },
         });
     });

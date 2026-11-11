@@ -357,6 +357,20 @@ const applyStatus = (status: ProviderExternalPlaybackStatus, sampledAtMs: number
         emit({ type: 'status' });
         return;
     }
+    // The player was told to repeat the track and stops for a moment at its start right after it
+    // was heard near the end: MusicKit goes round so (playing, then stopped with no item for one
+    // answer, then playing from the start: seen 2026-11-11). That is the track going round, not a
+    // pause of the listener's; a stop that lasts is a pause on the next answer (no sample then).
+    const durationKnown = current.durationSec;
+    if (!status.isPlaying && !status.ended && appliedRepeatOne === true && loopsCurrentTrack() && current.playing
+        && durationKnown !== null && previousSample !== null && previousSample >= durationKnown - REPEAT_WRAP_SLACK_SEC
+        && positionSec < REPEAT_WRAP_SLACK_SEC) {
+        console.info('[ExternalPlayback] single loop: the player is going round', { songKey: current.songKey });
+        syncClock(positionSec, false, sampledAtMs, false);
+        externalMediaShim.markSeeked();
+        emit({ type: 'status' });
+        return;
+    }
     // The player has no track: it is between starts, or the start it was asked for did not take.
     // That is a pause to wait through, never another song of the listener's.
     if (!status.mediaId) {
@@ -380,16 +394,22 @@ const applyStatus = (status: ProviderExternalPlaybackStatus, sampledAtMs: number
     }
     if (status.isPlaying) {
         if (current.ended) current.ended = false;
-        if (!current.playing) {
-            markPlaying(positionSec);
-        } else if (loopsCurrentTrack() && durationSec !== null && previousSample !== null
-            && previousSample >= durationSec - REPEAT_WRAP_SLACK_SEC && positionSec < REPEAT_WRAP_SLACK_SEC) {
-            // The player's own single repeat went round: the clock goes back with it, and the
-            // observers hear a seek, as <audio loop> fires one when it goes round.
+        // The player's own single repeat went round: from near the end to near the start. Soloist
+        // buffers as it goes round, so the answer before may have been a buffering one (shown as
+        // loading, `playing` false): then the clock, held where it was, says where it came from.
+        const cameFromSec = current.playing ? previousSample : current.clock.read();
+        const wentRound = loopsCurrentTrack() && durationSec !== null && cameFromSec !== null
+            && cameFromSec >= durationSec - REPEAT_WRAP_SLACK_SEC && positionSec < REPEAT_WRAP_SLACK_SEC;
+        if (wentRound) {
+            // The clock goes back with it, and the observers hear a seek, as <audio loop> fires one
+            // when it goes round.
             console.info('[ExternalPlayback] single loop: the player went round', { songKey: current.songKey });
-            syncClock(positionSec, false, sampledAtMs, false);
+            if (current.playing) syncClock(positionSec, false, sampledAtMs, false);
+            else markPlaying(positionSec);
             externalMediaShim.markSeeked();
             emit({ type: 'status' });
+        } else if (!current.playing) {
+            markPlaying(positionSec);
         } else {
             syncClock(positionSec, false, sampledAtMs, true);
             emit({ type: 'status' });
