@@ -58,6 +58,7 @@ describe('lyric style tunings travel in the bundle alone', () => {
     // A style whose fields are all named choices (no switch or number to nudge) gets a hand-picked change.
     const CHOICE_PATCHES: Record<string, Record<string, unknown>> = {
         machi: { weather: 'snow' },
+        tessera: { background: 'solid' },
     };
 
     // Moves every style off its defaults through the store's own setter, so what is exported is a

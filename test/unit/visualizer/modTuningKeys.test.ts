@@ -50,7 +50,7 @@ const merged = (mode: string, adapter: VisualizerTuningAdapter, key: string, val
 describe('mod tuning keys', () => {
     it('are declared by the styles that have options of their own', () => {
         const modes = declaredStyles().map(([mode]) => mode).sort();
-        expect(modes).toEqual(['cappella', 'claddagh', 'classic', 'diorama', 'fume', 'hanabi', 'lumiere', 'machi', 'monet', 'nebbia', 'partita', 'pendolo', 'sonnet', 'tempera', 'tilt']);
+        expect(modes).toEqual(['cappella', 'claddagh', 'classic', 'diorama', 'fume', 'hanabi', 'lumiere', 'machi', 'monet', 'nebbia', 'partita', 'pendolo', 'sonnet', 'tempera', 'tessera', 'tilt']);
     });
 
     // The names, kinds and ranges are public API (mods address them by name): a change here is a Folium change.

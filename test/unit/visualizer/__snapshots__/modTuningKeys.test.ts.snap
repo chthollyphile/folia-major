@@ -890,6 +890,16 @@ exports[`mod tuning keys > are pinned, so a renamed or dropped key is a visible 
       "type": "boolean",
     },
   },
+  "tessera": {
+    "background": {
+      "options": [
+        "solid",
+        "frame",
+        "clear",
+      ],
+      "type": "choice",
+    },
+  },
   "tilt": {
     "colorScheme": {
       "options": [

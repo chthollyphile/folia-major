@@ -29,6 +29,7 @@ export const BUILTIN_VISUALIZER_MODES = [
     'sonnet',
     'still',
     'tempera',
+    'tessera',
     'tilt',
 ] as const;
 
