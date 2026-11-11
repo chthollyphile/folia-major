@@ -617,6 +617,7 @@ describe('Spotify playback ways: standard and Soloist', () => {
         resume: vi.fn(async () => {}),
         seek: vi.fn(async (_ms: number) => {}),
         setVolume: vi.fn(async (_volume: number) => {}),
+        setRepeatOne: vi.fn<(enabled: boolean) => void>(),
         status: vi.fn(() => ({ running: true, paired: true, uri: null, status: 'idle', positionMs: 0, durationMs: 0, ended: false })),
         shutdown: vi.fn(() => Promise.resolve()),
     });
@@ -697,6 +698,10 @@ describe('Spotify playback ways: standard and Soloist', () => {
         await bridge.request('soloist_volume', { volume: 30 });
         expect(soloist!.seek).toHaveBeenCalledWith(5000);
         expect(soloist!.setVolume).toHaveBeenCalledWith(30);
+        expect(await bridge.request('soloist_repeat', { enabled: true })).toEqual({ ok: true, data: true });
+        expect(soloist!.setRepeatOne).toHaveBeenCalledWith(true);
+        expect(await bridge.request('soloist_repeat', { enabled: 'yes' })).toMatchObject({ ok: false });
+        expect(soloist!.setRepeatOne).toHaveBeenCalledTimes(1);
 
         await bridge.request('soloist_open', { page: 'download' });
         expect(openExternal).toHaveBeenLastCalledWith('https://developer.spotify.com/documentation/soloist/reference/downloads-and-updates');

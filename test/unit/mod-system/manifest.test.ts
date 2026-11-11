@@ -185,6 +185,17 @@ describe('validateManifest Folium entries and opt-ins', () => {
         expect(validateManifest({ ...validManifest, permissions: all }).value.permissions).toEqual(all);
     });
 
+    // Folium 1.9: folium.visualizer.setBackground / setAnimationIntensity, each its own permission.
+    it('accepts visualizer.background and visualizer.animationIntensity, alone or together', () => {
+        for (const permission of ['visualizer.background', 'visualizer.animationIntensity']) {
+            const result = validateManifest({ ...validManifest, permissions: [permission] });
+            expect(result.ok, permission).toBe(true);
+            expect(result.value.permissions).toEqual([permission]);
+        }
+        const both = ['visualizer.background', 'visualizer.animationIntensity'];
+        expect(validateManifest({ ...validManifest, permissions: both }).value.permissions).toEqual(both);
+    });
+
     it('accepts an optional preview image path inside the mod directory', () => {
         expect(validateManifest({ ...validManifest, preview: 'preview.jpg' }).ok).toBe(true);
         expect(validateManifest({ ...validManifest, preview: 'assets/cover.webp' }).ok).toBe(true);

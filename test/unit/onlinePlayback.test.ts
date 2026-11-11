@@ -390,6 +390,21 @@ describe('online QQ lyric candidate plumbing', () => {
         loadLyricsStateMock.mockResolvedValue(null);
     });
 
+    it.each(['match', 'save'])('reports an automatic lyric %s failure separately from finishing audio preparation', async failure => {
+        const lyrics = { lines: [{ startTime: 0, endTime: 1, fullText: 'line', words: [] }], isWordByWord: false };
+        lyricsMock.mockResolvedValue({ lyrics, isPureMusic: false });
+        if (failure === 'match') autoMatchMock.mockRejectedValueOnce(new Error('match failed'));
+        else {
+            autoMatchMock.mockResolvedValueOnce({ lyrics, source: 'qq', id: 'other' });
+            saveLyricsStateMock.mockRejectedValueOnce(new Error('save failed'));
+        }
+        const onAutoMatchError = vi.fn();
+        const onDone = vi.fn();
+        await loadOnlineSongLyrics(song, null, null, { isCurrent: () => true, onLyrics: vi.fn(), onAutoMatchError, onDone });
+        expect(onAutoMatchError).toHaveBeenCalledOnce();
+        expect(onDone).toHaveBeenCalled();
+    });
+
     it('passes the already-loaded QQ song and lyrics to auto-match as its provider candidate', async () => {
         const qqSong: SongResult = {
             ...song,

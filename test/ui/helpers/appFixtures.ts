@@ -266,6 +266,8 @@ export async function installBaseState(
         // WindowControls 一挂载就订阅全屏变化并查询一次；桩里缺了它们，整个应用在首屏就抛错。
         isWindowFullscreen: async () => false,
         onWindowFullscreenChanged: () => () => {},
+        // AppShell 一挂载就问窗口带不带系统红绿灯。
+        hasNativeTrafficLights: async () => false,
       },
     });
 

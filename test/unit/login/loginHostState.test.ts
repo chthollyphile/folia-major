@@ -109,6 +109,15 @@ describe('the sign-in window\'s host', () => {
         expect(said).toEqual(['stop', 'start code-a', 'stop', 'stop', 'start out']);
     });
 
+    it.each(['opening', 'choosing'])('starts sign-in for a checking platform when %s', action => {
+        const { host, said, rows } = setup();
+        rows[0] = row('code-a', { status: 'unknown', hydration: 'loading' });
+        host.opened(action === 'opening' ? 'code-a' : null);
+        if (action === 'choosing') host.choose('code-a');
+        expect(host.getState().chosen).toEqual({ providerId: 'code-a', lead: 'sign-in' });
+        expect(said).toEqual(['stop', 'start code-a']);
+    });
+
     it('a row out of reach, and a platform that is not listed, cannot be chosen', () => {
         const { host, said } = setup();
         host.opened(null);

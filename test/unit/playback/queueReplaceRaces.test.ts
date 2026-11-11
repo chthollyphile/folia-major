@@ -162,6 +162,7 @@ const { onlineFailureOf } = await import('@/services/onlineMusic/failure/onlineF
 const { usePersonalFmModeStore } = await import('@/stores/usePersonalFmModeStore');
 const { useAudioSettingsStore } = await import('@/stores/useAudioSettingsStore');
 const { noteQueueStart, queueStartsSoFar } = await import('@/components/app/playback/start/queueStarts');
+const { onQueueEnd } = await import('@/components/scenes/engine/queueEnd');
 const { registerPersonalFmLanding } = await import('@/components/app/playback/start/personalFmLanding');
 const { usePlayingSongLocatorStore } = await import('@/stores/usePlayingSongLocatorStore');
 const { playbackSourceOf, noteQueueStarted } = await import('@/components/app/playing-song-locator/playingSongLocator');
@@ -1283,6 +1284,24 @@ describe('accepted FM ownership across pending Stage entry', () => {
         } finally { release(); later.resolve([]); }
     });
 
+    it('Stage queue selection keeps the accepted scene while another scene is requested', async () => {
+        playerWith([f1, f2], f1, true);
+        noteAcceptedFmPlayback(f1, store().playQueue, true, { mode: 'SCENE_RCMD', scene: '33' });
+        usePersonalFmModeStore.setState({ catalogs: {}, providerSelections: { bodian: { mode: 'SCENE_RCMD', scene: '44' } }, stations: {} });
+        let onRequest: ((request: unknown) => void) | undefined;
+        const complete = vi.fn();
+        vi.stubGlobal('window', { ...window, electron: {
+            onStagePlayerQueueRequest: (handler: (request: unknown) => void) => { onRequest = handler; return () => {}; },
+            completeStagePlayerQueueRequest: complete,
+        } });
+        mount();
+        env.self.effects.find(effect => String(effect).includes('onStagePlayerQueueRequest'))?.();
+        onRequest?.({ requestId: 'scene-queue-select', action: 'select', index: 1 });
+        await vi.waitFor(() => expect(complete).toHaveBeenCalledWith(expect.objectContaining({ ok: true })));
+        expect(store().currentSong).toMatchObject({ id: 'f2' });
+        expect(store().acceptedFmPlayback?.selection).toEqual({ mode: 'SCENE_RCMD', scene: '33' });
+    });
+
     it('a fresh FM queue does not inherit the accepted scene merely because its songs overlap', async () => {
         usePersonalFmModeStore.setState({ catalogs: {}, providerSelections: { bodian: { mode: 'SCENE_RCMD', scene: '44' } }, stations: {} });
         playerWith([f1, f2], f1, true);
@@ -1537,5 +1556,22 @@ describe('accepted collection origin through unnamed replacement queues', () => 
         await settle();
         expect(store().currentSong).toMatchObject({ id: 'db' });
         expect(source()).toBeNull();
+    });
+});
+
+describe('the end of the queue', () => {
+    it('tells a scene the queue played out only when the last track played to its end', async () => {
+        playerWith([a, b], b);
+        const heard = vi.fn();
+        const stop = onQueueEnd(heard);
+        try {
+            // A skip after a failure, or an audio error, that finds no next track stops without it.
+            await mount().queue.handleNextTrack({ allowStopOnMissing: true, fromSong: b });
+            expect(heard).not.toHaveBeenCalled();
+            await mount().queue.handleNextTrack({ allowStopOnMissing: true, playedToEnd: true });
+            expect(heard).toHaveBeenCalledTimes(1);
+        } finally {
+            stop();
+        }
     });
 });

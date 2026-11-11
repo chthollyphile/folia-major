@@ -16,6 +16,7 @@ const omniMock = vi.hoisted(() => ({
     resumeExternalPlayback: vi.fn(async (_song: unknown) => {}),
     seekExternalPlayback: vi.fn(async (_song: unknown, _seconds: number) => {}),
     setExternalPlaybackVolume: vi.fn(async (_song: unknown, _volume: number) => {}),
+    setExternalPlaybackRepeatOne: vi.fn<(song: unknown, enabled: boolean) => Promise<void>>(async () => {}),
     getExternalPlaybackStatus: vi.fn(async (_song: unknown): Promise<ProviderExternalPlaybackStatus> => ({
         mediaId: '123', isPlaying: true, positionMs: 10000, durationMs: 200000, ended: false,
     })),
@@ -57,8 +58,10 @@ describe('external playback route', () => {
         omniMock.pauseExternalPlayback.mockReset().mockResolvedValue(undefined);
         omniMock.resumeExternalPlayback.mockReset().mockResolvedValue(undefined);
         omniMock.seekExternalPlayback.mockReset().mockResolvedValue(undefined);
-        useAudioSettingsStore.setState({ volume: 1, isMuted: false });
+        useAudioSettingsStore.setState({ volume: 1, isMuted: false, loopMode: 'off' });
+        usePlaybackStore.setState({ isFmMode: false });
         omniMock.setExternalPlaybackVolume.mockReset().mockResolvedValue(undefined);
+        omniMock.setExternalPlaybackRepeatOne.mockReset().mockResolvedValue(undefined);
         omniMock.getExternalPlaybackStatus.mockReset().mockResolvedValue(status());
         omniMock.isExternalPlaybackStatusForSong.mockReset().mockReturnValue(true);
         omniMock.adoptExternalPlayback.mockClear();
@@ -207,6 +210,196 @@ describe('external playback route', () => {
         unsubscribe();
     });
 
+
+    it('starts the track again at its end under single loop instead of moving the queue on', async () => {
+        useAudioSettingsStore.setState({ loopMode: 'one' });
+        const events: string[] = [];
+        const unsubscribe = engine.subscribeExternalPlayback(event => events.push(event.type));
+        await engine.beginExternalPlayback(song, 0);
+        engine.announceExternalPlayback();
+        expect(omniMock.playSongExternally).toHaveBeenCalledTimes(1);
+
+        // The answer still says "ended" until the restart lands: it must not start it twice.
+        let finishRestart: () => void = () => {};
+        omniMock.playSongExternally.mockImplementationOnce(() => new Promise<void>(resolve => { finishRestart = resolve; }));
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ isPlaying: false, positionMs: 200000, ended: true }));
+        await vi.advanceTimersByTimeAsync(500);
+        await vi.advanceTimersByTimeAsync(1500);
+        expect(omniMock.playSongExternally).toHaveBeenCalledTimes(2);
+        expect(omniMock.playSongExternally).toHaveBeenLastCalledWith(song, 0);
+        expect(engine.getExternalPosition()).toBe(0);
+
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ isPlaying: true, positionMs: 1000 }));
+        finishRestart();
+        await vi.advanceTimersByTimeAsync(500);
+        expect(omniMock.playSongExternally).toHaveBeenCalledTimes(2);
+        expect(events).not.toContain('ended');
+        expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PLAYING);
+        unsubscribe();
+    });
+
+    it('hands the player its own single repeat on a start and when the loop mode or FM changes', async () => {
+        useAudioSettingsStore.setState({ loopMode: 'one' });
+        await engine.beginExternalPlayback(song, 0);
+        engine.announceExternalPlayback();
+        // Before the start and again once the player has the song (a start may reset it).
+        expect(omniMock.setExternalPlaybackRepeatOne.mock.calls).toEqual([[song, true], [song, true]]);
+        omniMock.setExternalPlaybackRepeatOne.mockClear();
+        useAudioSettingsStore.setState({ loopMode: 'all' });
+        useAudioSettingsStore.setState({ loopMode: 'off' });
+        expect(omniMock.setExternalPlaybackRepeatOne.mock.calls).toEqual([[song, false]]);
+        useAudioSettingsStore.setState({ loopMode: 'one' });
+        usePlaybackStore.setState({ isFmMode: true });
+        expect(omniMock.setExternalPlaybackRepeatOne.mock.calls).toEqual([[song, false], [song, true], [song, false]]);
+    });
+
+    it('takes a one-answer stop at the start after the end, under its own single repeat, as going round', async () => {
+        useAudioSettingsStore.setState({ loopMode: 'one' });
+        const events: string[] = [];
+        const unsubscribe = engine.subscribeExternalPlayback(event => events.push(event.type));
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ positionMs: 198500 }));
+        await engine.beginExternalPlayback(song, 0);
+        engine.announceExternalPlayback();
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ positionMs: 199300 }));
+        await vi.advanceTimersByTimeAsync(500);
+
+        // As MusicKit did (2026-11-11): stopped with no item for one answer, then playing again.
+        const markSeeked = vi.spyOn(engine.externalMediaShim, 'markSeeked');
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ mediaId: '', isPlaying: false, positionMs: 0, durationMs: 0 }));
+        await vi.advanceTimersByTimeAsync(500);
+        expect(markSeeked).toHaveBeenCalledTimes(1);
+        expect(engine.isExternalPaused()).toBe(false);
+        expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PLAYING);
+        expect(engine.getExternalPosition()).toBeLessThan(2);
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ positionMs: 800 }));
+        await vi.advanceTimersByTimeAsync(500);
+        expect(engine.getExternalPosition()).toBeLessThan(2);
+        expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PLAYING);
+        markSeeked.mockRestore();
+        expect(events).not.toContain('ended');
+        expect(omniMock.playSongExternally).toHaveBeenCalledTimes(1);
+
+        // A stop that lasts is a pause.
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ isPlaying: false, positionMs: 900 }));
+        await vi.advanceTimersByTimeAsync(500);
+        expect(engine.isExternalPaused()).toBe(true);
+        unsubscribe();
+    });
+
+    it('follows the player going round through a buffering answer under its own single repeat', async () => {
+        useAudioSettingsStore.setState({ loopMode: 'one' });
+        const events: string[] = [];
+        const unsubscribe = engine.subscribeExternalPlayback(event => events.push(event.type));
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ positionMs: 198500 }));
+        await engine.beginExternalPlayback(song, 0);
+        engine.announceExternalPlayback();
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ positionMs: 199300 }));
+        await vi.advanceTimersByTimeAsync(500);
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ isPlaying: false, starting: true, positionMs: 0 }));
+        await vi.advanceTimersByTimeAsync(500);
+
+        const markSeeked = vi.spyOn(engine.externalMediaShim, 'markSeeked');
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ positionMs: 400 }));
+        await vi.advanceTimersByTimeAsync(500);
+        expect(markSeeked).toHaveBeenCalledTimes(1);
+        markSeeked.mockRestore();
+        expect(engine.getExternalPosition()).toBeLessThan(2);
+        expect(events).not.toContain('ended');
+        expect(omniMock.playSongExternally).toHaveBeenCalledTimes(1);
+        expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PLAYING);
+        unsubscribe();
+    });
+
+    it('follows the player going round under its own single repeat, without a restart or an end', async () => {
+        useAudioSettingsStore.setState({ loopMode: 'one' });
+        const events: string[] = [];
+        const unsubscribe = engine.subscribeExternalPlayback(event => events.push(event.type));
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ positionMs: 198500 }));
+        await engine.beginExternalPlayback(song, 0);
+        engine.announceExternalPlayback();
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ positionMs: 199300 }));
+        await vi.advanceTimersByTimeAsync(500);
+        expect(engine.getExternalPosition()).toBeGreaterThan(199);
+
+        // Observers hear the wrap as a seek, as <audio loop> fires one.
+        const markSeeked = vi.spyOn(engine.externalMediaShim, 'markSeeked');
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ positionMs: 400 }));
+        await vi.advanceTimersByTimeAsync(500);
+        expect(markSeeked).toHaveBeenCalledTimes(1);
+        markSeeked.mockRestore();
+        expect(engine.getExternalPosition()).toBeLessThan(2);
+        expect(events).not.toContain('ended');
+        expect(omniMock.playSongExternally).toHaveBeenCalledTimes(1);
+        expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PLAYING);
+        unsubscribe();
+    });
+
+    it('leaves a single-loop restart that failed paused at the end, not tried again on every answer', async () => {
+        useAudioSettingsStore.setState({ loopMode: 'one' });
+        const events: string[] = [];
+        const unsubscribe = engine.subscribeExternalPlayback(event => events.push(event.type));
+        await engine.beginExternalPlayback(song, 0);
+        engine.announceExternalPlayback();
+        omniMock.playSongExternally.mockRejectedValueOnce(new Error('not paired'));
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ isPlaying: false, positionMs: 200000, ended: true }));
+        await vi.advanceTimersByTimeAsync(500);
+        await vi.advanceTimersByTimeAsync(3000);
+        expect(omniMock.playSongExternally).toHaveBeenCalledTimes(2);
+        expect(events.filter(type => type === 'failure')).toHaveLength(1);
+        expect(events).not.toContain('ended');
+        expect(engine.isExternalPaused()).toBe(true);
+        expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PAUSED);
+        unsubscribe();
+    });
+
+    it('takes a pause pressed while a single-loop restart lands as a pause', async () => {
+        useAudioSettingsStore.setState({ loopMode: 'one' });
+        await engine.beginExternalPlayback(song, 0);
+        engine.announceExternalPlayback();
+        omniMock.playSongExternally.mockImplementationOnce(() => new Promise<void>(() => {}));
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ isPlaying: false, positionMs: 200000, ended: true }));
+        await vi.advanceTimersByTimeAsync(500);
+        expect(omniMock.playSongExternally).toHaveBeenCalledTimes(2);
+        expect(engine.isExternalPaused()).toBe(false);
+        engine.pauseExternalPlayback();
+        expect(omniMock.pauseExternalPlayback).toHaveBeenCalledTimes(1);
+        expect(omniMock.resumeExternalPlayback).not.toHaveBeenCalled();
+    });
+
+    it('sends a repeat write that failed again with the next answer, and turns it off as the route is left', async () => {
+        useAudioSettingsStore.setState({ loopMode: 'one' });
+        await engine.beginExternalPlayback(song, 0);
+        engine.announceExternalPlayback();
+        omniMock.setExternalPlaybackRepeatOne.mockClear();
+        omniMock.setExternalPlaybackRepeatOne.mockRejectedValueOnce(new Error('busy'));
+        useAudioSettingsStore.setState({ loopMode: 'all' });
+        await flush();
+        expect(omniMock.setExternalPlaybackRepeatOne.mock.calls).toEqual([[song, false]]);
+        await vi.advanceTimersByTimeAsync(500);
+        expect(omniMock.setExternalPlaybackRepeatOne.mock.calls).toEqual([[song, false], [song, false]]);
+        await vi.advanceTimersByTimeAsync(500);
+        expect(omniMock.setExternalPlaybackRepeatOne).toHaveBeenCalledTimes(2);
+
+        useAudioSettingsStore.setState({ loopMode: 'one' });
+        await flush();
+        omniMock.setExternalPlaybackRepeatOne.mockClear();
+        engine.stopExternalPlayback('test leaves');
+        expect(omniMock.setExternalPlaybackRepeatOne.mock.calls).toEqual([[song, false]]);
+    });
+
+    it('moves on at the end under single loop in Personal FM', async () => {
+        useAudioSettingsStore.setState({ loopMode: 'one' });
+        usePlaybackStore.setState({ isFmMode: true });
+        const events: string[] = [];
+        const unsubscribe = engine.subscribeExternalPlayback(event => events.push(event.type));
+        await engine.beginExternalPlayback(song, 0);
+        engine.announceExternalPlayback();
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ isPlaying: false, positionMs: 200000, ended: true }));
+        await vi.advanceTimersByTimeAsync(500);
+        expect(events.filter(type => type === 'ended')).toHaveLength(1);
+        expect(omniMock.playSongExternally).toHaveBeenCalledTimes(1);
+        unsubscribe();
+    });
 
     it('ignores a previous song end before the new track is announced', async () => {
         const events: string[] = [];

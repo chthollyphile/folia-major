@@ -261,6 +261,71 @@ describe('soloist', () => {
         await soloist.shutdown();
     });
 
+    it('takes a wrap the program makes while buffering, its repeat on, as going round', async () => {
+        const { soloist, spawned } = setup();
+        soloist.setRepeatOne(true);
+        const run = await playing(soloist, spawned, { durationMs: 200_000 });
+        run.send({ type: 'options_changed', options: { repeat: 'track' } });
+        run.send({ type: 'position_sync', position: { position_ms: 199_000, timestamp_ms: Date.now(), speed: 1 } });
+        await settle();
+        // As the real program did (2026-11-11): back at the start, buffering, then playing.
+        run.send({ type: 'playback_state', status: 'buffering', item: { uri: URI, duration_ms: 200_000 }, position: { position_ms: 0, timestamp_ms: Date.now(), speed: 0 }, options: { repeat: 'track' } });
+        await settle();
+        expect(soloist.status()).toMatchObject({ uri: URI, status: 'buffering', ended: false });
+        run.send({ type: 'playback_changed', status: 'playing' });
+        await settle();
+        expect(soloist.status()).toMatchObject({ uri: URI, status: 'playing', ended: false });
+        expect(run.commands.some((command: any) => command.command === 'pause')).toBe(false);
+        await soloist.shutdown();
+    });
+
+    it('repeats the track by itself under single repeat, and a wrap is not its end', async () => {
+        const { soloist, spawned, spawn } = setup();
+        // Kept while nothing runs; the program is not started for it.
+        soloist.setRepeatOne(true);
+        expect(spawn).not.toHaveBeenCalled();
+        const run = await playing(soloist, spawned, { durationMs: 200_000 });
+        expect(run.commands.slice(0, 3)).toEqual([
+            expect.objectContaining({ command: 'set_repeat_track', enabled: true }),
+            expect.objectContaining({ command: 'set_repeat_context', enabled: false }),
+            expect.objectContaining({ command: 'play', uri: URI }),
+        ]);
+        run.send({ type: 'position_sync', position: { position_ms: 199_000, timestamp_ms: Date.now(), speed: 1 } });
+        await settle();
+        run.send({ type: 'position_sync', position: { position_ms: 300, timestamp_ms: Date.now(), speed: 1 } });
+        await settle();
+        const status = soloist.status();
+        expect(status).toMatchObject({ uri: URI, status: 'playing', ended: false });
+        expect(status.positionMs).toBeLessThan(2000);
+        expect(run.commands.some((command: any) => command.command === 'pause')).toBe(false);
+
+        // Turned off mid-track: said at once, and the next wrap is an end again.
+        soloist.setRepeatOne(false);
+        await settle();
+        expect(run.commands.at(-1)).toMatchObject({ command: 'set_repeat_track', enabled: false });
+        run.send({ type: 'position_sync', position: { position_ms: 199_000, timestamp_ms: Date.now(), speed: 1 } });
+        await settle();
+        run.send({ type: 'position_sync', position: { position_ms: 300, timestamp_ms: Date.now(), speed: 1 } });
+        await settle();
+        expect(soloist.status()).toMatchObject({ uri: URI, ended: true });
+        await soloist.shutdown();
+    });
+
+    it('ends the track when a single repeat did not take and the program went back to its start and stopped', async () => {
+        const { soloist, spawned } = setup();
+        soloist.setRepeatOne(true);
+        const run = await playing(soloist, spawned, { durationMs: 200_000 });
+        // The repeat sent with nothing loaded may be refused: it is said again once the track plays.
+        await settle();
+        expect(run.commands.filter((command: any) => command.command === 'set_repeat_track' && command.enabled === true)).toHaveLength(2);
+        run.send({ type: 'position_sync', position: { position_ms: 199_000, timestamp_ms: Date.now(), speed: 1 } });
+        await settle();
+        run.send({ type: 'playback_state', status: 'paused', item: { uri: URI, duration_ms: 200_000 }, position: { position_ms: 0, timestamp_ms: Date.now(), speed: 0 }, options: { repeat: 'off' } });
+        await settle();
+        expect(soloist.status()).toMatchObject({ uri: URI, ended: true });
+        await soloist.shutdown();
+    });
+
     it('has nothing to pause where the program does not run', async () => {
         const { soloist, spawn } = setup();
         await expect(soloist.pause()).resolves.toBeUndefined();

@@ -253,7 +253,8 @@ test('the player panel Cover tab opens the album, and Back returns to the player
     await expect(page.getByTestId('panel-toggle')).toBeVisible();
 
     await page.getByTestId('panel-toggle').locator('button').last().click();
-    // 封面页是面板的默认页：歌名下面是歌手与专辑，点专辑名打开它。
+    // 面板默认开在控制页，先切到封面页：歌名下面是歌手与专辑，点专辑名打开它。
+    await page.locator('[data-ponder-panel-tab-button="cover"]').click();
     await page.getByText('Fixture Album', { exact: true }).last().click();
     await expect(grid(page)).toHaveAttribute('data-library-surface', 'collection');
     await expect(grid(page).getByText('Midnight Train').first()).toBeVisible();
@@ -277,6 +278,7 @@ test('[bravais] the player panel Cover tab enters the album as a whole wall, and
     await watchShifts(page);
 
     await page.getByTestId('panel-toggle').locator('button').last().click();
+    await page.locator('[data-ponder-panel-tab-button="cover"]').click();
     await page.getByText('Fixture Album', { exact: true }).last().click();
     await expect(bravais(page)).toHaveAttribute('data-library-surface', 'collection');
     await expect(bravaisStage(page).locator('[data-bravais-seam-title]').first()).toHaveText('Fixture Album');

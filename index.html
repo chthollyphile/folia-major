@@ -63,49 +63,60 @@
         animation: app-splash-in 420ms ease 180ms forwards;
       }
 
-      #app-splash .app-splash-title {
-        /* 巨大字号，随视口收缩，窄屏也不会溢出。 */
-        font-size: clamp(64px, 17vw, 200px);
-        font-weight: 600;
-        line-height: 1;
-        letter-spacing: 0.06em;
-        text-indent: 0.06em;
+      /* 四块色块拼成的 F（版型同 public/icon.svg，配色同 build/icon-color.svg）。
+         容器按 250:340 的比例定宽，色块用百分比定位，跟着视口缩放。
+         循环动画：色块从上到下一块接一块向右滑一格，整个 F 像履带一样往右爬；
+         容器同时匀速向左退同样的距离，所以 F 留在原地、色块一直单向滑动，不走回头路。 */
+      #app-splash .app-splash-blocks {
+        position: relative;
+        width: clamp(88px, 15vw, 150px);
+        aspect-ratio: 250 / 340;
+        animation: app-splash-drift 2400ms linear infinite;
       }
 
-      /* 每个字母占一个固定宽度的盒子（宽度由脚本按各字体的最大字宽测出来，单位 em，
-         跟着 font-size 缩放），字体来回切换时字形变但排版不抖。
-         纯白 + text-shadow 辉光，辉光强度由脚本逐字母随机，这里的值是脚本失败时的兜底。 */
-      #app-splash .app-splash-title span {
-        display: inline-block;
-        text-align: center;
-        font-family: inherit;
-        color: #ffffff;
-        text-shadow: 0 0 8px rgba(255, 255, 255, 0.55), 0 0 28px rgba(255, 255, 255, 0.3);
-        /* 缩放原点压到基线附近，字母大小浮动时底边大致对齐。 */
-        transform-origin: center 78%;
+      /* 每块两个动画：位移一圈 2400ms，颜色四圈换完一轮（每滑一次换一个颜色）。 */
+      #app-splash .app-splash-blocks span {
+        position: absolute;
+        border-radius: clamp(4px, 0.6vw, 6px);
+        animation-duration: 2400ms, 9600ms;
+        animation-timing-function: cubic-bezier(0.65, 0, 0.35, 1);
+        animation-iteration-count: infinite;
       }
 
-      /* 循环波形：每根竖条只做 transform 动画，合成器线程执行，不占主线程。 */
-      #app-splash .app-splash-wave {
-        display: flex;
-        align-items: center;
-        gap: clamp(6px, 1.1vw, 11px);
-        height: clamp(42px, 7.5vw, 92px);
+      #app-splash .app-splash-blocks .is-top {
+        left: 40%;
+        top: 0;
+        width: 60%;
+        height: 24.71%;
+        background-color: #f7c918;
+        animation-name: app-splash-top-slide, app-splash-top-color;
       }
 
-      /* --floor / --peak / --alpha / --glow / --w 由下面的内联脚本逐条随机化；
-         这里的默认值是脚本失败时的静态兜底。纯白平涂 + 外发光，不做渐变。 */
-      #app-splash .app-splash-wave span {
-        width: var(--w, 5px);
-        height: 100%;
-        transform: scaleY(var(--floor, 0.18));
-        background-color: rgba(255, 255, 255, var(--alpha, 0.85));
-        box-shadow: 0 0 var(--glow, 14px) rgba(255, 255, 255, 0.35);
-        animation: app-splash-wave 1100ms ease-in-out infinite;
+      #app-splash .app-splash-blocks .is-stem {
+        left: 0;
+        top: 0;
+        width: 35.2%;
+        height: 45.88%;
+        background-color: #e3342a;
+        animation-name: app-splash-stem-slide, app-splash-stem-color;
       }
 
-      #app-splash .app-splash-wave span:nth-child(even) {
-        animation-delay: -550ms;
+      #app-splash .app-splash-blocks .is-middle {
+        left: 0;
+        top: 49.41%;
+        width: 80%;
+        height: 23.53%;
+        background-color: #1f5bc6;
+        animation-name: app-splash-middle-slide, app-splash-middle-color;
+      }
+
+      #app-splash .app-splash-blocks .is-foot {
+        left: 0;
+        top: 76.47%;
+        width: 35.2%;
+        height: 23.53%;
+        background-color: #ffffff;
+        animation-name: app-splash-foot-slide, app-splash-foot-color;
       }
 
       @keyframes app-splash-in {
@@ -114,13 +125,175 @@
         }
       }
 
-      @keyframes app-splash-wave {
-        0%,
+      /* 一圈里四块各向右滑 100/250 = 40% 的容器宽度，容器就向左退 40%，首尾相接。 */
+      @keyframes app-splash-drift {
+        from {
+          transform: translateX(20%);
+        }
+        to {
+          transform: translateX(-20%);
+        }
+      }
+
+      /* 位移是色块自身宽度的百分比，都等于容器宽度的 40%。 */
+      @keyframes app-splash-top-slide {
+        0% {
+          transform: translateX(0);
+        }
+        22%,
         100% {
-          transform: scaleY(var(--floor, 0.18));
+          transform: translateX(66.67%);
+        }
+      }
+
+      @keyframes app-splash-top-color {
+        0% {
+          background-color: #f7c918;
+        }
+        5.5% {
+          background-color: #1f5bc6;
+        }
+        25% {
+          background-color: #1f5bc6;
+        }
+        30.5% {
+          background-color: #ffffff;
         }
         50% {
-          transform: scaleY(var(--peak, 1));
+          background-color: #ffffff;
+        }
+        55.5% {
+          background-color: #e3342a;
+        }
+        75% {
+          background-color: #e3342a;
+        }
+        80.5%,
+        100% {
+          background-color: #f7c918;
+        }
+      }
+
+      /* 位移是色块自身宽度的百分比，都等于容器宽度的 40%。 */
+      @keyframes app-splash-stem-slide {
+        0%,
+        25% {
+          transform: translateX(0);
+        }
+        47%,
+        100% {
+          transform: translateX(113.64%);
+        }
+      }
+
+      @keyframes app-splash-stem-color {
+        0%,
+        6.25% {
+          background-color: #e3342a;
+        }
+        11.75% {
+          background-color: #f7c918;
+        }
+        31.25% {
+          background-color: #f7c918;
+        }
+        36.75% {
+          background-color: #1f5bc6;
+        }
+        56.25% {
+          background-color: #1f5bc6;
+        }
+        61.75% {
+          background-color: #ffffff;
+        }
+        81.25% {
+          background-color: #ffffff;
+        }
+        86.75%,
+        100% {
+          background-color: #e3342a;
+        }
+      }
+
+      /* 位移是色块自身宽度的百分比，都等于容器宽度的 40%。 */
+      @keyframes app-splash-middle-slide {
+        0%,
+        50% {
+          transform: translateX(0);
+        }
+        72%,
+        100% {
+          transform: translateX(50%);
+        }
+      }
+
+      @keyframes app-splash-middle-color {
+        0%,
+        12.5% {
+          background-color: #1f5bc6;
+        }
+        18% {
+          background-color: #ffffff;
+        }
+        37.5% {
+          background-color: #ffffff;
+        }
+        43% {
+          background-color: #e3342a;
+        }
+        62.5% {
+          background-color: #e3342a;
+        }
+        68% {
+          background-color: #f7c918;
+        }
+        87.5% {
+          background-color: #f7c918;
+        }
+        93%,
+        100% {
+          background-color: #1f5bc6;
+        }
+      }
+
+      /* 位移是色块自身宽度的百分比，都等于容器宽度的 40%。 */
+      @keyframes app-splash-foot-slide {
+        0%,
+        75% {
+          transform: translateX(0);
+        }
+        97%,
+        100% {
+          transform: translateX(113.64%);
+        }
+      }
+
+      @keyframes app-splash-foot-color {
+        0%,
+        18.75% {
+          background-color: #ffffff;
+        }
+        24.25% {
+          background-color: #e3342a;
+        }
+        43.75% {
+          background-color: #e3342a;
+        }
+        49.25% {
+          background-color: #f7c918;
+        }
+        68.75% {
+          background-color: #f7c918;
+        }
+        74.25% {
+          background-color: #1f5bc6;
+        }
+        93.75% {
+          background-color: #1f5bc6;
+        }
+        99.25%,
+        100% {
+          background-color: #ffffff;
         }
       }
 
@@ -130,11 +303,10 @@
           animation: none;
         }
 
-        #app-splash .app-splash-wave span {
-          /* 不动，但保留随机高度，静态波形仍然有形状。 */
-          transform: scaleY(calc(var(--peak, 0.5) * 0.7));
+        /* 不动，保持拼好的 F。 */
+        #app-splash .app-splash-blocks,
+        #app-splash .app-splash-blocks span {
           animation: none;
-          opacity: 0.5;
         }
       }
     </style>
@@ -142,21 +314,11 @@
   <body>
     <div id="app-splash" role="status" aria-live="polite" aria-label="Loading Folia">
       <div class="app-splash-inner">
-        <div class="app-splash-title" aria-label="Folia"><span>F</span><span>o</span><span>l</span><span>i</span><span>a</span></div>
-        <div class="app-splash-wave" aria-hidden="true">
-          <span></span>
-          <span></span>
-          <span></span>
-          <span></span>
-          <span></span>
-          <span></span>
-          <span></span>
-          <span></span>
-          <span></span>
-          <span></span>
-          <span></span>
-          <span></span>
-          <span></span>
+        <div class="app-splash-blocks" aria-hidden="true">
+          <span class="is-stem"></span>
+          <span class="is-top"></span>
+          <span class="is-middle"></span>
+          <span class="is-foot"></span>
         </div>
       </div>
     </div>
@@ -175,110 +337,6 @@
           }
         } catch (error) {
           // 探测失败时保留遮罩，React 挂载后仍会移除它。
-        }
-
-        // 波形逐条随机化：高度、宽度、节奏、相位和颜色都带抖动，每次加载的形状都不一样。
-        // 同步执行，在首帧绘制前完成；失败时 CSS 里的默认值会兜底成一条静态波形。
-        try {
-          var rand = function (min, max) {
-            return min + Math.random() * (max - min);
-          };
-
-          var bars = document.querySelectorAll('#app-splash .app-splash-wave span');
-          for (var i = 0; i < bars.length; i += 1) {
-            var bar = bars[i];
-            // 中间高、两端低的整体包络，再叠加随机量，形状既像波形又不规整。
-            var envelope = Math.sin(((i + 0.5) / bars.length) * Math.PI);
-            var peak = Math.min(1, 0.32 + envelope * rand(0.38, 0.72));
-            bar.style.setProperty('--peak', peak.toFixed(3));
-            bar.style.setProperty('--floor', rand(0.08, 0.24).toFixed(3));
-            bar.style.setProperty('--w', rand(3.5, 6.5).toFixed(2) + 'px');
-            // 白色平涂，只在亮度和辉光半径上留随机：高的条更亮、光晕更散。
-            bar.style.setProperty('--alpha', rand(0.55, 1).toFixed(2));
-            bar.style.setProperty('--glow', Math.round(rand(6, 26)) + 'px');
-            bar.style.animationDuration = Math.round(rand(820, 1500)) + 'ms';
-            bar.style.animationDelay = '-' + Math.round(rand(0, 1500)) + 'ms';
-          }
-        } catch (error) {
-          // 随机化失败无所谓，CSS 默认值已经能跑一条波形。
-        }
-
-        // Folia 五个字母不断跳到不同字形（Loki 片头那种字体轮盘），偶尔整体落回基准样式。
-        // 只用通用字族，再叠加字重、斜体和横向拉伸——不同机器上装的字体不一样，
-        // 单靠字体名会退化成同一张脸，加上这几个轴才保证每次跳变都看得出来。
-        try {
-          if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-            return;
-          }
-          var BASE_FONT = "'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif";
-          var FAMILIES = [BASE_FONT, 'serif', 'monospace', 'cursive', 'fantasy', 'system-ui'];
-          var WEIGHTS = ['400', '600', '800'];
-          var SCALES = [0.86, 0.94, 1, 1.06, 1.12];
-          var letters = document.querySelectorAll('#app-splash .app-splash-title span');
-          if (!letters.length) {
-            return;
-          }
-
-          // 用 canvas 在 100px 基准下量出每个字母在所有候选字形里的最大宽度，换算成 em 写死盒子宽度，
-          // 这样字形来回换、词标整体不会左右乱跳。
-          var measure = document.createElement('canvas').getContext('2d');
-          for (var m = 0; m < letters.length; m += 1) {
-            var glyph = letters[m].textContent;
-            var widest = 0;
-            for (var f = 0; f < FAMILIES.length; f += 1) {
-              measure.font = 'italic 800 100px ' + FAMILIES[f];
-              widest = Math.max(widest, measure.measureText(glyph).width);
-              measure.font = '800 100px ' + FAMILIES[f];
-              widest = Math.max(widest, measure.measureText(glyph).width);
-            }
-            if (widest > 0) {
-              // 余量留给最大的缩放组合（1.12 × 1.12），字形放大时不会压到相邻字母。
-              letters[m].style.width = ((widest / 100) * 1.26 + 0.04).toFixed(3) + 'em';
-            }
-          }
-
-          var pick = function (list) {
-            return list[Math.floor(Math.random() * list.length)];
-          };
-          var jitter = function (min, max) {
-            return min + Math.random() * (max - min);
-          };
-          // 辉光分三档：干净、微光、过曝。片头里字母亮度参差不齐，靠这个模拟。
-          var randomGlow = function () {
-            var roll = Math.random();
-            if (roll < 0.3) {
-              return '0 0 ' + (2 + Math.random() * 4).toFixed(1) + 'px rgba(255,255,255,0.35)';
-            }
-            if (roll < 0.75) {
-              return '0 0 ' + (6 + Math.random() * 8).toFixed(1) + 'px rgba(255,255,255,0.7), 0 0 ' +
-                (20 + Math.random() * 16).toFixed(1) + 'px rgba(255,255,255,0.35)';
-            }
-            return '0 0 ' + (10 + Math.random() * 8).toFixed(1) + 'px rgba(255,255,255,0.95), 0 0 ' +
-              (34 + Math.random() * 20).toFixed(1) + 'px rgba(255,255,255,0.7), 0 0 ' +
-              (70 + Math.random() * 40).toFixed(1) + 'px rgba(255,255,255,0.45)';
-          };
-          var timer = window.setInterval(function () {
-            // 遮罩被移除后自己停掉，不留空转的定时器。
-            if (!document.getElementById('app-splash')) {
-              window.clearInterval(timer);
-              return;
-            }
-            // 一拍只换一个字母，偶尔两个，节奏克制。
-            var swaps = Math.random() < 0.25 ? 2 : 1;
-            for (var i = 0; i < swaps; i += 1) {
-              var letter = pick(letters);
-              letter.style.fontFamily = pick(FAMILIES);
-              letter.style.fontWeight = pick(WEIGHTS);
-              letter.style.fontStyle = Math.random() < 0.25 ? 'italic' : 'normal';
-              // 大小和宽窄都用 transform 做：不进入布局，盒子宽度不受影响，排版才不会抖。
-              var sizeScale = jitter(0.86, 1.12);
-              letter.style.transform =
-                'scale(' + (sizeScale * pick(SCALES)).toFixed(3) + ',' + sizeScale.toFixed(3) + ')';
-              letter.style.textShadow = randomGlow();
-            }
-          }, 380);
-        } catch (error) {
-          // 字体轮盘失败就保持静态词标。
         }
       })();
     </script>

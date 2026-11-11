@@ -966,7 +966,7 @@ export function useLibraryPlaybackController({
             if (!nextLyrics && !matchData?.noAutoMatch && !matchData?.matchedIsPureMusic) {
                 try {
                     if (!showedLoadingToast && !start.quiet) {
-                        setStatusMsg({ type: 'info', text: t('status.loadingSong') || '' });
+                        setStatusMsg({ type: 'info', activity: 'loading', text: t('status.loadingSong') || '' });
                         showedLoadingToast = true;
                     }
                     const navidromeMetadata = getProviderSongMetadata(navidromeSong);
@@ -1513,7 +1513,7 @@ export function useLibraryPlaybackController({
         }
 
   const settingsLyricSettings = useLyricSettingsStore.getState();
-        setStatusMsg({ type: 'info', text: t('status.matchingBestLyrics') || '' });
+        setStatusMsg({ type: 'info', activity: 'loading', text: t('status.matchingBestLyrics') || '' });
 
         try {
             if (isLocalPlaybackSong(currentSong)) {

@@ -131,7 +131,8 @@ export const useAppViewStore = create<AppViewState>((set, get) => ({
     latticeReturnTileId: null,
     isLatticeLeftForPage: false,
     isPanelOpen: false,
-    panelTab: 'cover',
+    // 面板按钮第一次打开落在控制页；之后切到过哪一页（或者别处指定了一页），这一次运行里再打开就还是那一页。
+    panelTab: 'controls',
     isHomeFullyHidden: false,
     commandFilter: null,
     isCommandFilterOpen: false,
