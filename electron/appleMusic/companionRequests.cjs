@@ -10,7 +10,7 @@ const { alignStorefront } = require('./companionStorefront.cjs');
 const REQUEST_ID = /^[a-zA-Z0-9_-]{1,64}$/;
 const RESOURCE_ID = /^[a-zA-Z0-9._-]{1,200}$/;
 // Folia chooses the order; the companion may prepare a bounded tail but cannot invent next tracks.
-const PLAYBACK_COMMANDS = new Set(['playStation', 'playSong', 'pause', 'resume', 'seek', 'setVolume', 'prepareNext']);
+const PLAYBACK_COMMANDS = new Set(['playStation', 'playSong', 'pause', 'resume', 'seek', 'setVolume', 'setRepeatOne', 'prepareNext']);
 const OPERATIONS = new Set(['songOriginal', 'catalogSong', 'catalogAlbum', 'catalogAlbumTracks', 'catalogArtist', 'catalogArtistSongs', 'catalogArtistAlbums', 'libraryAlbums', 'librarySongs', 'libraryAlbumTracks', 'stations', 'station', 'personalFm', 'showWindow', 'hideWindow', 'logout', 'accountStatus', 'search', 'playlists', 'playlistTracks', 'playlistTrackCount', 'lyrics', 'playbackStatus', 'likeSong', 'addPlaylistTracks', ...PLAYBACK_COMMANDS]);
 
 function validateRequest(message) {
@@ -33,6 +33,10 @@ function validateRequest(message) {
     if (operation === 'setVolume') {
         if (typeof params.volume !== 'number' || !Number.isFinite(params.volume) || params.volume < 0 || params.volume > 1) return null;
         return { id, operation, params: { volume: params.volume } };
+    }
+    if (operation === 'setRepeatOne') {
+        if (typeof params.enabled !== 'boolean') return null;
+        return { id, operation, params: { enabled: params.enabled } };
     }
     if (operation === 'addPlaylistTracks') {
         if (typeof params.playlistId !== 'string' || !/^p\.[a-zA-Z0-9._-]{1,198}$/.test(params.playlistId)
@@ -156,6 +160,8 @@ async function readFromPage(request, controlQueue, updateFavorite, addPlaylistTr
                     mk.setQueue = clearStationOnQueueChange;
                     window.__foliaStationQueueHook = clearStationOnQueueChange;
                 }
+                // A live station never repeats one track, whatever the song before it did.
+                if (typeof mk.setRepeatMode === 'function') mk.setRepeatMode(0);
                 await mk.setQueue({ station: request.params.stationId, startPlaying: false });
                 window.__foliaLiveStation = request.params.stationId;
                 window.__foliaPreparedQueue = [];
@@ -167,6 +173,17 @@ async function readFromPage(request, controlQueue, updateFavorite, addPlaylistTr
             // Apple's audio plays here, outside Folia's gain: the page's player owns the level.
             if (typeof mk.volume !== 'number') return { ok: false, error: 'unsupported' };
             mk.volume = request.params.volume;
+            return { ok: true, data: {} };
+        }
+        if (request.operation === 'setRepeatOne') {
+            // MusicKit's PlayerRepeatMode: none 0, one 1 (all 2 is never set: Folia's queue decides what
+            // follows). A start (playSong) turns it off again; the renderer sends it after every start.
+            const mode = request.params.enabled ? 1 : 0;
+            try {
+                if (typeof mk.setRepeatMode === 'function') mk.setRepeatMode(mode);
+                else if ('repeatMode' in mk) mk.repeatMode = mode;
+                else return { ok: false, error: 'unsupported' };
+            } catch { return { ok: false, error: 'playback-failed' }; }
             return { ok: true, data: {} };
         }
         const methods = { pause: 'pause', resume: 'play', seek: 'seekToTime' };
