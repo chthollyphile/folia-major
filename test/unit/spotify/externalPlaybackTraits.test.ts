@@ -40,6 +40,7 @@ const NONE = {
     holdsMediaKeysWhilePlaying: false,
     seekLimitMs: null,
     loopsTrackNatively: false,
+    followsPlayerChanges: false,
 };
 
 const pickWay = async (mode: 'soloist' | 'client') => {
@@ -54,7 +55,7 @@ afterEach(() => {
 });
 
 describe('what the providers declare', () => {
-    it('the official app declares all six, and the eight seconds its every call is given', () => {
+    it('the official app declares all of them, and the eight seconds its every call is given', () => {
         expect(spotifyClientPlayback).toMatchObject({
             capturesSystemAudio: true,
             startsWithoutWaiting: true,
@@ -63,6 +64,7 @@ describe('what the providers declare', () => {
             seekLimitMs: 8000,
             // Repeat one is the app's own repeat of the track: it sounds the song again itself.
             loopsTrackNatively: true,
+            followsPlayerChanges: true,
         });
     });
 
@@ -77,6 +79,8 @@ describe('what the providers declare', () => {
         // Folia steers Soloist alone, so repeat one stays Folia's own replay there.
         expect(spotifySoloistPlayback.loopsTrackNatively).toBeUndefined();
         expect(spotifySoloistPlayback.setTrackRepeat).toBeUndefined();
+        // Folia steers Soloist alone, so a change made in the program is not the listener's doing.
+        expect(spotifySoloistPlayback.followsPlayerChanges).toBeUndefined();
     });
 
     it('Apple Music\'s own player declares nothing of them', () => {
@@ -90,11 +94,12 @@ describe('what the providers declare', () => {
         // Nothing of repeat one reaches a player that has not declared a repeat of its own.
         expect(appleMusicProvider.externalPlayback?.loopsTrackNatively).toBeUndefined();
         expect(appleMusicProvider.externalPlayback?.setTrackRepeat).toBeUndefined();
+        expect(appleMusicProvider.externalPlayback?.followsPlayerChanges).toBeUndefined();
     });
 });
 
 describe('omni.externalPlaybackTraits', () => {
-    it('reads the official app\'s six and its limit while that is the way Spotify plays', async () => {
+    it('reads the official app's declarations and its limit while that is the way Spotify plays', async () => {
         await pickWay('client');
         expect(omni.externalPlaybackTraits(songOn('spotify'))).toEqual({
             capturesSystemAudio: true,
@@ -103,6 +108,7 @@ describe('omni.externalPlaybackTraits', () => {
             holdsMediaKeysWhilePlaying: true,
             seekLimitMs: 8000,
             loopsTrackNatively: true,
+            followsPlayerChanges: true,
         });
     });
 
@@ -121,12 +127,13 @@ describe('omni.externalPlaybackTraits', () => {
 });
 
 describe('the Spotify facade follows the way that is on', () => {
-    it('hands every one of the six to whichever program plays now', async () => {
+    it('hands every one of them to whichever program plays now', async () => {
         await pickWay('client');
         expect(spotifyExternalPlayback.capturesSystemAudio).toBe(true);
         expect(spotifyExternalPlayback.startsWithoutWaiting).toBe(true);
         expect(spotifyExternalPlayback.seekLimitMs).toBe(8000);
         expect(spotifyExternalPlayback.loopsTrackNatively).toBe(true);
+        expect(spotifyExternalPlayback.followsPlayerChanges).toBe(true);
 
         await pickWay('soloist');
         expect(spotifyExternalPlayback.capturesSystemAudio).toBe(true);
@@ -137,5 +144,6 @@ describe('the Spotify facade follows the way that is on', () => {
         expect(spotifyExternalPlayback.seekLimitMs).toBeUndefined();
         // Repeat one is Folia's own replay while Soloist is the program that plays.
         expect(spotifyExternalPlayback.loopsTrackNatively).toBe(false);
+        expect(spotifyExternalPlayback.followsPlayerChanges).toBe(false);
     });
 });
