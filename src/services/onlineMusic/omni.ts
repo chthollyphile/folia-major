@@ -1184,7 +1184,20 @@ export const omni = {
             holdsMediaKeysWhilePlaying: external?.holdsMediaKeysWhilePlaying === true,
             seekLimitMs: typeof external?.seekLimitMs === 'number' && Number.isFinite(external.seekLimitMs) && external.seekLimitMs > 0
                 ? external.seekLimitMs : null,
+            loopsTrackNatively: external?.loopsTrackNatively === true,
         };
+    },
+
+    // Repeat one, handed to the player's own repeat of the track where it has one: it then sounds
+    // the song again by itself. A player that declared nothing here is left alone, and its repeat
+    // one stays Folia's own replay.
+    async setExternalTrackRepeat(song: SongResult, on: boolean): Promise<void> {
+        const external = getOnlineMusicProviderForSong(song)?.externalPlayback;
+        if (external?.loopsTrackNatively !== true || !external.setTrackRepeat) return;
+        // Read once, so a provider that changes its own repeat of the track mid-call is not asked
+        // twice, and bound to the provider the declaration was read from.
+        const setTrackRepeat = external.setTrackRepeat.bind(external);
+        await runRequest(providerForSong(song), 'audio', () => setTrackRepeat(on));
     },
 
     // 一个播放不了的外部播放器（没装、版本改了找不到里面的播放器）之后，把平台的歌换回它自己的标准播放：

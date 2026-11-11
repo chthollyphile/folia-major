@@ -39,6 +39,11 @@ export const spotifyExternalPlayback: OnlineExternalPlaybackProvider = {
     get seekLimitMs() {
         return current().seekLimitMs;
     },
+    // Only the way that runs Spotify's own app has a repeat of the track of its own; Soloist is
+    // steered by Folia alone, as every other player is.
+    get loopsTrackNatively() {
+        return current().loopsTrackNatively === true;
+    },
     canPlay: song => current().canPlay?.(song) ?? true,
     isPrepared: song => current().isPrepared?.(song) ?? false,
     async prepareNext(song, upcoming, options) {
@@ -49,6 +54,7 @@ export const spotifyExternalPlayback: OnlineExternalPlaybackProvider = {
     pause: () => current().pause(),
     resume: () => current().resume(),
     seek: seconds => current().seek(seconds),
+    setTrackRepeat: on => current().setTrackRepeat?.(on) ?? Promise.resolve(),
     setVolume: volume => current().setVolume?.(volume) ?? Promise.resolve(),
     // Only the way that runs Spotify's own app can be running a track Folia is not: Soloist's player
     // is steered by Folia alone, so it answers nothing here.

@@ -497,6 +497,12 @@ export interface ProviderExternalPlaybackStatus {
     /** The player's own state says the track ran out. */
     ended: boolean;
     /**
+     * With a player that repeats the track itself: the song is on its way round again, from its
+     * start, and this answer is that turn. The song is the same one, so nothing is ended and
+     * nothing steps on; the position it carries is where the new turn is.
+     */
+    replayed?: boolean;
+    /**
      * With `ended`: the player was moved off the track by its own controls rather than by running
      * out, and the app's queue takes the step in this direction instead of its usual advance.
      */
@@ -534,6 +540,12 @@ export interface ExternalPlaybackStartOptions {
      * listener queued in it included. Every other start takes back only the songs Folia wrote there.
      */
     replaceQueue?: boolean;
+    /**
+     * Folia is in repeat one: a player that declared `loopsTrackNatively` then leaves its own repeat
+     * of the track on for this start instead of turning it off and having it turned on again a
+     * moment later. Absent or false starts the song the way every start does.
+     */
+    singleLoop?: boolean;
 }
 
 /**
@@ -604,6 +616,22 @@ export interface OnlineExternalPlaybackProvider {
      * which is what a move that answers at once asks for.
      */
     seekLimitMs?: number;
+    /**
+     * The player repeats one song by itself, so repeat one is left to it: Folia turns the player'
+     * own repeat of the track on while repeat one is on and puts the value it found back when it
+     * goes off, and writes nothing of the songs that follow into the player's queue meanwhile. The
+     * player then sounds the song again from its start without Folia asking for a start at all.
+     * True where the player has a repeat of the track; absent or false leaves repeat one to the
+     * app's own replay, which is what every other player gets.
+     */
+    loopsTrackNatively?: boolean;
+    /**
+     * The player's own repeat of the track, on or off, for a player that declared
+     * `loopsTrackNatively`. What it found is kept in the same record a start uses: only where the
+     * player still holds what this route wrote is it written over, and a value the listener set
+     * themselves is left as theirs.
+     */
+    setTrackRepeat?(on: boolean): Promise<void>;
     /** False only for songs this external route already knows it cannot start; no network reads. */
     canPlay?(song: SongResult): boolean;
     /** Prepare a bounded successor queue without interrupting the current song. */
@@ -671,6 +699,8 @@ export interface ExternalPlaybackTraits {
      * declared nothing: the clock then keeps the second `hifiClock` gives every player.
      */
     seekLimitMs: number | null;
+    /** Repeat one is the player's own repeat of the track, not the app's replay. */
+    loopsTrackNatively: boolean;
 }
 
 /** An alternate title and artist that belong to the same song. */
