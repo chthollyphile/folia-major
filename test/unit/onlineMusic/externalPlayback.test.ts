@@ -882,6 +882,17 @@ describe('a move the player takes seconds to take', () => {
         return seen;
     };
 
+    /** The longest stretch of recorded readings in which the bar and the lyrics did not move, in ms. */
+    const longestStill = (seen: number[]): number => {
+        let still = 0;
+        let longest = 0;
+        for (let index = 1; index < seen.length; index++) {
+            still = seen[index] > seen[index - 1] ? 0 : still + SAMPLE_MS;
+            longest = Math.max(longest, still);
+        }
+        return longest;
+    };
+
     /** The furthest the bar and the lyrics fell back between two readings, in seconds. */
     const largestDrop = (seen: number[]): number => {
         let largest = 0;
@@ -1443,32 +1454,46 @@ describe('a move the player takes seconds to take', () => {
         expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PAUSED);
     });
 
-    it('stays on the drop where a paused song is dragged a short way and lands slowly', async () => {
-        // The song is stopped where the listener left it, and the bar is dragged a few seconds off that
-        // spot. The player answers the move at once and loads the new spot seconds later, naming the
-        // spot the song stood on for all of it: a stopped line goes on naming it however long the wait.
-        // A window that went on growing from the ask took that line for the drop's own towards the end
-        // of the wait, and the bar and the lyrics fell back the whole drag at once.
-        const distances = [3, 4, 5, -3, -4, -5];
-        const delays = [1500, 3000, 5000];
-        const rows: { distance: number; delay: number; drop: number }[] = [];
-        for (const distance of distances) {
-            const fromSec = distance > 0 ? 10 : 60;
-            for (const delay of delays) {
-                const seen = await pausedGridCell(fromSec, fromSec + distance, delay);
-                rows.push({ distance, delay, drop: largestDrop(seen) });
-                engine.stopExternalPlayback('next cell');
-                usePlaybackStore.setState({
-                    playbackRoute: 'web', audioSrc: null, playerState: PlayerState.IDLE, currentSong: null, playQueue: [song, b, c],
-                });
+    // The grid below is one cell per way a drop lands: a song that is playing and one that is stopped,
+    // the bar moved forward and back, and the wait the player takes to load the spot. Every cell says
+    // the same two things of the timeline: it never steps back, and where the song is playing it never
+    // stands still for longer than the wait - which is what a playing clock runs on from the drop for,
+    // while the player is still on the line the song stood on.
+    const GRID_DISTANCES = [3, 4, 5, -3, -4, -5];
+    const GRID_DELAYS = [1500, 3000, 5000];
+    const gridCells = ['playing', 'paused'].flatMap(state => GRID_DISTANCES.flatMap(distance => (
+        GRID_DELAYS.map(delayMs => ({ state, paused: state === 'paused', distance, delayMs, fromSec: distance > 0 ? 10 : 60 }))
+    )));
+
+    it.each(gridCells)(
+        'keeps the timeline whole where a $state song is dragged $distance s and lands after $delayMs ms',
+        async ({ state, paused, distance, delayMs, fromSec }) => {
+            const targetSec = fromSec + distance;
+            const seen = paused
+                ? await pausedGridCell(fromSec, targetSec, delayMs)
+                : await gridCell(fromSec, targetSec, delayMs);
+            // Every cell says how far the bar and the lyrics fell back and how long they stood still,
+            // before anything is asserted on it.
+            console.log(`[grid] ${state} d=${distance} delay=${delayMs} drop=${largestDrop(seen).toFixed(2)} still=${longestStill(seen)}`);
+
+            // The timeline the listener dropped the bar on runs forward and never comes back to the
+            // spot the song stood on, whatever the wait the player took to load the new one.
+            for (let index = 1; index < seen.length; index++) {
+                expect(seen[index], `read ${index} of ${seen.length}`).toBeGreaterThanOrEqual(seen[index - 1] - 1e-6);
             }
-        }
-        // Every cell says how far the bar and the lyrics fell back, before anything is asserted on it.
-        console.log('[paused grid] ' + rows.map(row => `${row.distance}@${row.delay}ms=${row.drop.toFixed(2)}`).join(' '));
-        for (const row of rows) {
-            expect(row.drop, `d=${row.distance} delay=${row.delay}`).toBeLessThanOrEqual(0);
-        }
-    }, 120000);
+            expect(largestDrop(seen)).toBeLessThanOrEqual(0);
+            if (paused) {
+                // A stopped song stands on the spot it was dropped at for the whole of the wait.
+                expect(Math.min(...seen)).toBeGreaterThanOrEqual(targetSec - 0.5);
+                expect(Math.max(...seen)).toBeLessThanOrEqual(targetSec + 2 * SAMPLE_MS / 1000);
+            } else {
+                // A playing one runs on from the drop for as long as the wait, and stands only where
+                // the player has to catch up with it.
+                expect(longestStill(seen)).toBeLessThanOrEqual(delayMs + 2 * SAMPLE_MS + 250);
+            }
+        },
+        60000,
+    );
 
     it('keeps the spot the bar was dropped on where a paused session hears a playing answer with the old one', async () => {
         // The session is paused where the listener stopped it, and a drop is made without asking the
