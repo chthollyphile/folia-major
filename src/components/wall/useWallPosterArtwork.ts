@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { COVER_SIZE_STEPS, getOriginalCoverUrl, getSizedCoverUrl, resolveCoverSizeStep } from '../../utils/coverUrl';
+import { COVER_MAX_SIZE, COVER_SIZE_STEPS, getSizedCoverUrl, resolveCoverSizeStep } from '../../utils/coverUrl';
 
 // src/components/wall/useWallPosterArtwork.ts
 // Picks which variant of a cover one poster paints. The wall draws the same list (the play queue,
@@ -24,7 +24,7 @@ const decodingVariants = new Map<string, Promise<boolean>>();
  */
 const failedVariants = new Map<string, true>();
 
-/** Ladder step the URL was cut at; `Infinity` stands for the provider's own asset. */
+/** Ladder step the URL was cut at; `Infinity` stands for `COVER_MAX_SIZE`, never the provider's own asset. */
 type PosterArtwork = {
     /** Cover this variant came from. A queue shift can point one slot at a different song. */
     cover: string;
@@ -43,7 +43,7 @@ const remember = (registry: Map<string, true>, url: string): void => {
 };
 
 const variantUrl = (cover: string, step: number): string => (
-    Number.isFinite(step) ? getSizedCoverUrl(cover, step) : getOriginalCoverUrl(cover)
+    getSizedCoverUrl(cover, Number.isFinite(step) ? step : COVER_MAX_SIZE)
 );
 
 // Waits for a decoded frame rather than a load event: the swap that follows is then a repaint of

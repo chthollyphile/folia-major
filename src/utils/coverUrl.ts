@@ -12,6 +12,7 @@ const QQ_COVER_HOSTNAMES = new Set(['y.gtimg.cn', 'y.qq.com']);
 const QQ_COVER_PATH_PATTERN = /(T00[12])(?:R(\d+)x\d+)?(M000)/;
 const QQ_COVER_SMALL_SIZE = 300;
 const QQ_COVER_LARGE_SIZE = 800;
+const QQ_COVER_XL_SIZE = 1200;
 export const LOCAL_COVER_THUMBNAIL_SIZES = [512, 1024] as const;
 
 export const resolveLocalCoverThumbnailSize = (size: number): number => {
@@ -65,6 +66,10 @@ export const getOriginalCoverUrl = (url: string | null | undefined): string => {
 
     try {
         const urlObj = new URL(trimmedUrl);
+        if (NETEASE_COVER_HOST_PATTERN.test(urlObj.hostname) && urlObj.searchParams.has('param')) {
+            urlObj.searchParams.delete('param');
+            return urlObj.toString();
+        }
         if (isKuwoCoverUrl(urlObj)) {
             const originalSize = Number(KUWO_COVER_PATH_PATTERN.exec(urlObj.pathname)?.[2]);
             return withKuwoCoverSize(urlObj, Math.max(KUWO_COVER_LARGE_SIZE, originalSize));
@@ -130,16 +135,14 @@ export const getSizedCoverUrl = (url: string | null | undefined, size: number): 
         }
 
         if (isQqCoverUrl(urlObj)) {
-            // An album cover's own asset is a multi-megapixel JPEG (3000×3000 measured): decoding one
-            // blocked a wall frame for ~240 ms, and the wall asks for its largest bucket on every
-            // expanded card. Past the largest CDN bucket the 800px asset answers for an album cover
-            // instead — a card is at most ~920 device pixels across, so it is the same picture on
-            // screen without the decode. A singer image keeps the original: the CDN's buckets for
-            // those are not the album ladder, and the wall shows them small.
-            const albumCover = /T002(?:R\d+x\d+)?M000/.test(urlObj.pathname);
+            // Past 800 the 1200 bucket answers, never the original: album and singer originals run to
+            // 3000×3000, and on the wall Chromium decodes one that big again for every tile it
+            // rasters (150–300 ms frames while panning). R1200 exists for album (T002) and singer
+            // (T001) images alike and comes back at the original's size when that is smaller;
+            // R1000 and R1024 answer 404. A caller that wants the original asks getOriginalCoverUrl.
             const qqCoverSize = normalizedSize <= QQ_COVER_SMALL_SIZE
                 ? QQ_COVER_SMALL_SIZE
-                : normalizedSize <= QQ_COVER_LARGE_SIZE || albumCover ? QQ_COVER_LARGE_SIZE : null;
+                : normalizedSize <= QQ_COVER_LARGE_SIZE ? QQ_COVER_LARGE_SIZE : QQ_COVER_XL_SIZE;
             return withQqCoverSize(urlObj, qqCoverSize);
         }
 
@@ -171,7 +174,7 @@ export const getSizedCoverUrl = (url: string | null | undefined, size: number): 
 /**
  * Widths a card is allowed to ask for. The steps double, so a box has to change gear by a factor
  * of two before its artwork is refetched, and every one of them lands on something the providers
- * actually serve: QQ rounds 256 up to its own 300 bucket and 512 up to 800; Kuwo uses 240 and 800. Local thumbnails are
+ * actually serve: QQ rounds 256 up to its own 300 bucket, 512 up to 800 and 1024 up to 1200; Kuwo uses 240 and 800. Local thumbnails are
  * stored at exactly 512 and 1024, and Netease, KuGou and Navidrome resize to the number given.
  * Quantising also keeps the URL shared between cards showing the same song at similar sizes, which
  * is what lets the browser hand them all one decoded bitmap.
@@ -179,9 +182,17 @@ export const getSizedCoverUrl = (url: string | null | undefined, size: number): 
 export const COVER_SIZE_STEPS = [256, 512, 1024] as const;
 
 /**
+ * Most a many-cover surface (the wall) asks for past its top step. Providers' originals run to
+ * 3000×3000, and Chromium decodes an image that big again for every tile it rasters, so a wall
+ * holding a few of them stalls for hundreds of milliseconds while panning; 1200 still covers the
+ * largest card (an expanded one at DPR 2 is about 1230 device pixels across).
+ */
+export const COVER_MAX_SIZE = 1200;
+
+/**
  * Smallest step that still covers `size` device pixels. Past the top step there is no bucket left
- * to ask for, so the answer is `Infinity`: the caller should keep the provider's own asset, which
- * is the sharpest thing on offer.
+ * to ask for, so the answer is `Infinity`: the caller asks for `COVER_MAX_SIZE`, not the provider's
+ * own asset.
  */
 export const resolveCoverSizeStep = (size: number): number => (
     COVER_SIZE_STEPS.find(step => step >= size) ?? Number.POSITIVE_INFINITY
