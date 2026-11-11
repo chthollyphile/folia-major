@@ -491,6 +491,35 @@ describe('a start that runs on after the interface', () => {
         expect(omniMock.setExternalTrackRepeat).toHaveBeenLastCalledWith(song, false);
     });
 
+    it('sends the off when the mode changes, even with no record of a repeat of the track', async () => {
+        omniMock.setExternalTrackRepeat.mockClear();
+        useAudioSettingsStore.setState({ loopMode: 'all' });
+        const start = engine.startExternalPlayback(song, 0);
+        engine.announceExternalPlayback();
+        await start.seeded;
+        await vi.advanceTimersByTimeAsync(500);
+
+        // The song was started in a mode of Folia's, and that start itself turned the player's
+        // repeat off: announcing the song asks nothing of it, since there is nothing to turn off.
+        expect(omniMock.setExternalTrackRepeat).not.toHaveBeenCalled();
+
+        // The listener turns the player's own repeat to the track in Spotify's window, which nothing
+        // here knows of. A record of what a start wrote would read the off as done already, and no
+        // later trigger would come: the mode changing is the one moment this is caught.
+        useAudioSettingsStore.setState({ loopMode: 'off' });
+        await vi.advanceTimersByTimeAsync(1);
+        expect(omniMock.setExternalTrackRepeat).toHaveBeenLastCalledWith(song, false);
+
+        // Personal FM asks the same question for the same reason, both on the way in and out.
+        omniMock.setExternalTrackRepeat.mockClear();
+        usePlaybackStore.setState({ isFmMode: true });
+        await vi.advanceTimersByTimeAsync(1);
+        expect(omniMock.setExternalTrackRepeat).toHaveBeenLastCalledWith(song, false);
+        usePlaybackStore.setState({ isFmMode: false });
+        await vi.advanceTimersByTimeAsync(1);
+        expect(omniMock.setExternalTrackRepeat).toHaveBeenLastCalledWith(song, false);
+    });
+
     it('asks the player again for the repeat an earlier write never got an answer for', async () => {
         omniMock.setExternalTrackRepeat.mockClear();
         useAudioSettingsStore.setState({ loopMode: 'one' });

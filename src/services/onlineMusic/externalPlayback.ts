@@ -315,15 +315,24 @@ const isRepeatOneSong = (): boolean => (
  * says it holds now - the track for an on, anything but the track for an off - and a write that
  * failed or was never answered leaves it unknown, so the next trigger asks again instead of leaving
  * a song repeating where nothing repeats it, or stepping past a repeat that is still on.
+ *
+ * `askOff` marks the two triggers that say how the song is to end from now on - a change of the loop
+ * mode and the way in or out of personal FM - as opposed to a song being shown. Those ask for an off
+ * whatever the record says, because a repeat the listener turned on in the player's own window is
+ * one nothing here knows of, and a record of the app's own last write would read the off as done. A
+ * player that repeats nothing writes nothing, so the ask costs a read where it changes nothing.
  */
-const syncExternalTrackRepeat = (current: ExternalSession) => {
+const syncExternalTrackRepeat = (current: ExternalSession, { askOff = false }: { askOff?: boolean } = {}) => {
     if (!current.traits.loopsTrackNatively || takeoverPending) return;
     const wanted = isRepeatOneSong();
-    if (current.trackRepeat === wanted) return;
-    // Only a repeat the app knows the player holds is turned off: where it never asked for one, the
-    // start itself left the app's repeat as the listener had it, and an off here would put back a
-    // value a play of Folia's is relying on.
-    if (!wanted && current.trackRepeat !== true && !current.trackRepeatAsked) return;
+    const askedOff = askOff && !wanted;
+    if (!askedOff) {
+        if (current.trackRepeat === wanted) return;
+        // Only a repeat the app knows the player holds is turned off: where it never asked for one,
+        // the start itself left the app's repeat as the listener had it, and an off here would put
+        // back a value a play of Folia's is relying on.
+        if (!wanted && current.trackRepeat !== true && !current.trackRepeatAsked) return;
+    }
     if (session !== current || current.trackRepeatPending) return;
     current.trackRepeat = null;
     current.trackRepeatAsked = true;
@@ -342,7 +351,7 @@ const syncExternalTrackRepeat = (current: ExternalSession) => {
         // the player has answered, for what the mode reads, so it is never left repeating a song
         // where Folia no longer repeats it. What this write asked for is the comparison, not what
         // the player holds: a write nobody answered leaves the mode the only thing to go by.
-        if (isRepeatOneSong() !== wanted) syncExternalTrackRepeat(current);
+        if (isRepeatOneSong() !== wanted) syncExternalTrackRepeat(current, { askOff });
     }).catch((error: unknown) => {
         // The song keeps playing, and the app's own replay of repeat one still covers it. What the
         // player holds is unknown, so the next trigger asks again.
@@ -352,7 +361,7 @@ const syncExternalTrackRepeat = (current: ExternalSession) => {
             // A mode picked while this write was on its way is asked for here the way it is after an
             // answer: no failure is repeated for a mode that has not moved on, so a player that
             // refuses every write is asked once per change of the mode rather than in a loop.
-            if (isRepeatOneSong() !== wanted) syncExternalTrackRepeat(current);
+            if (isRepeatOneSong() !== wanted) syncExternalTrackRepeat(current, { askOff });
         }
         console.warn('[ExternalPlayback] repeat one could not be handed to the player\'s own repeat', error);
     });
@@ -1216,7 +1225,9 @@ export const installExternalPlayback = (): void => {
     useAudioSettingsStore.subscribe((state, previous) => {
         if (state.loopMode !== previous.loopMode) {
             refreshPreparedQueue();
-            if (session) syncExternalTrackRepeat(session);
+            // How the song is to end moved: the off is asked for whatever the record says, since the
+            // repeat it has to clear may be one the listener turned on in the player's own window.
+            if (session) syncExternalTrackRepeat(session, { askOff: true });
         }
         // Muting is only ever a press in this window: nothing of the app's own turns it on or off,
         // so it goes to the player like the slider does, even while the player is only taken over.
@@ -1245,7 +1256,9 @@ export const installExternalPlayback = (): void => {
         // end is read by.
         if (state.playQueue !== previous.playQueue || state.isFmMode !== previous.isFmMode) {
             refreshPreparedQueue();
-            if (state.isFmMode !== previous.isFmMode && session) syncExternalTrackRepeat(session);
+            // Going in or out of personal FM is the other moment that says how the song ends, so it
+            // asks for the off the same way a change of the mode does.
+            if (state.isFmMode !== previous.isFmMode && session) syncExternalTrackRepeat(session, { askOff: true });
         }
     });
 };
