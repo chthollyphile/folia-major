@@ -31,7 +31,9 @@ export const MonetRailLine: React.FC<{
     canSeek?: boolean;
     disableEntryMotion?: boolean;
     renderStaticPassed?: boolean;
-}> = ({ entry, currentTime, theme, lyricFontPx, fontStack, translationFontStack, glowBufferPx, vGlowBufferPx, fontsEpoch, wordColorMatchers, audioPower, onLineSeek, canSeek = false, disableEntryMotion = false, renderStaticPassed = false }) => {
+    /** Mirrored layout (#1124): the line is set flush right and scales about its right edge. */
+    alignEnd?: boolean;
+}> = ({ entry, currentTime, theme, lyricFontPx, fontStack, translationFontStack, glowBufferPx, vGlowBufferPx, fontsEpoch, wordColorMatchers, audioPower, onLineSeek, canSeek = false, disableEntryMotion = false, renderStaticPassed = false, alignEnd = false }) => {
     const initialOffset = entry.offset >= 0 ? 34 : -34;
     const exitOffset = entry.status === 'passed' || entry.offset < 0 ? -38 : 38;
     // The active lyric must never be truncated, so its box is sized by its own wrapped
@@ -40,6 +42,8 @@ export const MonetRailLine: React.FC<{
     const isActiveLine = entry.status === 'active';
     // An RTL line (Uyghur, Arabic...) runs its words from the right edge and scales about it.
     const rtl = useMemo(() => resolveLyricTextDirection(entry.line.fullText) === 'rtl', [entry.line.fullText]);
+    // Flush right: an RTL line, or any line of the mirrored layout. Its words still read in their own direction.
+    const flushRight = rtl || alignEnd;
     const textMask = isActiveLine
         ? undefined
         : getClippedTextMask(
@@ -98,7 +102,7 @@ export const MonetRailLine: React.FC<{
                 left: `${glowBufferPx}px`,
                 right: `${glowBufferPx}px`,
                 height: entry.layout.visualHeightPx,
-                transformOrigin: rtl ? 'right top' : 'left top',
+                transformOrigin: flushRight ? 'right top' : 'left top',
                 zIndex: entry.tone.zIndex,
             }}
         >
@@ -139,6 +143,7 @@ export const MonetRailLine: React.FC<{
                     fontWeight: entry.tone.fontWeight,
                     lineHeight: `${entry.layout.lineHeightPx}px`,
                     letterSpacing: 0,
+                    textAlign: alignEnd && !rtl ? 'right' : undefined,
                     ...textMaskStyle,
                     textShadow: entry.status === 'active'
                         ? `0 14px 34px ${colorWithAlpha(theme.backgroundColor, 0.22)}`
@@ -184,7 +189,7 @@ export const MonetRailLine: React.FC<{
                             paddingBottom: track.paddingBottomPx,
                             boxSizing: 'border-box',
                             color: colorWithAlpha(theme.primaryColor, trackIndex > 0 ? 0.68 * SECONDARY_TRACK_OPACITY : 0.68),
-                            textAlign: rtl ? 'right' : 'left',
+                            textAlign: flushRight ? 'right' : 'left',
                             fontFamily: translationFontStack,
                             fontSize: track.fontPx,
                             fontWeight: track.fontWeight,
