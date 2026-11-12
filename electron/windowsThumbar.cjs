@@ -68,6 +68,9 @@ function createWindowsThumbar({ isSupported, getWindow, icons, sendAction }) {
     // even when the playback state it reports is the same as before, so the state alone cannot skip
     // a write; a failed write leaves this null so the next report tries again.
     let appliedWindow = null;
+    // Set by the window's 'hide' event and cleared by the replay on show. isVisible() alone cannot
+    // tell a hidden window from a minimized one that was hidden without being restored first.
+    let hidden = false;
 
     const liveWindow = () => {
         if (!isSupported) {
@@ -76,6 +79,11 @@ function createWindowsThumbar({ isSupported, getWindow, icons, sendAction }) {
         const win = getWindow();
         return win && !win.isDestroyed() ? win : null;
     };
+
+    // Whether the window has a taskbar button to carry the buttons (unless the "hide taskbar icon"
+    // setting removed it): on screen, or minimized without having been hidden. Electron's isVisible()
+    // is false while minimized, and a window hidden while minimized still reports isMinimized().
+    const hasTaskbarButton = (win) => win.isVisible() || (win.isMinimized() && !hidden);
 
     const applyButtons = (win, nextState) => {
         try {
@@ -97,7 +105,9 @@ function createWindowsThumbar({ isSupported, getWindow, icons, sendAction }) {
         // A hidden window has no taskbar button to write to, and Electron records the thumbar as
         // added even when ThumbBarAddButtons fails on it, which would turn the replay on show into
         // an update of buttons that were never attached. Keep the report for the replay instead.
-        if (!win.isVisible()) {
+        // A minimized window still has its taskbar button and its thumbnail toolbar (the usual place
+        // to press pause), but Electron's isVisible() is false while minimized, so check both.
+        if (!hasTaskbarButton(win)) {
             state = normalized;
             appliedWindow = null;
             return false;
@@ -119,7 +129,16 @@ function createWindowsThumbar({ isSupported, getWindow, icons, sendAction }) {
      */
     const replay = ({ taskbarButtonVisible }) => {
         const win = liveWindow();
-        if (!win || !taskbarButtonVisible || !state.hasActiveTrack) {
+        if (!win || !hasTaskbarButton(win)) {
+            return false;
+        }
+        hidden = false;
+        if (!taskbarButtonVisible) {
+            // Nothing was written, so the next report must not be skipped as already applied.
+            appliedWindow = null;
+            return false;
+        }
+        if (!state.hasActiveTrack) {
             return false;
         }
         const applied = applyButtons(win, state);
@@ -127,13 +146,20 @@ function createWindowsThumbar({ isSupported, getWindow, icons, sendAction }) {
         return applied;
     };
 
+    /** The window was hidden: Windows dropped its taskbar button, so nothing is written until the replay. */
+    const noteHidden = () => {
+        hidden = true;
+        appliedWindow = null;
+    };
+
     /** A new main window starts with no taskbar buttons until its page reports a track. */
     const reset = () => {
         state = normalizeThumbarState(EMPTY_THUMBAR_STATE);
         appliedWindow = null;
+        hidden = false;
     };
 
-    return { setState, replay, reset };
+    return { setState, replay, noteHidden, reset };
 }
 
 module.exports = {

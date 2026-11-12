@@ -3276,6 +3276,10 @@ function setMainWindowSkipTaskbarEnabled(enabled) {
   mainWindowSkipTaskbarEnabled = Boolean(enabled);
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.setSkipTaskbar(mainWindowSkipTaskbarEnabled);
+    if (!mainWindowSkipTaskbarEnabled) {
+      // The taskbar button is back; Electron re-adds the buttons only when it remembers adding them.
+      replayMainWindowThumbarButtons();
+    }
   }
   refreshTrayMenu();
   return mainWindowSkipTaskbarEnabled;
@@ -6217,7 +6221,10 @@ function createWindow(options = {}) {
     refreshTrayMenu();
     replayMainWindowThumbarButtons();
   });
-  win.on('hide', refreshTrayMenu);
+  win.on('hide', () => {
+    refreshTrayMenu();
+    windowsThumbar.noteHidden();
+  });
   win.on('minimize', refreshTrayMenu);
   win.on('restore', () => {
     refreshTrayMenu();

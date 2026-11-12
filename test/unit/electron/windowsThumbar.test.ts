@@ -39,6 +39,7 @@ const {
     }) => {
         setState: (state: unknown) => boolean;
         replay: (options: { taskbarButtonVisible: boolean }) => boolean;
+        noteHidden: () => void;
         reset: () => void;
     };
 };
@@ -60,8 +61,10 @@ const playingState: ThumbarState = {
 type FakeWindow = {
     destroyed: boolean;
     visible: boolean;
+    minimized: boolean;
     isDestroyed: () => boolean;
     isVisible: () => boolean;
+    isMinimized: () => boolean;
     setThumbarButtons: ReturnType<typeof vi.fn>;
     setSkipTaskbar: ReturnType<typeof vi.fn>;
 };
@@ -70,8 +73,11 @@ const createWindow = (): FakeWindow => {
     const win: FakeWindow = {
         destroyed: false,
         visible: true,
+        minimized: false,
         isDestroyed: () => win.destroyed,
-        isVisible: () => win.visible,
+        // Electron on Windows reports a minimized window as not visible.
+        isVisible: () => win.visible && !win.minimized,
+        isMinimized: () => win.minimized,
         setThumbarButtons: vi.fn(() => true),
         setSkipTaskbar: vi.fn(),
     };
@@ -201,6 +207,83 @@ describe('createWindowsThumbar', () => {
         expect(thumbar.replay({ taskbarButtonVisible: true })).toBe(true);
         expect(win.setThumbarButtons).toHaveBeenCalledTimes(1);
         expect(win.setThumbarButtons.mock.calls[0][0][1]).toMatchObject({ tooltip: 'Play' });
+    });
+
+    it('keeps writing to a minimized window, whose taskbar preview still shows the buttons', () => {
+        const win = createWindow();
+        const thumbar = createWindowsThumbar({
+            isSupported: true,
+            getWindow: () => win,
+            icons,
+            sendAction: vi.fn(),
+        });
+        thumbar.setState(playingState);
+        win.minimized = true;
+
+        expect(thumbar.setState({ ...playingState, isPlaying: false })).toBe(true);
+        expect(win.setThumbarButtons).toHaveBeenCalledTimes(2);
+        expect(win.setThumbarButtons.mock.calls[1][0][1]).toMatchObject({ tooltip: 'Play' });
+    });
+
+    it('holds reports for a window hidden while minimized until the replay', () => {
+        const win = createWindow();
+        const thumbar = createWindowsThumbar({
+            isSupported: true,
+            getWindow: () => win,
+            icons,
+            sendAction: vi.fn(),
+        });
+        thumbar.setState(playingState);
+        win.minimized = true;
+        win.visible = false;
+        thumbar.noteHidden();
+
+        expect(thumbar.setState({ ...playingState, isPlaying: false })).toBe(false);
+        expect(win.setThumbarButtons).toHaveBeenCalledTimes(1);
+        expect(thumbar.replay({ taskbarButtonVisible: true })).toBe(false);
+
+        win.minimized = false;
+        win.visible = true;
+        expect(thumbar.replay({ taskbarButtonVisible: true })).toBe(true);
+        expect(win.setThumbarButtons).toHaveBeenCalledTimes(2);
+        expect(win.setThumbarButtons.mock.calls[1][0][1]).toMatchObject({ tooltip: 'Play' });
+    });
+
+    it('writes an unchanged report after a replay skipped for the hidden taskbar icon', () => {
+        const win = createWindow();
+        const thumbar = createWindowsThumbar({
+            isSupported: true,
+            getWindow: () => win,
+            icons,
+            sendAction: vi.fn(),
+        });
+        thumbar.setState(playingState);
+        thumbar.noteHidden();
+        win.setThumbarButtons.mockClear();
+
+        expect(thumbar.replay({ taskbarButtonVisible: false })).toBe(false);
+        expect(win.setThumbarButtons).not.toHaveBeenCalled();
+
+        // The "hide taskbar icon" setting is turned off: its replay puts the buttons back.
+        expect(thumbar.replay({ taskbarButtonVisible: true })).toBe(true);
+        expect(win.setThumbarButtons).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not replay on a window that is not on screen', () => {
+        const win = createWindow();
+        const thumbar = createWindowsThumbar({
+            isSupported: true,
+            getWindow: () => win,
+            icons,
+            sendAction: vi.fn(),
+        });
+        thumbar.setState(playingState);
+        win.visible = false;
+        thumbar.noteHidden();
+        win.setThumbarButtons.mockClear();
+
+        expect(thumbar.replay({ taskbarButtonVisible: true })).toBe(false);
+        expect(win.setThumbarButtons).not.toHaveBeenCalled();
     });
 
     it('reports false without a live window', () => {
