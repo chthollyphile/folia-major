@@ -16,6 +16,7 @@ import type { ProbeDefinition } from './definition';
  * 画布上写着歌词阶段和收到的事件；能弄丢一次 WebGL），一个加载就抛错的场景。
  * 看三件事：没选场景时就是原来的歌词样式；选了方块场景时样式贴到斜着的荧幕上；选了坏场景时回到歌词样式（控制台有 [SceneHost] scene failed）。
  * 影厅（内建 'cinema'）：荧幕上是歌词样式和背景；按住拖动转头，点歌词照常有效；右上是座位图（点一下换座位）。
+ * 鼠标移到整页左上角出返回键（点了控制台有 [probe] back）：选了场景也在整页左上角，不在荧幕的角上。
  */
 
 const QUALITY: SceneManifest['quality'] = { default: 'low', presets: { low: {}, medium: {}, high: {} } };
@@ -192,6 +193,7 @@ const SceneHostProbe: React.FC = () => {
                     songTitle="Probe song"
                     paused={paused}
                     duration={LOOP_SEC}
+                    onBack={() => console.info('[probe] back')}
                 />
             </div>
             <div className="absolute bottom-4 left-4 z-50 flex gap-2" data-probe-scene={sceneId ?? 'none'}>
