@@ -33,6 +33,47 @@ import { KUGOU_API_BASE_MISSING } from '@/services/onlineMusic/kugou/kugouTransp
 import { OnlineProviderError } from '@/types/onlineMusic';
 
 describe('kugouProvider', () => {
+    // 字段取自 2026-10-31 `/search?type=album` 与 `type=special` 的实测回答（裁剪过）。
+    it('searches albums and playlists and opens a playlist by its gid', async () => {
+        requestMock.mockResolvedValueOnce({
+            status: 1, error_code: 0,
+            data: {
+                total: 500,
+                lists: [{
+                    albumid: 960399, albumname: '魔杰座', singer: '周杰伦', songcount: 11, publish_time: '2008-10-15',
+                    img: 'http://imge.kugou.com/stdmusic/240/20241118/20241118160622508429.jpg',
+                    singers: [{ name: '周杰伦', id: 3520 }],
+                }],
+            },
+        });
+        const albums = await kugouProvider.search!.searchAlbums!('周杰伦', 30, 0);
+        expect(requestMock).toHaveBeenLastCalledWith('search', expect.objectContaining({ keywords: '周杰伦', type: 'album', page: 1, pagesize: 30 }));
+        // 按页码翻：下一页从第 2 页（offset 30）起，不管这一页实际几条。
+        expect(albums).toMatchObject({ total: 500, hasMore: true, nextOffset: 30 });
+        expect(albums.items[0]).toMatchObject({
+            providerId: 'kugou', id: 960399, type: 'album', name: '魔杰座', trackCount: 11, artists: [{ name: '周杰伦' }],
+        });
+        expect(albums.items[0].coverUrl).toMatch(/^https:/);
+
+        requestMock.mockResolvedValueOnce({
+            status: 1, error_code: 0,
+            data: {
+                total: 480,
+                lists: [{
+                    specialid: 6409645, specialname: '周杰伦必听热歌', gid: 'collection_3_2132029040_287_0', song_count: 154,
+                    nickname: '酷乐推荐', suid: '2132029040', play_count: '179854', total_play_count: '37035193',
+                    img: 'http://imge.kugou.com/soft/collection/150/20260414/20260414170554928435.png',
+                }],
+            },
+        });
+        const playlists = await kugouProvider.search!.searchPlaylists!('周杰伦', 30, 30);
+        expect(requestMock).toHaveBeenLastCalledWith('search', expect.objectContaining({ type: 'special', page: 2, pagesize: 30 }));
+        expect(playlists.items[0]).toMatchObject({
+            providerId: 'kugou', id: 'collection_3_2132029040_287_0', type: 'playlist', name: '周杰伦必听热歌',
+            trackCount: 154, playCount: 37035193, creator: { nickname: '酷乐推荐' },
+        });
+    });
+
     beforeEach(async () => {
         // provider 里的"我喜欢"歌单引用和行号缓存是模块级的，按会话生命周期清理；用例之间必须先登出，
         // 否则上一条用例写进去的引用会让下一条跳过 user_playlist 请求。
@@ -263,6 +304,38 @@ describe('kugouProvider', () => {
         expect(song.artists[0]).toMatchObject({ id: 'kugou-artist-0', name: '歌手' });
         expect(song.artists[0].catalogRef).toBeUndefined();
         expect(song.album.catalogRef).toEqual({ providerId: 'kugou', kind: 'album', id: 9 });
+    });
+
+    // 专辑曲目：歌名带后缀，后缀另在 trans_param.songname_suffix，没有 OriSongName（2026-11-05 album_songs 实测）。
+    it('takes the suffix off an album track title and offers the rest as the lyric search alias', async () => {
+        const song = normalizeKugouSong({
+            hash: 'ab12cd',
+            base: { audio_name: '夜に駆ける (向夜晚奔去)', author_name: 'YOASOBI' },
+            trans_param: { songname_suffix: '(向夜晚奔去)' },
+            authors: [{ author_name: 'YOASOBI' }],
+            album_info: { album_name: '夜に駆ける' },
+        });
+
+        expect(song.name).toBe('夜に駆ける (向夜晚奔去)');
+        expect(song.sourceRef).toMatchObject({ providerData: { originalName: '夜に駆ける' } });
+        await expect(kugouProvider.lyrics!.getSearchAlias!(song)).resolves.toEqual({
+            song, title: '夜に駆ける', artist: 'YOASOBI', album: '夜に駆ける',
+        });
+    });
+
+    // 搜索条目没有 SongName：歌名取自 OriSongName，本来就是原名（2026-11-04 实测）。
+    it('offers no alias when the title already is OriSongName', async () => {
+        const song = normalizeKugouSong({
+            FileHash: 'ab12cd',
+            FileName: 'YOASOBI - 夜に駆ける (向夜晚奔去)',
+            OriSongName: '夜に駆ける',
+            Suffix: '(向夜晚奔去)',
+            SingerName: 'YOASOBI',
+        });
+
+        expect(song.name).toBe('夜に駆ける');
+        expect(song.sourceRef).not.toHaveProperty('providerData.originalName');
+        await expect(kugouProvider.lyrics!.getSearchAlias!(song)).resolves.toBeNull();
     });
 
     it('keeps a high-resolution canonical KuGou cover for templates and sized CDN URLs', () => {
@@ -1103,6 +1176,51 @@ describe('kugouProvider', () => {
         expect(addable).toEqual([expect.objectContaining({ id: 'created', isOwned: true })]);
         expect(playlists?.items.find(item => item.id === 'liked')).toEqual(expect.objectContaining({ isOwned: true }));
         expect(playlists?.items.find(item => item.id === 'album')).toBeUndefined();
+    });
+
+    // 外壳取自 2026-11-03 `/user/listen` 的实测回答（那个账号没有收听记录）；条目的字段照同一模块别的客户端在真账号上读到的样子写。
+    const listenAnswer = (lists: unknown[]) => ({
+        data: { data_date: 0, servertime: 1793709882, lists, total_history: lists.length, total_week: 0, hide_mixsongids: [] },
+        status: 1, error_code: 0,
+    });
+    const listenRow = (hash: string, listenCount: number) => ({
+        hash, name: `歌手 - 歌 ${hash}`, singername: '歌手', album_name: '专辑', album_audio_id: 12345678,
+        duration: 285309, image: 'http://imge.kugou.com/stdmusic/{size}/20210101/cover.jpg', listen_count: listenCount,
+    });
+
+    it('asks /user/listen type 0 for the last week and 1 for all time, an entry a span that has songs', async () => {
+        requestMock.mockImplementation(async (_operation: string, params: { type: number }) => listenAnswer(
+            params.type === 1 ? [listenRow('A1', 99), listenRow('B2', 3)] : [],
+        ));
+        const listener = { id: 'user', nickname: 'Listener' };
+
+        const entries = await kugouProvider.library!.getListeningRankCollections!(listener);
+
+        expect(requestMock.mock.calls).toEqual([
+            ['user_listen', { userid: 'user', type: 0 }],
+            ['user_listen', { userid: 'user', type: 1 }],
+        ]);
+        expect(entries).toEqual([expect.objectContaining({
+            providerId: 'kugou', id: 'listening-rank-all-user', type: 'listening_rank', listeningRank: 'all', trackCount: 2, creator: listener,
+        })]);
+        expect(entries[0].coverUrl).toMatch(/^https:\/\/.+cover\.jpg$/);
+    });
+
+    it("reads a ranking's songs in KuGou's order with their play counts", async () => {
+        requestMock.mockResolvedValue(listenAnswer([listenRow('A1', 99), listenRow('B2', 3), listenRow('C3', 1)]));
+        const entry = { providerId: 'kugou', id: 'listening-rank-week-user', type: 'listening_rank', name: 'Week', listeningRank: 'week' as const, creator: { id: 'user', nickname: 'Listener' } };
+
+        const page = await kugouProvider.catalog!.getListeningRankTracks!('week', 2, 0, entry);
+
+        expect(requestMock).toHaveBeenLastCalledWith('user_listen', { userid: 'user', type: 0 });
+        expect(page.items.map(song => [song.id, song.name, song.artists.map(artist => artist.name), song.durationMs, song.listenCount])).toEqual([
+            ['A1', '歌 A1', ['歌手'], 285309, 99],
+            ['B2', '歌 B2', ['歌手'], 285309, 3],
+        ]);
+        expect(page).toMatchObject({ total: 3, hasMore: true, nextOffset: 2 });
+
+        requestMock.mockResolvedValue({ data: { servertime: 1 }, status: 1, error_code: 0 });
+        await expect(kugouProvider.catalog!.getListeningRankTracks!('week', 2, 0, entry)).rejects.toMatchObject({ code: 'invalid-response' });
     });
 
     it('requests the user cloud with the logged-in user id and maps the cloud list payload', async () => {

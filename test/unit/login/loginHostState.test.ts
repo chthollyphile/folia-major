@@ -21,13 +21,17 @@ const ROWS = [
     row('out', { error: 'auth-required' }),
     row('free', { requiresAccount: false }),
     row('off', { availability: { configured: false, reason: 'not-configured' } }),
+    // Signs in with a form (account and password): choosing it starts no sign-in.
+    row('form'),
 ];
+const FORM_INDEX = ROWS.findIndex(entry => entry.providerId === 'form');
 
-type Deferred<T> = { promise: Promise<T>; resolve: (value: T) => void };
+type Deferred<T> = { promise: Promise<T>; resolve: (value: T) => void; reject: (error: unknown) => void };
 const deferred = <T>(): Deferred<T> => {
     let resolve!: (value: T) => void;
-    const promise = new Promise<T>(yes => { resolve = yes; });
-    return { promise, resolve };
+    let reject!: (error: unknown) => void;
+    const promise = new Promise<T>((yes, no) => { resolve = yes; reject = no; });
+    return { promise, resolve, reject };
 };
 // Lets every answer already given be acted on.
 const settle = async () => { for (let turn = 0; turn < 5; turn += 1) await Promise.resolve(); };
@@ -35,6 +39,7 @@ const settle = async () => { for (let turn = 0; turn < 5; turn += 1) await Promi
 const sessionOf = (providerId: string, phase: LibraryLoginPhase): LibraryLoginSessionSnapshot => ({
     id: 1, providerId, phase, methods: [], selectedMethodId: null, inBrowser: false, codeImage: '', canReopenLoginPage: true,
     failure: null, selfCheck: null, localService: { available: false, failed: false, error: null, restarting: false }, texts: null,
+    checksAfterLogin: false,
 });
 const completion = (providerId: string, outcome: LibraryLoginCompletion['outcome'] = 'completed'): LibraryLoginCompletion => ({ sessionId: 1, providerId, outcome });
 
@@ -46,16 +51,25 @@ const setup = ({ plays = false } = {}) => {
     const rows = [...ROWS];
     // The controller's sign-in, as the window sees it.
     const sign = { login: null as LibraryLoginSessionSnapshot | null };
+    // The form sign-in under way, answered by hand.
+    let submitted = deferred<LibraryLoginCompletion>();
     const host = createLoginHostState({
         rows: () => rows,
         login: () => sign.login,
         startLogin: providerId => { said.push(`start ${providerId}`); sign.login = sessionOf(providerId, 'resolving-methods'); },
         closeLogin: () => { said.push('stop'); sign.login = null; },
+        hasLoginForm: providerId => providerId === 'form',
+        submitForm: (providerId, values) => {
+            said.push(`submit ${providerId} ${values.user ?? ''}`);
+            submitted = deferred();
+            return submitted.promise;
+        },
         // The store's close: the host hears of it and ends the turn (LoginHost.tsx's effect).
         closeWindow: () => { said.push('close'); host.closed(); },
         playsDone: () => motion.on,
         switchTo: providerId => ask('switch', providerId),
         signOut: providerId => ask('sign out', providerId),
+        openSetup: providerId => { said.push(`setup ${providerId}`); },
     });
     // A switch and a sign-out are answered by hand: `answers` holds the last one asked.
     const answers: Record<string, Deferred<boolean>> = {};
@@ -69,7 +83,7 @@ const setup = ({ plays = false } = {}) => {
         sign.login = sign.login && { ...sign.login, phase };
         host.loginChanged();
     };
-    return { host, said, sign, tell, motion, rows, goes };
+    return { host, said, sign, tell, motion, rows, goes, submission: () => submitted };
 };
 
 describe('the sign-in window\'s host', () => {
@@ -93,6 +107,15 @@ describe('the sign-in window\'s host', () => {
         host.choose('out');
         expect(host.getState().chosen).toEqual({ providerId: 'out', lead: 'sign-in' });
         expect(said).toEqual(['stop', 'start code-a', 'stop', 'stop', 'start out']);
+    });
+
+    it.each(['opening', 'choosing'])('starts sign-in for a checking platform when %s', action => {
+        const { host, said, rows } = setup();
+        rows[0] = row('code-a', { status: 'unknown', hydration: 'loading' });
+        host.opened(action === 'opening' ? 'code-a' : null);
+        if (action === 'choosing') host.choose('code-a');
+        expect(host.getState().chosen).toEqual({ providerId: 'code-a', lead: 'sign-in' });
+        expect(said).toEqual(['stop', 'start code-a']);
     });
 
     it('a row out of reach, and a platform that is not listed, cannot be chosen', () => {
@@ -260,6 +283,33 @@ describe('the sign-in window\'s host', () => {
             host.completed(completion('code-a'));
             expect(host.getState().done).toBe(true);
             expect(said).toEqual(['stop', 'start code-a']);
+        });
+
+        it('a row that signs in with a form starts no sign-in when chosen; its own submit waits for the completion and plays the animation', async () => {
+            const { host, said, rows, submission } = setup({ plays: true });
+            host.opened('form');
+            expect(host.getState().chosen).toEqual({ providerId: 'form', lead: 'sign-in' });
+            expect(said).toEqual(['stop', 'stop']);
+            const answered = host.submitForm('form', { user: 'alice' });
+            // The account is read before the completion comes (and before a switch question is answered).
+            rows[FORM_INDEX] = { ...rows[FORM_INDEX], status: 'authenticated', user: { id: 'u1', nickname: 'alice' } };
+            host.rowsChanged();
+            expect(host.getState().chosen?.lead).toBe('sign-in');
+            submission().resolve(completion('form'));
+            host.completed(await answered);
+            expect(host.getState().done).toBe(true);
+            expect(said).toEqual(['stop', 'stop', 'submit form alice']);
+        });
+
+        it('a form submit that failed takes its confirmation back: an account read later is from an earlier sign-in', async () => {
+            const { host, rows, submission } = setup();
+            host.opened('form');
+            const answered = host.submitForm('form', { user: 'alice' });
+            submission().reject(new Error('bad password'));
+            await expect(answered).rejects.toThrow('bad password');
+            rows[FORM_INDEX] = { ...rows[FORM_INDEX], status: 'authenticated' };
+            host.rowsChanged();
+            expect(host.getState().chosen).toEqual({ providerId: 'form', lead: 'account' });
         });
     });
 

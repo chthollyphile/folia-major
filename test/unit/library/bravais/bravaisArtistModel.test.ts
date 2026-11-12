@@ -63,8 +63,9 @@ describe('mixed items', () => {
         const items = project([song(1), song(2)], [album(1), album(2), album(3)]);
         expect(items.map(item => item.key)).toEqual([songKey(1), songKey(2), 'album:al-1', 'album:al-2', 'album:al-3']);
         expect(items.map(item => item.kind)).toEqual(['track', 'track', 'album', 'album', 'album']);
-        expect(items[0]).toMatchObject({ badge: '01', durationLabel: '3:20', artists: ['Artist'] });
+        expect(items[0]).toMatchObject({ badge: '01', badgeIsIndex: true, durationLabel: '3:20', artists: ['Artist'] });
         expect(items[2]).toMatchObject({ badge: 'Album', title: 'Album 1' });
+        expect(items[2].badgeIsIndex).toBeUndefined();
     });
 
     it('writes a known album track count onto the spine and leaves it off otherwise', () => {

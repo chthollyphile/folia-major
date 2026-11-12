@@ -34,8 +34,8 @@ import { getCachedSongCoverUrl, getSongCacheWithLegacyMigration } from '../../..
 import { getSongCoverUrl } from '../../../../services/onlineMusic/songMetadata';
 import { useOnlineProviderAccountStore } from '../../../../stores/useOnlineProviderAccountStore';
 import { setStatusMessage as setStatusMsg, useStatusMessageStore } from '../../../../stores/useStatusMessageStore';
-import { setActiveLocalLyricsSource, setAudioSrc, setCachedCoverUrl, setCurrentSong, usePlaybackStore } from '../../../../stores/usePlaybackStore';
-import { askedSongKeyRef, replaceShownSong } from '../currentSong';
+import { setActiveLocalLyricsSource, setAudioSrc, setCachedCoverUrl, setCurrentSong, setDuration, usePlaybackStore } from '../../../../stores/usePlaybackStore';
+import { askedSongKeyRef, keepSongsOfProvidersStanding, providerDropsSoFar, replaceShownSong } from '../currentSong';
 import { onlineFailureToast } from '../source/onlineFailureToast';
 import { loadLocalSongAudio, loadLocalSongHifiSource, loadNavidromeSongAudio, loadOnlineSongAudio } from '../source/songAudioSource';
 import { useLyricSettingsStore } from '../../../../stores/useLyricSettingsStore';
@@ -169,11 +169,14 @@ const restoreSourceForSong = async (
 ): Promise<RestorePlaybackSourceOutcome> => {
     let restoredSongKey = getPlaybackSongKey(song);
     const overtaken = () => !stillWanted() || askedSongKeyRef.current !== restoredSongKey;
+    // A sign-out of another platform while this restore waits takes that platform's songs out of the queue it
+    // writes and saves as well (as a play does, see keepSongsOfProvidersStanding): the store's queue lost them already.
+    const providerDropsAtStart = providerDropsSoFar();
     // The queue to write (`write`, null for nothing) and to save once the restored song is in it: `own`,
     // or after a whole-queue write since the caller started, the store's queue of now (see queueWritesAtStart).
     const queueAfterRestore = (restoredSong: SongResult, own: () => SongResult[]): { write: SongResult[] | null; save: SongResult[] } => {
         if (queueWritesAtStart === undefined || wholeQueueWritesSoFar() === queueWritesAtStart) {
-            const given = own();
+            const given = keepSongsOfProvidersStanding(own(), providerDropsAtStart);
             return { write: given, save: given };
         }
         const live = usePlaybackStore.getState().playQueue;
@@ -374,6 +377,25 @@ const restoreSourceForSong = async (
             if (!prev || !isSamePlaybackSong(prev, song)) return prev;
             return { ...prev, onlineLyricsState };
         });
+    }
+
+    if (omni.canPlayExternally(song)) {
+        // A provider's own player has no track after a restart: the remembered song is shown as it
+        // was - paused, at its position - and the play path starts it when the listener asks. Its
+        // lyrics are still restored, so the screen is not empty. (A window rebuild is different: the
+        // player outlives the window, and the hand-off's restore takes the running track over after
+        // this returns; see useElectronWindowPlaybackHandoff.)
+        try {
+            const cachedLyrics = await getSongCacheWithLegacyMigration<LyricData>('lyric', song, migrateLyricDataRenderHints);
+            if (overtaken()) return 'stale';
+            if (song.durationMs > 0) setDuration(song.durationMs / 1000);
+            const restoredLyrics = resolveOnlineLyrics(onlineLyricsState, cachedLyrics);
+            if (restoredLyrics) setLyrics(restoredLyrics);
+        } catch (error) {
+            if (overtaken()) return 'stale';
+            console.warn('[restorePlaybackSourceForSong] Lyrics could not be restored for the external player', error);
+        }
+        return 'restored';
     }
 
     if (!omni.canPlaySong(song)) {

@@ -33,6 +33,10 @@ export interface LoginHostPorts {
     startLogin(providerId: OnlineProviderId): void;
     /** 停下正在进行的登录（controller 的 closeLogin）。 */
     closeLogin(): void;
+    /** 这个平台用表单登录（provider 声明了 getLoginForm）：选中时不自动开始登录，窗口给表单。 */
+    hasLoginForm(providerId: OnlineProviderId): boolean;
+    /** 提交表单登录（controller 的 submitFormLogin：提交 → 读账号 → 报完成）；提交失败时 reject。 */
+    submitForm(providerId: OnlineProviderId, values: Record<string, string>): Promise<LibraryLoginCompletion>;
     /** 关掉窗口：窗口只有这一个关法（loginWindowStore 的 closeLoginWindow）。 */
     closeWindow(): void;
     /** 读到账号之后放不放登录成功的动画：动效关着就不放，窗口当场关。 */
@@ -41,6 +45,8 @@ export interface LoginHostPorts {
     switchTo(providerId: OnlineProviderId): Promise<boolean> | null;
     /** 退出这个平台的登录，回它是不是真的退出了（用的人可以在确认框里取消）；此刻退不了是 null。 */
     signOut(providerId: OnlineProviderId): Promise<boolean> | null;
+    /** 打开这个平台的配置清单（controller 的 openSetup：先停下正在进行的登录）。 */
+    openSetup(providerId: OnlineProviderId): void;
 }
 
 const NOTHING_CHOSEN: LoginHostState = { chosen: null, done: false };
@@ -88,8 +94,13 @@ export const createLoginHostState = (ports: LoginHostPorts) => {
         turn += 1;
         confirmedSeen = false;
         set({ chosen: { providerId, lead }, done: false });
-        if (lead === 'sign-in') ports.startLogin(providerId);
-        else ports.closeLogin();
+        if (lead === 'sign-in') {
+            // 表单式登录平台（如账号密码类）：选中即显示表单，不自动开始登录；关掉上一个平台的扫码会话。
+            if (ports.hasLoginForm(providerId)) ports.closeLogin();
+            else ports.startLogin(providerId);
+        } else {
+            ports.closeLogin();
+        }
     };
 
     /** 为选中的那个平台问一件事；答的是「成了」、而且回来时还是问它的那一轮，才做 `then`。 */
@@ -110,15 +121,25 @@ export const createLoginHostState = (ports: LoginHostPorts) => {
         switchToChosen: (): void => forChosen(providerId => ports.switchTo(providerId), () => ports.closeWindow()),
         /** 退出选中的平台的登录；真的退出了才关窗，在确认框里点了取消窗口留着。 */
         signOutChosen: (): void => forChosen(providerId => ports.signOut(providerId), () => ports.closeWindow()),
+        /** 打开选中的平台的配置清单（账号那一幅的按钮）。 */
+        openSetupChosen: (): void => {
+            if (open && state.chosen?.lead === 'account' && !state.done) ports.openSetup(state.chosen.providerId);
+        },
 
-        /** 窗口打开了一次：给了平台就选中它，没给就什么都不选、什么都不开始。 */
-        opened(providerId: OnlineProviderId | null): void {
+        /**
+         * 窗口打开了一次：给了平台就选中它，没给就什么都不选、什么都不开始。要直接到配置清单（`intent`）而这个平台
+         * 已经登录着：选中之后打开它的清单；没登录就照常登录。
+         */
+        opened(providerId: OnlineProviderId | null, intent: 'setup' | null = null): void {
             turn += 1;
             open = true;
             confirmedSeen = false;
             ports.closeLogin();
             set(NOTHING_CHOSEN);
             if (providerId) choose(providerId);
+            if (providerId && intent === 'setup' && state.chosen?.providerId === providerId && state.chosen.lead === 'account') {
+                ports.openSetup(providerId);
+            }
         },
 
         /**
@@ -130,6 +151,21 @@ export const createLoginHostState = (ports: LoginHostPorts) => {
             open = false;
             turn += 1;
             ports.closeLogin();
+        },
+
+        /**
+         * 表单登录提交了：表单登录没有会话，也就没有「确认了」那一步，提交就当作确认——之后这一行变成已登录，
+         * 是这一次登录读到的账号，等完成的那一声（不然 rowsChanged 会先把窗口换成账号那一幅，完成被丢掉）。
+         * 提交失败、而且还是这一轮，确认作废。
+         */
+        submitForm(providerId: OnlineProviderId, values: Record<string, string>): Promise<LibraryLoginCompletion> {
+            const chosen = state.chosen;
+            const asking = turn;
+            if (open && chosen?.providerId === providerId && chosen.lead === 'sign-in') confirmedSeen = true;
+            return ports.submitForm(providerId, values).catch((error: unknown) => {
+                if (asking === turn) confirmedSeen = false;
+                throw error;
+            });
         },
 
         /** controller 的登录会话变了：选中的这一行的登录确认了，记下来。 */

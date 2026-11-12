@@ -117,7 +117,8 @@ float kGlint(vec2 p, float t) {
 `;
 
 const OUTPUT = /* glsl */ `
-{
+// 干且没下雨时下面整段（水洼、涟漪、倒影取样、雨点闪光、鼓点涟漪）都乘成 0：直接跳过，路面照常是 outgoingLight。
+if (uWet > 0.0 || uRain > 0.0) {
     vec2 kp = vKWorld.xz;
     // 干的时候没有水洼；积雪盖住水洼。
     float puddle = kPuddle(kp) * smoothstep(0.15, 0.85, uWet) * (1.0 - min(1.0, uMachiSnow * 1.5));

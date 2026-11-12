@@ -28,8 +28,12 @@ export function createLatticeRaster(pixi: typeof import('pixi.js')) {
         measured++;
         return size;
     };
-    /** `resolution` is device pixels per CSS pixel of the surface; the texture reports CSS-pixel size. */
-    const rasterize = (text: string, font: string, fontPx: number, resolution: number): { texture: Texture; width: number; height: number; pad: number } => {
+    /**
+     * `resolution` is device pixels per CSS pixel of the surface; the texture reports CSS-pixel size.
+     * `rtl` paints with an RTL base direction, so a word's trailing space lands on its left and the
+     * first letter sits at the raster's right edge, where the mirrored sweep starts.
+     */
+    const rasterize = (text: string, font: string, fontPx: number, resolution: number, rtl = false): { texture: Texture; width: number; height: number; pad: number } => {
         context.font = font;
         const metrics = context.measureText(text);
         const pad = Math.ceil(Math.max(fontPx * 0.5, metrics.actualBoundingBoxLeft, metrics.actualBoundingBoxRight - metrics.width, 2));
@@ -41,6 +45,7 @@ export function createLatticeRaster(pixi: typeof import('pixi.js')) {
         const paint = surface.getContext('2d');
         if (!paint) throw new Error('Lattice text texture is unavailable');
         paint.scale(resolution, resolution); paint.font = font; paint.fillStyle = '#ffffff';
+        if (rtl) { paint.direction = 'rtl'; paint.textAlign = 'left'; }
         paint.fillText(text, pad, pad + ascent);
         // Construct at resolution 1 and set the real one afterwards. Given `resolution` up front,
         // CanvasSource derives width = canvas.width / resolution, TextureSource multiplies it back,

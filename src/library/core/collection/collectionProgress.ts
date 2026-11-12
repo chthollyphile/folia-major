@@ -4,12 +4,15 @@
 
 export type CollectionSyncCounts = { loaded: string; total: string };
 
-/** 拿得到有效总数时返回进度计数，否则返回 null（界面退回「加载中」）。 */
+/**
+ * 拿得到有效总数时返回进度计数，否则返回 null（界面退回「加载中」）。已加载的超过总数（集合描述里的曲目数过期了，
+ * 补页照样读下去）时总数已经不可信，也退回「加载中」，不写「180 / 150」。
+ */
 export const resolveCollectionSyncCounts = (
     loadedCount: number,
     totalCount: number | undefined,
 ): CollectionSyncCounts | null => (
-    typeof totalCount === 'number' && totalCount > 0
+    typeof totalCount === 'number' && totalCount > 0 && loadedCount <= totalCount
         ? { loaded: loadedCount.toLocaleString(), total: totalCount.toLocaleString() }
         : null
 );

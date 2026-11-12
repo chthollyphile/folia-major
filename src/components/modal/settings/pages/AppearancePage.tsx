@@ -1,6 +1,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
+import { ChosenSceneName } from '../../../scenes/settings/SceneWindow';
 import { getVisualizerModeLabel } from '../../../visualizer/registry';
 import { usePlayerChromeSettingsStore } from '../../../../stores/usePlayerChromeSettingsStore';
 import { openSettings } from '../../../../stores/useSettingsModalStore';
@@ -13,7 +14,7 @@ import { useSettingsPage } from './settingsPageContext';
 // src/components/modal/settings/pages/AppearancePage.tsx
 // The 外观 page: which lyric animation the player uses, light or dark, the colour theme, and how a
 // song's own theme is made and applied. The AI provider those themes are generated with is not
-// here: it is one connection shared by every AI feature, on the AI 服务 page (pages/AiServicePage).
+// here: it is one connection shared by every AI feature, on the AI service page (pages/AiServicePage).
 // The lyric animation workbench and the theme colour editor are the existing overlays; their rows
 // here only open them.
 
@@ -23,6 +24,9 @@ const SONG_THEME: SettingsGroupDef = { id: 'songTheme', titleKey: 'options.setti
 
 const O = {
     lyricsAnimation: option(LYRICS, 'lyricsAnimationAdjust', 'options.lyricsAnimationAdjust'),
+    scene: option(LYRICS, 'scene', 'ui.scene'),
+    // Not a row of its own: it lives in the scene window, so a search for it lands on the group with the scene row.
+    soundTracing: option(LYRICS, 'soundTracing', 'ui.soundTracing'),
     daylight: option(THEME, 'daylightMode', 'options.daylightMode'),
     preset: option(THEME, 'themePreset', 'options.themePresets'),
     themePark: option(THEME, 'openThemePark', 'options.openThemePark'),
@@ -56,6 +60,9 @@ const AppearancePage: React.FC = () => {
                 {nativeBlurEnabled && <Row notice={t('options.nativeBlurBackgroundNotice')} />}
                 <Row option={O.lyricsAnimation} hint={t('options.lyricsRendererDesc')} onClick={onOpenVisPlayground}>
                     <Value>{randomEnabled ? t('ui.visualizerRandom') : getVisualizerModeLabel(visualizerMode, t)}</Value>
+                </Row>
+                <Row option={O.scene} tag={t('ui.sceneBeta')} onClick={onOpenSceneWindow}>
+                    <Value><ChosenSceneName /></Value>
                 </Row>
             </Group>
 

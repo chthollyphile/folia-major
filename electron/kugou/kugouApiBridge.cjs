@@ -7,6 +7,8 @@ const LEGACY_SESSION_KEY = 'KUGOU_API_SESSION_V1';
 const SESSION_KEY = 'KUGOU_API_SESSION_V2';
 const SESSION_ENVELOPE_VERSION = 2;
 const AUTH_COOKIE_KEYS = new Set(['token', 'userid', 'user_id', 'dfid']);
+// The cookies that say which account is signed in; only a confirmed sign-in writes them.
+const ACCOUNT_COOKIE_KEYS = new Set(['token', 'userid', 'user_id']);
 const OPERATION_MODULES = {
   register_dev: ['register_dev'],
   login_qr_key: ['login_qr_key'],
@@ -21,6 +23,7 @@ const OPERATION_MODULES = {
   user_playlist: ['user_playlist'],
   user_cloud: ['user_cloud'],
   user_cloud_url: ['user_cloud_url'],
+  user_listen: ['user_listen'],
   search: ['search'],
   audio: ['audio'],
   krm_audio: ['krm_audio'],
@@ -280,19 +283,64 @@ function createKugouApiBridge({
     }
   };
 
-  const mergeResponseSession = (result) => {
+  // Who is signed in changes only with a confirmed QR sign-in (status 4), and only as a whole pair:
+  // other answers carry the userid of whoever owns what was read (a public playlist's creator),
+  // which written into the session would pair another account's id with this account's token (#1101).
+  // The one place the session's account is written (registered for Dedicatus D604): called only for a
+  // confirmed QR sign-in, and it takes the token and the account id only as a whole pair.
+  const adoptConfirmedSignIn = (sessionCookies, data, responseCookies) => {
+    const token = data?.token || responseCookies.token;
+    const userId = data?.userid ?? data?.user_id ?? responseCookies.userid ?? responseCookies.user_id;
+    if (token && userId) {
+      sessionCookies.token = String(token);
+      sessionCookies.userid = String(userId);
+      delete sessionCookies.user_id;
+    } else {
+      // Half of a pair is not taken: the other half would be the previous account's.
+      warn('[KuGouSession] A confirmed sign-in came without both a token and an account id; the session is unchanged', {
+        hasToken: Boolean(token),
+        hasUserId: Boolean(userId),
+      });
+    }
+  };
+
+  // A sign-out keeps only the device cookies (registered for Dedicatus D604 with keys known only at run
+  // time): every account and device credential in AUTH_COOKIE_KEYS goes.
+  const dropAccountCookies = () => {
+    const sessionCookies = ensureCookies();
+    cookies = Object.fromEntries(Object.entries(sessionCookies).filter(([key]) => !AUTH_COOKIE_KEYS.has(key.toLowerCase())));
+  };
+
+  // Keeps a cookie an answer brought (registered for Dedicatus D604 with keys known only at run time):
+  // it refuses the account cookies itself, which only adoptConfirmedSignIn writes.
+  const rememberDeviceCookie = (sessionCookies, name, value) => {
+    const key = name.toLowerCase();
+    if (ACCOUNT_COOKIE_KEYS.has(key)) return;
+    // An empty device cookie ('dfid=') does not blank the stored one: only a new registration replaces it.
+    if (value === '' && AUTH_COOKIE_KEYS.has(key)) return;
+    sessionCookies[name] = value;
+  };
+
+  const mergeResponseSession = (operation, result) => {
     const sessionCookies = ensureCookies();
     const tokenBefore = sessionCookies.token;
+    const body = result?.body ?? result;
+    const data = body?.data ?? body;
+    const responseCookies = {};
     const nextCookies = Array.isArray(result?.cookie) ? result.cookie : [];
     nextCookies.forEach(entry => {
       const parsed = parseCookieEntry(entry);
-      // An empty account cookie ('token=') does not blank the stored one: only a sign-out removes it.
-      if (parsed && !(parsed[1] === '' && AUTH_COOKIE_KEYS.has(parsed[0].toLowerCase()))) sessionCookies[parsed[0]] = parsed[1];
+      if (!parsed) return;
+      const key = parsed[0].toLowerCase();
+      if (ACCOUNT_COOKIE_KEYS.has(key)) {
+        // The SDK writes these cookies from the answer's fields with a template string, so a
+        // missing field arrives as 'undefined'.
+        if (!['', 'undefined', 'null'].includes(parsed[1])) responseCookies[key] = parsed[1];
+        return;
+      }
+      rememberDeviceCookie(sessionCookies, parsed[0], parsed[1]);
     });
-    const body = result?.body ?? result;
-    const data = body?.data ?? body;
-    if (data?.token) sessionCookies.token = String(data.token);
-    if (data?.userid ?? data?.user_id) sessionCookies.userid = String(data.userid ?? data.user_id);
+    if (operation === 'login_qr_check' && Number(data?.status) === 4) adoptConfirmedSignIn(sessionCookies, data, responseCookies);
     if (data?.dfid) sessionCookies.dfid = String(data.dfid);
     // A token this run did not have is a sign-in: it takes the place of a stored session this run could not load.
     if (sessionCookies.token && sessionCookies.token !== tokenBefore) keepStored = false;
@@ -334,7 +382,7 @@ function createKugouApiBridge({
       ...(token ? { token } : {}),
       cookie: { ...sessionCookies },
     });
-    return mergeResponseSession(result);
+    return mergeResponseSession(operation, result);
   };
 
   const ensureRegistered = async (force = false) => {
@@ -361,8 +409,7 @@ function createKugouApiBridge({
   const performRequest = async (operation, params) => {
     if (!OPERATION_MODULES[operation]) throw new Error(`Unsupported KuGou operation: ${operation}`);
     if (operation === 'logout') {
-      const sessionCookies = ensureCookies();
-      cookies = Object.fromEntries(Object.entries(sessionCookies).filter(([key]) => !AUTH_COOKIE_KEYS.has(key.toLowerCase())));
+      dropAccountCookies();
       // A sign-out and an ended sign-in (the renderer's signInRanOut) both arrive here: what is
       // stored goes too, also a session this run could not load, so the next start cannot sign back in.
       persistence.clear();

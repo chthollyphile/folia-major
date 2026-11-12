@@ -5,10 +5,11 @@ import { canResolveSongCatalogRef } from '../../../services/onlineMusic/catalogR
 import { getProviderSongMetadata, getProviderSongPageUrl } from '../../../services/onlineMusic/songMetadata';
 import { copyText } from '../../../utils/system/clipboard';
 import { openOutsideLink } from '../../../utils/system/outsideLink';
+import { isPrimaryModifierPressed } from '../../../utils/platform';
 
 // src/components/panelTab/shell/SongCredits.tsx
 // The playing song in words, under the large cover: its title, its artists and its album. A click
-// on the title copies the song's line, Ctrl+click opens its page on the platform; an artist or the
+// on the title copies the song's line, Ctrl/Cmd+click opens its page on the platform; an artist or the
 // album opens its page in the app.
 
 interface SongCreditsProps {
@@ -66,9 +67,9 @@ const SongCredits: React.FC<SongCreditsProps> = ({
         });
     };
 
-    // Normal click copies song info; Ctrl+click opens the provider song page when available.
+    // Normal click copies song info; Ctrl/Cmd+click opens the provider song page when available.
     const handleSongTitleClick = (event: React.MouseEvent<HTMLHeadingElement>) => {
-        if (event.ctrlKey && songPageUrl) {
+        if (isPrimaryModifierPressed(event) && songPageUrl) {
             openProviderSongPage();
             return;
         }

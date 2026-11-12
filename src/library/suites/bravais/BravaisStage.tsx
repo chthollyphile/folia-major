@@ -31,7 +31,8 @@ import { useBravaisKeyboard } from './useBravaisKeyboard';
 import { useBravaisBlockPlates } from './useBravaisBlockPlates';
 import { useBravaisReflowDriver } from './useBravaisReflowDriver';
 import { useBravaisPlayerSafeArea } from './useBravaisPlayerSafeArea';
-import { useBravaisPosterTilt } from './useBravaisPosterTilt';
+import { resolveBravaisTiltDeg, resolveBravaisTiltPage } from './bravaisTilt';
+import { useBravaisTilt } from './useBravaisTilt';
 import { albumPaletteVars, posterPaletteVars, resolvePosterPaletteSources, useBravaisPosterPalette } from './bravaisPosterPalette';
 import { useBravaisSeam } from './useBravaisSeam';
 import { useBravaisViewport } from './useBravaisViewport';
@@ -131,10 +132,11 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
     const leftRef = useRef<HTMLDivElement>(null);
     const rightRef = useRef<HTMLDivElement>(null);
     const seamRef = useRef<HTMLDivElement>(null);
+    const seamTrackRef = useRef<HTMLDivElement>(null);
     const seamContentRef = useRef<HTMLDivElement>(null);
     const tabRef = useRef<HTMLButtonElement>(null);
     const hintRef = useRef<HTMLDivElement>(null);
-    const frameRefs = useMemo(() => ({ left: leftRef, right: rightRef, seam: seamRef, seamContent: seamContentRef, tab: tabRef, hint: hintRef }), []);
+    const frameRefs = useMemo(() => ({ left: leftRef, right: rightRef, seam: seamRef, seamTrack: seamTrackRef, seamContent: seamContentRef, tab: tabRef, hint: hintRef }), []);
     const { stateRef: frameRef, renderFrame } = useBravaisFrame(frameRefs);
     const { wallLook, seamLook } = useBravaisWallLook(reportPlayerOcclusion, reportPlayerBackdrop);
     const view = useBravaisViewport(rootRef);
@@ -148,6 +150,7 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
     const tintCustom = useLatticeSettingsStore(state => state.latticePosterTintUseCustomColor);
     const tintColor = useLatticeSettingsStore(state => state.latticePosterTintColor);
     const tintIntensity = useLatticeSettingsStore(state => state.latticePosterTintIntensity);
+    const badgeCurrentOnly = useLatticeSettingsStore(state => state.latticeBadgeCurrentOnly);
     const stackEdges = useLibraryWallLookStore(state => state.collectionStackEdges);
     const seamDirection = useLibraryWallLookStore(state => state.seamDirection);
     const portrait = useMediaQuery(LIBRARY_WALL_PORTRAIT_QUERY);
@@ -188,8 +191,8 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
             panelOpen: current.panelFor === target.key && Boolean(target.entries?.hasPanel),
             filterOpen: current.filterOpen,
             searchOpen: current.searchOpen,
-            // 海报（歌手页、专辑页）只画在无限拼贴上：过滤生效（有限拼贴）时 rank 围着锚点两边排，海报会挡住一半。
-            poster: (target.surface === 'artist' || Boolean(target.seam.album)) && target.mode !== 'finite',
+            // 海报（歌手页、歌手的「全部歌曲」、专辑页）只画在无限拼贴上：过滤生效（有限拼贴）时 rank 围着锚点两边排，海报会挡住一半。
+            poster: (target.surface === 'artist' || Boolean(target.seam.artistSongs) || Boolean(target.seam.album)) && target.mode !== 'finite',
             horizontal: seamHorizontalRef.current,
         };
     }, [frameRef]);
@@ -217,6 +220,22 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
         return resolveSeamAxis(resolveSeamTarget(seamInputFor(target)).variant, horizontal) ?? (horizontal ? 'y' : 'x');
     }, [seamInputFor]);
 
+    // 这一层的缝落定时整层倾斜多少度（与下面交给 useBravaisTilt 的同一张表、同一套条件；排开口时据此离视口边多留一段）。
+    const reducedMotionRef = useRef(reducedMotion);
+    reducedMotionRef.current = reducedMotion;
+    const tiltFor = useCallback((target: BravaisLayer) => {
+        const resolved = resolveSeamTarget(seamInputFor(target));
+        const axis = resolveSeamAxis(resolved.variant, seamHorizontalRef.current);
+        return resolveBravaisTiltDeg({
+            variant: resolved.variant,
+            openWidth: resolved.width,
+            targetAxis: axis,
+            renderedAxis: axis,
+            finite: target.mode === 'finite',
+            reducedMotion: reducedMotionRef.current,
+        });
+    }, [seamInputFor]);
+
     const camera = useBravaisCamera({ frameRef, renderFrame, fieldRef, reducedMotion });
     // 墙此刻的显示（useBravaisDisplay 提交时就写进它）：形状从它读，换形状的同一次提交里各处就按新形状找 slot。
     const displayBridgeRef = useRef<BravaisDisplay | null>(null);
@@ -237,15 +256,29 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
         reducedTransitions,
         tweenCamera: camera.tweenTo,
         checkCull: camera.checkCull,
+        tiltFor,
     });
     const { bottomPx, getBottomInset } = useBravaisPlayerSafeArea();
-    // 歌手海报在场时整层（两半墙与缝）一起倾斜，倾斜着照样拖动、滚动（useBravaisPosterTilt）。从横的信息条换过来时
-    // 等横条合上、竖的海报换上来再转（横条在场时帧里没有倾斜，提前开始补间会在换方向那一刻跳一下）。
-    useBravaisPosterTilt({
+    // 整层（两半墙与缝）一起倾斜，倾斜着照样拖动、滚动（useBravaisTilt）。转多少按缝里要画的内容定（bravaisTilt：歌手 / 专辑
+    // 海报、首页、集合页各一个角度，见 BRAVAIS_TILT_DEG）。从横的信息条换过来时等横条合上、竖的缝换上来再转（横条在场时
+    // 帧里没有倾斜，提前开始补间会在换方向那一刻跳一下）。缝里画着信息条 / 书脊 / 首页窄缝时内容随角度缩进（面板、表单、
+    // 搜索框与海报不缩进）。
+    const renderedTiltPage = resolveBravaisTiltPage(seam.rendered.variant);
+    useBravaisTilt({
         frameRef,
         renderFrame,
         checkCull: camera.checkCull,
-        poster: seamTarget.variant === 'poster' && seamTarget.width > 0 && seam.rendered.axis !== 'y',
+        deg: resolveBravaisTiltDeg({
+            variant: seamTarget.variant,
+            openWidth: seamTarget.width,
+            targetAxis: seamTarget.axis,
+            renderedAxis: seam.rendered.axis,
+            finite: layer?.mode === 'finite',
+            reducedMotion,
+        }),
+        seamFollowsTilt: renderedTiltPage !== null && renderedTiltPage !== 'poster',
+        // 翻牌交接：缝一合上就量磁贴的位置，回正要赶上（useBravaisWallHandoff）。
+        quickOut: handoff.seamClosed,
         reducedMotion,
     });
 
@@ -278,6 +311,7 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
         openWidthFor,
         posterFor,
         axisFor,
+        tiltFor,
         setCameraRange: camera.setRange,
         setAnchor: seam.setAnchor,
         planOpening: seam.planOpening,
@@ -525,6 +559,8 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
         lightsOn ? '' : 'is-lights-out',
         tintEnabled ? 'has-poster-tint' : '',
         tintCustom ? 'uses-custom-poster-tint' : '',
+        // 「只显示正在播放的序号」（#930）：歌曲序号（.is-index）只留正在播放那张，wall.css。
+        badgeCurrentOnly ? 'has-badge-current-only' : '',
         stackEdges ? 'has-stack-edges' : '',
         layer?.wall?.loading ? 'is-loading' : '',
         seeThrough ? 'is-see-through' : '',
@@ -556,6 +592,9 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
             data-library-stage="bravais"
             data-bravais-layer={display?.layer.key}
             data-bravais-active={active || undefined}
+            // 缝在轨道里自己写回了 pointer-events: auto（轨道不挡点击），宿主藏起首页、翻牌交接时祖先给的 none 传不到它，
+            // 由这里补上（bravais.css 的 .bravais-seam-track）。
+            data-bravais-seam-pointer={isInteractive && handoff.role === null ? undefined : 'off'}
             data-bravais-settling={settling || undefined}
             data-wall-handoff={handoff.role ?? undefined}
             data-wall-handoff-phase={handoff.phase ?? undefined}
@@ -607,6 +646,7 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
             </div>
             <BravaisSeam
                 seamRef={seamRef}
+                trackRef={seamTrackRef}
                 contentRef={seamContentRef}
                 tabRef={tabRef}
                 variant={seam.rendered.variant}

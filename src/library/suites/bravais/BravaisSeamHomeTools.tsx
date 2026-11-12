@@ -12,7 +12,7 @@ import {
     Search,
     Settings,
 } from 'lucide-react';
-import type { BravaisHomeSeam, BravaisHomeShortcut, BravaisHomeTool, BravaisHomeToolId } from './bravaisHomeModels';
+import type { BravaisHomeEntry, BravaisHomeSeam, BravaisHomeShortcut, BravaisHomeTool, BravaisHomeToolId } from './bravaisHomeModels';
 import { BRAVAIS_SPECIAL_ICONS } from './bravaisSpecialIcons';
 import { closeBravaisHomePopover, setBravaisHomeOpenRequest, setBravaisHomePopover, useBravaisHomeUiStore } from './bravaisHomeUiStore';
 import { useBravaisReducedTransitions } from './bravaisMotion';
@@ -75,7 +75,9 @@ const BravaisSeamHomeTools: React.FC<{
     /** 中段放不下、挪进菜单的直达入口（在中段时为 null）。 */
     menuShortcuts?: readonly BravaisHomeShortcut[] | null;
     onOpenShortcut?: (shortcut: BravaisHomeShortcut) => void;
-}> = ({ home, compact, onExpand, menuShortcuts, onOpenShortcut }) => {
+    /** 一起挪进菜单的动作入口（在中段时为 null），排在直达入口后面。 */
+    menuEntries?: readonly BravaisHomeEntry[] | null;
+}> = ({ home, compact, onExpand, menuShortcuts, onOpenShortcut, menuEntries }) => {
     const menuOpen = useBravaisHomeUiStore(state => state.popover === 'menu');
     const dockRef = useRef<HTMLDivElement>(null);
     const moreRef = useRef<HTMLButtonElement>(null);
@@ -84,7 +86,8 @@ const BravaisSeamHomeTools: React.FC<{
     const notice = dock.find(tool => tool.badge);
     const local = home.menu ?? [];
     const jumps = menuShortcuts ?? [];
-    const hasMenu = jumps.length > 0 || page.length > 0 || local.length > 0 || app.length > 0;
+    const entries = menuEntries ?? [];
+    const hasMenu = jumps.length > 0 || entries.length > 0 || page.length > 0 || local.length > 0 || app.length > 0;
     const open = menuOpen && hasMenu && !compact;
     // 横的信息条在视口上半时菜单往下弹（工具格一直挂着，dockRef 在打开菜单的那次渲染里已经有值）。
     const pop = bravaisPopMotion(seamPopAnchorFor(dockRef.current), useBravaisReducedTransitions());
@@ -165,7 +168,13 @@ const BravaisSeamHomeTools: React.FC<{
                                 </button>
                             );
                         })}
-                        {jumps.length > 0 && (page.length > 0 || local.length > 0 || app.length > 0) && <div className="bravais-seam-menu-rule" role="separator" />}
+                        {entries.map(entry => (
+                            <button key={entry.id} type="button" role="menuitem" className="is-shortcut" data-bravais-seam-action={entry.id}
+                                onClick={() => runItem(entry.run)}>
+                                <entry.icon aria-hidden />{entry.label}
+                            </button>
+                        ))}
+                        {jumps.length + entries.length > 0 && (page.length > 0 || local.length > 0 || app.length > 0) && <div className="bravais-seam-menu-rule" role="separator" />}
                         {page.map(menuTool)}
                         {local.map(item => (
                             <button key={item.id} type="button" role="menuitem" disabled={item.disabled} data-bravais-seam-action={item.id}

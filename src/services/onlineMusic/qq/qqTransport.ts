@@ -12,6 +12,10 @@ export const QQ_OPERATIONS = [
     'login_channels', 'login_refresh',
     'user_detail', 'user_playlist', 'user_albums', 'user_liked_songs', 'user_playlist_detail',
     'user_guess_you_like', 'user_daily_songs', 'recommend_playlists',
+    'user_personal_fm', 'user_daily_history_dates', 'user_daily_history', 'user_blacklist_add',
+    'user_listening_rank', 'user_guess_you_like_modes', 'user_guess_you_like_tracks',
+    'recommend_feed',
+    'user_recommendation_preferences', 'user_recommendation_preferences_update',
     'user_playlist_tracks', 'user_playlist_subscribe', 'user_subscription_status',
     'user_song_like', 'user_album_subscribe',
     'user_vip', 'user_cloud', 'user_playlist_create',
@@ -30,7 +34,7 @@ export type QqParams = Record<string, string | number | boolean | undefined>;
 const POST_OPERATIONS: ReadonlySet<QqOperation> = new Set<QqOperation>([
     'login_refresh',
     'user_playlist_tracks', 'user_playlist_subscribe', 'user_song_like', 'user_album_subscribe',
-    'user_playlist_create',
+    'user_playlist_create', 'user_blacklist_add', 'user_recommendation_preferences_update',
 ]);
 
 const ENDPOINTS: Record<QqOperation, string> = {
@@ -55,6 +59,23 @@ const ENDPOINTS: Record<QqOperation, string> = {
     // 旧后端一律 404，transport 照例报成 `unsupported`，由调用方决定回落还是报错。
     user_guess_you_like: '/user/guess-you-like',
     user_daily_songs: '/user/daily-songs',
+    // 3.3.6 的私人 FM（`page` 1–100，后端不记批次位置）。旧后端回 404，调用方回落到猜你喜欢。
+    user_personal_fm: '/user/personal-fm',
+    // 3.3.6 的每日 30 首历史：日期列表与某一天的歌，只读本人。旧后端回 404。
+    user_daily_history_dates: '/user/daily-songs/history/dates',
+    user_daily_history: '/user/daily-songs/history',
+    // 3.3.6 的歌曲不喜欢：只送 `songs` 时默认开放；写一次、读首屏确认，结果不明不重送。
+    user_blacklist_add: '/user/blacklist/add',
+    // 3.3.6 的本人听歌排行（range=week|year）。旧后端回 404，没有排行条目。
+    user_listening_rank: '/user/listening-rank',
+    // 3.3.6 的猜你喜欢听歌模式目录与按模式（pool）取一批，只读，不写账号的模式设置。旧后端 404。
+    user_guess_you_like_modes: '/user/guess-you-like/modes',
+    user_guess_you_like_tracks: '/user/guess-you-like/tracks',
+    // 3.3.6 的客户端首页 feed 第 1 页（只有歌曲与歌单）。旧后端回 404，探索页就不出这几栏。
+    recommend_feed: '/recommend/feed',
+    // 3.3.6 的账号音乐偏好（私人 FM 和每日 30 首共用一份）：读，和只改指定项的写入（写一次、读回核对，不重送）。
+    user_recommendation_preferences: '/user/recommendation-preferences',
+    user_recommendation_preferences_update: '/user/recommendation-preferences/update',
     recommend_playlists: '/recommend/playlists',
     user_playlist_tracks: '/user/playlist/tracks',
     user_playlist_subscribe: '/user/playlist/subscribe',
@@ -454,10 +475,12 @@ export const requestQq = async <T = unknown>(
             if (operation !== 'login_status' && cookie) checkSessionAfterRefusal(cookie);
             throw new OnlineProviderError('auth-required', 'QQMusicApi login required', 'qq', body, response.status);
         }
-        // 404 是「这个后端没有这条路由」，不是网络故障 —— 用户可以自行部署任意版本的后端，
-        // 新路由在旧后端上必然 404。报成 `unsupported`，调用方才能据此回落到旧路径，
-        // 而不必去解析错误文案里的状态码。
-        if (response.status === 404) {
+        // 旧后端缺路由会回 404；旧版 Serverless 则回带固定文案的 501。其他 501 仍是配置错误。
+        const missingServerlessRoute = response.status === 501 && typeof body?.message === 'string' && (
+            body.message.endsWith(' is not implemented by the serverless runtime.')
+            || body.message.endsWith(' is not implemented by the serverless runtime. See /login/channels for what this deployment serves.')
+        );
+        if (response.status === 404 || missingServerlessRoute) {
             throw new OnlineProviderError(
                 'unsupported',
                 `QQMusicApi has no ${operation} route`,

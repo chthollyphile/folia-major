@@ -50,6 +50,16 @@ describe('花火 tuning 的归一化', () => {
         expect(normalizeHanabiTuning({ launches: false, overlayFrame: false, textOnly: true })).toMatchObject({ launches: false, overlayFrame: false, textOnly: true });
     });
 
+    it('分辨率与抗锯齿（#929）：旧存档没有 render 就全跟随全局；合法值原样读回，非法值逐项回退', () => {
+        const { render: _omitted, ...legacy } = { ...DEFAULT_HANABI_TUNING, sparkAmount: 1.5 };
+        expect(normalizeHanabiTuning(legacy).render).toEqual({ scale: 'global', antialias: 'global' });
+        expect(normalizeHanabiTuning({ render: { scale: 1.5, antialias: 'on' } }).render).toEqual({ scale: 1.5, antialias: 'on' });
+        expect(normalizeHanabiTuning({ render: { scale: 0.75, antialias: 'off' } }).render).toEqual({ scale: 0.75, antialias: 'off' });
+        expect(normalizeHanabiTuning({ render: { scale: 4, antialias: 'auto' } }).render).toEqual({ scale: 'global', antialias: 'global' });
+        expect(normalizeHanabiTuning({ render: { scale: 2, antialias: 1 } }).render).toEqual({ scale: 2, antialias: 'global' });
+        expect(normalizeHanabiTuning({ render: null }).render).toEqual({ scale: 'global', antialias: 'global' });
+    });
+
     it('归一化是幂等的', () => {
         const once = normalizeHanabiTuning({ sparkAmount: 9, colorMode: 'neon', sky: 0.3 });
         expect(normalizeHanabiTuning(once)).toEqual(once);
@@ -64,6 +74,12 @@ describe('花火 tuning 改了要不要重建场景', () => {
         expect(requiresHanabiSceneRebuild(base, { ...base, overlayFrame: !base.overlayFrame })).toBe(false);
         expect(requiresHanabiSceneRebuild(base, { ...base, sparkAmount: 1.7 })).toBe(true);
         expect(requiresHanabiSceneRebuild(base, { ...base, colorMode: 'theme' })).toBe(true);
+    });
+
+    it('render 不经场景重建：每次归一化都是新对象，夜空等现读字段改了也不能因它重建', () => {
+        const base = normalizeHanabiTuning({});
+        expect(requiresHanabiSceneRebuild(base, normalizeHanabiTuning({ ...base, sky: 0.3 }))).toBe(false);
+        expect(requiresHanabiSceneRebuild(base, { ...base, render: { scale: 2, antialias: 'on' } })).toBe(false);
     });
 });
 

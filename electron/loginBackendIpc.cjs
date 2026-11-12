@@ -1,5 +1,7 @@
 "use strict";
 
+const { createSenderGuardedHandler } = require('./ipcAccessGuard.cjs');
+
 const os = require('os');
 const { runLoginSelfCheck } = require('./loginSelfCheck.cjs');
 
@@ -40,6 +42,7 @@ const describeApp = ({ app, safeStorage }) => {
 
 /**
  * 注册内嵌后端的 IPC。getDefaultSession() 返回 Electron 的默认 session（app ready 之后才可用），自检用它解析系统代理。
+ * isTrustedSender(event) 由宿主注入（见 electron/main.cjs）：只有第一方窗口的请求才回真实数据。
  */
 function registerLoginBackendIpc({
   ipcMain,
@@ -49,23 +52,36 @@ function registerLoginBackendIpc({
   neteaseBackend,
   qqBackend,
   runSelfCheck = runLoginSelfCheck,
+  isTrustedSender,
 }) {
   const backends = { netease: neteaseBackend, qq: qqBackend };
   const backendOf = (providerId) => (
     Object.prototype.hasOwnProperty.call(backends, providerId) ? backends[providerId] : null
   );
 
+  // 来源校验：与既有的 IPC 来源校验通道同一个边界、同一个工厂（electron/ipcAccessGuard.cjs）。比 event.sender 的
+  // webContents 身份，挡得住其它窗口——包括 window.open 出来的、带着同一个 preload 的那些；挡不住
+  // 已经注入第一方窗口的脚本，那是 CSP/preload 层的事，不在这个校验的职责内。
+  // 未注入 isTrustedSender 时按不信任处理（fail closed）：读通道回 null，调用方走 unavailable 分支；
+  // restart 是写通道，走工厂默认的抛错。端口与诊断快照不该被任何窗口免费问走。
+  const guarded = (channel, handler, onUntrusted) => createSenderGuardedHandler({
+    channel,
+    isTrusted: (event) => typeof isTrustedSender === 'function' && isTrustedSender(event),
+    handler,
+    ...(onUntrusted ? { onUntrusted } : {}),
+  });
+
   // null 直到服务真正在监听：渲染进程据此等待或报故障，而不是去连一个不存在的端口。
-  ipcMain.handle('get-netease-port', () => neteaseBackend.getPort());
-  ipcMain.handle('get-netease-api-status', () => neteaseBackend.getStatus());
+  ipcMain.handle('get-netease-port', guarded('get-netease-port', () => neteaseBackend.getPort(), () => null));
+  ipcMain.handle('get-netease-api-status', guarded('get-netease-api-status', () => neteaseBackend.getStatus(), () => null));
   // reason 'needed'：页面上一个请求要用它、它却因为断网没起来；规则在后端的 start 里。
-  ipcMain.handle('restart-netease-api', (_event, reason) => neteaseBackend.start(reason));
-  ipcMain.handle('get-qq-port', () => qqBackend.getPort());
-  ipcMain.handle('get-qq-api-status', () => qqBackend.getStatus());
+  ipcMain.handle('restart-netease-api', guarded('restart-netease-api', (_event, reason) => neteaseBackend.start(reason)));
+  ipcMain.handle('get-qq-port', guarded('get-qq-port', () => qqBackend.getPort(), () => null));
+  ipcMain.handle('get-qq-api-status', guarded('get-qq-api-status', () => qqBackend.getStatus(), () => null));
 
   // 扫码登录失败后渲染进程用它生成可以直接贴进 issue 的诊断报告。没有内嵌后端的 provider 回 null。
   // 有的后端的 getDiagnostics 要问工作线程，是异步的；await 同步、异步都接得住。
-  ipcMain.handle('get-login-diagnostics', async (_event, providerId) => {
+  ipcMain.handle('get-login-diagnostics', guarded('get-login-diagnostics', async (_event, providerId) => {
     const backend = backendOf(providerId);
     if (!backend) return null;
     const capturedAt = Date.now();
@@ -75,9 +91,9 @@ function registerLoginBackendIpc({
       app: describeApp({ app, safeStorage }),
       ...(await backend.getDiagnostics()),
     };
-  });
+  }, () => null));
 
-  ipcMain.handle('run-login-self-check', async (_event, providerId) => {
+  ipcMain.handle('run-login-self-check', guarded('run-login-self-check', async (_event, providerId) => {
     const backend = backendOf(providerId);
     if (!backend) return null;
     const session = getDefaultSession?.();
@@ -88,7 +104,7 @@ function registerLoginBackendIpc({
       resolveSystemProxy: session?.resolveProxy ? (url) => session.resolveProxy(url) : null,
     });
     return { ...result, credentialStore: describeCredentialStore(safeStorage) };
-  });
+  }, () => null));
 }
 
 module.exports = {

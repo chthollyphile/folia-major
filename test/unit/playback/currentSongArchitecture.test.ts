@@ -62,7 +62,7 @@ const directSetterCalls = (source: string): number => (
     [...source.matchAll(SETTER_CALL)].filter(match => !UPDATER.test(match[1])).length
 );
 
-describe('which song is current', () => {
+describe('D310 which song is current', () => {
     it('changes only in src/components/app/playback/currentSong.ts', async () => {
         const files = (await collectSourceFiles('src')).filter(file => file !== MODULE && file !== STORE);
         const sources = await Promise.all(files.map(file => readFile(path.join(repoRoot, file), 'utf8')));

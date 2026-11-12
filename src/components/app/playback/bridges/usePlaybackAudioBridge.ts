@@ -10,6 +10,7 @@ import { type AudioEffectChain } from '../../../../services/audioEffects/effectC
 import { buildPlaybackGraph } from '../../../../services/playbackGraph';
 import { cachePlayedTrackAssets } from '../../../../services/playedTrackCache';
 import { registerPlaybackFadeGraph } from '../../../../services/playbackFade';
+import { registerRoomSlot } from '../../../../services/sceneSound/roomStage';
 import { applySavedAudioOutputToContext } from '../../../../services/audioOutputSink';
 import { rampGain, type AutomixDeckChain } from '../../../../services/automix/crossfadeGraph';
 import { onTrackProfile } from '../../../../services/automix/profileService';
@@ -178,6 +179,10 @@ export function usePlaybackAudioBridge({
         // not let this run twice, because createMediaElementSource throws on a second call.
         if (!audioRef.current || audioContextRef.current) return;
         try {
+            try {
+                const nav = navigator as Navigator & { audioSession?: { type: string } };
+                if (nav.audioSession) nav.audioSession.type = 'playback';
+            } catch { /* audioSession unsupported */ }
             const AudioContextClass = window.AudioContext || (window as Window & typeof globalThis & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
             const ctx = new AudioContextClass();
             audioContextRef.current = ctx;
@@ -199,6 +204,8 @@ export function usePlaybackAudioBridge({
             // Hands the transport its own fade node; until this runs (or if setup fails) pause and
             // resume see no graph and fall back to plain element pause/play.
             registerPlaybackFadeGraph({ context: ctx, gain: fadeNode });
+            // Where a scene's room goes when one is shown with its sound on; nothing is wired until then.
+            registerRoomSlot({ context: ctx, from: fadeNode, to: gainNode });
             effectChainRef.current = effectChain;
             if (!decksConnected) {
                 console.warn('[AudioContext] Deck setup incomplete, automix will stay idle');

@@ -11,8 +11,9 @@ import { resolveBeatFxAccentGain, type BeatFxEvent } from '../../../../services/
 //                                最多同时四圈；地面干的时候改成地上的光斑跟着跳一下。
 //   大屏闪拍 machi.screenFlash <- htdemucs 分出的军鼓：每下够响的军鼓在歌词屏的一处慢慢亮起、再慢慢暗下，先后几下落在不同的
 //                                位置；军鼓再密也只是亮着起伏（叠起来有上限），不频闪。
-// 拍点、鼓点都按听到的时间取，画面只由时间决定，拖进度、暂停都对。效果关着、拍点 / 鼓点没装好时得到常态值，
-// 画面和关掉智能动感模式时一样。
+// 拍点、鼓点都按听到的时间取，画面只由时间决定，拖进度、暂停都对。效果关着、拍点 / 鼓点没装好时得到常态值。
+// 没开智能动感模式时，霓虹随拍和大屏闪拍改由固定的节拍驱动（MACHI_BEAT.steady，resolveMachiSteadyNeonPulse /
+// resolveMachiSteadyScreenFlash）：每拍轮到下一组霓虹，每小节第二、四拍在大屏上亮一处；鼓点涟漪没有。
 
 /** 霓虹分几组轮流。 */
 export const MACHI_NEON_GROUPS = 3;
@@ -55,6 +56,11 @@ export const MACHI_BEAT = {
      * 大屏闪拍：每处亮起多久、暗下多久（秒）；弱于 floor 的军鼓不算，两处至少隔 gap 秒（max 处正好排满 attack + fall）。
      */
     screen: { attack: 0.25, fall: 1.15, max: 4, floor: 0.4, gap: 0.35 },
+    /**
+     * 没开智能动感模式时的固定节拍：一拍多久（秒）、一小节几拍；霓虹、大屏按多大的强度跟（大屏的每一处相当于这么响的军鼓）。
+     * 大屏落在每小节的第二、四拍（像军鼓的反拍）。
+     */
+    steady: { period: 0.75, beatsPerBar: 4, neon: 0.8, screen: 0.6 },
 } as const;
 
 export const createMachiBeatFrame = (): MachiBeatFrame => ({
@@ -118,44 +124,30 @@ const lastAtOrBefore = (count: number, at: (index: number) => number, time: numb
 /** 每组这一刻有多亮（0..），每帧复用。 */
 const groupSwells = new Float32Array(MACHI_NEON_GROUPS);
 
+/** 霓虹那一路的寿命：一拍的余光与小节第一拍的暖光取长的那个。 */
+const neonLife = () => Math.max(MACHI_BEAT.neon.attack + MACHI_BEAT.neon.fall, MACHI_BEAT.warm.attack + MACHI_BEAT.warm.fall);
+
 /**
- * 霓虹随拍：events 是整张节拍表（升序），按它在表里的序号轮到第几组（拖进度也是同一组）；够不上拍（没有节奏的小节）的不亮。
- * 一组被同一组前一拍的余光与这一拍叠着时取亮的那个。每组的倍数 = 1 + 强度 ×（lift × 这组 + contrast ×（这组 − 三组平均）），
+ * 把一拍叠进 groupSwells：第 index 拍轮到 index % 组数 那组，过了 age 秒；返回这拍给店里暖灯的量（不是小节第一拍为 0）。
+ * 一组被同一组前一拍的余光与这一拍叠着时取亮的那个。
+ */
+const addNeonBeat = (index: number, age: number, gain: number, tone: BeatFxEvent['tone'], downbeat: boolean) => {
+    const { neon, warm } = MACHI_BEAT;
+    const neonTone = tone ? Math.max(0, 0.4 + 0.9 * (tone.mid + tone.high)) : 1;
+    const group = index % MACHI_NEON_GROUPS;
+    const swell = gain * neonTone * (downbeat ? neon.downbeat : 1) * machiSwell(age, neon.attack, neon.fall);
+    groupSwells[group] = Math.max(groupSwells[group]!, swell);
+    if (!downbeat) return 0;
+    const warmTone = tone ? Math.max(0, 0.4 + 1.8 * tone.low) : 1;
+    return gain * warmTone * machiSwell(age, warm.attack, warm.fall);
+};
+
+/**
+ * 按 groupSwells 与暖灯的量写出这一帧：每组的倍数 = 1 + 强度 ×（lift × 这组 + contrast ×（这组 − 三组平均）），
  * 三组一样亮时 contrast 那项为零，所以只是轮流，不会整体变暗。
  */
-export const resolveMachiNeonPulse = (
-    events: readonly BeatFxEvent[],
-    time: number,
-    strength: number,
-    trackScale: number,
-    out: MachiBeatFrame,
-) => {
-    out.neonGroups.fill(1);
-    out.neon = 1;
-    out.warm = 1;
-    out.bloom = 1;
-    if (!events.length || strength <= 0) return out;
+const writeNeonFrame = (strength: number, bar: number, out: MachiBeatFrame) => {
     const { neon, warm } = MACHI_BEAT;
-    const life = Math.max(neon.attack + neon.fall, warm.attack + warm.fall);
-    groupSwells.fill(0);
-    let bar = 0;
-    for (let index = lastAtOrBefore(events.length, at => events[at]!.t, time); index >= 0; index -= 1) {
-        const event = events[index]!;
-        const age = time - event.t;
-        if (age >= life) break;
-        const gain = resolveBeatFxAccentGain(event, trackScale);
-        if (gain <= 0) continue;
-        const tone = event.tone;
-        const downbeat = event.kind === 'downbeat';
-        const neonTone = tone ? Math.max(0, 0.4 + 0.9 * (tone.mid + tone.high)) : 1;
-        const group = index % MACHI_NEON_GROUPS;
-        const swell = gain * neonTone * (downbeat ? neon.downbeat : 1) * machiSwell(age, neon.attack, neon.fall);
-        groupSwells[group] = Math.max(groupSwells[group]!, swell);
-        if (downbeat) {
-            const warmTone = tone ? Math.max(0, 0.4 + 1.8 * tone.low) : 1;
-            bar = Math.max(bar, gain * warmTone * machiSwell(age, warm.attack, warm.fall));
-        }
-    }
     let mean = 0;
     for (let group = 0; group < MACHI_NEON_GROUPS; group += 1) mean += groupSwells[group]!;
     mean /= MACHI_NEON_GROUPS;
@@ -167,6 +159,58 @@ export const resolveMachiNeonPulse = (
     out.warm = 1 + strength * warm.lift * bar;
     out.bloom = 1 + strength * MACHI_BEAT.bloom * mean;
     return out;
+};
+
+const resetNeon = (out: MachiBeatFrame) => {
+    out.neonGroups.fill(1);
+    out.neon = 1;
+    out.warm = 1;
+    out.bloom = 1;
+};
+
+/**
+ * 霓虹随拍：events 是整张节拍表（升序），按它在表里的序号轮到第几组（拖进度也是同一组）；够不上拍（没有节奏的小节）的不亮。
+ */
+export const resolveMachiNeonPulse = (
+    events: readonly BeatFxEvent[],
+    time: number,
+    strength: number,
+    trackScale: number,
+    out: MachiBeatFrame,
+) => {
+    resetNeon(out);
+    if (!events.length || strength <= 0) return out;
+    const life = neonLife();
+    groupSwells.fill(0);
+    let bar = 0;
+    for (let index = lastAtOrBefore(events.length, at => events[at]!.t, time); index >= 0; index -= 1) {
+        const event = events[index]!;
+        const age = time - event.t;
+        if (age >= life) break;
+        const gain = resolveBeatFxAccentGain(event, trackScale);
+        if (gain <= 0) continue;
+        bar = Math.max(bar, addNeonBeat(index, age, gain, event.tone, event.kind === 'downbeat'));
+    }
+    return writeNeonFrame(strength, bar, out);
+};
+
+/**
+ * 没开智能动感模式时的霓虹随拍：第 k 拍在 k × period 秒，每 beatsPerBar 拍一个小节第一拍，别的与 resolveMachiNeonPulse 一样。
+ * time 用氛围时钟（连续走、暂停时停），strength 再乘 MACHI_BEAT.steady.neon。
+ */
+export const resolveMachiSteadyNeonPulse = (time: number, strength: number, out: MachiBeatFrame) => {
+    resetNeon(out);
+    if (strength <= 0 || time < 0) return out;
+    const { period, beatsPerBar, neon: scale } = MACHI_BEAT.steady;
+    const life = neonLife();
+    groupSwells.fill(0);
+    let bar = 0;
+    for (let index = Math.floor(time / period); index >= 0; index -= 1) {
+        const age = time - index * period;
+        if (age >= life) break;
+        bar = Math.max(bar, addNeonBeat(index, age, 1, undefined, index % beatsPerBar === 0));
+    }
+    return writeNeonFrame(strength * scale, bar, out);
 };
 
 /** 鼓点在 time 处还有效：分离还没做完的歌，until 之后的鼓点还不知道。 */
@@ -268,8 +312,33 @@ export const resolveMachiScreenFlash = (hits: DrumHits | null, time: number, str
     const count = pickDrumHits(hits, time, DRUM_SNARE, floor, gap, attack + fall, keptSnares);
     for (let slot = 0; slot < Math.min(count, max); slot += 1) {
         const hit = keptSnares[(count - 1 - slot) % max]!;
-        out.swellAt[slot] = 0.15 + 0.7 * ((hit * 0.618034) % 1);
+        out.swellAt[slot] = machiSwellPlace(hit);
         out.swellAmp[slot] = strength * hits.strengths[hit]! * machiSwell(time - hits.times[hit]!, attack, fall);
+    }
+    return out;
+};
+
+/** 第 index 下在屏上的位置（0..1）：黄金分割步进，先后几下左右错开。 */
+const machiSwellPlace = (index: number) => 0.15 + 0.7 * ((index * 0.618034) % 1);
+
+/**
+ * 没开智能动感模式时的大屏闪拍：每小节第二、四拍（第 k 处在 (2k + 1) × period 秒）亮一处，每处相当于
+ * MACHI_BEAT.steady.screen 那么响的军鼓；位置按 k 取，与 resolveMachiScreenFlash 一样错开。
+ */
+export const resolveMachiSteadyScreenFlash = (time: number, strength: number, out: MachiBeatFrame) => {
+    out.swellAt.fill(0.5);
+    out.swellAmp.fill(0);
+    if (strength <= 0) return out;
+    const { attack, fall, max } = MACHI_BEAT.screen;
+    const { period, screen: scale } = MACHI_BEAT.steady;
+    const every = period * 2;
+    let slot = 0;
+    for (let index = Math.floor((time - period) / every); index >= 0 && slot < max; index -= 1) {
+        const age = time - (index * every + period);
+        if (age >= attack + fall) break;
+        out.swellAt[slot] = machiSwellPlace(index);
+        out.swellAmp[slot] = strength * scale * machiSwell(age, attack, fall);
+        slot += 1;
     }
     return out;
 };

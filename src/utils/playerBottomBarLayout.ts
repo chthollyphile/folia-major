@@ -54,15 +54,57 @@ export const resolvePlayerBottomComponentBottomPx = (
 export const resolvePlayerSubtitleBottomFromPresence = (
     offsetPx: number,
     controlBarPresence: number,
+    /** 胶囊的底距和它上面要留的净空：桌面 32 + 80；紧凑档（progress-bar v3）16 + 72。 */
+    geometry: { baseBottomPx: number; clearancePx: number } = {
+        baseBottomPx: PLAYER_BOTTOM_BAR_BASE_OFFSET_PX,
+        clearancePx: PLAYER_BOTTOM_BAR_SUBTITLE_CLEARANCE_PX,
+    },
 ): number => (
-    PLAYER_BOTTOM_BAR_BASE_OFFSET_PX
+    geometry.baseBottomPx
     + controlBarPresence * (
-        (offsetPx - PLAYER_BOTTOM_BAR_BASE_OFFSET_PX) + PLAYER_BOTTOM_BAR_SUBTITLE_CLEARANCE_PX
+        (offsetPx - PLAYER_BOTTOM_BAR_BASE_OFFSET_PX) + geometry.clearancePx
     )
 );
 
 /** 控制条在场时字幕离底边的距离：基线 32 加净空 80，即原来的 112。 */
 export const PLAYER_SUBTITLE_BOTTOM_PX = PLAYER_BOTTOM_BAR_BASE_OFFSET_PX + PLAYER_BOTTOM_BAR_SUBTITLE_CLEARANCE_PX;
+
+/*
+ * 紧凑档（progress-bar v3）：窗口窄于 960 时，卡片的封面歌名收进胶囊左端、面板按钮或墙工具按钮挂到胶囊右端，
+ * 底部只剩一颗胶囊。宽屏照旧是现在的布局。下面是这一档的几何，全是常量：位置靠 CSS 和这些数算，不量元素。
+ */
+
+/** 窄于它进紧凑档。和退出线差 32：拖着窗口在 960 附近来回，布局不会来回跳。 */
+export const COMPACT_BOTTOM_LAYOUT_ENTER_BELOW_PX = 944;
+/** 宽到它回桌面档。 */
+export const COMPACT_BOTTOM_LAYOUT_EXIT_AT_PX = 976;
+/** 第一次判断（没有上一档可依）时的分界线。 */
+export const COMPACT_BOTTOM_LAYOUT_BREAKPOINT_PX = 960;
+/** 紧凑档胶囊的底距：比桌面的 32 低，窄屏上竖向空间更紧。 */
+export const COMPACT_CAPSULE_BASE_BOTTOM_PX = 16;
+/** 收起的紧凑胶囊高度。 */
+export const COMPACT_CAPSULE_HEIGHT_PX = 56;
+/** 收起时字幕离胶囊顶的净空：基线 16 + 胶囊 56 + 16。 */
+export const COMPACT_SUBTITLE_CLEARANCE_PX = COMPACT_CAPSULE_HEIGHT_PX + 16;
+/** 挂在胶囊右端的按钮（面板按钮、墙工具按钮）缩到的直径，和胶囊里的其他按钮一样大。 */
+export const COMPACT_COMPANION_SIZE_PX = 40;
+
+export type BottomLayout = 'compact' | 'desktop';
+
+/**
+ * 按窗口宽度定底部布局，带迟滞：944–975 之间沿用上一档。prev 为空（第一次判断）时按 960 一刀切。
+ */
+export const resolveBottomLayout = (viewportWidthPx: number, prev: BottomLayout | null): BottomLayout => {
+    if (!Number.isFinite(viewportWidthPx) || viewportWidthPx <= 0) {
+        return prev ?? 'desktop';
+    }
+    if (prev === null) {
+        return viewportWidthPx < COMPACT_BOTTOM_LAYOUT_BREAKPOINT_PX ? 'compact' : 'desktop';
+    }
+    if (viewportWidthPx < COMPACT_BOTTOM_LAYOUT_ENTER_BELOW_PX) return 'compact';
+    if (viewportWidthPx >= COMPACT_BOTTOM_LAYOUT_EXIT_AT_PX) return 'desktop';
+    return prev;
+};
 
 /**
  * 缩放舞台上要给字幕层的底栏偏移量，让控制条在场时字幕离框底的距离是 distancePx（框内像素）。

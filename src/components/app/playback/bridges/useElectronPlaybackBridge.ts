@@ -1,3 +1,4 @@
+import { useRemoteSeekRevision } from '../../../remote/useRemoteSeekRevision';
 import { useEffect, useRef, useState } from 'react';
 import type React from 'react';
 import type { RefObject } from 'react';
@@ -22,6 +23,7 @@ import { getPlaybackSongKey, getPlaybackSourceRef } from '../../../../utils/appP
 import { omni } from '../../../../services/onlineMusic/omni';
 import { createRemoteTrackTransitionFeed, type RemoteTrackTransitionFeed } from './remoteTrackTransitionFeed';
 import { buildRemoteQueueItems, isRemoteQueueCommand } from './remoteQueueFeed';
+import { runTransportButtonAction } from './useTransportCommandRefs';
 import i18n from '../../../../i18n/config';
 import { useStableActionSurface } from '../../../../hooks/useStableCallbacks';
 import { selectDisplayCoverUrl, selectDisplayDuration, selectDisplayLyrics, selectDisplayPlayerState, selectDisplaySong, usePlaybackStore } from '../../../../stores/usePlaybackStore';
@@ -33,8 +35,9 @@ import { currentTime } from '../../../../stores/motionSignals';
 import { useRemoteControlActions } from '../../../../hooks/useRemoteControlActions';
 import { subscribeRemoteActions } from '../../../../mods/folium/registries/remoteActions';
 import { errorMessage } from '../../../../utils/errorText';
-import { getObservedMedia, hifiMediaShim } from '../../../../services/hifi/hifiMediaShim';
+import { getObservedMedia } from '../../../../services/hifi/hifiMediaShim';
 import { seekHifiRoute } from '../../../hifi/hifiRouteTransport';
+import { seekExternalPlayback } from '../../../../services/onlineMusic/externalPlayback';
 
 // Bridges Electron-specific shell features without coupling to UI components.
 const DISCORD_PRESENCE_SNAPSHOT_INTERVAL_MS = 1000;
@@ -61,6 +64,8 @@ type UseElectronPlaybackBridgeOptions = {
     getDisplayAudioElement?: () => HTMLAudioElement | null;
     effectiveLoopMode: 'off' | 'all' | 'one';
     isNowPlayingStageActive: boolean;
+    externalTrackTitle: string | null;
+    externalTrackArtist: string | null;
     mediaSessionPlayRef: RefObject<() => Promise<void>>;
     mediaSessionPauseRef: RefObject<() => void>;
     mediaSessionPrevRef: RefObject<() => void>;
@@ -107,6 +112,8 @@ export const useElectronPlaybackBridge = ({
     getDisplayAudioElement,
     effectiveLoopMode,
     isNowPlayingStageActive,
+    externalTrackTitle,
+    externalTrackArtist,
     mediaSessionPlayRef,
     mediaSessionPauseRef,
     mediaSessionPrevRef,
@@ -183,6 +190,8 @@ export const useElectronPlaybackBridge = ({
         ? omni.getProviderLabel(currentSongSource.providerId)
         : undefined;
 
+    const remoteClockRevision = useRemoteSeekRevision(getObservedMedia(getDisplayAudioElement?.() ?? audioRef.current));
+
     // The cue is event-shaped in the main renderer. Keep only the current low-frequency snapshot
     // so the Remote's existing 500ms publisher can carry it without a React render loop.
     useEffect(() => {
@@ -219,10 +228,11 @@ export const useElectronPlaybackBridge = ({
     };
 
     const isAudioElementUsingCurrentSource = () => {
-        // mpv's song has no URL here; the shim names the track it is sounding, or nothing between tracks.
-        // Read live, as getObservedMedia below does, so the two never disagree about the route.
-        if (usePlaybackStore.getState().playbackRoute === 'hifi') {
-            return Boolean(hifiMediaShim.currentSrc);
+        // mpv's or the provider's player's song has no URL here; the shim names the track it is
+        // sounding, or nothing between tracks. Read live, as getObservedMedia below does, so the
+        // two never disagree about the route.
+        if (usePlaybackStore.getState().playbackRoute !== 'web') {
+            return Boolean(getObservedMedia(null)?.currentSrc);
         }
         const audioElement = audioRef.current;
         if (!audioElement || !audioSrc) {
@@ -302,6 +312,7 @@ export const useElectronPlaybackBridge = ({
         const heldSong = usePlaybackStore.getState().currentSong;
         return {
             ...snapshot,
+            clockRevision: remoteClockRevision.current,
             ...(options.includeQueue
                 ? {
                     queue: buildRemoteQueueItems(playQueue, {
@@ -423,25 +434,16 @@ export const useElectronPlaybackBridge = ({
         }
 
         return window.electron.onTaskbarControl((action) => {
-            if (isNowPlayingControlDisabledRef.current || !audioRef.current || !taskbarHasTrackRef.current) {
-                return;
-            }
-
-            if (action === 'previous') {
-                mediaSessionPrevRef.current();
-                return;
-            }
-
-            if (action === 'next') {
-                void mediaSessionNextRef.current();
-                return;
-            }
-
-            if (taskbarPlayerStateRef.current === PlayerState.PLAYING) {
-                mediaSessionPauseRef.current();
-            } else {
-                void mediaSessionPlayRef.current();
-            }
+            runTransportButtonAction({
+                mediaSessionPlayRef,
+                mediaSessionPauseRef,
+                mediaSessionPrevRef,
+                mediaSessionNextRef,
+                taskbarHasTrackRef,
+                taskbarPlayerStateRef,
+                isNowPlayingControlDisabledRef,
+                audioRef,
+            }, action);
         });
     }, [audioRef, isNowPlayingControlDisabledRef, mediaSessionNextRef, mediaSessionPauseRef, mediaSessionPlayRef, mediaSessionPrevRef, taskbarHasTrackRef, taskbarPlayerStateRef]);
 
@@ -450,13 +452,18 @@ export const useElectronPlaybackBridge = ({
             return;
         }
 
-        void window.electron.updateTaskbarControls(
-            buildTaskbarControlsFromPlaybackSyncBridge(buildPlaybackSyncBridgeModelFromCurrentState())
-        ).catch((error) => {
-            console.warn('[Electron] Failed to update Windows taskbar controls', error);
+        const model = buildPlaybackSyncBridgeModelFromCurrentState();
+        void window.electron.updateTaskbarControls({
+            ...buildTaskbarControlsFromPlaybackSyncBridge(model),
+            title: isNowPlayingStageActive ? externalTrackTitle : model.hasTrack ? model.title : null,
+            artist: isNowPlayingStageActive ? externalTrackArtist : model.hasTrack ? model.artist : null,
+            loopMode: model.loopMode,
+            canCycleLoop: model.hasTrack && !model.isFmMode,
+        }).catch((error) => {
+            console.warn('[Electron] Failed to update playback controls', error);
         });
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [currentSong, effectiveLoopMode, isFmMode, isNowPlayingStageActive, playQueue, playbackRoute, playerState]);
+    }, [currentSong, effectiveLoopMode, externalTrackTitle, externalTrackArtist, isFmMode, isNowPlayingStageActive, playQueue, playbackRoute, playerState]);
 
     // System/IME voice input pauses playback and resumes it afterwards. Resume only
     // fires when this bridge caused the pause and the track is still paused, so a
@@ -674,8 +681,11 @@ export const useElectronPlaybackBridge = ({
                 const nextTime = Math.max(0, Math.min(command.time, upperBound));
                 // During a blend the visible track is the outgoing one; route through the same
                 // cancel-and-resume the window's bar uses instead of moving the hidden incoming deck.
-                // mpv seeks on the HiFi route; like the deck's seek below, it leaves a paused track paused.
-                if (seekHifiRoute(nextTime)) {
+                // mpv seeks on the HiFi route; the provider's player seeks on the external route.
+                // Like the deck's seek below, both leave a paused track paused.
+                if (seekExternalPlayback(nextTime)) {
+                    // Handled: the provider's player has the song.
+                } else if (seekHifiRoute(nextTime)) {
                     // Handled: mpv has the song, the deck has no source.
                 } else if (onRemoteTransitionSeek?.(nextTime)) {
                     // Handled: the re-play seeks the deck itself once it reloads.
@@ -749,7 +759,9 @@ export const useElectronPlaybackBridge = ({
                     // INCOMING deck, silent and holding a different track, so moving it moves
                     // nothing the listener can hear. The transition-aware path cancels the blend
                     // back onto the track on screen and seeks that instead.
-                    if (seekHifiRoute(nextTime)) {
+                    if (seekExternalPlayback(nextTime)) {
+                        // Handled: the provider's player has the song.
+                    } else if (seekHifiRoute(nextTime)) {
                         // Handled: mpv has the song on the HiFi route.
                     } else if (onRemoteTransitionSeek?.(nextTime)) {
                         // Handled: that path seeks the deck it kept.

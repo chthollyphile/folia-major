@@ -1,4 +1,4 @@
-import type { PersonalFmCatalog, PersonalFmSelection } from './personalFm';
+import type { PersonalFmCatalog, PersonalFmLaunch } from './personalFm';
 import type { LyricData, ReplayGainInfo, SongResult, UnifiedSong } from '../types';
 
 // src/types/onlineMusic.ts
@@ -63,7 +63,20 @@ export interface ProviderCapabilities {
     personalFmModes?: boolean;
     wordByWordLyrics: boolean;
     userCloud?: boolean;
+    /**
+     * The account's listening ranking as the platform counts it (`library.getListeningRankCollections`,
+     * `catalog.getListeningRankTracks`): not the plays Folia keeps of its own.
+     */
+    listeningRank?: boolean;
     historyRecommendations?: boolean;
+    /** Daily recommendations can be narrowed to styles the account picks (`recommendations.getDailyStyle*`). */
+    dailyStyleRecommendations?: boolean;
+    /**
+     * The account keeps preferences that steer what the provider recommends, read and saved through
+     * `recommendations.getRecommendationPreferences` / `saveRecommendationPreferences`; where the app
+     * offers them is `recommendations.preferenceEntries`.
+     */
+    recommendationPreferences?: boolean;
     playlistSubscription?: boolean;
     playlistTrackMutations?: boolean;
     likes?: boolean;
@@ -72,6 +85,11 @@ export interface ProviderCapabilities {
     playbackReports?: boolean;
     /** The provider has a recommendation page of its own, read through `explore`. */
     explore?: boolean;
+    /**
+     * The provider sounds its songs in a player of its own outside this app. `externalPlayback`
+     * steers that player; `playback.getAudioSource` is not used.
+     */
+    externalPlayback?: boolean;
     /**
      * The provider can look a song up by id with `playback.getSongDetail`; absent reads as true
      * wherever `playback` is there.
@@ -82,12 +100,16 @@ export interface ProviderCapabilities {
 export interface ProviderAvailability {
     configured: boolean;
     reason?: 'not-configured' | 'runtime-unavailable';
+    /** Optional i18n key explaining a disabled platform row; kept provider-owned. */
+    messageKey?: string;
 }
 
 export interface ProviderAccountSummary {
     providerId: OnlineProviderId;
     displayName: string;
     shortName: string;
+    /** 短名的 i18n key（OnlineMusicProvider.shortNameKey）；界面按它取当前语言的名字。没有就显示 shortName。 */
+    shortNameKey?: string;
     availability: ProviderAvailability;
     /** False for a provider with no account at all (a Folium mod source): it is used without signing in. Absent means true. */
     requiresAccount?: boolean;
@@ -200,13 +222,22 @@ export interface ProviderHistoryEntry {
     providerData?: Record<string, JsonValue>;
 }
 
+/** The span a listening ranking counts plays over: the last week, or all the account's time. */
+export type ListeningRankRange = 'week' | 'all';
+
 export interface ProviderCollection {
     /** A provider's named radio stream: selecting the card starts FM with this mode. */
-    personalFm?: PersonalFmSelection;
+    personalFm?: PersonalFmLaunch;
+    /** The account's listening ranking over this span (type `listening_rank`): read-only, made by the platform. */
+    listeningRank?: ListeningRankRange;
     providerId: OnlineProviderId;
     id: MediaId;
     name: string;
-    type: 'playlist' | 'album' | 'artist' | 'radio' | 'cloud' | string;
+    /**
+     * `artist_songs` is every song of the artist whose id this is (the artist page's "all songs", #918):
+     * a read-only list the app makes, read through `catalog.getArtistSongs`.
+     */
+    type: 'playlist' | 'album' | 'artist' | 'radio' | 'cloud' | 'listening_rank' | 'artist_songs' | string;
     coverUrl?: string;
     description?: string;
     trackCount?: number;
@@ -245,7 +276,7 @@ export type LoginFailureKind =
 
 // 一次登录停在哪一步：'start' 建二维码或开始浏览器登录，'open' 打开登录的页面，'wait' 等待期间过期，
 // 'check' 检查扫码或浏览器的结果，'account' 确认之后读账号。
-export type LoginStep = 'start' | 'open' | 'wait' | 'check' | 'account';
+export type LoginStep = 'start' | 'open' | 'wait' | 'check' | 'account' | 'form';
 
 // 登录没有成功时能分出的情况。每一种的类别、给出的操作、有没有详情，见 services/onlineMusic/login/loginFailureCase.ts 的表。
 export type LoginCaseId =
@@ -343,12 +374,25 @@ export interface ProviderSearchContext {
     session?: string;
 }
 
+/** What a search looks for: songs, albums or playlists (`omni.getProviderSearchKinds`). */
+export type ProviderSearchKind = 'song' | 'album' | 'playlist';
+
 export interface OnlineSearchProvider {
     /**
      * A provider that keeps what it read of a search between its pages keeps it apart for each
      * `context.session`; one that keeps nothing between pages ignores the context.
      */
     searchSongs(query: string, limit: number, offset: number, context?: ProviderSearchContext): Promise<ProviderPage<UnifiedSong>>;
+    /**
+     * Albums found by the query, as collections of type 'album' that `catalog.getAlbumTracks` opens.
+     * Left out where the platform has no album search: the search page then offers no album tab.
+     */
+    searchAlbums?(query: string, limit: number, offset: number): Promise<ProviderPage<ProviderCollection>>;
+    /**
+     * Playlists found by the query, as collections of type 'playlist' that `catalog.getPlaylistTracks`
+     * opens. Left out where the platform has no playlist search.
+     */
+    searchPlaylists?(query: string, limit: number, offset: number): Promise<ProviderPage<ProviderCollection>>;
 }
 
 export interface OnlinePlaybackProvider {
@@ -429,8 +473,77 @@ export interface OnlinePlaybackReportProvider {
     reportPlayback(song: SongResult, report: ProviderPlaybackReport): Promise<void>;
 }
 
+/**
+ * What an external player outside this app has loaded, as its provider says it.
+ * `mediaId` is the id the provider gave the player (not necessarily the song's `UnifiedSong.id`);
+ * `isStatusForSong` tells whether it is a given song.
+ */
+export interface ProviderExternalPlaybackStatus {
+    /** Live broadcasts have no seekable song timeline or natural track ending. */
+    live?: boolean;
+    mediaId: string;
+    isPlaying: boolean;
+    positionMs: number;
+    durationMs: number;
+    /** The player's own state says the track ran out. */
+    ended: boolean;
+    /** An intentional player-side seek, so small backward jumps must not be smoothed away. */
+    seeking?: boolean;
+    /** The player accepted a start/resume and is still buffering; this is not a user pause. */
+    starting?: boolean;
+}
+
+/**
+ * A player outside Folia that a provider steers: the provider's song plays there (inside a page
+ * this app cannot route as audio), and the app drives the transport and follows its clock.
+ * Only the song's own provider can answer these calls.
+ */
+export interface OnlineExternalPlaybackProvider {
+    /** False only for songs this external route already knows it cannot start; no network reads. */
+    canPlay?(song: SongResult): boolean;
+    /** Prepare a bounded successor queue without interrupting the current song. */
+    prepareNext?(song: SongResult, upcoming: SongResult[]): Promise<void>;
+    /** Whether a handoff can reuse an already prepared successor (not a guarantee of buffered audio). */
+    isPrepared?(song: SongResult): boolean;
+    /** Starts `song` in the player at `startSec`, replacing whatever it played; resolves once started. */
+    play(song: SongResult, startSec: number): Promise<void>;
+    /**
+     * The player already has `song` loaded (started by a window of this app that is gone): take it
+     * as this provider's current playback without starting it, so successors can be prepared for it.
+     */
+    adopt?(song: SongResult): void;
+    pause(): Promise<void>;
+    resume(): Promise<void>;
+    seek(seconds: number): Promise<void>;
+    /** Sets the player's own output level (0 to 1, linear, 0 when muted): its audio never passes through the app's gain. */
+    setVolume?(volume: number): Promise<void>;
+    /**
+     * Turns the player's own single-track repeat on or off: on, it plays the track again by itself
+     * at its end (no gap), its position going from the end back to the start. Only single loop:
+     * what plays after a track is always Folia's queue, so the player's list repeat stays off.
+     * Without it (or when the player still reports an end), the route starts the track again itself.
+     */
+    setRepeatOne?(enabled: boolean): Promise<void>;
+    /** The player's state now, from no cache. */
+    getStatus(song: SongResult): Promise<ProviderExternalPlaybackStatus>;
+    /** Whether the player's loaded track is `song` (the id in `status` may be a playback id). */
+    isStatusForSong(song: SongResult, status: ProviderExternalPlaybackStatus): boolean;
+}
+
+/** An alternate title and artist that belong to the same song. */
+export interface ProviderLyricSearchAlias { song: SongResult; title: string; artist: string; album?: string }
+
 export interface OnlineLyricsProvider {
+    getSearchAlias?(song: SongResult): Promise<ProviderLyricSearchAlias | null>;
     getLyrics(song: SongResult, context?: { userId?: MediaId | null }): Promise<ProviderLyricsResult>;
+    /**
+     * Where its own lyrics are word-level, the automatic pick asks only the listener's preferred
+     * source before them, and takes that source's words alone over them: another source may have
+     * words too, but not this platform's own timing. The listener can turn this off (lyric
+     * settings), and the platform's lyrics are then matched like any other source's.
+     * Off where the platform leaves the choice to the automatic pick.
+     */
+    prefersOwnWordByWord?: boolean;
     getChorusRanges?(songId: MediaId): Promise<ChorusRange[]>;
     // 这首歌的歌手在别的平台上可能用的另一个名字；没有就返回 null。
     getAlternateArtistName?(song: SongResult): Promise<string | null>;
@@ -445,6 +558,79 @@ export interface LoginMethod {
     id: string;          // 传给后端的识别值（QQ: 'qq' | 'wechat'）
     labelKey: string;    // i18n key，由 UI 层翻译
     iconKey: string;     // 图标的名字：UI 层按它取 src/assets/providers/ 里同名的 .svg
+    // 选中这种方式时那一行说明（i18n key）：浏览器登录的几种方式靠它说清楚彼此差在哪。不给就用平台的登录说明。
+    noteKey?: string;
+    // 在浏览器里确认的几种方式里，开始时先替用的人选上的那一种（例如此刻在用的那一种）；都不标就是第一种。
+    preferred?: boolean;
+}
+
+// —— 平台的配置清单 ——
+// 登录之外、要用的人一步步做完的事（例如装一个本机程序、填一把密钥），登录窗口按平台给的清单逐步画出来。
+// 清单只有数据：每一步的状态、说明和操作都由平台决定，窗口不认识任何平台。
+
+/** 清单里一步的一个操作。 */
+export interface ProviderSetupAction {
+    id: string;
+    labelKey: string;
+    /**
+     * link：打开平台说的页面；run：做一件事；pick-file：选一个本机文件（平台自己弹系统的选择框）；
+     * submit-secret：交出这一步密码框里填的内容。
+     */
+    kind: 'link' | 'run' | 'pick-file' | 'submit-secret';
+    primary?: boolean;
+}
+
+/** 清单里的一步。 */
+export interface ProviderSetupStep {
+    id: string;
+    titleKey: string;
+    noteKey?: string;
+    /** titleKey 与 noteKey 的插值。 */
+    params?: Record<string, string | number>;
+    state: 'done' | 'todo' | 'warn' | 'error';
+    /** 原样显示的一行事实（路径、版本）；不翻译。 */
+    detail?: string;
+    /** 这一步有一个密码框。saved：已经存过一份（框里只画掩码，要换才清空）。 */
+    secret?: { labelKey: string; saved: boolean };
+    actions?: ProviderSetupAction[];
+}
+
+/** 平台此刻的配置清单。 */
+export interface ProviderSetupView {
+    titleKey: string;
+    noteKey?: string;
+    params?: Record<string, string | number>;
+    steps: ProviderSetupStep[];
+    /** 每一步都做完了：可以结束。 */
+    complete: boolean;
+    /** 平台对刚做的那一个操作说的话（i18n key）；没有可说的就不给。 */
+    message?: { key: string; tone: 'ok' | 'warn' | 'error' };
+}
+
+// —— 表单式登录（账号密码类平台）——
+// provider 声明登录窗口要渲染的字段，登录窗口按声明画表单；提交后由 provider 自己完成登录。
+// 这样新平台接入不需要改登录界面本身（omni 通用能力）。
+export interface ProviderLoginFormField {
+    key: string;                    // 提交时 values 里的字段名
+    type: 'text' | 'password' | 'url';
+    labelKey?: string;              // i18n key，由 UI 层翻译；缺省用 label
+    label?: string;
+    placeholderKey?: string;
+    placeholder?: string;
+    required?: boolean;
+}
+
+export interface ProviderLoginForm {
+    fields: ProviderLoginFormField[];
+    submitLabelKey?: string;
+    submitLabel?: string;
+    noteKey?: string;               // 表单下方的提示文字（i18n key）
+    note?: string;
+    /**
+     * 提交失败时按错误 code 显示的 i18n key（键是 OnlineProviderError.code，如 'network' / 'auth-required'）。
+     * 没有对应项的 code 由界面显示通用失败文案；provider 错误信息只进日志，不直接上屏。
+     */
+    errorKeys?: Record<string, string>;
 }
 
 // 平台的记号：一个字和一种颜色，画在登录窗口、切换器和账号头像的角上。平台自己声明；没有声明的
@@ -582,6 +768,10 @@ export interface OnlineAuthProvider {
     // 需要远端能力发现的 provider 在这里等待结果；UI 用同一份返回值决定单步或多步流程。
     resolveLoginMethods?(): Promise<LoginMethod[]>;
     startLogin?(methodId?: string): Promise<string>;
+    // —— 表单式登录（账号密码类平台）——
+    // 声明后登录窗口按此渲染表单（替代扫码/浏览器确认流程）；提交后 provider 完成登录。
+    getLoginForm?(): ProviderLoginForm;
+    submitLoginForm?(values: Record<string, string>): Promise<unknown>;
     // 登录的某一步抛了错时，provider 把自己的错误翻成共用的事实，或者直接点名是哪一种情况；没有可说的
     // 就回 null，由共用的规则去分（services/onlineMusic/login/loginFailureCase.ts）。在失败之后才被问到，自己不抛错。
     describeLoginFailure?(step: LoginStep, error: unknown): LoginFailureDetail | null;
@@ -607,6 +797,14 @@ export interface OnlineAuthProvider {
     // canRunLoginSelfCheck 同步回答此刻能不能检查（界面据此决定要不要显示「正在检查」）。
     canRunLoginSelfCheck?(): boolean;
     runLoginSelfCheck?(): Promise<LoginSelfCheckResult | null>;
+    // 登录确认、账号读到之后多走的一步：查这个账号此刻能不能用（例如能不能播放）。回一份配置清单，
+    // 登录窗口就停在清单上让用的人做完；回 null 是没有要做的。methodId 是这一次选的登录方式。
+    // 有时限，超时或抛错都当作 null：这一步挡不住登录。
+    checkAfterLogin?(methodId: string | null): Promise<ProviderSetupView | null>;
+    // 平台此刻的配置清单（登录之后也能从账号那一幅打开）；此刻没有要配置的回 null。窗口开着清单时会反复问它。
+    getSetup?(): Promise<ProviderSetupView | null>;
+    // 做清单上的一个操作，回做完之后的清单。value 是 submit-secret 交出的内容。操作失败写在回的清单里，不抛错。
+    runSetupAction?(stepId: string, actionId: string, value?: string): Promise<ProviderSetupView>;
 }
 
 declare const builtDiagnosticLine: unique symbol;
@@ -630,6 +828,8 @@ export interface ProviderLikedSongIds {
 }
 
 export interface OnlineLibraryProvider {
+    /** One favorite identity across catalog/library aliases; omitted when playback IDs already match. */
+    getSongLikeId?(song: SongResult): MediaId;
     getUserPlaylists(userId: MediaId, limit: number, offset: number): Promise<ProviderPage<ProviderCollection>>;
     /**
      * The id of every liked song. A page the adapter knows it could not read throws. An adapter
@@ -656,6 +856,13 @@ export interface OnlineLibraryProvider {
     getUserAlbums?(userId: MediaId, limit: number, offset: number): Promise<ProviderPage<ProviderCollection>>;
     /** The entry that stands for the account's cloud songs among its collections; null where it has none to show. */
     getCloudCollection?(user?: ProviderUser): Promise<ProviderCollection | null>;
+    /**
+     * The entries that stand for the account's listening ranking among its collections, one a span
+     * (type `listening_rank`, `listeningRank` set), with ids that name the user. A span the platform
+     * answers with nothing for (no plays, or a ranking the account keeps hidden) has no entry. Throws
+     * where the platform could not be read.
+     */
+    getListeningRankCollections?(user: ProviderUser): Promise<ProviderCollection[]>;
 }
 
 export interface OnlineCatalogProvider {
@@ -664,6 +871,8 @@ export interface OnlineCatalogProvider {
     getPlaylistTracks?(id: MediaId, limit: number, offset: number, collection?: ProviderCollection): Promise<ProviderPage<UnifiedSong>>;
     getPlaylistDetail?(id: MediaId, collection?: ProviderCollection): Promise<ProviderCollection | null>;
     getCloudTracks?(limit: number, offset: number, collection?: ProviderCollection): Promise<ProviderPage<UnifiedSong>>;
+    /** The ranking's songs in the platform's order, each with the `listenCount` it gives where it gives one. */
+    getListeningRankTracks?(range: ListeningRankRange, limit: number, offset: number, collection?: ProviderCollection): Promise<ProviderPage<UnifiedSong>>;
     getAlbumTracks?(id: MediaId, limit?: number, offset?: number, collection?: ProviderCollection): Promise<ProviderPage<UnifiedSong>>;
     getAlbumDetail?(id: MediaId, collection?: ProviderCollection): Promise<ProviderCollection | null>;
     getArtistSongs?(id: MediaId, limit: number, offset: number): Promise<ProviderPage<UnifiedSong>>;
@@ -679,17 +888,117 @@ export interface OnlineCatalogProvider {
 export interface PersonalFmRequestOptions {
     mode?: string;
     submode?: string | null;
+    /** One of the provider's extra radios; absent for its Personal FM. A provider without stations ignores it. */
+    station?: string | null;
 }
 
+/**
+ * The styles daily recommendations can be narrowed to, in the provider's own groups (genre, mood,
+ * scene, language…) and words. Ids are the provider's, written as strings.
+ */
+export interface DailyStyleGroup {
+    id: string;
+    name: string;
+    tags: { id: string; name: string }[];
+}
+
+/** The styles an account has picked: some tags of one group (a provider takes tags of a single group only). */
+export interface DailyStyleSelection {
+    groupId: string;
+    tagIds: string[];
+}
+
+/** The daily songs of the picked styles, and the pick they were made for (null where the provider does not say). */
+export interface DailyStyleSongs {
+    songs: UnifiedSong[];
+    selection: DailyStyleSelection | null;
+}
+
+/**
+ * Words a provider shows with its recommendation preferences: `labelKey` is an i18n key for the
+ * user's language, `labelFallback` the provider's own words, shown when the key has no text.
+ */
+export interface RecommendationPreferenceLabel {
+    labelKey?: string;
+    labelFallback: string;
+}
+
+/** A preference picked from a few options (any number of them), each with the provider's own value. */
+export interface RecommendationPreferenceChoice {
+    kind: 'choice';
+    key: string;
+    label: RecommendationPreferenceLabel;
+    options: { value: string; label: RecommendationPreferenceLabel }[];
+    value: string;
+    defaultValue: string;
+}
+
+/**
+ * A preference on a scale from less to more, the default somewhere between. The numbers are the
+ * provider's; the app shows "less … default … more" and no number. `snapWithin`: a value this
+ * close to the default is taken for the default.
+ */
+export interface RecommendationPreferenceRatio {
+    kind: 'ratio';
+    key: string;
+    label: RecommendationPreferenceLabel;
+    min: number;
+    max: number;
+    defaultValue: number;
+    snapWithin?: number;
+    value: number;
+}
+
+/**
+ * One recommendation preference. Further kinds may come; the app passes over a kind it does not
+ * know, neither showing it nor sending it back.
+ */
+export type RecommendationPreferenceItem = RecommendationPreferenceChoice | RecommendationPreferenceRatio;
+
+/** The account's recommendation preferences, and a line on what they reach (the provider's words). */
+export interface RecommendationPreferences {
+    items: RecommendationPreferenceItem[];
+    note?: RecommendationPreferenceLabel;
+}
+
+/** What changed, by preference key: the option's value for a choice, the number for a ratio. */
+export type RecommendationPreferenceChanges = Record<string, string | number>;
+
+/** `confirmed` is false when the provider saved but read back something else, or could not read back. */
+export interface RecommendationPreferencesSaveResult {
+    confirmed: boolean;
+}
+
+/** Where the app offers the account's recommendation preferences. */
+export type RecommendationPreferenceEntry = 'explore' | 'personal-fm' | 'daily';
+
 export interface OnlineRecommendationProvider {
-    getPersonalFmCatalog?(): Promise<PersonalFmCatalog>;
+    /** The mode choices of the Personal FM, or of the extra radio `station` when one is asked for. */
+    getPersonalFmCatalog?(station?: string): Promise<PersonalFmCatalog>;
     getDailySongs?(refresh?: boolean): Promise<UnifiedSong[]>;
     getPersonalFm?(options?: PersonalFmRequestOptions): Promise<UnifiedSong[]>;
     getRecommendedCollections?(limit: number): Promise<ProviderCollection[]>;
     getHistoryEntries?(): Promise<ProviderHistoryEntry[]>;
     getHistoryDates?(): Promise<string[]>;
     getHistorySongs?(entry: ProviderHistoryEntry | string): Promise<UnifiedSong[]>;
-    dislikeSong?(id: MediaId): Promise<{ replacement?: UnifiedSong; limitReached?: boolean }>;
+    /** `removed`: the song was blacklisted with no replacement; the daily view drops the row. */
+    dislikeSong?(id: MediaId): Promise<{ replacement?: UnifiedSong; limitReached?: boolean; removed?: boolean }>;
+    /** The style groups to pick from (capability `dailyStyleRecommendations`). */
+    getDailyStyleGroups?(): Promise<DailyStyleGroup[]>;
+    getDailyStyleSongs?(): Promise<DailyStyleSongs>;
+    /** Saves the pick on the account; the next `getDailyStyleSongs` answers for it. */
+    setDailyStyle?(selection: DailyStyleSelection): Promise<void>;
+    /**
+     * Where the app offers the account's recommendation preferences (capability
+     * `recommendationPreferences`); the command palette offers them wherever they are supported.
+     */
+    preferenceEntries?: readonly RecommendationPreferenceEntry[];
+    getRecommendationPreferences?(): Promise<RecommendationPreferences>;
+    /**
+     * Saves what changed and nothing else; the provider writes it the way its platform takes it
+     * (the whole set, or the changed fields alone).
+     */
+    saveRecommendationPreferences?(changes: RecommendationPreferenceChanges): Promise<RecommendationPreferencesSaveResult>;
 }
 
 /**
@@ -841,6 +1150,8 @@ export interface OnlineMusicProvider {
     id: OnlineProviderId;
     displayName: string;
     shortName?: string;
+    /** 界面上显示的平台名（i18n key）；不给就用 shortName / displayName。名字由界面翻译。 */
+    shortNameKey?: string;
     mark?: ProviderMark;
     getAvailability?(): ProviderAvailability;
     /**
@@ -863,6 +1174,8 @@ export interface OnlineMusicProvider {
     getSongPageUrl?(song: SongResult): string | null;
     search?: OnlineSearchProvider;
     playback?: OnlinePlaybackProvider;
+    /** A player outside this app that sounds this provider's songs (see the capability of the same name). */
+    externalPlayback?: OnlineExternalPlaybackProvider;
     playbackReports?: OnlinePlaybackReportProvider;
     lyrics?: OnlineLyricsProvider;
     auth?: OnlineAuthProvider;
@@ -900,6 +1213,7 @@ export type OmniExploreItem = ProviderExploreItem;
 export type OmniExploreSection = ProviderExploreSection;
 export type OmniExplorePage = ProviderExplorePage;
 export type OmniExploreItemsPage = ProviderExploreItemsPage;
+export type OmniSearchKind = ProviderSearchKind;
 export { OnlineProviderError as OmniError };
 
 /**

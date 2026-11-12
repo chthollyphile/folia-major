@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { BravaisLayer, BravaisSeamTab } from './bravaisLayer';
-import type { BravaisHomeAccount, BravaisHomeSection, BravaisHomeShortcut } from './bravaisHomeModels';
+import type { BravaisHomeAccount, BravaisHomeEntry, BravaisHomeSection, BravaisHomeShortcut } from './bravaisHomeModels';
 import type { BravaisSeamLevel } from './bravaisSeamLevel';
 import BravaisSeamAccountSwitcher from './BravaisSeamAccountSwitcher';
 import BravaisSeamHomeTools from './BravaisSeamHomeTools';
@@ -174,13 +174,18 @@ export const HomeSeamSections: React.FC<{
  */
 export const HomeSeamShortcuts: React.FC<{
     shortcuts: readonly BravaisHomeShortcut[];
+    /** 排在后面的动作入口（偏好设置这类）：同一列、同样的竖排字，点了直接做事。 */
+    entries?: readonly BravaisHomeEntry[] | null;
     label?: string;
     rule: boolean;
     onOpen?: (shortcut: BravaisHomeShortcut) => void;
     measure?: boolean;
-}> = ({ shortcuts, label, rule, onOpen, measure = false }) => {
+}> = ({ shortcuts, entries, label, rule, onOpen, measure = false }) => {
     const { t } = useTranslation();
-    const name = (shortcut: BravaisHomeShortcut) => t(`libraryBravaisHome.special.${shortcut.special}`);
+    // A provider's extra radio goes by its own name (Guess You Like); the other kinds by their fixed short names.
+    const name = (shortcut: BravaisHomeShortcut) => (shortcut.special === 'fm-station' && shortcut.label
+        ? shortcut.label
+        : t(`libraryBravaisHome.special.${shortcut.special}`));
     return (
         <div className="bravais-seam-shortcuts-wrap">
             {rule && <span className="bravais-seam-shortcuts-rule" aria-hidden />}
@@ -200,6 +205,14 @@ export const HomeSeamShortcuts: React.FC<{
                         onClick={() => (onOpen ? onOpen(shortcut) : shortcut.open())}
                     >
                         <span className="is-label" aria-hidden>{name(shortcut)}</span>
+                    </button>
+                )))}
+                {entries?.map(entry => (measure ? (
+                    <span key={entry.id} className="bravais-seam-shortcut"><span className="is-label">{entry.label}</span></span>
+                ) : (
+                    <button key={entry.id} type="button" className="bravais-seam-shortcut" data-bravais-seam-action={entry.id}
+                        aria-label={entry.label} title={entry.label} onClick={entry.run}>
+                        <span className="is-label" aria-hidden>{entry.label}</span>
                     </button>
                 )))}
             </div>
@@ -273,6 +286,9 @@ const BravaisSeamHome: React.FC<{
     const tabs = seam.tabs ?? [];
     const sections = home?.sections && home.sections.length > 0 ? home.sections : null;
     const shortcuts = home?.shortcuts && home.shortcuts.length > 0 ? home.shortcuts : null;
+    const entries = home?.entries && home.entries.length > 0 ? home.entries : null;
+    // 直达入口这一列：特殊集合的入口，后面是动作入口；两样都没有就不画。
+    const hasJumps = shortcuts !== null || entries !== null;
     const navRef = useRef<HTMLDivElement>(null);
     const headRef = useRef<HTMLDivElement>(null);
     const middleRef = useRef<HTMLDivElement>(null);
@@ -289,7 +305,7 @@ const BravaisSeamHome: React.FC<{
     const { level, overflowing } = fit;
     const short = level === 'short';
     // 直达入口放得下就在中段，否则挪进「⋯」菜单（先于二级切换让位）。
-    const shortcutsInColumn = shortcuts !== null && fit.shortcuts;
+    const shortcutsInColumn = hasJumps && fit.shortcuts;
     const labelsKey = tabs.map(tab => tab.label).join('\u0000');
     const shortLabels = useMemo(() => abbreviateSeamTabLabels(labelsKey.split('\u0000')), [labelsKey]);
     // 元数据行：平时是来源（在线平台名 / 本地 / Navidrome），本地导入 / 重扫时换成扫描进度。
@@ -310,7 +326,7 @@ const BravaisSeamHome: React.FC<{
     );
     return (
         <div className={`bravais-seam-home${compact ? ' is-compact' : ''}${short ? ' has-short-tabs' : ''}`} data-bravais-home-seam
-            data-bravais-home-fit={level} data-bravais-home-shortcuts={shortcuts ? (shortcutsInColumn ? 'column' : 'menu') : undefined}>
+            data-bravais-home-fit={level} data-bravais-home-shortcuts={hasJumps ? (shortcutsInColumn ? 'column' : 'menu') : undefined}>
             <div ref={navRef} className={`bravais-seam-home-nav${overflowing ? ' is-overflowing' : ''}`}>
                 <div className="bravais-seam-home-nav-content">
                     <div ref={headRef}>
@@ -342,8 +358,8 @@ const BravaisSeamHome: React.FC<{
                         </div>
                         {/* fb11：直达入口贴在中段底部（上面的内容在剩下的空间里居中）。 */}
                         <div ref={jumpsRef} className="bravais-seam-home-jumps" data-bravais-home-jumps>
-                            {shortcuts && shortcutsInColumn && (
-                                <HomeSeamShortcuts shortcuts={shortcuts} label={home?.shortcutsLabel} rule={Boolean(sections)} onOpen={openShortcut} />
+                            {shortcutsInColumn && (
+                                <HomeSeamShortcuts shortcuts={shortcuts ?? []} entries={entries} label={home?.shortcutsLabel} rule={Boolean(sections)} onOpen={openShortcut} />
                             )}
                         </div>
                     </div>
@@ -368,7 +384,7 @@ const BravaisSeamHome: React.FC<{
                 )}
             </div>
             <div ref={jumpsMeasureRef} className="bravais-seam-home-measure" aria-hidden>
-                {shortcuts && <HomeSeamShortcuts shortcuts={shortcuts} rule={Boolean(sections)} measure />}
+                {hasJumps && <HomeSeamShortcuts shortcuts={shortcuts ?? []} entries={entries} rule={Boolean(sections)} measure />}
             </div>
             <AnimatePresence initial={false}>
                 {seam.filter && !compact && (filterEditing || seam.filter.query) && (
@@ -387,7 +403,8 @@ const BravaisSeamHome: React.FC<{
             {home?.account && <BravaisSeamAccountSlot account={home.account} compact={compact} />}
             {home && (
                 <BravaisSeamHomeTools home={home} compact={compact} onExpand={expand}
-                    menuShortcuts={shortcuts && !shortcutsInColumn ? shortcuts : null} onOpenShortcut={openShortcut} />
+                    menuShortcuts={shortcuts && !shortcutsInColumn ? shortcuts : null} onOpenShortcut={openShortcut}
+                    menuEntries={entries && !shortcutsInColumn ? entries : null} />
             )}
             {compact && (
                 <button type="button" className="bravais-seam-icon" data-bravais-seam-action="expand" onClick={expand}

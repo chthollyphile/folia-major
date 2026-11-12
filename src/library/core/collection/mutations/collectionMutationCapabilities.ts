@@ -32,6 +32,8 @@ export type CollectionMutationBranchInput = {
     isCloudDrive: boolean;
     /** 每日推荐当前看的日期，'' 表示今天；看历史时不能编辑。 */
     dailyDate: string;
+    /** 每日推荐正在看风格推荐（#938）：那是另一份歌，「不喜欢并换一首」不作用于它，也不能编辑。 */
+    dailyStyleShown?: boolean;
     port: LibraryMutationPort;
 };
 
@@ -76,8 +78,8 @@ export const resolveCollectionMutationBranches = (input: CollectionMutationBranc
     const canEditPlaylist = Boolean(
         canEditOwnedPlaylist
         || canEditProviderPlaylist
-        // 管理每日推荐就是逐首「不喜欢」：provider 没有 dislikeSong（QQ）时不给编辑，免得按钮点了必定失败。
-        || (isDailyRecommendationsCollection && !input.dailyDate && input.canDislikeCollectionSongs)
+        // 管理每日推荐就是逐首「不喜欢」：provider 有 dislikeSong 才给编辑（有的平台是拉进黑名单、没有替换曲）。
+        || (isDailyRecommendationsCollection && !input.dailyDate && !input.dailyStyleShown && input.canDislikeCollectionSongs)
         || isLocalPlaylistCollection
         || isNavidromePlaylistCollection,
     );
@@ -257,6 +259,11 @@ export const EMPTY_COLLECTION_MUTATION_SNAPSHOT: CollectionMutationSnapshot = {
     dailyDate: '',
     dailyHistoryDates: [],
     dailyHistoryAvailable: false,
+    dailyStyleAvailable: false,
+    dailyStyleShown: false,
+    dailyStyleGroups: [],
+    dailyStyleGroupsFailed: false,
+    dailyStyleSelection: null,
     renamedTo: null,
     availablePlaylists: [],
     branches: NO_BRANCHES,

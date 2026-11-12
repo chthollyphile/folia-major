@@ -6,6 +6,7 @@ import { useReducedMotionFor } from '../../../hooks/useReducedMotionFor';
 import { usePlayerOverlayObstacle } from '../../../hooks/usePlayerOverlayLayout';
 import { holdStatusMessage } from '../../../stores/useStatusMessageStore';
 import type { AppStatusToast } from './buildAppDialogsModel';
+import { LoadingBars } from '../../shared/LoadingBars';
 import './statusToast.css';
 
 // src/components/app/dialogs/StatusToast.tsx
@@ -59,7 +60,9 @@ export const StatusToast: React.FC<{ toast: AppStatusToast }> = ({ toast }) => {
             initial={calm ? { opacity: 0 } : { opacity: 0, y: -18 }}
             animate={calm ? { opacity: 1, transition: { duration: 0.15 } } : { opacity: 1, y: 0, transition: { duration: 0.32, ease: EASE_OUT } }}
             exit={calm ? { opacity: 0, transition: { duration: 0.15 } } : { opacity: 0, y: -10, transition: { duration: 0.22, ease: EASE_IN } }}
-            className={`status-toast${isDaylight ? ' is-daylight' : ''}${cancel || action ? ' has-buttons' : ''}${open ? ' is-open' : ''}${calm ? ' is-calm' : ''}${isPresent ? '' : ' is-leaving'}`}
+            className={`status-toast${toast.activity ? ' has-activity' : ''}${isDaylight ? ' is-daylight' : ''}${cancel || action ? ' has-buttons' : ''}${open ? ' is-open' : ''}${calm ? ' is-calm' : ''}${isPresent ? '' : ' is-leaving'}`}
+            role={toast.activity ? 'status' : undefined}
+            aria-live={toast.activity ? 'polite' : undefined}
             onPointerEnter={() => rest(true)}
             onPointerLeave={() => rest(false)}
             onFocus={() => rest(true)}
@@ -69,7 +72,7 @@ export const StatusToast: React.FC<{ toast: AppStatusToast }> = ({ toast }) => {
         >
             <div className="status-toast-line">
                 {/* A message about one online platform leads with that platform's mark; every other message with its type's icon. */}
-                {toast.providerId
+                {toast.activity ? <LoadingBars size={24} status={toast.activity} className={toast.activity === 'error' ? (isDaylight ? 'text-red-500' : 'text-red-400') : toast.activity === 'success' ? (isDaylight ? 'text-green-600' : 'text-green-400') : ''} /> : toast.providerId
                     ? <PlatformMark providerId={toast.providerId} size={20} />
                     : toast.type === 'error'
                         ? <AlertCircle size={18} className={`shrink-0 ${isDaylight ? 'text-red-500' : 'text-red-400'}`} />

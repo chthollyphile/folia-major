@@ -1,6 +1,7 @@
+import { useWindowButtonsAtTopLeft } from '../../../../hooks/useWindowButtonsAtTopLeft';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, useMotionValue, animate, AnimatePresence, useDragControls, useIsPresent } from 'framer-motion';
-import { ChevronLeft, ListPlus, RefreshCw } from 'lucide-react';
+import { ChevronLeft, ListMusic, ListPlus, RefreshCw } from 'lucide-react';
 import GridPanelToggleIndicator from '../shared/GridPanelToggleIndicator';
 import { useTranslation } from 'react-i18next';
 import { SongResult, Theme } from '../../../../types';
@@ -9,6 +10,7 @@ import { getSongCoverUrl } from '../../../../services/onlineMusic/songMetadata';
 import type { LibraryArtistResource } from '../../../core/artist/artist.contract';
 import type { LibraryPlaybackPort } from '../../../core/shared/ports.contract';
 import type { LibraryDeclaredActions } from '../../../core/suite/suite.contract';
+import type { LibraryCollectionDescriptor } from '../../../core/collection/collection.contract';
 import { useArtistResourceState } from '../../../core/artist/useArtistResourceState';
 import { useArtistView } from '../../../core/artist/useArtistView';
 import { useLibraryArtistSurfaceRegistration } from '../../../core/artist/useLibraryArtistSurfaceRegistration';
@@ -56,6 +58,7 @@ import { deriveProgressiveLoadingState } from '../shared/progressiveGrid';
 import { useProgressiveItemEntrance } from '../shared/useProgressiveItemEntrance';
 import { ArtistGridInfoCutInPanel } from './ArtistGridInfoCutInPanel';
 import { ArtistPicture } from './ArtistPicture';
+import { ArtistHeaderPillButton } from './ArtistHeaderPillButton';
 import { setStatusMessage } from '../../../../stores/useStatusMessageStore';
 
 /*
@@ -91,6 +94,8 @@ interface ArtistGridViewProps {
     theme: Theme;
     isDaylight: boolean;
     onEditEntity?: (entityId: string) => void;
+    /** 宿主压入一层集合（「全部歌曲」，#918）；没给时没有这个入口。 */
+    onOpenCollection?: (collection: LibraryCollectionDescriptor) => void;
     isInteractive?: boolean;
     /**
      * Optional「移形换影」plan (the grid's surface reads it, useGridMorphPlan): every song/album
@@ -333,10 +338,12 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
     theme,
     isDaylight,
     onEditEntity,
+    onOpenCollection,
     isInteractive = true,
     morphPlan = null,
 }) => {
     const { t } = useTranslation();
+    const lowerBackButton = useWindowButtonsAtTopLeft();
     // The artist wall renders the same cards as GridView, so it follows the same look settings.
     const fullBleedCover = useGridViewSettingsStore(state => state.gridViewFullBleedCover);
     const squareCards = useGridViewSettingsStore(state => state.gridViewSquareCards) && fullBleedCover;
@@ -377,6 +384,7 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
         declaredActions,
         onEditEntity,
         onOpenAlbum: onSelectAlbum,
+        onOpenCollection,
         setStatus: setStatusMessage,
     });
     const { sessionKey, offers, actions: artistActions, capabilities } = artistView;
@@ -1311,7 +1319,7 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
             )}
 
             {/* Header Area */}
-            <div className="absolute top-0 left-0 p-6 z-30 flex items-center gap-4">
+            <div className={`absolute ${lowerBackButton ? 'top-6' : 'top-0'} left-0 p-6 z-30 flex items-center gap-4`}>
                 <button
                     // 返回按钮表示看完了（onDone）：宿主清掉浏览会话、让每套 suite 忘掉布局记录，再返回
                     // （Escape 与浏览器后退保留）。P4.5 起这条语义在宿主，不在这里清。
@@ -1322,18 +1330,31 @@ const ArtistGridView: React.FC<ArtistGridViewProps> = ({
                     <ChevronLeft size={20} />
                 </button>
                 {offers('enqueue-scope') && (
-                    <button
-                        type="button"
+                    <ArtistHeaderPillButton
+                        icon={<ListPlus size={16} />}
+                        label={t('artistGrid.addTopSongsToQueue')}
                         onClick={() => artistActions.enqueueScope()}
                         disabled={!capabilities['enqueue-scope'].enabled}
-                        className={`h-10 w-10 sm:w-auto sm:px-4 rounded-full ${closeBtnBg} flex items-center justify-center gap-1.5 text-xs font-semibold transition-colors backdrop-blur-md cursor-pointer disabled:opacity-40 disabled:cursor-default`}
-                        style={{ color: 'var(--text-primary)' }}
-                        title={t('artistGrid.addTopSongsToQueue')}
-                        aria-label={t('artistGrid.addTopSongsToQueue')}
-                    >
-                        <ListPlus size={16} />
-                        <span className="hidden sm:inline">{t('artistGrid.addTopSongsToQueue')}</span>
-                    </button>
+                        toneClassName={closeBtnBg}
+                        dataAction="enqueue-scope"
+                    />
+                )}
+                {offers('open-all-songs') && (capabilities['open-all-songs'].enabled || capabilities['open-all-songs'].reason === 'loading') && (
+                    // #918：热门歌曲只有 10 首，不在任何专辑里的单曲只在「全部歌曲」那一层看得到。
+                    // 加载中先画成不可点；读完确定没有更多歌时不出现（与 Bravais 海报上的按钮一致）。
+                    <ArtistHeaderPillButton
+                        icon={<ListMusic size={16} />}
+                        label={t('artistGrid.allSongs')}
+                        onClick={() => {
+                            // 不是从卡片打开的：丢掉观察窗口里刚点过的那张卡（例如刚播的热门歌曲），
+                            // 新一层按普通的级联入场，不把那张卡的封面飞过去。
+                            useCollectionMorphStore.getState().ackPending();
+                            artistActions.openAllSongs();
+                        }}
+                        disabled={!capabilities['open-all-songs'].enabled}
+                        toneClassName={closeBtnBg}
+                        dataAction="open-all-songs"
+                    />
                 )}
             </div>
 

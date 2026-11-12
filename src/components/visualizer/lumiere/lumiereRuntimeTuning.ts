@@ -1,5 +1,6 @@
 // Copyright (c) 2026 chthollyphile
-import type { LumiereRenderQuality, LumiereTuning } from '../../../types';
+import type { LumiereRenderQuality, LumiereTuning, LyricRenderScale } from '../../../types';
+import { resolveLyricPixelRatio } from '../../../utils/lyricRenderQuality';
 import { snapResolutionToTexturePool } from '../pixi/pixiTextureBudget';
 import type { LumiereProgramOptions } from './lumiereProgram';
 import type { LumiereSceneTuning } from './types';
@@ -11,6 +12,9 @@ import type { LumiereSceneTuning } from './types';
 // 画质档只动开销最大的那一块：图形组（光场着色器 + 烟雾 fbm + 图形组 bloom 的整条降采样链）。
 // 图形组本来就是整屏的柔光与烟雾，低频为主，降分辨率几乎看不出来；文字组、画框和片尾卡的字仍按满分辨率
 // 光栅化与合成，所以歌词保持清晰。见 resolveLumiereGraphicsResolution。
+//
+// 分辨率倍数（#929，全局挡位 / 样式覆盖）先乘在渲染分辨率上（resolveLumiereScaledRenderResolution），
+// 画质档再从乘过的渲染分辨率往下降图形组：两者相乘，互不覆盖。
 
 export interface LumiereQualityProfile {
     /** 图形组相对渲染分辨率的倍率（按轴）；像素数是它的平方。 */
@@ -43,6 +47,14 @@ export const resolveLumiereRenderResolution = (devicePixelRatio: number | undefi
     const ratio = typeof devicePixelRatio === 'number' && Number.isFinite(devicePixelRatio) ? devicePixelRatio : 1;
     return Math.min(LUMIERE_MAX_RENDER_RESOLUTION, Math.max(1, ratio));
 };
+
+/**
+ * 实际的渲染分辨率：上面的 base（dpr 钳在 1..2）乘上用户选的分辨率倍数（>1 时封顶 3，见 utils/lyricRenderQuality.ts）。
+ * 倍数为 1 时与没有这个设置时完全一样。
+ */
+export const resolveLumiereScaledRenderResolution = (devicePixelRatio: number | undefined, scale: LyricRenderScale) => (
+    resolveLyricPixelRatio(resolveLumiereRenderResolution(devicePixelRatio), scale)
+);
 
 /**
  * 图形组 filter 的分辨率：满画质时就是渲染分辨率；降档时乘上倍率，再按 Pixi 纹理池的 2 的幂分桶往下吸附

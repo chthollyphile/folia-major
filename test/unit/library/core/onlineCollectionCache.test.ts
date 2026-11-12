@@ -42,6 +42,10 @@ describe('online tracks cache keys', () => {
         // 前缀不变：歌词导出与缓存分类按 `playlist_tracks_` 找它们。
         expect(resolveOnlineTracksCacheSuffix({ type: 'daily_recommendations', id: 'daily_recommendations' }))
             .toMatch(/^playlist_tracks_/);
+        // An artist's every song (#918) has the artist's id: it must not land on a playlist of the same id.
+        expect(resolveOnlineTracksCacheSuffix({ type: 'artist_songs', id: 42 })).toBe('playlist_tracks_artist_songs_42');
+        // It has no version, so a snapshot of it is never taken as current.
+        expect(resolveOnlineTracksTargetTime({})).toBe(0);
     });
 
     it('takes the tracks update time first, then the collection update time', () => {

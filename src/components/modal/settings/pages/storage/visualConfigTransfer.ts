@@ -2,10 +2,13 @@ import { applyVisualizerTuningsToSettings } from '../../../../visualizer/tuningR
 import { importFoliumParams, snapshotFoliumParams } from '../../../../../mods/params/paramStore';
 import { buildVisualSettingsConfig } from '../../../../../services/obs/visualSettingsConfig';
 import { isThemeGenerationSource, type ThemeGenerationSource } from '../../../../../services/themePreferences';
+import { useLatticeSettingsStore } from '../../../../../stores/useLatticeSettingsStore';
 import { useLibraryWallLookStore } from '../../../../../stores/useLibraryWallLookStore';
 import { usePlayerChromeSettingsStore } from '../../../../../stores/usePlayerChromeSettingsStore';
+import { isScratchpadHandleStyle, useScratchpadSettingsStore } from '../../../../../stores/useScratchpadSettingsStore';
 import { useStageSettingsStore } from '../../../../../stores/useStageSettingsStore';
 import { useThemeSettingsStore } from '../../../../../stores/useThemeSettingsStore';
+import { normalizeLyricRenderQuality } from '../../../../../utils/lyricRenderQuality';
 import { useTypographySettingsStore } from '../../../../../stores/useTypographySettingsStore';
 import { useVisualizerAssetStore } from '../../../../../stores/useVisualizerAssetStore';
 import { useVisualizerSettingsStore } from '../../../../../stores/useVisualizerSettingsStore';
@@ -137,6 +140,9 @@ export const applyImportedConfig = (config: any, keys: string[], theme: ConfigTh
     }
     if (has('visualizerOpacity')) {
         storeVisualizer.handleSetVisualizerOpacity(config.visualizerOpacity);
+    }
+    if (has('lyricRenderQuality')) {
+        storeVisualizer.handleSetLyricRenderQuality(normalizeLyricRenderQuality((config as { lyricRenderQuality?: unknown }).lyricRenderQuality));
     }
     if (has('playerHeaderBlur')) {
         usePlayerChromeSettingsStore.getState().handleTogglePlayerHeaderBlur(Boolean(config.playerHeaderBlur));
@@ -330,6 +336,9 @@ export const applyImportedConfig = (config: any, keys: string[], theme: ConfigTh
     if (has('stageTrackPillOnHome')) {
         storeStageSettings.handleToggleStageTrackPillOnHome(Boolean(config.stageTrackPillOnHome));
     }
+    if (has('stageTrackPillInObs')) {
+        storeStageSettings.handleToggleStageTrackPillInObs(Boolean(config.stageTrackPillInObs));
+    }
     // The bravais wall: the collections' stack edges, the seam's material and direction, and the picture behind
     // the wall, through the setters the Bravais group on the 主页与歌单 page uses. The seam style
     // is taken only when it is a known preset, as the import plan's guard does.
@@ -351,5 +360,13 @@ export const applyImportedConfig = (config: any, keys: string[], theme: ConfigTh
     }
     if (has('libraryWallSeamDirection') && isLibraryWallSeamDirection(config.libraryWallSeamDirection)) {
         storeLibraryWall.setSeamDirection(config.libraryWallSeamDirection);
+    }
+    // The scratchpad side tab's resting look (the 主页与歌单 page's scratchpad group writes it).
+    if (has('scratchpadHandleStyle') && isScratchpadHandleStyle(config.scratchpadHandleStyle)) {
+        useScratchpadSettingsStore.getState().setHandleStyle(config.scratchpadHandleStyle);
+    }
+    // Numbering only the playing song, on both tile walls (the 播放页 page's tile wall group writes it).
+    if (has('latticeBadgeCurrentOnly')) {
+        useLatticeSettingsStore.getState().handleToggleLatticeBadgeCurrentOnly(Boolean(config.latticeBadgeCurrentOnly));
     }
 };

@@ -14,6 +14,7 @@ import { canResolveSongCatalogRef } from '../../../services/onlineMusic/catalogR
 import { useGridCommandFilter } from '../../../hooks/useGridCommandFilter';
 import { setStatusMessage } from '../../../stores/useStatusMessageStore';
 import { colorWithAlpha } from '../../../components/visualizer/colorMix';
+import { PRIMARY_MODIFIER_LABEL } from '../../../utils/platform';
 import LibraryTuiArtistHeader from './LibraryTuiArtistHeader';
 import {
     LIBRARY_TUI_ARTIST_ALBUM_COLUMNS,
@@ -309,7 +310,7 @@ const LibraryTuiArtist: React.FC<LibraryArtistSurfaceProps> = ({
                 </>
             )}
             <footer className="shrink-0 border-t border-current/10 px-4 py-1.5 text-[11px] opacity-50">
-                {t('libraryTui.artistHints')}
+                {t('libraryTui.artistHints', { mod: PRIMARY_MODIFIER_LABEL })}
                 {(canOpenAlbum || canOpenArtist) && ` · ${t('libraryTui.hintOpenLinks')}`}
             </footer>
         </div>

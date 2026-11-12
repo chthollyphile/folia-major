@@ -73,6 +73,8 @@ export interface SchedulerOptions {
     /** Frame gaps (ms) while a unit runs, from `watchFrames`; absent in tests and off the renderer. */
     frames?: FrameWatch | null;
     log?: (line: string) => void;
+    /** Told when a unit starts (true) and ends (false): gpuActivity.ts, for visualizers that adapt to frame time. */
+    onUnit?: (active: boolean) => void;
 }
 
 /** A unit's or a load's time, before any has been measured: rough M4 figures, replaced by the first measurement. */
@@ -110,7 +112,7 @@ export interface Scheduler {
 
 const hasDeadline = (request: UnitRequest<unknown>) => request.deadline !== undefined && Number.isFinite(request.deadline);
 
-export const createScheduler = ({ now = () => performance.now(), isLoaded = () => true, frames = null, log = line => console.info(line) }: SchedulerOptions = {}): Scheduler => {
+export const createScheduler = ({ now = () => performance.now(), isLoaded = () => true, frames = null, log = line => console.info(line), onUnit }: SchedulerOptions = {}): Scheduler => {
     const queue: Entry[] = [];
     const averages = new Map<string, number>();
     const loads = new Map<string, number>();
@@ -217,6 +219,7 @@ export const createScheduler = ({ now = () => performance.now(), isLoaded = () =
         running = { kind: request.kind, started };
         loadedDuringUnit = 0;
         frames?.begin();
+        onUnit?.(true);
         // Measured before the caller hears back, so whatever it asks next is estimated with this unit in.
         const finish = (answered: boolean) => {
             const took = now() - started - loadedDuringUnit;
@@ -239,6 +242,7 @@ export const createScheduler = ({ now = () => performance.now(), isLoaded = () =
             }
             running = null;
             busy = false;
+            onUnit?.(false);
         };
         let pending: Promise<unknown>;
         try {

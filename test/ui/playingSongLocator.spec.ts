@@ -96,6 +96,8 @@ test('"playing from" on the panel leads from the player back to the collection a
     await watchStatus(page);
 
     await page.getByTestId('panel-toggle').locator('button').last().click();
+    // 面板默认开在控制页，封面在封面页。
+    await page.locator('[data-ponder-panel-tab-button="cover"]').click();
     const cover = page.locator('[data-ponder-panel-artwork]');
     await expect(cover).toBeVisible();
     // The pointer over the cover shows what stands on it; where there is no hover, a tap on the cover does.
@@ -121,6 +123,8 @@ test('a queue started with "play all" on a collection page is of that collection
     await page.getByRole('button', { name: 'Play All' }).click();
     await expect.poll(() => view(page)).toBe('player');
     await page.getByTestId('panel-toggle').locator('button').last().click();
+    // 面板默认开在控制页，封面在封面页。
+    await page.locator('[data-ponder-panel-tab-button="cover"]').click();
     const cover = page.locator('[data-ponder-panel-artwork]');
     await expect(cover).toBeVisible();
     await cover.click();
@@ -184,6 +188,8 @@ const goToNavidromeAlbum = async (page: Page, album: string, refused: Set<string
     await watchStatus(page);
 
     await page.getByTestId('panel-toggle').locator('button').last().click();
+    // 面板默认开在控制页，封面在封面页。
+    await page.locator('[data-ponder-panel-tab-button="cover"]').click();
     const cover = page.locator('[data-ponder-panel-artwork]');
     await expect(cover).toBeVisible();
     await cover.click();

@@ -17,7 +17,7 @@ import type {
 // 在线账户 controller 的默认装配：登录的 auth 转给 omni 的同名方法（外加不再给登录请求计时的那一个）；provider
 // 列表与当前平台读 useOnlineProviderAccountStore + omni（mod 源增删经 omni.subscribeProviders）；读账号走
 // omni.readAccount（services/onlineMusic/account/accountRead）；时钟用 window 定时器；诊断环境读 __APP_VERSION__、
-// navigator 与构建来源。退出、退出前的那一问与清空播放器属于宿主（App），由调用方以函数形状传入。
+// navigator 与构建来源。退出、退出前的那一问与播放器端口属于宿主（App），由调用方以函数形状传入。
 // 单测给 createProviderAccountController 注入假端口，不经过这里。
 
 /** 登录的 auth：omni 的同名方法（经 omni.xxx() 调用，this 仍是 omni）。 */
@@ -36,6 +36,11 @@ export const omniAccountAuthPort: LibraryAccountAuthPort = {
     canRunLoginSelfCheck: providerId => omni.canRunLoginSelfCheck(providerId),
     runLoginSelfCheck: providerId => omni.runLoginSelfCheck(providerId),
     getProviderCapabilities: providerId => omni.getProviderCapabilities(providerId),
+    checksAfterLogin: providerId => omni.checksAfterLogin(providerId),
+    checkAfterLogin: (providerId, methodId) => omni.checkAfterLogin(providerId, methodId),
+    hasSetup: providerId => omni.hasSetup(providerId),
+    getSetup: providerId => omni.getSetup(providerId),
+    runSetupAction: (providerId, stepId, actionId, value) => omni.runSetupAction(providerId, stepId, actionId, value),
     dropRequestLimits: dropLoginRequestLimits,
 };
 
@@ -58,11 +63,18 @@ export const accountStorePort: LibraryAccountStorePort = {
 
 /**
  * 读账号：登录确认之后读到了、或者读到了人却没读到歌单（登录本身成了）都算成；平台说没人登录、问不到是没读到。
- * 切过去之后只读，不判。readAccount 从不 reject。
+ * 切过去之后只读，不判。同步数据要人和歌单都读到才算成。readAccount 从不 reject。
  */
 export const readProviderAccount: LibraryProviderAccountPort['refresh'] = async (providerId, reason) => {
     const outcome = await omni.readAccount(providerId, reason);
-    return reason === 'switch' || outcome === 'read' || outcome === 'not read';
+    if (reason === 'switch') return true;
+    if (reason === 'sync') return outcome === 'read';
+    return outcome === 'read' || outcome === 'not read';
+};
+
+/** 提交表单式登录（FormLogin 渲染的字段）：转 omni.submitLoginForm，失败抛 OnlineProviderError。 */
+export const submitProviderLoginForm: LibraryProviderAccountPort['submitLoginForm'] = async (providerId, values) => {
+    await omni.submitLoginForm(providerId, values);
 };
 
 /** window 定时器（调用时才读 window，模块加载不依赖浏览器环境）。 */
@@ -89,7 +101,7 @@ export const resolveLoginDiagnosticsEnvironment = (): LibraryLoginDiagnosticsEnv
 
 /**
  * 宿主提供的端口（可以用 ref 指向每次渲染的最新实现）：退出与退出前的那一问（App 的 useProviderSignOut），
- * 平台换了时清空播放器（app/createLibraryAccountPort）。
+ * 平台换了时的播放器端口（app/createLibraryAccountPort）。
  */
 export type ProviderAccountHostPorts = {
     logout: LibraryProviderAccountPort['logout'];
@@ -104,6 +116,7 @@ export const createProviderAccountDeps = (host: ProviderAccountHostPorts): Libra
     accounts: accountStorePort,
     providerAccounts: {
         refresh: readProviderAccount,
+        submitLoginForm: submitProviderLoginForm,
         logout: host.logout,
         confirmLogout: host.confirmLogout,
     },

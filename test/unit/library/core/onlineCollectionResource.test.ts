@@ -126,7 +126,8 @@ describe('online collection resource: unversioned memory reuse', () => {
         }
     });
 
-    it.each(['playlist', 'album'] as const)('reuses a loaded %s only until its original deadline', async type => {
+    // artist_songs: an artist's every song (#918), back from an album opened from it.
+    it.each(['playlist', 'album', 'artist_songs'] as const)('reuses a loaded %s only until its original deadline', async type => {
         let time = 1000;
         const descriptor = playlist({ type, tracksUpdatedAt: undefined, trackCount: 10 });
         const h = harness(songs(10), { now: () => time });
@@ -247,6 +248,62 @@ describe('online collection resource: loading', () => {
         expect(h.pages).toEqual([{ offset: 0, limit: 150 }, { offset: 150, limit: 1000 }]);
         expect(resource.getSnapshot().tracks).toHaveLength(210);
         expect(h.writes.at(-1)?.snapshotTime).toBe(TARGET_TIME);
+    });
+
+    it('reads past a stale track count while the pages say more is coming', async () => {
+        // NetEase's track pages carry no total and say "more" whenever a page comes back full; the
+        // liked list's count was read when it held 150 songs, and it holds 200 now.
+        const all = songs(200);
+        const h = harness(all, {
+            getCollectionTracks: vi.fn(async (_collection, page) => {
+                h.pages.push(page);
+                const items = all.slice(page.offset, page.offset + page.limit);
+                return { items, hasMore: items.length === page.limit, nextOffset: page.offset + items.length };
+            }),
+        });
+        const resource = createOnlineCollectionResource('k', h.deps);
+        resource.ensure(playlist({ trackCount: 150 }), {});
+        await settle();
+
+        expect(h.pages).toEqual([{ offset: 0, limit: 150 }, { offset: 150, limit: 1000 }]);
+        expect(resource.getSnapshot().tracks).toHaveLength(200);
+        expect(resource.getSnapshot().sync.status).toBe('none');
+    });
+
+    it('asks no page past the total the provider gave, even when the last page said more', async () => {
+        // Some providers say "more" whenever a page comes back full, and give their own total besides.
+        const all = songs(1150);
+        const h = harness(all, {
+            getCollectionTracks: vi.fn(async (_collection, page) => {
+                h.pages.push(page);
+                const items = all.slice(page.offset, page.offset + page.limit);
+                return { items, total: all.length, hasMore: items.length === page.limit, nextOffset: page.offset + items.length };
+            }),
+        });
+        const resource = createOnlineCollectionResource('k', h.deps);
+        resource.ensure(playlist({ trackCount: 150 }), {});
+        await settle();
+
+        expect(h.pages).toEqual([{ offset: 0, limit: 150 }, { offset: 150, limit: 1000 }]);
+        expect(resource.getSnapshot().tracks).toHaveLength(1150);
+    });
+
+    it('reads on when the first page gave a total no larger than itself and said more', async () => {
+        // A provider whose count is only the page's own count: 150 rows, "150 in all", more to come.
+        const all = songs(250);
+        const h = harness(all, {
+            getCollectionTracks: vi.fn(async (_collection, page) => {
+                h.pages.push(page);
+                const items = all.slice(page.offset, page.offset + page.limit);
+                return { items, total: items.length, hasMore: items.length === page.limit, nextOffset: page.offset + items.length };
+            }),
+        });
+        const resource = createOnlineCollectionResource('k', h.deps);
+        resource.ensure(playlist({ trackCount: undefined }), {});
+        await settle();
+
+        expect(h.pages).toEqual([{ offset: 0, limit: 150 }, { offset: 150, limit: 1000 }]);
+        expect(resource.getSnapshot().tracks).toHaveLength(250);
     });
 
     it('fills the detail track count from the page total, and keeps it when the detail has none', async () => {
@@ -480,5 +537,20 @@ describe('online collection resource: edit bridge', () => {
         await done;
         expect(resource.getSnapshot()).toMatchObject({ status: 'ready' });
         expect(ids(resource.getSnapshot().tracks)).toEqual(['history-0', 'history-1']);
+    });
+
+    it('drops the failure of the first read once a replacement comes in', async () => {
+        const h = harness(songs(5));
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+        vi.spyOn(console, 'warn').mockImplementation(() => {});
+        vi.mocked(h.deps.getCollectionTracks).mockRejectedValueOnce(new Error('offline'));
+        const resource = createOnlineCollectionResource('k', h.deps);
+        resource.ensure(playlist({ trackCount: 5 }), {});
+        await settle();
+        expect(resource.getSnapshot().status).toBe('error');
+        expect(resource.getSnapshot().error).not.toBeNull();
+
+        expect(await resource.replaceAll(async () => songs(2, 'other'))).toBe(true);
+        expect(resource.getSnapshot()).toMatchObject({ status: 'ready', error: null });
     });
 });

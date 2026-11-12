@@ -597,3 +597,126 @@ describe('Spotify requests as the account', () => {
         expect((await ask(second.bridge, '4cOdK2wGLETKBW3PvgPWqT')).ok).toBe(true);
     });
 });
+
+describe('Spotify playback ways: standard and Soloist', () => {
+    const spotify = (premium: boolean, liked: string[] = []) => (url: string, init: any) => {
+        if (url.includes('/api/token')) return json({ access_token: 'access-private', refresh_token: 'refresh-private', expires_in: 3600 });
+        if (url.includes('product_state')) return json(premium ? { catalogue: 'premium', product: 'premium' } : { catalogue: 'free' });
+        const name = JSON.parse(init.body).operationName;
+        if (name === 'profileAttributes') return json(profile);
+        if (name === 'fetchLibraryTracks') return json({ data: { me: { library: { tracks: { items: liked.map(id => ({ track: { _uri: `spotify:track:${id}` } })) } } } } });
+        return json({}, 500);
+    };
+    const fakeSoloist = () => ({
+        state: vi.fn(async () => ({ executable: null, key: 'missing', canSealKey: true, running: false, paired: false, error: null })),
+        pickExecutable: vi.fn(async () => ({ picked: true })),
+        saveKey: vi.fn(async (_key: string) => ({ saved: true })),
+        restart: vi.fn(async () => {}),
+        play: vi.fn(async (_asked: unknown) => {}),
+        pause: vi.fn(async () => {}),
+        resume: vi.fn(async () => {}),
+        seek: vi.fn(async (_ms: number) => {}),
+        setVolume: vi.fn(async (_volume: number) => {}),
+        setRepeatOne: vi.fn<(enabled: boolean) => void>(),
+        status: vi.fn(() => ({ running: true, paired: true, uri: null, status: 'idle', positionMs: 0, durationMs: 0, ended: false })),
+        shutdown: vi.fn(() => Promise.resolve()),
+    });
+    const build = ({ premium = true, liked = [] as string[], withSoloist = true, openSession }: { premium?: boolean; liked?: string[]; withSoloist?: boolean; openSession?: any } = {}) => {
+        const store = createStore();
+        const server = fakeServer();
+        const fetch = vi.fn(async (url: string, init: any) => spotify(premium, liked)(String(url), init));
+        const openExternal = vi.fn(async (_url: string) => {});
+        const logs: string[] = [];
+        const record = (...args: unknown[]) => { logs.push(args.join(' ')); };
+        const now = () => 1_000_000;
+        const signIn = createSpotifySignIn({ fetch, openExternal, now, createServer: () => server, log: record, warn: record });
+        const soloist = withSoloist ? fakeSoloist() : undefined;
+        const bridge = createSpotifyApiBridge({ store, safeStorage: cipher(), fetch, openExternal, now, log: record, warn: record, signIn, openSession, soloist });
+        const signInWith = async (method?: string) => {
+            const started = await bridge.request('login_start', method ? { method } : {});
+            const key = started.data.key;
+            await bridge.request('login_open', { key });
+            await server.visit(`/login?code=the-code&state=${encodeURIComponent(stateOf(openExternal).get('state')!)}`);
+            expect(await bridge.request('login_check', { key })).toEqual({ ok: true, data: { state: 'confirmed' } });
+        };
+        return { bridge, store, soloist, logs, openExternal, signInWith };
+    };
+
+    // A window rebuild that hands nothing on: nobody follows Soloist's playback any more.
+    it('pauses Soloist for the main process, and does nothing where Soloist is not offered', async () => {
+        const offered = build();
+        await offered.bridge.pauseSoloist();
+        expect(offered.soloist!.pause).toHaveBeenCalledTimes(1);
+        await expect(build({ withSoloist: false }).bridge.pauseSoloist()).resolves.toBeUndefined();
+    });
+
+    it('plays the standard way unless Soloist is offered and picked', async () => {
+        const without = build({ withSoloist: false });
+        expect(await without.bridge.request('playback_mode', { mode: 'soloist' })).toEqual({ ok: true, data: { mode: 'standard', soloist: false } });
+        expect(await without.bridge.request('soloist_state')).toMatchObject({ ok: false, error: { code: 'unsupported' } });
+
+        const offered = build();
+        expect(await offered.bridge.request('playback_mode')).toEqual({ ok: true, data: { mode: 'standard', soloist: true } });
+        expect(await offered.bridge.request('playback_mode', { mode: 'soloist' })).toEqual({ ok: true, data: { mode: 'soloist', soloist: true } });
+        expect(await offered.bridge.request('playback_mode', { mode: 'carrier-pigeon' })).toEqual({ ok: true, data: { mode: 'soloist', soloist: true } });
+    });
+
+    it('keeps the way picked with a sign-in once Spotify approves it', async () => {
+        const { bridge, signInWith } = build();
+        await signInWith('soloist');
+        expect((await bridge.request('playback_mode')).data.mode).toBe('soloist');
+        await signInWith('standard');
+        expect((await bridge.request('playback_mode')).data.mode).toBe('standard');
+        await signInWith();
+        expect((await bridge.request('playback_mode')).data.mode).toBe('standard');
+    });
+
+    it('probes the audio key with the latest liked songs, and not for Soloist or a free account', async () => {
+        const resolveAudioFileAsync = vi.fn(async () => ({ cdnUrl: 'https://cdn.test/f', keyHex: '00'.repeat(16), format: 'OGG_VORBIS_160' }));
+        const openSession = vi.fn(async () => ({ resolveAudioFileAsync, close: vi.fn(async () => {}) }));
+        const premium = build({ liked: ['1111111111111111111111'], openSession });
+        await premium.signInWith('standard');
+        expect(await premium.bridge.request('audio_probe')).toEqual({ ok: true, data: 'ok' });
+        expect(resolveAudioFileAsync).toHaveBeenCalledWith({ uri: 'spotify:track:1111111111111111111111', bitrate: 160 });
+
+        const free = build({ premium: false, openSession });
+        await free.signInWith('standard');
+        expect(await free.bridge.request('audio_probe')).toEqual({ ok: true, data: 'free' });
+
+        const soloist = build({ openSession });
+        await soloist.signInWith('soloist');
+        expect(await soloist.bridge.request('audio_probe')).toEqual({ ok: true, data: 'skipped' });
+        expect(resolveAudioFileAsync).toHaveBeenCalledTimes(1);
+    });
+
+    it('hands Soloist the requests for it, opens only its own pages, and never logs its key', async () => {
+        const { bridge, soloist, logs, openExternal } = build();
+        expect(await bridge.request('soloist_play', { id: '4cOdK2wGLETKBW3PvgPWqT', startMs: 12_000, durationMs: 200_000 })).toEqual({ ok: true, data: true });
+        expect(soloist!.play).toHaveBeenCalledWith({ uri: 'spotify:track:4cOdK2wGLETKBW3PvgPWqT', startMs: 12_000, durationMs: 200_000 });
+        expect(await bridge.request('soloist_play', { id: 'nope' })).toMatchObject({ ok: false });
+        await bridge.request('soloist_seek', { positionMs: 5000 });
+        await bridge.request('soloist_volume', { volume: 30 });
+        expect(soloist!.seek).toHaveBeenCalledWith(5000);
+        expect(soloist!.setVolume).toHaveBeenCalledWith(30);
+        expect(await bridge.request('soloist_repeat', { enabled: true })).toEqual({ ok: true, data: true });
+        expect(soloist!.setRepeatOne).toHaveBeenCalledWith(true);
+        expect(await bridge.request('soloist_repeat', { enabled: 'yes' })).toMatchObject({ ok: false });
+        expect(soloist!.setRepeatOne).toHaveBeenCalledTimes(1);
+
+        await bridge.request('soloist_open', { page: 'download' });
+        expect(openExternal).toHaveBeenLastCalledWith('https://developer.spotify.com/documentation/soloist/reference/downloads-and-updates');
+        expect(await bridge.request('soloist_open', { page: 'https://elsewhere.test' })).toMatchObject({ ok: false });
+
+        soloist!.saveKey.mockRejectedValueOnce(new Error('keychain went away'));
+        expect(await bridge.request('soloist_key', { key: 'sk-private-key' })).toMatchObject({ ok: false });
+        expect(logs.join('\n')).not.toContain('sk-private-key');
+    });
+
+    it('stops Soloist when the app quits', async () => {
+        const { bridge, soloist } = build();
+        await expect(bridge.shutdown()).resolves.toBeUndefined();
+        expect(soloist!.shutdown).toHaveBeenCalled();
+        const idle = build({ withSoloist: false });
+        expect(idle.bridge.shutdown()).toBeNull();
+    });
+});

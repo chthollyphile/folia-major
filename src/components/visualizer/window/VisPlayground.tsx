@@ -120,7 +120,7 @@ const clampFontScale = (value: number) => Math.min(1.4, Math.max(0.85, value));
 
 
 /** How many pictures of lyric styles lie side by side under the sample: in the wide window, and where it is one column. */
-const SHELF_COLUMNS = { wide: 7, narrow: 4 };
+export const SHELF_COLUMNS = { wide: 7, narrow: 4 };
 
 const VisPlayground: React.FC<VisPlaygroundProps> = ({
     theme,

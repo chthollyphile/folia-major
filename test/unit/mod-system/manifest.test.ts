@@ -167,6 +167,35 @@ describe('validateManifest Folium entries and opt-ins', () => {
         expect(result.value.permissions).toEqual(['equalizer.control']);
     });
 
+    // Folium 1.8: folium.visualizer.setRenderQuality; no opt-in and no other permission goes with it.
+    it('accepts visualizer.renderQuality on its own', () => {
+        const result = validateManifest({ ...validManifest, permissions: ['visualizer.renderQuality'] });
+        expect(result.ok).toBe(true);
+        expect(result.value.permissions).toEqual(['visualizer.renderQuality']);
+    });
+
+    // Folium 1.8: folium.visualizer.setMode / setTuning / setBeatEffects, each its own permission.
+    it('accepts visualizer.mode, visualizer.tuning and visualizer.beatEffects, alone or together', () => {
+        for (const permission of ['visualizer.mode', 'visualizer.tuning', 'visualizer.beatEffects']) {
+            const result = validateManifest({ ...validManifest, permissions: [permission] });
+            expect(result.ok, permission).toBe(true);
+            expect(result.value.permissions).toEqual([permission]);
+        }
+        const all = ['visualizer.renderQuality', 'visualizer.mode', 'visualizer.tuning', 'visualizer.beatEffects'];
+        expect(validateManifest({ ...validManifest, permissions: all }).value.permissions).toEqual(all);
+    });
+
+    // Folium 1.9: folium.visualizer.setBackground / setAnimationIntensity, each its own permission.
+    it('accepts visualizer.background and visualizer.animationIntensity, alone or together', () => {
+        for (const permission of ['visualizer.background', 'visualizer.animationIntensity']) {
+            const result = validateManifest({ ...validManifest, permissions: [permission] });
+            expect(result.ok, permission).toBe(true);
+            expect(result.value.permissions).toEqual([permission]);
+        }
+        const both = ['visualizer.background', 'visualizer.animationIntensity'];
+        expect(validateManifest({ ...validManifest, permissions: both }).value.permissions).toEqual(both);
+    });
+
     it('accepts an optional preview image path inside the mod directory', () => {
         expect(validateManifest({ ...validManifest, preview: 'preview.jpg' }).ok).toBe(true);
         expect(validateManifest({ ...validManifest, preview: 'assets/cover.webp' }).ok).toBe(true);

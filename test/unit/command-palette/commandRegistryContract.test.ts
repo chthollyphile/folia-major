@@ -124,7 +124,7 @@ describe('command palette registry contract', () => {
         // 旧的「必须有拉丁关键词」真正想保证的东西：不会中文输入也能把每条命令搜出来。
         // 直接验结果，而不是验有没有那个字段。
         // 总体用「无 context 时实际可用的命令」，而不是全部静态命令：少数命令的 isAvailable
-        // 在没有 context 时刻意返回 false（playback-fm-mode 的 `?? false`），它们压根不进
+        // 在没有 context 时刻意返回 false（playback-fm-mode、playback-station-mode），它们压根不进
         // 可用集，搜不到是门控的结果而不是检索的缺陷。
         const reachablePopulation = getAvailableCommandPaletteCommands()
             .filter(command => command.textSource !== 'runtime' && !command.hidden);

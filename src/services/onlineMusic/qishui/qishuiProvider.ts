@@ -17,7 +17,7 @@ import { describeQishuiFailure } from './qishuiFailure';
 // Dropped together whenever the account changes: confirmed, signed out, or the sign-in ran out.
 function clearAccountState() { clearQishuiExplore(); clearQishuiRecommendations(); clearQishuiPlayback(); }
 export const qishuiProvider: OnlineMusicProvider = {
-    id: 'qishui', displayName: '汽水音乐', shortName: '汽水', mark: { letter: '汽', color: '#19a58c' },
+    id: 'qishui', displayName: '汽水音乐', shortName: '汽水', shortNameKey: 'onlineProviderName.qishui', mark: { letter: '汽', color: '#19a58c' },
     getAvailability: getQishuiAvailability,
     capabilities: { search: true, playback: true, lyrics: true, wordByWordLyrics: true, auth: true,
         userLibrary: true, playlists: true, albums: false, artists: true, recommendations: true,
@@ -31,6 +31,19 @@ export const qishuiProvider: OnlineMusicProvider = {
             if (!query.trim()) return { items: [], hasMore: false, nextOffset: offset };
             const page = await requestQishui<ProviderPage<unknown>>('search', { query, limit, offset });
             return { ...page, items: await readQishuiSongs(page.items) };
+        },
+        // 车机接口搜得到歌单（search_playlists，条目是 search 结果里的 playlist 实体，与 user_playlists 同一种），
+        // 没有专辑。读不出 id 的条目跳过，不让一条坏数据拖垮整页。
+        async searchPlaylists(query, limit, offset) {
+            if (!query.trim()) return { items: [], hasMore: false, nextOffset: offset };
+            const page = await requestQishui<ProviderPage<unknown>>('search_playlists', { query, limit, offset });
+            const items = page.items.flatMap(item => {
+                try { return [normalizeQishuiCollection(item)]; } catch (error) {
+                    console.warn('[QishuiProvider] Skipped a searched playlist without an id', error);
+                    return [];
+                }
+            });
+            return { ...page, items };
         },
     },
     playback: qishuiPlayback,

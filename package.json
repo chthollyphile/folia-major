@@ -8,7 +8,7 @@
     "email": "chthollyphile@users.noreply.github.com"
   },
   "private": true,
-  "version": "0.7.25",
+  "version": "0.7.28",
   "license": "AGPL-3.0",
   "type": "module",
   "main": "electron/main.cjs",
@@ -28,6 +28,21 @@
     "folium:new": "node dev/folium/new.mjs",
     "folium:check": "node dev/folium/check.mjs",
     "codemap:check": "node dev/mcp/ts-code-map/codemap.mjs --check",
+    "dedicatus": "node dev/dedicatus/cli.mjs",
+    "lint": "node dev/dedicatus/cli.mjs --lint",
+    "lint:install": "npm ci --prefix dev/dedicatus/lint --no-audit --no-fund",
+    "lint:fix": "node dev/dedicatus/eslint/eslint.mjs --fix",
+    "lint:fix-style": "node dev/dedicatus/eslint/fixStyle.mjs",
+    "lint:prune": "node dev/dedicatus/eslint/prune.mjs",
+    "coven:scope": "node packages/coven/bin/coven.mjs scope",
+    "coven:state": "node packages/coven/bin/coven.mjs state",
+    "coven:claim": "node packages/coven/bin/coven.mjs claim",
+    "coven:prompt": "node packages/coven/bin/coven.mjs prompt",
+    "coven:contract": "node packages/coven/bin/coven.mjs contract",
+    "coven:verify": "node packages/coven/bin/coven.mjs verify",
+    "coven:pr": "node packages/coven/bin/coven.mjs pr",
+    "coven:setup": "node packages/coven/bin/coven.mjs setup",
+    "coven:compass": "node packages/coven/bin/coven.mjs compass",
     "test": "vitest run -c vitest.config.ts",
     "test:unit": "vitest run -c vitest.config.ts",
     "test:unit:watch": "vitest -c vitest.config.ts",
@@ -48,7 +63,7 @@
     "dev:electron": "cross-env ELECTRON_DEV=true FOLIA_WINDOWTOLAYER_PATH=build/windowtolayer FOLIA_WALLPAPER_HELPER_PATH=build/folia-wallpaper-helper.exe concurrently -k \"vite\" \"wait-on tcp:3000 && electron .\"",
     "dev:electron:update-preview": "cross-env ELECTRON_DEV=true FOLIA_DEV_UPDATE_PREVIEW=true FOLIA_WINDOWTOLAYER_PATH=build/windowtolayer FOLIA_WALLPAPER_HELPER_PATH=build/folia-wallpaper-helper.exe concurrently -k \"vite\" \"wait-on tcp:3000 && electron .\"",
     "dev:electron:wallpaper": "npm run build:windowtolayer && npm run build:wallpaper-helper && npm run dev:electron",
-    "dev:electron:dist": "cross-env ELECTRON_DEV=false ELECTRON=true ELECTRON_LINUX_PACKAGED_GRAPHICS=true FOLIA_WINDOWTOLAYER_PATH=build/windowtolayer vite build && electron .",
+    "dev:electron:dist": "node build/fetchSteamAudio.mjs --optional && cross-env ELECTRON_DEV=false ELECTRON=true ELECTRON_LINUX_PACKAGED_GRAPHICS=true FOLIA_WINDOWTOLAYER_PATH=build/windowtolayer vite build && electron .",
     "dev:electron:dist:sourcemap": "cross-env-shell ELECTRON_DEV=false ELECTRON=true NODE_OPTIONS=--enable-source-maps FOLIA_WINDOWTOLAYER_PATH=build/windowtolayer \"vite build --sourcemap && electron .\"",
     "dev:electron:dist:swiftshader": "cross-env ELECTRON_DEV=false ELECTRON=true ELECTRON_LINUX_PACKAGED_GRAPHICS=true FOLIA_LINUX_GRAPHICS_MODE=swiftshader FOLIA_WINDOWTOLAYER_PATH=build/windowtolayer vite build && electron .",
     "dev:electron:dist:software": "cross-env ELECTRON_DEV=false ELECTRON=true ELECTRON_LINUX_PACKAGED_GRAPHICS=true FOLIA_LINUX_GRAPHICS_MODE=software FOLIA_WINDOWTOLAYER_PATH=build/windowtolayer vite build && electron .",
@@ -60,6 +75,7 @@
     "contributors:add": "npx all-contributors-cli add",
     "contributors:generate": "npx all-contributors-cli generate",
     "models:fetch": "node build/fetchModels.mjs",
+    "steam-audio:fetch": "node build/fetchSteamAudio.mjs",
     "manual:ai-probe": "node test/manual/ai_probe.mjs"
   },
   "build": {
@@ -109,6 +125,14 @@
         "filter": [
           "*folia_mnn.*"
         ]
+      },
+      {
+        "from": "build/steam-audio/${os}-${arch}",
+        "to": "steam-audio"
+      },
+      {
+        "from": "build/steamAudio.LICENSE.md",
+        "to": "steam-audio/LICENSE.md"
       },
       {
         "from": "models",
@@ -167,6 +191,10 @@
         {
           "from": "build/mac-helper/darwin-${arch}",
           "to": "."
+        },
+        {
+          "from": "build/apple-music-native/darwin-${arch}/FoliaAppleMusicCompanion.app",
+          "to": "apple-music/FoliaAppleMusicCompanion.app"
         }
       ],
       "target": [
@@ -200,6 +228,17 @@
           "to": ".",
           "filter": [
             "folia-wallpaper-helper.exe"
+          ]
+        },
+        {
+          "from": "build/apple-music-native/windows",
+          "to": "apple-music/windows",
+          "filter": [
+            "FoliaAppleMusicCompanion.exe",
+            "FoliaAppleMusicCompanion.exe.config",
+            "Microsoft.Web.WebView2.Core.dll",
+            "Microsoft.Web.WebView2.WinForms.dll",
+            "WebView2Loader.dll"
           ]
         }
       ]
@@ -247,7 +286,7 @@
     "@google/genai": "^2.24.0",
     "@neteasecloudmusicapienhanced/api": "4.41.1",
     "@xhayper/discord-rpc": "^1.5.1",
-    "@yakult-green-tea/qq-music-api": "3.3.3",
+    "@yakult-green-tea/qq-music-api": "3.3.6",
     "axios": "^1.20.0",
     "bgutils-js": "4.0.3",
     "bodian-music-api": "0.1.2",
@@ -334,5 +373,8 @@
   },
   "optionalDependencies": {
     "@lox-audioserver/node-librespot": "0.5.1"
+  },
+  "coven": {
+    "config": "dev/coven/config.json"
   }
 }

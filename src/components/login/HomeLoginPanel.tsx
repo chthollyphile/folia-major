@@ -2,6 +2,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import type { LibraryAccountController } from '../../library/core/account/account.contract';
 import { useLibraryAccountProviders } from '../../library/core/account/useLibraryAccount';
+import { providerDisplayName } from '../../i18n/providerName';
 import { settingsTokens, useSettingsKitTheme } from '../modal/settings/kit/kitTheme';
 import { kitMotionTokens, useKitReducedMotion } from '../modal/settings/kit/motion';
 import { openLoginWindow } from './loginWindowStore';
@@ -39,7 +40,7 @@ const HomeLoginPanel: React.FC<HomeLoginPanelProps> = ({ account }) => {
             </h2>
             <p className="login-rise mt-2 max-w-[516px] whitespace-pre-line text-[13px] leading-5 text-[color:var(--st-t2)]" style={{ animationDelay: '40ms' }}>
                 {ranOut
-                    ? t('home.guestPromptProvider', { provider: active?.shortName || active?.displayName || activeProviderId })
+                    ? t('home.guestPromptProvider', { provider: active ? providerDisplayName(t, active, activeProviderId) : activeProviderId })
                     : t('home.guestPrompt')}
             </p>
             <button
@@ -52,7 +53,7 @@ const HomeLoginPanel: React.FC<HomeLoginPanelProps> = ({ account }) => {
                 <span className="flex shrink-0">
                     {marks.map((row, index) => (
                         <span key={row.providerId} className={`inline-flex rounded-full shadow-[0_0_0_2px_var(--st-accent)] ${index > 0 ? '-ml-2' : ''}`}>
-                            <PlatformMark providerId={row.providerId} label={row.shortName} size={28} />
+                            <PlatformMark providerId={row.providerId} label={providerDisplayName(t, row)} size={28} />
                         </span>
                     ))}
                 </span>

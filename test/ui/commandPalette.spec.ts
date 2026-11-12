@@ -5,11 +5,16 @@ import { APP_VERSION, GUIDE_VERSION_STORAGE_KEY, waitForAppMounted } from '../he
 // 覆盖命令面板的三类入口：默认匹配列表、surface 接管（音量 / 队列 / 模式选择器），
 // 以及执行模式的单键立即执行。这些路径在重构后不再有按 id 硬编码的分支，需要真实浏览器验证。
 
+// How long the songs say they are and how long the audio mockQueueAudio caches for them is: the same.
+// Playback drops a cached copy shorter than half its song as a preview clip (src/services/wholeSongCheck.ts)
+// and asks the platform instead, which the mocked NetEase answers with no URL, so the song never changes.
+const MOCK_SONG_SECONDS = 60;
+
 const QUEUE_FIXTURE = [
-    { id: 1, name: 'Current', artists: [{ id: 10, name: 'Alpha' }], album: { id: 20, name: 'Shared Album' }, durationMs: 180_000 },
-    { id: 2, name: 'Same Artist', artists: [{ id: 10, name: 'Alpha' }], album: { id: 21, name: 'Other Album' }, durationMs: 180_000 },
-    { id: 3, name: 'Same Album', artists: [{ id: 11, name: 'Beta' }], album: { id: 20, name: 'Shared Album' }, durationMs: 180_000 },
-    { id: 4, name: 'Other', artists: [{ id: 12, name: 'Gamma' }], album: { id: 22, name: 'Third Album' }, durationMs: 180_000 },
+    { id: 1, name: 'Current', artists: [{ id: 10, name: 'Alpha' }], album: { id: 20, name: 'Shared Album' }, durationMs: MOCK_SONG_SECONDS * 1000 },
+    { id: 2, name: 'Same Artist', artists: [{ id: 10, name: 'Alpha' }], album: { id: 21, name: 'Other Album' }, durationMs: MOCK_SONG_SECONDS * 1000 },
+    { id: 3, name: 'Same Album', artists: [{ id: 11, name: 'Beta' }], album: { id: 20, name: 'Shared Album' }, durationMs: MOCK_SONG_SECONDS * 1000 },
+    { id: 4, name: 'Other', artists: [{ id: 12, name: 'Gamma' }], album: { id: 22, name: 'Third Album' }, durationMs: MOCK_SONG_SECONDS * 1000 },
 ];
 
 // Settings live in several domain stores now, so look the key up across them rather than
@@ -181,7 +186,7 @@ test('queue command parses the batch syntax and stages a preview', async ({ page
 
 /** Seed playable audio and lyrics so queue tests exercise playback without a configured provider. */
 const mockQueueAudio = async (page: import('@playwright/test').Page) => {
-    const samples = 8_000 * 60;
+    const samples = 8_000 * MOCK_SONG_SECONDS;
     const wav = Buffer.alloc(44 + samples * 2);
     wav.write('RIFF', 0);
     wav.writeUInt32LE(wav.length - 8, 4);

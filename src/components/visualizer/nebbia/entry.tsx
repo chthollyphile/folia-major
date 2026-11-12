@@ -1,6 +1,7 @@
 import React from 'react';
 import { QuickControlChip } from '../../shared/QuickControlChip';
 import { defineVisualizer, type VisualizerQuickControlsProps } from '../definition';
+import { nebbiaBackgroundConfig, nebbiaBeatEffectOnScreen, nebbiaShowsBackground } from './nebbiaBehind';
 import NebbiaSettingsPanel, { NEBBIA_APPEAR_LABEL_KEYS, NEBBIA_FADE_LABEL_KEYS } from './NebbiaSettingsPanel';
 import nebbiaTuning from './tuning';
 import type { NebbiaTuning } from './types';
@@ -51,8 +52,9 @@ export default defineVisualizer({
         description: 'Switch to the Nebbia fogged-window writing',
         keywords: ['nebbia', 'rain window', 'fog', 'bus window', 'writing on glass', 'raindrops', '雾笺', '起雾', '玻璃写字', '公交车', '雨夜'],
     },
-    // 画面自己画窗外的夜景：不要共用背景。
-    background: false,
+    // 画面自己画窗外的夜景时不要共用背景；窗外选了共用背景、或播放页透明时照常画它（nebbiaBehind.ts）。
+    background: nebbiaBackgroundConfig,
+    showsBackground: nebbiaShowsBackground,
     usesWordSegmentation: true,
     // 智能动感模式, 疏雨轻车: one effect, two parts, both off the htdemucs run (`source: 'stems'`).
     // - rain (雨点强度): the rain follows the vocal stem (analysis/vocalEnvelope.ts) - small drops as
@@ -60,6 +62,10 @@ export default defineVisualizer({
     //   the big drops' size. Until the track is analysed it follows the 1-3.5 kHz band of the mix.
     // - bump (颠簸强度): the bus jolts on the kicks (nebbiaDrumBumps.ts) instead of at random;
     //   its strength scales the jolts. A drumless or not yet analysed track keeps the random ones.
+    // 舞潮踏拍, off Beat This!' beats, the aquarium's own (nebbiaAquarium.ts): the jellyfish pulse, the seaweed
+    // sways, a row of big bubbles rises from the sand (no random big bubbles while it is on) and the spotlight's pool swells on each beat, one strength each. Counted only while the
+    // aquarium is chosen (drawn, or refracted in the drops on a see-through page), and 疏雨轻车 only while it is not - the aquarium has no rain on the glass and no bumps
+    // (beatEffectOnScreen).
     beatEffects: [
         {
             id: BEAT_EFFECT_IDS.nebbiaDrizzleRide,
@@ -71,7 +77,20 @@ export default defineVisualizer({
                 { key: 'bump', nameKey: 'options.beatEffectPart_nebbiaBump' },
             ],
         },
+        {
+            id: BEAT_EFFECT_IDS.nebbiaAquaBeat,
+            nameKey: 'options.beatEffect_nebbiaAquaBeat',
+            descKey: 'options.beatEffect_nebbiaAquaBeatDesc',
+            source: 'beats',
+            parts: [
+                { key: 'jelly', nameKey: 'options.beatEffectPart_nebbiaJelly' },
+                { key: 'weed', nameKey: 'options.beatEffectPart_nebbiaWeed' },
+                { key: 'bubble', nameKey: 'options.beatEffectPart_nebbiaBubble' },
+                { key: 'spot', nameKey: 'options.beatEffectPart_nebbiaSpot' },
+            ],
+        },
     ],
+    beatEffectOnScreen: nebbiaBeatEffectOnScreen,
     // Its shaders compile in the background (cold, about a second on D3D11): at once when it is the saved
     // style, otherwise once the app is idle, so the first switch to it finds them in the GPU cache.
     prewarmWhenIdle: true,

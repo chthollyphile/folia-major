@@ -1,5 +1,5 @@
 import type { SongResult } from '../../../types';
-import { getPlaybackSongKey } from '../../../utils/appPlaybackGuards';
+import { getOnlineProviderIdForSong, getPlaybackSongKey } from '../../../utils/appPlaybackGuards';
 import { setCurrentSong, usePlaybackStore } from '../../../stores/usePlaybackStore';
 
 // src/components/app/playback/currentSong.ts
@@ -33,6 +33,10 @@ import { setCurrentSong, usePlaybackStore } from '../../../stores/usePlaybackSto
 // Navidrome song) therefore takes `startPlay()` when it starts and asks the answer after each wait:
 // no, once a newer play has started, or once a route that empties the player or leaves the main
 // player for the stage has called `dropPlaysInFlight`. A play that is answered no writes nothing more.
+// A play of an online song names its platform (`startPlay(providerId)`): signing out of that platform
+// (`dropPlaysOfProvider`) answers no to its plays alone, and leaves every other play as it was. Those
+// other plays still carry the queue they were given, which may hold the signed-out platform's songs:
+// they mark `providerDropsSoFar()` when they start and land in `keepSongsOfProvidersStanding(queue, mark)`.
 //
 // What a play leaves running after it showed its song asks a second answer, `onceShown`: no while a
 // newer play is on its way, and yes again once every newer play gave up without showing its song.
@@ -79,6 +83,39 @@ export const dropPlaysInFlight = (): void => {
     playsStanding = [];
 };
 
+/** How often the plays of each online platform were dropped (its sign-out): see `dropPlaysOfProvider`. */
+const providerDrops = new Map<string, number>();
+/** The platforms whose plays were dropped, in order (one per sign-out, so it stays short). */
+const providerDropLog: string[] = [];
+
+/**
+ * The plays of this platform that have started and not shown their song give up at their next check,
+ * and what one that showed its song leaves running (`onceShown`) is answered no. Plays of other
+ * platforms, local files and Navidrome go on.
+ */
+export const dropPlaysOfProvider = (providerId: string): void => {
+    providerDrops.set(providerId, (providerDrops.get(providerId) ?? 0) + 1);
+    providerDropLog.push(providerId);
+};
+
+/** A mark for `keepSongsOfProvidersStanding`: how many platform drops there were so far. */
+export const providerDropsSoFar = (): number => providerDropLog.length;
+
+/** The queue without the songs of the platforms whose plays were dropped after `mark` (the same array when none was). */
+export const keepSongsOfProvidersStanding = <T extends SongResult>(queue: T[], mark: number): T[] => {
+    if (providerDropLog.length === mark) return queue;
+    const gone = new Set(providerDropLog.slice(mark));
+    return queue.filter(song => {
+        const providerId = getOnlineProviderIdForSong(song);
+        return !providerId || !gone.has(providerId);
+    });
+};
+
+/** How often the plays of this platform were dropped, for a play that has not started yet (see `playsDroppedSoFar`). */
+export const providerPlaysDroppedSoFar = (providerId: string | null | undefined): number => (
+    providerId ? providerDrops.get(providerId) ?? 0 : 0
+);
+
 /** What `startPlay` hands a play: call it for the answer, the rest as below. */
 export type PlayStart = {
     /** Is this play still wanted: yes until a newer play starts or the plays in flight are dropped. */
@@ -98,17 +135,20 @@ export type PlayStart = {
 
 /**
  * A play calls this when it starts and keeps what it gets: the answer to "is this play still
- * wanted", and the two parts above.
+ * wanted", and the two parts above. A play of an online song passes its platform.
  */
-export const startPlay = (): PlayStart => {
+export const startPlay = (providerId?: string | null): PlayStart => {
     playsStarted += 1;
     const started = playsStarted;
     const dropped = playsDropped;
+    const providerDropped = providerPlaysDroppedSoFar(providerId);
+    const providerStands = () => providerPlaysDroppedSoFar(providerId) === providerDropped;
     playsStanding.push(started);
     if (playsStanding.length > PLAYS_KEPT) playsForgotten = playsStanding.shift() ?? playsForgotten;
-    const stillWanted = () => playsStarted === started && playsDropped === dropped;
+    const stillWanted = () => playsStarted === started && playsDropped === dropped && providerStands();
     return Object.assign(stillWanted, {
         onceShown: () => playsDropped === dropped
+            && providerStands()
             && started > playsForgotten
             && (playsStanding.length === 0 || playsStanding[playsStanding.length - 1] <= started),
         abandon: () => {

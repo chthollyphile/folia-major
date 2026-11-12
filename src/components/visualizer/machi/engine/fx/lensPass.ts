@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { FullScreenQuad, Pass } from 'three/examples/jsm/postprocessing/Pass.js';
-import { fullscreenMaterial, halfFloatTarget, type MachiSceneTarget } from './postPasses';
+import { fullscreenMaterial, GLOW_GLSL, halfFloatTarget, type MachiGlowUniforms, type MachiSceneTarget } from './postPasses';
 
 // src/components/visualizer/machi/engine/fx/lensPass.ts
 // 町景的镜头 pass：按深度离焦的景深（散景），再加边缘色差、暗角、胶片颗粒；晴夜的星星画在景深之后（天空离焦最远，
@@ -11,6 +11,10 @@ import { fullscreenMaterial, halfFloatTarget, type MachiSceneTarget } from './po
 // 不会被身后的虚景糊上；前景收所有盖得到这里的样并记下盖住的比例，虚掉的前景能盖到身后清楚的东西上。再做一次小的
 // 帐篷模糊抹掉取样的颗粒，最后在全分辨率上按这个像素自己的 CoC 与前景盖住的比例，在清楚的原图和散景之间混合。
 // 在色调映射之前的 HDR 上做：亮的灯、霓虹、雨里的反光虚成圆形的亮斑（大光圈的样子）。
+// 读的是氛围画好的画面，bloom 与横向光条在这里取样时现加（GLOW_GLSL）；最后顺手做色调映射和 sRGB 编码（原来的输出 pass），
+// 画出来的已是显示用的颜色：后面只剩抗锯齿，或者直接上屏。
+// 透明模式（MACHI_CUTOUT）：这一道也写出画面的 alpha，有东西的像素取场景目标的覆盖度（MSAA 解析过，边缘是软的），
+// 天空像素是 0；天空上的颜色（bloom、雨、光锥）留着，在预乘 alpha 的画布上就是叠在桌面上的光。不画星星。
 
 /**
  * 散景那一层里最大的离焦圆不超过这么多像素（超过就再降一层分辨率）：圆越小取样越少，默认的 f/8 在 1080p 上
@@ -39,13 +43,17 @@ float machiCoc(float depth01, vec2 uv) {
 }
 `;
 
-/** 全分辨率 → 一半：2×2 平均颜色，CoC 取四个里离焦最多的那个（带正负号），存在 alpha 里。 */
+/**
+ * 全分辨率 → 一半：2×2 平均颜色，CoC 取四个里离焦最多的那个（带正负号），存在 alpha 里。
+ * 透明模式（MACHI_CUTOUT）：天空是透明的黑，不进颜色的平均，CoC 记 0（当清楚的）——后景收样不会把它收进楼的边缘，压出一圈暗边。
+ */
 const PREFILTER_FRAGMENT = /* glsl */ `
 uniform sampler2D tDiffuse;
 uniform sampler2D tDepth;
 uniform vec2 uSourceTexel;
 varying vec2 vUv;
 ${COC_GLSL}
+${GLOW_GLSL}
 float widest(float a, float b) { return abs(a) >= abs(b) ? a : b; }
 void main() {
     vec2 o = uSourceTexel * 0.5;
@@ -53,11 +61,30 @@ void main() {
     vec2 p1 = vUv + vec2(o.x, -o.y);
     vec2 p2 = vUv + vec2(-o.x, o.y);
     vec2 p3 = vUv + vec2(o.x, o.y);
-    vec3 color = (texture2D(tDiffuse, p0).rgb + texture2D(tDiffuse, p1).rgb + texture2D(tDiffuse, p2).rgb + texture2D(tDiffuse, p3).rgb) * 0.25;
+#ifdef MACHI_CUTOUT
+    float d0 = texture2D(tDepth, p0).x;
+    float d1 = texture2D(tDepth, p1).x;
+    float d2 = texture2D(tDepth, p2).x;
+    float d3 = texture2D(tDepth, p3).x;
+    float h0 = step(d0, 0.9999);
+    float h1 = step(d1, 0.9999);
+    float h2 = step(d2, 0.9999);
+    float h3 = step(d3, 0.9999);
+    float hits = h0 + h1 + h2 + h3;
+    vec3 color = hits > 0.0
+        ? (machiGlowed(p0) * h0 + machiGlowed(p1) * h1 + machiGlowed(p2) * h2 + machiGlowed(p3) * h3) / hits
+        : (machiGlowed(p0) + machiGlowed(p1) + machiGlowed(p2) + machiGlowed(p3)) * 0.25;
+    float coc = widest(
+        widest(machiCoc(d0, p0) * h0, machiCoc(d1, p1) * h1),
+        widest(machiCoc(d2, p2) * h2, machiCoc(d3, p3) * h3)
+    );
+#else
+    vec3 color = (machiGlowed(p0) + machiGlowed(p1) + machiGlowed(p2) + machiGlowed(p3)) * 0.25;
     float coc = widest(
         widest(machiCoc(texture2D(tDepth, p0).x, p0), machiCoc(texture2D(tDepth, p1).x, p1)),
         widest(machiCoc(texture2D(tDepth, p2).x, p2), machiCoc(texture2D(tDepth, p3).x, p3))
     );
+#endif
     gl_FragColor = vec4(color, coc);
 }
 `;
@@ -136,6 +163,7 @@ const LENS_FRAGMENT = /* glsl */ `
 uniform sampler2D tDiffuse;
 uniform sampler2D tBokeh;
 uniform sampler2D tDepth;
+uniform sampler2D tCoverage;
 uniform float uDofMix;
 uniform vec2 uBlend;
 uniform float uAberration;
@@ -147,6 +175,8 @@ uniform float uTime;
 uniform float uAspect;
 varying vec2 vUv;
 ${COC_GLSL}
+${GLOW_GLSL}
+#include <tonemapping_pars_fragment>
 float gHash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
 void main() {
     vec2 centered = vUv - 0.5;
@@ -154,9 +184,9 @@ void main() {
     // 边缘色差：红蓝沿径向错开，中间不动。
     vec2 shift = centered * edge * uAberration;
     vec3 sharp = vec3(
-        texture2D(tDiffuse, vUv + shift).r,
-        texture2D(tDiffuse, vUv).g,
-        texture2D(tDiffuse, vUv - shift).b
+        machiGlowed(vUv + shift).r,
+        machiGlowed(vUv).g,
+        machiGlowed(vUv - shift).b
     );
     // 景深：这个像素自己离焦够多（超过散景那一层一两个像素）就用散景；虚掉的前景盖到这里也用散景。
     vec4 bokeh = texture2D(tBokeh, vUv);
@@ -164,6 +194,7 @@ void main() {
     float own = smoothstep(uBlend.x, uBlend.y, abs(machiCoc(depth01, vUv)));
     float amount = (own + bokeh.a - own * bokeh.a) * uDofMix;
     vec3 color = mix(sharp, bokeh.rgb, clamp(amount, 0.0, 1.0));
+#ifndef MACHI_CUTOUT
     // 晴夜的星星：天空像素上格子里稀疏的亮点，各自慢慢闪。
     if (uStars > 0.001 && depth01 > 0.9999) {
         vec2 sp = vec2(vUv.x * uAspect, vUv.y) * 140.0;
@@ -174,6 +205,7 @@ void main() {
             * (0.55 + 0.45 * sin(uTime * (0.8 + starSeed * 3.0) + starSeed * 60.0));
         color += vec3(0.85, 0.9, 1.0) * star * uStars * 1.3 * smoothstep(0.1, 0.55, vUv.y);
     }
+#endif
     // 暗角。
     vec2 v = centered * vec2(uAspect, 1.0);
     float vignette = smoothstep(1.15, 0.35, length(v) * 1.15);
@@ -181,7 +213,19 @@ void main() {
     // 颗粒：跟亮度走，暗部更细。
     float grain = gHash(vUv * vec2(1733.0, 977.0) + fract(uTime * 7.31)) - 0.5;
     color += grain * uGrain * (0.25 + dot(color, vec3(0.3333)));
+#ifdef MACHI_CUTOUT
+    float alpha = depth01 > 0.9999 ? 0.0 : clamp(texture2D(tCoverage, vUv).a, 0.0, 1.0);
+    gl_FragColor = vec4(max(color, 0.0), alpha) * uFade;
+#else
     gl_FragColor = vec4(max(color, 0.0) * uFade, 1.0);
+#endif
+    // 色调映射与 sRGB 编码（和 three 的 OutputPass 一样，defines 由 MachiPost 按渲染器的设置给）。
+#ifdef NEUTRAL_TONE_MAPPING
+    gl_FragColor.rgb = NeutralToneMapping(gl_FragColor.rgb);
+#endif
+#ifdef SRGB_TRANSFER
+    gl_FragColor = sRGBTransferOETF(gl_FragColor);
+#endif
 }
 `;
 
@@ -215,7 +259,13 @@ export const resolveMachiBokehLevel = (maxCocPx: number) => {
     return { level, levelCoc, taps, scale: 2 ** (level + 1) };
 };
 
-/** 镜头：散景景深（降分辨率的圆盘取样，按深度与清楚的原图混合），再加色差、暗角、颗粒。 */
+/** 镜头 pass 最后的色调映射与编码：和渲染器的 toneMapping、outputColorSpace 对上（町景只用 Neutral + sRGB）。 */
+export interface MachiLensOutput {
+    neutralToneMapping: boolean;
+    srgb: boolean;
+}
+
+/** 镜头：叠上 bloom 与光条，散景景深（降分辨率的圆盘取样，按深度与清楚的原图混合），再加色差、暗角、颗粒，最后色调映射。 */
 export class MachiLensPass extends Pass {
     /** 一半、四分之一……分辨率的离焦层（alpha 里是 CoC）。 */
     private readonly chain = Array.from({ length: LEVELS }, halfFloatTarget);
@@ -234,7 +284,8 @@ export class MachiLensPass extends Pass {
     private dofActive = true;
     private bokeh = resolveMachiBokehLevel(0);
 
-    constructor(private readonly scene: MachiSceneTarget) {
+    /** glow：bloom 与光条的取样（和光条 pass 共用）；cutout：透明模式，这一道写出画面的 alpha（天空透明）。 */
+    constructor(private readonly scene: MachiSceneTarget, glow: MachiGlowUniforms, output: MachiLensOutput, cutout = false) {
         super();
         // 离焦圆的参数：预滤与最后的混合共用同一份 uniform。
         const coc = {
@@ -246,8 +297,9 @@ export class MachiLensPass extends Pass {
             uTiltRadius: { value: 0 },
         };
         this.prefilter = fullscreenMaterial({
-            uniforms: { ...coc, tDiffuse: { value: null }, tDepth: { value: null }, uSourceTexel: { value: new THREE.Vector2() } },
+            uniforms: { ...coc, ...glow, tDiffuse: { value: null }, tDepth: { value: null }, uSourceTexel: { value: new THREE.Vector2() } },
             fragmentShader: PREFILTER_FRAGMENT,
+            defines: cutout ? { MACHI_CUTOUT: '' } : {},
         });
         this.downsample = fullscreenMaterial({
             uniforms: { tSource: { value: null }, uSourceTexel: { value: new THREE.Vector2() } },
@@ -270,9 +322,11 @@ export class MachiLensPass extends Pass {
         this.material = fullscreenMaterial({
             uniforms: {
                 ...coc,
+                ...glow,
                 tDiffuse: { value: null },
                 tBokeh: { value: null },
                 tDepth: { value: null },
+                tCoverage: { value: null },
                 uDofMix: { value: 0 },
                 uBlend: { value: new THREE.Vector2(1, 3) },
                 uAberration: { value: 0.012 },
@@ -284,6 +338,13 @@ export class MachiLensPass extends Pass {
                 uAspect: { value: 16 / 9 },
             },
             fragmentShader: LENS_FRAGMENT,
+            defines: {
+                ...(cutout ? { MACHI_CUTOUT: '' } : {}),
+                ...(output.neutralToneMapping ? { NEUTRAL_TONE_MAPPING: '' } : {}),
+                ...(output.srgb ? { SRGB_TRANSFER: '' } : {}),
+            },
+            // 色调映射自己做（上面的 #include）：渲染器不再往上屏的着色器里加一份。
+            toneMapped: false,
         });
     }
 
@@ -326,14 +387,16 @@ export class MachiLensPass extends Pass {
         this.quad.render(renderer);
     }
 
-    render(renderer: THREE.WebGLRenderer, writeBuffer: THREE.WebGLRenderTarget, readBuffer: THREE.WebGLRenderTarget) {
+    /** 读氛围画好的 scene.lit，画进合成器的写缓冲（8 位，已是显示用的颜色）或直接上屏。 */
+    render(renderer: THREE.WebGLRenderer, writeBuffer: THREE.WebGLRenderTarget) {
         const uniforms = this.material.uniforms;
         const depth = this.scene.target.depthTexture;
-        uniforms.tBokeh!.value = readBuffer.texture;
+        const lit = this.scene.lit.texture;
+        uniforms.tBokeh!.value = lit;
         if (this.dofActive) {
             const { level, levelCoc, taps, scale } = this.bokeh;
             const [first] = this.chain as [THREE.WebGLRenderTarget];
-            this.prefilter.uniforms.tDiffuse!.value = readBuffer.texture;
+            this.prefilter.uniforms.tDiffuse!.value = lit;
             this.prefilter.uniforms.tDepth!.value = depth;
             (this.prefilter.uniforms.uSourceTexel!.value as THREE.Vector2).set(1 / this.fullSize.x, 1 / this.fullSize.y);
             this.draw(renderer, this.prefilter, first);
@@ -359,8 +422,9 @@ export class MachiLensPass extends Pass {
             this.draw(renderer, this.tent, smoothed);
             uniforms.tBokeh!.value = smoothed.texture;
         }
-        uniforms.tDiffuse!.value = readBuffer.texture;
+        uniforms.tDiffuse!.value = lit;
         uniforms.tDepth!.value = depth;
+        uniforms.tCoverage!.value = this.scene.target.texture;
         this.draw(renderer, this.material, this.renderToScreen ? null : writeBuffer);
     }
 

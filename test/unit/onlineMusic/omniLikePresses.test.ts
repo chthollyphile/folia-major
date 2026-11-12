@@ -34,7 +34,7 @@ const song = (mediaId: string): UnifiedSong => ({
 const likedList: ProviderCollection = { providerId, id: 'liked', type: 'playlist', name: 'Liked', isLiked: true, isOwned: true };
 
 // A provider whose answers to like requests the test gives one by one.
-const registerProvider = () => {
+const registerProvider = (canonical = false) => {
     const requests: Array<{ id: string; liked: boolean; take: () => void; refuse: (error: unknown) => void }> = [];
     const provider: OnlineMusicProvider = {
         id: providerId,
@@ -44,6 +44,10 @@ const registerProvider = () => {
             playlists: true, albums: false, artists: false, recommendations: false,
             mutations: true, likes: true, wordByWordLyrics: false,
         },
+        ...(canonical ? { library: {
+            getSongLikeId: () => 'catalog',
+            getUserPlaylists: async () => ({ items: [], hasMore: false, nextOffset: 0 }),
+        } } : {}),
         normalizeSong: raw => song(String((raw as { id?: string }).id)),
         mutations: {
             likeSong: (target, liked) => new Promise<void>((take, refuse) => {
@@ -76,6 +80,33 @@ describe('omni like presses', () => {
         vi.useRealTimers();
         unregisterOnlineMusicProvider(providerId);
         useOnlineProviderAccountStore.getState().clearAccount(providerId);
+    });
+
+    it('shares heart state and serializes opposite presses across library/catalog aliases', async () => {
+        const requests = registerProvider(true);
+        signIn(['catalog']);
+        const library = song('library');
+        const catalog = song('catalog');
+        const read = omni.beginLikedListRead(likedList)!;
+        omni.endLikedListRead(read, [library], true);
+        expect(likedIds()).toEqual(['catalog']);
+        expect(omni.isSongLiked(library)).toBe(true);
+        const first = omni.pressSongLike(library, false);
+        expect(omni.isSongLiked(library)).toBe(false);
+        expect(omni.isSongLiked(catalog)).toBe(false);
+        const second = omni.pressSongLike(catalog, true);
+        expect(second.joined).toBe(true);
+        expect(requests).toHaveLength(1);
+        requests[0].take();
+        await vi.waitFor(() => expect(requests).toHaveLength(2));
+        requests[1].take();
+        await first.settled;
+        expect(likedIds()).toEqual(['catalog']);
+        const unlike = omni.pressSongLike(library, false);
+        requests[2].take();
+        await unlike.settled;
+        expect(likedIds()).toEqual([]);
+        expect(omni.isSongLiked(catalog)).toBe(false);
     });
 
     it('shows the heart at once, and writes the liked ids once the provider took the request', async () => {

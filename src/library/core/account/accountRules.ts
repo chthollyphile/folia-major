@@ -4,6 +4,7 @@ import type { LoginFailure } from '../../../types/loginFailure';
 import type {
     LibraryLoginLocalServiceState,
     LibraryLoginPhase,
+    LibraryAccountSyncRejectReason,
     LibraryLoginSessionSnapshot,
     LibraryLogoutRejectReason,
     LibraryProviderUnavailableReason,
@@ -85,6 +86,22 @@ export const canLogoutProvider = (provider: ProviderAccountSummary | undefined):
     resolveLogoutEligibility(provider).allowed
 );
 
+// ─── 同步数据 ───────────────────────────────────────────────────────────
+
+export type LibraryAccountSyncEligibility =
+    | { allowed: true }
+    | { allowed: false; reason: LibraryAccountSyncRejectReason };
+
+/**
+ * 有账号的平台可以同步数据：平台确认了登录着，或者账号已经显示（启动时存着的账号先显示、平台还没回答的那一会儿，
+ * 同步就是再问一次）。不用登录的平台、没有人登录的平台没有账户数据可同步。
+ */
+export const resolveAccountSyncEligibility = (provider: ProviderAccountSummary | undefined): LibraryAccountSyncEligibility => {
+    if (!provider) return { allowed: false, reason: 'unknown-provider' };
+    if (provider.status !== 'authenticated' && !provider.user) return { allowed: false, reason: 'not-signed-in' };
+    return { allowed: true };
+};
+
 // ─── 登录会话的派生 ─────────────────────────────────────────────────────
 
 type LoginMethodState = Pick<LibraryLoginSessionSnapshot, 'methods' | 'selectedMethodId'>;
@@ -95,11 +112,12 @@ export const isAwaitingLoginMethod = ({ methods, selectedMethodId }: LoginMethod
 );
 
 /**
- * 登录正在进行：平台还在说有哪几种登录方式、正在要码、等着扫或等着确认、或者确认了正在读账号。这时再来一次
- * 会取消掉它、向平台再要一把新的 key（再选一次同一行什么都不做；本地服务重启之后不再开始一次）。
+ * 登录正在进行：平台还在说有哪几种登录方式、正在要码、等着扫或等着确认、确认了正在读账号，或者读到了正在做登录
+ * 之后的检查。这时再来一次会取消掉它、向平台再要一把新的 key（再选一次同一行什么都不做；本地服务重启之后不再开始一次）。
  */
 export const isLoginUnderWay = (phase: LibraryLoginPhase): boolean => (
     phase === 'resolving-methods' || phase === 'loading' || phase === 'waiting' || phase === 'scanned' || phase === 'confirmed'
+    || phase === 'checking'
 );
 
 /** 平台要求稍后再试、又没说等多久时等的时间。 */

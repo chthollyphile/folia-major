@@ -159,8 +159,10 @@
 .bravais-poster-grain {
     position: absolute;
     inset: -100cqh 0;
-    opacity: 0.22;
-    mix-blend-mode: overlay;
+    /* 普通叠加，不用 overlay：倾斜落定后缝的旋转是画进轨道那一层的（bravaisFrame 的 seamTransforms），混合模式在旋转
+     * 底下没法并进那一层，会连同后面画的字一起拆成单独的层、被合成器整块转糊。原来是 overlay 0.22，纯色上量过，
+     * 这样亮度差不到 3 个色阶、颗粒粗细相当。 */
+    opacity: 0.055;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
@@ -345,6 +347,43 @@
     font-weight: 700;
     letter-spacing: 0.06em;
     color: rgba(255, 255, 255, 0.8);
+}
+
+/* 「全部歌曲」变体（#918）：热门三首的位置换成一个超大的歌曲总数，与名字同一套渐变填充与立体残影，单位压小跟在后面。 */
+.bravais-poster-count {
+    display: flex;
+    align-items: baseline;
+    gap: 0.35em;
+    font-size: min(120px, 13cqh);
+    font-weight: 900;
+    line-height: 0.9;
+}
+
+.bravais-poster-count-number {
+    position: relative;
+    letter-spacing: -0.02em;
+    color: transparent;
+    background: linear-gradient(180deg, #ffffff 0%, #ffffff 38%, #c9c9cc 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    font-variant-numeric: tabular-nums;
+}
+
+.bravais-poster-count-number::before {
+    content: attr(data-text);
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    color: var(--bravais-poster-extrude-1, #b0b0b3);
+    text-shadow: var(--bravais-poster-extrude);
+}
+
+.bravais-poster-count-unit {
+    font-size: 0.22em;
+    letter-spacing: 0.08em;
+    color: #fff;
+    text-shadow: 0.06em 0.06em 0 var(--bravais-poster-extrude-2, #7d7d80), 0.12em 0.12em 0 var(--bravais-poster-extrude-4, #4b4b4e);
+    transform: rotate(-3deg);
 }
 
 .bravais-poster .bravais-poster-songs {

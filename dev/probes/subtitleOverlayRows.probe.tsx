@@ -11,7 +11,9 @@ import type { ProbeDefinition } from './definition';
  *
  * 挂的是真实的 VisualizerSubtitleOverlay，只把歌词行和行布局交给按钮切换。
  * 要看的是：行按布局从上到下排、第一行之后的行小一档；这一句缺哪种数据就少哪一行、不留空行；
- * 「下一句」依次取接下来的两句；单行布局这一句什么都没有时，照旧改为预览接下来的歌词。
+ * 「下一句」依次取接下来的两句；单行布局这一句什么都没有时，照旧改为预览接下来的歌词，
+ * 布局以 |only 结尾时不预览、什么都不显示；
+ * 第一行不是当前句的多行布局（罗马音 + 翻译）不显示歌词原文。
  */
 
 const LINES: Record<string, Line> = {
@@ -28,12 +30,15 @@ const NEXT_LINES: Line[] = [
 
 const LAYOUTS: SubtitleOverlayLayout[] = [
     'translation',
+    'translation|only',
     'romanization',
     'current',
     'current+next',
     'current+translation',
     'current+romanization+translation',
     'current+next+next',
+    'romanization+translation',
+    'romanization+translation|only',
 ];
 
 const SubtitleOverlayRowsProbe: React.FC = () => {

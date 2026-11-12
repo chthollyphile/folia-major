@@ -60,11 +60,11 @@ test('导航页上按 Ctrl+G 进的是四章「认识 Folia」', async ({ page }
     await page.getByTestId('help-page-ponder').click();
     await expect(page.getByTestId('ponder-navigation')).toBeVisible();
 
-    await page.keyboard.down('Control');
+    await page.keyboard.down('ControlOrMeta');
     await page.keyboard.down('KeyG');
     await expect(page.getByTestId('ponder-stage')).toBeVisible({ timeout: 2000 });
     await page.keyboard.up('KeyG');
-    await page.keyboard.up('Control');
+    await page.keyboard.up('ControlOrMeta');
 
     await expect(page.getByRole('dialog', { name: 'Getting to know Folia' })).toBeVisible();
     await expect(page.getByTestId('ponder-stage').getByText('1 / 4').first()).toBeVisible();
@@ -72,20 +72,20 @@ test('导航页上按 Ctrl+G 进的是四章「认识 Folia」', async ({ page }
 
 test('长按 Ctrl+G 在 Help 覆盖层中打开同一个 help-page', async ({ page }) => {
     // Ctrl+G 和悬停长按 G 一样要按满 400ms，press() 那种按下即松会被当成放弃。
-    await page.keyboard.down('Control');
+    await page.keyboard.down('ControlOrMeta');
     await page.keyboard.down('KeyG');
     await expect(page.getByTestId('ponder-stage')).toBeVisible({ timeout: 2000 });
     await page.keyboard.up('KeyG');
-    await page.keyboard.up('Control');
+    await page.keyboard.up('ControlOrMeta');
     await expect(page.getByRole('dialog', { name: 'Getting to know Folia' })).toBeVisible();
 });
 
 test('Ctrl+G 按不满就松手，只留下擦除过的胶囊，不进教程', async ({ page }) => {
-    await page.keyboard.down('Control');
+    await page.keyboard.down('ControlOrMeta');
     await page.keyboard.down('KeyG');
     await expect(page.getByTestId('ponder-hint-capsule')).toHaveAttribute('data-ponder-hint-placement', 'page');
     await page.keyboard.up('KeyG');
-    await page.keyboard.up('Control');
+    await page.keyboard.up('ControlOrMeta');
 
     await page.waitForTimeout(600);
     await expect(page.getByTestId('ponder-stage')).toHaveCount(0);
@@ -150,11 +150,11 @@ test('新版本功能页面有进出场过渡，不是直接出现和直接消�
 });
 
 test('思索教程层有进出场过渡，关掉时先播完退场', async ({ page }) => {
-    await page.keyboard.down('Control');
+    await page.keyboard.down('ControlOrMeta');
     await page.keyboard.down('KeyG');
     await expect(page.getByTestId('ponder-stage')).toBeVisible({ timeout: 2000 });
     await page.keyboard.up('KeyG');
-    await page.keyboard.up('Control');
+    await page.keyboard.up('ControlOrMeta');
 
     await expect(page.getByTestId('ponder-stage')).toHaveCSS('opacity', '1', { timeout: 2000 });
     await expectAnimatedExit(page, 'ponder-stage', { key: 'Escape' });

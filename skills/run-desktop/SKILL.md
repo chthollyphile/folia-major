@@ -81,10 +81,10 @@ node skills/run-desktop/driver.mjs quit
 | `main-eval <js>` | 在主进程求值，作用域里有 `electron`（如 `electron.app.getPath('userData')`） |
 | `click <selector>` / `click-text <text>` | Playwright 点击；`click-text` 先按按钮可访问名精确匹配，再按文字 |
 | `fill <selector> <value>` | 填输入框 |
-| `type <text>` / `press <key>` | 键盘；`press` 用 Playwright 键名：`Control+k`、`Escape`、`Enter` |
+| `type <text>` / `press <key>` | 键盘；`press` 用 Playwright 键名：`ControlOrMeta+k`（macOS 上是 Cmd，应用在 mac 只认 Cmd）、`Escape`、`Enter` |
 | `text [selector]` | 读 innerText，默认 body |
 | `wait <selector> [ms]` | 等元素可见，默认 10 秒 |
-| `palette <query>` | Ctrl+K → 输入 → 回车，执行命令面板第一条结果（打开设置页最快：`palette desktop`） |
+| `palette <query>` | Ctrl+K（macOS 上 Cmd+K）→ 输入 → 回车，执行命令面板第一条结果（打开设置页最快：`palette desktop`） |
 | `windows` / `page <index>` | 列窗口 / 切换后续命令作用的窗口 |
 | `logs [n]` / `console [n]` | 主进程输出 / 渲染层 console 的最后 n 行 |
 | `reload` | 重载当前页面 |
@@ -105,6 +105,8 @@ node skills/run-desktop/driver.mjs quit
 - **全新 profile 有两道首启门槛**：思索模式引导、「资料库用哪种界面？」选择弹窗。后者会盖在设置面板上。
   驱动启动时写入 `folia_last_seen_ponder_onboarding_version` 和 `library_suite_prompt_seen`
   （与 `test/component/fixtures.ts` 相同）后 reload；直接 `eval` 改这些键要再 `reload` 才生效。
+- **要一首能放的歌**：`eval "window.__foliaDev.playMockSong().then(s => s.filePath)"`，导入并播放开发用的 mock 歌
+  （合成音频 + 逐字歌词 + 封面，不用网络和登录）。细节见 `testing-strategy` 的“开发服务器已经在跑”。
 - **主窗口地址写死 `http://localhost:3000`**（`electron/main.cjs` 的 `loadAppEntry`），Vite 必须就在 3000。
   驱动自己起的 Vite 带 `--strictPort`，3000 被别的程序占着时宁可启动失败也不换端口。
 - **开发模式会多开一个 DevTools 窗口**，`app.windows()` 第一个往往是 `devtools://`。

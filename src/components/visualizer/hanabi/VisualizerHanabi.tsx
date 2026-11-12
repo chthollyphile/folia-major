@@ -4,9 +4,11 @@ import { useTranslation } from 'react-i18next';
 import type { Line, Theme } from '../../../types';
 import { loadLucideIcons } from '../../../services/lucideIconResolver';
 import { resolveThemeFontStack, resolveThemeFontWeight } from '../../../utils/fontStacks';
+import { resolveLyricAntialias } from '../../../utils/lyricRenderQuality';
 import { getLineRenderEndTime } from '../../../utils/lyrics/renderHints';
 import type { VisualizerSharedProps } from '../definition';
 import { useVisualizerPixiHost } from '../pixi/pixiRuntimeHost';
+import { useLyricRenderQuality } from '../renderQuality/useLyricRenderQuality';
 import { useVisualizerRuntime } from '../runtime';
 import { useVisualizerSongCommit } from '../songHandover';
 import { resolveSubtitleFontSizes } from '../subtitleFontSizes';
@@ -50,15 +52,22 @@ const VisualizerHanabi: React.FC<VisualizerSharedProps & { hanabiTuning: HanabiT
         subtitleOverlayOpacity,
         subtitleOverlayBackground,
         subtitleUpcomingLyricsBlur,
+        isPreviewMode = false,
         hanabiTuning,
     } = props;
     const { t } = useTranslation();
     const hostRef = useRef<HTMLDivElement>(null);
     const [runtimeFailed, setRuntimeFailed] = useState(false);
 
+    // 分辨率与抗锯齿（#929）：全局挡位叠上本样式的覆盖。预览（样式架小图、主题乐园）保持原来的密度、不开 MSAA。
+    // 抗锯齿原来写死关着，「自动」就是关。
+    const renderQuality = useLyricRenderQuality(hanabiTuning.render);
+    const renderScale = isPreviewMode ? 1 : renderQuality.scale;
+    const antialias = isPreviewMode ? false : resolveLyricAntialias(renderQuality.antialias, false);
+
     // 运行时创建期间这些输入可能已经变了；create 完成后按最新值补一次。
-    const latestRef = useRef({ tuning: hanabiTuning, paused, showText, staticMode });
-    latestRef.current = { tuning: hanabiTuning, paused, showText, staticMode };
+    const latestRef = useRef({ tuning: hanabiTuning, paused, showText, staticMode, renderScale });
+    latestRef.current = { tuning: hanabiTuning, paused, showText, staticMode, renderScale };
     const metadataRef = useRef<HanabiCreditsMetadata>({ title: songTitle, artist: songArtist, album: songAlbum });
     metadataRef.current = { title: songTitle, artist: songArtist, album: songAlbum };
 
@@ -93,8 +102,8 @@ const VisualizerHanabi: React.FC<VisualizerSharedProps & { hanabiTuning: HanabiT
     const runtimeRef = useVisualizerPixiHost<HanabiPixiRuntime, HanabiSongContext>({
         hostRef,
         label: 'Hanabi',
-        // 只有真正需要新 WebGL 上下文的输入；歌、tuning、暂停、静态模式都就地推给运行时。
-        rebuildKey: [currentTime],
+        // 只有真正需要新 WebGL 上下文的输入（抗锯齿只能建上下文时定）；歌、tuning、分辨率、暂停、静态模式都就地推给运行时。
+        rebuildKey: [currentTime, antialias],
         song: songContext,
         create: async (host, song, signal) => {
             const [{ HanabiPixiRuntime }] = await Promise.all([
@@ -111,11 +120,14 @@ const VisualizerHanabi: React.FC<VisualizerSharedProps & { hanabiTuning: HanabiT
                 showText: latest.showText,
                 paused: latest.paused,
                 metadata: metadataRef.current,
+                renderScale: latest.renderScale,
+                antialias,
                 signal,
             });
             const current = latestRef.current;
             runtime.setSongMetadata(metadataRef.current);
             runtime.setTuning(current.tuning);
+            runtime.setRenderScale(current.renderScale);
             runtime.setShowText(current.showText);
             runtime.setStaticMode(current.staticMode);
             runtime.setPaused(current.paused);
@@ -132,6 +144,10 @@ const VisualizerHanabi: React.FC<VisualizerSharedProps & { hanabiTuning: HanabiT
     useEffect(() => {
         runtimeRef.current?.setTuning(hanabiTuning);
     }, [hanabiTuning, runtimeRef]);
+
+    useEffect(() => {
+        runtimeRef.current?.setRenderScale(renderScale);
+    }, [renderScale, runtimeRef]);
 
     useEffect(() => {
         runtimeRef.current?.setShowText(showText);

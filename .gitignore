@@ -103,11 +103,6 @@ build/steam-audio/
 # 旧做法手动放在 public/ 下的这份也不提交：插件生成的那份会盖住它，插件没生成时它不附授权文本
 public/nebbia-strokes.json
 
-# 忽略补丁
-patch/
-
-# wb记忆不走代码库
-.workbuddy/
 # Generated system-WebView companions
 /build/apple-music-native/
 # Coven: the supervisor session's local ledger (packages/coven/README.md)

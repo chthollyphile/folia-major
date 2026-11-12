@@ -20,7 +20,7 @@ import { errorMessage } from '../../../utils/errorText';
 
 // src/services/onlineMusic/account/accountRead.ts
 // The one function that reads a signed-in account from its platform: who is signed in, their
-// playlists, their cloud entry and their liked song ids, each through the platform's adapter,
+// playlists, their cloud entry, their listening ranking's entries and their liked song ids, each through the platform's adapter,
 // settled in the account store and kept on disk (the snapshot). It knows no platform by name: what
 // one platform does differently is a member of its adapter (`OnlineAuthProvider`,
 // `OnlineLibraryProvider`).
@@ -49,6 +49,7 @@ import { errorMessage } from '../../../utils/errorText';
 //   HOME_WAIT_MS with each time it could not be asked in a row, up to WHO_RETRY_MAX_MS.
 // - The playlists could not be read: the same, and the liked songs are not read.
 // - The cloud entry could not be read: the one held stays.
+// - The listening ranking could not be read: the entries held stay.
 // - The liked songs could not be read: the hearts stay as they were; the rest is kept.
 // Nobody is signed out by a failure. The account leaves when the platform says nobody is signed
 // in, or refuses the sign-in (`auth-required`); where it is the playlists that were refused, the
@@ -190,8 +191,12 @@ export const createAccountReads = <R>(deps: AccountReadsDeps<R>) => {
         if (!kept) return null;
         const user = provider.normalizeUser ? provider.normalizeUser(kept.user) : kept.user;
         if (!user) return null;
+        // The listening ranking's entries are made by listeningRank.ts, not in the platform's shape:
+        // they are kept as they are.
         const collections = provider.normalizeCollection
-            ? kept.collections.map(collection => provider.normalizeCollection!(collection, collection.type)).filter(Boolean)
+            ? kept.collections.map(collection => (collection.type === 'listening_rank'
+                ? collection
+                : provider.normalizeCollection!(collection, collection.type))).filter(Boolean)
             : kept.collections;
         return { ...kept, user, collections };
     };
@@ -325,10 +330,9 @@ export const createAccountReads = <R>(deps: AccountReadsDeps<R>) => {
                 store().clearAccount(providerId);
             }
         }
-        // While nobody is shown and the platform is asked, such an adapter's account shows as
-        // being found out; the others' shows nobody.
+        // While the platform is identifying the account, do not report a signed-out user.
         store().updateAccount(providerId, {
-            ...(showsKept && !shownUser(providerId) ? { status: 'unknown' as const, hydration: 'loading' as const } : {}),
+            ...(!shownUser(providerId) ? { status: 'unknown' as const, hydration: 'loading' as const } : {}),
             freshness: 'refreshing',
             error: undefined,
         });
@@ -375,6 +379,16 @@ export const createAccountReads = <R>(deps: AccountReadsDeps<R>) => {
                 }
                 if (!current()) return 'unknown';
                 if (cloud) collections.push(cloud);
+            }
+            if (provider.library?.getListeningRankCollections) {
+                let ranks = store().accounts[providerId]?.collections.filter(collection => collection.type === 'listening_rank') ?? [];
+                try {
+                    ranks = await provider.library.getListeningRankCollections(user);
+                } catch (error) {
+                    console.warn(`[Account] ${said}: the listening ranking could not be read, the entries held stay: ${messageOf(error)}`, error);
+                }
+                if (!current()) return 'unknown';
+                collections.push(...ranks);
             }
             // The playlists show before the liked songs are read: that list may take many requests.
             store().updateAccount(providerId, { status: 'authenticated', user, collections, hydration: 'ready', error: undefined });

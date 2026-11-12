@@ -29,6 +29,11 @@ export interface SlideActionButtonProps {
     /** 拖满时按钮变成强调色底，上面图标的颜色（缺省白色；强调色可能本身就很浅，例如墙面工具按钮读 --text-on-accent）。 */
     accentForeground?: string;
     disabled?: boolean;
+    /**
+     * 挂在紧凑档进度条胶囊的右端（progress-bar v3）：缩成 40、不再半藏在窗口边上、去掉自己的底色
+     * （胶囊的玻璃就是它的底），也没有左滑那一下（滑轨会横在胶囊上），只剩点按。位置由调用方平移。
+     */
+    docked?: boolean;
 }
 
 export const SlideActionButton: React.FC<SlideActionButtonProps> = ({
@@ -42,6 +47,7 @@ export const SlideActionButton: React.FC<SlideActionButtonProps> = ({
     accentColor,
     accentForeground = '#ffffff',
     disabled = false,
+    docked = false,
 }) => {
     const [showGuideLine, setShowGuideLine] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
@@ -51,11 +57,13 @@ export const SlideActionButton: React.FC<SlideActionButtonProps> = ({
     const trackEndIconRef = useRef<HTMLDivElement>(null);
     const trackFillRef = useRef<HTMLDivElement>(null);
     const supportsHover = typeof window !== 'undefined' && window.matchMedia('(hover: hover) and (pointer: fine)').matches;
-    const motionClass = showGuideLine || isDragging
-        ? 'translate-x-0 opacity-100'
-        : supportsHover
-            ? 'translate-x-1/2 opacity-60 group-hover:translate-x-0 group-hover:opacity-100 md:translate-x-0 md:opacity-100 md:hover:scale-105'
-            : 'translate-x-1/2 opacity-60';
+    const motionClass = docked
+        ? 'translate-x-0 opacity-100 scale-[0.8333] origin-right'
+        : showGuideLine || isDragging
+            ? 'translate-x-0 opacity-100'
+            : supportsHover
+                ? 'translate-x-1/2 opacity-60 group-hover:translate-x-0 group-hover:opacity-100 md:translate-x-0 md:opacity-100 md:hover:scale-105'
+                : 'translate-x-1/2 opacity-60';
 
     const setDestinationFeedback = (progress: number) => {
         const icon = trackEndIconRef.current;
@@ -176,7 +184,8 @@ export const SlideActionButton: React.FC<SlideActionButtonProps> = ({
                 type="button"
                 disabled={disabled}
                 onPointerDown={(event) => {
-                    if (disabled) return;
+                    // 挂在胶囊上（docked）时没有滑动，按下就是一次普通的点按。
+                    if (disabled || docked) return;
                     gestureRef.current = { startX: event.clientX, startY: event.clientY, triggered: false };
                     suppressClickRef.current = false;
                     setShowGuideLine(false);
@@ -200,7 +209,7 @@ export const SlideActionButton: React.FC<SlideActionButtonProps> = ({
                 }}
                 onPointerUp={clearGesture}
                 onPointerCancel={clearGesture}
-                onMouseEnter={() => { if (supportsHover) setShowGuideLine(true); }}
+                onMouseEnter={() => { if (supportsHover && !docked) setShowGuideLine(true); }}
                 onMouseLeave={() => { if (supportsHover) setShowGuideLine(false); }}
                 onClick={(event) => {
                     if (suppressClickRef.current) {
@@ -211,8 +220,10 @@ export const SlideActionButton: React.FC<SlideActionButtonProps> = ({
                     }
                     onActivate();
                 }}
-                style={{ touchAction: 'none' }}
-                className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 shadow-lg backdrop-blur-md transform border-none absolute right-0 top-0 z-10 disabled:opacity-40 disabled:cursor-default ${isDaylight ? 'bg-white/70 text-zinc-900' : 'bg-black/40 text-white'}`}
+                style={{ touchAction: docked ? undefined : 'none' }}
+                className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 transform border-none absolute right-0 top-0 z-10 disabled:opacity-40 disabled:cursor-default ${docked
+                    ? `bg-transparent ${isDaylight ? 'text-zinc-900 hover:bg-black/5' : 'text-white hover:bg-white/10'}`
+                    : `shadow-lg backdrop-blur-md ${isDaylight ? 'bg-white/70 text-zinc-900' : 'bg-black/40 text-white'}`}`}
                 title={title}
                 aria-label={title}
             >

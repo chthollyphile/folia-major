@@ -16,7 +16,7 @@ vi.mock('@/services/onlinePlayback', () => ({
     applyOnlineAudioSourceMetadata: (song: unknown) => song,
 }));
 vi.mock('@/services/onlineMusic/omni', () => ({
-    omni: { canPlaySong: canPlaySongMock, getLyrics: getLyricsMock, getProviderLabel: (id: string) => id },
+    omni: { canPlaySong: canPlaySongMock, canPlayExternally: () => false, getLyrics: getLyricsMock, getProviderLabel: (id: string) => id },
 }));
 vi.mock('@/stores/usePlaybackStore', () => ({
     usePlaybackStore: { getState: () => playbackState },
@@ -72,7 +72,7 @@ vi.mock('@/utils/appNavidromeLyrics', () => ({
 vi.mock('@/utils/lyrics/localSongLyrics', () => ({ resolveLocalSongLyrics: vi.fn() }));
 
 import { restorePlaybackSourceForSong } from '@/components/app/playback/restore/restorePlaybackSource';
-import { askForSong, startRestore } from '@/components/app/playback/currentSong';
+import { askForSong, dropPlaysOfProvider, startRestore } from '@/components/app/playback/currentSong';
 import { onlineFailureOf } from '@/services/onlineMusic/failure/onlineFailureCase';
 import type { OnlineFailureCaseId, OnlineFailureDetail } from '@/types/onlineMusic';
 import { installPlaybackFailedListener } from '@/services/hostExtensionHooks';
@@ -463,24 +463,26 @@ describe('restorePlaybackSourceForSong (local)', () => {
 
 // 调用方给了开始恢复时的整表写入计数（queueWritesAtStart）、恢复期间模组整表替换过队列：三处写回都按 store 此刻的队列，
 // 只换掉同一首、不前插；没给时照旧按传进来的队列。
+/** A restore of `restored` with the queue writers of the caller, given `queue` (the song alone by default). */
+const restoreOf = (restored: SongResult, queueWritesAtStart?: number, queue: SongResult[] = [restored]) => {
+    const setPlayQueue = vi.fn();
+    const persistLastPlaybackCache = vi.fn(async () => undefined);
+    const result = restorePlaybackSourceForSong(restored, {
+        audioQuality: 'high',
+        blobUrlRef: { current: null },
+        currentOnlineAudioUrlFetchedAtRef: { current: null },
+        setLyrics: vi.fn(),
+        setPlayQueue,
+        persistLastPlaybackCache,
+        queue,
+        stillWanted: startRestore(),
+        ...(queueWritesAtStart === undefined ? {} : { queueWritesAtStart }),
+    });
+    return { result, setPlayQueue, persistLastPlaybackCache };
+};
+
 describe('restorePlaybackSourceForSong after a whole-queue write', () => {
     const other = { ...song, id: 'other', sourceRef: { kind: 'online', providerId: 'bodian', mediaId: 'other' } } as SongResult;
-    const restoreOf = (restored: SongResult, queueWritesAtStart?: number) => {
-        const setPlayQueue = vi.fn();
-        const persistLastPlaybackCache = vi.fn(async () => undefined);
-        const result = restorePlaybackSourceForSong(restored, {
-            audioQuality: 'high',
-            blobUrlRef: { current: null },
-            currentOnlineAudioUrlFetchedAtRef: { current: null },
-            setLyrics: vi.fn(),
-            setPlayQueue,
-            persistLastPlaybackCache,
-            queue: [restored],
-            stillWanted: startRestore(),
-            ...(queueWritesAtStart === undefined ? {} : { queueWritesAtStart }),
-        });
-        return { result, setPlayQueue, persistLastPlaybackCache };
-    };
     /** Makes `restored` the song asked for, and counts a whole-queue write that left `live` in the store. */
     const afterAWrite = (restored: SongResult, live: SongResult[]) => {
         playbackState.currentSong = restored;
@@ -631,5 +633,68 @@ describe('restorePlaybackSourceForSong after a whole-queue write', () => {
 
             expect(saved(persistLastPlaybackCache)).toEqual([rebuilt]);
         });
+    });
+});
+
+// 恢复期间退出了另一个平台（library/app/createLibraryAccountPort：作废它的播放、把它的歌移出 store 的队列）：恢复落地时写回、
+// 存下的队列不再带那个平台的歌，否则下次启动又把它们带回来。
+describe('restorePlaybackSourceForSong while another platform is signed out of', () => {
+    const qqSong = { ...song, id: 'q1', sourceRef: { kind: 'online', providerId: 'qq', mediaId: 'q1' } } as SongResult;
+    const gained = { ...song, replayGain: { trackGain: -3 } } as SongResult;
+    const localSong = { ...song, id: 'local-1', sourceRef: undefined, isLocal: true, localRef: { songId: 'local-1' } } as unknown as SongResult;
+    const localRecord = { id: 'local-1', title: 'Song', fileName: 'song.mp3', duration: 1000 } as unknown as LocalSong;
+    /** What the sign-out of qq does while the restore waits. */
+    const signOutOfQq = (remaining: SongResult[]) => {
+        dropPlaysOfProvider('qq');
+        playbackState.playQueue = remaining;
+    };
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+        loadAudioSourceMock.mockReset();
+        canPlaySongMock.mockReturnValue(true);
+        toastState.current = null;
+        vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    });
+    afterEach(() => {
+        playbackState.playQueue = [];
+        vi.restoreAllMocks();
+    });
+
+    it('an online song: writes and saves the queue without that platform\'s songs', async () => {
+        playbackState.currentSong = gained;
+        playbackState.playQueue = [gained, qqSong];
+        askForSong(gained);
+        loadAudioSourceMock.mockImplementationOnce(async () => {
+            signOutOfQq([gained]);
+            return { kind: 'ok', audioSrc: 'https://cdn.example/song.mp3' };
+        });
+
+        const { result, setPlayQueue, persistLastPlaybackCache } = restoreOf(gained, undefined, [gained, qqSong]);
+        await expect(result).resolves.toBe('restored');
+
+        expect(setPlayQueue).toHaveBeenCalledWith([gained]);
+        expect(persistLastPlaybackCache).toHaveBeenCalledWith(gained, [gained]);
+    });
+
+    it('a local file: saves the queue without that platform\'s songs', async () => {
+        playbackState.currentSong = localSong;
+        playbackState.playQueue = [localSong, qqSong];
+        askForSong(localSong);
+        vi.mocked(getLocalSongs).mockImplementationOnce(async () => {
+            signOutOfQq([localSong]);
+            return [localRecord];
+        });
+        vi.mocked(getAudioFromLocalSong).mockResolvedValue('blob:folia/local');
+        vi.mocked(ensureLocalSongCoverAsset).mockResolvedValue(localRecord);
+        vi.mocked(getLocalLibraryCatalogSnapshot).mockResolvedValue({} as never);
+        vi.mocked(buildUnifiedLocalSong).mockReturnValue(localSong as never);
+        vi.mocked(applyLocalLibraryEntityDisplay).mockImplementation(entry => entry as never);
+        vi.mocked(resolveLocalSongLyrics).mockResolvedValue({ lyrics: null, source: null } as never);
+
+        const { result, persistLastPlaybackCache } = restoreOf(localSong, undefined, [localSong, qqSong]);
+        await expect(result).resolves.toBe('restored');
+
+        expect(persistLastPlaybackCache).toHaveBeenCalledWith(localSong, [localSong]);
     });
 });

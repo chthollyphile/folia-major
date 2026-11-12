@@ -12,7 +12,7 @@ import type {
 import type { LibraryCollectionDescriptor } from '../collection/collection.contract';
 import type { LibraryPlaybackPort } from '../shared/ports.contract';
 import type { LibraryArtistActionId, LibraryCatalogLinkHint, LibraryDeclaredActions } from '../suite/suite.contract';
-import { artistAlbumLink, filterArtistAlbums } from './artistModel';
+import { artistAlbumLink, artistSongsCollection, filterArtistAlbums } from './artistModel';
 import {
     artistSessionKey,
     resolveArtistCapabilities,
@@ -43,6 +43,8 @@ type UseArtistViewParams = {
     declaredActions: LibraryDeclaredActions;
     onEditEntity?: (entityId: string) => void;
     onOpenAlbum?: (albumId: number | string, album?: LibraryCatalogLinkHint, track?: SongResult) => void;
+    /** 宿主压入一层集合（「全部歌曲」）；没给时 open-all-songs 不出现。 */
+    onOpenCollection?: (collection: LibraryCollectionDescriptor) => void;
     /** 「加入热门歌曲」的结果提示（应用的全局提示通道）。 */
     setStatus: (message: StatusMessage) => void;
 };
@@ -57,6 +59,7 @@ export const useArtistView = ({
     declaredActions,
     onEditEntity,
     onOpenAlbum,
+    onOpenCollection,
     setStatus,
 }: UseArtistViewParams) => {
     const { t } = useTranslation();
@@ -83,20 +86,27 @@ export const useArtistView = ({
     }), [collection]);
 
     const entityId = collection.source === 'local' ? collection.entityId : undefined;
-    const capabilities: LibraryArtistCapabilities = useMemo(() => resolveArtistCapabilities({
-        collection: { source: collection.source, entityId },
-        snapshot,
-        playableTopSongCount: playableTopSongs.length,
-        queueableTopSongCount: queueableTopSongs.length,
-    }), [collection.source, entityId, playableTopSongs.length, queueableTopSongs.length, snapshot]);
+    const canOpenCollection = Boolean(onOpenCollection);
+    const capabilities: LibraryArtistCapabilities = useMemo(() => {
+        const resolved = resolveArtistCapabilities({
+            collection: { source: collection.source, entityId },
+            snapshot,
+            playableTopSongCount: playableTopSongs.length,
+            queueableTopSongCount: queueableTopSongs.length,
+        });
+        // 宿主不给压栈的口子时（直接挂组件、单测）没有「全部歌曲」可去。
+        return canOpenCollection
+            ? resolved
+            : { ...resolved, 'open-all-songs': { supported: false, enabled: false, pending: false, reason: 'unsupported' } };
+    }, [canOpenCollection, collection.source, entityId, playableTopSongs.length, queueableTopSongs.length, snapshot]);
     const offered = useMemo(
         () => new Set(resolveOfferedArtistActions(declaredActions, capabilities)),
         [capabilities, declaredActions],
     );
     const offers = useCallback((action: LibraryArtistActionId) => offered.has(action), [offered]);
 
-    const latest = useRef({ resource, playback, playableTopSongs, topSongs, entityId, onEditEntity, onOpenAlbum, setStatus, t, linkSource });
-    latest.current = { resource, playback, playableTopSongs, topSongs, entityId, onEditEntity, onOpenAlbum, setStatus, t, linkSource };
+    const latest = useRef({ collection, snapshot, resource, playback, playableTopSongs, topSongs, entityId, onEditEntity, onOpenAlbum, onOpenCollection, setStatus, t, linkSource });
+    latest.current = { collection, snapshot, resource, playback, playableTopSongs, topSongs, entityId, onEditEntity, onOpenAlbum, onOpenCollection, setStatus, t, linkSource };
 
     const actions = useMemo(() => ({
         /** 播放这首，以可播放的热门歌曲为队列。 */
@@ -125,6 +135,14 @@ export const useArtistView = ({
             const link = artistAlbumLink(album, latest.current.linkSource);
             latest.current.onOpenAlbum?.(link.id, link);
         },
+        /** 打开这位歌手的「全部歌曲」（在线集合，宿主压栈）；详情没到或不是在线歌手时什么都不做。 */
+        openAllSongs: () => {
+            const { collection: current, snapshot: shot, onOpenCollection: open, t: translate } = latest.current;
+            if (!open || shot?.status !== 'ready' || !shot.detail) return;
+            const artistName = shot.detail.name || current.name;
+            const target = artistSongsCollection(current, shot.detail, translate('artistGrid.allSongsCollectionName', { artistName }));
+            if (target) open(target);
+        },
     }), []);
 
     const isFilterActive = query.trim().length > 0;
@@ -146,6 +164,7 @@ export const useArtistView = ({
             case 'reload': actions.reload(); return true;
             case 'retry-albums': actions.retryAlbums(); return true;
             case 'edit-entity': actions.editEntity(); return true;
+            case 'open-all-songs': actions.openAllSongs(); return true;
             default: return false;
         }
     };

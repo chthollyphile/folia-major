@@ -33,11 +33,20 @@ jobs:
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v6
+        with:
+          # PR 上检出的是合并提交：多取一层，Dedicatus 才能拿第一个父提交（目标分支）比基线和 @note。
+          fetch-depth: 2
 
       - name: Install Node.js
         uses: actions/setup-node@v6
         with:
           node-version: 24
+
+      # Dedicatus 的模块图检查（分层边界、循环依赖、基线、@note）只用 Node 内置模块和 git、tar，放在装依赖之前，尽早出结果。
+      # PR 上和目标分支比，只追究这次带来的问题；push 到 main 时不和任何分支比，漏进 main 的问题在这里报出来。
+      # 问题只以注解和 job summary 出现，不发 PR 评论；模式（report / enforce）见 dev/dedicatus/codes.mjs。
+      - name: Dedicatus graph checks
+        run: npm run dedicatus -- --github ${{ github.event_name == 'pull_request' && '--base HEAD^1' || '--no-base' }}
 
       # 缓存 node_modules 本身而不是 ~/.npm：这棵树有 1.4GB（onnxruntime-node 的原生库 285MB、
       # electron 43 自带的 dist 313MB，两者都在 tarball 里，没有可跳过的 install script），
@@ -60,6 +69,55 @@ jobs:
 
       - name: Run unit tests
         run: npm run test:unit
+
+  lint:
+    name: Lint
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    # 和单测并行：带类型信息的 ESLint 全仓约两分钟，不串进关键路径。
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+
+      - name: Install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+
+      # 类型感知的规则要读项目依赖的类型，所以照样要项目的 node_modules（与单测任务同一个缓存键）。
+      - name: Restore node_modules
+        id: node-modules
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: node-modules-ubuntu-latest-node24-${{ hashFiles('package-lock.json') }}
+
+      - name: Install dependencies
+        if: steps.node-modules.outputs.cache-hit != 'true'
+        run: npm ci
+
+      # ESLint 装在隔离环境里（钉 TypeScript 6.0，项目的 TypeScript 7 没有 typescript-eslint 要的编译器 API）。
+      - name: Restore lint runtime
+        id: lint-runtime
+        uses: actions/cache@v4
+        with:
+          path: dev/dedicatus/lint/node_modules
+          key: dedicatus-lint-ubuntu-latest-node24-${{ hashFiles('dev/dedicatus/lint/package-lock.json') }}
+
+      - name: Install lint runtime
+        if: steps.lint-runtime.outputs.cache-hit != 'true'
+        run: npm run lint:install
+
+      # 项目约定规则的自测（RuleTester）：单测任务里没有 lint 环境，这些用例在那边是跳过的。
+      - name: Test Dedicatus lint rules
+        run: npx vitest run -c vitest.config.ts test/unit/dedicatus/eslintRules.test.ts test/unit/dedicatus/projectRules.test.ts
+
+      - name: Lint
+        run: npm run dedicatus -- --lint --github ${{ github.event_name == 'pull_request' && '--base HEAD^1' || '--no-base' }}
 
   typecheck-sync-server:
     name: Typecheck sync-server

@@ -10,8 +10,10 @@ import { settingsCommands } from './settingsCommands';
 import { hifiCommands } from './hifiCommands';
 import { navigationCommands } from './navigationCommands';
 import { panelCommands } from './panelCommands';
+import { scratchpadCommands } from './scratchpadCommands';
 import { modsCommands } from './modsCommands';
 import { visualizerCommands } from './visualizerCommands';
+import { sceneCommands } from './sceneCommands';
 
 // src/components/command-palette/commands/index.ts
 // The one place that decides cross-group ordering; each group file owns its internal order.
@@ -87,8 +89,10 @@ export const ALL_COMMAND_PALETTE_COMMANDS: CommandPaletteCommand[] = assertExecu
     ...hifiCommands,
     ...navigationCommands,
     ...panelCommands,
+    ...scratchpadCommands,
     ...modsCommands,
     ...visualizerCommands,
+    ...sceneCommands,
 ])));
 
 export const OPEN_HOTKEY_INDEX = buildOpenHotkeyIndex(ALL_COMMAND_PALETTE_COMMANDS);

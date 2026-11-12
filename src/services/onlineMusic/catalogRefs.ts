@@ -142,8 +142,33 @@ export const resolveSongCatalogRefSet = async (
         seen.add(String(ref.id));
         artistRefs.push(ref);
     });
+    // Some providers list a collaboration as one name, then resolve it to several named artists.
+    if (kinds.artists && artists.length > 0 && resolvedSong) {
+        for (const artist of resolvedSong.artists) {
+            const ref = artist.catalogRef;
+            if (!isMatchingRef(ref, sourceRef.providerId, 'artist') || !artist.name.trim() || seen.has(String(ref.id))) continue;
+            seen.add(String(ref.id));
+            artistRefs.push({ ...ref, name: artist.name.trim() });
+        }
+    }
     return {
         album: album ? named(catalogRefOf(song, resolvedSong, 'album', album, -1), album) : null,
         artists: artistRefs,
     };
+};
+
+/**
+ * An artist listed on an online collection (an album's artists, #1058): the id its artist page opens with,
+ * or undefined when it cannot be opened. A provider that keeps catalog refs puts one on every artist it can
+ * open, so an artist without its ref carries a stand-in id (an index, a name); a provider without catalog
+ * refs gives its own ids, where 0 or '' means the platform has none for that artist.
+ */
+export const resolveCollectionArtistCatalogId = (
+    providerId: string,
+    artist: Pick<Artist, 'id' | 'catalogRef'>,
+): number | string | undefined => {
+    if (isMatchingRef(artist.catalogRef, providerId, 'artist')) return artist.catalogRef.id;
+    const catalog = getOnlineMusicProvider(providerId)?.catalog;
+    if (catalog?.canResolveSongCatalogRefs || catalog?.resolveSongCatalogRefs) return undefined;
+    return artist.id === '' || artist.id === 0 || artist.id === '0' || artist.id === undefined ? undefined : artist.id;
 };

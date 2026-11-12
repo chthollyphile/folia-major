@@ -6,6 +6,7 @@ import { useLatticeSettingsStore } from '../../stores/useLatticeSettingsStore';
 import { openCommandPalette } from '../../stores/useAppViewStore';
 import { useMediaQuery } from '../../hooks/useMediaQuery';
 import { usePlayerBottomBarBottomPx } from '../../hooks/usePlayerBottomBarBottomPx';
+import { holdCompanionHover, releaseCompanionHover, useBottomDockStore, useIsDockCompactWithCapsule } from '../../stores/useBottomDockStore';
 import { SlideActionButton } from '../shared/SlideActionButton';
 import { WallToolsQuickRow, WallToolsRow, type WallToolsEntry, type WallToolsQuickAction } from './WallToolsRows';
 import { useWallToolsCommonActions } from './useWallToolsCommonActions';
@@ -93,6 +94,20 @@ export function WallToolsSurface({ idPrefix, label, isDaylight, destination, ent
     const handleToggleLatticePosterTint = useLatticeSettingsStore(state => state.handleToggleLatticePosterTint);
     const isWideLayout = useMediaQuery('(min-width: 640px)');
     const bottomPx = usePlayerBottomBarBottomPx(isWideLayout ? 24 : 16);
+    // 紧凑档（窗口窄于 960，progress-bar v3）：按钮挂到进度条胶囊的右端（bottomDock.css 平移根节点，面板与浮岛跟着走），
+    // 上方那颗定位按钮不画，定位改由胶囊左端的封面按（Lattice / bravais 把定位动作登记进 useBottomDockStore）。
+    const isDocked = useIsDockCompactWithCapsule();
+    useEffect(() => {
+        useBottomDockStore.getState().setCompanion(`wall-tools:${idPrefix}`, true);
+        return () => {
+            useBottomDockStore.getState().setCompanion(`wall-tools:${idPrefix}`, false);
+            releaseCompanionHover(true);
+        };
+    }, [idPrefix]);
+    useEffect(() => {
+        useBottomDockStore.getState().setCompanionOpen('wall-tools', isOpen);
+        return () => useBottomDockStore.getState().setCompanionOpen('wall-tools', false);
+    }, [isOpen]);
     // stack 的 max-height 要减掉按钮此刻的底距（随底栏抬升量变），经 CSS 变量交给样式。
     const bottomVar = useTransform(bottomPx, value => `${value}px`);
     const host = useWallToolsHost();
@@ -160,7 +175,10 @@ export function WallToolsSurface({ idPrefix, label, isDaylight, destination, ent
         <motion.div
             ref={rootRef}
             style={{ bottom: bottomPx, '--wall-tools-bottom': bottomVar } as unknown as MotionStyle}
-            className={`lattice-tools group ${above ? 'has-above' : ''} ${isDaylight ? 'is-daylight' : ''}`}
+            className={`lattice-tools group dock-companion dock-companion--wall-tools ${isDocked ? 'is-docked' : ''} ${above && !isDocked ? 'has-above' : ''} ${isDaylight ? 'is-daylight' : ''}`}
+            // 挂在胶囊上时鼠标停在这里胶囊也算悬停；只认鼠标和笔，手指点完补发的 mouseenter 不算。
+            onPointerEnter={(event) => { if (isDocked && event.pointerType !== 'touch') holdCompanionHover(); }}
+            onPointerLeave={(event) => { if (event.pointerType !== 'touch') releaseCompanionHover(); }}
         >
             {/* 面板与队列浮岛叠在按钮上方的一列里（column-reverse：面板在下、浮岛在上）：定位在 stack 上，面板自己不再 absolute。 */}
             <div className={showQueueIsland ? 'lattice-tools-stack has-queue-island' : 'lattice-tools-stack'}>
@@ -225,12 +243,13 @@ export function WallToolsSurface({ idPrefix, label, isDaylight, destination, ent
                     )}
                 </AnimatePresence>
                 <AnimatePresence initial={false}>
-                    {showQueueIsland && <WallToolsQueueIsland key="queue-island" id={queueIslandId} host={host} trailsPanel={islandTrailsPanel} />}
+                    {showQueueIsland && <WallToolsQueueIsland key="queue-island" id={queueIslandId} host={host} trailsPanel={islandTrailsPanel} onClosePanel={close} />}
                 </AnimatePresence>
             </div>
 
-            {above}
+            {!isDocked && above}
             <SlideActionButton
+                docked={isDocked}
                 icon={isOpen ? X : Settings2}
                 title={label}
                 onActivate={() => {

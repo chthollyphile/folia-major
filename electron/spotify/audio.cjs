@@ -46,6 +46,9 @@ const REFUSED = new Set([401, 403, 404, 410]);
 const KEY_REFUSED = /audio key unavailable.*AesKey/i;
 const ACCOUNT_GETS_NO_KEY = 'Spotify gives this account no audio key';
 const KEY_REFUSED_FOR_NOW = 'Spotify refused the audio key for now';
+// The probe after a sign-in (`probe`): how long it may take in all, and the file it asks the key of.
+const PROBE_LIMIT_MS = 15 * 1000;
+const PROBE_BITRATE = 160;
 
 // The counter for the 16-byte block that holds byte `offset` of the file.
 function counterAt(offset) {
@@ -81,6 +84,11 @@ function closeQuietly(session) {
 // for some systems only; where there is none, Spotify cannot be played.
 function openLibrespotSession({ accessToken, deviceId }) {
   let librespot;
+  // On Linux the module asks for a diagnostic report when it is first required, to tell glibc
+  // from musl. The report's network section looks up every interface's address and can wait
+  // without end on some systems, holding the main process (and every window) with it. The
+  // module reads only the report's header, so the network section is left out.
+  if (process.report) process.report.excludeNetwork = true;
   try {
     librespot = require('@lox-audioserver/node-librespot');
   } catch (error) {
@@ -406,6 +414,42 @@ function createSpotifyAudio({
         const failed = toErrorResult(error).error.code;
         if (failed !== 'network') warn(`[Spotify] A request for audio was refused: ${describeError(error)}`);
         return failed === 'network' ? Response.error() : gone();
+      }
+    },
+
+    // Whether Spotify gives the signed-in account audio keys, asked right after a sign-in: each
+    // track in turn is located with its key (the address and the key only, no audio is fetched)
+    // until one answers. 'ok'; 'no-key' (refused before any key was given in this run: the account
+    // cannot play here); or 'unknown' (nothing could be asked, or it failed otherwise, or took
+    // longer than `limitMs`). A track Spotify has no audio for is passed over.
+    async probe(trackIds, limitMs = PROBE_LIMIT_MS) {
+      const startedIn = generation;
+      const startedAt = now();
+      let limit;
+      const outOfTime = new Promise(resolve => { limit = setTimeout(() => resolve('timeout'), limitMs); });
+      try {
+        for (const trackId of trackIds) {
+          if (typeof trackId !== 'string' || !TRACK_ID.test(trackId)) continue;
+          try {
+            if (await Promise.race([locate(trackId, PROBE_BITRATE).then(() => 'located'), outOfTime]) === 'timeout') {
+              warn(`[Spotify] The audio key probe took over ${limitMs}ms`);
+              return 'unknown';
+            }
+            if (startedIn === generation) keyGiven = true;
+            log(`[Spotify] The audio key probe was answered in ${now() - startedAt}ms: the account gets keys`);
+            return 'ok';
+          } catch (error) {
+            if (error?.message === ACCOUNT_GETS_NO_KEY) return 'no-key';
+            // A key was given in this run already: the account gets keys, Spotify only asks to slow down.
+            if (error?.message === KEY_REFUSED_FOR_NOW) return 'ok';
+            if (error?.code === 'not-playable') continue;
+            warn(`[Spotify] The audio key probe failed: ${describeError(error)}`);
+            return 'unknown';
+          }
+        }
+        return 'unknown';
+      } finally {
+        clearTimeout(limit);
       }
     },
 

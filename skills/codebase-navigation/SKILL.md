@@ -66,7 +66,7 @@ node dev/mcp/ts-code-map/cli.mjs doctor    # 环境自检
 - 新代码先按功能放：一个功能的文件放在它自己的一处（见 `skills/file-modularization/SKILL.md`）。
   旧代码多数还按种类分：UI 结构在 `components`；React 生命周期和副作用在 `hooks`；跨组件状态在
   `stores`；IO/缓存/provider 在 `services`；纯变换在 `utils`；契约在 `types`。改旧代码时照它所在的地方放。
-- 依赖方向按路径检查（`dev/mcp/ts-code-map/codemap.mjs` 的 `BOUNDARY_RULES`，结果在 `CODEMAP.md` 的
+- 依赖方向按路径检查（`dev/dedicatus/rules.mjs` 的 `BOUNDARY_RULES`，`npm run dedicatus` 检查，结果在 `CODEMAP.md` 的
   “分层边界违规”）：`stores`、`utils`、`types`、`services` 不在运行时依赖 `components`；
   `components`、`hooks`、`stores` 不直连 provider 和 transport。
 - `utils` 是叶子层，全仓都 import 它，所以它不能反过来读 store。需要读实时状态才能得出结果的
@@ -100,7 +100,7 @@ node dev/mcp/ts-code-map/cli.mjs doctor    # 环境自检
   （`useOnlineProviderAccountStore`、`useNeteaseApiStatusStore`，数据来自账户 controller），也不直连 Omni 的扫码 / 登出；登录一律调 `openLoginWindow` 打开 App 挂的那一个登录窗口（`src/components/login/`）。
   设置 UI（`components/modal/settings`）反过来不能 import suite，所以 suite 专属的偏好要放 app 层 store
   （例如 bravais 的透光 `useLibraryWallLookStore`），由 suite 读它。
-  这些规则同时写在 `codemap.mjs` 的 `BOUNDARY_RULES` 和 `test/unit/library/layerBoundaries.test.ts` 里，两者的分层判断都读 `libraryLayers.mjs`。
+  这些规则同时写在 `dev/dedicatus/rules.mjs` 的 `BOUNDARY_RULES` 和 `test/unit/library/layerBoundaries.test.ts` 里，两者的分层判断都读 `libraryLayers.mjs`。
   网格 suite 按 surface 分子目录：`suites/grid/{home,collection,directory,artist,shared,transitions}`
   （首页 `Grid3D` 与本地 / Navidrome 首页、集合详情 `GridView`、`GridMap` 与批量面板、歌手页、
   hex 视口与卡片、打开转场）；TUI 在 `suites/tui/`（实现首页 `LibraryTuiHome`、集合 `LibraryTuiView` 与歌手页 `LibraryTuiArtist`）；
@@ -125,7 +125,7 @@ node dev/mcp/ts-code-map/cli.mjs doctor    # 环境自检
   接口细节见 `docs/library-suites.md`。
 - `src/components/wall/` 是与内容无关的墙面引擎（几何、slot / rank、有限墙、缝的选线、翻牌计划、相机、`WallTitle`、
   海报样式 `wall.css`、浮层控件 `WallBackButton` / `WallToolsButton` 与它上方的队列浮岛 `WallToolsQueueIsland`），Lattice 与 bravais 共用。工具面板要动应用的动作（洗牌、主题、音量预览、播放页、队列编辑）经 `wallToolsHost` 上下文由 App（`components/app/wall-tools/useAppWallToolsHost`）注入，wall 自己不认识 App。它不依赖 `src/components/app/**`（含 Lattice）与 `src/library/**`，
-  连 `import type` 与动态 import 一起查（`test/unit/wall/wallBoundaries.test.ts`，codemap 的 `BOUNDARY_RULES` 同一条）；
+  连 `import type` 与动态 import 一起查（`test/unit/wall/wallBoundaries.test.ts`，Dedicatus 的 `BOUNDARY_RULES` 同一条）；
   新几何写成不 import React 的纯函数放这里。透光 / 底板等 bravais 专属的东西不放 wall，Lattice 的队列模型、键盘焦点、
   播放展开也不放 wall。CSS 类名与变量沿用 `.lattice-*` / `--lattice-*`（测试选择器依赖它们），bravais 的 DOM 也用这些类名。
 - `App.tsx` 是历史遗留的装配缝，已经很大。新行为应该组装进相邻的 `components/app/*`、

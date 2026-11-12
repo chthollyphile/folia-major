@@ -32,7 +32,7 @@ function LoginAccountTabProbe(props: ProbeProps) {
             setSaid('sign out');
             return false;
         },
-        switchCleanup: { holdsSongs: () => false, resetForProviderSwitch: () => { } },
+        switchCleanup: { leaveProvider: () => { }, holdsSongsOf: () => false, dropSongsOf: () => { } },
     })));
     useEffect(() => () => account.dispose(), [account]);
     const asked = useLoginWindowStore(store => (store.isOpen ? `window open on ${store.providerId ?? 'no platform'}` : ''));

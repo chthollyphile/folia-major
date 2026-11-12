@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { AppWindow, ChevronDown, ExternalLink, Loader2, QrCode, Smartphone, User, type LucideIcon } from 'lucide-react';
+import { AppWindow, ChevronDown, ExternalLink, ListChecks, Loader2, QrCode, Smartphone, User, type LucideIcon } from 'lucide-react';
 import type { LoginFailure } from '../../../types/loginFailure';
 import { buildLoginIssueUrl } from '../../../services/onlineMusic/login/loginDiagnosticReport';
 import type { OnlineProviderId } from '../../../types/onlineMusic';
@@ -22,7 +22,10 @@ export type MessageAction = {
     label: string;
     onClick: () => void;
     primary?: boolean;
+    /** 正在做：转圈、不可按。 */
     busy?: boolean;
+    /** 不可按（不转圈）。 */
+    disabled?: boolean;
 };
 
 type LoginMessageProps = {
@@ -42,7 +45,7 @@ type LoginMessageProps = {
     steps?: { marks: StepMark[]; current: number } | null;
 };
 
-const STEP_ICON: Record<StepMark, LucideIcon> = { code: QrCode, browser: AppWindow, phone: Smartphone, account: User };
+const STEP_ICON: Record<StepMark, LucideIcon> = { code: QrCode, browser: AppWindow, phone: Smartphone, account: User, check: ListChecks };
 
 const StepMarks: React.FC<{ marks: StepMark[]; current: number }> = ({ marks, current }) => (
     <div aria-hidden className="login-fade ml-auto flex shrink-0 items-center self-end">
@@ -136,13 +139,16 @@ export const LoginMessage: React.FC<LoginMessageProps> = ({ sceneKey, headline, 
                 {first && (waitFor
                     ? <WaitButton key={waitFor.at} failure={waitFor} action={first} />
                     : (
-                        <Button variant={first.primary ? 'primary' : undefined} onClick={first.onClick} disabled={first.busy}>
+                        <Button variant={first.primary ? 'primary' : undefined} onClick={first.onClick} disabled={first.busy || first.disabled}>
                             {first.busy && <Loader2 size={14} className={reduced ? undefined : 'animate-spin'} />}
                             {first.label}
                         </Button>
                     ))}
                 {rest.map(action => (
-                    <Button key={action.label} variant={action.primary ? 'primary' : undefined} onClick={action.onClick} disabled={action.busy}>{action.label}</Button>
+                    <Button key={action.label} variant={action.primary ? 'primary' : undefined} onClick={action.onClick} disabled={action.busy || action.disabled}>
+                        {action.busy && <Loader2 size={14} className={reduced ? undefined : 'animate-spin'} />}
+                        {action.label}
+                    </Button>
                 ))}
                 {details && (
                     <button

@@ -49,6 +49,8 @@ Do not expose account credentials, cookies, tokens, API keys, or other personal 
 
 Before submitting a PR, review the entire local diff, confirm that every file and change belongs to the topic, and manually verify all review findings. Verification must cover the problem the PR claims to solve or the functionality it claims to provide; checking whether the code compiles is insufficient.
 
+Before opening a PR, run `npm run lint:fix-style` at the repository root. It fixes only the layout (indentation, quotes, line breaks) of the files you changed and does not change what the code means; the first run installs ESLint's separate environment. Use `npm run lint` to see the problems it cannot fix. CI annotations with a `D` code come from the Dedicatus architecture checks; see [`dev/dedicatus/README.md`](dev/dedicatus/README.md). If a Dedicatus contract test fails in the unit tests, add the registration its message asks for under `dev/dedicatus/` (for example, a new IPC channel goes in `ipcChannels.mjs` and a new persisted key in `storageKeys.mjs`).
+
 Accurately report the checks you ran and their results in the PR. Also state any unverified environments, known limitations, or remaining problems.
 
 ## Submitting a pull request

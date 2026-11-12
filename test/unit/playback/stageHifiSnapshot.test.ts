@@ -49,6 +49,12 @@ vi.mock('@/hooks/usePlayerCapSource', () => ({
     }),
 }));
 vi.mock('@/utils/lyrics/LyricParserFactory', () => ({ LyricParserFactory: { parse: async () => null } }));
+const externalState = vi.hoisted(() => ({ sounding: false }));
+vi.mock('@/services/onlineMusic/externalPlayback', () => ({
+    getExternalPosition: () => 42,
+    isExternalPlaybackSounding: () => externalState.sounding,
+    isExternalRoute: () => false,
+}));
 vi.mock('@/components/app/playback/restore/restorePlaybackSource', () => ({
     restorePlaybackSourceForSong: vi.fn(async (song: SongResult, options: {
         pendingResumeTimeRef?: { current: number | null };
@@ -83,6 +89,10 @@ const navidromeSong = {
 const onlineSong: SongResult = {
     id: 'm1', name: 'Online', artists: [], album: { id: '', name: '' }, durationMs: 1000,
     sourceRef: { kind: 'online', providerId: 'bodian', mediaId: 'm1' },
+};
+const appleSong: SongResult = {
+    id: 'a1', name: 'Apple', artists: [], album: { id: '', name: '' }, durationMs: 200000,
+    sourceRef: { kind: 'online', providerId: 'appleMusic', mediaId: 'a1' },
 };
 
 /** The refs App hands the hook (usePlaybackRuntimeRefs), as plain objects. */
@@ -128,14 +138,15 @@ const fakeDeck = (currentTime: number) => {
     };
 };
 
-const playingMain = (song: SongResult, route: 'hifi' | 'web', playerState = PlayerState.PLAYING) => {
+const playingMain = (song: SongResult, route: 'hifi' | 'web' | 'external', playerState = PlayerState.PLAYING) => {
+    externalState.sounding = route === 'external';
     makeSongCurrent(song);
     usePlaybackStore.setState({
         activePlaybackContext: 'main',
         currentSong: song,
         playQueue: [song],
         playbackRoute: route,
-        audioSrc: route === 'hifi' ? null : 'blob:main',
+        audioSrc: route === 'web' ? 'blob:main' : null,
         playerState,
         duration: 200,
     });
@@ -156,6 +167,7 @@ const roundTrip = async () => {
 };
 
 beforeEach(() => {
+    externalState.sounding = false;
     refs = createRefs();
     env.refs.length = 0;
     env.restoreCalls.length = 0;
@@ -182,6 +194,12 @@ describe('the main snapshot', () => {
         playingMain(localSong, 'web');
         await render().openStagePlayer();
         expect(render().mainPlaybackSnapshotRef.current).toMatchObject({ route: 'web', currentTime: 3, audioSrc: 'blob:main' });
+    });
+
+    it('records the external route and the player\'s position', async () => {
+        playingMain(appleSong, 'external');
+        await render().openStagePlayer();
+        expect(render().mainPlaybackSnapshotRef.current).toMatchObject({ route: 'external', currentTime: 42, audioSrc: null });
     });
 
     it('is captured with the route whenever the main player changes', () => {
@@ -266,6 +284,25 @@ describe('leaving the stage back to a song mpv was playing', () => {
         render().interruptStagePlaybackForMainTransition();
         expect(env.restoreCalls).toHaveLength(1);
         expect(env.restoreCalls[0].resumeAt).toBe(90);
+    });
+});
+
+describe('leaving the stage back to an external song', () => {
+    it('brings it back paused at its position, empties the stage deck and restores nothing', async () => {
+        const deck = fakeDeck(7);
+        playingMain(appleSong, 'external');
+        await render().openStagePlayer();
+        usePlaybackStore.setState({ playbackRoute: 'web', audioSrc: 'https://stage/media.mp3', playerState: PlayerState.PLAYING });
+        refs.audioRef.current = deck as unknown as HTMLAudioElement;
+        render().leaveStagePlayback();
+        await Promise.resolve();
+
+        expect(restorePlaybackSourceForSong).not.toHaveBeenCalled();
+        expect(deck.calls).toEqual(['pause', 'removeAttribute:src', 'load']);
+        const state = usePlaybackStore.getState();
+        expect(state).toMatchObject({ currentSong: appleSong, audioSrc: null, playerState: PlayerState.PAUSED });
+        expect(refs.shouldAutoPlay.current).toBe(false);
+        expect(refs.pendingResumeTimeRef.current).toBe(42);
     });
 });
 

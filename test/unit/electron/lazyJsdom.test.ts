@@ -12,6 +12,9 @@ const { deferJsdom } = require('../../../electron/netease/lazyJsdom.cjs') as {
 };
 
 const folders: string[] = [];
+// Numbers every package of the run: `folders` is emptied after each test, so its length repeats, and
+// two tests in the same millisecond would share a load counter.
+let packageCount = 0;
 
 // A package folder with a file of its own and, unless told otherwise, a stand-in for the real jsdom
 // in its node_modules that counts how often it was loaded.
@@ -21,7 +24,8 @@ const createPackage = ({ withJsdom = true } = {}) => {
     const packageFile = path.join(root, 'util', 'request.js');
     fs.mkdirSync(path.dirname(packageFile), { recursive: true });
     fs.writeFileSync(packageFile, 'module.exports = {};\n');
-    const counter = `__lazyJsdomLoads_${folders.length}_${Date.now()}`;
+    packageCount += 1;
+    const counter = `__lazyJsdomLoads_${packageCount}`;
     if (withJsdom) {
         const jsdomDir = path.join(root, 'node_modules', 'jsdom');
         fs.mkdirSync(jsdomDir, { recursive: true });

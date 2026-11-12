@@ -1,5 +1,5 @@
 import type { SongResult } from '../../../../types';
-import type { MediaId } from '../../../../types/onlineMusic';
+import type { DailyStyleGroup, DailyStyleSelection, MediaId } from '../../../../types/onlineMusic';
 import type { LibraryCapability } from '../../shared/capability.contract';
 import type { LibraryCollectionDescriptor } from '../collection.contract';
 import type { LibraryMutationPort, LibraryPlaylistOption } from '../../shared/ports.contract';
@@ -92,6 +92,18 @@ export type CollectionMutationSnapshot = {
      */
     readonly dailyHistoryAvailable: boolean;
     /**
+     * 每日推荐能不能看风格推荐（#938）：平台有这个功能（能力 dailyStyleRecommendations）才有。不是每日推荐时为 false。
+     */
+    readonly dailyStyleAvailable: boolean;
+    /** 正在看风格推荐（这时 dailyDate 是 ''）。 */
+    readonly dailyStyleShown: boolean;
+    /** 可选的风格分组；第一次看风格推荐时才去取，取到之前是空的。 */
+    readonly dailyStyleGroups: readonly DailyStyleGroup[];
+    /** 上一次取风格分组没取到（失败或一组都没有）；再调 loadDailyStyleGroups 重取。 */
+    readonly dailyStyleGroupsFailed: boolean;
+    /** 正在看的风格推荐是哪些风格（答复带回来的，答复没说时是刚保存的）；还不知道时为 null。 */
+    readonly dailyStyleSelection: DailyStyleSelection | null;
+    /**
      * 改名成功、但宿主的集合描述还带着旧名字时的新名字（renderer 显示它）；宿主的描述跟上或变了就回到 null。
      */
     readonly renamedTo: string | null;
@@ -137,7 +149,13 @@ export interface CollectionMutationController {
     setCover(): Promise<LibraryMutationResult>;
     organizeSongInfo(): Promise<LibraryMutationResult>;
     matchSong(track: SongResult): Promise<LibraryMutationResult>;
-    /** date 为 '' 表示今天；afresh 让上游重新生成今天的推荐。 */
+    /** date 为 '' 表示今天；afresh 让上游重新生成今天的推荐。看风格推荐时换日期就回到默认推荐。 */
     setDailyDate(date: string, options?: { afresh?: boolean }): Promise<LibraryMutationResult>;
+    /** 换成风格推荐（按账号已选的风格）；风格分组第一次用到时一起去取。 */
+    showDailyStyle(): Promise<LibraryMutationResult>;
+    /** 把选的风格存到账号上，再换成这些风格的推荐。selection 至少要有一个风格。 */
+    setDailyStyle(selection: DailyStyleSelection): Promise<LibraryMutationResult>;
+    /** 取风格分组（打开风格选择时调）：已经取到或正在取时什么都不做，上次没取到就再取一次。 */
+    loadDailyStyleGroups(): void;
     dispose(): void;
 }

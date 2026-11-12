@@ -1,6 +1,7 @@
 import type { LibraryDirectoryVisibilityMode } from '../../core/directory/directory.contract';
 import type { BravaisSeamForm, BravaisSeamMenuItem, BravaisSeamNotice } from './bravaisSeamModels';
 import type { LibraryHomeSpecialKind } from '../../core/home/homeSpecialCards';
+import type { LucideIcon } from 'lucide-react';
 
 // src/library/suites/bravais/bravaisHomeModels.ts
 // B9 首页挂在层描述上的扩展类型（设计稿 §10.5、§5「面板」的目录树）：首页窄缝里的二级切换、工具按钮（搜索、目录、
@@ -12,6 +13,17 @@ import type { LibraryHomeSpecialKind } from '../../core/home/homeSpecialCards';
 export type BravaisHomeSection = { key: string; label: string; active: boolean };
 
 /**
+ * 直达入口那一列里的动作入口（平台声明的「偏好设置」这类）：样子与直达入口一样、一起量、放不下时一起挪进「⋯」，
+ * 只是点了直接做事，不开墙上的卡。`label` 是缝里竖排的名字，`icon` 在「⋯」菜单里用。
+ */
+export type BravaisHomeEntry = {
+    id: string;
+    label: string;
+    icon: LucideIcon;
+    run: () => void;
+};
+
+/**
  * 直达入口（特殊集合：我喜欢的音乐、云盘、私人 FM、每日推荐、全部歌曲、本地「我喜欢」、Navidrome 随机 / 收藏）：
  * 首页窄缝中段底部并排的几列竖排文字（fb11 起；有二级切换时与它之间有分隔线），显示种类的短名（libraryBravaisHome.special.*）。点了直接进入那张集合，与点墙上那张卡同一条打开路径——
  * stage 先在墙上找这一项（屏内离缝最近的一份），找得到就把它记成起点磁贴、走层描述的 onOpenItem；找不到（别的 section、
@@ -19,7 +31,7 @@ export type BravaisHomeSection = { key: string; label: string; active: boolean }
  */
 export type BravaisHomeShortcut = {
     special: LibraryHomeSpecialKind;
-    /** 卡片的全名（进 aria-label / title；缝里显示的是种类的短名）。 */
+    /** 卡片的全名（进 aria-label / title；缝里显示的是种类的短名，平台的额外电台例外，显示它自己的名字）。 */
     label: string;
     /** 这张卡在墙上的条目 key。 */
     itemKey: string;
@@ -94,6 +106,8 @@ export type BravaisHomeSearch = {
  * 入口打开共用的登录窗口：换平台、登录、退出都在窗口里。
  */
 export type BravaisHomeAccount = {
+    /** 正在确认平台的登录状态。 */
+    checking?: boolean;
     providerId: string;
     providerLabel: string;
     /** B10：当前平台的账户状态（昵称 / 未登录 / 无需登录）。fb8 起只进入口的可访问名与 title，不直接显示。 */
@@ -126,6 +140,8 @@ export type BravaisHomeSeam = {
     shortcuts?: readonly BravaisHomeShortcut[];
     /** 直达入口那一列的读屏名（「直达」）。 */
     shortcutsLabel?: string;
+    /** 排在直达入口后面的动作入口（见 BravaisHomeEntry）。 */
+    entries?: readonly BravaisHomeEntry[];
     tools: readonly BravaisHomeTool[];
     /** 本地「⋯」：导入文件夹、刷新、导入歌单文件。 */
     menu?: readonly BravaisSeamMenuItem[];

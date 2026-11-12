@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { useMotionValueEvent } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
+import { providerDisplayName } from '../../i18n/providerName';
 import { playerBottomBarLiveOffset } from '../../stores/motionSignals';
 import type { LibraryAccountController } from '../../library/core/account/account.contract';
 import { useLibraryAccountProviders } from '../../library/core/account/useLibraryAccount';
@@ -125,10 +126,10 @@ const SwitcherPill: React.FC<SwitcherPillProps> = ({ account, onBackToPlayer }) 
                         <span data-login-pill={provider.providerId} className="inline-flex" style={landing && status === 'signed-in' ? { opacity: 0 } : undefined}>
                             {status === 'signed-in' && provider.user
                                 ? <AccountPicture user={provider.user} size={40} providerId={provider.providerId} />
-                                : <PlatformMark providerId={provider.providerId} label={provider.shortName} size={40} ranOut={status === 'ran-out'} />}
+                                : <PlatformMark providerId={provider.providerId} label={providerDisplayName(t, provider)} size={40} ranOut={status === 'ran-out'} />}
                         </span>
-                        <span className={`st-t-move overflow-hidden whitespace-nowrap text-xs font-semibold transition-[max-width,opacity,padding] ${showLabel ? 'max-w-[180px] pl-2.5 pr-3 opacity-100' : 'max-w-0 opacity-0'}`}>
-                            {provider.shortName || provider.displayName}
+                        <span className={`st-t-move overflow-hidden whitespace-nowrap text-xs font-semibold transition-[max-width,opacity,padding] ${showLabel || status === 'checking' ? 'max-w-[180px] pl-2.5 pr-3 opacity-100' : 'max-w-0 opacity-0'}`}>
+                            {status === 'checking' ? t('login.rowChecking') : providerDisplayName(t, provider)}
                         </span>
                     </button>
                 </Tooltip>

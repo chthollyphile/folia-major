@@ -9,7 +9,6 @@ import {
 } from '@/stores/usePlaybackStore';
 import { useAppViewStore } from '@/stores/useAppViewStore';
 import { useAudioSettingsStore } from '@/stores/useAudioSettingsStore';
-import { useVisualizerSettingsStore } from '@/stores/useVisualizerSettingsStore';
 import { installBeforePlayHook, installLyricsTransformHook, installPlaybackFailedListener, type PlaybackFailedNotice } from '@/services/hostExtensionHooks';
 import { getPlaybackSongKey } from '@/utils/appPlaybackGuards';
 import { clampMediaVolume } from '@/utils/appPlaybackHelpers';
@@ -25,8 +24,9 @@ import { takeFoliumQueueChange } from './queue/queueVersion';
 //     `lyrics.transform` at the lyrics setter and `playback.beforePlay` at the
 //     start of playSong;
 //   - turns store changes into notifications (song, transport state, lyrics,
-//     view, visualizer mode). Theme and seek notifications come from the host
-//     bridge hook in App, which is where the theme lives.
+//     view). Theme and seek notifications come from the host bridge hook in
+//     App, which is where the theme lives; the visualizer mode and the other
+//     `visualizer.*` events from runtime/visualizer/hostVisualizer.ts.
 //   - the queue outline, volume / mute and the repeat mode;
 //   - turns the host's playback failure notice into `playback.failed`.
 // Everything is a no-op until some mod listens.
@@ -186,9 +186,5 @@ export const installFoliumHostEvents = () => {
             emitFoliumEvent('app.viewChanged', { view: String(state.view) });
         }
     });
-    useVisualizerSettingsStore.subscribe((state, previous) => {
-        if (state.visualizerMode !== previous.visualizerMode) {
-            emitFoliumEvent('visualizer.modeChanged', { mode: state.visualizerMode });
-        }
-    });
+    // visualizer.modeChanged, with who changed the mode, is emitted by runtime/visualizer/hostVisualizer.ts.
 };

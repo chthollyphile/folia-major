@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
+  <!-- Windows system-WebView host; use the OS .NET Framework and installed Evergreen runtime. -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <LangVersion>10.0</LangVersion>
+    <AssemblyName>FoliaAppleMusicCompanion</AssemblyName>
+    <RootNamespace>Folia.AppleMusic</RootNamespace>
+    <PlatformTarget>x64</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System.Web.Extensions" />
+    <PackageReference Include="Microsoft.Web.WebView2" Version="[1.0.4314.35]" />
+  </ItemGroup>
+</Project>

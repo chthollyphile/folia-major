@@ -1,0 +1,6 @@
+<Project>
+  <!-- Set restore/intermediate paths before the SDK imports Microsoft.Common.props. -->
+  <PropertyGroup>
+    <BaseIntermediateOutputPath>$(MSBuildThisFileDirectory)../../../build/apple-music-native/windows-obj/</BaseIntermediateOutputPath>
+  </PropertyGroup>
+</Project>

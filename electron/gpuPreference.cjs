@@ -56,9 +56,10 @@ function activeGpuName(info) {
 
 /**
  * Reads the name of the adapter Chromium renders on, once per run, and logs it the first time.
- * Only the 'complete' level marks the active adapter, and on Windows it also gathers DxDiag data
- * (about half a second), so the answer is kept: the adapter does not change within a run. A failed
- * read is not kept.
+ * Only the 'complete' level marks the active adapter, and on Windows it also gathers Dawn and DxDiag
+ * data: the Dawn part holds the GPU process's main thread about half a second, which stops every
+ * window's frames. So it is asked for only on demand, and the answer is kept: the adapter does not
+ * change within a run. A failed read is not kept.
  */
 function createActiveGpuReader(app) {
   let pending = null;

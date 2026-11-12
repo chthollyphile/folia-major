@@ -4,7 +4,7 @@ import { createProviderSongMetadata } from '../../../utils/songMetadata';
 import { parseBodianLyrics } from '../../../utils/lyrics/bodianLyrics';
 import { getBodianTransportAvailability, requestBodian } from './bodianTransport';
 import { describeBodianFailure } from './bodianFailure';
-import { bodianPage, normalizeBodianCollection, normalizeBodianSong, normalizeBodianUser } from './bodianNormalize';
+import { bodianPage, getBodianLyricSearchAlias, normalizeBodianCollection, normalizeBodianSong, normalizeBodianUser } from './bodianNormalize';
 import { bodianCatalog } from './bodianCatalog';
 import { bodianLibrary, clearBodianLibraryCache } from './bodianLibrary';
 import { bodianMutations } from './bodianMutations';
@@ -48,7 +48,7 @@ async function getBodianDiscoverCollections(): Promise<ProviderCollection[]> {
 }
 
 export const bodianProvider: OnlineMusicProvider = {
-    id: 'bodian', displayName: '波点音乐', shortName: '波点',
+    id: 'bodian', displayName: '波点音乐', shortName: '波点', shortNameKey: 'onlineProviderName.bodian',
     mark: { letter: '波', color: '#0d9488' },
     getAvailability: getBodianTransportAvailability,
     describeFailure: describeBodianFailure,
@@ -100,6 +100,7 @@ export const bodianProvider: OnlineMusicProvider = {
             const data = await requestBodian<BodianLyricsPayload>('lyrics', { id: source.mediaId });
             return parseBodianLyrics(data);
         },
+        getSearchAlias: getBodianLyricSearchAlias,
     },
     auth: {
         getLoginTexts: () => ({ title: 'home.loginTitleBodian', note: 'home.loginNoteBodian' }),

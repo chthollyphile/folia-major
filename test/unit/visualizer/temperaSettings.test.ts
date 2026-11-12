@@ -105,9 +105,11 @@ describe('Tempera live texture resolution', () => {
             destroyed: false,
             options: {
                 tuning: { ...DEFAULT_TEMPERA_TUNING },
+                renderScale: 1,
                 host: { clientWidth: width, clientHeight: height },
                 paused: false,
             },
+            depthBlurTimer: null,
             app: { renderer },
             sceneCache: new PixiSceneCache({ count: () => 0, build: () => null, destroy: () => undefined }),
             songSwap: new PixiSongSwap({ stage: () => null, commit: () => undefined, discard: () => undefined }),
@@ -138,6 +140,47 @@ describe('Tempera live texture resolution', () => {
         runtime.setTuning({ ...DEFAULT_TEMPERA_TUNING });
 
         expect(renderer.resolution).toBeCloseTo(1024 / 850, 6);
+    });
+
+    it('multiplies textureResolution by the 分辨率 scale on the live renderer (#929)', () => {
+        // 1.5 x 1.5 = 2.25 on 800x800: far from the next pool boundary down, so the snap keeps it.
+        const { runtime, renderer } = mountRuntime(800, 800);
+
+        runtime.setRenderScale(1.5);
+        expect(renderer.resolution).toBe(2.25);
+
+        // The scale stays when the setting itself moves, and the pool snap still applies to the
+        // product: 1 x 1.5 on 800 px lands in a 2048 bucket, 1024/800 drops it to 1024.
+        runtime.setTuning({ ...DEFAULT_TEMPERA_TUNING, textureResolution: 1 });
+        expect(renderer.resolution).toBeCloseTo(1024 / 800, 6);
+
+        // A smaller scale goes below the style's own density.
+        runtime.setRenderScale(0.5);
+        expect(renderer.resolution).toBe(0.5);
+    });
+});
+
+describe('Tempera render override (#929)', () => {
+    it('reads a save from before the setting as following the global level', () => {
+        expect(resolveStoredTemperaTuning({ textureResolution: 2 }).render).toEqual({ scale: 'global', antialias: 'global' });
+    });
+
+    it('reads a stored override back and drops values it does not know', () => {
+        expect(resolveStoredTemperaTuning({ render: { scale: 0.75, antialias: 'on' } }).render).toEqual({ scale: 0.75, antialias: 'on' });
+        expect(resolveStoredTemperaTuning({ render: { scale: 4, antialias: 'auto' } as never }).render).toEqual({ scale: 'global', antialias: 'global' });
+    });
+
+    it('keeps the override when another field changes', () => {
+        const storage = createLocalStorageMock();
+        vi.stubGlobal('localStorage', storage);
+        vi.stubGlobal('window', { localStorage: storage });
+        useVisualizerSettingsStore.setState({ temperaTuning: { ...DEFAULT_TEMPERA_TUNING } });
+
+        useVisualizerSettingsStore.getState().handleSetTemperaTuning({ render: { scale: 2, antialias: 'off' } });
+        useVisualizerSettingsStore.getState().handleSetTemperaTuning({ showDecor: false });
+        expect(useVisualizerSettingsStore.getState().temperaTuning.render).toEqual({ scale: 2, antialias: 'off' });
+        expect(JSON.parse(storage.getItem('tempera_tuning') ?? '{}').render).toEqual({ scale: 2, antialias: 'off' });
+        vi.unstubAllGlobals();
     });
 });
 

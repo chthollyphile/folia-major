@@ -15,36 +15,54 @@ import { normalizeQqCollection, normalizeQqSong } from './qqNormalize';
 import { hasUsableQqSession, requestQq } from './qqTransport';
 
 // src/services/onlineMusic/qq/qqExplore.ts
-// QQ 音乐的探索页。QQ 没有一条能直接用的推荐页接口（它的首页 feed 登录后只给 3 栏、卡片分不出类型，
-// qq-music-api 3.3.3 没有接），所以栏都是这里用 3.3.3 的路由拼出来的，
-// 顺序照 QQ 音乐客户端的推荐、乐馆、雷达三页：个人化的在前，公开的在后。
-//  1. 第一页：刷歌模式（`/recommend/radar`，客户端的「雷达」，一页约 10 首，没登录也有），
-//     登录后再加「与《某首歌》相似」（`/song/similar`，要登录）。问的歌先用听的人在应用里听过的，
-//     再用每日 30 首，一次读取最多做 3 栏。
-//  2. 新歌速递（`/recommend/new-songs`）和新碟上架（`/recommend/new-albums`）。
-//  3. 排行榜：全部榜的卡片（`/recommend/toplists`，点开读那个榜的歌，见 qqLists.ts），和热歌榜的歌。
-//  4. 歌单分类：每次读取轮到 3 个分类，各一栏（`/recommend/categories`、`/recommend/category-playlists`）。
-//  5. 电台（要登录）：每次读取轮到 2 组，各一栏电台卡片，点开现给一批歌（`/radio/list`、`/radio/tracks`）。
-//     「猜你喜欢」（电台 99）就是电台页签的私人 FM，「最近」是账号自己的收听记录，都不放。
-// 每日 30 首和推荐歌单在电台页签，这里不重复。
+// QQ 音乐的探索页：个人化的在前，往下相似歌曲和公开的栏交替。
+//  1. 第一页：刷歌模式（`/recommend/radar`，客户端的「雷达」，一页约 10 首，没登录也有，放最上面）、
+//     每日 30 首（要登录）、客户端首页 feed 的几架（`/recommend/feed`，要登录，只有第 1 页，
+//     只有歌曲与歌单；架子每次读取都不同）、推荐歌单（`/recommend/playlists`）、
+//     全部榜单的卡片（`/recommend/toplists`，点开读那个榜的歌，见 qqLists.ts）。
+//  2. 后面的几部分，相似歌曲和公开的栏交替：相似歌曲 → 新歌速递与新碟上架 → 相似歌曲 →
+//     榜单的歌（照 QQ 的榜单顺序每次轮 4 个）→ 相似歌曲 → 歌单分类 → 电台。
+//     「与《某首歌》相似」（`/song/similar`，要登录）问的歌先用听的人在应用里听过的，再用每日 30 首；
+//     一部分做三栏，一次读取最多九栏。歌单分类每次轮到 3 个、各一栏。
+//     电台（要登录）每次轮到 2 组、各一栏电台卡片，点开现给一批歌（`/radio/list`、`/radio/tracks`）；
+//     「猜你喜欢」（电台 99）和账号的收听记录「最近」都不放。
 // 「换一批」：大部分栏只有重读才换得了（分类、电台、相似歌曲的栏每次换一组），所以在第一页声明
 // `refreshReadsAnew`，每次换一批都从头重读；每栏一次读取交一批，交过什么记在 exploreReads.ts 的共用记忆里，
 // 下一次先交没交过的。一栏的游标只给「更多」用：把这一栏接着展开，不换内容。
 
 /** 一栏一次交出的条数，「更多」每次也是这么多。 */
 const BATCH = 12;
-// 一次读取最多做几栏相似歌曲（每栏一个请求），一栏至少要几首不在别栏里的歌。
-const SIMILAR_A_READ = 3;
+// 一部分做几栏相似歌曲、一次读取最多几栏（每栏一个请求），一栏至少要几首不在别栏里的歌。
+const SIMILAR_A_PART = 3;
+const MAX_SIMILAR = 9;
 const SIMILAR_MIN = 4;
 // 一次读取轮到几个分类、几组电台。
 const CATEGORIES_A_READ = 3;
 const RADIO_GROUPS_A_READ = 2;
-// 热歌榜按名字认；认不出就用清单里的第一个榜。
-const HOT_CHART_TITLE = '热歌榜';
-// 电台 99 是「猜你喜欢」，和电台页签的私人 FM 同一个来源。
+// 榜单的歌一次读取轮几个榜，各一栏；照 QQ 的榜单顺序（巅峰、地区、特色、全球）轮下去。
+const CHARTS_A_READ = 4;
+// 电台 99 是「猜你喜欢」；私人 FM 读 `/user/personal-fm`，只有旧后端才退回猜你喜欢。
 const GUESS_YOU_LIKE_RADIO = 99;
 // 账号自己的收听记录（客户端电台页的「最近」）不属于探索页（EXPLORE_ADAPTER.md 规则 4）。
 const isListeningRecord = (title: string) => title.startsWith('最近');
+
+// 首页 feed 一架的标题。`{String}` 有两种用法：放在开头的是打招呼加昵称，去掉只留后面的话（昵称不进栏标题）；
+// 夹在引号里的（「{String}」也会喜欢）是作种子的歌名，填进去，填不了就用通用的「为你推荐」。
+// 没有占位的标题后面接上填进去的字；没有标题也用「为你推荐」。
+const FEED_PLACEHOLDER = '{String}';
+const QUOTED_PLACEHOLDER = /[「《“"]\{String\}[」》”"]/;
+const feedTitleOf = (template: unknown, content: unknown): string => {
+    const words = typeof template === 'string' ? template : '';
+    const filled = typeof content === 'string' ? content.trim() : '';
+    if (QUOTED_PLACEHOLDER.test(words)) {
+        // 用函数替换：歌名里的 `$` 原样填进去，不当替换语法。
+        return filled ? words.replace(FEED_PLACEHOLDER, () => filled).trim() : i18n.t('home.qqFeedForYou');
+    }
+    const at = words.indexOf(FEED_PLACEHOLDER);
+    const title = (at >= 0 ? words.slice(at + FEED_PLACEHOLDER.length) : words).trim();
+    if (!title) return i18n.t('home.qqFeedForYou');
+    return at < 0 && filled ? `${title} · ${filled}` : title;
+};
 
 // 游标：读取的序号之后，是页面的下一部分，或一栏「更多」接着的位置（`HELD` 是这次读取持有的整份列表，
 // `PAGED` 是要接着向 QQ 读的列表）。
@@ -59,8 +77,11 @@ const CATEGORY = 'category-';
 
 const NEW_SONGS_ID = 'qq-new-songs';
 const CHARTS_ID = 'qq-charts';
+const DAILY_SONGS_ID = 'qq-daily-songs';
+const PLAYLISTS_ID = 'qq-recommended-playlists';
 // 交过什么记在这几个范围下（`handedOut`）：问过的歌、轮过的分类、轮过的电台组。
 const SEEDS = 'seeds';
+const CHART_TURN = 'charts';
 const CATEGORIES = 'categories';
 const RADIO_GROUPS = 'radio-groups';
 
@@ -75,16 +96,23 @@ const newMemory = () => ({
     handedOut: createHandedOut(),
 });
 
-const newRead = (number: number, memory: ReturnType<typeof newMemory>, signedIn: boolean) => ({
+const newRead = (number: number, memory: ReturnType<typeof newMemory>, signedIn: boolean, listened: UnifiedSong[] = []) => ({
     number,
     memory,
     signedIn,
+    /** 听的人在应用里听过的歌，拿来问相似歌曲。 */
+    listened,
+    /** 每日 30 首，一次读取只要一次：一栏用它，问相似歌曲也用它。 */
+    daily: undefined as Promise<UnifiedSong[]> | undefined,
+    /** 这次读取要问的歌，和已经用掉几首。 */
+    seeds: undefined as Promise<Seed[]> | undefined,
+    seedsUsed: 0,
     /** 整份读来的列表，按栏的范围，按这次交出的顺序：这一批，然后是「更多」接着给的。 */
     held: new Map<string, ProviderExploreItem[]>(),
     /** 一首歌只出现在一栏相似歌曲里。 */
     onShelf: new Set<string>(),
-    /** 排行榜清单，一次读取只要一次。 */
-    toplists: undefined as Promise<any[]> | undefined,
+    /** 排行榜清单（按组），一次读取只要一次。 */
+    toplists: undefined as Promise<any[][]> | undefined,
 });
 type Read = ReturnType<typeof newRead>;
 
@@ -128,6 +156,8 @@ export const createQqExplore = (): OnlineExploreProvider => {
     let lastRead: Promise<unknown> = Promise.resolve();
     // 相似歌曲、分类、电台的栏每次读取都是另一栏，靠做出来的先后认。
     let shelvesMade = 0;
+    // 首页 feed 的架子每次读取都不同，靠做出来的先后认。
+    let feedShelvesMade = 0;
     // 上一次读取有没有登录。登录状态变了就另起一份记忆，访客读过的不排账号的栏，反过来也一样。
     let hadAccount: boolean | undefined;
 
@@ -214,8 +244,25 @@ export const createQqExplore = (): OnlineExploreProvider => {
         };
     };
 
-    /** 这次读取要问的歌：听过的在前，再来是每日 30 首；前几次读取问过的排后面。 */
-    const seedsOf = async (read: Read, listened: UnifiedSong[]): Promise<Seed[]> => {
+    /** 这次读取的每日 30 首；没登录不问，读不到当没有。 */
+    const dailyOf = (read: Read): Promise<UnifiedSong[]> => {
+        if (!read.daily) {
+            read.daily = read.signedIn
+                ? orEmpty(requestQq<any>('user_daily_songs'), null).then(songsIn).catch(error => {
+                    console.warn(`[QQ] Explore page: the daily songs could not be read (${errorMessage(error)})`);
+                    return [];
+                })
+                : Promise.resolve([]);
+        }
+        return read.daily;
+    };
+
+    /** 这次读取要问的歌：听过的在前，再来是每日 30 首；前几次读取问过的排后面，最多 `MAX_SIMILAR` 首。 */
+    const seedsOf = (read: Read): Promise<Seed[]> => {
+        read.seeds ??= collectSeeds(read);
+        return read.seeds;
+    };
+    const collectSeeds = async (read: Read): Promise<Seed[]> => {
         const seeds: Seed[] = [];
         const known = new Set<string>();
         const add = (songs: UnifiedSong[]) => songs.forEach(song => {
@@ -226,17 +273,9 @@ export const createQqExplore = (): OnlineExploreProvider => {
             known.add(id);
             seeds.push({ id, name: song.name });
         });
-        add(listened.filter(song => song.sourceRef?.kind !== 'online' || song.sourceRef.providerId === 'qq'));
-        if (seeds.length < SIMILAR_A_READ) {
-            try {
-                add(songsIn(await orEmpty(requestQq<any>('user_daily_songs'), null)));
-            } catch (error) {
-                console.warn(`[QQ] Explore page: the daily songs to ask with could not be read (${errorMessage(error)})`);
-            }
-        }
-        const taken = read.memory.handedOut.inTurn(SEEDS, seeds, seed => seed.id).slice(0, SIMILAR_A_READ);
-        read.memory.handedOut.note(SEEDS, taken.map(seed => seed.id));
-        return taken;
+        add(read.listened.filter(song => song.sourceRef?.kind !== 'online' || song.sourceRef.providerId === 'qq'));
+        if (seeds.length < MAX_SIMILAR) add(await dailyOf(read));
+        return read.memory.handedOut.inTurn(SEEDS, seeds, seed => seed.id).slice(0, MAX_SIMILAR);
     };
 
     /** 和 `seed` 相似、又不在别栏里的歌做成一栏；太少或读不到就不出。 */
@@ -269,10 +308,10 @@ export const createQqExplore = (): OnlineExploreProvider => {
         }
     };
 
-    const toplistsOf = (read: Read): Promise<any[]> => {
+    const toplistsOf = (read: Read): Promise<any[][]> => {
         if (!read.toplists) {
             read.toplists = orEmpty(requestQq<any>('recommend_toplists'), null)
-                .then(answer => listOf(answer?.groups).flatMap(group => listOf(group?.toplists)));
+                .then(answer => listOf(answer?.groups).map(group => listOf(group?.toplists)));
             // 失败的那次下回再要。
             read.toplists.catch(() => { read.toplists = undefined; });
         }
@@ -285,16 +324,24 @@ export const createQqExplore = (): OnlineExploreProvider => {
         pagedShelf(read, NEW_ALBUMS, i18n.t('home.qqNewAlbums')),
     ])).filter(present);
 
-    const chartsPart = async (read: Read): Promise<ProviderExploreSection[]> => {
-        const toplists = await toplistsOf(read);
-        const cards = toplists.map(qqToplistCollection).filter(present)
-            .map((collection): ProviderExploreItem => ({ kind: 'collection', collection }));
-        const hot = toplists.find(toplist => toplist?.title === HOT_CHART_TITLE) ?? toplists[0];
-        const hotId = Number(hot?.id);
-        return (await arrivedOf('the charts', [
-            Promise.resolve(listShelf(read, CHARTS_ID, i18n.t('home.qqCharts'), cards)),
-            Number.isSafeInteger(hotId) && hotId > 0 ? pagedShelf(read, `${CHART}${hotId}`, String(hot.title)) : Promise.resolve(null),
-        ])).filter(present);
+    /** 下一部分的相似歌曲：接着这次读取要问的歌往下用 `SIMILAR_A_PART` 首；没登录没有。 */
+    const similarPart = async (read: Read): Promise<ProviderExploreSection[]> => {
+        if (!read.signedIn) return [];
+        const seeds = (await seedsOf(read)).slice(read.seedsUsed, read.seedsUsed + SIMILAR_A_PART);
+        read.seedsUsed += seeds.length;
+        read.memory.handedOut.note(SEEDS, seeds.map(seed => seed.id));
+        return (await Promise.all(seeds.map(seed => similarShelf(read, seed)))).filter(present);
+    };
+
+    /** 榜单的歌：照 QQ 的榜单顺序，这次轮到的几个榜各一栏；前几次读取轮过的排后面。 */
+    const chartSongsPart = async (read: Read): Promise<ProviderExploreSection[]> => {
+        const charts = (await toplistsOf(read)).flat()
+            .filter(toplist => Number.isSafeInteger(Number(toplist?.id)) && Number(toplist.id) > 0);
+        const taken = read.memory.handedOut.inTurn(CHART_TURN, charts, toplist => String(Number(toplist.id))).slice(0, CHARTS_A_READ);
+        read.memory.handedOut.note(CHART_TURN, taken.map(toplist => String(Number(toplist.id))));
+        return (await arrivedOf('the songs of the charts', taken.map(toplist => (
+            pagedShelf(read, `${CHART}${Number(toplist.id)}`, String(toplist.title ?? ''))
+        )))).filter(present);
     };
 
     const categoriesPart = async (read: Read): Promise<ProviderExploreSection[]> => {
@@ -329,7 +376,7 @@ export const createQqExplore = (): OnlineExploreProvider => {
             .filter(present);
     };
 
-    const PARTS = [newPart, chartsPart, categoriesPart, radioPart];
+    const PARTS = [similarPart, newPart, similarPart, chartSongsPart, similarPart, categoriesPart, radioPart];
 
     // 从第 `from` 部分起，第一个有栏的部分。读不到的部分略过，失败记进 `failures`。
     const madeHere = async (read: Read, from: number, failures: unknown[] = []): Promise<ProviderExplorePage> => {
@@ -349,6 +396,29 @@ export const createQqExplore = (): OnlineExploreProvider => {
         return { sections: [] };
     };
 
+    /** 首页 feed 的几架（要登录）；旧后端没有这条路由、没有可用架子都只是不出。 */
+    const feedShelvesOf = async (read: Read): Promise<ProviderExploreSection[]> => {
+        if (!read.signedIn) return [];
+        // 旧后端没有这条路由（404／旧 Serverless 的 501，transport 报成 unsupported）是常态，不当成读失败。
+        const answer = await orEmpty(requestQq<any>('recommend_feed'), null).catch(error => {
+            if (error instanceof OnlineProviderError && error.code === 'unsupported') return null;
+            throw error;
+        });
+        return listOf(answer?.shelves).map((shelf, index) => {
+            const items = listOf(shelf?.items).map((item): ProviderExploreItem | null => {
+                if (item?.type === 'song') {
+                    const song = normalizeQqSong(item.song);
+                    return song.qqMid ? songItem(song) : null;
+                }
+                if (item?.type !== 'playlist') return null;
+                const playlist = item.playlist ?? {};
+                const collection = normalizeQqCollection({ tid: playlist.id, title: playlist.title, picurl: playlist.cover, desc: playlist.subtitle });
+                return collection.id !== '' && collection.name ? { kind: 'collection', collection } : null;
+            }).filter(present);
+            return listShelf(read, `feed-${index}`, feedTitleOf(shelf?.titleTemplate, shelf?.titleContent), items, `qq-feed-${++feedShelvesMade}`);
+        }).filter(present);
+    };
+
     const firstPage = async (listened: UnifiedSong[]): Promise<ProviderExplorePage> => {
         // 停用的会话（isQqSessionParked）请求不带，照游客读。
         const signedIn = hasUsableQqSession();
@@ -357,25 +427,29 @@ export const createQqExplore = (): OnlineExploreProvider => {
             console.log(`[QQ] Explore page: read ${signedIn ? 'for an account after a guest' : 'for a guest after an account'}; what the shelves handed out before is forgotten`);
         }
         hadAccount = signedIn;
-        const read = newRead(++reads, memory, signedIn);
+        const read = newRead(++reads, memory, signedIn, listened);
         const failures: unknown[] = [];
-        const [radar, similar] = await Promise.allSettled([
+        const shelves = await Promise.allSettled([
             pagedShelf(read, RADAR, i18n.t('home.qqRadar')),
-            signedIn
-                ? seedsOf(read, listened).then(async seeds => (await Promise.all(seeds.map(seed => similarShelf(read, seed)))).filter(present))
-                : Promise.resolve([]),
+            dailyOf(read).then(songs => listShelf(read, DAILY_SONGS_ID, i18n.t('home.dailyRecommendations'), songs.map(songItem))),
+            feedShelvesOf(read),
+            requestQq<any>('recommend_playlists', { limit: BATCH }).catch(error => (isEmptyAnswer(error) ? null : Promise.reject(error)))
+                .then(answer => listShelf(read, PLAYLISTS_ID, i18n.t('home.qqRecommendedPlaylists'), listOf(answer?.playlists)
+                    .map(playlist => normalizeQqCollection(playlist))
+                    .filter(playlist => playlist.id !== '' && playlist.name)
+                    .map((collection): ProviderExploreItem => ({ kind: 'collection', collection })))),
+            toplistsOf(read).then(groups => listShelf(read, CHARTS_ID, i18n.t('home.qqCharts'), groups.flat()
+                .map(qqToplistCollection).filter(present)
+                .map((collection): ProviderExploreItem => ({ kind: 'collection', collection })))),
         ]);
-        for (const answer of [radar, similar]) {
+        for (const answer of shelves) {
             if (answer.status !== 'rejected') continue;
             failures.push(answer.reason);
             console.warn(`[QQ] Explore page: part of the first page could not be read (${errorMessage(answer.reason)}); the page goes on without it`);
         }
-        const sections = [
-            radar.status === 'fulfilled' ? radar.value : null,
-            ...(similar.status === 'fulfilled' ? similar.value : []),
-        ].filter(present);
+        const sections = shelves.flatMap(answer => (answer.status === 'fulfilled' ? [answer.value].flat() : [])).filter(present);
         page = read;
-        console.log(`[QQ] Explore page: ${sections.length} shelves, ${countOf(sections)} entries; ${signedIn ? 'signed in' : 'a guest: no similar songs and no radio'}`);
+        console.log(`[QQ] Explore page: ${sections.length} shelves, ${countOf(sections)} entries; ${signedIn ? 'signed in' : 'a guest: no daily songs, no similar songs and no radio'}`);
         if (sections.length === 0) {
             // 第一页什么都没有：直接给后面第一个有栏的部分。整页都读不到才算失败（EXPLORE_ADAPTER.md 规则 6）。
             const rest = await madeHere(read, 0, failures);

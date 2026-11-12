@@ -25,6 +25,8 @@ import type { LibraryNavigationContext } from '../../core/suite/suite.contract';
 
 type BravaisSeamProps = {
     seamRef: RefObject<HTMLDivElement | null>;
+    /** 缝外面的轨道：缝的平移写在它上面（useBravaisFrame）。 */
+    trackRef: RefObject<HTMLDivElement | null>;
     contentRef: RefObject<HTMLDivElement | null>;
     tabRef: RefObject<HTMLButtonElement | null>;
     variant: BravaisSeamContentVariant;
@@ -53,6 +55,7 @@ type BravaisSeamProps = {
 
 const BravaisSeam: React.FC<BravaisSeamProps> = ({
     seamRef,
+    trackRef,
     contentRef,
     tabRef,
     variant,
@@ -81,27 +84,30 @@ const BravaisSeam: React.FC<BravaisSeamProps> = ({
     const currentLayerKey = useCallback(() => currentLayerKeyRef.current, []);
     return (
         <>
-            <div
-                ref={seamRef}
-                className="bravais-seam"
-                data-bravais-seam={variant}
-                data-bravais-seam-axis={row ? 'y' : 'x'}
-                data-bravais-seam-level={level}
-                aria-label={t('libraryBravais.seamLabel')}
-                role="region"
-            >
-                <div ref={contentRef} className="bravais-seam-content" style={row ? { height: width, marginTop: -width / 2 } : { width, marginLeft: -width / 2 }}>
-                    <motion.div
-                        className="bravais-seam-body"
-                        style={{ paddingBottom: bottomPx }}
-                        inert={hideLeaving}
-                        aria-hidden={hideLeaving || undefined}
-                        data-bravais-seam-leaving={hideLeaving || undefined}
-                    >
-                        <BravaisSeamNavigation.Provider value={navigation}>
-                            <BravaisSeamContent variant={variant} row={row} layer={layer} depth={navigation.depth} actions={{ setLevel, openList, panel, openShortcut, currentLayerKey }} />
-                        </BravaisSeamNavigation.Provider>
-                    </motion.div>
+            {/* 轨道：缝的平移在它身上、它自己成合成层；倾斜落定后缝的旋转画进这一层，字不会被当成图片转糊（seamTransforms）。 */}
+            <div ref={trackRef} className="bravais-seam-track">
+                <div
+                    ref={seamRef}
+                    className="bravais-seam"
+                    data-bravais-seam={variant}
+                    data-bravais-seam-axis={row ? 'y' : 'x'}
+                    data-bravais-seam-level={level}
+                    aria-label={t('libraryBravais.seamLabel')}
+                    role="region"
+                >
+                    <div ref={contentRef} className="bravais-seam-content" style={row ? { height: width, marginTop: -width / 2 } : { width, marginLeft: -width / 2 }}>
+                        <motion.div
+                            className="bravais-seam-body"
+                            style={{ paddingBottom: bottomPx }}
+                            inert={hideLeaving}
+                            aria-hidden={hideLeaving || undefined}
+                            data-bravais-seam-leaving={hideLeaving || undefined}
+                        >
+                            <BravaisSeamNavigation.Provider value={navigation}>
+                                <BravaisSeamContent variant={variant} row={row} layer={layer} depth={navigation.depth} actions={{ setLevel, openList, panel, openShortcut, currentLayerKey }} />
+                            </BravaisSeamNavigation.Provider>
+                        </motion.div>
+                    </div>
                 </div>
             </div>
             <button

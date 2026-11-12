@@ -1,7 +1,6 @@
 import { useCallback, useMemo, useRef, type MutableRefObject, type RefObject } from 'react';
-import { getViewWorldBounds, type WallViewCenter } from '../../../components/wall/wallView';
+import type { WallViewCenter } from '../../../components/wall/wallView';
 import type { WallDirection } from '../../../components/wall/wallNavigation';
-import { overlaps } from '../../../components/wall/layout';
 import type { WallSlot } from '../../../components/wall/wallSlots';
 import { BRAVAIS_BLOCK_SHAPE, shapeSlotFromKey, type BravaisWallShape } from './bravaisWallShape';
 import { findNearestSlot, resolveSlotFace, resolveSlotItem, type BravaisDisplay } from './bravaisDisplay';
@@ -20,12 +19,15 @@ import { canTakeSeamFocus, resolveSeamEntry, resolveSeamStep } from './bravaisSe
 import { BRAVAIS_SEAM_FLIP_ATTRIBUTE } from './bravaisSeamMotion';
 import type { BravaisTileHandlers } from './BravaisTile';
 import type { BravaisFrameState } from './useBravaisFrame';
+import { filterOnScreenSlots, getVisibleWorldBounds } from './useBravaisCamera';
 import type { useBravaisFocus } from './useBravaisFocus';
 import { seamPointOf } from './bravaisAnchor';
+import { selectDisplayPlayerState, usePlaybackStore } from '../../../stores/usePlaybackStore';
+import { PlayerState } from '../../../types';
 
 // src/library/suites/bravais/useBravaisInteractions.ts
 // 点击与按键 → 动作：点歌曲磁贴就地展开聚焦卡（不播放），点歌单 / 专辑卡 push 下一层（先把被点的 slot 记成新层的
-// 起点）；聚焦卡上的「立即播放」「加入队列」、歌手 / 专辑链接；方向键空间导航、Enter / Shift+Enter / Alt+Enter、
+// 起点）；双击歌曲磁贴直接播放（#834）；聚焦卡上的「立即播放」「加入队列」、歌手 / 专辑链接；方向键空间导航、Enter / Shift+Enter / Alt+Enter、
 // Esc 阶梯、Home、PgUp / PgDn、Tab 在墙与缝之间。动作一律经层描述的回调交给 surface，stage 不碰数据。
 // B9 首页：批量模式（目录树面板开着）里点卡片 / Enter 只切换选中、绝不进入文件夹（拖动后的残余点击在磁贴里已吞掉）；
 // 私人 FM 卡直接播放、不记起点；歌单类卡片的眼睛按钮；F6 切页签与批量按键（bravaisHomeKeys）；Esc 阶梯的「视图」一级
@@ -150,11 +152,36 @@ export const useBravaisInteractions = ({
             armBravaisPlayingCard(layer.key, item.key);
             layer.onPlayItem?.(item.key);
         },
+        // #834 双击歌曲磁贴直接播放。与聚焦卡的播放键不同，双击正在播放的那首不会把它暂停：只在它停着时继续。
+        // 批量模式里双击仍只是两下切换选中；放不了的歌（播放键是灰的）不播。
+        playFromWall: slotKey => {
+            const item = itemAt(slotKey);
+            const layer = displayRef.current?.layer;
+            if (!item || !layer || item.kind !== 'track' || layer.home?.batch) return;
+            const toggle = playbackRef.current.toggle;
+            if (toggle && layer.nowPlayingKey === item.key) {
+                if (selectDisplayPlayerState(usePlaybackStore.getState()) !== PlayerState.PLAYING) toggle();
+                return;
+            }
+            if (item.unavailable) return;
+            armBravaisPlayingCard(layer.key, item.key);
+            layer.onPlayItem?.(item.key);
+        },
         togglesCurrent,
         enterPlayback: hasEnter ? () => playbackRef.current.enter?.() : undefined,
         enqueue: slotKey => {
             const item = itemAt(slotKey);
             if (item) displayRef.current?.layer.onEnqueueItem?.(item.key);
+        },
+        canCollect: itemKey => Boolean(displayRef.current?.layer.canCollectItem?.(itemKey)),
+        collect: slotKey => {
+            const item = itemAt(slotKey);
+            if (item) displayRef.current?.layer.onCollectItem?.(item.key);
+        },
+        canSaveToPlaylist: itemKey => Boolean(displayRef.current?.layer.canSaveItemToPlaylist?.(itemKey)),
+        saveToPlaylist: slotKey => {
+            const item = itemAt(slotKey);
+            if (item) displayRef.current?.layer.onSaveItemToPlaylist?.(item.key);
         },
         canOpenAlbum: itemKey => Boolean(displayRef.current?.layer.canOpenAlbum?.(itemKey)),
         openAlbum: slotKey => {
@@ -194,14 +221,9 @@ export const useBravaisInteractions = ({
 
     /** 第一次按方向键：落在屏内离缝最近的有内容磁贴。 */
     const seedSlot = useCallback(() => {
-        const { view, center } = frameRef.current;
-        if (!view) return null;
-        const visible = getViewWorldBounds(center, view);
-        const onScreen = slotsRef.current.filter(slot => overlaps(
-            { left: slot.x, right: slot.x + slot.width, top: slot.y, bottom: slot.y + slot.height },
-            visible,
-        ));
-        return findNearestSlot(onScreen, seamPointOf(frameRef.current), hasContent);
+        // 按倾斜后的可见范围找（缝在远处时倾斜的视口整块偏开）。
+        if (!frameRef.current.view) return null;
+        return findNearestSlot(filterOnScreenSlots(frameRef.current, slotsRef.current), seamPointOf(frameRef.current), hasContent);
     }, [frameRef, hasContent, slotsRef]);
 
     const focusWall = useCallback(() => fieldRef.current?.focus({ preventScroll: true }), [fieldRef]);
@@ -401,9 +423,8 @@ export const useBravaisInteractions = ({
             shortcut.open();
             return;
         }
-        const { view, center } = frameRef.current;
         const slot = findDisplayItemSlot(display, shortcut.itemKey, seamPointOf(frameRef.current));
-        const visible = view ? getViewWorldBounds(center, view) : null;
+        const visible = getVisibleWorldBounds(frameRef.current, undefined, { seam: false });
         const onScreen = slot && visible
             && slot.centerX >= visible.left && slot.centerX <= visible.right
             && slot.centerY >= visible.top && slot.centerY <= visible.bottom;

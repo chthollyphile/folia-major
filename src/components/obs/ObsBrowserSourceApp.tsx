@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useMotionValue } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import VisualizerRenderer from '../visualizer/VisualizerRenderer';
+import ObsNowPlayingCard from './ObsNowPlayingCard';
+import { useObsSourceLanguage } from './useObsSourceLanguage';
 import { NO_LYRIC_LINES } from '../../utils/lyrics/noLyricLines';
 import { PlayerState } from '../../types';
 import type { ObsBrowserSourceAudio, ObsBrowserSourceClock, ObsBrowserSourceConfig } from '../../types/obsBrowserSource';
@@ -170,6 +172,12 @@ const ObsBrowserSourceApp: React.FC = () => {
         return () => window.cancelAnimationFrame(frameId);
     }, [currentTime]);
 
+    useObsSourceLanguage(config?.language);
+
+    const cardSong = useMemo(() => (config?.song
+        ? { title: config.song.name || '', artist: config.songArtist, coverUrl: config.coverUrl }
+        : null), [config?.song, config?.songArtist, config?.coverUrl]);
+
     if (!config) {
         return (
             <div className="h-screen w-screen bg-transparent grid place-items-center text-white/70 text-sm">
@@ -227,6 +235,13 @@ const ObsBrowserSourceApp: React.FC = () => {
                 cappellaCustomAvatarImages={config.cappellaCustomAvatarImages}
                 monetPortraitImage={config.monetPortraitImage}
                 temperaLayerImageAssets={config.temperaLayerImageAssets}
+            />
+            <ObsNowPlayingCard
+                card={config.nowPlayingCard}
+                song={cardSong}
+                trackKey={String(config.song?.id ?? '')}
+                isDaylight={config.isDaylight}
+                theme={config.theme}
             />
         </div>
     );

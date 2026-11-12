@@ -5,6 +5,8 @@ import { queueCommand } from './queueCommand';
 import { volumeCommand } from './volumeCommand';
 import { isHifiVolumeFixed, tellHifiVolumeFixed } from '../surfaces/volumeSurface';
 import { fmModeCommand } from './fmModeCommand';
+import { stationModeCommand } from './stationModeCommand';
+import { recommendationPreferencesCommand } from './recommendationPreferencesCommand';
 import type { CommandPaletteCommand, CommandPaletteContext } from '../types';
 import { createToggleCommand, createReplayGainCommand, createSoundPresetCommand, defineCommand } from '../commandFactories';
 import { canShuffleQueue } from '../../../utils/playbackNeighbors';
@@ -39,6 +41,8 @@ export const playbackCommands: CommandPaletteCommand[] = [
     ),
     volumeCommand,
     fmModeCommand,
+    stationModeCommand,
+    recommendationPreferencesCommand,
     createReplayGainCommand('off', 'Disable ReplayGain', 'Play audio without ReplayGain adjustment', ['replaygain off', 'audio gain off', '关闭音频增益', '关闭 replaygain', 'gbyyzy']),
     createReplayGainCommand('track', 'ReplayGain: Track mode', 'Apply per-track ReplayGain adjustment', ['replaygain track', 'track gain', 'single track gain', '单曲增益', '单曲 replaygain']),
     createReplayGainCommand('album', 'ReplayGain: Album mode', 'Apply album ReplayGain adjustment', ['replaygain album', 'album gain', '专辑增益', '专辑 replaygain']),
@@ -131,6 +135,7 @@ export const playbackCommands: CommandPaletteCommand[] = [
             icon: Heart,
             // Whether it likes or unlikes is the one thing the static title cannot say.
             isAvailable: context => (context ? Boolean(context.shared.currentSong) : true),
+            capsuleAction: true,
         },
     ),
     createToggleCommand(
@@ -143,6 +148,7 @@ export const playbackCommands: CommandPaletteCommand[] = [
         {
             icon: Star,
             isAvailable: context => (context ? context.playback.canAddCurrentSongToPlaylist : true),
+            capsuleAction: true,
         },
     ),
     createToggleCommand(
@@ -177,6 +183,7 @@ export const playbackCommands: CommandPaletteCommand[] = [
         executeShortcut: 'r',
         // The palette's context does not say whether the stage is playing, so that part is false.
         isAvailable: context => (context ? canShuffleQueue(context.playback.queue.length, context.playback.isFmMode, false) : true),
+        capsuleAction: true,
     }),
     {
         id: 'playback-clear-queue',

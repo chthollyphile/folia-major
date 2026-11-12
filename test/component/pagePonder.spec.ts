@@ -9,11 +9,11 @@ const session = (page: Page) => page.evaluate(() => window.__pagePonderProbe!.se
 /** 等长按阈值过去后检查入口状态，不依赖教程层下载或动画速度。 */
 const holdPageShortcut = async (page: Page) => {
     const start = await page.evaluate(() => performance.now());
-    await page.keyboard.down('Control');
+    await page.keyboard.down('ControlOrMeta');
     await page.keyboard.down('g');
     await expect.poll(() => page.evaluate(() => performance.now())).toBeGreaterThan(start + 450);
     await page.keyboard.up('g');
-    await page.keyboard.up('Control');
+    await page.keyboard.up('ControlOrMeta');
 };
 
 for (const surface of ['home', 'collection', 'artist'] as const) {
@@ -41,11 +41,11 @@ for (const surface of ['home', 'collection', 'artist'] as const) {
         page.on('request', request => {
             if (request.url().includes('/PonderStage.tsx')) stageRequests.push(request.url());
         });
-        await page.keyboard.down('Control');
+        await page.keyboard.down('ControlOrMeta');
         await page.keyboard.down('g');
         await expect(page.getByTestId('page-ponder-hold')).toHaveAttribute('data-holding', 'false');
         await page.keyboard.up('g');
-        await page.keyboard.up('Control');
+        await page.keyboard.up('ControlOrMeta');
         await holdPageShortcut(page);
         expect(await session(page)).toBeNull();
         expect(stageRequests).toEqual([]);

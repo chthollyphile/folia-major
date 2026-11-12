@@ -3,10 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // test/unit/library/app/useLibraryAccountController.test.ts
 // 应用持有的在线账户 controller（A4）用真实的默认装配（omni、账户 store、provider 注册表）跑：
-// - 原 test/unit/onlineMusic/onlineProviderPlatform.test.ts 的四条（Folium mod 源运行时增删：列表跟着注册表、
-//   切到 mod 源后搜索浮层跟着走、不经切换写入的当前平台也跟、mod 源消失时回落网易并记住）迁到这里，
-//   播放器里有歌（这里的假端口说有）时切换是「请求 + 确认」；
-// - 宿主表（退出、退出前的那一问、清空播放器）经 ref 现读最新的一份；卸载时 dispose。
+// - 原 test/unit/onlineMusic/onlineProviderPlatform.test.ts 的几条（Folium mod 源运行时增删：列表跟着注册表、
+//   不经切换写入的当前平台也跟、mod 源消失时回落网易并记住）迁到这里；切换不问、不重置搜索（搜索的来源由搜索页
+//   自己按可用性回落，见 test/unit/search/searchSources.test.ts）；
+// - 宿主表（退出、退出前的那一问、播放器端口）经 ref 现读最新的一份；卸载时 dispose。
 
 const storage = vi.hoisted(() => {
     // jsdom 环境下 node 自带的 localStorage 占位没有 getItem，store 初始化会直接抛。
@@ -70,7 +70,7 @@ const Probe = ({ tables }: { tables: LibraryAccountHostTables }) => {
     return null;
 };
 
-const cleanup = { holdsSongs: () => true, resetForProviderSwitch: vi.fn() };
+const cleanup = { leaveProvider: vi.fn(), holdsSongsOf: () => true, dropSongsOf: vi.fn() };
 const tables = (overrides: Partial<LibraryAccountHostTables> = {}): LibraryAccountHostTables => ({
     logout: async () => { },
     confirmLogout: async () => true,
@@ -88,22 +88,21 @@ const rerender = (next: LibraryAccountHostTables) => {
     act(() => root!.render(React.createElement(Probe, { tables: next })));
 };
 
-/** 请求切换并立即确认（相当于用户在确认框里点了确认）。 */
-const switchAndConfirm = async (providerId: OnlineProviderId) => {
+/** 请求切换：不问，直接切。 */
+const requestSwitch = async (providerId: OnlineProviderId) => {
     const current = controller!;
     let result: Awaited<ReturnType<LibraryAccountController['requestSwitch']>> | null = null;
     await act(async () => {
         const request = current.requestSwitch(providerId);
-        const pending = current.getSnapshot().pendingSwitch;
-        expect(pending?.to).toBe(providerId);
-        await current.confirmSwitch(pending!.id);
+        expect(current.getSnapshot().pendingSwitch).toBeNull();
         result = await request;
     });
     return result;
 };
 
 beforeEach(() => {
-    cleanup.resetForProviderSwitch.mockClear();
+    cleanup.leaveProvider.mockClear();
+    cleanup.dropSongsOf.mockClear();
     useOnlineProviderAccountStore.getState().setActiveProviderId('netease');
     useSearchNavigationStore.setState({ searchSourceTab: 'netease' });
 });
@@ -128,26 +127,25 @@ describe('application account controller with Folium mod sources', () => {
             .toMatchObject({ shortName: 'Mod', requiresAccount: false });
     });
 
-    it('switches to a mod source after confirmation and points the search overlay at it', async () => {
+    it('switches to a mod source without asking, and leaves the search where it was', async () => {
         registerOnlineMusicProvider(modProvider);
         mount();
 
-        expect(await switchAndConfirm(MOD_PROVIDER_ID)).toEqual({ status: 'switched', providerId: MOD_PROVIDER_ID, changed: true });
+        expect(await requestSwitch(MOD_PROVIDER_ID)).toEqual({ status: 'switched', providerId: MOD_PROVIDER_ID, changed: true });
 
         expect(view!.activeProviderId).toBe(MOD_PROVIDER_ID);
-        expect(cleanup.resetForProviderSwitch).toHaveBeenCalledWith(MOD_PROVIDER_ID, 'netease');
-        expect(useSearchNavigationStore.getState().searchSourceTab).toBe(MOD_PROVIDER_ID);
+        expect(cleanup.leaveProvider).toHaveBeenCalledExactlyOnceWith('netease', MOD_PROVIDER_ID);
+        expect(useSearchNavigationStore.getState().searchSourceTab).toBe('netease');
     });
 
-    it('follows an active provider set without a switch, as after a restart or session restore', () => {
+    it('follows an active provider set without a switch, as after a restart', () => {
         registerOnlineMusicProvider(modProvider);
         mount();
 
         act(() => useOnlineProviderAccountStore.getState().setActiveProviderId(MOD_PROVIDER_ID));
 
         expect(view!.activeProviderId).toBe(MOD_PROVIDER_ID);
-        expect(useSearchNavigationStore.getState().searchSourceTab).toBe(MOD_PROVIDER_ID);
-        expect(cleanup.resetForProviderSwitch).not.toHaveBeenCalled();
+        expect(cleanup.leaveProvider).not.toHaveBeenCalled();
     });
 
     it('falls back to NetEase and remembers it when the active mod source goes away', async () => {
@@ -164,7 +162,6 @@ describe('application account controller with Folium mod sources', () => {
         expect(view!.activeProviderId).toBe('netease');
         expect(view!.providers.some(provider => provider.providerId === MOD_PROVIDER_ID)).toBe(false);
         expect(storage.get('active_online_provider_id')).toBe('netease');
-        expect(useSearchNavigationStore.getState().searchSourceTab).toBe('netease');
     });
 });
 
@@ -192,25 +189,25 @@ describe('application account controller host tables', () => {
         });
 
         expect(result).toEqual({ status: 'logged-out', providerId: 'netease' });
-        expect(freshAsk).toHaveBeenCalledExactlyOnceWith({ providerId: 'netease', emptiesPlayer: true });
+        expect(freshAsk).toHaveBeenCalledExactlyOnceWith({ providerId: 'netease', removesSongs: true });
         expect(fresh).toHaveBeenCalledExactlyOnceWith('netease');
         expect(staleAsk).not.toHaveBeenCalled();
         expect(stale).not.toHaveBeenCalled();
-        // Signing out of the active platform empties the player, the way a switch does.
-        expect(cleanup.resetForProviderSwitch).toHaveBeenCalledWith('netease', 'netease');
+        // Signing out takes that platform's songs out of the player, and nothing else.
+        expect(cleanup.dropSongsOf).toHaveBeenCalledExactlyOnceWith('netease');
         useOnlineProviderAccountStore.getState().clearAccount('netease');
     });
 
-    it('disposes the controller on unmount: a pending switch is declined', async () => {
+    it('disposes the controller on unmount: a later switch is declined', async () => {
         registerOnlineMusicProvider(modProvider);
         mount();
         const current = controller!;
-        const request = current.requestSwitch(MOD_PROVIDER_ID);
 
         act(() => root!.unmount());
         root = null;
 
-        await expect(request).resolves.toEqual({ status: 'declined', providerId: MOD_PROVIDER_ID, reason: 'disposed' });
+        await expect(current.requestSwitch(MOD_PROVIDER_ID)).resolves.toEqual({ status: 'declined', providerId: MOD_PROVIDER_ID, reason: 'disposed' });
         expect(useOnlineProviderAccountStore.getState().activeProviderId).toBe('netease');
+        expect(cleanup.leaveProvider).not.toHaveBeenCalled();
     });
 });

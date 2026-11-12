@@ -353,6 +353,44 @@ describe('gridViewCollectionAdapters', () => {
         });
     });
 
+    it('orders a multi-disc album entity by disc then track instead of file name', () => {
+        const songs: LocalSong[] = [
+            { ...buildLocalSong('d3-01', 'Intro -HAJIMALI-'), fileName: '01 Intro -HAJIMALI-.flac', discNumber: 3, trackNumber: 1 },
+            { ...buildLocalSong('d1-01', 'Intro Are You Ready'), fileName: '01 Intro Are You Ready.flac', discNumber: 1, trackNumber: 1 },
+            { ...buildLocalSong('d2-01', 'Intro Blue Sky'), fileName: '01 Intro Blue Sky.flac', discNumber: 2, trackNumber: 1 },
+            { ...buildLocalSong('d1-02', 'SEVENTH HAVEN'), fileName: '02 SEVENTH HAVEN.flac', discNumber: 1, trackNumber: 2 },
+            { ...buildLocalSong('d2-02', 'Bokura'), fileName: '02 Bokura.flac', discNumber: 2, trackNumber: 2 },
+        ];
+        const entities: LocalLibraryEntity[] = [{
+            id: 'album-1',
+            kind: 'album',
+            displayName: 'Album',
+            aliases: ['Album'],
+            normalizedAliases: ['album'],
+            createdAt: 1,
+            updatedAt: 1,
+        }];
+        const assignments: LocalLibraryAssignment[] = songs.map(song => ({
+            songId: song.id,
+            artistEntityIds: [],
+            artistOrigin: 'import',
+            albumEntityId: 'album-1',
+            albumOrigin: 'import',
+            updatedAt: 1,
+        }));
+        // Opened from search: the descriptor carries only the one song that was clicked.
+        const descriptor = createLocalGridViewCollection({
+            id: 'album-1',
+            entityId: 'album-1',
+            name: 'Album',
+            type: 'album',
+            songs: [songs[0]],
+        });
+
+        expect(refreshLocalGridViewCollection(descriptor, songs, { entities, assignments }).songIds)
+            .toEqual(['d1-01', 'd1-02', 'd2-01', 'd2-02', 'd3-01']);
+    });
+
     it('keeps local album artist information when rebuilding an album descriptor', () => {
         const songs = [buildLocalSong('song-a', 'A'), buildLocalSong('song-b', 'B')];
         const entities: LocalLibraryEntity[] = [
@@ -405,6 +443,11 @@ describe('gridViewCollectionAdapters', () => {
         expect(refreshLocalGridViewCollection(descriptor, songs, catalog)).toMatchObject({
             albumArtist: 'Artist A, Artist B',
             description: 'Artist A, Artist B',
+            // 带实体 id，专辑页头的歌手名可以点开歌手页（#1058）。
+            artists: [
+                { id: 'artist-a', entityId: 'artist-a', name: 'Artist A' },
+                { id: 'artist-b', entityId: 'artist-b', name: 'Artist B' },
+            ],
         });
     });
 
@@ -570,6 +613,41 @@ describe('resolveNavidromeGridViewTracks', () => {
         const whole = await read('artist');
         expect(whole.failed).toBe(false);
         expect(whole.tracks).toHaveLength(2);
+    });
+
+    // #1039: opened from a song, the album descriptor has only an id and a name; the page header takes the rest from here.
+    it('gives the information of an album that was read', async () => {
+        serve({
+            getAlbum: ok({
+                album: {
+                    id: 'one', name: 'Rebirth', artist: 'Hisa Knowledge', coverArt: 'al-one', songCount: 6,
+                    duration: 1500, year: 2015, genre: 'Touhou', song: [song('a')],
+                },
+            }),
+        });
+        const { detail } = await read('album');
+        expect(detail).toMatchObject({
+            id: 'one', name: 'Rebirth', type: 'album', description: 'Hisa Knowledge', trackCount: 6,
+            albumArtist: 'Hisa Knowledge', albumYear: 2015, albumGenre: 'Touhou', albumDuration: 1500,
+            publishedAt: new Date(2015, 0, 1).getTime(),
+        });
+        expect(detail?.coverUrl).toContain('getCoverArt');
+        expect(detail?.coverUrl).toContain('id=al-one');
+    });
+
+    // #1058：专辑歌手带 id，页头的歌手名可以点开歌手页；OpenSubsonic 的 artists 优先，老服务器用 artistId。
+    it('gives the album artists with their ids', async () => {
+        serve({ getAlbum: ok({ album: { id: 'one', name: 'Rebirth', artist: 'Hisa Knowledge', artistId: 'ar-1', song: [song('a')] } }) });
+        expect((await read('album')).detail?.artists).toEqual([{ id: 'ar-1', name: 'Hisa Knowledge' }]);
+        serve({
+            getAlbum: ok({ album: {
+                id: 'one', name: 'Split', artist: 'A • B', artistId: 'ar-a',
+                artists: [{ id: 'ar-a', name: 'A' }, { id: 'ar-b', name: 'B' }], song: [song('a')],
+            } }),
+        });
+        expect((await read('album')).detail?.artists).toEqual([{ id: 'ar-a', name: 'A' }, { id: 'ar-b', name: 'B' }]);
+        serve({ getAlbum: ok({ album: { id: 'one', name: 'Nobody', song: [song('a')] } }) });
+        expect((await read('album')).detail?.artists).toBeUndefined();
     });
 
     it('says the read failed when no server is set up', async () => {

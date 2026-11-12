@@ -1,7 +1,8 @@
 import type React from 'react';
 import type { LucideIcon } from 'lucide-react';
-import type { SearchReturnView, SearchSource } from '../../stores/useSearchNavigationStore';
+import type { SearchKind, SearchReturnView, SearchSource } from '../../stores/useSearchNavigationStore';
 import type { LocalLibraryDisplayCatalog } from '../../services/playbackAdapters';
+import type { NebbiaBehind, NebbiaGlass } from '../visualizer/nebbia/types';
 import type { HomeViewTab, LatentBackgroundTuning, LocalSong, LyricData, PlayerState, ReplayGainMode, SongResult, StatusMessage, SubtitleContentMode, VisualizerMode, VisualizerBackgroundMode, MonetBackgroundTuning, SmartBeatMode } from '../../types';
 import type { LyricSegmentationRecord, LyricSegmentationSource } from '../../types/lyricSegmentation';
 import type { AppLanguagePreference } from '../../i18n/config';
@@ -58,6 +59,11 @@ export type CommandPaletteCommand = {
     icon?: LucideIcon;
     keywords: string[];
     placeholder?: (context: CommandPaletteContext) => string;
+    /**
+     * While this command is open, the name its chip shows in place of the title: a command whose surface
+     * changes its subject (the FM radio on air) names it the way the surface does.
+     */
+    activeTitle?: (context: CommandPaletteContext) => string;
     requiresInput?: boolean;
     /** Environment gating: which platforms ship this feature at all. */
     platform?: CommandPlatform[];
@@ -97,6 +103,13 @@ export type CommandPaletteCommand = {
     settingsTarget?: { subview: SettingsSubviewId; anchorId?: SettingsAnchorId };
     /** Successful execution closes the palette unless the command opts out. */
     closeAfterExecute?: boolean;
+    /**
+     * Offered in the row that floats above the player bar. Only for things done to what is playing
+     * right now (like, shuffle, volume, the lyric style…), never settings or navigation: the row is
+     * not the palette's frequent list. The command declares it itself, so there is no list to keep.
+     * 'mouse-only' leaves it out of the row a finger opens (volume: a phone has its own volume keys).
+     */
+    capsuleAction?: boolean | 'mouse-only';
     execute: (input: string, context: CommandPaletteContext) => Promise<boolean> | boolean;
 };
 
@@ -137,6 +150,7 @@ export type CommandPaletteSearchContext = {
     submitSearch: (args: {
         query?: string;
         sourceTab: SearchSource;
+        kind?: SearchKind;
         deps: {
             localSongs: LocalSong[];
             localLibraryCatalog?: LocalLibraryDisplayCatalog;
@@ -174,7 +188,10 @@ export type CommandPalettePlaybackContext = {
     personalFmCatalog?: PersonalFmCatalog;
     /** Only the providers that actually implement FM modes offer the picker. */
     isPersonalFmModeSupported: boolean;
+    /** The extra radio FM plays, if any: its modes come under a command of their own. */
+    personalFmStation?: string | null;
     setPersonalFmSelection: (selection: PersonalFmSelection) => Promise<void> | void;
+    isRecommendationPreferencesOffered: () => boolean;
     toggleMute: () => void;
     /**
      * The like/star action from the controls tab. It travels here rather than staying inside the
@@ -313,6 +330,8 @@ export type CommandPaletteSettingsContext = {
     /** A getter: the full-bleed toggle it gates on flips with nothing re-rendering the context. */
     canUseGridViewSquareCards: () => boolean;
     toggleLatticeVignette: () => void;
+    /** Number only the playing song on the queue collage and the bravais wall (useLatticeSettingsStore.latticeBadgeCurrentOnly): flips the stored value. */
+    toggleLatticeBadgeCurrentOnly: () => void;
     /** Motion reduction for the queue collage, the surface issue #370 was filed about. */
     toggleReduceLatticeMotion: () => void;
     /** Whether the OS animation setting is allowed to reduce motion in the app at all. */
@@ -329,8 +348,10 @@ export type CommandPaletteSettingsContext = {
     toggleAlwaysShowTrackSwitchButtons: () => void;
     toggleAlwaysShowMainWindowTitlebar: () => void;
     togglePlayerHeaderBlur: () => void;
+    toggleTitlebarSide: () => void;
     toggleHideFullscreenButton: () => void;
     toggleNativeMacFullscreenButton: () => void;
+    toggleNativeMacTrafficLights: () => void;
     toggleAutoHideCursorWithPlayerChrome: () => void;
     toggleHideCursorWhenIdle: () => void;
     /** Lab switch: whether the restored session starts playing by itself on launch. */
@@ -354,6 +375,9 @@ export type CommandPaletteSettingsContext = {
      */
     canReportPlayback: () => boolean;
     togglePlaybackReport: () => void;
+    /** 自动 AI 分词: segment songs with no saved split by themselves (issue #960). */
+    toggleAutoAiLyricSegmentation: () => void;
+    toggleKeepProviderWordTiming: () => void;
     voiceInputPauseSupported: boolean;
     /** Lab switch for the experimental mod system; gates the `mods` command. */
     modSystemEnabled: boolean;
@@ -374,6 +398,8 @@ export type CommandPaletteSettingsContext = {
     unlockRemoteControl: () => void;
     /** OBS browser source: keep the main window's heavy animation while an OBS client is connected. */
     toggleObsKeepMainWindowAnimation: () => void;
+    /** The now playing card in the OBS browser source (local source and the web link alike). */
+    toggleTrackCardInObs: () => void;
     /** macOS-only: the wallpaper-mode Dock auto-hide override (on by default). */
     toggleWallpaperMacAutohideDock: () => void;
     /** Windows-only: the saved render GPU choice, read when asked (it can change while the palette is open). */
@@ -475,6 +501,9 @@ export type CommandPaletteVisualizerContext = {
     setVisualizerBackgroundMode: (mode: VisualizerBackgroundMode) => void;
     setMonetBackgroundTuning: (patch: Partial<MonetBackgroundTuning>) => void;
     setLatentBackgroundTuning: (patch: Partial<LatentBackgroundTuning>) => void;
+    /** 雾笺: the next window scene (the front glass changes to that scene's usual pair, as in its settings) and the next front glass; each returns what it switched to. */
+    cycleNebbiaBehind: () => NebbiaBehind;
+    cycleNebbiaGlass: () => NebbiaGlass;
     /** The built-in video layer behind the lyrics. */
     toggleVideoLayer: () => void;
     /** 智能动感模式 (the beat FX in every mode and background that draws them): off, stored results only, or on. */

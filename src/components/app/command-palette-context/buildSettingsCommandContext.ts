@@ -149,6 +149,9 @@ export const buildSettingsCommandContext = (
         toggleLatticeVignette: () => useLatticeSettingsStore.getState().handleToggleLatticeVignette(
             !useLatticeSettingsStore.getState().latticeVignette,
         ),
+        toggleLatticeBadgeCurrentOnly: () => useLatticeSettingsStore.getState().handleToggleLatticeBadgeCurrentOnly(
+            !useLatticeSettingsStore.getState().latticeBadgeCurrentOnly,
+        ),
         toggleReduceLatticeMotion: () => {
             const motion = useMotionSettingsStore.getState();
             motion.handleToggleReducedMotionSurface('lattice', !motion.reducedMotionSurfaces.lattice);
@@ -174,6 +177,10 @@ export const buildSettingsCommandContext = (
         toggleAlwaysShowMainWindowTitlebar: () => chrome.handleToggleAlwaysShowMainWindowTitlebar(
             !usePlayerChromeSettingsStore.getState().alwaysShowMainWindowTitlebar,
         ),
+        toggleTitlebarSide: () => {
+            const current = usePlayerChromeSettingsStore.getState();
+            current.handleSetTitlebarSide(current.titlebarSide === 'left' ? 'right' : 'left');
+        },
         togglePlayerHeaderBlur: () => chrome.handleTogglePlayerHeaderBlur(
             !usePlayerChromeSettingsStore.getState().playerHeaderBlur,
         ),
@@ -182,6 +189,9 @@ export const buildSettingsCommandContext = (
         ),
         toggleNativeMacFullscreenButton: () => chrome.handleToggleNativeMacFullscreenButton(
             !usePlayerChromeSettingsStore.getState().useNativeMacFullscreenButton,
+        ),
+        toggleNativeMacTrafficLights: () => chrome.handleToggleNativeMacTrafficLights(
+            !usePlayerChromeSettingsStore.getState().useNativeMacTrafficLights,
         ),
         toggleAutoHideCursorWithPlayerChrome: () => chrome.handleToggleAutoHideCursorWithPlayerChrome(
             !usePlayerChromeSettingsStore.getState().autoHideCursorWithPlayerChrome,
@@ -207,6 +217,14 @@ export const buildSettingsCommandContext = (
         togglePlaybackReport: () => audio.handleToggleNeteaseScrobble(
             !useAudioSettingsStore.getState().neteaseScrobbleEnabled,
         ),
+        toggleAutoAiLyricSegmentation: () => {
+            const lyric = useLyricSettingsStore.getState();
+            lyric.handleToggleAutoAiLyricSegmentation(!lyric.autoAiLyricSegmentation);
+        },
+        toggleKeepProviderWordTiming: () => {
+            const lyric = useLyricSettingsStore.getState();
+            lyric.handleToggleKeepProviderWordTiming(!lyric.keepProviderWordTiming);
+        },
         voiceInputPauseSupported: deps.voiceInputPauseSupported,
         modSystemEnabled: desktop.modSystemEnabled,
         toggleVoiceInputPause: () => desktop.handleToggleVoiceInputPause(
@@ -236,6 +254,9 @@ export const buildSettingsCommandContext = (
         unlockRemoteControl: () => desktop.handleToggleRemoteControlClickThrough(false),
         toggleObsKeepMainWindowAnimation: () => useStageSettingsStore.getState().handleToggleObsKeepMainWindowAnimation(
             !useStageSettingsStore.getState().obsKeepMainWindowAnimation,
+        ),
+        toggleTrackCardInObs: () => useStageSettingsStore.getState().handleToggleStageTrackPillInObs(
+            !useStageSettingsStore.getState().stageTrackPillInObs,
         ),
         toggleWallpaperMacAutohideDock: () => desktop.handleToggleWallpaperMacAutohideDock(
             !useDesktopSettingsStore.getState().wallpaperMacAutohideDock,

@@ -38,6 +38,7 @@ vi.mock('@/services/onlineMusic/qq/qqLyricProvider', () => ({
     fetchQQLyrics: fetchQQLyricsMock,
 }));
 
+import { getQqGuessYouLikeCard, getQqGuessYouLikeCatalog, getQqGuessYouLikeBatch } from '@/services/onlineMusic/qq/qqGuessYouLike';
 import { qqProvider, resetQqProviderRuntimeCache } from '@/services/onlineMusic/qq/qqProvider';
 import { normalizeQqCollection, normalizeQqSong, normalizeQqUser } from '@/services/onlineMusic/qq/qqNormalize';
 import { describeQqFailure } from '@/services/onlineMusic/qq/qqFailure';
@@ -183,8 +184,51 @@ describe('qqProvider', () => {
         resetQqProviderRuntimeCache();
     });
 
-    // 3.3.0 开放了推荐、歌单增删与收藏歌单，3.3.1 补上红心与收藏专辑；不喜欢与历史日推后端还没有，不能冒出来。
-    it('declares the 3.3.1 recommendations and mutations without the ones the backend lacks', () => {
+    it.each(['logout', 'login'])('drops the catalog and late cover batch through %s', async action => {
+        let release!: (value: unknown) => void;
+        let catalogReads = 0;
+        let batchReads = 0;
+        requestMock.mockImplementation((operation: string) => {
+            if (operation === 'user_guess_you_like_modes') {
+                catalogReads += 1;
+                return Promise.resolve({ scenes: [{ name: `场景${catalogReads}`, poolId: String(7000 + catalogReads) }] });
+            }
+            if (operation === 'user_guess_you_like') {
+                batchReads += 1;
+                if (batchReads === 1) return new Promise(resolve => { release = resolve; });
+                return Promise.resolve({ songs: [{ mid: 'new', id: 2, name: 'new', singer: [], album: {} }] });
+            }
+            if (operation === 'login_qr_check') return Promise.resolve({ code: 803, cookie: 'new-session' });
+            return Promise.resolve({});
+        });
+        await getQqGuessYouLikeCatalog();
+        const card = getQqGuessYouLikeCard();
+        await vi.waitFor(() => expect(release).toBeDefined());
+        if (action === 'logout') await qqProvider.auth!.logout();
+        else await qqProvider.auth!.checkLogin!('new-account');
+        release({ songs: [{ mid: 'old', id: 1, name: 'old', singer: [], album: {} }] });
+        await card;
+        expect((await getQqGuessYouLikeCatalog()).scenes[0].labelFallback).toBe('场景2');
+        expect((await getQqGuessYouLikeBatch({ mode: 'DEFAULT', submode: null })).map(song => song.qqMid)).toEqual(['new']);
+    });
+
+    it('drops the catalog when a status read discovers a different account', async () => {
+        let account = '1';
+        let catalogReads = 0;
+        requestMock.mockImplementation(async (operation: string) => {
+            if (operation === 'login_status') return { data: { profile: { str_musicid: account } } };
+            if (operation === 'user_guess_you_like_modes') return { scenes: [{ name: `场景${++catalogReads}`, poolId: '7001' }] };
+            return {};
+        });
+        await qqProvider.auth!.getLoginStatus!();
+        await getQqGuessYouLikeCatalog();
+        account = '2';
+        await qqProvider.auth!.getLoginStatus!();
+        expect((await getQqGuessYouLikeCatalog()).scenes[0].labelFallback).toBe('场景2');
+    });
+
+    // 3.3.0 开放了推荐、歌单增删与收藏歌单，3.3.1 补上红心与收藏专辑，3.3.6 补上历史日推与歌曲不喜欢；后端没有的不能冒出来。
+    it('declares the recommendations and mutations the backend has, without the ones it lacks', () => {
         expect(qqProvider.capabilities).toMatchObject({
             userLibrary: true,
             playlists: true,
@@ -196,8 +240,23 @@ describe('qqProvider', () => {
             playlistSubscription: true,
         });
         expect(qqProvider.capabilities.personalFmModes).toBeFalsy();
-        expect(qqProvider.capabilities.historyRecommendations).toBeFalsy();
-        expect(Object.keys(qqProvider.recommendations ?? {}).sort()).toEqual(['getDailySongs', 'getPersonalFm', 'getRecommendedCollections']);
+        expect(qqProvider.capabilities.historyRecommendations).toBe(true);
+        // 一行一项：各功能加自己的成员时互不挨着。
+        expect(Object.keys(qqProvider.recommendations ?? {}).sort()).toEqual([
+            'dislikeSong',
+            'getDailySongs',
+            'getHistoryDates',
+            'getHistorySongs',
+            'getPersonalFm',
+            'getPersonalFmCatalog',
+            'getRecommendedCollections',
+            'getRecommendationPreferences',
+            'preferenceEntries',
+            'saveRecommendationPreferences',
+        ].sort());
+        // 账号的音乐偏好同时影响私人 FM 和每日 30 首：三处入口都开。
+        expect(qqProvider.capabilities.recommendationPreferences).toBe(true);
+        expect(qqProvider.recommendations?.preferenceEntries).toEqual(['explore', 'personal-fm', 'daily']);
         expect(Object.keys(qqProvider.mutations ?? {}).sort()).toEqual([
             'canAddToPlaylist', 'canEditPlaylistTracks', 'canSubscribe', 'createPlaylist', 'likeSong', 'subscribeAlbum', 'subscribePlaylist',
             'updatePlaylistTracks',
@@ -287,6 +346,32 @@ describe('qqProvider', () => {
     it('keeps album and artist mids across a normalize round trip', () => {
         const once = normalizeQqSong(SEARCH_ITEM);
         expect(normalizeQqSong(once)).toEqual(once);
+    });
+
+    // 搜索条目的 `title` 带括号译名，`name` 是原名（2026-11-04 DoSearchForQQMusicLite 实测）。
+    it('keeps the original name beside a bracketed title and offers it as the lyric search alias', async () => {
+        const item = {
+            ...SEARCH_ITEM,
+            name: '夜に駆ける',
+            title: '夜に駆ける (向夜晚奔去)',
+            subtitle: '某剧插曲',
+            singer: [{ mid: '001ABC', name: 'YOASOBI' }],
+        };
+        const song = normalizeQqSong(item);
+
+        expect(song.name).toBe('夜に駆ける (向夜晚奔去)');
+        expect(song.sourceRef).toMatchObject({ providerData: { originalName: '夜に駆ける' } });
+        expect(normalizeQqSong(song)).toEqual(song);
+        await expect(qqProvider.lyrics!.getSearchAlias!(song)).resolves.toEqual({
+            song, title: '夜に駆ける', artist: 'YOASOBI', album: '乐与怒',
+        });
+    });
+
+    it('offers no alias when the title is already the original name', async () => {
+        const song = normalizeQqSong({ ...SEARCH_ITEM, name: '海阔天空' });
+
+        expect(song.sourceRef).not.toHaveProperty('providerData.originalName');
+        await expect(qqProvider.lyrics!.getSearchAlias!(song)).resolves.toBeNull();
     });
 
     it('keeps a normalized song stable when it is normalized again from cache', () => {

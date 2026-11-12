@@ -36,7 +36,6 @@ const toSourceActions = (port: LibraryMutationPort) => ({
     },
 });
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 // GridView.tsx（P1 末）里的分支布尔与按钮条件，原样。
 const gridViewReference = ({
     collection,
@@ -133,7 +132,6 @@ const gridViewReference = ({
         },
     };
 };
-/* eslint-enable @typescript-eslint/no-explicit-any */
 
 const noop = async () => {};
 const FULL_PORT: LibraryMutationPort = {
@@ -301,6 +299,30 @@ describe('collection mutation branches match GridView', () => {
             deleteCollection: { supported: false },
             exportPlaylist: { supported: true },
         });
+    });
+});
+
+describe('an artist\'s every song (#918)', () => {
+    it('is no playlist: nothing to edit, save, rename, delete or take songs out of, even where the provider edits playlists', () => {
+        // The id is the artist's. Even marked as the listener's own, the type keeps it read-only.
+        const allSongs: LibraryCollectionDescriptor = {
+            source: 'online', providerId: 'editable', type: 'artist_songs', id: 7, name: 'All songs', isOwned: true, creator: { id: 'u1', nickname: 'Me' },
+        };
+        const { branches, capabilities } = resolveFor(allSongs);
+        expect(branches).toMatchObject({
+            isOnlinePlaylist: false,
+            isOnlineAlbum: false,
+            canEditOwnedPlaylist: false,
+            canEditProviderPlaylist: false,
+            canEditPlaylist: false,
+            showSubscribeButton: false,
+            isCloudDrive: false,
+            isDailyRecommendationsCollection: false,
+        });
+        expect(resolveEntryRemovalKind(branches, FULL_PORT)).toBeNull();
+        for (const action of ['removeEntry', 'subscribe', 'editCollection', 'rename', 'deleteCollection', 'addToPlaylist', 'createPlaylist', 'dailyDate'] as const) {
+            expect(capabilities[action].supported, action).toBe(false);
+        }
     });
 });
 

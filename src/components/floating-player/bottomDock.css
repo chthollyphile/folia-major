@@ -1,0 +1,166 @@
+/* src/components/floating-player/bottomDock.css — progress-bar v3：底部那一排在紧凑档（窗口窄于 960）里怎么摆。
+   紧凑档里面板按钮（PanelHandle）、墙工具按钮（WallToolsButton）挂到胶囊右端，面板从胶囊右端长出来；宽屏照旧。
+   位置全由 <html data-bottom-layout / data-capsule>（useBottomDockStore 写）和下面的 calc 决定，不量元素；
+   挂上、取下都只动 translate / scale 这两个独立属性，和 framer 写的 transform 互不覆盖。 */
+
+:root {
+    /* 右下角按钮离窗口右边的距离：pr-4，md 起 pr-8。 */
+    --dock-edge-pad: 16px;
+    /* 墙工具按钮的底距：sm 以下 16，sm 起 24（WallToolsButton 的 usePlayerBottomBarBottomPx 参数）。 */
+    --dock-wall-tools-base: 16px;
+    /* 墙工具按钮离右边：640 及以下 16，以上 24（WallToolsButton.css 的 .lattice-tools）。 */
+    --dock-wall-tools-right: 24px;
+    /* 底部这一排的动效曲线：起步干脆、收尾拖一段长尾（展开、平移）；收起用两头都缓的那条，不一下砸到底。 */
+    --dock-ease: cubic-bezier(0.32, 0.72, 0, 1);
+    --dock-ease-in-out: cubic-bezier(0.45, 0, 0.2, 1);
+}
+
+@media (max-width: 640px) {
+    :root { --dock-wall-tools-right: 16px; }
+}
+
+@media (min-width: 640px) {
+    :root { --dock-wall-tools-base: 24px; }
+}
+
+@media (min-width: 768px) {
+    :root { --dock-edge-pad: 32px; }
+}
+
+:root[data-bottom-layout='compact'] {
+    /* 紧凑胶囊右边到窗口右边：胶囊居中，两侧至少 12，最宽 520 再加模组的加宽量。 */
+    --dock-capsule-right: max(12px, calc((100vw - 520px - var(--folium-player-bar-extra, 0px)) / 2));
+}
+
+.dock-companion {
+    transition: translate 480ms var(--dock-ease), scale 480ms var(--dock-ease);
+}
+
+/* 面板按钮：48 的圆缩成 40，右边贴胶囊右内边 8，竖直居中在 56 高的胶囊里（中心离底 16 + 28 = 44；原来是 32 + 24）。
+   缩放的原点是按钮自己的中心，所以平移只管中心：中心离右边从 edge-pad + 24 挪到 capsule-right + 8 + 20。 */
+.dock-companion--panel.is-docked {
+    translate: calc(var(--dock-edge-pad) - var(--dock-capsule-right) - 4px) 12px;
+    scale: 0.8333;
+    transform-origin: calc(100% - var(--dock-edge-pad) - 24px) 50%;
+}
+
+/* 墙工具按钮的 dock（WallToolsDock）平时是 z-10，在进度条胶囊（z-60）下面；挂到胶囊上时提到胶囊上面一层，
+   按钮和它长出来的面板、浮岛才不会被胶囊的玻璃盖住。 */
+:root[data-bottom-layout='compact']:not([data-capsule='none']) .wall-tools-dock {
+    z-index: 61;
+}
+
+/* 墙工具按钮：根节点（连同上方的面板与浮岛）平移，按钮自己缩放（SlideActionButton 的 docked 外观，原点在右边）。
+   原来右边 16 / 24、中心离底 base + 24，挂上后右边是胶囊右内边 8、中心离底 44。 */
+.dock-companion--wall-tools.is-docked {
+    translate: calc(var(--dock-wall-tools-right) - var(--dock-capsule-right) - 8px) calc(var(--dock-wall-tools-base) - 20px);
+}
+
+/* 面板（PanelShell 的外层）：右边和胶囊右边对齐，底边在胶囊顶上 10（82 = 16 + 56 + 10；原来是 32 + 60）。 */
+.dock-companion--panel-surface.is-docked {
+    translate: calc(var(--dock-edge-pad) - var(--dock-capsule-right)) 10px;
+}
+
+.dock-companion--panel-surface.is-docked [data-testid='unified-panel-surface'] {
+    max-width: calc(100vw - 2 * var(--dock-capsule-right));
+}
+
+/* 紧凑胶囊的形态切换（FloatingPlayerControls 的 compactPhase）：胶囊已经是最终尺寸，clip-path 从底边往上
+   露出来（open）、快捷行那一截往上长（grow）、收起时往下收（close）。只在切换那一下重绘，不缩放、不重排，
+   最下一行离底边的距离两种形态一样，全程不动。56 是收起的高度。
+   收起的时长要和 FloatingPlayerControls 的 COMPACT_CLOSE_MS 一致。 */
+.compact-capsule[data-compact-phase='open'] {
+    animation: compact-capsule-open 420ms var(--dock-ease);
+}
+
+.compact-capsule[data-compact-phase='grow'] {
+    animation: compact-capsule-grow 340ms var(--dock-ease);
+}
+
+.compact-capsule[data-compact-phase='close'] {
+    animation: compact-capsule-close 280ms var(--dock-ease-in-out) forwards;
+}
+
+/* 裁切露出来的内容不是一刀切出来的：标题行、进度行、快捷行（compact-reveal）比裁切晚 40ms 淡入、上浮 8px；
+   快捷行单独长出来（grow）时只有它动。收起时它们先淡出，裁切再往下收。 */
+.compact-capsule[data-compact-phase='open'] .compact-reveal,
+.compact-capsule[data-compact-phase='grow'] .compact-reveal-quick {
+    animation: compact-reveal 360ms var(--dock-ease) 40ms both;
+}
+
+.compact-capsule[data-compact-phase='close'] .compact-reveal,
+.compact-capsule[data-compact-phase='close'] .compact-swap {
+    animation: compact-conceal 180ms ease-in forwards;
+}
+
+/* 最下一行中间那一块（收起时的歌名、展开时的两个槽位）换的时候淡入，不瞬间替换。 */
+.compact-swap {
+    animation: compact-swap-in 280ms var(--dock-ease) both;
+}
+
+@keyframes compact-reveal {
+    from { opacity: 0; translate: 0 8px; }
+    to { opacity: 1; translate: 0 0; }
+}
+
+@keyframes compact-conceal {
+    to { opacity: 0; translate: 0 4px; }
+}
+
+@keyframes compact-swap-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes compact-capsule-open {
+    from { clip-path: inset(calc(100% - 56px) 0 0 0 round 28px); }
+    to { clip-path: inset(0 0 0 0 round 28px); }
+}
+
+@keyframes compact-capsule-grow {
+    from { clip-path: inset(var(--compact-quick-h, 53px) 0 0 0 round 28px); }
+    to { clip-path: inset(0 0 0 0 round 28px); }
+}
+
+@keyframes compact-capsule-close {
+    from { clip-path: inset(0 0 0 0 round 28px); }
+    to { clip-path: inset(calc(100% - 56px) 0 0 0 round 28px); }
+}
+
+:root[data-reduce-motion~='uiMicroMotion'] .compact-capsule,
+:root[data-reduce-motion~='uiMicroMotion'] .compact-capsule .compact-reveal,
+:root[data-reduce-motion~='uiMicroMotion'] .compact-capsule .compact-reveal-quick,
+:root[data-reduce-motion~='uiMicroMotion'] .compact-capsule .compact-swap {
+    animation: none;
+}
+
+/* 960–1119：桌面布局，但胶囊展开（480）会碰到卡片。卡片限宽 240，收起的胶囊就碰不到；展开时卡片淡出让位。
+   只在主窗口（有 data-bottom-layout）生效，OBS 的卡片页不受影响。 */
+[data-card-yield] {
+    transition: opacity 280ms var(--dock-ease), translate 280ms var(--dock-ease);
+}
+
+@media (max-width: 1119px) {
+    :root[data-bottom-layout] [data-toast-card] {
+        min-width: 0;
+        max-width: 240px;
+    }
+
+    /* 拖卡片位置时（data-card-yield="off"）不让位：那时要看得见、按得到。 */
+    :root[data-capsule='expanded'] [data-card-yield=''],
+    :root[data-capsule='quick'] [data-card-yield=''] {
+        opacity: 0;
+        translate: 0 8px;
+        pointer-events: none;
+    }
+
+    :root[data-capsule='expanded'] [data-card-yield=''] [data-toast-card],
+    :root[data-capsule='quick'] [data-card-yield=''] [data-toast-card] {
+        pointer-events: none;
+    }
+}
+
+:root[data-reduce-motion~='uiMicroMotion'] .dock-companion,
+:root[data-reduce-motion~='uiMicroMotion'] [data-card-yield] {
+    transition: none;
+}

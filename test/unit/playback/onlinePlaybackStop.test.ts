@@ -47,7 +47,10 @@ vi.mock('@/stores/useSearchNavigationStore', () => ({
 }));
 vi.mock('@/services/hostExtensionHooks', () => ({ hasBeforePlayHook: () => false, lyricsForNoLyrics: () => null, notifyPlaybackFailed: vi.fn() }));
 vi.mock('@/services/onlineMusic/omni', () => ({
-    omni: { canPlaySong: () => true, getProviderLabel: (id: string) => id, getSongReplacement: vi.fn(async () => null) },
+    omni: {
+        canPlaySong: () => true, canPlayExternally: () => false, getProviderLabel: (id: string) => id, getSongReplacement: vi.fn(async () => null),
+        hasSetup: vi.fn((_id: string) => false),
+    },
 }));
 vi.mock('@/services/onlineMusic/songAvailability', () => ({ askPlayedSong: () => null, isSongUnavailable: vi.fn(() => false) }));
 vi.mock('@/services/onlineMusic/resourceCache', () => ({
@@ -70,7 +73,7 @@ vi.mock('@/utils/onlineLyricsState', () => ({ loadOnlineLyricsState: vi.fn(async
 const { useEffect } = await import('react');
 const { usePlaybackQueueController } = await import('@/components/app/playback/start/usePlaybackQueueController');
 const { usePlaybackStore } = await import('@/stores/usePlaybackStore');
-const { useStatusMessageStore } = await import('@/stores/useStatusMessageStore');
+const { useStatusMessageStore, dropWaitingStatusLoaders } = await import('@/stores/useStatusMessageStore');
 const { loadOnlineSongAudioSource } = await import('@/services/onlinePlayback');
 const { isSongUnavailable } = await import('@/services/onlineMusic/songAvailability');
 const { omni } = await import('@/services/onlineMusic/omni');
@@ -131,6 +134,7 @@ beforeEach(() => {
     // The song that plays is the one the player was last asked for (currentSong.ts), as App leaves it.
     askForSong(songs[0]);
     useStatusMessageStore.setState({ message: null });
+    dropWaitingStatusLoaders();
 });
 afterEach(() => {
     effectCleanups.splice(0).forEach(cleanup => cleanup());
@@ -200,6 +204,19 @@ describe('online playback stop conditions', () => {
         expect(queue.pause).toHaveBeenCalledOnce();
         expect(window.setTimeout).not.toHaveBeenCalled();
         expect(message()).toMatchObject({ text: 'failure.signInNeeded', actionLabel: 'failure.signIn', providerId: 'netease' });
+    });
+
+    it.each(['account-refused', 'not-configured'] as const)('offers the platform setup checklist for %s where the platform has one', async (caseId) => {
+        vi.mocked(omni.hasSetup).mockReturnValue(true);
+        loader.mockResolvedValue(unavailable(caseId));
+        await controller().playSong(songs[0], songs);
+        const shown = message();
+        expect(shown).toMatchObject({ providerId: 'bodian', actionLabel: 'failure.openSetup' });
+        shown?.onAction?.();
+        expect(useLoginWindowStore.getState()).toMatchObject({ isOpen: true, providerId: 'bodian', intent: 'setup' });
+        expect(message()).toBeNull();
+        vi.mocked(omni.hasSetup).mockReturnValue(false);
+        useLoginWindowStore.setState({ isOpen: false, intent: null });
     });
 
     it('offers to sign in again when the sign-in has ended', async () => {

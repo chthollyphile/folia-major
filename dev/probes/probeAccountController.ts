@@ -18,7 +18,9 @@ export const probeAccountController = (
         login: null,
         pendingSwitch: null,
         logout: { providerId: null, status: 'idle' },
+        sync: { providerId: null, status: 'idle' },
         lastLoginCompletion: null,
+        setup: null,
     };
     return {
         getSnapshot: () => snapshot,
@@ -34,7 +36,13 @@ export const probeAccountController = (
         closeLogin: () => ({ status: 'no-session' }),
         restartLocalService: async () => ({ status: 'no-session' }),
         buildLoginDiagnosticReport: async () => ({ status: 'no-session' }),
+        completeFormLogin: async providerId => { said(`complete form ${providerId}`); return { sessionId: 0, providerId, outcome: 'completed' }; },
+        submitFormLogin: async providerId => { said(`submit form ${providerId}`); return { sessionId: 0, providerId, outcome: 'completed' }; },
         logout: async providerId => { said(`sign out ${providerId}`); return { status: 'cancelled', providerId }; },
+        syncAccount: async providerId => { said(`sync ${providerId}`); return { status: 'synced', providerId }; },
+        openSetup: async providerId => { said(`setup ${providerId}`); return { status: 'none', providerId }; },
+        runSetupAction: async () => ({ status: 'no-setup' }),
+        finishSetup: async () => { },
         dispose: () => { },
     };
 };

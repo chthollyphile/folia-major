@@ -47,7 +47,16 @@ const answerAs = (overrides: Record<string, (params: any) => unknown> = {}) => {
                 albums: Array.from({ length: params.limit }, (_, index) => ({ mid: `album-${params.offset + index}`, name: `专辑 ${params.offset + index}`, singers: [{ mid: 's', name: '歌手' }] })),
                 areas: [], total: 30, more: params.offset + params.limit < 30,
             };
-            case 'recommend_toplists': return { code: 200, groups: [{ id: 1, name: '巅峰榜', toplists: [{ id: 4, title: '飙升榜', period: '2026-10-17' }, { id: 26, title: '热歌榜', period: '2026_41' }] }] };
+            case 'recommend_feed': return { code: 200, page: 1, more: false, shelves: FEED_SHELVES };
+            case 'recommend_playlists': return { code: 200, playlists: [1, 2, 3].map(index => ({ tid: 9000 + index, title: `推荐 ${index}`, picurl: 'https://img.example.test/r.jpg' })) };
+            case 'recommend_toplists': return { code: 200, groups: [
+                { id: 1, name: '巅峰榜', toplists: [
+                    { id: 4, title: '飙升榜', period: '2026-10-17' }, { id: 26, title: '热歌榜', period: '2026_41' },
+                    { id: 27, title: '新歌榜', period: '2026-10-17' }, { id: 62, title: '流行指数榜', period: '2026-10-17' },
+                    { id: 5, title: '第五个榜', period: '2026_41' },
+                ] },
+                { id: 2, name: '地区榜', toplists: [{ id: 108, title: '示例地区榜', period: '2026_41' }] },
+            ] };
             case 'recommend_toplist': return { code: 200, toplist: { id: params.id }, songs: tracks(`chart${params.id}`, 3000 + params.offset, params.limit), total: 100, more: true };
             case 'recommend_categories': return { code: 200, groups: [{ id: 1, name: '热门', categories: CATEGORIES }, { id: 2, name: '语种', categories: [{ id: 900, name: '别组的分类' }] }] };
             case 'recommend_category_playlists': return {
@@ -60,6 +69,16 @@ const answerAs = (overrides: Record<string, (params: any) => unknown> = {}) => {
         }
     });
 };
+
+// 首页 feed 照 qq-music-api 的 `/recommend/feed`：问候语去掉、种子歌名接在标题后、没标题的用通用字。
+const FEED_SHELVES = [
+    {
+        id: '9001', titleTemplate: 'Hi {String}  今日为你推荐', titleContent: '示例昵称',
+        items: [{ type: 'playlist', playlist: { id: 700001, title: '私荐 1', subtitle: '说明', cover: 'https://img.example.test/f.jpg' } }],
+    },
+    { id: '9002', titleTemplate: '心动的歌曲推荐', titleContent: '种子歌', items: [{ type: 'song', song: track('feed-a', 801) }] },
+    { id: '9003', titleTemplate: '', titleContent: '', items: [{ type: 'song', song: track('feed-b', 802) }] },
+];
 
 const listened = [normalizeQqSong(track('heard-a', 11)), normalizeQqSong(track('heard-b', 12))];
 const ids = (sections: ProviderExploreSection[]) => sections.map(section => section.id);
@@ -87,7 +106,8 @@ describe('QQ explore page', () => {
         vi.spyOn(console, 'warn').mockImplementation(() => { });
     });
 
-    it('reads the song radar and songs like the ones listened to first, and says a refresh reads it anew', async () => {
+    // 照网易云的探索页：第一页是刷歌模式（置顶）、每日 30 首、推荐歌单、全部榜单的卡片。
+    it('reads the song radar, the daily songs, the recommended playlists and the charts first, and says a refresh reads it anew', async () => {
         answerAs();
         const explore = createQqExplore();
 
@@ -95,33 +115,69 @@ describe('QQ explore page', () => {
 
         expect(first.refreshReadsAnew).toBe(true);
         expect(first.nextCursor).toBeTruthy();
-        expect(first.sections[0]).toMatchObject({ id: 'qq-radar', title: i18n.t('home.qqRadar') });
-        expect(first.sections[0].items).toHaveLength(10);
-        // 听过的两首各做一栏，不够三首再用每日 30 首补一首。
-        expect(titles(first.sections.slice(1))).toEqual([
-            i18n.t('home.exploreSimilar', { name: '歌 heard-a' }),
-            i18n.t('home.exploreSimilar', { name: '歌 heard-b' }),
-            i18n.t('home.exploreSimilar', { name: '歌 daily-500' }),
+        expect(ids(first.sections)).toEqual([
+            'qq-radar', 'qq-daily-songs', 'qq-feed-1', 'qq-feed-2', 'qq-feed-3', 'qq-recommended-playlists', 'qq-charts',
         ]);
-        expect(first.sections.slice(1).every(section => section.changesWithRead)).toBe(true);
-        expect(requestMock).toHaveBeenCalledWith('song_similar', { id: 11 });
+        expect(titles(first.sections)).toEqual([
+            i18n.t('home.qqRadar'), i18n.t('home.dailyRecommendations'),
+            '今日为你推荐', '心动的歌曲推荐 · 种子歌', i18n.t('home.qqFeedForYou'),
+            i18n.t('home.qqRecommendedPlaylists'), i18n.t('home.qqCharts'),
+        ]);
+        expect(first.sections[0].items).toHaveLength(10);
+        expect(first.sections[1].items.map(item => item.kind === 'song' && item.song.qqMid)).toEqual(tracks('daily', 500, 5).map(song => song.mid));
+        expect(first.sections[2].items.map(item => item.kind === 'collection' && item.collection.id)).toEqual([700001]);
+        expect(first.sections[3].items.map(item => item.kind === 'song' && item.song.qqMid)).toEqual(['feed-a']);
+        expect(first.sections.slice(2, 5).every(section => section.changesWithRead)).toBe(true);
+        expect(first.sections[5].items.map(item => item.kind === 'collection' && item.collection.id)).toEqual([9001, 9002, 9003]);
+        // 昵称不进栏标题。
+        expect(titles(first.sections).join(' ')).not.toContain('示例昵称');
+        expect(operations()).not.toContain('song_similar');
+    });
+
+    // 引号里的 {String} 是作种子的歌名，不是打招呼：填进去；填不了就用通用的「为你推荐」。
+    it('fills a quoted placeholder of a feed title with the seed song, and does not cut the title at it', async () => {
+        const feedOf = (titleContent: string) => () => ({
+            code: 200,
+            shelves: [{ id: '9004', titleTemplate: '「{String}」也会喜欢', titleContent, items: [{ type: 'song', song: track('feed-c', 803) }] }],
+        });
+        answerAs({ recommend_feed: feedOf('种子歌') });
+        const filled = await createQqExplore().getFeed(undefined, listened);
+        expect(titles(filled.sections)).toContain('「种子歌」也会喜欢');
+        answerAs({ recommend_feed: feedOf('$$$ & $& (Money)') });
+        const dollars = await createQqExplore().getFeed(undefined, listened);
+        expect(titles(dollars.sections)).toContain('「$$$ & $& (Money)」也会喜欢');
+        answerAs({ recommend_feed: feedOf('') });
+        const empty = await createQqExplore().getFeed(undefined, listened);
+        expect(titles(empty.sections)).toContain(i18n.t('home.qqFeedForYou'));
+        expect(titles(empty.sections).some(title => title.startsWith('」'))).toBe(false);
     });
 
     it('lays the page out in the order of the client\'s pages, leaving out the account\'s own listening and the personal FM', async () => {
         answerAs();
         const { sections } = await readWhole(createQqExplore());
 
-        expect(ids(sections).slice(0, 4)).toEqual(['qq-radar', 'qq-similar-1', 'qq-similar-2', 'qq-similar-3']);
-        expect(ids(sections).slice(4, 8)).toEqual(['qq-new-songs', 'qq-new-albums', 'qq-charts', 'qq-chart-26']);
-        expect(titles(sections).slice(4, 8)).toEqual([i18n.t('home.qqNewSongs'), i18n.t('home.qqNewAlbums'), i18n.t('home.qqCharts'), '热歌榜']);
+        const similar = (name: string) => i18n.t('home.exploreSimilar', { name });
+        expect(ids(sections).slice(0, 7)).toEqual([
+            'qq-radar', 'qq-daily-songs', 'qq-feed-1', 'qq-feed-2', 'qq-feed-3', 'qq-recommended-playlists', 'qq-charts',
+        ]);
+        // 往下照网易云的节奏：相似歌曲、新歌与新碟、相似歌曲、巅峰榜前四个榜的歌、相似歌曲、分类歌单、电台。
+        // 问的歌先用听过的，再用每日 30 首，一部分三栏，一次读取最多九栏。
+        expect(titles(sections).slice(7, 10)).toEqual([similar('歌 heard-a'), similar('歌 heard-b'), similar('歌 daily-500')]);
+        expect(ids(sections).slice(10, 12)).toEqual(['qq-new-songs', 'qq-new-albums']);
+        expect(titles(sections).slice(12, 15)).toEqual([similar('歌 daily-501'), similar('歌 daily-502'), similar('歌 daily-503')]);
+        // 榜单的歌照 QQ 的顺序一次轮 4 个：先是巅峰榜。
+        expect(ids(sections).slice(15, 19)).toEqual(['qq-chart-4', 'qq-chart-26', 'qq-chart-27', 'qq-chart-62']);
+        expect(titles(sections).slice(15, 19)).toEqual(['飙升榜', '热歌榜', '新歌榜', '流行指数榜']);
+        expect(titles(sections).slice(19, 20)).toEqual([similar('歌 daily-504')]);
         // 热门那一组的分类，一次三个。
-        expect(titles(sections).slice(8, 11)).toEqual(['分类 1', '分类 2', '分类 3']);
+        expect(titles(sections).slice(20, 23)).toEqual(['分类 1', '分类 2', '分类 3']);
         // 电台：「最近」与空组不出，「猜你喜欢」（电台 99）不放，一次两组。
-        const radio = sections.slice(11);
+        const radio = sections.slice(23);
         expect(titles(radio)).toEqual(['热门', '心情']);
         expect(radio[0].items.map(item => item.kind === 'collection' && item.collection.name)).toEqual(['示例电台 A']);
         expect(radio[0].items.every(item => item.kind === 'collection' && item.isMix)).toBe(true);
-        expect(sections).toHaveLength(13);
+        expect(sections).toHaveLength(25);
+        expect(sections.filter(section => section.id.startsWith('qq-similar')).every(section => section.changesWithRead)).toBe(true);
     });
 
     it('makes chart cards that open the chart, and hands out one batch of a long list with a "more"', async () => {
@@ -133,6 +189,10 @@ describe('QQ explore page', () => {
         expect(charts.items.map(item => item.kind === 'collection' && item.collection.providerData)).toEqual([
             { list: 'toplist', listId: 4, period: '2026-10-17' },
             { list: 'toplist', listId: 26, period: '2026_41' },
+            { list: 'toplist', listId: 27, period: '2026-10-17' },
+            { list: 'toplist', listId: 62, period: '2026-10-17' },
+            { list: 'toplist', listId: 5, period: '2026_41' },
+            { list: 'toplist', listId: 108, period: '2026_41' },
         ]);
         expect(newSongs.items).toHaveLength(12);
         const more = await createQqExplore().getSectionItems!(newSongs.moreCursor!);
@@ -179,7 +239,12 @@ describe('QQ explore page', () => {
             .map(item => item.kind === 'song' && item.song.qqMid);
         expect(songsOf(two).filter(mid => songsOf(one).includes(mid))).toEqual([]);
         // 每次重读，相似歌曲、分类、电台的栏都是新的栏。
-        expect(ids(two).filter(id => ids(one).includes(id))).toEqual(['qq-radar', 'qq-new-songs', 'qq-new-albums', 'qq-charts', 'qq-chart-26']);
+        // 榜单的歌接着轮：第二次先给还没轮到的两个，再从最早轮过的接上。
+        expect(ids(two).filter(id => id.startsWith('qq-chart-'))).toEqual(['qq-chart-5', 'qq-chart-108', 'qq-chart-4', 'qq-chart-26']);
+        expect(ids(two).filter(id => ids(one).includes(id))).toEqual([
+            'qq-radar', 'qq-daily-songs', 'qq-recommended-playlists', 'qq-charts',
+            'qq-new-songs', 'qq-new-albums', 'qq-chart-4', 'qq-chart-26',
+        ]);
     });
 
     it('gives a guest the public shelves only', async () => {
@@ -191,7 +256,9 @@ describe('QQ explore page', () => {
         expect(operations()).not.toContain('song_similar');
         expect(operations()).not.toContain('user_daily_songs');
         expect(operations()).not.toContain('radio_list');
-        expect(ids(sections)[0]).toBe('qq-radar');
+        expect(operations()).not.toContain('recommend_feed');
+        // 没登录也有刷歌模式、推荐歌单和榜单，没有每日 30 首和首页 feed。
+        expect(ids(sections).slice(0, 3)).toEqual(['qq-radar', 'qq-recommended-playlists', 'qq-charts']);
     });
 
     it('goes on without a shelf that could not be read, and leaves out one with no data', async () => {
@@ -205,8 +272,27 @@ describe('QQ explore page', () => {
         expect(ids(sections)).not.toContain('qq-new-songs');
         expect(ids(sections)).toContain('qq-new-albums');
         expect(ids(sections)).not.toContain('qq-charts');
+        expect(ids(sections).filter(id => id.startsWith('qq-chart-'))).toEqual([]);
         // 太少首的那一栏不出。
         expect(titles(sections)).not.toContain(i18n.t('home.exploreSimilar', { name: '歌 heard-a' }));
+    });
+
+    // 旧后端没有 feed 路由（404）、没有可用架子（422）都只是少这几栏；别的失败也不拖垮整页。
+    it('goes on without the home feed when the backend has none or it fails', async () => {
+        const missing = new OnlineProviderError('unsupported', 'QQMusicApi has no recommend_feed route', 'qq', undefined, 404);
+        for (const failure of [missing, emptyAnswer(), new OnlineProviderError('network', 'QQMusicApi request failed: 502', 'qq', { errorKey: 'upstream.unknown' }, 502)]) {
+            requestMock.mockReset();
+            answerAs({ recommend_feed: () => { throw failure; } });
+            const first = await createQqExplore().getFeed(undefined, listened);
+            expect(ids(first.sections)).toEqual(['qq-radar', 'qq-daily-songs', 'qq-recommended-playlists', 'qq-charts']);
+        }
+    });
+
+    // 旧后端缺这条路由是常态：不出这几栏，也不当成读失败记警告。
+    it('does not warn about the home feed on a backend without its route', async () => {
+        answerAs({ recommend_feed: () => { throw new OnlineProviderError('unsupported', 'QQMusicApi has no recommend_feed route', 'qq', undefined, 404); } });
+        await createQqExplore().getFeed(undefined, listened);
+        expect(vi.mocked(console.warn).mock.calls.flat().join('\n')).not.toContain('recommend_feed');
     });
 
     it('fails only where nothing of the first page and the parts after it could be read', async () => {

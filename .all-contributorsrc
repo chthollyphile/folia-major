@@ -753,6 +753,25 @@
       "contributions": [
         "bug"
       ]
+    },
+    {
+      "login": "Asher0226",
+      "name": "Asher",
+      "avatar_url": "https://avatars.githubusercontent.com/u/352705868?v=4",
+      "profile": "https://github.com/Asher0226",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "miaowu104-gif",
+      "name": "Aliya",
+      "avatar_url": "https://avatars.githubusercontent.com/u/317739211?v=4",
+      "profile": "https://github.com/miaowu104-gif",
+      "contributions": [
+        "code",
+        "ideas"
+      ]
     }
   ],
   "commit": false,

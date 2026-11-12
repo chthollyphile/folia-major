@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Play, Plus } from 'lucide-react';
+import { X, Play, Plus, NotebookPen } from 'lucide-react';
 import { List as VirtualList } from 'react-window';
 import { useTranslation } from 'react-i18next';
 import { getSizedCoverUrl } from '../../utils/coverUrl';
@@ -165,10 +165,12 @@ export const TrackListItem = React.memo<{
     style: React.CSSProperties;
     onPlay: () => void;
     onAddToQueue?: () => void;
+    /** 收进速记簿（不动队列）；不给就没有这颗按钮。 */
+    onCollect?: () => void;
     isUnavailable?: boolean;
     isActive?: boolean;
     albumTrackLabel?: string | null;
-}>(({ track, index, style, onPlay, onAddToQueue, isUnavailable, isActive, albumTrackLabel }) => {
+}>(({ track, index, style, onPlay, onAddToQueue, onCollect, isUnavailable, isActive, albumTrackLabel }) => {
     const { t } = useTranslation();
     const coverUrl = getSongCoverUrl(track) || '';
     const artistName = getSongArtistLabel(track).split(',')[0]?.trim() || 'Unknown Artist';
@@ -214,6 +216,21 @@ export const TrackListItem = React.memo<{
                     </div>
                     <div className="text-[10px] opacity-60 truncate leading-tight mt-0.5">{artistName}</div>
                 </div>
+                {!isUnavailable && onCollect && (
+                    <button
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onCollect();
+                        }}
+                        className="p-2 ml-1 rounded-full hover:bg-black/10 dark:hover:bg-white/10 opacity-0 group-hover:opacity-100 transition-all shrink-0"
+                        title={t('scratchpad.collect')}
+                        aria-label={t('scratchpad.collect')}
+                        data-track-action="collect"
+                        style={{ color: 'var(--text-secondary)' }}
+                    >
+                        <NotebookPen size={15} />
+                    </button>
+                )}
                 {!isUnavailable && onAddToQueue && (
                     <button
                         onClick={(e) => {

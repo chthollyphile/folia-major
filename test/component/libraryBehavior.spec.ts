@@ -1809,14 +1809,62 @@ test.describe('[bravais-only] collection page', () => {
         expect(box, selector).not.toBeNull();
         return box!;
     };
-    /** 缝里的按钮（播放全部、加入队列、列表、更多）都在视口里，也都在缝的纸条里。 */
+    /**
+     * 元素在没倾斜的坐标里的矩形：把屏幕上的外接框按缝此刻的旋转（缝自己的，补间中是轨道的）转回去。
+     * 集合页整层倾斜着，boundingBox 给的是转过之后的屏幕外接框；「同一行」「在它上方」「不超出纸条」这些排版关系按转回去
+     * 的坐标比（各元素转的是同一个角度，相对位置就是排版上的相对位置）。
+     */
+    /** 缝此刻转了多少（弧度）：缝自己的旋转，补间中是轨道的。 */
+    const seamAngle = (page: Page) => page.locator('[data-library-stage="bravais"] .bravais-seam').first().evaluate((seam) => (
+        [seam, seam.parentElement!].reduce((sum, node) => {
+            const transform = getComputedStyle(node).transform;
+            const matrix = new DOMMatrixReadOnly(transform === 'none' ? undefined : transform);
+            return sum + Math.atan2(matrix.b, matrix.a);
+        }, 0)
+    ));
+    /** 等整层转到位（刚进歌单页时还在转过去）：转的途中内容的缩进逐像素在变，前后两次量到的不是同一个样子。 */
+    const tiltSettled = (page: Page) => expect.poll(async () => {
+        const before = await seamAngle(page);
+        await page.waitForTimeout(150);
+        return Math.abs(await seamAngle(page) - before) < 1e-6;
+    }, { timeout: 10_000 }).toBe(true);
+    const layoutBoxOf = async (page: Page, selector: string) => {
+        const locator = page.locator(`[data-library-stage="bravais"] ${selector}`).first();
+        await expect(locator, selector).toBeAttached();
+        await tiltSettled(page);
+        return locator.evaluate((element) => {
+            const seam = element.closest('.bravais-seam')!;
+            const angle = [seam, seam.parentElement!].reduce((sum, node) => {
+                const transform = getComputedStyle(node).transform;
+                const matrix = new DOMMatrixReadOnly(transform === 'none' ? undefined : transform);
+                return sum + Math.atan2(matrix.b, matrix.a);
+            }, 0);
+            const rect = element.getBoundingClientRect();
+            const [centerX, centerY] = [rect.left + rect.width / 2, rect.top + rect.height / 2];
+            const [cos, sin] = [Math.cos(-angle), Math.sin(-angle)];
+            // 外接框的宽高是 w·|cos| + h·|sin| 与 w·|sin| + h·|cos|，反解出没转时的宽高（角度远小于 45°）。
+            const [c, k] = [Math.abs(cos), Math.abs(sin)];
+            const width = (rect.width * c - rect.height * k) / (c * c - k * k);
+            const height = (rect.height * c - rect.width * k) / (c * c - k * k);
+            return { x: centerX * cos - centerY * sin - width / 2, y: centerX * sin + centerY * cos - height / 2, width, height };
+        });
+    };
+    /**
+     * 缝里的按钮（播放全部、加入队列、列表、更多）都在视口里（屏幕上，倾斜算在内），也都在缝的纸条里（排版上；整层倾斜时
+     * 内容层底下让出的那一截 --bravais-seam-tilt-bottom 仍是纸条）。
+     */
     const expectSeamButtonsInView = async (page: Page) => {
         const viewport = page.viewportSize()!;
-        const seam = await boxOf(page, '.bravais-seam-full');
+        const seam = await layoutBoxOf(page, '.bravais-seam-full');
+        const tiltRoom = await page.locator('[data-library-stage="bravais"] .bravais-seam-content').first()
+            .evaluate(element => parseFloat((element as HTMLElement).style.getPropertyValue('--bravais-seam-tilt-bottom')) || 0);
         for (const action of ['play-scope', 'enqueue-scope', 'list', 'more']) {
             const box = await boxOf(page, `.bravais-seam-full [data-bravais-seam-action="${action}"]`);
             expect(box.y, action).toBeGreaterThanOrEqual(0);
-            expect(box.y + box.height, action).toBeLessThanOrEqual(Math.min(viewport.height, seam.y + seam.height) + 0.5);
+            expect(box.y + box.height, action).toBeLessThanOrEqual(viewport.height + 0.5);
+            const laidOut = await layoutBoxOf(page, `.bravais-seam-full [data-bravais-seam-action="${action}"]`);
+            expect(laidOut.y, action).toBeGreaterThanOrEqual(seam.y - 0.5);
+            expect(laidOut.y + laidOut.height, action).toBeLessThanOrEqual(seam.y + seam.height + tiltRoom + 0.5);
         }
     };
 
@@ -1869,6 +1917,8 @@ test.describe('[bravais-only] collection page', () => {
         await open(page, 'online-owned-twice');
         const text = description(page);
         await expect(text).toHaveAttribute('data-bravais-collection-description', 'collapsed');
+        // 整层还在转过去时内容的缩进逐像素在变（描述跟着让位）：转到位再量高度，后面收起时才对得上。
+        await tiltSettled(page);
         // 首尾空白去掉，段落之间的换行原样保留（纯文本，pre-wrap）。
         expect(await text.evaluate(element => element.textContent)).toBe(PROBE_LONG_DESCRIPTION.trim());
         await expect(text).toHaveCSS('white-space', 'pre-wrap');
@@ -1997,6 +2047,25 @@ test.describe('[bravais-only] collection page', () => {
         await expect(seam).toHaveAttribute('data-bravais-seam', 'full');
     });
 
+    test('reloading is the track count itself, not an entry of the more menu', async ({ mount, page }) => {
+        await openPublic(mount, page);
+        const seam = seamOf(page);
+        const count = seam.locator('.bravais-seam-full .bravais-seam-meta > button');
+        await expect(count).toHaveAttribute('data-bravais-seam-action', 'reload');
+        await expect(count).toHaveAttribute('title', 'Reload');
+        await expect(count).toContainText(/\d/);
+        await expect(count.locator('svg')).toHaveCount(1);
+        await seam.locator('.bravais-seam-full [data-bravais-seam-action="more"]').click();
+        await expect(seam.locator('[data-bravais-seam-menu]')).toBeVisible();
+        await expect(seam.locator('[data-bravais-seam-menu] [data-bravais-seam-action="reload"]')).toHaveCount(0);
+        await page.keyboard.press('Escape');
+
+        await clearLog(page);
+        await count.click();
+        await expect.poll(async () => (await requests(page, 'playlistTracks')).some(request => request.offset === 0)).toBe(true);
+        await waitForScope(page, publicScope());
+    });
+
     test('the more menu floats above the buttons: nothing in the strip moves, and a click elsewhere or Escape closes it', async ({ mount, page }) => {
         await openPublic(mount, page);
         const seam = seamOf(page);
@@ -2010,7 +2079,12 @@ test.describe('[bravais-only] collection page', () => {
         // 打开菜单不推挤：按钮行与上面的播放按钮都没动；菜单在「⋯ 更多」上方。
         expect(await more.boundingBox()).toEqual(before.more);
         expect(await play.boundingBox()).toEqual(before.play);
-        await expect.poll(async () => (await menu.boundingBox())!.y + (await menu.boundingBox())!.height).toBeLessThanOrEqual(before.more!.y);
+        // 上下关系按排版坐标比（整层倾斜着，屏幕外接框是转过的）。
+        const moreBox = await layoutBoxOf(page, '.bravais-seam-full [data-bravais-seam-action="more"]');
+        await expect.poll(async () => {
+            const menuBox = await layoutBoxOf(page, '[data-bravais-seam-menu]');
+            return menuBox.y + menuBox.height;
+        }).toBeLessThanOrEqual(moreBox.y);
         await page.keyboard.press('Escape');
         await expect(menu).toHaveCount(0);
         await expect(seam).toHaveAttribute('data-bravais-seam-level', 'full');
@@ -2029,9 +2103,9 @@ test.describe('[bravais-only] collection page', () => {
         await expect(star).toHaveAccessibleName('Subscribe Playlist');
         await expect(star).toHaveAttribute('aria-pressed', 'false');
         // 同一行：与「播放全部」竖直方向重叠；靠右（这一行的最后一个，右边缘贴着行尾）。
-        const play = await boxOf(page, '.bravais-seam-full [data-bravais-seam-action="play-scope"]');
-        const starBox = await boxOf(page, '.bravais-seam-full [data-bravais-seam-action="subscribe"]');
-        const rowBox = await boxOf(page, '.bravais-seam-full .bravais-seam-actions.is-scope');
+        const play = await layoutBoxOf(page, '.bravais-seam-full [data-bravais-seam-action="play-scope"]');
+        const starBox = await layoutBoxOf(page, '.bravais-seam-full [data-bravais-seam-action="subscribe"]');
+        const rowBox = await layoutBoxOf(page, '.bravais-seam-full .bravais-seam-actions.is-scope');
         expect(starBox.y).toBeLessThan(play.y + play.height);
         expect(starBox.y + starBox.height).toBeGreaterThan(play.y);
         expect(starBox.x).toBeGreaterThan(play.x + play.width);

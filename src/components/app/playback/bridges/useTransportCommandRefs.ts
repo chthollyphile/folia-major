@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react';
+import type { RefObject } from 'react';
+import { PlayerState } from '../../../../types';
 import { selectDisplayPlayerState, usePlaybackStore } from '../../../../stores/usePlaybackStore';
 
 // src/components/app/playback/bridges/useTransportCommandRefs.ts
@@ -71,4 +73,46 @@ export const useTransportCommandRefs = ({
         taskbarHasTrackRef,
         taskbarPlayerStateRef,
     }), []);
+};
+
+// The three buttons the window offers outside the player: the taskbar thumbbar and the media
+// buttons beside the click-through lock.
+export type TransportButtonAction = 'previous' | 'play-pause' | 'next';
+
+type TransportButtonRefs = {
+    mediaSessionPlayRef: RefObject<() => Promise<void>>;
+    mediaSessionPauseRef: RefObject<() => void>;
+    mediaSessionPrevRef: RefObject<() => void>;
+    mediaSessionNextRef: RefObject<() => Promise<void> | void>;
+    taskbarHasTrackRef: RefObject<boolean>;
+    taskbarPlayerStateRef: RefObject<PlayerState>;
+    isNowPlayingControlDisabledRef: RefObject<boolean>;
+    audioRef: RefObject<HTMLAudioElement | null>;
+};
+
+// Runs one press of a previous / play-pause / next button, ignored while there is nothing to drive
+// (no track, no audio element, or now-playing controls disabled during a video export).
+export const runTransportButtonAction = (
+    refs: TransportButtonRefs,
+    action: TransportButtonAction,
+) => {
+    if (refs.isNowPlayingControlDisabledRef.current || !refs.audioRef.current || !refs.taskbarHasTrackRef.current) {
+        return;
+    }
+
+    if (action === 'previous') {
+        refs.mediaSessionPrevRef.current();
+        return;
+    }
+
+    if (action === 'next') {
+        void refs.mediaSessionNextRef.current();
+        return;
+    }
+
+    if (refs.taskbarPlayerStateRef.current === PlayerState.PLAYING) {
+        refs.mediaSessionPauseRef.current();
+    } else {
+        void refs.mediaSessionPlayRef.current();
+    }
 };

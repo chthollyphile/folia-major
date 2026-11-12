@@ -50,7 +50,6 @@ test.describe('[bravais] wall performance guard rails', () => {
     test('the first screen and a whole-wall flip cost the same for 500 and 5000 tracks', async ({ page }) => {
         const small = await run(page, { items: [500], scenarios: ['flip'], seconds: 3.2 });
         const large = await run(page, { items: [5000], scenarios: ['flip'], seconds: 3.2 });
-        // eslint-disable-next-line no-console
         console.log('PERF bravais flip', JSON.stringify({ small: { mount: small.mount, animation: small.animation, counts: small.counts, motion: small.motion }, large: { mount: large.mount, animation: large.animation, counts: large.counts, motion: large.motion } }));
 
         // 首屏：挂的磁贴是「视口附近的 slot」，与条目数无关。
@@ -82,7 +81,6 @@ test.describe('[bravais] wall performance guard rails', () => {
 
     test('panning inside the culled range writes nothing but the world transforms', async ({ page }) => {
         const drift = await run(page, { items: [5000], scenarios: ['drift'], seconds: 2.5 });
-        // eslint-disable-next-line no-console
         console.log('PERF bravais drift', JSON.stringify({ counts: drift.counts, motion: drift.motion }));
         expect(drift.motion.frames).toBeGreaterThan(30);
         // 帧状态直接写 DOM：块底板随世界层平移（不重画、不新挂）、磁贴不重渲染、没有新磁贴、stage 不提交。
@@ -95,7 +93,6 @@ test.describe('[bravais] wall performance guard rails', () => {
 
     test('a long pan renders only the tiles it brings in', async ({ page }) => {
         const pan = await run(page, { items: [5000], scenarios: ['pan'], seconds: 3 });
-        // eslint-disable-next-line no-console
         console.log('PERF bravais pan', JSON.stringify({ counts: pan.counts, tiles: pan.tiles, motion: pan.motion }));
         // 跨了块边界：重新裁剪、带进新磁贴与新块的底板——已挂的块底板一次都不重画。
         expect(pan.counts.tilesAdded).toBeGreaterThan(0);
@@ -109,7 +106,6 @@ test.describe('[bravais] wall performance guard rails', () => {
     test('focus expansion and home tab waves stay within their budgets', async ({ page }) => {
         const expand = await run(page, { items: [5000], scenarios: ['expand'], seconds: 3.2 });
         const tab = await run(page, { items: [5000], scenarios: ['tab'], seconds: 2.8 });
-        // eslint-disable-next-line no-console
         console.log('PERF bravais expand/tab', JSON.stringify({ expand: { counts: expand.counts, animation: expand.animation }, tab: { counts: tab.counts, animation: tab.animation, tiles: tab.tiles } }));
 
         expect(expand.animation.triggers).toBeGreaterThanOrEqual(3);

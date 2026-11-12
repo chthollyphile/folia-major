@@ -8,6 +8,7 @@ export type SettingsSectionId =
     | 'appearance'
     | 'player'
     | 'home'
+    | 'graphics'
     | 'playback'
     | 'lyrics'
     | 'general'
@@ -16,7 +17,6 @@ export type SettingsSectionId =
     | 'ai'
     | 'storage'
     | 'desktop'
-    | 'graphics'
     | 'mods'
     | 'developer';
 
@@ -56,6 +56,7 @@ export const SETTINGS_NAV_GROUP_SPECS: GroupSpec[] = [
             { id: 'appearance', icon: Contrast, labelKey: 'options.settingsPageAppearance' },
             { id: 'player', icon: MonitorPlay, labelKey: 'options.settingsPagePlayer' },
             { id: 'home', icon: LayoutGrid, labelKey: 'options.settingsPageHome' },
+            { id: 'graphics', icon: Gauge, labelKey: 'options.settingsPageGraphics' },
         ],
     },
     {
@@ -78,7 +79,6 @@ export const SETTINGS_NAV_GROUP_SPECS: GroupSpec[] = [
             { id: 'ai', icon: Sparkles, labelKey: 'options.settingsPageAi', electronOnly: true },
             { id: 'storage', icon: Database, labelKey: 'options.settingsPageStorage' },
             { id: 'desktop', icon: Monitor, labelKey: 'options.settingsPageDesktop', electronOnly: true },
-            { id: 'graphics', icon: Gauge, labelKey: 'options.settingsPageGraphics' },
         ],
     },
     {

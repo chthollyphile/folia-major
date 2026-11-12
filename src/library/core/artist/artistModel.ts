@@ -66,6 +66,35 @@ export const mapOnlineArtistDetail = (detail: ProviderCollection): LibraryArtist
     aliases: detail.aliases,
 });
 
+/** 「全部歌曲」那一层集合的类型（omni 的 getCollectionTracks 把它接到 catalog.getArtistSongs）。 */
+export const ARTIST_SONGS_COLLECTION_TYPE = 'artist_songs';
+
+/**
+ * 歌手的「全部歌曲」（#918）：压进导航栈的那一层在线集合，id 就是歌手的 id，曲目经 omni 分页读歌手的歌。
+ * 只给在线歌手（本地与 Navidrome 的歌都在专辑里）；名字由调用方翻译好，封面与曲目数取歌手详情。
+ */
+export const artistSongsCollection = (
+    collection: LibraryCollectionDescriptor,
+    detail: LibraryArtistDetail | null,
+    name: string,
+): LibraryCollectionDescriptor | null => {
+    if (collection.source !== 'online') return null;
+    const coverUrl = detail?.coverUrl || collection.coverUrl;
+    // 只是开头的估计：omni 读这一层时最多读到它的上限，第一页答来的总数（同样按上限截）会盖掉这个数。
+    const trackCount = detail?.trackCount || undefined;
+    return {
+        source: 'online',
+        providerId: collection.providerId,
+        id: collection.id,
+        type: ARTIST_SONGS_COLLECTION_TYPE,
+        name,
+        isOwned: false,
+        artists: [{ id: collection.id, name: detail?.name || collection.name }],
+        ...(coverUrl ? { coverUrl } : {}),
+        ...(trackCount ? { trackCount } : {}),
+    };
+};
+
 /** 在线专辑分页追加：按 id 去重，保持上游顺序。 */
 export const appendArtistAlbums = (
     current: readonly LibraryArtistAlbum[],

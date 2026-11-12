@@ -14,9 +14,10 @@ import {
     stopBeatFx,
     tickBeatFx,
 } from '@/services/beatFx/beatFxLive';
-import { liveBeatEffectStrength, visualizerWantsBeatClock, visualizerWantsBeats, visualizerWantsDrumHits, visualizerWantsStems, type BeatClockSettings } from '@/components/visualizer/beatClockTargets';
+import { backgroundOnScreen, liveBeatEffectStrength, visualizerWantsBeatClock, visualizerWantsBeats, visualizerWantsDrumHits, visualizerWantsStems, type BeatClockSettings } from '@/components/visualizer/beatClockTargets';
 import { anyDrumBeatEffectOn, BEAT_EFFECT_IDS, DRUM_BEAT_EFFECT_IDS, resolveBeatEffectSetting, smartBeatActive, smartBeatMayAnalyse } from '@/services/beatFx/beatEffects';
 import { VISUALIZER_REGISTRY } from '@/components/visualizer/registry';
+import { DEFAULT_NEBBIA_TUNING } from '@/components/visualizer/nebbia/types';
 import { VISUALIZER_BACKGROUND_REGISTRY } from '@/components/visualizer/backgrounds/registry';
 import {
     SONNET_BEAT_FX,
@@ -219,6 +220,17 @@ describe('when the beat clock runs', () => {
         ...patch,
     });
 
+    it('counts the background only where it is drawn', () => {
+        expect(backgroundOnScreen(settings({}))).toBe(true);
+        expect(backgroundOnScreen(settings({ visualizerMode: 'still' }))).toBe(false);
+        expect(backgroundOnScreen(settings({ pageTransparent: true }))).toBe(false);
+        // 雾笺 draws its own night street unless 窗外 is the shared background
+        expect(backgroundOnScreen(settings({ visualizerMode: 'nebbia' }))).toBe(false);
+        const backdrop = { nebbiaTuning: { ...DEFAULT_NEBBIA_TUNING, behind: 'backdrop' as const } };
+        expect(backgroundOnScreen(settings({ visualizerMode: 'nebbia', ...backdrop }))).toBe(true);
+        expect(backgroundOnScreen(settings({ visualizerMode: 'nebbia', pageTransparent: true, ...backdrop }))).toBe(false);
+    });
+
     it('never while the switch is off', () => {
         expect(visualizerWantsBeatClock(settings({ smartBeat: DEFAULT_SMART_BEAT_SETTINGS, visualizerMode: 'sonnet' }))).toBe(false);
         expect(visualizerWantsBeatClock(settings({ smartBeat: DEFAULT_SMART_BEAT_SETTINGS, visualizerBackgroundMode: 'latent' }))).toBe(false);
@@ -256,6 +268,23 @@ describe('when the beat clock runs', () => {
         expect(visualizerWantsBeats(settings({ visualizerMode: 'nebbia' }))).toBe(false);
         expect(visualizerWantsBeatClock(settings({ visualizerMode: 'nebbia' }))).toBe(true);
         expect(visualizerWantsStems(settings({ visualizerMode: 'pendolo' }))).toBe(false);
+    });
+
+    it('runs beat_this for 雾笺\'s 舞潮踏拍 only while the aquarium is on screen, and htdemucs for 疏雨轻车 only while it is not', () => {
+        const aquarium = { nebbiaTuning: { ...DEFAULT_NEBBIA_TUNING, behind: 'aquarium' as const, glass: 'dew' as const } };
+        expect(visualizerWantsBeats(settings({ visualizerMode: 'nebbia', ...aquarium }))).toBe(true);
+        expect(liveBeatEffectStrength(settings({ visualizerMode: 'nebbia', ...aquarium }), 'beats')).toBe(1);
+        // 水族箱配凝露玻璃：没有雨打窗、车也不颠，不为疏雨轻车分离音轨；换成雨窗玻璃时雨照旧跟人声
+        expect(visualizerWantsStems(settings({ visualizerMode: 'nebbia', ...aquarium }))).toBe(false);
+        const rainyTank = { nebbiaTuning: { ...aquarium.nebbiaTuning, glass: 'rain' as const } };
+        expect(visualizerWantsStems(settings({ visualizerMode: 'nebbia', ...rainyTank }))).toBe(true);
+        // 透明时透出后面，但水珠里折射的还是水族箱，照样算；雨夜街景和共用背景都没有水族箱
+        expect(visualizerWantsBeats(settings({ visualizerMode: 'nebbia', pageTransparent: true, ...aquarium }))).toBe(true);
+        expect(visualizerWantsStems(settings({ visualizerMode: 'nebbia', pageTransparent: true, ...aquarium }))).toBe(false);
+        const backdrop = { nebbiaTuning: { ...DEFAULT_NEBBIA_TUNING, behind: 'backdrop' as const } };
+        expect(visualizerWantsBeats(settings({ visualizerMode: 'nebbia', ...backdrop }))).toBe(false);
+        const smartBeat: SmartBeatSettings = { mode: 'on', effects: { [BEAT_EFFECT_IDS.nebbiaAquaBeat]: { on: false, strength: 1 } } };
+        expect(visualizerWantsBeats(settings({ smartBeat, visualizerMode: 'nebbia', ...aquarium }))).toBe(false);
     });
 
     it('not for an effect switched off, and at each effect\'s own strength', () => {

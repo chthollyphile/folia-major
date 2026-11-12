@@ -109,7 +109,7 @@ describe('home tabs', () => {
         });
         expect(tabs.map(tab => tab.key)).toEqual(['playlist', 'radio', 'albums', 'local', 'navidrome']);
         expect(tabs.every(tab => !tab.disabledReason)).toBe(true);
-        expect(translateHomeTabs(tabs, t).map(tab => tab.label)).toEqual(['home.playlists', 'home.radio', 'home.albums', 'localMusic.folder', 'navidrome.title']);
+        expect(translateHomeTabs(tabs, t).map(tab => tab.label)).toEqual(['home.playlists', 'home.radioTab', 'home.albums', 'localMusic.folder', 'navidrome.title']);
     });
 
     it('hides the tabs the layout settings turn off and Navidrome when it is disabled', () => {
@@ -165,7 +165,7 @@ describe('home tabs', () => {
         expect(['playlist', 'radio', 'albums', 'explore', 'local', 'navidrome'].map(tab => isOnlineHomeTab(tab as never))).toEqual([true, true, true, true, false, false]);
         expect(onlineHomeTitleKey('playlist')).toBe('home.playlists');
         expect(onlineHomeTitleKey('albums')).toBe('home.albums');
-        expect(onlineHomeTitleKey('radio')).toBe('home.radio');
+        expect(onlineHomeTitleKey('radio')).toBe('home.radioTab');
         expect(onlineHomeTitleKey('explore')).toBe('home.explore');
         expect(resolveOnlineTabUnavailableReason(online, 'radio')).toBeUndefined();
     });

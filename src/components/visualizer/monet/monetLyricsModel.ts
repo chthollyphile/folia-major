@@ -1,6 +1,6 @@
 import { clearCache, layoutWithLines, prepareWithSegments } from '@chenglou/pretext';
 import { measureRichInlineStats, prepareRichInline, type RichInlineItem } from '@chenglou/pretext/rich-inline';
-import type { Line, SubtitleContentMode } from '../../../types';
+import type { Line, SubtitleContentMode, Word } from '../../../types';
 import { resolveLyricSubtitleTracks, resolveSubtitleContentMode, type SubtitleTrack, type SubtitleTrackRole } from '../../../utils/lyrics/alternateText';
 import {
     SECONDARY_TRACK_FONT_WEIGHT_FALLBACK,
@@ -8,6 +8,7 @@ import {
     SECONDARY_TRACK_SIZE_FACTOR,
 } from '../../../utils/lyrics/subtitleTrackStyle';
 import { buildLineGraphemeTimeline, buildWordGraphemeTimings, type GraphemeTiming } from '../../../utils/lyrics/graphemeTiming';
+import { buildTimedWords } from '../../../utils/lyrics/estimatedLineTiming';
 import { getLineRenderEndTime } from '../../../utils/lyrics/renderHints';
 import { measurePrefixOffsets, rememberBounded } from '../textMeasureCache';
 
@@ -358,24 +359,42 @@ export const resolveMonetWordStatus = (
     return 'passed';
 };
 
+/**
+ * The words Monet sweeps. A line-level line would be one atomic timed box: the browser wraps inside it
+ * while the sweep mask runs across the whole box, lighting every visual row at once (#1066). Such a line
+ * comes with no words, or with one word spanning the whole text (PlayerCap and mod lyrics without word
+ * timing); both get estimated words, the single word's within its own span.
+ */
+const resolveMonetSweepWords = (line: Line): Word[] => {
+    if (line.words.length === 0) {
+        return buildTimedWords(line.fullText, line.startTime, getLineRenderEndTime(line));
+    }
+
+    const [onlyWord] = line.words;
+    if (line.words.length === 1 && !onlyWord.syllables?.length && onlyWord.text.trim() === line.fullText.trim()) {
+        const estimated = buildTimedWords(onlyWord.text, onlyWord.startTime, onlyWord.endTime);
+        // Stretched back onto the word's own span: its end is a real timestamp, so the sweep still finishes there.
+        const estimatedSpan = (estimated.at(-1)?.endTime ?? onlyWord.startTime) - onlyWord.startTime;
+        if (estimated.length > 1 && estimatedSpan > 0) {
+            const scale = (onlyWord.endTime - onlyWord.startTime) / estimatedSpan;
+            return estimated.map(word => ({
+                text: word.text,
+                startTime: onlyWord.startTime + (word.startTime - onlyWord.startTime) * scale,
+                endTime: onlyWord.startTime + (word.endTime - onlyWord.startTime) * scale,
+            }));
+        }
+    }
+
+    return line.words;
+};
+
 /** Builds a stable display-token list so fullText punctuation and spaces survive around timed lyric words. */
 export const buildMonetDisplayTokens = (line: Line): MonetDisplayToken[] => {
-    if (line.words.length === 0) {
-        return [{
-            text: line.fullText,
-            startTime: line.startTime,
-            endTime: getLineRenderEndTime(line),
-            key: `${line.startTime}-full`,
-            timed: true,
-            startOffset: 0,
-            endOffset: line.fullText.length,
-            graphemeTimings: buildLineGraphemeTimeline(line),
-        }];
-    }
+    const words = resolveMonetSweepWords(line);
 
     const tokens: MonetDisplayToken[] = [];
     let cursor = 0;
-    line.words.forEach((word, index) => {
+    words.forEach((word, index) => {
         const matchIndex = line.fullText.indexOf(word.text, cursor);
         if (matchIndex < 0) {
             return;

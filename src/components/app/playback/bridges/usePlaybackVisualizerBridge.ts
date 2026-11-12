@@ -3,7 +3,7 @@ import type { MutableRefObject } from 'react';
 import type { MotionValue } from 'framer-motion';
 import { findLatestActiveLineIndex } from '../../../../utils/appPlaybackHelpers';
 import { PlayerState } from '../../../../types';
-import type { AudioBands, LyricData } from '../../../../types';
+import type { AudioBands, LyricData, StageLyricsSession } from '../../../../types';
 import { setCurrentLineIndex, setHandoffLineIndex, setPlayerState } from '../../../../stores/usePlaybackStore';
 import { selectDisplayLyrics, usePlaybackStore } from '../../../../stores/usePlaybackStore';
 import {
@@ -21,6 +21,7 @@ import { useBeatFxTrack } from '../../../../hooks/useBeatFxTrack';
 import { readIncomingLyricClock } from './incomingLyricClock';
 import { isBackgroundLyricHeld, setHeldLyricTime, useBackgroundLyricHoldStore } from '../../backgroundThrottling/backgroundLyricHoldStore';
 import { getHifiPosition } from '../../../../services/hifi/hifiPlayback';
+import { getExternalPosition, isExternalPlaybackSounding } from '../../../../services/onlineMusic/externalPlayback';
 
 // src/components/app/playback/bridges/usePlaybackVisualizerBridge.ts
 
@@ -40,7 +41,7 @@ type UsePlaybackVisualizerBridgeParams = {
     isNowPlayingStageActive: boolean;
     isPlayerCapStageActive: boolean;
     stageActiveEntryKind: string | null;
-    stageLyricsSession: unknown;
+    stageLyricsSession: StageLyricsSession | null;
     stageLyricsClockRef: MutableRefObject<{
         startTimeSec: number;
         endTimeSec: number;
@@ -99,6 +100,10 @@ export function usePlaybackVisualizerBridge({
     const duration = usePlaybackStore(state => state.duration);
     // mpv sounds the song on the HiFi route: the decks are silent, and the clock is extrapolated from mpv's position.
     const isHifiActive = usePlaybackStore(state => state.playbackRoute) === 'hifi';
+    // A provider's own player sounds it on the external route, with its own extrapolated clock.
+    // Only once the app has shown the song: before that the old song still owns the lyric clock.
+    const isExternalRouteActive = usePlaybackStore(state => state.playbackRoute) === 'external';
+    const isExternalActive = isExternalRouteActive && isExternalPlaybackSounding();
     // The lyrics on screen, matching the deck getDisplayElement points at.
     const lyrics = usePlaybackStore(selectDisplayLyrics);
     // The live lyrics, which during a blend are the incoming track's (null until they load).
@@ -241,7 +246,7 @@ export function usePlaybackVisualizerBridge({
         // the track it is finishing, so that clock and picture never describe different songs.
         const audioElement = getDisplayElement?.() ?? audioRef.current;
         // Never on the HiFi route, so the spectrum keeps the idle breath there: there is no analyser on mpv's output.
-        const isActuallyPlaying = !isHifiActive && Boolean(audioElement && !audioElement.paused && !audioElement.ended);
+        const isActuallyPlaying = !isHifiActive && !isExternalActive && Boolean(audioElement && !audioElement.paused && !audioElement.ended);
         // Mid-handover a deck can be loading while the other one is still sounding. The analyser
         // is downstream of both, so it has real signal: dropping to the idle breath here would put
         // a visible stutter at exactly the moment meant to be seamless.
@@ -295,7 +300,22 @@ export function usePlaybackVisualizerBridge({
             audioBands.spectrum?.set(new Uint8Array(0));
         }
 
-        if (isHifiActive) {
+        if (isExternalRouteActive) {
+            // A frame can retain the outgoing render while the companion already owns a new clock.
+            // Freeze until announcement and the lyrics render agree, rather than rewinding the old song.
+            if (!isExternalPlaybackSounding() || lyrics !== selectDisplayLyrics(usePlaybackStore.getState())) return;
+            // As with mpv: every frame, paused or not (the player's clock stands still while it is
+            // paused, and a seek moves it). The end is the player's own report, not this clock.
+            const time = getExternalPosition();
+            currentTime.set(time);
+
+            const effectiveLyricTime = time - displayOffsetMsRef.current / 1000;
+            showLyricTime(effectiveLyricTime);
+
+            if (lyrics) {
+                showLine(findLatestActiveLineIndex(lyrics.lines, effectiveLyricTime));
+            }
+        } else if (isHifiActive) {
             // Every frame, paused or not: the clock stands still while mpv is paused, and a seek while
             // paused moves it. No end handling here - mpv reports the end itself.
             const time = getHifiPosition();
@@ -347,20 +367,22 @@ export function usePlaybackVisualizerBridge({
             const effectiveLyricTime = nextTime - displayOffsetMsRef.current / 1000;
             showLyricTime(effectiveLyricTime);
             showLine(lyrics ? findLatestActiveLineIndex(lyrics.lines, effectiveLyricTime) : -1);
-        } else if (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && stageLyricsSession && lyrics) {
+        } else if (activePlaybackContext === 'stage' && stageActiveEntryKind === 'lyrics' && stageLyricsSession) {
+            // A session without lyrics (an external player's track whose lyrics are not found) still keeps time.
             const nextTime = getSyntheticStageLyricsTime();
             const clock = stageLyricsClockRef.current;
             const hasReachedEnd = playerState === PlayerState.PLAYING && nextTime >= clock.endTimeSec;
 
             currentTime.set(nextTime);
 
-            showLine(findLatestActiveLineIndex(lyrics.lines, nextTime));
+            showLine(lyrics ? findLatestActiveLineIndex(lyrics.lines, nextTime) : -1);
 
             if (hasReachedEnd) {
-                if (effectiveLoopMode === 'one' || effectiveLoopMode === 'all') {
+                // An external player's clock is its own to restart: the loop mode does not replay it here.
+                if (!stageLyricsSession.clock && (effectiveLoopMode === 'one' || effectiveLoopMode === 'all')) {
                     syncStageLyricsClock(clock.startTimeSec, clock.endTimeSec, PlayerState.PLAYING, clock.startTimeSec);
                     currentTime.set(clock.startTimeSec);
-                    showLine(findLatestActiveLineIndex(lyrics.lines, clock.startTimeSec));
+                    showLine(lyrics ? findLatestActiveLineIndex(lyrics.lines, clock.startTimeSec) : -1);
                 } else {
                     syncStageLyricsClock(clock.endTimeSec, clock.endTimeSec, PlayerState.PAUSED, clock.startTimeSec);
                     setPlayerState(PlayerState.PAUSED);
@@ -418,6 +440,8 @@ export function usePlaybackVisualizerBridge({
         isTransitionAudible,
         getDisplayElement,
         isHifiActive,
+        isExternalActive,
+        isExternalRouteActive,
     ]);
 
     // Every frame normally; while 后台节流 holds the lyrics, a slow timer that keeps only the clocks. The

@@ -32,6 +32,15 @@ export type CollectionSyncState =
  */
 export type CollectionUpdateHint = 'urgent' | 'background';
 
+/**
+ * 集合的详情，renderer 把它盖在集合描述上画页头。在线集合是平台给的 ProviderCollection；Navidrome 专辑是 getAlbum 读回来的
+ * 专辑信息（没有 providerId，带专辑歌手、年份、流派、时长）：从歌曲跳到专辑时描述里只有 id 和名字，页头靠它补全。
+ */
+export type CollectionDetail =
+    & Omit<ProviderCollection, 'providerId'>
+    & { providerId?: ProviderCollection['providerId'] }
+    & Pick<LibraryCollectionDescriptor, 'albumArtist' | 'albumYear' | 'albumGenre' | 'albumDuration'>;
+
 export interface CollectionResourceSnapshot {
     readonly key: string;
     readonly kind: CollectionResourceKind;
@@ -42,8 +51,8 @@ export interface CollectionResourceSnapshot {
     readonly tracks: SongResult[];
     readonly error: CollectionLoadError | null;
     readonly sync: CollectionSyncState;
-    /** 在线集合的详情（封面、简介、总数等），没有时为 null。 */
-    readonly detail: ProviderCollection | null;
+    /** 集合的详情（封面、简介、总数等；Navidrome 只有专辑有），没有时为 null。 */
+    readonly detail: CollectionDetail | null;
     readonly hint: CollectionUpdateHint;
     /** 每次从头加载都会递增；renderer 据此丢掉暂存的旧页。 */
     readonly generation: number;

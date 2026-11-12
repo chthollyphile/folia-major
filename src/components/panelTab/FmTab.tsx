@@ -3,6 +3,9 @@ import { ChevronDown, Pause, Play, Radio, SkipBack, SkipForward, Trash2 } from '
 import { useTranslation } from 'react-i18next';
 import { PlayerState } from '../../types';
 import { omni } from '../../services/onlineMusic/omni';
+import { getPersonalFmOpenPickerLabel } from '../../services/onlineMusic/fmModes';
+import { useOnlineProviderAccountStore } from '../../stores/useOnlineProviderAccountStore';
+import { selectActiveStation, selectStationCatalog, usePersonalFmModeStore } from '../../stores/usePersonalFmModeStore';
 import { usePlaybackStore } from '../../stores/usePlaybackStore';
 import { getPlaybackSourceRef } from '../../utils/appPlaybackGuards';
 import { Tooltip } from '../modal/settings/kit';
@@ -10,6 +13,7 @@ import { IconSwap } from './shell/IconSwap';
 import { LikeButton } from './shell/LikeButton';
 import { PanelButton } from './shell/PanelButton';
 import { PanelIconButton } from './shell/PanelIconButton';
+import { FmRecommendationPreferencesButton } from '../recommendationPreferences/FmRecommendationPreferencesButton';
 
 // src/components/panelTab/FmTab.tsx
 // The panel's radio tab, shown in place of the queue while a personal FM plays: the mode the radio
@@ -53,15 +57,27 @@ const FmTab: React.FC<FmTabProps> = ({
     const hasLike = usePlaybackStore(state => !state.currentSong
         || getPlaybackSourceRef(state.currentSong).kind !== 'online'
         || omni.canLikeSong(state.currentSong));
+    // The button opens the picker of what FM plays, so its hint names the same thing: the extra radio on air
+    // by its own name, the Personal FM otherwise.
+    const providerId = useOnlineProviderAccountStore(state => state.activeProviderId);
+    const isFmMode = usePlaybackStore(state => state.isFmMode);
+    const stationCatalog = usePersonalFmModeStore(state => {
+        const station = isFmMode ? selectActiveStation(state, providerId) : null;
+        return station ? selectStationCatalog(state, providerId, station.id) : undefined;
+    });
+    // 账号的偏好是私人 FM 的入口；额外电台播着时这一行只放电台自己的模式按钮。
+    const isStationOnAir = usePersonalFmModeStore(state => isFmMode && selectActiveStation(state, providerId) !== null);
     const isPlaying = playerState === PlayerState.PLAYING;
     const playLabel = isPlaying ? t('player.pause') : t('player.play');
 
     return (
         <div className="flex flex-col items-center gap-3.5 px-1 pb-1.5 pt-2.5">
+            {/* 平台声明了私人 FM 的偏好入口才有；它的私人 FM 没有模式时，这一行就只有它。播额外电台时不放。 */}
+            {!isStationOnAir && <FmRecommendationPreferencesButton />}
             {/* Opens the command palette's FM mode picker: the same surface the palette offers, so
                 the mode lives in one place instead of being reimplemented inside the panel. */}
             {onOpenModePicker && (
-                <Tooltip text={t('personalFmMode.openPicker', 'Switch the Personal FM mode')} className="inline-flex max-w-full">
+                <Tooltip text={getPersonalFmOpenPickerLabel(stationCatalog)} className="inline-flex max-w-full">
                     <PanelButton icon={Radio} onClick={onOpenModePicker}>
                         {modeLabel}
                         <ChevronDown size={13} className="text-[color:var(--st-t2)]" />

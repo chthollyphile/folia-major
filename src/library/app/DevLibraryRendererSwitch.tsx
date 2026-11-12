@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { listLibrarySuites } from '../registry';
 import { useActiveLibrarySuiteId } from './librarySuiteChoice';
 import { switchLibrarySuite } from './switchLibrarySuite';
+import { resolveReducedMotion, useMotionSettingsStore } from '../../stores/useMotionSettingsStore';
+import { useIsBottomLayoutCompact } from '../../stores/useBottomDockStore';
 
 // src/library/app/DevLibraryRendererSwitch.tsx
 // 开发验证浮层：在各套 UI suite 之间切换当前打开的集合，
@@ -26,12 +28,15 @@ const DevLibraryRendererSwitch: React.FC<{ sessionKey: string; placement?: keyof
 }) => {
     const { t } = useTranslation();
     const activeSuite = useActiveLibrarySuiteId();
+    const reduceMotion = useMotionSettingsStore(state => resolveReducedMotion(state, 'uiMicroMotion'));
+    // 紧凑档（窗口窄于 960，progress-bar v3）底部只留进度条胶囊，这条挪到左上角（标题栏和墙的返回按钮下面）。
+    const isCompact = useIsBottomLayoutCompact();
 
     return (
         <div
             data-testid="dev-library-renderer-switch"
             data-placement={placement}
-            className={`fixed ${PLACEMENT_CLASS[placement]} z-[120] flex items-center gap-1 rounded-full border border-dashed border-current/30 px-2 py-1 font-mono text-[11px] backdrop-blur-md`}
+            className={`fixed ${isCompact ? 'top-[76px] left-2' : PLACEMENT_CLASS[placement]} z-[120] flex items-center gap-1 rounded-full border border-dashed border-current/30 px-2 py-1 font-mono text-[11px] backdrop-blur-md`}
             style={{
                 backgroundColor: 'color-mix(in srgb, var(--bg-color) 80%, transparent)',
                 color: 'var(--text-primary)',
@@ -46,7 +51,7 @@ const DevLibraryRendererSwitch: React.FC<{ sessionKey: string; placement?: keyof
                     data-suite={suite.id}
                     aria-pressed={activeSuite === suite.id}
                     onClick={() => switchLibrarySuite(sessionKey, suite.id)}
-                    className={`rounded-full px-2 py-0.5 ${activeSuite === suite.id ? 'bg-current/15 font-bold' : 'opacity-60 hover:opacity-100'}`}
+                    className={`rounded-full px-2 py-0.5 ${reduceMotion ? 'transition-none' : 'transition-[background-color,opacity] duration-150'} ${activeSuite === suite.id ? 'bg-current/15 font-bold' : 'opacity-60 hover:opacity-100'}`}
                 >
                     {t(suite.labelKey)}
                 </button>

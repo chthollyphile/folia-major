@@ -1,4 +1,4 @@
-import { CalendarDays, Cloud, Heart, ListMusic, Radio, Shuffle, Star, type LucideIcon } from 'lucide-react';
+import { CalendarDays, Cloud, Heart, ListMusic, Radio, RadioTower, Shuffle, Star, type LucideIcon } from 'lucide-react';
 import type { LibraryHomeSpecialKind } from '../../core/home/homeSpecialCards';
 
 // src/library/suites/bravais/bravaisSpecialIcons.ts
@@ -9,6 +9,7 @@ export const BRAVAIS_SPECIAL_ICONS: Record<LibraryHomeSpecialKind, LucideIcon> =
     liked: Heart,
     cloud: Cloud,
     'personal-fm': Radio,
+    'fm-station': RadioTower,
     daily: CalendarDays,
     'all-songs': ListMusic,
     'local-favorites': Heart,

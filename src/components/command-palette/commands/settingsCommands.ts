@@ -7,8 +7,10 @@ import type { GpuPreference } from '../../../stores/useDesktopSettingsStore';
 import { createToggleCommand, createAppLanguageCommand, createSettingsCommand, createSettingsAnchorCommand, defineCommand } from '../commandFactories';
 import { nowPlayingCardPositionCommand } from './nowPlayingCardPositionCommand';
 import { sleepTimerCommand } from './sleepTimerCommand';
+import { providerSetupCommand } from './providerSetupCommand';
+import { subtitleSettingsCommand } from './subtitleSettingsCommand';
 import { lyricExportCommands } from './lyricExportCommands';
-import { Gauge, Images, Layers3, Library } from 'lucide-react';
+import { Gauge, Images, Languages, Layers3, Library } from 'lucide-react';
 import { latticePosterTintSurface } from '../surfaces/latticePosterTintSurface';
 import { gridViewCardsSurface } from '../surfaces/gridViewCardsSurface';
 import { reduceMotionSurface } from '../surfaces/reduceMotionSurface';
@@ -62,6 +64,7 @@ export const settingsCommands: CommandPaletteCommand[] = [
     },
     sleepTimerCommand,
     nowPlayingCardPositionCommand,
+    providerSetupCommand,
     createSettingsCommand('settings-options', 'Open Options', 'Open the options center', ['settings', 'options', '设置', '选项'], 'options', null, { executeShortcut: 'o' }),
     createSettingsCommand('settings-appearance', 'Appearance settings', 'Open visual and appearance settings', ['appearance', 'visual settings', '外观', '视觉'], 'options', 'appearance'),
     createSettingsAnchorCommand('settings-ai-provider', 'AI provider settings', 'Choose an AI provider and model', ['model connection', 'api key', '模型设置', '供应商', '密钥', 'deepseek', 'kimi', 'glm', 'qwen', '通义', '智谱'], 'electronSettings', { platform: ['electron'] }),
@@ -167,6 +170,22 @@ export const settingsCommands: CommandPaletteCommand[] = [
     createSettingsAnchorCommand('settings-audio-output', 'Audio output', 'Jump to the audio output device and format settings', ['output device', 'audio device', 'sound card', '输出设备'], 'audioOutputSettings'),
     createSettingsAnchorCommand('settings-transition', 'Smart transition', 'Jump to the FOLIA transition settings', ['automix', 'crossfade', 'transition', '智能过渡', '转场'], 'transitionSettings'),
     createSettingsAnchorCommand('settings-local-lyrics-priority', 'Local song lyrics priority', 'Choose whether local songs prefer local or online lyrics', ['local lyrics priority', 'online lyrics first', 'local song lyrics', '本地歌曲歌词优先级', '在线优先', '本地歌词', 'bendigeciyouxianji', 'bdgcyxj'], 'lyrics'),
+    createToggleCommand(
+        'auto-ai-lyric-segmentation-toggle',
+        'settings',
+        'Automatic AI lyric segmentation',
+        'Turn on or off segmenting each new song’s lyrics into words with AI by itself',
+        ['auto segmentation', 'ai word split', 'auto ai segmentation', '自动分词', '自动AI分词', 'AI分词'],
+        context => context.settings.toggleAutoAiLyricSegmentation(),
+    ),
+    createToggleCommand(
+        'keep-provider-word-timing-toggle',
+        'settings',
+        'Keep platform word-timed lyrics',
+        'Turn on or off keeping the word-timed lyrics a song’s own platform comes with',
+        ['platform lyrics', 'own lyrics', 'word timing', 'lyric source', '自带歌词', '逐字歌词', '歌词源', '平台歌词'],
+        context => context.settings.toggleKeepProviderWordTiming(),
+    ),
     createSettingsAnchorCommand('settings-local-lyric-format-order', 'Local lyric file format priority', 'Choose which format wins when a track has several lyric files', ['lyric format priority', 'lyric file order', 'lrc ttml priority', '本地歌词文件格式优先级', '歌词格式', '格式优先级', 'geciwenjiangeshi', 'gcgsyxj'], 'localLyricFormatOrder'),
     createSettingsCommand('settings-integration', 'Integration settings', 'Open Stage, Now Playing, and Navidrome settings', ['integration', 'stage', 'now playing', 'navidrome settings', '集成', '连接'], 'options', 'integration'),
     createSettingsAnchorCommand('settings-navidrome', 'Navidrome server', 'Jump to the Navidrome server connection', ['navidrome', 'subsonic', 'music server', '音乐服务器'], 'navidrome'),
@@ -235,6 +254,15 @@ export const settingsCommands: CommandPaletteCommand[] = [
         ['obs keep animation', 'obs main window', 'browser source animation', 'obs 保持动画', 'obs 主窗口动画', '浏览器源主窗口动画', 'obs bcdh', 'obszckdh'],
         context => context.settings.toggleObsKeepMainWindowAnimation(),
         { platform: ['electron'] },
+    ),
+    // Both browser sources draw the card (the local one and the web link), so no platform filter.
+    createToggleCommand(
+        'obs-toggle-track-card',
+        'settings',
+        'OBS: show the now playing card',
+        'Toggle whether the now playing card is drawn in the OBS browser source',
+        ['obs card', 'now playing card', 'browser source card', 'track card', 'obs 卡片', '歌曲信息卡片', '浏览器源卡片', '直播卡片'],
+        context => context.settings.toggleTrackCardInObs(),
     ),
     {
         id: 'desktop-toggle-lyric-api',
@@ -446,6 +474,7 @@ export const settingsCommands: CommandPaletteCommand[] = [
         },
     },
     createSettingsCommand('settings-graphics', 'Graphics settings', 'Open static mode, frame rate cap, Linux glow fix and reduced motion', ['graphics', 'performance', 'frame rate', 'fps', 'rendering', '图形', '图形设置', '性能', '帧率', '渲染'], 'options', 'graphics'),
+    createSettingsAnchorCommand('settings-lyric-render-quality', 'Lyric canvas resolution and anti-aliasing', 'Jump to the resolution and anti-aliasing every canvas / WebGL lyric style follows by default', ['render quality', 'resolution', 'supersampling', 'anti-aliasing', 'msaa', 'dpr', 'pixel ratio', '分辨率', '超采样', '抗锯齿', '渲染倍率', '画质'], 'lyricRenderScale'),
     createSettingsAnchorCommand('settings-gpu-preference', 'Render GPU settings', 'Jump to the choice of graphics card the app renders on', ['render gpu', 'graphics card', 'discrete gpu', 'integrated gpu', 'dual gpu', '渲染显卡', '显卡', '独显', '核显', '双显卡'], 'gpuPreference', { platform: ['win'] }),
     gpuPreferenceCommand('auto', 'Render GPU: Auto', 'Let Windows choose the graphics card; applies after a restart', ['render gpu auto', 'default gpu', '渲染显卡自动', '显卡自动']),
     gpuPreferenceCommand('high-performance', 'Render GPU: High performance', 'Render on the discrete GPU; applies after a restart', ['render gpu high performance', 'discrete gpu', 'dedicated gpu', 'dgpu', 'nvidia', '渲染显卡高性能', '独显', '独立显卡']),
@@ -628,6 +657,7 @@ export const settingsCommands: CommandPaletteCommand[] = [
     createToggleCommand('settings-toggle-daylight', 'settings', 'Toggle light/dark', 'Toggle theme daylight/midnight mode', ['daylight', 'midnight', 'light', 'dark', '明暗', '切换明暗', '日夜', '日间', '夜间'], context => context.settings.toggleDaylightMode(), { executeShortcut: 'd' }),
     createToggleCommand('settings-toggle-player-back-button', 'settings', 'Always show player back button', 'Toggle whether the player page back button stays visible', ['always show back button', 'player back button', 'back button', '返回按钮', '始终显示返回按钮', '播放页返回按钮', 'fanhui annniu', 'bofangye fanhui annniu', 'fh', 'bfyfh'], context => context.settings.toggleAlwaysShowPlayerBackButton()),
     createToggleCommand('settings-toggle-lattice-vignette', 'settings', 'Poster wall vignette', 'Turn the edge vignette on the queue collage (Lattice) and the library wall on or off', ['lattice', 'vignette', 'lattice vignette', 'queue collage vignette', 'collage vignette', 'library wall vignette', 'tile wall appearance', 'bravais', '暗角', '边缘暗角', '队列拼贴', '队列拼贴暗角', '拼贴暗角', '资料库墙', '海报墙暗角', '拼贴墙外观'], context => context.settings.toggleLatticeVignette()),
+    createToggleCommand('settings-toggle-lattice-badge-current-only', 'settings', 'Number only the playing song', 'Hide the corner numbers on the song cards of the queue collage (Lattice) and the Bravais wall except the playing one', ['lattice', 'bravais', 'badge', 'number badge', 'track number', 'now playing badge', 'hide numbers', 'queue collage', 'library wall', 'tile wall appearance', '序号', '角标', '序号角标', '正在播放', '只显示正在播放', '隐藏序号', '队列拼贴', '资料库墙', '拼贴墙外观'], context => context.settings.toggleLatticeBadgeCurrentOnly()),
     createToggleCommand('settings-toggle-lattice-auto-focus', 'settings', 'Lattice auto-focus', 'Toggle whether the queue collage follows the playing song when tracks change', ['lattice', 'lattice auto focus', 'queue collage', 'follow playing song', 'follow track changes', 'poster wall follow', '队列拼贴', '切歌自动聚焦', '自动聚焦当前歌曲', '海报墙跟随'], context => context.settings.toggleLatticeAutoFocusOnSongChange()),
     defineCommand({
         id: 'settings-gridview-cards',
@@ -686,7 +716,9 @@ export const settingsCommands: CommandPaletteCommand[] = [
     createToggleCommand('settings-toggle-track-switch-buttons', 'settings', 'Always show track switch arrows', 'Toggle whether the progress bar track switch arrows stay visible beside the title', ['track switch buttons', 'previous next arrows', 'progress bar arrows', 'song switch buttons', '切歌箭头', '切换箭头', '始终显示切歌按钮', '进度条切歌按钮', '上一首下一首按钮', 'jinduting qiege', 'sysqgan'], context => context.settings.toggleAlwaysShowTrackSwitchButtons()),
     createToggleCommand('settings-toggle-main-window-titlebar', 'settings', 'Always show window control buttons', 'Toggle whether the main window control buttons stay visible', ['always show window controls', 'window control buttons', 'always show titlebar', 'main window titlebar', 'titlebar', '标题栏', '控制按钮', '始终显示标题栏', '始终显示控制按钮', '主窗口标题栏', 'kongzhi annniu', 'bt', 'zckbt'], context => context.settings.toggleAlwaysShowMainWindowTitlebar()),
     createToggleCommand('settings-toggle-player-header-blur', 'settings', 'Blurred player header', 'Toggle a frosted bar behind the window titlebar on the player page so its buttons stay readable', ['player header blur', 'titlebar blur', 'frosted titlebar', 'header background', 'window controls visibility', '播放页顶栏模糊背景', '顶栏模糊', '标题栏模糊', '标题栏背景', '磨砂标题栏'], context => context.settings.togglePlayerHeaderBlur(), { platform: ['electron'] }),
+    createToggleCommand('settings-toggle-titlebar-side', 'settings', 'Switch window controls side', 'Move window controls between left and right', ['window buttons placement', 'titlebar side', '窗口按钮位置', '左右切换'], context => context.settings.toggleTitlebarSide(), { platform: ['electron'] }),
     createToggleCommand('settings-toggle-fullscreen-titlebar-button', 'settings', 'Toggle fullscreen button visibility', 'Show or hide the fullscreen button in the desktop window controls', ['fullscreen button', 'titlebar fullscreen', 'window fullscreen button', 'show fullscreen control', 'hide fullscreen button', 'fullscreen button visibility', '全屏按钮', '标题栏全屏按钮', '显示全屏按钮', '隐藏全屏按钮', '窗口全屏控制', 'quanping annniu', 'biaotilan quanping'], context => context.settings.toggleHideFullscreenButton(), { platform: ['electron'] }),
+    createToggleCommand('settings-toggle-native-mac-traffic-lights', 'settings', 'Native macOS traffic lights', 'Toggle the system traffic lights in place of the drawn minimize, maximize and close buttons (after a restart)', ['mac window control', 'traffic lights', 'window buttons', 'macOS 红绿灯', '原生红绿灯', '窗口按钮'], context => context.settings.toggleNativeMacTrafficLights(), { platform: ['mac'] }),
     createToggleCommand('settings-toggle-native-mac-fullscreen-button', 'settings', 'Native macOS fullscreen button', 'Toggle whether the macOS window control enters native fullscreen instead of maximizing', ['mac window control', 'native fullscreen', 'maximize button', 'macOS 全屏', '原生全屏', '窗口按钮'], context => context.settings.toggleNativeMacFullscreenButton(), { platform: ['mac'] }),
     createToggleCommand('settings-toggle-cursor-auto-hide', 'settings', 'Hide cursor with player controls', 'Toggle whether the mouse pointer disappears together with the auto-hidden player controls', ['cursor', 'mouse pointer', 'hide cursor', 'hide mouse', 'pointer', '鼠标', '鼠标指针', '隐藏鼠标', '隐藏指针', '指针自动隐藏'], context => context.settings.toggleAutoHideCursorWithPlayerChrome()),
     createToggleCommand('settings-toggle-cursor-idle-hide', 'settings', 'Hide cursor when idle', 'Toggle hiding the mouse pointer after a pause while the player controls stay visible', ['idle cursor', 'auto hide cursor', 'hide mouse pointer', 'cursor idle', '鼠标空闲隐藏', '空闲隐藏鼠标', '单独隐藏鼠标', '自动隐藏鼠标'], context => context.settings.toggleHideCursorWhenIdle()),
@@ -729,7 +761,9 @@ export const settingsCommands: CommandPaletteCommand[] = [
             '罗马字',
             '双行字幕',
             '副字幕',
-        ], context => context.settings.cycleSubtitleContentMode()),
+        ], context => context.settings.cycleSubtitleContentMode(), { icon: Languages }),
+    // 字幕的完整调节（行数、每行内容、背景、副字幕）；浮在进度条上方的字幕按钮也是它。
+    subtitleSettingsCommand,
     createToggleCommand('settings-toggle-subtitle-background', 'settings', 'Toggle subtitle background', 'Show or hide the readability background behind visualizer subtitles', [
             'subtitle background',
             'subtitle readability background',

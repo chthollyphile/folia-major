@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { LibraryHomeResources } from '../core/home/homeModel.contract';
+import type { LibraryHomeFeedOwner, LibraryHomeResources } from '../core/home/homeModel.contract';
 import type { HomeSurfaceProps } from '../../components/app/home/homeSurfaceTypes';
 import { createFavoriteAlbumsFeed, createRadioFeed } from '../core/home/online/onlineHomeFeeds.service';
 import { onlineHomeFeedDeps } from '../core/home/online/onlineHomeFeedDeps.service';
@@ -11,6 +11,7 @@ import { localDirectoryTreesDeps } from '../core/directory/localDirectoryTreesDe
 import { invalidateLeftHomeTab, releaseLibraryHomeResources } from '../core/home/libraryHomeLifetime.service';
 import { closeOpenLibraryDirectory } from '../core/directory/useLibraryDirectorySessionStore';
 import { useSearchNavigationStore } from '../../stores/useSearchNavigationStore';
+import { omni } from '../../services/onlineMusic/omni';
 import { createLibraryHomePort } from './createLibraryHomePort';
 
 // src/library/app/useLibraryHomeResources.ts
@@ -68,6 +69,33 @@ export const useLibraryHomeResources = (
         };
         window.addEventListener(FAVORITE_ALBUMS_CHANGED_EVENT, reloadFavoriteAlbums);
         return () => window.removeEventListener(FAVORITE_ALBUMS_CHANGED_EVENT, reloadFavoriteAlbums);
+    }, [resources]);
+
+    // 账号上的推荐偏好存过：电台卡片读过的就重读（每日推荐那张的封面跟着换），正在读的等这一轮结束。
+    useEffect(() => {
+        const { radioFeed } = resources;
+        let pendingOwner: LibraryHomeFeedOwner | null = null;
+        const stopWatchingFeed = radioFeed.subscribe(() => {
+            if (!pendingOwner) return;
+            const { owner, status } = radioFeed.getSnapshot();
+            // 资源换归属才会换掉这个对象，即使后来切回原账号也不能沿用这次刷新。
+            if (owner !== pendingOwner) {
+                pendingOwner = null;
+            } else if (status !== 'loading') {
+                pendingOwner = null;
+                void radioFeed.reload();
+            }
+        });
+        const stopWatchingSaves = omni.subscribeRecommendationPreferenceSaves(providerId => {
+            const { owner, status, data } = radioFeed.getSnapshot();
+            if (owner?.providerId !== providerId) return;
+            if (status === 'loading') pendingOwner = owner;
+            else if (data !== null) void radioFeed.reload();
+        });
+        return () => {
+            stopWatchingSaves();
+            stopWatchingFeed();
+        };
     }, [resources]);
 
     return resources;

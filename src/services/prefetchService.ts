@@ -10,6 +10,7 @@ import { migrateLyricDataRenderHints } from '../utils/lyrics/renderHints';
 import { isPureMusicLyricText } from '../utils/lyrics/pureMusic';
 import { autoMatchBestLyric } from '../utils/lyrics/autoMatchBestLyric';
 import { getPlatformLyricSource } from '../utils/lyrics/lyricSources';
+import { settlesOnOwnWordTiming } from '../utils/lyrics/ownWordTiming';
 import { loadOnlineLyricsState, markOnlineLyricsPureMusic, resolveOnlineLyrics, saveOnlineLyricsState } from '../utils/onlineLyricsState';
 import type { AudioQualityPreference, MediaId } from '../types/onlineMusic';
 import { getPlaybackSongKey, getPlaybackSourceRef, resolveNavidromePlaybackCarrier } from '../utils/appPlaybackGuards';
@@ -30,6 +31,7 @@ import { useAudioSettingsStore } from '../stores/useAudioSettingsStore';
 import { onlineFailureOf } from './onlineMusic/failure/onlineFailureCase';
 import { noteOnlineRequestCooldown, onlineRequestCooldown } from './onlineMusic/failure/onlineRequestCooldown';
 import { usePlaybackStore } from '../stores/usePlaybackStore';
+import { getExternalSong, isExternalPlaybackReadyForPrefetch, subscribeExternalPlayback } from './onlineMusic/externalPlayback';
 
 // Prefetch configuration
 //
@@ -166,6 +168,25 @@ const touchPrefetchCacheEntry = (songKey: string, data: PrefetchedSongData): Pre
 
 // Track current prefetch operation to cancel on queue change
 let currentPrefetchAbortController: AbortController | null = null;
+
+// A restored or buffering external player gets the page's network capacity before nearby metadata.
+const waitForExternalPrefetch = (song: SongResult, signal: AbortSignal): Promise<boolean> => {
+    if (signal.aborted) return Promise.resolve(false);
+    if (isExternalPlaybackReadyForPrefetch(song)) return Promise.resolve(true);
+    return new Promise(resolve => {
+        const finish = (ready: boolean) => {
+            unsubscribe();
+            signal.removeEventListener('abort', abort);
+            resolve(ready);
+        };
+        const abort = () => finish(false);
+        const unsubscribe = subscribeExternalPlayback(() => {
+            if (isExternalPlaybackReadyForPrefetch(song)) finish(true);
+            else if (!getExternalSong() || getPlaybackSongKey(getExternalSong()!) !== getPlaybackSongKey(song)) finish(false);
+        });
+        signal.addEventListener('abort', abort, { once: true });
+    });
+};
 /**
  * Check if a prefetched URL is still valid (not expired)
  */
@@ -236,6 +257,8 @@ export const resolvePrefetchAudioUrl = async (
 ): Promise<PrefetchedAudioUrl | null> => {
     const sourceRef = getPlaybackSourceRef(song);
     const providerId = sourceRef.kind === 'online' ? sourceRef.providerId : undefined;
+    // The provider's own player fetches what it plays; there is no URL for this app to prefetch.
+    if (omni.canPlayExternally(song)) return null;
     try {
         // A copy fetched at another level than the one asked for does not count: playback will
         // pass it over, so the song gets a URL here like one with no copy.
@@ -384,7 +407,16 @@ const prefetchSong = async (
   const settingsLyricSettings = useLyricSettingsStore.getState();
                 const autoUseBest = settingsLyricSettings.autoUseBestLyric;
                 const preferredSource = settingsLyricSettings.preferredAlternativeLyricSource;
-                const shouldAutoMatch = autoUseBest && !onlineLyricsState?.hasOnlineOverride;
+                // A provider's own word-level timing is not searched for another source while it
+                // is also the preferred one (the matcher enforces this too; skipping the search
+                // here also avoids the requests). Any other preferred source is still asked.
+                const keepsOwnWordTiming = settlesOnOwnWordTiming({
+                    ownSource: getPlatformLyricSource(sourceRef.providerId)?.id,
+                    prefersOwn: omni.prefersOwnWordByWordLyrics(song),
+                    lyrics: parsedLyrics,
+                    keepOwn: settingsLyricSettings.keepProviderWordTiming,
+                }, preferredSource);
+                const shouldAutoMatch = autoUseBest && !onlineLyricsState?.hasOnlineOverride && !keepsOwnWordTiming;
 
                 if (shouldAutoMatch) {
                     try {
@@ -394,7 +426,9 @@ const prefetchSong = async (
                         const bestMatch = await autoMatchBestLyric(song.name, artistName, metadata.durationMs, {
                             album: metadata.album?.name,
                             preferredSource: settingsLyricSettings.preferredAlternativeLyricSource,
+                            keepOwnWordTiming: settingsLyricSettings.keepProviderWordTiming,
                             alternateArtist: () => omni.getAlternateArtistName(song),
+                            searchAlias: () => omni.getLyricSearchAlias(song),
                             ...(ownLyricSource
                                 ? { providerCandidate: {
                                     providerId: ownLyricSource.id,
@@ -525,6 +559,8 @@ export const prefetchNearbySongs = async (
     }
     currentPrefetchAbortController = new AbortController();
     const signal = currentPrefetchAbortController.signal;
+    if (omni.canPlayExternally(currentSong) && !(await waitForExternalPrefetch(currentSong, signal))) return;
+    if (signal.aborted) return;
 
     // Find current song index in queue
     const currentSongKey = getPrefetchSongKey(currentSong);

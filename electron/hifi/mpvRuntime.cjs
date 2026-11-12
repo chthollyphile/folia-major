@@ -143,14 +143,24 @@ const isUsableBuild = build => Boolean(build)
     && typeof build.archive === 'string'
     && typeof build.executable === 'string' && build.executable.length > 0;
 
-/** 这台机器能装的那个构建：清单推荐版本里这个平台和架构的构建，且系统版本够；没有时为 null。 */
+/**
+ * 这台机器能装的那个构建：先看清单推荐版本里这个平台和架构的构建；它缺席或系统版本不够时，退到清单里不比推荐版本新、
+ * 装得上的最新版本（0.42.0 的 Apple Silicon 构建要 macOS 15，macOS 14 的机器退回 0.41.0）。都不行时为 null。
+ */
 const resolveInstallTarget = ({ manifest, platform, arch, systemVersion = null }) => {
-    const version = manifest?.recommended;
-    const entry = (manifest?.versions ?? []).find(item => item?.version === version);
-    const build = entry?.builds?.[buildKeyOf(platform, arch)];
-    if (!isUsableBuild(build)) return null;
-    if (!meetsMinimumVersion(systemVersion, build.minOsVersion)) return null;
-    return { version, build };
+    const recommended = manifest?.recommended;
+    if (typeof recommended !== 'string') return null;
+    const key = buildKeyOf(platform, arch);
+    const candidates = (manifest?.versions ?? [])
+        .filter(entry => typeof entry?.version === 'string' && compareMpvVersions(entry.version, recommended) <= 0)
+        .sort((a, b) => compareMpvVersions(b.version, a.version));
+    for (const entry of candidates) {
+        const build = entry.builds?.[key];
+        if (isUsableBuild(build) && meetsMinimumVersion(systemVersion, build.minOsVersion)) {
+            return { version: entry.version, build };
+        }
+    }
+    return null;
 };
 
 /**
