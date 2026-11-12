@@ -8,8 +8,9 @@ import { AiConnectionTestReply, AiConnectionTestStatus, useAiConnectionTest } fr
 import { useSettingsPage, type AiApiKeyName, type ElectronSettingsState } from '../settingsPageContext';
 import { AiModelPicker } from './AiModelPicker';
 
-// AI connection settings, separated from appearance layout; requests stay behind services/aiText.
-const AI: SettingsGroupDef = { id: 'electronSettings', titleKey: 'options.electronSettings', electronOnly: true };
+// One AI connection for the whole app — song themes, karaoke song-info reading and anything else that
+// asks services/aiText. The group id stays `electronSettings`: commands and links name that anchor.
+const AI: SettingsGroupDef = { id: 'electronSettings', titleKey: 'options.aiServiceProviders', electronOnly: true };
 const O = {
     provider: option(AI, 'aiProvider', 'options.aiProvider'),
     endpoint: option(AI, 'aiEndpoint', 'options.aiEndpoint'),
@@ -195,6 +196,8 @@ const AiProviderSettings: React.FC = () => {
                     {t(electronSaveStatus === 'saving' ? 'options.settingsSaving' : 'options.save')}
                 </Button>
             </Row>
+            {/* 这一份是所有 AI 功能共用的，不是某一个风格自己的。 */}
+            <Row notice={t('options.aiServiceDesc')} />
         </FoldedGroup>
     );
 };

@@ -8,12 +8,12 @@ import { useThemeSettingsStore } from '../../../../stores/useThemeSettingsStore'
 import { useVisualizerSettingsStore } from '../../../../stores/useVisualizerSettingsStore';
 import { Button, Group, Reveal, Row, Segmented, Toggle, Value, option, type SettingsGroupDef, type SettingsOptionDef } from '../kit';
 import { settingsAnchorSubview } from '../navigation/settingsAnchorModel';
-import AiProviderSettings, { AI_SETTINGS_OPTIONS } from './ai/AiProviderSettings';
 import { useSettingsPage } from './settingsPageContext';
 
 // src/components/modal/settings/pages/AppearancePage.tsx
-// The 外观 page: which lyric animation the player uses, light or dark, the colour theme, how a
-// song's own theme is made and applied, and (desktop app) the AI provider that makes those themes.
+// The 外观 page: which lyric animation the player uses, light or dark, the colour theme, and how a
+// song's own theme is made and applied. The AI provider those themes are generated with is not
+// here: it is one connection shared by every AI feature, on the AI 服务 page (pages/AiServicePage).
 // The lyric animation workbench and the theme colour editor are the existing overlays; their rows
 // here only open them.
 
@@ -33,13 +33,13 @@ const O = {
 
 };
 
-export const OPTIONS: SettingsOptionDef[] = [...Object.values(O), ...AI_SETTINGS_OPTIONS];
+export const OPTIONS: SettingsOptionDef[] = Object.values(O);
 
 type DaylightChoice = 'light' | 'dark' | 'system';
 
 const AppearancePage: React.FC = () => {
     const { t } = useTranslation();
-    const { isElectron, themeControls, onOpenVisPlayground, onOpenThemePark } = useSettingsPage();
+    const { themeControls, onOpenVisPlayground, onOpenThemePark } = useSettingsPage();
     const { isDaylight, followSystemTheme, setDaylightPreference, setFollowSystemTheme } = useThemeSettingsStore(useShallow(state => ({
         isDaylight: state.isDaylight,
         followSystemTheme: state.followSystemTheme,
@@ -132,8 +132,6 @@ const AppearancePage: React.FC = () => {
                     />
                 </Row>
             </Group>
-
-            {isElectron && <AiProviderSettings />}
         </>
     );
 };

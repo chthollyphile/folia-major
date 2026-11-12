@@ -24,7 +24,8 @@ const MEDIA: SettingsGroupDef = { id: 'mediaCache', titleKey: 'options.mediaCach
 const TRANSITION: SettingsGroupDef = { id: 'transitionSettings', titleKey: 'options.transitionSettings' };
 const PAGE_OPTIONS = {
     home: [option(GRID, 'gridViewSquareCard', 'options.gridViewSquareCard')],
-    appearance: [option(AI, 'aiProvider', 'options.aiProvider')],
+    // The AI connection has a page of its own now.
+    ai: [option(AI, 'aiProvider', 'options.aiProvider')],
     playback: [option(TRANSITION, 'transitionEnable', 'options.transitionEnable')],
     storage: [
         option(MEDIA, 'enableMediaCache', 'options.enableMediaCache'),
