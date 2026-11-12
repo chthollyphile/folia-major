@@ -54,6 +54,8 @@ export interface LibraryHomeData {
      * 而不是再「立即播放」一次。身份稳定。
      */
     onTogglePlayback?: () => void;
+    /** Resumes the accepted source at its current position; never toggles a playing source to pause. */
+    onResumePlayback?: () => Promise<void>;
     /**
      * fb3：进入播放视图——按「播放后进入的视图」去 Lattice 或播放页，「留在原处」时去播放页（与播放胶囊同一条规则）。
      * bravais 正在播放的聚焦卡上的「进入」按钮用它。身份稳定。

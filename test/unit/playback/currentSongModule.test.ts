@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { askForSong, askedSongKeyRef, dropPlaysInFlight, makeSongCurrent, playsDroppedSoFar, replaceShownSong, showSong, startPlay, startRestore, withdrawAsk } from '@/components/app/playback/currentSong';
+import { askForSong, askedSongKeyRef, dropPlaysInFlight, makeSongCurrent, playsDroppedSoFar, replaceShownSong, showSong, startPlay, startRestore, startOfAskedSong, withdrawAsk } from '@/components/app/playback/currentSong';
 import { setCurrentSong, usePlaybackStore } from '@/stores/usePlaybackStore';
 import type { SongResult } from '@/types';
 
@@ -201,6 +201,27 @@ describe('the current song module', () => {
         expect(startPlay().onceShown()).toBe(true);
     });
 
+    it('continuing the sounding track cancels pending plays and keeps its HiFi watcher and original start', () => {
+        dropPlaysInFlight();
+        const sounding = startPlay('bodian');
+        makeSongCurrent(songA);
+        const originalStart = startOfAskedSong();
+        const pending = startPlay('bodian');
+        askForSong(songB);
+        expect(sounding.onceShown()).toBe(false);
+
+        dropPlaysInFlight({ keepShownPlayback: true });
+
+        expect([sounding(), pending()]).toEqual([false, false]);
+        expect(sounding.onceShown()).toBe(true);
+        expect([shown(), askedSongKeyRef.current, startOfAskedSong()]).toEqual([songA, keyA, originalStart]);
+        // The cancelled request's late cleanup cannot retire the sounding track's monitor.
+        pending.abandon();
+        expect(sounding.onceShown()).toBe(true);
+        dropPlaysInFlight();
+        expect(sounding.onceShown()).toBe(false);
+    });
+
     it('forgets the oldest plays past the newest 64: those stay overtaken, the newer ones answer as before', () => {
         dropPlaysInFlight();
         const oldest = startPlay();
@@ -208,6 +229,17 @@ describe('the current song module', () => {
         newer.forEach(play => play.abandon());
         expect(oldest.onceShown()).toBe(false);
         expect(newer[0].onceShown()).toBe(true);
+    });
+
+    it('putting back the same start revives its restore, but a new ask for the same song does not', () => {
+        makeSongCurrent(songA);
+        const restore = startRestore();
+        askForSong(songB);
+        expect(restore()).toBe(false);
+        dropPlaysInFlight({ keepShownPlayback: true });
+        expect(restore()).toBe(true);
+        askForSong(songA);
+        expect(restore()).toBe(false);
     });
 
     it('a restore is still wanted until a song is asked for again, the same one too, or the plays in flight are dropped', () => {
@@ -218,6 +250,8 @@ describe('the current song module', () => {
         expect(restore()).toBe(true);
         // The restore's own rebuilt song in the place of the shown one is the same ask.
         replaceShownSong(songA, { ...songA, name: 'A rebuilt' });
+        expect(restore()).toBe(true);
+        dropPlaysInFlight({ keepShownPlayback: true });
         expect(restore()).toBe(true);
 
         askForSong(songA);

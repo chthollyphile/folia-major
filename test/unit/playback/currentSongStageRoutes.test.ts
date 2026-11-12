@@ -59,10 +59,14 @@ vi.mock('@/utils/lyrics/LyricParserFactory', () => ({
 }));
 
 const { useStagePlaybackController } = await import('@/components/app/playback/useStagePlaybackController');
+const { useElectronWindowPlaybackHandoff } = await import('@/components/app/playback/restore/useElectronWindowPlaybackHandoff');
+const { leaveProviderForSwitch } = await import('@/library/app/createLibraryAccountPort');
 const { usePlaybackRuntimeRefs } = await import('@/components/app/playback/usePlaybackRuntimeRefs');
 const { usePlaybackStore } = await import('@/stores/usePlaybackStore');
 const { useStageSettingsStore } = await import('@/stores/useStageSettingsStore');
 const { playsDroppedSoFar } = await import('@/components/app/playback/currentSong');
+const { usePersonalFmModeStore } = await import('@/stores/usePersonalFmModeStore');
+const { noteAcceptedFmPlayback } = await import('@/services/playbackQueueOrigin');
 const { resetPlaybackStore, watchCurrentSong } = await import('./currentSongWatch');
 
 const mainSong: SongResult = {
@@ -165,6 +169,38 @@ describe('stage media session and the current song', () => {
 });
 
 describe('opening the stage and the main plays in flight', () => {
+    it.each([false, true])('captures the accepted scene and restores it after settings move, including a window handoff: %s', async viaWindow => {
+        const first = { mode: 'SCENE_RCMD' as const, scene: '33' };
+        usePlaybackStore.setState({ currentSong: mainSong, playQueue: [mainSong], isFmMode: true });
+        noteAcceptedFmPlayback(mainSong, [mainSong], true, first);
+        const { stage: original, refs } = mount();
+        await original.openStagePlayer();
+        let saved = original.mainPlaybackSnapshotRef.current;
+        usePersonalFmModeStore.setState({ catalogs: {}, providerSelections: { bodian: { mode: 'SCENE_RCMD', scene: '44' } }, stations: {} });
+        if (viaWindow) {
+            const handoff = useElectronWindowPlaybackHandoff({
+                isElectronWindow: false, navigateToPlayer: vi.fn(), audioRef: refs.audioRef,
+                mainPlaybackSnapshotRef: original.mainPlaybackSnapshotRef,
+                stageStatus: null, stageSource: 'stage-api', stageLyricsClockRef: { current: {} },
+                nowPlayingTrack: null, nowPlayingLyricPayload: null, nowPlayingPaused: true,
+                nowPlayingProgressMs: 0, nowPlayingProgressQuality: 'coarse', getNowPlayingDisplayTime: () => 0,
+                restoreStagePlaybackHandoff: original.restoreStagePlaybackHandoff, setLyrics: vi.fn(), setIsLyricsLoading: vi.fn(),
+                blobUrlRef: refs.blobUrlRef, shouldAutoPlayRef: refs.shouldAutoPlay, pendingResumeTimeRef: refs.pendingResumeTimeRef,
+                lastAudioRecoverySourceRef: refs.lastAudioRecoverySourceRef,
+                currentOnlineAudioUrlFetchedAtRef: refs.currentOnlineAudioUrlFetchedAtRef,
+                applyTransparentPlayerBackground: vi.fn(), restoreCachedThemeForSong: vi.fn(async () => 'none'),
+                persistLastPlaybackCache: vi.fn(async () => undefined),
+            } as never).captureWindowPlaybackHandoff();
+            expect(handoff.activePlayback?.acceptedFmSource).toBeNull();
+            saved = JSON.parse(JSON.stringify(handoff.mainPlayback));
+        }
+        expect(saved?.acceptedFmSource).toEqual({ providerId: 'bodian', selection: first });
+        const resumed = mount().stage;
+        resumed.mainPlaybackSnapshotRef.current = saved;
+        resumed.leaveStagePlayback();
+        expect(usePlaybackStore.getState().acceptedFmPlayback?.selection).toEqual(first);
+    });
+
     it('drops them when the main player is left for the stage, and not when the stage is already open', async () => {
         const { stage } = mount();
         const atStart = playsDroppedSoFar();
@@ -271,6 +307,76 @@ describe('Now Playing and the current song', () => {
 });
 
 describe('a saved snapshot and the current song', () => {
+    it('keeps an uninterrupted saved radio, and unsubscribes the explicit-end listener across remounts', async () => {
+        usePlaybackStore.setState({ activePlaybackContext: 'stage' });
+        const { stage } = mount();
+        const subscribe = env.effects.find(effect => String(effect).includes('subscribePersonalFmEnded'));
+        expect(subscribe).toBeDefined();
+        const cleanup = subscribe?.();
+        try {
+            const saved = { ...snapshotOf(mainSong), isFmMode: true };
+            await stage.restoreStagePlaybackHandoff({ ...handoffOf({}), mainPlayback: saved });
+            stage.leaveStagePlayback();
+            expect(usePlaybackStore.getState().isFmMode).toBe(true);
+            expect(usePlaybackStore.getState().acceptedFmPlayback?.providerId).toBe('bodian');
+
+            if (typeof cleanup === 'function') cleanup();
+            leaveProviderForSwitch('bodian', 'qq');
+            expect(stage.mainPlaybackSnapshotRef.current?.isFmMode).toBe(true);
+
+            // React's development remount installs the same effect after cleaning the first one.
+            const remountCleanup = subscribe?.();
+            try {
+                leaveProviderForSwitch('bodian', 'qq');
+                expect(stage.mainPlaybackSnapshotRef.current?.isFmMode).toBe(false);
+            } finally {
+                if (typeof remountCleanup === 'function') remountCleanup();
+            }
+        } finally {
+            if (typeof cleanup === 'function') cleanup();
+        }
+    });
+
+    it.each(['leave', 'interrupt'] as const)('does not revive an explicitly ended radio through a Stage handoff or %s', async exit => {
+        usePlaybackStore.setState({ activePlaybackContext: 'stage' });
+        const { refs, stage } = mount();
+        const subscribe = env.effects.find(effect => String(effect).includes('subscribePersonalFmEnded'));
+        const cleanup = subscribe?.();
+        try {
+            const saved = { ...snapshotOf(mainSong), isFmMode: true };
+            await stage.restoreStagePlaybackHandoff({ ...handoffOf({}), mainPlayback: saved });
+            expect(stage.mainPlaybackSnapshotRef.current?.isFmMode).toBe(true);
+
+            leaveProviderForSwitch('bodian', 'qq');
+
+            const handoff = useElectronWindowPlaybackHandoff({
+                isElectronWindow: false, navigateToPlayer: vi.fn(), audioRef: refs.audioRef,
+                mainPlaybackSnapshotRef: stage.mainPlaybackSnapshotRef,
+                stageStatus: null, stageSource: 'stage-api', stageLyricsClockRef: { current: {} },
+                nowPlayingTrack: null, nowPlayingLyricPayload: null, nowPlayingPaused: true,
+                nowPlayingProgressMs: 0, nowPlayingProgressQuality: 'coarse', getNowPlayingDisplayTime: () => 0,
+                restoreStagePlaybackHandoff: stage.restoreStagePlaybackHandoff, setLyrics: vi.fn(), setIsLyricsLoading: vi.fn(),
+                blobUrlRef: refs.blobUrlRef, shouldAutoPlayRef: refs.shouldAutoPlay, pendingResumeTimeRef: refs.pendingResumeTimeRef,
+                lastAudioRecoverySourceRef: refs.lastAudioRecoverySourceRef,
+                currentOnlineAudioUrlFetchedAtRef: refs.currentOnlineAudioUrlFetchedAtRef,
+                applyTransparentPlayerBackground: vi.fn(), restoreCachedThemeForSong: vi.fn(async () => 'none'),
+                persistLastPlaybackCache: vi.fn(async () => undefined),
+            } as never).captureWindowPlaybackHandoff();
+            expect(handoff.mainPlayback?.isFmMode).toBe(false);
+            expect(handoff.fmStations).toBeUndefined();
+            expect(stage.mainPlaybackSnapshotRef.current).toEqual({ ...saved, isFmMode: false, acceptedFmSource: null });
+
+            if (exit === 'leave') stage.leaveStagePlayback();
+            else stage.interruptStagePlaybackForMainTransition();
+            expect(usePlaybackStore.getState().currentSong).toBe(mainSong);
+            expect(usePlaybackStore.getState().playQueue).toEqual([mainSong]);
+            expect(usePlaybackStore.getState().isFmMode).toBe(false);
+            expect(usePlaybackStore.getState().acceptedFmPlayback).toBeNull();
+        } finally {
+            if (typeof cleanup === 'function') cleanup();
+        }
+    });
+
     it('puts the main song back in the store and the key together', async () => {
         usePlaybackStore.setState({ activePlaybackContext: 'stage' });
         const { refs, watch, stage } = mount();

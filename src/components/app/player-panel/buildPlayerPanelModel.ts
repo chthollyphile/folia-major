@@ -2,6 +2,7 @@ import type React from 'react';
 import type { RefObject } from 'react';
 import type UnifiedPanel from '../../UnifiedPanel';
 import { setIsPanelOpen, setPanelTab } from '../../../stores/useAppViewStore';
+import { usePlaybackStore } from '../../../stores/usePlaybackStore';
 import { handleSetVisualizerMode } from '../../../stores/useVisualizerSettingsStore';
 import { handleSetVolume, handleToggleMute, setAudioQuality } from '../../../stores/useAudioSettingsStore';
 import { openSettings } from '../../../stores/useSettingsModalStore';
@@ -254,7 +255,8 @@ export const buildPlayerPanelModel = ({
         },
         queue: {
             playQueue,
-            onPlaySong: playSong,
+            // The panel shows metadata-enriched copies; selecting one continues the live queue.
+            onPlaySong: song => playSong(song, usePlaybackStore.getState().playQueue),
             queueScrollRef,
             onShuffle: shuffleQueue,
             onRemoveSong: removeQueueSong,

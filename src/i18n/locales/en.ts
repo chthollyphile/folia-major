@@ -2016,6 +2016,8 @@ export default {
     "qqGuessYouLikeSuggested": "Suggested",
     "qqGuessYouLikeOther": "Other",
     "personalFm": "Personal FM",
+    "personalFmFailed": "Could not load recommended songs. Please try again.",
+    "personalFmEmpty": "No recommended songs are available right now. Please try again later.",
     "dailyRecommendations": "Daily Recommendations",
     "dailyRecommendationsDescription": "A daily mix made for you",
     "dailyRecommendationsSummary": "Updated every day based on your listening taste",

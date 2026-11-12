@@ -2016,6 +2016,8 @@ export default {
     "qqGuessYouLikeSuggested": "为你建议",
     "qqGuessYouLikeOther": "其他",
     "personalFm": "私人FM",
+    "personalFmFailed": "未能加载推荐歌曲，请重试",
+    "personalFmEmpty": "暂时没有推荐歌曲，请稍后重试",
     "dailyRecommendations": "每日推荐",
     "dailyRecommendationsDescription": "为你定制的每日歌曲",
     "dailyRecommendationsSummary": "每天根据你的音乐偏好更新",
