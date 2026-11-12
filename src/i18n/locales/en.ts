@@ -3680,7 +3680,7 @@ export default {
     "confirmClearAll": "Are you sure you want to clear all cache?",
     "cacheClearing": "Clearing...",
     "aiServiceProviders": "Provider and key",
-    "aiServiceDesc": "Applies to every AI feature: AI theme generation, the karaoke song-info reading, and whatever asks for AI later.",
+    "aiServiceDesc": "Applies to every AI feature: AI theme generation and whatever asks for AI later.",
     "aiProvider": "AI Provider",
     "useSystemProxyAI": "Use System Proxy for AI",
     "useSystemProxyAIDesc": "Route strictly AI requests through system proxy.",

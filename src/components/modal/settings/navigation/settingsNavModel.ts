@@ -74,7 +74,7 @@ export const SETTINGS_NAV_GROUP_SPECS: GroupSpec[] = [
             { id: 'general', icon: SlidersHorizontal, labelKey: 'options.settingsPageGeneral' },
             { id: 'interaction', icon: Keyboard, labelKey: 'options.settingsPageInteraction' },
             { id: 'integration', icon: Link2, labelKey: 'options.settingsPageIntegration' },
-            // 所有 AI 功能共用的接口与密钥：主题生成、卡拉 OK 歌曲信息识别都读这一份。
+            // 所有 AI 功能共用的接口与密钥：主题生成以及之后用到 AI 的地方都读这一份。
             // 网页版没有用户侧的密钥（部署自己配），所以只在桌面端出现。
             { id: 'ai', icon: Sparkles, labelKey: 'options.settingsPageAi', electronOnly: true },
             { id: 'storage', icon: Database, labelKey: 'options.settingsPageStorage' },

@@ -3680,7 +3680,7 @@ export default {
     "confirmClearAll": "Bạn có chắc muốn xóa tất cả bộ nhớ đệm?",
     "cacheClearing": "Đang dọn dẹp...",
     "aiServiceProviders": "Nhà cung cấp và khóa",
-    "aiServiceDesc": "Áp dụng cho mọi tính năng AI: tạo chủ đề AI, đọc thông tin bài hát karaoke và mọi chỗ dùng AI về sau.",
+    "aiServiceDesc": "Áp dụng cho mọi tính năng AI: tạo chủ đề AI và mọi chỗ dùng AI về sau.",
     "aiProvider": "Nhà cung cấp AI",
     "useSystemProxyAI": "Dùng proxy hệ thống cho AI",
     "useSystemProxyAIDesc": "Chỉ định tuyến các yêu cầu AI qua proxy hệ thống.",

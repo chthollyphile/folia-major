@@ -8,7 +8,7 @@ import { AiConnectionTestReply, AiConnectionTestStatus, useAiConnectionTest } fr
 import { useSettingsPage, type AiApiKeyName, type ElectronSettingsState } from '../settingsPageContext';
 import { AiModelPicker } from './AiModelPicker';
 
-// One AI connection for the whole app — song themes, karaoke song-info reading and anything else that
+// One AI connection for the whole app — song themes and anything else that
 // asks services/aiText. The group id stays `electronSettings`: commands and links name that anchor.
 const AI: SettingsGroupDef = { id: 'electronSettings', titleKey: 'options.aiServiceProviders', electronOnly: true };
 const O = {

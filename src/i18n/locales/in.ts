@@ -3680,7 +3680,7 @@ export default {
     "confirmClearAll": "Yakin ingin membersihkan semua cache?",
     "cacheClearing": "Menghapus...",
     "aiServiceProviders": "Penyedia dan kunci",
-    "aiServiceDesc": "Berlaku untuk semua fitur AI: pembuatan tema AI, pembacaan info lagu karaoke, dan apa pun yang memakai AI nanti.",
+    "aiServiceDesc": "Berlaku untuk semua fitur AI: pembuatan tema AI dan apa pun yang memakai AI nanti.",
     "aiProvider": "Penyedia AI",
     "useSystemProxyAI": "Gunakan Proxy Sistem untuk AI",
     "useSystemProxyAIDesc": "Rutekan permintaan AI secara ketat melalui proxy sistem.",

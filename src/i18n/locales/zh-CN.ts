@@ -3680,7 +3680,7 @@ export default {
     "confirmClearAll": "确定要清空所有缓存吗？",
     "cacheClearing": "清除中...",
     "aiServiceProviders": "服务商与密钥",
-    "aiServiceDesc": "这一份接口设置对所有 AI 功能生效：AI 主题生成、卡拉 OK 的歌曲信息识别，以及之后用到 AI 的地方都读它。",
+    "aiServiceDesc": "这一份接口设置对所有 AI 功能生效：AI 主题生成，以及之后用到 AI 的地方都读它。",
     "aiProvider": "AI 供应商",
     "useSystemProxyAI": "为AI使用系统代理",
     "useSystemProxyAIDesc": "仅将AI相关的网络请求通过系统代理路由。",
