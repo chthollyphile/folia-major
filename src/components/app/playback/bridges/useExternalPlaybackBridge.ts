@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { LyricData, SongResult } from '../../../../types';
 import type { NextTrackOptions } from '../../../../types/appPlayback';
 import { getExternalSong, installExternalPlayback, isExternalRoute, stopForeignExternalPlayback, subscribeExternalPlayback } from '../../../../services/onlineMusic/externalPlayback';
 import { stopExternalSpectrumCapture, syncExternalSpectrumForRoute } from '../externalSpectrumCapture';
@@ -9,7 +10,9 @@ import { useDesktopSettingsStore } from '../../../../stores/useDesktopSettingsSt
 import { runExternalPlayerWarmUp } from '../externalPlayerWake';
 import { onlineFailureOf } from '../../../../services/onlineMusic/failure/onlineFailureCase';
 import { setStatusMessage } from '../../../../stores/useStatusMessageStore';
-import { usePlaybackStore } from '../../../../stores/usePlaybackStore';
+import { setCachedCoverUrl, setCurrentSong, setLyricsState, usePlaybackStore } from '../../../../stores/usePlaybackStore';
+import { useOnlineProviderAccountStore } from '../../../../stores/useOnlineProviderAccountStore';
+import { getOnlineProviderIdForSong, isSamePlaybackSong } from '../../../../utils/appPlaybackGuards';
 import { onlineFailureToast } from '../source/onlineFailureToast';
 import { followsPlayerChangesForShownSong, followRunningExternalPlayer, takeOverRunningPlayer } from './externalPlayerFollow';
 
@@ -18,25 +21,85 @@ import { followsPlayerChangesForShownSong, followRunningExternalPlayer, takeOver
 // when the provider's player reports the end of a track, and tells the listener what it could not
 // do. Transport controls live with the other routes' (usePlaybackTransportController), and the
 // system media keys with useMediaKeyTakeoverBridge, which holds them across every route.
-// The queue is Folia's while the player sounds: a step the player made by its own controls (reported
-// as an end with `skipped`) is pulled back to the queue. A player the listener keeps using by hand
-// (`followsPlayerChanges`) is watched instead: a track they start there becomes the song this app
-// shows, whether a song of Folia's was sounding in the player or nothing was.
+// The queue is Folia's while the player sounds: a step the player made by its own controls is
+// followed rather than played over. A player the listener keeps using by hand (the ones that declare
+// followsPlayerChanges) reports such a step as another track, and a track they start there - or pick
+// in its own window - becomes the song this app shows, with its own words, lyrics and cover, whether
+// a song of Folia's was sounding in the player or nothing was. Only a player that cannot name its
+// track reports the step as an ended song that skipped, and that one still steps Folia's queue.
 
 /** How often a player the listener keeps using is read while nothing of Folia's sounds in it. */
 const PLAYER_WATCH_INTERVAL_MS = 3000;
 
+/**
+ * The words, the lyrics and the cover a track the player moved on to is shown with, loaded the way a
+ * song change loads them. Nothing is written once the listener moved on to another song while one of
+ * them was on its way.
+ */
+const loadTakenTrackDetails = async (
+    track: SongResult,
+    stillCurrent: () => boolean,
+    applyLyrics: (lyrics: LyricData | null) => void,
+): Promise<void> => {
+    const providerId = getOnlineProviderIdForSong(track);
+    // The account of the track's own platform, where one is signed in: the lyric lookup of a
+    // platform that has none is asked without it, as every other caller does.
+    const account = providerId ? useOnlineProviderAccountStore.getState().accounts[providerId] : undefined;
+    const userId = account ? account.user?.id ?? null : null;
+    try {
+        // Loaded here rather than with the bridge: these reach the whole lyric and catalogue side of
+        // the app, and the bridge is mounted for the whole run. A track can turn up at any moment.
+        const [{ getCachedSongCoverUrl }, { getSongCoverUrl }, { loadOnlineSongLyrics }] = await Promise.all([
+            import('../../../../services/onlineMusic/resourceCache'),
+            import('../../../../services/onlineMusic/songMetadata'),
+            import('../../../../services/onlinePlayback'),
+        ]);
+        const coverUrl = await getCachedSongCoverUrl(track);
+        if (!stillCurrent()) return;
+        setCachedCoverUrl(coverUrl ?? getSongCoverUrl(track) ?? null);
+        await loadOnlineSongLyrics(track, null, userId, {
+            isCurrent: stillCurrent,
+            onLyrics: nextLyrics => {
+                if (stillCurrent()) applyLyrics(nextLyrics);
+            },
+            // Both are a patch of the song already on screen (which is how the app marks a pure
+            // music track and a lyric choice), and neither lands on a song the listener moved to.
+            onPureMusicChange: isPureMusic => {
+                if (!stillCurrent()) return;
+                setCurrentSong(previous => (
+                    !previous || !isSamePlaybackSong(previous, track) ? previous : { ...previous, isPureMusic }
+                ));
+            },
+            onStateChange: state => {
+                if (!stillCurrent()) return;
+                setCurrentSong(previous => (
+                    !previous || !isSamePlaybackSong(previous, track) ? previous : { ...previous, onlineLyricsState: state ?? undefined }
+                ));
+            },
+            onDone: () => undefined,
+        });
+    } catch (error) {
+        console.warn('[ExternalPlayback] the track the player moved on to could not be shown with its own cover and lyrics', error);
+    }
+};
+
 type UseExternalPlaybackBridgeParams = {
     handleNextTrack: (options?: NextTrackOptions) => Promise<void> | void;
     handlePrevTrack: (options?: { replayCurrentAtStart?: boolean }) => void;
+    /**
+     * The lyrics a taken-over track is shown with, set the way every other song change sets them
+     * (the line rules and the extension transform of the picture run there). Left out, the store's
+     * plain setter is used.
+     */
+    setShownLyrics?: (lyrics: LyricData | null) => void;
 };
 
-export function useExternalPlaybackBridge({ handleNextTrack, handlePrevTrack }: UseExternalPlaybackBridgeParams) {
+export function useExternalPlaybackBridge({ handleNextTrack, handlePrevTrack, setShownLyrics }: UseExternalPlaybackBridgeParams) {
     // Read here rather than passed in: the callback and i18n are the newest at the moment of an event.
     const { t } = useTranslation();
-    const latestRef = useRef({ handleNextTrack, handlePrevTrack, t });
+    const latestRef = useRef({ handleNextTrack, handlePrevTrack, t, setShownLyrics });
     useEffect(() => {
-        latestRef.current = { handleNextTrack, handlePrevTrack, t };
+        latestRef.current = { handleNextTrack, handlePrevTrack, t, setShownLyrics };
     });
 
     // The setting that wakes the players Folia steers but does not own: once per launch, and only
@@ -131,6 +194,11 @@ export function useExternalPlaybackBridge({ handleNextTrack, handlePrevTrack }: 
                     ? takeOverRunningPlayer(current, event.status, {
                         isWanted: () => isExternalRoute() && getExternalSong() !== null,
                         adoptsPausedTrack: true,
+                        onTrackTaken: (track, stillCurrent) => loadTakenTrackDetails(
+                            track,
+                            stillCurrent,
+                            latestRef.current.setShownLyrics ?? setLyricsState,
+                        ),
                     })
                     : Promise.resolve('untouched')
                 ).then(outcome => {

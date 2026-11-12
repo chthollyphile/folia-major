@@ -17,9 +17,15 @@ import type { SpotifyWireClientStatus } from './spotifyTransport';
 // computer a song fails with a reason that opens the setup checklist (spotifySetup.ts), where the
 // other ways are offered. Nothing falls back to Folia's own player, which a free account cannot use
 // (docs/spotify-official-client.md).
-// The media session names no track. While it answers, nothing is prepared in the app's queue,
-// its coarse position never replaces the song's duration, and a title it shows that is not the
-// song Folia asked for ends this external session so Folia's own queue takes the next song.
+// The app's own controls are the listener's: a track they pick in Spotify's window, or with a media
+// key it got, is adopted as the song Folia shows rather than played over by Folia's queue. The answer
+// names the app's own track and is no end, which is what hands it to the take-over of the route (a
+// way of playing that follows its listener). Only the app's move on to a song Folia wrote into its
+// queue, and a song that ran out, still step Folia's own queue.
+// The media session names no track. While it answers, nothing is prepared in the app's queue, its
+// coarse position never replaces the song's duration, and a title it shows that is not the song
+// Folia asked for is the one case left where the app is pulled back: a track the session shows
+// carries no id, so nothing of it can be looked up.
 
 /**
  * How many songs that follow are put in the app's queue while it can empty it. The app moves on to
@@ -132,10 +138,14 @@ interface Attempt {
     confirmedIds: string[];
     /** The last answer came from the system media session: it names no track, so nothing is prepared. */
     degraded: boolean;
-    /** The id Folia had the app play before this one: the track the app's own "previous" goes back to. */
-    previousId: string;
-    /** The app was moved to another track by its own controls and Folia already pulled it back once. */
-    pulledBack: boolean;
+    /** A track the listener picked in Spotify itself has been taken over as the song Folia shows. */
+    adoptedAppPick: boolean;
+    /**
+     * The coarse channel was found showing another song and Folia pulled the app back to its queue
+     * once. The media session names no track, so the song it shows cannot be looked up and followed,
+     * and the pull-back is all there is on that channel.
+     */
+    pulledBackCoarse: boolean;
     /**
      * Repeat one is this song carried out by the app's own repeat of the track: the app then sounds
      * the same track again from its start, and a read that names the same track further back is
@@ -440,11 +450,11 @@ export const statusOfClient = (data: SpotifyWireClientStatus): ProviderExternalP
             // session's own, and a song that ran out and one the listener left behind read the same
             // way. Guessing from it called the listener's own press the end of the song, and the
             // song's end their press. The name it shows decides, as it does everywhere else.
-            // The app's own answer says which way it went by the id it names; a coarse read has no id
-            // to compare with the song before this one, so the step is on, as an unknown track always
+            // A coarse read carries no id, so the song it shows cannot be looked up and adopted the
+            // way a track the app's own answer names is; the step is on, as an unknown track always
             // is. Pulled back once only, and a second read of the same other song is left alone.
-            if (current.pulledBack) return status;
-            current.pulledBack = true;
+            if (current.pulledBackCoarse) return status;
+            current.pulledBackCoarse = true;
             console.info('[SpotifyClient] Spotify was moved to another track by its own controls; Folia\'s queue goes next');
             return { ...ended(current), skipped: 'next' };
         }
@@ -493,14 +503,18 @@ export const statusOfClient = (data: SpotifyWireClientStatus): ProviderExternalP
         // is over; Folia's next play replaces what the app chose.
         return ended(current);
     }
-    if (id && current.hasPlayed && !current.pulledBack) {
+    if (id && current.hasPlayed) {
         // Not Folia's doing and not the song's end: the listener used the app's own controls (its
-        // window, a media key it got). The queue is Folia's, so the step is pulled back to Folia's
-        // queue in the direction the app moved: onto the track it played before, or on.
-        current.pulledBack = true;
-        const skipped = id === current.previousId ? 'previous' : 'next';
-        console.info(`[SpotifyClient] Spotify was moved to another track by its own controls; Folia's queue goes ${skipped}`);
-        return { ...ended(current), skipped };
+        // window, a media key it got), and the track the app is on is the one they chose. It is
+        // adopted as the song Folia shows: this answer names that track and is no end, so the route
+        // takes it over in place of this song, with its own words, lyrics, cover and position. Folia
+        // plays nothing of its queue into the app over that choice; a track of Folia's queue is found
+        // there by its own key, so the queue goes on from it, and one that is not is simply shown.
+        if (!current.adoptedAppPick) {
+            current.adoptedAppPick = true;
+            console.info(`[SpotifyClient] the app was moved to the track ${id} by its own controls; it is adopted, chosen in Spotify`);
+        }
+        return status;
     }
     return status;
 };
@@ -601,7 +615,6 @@ export const spotifyClientPlayback: OnlineExternalPlaybackProvider = {
         }
         const startMs = Math.max(0, Math.round(startSec * 1000));
         const adopt = handoffId === id && startMs === 0;
-        const previousId = attempt && attempt.id !== id ? attempt.id : attempt?.previousId ?? '';
         // The app moved to the song Folia put first: what it still holds after that one is its queue,
         // and is not written again.
         const carried = adopt ? tailAfter(attempt?.nextIds ?? [], id) : [];
@@ -612,7 +625,7 @@ export const spotifyClientPlayback: OnlineExternalPlaybackProvider = {
             hasPlayed: adopt, positionMs: startMs, durationMs: song.durationMs,
             nextIds: carried, confirmedIds: carriedConfirmed, degraded: false,
             behindTracks: carried.map(held => writtenTracks.get(held)).filter((track): track is ShownTrack => Boolean(track)),
-            previousId, pulledBack: false, nativeRepeat: false,
+            adoptedAppPick: false, pulledBackCoarse: false, nativeRepeat: false,
         };
         if (adopt) {
             console.info('[SpotifyClient] The app already plays the next song; it is adopted');
@@ -705,7 +718,7 @@ export const spotifyClientPlayback: OnlineExternalPlaybackProvider = {
             hasPlayed: true, positionMs: 0, durationMs: song.durationMs,
             nextIds: carried, confirmedIds: carriedConfirmed, degraded: false,
             behindTracks: carried.map(held => writtenTracks.get(held)).filter((track): track is ShownTrack => Boolean(track)),
-            previousId: '', pulledBack: false, nativeRepeat: false,
+            adoptedAppPick: false, pulledBackCoarse: false, nativeRepeat: false,
         };
     },
     async pause() {
@@ -729,7 +742,7 @@ export const spotifyClientPlayback: OnlineExternalPlaybackProvider = {
             current.nextIds = [];
             current.confirmedIds = [];
             current.hasPlayed = false;
-            current.pulledBack = false;
+            current.pulledBackCoarse = false;
             current.degraded = false;
             const answer = await requestSpotify<SpotifyClientPlayAnswer>('client_play', {
                 id: current.id, startMs: Math.max(0, Math.round(current.positionMs)), userAction: true,

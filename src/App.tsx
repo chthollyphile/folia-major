@@ -1425,7 +1425,7 @@ export default function App() {
         taskbarHasTrackRef,
         taskbarPlayerStateRef,
     } = transportCommandRefs;
-    useExternalPlaybackBridge({ handleNextTrack, handlePrevTrack });
+    useExternalPlaybackBridge({ handleNextTrack, handlePrevTrack, setShownLyrics: setLyrics });
     // The system media keys, held while a player asks for them: one press runs Folia's transport and
     // queue on whatever route the song on screen sounds.
     useMediaKeyTakeoverBridge({
