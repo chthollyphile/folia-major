@@ -278,11 +278,21 @@ describe('culling a tilted wall: wiring', () => {
 
     it('reserves the tilted view at the destination when the camera flies', () => {
         const { frameRef, camera } = mountCamera();
-        for (const target of [{ x: 9000 - 700, y: 0 }, { x: 9000 + 6000, y: 2500 }]) {
-            act(() => camera().tweenTo(target));
-            // 补间还没走（animate 是替身）：此刻已裁剪的范围里已经有相机到了那里时屏幕上的每一点。
-            expectScreenCovered({ ...frameRef.current, center: target }, camera().bounds);
-        }
+        const target = { x: 9000 - 700, y: 0 };
+        act(() => camera().tweenTo(target));
+        expect(animateCalls).toHaveLength(1);
+        // 补间还没走（animate 是替身）：此刻已裁剪的范围里已经有相机到了那里时屏幕上的每一点。
+        expectScreenCovered({ ...frameRef.current, center: target }, camera().bounds);
+    });
+
+    it('jumps straight to a destination more than a screen away instead of flying there', () => {
+        const { frameRef, camera } = mountCamera();
+        const target = { x: 9000 + 6000, y: 2500 };
+        act(() => camera().tweenTo(target));
+        // 一屏以外不补间：没有 animate，相机当帧就位，裁剪在下一帧落到目的地。
+        expect(animateCalls).toHaveLength(0);
+        frame();
+        expectScreenCovered({ ...frameRef.current, center: target }, camera().bounds);
     });
 
     it('does not re-cull on every pointer move while dragging with the seam far away', () => {

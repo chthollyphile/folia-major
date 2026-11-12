@@ -62,6 +62,12 @@ export const getBravaisScale = (viewportWidth: number) => (
 /** 缝开合与相机让位的补间时长（秒）。 */
 export const BRAVAIS_SEAM_TWEEN_S = 0.36;
 export const BRAVAIS_CAMERA_TWEEN_S = 0.42;
+/** 相机补间的速度上限（世界单位 / 秒）：更远的移动按它把时长拉长（bravaisCameraTween）。 */
+export const BRAVAIS_CAMERA_MAX_SPEED = 3200;
+/** 相机补间的最长时长（秒）。 */
+export const BRAVAIS_CAMERA_MAX_TWEEN_S = 1.1;
+/** 超过这么多屏（视口对角线）的相机移动直接到位，不补间：再长的补间也是一次高速扫过。 */
+export const BRAVAIS_CAMERA_JUMP_SCREENS = 1.2;
 
 /** 缝内容翻转：转到 90° 换内容，再转回来（毫秒）。 */
 export const BRAVAIS_SEAM_FLIP_OUT_MS = 160;

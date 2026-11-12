@@ -12,6 +12,7 @@ import {
 } from '../../../components/wall/wallView';
 import type { WallCameraRange } from '../../../components/wall/finiteWall';
 import { BRAVAIS_CAMERA_TWEEN_S, BRAVAIS_CULL_EDGE_MARGIN, BRAVAIS_OVERSCAN } from './bravaisConstants';
+import { resolveBravaisCameraTweenSeconds, shouldJumpBravaisCamera } from './bravaisCameraTween';
 import { rubberBand } from './bravaisFiniteWall';
 import { computeBravaisFrame, getTiltReach } from './bravaisFrame';
 import type { BravaisFrameState } from './useBravaisFrame';
@@ -161,6 +162,9 @@ export const useBravaisCamera = ({
         stopCamera();
         const from = { ...frameRef.current.center };
         if (Math.abs(target.x - from.x) < 0.5 && Math.abs(target.y - from.y) < 0.5) return;
+        const distance = Math.hypot(target.x - from.x, target.y - from.y);
+        // 先把目的地并进裁剪范围（跳转也一样）：磁贴只按已裁剪的范围渲染，目的地在一屏以外时
+        // 不预留就是先动、下一帧才裁，中间那一帧墙是空的。超出预留上限时只剩目的地。
         const destination = getVisibleWorldBounds(frameRef.current, target);
         if (destination) {
             setBounds(current => {
@@ -174,12 +178,19 @@ export const useBravaisCamera = ({
                 return area(merged) > area(destination) * MAX_RESERVED_VIEWPORTS ? destination : merged;
             });
         }
-        if (reducedMotion || duration <= 0) {
+        // 一屏以外直接到位：回墙时展开的聚焦卡、换层的目的地都可能在很远处，补间过去只是一次高速扫过。
+        if (shouldJumpBravaisCamera(distance, frameRef.current.view)) {
+            moveTo(target, true);
+            return;
+        }
+        // 一屏以内按速度上限拉长（bravaisCameraTween）：近距离仍是原来的 0.42s。
+        const travel = resolveBravaisCameraTweenSeconds(distance, duration);
+        if (reducedMotion || travel <= 0) {
             moveTo(target, true);
             return;
         }
         animationRef.current = animate(0, 1, {
-            duration,
+            duration: travel,
             ease: [0.22, 1, 0.36, 1],
             onUpdate: progress => {
                 frameRef.current.center = {
