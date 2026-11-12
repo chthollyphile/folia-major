@@ -19,9 +19,9 @@
         "signCommits": false
     },
     "roles": {
-        "planner": { "model": "opus", "effort": "xhigh" },
-        "generator": { "model": "opus", "effort": "high" },
-        "evaluator": { "model": "opus", "effort": "xhigh" }
+        "planner": { "model": "opus", "effort": "high" },
+        "generator": { "model": "opus", "effort": "medium" },
+        "evaluator": { "model": "opus", "effort": "high" }
     },
     "risk": {
         "r4": [
