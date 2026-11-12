@@ -40,7 +40,7 @@ npm run coven:scope -- --name etude-stores --from lint --rules @stylistic/indent
 
 ## HD0（2026-11-08 定，写在 `dev/coven/config.json`）
 
-- planner、evaluator 用 opus xhigh，generator 用 opus high。
+- planner、evaluator 用 opus high，generator 用 opus medium（2026-11-13 各降一档，原为 xhigh / high）。
 - 预算按 token：每个任务 200 万，整次运行不设（Max 订阅按次不花钱，真正的上限是订阅的用量窗口）。
 - 并发 1，租约 12 小时；generator 的提交不签名；认领评论用维护者本人的账号。
 - 跟踪 issue #1156；Coven 开的 PR 打 `bot: skip`。
