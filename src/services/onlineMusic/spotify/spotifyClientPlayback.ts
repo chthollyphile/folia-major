@@ -22,10 +22,11 @@ import type { SpotifyWireClientStatus } from './spotifyTransport';
 // names the app's own track and is no end, which is what hands it to the take-over of the route (a
 // way of playing that follows its listener). Only the app's move on to a song Folia wrote into its
 // queue, and a song that ran out, still step Folia's own queue.
-// The media session names no track. While it answers, nothing is prepared in the app's queue, its
-// coarse position never replaces the song's duration, and a title it shows that is not the song
-// Folia asked for is the one case left where the app is pulled back: a track the session shows
-// carries no id, so nothing of it can be looked up.
+// The media session names no track. While it answers, nothing is prepared in the app's queue and
+// its coarse position never replaces the song's duration. A title and artist it shows that are not
+// the song Folia asked for are handed on rather than acted on here: that channel carries no id, so
+// the song is found again by those names alone (externalPlayerFollow.ts), and the app is never
+// pulled back to Folia's queue over a track the listener picked.
 
 /**
  * How many songs that follow are put in the app's queue while it can empty it. The app moves on to
@@ -98,8 +99,12 @@ type SpotifyClientQueueAnswer = {
     canClear?: boolean | null;
     aborted?: boolean;
 };
-/** A track change this close to the end of the song Folia asked for is that song ending. */
-const END_TOLERANCE_MS = 3000;
+/**
+ * A track change this close to the end of the song Folia asked for is that song ending: within a
+ * second of it, which is what the last read of a song that ran out leaves behind. A press a few
+ * seconds before the end is the listener's own, and is adopted like any other.
+ */
+const END_TOLERANCE_MS = 1000;
 /**
  * How far back a read has to be from the one before it to be the song started over rather than the
  * position of a playing track that was read a moment late: one poll at 500 ms is well inside this.
@@ -140,12 +145,6 @@ interface Attempt {
     degraded: boolean;
     /** A track the listener picked in Spotify itself has been taken over as the song Folia shows. */
     adoptedAppPick: boolean;
-    /**
-     * The coarse channel was found showing another song and Folia pulled the app back to its queue
-     * once. The media session names no track, so the song it shows cannot be looked up and followed,
-     * and the pull-back is all there is on that channel.
-     */
-    pulledBackCoarse: boolean;
     /**
      * Repeat one is this song carried out by the app's own repeat of the track: the app then sounds
      * the same track again from its start, and a read that names the same track further back is
@@ -439,24 +438,31 @@ export const statusOfClient = (data: SpotifyWireClientStatus): ProviderExternalP
         // title and artist it shows. A song of the names Folia wrote behind this one - or took back
         // from there, since a queue that cannot be emptied keeps them - is the app moving on by
         // itself: the external session ends and Folia's own queue takes the next song. Any other
-        // song was picked with the app's controls, and is pulled back as one is on the app's own
-        // answer, so repeat one replays this song instead of the app's pick.
+        // song was picked with the app's controls, and is the listener's: it is handed to the
+        // take-over of the route as the song it shows, and Folia plays nothing of its own queue
+        // into the app over it. A coarse read carries no id, so that take-over can find the song
+        // only by these names; nothing is ended here for it either way.
         if (current.hasPlayed && namesAnotherTrack(current, data)) {
-            if (namesBehindTrack(current, data)) {
-                console.info('[SpotifyClient] Spotify moved on to the track Folia wrote next; the external session ends');
-                return ended(current);
-            }
             // How far this song had got is no sign of what became of it: the coarse position is the
             // session's own, and a song that ran out and one the listener left behind read the same
             // way. Guessing from it called the listener's own press the end of the song, and the
             // song's end their press. The name it shows decides, as it does everywhere else.
-            // A coarse read carries no id, so the song it shows cannot be looked up and adopted the
-            // way a track the app's own answer names is; the step is on, as an unknown track always
-            // is. Pulled back once only, and a second read of the same other song is left alone.
-            if (current.pulledBackCoarse) return status;
-            current.pulledBackCoarse = true;
-            console.info('[SpotifyClient] Spotify was moved to another track by its own controls; Folia\'s queue goes next');
-            return { ...ended(current), skipped: 'next' };
+            if (namesBehindTrack(current, data)) {
+                console.info('[SpotifyClient] Spotify moved on to the track Folia wrote next; the external session ends');
+                return ended(current);
+            }
+            if (!current.adoptedAppPick) {
+                current.adoptedAppPick = true;
+                console.info(
+                    '[SpotifyClient] the app was moved to another track by its own controls; it is shown by the names the media session gives',
+                    { title: (data.title ?? '').trim(), artist: (data.artist ?? '').trim() },
+                );
+            }
+            return {
+                ...status,
+                mediaId: '',
+                shownTrack: { title: (data.title ?? '').trim(), artist: (data.artist ?? '').trim() },
+            };
         }
         if (isPlaying) current.hasPlayed = true;
         current.positionMs = data.positionMs;
@@ -625,7 +631,7 @@ export const spotifyClientPlayback: OnlineExternalPlaybackProvider = {
             hasPlayed: adopt, positionMs: startMs, durationMs: song.durationMs,
             nextIds: carried, confirmedIds: carriedConfirmed, degraded: false,
             behindTracks: carried.map(held => writtenTracks.get(held)).filter((track): track is ShownTrack => Boolean(track)),
-            adoptedAppPick: false, pulledBackCoarse: false, nativeRepeat: false,
+            adoptedAppPick: false, nativeRepeat: false,
         };
         if (adopt) {
             console.info('[SpotifyClient] The app already plays the next song; it is adopted');
@@ -718,7 +724,7 @@ export const spotifyClientPlayback: OnlineExternalPlaybackProvider = {
             hasPlayed: true, positionMs: 0, durationMs: song.durationMs,
             nextIds: carried, confirmedIds: carriedConfirmed, degraded: false,
             behindTracks: carried.map(held => writtenTracks.get(held)).filter((track): track is ShownTrack => Boolean(track)),
-            adoptedAppPick: false, pulledBackCoarse: false, nativeRepeat: false,
+            adoptedAppPick: false, nativeRepeat: false,
         };
     },
     async pause() {
@@ -742,7 +748,6 @@ export const spotifyClientPlayback: OnlineExternalPlaybackProvider = {
             current.nextIds = [];
             current.confirmedIds = [];
             current.hasPlayed = false;
-            current.pulledBackCoarse = false;
             current.degraded = false;
             const answer = await requestSpotify<SpotifyClientPlayAnswer>('client_play', {
                 id: current.id, startMs: Math.max(0, Math.round(current.positionMs)), userAction: true,
@@ -889,8 +894,15 @@ export const spotifyClientPlayback: OnlineExternalPlaybackProvider = {
             starting: !data.isPaused && data.isBuffering,
         };
     },
-    async getStatus() {
-        return statusOfClient(await requestSpotify<SpotifyWireClientStatus>('client_status'));
+    // What the app has, read for this song. A coarse answer names no track of its own, so the song
+    // is named here where the title and artist that channel shows are this song's: the take-over
+    // of the route asks whether the player holds the track before it follows it, and a track it
+    // could never name could never be taken over.
+    async getStatus(song) {
+        const data = await requestSpotify<SpotifyWireClientStatus>('client_status');
+        const status = statusOfClient(data);
+        if (data.fallback !== true || status.mediaId || !namesThatSong(song, data)) return status;
+        return { ...status, mediaId: songIdOf(song) ?? '' };
     },
     isStatusForSong(song, status) {
         return status.mediaId !== '' && status.mediaId === songIdOf(song);

@@ -522,6 +522,12 @@ export interface ProviderExternalPlaybackStatus {
      * one that can be steered precisely: the app still follows it, coarsely. Told once per episode.
      */
     degraded?: boolean;
+    /**
+     * With `degraded`: the title and artist the coarse channel shows, where they are another song
+     * than the one this app asked for. That channel names no track id, so the song it holds is only
+     * ever found again by these names, and the player is taken over on them or not at all.
+     */
+    shownTrack?: { title: string; artist: string };
 }
 
 /**

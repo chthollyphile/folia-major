@@ -1,5 +1,5 @@
 import { PlayerState, type SongResult } from '../../../../types';
-import type { ProviderExternalPlaybackStatus } from '../../../../types/onlineMusic';
+import type { OnlineProviderId, ProviderExternalPlaybackStatus } from '../../../../types/onlineMusic';
 import { adoptExternalPlayback, getExternalSong, isExternalRoute, yieldExternalPlayback } from '../../../../services/onlineMusic/externalPlayback';
 import { omni } from '../../../../services/onlineMusic/omni';
 import { markProgrammaticPause, playbackFade } from '../../../../services/playbackFade';
@@ -8,7 +8,7 @@ import { setDuration, usePlaybackStore } from '../../../../stores/usePlaybackSto
 import { getOnlineProviderIdForSong, getPlaybackSongKey } from '../../../../utils/appPlaybackGuards';
 import { findPlaybackDecks, unloadDeck } from '../../../hifi/useWebEngineYield';
 import { askedSongKeyRef, makeSongCurrent, startOfAskedSong } from '../currentSong';
-import { resolveRunningTrack, resolveRunningTrackOf } from '../restore/runningTrack';
+import { queueWithRunningTrack, resolveRunningTrack, resolveRunningTrackOf } from '../restore/runningTrack';
 
 // src/components/app/playback/bridges/externalPlayerFollow.ts
 // What a player outside the app holds, taken over as it stands: the song it is sounding, or the
@@ -44,6 +44,12 @@ export type RunningPlayerTakeOverOptions = {
      */
     onTrackTaken?: (track: SongResult, stillCurrent: () => boolean) => Promise<void> | void;
     /**
+     * The caller writes the queue of the track it takes over, and saves it (a restore, whose caller
+     * holds the list the player was found in). Left out, the track is put in this app's queue where
+     * the song it replaced stood, which is what every other caller wants.
+     */
+    ownsQueue?: boolean;
+    /**
      * A track the player is paused on is taken over as it stands, rather than only shown where it is:
      * the session is the track the screen shows, so the press of play continues it. Meant for the
      * way of playing whose listener keeps using the player's own window, whose pause there is the
@@ -63,9 +69,12 @@ const showTrackPosition = (song: SongResult, positionMs: number | null, overtake
     currentTime.set(song.durationMs > 0 ? Math.min(seconds, song.durationMs / 1000) : seconds);
 };
 
-/** Whether the player named the track it is on, rather than only its coarse channel or an advertisement. */
+/**
+ * Whether the player said which track it is on: by the id it carries, or - on a channel that names
+ * no track at all - by the title and artist it shows. An advertisement names nothing of the song.
+ */
 const namesItsTrack = (status: ProviderExternalPlaybackStatus): boolean => (
-    status.mediaId !== '' && status.advertisement !== true && status.degraded !== true
+    status.advertisement !== true && (status.mediaId !== '' || status.shownTrack !== undefined)
 );
 
 /**
@@ -88,6 +97,19 @@ const stopLocalDecksForTakeOver = (): void => {
         markProgrammaticPause(deck);
         unloadDeck(deck);
     });
+};
+
+/**
+ * The queue the app plays on from here: the track taken over is put where the song it replaced
+ * stood, with that song right behind it, so the songs before and after it are still the ones they
+ * were and the previous and next buttons go on working. A queue that already holds the track is
+ * left as it is.
+ */
+const putTakenTrackInQueue = (track: SongResult, replaced: SongResult): void => {
+    const queue = usePlaybackStore.getState().playQueue;
+    const trackKey = getPlaybackSongKey(track);
+    if (queue.some(song => getPlaybackSongKey(song) === trackKey)) return;
+    usePlaybackStore.getState().setPlayQueue(queueWithRunningTrack(queue, track, replaced));
 };
 
 /** Whether `song` is the song this app shows now. */
@@ -134,6 +156,13 @@ export const takeOverRunningPlayer = async (
         showTrackPosition(remembered, running.positionMs, () => !wanted());
         return 'shown';
     }
+    if (running.degraded === true) {
+        // The player answered on its coarse channel: that one names no track at all, only the names
+        // it shows. The song behind those names is found by searching for them, and nothing else
+        // stands for it; a player pulled back or stopped over a track the listener chose is exactly
+        // what this way of playing must not do.
+        return await takeOverCoarseTrack(remembered, running, options, wanted);
+    }
     if (!namesItsTrack(running)) return 'untouched';
     const track = await resolveRunningTrack(remembered, running, wanted);
     // A late answer landing after another song was asked for leaves everything as it is.
@@ -141,6 +170,116 @@ export const takeOverRunningPlayer = async (
     // Shown before the player is asked whether it holds the track, so the screen carries the track
     // while that read waits; the take-over itself asks again before and after that read, and a song
     // asked for meanwhile sends the player back to this app's own engine.
+
+    if (options.ownsQueue !== true) putTakenTrackInQueue(track, remembered);
+    makeSongCurrent(track);
+    return await settleTrackTakeOver(track, remembered, running, options);
+};
+
+/** The name as both sides of a comparison write it: no full-width forms, no case, no stray spaces. */
+const plainName = (text: string): string => text.normalize('NFKC').trim().replace(/\s+/gu, ' ').toLocaleLowerCase();
+
+/**
+ * A title without the bracketed version notes after it - a credit, a remaster, a live take - since
+ * the player's own window and the platform's catalogue need not write the same song alike. A title
+ * that is nothing but such a note keeps it: then the note is the title.
+ */
+const plainTitle = (text: string): string => {
+    const withoutNotes = plainName(text).replace(/\s*[([{][^)\]}]*[)\]}]/gu, '').trim();
+    return withoutNotes || plainName(text);
+};
+
+/** The artist names one side writes, whole: an entry is never cut into a part of another one. */
+const artistNames = (text: string): string[] => text
+    .split(/[,/&;]|\bfeat\.?\b|\bft\.?\b|\bx\b/iu)
+    .map(part => plainName(part))
+    .filter(Boolean);
+
+/**
+ * The songs of this app that answer to the name the player shows: its title, and one of its artists
+ * under the artist the player shows. Both have to answer, and names are compared whole - the song
+ * "Song a" is not the song shown as "Song a b" - since this is the only identity that channel gives.
+ */
+const tracksNamedLike = (candidates: SongResult[], shown: { title: string; artist: string }): SongResult[] => {
+    const title = plainTitle(shown.title);
+    const shownArtists = artistNames(shown.artist);
+    if (!title || shownArtists.length === 0) return [];
+    return candidates.filter(song => {
+        if (plainTitle(song.name) !== title) return false;
+        const own = (Array.isArray(song.artists) ? song.artists : [])
+            .map(artist => plainName(typeof artist === 'string' ? artist : artist.name))
+            .filter(Boolean);
+        return own.length > 0 && own.every(artist => shownArtists.includes(artist));
+    });
+};
+
+/** How many of the search's songs are read for the one the coarse channel shows. */
+const COARSE_SEARCH_ROWS = 30;
+/**
+ * The search a coarse read is answered by, kept apart from the listener's own search on screen: it
+ * is asked and dropped, and never pages on.
+ */
+const COARSE_SEARCH_SESSION = 'external-player-shown-track';
+
+/**
+ * The song a player's coarse channel shows, looked up by the names it gives and by nothing else:
+ * that channel carries no id. The search is the platform's own, through Omni like any other read,
+ * and the answer has to carry a track id: a row found by these names is the song the listener is on,
+ * one merely written alike is not. Null where nothing answers, where the search failed, and where the
+ * caller no longer wants it.
+ */
+const searchShownTrack = async (
+    providerId: OnlineProviderId,
+    shown: { title: string; artist: string },
+    isWanted: () => boolean,
+): Promise<SongResult | null> => {
+    let found: SongResult[];
+    try {
+        const page = await omni.searchProviderSongs(
+            providerId,
+            `${shown.title} ${shown.artist}`.trim(),
+            { limit: COARSE_SEARCH_ROWS, offset: 0 },
+            { session: COARSE_SEARCH_SESSION },
+        );
+        // Only a song the catalogue itself named can be played on: a row without its own reference
+        // is a listing, not a track.
+        found = page.items.filter(song => Boolean(song.sourceRef));
+    } catch (error) {
+        console.warn('[externalPlayerFollow] The track the player shows could not be searched for', error);
+        return null;
+    }
+    if (!isWanted()) return null;
+    return tracksNamedLike(found, shown)[0] ?? null;
+};
+
+/**
+ * A player that answered on its coarse channel and is on another song: that song is searched for by
+ * the title and artist the channel shows, and taken over in place of the remembered one when the
+ * search answers with that very title and artist. A song that cannot be found (the search failed, or
+ * it answered nothing that is named alike) is not taken over, and nothing is stopped or pulled back
+ * over it either: the player is sounding a song the listener chose, and the most this app can do is
+ * leave it sounding.
+ */
+const takeOverCoarseTrack = async (
+    remembered: SongResult,
+    running: ProviderExternalPlaybackStatus,
+    options: RunningPlayerTakeOverOptions,
+    wanted: () => boolean,
+): Promise<RunningPlayerOutcome> => {
+    const shown = running.shownTrack;
+    if (!shown) return 'untouched';
+    const providerId = getOnlineProviderIdForSong(remembered) ?? omni.followingPlayerChangesProviderId();
+    if (!providerId) return 'untouched';
+    const track = await searchShownTrack(providerId, shown, wanted);
+    if (!track) {
+        console.info(
+            '[externalPlayerFollow] The player shows a track no search answers to; it is left sounding',
+            { title: shown.title, artist: shown.artist },
+        );
+        return 'untouched';
+    }
+
+    if (options.ownsQueue !== true) putTakenTrackInQueue(track, remembered);
     makeSongCurrent(track);
     return await settleTrackTakeOver(track, remembered, running, options);
 };

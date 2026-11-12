@@ -48,6 +48,9 @@ const omniMock = vi.hoisted(() => ({
     followsPlayerChangesOf: vi.fn(() => traits.declared.followsPlayerChanges === true),
     followingPlayerChangesProviderId: vi.fn((): string | null => (traits.declared.followsPlayerChanges === true ? 'spotify' : null)),
     getExternalPlaybackRunningTrack: vi.fn(async (): Promise<ProviderExternalPlaybackStatus | null> => null),
+    searchProviderSongs: vi.fn(async (): Promise<{ items: SongResult[]; hasMore: boolean; nextOffset: number }> => (
+        { items: [], hasMore: false, nextOffset: 0 }
+    )),
 }));
 
 vi.mock('@/services/onlineMusic/omni', () => ({ omni: omniMock }));
@@ -124,6 +127,7 @@ describe('a player that follows the listener\'s own changes', () => {
         omniMock.getExternalPlaybackRunningStatus.mockReset().mockResolvedValue(null);
         omniMock.getExternalPlaybackRunningPositionMs.mockReset().mockResolvedValue(null);
         omniMock.getSongDetail.mockReset().mockResolvedValue(null);
+        omniMock.searchProviderSongs.mockReset().mockResolvedValue({ items: [], hasMore: false, nextOffset: 0 });
         omniMock.prepareExternalPlaybackQueue.mockReset().mockResolvedValue(undefined);
         omniMock.pauseExternalPlayback.mockReset().mockResolvedValue(undefined);
         omniMock.playSongExternally.mockReset().mockResolvedValue(undefined);
@@ -449,6 +453,115 @@ describe('a player that follows the listener\'s own changes', () => {
         expect(usePlaybackStore.getState().currentSong).toEqual(other);
         expect(engine.getExternalSong()).toEqual(other);
         expect(omniMock.pauseExternalPlayback).not.toHaveBeenCalled();
+    });
+
+    // A player that can only answer on its coarse channel names no track: the song it shows is
+    // found by searching for that title and artist, and taken over only where both are that song's.
+    it('takes over the song the coarse channel shows, found by its title and artist', async () => {
+        await engine.beginExternalPlayback(song, 0);
+        engine.announceExternalPlayback();
+        omniMock.searchProviderSongs.mockResolvedValue({ items: [other], hasMore: false, nextOffset: 1 });
+        // The track the search answered with is the one the player holds: read again before the
+        // session is taken over, and named there by the song's own id.
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ mediaId: '456' }));
+
+        await expect(takeOverRunningPlayer(song, status({
+            mediaId: '', degraded: true, shownTrack: { title: 'Another', artist: 'Artist' },
+        }))).resolves.toBe('adopted');
+
+        expect(omniMock.searchProviderSongs).toHaveBeenCalledWith(
+            'spotify', 'Another Artist', { limit: 30, offset: 0 }, { session: 'external-player-shown-track' },
+        );
+        expect(usePlaybackStore.getState().currentSong).toEqual(other);
+        expect(engine.getExternalSong()).toEqual(other);
+        expect(omniMock.pauseExternalPlayback).not.toHaveBeenCalled();
+    });
+
+    it('takes a song written in another case and another width as the one it shows', async () => {
+        const shownAsFullWidth = songOn('456', 'Ａｎｏｔｈｅｒ');
+        await engine.beginExternalPlayback(song, 0);
+        engine.announceExternalPlayback();
+        omniMock.searchProviderSongs.mockResolvedValue({ items: [shownAsFullWidth], hasMore: false, nextOffset: 1 });
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ mediaId: '456' }));
+
+        await expect(takeOverRunningPlayer(song, status({
+            mediaId: '', degraded: true, shownTrack: { title: 'another', artist: 'artist' },
+        }))).resolves.toBe('adopted');
+        expect(usePlaybackStore.getState().currentSong).toEqual(shownAsFullWidth);
+    });
+
+    it('leaves the player sounding where no search answers with that title and artist', async () => {
+        const info = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+        await engine.beginExternalPlayback(song, 0);
+        engine.announceExternalPlayback();
+        omniMock.searchProviderSongs.mockResolvedValue({ items: [other], hasMore: false, nextOffset: 1 });
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(
+            status({ mediaId: '', degraded: true, shownTrack: { title: 'Another', artist: 'Somebody Else' } }),
+        );
+
+        await expect(takeOverRunningPlayer(song, status({
+            mediaId: '', degraded: true, shownTrack: { title: 'Another', artist: 'Somebody Else' },
+        }))).resolves.toBe('untouched');
+        info.mockRestore();
+
+        expect(usePlaybackStore.getState().currentSong).toEqual(song);
+        expect(engine.getExternalSong()).toEqual(song);
+        expect(omniMock.pauseExternalPlayback).not.toHaveBeenCalled();
+    });
+
+    // The queue the app plays on from here: the track is put where the song it replaced stood, and
+    // that song stays right behind it, so the songs before and after are still the ones they were
+    // and the previous and next buttons go on working. A track the queue already holds is not held
+    // twice.
+    it('puts the track it took over where the song it replaced stood in the queue', async () => {
+        const before = songOn('100', 'Before');
+        const after = songOn('200', 'After');
+        usePlaybackStore.setState({ currentSong: song, playQueue: [before, song, after] });
+        await engine.beginExternalPlayback(song, 0);
+        engine.announceExternalPlayback();
+        omniMock.searchProviderSongs.mockResolvedValue({ items: [other], hasMore: false, nextOffset: 1 });
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ mediaId: '456' }));
+
+        await expect(takeOverRunningPlayer(song, status({
+            mediaId: '', degraded: true, shownTrack: { title: 'Another', artist: 'Artist' },
+        }))).resolves.toBe('adopted');
+
+        expect(usePlaybackStore.getState().playQueue).toEqual([before, other, song, after]);
+    });
+
+    it('leaves a queue that already holds the track as it is', async () => {
+        usePlaybackStore.setState({ currentSong: song, playQueue: [song, other] });
+        await engine.beginExternalPlayback(song, 0);
+        engine.announceExternalPlayback();
+        omniMock.searchProviderSongs.mockResolvedValue({ items: [other], hasMore: false, nextOffset: 1 });
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ mediaId: '456' }));
+
+        await expect(takeOverRunningPlayer(song, status({
+            mediaId: '', degraded: true, shownTrack: { title: 'Another', artist: 'Artist' },
+        }))).resolves.toBe('adopted');
+
+        expect(usePlaybackStore.getState().playQueue).toEqual([song, other]);
+    });
+
+    it('leaves the player sounding where the search itself failed', async () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+        await engine.beginExternalPlayback(song, 0);
+        engine.announceExternalPlayback();
+        omniMock.searchProviderSongs.mockRejectedValue(new Error('the search did not answer'));
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(
+            status({ mediaId: '', degraded: true, shownTrack: { title: 'Another', artist: 'Artist' } }),
+        );
+
+        omniMock.playSongExternally.mockClear();
+        await expect(takeOverRunningPlayer(song, status({
+            mediaId: '', degraded: true, shownTrack: { title: 'Another', artist: 'Artist' },
+        }))).resolves.toBe('untouched');
+        warn.mockRestore();
+
+        expect(usePlaybackStore.getState().currentSong).toEqual(song);
+        expect(omniMock.pauseExternalPlayback).not.toHaveBeenCalled();
+        // Nothing of Folia's queue is started into the player over the track it is on.
+        expect(omniMock.playSongExternally).not.toHaveBeenCalled();
     });
 
     // The track the player moved on to could not be looked up, so the player was stopped there: the

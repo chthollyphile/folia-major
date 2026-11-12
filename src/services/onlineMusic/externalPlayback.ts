@@ -819,7 +819,11 @@ const applyStatus = (status: ProviderExternalPlaybackStatus, sampledAtMs: number
             emit({ type: 'degraded', active: true });
         }
     }
-    if (status.mediaId && !omni.isExternalPlaybackStatusForSong(current.song, status)) {
+    // A player that can only say which song it holds by its names - the coarse channel, which names
+    // no track - reports the one it moved to that way: it is another song all the same, and is taken
+    // over as the ones a player names by id are.
+    const namedOther = status.shownTrack !== undefined;
+    if ((status.mediaId || namedOther) && !omni.isExternalPlaybackStatusForSong(current.song, status)) {
         if (!current.announced) return;
         if (!current.foreign) {
             current.foreign = true;

@@ -120,7 +120,7 @@ describe('a track Spotify picked with its own controls', () => {
 
     it('keeps a song that ran out ending, rather than adopting what the app went on to', async () => {
         await spotifyClientPlayback.play!(songOf('a'), 0);
-        statusOfClient(playing(id('a'), { positionMs: 198000 }));
+        statusOfClient(playing(id('a'), { positionMs: 199400 }));
 
         const ran = statusOfClient(playing(id('c')));
 

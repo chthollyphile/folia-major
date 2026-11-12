@@ -143,14 +143,25 @@ describe('a song the app is playing', () => {
         expect(spotifyClientAttempt()?.hasPlayed).toBe(true);
     });
 
-    it('takes a track change near the end of the song for its end, even to a song of the app itself', async () => {
+    it('takes a track change in the last second of the song for its end, even to a song of the app itself', async () => {
         const a = songOf('a');
         await spotifyClientPlayback.play!(a, 0);
-        statusOfClient(playing(id('a'), { positionMs: 198000 }));
+        statusOfClient(playing(id('a'), { positionMs: 199400 }));
 
         const status = statusOfClient(playing(id('c')));
         expect(status.ended).toBe(true);
         expect(spotifyClientPlayback.isPrepared!(songOf('c'))).toBe(false);
+    });
+
+    it('takes a track change a couple of seconds before the end for the listener pressing next', async () => {
+        const a = songOf('a');
+        await spotifyClientPlayback.play!(a, 0);
+        statusOfClient(playing(id('a'), { positionMs: 197500 }));
+
+        const status = statusOfClient(playing(id('c')));
+        expect(status.ended).toBe(false);
+        expect(status.skipped).toBeUndefined();
+        expect(status.mediaId).toBe(id('c'));
     });
 
     it('leaves a track change that happens before the song ever played as the song still loading', async () => {
@@ -197,7 +208,7 @@ describe('a track change the app made by its own controls', () => {
         expect(queued.skipped).toBeUndefined();
 
         await spotifyClientPlayback.play!(songOf('d'), 0);
-        statusOfClient(playing(id('d'), { positionMs: 198000 }));
+        statusOfClient(playing(id('d'), { positionMs: 199400 }));
         const ran = statusOfClient(playing(id('c')));
         expect(ran.ended).toBe(true);
         expect(ran.skipped).toBeUndefined();
@@ -452,14 +463,19 @@ describe('the fallback answer', () => {
         expect(request).not.toHaveBeenCalledWith('client_queue', expect.anything());
     });
 
-    it('ends the session when the title it shows is another song', async () => {
+    it('hands another song it shows on by its names, and ends nothing', async () => {
         const a = songOf('a');
         await spotifyClientPlayback.play!(a, 0);
         statusOfClient(playing(id('a')));
 
+        // The coarse channel names no track: what it shows is handed to the take-over of the route,
+        // which is the only place that song can still be found. Folia's queue is never stepped on
+        // for it, and this song is not called over either.
         const status = statusOfClient(degraded({ title: 'Something Else', artist: 'Somebody' }));
-        expect(status.ended).toBe(true);
-        expect(status.mediaId).toBe(id('a'));
+        expect(status.ended).toBe(false);
+        expect(status.skipped).toBeUndefined();
+        expect(status.mediaId).toBe('');
+        expect(status.shownTrack).toEqual({ title: 'Something Else', artist: 'Somebody' });
     });
 
     it('reads a title that only gained a "(with …)" credit as another song', async () => {
@@ -468,7 +484,8 @@ describe('the fallback answer', () => {
         statusOfClient(playing(id('a')));
 
         const status = statusOfClient(degraded({ title: 'Song (With You)', artist: 'Artist' }));
-        expect(status.ended).toBe(true);
+        expect(status.ended).toBe(false);
+        expect(status.shownTrack).toEqual({ title: 'Song (With You)', artist: 'Artist' });
     });
 
     it('ends the session when the title it shows is a song Folia had written and then took back', async () => {
@@ -500,8 +517,8 @@ describe('the fallback answer', () => {
 
     it('treats a title Folia never wrote as the listener stepping the app itself', async () => {
         // The record names the songs Folia put behind this one. A title that is none of them was not
-        // the app moving on by itself but the listener using the app's own controls, and it is pulled
-        // back exactly as the app's own answer is.
+        // the app moving on by itself but the listener using the app's own controls, and that song
+        // is the one shown, never something Folia plays over it.
         const [a, b] = ['a', 'b'].map(songOf);
         await spotifyClientPlayback.play!(a, 0);
         statusOfClient(playing(id('a')));
@@ -509,8 +526,21 @@ describe('the fallback answer', () => {
         statusOfClient(degraded({ title: 'Song a', artist: 'Artist' }));
 
         const status = statusOfClient(degraded({ title: 'Something Else', artist: 'Somebody' }));
+        expect(status.ended).toBe(false);
+        expect(status.skipped).toBeUndefined();
+        expect(status.shownTrack).toEqual({ title: 'Something Else', artist: 'Somebody' });
+    });
+
+    it('reads a coarse title that is the app moving on to the song Folia wrote next as this song ending', async () => {
+        const [a, b] = ['a', 'b'].map(songOf);
+        await spotifyClientPlayback.play!(a, 0);
+        statusOfClient(playing(id('a')));
+        await spotifyClientPlayback.prepareNext!(a, [b]);
+        statusOfClient(degraded({ title: 'Song a', artist: 'Artist' }));
+
+        const status = statusOfClient(degraded({ title: 'Song b', artist: 'Artist' }));
         expect(status.ended).toBe(true);
-        expect(status.skipped).toBe('next');
+        expect(status.skipped).toBeUndefined();
     });
 
     it('keeps the session when the title it shows is the same song', async () => {
@@ -1436,16 +1466,29 @@ describe('repeat one carried out by the app\'s own repeat of the track', () => {
         expect(status.mediaId).toBe(id('b'));
     });
 
-    it('reads a track change beside the end of the song as the song ending where the app does not repeat it', async () => {
+    it('reads a track change within a second of the end as the song ending where the app does not repeat it', async () => {
         const [a] = ['a', 'b'].map(songOf);
         await spotifyClientPlayback.play!(a, 0);
-        statusOfClient(playing(id('a'), { positionMs: 198500 }));
-
-        // No repeat of the track: the app went on to something of its own when this song ran out,
+        // Six tenths of a second before the end: the song had run out by the time the app moved on,
         // which is what the end of the song reads as.
+        statusOfClient(playing(id('a'), { positionMs: 199400 }));
+
         const status = statusOfClient(playing(id('b'), { positionMs: 0 }));
         expect(status.ended).toBe(true);
         expect(status.skipped).toBeUndefined();
+    });
+
+    it('reads a track change two and a half seconds before the end as the listener pressing next', async () => {
+        const [a] = ['a', 'b'].map(songOf);
+        await spotifyClientPlayback.play!(a, 0);
+        statusOfClient(playing(id('a'), { positionMs: 197500 }));
+
+        // A press a couple of seconds before the end is the listener's own: the app is on the track
+        // they chose, and the song Folia asked for is not called over for it.
+        const status = statusOfClient(playing(id('b'), { positionMs: 0 }));
+        expect(status.ended).toBe(false);
+        expect(status.skipped).toBeUndefined();
+        expect(status.mediaId).toBe(id('b'));
     });
 
     it('goes round to the start of the song when the bar is dragged to its end', async () => {
@@ -1527,11 +1570,12 @@ describe('repeat one carried out by the app\'s own repeat of the track', () => {
         statusOfClient(degraded({ positionMs: 199500, title: 'Song a', artist: 'Artist' }));
 
         const status = statusOfClient(degraded({ positionMs: 199900, title: 'Something Else', artist: 'Somebody' }));
-        expect(status.ended).toBe(true);
-        expect(status.skipped).toBe('next');
+        expect(status.ended).toBe(false);
+        expect(status.skipped).toBeUndefined();
+        expect(status.shownTrack).toEqual({ title: 'Something Else', artist: 'Somebody' });
     });
 
-    it('still pulls a coarse answer far from the end of the song back to Folia queue', async () => {
+    it('hands a coarse answer far from the end of the song on too, and steps no queue', async () => {
         const [a, b] = ['a', 'b'].map(songOf);
         await spotifyClientPlayback.play!(a, 0);
         statusOfClient(playing(id('a')));
@@ -1539,8 +1583,9 @@ describe('repeat one carried out by the app\'s own repeat of the track', () => {
         statusOfClient(degraded({ positionMs: 1000, title: 'Song a', artist: 'Artist' }));
 
         const status = statusOfClient(degraded({ positionMs: 1000, title: 'Something Else', artist: 'Somebody' }));
-        expect(status.ended).toBe(true);
-        expect(status.skipped).toBe('next');
+        expect(status.ended).toBe(false);
+        expect(status.skipped).toBeUndefined();
+        expect(status.shownTrack).toEqual({ title: 'Something Else', artist: 'Somebody' });
     });
 
     it('keeps repeat one as Folia\'s own replay where the app would not turn its repeat of the track on', async () => {

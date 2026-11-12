@@ -1,12 +1,15 @@
-import type { SongResult } from '../../../../types';
-import type { OnlineProviderId, ProviderExternalPlaybackStatus } from '../../../../types/onlineMusic';
+import type { LyricData, SongResult } from '../../../../types';
+import type { MediaId, OnlineProviderId, ProviderExternalPlaybackStatus } from '../../../../types/onlineMusic';
 import { omni } from '../../../../services/onlineMusic/omni';
 import { isSongUnavailable } from '../../../../services/onlineMusic/songAvailability';
-import { getOnlineProviderIdForSong, getPlaybackSongKey } from '../../../../utils/appPlaybackGuards';
+import { useOnlineProviderAccountStore } from '../../../../stores/useOnlineProviderAccountStore';
+import { setCachedCoverUrl, setCurrentSong } from '../../../../stores/usePlaybackStore';
+import { getOnlineProviderIdForSong, getPlaybackSongKey, isSamePlaybackSong } from '../../../../utils/appPlaybackGuards';
 
 // src/components/app/playback/restore/runningTrack.ts
 // The track a player that outlived the app is on, when it is not the song the session remembered:
-// looked up by the id the player names, and put in the queue in front of that song.
+// looked up by the id the player names, put in the queue where that song stood, and shown with its
+// own cover and lyrics.
 
 /**
  * The track the player names, looked up in its own platform's catalogue the way any song is looked
@@ -65,4 +68,59 @@ export const queueWithRunningTrack = (
     const rest = queue.filter(song => getPlaybackSongKey(song) !== trackKey);
     const at = rest.findIndex(song => getPlaybackSongKey(song) === rememberedKey);
     return at < 0 ? [track, ...rest] : [...rest.slice(0, at), track, ...rest.slice(at)];
+};
+
+/**
+ * The words and the cover of a track this app took over from a player's own window, loaded the way a
+ * song change loads them: the song's own, and nothing once the listener moved on to another song
+ * while one of them was on its way. A pure-music track and the state of its lyric lookup are patches
+ * of the song on screen, and land only on that one.
+ */
+export const loadTakenTrackDetails = async (
+    track: SongResult,
+    stillCurrent: () => boolean,
+    applyLyrics: (lyrics: LyricData | null) => void,
+    /** The account the caller already holds, where it holds one: a restore has its own. */
+    knownAccount?: { userId?: MediaId | null },
+): Promise<void> => {
+    const providerId = getOnlineProviderIdForSong(track);
+    // The account of the track's own platform, where one is signed in: the lyric lookup of a
+    // platform that has none is asked without it, as every other caller does.
+    const account = providerId ? useOnlineProviderAccountStore.getState().accounts[providerId] : undefined;
+    const userId: MediaId | null | undefined = knownAccount
+        ? knownAccount.userId
+        : account ? account.user?.id ?? null : null;
+    try {
+        // Loaded here rather than beside the bridge: these reach the whole lyric and catalogue side of
+        // the app, and the bridge that watches a player is mounted for the whole run.
+        const [{ getCachedSongCoverUrl }, { getSongCoverUrl }, { loadOnlineSongLyrics }] = await Promise.all([
+            import('../../../../services/onlineMusic/resourceCache'),
+            import('../../../../services/onlineMusic/songMetadata'),
+            import('../../../../services/onlinePlayback'),
+        ]);
+        const coverUrl = await getCachedSongCoverUrl(track);
+        if (!stillCurrent()) return;
+        setCachedCoverUrl(coverUrl ?? getSongCoverUrl(track) ?? null);
+        await loadOnlineSongLyrics(track, null, userId, {
+            isCurrent: stillCurrent,
+            onLyrics: nextLyrics => {
+                if (stillCurrent()) applyLyrics(nextLyrics);
+            },
+            onPureMusicChange: isPureMusic => {
+                if (!stillCurrent()) return;
+                setCurrentSong(previous => (
+                    !previous || !isSamePlaybackSong(previous, track) ? previous : { ...previous, isPureMusic }
+                ));
+            },
+            onStateChange: state => {
+                if (!stillCurrent()) return;
+                setCurrentSong(previous => (
+                    !previous || !isSamePlaybackSong(previous, track) ? previous : { ...previous, onlineLyricsState: state ?? undefined }
+                ));
+            },
+            onDone: () => undefined,
+        });
+    } catch (error) {
+        console.warn('[runningTrack] the track taken over could not be shown with its own cover and lyrics', error);
+    }
 };

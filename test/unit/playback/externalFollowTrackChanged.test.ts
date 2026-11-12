@@ -7,7 +7,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // nothing was taken. A track taken over is either the player's now (adopted) or shown paused where
 // it is (shown): both are on screen, so neither is stopped - f25db71e5 is the commit that fixed a
 // pause being stopped here. A take-over that took nothing and one that threw leave the player
-// sounding a song Folia knows nothing about, so both stop it.
+// sounding a track the listener picked in its own window, and that one is never stopped either: the
+// player is left as it is, and the most this app does with the track is leave it sounding.
+
+/** What a take-over is handed by its caller: the hooks it answers once it holds the track. */
+type TakeOverOptions = { onTrackTaken?: (track: unknown, stillCurrent: () => boolean) => Promise<void> | void };
 
 const env = vi.hoisted(() => ({
     effects: [] as Array<{ run: () => unknown; cleanup?: () => void }>,
@@ -16,8 +20,15 @@ const env = vi.hoisted(() => ({
     externalRoute: true,
     externalSong: { id: 'song' } as unknown,
     outcome: 'adopted' as string,
-    adopt: vi.fn(),
-    stopForeign: vi.fn(),
+    adopt: vi.fn<(shown: unknown, status: unknown, options?: TakeOverOptions) => Promise<string>>(async () => 'adopted'),
+    stopForeign: vi.fn<(reason?: string) => void>(),
+    /** What the bridge wrote for the track it took over: its cover and its lyrics. */
+    coverDropped: vi.fn<(url: unknown) => void>(),
+    lyricsSet: vi.fn<(lyrics: unknown) => void>(),
+    lyricsLoading: [] as boolean[],
+    detailsLoaded: vi.fn<(track: unknown, stillCurrent: () => boolean, applyLyrics: (lyrics: unknown) => void) => Promise<void>>(
+        async () => undefined,
+    ),
     status: { mediaId: 'other', isPlaying: true, positionMs: 1000, durationMs: 2000, ended: false },
 }));
 
@@ -63,14 +74,34 @@ vi.mock('@/stores/useAudioSettingsStore', () => {
 });
 vi.mock('@/stores/useStatusMessageStore', () => ({ setStatusMessage: () => undefined }));
 vi.mock('@/stores/usePlaybackStore', () => {
-    const read = () => ({ currentSong: { id: 'song' }, playbackRoute: 'external', playQueue: [] });
+    const state = {
+        currentSong: { id: 'song' } as unknown, playbackRoute: 'external', playQueue: [] as unknown[],
+        setPlayQueue: (next: unknown) => {
+            state.playQueue = (typeof next === 'function' ? (next as (previous: unknown[]) => unknown[])(state.playQueue) : next) as unknown[];
+        },
+        setCachedCoverUrl: (next: unknown) => env.coverDropped(next),
+        setLyricsState: (next: unknown) => env.lyricsSet(next),
+    };
+    const read = () => state;
     const store = (selector?: (state: unknown) => unknown) => (selector ? selector(read()) : read());
-    return { usePlaybackStore: Object.assign(store, { getState: read, subscribe: () => () => {} }) };
+    return {
+        usePlaybackStore: Object.assign(store, { getState: read, subscribe: () => () => {} }),
+        setCachedCoverUrl: (next: unknown) => state.setCachedCoverUrl(next),
+        setLyricsState: (next: unknown) => state.setLyricsState(next),
+    };
 });
+// What the take-over writes for the track it took over, reached through a dynamic import: its own
+// cover and lyrics, and the queue the track goes in.
+vi.mock('@/components/app/playback/restore/runningTrack', () => ({
+    loadTakenTrackDetails: (
+        track: unknown, stillCurrent: () => boolean, applyLyrics: (lyrics: unknown) => void,
+    ) => env.detailsLoaded(track, stillCurrent, applyLyrics),
+    queueWithRunningTrack: (queue: unknown[], track: unknown) => [...queue, track],
+}));
 vi.mock('@/components/app/playback/bridges/externalPlayerFollow', () => ({
     followsPlayerChangesForShownSong: () => env.traits.followsPlayerChanges === true,
     followRunningExternalPlayer: async () => 'untouched',
-    takeOverRunningPlayer: (...args: unknown[]) => env.adopt(...args),
+    takeOverRunningPlayer: (shown: unknown, status: unknown, options?: TakeOverOptions) => env.adopt(shown, status, options),
 }));
 
 const { useExternalPlaybackBridge } = await import('@/components/app/playback/bridges/useExternalPlaybackBridge');
@@ -79,7 +110,11 @@ const { useExternalPlaybackBridge } = await import('@/components/app/playback/br
 const MountBridge = () => {
     env.effects.length = 0;
     env.listener = null;
-    useExternalPlaybackBridge({ handleNextTrack: vi.fn(), handlePrevTrack: vi.fn() });
+    useExternalPlaybackBridge({
+        handleNextTrack: vi.fn(), handlePrevTrack: vi.fn(),
+        setShownLyrics: (lyrics: unknown) => env.lyricsSet(lyrics),
+        setIsLyricsLoading: (loading: boolean) => env.lyricsLoading.push(loading),
+    });
     for (const effect of env.effects) effect.cleanup = effect.run() as (() => void) | undefined;
     expect(env.listener).not.toBeNull();
     return (event: unknown) => env.listener!(event);
@@ -93,8 +128,18 @@ describe('the track the player moved on to', () => {
         env.externalSong = { id: 'song' };
         env.outcome = 'adopted';
         env.adopt.mockReset();
-        env.adopt.mockImplementation(async () => env.outcome);
+        env.detailsLoaded.mockReset().mockResolvedValue(undefined);
+        // The take-over answers its caller's own hook once it holds the track, as the real one does.
+        env.adopt.mockImplementation(async (
+            _shown: unknown, _status: unknown, options?: TakeOverOptions,
+        ) => {
+            if (env.outcome !== 'untouched' && options?.onTrackTaken) await options.onTrackTaken({ id: 'other' }, () => true);
+            return env.outcome;
+        });
         env.stopForeign.mockClear();
+        env.coverDropped.mockClear();
+        env.lyricsSet.mockClear();
+        env.lyricsLoading.length = 0;
     });
 
     afterEach(() => {
@@ -140,17 +185,43 @@ describe('the track the player moved on to', () => {
         expect(env.stopForeign).not.toHaveBeenCalled();
     });
 
-    it('stops the player where nothing of the track could be taken', async () => {
+    // A track taken over is shown with its own cover and lyrics: the ones of the song it replaced
+    // are cleared first, and the words it has not said yet are shown as loading rather than as the
+    // previous song's.
+    it('clears the cover and the lyrics of the replaced song, and says a lookup is on its way', async () => {
+        const fire = MountBridge();
+
+        fire({ type: 'track-changed', status: env.status });
+        await vi.advanceTimersByTimeAsync(0);
+
+        expect(env.coverDropped).toHaveBeenCalledTimes(1);
+        expect(env.lyricsSet).toHaveBeenCalledWith(null);
+        expect(env.lyricsLoading[0]).toBe(true);
+    });
+
+    it('writes nothing of the song it replaced where the track was not taken over', async () => {
         env.outcome = 'untouched';
         const fire = MountBridge();
 
         fire({ type: 'track-changed', status: env.status });
         await vi.advanceTimersByTimeAsync(0);
 
-        expect(env.stopForeign).toHaveBeenCalledTimes(1);
+        expect(env.coverDropped).not.toHaveBeenCalled();
+        expect(env.lyricsSet).not.toHaveBeenCalled();
     });
 
-    it('stops the player where the take-over threw', async () => {
+    it('leaves the player sounding where nothing of the track could be taken', async () => {
+        env.outcome = 'untouched';
+        const fire = MountBridge();
+
+        fire({ type: 'track-changed', status: env.status });
+        await vi.advanceTimersByTimeAsync(0);
+
+        expect(env.adopt).toHaveBeenCalledTimes(1);
+        expect(env.stopForeign).not.toHaveBeenCalled();
+    });
+
+    it('leaves the player sounding where the take-over threw', async () => {
         const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
         env.adopt.mockImplementation(() => Promise.reject(new Error('the lookup failed')));
         const fire = MountBridge();
@@ -158,7 +229,7 @@ describe('the track the player moved on to', () => {
         fire({ type: 'track-changed', status: env.status });
         await vi.advanceTimersByTimeAsync(0);
 
-        expect(env.stopForeign).toHaveBeenCalledTimes(1);
+        expect(env.stopForeign).not.toHaveBeenCalled();
         expect(warn).toHaveBeenCalled();
         warn.mockRestore();
     });

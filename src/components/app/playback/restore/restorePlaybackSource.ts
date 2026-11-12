@@ -5,7 +5,7 @@ import { getLocalSongs } from '../../../../services/db';
 import { applyLocalLibraryEntityDisplay, buildUnifiedLocalSong } from '../../../../services/playbackAdapters';
 import { getLocalLibraryCatalogSnapshot } from '../../../../services/localLibraryEntityRepository';
 import { getNavidromeConfig } from '../../../../services/navidromeService';
-import { applyOnlineAudioSourceMetadata, loadOnlineSongLyrics } from '../../../../services/onlinePlayback';
+import { applyOnlineAudioSourceMetadata } from '../../../../services/onlinePlayback';
 import { notifyPlaybackFailed } from '../../../../services/hostExtensionHooks';
 import { wholeQueueWritesSoFar } from '../../../../services/wholeQueueWrites';
 import type { ThemeCacheSongKey } from '../../../../services/themeCache';
@@ -39,7 +39,7 @@ import { setActiveLocalLyricsSource, setAudioSrc, setCachedCoverUrl, setCurrentS
 import { askedSongKeyRef, keepSongsOfProvidersStanding, providerDropsSoFar, replaceShownSong } from '../currentSong';
 import { onlineFailureToast } from '../source/onlineFailureToast';
 import { loadLocalSongAudio, loadLocalSongHifiSource, loadNavidromeSongAudio, loadOnlineSongAudio } from '../source/songAudioSource';
-import { queueWithRunningTrack } from './runningTrack';
+import { loadTakenTrackDetails, queueWithRunningTrack } from './runningTrack';
 import { takeOverRunningPlayer } from '../bridges/externalPlayerFollow';
 import { useLyricSettingsStore } from '../../../../stores/useLyricSettingsStore';
 import { useHifiSettingsStore } from '../../../../stores/useHifiSettingsStore';
@@ -110,37 +110,6 @@ type RunningTrackRestoreOptions = {
 };
 
 /**
- * The track taken over is shown with its own details, loaded as a song change loads them: its cover
- * and its lyrics. A load that lands after the listener moved on writes nothing.
- */
-const loadRunningTrackDetails = async (
-    track: SongResult,
-    { userId, setLyrics }: Pick<RunningTrackRestoreOptions, 'userId' | 'setLyrics'>,
-    stillCurrent: () => boolean,
-): Promise<void> => {
-    try {
-        const coverUrl = await getCachedSongCoverUrl(track);
-        if (!stillCurrent()) return;
-        setCachedCoverUrl(coverUrl ?? getSongCoverUrl(track) ?? null);
-        await loadOnlineSongLyrics(track, null, userId, {
-            isCurrent: stillCurrent,
-            onLyrics: nextLyrics => {
-                if (stillCurrent()) setLyrics(nextLyrics);
-            },
-            onPureMusicChange: isPureMusic => setCurrentSong(previous => (
-                !previous || !isSamePlaybackSong(previous, track) ? previous : { ...previous, isPureMusic }
-            )),
-            onStateChange: state => setCurrentSong(previous => (
-                !previous || !isSamePlaybackSong(previous, track) ? previous : { ...previous, onlineLyricsState: state ?? undefined }
-            )),
-            onDone: () => undefined,
-        });
-    } catch (error) {
-        console.warn('[restorePlaybackSourceForSong] The track taken over could not be shown with its own cover and lyrics', error);
-    }
-};
-
-/**
  * The remembered song's own player outlived the app: read once what it has now. A player sounding
  * this song is taken over as it stands - the external route, its clock, the media keys and the songs
  * that follow it are the ones this app follows anyway - and the intent to play the restore armed is
@@ -170,6 +139,9 @@ const resumeRunningExternalPlayback = async (
     }
     const outcome = await takeOverRunningPlayer(song, running, {
         isWanted: () => !overtaken(),
+        // This caller writes and saves the list the player was found in, so the take-over leaves
+        // the store's queue to it.
+        ownsQueue: true,
         spendPlayIntent: () => dropPlayIntent(options.shouldAutoPlayRef),
         onTrackTaken: async (track, stillCurrent) => {
             if (!stillCurrent()) return;
@@ -181,7 +153,10 @@ const resumeRunningExternalPlayback = async (
             }).catch((error: unknown) => {
                 console.warn('[restorePlaybackSourceForSong] The theme of the track taken over could not be restored', error);
             });
-            await loadRunningTrackDetails(track, options, stillCurrent);
+            // The words and the cover of the track, loaded the way any song change loads its own.
+            // The queue the caller hands in is the one the player was found in; the take-over has
+            // already put the track in the store's queue, so only a caller's own queue is written.
+            await loadTakenTrackDetails(track, stillCurrent, options.setLyrics, { userId: options.userId });
         },
     });
     // A track the player turned out not to hold, and one that names no track of its own: where the
