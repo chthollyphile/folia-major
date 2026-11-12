@@ -165,35 +165,24 @@ describe('a song the app is playing', () => {
 });
 
 describe('a track change the app made by its own controls', () => {
-    it('is pulled back to Folia queue: a track that is not the previous one steps on', async () => {
+    it('names the track the app is on, and is no end of this song', async () => {
         const a = songOf('a');
         await spotifyClientPlayback.play!(a, 0);
         statusOfClient(playing(id('a'), { positionMs: 10000 }));
 
         const status = statusOfClient(playing(id('c')));
-        expect(status.ended).toBe(true);
-        expect(status.skipped).toBe('next');
-        expect(status.mediaId).toBe(id('a'));
+        expect(status.ended).toBe(false);
+        expect(status.skipped).toBeUndefined();
+        expect(status.mediaId).toBe(id('c'));
     });
 
-    it('is pulled back one step back when the app went to the track Folia played before', async () => {
-        const a = songOf('a');
-        const b = songOf('b');
-        await spotifyClientPlayback.play!(a, 0);
-        await spotifyClientPlayback.play!(b, 0);
-        statusOfClient(playing(id('b'), { positionMs: 10000 }));
-
-        const status = statusOfClient(playing(id('a')));
-        expect(status.ended).toBe(true);
-        expect(status.skipped).toBe('previous');
-    });
-
-    it('is pulled back once only, however long the app stays on the other track', async () => {
+    it('is a track change once only, however long the app stays on the other track', async () => {
         const a = songOf('a');
         await spotifyClientPlayback.play!(a, 0);
         statusOfClient(playing(id('a'), { positionMs: 10000 }));
-        expect(statusOfClient(playing(id('c'))).skipped).toBe('next');
-        expect(statusOfClient(playing(id('c'))).skipped).toBeUndefined();
+        expect(statusOfClient(playing(id('c'))).mediaId).toBe(id('c'));
+        expect(statusOfClient(playing(id('c'))).mediaId).toBe(id('c'));
+        expect(spotifyClientAttempt()?.adoptedAppPick).toBe(true);
     });
 
     it('is not a skip when the song ran out, when the app went on to the song Folia queued, or for an advertisement', async () => {
@@ -668,6 +657,7 @@ describe('a track the app is still playing after the window that started it', ()
         // The app going on to a song of its own after this one ran out is this song's end, not a
         // track Folia knows nothing about.
         expect(statusOfClient(playing(id('a'))).mediaId).toBe(id('a'));
+        statusOfClient(playing(id('a'), { positionMs: 199000 }));
         const ranOut = statusOfClient(playing(id('z'), { positionMs: 199000 }));
         expect(ranOut.ended).toBe(true);
         expect(ranOut.mediaId).toBe(id('a'));
@@ -1436,12 +1426,14 @@ describe('repeat one carried out by the app\'s own repeat of the track', () => {
         // The song is in its last seconds, the app repeats the track, and the listener pressed next
         // in Spotify's own window: the app names another track from right beside this song's end.
         // Where the song is when they press says nothing about why it moved - the app's own repeat
-        // would bring this same track round - so the press is read as the press it is.
+        // would bring this same track round - so the press is read as the track the app is on now,
+        // which is adopted over this one rather than called the end of it.
         statusOfClient(playing(id('a'), { positionMs: 198500 }));
 
         const status = statusOfClient(playing(id('b'), { positionMs: 0 }));
-        expect(status.ended).toBe(true);
-        expect(status.skipped).toBe('next');
+        expect(status.ended).toBe(false);
+        expect(status.skipped).toBeUndefined();
+        expect(status.mediaId).toBe(id('b'));
     });
 
     it('reads a track change beside the end of the song as the song ending where the app does not repeat it', async () => {
