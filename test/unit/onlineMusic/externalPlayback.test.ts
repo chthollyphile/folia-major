@@ -1400,19 +1400,39 @@ describe('a move the player takes seconds to take', () => {
     });
 
     it('does not hold an answer off where the drop is too close to the line it stood on', async () => {
-        // A second either way is as far apart as the two lines can be told: dropping the bar beside the
-        // spot the song stood on leaves every read the player's own.
+        // Half a second either way is as far apart as the two lines can be told: dropping the bar beside
+        // the spot the song stood on leaves every read the player's own. The player answers from where it
+        // still stands, so the bar hands the spot over to it at once - the price of a drag this short is
+        // one step back of under half a second, never a bar held off its own line for the whole wait.
         await startFrom(20000);
         const movedAt = performance.now();
-        expect(engine.seekExternalPlayback(18.5)).toBe(true);
+        expect(engine.seekExternalPlayback(19.6)).toBe(true);
         await vi.advanceTimersByTimeAsync(20);
         omniMock.getExternalPlaybackStatus.mockImplementation(async () => (
             status({ positionMs: 20000 + Math.round(performance.now() - movedAt), isPlaying: true })
         ));
         await vi.advanceTimersByTimeAsync(500);
 
-        expect(engine.getExternalPosition()).toBeGreaterThan(19.9);
+        expect(engine.getExternalPosition()).toBeGreaterThan(20);
         expect(engine.getExternalPosition()).toBeLessThan(21);
+    });
+
+    it('makes a drag of under half a second the player own line as soon as it answers', async () => {
+        // The drop is near enough to the line the song stood on that no read can be told from the other:
+        // the player's own spot stands, which is under half a second below the spot the bar was dropped
+        // on. That one step is the whole of what such a drag costs the timeline.
+        await startFrom(20000);
+        const movedAt = performance.now();
+        expect(engine.seekExternalPlayback(19.6)).toBe(true);
+        await vi.advanceTimersByTimeAsync(20);
+        omniMock.getExternalPlaybackStatus.mockImplementation(async () => (
+            status({ positionMs: 20000 + Math.round(performance.now() - movedAt), isPlaying: true })
+        ));
+        const seen = await readings(1500);
+
+        expect(seen[0]).toBeGreaterThanOrEqual(19.6);
+        expect(Math.min(...seen)).toBeGreaterThan(19.5);
+        expect(largestDrop(seen)).toBeLessThanOrEqual(0.5);
     });
 
     it('stays on the spot the bar was dropped on when the paused player still names the old one', async () => {
