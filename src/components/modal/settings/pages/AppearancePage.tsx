@@ -12,7 +12,8 @@ import { settingsAnchorSubview } from '../navigation/settingsAnchorModel';
 import { useSettingsPage } from './settingsPageContext';
 
 // src/components/modal/settings/pages/AppearancePage.tsx
-// The 外观 page: which lyric animation the player uses, light or dark, the colour theme, and how a
+// The 外观 page: which lyric animation the player uses, which scene (its window holds each scene's
+// settings and sound tracing), light or dark, the colour theme, and how a
 // song's own theme is made and applied. The AI provider those themes are generated with is not
 // here: it is one connection shared by every AI feature, on the AI service page (pages/AiServicePage).
 // The lyric animation workbench and the theme colour editor are the existing overlays; their rows
@@ -43,7 +44,7 @@ type DaylightChoice = 'light' | 'dark' | 'system';
 
 const AppearancePage: React.FC = () => {
     const { t } = useTranslation();
-    const { themeControls, onOpenVisPlayground, onOpenThemePark } = useSettingsPage();
+    const { themeControls, onOpenVisPlayground, onOpenThemePark, onOpenSceneWindow } = useSettingsPage();
     const { isDaylight, followSystemTheme, setDaylightPreference, setFollowSystemTheme } = useThemeSettingsStore(useShallow(state => ({
         isDaylight: state.isDaylight,
         followSystemTheme: state.followSystemTheme,

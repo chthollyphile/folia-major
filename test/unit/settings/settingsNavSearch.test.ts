@@ -17,7 +17,7 @@ const translate = (key: string): string => {
 
 // A page built with the kit declares its options; this stands in for one.
 const GRID: SettingsGroupDef = { id: 'gridViewCardSettings', titleKey: 'options.gridViewCardSettings' };
-const AI: SettingsGroupDef = { id: 'electronSettings', titleKey: 'options.electronSettings', electronOnly: true };
+const AI: SettingsGroupDef = { id: 'electronSettings', titleKey: 'options.aiServiceProviders', electronOnly: true };
 // A group the web has too, with one row only the desktop app draws.
 const MEDIA: SettingsGroupDef = { id: 'mediaCache', titleKey: 'options.mediaCache' };
 // A group whose id is a place a command names (settingsAnchorModel).
