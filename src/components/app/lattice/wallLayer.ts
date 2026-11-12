@@ -43,6 +43,17 @@ export const WALL_LAYER: Variants = {
 // page whose tracks were at hand have come in (up to 0.32 s late, 0.5 s each).
 const VISUALIZER_AFTER_PAGE_ENTRANCE_MS = 900;
 
+// Left for a page, the visualizer waits for that page's entrance, and the end of that wait is
+// reported by the exit of the wall's layer (wallExitCompleted). A wall taken off the screen
+// without running that exit — a view switched away in the same frame, the player unmounting it —
+// leaves the flag on for good, and the visualizer never comes back: the windows of a see-through
+// wall stay black from then on. Nothing else clears the flag while the page is up, so the wait is
+// capped here as well.
+// Longer than the whole timeline it has to outlast, so a wait that is still running is never cut
+// short by it: coming back from the wall the home side may take its 1.6 s to report ready, the
+// wave takes 0.78 s, and the page's entrance another 0.9 s after the wall's exit (3.28 s).
+const PAGE_ENTRANCE_FALLBACK_MS = VISUALIZER_AFTER_PAGE_ENTRANCE_MS + 2700;
+
 // How long a wall that fades in over a collection's page has the visualizer under it. The fade
 // lasts 200 ms (Lattice.css, `lattice-return`) and starts with the wall's first frame, which
 // comes after the wall's first render: that render is given 300 ms. Under a wall that covers
@@ -93,6 +104,24 @@ export const useVisualizerAroundWall = create<VisualizerAroundWall>(() => {
 
 let coverTimer: ReturnType<typeof setTimeout> | undefined;
 let entranceTimer: ReturnType<typeof setTimeout> | undefined;
+let pageFallbackTimer: ReturnType<typeof setTimeout> | undefined;
+
+/** The wall's exit never reported its end: stop waiting for the page's entrance, which puts the visualizer back. */
+const schedulePageEntranceFallback = () => {
+    if (pageFallbackTimer !== undefined) return;
+    pageFallbackTimer = setTimeout(() => {
+        pageFallbackTimer = undefined;
+        const app = useAppViewStore.getState();
+        if (app.view === 'lattice' || !app.isLatticeLeftForPage) return;
+        app.setIsLatticeLeftForPage(false);
+    }, PAGE_ENTRANCE_FALLBACK_MS);
+};
+
+const clearPageEntranceFallback = () => {
+    if (pageFallbackTimer === undefined) return;
+    clearTimeout(pageFallbackTimer);
+    pageFallbackTimer = undefined;
+};
 
 /** One log line each time the visualizer is taken down, kept or put back: which rule did it. */
 const report = (what: string) => console.log(`[Lattice] Visualizer ${what}`);
@@ -105,6 +134,7 @@ useAppViewStore.subscribe((app, before) => {
         if (before.view === 'lattice') return;
         // A wall is put up. No page's entrance is waited for any more.
         clearTimeout(entranceTimer);
+        clearPageEntranceFallback();
         if (isUp && wallFadesInOverPage()) {
             useVisualizerAroundWall.setState({ hasWallLeft: false });
             report(`kept for ${WALL_COVERS_PAGE_MS} ms under a wall that fades in over a page`);
@@ -120,7 +150,12 @@ useAppViewStore.subscribe((app, before) => {
     }
     // The wall is left: a visualizer it had not covered yet stays.
     if (before.view === 'lattice') clearTimeout(coverTimer);
-    if (isUp || app.isLatticeLeftForPage) return;
+    if (isUp || app.isLatticeLeftForPage) {
+        // The flag is only cleared by the wall's exit end; cap that wait whether the visualizer is
+        // still up or not, so a wall unmounted without its exit cannot keep it on for good.
+        if (app.isLatticeLeftForPage) schedulePageEntranceFallback();
+        return;
+    }
     // In a view that has not changed, what puts it back is the end of a page's entrance.
     const isAfterEntrance = app.view === before.view;
     // Put back as the wall begins to leave, it has the whole wall over it and needs no fade of

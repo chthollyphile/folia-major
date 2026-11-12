@@ -164,6 +164,26 @@ describe('the visualizer, around a wall', () => {
         expect(wallIsLeftForPage()).toBe(false);
     });
 
+    it('comes up anyway when the exit of a wall left for a page never reports its end', () => {
+        putUpWall();
+        pressOpen();
+        goTo('home');
+        after(180);
+        // The wall's layer was taken off the screen without its exit running, so nothing reports the
+        // end of the page's entrance — the moment that is to put the visualizer back. Without the cap
+        // the flag stays on for good and a see-through wall's windows are black from then on.
+        expect(visualizer()).toEqual({ isUp: false, fadesIn: false, hasWallLeft: false });
+
+        // 180 ms of the wall's exit already went by above; the cap is 3 600 ms from the press.
+        after(3419);
+        expect(visualizer()).toEqual({ isUp: false, fadesIn: false, hasWallLeft: false });
+        expect(wallIsLeftForPage()).toBe(true);
+
+        after(1);
+        expect(visualizer()).toEqual({ isUp: true, fadesIn: true, hasWallLeft: false });
+        expect(wallIsLeftForPage()).toBe(false);
+    });
+
     it('comes up after that entrance with no fade where the wall\'s motion is reduced', () => {
         setWallMotionReduced(true);
         openPageFromWall();
