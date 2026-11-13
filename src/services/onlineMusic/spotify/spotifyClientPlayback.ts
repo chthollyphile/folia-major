@@ -755,10 +755,18 @@ export const spotifyClientPlayback: OnlineExternalPlaybackProvider = {
         const carriedConfirmed = adopt ? tailAfter(attempt?.confirmedIds ?? [], id) : [];
         handoffId = null;
         // What the app holds behind the track it is leaving: a start of Folia's does not empty it at
-        // once, so the app may go on to one of those songs before this start lands. Those names are
-        // kept for the length of the window, or a handoff to the song Folia wrote next would be read
-        // as the leftover of the start and silently swallowed - the queue would never step on.
-        const behindBeforeStart = attempt?.behindTracks ?? [];
+        // once, so the app may go on to one of those songs before this start lands. The names that
+        // still follow this song in Folia's queue are kept, or a handoff to the song Folia wrote next
+        // would be read as the leftover of the start and silently swallowed - the queue would never
+        // step on. A start of that same song keeps all of them, a start of a song further down keeps
+        // the ones after it, and a song outside that queue, or a whole list that replaces it, keeps
+        // none: the old queue's songs are then nothing that follows this one.
+        const keptIds = !attempt || options.replaceQueue === true
+            ? []
+            : attempt.id === id ? attempt.nextIds : tailAfter(attempt.nextIds, id);
+        const behindBeforeStart = keptIds
+            .map(held => writtenTracks.get(held))
+            .filter((track): track is ShownTrack => Boolean(track));
         attempt = {
             id, name: song.name, artist: artistNamesOf(song),
             hasPlayed: adopt, positionMs: startMs, durationMs: song.durationMs,
