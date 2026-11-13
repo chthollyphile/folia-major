@@ -41,6 +41,7 @@ import { participants } from '@/services/onlineMusic/crossSource';
 import { canSourceMatchOnly } from '@/services/onlineMusic/sourceStates';
 import { omni } from '@/services/onlineMusic/omni';
 import { getSizedCoverUrl } from '@/utils/coverUrl';
+import { resolveSearchSources } from '@/components/app/search/searchSources';
 import i18n from '@/i18n/config';
 import { clientApiOptions } from './clientApiOptions';
 
@@ -237,6 +238,20 @@ describe('the seams of S1 and S2, fed from capabilities', () => {
         expect(canSourceMatchOnly('netease')).toBe(true);
         expect(canSourceMatchOnly('spotify')).toBe(false);
         expect(participants('metadata').ready.slice(0, 3)).toEqual(['netease', 'qq', 'kugou']);
+    });
+
+    it('the search page lists a source whose search needs no account, signed in or not', () => {
+        register({
+            id: 'a',
+            capabilities: {
+                'search@1': { searchSongs: async () => ({ items: [], hasMore: false }) },
+                'auth@1': { getLoginStatus: async () => null, logout: async () => {} },
+            },
+        });
+        const id = `folium.${MOD}.a`;
+        const summaries = omni.getProviderSummaries();
+        expect(summaries.find((summary) => summary.providerId === id)).toMatchObject({ requiresAccount: true, status: 'unknown' });
+        expect(resolveSearchSources({ providers: summaries, activeProviderId: 'netease', hasLocalSongs: false, navidromeReady: false })).toContain(id);
     });
 
     it('a source without its search does no cross-source matching', () => {

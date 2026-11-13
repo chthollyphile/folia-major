@@ -8,11 +8,13 @@ import { getNavidromeConfig } from '../../../services/navidromeService';
 import { useOnlineProviderAccountStore } from '../../../stores/useOnlineProviderAccountStore';
 import { useLibraryStore } from '../../../stores/useLibraryStore';
 import { getSourceState, getSourceStates, subscribeSourceStates } from '../../../services/onlineMusic/sourceStates';
+import { getSourceDeclaration } from '../../../services/onlineMusic/sourceDeclarations';
 
 // src/components/app/search/searchSources.ts
 // 搜索页列出哪些来源：当前在线平台，加上已经登录的、不需要登录的在线平台；本地曲库里有歌才列本地，Navidrome
 // 开着并且填好了服务器才列它。没登录的在线平台不列（搜到了也放不了它的歌）。别的在线平台列不列，按跨音源功能的
 // 同一条规则（services/onlineMusic/crossSource.ts）：没注册的不在摘要里，没配好的、要账号而没登录的跳过，跳过的不画。
+// 要不要账号：Folium 2 的音源按它 search@1 的 access（sourceDeclarations.ts）；内置平台照旧按有没有账号。
 
 type SearchSourceAvailability = {
     providers: readonly ProviderAccountSummary[];
@@ -34,7 +36,8 @@ export const resolveSearchSources = ({
             .filter(provider => provider.providerId !== activeProviderId)
             .map(provider => ({
                 sourceId: provider.providerId,
-                access: provider.requiresAccount === false ? 'anonymous' as const : 'account' as const,
+                access: getSourceDeclaration(provider.providerId)?.search?.access
+                    ?? (provider.requiresAccount === false ? 'anonymous' as const : 'account' as const),
                 checksAvailability: true,
             })),
         ({ sourceId }) => {
