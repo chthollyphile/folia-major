@@ -310,28 +310,18 @@ export const createProviderAccountController = (deps: LibraryAccountControllerDe
         watchedService = { providerId, unsubscribe: askSafely(() => service.subscribe(commit), () => { }) };
     };
 
-    // 存的当前平台不可用（例如 mod 源被关掉）时写回默认平台：不经确认、不清空、不动那个平台的账户缓存。
-    // 写回会再触发一次账户通知，那时已一致，不会循环。
-    const reconcileStoredProvider = (): void => {
-        if (disposed) return;
-        const stored = accounts.getStoredActiveProviderId();
-        const resolved = resolveActiveProviderId(providers, stored);
-        if (stored !== resolved) accounts.setActiveProviderId(resolved);
-    };
-
+    // 存的当前平台不在列表里（音源还没注册、被停用、mod 源被关掉）时，快照里的当前平台只在内存里回落
+    // （resolveActiveProviderId），存的值不写回：那个平台回来后自动又是当前平台（Folium 2.0 方案 §7 第一行）。
     const handleAccountsChanged = (): void => {
         if (disposed) return;
         providers = reconcileProviders(providers, accounts.listProviders());
         commit();
-        reconcileStoredProvider();
     };
 
     const unsubscribes = [
         accounts.subscribe(handleAccountsChanged),
         session.subscribe(commit),
     ];
-    // 首次回落写回推迟到微任务：宿主可能在渲染期间创建 controller，渲染中写 store 会牵动别的组件。
-    void Promise.resolve().then(reconcileStoredProvider);
 
     // ─── 切换 ───────────────────────────────────────────────────────────
 

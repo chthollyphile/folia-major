@@ -12,7 +12,7 @@ const ROOT = path.resolve(__dirname, '../../../..');
 const read = (file: string) => readFileSync(path.join(ROOT, file), 'utf8');
 
 /** providerRegistry.ts 里登记的平台 id（`registerOnlineMusicProvider(neteaseProvider)` → netease）。 */
-const registeredIds = () => [...read('src/services/onlineMusic/providerRegistry.ts').matchAll(/^registerOnlineMusicProvider\((\w+)Provider\);/gm)]
+const registeredIds = () => [...read('src/services/onlineMusic/providerRegistry.ts').matchAll(/^\s*registerOnlineMusicProvider\((\w+)Provider\);/gm)]
     .map(match => match[1]);
 
 /** omniArchitecture 的 forbiddenImport 里代表一个平台的写法：它的 Transport；网易云没有 Transport，是 netease/netease。 */

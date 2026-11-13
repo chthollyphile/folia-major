@@ -7,8 +7,13 @@
 // - `?mockSong` in the URL: the dev mock song (src/dev/mockSong.ts) loads and plays once the app is up.
 // - `?mockLibrary` in the URL: the mock library (src/dev/mockLibrary.ts, 24 short tracks over six albums)
 //   is imported and becomes the play queue once the app is up.
+// - `?noSources` in the URL: none of the built-in online platforms is registered, to see the app with no
+//   platform at all (Folium 2.0 S1: it starts and shows its empty states). A mod's platform still registers.
 
-const searchParams = typeof window === 'undefined' ? new URLSearchParams() : new URLSearchParams(window.location.search);
+// Read where there is no page address too (a test's stand-in window): the online platforms' registry reads a flag here.
+const searchParams = typeof window === 'undefined' || typeof window.location?.search !== 'string'
+    ? new URLSearchParams()
+    : new URLSearchParams(window.location.search);
 
 export const skipsStartupExperience = import.meta.env.DEV && (
     import.meta.env.VITE_SKIP_STARTUP_EXPERIENCE === 'true' || searchParams.has('skipStartup')
@@ -17,3 +22,5 @@ export const skipsStartupExperience = import.meta.env.DEV && (
 export const loadsMockSongAtLaunch = import.meta.env.DEV && searchParams.has('mockSong');
 
 export const loadsMockLibraryAtLaunch = import.meta.env.DEV && searchParams.has('mockLibrary');
+
+export const startsWithoutSources = import.meta.env.DEV && searchParams.has('noSources');

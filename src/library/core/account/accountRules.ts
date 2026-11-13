@@ -1,4 +1,4 @@
-import { DEFAULT_ONLINE_PROVIDER_ID, OnlineProviderError } from '../../../types/onlineMusic';
+import { OnlineProviderError } from '../../../types/onlineMusic';
 import type { LoginLocalServiceStatus, OnlineProviderId, ProviderAccountSummary } from '../../../types/onlineMusic';
 import type { LoginFailure } from '../../../types/loginFailure';
 import type {
@@ -44,15 +44,21 @@ export const resolveProviderSelectLabel = (provider: ProviderAccountSummary): Li
 
 // ─── 当前平台 ───────────────────────────────────────────────────────────
 
-/** 存的当前平台不在 provider 列表里（例如 mod 源被关掉）时回落到默认平台；账户缓存不动。 */
+/**
+ * 存的当前平台不在 provider 列表里（音源还没注册、被停用，mod 源被关掉）时，只在内存里回落到列表里的第一个；
+ * 列表是空的（零音源）时仍是存的那个，界面按「没有这个平台」走空状态。没有默认平台；存的值和账户缓存都不动，
+ * 那个平台回来时它又是当前平台。
+ */
 export const resolveActiveProviderId = (
     providers: readonly ProviderAccountSummary[],
     storedProviderId: OnlineProviderId,
 ): OnlineProviderId => (
-    providers.some(provider => provider.providerId === storedProviderId) ? storedProviderId : DEFAULT_ONLINE_PROVIDER_ID
+    providers.some(provider => provider.providerId === storedProviderId)
+        ? storedProviderId
+        : providers[0]?.providerId ?? storedProviderId
 );
 
-/** 当前平台的摘要；回落后的 id 也找不到（列表里没有默认平台）时取第一个。 */
+/** 当前平台的摘要；列表为空时没有。 */
 export const resolveActiveProviderSummary = (
     providers: readonly ProviderAccountSummary[],
     activeProviderId: OnlineProviderId,

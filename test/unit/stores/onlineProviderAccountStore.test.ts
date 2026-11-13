@@ -18,16 +18,46 @@ describe('online provider account store', () => {
     beforeEach(() => vi.resetModules());
     afterEach(() => vi.unstubAllGlobals());
 
-    it('defaults legacy state to NetEase and persists the selected provider', async () => {
+    // 没有默认平台（Folium 2.0 方案 §7）：什么都没存时是第一个注册的平台，由 settleActiveProvider 定，只在内存里。
+    it('has no default platform: with nothing stored the first registered one is in effect, and a choice is persisted', async () => {
         const storage = createStorage();
         vi.stubGlobal('localStorage', storage);
         const { useOnlineProviderAccountStore } = await import('@/stores/useOnlineProviderAccountStore');
 
+        expect(useOnlineProviderAccountStore.getState().activeProviderId).toBe('');
+        useOnlineProviderAccountStore.getState().settleActiveProvider(['netease', 'kugou']);
         expect(useOnlineProviderAccountStore.getState().activeProviderId).toBe('netease');
-        useOnlineProviderAccountStore.getState().setActiveProviderId('kugou');
+        expect(storage.getItem('active_online_provider_id')).toBeNull();
 
+        useOnlineProviderAccountStore.getState().setActiveProviderId('kugou');
         expect(useOnlineProviderAccountStore.getState().activeProviderId).toBe('kugou');
         expect(storage.getItem('active_online_provider_id')).toBe('kugou');
+    });
+
+    // Folium 2.0 方案 §2 第 3 条、§7 第一行：选中的平台不在时只在内存里回落，不写回；它回来后自动恢复。
+    it('falls back in memory while the chosen platform is missing, and takes it back when it returns', async () => {
+        const storage = createStorage({ active_online_provider_id: 'qq' });
+        vi.stubGlobal('localStorage', storage);
+        const { useOnlineProviderAccountStore, resolveEffectiveProviderId } = await import('@/stores/useOnlineProviderAccountStore');
+        const store = () => useOnlineProviderAccountStore.getState();
+
+        store().settleActiveProvider(['netease', 'kugou']);
+        expect(store().activeProviderId).toBe('netease');
+        expect(store().chosenProviderId).toBe('qq');
+        expect(storage.getItem('active_online_provider_id')).toBe('qq');
+
+        // Another platform coming or going does not move the one in effect while the chosen one is missing.
+        store().settleActiveProvider(['kugou', 'netease']);
+        expect(store().activeProviderId).toBe('netease');
+
+        store().settleActiveProvider(['netease', 'kugou', 'qq']);
+        expect(store().activeProviderId).toBe('qq');
+        expect(storage.getItem('active_online_provider_id')).toBe('qq');
+
+        // No platform at all: the chosen one stays, and every reader finds it missing.
+        store().settleActiveProvider([]);
+        expect(store().activeProviderId).toBe('qq');
+        expect(resolveEffectiveProviderId('', [])).toBe('');
     });
 
     it('keeps provider accounts isolated and does not switch on logout', async () => {

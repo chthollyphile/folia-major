@@ -64,7 +64,12 @@ describe('omni routing', () => {
 
         expect(omni.getActiveProviderSummary()?.providerId).toBe('netease');
         expect(omni.getActiveCapabilities()).toEqual(omni.getProviderCapabilities('netease'));
-        expect(useOnlineProviderAccountStore.getState().activeProviderId).toBe(missingProviderId);
+        // Only in memory: the stored choice is kept, and is in effect again once its platform registers.
+        expect(useOnlineProviderAccountStore.getState().chosenProviderId).toBe(missingProviderId);
+        registerOnlineMusicProvider(provider(missingProviderId, { searchSongs: async () => ({ items: [], hasMore: false, nextOffset: 0 }) }));
+        expect(omni.getActiveProviderSummary()?.providerId).toBe(missingProviderId);
+        unregisterOnlineMusicProvider(missingProviderId);
+        expect(omni.getActiveProviderSummary()?.providerId).toBe('netease');
     });
 
     it('marks a provider without auth as one that needs no account', () => {

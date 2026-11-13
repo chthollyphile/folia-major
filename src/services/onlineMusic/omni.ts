@@ -54,7 +54,7 @@ import type {
     RecommendationPreferencesSaveResult,
 } from '../../types/onlineMusic';
 import { resolveProviderLyricsChorus } from '../../utils/lyrics/chorusResolver';
-import { DEFAULT_ONLINE_PROVIDER_ID, OnlineProviderError } from '../../types/onlineMusic';
+import { OnlineProviderError } from '../../types/onlineMusic';
 import { useOnlineProviderAccountStore } from '../../stores/useOnlineProviderAccountStore';
 import { getPlaybackSourceRef } from '../../utils/appPlaybackGuards';
 import { toSafePlaybackUrl } from '../../utils/appPlaybackHelpers';
@@ -150,13 +150,36 @@ const noteAudioSourceLevel = (url: string, handedOut: HandedOutAudioSource): voi
     audioSourceMetadataVersion++;
 };
 
-const activeProviderId = (): OmniProviderId => {
-    const storedProviderId = useOnlineProviderAccountStore.getState().activeProviderId;
-    // A persisted selection can outlive its provider when switching builds or branches.
-    return getOnlineMusicProvider(storedProviderId) ? storedProviderId : DEFAULT_ONLINE_PROVIDER_ID;
+// The platform in effect is kept in the account store, in memory: the listener's stored choice while it is
+// registered, else another registered one (useOnlineProviderAccountStore.resolveEffectiveProviderId). It is
+// worked out again whenever a platform comes or goes, so a choice whose platform is missing for now (registered
+// later, turned off, a build or branch without it) is never written over, and is in effect again once it is back.
+const settleActiveProvider = () => {
+    useOnlineProviderAccountStore.getState().settleActiveProvider(listOnlineMusicProviders().map(provider => provider.id));
 };
+settleActiveProvider();
+subscribeOnlineMusicProviderRegistry(settleActiveProvider);
+// A choice of a platform that is not registered (yet) is stored as it is; the one in effect falls back meanwhile.
+useOnlineProviderAccountStore.subscribe((state, previous) => {
+    if (state.chosenProviderId !== previous.chosenProviderId) settleActiveProvider();
+});
 
-const activeProvider = () => requireOnlineMusicProvider(activeProviderId());
+const activeProviderId = (): OmniProviderId => useOnlineProviderAccountStore.getState().activeProviderId;
+
+/** What a platform that is not there supports: nothing (no platform at all is an empty state, not an error). */
+const NO_CAPABILITIES: OmniProviderCapabilities = Object.freeze({
+    search: false,
+    playback: false,
+    lyrics: false,
+    auth: false,
+    userLibrary: false,
+    playlists: false,
+    albums: false,
+    artists: false,
+    recommendations: false,
+    mutations: false,
+    wordByWordLyrics: false,
+});
 
 /** A provider has recommendation preferences when it declares the capability and can both read and save them. */
 const hasRecommendationPreferences = (provider: OnlineMusicProvider | null | undefined): provider is OnlineMusicProvider => (
@@ -581,7 +604,7 @@ export const omni = {
     },
 
     getActiveCapabilities(): OmniProviderCapabilities {
-        return activeProvider().capabilities;
+        return getOnlineMusicProvider(activeProviderId())?.capabilities ?? NO_CAPABILITIES;
     },
 
     getProviderCapabilities(providerId: OmniProviderId): OmniProviderCapabilities {

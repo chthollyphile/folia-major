@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { resolveCommandPaletteSearchSource, useSearchNavigationStore } from '@/stores/useSearchNavigationStore';
+import { UNSET_SEARCH_SOURCE, resolveCommandPaletteSearchSource, useSearchNavigationStore } from '@/stores/useSearchNavigationStore';
 import { neteaseApi } from '@/services/onlineMusic/netease/netease';
 import { getNavidromeConfig, navidromeApi } from '@/services/navidromeService';
 import type { LocalLibraryAssignment, LocalLibraryEntity } from '@/types/localLibrary';
@@ -65,7 +65,11 @@ describe('useSearchNavigationStore', () => {
             album: { id: 1, name: '' },
             durationMs: 1,
         }, 'netease', 'kugou')).toBe('kugou');
-        expect(resolveCommandPaletteSearchSource(null, 'netease', 'kugou')).toBe('kugou');
+        // No search has picked a source yet: the platform in effect (there is no default platform).
+        expect(resolveCommandPaletteSearchSource(null, UNSET_SEARCH_SOURCE, 'kugou')).toBe('kugou');
+        // A source a search picked stays the palette's, NetEase like any other.
+        expect(resolveCommandPaletteSearchSource(null, 'netease', 'kugou')).toBe('netease');
+        expect(resolveCommandPaletteSearchSource(null, 'qq', 'kugou')).toBe('qq');
     });
 
     it('searches albums through omni, keeps the kind and caches the page apart from the songs', async () => {

@@ -11,6 +11,7 @@ import { spotifyProvider } from './spotify/spotifyProvider';
 import { qishuiProvider } from './qishui/qishuiProvider';
 import { appleMusicProvider } from './appleMusic/appleMusicProvider';
 import { fnmusicProvider } from './fnmusic/fnmusicProvider';
+import { startsWithoutSources } from '../../dev/devLaunchFlags';
 
 // src/services/onlineMusic/providerRegistry.ts
 
@@ -114,14 +115,18 @@ export const requireOnlineMusicProviderForSong = (song: SongResult): OnlineMusic
     return requireOnlineMusicProvider(sourceRef.providerId);
 };
 
-registerOnlineMusicProvider(neteaseProvider);
-registerOnlineMusicProvider(kugouProvider);
-registerOnlineMusicProvider(qqProvider);
-registerOnlineMusicProvider(bodianProvider);
-registerOnlineMusicProvider(ytmProvider);
-registerOnlineMusicProvider(spotifyProvider);
+// The nine built-in platforms, registered at load until they become source mods (Folium 2.0 S5/S8). `?noSources`
+// (dev only) leaves them out, to see the app with no platform at all.
+if (!startsWithoutSources) {
+    registerOnlineMusicProvider(neteaseProvider);
+    registerOnlineMusicProvider(kugouProvider);
+    registerOnlineMusicProvider(qqProvider);
+    registerOnlineMusicProvider(bodianProvider);
+    registerOnlineMusicProvider(ytmProvider);
+    registerOnlineMusicProvider(spotifyProvider);
 
-registerOnlineMusicProvider(qishuiProvider);
+    registerOnlineMusicProvider(qishuiProvider);
 
-registerOnlineMusicProvider(appleMusicProvider);
-registerOnlineMusicProvider(fnmusicProvider);
+    registerOnlineMusicProvider(appleMusicProvider);
+    registerOnlineMusicProvider(fnmusicProvider);
+}

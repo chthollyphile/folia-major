@@ -107,7 +107,7 @@ export const PLATFORM_NAME_PLACES: Record<string, PlatformNamePlace> = {
     'src/stores/useExploreFeedStore.ts': { n: { ytm: 2, spotify: 1 }, kind: 'doc' },
     'src/types.ts': { n: { netease: 11, qq: 2, ytm: 1 }, kind: 'stored', why: 'the stage API\'s lyric source, a stored song field, the AMLL DB platform' },
     'src/types/localLibrary.ts': { n: { netease: 1, qq: 1, kugou: 1, spotify: 2 }, kind: 'doc' },
-    'src/types/onlineMusic.ts': { n: { netease: 4, qq: 1, ytm: 5, spotify: 3 }, kind: 'list', why: 'the type of a platform id, and the platform that is active where none was chosen' },
+    'src/types/onlineMusic.ts': { n: { netease: 3, qq: 1, ytm: 5, spotify: 3 }, kind: 'list', why: 'the type of a platform id, and the platform that is active where none was chosen' },
     'src/utils/appPlaybackGuards.ts': { n: { netease: 1 }, kind: 'stored', why: 'the platform of a stored song that names none' },
     'src/utils/appPlaybackHelpers.ts': { n: { kugou: 3 }, kind: 'stored', why: 'URL hosts' },
     'src/utils/consoleLogBuffer.ts': { n: { kugou: 1 }, kind: 'doc' },
