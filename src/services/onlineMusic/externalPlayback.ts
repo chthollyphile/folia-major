@@ -68,7 +68,7 @@ const STALE_READ_TOLERANCE_SEC = 1;
  * A player that never loads the spot the bar was dropped on must not hold the bar off its own line
  * for good, so past this the player's own word stands.
  */
-const STALE_READ_PLAYING_LIMIT_MS = 5000;
+const STALE_READ_PLAYING_LIMIT_MS = 10_000;
 /**
  * How far apart the spot the bar was dropped on and the line the song stood on have to be for a read
  * to be told from the other. Nearer than this a read could be either, so none of them is given up.
@@ -649,7 +649,7 @@ const isStaleMoveRead = (current: ExternalSession, positionSec: number): boolean
         return false;
     }
     // A song that has been sounding for longer than a move is given has said enough: past this the
-    // answer stands rather than holding the bar off the player's own line for good. The five seconds
+    // answer stands rather than holding the bar off the player's own line for good. The ten seconds
     // run from the move landing, or from the song being set going again after it was dropped on it
     // stopped, which is the moment it starts sounding; a stopped song has no such time at all.
     const heldSinceMs = current.staleReadPlayingSinceMs;
