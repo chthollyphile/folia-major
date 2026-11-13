@@ -1,6 +1,24 @@
 {
-    "version": { "major": 1, "minor": 9 },
+    "version": { "major": 2, "minor": 0 },
+    "foliumOneVersion": { "major": 1, "minor": 9 },
     "manifestVersions": [1, 2],
+    "sourceCapabilities": {
+        "search": [1],
+        "songs": [1],
+        "playback.audio": [1],
+        "playback.external": [1],
+        "playback.surface": [],
+        "reports": [1],
+        "lyrics": [1],
+        "auth": [1],
+        "library": [1],
+        "catalog": [1],
+        "recommendations": [1],
+        "explore": [1],
+        "mutations": [1],
+        "covers": [1],
+        "raw": [1]
+    },
     "limits": {
         "standard": {
             "netFetch": { "permission": true, "defaultTimeoutMs": 15000, "maxTimeoutMs": 60000, "maxBodyBytes": 5242880 },
@@ -88,6 +106,7 @@
         "clearSourceData": "folia-mods:clear-source-data",
         "confirmOverride": "folia-mods:confirm-override",
         "assignSourceClaim": "folia-mods:assign-source-claim",
+        "sourcesRegistered": "folia-mods:sources-registered",
         "fStateChanged": "folia-mods:state-changed",
         "fExportProgress": "folia-mods:export-progress",
         "fLog": "folia-mods:log",

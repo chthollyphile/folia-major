@@ -199,7 +199,7 @@ export const createFoliumOmniService = (
     context: FoliumContextKind,
     stopped: FoliumStoppedCheck = () => false,
     onRelease: (release: () => void) => void = () => {},
-): FoliumOmniService => {
+): Omit<FoliumOmniService, 'capability'> => {
     // Folium 2.0: the sources this mod provides itself (a source mod's resolved ids); its calls to them are not counted.
     const ownSources = new Set((mod.sources ?? []).map((source) => source.id));
     const ownsSource = (providerId: string) => ownSources.has(providerId);
