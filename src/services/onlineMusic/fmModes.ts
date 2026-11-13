@@ -95,9 +95,20 @@ export const PERSONAL_FM_SCENES: PersonalFmSceneEntry[] = [
     scene('GLOBAL', 'language', 'Global', 'quanqiu', 'qq'),
 ];
 
+// The full table of modes and scenes: the catalogue of the platform whose radio it describes, which that
+// platform's provider answers with (getPersonalFmCatalog); other platforms build theirs from its modes. It stays
+// here, not in that platform's folder, while the host reads it too: the stored mode choice is normalised against
+// it, and the command palette shows it until a catalogue has loaded. Folium 2.0 S4 moves the shared mode list
+// into the source kit.
 export const DEFAULT_PERSONAL_FM_CATALOG: PersonalFmCatalog = {
     modes: PERSONAL_FM_MODES, scenes: PERSONAL_FM_SCENES, categories: PERSONAL_FM_SCENE_CATEGORIES,
 };
+
+/**
+ * What a platform without a catalogue of its own offers: no modes, no scenes. omni answers with it for such a
+ * platform (Folium 2.0 S1); before, it answered with the full table above for every platform.
+ */
+export const EMPTY_PERSONAL_FM_CATALOG: PersonalFmCatalog = Object.freeze({ modes: [], scenes: [], categories: [] });
 export const personalFmEntryLabel = (entry: { labelKey: string; labelFallback: string }, t: (key: string, fallback?: string) => string): string => (
     entry.labelKey ? t(entry.labelKey, entry.labelFallback) : entry.labelFallback
 );

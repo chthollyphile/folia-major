@@ -1,4 +1,4 @@
-import { DEFAULT_PERSONAL_FM_CATALOG } from './fmModes';
+import { EMPTY_PERSONAL_FM_CATALOG } from './fmModes';
 import type { PersonalFmCatalog } from '../../types/personalFm';
 import type { SongResult, UnifiedSong } from '../../types';
 import type {
@@ -972,7 +972,8 @@ export const omni = {
     },
 
     async getPersonalFmCatalog(providerId: OmniProviderId) {
-        return requireOnlineMusicProvider(providerId).recommendations?.getPersonalFmCatalog?.() ?? DEFAULT_PERSONAL_FM_CATALOG;
+        // A platform without a catalogue of its own has none; one with modes answers with its own.
+        return await requireOnlineMusicProvider(providerId).recommendations?.getPersonalFmCatalog?.() ?? EMPTY_PERSONAL_FM_CATALOG;
     },
 
     /** The mode choices of one of the provider's extra radios; null where the provider has no such radio. */

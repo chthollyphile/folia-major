@@ -33,6 +33,7 @@ import { LISTENING_RANK_RANGES, listeningRankCollection, listeningRankPage, with
 import { canRunLoginSelfCheck, runLoginSelfCheck } from '../loginSelfCheck';
 import { diagnosticLine, formatDiagnosticClock } from '../login/loginDiagnosticReport';
 import { registerNeteaseLyricSource } from './neteaseLyricSource';
+import { DEFAULT_PERSONAL_FM_CATALOG } from '../fmModes';
 
 // src/services/onlineMusic/netease/neteaseProvider.ts
 
@@ -794,6 +795,12 @@ export const neteaseProvider: OnlineMusicProvider = {
         },
     },
     recommendations: {
+        // NetEase's own modes and scenes (fmModes.ts). Moved here from omni's default for every platform (Folium
+        // 2.0 S1). NetEase has no extra radios, so a station is none of its own.
+        async getPersonalFmCatalog(station) {
+            if (station) throw new OnlineProviderError('unsupported', 'NetEase has no such station', 'netease');
+            return DEFAULT_PERSONAL_FM_CATALOG;
+        },
         async getDailySongs(refresh) {
             const response = await neteaseApi.getDailyRecommendedSongs(refresh);
             return (response?.songs || []).map(normalizeNeteaseSong);
