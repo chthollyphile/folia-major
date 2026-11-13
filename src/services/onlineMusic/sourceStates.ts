@@ -1,4 +1,5 @@
 import { LYRIC_SOURCES } from '../../utils/lyrics/lyricSources';
+import { getSourceDeclaration } from './sourceDeclarations';
 
 // src/services/onlineMusic/sourceStates.ts
 // The state of each online source as the user switched it (Folium 2.0 plan §5.3): enabled, used only for
@@ -50,10 +51,18 @@ export const subscribeSourceStates = (listener: () => void): (() => void) => {
  * Whether `sourceId` may be used only for matching (plan §5.3): it can match lyrics for other platforms' songs
  * and local songs, or give local songs online details, without anyone signed in.
  *
- * Folium 2.0 seam (S2): read from S1's lyric source registry (an entry of that platform that needs no account,
- * or that does the metadata match). S3 reads it from the source's capabilities instead (`lyrics@1.crossSource`
- * or `songs@1.metadataMatch`, each with `access: 'anonymous'`); callers do not change.
+ * A Folium 2 source mod says so through its capabilities (sourceDeclarations.ts: `lyrics@1.crossSource` or
+ * `songs@1.metadataMatch`, each with `access: 'anonymous'`). A built-in platform, still registered by the host,
+ * is read from S1's lyric source registry (an entry of that platform that needs no account, or that does the
+ * metadata match).
  */
-export const canSourceMatchOnly = (sourceId: string): boolean => LYRIC_SOURCES.some((source) => (
-    source.platform && source.id === sourceId && (Boolean(source.metadataMatch) || !source.needsAccount)
-));
+export const canSourceMatchOnly = (sourceId: string): boolean => {
+    const declaration = getSourceDeclaration(sourceId);
+    if (declaration) {
+        return Boolean(declaration.lyrics?.crossSource && declaration.lyrics.access === 'anonymous')
+            || Boolean(declaration.songs?.metadataMatch && declaration.songs.access === 'anonymous');
+    }
+    return LYRIC_SOURCES.some((source) => (
+        source.platform && source.id === sourceId && (Boolean(source.metadataMatch) || !source.needsAccount)
+    ));
+};

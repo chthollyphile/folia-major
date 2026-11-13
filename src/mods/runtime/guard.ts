@@ -176,6 +176,19 @@ export const callFoliumSourceMember = <T>(modId: string, where: string, call: ()
     untimedSourceMods.has(modId) ? call() : timeFoliumMod(modId, where, call)
 );
 
+/**
+ * Folium 2.0 (S3): a synchronous member of a mod's source as the host calls it on its hot paths, made once when
+ * the source is adapted, so a call allocates nothing: a source mod's member is `member` itself (no clock reads,
+ * no catch), any other mod's goes through the gate like callFoliumSourceMember.
+ */
+export const foliumSourceMember = <Args extends unknown[], Result>(
+    modId: string,
+    where: string,
+    member: (...args: Args) => Result,
+): ((...args: Args) => Result) => (
+    untimedSourceMods.has(modId) ? member : (...args: Args) => timeFoliumMod(modId, where, () => member(...args))
+);
+
 /*
  * Wraps a function a mod hands over to be called again and again (a listener,
  * a predicate). This is the per-frame path: a clock listener runs every frame,

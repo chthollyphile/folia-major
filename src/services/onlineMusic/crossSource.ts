@@ -3,6 +3,7 @@ import { getOnlineMusicProvider, listOnlineMusicProviders } from './providerRegi
 import { isSourceEnabled, isSourceMatchingOnly } from './sourceReadiness';
 import { useOnlineProviderAccountStore, type OnlineProviderAccountState } from '../../stores/useOnlineProviderAccountStore';
 import { LYRIC_SOURCES } from '../../utils/lyrics/lyricSources';
+import { getSourceDeclaration, listSourceDeclarations } from './sourceDeclarations';
 
 // src/services/onlineMusic/crossSource.ts
 // The one rule for the features that ask a platform that is not the song's own (Folium 2.0 plan §7.1):
@@ -26,12 +27,13 @@ import { LYRIC_SOURCES } from '../../utils/lyrics/lyricSources';
 // the next ready source stands in, and the stored one is in force again once it is ready. A flow that runs
 // asks with `{ report: true }`: each skipped source is logged once for that run.
 //
-// Folium 2.0 seam (S1): what each source declares for a feature is read from today's tables in
-// `declaredParticipants` (the lyric source registry's needsAccount / needsConfiguredProvider / metadataMatch,
-// the account rule of the federated search). In S3 it is read from
-// the sources' capabilities (`access` of search@1 / songs@1 / lyrics@1, `lyrics@1.crossSource`,
-// `songs@1.metadataMatch`); "enabled" and "used only for matching" are S2's per-source switch
-// (sourceReadiness.isSourceEnabled / isSourceMatchingOnly, from the main process's state table). Callers do not change.
+// What each source declares for a feature (`declaredParticipants`): a Folium 2 source mod declares it through its
+// capabilities (sourceDeclarations.ts: `access` of search@1 / songs@1 / lyrics@1, `lyrics@1.crossSource` as an
+// entry of the lyric source registry, `songs@1.metadataMatch`); the built-in platforms, still registered by
+// the host, are read from the tables they always were (the lyric source registry's needsAccount /
+// needsConfiguredProvider / metadataMatch, `capabilities.auth` for the federated search). "Enabled" and "used
+// only for matching" are S2's per-source switch (sourceReadiness.isSourceEnabled / isSourceMatchingOnly, from
+// the main process's state table). Callers do not change.
 
 export type CrossSourceFeature = 'search' | 'metadata' | 'lyrics';
 /** Whether a source does the feature with no one signed in ('anonymous') or only with an account ('account'). */
@@ -110,18 +112,28 @@ export const declaredParticipants = (feature: CrossSourceFeature): CrossSourceDe
         }));
     }
     if (feature === 'metadata') {
-        // The sources the lyric registry marks `metadataMatch`, in its order; their search needs no account.
-        return LYRIC_SOURCES
+        // The sources the lyric registry marks `metadataMatch`, in its order (their search needs no account), then
+        // the sources that declare `songs@1.metadataMatch`, in the order they registered.
+        const listed: CrossSourceDeclaration[] = LYRIC_SOURCES
             .filter(source => source.metadataMatch)
             .map(source => ({ sourceId: source.id, access: 'anonymous', checksAvailability: false }));
+        for (const [sourceId, declaration] of listSourceDeclarations()) {
+            if (!declaration.songs?.metadataMatch || listed.some(known => known.sourceId === sourceId)) continue;
+            listed.push({ sourceId, access: declaration.songs.access, checksAvailability: declaration.checksAvailability });
+        }
+        return listed;
     }
     // The federated search lists a platform the listener can play from without signing in first: one with no
-    // account at all, or one signed in. A platform declares it only while it is registered.
-    return listOnlineMusicProviders().map(provider => ({
-        sourceId: provider.id,
-        access: provider.capabilities.auth ? 'account' : 'anonymous',
-        checksAvailability: true,
-    }));
+    // account at all, one whose search needs none (its `search@1.access`), or one signed in. A platform
+    // declares it only while it is registered.
+    return listOnlineMusicProviders().map(provider => {
+        const declared = getSourceDeclaration(provider.id)?.search?.access;
+        return {
+            sourceId: provider.id,
+            access: declared ?? (provider.capabilities.auth ? 'account' : 'anonymous'),
+            checksAvailability: true,
+        };
+    });
 };
 
 /** The state of `sourceId` now. Signed in means a confirmed sign-in for the search, an account shown for the rest. */

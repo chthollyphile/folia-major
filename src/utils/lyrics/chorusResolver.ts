@@ -1,7 +1,17 @@
+import type { LyricData } from '../../types';
 import type { ChorusRange, OnlineProviderId, ProviderLyricsResult } from '../../types/onlineMusic';
 import { applyDetectedChorusEffects, applyChorusRangesByTime } from './chorusEffects';
 
 // src/utils/lyrics/chorusResolver.ts
+
+/**
+ * The host's last chorus rule: repeated lines of the parsed lyrics, read as text one line each. The resolver below
+ * falls back to it where the provider hands no raw text; a Folium 2.0 source's lyrics go through it where their
+ * raw text is not one the detector reads (src/mods/folium/lyricsSource.ts).
+ */
+export const applyLineTextChorus = (lyrics: LyricData): LyricData => (
+    applyDetectedChorusEffects(lyrics, lyrics.lines.map(line => `[00:00.00]${line.fullText}`).join('\n'))
+);
 
 export interface ResolveProviderLyricsChorusOptions {
     providerId: OnlineProviderId;
@@ -50,14 +60,12 @@ export const resolveProviderLyricsChorus = async (
         };
     }
 
-    const sourceText = providerResult.mainText?.trim()
-        || providerResult.wordByWordText?.trim()
-        || lyrics.lines.map(line => `[00:00.00]${line.fullText}`).join('\n');
+    const sourceText = providerResult.mainText?.trim() || providerResult.wordByWordText?.trim();
     console.log(`[ChorusResolver] provider=${options.providerId} song=${options.songId} native chorus unavailable or empty; applied text fallback`);
     return {
         result: {
             ...providerResult,
-            lyrics: applyDetectedChorusEffects(lyrics, sourceText),
+            lyrics: sourceText ? applyDetectedChorusEffects(lyrics, sourceText) : applyLineTextChorus(lyrics),
             chorusRanges: [],
         },
         mode: 'text',

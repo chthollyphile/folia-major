@@ -73,6 +73,7 @@ export const PLATFORM_NAME_PLACES: Record<string, PlatformNamePlace> = {
     'src/library/suites/grid/home/Grid3DSlider.tsx': { n: { netease: 1 }, kind: 'doc' },
     'src/library/suites/grid/transitions/standInHandover.ts': { n: { netease: 1, ytm: 2 }, kind: 'doc', why: 'comments on the picture-host rules under them (YouTube stills, Google\'s picture hosts, NetEase\'s hosts); those rules would go with getSizedCoverUrl in src/utils/coverUrl.ts' },
     'src/mods/folium/lyricsSource.ts': { n: { netease: 1 }, kind: 'doc' },
+    'src/mods/folium/registries/sourceDtos.ts': { n: { qq: 1, kugou: 1 }, kind: 'stored', why: 'Folium 2.0 (plan §4.3): a source song\'s lyricIds of these two written where the host still reads them at the top of a song (qqMid, kgHash), until the readers read lyricIds (2026-11-14, S3)' },
     'src/services/automix/trackProfile.ts': { n: { spotify: 1 }, kind: 'doc' },
     'src/services/localLibraryV8Migration.ts': { n: { netease: 3, qq: 1, kugou: 1 }, kind: 'stored', why: 'a migration of stored values' },
     'src/services/localMusicService.ts': { n: { netease: 1 }, kind: 'lyric', why: 'a local song\'s lyric match searches one source and stores its id' },

@@ -682,9 +682,27 @@ export const omni = {
 
     // Starts what each provider watches while the app is open (`watch`): the registered ones,
     // once. Answers with the way to stop them all.
+    // A provider registered later (a Folium source mod) is watched from then on, and one taken out is stopped.
     watchProviders(tell: (notice: ProviderNotice) => void): () => void {
-        const stops = listOnlineMusicProviders().flatMap(provider => (provider.watch ? [provider.watch(tell)] : []));
-        return () => stops.forEach(stop => stop());
+        const watched = new Map<OnlineMusicProvider, () => void>();
+        const settle = () => {
+            const present = new Set(listOnlineMusicProviders());
+            watched.forEach((stop, provider) => {
+                if (present.has(provider)) return;
+                watched.delete(provider);
+                stop();
+            });
+            present.forEach(provider => {
+                if (provider.watch && !watched.has(provider)) watched.set(provider, provider.watch(tell));
+            });
+        };
+        settle();
+        const off = subscribeOnlineMusicProviderRegistry(settle);
+        return () => {
+            off();
+            watched.forEach(stop => stop());
+            watched.clear();
+        };
     },
 
     // 登录要靠的、可以在登录窗口里重启的本地服务；这个平台没有就回 null。

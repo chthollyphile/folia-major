@@ -25,6 +25,18 @@ export const setStoredString = (key: string, value: string) => {
     }
 };
 
+/** The stored string, or null where there is none (or the storage cannot be read). */
+export const readStoredString = (key: string): string | null => {
+    if (typeof window === 'undefined') {
+        return null;
+    }
+    try {
+        return localStorage.getItem(key);
+    } catch {
+        return null;
+    }
+};
+
 export const getStoredString = (key: string, fallback: string) => {
     if (typeof window === 'undefined') {
         return fallback;
