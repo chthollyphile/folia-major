@@ -43,13 +43,14 @@ const describeApp = ({ app, safeStorage }) => {
 
 /**
  * 登录诊断的登记表：哪个音源有内嵌后端可以交诊断快照、跑自检。登记的是一个对象，要有 getStatus()、
- * getDiagnostics()（同步、异步都行）和 selfCheckHosts。register 回一个撤销函数。
+ * getDiagnostics()（同步、异步都行）和 selfCheckHosts。register 回一个撤销函数。`initial` 是一开始就登记的
+ * { 音源 id: 后端 }。
  *
- * Folium 2.0 接缝（S1）：现在由 main.cjs 登记网易、QQ 两个内嵌后端；S2 由音源模组的 api.diagnostics.register
- * 登记到同一张表，get-login-diagnostics、run-login-self-check 两个通道不用再改。
+ * Folium 2.0 接缝（S1）：现在由 registerLoginBackendIpc 用传进来的两个内嵌后端建表并交回；S2 由音源模组的
+ * api.diagnostics.register 登记到同一张表，get-login-diagnostics、run-login-self-check 两个通道不用再改。
  */
-function createLoginDiagnosticsRegistry() {
-  const backends = new Map();
+function createLoginDiagnosticsRegistry(initial = {}) {
+  const backends = new Map(Object.entries(initial).filter(([, backend]) => Boolean(backend)));
   return {
     register(providerId, backend) {
       backends.set(providerId, backend);
@@ -78,13 +79,8 @@ function registerLoginBackendIpc({
   runSelfCheck = runLoginSelfCheck,
   isTrustedSender,
 }) {
-  // 诊断与自检按音源 id 查登记表（createLoginDiagnosticsRegistry）。没给登记表时（测试、旧调用方）用传进来的两个后端建一张。
-  const registry = diagnostics ?? (() => {
-    const own = createLoginDiagnosticsRegistry();
-    if (neteaseBackend) own.register('netease', neteaseBackend);
-    if (qqBackend) own.register('qq', qqBackend);
-    return own;
-  })();
+  // 诊断与自检按音源 id 查登记表（createLoginDiagnosticsRegistry）。没给登记表时用传进来的两个后端建一张，并交回去。
+  const registry = diagnostics ?? createLoginDiagnosticsRegistry({ netease: neteaseBackend, qq: qqBackend });
   const backendOf = (providerId) => registry.get(providerId);
 
   // 来源校验：与既有的 IPC 来源校验通道同一个边界、同一个工厂（electron/ipcAccessGuard.cjs）。比 event.sender 的
@@ -133,6 +129,9 @@ function registerLoginBackendIpc({
     });
     return { ...result, credentialStore: describeCredentialStore(safeStorage) };
   }, () => null));
+
+  // 交回登记表：别处（S2 起是音源模组的 api.diagnostics）往里登记后端。
+  return { diagnostics: registry };
 }
 
 module.exports = {

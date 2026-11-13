@@ -635,8 +635,41 @@ describe('command palette registry', () => {
     it('returns all search commands when context is not provided', () => {
         const matches = getCommandPaletteMatches('search');
         const searchMatches = matches.filter(m => m.command.group === 'search');
-        // search-current, search-local, search-navidrome, search-netease
-        expect(searchMatches.length).toBe(4);
+        // search-current, search-local, search-navidrome; the sources' own are installed at startup (below).
+        expect(searchMatches.length).toBe(3);
+    });
+
+    // Folium 2.0 方案 §7：没有默认平台，平台自己的搜索命令按已注册的音源生成；search-netease 这个存过的 id 留着。
+    it('installs one search command per registered source, in registration order, and follows the sources', async () => {
+        const { installProviderSearchCommands } = await import('@/components/command-palette/providerSearchCommandsInstaller');
+        const { getOnlineMusicProvider, registerOnlineMusicProvider, unregisterOnlineMusicProvider } = await import('@/services/onlineMusic/providerRegistry');
+        const searchIds = () => COMMAND_PALETTE_COMMANDS.map(command => command.id).filter(id => id.startsWith('search-'));
+
+        installProviderSearchCommands();
+        expect(searchIds()).toEqual([
+            'search-current', 'search-local', 'search-navidrome',
+            'search-netease', 'search-kugou', 'search-qq', 'search-bodian', 'search-ytm',
+            'search-spotify', 'search-qishui', 'search-appleMusic', 'search-fnmusic',
+        ]);
+        const netease = COMMAND_PALETTE_COMMANDS.find(command => command.id === 'search-netease')!;
+        expect(netease.textSource).toBe('runtime');
+        // The source's own name, read when shown (with the zh-CN tests this is the same 搜索网易云 as before).
+        const { omni } = await import('@/services/onlineMusic/omni');
+        expect(netease.title).toContain(omni.getProviderLabel('netease'));
+        // Not offered in the app: search-current searches the source in force.
+        expect(netease.isAvailable?.(createContext())).toBe(false);
+
+        const qq = getOnlineMusicProvider('qq')!;
+        unregisterOnlineMusicProvider('qq');
+        try {
+            expect(searchIds()).not.toContain('search-qq');
+        } finally {
+            registerOnlineMusicProvider(qq);
+        }
+        expect(searchIds()).toContain('search-qq');
+        // Taken out again, so that the tests after this one see the static list.
+        const { setProviderSearchCommands } = await import('@/components/command-palette/commandRegistry');
+        setProviderSearchCommands([]);
     });
 
     it('matches and executes color/theme-park command', () => {

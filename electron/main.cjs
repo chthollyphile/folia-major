@@ -5053,7 +5053,7 @@ async function clearCoverCacheDirectory() {
 const { createNetworkRecorder } = require('./networkRecorder.cjs');
 const { createNeteaseBackend } = require('./netease/neteaseBackend.cjs');
 const { createQqBackend } = require('./qq/qqBackend.cjs');
-const { createLoginDiagnosticsRegistry, registerLoginBackendIpc } = require('./loginBackendIpc.cjs');
+const { registerLoginBackendIpc } = require('./loginBackendIpc.cjs');
 
 // 主线程里内嵌后端的出站连接记录：要在它们发出请求之前开始订阅。工作线程里发出的请求另有一份记录（见 networkRecorder.cjs）。
 const networkRecorder = createNetworkRecorder();
@@ -7374,11 +7374,8 @@ ipcMain.handle('clear-local-cover-assets', firstParty('clear-local-cover-assets'
 }));
 
 // 内嵌后端的端口、状态、重启、诊断快照与主动自检（electron/loginBackendIpc.cjs）。
-// 登录诊断与自检的登记表（Folium 2.0 接缝）：现在登记两个内嵌后端，S2 起由音源模组的 api.diagnostics 登记。
-const loginDiagnostics = createLoginDiagnosticsRegistry();
-loginDiagnostics.register('netease', neteaseBackend);
-loginDiagnostics.register('qq', qqBackend);
-
+// 它交回登录诊断与自检的登记表（{ diagnostics }，Folium 2.0 接缝）：现在里面是两个内嵌后端，S2 起音源模组的
+// api.diagnostics 往里登记。
 registerLoginBackendIpc({
   ipcMain,
   app,
@@ -7386,7 +7383,6 @@ registerLoginBackendIpc({
   getDefaultSession: () => session.defaultSession,
   neteaseBackend,
   qqBackend,
-  diagnostics: loginDiagnostics,
   isTrustedSender: isFirstPartyWindowContents,
 });
 
