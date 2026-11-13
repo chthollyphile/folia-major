@@ -110,6 +110,13 @@ const END_TOLERANCE_MS = 1000;
  * position of a playing track that was read a moment late: one poll at 500 ms is well inside this.
  */
 const REPLAY_TOLERANCE_MS = 1500;
+/**
+ * How long a start of Folia's may go unanswered before the reads that still name the song before it
+ * stop being taken for its own leftover. The desktop side gives the call that plays the song up to
+ * the advertisement's wait and one ordinary call on top of that (START_CALL_LIMIT_MS in
+ * electron/spotify/officialClient.cjs), so no honest start runs past this.
+ */
+const START_ANSWER_LIMIT_MS = 70_000;
 
 /** A song by the names the media session shows it with: it names no id, so the two sides compare names. */
 interface ShownTrack {
@@ -143,8 +150,22 @@ interface Attempt {
     confirmedIds: string[];
     /** The last answer came from the system media session: it names no track, so nothing is prepared. */
     degraded: boolean;
-    /** A track the listener picked in Spotify itself has been taken over as the song Folia shows. */
-    adoptedAppPick: boolean;
+    /**
+     * Folia has asked the app for this song and the app has not said it took it yet. Until it does,
+     * or until that wait runs out, the reads still name the track the app was on before: that is the
+     * leftover of this start, not a track the listener picked in Spotify, and nothing is taken over
+     * from it. A start that is adopted at once asks nothing and is never one of these.
+     */
+    startPending: boolean;
+    /** When that ask was made: how long its leftover may be taken for one is START_ANSWER_LIMIT_MS. */
+    startedAt: number;
+    /**
+     * The line saying the app was moved to another track by its own controls has been written for
+     * this song. It decides nothing else: every read of another track is still handed to the
+     * take-over of the route, however many of them there are, and this only keeps the log to one
+     * line a song.
+     */
+    notedAppPick: boolean;
     /**
      * Repeat one is this song carried out by the app's own repeat of the track: the app then sounds
      * the same track again from its start, and a read that names the same track further back is
@@ -237,6 +258,11 @@ const ended = (current: Attempt): ProviderExternalPlaybackStatus => ({
 });
 
 // NFKC folds the full-width letters and brackets a Chinese layout types into their plain forms.
+// plainName, plainTitle and artistNames here decide whether one track the app names is the song
+// Folia asked for: the answer is about that one song, and a difference is what says it is another
+// one. The same-named three in src/components/app/playback/bridges/externalPlayerFollow.ts answer
+// the other question - which song of a search the names of another one stand for - and are written
+// to let a match through rather than to rule the others out. Keep the two sets apart.
 const plainName = (text: unknown): string => (typeof text === 'string' ? text : '').normalize('NFKC').trim().toLocaleLowerCase();
 
 /** A title without the trailing credit "(feat. …)", "(ft. …)" or "(featuring …)", which the two sides need not write alike. A "(with …)" stays: it is part of the title, not a credit. */
@@ -410,6 +436,33 @@ const namesBehindTrack = (current: Attempt, data: SpotifyWireClientStatus): bool
     });
 };
 
+/**
+ * Whether a start of Folia's is still on its way: the song was asked for and the app has not said it
+ * took it. The reads taken meanwhile name the track the app was on before, which is this start's own
+ * leftover rather than a track the listener picked in Spotify. A start whose answer never comes stops
+ * being waited for after START_ANSWER_LIMIT_MS, so a stuck call cannot hold every read of the run.
+ */
+const startStillOnItsWay = (current: Attempt): boolean => {
+    if (!current.startPending) return false;
+    if (performance.now() - current.startedAt > START_ANSWER_LIMIT_MS) {
+        current.startPending = false;
+        console.warn('[SpotifyClient] the app never said it took the song; the reads are its own again');
+        return false;
+    }
+    // The app named the song Folia asked for: it took it, and what follows is about that song.
+    return true;
+};
+
+/**
+ * The song Folia asked for, still loading in the app: the reading of the track the app is leaving
+ * behind says nothing about it, and it must not be taken for one the listener moved to. Said as
+ * loading, so the route waits for the app rather than reading the leftover as the song's position.
+ */
+const stillLoadingStatus = (current: Attempt, degraded: boolean): ProviderExternalPlaybackStatus => ({
+    mediaId: current.id, isPlaying: false, ended: false, starting: true,
+    positionMs: current.positionMs, durationMs: current.durationMs, degraded,
+});
+
 /** Turns what the app said into Folia's status for the song it asked for. */
 export const statusOfClient = (data: SpotifyWireClientStatus): ProviderExternalPlaybackStatus => {
     const current = attempt;
@@ -443,6 +496,10 @@ export const statusOfClient = (data: SpotifyWireClientStatus): ProviderExternalP
         // into the app over it. A coarse read carries no id, so that take-over can find the song
         // only by these names; nothing is ended here for it either way.
         if (current.hasPlayed && namesAnotherTrack(current, data)) {
+            // A start of Folia's still on its way: the app has not shown the song it was asked for,
+            // so the names it still gives are the ones it was on before. Nothing is ended or adopted
+            // from that reading; the song is said to be loading, which is what it is.
+            if (startStillOnItsWay(current)) return stillLoadingStatus(current, true);
             // How far this song had got is no sign of what became of it: the coarse position is the
             // session's own, and a song that ran out and one the listener left behind read the same
             // way. Guessing from it called the listener's own press the end of the song, and the
@@ -451,8 +508,8 @@ export const statusOfClient = (data: SpotifyWireClientStatus): ProviderExternalP
                 console.info('[SpotifyClient] Spotify moved on to the track Folia wrote next; the external session ends');
                 return ended(current);
             }
-            if (!current.adoptedAppPick) {
-                current.adoptedAppPick = true;
+            if (!current.notedAppPick) {
+                current.notedAppPick = true;
                 console.info(
                     '[SpotifyClient] the app was moved to another track by its own controls; it is shown by the names the media session gives',
                     { title: (data.title ?? '').trim(), artist: (data.artist ?? '').trim() },
@@ -469,6 +526,9 @@ export const statusOfClient = (data: SpotifyWireClientStatus): ProviderExternalP
         return status;
     }
     if (id === current.id) {
+        // The app named the song Folia asked for: whatever start was still on its way has landed, and
+        // the reads from here on are about that song.
+        current.startPending = false;
         // Repeat one handed to the app's own repeat: the same track comes round again from its start,
         // with no start of Folia's behind it. That is the song heard again, not a seek and not an
         // end, so the app is told the song began over - its position and its lyrics from the top.
@@ -481,6 +541,12 @@ export const statusOfClient = (data: SpotifyWireClientStatus): ProviderExternalP
         if (data.durationMs > 0) current.durationMs = data.durationMs;
         current.positionMs = data.positionMs;
         return turnedOver ? { ...status, replayed: true } : status;
+    }
+    if (startStillOnItsWay(current)) {
+        // The app has not shown the song Folia asked for yet, so every read before it names the track
+        // it is leaving behind. Nothing is read out of that one: not its end, not a step of Folia's
+        // queue, and not a track the listener picked. The song is said to be loading, which it is.
+        return stillLoadingStatus(current, false);
     }
     if (id && current.hasPlayed && current.nextIds[0] === id) {
         // The app moved on to the song Folia put next: the asked-for song is over. That song is now
@@ -516,8 +582,8 @@ export const statusOfClient = (data: SpotifyWireClientStatus): ProviderExternalP
         // takes it over in place of this song, with its own words, lyrics, cover and position. Folia
         // plays nothing of its queue into the app over that choice; a track of Folia's queue is found
         // there by its own key, so the queue goes on from it, and one that is not is simply shown.
-        if (!current.adoptedAppPick) {
-            current.adoptedAppPick = true;
+        if (!current.notedAppPick) {
+            current.notedAppPick = true;
             console.info(`[SpotifyClient] the app was moved to the track ${id} by its own controls; it is adopted, chosen in Spotify`);
         }
         return status;
@@ -631,7 +697,10 @@ export const spotifyClientPlayback: OnlineExternalPlaybackProvider = {
             hasPlayed: adopt, positionMs: startMs, durationMs: song.durationMs,
             nextIds: carried, confirmedIds: carriedConfirmed, degraded: false,
             behindTracks: carried.map(held => writtenTracks.get(held)).filter((track): track is ShownTrack => Boolean(track)),
-            adoptedAppPick: false, nativeRepeat: false,
+            notedAppPick: false, nativeRepeat: false,
+            // An adopted song is the app's own track already, and asks the app for nothing: no start
+            // of Folia's is on its way, so no read can be its leftover.
+            startPending: !adopt, startedAt: performance.now(),
         };
         if (adopt) {
             console.info('[SpotifyClient] The app already plays the next song; it is adopted');
@@ -655,9 +724,14 @@ export const spotifyClientPlayback: OnlineExternalPlaybackProvider = {
         // The attempt this start belongs to, kept across the wait: a newer start replaces it, and the
         // answer that lands afterwards is then about a song the app no longer plays.
         const owner = attempt;
+        // Whatever the app answers, the wait is over with this call: a start it refused, one that
+        // never got there and one that ran out of time are all no start still on its way, and a newer
+        // start that took the app meanwhile owns the reads from here with a window of its own.
         const answer = await requestSpotify<SpotifyClientPlayAnswer>('client_play', {
             id, startMs, userAction, written: writtenIds, replaceQueue: options.replaceQueue === true,
             ...(singleLoop ? { singleLoop: true } : {}),
+        }).finally(() => {
+            if (attempt === owner) owner.startPending = false;
         });
         if (singleLoop && attempt === owner) {
             // The app's own repeat of the track is what carries this song round again, and this
@@ -724,7 +798,9 @@ export const spotifyClientPlayback: OnlineExternalPlaybackProvider = {
             hasPlayed: true, positionMs: 0, durationMs: song.durationMs,
             nextIds: carried, confirmedIds: carriedConfirmed, degraded: false,
             behindTracks: carried.map(held => writtenTracks.get(held)).filter((track): track is ShownTrack => Boolean(track)),
-            adoptedAppPick: false, nativeRepeat: false,
+            notedAppPick: false, nativeRepeat: false,
+            // Taken over as it sounds: nothing is asked of the app, so no read can be a start's leftover.
+            startPending: false, startedAt: 0,
         };
     },
     async pause() {
