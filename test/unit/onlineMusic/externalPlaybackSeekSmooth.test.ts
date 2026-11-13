@@ -421,32 +421,21 @@ describe('a bar dropped on a song that is playing', () => {
         60000,
     );
 
-    it('holds the lead a later answer behind the bar grows it to', async () => {
-        // The answer that lands the move steps the bar back onto the player and keeps the lead it ran
-        // up on the spot as the one held. A player that loads the spot a little short of the bar and
-        // then creeps up on it reports from further behind with every answer: a lead given up as soon
-        // as it outgrew the one it was found with dropped the bar the whole way back to the player,
-        // once, for a listener to see.
-        await startFrom(20000);
-        const askedAt = performance.now();
-        omniMock.getExternalPlaybackStatus.mockImplementation(async () => {
-            const elapsedMs = performance.now() - askedAt;
-            return status({
-                positionMs: elapsedMs < 400
-                    ? 20000 + Math.round(elapsedMs)
-                    : 59600 + Math.round((elapsedMs - 400) / 4),
-                isPlaying: true,
-            });
-        });
-        expect(engine.seekExternalPlayback(60)).toBe(true);
-        const shown: number[] = [engine.getExternalPosition()];
-        for (let waited = 0; waited < 3000; waited += SAMPLE_MS) {
-            await vi.advanceTimersByTimeAsync(SAMPLE_MS);
-            shown.push(engine.getExternalPosition());
-        }
+    it('holds the lead a move of the listener left the bar until the player is on the bar', async () => {
+        // The answers that named the line the song stood on leave the bar ahead of where the player lands,
+        // and that lead is what the bar stands on while the player plays its way up to it. Read against a
+        // wait of its own, the bar was put back onto the player the moment the lead was found: what shows
+        // here is that the bar stands still rather than stepping back, across the whole of that catch-up.
+        const fromSec = 10;
+        const targetSec = 55;
+        const delayMs = 3000;
+        const shown = await drag(fromSec, targetSec, delayMs, delayMs + 6000);
         const fall = largestFallSec(shown);
-        console.log('[growing lead] fall=' + fall.toFixed(3) + ' last=' + shown[shown.length - 1].toFixed(3));
-        expect(fall, 'the lead is held for as long as the player is behind it').toBe(0);
+        const still = longestStillMs(shown);
+        console.log('[held lead] fall=' + fall.toFixed(3) + ' still=' + still + 'ms');
+        // Never back over the drop, and the wait is the player catching up rather than a freeze of its own.
+        expect(fall, 'the lead the bar ran up is held, not given up').toBe(0);
+        expect(still, 'held for the lead the player is behind by, not longer').toBeLessThanOrEqual(delayMs + 250);
     }, 60000);
 
     it('keeps the bar moving while the answers still name the line the song stood on', async () => {
