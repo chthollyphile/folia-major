@@ -46,13 +46,19 @@ vi.mock('@/services/onlineMusic/songMetadata', () => ({
     getProviderSongMetadata: (song: SongResult) => ({ durationMs: song.durationMs ?? 0, artists: [] }),
 }));
 
-const audioSettings = vi.hoisted(() => ({ neteaseScrobbleEnabled: true, audioQuality: 'high' }));
+const audioSettings = vi.hoisted(() => ({ playbackReportEnabled: { netease: true } as Record<string, boolean>, audioQuality: 'high' }));
 const useAudioSettingsStore = vi.hoisted(() => {
-    const hook = (selector: (state: { neteaseScrobbleEnabled: boolean; audioQuality: string }) => unknown) => selector(audioSettings);
+    const hook = (selector: (state: { playbackReportEnabled: Record<string, boolean>; audioQuality: string }) => unknown) => selector(audioSettings);
     hook.getState = () => audioSettings;
     return hook;
 });
-vi.mock('@/stores/useAudioSettingsStore', () => ({ useAudioSettingsStore }));
+vi.mock('@/stores/useAudioSettingsStore', () => ({
+    useAudioSettingsStore,
+    // Per source (Folium 2.0 S1): the setting of the song's own source.
+    isPlaybackReportEnabled: (state: { playbackReportEnabled: Record<string, boolean> }, providerId: string | null | undefined) => (
+        Boolean(providerId && state.playbackReportEnabled[providerId])
+    ),
+}));
 
 // Only the playback route is read: on the HiFi route the listeners go on the HiFi media shim instead of the deck.
 const playback = vi.hoisted(() => ({ state: { playbackRoute: 'web' as 'web' | 'hifi' } }));
@@ -143,7 +149,7 @@ describe('usePlaybackReporter', () => {
         cleanups = [];
         gate.isPlaybackReportReady.mockReset().mockReturnValue(true);
         gate.sendPlaybackReport.mockReset().mockResolvedValue(true);
-        audioSettings.neteaseScrobbleEnabled = true;
+        audioSettings.playbackReportEnabled = { netease: true };
         clock.now = 1_700_000_000_000;
         vi.spyOn(Date, 'now').mockImplementation(() => clock.now);
         deck = createDeck();
@@ -210,7 +216,7 @@ describe('usePlaybackReporter', () => {
         render(song('1'));
         deck.playFor(45);
 
-        audioSettings.neteaseScrobbleEnabled = false;
+        audioSettings.playbackReportEnabled = { netease: false };
         render(song('1'));
         render(song('2'));
 

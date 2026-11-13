@@ -69,7 +69,7 @@ App.tsx
 ### Hooks and stores
 
 - 播放桥接：`usePlaybackAudioBridge`、`usePlaybackTransportController`、`usePlaybackQueueController`、`usePlaybackInteractionBridge`、`usePlaybackUiEffects`、`usePlaybackVisualizerBridge`。
-- 本地和在线库：`useLocalLibraryCatalog`、`useNeteaseLibrary`、`useAccountReads`、`useOnlineProviderPlatform`；在线账户的扫码登录、选平台、切换确认与登出在 Library Core 的账户 controller（`library/app/useLibraryAccountController`、`library/core/account/providerAccountController.service`），登录窗口在 `components/login/`（`LoginHost` 挂在 `App.tsx`，各处经 `loginWindowStore.ts` 的 `openLoginWindow` 打开）。
+- 本地和在线库：`useLocalLibraryCatalog`、`useAccountReads`、`useOnlineProviderPlatform`；在线账户的扫码登录、选平台、切换确认与登出在 Library Core 的账户 controller（`library/app/useLibraryAccountController`、`library/core/account/providerAccountController.service`），登录窗口在 `components/login/`（`LoginHost` 挂在 `App.tsx`，各处经 `loginWindowStore.ts` 的 `openLoginWindow` 打开）。
 - 外部 surface：`useStagePlaybackController`、`useNowPlayingSource`、`usePlayerCapSource`、`useObsBrowserSourcePublisher`。
 - 恢复、主题和窗口：`useSessionRestoreController`、`useThemeController`、`useAppPreferences`、Electron bridge hooks。
 - 导航/搜索/集合：`useAppNavigation.ts`、`useSearchNavigationStore.ts`、`useCollectionNavigationStore.ts`。

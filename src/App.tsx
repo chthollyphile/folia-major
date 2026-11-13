@@ -82,7 +82,6 @@ import { consumeProgrammaticPause, playbackFade } from './services/playbackFade'
 import { getSongAlbumLabel, getSongArtistLabel, getSongCoverUrl } from './services/onlineMusic/songMetadata';
 import { isNavidromeEnabled } from './services/navidromeService';
 import { useAppNavigation } from './hooks/useAppNavigation';
-import { useNeteaseLibrary } from './hooks/useNeteaseLibrary';
 import { useLibraryAccountController } from './library/app/useLibraryAccountController';
 import { createLibraryAccountSwitchCleanupPort } from './library/app/createLibraryAccountPort';
 import { useAppWallToolsHost } from './components/app/wall-tools/useAppWallToolsHost';
@@ -768,14 +767,6 @@ export default function App() {
         loadMoreSearchResults: state.loadMoreSearchResults,
     })));
 
-    // Netease Library Hook
-    // the NetEase account as the account store holds it
-    const {
-        user,
-        playlists,
-        cloudPlaylist,
-    } = useNeteaseLibrary();
-
     // Every platform's account is read and signed out of through omni (services/onlineMusic/account/),
     // NetEase like the others.
     // 在线账户 controller（Library v2 · A4）：登录、选平台、切换确认与登出都在 core，App 只交出退出与退出前的那一问
@@ -863,7 +854,6 @@ export default function App() {
         toggleTransparentModeWithHandoff,
     } = useElectronWindowPlaybackHandoff({
         isElectronWindow,
-        userId: user?.id,
         navigateToPlayer,
         audioRef,
         mainPlaybackSnapshotRef,
@@ -935,7 +925,6 @@ export default function App() {
         handleAutoMatchBestLyricForCurrentSong,
         handleLike,
     } = useLibraryPlaybackController({
-        userId: user?.id,
         setLyrics,
         setIsLyricsLoading,
         lyricsLoadingWritesRef,
@@ -951,7 +940,6 @@ export default function App() {
     });
 
     useSessionRestoreController({
-        userId: user?.id,
         blobUrlRef,
         currentOnlineAudioUrlFetchedAtRef,
         setLyrics,
@@ -993,8 +981,7 @@ export default function App() {
         t,
         queueAddBehavior,
         audioQuality,
-        userId: user?.id,
-    }), [currentSong, playQueue, persistLastPlaybackCache, t, queueAddBehavior, audioQuality, user?.id]);
+    }), [currentSong, playQueue, persistLastPlaybackCache, t, queueAddBehavior, audioQuality]);
 
     // --- Effects ---
 
@@ -1033,7 +1020,6 @@ export default function App() {
         shouldNavigateToPlayerOnTrackChange: currentView !== 'lattice',
         localSongs,
         localLibraryCatalog,
-        userId: user?.id,
         setLyrics,
         setIsLyricsLoading,
         navigateToPlaybackView,
@@ -2127,7 +2113,7 @@ export default function App() {
         controlsDisabled: isNowPlayingControlDisabled,
         isLyricsLoading,
         persistQueue: persistLastPlaybackCache,
-        refreshQueuePrefetch: (song, previous, next) => refreshPrefetchAfterQueueEdit(song, previous, next, audioQuality, user?.id),
+        refreshQueuePrefetch: (song, previous, next) => refreshPrefetchAfterQueueEdit(song, previous, next, audioQuality),
     });
 
     const visualizerRendererModel = useVisualizerRendererModel({
@@ -2208,9 +2194,6 @@ export default function App() {
         togglePlayback: togglePlay,
         enterPlaybackView: navigateFromPlayerCapsule,
         refreshOnlineProviderPlaylists: refreshActiveProviderPlaylists,
-        user,
-        playlists,
-        cloudPlaylist,
         focusedPlaylistIndex,
         setFocusedPlaylistIndex,
         navigateToSearch,

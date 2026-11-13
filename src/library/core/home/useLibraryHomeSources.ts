@@ -33,16 +33,16 @@ export type LibraryHomeSources = {
 
 export const useLibraryHomeSources = ({
     account,
-    user,
-    playlists,
-    cloudPlaylist = null,
     navidromeEnabled = false,
 }: {
     /** 在线账户 controller：当前平台与它的账户摘要来自快照（未变时身份稳定）。 */
     account: LibraryAccountController;
-    /** 应用传入的旧账户与歌单（只有网易云在平台还没给出摘要时用）。 */
-    user: ProviderUser | null;
-    playlists: ProviderCollection[];
+    /**
+     * 不再读：账户与歌单只取平台的账户摘要（Folium 2.0 方案 §7）。各 suite 仍把首页的账户交进来，留着这几个字段
+     * 免得改动冻结的 TUI。
+     */
+    user?: ProviderUser | null;
+    playlists?: ProviderCollection[];
     cloudPlaylist?: ProviderCollection | null;
     navidromeEnabled?: boolean;
 }): LibraryHomeSources => {
@@ -71,14 +71,11 @@ export const useLibraryHomeSources = ({
         provider,
         capabilities: { ...capabilities, userLibrary, playlists: canListPlaylists, userAlbums, recommendations, personalFmModes, explore },
         fallbackLabel: readOnlineProviderLabel(providerId),
-        fallbackUser: user,
-        fallbackPlaylists: playlists,
-        fallbackCloud: cloudPlaylist,
         platformAvailable: true,
     // eslint-disable-next-line react-hooks/exhaustive-deps -- capabilities 每次读都是新对象，有意按下面用到的几个开关比较
     }), [
         // capabilities 每次读都是新对象：按用到的几个开关比较。
-        canListPlaylists, cloudPlaylist, explore, personalFmModes, playlists, provider, providerId, recommendations, user, userAlbums, userLibrary,
+        canListPlaylists, explore, personalFmModes, provider, providerId, recommendations, userAlbums, userLibrary,
     ]);
 
     // The explore tab is gone after a switch to a provider without one, and a stored choice of it

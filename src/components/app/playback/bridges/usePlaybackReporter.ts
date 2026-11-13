@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { RefObject } from 'react';
 import type { SongResult } from '../../../../types';
-import { useAudioSettingsStore } from '../../../../stores/useAudioSettingsStore';
+import { useAudioSettingsStore, isPlaybackReportEnabled } from '../../../../stores/useAudioSettingsStore';
 import { getPlaybackSongKey, getPlaybackSourceRef } from '../../../../utils/appPlaybackGuards';
 import { getProviderSongMetadata } from '../../../../services/onlineMusic/songMetadata';
 import { isPlaybackReportReady, sendPlaybackReport } from '../../../../services/onlineMusic/playbackReportGate';
@@ -47,7 +47,10 @@ export const usePlaybackReporter = ({
     currentSong,
     activeDeck,
 }: UsePlaybackReporterParams): void => {
-    const enabled = useAudioSettingsStore(state => state.neteaseScrobbleEnabled);
+    // The setting of the song's own source (stored per source).
+    const currentSource = currentSong ? getPlaybackSourceRef(currentSong) : null;
+    const reportSourceId = currentSource?.kind === 'online' ? currentSource.providerId : null;
+    const enabled = useAudioSettingsStore(state => isPlaybackReportEnabled(state, reportSourceId));
     // On the HiFi route the listeners go on the HiFi media shim rather than a deck.
     const playbackRoute = usePlaybackStore(state => state.playbackRoute);
     const trackerRef = useRef<PlaybackListenTracker | null>(null);
