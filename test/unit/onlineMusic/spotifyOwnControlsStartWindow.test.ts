@@ -65,6 +65,16 @@ const songOf = (letter: string): SongResult => normalizeSpotifySong({
     duration: { totalMilliseconds: 200000 },
 } as never);
 
+/** A song of the given title and artists, for the cases where the names themselves are the point. */
+const namedSong = (letter: string, name: string, artists: string[]): SongResult => normalizeSpotifySong({
+    __typename: 'Track', uri: `spotify:track:${id(letter)}`, name,
+    artists: { items: artists.map((artist, index) => ({
+        uri: `spotify:artist:${id(String.fromCharCode(114 + index))}`, profile: { name: artist },
+    })) },
+    albumOfTrack: { uri: `spotify:album:${id('m')}`, name: 'Album', coverArt: { sources: [] } },
+    duration: { totalMilliseconds: 200000 },
+} as never);
+
 const wire = (mediaId: string, extra: Record<string, unknown> = {}): SpotifyWireClientStatus => ({
     id: mediaId, ad: false, isPaused: false, isBuffering: false, positionMs: 1000, durationMs: 200000, ...extra,
 } as SpotifyWireClientStatus);
@@ -576,6 +586,190 @@ describe('a start of Folia\'s the app answers on its own player', () => {
         const picked = statusOfClient(wire(id('c'), { positionMs: 1000 }));
         expect(picked.ended).toBe(false);
         expect(picked.mediaId).toBe(id('c'));
+        void start;
+        held.release();
+    });
+});
+describe('the names that close a start of Folia\'s window on the coarse channel', () => {
+    beforeEach(() => {
+        Object.defineProperty(window, 'electron', {
+            value: { platform: 'win32', spotifyRequest: vi.fn() },
+            configurable: true,
+            writable: true,
+        });
+        vi.useFakeTimers();
+        request.mockReset();
+        request.mockImplementation(async (operation: string) => (
+            operation === 'client_play' ? 'loaded' : { available: true }
+        ));
+        resetSpotifyClientPlayback();
+        engine.installExternalPlayback();
+        engine.stopExternalPlayback('test reset');
+        const song = songOf('a');
+        usePlaybackStore.setState({
+            playbackRoute: 'web', audioSrc: null, playerState: PlayerState.IDLE, duration: 0,
+            currentSong: song, playQueue: [song], isFmMode: false,
+        });
+        omniMock.playSongExternally.mockReset();
+        omniMock.playSongExternally.mockImplementation(async (song: SongResult, startSec: number, options: unknown) => {
+            await spotifyClientPlayback.play!(song, startSec, options as never);
+        });
+        omniMock.getExternalPlaybackStatus.mockReset();
+        omniMock.getExternalPlaybackStatus.mockImplementation(async () => statusOfClient(readOfApp()) as never);
+        omniMock.pauseExternalPlayback.mockClear();
+        readOfApp = () => wire('');
+        useAudioSettingsStore.setState({ volume: 1, isMuted: false, loopMode: 'all' });
+    });
+
+    afterEach(() => {
+        engine.stopExternalPlayback('test end');
+        usePlaybackStore.setState({ playbackRoute: 'web', audioSrc: null, playerState: PlayerState.IDLE, playQueue: [] });
+        resetSpotifyClientPlayback();
+        vi.useRealTimers();
+    });
+
+    /** A start of Folia\'s on song b whose answer the app keeps: the window is open when this returns. */
+    const startOfBOnItsWay = async () => {
+        const held = holdNextStart();
+        const start = engine.startExternalPlayback(songOf('b'), 0);
+        engine.announceExternalPlayback();
+        await vi.advanceTimersByTimeAsync(0);
+        expect(held.asked()).toBe(true);
+        expect(startPending()).toBe(true);
+        return { held, start };
+    };
+
+    it('is not closed by a coarse answer that names no artist at all', async () => {
+        const { held, start } = await startOfBOnItsWay();
+        // The same title, and the media session reports no artist: nothing says this is song b, and
+        // the leftover of the start carries the position the app was on before.
+        readOfApp = () => coarse({ positionMs: 150000, title: 'Song b' });
+
+        const status = statusOfClient(readOfApp());
+
+        expect(status.starting).toBe(true);
+        expect(status.isPlaying).toBe(false);
+        expect(status.positionMs).toBe(0);
+        expect(startPending()).toBe(true);
+        void start;
+        held.release();
+    });
+
+    it('is not closed by an artist whose name merely contains this song\'s', async () => {
+        // The song is by DJ; the app shows DJ Snake. A name that holds another one inside it is a
+        // different act, not this song's.
+        const dj = namedSong('d', 'Song b', ['DJ']);
+        await spotifyClientPlayback.play!(dj, 0);
+        const held2 = holdNextStart();
+        const start = engine.startExternalPlayback(namedSong('e', 'Song b', ['DJ']), 0);
+        engine.announceExternalPlayback();
+        await vi.advanceTimersByTimeAsync(0);
+        expect(held2.asked()).toBe(true);
+        expect(startPending()).toBe(true);
+
+        readOfApp = () => coarse({ positionMs: 150000, title: 'Song b', artist: 'DJ Snake' });
+        const status = statusOfClient(readOfApp());
+
+        expect(status.starting).toBe(true);
+        expect(status.positionMs).toBe(0);
+        expect(startPending()).toBe(true);
+        void start;
+        held2.release();
+    });
+
+    it('is not closed by a title whose bracketed credit was stripped away', async () => {
+        const { held, start } = await startOfBOnItsWay();
+        // The app shows a credit Folia never wrote: that is a different title, not this song's.
+        readOfApp = () => coarse({ positionMs: 150000, title: 'Song b (feat. Guest)', artist: 'Artist' });
+
+        const status = statusOfClient(readOfApp());
+
+        expect(status.starting).toBe(true);
+        expect(status.positionMs).toBe(0);
+        expect(startPending()).toBe(true);
+        void start;
+        held.release();
+    });
+
+    it('is closed by the same title and the same artist, whatever the case and the spacing', async () => {
+        const { held, start } = await startOfBOnItsWay();
+        const read = coarse({ positionMs: 150000, title: '  song   B  ', artist: 'ARTIST' });
+        readOfApp = () => read;
+
+        const status = statusOfClient(read);
+
+        // The app names this very song: the start has landed, so the window is over and the read is
+        // this song's own, its position included, rather than the leftover of the one before it.
+        expect(status.starting).toBe(false);
+        expect(status.positionMs).toBe(150000);
+        expect(startPending()).toBe(false);
+        void start;
+        held.release();
+    });
+});
+describe('a start of Folia\'s whose window is open when the app moves to the song Folia queued next', () => {
+    beforeEach(() => {
+        Object.defineProperty(window, 'electron', {
+            value: { platform: 'win32', spotifyRequest: vi.fn() },
+            configurable: true,
+            writable: true,
+        });
+        vi.useFakeTimers();
+        request.mockReset();
+        request.mockImplementation(async (operation: string, params?: unknown) => {
+            if (operation === 'client_play') return 'loaded';
+            if (operation === 'client_queue') {
+                const ids = (params as { ids?: string[] } | undefined)?.ids ?? [];
+                return { aborted: false, cleared: false, canClear: false, written: ids, read: ids };
+            }
+            return { available: true };
+        });
+        resetSpotifyClientPlayback();
+        engine.installExternalPlayback();
+        engine.stopExternalPlayback('test reset');
+        const song = songOf('a');
+        usePlaybackStore.setState({
+            playbackRoute: 'web', audioSrc: null, playerState: PlayerState.IDLE, duration: 0,
+            currentSong: song, playQueue: [song], isFmMode: false,
+        });
+        omniMock.playSongExternally.mockReset();
+        omniMock.playSongExternally.mockImplementation(async (song: SongResult, startSec: number, options: unknown) => {
+            await spotifyClientPlayback.play!(song, startSec, options as never);
+        });
+        omniMock.getExternalPlaybackStatus.mockReset();
+        omniMock.getExternalPlaybackStatus.mockImplementation(async () => statusOfClient(readOfApp()) as never);
+        omniMock.pauseExternalPlayback.mockClear();
+        readOfApp = () => wire('');
+        useAudioSettingsStore.setState({ volume: 1, isMuted: false, loopMode: 'all' });
+    });
+
+    afterEach(() => {
+        engine.stopExternalPlayback('test end');
+        usePlaybackStore.setState({ playbackRoute: 'web', audioSrc: null, playerState: PlayerState.IDLE, playQueue: [] });
+        resetSpotifyClientPlayback();
+        vi.useRealTimers();
+    });
+
+    it('reads it as this song ending, rather than swallowing the handoff into the window', async () => {
+        // Song b sounds there and Folia put song c behind it: the app moving on to c by itself is
+        // this song ending, and Folia's queue steps on to it.
+        const b = songOf('b');
+        const c = songOf('c');
+        await spotifyClientPlayback.play!(b, 0);
+        statusOfClient(wire(id('b'), { positionMs: 10000 }));
+        await spotifyClientPlayback.prepareNext!(b, [c]);
+
+        // A start on top of it that the app has not answered yet: the window is open.
+        const held = holdNextStart();
+        const start = engine.startExternalPlayback(b, 0);
+        engine.announceExternalPlayback();
+        await vi.advanceTimersByTimeAsync(0);
+        expect(held.asked()).toBe(true);
+
+        // The coarse channel shows the song Folia wrote next, with the window still open.
+        const status = statusOfClient(coarse({ title: 'Song c', artist: 'Artist' }));
+
+        expect(status.ended).toBe(true);
         void start;
         held.release();
     });
