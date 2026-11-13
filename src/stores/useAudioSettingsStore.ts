@@ -49,8 +49,26 @@ const LEGACY_PLAYBACK_REPORT_KEYS: Readonly<Record<string, string>> = { netease:
 
 /** Where the listening report setting of `providerId` is stored. */
 export const playbackReportStorageKey = (providerId: string): string => (
-    LEGACY_PLAYBACK_REPORT_KEYS[providerId] ?? `${PLAYBACK_REPORT_KEY_PREFIX}${providerId}`
+    LEGACY_PLAYBACK_REPORT_KEYS[providerId] ?? PLAYBACK_REPORT_KEY_PREFIX + providerId
 );
+
+/*
+ * The stored listening report setting of `providerId`, read and written here only. The new keys are spelt
+ * `PLAYBACK_REPORT_KEY_PREFIX + providerId` at the call, which is how the storage key registry
+ * (dev/dedicatus/storageKeys.mjs, D507) reads a key with a variable part: as `folia_playback_report:*`.
+ */
+const readStoredPlaybackReport = (providerId: string): boolean => {
+    const legacyKey = LEGACY_PLAYBACK_REPORT_KEYS[providerId];
+    return legacyKey
+        ? getStoredBoolean(legacyKey, false)
+        : getStoredBoolean(PLAYBACK_REPORT_KEY_PREFIX + providerId, false);
+};
+
+const writeStoredPlaybackReport = (providerId: string, enable: boolean): void => {
+    const legacyKey = LEGACY_PLAYBACK_REPORT_KEYS[providerId];
+    if (legacyKey) setStoredBoolean(legacyKey, enable);
+    else setStoredBoolean(PLAYBACK_REPORT_KEY_PREFIX + providerId, enable);
+};
 
 /** Whether pause fades out and resume fades in (services/playbackFade). On unless switched off. */
 export const PLAYBACK_FADE_KEY = 'folia_playback_fade_enabled';
@@ -397,7 +415,7 @@ export const useAudioSettingsStore = create<AudioSettingsState>((set, get) => ({
         set({ enableTranscodeFallback: enable });
     },
     handleSetPlaybackReport: (providerId, enable) => {
-        setStoredBoolean(playbackReportStorageKey(providerId), enable);
+        writeStoredPlaybackReport(providerId, enable);
         set(state => ({ playbackReportEnabled: { ...state.playbackReportEnabled, [providerId]: enable } }));
     },
     handleTogglePlaybackFade: (enable) => {
@@ -583,5 +601,5 @@ export const setAudioQuality = (quality: AudioQuality) => useAudioSettingsStore.
 /** Whether finished plays of `providerId`'s songs are reported to its account; a source not asked about yet is read from storage. */
 export const isPlaybackReportEnabled = (state: Pick<AudioSettingsState, 'playbackReportEnabled'>, providerId: string | null | undefined): boolean => {
     if (!providerId) return false;
-    return state.playbackReportEnabled[providerId] ?? getStoredBoolean(playbackReportStorageKey(providerId), false);
+    return state.playbackReportEnabled[providerId] ?? readStoredPlaybackReport(providerId);
 };
