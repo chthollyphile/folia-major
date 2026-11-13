@@ -336,7 +336,7 @@ packages/folium-source-kit/   纯 TS 的共用函数（exploreReads、listeningR
 | `onlineMetadataSearchService.ts`、`LocalSongMetadataMatchDialog.tsx`、`localMusicService.ts:1429-1490` | 按「声明能做本地歌匹配的音源」生成，顺序取注册表 |
 | `App.tsx` 的 `useNeteaseLibrary`、`homeSources.ts:59` | 删，走账号层 |
 | `folia_netease_scrobble`、`settingsCommands.ts:158-164` | 宿主的通用「听歌上报」设置，按音源 id 存，网易云读旧键 |
-| `electron/stageApi.cjs` | 搜索和按 id 取歌改问渲染进程的 omni；线上格式不变 |
+| `electron/stageApi.cjs` | 搜索和按 id 取歌改问渲染进程的 omni；成功时线上格式不变。不带 provider 的搜索失败时回通用的三条错误码（主窗口不在、平台拒绝、超时），原来的 `NETEASE_API_UNAVAILABLE`、`NETEASE_SEARCH_FAILED` 不再出现；它用的是 Folia 里网易云的会话，不再是主进程的匿名搜索 |
 | `electron/loginBackendIpc.cjs`、`networkRecorder.cjs` | 并入 `api.diagnostics` |
 | `folium/platformRaw.ts`、权限 `platform.netease.*` | 改经认领该 id 的音源的 `raw@1` 能力转发，1.x 模组无感 |
 | 四份语言文件里各约 190 个平台自己的 key | 搬进各音源的 `locales/` |
@@ -361,9 +361,9 @@ packages/folium-source-kit/   纯 TS 的共用函数（exploreReads、listeningR
 - **隐藏**：`skipped` 里的音源在搜索来源、匹配窗口的页签、歌词首选来源的选项、本地歌匹配的平台按钮里都不出现，不画成禁用的一行。
 - **记下缺失**：每个功能每次运行对每个被跳过的音源记一行日志（`[crossSource] lyrics: qq skipped (not-enabled)`）。界面上只在用户的选择因此落空时说一句，说清是哪个来源、为什么、去哪里开（例如歌词设置里「首选来源 QQ 音乐未启用，现在按下一个来源匹配」，带一个跳到「设置 → 音源」的入口）；自动流程里静默跳过。
 - **存着的选择不改写**：歌词首选来源（默认 `qq`）、每首歌匹配到的歌词来源、本地歌的 `onlineMetadata.source` 都保留原值；来源不在时生效的是顺序里下一个 `ready` 的，来源回来后自动用回它。已经缓存下来的歌词和元数据照常显示，只是不再去重新取。
-- **顺序**：没有写死的平台顺序。元数据匹配和自动歌词匹配按用户的来源优先级，其余按注册顺序。
+- **顺序**：没有写死的平台顺序。自动歌词匹配按用户的来源优先级。元数据匹配按声明了 `metadataMatch` 的音源的登记顺序，不跟歌词来源优先级：九家都在时就是 2.0 之前的「网易云 → QQ → 酷狗」（首选歌词来源默认是 QQ，跟着它排会把这个顺序改掉）。其余按注册顺序。
 - **依赖别家 id 的步骤**：AMLL 库按网易云 / QQ 的歌曲 id 查。歌自己带着这个 id（`lyricIds`）就直接查；要靠去那个平台搜出 id 的，那个平台被跳过时这一步跳过，不算失败。
-- **一个都没有**：`ready` 为空时功能入口本身隐藏（搜索页只剩当前音源，匹配按钮不出现），不弹错。
+- **一个都没有**：`ready` 为空时功能入口本身隐藏（搜索页只剩当前音源，匹配按钮不出现），不弹错。本地歌的信息匹配窗口例外：它还管恢复本地信息、标记纯音乐、选封面，入口留着，只是页签为空、不发搜索。
 - 匿名调用用音源自己的匿名通道（网易云的匿名 cookie、酷狗的设备标识），宿主不替它造身份。
 
 涉及的调用方：`components/app/search/searchSources.ts`、`onlineMetadataSearchService.ts`、`LocalSongMetadataMatchDialog.tsx`、`localMusicService.ts:1429-1490`、`utils/lyrics/lyricMatchSources.ts`、`autoMatchBestLyric.ts`、`hooks/useLyricMatchSources.ts`、`sourcePriority.ts`、`providers/amllDbProvider.ts`、`navidromeSongMatch.ts`、`useLibraryPlaybackController.ts:1000-1041`、`electron/stageApi.cjs` 的搜索。
@@ -429,7 +429,7 @@ packages/folium-source-kit/   纯 TS 的共用函数（exploreReads、listeningR
 - **音源类的豁免**：`sample-source-full` 不声明 `net.fetch`、`filesystem.data` 也能发二进制请求、存超过 1 MB 的数据；启用、停用一个普通模组时它的 main 入口不重启；停用它时正在放的歌先停、`onBeforeUnload` 被等到；普通模组照旧被 5 MB、1 MB、权限闸门拦住。内置音源的目录里没有 `folium.sig.json` 也照常加载，面板里标「内置」；`sample-source-full` 不带签名能启用、能拿到上面的豁免。
 - **单独停用**：逐个停用九个内置音源，每次确认它的后端进程、worker、本机端口都没有了（主进程里求值检查），切换器、登录窗口、搜索来源、歌词来源里没有它，别的音源没有重启；队列里它的歌标「音源未启用」，重新启用后能放；「清除数据」之后重新启用是未登录状态；升级来的 profile 九个全开，全新 profile 按引导里勾的来。
 - **只用于匹配**：把网易云和 QQ 设成只用于匹配。切换器、登录窗口、搜索来源、首页、命令面板里都没有它们；没登录的情况下给本地歌配歌词、配在线信息能成功，AMLL 库按 id 查能成功；匹配发生之前主进程里没有它们的后端（主进程里求值确认），第一次匹配之后才有；它们在队列里的歌标「音源未启用」；切回启用后原来的登录还在；联邦搜索里没有它们。全新 profile 在引导里一个都不勾时，网易云和 QQ 是只用于匹配，其余七个是停用；升级来的 profile 九个全开。`crossSource` 的单测覆盖新增的两种状态。
-- **跨音源降级**：`crossSource` 的单测覆盖表里五种状态；桌面上停用 QQ 后，歌词首选来源仍存着 `qq`、匹配落到下一个来源、设置里说明了原因，重新启用后用回 QQ；停用网易云、QQ、酷狗后本地歌匹配的入口隐藏；只留一个不登录的网易云时联邦搜索和歌词匹配走匿名成功。
+- **跨音源降级**：`crossSource` 的单测覆盖表里五种状态；桌面上停用 QQ 后，歌词首选来源仍存着 `qq`、匹配落到下一个来源、设置里说明了原因，重新启用后用回 QQ；停用网易云、QQ、酷狗后本地歌信息匹配窗口的页签为空、不发搜索（入口留着）；九家都在时元数据匹配的顺序是网易云、QQ、酷狗；只留一个不登录的网易云时联邦搜索和歌词匹配走匿名成功。
 - **覆盖**：干净的安装版上放一个官方签名的更高版本，确认后生效；未签名、版本更低、`folia` 范围不符的都继续跑内置副本。
 - **合规预案**：用 `FOLIA_BUNDLED_SOURCES` 出两个安装包，一个九个都不带，一个只不带 QQ。前一个启动是零音源的空状态，安装包里搜不到任何平台的代码和名字；装上 `sources:pack` 出的未签名 zip 并确认之后，音源以短 id 出现，从九个全带的旧版本升级来的 profile 里登录还在、队列里的歌能放。后一个其余八家照常，QQ 由外部副本接管。声明里有而目录被删掉的，报安装损坏、不放行外部副本；签名不匹配的不让接管；两个模组抢同一个 id 时只有先确认的拿到；换回九个全带的安装包后，未签名的外部副本不再加载，登录还在。
 - **打包**：按 `local-windows-installer-build` 的做法出 Windows 安装包，确认 `resources/builtin-mods/` 齐全、app.asar 里没有重复的上游包。
