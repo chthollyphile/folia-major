@@ -193,7 +193,7 @@ describe('a track change the app made by its own controls', () => {
         statusOfClient(playing(id('a'), { positionMs: 10000 }));
         expect(statusOfClient(playing(id('c'))).mediaId).toBe(id('c'));
         expect(statusOfClient(playing(id('c'))).mediaId).toBe(id('c'));
-        expect(spotifyClientAttempt()?.adoptedAppPick).toBe(true);
+        expect(spotifyClientAttempt()?.notedAppPick).toBe(true);
     });
 
     it('is not a skip when the song ran out, when the app went on to the song Folia queued, or for an advertisement', async () => {
