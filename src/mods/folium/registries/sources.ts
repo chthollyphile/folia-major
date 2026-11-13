@@ -1,9 +1,4 @@
 import type { OnlineMusicProvider, ProviderNotice } from '@/types/onlineMusic';
-import {
-    getOnlineMusicProvider,
-    registerOnlineMusicProvider,
-    unregisterOnlineMusicProvider,
-} from '@/services/onlineMusic/providerRegistry';
 import { declareSource } from '@/services/onlineMusic/sourceDeclarations';
 import { getLyricSource, registerLyricSource } from '@/utils/lyrics/lyricSources';
 import { registerCoverUrlRule } from '@/utils/coverUrl';
@@ -17,6 +12,7 @@ import type { FoliumHostRegistry, FoliumRegistryEntry } from '../../runtime/regi
 import { reportFoliumIssue } from '../../runtime/status';
 import { createFoliumListeners } from '../../runtime/listeners';
 import { foliumProviderId } from '../omni/providerIds';
+import { holdFoliumProvider, releaseFoliumProvider } from './heldProviders';
 
 // src/mods/folium/registries/sources.ts
 // Folium 2.0 (plan §3, §4): the registry of `folium.sources`. A source's definition is adapted to the host's
@@ -29,61 +25,12 @@ import { foliumProviderId } from '../omni/providerIds';
 // (lyricSources.ts) and a cover rule for `covers@1` (coverUrl.ts). `handle.changed()` reads it all again and
 // puts it in place over what was there.
 //
-// The table of mod-held provider ids (`holdFoliumProvider`) is shared with the experimental `omni.providers`,
-// which registers its sources through it: one id, one mod, whichever surface it came through.
+// The table of mod-held provider ids (heldProviders.ts) is shared with the experimental `omni.providers`, which
+// registers its sources through it: one id, one mod, whichever surface it came through.
 
 export { buildFoliumSourceProvider, deriveFoliumSourceCapabilities, deriveFoliumSourceDeclaration, readFoliumSourceParts };
 export { createFoliumPageStore } from './sourcePageStore';
-
-/** Where a host provider id held by a mod came from. */
-export type FoliumProviderOrigin = 'sources' | 'omni.providers';
-
-interface HeldProvider {
-    modId: string;
-    origin: FoliumProviderOrigin;
-    provider: OnlineMusicProvider;
-    /** The source's custom capabilities, by id (`x.<mod id>.<name>@<version>`). */
-    custom: ReadonlyMap<string, unknown>;
-}
-
-const held = new Map<string, HeldProvider>();
-
-/**
- * Registers `provider` as held by `modId` (Folium 2 sources and the experimental `omni.providers`), or in place of
- * the one it held under that id. Throws when another provider already has its id, built-in or a mod's.
- */
-export const holdFoliumProvider = (
-    modId: string,
-    origin: FoliumProviderOrigin,
-    provider: OnlineMusicProvider,
-    custom: ReadonlyMap<string, unknown> = new Map(),
-): void => {
-    const current = held.get(provider.id);
-    if (current ? current.modId !== modId || current.origin !== origin : getOnlineMusicProvider(provider.id)) {
-        throw new Error(`provider "${provider.id}" already exists`);
-    }
-    held.set(provider.id, { modId, origin, provider, custom });
-    registerOnlineMusicProvider(provider);
-};
-
-/** Undoes holdFoliumProvider, when `provider` is still the one held under its id. */
-export const releaseFoliumProvider = (provider: OnlineMusicProvider): void => {
-    if (held.get(provider.id)?.provider !== provider) return;
-    held.delete(provider.id);
-    if (getOnlineMusicProvider(provider.id) === provider) unregisterOnlineMusicProvider(provider.id);
-};
-
-/** Which mod holds a provider id, and through what; null for a built-in provider or none. */
-export const getFoliumProviderHolder = (providerId: string): { modId: string; origin: FoliumProviderOrigin } | null => {
-    const entry = held.get(providerId);
-    return entry ? { modId: entry.modId, origin: entry.origin } : null;
-};
-
-/** `folium.omni.capability`: a source's custom capability by id, the mod's own object; null without one. */
-export const getFoliumSourceCapability = (sourceId: string, id: string): unknown => {
-    if (typeof sourceId !== 'string' || typeof id !== 'string') return null;
-    return held.get(sourceId)?.custom.get(id) ?? null;
-};
+export { getFoliumProviderHolder, getFoliumSourceCapability, holdFoliumProvider, releaseFoliumProvider, type FoliumProviderOrigin } from './heldProviders';
 
 /** One registered source: its definition and what the adapter made of it. */
 interface FoliumSourceEntry {

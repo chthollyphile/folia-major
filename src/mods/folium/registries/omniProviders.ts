@@ -8,7 +8,7 @@ import { sayFoliumOldNameOnce } from '../deprecated/warnings';
 import { createFoliumRegistry } from '../../runtime/registry';
 import { timeFoliumMod } from '../../runtime/guard';
 import { foliumProviderId } from '../omni/providerIds';
-import { holdFoliumProvider, releaseFoliumProvider } from './sources';
+import { holdFoliumProvider, releaseFoliumProvider } from './heldProviders';
 
 // src/mods/folium/registries/omniProviders.ts
 // EXPERIMENTAL `omni.providers`: a mod's online music source, adapted to the
@@ -27,7 +27,7 @@ import { holdFoliumProvider, releaseFoliumProvider } from './sources';
 // loading this registry.
 //
 // Folium 2.0 (plan §9): a thin shell on the sources registry (registries/sources.ts). Its providers are held in
-// the same table of mod-held provider ids as `folium.sources`' (one id, one mod, whichever surface it came
+// the same table of mod-held provider ids as `folium.sources`' (heldProviders.ts: one id, one mod, whichever surface it came
 // through), and go with the mod's teardown the same way. What it registers behaves exactly as in Folium 1: its
 // four methods keep their own adapter below (the 1.x song shape and its `#artist0` ids, the Folium 1 lyrics
 // answer, the timing gate), since a Folium 1 definition is no set of capabilities. New sources use folium.sources.
