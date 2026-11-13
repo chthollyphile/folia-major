@@ -713,9 +713,14 @@ export const spotifyClientPlayback: OnlineExternalPlaybackProvider = {
             throw new OnlineProviderError('unavailable', 'The Spotify app is not installed', 'spotify', 'client-missing');
         }
         const startMs = Math.max(0, Math.round(startSec * 1000));
-        const adopt = handoffId === id && startMs === 0;
+        // A play of a whole list of the listener's replaces the app's queue even where the app already
+        // moved on to this list's first song: what it holds behind that song belongs to the queue the
+        // listener replaced, so the song is started again rather than taken as it stands. Every other
+        // play of the track the app moved to starts nothing (see the adopt branch below).
+        const adopt = handoffId === id && startMs === 0 && options.replaceQueue !== true;
+
         // The app moved to the song Folia put first: what it still holds after that one is its queue,
-        // and is not written again.
+        // and is not written again. A whole-list play takes none of it.
         const carried = adopt ? tailAfter(attempt?.nextIds ?? [], id) : [];
         const carriedConfirmed = adopt ? tailAfter(attempt?.confirmedIds ?? [], id) : [];
         handoffId = null;
