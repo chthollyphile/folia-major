@@ -49,7 +49,9 @@ vi.mock('@/services/onlineMusic/omni', () => ({ omni: omniMock }));
 
 const engine = await import('@/services/onlineMusic/externalPlayback');
 const { normalizeSpotifySong } = await import('@/services/onlineMusic/spotify/spotifyNormalize');
-const { resetSpotifyClientPlayback, spotifyClientPlayback, statusOfClient } = await import('@/services/onlineMusic/spotify/spotifyClientPlayback');
+const {
+    resetSpotifyClientPlayback, spotifyClientAttempt, spotifyClientPlayback, statusOfClient,
+} = await import('@/services/onlineMusic/spotify/spotifyClientPlayback');
 type SpotifyWireClientStatus = Parameters<typeof statusOfClient>[0];
 const { usePlaybackStore } = await import('@/stores/usePlaybackStore');
 const { PlayerState } = await import('@/types');
@@ -67,6 +69,15 @@ const wire = (mediaId: string, extra: Record<string, unknown> = {}): SpotifyWire
     id: mediaId, ad: false, isPaused: false, isBuffering: false, positionMs: 1000, durationMs: 200000, ...extra,
 } as SpotifyWireClientStatus);
 
+/**
+ * The media session's answer: no track id at all, the results of a port that is down, and the title
+ * and artist it shows instead. The position is its own, and says nothing about the song Folia asked
+ * for until that song has been shown there.
+ */
+const coarse = (extra: Record<string, unknown> = {}): SpotifyWireClientStatus => wire('', {
+    fallback: true, durationMs: 0, ...extra,
+});
+
 /** What the app answers a read right now, as the way it is steered there answers it. */
 let readOfApp: () => SpotifyWireClientStatus = () => wire('');
 
@@ -77,7 +88,7 @@ const appOn = (letter: string, extra: Record<string, unknown> = {}) => {
 
 /** Everything the route reports that a bridge acts on, collected for the length of one case. */
 const recordEvents = () => {
-    const events: { type: string; status?: { mediaId: string } }[] = [];
+    const events: { type: string; status?: { mediaId: string; shownTrack?: { title: string; artist: string } } }[] = [];
     const unsubscribe = engine.subscribeExternalPlayback(event => {
         if (event.type === 'ended') events.push({ type: 'ended' });
         if (event.type === 'track-changed') events.push({ type: 'track-changed', status: event.status });
@@ -87,6 +98,9 @@ const recordEvents = () => {
 
 /** The song the screen holds. */
 const shownName = () => usePlaybackStore.getState().currentSong?.name ?? null;
+
+/** Whether a start of Folia's is still being waited for, as the provider itself records it. */
+const startPending = () => spotifyClientAttempt()?.startPending ?? false;
 
 /**
  * Makes the next start of Folia's hang in the app: the call that plays the song answers only when
@@ -268,5 +282,301 @@ describe('Folia starting a song while the app still answers about the one before
 
         expect(events.map(event => event.type)).toEqual(['track-changed']);
         expect(events[0].status?.mediaId).toBe(id('c'));
+    });
+});
+describe('a start of Folia\'s the app answers through its coarse channel', () => {
+    beforeEach(() => {
+        Object.defineProperty(window, 'electron', {
+            value: { platform: 'win32', spotifyRequest: vi.fn() },
+            configurable: true,
+            writable: true,
+        });
+        vi.useFakeTimers();
+        request.mockReset();
+        request.mockImplementation(async (operation: string) => (
+            operation === 'client_play' ? 'loaded' : { available: true }
+        ));
+        resetSpotifyClientPlayback();
+        engine.installExternalPlayback();
+        engine.stopExternalPlayback('test reset');
+        const song = songOf('a');
+        usePlaybackStore.setState({
+            playbackRoute: 'web', audioSrc: null, playerState: PlayerState.IDLE, duration: 0,
+            currentSong: song, playQueue: [song], isFmMode: false,
+        });
+        omniMock.playSongExternally.mockReset();
+        omniMock.playSongExternally.mockImplementation(async (song: SongResult, startSec: number, options: unknown) => {
+            await spotifyClientPlayback.play!(song, startSec, options as never);
+        });
+        omniMock.getExternalPlaybackStatus.mockReset();
+        omniMock.getExternalPlaybackStatus.mockImplementation(async () => statusOfClient(readOfApp()) as never);
+        omniMock.pauseExternalPlayback.mockClear();
+        readOfApp = () => wire('');
+        useAudioSettingsStore.setState({ volume: 1, isMuted: false, loopMode: 'all' });
+    });
+
+    afterEach(() => {
+        engine.stopExternalPlayback('test end');
+        usePlaybackStore.setState({ playbackRoute: 'web', audioSrc: null, playerState: PlayerState.IDLE, playQueue: [] });
+        resetSpotifyClientPlayback();
+        vi.useRealTimers();
+    });
+
+    it('reads the track it is leaving behind as still starting, not as where this song stands', async () => {
+        // The start is asked for and the app has not taken the song yet: the first coarse read still
+        // describes the track the app was on before, its own position and all.
+        const held = holdNextStart();
+        const start = engine.startExternalPlayback(songOf('b'), 0);
+        engine.announceExternalPlayback();
+        await vi.advanceTimersByTimeAsync(0);
+        expect(held.asked()).toBe(true);
+
+        // This song has never sounded there, so nothing of the leftover may stand for it.
+        readOfApp = () => coarse({ positionMs: 123400, title: 'Song a', artist: 'Artist' });
+        await vi.advanceTimersByTimeAsync(600);
+
+        const status = statusOfClient(readOfApp());
+        expect(status.starting).toBe(true);
+        expect(status.isPlaying).toBe(false);
+        expect(status.positionMs).toBe(0);
+        expect(shownName()).toBe('Song a');
+        void start;
+        held.release();
+    });
+
+    it('reads a coarse answer that names no track at all the same way while the start is on its way', async () => {
+        const held = holdNextStart();
+        const start = engine.startExternalPlayback(songOf('b'), 0);
+        engine.announceExternalPlayback();
+        await vi.advanceTimersByTimeAsync(0);
+        expect(held.asked()).toBe(true);
+
+        // A media session that shows no title at all says nothing about the track it left behind.
+        readOfApp = () => coarse({ positionMs: 123400 });
+        await vi.advanceTimersByTimeAsync(600);
+
+        const status = statusOfClient(readOfApp());
+        expect(status.starting).toBe(true);
+        expect(status.positionMs).toBe(0);
+        void start;
+        held.release();
+    });
+
+    it('takes nothing over from the track the coarse channel still shows while that start is on its way', async () => {
+        const held = holdNextStart();
+        const start = engine.startExternalPlayback(songOf('b'), 0);
+        engine.announceExternalPlayback();
+        await vi.advanceTimersByTimeAsync(0);
+        expect(held.asked()).toBe(true);
+
+        const { events, unsubscribe } = recordEvents();
+        readOfApp = () => coarse({ positionMs: 123400, title: 'Song a', artist: 'Artist' });
+        await vi.advanceTimersByTimeAsync(600);
+        await vi.advanceTimersByTimeAsync(600);
+        unsubscribe();
+
+        expect(events.map(event => event.type)).toEqual([]);
+        expect(shownName()).toBe('Song a');
+        expect(omniMock.pauseExternalPlayback).not.toHaveBeenCalled();
+        void start;
+        held.release();
+    });
+
+    it('adopts at once what the listener picks after a coarse answer named this very song', async () => {
+        // A start whose answer the app keeps for a while: the media session names this song meanwhile.
+        request.mockImplementation(async (operation: string) => {
+            if (operation !== 'client_play') return { available: true };
+            return await new Promise(resolve => { setTimeout(() => resolve('loaded'), 5000); });
+        });
+        const start = engine.startExternalPlayback(songOf('b'), 0);
+        engine.announceExternalPlayback();
+        await vi.advanceTimersByTimeAsync(0);
+
+        readOfApp = () => coarse({ title: 'Song b', artist: 'Artist' });
+        // Read the way the route reads it, whatever the call that plays the song is still doing.
+        statusOfClient(readOfApp());
+
+        // The coarse channel named this song: the start is over, whatever the app answers the call.
+        expect(startPending()).toBe(false);
+
+        // So a track the listener picks now is theirs, and is taken over straight away.
+        const { events, unsubscribe } = recordEvents();
+        const picked = coarse({ title: 'Song c', artist: 'Artist' });
+        readOfApp = () => picked;
+        await vi.advanceTimersByTimeAsync(600);
+        const taken = statusOfClient(picked);
+        unsubscribe();
+
+        expect(taken.shownTrack).toEqual({ title: 'Song c', artist: 'Artist' });
+
+        expect(events.map(event => event.type)).toEqual(['track-changed']);
+        expect(events[0].status?.shownTrack).toEqual({ title: 'Song c', artist: 'Artist' });
+        void start;
+    });
+});
+
+describe('the window a start of Folia\'s opens', () => {
+    beforeEach(() => {
+        Object.defineProperty(window, 'electron', {
+            value: { platform: 'win32', spotifyRequest: vi.fn() },
+            configurable: true,
+            writable: true,
+        });
+        vi.useFakeTimers();
+        request.mockReset();
+        request.mockImplementation(async (operation: string) => (
+            operation === 'client_play' ? 'loaded' : { available: true }
+        ));
+        resetSpotifyClientPlayback();
+        engine.installExternalPlayback();
+        engine.stopExternalPlayback('test reset');
+        const song = songOf('a');
+        usePlaybackStore.setState({
+            playbackRoute: 'web', audioSrc: null, playerState: PlayerState.IDLE, duration: 0,
+            currentSong: song, playQueue: [song], isFmMode: false,
+        });
+        omniMock.playSongExternally.mockReset();
+        omniMock.playSongExternally.mockImplementation(async (song: SongResult, startSec: number, options: unknown) => {
+            await spotifyClientPlayback.play!(song, startSec, options as never);
+        });
+        omniMock.getExternalPlaybackStatus.mockReset();
+        omniMock.getExternalPlaybackStatus.mockImplementation(async () => statusOfClient(readOfApp()) as never);
+        omniMock.pauseExternalPlayback.mockClear();
+        readOfApp = () => wire('');
+        useAudioSettingsStore.setState({ volume: 1, isMuted: false, loopMode: 'all' });
+    });
+
+    afterEach(() => {
+        engine.stopExternalPlayback('test end');
+        usePlaybackStore.setState({ playbackRoute: 'web', audioSrc: null, playerState: PlayerState.IDLE, playQueue: [] });
+        resetSpotifyClientPlayback();
+        vi.useRealTimers();
+    });
+
+    it('is open until the app says it took the song, and closed by that answer', async () => {
+        const held = holdNextStart();
+        const start = engine.startExternalPlayback(songOf('b'), 0);
+        engine.announceExternalPlayback();
+        await vi.advanceTimersByTimeAsync(0);
+        expect(held.asked()).toBe(true);
+        expect(startPending()).toBe(true);
+
+        held.release();
+        await start.started;
+        await vi.advanceTimersByTimeAsync(0);
+
+        expect(startPending()).toBe(false);
+    });
+
+    it('is closed by the app naming the song Folia asked for, before that answer lands', async () => {
+        const held = holdNextStart();
+        const start = engine.startExternalPlayback(songOf('b'), 0);
+        engine.announceExternalPlayback();
+        await vi.advanceTimersByTimeAsync(0);
+        expect(held.asked()).toBe(true);
+        expect(startPending()).toBe(true);
+
+        // The app's own player named the song: it has it, so nothing of the start is left to wait for.
+        readOfApp = () => wire(id('b'), { positionMs: 0 });
+        await vi.advanceTimersByTimeAsync(600);
+
+        expect(startPending()).toBe(false);
+        void start;
+        held.release();
+    });
+
+    it('is closed once the app has been waited for long enough, so a stuck call cannot freeze a pick', async () => {
+        const held = holdNextStart();
+        const start = engine.startExternalPlayback(songOf('b'), 0);
+        engine.announceExternalPlayback();
+        await vi.advanceTimersByTimeAsync(0);
+        expect(held.asked()).toBe(true);
+        expect(startPending()).toBe(true);
+
+        // The call that plays the song never comes back. Past the limit it is no longer waited for,
+        // and the reads that name the song before it are the app's own again.
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+        readOfApp = () => wire(id('a'), { positionMs: 11000 });
+        await vi.advanceTimersByTimeAsync(70_001);
+        statusOfClient(readOfApp());
+        warn.mockRestore();
+
+        expect(startPending()).toBe(false);
+        void start;
+        held.release();
+    });
+});
+describe('a start of Folia\'s the app answers on its own player', () => {
+    beforeEach(() => {
+        Object.defineProperty(window, 'electron', {
+            value: { platform: 'win32', spotifyRequest: vi.fn() },
+            configurable: true,
+            writable: true,
+        });
+        vi.useFakeTimers();
+        request.mockReset();
+        request.mockImplementation(async (operation: string) => (
+            operation === 'client_play' ? 'loaded' : { available: true }
+        ));
+        resetSpotifyClientPlayback();
+        engine.installExternalPlayback();
+        engine.stopExternalPlayback('test reset');
+        const song = songOf('a');
+        usePlaybackStore.setState({
+            playbackRoute: 'web', audioSrc: null, playerState: PlayerState.IDLE, duration: 0,
+            currentSong: song, playQueue: [song], isFmMode: false,
+        });
+        omniMock.playSongExternally.mockReset();
+        omniMock.playSongExternally.mockImplementation(async (song: SongResult, startSec: number, options: unknown) => {
+            await spotifyClientPlayback.play!(song, startSec, options as never);
+        });
+        omniMock.getExternalPlaybackStatus.mockReset();
+        omniMock.getExternalPlaybackStatus.mockImplementation(async () => statusOfClient(readOfApp()) as never);
+        omniMock.pauseExternalPlayback.mockClear();
+        readOfApp = () => wire('');
+        useAudioSettingsStore.setState({ volume: 1, isMuted: false, loopMode: 'all' });
+    });
+
+    afterEach(() => {
+        engine.stopExternalPlayback('test end');
+        usePlaybackStore.setState({ playbackRoute: 'web', audioSrc: null, playerState: PlayerState.IDLE, playQueue: [] });
+        resetSpotifyClientPlayback();
+        vi.useRealTimers();
+    });
+
+    it('is over as soon as the app names this very song, with no answer to the call yet', async () => {
+        const held = holdNextStart();
+        const start = engine.startExternalPlayback(songOf('b'), 0);
+        engine.announceExternalPlayback();
+        await vi.advanceTimersByTimeAsync(0);
+        expect(held.asked()).toBe(true);
+        expect(startPending()).toBe(true);
+
+        // The app's own player named the song it was asked for: it has it, so the wait is over - the
+        // call that plays it may still be on its way, and holding a pick behind it would be wrong.
+        statusOfClient(wire(id('b'), { positionMs: 0 }));
+
+        expect(startPending()).toBe(false);
+        void start;
+        held.release();
+    });
+
+    it('takes a pick made right after the app named this song, once that song has sounded', async () => {
+        const held = holdNextStart();
+        const start = engine.startExternalPlayback(songOf('b'), 0);
+        engine.announceExternalPlayback();
+        await vi.advanceTimersByTimeAsync(0);
+        expect(held.asked()).toBe(true);
+
+        // The app names this song, then has sounded it: from here the next track it names is the
+        // listener's own pick rather than a leftover of the start.
+        statusOfClient(wire(id('b'), { positionMs: 1000 }));
+        expect(startPending()).toBe(false);
+
+        const picked = statusOfClient(wire(id('c'), { positionMs: 1000 }));
+        expect(picked.ended).toBe(false);
+        expect(picked.mediaId).toBe(id('c'));
+        void start;
+        held.release();
     });
 });
