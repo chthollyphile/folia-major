@@ -330,6 +330,12 @@ export const useSearchNavigationStore = create<SearchNavigationState>((set, get)
         // Before any search picked a source, the platform in effect is searched.
         const sourceTab = resolveSearchSource(givenSourceTab);
         if (!sourceTab) return false;
+        // An online source that is not registered (no platform at all, or the chosen one missing for now) is not
+        // searched: there is nothing to ask, and nothing to show but the empty state (Folium 2.0 plan §7).
+        if (sourceTab !== 'local' && sourceTab !== 'navidrome' && !omni.getProviderSummaries().some(provider => provider.providerId === sourceTab)) {
+            console.info(`[SearchStore] ${sourceTab} is not registered; the search is not sent`);
+            return false;
+        }
 
         const searchKind = resolveSearchKind(sourceTab, kind ?? get().searchKind);
         const requestId = get().requestId + 1;

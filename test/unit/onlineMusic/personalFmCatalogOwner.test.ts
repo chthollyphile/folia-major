@@ -24,6 +24,10 @@ describe('the Personal FM catalogue and its owner', () => {
         expect(omni.getProviderCapabilities('kugou').personalFmModes).toBeFalsy();
     });
 
+    it('is empty, not an error, for a platform that is not registered (no platform at all)', async () => {
+        await expect(omni.getPersonalFmCatalog('not-registered-source')).resolves.toEqual(EMPTY_PERSONAL_FM_CATALOG);
+    });
+
     it('stays QQ\'s own answer for QQ (its Personal FM keeps the default table it always gave)', async () => {
         await expect(omni.getPersonalFmCatalog('qq')).resolves.toBe(DEFAULT_PERSONAL_FM_CATALOG);
     });

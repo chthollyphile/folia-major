@@ -972,8 +972,9 @@ export const omni = {
     },
 
     async getPersonalFmCatalog(providerId: OmniProviderId) {
-        // A platform without a catalogue of its own has none; one with modes answers with its own.
-        return await requireOnlineMusicProvider(providerId).recommendations?.getPersonalFmCatalog?.() ?? EMPTY_PERSONAL_FM_CATALOG;
+        // A platform without a catalogue of its own has none; one with modes answers with its own. A platform that is
+        // not registered (no platform at all) has none either: an empty state, not an error.
+        return await getOnlineMusicProvider(providerId)?.recommendations?.getPersonalFmCatalog?.() ?? EMPTY_PERSONAL_FM_CATALOG;
     },
 
     /** The mode choices of one of the provider's extra radios; null where the provider has no such radio. */

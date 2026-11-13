@@ -72,6 +72,17 @@ describe('useSearchNavigationStore', () => {
         expect(resolveCommandPaletteSearchSource(null, 'qq', 'kugou')).toBe('qq');
     });
 
+    // Folium 2.0 方案 §7：零音源（或存着的平台此刻不在）时不去搜，走空状态，不报错。
+    it('sends no search to an online source that is not registered', async () => {
+        const info = vi.spyOn(console, 'info').mockImplementation(() => {});
+        const didSearch = await useSearchNavigationStore.getState().submitSearch({ query: 'test', sourceTab: 'not-registered-source', deps });
+        expect(didSearch).toBe(false);
+        expect(cloudSearchMock).not.toHaveBeenCalled();
+        expect(useSearchNavigationStore.getState().isSearchOpen).toBe(false);
+        expect(useSearchNavigationStore.getState().searchError).toBeNull();
+        info.mockRestore();
+    });
+
     it('searches albums through omni, keeps the kind and caches the page apart from the songs', async () => {
         cloudSearchMock.mockResolvedValueOnce({
             result: { albums: [{ id: 18909, name: 'Partners', size: 13, artists: [{ id: 6452, name: 'Jay' }] }], albumCount: 40 },
