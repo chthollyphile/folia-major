@@ -237,7 +237,7 @@ describe('a bar dropped on a song that is playing', () => {
      * Drags the bar to a spot the player takes far longer to load than the lead it runs up can be
      * played out over, and answers with the position every frame.
      */
-    const longLanding = async (callMs: number, delayMs: number): Promise<number[]> => {
+    const longLanding = async (callMs: number, delayMs: number, tailMs = 8000): Promise<number[]> => {
         await startFrom(10000);
         let release!: () => void;
         const taking = new Promise<void>((done) => { release = done; });
@@ -252,7 +252,7 @@ describe('a bar dropped on a song that is playing', () => {
             isPlaying: true,
         }));
         const shown: number[] = [engine.getExternalPosition()];
-        for (let waited = 0; waited < delayMs + 8000; waited += SAMPLE_MS) {
+        for (let waited = 0; waited < delayMs + tailMs; waited += SAMPLE_MS) {
             await vi.advanceTimersByTimeAsync(SAMPLE_MS);
             shown.push(engine.getExternalPosition());
         }
@@ -260,18 +260,22 @@ describe('a bar dropped on a song that is playing', () => {
     };
 
     it.each([
-        { call: 'lands straight away', callMs: 0, delayMs: 4000 },
-        { call: 'takes two seconds to return', callMs: 2000, delayMs: 2500 },
-    ])('holds the spot it stands on where the player $call from further behind than a lead runs out', async ({ callMs, delayMs }) => {
+        { call: 'lands straight away', callMs: 0, delayMs: 4000, tailMs: 8000 },
+        { call: 'takes two seconds to return', callMs: 2000, delayMs: 2500, tailMs: 8000 },
+        { call: 'lands after five and a half seconds', callMs: 0, delayMs: 5500, tailMs: 8000 },
+        // The lead run up over a longer wait is played out at the slower speed, which takes longer.
+        { call: 'lands after eight seconds', callMs: 0, delayMs: 8000, tailMs: 14000 },
+        { call: 'lands after nine and a half seconds', callMs: 0, delayMs: 9500, tailMs: 14000 },
+    ])('holds the spot it stands on where the player $call from further behind than a lead runs out', async ({ callMs, delayMs, tailMs }) => {
         // The bar ran on from the drop for longer than a lead is played out over, so the player is not
         // catching up with the bar but saying the song is somewhere else: nothing is played out from the
         // spot the bar stands on, and the spot is held until the player's own answers come up to it, the
         // way a lagging tick always was. Held for good is what this branch must not do: the bar stands
         // on that spot and then follows the player again.
-        const shown = await longLanding(callMs, delayMs);
+        const shown = await longLanding(callMs, delayMs, tailMs);
         const still = longestStillMs(shown);
         const fall = largestFallSec(shown);
-        const gapEnd = Math.abs(shown[shown.length - 1] - playerAtSec(10, 60, delayMs, delayMs + 8000));
+        const gapEnd = Math.abs(shown[shown.length - 1] - playerAtSec(10, 60, delayMs, delayMs + tailMs));
         console.log('[long landing] call=' + callMs + ' delay=' + delayMs + ' still=' + still + ' fall=' + fall.toFixed(3)
             + ' gapEnd=' + gapEnd.toFixed(3));
         // The spot the bar stands on is never gone back over, and the wait is the distance the player
@@ -325,6 +329,9 @@ describe('a bar dropped on a song that is playing', () => {
     const farLandings = [
         { aheadSec: 30, delayMs: 4000 },
         { aheadSec: 60, delayMs: 4000 },
+        { aheadSec: 30, delayMs: 5500 },
+        { aheadSec: 60, delayMs: 5500 },
+        { aheadSec: 60, delayMs: 9500 },
     ];
 
     it.each(farLandings)(

@@ -1254,9 +1254,9 @@ describe('a move the player takes seconds to take', () => {
         expect(Math.min(...seen)).toBeGreaterThanOrEqual(119.9);
     });
 
-    it('takes the player\'s own word once five seconds of playing have gone by on the old spot', async () => {
+    it('takes the player\'s own word once ten seconds of playing have gone by on the old spot', async () => {
         // A player that never loads the spot the bar was dropped on has said where the song is: the
-        // drop is held for the five seconds of playing a move is given, and past them the answer
+        // drop is held for the ten seconds of playing a move is given, and past them the answer
         // stands rather than holding the bar off the player's own line for good.
         await startFrom(10000);
         const landedAt = performance.now();
@@ -1266,15 +1266,15 @@ describe('a move the player takes seconds to take', () => {
             status({ positionMs: 10000 + Math.round(performance.now() - landedAt), isPlaying: true })
         ));
 
-        // Held on the drop for those five seconds: the clock runs on from the spot the bar was dropped
+        // Held on the drop for those ten seconds: the clock runs on from the spot the bar was dropped
         // on while every answer still names the line the song stood on.
-        await vi.advanceTimersByTimeAsync(4500);
-        expect(engine.getExternalPosition()).toBeGreaterThan(63);
+        await vi.advanceTimersByTimeAsync(9500);
+        expect(engine.getExternalPosition()).toBeGreaterThan(68);
 
         // The playing time a move is given is over, and the player's own line stands.
         await vi.advanceTimersByTimeAsync(1500);
-        expect(engine.getExternalPosition()).toBeGreaterThan(15);
-        expect(engine.getExternalPosition()).toBeLessThan(20);
+        expect(engine.getExternalPosition()).toBeGreaterThan(20);
+        expect(engine.getExternalPosition()).toBeLessThan(25);
     });
 
     it('stays on the drop while a playing player names the old line for longer than the window it used to get', async () => {
@@ -1325,7 +1325,7 @@ describe('a move the player takes seconds to take', () => {
         expect(Math.max(...seen)).toBeLessThanOrEqual(60.5);
     });
 
-    it('holds a paused song on the drop while the player names the old line, and gives it five seconds of playing', async () => {
+    it('holds a paused song on the drop while the player names the old line, and gives it ten seconds of playing', async () => {
         await startFrom(10000);
         omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ positionMs: 10200, isPlaying: false }));
         await vi.advanceTimersByTimeAsync(500);
@@ -1351,15 +1351,15 @@ describe('a move the player takes seconds to take', () => {
         omniMock.getExternalPlaybackStatus.mockImplementation(async () => (
             status({ positionMs: 10200 + Math.round(performance.now() - resumedAt), isPlaying: true })
         ));
-        const running = await readings(4500);
+        const running = await readings(9500);
         for (let index = 1; index < running.length; index++) expect(running[index]).toBeGreaterThanOrEqual(running[index - 1] - 1e-6);
         expect(Math.min(...running)).toBeGreaterThan(59.9);
-        expect(running[running.length - 1]).toBeGreaterThan(64);
+        expect(running[running.length - 1]).toBeGreaterThan(69);
 
-        // Five seconds of playing is what the hold is given: past them the player's own line stands.
+        // Ten seconds of playing is what the hold is given: past them the player's own line stands.
         await vi.advanceTimersByTimeAsync(1500);
-        expect(engine.getExternalPosition()).toBeGreaterThan(15);
-        expect(engine.getExternalPosition()).toBeLessThan(20);
+        expect(engine.getExternalPosition()).toBeGreaterThan(20);
+        expect(engine.getExternalPosition()).toBeLessThan(25);
     });
 
     it('does not end the song on a read that still names the spot it stood on before a move back', async () => {
@@ -1811,7 +1811,7 @@ describe('a move the player takes seconds to take', () => {
         unsubscribe();
     });
 
-    it('counts the five seconds a playing move is given from the moment the move landed', async () => {
+    it('counts the ten seconds a playing move is given from the moment the move landed', async () => {
         // What the player is given to load the spot is counted from the answer that took the move: the
         // reads before then are the ones it is given up for. Counting from the ask, or from the first
         // read given up, ended the hold early where the call for the move itself took a while.
@@ -1828,15 +1828,15 @@ describe('a move the player takes seconds to take', () => {
             status({ positionMs: 10000 + Math.round(performance.now() - landedAt), isPlaying: true })
         ));
 
-        // Four and a half seconds after the move landed every read still names the old line, and the
-        // drop is still held: the move has not had its five seconds yet.
-        await vi.advanceTimersByTimeAsync(4500);
-        expect(engine.getExternalPosition()).toBeGreaterThan(63);
+        // Nine and a half seconds after the move landed every read still names the old line, and the
+        // drop is still held: the move has not had its ten seconds yet.
+        await vi.advanceTimersByTimeAsync(9500);
+        expect(engine.getExternalPosition()).toBeGreaterThan(68);
 
         // Past them the player's own line stands.
         await vi.advanceTimersByTimeAsync(1500);
-        expect(engine.getExternalPosition()).toBeGreaterThan(15);
-        expect(engine.getExternalPosition()).toBeLessThan(20);
+        expect(engine.getExternalPosition()).toBeGreaterThan(20);
+        expect(engine.getExternalPosition()).toBeLessThan(25);
     });
 });
 
