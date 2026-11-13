@@ -74,6 +74,18 @@ const PARTITION_PATTERN = /^(persist:)?[A-Za-z0-9_-]{1,64}$/;
 const FOLDER_NAME_PATTERN = /^[A-Za-z0-9_-][A-Za-z0-9_.-]{0,63}$/;
 const HOST_NAME_PATTERN = /^(?=.{1,253}$)[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/;
 const CAPABILITY_ID_PATTERN = /^[a-z][a-z0-9.@-]{0,63}$/;
+
+/*
+ * Folium 2.0 (S3, plan §4.1): whether this host implements capability `key` (`search@1`), by the versions table of
+ * foliumShared.json that `folium.sources.supports` answers from too. A source whose `requires` lists one it does
+ * not is refused, not run pretending.
+ */
+const hostImplementsCapability = (key) => {
+    const match = /^([a-z][a-z0-9.-]*)@([1-9]\d*)$/.exec(key);
+    if (!match) return false;
+    const versions = shared.sourceCapabilities[match[1]];
+    return Array.isArray(versions) && versions.includes(Number(match[2]));
+};
 const NATIVE_NAME_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const SECRET_SLOT_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/;
 const SECRET_SLOTS_MAX = 64;
@@ -289,6 +301,14 @@ const validateSourceEntry = (source, where, ids, errors) => {
     }
     if (source.requires !== undefined && (!isStringList(source.requires) || !source.requires.every((id) => CAPABILITY_ID_PATTERN.test(id)))) {
         errors.push(`${where}.requires must be a list of capability ids like "search@1"`);
+    } else if (source.requires !== undefined) {
+        source.requires.forEach((key) => {
+            if (key.startsWith('x.')) {
+                errors.push(`${where}.requires "${key}": a custom capability is another mod's, not the host's to provide`);
+            } else if (!hostImplementsCapability(key)) {
+                errors.push(`${where}.requires "${key}": this host does not implement it`);
+            }
+        });
     }
     if (source.keepForMatching !== undefined && typeof source.keepForMatching !== 'boolean') {
         errors.push(`${where}.keepForMatching must be true or false`);

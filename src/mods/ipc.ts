@@ -285,6 +285,14 @@ export const assignSourceClaim = async (shortId: string, modId: string): Promise
     await bridge()?.assignSourceClaim?.(shortId, modId) ?? { ok: false, error: 'no-electron-bridge' }
 );
 
+/**
+ * Folium 2.0 (S3): which of a source mod's declared sources its client registered once `activate` ended (their
+ * manifest ids). None at all takes the source exemptions back from that running copy (plan §5.2).
+ */
+export const reportFoliumSourcesRegistered = async (modId: string, registered: string[]): Promise<{ ok: boolean; error?: string; revoked?: boolean }> => (
+    await bridge()?.reportSourcesRegistered?.(modId, registered) ?? { ok: false, error: 'no-electron-bridge' }
+);
+
 /** The main process is about to unload these sources (any reload path): their playback stops first. */
 export const subscribeSourcesStopping = (callback: (payload: { sourceIds: string[] }) => void): (() => void) =>
     bridge()?.onSourcesStopping?.(callback) ?? (() => {});

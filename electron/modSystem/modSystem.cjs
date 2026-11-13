@@ -72,7 +72,7 @@ const { oldNameWarnings, onOldNameWarning } = require('./deprecated.cjs');
 const { BUILTIN_SOURCE_IDS, builtinSourceRow, builtinModOfSource, readBundledSources } = require('./builtinSources.cjs');
 const { resolveSourceOwnership } = require('./sourceOwnership.cjs');
 const { createMediaRules } = require('./mediaRules.cjs');
-const { limits: FOLIUM_LIMITS } = require('./foliumShared.json');
+const { limits: FOLIUM_LIMITS, foliumOneVersion: FOLIUM_ONE_VERSION } = require('./foliumShared.json');
 
 const SETTINGS_NAMESPACE = 'mods';
 // Folium 2.0 (plan §5.3): the state of every source, by source id, and who holds each taken-over short id.
@@ -247,8 +247,11 @@ const createModSystem = ({
     // While the start question is open: whether a source mod of the user's folders waits for the answer.
     let sourceModsAwaitAnswer = false;
 
-    const hostInfo = () => ({
-        folium: { major: FOLIUM_VERSION.major, minor: FOLIUM_VERSION.minor },
+    // Folium 2.0 (plan §9): a `folium: 1` mod reads 1.9, the version its interface stays at.
+    const hostInfo = (manifest) => ({
+        folium: manifest?.folium === 2
+            ? { major: FOLIUM_VERSION.major, minor: FOLIUM_VERSION.minor }
+            : { major: FOLIUM_ONE_VERSION.major, minor: FOLIUM_ONE_VERSION.minor },
         folia: typeof app.getVersion === 'function' ? app.getVersion() : null,
     });
 
@@ -275,6 +278,12 @@ const createModSystem = ({
     const runningManifest = (modId) => mods.get(modId)?.manifest ?? null;
 
     // The values of `secret` settings fields (modSecrets.cjs). A change, whoever made it, reaches
+    // Folium 2.0 (S3, plan §5.4): the running copies of source mods whose client registered none of the
+    // sources their manifest declares. They lose what the client side's exemptions give (net.fetch, the data
+    // file, the secret slots) for as long as that copy runs; a reload starts a new copy with them.
+    const revokedSourceExemptions = new WeakSet();
+    const hasSourceExemptions = (runtime) => Boolean(runtime?.source) && !revokedSourceExemptions.has(runtime);
+
     // the main window as the key alone; the main entry's subscribers hear it in the store.
     // Folium 2.0: a source mod's manifest `secrets` count as declared, and hold up to 64 KB each.
     const secrets = createModSecrets({
@@ -283,9 +292,12 @@ const createModSystem = ({
         onChange: (modId, key) => sendToRenderer(IPC.fSecretChanged, { modId, key }),
         slotsOf: (modId) => {
             const manifest = runningManifest(modId);
-            return isSourceManifest(manifest) && Array.isArray(manifest.secrets) ? manifest.secrets : [];
+            const revoked = revokedSourceExemptions.has(mods.get(modId));
+            return !revoked && isSourceManifest(manifest) && Array.isArray(manifest.secrets) ? manifest.secrets : [];
         },
-        maxBytesOf: (modId) => (isSourceManifest(runningManifest(modId)) ? FOLIUM_LIMITS.source.secrets.maxBytes : SECRET_MAX_BYTES),
+        maxBytesOf: (modId) => (isSourceManifest(runningManifest(modId)) && !revokedSourceExemptions.has(mods.get(modId))
+            ? FOLIUM_LIMITS.source.secrets.maxBytes
+            : SECRET_MAX_BYTES),
     });
 
     // What source mods register and the host reads: media rules, `_media` handlers, cache entry providers.
@@ -470,6 +482,7 @@ const createModSystem = ({
             tier: entry.tier ?? 'user',
             kind: isSourceManifest(entry.manifest) ? 'source' : 'standard',
             contexts: entry.manifest.contexts ?? null,
+            locales: entry.manifest.locales ?? null,
             sources: publicSources(entry),
             sourcesOff: Boolean(entry.sourcesOff),
             mainState: typeof entry.getMainState === 'function' ? entry.getMainState() : 'none',
@@ -1255,6 +1268,7 @@ const createModSystem = ({
     const { invokeModNetFetch } = createNetFetch({
         requireLoadedMod,
         serializeError,
+        hasSourceExemptions,
         // A source mod's client request: Electron net, in a partition when it names one (the same rule as
         // api.net.session: a claimed one, or `persist:folium-<mod id>-<name>`).
         sourceFetch: (url, init, { runtime, session }) => {
@@ -1279,7 +1293,7 @@ const createModSystem = ({
     // folium.storage from the client: same data file and permission as api.storage (a source mod needs none).
     const invokeModStorage = async (modId, operation, key, value) => {
         const runtime = requireLoadedMod(modId);
-        if (!runtime.source && !runtime.manifest.permissions.includes(STORAGE_PERMISSION)) {
+        if (!hasSourceExemptions(runtime) && !runtime.manifest.permissions.includes(STORAGE_PERMISSION)) {
             return { ok: false, error: `permission-denied:${STORAGE_PERMISSION}` };
         }
         if (!STORAGE_OPERATIONS.has(operation)) {
@@ -1507,6 +1521,17 @@ const createModSystem = ({
         handle(IPC.clearSourceData, (_event, sourceId) => clearSourceData(sourceId));
         handle(IPC.confirmOverride, (_event, modId) => confirmModOverride(modId));
         handle(IPC.assignSourceClaim, (_event, shortId, modId) => assignSourceClaim(shortId, modId));
+        // Folium 2.0 (S3): the window says which of a source mod's declared sources its client registered;
+        // none at all takes the exemptions back from this running copy (plan §5.2).
+        handle(IPC.sourcesRegistered, (_event, modId, registered) => {
+            const runtime = typeof modId === 'string' ? mods.get(modId) : undefined;
+            if (!runtime?.source || !Array.isArray(registered)) return { ok: false, error: 'mod-not-a-source-mod' };
+            if (registered.length === 0 && !revokedSourceExemptions.has(runtime)) {
+                revokedSourceExemptions.add(runtime);
+                emitLog(runtime.manifest.id, 'warn', 'registered none of the sources its mod.json declares: the source exemptions are taken back');
+            }
+            return { ok: true, revoked: revokedSourceExemptions.has(runtime) };
+        });
         // The window: every client has started and the first screen is up. A start without mods
         // says nothing about the note of a start with them: after "reopen without mods" that
         // note stays, so the next start asks.

@@ -1150,6 +1150,7 @@ declare global {
         clearSourceData?: (sourceId: string) => Promise<ModClearSourceDataResult>;
         confirmModOverride?: (modId: string) => Promise<{ ok: boolean; error?: string; mods?: ModRuntimeInfo[] }>;
         assignSourceClaim?: (shortId: string, modId: string) => Promise<{ ok: boolean; error?: string; mods?: ModRuntimeInfo[] }>;
+        reportSourcesRegistered?: (modId: string, registered: string[]) => Promise<{ ok: boolean; error?: string; revoked?: boolean }>;
         onSourceStatesChanged?: (callback: (payload: ModSourceStatesPayload) => void) => () => void;
         onSourcesStopping?: (callback: (payload: { sourceIds: string[] }) => void) => () => void;
         onModsStateChanged: (callback: (mods: ModRuntimeInfo[]) => void) => () => void;

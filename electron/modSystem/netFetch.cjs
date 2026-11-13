@@ -39,8 +39,16 @@ const SOURCE_NET_FETCH_LIMITS = {
  * `requireLoadedMod(modId)` is the loader's: it gives the running mod of that id
  * or throws. `serializeError` turns a failure into the text the mod gets back.
  * `sourceFetch` is Electron's `net.fetch` (a source mod's requests); `nodeFetch` the global fetch.
+ * `hasSourceExemptions(runtime)` says whether a source mod keeps its exemptions (Folium 2.0 S3: one whose client
+ * registered none of its sources loses them); without it, every source mod does.
  */
-const createNetFetch = ({ requireLoadedMod, serializeError, sourceFetch = null, nodeFetch = (...args) => fetch(...args) }) => {
+const createNetFetch = ({
+    requireLoadedMod,
+    serializeError,
+    sourceFetch = null,
+    nodeFetch = (...args) => fetch(...args),
+    hasSourceExemptions = (runtime) => Boolean(runtime.source),
+}) => {
     /*
      * folium.net.fetch: the request runs here, in Node, so it is not subject to
      * the renderer's CORS rules — which is why it sits behind `net.fetch`.
@@ -48,7 +56,7 @@ const createNetFetch = ({ requireLoadedMod, serializeError, sourceFetch = null, 
      */
     const invokeModNetFetch = async (modId, url, init) => {
         const runtime = requireLoadedMod(modId);
-        const isSource = Boolean(runtime.source);
+        const isSource = hasSourceExemptions(runtime);
         const rules = isSource ? SOURCE_NET_FETCH_LIMITS : NET_FETCH_LIMITS;
         if (!isSource && !runtime.manifest.permissions.includes(NET_FETCH_PERMISSION)) {
             return { ok: false, error: `permission-denied:${NET_FETCH_PERMISSION}` };

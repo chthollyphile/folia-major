@@ -90,7 +90,7 @@ const createNodeEntryRuntime = ({
             dataDir,
             filesDir,
             cacheDir,
-            hostInfo: hostInfo(),
+            hostInfo: hostInfo(manifest),
             getUserFolder: (name) => app.getPath(name),
             emitLog: (level, message, details) => emitLog(manifest.id, level, message, details),
             getPlaybackSnapshot: getPublicSnapshot,

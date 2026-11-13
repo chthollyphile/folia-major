@@ -1,10 +1,14 @@
 import type { ModRuntimeInfo } from '../types';
-import { isModsBridgeAvailable, listMods } from '../ipc';
+import { isModsBridgeAvailable, listMods, reportFoliumSourcesRegistered } from '../ipc';
 import type { FoliumClientApi, FoliumClientModule, FoliumContextKind, FoliumDisposer } from '../folium/contract';
-import { announceFoliumSlowStart, clearFoliumIssues, reportFoliumFault } from './status';
+import { announceFoliumSlowStart, clearFoliumIssues, reportFoliumFault, reportFoliumIssue } from './status';
 import { removeFoliumEventHandlers } from '../folium/events';
 import { callFoliumMod, markFoliumSourceMod, timeFoliumMod } from './guard';
 import { clearFoliumOldNames } from '../folium/deprecated/warnings';
+import { loadFoliumModLocales } from './modLocales';
+import type * as FoliumSourcesModule from '../folium/registries/sources';
+
+type SourcesModule = typeof FoliumSourcesModule;
 
 // src/mods/runtime/clientLoader.ts
 // Activates mods' `client` entries in this renderer and keeps them in step
@@ -34,6 +38,13 @@ import { clearFoliumOldNames } from '../folium/deprecated/warnings';
 // mainWindowStart.ts). A source mod's client never starts in the export window, and no client starts in a
 // context its manifest's `contexts` leave out.
 //
+// Folium 2.0 (S3): a `folium: 2` mod's client gets `folium.sources` (and `folium.i18n`); in the main window the
+// sources registry is loaded for it, like the experimental surfaces, so the export window never pulls in the
+// provider registry. Its locale files (manifest `locales`) are loaded before it starts. Once a source mod's
+// `activate` has ended, every source its manifest declares (and the user left on) must be registered: one that
+// is not is reported in the mod's row, and a mod that registered none of them loses the source exemptions
+// (folia-mods:sources-registered, plan §5.2).
+//
 // The client API — and through it every registry adapter and the host
 // registries they wire into (all background types, settings panels, icons…) —
 // is imported only when there is a client to activate. The export window and
@@ -47,6 +58,7 @@ interface ActiveClient {
     /** What this activation holds through host objects; run at teardown. */
     releases: Array<() => void>;
 }
+
 
 /** How long one mod has for its import plus its `activate` before the queue goes on without it. */
 export const FOLIUM_START_LIMIT_MS = 5000;
@@ -82,6 +94,7 @@ const sourceClientsSettled = new Promise<void>((resolve) => {
 });
 let sourceGroupReported = false;
 let apiPromise: Promise<typeof import('../folium/api')> | null = null;
+let sourcesPromise: Promise<SourcesModule> | null = null;
 
 const loadApi = () => {
     apiPromise ??= import('../folium/api');
@@ -97,6 +110,38 @@ const loadExperimental = () => {
     return experimentalPromise;
 };
 
+// Folium 2.0: the sources registry, main window only, on the first `folium: 2` mod.
+const loadSources = () => {
+    sourcesPromise ??= Promise.all([import('../folium/registries/sources'), loadApi()]).then(([module, api]) => {
+        api.addFoliumTeardownRegistries([module.sourcesRegistry]);
+        return module;
+    });
+    return sourcesPromise;
+};
+
+/*
+ * Folium 2.0: once a source mod's `activate` has ended, the sources its manifest declares and the user left on
+ * that it did not register. Each is reported in its row; one that registered none of them is told to the main
+ * process, which takes the source exemptions back.
+ */
+const checkDeclaredSources = async (mod: ModRuntimeInfo) => {
+    if (!isFoliumSourceMod(mod) || !sourcesPromise) return;
+    const { listFoliumSourceIdsOf } = await sourcesPromise;
+    const registered = new Set(listFoliumSourceIdsOf(mod.id));
+    const expected = (mod.sources ?? []).filter((source) => source.state !== 'disabled');
+    const missing = expected.filter((source) => !registered.has(source.localId));
+    if (missing.length === 0) return;
+    missing.forEach((source) => reportFoliumIssue(
+        mod.id,
+        `source ${source.id}`,
+        new Error(`mod.json declares the source "${source.localId}" and activate ended without folium.sources.register for it`),
+    ));
+    if (registered.size === 0) {
+        console.warn(`[Folium] ${mod.id} registered none of its sources: the source exemptions are taken back`);
+        await reportFoliumSourcesRegistered(mod.id, []);
+    }
+};
+
 // Only active clients are torn down, and activating one already loaded the API.
 const teardown = async (modId: string) => {
     const active = activeClients.get(modId);
@@ -106,7 +151,7 @@ const teardown = async (modId: string) => {
     if (active?.dispose) {
         callFoliumMod(modId, 'client dispose', active.dispose);
     }
-    // After the mod's own disposer: whatever it left subscribed goes now.
+    // After the mod's own disposer: whatever it left subscribed goes now (its locale files too).
     active?.releases.forEach((release) => release());
     const { listFoliumHostRegistries } = await loadApi();
     listFoliumHostRegistries().forEach((registry) => registry.unregisterAll(modId));
@@ -141,6 +186,7 @@ const runClient = async (mod: ModRuntimeInfo, url: string, api: FoliumClientApi,
                 record.dispose = result;
             }
         }
+        await checkDeclaredSources(mod);
     } catch (error) {
         if (record.stopped) {
             const line = `[Folium:${mod.id}] a start that had been stopped failed afterwards; not counted against the mod`;
@@ -188,12 +234,22 @@ const activate = async (mod: ModRuntimeInfo, url: string, context: FoliumContext
         const experimental = context === 'main' && (mod.experimental ?? []).length > 0
             ? (await loadExperimental()).createFoliumExperimental(mod, stopped, onRelease)
             : {};
+        const sources = context === 'main' && mod.folium === 2 ? await loadSources() : null;
+        // A `folium: 2` mod's own texts, in place before its first line runs.
+        if (mod.folium === 2 && mod.locales) onRelease(await loadFoliumModLocales(mod));
         const { createFoliumClientApi } = await loadApi();
         api = createFoliumClientApi(mod, {
             context,
             experimental,
             onRelease,
             stopped,
+            ...(sources ? {
+                sources: {
+                    register: (def) => sources.registerFoliumSource({ mod, stopped }, def),
+                    capability: sources.getFoliumSourceCapability,
+                    pageStore: sources.createFoliumPageStore,
+                },
+            } : {}),
         });
         // Folium 1.6 only: the client names Folium 2 removed, kept working (folium/deprecated/).
         api = await (await import('../folium/deprecated')).addOldClientNames(api, mod, context);

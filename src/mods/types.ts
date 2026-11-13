@@ -179,6 +179,8 @@ export interface ModRuntimeInfo {
     kind?: 'standard' | 'source';
     /** Where the client runs (manifest `contexts`); null for everywhere. */
     contexts?: Array<'main' | 'export'> | null;
+    /** The folder of the mod's own locale files (manifest `locales`, Folium 2); null without one. */
+    locales?: string | null;
     sources?: ModSourceInfo[];
     /** Every source of this source mod is disabled: nothing of it runs (plan §5.3). */
     sourcesOff?: boolean;
