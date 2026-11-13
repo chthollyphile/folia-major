@@ -498,6 +498,7 @@ const createModSystem = ({
 
     // The short source ids this installation carries (`foliaBundledSources`), read once: it is in app.asar.
     const bundledSources = readBundledSources(app.getAppPath());
+    let reportedBrokenInstall = '';
 
     /*
      * What a load would do, without doing it: discover, validate, digest, decide ownership, and resolve the
@@ -552,8 +553,12 @@ const createModSystem = ({
             claimRecord: (shortId) => readSourceClaims()[shortId] ?? null,
         });
         lastOwnership = ownership;
-        if (builtins.size > 0 && ownership.brokenInstall.length > 0) {
-            console.error(`[Mods] installation broken: it declares the sources ${ownership.brokenInstall.join(', ')} but carries no built-in copy of them`);
+        // Said once a run, and only by an installation that declares what it carries: until the nine are mods
+        // (S5) an undeclared installation carries them as host code, and nothing is broken.
+        const missing = ownership.brokenInstall.join(', ');
+        if (bundledSources.declared && missing && missing !== reportedBrokenInstall) {
+            reportedBrokenInstall = missing;
+            console.error(`[Mods] installation broken: it declares the sources ${missing} but carries no built-in copy of them`);
         }
         // Takeover holders the user confirmed first: kept so the first one keeps the id.
         const claims = readSourceClaims();
