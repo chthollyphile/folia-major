@@ -388,6 +388,13 @@ contextBridge.exposeInMainWorld('electron', {
         getModCallStats: () => ipcRenderer.invoke('folia-mods:call-stats'),
         reportModsStartSettled: () => ipcRenderer.invoke('folia-mods:start-settled'),
         reportModsStartAlive: () => ipcRenderer.invoke('folia-mods:start-alive'),
+        // Folium 2.0: each source's state (enabled / matching / disabled) and its "clear data".
+        getSourceStates: () => ipcRenderer.invoke('folia-mods:source-states'),
+        setSourceState: (sourceId, state) => ipcRenderer.invoke('folia-mods:set-source-state', sourceId, state),
+        describeSourceData: (sourceId) => ipcRenderer.invoke('folia-mods:source-data', sourceId),
+        clearSourceData: (sourceId) => ipcRenderer.invoke('folia-mods:clear-source-data', sourceId),
+        confirmModOverride: (modId) => ipcRenderer.invoke('folia-mods:confirm-override', modId),
+        assignSourceClaim: (shortId, modId) => ipcRenderer.invoke('folia-mods:assign-source-claim', shortId, modId),
         onModsStateChanged: (callback) => {
             const listener = (_event, mods) => callback(mods);
             ipcRenderer.on('folia-mods:state-changed', listener);
@@ -412,6 +419,11 @@ contextBridge.exposeInMainWorld('electron', {
             const listener = (_event, change) => callback(change);
             ipcRenderer.on('folia-mods:secret-changed', listener);
             return () => ipcRenderer.removeListener('folia-mods:secret-changed', listener);
+        },
+        onSourceStatesChanged: (callback) => {
+            const listener = (_event, payload) => callback(payload);
+            ipcRenderer.on('folia-mods:source-states-changed', listener);
+            return () => ipcRenderer.removeListener('folia-mods:source-states-changed', listener);
         },
     },
     hifi: {
