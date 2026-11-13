@@ -285,6 +285,10 @@ export const assignSourceClaim = async (shortId: string, modId: string): Promise
     await bridge()?.assignSourceClaim?.(shortId, modId) ?? { ok: false, error: 'no-electron-bridge' }
 );
 
+/** The main process is about to unload these sources (any reload path): their playback stops first. */
+export const subscribeSourcesStopping = (callback: (payload: { sourceIds: string[] }) => void): (() => void) =>
+    bridge()?.onSourcesStopping?.(callback) ?? (() => {});
+
 /** The sources' states changed (a switch, a load). */
 export const subscribeSourceStates = (callback: (payload: ModSourceStatesPayload) => void): (() => void) =>
     bridge()?.onSourceStatesChanged?.(callback) ?? (() => {});

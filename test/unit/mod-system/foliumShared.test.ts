@@ -57,6 +57,7 @@ describe('the copies of what foliumShared.json holds', () => {
         onModRpcMessage: 'fRpcMessage',
         onModSecretChanged: 'fSecretChanged',
         onSourceStatesChanged: 'fSourceStatesChanged',
+        onSourcesStopping: 'fSourcesStopping',
     };
 
     it('each preload method of the mods bridge uses the channel of its own key, and every channel has its method', () => {

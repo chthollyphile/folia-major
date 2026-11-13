@@ -425,6 +425,11 @@ contextBridge.exposeInMainWorld('electron', {
             ipcRenderer.on('folia-mods:source-states-changed', listener);
             return () => ipcRenderer.removeListener('folia-mods:source-states-changed', listener);
         },
+        onSourcesStopping: (callback) => {
+            const listener = (_event, payload) => callback(payload);
+            ipcRenderer.on('folia-mods:sources-stopping', listener);
+            return () => ipcRenderer.removeListener('folia-mods:sources-stopping', listener);
+        },
     },
     hifi: {
         getRuntimeStatus: () => ipcRenderer.invoke('hifi:get-runtime-status'),

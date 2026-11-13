@@ -81,6 +81,9 @@ const SOURCE_STATES_KEY = 'mods.sourceStates';
 const SOURCE_CLAIMS_KEY = 'mods.sourceClaims';
 // The partitions of their own source mods have used (`persist:folium-<mod id>-<name>`), by mod id, for "clear data".
 const SOURCE_PARTITIONS_KEY = 'mods.sourcePartitions';
+// The built-in mods a confirmed override replaces, built-in id -> overriding mod id: such a built-in copy waits
+// for the full start (which reads the user's folders) instead of starting before the window and being swapped.
+const OVERRIDDEN_BUILTINS_KEY = 'mods.overriddenBuiltins';
 const SOURCE_STATES = Object.freeze(['enabled', 'matching', 'disabled']);
 
 // folium.storage over IPC is the same data file as api.storage, behind the permission that
@@ -502,7 +505,7 @@ const createModSystem = ({
      * run, built-in and source mods first. Runs no mod code. `withUserMods` is the master switch: off, only
      * the built-in mods are discovered.
      */
-    const planMods = ({ withUserMods = isModSystemEnabled(), sourcesOnly = false } = {}) => {
+    const planMods = ({ withUserMods = isModSystemEnabled(), sourcesOnly = false, builtinOnly = false } = {}) => {
         const builtinFound = readBuiltinManifests();
         const discovered = withUserMods ? readManifestFiles() : new Map();
         const builtins = new Map();
@@ -633,8 +636,11 @@ const createModSystem = ({
         // fails only the mods inside it. A mod nobody enabled — including one
         // dropped in specifically to declare a missing dependency or a cycle —
         // can no longer take the whole loader down with it. Built-in and source mods go first.
+        // Before the window (`builtinOnly`): not a built-in copy an override was confirmed for.
+        const overridden = builtinOnly ? (store.get(OVERRIDDEN_BUILTINS_KEY) ?? {}) : {};
         const runnable = (entry) => entry.enabled && !entry.blocked && !entry.shadowedBy && entry.mode !== 'off'
-            && !clearing.has(entry.manifest.id) && (!sourcesOnly || entry.source);
+            && !clearing.has(entry.manifest.id) && (!sourcesOnly || entry.source)
+            && !(builtinOnly && entry.tier === 'builtin' && Object.hasOwn(overridden, entry.manifest.id));
         const rank = (entry) => (BUILTIN_TIERS.has(entry.tier) ? 0 : entry.source ? 1 : 2);
         const roots = [...prepared.entries()]
             .filter(([, entry]) => runnable(entry))
@@ -688,7 +694,7 @@ const createModSystem = ({
             return listMods();
         }
         const switchOn = isModSystemEnabled() && !builtinOnly;
-        const { prepared, broken, plan } = planMods({ withUserMods: switchOn, sourcesOnly });
+        const { prepared, broken, plan } = planMods({ withUserMods: switchOn, sourcesOnly, builtinOnly });
 
         const buildEntry = (entry, status, error) => ({
             manifest: entry.manifest,
@@ -887,6 +893,10 @@ const createModSystem = ({
                 && runtime.source
                 && (!inPlan.has(modId) || runtime.reloadKey !== reloadKeyOf(prepared.get(modId)))
             ));
+            // The window pauses what of these sources is playing (runtime/sourceSwitches.ts), whichever path
+            // this is: a switch, the master switch, an install over a running copy, the panel.
+            const stopping = leaving.flatMap(([, runtime]) => (runtime.source?.sources ?? []).map((source) => source.sourceId));
+            if (stopping.length > 0) sendToRenderer(IPC.fSourcesStopping, { sourceIds: stopping });
             await Promise.all(leaving.map(async ([, runtime]) => {
                 // Once its onBeforeUnload ran, the copy has wound down: the load below must not keep it.
                 runtime.unloadPrepared = true;
@@ -976,6 +986,7 @@ const createModSystem = ({
             return { ok: false, error: 'override-declined', mods: listMods() };
         }
         writeOverrideApproval(modId, digest);
+        store.set(OVERRIDDEN_BUILTINS_KEY, { ...(store.get(OVERRIDDEN_BUILTINS_KEY) ?? {}), [builtinId]: modId });
         return { ok: true, mods: await reloadChanged() };
     };
 
@@ -1247,7 +1258,9 @@ const createModSystem = ({
             if (!claimed && !/^[a-z0-9][a-z0-9-]{0,63}$/.test(session)) {
                 return Promise.reject(new Error('net-invalid-session'));
             }
-            return sourceHost.sessionFromPartition(claimed ? session : `persist:folium-${runtime.manifest.id}-${session}`).fetch(url, init);
+            const partition = claimed ? session : `persist:folium-${runtime.manifest.id}-${session}`;
+            if (!claimed) notePartition(runtime.manifest.id, partition);
+            return sourceHost.sessionFromPartition(partition).fetch(url, init);
         },
     });
 
@@ -1606,7 +1619,7 @@ const createModSystem = ({
         // Asked again when the held quit is asked for again: the handlers ran already.
         if (quitting) return quitting;
         const waiting = Array.from(mods.values())
-            .filter((runtime) => runtime.status === 'loaded' && runtime.source && typeof runtime.beforeQuit === 'function')
+            .filter((runtime) => runtime.status === 'loaded' && runtime.source && runtime.hasQuitHandlers?.())
             .map((runtime) => runtime.beforeQuit());
         if (waiting.length === 0) return null;
         quitting = Promise.all(waiting).then(() => undefined);

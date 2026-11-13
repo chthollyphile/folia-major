@@ -1,5 +1,5 @@
 import type { ModClearSourceDataResult, ModSourceState, ModSourceStatesPayload } from '../types';
-import { invokeClearSourceData, invokeSetSourceState } from '../ipc';
+import { invokeClearSourceData, invokeSetSourceState, subscribeSourcesStopping } from '../ipc';
 import { canSourceMatchOnly, setSourceStates } from '@/services/onlineMusic/sourceStates';
 import { PlayerState } from '@/types';
 import { selectDisplaySong, usePlaybackStore } from '@/stores/usePlaybackStore';
@@ -39,6 +39,14 @@ export const installDefaultSourcePlaybackStop = (): void => {
         }
     });
 };
+
+/**
+ * Listens for the main process's notice that sources are about to be unloaded (whatever asked for it: the master
+ * switch, an install over a running copy, a switch) and stops their playback. Returns the function that stops it.
+ */
+export const installSourcesStoppingListener = (): (() => void) => subscribeSourcesStopping(({ sourceIds }) => {
+    if (Array.isArray(sourceIds) && sourceIds.length > 0) void stopPlaybackOf(sourceIds);
+});
 
 /** Stops what of `sourceIds` is playing (the registered step), before they are unloaded; never rejects. */
 export const stopPlaybackOfSources = (sourceIds: readonly string[]): Promise<void> => stopPlaybackOf(sourceIds);

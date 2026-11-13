@@ -4,7 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import {
     IPC, cleanHarness, clearModRecords, confirmMod, dialogAnswer, dialogs, electronCalls, harness, invoke, launch,
-    modRecord, persisted, resetHarness, sourceManifest, stateOf, writeAppPackage, writeMod,
+    modRecord, persisted, resetHarness, sentToWindow, sourceManifest, stateOf, writeAppPackage, writeMod,
 } from './loaderHarness';
 
 // test/unit/mod-system/folium2Lifecycle.test.ts
@@ -192,5 +192,45 @@ describe('the source states channel', () => {
         writeMod('builtin', sourceManifest('netease', ['netease']));
         launch();
         expect(await invoke(IPC.sourceStates)).toMatchObject({ ok: true, hasSourceMods: true });
+    });
+});
+
+describe('round 2 of the review', () => {
+    it('holds the quit only for a source that registered onBeforeQuit', () => {
+        writeMod('builtin', sourceManifest('netease', ['netease']), { main: true });
+        const system = launch();
+        expect(system.prepareQuit()).toBeNull();
+    });
+
+    it('does not start a built-in copy before the window when an override of it was confirmed', () => {
+        writeMod('builtin', sourceManifest('qq', ['qq']), { main: true });
+        writeMod('builtin', sourceManifest('netease', ['netease']), { main: true });
+        persisted.set('mods.overriddenBuiltins', { qq: 'qq' });
+        const system = launch({ load: false });
+        system.startSources();
+        expect(modRecord('qq')).toBeUndefined();
+        expect(modRecord('netease')?.activations).toBe(1);
+        // The full start decides (here no override copy is there, so the built-in one runs then).
+        system.start();
+        expect(modRecord('qq')?.activations).toBe(1);
+    });
+
+    it('remembers a partition the client named through folium.net.fetch, so clear data reaches it', async () => {
+        writeMod('builtin', sourceManifest('radio', ['station']), { main: true });
+        const system = launch();
+        await invoke(IPC.netFetch, 'radio', 'https://example.com/login', { session: 'login' });
+        expect(system.describeSourceData('folium.radio.station')).toMatchObject({ partitions: ['persist:folium-radio-login'] });
+    });
+
+    it('tells the window which sources are about to stop, on every reload path', async () => {
+        writeMod('builtin', sourceManifest('netease', ['netease']), { main: true });
+        const directory = writeMod('user', sourceManifest('radio', ['station']), { main: true });
+        confirmMod(directory, 'radio');
+        const system = launch();
+        sentToWindow.length = 0;
+        await system.setSourceState('netease', 'disabled');
+        await system.setModEnabled('radio', false);
+        const notices = sentToWindow.filter(([channel]) => channel === IPC.fSourcesStopping).map(([, payload]) => payload);
+        expect(notices).toEqual([{ sourceIds: ['netease'] }, { sourceIds: ['folium.radio.station'] }]);
     });
 });

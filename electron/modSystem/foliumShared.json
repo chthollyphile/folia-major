@@ -93,6 +93,7 @@
         "fLog": "folia-mods:log",
         "fRpcMessage": "folia-mods:rpc-message",
         "fSecretChanged": "folia-mods:secret-changed",
-        "fSourceStatesChanged": "folia-mods:source-states-changed"
+        "fSourceStatesChanged": "folia-mods:source-states-changed",
+        "fSourcesStopping": "folia-mods:sources-stopping"
     }
 }

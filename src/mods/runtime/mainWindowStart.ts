@@ -1,7 +1,7 @@
 import { isModsBridgeAvailable, reportModsStartAlive, reportModsStartSettled } from '../ipc';
 import { foliumSourceClientsSettled, initFoliumClients, onFoliumClientStarted } from './clientLoader';
 import { installFoliumSourceStatesSync } from './sourceStatesSync';
-import { installDefaultSourcePlaybackStop } from './sourceSwitches';
+import { installDefaultSourcePlaybackStop, installSourcesStoppingListener } from './sourceSwitches';
 import { setBuiltinSourcesSettled } from '@/services/onlineMusic/sourceReadiness';
 import { FOLIUM_SHARED_LIMITS } from '../folium/shared';
 import { installFoliumCommandPaletteSync } from '../folium/registries/commandPaletteSync';
@@ -100,6 +100,7 @@ export const startFoliumForMainWindow = async ({ firstScreenWaitMs }: FoliumMain
     }
     // Folium 2.0: a source about to stop has its playing song paused first (sourceSwitches.ts).
     installDefaultSourcePlaybackStop();
+    installSourcesStoppingListener();
     // Folium 2.0: the source states first (they decide what counts as enabled), then the clients.
     const statesRead = installFoliumSourceStatesSync();
     const started = initFoliumClients();

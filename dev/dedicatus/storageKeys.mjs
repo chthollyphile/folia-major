@@ -329,6 +329,8 @@ export const STORAGE_KEYS = [
     'main:mods.sourceClaims',
     // 音源模组用过的自己的分区（persist:folium-<模组 id>-<名>），给“清除数据”用（Electron 列不出分区）。
     'main:mods.sourcePartitions',
+    // 确认过覆盖副本的内置模组（内置 id → 覆盖它的模组 id）：建窗口前不先起它，免得起来又被换掉。
+    'main:mods.overriddenBuiltins',
     // Folium 2.0 S1 的听歌上报设置，每个音源一个键 `folia_playback_report:<音源 id>`（网易云沿用 folia_netease_scrobble）；S2 补登记。
     'web:folia_playback_report:*',
 ];

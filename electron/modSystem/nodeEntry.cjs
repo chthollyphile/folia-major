@@ -289,6 +289,8 @@ const createNodeEntryRuntime = ({
             beforeUnload: () => (sourceApi
                 ? settleWithin(guard, manifest.id, 'onBeforeUnload', sourceApi.hooks.beforeUnload, BEFORE_UNLOAD_MS)
                 : Promise.resolve(true)),
+            /* Whether the source registered an onBeforeQuit handler (the quit is held only for one that did). */
+            hasQuitHandlers: () => Boolean(sourceApi && sourceApi.hooks.beforeQuit.size > 0),
             /* A source's onBeforeQuit handlers, 3 seconds at most together. */
             beforeQuit: () => (sourceApi
                 ? settleWithin(guard, manifest.id, 'onBeforeQuit', sourceApi.hooks.beforeQuit, BEFORE_QUIT_MS)

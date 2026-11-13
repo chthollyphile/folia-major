@@ -20,7 +20,8 @@ import { isFoliumClientActive, reconcileFoliumClients, startsIn } from '@/mods/r
 import { getSourceState, setSourceStates } from '@/services/onlineMusic/sourceStates';
 import { callFoliumSourceMember, getFoliumCallStats, markFoliumSourceMod } from '@/mods/runtime/guard';
 import { createFoliumRequestGate, resetFoliumRequestQuotasForTest } from '@/mods/folium/omni/requestQuota';
-import { clearSourceData, registerSourcePlaybackStop, switchSourceState } from '@/mods/runtime/sourceSwitches';
+import { clearSourceData, installSourcesStoppingListener, registerSourcePlaybackStop, switchSourceState } from '@/mods/runtime/sourceSwitches';
+import { useModsStore } from '@/mods/useModsStore';
 import '@/mods/folium/api';
 
 // test/unit/mod-system/folium2Clients.test.ts
@@ -174,5 +175,30 @@ describe('the window\'s half of switching a source', () => {
         expect(await clearSourceData('netease')).toMatchObject({ ok: true, removedKeys: 2 });
         expect(localStorage.getItem('online_provider:netease:cookie')).toBeNull();
         expect(localStorage.getItem('online_provider:qq:cookie')).toBe('kept');
+    });
+});
+
+describe('stopping the playback of a source before it is unloaded', () => {
+    it('stops it on the notice of the main process, and before the panel disables a source mod', async () => {
+        const stopped: string[][] = [];
+        let notify: (payload: { sourceIds: string[] }) => void = () => {};
+        bridge.electron = {
+            mods: {
+                onSourcesStopping: (callback: (payload: { sourceIds: string[] }) => void) => { notify = callback; return () => {}; },
+                setModEnabled: async () => { stopped.push(['set-enabled']); return { ok: true, mods: [] }; },
+            },
+        };
+        registerSourcePlaybackStop((ids) => { stopped.push([...ids]); });
+        const off = installSourcesStoppingListener();
+        notify({ sourceIds: ['qq'] });
+        await settle();
+        expect(stopped).toEqual([['qq']]);
+        // No client URL: the store reconciles its mods into clients, and this one is not to start here.
+        useModsStore.setState({ mods: [source('radio-mod')].map((entry) => ({ ...entry, clientUrl: null, sources: [{ id: 'folium.radio-mod.station', localId: 'station', name: 'S', state: 'enabled', keepForMatching: false, takeover: false, requires: [] }] })) });
+        await useModsStore.getState().toggleMod('radio-mod', false);
+        expect(stopped).toEqual([['qq'], ['folium.radio-mod.station'], ['set-enabled']]);
+        off();
+        registerSourcePlaybackStop(null);
+        useModsStore.setState({ mods: [] });
     });
 });

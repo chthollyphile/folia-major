@@ -1151,6 +1151,7 @@ declare global {
         confirmModOverride?: (modId: string) => Promise<{ ok: boolean; error?: string; mods?: ModRuntimeInfo[] }>;
         assignSourceClaim?: (shortId: string, modId: string) => Promise<{ ok: boolean; error?: string; mods?: ModRuntimeInfo[] }>;
         onSourceStatesChanged?: (callback: (payload: ModSourceStatesPayload) => void) => () => void;
+        onSourcesStopping?: (callback: (payload: { sourceIds: string[] }) => void) => () => void;
         onModsStateChanged: (callback: (mods: ModRuntimeInfo[]) => void) => () => void;
         onExportProgress: (callback: (progress: ModExportProgress) => void) => () => void;
         onModLog: (callback: (entry: ModLogEntry) => void) => () => void;
