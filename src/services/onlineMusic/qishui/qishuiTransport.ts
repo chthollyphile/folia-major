@@ -20,16 +20,29 @@ export class QishuiRequestError extends OnlineProviderError {
         super(code, message, 'qishui');
     }
 }
-export const getQishuiAvailability = () => (
-    typeof window !== 'undefined' && typeof window.electron?.qishuiRequest === 'function'
-        ? { configured: true } as const : { configured: false, reason: 'runtime-unavailable' } as const
-);
-export async function requestQishui<T = unknown>(operation: QishuiOperation, params: QishuiParams = {}): Promise<T> {
-    if (operation === 'login_qr_key') lastFailure = null;
-    if (!getQishuiAvailability().configured) throw new OnlineProviderError('unavailable', QISHUI_NEEDS_DESKTOP, 'qishui');
-    let result: QishuiBridgeResult;
-    try { result = await window.electron!.qishuiRequest(operation, params); }
-    catch (error) { throw new OnlineProviderError('network', QISHUI_BRIDGE_FAILED, 'qishui', error); }
+const getWebApiBase = (): string => {
+    const viteValue = typeof import.meta !== 'undefined' && import.meta.env?.MODE !== 'test'
+        ? String((import.meta as ImportMeta & { env?: Record<string, string> }).env?.VITE_QISHUI_API_BASE || '')
+        : '';
+    const processValue = typeof process !== 'undefined'
+        ? String(process.env?.VITE_QISHUI_API_BASE || '')
+        : '';
+    const value = viteValue || processValue;
+    return value.trim().replace(/\/$/, '');
+};
+
+export const QISHUI_API_BASE_MISSING = 'VITE_QISHUI_API_BASE is not configured';
+
+export const getQishuiAvailability = () => {
+    if (typeof window !== 'undefined' && typeof window.electron?.qishuiRequest === 'function') {
+        return { configured: true } as const;
+    }
+    return getWebApiBase()
+        ? { configured: true } as const
+        : { configured: false, reason: 'runtime-unavailable' } as const;
+};
+
+async function handleBridgeResult<T>(result: QishuiBridgeResult, operation: QishuiOperation): Promise<T> {
     if (!result.ok) {
         const stage = STAGES.find(stage => stage === result.error.stage) ?? null;
         const upstreamCode = typeof result.error.upstreamCode === 'string' && /^\d{1,12}$/.test(result.error.upstreamCode) ? result.error.upstreamCode : undefined;
@@ -37,6 +50,48 @@ export async function requestQishui<T = unknown>(operation: QishuiOperation, par
         throw new QishuiRequestError(result.error.code, result.error.message, stage, upstreamCode);
     }
     return result.data as T;
+}
+
+export async function requestQishui<T = unknown>(operation: QishuiOperation, params: QishuiParams = {}): Promise<T> {
+    if (operation === 'login_qr_key') lastFailure = null;
+    if (!getQishuiAvailability().configured) {
+        throw new OnlineProviderError('unavailable', QISHUI_NEEDS_DESKTOP, 'qishui');
+    }
+
+    // Electron desktop: route through the main-process bridge.
+    if (typeof window !== 'undefined' && typeof window.electron?.qishuiRequest === 'function') {
+        let result: QishuiBridgeResult;
+        try { result = await window.electron!.qishuiRequest(operation, params); }
+        catch (error) { throw new OnlineProviderError('network', QISHUI_BRIDGE_FAILED, 'qishui', error); }
+        return handleBridgeResult<T>(result, operation);
+    }
+
+    // Web build: call the self-hosted qishui-api HTTP service.
+    const base = getWebApiBase();
+    if (!base) {
+        throw new OnlineProviderError('unavailable', QISHUI_API_BASE_MISSING, 'qishui');
+    }
+    let response: Response;
+    try {
+        response = await fetch(`${base}/request`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ operation, params }),
+        });
+    } catch (error) {
+        throw new OnlineProviderError('network', 'Qishui web API request failed', 'qishui', error);
+    }
+    if (!response.ok) {
+        throw new OnlineProviderError('network', `Qishui web API returned ${response.status}`, 'qishui');
+    }
+    let result: QishuiBridgeResult;
+    try {
+        result = await response.json() as QishuiBridgeResult;
+    } catch (error) {
+        throw new OnlineProviderError('invalid-response', 'Qishui web API returned an unreadable body', 'qishui', error);
+    }
+    return handleBridgeResult<T>(result, operation);
 }
 
 // The image type the bytes themselves say, for the formats a scene icon comes in; null when they say none of them.

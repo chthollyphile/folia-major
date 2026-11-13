@@ -73,6 +73,15 @@ http {
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         }
 
+        location /qishui/ {
+            proxy_pass http://qishui-api:3000/;
+            proxy_hide_header Set-Cookie;
+            proxy_set_header Host $host;
+            proxy_set_header X-Forwarded-Host $host;
+            proxy_set_header X-Forwarded-Proto $folia_forwarded_proto;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        }
+
         # 下发明文 Navidrome 凭据，按 NAVIDROME_PRESET_ALLOW 限制来源（默认只放行局域网）。
         # 用不区分大小写的前缀正则而不是精确匹配：Express 默认忽略大小写和结尾斜杠，
         # /api/Navidrome-Preset、/api/navidrome-preset/ 这类写法若落到下面的 /api/ 就绕过了限制。
