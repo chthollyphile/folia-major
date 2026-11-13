@@ -157,7 +157,10 @@ interface Attempt {
      * from it. A start that is adopted at once asks nothing and is never one of these.
      */
     startPending: boolean;
-    /** When that ask was made: how long its leftover may be taken for one is START_ANSWER_LIMIT_MS. */
+    /**
+     * When that ask was made, by performance.now(). How long its leftover may be taken for one is
+     * START_ANSWER_LIMIT_MS: past that the wait is over whether the app answered or not.
+     */
     startedAt: number;
     /**
      * The line saying the app was moved to another track by its own controls has been written for
@@ -287,6 +290,21 @@ const namesAnotherTrack = (current: Attempt, data: SpotifyWireClientStatus): boo
     if (plainTitle(title) !== plainTitle(current.name)) return true;
     const artist = (data.artist ?? '').trim();
     return Boolean(artist && current.artist) && !mentionsArtist(current.artist, artist);
+};
+
+/**
+ * Whether the coarse channel shows this very song: its title is the one Folia asked for, and where
+ * both sides name an artist, one of this song's own is among the names shown. That channel carries
+ * no track id, so the names are the only way it can say the app got to the song at all - and the
+ * only sign that a start of Folia's has landed on it.
+ */
+const namesThisSongCoarsely = (current: Attempt, data: SpotifyWireClientStatus): boolean => {
+    const title = (data.title ?? '').trim();
+    if (!title || !current.name) return false;
+    if (plainTitle(title) !== plainTitle(current.name)) return false;
+    const artist = (data.artist ?? '').trim();
+    if (!artist || !current.artist) return true;
+    return mentionsArtist(current.artist, artist);
 };
 
 /**
@@ -495,11 +513,20 @@ export const statusOfClient = (data: SpotifyWireClientStatus): ProviderExternalP
         // take-over of the route as the song it shows, and Folia plays nothing of its own queue
         // into the app over it. A coarse read carries no id, so that take-over can find the song
         // only by these names; nothing is ended here for it either way.
+        // The names this channel shows are this song's: the app has got to the song Folia asked for,
+        // so nothing of that start is left to wait for. Said before the window below is judged, since
+        // this channel carries no id and the branch that closes the window on the app's own player
+        // never runs here - a start still waited for would swallow the listener's next pick.
+        const showsThisSong = namesThisSongCoarsely(current, data);
+        if (showsThisSong) current.startPending = false;
+        // A start of Folia's still on its way is otherwise read before anything else on this channel.
+        // That channel names no track, so every read it gives while the app is loading the song
+        // describes the one it was on before - the position it stood at and all. Nothing of that one
+        // stands for this song. It is judged before hasPlayed, which is false until the app itself
+        // says it sounds this song: the first read after a start is exactly the one that must not be
+        // taken for it.
+        if (startStillOnItsWay(current)) return stillLoadingStatus(current, true);
         if (current.hasPlayed && namesAnotherTrack(current, data)) {
-            // A start of Folia's still on its way: the app has not shown the song it was asked for,
-            // so the names it still gives are the ones it was on before. Nothing is ended or adopted
-            // from that reading; the song is said to be loading, which is what it is.
-            if (startStillOnItsWay(current)) return stillLoadingStatus(current, true);
             // How far this song had got is no sign of what became of it: the coarse position is the
             // session's own, and a song that ran out and one the listener left behind read the same
             // way. Guessing from it called the listener's own press the end of the song, and the
