@@ -920,6 +920,46 @@ describe('the queue a window writes into the app own player', () => {
         expect(app.queue).toEqual([id('b'), id('c')]);
     });
 
+    it('takes the app queue whole where the app already moved on to that list first song', async () => {
+        // The app went on to the song Folia wrote behind the one it played, and the listener then
+        // played a whole list here whose first song is that one: the song itself needs no start, but
+        // the songs the app holds behind it are the ones of the queue that list replaced, so they go
+        // with it the way they do on any other whole-list play.
+        const app = fakeApp({ clear: 'works' });
+        answerInPage(app);
+        const [a, b, c] = ['a', 'b', 'c'].map(songOf);
+        await spotifyClientPlayback.play!(a, 0);
+        await prepare(a, [b]);
+        statusOfClient(playing(id('a')));
+        expect(statusOfClient(playing(id('b'))).ended).toBe(true);
+        expect(app.queue).toEqual([id('b')]);
+        request.mockClear();
+
+        await spotifyClientPlayback.play!(b, 0, { replaceQueue: true });
+
+        expect(request).toHaveBeenCalledWith('client_play', expect.objectContaining({ id: id('b'), replaceQueue: true }));
+        expect(app.queue).toEqual([]);
+        await prepare(b, [c]);
+        expect(app.queue).toEqual([id('c')]);
+    });
+
+    it('writes the songs a filtered page shows, not the whole collection', async () => {
+        // A page with a filter on plays what the filter left: the list replaces the app's queue, and
+        // what follows this song is that list, never the collection it was cut from.
+        const app = fakeApp({ clear: 'works', start: [id('u'), id('c'), id('v')] });
+        answerInPage(app);
+        const [a] = ['a'].map(songOf);
+        const filtered = ['f', 'g'].map(songOf);
+
+        await spotifyClientPlayback.play!(a, 0, { replaceQueue: true });
+        expect(app.queue).toEqual([]);
+        await spotifyClientPlayback.prepareNext!(a, filtered);
+        await prepare(a, filtered);
+
+        expect(app.queue).toEqual([id('f'), id('g')]);
+        expect(spotifyClientAttempt()?.nextIds).toEqual([id('f'), id('g')]);
+    });
+
     it('keeps those songs where the same play is not a whole list', async () => {
         // A single song played, a skip, and an advance of Folia's own are not a list: the same
         // player is emptied of the songs Folia wrote only, and the listener's are given back.

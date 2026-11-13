@@ -190,3 +190,43 @@ describe('什么算用一个新列表替换播放队列', () => {
         expect(env.externalStarts.mock.calls[0][2]).not.toHaveProperty('replaceQueue');
     });
 });
+
+describe('「全部播放」把播放队列整个换成这张列表', () => {
+    const queuedIds = () => usePlaybackStore.getState().playQueue.map(song => song.id);
+
+    it('普通情况：队列换成这张列表，第一首开始播', async () => {
+        const queue = useQueueController();
+        queue.playOnlineQueueFromStart([songC, songA]);
+        await vi.waitFor(() => expect(queuedIds()).toEqual(['3', '1']));
+
+        expect(usePlaybackStore.getState().currentSong?.id).toBe('3');
+        expect(env.externalStarts).toHaveBeenCalledWith(songC, 0, { userAction: true, replaceQueue: true });
+    });
+
+    it('第一首就是正在播的那首：队列照样整个换掉，不是跳过不动', async () => {
+        const queue = useQueueController();
+        // 正在播的就是 songA，列表第一首也是它：不能因为「同一首」就把队列留在原处。
+        queue.playOnlineQueueFromStart([songA, songC]);
+        await vi.waitFor(() => expect(queuedIds()).toEqual(['1', '3']));
+
+        expect(env.externalStarts).toHaveBeenCalledWith(songA, 0, { userAction: true, replaceQueue: true });
+    });
+
+    it('外部播放模式：队列同样整个换掉，并让播放器也整表替换', async () => {
+        env.external = true;
+        const queue = useQueueController();
+        queue.playOnlineQueueFromStart([songC]);
+        await vi.waitFor(() => expect(queuedIds()).toEqual(['3']));
+
+        expect(env.externalStarts).toHaveBeenCalledWith(songC, 0, { userAction: true, replaceQueue: true });
+    });
+
+    it('页面上开着筛选：队列换成筛出来的那几首，不是整张列表', async () => {
+        const queue = useQueueController();
+        // 页面筛选后交给「全部播放」的只有命中的歌：队列就是这几首。
+        queue.playOnlineQueueFromStart([songB]);
+        await vi.waitFor(() => expect(queuedIds()).toEqual(['2']));
+
+        expect(env.externalStarts).toHaveBeenCalledWith(songB, 0, { userAction: true, replaceQueue: true });
+    });
+});
