@@ -773,4 +773,75 @@ describe('a start of Folia\'s whose window is open when the app moves to the son
         void start;
         held.release();
     });
+
+    it('does not end a whole new list on a song the queue it replaced held next', async () => {
+        // Song b sounds there with song c written behind it; the listener then plays a whole list of
+        // their own from song d. Song c belongs to the queue that list replaced: the app getting
+        // there while d loads is the leftover of the old queue, not d ending.
+        const b = songOf('b');
+        const c = songOf('c');
+        const d = songOf('d');
+        await spotifyClientPlayback.play!(b, 0);
+        statusOfClient(wire(id('b'), { positionMs: 10000 }));
+        await spotifyClientPlayback.prepareNext!(b, [c]);
+
+        const held = holdNextStart();
+        const start = engine.startExternalPlayback(d, 0, { replaceQueue: true });
+        engine.announceExternalPlayback();
+        await vi.advanceTimersByTimeAsync(0);
+        expect(held.asked()).toBe(true);
+
+        const status = statusOfClient(coarse({ title: 'Song c', artist: 'Artist' }));
+
+        expect(status.ended).toBe(false);
+        expect(status.starting).toBe(true);
+        void start;
+        held.release();
+    });
+
+    it('keeps nothing of the old queue for a whole list that starts on the song already playing', async () => {
+        // Song c was written behind b. A whole list of the listener's that happens to start on b
+        // replaces that queue, so c is no longer what follows b.
+        const b = songOf('b');
+        const c = songOf('c');
+        await spotifyClientPlayback.play!(b, 0);
+        statusOfClient(wire(id('b'), { positionMs: 10000 }));
+        await spotifyClientPlayback.prepareNext!(b, [c]);
+
+        const held = holdNextStart();
+        const start = engine.startExternalPlayback(b, 0, { replaceQueue: true });
+        engine.announceExternalPlayback();
+        await vi.advanceTimersByTimeAsync(0);
+        expect(held.asked()).toBe(true);
+
+        const status = statusOfClient(coarse({ title: 'Song c', artist: 'Artist' }));
+
+        expect(status.ended).toBe(false);
+        expect(status.starting).toBe(true);
+        void start;
+        held.release();
+    });
+
+    it('does not end a song started outside the old queue on a song that queue held next', async () => {
+        // Song d is not among the songs written behind b, so nothing of b's queue follows it.
+        const b = songOf('b');
+        const c = songOf('c');
+        const d = songOf('d');
+        await spotifyClientPlayback.play!(b, 0);
+        statusOfClient(wire(id('b'), { positionMs: 10000 }));
+        await spotifyClientPlayback.prepareNext!(b, [c]);
+
+        const held = holdNextStart();
+        const start = engine.startExternalPlayback(d, 0);
+        engine.announceExternalPlayback();
+        await vi.advanceTimersByTimeAsync(0);
+        expect(held.asked()).toBe(true);
+
+        const status = statusOfClient(coarse({ title: 'Song c', artist: 'Artist' }));
+
+        expect(status.ended).toBe(false);
+        expect(status.starting).toBe(true);
+        void start;
+        held.release();
+    });
 });
