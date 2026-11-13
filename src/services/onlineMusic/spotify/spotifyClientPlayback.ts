@@ -293,18 +293,40 @@ const namesAnotherTrack = (current: Attempt, data: SpotifyWireClientStatus): boo
 };
 
 /**
- * Whether the coarse channel shows this very song: its title is the one Folia asked for, and where
- * both sides name an artist, one of this song's own is among the names shown. That channel carries
- * no track id, so the names are the only way it can say the app got to the song at all - and the
- * only sign that a start of Folia's has landed on it.
+ * A title taken as it is written, with only the case and the spacing folded: no credit is cut off.
+ * Closing a start of Folia's on a name is an answer that this is the song asked for, and a title
+ * that merely loses its bracketed notes is another track as readily as it is the same one.
+ */
+const exactTitle = (text: unknown): string => plainName(text).replace(/\s+/gu, ' ');
+
+/**
+ * The whole artist names one side writes, with the case and the spacing folded. Both sides keep them
+ * as a list joined by commas - the song's own artists, and the media session's one string - so that
+ * is where each name ends: an entry is never cut into a part of another one.
+ */
+const wholeArtistNames = (joined: string): string[] => (
+    joined.split(',')
+        .map(name => plainName(name).replace(/\s+/gu, ' '))
+        .filter(Boolean)
+        .sort()
+);
+
+/**
+ * Whether the coarse channel shows this very song: the title Folia asked for, exactly, and the same
+ * artists. That channel carries no track id, so the names are the only way it can say the app got to
+ * the song at all - and the only sign that a start of Folia's has landed on it. Since closing the
+ * window on a wrong answer lets the leftover of the start through, every side has to answer: a read
+ * that names no artist says nothing about which song it shows, and a name that merely holds another
+ * one inside it - a shorter act inside a longer one - is a different artist, not this song's.
  */
 const namesThisSongCoarsely = (current: Attempt, data: SpotifyWireClientStatus): boolean => {
     const title = (data.title ?? '').trim();
     if (!title || !current.name) return false;
-    if (plainTitle(title) !== plainTitle(current.name)) return false;
-    const artist = (data.artist ?? '').trim();
-    if (!artist || !current.artist) return true;
-    return mentionsArtist(current.artist, artist);
+    if (exactTitle(title) !== exactTitle(current.name)) return false;
+    const shown = wholeArtistNames((data.artist ?? '').trim());
+    const own = wholeArtistNames(current.artist);
+    if (shown.length === 0 || own.length === 0) return false;
+    return shown.length === own.length && shown.every((name, at) => name === own[at]);
 };
 
 /**
@@ -519,6 +541,14 @@ export const statusOfClient = (data: SpotifyWireClientStatus): ProviderExternalP
         // never runs here - a start still waited for would swallow the listener's next pick.
         const showsThisSong = namesThisSongCoarsely(current, data);
         if (showsThisSong) current.startPending = false;
+        // The app moved on to a song Folia wrote into its queue: that is this song ending and Folia's
+        // own queue taking the next one, and it has to be read as that whatever a start of Folia's is
+        // doing. A start still on its way would otherwise swallow the handoff, and the queue would
+        // never learn that the song it asked for is over.
+        if (current.behindTracks.length > 0 && namesBehindTrack(current, data)) {
+            console.info('[SpotifyClient] Spotify moved on to the track Folia wrote next; the external session ends');
+            return ended(current);
+        }
         // A start of Folia's still on its way is otherwise read before anything else on this channel.
         // That channel names no track, so every read it gives while the app is loading the song
         // describes the one it was on before - the position it stood at and all. Nothing of that one
@@ -724,11 +754,18 @@ export const spotifyClientPlayback: OnlineExternalPlaybackProvider = {
         const carried = adopt ? tailAfter(attempt?.nextIds ?? [], id) : [];
         const carriedConfirmed = adopt ? tailAfter(attempt?.confirmedIds ?? [], id) : [];
         handoffId = null;
+        // What the app holds behind the track it is leaving: a start of Folia's does not empty it at
+        // once, so the app may go on to one of those songs before this start lands. Those names are
+        // kept for the length of the window, or a handoff to the song Folia wrote next would be read
+        // as the leftover of the start and silently swallowed - the queue would never step on.
+        const behindBeforeStart = attempt?.behindTracks ?? [];
         attempt = {
             id, name: song.name, artist: artistNamesOf(song),
             hasPlayed: adopt, positionMs: startMs, durationMs: song.durationMs,
             nextIds: carried, confirmedIds: carriedConfirmed, degraded: false,
-            behindTracks: carried.map(held => writtenTracks.get(held)).filter((track): track is ShownTrack => Boolean(track)),
+            behindTracks: carried.length > 0
+                ? carried.map(held => writtenTracks.get(held)).filter((track): track is ShownTrack => Boolean(track))
+                : behindBeforeStart,
             notedAppPick: false, nativeRepeat: false,
             // An adopted song is the app's own track already, and asks the app for nothing: no start
             // of Folia's is on its way, so no read can be its leftover.
