@@ -77,9 +77,11 @@ const writeMod = (id: string, { enabled = true, awaitSecretInActivate = false } 
     }
 };
 
+const mainFrame = {};
 const fakeWindow = {
     isDestroyed: () => false,
     webContents: {
+        mainFrame,
         isDestroyed: () => false,
         send: (channel: string, payload: unknown) => { sent.push({ channel, payload }); },
     },
@@ -104,7 +106,7 @@ const launch = () => {
     return system;
 };
 
-const invoke = (...args: unknown[]) => handlers.get(IPC.secrets)!(null, ...args);
+const invoke = (...args: unknown[]) => handlers.get(IPC.secrets)!({ sender: fakeWindow.webContents, senderFrame: mainFrame }, ...args);
 const secretNotices = () => sent.filter((entry) => entry.channel === IPC.fSecretChanged).map((entry) => entry.payload);
 
 beforeEach(() => {

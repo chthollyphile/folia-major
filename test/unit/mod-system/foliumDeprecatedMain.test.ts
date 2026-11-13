@@ -81,7 +81,7 @@ describe('mod.json as Folium 1.5 mods write it', () => {
 
     it('still refuses what Folium 1.5 refused', () => {
         expect(validateManifest({ ...baseManifest, permissions: ['everything'] }).ok).toBe(false);
-        expect(validateManifest({ ...baseManifest, folium: 2 }).ok).toBe(false);
+        expect(validateManifest({ ...baseManifest, folium: 3 }).ok).toBe(false);
     });
 });
 
@@ -195,8 +195,9 @@ describe('Folium 1.5 main entries in the loader', () => {
         return id as string;
     };
 
+    let window: { isDestroyed: () => boolean; webContents: { mainFrame: object; isDestroyed: () => boolean; send: (channel: string, payload: unknown) => void } } | null = null;
     const launch = () => {
-        const window = { isDestroyed: () => false, webContents: { isDestroyed: () => false, send: (channel: string, payload: unknown) => sent.push([channel, payload]) } };
+        window = { isDestroyed: () => false, webContents: { mainFrame: {}, isDestroyed: () => false, send: (channel: string, payload: unknown) => sent.push([channel, payload]) } };
         system = createModSystem({
             app: {
                 getPath: () => path.join(root, 'userData'),
@@ -213,7 +214,7 @@ describe('Folium 1.5 main entries in the loader', () => {
         system!.loadAll();
     };
     const stateOf = (id: string) => system!.listMods().find((mod) => mod.id === id)!;
-    const rpc = (id: string, name: string, args: unknown[]) => ipcHandlers.get('folia-mods:rpc')!({}, id, name, args);
+    const rpc = (id: string, name: string, args: unknown[]) => ipcHandlers.get('folia-mods:rpc')!({ sender: window!.webContents, senderFrame: window!.webContents.mainFrame }, id, name, args);
 
     it('loads and runs a main entry that uses every old main name, and lists each one in the mod\'s row', async () => {
         const id = install('old-main-names');

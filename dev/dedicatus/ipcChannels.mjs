@@ -153,6 +153,8 @@ export const IPC_CHANNELS = {
 
 /** 循环里拼出名字、扫描认不出的通道前缀。 */
 export const IPC_DYNAMIC_PREFIXES = {
-    'folia-mods:': 'electron/modSystem/modSystem.cjs 按通道表循环注册，各自经模组系统的来源校验',
+    // Folium 2.0 S2：通道表（foliumShared.json channels）的每一条都经 modSystem.cjs 的 isMainWindowFrame，只答主窗口的主 frame。
+    // S2 新加的 source-states、set-source-state、source-data、clear-source-data、confirm-override、assign-source-claim 同在这张表里。
+    'folia-mods:': 'electron/modSystem/modSystem.cjs 按通道表循环注册，每条都只答主窗口的主 frame（isMainWindowFrame）',
     'hifi:': 'electron/hifi/hifiIpc.cjs 按通道表循环注册',
 };

@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { expect, it } from 'vitest';
 import { zipSync } from 'fflate';
+import { FROM_MAIN_WINDOW, MAIN_WINDOW } from './mainWindowFake';
 
 // test/unit/mod-system/remoteActionsSample.test.ts
 // Install the exact offline sample through the normal manifest/trust/client pipeline.
@@ -39,14 +40,14 @@ it('installs the remote.actions sample without Node entry or a remote script loa
     fs.writeFileSync(archive, zipSync(Object.fromEntries(files.map((file) => [file, fs.readFileSync(path.join(sample, file))]))));
     const system = createModSystem({
         app: { getPath: () => path.join(root, 'user'), getAppPath: () => path.join(root, 'app'), getVersion: () => '0.7.19', isPackaged: true },
-        BrowserWindow: { getAllWindows: () => [] }, getMainWindow: () => null,
+        BrowserWindow: { getAllWindows: () => [] }, getMainWindow: () => MAIN_WINDOW,
         getLocaleKey: () => 'en', isFeatureEnabled: () => true,
     });
     try {
         system.registerIpc(); system.loadAll();
-        expect(await handlers.get(IPC.installZip)!(null, archive)).toMatchObject({ ok: true, id: manifest.id });
+        expect(await handlers.get(IPC.installZip)!(FROM_MAIN_WINDOW, archive)).toMatchObject({ ok: true, id: manifest.id });
         expect(system.listClientDescriptors()).toEqual([]);
-        expect(await handlers.get(IPC.setEnabled)!(null, manifest.id, true)).toMatchObject({ ok: true });
+        expect(await handlers.get(IPC.setEnabled)!(FROM_MAIN_WINDOW, manifest.id, true)).toMatchObject({ ok: true });
         const clients = system.listClientDescriptors();
         expect(clients).toHaveLength(1);
         expect(clients[0]).toMatchObject({ id: manifest.id, hasMain: false, experimental: ['remote.actions'] });
