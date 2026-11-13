@@ -395,7 +395,7 @@ contextBridge.exposeInMainWorld('electron', {
         clearSourceData: (sourceId) => ipcRenderer.invoke('folia-mods:clear-source-data', sourceId),
         confirmModOverride: (modId) => ipcRenderer.invoke('folia-mods:confirm-override', modId),
         assignSourceClaim: (shortId, modId) => ipcRenderer.invoke('folia-mods:assign-source-claim', shortId, modId),
-        reportSourcesRegistered: (modId, registered) => ipcRenderer.invoke('folia-mods:sources-registered', modId, registered),
+        reportSourcesRegistered: (modId, registered, clientUrl) => ipcRenderer.invoke('folia-mods:sources-registered', modId, registered, clientUrl),
         onModsStateChanged: (callback) => {
             const listener = (_event, mods) => callback(mods);
             ipcRenderer.on('folia-mods:state-changed', listener);

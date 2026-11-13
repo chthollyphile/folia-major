@@ -124,7 +124,7 @@ const loadSources = () => {
  * that it did not register. Each is reported in its row; one that registered none of them is told to the main
  * process, which takes the source exemptions back.
  */
-const checkDeclaredSources = async (mod: ModRuntimeInfo) => {
+const checkDeclaredSources = async (mod: ModRuntimeInfo, url: string) => {
     if (!isFoliumSourceMod(mod) || !sourcesPromise) return;
     const { listFoliumSourceIdsOf } = await sourcesPromise;
     const registered = new Set(listFoliumSourceIdsOf(mod.id));
@@ -138,7 +138,7 @@ const checkDeclaredSources = async (mod: ModRuntimeInfo) => {
     ));
     if (registered.size === 0) {
         console.warn(`[Folium] ${mod.id} registered none of its sources: the source exemptions are taken back`);
-        await reportFoliumSourcesRegistered(mod.id, []);
+        await reportFoliumSourcesRegistered(mod.id, [], url);
     }
 };
 
@@ -191,7 +191,7 @@ const runClient = async (mod: ModRuntimeInfo, url: string, api: FoliumClientApi,
         }
         // Read anew: the mod may have been stopped (reloaded, updated) while its activate ran. A stopped start
         // must not check the registrations of the copy that runs now, nor have that copy's exemptions revoked.
-        if (!isStopped(record)) await checkDeclaredSources(mod);
+        if (!isStopped(record)) await checkDeclaredSources(mod, url);
     } catch (error) {
         if (record.stopped) {
             const line = `[Folium:${mod.id}] a start that had been stopped failed afterwards; not counted against the mod`;

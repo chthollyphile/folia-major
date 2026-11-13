@@ -64,8 +64,12 @@ describe('a source mod whose client registered none of its sources', () => {
         const system = launch();
         expect(stateOf(system, 'radio')?.status).toBe('loaded');
         expect(await invoke(IPC.storage, 'radio', 'set', 'k', 1)).toEqual({ ok: true, result: null });
-        expect(await invoke(IPC.sourcesRegistered, 'radio', ['station'])).toEqual({ ok: true, revoked: false });
-        expect(await invoke(IPC.sourcesRegistered, 'radio', [])).toEqual({ ok: true, revoked: true });
+        const url = system.listMods().find((mod) => mod.id === 'radio')!.clientUrl;
+        expect(await invoke(IPC.sourcesRegistered, 'radio', ['station'], url)).toEqual({ ok: true, revoked: false });
+        // A report of a copy replaced meanwhile (another content tag) is not the running copy's.
+        expect(await invoke(IPC.sourcesRegistered, 'radio', [], 'folia-mod://radio/client.mjs?v=old')).toEqual({ ok: false, error: 'stale-copy' });
+        expect(await invoke(IPC.storage, 'radio', 'get', 'k')).toEqual({ ok: true, result: 1 });
+        expect(await invoke(IPC.sourcesRegistered, 'radio', [], url)).toEqual({ ok: true, revoked: true });
         expect(await invoke(IPC.storage, 'radio', 'get', 'k')).toEqual({ ok: false, error: 'permission-denied:filesystem.data' });
         expect(await invoke(IPC.netFetch, 'radio', 'https://example.com/a', {})).toEqual({ ok: false, error: 'permission-denied:net.fetch' });
         expect(await invoke(IPC.secrets, 'radio', 'set', 'token', 'x')).toMatchObject({ ok: false });

@@ -5,7 +5,7 @@ import {
     unregisterOnlineMusicProvider,
 } from '@/services/onlineMusic/providerRegistry';
 import { declareSource } from '@/services/onlineMusic/sourceDeclarations';
-import { registerLyricSource } from '@/utils/lyrics/lyricSources';
+import { getLyricSource, registerLyricSource } from '@/utils/lyrics/lyricSources';
 import { registerCoverUrlRule } from '@/utils/coverUrl';
 import type { ModRuntimeInfo } from '../../types';
 import type { FoliumSourceDef, FoliumSourceHandle, FoliumSourceNotice } from '../sources/contract';
@@ -96,6 +96,8 @@ interface FoliumSourceEntry {
     undo: Array<() => void>;
     /** The provider held for it now. */
     provider: OnlineMusicProvider | null;
+    /** It registered the lyric source entry of its id (one the host had of that id is never replaced). */
+    ownsLyricSource: boolean;
     warned: Set<string>;
 }
 
@@ -137,16 +139,25 @@ const retract = (entry: FoliumSourceEntry) => {
  * Puts the source in place, or in place again after handle.changed(). The new pieces go in over the old ones (the
  * provider, its declaration and its lyric source are replaced where they stand, so nothing that lists them sees
  * the source go and come back), and only then are the old ones taken out: their undo does nothing to a piece
- * replaced already. The provider goes in last, after what it reads.
+ * replaced already. The provider is held first: when its id is another's, nothing else is put in place.
+ * A lyric source entry the host has of the same id (AMLL DB's, a built-in platform's) is left as it is: the
+ * source's lyrics then match as that entry says, and taking the source out leaves the entry there.
  */
 const apply = (entry: FoliumSourceEntry) => {
     const parts = readFoliumSourceParts(entry.modId, entry.def.capabilities, (message) => { warnOnce(entry, message); });
     const provider = buildFoliumSourceProvider(entry.context, entry.def, parts);
     const declaration = deriveFoliumSourceDeclaration(entry.def, parts);
+    holdFoliumProvider(entry.modId, 'sources', provider, parts.custom);
+    entry.provider = provider;
     const old = entry.undo.splice(0);
     const fresh: Array<() => void> = [];
     fresh.push(declareSource(entry.hostId, declaration));
-    if (declaration.lyrics?.crossSource) {
+    const othersLyricSource = !entry.ownsLyricSource && getLyricSource(entry.hostId) !== undefined;
+    if (declaration.lyrics?.crossSource && othersLyricSource) {
+        warnOnce(entry, `lyrics@1.crossSource: the host has a lyric source "${entry.hostId}" already, which is kept as it is`);
+    }
+    entry.ownsLyricSource = Boolean(declaration.lyrics?.crossSource) && !othersLyricSource;
+    if (declaration.lyrics?.crossSource && entry.ownsLyricSource) {
         fresh.push(registerLyricSource({
             id: entry.hostId,
             labelKey: provider.shortNameKey ?? entry.hostId,
@@ -169,14 +180,6 @@ const apply = (entry: FoliumSourceEntry) => {
             requestedSize: requestedSize ?? (() => undefined),
         }));
     }
-    try {
-        holdFoliumProvider(entry.modId, 'sources', provider, parts.custom);
-    } catch (error) {
-        runUndo(entry, fresh);
-        entry.undo.push(...old);
-        throw error;
-    }
-    entry.provider = provider;
     entry.undo.push(...fresh);
     runUndo(entry, old);
 };
@@ -256,6 +259,7 @@ export const registerFoliumSource = ({ mod, stopped }: FoliumSourceRegistration,
         context: { modId: mod.id, hostId, text: createFoliumSourceTextBook(mod.id, hostId), tells: new Set() },
         undo: [],
         provider: null,
+        ownsLyricSource: false,
         warned: new Set(),
     };
     try {

@@ -1523,9 +1523,12 @@ const createModSystem = ({
         handle(IPC.assignSourceClaim, (_event, shortId, modId) => assignSourceClaim(shortId, modId));
         // Folium 2.0 (S3): the window says which of a source mod's declared sources its client registered;
         // none at all takes the exemptions back from this running copy (plan §5.2).
-        handle(IPC.sourcesRegistered, (_event, modId, registered) => {
+        // The report names the client copy it is of (its URL, which carries the content tag): one of a copy that
+        // was replaced meanwhile (an update, a reload) is not the running copy's, and changes nothing.
+        handle(IPC.sourcesRegistered, (_event, modId, registered, reportedClientUrl) => {
             const runtime = typeof modId === 'string' ? mods.get(modId) : undefined;
             if (!runtime?.source || !Array.isArray(registered)) return { ok: false, error: 'mod-not-a-source-mod' };
+            if (typeof reportedClientUrl !== 'string' || reportedClientUrl !== clientUrl(runtime)) return { ok: false, error: 'stale-copy' };
             if (registered.length === 0 && !revokedSourceExemptions.has(runtime)) {
                 revokedSourceExemptions.add(runtime);
                 emitLog(runtime.manifest.id, 'warn', 'registered none of the sources its mod.json declares: the source exemptions are taken back');

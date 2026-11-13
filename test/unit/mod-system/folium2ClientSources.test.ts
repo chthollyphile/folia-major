@@ -101,7 +101,7 @@ describe('a source mod\'s client', () => {
         bridge.electron = { mods: { reportSourcesRegistered: reported } };
         vi.spyOn(console, 'warn').mockImplementation(() => {});
         await reconcileFoliumClients([mod('none', '', ['a'])], 'main');
-        expect(reported).toHaveBeenCalledWith('none', []);
+        expect(reported).toHaveBeenCalledWith('none', [], expect.stringMatching(/^data:text\/javascript,/));
         expect(getFoliumIssues('none').map((issue) => issue.where)).toEqual(['source folium.none.a']);
     });
 });

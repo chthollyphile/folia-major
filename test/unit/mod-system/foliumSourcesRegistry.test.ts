@@ -42,6 +42,7 @@ import { canSourceMatchOnly } from '@/services/onlineMusic/sourceStates';
 import { omni } from '@/services/onlineMusic/omni';
 import { getSizedCoverUrl } from '@/utils/coverUrl';
 import { resolveSearchSources } from '@/components/app/search/searchSources';
+import { getLyricSource } from '@/utils/lyrics/lyricSources';
 import i18n from '@/i18n/config';
 import { clientApiOptions } from './clientApiOptions';
 
@@ -354,6 +355,20 @@ describe('folium.net.fetch of a source mod', () => {
         } finally {
             delete (window as unknown as { electron?: unknown }).electron;
         }
+    });
+});
+
+describe('ids the host has already', () => {
+    it('a source on an id another provider holds puts nothing in place, and a host lyric source of its id stays', () => {
+        const mine = mod({ sources: [{ ...sourceInfo('a'), id: 'qq' }, { ...sourceInfo('b'), id: 'amll' }] });
+        const lyrics = { getLyrics: async () => null, crossSource: {} };
+        const search = { searchSongs: async () => ({ items: [], hasMore: false }) };
+        expect(() => register({ id: 'a', capabilities: { 'search@1': search, 'lyrics@1': lyrics } }, mine)).toThrow(/already exists/);
+        expect(getLyricSource('qq')).toMatchObject({ id: 'qq', metadataMatch: true });
+        const amll = register({ id: 'b', capabilities: { 'search@1': search, 'lyrics@1': lyrics } }, mine);
+        expect(getLyricSource('amll')).toMatchObject({ id: 'amll', platform: false });
+        amll.unregister();
+        expect(getLyricSource('amll')).toMatchObject({ id: 'amll', platform: false });
     });
 });
 
