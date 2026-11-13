@@ -182,6 +182,51 @@ const STATE_BODY = `
 `;
 
 
+// The songs the app will play after the one playing, read off its state and named by their ids. It is
+// a page function of the two sources below and is carried into each of them as text.
+// Spotify holds two kinds of song in one nextItems list: what the listener queued (provider 'queue',
+// metadata.is_queued 'true') and the autoplay it would go on to by itself (provider 'autoplay',
+// metadata.is_queued 'false'). Only the first kind is a song of the queue. An emptied queue still
+// names the autoplay behind it, so counting the whole list reads it as a queue that was never emptied
+// and the songs of Folia's can never be written into it whole.
+// A song no mark of its own calls autoplay is a song of the queue: an older app marks neither, and a
+// song the listener queued is never lost to a guess about which app wrote it.
+// The answer is null where none of the state's names says anything - a read that threw, an entry shape
+// this does not know - and the empty list where the names that are there say the queue is empty,
+// which an alias the app always leaves empty beside the list that holds the queue does not.
+const QUEUED_IDS = `s => {
+  // Whether this entry is the app's own autoplay rather than a song of the queue. A provider the app
+  // sets decides on its own; an older app sets none, and its queue mark in the metadata is read
+  // instead. An entry that marks neither is a song of the queue, never a guess at one.
+  const isAutoplay = entry => {
+    if (typeof entry !== 'object' || entry === null) return false;
+    const provider = String(entry.provider || '');
+    if (provider) return provider === 'autoplay';
+    return Boolean(entry.metadata) && entry.metadata.is_queued === 'false';
+  };
+  let sawEmpty = false;
+  let sawAutoplay = false;
+  let sawUnknown = false;
+  for (const key of ['nextTracks', 'nextItems', 'queue']) {
+    const list = s && s[key];
+    if (!Array.isArray(list)) continue;
+    if (list.length === 0) { sawEmpty = true; continue; }
+    const ids = [];
+    let known = false;
+    for (const entry of list) {
+      const uri = typeof entry === 'string' ? entry : String((entry && (entry.uri || (entry.track && entry.track.uri))) || '');
+      if (uri.indexOf('spotify:track:') !== 0) continue;
+      known = true;
+      if (isAutoplay(entry)) { sawAutoplay = true; continue; }
+      ids.push(uri.slice(14));
+    }
+    if (ids.length) return ids;
+    if (!known) sawUnknown = true;
+  }
+  if (sawUnknown) return null;
+  return sawEmpty || sawAutoplay ? [] : null;
+}`;
+
 // The songs that are to follow, written into the app's queue, run in the page: one added twice is one
 // played twice. `queued` is the caller's own record - the ids it wrote that the app has not played
 // yet - and it is what decides whether a song is written. A read taken after a write names fewer
@@ -193,29 +238,19 @@ const STATE_BODY = `
 // write adds, so only the songs of Folia's are ever taken back.
 // `generation` is the play this write belongs to, and a play that started meanwhile has emptied the
 // queue for songs of its own.
+//
+// The songs behind the one playing are read by `QUEUED_IDS` above, which counts only the songs really
+// queued: Spotify names them in the same list as the autoplay it would go on to by itself, and an
+// autoplay entry is no song of the queue. Counting those as well reads an emptied queue as one that
+// still holds songs, so the whole tail could never be written at once.
 const QUEUE_SOURCE = `async ({ api, uris, queued, probed, generation }) => {
-  // The tracks the app plays after the one playing, as its state names them; null where it does not.
+  // The songs the app will play after the one playing; null where none of its names says anything.
   // One of these names may be an alias the app always leaves empty while the queue is in another, so
   // an empty list is that name saying nothing, not a queue that is empty.
   const readQueue = () => {
     let s;
     try { s = api.player.getState(); } catch { return null; }
-    let sawEmpty = false;
-    let sawUnknown = false;
-    for (const key of ['nextTracks', 'nextItems', 'queue']) {
-      const list = s && s[key];
-      if (!Array.isArray(list)) continue;
-      if (list.length === 0) { sawEmpty = true; continue; }
-      const ids = [];
-      for (const entry of list) {
-        const uri = typeof entry === 'string' ? entry : String((entry && (entry.uri || (entry.track && entry.track.uri))) || '');
-        if (uri.indexOf('spotify:track:') === 0) ids.push(uri.slice(14));
-      }
-      if (ids.length) return ids;
-      // An entry shape this does not know says nothing either: the caller's record is used instead.
-      sawUnknown = true;
-    }
-    return sawUnknown ? null : sawEmpty ? [] : null;
+    return (${QUEUED_IDS})(s);
   };
   const held = new Set(Array.isArray(queued) ? queued : []);
   // A play of a newer song emptied the app's queue for its own tail, so the songs this write would
@@ -288,24 +323,14 @@ const QUEUE_SOURCE = `async ({ api, uris, queued, probed, generation }) => {
 // empty its queue, or one whose clear left songs behind, is left as it is and said so: nothing is
 // taken from the listener then, and the queue write that follows adds to it.
 const START_QUEUE_SOURCE = `async ({ api, owned, replaceQueue }) => {
-  // The tracks the app plays after the one playing, as its state names them; null where none of its
-  // names says anything (an alias left empty, an entry shape this does not know).
+  // The songs the app will play after the one playing; null where none of its names says anything (an
+  // alias left empty, an entry shape this does not know). Only the songs really queued are counted: the
+  // autoplay beside them is the app's own idea of what comes next, and a queue that holds nothing but
+  // that is empty behind this song.
   const heldIds = () => {
     let s;
     try { s = api.player.getState(); } catch { return null; }
-    let sawEmpty = false;
-    for (const key of ['nextTracks', 'nextItems', 'queue']) {
-      const list = s && s[key];
-      if (!Array.isArray(list)) continue;
-      if (list.length === 0) { sawEmpty = true; continue; }
-      const ids = [];
-      for (const entry of list) {
-        const uri = typeof entry === 'string' ? entry : String((entry && (entry.uri || (entry.track && entry.track.uri))) || '');
-        if (uri.indexOf('spotify:track:') === 0) ids.push(uri.slice(14));
-      }
-      if (ids.length) return ids;
-    }
-    return sawEmpty ? [] : null;
+    return (${QUEUED_IDS})(s);
   };
   if (typeof api.player.clearQueue !== 'function') return { cleared: false, canClear: false, written: [], read: null };
   const mine = new Set(Array.isArray(owned) ? owned : []);

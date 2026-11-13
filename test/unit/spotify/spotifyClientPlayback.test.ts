@@ -805,14 +805,22 @@ describe('the queue a window writes into the app own player', () => {
      * play them, whether it can empty that queue at all, and a read that may still show the queue as
      * it was before a write, because Spotify writes its own state a moment late.
      */
-    const fakeApp = (options: { start?: string[]; clear?: 'works' | 'noop' | 'none'; lag?: boolean } = {}) => {
+    const fakeApp = (options: { start?: string[]; autoplay?: string[]; clear?: 'works' | 'noop' | 'none'; lag?: boolean } = {}) => {
         const queue: string[] = [...(options.start ?? [])];
+        // The autoplay the app would go on to by itself rides in the same list as the queue, as it
+        // really does: it is named beside the songs that are really queued, and is no song of the queue.
+        const autoplay: string[] = (options.autoplay ?? []).map(id);
         /** Every id the app was ever given, in the order it was given them. */
         const given: string[] = [];
         let playing = '';
         let shown: string[] | null = null;
         const track = (entry: { uri: string }) => entry.uri.slice(14);
-        const asState = (ids: string[]) => ({ nextTracks: ids.map(entry => ({ uri: 'spotify:track:' + entry })) });
+        const asState = (ids: string[]) => ({
+            nextItems: [
+                ...ids.map(entry => ({ uri: 'spotify:track:' + entry, provider: 'queue', metadata: { is_queued: 'true' } })),
+                ...autoplay.map(entry => ({ uri: 'spotify:track:' + entry, provider: 'autoplay', metadata: { is_queued: 'false' } })),
+            ],
+        });
         const player: Record<string, unknown> = {
             getState: () => asState(shown ?? queue),
             addToQueue: (entries: { uri: string }[]) => {
@@ -820,6 +828,8 @@ describe('the queue a window writes into the app own player', () => {
                 for (const entry of entries) { queue.push(track(entry)); given.push(track(entry)); }
             },
         };
+        // The app's own clear takes the songs queued and leaves the autoplay behind them, which is
+        // the app's idea of what comes next rather than a song of the queue.
         if (options.clear === 'works') player.clearQueue = async () => { queue.length = 0; };
         if (options.clear === 'noop') player.clearQueue = async () => {};
         return {
@@ -1030,6 +1040,19 @@ describe('the queue a window writes into the app own player', () => {
         const handoff = statusOfClient(playing(id('d')));
         expect(handoff.ended).toBe(true);
         expect(handoff.skipped).toBeUndefined();
+    });
+
+    // 复审实测的那一条：Spotify 的 nextItems 里四十九首是 autoplay，只有一首是听众排的。整份都当成
+    // 排队歌时，清空之后永远「还剩歌」，这一轮就退成一首一首地排，整表替换一次也走不到。
+    it('keeps the whole tail where the app holds nothing but autoplay after a clear', async () => {
+        const app = fakeApp({ clear: 'works', autoplay: ['p', 'q', 'r'] });
+        answerInPage(app);
+        const [a, b, c, d] = ['a', 'b', 'c', 'd'].map(songOf);
+        await spotifyClientPlayback.play!(a, 0);
+        await prepare(a, [b, c, d]);
+
+        expect(app.queue).toEqual([id('b'), id('c'), id('d')]);
+        expect(app.queue).toHaveLength(PREPARED_SONGS);
     });
 
     it('keeps three songs queued while the app can empty its queue', async () => {

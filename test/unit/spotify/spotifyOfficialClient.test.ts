@@ -302,6 +302,55 @@ afterEach(() => {
     vi.useRealTimers();
 });
 
+// Spotify names the songs behind the one playing in one nextItems list, and it holds two kinds of
+// song: what the listener queued there (provider 'queue', metadata.is_queued 'true') and the autoplay
+// the app would go on to by itself (provider 'autoplay'). Only the first kind is a song of the queue;
+// an entry of an older app, which marks neither, is taken as one rather than lost.
+const idOfTrack = (letter: string) => letter.repeat(22);
+
+/**
+ * The app as it really names its queue: one nextItems list holds the songs really queued and the
+ * autoplay beside them. A song is a song of the queue until it is put there as autoplay; what a
+ * write puts in with addToQueue is a song of the queue afterwards.
+ */
+const appNamingQueue = (
+    queued: string[], autoplay: string[], clearQueue: 'works' | 'noop' | 'none' = 'works',
+    shape: 'marks' | 'old' | 'metadataOnly' = 'marks',
+) => {
+    const held: { id: string; provider: string | null }[] = [
+        ...queued.map(id => ({ id: idOfTrack(id), provider: 'queue' })),
+        ...autoplay.map(id => ({ id: idOfTrack(id), provider: 'autoplay' })),
+    ];
+    const added: string[] = [];
+    const player: Record<string, unknown> = {
+        getState: () => ({ nextItems: held.map(entry => {
+            const queued = entry.provider === 'queue';
+            if (shape === 'old') return { uri: 'spotify:track:' + entry.id };
+            if (shape === 'metadataOnly') return { uri: 'spotify:track:' + entry.id, metadata: { is_queued: queued ? 'true' : 'false' } };
+            return { uri: 'spotify:track:' + entry.id, provider: entry.provider, metadata: { is_queued: queued ? 'true' : 'false' } };
+        }) }),
+        // A song queued takes its place ahead of the autoplay, which is what the app does with it: the
+        // queue it plays after this song comes before the songs it would go on to by itself.
+        addToQueue: (entries: { uri: string }[]) => {
+            for (const entry of entries) {
+                added.push(entry.uri.slice(14));
+                const queued = { id: entry.uri.slice(14), provider: 'queue' };
+                const first = held.findIndex(held => held.provider !== 'queue');
+                held.splice(first < 0 ? held.length : first, 0, queued);
+            }
+        },
+    };
+    // The app's own clear takes the songs queued, and the autoplay behind them stays: it is the app's
+    // idea of what comes next, not a song of the queue.
+    if (clearQueue === 'works') {
+        player.clearQueue = async () => {
+            for (let i = held.length - 1; i >= 0; i -= 1) if (held[i].provider === 'queue') held.splice(i, 1);
+        };
+    }
+    if (clearQueue === 'noop') player.clearQueue = async () => {};
+    return { api: { player }, held, added, ids: () => held.map(entry => entry.id) };
+};
+
 // --- the queue a start leaves alone, driven by a stand-in player -------------------------------
 
 describe('the queue a start leaves of the listener\'s own', () => {
@@ -403,6 +452,42 @@ describe('the queue a start leaves of the listener\'s own', () => {
 
         expect(answer.canClear).not.toBe(true);
         expect(answer.cleared).toBe(false);
+    });
+
+    // Spotify 把听众排的队列和自己往下接的推荐放在同一份 nextItems 里：排队的那首 provider 是 queue
+    // （metadata.is_queued 也是 true），推荐是 autoplay。整份读进来会把四五十首推荐当成听众排的歌，
+    // 清空之后永远「还剩歌」：整表替换一次也走不到，只能一首一首往后补。
+    it('counts only the songs really queued, not the autoplay the app would go on to', async () => {
+        const app = appNamingQueue(['u'], ['p', 'q']);
+        const answer = await call(app.api);
+
+        // 清空之后只剩推荐，队列是真的空了：这次起播算清掉了，听众排的那一首照旧放回原位。
+        expect(answer.cleared).toBe(true);
+        expect(answer.canClear).toBe(true);
+        expect(answer.read).toEqual([idOf('u')]);
+        expect(app.added).toEqual([idOf('u')]);
+        expect(app.ids()).toEqual([idOf('u'), idOf('p'), idOf('q')]);
+    });
+
+    it('reads a queue of nothing but autoplay as the empty queue it is', async () => {
+        // 一份只有推荐的队列就是空队列：没有听众的歌要放回，也不能读成「清空之后还留着歌」。
+        const app = appNamingQueue([], ['p', 'q']);
+        const answer = await call(app.api);
+
+        expect(answer.cleared).toBe(true);
+        expect(answer.canClear).toBe(true);
+        expect(answer.read).toEqual([]);
+        expect(app.added).toEqual([]);
+    });
+
+    it('still counts an entry that marks no provider, as an older app names its queue', async () => {
+        // 没有 provider 也没有 is_queued 的一份数据说不清哪一首是推荐，就整份算作排队：宁可多留一首，
+        // 也不能把听众自己排的歌当成推荐丢掉。
+        const app = appNamingQueue(['u', 'v'], [], 'works', 'old');
+        const answer = await call(app.api);
+
+        expect(answer.cleared).toBe(true);
+        expect(app.added).toEqual([idOf('u'), idOf('v')]);
     });
 });
 
@@ -2490,6 +2575,50 @@ describe('a queue write in the app', () => {
 
         expect(answer.read).toBeNull();
         expect(app.added).toEqual([idOf('d')]);
+    });
+
+    // 写入这一侧读的是同一份 nextItems：它既决定清空之后队列算不算空，也是写给日志的读回。
+    // 把推荐算进去，清空成功的队列永远读成「还剩歌」，这一轮就只能一首一首地排，整表替换走不到。
+    it('counts only the songs really queued when it reads back what a clear left', async () => {
+        const app = appNamingQueue(['u'], ['p', 'q', 'r']);
+        const answer = await write(app.api, ['c', 'd'], []);
+
+        // 队列清掉了，听众排的那一首放回原位，这次写的两首排在它后面；读回只看排队的那几首。
+        expect(answer.cleared).toBe(true);
+        expect(answer.canClear).toBe(true);
+        expect(answer.written).toEqual([idOf('c'), idOf('d')]);
+        expect(app.added).toEqual([idOf('u'), idOf('c'), idOf('d')]);
+        expect(answer.read).toEqual([idOf('u'), idOf('c'), idOf('d')]);
+    });
+
+    it('reads a queue of nothing but autoplay back as the empty queue it is', async () => {
+        // 只有推荐的一份队列清空后读回是空的：这一轮记下「能清」，之后整表替换就都走得到。
+        const app = appNamingQueue([], ['p', 'q']);
+        const answer = await write(app.api, ['c'], []);
+
+        expect(answer.cleared).toBe(true);
+        expect(answer.canClear).toBe(true);
+        expect(answer.read).toEqual([idOf('c')]);
+        expect(app.added).toEqual([idOf('c')]);
+    });
+
+    it('reads the queue by its metadata mark where the app sets no provider', async () => {
+        // 一份数据只有 metadata.is_queued、没有 provider：排队的那首照旧算排队，推荐照旧不算。
+        const app = appNamingQueue(['u'], ['p'], 'works', 'metadataOnly');
+        const answer = await write(app.api, ['c'], []);
+
+        expect(answer.cleared).toBe(true);
+        expect(answer.read).toEqual([idOf('u'), idOf('c')]);
+    });
+
+    it('still treats an entry that marks no provider as a song of the queue', async () => {
+        // 旧版的一份数据没有 provider：整份都算排队，清完之后还读得出歌就是没清掉，照旧只往后补。
+        const app = appNamingQueue(['u'], [], 'none', 'old');
+        const answer = await write(app.api, ['c'], []);
+
+        expect(answer.cleared).toBe(false);
+        expect(answer.canClear).toBe(false);
+        expect(app.added).toEqual([idOf('c')]);
     });
 
     it('drops a write a newer play took the app from, and writes nothing', async () => {
