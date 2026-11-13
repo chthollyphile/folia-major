@@ -34,6 +34,9 @@ const env = vi.hoisted(() => ({
     /** What the audio source answers for a song id; a plain http address when nothing is set. */
     audioResultFor: new Map<string, unknown>(),
     canPlay: true,
+    // The platform of the remembered song in the missing-platform case has registered again.
+    goneBack: false,
+    providerListeners: new Set<() => void>(),
     cachedLyrics: null as unknown,
     /** Told by every stub that a restore waits on, with the name of the wait. */
     reached: (_wait: string) => {},
@@ -143,7 +146,11 @@ vi.mock('@/utils/onlineLyricsState', () => ({
 vi.mock('@/services/onlineMusic/omni', () => ({
     omni: {
         // A song of a platform that is not registered cannot be played (as omni answers for it).
-        canPlaySong: (song: SongResult) => env.canPlay && song.sourceRef?.kind === 'online' && song.sourceRef.providerId !== 'gone-source',
+        canPlaySong: (song: SongResult) => env.canPlay && song.sourceRef?.kind === 'online' && (song.sourceRef.providerId !== 'gone-source' || env.goneBack),
+        subscribeProviders: (listener: () => void) => {
+            env.providerListeners.add(listener);
+            return () => { env.providerListeners.delete(listener); };
+        },
         canPlayExternally: () => false,
         getProviderLabel: (id: string) => id,
         getLyrics: async (song: { id: string }) => { env.note(`wait lyrics ${song.id}`); return { lyrics: null, isPureMusic: true }; },
@@ -524,6 +531,21 @@ describe('restoring the last session and the current song', () => {
         expect(watch.take().some(line => line.includes('wait audio source'))).toBe(false);
         expect(usePlaybackStore.getState().audioSrc).toBeNull();
         expect(refs.shouldAutoPlay.current).toBe(false);
+
+        // 第二轮审查：音源回来后补一次完整的来源恢复（地址、歌词、主题），仍然停着。
+        const { registerOnlineMusicProvider, unregisterOnlineMusicProvider } = await import('@/services/onlineMusic/providerRegistry');
+        registerOnlineMusicProvider({ id: 'gone-source', displayName: 'Gone', capabilities: {} as never, normalizeSong: () => goneSong as never });
+        env.goneBack = true;
+        try {
+            env.providerListeners.forEach(listener => listener());
+            await settle();
+            expect(watch.take().some(line => line.includes('wait audio source g1'))).toBe(true);
+            expect(env.providerListeners.size).toBe(0);
+            expect(refs.shouldAutoPlay.current).toBe(false);
+        } finally {
+            unregisterOnlineMusicProvider('gone-source');
+            env.goneBack = false;
+        }
     });
 
     it('makes the remembered song current, so the online recovery takes a fresh address for it', async () => {
