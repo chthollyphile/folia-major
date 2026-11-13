@@ -2,8 +2,12 @@ import { describe, expect, it, vi } from 'vitest';
 
 // test/unit/electron/loginBackendIpc.test.ts
 
-const { registerLoginBackendIpc } = require('../../../electron/loginBackendIpc.cjs') as {
+const { createLoginDiagnosticsRegistry, registerLoginBackendIpc } = require('../../../electron/loginBackendIpc.cjs') as {
     registerLoginBackendIpc: (options: Record<string, unknown>) => void;
+    createLoginDiagnosticsRegistry: () => {
+        register: (providerId: string, backend: object) => () => void;
+        get: (providerId: unknown) => object | null;
+    };
 };
 
 const createBackend = (providerId: string) => ({
@@ -128,5 +132,38 @@ describe('login backend IPC', () => {
         expect(invokeUntrusted('get-qq-port')).toBeNull();
         // ipcMain.handle 会把 handler 的异常变成 renderer 侧的 rejection；测试里是直接调用，断言同步抛错。
         expect(() => invokeUntrusted('restart-netease-api')).toThrow(/Untrusted renderer/);
+    });
+});
+
+// Folium 2.0 方案 §7（loginBackendIpc 并入 api.diagnostics）的 S1 接缝：诊断与自检按登记表找后端，不再写死网易、QQ。
+describe('login diagnostics registry', () => {
+    it('answers the diagnostics and self-check channels for whichever source registered, and stops once it is taken back', async () => {
+        const handlers = new Map<string, (...args: any[]) => unknown>();
+        const ipcMain = { handle: vi.fn((channel: string, handler: (...args: any[]) => unknown) => handlers.set(channel, handler)) };
+        const diagnostics = createLoginDiagnosticsRegistry();
+        const radio = createBackend('folium.mod.radio');
+        const unregister = diagnostics.register('folium.mod.radio', radio);
+        const runSelfCheck = vi.fn(async (options: Record<string, unknown>) => ({ providerId: options.providerId, hosts: options.hosts }));
+        registerLoginBackendIpc({
+            ipcMain,
+            app: { getVersion: () => '2.0.0-test', getLocale: () => 'en' },
+            safeStorage: { isEncryptionAvailable: () => true },
+            getDefaultSession: () => ({ resolveProxy: vi.fn(async () => 'DIRECT') }),
+            neteaseBackend: createBackend('netease'),
+            qqBackend: createBackend('qq'),
+            diagnostics,
+            runSelfCheck,
+            isTrustedSender: () => true,
+        });
+        const invoke = (channel: string, ...args: unknown[]) => handlers.get(channel)!({ sender: { id: 1 } }, ...args);
+
+        await expect(invoke('get-login-diagnostics', 'folium.mod.radio')).resolves.toMatchObject({ providerId: 'folium.mod.radio', backend: { status: 'running' } });
+        await expect(invoke('run-login-self-check', 'folium.mod.radio')).resolves.toMatchObject({ providerId: 'folium.mod.radio', hosts: ['folium.mod.radio.example'] });
+        // The two backends passed beside a registry are not looked up for diagnostics: the registry is the one table.
+        await expect(invoke('get-login-diagnostics', 'netease')).resolves.toBeNull();
+
+        unregister();
+        await expect(invoke('get-login-diagnostics', 'folium.mod.radio')).resolves.toBeNull();
+        expect(diagnostics.get(42)).toBeNull();
     });
 });

@@ -118,7 +118,6 @@ const withStageApi = async (options: {
         stageApiTokenSettingKey: settings.token,
         stageApiPortSettingKey: settings.port,
         defaultStageApiPort: port,
-        getNeteasePort: () => 39999,
         searchStageSongs: options.searchStageSongs,
         connectionFilePath: options.connectionFilePath?.(tempRoot) ?? null,
     });
@@ -517,6 +516,48 @@ describe('stageApi http contract', () => {
             appendToQueue: true,
         });
         expect(receivedRequests[0]).toMatchObject({ songId: 7, appendToQueue: true });
+    });
+
+    // Folium 2.0 方案 §7：不带 provider 的搜索也问渲染进程的 omni（默认平台），不再直连主进程里网易云的本机端口；回答的形状不变。
+    it('asks the renderer\'s omni for the default provider when a search names no provider, answering in the same shape', async () => {
+        const receivedSearchRequests: any[] = [];
+        const context = await withStageApi({
+            onSearchRequest: (payload, stageApi) => {
+                receivedSearchRequests.push(payload);
+                stageApi.completeStagePlayerSearchRequest({
+                    requestId: payload.requestId,
+                    ok: true,
+                    songs: [{ songId: 186016, title: '晴天', artists: ['周杰伦'], album: '叶惠美', durationMs: 269000, coverUrl: 'https://p1.example/cover.jpg' }],
+                });
+            },
+        });
+        activeCleanups.push(context.cleanup);
+
+        const response = await fetch(`${context.baseUrl}/stage/player/search`, {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${context.token}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ query: '晴天', limit: 5 }),
+        });
+
+        expect(response.status).toBe(200);
+        expect(receivedSearchRequests[0]).toMatchObject({ providerId: 'netease', query: '晴天', limit: 5 });
+        expect(await response.json()).toMatchObject({
+            query: '晴天',
+            provider: 'netease',
+            songs: [{
+                songId: 186016,
+                title: '晴天',
+                artists: ['周杰伦'],
+                album: '叶惠美',
+                durationMs: 269000,
+                coverUrl: 'https://p1.example/cover.jpg',
+                provider: 'netease',
+                songRef: 'netease:186016',
+            }],
+        });
     });
 
     it('searches an omni provider through the renderer and tags each song with its reference', async () => {

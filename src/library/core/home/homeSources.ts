@@ -1,5 +1,5 @@
 import type { TFunction } from 'i18next';
-import type { OmniProviderCapabilities, ProviderAccountSummary, ProviderCollection, ProviderUser } from '../../../types/onlineMusic';
+import type { OmniProviderCapabilities, ProviderAccountSummary } from '../../../types/onlineMusic';
 import type {
     LibraryHomeActionsSnapshot,
     LibraryHomeLocalAvailability,
