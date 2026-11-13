@@ -9,6 +9,7 @@ import {
     type BinaryAssetWriteResult,
 } from './binaryAssetStore';
 import { lyricProxyWebUrl } from './lyricProxy';
+import { isCoverFetchedThroughProxy } from '../utils/coverUrl';
 
 interface StoredCoverDescriptor extends BinaryAssetWriteResult { }
 
@@ -23,17 +24,8 @@ const isStoredCoverDescriptor = (value: unknown): value is StoredCoverDescriptor
 
 const buildCoverRequestUrl = (coverUrl: string): string => {
     if (typeof window !== 'undefined' && window.electron) return coverUrl;
-    try {
-        const hostname = new URL(coverUrl).hostname;
-        if (hostname === 'y.gtimg.cn'
-            || hostname === 'kugou.com' || hostname.endsWith('.kugou.com')
-            || hostname === 'kgimg.com' || hostname.endsWith('.kgimg.com')) {
-            return lyricProxyWebUrl(coverUrl);
-        }
-    } catch {
-        return coverUrl;
-    }
-    return coverUrl;
+    // Which hosts send no CORS headers is their picture rules' to say (utils/coverUrl.ts).
+    return isCoverFetchedThroughProxy(coverUrl) ? lyricProxyWebUrl(coverUrl) : coverUrl;
 };
 
 // Also used where a remote cover's bytes are wanted once (a local collection cover taken from a song).
