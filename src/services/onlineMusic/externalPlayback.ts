@@ -221,6 +221,8 @@ type ExternalSession = {
     staleReadNoted: boolean;
     /** The player's own last word on where its song stands, in seconds: the line it is on before a move. */
     lastPlayerPositionSec: number | null;
+    replacedLandingSec: number | null;
+    replacedLandingAtMs: number;
 };
 
 export const externalMediaShim = new MediaShim('external:');
@@ -633,7 +635,15 @@ const isStaleMoveRead = (current: ExternalSession, positionSec: number): boolean
     // The line the song stood on is read as the stretch it can be anywhere on: it stood still where it
     // was, as a player that held its spot through the move names it, or it ran on from there for as long
     // as the song sounded, as one that went on playing until it loaded the drop names it.
-    const runningHighSec = fromSec + (current.staleReadRunningSinceMs === null ? 0 : sinceAskedSec);
+    // The spot the move this one replaced landed on is the far end of that line for as long as the
+    // player stands there, which it does until it has loaded the spot asked for last.
+    const replacedHighSec = current.replacedLandingSec === null
+        ? 0
+        : current.replacedLandingSec + Math.max(0, nowMs - current.replacedLandingAtMs) / 1000;
+    const runningHighSec = Math.max(
+        fromSec + (current.staleReadRunningSinceMs === null ? 0 : sinceAskedSec),
+        replacedHighSec,
+    );
     if (positionSec < fromSec - STALE_READ_TOLERANCE_SEC || positionSec > runningHighSec + STALE_READ_TOLERANCE_SEC) {
         clearSettledMove(current);
         return false;
@@ -1311,7 +1321,7 @@ export function startExternalPlayback(song: SongResult, startSec = 0, { userActi
         // the first sync after the song is shown asks the player what it holds. Where the start did
         // carry the ask, that sync asks for the same value again and the player, already repeating
         // the track, writes nothing.
-        degraded: false, trackRepeat: null, trackRepeatAsked: false, trackRepeatPending: false, handedOver: false, preparedQueueKey: '', positionRevision: 0, seekPending: false, seekBeforeSec: null, seeking: false, afterSeek: false, seekSettledAtSec: null, seekSettledFromSec: null, seekSettledLandedMs: 0, seekSettledAskedMs: 0, staleReadAtSec: null, staleReadRunningSinceMs: null, staleReadPlayingSinceMs: null, staleReadGivenUp: false, landingHoldSec: null, moveHeldUntilMs: 0, staleReadNoted: false, lastPlayerPositionSec: null, seekCount: 0, seekFollowAtSec: null, seekFollowLandedMs: 0, seekLanded: false, replaying: false,
+        degraded: false, trackRepeat: null, trackRepeatAsked: false, trackRepeatPending: false, handedOver: false, preparedQueueKey: '', positionRevision: 0, seekPending: false, seekBeforeSec: null, seeking: false, afterSeek: false, seekSettledAtSec: null, seekSettledFromSec: null, seekSettledLandedMs: 0, seekSettledAskedMs: 0, staleReadAtSec: null, staleReadRunningSinceMs: null, staleReadPlayingSinceMs: null, staleReadGivenUp: false, landingHoldSec: null, moveHeldUntilMs: 0, staleReadNoted: false, lastPlayerPositionSec: null, seekCount: 0, seekFollowAtSec: null, seekFollowLandedMs: 0, seekLanded: false, replacedLandingSec: null, replacedLandingAtMs: 0, replaying: false,
 
     };
     failureNoted = false;
@@ -1452,7 +1462,7 @@ export async function adoptExternalPlayback(song: SongResult): Promise<ExternalT
         announced: false, playing: false, starting: false, sampledPosition: null, prefetchReady: false, live: false, ended: false, foreign: false,
         // The traits are read as the take-over starts and held for the session, as a start holds them:
         // what is followed is the way of playing this song was picked up from.
-        degraded: false, traits: omni.externalPlaybackTraits(song), trackRepeat: null, trackRepeatAsked: false, trackRepeatPending: false, handedOver: false, preparedQueueKey: '', positionRevision: 0, seekPending: false, seekBeforeSec: null, seeking: false, afterSeek: false, seekSettledAtSec: null, seekSettledFromSec: null, seekSettledLandedMs: 0, seekSettledAskedMs: 0, staleReadAtSec: null, staleReadRunningSinceMs: null, staleReadPlayingSinceMs: null, staleReadGivenUp: false, landingHoldSec: null, moveHeldUntilMs: 0, staleReadNoted: false, lastPlayerPositionSec: null, seekCount: 0, seekFollowAtSec: null, seekFollowLandedMs: 0, seekLanded: false, replaying: false,
+        degraded: false, traits: omni.externalPlaybackTraits(song), trackRepeat: null, trackRepeatAsked: false, trackRepeatPending: false, handedOver: false, preparedQueueKey: '', positionRevision: 0, seekPending: false, seekBeforeSec: null, seeking: false, afterSeek: false, seekSettledAtSec: null, seekSettledFromSec: null, seekSettledLandedMs: 0, seekSettledAskedMs: 0, staleReadAtSec: null, staleReadRunningSinceMs: null, staleReadPlayingSinceMs: null, staleReadGivenUp: false, landingHoldSec: null, moveHeldUntilMs: 0, staleReadNoted: false, lastPlayerPositionSec: null, seekCount: 0, seekFollowAtSec: null, seekFollowLandedMs: 0, seekLanded: false, replacedLandingSec: null, replacedLandingAtMs: 0, replaying: false,
 
     };
     failureNoted = false;
@@ -1727,6 +1737,14 @@ export const seekExternalPlayback = (timeSec: number, { resume = false }: { resu
     current.seekPending = true;
     current.prefetchReady = false;
     current.sampledPosition = null;
+    // This move replaces where the one before it landed, and that spot is one the player answers from
+    // for a while yet: it takes the two as its own and only ever names one of them. Read as a spot of
+    // its own, the answer naming it was the player's word and the bar went back there - a second drag
+    // inside the wait of the first fell the whole way back to where that one landed. It is read as the
+    // far end of the line the song stood on instead: the player has not left that spot for this move.
+    current.replacedLandingSec = current.seekFollowAtSec ?? current.seekSettledAtSec;
+    current.replacedLandingAtMs = performance.now();
+    current.landingHoldSec = null;
     // No status ask answers while the move is in flight (see `poll`), so this position is the only
     // one the bar and the lyrics have until the player takes it: it runs on for as long as the app's
     // call for that move may go unanswered, instead of the second a tick-er's clock is given.
