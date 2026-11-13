@@ -2,7 +2,6 @@
     "note": "已知的旧违规，只减不增：修好一条就跑 `npm run dedicatus -- --prune` 删掉；不要手动往里加（CI 会报 D001）。",
     "entries": [
         "D101:src/stores/useVisualizerSettingsStore.ts->src/components/visualizer/registry.tsx",
-        "D102:src/utils/lyrics/lyricMatchSources.ts->src/stores/useOnlineProviderAccountStore.ts",
         "D190:src/services/obs/visualSettingsConfig.ts->src/components/visualizer/tuningRegistry.ts",
         "D190:src/services/ponder/pagePonderTarget.ts->src/components/modal/settings/navigation/settingsAnchorModel.ts",
         "D190:src/services/sync/settingsSnapshot.ts->src/components/visualizer/tuningRegistry.ts",

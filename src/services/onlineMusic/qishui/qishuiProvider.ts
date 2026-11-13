@@ -11,6 +11,7 @@ import { qishuiRecommendations, clearQishuiRecommendations } from './qishuiRecom
 import { qishuiMutations, qishuiSongId as songId } from './qishuiMutations';
 import { qishuiPlayback, clearQishuiPlayback, readQishuiSongs } from './qishuiPlayback';
 import { describeQishuiFailure } from './qishuiFailure';
+import { registerQishuiLyricSource } from './qishuiLyricSource';
 
 // Car platform adapter; account and catalogue operations share the existing Omni entry points.
 // What belongs to one sign-in: the explore stream's memory, the scene catalogue and the playability checks.
@@ -82,3 +83,6 @@ export const qishuiProvider: OnlineMusicProvider = {
     recommendations: qishuiRecommendations,
     mutations: qishuiMutations,
 };
+
+// The lyric source this platform is (lyricSources.ts), where it is reached otherwise than through this provider.
+registerQishuiLyricSource();

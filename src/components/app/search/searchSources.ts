@@ -1,7 +1,7 @@
 import { useMemo, useSyncExternalStore } from 'react';
 import type { OnlineProviderId, ProviderAccountSummary } from '../../../types/onlineMusic';
 import type { SearchSource } from '../../../stores/useSearchNavigationStore';
-import { canSwitchToProviderDirectly } from '../../../library/core/account/onlineProviderAccountView';
+import { resolveParticipants } from '../../../services/onlineMusic/crossSource';
 import { resolveActiveProviderId } from '../../../library/core/account/accountRules';
 import { omni } from '../../../services/onlineMusic/omni';
 import { getNavidromeConfig } from '../../../services/navidromeService';
@@ -10,7 +10,8 @@ import { useLibraryStore } from '../../../stores/useLibraryStore';
 
 // src/components/app/search/searchSources.ts
 // 搜索页列出哪些来源：当前在线平台，加上已经登录的、不需要登录的在线平台；本地曲库里有歌才列本地，Navidrome
-// 开着并且填好了服务器才列它。没登录的在线平台不列（搜到了也放不了它的歌）。
+// 开着并且填好了服务器才列它。没登录的在线平台不列（搜到了也放不了它的歌）。别的在线平台列不列，按跨音源功能的
+// 同一条规则（services/onlineMusic/crossSource.ts）：没注册的不在摘要里，没配好的、要账号而没登录的跳过，跳过的不画。
 
 type SearchSourceAvailability = {
     providers: readonly ProviderAccountSummary[];
@@ -26,13 +27,27 @@ export const resolveSearchSources = ({
     hasLocalSongs,
     navidromeReady,
 }: SearchSourceAvailability): SearchSource[] => {
-    const others = providers
-        .filter(provider => provider.providerId !== activeProviderId
-            && provider.availability.configured
-            && canSwitchToProviderDirectly(provider))
-        .map(provider => provider.providerId);
+    const byId = new Map(providers.map(provider => [provider.providerId, provider]));
+    const { ready: others } = resolveParticipants(
+        providers
+            .filter(provider => provider.providerId !== activeProviderId)
+            .map(provider => ({
+                sourceId: provider.providerId,
+                access: provider.requiresAccount === false ? 'anonymous' as const : 'account' as const,
+                checksAvailability: true,
+            })),
+        ({ sourceId }) => {
+            const provider = byId.get(sourceId);
+            return {
+                enabled: Boolean(provider),
+                availability: provider?.availability ?? { configured: false },
+                signedIn: provider?.status === 'authenticated',
+            };
+        },
+    );
     return [
-        activeProviderId,
+        // Not with no platform at all: the active id then names none.
+        ...(byId.has(activeProviderId) ? [activeProviderId] : []),
         ...others,
         ...(hasLocalSongs ? ['local' as const] : []),
         ...(navidromeReady ? ['navidrome' as const] : []),

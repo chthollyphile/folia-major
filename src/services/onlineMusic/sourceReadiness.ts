@@ -1,3 +1,5 @@
+import { getOnlineMusicProvider } from './providerRegistry';
+
 // src/services/onlineMusic/sourceReadiness.ts
 // When the built-in online platforms have all had their chance to register. Startup steps that would lose data
 // if a platform registered late (the session restore) wait for it first.
@@ -15,3 +17,9 @@ export const builtinSourcesSettled = (): Promise<void> => settled;
 export const setBuiltinSourcesSettled = (promise: Promise<unknown>): void => {
     settled = promise.then(() => undefined, () => undefined);
 };
+
+/**
+ * Whether the platform `providerId` is enabled now. Folium 2.0 seam (S1): registered means enabled; S2 adds
+ * the per-source switch (a source turned off is not registered at all, and one that failed to start neither).
+ */
+export const isSourceEnabled = (providerId: string): boolean => Boolean(getOnlineMusicProvider(providerId));

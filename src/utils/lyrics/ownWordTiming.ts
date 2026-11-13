@@ -31,7 +31,7 @@ export const asksBeforeOwnWordTiming = (
     preferredSource: LyricProviderSource | undefined,
 ): boolean => {
     const first = firstLyricSourceAsked(preferredSource, ownSource);
-    return first !== ownSource && !getLyricSource(first).linesOnly;
+    return first !== ownSource && !getLyricSource(first)?.linesOnly;
 };
 
 export interface OwnWordTimingCheck {

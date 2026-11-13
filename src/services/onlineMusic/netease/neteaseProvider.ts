@@ -32,6 +32,7 @@ import { neteaseRaw } from './neteaseRaw';
 import { LISTENING_RANK_RANGES, listeningRankCollection, listeningRankPage, withListenCount } from '../listeningRank';
 import { canRunLoginSelfCheck, runLoginSelfCheck } from '../loginSelfCheck';
 import { diagnosticLine, formatDiagnosticClock } from '../login/loginDiagnosticReport';
+import { registerNeteaseLyricSource } from './neteaseLyricSource';
 
 // src/services/onlineMusic/netease/neteaseProvider.ts
 
@@ -882,3 +883,6 @@ export const neteaseProvider: OnlineMusicProvider = {
     // The raw endpoints (Folium experimental platform.raw): the table and the request are in neteaseRaw.ts.
     raw: neteaseRaw,
 };
+
+// The lyric source this platform is (lyricSources.ts), where it is reached otherwise than through this provider.
+registerNeteaseLyricSource();
