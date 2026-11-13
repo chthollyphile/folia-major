@@ -1144,7 +1144,7 @@ declare global {
         reportModsStartSettled: () => Promise<{ ok: boolean }>;
         reportModsStartAlive: () => Promise<{ ok: boolean }>;
         // Folium 2.0: the sources' states, "clear data", the override confirmation, who holds a taken-over id.
-        getSourceStates?: () => Promise<{ ok: boolean; error?: string } & Partial<ModSourceStatesPayload>>;
+        getSourceStates?: () => Promise<{ ok: boolean; error?: string; hasSourceMods?: boolean } & Partial<ModSourceStatesPayload>>;
         setSourceState?: (sourceId: string, state: ModSourceState) => Promise<{ ok: boolean; error?: string } & Partial<ModSourceStatesPayload>>;
         describeSourceData?: (sourceId: string) => Promise<ModSourceDataResult>;
         clearSourceData?: (sourceId: string) => Promise<ModClearSourceDataResult>;

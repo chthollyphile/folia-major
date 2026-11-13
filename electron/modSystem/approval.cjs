@@ -56,6 +56,10 @@ const TRUST_DIALOG_LOCALE = {
         overrideMessage: (name, id, version, builtinVersion) => `用 ${version} 版替换内置的“${name}”（${id}，${builtinVersion} 版）吗？`,
         overrideDetail: '这个副本带有有效的 Folium 官方签名，版本高于随应用安装的内置副本。确认后它替代内置副本运行，沿用内置副本的登录和数据；删掉它就回到内置副本。启用后它仍以应用的完整权限运行。',
         overrideConfirm: '替换',
+        clearTitle: '清除音源数据',
+        clearMessage: (id) => `清除音源“${id}”的数据吗？`,
+        clearDetail: '它会登出，并删掉下面这些。删掉的找不回来；停用音源不会删这些。',
+        clearConfirm: '清除',
         enable: '仍要启用',
         cancel: '取消',
     },
@@ -99,6 +103,10 @@ const TRUST_DIALOG_LOCALE = {
         overrideMessage: (name, id, version, builtinVersion) => `用 ${version} 版替換內建的“${name}”（${id}，${builtinVersion} 版）嗎？`,
         overrideDetail: '這個副本帶有有效的 Folium 官方簽名，版本高於隨應用安裝的內建副本。確認後它替代內建副本執行，沿用內建副本的登入和資料；刪掉它就回到內建副本。啟用後它仍以應用的完整權限執行。',
         overrideConfirm: '替換',
+        clearTitle: '清除音源資料',
+        clearMessage: (id) => `清除音源“${id}”的資料嗎？`,
+        clearDetail: '它會登出，並刪掉下面這些。刪掉的找不回來；停用音源不會刪這些。',
+        clearConfirm: '清除',
         enable: '仍要啟用',
         cancel: '取消',
     },
@@ -142,6 +150,10 @@ const TRUST_DIALOG_LOCALE = {
         overrideMessage: (name, id, version, builtinVersion) => `Replace the built-in "${name}" (${id}, version ${builtinVersion}) with version ${version}?`,
         overrideDetail: 'This copy carries a valid official Folium signature and is newer than the built-in copy installed with the app. Once confirmed it runs instead of the built-in copy and keeps its sign-in and data; removing it brings the built-in copy back. It still runs with the full privileges of the app.',
         overrideConfirm: 'Replace',
+        clearTitle: 'Clear source data',
+        clearMessage: (id) => `Clear the data of the source "${id}"?`,
+        clearDetail: 'It is signed out and everything below is removed. What is removed cannot be brought back; turning a source off removes none of it.',
+        clearConfirm: 'Clear',
         enable: 'Enable anyway',
         cancel: 'Cancel',
     },
@@ -185,6 +197,10 @@ const TRUST_DIALOG_LOCALE = {
         overrideMessage: (name, id, version, builtinVersion) => `Ganti "${name}" bawaan (${id}, versi ${builtinVersion}) dengan versi ${version}?`,
         overrideDetail: 'Salinan ini memiliki tanda tangan resmi Folium yang valid dan lebih baru daripada salinan bawaan yang terpasang bersama aplikasi. Setelah dikonfirmasi, salinan ini berjalan menggantikan salinan bawaan dan memakai login serta datanya; menghapusnya mengembalikan salinan bawaan. Salinan ini tetap berjalan dengan hak penuh aplikasi.',
         overrideConfirm: 'Ganti',
+        clearTitle: 'Hapus data sumber',
+        clearMessage: (id) => `Hapus data sumber "${id}"?`,
+        clearDetail: 'Sumber ini akan keluar dari akun dan semua di bawah ini dihapus. Yang dihapus tidak bisa dikembalikan; menonaktifkan sumber tidak menghapus apa pun dari ini.',
+        clearConfirm: 'Hapus',
         enable: 'Tetap aktifkan',
         cancel: 'Batal',
     },
@@ -228,6 +244,10 @@ const TRUST_DIALOG_LOCALE = {
         overrideMessage: (name, id, version, builtinVersion) => `Thay “${name}” tích hợp (${id}, phiên bản ${builtinVersion}) bằng phiên bản ${version}?`,
         overrideDetail: 'Bản này có chữ ký chính thức hợp lệ của Folium và mới hơn bản tích hợp được cài cùng ứng dụng. Sau khi xác nhận, bản này chạy thay cho bản tích hợp và giữ nguyên đăng nhập cùng dữ liệu của nó; xóa bản này sẽ quay về bản tích hợp. Bản này vẫn chạy với toàn bộ quyền hạn của ứng dụng.',
         overrideConfirm: 'Thay',
+        clearTitle: 'Xóa dữ liệu nguồn',
+        clearMessage: (id) => `Xóa dữ liệu của nguồn “${id}”?`,
+        clearDetail: 'Nguồn sẽ đăng xuất và mọi thứ bên dưới sẽ bị xóa. Những gì đã xóa không thể khôi phục; tắt nguồn không xóa những thứ này.',
+        clearConfirm: 'Xóa',
         enable: 'Vẫn bật',
         cancel: 'Hủy',
     },
@@ -439,6 +459,32 @@ const createModApproval = ({ app, store, enabledKey, getMainWindowSafe, getLocal
         });
     };
 
+    /*
+     * "Clear data" of a source (plan §5.3): what goes is listed, and the main process asks, so page code cannot
+     * clear a sign-in on its own. `items` is describeSourceData's answer.
+     */
+    const confirmClearSourceData = async (sourceId, items) => {
+        const locale = resolveDialogLocale();
+        const lines = [
+            ...items.storeKeys,
+            ...items.partitions.map((partition) => `partition ${partition}`),
+            ...items.userDataDirs,
+            items.modData,
+            items.modCache,
+            ...items.pageStorePrefixes.map((prefix) => `${prefix}*`),
+        ];
+        return showDialog({
+            type: 'warning',
+            title: locale.clearTitle,
+            message: locale.clearMessage(sourceId),
+            detail: [locale.clearDetail, '', ...lines].join('\n'),
+            buttons: [locale.cancel, locale.clearConfirm],
+            defaultId: 0,
+            cancelId: 0,
+            noLink: true,
+        });
+    };
+
     const confirmEnableMod = async (runtime, digest, signature) => {
         const locale = resolveDialogLocale();
         const keyText = signature.keyLabel ? `${signature.keyLabel}, ${signature.keyId}` : signature.keyId;
@@ -511,6 +557,7 @@ const createModApproval = ({ app, store, enabledKey, getMainWindowSafe, getLocal
         isOverrideConfirmed,
         writeOverrideApproval,
         confirmOverride,
+        confirmClearSourceData,
     };
 };
 

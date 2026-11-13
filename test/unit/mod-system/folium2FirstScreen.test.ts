@@ -95,7 +95,7 @@ describe('the first screen and the session restore', () => {
         bridge.electron = {
             mods: {
                 listMods: async () => ({ mods: [source('netease'), mod('plain')], ffmpeg: { available: false, path: null, version: null, candidates: [] }, directories: [] }),
-                getSourceStates: async () => ({ ok: true, states: { qq: 'matching' }, sources: [] }),
+                getSourceStates: async () => ({ ok: true, states: { qq: 'matching' }, sources: [], hasSourceMods: true }),
                 onSourceStatesChanged: () => () => {},
                 reportModsStartSettled: vi.fn(async () => ({ ok: true })),
                 reportModsStartAlive: vi.fn(async () => ({ ok: true })),

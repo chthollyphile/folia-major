@@ -237,14 +237,21 @@ export const subscribeModSecretChanges = (callback: (change: ModSecretChange) =>
 
 // ---- Folium 2.0 (plan §5.3): the sources' states. "Settings → Sources" (S8) is drawn on these. ----
 
-const EMPTY_SOURCE_STATES: ModSourceStatesPayload = { states: {}, sources: [] };
+const EMPTY_SOURCE_STATES: ModSourceStatesPayload & { hasSourceMods: boolean } = { states: {}, sources: [], hasSourceMods: false };
 
-/** Every known source's state and row; empty without the bridge (the web build: every source enabled). */
-export const getSourceStates = async (): Promise<ModSourceStatesPayload> => {
+/**
+ * Every known source's state and row, and whether a source mod runs; empty without the bridge (the web build:
+ * every source enabled). It answers while the start question is still open.
+ */
+export const getSourceStates = async (): Promise<ModSourceStatesPayload & { hasSourceMods: boolean }> => {
     try {
         const response = await bridge()?.getSourceStates?.();
         if (!response?.ok) return EMPTY_SOURCE_STATES;
-        return { states: response.states ?? {}, sources: Array.isArray(response.sources) ? response.sources : [] };
+        return {
+            states: response.states ?? {},
+            sources: Array.isArray(response.sources) ? response.sources : [],
+            hasSourceMods: response.hasSourceMods === true,
+        };
     } catch {
         return EMPTY_SOURCE_STATES;
     }

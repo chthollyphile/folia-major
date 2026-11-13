@@ -342,7 +342,16 @@ const createModSecrets = ({
         };
     };
 
-    return { get, has, set, declare, state, subscribe, isPersistent: canSeal };
+    /*
+     * Folium 2.0 ("clear data" of a source): what this run holds for `modId` (decrypted copies, values kept in
+     * memory) is dropped, so the next read goes to the file the loader has just removed. Declarations stay.
+     */
+    const forget = (modId) => enqueue(modId, async () => {
+        memoryByMod.delete(modId);
+        openedByMod.delete(modId);
+    });
+
+    return { get, has, set, declare, state, subscribe, forget, isPersistent: canSeal };
 };
 
 module.exports = {

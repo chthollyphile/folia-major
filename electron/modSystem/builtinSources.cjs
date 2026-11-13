@@ -12,9 +12,9 @@
 
 'use strict';
 
+// The app's package.json lies inside app.asar in a packaged app: the asar-aware fs reads it (original-fs could not).
+const fs = require('fs');
 const path = require('path');
-// original-fs: reads the app's package.json the same way inside app.asar (rawFs.cjs).
-const { rawFs: fs } = require('./rawFs.cjs');
 
 /*
  * modId -> the row. `sources` are the short source ids the mod claims; `storeKeys`, `partitions` and

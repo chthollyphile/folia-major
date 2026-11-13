@@ -40,6 +40,9 @@ export const installDefaultSourcePlaybackStop = (): void => {
     });
 };
 
+/** Stops what of `sourceIds` is playing (the registered step), before they are unloaded; never rejects. */
+export const stopPlaybackOfSources = (sourceIds: readonly string[]): Promise<void> => stopPlaybackOf(sourceIds);
+
 const stopPlaybackOf = async (sourceIds: readonly string[]) => {
     if (!stopPlayback) return;
     try {

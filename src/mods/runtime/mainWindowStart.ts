@@ -3,7 +3,7 @@ import { foliumSourceClientsSettled, initFoliumClients, onFoliumClientStarted } 
 import { installFoliumSourceStatesSync } from './sourceStatesSync';
 import { installDefaultSourcePlaybackStop } from './sourceSwitches';
 import { setBuiltinSourcesSettled } from '@/services/onlineMusic/sourceReadiness';
-import shared from '../../../electron/modSystem/foliumShared.json';
+import { FOLIUM_SHARED_LIMITS } from '../folium/shared';
 import { installFoliumCommandPaletteSync } from '../folium/registries/commandPaletteSync';
 import { installFoliumFaultNotice } from './faultNotice';
 import { installFoliumHostEvents } from './hostEvents';
@@ -50,7 +50,7 @@ import { restoreSavedFoliumSelections } from './missingEntries';
 const START_ALIVE_INTERVAL_MS = 1000;
 
 /** The first screen's own wait for the source group (plan §5.2). */
-export const SOURCE_FIRST_SCREEN_MS = shared.limits.source.start.firstScreenMs;
+export const SOURCE_FIRST_SCREEN_MS = FOLIUM_SHARED_LIMITS.source.start.firstScreenMs;
 
 /* `promise`, or the end of `ms`, whichever comes first. Never rejects. */
 const within = (promise: Promise<unknown>, ms: number): Promise<void> => new Promise<void>((resolve) => {
@@ -103,7 +103,11 @@ export const startFoliumForMainWindow = async ({ firstScreenWaitMs }: FoliumMain
     // Folium 2.0: the source states first (they decide what counts as enabled), then the clients.
     const statesRead = installFoliumSourceStatesSync();
     const started = initFoliumClients();
-    const sourcesUp = within(foliumSourceClientsSettled(), SOURCE_FIRST_SCREEN_MS);
+    // The source states answer at once (they do not wait for the start question) and say whether a source mod
+    // runs: without one there is no group to wait for, and the start is timed as before Folium 2.0.
+    const sourcesUp = statesRead.then((hasSourceMods) => (
+        hasSourceMods ? within(foliumSourceClientsSettled(), SOURCE_FIRST_SCREEN_MS) : undefined
+    ));
     setBuiltinSourcesSettled(Promise.all([statesRead, sourcesUp]));
     void Promise.all([started, firstScreenMounted]).then(() => {
         if (alive !== null) clearInterval(alive);

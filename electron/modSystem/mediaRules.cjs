@@ -108,7 +108,10 @@ const createMediaRules = ({ now = Date.now } = {}) => {
             const entry = matching(details);
             if (entry?.followRedirects && entry.urls.has(normalizeUrl(details.url))) {
                 const href = normalizeUrl(details.redirectURL);
-                if (href) entry.urls.set(href, entry.urls.get(normalizeUrl(details.url)));
+                if (href) {
+                    entry.urls.set(href, entry.urls.get(normalizeUrl(details.url)));
+                    while (entry.urls.size > MAX_URLS_PER_MOD) entry.urls.delete(entry.urls.keys().next().value);
+                }
             }
         },
         /* Every rule of `modId` goes: the mod stopped. */

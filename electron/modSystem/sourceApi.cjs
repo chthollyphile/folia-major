@@ -13,6 +13,7 @@
 const path = require('path');
 
 const { assertEncryptionAvailable } = require('../osEncryption.cjs');
+const { parseRangeHeader } = require('./modProtocol.cjs');
 
 const MEDIA_NAME_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const PARTITION_NAME_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/;
@@ -80,7 +81,10 @@ const createSourceApi = (context, host) => {
         if (typeof name !== 'string' || !PARTITION_NAME_PATTERN.test(name)) {
             throw new Error('net.session requires a partition name matching /^[a-z0-9][a-z0-9-]{0,63}$/ or a claimed one');
         }
-        return `persist:folium-${modId}-${name}`;
+        const partition = `persist:folium-${modId}-${name}`;
+        // Remembered for the source's "clear data": Electron cannot list partitions.
+        host.notePartition?.(modId, partition);
+        return partition;
     };
 
     const sessionApi = (name) => {
@@ -187,7 +191,15 @@ const createSourceApi = (context, host) => {
          * (modProtocol.cjs, with Range); `url(name, rest)` builds such a URL.
          */
         media: Object.freeze({
-            allow: (rule) => keep(host.mediaRules.allow(modId, rule)),
+            allow: (rule) => {
+                const remove = host.mediaRules.allow(modId, rule);
+                const off = keep(remove);
+                // `off.add(url)` registers an address the source issued later (an audio URL), as the rule's own.
+                off.add = remove.add;
+                return off;
+            },
+            /* One Range header against a size: { start, end }, 'unsatisfiable', or null (modProtocol.cjs). */
+            parseRange: (header, size) => parseRangeHeader(header, size),
             serve: (name, handler) => {
                 if (typeof name !== 'string' || !MEDIA_NAME_PATTERN.test(name)) {
                     throw new Error('media.serve requires a name matching /^[a-z0-9][a-z0-9-]{0,63}$/');

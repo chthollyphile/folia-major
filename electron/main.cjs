@@ -6988,11 +6988,10 @@ ipcMain.handle('save-settings', firstParty('save-settings', (event, key, value) 
     // Turning the switch off deactivates every running mod immediately rather
     // than only hiding the UI; turning it on discovers and activates whatever
     // the user had already confirmed.
-    try {
-      modSystem.loadAll();
-    } catch (error) {
+    // Through reloadChanged: a source mod that stops gets its onBeforeUnload first; ordinary mods restart as before.
+    modSystem.reloadChanged({ differential: false }).catch((error) => {
       console.error('[Mods] Failed to apply the mod system switch', error);
-    }
+    });
   }
 
   if (key === WALLPAPER_MODE_SETTING_KEY) {

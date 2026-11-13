@@ -79,6 +79,8 @@ const SETTINGS_NAMESPACE = 'mods';
 // One object each: source ids hold dots (`folium.<mod>.<name>`), which electron-store reads as nesting.
 const SOURCE_STATES_KEY = 'mods.sourceStates';
 const SOURCE_CLAIMS_KEY = 'mods.sourceClaims';
+// The partitions of their own source mods have used (`persist:folium-<mod id>-<name>`), by mod id, for "clear data".
+const SOURCE_PARTITIONS_KEY = 'mods.sourcePartitions';
 const SOURCE_STATES = Object.freeze(['enabled', 'matching', 'disabled']);
 
 // folium.storage over IPC is the same data file as api.storage, behind the permission that
@@ -239,6 +241,8 @@ const createModSystem = ({
     let noteThisLoad = false;
     let startQuestionOpen = false;
     let startDecision = Promise.resolve();
+    // While the start question is open: whether a source mod of the user's folders waits for the answer.
+    let sourceModsAwaitAnswer = false;
 
     const hostInfo = () => ({
         folium: { major: FOLIUM_VERSION.major, minor: FOLIUM_VERSION.minor },
@@ -326,6 +330,8 @@ const createModSystem = ({
         mediaHandlers,
         cacheProviders,
         isMainWindowPresent,
+        // Called when a source names a partition of its own (sourceApi.cjs); the list is read by "clear data".
+        notePartition: (modId, partition) => notePartition(modId, partition),
         ...sourceHostOverrides,
     };
 
@@ -345,6 +351,7 @@ const createModSystem = ({
     const {
         writeTrust, isDevSourceMod, resolveTrust, confirmEnableMod,
         readBuiltinEnabled, writeBuiltinEnabled, isOverrideConfirmed, writeOverrideApproval, confirmOverride,
+        confirmClearSourceData,
     } = createModApproval({ app, store, enabledKey, getMainWindowSafe, getLocaleKey });
 
     /*
@@ -372,6 +379,17 @@ const createModSystem = ({
         return stored && typeof stored === 'object' && !Array.isArray(stored) ? { ...stored } : {};
     };
     const writeSourceClaims = (claims) => store.set(SOURCE_CLAIMS_KEY, claims);
+
+    const readSourcePartitions = () => {
+        const stored = store.get(SOURCE_PARTITIONS_KEY);
+        return stored && typeof stored === 'object' && !Array.isArray(stored) ? { ...stored } : {};
+    };
+    const notePartition = (modId, partition) => {
+        const all = readSourcePartitions();
+        const known = Array.isArray(all[modId]) ? all[modId] : [];
+        if (known.includes(partition)) return;
+        store.set(SOURCE_PARTITIONS_KEY, { ...all, [modId]: [...known, partition] });
+    };
 
     /*
      * The version the URL of a client entry carries, so the renderer's ES module map treats changed code as a
@@ -663,13 +681,13 @@ const createModSystem = ({
      * it is unchanged, whoever asks. Enabling, disabling, installing and switching a source go through
      * `reloadChanged`, which is differential for every mod.
      */
-    const loadAll = ({ sourcesOnly = false, differential = false } = {}) => {
+    const loadAll = ({ sourcesOnly = false, differential = false, builtinOnly = false } = {}) => {
         // While the start question is open no mod may run, whoever asks for a load. The load
         // that follows the answer reads the settings as they are then, so nothing is lost.
         if (startQuestionOpen) {
             return listMods();
         }
-        const switchOn = isModSystemEnabled();
+        const switchOn = isModSystemEnabled() && !builtinOnly;
         const { prepared, broken, plan } = planMods({ withUserMods: switchOn, sourcesOnly });
 
         const buildEntry = (entry, status, error) => ({
@@ -696,7 +714,7 @@ const createModSystem = ({
         // The app's own start, with mods from the mods folders about to run: the start note goes down
         // before the first of them does. A later load (a reload, a mod enabled
         // from the panel) writes none, because nothing would take it up again. Built-in mods do not count.
-        const userModsInPlan = plan.order.filter((modId) => !BUILTIN_TIERS.has(prepared.get(modId)?.tier));
+        const userModsInPlan = plan.order.filter((modId) => prepared.get(modId)?.tier !== 'builtin');
         if (noteThisLoad && !skippedThisRun && userModsInPlan.length > 0) {
             safeStart.writeNote();
         }
@@ -714,7 +732,8 @@ const createModSystem = ({
             const dependencyReloaded = entry.manifest.depends.some((dependency) => reloaded.has(parseDependency(dependency).id));
             const skipped = skippedThisRun && !BUILTIN_TIERS.has(entry.tier);
             const keepable = differential || Boolean(entry.source);
-            if (keepable && old && old.status === 'loaded' && !skipped && old.reloadKey === reloadKeyOf(entry) && !dependencyReloaded) {
+            if (keepable && old && old.status === 'loaded' && !skipped && !old.unloadPrepared
+                && old.reloadKey === reloadKeyOf(entry) && !dependencyReloaded) {
                 kept.add(modId);
                 return;
             }
@@ -730,6 +749,8 @@ const createModSystem = ({
                 const runtime = previous.get(modId);
                 Object.assign(runtime, {
                     loadOrder,
+                    signature: entry.signature,
+                    devSource: entry.devSource,
                     enabled: entry.enabled,
                     trustStale: entry.trustStale,
                     alternate: entry.alternate ?? null,
@@ -787,6 +808,8 @@ const createModSystem = ({
                 }, { deferMain: entry.mode === 'matching' });
                 runtime.status = 'loaded';
             } catch (error) {
+                // A source mod's registrations (windows, media rules, diagnostics, cache entries) go with it.
+                if (runtime.source) runtime.unload();
                 runtime.status = 'error';
                 runtime.error = serializeError(error);
             }
@@ -845,9 +868,17 @@ const createModSystem = ({
      * A load that first lets the source mods it will stop finish (plan §5.2): each running source copy the
      * next load will not keep gets its `onBeforeUnload` handlers awaited, 3 seconds at most, before the load
      * releases it. The window stops the playback of those sources before it asks for the change
-     * (src/mods/sources/sourceSwitches.ts). Then `loadAll`.
+     * (src/mods/runtime/sourceSwitches.ts). Then `loadAll`. Calls run one after another.
      */
-    const reloadChanged = async ({ differential = true } = {}) => {
+    let reloadQueue = Promise.resolve();
+    const reloadChanged = ({ differential = true } = {}) => {
+        // One at a time: a second switch waits for the first one's onBeforeUnload and load.
+        const run = () => reloadChangedNow({ differential });
+        const next = reloadQueue.then(run, run);
+        reloadQueue = next.catch(() => undefined);
+        return next;
+    };
+    const reloadChangedNow = async ({ differential }) => {
         if (!startQuestionOpen) {
             const { prepared, plan } = planMods({ withUserMods: isModSystemEnabled() });
             const inPlan = new Set(plan.order);
@@ -856,7 +887,11 @@ const createModSystem = ({
                 && runtime.source
                 && (!inPlan.has(modId) || runtime.reloadKey !== reloadKeyOf(prepared.get(modId)))
             ));
-            await Promise.all(leaving.map(([, runtime]) => runtime.beforeUnload()));
+            await Promise.all(leaving.map(async ([, runtime]) => {
+                // Once its onBeforeUnload ran, the copy has wound down: the load below must not keep it.
+                runtime.unloadPrepared = true;
+                await runtime.beforeUnload();
+            }));
         }
         return loadAll({ differential });
     };
@@ -873,7 +908,7 @@ const createModSystem = ({
             return { ok: false, error: 'mod-system-disabled', mods: [] };
         }
         if (!runtime) {
-            loadAll();
+            loadAll({ differential: true });
             runtime = mods.get(modId);
         }
         if (!runtime) {
@@ -950,10 +985,41 @@ const createModSystem = ({
             return { ok: false, error: 'source-is-carried' };
         }
         const discovery = isModSystemEnabled() ? readManifestFiles().get(modId) : null;
-        const claims = discovery?.manifest?.sources?.some((entry) => entry.claims?.id === shortId);
-        if (!claims) {
+        const claiming = discovery?.manifest?.sources?.filter((entry) => entry.claims?.id === shortId) ?? [];
+        if (claiming.length === 0) {
             return { ok: false, error: 'mod-does-not-claim' };
         }
+        // The same confirmation as an enable of a takeover (plan §5.1): which id, which old data, the signature
+        // as it is; bound to these files like any approval.
+        const digest = computeModDigest(discovery.dirPath);
+        if (!digest) {
+            return { ok: false, error: 'mod-content-unverifiable' };
+        }
+        const signature = verifyModSignature(discovery.dirPath, discovery.manifest);
+        if (signature.status === 'invalid') {
+            return { ok: false, error: 'claim-signature-invalid' };
+        }
+        const takeovers = claiming.map((entry) => ({
+            localId: entry.id,
+            sourceId: shortId,
+            takeover: true,
+            keepForMatching: false,
+            legacy: {
+                storeKeys: [...(entry.claims.storeKeys ?? [])],
+                partitions: [...(entry.claims.partitions ?? [])],
+                userDataDirs: [...(entry.claims.userDataDirs ?? [])],
+                native: [],
+            },
+        }));
+        const confirmed = await confirmEnableMod({
+            manifest: discovery.manifest,
+            dirPath: discovery.dirPath,
+            source: { sources: takeovers },
+        }, digest, signature);
+        if (!confirmed) {
+            return { ok: false, error: 'enable-declined' };
+        }
+        writeTrust(modId, true, digest);
         writeSourceClaims({ ...readSourceClaims(), [shortId]: modId });
         return { ok: true, mods: await reloadChanged() };
     };
@@ -994,6 +1060,13 @@ const createModSystem = ({
     };
 
     const notifySourceStatesChanged = () => sendToRenderer(IPC.fSourceStatesChanged, listSourceStates());
+
+    /*
+     * Whether a source mod's client may start in the window: one is loaded now, or (while the start question
+     * is open) a source mod waits for the answer. The window's first screen waits for the source group only then.
+     */
+    const hasSourceMods = () => Array.from(mods.values()).some((runtime) => runtime.status === 'loaded' && runtime.source)
+        || (startQuestionOpen && sourceModsAwaitAnswer);
 
     // A source id this host can switch: one of a discovered source mod, or a short id the installation carries.
     const isKnownSource = (sourceId) => typeof sourceId === 'string'
@@ -1038,12 +1111,13 @@ const createModSystem = ({
         }
         const { dataDir, cacheDir } = resolveModStorageDirs(app.getPath('userData'), owner.manifest.id);
         const legacy = entry.legacy ?? { storeKeys: [], partitions: [], userDataDirs: [], native: [] };
+        const ownPartitions = readSourcePartitions()[owner.manifest.id];
         return {
             ok: true,
             sourceId,
             modId: owner.manifest.id,
             storeKeys: [...legacy.storeKeys],
-            partitions: [...legacy.partitions],
+            partitions: [...new Set([...legacy.partitions, ...(Array.isArray(ownPartitions) ? ownPartitions : [])])],
             userDataDirs: legacy.userDataDirs.map((folder) => path.join(app.getPath('userData'), folder)),
             modData: dataDir,
             modCache: cacheDir,
@@ -1063,8 +1137,14 @@ const createModSystem = ({
             return described;
         }
         const { modId } = described;
+        // The list goes to the user in the main process first (plan §5.3), as an enable does: page code cannot
+        // answer it.
+        if (!await confirmClearSourceData(sourceId, described)) {
+            return { ok: false, error: 'clear-declined' };
+        }
         const runtime = mods.get(modId);
         if (runtime?.status === 'loaded') {
+            runtime.unloadPrepared = true;
             await runtime.beforeUnload();
         }
         clearing.add(modId);
@@ -1095,6 +1175,7 @@ const createModSystem = ({
                     console.warn(`[Mods] clearing ${sourceId}: ${directory} could not be removed`, error);
                 }
             }
+            await secrets.forget(modId);
         } finally {
             clearing.delete(modId);
             loadAll({ differential: true });
@@ -1348,7 +1429,8 @@ const createModSystem = ({
                     // While the start question is open nothing is loaded yet, and nothing may
                     // be: the answer comes first, whichever request this is. The window's
                     // request for the mod list waits here, so no client starts before it either.
-                    await startDecision;
+                    // The source states are a table and run nothing: they answer at once.
+                    if (channel !== IPC.sourceStates) await startDecision;
                     return await handler(event, ...args);
                 } catch (error) {
                     return { ok: false, error: serializeError(error) };
@@ -1401,7 +1483,7 @@ const createModSystem = ({
         });
         // Folium 2.0 (plan §5.3): the sources' states and switches, what clearing one removes, the override
         // confirmation and who holds a taken-over id. "Settings → Sources" (S8) is drawn on these.
-        handle(IPC.sourceStates, () => ({ ok: true, ...listSourceStates() }));
+        handle(IPC.sourceStates, () => ({ ok: true, ...listSourceStates(), hasSourceMods: hasSourceMods() }));
         handle(IPC.setSourceState, (_event, sourceId, state) => setSourceState(sourceId, state));
         handle(IPC.sourceData, (_event, sourceId) => describeSourceData(sourceId));
         handle(IPC.clearSourceData, (_event, sourceId) => clearSourceData(sourceId));
@@ -1429,7 +1511,9 @@ const createModSystem = ({
      */
     const startSources = () => {
         try {
-            loadAll({ sourcesOnly: true });
+            // The built-in tier only: a source mod from the user's folders is under the start question and the
+            // master switch like any other (plan §5.2), and nothing of the user's folders is read or hashed yet.
+            loadAll({ sourcesOnly: true, builtinOnly: true });
         } catch (error) {
             console.error('[Mods] Failed to start the source mods', error);
         }
@@ -1464,11 +1548,12 @@ const createModSystem = ({
             return;
         }
         const { plan, prepared } = planMods();
-        if (plan.order.filter((modId) => !BUILTIN_TIERS.has(prepared.get(modId)?.tier)).length === 0) {
+        if (plan.order.filter((modId) => prepared.get(modId)?.tier !== 'builtin').length === 0) {
             safeStart.clearNote();
             firstLoad();
             return;
         }
+        sourceModsAwaitAnswer = plan.order.some((modId) => Boolean(prepared.get(modId)?.source));
         startQuestionOpen = true;
         startDecision = safeStart.askStartWithoutMods()
             .then((without) => {
@@ -1516,11 +1601,16 @@ const createModSystem = ({
      * The quit: a promise that settles once every running source mod's onBeforeQuit handlers have (3 seconds
      * at most), or null when none has any to wait for (plan §5.2). main.cjs holds the quit for it.
      */
+    let quitting = null;
     const prepareQuit = () => {
+        // Asked again when the held quit is asked for again: the handlers ran already.
+        if (quitting) return quitting;
         const waiting = Array.from(mods.values())
             .filter((runtime) => runtime.status === 'loaded' && runtime.source && typeof runtime.beforeQuit === 'function')
             .map((runtime) => runtime.beforeQuit());
-        return waiting.length > 0 ? Promise.all(waiting).then(() => undefined) : null;
+        if (waiting.length === 0) return null;
+        quitting = Promise.all(waiting).then(() => undefined);
+        return quitting;
     };
 
     /* The main window went and no window takes its playback over (main.cjs pauseExternalPlayersNobodyFollows). */

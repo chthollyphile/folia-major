@@ -13,6 +13,9 @@ import shared from '../../../electron/modSystem/foliumShared.json';
 /** The Folium version this host implements: what a mod reads as `folium.host.folium`. */
 export const FOLIUM_HOST_VERSION = Object.freeze({ ...shared.version });
 
+/** Folium 2.0: the limits of ordinary mods and of source mods, side by side (plan §5.2). */
+export const FOLIUM_SHARED_LIMITS = shared.limits;
+
 /** The experimental surfaces a mod can opt into in mod.json. */
 export const FOLIUM_EXPERIMENTAL = Object.freeze({ ...shared.experimental });
 
