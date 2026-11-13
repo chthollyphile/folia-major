@@ -53,6 +53,10 @@ export function createExternalClock() {
         previousSample = { position: rawPosition, paused: update.paused };
         const nowMs = update.nowMs ?? performance.now();
         const shown = read(nowMs);
+        // Whether the clock was sounding the song before this answer: a lead it ran up while it was
+        // going on is the age of the answer, a lead left over from a pause is the spot the bar stood
+        // on while the song was stopped.
+        const wasRunning = !clock.state().paused;
         clock.sync({ ...update, nowMs, holdBackward: false });
         const sampled = clock.read(nowMs);
         const duration = clock.state().durationSec;
@@ -63,16 +67,22 @@ export function createExternalClock() {
         // position may be held: a spot the player took seconds to load.
         const holdLimitSec = update.holdLimitSec ?? 2 * MAX_EXTRAPOLATION_SEC;
         const held = update.holdBackward && lag > 0 && lag <= holdLimitSec;
-        // A caller that says how far the bar may be held is holding it for a spot the player is still
-        // loading, and the song is playing: the lead it has run up is played out at the slower speed, so
-        // the bar and the lyrics keep moving until the player comes up to them. Every other answer - a
-        // routine tick, one from a stopped song, one from further behind than a lead is run out over -
-        // leaves the spot the bar stands on held instead, exactly as it always did.
-        const playsOut = held && update.holdLimitSec !== undefined && !update.paused && lag <= MAX_CATCH_UP_LEAD_SEC;
+        // A song that is sounding never stands still on a spot while the player catches up: the lead the
+        // bar is ahead by is played out at the slower speed, so the bar and the lyrics keep moving until
+        // the player comes up to them. That holds for every answer of a song already running, whether
+        // the caller said how far the bar may be held or left it at the route's own limit - the lead is
+        // the age of the answer however it came about, and standing still on it for a whole poll is the
+        // hitch a listener sees in the lyrics. A stopped song stands where it is put, a song starting
+        // again holds the spot it was stopped on until the player comes up to it, and an answer from
+        // further behind than a lead is run out over is not the player catching up but saying the song
+        // is somewhere else: all three leave the spot held.
+        const playsOut = held && wasRunning && !update.paused && lag <= MAX_CATCH_UP_LEAD_SEC;
         catchUp = playsOut ? { startSec: boundedShown, startMs: nowMs, leadSec: lag } : null;
         floor = held && !playsOut ? boundedShown : null;
-        // One line per run of answers from that far behind, not one per answer of it.
-        if (!held || playsOut) farBehindNoted = false;
+        // One line per run of answers from past the longest lead played out, not one per answer of it:
+        // a stopped song and one starting again hold their spot too, and neither is the player behind.
+        const farBehind = held && !playsOut && lag > MAX_CATCH_UP_LEAD_SEC;
+        if (!farBehind) farBehindNoted = false;
         else if (!farBehindNoted) {
             farBehindNoted = true;
             console.debug('[ExternalClock] the player answered too far behind the shown position to catch up with it', {
