@@ -636,6 +636,7 @@ export default {
     "latticeFmOpenedInPlayer": "Lattice does not support Personal FM mode. Opened the standard player instead",
     "noPlayableSongs": "No playable songs in this list",
     "songUnavailableTag": "Unavailable",
+    "songSourceMissingTag": "Source not enabled",
     "songVideoTag": "MV",
     "queueShuffled": "Queue shuffled",
     "loopShuffleHint": "Looking for shuffle?",

@@ -636,6 +636,7 @@ export default {
     "latticeFmOpenedInPlayer": "Lattice không hỗ trợ chế độ FM cá nhân. Đã mở bằng trình phát chuẩn",
     "noPlayableSongs": "Không có bài hát khả dụng trong danh sách",
     "songUnavailableTag": "Không khả dụng",
+    "songSourceMissingTag": "Nguồn chưa bật",
     "songVideoTag": "MV",
     "queueShuffled": "Đã xáo trộn hàng đợi",
     "loopShuffleHint": "Tìm chế độ xáo trộn?",

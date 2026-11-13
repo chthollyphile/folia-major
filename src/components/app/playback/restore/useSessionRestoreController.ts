@@ -15,6 +15,8 @@ import { setPlayQueue, usePlaybackStore } from '../../../../stores/usePlaybackSt
 import { askedSongKeyRef, keepSongsOfProvidersStanding, makeSongCurrent, providerDropsSoFar, startRestore } from '../currentSong';
 import { useAudioSettingsStore } from '../../../../stores/useAudioSettingsStore';
 import { isRestoredSongPlayable } from '../playableSong';
+import { isSongSourceMissing } from '../../../../services/onlineMusic/songAvailability';
+import { builtinSourcesSettled } from '../../../../services/onlineMusic/sourceReadiness';
 import { releaseUnclaimedHifiTrack } from '../../../../services/hifi/hifiPlayback';
 
 // src/components/app/playback/restore/useSessionRestoreController.ts
@@ -101,6 +103,9 @@ export function useSessionRestoreController({
             const providerDropsAtStart = providerDropsSoFar();
             const signedOut = (song: SongResult) => keepSongsOfProvidersStanding([song], providerDropsAtStart).length === 0;
             try {
+                // The built-in platforms first: a song of one that registers late would otherwise count as one
+                // that cannot be played, and be left out of what is restored.
+                await builtinSourcesSettled();
                 let lastSong = await getFromCache<SongResult>('last_song');
                 let lastQueue = await getFromCache<SongResult[]>('last_queue');
 
@@ -118,7 +123,10 @@ export function useSessionRestoreController({
 
                 // Leave unsupported sessions cached for a build that registers their provider.
                 if (!isRestoredSongPlayable(lastSong)) return;
-                lastQueue = lastQueue?.filter(song => isRestoredSongPlayable(song)) ?? null;
+                // A song whose platform is missing now (not registered, turned off) stays in the queue, shown as
+                // one that cannot be played, and plays again once its platform is back: it is not taken out, so
+                // the next save of the queue does not lose it. A song its platform is there and cannot play is.
+                lastQueue = lastQueue?.filter(song => isRestoredSongPlayable(song) || isSongSourceMissing(song)) ?? null;
 
                 const containsLocalSnapshot = [lastSong, ...(lastQueue || [])].some(song => (
                     Boolean((song as any).isLocal)

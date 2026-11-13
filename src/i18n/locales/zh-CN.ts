@@ -636,6 +636,7 @@ export default {
     "latticeFmOpenedInPlayer": "Lattice 不支持私人 FM 模式，已使用普通播放器打开",
     "noPlayableSongs": "列表中没有可播放的歌曲",
     "songUnavailableTag": "已下架",
+    "songSourceMissingTag": "音源未启用",
     "songVideoTag": "MV",
     "queueShuffled": "播放队列已打乱",
     "loopShuffleHint": "想找随机播放吗？",

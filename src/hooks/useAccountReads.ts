@@ -13,7 +13,8 @@ import type { SongResult } from '../types';
 // is asked of the platform then, and how often, is decided in
 // src/services/onlineMusic/account/ (accountRead.ts, readMoments.ts, likedChecks.ts).
 //
-// - The app has started: the account of every platform that has accounts is read.
+// - The app has started: the account of every platform that has accounts is read; a platform that registers
+//   later has its account read when it registers.
 // - The home screen is entered (home with no collection open on top of it: the lists behind an
 //   open collection are not what is being looked at): the playlists of the platform shown are read
 //   again, and its liked songs where their count has moved.
@@ -30,9 +31,18 @@ export const useAccountReads = () => {
     const atHome = isHome && !hasCollection;
 
     useEffect(() => {
-        omni.getProviderSummaries().forEach(provider => {
-            if (provider.requiresAccount) void omni.readAccount(provider.providerId, 'start');
-        });
+        // A platform that registers after the app started (a source that loads late, one turned on again) has its
+        // account read then, once, as the ones there at the start had theirs.
+        const read = new Set<string>();
+        const readNew = () => {
+            omni.getProviderSummaries().forEach(provider => {
+                if (!provider.requiresAccount || read.has(provider.providerId)) return;
+                read.add(provider.providerId);
+                void omni.readAccount(provider.providerId, 'start');
+            });
+        };
+        readNew();
+        return omni.subscribeProviders(readNew);
     }, []);
 
     useEffect(() => {

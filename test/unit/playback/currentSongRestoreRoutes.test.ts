@@ -142,7 +142,8 @@ vi.mock('@/utils/onlineLyricsState', () => ({
 }));
 vi.mock('@/services/onlineMusic/omni', () => ({
     omni: {
-        canPlaySong: () => env.canPlay,
+        // A song of a platform that is not registered cannot be played (as omni answers for it).
+        canPlaySong: (song: SongResult) => env.canPlay && song.sourceRef?.kind === 'online' && song.sourceRef.providerId !== 'gone-source',
         canPlayExternally: () => false,
         getProviderLabel: (id: string) => id,
         getLyrics: async (song: { id: string }) => { env.note(`wait lyrics ${song.id}`); return { lyrics: null, isPureMusic: true }; },
@@ -159,6 +160,7 @@ vi.mock('@/services/prefetchService', () => ({ prefetchNearbySongs: vi.fn(), ref
 const { restorePlaybackSourceForSong } = await import('@/components/app/playback/restore/restorePlaybackSource');
 const { createOnlineRecoveryController } = await import('@/components/app/playback/restore/createOnlineRecoveryController');
 const { useSessionRestoreController } = await import('@/components/app/playback/restore/useSessionRestoreController');
+const { isSongShownUnplayable, isSongSourceMissing, isSongUnavailable } = await import('@/services/onlineMusic/songAvailability');
 const { useElectronWindowPlaybackHandoff } = await import('@/components/app/playback/restore/useElectronWindowPlaybackHandoff');
 const { usePlaybackRuntimeRefs } = await import('@/components/app/playback/usePlaybackRuntimeRefs');
 const { usePlaybackStore } = await import('@/stores/usePlaybackStore');
@@ -485,6 +487,23 @@ describe('restoring the last session and the current song', () => {
         expect(refs.shouldAutoPlay.current).toBe(true);
         expect(prefetchNearbySongs).not.toHaveBeenCalled();
         expect(useStatusMessageStore.getState().message).toBeNull();
+    });
+
+    // Folium 2.0 方案 §2 第 3 条、§7 第二行：音源不在的歌留在队列里（标为不可播），不滤掉，下一次存队列也就不会丢它。
+    it('keeps a song whose platform is missing in the restored queue', async () => {
+        const { refs, setLyrics } = watchWithRefs();
+        const goneSong: SongResult = { ...onlineSong, id: 'g1', name: 'G', sourceRef: { kind: 'online', providerId: 'gone-source', mediaId: 'g1' } };
+        const restore = restoreLastSession(refs, setLyrics);
+        env.cache.set('last_queue', [onlineSong, goneSong, otherSong]);
+
+        restore();
+        await settle();
+
+        expect(usePlaybackStore.getState().playQueue.map(song => song.id)).toEqual(['x1', 'g1', 'y1']);
+        expect(isSongSourceMissing(goneSong)).toBe(true);
+        expect(isSongShownUnplayable(goneSong)).toBe(true);
+        expect(isSongUnavailable(goneSong)).toBe(false);
+        expect(refs.currentSongRef.current).toBe('online:bodian:x1');
     });
 
     it('makes the remembered song current, so the online recovery takes a fresh address for it', async () => {

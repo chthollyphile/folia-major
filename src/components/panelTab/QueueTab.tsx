@@ -6,7 +6,7 @@ import { SongResult } from '../../types';
 import TextInputDialog from '../shared/TextInputDialog';
 import { Button } from '../modal/settings/kit';
 import { useKitReducedMotion } from '../modal/settings/kit/motion';
-import { getSongTag, isSongUnavailable } from '../../services/onlineMusic/songAvailability';
+import { getSongTag, isSongShownUnplayable } from '../../services/onlineMusic/songAvailability';
 import { getSongArtistLabel } from '../../services/onlineMusic/songMetadata';
 import { getPlaybackSongKey } from '../../utils/appPlaybackGuards';
 import { queueIndexOfKey } from '../../utils/playbackNeighbors';
@@ -78,7 +78,7 @@ const QueueRow = ({
 }: RowComponentProps<QueueRowProps>): React.ReactElement => {
     const song = playQueue[index];
     const isActive = currentSongKey === getPlaybackSongKey(song);
-    const isUnavailable = isSongUnavailable(song);
+    const isUnavailable = isSongShownUnplayable(song);
     const tag = getSongTag(song, labels);
 
     return (

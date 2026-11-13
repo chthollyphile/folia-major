@@ -636,6 +636,7 @@ export default {
     "latticeFmOpenedInPlayer": "Lattice tidak mendukung mode Personal FM. Pemutar standar dibuka sebagai gantinya",
     "noPlayableSongs": "Tidak ada lagu yang bisa diputar di daftar ini",
     "songUnavailableTag": "Tidak Tersedia",
+    "songSourceMissingTag": "Sumber tidak aktif",
     "songVideoTag": "MV",
     "queueShuffled": "Antrean diacak",
     "loopShuffleHint": "Mencari putar acak?",
