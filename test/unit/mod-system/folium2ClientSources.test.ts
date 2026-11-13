@@ -69,6 +69,33 @@ describe('a source mod\'s client', () => {
         expect(reported).not.toHaveBeenCalled();
     });
 
+    it('whose start was stopped before its activate ended has nothing checked for the copy that runs now', async () => {
+        const reported = vi.fn(async () => ({ ok: true }));
+        bridge.electron = { mods: { reportSourcesRegistered: reported } };
+        vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const gate = globalThis as unknown as { __s3Finish?: () => void };
+        const slow = mod('none', 'return new Promise((resolve) => { globalThis.__s3Finish = resolve; });', ['a']);
+        vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+        try {
+            const starting = reconcileFoliumClients([slow], 'main');
+            for (let round = 0; round < 20 && !gate.__s3Finish; round += 1) {
+                await vi.dynamicImportSettled();
+                await new Promise<void>((resolve) => { setImmediate(resolve); });
+            }
+            expect(gate.__s3Finish).toBeTypeOf('function');
+            // Past its start limit the queue goes on; the mod is stopped (a reload, an update); then its activate ends.
+            await vi.advanceTimersByTimeAsync(5000);
+            await starting;
+            await reconcileFoliumClients([], 'main');
+            gate.__s3Finish!();
+            for (let round = 0; round < 5; round += 1) await new Promise<void>((resolve) => { setImmediate(resolve); });
+            expect(reported).not.toHaveBeenCalled();
+        } finally {
+            vi.useRealTimers();
+            delete gate.__s3Finish;
+        }
+    });
+
     it('that registers none of them has the main process take the exemptions back', async () => {
         const reported = vi.fn(async () => ({ ok: true, revoked: true }));
         bridge.electron = { mods: { reportSourcesRegistered: reported } };

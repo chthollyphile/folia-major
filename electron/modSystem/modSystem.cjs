@@ -277,13 +277,13 @@ const createModSystem = ({
     // The manifest of the mod running under `modId`, or null (for the secrets' per-class rules).
     const runningManifest = (modId) => mods.get(modId)?.manifest ?? null;
 
-    // The values of `secret` settings fields (modSecrets.cjs). A change, whoever made it, reaches
     // Folium 2.0 (S3, plan §5.4): the running copies of source mods whose client registered none of the
     // sources their manifest declares. They lose what the client side's exemptions give (net.fetch, the data
     // file, the secret slots) for as long as that copy runs; a reload starts a new copy with them.
     const revokedSourceExemptions = new WeakSet();
     const hasSourceExemptions = (runtime) => Boolean(runtime?.source) && !revokedSourceExemptions.has(runtime);
 
+    // The values of `secret` settings fields (modSecrets.cjs). A change, whoever made it, reaches
     // the main window as the key alone; the main entry's subscribers hear it in the store.
     // Folium 2.0: a source mod's manifest `secrets` count as declared, and hold up to 64 KB each.
     const secrets = createModSecrets({

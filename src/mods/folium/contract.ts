@@ -2672,7 +2672,9 @@ export type FoliumContextKind = 'main' | 'export';
 /**
  * The host's versions (`folium.host`), for display and logs. Every member of this contract is there from
  * Folium 1.7 on; an older 1.x host lacks some of them. Folium 2.0: a mod whose mod.json says `folium: 1`
- * reads 1.9 here, the version its interface stays at; a `folium: 2` mod reads the host's own.
+ * reads 1.9 here, the version its interface stays at; a `folium: 2` mod reads the host's own. A host that
+ * runs a `folium: 2` mod has every member a "check `folium.host.folium.minor >= …`" below speaks of: such a
+ * check is for `folium: 1` mods (in a `folium: 2` mod, check `major >= 2` or nothing).
  */
 export interface FoliumHostInfo {
     /** The Folium version (`major`, `minor`). */

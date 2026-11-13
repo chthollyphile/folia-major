@@ -165,9 +165,12 @@ const readUses = (text) => {
     }
     // Folium 2.0: every string the code writes out (source ids, capability keys), and its use of the sources.
     const literals = Array.from(strings.values(), (literal) => literal.text);
-    const registersSource = /\bsources\s*(?:\?\.|\.)\s*register\b/.test(code);
+    // Written out as `folium.sources.register` (what a mod that is no source mod is held to), or any `.register(`
+    // after a `sources` (an aliased `const s = folium.sources`), which is all a reading of text can see.
+    const callsFoliumSourcesRegister = /\bfolium\s*(?:\?\.|\.)\s*sources\s*(?:\?\.|\.)\s*register\b/.test(code);
+    const mayRegisterSource = /\bsources\b/.test(code) && /(?:\?\.|\.)\s*register\s*\(/.test(code);
     const foliumTwoMembers = [...code.matchAll(/\bfolium\s*(?:\?\.|\.)\s*(sources|i18n)\b/g)].map((match) => match[1]);
-    return { code, registries, experimental, events, platformRequests, literals, registersSource, foliumTwoMembers };
+    return { code, registries, experimental, events, platformRequests, literals, callsFoliumSourcesRegister, mayRegisterSource, foliumTwoMembers };
 };
 
 /** Matches a use of `member` (e.g. `api.runtime.getPlaybackSnapshot`), each dot also written `?.`. */
@@ -228,10 +231,10 @@ const checkSources = (manifest, isSource, used, problems, notes) => {
         return;
     }
     if (!isSource) {
-        if (used.registersSource) problems.push('folium.sources.register is for a source mod: declare the sources under "sources" in mod.json');
+        if (used.callsFoliumSourcesRegister) problems.push('folium.sources.register is for a source mod: declare the sources under "sources" in mod.json');
         return;
     }
-    if (!used.registersSource) {
+    if (!used.callsFoliumSourcesRegister && !used.mayRegisterSource) {
         problems.push('mod.json declares sources and the client never calls folium.sources.register: the app would take the source exemptions back');
     }
     for (const source of manifest.sources) {
@@ -241,8 +244,13 @@ const checkSources = (manifest, isSource, used, problems, notes) => {
     }
     for (const text of used.literals) {
         if (text.startsWith('x.') && text.includes('@')) {
-            if (!FOLIUM_CUSTOM_CAPABILITY_PATTERN.test(text) || !text.startsWith(`x.${manifest.id}.`)) {
+            // Another mod's custom capability may be read (folium.omni.capability); only one of this mod's own
+            // that is badly written is sure to be wrong. One of another mod as a key of `capabilities` is left
+            // out by the app (said in the mod's row), which a reading of text cannot tell from reading it.
+            if (text.startsWith(`x.${manifest.id}.`) && !FOLIUM_CUSTOM_CAPABILITY_PATTERN.test(text)) {
                 problems.push(`capability "${text}": a custom capability of this mod is named x.${manifest.id}.<name>@<version>`);
+            } else if (!text.startsWith(`x.${manifest.id}.`) && FOLIUM_CUSTOM_CAPABILITY_PATTERN.test(text)) {
+                notes.push(`capability "${text}" is another mod's: reading it with folium.omni.capability is fine; as a key of your capabilities the app leaves it out`);
             }
             continue;
         }
@@ -334,7 +342,7 @@ export const checkFoliumMod = (directory) => {
         }
         const used = {
             registries: new Set(), experimental: new Set(), events: new Set(), platformRequests: new Set(),
-            literals: new Set(), foliumTwoMembers: new Set(), registersSource: false,
+            literals: new Set(), foliumTwoMembers: new Set(), callsFoliumSourcesRegister: false, mayRegisterSource: false,
         };
         for (const use of uses.values()) {
             use.registries.forEach((name) => used.registries.add(name));
@@ -343,7 +351,8 @@ export const checkFoliumMod = (directory) => {
             use.platformRequests.forEach((id) => used.platformRequests.add(id));
             use.literals.forEach((text) => used.literals.add(text));
             use.foliumTwoMembers.forEach((name) => used.foliumTwoMembers.add(name));
-            used.registersSource ||= use.registersSource;
+            used.callsFoliumSourcesRegister ||= use.callsFoliumSourcesRegister;
+            used.mayRegisterSource ||= use.mayRegisterSource;
         }
         checkSources(manifest, isSource, used, problems, notes);
         for (const usedName of used.registries) {

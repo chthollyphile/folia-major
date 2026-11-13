@@ -219,6 +219,33 @@ describe('registering', () => {
     });
 });
 
+describe('a song\'s availability label', () => {
+    it('follows the UI language, and two constant answers in turn are each turned once', async () => {
+        markFoliumSourceMod(MOD, true);
+        const restricted = Object.freeze({ state: 'unknown', reason: 'restricted', label: { en: 'Members', 'zh-CN': '会员' } } as const);
+        const playable = Object.freeze({ state: 'playable' } as const);
+        register({
+            id: 'a',
+            capabilities: { 'songs@1': { getSong: async () => null, getAvailability: (dto) => (dto.id === 'r' ? restricted : playable) } },
+        });
+        const before = i18n.language;
+        try {
+            await i18n.changeLanguage('en');
+            const one = song(`folium.${MOD}.a`, 'r');
+            const two = song(`folium.${MOD}.a`, 'p');
+            const first = omni.getSongAvailability(one);
+            const other = omni.getSongAvailability(two);
+            expect(first.label).toBe('Members');
+            expect(omni.getSongAvailability(one)).toBe(first);
+            expect(omni.getSongAvailability(two)).toBe(other);
+            await i18n.changeLanguage('zh-CN');
+            expect(omni.getSongAvailability(one).label).toBe('会员');
+        } finally {
+            await i18n.changeLanguage(before);
+        }
+    });
+});
+
 describe('the seams of S1 and S2, fed from capabilities', () => {
     it('crossSource and canSourceMatchOnly read access, crossSource and metadataMatch', () => {
         register({

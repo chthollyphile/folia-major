@@ -158,6 +158,9 @@ const teardown = async (modId: string) => {
     removeFoliumEventHandlers(modId);
 };
 
+/* Whether `record`'s activation was torn down, read now (it changes while an `await` is under way). */
+const isStopped = (record: ActiveClient): boolean => record.stopped;
+
 /*
  * The mod's own part of a start: its import and its `activate`. Never rejects.
  * It may end long after the queue stopped waiting for it, and the mod may have
@@ -186,7 +189,9 @@ const runClient = async (mod: ModRuntimeInfo, url: string, api: FoliumClientApi,
                 record.dispose = result;
             }
         }
-        await checkDeclaredSources(mod);
+        // Read anew: the mod may have been stopped (reloaded, updated) while its activate ran. A stopped start
+        // must not check the registrations of the copy that runs now, nor have that copy's exemptions revoked.
+        if (!isStopped(record)) await checkDeclaredSources(mod);
     } catch (error) {
         if (record.stopped) {
             const line = `[Folium:${mod.id}] a start that had been stopped failed afterwards; not counted against the mod`;

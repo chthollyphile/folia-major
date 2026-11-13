@@ -16,7 +16,8 @@ import type {
     FoliumSourceSongs,
 } from '../../sources/contract';
 import { toHostPage, toSourceSong } from '../sourceDtos';
-import { finite, lastOf, list, record, type SourceAdapterKit } from './kit';
+import i18n from '@/i18n/config';
+import { finite, list, record, type SourceAdapterKit } from './kit';
 
 // src/mods/folium/registries/sourceAdapter/playback.ts
 // search@1, songs@1 with playback.audio@1 (one internal `playback` object between them, matrix §4.2),
@@ -42,16 +43,33 @@ export const buildSearch = (kit: SourceAdapterKit, search: FoliumSourceSearch): 
     };
 };
 
-const songAvailabilityOf = (kit: SourceAdapterKit) => lastOf((answer: unknown): ProviderSongAvailability => {
-    const found = record(answer);
-    const state = found?.state === 'playable' || found?.state === 'unavailable' ? found.state : 'unknown';
-    const reason = found?.reason === 'taken-down' || found?.reason === 'restricted' ? found.reason : undefined;
-    return {
-        state,
-        ...(reason ? { reason } : {}),
-        ...(found?.label !== undefined ? { label: kit.now(found.label, 'availability.label') } : {}),
+/*
+ * A song's availability as the host's. Rows ask it while they are drawn, and a source answers with a few
+ * constant objects: each is turned into the host's shape once for the UI language now (its label is a text in
+ * that language), and again only when the language changes.
+ */
+const songAvailabilityOf = (kit: SourceAdapterKit) => {
+    const kept = new WeakMap<object, { language: string; value: ProviderSongAvailability }>();
+    const convert = (answer: unknown): ProviderSongAvailability => {
+        const found = record(answer);
+        const state = found?.state === 'playable' || found?.state === 'unavailable' ? found.state : 'unknown';
+        const reason = found?.reason === 'taken-down' || found?.reason === 'restricted' ? found.reason : undefined;
+        return {
+            state,
+            ...(reason ? { reason } : {}),
+            ...(found?.label !== undefined ? { label: kit.now(found.label, 'availability.label') } : {}),
+        };
     };
-});
+    return (answer: unknown): ProviderSongAvailability => {
+        if (typeof answer !== 'object' || answer === null) return convert(answer);
+        const language = i18n.language;
+        const known = kept.get(answer);
+        if (known?.language === language) return known.value;
+        const value = convert(answer);
+        kept.set(answer, { language, value });
+        return value;
+    };
+};
 
 const audioSourceOf = (answer: unknown, quality: AudioQualityPreference): ProviderAudioSource | null => {
     const found = record(answer);

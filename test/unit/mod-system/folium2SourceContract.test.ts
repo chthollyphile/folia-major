@@ -118,8 +118,20 @@ describe('folium:check of a source mod', () => {
             "export default function activate(folium) {\n  folium.sources.register({ id: 'station', displayName: 'S', capabilities: { 'playback.surface@1': {}, 'x.other.y@1': {} } });\n}\n",
         );
         const { problems, notes } = checkFoliumMod(directory);
-        expect(problems).toEqual(['capability "x.other.y@1": a custom capability of this mod is named x.radio.<name>@<version>']);
+        expect(problems).toEqual([]);
+        expect(notes.some((note: string) => note.includes('capability "x.other.y@1" is another mod\'s'))).toBe(true);
         expect(notes.some((note: string) => note.includes('capability "playback.surface@1": this host does not implement it'))).toBe(true);
+        const badOwn = write(
+            { folium: 2, id: 'radio', sources: [{ id: 'station', name: 'S' }] },
+            "export default function activate(folium) {\n  folium.sources.register({ id: 'station', displayName: 'S', capabilities: { 'x.radio.Bad Name@1': {} } });\n}\n",
+        );
+        expect(checkFoliumMod(badOwn).problems).toEqual(['capability "x.radio.Bad Name@1": a custom capability of this mod is named x.radio.<name>@<version>']);
+        // An aliased call is not taken for no call at all.
+        const aliased = write(
+            { folium: 2, id: 'radio', sources: [{ id: 'station', name: 'S' }] },
+            "export default function activate(folium) {\n  const s = folium.sources;\n  s.register({ id: 'station', displayName: 'S', capabilities: {} });\n}\n",
+        );
+        expect(checkFoliumMod(aliased).problems).toEqual([]);
     });
 
     it('keeps the ordinary limits and refuses Folium 2 members to a folium 1 mod', () => {
