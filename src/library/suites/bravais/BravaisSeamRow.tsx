@@ -12,6 +12,7 @@ import BravaisSeamAbout from './BravaisSeamAbout';
 import BravaisSeamCrumbs from './BravaisSeamCrumbs';
 import { BravaisSeamFlipText } from './BravaisSeamFlip';
 import './bravaisSeamRow.css';
+import BravaisSeamPlayScope from './BravaisSeamPlayScope';
 
 // src/library/suites/bravais/BravaisSeamRow.tsx
 // 信息条横向时集合 / 歌手页的两套内容（缝是一道横跨视口的横条，见 bravaisSeamRow.css）：
@@ -80,11 +81,7 @@ export const BravaisSeamFullRow: React.FC<{ layer: BravaisLayer; actions: Bravai
                 </div>
                 <div className="bravais-seam-row-side">
                     <div className="bravais-seam-actions is-scope">
-                        {seam.onPlayScope && (
-                            <button type="button" className="bravais-chrome-button is-primary" data-bravais-seam-action="play-scope" onClick={seam.onPlayScope}>
-                                <Play aria-hidden />{seam.scopeLabels?.play ?? t('libraryBravais.playAll')}
-                            </button>
-                        )}
+                        <BravaisSeamPlayScope seam={seam} buttonClassName="bravais-chrome-button" />
                         {seam.onEnqueueScope && (
                             <button type="button" className="bravais-chrome-button" data-bravais-seam-action="enqueue-scope" onClick={seam.onEnqueueScope}>
                                 <ListPlus aria-hidden />{seam.scopeLabels?.enqueue ?? t('libraryBravais.enqueueAll')}

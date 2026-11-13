@@ -47,6 +47,8 @@ import {
 import { freshFmSongs } from '../../../../utils/fmQueue';
 import { applyQueueAddBehavior, queueForPlayingNow } from '../../../../utils/queueAddBehavior';
 import { moveQueueItem } from '../../../../utils/queueReorder';
+import { shuffledCopy } from '../../../../utils/shuffledCopy';
+import { shuffleQueueInRounds, useShuffleRoundTracking } from '../shuffle/useShuffleRoundTracking';
 import { buildStagePlayerSnapshot, resolveStagePlayerQueueItemIndex } from '../../../../utils/stagePlayerSnapshot';
 import type { LocalLibraryDisplayCatalog } from '../../../../services/playbackAdapters';
 import type { SearchKind, SearchReturnView, SearchSource } from '../../../../stores/useSearchNavigationStore';
@@ -172,6 +174,13 @@ let skipPromptCount = 0;
 // 「无法播放时自动跳过」 is read when a failure happens, not subscribed to: whether a failure stops and
 // whether its skip is counted are decided by the same reading.
 const readAutoSkipUnplayable = () => useAudioSettingsStore.getState().autoSkipUnplayable;
+
+/** `live` holds the same songs as `landed` in another order (a reorder in place, not a new queue). */
+const isSameSongsReordered = (live: readonly SongResult[], landed: readonly SongResult[]): boolean => {
+    if (live === landed || live.length !== landed.length || samePlaybackKeySequence(live, landed)) return false;
+    const landedKeys = new Set(landed.map(getPlaybackSongKey));
+    return landedKeys.size === live.length && live.every(song => landedKeys.has(getPlaybackSongKey(song)));
+};
 
 // The cases where the address may come at once if asked again after a while: a lookup of another
 // version that failed this way is told as that, not as the song being taken down.
@@ -1135,7 +1144,12 @@ export function usePlaybackQueueController({
                 prefetchNearbySongs(resolvedSong, live, audioQuality, userId);
             }
         } else if (newQueue.length > 0) {
-            prefetchNearbySongs(resolvedSong, ownQueue(), audioQuality, userId);
+            // The queue was reordered in place during the waits (a finished shuffle round reshuffled the
+            // moment this song became current, a drag): the same songs, so fetch ahead in the order they
+            // are now in, or this would undo the prefetch that reorder started.
+            const landed = ownQueue();
+            const live = usePlaybackStore.getState().playQueue;
+            prefetchNearbySongs(resolvedSong, isSameSongsReordered(live, landed) ? live : landed, audioQuality, userId);
         }
     }, [
         audioQuality,
@@ -1188,6 +1202,16 @@ export function usePlaybackQueueController({
 
         void playSong(firstPlayableSong, retainedSongs, false);
     }, [getPlayableOnlineQueue, playSong, setStatusMsg, t]);
+
+    // 随机播放（合集、歌手热门的「随机播放」）：整批打乱后再从头播，第一首也是随机的。「一轮不重复」开着时按轮洗
+    // （同一批歌接着上一轮，没听过的在前），并记下这一轮。
+    const playOnlineQueueShuffled = useCallback((songs: SongResult[]) => {
+        const retainedSongs = getPlayableOnlineQueue(songs);
+        const shuffledSongs = useAudioSettingsStore.getState().shuffleRoundNoRepeat
+            ? shuffleQueueInRounds(retainedSongs, null)
+            : shuffledCopy(retainedSongs);
+        playOnlineQueueFromStart(shuffledSongs);
+    }, [getPlayableOnlineQueue, playOnlineQueueFromStart]);
 
     // 「插进队列播放」（速记簿的行、搜索结果的播放）：已在队列里的直接播，位置不动；不在的照设置里「加入播放队列」
     // 的位置（下一首 / 末尾）放进去再播，和别的加入队列的入口一致。
@@ -1836,6 +1860,19 @@ export function usePlaybackQueueController({
     const shuffleQueue = useCallback(() => {
         if (!playQueue || !canShuffleQueue(playQueue.length, isFmMode, isNowPlayingStageActive)) return;
 
+        // 「一轮不重复」：这一轮听过的排到后面（shuffle/useShuffleRoundTracking）。关着时走下面原来的洗法。
+        if (useAudioSettingsStore.getState().shuffleRoundNoRepeat) {
+            const roundQueue = shuffleQueueInRounds(playQueue, currentSong);
+            setPlayQueue(roundQueue);
+            // 记进上次播放：重启后接着的是这一轮洗出来的顺序（记着的那一轮只认这个顺序）。
+            void persistLastPlaybackCache(currentSong, roundQueue);
+            setStatusMsg({ type: 'success', text: t('status.queueShuffled') || 'Queue Shuffled' });
+            if (currentSong && roundQueue.length > 1) {
+                void invalidateAndRefetch(currentSong, roundQueue, audioQuality, userId);
+            }
+            return;
+        }
+
         const currentSongKey = currentSong ? getPlaybackSongKey(currentSong) : null;
         let songsToShuffle: SongResult[] = [];
         let firstSong: SongResult | null = null;
@@ -1860,7 +1897,22 @@ export function usePlaybackQueueController({
         if (currentSong && nextQueue.length > 1) {
             invalidateAndRefetch(currentSong, nextQueue, audioQuality, userId);
         }
-    }, [audioQuality, currentSong, isFmMode, isNowPlayingStageActive, playQueue, setPlayQueue, setStatusMsg, t, userId]);
+    }, [audioQuality, currentSong, isFmMode, isNowPlayingStageActive, persistLastPlaybackCache, playQueue, setPlayQueue, setStatusMsg, t, userId]);
+
+    // 「一轮不重复」：切歌时记下这一轮听过的；列表循环下整轮听完静默重洗（不弹提示，正在播的这首钉在最前），
+    // 下一首按新队列重新预取。
+    useShuffleRoundTracking({
+        currentSong,
+        playQueue,
+        isFmMode,
+        isStageActive: isNowPlayingStageActive,
+        reshuffle: (nextQueue, playing) => {
+            setPlayQueue(nextQueue);
+            // 记进上次播放：重启后恢复的是这一轮的顺序，否则恢复出旧顺序，这一轮就再也认不出来。
+            void persistLastPlaybackCache(playing, nextQueue);
+            void invalidateAndRefetch(playing, nextQueue, audioQuality, userId);
+        },
+    });
 
     const clearQueue = useCallback(() => {
         if (isNowPlayingStageActive) return;
@@ -1882,6 +1934,7 @@ export function usePlaybackQueueController({
         addOnlineSongsToQueue,
         playSong,
         playOnlineQueueFromStart,
+        playOnlineQueueShuffled,
         handleQueueAddAndPlay,
         handleSearchOverlaySubmit,
         handleSearchLoadMore,

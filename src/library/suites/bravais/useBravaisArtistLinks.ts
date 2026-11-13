@@ -90,6 +90,7 @@ export const useBravaisArtistLinks = (input: BravaisArtistLinksInput) => {
             onBack: () => latest.current.onBack(),
             onDone: () => latest.current.onDone(),
             onPlayScope: () => latest.current.view.actions.playScope(),
+            onShuffleScope: () => latest.current.view.actions.shuffleScope(),
             onEnqueueScope: () => {
                 latest.current.view.actions.enqueueScope();
             },

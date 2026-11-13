@@ -1,5 +1,5 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, ChevronLeft, ChevronUp, ListFilter, ListPlus, Play } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronUp, ListFilter, ListPlus } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { getSizedCoverUrl } from '../../../utils/coverUrl';
 import type { BravaisLayer } from './bravaisLayer';
@@ -25,6 +25,7 @@ import {
 } from './bravaisCoverFlight';
 import './bravaisPoster.css';
 import './bravaisAlbumPoster.css';
+import BravaisSeamPlayScope from './BravaisSeamPlayScope';
 
 // src/library/suites/bravais/BravaisSeamAlbumPoster.tsx
 // 专辑页的海报（完整等级下的专辑页缝，见 bravaisSeamTarget 的 'poster'）：凝彩的视觉语言，参考稿 album.png 竖过来——
@@ -263,11 +264,7 @@ const BravaisSeamAlbumPoster: React.FC<{ layer: BravaisLayer; actions: BravaisSe
                     {seam.status && <BravaisSeamFlipText as="div" flipKey={seam.status} className="bravais-seam-status" data-bravais-seam-status>{seam.status}</BravaisSeamFlipText>}
                     {collection?.status && <BravaisSeamStatusLine status={collection.status} />}
                     <div className="bravais-poster-actions">
-                        {seam.onPlayScope && (
-                            <button type="button" className="bravais-poster-button is-primary" data-bravais-seam-action="play-scope" onClick={seam.onPlayScope}>
-                                <Play aria-hidden />{seam.scopeLabels?.play ?? t('libraryBravais.playAll')}
-                            </button>
-                        )}
+                        <BravaisSeamPlayScope seam={seam} buttonClassName="bravais-poster-button" />
                         {seam.onEnqueueScope && (
                             <button type="button" className="bravais-poster-button" data-bravais-seam-action="enqueue-scope" onClick={seam.onEnqueueScope}>
                                 <ListPlus aria-hidden />{seam.scopeLabels?.enqueue ?? t('libraryBravais.enqueueAll')}

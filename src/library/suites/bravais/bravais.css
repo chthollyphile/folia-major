@@ -140,6 +140,29 @@
 
 .bravais-chrome-button.is-icon svg { width: 20px; height: 20px; }
 
+/* 切成两半的「播放全部」（BravaisSeamPlayScope）：左边照常播放，右边一格随机播放。两半贴在一起当一颗按钮看，
+   中间一道淡竖线；缝里的圆角只留在外侧两端，海报上的方块按钮去掉右半的左边框（投影两半各自一份，正好接成一条）。 */
+.bravais-split-button { display: inline-flex; align-items: stretch; }
+.bravais-split-button > .is-split-side { position: relative; justify-content: center; }
+.bravais-split-button > .is-split-side::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 25%;
+    bottom: 25%;
+    width: 1px;
+    background: currentColor;
+    opacity: 0.3;
+    pointer-events: none;
+}
+.bravais-split-button > .bravais-chrome-button.is-split-main { border-top-right-radius: 0; border-bottom-right-radius: 0; border-right-width: 0; }
+.bravais-split-button > .bravais-chrome-button.is-split-side { border-top-left-radius: 0; border-bottom-left-radius: 0; border-left-width: 0; padding: 0 12px; }
+/* 悬停哪一半，外框都整颗一起亮（两半的边框接成一个圆角框），鼠标所在的那一半底色再深一档，看得出点下去是哪个。 */
+.bravais-split-button:hover > .bravais-chrome-button:not(:disabled) { border-color: color-mix(in srgb, currentColor 26%, transparent); }
+.bravais-split-button > .bravais-chrome-button:hover:not(:disabled) { background: color-mix(in srgb, currentColor 26%, transparent); }
+.bravais-split-button > .bravais-poster-button.is-split-main { border-right-width: 0; }
+.bravais-split-button > .bravais-poster-button.is-split-side { border-left-width: 0; padding: 0 14px; }
+
 /* 「已在队列」悬停 / 键盘聚焦时换成「插入队列」：两份文案叠在同一格（按较宽的那份占位，换显示时按钮不变宽），
    藏着的那份 visibility:hidden，不进可访问名。 */
 .bravais-enqueue-labels { display: inline-grid; }

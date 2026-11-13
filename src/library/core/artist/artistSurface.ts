@@ -61,7 +61,7 @@ const capability = (supported: boolean, enabled: boolean, reason?: LibraryCapabi
 
 /**
  * 歌手页每个语义动作此刻的能力（对照 core/suite/suite.contract 的 LibraryArtistActionId 表）：
- * - play / enqueue / play-scope：有可播放的热门歌曲；enqueue-scope：有可入队的热门歌曲；
+ * - play / enqueue / play-scope / shuffle-scope：有可播放的热门歌曲；enqueue-scope：有可入队的热门歌曲；
  * - filter：总是可用（只筛专辑名）；
  * - reload：在线 / Navidrome 歌手（本地歌手由 catalog 同步派生，没有可重新拉取的）或任何加载失败的歌手，加载中不可用；
  * - resume-sync：专辑分页失败中断时才有；
@@ -85,6 +85,7 @@ export const resolveArtistCapabilities = ({
         play: capability(true, hasPlayable, emptyReason),
         enqueue: capability(true, hasPlayable, emptyReason),
         'play-scope': capability(true, hasPlayable, emptyReason),
+        'shuffle-scope': capability(true, hasPlayable, emptyReason),
         'enqueue-scope': capability(true, queueableTopSongCount > 0, emptyReason),
         filter: capability(true, true),
         reload: capability(collection.source !== 'local' || status === 'error', !isLoading, 'loading'),
@@ -103,6 +104,7 @@ export const resolveArtistCapabilities = ({
 /** 命令面板动作 → 歌手页语义动作（suite 在 entry 的 artist 声明里列的那套）。 */
 export const ARTIST_SURFACE_ACTION_SOURCES: Readonly<Record<LibraryArtistSurfaceActionId, LibraryArtistActionId>> = {
     'play-top-songs': 'play-scope',
+    'shuffle-top-songs': 'shuffle-scope',
     'enqueue-top-songs': 'enqueue-scope',
     reload: 'reload',
     'retry-albums': 'resume-sync',

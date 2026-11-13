@@ -586,13 +586,23 @@ for (const suite of SUITES) {
             await openArtist(page, 'artist-main');
             await waitForArtist(page, main.albumCount);
             const playable = topKeys(main, true);
-            await expect.poll(async () => (await artistSurface(page))?.availableActions).toEqual(['play-top-songs', 'enqueue-top-songs', 'reload']);
+            // 随机播放热门歌曲只有 grid / bravais 声明（TUI 已冻结）。
+            const shuffles = suite !== 'tui';
+            await expect.poll(async () => (await artistSurface(page))?.availableActions)
+                .toEqual(shuffles ? ['play-top-songs', 'shuffle-top-songs', 'enqueue-top-songs', 'reload'] : ['play-top-songs', 'enqueue-top-songs', 'reload']);
             expect(await artistSurface(page)).toMatchObject({ playableTopSongCount: playable.length, albumCount: main.albumCount, isFilterActive: false });
 
             await clearLog(page);
             expect(await runArtistSurface(page, 'play-top-songs')).toBe(true);
             await expect.poll(() => calls(page, 'playAll')).toHaveLength(1);
             expect((await lastCall(page, 'playAll'))?.ids).toEqual(playable);
+            expect((await lastCall(page, 'playAll'))?.shuffle).toBeUndefined();
+            if (shuffles) {
+                await clearLog(page);
+                expect(await runArtistSurface(page, 'shuffle-top-songs')).toBe(true);
+                await expect.poll(() => calls(page, 'playAll')).toHaveLength(1);
+                expect(await lastCall(page, 'playAll')).toMatchObject({ ids: playable, shuffle: true });
+            }
 
             await page.evaluate(keys => window.__libraryProbe!.seedQueue(keys), playable.slice(0, 3));
             await clearLog(page);
@@ -611,7 +621,9 @@ for (const suite of SUITES) {
             await mountProbe(mount, page, suite);
             await openArtist(page, 'local-artist');
             await waitForArtist(page, LOCAL_ALBUM_NAMES.length);
-            await expect.poll(async () => (await artistSurface(page))?.availableActions).toEqual(['play-top-songs', 'enqueue-top-songs', 'edit-entity']);
+            await expect.poll(async () => (await artistSurface(page))?.availableActions).toEqual(suite === 'tui'
+                ? ['play-top-songs', 'enqueue-top-songs', 'edit-entity']
+                : ['play-top-songs', 'shuffle-top-songs', 'enqueue-top-songs', 'edit-entity']);
             expect(await runArtistSurface(page, 'edit-entity')).toBe(true);
             await expect(page.getByRole('dialog')).toBeVisible();
         });

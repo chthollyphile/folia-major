@@ -58,6 +58,8 @@ export type ProbeCall = {
     ids: string[];
     /** playSong 的上下文队列。 */
     queueIds?: string[];
+    /** playAll：随机播放（宿主拿到的是要打乱的那批，顺序仍是原顺序）。 */
+    shuffle?: boolean;
     text?: string;
     /** statusMessage 的类型（success / info / error）；playSong 是否来自私人 FM。 */
     status?: string;

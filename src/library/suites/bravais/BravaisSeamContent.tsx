@@ -22,6 +22,7 @@ import BravaisSeamAlbumPoster from './BravaisSeamAlbumPoster';
 import { BravaisSeamFlipText } from './BravaisSeamFlip';
 import { BravaisSeamFullRow, BravaisSeamSpineRow } from './BravaisSeamRow';
 import BravaisSeamHomeRow from './BravaisSeamHomeRow';
+import BravaisSeamPlayScope from './BravaisSeamPlayScope';
 
 // src/library/suites/bravais/BravaisSeamContent.tsx
 // 缝里的四套内容（设计稿 §5）：首页窄缝（竖排「书库」+ 竖排页签）、首页书脊、完整信息条（面包屑行、竖排标题、
@@ -112,11 +113,7 @@ const FullSeam: React.FC<{ layer: BravaisLayer; depth: number; actions: BravaisS
             {seam.status && <BravaisSeamFlipText as="div" flipKey={seam.status} className="bravais-seam-status" data-bravais-seam-status>{seam.status}</BravaisSeamFlipText>}
             {collection?.status && <BravaisSeamStatusLine status={collection.status} />}
             <div className="bravais-seam-actions is-scope">
-                {seam.onPlayScope && (
-                    <button type="button" className="bravais-chrome-button is-primary" data-bravais-seam-action="play-scope" onClick={seam.onPlayScope}>
-                        <Play aria-hidden />{seam.scopeLabels?.play ?? t('libraryBravais.playAll')}
-                    </button>
-                )}
+                <BravaisSeamPlayScope seam={seam} buttonClassName="bravais-chrome-button" />
                 {seam.onEnqueueScope && (
                     <button type="button" className="bravais-chrome-button" data-bravais-seam-action="enqueue-scope" onClick={seam.onEnqueueScope}>
                         <ListPlus aria-hidden />{seam.scopeLabels?.enqueue ?? t('libraryBravais.enqueueAll')}

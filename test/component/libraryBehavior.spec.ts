@@ -2066,6 +2066,27 @@ test.describe('[bravais-only] collection page', () => {
         await waitForScope(page, publicScope());
     });
 
+    test('play all is split in two: the left half plays the scope in order, the right half shuffle-plays it', async ({ mount, page }) => {
+        await openPublic(mount, page);
+        const seam = seamOf(page);
+        const play = seam.locator('.bravais-seam-full [data-bravais-seam-action="play-scope"]').first();
+        const shuffle = seam.locator('.bravais-seam-full [data-bravais-seam-action="shuffle-scope"]').first();
+        await expect(shuffle).toHaveAccessibleName('Shuffle play');
+        await clearLog(page);
+        await play.click();
+        await expect.poll(() => calls(page, 'playAll')).toHaveLength(1);
+        expect((await lastCall(page, 'playAll'))?.shuffle).toBeUndefined();
+        const ordered = (await lastCall(page, 'playAll'))?.ids;
+        await clearLog(page);
+        await shuffle.click();
+        await expect.poll(() => calls(page, 'playAll')).toHaveLength(1);
+        // 宿主收到的是同一批歌、带着 shuffle（打乱由宿主做）；命令面板的 shuffle-play-filtered 是同一个动作。
+        expect(await lastCall(page, 'playAll')).toMatchObject({ ids: ordered, shuffle: true });
+        await clearLog(page);
+        expect(await runSurface(page, 'shuffle-play-filtered')).toBe(true);
+        expect(await lastCall(page, 'playAll')).toMatchObject({ ids: ordered, shuffle: true });
+    });
+
     test('the more menu floats above the buttons: nothing in the strip moves, and a click elsewhere or Escape closes it', async ({ mount, page }) => {
         await openPublic(mount, page);
         const seam = seamOf(page);
