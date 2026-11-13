@@ -523,7 +523,7 @@ export interface ProviderExternalPlaybackStatus {
      */
     degraded?: boolean;
     /**
-     * With `degraded`: the title and artist the coarse channel shows, where they are another song
+     * With the degraded flag: the title and artist the coarse channel shows, where they are another song
      * than the one this app asked for. That channel names no track id, so the song it holds is only
      * ever found again by these names, and the player is taken over on them or not at all.
      */

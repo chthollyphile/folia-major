@@ -822,6 +822,40 @@ describe('a start of Folia\'s whose window is open when the app moves to the son
         held.release();
     });
 
+    it('keeps the songs after it for a start further down the old queue', async () => {
+        // Songs b, c and d were written behind a. Starting b keeps c and d behind it, so the app
+        // moving on to c while that start is on its way is b ending.
+        const a = songOf('a');
+        const b = songOf('b');
+        const c = songOf('c');
+        const d = songOf('d');
+        // An app whose queue can be emptied takes all three songs in one write.
+        request.mockImplementation(async (operation: string, params?: unknown) => {
+            if (operation === 'client_play') return 'loaded';
+            if (operation === 'client_queue') {
+                const ids = (params as { ids?: string[] } | undefined)?.ids ?? [];
+                return { aborted: false, cleared: true, canClear: true, written: ids, read: ids };
+            }
+            return { available: true };
+        });
+        await spotifyClientPlayback.play!(a, 0);
+        statusOfClient(wire(id('a'), { positionMs: 10000 }));
+        await spotifyClientPlayback.prepareNext!(a, [b, c, d]);
+        await spotifyClientPlayback.prepareNext!(a, [b, c, d]);
+
+        const held = holdNextStart();
+        const start = engine.startExternalPlayback(b, 0);
+        engine.announceExternalPlayback();
+        await vi.advanceTimersByTimeAsync(0);
+        expect(held.asked()).toBe(true);
+
+        const status = statusOfClient(coarse({ title: 'Song c', artist: 'Artist' }));
+
+        expect(status.ended).toBe(true);
+        void start;
+        held.release();
+    });
+
     it('does not end a song started outside the old queue on a song that queue held next', async () => {
         // Song d is not among the songs written behind b, so nothing of b's queue follows it.
         const b = songOf('b');
