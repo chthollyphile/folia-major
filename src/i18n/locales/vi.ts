@@ -307,6 +307,7 @@ export default {
     "stageShort": "Sân khấu",
     "settings": "Cài đặt",
     "more": "Thêm",
+    "pageTools": "Công cụ trang",
     "scanProgress": "Đang quét {{percent}}%",
     "connect": "Kết nối dịch vụ trực tuyến",
     "noMatch": "Không có mục phù hợp",

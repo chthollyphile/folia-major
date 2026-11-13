@@ -1,11 +1,11 @@
 import React, { useCallback, useMemo } from 'react';
-import { ChevronLeft, FoldHorizontal, ListFilter, ListPlus, Maximize2, Play } from 'lucide-react';
+import { ChevronLeft, FoldHorizontal, ListFilter, ListPlus, Maximize2, Play, Shuffle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { BravaisLayer } from './bravaisLayer';
 import type { BravaisHomeShortcut } from './bravaisHomeModels';
 import type { BravaisSeamLevel } from './bravaisSeamLevel';
 import type { BravaisSeamContentVariant } from './bravaisSeamTarget';
-import { BravaisSeamCollectionMenu, BravaisSeamCollectionMeta, BravaisSeamMetaLine, BravaisSeamStar, BravaisSeamStatusLine } from './BravaisSeamCollection';
+import { BravaisSeamCollectionMenu, BravaisSeamCollectionMeta, BravaisSeamMetaLine, BravaisSeamStatusLine } from './BravaisSeamCollection';
 import { BravaisSeamSpineTitle, BravaisSeamTitleArea } from './BravaisSeamTitle';
 import BravaisSeamFilterField from './BravaisSeamFilterField';
 import { openBravaisFilter } from './useBravaisSeamFilter';
@@ -29,7 +29,8 @@ import BravaisSeamPlayScope from './BravaisSeamPlayScope';
 // 元数据、播放全部 / 加入队列）、书脊（返回、竖排标题、计数、播放、展开）。排版宽度由外层按「此刻渲染的这一套」定，
 // 这里只排内容。文案都来自层描述（已翻译）与 libraryBravais 的 key。界面文案：「收起」= 收成书脊，「折叠」= 折到侧边。
 // fb10：完整信息条的面包屑行只剩 ‹ 与面包屑（拿到整行宽度）；「收起」改成点标题区域（BravaisSeamTitle，书脊上点标题
-// 展开，两边一致），「折叠」挪进「⋯ 更多」的末尾；收藏星标在播放全部 / 加入队列那一行的末尾。
+// 展开，两边一致），「折叠」挪进「⋯ 更多」的末尾。方案 C（2026-11-13）：播放全部｜随机、加入队列一行，下面一排图标动作格
+// （收藏星标、列表、按优先级补上的集合动作、⋯，BravaisSeamCollectionMenu）；书脊的播放下面多一个随机播放。
 // B9：首页窄缝 / 书脊换成 BravaisSeamHome（页签、二级切换、工具按钮、管理隐藏、账户位），另有全局搜索框（search）；
 // 首页层的面板是目录树（BravaisDirectoryPanel），集合层的面板仍是歌曲列表。
 // 集合页的描述在标题下方（元数据行之后），与歌手页的「关于艺术家」共用 BravaisSeamAbout（同一套正文样式、
@@ -119,8 +120,6 @@ const FullSeam: React.FC<{ layer: BravaisLayer; depth: number; actions: BravaisS
                         <ListPlus aria-hidden />{seam.scopeLabels?.enqueue ?? t('libraryBravais.enqueueAll')}
                     </button>
                 )}
-                {/* fb10：收藏星标是这一排动作的最后一个（图标按钮，靠右），不再在描述下面单独占一行。 */}
-                {collection?.subscribe && <BravaisSeamStar subscribe={collection.subscribe} />}
             </div>
             <BravaisSeamCollectionMenu collection={collection} onOpenList={actions.openList} fold={fold} />
         </div>
@@ -156,6 +155,13 @@ const SpineSeam: React.FC<{ layer: BravaisLayer; actions: BravaisSeamActions }> 
                 <button type="button" className="bravais-seam-icon" data-bravais-seam-action="play-scope" onClick={seam.onPlayScope}
                     aria-label={seam.scopeLabels?.play ?? t('libraryBravais.playAll')} title={seam.scopeLabels?.play ?? t('libraryBravais.playAll')}>
                     <Play aria-hidden />
+                </button>
+            )}
+            {/* 随机播放只跟着播放出现（与 BravaisSeamPlayScope 的两半同一条规则）。 */}
+            {seam.onPlayScope && seam.onShuffleScope && (
+                <button type="button" className="bravais-seam-icon" data-bravais-seam-action="shuffle-scope" onClick={seam.onShuffleScope}
+                    aria-label={t('playlist.shufflePlay')} title={t('playlist.shufflePlay')}>
+                    <Shuffle aria-hidden />
                 </button>
             )}
             <button type="button" className="bravais-seam-icon" data-bravais-seam-action="expand" onClick={() => actions.setLevel('full')}

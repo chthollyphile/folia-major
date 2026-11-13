@@ -307,6 +307,7 @@ export default {
     "stageShort": "Stage",
     "settings": "Settings",
     "more": "More",
+    "pageTools": "Page tools",
     "scanProgress": "Scanning {{percent}}%",
     "connect": "Connect a streaming service",
     "noMatch": "Nothing on this page matches",

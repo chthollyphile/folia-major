@@ -307,6 +307,7 @@ export default {
     "stageShort": "舞台",
     "settings": "设置",
     "more": "更多",
+    "pageTools": "本页工具",
     "scanProgress": "扫描 {{percent}}%",
     "connect": "连接在线平台",
     "noMatch": "没有匹配的条目",

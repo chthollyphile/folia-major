@@ -4,7 +4,8 @@ import { useTranslation } from 'react-i18next';
 import { getSizedCoverUrl } from '../../../utils/coverUrl';
 import type { BravaisLayer } from './bravaisLayer';
 import type { BravaisSeamActions } from './BravaisSeamContent';
-import { BravaisSeamCollectionMenu, BravaisSeamCollectionMeta, BravaisSeamMetaLine, BravaisSeamStar, BravaisSeamStatusLine } from './BravaisSeamCollection';
+import { BravaisSeamCollectionMenu, BravaisSeamCollectionMeta, BravaisSeamMetaLine, BravaisSeamStatusLine } from './BravaisSeamCollection';
+import { BRAVAIS_POSTER_QUICK_CELL } from './bravaisSeamQuickCells';
 import BravaisSeamAbout from './BravaisSeamAbout';
 import { BravaisSeamFlipText } from './BravaisSeamFlip';
 import BravaisSeamCrumbs from './BravaisSeamCrumbs';
@@ -270,8 +271,7 @@ const BravaisSeamAlbumPoster: React.FC<{ layer: BravaisLayer; actions: BravaisSe
                                 <ListPlus aria-hidden />{seam.scopeLabels?.enqueue ?? t('libraryBravais.enqueueAll')}
                             </button>
                         )}
-                        {collection?.subscribe && <BravaisSeamStar subscribe={collection.subscribe} />}
-                        <BravaisSeamCollectionMenu collection={collection} onOpenList={actions.openList} fold={fold} />
+                        <BravaisSeamCollectionMenu collection={collection} onOpenList={actions.openList} fold={fold} cellClassName={BRAVAIS_POSTER_QUICK_CELL} />
                     </div>
                 </div>
             </div>

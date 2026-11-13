@@ -996,22 +996,20 @@ test.describe('[bravais-only] artist page wall', () => {
         await expect(stageRoot(page).locator('[data-bravais-artist-stats]')).toHaveText(stats);
         await expect(stageRoot(page).locator('[data-bravais-poster] .bravais-poster-meta')).toHaveCount(0);
         await expect(stageRoot(page).locator('[data-bravais-poster]')).not.toContainText('top songs ·');
-        // 在线歌手没有实体可编辑：「⋯ 更多」里只有重新拉取。
-        await stageRoot(page).locator('[data-bravais-seam-action="more"]').dispatchEvent('click');
-        await expect(stageRoot(page).locator('[data-bravais-seam-menu] [data-bravais-seam-action="reload"]')).toBeVisible();
-        await expect(stageRoot(page).locator('[data-bravais-seam-menu] [data-bravais-seam-action="edit-entity"]')).toHaveCount(0);
+        // 在线歌手没有实体可编辑：只有重新拉取（方案 C：海报的动作格放得下，它直接成一格，不在「⋯ 更多」里）。
+        const quick = stageRoot(page).locator('.bravais-seam-actions.is-quick');
+        await expect(quick.locator('[data-bravais-seam-action="reload"]')).toBeVisible();
+        await expect(stageRoot(page).locator('[data-bravais-seam-action="edit-entity"]')).toHaveCount(0);
         await back(page);
         await expect(artistLayer(page)).toHaveCount(0);
 
         await openArtist(page, 'local-artist');
         await waitForArtist(page, LOCAL_ALBUM_NAMES.length);
         await expect(stageRoot(page).locator('[data-bravais-seam-title]')).toHaveText(LOCAL_ARTIST_NAME);
-        // 「⋯ 更多」的展开状态留在缝里：已经开着就不再点（点一下会收起）。
-        const more = stageRoot(page).locator('[data-bravais-seam-action="more"]');
-        if (await more.getAttribute('aria-expanded') !== 'true') await more.dispatchEvent('click');
-        await expect(stageRoot(page).locator('[data-bravais-seam-menu] [data-bravais-seam-action="edit-entity"]')).toBeVisible();
-        await expect(stageRoot(page).locator('[data-bravais-seam-menu] [data-bravais-seam-action="reload"]')).toHaveCount(0);
-        await stageRoot(page).locator('[data-bravais-seam-menu] [data-bravais-seam-action="edit-entity"]').dispatchEvent('click');
+        // 本地歌手：实体信息直接成一格，没有重新拉取。
+        await expect(quick.locator('[data-bravais-seam-action="edit-entity"]')).toBeVisible();
+        await expect(stageRoot(page).locator('[data-bravais-seam-action="reload"]')).toHaveCount(0);
+        await quick.locator('[data-bravais-seam-action="edit-entity"]').dispatchEvent('click');
         await expect(page.getByRole('dialog')).toBeVisible();
     });
 });

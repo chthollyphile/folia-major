@@ -189,6 +189,7 @@ const BravaisHomeExplore: React.FC<{
             entries,
             tools,
             menuLabel: t('libraryBravaisHome.more'),
+            pageToolsLabel: t('libraryBravaisHome.pageTools'),
             scan: chrome.scan,
             search: chrome.search,
             account: accountSeam,

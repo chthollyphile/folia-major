@@ -5,7 +5,7 @@ import { useTranslation } from 'react-i18next';
 import type { BravaisLayer, BravaisSeamTab } from './bravaisLayer';
 import type { BravaisHomeShortcut } from './bravaisHomeModels';
 import type { BravaisSeamLevel } from './bravaisSeamLevel';
-import BravaisSeamHomeTools from './BravaisSeamHomeTools';
+import BravaisSeamHomeTools, { homePageLayout } from './BravaisSeamHomeTools';
 import BravaisSeamAccountSwitcher from './BravaisSeamAccountSwitcher';
 import { BravaisSeamAccountSlot, HomeSeamSections, HomeSeamShortcuts } from './BravaisSeamHome';
 import { BravaisSeamFlipText, useBravaisSeamFade } from './BravaisSeamFlip';
@@ -93,7 +93,7 @@ const BravaisSeamHomeRow: React.FC<{
     const navRef = useRef<HTMLDivElement>(null);
     const accountRef = useRef<HTMLDivElement>(null);
     const measureRef = useRef<HTMLDivElement>(null);
-    const fit = useBravaisSeamRowFit({ rowRef, navRef, accountRef, measureRef });
+    const fit = useBravaisSeamRowFit({ rowRef, navRef, accountRef, measureRef, pageCells: home ? homePageLayout(home, compact).cells : 0 });
     const short = fit.level === 'short';
     const titled = !compact && fit.level === 'titled';
     const shortcutsInRow = hasRowJumps && fit.shortcuts;
@@ -190,7 +190,7 @@ const BravaisSeamHomeRow: React.FC<{
             {home && (
                 <BravaisSeamHomeTools home={home} compact={compact} onExpand={expand}
                     menuShortcuts={rowShortcuts && !shortcutsInRow ? rowShortcuts : null} onOpenShortcut={openShortcut}
-                    menuEntries={rowEntries && !shortcutsInRow ? rowEntries : null} />
+                    menuEntries={rowEntries && !shortcutsInRow ? rowEntries : null} pageLimit={fit.pageRows} />
             )}
             {compact && (
                 <button type="button" className="bravais-seam-icon" data-bravais-seam-action="expand" onClick={expand}

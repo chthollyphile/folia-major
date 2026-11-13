@@ -307,6 +307,7 @@ export default {
     "stageShort": "Panggung",
     "settings": "Pengaturan",
     "more": "Lainnya",
+    "pageTools": "Alat halaman",
     "scanProgress": "Memindai {{percent}}%",
     "connect": "Hubungkan layanan streaming",
     "noMatch": "Tidak ada yang cocok di halaman ini",
