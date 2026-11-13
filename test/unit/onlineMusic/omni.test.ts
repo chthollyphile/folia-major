@@ -122,6 +122,21 @@ describe('omni routing', () => {
         expect(activeSearch).toHaveBeenCalledWith('query', 10, 0);
     });
 
+    it('preserves fixed explore section placement through the active-provider facade', async () => {
+        registerOnlineMusicProvider({
+            ...provider(providerId, { searchSongs: async () => ({ items: [], hasMore: false, nextOffset: 0 }) }),
+            capabilities: { ...capabilities, explore: true },
+            explore: {
+                getFeed: async () => ({ sections: [{ id: 'entry', title: 'Recommended', placement: 'first', items: [] }] }),
+            },
+        });
+        useOnlineProviderAccountStore.getState().setActiveProviderId(providerId);
+
+        await expect(omni.getExploreFeed()).resolves.toEqual({
+            sections: [{ id: 'entry', title: 'Recommended', placement: 'first', items: [] }],
+        });
+    });
+
     it('forwards normalized provider ReplayGain metadata through the audio facade', async () => {
         registerOnlineMusicProvider({
             ...provider(providerId, { searchSongs: async () => ({ items: [], hasMore: false, nextOffset: 0 }) }),

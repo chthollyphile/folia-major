@@ -2,6 +2,8 @@
 
 `src/services/onlineMusic/omni.ts` 是普通在线歌曲数据的唯一公开入口。组件、hook、store 和普通 app service 不得直接调用具体 provider、registry、transport 或 raw API；只有明确的跨 provider 编排，或 provider adapter/transport 自身，才可以使用 provider-explicit 层。
 
+探索页通用展示契约：`ProviderExploreSection.placement: 'first'` 让平台声明的入口栏保持在本机历史与记忆栏目之前；Bravais 将该栏可直达的集合固定在页签与账户之间，放在滚动区之外，短窗口和横排也不收入“更多”。`ProviderCollection.coverOverlay` 让平台提供封面标识，Explore、Grid、Lattice 与 Bravais 只负责展示，不读取平台接口。平台是否声明这些字段由各自 adapter 决定。
+
 ## Layer map
 
 ```text

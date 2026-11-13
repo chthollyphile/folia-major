@@ -4,6 +4,7 @@ import type { SongResult } from '../../../types';
 import type { OmniExploreSection, OmniProviderId } from '../../../types/onlineMusic';
 import { useExploreFeedStore } from '../../../stores/useExploreFeedStore';
 import { OWN_SECTION_IDS, listenedSongsOf } from '../home/explore/ownSections';
+import { withOwnExploreSections } from '../home/explore/exploreSectionOrder';
 import {
     buildExploreTiles,
     furtherReadsAsked,
@@ -59,7 +60,7 @@ export const useExploreWall = ({ isOn, currentSong, providerId, accountId, pageK
     accountId: string;
     /** The store's key of the page this wall shows (explorePageKey); without it, whatever page the store holds. */
     pageKey?: string | null;
-    /** The app's own sections (ownSections.ts), to stand before the page's, as the caller read them; none unless given. */
+    /** The app's own sections (ownSections.ts), after featured provider actions and before ordinary sections; none unless given. */
     ownSections?: OmniExploreSection[];
 }): ExploreWall => {
     const { t } = useTranslation();
@@ -70,7 +71,7 @@ export const useExploreWall = ({ isOn, currentSong, providerId, accountId, pageK
     const sections = feed?.sections ?? NO_SECTIONS;
     const own = isOn ? ownSections : NO_SECTIONS;
     const read = feed?.read ?? null;
-    const entries = useMemo(() => buildExploreTiles([...own, ...sections], t, OWN_SECTION_IDS), [own, sections, t]);
+    const entries = useMemo(() => buildExploreTiles(withOwnExploreSections(sections, own), t, OWN_SECTION_IDS), [own, sections, t]);
     const pageEntryCount = pageEntryCountOf(entries, OWN_SECTION_IDS);
     const further = furtherReadsOf(feed, pageEntryCount, furtherReadsAsked(counted, read));
     // The entries the wall has (`handedEntriesOf`): the page's, or the ones it was handed before

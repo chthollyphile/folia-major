@@ -66,6 +66,25 @@ describe('explore feed memory', () => {
         expect(idsOf(withoutTakenOut([card('a'), card('b'), card('c')]))).toEqual(['a', 'c']);
     });
 
+    it('keeps fixed entry sections first in provider order without discarding remembered headings', () => {
+        const storage = fakeStorage();
+        const page = 'qq:me:zh-CN';
+        inKeptOrder(page, titled('radar', 'new songs', 'charts'));
+        resetExploreMemory();
+        const first = (title: string): OmniExploreSection => ({ ...titled(title)[0], placement: 'first' });
+
+        expect(titlesOf(inKeptOrder(page, [first('recommended'), ...titled('charts', 'radar', 'new songs')]))).toEqual([
+            'recommended', 'radar', 'new songs', 'charts',
+        ]);
+        expect(titlesOf(inKeptOrder(page, [first('another entry'), first('recommended'), ...titled('new songs', 'charts', 'radar')]))).toEqual([
+            'another entry', 'recommended', 'radar', 'new songs', 'charts',
+        ]);
+        const kept = JSON.parse(storage.getItem('folia_explore_memory')!);
+        expect(kept.orders[page].map(([heading]: [string, number]) => heading)).toEqual([
+            'radar', 'new songs', 'charts', 'recommended', 'another entry',
+        ]);
+    });
+
     it('forgets the heading seen longest ago once a page has more than two hundred', () => {
         inKeptOrder('ytm:me', titled('recent', 'once'));
         vi.advanceTimersByTime(DAY_MS);

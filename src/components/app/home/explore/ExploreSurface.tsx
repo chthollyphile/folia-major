@@ -9,11 +9,12 @@ import { ExploreLight } from './ExploreLight';
 import { EXPLORE_PILL, EXPLORE_TOKENS, ExploreSections } from './ExploreSections';
 import { useExploreTilt } from './exploreTilt';
 import { OWN_SECTION_IDS, listenedSongsOf, useOwnExploreSections } from './ownSections';
+import { withOwnExploreSections } from './exploreSectionOrder';
 
 // src/components/app/home/explore/ExploreSurface.tsx
 // The explore tab of the home screen, as sections one under another. A section is the same
 // thing wherever it comes from (`OmniExploreSection`), and comes from one of two places:
-//  - the app's own sections (ownSections.ts), made of what was played here: they stand first,
+//  - the app's own sections (ownSections.ts), made of what was played here: they follow featured provider actions,
 //    are the same under every provider, and are shown whatever state the provider's page is in
 //    (being read, not read, empty), with that state under them;
 //  - the active provider's recommendation page (useExploreFeedStore, behind it the provider's
@@ -87,7 +88,7 @@ export const ExploreSurface: React.FC<ExploreSurfaceProps> = ({ providerId, acco
     // A section that holds nothing is not shown; a page of such sections is an empty page.
     const provided = (feed?.sections ?? []).filter(section => section.items.length > 0);
     const own = useOwnExploreSections(providerId, accountId);
-    const sections = own.length > 0 ? [...own, ...provided] : provided;
+    const sections = withOwnExploreSections(provided, own);
     const hasMore = Boolean(feed?.nextCursor);
     const hasSections = sections.length > 0;
     // Back where the listener left the kept page; another page starts from its top.

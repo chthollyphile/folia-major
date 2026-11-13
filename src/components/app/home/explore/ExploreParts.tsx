@@ -1,7 +1,8 @@
 import React, { useEffect, useLayoutEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowUpRight, Disc, Play } from 'lucide-react';
-import type { OmniExploreItem } from '../../../../types/onlineMusic';
+import type { OmniCollection, OmniExploreItem } from '../../../../types/onlineMusic';
+import { ExploreCoverOverlay } from './ExploreCoverOverlay';
 import { exploreScroll } from '../../../../stores/useExploreFeedStore';
 import { getSizedCoverUrl } from '../../../../utils/coverUrl';
 import { CARD_TITLE_ATTR, MORPH_SOURCE_ATTR } from '../../../collectionFlight';
@@ -56,9 +57,12 @@ export const formatDuration = (durationMs: number): string => {
 };
 
 // An entry's picture, filling its box; a disc where the entry has none.
-export const Picture: React.FC<{ url: string; size: number; className?: string }> = ({ url, size, className = '' }) => (url
-    ? <img src={getSizedCoverUrl(url, size)} alt="" loading="lazy" decoding="async" draggable={false} className={`select-none object-cover ${className}`} />
-    : <span className={`flex items-center justify-center ${className}`}><Disc size={28} className="opacity-20" /></span>);
+export const Picture: React.FC<{ url: string; size: number; className?: string; overlay?: OmniCollection['coverOverlay'] }> = ({ url, size, className = '', overlay }) => {
+    const picture = url
+        ? <img src={getSizedCoverUrl(url, size)} alt="" loading="lazy" decoding="async" draggable={false} className={`select-none object-cover ${className}`} />
+        : <span className={`flex items-center justify-center ${className}`}><Disc size={28} className="opacity-20" /></span>;
+    return overlay ? <span className={`relative block overflow-hidden [container-type:inline-size] ${className}`}>{picture}<ExploreCoverOverlay overlay={overlay} /></span> : picture;
+};
 
 // An entry's picture as it arrives: uncovered in the frame it fills (exploreMotion.ts).
 export const Uncovered: React.FC<{ arrival: Arrival; children: React.ReactNode }> = ({ arrival, children }) => (
@@ -84,11 +88,11 @@ export const DurationChip: React.FC<{ durationMs: number; className: string }> =
     ? <span className={`absolute rounded-md bg-black/70 px-1.5 py-1 font-mono text-[10px] leading-none text-white/90 ${className}`}>{formatDuration(durationMs)}</span>
     : null);
 
-// What selecting an entry does, drawn as a round button: play for a song, open for a card.
+// What selecting an entry does, drawn as a round button: play for a song or stream, open for other cards.
 // (With `explore-float` it stands over a picture that leans, and moves a little with the pointer.)
-export const ActionMark: React.FC<{ isSong: boolean; className: string; style?: React.CSSProperties }> = ({ isSong, className, style }) => (
+export const ActionMark: React.FC<{ plays: boolean; className: string; style?: React.CSSProperties }> = ({ plays, className, style }) => (
     <span className={`flex shrink-0 items-center justify-center rounded-full shadow-xl ${className}`} style={style}>
-        {isSong ? <Play size={18} fill="currentColor" className="translate-x-px" /> : <ArrowUpRight size={19} />}
+        {plays ? <Play size={18} fill="currentColor" className="translate-x-px" /> : <ArrowUpRight size={19} />}
     </span>
 );
 

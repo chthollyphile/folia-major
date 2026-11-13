@@ -1,4 +1,4 @@
-import type { OmniExploreItem } from '../../../../types/onlineMusic';
+import type { OmniCollection, OmniExploreItem } from '../../../../types/onlineMusic';
 import { getProviderCollectionArtistLabel } from '../../../../library/core/home/homeCards';
 
 // src/components/app/home/explore/exploreFace.ts
@@ -19,6 +19,7 @@ export interface Face {
     shape: 'wide' | 'square' | 'round';
     /** A song's length; 0 for a card and for a song of unknown length. */
     durationMs: number;
+    coverOverlay?: OmniCollection['coverOverlay'];
 }
 
 export const faceOf = (item: OmniExploreItem, t: (key: string) => string): Face => {
@@ -48,5 +49,6 @@ export const faceOf = (item: OmniExploreItem, t: (key: string) => string): Face 
         coverUrl,
         shape: isArtist ? 'round' : wideCoverUrl ? 'wide' : 'square',
         durationMs: 0,
+        ...(collection.coverOverlay ? { coverOverlay: collection.coverOverlay } : {}),
     };
 };

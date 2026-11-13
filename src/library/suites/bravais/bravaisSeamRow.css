@@ -319,6 +319,13 @@
 .bravais-seam-home-row .bravais-seam-shortcuts-rule { width: 1px; height: 18px; margin: 0; }
 .bravais-seam-home-row .bravais-seam-shortcuts { width: auto; flex-direction: row; align-items: center; gap: 2px; }
 
+/* 常驻推荐在横条也自占一列；长标签收窄换行，账户和工具仍保留自然宽度。 */
+.bravais-seam-home-row > .bravais-seam-home-jumps.is-pinned { min-width: 44px; flex: 0 1 auto; }
+.bravais-seam-home-row .bravais-seam-home-jumps.is-pinned .bravais-seam-shortcuts { min-width: 0; flex-direction: column; align-items: stretch; }
+.bravais-seam-home-row .bravais-seam-home-jumps.is-pinned .bravais-seam-shortcuts-wrap { min-width: 0; }
+.bravais-seam-home-row .bravais-seam-home-jumps.is-pinned .is-label { display: -webkit-box; overflow: hidden; white-space: normal; overflow-wrap: anywhere; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.bravais-seam-home-row.is-compact .bravais-seam-home-jumps.is-pinned .is-label { -webkit-line-clamp: 1; }
+
 .bravais-seam-home-row .bravais-seam-shortcut {
     padding: 6px 8px;
     border: 0;
@@ -330,6 +337,10 @@
 }
 
 .bravais-seam-home-row .bravais-seam-shortcut .is-label { font-size: 12px; font-weight: 500; white-space: nowrap; }
+/* 两条固定入口都留在横条里：完整横条 72px 容纳两行标签，52px 书脊容纳单行标签。 */
+.bravais-seam-home-row .bravais-seam-home-jumps.is-pinned .bravais-seam-shortcut { min-height: 32px; padding-block: 2px; }
+.bravais-seam-home-row .bravais-seam-home-jumps.is-pinned .is-label { line-height: 1.2; }
+.bravais-seam-home-row.is-compact .bravais-seam-home-jumps.is-pinned .bravais-seam-shortcut { min-height: 24px; padding-block: 5px; }
 .bravais-seam-home-row button.bravais-seam-shortcut:hover { color: var(--text-primary, #f7f4ee); background: color-mix(in srgb, currentColor 8%, transparent); }
 :root[data-reduce-motion~='lattice'] .bravais-seam-home-row .bravais-seam-shortcut { transition: none; }
 

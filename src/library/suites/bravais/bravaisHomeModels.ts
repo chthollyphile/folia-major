@@ -33,6 +33,10 @@ export type BravaisHomeShortcut = {
     special: LibraryHomeSpecialKind;
     /** 卡片的全名（进 aria-label / title；缝里显示的是种类的短名，平台的额外电台例外，显示它自己的名字）。 */
     label: string;
+    /** Provider wording for the visible shortcut; otherwise use the shared special-kind name. */
+    shortLabel?: string;
+    /** 常驻在页签与账户之间，空间不足时也不移入「⋯」。 */
+    pinned?: boolean;
     /** 这张卡在墙上的条目 key。 */
     itemKey: string;
     /** 点了直接播放、不进新层（私人 FM）：不记起点。 */
@@ -136,7 +140,7 @@ export type BravaisHomeSeam = {
     /** 二级切换（在线页签没有）。 */
     sections?: readonly BravaisHomeSection[];
     onSelectSection?: (key: string) => void;
-    /** 直达入口（没有特殊集合时为空）；放不下时先于二级切换让位，挪进「⋯」菜单（useBravaisSeamTabsFit）。 */
+    /** 直达入口（没有特殊集合时为空）；非 pinned 的入口放不下时先于二级切换让位，挪进「⋯」菜单（useBravaisSeamTabsFit）。 */
     shortcuts?: readonly BravaisHomeShortcut[];
     /** 直达入口那一列的读屏名（「直达」）。 */
     shortcutsLabel?: string;

@@ -622,6 +622,9 @@
 /* 上内边距 = 段间距：中段内层到页签、到入口的留白相等（中段的上内边距也是它），书脊上是 12px。 */
 .bravais-seam-shortcuts-wrap { display: flex; flex-direction: column; align-items: center; padding-top: var(--bravais-home-gap, 18px); }
 
+/* 常驻推荐独立占据导航与账户之间的一段，留白由首页段间距统一提供。 */
+.bravais-seam-home-jumps.is-pinned .bravais-seam-shortcuts-wrap { width: 100%; padding-top: 0; }
+
 .bravais-seam-shortcuts-rule {
     display: block;
     width: 18px;
