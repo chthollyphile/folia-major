@@ -188,8 +188,8 @@ describe('crossSource · each of the nine platforms taken away (the S1 gate)', (
         }
         const song = localSong();
         await expect(findAutomaticOnlineMetadataCandidate(song)).resolves.toBeNull();
-        // A stored metadata source is read, never written: the song keeps it.
-        expect(song.onlineMetadata?.source).toBe('qq');
+        // The automatic metadata match only reads the song; what the match writes back is pinned in
+        // test/unit/services/localMusicLyricsMatch.test.ts (the source it matched with, not a fixed one).
         await expect(searchOnlineMetadata('netease', 'Song Title Singer', { title: 'Song Title', artist: 'Singer', durationMs: 180_000 })).resolves.toEqual([]);
 
         // Lyric match across sources: skipped as not-enabled where it is a lyric source; the automatic pick and a
@@ -202,6 +202,28 @@ describe('crossSource · each of the nine platforms taken away (the S1 gate)', (
         await expect(searchLyricsByMatchSource(providerId, 'Song Title Singer', { title: 'Song Title', artist: 'Singer', durationMs: 180_000 })).resolves.toEqual([]);
         expect(migratePreferredLyricSource(providerId, null)).toBe(providerId);
         expect(buildLyricSourceOrder(providerId)[0]).toBe(providerId);
+    });
+
+    // 存着的首选来源缺席时，自动匹配用下一个 ready 的来源，首选的值不动；它回来后又先问它。
+    it('matches lyrics from the next ready source while the preferred one is missing, and asks the preferred one again once it is back', async () => {
+        const found = {
+            id: 777, name: 'Song Title', artists: [{ id: 1, name: 'Singer' }], album: { id: 2, name: 'Album' }, durationMs: 180_000,
+            sourceRef: { kind: 'online', providerId: 'netease', mediaId: '777' },
+        };
+        const lyrics = { lines: [{ fullText: 'Test lyric', startTime: 0, endTime: 1, words: [] }], isWordByWord: true };
+        vi.mocked(getOnlineMusicProvider('netease')!.search!.searchSongs).mockResolvedValue({ items: [found] as never, hasMore: false, nextOffset: 0 });
+        vi.mocked(getOnlineMusicProvider('netease')!.lyrics!.getLyrics).mockResolvedValue({ lyrics: lyrics as never, isPureMusic: false });
+        const preferred = 'qq';
+        takeAway('qq');
+
+        const match = await autoMatchBestLyric('Song Title', 'Singer', 180_000, { preferredSource: preferred });
+        expect(match).toMatchObject({ source: 'netease' });
+        expect(preferred).toBe('qq');
+        expect(buildLyricSourceOrder(migratePreferredLyricSource(preferred, null))[0]).toBe('qq');
+
+        registerOnlineMusicProvider(removed.get('qq')!);
+        removed.delete('qq');
+        expect(isParticipantReady('lyrics', 'qq')).toBe(true);
     });
 
     it('takes a platform back into all three features once it registers again', () => {

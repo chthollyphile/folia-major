@@ -350,7 +350,12 @@ export const createProviderAccountController = (deps: LibraryAccountControllerDe
     ): Promise<LibrarySwitchResult> => {
         if (disposed) return { status: 'declined', providerId: to, reason: 'disposed' };
         const from = activeProviderId();
-        if (to === from) return { status: 'switched', providerId: to, changed: false };
+        if (to === from) {
+            // 存的平台不在、此刻生效的是回落的那个时，明确选它要记下来：存的那个回来后不再自动切回去。
+            const chosen = accounts.getChosenProviderId?.() ?? accounts.getStoredActiveProviderId();
+            if (chosen !== to) accounts.setActiveProviderId(to);
+            return { status: 'switched', providerId: to, changed: false };
+        }
         const selection = resolveProviderSelection(findProvider(to));
         if (selection.kind === 'unavailable') return { status: 'unavailable', providerId: to, reason: selection.reason };
         log('info', 'switch', { from, to, reason });

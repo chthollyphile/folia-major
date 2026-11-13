@@ -18,7 +18,7 @@ import { participants } from './onlineMusic/crossSource';
 import type { LocalSongMetadataSource } from '../types/localLibrary';
 import { getLyricSourceAccess } from '../utils/lyrics/lyricMatchSources';
 import { getProviderSongMetadata } from './onlineMusic/songMetadata';
-import { normalizeLyricMatchMetadataCandidate } from './onlineMetadataSearchService';
+import { normalizeLyricMatchMetadataCandidate, normalizeOnlineMetadataCandidate } from './onlineMetadataSearchService';
 import {
     prepareLocalCoverBlob,
     stageLocalCoverAsset,
@@ -1458,6 +1458,13 @@ export async function matchLyrics(song: LocalSong): Promise<LyricData | null> {
         }
 
         const matchedMetadata = getProviderSongMetadata(matchedSong, source);
+        // The id the source knows the song by (a mid or a hash where it keeps one, else the song id), as the metadata dialog stores it.
+        const matchedSongId = normalizeOnlineMetadataCandidate(source, matchedSong, {
+            title: matchContext.title,
+            artist: matchContext.artist,
+            album: matchContext.album,
+            durationMs: matchContext.durationMs,
+        }).songId;
         console.log(`[LocalMusic] Found exact title match: ${matchedSong.name} by ${matchedMetadata.artists.map(artist => artist.name).join(', ')}`);
 
         // Preserve local and embedded lyrics when the configured priority keeps them first.
@@ -1468,7 +1475,7 @@ export async function matchLyrics(song: LocalSong): Promise<LyricData | null> {
             const coverUrl = matchedMetadata.coverUrl;
             await applyMatchedMetadata(song.id, {
                 source,
-                songId: matchedSong.id,
+                songId: matchedSongId,
                 title: matchedSong.name,
                 artists: matchedMetadata.artists,
                 album: matchedMetadata.album,
@@ -1499,8 +1506,8 @@ export async function matchLyrics(song: LocalSong): Promise<LyricData | null> {
 
         const coverUrl = matchedMetadata.coverUrl;
         await applyMatchedMetadata(song.id, {
-            source: 'netease',
-            songId: matchedSong.id,
+            source,
+            songId: matchedSongId,
             title: matchedSong.name,
             artists: matchedMetadata.artists,
             album: matchedMetadata.album,

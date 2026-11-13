@@ -212,6 +212,22 @@ describe('usePlaybackReporter', () => {
         expect(gate.sendPlaybackReport).not.toHaveBeenCalled();
     });
 
+    // 审查第 2 条：上报设置按音源存之后，切到别的来源的歌（或本地歌）时，上一首照旧按它自己来源的设置结算。
+    it('reports the outgoing track when the queue moves on to a song of another source, or a local one', () => {
+        render(song('1'));
+        deck.playFor(45);
+        render(song('q1', { sourceRef: { kind: 'online', providerId: 'qq', mediaId: 'q1' } }));
+        expect(gate.sendPlaybackReport).toHaveBeenCalledTimes(1);
+        expect(reportedSong(0)).toMatchObject({ id: '1' });
+
+        render(song('3'));
+        deck.playFor(50);
+        audioRef.current = createDeck();
+        render(song('local-1', { sourceRef: { kind: 'local', mediaId: 'local-1' } } as Partial<SongResult>), 'B');
+        expect(gate.sendPlaybackReport).toHaveBeenCalledTimes(2);
+        expect(reportedSong(1)).toMatchObject({ id: '3' });
+    });
+
     it('drops the listen in progress when the setting is switched off', () => {
         render(song('1'));
         deck.playFor(45);

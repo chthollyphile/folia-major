@@ -121,8 +121,13 @@ export function useSessionRestoreController({
                     return;
                 }
 
-                // Leave unsupported sessions cached for a build that registers their provider.
-                if (!isRestoredSongPlayable(lastSong)) return;
+                // The remembered song's own platform may be missing now (not registered, turned off): the session
+                // is restored all the same - the song current and paused, shown as one that cannot be played, and
+                // the queue around it - so that the next save does not write the queue over with a shorter one.
+                // Its audio is not fetched; it plays once its platform is back (Folium 2.0 plan §2 item 3, §12 item 2).
+                const lastSongSourceMissing = isSongSourceMissing(lastSong);
+                // Leave other unsupported sessions cached for a build that can play them.
+                if (!isRestoredSongPlayable(lastSong) && !lastSongSourceMissing) return;
                 // A song whose platform is missing now (not registered, turned off) stays in the queue, shown as
                 // one that cannot be played, and plays again once its platform is back: it is not taken out, so
                 // the next save of the queue does not lose it. A song its platform is there and cannot play is.
@@ -176,6 +181,11 @@ export function useSessionRestoreController({
                     reportYieldedQueue({ queue: rememberedQueue, song: lastSong });
                 } else {
                     setPlayQueue(rememberedQueue);
+                }
+
+                if (lastSongSourceMissing) {
+                    console.info(`[Session] The last song's platform is not there; it is restored paused, without its audio: ${lastSong.name}`);
+                    return;
                 }
 
                 // Read at restore time rather than subscribed: this effect runs once, and the

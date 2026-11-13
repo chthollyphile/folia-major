@@ -74,7 +74,7 @@ export const PLATFORM_NAME_PLACES: Record<string, PlatformNamePlace> = {
     'src/mods/folium/lyricsSource.ts': { n: { netease: 1 }, kind: 'doc' },
     'src/services/automix/trackProfile.ts': { n: { spotify: 1 }, kind: 'doc' },
     'src/services/localLibraryV8Migration.ts': { n: { netease: 3, qq: 1, kugou: 1 }, kind: 'stored', why: 'a migration of stored values' },
-    'src/services/localMusicService.ts': { n: { netease: 2 }, kind: 'lyric', why: 'a local song\'s lyric match searches one source and stores its id' },
+    'src/services/localMusicService.ts': { n: { netease: 1 }, kind: 'lyric', why: 'a local song\'s lyric match searches one source and stores its id' },
     'src/services/lyricExport/collectOnlineLyrics.ts': { n: { netease: 4, qq: 1 }, kind: 'stored', why: 'cache keys from before the keys carried a platform' },
     'src/services/lyricExport/lyricCacheMetadata.ts': { n: { qq: 2 }, kind: 'doc' },
     'src/services/lyricExport/resolveExportMetadata.ts': { n: { qq: 1 }, kind: 'doc' },

@@ -506,6 +506,26 @@ describe('restoring the last session and the current song', () => {
         expect(refs.currentSongRef.current).toBe('online:bodian:x1');
     });
 
+    // 审查第 3 条：上次在放的那首自己的音源不在时，会话照样恢复（停着、不取音频），队列不丢。
+    it('restores the session around a remembered song whose platform is missing, paused and without fetching its audio', async () => {
+        const { refs, watch, setLyrics } = watchWithRefs();
+        useAudioSettingsStore.setState({ autoPlayOnLaunch: true });
+        const goneSong: SongResult = { ...onlineSong, id: 'g1', name: 'G', sourceRef: { kind: 'online', providerId: 'gone-source', mediaId: 'g1' } };
+        const restore = restoreLastSession(refs, setLyrics);
+        env.cache.set('last_song', goneSong);
+        env.cache.set('last_queue', [onlineSong, goneSong, otherSong]);
+        vi.spyOn(console, 'info').mockImplementation(() => {});
+
+        restore();
+        await settle();
+
+        expect(refs.currentSongRef.current).toBe('online:gone-source:g1');
+        expect(usePlaybackStore.getState().playQueue.map(song => song.id)).toEqual(['x1', 'g1', 'y1']);
+        expect(watch.take().some(line => line.includes('wait audio source'))).toBe(false);
+        expect(usePlaybackStore.getState().audioSrc).toBeNull();
+        expect(refs.shouldAutoPlay.current).toBe(false);
+    });
+
     it('makes the remembered song current, so the online recovery takes a fresh address for it', async () => {
         const { refs, watch, setLyrics } = watchWithRefs();
         restoreLastSession(refs, setLyrics)();

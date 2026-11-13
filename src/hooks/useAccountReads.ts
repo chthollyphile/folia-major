@@ -31,8 +31,9 @@ export const useAccountReads = () => {
     const atHome = isHome && !hasCollection;
 
     useEffect(() => {
-        // A platform that registers after the app started (a source that loads late, one turned on again) has its
-        // account read then, once, as the ones there at the start had theirs.
+        // A platform that registers after the app started (a source that loads late) has its account read then,
+        // once, as the ones there at the start had theirs. One taken away and registered again in the same run is
+        // not read again here (S2's per-source switch has to decide what turning one on again reads).
         const read = new Set<string>();
         const readNew = () => {
             omni.getProviderSummaries().forEach(provider => {

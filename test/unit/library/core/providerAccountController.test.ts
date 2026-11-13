@@ -109,6 +109,7 @@ const createAccounts = (stored: OnlineProviderId = 'alpha', extra: ProviderAccou
         listProviders: () => providers.map(provider => ({ ...provider, availability: { ...provider.availability } })),
         getProviderLabel: providerId => providers.find(p => p.providerId === providerId)?.shortName ?? providerId,
         getStoredActiveProviderId: () => storedId,
+        getChosenProviderId: () => storedId,
         setActiveProviderId: providerId => {
             storedId = providerId;
             ops.push(['set-active', providerId]);
@@ -723,6 +724,26 @@ describe('providerAccountController · active provider and snapshot', () => {
 
         accounts.add(summary('alpha', { status: 'authenticated' }));
         expect(controller.getSnapshot().activeProviderId).toBe('alpha');
+        expect(ops.filter(([op]) => op === 'set-active')).toEqual([]);
+    });
+
+    // 审查第 4 条：回落期间明确选回此刻生效的平台，要把这个选择存下来。
+    it('stores an explicit choice of the provider in effect while the stored one is missing, so that it stands when the stored one returns', async () => {
+        accounts = createAccounts('vanished');
+        const controller = createController();
+        expect(controller.getSnapshot().activeProviderId).toBe('netease');
+
+        await expect(controller.requestSwitch('netease')).resolves.toMatchObject({ status: 'switched', providerId: 'netease', changed: false });
+        expect(accounts.stored()).toBe('netease');
+        expect(cleanup).not.toHaveBeenCalled();
+
+        accounts.add(summary('vanished', { status: 'authenticated' }));
+        expect(controller.getSnapshot().activeProviderId).toBe('netease');
+    });
+
+    it('stores nothing when the provider asked for is already the chosen one in effect', async () => {
+        const controller = createController();
+        await controller.requestSwitch('alpha');
         expect(ops.filter(([op]) => op === 'set-active')).toEqual([]);
     });
 

@@ -441,7 +441,8 @@ async function matchUnderArtist(
         lyrics: ownLyrics,
         keepOwn: options.keepOwnWordTiming !== false,
     })) {
-        const first = searchOrder[0];
+        // The first source in the order that is on offer (one that is missing is passed over).
+        const first = searchOrder.find(source => source === providerCandidate.providerId || isLyricMatchSourceOffered(source));
         if (first && first !== providerCandidate.providerId && !getLyricSource(first)?.linesOnly) {
             const preferred = await trySource(first);
             // Its lines, or a pure-music verdict, do not outweigh the words the song has.
