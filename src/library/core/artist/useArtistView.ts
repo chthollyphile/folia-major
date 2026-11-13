@@ -117,6 +117,11 @@ export const useArtistView = ({
             const songs = latest.current.playableTopSongs;
             if (songs.length > 0) latest.current.playback.playAll(songs);
         },
+        /** 随机播放可播放的热门歌曲：打乱后成为队列（宿主负责打乱）。 */
+        shuffleScope: () => {
+            const songs = latest.current.playableTopSongs;
+            if (songs.length > 0) latest.current.playback.playAll(songs, { shuffle: true });
+        },
         /** 静默整批入队热门歌曲，歌手页自己报队列实际收下的条数；返回那个条数。 */
         enqueueScope: (): number => addArtistTopSongsToQueue({
             songs: latest.current.topSongs,
@@ -160,6 +165,7 @@ export const useArtistView = ({
         if (!surfaceState().availableActions.includes(action)) return false;
         switch (action) {
             case 'play-top-songs': actions.playScope(); return true;
+            case 'shuffle-top-songs': actions.shuffleScope(); return true;
             case 'enqueue-top-songs': actions.enqueueScope(); return true;
             case 'reload': actions.reload(); return true;
             case 'retry-albums': actions.retryAlbums(); return true;

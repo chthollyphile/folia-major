@@ -86,7 +86,8 @@ export interface LibraryHomeData {
     /** `source`: what the wall shows (the app's LatticeSource in stores/useAppViewStore); the play queue when left out. */
     onOpenLattice?: (source?: 'queue' | 'explore') => void;
     navidromeEnabled?: boolean;
-    onPlayAll?: (songs: SongResult[], from?: GridViewCollectionDescriptor) => void;
+    /** `options.shuffle`：随机播放，这批歌打乱后再成为队列。 */
+    onPlayAll?: (songs: SongResult[], from?: GridViewCollectionDescriptor, options?: { shuffle?: boolean }) => void;
     onAddAllToQueue?: (songs: SongResult[], options?: { suppressToast?: boolean }) => number | void;
     onAddSongToQueue?: (song: SongResult) => void;
     onStatusMessage?: (message: StatusMessage) => void;

@@ -373,6 +373,9 @@
 /* 工具格排成一行；「⋯」菜单从工具格弹出（层级高于账户入口）。 */
 .bravais-seam-home-row > .bravais-seam-dock { z-index: 4; width: auto; flex-direction: row; align-items: center; gap: 10px; }
 .bravais-seam-home-row .bravais-seam-tools { display: flex; gap: 6px; }
+/* 本页一组（方案 C）在一行里排在工具格前面，细线竖过来。 */
+.bravais-seam-home-row .bravais-seam-tools.is-page { margin: 0 9px 0 0 !important; }
+.bravais-seam-home-row .bravais-seam-tools.is-page::after { top: 8px; right: -10px; bottom: 8px; left: auto; width: 1px; height: auto; }
 .bravais-seam-home-row .bravais-seam-tools .bravais-seam-icon { width: 38px; height: 38px; }
 .bravais-seam-home-row.is-compact .bravais-seam-tools .bravais-seam-icon { width: 34px; height: 34px; }
 .bravais-seam-home-row .bravais-seam-tools .bravais-seam-icon.is-wide { width: auto; padding: 0 10px; }

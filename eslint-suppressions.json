@@ -12032,7 +12032,7 @@
   },
   "test/component/libraryBehavior.spec.ts": {
     "@stylistic/indent": {
-      "count": 662
+      "count": 660
     }
   },
   "test/component/monetPortraitImage.spec.ts": {

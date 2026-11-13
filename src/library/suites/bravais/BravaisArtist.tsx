@@ -138,6 +138,7 @@ const BravaisArtist: React.FC<LibraryArtistSurfaceProps> = ({
 
     const { capabilities, offers } = view;
     const playScopeEnabled = offers('play-scope') && capabilities['play-scope'].enabled;
+    const shuffleScopeEnabled = offers('shuffle-scope') && capabilities['shuffle-scope'].enabled;
     const enqueueScopeEnabled = offers('enqueue-scope') && capabilities['enqueue-scope'].enabled;
     // #918：不可用（详情没到、热门之外没有歌）时不给，与播放 / 入队按钮一样。
     const allSongsEnabled = offers('open-all-songs') && capabilities['open-all-songs'].enabled;
@@ -152,13 +153,14 @@ const BravaisArtist: React.FC<LibraryArtistSurfaceProps> = ({
         crumb: title,
         meta,
         onPlayScope: playScopeEnabled ? callbacks.onPlayScope : undefined,
+        onShuffleScope: shuffleScopeEnabled ? callbacks.onShuffleScope : undefined,
         onEnqueueScope: enqueueScopeEnabled ? callbacks.onEnqueueScope : undefined,
         onOpenAllSongs: allSongsEnabled ? openAllSongs : undefined,
         scopeLabels,
         filter: seamFilter,
         collection: seamCollection,
         artist: seamArtist,
-    }), [allSongsEnabled, callbacks, enqueueScopeEnabled, meta, openAllSongs, playScopeEnabled, scopeLabels, seamArtist, seamCollection, seamFilter, title]);
+    }), [allSongsEnabled, callbacks, enqueueScopeEnabled, meta, openAllSongs, playScopeEnabled, scopeLabels, seamArtist, seamCollection, seamFilter, shuffleScopeEnabled, title]);
 
     const mode = isFilterActive ? 'finite' : 'infinite';
     const layer = useMemo<BravaisLayer>(() => ({

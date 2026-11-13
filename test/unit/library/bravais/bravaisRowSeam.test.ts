@@ -195,16 +195,27 @@ describe('home row fit (horizontal home strip)', () => {
     const fit = (available: number, extras = 0) => resolveSeamRowFit({ available, extras, nav, account });
 
     it('gives way in the same order as the vertical strip, the account name before the tab names', () => {
-        expect(fit(900)).toEqual({ level: 'titled', shortcuts: true, accountCompact: false, overflowing: false });
-        expect(fit(800)).toEqual({ level: 'untitled', shortcuts: true, accountCompact: false, overflowing: false });
-        expect(fit(650)).toEqual({ level: 'untitled', shortcuts: false, accountCompact: false, overflowing: false });
-        expect(fit(500)).toEqual({ level: 'untitled', shortcuts: false, accountCompact: true, overflowing: false });
-        expect(fit(300)).toEqual({ level: 'short', shortcuts: false, accountCompact: true, overflowing: false });
+        expect(fit(900)).toEqual({ level: 'titled', shortcuts: true, accountCompact: false, pageRows: 0, overflowing: false });
+        expect(fit(800)).toEqual({ level: 'untitled', shortcuts: true, accountCompact: false, pageRows: 0, overflowing: false });
+        expect(fit(650)).toEqual({ level: 'untitled', shortcuts: false, accountCompact: false, pageRows: 0, overflowing: false });
+        expect(fit(500)).toEqual({ level: 'untitled', shortcuts: false, accountCompact: true, pageRows: 0, overflowing: false });
+        expect(fit(300)).toEqual({ level: 'short', shortcuts: false, accountCompact: true, pageRows: 0, overflowing: false });
     });
 
     it('scrolls the nav only when even single-character tabs do not fit', () => {
         expect(fit(200).overflowing).toBe(true);
         expect(fit(300, 80).overflowing).toBe(true);
+    });
+
+    it('gives the page tools way one cell at a time after the account name and before the tab names', () => {
+        // 本页一组 0 / 1 / 2 格占的宽。
+        const pageWidths = [0, 57, 101];
+        const withPage = (available: number) => resolveSeamRowFit({ available, extras: 0, nav, account, pageWidths });
+        expect(withPage(1001)).toMatchObject({ level: 'titled', accountCompact: false, pageRows: 2 });
+        expect(withPage(500 + 101)).toMatchObject({ level: 'untitled', shortcuts: false, accountCompact: true, pageRows: 2 });
+        expect(withPage(500 + 57)).toMatchObject({ level: 'untitled', accountCompact: true, pageRows: 1 });
+        expect(withPage(500)).toMatchObject({ level: 'untitled', accountCompact: true, pageRows: 0 });
+        expect(withPage(300)).toMatchObject({ level: 'short', pageRows: 0 });
     });
 
     it('counts nothing for a missing account', () => {

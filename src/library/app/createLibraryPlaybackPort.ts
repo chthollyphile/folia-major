@@ -23,7 +23,7 @@ type PlaybackSurface = Pick<
 
 export const createLibraryPlaybackPort = (surface: PlaybackSurface): LibraryPlaybackPort => ({
     playTrack: (track, queue) => surface.onPlaySong(track, queue),
-    playAll: tracks => surface.onPlayAll?.(tracks),
+    playAll: (tracks, options) => surface.onPlayAll?.(tracks, undefined, options),
     // 单曲入队按来源分流：本地歌交给本地队列，Navidrome 歌交出它的播放载体，其余走在线入队。
     enqueueTrack: (track: SongResult) => {
         const unifiedTrack = track as UnifiedSong;

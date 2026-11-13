@@ -1,4 +1,4 @@
-import { ListMusic, ListPlus, Play, RefreshCw, RotateCcw, SquarePen } from 'lucide-react';
+import { ListMusic, ListPlus, Play, RefreshCw, RotateCcw, Shuffle, SquarePen } from 'lucide-react';
 import { createArtistSurfaceCommand } from '../commandFactories';
 import type { CommandPaletteCommand } from '../types';
 
@@ -18,6 +18,14 @@ export const artistCommands: CommandPaletteCommand[] = [
         ['play artist', 'play popular', '播放热门', '播放歌手'],
         'play-top-songs',
         Play,
+    ),
+    createArtistSurfaceCommand(
+        'artist-shuffle-top-songs',
+        'Shuffle play top songs',
+        "Make the artist's playable top songs the play queue in shuffled order",
+        ['shuffle artist', 'shuffle popular', 'random', '随机播放热门', '随机播放歌手', '打乱播放'],
+        'shuffle-top-songs',
+        Shuffle,
     ),
     createArtistSurfaceCommand(
         'artist-enqueue-top-songs',
