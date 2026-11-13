@@ -3,7 +3,7 @@ import { isModsBridgeAvailable, listMods } from '../ipc';
 import type { FoliumClientApi, FoliumClientModule, FoliumContextKind, FoliumDisposer } from '../folium/contract';
 import { announceFoliumSlowStart, clearFoliumIssues, reportFoliumFault } from './status';
 import { removeFoliumEventHandlers } from '../folium/events';
-import { callFoliumMod, timeFoliumMod } from './guard';
+import { callFoliumMod, markFoliumSourceMod, timeFoliumMod } from './guard';
 import { clearFoliumOldNames } from '../folium/deprecated/warnings';
 
 // src/mods/runtime/clientLoader.ts
@@ -27,6 +27,12 @@ import { clearFoliumOldNames } from '../folium/deprecated/warnings';
 // of late starts (onFoliumClientStarted) is told. A start that throws, in time
 // or late, is the failure. One that throws after its mod was stopped (disabled,
 // or replaced by newer code) is nobody's: it is logged and not counted.
+//
+// Folium 2.0 (plan §5.2, §5.4): the source mods' clients (`kind: 'source'`) start as a group of their own,
+// together and before every other client, which still start one by one in load order. The first main-window
+// reconcile's group is what `foliumSourceClientsSettled` waits for (the first screen gives it 3 s of its own,
+// mainWindowStart.ts). A source mod's client never starts in the export window, and no client starts in a
+// context its manifest's `contexts` leave out.
 //
 // The client API — and through it every registry adapter and the host
 // registries they wire into (all background types, settings panels, icons…) —
@@ -69,6 +75,12 @@ let queue: Promise<void> = Promise.resolve();
 let latestMainModList: readonly ModRuntimeInfo[] | null = null;
 const modListListeners = new Set<() => void>();
 let experimentalPromise: Promise<typeof import('../folium/experimental')> | null = null;
+// The first main-window reconcile's source group, started or past its limit; settled at once without a bridge.
+let markSourceClientsSettled: () => void = () => {};
+const sourceClientsSettled = new Promise<void>((resolve) => {
+    markSourceClientsSettled = resolve;
+});
+let sourceGroupReported = false;
 let apiPromise: Promise<typeof import('../folium/api')> | null = null;
 
 const loadApi = () => {
@@ -160,6 +172,8 @@ const activate = async (mod: ModRuntimeInfo, url: string, context: FoliumContext
     // Folium 1.6 only: the old names its last start used (folium/deprecated/).
     clearFoliumOldNames(mod.id);
     modNames.set(mod.id, mod.name);
+    // Folium 2.0: a source mod's hot-path members skip the gate (guard.ts callFoliumSourceMember).
+    markFoliumSourceMod(mod.id, isFoliumSourceMod(mod));
     // Record first so a failed activation still gets torn down (partial registrations).
     const record: ActiveClient = { url, dispose: null, stopped: false, releases: [] };
     activeClients.set(mod.id, record);
@@ -225,6 +239,7 @@ export const reconcileFoliumClients = (mods: ModRuntimeInfo[], context: FoliumCo
         const desired = new Map(
             mods
                 .filter((mod) => mod.status === 'loaded' && typeof mod.clientUrl === 'string' && mod.clientUrl)
+                .filter((mod) => startsIn(mod, context))
                 .map((mod) => [mod.id, mod] as const),
         );
         for (const [modId, active] of Array.from(activeClients.entries())) {
@@ -239,7 +254,14 @@ export const reconcileFoliumClients = (mods: ModRuntimeInfo[], context: FoliumCo
                 (left.loadOrder ?? Number.MAX_SAFE_INTEGER) - (right.loadOrder ?? Number.MAX_SAFE_INTEGER)
                 || left.id.localeCompare(right.id)
             ));
-        for (const mod of pending) {
+        // The source group first, all together; then every other client in turn.
+        const sources = pending.filter(isFoliumSourceMod);
+        await Promise.all(sources.map((mod) => activate(mod, mod.clientUrl as string, context)));
+        if (context === 'main' && !sourceGroupReported) {
+            sourceGroupReported = true;
+            markSourceClientsSettled();
+        }
+        for (const mod of pending.filter((candidate) => !isFoliumSourceMod(candidate))) {
             await activate(mod, mod.clientUrl as string, context);
         }
     };
@@ -253,14 +275,38 @@ export const reconcileFoliumClients = (mods: ModRuntimeInfo[], context: FoliumCo
  * before the app renders, so a saved mod visualizer mode can be restored.
  */
 export const initFoliumClients = async (): Promise<void> => {
-    if (!isModsBridgeAvailable()) return;
+    if (!isModsBridgeAvailable()) {
+        markSourceClientsSettled();
+        return;
+    }
     try {
         const { mods } = await listMods();
         await reconcileFoliumClients(mods, 'main');
     } catch (error) {
         console.warn('[Folium] client bootstrap failed', error);
+    } finally {
+        // A bootstrap that failed before its source group ran leaves nothing to wait for.
+        markSourceClientsSettled();
     }
 };
+
+/** A source mod (Folium 2.0, `folium: 2` with `sources`): its client is in the source group. */
+export const isFoliumSourceMod = (mod: Pick<ModRuntimeInfo, 'kind'>): boolean => mod.kind === 'source';
+
+/*
+ * Whether `mod`'s client starts in `context`: never a source mod's in the export window (plan §5.2), and never
+ * in a context its manifest `contexts` leave out. Without `contexts`, everywhere, as in Folium 1.
+ */
+export const startsIn = (mod: Pick<ModRuntimeInfo, 'kind' | 'contexts'>, context: FoliumContextKind): boolean => {
+    if (context === 'export' && isFoliumSourceMod(mod)) return false;
+    return !Array.isArray(mod.contexts) || mod.contexts.includes(context);
+};
+
+/**
+ * Resolves once the first main-window reconcile has started its source group (each client in time or past its
+ * own 5 s limit), or at once where there are no mods. No cap of its own: the first screen puts one on it.
+ */
+export const foliumSourceClientsSettled = (): Promise<void> => sourceClientsSettled;
 
 /**
  * Calls `listener` each time a client's start has ended (its `activate` returned or failed),

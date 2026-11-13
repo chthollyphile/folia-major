@@ -1,6 +1,6 @@
 import React from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { CheckSquare, ChevronDown, CircleCheck, CircleOff, FlaskConical, ShieldAlert, ShieldCheck, ShieldQuestion, Square, TriangleAlert } from 'lucide-react';
+import { CheckSquare, ChevronDown, CircleCheck, CircleOff, FlaskConical, Package, ShieldAlert, ShieldCheck, ShieldQuestion, Square, TriangleAlert } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { Theme } from '@/types';
 import { SettingsToggle } from '../../components/modal/settings/SettingsRow';
@@ -51,6 +51,14 @@ const platformGrantsOf = (mod: ModRuntimeInfo, access: 'read' | 'write'): string
 const SignatureBadge: React.FC<{ mod: ModRuntimeInfo; isDaylight: boolean }> = ({ mod, isDaylight }) => {
     const { t } = useTranslation();
     const { status } = mod.signature;
+    // Folium 2.0: a built-in copy carries no signature; the installation vouches for it (plan §5.2).
+    if (status === 'builtin') {
+        return (
+            <span title={t('mods.signatureBuiltin')} className={`shrink-0 ${isDaylight ? 'text-sky-700' : 'text-sky-300'}`}>
+                <Package size={14} />
+            </span>
+        );
+    }
     if (status === 'verified') {
         return (
             <span title={t('mods.signatureVerified')} className={`shrink-0 ${isDaylight ? 'text-emerald-600' : 'text-emerald-300'}`}>
@@ -79,6 +87,18 @@ const SignatureBadge: React.FC<{ mod: ModRuntimeInfo; isDaylight: boolean }> = (
 const SignatureNotice: React.FC<{ mod: ModRuntimeInfo; isDaylight: boolean; classes: ModManagerClasses }> = ({ mod, isDaylight, classes }) => {
     const { t } = useTranslation();
     const { status, reason, keyId, keyLabel } = mod.signature;
+    if (status === 'builtin') {
+        return (
+            <div className={`flex items-start gap-2 text-xs rounded-lg border px-3 py-2 ${classes.success}`}>
+                <Package size={14} className="mt-px shrink-0" />
+                <span>
+                    <span className="font-medium">{t('mods.signatureBuiltin')}</span>
+                    {' · '}
+                    {t('mods.signatureBuiltinDetail')}
+                </span>
+            </div>
+        );
+    }
     if (status === 'verified') {
         return (
             <div className={`flex items-start gap-2 text-xs rounded-lg border px-3 py-2 ${classes.success}`}>
@@ -210,6 +230,11 @@ export const ModListItem: React.FC<ModListItemProps> = ({
                     <div className="flex items-center gap-1.5 min-w-0">
                         <span className="text-sm font-medium truncate" style={{ color: 'var(--text-primary)' }}>{mod.name}</span>
                         <SignatureBadge mod={mod} isDaylight={isDaylight} />
+                        {mod.kind === 'source' ? (
+                            <span className="shrink-0 text-[10px] px-1.5 py-px rounded-full border opacity-70" style={{ color: 'var(--text-secondary)' }}>
+                                {t('mods.kindSource')}
+                            </span>
+                        ) : null}
                         {isModSlow(runningCost) ? <ModSlowMark isDaylight={isDaylight} /> : null}
                     </div>
                     <div className="text-[11px] opacity-50 truncate" style={{ color: 'var(--text-secondary)' }}>{meta}</div>

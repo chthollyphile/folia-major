@@ -1,6 +1,6 @@
 import type { ProviderAvailability } from '../../types/onlineMusic';
 import { getOnlineMusicProvider, listOnlineMusicProviders } from './providerRegistry';
-import { isSourceEnabled } from './sourceReadiness';
+import { isSourceEnabled, isSourceMatchingOnly } from './sourceReadiness';
 import { useOnlineProviderAccountStore, type OnlineProviderAccountState } from '../../stores/useOnlineProviderAccountStore';
 import { LYRIC_SOURCES } from '../../utils/lyrics/lyricSources';
 
@@ -14,6 +14,10 @@ import { LYRIC_SOURCES } from '../../utils/lyrics/lyricSources';
 // | the source now                                              | then                                  |
 // | ----------------------------------------------------------- | ------------------------------------- |
 // | not enabled: not registered, turned off, failed to start    | skipped, `not-enabled`                |
+// | used only for matching (§5.3), the lyric or metadata match, | takes part, anonymously: its account  |
+// |   and the feature needs no account there                    |   is never read                       |
+// | used only for matching, anything else (the federated search, | skipped, `matching-only`             |
+// |   or a feature that needs an account there)                 |                                       |
 // | its getAvailability says not configured / runtime-unavailable | skipped, for that reason            |
 // | the feature needs an account there and none is signed in    | skipped, `needs-account`              |
 // | otherwise (anonymous use, or signed in)                     | ready                                 |
@@ -26,13 +30,13 @@ import { LYRIC_SOURCES } from '../../utils/lyrics/lyricSources';
 // `declaredParticipants` (the lyric source registry's needsAccount / needsConfiguredProvider / metadataMatch,
 // the account rule of the federated search). In S3 it is read from
 // the sources' capabilities (`access` of search@1 / songs@1 / lyrics@1, `lyrics@1.crossSource`,
-// `songs@1.metadataMatch`), and "enabled" from S2's per-source switch (sourceReadiness.isSourceEnabled);
-// callers do not change.
+// `songs@1.metadataMatch`); "enabled" and "used only for matching" are S2's per-source switch
+// (sourceReadiness.isSourceEnabled / isSourceMatchingOnly, from the main process's state table). Callers do not change.
 
 export type CrossSourceFeature = 'search' | 'metadata' | 'lyrics';
 /** Whether a source does the feature with no one signed in ('anonymous') or only with an account ('account'). */
 export type CrossSourceAccess = 'anonymous' | 'account';
-export type CrossSourceSkipReason = 'not-enabled' | 'not-configured' | 'runtime-unavailable' | 'needs-account';
+export type CrossSourceSkipReason = 'not-enabled' | 'not-configured' | 'runtime-unavailable' | 'needs-account' | 'matching-only';
 
 export interface CrossSourceDeclaration {
     sourceId: string;
@@ -46,6 +50,8 @@ export interface CrossSourceDeclaration {
 /** What is known of one source at the moment of asking. */
 export interface CrossSourceState {
     enabled: boolean;
+    /** Registered and used only for matching (plan §5.3); `enabled` is then false. */
+    matchingOnly?: boolean;
     availability: ProviderAvailability;
     signedIn: boolean;
 }
@@ -68,6 +74,7 @@ const READY_STATE: CrossSourceState = { enabled: true, availability: { configure
 export const resolveParticipants = (
     declarations: readonly CrossSourceDeclaration[],
     stateOf: (declaration: CrossSourceDeclaration) => CrossSourceState,
+    feature: CrossSourceFeature = 'lyrics',
 ): CrossSourceParticipants => {
     const ready: string[] = [];
     const skipped: CrossSourceSkip[] = [];
@@ -76,13 +83,13 @@ export const resolveParticipants = (
         if (seen.has(declaration.sourceId)) continue;
         seen.add(declaration.sourceId);
         const state = declaration.hostOwned ? READY_STATE : stateOf(declaration);
-        const reason: CrossSourceSkipReason | null = !state.enabled
-            ? 'not-enabled'
-            : declaration.checksAvailability && !state.availability.configured
-                ? state.availability.reason ?? 'not-configured'
-                : declaration.access === 'account' && !state.signedIn
-                    ? 'needs-account'
-                    : null;
+        // Used only for matching: the lyric and metadata match with no account, and nothing else.
+        const matchingOnly = !state.enabled && Boolean(state.matchingOnly);
+        let reason: CrossSourceSkipReason | null = null;
+        if (!state.enabled && !matchingOnly) reason = 'not-enabled';
+        else if (matchingOnly && (feature === 'search' || declaration.access === 'account')) reason = 'matching-only';
+        else if (declaration.checksAvailability && !state.availability.configured) reason = state.availability.reason ?? 'not-configured';
+        else if (declaration.access === 'account' && !state.signedIn) reason = 'needs-account';
         if (reason) skipped.push({ sourceId: declaration.sourceId, reason });
         else ready.push(declaration.sourceId);
     }
@@ -122,10 +129,13 @@ const liveState = (feature: CrossSourceFeature, sourceId: string): CrossSourceSt
     const provider = getOnlineMusicProvider(sourceId);
     // A platform nobody has signed in to has no entry.
     const account = useOnlineProviderAccountStore.getState().accounts[sourceId] as OnlineProviderAccountState | undefined;
+    const matchingOnly = isSourceMatchingOnly(sourceId);
     return {
         enabled: isSourceEnabled(sourceId),
+        matchingOnly,
         availability: provider?.getAvailability?.() ?? { configured: true },
-        signedIn: feature === 'search' ? account?.status === 'authenticated' : Boolean(account?.user),
+        // A source used only for matching counts as signed out: its account is not read (plan §5.3).
+        signedIn: !matchingOnly && (feature === 'search' ? account?.status === 'authenticated' : Boolean(account?.user)),
     };
 };
 
@@ -137,7 +147,7 @@ export const participants = (
     feature: CrossSourceFeature,
     options: { report?: boolean } = {},
 ): CrossSourceParticipants => {
-    const result = resolveParticipants(declaredParticipants(feature), declaration => liveState(feature, declaration.sourceId));
+    const result = resolveParticipants(declaredParticipants(feature), declaration => liveState(feature, declaration.sourceId), feature);
     if (options.report) {
         result.skipped.forEach(({ sourceId, reason }) => console.info(`[crossSource] ${feature}: ${sourceId} skipped (${reason})`));
     }
@@ -148,12 +158,12 @@ export const participants = (
 export const isParticipantReady = (feature: CrossSourceFeature, sourceId: string): boolean => {
     const declaration = declaredParticipants(feature).find(candidate => candidate.sourceId === sourceId);
     if (!declaration) return false;
-    return resolveParticipants([declaration], () => liveState(feature, sourceId)).ready.length === 1;
+    return resolveParticipants([declaration], () => liveState(feature, sourceId), feature).ready.length === 1;
 };
 
 /** Why `sourceId` is left out of `feature` now; null while it takes part, or where it is not declared for it. */
 export const participantSkipReason = (feature: CrossSourceFeature, sourceId: string): CrossSourceSkipReason | null => {
     const declaration = declaredParticipants(feature).find(candidate => candidate.sourceId === sourceId);
     if (!declaration) return null;
-    return resolveParticipants([declaration], () => liveState(feature, sourceId)).skipped[0]?.reason ?? null;
+    return resolveParticipants([declaration], () => liveState(feature, sourceId), feature).skipped[0]?.reason ?? null;
 };

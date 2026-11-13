@@ -1,7 +1,8 @@
 import type { SongResult, UnifiedSong } from '../../types';
 import type { ProviderSongAvailability, ProviderSongReplacement } from '../../types/onlineMusic';
 import i18n from '../../i18n/config';
-import { getOnlineMusicProvider, getOnlineMusicProviderForSong } from './providerRegistry';
+import { getOnlineMusicProviderForSong } from './providerRegistry';
+import { isSourceEnabled } from './sourceReadiness';
 import { getPlaybackSourceRef } from '../../utils/appPlaybackGuards';
 
 // src/services/onlineMusic/songAvailability.ts
@@ -38,7 +39,8 @@ export const getSongUnavailableLabel = (
 export const isSongSourceMissing = (song: SongResult | null | undefined): boolean => {
     if (!song) return false;
     const sourceRef = getPlaybackSourceRef(song);
-    return sourceRef.kind === 'online' && !getOnlineMusicProvider(sourceRef.providerId);
+    // Folium 2.0 (plan §5.3): a source used only for matching, or switched off, counts as missing here too.
+    return sourceRef.kind === 'online' && !isSourceEnabled(sourceRef.providerId);
 };
 
 /** A row shows the song as one that cannot be played now: taken down, or its platform is missing. */

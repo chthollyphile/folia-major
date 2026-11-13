@@ -7,6 +7,7 @@ import { omni } from '../../../services/onlineMusic/omni';
 import { getNavidromeConfig } from '../../../services/navidromeService';
 import { useOnlineProviderAccountStore } from '../../../stores/useOnlineProviderAccountStore';
 import { useLibraryStore } from '../../../stores/useLibraryStore';
+import { getSourceState, getSourceStates, subscribeSourceStates } from '../../../services/onlineMusic/sourceStates';
 
 // src/components/app/search/searchSources.ts
 // 搜索页列出哪些来源：当前在线平台，加上已经登录的、不需要登录的在线平台；本地曲库里有歌才列本地，Navidrome
@@ -38,12 +39,16 @@ export const resolveSearchSources = ({
             })),
         ({ sourceId }) => {
             const provider = byId.get(sourceId);
+            // Folium 2.0 (plan §5.3): a source used only for matching is left out of the federated search.
+            const state = getSourceState(sourceId);
             return {
-                enabled: Boolean(provider),
+                enabled: Boolean(provider) && state === 'enabled',
+                matchingOnly: Boolean(provider) && state === 'matching',
                 availability: provider?.availability ?? { configured: false },
                 signedIn: provider?.status === 'authenticated',
             };
         },
+        'search',
     );
     return [
         // Not with no platform at all: the active id then names none.
@@ -63,6 +68,8 @@ const isNavidromeReady = (enabled: boolean): boolean => {
 
 const subscribeProviders = (listener: () => void) => omni.subscribeProviders(listener);
 const getProviderRegistryVersion = () => omni.getProviderRegistryVersion();
+// The source states table is replaced, never changed in place: its identity is its version.
+const getSourceStatesVersion = () => getSourceStates();
 
 /**
  * 搜索页此刻的来源与当前平台（存的平台不在了时是回落后的那个）：账户 store 与 provider 注册表（mod 源增删）变了就重排。
@@ -75,6 +82,7 @@ export const useSearchSources = (hasLocalSongs: boolean): { sources: SearchSourc
         .join('|'));
     const navidromeEnabled = useLibraryStore(state => state.navidromeEnabled);
     const registryVersion = useSyncExternalStore(subscribeProviders, getProviderRegistryVersion);
+    const sourceStates = useSyncExternalStore(subscribeSourceStates, getSourceStatesVersion);
     // Read on every render: saving or clearing the server settings writes no store, so nothing would tell a memo.
     const navidromeReady = isNavidromeReady(navidromeEnabled);
 
@@ -90,7 +98,7 @@ export const useSearchSources = (hasLocalSongs: boolean): { sources: SearchSourc
                 navidromeReady,
             }),
         };
-    // signIns 与 registryVersion 只为在它们变了时重读摘要。
+    // signIns、registryVersion 与 sourceStates 只为在它们变了时重读摘要。
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [signIns, hasLocalSongs, navidromeReady, registryVersion, storedProviderId]);
+    }, [signIns, hasLocalSongs, navidromeReady, registryVersion, sourceStates, storedProviderId]);
 };

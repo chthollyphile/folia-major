@@ -155,6 +155,28 @@ export const timeFoliumMod = <T>(modId: string, where: string, call: () => T): T
 );
 
 /*
+ * Folium 2.0 (plan §5.2, `guard.ts:148-155` in §5.4): the source mods whose synchronous members the host calls
+ * on its hot paths (capabilities, song metadata, a status check in a 500 ms poll). Those are not timed and not
+ * wrapped: a source's failure there is an ordinary result its contract describes. The registry adapter of S3
+ * marks a source mod here and calls its members through callFoliumSourceMember.
+ */
+const untimedSourceMods = new Set<string>();
+
+/** Marks `modId` as a source mod (or not): its hot-path members then skip the gate. */
+export const markFoliumSourceMod = (modId: string, isSource: boolean): void => {
+    if (isSource) untimedSourceMods.add(modId);
+    else untimedSourceMods.delete(modId);
+};
+
+/**
+ * Calls a synchronous member of a mod on a host hot path: a source mod's is called as it is (no clock reads, no
+ * catch: a throw reaches the caller); any other mod's goes through the gate like timeFoliumMod.
+ */
+export const callFoliumSourceMember = <T>(modId: string, where: string, call: () => T): T => (
+    untimedSourceMods.has(modId) ? call() : timeFoliumMod(modId, where, call)
+);
+
+/*
  * Wraps a function a mod hands over to be called again and again (a listener,
  * a predicate). This is the per-frame path: a clock listener runs every frame,
  * so one call costs a try, two clock reads and a few additions, allocates

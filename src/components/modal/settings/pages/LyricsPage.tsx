@@ -40,6 +40,7 @@ const CROSS_SOURCE_SKIP_REASON_KEYS: Readonly<Record<CrossSourceSkipReason, stri
     'not-configured': 'options.crossSourceSkipNotConfigured',
     'runtime-unavailable': 'options.crossSourceSkipRuntimeUnavailable',
     'needs-account': 'options.crossSourceSkipNeedsAccount',
+    'matching-only': 'options.crossSourceSkipMatchingOnly',
 };
 
 export const OPTIONS: SettingsOptionDef[] = Object.values(O);

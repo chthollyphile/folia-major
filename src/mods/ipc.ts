@@ -1,5 +1,9 @@
 import type {
     ModClearCacheResult,
+    ModClearSourceDataResult,
+    ModSourceDataResult,
+    ModSourceState,
+    ModSourceStatesPayload,
     ModFfmpegStatus,
     ModLogEntry,
     ModMainCallStats,
@@ -230,3 +234,50 @@ export const subscribeModRpcMessages = (callback: (message: ModRpcMessage) => vo
 /** Folium 1.7: a mod's `secret` value was saved or cleared, by anyone; the key only. */
 export const subscribeModSecretChanges = (callback: (change: ModSecretChange) => void): (() => void) =>
     bridge()?.onModSecretChanged?.(callback) ?? (() => {});
+
+// ---- Folium 2.0 (plan §5.3): the sources' states. "Settings → Sources" (S8) is drawn on these. ----
+
+const EMPTY_SOURCE_STATES: ModSourceStatesPayload = { states: {}, sources: [] };
+
+/** Every known source's state and row; empty without the bridge (the web build: every source enabled). */
+export const getSourceStates = async (): Promise<ModSourceStatesPayload> => {
+    try {
+        const response = await bridge()?.getSourceStates?.();
+        if (!response?.ok) return EMPTY_SOURCE_STATES;
+        return { states: response.states ?? {}, sources: Array.isArray(response.sources) ? response.sources : [] };
+    } catch {
+        return EMPTY_SOURCE_STATES;
+    }
+};
+
+/** Switches one source; only its own mod reloads. Callers go through runtime/sourceSwitches.ts, which stops its playback first. */
+export const invokeSetSourceState = async (
+    sourceId: string,
+    state: ModSourceState,
+): Promise<{ ok: boolean; error?: string } & Partial<ModSourceStatesPayload>> => (
+    await bridge()?.setSourceState?.(sourceId, state) ?? { ok: false, error: 'no-electron-bridge' }
+);
+
+/** What "clear data" of a source would remove. */
+export const describeSourceData = async (sourceId: string): Promise<ModSourceDataResult> => (
+    await bridge()?.describeSourceData?.(sourceId) ?? { ok: false, error: 'no-electron-bridge' }
+);
+
+/** The main process's half of "clear data"; the window's own storage is runtime/sourceSwitches.ts's. */
+export const invokeClearSourceData = async (sourceId: string): Promise<ModClearSourceDataResult> => (
+    await bridge()?.clearSourceData?.(sourceId) ?? { ok: false, error: 'no-electron-bridge' }
+);
+
+/** The one confirmation of an override of a built-in mod (a dialog in the main process). */
+export const confirmModOverride = async (modId: string): Promise<{ ok: boolean; error?: string; mods?: ModRuntimeInfo[] }> => (
+    await bridge()?.confirmModOverride?.(modId) ?? { ok: false, error: 'no-electron-bridge' }
+);
+
+/** Hands a taken-over short source id to another mod that claims it. */
+export const assignSourceClaim = async (shortId: string, modId: string): Promise<{ ok: boolean; error?: string; mods?: ModRuntimeInfo[] }> => (
+    await bridge()?.assignSourceClaim?.(shortId, modId) ?? { ok: false, error: 'no-electron-bridge' }
+);
+
+/** The sources' states changed (a switch, a load). */
+export const subscribeSourceStates = (callback: (payload: ModSourceStatesPayload) => void): (() => void) =>
+    bridge()?.onSourceStatesChanged?.(callback) ?? (() => {});

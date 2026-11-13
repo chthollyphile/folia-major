@@ -78,6 +78,11 @@ export const registerFoliumHostActions = (actions: FoliumHostActions | null) => 
     hostActions = actions;
 };
 
+/** Folium 2.0 (runtime/sourceSwitches.ts): pauses the App's playback, as its pause button does; nothing before the App registered. */
+export const pauseFoliumHostPlayback = (): void => {
+    hostActions?.pause();
+};
+
 const PLAYBACK_CONTROL: FoliumPermissionId = 'playback.control';
 const PLAYBACK_QUEUE: FoliumPermissionId = 'playback.queue';
 const NET_EMBED: FoliumPermissionId = 'net.embed';

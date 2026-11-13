@@ -33,6 +33,19 @@ export const getStoredString = (key: string, fallback: string) => {
     return localStorage.getItem(key) || fallback;
 };
 
+/** Every stored key that starts with one of `prefixes` (Folium 2.0: a source's own keys, for its "clear data"). */
+export const listStoredKeysStartingWith = (prefixes: readonly string[]): string[] => {
+    if (typeof window === 'undefined') {
+        return [];
+    }
+    const keys: string[] = [];
+    for (let index = 0; index < localStorage.length; index += 1) {
+        const key = localStorage.key(index);
+        if (key !== null && prefixes.some((prefix) => key.startsWith(prefix))) keys.push(key);
+    }
+    return keys;
+};
+
 export const removeStoredKey = (key: string) => {
     if (typeof window !== 'undefined') {
         localStorage.removeItem(key);
