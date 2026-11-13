@@ -1,7 +1,7 @@
 import type { ProviderAvailability } from '../../types/onlineMusic';
 import { getOnlineMusicProvider, listOnlineMusicProviders } from './providerRegistry';
 import { isSourceEnabled } from './sourceReadiness';
-import { useOnlineProviderAccountStore } from '../../stores/useOnlineProviderAccountStore';
+import { useOnlineProviderAccountStore, type OnlineProviderAccountState } from '../../stores/useOnlineProviderAccountStore';
 import { LYRIC_SOURCES } from '../../utils/lyrics/lyricSources';
 
 // src/services/onlineMusic/crossSource.ts
@@ -120,7 +120,8 @@ export const declaredParticipants = (feature: CrossSourceFeature): CrossSourceDe
 /** The state of `sourceId` now. Signed in means a confirmed sign-in for the search, an account shown for the rest. */
 const liveState = (feature: CrossSourceFeature, sourceId: string): CrossSourceState => {
     const provider = getOnlineMusicProvider(sourceId);
-    const account = useOnlineProviderAccountStore.getState().accounts[sourceId];
+    // A platform nobody has signed in to has no entry.
+    const account = useOnlineProviderAccountStore.getState().accounts[sourceId] as OnlineProviderAccountState | undefined;
     return {
         enabled: isSourceEnabled(sourceId),
         availability: provider?.getAvailability?.() ?? { configured: true },
@@ -146,7 +147,8 @@ export const participants = (
 /** Whether `sourceId` takes part in `feature` now. One that is not declared for it does not. */
 export const isParticipantReady = (feature: CrossSourceFeature, sourceId: string): boolean => {
     const declaration = declaredParticipants(feature).find(candidate => candidate.sourceId === sourceId);
-    return Boolean(declaration) && resolveParticipants([declaration!], () => liveState(feature, sourceId)).ready.length === 1;
+    if (!declaration) return false;
+    return resolveParticipants([declaration], () => liveState(feature, sourceId)).ready.length === 1;
 };
 
 /** Why `sourceId` is left out of `feature` now; null while it takes part, or where it is not declared for it. */

@@ -44,7 +44,7 @@ export const LocalSongMetadataMatchDialog = ({ song, assignment, isDaylight, onC
     // chosen falls back to the first while its source is away, and is the chosen one again once it is back.
     const sources = useCrossSourceParticipants('metadata').ready as OnlineMetadataSource[];
     const [chosenSource, setSource] = useState<OnlineMetadataSource | null>(null);
-    const source: OnlineMetadataSource | undefined = chosenSource && sources.includes(chosenSource) ? chosenSource : sources[0];
+    const source: OnlineMetadataSource | undefined = chosenSource && sources.includes(chosenSource) ? chosenSource : sources.at(0);
     const [query, setQuery] = useState(() => buildLocalSongMetadataSearchQuery(song));
     const [results, setResults] = useState<OnlineMetadataCandidate[]>([]);
     const [selected, setSelected] = useState<OnlineMetadataCandidate | null>(null);

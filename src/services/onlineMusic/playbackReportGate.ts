@@ -134,7 +134,7 @@ export const sendPlaybackReport = async (
  * setting is stored per source, the page still shows one row).
  */
 export const getPlaybackReportSettingProviderId = (): OmniProviderId | null => {
-    const accounts = useOnlineProviderAccountStore.getState().accounts;
+    const accounts: Partial<Accounts> = useOnlineProviderAccountStore.getState().accounts;
     const ids = getPlaybackReportProviderIds();
-    return ids.find(providerId => accounts[providerId]?.status === 'authenticated') ?? ids[0] ?? null;
+    return ids.find(providerId => accounts[providerId]?.status === 'authenticated') ?? ids.at(0) ?? null;
 };

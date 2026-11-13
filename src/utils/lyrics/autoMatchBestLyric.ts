@@ -316,7 +316,7 @@ async function matchUnderArtist(
                 : platform === 'ncm'
                     ? (sharedChorusRanges.length > 0
                         ? sharedChorusRanges
-                        : await getAmllDbPlatformChorusRanges(platform, song.id))
+                        : await getAmllDbPlatformChorusRanges(platform, (song as SongResult).id))
                     : []
             : [];
         const decoratedLyrics = chorusRanges.length > 0

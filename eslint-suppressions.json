@@ -1137,7 +1137,7 @@
   },
   "electron/stageApi.cjs": {
     "@stylistic/indent": {
-      "count": 2095
+      "count": 2053
     },
     "no-useless-assignment": {
       "count": 1
@@ -6701,11 +6701,6 @@
       "count": 1
     }
   },
-  "src/hooks/useLyricMatchSources.ts": {
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 1
-    }
-  },
   "src/hooks/useLyricWordSegmentation.ts": {
     "@eslint-community/eslint-comments/require-description": {
       "count": 1
@@ -6730,11 +6725,6 @@
     },
     "@typescript-eslint/use-unknown-in-catch-callback-variable": {
       "count": 1
-    }
-  },
-  "src/hooks/useNeteaseLibrary.ts": {
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 4
     }
   },
   "src/hooks/useNowPlayingSource.ts": {
@@ -9182,7 +9172,7 @@
       "count": 6
     },
     "@typescript-eslint/no-unnecessary-condition": {
-      "count": 11
+      "count": 10
     },
     "@typescript-eslint/no-unsafe-call": {
       "count": 1
@@ -10183,6 +10173,11 @@
       "count": 1
     },
     "dedicatus/restricted-apis": {
+      "count": 1
+    }
+  },
+  "src/services/onlineMusic/qq/qqLyricSource.ts": {
+    "@typescript-eslint/no-unsafe-assignment": {
       "count": 1
     }
   },
@@ -11435,10 +11430,10 @@
       "count": 1
     },
     "@typescript-eslint/no-unnecessary-condition": {
-      "count": 5
+      "count": 4
     },
     "@typescript-eslint/no-unsafe-argument": {
-      "count": 2
+      "count": 1
     },
     "@typescript-eslint/no-unsafe-assignment": {
       "count": 3
@@ -11524,14 +11519,6 @@
   },
   "src/utils/lyrics/lyricLineRules.ts": {
     "@typescript-eslint/switch-exhaustiveness-check": {
-      "count": 1
-    }
-  },
-  "src/utils/lyrics/lyricMatchSources.ts": {
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
       "count": 1
     }
   },
@@ -12711,7 +12698,7 @@
   },
   "test/unit/lyrics/autoMatchNonPlatformSource.test.ts": {
     "@typescript-eslint/consistent-type-imports": {
-      "count": 2
+      "count": 1
     }
   },
   "test/unit/lyrics/decryption.test.ts": {

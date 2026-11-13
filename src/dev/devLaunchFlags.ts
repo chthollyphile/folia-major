@@ -10,10 +10,16 @@
 // - `?noSources` in the URL: none of the built-in online platforms is registered, to see the app with no
 //   platform at all (Folium 2.0 S1: it starts and shows its empty states). A mod's platform still registers.
 
-// Read where there is no page address too (a test's stand-in window): the online platforms' registry reads a flag here.
-const searchParams = typeof window === 'undefined' || typeof window.location?.search !== 'string'
-    ? new URLSearchParams()
-    : new URLSearchParams(window.location.search);
+// Read where there is no page address too (a test's stand-in window without one): the online platforms' registry
+// reads a flag here.
+const readPageQuery = (): string => {
+    try {
+        return typeof window === 'undefined' ? '' : window.location.search;
+    } catch {
+        return '';
+    }
+};
+const searchParams = new URLSearchParams(readPageQuery());
 
 export const skipsStartupExperience = import.meta.env.DEV && (
     import.meta.env.VITE_SKIP_STARTUP_EXPERIENCE === 'true' || searchParams.has('skipStartup')

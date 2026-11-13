@@ -33,7 +33,7 @@ import type { OnlineMusicProvider } from '@/types/onlineMusic';
 
 vi.mock('@/services/onlineMusic/qq/qqLyricProvider', () => ({ searchQQLyrics: vi.fn(async () => []), fetchQQLyrics: vi.fn(async () => null) }));
 vi.mock('@/utils/lyrics/providers/amllDbProvider', async (importOriginal) => ({
-    ...await importOriginal<typeof import('@/utils/lyrics/providers/amllDbProvider')>(),
+    ...await importOriginal<Record<string, unknown>>(),
     fetchAmllDbLyrics: vi.fn(async () => null),
     searchAmllDbSongs: vi.fn(async () => []),
 }));

@@ -67,7 +67,7 @@ const fixtureFiles = (version) => ({
         "'use strict';",
         "const { parentPort, workerData } = require('worker_threads');",
         "const dep = require('./index.js');",
-        "parentPort.postMessage({ sum: dep.sum, modules: dep.modules, inner: dep.inner, version: dep.version, echo: workerData, filename: __filename });",
+        'parentPort.postMessage({ sum: dep.sum, modules: dep.modules, inner: dep.inner, version: dep.version, echo: workerData, filename: __filename });',
         '',
     ].join('\n'),
     'node_modules/folium-probe-inner/package.json': JSON.stringify({ name: 'folium-probe-inner', version: '1.0.0', main: 'index.js' }),
