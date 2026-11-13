@@ -1,4 +1,5 @@
 import { usePersonalFmModeStore } from '@/stores/usePersonalFmModeStore';
+import { usePlaybackStore } from '@/stores/usePlaybackStore';
 
 // src/components/app/playback/personalFmEndings.ts
 // How often Personal FM was ended from outside a play: a switch to another platform (its radio stops
@@ -9,11 +10,20 @@ import { usePersonalFmModeStore } from '@/stores/usePersonalFmModeStore';
 // Like wholeQueueWrites.ts it only grows: compare two readings rather than resetting it.
 
 let endings = 0;
+const listeners = new Set<() => void>();
+
+/** Held playback snapshots end their radio synchronously too; unmounted owners stop listening. */
+export const subscribePersonalFmEnded = (listener: () => void): (() => void) => {
+    listeners.add(listener);
+    return () => { listeners.delete(listener); };
+};
 
 /** Counts one ending; called with the store write that ends FM, or where FM ends though it shows off for now. */
 export const notePersonalFmEnded = (): void => {
     endings += 1;
+    usePlaybackStore.getState().setAcceptedFmPlayback(null);
     usePersonalFmModeStore.getState().resetStationSelections();
+    listeners.forEach(listener => listener());
 };
 
 /** The endings so far. */

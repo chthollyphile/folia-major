@@ -1226,3 +1226,34 @@ describe('a play moved to the other engine: where it starts, whether it plays, a
         expect(currentTime.get()).toBe(0);
     });
 });
+
+
+describe('collection source acceptance at delegated library landings', () => {
+    it.each(['local', 'navidrome'] as const)('commits the source only after the %s song and queue land', async kind => {
+        const { library } = mount();
+        const acceptQueueSource = vi.fn((song: SongResult, queue: SongResult[]) => {
+            expect(usePlaybackStore.getState().currentSong).toBe(song);
+            expect(usePlaybackStore.getState().playQueue).toBe(queue);
+        });
+        if (kind === 'local') await library.onPlayLocalSong(localOne, [], { acceptQueueSource });
+        else await library.onPlayNavidromeSong(navidromeSong, [], { acceptQueueSource });
+        expect(acceptQueueSource).toHaveBeenCalledOnce();
+    });
+
+    it.each(['local', 'navidrome'] as const)('does not commit a dropped %s request', async kind => {
+        const { library } = mount();
+        const gate = deferred();
+        const acceptQueueSource = vi.fn();
+        if (kind === 'local') env.lyricsGate.set('l1#1', gate.promise);
+        else env.navidromeLyricsGate = gate.promise;
+        const playing = kind === 'local'
+            ? library.onPlayLocalSong(localOne, [], { acceptQueueSource })
+            : library.onPlayNavidromeSong(navidromeSong, [], { acceptQueueSource });
+        await settle();
+        expect(acceptQueueSource).not.toHaveBeenCalled();
+        dropPlaysInFlight();
+        gate.resolve();
+        await playing;
+        expect(acceptQueueSource).not.toHaveBeenCalled();
+    });
+});

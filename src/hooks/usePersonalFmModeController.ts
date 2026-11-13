@@ -154,6 +154,7 @@ export function usePersonalFmModeController({
                     state.setStationSelection(activeProviderId, applied);
                     setStatusMsg({ type: 'info', text: `${statusOf('applied')} ${label}` });
                 }
+                return { ...applied, station: station.id };
             });
             await playSong(songs[0], songs, true);
         } catch (error) {

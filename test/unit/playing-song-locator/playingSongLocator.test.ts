@@ -9,8 +9,9 @@ import type { GridViewCollectionDescriptor } from '@/components/app/home/gridVie
 
 // (The home model reads the module's other exports on its way in: those stay the real ones.)
 vi.mock('@/i18n/config', async importOriginal => ({ ...await importOriginal<object>(), default: { t: (key: string) => key, on: () => {}, language: 'en' } }));
-import { answerLocateRequest, locatePlayingSong, locatePlayingSongOnPage, playbackSourceOf } from '@/components/app/playing-song-locator/playingSongLocator';
+import { answerLocateRequest, locatePlayingSong, locatePlayingSongOnPage, playbackSourceOf, takeQueueSourceAcceptance } from '@/components/app/playing-song-locator/playingSongLocator';
 import { buildHomeModel } from '@/components/app/home/buildHomeModel';
+import { buildPlayerPanelModel } from '@/components/app/player-panel/buildPlayerPanelModel';
 import { useAppViewStore } from '@/stores/useAppViewStore';
 import { useCollectionNavigationStore } from '@/stores/useCollectionNavigationStore';
 import { usePlaybackStore } from '@/stores/usePlaybackStore';
@@ -175,18 +176,25 @@ describe('locating the playing song', () => {
 });
 
 describe('a queue started from the home screen', () => {
-    const playSong = vi.fn();
-    const playAll = vi.fn();
+    let acceptance: ReturnType<typeof takeQueueSourceAcceptance> | null = null;
+    const playSong = vi.fn((_song: SongResult, queue: SongResult[] = []) => { acceptance = takeQueueSourceAcceptance(queue); });
+    const playAll = vi.fn((queue: SongResult[]) => { acceptance = takeQueueSourceAcceptance(queue); });
     const { onPlaySong, onPlayAll } = buildHomeModel({ playSong, playAll } as unknown as Parameters<typeof buildHomeModel>[0]).surfaceProps;
     const source = () => usePlayingSongLocatorStore.getState().source;
+    const accept = (playing: SongResult, queue: SongResult[]) => {
+        acceptance?.(playing, queue);
+        acceptance = null;
+    };
     // What the player does once it has accepted a play: the song, then the queue.
     const playerTakes = (playing: SongResult, queue: SongResult[]) => {
         usePlaybackStore.setState({ currentSong: playing });
         usePlaybackStore.setState({ playQueue: queue });
+        accept(playing, queue);
     };
 
     beforeEach(() => {
         vi.clearAllMocks();
+        acceptance = null;
         useStatusMessageStore.getState().setMessage(null);
         const locator = usePlayingSongLocatorStore.getState();
         locator.setRequest(null);
@@ -204,6 +212,7 @@ describe('a queue started from the home screen', () => {
         usePlaybackStore.setState({ currentSong: other });
         expect(source()?.collection).toBe(started);
         usePlaybackStore.setState({ playQueue: [other] });
+        accept(other, [other]);
         expect(source()?.collection).toBe(shown);
         expect([...source()!.songKeys]).toEqual([songKey('other')]);
         // "Play all" of a collection page likewise. The queue alone is not the player playing it: the song has to be of it too.
@@ -213,6 +222,7 @@ describe('a queue started from the home screen', () => {
         usePlaybackStore.setState({ playQueue: [a, c] });
         expect(source()?.collection).toBe(shown);
         usePlaybackStore.setState({ currentSong: a });
+        accept(a, [a, c]);
         expect(source()?.collection).toBe(started);
         expect([...source()!.songKeys]).toEqual([songKey('a'), songKey('c')]);
     });
@@ -245,7 +255,8 @@ describe('a queue started from the home screen', () => {
         onPlaySong(other, [other], false, shown);
         expect(source()?.collection).toBe(started);
         // The queue that plays goes on to its next song, and is still the one of `started`.
-        usePlaybackStore.setState({ currentSong: c });
+        playSong(c, usePlaybackStore.getState().playQueue);
+        playerTakes(c, usePlaybackStore.getState().playQueue);
         expect(source()?.collection).toBe(started);
         expect(playbackSourceOf(source(), [a, b, c], c)).toBe(started);
         // What was asked for then is not taken later either, by a queue of its songs that something else starts.
@@ -262,13 +273,15 @@ describe('a queue started from the home screen', () => {
         usePlaybackStore.setState({ currentSong: { ...b } });
         expect(source()?.collection).toBe(started);
         // Nor is its queue going on to its next song.
-        usePlaybackStore.setState({ currentSong: c });
+        playSong(c, usePlaybackStore.getState().playQueue);
+        playerTakes(c, usePlaybackStore.getState().playQueue);
         expect(source()?.collection).toBe(started);
         // Asked again, and taken this time: the song, and then a queue in the place of the one the player had.
         onPlaySong(other, [other, a, b, c]);
         usePlaybackStore.setState({ currentSong: other });
         expect(source()?.collection).toBe(started);
         usePlaybackStore.setState({ playQueue: [other, a, b, c] });
+        accept(other, [other, a, b, c]);
         expect(source()).toBeNull();
     });
 
@@ -276,7 +289,7 @@ describe('a queue started from the home screen', () => {
         // Asked for and refused; then something that is not the home screen starts a queue with one of its songs in it.
         onPlayAll!([other], shown);
         playerTakes(other, [a, other]);
-        expect(source()?.collection).toBe(started);
+        expect(source()).toBeNull();
         expect(playbackSourceOf(source(), [a, other], other)).toBeNull();
     });
 
@@ -291,7 +304,7 @@ describe('a queue started from the home screen', () => {
         onPlaySong(other);
         onPlaySong(other, []);
         playerTakes(other, [a, b, c, other]);
-        expect(source()?.collection).toBe(started);
+        expect(source()).toBeNull();
         expect(playSong).toHaveBeenCalledTimes(2);
         // Also where the song is all that is left of the queue: it is played again, and no queue is started.
         usePlayingSongLocatorStore.getState().setSource(sourceOf(started, [a, b, c]));
@@ -299,6 +312,17 @@ describe('a queue started from the home screen', () => {
         onPlaySong(a);
         expect(source()?.collection).toBe(started);
     });
+
+    it('keeps the source when the queue panel selects a metadata-enriched display copy', () => {
+        const currentQueue = usePlaybackStore.getState().playQueue;
+        const displayQueue = currentQueue.map(song => ({ ...song, name: `Display ${song.name}` }));
+        const panel = buildPlayerPanelModel({ playQueue: displayQueue, playSong } as never);
+        panel.panelProps.queue.onPlaySong(displayQueue[1], displayQueue);
+        expect(playSong).toHaveBeenCalledWith(displayQueue[1], currentQueue);
+        playerTakes(displayQueue[1], currentQueue);
+        expect(source()?.collection).toBe(started);
+    });
+
 });
 
 describe('the collection a queue was started from', () => {

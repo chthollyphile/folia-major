@@ -208,7 +208,9 @@ const startedOver = (section: OmniExploreSection, kept: KeptSection, fresh?: Omn
     const again = fresh ? taken(fresh, kept.batch + 1) : { ...kept, from: 0, batch: kept.batch + 1, wentRound: true };
     if (!areSame(again.pool.slice(0, again.size), section.items)) return { kept: again, count: again.size };
     // (What the page just read has of it is kept in the order it is shown in: a provider hands the same entries back in another.)
-    return { kept: fresh ? { ...again, pool: section.items, batch: kept.batch } : kept, count: section.items.length };
+    // Keep that order while adopting the read's current previews, artwork and other item metadata.
+    const current = new Map(again.pool.map(item => [nameOf(item), item]));
+    return { kept: fresh ? { ...again, pool: section.items.map(item => current.get(nameOf(item)) ?? item), batch: kept.batch } : kept, count: section.items.length };
 };
 
 // At most this many sections ask the provider for their further items at a time. None asks once

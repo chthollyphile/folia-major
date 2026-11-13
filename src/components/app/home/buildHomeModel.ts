@@ -124,7 +124,7 @@ export const buildHomeModel = ({
         surfaceProps: {
             onPlaySong: (song, queue, isFmCall, from) => {
                 // (A song played with no queue of its own joins the queue there is.)
-                if (queue?.length) noteQueueStarted(from ?? null, [song, ...queue]);
+                if (queue?.length) noteQueueStarted(from ?? null, queue, song);
                 playSong(song, queue, isFmCall);
             },
             onBackToPlayer: navigateToPlayer,

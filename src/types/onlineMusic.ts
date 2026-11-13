@@ -225,11 +225,24 @@ export interface ProviderHistoryEntry {
 /** The span a listening ranking counts plays over: the last week, or all the account's time. */
 export type ListeningRankRange = 'week' | 'all';
 
+/** The latest successful read of today's daily songs for the active provider and account. */
+export interface DailySongPreview {
+    providerId: OnlineProviderId;
+    firstSong?: UnifiedSong;
+}
+
 export interface ProviderCollection {
     /** A provider's named radio stream: selecting the card starts FM with this mode. */
     personalFm?: PersonalFmLaunch;
     /** The account's listening ranking over this span (type `listening_rank`): read-only, made by the platform. */
     listeningRank?: ListeningRankRange;
+    /** Songs used to present a recommendation entry without changing its collection identity. */
+    songPreview?: {
+        /** Today's default daily songs: follows successful daily reads through Omni. */
+        dailySongs?: true;
+        firstSong?: UnifiedSong;
+        currentSong?: UnifiedSong;
+    };
     providerId: OnlineProviderId;
     id: MediaId;
     name: string;

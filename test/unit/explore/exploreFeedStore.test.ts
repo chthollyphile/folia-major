@@ -78,6 +78,65 @@ describe('explore feed store', () => {
         await vi.waitFor(() => expect(feed().refreshing).toBe(false));
     };
 
+    it('refreshes first-song previews and artwork for stable recommendation identities without moving them', async () => {
+        const recommendation = (id: string, revision: string): OmniExploreItem => ({
+            kind: 'collection',
+            subtitle: `subtitle-${revision}`,
+            collection: {
+                providerId: 'ytm', id, name: id, type: id === 'stream' ? 'radio' : 'daily_recommendations',
+                ...(id === 'stream' ? { personalFm: { mode: 'DEFAULT', scene: null } } : {}),
+                coverUrl: `https://cover.test/${id}-${revision}`,
+                songPreview: { firstSong: {
+                    id: `${id}-${revision}`, name: `Song ${revision}`, artists: [{ id: 'artist', name: `Artist ${revision}` }],
+                    album: { id: 'album', name: 'Album', coverUrl: `https://cover.test/album-${revision}` }, durationMs: 120000,
+                    sourceRef: { kind: 'online', providerId: 'ytm', mediaId: `${id}-${revision}` },
+                } },
+            },
+        });
+        const before = [recommendation('stream', 'A'), recommendation('daily', 'A')];
+        omni.getExploreFeed.mockResolvedValueOnce({
+            sections: [section('recommended', { items: before, moreCursor: 'old-more' })],
+            nextCursor: 'old-page', refreshReadsAnew: true,
+        });
+        store().show('ytm:me:en');
+        await vi.waitFor(() => expect(feed().status).toBe('ready'));
+        const current = [recommendation('stream', 'B'), recommendation('daily', 'B')];
+        omni.getExploreFeed.mockResolvedValueOnce({
+            sections: [section('recommended', { items: [...current].reverse(), moreCursor: 'new-more' })],
+            nextCursor: 'new-page', refreshReadsAnew: true,
+        });
+        await refreshed();
+        expect(feed().sections[0]).toMatchObject({ items: current, moreCursor: 'new-more' });
+        expect(feed().sections[0].items[0]).toBe(current[0]);
+        expect(feed().sections[0].items[1]).toBe(current[1]);
+        expect(feed().kept.recommended).toMatchObject({ pool: current, batch: 0, from: 0, size: 2, cursor: 'new-more' });
+        expect(feed().nextCursor).toBe('new-page');
+        expect(omni.getExploreSectionItems).not.toHaveBeenCalled();
+        omni.getExploreSectionItems.mockResolvedValueOnce({ items: [item('further')] });
+        await store().loadMoreOf('recommended');
+        expect(omni.getExploreSectionItems).toHaveBeenCalledExactlyOnceWith('new-more');
+        expect(feed().sections[0].items).toEqual([...current, item('further')]);
+    });
+
+    it('keeps the shown song order and batch while adopting refreshed metadata for rotated identical song IDs', async () => {
+        const tracks = (revision: string): OmniExploreItem[] => ['a', 'b', 'c'].map(id => ({
+            kind: 'song', song: {
+                id, name: `${id}-${revision}`, artists: [{ id: 'artist', name: `Artist ${revision}` }],
+                album: { id: 'album', name: `Album ${revision}`, coverUrl: `https://cover.test/${id}-${revision}` },
+                durationMs: 120000, sourceRef: { kind: 'online', providerId: 'ytm', mediaId: id },
+            },
+        }));
+        omni.getExploreFeed.mockResolvedValueOnce({ sections: [section('songs', { items: tracks('A') })] });
+        store().show('ytm:me:en');
+        await vi.waitFor(() => expect(feed().status).toBe('ready'));
+        const current = tracks('B');
+        omni.getExploreFeed.mockResolvedValueOnce({ sections: [section('songs', { items: [current[2], current[0], current[1]], moreCursor: 'songs-more' })] });
+        await refreshed();
+        expect(feed().sections[0].items).toEqual(current);
+        expect(feed().kept.songs).toMatchObject({ pool: current, batch: 0, from: 0, size: 3, cursor: 'songs-more' });
+        expect(feed().sections[0].moreCursor).toBe('songs-more');
+    });
+
     it('shows, on a refresh, the entries that follow the ones shown, and reads the page anew only once every section has shown its last', async () => {
         const page = () => ({ sections: [titled('picks', ['p1', 'p2'], { moreCursor: 'picks-3' }), titled('fixed', ['f1', 'f2'])] });
         omni.getExploreFeed.mockImplementation(async () => page());

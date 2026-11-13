@@ -11,6 +11,7 @@ import type {
     StageStatus,
 } from '../types';
 import type { MediaId } from './onlineMusic';
+import type { PersonalFmLaunch } from './personalFm';
 
 // Shared playback-specific types extracted from App.tsx.
 export type PlaybackNavigationOptions = {
@@ -19,6 +20,8 @@ export type PlaybackNavigationOptions = {
     manualQueueStep?: boolean;
     unavailableSkipCount?: number;
     unifiedQueue?: SongResult[];
+    /** Internal source transaction, carried through retries and library delegates; invoked only after song and queue land. */
+    acceptQueueSource?: (song: SongResult, queue: SongResult[]) => void;
     /**
      * Set only by the automix blend's own advance. That play skips extension `beforePlay` hooks:
      * the blend starts the arriving track on a fixed schedule, and its cancel paths assume the
@@ -88,6 +91,9 @@ export type UnavailableReplacementRequest = {
     fmEnded?: () => boolean;
 };
 
+/** Serializable provenance of the accepted radio, independent of the user's pending mode choice. */
+export type AcceptedFmSource = { providerId: string; selection: PersonalFmLaunch };
+
 export type PlaybackSnapshot = {
     currentSong: SongResult | null;
     lyrics: LyricData | null;
@@ -95,6 +101,8 @@ export type PlaybackSnapshot = {
     audioSrc: string | null;
     playQueue: SongResult[];
     isFmMode: boolean;
+    /** null explicitly means no accepted radio; undefined is a legacy snapshot without provenance. */
+    acceptedFmSource?: AcceptedFmSource | null;
     playerState: PlayerState;
     currentTime: number;
     duration: number;
@@ -143,7 +151,7 @@ export type WindowPlaybackHandoff = {
     activePlaybackContext: 'main' | 'stage';
     mainPlayback: PlaybackSnapshot | null;
     activePlayback: PlaybackSnapshot | null;
-    /** Provider id → the extra radio on air in it, while FM plays: which radio the queue came from. Its mode choice is not carried. */
+    /** Legacy provider id → extra radio id. New snapshots carry the exact mode in acceptedFmSource. */
     fmStations?: Record<string, string>;
     stage: WindowPlaybackHandoffStageState;
     nowPlaying: WindowPlaybackHandoffNowPlayingState;

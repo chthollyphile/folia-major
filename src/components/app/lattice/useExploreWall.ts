@@ -4,6 +4,7 @@ import type { SongResult } from '../../../types';
 import type { OmniExploreSection, OmniProviderId } from '../../../types/onlineMusic';
 import { useExploreFeedStore } from '../../../stores/useExploreFeedStore';
 import { OWN_SECTION_IDS, listenedSongsOf } from '../home/explore/ownSections';
+import { useExploreTileSongPreviews } from '../home/explore/useExploreSongPreviews';
 import {
     buildExploreTiles,
     furtherReadsAsked,
@@ -80,7 +81,8 @@ export const useExploreWall = ({ isOn, currentSong, providerId, accountId, pageK
     const handed = handedEntriesOf(kept, read, entries, further);
     if (handed !== kept) setKept(handed);
     // In two steps: a song change marks another tile and leaves the rest as they are.
-    const tiles = useMemo(() => markPlayingTile(handed.entries, currentSong), [handed.entries, currentSong]);
+    const previewedEntries = useExploreTileSongPreviews(handed.entries, t);
+    const tiles = useMemo(() => markPlayingTile(previewedEntries, currentSong), [previewedEntries, currentSong]);
     // Of the entries and not of `tiles`: a song change is no reason to lay the wall out anew.
     const wallSections = useMemo(() => sectionsOfTiles(handed.entries), [handed.entries]);
 
