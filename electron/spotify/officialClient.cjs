@@ -1839,7 +1839,14 @@ function createSpotifyOfficialClient({
 
         seek({ ms }) {
             const target = Math.max(0, Math.round(Number(ms) || 0));
-            return orMediaSession(`await api.player.seekTo(${target}); return true;`, 'seek', { ms: target });
+            // A move is never run twice: the player takes a seekTo as soon as it hears it and only then
+            // loads the spot, so a second call sends the song somewhere else a moment after the first
+            // one, and a listener hears the passage they dragged to start again. Every other call the
+            // page refuses is given one more look with the cached player dropped (evaluateInPage), which
+            // is right for a read or a write that can be repeated; for this one the refusal is the
+            // answer, and the move is made through the media session instead, as a call that never got
+            // there is.
+            return orMediaSession(`await api.player.seekTo(${target}); return true;`, 'seek', { ms: target }, { retry: false });
         },
 
         // The listener's own volume, set as given.
