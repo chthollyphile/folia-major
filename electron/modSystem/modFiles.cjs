@@ -6,7 +6,8 @@
 
 'use strict';
 
-const fs = require('fs');
+// original-fs: a .asar file in a mod directory is a file here, not a directory (rawFs.cjs).
+const { rawFs: fs } = require('./rawFs.cjs');
 const path = require('path');
 
 const { MOD_ID_PATTERN } = require('./manifest.cjs');
