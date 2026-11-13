@@ -698,7 +698,11 @@ export interface OnlineExternalPlaybackProvider {
      * Without it (or when the player still reports an end), the route starts the track again itself.
      */
     setRepeatOne?(enabled: boolean): Promise<void>;
-    /** The player's state now, from no cache. */
+    /**
+     * The player's state now, from no cache. The song is passed so that an answer from a coarse
+     * channel can name it: that channel gives no track id, and a track the caller could never name
+     * could never be taken over.
+     */
     getStatus(song: SongResult): Promise<ProviderExternalPlaybackStatus>;
     /** Whether the player's loaded track is `song` (the id in `status` may be a playback id). */
     isStatusForSong(song: SongResult, status: ProviderExternalPlaybackStatus): boolean;

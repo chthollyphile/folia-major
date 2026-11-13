@@ -136,6 +136,23 @@ type ExternalSession = {
 
 
     /** The player now belongs to the window replacing this one: answers are no longer acted on. */
+    /** How many moves the listener has asked for: an ask that names the timeline before one of
+     * them, or that lands while one is on its way, is dropped rather than followed. */
+    seekCount: number;
+    /** An answer naming the spot a move landed on has been followed: the move is done with. */
+    seekLanded: boolean;
+    /**
+     * The spot a move landed on, in seconds, with the moment it landed: the player is asked every
+     * tenth of a second until an answer names it, so the wait is not the ordinary half second.
+     * Null while no move is being looked for.
+     */
+    seekFollowAtSec: number | null;
+    seekFollowLandedMs: number;
+    /**
+     * The last answer said the player turned its own song round. The turn is one jump in the song
+     * whoever reads it, so the observers are told once however many answers name it.
+     */
+    replaying: boolean;
     handedOver: boolean;
     preparedQueueKey: string;
     /**
@@ -544,6 +561,21 @@ const clearSettledMove = (current: ExternalSession) => {
     current.staleReadPlayingSinceMs = null;
     current.staleReadGivenUp = false;
     current.staleReadNoted = false;
+};
+
+/**
+ * Whether this answer names the spot the move landed on while that move is being looked for: the
+ * player has loaded it, and what it says from here is followed as any other answer is. Read before the
+ * answer is judged, since the spot it names is the whole of what is asked of it, and judging the
+ * answer that lands the move is what forgets the move. The spot is read against the moment the move
+ * landed: the answer that names it comes from that moment on, and the drop is followed along as the
+ * song sounds.
+ */
+const namesLandingSpot = (current: ExternalSession, positionSec: number): boolean => {
+    const targetSec = current.seekFollowAtSec;
+    if (targetSec === null || positionSec < targetSec - STALE_READ_TOLERANCE_SEC) return false;
+    const sinceLandedSec = Math.max(0, performance.now() - current.seekFollowLandedMs) / 1000;
+    return positionSec <= targetSec + sinceLandedSec + STALE_READ_TOLERANCE_SEC;
 };
 
 /**

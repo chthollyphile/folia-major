@@ -176,6 +176,14 @@ export const takeOverRunningPlayer = async (
     return await settleTrackTakeOver(track, remembered, running, options);
 };
 
+// These three - plainName, plainTitle and artistNames - look like the ones a provider keeps for the
+// player it steers, and answer the opposite question. Those decide whether a track the player names
+// is the song Folia asked for, so they compare one candidate with one answer and settle it. The
+// copies here look for the song a coarse answer shows among the results of a search, so they have to
+// let through every candidate that could be the one heard: a title keeps its shape without its
+// bracketed notes, and an artist has to be one of the whole names the answer gives. Neither set can
+// be used for the other's job.
+
 /** The name as both sides of a comparison write it: no full-width forms, no case, no stray spaces. */
 const plainName = (text: string): string => text.normalize('NFKC').trim().replace(/\s+/gu, ' ').toLocaleLowerCase();
 
@@ -217,7 +225,10 @@ const tracksNamedLike = (candidates: SongResult[], shown: { title: string; artis
 const COARSE_SEARCH_ROWS = 30;
 /**
  * The search a coarse read is answered by, kept apart from the listener's own search on screen: it
- * is asked and dropped, and never pages on.
+ * is asked and dropped, and never pages on. Naming a session keeps this search out of the listener's
+ * paging, and costs one place of that session's own search cache for as long as the walk is kept: the
+ * query is a new one each time the player shows another track, so a long run of them walks that
+ * cache out of its oldest entries - its own, never the listener's.
  */
 const COARSE_SEARCH_SESSION = 'external-player-shown-track';
 

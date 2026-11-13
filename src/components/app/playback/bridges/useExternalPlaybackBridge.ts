@@ -23,8 +23,10 @@ import { followsPlayerChangesForShownSong, followRunningExternalPlayer, takeOver
 // followed rather than played over. A player the listener keeps using by hand (the ones that declare
 // followsPlayerChanges) reports such a step as another track, and a track they start there - or pick
 // in its own window - becomes the song this app shows, with its own words, lyrics and cover, whether
-// a song of Folia's was sounding in the player or nothing was. Only a player that cannot name its
-// track reports the step as an ended song that skipped, and that one still steps Folia's queue.
+// a song of Folia's was sounding in the player or nothing was. A player whose precise channel is
+// down names the track it moved to by the title and artist its media session shows instead
+// (shownTrack): that answer is another track all the same, and is taken over the same way. A step
+// reported as an ended song that skipped still steps Folia's queue.
 
 /** How often a player the listener keeps using is read while nothing of Folia's sounds in it. */
 const PLAYER_WATCH_INTERVAL_MS = 3000;
@@ -37,7 +39,6 @@ const PLAYER_WATCH_INTERVAL_MS = 3000;
  * itself, which is where every caller of it gets the same one.
  */
 const showTakenTrack = async (
-    replaced: SongResult,
     track: SongResult,
     stillCurrent: () => boolean,
     applyLyrics: (lyrics: LyricData | null) => void,
@@ -181,7 +182,6 @@ export function useExternalPlaybackBridge({
                         isWanted: () => isExternalRoute() && getExternalSong() !== null,
                         adoptsPausedTrack: true,
                         onTrackTaken: (track, stillCurrent) => showTakenTrack(
-                            current,
                             track,
                             stillCurrent,
                             latestRef.current.setShownLyrics ?? setLyricsState,
