@@ -317,6 +317,150 @@ describe('a bar dropped on a song that is playing', () => {
         expect(engine.isExternalPlaybackReadyForPrefetch(song)).toBe(true);
     });
 
+    /**
+     * How far ahead of the line the song stood on the bar is dropped, and how long the player takes to
+     * load the spot: past a lead that is played out, the bar stands where it is for the player instead
+     * of running on, and it never goes back over the drop for the wait either way.
+     */
+    const farLandings = [
+        { aheadSec: 30, delayMs: 4000 },
+        { aheadSec: 60, delayMs: 4000 },
+    ];
+
+    it.each(farLandings)(
+        'never goes back over a $aheadSec s drag the player takes $delayMs ms to load',
+        async ({ aheadSec, delayMs }) => {
+            const fromSec = 10;
+            const targetSec = fromSec + aheadSec;
+            // Sampled well past the landing: the bar stands still until the player has played its way
+            // up to it, and then goes on with the player.
+            const spanMs = 3 * delayMs + 2000;
+            const shown = await drag(fromSec, targetSec, delayMs, spanMs);
+            const still = longestStillMs(shown);
+            const fall = largestFallSec(shown);
+            const gapEnd = Math.abs(shown[shown.length - 1] - playerAtSec(fromSec, targetSec, delayMs, spanMs));
+            console.log('[far landing] ahead=' + aheadSec + 's delay=' + delayMs + 'ms still=' + still + 'ms fall=' + fall.toFixed(3)
+                + ' gapEnd=' + gapEnd.toFixed(3));
+            expect(fall, 'never goes back over the drop, however far behind the player lands').toBe(0);
+            expect(gapEnd, 'on the player once it has played its way up to the bar').toBeLessThanOrEqual(0.15);
+        },
+        120000,
+    );
+
+    /** How far apart the moves of one run of drags are asked for, and what the player takes to load each. */
+    const stackedGapsMs = [100, 300, 600];
+    const stackedLandingsMs = [300, 700, 1500];
+
+    /**
+     * Drags the bar to each spot of targets, one drag every gapMs, and answers the way a player that
+     * takes the wait of its own landing to load a spot does: it goes on from the last spot it landed
+     * on until the next one has loaded, so a read taken between two moves names the spot the one
+     * before it landed on. Every drag here is forward, so no drop is a fall of its own.
+     */
+    const stackedDrags = async (
+        fromSec: number, targets: number[], gapMs: number, landMs: number[], spanMs: number,
+    ): Promise<number[]> => {
+        await startFrom(Math.round(fromSec * 1000));
+        const beganMs = performance.now();
+        /** When each move was asked for, in ms after the first frame: the player lands its own wait later. */
+        const askedMs: number[] = [];
+        const playerAt = (elapsedMs: number): number => {
+            let stoodSec = fromSec;
+            let standsFromMs = 0;
+            for (let index = 0; index < askedMs.length; index++) {
+                const landedMs = askedMs[index] + landMs[index];
+                if (elapsedMs >= landedMs) {
+                    stoodSec = targets[index];
+                    standsFromMs = landedMs;
+                }
+            }
+            return stoodSec + (elapsedMs - standsFromMs) / 1000;
+        };
+        omniMock.getExternalPlaybackStatus.mockImplementation(async () => status({
+            positionMs: Math.round(playerAt(performance.now() - beganMs) * 1000),
+            isPlaying: true,
+        }));
+        const shown: number[] = [engine.getExternalPosition()];
+        let next = 0;
+        for (let waited = 0; waited < spanMs; waited += SAMPLE_MS) {
+            if (next < targets.length && waited >= next * gapMs) {
+                askedMs.push(waited);
+                expect(engine.seekExternalPlayback(targets[next])).toBe(true);
+                shown.push(engine.getExternalPosition());
+                next += 1;
+            }
+            await vi.advanceTimersByTimeAsync(SAMPLE_MS);
+            shown.push(engine.getExternalPosition());
+        }
+        return shown;
+    };
+
+    it.each(stackedGapsMs.flatMap(gapMs => stackedLandingsMs.map(landMs => ({ gapMs, landMs }))))(
+        'never goes back over two drags $gapMs ms apart landing in $landMs ms',
+        async ({ gapMs, landMs }) => {
+            const spanMs = 2 * gapMs + 3 * landMs + 2000;
+            const shown = await stackedDrags(10, [30, 60], gapMs, [landMs, landMs], spanMs);
+            const fall = largestFallSec(shown);
+            console.log('[two drags] gap=' + gapMs + 'ms land=' + landMs + 'ms fall=' + fall.toFixed(3)
+                + ' last=' + shown[shown.length - 1].toFixed(3));
+            expect(fall, 'the move asked for last owns the timeline').toBe(0);
+        },
+        60000,
+    );
+
+    it.each(stackedGapsMs.flatMap(gapMs => stackedLandingsMs.map(landMs => ({ gapMs, landMs }))))(
+        'never goes back over three drags $gapMs ms apart landing in $landMs ms',
+        async ({ gapMs, landMs }) => {
+            const spanMs = 2 * gapMs + 3 * landMs + 2500;
+            const shown = await stackedDrags(10, [30, 60, 90], gapMs, [landMs, landMs, landMs], spanMs);
+            const fall = largestFallSec(shown);
+            console.log('[three drags] gap=' + gapMs + 'ms land=' + landMs + 'ms fall=' + fall.toFixed(3)
+                + ' last=' + shown[shown.length - 1].toFixed(3));
+            expect(fall, 'the move asked for last owns the timeline').toBe(0);
+        },
+        60000,
+    );
+
+    it('holds the lead a later answer behind the bar grows it to', async () => {
+        // The answer that lands the move steps the bar back onto the player and keeps the lead it ran
+        // up on the spot as the one held. A player that loads the spot a little short of the bar and
+        // then creeps up on it reports from further behind with every answer: a lead given up as soon
+        // as it outgrew the one it was found with dropped the bar the whole way back to the player,
+        // once, for a listener to see.
+        await startFrom(20000);
+        const askedAt = performance.now();
+        omniMock.getExternalPlaybackStatus.mockImplementation(async () => {
+            const elapsedMs = performance.now() - askedAt;
+            return status({
+                positionMs: elapsedMs < 400
+                    ? 20000 + Math.round(elapsedMs)
+                    : 59600 + Math.round((elapsedMs - 400) / 4),
+                isPlaying: true,
+            });
+        });
+        expect(engine.seekExternalPlayback(60)).toBe(true);
+        const shown: number[] = [engine.getExternalPosition()];
+        for (let waited = 0; waited < 3000; waited += SAMPLE_MS) {
+            await vi.advanceTimersByTimeAsync(SAMPLE_MS);
+            shown.push(engine.getExternalPosition());
+        }
+        const fall = largestFallSec(shown);
+        console.log('[growing lead] fall=' + fall.toFixed(3) + ' last=' + shown[shown.length - 1].toFixed(3));
+        expect(fall, 'the lead is held for as long as the player is behind it').toBe(0);
+    }, 60000);
+
+    it('keeps the bar moving while the answers still name the line the song stood on', async () => {
+        // A read of the line the song stood on before a move is not where the song is now, and nothing
+        // is written from it. What the bar does meanwhile is what a listener sees of the wait: it runs
+        // on from the drop rather than standing still on it for the whole load.
+        const shown = await drag(10, 20, 2000, 1500);
+        const still = longestStillMs(shown);
+        const fall = largestFallSec(shown);
+        console.log('[old line reads] still=' + still + 'ms fall=' + fall.toFixed(3));
+        expect(fall, 'never goes back over the drop').toBe(0);
+        expect(still, 'never stands still under a song that is playing').toBeLessThanOrEqual(STILL_LIMIT_MS);
+    }, 60000);
+
     it('asks the player again far sooner than the usual rate while it waits for the drop', async () => {
         // The answer that says the player has loaded the spot is what the bar is held for: asking at
         // the half second the player is followed at leaves that answer a whole poll late, and the bar
