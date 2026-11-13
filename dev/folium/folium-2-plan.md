@@ -25,6 +25,7 @@ Folium 2.0 要做到两件事：
 | 单独停用 | 每个音源（含内置）可以单独停用：不加载、不起后端、界面里不出现，可一键清掉它的数据；安装包里的内置副本留在磁盘上（§5.3） |
 | 默认启用 | 升级的用户九个全部保持启用；全新安装在开箱引导里勾选 |
 | 跨音源功能 | 联邦搜索、元数据匹配、歌词跨来源匹配在平台缺失时降级：能匿名就匿名，不能的记下缺失并隐藏（§7.1） |
+| 合规预案 | 安装包可以不带某些或全部内置音源；这样的安装里，外部的音源模组经用户确认就能直接顶上那个音源的位置，不要求官方签名（§5.1） |
 
 2.0 的范围只有音源外置。1.9 探索文档里的 B / C / D 组和「internals 清零」留给 2.x。
 
@@ -83,7 +84,7 @@ Folium 2.0 要做到两件事：
 
 - 桌面上音源的渲染侧代码和 omni 在同一个进程里，同步成员照旧同步。
 - 主进程侧代码仍在 Electron 主进程里 `require`，和今天一样；模组是可信代码不是沙箱，这一点不变。
-- 第三方音源的 id 仍是 `folium.<modid>.<name>`。内置音源的短 id（`netease` 等）只能由宿主的受信表认领。
+- 第三方音源的 id 仍是 `folium.<modid>.<name>`。内置音源的短 id（`netease` 等）只能由宿主的受信表认领（唯一的例外是 §5.1 的合规预案）。
 
 ## 4. 稳定契约：`folium.sources`
 
@@ -175,6 +176,13 @@ folium.sources.register({
 - 新层级 `builtin`：来自 `resources/builtin-mods/`（开发时是 `dist-mods/`）。不受模组系统总开关影响，不弹确认，默认启用，可以单个停用（数据保留）；「这次不带模组启动」和窗口卡死询问都不把它算进去；不算内容摘要，用应用版本当版本记号；不带签名文件，也不验签名（§5.2 的签名一行）。
 - 覆盖：`userData/mods` 里同 id 的副本要同时满足官方签名校验通过（`verified`，不含先行测试）、版本更高、`folia` 范围满足、用户确认过一次，才替代内置副本；否则继续跑内置的，并在模组面板写明原因。签名只贴标签这条不变量保留。
 - 受信表 `electron/modSystem/builtinSources.cjs`：模组 id → 认领的短音源 id、旧 electron-store 键、旧 session 分区、旧 userData 目录。只对内置副本和验签通过的覆盖副本生效。存储键一个都不改名，降级回旧版本登录还在。
+- 无内置副本时的接管（合规预案）：以后如果因为合规要求，安装包不能再带某个或全部内置音源，同一份宿主照样能用外部安装的音源模组，不用为此另改宿主代码。
+  - **安装包自己声明带了哪些。** 构建时把随包的内置音源 id 写进 app.asar 里 `package.json` 的 `foliaBundledSources`（和现有的 `foliaReleaseChannel` 同一个做法，`main.cjs:4098`）。声明里没有的 id，这个安装就是「不带」它，才走下面的接管。声明里有、`resources/builtin-mods/` 里却找不到的，算安装损坏：报错，不放行外部副本。没有这个字段的安装包读作九个全带。
+  - **不带的音源由外部模组直接顶上。** `userData/mods` 里的音源类模组在清单的 `sources[].claims` 里写明它要接的短音源 id、旧 electron-store 键、旧 session 分区、旧 userData 目录，内容和受信表里那一行相同。不带这个音源的安装包可以连受信表里那一行也不带，所以接管时以清单写的为准。它要接的 id 这个安装不带时，不算覆盖：不要求官方签名，也不要求版本更高。它按第三方模组的规矩启用（模组系统总开关、启用确认、内容摘要变了重新确认）；确认窗口另加一段，逐项列出它要接管的音源 id 和上面那些旧数据，写明它会用上你在这个平台已有的登录。确认之后它认领短 id，队列、历史、歌单里 `online:<id>:…` 的歌和旧登录都接着用。
+  - **签名在这里仍然只贴标签。** 官方认证、先行测试、无签名的都能接管，确认窗口照实写。签名不匹配的（签过之后内容被改过）不让接管，只能当普通的第三方音源，用它自己的 `folium.<modid>.<name>`。
+  - **一个 id 只给一个模组。** 两个模组要接同一个 id 时，先确认的那个拿到；后一个在模组面板写明原因，由用户在「设置 → 音源」里换。
+  - **安装包又带回来时。** 换成带这个音源的安装包后，内置副本优先；外部副本回到上面「覆盖」那一条的规矩，官方签名、版本更高才替代，否则不加载并写明原因。两边用的是同一批旧键，来回切换登录都在。
+  - **界面。** 不带的音源，宿主界面里不出现它的名字。零音源的空状态和「设置 → 音源」各给一个「安装音源模组」的入口，走现有的 zip 安装；`npm run sources:pack <id>` 出的 zip 就是能这样装的包。
 
 ### 5.2 音源类模组的豁免
 
@@ -184,7 +192,7 @@ folium.sources.register({
 | --- | --- | --- |
 | 网络 | 要声明 `net.fetch`；Node `fetch`；只有文本；回答上限 5 MB；时限 15 秒（最多 60 秒）；没有 cookie 和分区 | 不用声明。client 的 `folium.net.fetch` 和 main 的 `api.net.*` 走 Electron `net`：二进制、流式、不设回答上限、时限由模组自己定、可用自己的命名分区、媒体规则和 `_media` 流。音源自己发出的请求不算进 `folium.omni` / `platform.raw` 那份每模组每分钟 120 次、同时 8 个的额度（那是给调用音源的模组定的） |
 | 存储 | 要声明 `filesystem.data`；一个 1 MB 的数据文件；密钥只能是设置字段、每个 8 KB | 不用声明。同步的 `folium.sources.pageStore`；清单 `secrets` 声明的密钥槽，每个 64 KB；`api.storage` 的上限提到 16 MB；`api.cache.dir()` 并入宿主的缓存预算和清理。内置音源另有受信表里认领的旧键（§5.1） |
-| 签名 | 带签名文件的模组每次加载都对整个目录算签名摘要并验签（最多 2000 个文件、合计 64 MB，超了算验不了）；结果只贴标签：官方认证、先行测试、无签名、不匹配；仓库 `mods/` 里的示范模组必须带有效签名，改了要重签 | 内置副本不带 `folium.sig.json`，加载时不算签名摘要、不验签，面板里标「内置」，不标「无签名」：它随安装包分发，来源由安装包保证，和 app.asar 里的宿主代码一样。`sources/` 的源码和 `dist-mods/` 的构建产物都不签，改了不用重签，也不进 `sampleMods.test.ts` 的签名检查。第三方的音源类模组不要求签名：没有签名照样能启用、照样拿到本表其余各行的豁免；带了签名的照旧验过贴标签。只有一处仍然要签名：`userData/mods` 里的副本要覆盖内置副本，必须官方签名校验通过（§5.1） |
+| 签名 | 带签名文件的模组每次加载都对整个目录算签名摘要并验签（最多 2000 个文件、合计 64 MB，超了算验不了）；结果只贴标签：官方认证、先行测试、无签名、不匹配；仓库 `mods/` 里的示范模组必须带有效签名，改了要重签 | 内置副本不带 `folium.sig.json`，加载时不算签名摘要、不验签，面板里标「内置」，不标「无签名」：它随安装包分发，来源由安装包保证，和 app.asar 里的宿主代码一样。`sources/` 的源码和 `dist-mods/` 的构建产物都不签，改了不用重签，也不进 `sampleMods.test.ts` 的签名检查。第三方的音源类模组不要求签名：没有签名照样能启用、照样拿到本表其余各行的豁免；带了签名的照旧验过贴标签。只有一处仍然要签名：`userData/mods` 里的副本要覆盖内置副本，必须官方签名校验通过（§5.1）。安装包不带这个音源时不算覆盖，走 §5.1 的合规预案，不要求签名 |
 | 加载时序 | 按依赖顺序逐个启动；每个 5 秒算慢；第一屏对所有模组合计只等 1.5 秒；main 入口在建窗口之后启动 | 自成一组、排在所有普通模组之前：main 入口在建窗口之前并行启动，client 并行启动；第一屏单独等这一组（上限 3 秒），过了时限的继续启动，回来后选中的平台、队列里的歌、保留的账号自动恢复。普通模组不用写 `depends`，启动时音源已经在了 |
 | 卸载与重载 | 任何一个模组启用、停用、安装都会让全部 main 入口重启；停用立刻卸载 | 只有它自己变了才重载，别的模组变动和窗口重建都不碰它的 main 入口。卸载排在所有普通模组之后；卸载之前宿主先停掉它名下正在放的歌（外部播放器和 `surface` 先交还），再等它的 `api.onBeforeUnload`（最多 3 秒）收尾；退出应用时等 `api.onBeforeQuit` |
 | 开销与出错 | 每次调用计时，慢了在面板里标「慢」；出错提示用户 | 渲染热路径上的同步成员不包计时和防护。音源方法失败照旧是平常结果（只记一行、不提示），失败的含义由 `describeFailure` 说 |
@@ -224,6 +232,8 @@ folium.sources.register({
 | `approval.cjs:248-279` | `builtin` 默认启用，不绑摘要 |
 | `modSystem.cjs:289-335` `planMods` | 内置跳过摘要和验签（`:312` 的 `verifyModSignature`）；覆盖规则 |
 | `modSystem.cjs:82-88` `publicSignatureState`、`approval.cjs:287-307` | 签名状态加一种「内置」，面板按它显示；启用确认窗口对第三方音源类模组照旧写签名那一行 |
+| `discovery.cjs:94-101`、`modSystem.cjs:289-335`、`main.cjs:4098` 旁 | 短 id 的归属按顺序定：内置副本，验签通过的覆盖副本，安装包不带这个音源时经确认接管的外部副本（§5.1 的合规预案）；读 `package.json` 的 `foliaBundledSources`，声明里有而目录缺失的报安装损坏 |
+| `approval.cjs:287-307`、`manifest.cjs:199-228` | 清单的 `sources[].claims`；接管的确认窗口多一段，列出音源 id 和要接的旧数据；签名不匹配的不让接管 |
 | `modSystem.cjs:348` | `unloadAll()` 改成差量：目录、摘要、启用状态都没变的保留 |
 | `modSystem.cjs:349-353,381-386,471-501,831` | 总开关、不带模组启动、启用确认、`hasRunningMods` 都只管非内置 |
 | `modSystem.cjs:411-431` | 内置先启动、并行 |
@@ -293,7 +303,7 @@ packages/folium-source-kit/   纯 TS 的共用函数（exploreReads、listeningR
   | appleMusic | 伴侣程序留在 `resources/apple-music`，经 `api.native.path` 引用 |
   | fnmusic | 无依赖 |
 
-- 打包：`package.json` 的 `extraResources` 把 `dist-mods/` 放到 `resources/builtin-mods/`；`files` 加排除规则，不让那几个上游包再进一份 app.asar。根 `dependencies` 保留（Vercel、Cloudflare 的 QQ 入口还在用）。
+- 打包：`package.json` 的 `extraResources` 把 `dist-mods/` 放到 `resources/builtin-mods/`；`files` 加排除规则，不让那几个上游包再进一份 app.asar。根 `dependencies` 保留（Vercel、Cloudflare 的 QQ 入口还在用）。随包带哪些内置音源由构建参数 `FOLIA_BUNDLED_SOURCES` 决定（缺省九个全带，可以给一个子集，也可以给空）：它同时决定 `extraResources` 里放哪些、`foliaBundledSources` 写什么、受信表带哪几行、app.asar 的排除规则。不带的音源，安装包里没有它的任何代码和名字（§5.1 的合规预案）。
 - 官方签名的覆盖包单文件上限提到 64 MB、总量 96 MB（网易云的 `deps.asar` 约 48 MB）。新增 `npm run sources:pack <id>` 出 zip，签名仍走 folium-compound 的 `tools/sign.mjs`。
 - 原生件随应用走，覆盖副本用 `folia` 版本范围锁住宿主。
 - 开发：`dev:electron` 同时以 watch 方式跑 `dev/sources/build.mjs`；改了文件 → 产物指纹变 → 现成的 client 重载机制只重载那一个。
@@ -348,6 +358,7 @@ packages/folium-source-kit/   纯 TS 的共用函数（exploreReads、listeningR
 - 网页构建不加载模组、不调 `activate`。`registerWebSources()` 用宿主的 `src/services/onlineMusic/web/<id>.ts` 注册 netease、kugou、qq 三家，经同一个适配层。
 - 这三家区分桌面与网页的代码只在传输层和歌词代理（约 40 处判断，Provider 本身各 1 处），所以抽 `sources/<id>/core`：`createSource(env)`，`env` 注入传输、同步页面存储、文字、歌词代理、诊断。桌面的 client 注入 `folium.rpc` 和 `folium.sources.pageStore`；网页的 adapter 注入 `VITE_*_API_BASE` 的 HTTP 传输和 `providerStorage`。不留两份分叉的实现。
 - 其余六家在网页版不存在（现在是「运行环境不可用」的一行，以后是没有这一行）。
+- 合规预案（§5.1）对网页版同样生效：`registerWebSources()` 只注册构建参数 `FOLIA_BUNDLED_SOURCES` 里有的，没有的那一家连 `sources/<id>/core` 都不打进包。网页版没有模组运行时，不带的音源在网页版就是没有。
 - `api-ts/`、`worker/`、`deploy/docker/` 不动。
 
 ## 9. Folium 1 兼容
@@ -367,13 +378,13 @@ packages/folium-source-kit/   纯 TS 的共用函数（exploreReads、listeningR
 | --- | --- | --- |
 | S0 基线 | 把本方案存为 `dev/folium/folium-2-plan.md`；生成逐成员矩阵「内部成员 → 调用方 → 公开能力 → 测试」；`deps.asar` 最小样例 | 矩阵里没有未归类的成员 |
 | S1 宿主容错与去硬编码 | §7 全部，含 §7.1 的 `crossSource`（这一步先用现有的静态注册表喂它） | 九个都在时行为不变；零音源能启动；测试里逐个拿掉平台，三个跨音源功能都不报错 |
-| S2 运行时 | §5：来源校验、差量重载、层级、音源类的豁免、单独停用、协议、清单 v2、`api` 新成员 | 现有模组测试全过；内置目录为空时行为不变；普通模组的限额一条没松 |
+| S2 运行时 | §5：来源校验、差量重载、层级、音源类的豁免、单独停用、无内置副本时的接管、协议、清单 v2、`api` 新成员 | 现有模组测试全过；内置目录为空时行为不变；普通模组的限额一条没松 |
 | S3 契约与适配层 | §4；`registries/sources.ts`；`omni.providers` 薄壳；生成器；`folium:check` 的音源检查 | `sample-source-full` 不改宿主就能覆盖每个能力族 |
 | S4 构建与测试夹具 | §6；kit；`test/unit/helpers/builtinSources.ts`（挂进 `vitest.config.ts` 的 `setupFiles`，用测试 `env` 调各家 `createSource` 并注册）；CI 规则改指向 | 构建产物能在开发版里以 `builtin` 加载 |
 | S5 迁移九家 | 顺序见下；每家一组提交：纯搬移 → Core 接缝（三家）→ client → main → 语言表 → 删 `main.cjs` / `preload.cjs` / `vite-env.d.ts` 里对应的块 | 每家迁完桌面实测通过 |
 | S6 `surface` | §4.2、§4.4；`sample-video-source` | 示范模组能在播放页放视频，切歌、暂停、跳转、窗口重建正常 |
 | S7 网页版 | §8 | 网页构建不含 Electron 与模组加载器，三家可用 |
-| S8 收尾 | 「设置 → 音源」页面与开箱引导的勾选；覆盖机制与上限；删 `providerRegistry.ts` 的静态 import；文档；`AGENTS.md` | §11 全部通过后合并 |
+| S8 收尾 | 「设置 → 音源」页面与开箱引导的勾选；覆盖机制与上限；不带内置音源的打包形态（`FOLIA_BUNDLED_SOURCES`）；删 `providerRegistry.ts` 的静态 import；文档；`AGENTS.md` | §11 全部通过后合并 |
 
 **迁移顺序与各自逼出的宿主设施**
 
@@ -404,6 +415,7 @@ packages/folium-source-kit/   纯 TS 的共用函数（exploreReads、listeningR
 - **单独停用**：逐个停用九个内置音源，每次确认它的后端进程、worker、本机端口都没有了（主进程里求值检查），切换器、登录窗口、搜索来源、歌词来源里没有它，别的音源没有重启；队列里它的歌标「音源未启用」，重新启用后能放；「清除数据」之后重新启用是未登录状态；升级来的 profile 九个全开，全新 profile 按引导里勾的来。
 - **跨音源降级**：`crossSource` 的单测覆盖表里五种状态；桌面上停用 QQ 后，歌词首选来源仍存着 `qq`、匹配落到下一个来源、设置里说明了原因，重新启用后用回 QQ；停用网易云、QQ、酷狗后本地歌匹配的入口隐藏；只留一个不登录的网易云时联邦搜索和歌词匹配走匿名成功。
 - **覆盖**：干净的安装版上放一个官方签名的更高版本，确认后生效；未签名、版本更低、`folia` 范围不符的都继续跑内置副本。
+- **合规预案**：用 `FOLIA_BUNDLED_SOURCES` 出两个安装包，一个九个都不带，一个只不带 QQ。前一个启动是零音源的空状态，安装包里搜不到任何平台的代码和名字；装上 `sources:pack` 出的未签名 zip 并确认之后，音源以短 id 出现，从九个全带的旧版本升级来的 profile 里登录还在、队列里的歌能放。后一个其余八家照常，QQ 由外部副本接管。声明里有而目录被删掉的，报安装损坏、不放行外部副本；签名不匹配的不让接管；两个模组抢同一个 id 时只有先确认的拿到；换回九个全带的安装包后，未签名的外部副本不再加载，登录还在。
 - **打包**：按 `local-windows-installer-build` 的做法出 Windows 安装包，确认 `resources/builtin-mods/` 齐全、app.asar 里没有重复的上游包。
 - **网页版**：`npm run build` 后三家可用，包里没有 Electron 和模组加载器的代码。
 - **版本组合**：`folium: 1` 的现有示范模组和 `test/fixtures/folium-1.5-mods/` 照旧通过。
@@ -420,6 +432,7 @@ Windows 以外的系统、Apple Music 的 DRM、Spotify Soloist 以对应系统�
 6. **豁免是按清单声明给的**：第三方模组声明 `sources` 就拿到不限额的网络和存储。模组本来就是可信代码、权限不是安全边界，这没有改变信任模型；靠启用确认窗口写明、空声明被拒、上架审查来约束。
 7. **同步成员跨模组边界**：热路径上不包计时和防护；模组 bundle 里不能自带第二份 i18n 或 zustand，用宿主注入的。
 8. **视频站**：Electron 不带 Widevine，带 DRM 的站点在嵌入页里放不了；嵌入页不可见时可能自己暂停。写进 `surface` 的文档。
+9. **合规预案放宽了「短 id 只归受信表」**：安装包不带某个音源时，未签名的外部模组经确认就能拿到那个音源的旧登录。放宽的条件是安装包自己的声明，它在 app.asar 里，和宿主代码同等可信；九个全带的正常安装包里这条路走不通。模组本来就是可信代码，确认窗口逐项写明它接管什么。预案只管模组这一层：根 `dependencies` 里给 Vercel、Cloudflare、Docker 用的三个 API 包，`api-ts/`、`worker/`、`deploy/docker/` 里的平台入口，都不在它的范围内，真到那一步要另行处理。
 
 ## 13. 未验证、动手时要先确认的
 
