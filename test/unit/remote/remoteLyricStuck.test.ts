@@ -79,7 +79,10 @@ describe('remote clock', () => {
         expect(clock.getTime()).toBeGreaterThanOrEqual(before);
         now = 2500;
         await render(React.createElement(Probe, { time: 11 }));
-        expect(clock.getTime()).toBeGreaterThanOrEqual(11);
+        // The resume ran on from the spot it showed, a little slower while ahead of the player: it is
+        // on the player within the bend, and the next answer is not a step.
+        expect(clock.getTime()).toBeGreaterThan(10.9);
+        expect(clock.getTime()).toBeLessThanOrEqual(11);
     });
 
     it('continues smoothly after a repeated snapshot without renewing the stall deadline', async () => {

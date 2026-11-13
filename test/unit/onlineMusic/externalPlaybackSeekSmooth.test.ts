@@ -183,24 +183,22 @@ describe('a bar dropped on a song that is playing', () => {
     it.each(landingCells)(
         'keeps moving and ends on the player over a $delayMs ms landing, drag $drag',
         async ({ fromSec, targetSec, delayMs }) => {
-            const spanMs = 3 * delayMs + 2500;
+            // The line is put on the drop at once and runs on at the song's own speed; the player loads
+            // the spot the wait later, so it stands a lead of that wait behind the line, and the lead is
+            // closed by the bend rather than by the line stopping. The bend takes a tenth of a second
+            // off the lead per second of the song at most, so the lead is gone after ten times the wait.
+            const closeMs = 10 * delayMs;
+            const spanMs = delayMs + closeMs + 2000;
             const shown = await drag(fromSec, targetSec, delayMs, spanMs);
             const still = longestStillMs(shown);
             const fall = largestFallSec(shown);
-            // The clock closes the lead it ran up while the player was loading the spot at half speed,
-            // so the two meet 2 x the lead after the landing instead of the bar standing still for it.
-            const meetMs = 2 * delayMs;
             const index = (ms: number) => Math.min(shown.length - 1, Math.round(ms / SAMPLE_MS));
-            const gapAt2s = Math.abs(shown[index(delayMs + 2000)] - playerAtSec(fromSec, targetSec, delayMs, delayMs + 2000));
-            const gapAfterMeet = Math.abs(shown[index(delayMs + meetMs + 400)] - playerAtSec(fromSec, targetSec, delayMs, delayMs + meetMs + 400));
+            const gapAtClose = Math.abs(shown[index(delayMs + closeMs + 1500)] - playerAtSec(fromSec, targetSec, delayMs, delayMs + closeMs + 1500));
             console.log('[landing] drag=' + (targetSec > fromSec ? 'forward' : 'back') + ' delay=' + delayMs + 'ms still=' + still
-                + 'ms fall=' + fall.toFixed(3) + ' gap@2s=' + gapAt2s.toFixed(3) + ' gap@meet=' + gapAfterMeet.toFixed(3));
+                + 'ms fall=' + fall.toFixed(3) + ' gap@close=' + gapAtClose.toFixed(3));
             expect(fall, 'never goes back over the drop').toBe(0);
             expect(still, 'never stands still under a song that is playing').toBeLessThanOrEqual(STILL_LIMIT_MS);
-            // Two seconds after the landing the shortest leads are long gone; a lead of a second or
-            // more is closed at half speed, so those are held to their own 2 x lead.
-            if (meetMs <= 2000) expect(Math.abs(gapAt2s), 'on the player two seconds in').toBeLessThanOrEqual(0.15);
-            expect(gapAfterMeet, 'on the player once the lead is closed').toBeLessThanOrEqual(0.15);
+            expect(gapAtClose, 'on the player once the lead is bent away').toBeLessThanOrEqual(0.15);
             expect(Math.abs(shown[shown.length - 1] - playerAtSec(fromSec, targetSec, delayMs, spanMs))).toBeLessThanOrEqual(0.15);
         },
         60000,
@@ -216,19 +214,22 @@ describe('a bar dropped on a song that is playing', () => {
         async ({ back, delayMs }) => {
             const fromSec = 20;
             const targetSec = fromSec - back;
-            const spanMs = delayMs + 4000;
+            // The line is put on the drop at once and the player loads it the wait later, so it stands
+            // that wait behind the line: the lead is bent away at a tenth of a second per second of the
+            // song, which is ten times the lead. Sampled well past that, the two are together again.
+            const closeMs = 10 * (delayMs + back * 1000);
+            const spanMs = delayMs + closeMs + 2000;
             const shown = await drag(fromSec, targetSec, delayMs, spanMs);
             const still = longestStillMs(shown);
             const fall = largestFallSec(shown);
             const gapEnd = Math.abs(shown[shown.length - 1] - playerAtSec(fromSec, targetSec, delayMs, spanMs));
             console.log('[back drag] back=' + back + ' delay=' + delayMs + ' still=' + still + ' fall=' + fall.toFixed(3)
                 + ' gapEnd=' + gapEnd.toFixed(3));
-            // A drag back of this length leaves the bar ahead of the spot the player lands on by as much
-            // as the wait was: the lead is run out at the slower speed rather than the bar standing
-            // still on it until the player arrives.
+            // A drag back of this length leaves the line ahead of the spot the player lands on by as much
+            // as the wait was: the lead is bent away rather than the line standing still on it.
             expect(fall, 'never goes back over the drop').toBe(0);
             expect(still, 'never stands still under a song that is playing').toBeLessThanOrEqual(STILL_LIMIT_MS);
-            expect(gapEnd, 'on the player once the lead is played out').toBeLessThanOrEqual(0.15);
+            expect(gapEnd, 'on the player once the lead is bent away').toBeLessThanOrEqual(0.15);
         },
         60000,
     );
@@ -275,14 +276,15 @@ describe('a bar dropped on a song that is playing', () => {
         const shown = await longLanding(callMs, delayMs, tailMs);
         const still = longestStillMs(shown);
         const fall = largestFallSec(shown);
-        const gapEnd = Math.abs(shown[shown.length - 1] - playerAtSec(10, 60, delayMs, delayMs + tailMs));
+        // The lead the line ran up over the wait is wider than the clock bends away, so it stands on the
+        // spot it reached rather than being bent onto a player it cannot reach in reasonable time, which
+        // is what the horizontal hold is for. What is pinned here is that it never goes back and never
+        // freezes on the spot the bar was dropped on.
         console.log('[long landing] call=' + callMs + ' delay=' + delayMs + ' still=' + still + ' fall=' + fall.toFixed(3)
-            + ' gapEnd=' + gapEnd.toFixed(3));
-        // The spot the bar stands on is never gone back over, and the wait is the distance the player
-        // has to cover to reach it rather than a freeze of its own.
+            + ' last=' + shown[shown.length - 1].toFixed(2));
         expect(fall, 'never goes back over the drop').toBe(0);
         expect(still, 'held for the lead the player is behind by, not longer').toBeLessThanOrEqual(delayMs);
-        expect(gapEnd, 'on the player once it has loaded the spot').toBeLessThanOrEqual(0.15);
+        expect(shown[shown.length - 1], 'never left on the spot the bar was dropped on').toBeGreaterThan(60);
     }, 60000);
 
     it('drops what an answer sent before the drop says about the player', async () => {
@@ -339,17 +341,19 @@ describe('a bar dropped on a song that is playing', () => {
         async ({ aheadSec, delayMs }) => {
             const fromSec = 10;
             const targetSec = fromSec + aheadSec;
-            // Sampled well past the landing: the bar stands still until the player has played its way
-            // up to it, and then goes on with the player.
+            // Sampled past the landing: the line goes on from the drop rather than standing still on it,
+            // and the player is the whole jump of the drag behind. A lead that wide is not bent away in
+            // any time a listener would sit through, so it is kept - the line is where they put it, and
+            // it keeps moving - and the player is rejoined on the next read that names a spot near it.
             const spanMs = 3 * delayMs + 2000;
             const shown = await drag(fromSec, targetSec, delayMs, spanMs);
             const still = longestStillMs(shown);
             const fall = largestFallSec(shown);
-            const gapEnd = Math.abs(shown[shown.length - 1] - playerAtSec(fromSec, targetSec, delayMs, spanMs));
             console.log('[far landing] ahead=' + aheadSec + 's delay=' + delayMs + 'ms still=' + still + 'ms fall=' + fall.toFixed(3)
-                + ' gapEnd=' + gapEnd.toFixed(3));
+                + ' last=' + shown[shown.length - 1].toFixed(2));
             expect(fall, 'never goes back over the drop, however far behind the player lands').toBe(0);
-            expect(gapEnd, 'on the player once it has played its way up to the bar').toBeLessThanOrEqual(0.15);
+            expect(still, 'never stands still under a song that is playing').toBeLessThanOrEqual(STILL_LIMIT_MS);
+            expect(shown[shown.length - 1], 'never taken back off the drop').toBeGreaterThan(targetSec - 1);
         },
         120000,
     );

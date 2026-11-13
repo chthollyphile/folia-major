@@ -1764,7 +1764,9 @@ export const seekExternalPlayback = (timeSec: number, { resume = false }: { resu
         // with the move is the listener's - and under the second every sync that is not a move in flight
         // is given, that limit having belonged to a move the player never took. No ask is held for it
         // either: the poll asked for below is the player's own word on where it is.
-        current.clock.sync({ positionSec: beforeSec, paused: !current.playing, holdBackward: false });
+        current.clock.sync({
+            positionSec: beforeSec, paused: !current.playing, holdBackward: false, maxExtrapolationSec: MAX_SAMPLE_AGE_SEC,
+        });
         emit({ type: 'failure', error });
         emit({ type: 'status' });
     }).finally(() => {

@@ -81,9 +81,11 @@ describe('an external clock answered a little behind the shown position', () => 
         // and it is never taken back over.
         const clock = createExternalClock();
         clock.sync({ positionSec: 10, paused: false, nowMs: 0, durationSec: 200 });
-        expect(clock.read(4000)).toBeCloseTo(11);
+        expect(clock.read(4000), 'runs on until the extrapolation it is given runs out').toBeCloseTo(13);
+        // Four seconds on, the answer says the song is at 10: three seconds behind the line, past the
+        // widest gap that is eased. The line stands where it is rather than being taken back over.
         clock.sync({ positionSec: 10, paused: false, nowMs: 4000, holdBackward: true });
-        expect(clock.read(5000)).toBeCloseTo(11);
-        expect(clock.read(9000)).toBeCloseTo(11);
+        expect(clock.read(5000), 'stands on the spot it has reached').toBeCloseTo(13);
+        expect(clock.read(9000), 'and still stands there later').toBeCloseTo(13);
     });
 });

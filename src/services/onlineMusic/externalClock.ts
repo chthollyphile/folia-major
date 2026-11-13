@@ -1,101 +1,116 @@
 import { createHifiClock, MAX_EXTRAPOLATION_SEC, type HifiClockSync } from '../hifi/hifiClock';
 
-// Keep coarse external-player samples monotonic across buffering/pause/resume, not just playing ticks.
+// src/services/onlineMusic/externalClock.ts
+// The line the bar and the lyrics run on over a song another program is sounding. That player answers
+// where it stands a few times a second, and every answer carries the age of the call and the jitter of
+// the player's own clock: written down as they come, the line steps forward on one answer and stands
+// still or steps back on the next. So the line is not re-based on a routine answer. It runs on from
+// where it is shown, and the answer only bends its speed onto the player's own. A stop shows where the
+// player stands, and a write the route makes itself puts the line where it says.
 
+/** How long the line may run on without an answer before it stands: a player that stopped answering. */
+export const EXTERNAL_MAX_EXTRAPOLATION_SEC = 3;
+/** How far the line may lean on the player's own speed, either way. */
+const MAX_RATE_BEND = 0.1;
+/** A player further ahead of the line than this is somewhere else, and the line is put there. */
+const ALIGN_BEHIND_SEC = 1;
 /**
- * How fast a shown position that is ahead of the player runs while it lets the player catch up, as a
- * share of the player's own speed. The difference closes over twice its length, and the bar and the
- * lyrics keep moving the whole time instead of standing still until the player arrives.
+ * A line further ahead of the player than this is somewhere else, and is put back there. Up to it the
+ * lead is a move the player took long to load, and it is run out slowly instead.
  */
-export const EXTERNAL_CATCH_UP_RATE = 0.5;
-/**
- * The longest lead, in seconds, that is played out this way. A player answering from much further
- * behind is not catching up with the bar but saying the song is somewhere else, so the shown position
- * stands still for it as it always did rather than running on slowly for seconds.
- */
-export const MAX_CATCH_UP_LEAD_SEC = 3;
+const ALIGN_AHEAD_SEC = 10.5;
+/** A lead past the jitter is run out faster, at up to half speed, so it does not linger for a minute. */
+const JITTER_SEC = 1;
+const MAX_LEAD_BEND = 0.5;
+/** How much of a gap is taken per second of the song, before the rate is clamped to the bend. */
+const EASE_PER_SEC = 2;
 
-/**
- * A position known to be ahead of the player, running on at its own slower speed from the moment it
- * was found there until the player has come up to it.
- */
-type CatchUpLine = {
-    startSec: number;
-    startMs: number;
-    /** How far ahead the player was: the line travels this much at the catch-up speed and then stops. */
-    leadSec: number;
-};
+type Line = { atSec: number; atMs: number; rate: number };
 
-export function createExternalClock() {
+const clamp = (value: number, low: number, high: number) => Math.min(high, Math.max(low, value));
+
+export function createExternalClock({ runOnSec = EXTERNAL_MAX_EXTRAPOLATION_SEC }: { runOnSec?: number } = {}) {
     const clock = createHifiClock();
     let previousSample: { position: number; paused: boolean } | null = null;
+    let line: Line = { atSec: 0, atMs: 0, rate: 1 };
     /**
-     * Where a shown position ahead of the player stands while nothing is played out from it: the song
-     * is stopped, or the player answered from further behind than a lead is run out over. The spot it
-     * was found on is read from there until the player's own answers come up to it. Null while nothing
-     * is held.
+     * How long the line may run on without an answer. A way of playing that declared how long its own
+     * moves take says so through the limit on the write (a move in flight), and that limit is the one
+     * the line is given then; every other answer keeps the longer one a followed player is given.
      */
-    let floor: number | null = null;
-    let catchUp: CatchUpLine | null = null;
-    /** The answer past the longest lead played out has been written down for the run of them it starts. */
-    let farBehindNoted = false;
-    const catchUpSec = (nowMs: number) => catchUp === null
-        ? 0
-        : catchUp.startSec + Math.min(EXTERNAL_CATCH_UP_RATE * Math.max(0, nowMs - catchUp.startMs) / 1000, catchUp.leadSec);
-    const read = (nowMs = performance.now()) => Math.max(clock.read(nowMs), catchUpSec(nowMs), floor ?? 0);
+    let extrapolationSec = runOnSec;
+
+    const lineSec = (nowMs: number) => line.atSec
+        + line.rate * Math.min(Math.max(0, nowMs - line.atMs) / 1000, extrapolationSec);
+    const read = (nowMs = performance.now()) => {
+        const durationSec = clock.state().durationSec;
+        const shown = lineSec(nowMs);
+        return durationSec === null ? shown : Math.min(shown, durationSec);
+    };
     const sync = (update: HifiClockSync & { samplePositionSec?: number; holdLimitSec?: number }) => {
         const rawPosition = update.samplePositionSec ?? update.positionSec;
-        // Repeated SDK samples do not restart extrapolation or renew its stall timeout.
+        const nowMs = update.nowMs ?? performance.now();
+        // Repeated SDK samples do not restart anything: the line goes on as it is.
         if (update.holdBackward && previousSample?.position === rawPosition && previousSample.paused === update.paused) {
             if (update.durationSec !== undefined) setDuration(update.durationSec);
             return;
         }
         previousSample = { position: rawPosition, paused: update.paused };
-        const nowMs = update.nowMs ?? performance.now();
-        const shown = read(nowMs);
-        // Whether the clock was sounding the song before this answer: a lead it ran up while it was
-        // going on is the age of the answer, a lead left over from a pause is the spot the bar stood
-        // on while the song was stopped.
         const wasRunning = !clock.state().paused;
+        // Read under the limit the line was given, before this write gives it its own.
+        const shownSec = read(nowMs);
+        // The limit the caller gave belongs to this write: a move in flight, a spot it knows the player
+        // is on. Left out, the line is given the longer one of a followed player. A stop runs on from
+        // nothing, which the pause branch below sets.
+        extrapolationSec = update.maxExtrapolationSec ?? runOnSec;
         clock.sync({ ...update, nowMs, holdBackward: false });
-        const sampled = clock.read(nowMs);
-        const duration = clock.state().durationSec;
-        const boundedShown = duration === null ? shown : Math.min(shown, duration);
-        const lag = boundedShown - sampled;
-        // The route compensates up to one second of RPC age and extrapolates at most one more, and a
-        // caller that knows the answer it waits for can be later still says how far past that the shown
-        // position may be held: a spot the player took seconds to load.
-        const holdLimitSec = update.holdLimitSec ?? 2 * MAX_EXTRAPOLATION_SEC;
-        const held = update.holdBackward && lag > 0 && lag <= holdLimitSec;
-        // A song that is sounding never stands still on a spot while the player catches up: the lead the
-        // bar is ahead by is played out at the slower speed, so the bar and the lyrics keep moving until
-        // the player comes up to them. That holds for every answer of a song already running, whether
-        // the caller said how far the bar may be held or left it at the route's own limit - the lead is
-        // the age of the answer however it came about, and standing still on it for a whole poll is the
-        // hitch a listener sees in the lyrics. A stopped song stands where it is put, a song starting
-        // again holds the spot it was stopped on until the player comes up to it, and an answer from
-        // further behind than a lead is run out over is not the player catching up but saying the song
-        // is somewhere else: all three leave the spot held.
-        const playsOut = held && wasRunning && !update.paused && lag <= MAX_CATCH_UP_LEAD_SEC;
-        catchUp = playsOut ? { startSec: boundedShown, startMs: nowMs, leadSec: lag } : null;
-        floor = held && !playsOut ? boundedShown : null;
-        // One line per run of answers from past the longest lead played out, not one per answer of it:
-        // a stopped song and one starting again hold their spot too, and neither is the player behind.
-        const farBehind = held && !playsOut && lag > MAX_CATCH_UP_LEAD_SEC;
-        if (!farBehind) farBehindNoted = false;
-        else if (!farBehindNoted) {
-            farBehindNoted = true;
-            console.debug('[ExternalClock] the player answered too far behind the shown position to catch up with it', {
-                leadSec: Number(lag.toFixed(2)), limitSec: MAX_CATCH_UP_LEAD_SEC,
-            });
+        const positionSec = Number.isFinite(update.positionSec) ? update.positionSec : 0;
+        const gap = shownSec - positionSec;
+        // A stopped song shows where the player stands. The line is put on the player's own word and
+        // stays there: a lead the bar had run up before the stop is not one a stopped song keeps, and a
+        // stop that named a spot a little behind the line does not take the line back over.
+        if (update.paused) {
+            // A stopped song shows where the player put it and stands there: the line is given no run-on
+            // and no speed, so nothing moves it off that spot.
+            extrapolationSec = 0;
+            const keepsLead = update.holdBackward && gap > 0 && gap <= (update.holdLimitSec ?? 2 * MAX_EXTRAPOLATION_SEC);
+            line = { atSec: keepsLead ? shownSec : positionSec, atMs: nowMs, rate: 0 };
+            if (update.durationSec !== undefined) setDuration(update.durationSec);
+            return;
         }
+        // A write the route makes itself - a move, a resume, the spot it knows the player is on - is the
+        // line being put where it says, at once.
+        if (!update.holdBackward) {
+            line = { atSec: positionSec, atMs: nowMs, rate: 1 };
+            if (update.durationSec !== undefined) setDuration(update.durationSec);
+            return;
+        }
+        // A press that starts a stopped song goes on from the spot the line is showing at once, rather
+        // than standing on it until an answer arrives: the song starts from where it was stopped, and
+        // the answers that follow are a beat away at most and are bent onto below.
+        // A player that is elsewhere, past what jitter or a slow move explains, puts the line there.
+        if (gap < -ALIGN_BEHIND_SEC || gap > ALIGN_AHEAD_SEC) {
+            line = { atSec: positionSec, atMs: nowMs, rate: 1 };
+            if (update.durationSec !== undefined) setDuration(update.durationSec);
+            return;
+        }
+        if (!wasRunning) {
+            line = { atSec: shownSec, atMs: nowMs, rate: 1 + clamp(-gap * EASE_PER_SEC, -MAX_RATE_BEND, MAX_RATE_BEND) };
+            if (update.durationSec !== undefined) setDuration(update.durationSec);
+            return;
+        }
+        // A routine answer of a song that is playing bends the line's speed onto the player: slower
+        // while the line is ahead of it, faster while it is behind, so jitter never steps or stops it.
+        // A gap past the align limit is the player being elsewhere, and the line is put there.
+        const bend = clamp(-gap * EASE_PER_SEC, gap > JITTER_SEC ? -MAX_LEAD_BEND : -MAX_RATE_BEND, MAX_RATE_BEND);
+        line = { atSec: shownSec, atMs: nowMs, rate: 1 + bend };
+        if (update.durationSec !== undefined) setDuration(update.durationSec);
     };
     const setDuration = (duration: number | null) => {
         clock.setDuration(duration);
         const durationSec = clock.state().durationSec;
         if (durationSec === null) return;
-        if (floor !== null) floor = Math.min(floor, durationSec);
-        if (catchUp !== null) catchUp = { ...catchUp, startSec: Math.min(catchUp.startSec, durationSec) };
+        if (line.atSec > durationSec) line = { ...line, atSec: durationSec };
     };
     return { read, sync, setDuration };
 }

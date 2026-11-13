@@ -46,7 +46,8 @@ type UseRemoteClockParams = {
 export const useRemoteClock = ({ updatedAt, currentTime, duration, playerState, trackKey = null, clockRevision = 0 }: UseRemoteClockParams): RemoteClock => {
     const timelineRef = useRef<ReturnType<typeof createExternalClock> | null>(null);
     if (!timelineRef.current) {
-        timelineRef.current = createExternalClock();
+        // A remote snapshot that stops coming is a device gone quiet: the line stands after a second.
+        timelineRef.current = createExternalClock({ runOnSec: MAX_EXTRAPOLATION_SEC });
         timelineRef.current.sync({ positionSec: currentTime, paused: playerState !== PlayerState.PLAYING, durationSec: duration });
     }
     const timeline = timelineRef.current;
