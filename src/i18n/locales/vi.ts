@@ -1779,6 +1779,8 @@ export default {
     "noAudio": "{{provider}} không trả về luồng âm thanh",
     "audioUnplayable": "Không thể phát âm thanh",
     "refused": "Yêu cầu bị {{provider}} từ chối",
+    "mutationUnsupported": "{{provider}} không hỗ trợ thao tác này với bài hát này",
+    "withReason": "{{action}}: {{reason}}",
     "noteCheckNetwork": "Vui lòng kiểm tra kết nối mạng",
     "noteRestartApp": "Vui lòng khởi động lại Folia",
     "noteRetryLater": "Vui lòng thử lại sau",

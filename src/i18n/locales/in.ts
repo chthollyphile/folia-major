@@ -1779,6 +1779,8 @@ export default {
     "noAudio": "{{provider}} tidak mengembalikan audio",
     "audioUnplayable": "Audio tidak dapat diputar",
     "refused": "Permintaan ditolak oleh {{provider}}",
+    "mutationUnsupported": "{{provider}} tidak mendukung tindakan ini untuk lagu ini",
+    "withReason": "{{action}}: {{reason}}",
     "noteCheckNetwork": "Periksa jaringan",
     "noteRestartApp": "Mulai ulang Folia",
     "noteRetryLater": "Coba lagi nanti",

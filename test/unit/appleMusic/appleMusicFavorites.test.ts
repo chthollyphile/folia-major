@@ -10,10 +10,61 @@ const { validateRequest, requestExpression } = require('../../../electron/appleM
 afterEach(() => vi.unstubAllGlobals());
 
 describe('Apple Music favorites', () => {
-    it('accepts only a catalog identity and an explicit boolean for writes', () => {
-        for (const params of [{ catalogId: 'i.library', liked: true }, { catalogId: '123', liked: 'true' }, { catalogId: '../123', liked: false }]) {
+    it('accepts only a catalog or library song identity and an explicit boolean for writes', () => {
+        for (const params of [{ catalogId: 'i.bad-id', liked: true }, { catalogId: 'l.album', liked: true }, { catalogId: '123', liked: 'true' }, { catalogId: '../123', liked: false }]) {
             expect(validateRequest({ id: 'test', operation: 'likeSong', params })).toBeNull();
         }
+        expect(validateRequest({ id: 'test', operation: 'likeSong', params: { catalogId: 'i.library', liked: true } })).not.toBeNull();
+    });
+    // An upload has only a library id: favorited as a library song, or loved through its library rating
+    // where the favorites endpoint does not take it (refused with a status, or by throwing).
+    const runLike = (call: unknown, catalogId: string, liked: boolean) => runInNewContext(
+        requestExpression(validateRequest({ id: 'test', operation: 'likeSong', params: { catalogId, liked } })),
+        { window: { MusicKit: { getInstance: () => ({ api: { music: call } }) } } });
+    it('favorites an upload as a library song', async () => {
+        const call = vi.fn(async () => ({ status: 202 }));
+        await expect(runLike(call, 'i.upload', true)).resolves.toMatchObject({ ok: true, data: { route: 'favorites' } });
+        expect(call).toHaveBeenCalledExactlyOnceWith('v1/me/favorites', { 'ids[library-songs]': 'i.upload' }, { method: 'POST' });
+    });
+    it.each([
+        ['a refusal', async () => ({ status: 400 })],
+        ['a thrown refusal', async () => { throw Object.assign(new Error('bad'), { status: 400 }); }],
+    ])('loves an upload by its library rating after %s from favorites', async (_name, favorites: () => Promise<unknown>) => {
+        const call = vi.fn(async (path: string) => path === 'v1/me/favorites' ? favorites() : { status: 204 });
+        await expect(runLike(call, 'i.upload', true)).resolves.toMatchObject({ ok: true, data: { route: 'rating' } });
+        expect(call).toHaveBeenLastCalledWith('v1/me/ratings/library-songs/i.upload', {}, {
+            method: 'PUT', body: JSON.stringify({ type: 'rating', attributes: { value: 1 } }),
+        });
+    });
+    it('clears the rating too when unliking an upload the favorites endpoint took', async () => {
+        const call = vi.fn(async (path: string) => ({ status: path === 'v1/me/favorites' ? 204 : 404 }));
+        await expect(runLike(call, 'i.upload', false)).resolves.toMatchObject({ ok: true, data: { route: 'favorites' } });
+        expect(call).toHaveBeenLastCalledWith('v1/me/ratings/library-songs/i.upload', {}, { method: 'DELETE' });
+    });
+    it.each([429, 500, undefined])('reports a favorites failure (%s) for an upload instead of trying its rating', async status => {
+        const call = vi.fn(async () => ({ status }));
+        await expect(runLike(call, 'i.upload', false)).resolves.toMatchObject({ ok: false, route: 'favorites' });
+        expect(call).toHaveBeenCalledOnce();
+        const silent = vi.fn(async () => { throw new Error('offline'); });
+        await expect(runLike(silent, 'i.upload', true)).resolves.toMatchObject({ ok: false, error: 'request-failed' });
+        expect(silent).toHaveBeenCalledOnce();
+    });
+    it('clears an upload\'s rating to unlike it, taking a missing rating as done', async () => {
+        const call = vi.fn(async (path: string) => ({ status: path === 'v1/me/favorites' ? 400 : 404 }));
+        await expect(runLike(call, 'i.upload', false)).resolves.toMatchObject({ ok: true, data: { route: 'rating' } });
+        expect(call).toHaveBeenLastCalledWith('v1/me/ratings/library-songs/i.upload', {}, { method: 'DELETE' });
+    });
+    it('reports the refusal of both routes, and does not fall back for a catalog song or an expired sign-in', async () => {
+        const both = vi.fn(async () => ({ status: 403 }));
+        await expect(runLike(both, 'i.upload', true)).resolves.toMatchObject({ ok: false, error: 'upstream-error', httpStatus: 403, route: 'rating' });
+        const expired = vi.fn(async () => ({ status: 401 }));
+        await expect(runLike(expired, 'i.upload', true)).resolves.toMatchObject({ ok: false, error: 'auth-required' });
+        expect(expired).toHaveBeenCalledOnce();
+        const catalog = vi.fn(async () => ({ status: 400 }));
+        await expect(runLike(catalog, '123', true)).resolves.toMatchObject({ ok: false, error: 'upstream-error', httpStatus: 400 });
+        expect(catalog).toHaveBeenCalledOnce();
+        const offline = vi.fn(async () => { throw new Error('offline'); });
+        await expect(runLike(offline, '123', true)).resolves.toMatchObject({ ok: false, error: 'request-failed' });
     });
     it.each([true, false])('writes the favorite flag (%s) without deleting a library song', async liked => {
         const call = vi.fn(async () => ({ status: 202 }));
