@@ -1926,6 +1926,9 @@ export default {
     "searchDatabase": "TÌM TRÊN MẠNG...",
     "searchLocal": "Tìm nhạc trên máy...",
     "searchNavidrome": "Tìm trên Navidrome...",
+    "searchHistory": "Tìm kiếm gần đây",
+    "searchHistoryClear": "Xóa hết",
+    "searchHistoryRemove": "Xóa \"{{query}}\" khỏi lịch sử",
     "gridSearchPlaceholder": "Lọc bài hát...",
     "gridSearchNoResults": "Không có bài hát phù hợp",
     "gridBatchSelectionSummary": {

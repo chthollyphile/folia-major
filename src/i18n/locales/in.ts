@@ -1926,6 +1926,9 @@ export default {
     "searchDatabase": "CARI DATABASE...",
     "searchLocal": "Cari lagu lokal...",
     "searchNavidrome": "Cari navidrome",
+    "searchHistory": "Pencarian terakhir",
+    "searchHistoryClear": "Hapus semua",
+    "searchHistoryRemove": "Hapus \"{{query}}\" dari riwayat",
     "gridSearchPlaceholder": "Filter lagu...",
     "gridSearchNoResults": "Tidak ada lagu yang cocok",
     "gridBatchSelectionSummary": {

@@ -1926,6 +1926,9 @@ export default {
     "searchDatabase": "搜索在线歌曲...",
     "searchLocal": "搜索本地歌曲...",
     "searchNavidrome": "搜索navidrome...",
+    "searchHistory": "搜索历史",
+    "searchHistoryClear": "清空",
+    "searchHistoryRemove": "从历史中删除“{{query}}”",
     "gridSearchPlaceholder": "过滤歌曲...",
     "gridSearchNoResults": "没有匹配的歌曲",
     "gridBatchSelectionSummary": {
