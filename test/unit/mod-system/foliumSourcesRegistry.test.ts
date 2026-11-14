@@ -228,7 +228,10 @@ describe('registering', () => {
 // The host clones and stores a song (the queue in IndexedDB, the windows' sync): its `data` must be plain JSON, a
 // copy, and small; a function in it used to fail the whole queue's persistence.
 describe('a source song\'s data as the host keeps it', () => {
-    const host = (data: unknown, lyricIds?: unknown) => toHostSong(`folium.${MOD}.a`, { id: 's', title: 'T', artists: [], data, lyricIds } as never);
+    const host = (data: unknown, lyricIds?: unknown) => {
+        const song = toHostSong(`folium.${MOD}.a`, { id: 's', title: 'T', artists: [], data, lyricIds } as never);
+        return { sourceRef: song.sourceRef as { providerData?: unknown } | undefined };
+    };
 
     it('keeps a copy of plain JSON data, and drops what JSON cannot hold or what is too large', () => {
         vi.spyOn(console, 'warn').mockImplementation(() => {});
