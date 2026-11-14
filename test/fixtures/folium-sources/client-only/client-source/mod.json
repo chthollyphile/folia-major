@@ -1,0 +1,11 @@
+{
+  "folium": 2,
+  "id": "client-source",
+  "name": "只有 client 入口的夹具音源",
+  "version": "1.0.0",
+  "description": "test/unit/helpers/builtinSources.ts 的第二条路：音源没有 core/ 的 createSource 时，夹具调它 client 入口的 activate。只给单测用。",
+  "client": "client.mjs",
+  "sources": [
+    { "id": "plain", "name": "Client-only fixture" }
+  ]
+}

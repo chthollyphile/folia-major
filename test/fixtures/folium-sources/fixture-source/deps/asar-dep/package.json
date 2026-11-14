@@ -1,0 +1,1 @@
+{ "name": "fixture-asar-dep", "version": "1.0.0", "main": "index.cjs", "dependencies": { "fixture-asar-leaf": "file:../asar-leaf" } }

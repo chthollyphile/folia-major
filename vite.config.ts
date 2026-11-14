@@ -268,7 +268,9 @@ export default async function viteConfig(_config: ConfigEnv): Promise<UserConfig
         // .claude holds the git worktrees of parallel sessions, each a full checkout of the repo:
         // watched, they cost one handle per file (hundreds of thousands on Windows), and setting
         // those up starves the dev server for minutes before it answers the first page.
-        ignored: ['**/release/**', '**/models/**', '**/.claude/**'],
+        // dist-mods/ is the build output of the source mods (dev/sources/build.mjs --watch rewrites it); the app's
+        // main process reloads it, the page never imports it.
+        ignored: ['**/release/**', '**/models/**', '**/.claude/**', '**/dist-mods/**'],
       },
     },
     plugins: [
