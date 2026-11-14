@@ -76,4 +76,18 @@ describe('D507 scanner resolves constants per file', () => {
         expect(keys).toEqual(expect.arrayContaining(['main:DEMO_SESSION_V1', 'web:demo_client_flag']));
         expect(keys).not.toContain('main:NOT_A_MAIN_KEY');
     });
+
+    // S5：client 的 folium.sources.pageStore(id) 落在 providerStorage 的同一个键（online_provider:<id>:<键>）。
+    it('reads the page-store keys of a source’s client, by the id given or by its folder', () => {
+        write('sources/demo/client/session.ts', [
+            "const TOKEN_KEY = 'token';",
+            "folium.sources.pageStore('demo').set(TOKEN_KEY, value);",
+            'const store = folium.sources.pageStore(sourceId);',
+            "store.get('device_id');",
+            "notAStore.set('not_a_key', 1);",
+        ].join('\n'));
+        const keys = scanStorageKeys(dir);
+        expect(keys).toEqual(expect.arrayContaining(['provider:demo:token', 'provider:demo:device_id']));
+        expect(keys.some(key => key.includes('not_a_key'))).toBe(false);
+    });
 });

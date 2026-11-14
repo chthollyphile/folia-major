@@ -7,6 +7,7 @@ import {
     CREDENTIAL_KEYS,
     CREDENTIAL_OBJECT_FACTORIES,
     CREDENTIAL_OBJECTS,
+    CREDENTIAL_PAGE_STORE_CALLS,
     CREDENTIAL_STORAGE_KEY_CALLS,
     CREDENTIAL_WRITE_CALLS,
     CREDENTIAL_WRITERS,
@@ -127,6 +128,7 @@ describeWithLintRuntime('dedicatus eslint rules', async () => {
         objects: CREDENTIAL_OBJECTS,
         objectFactories: CREDENTIAL_OBJECT_FACTORIES,
         storageKeyCalls: CREDENTIAL_STORAGE_KEY_CALLS,
+        pageStoreCalls: CREDENTIAL_PAGE_STORE_CALLS,
         writers: CREDENTIAL_WRITERS,
     }];
     const inRepo = (file: string) => path.join(process.cwd(), file);
@@ -160,6 +162,12 @@ describeWithLintRuntime('dedicatus eslint rules', async () => {
             },
             // 会话对象的名字只在登记的文件里认：别处叫 cookies 的变量和登录会话无关
             { filename: inRepo('src/utils/cookieParse.ts'), options: credentialOptions, code: 'const parse = (k, v) => { const cookies = {}; cookies[k] = v; cookies.token = v; return cookies; };' },
+            // 音源模组的页面存储里不算凭据的键（设备 id），和别的对象的 set（Map）
+            {
+                filename: inRepo('sources/demo/client/demoTransport.ts'),
+                options: credentialOptions,
+                code: "const f = (folium, id) => { folium.sources.pageStore('demo').set('device_id', id); new Map().set('token', 1); };",
+            },
             // 不算凭据的键（匿名会话、设备 id）哪里都能写
             { filename: inRepo('src/services/onlineMusic/netease/netease.ts'), options: credentialOptions, code: "const f = () => writeProviderSessionValue('netease', 'anonymous_cookie', c);" },
         ],
@@ -261,6 +269,17 @@ describeWithLintRuntime('dedicatus eslint rules', async () => {
                 options: credentialOptions,
                 code: "const keep = (key, value) => writeProviderSessionValue('qq', key, value);",
                 errors: [{ messageId: 'unregistered' }],
+            },
+            {
+                // Folium 2.0 S5：音源模组 client 的同步页面存储，直接链着写、存进变量再写，键在运行时才知道
+                filename: inRepo('sources/demo/client/demoTransport.ts'),
+                options: credentialOptions,
+                code: [
+                    "const everyAnswer = (folium, r) => folium.sources.pageStore('demo').set('token', r.token);",
+                    "const keep = (folium, r) => { const store = folium.sources.pageStore('demo'); store.set('cookie', r.cookie); };",
+                    "const anyKey = (folium, key, value) => folium.sources.pageStore('demo').set(key, value);",
+                ].join('\n'),
+                errors: Array.from({ length: 3 }, () => ({ messageId: 'unregistered' })),
             },
         ],
     });

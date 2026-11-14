@@ -11,6 +11,8 @@ import { IPC_CHANNELS } from '../../../../dev/dedicatus/ipcChannels.mjs';
 // Folium 2.0：平台逐家搬进 sources/<id>/（S5），搬过去的从 sources/*/mod.json 读出来，和 providerRegistry.ts 静态登记的
 // 合在一起查。搬过去的平台，上游说明在它自己的 README.md（原 UPSTREAMS.md 里那一节），主进程的部分在 sources/<id>/main/
 // 经模组运行时的 rpc 走，不再要 electron/<id>/ 和 <id>-api-request；两处都认，搬的过程中哪一处在都算数。
+// 搬过去的平台在 omniArchitecture 的 forbiddenImport 里由 `sources\/` 挡住，Transport 的名字从那里删掉；仅桌面端的
+// 名单也读它自己 README.md 的标题（S5 迁波点时补的）。
 
 const ROOT = path.resolve(__dirname, '../../../..');
 const read = (file: string) => readFileSync(path.join(ROOT, file), 'utf8');
@@ -53,7 +55,10 @@ describe('D122 every registered platform is registered everywhere', () => {
         const platformNames = /export const PLATFORM_NAMES = \{([\s\S]*?)\n\};/.exec(read('test/unit/onlineMusic/platformNameCount.ts'))?.[1] ?? '';
         const upstreams = read('src/services/onlineMusic/UPSTREAMS.md');
         const missing = ids.flatMap(id => [
-            ...(forbidden.includes(transportSpelling(id)) ? [] : [`${id}：omniArchitecture.test.ts 的 forbiddenImport 没有它的 Transport`]),
+            // 搬进 sources/ 的平台由 forbiddenImport 里的 `sources\/` 一并挡住，不再列它的 Transport（S5 起逐家删）。
+            ...(forbidden.includes(sources.has(id) ? 'sources\\/' : transportSpelling(id))
+                ? []
+                : [`${id}：omniArchitecture.test.ts 的 forbiddenImport 没有${sources.has(id) ? ' sources/' : '它的 Transport'}`]),
             ...(new RegExp(`^\\s*${id}:`, 'm').test(platformNames) ? [] : [`${id}：platformNameCount.ts 的 PLATFORM_NAMES 没有它`]),
             ...(upstreams.includes(`（\`${id}\``) || (sources.has(id) && existsSync(path.join(ROOT, sources.get(id) as string, 'README.md')))
                 ? []
@@ -63,8 +68,11 @@ describe('D122 every registered platform is registered everywhere', () => {
     });
 
     it('gives each desktop-only platform its bridge and its request channel (or, moved to sources/, its main entry)', () => {
-        const upstreams = read('src/services/onlineMusic/UPSTREAMS.md');
-        const desktopOnly = [...upstreams.matchAll(/^## .*（`(\w+)`，仅桌面端）/gm)].map(match => match[1]);
+        // 仅桌面端的平台：UPSTREAMS.md 的标题，和搬进 sources/ 的平台自己 README.md 的标题（S5 起那一节随平台搬走）。
+        const DESKTOP_ONLY = /^#{1,2} .*（`(\w+)`，仅桌面端）/gm;
+        const readmes = [...new Set(sources.values())].map(dir => path.join(dir, 'README.md')).filter(file => existsSync(path.join(ROOT, file)));
+        const desktopOnly = [read('src/services/onlineMusic/UPSTREAMS.md'), ...readmes.map(read)]
+            .flatMap(text => [...text.matchAll(DESKTOP_ONLY)].map(match => match[1]));
         expect(desktopOnly.length).toBeGreaterThan(0);
         const missing = desktopOnly.flatMap((id) => {
             const moved = sources.get(id);

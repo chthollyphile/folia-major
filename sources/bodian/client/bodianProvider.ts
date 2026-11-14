@@ -4,6 +4,7 @@ import type {
     FoliumSourceDef,
     FoliumSourceLoginState,
     FoliumSourceSong,
+    FoliumSourceSongAvailability,
     FoliumSourceUser,
     FoliumText,
 } from '@folia/folium';
@@ -61,6 +62,22 @@ async function getBodianDiscoverCollections(): Promise<FoliumSourceCollection[]>
     }
 }
 
+/**
+ * songs@1.getAvailability. 只有下架信号会给 unavailable / taken-down；播放限制交给运行时。缓存里旧的布尔 `unavailable`
+ * 分不清下架还是限制，一律按 unknown。每次交回同样的几个对象：宿主每个对象只转一次形状（画行时问，热路径）。
+ */
+function bodianSongAvailability(): (song: FoliumSourceSong) => FoliumSourceSongAvailability {
+    const takenDown = Object.freeze({ state: 'unavailable', reason: 'taken-down' } as const);
+    const restricted = Object.freeze({ state: 'unknown', reason: 'restricted' } as const);
+    const unknown = Object.freeze({ state: 'unknown' } as const);
+    return (song) => {
+        const availability = song.data?.availability;
+        if (availability === 'off-shelf') return takenDown;
+        if (availability === 'online-play-restricted') return restricted;
+        return unknown;
+    };
+}
+
 /** The source of the manifest's `sources[0]` (id `bodian`). */
 export const createBodianSource = (env: BodianSourceEnv): FoliumSourceDef => ({
     id: 'bodian',
@@ -83,14 +100,7 @@ export const createBodianSource = (env: BodianSourceEnv): FoliumSourceDef => ({
         },
         'songs@1': {
             async getSong(id) { return normalizeBodianSong(await requestBodian('song_detail', { id })); },
-            // 只有下架信号会给 unavailable / taken-down；播放限制交给运行时。缓存里旧的布尔 `unavailable`
-            // 分不清下架还是限制，一律按 unknown。
-            getAvailability(song) {
-                const availability = song.data?.availability;
-                if (availability === 'off-shelf') return TAKEN_DOWN;
-                if (availability === 'online-play-restricted') return RESTRICTED;
-                return UNKNOWN;
-            },
+            getAvailability: bodianSongAvailability(),
         },
         'playback.audio@1': {
             async getAudioSource(song, quality) {
@@ -148,7 +158,3 @@ export const createBodianSource = (env: BodianSourceEnv): FoliumSourceDef => ({
     },
 });
 
-// The same few answers every time: the host turns each into its own shape once (it is asked while rows are drawn).
-const TAKEN_DOWN = Object.freeze({ state: 'unavailable', reason: 'taken-down' } as const);
-const RESTRICTED = Object.freeze({ state: 'unknown', reason: 'restricted' } as const);
-const UNKNOWN = Object.freeze({ state: 'unknown' } as const);
