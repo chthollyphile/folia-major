@@ -159,12 +159,15 @@ describe('library core layer boundaries', () => {
         expect(offenders).toEqual([]);
     });
 
+    // This test and the two further down that end in 30_000 (the directory rules, the home orchestration) read every
+    // source file under src/: next to the suite's real source builds (buildSources.test.ts) that goes past the default
+    // 5 s on a Windows machine, so each gets a limit of its own.
     it('lets nothing outside the suites reach into a suite except the registry', () => {
         const files = listSources('src').filter(file => !/^src\/library\/(suites\/|registry\.ts$)/.test(file));
         const offenders = offendersOf(files, target => /^src\/library\/suites\//.test(target), allSpecifiersOf);
         expect(files).toEqual(expect.arrayContaining(['src/components/app/Home.tsx', 'src/library/app/GridViewOverlayHost.tsx']));
         expect(offenders).toEqual([]);
-    });
+    }, 30_000);
 
     it('keeps the account host suite-agnostic: it resolves the account surface through the registry (A5)', () => {
         // 登录弹窗、确认框与它们的展示组件属于渲染 account surface 的那套 suite；宿主只经 registry 解析，
@@ -195,7 +198,7 @@ describe('library core layer boundaries', () => {
         // 隐藏表只有一个持有者：core 的隐藏 store（网格滑条与 GridMap 都经它读写）。
         expect(listSources('src').filter(file => read(file).includes("'hidden_grid_playlists'")))
             .toEqual([`${CORE}/collection/useHiddenCollectionsStore.ts`]);
-    });
+    }, 30_000);
 
     it('keeps the home orchestration in core: the grid home views call no library or Navidrome service', () => {
         // P3.3：来源 / 页签、在线首页数据、导入、Navidrome 概览、文件夹树都在 core（model / services / bindings），
@@ -210,7 +213,7 @@ describe('library core layer boundaries', () => {
         // Navidrome section 记忆只有一个持有者：core 的 store。
         expect(listSources('src').filter(file => read(file).includes("'folia_navidrome_last_section'")))
             .toEqual([`${CORE}/home/navidrome/useNavidromeHomeSectionStore.ts`]);
-    });
+    }, 30_000);
 
     it('keeps the artist data in core: the grid artist page loads nothing itself', () => {
         // P4.1：歌手页的数据是宿主持有的歌手资源（core/artist/artistResource.service），本地歌手由宿主的 catalog 派生；
