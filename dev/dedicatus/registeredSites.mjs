@@ -32,7 +32,7 @@ export const REGISTERED_SITES = [
         ],
         sites: {
             'src/services/onlineMusic/netease/netease.ts': { resolveNeteaseSongAvailability: 'privilege.st 是网易云的下架码（NETEASE_TAKEN_DOWN_ST），且没有可播的音质、不是云盘' },
-            'src/services/onlineMusic/bodian/bodianProvider.ts': { getAvailability: '波点自己标的 off-shelf' },
+            'sources/bodian/client/bodianProvider.ts': { getAvailability: '波点自己标的 off-shelf' },
             'src/components/app/playback/start/usePlaybackQueueController.ts': { playSong: '只在 isSongUnavailable(song) 为真时：那是 provider 依据平台记录给的静态可用性，这里只是呈现' },
         },
     },

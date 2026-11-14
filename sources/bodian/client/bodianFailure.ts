@@ -1,8 +1,8 @@
-import { OnlineProviderError } from '../../../types/onlineMusic';
-import type { OnlineFailureDetail, OnlineFailureOperation } from '../../../types/onlineMusic';
+import { OnlineProviderError } from '../../../src/types/onlineMusic';
+import type { OnlineFailureDetail, OnlineFailureOperation } from '../../../src/types/onlineMusic';
 import { BODIAN_BRIDGE_FAILED, BODIAN_NEEDS_DESKTOP } from './bodianTransport';
 
-// src/services/onlineMusic/bodian/bodianFailure.ts
+// sources/bodian/client/bodianFailure.ts
 // What a Bodian request for a song's audio or a collection's tracks that failed hands to the shared
 // rules (services/onlineMusic/failure/). What the package's errors mean is said here only: the
 // bridge hands its code and sentence through as they are (bodian-music-api/src/api.cjs), and the

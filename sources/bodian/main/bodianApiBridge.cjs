@@ -1,7 +1,7 @@
 const { createBodianApi, BODIAN_OPERATIONS } = require('bodian-music-api');
 const { createSessionRepository } = require('./session.cjs');
 
-// electron/bodian/bodianApiBridge.cjs
+// sources/bodian/main/bodianApiBridge.cjs
 
 // Keep Electron persistence, IPC validation and media registration here; the package owns the protocol.
 function createBodianApiBridge({ store, safeStorage, requestFactory, onAudioSource = () => {}, now = Date.now,

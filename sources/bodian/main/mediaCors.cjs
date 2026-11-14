@@ -1,4 +1,4 @@
-// electron/bodian/mediaCors.cjs
+// sources/bodian/main/mediaCors.cjs
 // Scope CORS to issued audio URLs, cached Kuwo audio and known Kuwo cover hosts.
 
 function createBodianMediaPolicy({ now = Date.now } = {}) {

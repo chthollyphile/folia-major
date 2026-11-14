@@ -995,9 +995,9 @@ declare global {
         params?: import('./services/onlineMusic/qishui/qishuiTransport').QishuiParams,
       ) => Promise<import('./services/onlineMusic/qishui/qishuiTransport').QishuiBridgeResult>;
       bodianRequest: (
-        operation: import('./services/onlineMusic/bodian/bodianTransport').BodianOperation,
-        params?: import('./services/onlineMusic/bodian/bodianTransport').BodianParams,
-      ) => Promise<import('./services/onlineMusic/bodian/bodianTransport').BodianBridgeResult>;
+        operation: import('../sources/bodian/client/bodianTransport').BodianOperation,
+        params?: import('../sources/bodian/client/bodianTransport').BodianParams,
+      ) => Promise<import('../sources/bodian/client/bodianTransport').BodianBridgeResult>;
       ytmRequest: (
         operation: import('./services/onlineMusic/ytm/ytmTransport').YtmOperation,
         params?: import('./services/onlineMusic/ytm/ytmTransport').YtmParams,

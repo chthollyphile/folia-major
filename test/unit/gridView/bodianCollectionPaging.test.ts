@@ -1,6 +1,6 @@
 import { createRequire } from 'node:module';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { bodianCatalog } from '../../../src/services/onlineMusic/bodian/bodianCatalog';
+import { bodianCatalog } from '../../../sources/bodian/client/bodianCatalog';
 import { createCollectionTrackSnapshot, readCollectionTrackSnapshot } from '../../../src/library/core/collection/resource/collectionTrackSnapshot.service';
 import {
     syncRemainingCollectionPages,

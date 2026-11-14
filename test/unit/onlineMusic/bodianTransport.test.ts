@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { requestBodian } from '@/services/onlineMusic/bodian/bodianTransport';
-import { describeBodianFailure } from '@/services/onlineMusic/bodian/bodianFailure';
+import { requestBodian } from '../../../sources/bodian/client/bodianTransport';
+import { describeBodianFailure } from '../../../sources/bodian/client/bodianFailure';
 import { OnlineProviderError } from '@/types/onlineMusic';
 
 // test/unit/onlineMusic/bodianTransport.test.ts

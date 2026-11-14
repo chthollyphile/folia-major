@@ -1,7 +1,7 @@
-import { OnlineProviderError } from '../../../types/onlineMusic';
+import { OnlineProviderError } from '../../../src/types/onlineMusic';
 import type { BodianOperation, BodianParams, BodianResult } from 'bodian-music-api';
 
-// src/services/onlineMusic/bodian/bodianTransport.ts
+// sources/bodian/client/bodianTransport.ts
 
 export type { BodianOperation, BodianParams } from 'bodian-music-api';
 export type BodianBridgeResult = BodianResult;

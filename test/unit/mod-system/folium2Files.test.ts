@@ -179,7 +179,7 @@ describe('the trusted table of the built-in sources (§5.1)', () => {
         const expected: Record<string, string[]> = {
             kugou: [constant('electron/kugou/kugouApiBridge.cjs', 'SESSION_KEY')!, constant('electron/kugou/kugouApiBridge.cjs', 'LEGACY_SESSION_KEY')!],
             qq: [constant('electron/qq/qqAuthSessionRepository.cjs', 'SESSION_KEY')!],
-            bodian: [constant('electron/bodian/session.cjs', 'SESSION_KEY')!, constant('electron/bodian/session.cjs', 'DEVICE_KEY')!],
+            bodian: [constant('sources/bodian/main/session.cjs', 'SESSION_KEY')!, constant('sources/bodian/main/session.cjs', 'DEVICE_KEY')!],
             qishui: [constant('electron/qishui/session.cjs', 'SESSION_KEY')!, constant('electron/qishui/session.cjs', 'DEVICE_KEY')!],
             ytm: [constant('electron/ytm/session.cjs', 'SESSION_KEY')!, constant('electron/ytm/webSignIn.cjs', 'WEB_SESSION_KEY')!],
             spotify: [

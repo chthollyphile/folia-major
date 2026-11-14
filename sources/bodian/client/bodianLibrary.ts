@@ -1,9 +1,9 @@
-import type { MediaId, OnlineLibraryProvider, ProviderCollection } from '../../../types/onlineMusic';
-import { OnlineProviderError } from '../../../types/onlineMusic';
+import type { MediaId, OnlineLibraryProvider, ProviderCollection } from '../../../src/types/onlineMusic';
+import { OnlineProviderError } from '../../../src/types/onlineMusic';
 import { bodianPage, normalizeBodianCollection } from './bodianNormalize';
 import { requestBodian } from './bodianTransport';
 
-// src/services/onlineMusic/bodian/bodianLibrary.ts
+// sources/bodian/client/bodianLibrary.ts
 
 const playlistPages = new Map<string, { at: number; items: ProviderCollection[] }>();
 export const clearBodianLibraryCache = () => playlistPages.clear();

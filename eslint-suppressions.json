@@ -789,17 +789,17 @@
       "count": 43
     }
   },
-  "electron/bodian/bodianApiBridge.cjs": {
+  "sources/bodian/main/bodianApiBridge.cjs": {
     "@stylistic/indent": {
       "count": 24
     }
   },
-  "electron/bodian/mediaCors.cjs": {
+  "sources/bodian/main/mediaCors.cjs": {
     "@stylistic/indent": {
       "count": 40
     }
   },
-  "electron/bodian/session.cjs": {
+  "sources/bodian/main/session.cjs": {
     "@stylistic/indent": {
       "count": 80
     },
@@ -9389,7 +9389,7 @@
       "count": 2
     }
   },
-  "src/services/onlineMusic/bodian/bodianCatalog.ts": {
+  "sources/bodian/client/bodianCatalog.ts": {
     "@typescript-eslint/no-explicit-any": {
       "count": 5
     },
@@ -9412,7 +9412,7 @@
       "count": 1
     }
   },
-  "src/services/onlineMusic/bodian/bodianLibrary.ts": {
+  "sources/bodian/client/bodianLibrary.ts": {
     "@typescript-eslint/no-base-to-string": {
       "count": 2
     },
@@ -9438,7 +9438,7 @@
       "count": 1
     }
   },
-  "src/services/onlineMusic/bodian/bodianMutations.ts": {
+  "sources/bodian/client/bodianMutations.ts": {
     "@typescript-eslint/no-unnecessary-condition": {
       "count": 1
     },
@@ -9446,7 +9446,7 @@
       "count": 1
     }
   },
-  "src/services/onlineMusic/bodian/bodianNormalize.ts": {
+  "sources/bodian/client/bodianNormalize.ts": {
     "@typescript-eslint/no-base-to-string": {
       "count": 1
     },
@@ -9469,7 +9469,7 @@
       "count": 1
     }
   },
-  "src/services/onlineMusic/bodian/bodianProvider.ts": {
+  "sources/bodian/client/bodianProvider.ts": {
     "@typescript-eslint/no-base-to-string": {
       "count": 2
     },
@@ -9495,7 +9495,7 @@
       "count": 7
     }
   },
-  "src/services/onlineMusic/bodian/bodianTransport.ts": {
+  "sources/bodian/client/bodianTransport.ts": {
     "@typescript-eslint/no-non-null-assertion": {
       "count": 1
     }

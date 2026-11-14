@@ -3,11 +3,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // test/unit/onlineMusic/bodianProvider.test.ts
 
 const request = vi.hoisted(() => vi.fn());
-vi.mock('@/services/onlineMusic/bodian/bodianTransport', () => ({
+vi.mock('../../../sources/bodian/client/bodianTransport', () => ({
     requestBodian: request, getBodianTransportAvailability: () => ({ configured: true }),
 }));
-import { bodianProvider } from '@/services/onlineMusic/bodian/bodianProvider';
-import { bodianPage, normalizeBodianCollection, normalizeBodianSong, normalizeBodianUser } from '@/services/onlineMusic/bodian/bodianNormalize';
+import { bodianProvider } from '../../../sources/bodian/client/bodianProvider';
+import { bodianPage, normalizeBodianCollection, normalizeBodianSong, normalizeBodianUser } from '../../../sources/bodian/client/bodianNormalize';
 import { getPlaybackSongKey } from '@/utils/appPlaybackGuards';
 
 const track = { id: 228908, songName: '测试歌曲 (Live)', name: '测试歌曲', albumId: 1293, album: '测试专辑',

@@ -3,8 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // test/unit/onlineMusic/bodianLibrary.test.ts
 
 const request = vi.hoisted(() => vi.fn());
-vi.mock('@/services/onlineMusic/bodian/bodianTransport', () => ({ requestBodian: request }));
-import { bodianCollectionItems, bodianLibrary, clearBodianLibraryCache } from '@/services/onlineMusic/bodian/bodianLibrary';
+vi.mock('../../../sources/bodian/client/bodianTransport', () => ({ requestBodian: request }));
+import { bodianCollectionItems, bodianLibrary, clearBodianLibraryCache } from '../../../sources/bodian/client/bodianLibrary';
 
 beforeEach(() => { request.mockReset(); clearBodianLibraryCache(); });
 

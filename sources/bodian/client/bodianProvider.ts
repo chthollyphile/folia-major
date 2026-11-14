@@ -1,7 +1,7 @@
-import type { OnlineMusicProvider, ProviderAudioSource, ProviderCollection, LoginState } from '../../../types/onlineMusic';
-import { OnlineProviderError } from '../../../types/onlineMusic';
-import { createProviderSongMetadata } from '../../../utils/songMetadata';
-import { parseBodianLyrics } from '../../../utils/lyrics/bodianLyrics';
+import type { OnlineMusicProvider, ProviderAudioSource, ProviderCollection, LoginState } from '../../../src/types/onlineMusic';
+import { OnlineProviderError } from '../../../src/types/onlineMusic';
+import { createProviderSongMetadata } from '../../../src/utils/songMetadata';
+import { parseBodianLyrics } from '../../../src/utils/lyrics/bodianLyrics';
 import { getBodianTransportAvailability, requestBodian } from './bodianTransport';
 import { describeBodianFailure } from './bodianFailure';
 import { bodianPage, getBodianLyricSearchAlias, normalizeBodianCollection, normalizeBodianSong, normalizeBodianUser } from './bodianNormalize';
@@ -10,7 +10,7 @@ import { bodianLibrary, clearBodianLibraryCache } from './bodianLibrary';
 import { bodianMutations } from './bodianMutations';
 import type { BodianLyricsPayload } from 'bodian-music-api';
 
-// src/services/onlineMusic/bodian/bodianProvider.ts
+// sources/bodian/client/bodianProvider.ts
 
 const BODIAN_DISCOVER_MODULE_ID = 1;
 

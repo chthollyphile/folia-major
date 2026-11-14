@@ -1,9 +1,9 @@
-import type { MediaId, OnlineCatalogProvider, ProviderCollection } from '../../../types/onlineMusic';
+import type { MediaId, OnlineCatalogProvider, ProviderCollection } from '../../../src/types/onlineMusic';
 import { bodianPage, normalizeBodianCollection, normalizeBodianSong } from './bodianNormalize';
 import { requestBodian } from './bodianTransport';
 import type { BodianOperation } from './bodianTransport';
 
-// src/services/onlineMusic/bodian/bodianCatalog.ts
+// sources/bodian/client/bodianCatalog.ts
 
 export async function bodianSongPage(operation: BodianOperation, id: MediaId, limit: number, offset: number, source?: number) {
     const data = await requestBodian<any>(operation, { id, limit, offset, source });

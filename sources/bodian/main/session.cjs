@@ -1,6 +1,6 @@
 const crypto = require('node:crypto');
 
-// electron/bodian/session.cjs
+// sources/bodian/main/session.cjs
 
 const SESSION_KEY = 'BODIAN_SESSION_V2';
 const DEVICE_KEY = 'BODIAN_DEVICE_ID';

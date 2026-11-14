@@ -1,11 +1,11 @@
-import type { OnlineMutationProvider, MediaId, ProviderCollection } from '../../../types/onlineMusic';
-import type { SongResult } from '../../../types';
-import { OnlineProviderError } from '../../../types/onlineMusic';
-import { getPlaybackSourceRef } from '../../../utils/appPlaybackGuards';
+import type { OnlineMutationProvider, MediaId, ProviderCollection } from '../../../src/types/onlineMusic';
+import type { SongResult } from '../../../src/types';
+import { OnlineProviderError } from '../../../src/types/onlineMusic';
+import { getPlaybackSourceRef } from '../../../src/utils/appPlaybackGuards';
 import { requestBodian } from './bodianTransport';
 import { clearBodianLibraryCache } from './bodianLibrary';
 
-// src/services/onlineMusic/bodian/bodianMutations.ts
+// sources/bodian/client/bodianMutations.ts
 
 function songId(song: MediaId | SongResult): string {
     if (typeof song !== 'object') return String(song);

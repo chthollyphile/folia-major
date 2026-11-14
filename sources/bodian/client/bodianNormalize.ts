@@ -1,8 +1,8 @@
-import type { Artist, SongResult, UnifiedSong } from '../../../types';
-import type { JsonValue, ProviderCollection, ProviderLyricSearchAlias, ProviderPage, ProviderUser } from '../../../types/onlineMusic';
-import { OnlineProviderError } from '../../../types/onlineMusic';
+import type { Artist, SongResult, UnifiedSong } from '../../../src/types';
+import type { JsonValue, ProviderCollection, ProviderLyricSearchAlias, ProviderPage, ProviderUser } from '../../../src/types/onlineMusic';
+import { OnlineProviderError } from '../../../src/types/onlineMusic';
 
-// src/services/onlineMusic/bodian/bodianNormalize.ts
+// sources/bodian/client/bodianNormalize.ts
 
 export type BodianRecord = Record<string, any>;
 export const bodianRecord = (value: unknown): BodianRecord => (
