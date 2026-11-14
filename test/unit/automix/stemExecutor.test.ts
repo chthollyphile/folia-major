@@ -25,6 +25,7 @@ vi.mock('@/services/analysis/beatThisGpu', () => ({
     runHtdemucsGpu,
     estimateGpuFinish: () => gpu.finish,
     gpuStemsUsable: () => gpu.usable,
+    gpuStemsOnScreenUsable: () => gpu.usable,
 }));
 
 import { refreshModelAvailability } from '@/services/analysis/modelAvailability';

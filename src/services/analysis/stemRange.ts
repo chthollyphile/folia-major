@@ -1,4 +1,4 @@
-import { HTDEMUCS_GPU_SEGMENT, runHtdemucsGpu, type GpuRunOptions, type StemChannels } from './beatThisGpu';
+import { HTDEMUCS_GPU_SEGMENT, gpuStemsOnScreenUsable, runHtdemucsGpu, type GpuRunOptions, type StemChannels } from './beatThisGpu';
 
 // src/services/analysis/stemRange.ts
 // Any stretch of a track's four stems from htdemucs on the GPU, on the one segment grid every caller
@@ -272,7 +272,8 @@ export const separateStemSegment = async (
     if (!stems) return null;
     if (key && id) {
         if (inWantedRange(key, index, total, own) && stems.length === STEM_SOURCES.length) keep(id, stems, total);
-        else if (by === 'stems' && drumsWanted(key)) {
+        // Not once the picture's separation stopped for being too slow (beatThisGpu.ts): nothing would read them.
+        else if (by === 'stems' && drumsWanted(key) && gpuStemsOnScreenUsable()) {
             keep(id, drumsOnly(stems), total);
             drumsKept(key);
         }

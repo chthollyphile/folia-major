@@ -1,4 +1,5 @@
 /// <reference types="@webgpu/types" />
+import { SERIAL_PACING, createSliceQueue, type SlicePacing } from '../gpuSlices';
 
 // src/services/analysis/beatThisWgsl/percussive.ts
 // HPSS (harmonic / percussive separation by median filtering, Fitzgerald 2010) on the Beat This!
@@ -12,9 +13,9 @@
 // once is percussive), zero beyond the edges, and the soft (Wiener) mask P^2 / (H^2 + P^2). Same
 // kernels as the demo's perc.mjs on a linear spectrum, here on the mel bands. Matches a JS reference to
 // 1e-7 per bar; on an M4 Pro a four-minute track takes 15-23 ms in one submit, upload and readback
-// included. It is submitted in slices of SLICE_FRAMES instead, each waited for (~55 ms in all), like
-// the model's 'auto' slicing: the GPU only switches work between command buffers, and one long
-// dispatch could hold a busy visualizer's frame.
+// included. It is submitted in slices of SLICE_FRAMES instead (~55 ms in all on an M4, each waited
+// for), paced like the models' slices (gpuSlices.ts): the GPU only switches work between command
+// buffers, and one long dispatch could hold a busy visualizer's frame.
 
 const MEL_BINS = 128;
 const WORKGROUP = 64;
@@ -84,8 +85,16 @@ export interface PercussiveEnergyFrames {
 
 const pipelines = new WeakMap<GPUDevice, GPUComputePipeline>();
 
-/** The percussive and total energy of every frame of `mel` ([frames, 128], row-major). */
-export const runPercussiveEnergy = async (device: GPUDevice, mel: Float32Array, frames: number): Promise<PercussiveEnergyFrames> => {
+/**
+ * The percussive and total energy of every frame of `mel` ([frames, 128], row-major). Its slices are
+ * let go under `pacing` (gpuSlices.ts), one at a time and each waited for without it.
+ */
+export const runPercussiveEnergy = async (
+    device: GPUDevice,
+    mel: Float32Array,
+    frames: number,
+    pacing: SlicePacing = SERIAL_PACING,
+): Promise<PercussiveEnergyFrames> => {
     if (frames < 1 || mel.length < frames * MEL_BINS) throw new Error(`percussive: ${mel.length} floats for ${frames} frames`);
     let pipeline = pipelines.get(device);
     if (!pipeline) {
@@ -103,6 +112,7 @@ export const runPercussiveEnergy = async (device: GPUDevice, mel: Float32Array, 
     const readback = device.createBuffer({ size: frames * 2 * 4, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
     try {
         device.queue.writeBuffer(input, 0, mel.buffer, mel.byteOffset, frames * MEL_BINS * 4);
+        const queue = createSliceQueue(device.queue, pacing);
         for (let slice = 0; slice < slices; slice += 1) {
             const first = slice * SLICE_FRAMES;
             const count = Math.min(SLICE_FRAMES, frames - first);
@@ -122,9 +132,7 @@ export const runPercussiveEnergy = async (device: GPUDevice, mel: Float32Array, 
             pass.dispatchWorkgroups(Math.ceil(count / WORKGROUP));
             pass.end();
             if (slice === slices - 1) encoder.copyBufferToBuffer(output, 0, readback, 0, frames * 2 * 4);
-            device.queue.submit([encoder.finish()]);
-            // One slice on the GPU at a time.
-            await device.queue.onSubmittedWorkDone();
+            await queue.submit(encoder.finish(), slice === slices - 1);
         }
         await readback.mapAsync(GPUMapMode.READ);
         const interleaved = new Float32Array(readback.getMappedRange().slice(0));
