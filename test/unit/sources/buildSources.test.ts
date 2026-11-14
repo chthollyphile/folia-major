@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
-import { createRequire } from 'node:module';
+import { builtinModules, createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -325,3 +325,30 @@ describe('what a source may not do, each refused by the build', () => {
         await expect(buildCopy(edit)).rejects.toThrow(message);
     }, 60_000);
 });
+
+// The sources the app ships (sources/<id>/), built the way the release workflows build them, so a pull request that
+// breaks one fails here instead of at the packaging step of a release (review: nothing on a pull request built them).
+describe('the repository\'s own sources build as the installation carries them', () => {
+    it('builds every source in sources/ into a complete mod directory whose main entry needs only Node', async () => {
+        const ids = listSourceIds(path.join(ROOT, 'sources'));
+        const out = temporary('repository-sources');
+        const { results } = await buildSources({ outRoot: out, bundled: undefined });
+        expect(results.map((result) => result.id).sort()).toEqual([...ids].sort());
+        for (const result of results) {
+            expect(result.warnings, result.id).toEqual([]);
+            const dir = path.join(out, result.id);
+            const files = fs.readdirSync(dir);
+            expect(files, result.id).toEqual(expect.arrayContaining(['mod.json', BUILD_STAMP]));
+            const manifest = JSON.parse(fs.readFileSync(path.join(dir, 'mod.json'), 'utf8')) as { client?: string; main?: string; locales?: string };
+            if (manifest.client) expect(fs.existsSync(path.join(dir, manifest.client)), result.id).toBe(true);
+            if (manifest.locales) expect(fs.existsSync(path.join(dir, manifest.locales, 'zh-TW.json')), result.id).toBe(true);
+            if (manifest.main) {
+                const code = fs.readFileSync(path.join(dir, manifest.main), 'utf8');
+                const required = [...code.matchAll(/\brequire\((['"])([^'"]+)\1\)/g)].map((match) => match[2]);
+                const outside = required.filter((name) => !name.startsWith('.') && !name.startsWith('node:') && !builtinModules.includes(name.split('/')[0]));
+                expect(outside, `${result.id}: bare requires left in ${manifest.main}`).toEqual([]);
+            }
+        }
+    }, 120_000);
+});
+
