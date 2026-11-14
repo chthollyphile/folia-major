@@ -132,7 +132,13 @@ Tailwind 版本相关的类名语法、StrictMode 下 effect 双调用、异步 
   走的是真实的本地播放和歌词链路，不需要网络和登录；重复调用复用同一条曲库记录。
   素材在 `src/dev/mockSongAssets.ts`。没有用户手势时浏览器可能拦自动播放，那就点一下播放键。
 
-两个一起用：`http://localhost:3000/?skipStartup&mockSong`。
+- **整套 mock 曲库入队**（测队列、打乱、随机播放）：地址带 `?mockLibrary`，或 `await window.__foliaDev.loadMockLibrary()`。
+  三位歌手（含一位中文名）× 两张专辑 × 每张四首 20 秒的短曲，共 24 首；每张专辑一个调、一张封面，歌词写着曲名和第几首，
+  听或看都分得清是哪一首。同样写进 OPFS 按本地文件夹（`Folia Dev Mock Library`，一张专辑一个子文件夹）导入，
+  然后整套按专辑顺序成为播放队列、从第一首播起。在 Bravais 的「本地」页签里能点开这几张专辑和三位歌手。
+  代码在 `src/dev/mockLibrary.ts`，音频、歌词、封面复用 `mockSongAssets.ts` 的生成函数。
+
+两个一起用：`http://localhost:3000/?skipStartup&mockSong`（或 `?skipStartup&mockLibrary`）。
 
 ### 6. 仅改文档、issue template、配置说明
 

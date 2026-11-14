@@ -82,6 +82,8 @@ export type BravaisSeamModel = {
     onSelectTab?: (key: string) => void;
     /** 播放 / 加入当前范围；没声明或不可用时不给。 */
     onPlayScope?: () => void;
+    /** 随机播放当前范围（core 的 shuffle-scope）：给了，「播放全部」就切成两半，右边一格是它（BravaisSeamPlayScope）。 */
+    onShuffleScope?: () => void;
     onEnqueueScope?: () => void;
     /** 歌手页：打开这位歌手的「全部歌曲」（#918，倾斜信息条上的按钮）；没声明或不可用时不给。 */
     onOpenAllSongs?: () => void;

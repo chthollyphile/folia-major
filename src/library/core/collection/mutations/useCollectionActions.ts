@@ -7,7 +7,7 @@ import { resolveReloadCapability, resolveScopeCapability } from '../collectionCa
 import type { CollectionView } from '../useCollectionView';
 
 // src/library/core/collection/mutations/useCollectionActions.ts
-// 集合的语义动作：播放 / 入队 / 收进速记簿某首或当前范围、重新拉取、续传。回调保持稳定，执行时读最新的视图——
+// 集合的语义动作：播放（含随机播放）/ 入队 / 收进速记簿某首或当前范围、重新拉取、续传。回调保持稳定，执行时读最新的视图——
 // 点击那一刻界面上的范围就是播放的范围，不会引用过期的列表。
 
 export type CollectionActions = {
@@ -23,6 +23,8 @@ export type CollectionActions = {
     playTrackInFullList: (track: SongResult) => void;
     enqueueTrack: (track: SongResult) => void;
     playScope: () => void;
+    /** 随机播放：当前范围以打乱的顺序成为队列（宿主负责打乱）。 */
+    shuffleScope: () => void;
     enqueueScope: () => void;
     /** 收进速记簿（不动队列），记下集合名。 */
     collectTrack: (track: SongResult) => void;
@@ -71,6 +73,10 @@ export const useCollectionActions = ({
         playScope: () => {
             const tracks = latest.current.view.contextTracks;
             if (tracks.length > 0) latest.current.port.playAll(tracks);
+        },
+        shuffleScope: () => {
+            const tracks = latest.current.view.contextTracks;
+            if (tracks.length > 0) latest.current.port.playAll(tracks, { shuffle: true });
         },
         enqueueScope: () => {
             const tracks = latest.current.view.contextTracks;

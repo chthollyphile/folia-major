@@ -157,6 +157,8 @@ export const STORAGE_KEYS = [
     'web:folia_scratchpad_entries',
     'web:folia_search_history_v1',
     'web:folia_settings_last_section',
+    'web:folia_shuffle_round',
+    'web:folia_shuffle_round_no_repeat',
     'web:folia_sync_config_v1',
     'web:folia_sync_local_settings_updated_at_v1',
     'web:folia_sync_status_v1',

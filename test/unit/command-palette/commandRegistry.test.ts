@@ -151,6 +151,7 @@ const createContext = (overrides: CommandPaletteContextOverrides = {}): CommandP
             toggleTranscodeFallback: vi.fn(),
             togglePlaybackFade: vi.fn(),
             toggleAutoSkipUnplayable: vi.fn(),
+            toggleShuffleRoundNoRepeat: vi.fn(),
             toggleAlwaysShowMainWindowTitlebar: vi.fn(),
             togglePlayerHeaderBlur: vi.fn(),
             toggleTitlebarSide: vi.fn(),

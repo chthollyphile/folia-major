@@ -116,8 +116,8 @@ describe('library suite registry', () => {
         expect(resolveLibrarySurfaceActions('collection', 'grid').extraActions)
             .toEqual(['toggle-info-panel', 'toggle-track-list', 'toggle-edit-mode']);
         // TUI 实现了除 Navidrome「加入歌单 / 新建歌单」、本地集合「设置封面」、速记簿（collect / collect-scope）与
-        // 「收藏到歌单」（save-to-playlist）以外的全部集合动作（前两个需要歌单选择器，只在网格里；后面几个是 TUI 冻结
-        // 之后才有的，不再加入口）。
+        // 「收藏到歌单」（save-to-playlist）、随机播放（shuffle-scope）以外的全部集合动作（前两个需要歌单选择器，只在网格里；
+        // 后面几个是 TUI 冻结之后才有的，不再加入口）。
         expect(resolveLibrarySurfaceActions('collection', 'tui')).toEqual({
             actions: [
                 'play', 'enqueue', 'play-scope', 'enqueue-scope', 'filter', 'sort', 'reload', 'resume-sync',
@@ -128,12 +128,12 @@ describe('library suite registry', () => {
             extraActions: [],
         });
         expect(LIBRARY_ACTION_IDS.filter(action => !resolveLibrarySurfaceActions('collection', 'tui').actions.includes(action)))
-            .toEqual(['collect', 'collect-scope', 'save-to-playlist', 'set-cover', 'add-to-playlist', 'create-playlist']);
-        // 歌手页（P4.2 / P4.3）：网格实现了全部歌手页动作（网格的播放全部只经命令面板）；TUI 已冻结，没有「全部歌曲」（#918）。
+            .toEqual(['shuffle-scope', 'collect', 'collect-scope', 'save-to-playlist', 'set-cover', 'add-to-playlist', 'create-playlist']);
+        // 歌手页（P4.2 / P4.3）：网格实现了全部歌手页动作（网格的播放全部、随机播放只经命令面板）；TUI 已冻结，没有「全部歌曲」（#918）与随机播放。
         expect([...resolveLibrarySurfaceActions('artist', 'grid').actions].sort()).toEqual([...LIBRARY_ARTIST_ACTION_IDS].sort());
         expect(LIBRARY_ARTIST_ACTION_IDS.filter(action => !resolveLibrarySurfaceActions('artist', 'tui').actions.includes(action)))
-            .toEqual(['open-all-songs']);
-        // B8：bravais 的歌手页自己渲染，声明全部 11 个歌手页动作（不回退 grid）。
+            .toEqual(['shuffle-scope', 'open-all-songs']);
+        // B8：bravais 的歌手页自己渲染，声明全部 12 个歌手页动作（不回退 grid）。
         expect(resolveLibrarySurface('artist', 'bravais')).toMatchObject({ suiteId: 'bravais', isFallback: false });
         expect([...resolveLibrarySurfaceActions('artist', 'bravais').actions].sort()).toEqual([...LIBRARY_ARTIST_ACTION_IDS].sort());
         // 首页：两套都实现了探索页卡片上那一对之外的全部首页动作（网格的焦点类动作在卡片与目录树的按钮上，TUI 的在命令面板

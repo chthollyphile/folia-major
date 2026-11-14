@@ -67,6 +67,20 @@ describe('core collection surface', () => {
         runGridSurfaceAction('collect-filtered', params);
         expect(collectFiltered).toHaveBeenCalledTimes(1);
     });
+
+    it('publishes shuffle-play-filtered only when the suite gives it, the scope has songs and the suite declares it', () => {
+        const shufflePlayFiltered = vi.fn();
+        expect(buildGridSurfaceState(core()).availableActions).not.toContain('shuffle-play-filtered');
+        expect(buildGridSurfaceState(core({ shufflePlayFiltered, filteredTrackCount: 0 })).availableActions).not.toContain('shuffle-play-filtered');
+        const undeclared: LibraryDeclaredActions = { actions: ['play-scope', 'enqueue-scope'], extraActions: [] };
+        expect(buildGridSurfaceState(core({ shufflePlayFiltered, declaredActions: undeclared })).availableActions).not.toContain('shuffle-play-filtered');
+
+        const params = core({ shufflePlayFiltered });
+        expect(buildGridSurfaceState(params).availableActions).toContain('shuffle-play-filtered');
+        runGridSurfaceAction('shuffle-play-filtered', params);
+        expect(shufflePlayFiltered).toHaveBeenCalledTimes(1);
+        expect(params.playFiltered).not.toHaveBeenCalled();
+    });
 });
 
 /** 网格那样什么分支都打开的参数：每个命令都可用，好看出声明过滤掉了哪些。 */
@@ -86,6 +100,7 @@ const everything = (declaredActions?: LibraryDeclaredActions): GridSurfaceParams
     resyncFolder: vi.fn(),
     toggleSubscribe: vi.fn(),
     collectFiltered: vi.fn(),
+    shufflePlayFiltered: vi.fn(),
     declaredActions,
 });
 

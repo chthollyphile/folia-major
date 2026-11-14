@@ -325,6 +325,7 @@ const BravaisHomeDirectory: React.FC<BravaisHomeDirectoryProps> = ({
             tools,
             menu,
             menuLabel: t('libraryBravaisHome.more'),
+            pageToolsLabel: t('libraryBravaisHome.pageTools'),
             manage,
             scan: chrome.scan,
             search: chrome.search,

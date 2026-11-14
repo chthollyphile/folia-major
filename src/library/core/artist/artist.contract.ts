@@ -129,12 +129,13 @@ export type LibraryArtistCapabilities = { readonly [Action in LibraryArtistActio
 
 /**
  * 歌手页交给命令面板的动作（artist surface）。与语义动作的对应见 core/artist/artistSurface 的
- * ARTIST_SURFACE_ACTION_SOURCES：play-top-songs → play-scope、enqueue-top-songs → enqueue-scope、
+ * ARTIST_SURFACE_ACTION_SOURCES：play-top-songs → play-scope、shuffle-top-songs → shuffle-scope、enqueue-top-songs → enqueue-scope、
  * reload → reload、retry-albums → resume-sync、edit-entity → edit-entity、open-all-songs → open-all-songs。单曲播放 / 入队、打开专辑 / 歌手
  * 作用于某一项，不进命令面板（与集合 surface 的 play / enqueue 一样）。
  */
 export type LibraryArtistSurfaceActionId =
     | 'play-top-songs'
+    | 'shuffle-top-songs'
     | 'enqueue-top-songs'
     | 'reload'
     | 'retry-albums'

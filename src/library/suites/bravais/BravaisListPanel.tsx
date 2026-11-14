@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo } from 'react';
-import { ArrowDownWideNarrow, ArrowUpNarrowWide, ChevronLeft, ListPlus, Play } from 'lucide-react';
+import { ArrowDownWideNarrow, ArrowUpNarrowWide, ChevronLeft, ListPlus } from 'lucide-react';
 import { List, useListRef, type RowComponentProps } from 'react-window';
 import { useTranslation } from 'react-i18next';
 import type { BravaisItem, BravaisLayer } from './bravaisLayer';
@@ -7,6 +7,7 @@ import { BravaisSeamStatusLine } from './BravaisSeamCollection';
 import BravaisSeamFilterField from './BravaisSeamFilterField';
 import { setBravaisLinkedKey, useBravaisUiStore } from './bravaisUiStore';
 import BravaisSeamCrumbs from './BravaisSeamCrumbs';
+import BravaisSeamPlayScope from './BravaisSeamPlayScope';
 
 // src/library/suites/bravais/BravaisListPanel.tsx
 // 列表面板（设计稿 §5「面板」「歌曲列表」）：缝加宽到 min(420, 视口 − 52)，标题横排压在顶部，下面是工具行（本地文件夹的
@@ -140,11 +141,7 @@ const BravaisListPanel: React.FC<{ layer: BravaisLayer; depth: number; actions: 
                 ) : collection?.status && <BravaisSeamStatusLine status={collection.status} />}
             </div>
             <div className="bravais-seam-actions">
-                {seam.onPlayScope && (
-                    <button type="button" className="bravais-chrome-button is-primary" data-bravais-seam-action="play-scope" onClick={seam.onPlayScope}>
-                        <Play aria-hidden />{seam.scopeLabels?.play ?? t('libraryBravais.playAll')}
-                    </button>
-                )}
+                <BravaisSeamPlayScope seam={seam} buttonClassName="bravais-chrome-button" />
                 {seam.onEnqueueScope && (
                     <button type="button" className="bravais-chrome-button" data-bravais-seam-action="enqueue-scope" onClick={seam.onEnqueueScope}>
                         <ListPlus aria-hidden />{seam.scopeLabels?.enqueue ?? t('libraryBravais.enqueueAll')}

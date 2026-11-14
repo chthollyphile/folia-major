@@ -67,6 +67,8 @@ const grid: LibrarySuiteManifest = {
                 'play',
                 'enqueue',
                 'play-scope',
+                // 信息面板「播放全部」右边那一格：随机播放（命令面板的 shuffle-play-filtered）。
+                'shuffle-scope',
                 'enqueue-scope',
                 // 速记簿：卡片封面右上角悬浮的「加入速记簿」、曲目侧栏行上的一颗、信息面板的「全部加入速记簿」。
                 'collect',
@@ -106,6 +108,8 @@ const grid: LibrarySuiteManifest = {
                 'play',
                 'enqueue',
                 'play-scope',
+                // 随机播放热门歌曲：与播放全部一样只经命令面板（shuffle-top-songs）。
+                'shuffle-scope',
                 'enqueue-scope',
                 'filter',
                 'reload',

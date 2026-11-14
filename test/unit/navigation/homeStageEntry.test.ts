@@ -86,6 +86,7 @@ const createBaseParams = () => {
         theme,
         navidromeEnabled: false,
         playAll: vi.fn(),
+        shufflePlayAll: vi.fn(),
         addAllToQueue: vi.fn(),
         addSongToQueue: vi.fn(),
         onOpenCollection: vi.fn(),

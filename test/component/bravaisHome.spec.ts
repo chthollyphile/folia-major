@@ -37,8 +37,14 @@ const mountBravais = async (mount: (id: string) => Promise<unknown>, page: Page)
  * 免得撞上同名的一级页签（Albums）。 */
 const section = (page: Page, name: string) => seam(page).locator('[data-bravais-home-body]').getByRole('tab', { name, exact: true });
 
-/** fb3：工具格固定四格，目录、管理隐藏、Navidrome 刷新等都在「⋯」菜单里：打开菜单、点那一项。 */
+/** fb3：工具格固定四格，其余在「⋯」菜单里；方案 C 起目录、导入、刷新这些按优先级在工具格上面的本页一组里直接成格
+ *  （放不下才进「⋯」）。本页一组里有就点它，否则打开菜单点那一项。 */
 const runMenuItem = async (page: Page, id: string) => {
+    const cell = seam(page).locator(`[data-bravais-page-tools] [data-bravais-seam-action="${id}"]`);
+    if (await cell.count() > 0) {
+        await cell.click();
+        return;
+    }
     await seam(page).locator('.bravais-seam-tools [data-bravais-seam-action="more"]').click();
     await seam(page).locator(`[data-bravais-seam-menu] [data-bravais-seam-action="${id}"]`).click();
 };
@@ -340,17 +346,18 @@ test.describe('[bravais-only] home', () => {
     test('the local seam menu imports a folder; the Navidrome seam refreshes the overview', async ({ page }) => {
         await showLocal(page);
         await page.evaluate(() => window.__homeProbe!.clearLog());
-        await seam(page).locator('[data-bravais-seam-action="more"]').click();
-        await seam(page).locator('[data-bravais-seam-action="home-import-folder"]').click();
+        // 方案 C：导入文件夹在工具格上面的本页一组里直接成格。
+        await expect(seam(page).locator('[data-bravais-page-tools] [data-bravais-seam-action="home-import-folder"]')).toBeVisible();
+        await runMenuItem(page, 'home-import-folder');
         await expect.poll(async () => (await calls(page, 'service')).map(call => call.key)).toEqual(['importFolder']);
 
         await seam(page).locator('[data-bravais-tab="navidrome"]').click();
         await expect(stage(page)).toHaveAttribute('data-bravais-layer', 'home:navidrome');
         await expect(section(page, 'Albums')).toHaveAttribute('aria-selected', 'true');
-        await seam(page).locator('.bravais-seam-tools [data-bravais-seam-action="more"]').click();
-        await expect(seam(page).locator('[data-bravais-seam-menu] [data-bravais-seam-action="refresh-navidrome"]')).toBeEnabled();
+        const refresh = seam(page).locator('[data-bravais-page-tools] [data-bravais-seam-action="refresh-navidrome"]');
+        await expect(refresh).toBeEnabled();
         await page.evaluate(() => window.__homeProbe!.clearLog());
-        await seam(page).locator('[data-bravais-seam-menu] [data-bravais-seam-action="refresh-navidrome"]').click();
+        await refresh.click();
         await expect.poll(async () => (await page.evaluate(() => window.__homeProbe!.requests())).filter(request => request.op === 'getAlbumList2').length)
             .toBeGreaterThan(0);
     });
@@ -752,9 +759,9 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
         expect(active.name).toBe('Folders');
         expect(active.label).toBe(layout.fit === 'short' ? 'F' : 'Folders');
 
-        // 再拉高：回到标题 + 全名。
+        // 再拉高：回到全名。方案 C：本地页签的工具格上面多了本页一组（目录、导入……），1100 高时只有标题让给它（全名还在）。
         await resize(page, 1100);
-        await expect(root(page)).toHaveAttribute('data-bravais-home-fit', 'titled');
+        await expect(root(page)).toHaveAttribute('data-bravais-home-fit', 'untitled');
         await expect(seam(page).locator('[data-bravais-tab][data-bravais-tab-short]')).toHaveCount(0);
         await expectTidy(page);
 
@@ -782,14 +789,18 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
             expect(layout.sections[i].top).toBeGreaterThanOrEqual(layout.sections[i - 1].bottom - 0.5);
             expect(Math.abs((layout.sections[i].left + layout.sections[i].right) - (layout.sections[0].left + layout.sections[0].right))).toBeLessThanOrEqual(2);
         }
-        // 本地页签的「⋯」：目录与导入等在分隔线前，app 级的在后（有当前歌曲才有「回到播放页」）。
+        // 方案 C：本地页签的目录、导入文件夹、刷新、导入歌单文件在工具格上面的本页一组里（按优先级），目录是开关；
+        // 「⋯」里只剩本页的其余项，分隔线后是 app 级的（有当前歌曲才有「回到播放页」）。
+        const pageTools = seam(page).locator('[data-bravais-page-tools] > *');
+        await expect.poll(() => pageTools.evaluateAll(nodes => nodes.map(node => node.getAttribute('data-bravais-seam-action'))))
+            .toEqual(['directory', 'home-import-folder', 'home-refresh-folders', 'home-import-playlist']);
+        await expect(seam(page).locator('[data-bravais-page-tools] [data-bravais-seam-action="directory"]')).toHaveAttribute('aria-pressed', 'false');
         await page.evaluate(() => window.__homeProbe!.setNowPlaying('online:probe:loaded', false));
         await seam(page).locator('.bravais-seam-tools [data-bravais-seam-action="more"]').click();
         const items = await menuItems(page);
-        expect(items.indexOf('directory')).toBeGreaterThanOrEqual(0);
-        expect(items.indexOf('home-import-folder')).toBeGreaterThan(items.indexOf('directory'));
+        expect(items).not.toContain('directory');
+        expect(items).not.toContain('home-import-folder');
         expect(items.slice(items.indexOf('rule'))).toEqual(['rule', 'player']);
-        await expect(seam(page).locator('[data-bravais-seam-menu] [data-bravais-seam-action="directory"]')).toHaveAttribute('role', 'menuitemcheckbox');
     });
 
     test('on the spine the tools are one column, and the more button opens the narrow seam with its menu', async ({ page }) => {

@@ -1,9 +1,11 @@
 import { useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import { IdCard, RefreshCw } from 'lucide-react';
 import type { LibraryArtistSnapshot } from '../../core/artist/artist.contract';
 import type { LibraryArtistActionId, LibraryArtistSurfaceProps } from '../../core/suite/suite.contract';
 import type { ArtistView } from '../../core/artist/useArtistView';
 import { projectArtistStatus, resolveArtistWallPeriod } from './bravaisArtistModel';
+import { quickPriority } from './bravaisSeamQuickCells';
 import type { BravaisLayerEntries, BravaisLayerWall, BravaisSeamArtist, BravaisSeamCollection, BravaisSeamFilter, BravaisSeamMenuItem } from './bravaisSeamModels';
 import type { useBravaisMutationNotice } from './useBravaisMutationNotice';
 
@@ -69,16 +71,20 @@ export const useBravaisArtistSeam = (input: BravaisArtistSeamInput) => {
     const status = projection.status;
     const sync = projection.sync;
 
-    // 「⋯ 更多」：重新拉取（在线 / Navidrome）、编辑本地歌手实体（宿主对话框）。
+    // 「⋯ 更多」：重新拉取（在线 / Navidrome）、编辑本地歌手实体（宿主对话框）。方案 C：两项都带图标与优先级，动作格
+    // 放得下时直接成一格（BravaisSeamCollectionMenu）。
     const reloadEnabled = capabilities.reload.enabled;
+    const reloadPending = capabilities.reload.pending;
     const menu = useMemo<BravaisSeamMenuItem[]>(() => {
         const items: BravaisSeamMenuItem[] = [];
         if (declares('reload')) {
-            items.push({ id: 'reload', label: t('playlist.reload'), disabled: !reloadEnabled, run: () => latest.current.view.actions.reload() });
+            items.push({ id: 'reload', icon: RefreshCw, priority: quickPriority('reload'), label: t('playlist.reload'), disabled: !reloadEnabled, busy: reloadPending, run: () => latest.current.view.actions.reload() });
         }
         if (declares('edit-entity')) {
             items.push({
                 id: 'edit-entity',
+                icon: IdCard,
+                priority: quickPriority('edit-entity'),
                 label: t('localMusic.entityInfo', { kind: t('localMusic.artistLabel') }),
                 run: () => latest.current.view.actions.editEntity(),
             });
@@ -86,7 +92,7 @@ export const useBravaisArtistSeam = (input: BravaisArtistSeamInput) => {
         return items;
         // declares 每次渲染新建，按它背后的 offers 比较。
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [offers, reloadEnabled, t]);
+    }, [offers, reloadEnabled, reloadPending, t]);
 
     const matchLabel = t('libraryBravaisArtist.albumMatchCount', { matches: input.shownAlbumCount, total: albumCount });
     // 缝里的过滤输入位（只筛专辑名，core 约定；占位文字照实说「过滤专辑」）。
