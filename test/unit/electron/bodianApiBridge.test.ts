@@ -181,3 +181,97 @@ describe('Bodian desktop bridge', () => {
         expect(policy.allows({ url: 'https://img1.kuwo.cn/cover.jpg', resourceType: 'script', method: 'GET' })).toBe(false);
     });
 });
+
+// Folium 2.0 S5: the three files above run behind the source mod's main entry (sources/bodian/main/index.ts), on the
+// host's api instead of main.cjs's store, safeStorage, net and webRequest. The entry is driven here with a stand-in api.
+describe('Bodian main entry (source mod)', async () => {
+    const { EventEmitter } = await import('node:events');
+    const { default: activate } = await import('../../../sources/bodian/main/index');
+    const CLAIMED = new Set(['BODIAN_SESSION_V2', 'BODIAN_DEVICE_ID']);
+
+    const launch = (respond: (url: URL) => unknown, values = new Map<string, unknown>()) => {
+        const safeStorage = cipher();
+        const handlers = new Map<string, (...args: unknown[]) => unknown>();
+        const requests: Array<{ url: string; method?: string; session?: unknown }> = [];
+        let rule: { test: (request: { url: string; method: string; resourceType: string; responseHeaders: Record<string, string[]> }) => boolean; followRedirects?: boolean; ttlMs?: number } | null = null;
+        const claimed = (key: string) => {
+            if (!CLAIMED.has(key)) throw new Error(`legacy-key-not-claimed:${key}`);
+        };
+        const api = {
+            legacy: { store: {
+                get: (key: string) => { claimed(key); return values.get(key); },
+                set: (key: string, value: unknown) => { claimed(key); values.set(key, value); },
+                has: (key: string) => { claimed(key); return values.has(key); },
+                delete: (key: string) => { claimed(key); values.delete(key); },
+            } },
+            // api.seal: base64 of safeStorage's sealed bytes, as sourceApi.cjs makes it.
+            seal: {
+                available: () => true,
+                seal: (text: string) => safeStorage.encryptString(text).toString('base64'),
+                open: (sealed: string) => safeStorage.decryptString(Buffer.from(sealed, 'base64')),
+            },
+            net: {
+                request: (options: { url: string; method?: string }) => {
+                    requests.push(options);
+                    const request = Object.assign(new EventEmitter(), {
+                        setHeader: () => {},
+                        abort: () => {},
+                        end: () => {
+                            void Promise.resolve().then(() => {
+                                const response = Object.assign(new EventEmitter(), { statusCode: 200, headers: {} });
+                                request.emit('response', response);
+                                response.emit('data', Buffer.from(JSON.stringify(respond(new URL(options.url)))));
+                                response.emit('end');
+                            });
+                        },
+                    });
+                    return request;
+                },
+            },
+            media: { allow: (given: typeof rule) => { rule = given; return Object.assign(() => {}, { add: () => {} }); } },
+            rpc: { handle: (name: string, handler: (...args: unknown[]) => unknown) => { handlers.set(name, handler); } },
+        };
+        activate(api as never);
+        return { handlers, requests, rule: () => rule!, values, safeStorage };
+    };
+
+    it('keeps its device id and a sign-in stored before the move under the claimed keys, sealed the same way', async () => {
+        const values = new Map<string, unknown>();
+        // What main.cjs's bridge stored with Electron's safeStorage before the move.
+        const before = createSessionRepository({ store: { get: (key: string) => values.get(key), set: (key: string, value: unknown) => values.set(key, value), delete: (key: string) => values.delete(key) }, safeStorage: cipher() });
+        before.set(account);
+        const { handlers } = launch(() => ({ code: 200 }), values);
+        expect(values.get('BODIAN_DEVICE_ID')).toBe(before.deviceId);
+        expect(await handlers.get('request')!('login_status')).toEqual({ ok: true, data: account.user });
+        expect([...values.keys()].sort()).toEqual(['BODIAN_DEVICE_ID', 'BODIAN_SESSION_V2']);
+    });
+
+    it('sends the package’s requests through api.net.request in the default session, and only its operations', async () => {
+        const { handlers, requests } = launch(() => ({ code: 200, data: { total: 0, list: [] } }));
+        const answer = await handlers.get('request')!('search', { query: '晴天', limit: 10, offset: 0 }) as { ok: boolean };
+        expect(answer.ok).toBe(true);
+        expect(requests).toHaveLength(1);
+        expect(new URL(requests[0].url).origin).toBe('https://bd-api.kuwo.cn');
+        expect(requests[0]).not.toHaveProperty('session');
+        expect(await handlers.get('request')!('fetch', {})).toMatchObject({ ok: false, error: { code: 'unsupported' } });
+        expect(requests).toHaveLength(1);
+    });
+
+    it('lets its media through the host’s one listener by the policy it had: issued addresses, Kuwo audio and covers', async () => {
+        // The package's audio flow: the rights check, then the address (bodian-music-api playback.cjs).
+        const { handlers, rule } = launch(url => (url.pathname.endsWith('/checkRight')
+            ? { code: 200, data: { status: 1 } }
+            : { code: 200, data: { audioHttpsUrl: 'https://other-cdn.example.com/a.mp3?sig=1' } }));
+        const read = (url: string, resourceType = 'media', responseHeaders: Record<string, string[]> = {}) => (
+            rule().test({ url, method: 'GET', resourceType, responseHeaders })
+        );
+        expect(rule()).toMatchObject({ followRedirects: true, ttlMs: 2 * 60 * 60 * 1000 });
+        expect(read('https://other-cdn.example.com/a.mp3?sig=1')).toBe(false);
+        expect(await handlers.get('request')!('audio', { id: '1', quality: 'standard' })).toMatchObject({ ok: true });
+        // The issued address only once the package handed it out (the bridge's onAudioSource), as before.
+        expect(read('https://other-cdn.example.com/a.mp3?sig=1')).toBe(true);
+        expect(read('https://sycdn.kuwo.cn/abc/song.mp3')).toBe(true);
+        expect(read('https://img4.kuwo.cn/star/albumcover/240/a.jpg', 'image')).toBe(true);
+        expect(read('https://example.com/song.mp3')).toBe(false);
+    });
+});
