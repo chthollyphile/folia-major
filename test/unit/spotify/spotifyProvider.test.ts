@@ -1,3 +1,4 @@
+// @builtin-sources
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // test/unit/spotify/spotifyProvider.test.ts — the Spotify adapter against rows shaped as Spotify's

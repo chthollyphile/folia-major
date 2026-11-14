@@ -1,3 +1,4 @@
+// @builtin-sources
 import { describe, expect, it } from 'vitest';
 import { LOGIN_CASE_TEXTS, LOGIN_KIND_TEXTS, loginStepText } from '@/components/login/window/loginCaseTexts';
 import {
@@ -6,6 +7,7 @@ import {
 import { accountPictureSrc } from '@/components/login/PlatformMark';
 import { orderRows, pillNameUnfolds, pillProvider, pillSeenNext, rowStatus, type PillSeen } from '@/components/login/platformRows';
 import { resolvePlatformMark } from '@/components/login/resolvePlatformMark';
+import i18n from '@/i18n/config';
 import en from '@/i18n/locales/en';
 import id from '@/i18n/locales/in';
 import zh from '@/i18n/locales/zh-CN';
@@ -320,7 +322,14 @@ describe('the texts the window can ask for', () => {
     const has = (texts: unknown, key: string): boolean => (
         typeof key.split('.').reduce<unknown>((at, part) => (at as Record<string, unknown> | undefined)?.[part], texts) === 'string'
     );
-    const missing = (keys: string[]) => keys.flatMap(key => [['zh-CN', zh], ['en', en], ['in', id]].filter(([, texts]) => !has(texts, key)).map(([name]) => `${key} in ${name}`));
+    // A source mod's texts (`folium-mod/<mod id>:<key>`) are in its own locale files, which the host loads into i18n.
+    const hasModText = (language: string, key: string): boolean => {
+        const [namespace, path] = key.split(':');
+        return typeof i18n.getResource(language, namespace, path) === 'string';
+    };
+    const missing = (keys: string[]) => keys.flatMap(key => [['zh-CN', zh], ['en', en], ['in', id]]
+        .filter(([name, texts]) => !(key.startsWith('folium-mod/') ? hasModText(name as string, key) : has(texts, key)))
+        .map(([name]) => `${key} in ${name}`));
 
     it('has a headline for each of the 19 cases, a name for each kind and each step, in the three languages', () => {
         expect(Object.keys(LOGIN_CASE_TEXTS).sort()).toEqual([...LOGIN_CASE_IDS].sort());

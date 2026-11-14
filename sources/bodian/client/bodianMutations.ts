@@ -1,41 +1,32 @@
-import type { OnlineMutationProvider, MediaId, ProviderCollection } from '../../../src/types/onlineMusic';
-import type { SongResult } from '../../../src/types';
-import { OnlineProviderError } from '../../../src/types/onlineMusic';
-import { getPlaybackSourceRef } from '../../../src/utils/appPlaybackGuards';
-import { requestBodian } from './bodianTransport';
+import type { FoliumSourceCollection, FoliumSourceMutations, FoliumSourceSong } from '@folia/folium';
+import { bodianError, requestBodian } from './bodianTransport';
 import { clearBodianLibraryCache } from './bodianLibrary';
 
 // sources/bodian/client/bodianMutations.ts
+// 红心与歌单增删。宿主只把波点自己的歌和歌单交到这里（omni 按歌的音源分派），给的是 DTO 或只给 id。
 
-function songId(song: MediaId | SongResult): string {
-    if (typeof song !== 'object') return String(song);
-    const source = getPlaybackSourceRef(song);
-    if (source?.kind !== 'online' || source.providerId !== 'bodian') {
-        throw new OnlineProviderError('unsupported', 'Song does not belong to Bodian', 'bodian');
-    }
-    return String(source.mediaId);
-}
+const songId = (song: string | FoliumSourceSong): string => (typeof song === 'object' ? song.id : String(song));
 
-function playlistId(playlist: MediaId | ProviderCollection): string {
+function playlistId(playlist: string | FoliumSourceCollection): string {
     if (typeof playlist !== 'object') return String(playlist);
-    if (playlist.providerId !== 'bodian' || playlist.type !== 'playlist' || !playlist.isOwned) {
-        throw new OnlineProviderError('unsupported', 'Playlist is not an owned Bodian playlist', 'bodian');
+    if (playlist.type !== 'playlist' || !playlist.isOwned) {
+        throw bodianError('unsupported', 'Playlist is not an owned Bodian playlist');
     }
     return String(playlist.id);
 }
 
-const likeSong = async (song: MediaId | SongResult, liked: boolean): Promise<void> => {
+const likeSong = async (song: string | FoliumSourceSong, liked: boolean): Promise<void> => {
     try { await requestBodian('like_song', { id: songId(song), liked }); }
     finally { clearBodianLibraryCache(); }
 };
 
-export const bodianMutations: OnlineMutationProvider = {
-    canAddToPlaylist: playlist => playlist.providerId === 'bodian' && playlist.type === 'playlist' && playlist.isOwned === true,
+export const bodianMutations: FoliumSourceMutations = {
+    canAddToPlaylist: playlist => playlist.type === 'playlist' && playlist.isOwned === true,
     likeSong,
     async updatePlaylistTracks(operation, playlist, tracks) {
         if (!tracks.length) return;
         // The package verifies ownership, including the account's built-in liked playlist.
-        if (tracks.length > 100) throw new OnlineProviderError('unsupported', 'Select at most 100 tracks per operation', 'bodian');
+        if (tracks.length > 100) throw bodianError('unsupported', 'Select at most 100 tracks per operation');
         const id = playlistId(playlist);
         const trackIds = tracks.map(songId).join(',');
         try { await requestBodian(operation === 'add' ? 'playlist_tracks_add' : 'playlist_tracks_del', { id, trackIds }); }

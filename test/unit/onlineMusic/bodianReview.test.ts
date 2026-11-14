@@ -1,3 +1,4 @@
+// @builtin-sources
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { omni } from '@/services/onlineMusic/omni';
 import { getOnlineMusicProvider } from '@/services/onlineMusic/providerRegistry';

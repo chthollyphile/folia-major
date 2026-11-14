@@ -88,7 +88,7 @@ const createSourceApi = (context, host) => {
     };
 
     /*
-     * Electron `net.request` (a ClientRequest), for what a web fetch cannot send: a GET with a body (Bodian's desktop
+     * Electron `net.request` (a ClientRequest), for what a web fetch cannot send: a GET with a body (a platform's desktop
      * API signs one). `session` and `partition` are the host's to set: a mod names the partition with `session`.
      */
     const clientRequest = (options, partition) => {

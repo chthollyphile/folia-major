@@ -1,11 +1,10 @@
-import type { MediaId, OnlineLibraryProvider, ProviderCollection } from '../../../src/types/onlineMusic';
-import { OnlineProviderError } from '../../../src/types/onlineMusic';
+import type { FoliumSourceCollection, FoliumSourceLibrary } from '@folia/folium';
 import { bodianPage, normalizeBodianCollection } from './bodianNormalize';
-import { requestBodian } from './bodianTransport';
+import { bodianError, requestBodian } from './bodianTransport';
 
 // sources/bodian/client/bodianLibrary.ts
 
-const playlistPages = new Map<string, { at: number; items: ProviderCollection[] }>();
+const playlistPages = new Map<string, { at: number; items: FoliumSourceCollection[] }>();
 export const clearBodianLibraryCache = () => playlistPages.clear();
 
 // Empty collections are represented as {} or []; populated collections use a named list field.
@@ -16,11 +15,11 @@ export function bodianCollectionItems(data: unknown, field: string): unknown[] {
         const list = (data as Record<string, unknown>)[field];
         if (Array.isArray(list)) return list;
     }
-    throw new OnlineProviderError('invalid-response', `Bodian ${field} is missing`, 'bodian');
+    throw bodianError('invalid-response', `Bodian ${field} is missing`);
 }
 
-async function allPlaylists(userId: MediaId): Promise<ProviderCollection[]> {
-    const items: ProviderCollection[] = [];
+async function allPlaylists(userId: string): Promise<FoliumSourceCollection[]> {
+    const items: FoliumSourceCollection[] = [];
     const seen = new Set<string>();
     let offset = 0;
     while (true) {
@@ -31,19 +30,19 @@ async function allPlaylists(userId: MediaId): Promise<ProviderCollection[]> {
         }
         const collected = bodianCollectionItems(data.collected, 'playLists').map(raw => normalizeBodianCollection({ ...(raw as object), isOwned: false }));
         const previousCount = seen.size;
-        collected.forEach(item => seen.add(`${item.providerData?.source}:${item.id}`));
+        collected.forEach(item => seen.add(`${item.data?.source}:${item.id}`));
         items.push(...collected);
         const page = bodianPage(collected, data.collected?.total, offset, 100, data.collected?.bodianPagination);
         // A mixed upstream page may contain only albums; its filtered playlist page is empty but still advances.
         if (!page.hasMore || page.nextOffset <= offset || (collected.length > 0 && seen.size === previousCount)) break;
         offset = page.nextOffset;
     }
-    const unique = [...new Map(items.map(item => [`${item.providerData?.source}:${item.id}`, item])).values()];
+    const unique = [...new Map(items.map(item => [`${item.data?.source}:${item.id}`, item])).values()];
     playlistPages.set(String(userId), { at: Date.now(), items: unique });
     return unique;
 }
 
-export const bodianLibrary: OnlineLibraryProvider = {
+export const bodianLibrary: FoliumSourceLibrary = {
     async getUserPlaylists(userId, limit, offset) {
         const cached = playlistPages.get(String(userId));
         const items = offset > 0 && cached && Date.now() - cached.at < 60_000 ? cached.items : await allPlaylists(userId);
@@ -55,12 +54,12 @@ export const bodianLibrary: OnlineLibraryProvider = {
         return bodianPage(items, data.total, offset, limit, data.bodianPagination);
     },
     async getLikedSongIds() {
-        const ids = new Set<MediaId>();
+        const ids = new Set<string>();
         let offset = 0;
         let whole = false;
         while (true) {
             const data = await requestBodian<any>('liked_songs', { limit: 100, offset });
-            if (!Array.isArray(data.list)) throw new OnlineProviderError('invalid-response', 'Bodian liked songs are missing', 'bodian');
+            if (!Array.isArray(data.list)) throw bodianError('invalid-response', 'Bodian liked songs are missing');
             const previousCount = ids.size;
             for (const item of data.list) if (item.id != null) ids.add(String(item.id));
             const page = bodianPage(data.list, data.total, offset, 100, data.bodianPagination);

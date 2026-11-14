@@ -1,12 +1,11 @@
-import { OnlineProviderError } from '../../../src/types/onlineMusic';
-import type { OnlineFailureDetail, OnlineFailureOperation } from '../../../src/types/onlineMusic';
-import { BODIAN_BRIDGE_FAILED, BODIAN_NEEDS_DESKTOP } from './bodianTransport';
+import type { FoliumSourceError, FoliumSourceFailureDetail } from '@folia/folium';
+import { BODIAN_BRIDGE_FAILED } from './bodianTransport';
 
 // sources/bodian/client/bodianFailure.ts
 // What a Bodian request for a song's audio or a collection's tracks that failed hands to the shared
-// rules (services/onlineMusic/failure/). What the package's errors mean is said here only: the
-// bridge hands its code and sentence through as they are (bodian-music-api/src/api.cjs), and the
-// sentence is the package's own (src/http.cjs).
+// rules (the host's failure cases). What the package's errors mean is said here only: the bridge hands
+// its code and sentence through as they are (bodian-music-api/src/api.cjs), and the sentence is the
+// package's own (src/http.cjs). The host asks this only of Bodian's own requests.
 
 // The package's own sentences for a play right it was not given (bodian-music-api@0.1.2, src/playback.cjs):
 // checkRight status 7, or no status at all; status 3 (a preview) with no clip to play.
@@ -14,11 +13,15 @@ const ADDITIONAL_RIGHTS = 'Bodian requires additional playback rights';
 const RIGHTS_UNAVAILABLE = 'Bodian playback rights are unavailable';
 const PREVIEW_UNAVAILABLE = 'Bodian preview is unavailable';
 
-export const describeBodianFailure = (_operation: OnlineFailureOperation, error: unknown): OnlineFailureDetail | null => {
-    if (!(error instanceof OnlineProviderError) || error.providerId !== 'bodian') return null;
-    // This page has no desktop bridge (the web build): Bodian cannot be used here at all.
-    if (error.message === BODIAN_NEEDS_DESKTOP) return { case: 'not-configured' };
-    // The bridge itself failed (the main process threw): the local service, not the network.
+// An error made with folium.sources.error (bodianTransport.ts): it has the host's code. Anything else (a
+// TypeError of a page that did not read) is not one the package's sentences can tell of.
+const isSourceError = (error: unknown): error is FoliumSourceError => (
+    error instanceof Error && typeof (error as { code?: unknown }).code === 'string'
+);
+
+export const describeBodianFailure = (_operation: 'audio' | 'collection', error: unknown): FoliumSourceFailureDetail | null => {
+    if (!isSourceError(error)) return null;
+    // The bridge itself failed (the main entry threw): the local service, not the network.
     if (error.message === BODIAN_BRIDGE_FAILED) return { case: 'local-service-stopped' };
     // Without a session the package answers a right it was not given with auth-required: nobody is signed in.
     if (error.code === 'auth-required' && (error.message === ADDITIONAL_RIGHTS || error.message === RIGHTS_UNAVAILABLE)) {

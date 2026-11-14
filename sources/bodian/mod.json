@@ -1,0 +1,18 @@
+{
+  "folium": 2,
+  "id": "bodian",
+  "name": "波点音乐",
+  "version": "1.0.0",
+  "author": "Folia",
+  "description": "Folia 内置的波点音乐音源（仅桌面端）：扫码登录、搜索、播放、歌词、曲库、歌单改动与推荐，经 bodian-music-api 在主进程里请求。",
+  "client": "client.mjs",
+  "main": "index.cjs",
+  "locales": "locales",
+  "sources": [
+    {
+      "id": "bodian",
+      "name": { "zh-CN": "波点音乐", "en": "Bodian Music", "in": "Bodian Music", "vi": "Bodian Music" },
+      "requires": ["search@1", "songs@1", "playback.audio@1", "lyrics@1", "auth@1", "library@1", "catalog@1", "mutations@1", "recommendations@1", "covers@1"]
+    }
+  ]
+}

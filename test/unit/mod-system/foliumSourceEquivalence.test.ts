@@ -42,10 +42,9 @@ import { omni } from '@/services/onlineMusic/omni';
 import { onlineFailureOf } from '@/services/onlineMusic/failure/onlineFailureCase';
 import { normalizeQishuiCollection, normalizeQishuiSong } from '@/services/onlineMusic/qishui/qishuiNormalize';
 import { parseQishuiLyrics } from '@/services/onlineMusic/qishui/qishuiLyrics';
-import { parseBodianLyrics } from '@/utils/lyrics/bodianLyrics';
 import { processNeteaseLyrics } from '@/utils/lyrics/neteaseProcessing';
 import { resolveProviderLyricsChorus } from '@/utils/lyrics/chorusResolver';
-import { parseLyricsByFormat } from '@/utils/lyrics/parserCore';
+import { parseAwlrc, parseLyricsByFormat } from '@/utils/lyrics/parserCore';
 import { applyDetectedChorusEffects } from '@/utils/lyrics/chorusEffects';
 import { isPureMusicLyricText } from '@/utils/lyrics/pureMusic';
 import { buildFoliaLyricDocument, parseFoliaLyricDocument, serializeFoliaLyricDocument } from '@/utils/lyrics/foliaLyricDocument';
@@ -55,6 +54,18 @@ import { buildFoliaLyricDocument, parseFoliaLyricDocument, serializeFoliaLyricDo
 // provider give the same shape of identity, result and error. The lyrics are held to it with platform answers
 // as the built-in providers get them (recorded payload shapes): the built-in path's LyricData against the one
 // the new path parses from the same text handed over as a source's tracks.
+
+// The built-in Bodian provider's lyric step as it was before Bodian became a source mod (src/utils/lyrics/bodianLyrics.ts
+// until Folium 2.0 S5): the old path the source's tracks are held to.
+const parseBodianLyrics = ({ mainText, wordByWordText }: { mainText: string; wordByWordText: string | null }): ProviderLyricsResult => {
+    const wordLyrics = wordByWordText ? parseAwlrc(wordByWordText) : null;
+    const lyrics = wordLyrics?.lines.length ? wordLyrics : parseLyricsByFormat('lrc', mainText);
+    return {
+        lyrics: lyrics.lines.length ? lyrics : null,
+        mainText, wordByWordText: wordLyrics?.lines.length ? wordByWordText : undefined,
+        isPureMusic: isPureMusicLyricText(mainText),
+    };
+};
 
 const MOD_ID = 'equiv-mod';
 const mod: ModRuntimeInfo = {

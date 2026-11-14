@@ -1,17 +1,19 @@
-import type { ProviderLyricsResult } from '../../types/onlineMusic';
-import { parseAwlrc, parseLyricsByFormat } from './parserCore';
-import { isPureMusicLyricText } from './pureMusic';
+import type { FoliumSourceLyricsResult } from '@folia/folium';
 import type { BodianLyricsPayload } from 'bodian-music-api';
 
-// src/utils/lyrics/bodianLyrics.ts
+// sources/bodian/client/bodianLyrics.ts
+// The API package decodes platform timing; the source hands the host its standard lyric text as tracks
+// (lyrics@1): the line-timed LRC, and the word-timed awlrc where Bodian has one. The host parses them and
+// shows the word-timed track where it has lines. The instrumental notice is read by the host's own rule
+// (folium.lyrics.isPureMusicText), and may come with the lines (plan §4.5, third rule).
 
-// The API package decodes platform timing. Folia only maps standard lyric text to its shared model.
-export function parseBodianLyrics({ mainText, wordByWordText }: BodianLyricsPayload): ProviderLyricsResult {
-    const wordLyrics = wordByWordText ? parseAwlrc(wordByWordText) : null;
-    const lyrics = wordLyrics?.lines.length ? wordLyrics : parseLyricsByFormat('lrc', mainText);
+export function toBodianLyrics(
+    { mainText, wordByWordText }: BodianLyricsPayload,
+    isPureMusicText: (text: string) => boolean,
+): FoliumSourceLyricsResult {
     return {
-        lyrics: lyrics.lines.length ? lyrics : null,
-        mainText, wordByWordText: wordLyrics?.lines.length ? wordByWordText : undefined,
-        isPureMusic: isPureMusicLyricText(mainText),
+        ...(mainText ? { main: { format: 'lrc', text: mainText } } : {}),
+        ...(wordByWordText ? { wordByWord: { format: 'awlrc', text: wordByWordText } } : {}),
+        isPureMusic: isPureMusicText(mainText),
     };
 }

@@ -1,3 +1,4 @@
+// @builtin-sources
 import { describe, expect, it, vi } from 'vitest';
 import { PlayerState, type SongResult } from '../../../src/types';
 import { COMMAND_PALETTE_COMMANDS, getAvailableCommandPaletteCommands, getCommandPaletteMatches, getQueueSongMatches } from '../../../src/components/command-palette/commandRegistry';
@@ -646,10 +647,12 @@ describe('command palette registry', () => {
         const searchIds = () => COMMAND_PALETTE_COMMANDS.map(command => command.id).filter(id => id.startsWith('search-'));
 
         installProviderSearchCommands();
+        // Folium 2.0 S5: Bodian is a source mod now; it registers when its client starts, after the platforms the
+        // host still registers at load, so it comes last (on the desktop as here).
         expect(searchIds()).toEqual([
             'search-current', 'search-local', 'search-navidrome',
-            'search-netease', 'search-kugou', 'search-qq', 'search-bodian', 'search-ytm',
-            'search-spotify', 'search-qishui', 'search-appleMusic', 'search-fnmusic',
+            'search-netease', 'search-kugou', 'search-qq', 'search-ytm',
+            'search-spotify', 'search-qishui', 'search-appleMusic', 'search-fnmusic', 'search-bodian',
         ]);
         const netease = COMMAND_PALETTE_COMMANDS.find(command => command.id === 'search-netease')!;
         expect(netease.textSource).toBe('runtime');

@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+// @builtin-sources
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Stores read localStorage at import time; see foliumUiRegistries.test.ts.
@@ -226,7 +227,9 @@ describe('folium.omni.listProviders', () => {
     it('lists the built-in sources in the host order, the selected one marked, nothing of the account', () => {
         signIn('netease', 9_876_543);
         const providers = omniOf().listProviders();
-        expect(providers.map((provider) => provider.providerId).slice(0, 6)).toEqual(['netease', 'kugou', 'qq', 'bodian', 'ytm', 'spotify']);
+        // Folium 2.0 S5: Bodian, a source mod now, registers after the platforms the host still registers at load.
+        expect(providers.map((provider) => provider.providerId).slice(0, 6)).toEqual(['netease', 'kugou', 'qq', 'ytm', 'spotify', 'qishui']);
+        expect(providers.map((provider) => provider.providerId).at(-1)).toBe('bodian');
         expect(providers[0]).toEqual({
             providerId: 'netease',
             displayName: 'NetEase Cloud Music',

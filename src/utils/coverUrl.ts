@@ -4,11 +4,6 @@ const NON_RESIZABLE_COVER_PROTOCOLS = new Set(['blob:', 'data:', 'file:', 'files
 const KUGOU_COVER_HOST_PATTERN = /(?:^|\.)(?:kugou\.com|kgimg\.com)$/i;
 // Song art lives under /stdmusic/<size>/, playlist covers under /soft/collection/<size>/; both resize to any number.
 const KUGOU_COVER_PATH_PATTERN = /(\/(?:stdmusic|soft\/collection)\/)(\d+)(\/)/;
-// img1.kuwo.cn, and the same files on the img2.sycdn and img1.kwcdn hosts the search API hands out.
-const KUWO_COVER_HOST_PATTERN = /^img\d*(?:\.(?:sycdn|kwcdn))?\.kuwo\.cn$/i;
-const KUWO_COVER_PATH_PATTERN = /^(\/star\/(?:albumcover|starheads)\/)(\d+)(\/)/;
-const KUWO_COVER_SMALL_SIZE = 240;
-const KUWO_COVER_LARGE_SIZE = 800;
 const NETEASE_COVER_HOST_PATTERN = /^p\d+\.music\.126\.net$/i;
 const QQ_COVER_HOSTNAMES = new Set(['y.gtimg.cn', 'y.qq.com']);
 const QQ_COVER_PATH_PATTERN = /(T00[12])(?:R(\d+)x\d+)?(M000)/;
@@ -46,16 +41,6 @@ const isKugouCoverUrl = (url: URL): boolean => (
 
 const withKugouCoverSize = (url: URL, size: number): string => {
     url.pathname = url.pathname.replace(KUGOU_COVER_PATH_PATTERN, `$1${size}$3`);
-    return url.toString();
-};
-
-const isKuwoCoverUrl = (url: URL): boolean => (
-    KUWO_COVER_HOST_PATTERN.test(url.hostname) && KUWO_COVER_PATH_PATTERN.test(url.pathname)
-);
-
-// Bodian metadata supplies 240px thumbnails and 800px artwork, including its albumPic120 field.
-const withKuwoCoverSize = (url: URL, size: number): string => {
-    url.pathname = url.pathname.replace(KUWO_COVER_PATH_PATTERN, `$1${size}$3`);
     return url.toString();
 };
 
@@ -160,24 +145,6 @@ const BUILT_IN_COVER_URL_RULES: readonly CoverUrlRule[] = [
         original: () => null,
         requestedSize: url => (isKugouCoverUrl(url) ? parseSize(KUGOU_COVER_PATH_PATTERN.exec(url.pathname)?.[2]) : undefined),
         proxiedOnWeb: url => KUGOU_COVER_HOST_PATTERN.test(url.hostname),
-    },
-    {
-        provider: 'kuwo',
-        sized: (url, size) => {
-            if (!isKuwoCoverUrl(url)) return null;
-            // The shared smallest poster step is 256px; use the CDN's available 240px thumbnail.
-            if (size <= 256) return withKuwoCoverSize(url, KUWO_COVER_SMALL_SIZE);
-            if (size <= KUWO_COVER_LARGE_SIZE) return withKuwoCoverSize(url, KUWO_COVER_LARGE_SIZE);
-            // Past 800 any size is served (1024 and 1200 measured), up to the cap a wall can decode.
-            return withKuwoCoverSize(url, Math.min(size, COVER_MAX_SIZE));
-        },
-        identity: url => (isKuwoCoverUrl(url) ? `kuwo:${url.pathname.replace(KUWO_COVER_PATH_PATTERN, '$1*$3')}` : null),
-        original: (url) => {
-            if (!isKuwoCoverUrl(url)) return null;
-            const originalSize = Number(KUWO_COVER_PATH_PATTERN.exec(url.pathname)?.[2]);
-            return withKuwoCoverSize(url, Math.max(COVER_MAX_SIZE, originalSize));
-        },
-        requestedSize: url => (isKuwoCoverUrl(url) ? parseSize(KUWO_COVER_PATH_PATTERN.exec(url.pathname)?.[2]) : undefined),
     },
     {
         provider: 'qq',
@@ -365,7 +332,7 @@ export const resolveCoverSizeStep = (size: number): number => (
     COVER_SIZE_STEPS.find(step => step >= size) ?? Number.POSITIVE_INFINITY
 );
 
-export type CoverProvider = 'netease' | 'kugou' | 'kuwo' | 'qq' | 'apple' | 'google' | 'navidrome' | 'local' | 'other' | (string & {});
+export type CoverProvider = 'netease' | 'kugou' | 'qq' | 'apple' | 'google' | 'navidrome' | 'local' | 'other' | (string & {});
 
 export interface CoverUrlDescription {
     provider: CoverProvider;

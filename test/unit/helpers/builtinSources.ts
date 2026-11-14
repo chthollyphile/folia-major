@@ -1,13 +1,14 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
+import { beforeAll, expect } from 'vitest';
 import type { FoliumClientApi, FoliumClientModule, FoliumRpc } from '@/mods/folium/contract';
 import type { FoliumSourceDef, FoliumSourcePageStore, FoliumText } from '@/mods/folium/sources/contract';
 import type { ModRuntimeInfo } from '@/mods/types';
 // test/unit/helpers/builtinSources.ts
-// 单测里的内置音源（Folium 2.0 方案 §10 的 S4）。挂在 vitest.config.ts 的 setupFiles 上：每个测试文件开始前，
-// 发现 sources/<id>/（带 mod.json 的目录）就经适配层（src/mods/folium/registries/sources.ts）注册它，和桌面上
-// 模组的 client 注册的是同一条路；一个都没有时什么都不做，也不载入任何宿主模块。
+// 单测里的内置音源（Folium 2.0 方案 §10 的 S4）。挂在 vitest.config.ts 的 setupFiles 上：写了 `// @builtin-sources` 的
+// 测试文件开始前（它的 beforeAll），发现 sources/<id>/（带 mod.json 的目录）就经适配层（src/mods/folium/registries/sources.ts）
+// 注册它，和桌面上模组的 client 注册的是同一条路；没写的文件、或者一个音源都没有时，什么都不做，也不载入任何宿主模块。
 //
 // 一个音源怎么注册：
 //   - 有 core/index.ts 并导出 createSource(env)：用测试的 env（BuiltinSourceTestEnv）调它，把交回的定义
@@ -185,5 +186,24 @@ export const registerBuiltinSources = async ({ root = BUILTIN_SOURCES_ROOT }: { 
     return registered;
 };
 
-// setupFiles：每个测试文件开始前注册仓库里的音源模组（还没有时什么都不做）。
-if (listBuiltinSourceDirs().length > 0) await registerBuiltinSources();
+/** 测试文件里写了这一行注释，setup 才给它注册仓库里的音源模组（和 `// @vitest-environment jsdom` 一样写在文件里）。 */
+export const BUILTIN_SOURCES_MARKER = '// @builtin-sources';
+
+/** 这个测试文件要不要内置音源：文件里有一行正是 BUILTIN_SOURCES_MARKER。 */
+export const wantsBuiltinSources = (testFile: string | undefined): boolean => {
+    if (!testFile || !fs.existsSync(testFile)) return false;
+    return fs.readFileSync(testFile, 'utf8').split(/\r?\n/).some((line) => line.trim() === BUILTIN_SOURCES_MARKER);
+};
+
+// setupFiles：给写了 `// @builtin-sources` 的测试文件注册仓库里的音源模组（还没有音源时什么都不做）。
+//
+// S5 迁波点时收窄成按文件选择（S4 交接 §4 的建议），实测两件事：
+//   - 每个测试文件都注册时，全量单测从 90 秒涨到 249 秒（每个文件都要载入 omni、适配层、i18n），43 个文件失败：
+//     它们 vi.mock 了 omni、providerRegistry、存储或计时器，注册撞在这些替身上。
+//   - 注册放在 beforeAll 里，不在 setup 文件载入时做：setup 文件先于测试文件执行，它载入时 import 的宿主模块进了模块缓存，
+//     测试文件里的 vi.mock 就盖不到它们了（lyricsSource 拿到的是真的 workerClient）。beforeAll 在测试文件载入、它的
+//     vi.mock 生效之后才跑，注册用的就是测试文件看到的同一批模块。所以测试文件顶层（第一个用例之前）还拿不到内置音源：
+//     要用的在用例或 beforeAll 里取（helpers/bodianSource.ts 的 lazyBodian）。
+if (listBuiltinSourceDirs().length > 0 && wantsBuiltinSources(expect.getState().testPath)) {
+    beforeAll(async () => { await registerBuiltinSources(); });
+}

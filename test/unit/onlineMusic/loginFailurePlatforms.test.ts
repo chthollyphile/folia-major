@@ -1,3 +1,4 @@
+// @builtin-sources
 import { createRequire } from 'node:module';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createBodianApi } from 'bodian-music-api';
@@ -9,6 +10,7 @@ import { requestQq, resetQqTransportRuntimeCache } from '@/services/onlineMusic/
 import type { LoginStep, LoginState } from '@/types/onlineMusic';
 import { loginCaseOf, loginFailureFacts } from '@/services/onlineMusic/login/loginFailureCase';
 import { failureNoteKey } from '@/components/login/window/loginView';
+import { setBuiltinSourceRpc } from '../helpers/builtinSources';
 
 // test/unit/onlineMusic/loginFailurePlatforms.test.ts
 // Which case each platform's own failure sorts to, through the real facade, adapter and
@@ -552,7 +554,8 @@ describe('Bodian', () => {
     // The real package, as the desktop side runs it, over a stand-in for the network.
     const desktop = (respond: () => unknown) => {
         const api = createBodianApi({ deviceId: 'a'.repeat(32), requestFactory: createWire(respond).factory });
-        vi.stubGlobal('window', { electron: { bodianRequest: api.request } });
+        // Folium 2.0 S5: the source mod's main entry runs the package; its client reaches it over the rpc.
+        setBuiltinSourceRpc('bodian', { request: (operation, params) => api.request(operation as never, params as never) });
     };
 
     it('unreachable: the request fails, or is answered 502', async () => {

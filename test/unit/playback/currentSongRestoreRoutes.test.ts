@@ -190,6 +190,10 @@ const { readFoliumQueueVersion, resetFoliumQueueVersionForTest } = await import(
 const { resolveFoliumQueueKind } = await import('@/mods/runtime/hostQueue');
 const { toFoliumSong } = await import('@/mods/folium/dto');
 const { onlineFailureOf } = await import('@/services/onlineMusic/failure/onlineFailureCase');
+// The songs here are of a platform the host has registered (omni itself is a stand-in above). It was Bodian's static
+// registration until Bodian became a source mod (Folium 2.0 S5); a stand-in of the same id keeps the source there.
+const { registerOnlineMusicProvider: registerStandIn } = await import('@/services/onlineMusic/providerRegistry');
+registerStandIn({ id: 'bodian', displayName: 'Bodian', capabilities: {} as never, normalizeSong: (song: unknown) => song as never });
 const unavailable = (caseId: OnlineFailureCaseId = 'no-audio') => ({
     kind: 'unavailable', failure: onlineFailureOf({ operation: 'audio', providerId: 'bodian' }, { detail: { case: caseId } }),
 });
