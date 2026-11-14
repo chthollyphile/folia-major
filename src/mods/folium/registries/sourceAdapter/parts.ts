@@ -72,7 +72,7 @@ const PART_OF: Partial<Record<FoliumStandardCapability, PartName>> = {
 };
 
 // The members a capability must have that are values, not functions.
-const VALUE_MEMBERS = new Set(['backend', 'reservedParams']);
+const VALUE_MEMBERS = new Set(['backend', 'reservedParams', 'hosts']);
 
 const has = (object: object | undefined, member: string): boolean => (
     object !== undefined && typeof (object as Record<string, unknown>)[member] === 'function'

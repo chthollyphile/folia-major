@@ -71,7 +71,7 @@ export const FOLIUM_SOURCE_CAPABILITY_MEMBERS: Readonly<Record<FoliumStandardCap
         'canAddToPlaylist', 'canEditPlaylistTracks', 'likeSong', 'updatePlaylistTracks', 'createPlaylist', 'canSubscribe',
         'subscribePlaylist', 'subscribeAlbum',
     ],
-    covers: ['sized', 'identity', 'original', 'requestedSize'],
+    covers: ['hosts', 'sized', 'identity', 'original', 'requestedSize'],
     raw: ['backend', 'reservedParams', 'credentialFields', 'describeEndpoint', 'checkParams', 'request'],
 });
 
@@ -90,7 +90,7 @@ export const FOLIUM_SOURCE_REQUIRED_MEMBERS: Readonly<Record<FoliumStandardCapab
     recommendations: [],
     explore: ['getFeed'],
     mutations: [],
-    covers: ['sized', 'identity'],
+    covers: ['hosts', 'sized', 'identity'],
     raw: ['backend', 'reservedParams', 'describeEndpoint', 'request'],
 });
 

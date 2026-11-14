@@ -334,6 +334,7 @@ export default function activate(folium) {
                 },
             },
             'covers@1': {
+                hosts: [COVER_HOST],
                 sized: (url, size) => (url.hostname === COVER_HOST ? `${url.origin}${url.pathname}?size=${size}` : null),
                 identity: (url) => (url.hostname === COVER_HOST ? `sample-source:${url.pathname}` : null),
                 original: (url) => (url.hostname === COVER_HOST ? `${url.origin}${url.pathname}` : null),

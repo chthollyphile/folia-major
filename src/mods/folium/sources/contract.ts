@@ -1072,6 +1072,13 @@ export interface FoliumSourceMutations {
  * with the other rules: change it only when you answer.
  */
 export interface FoliumSourceCovers {
+    /**
+     * The hosts of the picture URLs this source knows: a host name (`img1.example.com`), or `*.` before a domain
+     * for every host under it (`*.example.com`; not `example.com` itself). The host asks the members below only about
+     * URLs on these hosts, and hands each call a URL of its own to change. A rule asked about every picture (another
+     * source's, a media server's, a local one) is the host's alone.
+     */
+    readonly hosts: readonly string[];
     /** The `size`-pixel variant of `url`. */
     sized(url: URL, size: number): string | null;
     /** What names the picture apart from how it is fetched; two URLs of one picture give one value. */

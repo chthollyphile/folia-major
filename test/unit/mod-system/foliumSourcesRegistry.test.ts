@@ -40,7 +40,7 @@ import { getOnlineMusicProvider } from '@/services/onlineMusic/providerRegistry'
 import { participants } from '@/services/onlineMusic/crossSource';
 import { canSourceMatchOnly } from '@/services/onlineMusic/sourceStates';
 import { omni } from '@/services/onlineMusic/omni';
-import { getSizedCoverUrl } from '@/utils/coverUrl';
+import { getCoverIdentity, getSizedCoverUrl } from '@/utils/coverUrl';
 import { resolveSearchSources } from '@/components/app/search/searchSources';
 import { getLyricSource } from '@/utils/lyrics/lyricSources';
 import i18n from '@/i18n/config';
@@ -366,6 +366,7 @@ describe('the seams of S1 and S2, fed from capabilities', () => {
             id: 'a',
             capabilities: {
                 'covers@1': {
+                    hosts: ['img.reg.invalid'],
                     sized: (url, size) => (url.hostname === 'img.reg.invalid' ? `${url.origin}${url.pathname}?w=${size}` : null),
                     identity: () => null,
                 },
@@ -373,6 +374,37 @@ describe('the seams of S1 and S2, fed from capabilities', () => {
         });
         expect(getSizedCoverUrl('https://img.reg.invalid/a.jpg?w=10', 300)).toBe('https://img.reg.invalid/a.jpg?w=300');
         expect(getSizedCoverUrl('https://y.gtimg.cn/music/photo_new/T002R300x300M000x.jpg', 800)).toBe('https://y.gtimg.cn/music/photo_new/T002R800x800M000x.jpg');
+    });
+
+    // A source's rule is asked about its own hosts only, with a URL of its own: a loose rule must not rewrite or
+    // claim another source's or a Navidrome server's pictures (those URLs carry the server's credentials).
+    it('covers@1 asks the source only about its own hosts, each time with a URL of its own', () => {
+        const asked: string[] = [];
+        register({
+            id: 'a',
+            capabilities: {
+                'covers@1': {
+                    hosts: ['*.loose.invalid'],
+                    sized: (url, size) => {
+                        asked.push(url.hostname);
+                        url.pathname = '/rewritten';
+                        return url.hostname.endsWith('.loose.invalid') ? `${url.href}?w=${size}` : null;
+                    },
+                    identity: (url) => {
+                        asked.push(url.hostname);
+                        return `loose:${url.pathname}`;
+                    },
+                },
+            },
+        });
+        expect(getSizedCoverUrl('https://cdn.loose.invalid/a.jpg', 300)).toBe('https://cdn.loose.invalid/rewritten?w=300');
+        const navidrome = 'https://music.home.invalid/rest/getCoverArt?id=1&u=me&t=token';
+        expect(getSizedCoverUrl(navidrome, 300)).not.toContain('rewritten');
+        expect(getCoverIdentity(navidrome)).not.toBe('loose:/rest/getCoverArt');
+        expect(asked.every((host) => host === 'cdn.loose.invalid')).toBe(true);
+        // Without hosts the capability is left out, and its rule is never asked.
+        register({ id: 'b', capabilities: { 'covers@1': { sized: () => 'x', identity: () => 'x' } as never } });
+        expect(getSizedCoverUrl('https://elsewhere.invalid/p.jpg', 300)).not.toBe('x');
     });
 
     it('the page store is the key providerStorage reads, of the mod\'s own sources only', () => {

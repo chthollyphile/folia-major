@@ -117,18 +117,32 @@ const apply = (entry: FoliumSourceEntry) => {
     }
     if (parts.covers) {
         const covers = parts.covers;
+        const ownsHost = coverHostMatcher(covers.hosts);
         const original = covers.original?.bind(covers);
         const requestedSize = covers.requestedSize?.bind(covers);
+        // The rules share one URL object on the covers' hot path; a source's member gets a copy, and only for a URL
+        // on its own hosts (covers@1 `hosts`).
         fresh.push(registerCoverUrlRule({
             provider: entry.hostId,
-            sized: (url, size) => covers.sized(url, size),
-            identity: (url) => covers.identity(url),
-            original: original ?? (() => null),
-            requestedSize: requestedSize ?? (() => undefined),
+            sized: (url, size) => (ownsHost(url) ? covers.sized(new URL(url.href), size) : null),
+            identity: (url) => (ownsHost(url) ? covers.identity(new URL(url.href)) : null),
+            original: (url) => (original && ownsHost(url) ? original(new URL(url.href)) : null),
+            requestedSize: (url) => (requestedSize && ownsHost(url) ? requestedSize(new URL(url.href)) : undefined),
         }));
     }
     entry.undo.push(...fresh);
     runUndo(entry, old);
+};
+
+/*
+ * covers@1 `hosts` as a test of a URL: a name matches itself; `*.domain` matches the hosts under domain. A list
+ * that is not one of strings matches nothing, so the source's rule is never asked.
+ */
+const coverHostMatcher = (hosts: unknown): ((url: URL) => boolean) => {
+    const names = Array.isArray(hosts) ? hosts.filter((host): host is string => typeof host === 'string' && host.length > 0) : [];
+    const exact = new Set(names.filter((host) => !host.startsWith('*.')).map((host) => host.toLowerCase()));
+    const suffixes = names.filter((host) => host.startsWith('*.')).map((host) => host.slice(1).toLowerCase());
+    return (url) => exact.has(url.hostname) || suffixes.some((suffix) => url.hostname.endsWith(suffix));
 };
 
 const remove = (hostId: string) => {

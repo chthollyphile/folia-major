@@ -29,6 +29,8 @@ const parseSize = (value: string | null | undefined): number | null => {
 };
 
 export const bodianCovers: FoliumSourceCovers = {
+    // Every Kuwo picture host (KUWO_COVER_HOST_PATTERN narrows it further).
+    hosts: ['*.kuwo.cn'],
     sized: (url, size) => {
         if (!isKuwoCoverUrl(url)) return null;
         // The shared smallest poster step is 256px; use the CDN's available 240px thumbnail.
