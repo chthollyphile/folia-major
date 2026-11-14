@@ -1,8 +1,11 @@
 import React, { useEffect, useRef, type FormEvent, type KeyboardEvent } from 'react';
 import { Search, X } from 'lucide-react';
+import { useShallow } from 'zustand/react/shallow';
 import type { BravaisLayer } from './bravaisLayer';
 import { setBravaisSearchOpen } from './bravaisHomeUiStore';
 import BravaisSeamCrumbs from './BravaisSeamCrumbs';
+import BravaisSeamSearchHistory from './BravaisSeamSearchHistory';
+import { useHomeSearchHistoryStore } from '../../core/home/useHomeSearchHistoryStore';
 
 // src/library/suites/bravais/BravaisSeamSearch.tsx
 // 首页缝里的全局搜索框（设计稿 §10.5「全局搜索的过渡方案」）：⌕ 或 `/` 把首页窄缝临时展开成完整宽度，输入框拿焦点。
@@ -14,17 +17,33 @@ import BravaisSeamCrumbs from './BravaisSeamCrumbs';
 const BravaisSeamSearch: React.FC<{ layer: BravaisLayer }> = ({ layer }) => {
     const inputRef = useRef<HTMLInputElement>(null);
     const search = layer.seam.home?.search;
+    // 历史与首页搜索框共用一份（localStorage）：在缝里搜过的词，回墙上点开搜索框也还在。
+    const { history: searchHistory, remember: rememberSearch, forget: forgetSearch, clear: clearSearchHistory } = useHomeSearchHistoryStore(useShallow(state => ({
+        history: state.history,
+        remember: state.remember,
+        forget: state.forget,
+        clear: state.clear,
+    })));
     useEffect(() => {
         inputRef.current?.focus({ preventScroll: true });
     }, []);
     if (!search) return null;
     const close = () => setBravaisSearchOpen(false);
+    // 一个词从输入框或历史标签来都一样：交给 surface、记进历史、关框。
+    const runSearch = (query: string) => {
+        const trimmed = query.trim();
+        if (!trimmed) return;
+        rememberSearch(trimmed);
+        search.onSubmit(trimmed);
+        close();
+    };
     const submit = (event: FormEvent) => {
         event.preventDefault();
-        const query = inputRef.current?.value.trim() ?? '';
-        if (!query) return;
-        search.onSubmit(query);
-        close();
+        runSearch(inputRef.current?.value ?? '');
+    };
+    const pickHistory = (query: string) => {
+        if (inputRef.current) inputRef.current.value = query;
+        runSearch(query);
     };
     const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
         if (event.key !== 'Escape' || event.nativeEvent.isComposing) return;
@@ -63,6 +82,12 @@ const BravaisSeamSearch: React.FC<{ layer: BravaisLayer }> = ({ layer }) => {
                     <Search aria-hidden />{search.submitLabel}
                 </button>
             </span>
+            <BravaisSeamSearchHistory
+                items={searchHistory}
+                onPick={pickHistory}
+                onRemove={forgetSearch}
+                onClear={clearSearchHistory}
+            />
         </div>
     );
 };
