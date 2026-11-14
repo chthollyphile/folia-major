@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // drum hits' tail by automix, automix's head by the drum hits - instead of run again.
 
 const { runHtdemucsGpu } = vi.hoisted(() => ({ runHtdemucsGpu: vi.fn() }));
-vi.mock('@/services/analysis/beatThisGpu', () => ({ HTDEMUCS_GPU_SEGMENT: 16, runHtdemucsGpu }));
+vi.mock('@/services/analysis/beatThisGpu', () => ({ HTDEMUCS_GPU_SEGMENT: 16, runHtdemucsGpu, gpuStemsOnScreenUsable: () => true }));
 
 const { dropStemDrums, forgetStemRange, peekStemSegment, resetStemSegmentsForTests, segmentsOver, separateStemRange, setStemDrumsWanted, stemRangeSpan, wantStemRange } = await import('@/services/analysis/stemRange');
 const { separateDrumStem } = await import('@/services/analysis/drumStem');

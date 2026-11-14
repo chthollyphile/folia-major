@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // stops while the rest carry on, and leaving the track stops them all.
 
 const { runHtdemucsGpu } = vi.hoisted(() => ({ runHtdemucsGpu: vi.fn() }));
-vi.mock('@/services/analysis/beatThisGpu', () => ({ HTDEMUCS_GPU_SEGMENT: 16, runHtdemucsGpu }));
+vi.mock('@/services/analysis/beatThisGpu', () => ({ HTDEMUCS_GPU_SEGMENT: 16, runHtdemucsGpu, gpuStemsOnScreenUsable: () => true }));
 const { decodeAtRate } = vi.hoisted(() => ({ decodeAtRate: vi.fn() }));
 vi.mock('@/services/analysis/trackAudio', () => ({ decodeAtRate }));
 

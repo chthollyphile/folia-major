@@ -168,7 +168,7 @@
       "count": 6
     },
     "@typescript-eslint/no-unsafe-assignment": {
-      "count": 24
+      "count": 23
     },
     "@typescript-eslint/no-unsafe-call": {
       "count": 10
@@ -8715,7 +8715,7 @@
   },
   "src/services/analysis/beatThisWgsl/runtime.ts": {
     "@typescript-eslint/no-unnecessary-condition": {
-      "count": 2
+      "count": 1
     }
   },
   "src/services/analysis/drumHitPicking.ts": {

@@ -2,6 +2,10 @@
 import {
     ATTENTION, ATTENTION_F16, ATTENTION_F16_MATH, CONV_GELU, FLATTEN, MATMUL, MATMUL_F16, MATMUL_F16_MATH, MATMUL_F16W, MATMUL_GELU, MATMUL_NORM, MATMUL_RESIDUAL, MATMUL_ROPE, STEM_BN, SUM_HEAD,
 } from './kernels';
+import {
+    DEFAULT_PACING, DispatchCosts, MAX_TIMESTAMP_QUERIES, costSummary, createSliceQueue, durationsFromTicks, median,
+    type PacedRunStats, type SlicePacing,
+} from '../gpuSlices';
 
 // src/services/analysis/beatThisWgsl/runtime.ts
 // Runs one Beat This! chunk (mel [T, 128] -> beat / downbeat logits [T], T up to 1500) on a WebGPU
@@ -24,12 +28,14 @@ export interface BeatThisWgslManifest {
 export interface BeatThisWgslResult {
     beat: Float32Array;
     downbeat: Float32Array;
-    /** Time from submit to the GPU finishing, ms, summed over the slices. */
+    /** Time spent waiting on the GPU between slices, ms (submit to done, summed, when one slice is in flight). */
     gpuMs: number;
     /** The whole run, ms: gpuMs plus recording, and the waits between slices. */
     wallMs: number;
     /** Command buffers submitted. */
     slices: number;
+    /** With slice 'paced': how it was cut and paced, and the cost table once this run completed it. */
+    paced?: PacedRunStats;
     /** Intermediate activations by stage name, only when asked for. Frontend stages are [F, T, C]. */
     stages?: Record<string, Float32Array>;
     /** GPU time of every dispatch in order, when profiling was asked for and the device has timestamp-query. */
@@ -41,12 +47,18 @@ type Step =
     | { kind: 'dispatch'; label: string; pipeline: GPUComputePipeline; group: GPUBindGroup; count: [number, number, number] }
     | { kind: 'stage'; name: string; buffer: GPUBuffer; floats: number };
 /** One chunk length's dispatches, and the uniforms only they use. */
-interface Graph { steps: Step[]; owned: GPUBuffer[] }
-
-/** How many 'auto' runs a learnt per-dispatch cut is kept for: about seven tracks of chunks. */
-const RELEARN_RUNS = 50;
+interface Built { steps: Step[]; owned: GPUBuffer[] }
+/** A built graph with its GPU time per dispatch, measured on its first paced runs, that 'paced' cuts by. */
+interface Graph extends Built { costs: DispatchCosts; dispatches: number }
 
 const product = (shape: number[]) => shape.reduce((a, b) => a * b, 1);
+
+/**
+ * The full-chunk graph's cost table by device and variant (f32 or an f16 mode): kept past a model
+ * released while idle and loaded again on the same device. A short chunk's graph, built for one
+ * track's last chunk, gets a table of its own that goes with it.
+ */
+const costTables = new WeakMap<GPUDevice, Map<string, DispatchCosts>>();
 
 /** Short kernel names for profiling labels. */
 const KERNEL_NAMES = new Map<string, string>([
@@ -57,17 +69,17 @@ const KERNEL_NAMES = new Map<string, string>([
 export class BeatThisWgsl {
     private constructor(
         private readonly device: GPUDevice,
-        private readonly build: (frames: number) => Graph,
+        private readonly build: (frames: number) => Built,
         private readonly melBuffer: GPUBuffer,
         private readonly outBuffer: GPUBuffer,
         private readonly owned: GPUBuffer[],
+        private readonly variant: string,
     ) {}
 
-    /** Stages (by position among the stage markers) that 'auto' slicing has learnt to cut per dispatch. */
-    private readonly fineStages = new Set<number>();
-    private autoRuns = 0;
     /** Graphs by chunk length: the full one, and the most recent shorter one. */
     private readonly graphs = new Map<number, Graph>();
+    /** Whether a paced run of this instance has reported the full graph's cost table (once a load: the page logs it). */
+    private reported = false;
 
     /** GPU memory this model holds (weights and every graph built), bytes: for a residency budget. */
     get bytes(): number {
@@ -76,7 +88,7 @@ export class BeatThisWgsl {
         return sum;
     }
 
-    private graph(frames: number): Step[] {
+    private graph(frames: number): Graph {
         let found = this.graphs.get(frames);
         if (!found) {
             // A short chunk is the last of a track (or all of a short one), so the next short length
@@ -86,10 +98,20 @@ export class BeatThisWgsl {
                 old.owned.forEach(buffer => buffer.destroy());
                 this.graphs.delete(length);
             }
-            found = this.build(frames);
+            const built = this.build(frames);
+            const dispatches = built.steps.filter(step => step.kind === 'dispatch').length;
+            let costs = new DispatchCosts(dispatches);
+            if (frames === BEAT_THIS_WGSL_FRAMES) {
+                let tables = costTables.get(this.device);
+                if (!tables) costTables.set(this.device, tables = new Map<string, DispatchCosts>());
+                const kept = tables.get(this.variant);
+                if (kept) costs = kept;
+                else tables.set(this.variant, costs);
+            }
+            found = { ...built, dispatches, costs };
             this.graphs.set(frames, found);
         }
-        return found.steps;
+        return found;
     }
 
     /**
@@ -171,7 +193,7 @@ export class BeatThisWgsl {
          * activations above are sized for the longest chunk, so a shorter one (a whole track under
          * 30 s) only needs its own uniforms, bind groups and dispatch counts.
          */
-        const build = (T: number): Graph => {
+        const build = (T: number): Built => {
             const graphOwned: GPUBuffer[] = [];
             const uniform = (values: number[]) => {
                 const data = new Uint32Array(Math.ceil(values.length / 4) * 4);
@@ -268,7 +290,7 @@ export class BeatThisWgsl {
             return { steps, owned: graphOwned };
         };
 
-        const model = new BeatThisWgsl(device, build, melBuffer, outBuffer, owned);
+        const model = new BeatThisWgsl(device, build, melBuffer, outBuffer, owned, options.f16 ?? 'f32');
         model.graph(T);
         await device.queue.onSubmittedWorkDone();
         return model;
@@ -288,82 +310,82 @@ export class BeatThisWgsl {
      * the smallest unit anything else can wait behind. Results are identical whatever the slicing:
      * same dispatches, same order.
      *
-     * 'auto' is 'stage' that learns: one slice in flight, and any stage whose slice took longer than
-     * `budgetMs` (submit to done, so it counts time the GPU spent on other work too; default one
-     * 120 Hz frame) is cut per dispatch from the next run on. What it learnt is forgotten every
-     * RELEARN_RUNS runs, so a burst of heavy rendering does not keep every later track at the
-     * slower cut. A fast GPU next to a light visualizer stays at ~18 submits a chunk; a slow or busy
-     * one ends up near one per dispatch. A single dispatch longer than the budget is still one
-     * unbroken piece of GPU work - only splitting the kernel itself would get under that.
+     * 'paced' cuts into slices of about `pacing.sliceMs` of GPU time by the measured cost of each
+     * dispatch, and lets them go as gpuSlices.ts' createSliceQueue does (`inFlight` and `between`
+     * are then ignored). Each chunk length's graph is profiled on its first paced runs and cut at
+     * its stage boundaries until then - for good on a device without timestamp-query, and for the
+     * short last chunk of a track, whose graph is built anew for each length.
      */
     async run(mel: Float32Array, options: {
-        stages?: boolean; profile?: boolean; slice?: 'none' | 'stage' | 'dispatch' | 'auto'; inFlight?: number;
-        budgetMs?: number; between?: () => Promise<void>;
+        stages?: boolean; profile?: boolean; slice?: 'none' | 'stage' | 'dispatch' | 'paced'; inFlight?: number;
+        pacing?: SlicePacing; between?: () => Promise<void>;
     } = {}): Promise<BeatThisWgslResult> {
         const T = mel.length / MEL_BINS;
         if (!Number.isInteger(T) || T < 1 || T > BEAT_THIS_WGSL_FRAMES) {
             throw new Error(`beat_this chunk must be 1..${BEAT_THIS_WGSL_FRAMES} frames x ${MEL_BINS}, got ${mel.length} values`);
         }
-        const steps = this.graph(T);
+        const graph = this.graph(T);
+        const { steps } = graph;
         const { device } = this;
         device.queue.writeBuffer(this.melBuffer, 0, mel.buffer, mel.byteOffset, mel.byteLength);
 
+        const slice = options.slice ?? 'none';
+        const paced = slice === 'paced';
+        const pacing = paced ? options.pacing ?? DEFAULT_PACING : { sliceMs: Infinity, inFlight: Math.max(1, options.inFlight ?? 1) };
+        const timestampable = device.features.has('timestamp-query') && graph.dispatches * 2 <= MAX_TIMESTAMP_QUERIES;
+        let noTimestamps = false;
+        if (paced && graph.costs.wanted && !timestampable) {
+            graph.costs.giveUp();
+            noTimestamps = true;
+        }
+        const profiling = timestampable && (Boolean(options.profile) || (paced && graph.costs.wanted));
+        const querySet = profiling ? device.createQuerySet({ type: 'timestamp', count: graph.dispatches * 2 }) : null;
+        const cuts = paced ? graph.costs.cutsFor(pacing.sliceMs) : null;
+        // Cut at the stage boundaries (no table yet, or none to be had), a slice can be a whole
+        // transformer layer: one at a time then, as the old one-stage-at-a-time cut, never queued.
+        const queue = createSliceQueue(device.queue, paced && !cuts ? { ...pacing, inFlight: 1 } : pacing);
+        const between = paced ? undefined : options.between;
+
         let encoder = device.createCommandEncoder();
         const readbacks: { name: string; buffer: GPUBuffer }[] = [];
-        const profiled = options.profile && device.features.has('timestamp-query')
-            ? steps.filter(step => step.kind === 'dispatch') : [];
-        const querySet = profiled.length ? device.createQuerySet({ type: 'timestamp', count: profiled.length * 2 }) : null;
-        let query = 0;
         let pass: GPUComputePassEncoder | null = null;
-        let gpuMs = 0;
-        let slices = 0;
-        const slice = options.slice ?? 'none';
-        const inFlight = slice === 'auto' ? 1 : Math.max(1, options.inFlight ?? 1);
-        const outstanding: Promise<void>[] = [];
-        /** Submits what is recorded; resolves when no more than inFlight - 1 slices are left, with how long that took. */
+        /** Whether the encoder holds anything since the last submit. */
+        let recorded = false;
         const submit = async (last = false) => {
             pass?.end();
             pass = null;
-            const started = performance.now();
-            device.queue.submit([encoder.finish()]);
-            outstanding.push(device.queue.onSubmittedWorkDone());
-            while (outstanding.length > (last ? 0 : inFlight - 1)) await outstanding.shift();
-            const took = performance.now() - started;
-            gpuMs += took;
-            slices += 1;
+            const commands = encoder.finish();
             encoder = device.createCommandEncoder();
-            return took;
+            recorded = false;
+            await queue.submit(commands, last);
         };
-        const budgetMs = options.budgetMs ?? 8;
-        if (slice === 'auto' && ++this.autoRuns % RELEARN_RUNS === 0) this.fineStages.clear();
-        let stageIndex = 0;
+        let index = 0;
         const wallStarted = performance.now();
         for (const step of steps) {
-            const perDispatch = slice === 'dispatch' || (slice === 'auto' && this.fineStages.has(stageIndex));
-            if (perDispatch && pass) {
+            if (slice === 'dispatch' && pass) {
                 await submit();
-                await options.between?.();
+                await between?.();
             }
             if (step.kind === 'dispatch') {
+                if (cuts?.has(index) && recorded) await submit();
                 if (querySet) {
                     pass?.end();
-                    pass = encoder.beginComputePass({ timestampWrites: { querySet, beginningOfPassWriteIndex: query, endOfPassWriteIndex: query + 1 } });
-                    query += 2;
+                    pass = encoder.beginComputePass({ timestampWrites: { querySet, beginningOfPassWriteIndex: index * 2, endOfPassWriteIndex: index * 2 + 1 } });
                 }
                 pass ??= encoder.beginComputePass();
                 pass.setPipeline(step.pipeline);
                 pass.setBindGroup(0, step.group);
                 pass.dispatchWorkgroups(...step.count);
+                index += 1;
+                recorded = true;
                 continue;
             }
-            // A stage already cut per dispatch was submitted by the check above.
-            const coarse = slice === 'stage' || (slice === 'auto' && !this.fineStages.has(stageIndex));
-            if (coarse && step.name !== 'logits') {
-                const took = await submit();
-                if (slice === 'auto' && took > budgetMs) this.fineStages.add(stageIndex);
-                await options.between?.();
+            // A run cut per dispatch was submitted by the check above.
+            const atStages = slice === 'stage' || (paced && !cuts);
+            if (atStages && step.name !== 'logits' && recorded) {
+                await submit();
+                await between?.();
             }
-            stageIndex += 1;
             if (!options.stages && step.name !== 'logits') continue;
             pass?.end();
             pass = null;
@@ -372,16 +394,21 @@ export class BeatThisWgsl {
             readbacks.push({ name: step.name, buffer: readback });
         }
         pass?.end();
+        pass = null;
         let timestamps: GPUBuffer | null = null;
+        let resolved: GPUBuffer | null = null;
         if (querySet) {
-            const resolved = device.createBuffer({ size: query * 8, usage: GPUBufferUsage.QUERY_RESOLVE | GPUBufferUsage.COPY_SRC });
-            timestamps = device.createBuffer({ size: query * 8, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
-            encoder.resolveQuerySet(querySet, 0, query, resolved, 0);
-            encoder.copyBufferToBuffer(resolved, 0, timestamps, 0, query * 8);
+            const bytes = graph.dispatches * 16;
+            resolved = device.createBuffer({ size: bytes, usage: GPUBufferUsage.QUERY_RESOLVE | GPUBufferUsage.COPY_SRC });
+            timestamps = device.createBuffer({ size: bytes, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
+            encoder.resolveQuerySet(querySet, 0, graph.dispatches * 2, resolved, 0);
+            encoder.copyBufferToBuffer(resolved, 0, timestamps, 0, bytes);
         }
 
         await submit(true);
         const wallMs = performance.now() - wallStarted;
+        resolved?.destroy();
+        querySet?.destroy();
 
         const stages: Record<string, Float32Array> = {};
         for (const { name, buffer } of readbacks) {
@@ -390,23 +417,44 @@ export class BeatThisWgsl {
             buffer.destroy();
         }
         let profile: BeatThisWgslResult['profile'];
+        let costs: PacedRunStats['costs'];
         if (timestamps) {
             await timestamps.mapAsync(GPUMapMode.READ);
-            const ticks = new BigInt64Array(timestamps.getMappedRange());
-            profile = profiled.map((step, index) => ({
-                label: step.kind === 'dispatch' ? step.label : '',
-                ms: Number(ticks[index * 2 + 1] - ticks[index * 2]) / 1e6,
-            }));
+            const durations = durationsFromTicks(new BigInt64Array(timestamps.getMappedRange()), graph.dispatches);
             timestamps.destroy();
-            querySet?.destroy();
+            if (options.profile) {
+                const dispatched = steps.filter(step => step.kind === 'dispatch');
+                profile = dispatched.map((step, at) => ({ label: step.label, ms: durations[at] }));
+            }
+            graph.costs.record(durations);
         }
+        // The full graph's table once per instance: the run that completed it, or this load's first
+        // on a table kept from an earlier load on the device.
+        const table = paced && T === BEAT_THIS_WGSL_FRAMES ? graph.costs.costs : null;
+        if (table && !this.reported) {
+            costs = costSummary(table, pacing.sliceMs);
+            this.reported = true;
+        }
+        if (paced && graph.costs.unusable) noTimestamps = true;
         const out = stages.logits;
         return {
             beat: out.subarray(0, T),
             downbeat: out.subarray(T, 2 * T),
-            gpuMs,
+            gpuMs: queue.waitedMs,
             wallMs,
-            slices,
+            slices: queue.slices,
+            ...(paced ? {
+                paced: {
+                    slices: queue.slices,
+                    sliceMs: pacing.sliceMs,
+                    byCosts: cuts !== null,
+                    inFlight: cuts ? pacing.inFlight : 1,
+                    pacedInFlight: pacing.inFlight,
+                    roundTripMs: median(queue.roundTrips),
+                    ...(costs ? { costs } : {}),
+                    ...(noTimestamps ? { noTimestamps } : {}),
+                },
+            } : {}),
             ...(options.stages ? { stages } : {}),
             ...(profile ? { profile } : {}),
         };

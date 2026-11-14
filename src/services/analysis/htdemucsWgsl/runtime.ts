@@ -1,5 +1,9 @@
 /// <reference types="@webgpu/types" />
 import {
+    DEFAULT_PACING, DispatchCosts, MAX_TIMESTAMP_QUERIES, SERIAL_PACING, costSummary, createSliceQueue, durationsFromTicks, median,
+    type PacedRunStats, type SlicePacing,
+} from '../gpuSlices';
+import {
     ADD, ATTN_SOFTMAX, GEMM_GELU, GEMM_RESIDUAL, GLU, GN_GLU_RESIDUAL, GN_INPLACE, ISTFT_A, ISTFT_B, LAYER_NORM, NORMALIZE, OVERLAP_ADD,
     STATS_FINAL, STATS_PARTIAL, STFT_A, STFT_B, TWIDDLE_N, attnOutSource, attnScoresSource, gemmSource, gemmTrSource, type GemmMode,
 } from './kernels';
@@ -48,12 +52,14 @@ export interface HtdemucsWgslManifest {
 export interface HtdemucsWgslResult {
     left: Float32Array;
     right: Float32Array;
-    /** Time from submit to the GPU finishing, ms, summed over the slices. */
+    /** Time spent waiting on the GPU between slices, ms (submit to done, summed, when one slice is in flight). */
     gpuMs: number;
     /** The whole run, ms. */
     wallMs: number;
     /** Command buffers submitted. */
     slices: number;
+    /** With slice 'paced': how it was cut and paced, and the cost table once this run completed it. */
+    paced?: PacedRunStats;
     /** Every source the model was built for (`sources`), in that order, the first one's the same as left/right. */
     stems: { left: Float32Array; right: Float32Array }[];
     /** Intermediate activations by stage name, only when asked for (channel-major, as computed). */
@@ -68,10 +74,13 @@ type Step =
     | { kind: 'copy'; from: GPUBuffer; to: GPUBuffer; bytes: number }
     | { kind: 'stage'; name: string; buffer: GPUBuffer; floats: number };
 
-/** How many 'auto' runs a learnt per-dispatch cut is kept for. */
-const RELEARN_RUNS = 50;
-
 const product = (shape: number[]) => shape.reduce((a, b) => a * b, 1);
+
+/**
+ * Cost tables by device and graph (the sources and GEMM mode it was built for): kept past a model
+ * released while idle and loaded again on the same device, so each load is not profiled anew.
+ */
+const costTables = new WeakMap<GPUDevice, Map<string, DispatchCosts>>();
 
 export class HtdemucsWgsl {
     private constructor(
@@ -80,10 +89,21 @@ export class HtdemucsWgsl {
         private readonly mixBuffer: GPUBuffer,
         private readonly outBuffer: GPUBuffer,
         private readonly owned: GPUBuffer[],
-    ) {}
+        graphKey: string,
+    ) {
+        this.dispatches = steps.filter(step => step.kind === 'dispatch').length;
+        let tables = costTables.get(device);
+        if (!tables) costTables.set(device, tables = new Map<string, DispatchCosts>());
+        let costs = tables.get(graphKey);
+        if (!costs) tables.set(graphKey, costs = new DispatchCosts(this.dispatches));
+        this.costs = costs;
+    }
 
-    private readonly fineStages = new Set<number>();
-    private autoRuns = 0;
+    private readonly dispatches: number;
+    /** The graph's GPU time per dispatch, measured on its first paced runs, that 'paced' cuts by. */
+    private readonly costs: DispatchCosts;
+    /** Whether a paced run of this instance has reported the cost table (once a load: the page logs it). */
+    private reported = false;
 
     /** GPU memory this model holds (weights, activations, uniforms), bytes: for a residency budget. */
     get bytes(): number {
@@ -438,20 +458,22 @@ export class HtdemucsWgsl {
             owned.forEach(buffer => buffer.destroy());
             throw new Error(`htdemucs graph rejected: ${invalid.message}`);
         }
-        const model = new HtdemucsWgsl(device, steps, mixBuffer, outBuffer, owned);
+        const model = new HtdemucsWgsl(device, steps, mixBuffer, outBuffer, owned, `${sources.join(',')}|${mode}`);
         await device.queue.onSubmittedWorkDone();
         return model;
     }
 
     /**
-     * One segment: `left` and `right` of exactly HTDEMUCS_SEGMENT samples at 44.1 kHz. `slice` as in
-     * BeatThisWgsl.run: 'stage' submits at every stage boundary, 'dispatch' after every dispatch,
-     * 'auto' at stage boundaries but per dispatch inside any stage that outlasted `budgetMs` (one
-     * 120 Hz frame by default), relearnt every RELEARN_RUNS runs. Results are identical whatever the
-     * slicing.
+     * One segment: `left` and `right` of exactly HTDEMUCS_SEGMENT samples at 44.1 kHz. `slice` cuts
+     * the run into several submits so the visualizer gets frames in between (the GPU only switches
+     * work between command buffers): 'stage' at every stage boundary, 'dispatch' after every
+     * dispatch, each waited for; 'paced' into slices of about `pacing.sliceMs` of GPU time by the
+     * measured cost of each dispatch, let go as gpuSlices.ts' createSliceQueue does. A paced run
+     * before the cost table is ready (and every one on a device without timestamp-query) is cut at
+     * the stage boundaries instead, and profiled. Results are identical whatever the slicing.
      */
     async run(left: Float32Array, right: Float32Array, options: {
-        stages?: boolean; slice?: 'none' | 'stage' | 'dispatch' | 'auto'; budgetMs?: number; timings?: boolean;
+        stages?: boolean; slice?: 'none' | 'stage' | 'dispatch' | 'paced'; pacing?: SlicePacing; timings?: boolean;
     } = {}): Promise<HtdemucsWgslResult> {
         const L = HTDEMUCS_SEGMENT;
         if (left.length !== L || right.length !== L) throw new Error(`htdemucs segment must be ${L} samples per channel, got ${left.length} and ${right.length}`);
@@ -459,56 +481,69 @@ export class HtdemucsWgsl {
         device.queue.writeBuffer(this.mixBuffer, 0, left.buffer, left.byteOffset, left.byteLength);
         device.queue.writeBuffer(this.mixBuffer, L * 4, right.buffer, right.byteOffset, right.byteLength);
 
+        const slice = options.slice ?? 'none';
+        const paced = slice === 'paced';
+        const pacing = paced ? options.pacing ?? DEFAULT_PACING : SERIAL_PACING;
+        let noTimestamps = false;
+        if (paced && this.costs.wanted && (!device.features.has('timestamp-query') || this.dispatches * 2 > MAX_TIMESTAMP_QUERIES)) {
+            this.costs.giveUp();
+            noTimestamps = true;
+        }
+        const profiling = paced && this.costs.wanted;
+        const querySet = profiling ? device.createQuerySet({ type: 'timestamp', count: this.dispatches * 2 }) : null;
+        const cuts = paced ? this.costs.cutsFor(pacing.sliceMs) : null;
+        // Cut at the stage boundaries (no table yet, or none to be had), a slice can be a whole
+        // transformer layer: one at a time then, as the old one-stage-at-a-time cut, never queued.
+        const queue = createSliceQueue(device.queue, paced && !cuts ? { ...pacing, inFlight: 1 } : pacing);
+
         let encoder = device.createCommandEncoder();
         let pass: GPUComputePassEncoder | null = null;
+        /** Whether the encoder holds anything since the last submit. */
+        let recorded = false;
         const readbacks: { name: string; buffer: GPUBuffer }[] = [];
-        let gpuMs = 0;
-        let slices = 0;
-        const slice = options.slice ?? 'none';
-        const submit = async () => {
+        const submit = async (last = false) => {
             pass?.end();
             pass = null;
-            const started = performance.now();
-            device.queue.submit([encoder.finish()]);
-            await device.queue.onSubmittedWorkDone();
-            const took = performance.now() - started;
-            gpuMs += took;
-            slices += 1;
+            const commands = encoder.finish();
             encoder = device.createCommandEncoder();
-            return took;
+            recorded = false;
+            const started = performance.now();
+            await queue.submit(commands, last);
+            return performance.now() - started;
         };
-        const budgetMs = options.budgetMs ?? 8;
         const timings: { label: string; ms: number }[] = [];
         let lastLabel = '';
-        if (slice === 'auto' && ++this.autoRuns % RELEARN_RUNS === 0) this.fineStages.clear();
-        let stageIndex = 0;
+        let index = 0;
         const wallStarted = performance.now();
         for (const step of this.steps) {
-            const perDispatch = slice === 'dispatch' || (slice === 'auto' && this.fineStages.has(stageIndex));
-            if (perDispatch && pass) {
+            if (slice === 'dispatch' && pass) {
                 const took = await submit();
                 if (options.timings) timings.push({ label: lastLabel, ms: took });
             }
             if (step.kind === 'dispatch') {
+                if (cuts?.has(index) && recorded) await submit();
                 lastLabel = step.label;
+                if (querySet) {
+                    pass?.end();
+                    pass = encoder.beginComputePass({ timestampWrites: { querySet, beginningOfPassWriteIndex: index * 2, endOfPassWriteIndex: index * 2 + 1 } });
+                }
                 pass ??= encoder.beginComputePass();
                 pass.setPipeline(step.pipeline);
                 pass.setBindGroup(0, step.group);
                 pass.dispatchWorkgroups(...step.count);
+                index += 1;
+                recorded = true;
                 continue;
             }
             if (step.kind === 'copy') {
                 pass?.end();
                 pass = null;
                 encoder.copyBufferToBuffer(step.from, 0, step.to, 0, step.bytes);
+                recorded = true;
                 continue;
             }
-            const coarse = slice === 'stage' || (slice === 'auto' && !this.fineStages.has(stageIndex));
-            if (coarse && step.name !== 'out') {
-                const took = await submit();
-                if (slice === 'auto' && took > budgetMs) this.fineStages.add(stageIndex);
-            }
-            stageIndex += 1;
+            const atStages = slice === 'stage' || (paced && !cuts);
+            if (atStages && step.name !== 'out' && recorded) await submit();
             if (!options.stages && step.name !== 'out') continue;
             pass?.end();
             pass = null;
@@ -516,8 +551,37 @@ export class HtdemucsWgsl {
             encoder.copyBufferToBuffer(step.buffer, 0, readback, 0, step.floats * 4);
             readbacks.push({ name: step.name, buffer: readback });
         }
-        await submit();
+        let timestamps: GPUBuffer | null = null;
+        if (querySet) {
+            pass?.end();
+            pass = null;
+            const bytes = this.dispatches * 16;
+            const resolved = device.createBuffer({ size: bytes, usage: GPUBufferUsage.QUERY_RESOLVE | GPUBufferUsage.COPY_SRC });
+            timestamps = device.createBuffer({ size: bytes, usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST });
+            encoder.resolveQuerySet(querySet, 0, this.dispatches * 2, resolved, 0);
+            encoder.copyBufferToBuffer(resolved, 0, timestamps, 0, bytes);
+            await submit(true);
+            resolved.destroy();
+            querySet.destroy();
+        } else {
+            await submit(true);
+        }
         const wallMs = performance.now() - wallStarted;
+
+        let costs: PacedRunStats['costs'];
+        if (timestamps) {
+            await timestamps.mapAsync(GPUMapMode.READ);
+            this.costs.record(durationsFromTicks(new BigInt64Array(timestamps.getMappedRange()), this.dispatches));
+            timestamps.destroy();
+        }
+        // The table once per instance: the run that completed it, or this load's first on a table
+        // kept from an earlier load on the device.
+        const table = paced ? this.costs.costs : null;
+        if (table && !this.reported) {
+            costs = costSummary(table, pacing.sliceMs);
+            this.reported = true;
+        }
+        if (paced && this.costs.unusable) noTimestamps = true;
 
         const stages: Record<string, Float32Array> = {};
         for (const { name, buffer } of readbacks) {
@@ -535,9 +599,21 @@ export class HtdemucsWgsl {
             left: stems[0].left,
             right: stems[0].right,
             stems,
-            gpuMs,
+            gpuMs: queue.waitedMs,
             wallMs,
-            slices,
+            slices: queue.slices,
+            ...(paced ? {
+                paced: {
+                    slices: queue.slices,
+                    sliceMs: pacing.sliceMs,
+                    byCosts: cuts !== null,
+                    inFlight: cuts ? pacing.inFlight : 1,
+                    pacedInFlight: pacing.inFlight,
+                    roundTripMs: median(queue.roundTrips),
+                    ...(costs ? { costs } : {}),
+                    ...(noTimestamps ? { noTimestamps } : {}),
+                },
+            } : {}),
             ...(options.stages ? { stages } : {}),
             ...(options.timings ? { timings } : {}),
         };

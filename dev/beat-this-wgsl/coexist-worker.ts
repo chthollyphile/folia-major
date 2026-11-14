@@ -1,5 +1,6 @@
 /// <reference types="@webgpu/types" />
 import { BeatThisWgsl, BEAT_THIS_WGSL_FRAMES, type BeatThisWgslManifest } from '../../src/services/analysis/beatThisWgsl/runtime';
+import { createFrameClock, sliceMsForFrame } from '../../src/services/analysis/gpuSlices';
 
 // dev/beat-this-wgsl/coexist-worker.ts
 // The inference half of the coexistence test (coexist.ts): a dedicated worker, the place the app
@@ -7,11 +8,13 @@ import { BeatThisWgsl, BEAT_THIS_WGSL_FRAMES, type BeatThisWgslManifest } from '
 // mode and a number of chunks each - and reports when each starts and ends, so the page can file
 // every frame it draws under the phase that was running.
 
-interface Phase { name: string; slice: 'none' | 'stage' | 'dispatch' | 'auto'; gapMs: number; chunks: number; inFlight?: number }
+interface Phase { name: string; slice: 'none' | 'stage' | 'dispatch' | 'paced'; gapMs: number; chunks: number; inFlight?: number }
 interface Start { weights: ArrayBuffer; manifest: BeatThisWgslManifest; chunks: ArrayBuffer; f16?: 'storage' | 'math'; phases: Phase[] }
 
 const post = (message: Record<string, unknown>) => (self as unknown as Worker).postMessage(message);
 const sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms));
+// The app worker's frame clock (beatThisGpu.worker.ts): 'paced' phases are let go at its frames.
+const frames = createFrameClock(typeof self.requestAnimationFrame === 'function' ? callback => self.requestAnimationFrame(callback) : undefined);
 
 self.onmessage = async (event: MessageEvent<Start>) => {
     try {
@@ -40,7 +43,7 @@ self.onmessage = async (event: MessageEvent<Start>) => {
             for (let i = 0; i < phase.chunks; i += 1) {
                 const index = i % Math.max(1, count);
                 const result = phase.chunks && count
-                    ? await model.run(mel.subarray(index * perChunk, (index + 1) * perChunk), { slice: phase.slice, inFlight: phase.inFlight, between })
+                    ? await model.run(mel.subarray(index * perChunk, (index + 1) * perChunk), { slice: phase.slice, inFlight: phase.inFlight, between, pacing: { sliceMs: sliceMsForFrame(frames.frameMs), inFlight: phase.inFlight ?? 1, frame: frames.next } })
                     : null;
                 if (!result) continue;
                 gpu.push(result.gpuMs);

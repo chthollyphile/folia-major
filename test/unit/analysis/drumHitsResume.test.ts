@@ -18,7 +18,7 @@ vi.mock('@/services/db', () => ({
 const RATE = 44100;
 // One second a segment (a step of 0.75 s): a 20 s track is 27 of them, live hits from 10 s on.
 const { runHtdemucsGpu } = vi.hoisted(() => ({ runHtdemucsGpu: vi.fn() }));
-vi.mock('@/services/analysis/beatThisGpu', () => ({ HTDEMUCS_GPU_SEGMENT: 44100, runHtdemucsGpu }));
+vi.mock('@/services/analysis/beatThisGpu', () => ({ HTDEMUCS_GPU_SEGMENT: 44100, runHtdemucsGpu, gpuStemsOnScreenUsable: () => true }));
 vi.mock('@/services/analysis/modelAvailability', async importOriginal => ({
     ...(await importOriginal<object>()),
     modelCanRun: () => true,

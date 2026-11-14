@@ -15,6 +15,10 @@ let loadFailure: Record<string, 'device' | 'model' | undefined> = {};
 let loadBytes: Record<string, number> = {};
 /** Holds a separate's answer until released, to have a run in flight. */
 let holdSeparate: Promise<void> | null = null;
+/** How far a separate moves the faked performance clock, ms: what the segment "took". */
+let separateMs = 0;
+/** The faked performance.now, where a test installs it. */
+let clock = 0;
 let workers: FakeWorker[] = [];
 
 class FakeWorker {
@@ -35,6 +39,7 @@ class FakeWorker {
             reply(scope ? { error: `${message.model} failed`, scope } : { result: 'fake gpu', bytes: loadBytes[message.model ?? ''] });
         } else if (message.kind === 'separate') {
             const stems = [0, 1, 2, 3].map(() => ({ left: new Float32Array(1), right: new Float32Array(1) }));
+            clock += separateMs;
             void (holdSeparate ?? Promise.resolve()).then(() => reply({ result: { stems } }));
         } else if (message.kind === 'run') {
             const chunks = (message as unknown as { chunks: Float32Array[] }).chunks;
@@ -195,5 +200,51 @@ describe('GPU model residency', () => {
         expect(unloads()).toEqual(['htdemucs', 'beat_this']);
         // Posted before the load that needed the room.
         expect(received.lastIndexOf('unload beat_this')).toBeLessThan(received.lastIndexOf('load htdemucs'));
+    });
+});
+
+describe('on-screen separation speed', () => {
+    beforeEach(() => {
+        workers = [];
+        loadFailure = {};
+        holdSeparate = null;
+        clock = 0;
+        separateMs = 0;
+        host.window = { electron: { getBeatThisGpuWeights, getHtdemucsGpuWeights } };
+        host.Worker = FakeWorker;
+        vi.spyOn(performance, 'now').mockImplementation(() => clock);
+        vi.spyOn(console, 'log').mockImplementation(() => {});
+        vi.spyOn(console, 'warn').mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+        delete host.window;
+        delete host.Worker;
+        vi.restoreAllMocks();
+    });
+
+    const separations = () => workers.flatMap(worker => worker.received.filter(m => m.kind === 'separate')).length;
+
+    it('stops on-screen separation for the session after three segments in a row slower than the track', async () => {
+        const { runHtdemucsGpu, gpuStemsOnScreenUsable } = await fresh();
+        // A segment moves the track on three quarters of its 3.9 s: 2.93 s.
+        separateMs = 3000;
+        for (let i = 0; i < 3; i += 1) expect(await runHtdemucsGpu(SEGMENT, SEGMENT)).not.toBeNull();
+        expect(gpuStemsOnScreenUsable()).toBe(false);
+        expect(await runHtdemucsGpu(SEGMENT, SEGMENT)).toBeNull();
+        expect(separations()).toBe(3);
+        expect(vi.mocked(console.warn).mock.calls.filter(([line]) => String(line).includes('slower than the track'))).toHaveLength(1);
+        // automix's background stems are not stopped by it.
+        expect(await runHtdemucsGpu(SEGMENT, SEGMENT, { urgency: 'background' })).not.toBeNull();
+    });
+
+    it('does not count a slow run broken by a fast one, or background segments', async () => {
+        const { runHtdemucsGpu, gpuStemsOnScreenUsable } = await fresh();
+        // 2.5 s a segment keeps up (2.93 s of track a segment): never counted.
+        for (const [ms, urgency] of [[3000, 'onScreen'], [3000, 'onScreen'], [300, 'onScreen'], [3000, 'onScreen'], [3000, 'background'], [3000, 'background'], [3000, 'onScreen'], [2500, 'onScreen'], [2500, 'onScreen'], [2500, 'onScreen']] as const) {
+            separateMs = ms;
+            expect(await runHtdemucsGpu(SEGMENT, SEGMENT, { urgency })).not.toBeNull();
+        }
+        expect(gpuStemsOnScreenUsable()).toBe(true);
     });
 });
