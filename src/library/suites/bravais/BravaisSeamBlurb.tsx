@@ -22,6 +22,8 @@ const BlurbButton: React.FC<BravaisSeamBlurbProps> = ({ text, className, dataAtt
         <button
             type="button"
             className={`bravais-seam-blurb${className ? ` ${className}` : ''}${isOpen ? ' is-open' : ''}`}
+            // 展开后这一块自己纵向滚（bravais.css）：标记给 bravaisSeamWheel 的快速判断用。
+            data-wheel-scroll-region
             {...{ [dataAttribute]: state }}
             aria-expanded={isOpen}
             title={isOpen ? t('libraryTui.bioLess') : t('libraryTui.bioMore')}
