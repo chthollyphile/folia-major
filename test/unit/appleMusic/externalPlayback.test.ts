@@ -342,7 +342,8 @@ describe('external playback route', () => {
         engine.announceExternalPlayback();
         omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ positionMs: 199300 }));
         await vi.advanceTimersByTimeAsync(500);
-        expect(engine.getExternalPosition()).toBeGreaterThan(199);
+        // The clock bends onto a player a little ahead of it rather than stepping there.
+        expect(engine.getExternalPosition()).toBeGreaterThan(198.9);
 
         // Observers hear the wrap as a seek, as <audio loop> fires one.
         const markSeeked = vi.spyOn(engine.externalMediaShim, 'markSeeked');

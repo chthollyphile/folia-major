@@ -1018,7 +1018,11 @@ const applyStatus = (status: ProviderExternalPlaybackStatus, sampledAtMs: number
     }
     // A song already playing that the player buffers again - after a move, on a resume - goes on
     // playing: the clock runs on and nothing is shown loading. Only a start still loading is.
-    if (status.starting === true && !status.isPlaying && current.playing) return;
+    // The read it names is not where the song is heard, so the last one that was stays for the next.
+    if (status.starting === true && !status.isPlaying && current.playing) {
+        current.sampledPosition = previousSample;
+        return;
+    }
     // An accepted start that is still buffering is loading, not a pause of the listener's.
     current.starting = status.starting === true && !status.isPlaying;
     if (current.starting) {
