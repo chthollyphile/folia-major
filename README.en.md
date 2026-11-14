@@ -49,6 +49,13 @@ To use Folia on a phone or in a browser, [deploy the web app to Vercel in one cl
 
 ![visualizer](./img/visualizer.png)
 
+### Try it online (community build)
+
+Try Folia in your browser: [folia.tangbot.xyz](https://folia.tangbot.xyz/)
+
+> [!NOTE]
+> This is a community-hosted demo, for trying Folia out only. It is deployed from [maimai993/folia-sonnet](https://github.com/maimai993/folia-sonnet) and includes the community author's own changes, so it is not identical to the official web version. Please report any issues to that community repository. For everyday use, download the desktop app or deploy your own instance.
+
 ### Demo videos
 
 https://github.com/user-attachments/assets/af806cf1-f67f-4b88-b2e7-57db507e9e81

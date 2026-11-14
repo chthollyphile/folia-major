@@ -51,6 +51,13 @@ Folia是一个以全屏沉浸式歌词播放为核心的在线音乐播放器，
 
 ![visualizer](./img/visualizer.png)
 
+### 在线体验（社区版）
+
+在浏览器里直接试用：[folia.tangbot.xyz](https://folia.tangbot.xyz/)
+
+> [!NOTE]
+> 这是社区部署的演示站，仅供体验，部署来源为 [maimai993/folia-sonnet](https://github.com/maimai993/folia-sonnet)。它包含社区作者自己的改动，与官方 Web 版并不完全一致；使用中遇到问题请反馈到该社区仓库。长期使用建议下载桌面版或自行部署。
+
 ### 演示视频
 
 https://github.com/user-attachments/assets/af806cf1-f67f-4b88-b2e7-57db507e9e81
