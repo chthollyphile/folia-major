@@ -1,3 +1,4 @@
+// @builtin-sources
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -9,6 +10,7 @@ import {
     type CrossSourceState,
 } from '@/services/onlineMusic/crossSource';
 import { canSourceMatchOnly, getSourceState, setSourceStates, subscribeSourceStates } from '@/services/onlineMusic/sourceStates';
+import { getSourceDeclaration } from '@/services/onlineMusic/sourceDeclarations';
 import { isSourceEnabled, isSourceMatchingOnly } from '@/services/onlineMusic/sourceReadiness';
 import { isSongSourceMissing } from '@/services/onlineMusic/songAvailability';
 import { useOnlineProviderAccountStore } from '@/stores/useOnlineProviderAccountStore';
@@ -69,6 +71,8 @@ describe('the source states table', () => {
 
     it('lets the platforms that match anonymously be matching-only (the S2 reading of the lyric registry)', () => {
         expect(['netease', 'qq', 'kugou', 'qishui'].filter(canSourceMatchOnly)).toEqual(['netease', 'qq', 'kugou', 'qishui']);
+        // 波点是注册着的音源模组（文件头的 @builtin-sources）：它不能只用于匹配，是它的声明说的，不是因为它不在。
+        expect(getSourceDeclaration('bodian')).not.toBeNull();
         expect(['spotify', 'appleMusic', 'ytm', 'bodian', 'fnmusic', 'amll'].filter(canSourceMatchOnly)).toEqual([]);
     });
 
