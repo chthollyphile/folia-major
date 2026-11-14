@@ -26,7 +26,7 @@ import { toTraditionalLocale } from './locales.mjs';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const requireHere = createRequire(import.meta.url);
 const { validateManifest } = requireHere('../../electron/modSystem/manifest.cjs');
-const { BUILTIN_SOURCE_TABLE } = requireHere('../../electron/modSystem/builtinSources.cjs');
+const { BUILTIN_SOURCE_TABLE, BUILTIN_SOURCE_IDS } = requireHere('../../electron/modSystem/builtinSources.cjs');
 
 export const DEFAULT_SOURCES_ROOT = path.join(ROOT, 'sources');
 export const DEFAULT_OUT_ROOT = path.join(ROOT, 'dist-mods');
@@ -70,6 +70,18 @@ export const selectSourceIds = (available, bundled = process.env.FOLIA_BUNDLED_S
 export const bundledSourceIds = (modIds) => [...new Set(modIds.flatMap((modId) => (
     Object.hasOwn(BUILTIN_SOURCE_TABLE, modId) ? BUILTIN_SOURCE_TABLE[modId].sources : []
 )))];
+
+/**
+ * `--stamp` 现在能不能写 `ids`：不能时交回原因。九家还没全迁成模组、S8 还没做打包形态之前，声明里少一家，就等于
+ * 宣布这个安装「不带」它，第三方模组经确认就能接管它的短 id 和旧登录（方案 §5.1），而它其实还静态编在宿主里。所以
+ * 只放行九家都在的声明（这时写不写都一样）；S8 定下不带内置音源的打包形态时去掉这道闸。
+ */
+export const stampRefusal = (ids) => {
+    const missing = BUILTIN_SOURCE_IDS.filter((id) => !ids.includes(id));
+    return missing.length > 0
+        ? `--stamp 会声明这个安装不带 ${missing.join('、')}；S8 之前不能这样打包（九家还没全迁成模组，见 dev/sources/README.md）`
+        : null;
+};
 
 /** 把 `ids` 写进 `packageJsonPath` 的 foliaBundledSources（和 CI 写 foliaReleaseChannel 一样，在打包前写）。 */
 export const stampBundledSources = (packageJsonPath, ids) => {
@@ -399,6 +411,8 @@ const main = async () => {
     }
     if (results.length === 0) log(`${path.relative(ROOT, options.root)} 里没有要构建的音源`);
     if (options.stamp) {
+        const refusal = stampRefusal(bundledIds);
+        if (refusal) throw new Error(refusal);
         stampBundledSources(options.stamp, bundledIds);
         log(`foliaBundledSources = ${JSON.stringify(bundledIds)} → ${options.stamp}`);
     }

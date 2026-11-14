@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
-    BUILD_STAMP, buildSource, buildSources, bundledSourceIds, listSourceIds, selectSourceIds, stampBundledSources,
+    BUILD_STAMP, buildSource, buildSources, bundledSourceIds, listSourceIds, selectSourceIds, stampBundledSources, stampRefusal,
 } from '../../../dev/sources/build.mjs';
 
 // test/unit/sources/buildSources.test.ts
@@ -206,6 +206,20 @@ describe('which sources a build carries', () => {
         fs.writeFileSync(pkg, JSON.stringify({ name: 'app', foliaReleaseChannel: 'limo' }));
         stampBundledSources(pkg, ['netease']);
         expect(JSON.parse(fs.readFileSync(pkg, 'utf8'))).toEqual({ name: 'app', foliaReleaseChannel: 'limo', foliaBundledSources: ['netease'] });
+    });
+
+    // Until S8, a declaration that leaves a source out would open its takeover while the host still carries it.
+    it('refuses to --stamp a declaration that leaves out any of the nine', () => {
+        const nine = ['netease', 'kugou', 'qq', 'bodian', 'qishui', 'ytm', 'spotify', 'appleMusic', 'fnmusic'];
+        expect(stampRefusal(nine)).toBeNull();
+        expect(stampRefusal(['bodian'])).toMatch(/不带 netease、kugou、qq、qishui、ytm、spotify、appleMusic、fnmusic/);
+        expect(stampRefusal([])).not.toBeNull();
+        const pkg = path.join(temporary('stamp-cli'), 'package.json');
+        fs.writeFileSync(pkg, JSON.stringify({ name: 'app' }));
+        const run = spawnSync(process.execPath, [path.join(ROOT, 'dev/sources/build.mjs'), '--root', path.join(work, 'no-such-folder'), '--out', temporary('stamp-out'), '--stamp', pkg], { encoding: 'utf8' });
+        expect(run.status).toBe(1);
+        expect(run.stderr).toMatch(/S8 之前不能这样打包/);
+        expect(JSON.parse(fs.readFileSync(pkg, 'utf8'))).toEqual({ name: 'app' });
     });
 
     it('builds the selection and removes only its own outputs of sources no longer carried', async () => {

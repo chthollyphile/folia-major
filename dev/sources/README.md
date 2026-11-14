@@ -34,7 +34,8 @@ npm run sources:build -- --extra test/fixtures/folium-sources/fixture-source
 - `--root <目录>`、`--out <目录>`：换掉 `sources/` 和 `dist-mods/`（测试用）。
 - `--stamp <package.json>`：把这次带的音源写进那份 package.json 的 `foliaBundledSources`（和 CI 写 `foliaReleaseChannel` 一样，
   打包前写）。**九家迁完、S8 做打包形态之前不要用**：九家还是宿主静态注册的时候，写出一个不全的列表等于声明这个安装包不带它们，
-  会放开外部模组对它们的接管（方案 §5.1）。
+  会放开外部模组对它们的接管（方案 §5.1）。构建脚本挡着：声明里少了九家中任何一家，`--stamp` 报错、不写文件（`stampRefusal`），
+  S8 做打包形态时去掉。
 - 环境变量 `FOLIA_BUNDLED_SOURCES`：没设是 `sources/` 里的全部；设成空是一个都不带；否则是逗号隔开的目录名（就是短音源 id），
   拼错的报错。`foliaBundledSources` 是这些目录里的模组在受信表（`electron/modSystem/builtinSources.cjs`）里那一行的短 id。
 
