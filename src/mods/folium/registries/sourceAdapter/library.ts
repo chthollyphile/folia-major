@@ -18,7 +18,7 @@ export const buildLibrary = (kit: SourceAdapterKit, library: FoliumSourceLibrary
     const getCloudCollection = library.getCloudCollection?.bind(library);
     const getListeningRankCollections = library.getListeningRankCollections?.bind(library);
     return {
-        ...(getSongLikeId ? { getSongLikeId: kit.sync('getSongLikeId', (song: SongResult) => getSongLikeId(toSourceSong(song)), (song: SongResult) => song.id) } : {}),
+        ...(getSongLikeId ? { getSongLikeId: kit.sync('getSongLikeId', (song: SongResult) => getSongLikeId(toSourceSong(song)), (song: SongResult) => (song.sourceRef?.kind === 'online' ? song.sourceRef.mediaId : song.id)) } : {}),
         getUserPlaylists: async (userId, limit, offset) => toHostPage(
             await kit.run('getUserPlaylists', () => library.getUserPlaylists(String(userId), limit, offset)), offset, kit.collection,
         ),
