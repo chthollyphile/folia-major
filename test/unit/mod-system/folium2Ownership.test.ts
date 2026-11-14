@@ -237,6 +237,22 @@ describe('ownership in the loader', () => {
         expect(stateOf(system, 'qq-community')).toMatchObject({ status: 'error', error: 'bundled-source-missing:qq' });
     });
 
+    // A run started without mods plans no takeover: enabling a claimant then shows none in its confirmation, so it
+    // must not take the record either (it did, and next start it held the id and the old sign-in).
+    it('records no holder from an enable whose confirmation showed no takeover (a run started without mods)', async () => {
+        writeAppPackage({ foliaBundledSources: [] });
+        const first = writeMod('user', sourceManifest('aaa-qq', [{ id: 'qq', claims: { id: 'qq' } }]));
+        writeMod('user', sourceManifest('bbb-qq', [{ id: 'qq', claims: { id: 'qq' } }]));
+        confirmMod(first, 'aaa-qq');
+        persisted.set('mods.sourceClaims', { qq: 'aaa-qq' });
+        const system = launch();
+        system.skipForThisRun();
+        dialogAnswer.response = 1;
+        await system.setModEnabled('bbb-qq', true);
+        expect(dialogs.at(-1)?.detail ?? '').not.toContain('takes over');
+        expect(persisted.get('mods.sourceClaims')).toEqual({ qq: 'aaa-qq' });
+    });
+
     it('runs the claim of a second mod nowhere while the first holds the id', async () => {
         writeAppPackage({ foliaBundledSources: [] });
         const first = writeMod('user', sourceManifest('aaa-qq', [{ id: 'qq', claims: { id: 'qq' } }]));

@@ -978,15 +978,19 @@ ${partition}`;
             return { ok: false, error: 'enable-declined', mods: listMods() };
         }
         writeTrust(modId, true, digest);
-        // A takeover: the first one confirmed holds the short id (plan §5.1, one id to one mod). An id nobody holds
-        // now (no record, or the recorded holder is gone) goes to this confirmation; a claim the trusted row does
-        // not back never does (claimRefusal).
+        /*
+         * A takeover: the first one confirmed holds the short id (plan §5.1, one id to one mod). Only what this
+         * confirmation showed as taken over is recorded: the plan described the mod's source as a takeover of that
+         * id (nobody holds it, and the trusted row backs the claim). A plan without the user's mods in it (a run
+         * started without mods, the start before the window) describes none, so it can never hand an id over.
+         */
+        const shownTakeovers = new Set((runtime.source?.sources ?? []).filter((source) => source.takeover).map((source) => source.sourceId));
         const claims = readSourceClaims();
         let claimed = false;
         (runtime.manifest.sources ?? []).forEach((entry) => {
             const shortId = entry.claims?.id;
-            const held = Boolean(claims[shortId]) && lastOwnership?.claimHolders.get(shortId) === claims[shortId];
-            if (shortId && !bundledSources.ids.includes(shortId) && !held && claimRefusal(entry.claims, sourceRowOf) === null) {
+            if (shortId && shownTakeovers.has(shortId) && !bundledSources.ids.includes(shortId)
+                && claimRefusal(entry.claims, sourceRowOf) === null) {
                 claims[shortId] = modId;
                 claimed = true;
             }
