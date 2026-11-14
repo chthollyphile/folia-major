@@ -261,10 +261,12 @@ describe('culling a tilted wall: wiring', () => {
     const mountCamera = () => {
         const frameRef: MutableRefObject<BravaisFrameState> = { current: stateAt({ center: { x: 9000, y: 0 } }) };
         const fieldRef = { current: document.createElement('div') };
+        // 缝里的滚轮接回墙的那一层监听挂在 stage 的根节点上（bravaisSeamWheel），这里给一个空节点。
+        const rootRef = { current: document.createElement('section') };
         const seen: Bounds[] = [];
         const handle: { camera: ReturnType<typeof useBravaisCamera> | null } = { camera: null };
         const Probe = () => {
-            const camera = useBravaisCamera({ frameRef, renderFrame: () => undefined, fieldRef, reducedMotion: false });
+            const camera = useBravaisCamera({ frameRef, renderFrame: () => undefined, fieldRef, rootRef, reducedMotion: false });
             handle.camera = camera;
             if (camera.bounds && seen[seen.length - 1] !== camera.bounds) seen.push(camera.bounds);
             return null;
