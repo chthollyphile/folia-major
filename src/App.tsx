@@ -146,6 +146,7 @@ import { resolveCommandPaletteSearchSource, resolveSearchSource, useSearchNaviga
 import { useOnlineProviderAccountStore } from './stores/useOnlineProviderAccountStore';
 import { useShallow } from 'zustand/react/shallow';
 import { clampMediaVolume, toSafeRemoteUrl } from './utils/appPlaybackHelpers';
+import { queueLoopMode } from './utils/playbackNeighbors';
 import { hasLoopedToStart } from './services/playedTrackCache';
 import { getOnlineProviderIdForSong, isLocalPlaybackSong, isNavidromePlaybackSong, isStagePlaybackSong } from './utils/appPlaybackGuards';
 import { writeLyricOffset } from './utils/lyrics/lyricOffsetMemory';
@@ -567,7 +568,10 @@ export default function App() {
     // control below keeps editing the per-song value alone.
     const effectiveLyricTimelineOffsetMs = lyricTimelineOffsetMs + globalLyricTimelineOffsetMs;
 
-    const effectiveLoopMode: StageLoopMode = loopMode;
+    // Personal FM picks its own next song, so the queue is played as if it never repeated whatever the
+    // stored mode is (queueLoopMode). Every reader of the mode - the loop button, the bridges, the
+    // panel - takes this one, so the control shows what the queue really does.
+    const effectiveLoopMode: StageLoopMode = queueLoopMode(loopMode, isFmMode);
 
     const getTargetPlaybackVolume = useCallback(() => (isMuted ? 0 : volume), [isMuted, volume]);
 
@@ -1492,7 +1496,7 @@ export default function App() {
         lyricTimelineOffsetMs: effectiveLyricTimelineOffsetMs,
         onRemoteExportCommand: handleExportCommand,
         onExternalPlayRequest: handleStageExternalPlayRequest,
-        onRemoteCycleLoopMode: handleToggleLoopMode,
+        onRemoteCycleLoopMode: () => handleToggleLoopMode(isFmMode),
         onRemoteTransitionSeek: seekDuringTransition,
         publishTrackTransition: automixEnabled,
         isTrackTransitionAudible: automix.isTransitionAudible,

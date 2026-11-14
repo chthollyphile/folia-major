@@ -11,6 +11,15 @@ export const loopModeIcon = (loopMode: StageLoopMode): LucideIcon => {
     return Repeat;
 };
 
+/**
+ * Whether the repeat button does nothing where it stands. Personal FM picks its own next song, so the
+ * queue never repeats there (queueLoopMode): the control is greyed out rather than offering a mode
+ * that cannot take effect. A stage that owns playback disables the whole transport, repeat included.
+ */
+export const loopToggleDisabledIn = (playbackControlsDisabled: boolean, isFmMode: boolean): boolean => (
+    playbackControlsDisabled || isFmMode
+);
+
 /** The last part of the label's i18n key: the main window's labels are `player.<name>`, the remote window's `remote.<name>`. */
 export const loopModeLabelName = (loopMode: StageLoopMode): 'loopOff' | 'loopOne' | 'loopAll' => {
     if (loopMode === 'off') return 'loopOff';

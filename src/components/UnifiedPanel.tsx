@@ -23,6 +23,7 @@ import type { OnlineLyricsState } from '../types';
 import type { AudioQualityPreference } from '../types/onlineMusic';
 import type { ThemeSourceModel } from '../hooks/themeControllerState';
 import { getPlaybackSourceRef } from '../utils/appPlaybackGuards';
+import { loopToggleDisabledIn } from './shared/loopModeDisplay';
 import { canSaveQueueAsLocalPlaylist } from '../utils/queueReorder';
 import { canDislikeCurrentSong, resolveLikeAvailability } from '../utils/playerLikeAvailability';
 import { usePlayerPanelTabShortcut } from '../hooks/usePlayerPanelTabShortcut';
@@ -397,7 +398,7 @@ const UnifiedPanel: React.FC<UnifiedPanelProps> = ({
                     onVolumePreview={onVolumePreview}
                     onVolumeChange={onVolumeChange}
                     onToggleMute={onToggleMute}
-                    loopToggleDisabled={playbackControlsDisabled}
+                    loopToggleDisabled={loopToggleDisabledIn(playbackControlsDisabled, isFmMode)}
                     onClosePanel={onToggle}
                 />
             )}
