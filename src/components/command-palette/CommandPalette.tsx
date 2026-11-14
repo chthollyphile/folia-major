@@ -309,6 +309,9 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
     const primaryTermOf = useMemo(() => (
         (command: CommandPaletteCommand) => getCommandPrimaryTerm(availableCommands, command, i18n.language)
     ), [availableCommands, i18n.language]);
+    // A row a surface built for this one moment (a past search under the search command) is no
+    // registered command: there is nothing to type to reach it, so its row shows no term chip.
+    const registeredCommandIds = useMemo(() => new Set(availableCommands.map(command => command.id)), [availableCommands]);
 
     // A live-preview surface asks for an unblurred backdrop so its own effect stays visible behind
     // the palette; the panel then has to carry its own legibility, hence the denser fill.
@@ -579,7 +582,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
                         const groupLabel = t(groupLabelKey[match.command.group] || 'commandPalette.groupOther') || match.command.group;
                         const title = getCommandTitle(match.command, t);
                         const displayDescription = match.previewText || getCommandDescription(match.command, t);
-                        const commandHint = primaryTermOf(match.command);
+                        const commandHint = registeredCommandIds.has(match.command.id) ? primaryTermOf(match.command) : null;
                         const Icon = match.command.icon ?? Command;
                         return (
                             <button
@@ -612,12 +615,14 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
                                 <div className="min-w-0 flex-1">
                                     <div className="flex items-center gap-2">
                                         <span className="truncate text-sm font-medium">{title}</span>
-                                        <span
-                                            className={`shrink-0 rounded-md px-1.5 py-0.5 font-mono text-[10px] ${isDaylight ? 'bg-black/8 text-zinc-700' : 'bg-white/10 text-zinc-200'
-                                                }`}
-                                        >
-                                            {commandHint}
-                                        </span>
+                                        {commandHint && (
+                                            <span
+                                                className={`shrink-0 rounded-md px-1.5 py-0.5 font-mono text-[10px] ${isDaylight ? 'bg-black/8 text-zinc-700' : 'bg-white/10 text-zinc-200'
+                                                    }`}
+                                            >
+                                                {commandHint}
+                                            </span>
+                                        )}
                                         <span className="shrink-0 rounded-full px-2 py-0.5 text-[10px] uppercase tracking-[0.12em] opacity-50">
                                             {groupLabel}
                                         </span>

@@ -5,6 +5,7 @@ import { settingsTokens } from '../../src/components/modal/settings/kit/kitTheme
 import { SettingsAnchor, SettingsAnchorProvider, useSettingsAnchorList, useSettingsAnchorStore } from '../../src/components/modal/settings/navigation/SettingsAnchorContext';
 import SettingsSectionHeading from '../../src/components/modal/settings/navigation/SettingsSectionHeading';
 import SettingsSideList from '../../src/components/modal/settings/navigation/SettingsSideList';
+import SettingsCompactNav from '../../src/components/modal/settings/navigation/SettingsCompactNav';
 import type { SettingsAnchorId } from '../../src/components/modal/settings/navigation/settingsAnchorModel';
 import { buildSettingsNavGroups, type SettingsSectionId } from '../../src/components/modal/settings/navigation/settingsNavModel';
 import { useMediaQuery } from '../../src/hooks/useMediaQuery';
@@ -98,16 +99,30 @@ const ProbeBody: React.FC = () => {
                     className="flex h-full flex-col overflow-hidden rounded-2xl bg-[var(--st-win)] md:grid md:grid-cols-[212px_minmax(0,1fr)] md:grid-rows-[minmax(0,1fr)]"
                     style={settingsTokens(false, DEFAULT_THEME)}
                 >
-                    <SettingsSideList
-                        groups={groups}
-                        activeId={activeSection}
-                        onSelectSection={setActiveSection}
-                        onSelectHelp={() => {}}
-                        query=""
-                        onQueryChange={() => {}}
-                        onSubmitQuery={() => {}}
-                        isWide={isWide}
-                    />
+                    {isWide ? (
+                        <SettingsSideList
+                            groups={groups}
+                            activeId={activeSection}
+                            onSelectSection={setActiveSection}
+                            onSelectHelp={() => {}}
+                            query=""
+                            onQueryChange={() => {}}
+                            onSubmitQuery={() => {}}
+                        />
+                    ) : (
+                        <SettingsCompactNav
+                            groups={groups}
+                            activeId={activeSection}
+                            onSelectSection={setActiveSection}
+                            onSelectHelp={() => {}}
+                            query=""
+                            onQueryChange={() => {}}
+                            onSubmitQuery={() => {}}
+                            isDaylight={false}
+                            onClose={() => {}}
+                            closeLabel="Close"
+                        />
+                    )}
                     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
                         <PageHeader
                             title={fakeTranslate(`options.${activeSection}`)}
@@ -116,6 +131,7 @@ const ProbeBody: React.FC = () => {
                             onSelect={scrollToAnchor}
                             closeLabel="Close"
                             onClose={() => {}}
+                            showClose={isWide}
                         />
                         <div ref={contentRef} data-probe-content className="relative min-h-0 flex-1 overflow-y-auto px-4 pb-4 md:px-8">
                             <div className="space-y-8">
@@ -151,7 +167,7 @@ const ProbeBody: React.FC = () => {
 const probe: ProbeDefinition = {
     id: 'settingsNavigation',
     title: '设置导航·类别侧栏与页眉目录',
-    description: '分组副标题、只列类别的侧栏、页眉里的本页目录和 scrollspy，以及窄屏的横向类别条',
+    description: '分组副标题、只列类别的侧栏、页眉里的本页目录和 scrollspy，以及窄屏的菜单按钮抽屉',
     Component: ProbeBody,
 };
 

@@ -29,6 +29,7 @@ const createContext = (overrides: CommandPaletteContextOverrides = {}): CommandP
             localLibraryCatalog: { entities: [], assignments: [] },
             navigateToSearch: vi.fn(),
             submitSearch: vi.fn(async () => true),
+            searchHistory: () => [],
         },
         playback: {
             volume: 0.5,

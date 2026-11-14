@@ -21,4 +21,6 @@ export const buildSearchCommandContext = (
     localLibraryCatalog: deps.localLibraryCatalog,
     navigateToSearch: deps.navigateToSearch,
     submitSearch: useSearchNavigationStore.getState().submitSearch,
+    // 读的时候才取：上下文不随历史重建，命令窗口每次打开搜索命令时拿到的都是当时的历史。
+    searchHistory: () => useSearchNavigationStore.getState().searchHistory,
 });

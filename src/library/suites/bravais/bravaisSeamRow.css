@@ -398,6 +398,8 @@
 .bravais-seam[data-bravais-seam-axis='y'] .bravais-seam-search > .bravais-search-form { max-width: 720px; grid-column: 1; }
 .bravais-seam[data-bravais-seam-axis='y'] .bravais-seam-search > .bravais-form-buttons { grid-column: 2; grid-row: 2; align-self: center; }
 .bravais-seam[data-bravais-seam-axis='y'] .bravais-seam-search > .bravais-search-hint { margin: 0; grid-column: 1 / -1; }
+/* 搜索历史在「搜索」按钮那一行之后，占满整条缝的宽度（否则会被自动放置挤到第一列）。 */
+.bravais-seam[data-bravais-seam-axis='y'] .bravais-seam-search > .bravais-search-history { grid-column: 1 / -1; }
 
 /* ---------- 窄的横条（手机竖屏等，横条宽度 < 600px） ----------
    完整信息条：三栏改成上下两行——上面是标题（一行，字号收小），下面左边是计数 / 简介、右边是一排只有图标的动作
