@@ -62,6 +62,7 @@ const { attachModProtocolHandler } = require('./modProtocol.cjs');
 const { createModGuard } = require('./guard.cjs');
 const { createSafeStart } = require('./safeStart.cjs');
 const { createModDiscovery } = require('./discovery.cjs');
+const { createBuiltinBuildWatch, readBuildFingerprint } = require('./builtinBuildWatch.cjs');
 const { createZipInstall, INSTALL_LIMITS } = require('./zipInstall.cjs');
 const { createNetFetch } = require('./netFetch.cjs');
 const { createPickedFiles } = require('./pickedFiles.cjs');
@@ -409,12 +410,17 @@ const createModSystem = ({
     /*
      * The version the URL of a client entry carries, so the renderer's ES module map treats changed code as a
      * different module: the digest for a mod from the mods folders; for a built-in one, which has no digest,
-     * the app's and the mod's versions (and, in a development build, the client file's time, so a rebuilt
-     * dist-mods/ entry re-imports).
+     * the app's and the mod's versions. In a development build also what changes with a rebuild of dist-mods/:
+     * the fingerprint dev/sources/build.mjs stamped on the folder (build.json, covering the main entry, the
+     * worker, the archive and the locale files as well), or else the client file's time. The token is part of
+     * the reload key too, so a rebuild restarts that mod alone.
      */
     const builtinVersionToken = (discovery) => {
         const parts = ['builtin', typeof app.getVersion === 'function' ? app.getVersion() : '0', discovery.manifest.version];
-        if (!app.isPackaged && discovery.manifest.client) {
+        const fingerprint = app.isPackaged ? null : readBuildFingerprint(discovery.dirPath);
+        if (fingerprint) {
+            parts.push(fingerprint);
+        } else if (!app.isPackaged && discovery.manifest.client) {
             try {
                 parts.push(String(Math.round(fs.statSync(path.join(discovery.dirPath, discovery.manifest.client)).mtimeMs)));
             } catch {
@@ -1552,6 +1558,19 @@ const createModSystem = ({
     };
 
     /*
+     * Development builds: dev/sources/build.mjs --watch (run by `npm run dev:electron`) rewrites dist-mods/, and the
+     * build.json it writes last moves each rebuilt mod's version token; a differential reload then restarts that
+     * mod alone (builtinBuildWatch.cjs). Started with the app's own start of the mods, so nothing loads early.
+     */
+    const builtinBuildWatch = app.isPackaged || !getBuiltinModsDirectory() ? null : createBuiltinBuildWatch({
+        directory: getBuiltinModsDirectory(),
+        onChange: () => {
+            console.info('[Mods] dist-mods/ was rebuilt: reloading the built-in mods that changed');
+            reloadChanged().catch((error) => console.error('[Mods] Reload after a rebuild of dist-mods/ failed', error));
+        },
+    });
+
+    /*
      * Folium 2.0 (plan §5.2): the source mods start before the main window is made, their main entries one
      * after another without waiting for each other (an async activate runs on). The rest waits for `start`.
      */
@@ -1575,6 +1594,7 @@ const createModSystem = ({
      * a note this is `loadAll`, synchronous as before. Built-in mods never count.
      */
     const start = () => {
+        builtinBuildWatch?.start();
         const firstLoad = () => {
             noteThisLoad = true;
             try {
@@ -1722,6 +1742,7 @@ const createModSystem = ({
     const allowsCertificateException = (hostname) => declaredHosts('certificateExceptions').has(String(hostname));
 
     const dispose = () => {
+        builtinBuildWatch?.stop();
         exportService.cancelActiveExport();
         // Mods get their deactivate pass on the way out too, so anything they
         // hold (timers, handles, child processes) is released before quit. Ordinary mods first.
