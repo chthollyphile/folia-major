@@ -392,6 +392,7 @@ S0–S4 与试点平台（bodian）在集成分支 `folium-2`（从 main 切，�
 - **第一步，接口进 `edge`**：S0–S4 加 bodian 做完、下面「进 `edge` 之前」补齐后，在 main 上按当时最新的 main 切出 `edge` 分支，集成分支对 `edge` 开 PR（目标是 `edge`，不是 main）。波点一起走：它的提交里夹着契约补充与测试夹具的改动，切不干净；带着它也正好验证安装包里内置模组这条路。这一步的验收是 §11 里不依赖九家迁完的条目（单测、启动、音源类的豁免、打包）加波点一家的桌面实测。
 - **进 `edge` 之前**：打包版实测（Windows 安装包，macOS、Linux 的 CI 构建）；波点用真实账号在大陆网络下实测（维护者 2026-11-14 已测：可以播放，其它功能正常）；`dev/folium/folium-2-member-matrix.md` §4 的归属由维护者确认（2026-11-14 已确认）；对整个分支做一次完整审查；加上「预览」标记（见第二步）。
 - **发布**：`edge` 发布到 Cielo（canary）的滚动更新通道（`.github/workflows/canary-pre-release.yml` 的 `rolling`）。同时改这个 workflow 里的 release note 模板，写明四件事：这个版本用于 Folium 2 的发布测试；普通用户可以下载；反馈问题要打上 `folium2` 标签；建议模组作者都下载这个版本测试自己的模组。
+- **滚动版只由 `edge` 发**（维护者 2026-11-15 定）：滚动版固定发到 tag `cielo`，main 和 `edge` 都发的话 Cielo 用户会在两版之间来回升级。workflow 的 `ROLLING_BRANCH` 限定只有 `edge` 能发滚动版，别的分支的 rolling 自动降成分支版；main 上的这个文件也要有同样的改动。`edge` 合进 main 之后把它改回 main。
 - **第二步，接口进 main**：`edge` 在 Cielo 上观察一到两个发版周期，维护者确认稳定后合进 main；在那之前 main 继续维护 0.7.x。`folium: 2` 的音源接口（`folium.sources` 与 main 入口给音源的 `api`）在 `docs/folium/` 和模组面板里标「预览」，写明九家内置音源迁完之前可能变动；`folium: 1` 冻结在 1.9 的承诺不变。
 - **第三步，拆分**：其余八家（下面迁移顺序的 2–9）和 S6–S8 在接口合进 main 之后做，一家一个 PR。这些 PR 的目标是 main 还是继续走 `edge`，由维护者在接口合并之后定。期间内置的静态注册与音源模组并存（运行时已经支持）。九家迁完、S8 做完后去掉「预览」标记。
 - **main 到 `edge` 的同步**：定期把 main 上的改动同步进 `edge`，由维护者手动触发，不自动做。
