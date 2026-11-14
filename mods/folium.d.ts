@@ -3175,7 +3175,11 @@ export interface FoliumSourceSong {
     row?: { id?: string; listenCount?: number };
     /** Loudness values of the song. */
     replayGain?: FoliumSourceReplayGain;
-    /** The source's own data of the song (JSON), handed back with it. */
+    /**
+     * The source's own data of the song, handed back with it. Plain JSON of at most 16 KB as JSON text: the host keeps
+     * it with the song (queue, history). Data that is not JSON, or larger, is not kept at all (one warning a source in
+     * the log), and the song comes back without it. Functions in it are left out, as JSON does.
+     */
     data?: Record<string, FoliumJsonValue>;
 }
 
@@ -3246,7 +3250,7 @@ export interface FoliumSourceCollection {
     listeningRank?: 'week' | 'all';
     /** For `radio`: what selecting it starts. */
     personalFm?: FoliumSourceFmLaunch;
-    /** The source's own data (JSON), handed back with it. */
+    /** The source's own data, handed back with it: plain JSON of at most 16 KB, as a song's `data` (not kept otherwise). */
     data?: Record<string, FoliumJsonValue>;
 }
 

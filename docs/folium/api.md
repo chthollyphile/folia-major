@@ -2538,7 +2538,7 @@ playlists, so `data` must be JSON and small; what else is stored with a song is 
 | `lyricIds?` | `Record<string, string>` | The ids other sources know the song by, for their lyrics: `{ '<source id>': '<the song's id there>' }`. |
 | `row?` | `{ id?: string; listenCount?: number }` | What goes with the row it was read from, not with the song. |
 | `replayGain?` | `FoliumSourceReplayGain` | Loudness values of the song. |
-| `data?` | `Record<string, FoliumJsonValue>` | The source's own data of the song (JSON), handed back with it. |
+| `data?` | `Record<string, FoliumJsonValue>` | The source's own data of the song, handed back with it. Plain JSON of at most 16 KB as JSON text: the host keeps it with the song (queue, history). Data that is not JSON, or larger, is not kept at all (one warning a source in the log), and the song comes back without it. Functions in it are left out, as JSON does. |
 
 相关：[FoliumSourceNamedRef](#foliumsourcenamedref) · [FoliumSourceAlbumRef](#foliumsourcealbumref) · [FoliumSourceReplayGain](#foliumsourcereplaygain) · [FoliumJsonValue](#foliumjsonvalue)
 
@@ -2590,7 +2590,7 @@ Folium 2: a playlist, an album, an artist, or a list the source makes (`radio`, 
 | `isLiked?` | `boolean` | The account saved or liked it. |
 | `listeningRank?` | `'week' \| 'all'` | For `listening_rank`: the span it counts. |
 | `personalFm?` | `FoliumSourceFmLaunch` | For `radio`: what selecting it starts. |
-| `data?` | `Record<string, FoliumJsonValue>` | The source's own data (JSON), handed back with it. |
+| `data?` | `Record<string, FoliumJsonValue>` | The source's own data, handed back with it: plain JSON of at most 16 KB, as a song's `data` (not kept otherwise). |
 
 相关：[FoliumSourceUser](#foliumsourceuser) · [FoliumSourceNamedRef](#foliumsourcenamedref) · [FoliumSourceFmLaunch](#foliumsourcefmlaunch) · [FoliumJsonValue](#foliumjsonvalue)
 
