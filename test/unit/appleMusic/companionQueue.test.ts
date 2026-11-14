@@ -21,6 +21,8 @@ function player() {
 describe('Apple Music prepared queue', () => {
     it('validates a bounded, distinct catalog-only tail', () => {
         expect(validateRequest({ id: '1', operation: 'prepareNext', params: { catalogId: '123', nextIds: ['456', '789'] } })).not.toBeNull();
+        // The sounding song may be an upload; its tail is still catalog songs only.
+        expect(validateRequest({ id: '1', operation: 'prepareNext', params: { catalogId: 'i.upload', nextIds: ['456'] } })).not.toBeNull();
         for (const nextIds of [['i.library'], ['123'], ['456', '456'], ['1', '2', '3']]) {
             expect(validateRequest({ id: '1', operation: 'prepareNext', params: { catalogId: '123', nextIds } })).toBeNull();
         }

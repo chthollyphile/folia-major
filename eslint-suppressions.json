@@ -9211,7 +9211,7 @@
   },
   "src/services/localLibraryImportCatalog.ts": {
     "@stylistic/indent": {
-      "count": 115
+      "count": 62
     },
     "@typescript-eslint/no-unnecessary-type-assertion": {
       "count": 1
@@ -11968,7 +11968,7 @@
   },
   "test/component/libraryBehavior.spec.ts": {
     "@stylistic/indent": {
-      "count": 662
+      "count": 660
     }
   },
   "test/component/monetPortraitImage.spec.ts": {

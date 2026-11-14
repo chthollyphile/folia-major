@@ -17,6 +17,9 @@ import { BRAVAIS_SPECIAL_ICONS } from './bravaisSpecialIcons';
 import { closeBravaisHomePopover, setBravaisHomeOpenRequest, setBravaisHomePopover, useBravaisHomeUiStore } from './bravaisHomeUiStore';
 import { useBravaisReducedTransitions } from './bravaisMotion';
 import { bravaisPopMotion, seamPopAnchorFor } from './bravaisSeamMotion';
+import { pickQuickCells, quickBusyIcon, quickPriority } from './bravaisSeamQuickCells';
+import { BRAVAIS_PAGE_TOOLS_GAP } from './useBravaisSeamTabsFit';
+import type { BravaisSeamMenuItem } from './bravaisSeamModels';
 
 // src/library/suites/bravais/BravaisSeamHomeTools.tsx
 // 首页窄缝底部的工具格。
@@ -41,6 +44,10 @@ import { bravaisPopMotion, seamPopAnchorFor } from './bravaisSeamMotion';
 // （它不是开关，点它总是打开舞台）。
 // 工具带 badge（设置：发现新版本）时说明拼进 aria-label / title；窄缝里工具格下方另起一行可点的说明文字（点它与点那一格相同），
 // 书脊上放不下文字，改在图标右上角画一个强调色的点。
+// 方案 C（2026-11-13 用户选定，并要求本地页签的目录（文件夹列表）、刷新、导入一起提出来）：工具格上面多一组「本页」格，
+// 本页签的工具与本地动作按优先级（bravaisSeamQuickCells：目录 > 导入文件夹 > 刷新 / Navidrome 刷新 / 探索刷新 >
+// 导入歌单文件）直接成格，窄缝最多 2×2 四格、书脊一列最多两格，放不下的和管理隐藏、过滤当前页仍在「⋯」里。本页一组与
+// 下面的 app 级工具格之间一道细线；开关类（目录）成格时是 aria-pressed 的图标按钮。
 
 const TOOL_ICONS: Record<BravaisHomeToolId, React.ComponentType<{ 'aria-hidden'?: boolean; className?: string }>> = {
     search: Search,
@@ -54,6 +61,24 @@ const TOOL_ICONS: Record<BravaisHomeToolId, React.ComponentType<{ 'aria-hidden'?
     player: Disc3,
     stage: MonitorPlay,
     settings: Settings,
+};
+
+/** 本页一组最多几格：窄缝两列排两行，书脊一列两格。 */
+const PAGE_CELLS = { wide: 4, compact: 2 } as const;
+
+/** 本页一组的候选：本页签的工具与本地动作（「⋯」里原来的两段），按优先级挑。 */
+type PageCandidate = { id: string; priority?: number } & ({ tool: BravaisHomeTool } | { item: BravaisSeamMenuItem });
+
+const pageCandidates = (home: BravaisHomeSeam, pageTools: readonly BravaisHomeTool[]): PageCandidate[] => [
+    ...pageTools.map(tool => ({ id: tool.id, priority: quickPriority(tool.id), tool })),
+    ...(home.menu ?? []).map(item => ({ id: item.id, priority: item.priority, item })),
+];
+
+/** 本页一组的布局：几列、最多几格（候选里能提出来的数与上限取小）。首页窄缝的高度阶梯按它算本页占几行（useBravaisSeamTabsFit）。 */
+export const homePageLayout = (home: BravaisHomeSeam, compact: boolean) => {
+    const promotable = pageCandidates(home, splitHomeTools(home.tools).page).filter(entry => entry.priority !== undefined).length;
+    const columns = compact ? 1 : 2;
+    return { columns, cells: Math.min(promotable, compact ? PAGE_CELLS.compact : PAGE_CELLS.wide) };
 };
 
 /** 工具格里固定的三格（加「⋯」共四格），按这个顺序；舞台（有时）单独一行排在最前。 */
@@ -77,20 +102,32 @@ const BravaisSeamHomeTools: React.FC<{
     onOpenShortcut?: (shortcut: BravaisHomeShortcut) => void;
     /** 一起挪进菜单的动作入口（在中段时为 null），排在直达入口后面。 */
     menuEntries?: readonly BravaisHomeEntry[] | null;
-}> = ({ home, compact, onExpand, menuShortcuts, onOpenShortcut, menuEntries }) => {
+    /** 本页一组最多画几格（竖的窄缝按高度阶梯、横条按宽度阶梯给；不给时画满上限）。 */
+    pageLimit?: number;
+}> = ({ home, compact, onExpand, menuShortcuts, onOpenShortcut, menuEntries, pageLimit: limit }) => {
     const menuOpen = useBravaisHomeUiStore(state => state.popover === 'menu');
     const dockRef = useRef<HTMLDivElement>(null);
     const moreRef = useRef<HTMLButtonElement>(null);
     const request = useBravaisHomeUiStore(state => state.openRequest);
-    const { dock, page, app } = splitHomeTools(home.tools);
+    const { dock, page: pageTools, app } = splitHomeTools(home.tools);
     const notice = dock.find(tool => tool.badge);
-    const local = home.menu ?? [];
+    const layout = homePageLayout(home, compact);
+    const pageLimit = limit === undefined ? layout.cells : Math.min(layout.cells, limit);
+    const { promoted: pageCells, rest } = pickQuickCells(pageCandidates(home, pageTools), pageLimit);
+    const page = rest.flatMap(entry => ('tool' in entry ? [entry.tool] : []));
+    const local = rest.flatMap(entry => ('item' in entry ? [entry.item] : []));
     const jumps = menuShortcuts ?? [];
     const entries = menuEntries ?? [];
     const hasMenu = jumps.length > 0 || entries.length > 0 || page.length > 0 || local.length > 0 || app.length > 0;
     const open = menuOpen && hasMenu && !compact;
     // 横的信息条在视口上半时菜单往下弹（工具格一直挂着，dockRef 在打开菜单的那次渲染里已经有值）。
     const pop = bravaisPopMotion(seamPopAnchorFor(dockRef.current), useBravaisReducedTransitions());
+
+    // 方案 C：本页的项提成格子以后「⋯」可能整个不画；菜单开着时「⋯」没了，把开着的状态一起收掉，免得「⋯」再出现时
+    // 菜单自己弹出来。
+    useEffect(() => {
+        if (!hasMenu && menuOpen) closeBravaisHomePopover('menu');
+    }, [hasMenu, menuOpen]);
 
     // 书脊上点了「⋯」：缝展开成窄缝后在这里把菜单打开。
     useEffect(() => {
@@ -153,6 +190,25 @@ const BravaisSeamHomeTools: React.FC<{
         );
     };
 
+    const pageToolCell = (tool: BravaisHomeTool) => {
+        const Icon = tool.busy ? quickBusyIcon(TOOL_ICONS[tool.id]) : TOOL_ICONS[tool.id];
+        return (
+            <button key={tool.id} type="button" className={`bravais-seam-icon${tool.pressed ? ' is-pressed' : ''}`} data-bravais-seam-action={tool.id}
+                aria-label={tool.label} aria-pressed={tool.pressed} title={tool.label} disabled={tool.disabled} onClick={() => runItem(tool.run)}>
+                <Icon aria-hidden className={tool.busy ? 'animate-spin' : undefined} />
+            </button>
+        );
+    };
+    const pageItemCell = (item: BravaisSeamMenuItem) => {
+        const Icon = item.busy ? quickBusyIcon(item.icon ?? MoreHorizontal) : item.icon ?? MoreHorizontal;
+        return (
+            <button key={item.id} type="button" className="bravais-seam-icon" data-bravais-seam-action={item.id}
+                aria-label={item.label} title={item.label} disabled={item.disabled} onClick={() => runItem(item.run)}>
+                <Icon aria-hidden className={item.busy ? 'animate-spin' : undefined} />
+            </button>
+        );
+    };
+
     return (
         <div ref={dockRef} className="bravais-seam-dock" onKeyDown={onKeyDown}>
             <AnimatePresence>
@@ -187,6 +243,12 @@ const BravaisSeamHomeTools: React.FC<{
                     </motion.div>
                 )}
             </AnimatePresence>
+            {pageCells.length > 0 && (
+                <div className="bravais-seam-tools is-page" role="group" aria-label={home.pageToolsLabel} data-bravais-page-tools
+                    style={{ marginBottom: BRAVAIS_PAGE_TOOLS_GAP }}>
+                    {pageCells.map(entry => ('tool' in entry ? pageToolCell(entry.tool) : pageItemCell(entry.item)))}
+                </div>
+            )}
             <div className="bravais-seam-tools">
                 {dock.map((tool) => {
                     const Icon = TOOL_ICONS[tool.id];

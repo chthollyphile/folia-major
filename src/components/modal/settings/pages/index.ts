@@ -1,6 +1,7 @@
 import type React from 'react';
 import type { SettingsOptionDef } from '../kit';
 import type { SettingsSectionId } from '../navigation/settingsNavModel';
+import * as ai from './AiServicePage';
 import * as appearance from './AppearancePage';
 import * as desktop from './DesktopPage';
 import * as developer from './DeveloperPage';
@@ -24,6 +25,7 @@ type PageModule = { default: React.FC; OPTIONS: readonly SettingsOptionDef[] };
 /** Each category's page file. Its component and its options are read from the one file, so the two cannot be paired wrongly. */
 const PAGE_MODULES: Record<SettingsSectionId, PageModule> = {
     appearance,
+    ai,
     player,
     home,
     playback,

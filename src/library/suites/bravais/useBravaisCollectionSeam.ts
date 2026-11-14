@@ -1,5 +1,6 @@
 import { useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import { FileDown, FolderSync, IdCard, ImagePlus, ListMusic, NotebookPen, PencilLine, WandSparkles } from 'lucide-react';
 import type { SongResult, UnifiedSong } from '../../../types';
 import type { LibraryActionId, LibraryCollectionSurfaceProps } from '../../core/suite/suite.contract';
 import type { CollectionMutationController, CollectionMutationSnapshot, LibraryMutationResult } from '../../core/collection/mutations/mutations.contract';
@@ -12,6 +13,7 @@ import type { CollectionView } from '../../core/collection/useCollectionView';
 import type { LocalSongFolderSortDirection, LocalSongFolderSortField } from '../../../utils/localSongSorting';
 import type { DailyStyleSelection } from '../../../types/onlineMusic';
 import { projectCollectionStatus, resolveWallPeriodCount } from './bravaisCollectionStatus';
+import { quickPriority } from './bravaisSeamQuickCells';
 import type { BravaisLayerEntries, BravaisLayerWall, BravaisSeamCollection, BravaisSeamFilter, BravaisSeamMenuItem, BravaisSeamReload } from './bravaisSeamModels';
 import type { useBravaisCollectionForms } from './useBravaisCollectionForms';
 import type { useBravaisMutationNotice } from './useBravaisMutationNotice';
@@ -114,17 +116,19 @@ export const useBravaisCollectionSeam = (input: BravaisCollectionSeamInput) => {
         run: () => latest.current.actions.reload(),
     } : undefined), [declares, reloadCapability, t]);
 
-    // 「⋯ 更多」：低频的集合动作（改名、加入歌单、重扫、整理、导出、实体信息、设置封面、删除）。
+    // 集合动作（改名、加入歌单、收进速记簿、重扫、整理、导出、实体信息、设置封面、删除）。方案 C：带图标与优先级的项
+    // 在按钮行下面的动作格放得下时直接成一格（BravaisSeamCollectionMenu），放不下的和删除留在「⋯ 更多」里。
     const menu = useMemo<BravaisSeamMenuItem[]>(() => {
         const items: BravaisSeamMenuItem[] = [];
         const runMutation = (action: (controller: CollectionMutationController) => Promise<LibraryMutationResult>) => () => {
             const controller = latest.current.mutations;
             if (controller) void latest.current.notice.run(() => action(controller));
         };
-        if (offers('rename')) items.push({ id: 'rename', label: t('libraryBravaisCollection.rename'), disabled: pending, run: forms.openRename });
+        const quick = (id: string, icon: BravaisSeamMenuItem['icon']) => ({ id, icon, priority: quickPriority(id) });
+        if (offers('rename')) items.push({ ...quick('rename', PencilLine), label: t('libraryBravaisCollection.rename'), disabled: pending, run: forms.openRename });
         if (offers('add-to-playlist')) {
             items.push({
-                id: 'add-to-playlist',
+                ...quick('add-to-playlist', ListMusic),
                 label: t('localMusic.addToPlaylist'),
                 disabled: pending || view.playableTracks.length === 0,
                 run: () => latest.current.forms.openPick({ kind: 'collection' }),
@@ -133,24 +137,24 @@ export const useBravaisCollectionSeam = (input: BravaisCollectionSeamInput) => {
         // 收进速记簿（core 的 collect-scope）：当前范围，过滤时只收匹配项，不动队列。
         if (declares('collect-scope') && actions.capabilities.collect) {
             items.push({
-                id: 'collect-scratchpad',
+                ...quick('collect-scratchpad', NotebookPen),
                 label: t('scratchpad.collectScope'),
                 disabled: view.contextTracks.length === 0,
                 run: () => latest.current.actions.collectScope(),
             });
         }
-        if (offers('resync-folder')) items.push({ id: 'resync-folder', label: t('localMusic.reimport'), disabled: pending, run: runMutation(c => c.resyncFolder()) });
-        if (offers('resync-all-folders')) items.push({ id: 'resync-all-folders', label: t('localMusic.reimport'), disabled: pending, run: runMutation(c => c.resyncAllFolders()) });
-        if (offers('organize-song-info')) items.push({ id: 'organize-song-info', label: t('localMusic.organizeSongInfo'), run: runMutation(c => c.organizeSongInfo()) });
-        if (offers('export-playlist')) items.push({ id: 'export-playlist', label: t('localMusic.exportPlaylist'), disabled: pending, run: runMutation(c => c.exportPlaylist()) });
+        if (offers('resync-folder')) items.push({ ...quick('resync-folder', FolderSync), label: t('localMusic.reimport'), disabled: pending, run: runMutation(c => c.resyncFolder()) });
+        if (offers('resync-all-folders')) items.push({ ...quick('resync-all-folders', FolderSync), label: t('localMusic.reimport'), disabled: pending, run: runMutation(c => c.resyncAllFolders()) });
+        if (offers('organize-song-info')) items.push({ ...quick('organize-song-info', WandSparkles), label: t('localMusic.organizeSongInfo'), run: runMutation(c => c.organizeSongInfo()) });
+        if (offers('export-playlist')) items.push({ ...quick('export-playlist', FileDown), label: t('localMusic.exportPlaylist'), disabled: pending, run: runMutation(c => c.exportPlaylist()) });
         if (offers('edit-entity')) {
             items.push({
-                id: 'edit-entity',
+                ...quick('edit-entity', IdCard),
                 label: t('localMusic.entityInfo', { kind: collection.type === 'album' ? t('localMusic.albumLabel') : t('localMusic.artistLabel') }),
                 run: runMutation(c => c.editEntity()),
             });
         }
-        if (offers('set-cover')) items.push({ id: 'set-cover', label: t('localCollectionCover.menuLabel'), run: runMutation(c => c.setCover()) });
+        if (offers('set-cover')) items.push({ ...quick('set-cover', ImagePlus), label: t('localCollectionCover.menuLabel'), run: runMutation(c => c.setCover()) });
         if (offers('delete-collection')) {
             items.push({
                 id: 'delete-collection',

@@ -9,8 +9,10 @@ import type { BravaisSeamTabsFit } from './useBravaisSeamTabsFit';
 // 头像的 title / aria-label 里仍在。
 // 各级要多宽量的是看不见的测量副本（与导航段同一身样式，width: max-content）；扫描进度、管理隐藏、状态不随级别变，量
 // 此刻的（data-bravais-row-extra）。可用宽度 = 横条内容宽 − 其余各段 − 段间距，与此刻是哪一级无关，所以不会来回跳。
+// 方案 C（2026-11-13）：工具格前面多了「本页」一组（目录、导入文件夹、刷新……），它也占横条的宽。账户入口只留头像之后、
+// 页签缩成一个字之前，本页一格一格地让进「⋯」（pageRows 在横条里就是格数，一行一格）；可用宽度按本页一组不画折算。
 
-/** 横条的退让结果：竖的窄缝那三项，加上账户入口是否只留头像。 */
+/** 横条的退让结果：竖的窄缝那几项，加上账户入口是否只留头像（pageRows 在横条里是本页画几格）。 */
 export type BravaisSeamRowFit = BravaisSeamTabsFit & { accountCompact: boolean };
 
 /** 各级导航段测量副本的宽度（不含扫描进度、管理隐藏、状态）。 */
@@ -27,6 +29,7 @@ export const resolveSeamRowFit = ({
     extras,
     nav,
     account,
+    pageWidths = [0],
 }: {
     /** 导航段与账户入口一共能用的宽度。 */
     available: number;
@@ -35,16 +38,24 @@ export const resolveSeamRowFit = ({
     nav: BravaisSeamRowWidths;
     /** 账户入口带名字 / 只留头像的宽度（没有账户入口时都是 0）。 */
     account: { full: number; compact: number };
+    /** 本页一组画 n 格时占的宽（下标是格数，[0] 是 0；含它与工具格之间的间距）。available 按本页一组不画算。 */
+    pageWidths?: readonly number[];
 }): BravaisSeamRowFit => {
-    const fits = (width: number, accountWidth: number) => width + extras + accountWidth <= available + 0.5;
-    if (fits(nav.titled, account.full)) return { level: 'titled', shortcuts: true, accountCompact: false, overflowing: false };
-    if (fits(nav.untitled, account.full)) return { level: 'untitled', shortcuts: true, accountCompact: false, overflowing: false };
-    if (fits(nav.noShortcuts, account.full)) return { level: 'untitled', shortcuts: false, accountCompact: false, overflowing: false };
-    if (fits(nav.noShortcuts, account.compact)) return { level: 'untitled', shortcuts: false, accountCompact: true, overflowing: false };
-    return { level: 'short', shortcuts: false, accountCompact: true, overflowing: !fits(nav.short, account.compact) };
+    const max = pageWidths.length - 1;
+    const fits = (width: number, accountWidth: number, cells: number) => width + extras + accountWidth + (pageWidths[cells] ?? 0) <= available + 0.5;
+    if (fits(nav.titled, account.full, max)) return { level: 'titled', shortcuts: true, accountCompact: false, pageRows: max, overflowing: false };
+    if (fits(nav.untitled, account.full, max)) return { level: 'untitled', shortcuts: true, accountCompact: false, pageRows: max, overflowing: false };
+    if (fits(nav.noShortcuts, account.full, max)) return { level: 'untitled', shortcuts: false, accountCompact: false, pageRows: max, overflowing: false };
+    for (let cells = max; cells >= 0; cells -= 1) {
+        if (fits(nav.noShortcuts, account.compact, cells)) return { level: 'untitled', shortcuts: false, accountCompact: true, pageRows: cells, overflowing: false };
+    }
+    return { level: 'short', shortcuts: false, accountCompact: true, pageRows: 0, overflowing: !fits(nav.short, account.compact, 0) };
 };
 
-const FITS: BravaisSeamRowFit = { level: 'titled', shortcuts: true, accountCompact: false, overflowing: false };
+const FITS: BravaisSeamRowFit = { level: 'titled', shortcuts: true, accountCompact: false, pageRows: Number.POSITIVE_INFINITY, overflowing: false };
+
+/** 本页一组与后面工具格之间的间距：本页一组的右外边距 + 工具格那一段的列间距（bravaisSeamRow.css）。 */
+const PAGE_ROW_GAP = 19;
 
 const widthOf = (element: Element | null) => (element ? element.getBoundingClientRect().width : 0);
 
@@ -53,6 +64,7 @@ export const useBravaisSeamRowFit = ({
     navRef,
     accountRef,
     measureRef,
+    pageCells = 0,
 }: {
     /** 整条横条（flex 一行）。 */
     rowRef: RefObject<HTMLElement | null>;
@@ -62,6 +74,8 @@ export const useBravaisSeamRowFit = ({
     accountRef: RefObject<HTMLElement | null>;
     /** 测量副本的容器：里面是 data-bravais-row-measure="titled|untitled|no-shortcuts|short|account-full|account-compact"。 */
     measureRef: RefObject<HTMLElement | null>;
+    /** 本页一组最多几格。 */
+    pageCells?: number;
 }): BravaisSeamRowFit => {
     const [fit, setFit] = useState<BravaisSeamRowFit>(FITS);
 
@@ -84,7 +98,13 @@ export const useBravaisSeamRowFit = ({
             }
             // 没有账户入口时副本也是空的（宽 0），段间距少算一个。
             const hasAccount = Boolean(accountRef.current);
-            const available = content - others - gap * Math.max(0, count - 1);
+            // 本页一组（在工具格那一段里）：格宽与格距取工具格，此刻画着的宽折回可用宽里。
+            const tools = row.querySelector<HTMLElement>('.bravais-seam-tools:not(.is-page)');
+            const page = row.querySelector<HTMLElement>('.bravais-seam-tools.is-page');
+            const cell = widthOf(tools?.querySelector('.bravais-seam-icon:not(.is-wide)') ?? null);
+            const cellGap = tools ? parseFloat(getComputedStyle(tools).columnGap) || 0 : 0;
+            const pageWidths = Array.from({ length: (cell > 0 ? pageCells : 0) + 1 }, (_, cells) => (cells === 0 ? 0 : cells * cell + (cells - 1) * cellGap + PAGE_ROW_GAP));
+            const available = content - others - gap * Math.max(0, count - 1) + (page ? widthOf(page) + PAGE_ROW_GAP : 0);
             const navGap = parseFloat(getComputedStyle(nav).columnGap) || 0;
             const extras = Array.from(nav.querySelectorAll('[data-bravais-row-extra]'))
                 .reduce((sum, element) => sum + widthOf(element) + navGap, 0);
@@ -93,10 +113,11 @@ export const useBravaisSeamRowFit = ({
                 extras,
                 nav: { titled: copy('titled'), untitled: copy('untitled'), noShortcuts: copy('no-shortcuts'), short: copy('short') },
                 account: hasAccount ? { full: copy('account-full'), compact: copy('account-compact') } : { full: 0, compact: 0 },
+                pageWidths,
             });
             setFit(current => (
                 current.level === next.level && current.shortcuts === next.shortcuts && current.accountCompact === next.accountCompact
-                    && current.overflowing === next.overflowing ? current : next
+                    && current.pageRows === next.pageRows && current.overflowing === next.overflowing ? current : next
             ));
         };
         measure();
@@ -120,7 +141,7 @@ export const useBravaisSeamRowFit = ({
             observer.disconnect();
             mutations.disconnect();
         };
-    }, [accountRef, measureRef, navRef, rowRef]);
+    }, [accountRef, measureRef, navRef, pageCells, rowRef]);
 
     return fit;
 };

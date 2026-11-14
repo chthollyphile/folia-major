@@ -86,6 +86,7 @@ const { DEFAULT_DISCORD_APPLICATION_ID, createDiscordPresenceController } = requ
 const { createVoiceInputPauseMonitor } = require('./voiceInputPause.cjs');
 const { createWindowSystemMenuGuard } = require('./windowSystemMenu.cjs');
 const { createMacDockMenu } = require('./macDockMenu.cjs');
+const { createWindowsThumbar } = require('./windowsThumbar.cjs');
 const { createDisplaySleepBlocker } = require('./displaySleepBlocker.cjs');
 const { createVideoExportFileWriter } = require('./videoExportFileWriter.cjs');
 const { finalizeVideoExportFile } = require('./videoExportMp4.cjs');
@@ -2774,6 +2775,14 @@ const THUMBAR_BUTTON_ICONS = process.platform === 'win32'
   }
   : null;
 
+// Windows only; off Windows every call on it does nothing.
+const windowsThumbar = createWindowsThumbar({
+  isSupported: process.platform === 'win32',
+  getWindow: () => mainWindow,
+  icons: THUMBAR_BUTTON_ICONS,
+  sendAction: (action) => sendThumbarAction(action),
+});
+
 // macOS menu bar icons should be monochrome template images with transparent backgrounds.
 function createTrayIconImage() {
   if (process.platform !== 'darwin') {
@@ -3128,10 +3137,6 @@ function setMainWindowFullscreen(win, fullscreen) {
   win.setFullScreen(fullscreen);
 }
 
-function isWindowsThumbarSupported() {
-  return process.platform === 'win32';
-}
-
 function sendThumbarAction(action) {
   if (!mainWindow || mainWindow.isDestroyed()) {
     return;
@@ -3140,51 +3145,12 @@ function sendThumbarAction(action) {
   mainWindow.webContents.send('thumbar-action', action);
 }
 
-function updateWindowThumbarButtons(state = {}) {
-  if (!isWindowsThumbarSupported() || !mainWindow || mainWindow.isDestroyed()) {
-    return false;
-  }
-
-  const {
-    hasActiveTrack = false,
-    canGoPrevious = false,
-    canGoNext = false,
-    isPlaying = false,
-  } = state;
-
-  if (!hasActiveTrack) {
-    try {
-      return mainWindow.setThumbarButtons([]);
-    } catch (error) {
-      console.warn('[Electron] Failed to clear Windows thumbar buttons', error);
-      return false;
-    }
-  }
-
-  try {
-    return mainWindow.setThumbarButtons([
-      {
-        tooltip: 'Previous Track',
-        icon: THUMBAR_BUTTON_ICONS.previous,
-        flags: canGoPrevious ? [] : ['disabled'],
-        click: () => sendThumbarAction('previous'),
-      },
-      {
-        tooltip: isPlaying ? 'Pause' : 'Play',
-        icon: isPlaying ? THUMBAR_BUTTON_ICONS.pause : THUMBAR_BUTTON_ICONS.play,
-        click: () => sendThumbarAction('play-pause'),
-      },
-      {
-        tooltip: 'Next Track',
-        icon: THUMBAR_BUTTON_ICONS.next,
-        flags: canGoNext ? [] : ['disabled'],
-        click: () => sendThumbarAction('next'),
-      },
-    ]);
-  } catch (error) {
-    console.warn('[Electron] Failed to set Windows thumbar buttons', error);
-    return false;
-  }
+// Windows builds a new taskbar button for a window shown after being hidden, and Electron forgets
+// the old thumbar when the window hides (SetThumbarButtonsAdded(false) in native_window_views.cc,
+// #28390), so the next write is what re-adds the buttons. Nothing writes on show, so the cached
+// buttons are replayed here instead of waiting for the next playback change.
+function replayMainWindowThumbarButtons() {
+  return windowsThumbar.replay({ taskbarButtonVisible: !mainWindowSkipTaskbarEnabled });
 }
 
 function getDefaultCacheDirectory() {
@@ -3311,6 +3277,10 @@ function setMainWindowSkipTaskbarEnabled(enabled) {
   mainWindowSkipTaskbarEnabled = Boolean(enabled);
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.setSkipTaskbar(mainWindowSkipTaskbarEnabled);
+    if (!mainWindowSkipTaskbarEnabled) {
+      // The taskbar button is back; Electron re-adds the buttons only when it remembers adding them.
+      replayMainWindowThumbarButtons();
+    }
   }
   refreshTrayMenu();
   return mainWindowSkipTaskbarEnabled;
@@ -6172,7 +6142,7 @@ function createWindow(options = {}) {
   // the titlebar corner can temporarily restore mouse interaction even though the lock toggle
   // itself is no longer rendered in wallpaper mode.
   setMainWindowClickThroughEnabled(mainWindowClickThroughEnabled);
-  updateWindowThumbarButtons();
+  windowsThumbar.reset();
   win.on('resize', () => {
     saveWindowState(win, { deferred: true });
   });
@@ -6257,10 +6227,19 @@ function createWindow(options = {}) {
       refreshTrayMenu();
     }
   });
-  win.on('show', refreshTrayMenu);
-  win.on('hide', refreshTrayMenu);
+  win.on('show', () => {
+    refreshTrayMenu();
+    replayMainWindowThumbarButtons();
+  });
+  win.on('hide', () => {
+    refreshTrayMenu();
+    windowsThumbar.noteHidden();
+  });
   win.on('minimize', refreshTrayMenu);
-  win.on('restore', refreshTrayMenu);
+  win.on('restore', () => {
+    refreshTrayMenu();
+    replayMainWindowThumbarButtons();
+  });
 
   return win;
 }
@@ -7915,12 +7894,7 @@ ipcMain.handle('thumbar-update-buttons', (event, state) => {
 
   // One report feeds both: the Windows taskbar buttons and the macOS Dock menu.
   macDockMenu.setState(state);
-  return updateWindowThumbarButtons({
-    hasActiveTrack: Boolean(state?.hasActiveTrack),
-    canGoPrevious: Boolean(state?.canGoPrevious),
-    canGoNext: Boolean(state?.canGoNext),
-    isPlaying: Boolean(state?.isPlaying),
-  });
+  return windowsThumbar.setState(state);
 });
 
 ipcMain.handle('remote-control-open', (event) => {

@@ -16,10 +16,10 @@ const run = (call: unknown, params?: unknown) => runInNewContext(requestExpressi
 afterEach(() => vi.unstubAllGlobals());
 
 describe('Apple Music playlist additions', () => {
-    it('accepts bounded catalog IDs and library playlist IDs only', () => {
+    it('accepts bounded catalog or library song IDs and library playlist IDs only', () => {
         for (const params of [
             { playlistId: '../p.x', catalogIds: ['123'] }, { playlistId: 'pl.catalog', catalogIds: ['123'] },
-            { playlistId: 'p.x', catalogIds: ['i.library'] }, { playlistId: 'p.x', catalogIds: [] },
+            { playlistId: 'p.x', catalogIds: ['i.bad-id'] }, { playlistId: 'p.x', catalogIds: [] },
             { playlistId: 'p.x', catalogIds: Array(101).fill('123') },
         ]) expect(message(params)).toBeNull();
         expect(message({ playlistId: 'p.x', catalogIds: ['123', '123'] }).params.catalogIds).toEqual(['123']);
@@ -41,6 +41,27 @@ describe('Apple Music playlist additions', () => {
         expect(request).toHaveBeenCalledExactlyOnceWith('addPlaylistTracks', { playlistId: 'p.owned', catalogIds: ['123'] });
         await expect(updateAppleMusicPlaylistTracks('del', playlist(), [song])).rejects.toMatchObject({ code: 'unsupported' });
         expect(request).toHaveBeenCalledOnce();
+    });
+    // An upload has no catalog song: it goes into the playlist as the library song it is.
+    it('appends an upload as a library song beside catalog songs', async () => {
+        const request = vi.fn(async () => ({ ok: true, data: {} }));
+        vi.stubGlobal('window', { electron: { appleMusicRequest: request } });
+        const upload = normalizeAppleMusicSong({ id: 'i.upload', type: 'library-songs', attributes: { playParams: { id: 'i.upload', isLibrary: true } } });
+        const mapped = normalizeAppleMusicSong({ id: 'i.a', type: 'library-songs', attributes: { playParams: { catalogId: '123' } } });
+        await updateAppleMusicPlaylistTracks('add', playlist(), [upload, mapped]);
+        expect(request).toHaveBeenCalledExactlyOnceWith('addPlaylistTracks', { playlistId: 'p.owned', catalogIds: ['i.upload', '123'] });
+        const call = vi.fn().mockResolvedValueOnce({ status: 200, data: { data: [{ id: 'p.owned', type: 'library-playlists', attributes: { canEdit: true } }] } }).mockResolvedValueOnce({ status: 204 });
+        await expect(run(call, { playlistId: 'p.owned', catalogIds: ['i.upload', '123'] })).resolves.toMatchObject({ ok: true });
+        expect(call).toHaveBeenNthCalledWith(2, 'v1/me/library/playlists/p.owned/tracks', { representation: 'resources' }, {
+            method: 'POST', body: JSON.stringify({ data: [{ id: 'i.upload', type: 'library-songs' }, { id: '123', type: 'songs' }] }),
+        });
+    });
+    it('reports a refusal MusicKit throws as the status it carries, not a lost request', async () => {
+        const owned = { status: 200, data: { data: [{ id: 'p.owned', type: 'library-playlists', attributes: { canEdit: true } }] } };
+        const refused = vi.fn().mockResolvedValueOnce(owned).mockRejectedValueOnce(Object.assign(new Error('bad'), { status: 400 }));
+        await expect(run(refused)).resolves.toMatchObject({ ok: false, error: 'upstream-error', httpStatus: 400 });
+        const lost = vi.fn().mockResolvedValueOnce(owned).mockRejectedValueOnce(new Error('offline'));
+        await expect(run(lost)).resolves.toMatchObject({ ok: false, error: 'request-failed' });
     });
     it('rechecks permission then appends with the official resource body', async () => {
         const call = vi.fn().mockResolvedValueOnce({ status: 200, data: { data: [{ id: 'p.owned', type: 'library-playlists', attributes: { canEdit: true } }] } }).mockResolvedValueOnce({ status: 204 });

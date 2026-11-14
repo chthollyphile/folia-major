@@ -97,11 +97,37 @@ export function appleMusicCatalogSongId(song: SongResult): string {
     return catalog;
 }
 
-// Missing play parameters mean the current storefront cannot stream this row; uploads also need a catalog mapping here.
+// A library song's own id (`i.` + letters and digits), the form MusicKit queues a library item by.
+const APPLE_MUSIC_LIBRARY_SONG_ID = /^i\.[a-zA-Z0-9]{1,100}$/;
+
+/**
+ * The id the companion's player queues this song by: its catalog id when Apple maps it to one,
+ * otherwise its library id. A song the user uploaded (iTunes Match / Sync Library) has no catalog
+ * counterpart and plays only by its library id, the way Apple's own web player starts it. Lyrics,
+ * likes and playlist additions are catalog-only and keep using `appleMusicCatalogSongId`.
+ */
+export function appleMusicPlaybackSongId(song: SongResult): string {
+    try { return appleMusicCatalogSongId(song); } catch (error) {
+        const source = song.sourceRef;
+        if (source?.kind !== 'online' || source.providerId !== 'appleMusic'
+            || source.providerData?.resourceType !== 'library-songs') throw error;
+        const libraryId = [source.providerData.playbackId, source.mediaId]
+            .find((id): id is string => typeof id === 'string' && APPLE_MUSIC_LIBRARY_SONG_ID.test(id));
+        if (!libraryId) throw error;
+        return libraryId;
+    }
+}
+
+// Whether the player queues this song by a library id (an upload with no catalog song).
+export function isAppleMusicLibraryPlaybackId(id: string): boolean {
+    return APPLE_MUSIC_LIBRARY_SONG_ID.test(id);
+}
+
+// Missing play parameters mean the current storefront cannot stream this row; an upload plays by its library id.
 export function isAppleMusicSongPlayable(song: SongResult): boolean {
     if (song.sourceRef?.kind !== 'online' || song.sourceRef.providerId !== 'appleMusic'
         || song.sourceRef.providerData?.playbackAvailable === false) return false;
-    try { appleMusicCatalogSongId(song); return true; } catch { return false; }
+    try { appleMusicPlaybackSongId(song); return true; } catch { return false; }
 }
 
 // These functions are provider building blocks, not a second public API for UI callers.
@@ -207,11 +233,27 @@ export async function getAppleMusicLikedSongIds(): Promise<ProviderLikedSongIds>
     return { ids: [...ids], whole: !tracks.hasMore };
 }
 
-// Mutations stay within this provider boundary and reuse Omni's account/race handling.
+// The id a like or playlist addition sends: the catalog id, or an upload's library id (see appleMusicPlaybackSongId).
+function appleMusicMutationSongId(song: string | number | SongResult): string {
+    const id = typeof song === 'object' ? appleMusicPlaybackSongId(song) : String(song);
+    if (!/^\d{1,40}$/.test(id) && !isAppleMusicLibraryPlaybackId(id)) {
+        throw new OnlineProviderError('unsupported', 'Apple Music song identity is unavailable', 'appleMusic');
+    }
+    return id;
+}
+
+// Mutations stay within this provider boundary and reuse Omni's account/race handling. An upload is liked
+// by its library id; the companion says which route took it, and a refusal is logged with the route it hit.
 export async function setAppleMusicSongLiked(song: string | number | SongResult, liked: boolean): Promise<void> {
-    const catalogId = typeof song === 'object' ? appleMusicCatalogSongId(song) : String(song);
-    if (!/^\d{1,40}$/.test(catalogId)) throw new OnlineProviderError('unsupported', 'Apple Music catalog identity is unavailable', 'appleMusic');
-    await requestAppleMusic('likeSong', { catalogId, liked });
+    const id = appleMusicMutationSongId(song);
+    const kind = isAppleMusicLibraryPlaybackId(id) ? 'library' : 'catalog';
+    try {
+        const result = await requestAppleMusic<{ route?: unknown }>('likeSong', { catalogId: id, liked });
+        if (kind === 'library') console.info('[AppleMusic] library song like taken', { liked, route: typeof result?.route === 'string' ? result.route : null });
+    } catch (error) {
+        console.warn('[AppleMusic] like refused', { kind, liked }, error);
+        throw error;
+    }
 }
 
 // Favorite state has a catalog identity even when playback/list rows keep their library identity.
@@ -233,7 +275,12 @@ export async function updateAppleMusicPlaylistTracks(
         throw new OnlineProviderError('unsupported', 'Apple Music playlist does not accept this change', 'appleMusic');
     }
     if (!tracks.length || tracks.length > 100) throw new OnlineProviderError('unsupported', 'Apple Music playlist additions require 1 to 100 songs', 'appleMusic');
-    const catalogIds = tracks.map(song => typeof song === 'object' ? appleMusicCatalogSongId(song) : String(song));
-    if (catalogIds.some(id => !/^\d{1,40}$/.test(id))) throw new OnlineProviderError('unsupported', 'Apple Music catalog identity is unavailable', 'appleMusic');
-    await requestAppleMusic('addPlaylistTracks', { playlistId: String(playlist.id), catalogIds: [...new Set(catalogIds)] });
+    const ids = tracks.map(appleMusicMutationSongId);
+    const library = ids.filter(isAppleMusicLibraryPlaybackId).length;
+    try {
+        await requestAppleMusic('addPlaylistTracks', { playlistId: String(playlist.id), catalogIds: [...new Set(ids)] });
+    } catch (error) {
+        console.warn('[AppleMusic] playlist addition refused', { songs: ids.length, librarySongs: library }, error);
+        throw error;
+    }
 }

@@ -32,6 +32,7 @@ import { resolveExplicitFileTimedLyricFormat } from '../../../../utils/lyrics/fo
 import { applyUploadedLocalLyrics } from '../../../../utils/lyrics/localLyricsUpload';
 import { omni } from '../../../../services/onlineMusic/omni';
 import { findNavidromeLyricFallback } from './navidromeLyricFallback';
+import { onlineMutationFailureText } from '../../../../services/onlineMusic/failure/onlineMutationFailure';
 import { getProviderSongMetadata } from '../../../../services/onlineMusic/songMetadata';
 import { getSongResourceCacheKey } from '../../../../services/onlineMusic/resourceKeys';
 import { getSongCacheWithLegacyMigration } from '../../../../services/onlineMusic/resourceCache';
@@ -1778,11 +1779,11 @@ export function useLibraryPlaybackController({
                 if (outcome.ok || failedLikeRunsSaid.has(press.settled)) return;
                 failedLikeRunsSaid.add(press.settled);
                 console.error('Like failed', outcome.error);
-                setStatusMsg({ type: 'error', text: t('status.likeFailed') });
+                setStatusMsg({ type: 'error', text: onlineMutationFailureText(outcome.error, t('status.likeFailed'), t) });
             });
         } catch (error) {
             console.error('Like failed', error);
-            setStatusMsg({ type: 'error', text: t('status.likeFailed') });
+            setStatusMsg({ type: 'error', text: onlineMutationFailureText(error, t('status.likeFailed'), t) });
         }
     }, [
         currentSong,

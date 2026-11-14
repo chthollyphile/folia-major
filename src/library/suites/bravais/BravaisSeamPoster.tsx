@@ -5,6 +5,7 @@ import { getSizedCoverUrl } from '../../../utils/coverUrl';
 import type { BravaisItem, BravaisLayer } from './bravaisLayer';
 import type { BravaisSeamActions } from './BravaisSeamContent';
 import { BravaisSeamCollectionMenu, BravaisSeamCollectionMeta, BravaisSeamStatusLine } from './BravaisSeamCollection';
+import { BRAVAIS_POSTER_QUICK_CELL } from './bravaisSeamQuickCells';
 import BravaisSeamAbout from './BravaisSeamAbout';
 import { BravaisSeamFlipText } from './BravaisSeamFlip';
 import BravaisSeamCrumbs from './BravaisSeamCrumbs';
@@ -254,7 +255,7 @@ const BravaisSeamPoster: React.FC<{ layer: BravaisLayer; actions: BravaisSeamAct
                                 <ListMusic aria-hidden />{t('artistGrid.allSongs')}
                             </button>
                         )}
-                        <BravaisSeamCollectionMenu collection={seam.collection} onOpenList={actions.openList} fold={fold} />
+                        <BravaisSeamCollectionMenu collection={seam.collection} onOpenList={actions.openList} fold={fold} cellClassName={BRAVAIS_POSTER_QUICK_CELL} />
                     </div>
                 </div>
             </div>

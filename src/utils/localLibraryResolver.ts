@@ -1,5 +1,5 @@
 import type { LocalLibraryEntity, LocalLibraryEntityKind } from '../types/localLibrary';
-import { buildLocalLibraryIndex, followEntityRedirect } from './localLibraryIndex';
+import { buildLocalLibraryIndex, followEntityRedirect, type LocalLibraryIndex } from './localLibraryIndex';
 import { cleanLocalLibraryName, normalizeLocalLibraryName } from './localLibraryNames';
 
 // src/utils/localLibraryResolver.ts
@@ -7,6 +7,11 @@ import { cleanLocalLibraryName, normalizeLocalLibraryName } from './localLibrary
 
 export interface ResolveLocalLibraryEntityOptions {
   entities: LocalLibraryEntity[];
+  /**
+   * A prebuilt index to resolve against instead of indexing `entities` on every call. It must hold every
+   * entity carrying the name's alias and every entity a redirect or a preferred id leads to.
+   */
+  index?: LocalLibraryIndex;
   kind: LocalLibraryEntityKind;
   name: string;
   currentEntityId?: string;
@@ -29,6 +34,7 @@ const defaultCreateId = () => (
 // Selects a unique alias match, uses explicit context for ambiguity, or creates a reviewable entity.
 export const resolveLocalLibraryEntity = ({
   entities,
+  index: preparedIndex,
   kind,
   name,
   currentEntityId,
@@ -39,7 +45,7 @@ export const resolveLocalLibraryEntity = ({
   const displayName = cleanLocalLibraryName(name);
   if (!displayName) return null;
   const normalizedName = normalizeLocalLibraryName(displayName);
-  const index = buildLocalLibraryIndex(entities);
+  const index = preparedIndex ?? buildLocalLibraryIndex(entities);
   const candidateIds = (index.entityIdsByAlias.get(`${kind}:${normalizedName}`) || [])
     .map(id => followEntityRedirect(id, index.entitiesById))
     .filter((id): id is string => Boolean(id));
