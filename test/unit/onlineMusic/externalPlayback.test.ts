@@ -469,12 +469,9 @@ describe('a start that runs on after the interface', () => {
         unsubscribe();
     });
 
-    it('says an end was not heard where a buffering read preceded the end of a song that had played', async () => {
-        // Repeat one replays the song that ended only where the player said this song was sounding
-        // (useExternalPlaybackBridge reads that as `heard`). A player that answers "still buffering"
-        // in the last seconds of a song it had been playing clears that flag, so the end that
-        // follows is reported as one that was never heard and the queue steps on. Pinned here as it
-        // stands: the song did sound, and the reading is what the bridge goes by.
+    it('says an end was heard where a buffering read preceded the end of a song that had played', async () => {
+        // A song that was playing and buffers again is still playing, so the end that follows is one
+        // that was heard, and repeat one replays it.
         const ends: { heard?: boolean }[] = [];
         const unsubscribe = engine.subscribeExternalPlayback(event => {
             if (event.type === 'ended') ends.push(event);
@@ -491,7 +488,7 @@ describe('a start that runs on after the interface', () => {
         await vi.advanceTimersByTimeAsync(2000);
 
         expect(ends).toHaveLength(1);
-        expect(ends[0].heard).toBe(false);
+        expect(ends[0].heard).toBe(true);
         unsubscribe();
     });
 
@@ -963,6 +960,16 @@ describe('a move the player takes seconds to take', () => {
         await start.seeded;
         await vi.advanceTimersByTimeAsync(500);
     };
+
+    it('keeps a playing song playing while the player buffers the spot it was moved to', async () => {
+        await startFrom(10000);
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ positionMs: 60000, isPlaying: false, starting: true }));
+        expect(engine.seekExternalPlayback(60)).toBe(true);
+        expect(await longestStall(1500)).toBeLessThanOrEqual(50);
+        expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PLAYING);
+        expect(usePlaybackStore.getState().isLoadingToPlay).toBe(false);
+        expect(engine.getExternalPosition()).toBeGreaterThan(61);
+    });
 
     it('keeps the position moving while the player is still taking the move', async () => {
         const start = engine.startExternalPlayback(song, 0);

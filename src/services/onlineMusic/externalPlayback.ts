@@ -972,6 +972,9 @@ const applyStatus = (status: ProviderExternalPlaybackStatus, sampledAtMs: number
         if (status.ended && status.skipped) current.skipped = status.skipped;
         return;
     }
+    // A song already playing that the player buffers again - after a move, on a resume - goes on
+    // playing: the clock runs on and nothing is shown loading. Only a start still loading is.
+    if (status.starting === true && !status.isPlaying && current.playing) return;
     // An accepted start that is still buffering is loading, not a pause of the listener's.
     current.starting = status.starting === true && !status.isPlaying;
     if (current.starting) {
