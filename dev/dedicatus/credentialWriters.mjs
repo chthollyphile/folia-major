@@ -9,6 +9,10 @@
 //
 // 检查范围：渲染进程经 providerStorage 写的会话值，和酷狗桥接层的会话 cookie 对象（含整个重新赋值）。
 // 其他平台主进程里的会话仓库（spotify、ytm、qishui、bodian、fnmusic、QQ 包内部）还没纳入。
+//
+// Folium 2.0：平台逐家搬进 sources/<id>/（S5）。规则也查 sources/**（eslint.config.mjs 的 APP_CODE），表里的键是文件路径，
+// 文件搬走时这里跟着改成新路径（没改的话那几处写入会被报出来，不会漏查）。模组的新写法还没认：client 的
+// folium.sources.pageStore(id).set(键, 值) 和 main 入口的 api.legacy.store.set(键, 值)，迁第一家用到它们的平台时补上。
 
 /** 算作账号凭据的键。设备 id（dfid）、匿名会话（anonymous_cookie）不算。 */
 export const CREDENTIAL_KEYS = ['token', 'userid', 'user_id', 'cookie'];

@@ -23,6 +23,20 @@ const listFiles = (root, dir) => {
     });
 };
 
+/*
+ * 渲染进程与主进程各自的文件。Folium 2.0 的音源模组（sources/<id>/）：client/、core/ 在窗口里跑，main/ 在主进程里跑；
+ * 平台逐家从 src/、electron/ 搬过去（S5），两边都扫。音源 main 入口的 api.legacy.store.get/set/… 也是 store.xxx(键) 的写法，
+ * 照主进程的键认；client 的 folium.sources.pageStore(id).set(键) 落在 online_provider:<id>:<键>，从文本认不出 id，还没认。
+ */
+const sideFiles = root => {
+    const sources = listFiles(root, 'sources');
+    const inMain = file => /^sources\/[^/]+\/main\//.test(file);
+    return {
+        rendererFiles: [...['src', 'shared'].flatMap(dir => listFiles(root, dir)), ...sources.filter(file => !inMain(file))],
+        mainFiles: [...listFiles(root, 'electron'), ...sources.filter(inMain)],
+    };
+};
+
 /** 本文件 `const NAME = '字面量'` 的定义。 */
 const ownConstants = text => {
     const values = new Map();
@@ -115,8 +129,7 @@ const HELPER_FILES = new Set(['src/stores/storagePrimitives.ts', 'src/services/o
  * @returns {string[]} 排好序的键，写成 `web:键`、`provider:平台:键`、`main:键`
  */
 export function scanStorageKeys(root) {
-    const rendererFiles = ['src', 'shared'].flatMap(dir => listFiles(root, dir));
-    const mainFiles = listFiles(root, 'electron');
+    const { rendererFiles, mainFiles } = sideFiles(root);
     const { texts, resolve } = constantResolver(root, [...rendererFiles, ...mainFiles]);
     const keys = new Set();
     for (const file of rendererFiles) {
@@ -156,7 +169,8 @@ const STORE_HELPER_CALL = /\b(?:readStored\w*|writeStored\w*)\(\s*([^,)]+)/g;
  * @returns {Map<string, string[]>} 文件 → 排好序的键
  */
 export function storageKeysInFiles(root, files) {
-    const all = [...['src', 'shared'].flatMap(dir => listFiles(root, dir)), ...listFiles(root, 'electron')];
+    const { rendererFiles, mainFiles } = sideFiles(root);
+    const all = [...rendererFiles, ...mainFiles];
     const { texts, resolve } = constantResolver(root, all);
     return new Map(files.map(file => {
         const text = texts.get(file) ?? '';

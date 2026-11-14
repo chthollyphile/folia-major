@@ -66,4 +66,14 @@ describe('D507 scanner resolves constants per file', () => {
     it('reads the main-process keys the renderer writes through saveSettings', () => {
         expect(scanStorageKeys(dir)).toEqual(expect.arrayContaining(['main:CLOSE_TO_TRAY', 'main:SOME_FLAG']));
     });
+
+    // Folium 2.0：音源模组（sources/<id>/）的 main/ 算主进程（api.legacy.store），client/、core/ 算窗口；平台搬过去后照样查到。
+    it('reads the keys of the source mods in sources/, main/ as the main process and the rest as the window', () => {
+        write('sources/demo/main/session.ts', "const SESSION_KEY = 'DEMO_SESSION_V1';\napi.legacy.store.get(SESSION_KEY);\n");
+        write('sources/demo/client/state.ts', "localStorage.getItem('demo_client_flag');\n");
+        write('sources/demo/core/notMain.ts', "store.get('NOT_A_MAIN_KEY');\n");
+        const keys = scanStorageKeys(dir);
+        expect(keys).toEqual(expect.arrayContaining(['main:DEMO_SESSION_V1', 'web:demo_client_flag']));
+        expect(keys).not.toContain('main:NOT_A_MAIN_KEY');
+    });
 });

@@ -6,6 +6,8 @@
 // 不让它们开出别的窗口、也不让它们导航到应用以外的页面（那样的页面会带着 preload）；写、花钱、回个人数据的通道都加了来源校验。
 // 循环里拼出名字的通道（模组系统 folia-mods:*、HiFi hifi:*）扫描认不出，按前缀登记在 IPC_DYNAMIC_PREFIXES。
 // 检查在 test/unit/dedicatus/contracts/ipc.test.ts。
+// Folium 2.0：平台的 *-api-request 等通道随平台迁成模组（S5）逐个删掉（模组的 main 入口经 folia-mods:rpc 答，不再自己注册通道）；
+// sources/ 里的代码 import 不了 electron（构建脚本拒绝），注册不了通道。
 
 /** @type {Record<string, { level: 'any' | 'first-party', why: string }>} */
 export const IPC_CHANNELS = {

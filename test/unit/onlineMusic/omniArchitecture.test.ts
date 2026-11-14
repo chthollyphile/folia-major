@@ -7,7 +7,9 @@ import { PLATFORM_NAME_PLACES } from './platformNamePlaces.ts';
 // test/unit/onlineMusic/omniArchitecture.test.ts
 
 const roots = ['src/components', 'src/hooks', 'src/stores'];
-const forbiddenImport = /from\s+['"][^'"]*(providerRegistry|kugouTransport|qqTransport|bodianTransport|qishuiTransport|fnmusicTransport|ytmTransport|spotifyTransport|appleMusicTransport|onlineMusic\/netease\/netease)['"]/;
+// Folium 2.0: a platform's code moves into sources/<id>/ (S5, one by one); the UI and state layers never import it
+// there either (Dedicatus D110 says the same for the module graph).
+const forbiddenImport = /from\s+['"][^'"]*(sources\/|providerRegistry|kugouTransport|qqTransport|bodianTransport|qishuiTransport|fnmusicTransport|ytmTransport|spotifyTransport|appleMusicTransport|onlineMusic\/netease\/netease)['"]/;
 
 const collectSourceFiles = async (path: string): Promise<string[]> => {
     const entry = await stat(path);

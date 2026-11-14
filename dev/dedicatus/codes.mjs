@@ -34,6 +34,10 @@ export const CODES = {
     D121: { name: '下架不是来自平台明确的记录', level: 'error' },
     // 由 test/unit/dedicatus/contracts/providerRegistration.test.ts 检查
     D122: { name: '新平台登记不全', level: 'error' },
+    // Folium 2.0 的音源模组（sources/<id>/）：只用公开接口、宿主只经 web/* 用 core、彼此不 import（rules.mjs）
+    D130: { name: '音源模组 import 宿主', level: 'error' },
+    D131: { name: '宿主绕过模组运行时用音源', level: 'error' },
+    D132: { name: '音源模组互相 import', level: 'error' },
     D190: { name: '目录归属存疑', level: 'warning' },
 
     // 2xx：library core 与 suite
