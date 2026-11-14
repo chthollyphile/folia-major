@@ -1,6 +1,5 @@
 import { createHifiClock, MAX_EXTRAPOLATION_SEC, type HifiClockSync } from '../hifi/hifiClock';
 
-// src/services/onlineMusic/externalClock.ts
 // Keep coarse external-player samples monotonic across buffering/pause/resume, not just playing ticks.
 
 /**
@@ -30,11 +29,20 @@ type CatchUpLine = {
 export function createExternalClock() {
     const clock = createHifiClock();
     let previousSample: { position: number; paused: boolean } | null = null;
+    /**
+     * Where a shown position ahead of the player stands while nothing is played out from it: the song
+     * is stopped, or the player answered from further behind than a lead is run out over. The spot it
+     * was found on is read from there until the player's own answers come up to it. Null while nothing
+     * is held.
+     */
+    let floor: number | null = null;
     let catchUp: CatchUpLine | null = null;
+    /** The answer past the longest lead played out has been written down for the run of them it starts. */
+    let farBehindNoted = false;
     const catchUpSec = (nowMs: number) => catchUp === null
         ? 0
         : catchUp.startSec + Math.min(EXTERNAL_CATCH_UP_RATE * Math.max(0, nowMs - catchUp.startMs) / 1000, catchUp.leadSec);
-    const read = (nowMs = performance.now()) => Math.max(clock.read(nowMs), catchUpSec(nowMs));
+    const read = (nowMs = performance.now()) => Math.max(clock.read(nowMs), catchUpSec(nowMs), floor ?? 0);
     const sync = (update: HifiClockSync & { samplePositionSec?: number; holdLimitSec?: number }) => {
         const rawPosition = update.samplePositionSec ?? update.positionSec;
         // Repeated SDK samples do not restart extrapolation or renew its stall timeout.
@@ -54,29 +62,30 @@ export function createExternalClock() {
         // caller that knows the answer it waits for can be later still says how far past that the shown
         // position may be held: a spot the player took seconds to load.
         const holdLimitSec = update.holdLimitSec ?? 2 * MAX_EXTRAPOLATION_SEC;
-        if (update.holdBackward && lag > 0 && lag <= holdLimitSec) {
-            // A caller that says how far the bar may be held is holding it for a spot the player is
-            // still loading: the song is playing, and the lead it has run up is played out at the
-            // slower speed rather than stood still for. Everywhere else the shown position stands
-            // where it is until the player's own answers catch up with it.
-            const playsOut = update.holdLimitSec !== undefined && !update.paused && lag <= MAX_CATCH_UP_LEAD_SEC;
-            if (update.holdLimitSec !== undefined && !update.paused && !playsOut) {
-                console.debug('[ExternalClock] the player answered too far behind the shown position to catch up with it', {
-                    leadSec: Number(lag.toFixed(2)), limitSec: MAX_CATCH_UP_LEAD_SEC,
-                });
-            }
-            catchUp = playsOut
-                ? { startSec: boundedShown, startMs: nowMs, leadSec: lag }
-                : { startSec: boundedShown, startMs: nowMs, leadSec: 0 };
-        } else {
-            catchUp = null;
+        const held = update.holdBackward && lag > 0 && lag <= holdLimitSec;
+        // A caller that says how far the bar may be held is holding it for a spot the player is still
+        // loading, and the song is playing: the lead it has run up is played out at the slower speed, so
+        // the bar and the lyrics keep moving until the player comes up to them. Every other answer - a
+        // routine tick, one from a stopped song, one from further behind than a lead is run out over -
+        // leaves the spot the bar stands on held instead, exactly as it always did.
+        const playsOut = held && update.holdLimitSec !== undefined && !update.paused && lag <= MAX_CATCH_UP_LEAD_SEC;
+        catchUp = playsOut ? { startSec: boundedShown, startMs: nowMs, leadSec: lag } : null;
+        floor = held && !playsOut ? boundedShown : null;
+        // One line per run of answers from that far behind, not one per answer of it.
+        if (!held || playsOut) farBehindNoted = false;
+        else if (!farBehindNoted) {
+            farBehindNoted = true;
+            console.debug('[ExternalClock] the player answered too far behind the shown position to catch up with it', {
+                leadSec: Number(lag.toFixed(2)), limitSec: MAX_CATCH_UP_LEAD_SEC,
+            });
         }
     };
     const setDuration = (duration: number | null) => {
         clock.setDuration(duration);
-        if (catchUp === null) return;
         const durationSec = clock.state().durationSec;
-        if (durationSec !== null) catchUp = { ...catchUp, startSec: Math.min(catchUp.startSec, durationSec) };
+        if (durationSec === null) return;
+        if (floor !== null) floor = Math.min(floor, durationSec);
+        if (catchUp !== null) catchUp = { ...catchUp, startSec: Math.min(catchUp.startSec, durationSec) };
     };
     return { read, sync, setDuration };
 }

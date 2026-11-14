@@ -64,6 +64,13 @@ const status = (overrides: Partial<ProviderExternalPlaybackStatus> = {}): Provid
 
 /** One frame at 60 Hz: the spacing of every reading taken here. */
 const SAMPLE_MS = 16;
+
+/** An answer held back until the test gives it. */
+const deferred = () => {
+    let resolve!: (value: ProviderExternalPlaybackStatus) => void;
+    const promise = new Promise<ProviderExternalPlaybackStatus>((done) => { resolve = done; });
+    return { promise, resolve };
+};
 /** How long a play may stand still between two frames before a listener calls it a hitch. */
 const STILL_LIMIT_MS = 100;
 
@@ -198,6 +205,117 @@ describe('a bar dropped on a song that is playing', () => {
         },
         60000,
     );
+
+    /** How far back a listener drags the bar over the line the song stood on, in seconds. */
+    const backDrags = [0.3, 0.6, 0.8, 1, 1.5];
+    /** The waits a player takes to load a spot this near the line the song stood on. */
+    const backLandingsMs = [100, 500, 1000];
+
+    it.each(backDrags.flatMap(back => backLandingsMs.map(delayMs => ({ back, delayMs }))))(
+        'keeps moving and ends on the player over a $back s drag back landing in $delayMs ms',
+        async ({ back, delayMs }) => {
+            const fromSec = 20;
+            const targetSec = fromSec - back;
+            const spanMs = delayMs + 4000;
+            const shown = await drag(fromSec, targetSec, delayMs, spanMs);
+            const still = longestStillMs(shown);
+            const fall = largestFallSec(shown);
+            const gapEnd = Math.abs(shown[shown.length - 1] - playerAtSec(fromSec, targetSec, delayMs, spanMs));
+            console.log('[back drag] back=' + back + ' delay=' + delayMs + ' still=' + still + ' fall=' + fall.toFixed(3)
+                + ' gapEnd=' + gapEnd.toFixed(3));
+            // A drag back of this length leaves the bar ahead of the spot the player lands on by as much
+            // as the wait was: the lead is run out at the slower speed rather than the bar standing
+            // still on it until the player arrives.
+            expect(fall, 'never goes back over the drop').toBe(0);
+            expect(still, 'never stands still under a song that is playing').toBeLessThanOrEqual(STILL_LIMIT_MS);
+            expect(gapEnd, 'on the player once the lead is played out').toBeLessThanOrEqual(0.15);
+        },
+        60000,
+    );
+
+    /**
+     * Drags the bar to a spot the player takes far longer to load than the lead it runs up can be
+     * played out over, and answers with the position every frame.
+     */
+    const longLanding = async (callMs: number, delayMs: number): Promise<number[]> => {
+        await startFrom(10000);
+        let release!: () => void;
+        const taking = new Promise<void>((done) => { release = done; });
+        omniMock.seekExternalPlayback.mockImplementationOnce(() => taking);
+        expect(engine.seekExternalPlayback(60)).toBe(true);
+        await vi.advanceTimersByTimeAsync(callMs);
+        release();
+        await vi.advanceTimersByTimeAsync(0);
+        const askedAt = performance.now();
+        omniMock.getExternalPlaybackStatus.mockImplementation(async () => status({
+            positionMs: Math.round(playerAtSec(10, 60, delayMs, performance.now() - askedAt) * 1000),
+            isPlaying: true,
+        }));
+        const shown: number[] = [engine.getExternalPosition()];
+        for (let waited = 0; waited < delayMs + 8000; waited += SAMPLE_MS) {
+            await vi.advanceTimersByTimeAsync(SAMPLE_MS);
+            shown.push(engine.getExternalPosition());
+        }
+        return shown;
+    };
+
+    it.each([
+        { call: 'lands straight away', callMs: 0, delayMs: 4000 },
+        { call: 'takes two seconds to return', callMs: 2000, delayMs: 2500 },
+    ])('holds the spot it stands on where the player $call from further behind than a lead runs out', async ({ callMs, delayMs }) => {
+        // The bar ran on from the drop for longer than a lead is played out over, so the player is not
+        // catching up with the bar but saying the song is somewhere else: nothing is played out from the
+        // spot the bar stands on, and the spot is held until the player's own answers come up to it, the
+        // way a lagging tick always was. Held for good is what this branch must not do: the bar stands
+        // on that spot and then follows the player again.
+        const shown = await longLanding(callMs, delayMs);
+        const still = longestStillMs(shown);
+        const fall = largestFallSec(shown);
+        const gapEnd = Math.abs(shown[shown.length - 1] - playerAtSec(10, 60, delayMs, delayMs + 8000));
+        console.log('[long landing] call=' + callMs + ' delay=' + delayMs + ' still=' + still + ' fall=' + fall.toFixed(3)
+            + ' gapEnd=' + gapEnd.toFixed(3));
+        // The spot the bar stands on is never gone back over, and the wait is the distance the player
+        // has to cover to reach it rather than a freeze of its own.
+        expect(fall, 'never goes back over the drop').toBe(0);
+        expect(still, 'held for the lead the player is behind by, not longer').toBeLessThanOrEqual(delayMs);
+        expect(gapEnd, 'on the player once it has loaded the spot').toBeLessThanOrEqual(0.15);
+    }, 60000);
+
+    it('drops what an answer sent before the drop says about the player', async () => {
+        // The ask went out before the bar was dropped and its answer lands after the drop: it is a
+        // reading of the timeline the listener has already left, and every word of it - where the song
+        // stood, and whether the player was sounding it - is about that timeline. Followed, a player
+        // that was stopped before the drop stops a song the listener has since moved.
+        await startFrom(10000);
+        // The ask the ordinary half second sends is answered only after the drop that follows it.
+        const answered = deferred();
+        omniMock.getExternalPlaybackStatus.mockImplementationOnce(() => answered.promise);
+        await vi.advanceTimersByTimeAsync(500);
+        expect(engine.seekExternalPlayback(60)).toBe(true);
+        omniMock.getExternalPlaybackStatus.mockImplementation(async () => status({ positionMs: 60300, isPlaying: true }));
+        await vi.advanceTimersByTimeAsync(20);
+
+        // The player was stopped when that ask went out, and it says so now, long after the drop.
+        answered.resolve(status({ positionMs: 10000, isPlaying: false }));
+        await vi.advanceTimersByTimeAsync(20);
+        console.log('[late answer] state=' + usePlaybackStore.getState().playerState + ' at=' + engine.getExternalPosition().toFixed(3));
+        expect(usePlaybackStore.getState().playerState, 'the song the listener moved is still playing').toBe(PlayerState.PLAYING);
+        expect(engine.getExternalPosition()).toBeGreaterThan(60);
+    });
+
+    it('counts the answer that names the spot the drop landed on as the song going on', async () => {
+        // The answer that names the spot is the first one that says where the song stands after the
+        // move: read as one more answer from before it, the progress is told from the poll after, and
+        // the background reads wait half a second longer for a song that is already playing on.
+        await startFrom(10000);
+        const askedAt = performance.now();
+        omniMock.getExternalPlaybackStatus.mockImplementation(async () => status({
+            positionMs: 60000 + Math.round(performance.now() - askedAt), isPlaying: true,
+        }));
+        expect(engine.seekExternalPlayback(60)).toBe(true);
+        await vi.advanceTimersByTimeAsync(700);
+        expect(engine.isExternalPlaybackReadyForPrefetch(song)).toBe(true);
+    });
 
     it('asks the player again far sooner than the usual rate while it waits for the drop', async () => {
         // The answer that says the player has loaded the spot is what the bar is held for: asking at
