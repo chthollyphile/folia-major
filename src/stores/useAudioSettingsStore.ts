@@ -275,11 +275,10 @@ export type AudioSettingsState = {
     /** Sets the mute switch; the same value is a no-op. */
     handleSetMuted: (muted: boolean) => void;
     handleToggleMute: () => void;
-    /** Sets the repeat mode and toasts it like the repeat button; the mode already in effect is a no-op. */
     /**
-     * `isFmMode` says the queue is Personal FM's, which picks its own next song: the loop switch is
-     * off there whatever the stored mode is, so setting or cycling it only says so and keeps the
-     * listener's preference for the songs that are not FM.
+     * Sets the repeat mode and toasts it like the repeat button; the mode already in effect is a no-op.
+     * Inside Personal FM, which picks its own next song, repeat never applies: setting or cycling it there
+     * only says so and keeps the stored mode for the songs that are not FM.
      */
     handleSetLoopMode: (mode: 'off' | 'all' | 'one', isFmMode?: boolean) => void;
     handleToggleLoopMode: (isFmMode?: boolean) => void;
