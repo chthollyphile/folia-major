@@ -1258,10 +1258,13 @@ export const omni = {
     },
 
     // A song of a source that is not shown (used only for matching) does not play (playbackProviderForSong).
+    // `playback` holds more than the audio (a source mod with `songs@1` alone has one, for its availability), so
+    // the audio route counts only where the capability says so, as canPlayOnlineMusicSong reads it.
     canPlaySong(song: SongResult): boolean {
         const provider = getOnlineMusicProviderForSong(song);
         if (provider && !isSourceShown(provider.id)) return false;
-        return Boolean(provider?.playback) || (canPlaySongExternally(song) && provider?.externalPlayback?.canPlay?.(song) !== false);
+        return (providerSupports(provider, 'playback') && Boolean(provider?.playback))
+            || (canPlaySongExternally(song) && provider?.externalPlayback?.canPlay?.(song) !== false);
     },
 
     // A provider whose audio plays in a player of its own outside this app: the app steers that

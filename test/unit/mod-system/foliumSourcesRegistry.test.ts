@@ -301,6 +301,17 @@ describe('the seams of S1 and S2, fed from capabilities', () => {
         expect(participants('lyrics').ready).not.toContain(id);
     });
 
+    // A source with songs@1 and no playback.audio@1 has a `playback` part (its availability), but no audio:
+    // its songs must not read as playable (they did, and a press of play ended in "no audio").
+    it('a source without playback.audio does not offer its songs as playable', () => {
+        register({ id: 'a', capabilities: { 'songs@1': { getSong: async () => null } } });
+        register({ id: 'b', capabilities: { 'songs@1': { getSong: async () => null }, 'playback.audio@1': { getAudioSource: async () => null } } });
+        const songOf = (localId: string) => toHostSong(`folium.${MOD}.${localId}`, { id: 's1', title: 'T', artists: [] });
+        expect(getOnlineMusicProvider(`folium.${MOD}.a`)?.playback).toBeTruthy();
+        expect(omni.canPlaySong(songOf('a'))).toBe(false);
+        expect(omni.canPlaySong(songOf('b'))).toBe(true);
+    });
+
     it('covers@1 registers a rule, and the built-in rules stand', () => {
         register({
             id: 'a',
