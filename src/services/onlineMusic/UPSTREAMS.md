@@ -126,3 +126,12 @@
 - **我们不改上游**：Folia 不覆盖 fnOS 网页端文件，不保留客户端标识、签名或协议实现，只适配其公开 HTTP 接口。
 - **上游变了怎么跟**：fnOS 网页端改接口或字段后，`fnmusicApiBridge.cjs` 的请求与 `fnmusicProvider.ts` 的归一化要跟着改；登录失败、接口返回变化以 `[FnMusic]` 前缀日志为准。
 - **测试**：`test/unit/fnmusic/` 覆盖归一化、登录参数构造、翻页与可播性检查；桥接层逻辑在 `test/unit/electron/` 下用替身测操作白名单与加密配置恢复。
+
+## 洛雪（LX Music）（`lxmusic`，桌面端）
+
+- **上游**：用户自己在洛雪里配置的音源脚本（原版 LX Music 的「自定义源」），以及各家音乐平台的公开网页接口（QQ 音乐、酷狗、酷我、网易云、咪咕）。脚本在渲染进程的沙箱里跑出直链（`lxRuntime.ts`），接口请求经主进程转发。
+- **版本**：无外部 npm 包；接口与脚本格式按 2026-11 实测，记录在 `src/services/onlineMusic/lxmusic/` 下。
+- **怎么用**：`lxmusicTransport.ts` 只发 `url` 与 `init`，主进程 `electron/lxmusic/lxBridge.cjs` 走 `lx-fetch` 通道转发，挡掉环回与私网地址；音频流走 `folia-lx://stream` 自定义协议（主进程 `protocol.handle` 转发，带脚本要求的请求头）。脚本里的 cookie 留在主进程，渲染进程不经手。
+- **我们不改上游**：Folia 不内置、不打包任何音源脚本，只提供导入与运行；脚本由用户自己提供并自行负责。
+- **上游变了怎么跟**：接口字段变动改 `lxmusicTransport.ts` 与 `lxmusicProvider.ts` 的归一化；脚本格式变动改 `lxRuntime.ts`；取数失败以 `lxDiagnostics` 的报告为准。
+- **测试**：`test/unit/onlineMusic/` 覆盖归一化、翻页、榜单与集合、歌词（含 `[awlrc:` 容器）、脚本解析与收藏对账。

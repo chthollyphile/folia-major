@@ -73,6 +73,7 @@ const { createExternalUrlOpener } = require('./externalUrlPolicy.cjs');
 const { createSenderGuardedHandler } = require('./ipcAccessGuard.cjs');
 const { createQishuiApiBridge } = require('./qishui/qishuiApiBridge.cjs');
 const { createFnmusicApiBridge, FN_MUSIC_SCHEME, FN_MUSIC_PRIVILEGED_SCHEME } = require('./fnmusic/fnmusicApiBridge.cjs');
+const { createLxBridge, LX_STREAM_SCHEME, LX_STREAM_PRIVILEGED_SCHEME } = require('./lxmusic/lxBridge.cjs');
 const { createQishuiMediaPolicy } = require('./qishui/mediaCors.cjs');
 const { createBodianApiBridge } = require('./bodian/bodianApiBridge.cjs');
 const { createBodianMediaPolicy } = require('./bodian/mediaCors.cjs');
@@ -181,6 +182,7 @@ protocol.registerSchemesAsPrivileged([
   YTM_AUDIO_PRIVILEGED_SCHEME,
   SPOTIFY_AUDIO_PRIVILEGED_SCHEME,
   FN_MUSIC_PRIVILEGED_SCHEME,
+  LX_STREAM_PRIVILEGED_SCHEME,
 ]);
 
 // Trusts only the known KuGou media CDN hostname mismatch while preserving TLS checks elsewhere.
@@ -372,6 +374,8 @@ const qishuiMediaPolicy = createQishuiMediaPolicy();
 // 飞牛音乐桥：服务器与凭据由主进程 safeStorage 加密保存（渲染进程只发操作）；播放/封面走
 // 自定义协议（协议 handler 实时转发，无需本地 HTTP 代理、无需启动时恢复）。
 const fnMusicApiBridge = createFnmusicApiBridge({ store, safeStorage });
+// 洛雪音源桥：桌面端跨域取数（IPC lx-fetch）与音频流代理（folia-lx://stream），无状态。
+const lxBridge = createLxBridge();
 const qishuiApiBridge = createQishuiApiBridge({ store, safeStorage, fetch: (url, options) => electronNet.fetch(url, options),
   onAudioSource: url => qishuiMediaPolicy.register(url),
 });
@@ -6409,6 +6413,7 @@ app.whenReady().then(async () => {
   protocol.handle(YTM_AUDIO_SCHEME, request => ytmApiBridge.handleAudioRequest(request));
   protocol.handle(SPOTIFY_AUDIO_SCHEME, request => spotifyApiBridge.handleAudioRequest(request));
   protocol.handle(FN_MUSIC_SCHEME, request => fnMusicApiBridge.handleProtocolRequest(request));
+  protocol.handle(LX_STREAM_SCHEME, request => lxBridge.handleProtocolRequest(request));
   // Transcode fallback is an optional degradation path; a failure preparing it must never keep
   // the rest of this handler, createWindow() included, from running.
   try {
@@ -7394,6 +7399,12 @@ ipcMain.handle('qishui-api-request', (event, operation, params) => {
 
 // 飞牛音乐请求桥：服务器与凭据保存在主进程，渲染进程只发操作；Cookie 认证头、
 // 自签名证书容忍都在主进程桥内完成（用受信窗口守卫）。
+// 洛雪音源的桌面取数通道：音源脚本请求的是任意第三方主机，渲染进程会被 CORS 挡住。
+// 公网 http(s) 放行，环回与私网在桥内部拒绝（见 electron/lxmusic/lxBridge.cjs）。
+ipcMain.handle('lx-fetch', firstParty('lx-fetch', async (event, url, init) => {
+  return lxBridge.handleFetch({ url, ...(init && typeof init === 'object' ? init : {}) });
+}));
+
 ipcMain.handle('fnmusic-api-request', createSenderGuardedHandler({
   channel: 'fnmusic-api-request',
   isTrusted: (event) => isTrustedMainWindowContents(event.sender),

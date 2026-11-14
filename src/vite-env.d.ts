@@ -976,6 +976,23 @@ declare global {
           body?: string;
         },
       ) => Promise<ElectronLyricProxyResponse>;
+      /** 洛雪音源的桌面取数通道（IPC lx-fetch）：跨域请求由主进程转发，环回/私网地址会被拒绝。 */
+      lxFetch?: (
+        url: string,
+        init?: {
+          method?: string;
+          headers?: Record<string, string>;
+          bodyText?: string;
+          bodyBase64?: string;
+        },
+      ) => Promise<{
+        ok: boolean;
+        status: number;
+        statusText?: string;
+        headers?: Record<string, string>;
+        bodyText?: string;
+        error?: string;
+      }>;
       getNeteasePort: () => Promise<number>;
       getNeteaseApiStatus: () => Promise<ElectronNeteaseApiStatus>;
       /** 内嵌后端（网易、QQ）的诊断快照；没有内嵌后端的 provider 回 null。 */

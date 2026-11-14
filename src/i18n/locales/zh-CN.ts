@@ -1836,6 +1836,8 @@ export default {
     "loginNoteBodian": "打开波点音乐 App 扫描二维码并确认登录",
     "loginTitleFnMusic": "登录飞牛音乐",
     "loginNoteFnMusic": "填入你的飞牛音乐服务器地址与账号，畅听 NAS 私有音乐库",
+    "loginTitleLxmusic": "登录洛雪音源",
+    "loginNoteLxmusic": "洛雪不连账号：导入你自己的音源脚本即可搜索与播放。脚本由你提供，Folia 不内置。",
     "loginTitleYtm": "登录 YouTube Music",
     "loginTitleAppleMusic": "登录 Apple Music",
     "loginNoteAppleMusic": "请在 Apple 窗口中登录，密码只会交给 Apple。",
@@ -2131,6 +2133,8 @@ export default {
   },
   "lyricProvider": {
     "qishui": "汽水音乐",
+
+    "lxmusic": "洛雪",
     "netease": "网易云音乐",
     "qq": "QQ 音乐",
     "kugou": "酷狗音乐",
@@ -2147,6 +2151,7 @@ export default {
     "ytm": "YT Music",
     "spotify": "Spotify",
     "qishui": "汽水",
+    "lxmusic": "洛雪",
     "fnmusic": "飞牛",
   },
   "globalLyricOffset": {

@@ -172,6 +172,8 @@ import { audioBands, audioPower, bass, currentTime, lowMid, lyricCurrentTime, mi
 import { useAppChromeStore } from './stores/useAppChromeStore';
 import { useAppViewStore } from './stores/useAppViewStore';
 import { endLoadingToPlay, selectDisplayCoverUrl, selectDisplayDuration, selectDisplayLyrics, selectDisplayPlayerState, selectDisplaySong, selectIsShowingTail, usePlaybackStore } from './stores/usePlaybackStore';
+import { LxWorkspace } from './components/lxmusic/LxWorkspace';
+import { useLxWorkspaceStore } from './stores/useLxWorkspaceStore';
 import { askForSong, showSong } from './components/app/playback/currentSong';
 import { useLibraryStore } from './stores/useLibraryStore';
 import { selectLibraryOccludesPlayer, selectLibraryPlayerBackdrop, useLibraryPlayerOcclusionStore } from './stores/useLibraryPlayerOcclusionStore';
@@ -1180,6 +1182,10 @@ export default function App() {
     // Derived in usePlaybackStore now, so that any consumer can read the display layer without
     // being handed it. The ternaries (rather than `??`) live there for the same reason they lived
     // here: null is a real value for lyrics, cover and duration.
+    // 洛雪工作台：入口在设置页与来源选择处，页面本身挂在这一层——只有这里拿得到播放 / 入队。
+    const isLxWorkspaceOpen = useLxWorkspaceStore((state) => state.isOpen);
+    const closeLxWorkspace = useLxWorkspaceStore((state) => state.close);
+
     const displaySong = usePlaybackStore(selectDisplaySong);
     const displayCoverUrl = usePlaybackStore(selectDisplayCoverUrl);
     const displayDuration = usePlaybackStore(selectDisplayDuration);
@@ -2892,6 +2898,18 @@ export default function App() {
                 nowPlayingConnectionStatus={nowPlayingConnectionStatus}
                 playerCapConnectionStatus={playerCapConnectionStatus}
             />
+
+            {/* 洛雪工作台：免登录，歌单广场 / 榜单 / 专辑 / 电台 / 本地 / 搜索各一页，整页浮层。
+                它的搜索、歌单广场、榜单不跟着宿主那套走，所以自己开一张台。 */}
+            {isLxWorkspaceOpen && (
+                <LxWorkspace
+                    theme={theme}
+                    isDaylight={isDaylight}
+                    onClose={closeLxWorkspace}
+                    onPlayTrack={(track) => { void playSong(track, [], false, { shouldNavigateToPlayer: false }); }}
+                    onAddToQueue={(track) => { addOnlineSongToQueue(track); }}
+                />
+            )}
 
             <AppOverlays model={appOverlaysModel} />
 
