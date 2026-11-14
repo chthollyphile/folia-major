@@ -19,7 +19,7 @@ Folium 2.0 要做到两件事：
 | 分发 | 随主程序发布 + 用户模组目录里官方签名的更高版本可覆盖 |
 | 1.x 模组 | 双轨：`folium: 1` 照旧加载，接口冻结在 1.9（含 internals）；音源接口只给 `folium: 2` |
 | 网页版 | 保留宿主自己的 Web Provider，不跑模组运行时 |
-| 交付 | 一个长期集成分支，全部做完一次合并进 main |
+| 交付 | 一个长期集成分支，全部做完后不直接进 main：按当时最新的 main 切出 `edge` 分支，集成分支对 `edge` 开 PR；`edge` 走 Cielo（canary）滚动更新通道发布测试，main 继续维护 0.7.x，直到维护者确认 `edge` 稳定可合并（§10「交付到 `edge`」） |
 | 契约形状 | 开放的能力模型，播放分 `audio` / `external` / `surface` 三种且可再加 |
 | 音源类模组 | 单独一类，网络、存储、签名、加载与卸载时序有自己的豁免（§5.2） |
 | 单独停用 | 每个音源（含内置）可以单独停用：不加载、不起后端、界面里不出现，可一键清掉它的数据；安装包里的内置副本留在磁盘上（§5.3） |
@@ -385,7 +385,14 @@ packages/folium-source-kit/   纯 TS 的共用函数（exploreReads、listeningR
 
 ## 10. 实施阶段
 
-全部在集成分支 `folium-2`（从 main 切，单独的工作树）上做，做完一次合并。
+全部在集成分支 `folium-2`（从 main 切，单独的工作树）上做，做完后交付到 `edge`。
+
+**交付到 `edge`**（维护者 2026-11-14 定）
+
+- **PR 的目标是 `edge`，不是 main**：全部阶段做完、§11 通过后，在 main 上按当时最新的 main 切出 `edge` 分支，集成分支对 `edge` 开 PR。
+- **发布**：`edge` 发布到 Cielo（canary）的滚动更新通道（`.github/workflows/canary-pre-release.yml` 的 `rolling`）。同时改这个 workflow 里的 release note 模板，写明四件事：这个版本用于 Folium 2 的发布测试；普通用户可以下载；反馈问题要打上 `folium2` 标签；建议模组作者都下载这个版本测试自己的模组。
+- **main 继续维护 0.7.x**，直到维护者确认 `edge` 稳定、可以合并进 main。
+- **main 到 `edge` 的同步**：定期把 main 上的改动同步进 `edge`，由维护者手动触发，不自动做。
 
 **合并纪律**：搬目录的提交只做 `git mv`、单独成组；平台文件正文尽量不动，只改接缝；每周把 main 合进来一次（`merge.renameLimit` 调大，`-X find-renames=30%`）。期间 main 上冻结：`src/types/onlineMusic.ts` 的签名、`providerRegistry.ts`、`main.cjs` 的平台块、`preload.cjs` 的平台通道、平台目录的增删文件；平台内部修 bug 照常。S1、S2 是行为不变的改动，想降低合并成本时可以单独先合 main，由维护者决定。
 
@@ -399,7 +406,7 @@ packages/folium-source-kit/   纯 TS 的共用函数（exploreReads、listeningR
 | S5 迁移九家 | 顺序见下；每家一组提交：纯搬移 → Core 接缝（三家）→ client → main → 语言表 → 删 `main.cjs` / `preload.cjs` / `vite-env.d.ts` 里对应的块 | 每家迁完桌面实测通过 |
 | S6 `surface` | §4.2、§4.4；`sample-video-source` | 示范模组能在播放页放视频，切歌、暂停、跳转、窗口重建正常 |
 | S7 网页版 | §8 | 网页构建不含 Electron 与模组加载器，三家可用 |
-| S8 收尾 | 「设置 → 音源」页面与开箱引导的勾选（含只用于匹配的三选一和引导里的默认落点）；覆盖机制与上限；不带内置音源的打包形态（`FOLIA_BUNDLED_SOURCES`）；删 `providerRegistry.ts` 的静态 import；文档；`AGENTS.md` | §11 全部通过后合并 |
+| S8 收尾 | 「设置 → 音源」页面与开箱引导的勾选（含只用于匹配的三选一和引导里的默认落点）；覆盖机制与上限；不带内置音源的打包形态（`FOLIA_BUNDLED_SOURCES`）；删 `providerRegistry.ts` 的静态 import；文档；`AGENTS.md`；切 `edge`、对它开 PR、改 Cielo 的 release note 模板（见上「交付到 `edge`」） | §11 全部通过后对 `edge` 开 PR |
 
 **迁移顺序与各自逼出的宿主设施**
 
