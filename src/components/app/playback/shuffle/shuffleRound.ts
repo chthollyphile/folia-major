@@ -83,7 +83,8 @@ export const shuffleForRound = <T>({
 
 /**
  * 切歌时这一轮该做什么：不是记着的那一队（或这首不在队里）就什么都不做；记下这首听过了，能播的都听过了且是列表
- * 循环，就整队重洗；否则只在有变化时写回。`countedKeys` 是这队里能播的歌。
+ * 循环，就整队重洗；否则只在有变化时写回。`countedKeys` 是这队里能播的歌。除了正在播的这首再没有能播的歌时不重洗：
+ * 重洗出的新一轮也只有这首算听过，一洗完又是「整轮听完」，会无限重洗下去。
  */
 export const decideRoundStep = ({
     state,
@@ -102,6 +103,7 @@ export const decideRoundStep = ({
     const played = state.played.includes(currentKey) ? state.played : [...state.played, currentKey];
     const heard = new Set(played);
     const complete = countedKeys.length > 0 && countedKeys.every(key => heard.has(key));
-    if (complete && loopMode === 'all' && keys.length > 1) return { kind: 'reshuffle' };
+    const othersCounted = countedKeys.some(key => key !== currentKey);
+    if (complete && loopMode === 'all' && othersCounted) return { kind: 'reshuffle' };
     return played === state.played ? { kind: 'none' } : { kind: 'write', state: { ...state, played } };
 };
