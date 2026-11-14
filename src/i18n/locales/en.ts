@@ -4603,6 +4603,7 @@ export default {
     "loopOff": "Loop off",
     "loopAll": "Loop all",
     "loopOne": "Loop one",
+    "loopUnavailableInFm": "Loop does not apply in Personal FM",
     "unknownArtist": "Unknown Artist",
     "unknownAlbum": "Unknown Album",
     "slotCustomizeHint": "Right-click or long-press to change",

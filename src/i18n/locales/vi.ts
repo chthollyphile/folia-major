@@ -4603,6 +4603,7 @@ export default {
     "loopOff": "Tắt lặp",
     "loopAll": "Lặp danh sách",
     "loopOne": "Lặp một bài",
+    "loopUnavailableInFm": "Chế độ lặp không áp dụng cho FM Cá nhân",
     "unknownArtist": "Nghệ sĩ không rõ",
     "unknownAlbum": "Album không rõ",
     "slotCustomizeHint": "Nhấp chuột phải hoặc nhấn giữ để thay đổi",

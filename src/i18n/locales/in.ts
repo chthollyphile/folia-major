@@ -4603,6 +4603,7 @@ export default {
     "loopOff": "Ulangi Mati",
     "loopAll": "Ulangi Semua",
     "loopOne": "Ulangi Satu",
+    "loopUnavailableInFm": "Perulangan tidak berlaku di FM Pribadi",
     "unknownArtist": "Artis Tidak Dikenal",
     "unknownAlbum": "Album Tidak Dikenal",
     "slotCustomizeHint": "Klik kanan atau tekan lama untuk mengganti",

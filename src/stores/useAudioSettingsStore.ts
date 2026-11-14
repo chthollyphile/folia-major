@@ -275,9 +275,13 @@ export type AudioSettingsState = {
     /** Sets the mute switch; the same value is a no-op. */
     handleSetMuted: (muted: boolean) => void;
     handleToggleMute: () => void;
-    /** Sets the repeat mode and toasts it like the repeat button; the mode already in effect is a no-op. */
-    handleSetLoopMode: (mode: 'off' | 'all' | 'one') => void;
-    handleToggleLoopMode: () => void;
+    /**
+     * Sets the repeat mode and toasts it like the repeat button; the mode already in effect is a no-op.
+     * Inside Personal FM, which picks its own next song, repeat never applies: setting or cycling it there
+     * only says so and keeps the stored mode for the songs that are not FM.
+     */
+    handleSetLoopMode: (mode: 'off' | 'all' | 'one', isFmMode?: boolean) => void;
+    handleToggleLoopMode: (isFmMode?: boolean) => void;
 };
 
 /*
@@ -491,7 +495,17 @@ export const useAudioSettingsStore = create<AudioSettingsState>((set, get) => ({
     handleToggleMute: () => {
         get().handleSetMuted(!get().isMuted);
     },
-    handleSetLoopMode: (mode) => {
+    handleSetLoopMode: (mode, isFmMode = false) => {
+        if (isFmMode) {
+            // FM decides its own next song: repeat never applies, and the stored mode is left for the
+            // songs that are not FM.
+            setStatusMessage({
+                type: 'info',
+                text: i18n.t('player.loopUnavailableInFm'),
+                nonce: Date.now(),
+            });
+            return;
+        }
         if (mode === get().loopMode) {
             return;
         }
@@ -506,7 +520,11 @@ export const useAudioSettingsStore = create<AudioSettingsState>((set, get) => ({
             nonce: Date.now(),
         });
     },
-    handleToggleLoopMode: () => {
+    handleToggleLoopMode: (isFmMode = false) => {
+        if (isFmMode) {
+            get().handleSetLoopMode(get().loopMode, true);
+            return;
+        }
         const prev = get().loopMode;
         const next = prev === 'off'
             ? 'all'
