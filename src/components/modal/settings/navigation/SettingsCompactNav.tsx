@@ -4,6 +4,7 @@ import { Menu as MenuIcon, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useReducedMotionFor } from '../../../../hooks/useReducedMotionFor';
 import { tabTarget } from '../../../shared/sheetKeys';
+import { kitTransition } from '../kit/motion';
 import SettingsSearchField from './SettingsSearchField';
 import SettingsSideList from './SettingsSideList';
 import type { SettingsNavGroup, SettingsSectionId } from './settingsNavModel';
@@ -66,15 +67,23 @@ export const SettingsCompactNav: React.FC<SettingsCompactNavProps> = ({
         menuRef.current?.focus({ preventScroll: true });
     };
 
-    // Escape 与 Tab 只在这个抽屉里处理：弹窗自己有另一个 Escape（在 window 的冒泡阶段），
-    // 鼠标也点不到遮罩后面的顶栏和内容，所以 Tab 由这里兜住、不跑出去。
-    const handleDrawerKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-        if (event.key === 'Escape') {
+    // 抽屉开着时 Escape 只收起抽屉。挂在 window 的捕获阶段：弹窗自己的 Escape 在冒泡阶段，
+    // 而焦点不一定在抽屉里（点了抽屉里的空白处焦点就落到 body），挂在抽屉元素上会漏掉。
+    useEffect(() => {
+        if (!isOpen) return;
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key !== 'Escape' || event.isComposing) return;
             event.preventDefault();
             event.stopPropagation();
-            close();
-            return;
-        }
+            setIsOpen(false);
+            menuRef.current?.focus({ preventScroll: true });
+        };
+        window.addEventListener('keydown', handleKeyDown, true);
+        return () => window.removeEventListener('keydown', handleKeyDown, true);
+    }, [isOpen]);
+
+    // Tab 只在这个抽屉里转：鼠标点不到遮罩后面的顶栏和内容，键盘也不该跑出去。
+    const handleDrawerKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
         if (event.key !== 'Tab' || !drawerRef.current) {
             return;
         }
@@ -123,18 +132,17 @@ export const SettingsCompactNav: React.FC<SettingsCompactNavProps> = ({
             </div>
             <AnimatePresence>
                 {isOpen && (
-                    <motion.div
-                        className="absolute inset-0 z-40"
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: calm ? 0 : 0.16 }}
-                    >
-                        {/* 遮罩挡住的只是弹窗里这一层：点它收起抽屉，不关设置。 */}
-                        <div
+                    <div key="drawer" className="absolute inset-0 z-40">
+                        {/* 遮罩挡住的只是弹窗里这一层：点它收起抽屉，不关设置。
+                            遮罩渐显、抽屉整个从左边滑进来，两者同一个时长（设置 kit 的 unfold）。 */}
+                        <motion.div
                             className={`absolute inset-0 ${isDaylight ? 'bg-black/30' : 'bg-black/50'}`}
                             onClick={close}
                             role="presentation"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            transition={kitTransition('unfold', calm)}
                         />
                         <motion.div
                             ref={drawerRef}
@@ -144,10 +152,10 @@ export const SettingsCompactNav: React.FC<SettingsCompactNavProps> = ({
                             aria-label={navLabel}
                             onKeyDown={handleDrawerKeyDown}
                             data-testid="settings-nav-drawer"
-                            initial={calm ? { opacity: 0 } : { opacity: 0, x: -28 }}
-                            animate={calm ? { opacity: 1 } : { opacity: 1, x: 0 }}
-                            exit={calm ? { opacity: 0 } : { opacity: 0, x: -28 }}
-                            transition={{ duration: calm ? 0 : 0.22, ease: [0.16, 1, 0.3, 1] }}
+                            initial={{ x: '-100%' }}
+                            animate={{ x: 0 }}
+                            exit={{ x: '-100%' }}
+                            transition={kitTransition('unfold', calm)}
                             className="absolute inset-y-0 left-0 flex w-[248px] max-w-[82%] flex-col shadow-[0_18px_48px_rgba(0,0,0,0.35)]"
                         >
                             <SettingsSideList
@@ -167,7 +175,7 @@ export const SettingsCompactNav: React.FC<SettingsCompactNavProps> = ({
                                 showSearch={false}
                             />
                         </motion.div>
-                    </motion.div>
+                    </div>
                 )}
             </AnimatePresence>
         </>
