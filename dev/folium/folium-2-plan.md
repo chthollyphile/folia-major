@@ -19,7 +19,7 @@ Folium 2.0 要做到两件事：
 | 分发 | 随主程序发布 + 用户模组目录里官方签名的更高版本可覆盖 |
 | 1.x 模组 | 双轨：`folium: 1` 照旧加载，接口冻结在 1.9（含 internals）；音源接口只给 `folium: 2` |
 | 网页版 | 保留宿主自己的 Web Provider，不跑模组运行时 |
-| 交付 | 一个长期集成分支，全部做完后不直接进 main：按当时最新的 main 切出 `edge` 分支，集成分支对 `edge` 开 PR；`edge` 走 Cielo（canary）滚动更新通道发布测试，main 继续维护 0.7.x，直到维护者确认 `edge` 稳定可合并（§10「交付到 `edge`」） |
+| 交付 | 接口先行，拆分随后（§10「交付」）。接口（S0–S4 加试点平台 bodian）做完就按当时最新的 main 切出 `edge` 分支，集成分支对 `edge` 开 PR，不等九家迁完；`edge` 走 Cielo（canary）滚动更新通道发布测试，观察一到两个发版周期、维护者确认稳定后合进 main，在那之前 main 继续维护 0.7.x。其余八家随后一家一个 PR；九家迁完之前 `folium: 2` 的音源接口标「预览」，内置的静态注册与音源模组并存 |
 | 契约形状 | 开放的能力模型，播放分 `audio` / `external` / `surface` 三种且可再加 |
 | 音源类模组 | 单独一类，网络、存储、签名、加载与卸载时序有自己的豁免（§5.2） |
 | 单独停用 | 每个音源（含内置）可以单独停用：不加载、不起后端、界面里不出现，可一键清掉它的数据；安装包里的内置副本留在磁盘上（§5.3） |
@@ -385,16 +385,18 @@ packages/folium-source-kit/   纯 TS 的共用函数（exploreReads、listeningR
 
 ## 10. 实施阶段
 
-全部在集成分支 `folium-2`（从 main 切，单独的工作树）上做，做完后交付到 `edge`。
+S0–S4 与试点平台（bodian）在集成分支 `folium-2`（从 main 切，单独的工作树）上做，做完就交付到 `edge`，不等九家迁完。
 
-**交付到 `edge`**（维护者 2026-11-14 定）
+**交付**（维护者 2026-11-14 定：接口先行，拆分随后）
 
-- **PR 的目标是 `edge`，不是 main**：全部阶段做完、§11 通过后，在 main 上按当时最新的 main 切出 `edge` 分支，集成分支对 `edge` 开 PR。
+- **第一步，接口进 `edge`**：S0–S4 加 bodian 做完、下面「进 `edge` 之前」补齐后，在 main 上按当时最新的 main 切出 `edge` 分支，集成分支对 `edge` 开 PR（目标是 `edge`，不是 main）。波点一起走：它的提交里夹着契约补充与测试夹具的改动，切不干净；带着它也正好验证安装包里内置模组这条路。这一步的验收是 §11 里不依赖九家迁完的条目（单测、启动、音源类的豁免、打包）加波点一家的桌面实测。
+- **进 `edge` 之前**：打包版实测（Windows 安装包，macOS、Linux 的 CI 构建）；波点用真实账号在大陆网络下实测（维护者做）；`dev/folium/folium-2-member-matrix.md` §4 的归属由维护者确认；对整个分支做一次完整审查；加上「预览」标记（见第二步）。
 - **发布**：`edge` 发布到 Cielo（canary）的滚动更新通道（`.github/workflows/canary-pre-release.yml` 的 `rolling`）。同时改这个 workflow 里的 release note 模板，写明四件事：这个版本用于 Folium 2 的发布测试；普通用户可以下载；反馈问题要打上 `folium2` 标签；建议模组作者都下载这个版本测试自己的模组。
-- **main 继续维护 0.7.x**，直到维护者确认 `edge` 稳定、可以合并进 main。
+- **第二步，接口进 main**：`edge` 在 Cielo 上观察一到两个发版周期，维护者确认稳定后合进 main；在那之前 main 继续维护 0.7.x。`folium: 2` 的音源接口（`folium.sources` 与 main 入口给音源的 `api`）在 `docs/folium/` 和模组面板里标「预览」，写明九家内置音源迁完之前可能变动；`folium: 1` 冻结在 1.9 的承诺不变。
+- **第三步，拆分**：其余八家（下面迁移顺序的 2–9）和 S6–S8 在接口合进 main 之后做，一家一个 PR。这些 PR 的目标是 main 还是继续走 `edge`，由维护者在接口合并之后定。期间内置的静态注册与音源模组并存（运行时已经支持）。九家迁完、S8 做完后去掉「预览」标记。
 - **main 到 `edge` 的同步**：定期把 main 上的改动同步进 `edge`，由维护者手动触发，不自动做。
 
-**合并纪律**：搬目录的提交只做 `git mv`、单独成组；平台文件正文尽量不动，只改接缝；每周把 main 合进来一次（`merge.renameLimit` 调大，`-X find-renames=30%`）。期间 main 上冻结：`src/types/onlineMusic.ts` 的签名、`providerRegistry.ts`、`main.cjs` 的平台块、`preload.cjs` 的平台通道、平台目录的增删文件；平台内部修 bug 照常。S1、S2 是行为不变的改动，想降低合并成本时可以单独先合 main，由维护者决定。
+**合并纪律**：搬目录的提交只做 `git mv`、单独成组；平台文件正文尽量不动，只改接缝；每周把 main 合进来一次（`merge.renameLimit` 调大，`-X find-renames=30%`）。期间 main 上冻结：`src/types/onlineMusic.ts` 的签名、`providerRegistry.ts`、`main.cjs` 的平台块、`preload.cjs` 的平台通道、平台目录的增删文件；平台内部修 bug 照常。
 
 | 阶段 | 内容 | 门槛 |
 | --- | --- | --- |
@@ -403,10 +405,10 @@ packages/folium-source-kit/   纯 TS 的共用函数（exploreReads、listeningR
 | S2 运行时 | §5：来源校验、差量重载、层级、音源类的豁免、单独停用与只用于匹配、无内置副本时的接管、协议、清单 v2、`api` 新成员 | 现有模组测试全过；内置目录为空时行为不变；普通模组的限额一条没松 |
 | S3 契约与适配层 | §4；`registries/sources.ts`；`omni.providers` 薄壳；生成器；`folium:check` 的音源检查 | `sample-source-full` 不改宿主就能覆盖每个能力族 |
 | S4 构建与测试夹具 | §6；kit；`test/unit/helpers/builtinSources.ts`（挂进 `vitest.config.ts` 的 `setupFiles`，用测试 `env` 调各家 `createSource` 并注册）；CI 规则改指向 | 构建产物能在开发版里以 `builtin` 加载 |
-| S5 迁移九家 | 顺序见下；每家一组提交：纯搬移 → Core 接缝（三家）→ client → main → 语言表 → 删 `main.cjs` / `preload.cjs` / `vite-env.d.ts` 里对应的块 | 每家迁完桌面实测通过 |
+| S5 迁移九家 | 顺序见下；每家一组提交：纯搬移 → Core 接缝（三家）→ client → main → 语言表 → 删 `main.cjs` / `preload.cjs` / `vite-env.d.ts` 里对应的块。bodian 随接口交付，其余八家在接口合进 main 之后一家一个 PR（见上「交付」） | 每家迁完桌面实测通过 |
 | S6 `surface` | §4.2、§4.4；`sample-video-source` | 示范模组能在播放页放视频，切歌、暂停、跳转、窗口重建正常 |
 | S7 网页版 | §8 | 网页构建不含 Electron 与模组加载器，三家可用 |
-| S8 收尾 | 「设置 → 音源」页面与开箱引导的勾选（含只用于匹配的三选一和引导里的默认落点）；覆盖机制与上限；不带内置音源的打包形态（`FOLIA_BUNDLED_SOURCES`）；删 `providerRegistry.ts` 的静态 import；文档；`AGENTS.md`；切 `edge`、对它开 PR、改 Cielo 的 release note 模板（见上「交付到 `edge`」） | §11 全部通过后对 `edge` 开 PR |
+| S8 收尾 | 「设置 → 音源」页面与开箱引导的勾选（含只用于匹配的三选一和引导里的默认落点）；覆盖机制与上限；不带内置音源的打包形态（`FOLIA_BUNDLED_SOURCES`）；删 `providerRegistry.ts` 的静态 import；文档；`AGENTS.md`；去掉音源接口的「预览」标记（见上「交付」） | §11 全部通过 |
 
 **迁移顺序与各自逼出的宿主设施**
 
