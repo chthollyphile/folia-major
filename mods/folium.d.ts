@@ -4396,7 +4396,11 @@ export interface FoliumSourceMediaRule {
      * runs for every answer from those hosts: keep it quick. `urls` of the same rule pass without it.
      */
     test?(request: FoliumSourceMediaRequest): boolean;
-    /** An address a redirect leads to from one of the rule's (or one its `test` let through) is the rule's too, for `ttlMs`. */
+    /**
+     * An address a redirect leads to becomes the rule's too: from one of its `urls`, until that address's own
+     * expiry; from one its `test` let through, for `ttlMs` from the redirect. A read let through by `hosts` alone
+     * is not followed.
+     */
     followRedirects?: boolean;
     /** Electron's resource types the rule applies to (`media`, `xhr` and `image` by default). */
     resourceTypes?: string[];

@@ -3876,7 +3876,7 @@ Folium 2: a rule of `api.media.allow`: which addresses get cross-origin headers,
 | `urls?` | `string[]` | Whole addresses. |
 | `ttlMs?` | `number` | How long an address added stays the rule's, milliseconds. |
 | `test?()` | `(request: FoliumSourceMediaRequest): boolean` | What `hosts` cannot say (a path that ends in an audio extension, an answer's content type). It narrows the rule's `hosts`, which it needs: it is asked only for reads on them (never for another source's), and there the host alone lets nothing through. Synchronous; true lets the read through, one that throws counts as false. It runs for every answer from those hosts: keep it quick. `urls` of the same rule pass without it. |
-| `followRedirects?` | `boolean` | An address a redirect leads to from one of the rule's (or one its `test` let through) is the rule's too, for `ttlMs`. |
+| `followRedirects?` | `boolean` | An address a redirect leads to becomes the rule's too: from one of its `urls`, until that address's own expiry; from one its `test` let through, for `ttlMs` from the redirect. A read let through by `hosts` alone is not followed. |
 | `resourceTypes?` | `string[]` | Electron's resource types the rule applies to (`media`, `xhr` and `image` by default). |
 
 相关：[FoliumSourceMediaRequest](#foliumsourcemediarequest)
