@@ -4,7 +4,7 @@ import { X } from 'lucide-react';
 
 // src/library/suites/bravais/BravaisSeamSearchHistory.tsx
 // 缝里那个全局搜索框的搜索历史：贴在「搜索」按钮下面，一条一个标签，标签点了就再搜一次，
-// 右边的叉删这一条，右上角「清空」删整份。数据与首页搜索框共用 core/home/useHomeSearchHistoryStore。
+// 右边的叉删这一条，右上角「清空」删整份。数据是全局那一份（useSearchNavigationStore 的 searchHistory）。
 // 这里不用 Tailwind 的玻璃面板，样式在 bravaisHome.css 的 `.bravais-search-history`：缝里的底色是墙的，
 // 只能靠 currentColor 混出来，和首页那层浮在 3D 墙上的面板不是一回事。
 

@@ -54,6 +54,7 @@ describe('useSearchNavigationStore', () => {
             hasMore: false,
             scrollTop: 0,
             searchCache: {},
+            searchHistory: [],
         });
     });
 
@@ -491,5 +492,37 @@ describe('useSearchNavigationStore', () => {
         useSearchNavigationStore.setState({ searchSourceTab: 'local' });
         useSearchNavigationStore.getState().keepSearchSourceWithin(['netease'], 'netease');
         expect(useSearchNavigationStore.getState()).toMatchObject({ searchSourceTab: 'netease', searchKind: 'song' });
+    });
+
+    describe('search history', () => {
+        const submitLocal = (query: string) => useSearchNavigationStore.getState().submitSearch({ query, sourceTab: 'local', deps });
+
+        it('records every submitted search, whichever entry point submitted it', async () => {
+            await submitLocal('  first  ');
+            // 命令面板走的也是 submitSearch（kind: 'song'、returnView: 'player'），不再需要各入口自己记。
+            await useSearchNavigationStore.getState().submitSearch({ query: 'from palette', sourceTab: 'local', kind: 'song', deps, returnView: 'player' });
+            expect(useSearchNavigationStore.getState().searchHistory).toEqual(['from palette', 'first']);
+        });
+
+        it('records a search whose request failed: the word was still searched', async () => {
+            cloudSearchMock.mockRejectedValueOnce(new Error('offline'));
+            const didSearch = await useSearchNavigationStore.getState().submitSearch({ query: 'jay', sourceTab: 'netease', deps });
+            expect(didSearch).toBe(true);
+            expect(useSearchNavigationStore.getState().searchHistory).toEqual(['jay']);
+        });
+
+        it('does not record an empty search', async () => {
+            expect(await submitLocal('   ')).toBe(false);
+            expect(useSearchNavigationStore.getState().searchHistory).toEqual([]);
+        });
+
+        it('forgets one word and clears the rest', async () => {
+            await submitLocal('a');
+            await submitLocal('b');
+            useSearchNavigationStore.getState().forgetSearchHistoryQuery('A');
+            expect(useSearchNavigationStore.getState().searchHistory).toEqual(['b']);
+            useSearchNavigationStore.getState().clearSearchHistory();
+            expect(useSearchNavigationStore.getState().searchHistory).toEqual([]);
+        });
     });
 });

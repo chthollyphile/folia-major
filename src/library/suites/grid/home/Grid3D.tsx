@@ -32,7 +32,6 @@ import { useLibraryHomeActions } from '../../../core/home/useLibraryHomeActions'
 import { useLibraryHomeDirectory } from '../../../core/home/useLibraryHomeDirectory';
 import { useLibraryHomeListRegistration, useLibraryHomeTabsRegistration } from '../../../core/home/useLibraryHomeSurfaceRegistration';
 import { cycleIndex } from '../../../core/home/homeSources';
-import { useHomeSearchHistoryStore } from '../../../core/home/useHomeSearchHistoryStore';
 import HomeSearchHistory from './HomeSearchHistory';
 import { useUpdateIndicator } from '../../../../hooks/useUpdateIndicator';
 
@@ -143,11 +142,17 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
         setSearchQuery,
         isSearching,
         submitSearch,
+        searchHistory,
+        forgetSearchHistoryQuery,
+        clearSearchHistory,
     } = useSearchNavigationStore(useShallow(state => ({
         searchQuery: state.searchQuery,
         setSearchQuery: state.setSearchQuery,
         isSearching: state.isSearching,
         submitSearch: state.submitSearch,
+        searchHistory: state.searchHistory,
+        forgetSearchHistoryQuery: state.forgetSearchHistoryQuery,
+        clearSearchHistory: state.clearSearchHistory,
     })));
 
     // 来源、页签与在线列表都来自 Library Core 的首页模型（core/home/homeSources、homeCards 与首页资源）；
@@ -190,14 +195,8 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
     const gridRootRef = useRef<HTMLDivElement>(null);
     const searchInputRef = useRef<HTMLInputElement>(null);
     const [scanDetailsExpanded, setScanDetailsExpanded] = useState(false);
-    // 点开搜索框时贴在它下面的历史：数据在 core/home/useHomeSearchHistoryStore（localStorage）。
+    // 点开搜索框时贴在它下面的历史：数据是 useSearchNavigationStore 的 searchHistory，由 submitSearch 记。
     const [isSearchHistoryOpen, setIsSearchHistoryOpen] = useState(false);
-    const { history: searchHistory, remember: rememberSearch, forget: forgetSearch, clear: clearSearchHistory } = useHomeSearchHistoryStore(useShallow(state => ({
-        history: state.history,
-        remember: state.remember,
-        forget: state.forget,
-        clear: state.clear,
-    })));
 
     const showUpdateIndicator = useUpdateIndicator();
 
@@ -244,7 +243,7 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
     });
 
     // Search committed callback
-    // 提交一个词：搜索、记进历史（真的搜了才记）、把首页让给结果页。
+    // 提交一个词：搜索（submitSearch 顺带记进历史）、把首页让给结果页。
     // 从历史标签点进来时直接带着那一条走，不必等 setSearchQuery 落进 state。
     const runSearch = async (rawQuery: string) => {
         const query = rawQuery.trim();
@@ -263,7 +262,6 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
         });
 
         if (didSearch) {
-            rememberSearch(query);
             onSearchCommitted(query, searchSource);
         }
     };
@@ -482,7 +480,7 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                             className="relative w-full md:w-56 transition-all focus-within:md:w-72"
                             onBlur={event => {
                                 // 焦点离开整块（连面板一起）才收起，点到面板里的标签不算离开。
-                                if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                                if (!event.currentTarget.contains(event.relatedTarget)) {
                                     setIsSearchHistoryOpen(false);
                                 }
                             }}
@@ -528,7 +526,7 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                                                 setSearchQuery(item);
                                                 void runSearch(item);
                                             }}
-                                            onRemove={forgetSearch}
+                                            onRemove={forgetSearchHistoryQuery}
                                             onClear={clearSearchHistory}
                                             isDaylight={isDaylight}
                                         />

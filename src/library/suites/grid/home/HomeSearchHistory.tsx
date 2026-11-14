@@ -4,7 +4,7 @@ import { X } from 'lucide-react';
 
 // src/library/suites/grid/home/HomeSearchHistory.tsx
 // 首页搜索框点开时贴在它下面的搜索历史：一条一个标签，标签本身点了就再搜一次，
-// 右边的叉删这一条，右上角「清空」删整份。数据在 core/home/useHomeSearchHistoryStore。
+// 右边的叉删这一条，右上角「清空」删整份。数据是全局那一份（useSearchNavigationStore 的 searchHistory）。
 // 面板上的按下都挡住默认行为：那样输入框不会先失焦，面板也就不会在点击落下之前消失。
 
 type HomeSearchHistoryProps = {
