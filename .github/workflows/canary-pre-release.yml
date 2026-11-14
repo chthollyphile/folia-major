@@ -59,6 +59,16 @@ jobs:
               ;;
           esac
 
+          # The rolling release (tag `cielo`) is what every Cielo install updates from, so it has one owner at a time.
+          # While Folium 2 is in release testing that is the edge branch (dev/folium/folium-2-plan.md §10): a rolling
+          # build from any other branch would replace edge's build for every Cielo user, and the next edge build would
+          # switch them back. Such a build is kept as a branch release instead.
+          ROLLING_BRANCH="edge"
+          if [[ "${PUBLISH_MODE}" == "rolling" && "${GITHUB_REF_NAME}" != "${ROLLING_BRANCH}" ]]; then
+            echo "::notice::Only ${ROLLING_BRANCH} publishes the rolling Cielo release for now; ${GITHUB_REF_NAME} is published as a branch release."
+            PUBLISH_MODE="branch-release"
+          fi
+
           VERSION="${BASE_VERSION}-alpha.$(date -u +%s)"
           BRANCH_SLUG="$(printf '%s' "${GITHUB_REF_NAME}" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9._-]+/-/g; s/^-+|-+$//g' | cut -c 1-40)"
           BRANCH_SLUG="${BRANCH_SLUG:-branch}"
