@@ -46,6 +46,8 @@ describe('Omni architecture boundaries', () => {
 
     // One platform's rule stays with the platform. Every line outside a platform's own folders
     // that names it is counted; the list says how many each file may hold and why they stay.
+    // Reads every file under the platform roots: past the default 5 s on Windows next to the suite's real source
+    // builds (buildSources.test.ts), so it gets a limit of its own.
     it('lets no file outside a platform folder name a platform more often than the list says', () => {
         const { places } = countPlatformNames();
         const differences: string[] = [];
@@ -58,5 +60,5 @@ describe('Omni architecture boundaries', () => {
             }
         }
         expect(differences).toEqual([]);
-    });
+    }, 30_000);
 });
