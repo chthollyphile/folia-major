@@ -541,13 +541,16 @@ export function useThemeController({
         return 'restored' as const;
     };
 
+    // A theme read can land after the listener moved on: `isCurrent` answers whether that song is
+    // still the one shown, and nothing is applied where it is not.
     const restoreCachedThemeForSong = async (
         songOrId: ThemeCacheSongKey | SongResult,
-        options?: { allowLastUsedFallback?: boolean; preserveCurrentOnMiss?: boolean }
+        options?: { allowLastUsedFallback?: boolean; preserveCurrentOnMiss?: boolean; isCurrent?: () => boolean }
     ) => {
+        const stillWanted = () => options?.isCurrent?.() ?? true;
         if (!songThemeAutoSwitchEnabled) {
             if (options?.allowLastUsedFallback) {
-                return restoreThemeFromLastAppliedPointer();
+                return stillWanted() ? restoreThemeFromLastAppliedPointer() : 'none' as const;
             }
             return 'restored' as const;
         }
@@ -555,6 +558,7 @@ export function useThemeController({
         const cachedTheme = typeof songOrId === 'object'
             ? await getCachedThemeStateForSong(songOrId)
             : await getCachedThemeState(songOrId);
+        if (!stillWanted()) return 'none' as const;
 
         if (cachedTheme.kind === 'dual') {
             setCurrentSongHasLocalAiTheme(true);
@@ -572,12 +576,14 @@ export function useThemeController({
 
         if (options?.allowLastUsedFallback) {
             const lastDualTheme = await getLastDualTheme();
+            if (!stillWanted()) return 'none' as const;
             if (lastDualTheme) {
                 applyDualTheme(lastDualTheme, { respectCustomPreference: false });
                 return 'fallback-dual' as const;
             }
 
             const lastLegacyTheme = await getLastLegacyTheme();
+            if (!stillWanted()) return 'none' as const;
             if (lastLegacyTheme) {
                 applyLegacyTheme(lastLegacyTheme, { respectCustomPreference: false });
                 return 'legacy' as const;

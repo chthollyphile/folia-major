@@ -45,14 +45,35 @@ export type PlaybackNavigationOptions = {
      */
     autoplay?: boolean;
     /**
-     * The play's own progress and success toasts ('loading', 'loaded') are not shown: the toast that
-     * is showing (why the song left HiFi) stays. Only onPlayLocalSong and onPlayNavidromeSong read it.
+     * The play's own progress and success toasts ('loading', 'loaded', the external player's own
+     * 'preparing' line) are not shown: the toast that is showing stays (why the song left HiFi, or the
+     * line about the song skipped just before this one). Read where a play puts those lines on screen,
+     * the external player's start included, and by onPlayLocalSong and onPlayNavidromeSong.
      */
     quietLoadedToast?: boolean;
+    /**
+     * Set only where the play was not pressed: the deck ran out, the blend advanced, or a provider's
+     * own player reported the track ended. Such a play may not start or restart the player outside
+     * the app, and a player that cannot be reached stops it where it is instead of failing it.
+     */
+    autoAdvance?: boolean;
+    /**
+     * Set only where the play replaces the whole play queue with a list of its own (a playlist,
+     * album or list played from its first song, a mod's `replaceQueue`): the player outside the app
+     * is then told to take that list as the queue, and what it held behind this song - the songs the
+     * listener queued there included - goes with the queue that was replaced.
+     */
+    replaceQueue?: boolean;
 };
 
 export type NextTrackOptions = PlaybackNavigationOptions & {
     allowStopOnMissing?: boolean;
+    /**
+     * Set only by a provider's own player reporting the end of a song while the queue repeats one
+     * song: this song starts over from its beginning instead of the queue stepping on. A press of
+     * next, and a player its listener stepped by its own controls, never carry it.
+     */
+    replayCurrent?: boolean;
     /**
      * Set only by the audio element's `ended`: the step comes because the track played to its end.
      * Only then does stopping on the last track count as the queue having played out (a scene's
@@ -86,6 +107,18 @@ export type UnavailableReplacementRequest = {
     liveQueue?: () => { queue: SongResult[]; isFmCall: boolean } | null;
     /** Personal FM was ended from outside since the play that opened it (a switch to another platform): the other version plays without it. */
     fmEnded?: () => boolean;
+};
+
+/**
+ * The question a play of an outside player's songs asks before Folia may close the listener's
+ * player and open it again: the song waited for and the queue it was asked with, kept until the
+ * answer (the play that asked is over by then).
+ */
+export type ExternalPlayerRestartRequest = {
+    song: SongResult;
+    queue: SongResult[];
+    isFmCall: boolean;
+    options: PlaybackNavigationOptions;
 };
 
 export type PlaybackSnapshot = {

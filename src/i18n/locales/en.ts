@@ -588,6 +588,13 @@ export default {
     "loadingComplete": "Loaded",
     "loadingSong": "Loading song URL",
     "preparingExternalPlayback": "Preparing playback",
+    "externalPlayerUnreachable": "{{platform}} could not be reached; playback stopped",
+    "externalPlayerUnreachableBare": "The external player could not be reached; playback stopped",
+    "externalPlayerRestartTitle": "Close and reopen your player?",
+    "externalPlayerRestartDescription": "Folia steers the external player over a DevTools port. The player you have open runs without it, so it has to be closed and opened again in a way Folia can steer - the song it is playing is interrupted. Once you agree, Folia stops asking; you can take it back in the settings.",
+    "externalPlayerRestartConfirm": "Agree and retry",
+    "externalPlayerRestartCancel": "Cancel",
+    "externalPlayerRestartDeclined": "The player was left alone, so this song does not play for now",
     "dataSynced": "Data synced successfully",
     "syncFailed": "Sync failed",
     "loginExpired": "Login expired. Please sign in again",
@@ -624,6 +631,8 @@ export default {
     "externalBypassTitle": "This song plays in the platform's own player",
     "externalBypassBody": "Its sound does not pass through Folia, so the equalizer and effects here do not change what you hear. The settings are kept and apply to other songs as usual.",
     "externalReplayGainBypassed": "Plays in the platform's own player; no ReplayGain is applied",
+    "externalPlayerAdvertisement": "Advertisement",
+    "externalPlayerFallback": "The player answered through the system media session: Folia steers it coarsely until remote debugging is back",
     "songUnavailableAlternativeTitle": "Alternate version available",
     "songUnavailableAlternativeDescription": "\"{{song}}\" is unavailable. {{typeDesc}}. Play an alternate version instead?",
     "songUnavailableAlternativeDefaultType": "Another version can be played",
@@ -636,6 +645,9 @@ export default {
     "latticeUnavailableInFm": "Lattice does not support Personal FM mode",
     "latticeFmOpenedInPlayer": "Lattice does not support Personal FM mode. Opened the standard player instead",
     "noPlayableSongs": "No playable songs in this list",
+    "songUnavailableSkipped": "Song unavailable, skipped",
+    "songSubscriptionRequiredSkipped": "{{platform}} Premium required, skipped",
+    "songSubscriptionRequiredSkippedBare": "A Premium account is required, skipped",
     "songUnavailableTag": "Unavailable",
     "songVideoTag": "MV",
     "queueShuffled": "Queue shuffled",
@@ -874,6 +886,10 @@ export default {
       "settings-obs-browser-source": { "title": "OBS browser source", "description": "Open OBS browser source settings" },
       "obs-toggle-keep-main-window-animation": { "title": "OBS: keep main window animation", "description": "Toggle whether the main window keeps its animation while OBS is connected" },
       "obs-toggle-track-card": { "title": "OBS: show the now playing card", "description": "Toggle whether the now playing card is drawn in the OBS browser source" },
+      "external-player-wake-on-launch": { "title": "Wake the external player with Folia", "description": "Toggle starting the player that sounds your songs when Folia opens" },
+      "external-player-close-on-quit": { "title": "Close the external player when Folia quits", "description": "Toggle closing the external player Folia started when the app quits" },
+    "external-player-hold-media-keys": { "title": "Hold the media keys with the official app", "description": "Toggle holding the system media keys only while the external player sounds a song Folia started or took over" },
+      "external-player-system-audio-spectrum": { "title": "Real spectrum for the external player", "description": "Toggle drawing the bars from the machine's own sound or from the playing position" },
       "desktop-toggle-lyric-api": { "title": "Lyrics API", "description": "Toggle the local unauthenticated lyrics endpoint" },
       "settings-obs-copy-css": { "title": "Copy OBS CSS", "description": "Copy the OBS Browser Source Custom CSS carrying uploaded assets" },
       "settings-storage": { "title": "Storage settings", "description": "Open cache and storage settings" },
@@ -1791,7 +1807,12 @@ export default {
     "noteMaybeRegion": "May be restricted in your region",
     "skipCountdown": "Skipping to the next song in {{seconds}}s",
     "signIn": "Sign in",
-    "openSetup": "Playback setup"
+    "openSetup": "Playback setup",
+    "externalPlayerNotInstalled": "The {{platform}} desktop app was not found",
+    "noteExternalPlayerNotInstalled": "Install it, or change the way it plays back to the standard one (Folia plays the songs itself).",
+    "externalPlayerNotFound": "{{platform}} changed, and Folia cannot steer it for now",
+    "noteExternalPlayerNotFound": "Play the standard way for now, until Folia catches up with that version.",
+    "useStandardPlayback": "Use the standard way",
   },
   "home": {
     "welcome": "Welcome to Folia",
@@ -2835,6 +2856,17 @@ export default {
     "remoteControlTextShadeHint": "On the transparent background, idle text sits on a soft translucent black backdrop, easier to read over a bright desktop",
     "openPlayerOnLaunch": "Open playback view on launch",
     "openPlayerOnLaunchDesc": "Opens the playback view when the app starts. Follows \"View opened by Play\": with Lattice selected, launch opens the queue collage.",
+    "wakeExternalPlayersOnLaunch": "Wake the external player on launch",
+    "wakeExternalPlayersOnLaunchDesc": "Starts the external player's desktop app when Folia opens, so the first song does not wait for a launch. If it is already running without the DevTools port, Folia closes and reopens it only after you agree to the restart here.",
+    "closeExternalPlayerOnQuit": "Close the external player when Folia quits",
+    "closeExternalPlayerOnQuitDesc": "Closes the external player's desktop app when Folia quits. Closed only when Folia started it, or when it runs with Folia's DevTools port.",
+    "holdMediaKeysForExternalPlayer": "Hold the media keys for the external player",
+    "holdMediaKeysForExternalPlayerDesc": "On: the keys are Folia's only while the external player sounds a song Folia started or took over (paused counts). Local songs, an idle or stopped player, and leaving the external route give them back. Off: never held, and the upstream media session has them as before. While Folia holds them, other programs receive no media keys.",
+    "externalPlayerRestartConsent": "Let Folia restart the external player",
+    "externalPlayerRestartConsentDesc": "Folia steers that player over its DevTools port. When it is open without that port and you have agreed once, Folia closes it and opens it again in a way it can steer, which interrupts whatever it was playing. Turn this off and the next such player is asked about again.",
+    "externalPlayerRestartConsentUnread": "The current state could not be read, so this cannot be changed for now",
+    "externalSystemAudioSpectrum": "Real spectrum (capture system audio)",
+    "externalSystemAudioSpectrumDesc": "While an external player plays, Folia captures this computer's own output and analyses it in memory to draw the spectrum. Nothing is recorded or kept. Off by default; off, the bars follow the playing position instead.",
     "wallpaperMode": "Wallpaper mode",
     "wallpaperModeDesc": "Sinks the window under the desktop as a lyrics wallpaper. No keyboard input",
     "wallpaperModeMacPermissionHint": "Mac wallpaper mode needs Input Monitoring: enable Folia in System Settings → Privacy & Security → Input Monitoring, then restart the app.",
@@ -5345,29 +5377,37 @@ export default {
       "standard": "Standard",
       "standardNote": "Sign in to Spotify in the browser; Folia plays the songs itself. The equalizer, Automix and the effects that move with the music all work.",
       "soloist": "Soloist",
-      "soloistNote": "Sign in to Spotify in the browser; Spotify's own Soloist program plays the songs. For accounts that get no audio key. Soloist is downloaded separately, and its API key is made with a Premium account."
+      "soloistNote": "Sign in to Spotify in the browser; Spotify's own Soloist program plays the songs. For accounts that get no audio key. Soloist is downloaded separately, and its API key is made with a Premium account.",
+      "client": "Spotify app",
+      "clientNote": "Sign in to Spotify in the browser; the Spotify desktop app on this computer plays the songs, free accounts included. The desktop app has to be installed. Folia starts it with a debugging port on this computer only (127.0.0.1) to steer it. Its sound does not pass through Folia, so the equalizer and effects do not apply. Windows only."
     },
     "setup": {
       "title": "Spotify Soloist setup",
       "note": "Soloist is Spotify's own player, a program on this computer that sends its sound to the system output itself; Folia steers it and follows its position for the lyrics. Folia's equalizer, Automix and the effects that move with the music do not reach its sound.",
       "titleStandard": "How Spotify plays",
-      "noteStandard": "Folia plays Spotify's songs itself now. If this account gets no audio key and songs fail with \"cannot play here\", you can switch to Spotify's own Soloist."
+      "noteStandard": "Folia plays Spotify's songs itself now. If this account gets no audio key and songs fail with \"cannot play here\", you can switch to Spotify's own Soloist.",
+      "clientTitle": "Spotify app setup",
+      "clientNote": "Its sound does not pass through Folia, so the equalizer and Automix do not apply; the real spectrum can be turned on in the settings. It is steered over a 127.0.0.1-only debug port.",
     },
     "noKey": {
       "title": "This account gets no audio key from Spotify",
-      "note": "Spotify gives this account no audio key, so Folia's own way cannot play its songs (common for accounts made since late 2024). You can play through Spotify's own Soloist instead: download the Soloist program, make an API key with a Premium account, and pick the device once in a Spotify app. Playlists, lyrics and search are not affected."
+      "note": "Spotify gives this account no audio key, so Folia's own way cannot play its songs (common since late 2024). Play through Spotify's own Soloist instead: download Soloist, make an API key with a Premium account, and pick the device once in a Spotify app. Playlists, lyrics and search are unaffected."
     },
     "step": {
       "program": "Soloist program",
       "key": "API key",
       "pair": "Pair the device",
       "modeStandard": "Plays: standard",
-      "modeSoloist": "Plays: Soloist"
+      "modeSoloist": "Plays: Soloist",
+      "modeClient": "Plays: Spotify app",
+      "clientApp": "Spotify desktop app"
     },
     "mode": {
       "standardNote": "Folia plays Spotify's songs itself.",
       "soloistNote": "Soloist plays Spotify's songs.",
-      "noKeyNote": "Folia's own way cannot play this account's songs."
+      "noKeyNote": "Folia's own way cannot play this account's songs.",
+      "clientNote": "The Spotify desktop app plays Spotify's songs.",
+      "freeNote": "This is a free account: Spotify does not let Folia play its songs itself."
     },
     "program": {
       "todo": "Download Soloist for this computer from Spotify's page, unpack it and pick the soloist program inside (soloist.exe on Windows). Folia does not include it.",
@@ -5402,7 +5442,18 @@ export default {
       "download": "Official downloads",
       "keyPage": "Open the developer dashboard",
       "saveKey": "Save the key",
-      "reconnect": "Reconnect"
+      "reconnect": "Reconnect",
+      "useClient": "Play through the Spotify app"
+    },
+    "clientApp": {
+      "ready": "The Spotify desktop app was found.",
+      "missing": "The Spotify desktop app was not found. Install it from spotify.com/download or the Microsoft Store, then play again.",
+      "more": "Risks",
+      "moreNote": "This way of playing depends on Spotify's unpublished internals, so a Spotify update may break it; the standard way (Folia playing the songs itself) is the way back if it does. Using it may break Spotify's terms of service, at your own risk.\n\nSpotify state it changes: it takes back only the songs Folia wrote into its queue (the songs you queued yourself stay where they are); with repeat-one it turns the app's own track repeat off while that song plays and restores it after; and Folia closes the Spotify it started with its debug port when it quits (this row can be turned off in the settings).",
+    },
+    "free": {
+      "title": "This is a free account",
+      "note": "Spotify lets only Premium accounts play in Folia. A free account can play through the Spotify desktop app instead: Folia steers it and its sound comes from the app. The desktop app has to be installed; Windows only."
     },
     "message": {
       "picked": "Program picked.",

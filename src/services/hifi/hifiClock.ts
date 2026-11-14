@@ -34,6 +34,12 @@ export type HifiClockSync = {
     nowMs?: number;
     /** 播放中的例行 tick：比当前读数稍早时不往回拉（见 MAX_HELD_LAG_SEC）。 */
     holdBackward?: boolean;
+    /**
+     * 这一次同步的位置最多外推多久（秒），默认 MAX_EXTRAPOLATION_SEC。为一个要等好几秒才有答复的
+     * 动作（外部播放器的拖动）摆位置时由调用方给：那段等待里没有新的同步，位置只能靠外推往前走。
+     * 不进 state()：那是时钟显示的位置，不是它能跑多久。
+     */
+    maxExtrapolationSec?: number;
 };
 
 export type HifiClock = {
@@ -53,12 +59,20 @@ const clampToDuration = (timeSec: number, durationSec: number | null) => {
     return durationSec === null ? nonNegative : Math.min(nonNegative, durationSec);
 };
 
+const normalizeExtrapolation = (maxExtrapolationSec: number | undefined): number => (
+    typeof maxExtrapolationSec === 'number' && Number.isFinite(maxExtrapolationSec) && maxExtrapolationSec > 0
+        ? maxExtrapolationSec
+        : MAX_EXTRAPOLATION_SEC
+);
+
 export const createHifiClock = (): HifiClock => {
     let clock: HifiClockState = { baseSec: 0, startedAtMs: null, paused: true, durationSec: null, floorSec: null };
+    /** 当前这次同步允许多外推多久：每次 sync 按输入重置，不给就是 MAX_EXTRAPOLATION_SEC。 */
+    let extrapolationSec = MAX_EXTRAPOLATION_SEC;
 
     const extrapolate = (nowMs: number) => {
         if (clock.startedAtMs === null) return clock.baseSec;
-        const elapsedSec = Math.min(Math.max(0, (nowMs - clock.startedAtMs) / 1000), MAX_EXTRAPOLATION_SEC);
+        const elapsedSec = Math.min(Math.max(0, (nowMs - clock.startedAtMs) / 1000), extrapolationSec);
         return clock.baseSec + elapsedSec;
     };
 
@@ -67,8 +81,9 @@ export const createHifiClock = (): HifiClock => {
         return clampToDuration(clock.floorSec === null ? timeSec : Math.max(timeSec, clock.floorSec), clock.durationSec);
     };
 
-    const sync = ({ positionSec, paused, durationSec, nowMs = performance.now(), holdBackward = false }: HifiClockSync) => {
+    const sync = ({ positionSec, paused, durationSec, nowMs = performance.now(), holdBackward = false, maxExtrapolationSec }: HifiClockSync) => {
         const nextDuration = durationSec === undefined ? clock.durationSec : normalizeDuration(durationSec);
+        extrapolationSec = normalizeExtrapolation(maxExtrapolationSec);
         const safePosition = Number.isFinite(positionSec) ? positionSec : 0;
         const baseSec = clampToDuration(safePosition, nextDuration);
         let floorSec: number | null = null;

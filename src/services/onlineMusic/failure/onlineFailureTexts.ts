@@ -70,6 +70,19 @@ export const onlineFailureQuote = (shown: OnlineFailure): { text: string; code?:
     return httpStatus === undefined ? undefined : { text: `HTTP ${httpStatus}` };
 };
 
+/**
+ * A line that names the platform: the name goes into it when one is known, and a wording without
+ * {{platform}} is used when none is. i18next does not fail on a placeholder that was handed no value,
+ * it leaves the braces on screen, so every such line is settled here and no caller hands the key to
+ * `t` on its own.
+ */
+export const platformNamedText = (
+    t: Translate,
+    key: string,
+    bareKey: string,
+    providerId: string | null | undefined,
+): string => (providerId ? t(key, { platform: omni.getProviderLabel(providerId) }) : t(bareKey));
+
 /** 一次失败给用的人看的标题、该做什么和引的话，都已经翻好。 */
 export const onlineFailureMessage = (shown: OnlineFailure, t: Translate): { title: string; note?: string; quote?: { text: string; code?: string } } => {
     const { signedOut, retryAfterMs, likelyCause } = shown.facts;

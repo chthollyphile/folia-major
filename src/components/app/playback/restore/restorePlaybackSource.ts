@@ -1,5 +1,5 @@
 import i18n from '../../../../i18n/config';
-import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
+import type { Dispatch, RefObject, SetStateAction } from 'react';
 import { getCachedCoverUrl, loadCachedOrFetchCover } from '../../../../services/coverCache';
 import { getLocalSongs } from '../../../../services/db';
 import { applyLocalLibraryEntityDisplay, buildUnifiedLocalSong } from '../../../../services/playbackAdapters';
@@ -27,17 +27,20 @@ import { isPureMusicLyricText } from '../../../../utils/lyrics/pureMusic';
 import { migrateLyricDataRenderHints } from '../../../../utils/lyrics/renderHints';
 import { resolveLocalSongLyrics } from '../../../../utils/lyrics/localSongLyrics';
 import { loadOnlineLyricsState, resolveOnlineLyrics } from '../../../../utils/onlineLyricsState';
-import type { AudioQualityPreference, MediaId } from '../../../../types/onlineMusic';
+import type { AudioQualityPreference, MediaId, ProviderExternalPlaybackStatus } from '../../../../types/onlineMusic';
 import { omni } from '../../../../services/onlineMusic/omni';
 import { onlineFailureOf, type OnlineFailure } from '../../../../services/onlineMusic/failure/onlineFailureCase';
 import { getCachedSongCoverUrl, getSongCacheWithLegacyMigration } from '../../../../services/onlineMusic/resourceCache';
 import { getSongCoverUrl } from '../../../../services/onlineMusic/songMetadata';
+import { currentTime } from '../../../../stores/motionSignals';
 import { useOnlineProviderAccountStore } from '../../../../stores/useOnlineProviderAccountStore';
 import { setStatusMessage as setStatusMsg, useStatusMessageStore } from '../../../../stores/useStatusMessageStore';
 import { setActiveLocalLyricsSource, setAudioSrc, setCachedCoverUrl, setCurrentSong, setDuration, usePlaybackStore } from '../../../../stores/usePlaybackStore';
 import { askedSongKeyRef, keepSongsOfProvidersStanding, providerDropsSoFar, replaceShownSong } from '../currentSong';
 import { onlineFailureToast } from '../source/onlineFailureToast';
 import { loadLocalSongAudio, loadLocalSongHifiSource, loadNavidromeSongAudio, loadOnlineSongAudio } from '../source/songAudioSource';
+import { loadTakenTrackDetails, queueWithRunningTrack } from './runningTrack';
+import { takeOverRunningPlayer } from '../bridges/externalPlayerFollow';
 import { useLyricSettingsStore } from '../../../../stores/useLyricSettingsStore';
 import { useHifiSettingsStore } from '../../../../stores/useHifiSettingsStore';
 import { beginHifiTrack, hifiRouteFor, releaseUnclaimedHifiTrack, whenHifiRuntimeKnown } from '../../../../services/hifi/hifiPlayback';
@@ -55,6 +58,112 @@ import type { PlaybackRoute } from '../../../../types/hifi';
 
 type SetState<T> = Dispatch<SetStateAction<T>>;
 
+/**
+ * Shows a position on the remembered song: never past its end, where a song shown at its end starts
+ * over as a replay does, and never where the restore was overtaken while it waited, so a song asked
+ * for meanwhile keeps its own place.
+ */
+const showExternalPosition = (song: SongResult, positionMs: number | null, overtaken: () => boolean): void => {
+    if (positionMs === null || !Number.isFinite(positionMs) || positionMs <= 0) return;
+    if (overtaken()) return;
+    const seconds = positionMs / 1000;
+    currentTime.set(song.durationMs > 0 ? Math.min(seconds, song.durationMs / 1000) : seconds);
+};
+
+/**
+ * Asks the provider's own player where it is on the remembered song and shows it. An answer that
+ * fails or names another track leaves the song where it was.
+ */
+const showRunningExternalPosition = async (song: SongResult, overtaken: () => boolean): Promise<void> => {
+    let positionMs: number | null;
+    try {
+        positionMs = await omni.getExternalPlaybackRunningPositionMs(song);
+    } catch (error) {
+        console.warn('[restorePlaybackSourceForSong] The player could not say where the song is; it stays at its beginning', error);
+        return;
+    }
+    showExternalPosition(song, positionMs, overtaken);
+};
+
+/** The intent to play the caller armed, dropped where nothing of this window plays the song. */
+const dropPlayIntent = (shouldAutoPlayRef?: RefObject<boolean>): void => {
+    if (shouldAutoPlayRef) shouldAutoPlayRef.current = false;
+};
+
+/** A song change's theme restore, with the guard a read that lands late needs. */
+type RestoreSongTheme = (songId: ThemeCacheSongKey | SongResult, options?: {
+    allowLastUsedFallback?: boolean;
+    preserveCurrentOnMiss?: boolean;
+    isCurrent?: () => boolean;
+}) => Promise<unknown>;
+
+/** What a restore offers a track the player moved on to while it shows it. */
+type RunningTrackRestoreOptions = {
+    shouldAutoPlayRef?: RefObject<boolean>;
+    userId?: MediaId;
+    setLyrics: (nextLyrics: LyricData | null) => void;
+    setPlayQueue?: SetState<SongResult[]>;
+    /** The queue that track goes in front of the remembered song in. */
+    queueBase: () => SongResult[];
+    persistLastPlaybackCache?: (song: SongResult | null, queue: SongResult[]) => Promise<void>;
+    restoreCachedThemeForSong?: RestoreSongTheme;
+};
+
+/**
+ * The remembered song's own player outlived the app: read once what it has now. A player sounding
+ * this song is taken over as it stands - the external route, its clock, the media keys and the songs
+ * that follow it are the ones this app follows anyway - and the intent to play the restore armed is
+ * dropped, because what sounds there is the player's and nothing here starts it. A player on another
+ * track, named by the id it carries, has that track taken over as well, so the app follows what
+ * sounds instead of showing a song nobody plays. Anything else (a pause, an advertisement, an answer
+ * that names no track at all) only shows where it is.
+ * Nothing here steers the player: it starts, resumes and pauses nothing, and it leaves the rest of its
+ * state as it is. Once a track is taken over, the volume and the songs that follow it are Folia's
+ * (docs/spotify-official-client.md).
+ */
+const resumeRunningExternalPlayback = async (
+    song: SongResult,
+    overtaken: () => boolean,
+    options: RunningTrackRestoreOptions,
+): Promise<void> => {
+    let running: ProviderExternalPlaybackStatus | null = null;
+    try {
+        running = await omni.getExternalPlaybackRunningStatus(song);
+    } catch (error) {
+        console.warn('[restorePlaybackSourceForSong] The player could not say what it has; the song stays paused at its beginning', error);
+    }
+    if (overtaken()) return;
+    if (running === null) {
+        await showRunningExternalPosition(song, overtaken);
+        return;
+    }
+    const outcome = await takeOverRunningPlayer(song, running, {
+        isWanted: () => !overtaken(),
+        // This caller writes and saves the list the player was found in, so the take-over leaves
+        // the store's queue to it.
+        ownsQueue: true,
+        spendPlayIntent: () => dropPlayIntent(options.shouldAutoPlayRef),
+        onTrackTaken: async (track, stillCurrent) => {
+            if (!stillCurrent()) return;
+            const queue = queueWithRunningTrack(options.queueBase(), track, song);
+            options.setPlayQueue?.(queue);
+            void options.persistLastPlaybackCache?.(track, queue);
+            void options.restoreCachedThemeForSong?.(track, {
+                allowLastUsedFallback: true, preserveCurrentOnMiss: false, isCurrent: stillCurrent,
+            }).catch((error: unknown) => {
+                console.warn('[restorePlaybackSourceForSong] The theme of the track taken over could not be restored', error);
+            });
+            // The words and the cover of the track, loaded the way any song change loads its own.
+            // The queue the caller hands in is the one the player was found in; the take-over has
+            // already put the track in the store's queue, so only a caller's own queue is written.
+            await loadTakenTrackDetails(track, stillCurrent, options.setLyrics, { userId: options.userId });
+        },
+    });
+    // A track the player turned out not to hold, and one that names no track of its own: where the
+    // player says, the remembered song's own position is shown.
+    if (outcome === 'untouched') await showRunningExternalPosition(song, overtaken);
+};
+
 // 'restored': the song plays from a fresh source. 'failed': it could not be restored (what went
 // wrong is said, unless the caller has a source of its own to fall back on). 'stale': overtaken.
 export type RestorePlaybackSourceOutcome = 'restored' | 'failed' | 'stale';
@@ -62,14 +171,11 @@ export type RestorePlaybackSourceOutcome = 'restored' | 'failed' | 'stale';
 type RestorePlaybackSourceParams = {
     audioQuality: AudioQualityPreference;
     userId?: MediaId;
-    blobUrlRef: MutableRefObject<string | null>;
-    currentOnlineAudioUrlFetchedAtRef: MutableRefObject<number | null>;
+    blobUrlRef: RefObject<string | null>;
+    currentOnlineAudioUrlFetchedAtRef: RefObject<number | null>;
     setPlayQueue?: SetState<SongResult[]>;
     setLyrics: (nextLyrics: LyricData | null) => void;
-    restoreCachedThemeForSong?: (songId: ThemeCacheSongKey | SongResult, options?: {
-        allowLastUsedFallback?: boolean;
-        preserveCurrentOnMiss?: boolean;
-    }) => Promise<unknown>;
+    restoreCachedThemeForSong?: RestoreSongTheme;
     persistLastPlaybackCache?: (song: SongResult | null, queue: SongResult[]) => Promise<void>;
     queue?: SongResult[];
     /** What `startRestore()` gave the caller when it made the song current. */
@@ -92,12 +198,25 @@ type RestorePlaybackSourceParams = {
      * <audio>'s loadedmetadata spends it; a local or Navidrome song restored on the HiFi route starts
      * there and spends it here. Not given: it starts at its beginning.
      */
-    pendingResumeTimeRef?: MutableRefObject<number | null>;
+    pendingResumeTimeRef?: RefObject<number | null>;
+    /**
+     * A session read back at launch, rather than a window hand-off: a provider's own player outlives
+     * this app, so it may still be running the remembered song where the listener left it. That one
+     * state is read: a player sounding the song is taken over as it stands, and anything else is shown
+     * at its position, from where the press of play starts. A hand-off takes its position from the old
+     * window's snapshot instead, and asks the player nothing.
+     */
+    resumeExternalPosition?: boolean;
+    /**
+     * The caller's intent to play, taken by the restore where it takes a running player over: what
+     * sounds there is the player's own, so nothing of this window's autoplay is left to fire.
+     */
+    shouldAutoPlayRef?: RefObject<boolean>;
 };
 
 // null on the HiFi route, which makes no blob URL: the one that was there is revoked all the same.
 const replaceBlobUrl = (
-    blobUrlRef: MutableRefObject<string | null>,
+    blobUrlRef: RefObject<string | null>,
     nextBlobUrl: string | null,
 ) => {
     if (blobUrlRef.current) {
@@ -117,7 +236,7 @@ const restoredSongRoute = async (kind: 'local' | 'navidrome', songKey: string): 
 };
 
 /** The time a HiFi restore starts at: what the caller left to resume at, spent here. */
-const takeResumeTime = (pendingResumeTimeRef: MutableRefObject<number | null> | undefined): number => {
+const takeResumeTime = (pendingResumeTimeRef: RefObject<number | null> | undefined): number => {
     const startSec = pendingResumeTimeRef?.current ?? 0;
     if (pendingResumeTimeRef) pendingResumeTimeRef.current = null;
     return startSec;
@@ -165,6 +284,8 @@ const restoreSourceForSong = async (
         hasFallbackSource = false,
         queueWritesAtStart,
         pendingResumeTimeRef,
+        resumeExternalPosition = false,
+        shouldAutoPlayRef,
     }: RestorePlaybackSourceParams,
 ): Promise<RestorePlaybackSourceOutcome> => {
     let restoredSongKey = getPlaybackSongKey(song);
@@ -183,6 +304,14 @@ const restoreSourceForSong = async (
         const swapped = replacePlaybackSongWhereQueued(live, restoredSong);
         return { write: swapped, save: swapped ?? live };
     };
+
+    // The queue a track a player moved on to goes in front of the remembered song: the one this
+    // restore was given, or after a whole-queue write since it started, the store's as it is now.
+    const queueBaseForRunningTrack = (): SongResult[] => (
+        queueWritesAtStart === undefined || wholeQueueWritesSoFar() === queueWritesAtStart
+            ? keepSongsOfProvidersStanding(queue && queue.length > 0 ? queue : [song], providerDropsAtStart)
+            : usePlaybackStore.getState().playQueue
+    );
 
     await restoreCachedThemeForSong?.(song, {
         allowLastUsedFallback: true,
@@ -380,11 +509,11 @@ const restoreSourceForSong = async (
     }
 
     if (omni.canPlayExternally(song)) {
-        // A provider's own player has no track after a restart: the remembered song is shown as it
-        // was - paused, at its position - and the play path starts it when the listener asks. Its
-        // lyrics are still restored, so the screen is not empty. (A window rebuild is different: the
-        // player outlives the window, and the hand-off's restore takes the running track over after
-        // this returns; see useElectronWindowPlaybackHandoff.)
+        // A provider's own player outlives the app: a session restore reads what it has (a track it
+        // sounds is taken over, anything else is shown where it is), and the play path starts the song
+        // otherwise. Its lyrics are still restored, so the screen is not empty. (A window rebuild is
+        // different: the player outlives the window, and the hand-off's restore takes the running
+        // track over itself; see useElectronWindowPlaybackHandoff.)
         try {
             const cachedLyrics = await getSongCacheWithLegacyMigration<LyricData>('lyric', song, migrateLyricDataRenderHints);
             if (overtaken()) return 'stale';
@@ -394,6 +523,17 @@ const restoreSourceForSong = async (
         } catch (error) {
             if (overtaken()) return 'stale';
             console.warn('[restorePlaybackSourceForSong] Lyrics could not be restored for the external player', error);
+        }
+        if (resumeExternalPosition) {
+            await resumeRunningExternalPlayback(song, overtaken, {
+                shouldAutoPlayRef,
+                userId,
+                setLyrics,
+                setPlayQueue,
+                queueBase: queueBaseForRunningTrack,
+                persistLastPlaybackCache,
+                restoreCachedThemeForSong,
+            });
         }
         return 'restored';
     }

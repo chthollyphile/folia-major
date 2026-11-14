@@ -21,7 +21,7 @@ import { probeAccountController } from './probeAccountController';
  * state of the sign-in is made up here and handed to the window's screen. Nothing is requested;
  * the code is a pattern drawn in this file, the accounts are samples.
  *
- * Opened by hand: ?probe=loginWindow&state=<state>&theme=dark|light&count=6…12&lang=zh|en
+ * Opened by hand: ?probe=loginWindow&state=<state>&theme=dark|light&count=6…12&lang=zh|en|in|vi
  * state: none, preparing, code, scanned, reading, expired, methods, methods-code, browser-ready,
  * browser-opening, browser, account (syncing=1: its data is syncing; syncing=other: another platform's is), account-other, account-nameless (signed in, no profile),
  * account-gone (the sign-in ran out while the account was shown), accountless, off, or fail-<case id>.
@@ -38,7 +38,14 @@ import { probeAccountController } from './probeAccountController';
  * is the same for a sign-in in the browser (no "scanned" step). motion=off turns the app's
  * reduce-motion setting on: no animation, the window closes when the account is read.
  */
-type ProbeProps = { state?: string; theme?: 'dark' | 'light'; count?: number; lang?: 'zh' | 'en'; motion?: 'on' | 'off' };
+type ProbeProps = { state?: string; theme?: 'dark' | 'light'; count?: number; lang?: ProbeLang; motion?: 'on' | 'off' };
+
+/** The languages the window is drawn in here, and what i18next calls each of them. */
+type ProbeLang = 'zh' | 'en' | 'in' | 'vi';
+const LANGUAGES: Record<ProbeLang, string> = { zh: 'zh-CN', en: 'en', in: 'in', vi: 'vi' };
+const langOf = (value: string | null | undefined): ProbeLang => (
+    value === 'en' || value === 'in' || value === 'vi' ? value : 'zh'
+);
 
 /** When the played sign-in is scanned, confirmed and read: ms after the probe mounts. */
 const PLAY = { scanned: 300, confirmed: 300 + 1300, read: 300 + 2100 };
@@ -149,6 +156,25 @@ const STEPS_VIEW: ProviderSetupView = {
         { id: 'mode', titleKey: 'soloist.step.modeSoloist', noteKey: 'soloist.mode.soloistNote', state: 'done', actions: [{ id: 'use-standard', labelKey: 'soloist.action.useStandard', kind: 'run' }] },
     ],
 };
+/** Spotify's own desktop app plays it: one thing to have installed, and the way to change it. */
+const CLIENT_VIEW: ProviderSetupView = {
+    titleKey: 'soloist.setup.clientTitle',
+    noteKey: 'soloist.setup.clientNote',
+    complete: true,
+    steps: [
+        {
+            id: 'app', titleKey: 'soloist.step.clientApp', noteKey: 'soloist.clientApp.ready', state: 'done',
+            more: { labelKey: 'soloist.clientApp.more', noteKey: 'soloist.clientApp.moreNote' },
+        },
+        {
+            id: 'mode', titleKey: 'soloist.step.modeClient', noteKey: 'soloist.mode.clientNote', state: 'done',
+            actions: [
+                { id: 'use-standard', labelKey: 'soloist.action.useStandard', kind: 'run' },
+                { id: 'use-soloist', labelKey: 'soloist.action.useSoloist', kind: 'run' },
+            ],
+        },
+    ],
+};
 const setupOf = (view: ProviderSetupView, origin: 'sign-in' | 'account'): LibraryProviderSetupSnapshot => ({ providerId: 'spotify', view, busy: false, origin });
 const chosen = (providerId: string, lead: RowLead) => ({ providerId, lead });
 const IN_BROWSER = new Set(['spotify', 'ytm']);
@@ -213,7 +239,9 @@ const shownFor = (state: string): Shown => {
             setup: setupOf(NO_KEY_VIEW, 'sign-in'),
         };
         case 'setup-steps': return { chosen: chosen('spotify', 'account'), login: null, setup: setupOf(STEPS_VIEW, 'account') };
+        case 'setup-client': return { chosen: chosen('spotify', 'account'), login: null, setup: setupOf(CLIENT_VIEW, 'account') };
         case 'account': return { chosen: chosen('qq', 'account'), login: null };
+        case 'account-spotify': return { chosen: chosen('spotify', 'account'), login: null };
         case 'account-nameless': return { chosen: chosen('spotify', 'account'), login: null };
         case 'account-gone': return { chosen: chosen('kugou', 'account'), login: null };
         case 'accountless': return { chosen: chosen('stand-in-5', 'accountless'), login: null };
@@ -226,13 +254,13 @@ function LoginWindowProbe(props: ProbeProps) {
     const state = props.state ?? query.get('state') ?? 'none';
     const theme = props.theme ?? (query.get('theme') === 'light' ? 'light' : 'dark');
     const count = props.count ?? Number(query.get('count') ?? 6);
-    const lang = props.lang ?? (query.get('lang') === 'en' ? 'en' : 'zh');
+    const lang = props.lang ?? langOf(query.get('lang'));
     const { i18n } = useTranslation();
     const [isOpen, setIsOpen] = useState(true);
     const [said, setSaid] = useState('');
     const [shown, setShown] = useState(() => shownFor(state));
     useEffect(() => setShown(shownFor(state)), [state]);
-    useEffect(() => { void i18n.changeLanguage(lang === 'en' ? 'en' : 'zh-CN'); }, [i18n, lang]);
+    useEffect(() => { void i18n.changeLanguage(LANGUAGES[lang]); }, [i18n, lang]);
 
     // The played sign-in: how far it has got (0 waiting, 1 scanned, 2 confirmed, 3 the account is read),
     // and whether the animation after it is on. What LoginHost does in the app is done here by hand.
@@ -277,9 +305,11 @@ function LoginWindowProbe(props: ProbeProps) {
     // A played sign-in: its platform is signed in from the moment the account is read.
     const platforms = state === 'account-nameless'
         ? PLATFORMS.map(entry => (entry.providerId === 'spotify' ? { ...entry, status: 'authenticated' as const } : entry))
-        : played && step === 3
-            ? PLATFORMS.map(entry => (entry.providerId === played ? { ...entry, status: 'authenticated' as const, user: SAMPLE_USER } : entry))
-            : PLATFORMS;
+        : state === 'account-spotify' || state === 'setup-client'
+            ? PLATFORMS.map(entry => (entry.providerId === 'spotify' ? { ...entry, status: 'authenticated' as const, user: SAMPLE_USER } : entry))
+            : played && step === 3
+                ? PLATFORMS.map(entry => (entry.providerId === played ? { ...entry, status: 'authenticated' as const, user: SAMPLE_USER } : entry))
+                : PLATFORMS;
     const rows = orderRows([...platforms, ...STAND_INS.slice(0, Math.max(0, count - platforms.length))], played ?? activeProviderId);
     const view: Shown = played
         ? {

@@ -19,6 +19,13 @@ const { createWindowPlaybackHandoffStore } = require('./windowPlaybackHandoff.cj
 const { applyTileMemoryBudget } = require('./tileMemoryBudget.cjs');
 const { BACKGROUND_THROTTLING_SETTING_KEY, createBackgroundThrottling } = require('./backgroundThrottling.cjs');
 const {
+  DISPLAY_MEDIA_ROUTE_SPECTRUM,
+  DISPLAY_MEDIA_ROUTE_VIDEO_EXPORT,
+  createSpectrumArm,
+  decideDisplayMediaRoute,
+} = require('./displayMediaRoute.cjs');
+const { SETTING_KEY: RESTART_CONSENT_SETTING_KEY, registerRestartConsentIpc } = require('./restartConsent.cjs');
+const {
   GPU_PREFERENCE_SETTING_KEY,
   applyGpuPreference,
   createActiveGpuReader,
@@ -82,6 +89,8 @@ const { createCompanionRequestHandler } = require('./appleMusic/companionIpc.cjs
 const { createYtmSandbox } = require('./ytm/sandbox.cjs');
 const { YTM_AUDIO_PRIVILEGED_SCHEME, YTM_AUDIO_SCHEME } = require('./ytm/audio.cjs');
 const { createSpotifyApiBridge } = require('./spotify/spotifyApiBridge.cjs');
+const { createMediaKeyTakeover } = require('./mediaKeys.cjs');
+const { createQuitShutdownGate } = require('./quitShutdown.cjs');
 const { SPOTIFY_AUDIO_PRIVILEGED_SCHEME, SPOTIFY_AUDIO_SCHEME } = require('./spotify/audio.cjs');
 const { createQqAuthSessionRepository } = require('./qq/qqAuthSessionRepository.cjs');
 const { DEFAULT_DISCORD_APPLICATION_ID, createDiscordPresenceController } = require('./discordPresence.cjs');
@@ -713,9 +722,7 @@ const windowsWallpaper = windowsWallpaperModule.createWindowsWallpaperController
   getHwnd: getMainWindowNativeHwnd,
   onDegrade: () => {
     refreshWindowsDesktopWallpaper();
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('wallpaper-mode-changed', getPublicSettings());
-    }
+    sendToMainWindow('wallpaper-mode-changed', getPublicSettings());
     void rebuildMainWindowWithPlaybackHandoff('wallpaper mode given up');
   },
   onReattachNeeded: () => {
@@ -730,9 +737,7 @@ const windowsWallpaper = windowsWallpaperModule.createWindowsWallpaperController
     }
     wallpaperWindowsAttachMode = mode;
     store.set(WALLPAPER_WINDOWS_ATTACH_MODE_KEY, mode);
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('wallpaper-mode-changed', getPublicSettings());
-    }
+    sendToMainWindow('wallpaper-mode-changed', getPublicSettings());
     reconcileWindowsWallpaperWindowTransparency();
   },
   onMouseInput: forwardWallpaperMouseInput,
@@ -845,9 +850,7 @@ async function relaunchForWallpaperModeChange(nextEnabled, expectedGeneration = 
       void launchWrappedSelf({
         onError: () => {
           setMainWindowClickThroughEnabled(false);
-          if (mainWindow && !mainWindow.isDestroyed()) {
-            mainWindow.webContents.send('wallpaper-mode-changed', getPublicSettings());
-          }
+          sendToMainWindow('wallpaper-mode-changed', getPublicSettings());
         },
       });
     } else {
@@ -969,9 +972,7 @@ function getWallpaperDisplaysState() {
 }
 
 function notifyWallpaperDisplaysChanged() {
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('wallpaper-displays-changed', getWallpaperDisplaysState());
-  }
+  sendToMainWindow('wallpaper-displays-changed', getWallpaperDisplaysState());
   // The tray lists the same choice, so it follows every change the settings page is told of.
   refreshTrayMenu();
 }
@@ -1481,18 +1482,14 @@ function notifyMacWallpaperModeChanged() {
   refreshTrayMenu();
   // macOS switches wallpaper mode in place, not always through save-settings: every change ends here.
   backgroundThrottling.refresh();
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('wallpaper-mode-changed', getPublicSettings());
-  }
+  sendToMainWindow('wallpaper-mode-changed', getPublicSettings());
 }
 
 // Input Monitoring is required to forward desktop clicks/hover into the wallpaper window. When it
 // is missing the renderer shows a toast pointing at System Settings (mirrors the Windows
 // wallpaper-transparent-refused prompt pattern).
 function notifyMacWallpaperInputMonitoringNeeded() {
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('wallpaper-input-monitor-requested', null);
-  }
+  sendToMainWindow('wallpaper-input-monitor-requested', null);
 }
 
 // Dock auto-hide during a wallpaper session is position-aware: the Dock is hidden only while it
@@ -2065,9 +2062,7 @@ function getMacWallpaperClickGuard() {
 // on the bare wallpaper still send the stage aside. Asked once per session; never turns the
 // wallpaper off.
 function notifyMacWallpaperAccessibilitySuggested() {
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('wallpaper-accessibility-suggested', null);
-  }
+  sendToMainWindow('wallpaper-accessibility-suggested', null);
 }
 
 function flushMacWallpaperPendingDrag() {
@@ -2649,6 +2644,43 @@ let mainWindowClickThroughUnlockHover = false;
 let mainWindowClickThroughUnlockHoverTimer = null;
 let mainWindowSkipTaskbarEnabled = false;
 let videoExportWindowRestoreState = null;
+
+// A window can outlive its page: a closing BrowserWindow stays undestroyed for a moment after its
+// webContents is gone, and send throws "Object has been destroyed" on that page, which reaches the
+// app as an uncaughtException. Everything that pushes to a window goes through here, so a page that
+// is gone costs the message instead of the process.
+function sendToWindow(targetWindow, channel, ...args) {
+  if (!targetWindow || targetWindow.isDestroyed()) {
+    return false;
+  }
+  const contents = targetWindow.webContents;
+  if (!contents || contents.isDestroyed()) {
+    return false;
+  }
+  contents.send(channel, ...args);
+  return true;
+}
+
+function sendToMainWindow(channel, ...args) {
+  return sendToWindow(mainWindow, channel, ...args);
+}
+
+// The renderer's arm for the machine's own sound, for the external playback route's spectrum
+// (createSpectrumArm says what it guarantees).
+const externalSpectrumArm = createSpectrumArm({
+  onLapse: () => console.info('[ExternalSpectrum] The arm for the machine\'s sound lapsed unspent'),
+});
+// Set while the renderer holds the capture that arm bought: the window must stay live for it.
+let externalSpectrumCaptureActive = false;
+
+// A capture cannot outlive the page that asked for it, and its arm must not answer a later request.
+const forgetExternalSpectrumCapture = () => {
+  externalSpectrumArm.disarm();
+  if (!externalSpectrumCaptureActive) return;
+  externalSpectrumCaptureActive = false;
+  backgroundThrottling.refresh();
+};
+
 // The 后台节流 switch; refresh() wherever one of its stand-down reasons can change.
 const backgroundThrottling = createBackgroundThrottling({
   isEnabled: () => readStoredBoolean(BACKGROUND_THROTTLING_SETTING_KEY, false),
@@ -2656,6 +2688,7 @@ const backgroundThrottling = createBackgroundThrottling({
     if (isWallpaperModeEnabled()) return 'wallpaper mode';
     if (videoExportWindowRestoreState) return 'video export';
     if (obsBrowserSourceClients.size > 0) return 'OBS browser source';
+    if (externalSpectrumCaptureActive) return 'system sound capture';
     return null;
   },
 });
@@ -2925,9 +2958,7 @@ function buildObsBrowserSourceStatus() {
 
 function broadcastObsBrowserSourceStatus() {
   backgroundThrottling.refresh();
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('obs-browser-source-status-changed', buildObsBrowserSourceStatus());
-  }
+  sendToMainWindow('obs-browser-source-status-changed', buildObsBrowserSourceStatus());
 }
 
 mainWindowSkipTaskbarEnabled = readStoredBoolean(HIDE_TASKBAR_ICON_SETTING_KEY, false);
@@ -2967,9 +2998,7 @@ const discordPresence = createDiscordPresenceController({
   getApplicationId: () => DEFAULT_DISCORD_APPLICATION_ID,
   isEnabled: () => readStoredBoolean(DISCORD_RICH_PRESENCE_ENABLED_SETTING_KEY, false),
   onStatusChange: (status) => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('discord-presence-status-changed', status);
-    }
+    sendToMainWindow('discord-presence-status-changed', status);
   },
 });
 
@@ -3009,9 +3038,7 @@ function buildPlaybackSyncBridgeStatus() {
 }
 
 function broadcastPlaybackSyncBridgeStatus() {
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('playback-sync-bridge-status-changed', buildPlaybackSyncBridgeStatus());
-  }
+  sendToMainWindow('playback-sync-bridge-status-changed', buildPlaybackSyncBridgeStatus());
 }
 
 function getStoredWindowState() {
@@ -3137,11 +3164,7 @@ function setMainWindowFullscreen(win, fullscreen) {
 }
 
 function sendThumbarAction(action) {
-  if (!mainWindow || mainWindow.isDestroyed()) {
-    return;
-  }
-
-  mainWindow.webContents.send('thumbar-action', action);
+  sendToMainWindow('thumbar-action', action);
 }
 
 // Windows builds a new taskbar button for a window shown after being hidden, and Electron forgets
@@ -3328,9 +3351,7 @@ function applyRemoteControlWindowPresentation(win) {
   }
 
   syncRemoteControlMouseIgnore();
-  if (!win.webContents.isDestroyed()) {
-    win.webContents.send('remote-control-window-settings-changed', buildRemoteControlWindowSettings());
-  }
+  sendToWindow(win, 'remote-control-window-settings-changed', buildRemoteControlWindowSettings());
   return true;
 }
 
@@ -3340,9 +3361,7 @@ function setRemoteControlClickThroughEnabled(enabled) {
   store.set(REMOTE_CONTROL_CLICK_THROUGH_SETTING_KEY, remoteControlClickThroughEnabled);
   applyRemoteControlWindowPresentation(remoteControlWindow);
   refreshTrayMenu();
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send('wallpaper-mode-changed', getPublicSettings());
-  }
+  sendToMainWindow('wallpaper-mode-changed', getPublicSettings());
   return remoteControlClickThroughEnabled;
 }
 
@@ -3675,6 +3694,12 @@ function isSpeakerSelectionPermission(permission) {
   return permission === 'speaker-selection';
 }
 
+// getDisplayMedia's own permission. What it may capture is decided by the display-media request
+// handler below, which grants the main window a source only while one of its features armed it.
+function isDisplayCapturePermission(permission) {
+  return permission === 'display-capture';
+}
+
 function isAudioMediaPermission(permission, details) {
   if (permission !== 'media') {
     return false;
@@ -3690,6 +3715,7 @@ function isAllowedMainWindowPermission(permission, details) {
     isFontAccessPermission(permission) ||
     isClipboardWritePermission(permission) ||
     isSpeakerSelectionPermission(permission) ||
+    isDisplayCapturePermission(permission) ||
     isAudioMediaPermission(permission, details) ||
     permission === 'unknown'
   );
@@ -4172,11 +4198,7 @@ function getUpdateStatus() {
 }
 
 function publishUpdateStatus() {
-  if (!mainWindow || mainWindow.isDestroyed()) {
-    return;
-  }
-
-  mainWindow.webContents.send('update-status-changed', getUpdateStatus());
+  sendToMainWindow('update-status-changed', getUpdateStatus());
 }
 
 function setUpdateState(patch) {
@@ -5032,9 +5054,7 @@ networkRecorder.start();
 
 function broadcastToWindows(channel, payload) {
   BrowserWindow.getAllWindows().forEach((win) => {
-    if (!win.isDestroyed()) {
-      win.webContents.send(channel, payload);
-    }
+    sendToWindow(win, channel, payload);
   });
 }
 
@@ -5349,7 +5369,11 @@ function requestWindowPlaybackHandoff(timeoutMs = WINDOW_PLAYBACK_HANDOFF_REQUES
 
     try {
       lastWindowPlaybackHandoffRequestAt = Date.now();
-      mainWindow.webContents.send('window-playback-handoff-requested', { requestId });
+      // The page is gone, so nothing can answer: the catch below is the one way out of a failed
+      // request, and a dropped send has to take it just like a throwing one did.
+      if (!sendToMainWindow('window-playback-handoff-requested', { requestId })) {
+        throw new Error('The main window has no page to carry the handoff request.');
+      }
     } catch (error) {
       clearTimeout(timeoutId);
       pendingWindowPlaybackHandoffRequests.delete(requestId);
@@ -5424,14 +5448,13 @@ function patchRemoteControlSnapshot(patch) {
 }
 
 function publishMainWindowClickThroughState() {
-  if (!mainWindow || mainWindow.isDestroyed()) {
-    return false;
-  }
-
-  mainWindow.webContents.send('main-window-click-through-changed', {
+  const sent = sendToMainWindow('main-window-click-through-changed', {
     enabled: mainWindowClickThroughEnabled,
     unlockHoverActive: mainWindowClickThroughUnlockHover,
   });
+  if (!sent) {
+    return false;
+  }
   refreshTrayMenu();
   return true;
 }
@@ -5551,12 +5574,7 @@ function setMainWindowClickThroughUnlockHover(active) {
 }
 
 function sendRemoteControlSnapshot(snapshot) {
-  if (!remoteControlWindow || remoteControlWindow.isDestroyed()) {
-    return false;
-  }
-
-  remoteControlWindow.webContents.send('remote-control-snapshot', snapshot);
-  return true;
+  return sendToWindow(remoteControlWindow, 'remote-control-snapshot', snapshot);
 }
 
 // The remote window is draggable by everything that is not a button, and on Windows a drag
@@ -5597,9 +5615,7 @@ function syncRemoteControlPointerInside() {
   }
 
   remoteControlPointerInside = inside;
-  if (remoteControlWindow && !remoteControlWindow.isDestroyed() && !remoteControlWindow.webContents.isDestroyed()) {
-    remoteControlWindow.webContents.send('remote-control-pointer-inside', inside);
-  }
+  sendToWindow(remoteControlWindow, 'remote-control-pointer-inside', inside);
 }
 
 // The whole window ignores the mouse in click-through; otherwise only the part left of the card.
@@ -5898,6 +5914,8 @@ function fitMainWindowBoundsToExportSize(exportSize) {
   return { exportDpr, cssWidth, cssHeight };
 }
 
+// A session has one display-media request handler, and two features ask it for a source.
+//
 // Video export records the main window's own webContents (Chromium tab capture) instead of
 // picking an OS window out of desktopCapturer. Matching that window by id or title is
 // unreliable — under Wayland the portal returns nameless sources whose ids never match
@@ -5905,15 +5923,50 @@ function fitMainWindowBoundsToExportSize(exportSize) {
 // needs no OS capture permission, keeps rendering when the window is covered, and its frames
 // are exactly the content area. Requests are granted only to the main window while an export
 // has prepared the window, so nothing else can silently capture the player.
-function setupVideoExportDisplayMediaHandler() {
+//
+// The external playback route asks for the machine's own sound, so the visualizer can follow a song
+// another program is playing. Windows' loopback Streams is the only way to it: 'loopbackWithMute'
+// would silence what the listener hears, so it is never used. The video half is the main window's own
+// frame — the only source that needs no screen and no OS picker — and the renderer keeps that track
+// without ever reading a frame from it. Nothing is granted unless the renderer armed the capture for
+// this one call.
+function setupDisplayMediaRequestHandler() {
   session.defaultSession.setDisplayMediaRequestHandler((request, callback) => {
     const requester = request.frame ? electronWebContents.fromFrame(request.frame) : null;
-    if (!videoExportWindowRestoreState || !isTrustedMainWindowContents(requester)) {
-      callback({});
+    const route = decideDisplayMediaRoute({
+      trusted: isTrustedMainWindowContents(requester),
+      videoExportActive: Boolean(videoExportWindowRestoreState),
+      spectrumCaptureArmed: externalSpectrumArm.isArmed(),
+      audioRequested: request.audioRequested === true,
+      platform: process.platform,
+    });
+
+    if (route === DISPLAY_MEDIA_ROUTE_SPECTRUM) {
+      // The arm buys one call: spending it here keeps a later request of the same renderer from
+      // being answered with the machine's sound.
+      externalSpectrumArm.spend();
+      // The window must stay live for the capture, even out of sight (backgroundThrottling.cjs).
+      externalSpectrumCaptureActive = true;
+      backgroundThrottling.refresh();
+      console.log('[ExternalSpectrum] Granting system-sound capture to the main window');
+      callback({ video: mainWindow.webContents.mainFrame, audio: 'loopback' });
       return;
     }
 
-    callback({ video: mainWindow.webContents.mainFrame });
+    if (route === DISPLAY_MEDIA_ROUTE_VIDEO_EXPORT) {
+      callback({ video: mainWindow.webContents.mainFrame });
+      return;
+    }
+
+    if (externalSpectrumArm.isArmed() || videoExportWindowRestoreState) {
+      console.log('[ExternalSpectrum] Refused a display-media request', {
+        trusted: isTrustedMainWindowContents(requester),
+        audioRequested: request.audioRequested === true,
+        videoExport: Boolean(videoExportWindowRestoreState),
+        platform: process.platform,
+      });
+    }
+    callback({});
   });
 }
 
@@ -6042,6 +6095,15 @@ function createWindow(options = {}) {
   win.on('session-end', () => {
     modSystem?.noteNormalQuit();
   });
+  // A reload, or a jump to another page, is a new page: whatever capture the old one held went with
+  // it, and its arm must not be spent by the new page's own requests. The app's own view changes
+  // (pushState, a hash) are not (details.isSameDocument): the page that holds the capture stays.
+  win.webContents.on('did-start-navigation', (details) => {
+    if (details.isMainFrame && !details.isSameDocument && win === mainWindow) forgetExternalSpectrumCapture();
+  });
+  win.webContents.on('destroyed', () => {
+    if (win === mainWindow) forgetExternalSpectrumCapture();
+  });
   // The page itself did not load (-3 is a load given up for another, such as a reload): for the
   // start note that start went wrong, like a page whose process ended (below).
   win.webContents.on('did-fail-load', (_event, errorCode, _errorDescription, _url, isMainFrame) => {
@@ -6054,6 +6116,8 @@ function createWindow(options = {}) {
   win.webContents.on('render-process-gone', (_event, details) => {
     // Whatever ended it, the page that may have been stuck is gone.
     noteWindowNotStuck(win);
+    // The page that held the capture is gone too.
+    if (win === mainWindow) forgetExternalSpectrumCapture();
     if (win.__reopeningWithoutMods) {
       // Ended on purpose by offerReopenWithoutMods, which loads the page again itself.
       win.__reopeningWithoutMods = false;
@@ -6150,13 +6214,13 @@ function createWindow(options = {}) {
       }
       win.__transparentFullscreen = true;
     }
-    win.webContents.send('window-fullscreen-changed', true);
+    sendToWindow(win, 'window-fullscreen-changed', true);
   });
   win.on('leave-full-screen', () => {
     if (process.platform === 'win32' && useTransparentWindow) {
       win.__transparentFullscreen = false;
     }
-    win.webContents.send('window-fullscreen-changed', false);
+    sendToWindow(win, 'window-fullscreen-changed', false);
   });
   win.on('maximize', () => {
     saveWindowState(win);
@@ -6337,9 +6401,7 @@ async function setMainWindowTransparentMode(enabled, handoff = null) {
   // (the wallpaper goes black); refuse the toggle instead of recreating into a broken state.
   // The renderer keeps its previous state and shows the unsupported hint.
   if (nextEnabled && process.platform === 'win32' && isWindowsWallpaperMode() && !isWindowsWallpaperTransparentSupported()) {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send('wallpaper-transparent-refused', getPublicSettings());
-    }
+    sendToMainWindow('wallpaper-transparent-refused', getPublicSettings());
     return false;
   }
   patchRemoteControlSnapshot({
@@ -6403,7 +6465,7 @@ app.whenReady().then(async () => {
   }
 
   setupFileSystemAccessPermissionHandlers();
-  setupVideoExportDisplayMediaHandler();
+  setupDisplayMediaRequestHandler();
   setupCorsBypassHandlers();
   localCoverAssetStore.registerProtocolHandler(protocol, electronNet);
   protocol.handle(YTM_AUDIO_SCHEME, request => ytmApiBridge.handleAudioRequest(request));
@@ -6488,9 +6550,7 @@ app.whenReady().then(async () => {
       // recreated as an ordinary window or the user is left with a borderless, immovable
       // shell — same recovery the degrade path performs.
       store.set(WALLPAPER_MODE_SETTING_KEY, false);
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('wallpaper-mode-changed', getPublicSettings());
-      }
+      sendToMainWindow('wallpaper-mode-changed', getPublicSettings());
       // Not asked for a handoff: this window was created just above and its page plays nothing yet.
       // eslint-disable-next-line dedicatus/window-rebuild-handoff -- the window was created just above and plays nothing yet
       recreateMainWindowWithTransparencyMode(isTransparentPlayerBackgroundEnabled(), null);
@@ -6677,10 +6737,18 @@ app.on('window-all-closed', () => {
   }
 });
 
+// Windows desktop only: close the external player with Folia, so the DevTools port Folia opened it
+// with stops answering. Written by the renderer through `save-settings`, read here at the quit.
+// The renderer's own key for this switch (useDesktopSettingsStore.ts) is published already and
+// stays; this shared store's key is the upper-case one every other switch here uses.
+const CLOSE_EXTERNAL_PLAYER_ON_QUIT_SETTING_KEY = 'CLOSE_EXTERNAL_PLAYER_ON_QUIT';
+
 // The bridges whose work under way holds a quit, each through its shutdown() (see before-quit).
 const quitHoldingBridges = [ytmApiBridge, spotifyApiBridge];
 // Set while a quit is held for such work (see before-quit).
 let isQuitHeldForAccounts = false;
+// Which quit asks the bridges to shut down; the rules are in electron/quitShutdown.cjs.
+const quitShutdownGate = createQuitShutdownGate();
 
 app.on('before-quit', (event) => {
   // Work of a bridge that must not be cut off: a web sign-in under way, whose ended browser leaves
@@ -6689,11 +6757,24 @@ app.on('before-quit', (event) => {
   // while there is such work, settled in 3 seconds at most. The quit is held until all have
   // settled, and then asked for again; nothing below has run by then. A quit with no such work is
   // not held, and neither is one that arrives while another is held.
-  const held = quitHoldingBridges.map(bridge => bridge.shutdown()).filter(Boolean);
+  // The listener's settings row, read from the shared store the renderer writes through
+  // `save-settings`. Every bridge is asked the same way: the one that does not know the option
+  // ignores it.
+  let held = [];
+  if (quitShutdownGate.asks({ holding: isQuitHeldForAccounts })) {
+    // Unset reads as on: closing the external player with Folia is what a listener expects, and
+    // only an explicit no turns it off. The renderer keeps the same default for its own row.
+    const closePlayerOnQuit = store.get(CLOSE_EXTERNAL_PLAYER_ON_QUIT_SETTING_KEY) !== false;
+    held = quitHoldingBridges.map(bridge => bridge.shutdown({ closePlayerOnQuit })).filter(Boolean);
+  }
   if (held.length > 0 && !isQuitHeldForAccounts) {
     isQuitHeldForAccounts = true;
     event.preventDefault();
-    void Promise.all(held).then(() => app.quit());
+    void Promise.all(held).then(() => {
+      // This is the quit they held, asked for again: the bridges were asked for by it already.
+      quitShutdownGate.resume();
+      app.quit();
+    });
     return;
   }
   isQuitHeldForAccounts = false;
@@ -6794,6 +6875,44 @@ ipcMain.handle('report-device-pixel-ratio', (event, ratio) => {
   }
 });
 
+// The external playback route's spectrum: the renderer arms the machine's own sound around one
+// getDisplayMedia call and disarms it again (see setupDisplayMediaRequestHandler). Only the main
+// window may arm it, so no other page can talk the handler into starting a system capture.
+ipcMain.handle('external-spectrum-capture-arm', (event, armed) => {
+  if (!isTrustedMainWindowContents(event.sender)) {
+    throw new Error('Untrusted renderer attempted to arm system-sound capture.');
+  }
+
+  const next = armed === true;
+  if (next === externalSpectrumArm.isArmed()) return true;
+  if (next) {
+    externalSpectrumArm.arm();
+    console.log('[ExternalSpectrum] System-sound capture armed');
+  } else {
+    externalSpectrumArm.disarm();
+    console.log('[ExternalSpectrum] System-sound capture disarmed');
+  }
+  return true;
+});
+
+// The renderer reports the end of the capture it held (the route left the player, or the attempt
+// failed after the grant), so the window may be throttled again.
+ipcMain.handle('external-spectrum-capture-stopped', (event) => {
+  if (!isTrustedMainWindowContents(event.sender)) {
+    throw new Error('Untrusted renderer reported the end of system-sound capture.');
+  }
+  forgetExternalSpectrumCapture();
+  return true;
+});
+
+// The listener's agreement to Folia restarting the external player's own app: asked of the main
+// window only, answered once, and kept in this store (the module says why).
+registerRestartConsentIpc({
+  ipcMain,
+  isTrustedSender: event => isTrustedMainWindowContents(event.sender),
+  store,
+});
+
 ipcMain.handle('get-settings', firstParty('get-settings', () => {
   return getPublicSettings();
 }));
@@ -6872,6 +6991,11 @@ ipcMain.handle('save-settings', firstParty('save-settings', (event, key, value) 
   if (key === 'DISCORD_RICH_PRESENCE_APPLICATION_ID' || isReservedAiCredentialKey(key) || isReservedHifiSettingKey(key)) {
     return getPublicSettings();
   }
+  // The restart consent is the listener's answer to one question, written by its own channel above:
+  // a generic settings write must not stand in for it.
+  if (key === RESTART_CONSENT_SETTING_KEY) {
+    return getPublicSettings();
+  }
   if (isAiCredentialKey(key)) {
     // Only a string is a key; '' is the explicit clear. Anything else must not wipe a saved key.
     if (typeof value === 'string') {
@@ -6915,6 +7039,7 @@ ipcMain.handle('save-settings', firstParty('save-settings', (event, key, value) 
     key === WALLPAPER_FORWARD_MOUSE_SETTING_KEY ||
     key === WALLPAPER_ZGUARD_SETTING_KEY ||
     key === WALLPAPER_MAC_AUTOHIDE_DOCK_SETTING_KEY ||
+    key === CLOSE_EXTERNAL_PLAYER_ON_QUIT_SETTING_KEY ||
     key === USE_NATIVE_MAC_TRAFFIC_LIGHTS_SETTING_KEY
   ) {
     nextValue = Boolean(value);
@@ -7837,9 +7962,7 @@ const getGlobalShortcutController = () => {
       // press with no window does nothing. Reopening the window, or letting the keys go on `closed`,
       // is undecided until it can be tried on a Mac.
       onTrigger: (accelerator) => {
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send('global-shortcut-triggered', accelerator);
-        }
+        sendToMainWindow('global-shortcut-triggered', accelerator);
       },
     });
   }
@@ -7849,6 +7972,23 @@ const getGlobalShortcutController = () => {
 ipcMain.handle('global-shortcuts-backend', () => (
   usesGlobalShortcutsPortal({ ozonePlatform: app.commandLine.getSwitchValue('ozone-platform') }) ? 'portal' : 'native'
 ));
+
+// The system media keys while another program is the one that sounds Folia's songs: held only while
+// the renderer asks, which it does for as long as the player of that program keeps a media session of
+// its own (electron/mediaKeys.cjs says why, and who may ask).
+let externalMediaKeys = null;
+ipcMain.handle('external-media-keys-set', (event, enabled) => {
+  if (!isTrustedMainWindowContents(event.sender)) {
+    throw new Error('Untrusted renderer attempted to take the media keys.');
+  }
+  externalMediaKeys ??= createMediaKeyTakeover({
+    globalShortcut,
+    onKey: (action) => {
+      sendToMainWindow('external-media-key', action);
+    },
+  });
+  return externalMediaKeys.set(enabled === true);
+});
 
 ipcMain.handle('global-shortcuts-set', (event, accelerators) => {
   if (!isTrustedMainWindowContents(event.sender)) {
@@ -7862,6 +8002,7 @@ app.on('will-quit', () => {
   appleMusicClient.close();
   stageApi.dispose();
   globalShortcutController?.dispose();
+  externalMediaKeys?.dispose();
   hifiSession.killSync();
   hifiMpris?.dispose();
   hifiInstaller.cancel();
@@ -8063,12 +8204,7 @@ ipcMain.handle('remote-control-send-command', (event, command) => {
     return true;
   }
 
-  if (!mainWindow || mainWindow.isDestroyed()) {
-    return false;
-  }
-
-  mainWindow.webContents.send('remote-control-command', command);
-  return true;
+  return sendToMainWindow('remote-control-command', command);
 });
 
 ipcMain.handle('video-export-choose-path', async (event, defaultName, extension, displayName) => {

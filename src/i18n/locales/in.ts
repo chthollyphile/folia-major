@@ -588,6 +588,13 @@ export default {
     "loadingComplete": "Selesai dimuat",
     "loadingSong": "Memuat URL lagu",
     "preparingExternalPlayback": "Menyiapkan pemutaran",
+    "externalPlayerUnreachable": "{{platform}} tidak dapat dihubungi; pemutaran dihentikan",
+    "externalPlayerUnreachableBare": "Pemutar eksternal tidak dapat dihubungi; pemutaran dihentikan",
+    "externalPlayerRestartTitle": "Tutup dan buka lagi pemutar Anda?",
+    "externalPlayerRestartDescription": "Folia mengendalikan pemutar eksternal lewat port DevTools. Pemutar yang Anda buka berjalan tanpa port itu, jadi harus ditutup lalu dibuka lagi dengan cara yang bisa dikendalikan Folia - lagu yang sedang diputar terputus. Setelah Anda setuju, Folia tidak bertanya lagi; Anda bisa membatalkannya di pengaturan.",
+    "externalPlayerRestartConfirm": "Setuju dan coba lagi",
+    "externalPlayerRestartCancel": "Batal",
+    "externalPlayerRestartDeclined": "Pemutar tidak diganggu, jadi lagu ini belum bisa diputar",
     "dataSynced": "Data berhasil disinkronkan",
     "syncFailed": "Sinkronisasi gagal",
     "loginExpired": "Login kedaluwarsa. Silakan login lagi",
@@ -624,6 +631,8 @@ export default {
     "externalBypassTitle": "Lagu ini diputar di pemutar milik platform",
     "externalBypassBody": "Suaranya tidak melewati Folia, jadi ekualiser dan efek di sini tidak mengubah yang Anda dengar. Pengaturan tetap disimpan dan berlaku untuk lagu lain seperti biasa.",
     "externalReplayGainBypassed": "Diputar di pemutar milik platform; ReplayGain tidak diterapkan",
+    "externalPlayerAdvertisement": "Iklan",
+    "externalPlayerFallback": "Pemutar menjawab lewat sesi media sistem: Folia mengendalikannya secara kasar sampai remote debugging kembali",
     "songUnavailableAlternativeTitle": "Versi alternatif tersedia",
     "songUnavailableAlternativeDescription": "\"{{song}}\" tidak tersedia. {{typeDesc}}. Mainkan versi alternatif?",
     "songUnavailableAlternativeDefaultType": "Versi lain bisa diputar",
@@ -636,6 +645,9 @@ export default {
     "latticeUnavailableInFm": "Lattice tidak mendukung mode Personal FM",
     "latticeFmOpenedInPlayer": "Lattice tidak mendukung mode Personal FM. Pemutar standar dibuka sebagai gantinya",
     "noPlayableSongs": "Tidak ada lagu yang bisa diputar di daftar ini",
+    "songUnavailableSkipped": "Lagu telah dihapus, dilewati",
+    "songSubscriptionRequiredSkipped": "Perlu langganan {{platform}} Premium, dilewati",
+    "songSubscriptionRequiredSkippedBare": "Perlu langganan Premium, dilewati",
     "songUnavailableTag": "Tidak Tersedia",
     "songVideoTag": "MV",
     "queueShuffled": "Antrean diacak",
@@ -874,6 +886,10 @@ export default {
       "settings-obs-browser-source": { "title": "Sumber browser OBS", "description": "Buka pengaturan sumber browser OBS" },
       "obs-toggle-keep-main-window-animation": { "title": "OBS: pertahankan animasi jendela utama", "description": "Aktifkan atau nonaktifkan animasi jendela utama saat OBS terhubung" },
       "obs-toggle-track-card": { "title": "OBS: tampilkan kartu lagu yang diputar", "description": "Aktifkan atau nonaktifkan kartu lagu yang diputar di sumber browser OBS" },
+      "external-player-wake-on-launch": { "title": "Bangunkan pemutar eksternal saat Folia dibuka", "description": "Atur apakah pemutar yang membunyikan lagu Anda ikut dijalankan saat Folia dibuka" },
+      "external-player-close-on-quit": { "title": "Tutup pemutar eksternal saat Folia keluar", "description": "Atur apakah pemutar eksternal yang dijalankan Folia ditutup saat Folia keluar" },
+    "external-player-hold-media-keys": { "title": "Pegang tombol media saat memakai aplikasi resmi", "description": "Atur apakah tombol media sistem dipegang hanya selama pemutar eksternal membunyikan lagu yang dijalankan atau diambil alih Folia" },
+      "external-player-system-audio-spectrum": { "title": "Spektrum asli untuk pemutar eksternal", "description": "Atur apakah spektrum digambar dari suara komputer atau dari posisi pemutaran" },
       "desktop-toggle-lyric-api": { "title": "API Lirik", "description": "Alihkan endpoint lirik lokal tanpa autentikasi" },
       "settings-obs-copy-css": { "title": "Salin CSS OBS", "description": "Salin Custom CSS OBS Browser Source yang membawa aset unggahan" },
       "settings-storage": { "title": "Pengaturan penyimpanan", "description": "Buka pengaturan cache dan penyimpanan" },
@@ -1791,7 +1807,12 @@ export default {
     "noteMaybeRegion": "Mungkin dibatasi di wilayah Anda",
     "skipCountdown": "Lanjut ke lagu berikutnya dalam {{seconds}} detik",
     "signIn": "Masuk",
-    "openSetup": "Pengaturan pemutaran"
+    "openSetup": "Pengaturan pemutaran",
+    "externalPlayerNotInstalled": "Aplikasi desktop {{platform}} tidak ditemukan",
+    "noteExternalPlayerNotInstalled": "Pasang aplikasinya, atau ubah cara pemutarannya kembali ke cara standar (Folia memutar lagunya sendiri).",
+    "externalPlayerNotFound": "{{platform}} berubah, Folia belum bisa mengendalikannya",
+    "noteExternalPlayerNotFound": "Pakai cara standar dulu sampai Folia menyesuaikan versi itu.",
+    "useStandardPlayback": "Kembali ke cara standar",
   },
   "home": {
     "welcome": "Selamat datang di Folia",
@@ -2835,6 +2856,17 @@ export default {
     "remoteControlTextShadeHint": "Di latar transparan, teks saat tidak dipakai diberi latar hitam tembus pandang agar mudah dibaca di desktop terang",
     "openPlayerOnLaunch": "Buka tampilan pemutaran saat diluncurkan",
     "openPlayerOnLaunchDesc": "Membuka tampilan pemutaran saat aplikasi dimulai. Mengikuti \"Tampilan yang dibuka Putar\": jika Lattice dipilih, peluncuran membuka kolase antrean.",
+    "wakeExternalPlayersOnLaunch": "Bangunkan pemutar eksternal saat diluncurkan",
+    "wakeExternalPlayersOnLaunchDesc": "Menjalankan aplikasi desktop pemutar eksternal saat Folia dibuka, jadi lagu pertama tidak menunggu peluncurannya. Bila ia sudah berjalan tanpa port DevTools, Folia menutup lalu membukanya lagi hanya setelah Anda setuju untuk memulai ulang di sini.",
+    "closeExternalPlayerOnQuit": "Tutup pemutar eksternal saat Folia keluar",
+    "closeExternalPlayerOnQuitDesc": "Menutup aplikasi desktop pemutar eksternal saat Folia keluar. Hanya ditutup bila Folia yang menjalankannya, atau bila ia berjalan dengan port DevTools Folia.",
+    "holdMediaKeysForExternalPlayer": "Pegang tombol media untuk pemutar eksternal",
+    "holdMediaKeysForExternalPlayerDesc": "Aktif: tombol media jadi milik Folia hanya selama pemutar eksternal membunyikan lagu yang dijalankan atau diambil alih Folia (dijeda pun dihitung). Lagu lokal, pemutar yang menganggur atau berhenti, dan keluar dari rute eksternal mengembalikannya. Nonaktif: tidak pernah dipegang, dan sesi media hulu memegangnya seperti sebelumnya. Selama Folia memegangnya, program lain tidak menerima tombol media.",
+    "externalPlayerRestartConsent": "Izinkan Folia memulai ulang pemutar eksternal",
+    "externalPlayerRestartConsentDesc": "Folia mengendalikan pemutar itu lewat port DevTools-nya. Bila ia terbuka tanpa port itu dan Anda sudah setuju sekali, Folia menutupnya lalu membukanya lagi dengan cara yang bisa dikendalikan, dan lagu yang sedang diputar terputus. Matikan ini dan pemutar seperti itu akan ditanyakan lagi lain kali.",
+    "externalPlayerRestartConsentUnread": "Status saat ini tidak dapat dibaca, jadi ini belum bisa diubah",
+    "externalSystemAudioSpectrum": "Spektrum asli (rekam suara sistem)",
+    "externalSystemAudioSpectrumDesc": "Saat pemutar eksternal memutar, Folia merekam keluaran suara komputer ini dan menganalisisnya di memori untuk menggambar spektrum. Tidak direkam ke berkas dan tidak disimpan. Nonaktif secara bawaan; saat nonaktif, spektrum mengikuti posisi pemutaran.",
     "wallpaperMode": "Mode wallpaper",
     "wallpaperModeDesc": "Jendela diturunkan ke dasar desktop sebagai wallpaper lirik. Keyboard tidak tersedia",
     "wallpaperModeMacPermissionHint": "Mode wallpaper Mac memerlukan Input Monitoring: aktifkan Folia di Pengaturan Sistem → Privasi & Keamanan → Input Monitoring, lalu mulai ulang aplikasi.",
@@ -5345,29 +5377,37 @@ export default {
       "standard": "Standar",
       "standardNote": "Masuk ke Spotify di peramban; Folia memutar lagunya sendiri. Ekualiser, Automix, dan efek yang mengikuti musik semuanya berfungsi.",
       "soloist": "Soloist",
-      "soloistNote": "Masuk ke Spotify di peramban; program Soloist resmi dari Spotify yang memutar lagunya. Untuk akun yang tidak mendapat kunci audio. Soloist diunduh terpisah, dan kunci API-nya dibuat dengan akun Premium."
+      "soloistNote": "Masuk ke Spotify di peramban; program Soloist resmi dari Spotify yang memutar lagunya. Untuk akun yang tidak mendapat kunci audio. Soloist diunduh terpisah, dan kunci API-nya dibuat dengan akun Premium.",
+      "client": "Aplikasi Spotify",
+      "clientNote": "Masuk ke Spotify di peramban; aplikasi desktop Spotify di komputer ini yang memutar lagunya, termasuk untuk akun gratis. Aplikasi desktop harus sudah terpasang. Folia menjalankannya dengan port debug hanya di komputer ini (127.0.0.1) untuk mengendalikannya. Suaranya tidak melewati Folia, jadi ekualiser dan efek tidak berlaku. Hanya Windows."
     },
     "setup": {
       "title": "Pengaturan Spotify Soloist",
       "note": "Soloist adalah pemutar resmi Spotify, program di komputer ini yang mengirim suaranya sendiri ke keluaran sistem; Folia mengendalikannya dan mengikuti posisinya untuk lirik. Ekualiser, Automix, dan efek Folia yang mengikuti musik tidak memproses suaranya.",
       "titleStandard": "Cara Spotify diputar",
-      "noteStandard": "Saat ini Folia memutar lagu Spotify sendiri. Jika akun ini tidak mendapat kunci audio dan lagu gagal diputar, Anda bisa beralih ke Soloist resmi dari Spotify."
+      "noteStandard": "Saat ini Folia memutar lagu Spotify sendiri. Jika akun ini tidak mendapat kunci audio dan lagu gagal diputar, Anda bisa beralih ke Soloist resmi dari Spotify.",
+      "clientTitle": "Pengaturan aplikasi Spotify",
+      "clientNote": "Suaranya tidak melewati Folia, jadi ekualiser dan Automix tidak berlaku; spektrum asli bisa dinyalakan di pengaturan. Ia dikendalikan lewat port debug khusus 127.0.0.1.",
     },
     "noKey": {
       "title": "Akun ini tidak mendapat kunci audio dari Spotify",
-      "note": "Spotify tidak memberi akun ini kunci audio, sehingga cara Folia sendiri tidak bisa memutar lagunya (umum untuk akun yang dibuat sejak akhir 2024). Anda bisa memutar lewat Soloist resmi dari Spotify: unduh program Soloist, buat kunci API dengan akun Premium, lalu pilih perangkat sekali di aplikasi Spotify. Playlist, lirik, dan pencarian tidak terpengaruh."
+      "note": "Spotify tidak memberi akun ini kunci audio (umum sejak akhir 2024), sehingga cara Folia sendiri tidak bisa memutar lagunya. Pakai Soloist resmi dari Spotify: unduh Soloist, buat kunci API dengan akun Premium, lalu pilih perangkat sekali di aplikasi Spotify. Playlist, lirik, dan pencarian tidak terpengaruh."
     },
     "step": {
       "program": "Program Soloist",
       "key": "Kunci API",
       "pair": "Pasangkan perangkat",
       "modeStandard": "Diputar: standar",
-      "modeSoloist": "Diputar: Soloist"
+      "modeSoloist": "Diputar: Soloist",
+      "modeClient": "Diputar: aplikasi Spotify",
+      "clientApp": "Aplikasi desktop Spotify"
     },
     "mode": {
       "standardNote": "Folia memutar lagu Spotify sendiri.",
       "soloistNote": "Soloist memutar lagu Spotify.",
-      "noKeyNote": "Cara Folia sendiri tidak bisa memutar lagu akun ini."
+      "noKeyNote": "Cara Folia sendiri tidak bisa memutar lagu akun ini.",
+      "clientNote": "Aplikasi desktop Spotify memutar lagu Spotify.",
+      "freeNote": "Ini akun gratis: Spotify tidak mengizinkan Folia memutar lagunya sendiri."
     },
     "program": {
       "todo": "Unduh Soloist untuk komputer ini dari halaman Spotify, ekstrak, lalu pilih program soloist di dalamnya (soloist.exe di Windows). Folia tidak menyertakannya.",
@@ -5402,7 +5442,18 @@ export default {
       "download": "Unduhan resmi",
       "keyPage": "Buka dasbor pengembang",
       "saveKey": "Simpan kunci",
-      "reconnect": "Sambungkan ulang"
+      "reconnect": "Sambungkan ulang",
+      "useClient": "Putar lewat aplikasi Spotify"
+    },
+    "clientApp": {
+      "ready": "Aplikasi desktop Spotify ditemukan.",
+      "missing": "Aplikasi desktop Spotify tidak ditemukan. Pasang dari spotify.com/download atau Microsoft Store, lalu putar lagi.",
+      "more": "Risiko",
+      "moreNote": "Cara memutar ini bergantung pada struktur internal Spotify yang tidak dipublikasikan, jadi pembaruan Spotify bisa membuatnya berhenti bekerja; cara standar (Folia memutar lagunya sendiri) adalah jalan kembalinya. Memakainya bisa melanggar ketentuan layanan Spotify, risiko ditanggung sendiri.\n\nStatus Spotify yang diubah: hanya menarik kembali lagu yang Folia tulis ke antreannya (lagu yang Anda susun sendiri tetap di tempatnya); pada ulang-satu, pengulangan lagu milik aplikasi dimatikan sementara lalu dipulihkan setelahnya; dan Folia menutup Spotify yang dijalankannya dengan port debug saat keluar (baris ini bisa dimatikan di pengaturan).",
+    },
+    "free": {
+      "title": "Ini akun gratis",
+      "note": "Spotify hanya mengizinkan akun Premium memutar di Folia. Akun gratis bisa memutar lewat aplikasi desktop Spotify: Folia mengendalikannya dan suaranya keluar dari aplikasi itu. Aplikasi desktop harus sudah terpasang; hanya Windows."
     },
     "message": {
       "picked": "Program dipilih.",

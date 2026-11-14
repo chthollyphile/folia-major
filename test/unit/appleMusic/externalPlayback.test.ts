@@ -7,6 +7,13 @@ import type { ProviderExternalPlaybackStatus } from '@/types/onlineMusic';
 // The route that follows a player outside the app: it starts the song there, follows the player's
 // clock between answers, pauses when another engine takes over, and moves the queue on at the end.
 
+// What the provider of the song declared about its player: nothing, as Apple Music declares.
+const traits = vi.hoisted(() => ({
+    declared: {
+        capturesSystemAudio: false, startsWithoutWaiting: false, backsOffStatusPolls: false, holdsMediaKeysWhilePlaying: false,
+    } as Record<string, boolean>,
+}));
+
 const omniMock = vi.hoisted(() => ({
     canPlayExternally: vi.fn(() => true),
     canPlaySong: vi.fn(() => true),
@@ -22,6 +29,7 @@ const omniMock = vi.hoisted(() => ({
     })),
     isExternalPlaybackStatusForSong: vi.fn((_song: unknown, _status: ProviderExternalPlaybackStatus) => true),
     adoptExternalPlayback: vi.fn((_song: unknown) => {}),
+    externalPlaybackTraits: vi.fn(() => traits.declared),
 }));
 
 vi.mock('@/services/onlineMusic/omni', () => ({ omni: omniMock }));
@@ -46,6 +54,21 @@ const status = (overrides: Partial<ProviderExternalPlaybackStatus> = {}): Provid
 });
 
 const flush = () => vi.advanceTimersByTimeAsync(0);
+
+/**
+ * Makes the status asks fail four times in a row: this player declared nothing, so every one of them
+ * is retried after the same two seconds, and the next ask is two seconds away again.
+ */
+const backOffStatusAsks = async () => {
+    omniMock.getExternalPlaybackStatus.mockRejectedValue(new Error('playback-failed'));
+    omniMock.getExternalPlaybackStatus.mockClear();
+    const seen: number[] = [];
+    for (const step of [500, 2000, 2000, 2000]) {
+        await vi.advanceTimersByTimeAsync(step);
+        seen.push(omniMock.getExternalPlaybackStatus.mock.calls.length);
+    }
+    expect(seen).toEqual([1, 2, 3, 4]);
+};
 
 describe('external playback route', () => {
     beforeEach(() => {
@@ -91,7 +114,7 @@ describe('external playback route', () => {
         const playing = engine.beginExternalPlayback(song, 12);
         await flush();
         await playing;
-        expect(omniMock.playSongExternally).toHaveBeenCalledWith(song, 12);
+        expect(omniMock.playSongExternally).toHaveBeenCalledWith(song, 12, { userAction: true });
         expect(usePlaybackStore.getState().playbackRoute).toBe('external');
         expect(usePlaybackStore.getState().playerState).toBe(PlayerState.IDLE);
         // The old song is still on screen: observers keep what they had until the app shows the new one.
@@ -319,7 +342,8 @@ describe('external playback route', () => {
         engine.announceExternalPlayback();
         omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ positionMs: 199300 }));
         await vi.advanceTimersByTimeAsync(500);
-        expect(engine.getExternalPosition()).toBeGreaterThan(199);
+        // The clock bends onto a player a little ahead of it rather than stepping there.
+        expect(engine.getExternalPosition()).toBeGreaterThan(198.9);
 
         // Observers hear the wrap as a seek, as <audio loop> fires one.
         const markSeeked = vi.spyOn(engine.externalMediaShim, 'markSeeked');
@@ -554,12 +578,12 @@ describe('external playback route', () => {
         usePlaybackStore.setState({ playQueue: [song, next] });
         await engine.beginExternalPlayback(song, 0);
         engine.announceExternalPlayback();
-        expect(omniMock.prepareExternalPlaybackQueue).toHaveBeenLastCalledWith(song, [next]);
+        expect(omniMock.prepareExternalPlaybackQueue).toHaveBeenLastCalledWith(song, [next], undefined);
         usePlaybackStore.setState({ playQueue: [song] });
-        expect(omniMock.prepareExternalPlaybackQueue).toHaveBeenLastCalledWith(song, []);
+        expect(omniMock.prepareExternalPlaybackQueue).toHaveBeenLastCalledWith(song, [], undefined);
         usePlaybackStore.setState({ playQueue: [song, next] });
         useAudioSettingsStore.setState({ loopMode: 'one' });
-        expect(omniMock.prepareExternalPlaybackQueue).toHaveBeenLastCalledWith(song, []);
+        expect(omniMock.prepareExternalPlaybackQueue).toHaveBeenLastCalledWith(song, [], { retract: true });
         useAudioSettingsStore.setState({ loopMode: 'off' });
     });
 
@@ -649,6 +673,72 @@ describe('external playback route', () => {
         expect(engine.getExternalSong()).toBeNull();
     });
 
+    it('retries a player that stopped answering after the same two seconds every time, and one answer puts the half second back', async () => {
+        await engine.beginExternalPlayback(song, 0);
+        engine.announceExternalPlayback();
+        // The player stopped answering (it was closed, or its page is gone): every poll fails, and
+        // this player declared nothing about its answers, so the retry rate never grows.
+        omniMock.getExternalPlaybackStatus.mockRejectedValue(new Error('playback-failed'));
+        omniMock.getExternalPlaybackStatus.mockClear();
+        await vi.advanceTimersByTimeAsync(500);
+        expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(1);
+        for (const asks of [2, 3, 4]) {
+            await vi.advanceTimersByTimeAsync(1999);
+            expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(asks - 1);
+            await vi.advanceTimersByTimeAsync(1);
+            expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(asks);
+        }
+        // One answer puts the ordinary 500ms back.
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status());
+        await vi.advanceTimersByTimeAsync(2000);
+        expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(5);
+        await vi.advanceTimersByTimeAsync(500);
+        expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(6);
+    });
+
+    // A player that answers one of Folia's own commands is there, but its asks keep the app's own
+    // cadence here: nothing about a command says when this player may be asked again.
+    it('moves no ask forward when the player answers a press of the listener', async () => {
+        await engine.beginExternalPlayback(song, 0);
+        engine.announceExternalPlayback();
+        await backOffStatusAsks();
+
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status());
+        expect(engine.resumeExternalPlayback()).toBe(true);
+        await flush();
+        // The retry that was already two seconds away is the next ask, not one pulled forward now.
+        expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(4);
+        await vi.advanceTimersByTimeAsync(500);
+        expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(4);
+        await vi.advanceTimersByTimeAsync(1500);
+        expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(5);
+    });
+
+    it('moves no ask forward for a pause the player took either', async () => {
+        await engine.beginExternalPlayback(song, 0);
+        engine.announceExternalPlayback();
+        await backOffStatusAsks();
+
+        // The player took the pause: the next ask stays where the retry put it.
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ isPlaying: false }));
+        expect(engine.pauseExternalPlayback()).toBe(true);
+        await flush();
+        await vi.advanceTimersByTimeAsync(500);
+        expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(4);
+    });
+
+    it('moves no ask forward for the volume the app writes there', async () => {
+        await engine.beginExternalPlayback(song, 0);
+        engine.announceExternalPlayback();
+        await backOffStatusAsks();
+
+        // A good write says the page is still there, and says nothing about when to ask it next.
+        useAudioSettingsStore.setState({ volume: 0.5 });
+        await flush();
+        expect(omniMock.setExternalPlaybackVolume).toHaveBeenLastCalledWith(song, 0.5);
+        await vi.advanceTimersByTimeAsync(500);
+        expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(4);
+    });
     // Two providers play through players of their own (the companion, Spotify's Soloist): a song of
     // one does not replace a track sounding in the other.
     describe('moving between external players', () => {
@@ -738,7 +828,7 @@ describe('external playback route', () => {
         it('takes over the same track as playing, at the player position, and polls it', async () => {
             usePlaybackStore.setState({ playerState: PlayerState.PLAYING });
             omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ positionMs: 42000 }));
-            expect(await engine.adoptExternalPlayback(song)).toBe(true);
+            expect(await engine.adoptExternalPlayback(song)).toMatchObject({ attempt: expect.any(Number) });
             expect(omniMock.playSongExternally).not.toHaveBeenCalled();
             expect(omniMock.adoptExternalPlayback).toHaveBeenCalledWith(song);
             expect(usePlaybackStore.getState().playbackRoute).toBe('external');
@@ -754,7 +844,7 @@ describe('external playback route', () => {
         it('takes over the same track paused as paused', async () => {
             usePlaybackStore.setState({ playerState: PlayerState.PLAYING });
             omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ isPlaying: false, positionMs: 42000 }));
-            expect(await engine.adoptExternalPlayback(song)).toBe(true);
+            expect(await engine.adoptExternalPlayback(song)).toMatchObject({ attempt: expect.any(Number) });
             expect(usePlaybackStore.getState().playbackRoute).toBe('external');
             expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PAUSED);
             expect(engine.isExternalPaused()).toBe(true);
@@ -768,7 +858,7 @@ describe('external playback route', () => {
         it('takes nothing over when the player has another track, and leaves it alone', async () => {
             omniMock.isExternalPlaybackStatusForSong.mockReturnValue(false);
             omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ mediaId: '999' }));
-            expect(await engine.adoptExternalPlayback(song)).toBe(false);
+            expect(await engine.adoptExternalPlayback(song)).toBeNull();
             expect(omniMock.adoptExternalPlayback).not.toHaveBeenCalled();
             expect(omniMock.pauseExternalPlayback).not.toHaveBeenCalled();
             expect(usePlaybackStore.getState().playbackRoute).toBe('web');
@@ -876,7 +966,7 @@ describe('external playback route', () => {
             it('lands a later take-over handed over: shown as it sounds, not followed, taken back when no rebuild came', async () => {
                 usePlaybackStore.setState({ playerState: PlayerState.PLAYING });
                 engine.handOverExternalPlaybackDuringRestore();
-                expect(await engine.adoptExternalPlayback(song)).toBe(true);
+                expect(await engine.adoptExternalPlayback(song)).toMatchObject({ attempt: expect.any(Number) });
                 expect(engine.isExternalPlaybackSounding()).toBe(true);
                 expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PLAYING);
                 const { ended, unsubscribe } = followEnd();
@@ -901,14 +991,14 @@ describe('external playback route', () => {
                 await flush();
                 engine.handOverExternalPlaybackDuringRestore();
                 answer(status());
-                expect(await adopting).toBe(true);
+                expect(await adopting).toMatchObject({ attempt: expect.any(Number) });
                 expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PLAYING);
                 await vi.advanceTimersByTimeAsync(2000);
                 expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(1);
             });
 
             it('hands a take-over already done over at once', async () => {
-                expect(await engine.adoptExternalPlayback(song)).toBe(true);
+                expect(await engine.adoptExternalPlayback(song)).toMatchObject({ attempt: expect.any(Number) });
                 engine.handOverExternalPlaybackDuringRestore();
                 const asked = omniMock.getExternalPlaybackStatus.mock.calls.length;
                 await vi.advanceTimersByTimeAsync(2000);
@@ -918,7 +1008,7 @@ describe('external playback route', () => {
             it('follows the take-over as usual once the rebuild was refused', async () => {
                 engine.handOverExternalPlaybackDuringRestore();
                 engine.reclaimExternalPlayback('refused');
-                expect(await engine.adoptExternalPlayback(song)).toBe(true);
+                expect(await engine.adoptExternalPlayback(song)).toMatchObject({ attempt: expect.any(Number) });
                 await vi.advanceTimersByTimeAsync(500);
                 expect(omniMock.getExternalPlaybackStatus).toHaveBeenCalledTimes(2);
             });
@@ -926,14 +1016,60 @@ describe('external playback route', () => {
 
         it('takes nothing over when the player has no track or cannot be asked', async () => {
             omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ mediaId: '', isPlaying: false }));
-            expect(await engine.adoptExternalPlayback(song)).toBe(false);
+            expect(await engine.adoptExternalPlayback(song)).toBeNull();
             expect(usePlaybackStore.getState().playbackRoute).toBe('web');
 
             omniMock.getExternalPlaybackStatus.mockRejectedValue(new Error('companion gone'));
-            expect(await engine.adoptExternalPlayback(song)).toBe(false);
+            expect(await engine.adoptExternalPlayback(song)).toBeNull();
             expect(usePlaybackStore.getState().playbackRoute).toBe('web');
             expect(engine.getExternalSong()).toBeNull();
             expect(omniMock.playSongExternally).not.toHaveBeenCalled();
         });
+    });
+});
+
+// The player answering through its coarse channel: said once in a run of Folia, whichever way it
+// comes and goes.
+describe('the player answering coarsely', () => {
+    let events: string[] = [];
+    let unsubscribe = () => {};
+
+    beforeEach(async () => {
+        vi.useFakeTimers();
+        engine.installExternalPlayback();
+        engine.stopExternalPlayback('test reset');
+        usePlaybackStore.setState({ playbackRoute: 'web', audioSrc: null, playerState: PlayerState.IDLE, duration: 0, currentSong: null });
+        omniMock.playSongExternally.mockReset().mockResolvedValue(undefined);
+        omniMock.getExternalPlaybackStatus.mockReset().mockResolvedValue(status());
+        events = [];
+        unsubscribe = engine.subscribeExternalPlayback(event => {
+            if (event.type === 'degraded') events.push(`degraded:${event.active}`);
+            if (event.type === 'ended') events.push('ended');
+        });
+    });
+
+    afterEach(() => {
+        unsubscribe();
+        engine.stopExternalPlayback('test end');
+        usePlaybackStore.setState({ playbackRoute: 'web', audioSrc: null, playerState: PlayerState.IDLE });
+        vi.useRealTimers();
+    });
+
+
+    it('tells the fallback once in a run of Folia, not once an episode', async () => {
+        await engine.beginExternalPlayback(song);
+        engine.announceExternalPlayback();
+
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ mediaId: '', isPlaying: true, degraded: true }));
+        await vi.advanceTimersByTimeAsync(1200);
+        expect(events.filter(event => event.startsWith('degraded:'))).toEqual(['degraded:true']);
+
+        // The player comes back to its precise channel and falls back again: the listener was told
+        // once already, and is not told again in this run.
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ positionMs: 20000 }));
+        await vi.advanceTimersByTimeAsync(600);
+        omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ mediaId: '', degraded: true }));
+        await vi.advanceTimersByTimeAsync(600);
+        expect(events.filter(event => event.startsWith('degraded:'))).toEqual(['degraded:true']);
     });
 });

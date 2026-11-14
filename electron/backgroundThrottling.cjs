@@ -5,7 +5,9 @@
 // renderer holds the lyric animation while the window is minimised or hidden to the tray
 // (src/components/app/backgroundThrottling/). Losing the focus alone does not count: a window that
 // is still on screen keeps moving. The switch stands down while something needs the window live
-// even out of sight: wallpaper mode, a video export, a connected OBS browser source.
+// even out of sight: wallpaper mode, a video export, a connected OBS browser source, and the
+// external playback route's system-sound capture (a throttled page stops reading its analyser, and
+// the bars would freeze with the song still playing).
 
 const BACKGROUND_THROTTLING_SETTING_KEY = 'BACKGROUND_THROTTLING';
 
@@ -23,16 +25,37 @@ function createBackgroundThrottling({ isEnabled, getStandDownReason }) {
   let lastReason = null;
   let told = { active: false, hidden: false };
 
+  // A window is usable only while its page is too: a closing BrowserWindow stays undestroyed for a
+  // moment after its webContents is destroyed, and both setBackgroundThrottling and send throw
+  // "Object has been destroyed" on that page, which reaches the app as an uncaughtException.
+  // Anything that touches the page goes through here.
+  const liveContents = () => {
+    if (!window || window.isDestroyed()) return null;
+    const contents = window.webContents;
+    return contents && !contents.isDestroyed() ? contents : null;
+  };
+
   // Read from the window itself: with the switch freshly on, Chromium's page visibility can still
   // say visible for a minimised window.
   const readState = () => {
-    const hidden = applied && Boolean(window) && !window.isDestroyed()
+    const hidden = applied && liveContents() !== null
       && (window.isMinimized() || !window.isVisible());
     return { active: applied, hidden };
   };
 
+  // Nothing is applied, and the renderer has been told nothing: whoever attaches the next window
+  // starts from setBackgroundThrottling and from an empty mind.
+  const resetApplied = () => {
+    applied = false;
+    lastReason = null;
+    told = { active: false, hidden: false };
+  };
+
   const refresh = () => {
-    if (!window || window.isDestroyed()) {
+    const contents = liveContents();
+    if (!contents) {
+      // The page (or its window) is gone, so nothing can be applied to it any more.
+      resetApplied();
       return;
     }
     const enabled = isEnabled();
@@ -40,7 +63,7 @@ function createBackgroundThrottling({ isEnabled, getStandDownReason }) {
     const active = enabled && !reason;
     if (active !== applied || reason !== lastReason) {
       if (active !== applied) {
-        window.webContents.setBackgroundThrottling(active);
+        contents.setBackgroundThrottling(active);
       }
       applied = active;
       lastReason = reason;
@@ -49,16 +72,14 @@ function createBackgroundThrottling({ isEnabled, getStandDownReason }) {
     const state = readState();
     if (!SAME_STATE(state, told)) {
       told = state;
-      window.webContents.send('background-throttling-changed', state);
+      contents.send('background-throttling-changed', state);
     }
   };
 
   // A new main window starts at backgroundThrottling: false and has not been told anything yet.
   const attach = (win) => {
     window = win;
-    applied = false;
-    lastReason = null;
-    told = { active: false, hidden: false };
+    resetApplied();
     for (const event of ['minimize', 'restore', 'hide', 'show']) {
       win.on(event, refresh);
     }

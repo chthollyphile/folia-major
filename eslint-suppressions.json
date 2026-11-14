@@ -2110,9 +2110,6 @@
     }
   },
   "src/components/app/playback/restore/restorePlaybackSource.ts": {
-    "@typescript-eslint/no-deprecated": {
-      "count": 5
-    },
     "@typescript-eslint/no-unnecessary-condition": {
       "count": 2
     }
@@ -9507,7 +9504,7 @@
       "count": 1
     },
     "@typescript-eslint/no-unnecessary-condition": {
-      "count": 9
+      "count": 7
     },
     "@typescript-eslint/unbound-method": {
       "count": 1

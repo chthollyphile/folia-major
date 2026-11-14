@@ -14,6 +14,7 @@ import { useInteractionSettingsStore } from '../../../stores/useInteractionSetti
 import { usePlaybackStore } from '../../../stores/usePlaybackStore';
 import { isLocalPlaybackSong } from '../../../utils/appPlaybackGuards';
 import { openHifiSignalPath } from '../../hifi/hifiPanelStore';
+import { previewExternalPlaybackVolume } from '../../../services/onlineMusic/externalPlayback';
 
 // src/components/app/command-palette-context/buildAppOwnedCommandContext.ts
 // The four namespaces whose state genuinely still lives in App.tsx: shared, playback, navigation
@@ -73,7 +74,13 @@ export const buildPlaybackCommandContext = (
         }),
         volume: audio.volume,
         isMuted: audio.isMuted,
-        setVolume: audio.handleSetVolume,
+        // A level set here is the listener's own: the palette's slider and the volume keys are what
+        // they pressed, so the external player is told about it even while it is only taken over
+        // (the level the app follows by itself is held back there, see externalPlayback.ts).
+        setVolume: (level: number) => {
+            useAudioSettingsStore.getState().handleSetVolume(level);
+            previewExternalPlaybackVolume(level);
+        },
         // Read from the store at the press, not from this snapshot: a held key repeats faster
         // than the context is rebuilt, and each step has to start where the last one ended. Turning
         // it up also unmutes, like a keyboard's volume key: otherwise the number rises in silence.
@@ -84,6 +91,7 @@ export const buildPlaybackCommandContext = (
             }
             const next = Math.round(Math.min(1, Math.max(0, live.volume + delta)) * 100) / 100;
             live.handleSetVolume(next);
+            previewExternalPlaybackVolume(next);
         },
         toggleMute: audio.handleToggleMute,
         openAddToPlaylist,

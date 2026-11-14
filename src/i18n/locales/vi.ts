@@ -588,6 +588,13 @@ export default {
     "loadingComplete": "Đã tải xong",
     "loadingSong": "Đang tải URL bài hát",
     "preparingExternalPlayback": "Đang chuẩn bị phát",
+    "externalPlayerUnreachable": "Không kết nối được {{platform}}; đã dừng ở bài này",
+    "externalPlayerUnreachableBare": "Không kết nối được trình phát ngoài; đã dừng ở bài này",
+    "externalPlayerRestartTitle": "Đóng và mở lại trình phát của bạn?",
+    "externalPlayerRestartDescription": "Folia điều khiển trình phát ngoài qua cổng DevTools. Trình phát bạn đang mở chạy mà không có cổng đó, nên phải đóng rồi mở lại theo cách Folia điều khiển được - bài đang phát sẽ bị ngắt. Sau khi bạn đồng ý, Folia sẽ không hỏi lại; bạn có thể thu hồi trong phần cài đặt.",
+    "externalPlayerRestartConfirm": "Đồng ý và thử lại",
+    "externalPlayerRestartCancel": "Hủy",
+    "externalPlayerRestartDeclined": "Không đụng vào trình phát, nên bài này tạm thời chưa phát",
     "dataSynced": "Đồng bộ dữ liệu thành công",
     "syncFailed": "Đồng bộ thất bại",
     "loginExpired": "Phiên đăng nhập hết hạn. Đăng nhập lại",
@@ -624,6 +631,8 @@ export default {
     "externalBypassTitle": "Bài hát này phát trong trình phát riêng của nền tảng",
     "externalBypassBody": "Âm thanh không đi qua Folia, nên bộ cân bằng và hiệu ứng ở đây không thay đổi những gì bạn nghe. Thiết lập vẫn được giữ và áp dụng cho các bài khác như bình thường.",
     "externalReplayGainBypassed": "Phát trong trình phát riêng của nền tảng; không áp dụng ReplayGain",
+    "externalPlayerAdvertisement": "Quảng cáo",
+    "externalPlayerFallback": "Trình phát trả lời qua phiên phương tiện của hệ thống: Folia điều khiển thô hơn cho tới khi gỡ lỗi từ xa hoạt động lại",
     "songUnavailableAlternativeTitle": "Có phiên bản thay thế",
     "songUnavailableAlternativeDescription": "\"{{song}}\" không khả dụng. {{typeDesc}}. Phát phiên bản thay thế?",
     "songUnavailableAlternativeDefaultType": "Có thể phát phiên bản khác",
@@ -636,6 +645,9 @@ export default {
     "latticeUnavailableInFm": "Lattice không hỗ trợ chế độ FM cá nhân",
     "latticeFmOpenedInPlayer": "Lattice không hỗ trợ chế độ FM cá nhân. Đã mở bằng trình phát chuẩn",
     "noPlayableSongs": "Không có bài hát khả dụng trong danh sách",
+    "songUnavailableSkipped": "Bài hát đã bị gỡ, đã bỏ qua",
+    "songSubscriptionRequiredSkipped": "Cần {{platform}} Premium, đã bỏ qua",
+    "songSubscriptionRequiredSkippedBare": "Cần tài khoản Premium, đã bỏ qua",
     "songUnavailableTag": "Không khả dụng",
     "songVideoTag": "MV",
     "queueShuffled": "Đã xáo trộn hàng đợi",
@@ -874,6 +886,10 @@ export default {
       "settings-obs-browser-source": { "title": "Nguồn trình duyệt OBS", "description": "Mở cài đặt nguồn trình duyệt OBS" },
       "obs-toggle-keep-main-window-animation": { "title": "OBS: giữ hiệu ứng động cửa sổ chính", "description": "Bật/tắt giữ hiệu ứng động ở cửa sổ chính khi kết nối OBS" },
       "obs-toggle-track-card": { "title": "OBS: hiện thẻ bài đang phát", "description": "Bật/tắt vẽ thẻ bài đang phát trong nguồn trình duyệt OBS" },
+      "external-player-wake-on-launch": { "title": "Đánh thức trình phát ngoài khi mở Folia", "description": "Bật/tắt việc khởi động trình phát phát nhạc khi mở Folia" },
+      "external-player-close-on-quit": { "title": "Đóng trình phát ngoài khi thoát Folia", "description": "Bật/tắt việc đóng trình phát ngoài do Folia khởi động khi thoát Folia" },
+    "external-player-hold-media-keys": { "title": "Giữ phím media khi dùng ứng dụng chính thức", "description": "Bật/tắt việc chỉ giữ phím media hệ thống khi trình phát ngoài phát bài do Folia khởi động hoặc đã tiếp quản" },
+      "external-player-system-audio-spectrum": { "title": "Phổ thật cho trình phát bên ngoài", "description": "Bật/tắt việc vẽ phổ từ âm thanh của máy hay mô phỏng theo tiến độ phát" },
       "desktop-toggle-lyric-api": { "title": "API lời bài hát", "description": "Bật/tắt endpoint lời bài hát nội bộ không cần xác thực" },
       "settings-obs-copy-css": { "title": "Sao chép CSS OBS", "description": "Sao chép CSS tùy chỉnh nguồn OBS kèm tài nguyên đã tải lên" },
       "settings-storage": { "title": "Cài đặt lưu trữ", "description": "Mở cài đặt bộ nhớ đệm và lưu trữ" },
@@ -1791,7 +1807,12 @@ export default {
     "noteMaybeRegion": "Có thể bị giới hạn theo khu vực địa lý",
     "skipCountdown": "Sẽ chuyển sang bài tiếp theo sau {{seconds}} giây",
     "signIn": "Đăng nhập",
-    "openSetup": "Thiết lập phát nhạc"
+    "openSetup": "Thiết lập phát nhạc",
+    "externalPlayerNotInstalled": "Không tìm thấy ứng dụng {{platform}} trên máy",
+    "noteExternalPlayerNotInstalled": "Hãy cài nó, hoặc đổi cách phát về cách tiêu chuẩn (Folia tự phát bài hát).",
+    "externalPlayerNotFound": "{{platform}} đã thay đổi, Folia tạm thời không điều khiển được",
+    "noteExternalPlayerNotFound": "Hãy dùng cách phát tiêu chuẩn trước, chờ Folia bắt kịp phiên bản này.",
+    "useStandardPlayback": "Đổi về cách tiêu chuẩn",
   },
   "home": {
     "welcome": "Chào mừng đến với Folia",
@@ -2835,6 +2856,17 @@ export default {
     "remoteControlTextShadeHint": "Trên nền trong suốt, chữ ở trạng thái chờ nằm trên một lớp nền đen mờ trong suốt, dễ đọc hơn trên màn hình nền sáng",
     "openPlayerOnLaunch": "Vào giao diện phát khi khởi động",
     "openPlayerOnLaunchDesc": "Mở giao diện phát khi khởi động ứng dụng. Tuân theo \"Chế độ xem khi nhấn Phát\": nếu chọn Lattice, khởi động sẽ mở hàng đợi Lattice.",
+    "wakeExternalPlayersOnLaunch": "Đánh thức trình phát ngoài khi mở Folia",
+    "wakeExternalPlayersOnLaunchDesc": "Khởi động ứng dụng desktop của trình phát ngoài khi mở Folia, để bài đầu tiên không phải chờ nó. Nếu nó đang chạy mà không có cổng DevTools, Folia chỉ đóng rồi mở lại sau khi bạn đồng ý khởi động lại tại đây.",
+    "closeExternalPlayerOnQuit": "Đóng trình phát ngoài khi thoát Folia",
+    "closeExternalPlayerOnQuitDesc": "Đóng ứng dụng desktop của trình phát ngoài khi thoát Folia. Chỉ đóng khi Folia đã khởi động nó, hoặc khi nó chạy với cổng DevTools của Folia.",
+    "holdMediaKeysForExternalPlayer": "Giữ phím media cho trình phát ngoài",
+    "holdMediaKeysForExternalPlayerDesc": "Bật: phím media thuộc về Folia chỉ khi trình phát ngoài đang phát bài do Folia khởi động hoặc đã tiếp quản (tạm dừng cũng tính). Bài cục bộ, trình phát rảnh hoặc đã dừng, và rời khỏi tuyến ngoài đều trả lại. Tắt: không bao giờ giữ, phiên media thượng nguồn giữ như trước. Trong lúc Folia giữ phím, ứng dụng khác không nhận được phím media.",
+    "externalPlayerRestartConsent": "Cho phép Folia khởi động lại trình phát ngoài",
+    "externalPlayerRestartConsentDesc": "Folia điều khiển trình phát đó qua cổng DevTools. Khi nó đang mở mà không có cổng này và bạn đã đồng ý một lần, Folia sẽ đóng rồi mở lại theo cách nó điều khiển được, và bài đang phát sẽ bị ngắt. Tắt mục này thì lần gặp sau sẽ hỏi lại.",
+    "externalPlayerRestartConsentUnread": "Không đọc được trạng thái hiện tại nên tạm thời chưa đổi được",
+    "externalSystemAudioSpectrum": "Phổ thật (thu âm thanh hệ thống)",
+    "externalSystemAudioSpectrumDesc": "Khi trình phát bên ngoài phát nhạc, Folia thu âm thanh đầu ra của máy này và phân tích trong bộ nhớ để vẽ phổ. Không ghi âm và không lưu lại. Mặc định tắt; khi tắt, phổ được mô phỏng theo tiến độ phát.",
     "wallpaperMode": "Chế độ hình nền",
     "wallpaperModeDesc": "Đưa cửa sổ xuống đáy màn hình nền làm hình nền lời bài hát cố định. Không hỗ trợ phím tắt bàn phím.",
     "wallpaperModeMacPermissionHint": "Chế độ hình nền Mac cần quyền Giám sát đầu vào: bật Folia trong Cài đặt hệ thống → Quyền riêng tư & Bảo mật → Giám sát đầu vào, sau đó khởi động lại ứng dụng.",
@@ -5345,29 +5377,37 @@ export default {
       "standard": "Tiêu chuẩn",
       "standardNote": "Đăng nhập Spotify trong trình duyệt; Folia tự phát bài hát. Bộ cân bằng, Automix và các hiệu ứng theo nhạc đều hoạt động.",
       "soloist": "Soloist",
-      "soloistNote": "Đăng nhập Spotify trong trình duyệt; chương trình Soloist chính thức của Spotify phát bài hát. Dành cho tài khoản không nhận được khóa âm thanh. Soloist được tải riêng, và khóa API của nó được tạo bằng tài khoản Premium."
+      "soloistNote": "Đăng nhập Spotify trong trình duyệt; chương trình Soloist chính thức của Spotify phát bài hát. Dành cho tài khoản không nhận được khóa âm thanh. Soloist được tải riêng, và khóa API của nó được tạo bằng tài khoản Premium.",
+      "client": "Ứng dụng Spotify",
+      "clientNote": "Đăng nhập Spotify trong trình duyệt; ứng dụng Spotify trên máy này phát bài hát, kể cả tài khoản miễn phí. Cần cài sẵn ứng dụng Spotify cho máy tính. Folia khởi chạy nó với một cổng gỡ lỗi chỉ trên máy này (127.0.0.1) để điều khiển. Âm thanh không đi qua Folia nên bộ cân bằng và hiệu ứng không có tác dụng. Chỉ dành cho Windows."
     },
     "setup": {
       "title": "Thiết lập Spotify Soloist",
       "note": "Soloist là trình phát chính thức của Spotify, một chương trình trên máy này tự gửi âm thanh ra đầu ra của hệ thống; Folia điều khiển nó và theo vị trí của nó để hiện lời bài hát. Bộ cân bằng, Automix và các hiệu ứng theo nhạc của Folia không xử lý âm thanh của nó.",
       "titleStandard": "Cách Spotify phát nhạc",
-      "noteStandard": "Hiện Folia tự phát bài hát Spotify. Nếu tài khoản này không nhận được khóa âm thanh và bài hát không phát được, bạn có thể chuyển sang Soloist chính thức của Spotify."
+      "noteStandard": "Hiện Folia tự phát bài hát Spotify. Nếu tài khoản này không nhận được khóa âm thanh và bài hát không phát được, bạn có thể chuyển sang Soloist chính thức của Spotify.",
+      "clientTitle": "Thiết lập ứng dụng Spotify",
+      "clientNote": "Âm thanh không đi qua Folia nên bộ cân bằng và Automix không áp dụng; phổ thật có thể bật trong Cài đặt - Kết nối và tích hợp. Nó được điều khiển qua cổng gỡ lỗi chỉ 127.0.0.1.",
     },
     "noKey": {
       "title": "Tài khoản này không nhận được khóa âm thanh từ Spotify",
-      "note": "Spotify không cấp khóa âm thanh cho tài khoản này, nên cách phát của Folia không phát được bài hát của nó (thường gặp với tài khoản tạo từ cuối năm 2024). Bạn có thể phát qua Soloist chính thức của Spotify: tải chương trình Soloist, tạo khóa API bằng tài khoản Premium, rồi chọn thiết bị một lần trong ứng dụng Spotify. Danh sách phát, lời bài hát và tìm kiếm không bị ảnh hưởng."
+      "note": "Spotify không cấp khóa âm thanh cho tài khoản này (thường gặp từ cuối 2024), nên Folia không tự phát được bài của nó. Hãy phát qua Soloist chính thức: tải Soloist, tạo khóa API với tài khoản Premium, rồi chọn thiết bị một lần trong ứng dụng Spotify. Danh sách phát, lời và tìm kiếm không bị ảnh hưởng."
     },
     "step": {
       "program": "Chương trình Soloist",
       "key": "Khóa API",
       "pair": "Ghép nối thiết bị",
       "modeStandard": "Cách phát: tiêu chuẩn",
-      "modeSoloist": "Cách phát: Soloist"
+      "modeSoloist": "Cách phát: Soloist",
+      "modeClient": "Cách phát: ứng dụng Spotify",
+      "clientApp": "Ứng dụng Spotify cho máy tính"
     },
     "mode": {
       "standardNote": "Folia tự phát bài hát Spotify.",
       "soloistNote": "Soloist phát bài hát Spotify.",
-      "noKeyNote": "Cách phát của Folia không phát được bài hát của tài khoản này."
+      "noKeyNote": "Cách phát của Folia không phát được bài hát của tài khoản này.",
+      "clientNote": "Ứng dụng Spotify phát bài hát Spotify.",
+      "freeNote": "Đây là tài khoản miễn phí: Spotify không cho Folia tự phát bài hát."
     },
     "program": {
       "todo": "Tải Soloist cho máy này từ trang của Spotify, giải nén rồi chọn chương trình soloist bên trong (soloist.exe trên Windows). Folia không kèm theo chương trình này.",
@@ -5402,7 +5442,18 @@ export default {
       "download": "Trang tải chính thức",
       "keyPage": "Mở bảng điều khiển nhà phát triển",
       "saveKey": "Lưu khóa",
-      "reconnect": "Kết nối lại"
+      "reconnect": "Kết nối lại",
+      "useClient": "Phát qua ứng dụng Spotify"
+    },
+    "clientApp": {
+      "ready": "Đã tìm thấy ứng dụng Spotify cho máy tính.",
+      "missing": "Không tìm thấy ứng dụng Spotify cho máy tính. Hãy cài từ spotify.com/download hoặc Microsoft Store rồi phát lại.",
+      "more": "Rủi ro",
+      "moreNote": "Cách phát này dựa vào cấu trúc nội bộ chưa công bố của Spotify, nên bản cập nhật của Spotify có thể làm nó hỏng; khi đó có thể đổi về cách tiêu chuẩn (Folia tự phát bài hát). Dùng nó có thể vi phạm điều khoản dịch vụ của Spotify, bạn tự chịu rủi ro.\n\nTrạng thái Spotify bị thay đổi: chỉ thu hồi những bài Folia ghi vào hàng đợi của nó (bài bạn tự xếp vẫn ở nguyên chỗ); khi lặp một bài, chế độ lặp của ứng dụng được tắt tạm thời rồi khôi phục sau đó; và Folia đóng Spotify do nó khởi động bằng cổng gỡ lỗi khi thoát (dòng này có thể tắt trong cài đặt).",
+    },
+    "free": {
+      "title": "Đây là tài khoản miễn phí",
+      "note": "Spotify chỉ cho tài khoản Premium phát trong Folia. Tài khoản miễn phí có thể phát qua ứng dụng Spotify cho máy tính: Folia điều khiển và âm thanh phát ra từ ứng dụng đó. Cần cài sẵn ứng dụng; chỉ dành cho Windows."
     },
     "message": {
       "picked": "Đã chọn chương trình.",

@@ -6,7 +6,7 @@ import { AccountPicture, PlatformMark } from '../PlatformMark';
 import type { LoginScene } from './loginView';
 
 // src/components/login/window/LoginTile.tsx
-// 登录发生的地方：200 像素见方的一块，每一种样子一幅画。二维码；过期的二维码淡淡地留在原地，
+// 登录发生的地方：200 像素见方的一块（配置清单这一页 100），每一种样子一幅画。二维码；过期的二维码淡淡地留在原地，
 // 上面一个刷新的圆钮；浏览器登录是一幅浏览器窗口的小画；失败是一个代表类别的图形（A 类没有出错，
 // 是灰的，其余是黄的或红的）；还没有选平台是一个空框。画每换一幅，新的那幅弹进来。
 
@@ -112,7 +112,7 @@ export const LoginTile: React.FC<LoginTileProps> = ({
         picture = <Disc tone="calm" arc><ListChecks size={34} className="text-[color:var(--st-t1)]" /></Disc>;
     } else if (scene === 'setup') {
         // 配置清单：账号的头像（有的话），没有就是平台的记号。清单画在下面。
-        picture = user ? <AccountPicture user={user} size={88} providerId={providerId} /> : <PlatformMark providerId={providerId} label={label} size={56} />;
+        picture = user ? <AccountPicture user={user} size={56} providerId={providerId} /> : <PlatformMark providerId={providerId} label={label} size={40} />;
     } else if (scene === 'form') {
         // 表单式登录：静态的平台记号（没有码要等，也不转圈）。
         picture = <PlatformMark providerId={providerId} label={label} size={56} />;
@@ -121,10 +121,12 @@ export const LoginTile: React.FC<LoginTileProps> = ({
         picture = <span className="login-arc relative grid h-[54px] w-[54px] place-items-center"><PlatformMark providerId={providerId} label={label} size={30} /></span>;
     }
 
+    // 配置清单那一幅旁边是一段说明加两行清单，卡片收小一点，那一块话才够宽。
+    const side = scene === 'setup' ? 'h-[100px] w-[100px]' : 'h-[200px] w-[200px]';
     return (
         <div
             ref={tileRef}
-            className={`st-t-move relative h-[200px] w-[200px] shrink-0 overflow-hidden rounded-xl transition-colors ${onWhite ? 'bg-white' : framed ? 'shadow-[inset_0_0_0_1px_var(--st-line2)]' : 'bg-[var(--st-card)] shadow-[0_0_0_1px_var(--st-line)]'}`}
+            className={`st-t-move relative shrink-0 overflow-hidden rounded-xl transition-colors ${side} ${onWhite ? 'bg-white' : framed ? 'shadow-[inset_0_0_0_1px_var(--st-line2)]' : 'bg-[var(--st-card)] shadow-[0_0_0_1px_var(--st-line)]'}`}
             style={{ '--login-edge': 'var(--st-card)' } as React.CSSProperties}
         >
             <div key={live ? 'done' : `${scene}:${expiredCode}:${codeImage}`} className={`absolute inset-0 grid place-items-center ${scene === 'code' || live ? '' : 'login-pop'}`}>

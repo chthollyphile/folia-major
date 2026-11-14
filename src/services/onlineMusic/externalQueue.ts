@@ -2,14 +2,15 @@ import type { SongResult, StageLoopMode } from '../../types';
 import { getPlaybackSongKey } from '../../utils/appPlaybackGuards';
 import { nextQueueIndex, queueIndexOf } from '../../utils/playbackNeighbors';
 
-// Select only contiguous, distinct successors belonging to the current external provider.
-export function externalQueueSuccessors(song: SongResult, queue: SongResult[], mode: StageLoopMode, isFm: boolean, isPlayable: (song: SongResult) => boolean = () => true): SongResult[] {
+// Select only contiguous, distinct successors belonging to the current external provider. `most`
+// is how far ahead to look: a player that keeps a tail of its own picks how many of these it wants.
+export function externalQueueSuccessors(song: SongResult, queue: SongResult[], mode: StageLoopMode, isFm: boolean, isPlayable: (song: SongResult) => boolean = () => true, most = 2): SongResult[] {
     if (mode === 'one' || isFm || song.sourceRef?.kind !== 'online') return [];
     let index = queueIndexOf(queue, song);
     if (index < 0) return [];
     const seen = new Set([getPlaybackSongKey(song)]);
     const result: SongResult[] = [];
-    for (let count = 0; count < queue.length && result.length < 2; count++) {
+    for (let count = 0; count < queue.length && result.length < most; count++) {
         index = nextQueueIndex(queue.length, index, mode);
         const next = queue[index];
         if (!next || next.sourceRef?.kind !== 'online' || next.sourceRef.providerId !== song.sourceRef.providerId

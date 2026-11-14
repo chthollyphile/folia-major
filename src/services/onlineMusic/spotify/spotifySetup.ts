@@ -5,13 +5,15 @@ import { readSpotifyPlaybackMode, setSpotifyPlaybackMode, type SpotifyPlaybackMo
 
 // src/services/onlineMusic/spotify/spotifySetup.ts
 // What the sign-in window's setup checklist shows for Spotify (ProviderSetupView), and what its
-// buttons do. Two things are set up here:
+// buttons do. Three things are set up here:
 // - right after a sign-in the standard way, whether Spotify gives the account audio keys: when it
-//   gives none (the account cannot play the standard way), the checklist offers Soloist;
+//   gives none (the account cannot play the standard way), the checklist offers Soloist and, on
+//   Windows, Spotify's own desktop app;
 // - Soloist itself: the program (downloaded from Spotify, picked here), its API key, and its
-//   pairing with the account in another Spotify app.
-// The desktop side does the work (electron/spotify/soloist.cjs); this file only reads its state
-// and words it. The API key goes to the desktop side once and never comes back.
+//   pairing with the account in another Spotify app;
+// - Spotify's own app: whether it is installed (nothing else is set up for it).
+// The desktop side does the work (electron/spotify/soloist.cjs, officialClient.cjs); this file only
+// reads its state and words it. The API key goes to the desktop side once and never comes back.
 
 type SoloistBuildState = 'missing' | 'invalid' | 'valid' | 'expiring' | 'expired' | 'unknown' | 'clock';
 
@@ -25,6 +27,15 @@ interface SoloistWireState {
     /** Why the program is not running after it was started: 'expired', 'start', 'exited'. */
     error: string | null;
 }
+
+/** What the desktop side says of Spotify's own app (spotifyApiBridge.cjs `client_probe`). */
+interface ClientWireState { available: boolean; reason?: string }
+
+/** Why the standard way was stopped at after a sign-in: the account gets no audio key, or is a free one. */
+type Attention = 'no-key' | 'free' | null;
+
+/** Which of the other ways Spotify plays the desktop side offers. */
+interface OfferedModes { soloist: boolean; client: boolean }
 
 /** What the probe right after a sign-in found (electron/spotify/spotifyApiBridge.cjs `audio_probe`). */
 type SpotifyProbeAnswer = 'ok' | 'no-key' | 'free' | 'skipped' | 'unknown';
@@ -46,16 +57,34 @@ const takeMessage = (): ProviderSetupView['message'] => (
     message && Date.now() - message.at < MESSAGE_SHOWN_MS ? message.said : undefined
 );
 
-/** The way it plays now, and the button that changes it. */
-const modeStep = (mode: SpotifyPlaybackMode, attention = false): ProviderSetupStep => (mode === 'soloist'
-    ? { id: 'mode', titleKey: 'soloist.step.modeSoloist', noteKey: 'soloist.mode.soloistNote', state: 'done', actions: [run('use-standard', 'soloist.action.useStandard')] }
-    : {
+/** The way it plays now, and the buttons that change it (only to the ways the desktop side offers). */
+const modeStep = (mode: SpotifyPlaybackMode, offered: OfferedModes, attention: Attention = null): ProviderSetupStep => {
+    const toStandard = run('use-standard', 'soloist.action.useStandard');
+    const toSoloist = (primary: boolean) => run('use-soloist', 'soloist.action.useSoloist', primary);
+    const toClient = (primary: boolean) => run('use-client', 'soloist.action.useClient', primary);
+    if (mode === 'soloist') {
+        return {
+            id: 'mode', titleKey: 'soloist.step.modeSoloist', noteKey: 'soloist.mode.soloistNote', state: 'done',
+            actions: [toStandard, ...(offered.client ? [toClient(false)] : [])],
+        };
+    }
+    if (mode === 'client') {
+        return {
+            id: 'mode', titleKey: 'soloist.step.modeClient', noteKey: 'soloist.mode.clientNote', state: 'done',
+            actions: [toStandard, ...(offered.soloist ? [toSoloist(false)] : [])],
+        };
+    }
+    return {
         id: 'mode',
         titleKey: 'soloist.step.modeStandard',
-        noteKey: attention ? 'soloist.mode.noKeyNote' : 'soloist.mode.standardNote',
+        noteKey: attention === 'free' ? 'soloist.mode.freeNote' : attention ? 'soloist.mode.noKeyNote' : 'soloist.mode.standardNote',
         state: attention ? 'warn' : 'done',
-        actions: [run('use-soloist', 'soloist.action.useSoloist', attention)],
-    });
+        actions: [
+            ...(offered.soloist ? [toSoloist(attention !== null)] : []),
+            ...(offered.client ? [toClient(attention !== null && !offered.soloist)] : []),
+        ],
+    };
+};
 
 const programStep = (state: SoloistWireState): ProviderSetupStep => {
     const program = state.executable;
@@ -97,7 +126,7 @@ const pairStep = (state: SoloistWireState, ready: boolean): ProviderSetupStep =>
     return { id: 'pair', titleKey: 'soloist.step.pair', noteKey: 'soloist.pair.todo', state: 'todo', actions: [run('restart', 'soloist.action.reconnect')] };
 };
 
-const soloistView = (read: SoloistWireState): ProviderSetupView => {
+const soloistView = (read: SoloistWireState, offered: OfferedModes): ProviderSetupView => {
     // The program refused to start as expired (exit code 10) though its build date could not be read:
     // it is expired, and the setup says to fetch a new build.
     const state = read.error === 'expired' && read.executable && read.executable.state !== 'expired'
@@ -110,49 +139,85 @@ const soloistView = (read: SoloistWireState): ProviderSetupView => {
     return {
         titleKey: 'soloist.setup.title',
         noteKey: 'soloist.setup.note',
-        steps: [program, keyStep(state), pair, modeStep('soloist')],
+        steps: [program, keyStep(state), pair, modeStep('soloist', offered)],
         complete: ready && pair.state === 'done',
         message: takeMessage(),
     };
 };
 
-const standardView = (attention: boolean): ProviderSetupView => ({
-    titleKey: attention ? 'soloist.noKey.title' : 'soloist.setup.titleStandard',
-    noteKey: attention ? 'soloist.noKey.note' : 'soloist.setup.noteStandard',
-    steps: [modeStep('standard', attention)],
-    // Playing the standard way needs nothing set up; an account that gets no key may still leave it so.
-    complete: !attention,
+/** Spotify's own app: it needs nothing set up but to be installed. */
+const clientView = (read: ClientWireState, offered: OfferedModes): ProviderSetupView => ({
+    titleKey: 'soloist.setup.clientTitle',
+    noteKey: 'soloist.setup.clientNote',
+    steps: [
+        {
+            id: 'app',
+            titleKey: 'soloist.step.clientApp',
+            noteKey: read.available ? 'soloist.clientApp.ready' : 'soloist.clientApp.missing',
+            state: read.available ? 'done' : 'error',
+            // 控制这台电脑上的 Spotify 靠的是它未公开的内部结构，可能因它的更新失效，也可能不合它的服务条款；
+            // 会改动它哪些状态也在这里说清楚。一句短的留在清单里，长的那段展开才看（窗口不能再高）。
+            more: { labelKey: 'soloist.clientApp.more', noteKey: 'soloist.clientApp.moreNote' },
+        },
+        modeStep('client', offered),
+    ],
+    complete: read.available,
     message: takeMessage(),
 });
 
-// Whether the last view was for an account that gets no key: it stays so until the way changes.
-let noKeySeen = false;
+const standardView = (attention: Attention, offered: OfferedModes): ProviderSetupView => ({
+    titleKey: attention === 'free' ? 'soloist.free.title' : attention ? 'soloist.noKey.title' : 'soloist.setup.titleStandard',
+    noteKey: attention === 'free' ? 'soloist.free.note' : attention ? 'soloist.noKey.note' : 'soloist.setup.noteStandard',
+    steps: [modeStep('standard', offered, attention)],
+    // Playing the standard way needs nothing set up; an account that gets no key may still leave it so.
+    complete: attention === null,
+    message: takeMessage(),
+});
+
+// Why the last view stopped an account at the standard way: it stays so until the way changes.
+let noKeySeen: Attention = null;
 
 /** Soloist's state, read; with `start`, a program that is set up is started to say whether it is paired. */
 const readState = (start: boolean) => requestSpotify<SoloistWireState>('soloist_state', { start });
 
+/** Whether Spotify's app is on this computer (a look at its launcher on disk, kept for a minute). */
+const readClient = () => requestSpotify<ClientWireState>('client_probe');
+
+const offeredBy = (answer: { soloist: boolean; client?: boolean }): OfferedModes => ({ soloist: answer.soloist, client: answer.client === true });
+
 /** The checklist now. Soloist is started only when it is the way Spotify plays. */
 export const getSpotifySetup = async (): Promise<ProviderSetupView | null> => {
     const answer = await readSpotifyPlaybackMode();
-    if (!answer?.soloist) return null;
-    if (answer.mode === 'standard') return standardView(noKeySeen);
-    return soloistView(await readState(true));
+    if (!answer || (!answer.soloist && !answer.client)) return null;
+    const offered = offeredBy(answer);
+    if (answer.mode === 'standard') return standardView(noKeySeen, noKeySeen === 'free' ? { soloist: false, client: offered.client } : offered);
+    if (answer.mode === 'client') return clientView(await readClient(), offered);
+    return soloistView(await readState(true), offered);
 };
 
 /**
- * After a sign-in. The Soloist way: its checklist, unless all of it is done. The standard way: the
- * account's audio key is probed, and an account Spotify gives no key gets the offer of Soloist.
+ * After a sign-in. The Soloist way: its checklist, unless all of it is done. Spotify's own app: its
+ * checklist, unless the app is installed. The standard way: the account's audio key is probed, and
+ * an account Spotify gives no key gets the offer of the other ways.
  */
 export const checkSpotifyAfterLogin = async (methodId: string | null): Promise<ProviderSetupView | null> => {
     const answer = await readSpotifyPlaybackMode();
-    if (!answer?.soloist) return null;
+    if (!answer || (!answer.soloist && !answer.client)) return null;
+    const offered = offeredBy(answer);
     if (methodId === 'soloist' || answer.mode === 'soloist') {
-        const view = soloistView(await readState(true));
+        const view = soloistView(await readState(true), offered);
+        return view.complete ? null : view;
+    }
+    if (methodId === 'client' || answer.mode === 'client') {
+        const view = clientView(await readClient(), offered);
         return view.complete ? null : view;
     }
     const probe = await requestSpotify<SpotifyProbeAnswer>('audio_probe');
-    noKeySeen = probe === 'no-key';
-    return noKeySeen ? standardView(true) : null;
+    // A free account cannot use Soloist either, so only Spotify's own app is offered to it.
+    if (probe === 'no-key') noKeySeen = 'no-key';
+    else if (probe === 'free' && offered.client) noKeySeen = 'free';
+    else noKeySeen = null;
+    return noKeySeen ? standardView(noKeySeen, noKeySeen === 'free' ? { soloist: false, client: true } : offered) : null;
 };
 
 const runAction = async (actionId: string, value?: string): Promise<void> => {
@@ -160,9 +225,13 @@ const runAction = async (actionId: string, value?: string): Promise<void> => {
         case 'use-soloist':
             await setSpotifyPlaybackMode('soloist');
             return;
+        case 'use-client':
+            await setSpotifyPlaybackMode('client');
+            noKeySeen = null;
+            return;
         case 'use-standard':
             await setSpotifyPlaybackMode('standard');
-            noKeySeen = false;
+            noKeySeen = null;
             return;
         case 'download':
             await requestSpotify('soloist_open', { page: 'download' });
@@ -204,5 +273,5 @@ export const runSpotifySetupAction = async (_stepId: string, actionId: string, v
         console.warn(`[Spotify] The setup action ${actionId} failed`, error);
         say('soloist.message.failed', 'error');
     }
-    return await getSpotifySetup() ?? standardView(false);
+    return await getSpotifySetup() ?? standardView(null, { soloist: false, client: false });
 };

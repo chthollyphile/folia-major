@@ -41,6 +41,8 @@ const SetupStepRow: React.FC<{
 }> = ({ step, index, busy, running, run }) => {
     const { t } = useTranslation();
     const reduced = useKitReducedMotion();
+    // 收起的详细说明（step.more）：清单里只留一句短的，按一下才展开，窗口高度不变。
+    const [moreOpen, setMoreOpen] = useState(false);
     const [secret, setSecret] = useState('');
     // 已经存过一份：框里只画掩码，按「更换」才能填新的。
     const [changing, setChanging] = useState(false);
@@ -58,7 +60,7 @@ const SetupStepRow: React.FC<{
     };
 
     return (
-        <li className="flex gap-3 border-t border-[var(--st-line)] py-3.5 first:border-t-0">
+        <li className="flex gap-3 border-t border-[var(--st-line)] py-2 first:border-t-0">
             <span
                 aria-hidden
                 className={`st-t-fast mt-0.5 grid h-[22px] w-[22px] shrink-0 place-items-center rounded-full text-xs font-semibold tabular-nums transition-colors ${MARK_CLASS[step.state]}`}
@@ -68,10 +70,24 @@ const SetupStepRow: React.FC<{
             <div className="min-w-0 flex-1">
                 <h4 className="text-[13px] font-semibold leading-[22px] text-[color:var(--st-t1)]">
                     {t(step.titleKey, step.params)}
+                    {/* 详细说明的入口在标题这一行：清单放不下的长说明展开才看，窗口高度不变。 */}
+                    {step.more && (
+                        <button
+                            type="button"
+                            aria-expanded={moreOpen}
+                            className="ml-1.5 align-baseline text-xs font-normal text-[color:var(--st-t2)] underline underline-offset-2 hover:no-underline"
+                            onClick={() => setMoreOpen(open => !open)}
+                        >
+                            {t(step.more.labelKey)}
+                        </button>
+                    )}
                     <span className="sr-only">{` · ${t(`login.setupState.${step.state}`)}`}</span>
                 </h4>
                 {step.noteKey && (
                     <p className="mt-0.5 whitespace-pre-line text-xs leading-[18px] text-[color:var(--st-t2)]">{t(step.noteKey, step.params)}</p>
+                )}
+                {moreOpen && step.more && (
+                    <p className="mt-0.5 whitespace-pre-line text-xs leading-[18px] text-[color:var(--st-t2)]">{t(step.more.noteKey)}</p>
                 )}
                 {step.detail && (
                     <p className="mt-1.5 select-text font-mono text-[11px] leading-4 text-[color:var(--st-t3)] [overflow-wrap:anywhere]">{step.detail}</p>
@@ -147,7 +163,7 @@ export const SetupChecklist: React.FC<SetupChecklistProps> = ({ view, busy, onAc
     };
 
     return (
-        <div className="mt-5 border-t border-[var(--st-line)] pt-1">
+        <div className="mt-2 border-t border-[var(--st-line)] pt-1">
             <ol className="m-0 list-none p-0">
                 {view.steps.map((step, index) => (
                     <SetupStepRow key={step.id} step={step} index={index} busy={busy} running={running} run={run} />

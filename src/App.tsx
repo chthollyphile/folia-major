@@ -94,6 +94,7 @@ import { useAppPreferences } from './hooks/useAppPreferences';
 import { useElectronPlaybackBridge } from './components/app/playback/bridges/useElectronPlaybackBridge';
 import { useHifiPlaybackBridge } from './components/hifi/useHifiPlaybackBridge';
 import { useExternalPlaybackBridge } from './components/app/playback/bridges/useExternalPlaybackBridge';
+import { useMediaKeyTakeoverBridge } from './components/app/playback/bridges/useMediaKeyTakeoverBridge';
 import { useExternalAutomixGate } from './components/app/playback/externalPlaybackGate';
 import { previewExternalPlaybackVolume, seekExternalPlayback } from './services/onlineMusic/externalPlayback';
 import { seekExternalSongIfNotLoaded, startExternalSong } from './components/app/playback/start/externalSongStart';
@@ -1010,6 +1011,9 @@ export default function App() {
     const {
         pendingUnavailableReplacement,
         setPendingUnavailableReplacement,
+        pendingExternalPlayerRestart,
+        handleExternalPlayerRestartConfirm,
+        handleExternalPlayerRestartCancel,
         clearPendingUnavailableSkip,
         addOnlineSongToQueue,
         addOnlineSongsToQueue,
@@ -1153,6 +1157,7 @@ export default function App() {
                 shouldNavigateToPlayer: false,
                 fromSong: currentSong ?? undefined,
                 isAutomixAdvance: true,
+                autoAdvance: true,
             });
         },
         onDeckPlayedOut: (song, src) => cachePlayedOutRef.current(song, src),
@@ -1396,7 +1401,6 @@ export default function App() {
         startExternalSong: () => startExternalSong(playSong),
     });
     useHifiPlaybackBridge({ handleNextTrack, playSong, shouldAutoPlayRef: shouldAutoPlay, isLyricsLoading, effectiveLoopMode, isFmMode });
-    useExternalPlaybackBridge({ handleNextTrack });
     useNavidromeScrobbleReporter({
         audioRef,
         currentSong,
@@ -1422,6 +1426,13 @@ export default function App() {
         taskbarHasTrackRef,
         taskbarPlayerStateRef,
     } = transportCommandRefs;
+    useExternalPlaybackBridge({ handleNextTrack, handlePrevTrack, setShownLyrics: setLyrics, setIsLyricsLoading });
+    // The system media keys, held while a player asks for them: one press runs Folia's transport and
+    // queue on whatever route the song on screen sounds.
+    useMediaKeyTakeoverBridge({
+        runTransportAction: (action) => runTransportButtonAction({ ...transportCommandRefs, isNowPlayingControlDisabledRef, audioRef }, action),
+        playSong,
+    });
 
     const mediaSessionOptions = {
         audioRef,
@@ -2389,6 +2400,9 @@ export default function App() {
         pendingUnavailableReplacement,
         setPendingUnavailableReplacement,
         handleUnavailableReplacementConfirm,
+        pendingExternalPlayerRestart,
+        handleExternalPlayerRestartConfirm,
+        handleExternalPlayerRestartCancel,
         settingsDialog,
     });
 
@@ -2643,7 +2657,9 @@ export default function App() {
                 // If single loop is active, native loop handles it.
                 // If not, we handle queue logic.
                 if (effectiveLoopMode !== 'one') {
-                    void handleNextTrack({ allowStopOnMissing: true, playedToEnd: true, shouldNavigateToPlayer: false });
+                    void handleNextTrack({
+                        allowStopOnMissing: true, shouldNavigateToPlayer: false, autoAdvance: true, playedToEnd: true,
+                    });
                 }
             }}
             onLoadedMetadata={(e) => {
@@ -2704,7 +2720,9 @@ export default function App() {
                         return;
                     }
 
-                    void handleNextTrack({ allowStopOnMissing: true, playedToEnd: true, shouldNavigateToPlayer: false });
+                    void handleNextTrack({
+                        allowStopOnMissing: true, shouldNavigateToPlayer: false, autoAdvance: true, playedToEnd: true,
+                    });
                     return;
                 }
 

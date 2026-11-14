@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events';
-import fs from 'node:fs';
+import fs, { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
@@ -561,9 +561,15 @@ describe('a browser an earlier run left on the folder', () => {
         expect(ended()).toEqual([4242, 4250]);
         const [file, args, options] = execFile.mock.calls[0];
         expect(file).toBe('C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe');
-        // The folder reaches PowerShell in its environment and is no part of the command.
+        // The folder reaches PowerShell in its environment and is no part of the command: the command
+        // names a script file of the repository, and the script reads the folder itself.
         expect(args.join(' ')).not.toContain(PROFILE);
-        expect(args.join(' ')).toContain('$env:FOLIA_SIGN_IN_FOLDER');
+        expect(args).toContain('-File');
+        expect(String(args[args.indexOf('-File') + 1])).toMatch(/scripts[\\/]listProcesses\.ps1$/);
+        expect(args.join(' ')).not.toContain('-Command');
+        // The script that runs reads the folder from the environment, which is what keeps it out of the
+        // command line.
+        expect(readFileSync(String(args[args.indexOf('-File') + 1]), 'utf8')).toContain('$env:FOLIA_SIGN_IN_FOLDER');
         expect(options.env.FOLIA_SIGN_IN_FOLDER).toBe(PROFILE);
         expect(lines.join('\n')).toContain('was ended (2 process(es))');
         expect(lines.join('\n')).not.toContain(PROFILE);

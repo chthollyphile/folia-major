@@ -3,6 +3,7 @@ import type UnavailableReplacementDialog from '../../modal/UnavailableReplacemen
 import type SettingsModal from '../../modal/SettingsModal';
 import type ConfirmDialog from '../../shared/ConfirmDialog';
 import type { StatusMessage, SongResult, LocalSong } from '../../../types';
+import type { ExternalPlayerRestartRequest } from '../../../types/appPlayback';
 import { isLocalPlaybackSong, isNavidromePlaybackSong, isStagePlaybackSong } from '../../../utils/appPlaybackGuards';
 import type React from 'react';
 
@@ -23,6 +24,8 @@ export type AppDialogsModel = {
     unavailableReplacementDialog?: UnavailableReplacementDialogProps | null;
     settingsDialog?: SettingsDialogProps | null;
     wallpaperEntryConfirmDialog?: ConfirmDialogProps | null;
+    /** The question asked before Folia may close and reopen the listener's own player (once). */
+    externalPlayerRestartDialog?: ConfirmDialogProps | null;
 };
 
 // What this file can read for itself, so the caller never names it. See useAppDialogsModel below.
@@ -31,6 +34,8 @@ type AppDialogsAmbient = {
     isDaylight: boolean;
     currentSong: SongResult | null;
     wallpaperEntryConfirmDialog: ConfirmDialogProps;
+    /** The question asked before Folia may close and reopen the listener's own player: its words are translated where the dialog is built. */
+    externalPlayerRestartDialog: ConfirmDialogProps;
 };
 
 export type AppDialogsDeps = {
@@ -50,6 +55,10 @@ export type AppDialogsDeps = {
     } | null;
     setPendingUnavailableReplacement: React.Dispatch<React.SetStateAction<any>>;
     handleUnavailableReplacementConfirm: () => Promise<void>;
+    /** The song waiting on "close and reopen your player?", and the two answers to it. */
+    pendingExternalPlayerRestart: ExternalPlayerRestartRequest | null;
+    handleExternalPlayerRestartConfirm: () => Promise<void>;
+    handleExternalPlayerRestartCancel: () => void;
     settingsDialog?: SettingsDialogProps | null;
 };
 
@@ -62,6 +71,7 @@ export const buildAppDialogsModel = ({
     isLyricMatchOpen,
     currentSong,
     wallpaperEntryConfirmDialog,
+    externalPlayerRestartDialog,
     localSongs,
     closeLyricMatch,
     handleLyricMatchComplete,
@@ -120,6 +130,7 @@ export const buildAppDialogsModel = ({
         onClose: () => setPendingUnavailableReplacement(null),
         onConfirm: handleUnavailableReplacementConfirm,
     },
+    externalPlayerRestartDialog,
     settingsDialog,
     wallpaperEntryConfirmDialog,
 });

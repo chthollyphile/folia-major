@@ -2,9 +2,11 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { usePlaybackReportReady } from '../../../../services/onlineMusic/playbackReportGate';
 import { useAudioSettingsStore } from '../../../../stores/useAudioSettingsStore';
+import { useDesktopSettingsStore } from '../../../../stores/useDesktopSettingsStore';
 import { usePlayerChromeSettingsStore } from '../../../../stores/usePlayerChromeSettingsStore';
 import { useStageSettingsStore } from '../../../../stores/useStageSettingsStore';
 import { Button, CopyValue, Group, Reveal, Row, Status, Toggle, Value, type SettingsOptionDef } from '../kit';
+import { useExternalPlayerRestartConsent } from './integration/useExternalPlayerRestartConsent';
 import NavidromeRows from './integration/NavidromeRows';
 import { O, SERVICES, STREAMING } from './integration/options';
 import { DesktopStageRows, WebStageRows } from './integration/StageModeRows';
@@ -31,6 +33,17 @@ const IntegrationPage: React.FC = () => {
     const transparentPlayerBackground = usePlayerChromeSettingsStore(state => state.transparentPlayerBackground);
     const obsKeepAnimation = useStageSettingsStore(state => state.obsKeepMainWindowAnimation);
     const setObsKeepAnimation = useStageSettingsStore(state => state.handleToggleObsKeepMainWindowAnimation);
+    const wakeExternalPlayers = useDesktopSettingsStore(state => state.wakeExternalPlayersOnLaunch);
+    const setWakeExternalPlayers = useDesktopSettingsStore(state => state.handleToggleWakeExternalPlayersOnLaunch);
+    const closeExternalPlayerOnQuit = useDesktopSettingsStore(state => state.closeExternalPlayerOnQuit);
+    const setCloseExternalPlayerOnQuit = useDesktopSettingsStore(state => state.handleToggleCloseExternalPlayerOnQuit);
+    const holdMediaKeys = useDesktopSettingsStore(state => state.holdMediaKeysForExternalPlayer);
+    const setHoldMediaKeys = useDesktopSettingsStore(state => state.handleToggleHoldMediaKeysForExternalPlayer);
+    const externalSpectrum = useDesktopSettingsStore(state => state.externalSystemAudioSpectrum);
+    const setExternalSpectrum = useDesktopSettingsStore(state => state.handleToggleExternalSystemAudioSpectrum);
+    const restartConsent = useExternalPlayerRestartConsent();
+    // The rows are drawn where the player they steer exists at all: the Windows build.
+    const wakesExternalPlayer = isElectron && window.electron?.platform === 'win32';
     const scrobbleEnabled = useAudioSettingsStore(state => state.neteaseScrobbleEnabled);
     const setScrobbleEnabled = useAudioSettingsStore(state => state.handleToggleNeteaseScrobble);
     // Subscribed to, so the row follows the reporting account signing in or out while the page is open.
@@ -65,6 +78,45 @@ const IntegrationPage: React.FC = () => {
                 >
                     <Toggle checked={scrobbleEnabled} onChange={setScrobbleEnabled} />
                 </Row>
+                {wakesExternalPlayer && (
+                    <>
+                        <Row option={O.wakeExternalPlayers} hint={t('options.wakeExternalPlayersOnLaunchDesc')}>
+                            <Toggle checked={wakeExternalPlayers} onChange={setWakeExternalPlayers} />
+                        </Row>
+                        <Row option={O.closeExternalPlayerOnQuit} hint={t('options.closeExternalPlayerOnQuitDesc')}>
+                            <Toggle checked={closeExternalPlayerOnQuit} onChange={setCloseExternalPlayerOnQuit} />
+                        </Row>
+                        {/* The keys held between songs too, and only for that same app: the switch asks
+                            nothing of the build that cannot run it. */}
+                        <Row option={O.holdMediaKeys} hint={t('options.holdMediaKeysForExternalPlayerDesc')}>
+                            <Toggle checked={holdMediaKeys} onChange={setHoldMediaKeys} />
+                        </Row>
+                        {/* The bars of that route, from the machine's own sound rather than from the
+                            playing position: it captures everything the machine sounds, so the row is
+                            off until the listener asks for it. */}
+                        <Row option={O.externalSpectrum} hint={t('options.externalSystemAudioSpectrumDesc')}>
+                            <Toggle checked={externalSpectrum} onChange={setExternalSpectrum} />
+                        </Row>
+                        {/* The one answer that was kept: it is what lets Folia close that player when it
+                            has to reopen it, and turning it off here means it is asked again next time.
+                            Nothing is drawn while the main process has not answered: a switch that
+                            cannot be read is not a switch that is off, so the row says the state could
+                            not be read instead of telling the listener what turning it off does. */}
+                        <Row
+                            option={O.restartConsent}
+                            hint={t(restartConsent.granted === null
+                                ? 'options.externalPlayerRestartConsentUnread'
+                                : 'options.externalPlayerRestartConsentDesc')}
+                            disabled={restartConsent.granted === null}
+                        >
+                            <Toggle
+                                checked={restartConsent.granted === true}
+                                onChange={restartConsent.setGranted}
+                                disabled={restartConsent.granted === null}
+                            />
+                        </Row>
+                    </>
+                )}
             </Group>
 
             <Group def={STREAMING}>

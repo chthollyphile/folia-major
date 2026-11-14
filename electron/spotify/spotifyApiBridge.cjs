@@ -3,6 +3,8 @@ const { createSpotifyAudio } = require('./audio.cjs');
 const { createSpotifyAudioFiles } = require('./audioFiles.cjs');
 const { SpotifyError, describeError, lineReason, plainWords, spotifyError, statusError, toErrorResult } = require('./errors.cjs');
 const { createSpotifySessionRepository, publicAccountId } = require('./session.cjs');
+const { createSpotifyOfficialClient } = require('./officialClient.cjs');
+const { read: restartConsented } = require('../restartConsent.cjs');
 const { createSpotifySignIn } = require('./signIn.cjs');
 const { createSoloist } = require('./soloist.cjs');
 
@@ -19,13 +21,19 @@ const SPOTIFY_OPERATIONS = Object.freeze([
   'audio_keep', 'audio_probe', 'library', 'playlist_edit', 'playlist_create', 'playback_mode',
   'soloist_state', 'soloist_pick', 'soloist_key', 'soloist_restart', 'soloist_open',
   'soloist_play', 'soloist_pause', 'soloist_resume', 'soloist_seek', 'soloist_volume', 'soloist_status',
+  // Spotify's own desktop app as the player (officialClient.cjs). `client_probe` answers whether
+  // the app is on this computer at all, without starting anything.
+  'client_launch', 'client_restart', 'client_play', 'client_queue', 'client_pause', 'client_resume', 'client_seek', 'client_volume',
+  'client_status', 'client_status_found', 'client_status_follow', 'client_probe', 'client_repeat',
   'soloist_repeat',
 ]);
-// How Spotify plays here: 'standard' (librespot, in this process, audio.cjs) or 'soloist' (Spotify's
-// own Soloist program on this computer, soloist.cjs), for accounts Spotify gives no audio key. The
-// person picks it when signing in, and in the setup checklist; it is kept for the installation.
+// How Spotify plays here: 'standard' (librespot, in this process, audio.cjs), 'soloist' (Spotify's
+// own Soloist program on this computer, soloist.cjs) or 'client' (Spotify's desktop app, steered
+// through officialClient.cjs; Windows only), the last two for accounts Spotify gives no audio key.
+// The person picks it when signing in, and in the setup checklist; it is kept for the installation.
 const PLAYBACK_KEY = 'SPOTIFY_PLAYBACK_V1';
-const PLAYBACK_MODES = Object.freeze(['standard', 'soloist']);
+const PLAYBACK_MODES = Object.freeze(['standard', 'soloist', 'client']);
+const PLAYBACK_MODE_NAMES = Object.freeze({ standard: 'the standard way', soloist: 'Soloist', client: 'Spotify\'s own app' });
 // Tracks to ask an audio key of when the account has no liked songs to ask with (songs that play
 // in most markets; one Spotify has no audio for in a market is passed over).
 const PROBE_FALLBACK_TRACKS = Object.freeze(['4uLU6hMCjMI75M1A2tKUQC', '7qiZfU4dY1lWllzX7mPBI3']);
@@ -91,6 +99,9 @@ const REQUEST_LIMIT_MS = 30 * 1000;
 const SHUTDOWN_LIMIT_MS = 3000;
 // The account (its name, and whether it pays) is read again at most this often.
 const ACCOUNT_MAX_AGE_MS = 10 * 60 * 1000;
+// How long one answer of `client_probe` is reused: the app is installed or removed between runs,
+// not between two songs.
+const AVAILABILITY_TTL_MS = 60 * 1000;
 // After Spotify approved a sign-in, a read of its account that failed on the line is made again
 // with the next poll for this long from the first read; then the sign-in ends.
 const ACCOUNT_RETRY_MS = 60 * 1000;
@@ -107,10 +118,10 @@ const TRACK_ID = /^[0-9A-Za-z]{22}$/;
 // to stay under.
 // `soloistPaths` ({ data(), cache() }) and `chooseSoloistFile()` (the system's file picker, to a
 // path or null) let Spotify play through Soloist; without them only the standard way is offered.
-// `soloist` replaces the whole Soloist part (tests).
+// `soloist` replaces the whole Soloist part (tests). `officialClient` replaces Spotify's desktop app part (tests).
 function createSpotifyApiBridge({
   store, safeStorage, fetch, openExternal, language = () => 'zh-CN', now = Date.now,
-  log = (...args) => console.log(...args), warn = (...args) => console.warn(...args), signIn: givenSignIn, openSession,
+  log = (...args) => console.log(...args), warn = (...args) => console.warn(...args), signIn: givenSignIn, openSession, officialClient: givenOfficialClient,
   audioDirectory, onAudioKept, wait = ms => new Promise(resolve => { setTimeout(resolve, ms); }),
   soloistPaths, chooseSoloistFile, soloist: givenSoloist,
 }) {
@@ -118,11 +129,23 @@ function createSpotifyApiBridge({
   const soloist = givenSoloist ?? (soloistPaths
     ? createSoloist({ store, safeStorage, dataDirectory: soloistPaths.data, cacheDirectory: soloistPaths.cache, chooseFile: chooseSoloistFile, log, warn })
     : null);
-  const playbackMode = () => (soloist && store.get(PLAYBACK_KEY) === 'soloist' ? 'soloist' : 'standard');
+  // Spotify's app is steered on Windows only (officialClient.cjs).
+  const clientOffered = Boolean(givenOfficialClient) || process.platform === 'win32';
+  const playbackMode = () => {
+    const kept = store.get(PLAYBACK_KEY);
+    if (kept === 'soloist' && soloist) return 'soloist';
+    if (kept === 'client' && clientOffered) return 'client';
+    return 'standard';
+  };
   const setPlaybackMode = mode => {
-    if (!PLAYBACK_MODES.includes(mode) || (mode === 'soloist' && !soloist) || mode === playbackMode()) return;
+    if (!PLAYBACK_MODES.includes(mode) || (mode === 'soloist' && !soloist) || (mode === 'client' && !clientOffered) || mode === playbackMode()) return;
+    const leavingClient = playbackMode() === 'client';
     store.set(PLAYBACK_KEY, mode);
-    log(`[Spotify] Plays through ${mode === 'soloist' ? 'Soloist' : 'the standard way'} from now on`);
+    log(`[Spotify] Plays through ${PLAYBACK_MODE_NAMES[mode]} from now on`);
+    // Leaving this way of playing puts the listener's own repeat and shuffle back before the app is
+    // let go: what Folia changed of it goes with Folia. The let-go itself does not wait for the
+    // pick to answer, and a state that could not be put back keeps its record for a later restore.
+    if (leavingClient) restoreClientState().finally(releasePlayer);
   };
   // The way to play picked with a sign-in, kept until Spotify approves it.
   let signingInWith = null;
@@ -133,6 +156,10 @@ function createSpotifyApiBridge({
   const signIn = givenSignIn ?? createSpotifySignIn({ fetch, openExternal, language, now, log, warn });
   let renewing = null;
   let adopting = false;
+  // The failure line last logged for each operation, so a failure that repeats logs once (see
+  // request() below). A different failure, or a success, lets that operation log again; another
+  // operation's line says nothing about this one.
+  const lastFailures = new Map();
   // The approved sign-in whose account is being read, and when it was first asked for.
   let approved = null;
   let accountReadAt = 0;
@@ -296,6 +323,44 @@ function createSpotifyApiBridge({
     ...(openSession ? { openSession } : {}),
   });
 
+  // Made on first use: a run that never plays Spotify starts no helper process.
+  let officialClient = givenOfficialClient ?? null;
+  // The last answer of `client_probe`, and when it was read.
+  let availability = null;
+  let availabilityReadAt = 0;
+  // Its own fetch: the Spotify app is on this computer, never behind the partition's proxy.
+  // The listener's answer about restarting their Spotify is read from the store it is kept in, at
+  // the moment the app would be closed (officialClient.cjs).
+  const client = () => (officialClient ??= createSpotifyOfficialClient({ log, warn, restartConsented: () => restartConsented(store) }));
+  // Ends what steered Spotify's own app: the media session helper process and the DevTools
+  // connection (officialClient.cjs, release). Spotify itself keeps running; the next call builds both
+  // again. A player that was never made has nothing to let go.
+  const releasePlayer = () => {
+    if (!officialClient?.release) return;
+    officialClient.release().catch(error => warn('[Spotify] Spotify\'s player could not be let go', error));
+  };
+
+  // The listener's own repeat and shuffle of Spotify's app, put back as this run found them
+  // (officialClient.cjs, `restoreUserState`). Called wherever Folia stops playing in that app -
+  // another way of playing is picked, the account is signed out, Folia quits - so what a play had
+  // to change of it is not left on the listener's Spotify. Nothing that failed is reported: a
+  // player that cannot be reached keeps the record and is tried again, and no reason to hold
+  // leaving for it.
+  const restoreClientState = async () => {
+    if (!officialClient?.restoreUserState) return;
+    try {
+      await officialClient.restoreUserState();
+    } catch (error) {
+      warn('[Spotify] The listener\'s own repeat and shuffle could not be put back', error);
+    }
+  };
+  // Whether a play of this run changed anything of the listener's own that is still to be put back:
+  // a quit holds for it, since a Spotify closed with Folia would take the record with the app.
+  const stateChanged = () => {
+    const changed = officialClient?.changedState?.();
+    return Boolean(changed && (changed.repeat !== null || changed.shuffle !== null));
+  };
+
   const handlers = {
     async login_start(params) {
       const started = await signIn.start();
@@ -366,9 +431,14 @@ function createSpotifyApiBridge({
     // Spotify has no request that takes a grant back; the tokens are forgotten here.
     async logout() {
       signIn.cancel();
+      // The listener's own repeat and shuffle are put back before the app is let go: signing out
+      // ends the way Folia played in it.
+      await restoreClientState();
       const saved = repo.get();
       repo.clear();
       audio.clear();
+      // The account Spotify's own app was steered as is gone: what steered it goes too.
+      releasePlayer();
       log(`[Spotify] Signed out${saved ? '' : ' (nobody was signed in)'}`);
       return true;
     },
@@ -419,10 +489,10 @@ function createSpotifyApiBridge({
 
     // Whether Spotify gives the signed-in account audio keys (asked right after a sign-in):
     // 'ok', 'no-key', 'free' (Spotify plays for Premium only), 'skipped' (it plays through
-    // Soloist, which needs no key here) or 'unknown'. The key is asked of the account's own
-    // latest liked songs, which play in its market, or else of songs that play in most.
+    // Soloist or Spotify's own app, which need no key here) or 'unknown'. The key is asked of the
+    // account's own latest liked songs, which play in its market, or else of songs that play in most.
     async audio_probe() {
-      if (playbackMode() === 'soloist') return 'skipped';
+      if (playbackMode() !== 'standard') return 'skipped';
       if (!repo.get()) return 'unknown';
       if (!repo.get().user.premium && planKnown) return 'free';
       const liked = await query('fetchLibraryTracks', { offset: 0, limit: PROBE_LIKED_TRACKS }).then(
@@ -442,7 +512,7 @@ function createSpotifyApiBridge({
     // The way Spotify plays here, and changing it (from the setup checklist).
     async playback_mode(params) {
       if (params.mode !== undefined) setPlaybackMode(params.mode);
-      return { mode: playbackMode(), soloist: Boolean(soloist) };
+      return { mode: playbackMode(), soloist: Boolean(soloist), client: clientOffered };
     },
 
     // What the setup checklist shows of Soloist. `start` starts a program that is set up, to say
@@ -573,6 +643,37 @@ function createSpotifyApiBridge({
       return { uri: made.uri };
     },
 
+    // Spotify's own app as the player: it needs no sign-in of Folia's, only the app on the computer.
+    client_launch: () => client().launch(),
+    client_restart: () => client().restart(),
+    client_play: params => client().play(params),
+    client_queue: params => client().queue(params),
+    client_pause: () => client().pause(),
+    client_resume: () => client().resume(),
+    client_seek: params => client().seek(params),
+    client_volume: params => client().setVolume(params),
+    client_status: () => client().status(),
+    // The same state for a session restore, which may find an app Folia did not start: it comes
+    // with this run's one search for that app's DevTools port. Nothing is started, closed or paused
+    // for it, and where no port answers the answer is the system media session's.
+    client_status_found: () => client().statusWithPortSearch(),
+    // Repeat one, carried out by Spotify's own repeat of the track (officialClient.cjs,
+    // `setTrackRepeat`). The listener's own repeat is kept the way a play keeps it, and put back when
+    // repeat one goes off or where this way of playing is left.
+    client_repeat: params => client().setTrackRepeat({ on: params?.on === true }),
+    // The same state for the watcher that follows what the app is playing. It is read every few
+    // seconds, so it never spends a restore's search: it looks for the port on a slower, longer
+    // budget of its own (officialClient.cjs's STATUS_FOLLOW_SEARCHES), and only where the app runs
+    // without a port Folia has found.
+    client_status_follow: () => client().statusFollowing(),
+    // Whether Spotify's app is on this computer, answered from a cached look at the launcher.
+    async client_probe() {
+      if (availability && now() - availabilityReadAt < AVAILABILITY_TTL_MS) return availability;
+      availability = client().available();
+      availabilityReadAt = now();
+      return availability;
+    },
+
     // Spotify's own lyrics, timed by line. Without the platform header the service answers 400.
     async lyrics(params) {
       if (typeof params.id !== 'string' || !TRACK_ID.test(params.id)) throw spotifyError('invalid-response', 'Invalid Spotify track');
@@ -600,11 +701,20 @@ function createSpotifyApiBridge({
       if (params === null || typeof params !== 'object' || Array.isArray(params)) {
         return { ok: false, error: { code: 'invalid-response', message: 'Invalid Spotify request' } };
       }
+      const key = operation === 'query' ? `query ${String(params.name).slice(0, 40)}` : operation;
       try {
-        return { ok: true, data: await handlers[operation](params) };
+        const data = await handlers[operation](params);
+        lastFailures.delete(key);
+        return { ok: true, data };
       } catch (error) {
         // The renderer gets a code and a fixed sentence; what Spotify or the network said is kept here.
-        warn(`[Spotify] ${operation}${operation === 'query' ? ` ${String(params.name).slice(0, 40)}` : ''} failed: ${describeError(error)}`);
+        // A status read runs twice a second while the app is not running: the same failure of that
+        // operation is logged once, and a different one (or a success, which clears this) logs again.
+        const line = `[Spotify] ${key} failed: ${describeError(error)}`;
+        if (line !== lastFailures.get(key)) {
+          lastFailures.set(key, line);
+          warn(line);
+        }
         return toErrorResult(error);
       }
     },
@@ -617,11 +727,43 @@ function createSpotifyApiBridge({
     // once it has come, and the refresh token it replaces may not be taken by the next run.
     // Answers null when there is nothing to wait for. Else the quit is to be held for the promise
     // answered: it resolves once the renewal was stored, or failed, or after SHUTDOWN_LIMIT_MS.
-    // Soloist, where it runs, is stopped as well.
-    shutdown() {
+    // `closePlayerOnQuit` is the listener's setting: Folia closes the Spotify it started, or the one
+    // running with the DevTools port Folia opened, as it quits. Soloist, where it runs, is stopped as well.
+    shutdown({ closePlayerOnQuit = false } = {}) {
       const stopping = soloist?.shutdown() ?? null;
-      const saving = renewing && Promise.race([renewing.answer.then(() => {}, () => {}), wait(SHUTDOWN_LIMIT_MS)]);
-      return stopping || saving ? Promise.all([stopping, saving]).then(() => {}) : null;
+      // The page has to be touched only for a Spotify that is closed with Folia. Without it the
+      // quit is not held for the player at all.
+      const playerWaits = Boolean(officialClient) && closePlayerOnQuit;
+      // A quit that closes Spotify has to put the listener's own repeat and shuffle back before it:
+      // the app would otherwise keep what Folia changed, and be closed with it.
+      const restores = Boolean(officialClient) && (playerWaits || stateChanged());
+      const closing = (async () => {
+        if (restores) {
+          try {
+            await restoreClientState();
+          } catch (error) {
+            warn('[Spotify] The listener\'s own repeat and shuffle could not be put back as Folia quits', error);
+          }
+        }
+        if (playerWaits) {
+          try {
+            await officialClient.closeForQuit();
+          } catch (error) {
+            warn('[Spotify] Spotify could not be closed as Folia quits', error);
+          }
+        }
+        // The media session helper is a child process; it ends with the app.
+        await officialClient?.close();
+      })();
+      const renewal = renewing && Promise.race([renewing.answer.then(() => {}, () => {}), wait(SHUTDOWN_LIMIT_MS)]);
+      const worked = [stopping, restores ? closing : null, renewal].filter(Boolean);
+      if (!restores) closing.catch(() => {});
+      if (worked.length === 0) return null;
+      // The whole of it is bounded: a taskkill that hangs or a page that stopped answering ends the
+      // quit within SHUTDOWN_LIMIT_MS, and never leaves the quit waiting on a rejection.
+      return Promise.race([Promise.all(worked), wait(SHUTDOWN_LIMIT_MS)]).then(() => undefined, error => {
+        warn('[Spotify] the quit could not be finished cleanly', error);
+      });
     },
   };
 }

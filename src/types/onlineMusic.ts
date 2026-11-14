@@ -315,6 +315,10 @@ export type OnlineFailureCaseId =
 // 没有成功的是哪一种请求：一首歌的播放地址，或者一个集合（歌单、专辑）的歌曲。
 export type OnlineFailureOperation = 'audio' | 'collection';
 
+// 本机播放器这条路自己的失败原因，和平台无关：播放器没装、装了却找不到它内部那个播放器，或者
+// 用户还没同意为了让 Folia 接上而关掉并重开他自己的播放器。平台报这一句，界面按它分开说。
+export type OnlinePlayerFailureCause = 'player-not-installed' | 'player-not-found' | 'player-restart-consent';
+
 // provider 对一次没有成功的请求知道的事实。只放可以公开贴出来的内容：不含 cookie、token、IP 或账号信息。
 export interface OnlineFailureDetail {
     // 只有 provider 认得出是哪一种情况时，由它直接点名；不点名就由共用的规则按下面的事实去分。
@@ -331,6 +335,11 @@ export interface OnlineFailureDetail {
     likelyCause?: 'sign-in' | 'subscription' | 'region';
     // 发出请求时这个平台没有登录的账号：要登录的失败说「登录后才能播放」，不说「登录已失效」。
     signedOut?: boolean;
+    // 再试多少次也是这个结果，平台亲口这么说的（下架、只给会员放）。开了「自动跳过不能播放的歌」
+    // 时，这种失败不等倒计时结束。
+    skipAtOnce?: boolean;
+    // 本机播放器这条路失败的那一种情况，平台无关（OnlinePlayerFailureCause）。
+    playerCause?: OnlinePlayerFailureCause;
 }
 
 export type ProviderErrorCode =
@@ -487,10 +496,74 @@ export interface ProviderExternalPlaybackStatus {
     durationMs: number;
     /** The player's own state says the track ran out. */
     ended: boolean;
+    /**
+     * With a player that repeats the track itself: the song is on its way round again, from its
+     * start, and this answer is that turn. The song is the same one, so nothing is ended and
+     * nothing steps on; the position it carries is where the new turn is.
+     */
+    replayed?: boolean;
+    /**
+     * With `ended`: the player was moved off the track by its own controls rather than by running
+     * out, and the app's queue takes the step in this direction instead of its usual advance.
+     */
+    skipped?: 'next' | 'previous';
     /** An intentional player-side seek, so small backward jumps must not be smoothed away. */
     seeking?: boolean;
     /** The player accepted a start/resume and is still buffering; this is not a user pause. */
     starting?: boolean;
+    /**
+     * The player is sounding an advertisement between songs (a free account has some). Folia only
+     * recognises it, so that it is never taken for the song's end or for a track it did not ask
+     * for: nothing about the advertisement is shown, muted or otherwise changed.
+     */
+    advertisement?: boolean;
+    /**
+     * The answer came from the player's fallback channel (Windows' media session) rather than the
+     * one that can be steered precisely: the app still follows it, coarsely. Told once per episode.
+     */
+    degraded?: boolean;
+    /**
+     * With the degraded flag: the title and artist the coarse channel shows, where they are another song
+     * than the one this app asked for. That channel names no track id, so the song it holds is only
+     * ever found again by these names, and the player is taken over on them or not at all.
+     */
+    shownTrack?: { title: string; artist: string };
+}
+
+/**
+ * Who asked for a song to be started in a player outside Folia.
+ */
+export interface ExternalPlaybackStartOptions {
+    /**
+     * false only for an advance Folia made by itself at the end of a song, never for a press. A
+     * player that would have to be started or restarted for it is not woken, and reports that it
+     * cannot take the song instead.
+     */
+    userAction?: boolean;
+    /**
+     * The listener played a whole list in Folia, so the queue behind this song is replaced rather
+     * than followed: a player that keeps a queue of its own may empty it whole, the songs the
+     * listener queued in it included. Every other start takes back only the songs Folia wrote there.
+     */
+    replaceQueue?: boolean;
+    /**
+     * Folia is in repeat one: a player that declared `loopsTrackNatively` then leaves its own repeat
+     * of the track on for this start instead of turning it off and having it turned on again a
+     * moment later. Absent or false starts the song the way every start does.
+     */
+    singleLoop?: boolean;
+}
+
+/**
+ * What a prepared queue is asked for besides the songs themselves.
+ */
+export interface PrepareNextOptions {
+    /**
+     * The songs that follow go on to nothing (repeat one): what an earlier write left in the player's
+     * own queue is taken back where the player can be emptied, so the player does not go on to a song
+     * Folia is no longer stepping to.
+     */
+    retract?: boolean;
 }
 
 /**
@@ -499,14 +572,89 @@ export interface ProviderExternalPlaybackStatus {
  * Only the song's own provider can answer these calls.
  */
 export interface OnlineExternalPlaybackProvider {
+    /**
+     * Starts the player itself, for a player that has to be running before anything can sound in
+     * it. Absent where the player needs no start. Called once, at launch, and only where the
+     * listener asked for it (omni.warmUpExternalPlayers).
+     */
+    warmUp?(): Promise<void>;
+    /**
+     * Whether an advance the app made by itself (the track ended, the queue moved on) that this
+     * player cannot take stops the playback where it is with one line said, instead of failing the
+     * song. True for a player that would have to be started again for it; absent or false elsewhere.
+     */
+    stopsAutoAdvanceWhenUnreachable?(): boolean;
+    /**
+     * Whether `error` means the player itself could not be reached, as opposed to a song it will not
+     * play or a setting that is missing. Read only where `stopsAutoAdvanceWhenUnreachable` is true:
+     * the failures that are not this one take the ordinary path of a song that did not play.
+     */
+    isUnreachableFailure?(error: unknown): boolean;
+    /**
+     * The player sounds the song outside every page of the app, so nothing here can measure it: a
+     * real spectrum of the song needs the machine's own sound, captured as a whole. True where the
+     * audio never passes through the app; absent or false where it does, and nothing is captured.
+     */
+    capturesSystemAudio?: boolean;
+    /**
+     * The interface may show the song as playing as soon as the start is asked for, without waiting
+     * for the player to confirm it took the song. True for a player whose start is an instruction
+     * with no dependable answer; absent or false where the confirmation arrives with the start.
+     */
+    startsWithoutWaiting?: boolean;
+    /**
+     * The status polls space themselves out while this player is the one sounding the song: its
+     * answers arrive slowly or cost it something. True where that is so; absent or false keeps the
+     * polls at the app's own cadence.
+     */
+    backsOffStatusPolls?: boolean;
+    /**
+     * The listener changes what this player plays from the player's own window, and the app follows
+     * those changes instead of stopping them: a track started there is taken over as it stands (the
+     * song shown, the clock, the transport), and the player's own queue and level are left alone
+     * until a song is started here. True for a player the listener keeps using by hand; absent or
+     * false for one this app alone steers and for one whose changes stop the playback.
+     */
+    followsPlayerChanges?: boolean;
+    /**
+     * The system media keys belong to Folia while a song this route started sounds here, even where
+     * the player registers no media session of its own: a key the app let go would reach nothing.
+     * True where the keys are held for the song alone; absent or false leaves them to the rules
+     * above.
+     */
+    holdsMediaKeysWhilePlaying?: boolean;
+    /**
+     * How long this way of playing may take to move its player, in milliseconds: the limit its main
+     * process puts on the call, so a move asked for by dragging the bar is not read as over when it
+     * has not been answered yet. Absent leaves the clock the second `hifiClock` gives every player,
+     * which is what a move that answers at once asks for.
+     */
+    seekLimitMs?: number;
+    /**
+     * The player repeats one song by itself, so repeat one is left to it: Folia turns the player'
+     * own repeat of the track on while repeat one is on and puts the value it found back when it
+     * goes off, and writes nothing of the songs that follow into the player's queue meanwhile. The
+     * player then sounds the song again from its start without Folia asking for a start at all.
+     * True where the player has a repeat of the track; absent or false leaves repeat one to the
+     * app's own replay, which is what every other player gets.
+     */
+    loopsTrackNatively?: boolean;
+    /**
+     * The player's own repeat of the track, on or off, for a player that declared
+     * `loopsTrackNatively`. What it found is kept in the same record a start uses: only where the
+     * player still holds what this route wrote is it written over, and a value the listener set
+     * themselves is left as theirs. The answer says what the player holds afterwards, which is what
+     * tells a repeat the player carries out itself from one it never took.
+     */
+    setTrackRepeat?(on: boolean): Promise<ExternalTrackRepeatAnswer | undefined>;
     /** False only for songs this external route already knows it cannot start; no network reads. */
     canPlay?(song: SongResult): boolean;
     /** Prepare a bounded successor queue without interrupting the current song. */
-    prepareNext?(song: SongResult, upcoming: SongResult[]): Promise<void>;
+    prepareNext?(song: SongResult, upcoming: SongResult[], options?: PrepareNextOptions): Promise<void>;
     /** Whether a handoff can reuse an already prepared successor (not a guarantee of buffered audio). */
     isPrepared?(song: SongResult): boolean;
     /** Starts `song` in the player at `startSec`, replacing whatever it played; resolves once started. */
-    play(song: SongResult, startSec: number): Promise<void>;
+    play(song: SongResult, startSec: number, options?: ExternalPlaybackStartOptions): Promise<void>;
     /**
      * The player already has `song` loaded (started by a window of this app that is gone): take it
      * as this provider's current playback without starting it, so successors can be prepared for it.
@@ -518,16 +666,91 @@ export interface OnlineExternalPlaybackProvider {
     /** Sets the player's own output level (0 to 1, linear, 0 when muted): its audio never passes through the app's gain. */
     setVolume?(volume: number): Promise<void>;
     /**
+     * Where the player is on `song` right now, in milliseconds, or null where it is not running that
+     * song (another track, nothing loaded, a read that failed). For a song restored while the player
+     * kept sounding it through a restart. A read only: nothing is started, resumed or paused for it.
+     * Absent where the player cannot be asked without being steered.
+     */
+    runningPositionMs?(song: SongResult): Promise<number | null>;
+    /**
+     * What the player has for `song` when the session restored at launch asks: one read, nothing
+     * cached. Absent where the player cannot be asked without steering it. The read may look for the
+     * way this app steers the player, because a player of its own outlives the app and need not run
+     * the way this run started, so a provider that may be playing a song nobody here started overrides
+     * it. A read only: nothing is started, resumed or paused for it. Where the player cannot be
+     * reached, the answer names no track. An answer from a coarse channel may still name `song` where
+     * the track it shows is that song, by the title and the artist it shows; that answer is `degraded`.
+     */
+    runningStatus?(song: SongResult): Promise<ProviderExternalPlaybackStatus | null>;
+    /**
+     * The track this player is on now, whoever asked for it: no song of this app is compared with
+     * it, so it answers for a player Folia is not steering at all - the listener started something
+     * there while Folia showed a song of another kind. Absent where the player can only be steered
+     * from here (the track it holds is this app's own anyway). A read only: nothing is started,
+     * resumed or paused for it, and an answer that names no track - the coarse channel, an
+     * advertisement, a player that cannot be reached - is null.
+     */
+    runningTrack?(): Promise<ProviderExternalPlaybackStatus | null>;
+    /**
      * Turns the player's own single-track repeat on or off: on, it plays the track again by itself
      * at its end (no gap), its position going from the end back to the start. Only single loop:
      * what plays after a track is always Folia's queue, so the player's list repeat stays off.
      * Without it (or when the player still reports an end), the route starts the track again itself.
      */
     setRepeatOne?(enabled: boolean): Promise<void>;
-    /** The player's state now, from no cache. */
+    /**
+     * The player's state now, from no cache. The song is passed so that an answer from a coarse
+     * channel can name it: that channel gives no track id, and a track the caller could never name
+     * could never be taken over.
+     */
     getStatus(song: SongResult): Promise<ProviderExternalPlaybackStatus>;
     /** Whether the player's loaded track is `song` (the id in `status` may be a playback id). */
     isStatusForSong(song: SongResult, status: ProviderExternalPlaybackStatus): boolean;
+    /**
+     * Puts this provider's songs back on its standard way of playing (the way that gives this app an
+     * audio address), for a listener whose external player cannot be steered any more - not
+     * installed, a build this app no longer finds its player in. The provider changes its own way and
+     * nothing else; absent where a provider has no other way to go back to.
+     */
+    useStandardPlayback?(): Promise<void>;
+}
+
+/**
+ * What a player answered a repeat of the track: whether the repeat could be read at all, whether
+ * this call changed the value the caller found, and the repeat the player holds afterwards in its
+ * own numbers (0 off, 1 the list, 2 the track) or null where it could not be read. Only a player
+ * holding the track's repeat repeats the song by itself; every other answer leaves repeat one to
+ * the app's own replay.
+ */
+export interface ExternalTrackRepeatAnswer {
+    read: boolean;
+    changed: boolean;
+    now: number | null;
+}
+
+/**
+ * What an external player declared about how it plays, each answer false where the provider
+ * declared nothing (see OnlineExternalPlaybackProvider). Read for the app's own decisions only;
+ * nothing here starts, pauses or asks the player anything.
+ */
+export interface ExternalPlaybackTraits {
+    /** A real spectrum of the song has to be taken from the machine's own sound. */
+    capturesSystemAudio: boolean;
+    /** The interface may move on before the player confirms it took the song. */
+    startsWithoutWaiting: boolean;
+    /** The status polls space themselves out while this player sounds the song. */
+    backsOffStatusPolls: boolean;
+    /** The keys are held for as long as a song this route started sounds in it. */
+    holdsMediaKeysWhilePlaying: boolean;
+    /**
+     * How long a move of this player may take, in milliseconds, or null for a way of playing that
+     * declared nothing: the clock then keeps the second `hifiClock` gives every player.
+     */
+    seekLimitMs: number | null;
+    /** Repeat one is the player's own repeat of the track, not the app's replay. */
+    loopsTrackNatively: boolean;
+    /** A track the listener starts in the player's own window is taken over, not stopped. */
+    followsPlayerChanges: boolean;
 }
 
 /** An alternate title and artist that belong to the same song. */
@@ -592,6 +815,11 @@ export interface ProviderSetupStep {
     detail?: string;
     /** 这一步有一个密码框。saved：已经存过一份（框里只画掩码，要换才清空）。 */
     secret?: { labelKey: string; saved: boolean };
+    /**
+     * 一段收起的详细说明：清单里只放一句短的，按「更多」才展开这一段。放不下的长说明用它，
+     * 别把清单撑出窗口。
+     */
+    more?: { labelKey: string; noteKey: string };
     actions?: ProviderSetupAction[];
 }
 

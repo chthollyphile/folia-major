@@ -112,7 +112,9 @@
     ],
     "asarUnpack": [
       "node_modules/@koromix/koffi-*/**/*.node",
-      "node_modules/@lox-audioserver/node-librespot/prebuilds/**/*.node"
+      "node_modules/@lox-audioserver/node-librespot/prebuilds/**/*.node",
+      "electron/spotify/scripts/**/*",
+      "electron/ytm/scripts/**/*"
     ],
     "extraResources": [
       {

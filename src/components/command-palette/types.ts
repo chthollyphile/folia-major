@@ -401,6 +401,12 @@ export type CommandPaletteSettingsContext = {
     toggleObsKeepMainWindowAnimation: () => void;
     /** The now playing card in the OBS browser source (local source and the web link alike). */
     toggleTrackCardInObs: () => void;
+    /** Wake the player of another program that sounds the songs (Windows) when the app opens. */
+    toggleWakeExternalPlayersOnLaunch: () => void;
+    /** Windows desktop only: close the external player Folia started when the app quits. */
+    toggleCloseExternalPlayerOnQuit: () => void;
+    /** Windows desktop only: draw the external route's bars from the machine's own sound. */
+    toggleExternalSystemAudioSpectrum: () => void;
     /** macOS-only: the wallpaper-mode Dock auto-hide override (on by default). */
     toggleWallpaperMacAutohideDock: () => void;
     /** Windows-only: the saved render GPU choice, read when asked (it can change while the palette is open). */

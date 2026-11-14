@@ -43,6 +43,27 @@ export const WALLPAPER_MAC_AUTOHIDE_DOCK_STORAGE_KEY = 'wallpaper_mac_autohide_d
 
 export const OPEN_PLAYER_ON_LAUNCH_STORAGE_KEY = 'open_player_on_launch';
 
+// Wakes the players Folia steers but does not own (the platform's own player) when the app starts,
+// so the first song does not wait for a launch. The app is the only owner of this one: it stays here.
+export const WAKE_EXTERNAL_PLAYERS_ON_LAUNCH_STORAGE_KEY = 'wake_external_players_on_launch';
+
+// Windows desktop only: close the external player this run started (or the one running with the
+// DevTools port Folia opened it with) when Folia quits, so the port is released. This key is the
+// renderer's own and is published; the main process keeps the value under its own upper-case key in
+// the shared store, the name every other switch there has (electron/main.cjs).
+export const CLOSE_EXTERNAL_PLAYER_ON_QUIT_STORAGE_KEY = 'close_external_player_on_quit';
+
+// Windows desktop only: the external playback route's bars are drawn from the machine's own sound
+// rather than from the song's audio, which never passes through the app. Off by default: a capture
+// of everything the machine sounds is the listener's to allow, and nothing is captured without it.
+export const EXTERNAL_SYSTEM_AUDIO_SPECTRUM_STORAGE_KEY = 'external_system_audio_spectrum';
+
+// The system media keys stay Folia's for as long as the external player's own app runs, not only
+// while a track of Folia's sounds in it. On by default: that app keeps a media session of its own
+// (measured on Windows), so a key Folia lets go is handed to it - it resumes and moves on in its own
+// queue, bypassing Folia. Read by the media key bridge, so no main-process value mirrors it.
+export const HOLD_MEDIA_KEYS_FOR_EXTERNAL_PLAYER_STORAGE_KEY = 'hold_media_keys_for_external_player';
+
 // Mirrored from the main process's GPU_PREFERENCE (electron/gpuPreference.cjs), which reads it
 // before the GPU process starts. Windows only; a change takes effect on the next launch.
 export const GPU_PREFERENCE_STORAGE_KEY = 'gpu_preference';
@@ -91,6 +112,18 @@ export type DesktopSettingsState = {
      *  is hidden automatically; switching it off overrides the automatic rule. */
     wallpaperMacAutohideDock: boolean;
     openPlayerOnLaunch: boolean;
+    /** Wake the external players (the platform's own player) when the app starts. Off by default:
+     *  only a listener whose songs play there wants another program started at launch. */
+    wakeExternalPlayersOnLaunch: boolean;
+    /** Windows desktop only: close the external player Folia started when the app quits. On by
+     *  default: a player left running is the surprise, and only turning it off keeps it. */
+    closeExternalPlayerOnQuit: boolean;
+    /** Keep the system media keys in Folia's hands while the external player's app runs, rather than
+     *  only while it sounds a track of Folia's (measured on Windows). On by default. */
+    holdMediaKeysForExternalPlayer: boolean;
+    /** Draw the external route's bars from the machine's own sound. Off by default: it captures
+     *  everything the machine sounds, which is the listener's to allow. */
+    externalSystemAudioSpectrum: boolean;
     /** Windows only: the saved GPU choice, which the next launch starts with. */
     gpuPreference: GpuPreference;
     /**
@@ -125,6 +158,10 @@ export type DesktopSettingsState = {
     cancelWallpaperEntry: () => void;
     handleToggleWallpaperMacAutohideDock: (enable: boolean) => void;
     handleToggleOpenPlayerOnLaunch: (enable: boolean) => void;
+    handleToggleWakeExternalPlayersOnLaunch: (enable: boolean) => void;
+    handleToggleCloseExternalPlayerOnQuit: (enable: boolean) => void;
+    handleToggleHoldMediaKeysForExternalPlayer: (enable: boolean) => void;
+    handleToggleExternalSystemAudioSpectrum: (enable: boolean) => void;
     handleSetGpuPreference: (preference: GpuPreference) => void;
     handleToggleBackgroundThrottling: (enable: boolean) => void;
 };
@@ -146,6 +183,10 @@ export const useDesktopSettingsStore = create<DesktopSettingsState>((set, get) =
     wallpaperEntryConfirmOpen: false,
     wallpaperMacAutohideDock: getStoredBoolean(WALLPAPER_MAC_AUTOHIDE_DOCK_STORAGE_KEY, true),
     openPlayerOnLaunch: getStoredBoolean(OPEN_PLAYER_ON_LAUNCH_STORAGE_KEY, false),
+    wakeExternalPlayersOnLaunch: getStoredBoolean(WAKE_EXTERNAL_PLAYERS_ON_LAUNCH_STORAGE_KEY, false),
+    closeExternalPlayerOnQuit: getStoredBoolean(CLOSE_EXTERNAL_PLAYER_ON_QUIT_STORAGE_KEY, true),
+    holdMediaKeysForExternalPlayer: getStoredBoolean(HOLD_MEDIA_KEYS_FOR_EXTERNAL_PLAYER_STORAGE_KEY, true),
+    externalSystemAudioSpectrum: getStoredBoolean(EXTERNAL_SYSTEM_AUDIO_SPECTRUM_STORAGE_KEY, false),
     gpuPreference: readGpuPreference(getStoredString(GPU_PREFERENCE_STORAGE_KEY, 'auto')) ?? 'auto',
     backgroundThrottling: getStoredBoolean(BACKGROUND_THROTTLING_STORAGE_KEY, false),
     windowAlwaysOnTopSupported: true,
@@ -382,6 +423,31 @@ export const useDesktopSettingsStore = create<DesktopSettingsState>((set, get) =
             type: 'info',
             text: i18n.t('notifications.' + (enable ? 'openPlayerOnLaunch' : 'openHomeOnLaunch')),
         });
+    },
+    // Renderer-only: the launch wake-up reads it from here, so no main-process value mirrors it.
+    handleToggleWakeExternalPlayersOnLaunch: (enable) => {
+        setStoredBoolean(WAKE_EXTERNAL_PLAYERS_ON_LAUNCH_STORAGE_KEY, enable);
+        set({ wakeExternalPlayersOnLaunch: enable });
+    },
+    // The main process does this one at the quit, so the value is written to its store too: the
+    // renderer keeps the persisted copy the settings row reads, the main process the one it acts on,
+    // under its own upper-case key (electron/main.cjs). The key above is published and stays.
+    handleToggleCloseExternalPlayerOnQuit: (enable) => {
+        setStoredBoolean(CLOSE_EXTERNAL_PLAYER_ON_QUIT_STORAGE_KEY, enable);
+        set({ closeExternalPlayerOnQuit: enable });
+        if (window.electron?.saveSettings) {
+            void window.electron.saveSettings('CLOSE_EXTERNAL_PLAYER_ON_QUIT', enable);
+        }
+    },
+    // Renderer-only, like the wake-up: the bridge that holds the keys reads it from here.
+    handleToggleHoldMediaKeysForExternalPlayer: (enable) => {
+        setStoredBoolean(HOLD_MEDIA_KEYS_FOR_EXTERNAL_PLAYER_STORAGE_KEY, enable);
+        set({ holdMediaKeysForExternalPlayer: enable });
+    },
+    // Renderer-only too: the route that captures the machine's sound reads it from here.
+    handleToggleExternalSystemAudioSpectrum: (enable) => {
+        setStoredBoolean(EXTERNAL_SYSTEM_AUDIO_SPECTRUM_STORAGE_KEY, enable);
+        set({ externalSystemAudioSpectrum: enable });
     },
     // The main process owns the value: it adds the Chromium switch before the next launch's GPU process starts.
     handleSetGpuPreference: (preference) => {

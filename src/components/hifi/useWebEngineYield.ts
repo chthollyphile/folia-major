@@ -36,8 +36,10 @@ export const findPlaybackDecks = (activeDeck: HTMLAudioElement | null): HTMLAudi
 /**
  * 暂停并卸下一个 deck。只去掉 src 属性停不住 <audio>：它会接着放已经载入的 currentSrc，所以要 load() 一次让它真的空下来。
  * 之后 React 渲染时 src 为空，不会再给它源。
+ *
+ * 交给别的播放器（mpv、外部播放器）时同样要停：拿 findPlaybackDecks 找到的 deck 逐个走一遍。
  */
-const unloadDeck = (deck: HTMLAudioElement) => {
+export const unloadDeck = (deck: HTMLAudioElement) => {
     deck.pause();
     deck.removeAttribute('src');
     deck.load();

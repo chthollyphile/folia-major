@@ -27,6 +27,7 @@ export const REGISTERED_SITES = [
             { path: 'src/types/**', why: '类型与契约' },
             { path: 'src/services/onlineMusic/failure/onlineFailureCase.ts', why: '失败种类的行为表，不判断是不是下架' },
             { path: 'src/services/onlineMusic/failure/onlineFailureTexts.ts', why: '文案表' },
+            { path: 'src/services/onlineMusic/spotify/spotifyFailure.ts', why: 'Spotify 自己的播放器报 ONE_TRACK_UNPLAYABLE、理由是 NOT_AVAILABLE_*：平台自己说了这首放不了，这张表只是把那个理由翻成失败种类，不自己判断' },
             { path: 'src/mods/folium/**', why: 'Folium 的契约和 DTO：把已经确定的状态原样透传给模组' },
             { path: 'src/mods/runtime/omni/omniDto.ts', why: '把已经确定的可用性映射成模组看到的值，不自己判断' },
         ],

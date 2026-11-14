@@ -3,7 +3,7 @@ import { isSyncConfigured } from '../../../services/sync/syncConfig';
 import { buildObsCustomCss } from '../../../services/obs/obsCustomCss';
 import { hasUploadedObsAsset } from '../../../services/obs/visualSettingsConfig';
 import type { CommandPaletteCommand, CommandPaletteContext } from '../types';
-import type { GpuPreference } from '../../../stores/useDesktopSettingsStore';
+import { useDesktopSettingsStore, type GpuPreference } from '../../../stores/useDesktopSettingsStore';
 import { createToggleCommand, createAppLanguageCommand, createSettingsCommand, createSettingsAnchorCommand, defineCommand } from '../commandFactories';
 import { nowPlayingCardPositionCommand } from './nowPlayingCardPositionCommand';
 import { sleepTimerCommand } from './sleepTimerCommand';
@@ -263,6 +263,58 @@ export const settingsCommands: CommandPaletteCommand[] = [
         'Toggle whether the now playing card is drawn in the OBS browser source',
         ['obs card', 'now playing card', 'browser source card', 'track card', 'obs 卡片', '歌曲信息卡片', '浏览器源卡片', '直播卡片'],
         context => context.settings.toggleTrackCardInObs(),
+    ),
+    // The player that sounds the songs is another program (Windows), so the row is the desktop app's.
+    createToggleCommand(
+        'external-player-wake-on-launch',
+        'settings',
+        'Wake the external player with Folia',
+        'Toggle starting the player that sounds your songs when Folia opens',
+        ['wake player', 'launch player', 'external player', 'auto start player', '唤起播放器', '启动播放器', '随应用启动播放器', 'hqwq'],
+        context => context.settings.toggleWakeExternalPlayersOnLaunch(),
+        { platform: ['win'] },
+    ),
+    // The same external player, at the other end of the run: it is closed with Folia.
+    createToggleCommand(
+        'external-player-close-on-quit',
+        'settings',
+        'Close the external player when Folia quits',
+        'Toggle closing the player Folia started when Folia quits',
+        ['close player', 'quit player', 'close on quit', '释放端口', '退出时关闭播放器', '关闭外部播放器', 'tuichu guanbi'],
+        context => context.settings.toggleCloseExternalPlayerOnQuit(),
+        { platform: ['win'] },
+    ),
+    // The bars of that same route: from the machine's own sound, which is everything the machine
+    // sounds, so it stays off until the listener asks for it (externalSpectrumCapture.ts). The strings
+    // here are the fallback the registry's own text is resolved over (`commandText.ts`), written like
+    // the commands around them: no em dash, no curly apostrophe, the same phrase as the settings row.
+    createToggleCommand(
+        'external-player-system-audio-spectrum',
+        'settings',
+        'Real spectrum for the external player',
+        'Toggle drawing the bars from the machine\'s own sound or from the playing position',
+        ['real spectrum', 'system audio', 'spectrum', 'visualizer', '真实频谱', '系统声音', '频谱', '采集'],
+        context => context.settings.toggleExternalSystemAudioSpectrum(),
+        { platform: ['win'] },
+    ),
+    // The same player's media keys: while such a song of Folia's sounds in it the keys stay Folia's,
+    // so a press never reaches that app's own queue (electron/mediaKeys.cjs,
+    // useMediaKeyTakeoverBridge.ts). Switching this off leaves them to the upstream media session on
+    // every route, a song in that player included. That app is the Windows one, so this command is
+    // the Windows build's.
+    createToggleCommand(
+        'external-player-hold-media-keys',
+        'settings',
+        'Hold the media keys with the official app',
+        'Toggle keeping the system media keys in Folia while the external player app runs',
+        ['media keys', 'media key', 'play pause key', 'next track key', 'takeover', '媒体键', '多媒体键', '播放暂停键', '接管媒体键'],
+        // Read here rather than through the palette's context: it is one stored switch, and the
+        // context carries no entry for it (scratchpadCommands.ts flips its own switch the same way).
+        () => {
+            const desktop = useDesktopSettingsStore.getState();
+            desktop.handleToggleHoldMediaKeysForExternalPlayer(!desktop.holdMediaKeysForExternalPlayer);
+        },
+        { platform: ['win'] },
     ),
     {
         id: 'desktop-toggle-lyric-api',

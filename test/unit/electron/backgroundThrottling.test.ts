@@ -16,6 +16,13 @@ const { createBackgroundThrottling } = require('../../../electron/backgroundThro
 
 const createWindow = () => {
     const listeners = new Map<string, () => void>();
+    // Real Electron throws on a destroyed page. The fake has to as well, or a case that only asserts
+    // "does not throw" says nothing about the page being gone.
+    const failIfPageDestroyed = () => {
+        if (win.webContents.destroyed) {
+            throw new Error('Object has been destroyed');
+        }
+    };
     const win = {
         destroyed: false,
         minimised: false,
@@ -26,8 +33,10 @@ const createWindow = () => {
         on: (event: string, listener: () => void) => { listeners.set(event, listener); },
         emit: (event: string) => listeners.get(event)?.(),
         webContents: {
-            setBackgroundThrottling: vi.fn(),
-            send: vi.fn(),
+            destroyed: false,
+            isDestroyed: () => win.webContents.destroyed,
+            setBackgroundThrottling: vi.fn(failIfPageDestroyed),
+            send: vi.fn(failIfPageDestroyed),
         },
     };
     return win;
@@ -149,5 +158,48 @@ describe('backgroundThrottling', () => {
         throttling.refresh();
         expect(second.webContents.setBackgroundThrottling).not.toHaveBeenCalled();
         expect(first.webContents.setBackgroundThrottling).toHaveBeenCalledTimes(1);
+    });
+
+    // The crash: a closing window keeps its BrowserWindow object alive for a while after its
+    // webContents is gone, and setBackgroundThrottling and send throw on that page. The switch is
+    // held down for a reason that ends while the page is gone, which is what used to reach it.
+    it('holds still while the window outlives its page', () => {
+        enabled = true;
+        reason = 'system sound capture';
+        const throttling = create();
+        const win = createWindow();
+        throttling.attach(win);
+        expect(win.webContents.setBackgroundThrottling).not.toHaveBeenCalled();
+
+        win.webContents.destroyed = true;
+        reason = null;
+        expect(() => throttling.refresh()).not.toThrow();
+        expect(win.webContents.setBackgroundThrottling).not.toHaveBeenCalled();
+        expect(win.webContents.send).not.toHaveBeenCalled();
+        expect(throttling.getState()).toEqual({ active: false, hidden: false });
+
+        win.destroyed = true;
+        expect(() => throttling.refresh()).not.toThrow();
+        expect(throttling.getState()).toEqual({ active: false, hidden: false });
+    });
+
+    // A page never comes back inside the same window: it comes back as a new window, and the switch
+    // is applied to it once, from scratch.
+    it('applies the switch to the next window once a page lives again', () => {
+        enabled = true;
+        const throttling = create();
+        const first = createWindow();
+        throttling.attach(first);
+        expect(first.webContents.setBackgroundThrottling).toHaveBeenCalledTimes(1);
+
+        first.webContents.destroyed = true;
+        throttling.refresh();
+
+        const second = createWindow();
+        throttling.attach(second);
+
+        expect(second.webContents.setBackgroundThrottling).toHaveBeenCalledTimes(1);
+        expect(second.webContents.setBackgroundThrottling).toHaveBeenLastCalledWith(true);
+        expect(throttling.getState()).toEqual({ active: true, hidden: false });
     });
 });

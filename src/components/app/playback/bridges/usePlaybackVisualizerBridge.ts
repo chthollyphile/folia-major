@@ -21,7 +21,11 @@ import { useBeatFxTrack } from '../../../../hooks/useBeatFxTrack';
 import { readIncomingLyricClock } from './incomingLyricClock';
 import { isBackgroundLyricHeld, setHeldLyricTime, useBackgroundLyricHoldStore } from '../../backgroundThrottling/backgroundLyricHoldStore';
 import { getHifiPosition } from '../../../../services/hifi/hifiPlayback';
-import { getExternalPosition, isExternalPlaybackSounding } from '../../../../services/onlineMusic/externalPlayback';
+import { getExternalPosition, isExternalPaused, isExternalPlaybackSounding } from '../../../../services/onlineMusic/externalPlayback';
+import { externalSpectrumAt } from '../externalSpectrum';
+import { readCapturedExternalSpectrum } from '../externalSpectrumCapture';
+import { emptySpectrumBandLevels, readSpectrumBandLevels } from '../spectrumBands';
+import type { SpectrumBandLevels } from '../spectrumBands';
 
 // src/components/app/playback/bridges/usePlaybackVisualizerBridge.ts
 
@@ -110,6 +114,11 @@ export function usePlaybackVisualizerBridge({
     const incomingLyrics = usePlaybackStore(state => state.lyrics);
 
     const currentLineIndexRef = useRef(-1);
+    // The deck's folded bands, written in place every frame.
+    const deckBandsRef = useRef<SpectrumBandLevels>(emptySpectrumBandLevels());
+    // The analyser's bins, kept across frames: the same analyser always answers the same count, so a
+    // frame that draws only reuses this array instead of asking for a new one sixty times a second.
+    const analyserBinsRef = useRef<Uint8Array<ArrayBuffer> | null>(null);
     // 智能动感模式: loads the track's beats while it is on; the clock is stepped below. A ref, so
     // switching it does not rebuild the frame loop.
     const beatFxWantedRef = useRef(false);
@@ -256,38 +265,37 @@ export function usePlaybackVisualizerBridge({
             // The bands keep their last values: nothing draws from them while held.
         } else if (hasAudibleSignal && analyserRef.current) {
             const bufferLength = analyserRef.current.frequencyBinCount;
-            const dataArray = new Uint8Array(bufferLength);
+            if (analyserBinsRef.current?.length !== bufferLength) {
+                analyserBinsRef.current = new Uint8Array(bufferLength);
+            }
+            const dataArray = analyserBinsRef.current;
             analyserRef.current.getByteFrequencyData(dataArray);
             audioBands.spectrum?.set(dataArray);
 
-            const getEnergy = (minHz: number, maxHz: number): number => {
-                const start = Math.floor(minHz / 21.5);
-                const end = Math.floor(maxHz / 21.5);
-                let sum = 0;
-                for (let index = start; index <= end; index += 1) {
-                    sum += dataArray[index];
-                }
-                const count = end - start + 1;
-                return count > 0 ? sum / count : 0;
-            };
-
-            const bass = getEnergy(20, 150);
-            const lowMid = getEnergy(150, 400);
-            const mid = getEnergy(400, 1200);
-            const vocal = getEnergy(1000, 3500);
-            const treble = getEnergy(3500, 12000);
-
-            const process = (value: number, boost = 2) => {
-                const normalized = value / 255;
-                return Math.pow(normalized, boost) * 255;
-            };
-
-            audioPower.set(process((bass + lowMid) / 2, 3));
-            audioBands.bass.set(process(bass, 1.8));
-            audioBands.lowMid.set(process(lowMid, 2));
-            audioBands.mid.set(process(mid, 2));
-            audioBands.vocal.set(process(vocal, 1.5));
-            audioBands.treble.set(process(treble, 2));
+            // Folded by the same function the external route's captured sound is folded by.
+            const bands = readSpectrumBandLevels(dataArray, deckBandsRef.current);
+            audioPower.set(bands.power);
+            audioBands.bass.set(bands.bass);
+            audioBands.lowMid.set(bands.lowMid);
+            audioBands.mid.set(bands.mid);
+            audioBands.vocal.set(bands.vocal);
+            audioBands.treble.set(bands.treble);
+        } else if (isExternalRouteActive) {
+            // The external player hands the app no audio to analyse unless this build captures the
+            // machine's own sound (Windows desktop, see externalSpectrumCapture), and a capture that has
+            // gone quiet holds the frame it had, so pausing stops the bars where they are. Without a
+            // capture the bands follow the player's own clock and freeze while it is paused. Neither
+            // answer allocates a frame, and the route never falls back to the breathing animation.
+            // The capture is told whether the player is sounding the song: a silent frame under a
+            // playing song falls away like a deck's own analyser, a stopped one stands where it was.
+            const bands = readCapturedExternalSpectrum(!isExternalPaused()) ?? externalSpectrumAt(getExternalPosition());
+            audioPower.set(bands.power);
+            audioBands.bass.set(bands.bass);
+            audioBands.lowMid.set(bands.lowMid);
+            audioBands.mid.set(bands.mid);
+            audioBands.vocal.set(bands.vocal);
+            audioBands.treble.set(bands.treble);
+            audioBands.spectrum.set(bands.spectrum);
         } else {
             const time = Date.now() / 2000;
             const breath = (Math.sin(time) + 1) * 20;
