@@ -6,7 +6,7 @@
  * 运行模式。report：照常输出，但退出码恒为 0（先观察误报）；enforce：有新的 error 就失败。
  * 环境变量 DEDICATUS_MODE 可以覆盖。
  */
-export const DEFAULT_MODE = 'report';
+export const DEFAULT_MODE = 'enforce';
 
 /** @typedef {'error' | 'warning' | 'notice'} DedicatusLevel */
 /** @typedef {{ name: string, level: DedicatusLevel, retired?: boolean }} DedicatusCode */
