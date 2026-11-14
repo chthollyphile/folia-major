@@ -4,7 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import {
     IPC, cleanHarness, clearModRecords, confirmMod, electronCalls, hostStore, invoke, launch, modRecord, resetHarness,
-    harness, sourceManifest, stateOf, writeMod,
+    harness, persisted, sourceManifest, stateOf, writeMod,
 } from './loaderHarness';
 
 // test/unit/mod-system/folium2SourceClass.test.ts
@@ -194,6 +194,16 @@ describe('the source members of api (plan §5.5)', () => {
         expect(await system.sourceCaches.list()).toEqual([{ id: 'a', size: 3, modId: 'spotify' }]);
         off();
         expect(await system.sourceCaches.list()).toEqual([]);
+    });
+
+    // A source names its partition on every request; the record of it is read from the settings file once a run.
+    it('reads the record of its own partitions once, not on every request', () => {
+        const { api } = launchSource();
+        api.net.session('cache');
+        const reads = vi.spyOn(persisted, 'get');
+        for (let i = 0; i < 10; i += 1) api.net.session('cache');
+        expect(reads.mock.calls.filter(([key]) => key === 'mods.sourcePartitions')).toEqual([]);
+        expect(persisted.get('mods.sourcePartitions')).toEqual({ spotify: ['persist:folium.spotify.cache'] });
     });
 
     it('net: Electron net, a claimed partition or its own, and the proxy', async () => {

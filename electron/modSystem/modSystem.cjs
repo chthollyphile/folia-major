@@ -405,7 +405,14 @@ const createModSystem = ({
         const stored = store.get(SOURCE_PARTITIONS_KEY);
         return stored && typeof stored === 'object' && !Array.isArray(stored) ? { ...stored } : {};
     };
+    // What this run already has on record: a source names its partition on every request, and each store.get
+    // reads the settings file again; the record only grows, so a partition once on it needs no second look.
+    const notedPartitions = new Set();
     const notePartition = (modId, partition) => {
+        const noted = `${modId}
+${partition}`;
+        if (notedPartitions.has(noted)) return;
+        notedPartitions.add(noted);
         const all = readSourcePartitions();
         const known = Array.isArray(all[modId]) ? all[modId] : [];
         if (known.includes(partition)) return;
