@@ -25,6 +25,9 @@
       ],
       "@folia/folium-source-kit": [
         "./packages/folium-source-kit/src/index.ts"
+      ],
+      "@folia/folium": [
+        "./mods/folium.d.ts"
       ]
     },
     "allowImportingTsExtensions": true,

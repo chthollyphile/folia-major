@@ -138,7 +138,7 @@ export interface ModSystem {
     isLyricRelayHost: (host: string) => boolean;
     allowsCertificateException: (host: string) => boolean;
     sourceCaches: { list: () => Promise<unknown[]> };
-    mediaRules: { allows: (details: Record<string, unknown>) => boolean };
+    mediaRules: { allows: (details: Record<string, unknown>) => boolean; followRedirect: (details: Record<string, unknown>) => void };
 }
 
 export interface Harness {
