@@ -117,7 +117,7 @@ export const PLATFORM_NAME_PLACES: Record<string, PlatformNamePlace> = {
     'src/utils/lyrics/awlrcContainer.ts': { n: { kugou: 1 }, kind: 'doc' },
     'src/utils/lyrics/bodianLyrics.ts': { n: { bodian: 3 }, kind: 'file' },
     'src/utils/lyrics/foliaLyricDocument.ts': { n: { netease: 1 }, kind: 'doc' },
-    'src/utils/lyrics/lyricFileDecoding.ts': { n: { kugou: 2 }, kind: 'lyric', why: 'a lyric file format (.krc) named for the platform that made it, decrypted by that platform\'s code' },
+    'src/utils/lyrics/lyricFileDecoding.ts': { n: { kugou: 1 }, kind: 'lyric', why: 'a lyric file format (.krc) named for the platform that made it, decrypted by that platform\'s code' },
     'src/utils/lyrics/lyricMatchSources.ts': { n: { netease: 5, qq: 3 }, kind: 'lyric' },
     'src/utils/lyrics/lyricSourceLabels.ts': { n: { netease: 3, qq: 1, bodian: 1, ytm: 1 }, kind: 'lyric' },
     'src/utils/lyrics/lyricSources.ts': { n: { netease: 2, qq: 3, kugou: 1, bodian: 1, ytm: 1, spotify: 1, qishui: 1, appleMusic: 1 }, kind: 'lyric', why: 'the list of lyric sources itself, and the access type moved here from lyricMatchSources.ts (Folium 2.0 S1)' },

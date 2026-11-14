@@ -1,6 +1,6 @@
-// src/services/onlineMusic/exploreReads.ts
+// packages/folium-source-kit/src/exploreReads.ts
 // What the explore adapters share for reading their page from its start again and again (see
-// EXPLORE_ADAPTER.md). Nothing here knows a platform.
+// src/services/onlineMusic/EXPLORE_ADAPTER.md). Nothing here knows a platform.
 //  1. What the reads before used, so that the next read uses other things first: the entries a
 //     shelf handed out, the songs the shelves an adapter makes were asked with. One rule for all
 //     of it: of the candidates at hand, the ones never used come first, then the ones used

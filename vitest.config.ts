@@ -19,7 +19,9 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src')
+      '@': path.resolve(__dirname, './src'),
+      // 音源模组共用的纯函数（packages/folium-source-kit），宿主和 sources/ 都从包的入口取。
+      '@folia/folium-source-kit': path.resolve(__dirname, './packages/folium-source-kit/src/index.ts'),
     }
   },
   test: {

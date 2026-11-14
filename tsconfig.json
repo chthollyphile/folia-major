@@ -22,6 +22,9 @@
     "paths": {
       "@/*": [
         "./src/*"
+      ],
+      "@folia/folium-source-kit": [
+        "./packages/folium-source-kit/src/index.ts"
       ]
     },
     "allowImportingTsExtensions": true,
@@ -32,6 +35,9 @@
     "dist",
     "release",
     "sync-server",
-    "original"
+    "original",
+    "sources",
+    "test/fixtures/folium-sources",
+    "dist-mods"
   ]
 }

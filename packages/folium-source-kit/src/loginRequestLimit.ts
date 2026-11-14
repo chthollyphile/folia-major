@@ -1,10 +1,10 @@
-// src/services/onlineMusic/login/loginRequestLimit.ts
+// packages/folium-source-kit/src/loginRequestLimit.ts
 // 登录要发的请求里，自己没有时限的那些在这里得到一个：20 秒没有回答就算失败。
 // 哪些请求用它，由各平台的 transport 自己决定；这里不认识任何平台。
 
 export const LOGIN_REQUEST_LIMIT_MS = 20_000;
 
-// 请求在时限内没有回答。loginFailureCase.ts 把它分成「没有回应」。
+// 请求在时限内没有回答。宿主的 src/services/onlineMusic/login/loginFailureCase.ts 把它分成「没有回应」。
 export class LoginRequestTimeout extends Error {
     constructor() {
         super(`The sign-in request was not answered in ${LOGIN_REQUEST_LIMIT_MS / 1000} s`);

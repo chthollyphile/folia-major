@@ -1,7 +1,7 @@
 import { OnlineProviderError } from '../../../types/onlineMusic';
 import type { LoginCaseId, LoginFailureDetail, LoginStep, ProviderErrorCode } from '../../../types/onlineMusic';
 import type { LoginCase, LoginCaseAction, LoginCaseKind, LoginFailureFacts } from '../../../types/loginFailure';
-import { LoginRequestTimeout } from './loginRequestLimit';
+import { LoginRequestTimeout } from '@folia/folium-source-kit';
 import { codeText } from '../../../utils/errorText';
 
 // src/services/onlineMusic/login/loginFailureCase.ts

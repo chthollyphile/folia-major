@@ -1,5 +1,5 @@
 import { omni } from '../../../services/onlineMusic/omni';
-import { dropLoginRequestLimits } from '../../../services/onlineMusic/login/loginRequestLimit';
+import { dropLoginRequestLimits } from '@folia/folium-source-kit';
 import { useOnlineProviderAccountStore } from '../../../stores/useOnlineProviderAccountStore';
 import { formatBuildProvenance } from '../../../utils/buildProvenance';
 import type {

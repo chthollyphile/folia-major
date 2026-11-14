@@ -1,4 +1,4 @@
-// src/utils/errorText.ts
+// packages/folium-source-kit/src/errorText.ts
 // 抛出的错要拆成字段或者一句话的时候（放进一个对象、一条记录、界面上的一行字），从这里取：名字、那句话、
 // 代号和调用栈，都是原文。日志能直接交 Error 本身的就直接交（console.warn('[模块] ...', error)）：
 // 开发者面板的会话日志和 DevTools 都会记下它的调用栈。

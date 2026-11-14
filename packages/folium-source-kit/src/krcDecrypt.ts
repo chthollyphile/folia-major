@@ -1,4 +1,4 @@
-// src/services/onlineMusic/kugou/krcDecrypt.ts
+// packages/folium-source-kit/src/krcDecrypt.ts
 
 /**
  * Kugou KRC lyric decryption and decompression module.

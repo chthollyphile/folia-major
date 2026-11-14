@@ -1,0 +1,11 @@
+{
+  "name": "@folia/folium-source-kit",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Folium 2.0 音源模组共用的纯 TypeScript 函数：音源（sources/<id>/）和宿主都从这里取，不 import 包外的任何东西。",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts"
+  }
+}

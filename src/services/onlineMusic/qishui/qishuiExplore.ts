@@ -1,7 +1,7 @@
 import i18n from '../../../i18n/config';
 import type { UnifiedSong } from '../../../types';
 import type { OnlineExploreProvider, ProviderExploreItem } from '../../../types/onlineMusic';
-import { createHandedOut, cursorWords, stampCursor } from '../exploreReads';
+import { createHandedOut, cursorWords, stampCursor } from '@folia/folium-source-kit';
 import { normalizeQishuiSong } from './qishuiNormalize';
 import { requestQishui } from './qishuiTransport';
 

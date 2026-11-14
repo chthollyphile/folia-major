@@ -4,7 +4,7 @@ import { listOnlineMusicProviders } from '@/services/onlineMusic/providerRegistr
 import { OnlineProviderError } from '@/types/onlineMusic';
 import type { LoginFailureDetail, LoginStep } from '@/types/onlineMusic';
 import { LOGIN_CASE_IDS, loginCaseOf, loginFailureFacts, noteLoginFailure } from '@/services/onlineMusic/login/loginFailureCase';
-import { LoginRequestTimeout } from '@/services/onlineMusic/login/loginRequestLimit';
+import { LoginRequestTimeout } from '@folia/folium-source-kit';
 
 // test/unit/login/loginFailureCase.test.ts
 // The shared half of "why did the sign-in fail": the table of cases, the rules that sort facts no
@@ -186,7 +186,7 @@ describe('the shared files know no platform', () => {
         const ids = listOnlineMusicProviders().map(provider => provider.id);
         expect(ids.length).toBeGreaterThanOrEqual(6);
         const imports: string[] = [];
-        for (const file of ['src/services/onlineMusic/login/loginFailureCase.ts', 'src/services/onlineMusic/login/loginRequestLimit.ts', 'src/utils/errorText.ts']) {
+        for (const file of ['src/services/onlineMusic/login/loginFailureCase.ts', 'packages/folium-source-kit/src/loginRequestLimit.ts', 'packages/folium-source-kit/src/errorText.ts']) {
             const source = await readFile(file, 'utf8');
             const named = ids.filter(id => new RegExp(`(?<![A-Za-z])${id}(?![a-z])`, 'i').test(source));
             expect(named, file).toEqual([]);

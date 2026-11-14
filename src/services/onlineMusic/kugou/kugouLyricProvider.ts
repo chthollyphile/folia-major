@@ -9,7 +9,7 @@ import md5 from 'blueimp-md5';
 import { SongResult } from '../../../types';
 import { parseLyricsByFormat } from '../../../utils/lyrics/parserCore';
 import { detectNonTtmlTimedLyricFormat } from '../../../utils/lyrics/formatDetection';
-import { krcDecrypt } from './krcDecrypt';
+import { krcDecrypt } from '@folia/folium-source-kit';
 import { applyDetectedChorusEffects, applyChorusRangesByTime } from '../../../utils/lyrics/chorusEffects';
 import type { ChorusRange } from '../../../utils/lyrics/chorusEffects';
 import { buildKugouLyricSearchQuery } from '../../../utils/lyrics/searchQuery';

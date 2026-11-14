@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { dropLoginRequestLimits, LOGIN_REQUEST_LIMIT_MS, LoginRequestTimeout, withLoginRequestLimit } from '@/services/onlineMusic/login/loginRequestLimit';
+import { dropLoginRequestLimits, LOGIN_REQUEST_LIMIT_MS, LoginRequestTimeout, withLoginRequestLimit } from '@folia/folium-source-kit';
 
 // test/unit/login/loginRequestLimit.test.ts
 // The time limit of the requests a sign-in makes, under fake timers. Which requests of which
