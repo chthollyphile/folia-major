@@ -38,6 +38,19 @@ const copyFixture = (edit: (dir: string) => void) => {
     edit(dir);
     return dir;
 };
+/*
+ * A local package `name` beside the copy (outside the source folder, where a package from node_modules is too),
+ * declared as a bundled dependency (file:): what it imports is a dependency's import, not the source's own.
+ */
+const addLocalPackage = (dir: string, name: string, code: string) => {
+    const packageDir = path.join(path.dirname(dir), 'packages', name);
+    fs.mkdirSync(packageDir, { recursive: true });
+    fs.writeFileSync(path.join(packageDir, 'package.json'), JSON.stringify({ name, version: '1.0.0', main: 'index.js' }));
+    fs.writeFileSync(path.join(packageDir, 'index.js'), code);
+    const pkg = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'));
+    pkg.dependencies[name] = `file:../packages/${name}`;
+    fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify(pkg));
+};
 const buildCopy = (edit: (dir: string) => void) => buildSource(copyFixture(edit), { outRoot: temporary('out') });
 
 /** 跑构建出的 main 入口：给一个假的 api，调 search 和 probe，交回它们的答案。 */
@@ -276,6 +289,37 @@ describe('what a source may not do, each refused by the build', () => {
         ['packs a native file into the archive', (dir) => {
             fs.writeFileSync(path.join(dir, 'deps/asar-dep/addon.node'), 'not really');
         }, /addon\.node 是原生件/],
+        // The rules hold for what the source's dependencies import too, not only for the source's own imports.
+        ['brings React into the client through a bundled dependency', (dir) => {
+            addLocalPackage(dir, 'react-user', "import 'react';\nexport const x = 1;\n");
+            fs.appendFileSync(path.join(dir, 'client/index.ts'), "\nimport 'react-user';\n");
+        }, /react 由宿主注入/],
+        ['brings electron into main through a bundled dependency', (dir) => {
+            addLocalPackage(dir, 'electron-user', "require('electron');\nmodule.exports = 1;\n");
+            fs.appendFileSync(path.join(dir, 'main/index.ts'), "\nimport 'electron-user';\n");
+        }, /不直接用 electron/],
+        ['takes a Node built-in into the client through a bundled dependency', (dir) => {
+            addLocalPackage(dir, 'fs-user', "import 'node:fs';\nexport const x = 1;\n");
+            fs.appendFileSync(path.join(dir, 'client/index.ts'), "\nimport 'fs-user';\n");
+        }, /client 跑在窗口里/],
+        ['reaches the host through a file: dependency pointing into the repository', (dir) => {
+            const pkg = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'));
+            pkg.dependencies['folia-root'] = `file:${ROOT.replace(/\\/g, '/')}`;
+            fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify(pkg));
+            fs.appendFileSync(path.join(dir, 'main/index.ts'), "\nimport 'folia-root/shared/networkErrorText.cjs';\n");
+        }, /不 import 宿主的代码：shared/],
+        ['names a worker entry outside its folder', (dir) => {
+            fs.writeFileSync(path.join(path.dirname(dir), 'outside.ts'), 'export {};\n');
+            const pkg = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'));
+            pkg.folia.workers.escape = '../outside.ts';
+            fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify(pkg));
+        }, /worker "escape" 的入口 \.\.\/outside\.ts 不在音源目录里/],
+        // An import nothing resolves would stay a bare require in the output: it runs in the repository (node_modules
+        // above dist-mods) and fails in the packaged app (no node_modules above resources/builtin-mods).
+        ['leaves an import nothing resolves', (dir) => {
+            addLocalPackage(dir, 'needs-missing', "require('folia-no-such-package');\nmodule.exports = 1;\n");
+            fs.appendFileSync(path.join(dir, 'main/index.ts'), "\nimport 'needs-missing';\n");
+        }, /解析不到的 import/],
     ];
     it.each(cases)('%s', async (_name, edit, message) => {
         await expect(buildCopy(edit)).rejects.toThrow(message);

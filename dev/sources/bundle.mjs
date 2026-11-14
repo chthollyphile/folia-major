@@ -11,8 +11,8 @@ import { locatePackage, packageEntry, packageNameOf } from './dependencies.mjs';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 export const KIT_ENTRY = path.join(ROOT, 'packages/folium-source-kit/src/index.ts');
 const KIT_DIR = path.dirname(KIT_ENTRY);
-/** 宿主的代码：音源模组不能 import 它们。 */
-const HOST_DIRS = [path.join(ROOT, 'src'), path.join(ROOT, 'electron')];
+/** 宿主的代码：音源模组不能 import 它们（和 Dedicatus D130 同一张表）。 */
+const HOST_DIRS = [path.join(ROOT, 'src'), path.join(ROOT, 'electron'), path.join(ROOT, 'shared')];
 
 /** 宿主给 client 注入的库：模组的 bundle 里不能再带一份（方案 §12 第 7 条），用 folium 交给它的。 */
 const HOST_PROVIDED = new Set(['react', 'react-dom', 'i18next', 'react-i18next', 'zustand']);
@@ -49,9 +49,24 @@ const dependencyPolicy = (kind, context) => {
             if (specifier.startsWith('\0')) return null;
             if (importer?.startsWith(VENDOR_PREFIX) && specifier === VENDOR_PLACEHOLDER) return { id: VENDOR_PLACEHOLDER, external: true };
             if (importer?.startsWith(ASAR_PREFIX) || importer?.startsWith(VENDOR_PREFIX)) return { id: specifier, external: true };
-            // 依赖自己的 import：它的事（打进 bundle 的包照 Node 的规矩找它的依赖）。
+            /*
+             * 不管是谁 import 的都不行的：electron、client 里的 Node 内置模块和宿主注入的库。打进 bundle 的依赖自己
+             * import 它们也一样（审查：只看音源自己的 import 时，一个依赖 react 的 UI 库会把第二份 React 打进
+             * client.mjs，一个 require('electron') 的包会把 npm 的 electron 桩打进 index.cjs）。
+             */
+            const bare = !specifier.startsWith('.') && !path.isAbsolute(specifier);
+            if (bare && (specifier === 'electron' || specifier.startsWith('electron/'))) {
+                fail(`音源模组不直接用 electron：main 入口用宿主给的 api.*（${importer}）`);
+            }
+            if (bare && kind === 'client' && isNodeBuiltin(specifier)) {
+                fail(`client 跑在窗口里，没有 Node 内置模块 ${specifier}（${importer}）`);
+            }
+            if (bare && kind === 'client' && HOST_PROVIDED.has(packageNameOf(specifier))) {
+                fail(`${packageNameOf(specifier)} 由宿主注入，模组的 bundle 里不能再带一份：用 folium 交给 client 的那份（${importer}）`);
+            }
+            // 依赖自己的其余 import：它的事（打进 bundle 的包照 Node 的规矩找它的依赖）。宿主的文件在 load 里挡。
             const fromSource = !importer || isInside(importer, sourceDir) || isInside(importer, KIT_DIR);
-            if (!fromSource) return null;
+            if (!fromSource) return bare && isNodeBuiltin(specifier) ? { id: specifier, external: true } : null;
             if (specifier.startsWith('.') || path.isAbsolute(specifier)) {
                 // 相对路径也不能走出去拿宿主的代码（方案 §6.1；Dedicatus 的边界规则在仓库里另查一遍）。
                 const resolved = await this.resolve(specifier, importer, { skipSelf: true });
@@ -100,6 +115,10 @@ const dependencyPolicy = (kind, context) => {
             return null;
         },
         load(id) {
+            // 不管经哪条路解析到的（依赖的相对路径、file: 指到仓库里、worker 入口），宿主的文件都不进音源的 bundle。
+            if (!id.startsWith('\0') && HOST_DIRS.some((dir) => isInside(id.replace(/\?.*$/, ''), dir))) {
+                fail(`音源模组不 import 宿主的代码：${path.relative(ROOT, id)}`);
+            }
             if (id.startsWith(ASAR_PREFIX)) {
                 const specifier = id.slice(ASAR_PREFIX.length);
                 if (!context.asarName) fail(`内部错误：${specifier} 要从 deps 归档取，但没有归档`);
@@ -127,6 +146,7 @@ const dependencyPolicy = (kind, context) => {
  */
 export const bundleEntry = async ({ input, kind, context }) => {
     const warnings = [];
+    const unresolved = [];
     const build = await rolldown({
         input,
         cwd: ROOT,
@@ -139,7 +159,9 @@ export const bundleEntry = async ({ input, kind, context }) => {
         plugins: [kind === 'vendor' ? vendorEntry(context) : dependencyPolicy(kind === 'client' ? 'client' : 'main', context)],
         logLevel: 'warn',
         onLog: (level, log) => {
-            if (level === 'warn') warnings.push(log.message);
+            if (level !== 'warn') return;
+            if (log.code === 'UNRESOLVED_IMPORT') unresolved.push(log.message);
+            else warnings.push(log.message);
         },
     });
     try {
@@ -149,6 +171,14 @@ export const bundleEntry = async ({ input, kind, context }) => {
             codeSplitting: false,
             sourcemap: false,
         });
+        /*
+         * 解析不到的 import，rolldown 只警告并当成外部模块留一个裸 require / import。开发版的 dist-mods/<id>/ 往上
+         * 找得到仓库根的 node_modules，照样能跑；安装包里的 resources/builtin-mods/<id>/ 往上没有 node_modules，
+         * 同一行就失败了。所以算构建错误。rolldown 在 generate 里才解析，所以在它之后看。
+         */
+        if (unresolved.length > 0) {
+            throw new Error(`${input} 有解析不到的 import（安装包里没有 node_modules 可找）：\n${unresolved.join('\n')}`);
+        }
         if (output.length !== 1 || output[0].type !== 'chunk') {
             throw new Error(`${input} 打出了 ${output.length} 个文件（${output.map((item) => item.fileName).join('、')}）：一个入口只能打成一个文件`);
         }

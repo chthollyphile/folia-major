@@ -64,6 +64,11 @@ export const readSourcePackage = (sourceDir) => {
         if (typeof entry !== 'string' || !fs.existsSync(path.join(sourceDir, entry))) {
             throw new Error(`${file}: worker "${name}" 的入口 ${entry} 不存在`);
         }
+        // worker 的入口是音源自己的代码：在音源目录里面（不能指到宿主或别的音源去）。
+        const relative = path.relative(sourceDir, path.resolve(sourceDir, entry));
+        if (relative === '' || relative.startsWith('..') || path.isAbsolute(relative)) {
+            throw new Error(`${file}: worker "${name}" 的入口 ${entry} 不在音源目录里`);
+        }
     }
     return { pkg, specs, modes, workers };
 };
