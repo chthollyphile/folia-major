@@ -31,6 +31,8 @@ export const projectExploreItems = (tiles: readonly LatticeTile[]): BravaisItem[
         coverUrl: tile.coverUrl,
         badge: tile.label ?? '',
     };
+    // Named streams play in place; they do not leave a collection transition origin behind.
+    if (tile.kind === 'collection' && tile.collection.personalFm) item.direct = true;
     if (tile.kind !== 'song') return item;
     const { song } = tile;
     return {

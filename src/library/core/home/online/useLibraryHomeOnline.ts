@@ -11,6 +11,7 @@ import {
 } from '../homeSources';
 import { useLibraryHomeOnlineFeeds } from './useLibraryHomeOnlineFeeds';
 import type { LibraryHomeSources } from '../useLibraryHomeSources';
+import { readOnlineRecommendationPresentation } from './onlineHomeProvider.service';
 
 // src/library/core/home/online/useLibraryHomeOnline.ts
 // 在线页签的列表：账户歌单 / 收藏专辑 / 电台三份卡片（core/home/homeCards），当前页签的标题、加载态与
@@ -43,8 +44,12 @@ export const useLibraryHomeOnline = (
     const playlistCards = useMemo(() => buildOnlinePlaylistCards(online.collections, t), [online.collections, t]);
     const albumCards = useMemo(() => buildOnlineAlbumCards(favoriteAlbums.data, t), [favoriteAlbums.data, t]);
     const radioCards = useMemo(
-        () => buildOnlineRadioCards(radioFeed.data, { t, personalFmModeLabel }),
-        [personalFmModeLabel, radioFeed.data, t],
+        () => buildOnlineRadioCards(radioFeed.data, {
+            t,
+            personalFmModeLabel,
+            presentation: readOnlineRecommendationPresentation(online.providerId),
+        }),
+        [online.providerId, personalFmModeLabel, radioFeed.data, t],
     );
 
     const items = tab === 'playlist' ? playlistCards : tab === 'albums' ? albumCards : tab === 'radio' ? radioCards : NO_CARDS;

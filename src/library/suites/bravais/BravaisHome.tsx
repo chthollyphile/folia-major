@@ -86,6 +86,7 @@ const BravaisHome: React.FC<LibraryHomeSurfaceProps> = (props) => {
         >
             {tab === 'explore' ? (
                 <BravaisHomeExplore
+                    homeActions={homeResources.actions}
                     chrome={chrome}
                     online={online}
                     account={account}

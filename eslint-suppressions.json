@@ -1461,7 +1461,7 @@
   },
   "src/App.tsx": {
     "@stylistic/indent": {
-      "count": 94
+      "count": 92
     },
     "@typescript-eslint/consistent-type-imports": {
       "count": 1
@@ -10059,10 +10059,7 @@
   },
   "src/services/onlineMusic/qq/qqGuessYouLike.ts": {
     "@typescript-eslint/no-explicit-any": {
-      "count": 9
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 1
+      "count": 8
     },
     "@typescript-eslint/no-unnecessary-type-conversion": {
       "count": 1
@@ -10357,9 +10354,6 @@
     },
     "@typescript-eslint/no-unsafe-return": {
       "count": 2
-    },
-    "@typescript-eslint/use-unknown-in-catch-callback-variable": {
-      "count": 1
     }
   },
   "src/services/onlineMusic/qq/qqSearch.ts": {

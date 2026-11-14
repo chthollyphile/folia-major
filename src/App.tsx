@@ -40,7 +40,8 @@ import { createLyricFilterPatternSaver } from './components/app/home/createLyric
 import { nextLyricStaffAbsorbMode, nextLyricStaffPolicy } from './utils/lyrics/staffCreditsPolicy';
 import { createPanelNavigation } from './components/app/navigation/createPanelNavigation';
 import { usePlayingSongLocatorStore } from './stores/usePlayingSongLocatorStore';
-import { createOnlineGridViewCollection, type GridViewCollectionDescriptor } from './components/app/home/gridViewCollectionAdapters';
+import type { GridViewCollectionDescriptor } from './components/app/home/gridViewCollectionAdapters';
+import { useExploreCollectionAction } from './library/app/useExploreCollectionAction';
 import { buildAppStyle } from './components/app/presentation/buildAppStyle';
 import { buildDebugSnapshot } from './components/app/presentation/buildDebugSnapshot';
 import { buildHomeSurfacePresentation } from './components/app/presentation/buildHomeSurfacePresentation';
@@ -2239,6 +2240,7 @@ export default function App() {
     });
     const scratchpadPlayback = useScratchpadPlayback(homeModel.surfaceProps, handleQueueAddAndPlay);
     const scratchpadQueue = useScratchpadQueuePort(playSong, setQueueOrder, shuffleQueue);
+    const openExploreCollection = useExploreCollectionAction(homeModel.surfaceProps, openHomeCollection);
     const playerDisplayCatalogIndex = useMemo(() => buildLocalLibraryIndex(
         localLibraryCatalog.entities,
         localLibraryCatalog.assignments,
@@ -2858,9 +2860,7 @@ export default function App() {
                                 // Grid3D names it, and a card's page opened as the tab opens it.
                                 exploreProviderId={activeProviderId}
                                 exploreAccountId={String(homeModel.surfaceProps.user?.id ?? '')}
-                                onOpenCollection={collection => openHomeCollection(
-                                    createOnlineGridViewCollection(collection, activeProviderId),
-                                )}
+                                onOpenCollection={openExploreCollection}
                             />
                         </Suspense>
                     </motion.div>
