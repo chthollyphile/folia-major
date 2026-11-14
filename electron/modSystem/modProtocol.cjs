@@ -211,7 +211,10 @@ const attachModProtocolHandler = (
             }
 
             const segments = url.pathname.split('/').filter(Boolean).map(decodePathSegment);
-            if (segments.some((segment) => segment === null || segment === '..' || segment.includes('\\') || path.isAbsolute(segment))) {
+            // A segment is one path step after decoding: `%2F` inside it (`a%2F..%2Fx`) would smuggle `..` past this
+            // check into the `_media` handler's path, which has no folder of its own to stay inside of.
+            if (segments.some((segment) => segment === null || segment === '..' || segment === '.' || segment.includes('/')
+                || segment.includes('\\') || path.isAbsolute(segment))) {
                 return new Response('Invalid path', { status: 400 });
             }
             if (segments[0] === MEDIA_ROUTE) {

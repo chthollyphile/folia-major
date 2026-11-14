@@ -142,6 +142,10 @@ module.exports = function activate(api) {
         expect((await fetchModUrl('folia-mod://radio/_media/audio/missing')).status).toBe(404);
         expect((await fetchModUrl('folia-mod://radio/_media/audio/boom')).status).toBe(502);
         expect((await fetchModUrl('folia-mod://radio/_media/video/x')).status).toBe(404);
+        // An encoded slash would make one segment hold `..` steps and reach the handler as `x/../../config.json`.
+        for (const sneaky of ['x%2F..%2F..%2Fconfig.json', '..%2Fconfig.json', 'a%5C..%5Cb']) {
+            expect((await fetchModUrl(`folia-mod://radio/_media/audio/${sneaky}`)).status, sneaky).toBe(400);
+        }
         expect(fs.existsSync(directory)).toBe(true);
     });
 
