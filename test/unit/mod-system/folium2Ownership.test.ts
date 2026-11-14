@@ -69,6 +69,18 @@ describe('the override of a built-in copy (pure rules)', () => {
         expect(resolve([builtin('qq')], [candidate('qq', { status: 'verified' })]).pendingOverride.get('qq')).toBe('qq');
     });
 
+    // A copy that does not replace the built-in one must leave the built-in copy's row alone: its short id and old
+    // data. (It used to overwrite it, and the built-in source ran as folium.<id>.<id> without its sign-in.)
+    it('keeps the built-in row while a same-id copy is refused or waits for its confirmation', () => {
+        for (const copy of [candidate('qq', { status: 'verified' }), candidate('qq', { status: 'verified', version: '0.1.0' }), candidate('qq')]) {
+            const result = resolve([builtin('qq')], [copy]);
+            expect(result.overrides.size).toBe(0);
+            expect(result.sources.get('qq')).toEqual([expect.objectContaining({
+                sourceId: 'qq', takeover: false, legacy: expect.objectContaining({ storeKeys: ['QQ_API_AUTH_SESSION_V1'] }),
+            })]);
+        }
+    });
+
     it('gives a signed override the built-in row: its short id and the old data', () => {
         const result = resolve([builtin('qq')], [candidate('qq', { status: 'verified' })], { confirmed: ['qq'] });
         expect(result.sources.get('qq')).toEqual([expect.objectContaining({ sourceId: 'qq', legacy: expect.objectContaining({ storeKeys: ['QQ_API_AUTH_SESSION_V1'] }) })]);
@@ -152,6 +164,10 @@ describe('ownership in the loader', () => {
         const system = launch();
         expect(stateOf(system, 'qq')).toMatchObject({ tier: 'builtin', status: 'loaded', alternate: { tier: 'user', reason: 'override-not-verified' } });
         expect(system.listMods().filter((mod) => mod.id === 'qq')).toHaveLength(1);
+        // The built-in copy keeps its short id and its old sign-in while the other copy is refused.
+        expect(stateOf(system, 'qq')!.sources).toEqual([expect.objectContaining({ id: 'qq', takeover: false })]);
+        const api = modRecord('qq')!.api as { legacy: { store: { get: (key: string) => unknown } } };
+        expect(() => api.legacy.store.get('QQ_API_AUTH_SESSION_V1')).not.toThrow();
     });
 
     it('lets a claiming mod take over a source the installation does not carry, through the usual confirmation', async () => {

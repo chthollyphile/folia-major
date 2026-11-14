@@ -180,6 +180,8 @@ const resolveSourceOwnership = (builtins, candidates, bundled, options) => {
     candidates.forEach((candidate, modId) => {
         if (!candidate.manifest.sources) return;
         const replaced = overrides.has(modId) && overrides.get(modId) === modId;
+        // A copy of a built-in mod that did not replace it does not run: the built-in copy's row stands.
+        if (builtins.has(modId) && !replaced) return;
         sources.set(modId, describe(modId, candidate.manifest, {
             row: replaced ? tableRow(modId) : null,
             keepForMatching: replaced || claimedOverride.has(modId),
