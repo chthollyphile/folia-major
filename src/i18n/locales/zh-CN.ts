@@ -637,6 +637,7 @@ export default {
     "noPlayableSongs": "列表中没有可播放的歌曲",
     "songUnavailableTag": "已下架",
     "songSourceMissingTag": "音源未启用",
+    "songSourceNotEnabled": "这首歌的音源没有启用，启用后才能播放",
     "songVideoTag": "MV",
     "queueShuffled": "播放队列已打乱",
     "loopShuffleHint": "想找随机播放吗？",

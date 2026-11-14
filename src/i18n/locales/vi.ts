@@ -637,6 +637,7 @@ export default {
     "noPlayableSongs": "Không có bài hát khả dụng trong danh sách",
     "songUnavailableTag": "Không khả dụng",
     "songSourceMissingTag": "Nguồn chưa bật",
+    "songSourceNotEnabled": "Nguồn của bài này chưa bật. Bật nguồn để phát lại.",
     "songVideoTag": "MV",
     "queueShuffled": "Đã xáo trộn hàng đợi",
     "loopShuffleHint": "Tìm chế độ xáo trộn?",

@@ -637,6 +637,7 @@ export default {
     "noPlayableSongs": "Tidak ada lagu yang bisa diputar di daftar ini",
     "songUnavailableTag": "Tidak Tersedia",
     "songSourceMissingTag": "Sumber tidak aktif",
+    "songSourceNotEnabled": "Sumber lagu ini tidak aktif. Lagu bisa diputar lagi setelah sumbernya diaktifkan.",
     "songVideoTag": "MV",
     "queueShuffled": "Antrean diacak",
     "loopShuffleHint": "Mencari putar acak?",

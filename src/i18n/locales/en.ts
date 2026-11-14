@@ -637,6 +637,7 @@ export default {
     "noPlayableSongs": "No playable songs in this list",
     "songUnavailableTag": "Unavailable",
     "songSourceMissingTag": "Source not enabled",
+    "songSourceNotEnabled": "This song's source is not enabled. It plays again once the source is enabled.",
     "songVideoTag": "MV",
     "queueShuffled": "Queue shuffled",
     "loopShuffleHint": "Looking for shuffle?",

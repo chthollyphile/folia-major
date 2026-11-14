@@ -7,7 +7,6 @@ import { omni } from '../../../services/onlineMusic/omni';
 import { getNavidromeConfig } from '../../../services/navidromeService';
 import { useOnlineProviderAccountStore } from '../../../stores/useOnlineProviderAccountStore';
 import { useLibraryStore } from '../../../stores/useLibraryStore';
-import { getSourceState, getSourceStates, subscribeSourceStates } from '../../../services/onlineMusic/sourceStates';
 import { getSourceDeclaration } from '../../../services/onlineMusic/sourceDeclarations';
 
 // src/components/app/search/searchSources.ts
@@ -15,6 +14,7 @@ import { getSourceDeclaration } from '../../../services/onlineMusic/sourceDeclar
 // 开着并且填好了服务器才列它。没登录的在线平台不列（搜到了也放不了它的歌）。别的在线平台列不列，按跨音源功能的
 // 同一条规则（services/onlineMusic/crossSource.ts）：没注册的不在摘要里，没配好的、要账号而没登录的跳过，跳过的不画。
 // 要不要账号：Folium 2 的音源按它 search@1 的 access（sourceDeclarations.ts）；内置平台照旧按有没有账号。
+// 只用于匹配的音源（Folium 2.0 方案 §5.3）不在 omni.getProviderSummaries 里（只列启用的），所以不进联邦搜索。
 
 type SearchSourceAvailability = {
     providers: readonly ProviderAccountSummary[];
@@ -42,11 +42,8 @@ export const resolveSearchSources = ({
             })),
         ({ sourceId }) => {
             const provider = byId.get(sourceId);
-            // Folium 2.0 (plan §5.3): a source used only for matching is left out of the federated search.
-            const state = getSourceState(sourceId);
             return {
-                enabled: Boolean(provider) && state === 'enabled',
-                matchingOnly: Boolean(provider) && state === 'matching',
+                enabled: Boolean(provider),
                 availability: provider?.availability ?? { configured: false },
                 signedIn: provider?.status === 'authenticated',
             };
@@ -69,10 +66,9 @@ const isNavidromeReady = (enabled: boolean): boolean => {
     return Boolean(config?.serverUrl && config.username);
 };
 
+// 平台增减和音源状态切换（启用 / 只用于匹配 / 停用）都经这一对通知。
 const subscribeProviders = (listener: () => void) => omni.subscribeProviders(listener);
 const getProviderRegistryVersion = () => omni.getProviderRegistryVersion();
-// The source states table is replaced, never changed in place: its identity is its version.
-const getSourceStatesVersion = () => getSourceStates();
 
 /**
  * 搜索页此刻的来源与当前平台（存的平台不在了时是回落后的那个）：账户 store 与 provider 注册表（mod 源增删）变了就重排。
@@ -85,7 +81,6 @@ export const useSearchSources = (hasLocalSongs: boolean): { sources: SearchSourc
         .join('|'));
     const navidromeEnabled = useLibraryStore(state => state.navidromeEnabled);
     const registryVersion = useSyncExternalStore(subscribeProviders, getProviderRegistryVersion);
-    const sourceStates = useSyncExternalStore(subscribeSourceStates, getSourceStatesVersion);
     // Read on every render: saving or clearing the server settings writes no store, so nothing would tell a memo.
     const navidromeReady = isNavidromeReady(navidromeEnabled);
 
@@ -101,7 +96,7 @@ export const useSearchSources = (hasLocalSongs: boolean): { sources: SearchSourc
                 navidromeReady,
             }),
         };
-    // signIns、registryVersion 与 sourceStates 只为在它们变了时重读摘要。
+    // signIns 与 registryVersion 只为在它们变了时重读摘要。
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [signIns, hasLocalSongs, navidromeReady, registryVersion, sourceStates, storedProviderId]);
+    }, [signIns, hasLocalSongs, navidromeReady, registryVersion, storedProviderId]);
 };

@@ -13,6 +13,7 @@ import { isSourceEnabled, isSourceMatchingOnly } from '@/services/onlineMusic/so
 import { isSongSourceMissing } from '@/services/onlineMusic/songAvailability';
 import { useOnlineProviderAccountStore } from '@/stores/useOnlineProviderAccountStore';
 import { resolveSearchSources } from '@/components/app/search/searchSources';
+import { omni } from '@/services/onlineMusic/omni';
 import type { SongResult } from '@/types';
 
 // test/unit/onlineMusic/crossSourceMatchingOnly.test.ts
@@ -103,12 +104,15 @@ describe('the live features with QQ and NetEase only for matching', () => {
 
     it('leaves a matching-only source out of the search page\'s other sources', () => {
         setSourceStates({ kugou: 'matching' });
+        // The search page lists what omni lists for the interface (omni.getProviderSummaries), which leaves it out.
+        const listed = new Set(omni.getProviderSummaries().map(provider => provider.providerId));
+        expect(listed.has('kugou')).toBe(false);
         const sources = resolveSearchSources({
             providers: [
                 { providerId: 'netease', requiresAccount: false, availability: { configured: true }, status: 'anonymous' },
                 { providerId: 'kugou', requiresAccount: false, availability: { configured: true }, status: 'anonymous' },
                 { providerId: 'bodian', requiresAccount: false, availability: { configured: true }, status: 'anonymous' },
-            ] as never,
+            ].filter(provider => listed.has(provider.providerId)) as never,
             activeProviderId: 'netease',
             hasLocalSongs: false,
             navidromeReady: false,

@@ -13,6 +13,8 @@ export type SourceState = 'enabled' | 'matching' | 'disabled';
 const SOURCE_STATE_VALUES: readonly SourceState[] = ['enabled', 'matching', 'disabled'];
 
 let states: Readonly<Record<string, SourceState>> = Object.freeze({});
+// Bumped by every real change of the table, for the lists that follow it (omni's provider lists).
+let statesVersion = 0;
 const listeners = new Set<() => void>();
 
 /** The state of `sourceId`: its record, or 'enabled' without one. */
@@ -30,6 +32,7 @@ export const setSourceStates = (next: Readonly<Record<string, unknown>> | null |
     const before = JSON.stringify(states);
     states = Object.freeze(cleaned);
     if (JSON.stringify(states) === before) return;
+    statesVersion += 1;
     listeners.forEach((listener) => {
         try {
             listener();
@@ -38,6 +41,9 @@ export const setSourceStates = (next: Readonly<Record<string, unknown>> | null |
         }
     });
 };
+
+/** Bumped by every real change of the table. */
+export const getSourceStatesVersion = (): number => statesVersion;
 
 /** Calls `listener` whenever the table changes; returns the function that stops it. */
 export const subscribeSourceStates = (listener: () => void): (() => void) => {

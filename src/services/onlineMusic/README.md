@@ -146,7 +146,7 @@ Apple Music 的推荐能力已接入个人 FM（Apple personal station 持续补
 - 登录界面 `src/components/login/`：平台的记号（`mark`）、标题、说明、失败说明都由 provider 声明，界面经 omni 去问。
 - 登录失败的分类和请求时限（`login/`）。
 - 账号状态：`src/stores/useOnlineProviderAccountStore.ts`、`providerAccountCache.ts`、`account/accountRead.ts`。
-- 平台切换：`omni.ts` 的 `getProviderSummaries` 按注册表列出。
+- 平台切换：`omni.ts` 的 `getProviderSummaries` 按注册表列出，只列音源状态（`sourceStates.ts`）是启用的；只用于匹配的音源只在 `getMatchingProviderSummaries` 里（按没登录给出），见下表“provider 状态”一行。
 - 设置页。
 - 探索页的界面和页面数据（`src/components/app/home/explore/`、`src/stores/useExploreFeedStore.ts`）。
 
@@ -160,7 +160,7 @@ Apple Music 的推荐能力已接入个人 FM（Apple personal station 持续补
 
 | 能力 | Omni 方法/区域 | 结果/边界 |
 | --- | --- | --- |
-| provider 状态 | `getProviderSummaries`、`getActiveProviderSummary`、`getProviderCapabilities` | `useOnlineProviderAccountStore` 提供 active provider 与账号快照 |
+| provider 状态 | `getProviderSummaries`、`getMatchingProviderSummaries`、`isProviderShown`、`getActiveProviderSummary`、`getProviderCapabilities` | `useOnlineProviderAccountStore` 提供 active provider 与账号快照。两种列表（Folium 2.0 方案 §5.3）：`getProviderSummaries` 给界面和模组，只含启用的音源；`getMatchingProviderSummaries` 给歌词与元数据匹配，另含只用于匹配的音源，它们按没登录给出（不读、不显示账号）。只用于匹配的音源不能成为生效音源（存着的选择不改写）、不读账号（`readAccount` 回 `not asked`）、它的歌不放（`canPlaySong` 为 false，`getAudioSource` 抛 `unavailable`）。`subscribeProviders` / `getProviderRegistryVersion` 同时跟注册表和音源状态表，状态一切换就通知 |
 | 账号/二维码 | `readAccount`、`signOutAccount`、`startLogin`、`checkLogin`、`confirmsLoginInBrowser`、`openLoginPage` | provider auth adapter；不要在 UI 直接保留 raw session。登录有两种样子，轮询、取消、过期是同一套：扫二维码（provider 有 `createQr`）、只在浏览器里确认（provider 有 `openLoginPage`、没有 `createQr`，`startLogin` 回的图片是空串；登录一开始界面就打开那个页面，弹窗里只留一个“重新打开浏览器”的按钮；provider 自己已经打开页面的（`opensLoginPageItself`），界面不再打开，也没有这个按钮）。Spotify 和 YouTube Music 是后一种。平台自己的记号（`mark`）、登录标题和说明、只在它身上才说得通的失败说明（`getLoginTexts`）、可以在登录窗口里重启的本地服务（`localService`）都由 adapter 声明，界面经 `getProviderMark`、`getLoginTexts`、`getLoginLocalService` 来问；`src/components/login/` 里不出现任何平台的名字。登录为什么没成功：某一步抛了错时 facade 问 provider 的 `describeLoginFailure`，`checkLogin` 回 error 状态时 provider 自己带上 `failure`；provider 把自己的错误说成共用的事实或者点名是哪一种情况，`login/loginFailureCase.ts` 再分成有名字的情况（它不认识任何平台），登录会话（`library/core/account/providerLoginSession.service.ts`）把它放进账户快照的 `login.failure`，交给登录窗口。登录等着的请求里自己没有时限的（网易云、QQ、酷狗的取 key、取二维码、检查这三个），由各自的 transport 套上 `login/loginRequestLimit.ts` 的 20 秒时限，到点算作「没有回应」；要一首歌的地址、读集合歌曲的请求（网易云的 song/url/v1、playlist/track/all、album，QQ 的 music_play、song_list_detail、user_playlist_detail、user_liked_songs、album_info；QQ 要地址时一档超时就不再试下一档），套上 `failure/onlineRequestLimit.ts` 的时限，到点算作「连不上」；时限比那个平台的后端最慢的正常回答还长，由各自的 transport 定（网易云 60 秒，QQ 70 秒，原因写在那里）；别的请求不加 |
 | 搜索 | `searchSongs`、`searchProviderSongs` | 普通搜索按 active provider；显式 provider 或跨 provider 用第二个方法。可选的 `context` 参数（`ProviderSearchContext`；`searchSongs` 的第三个、`searchProviderSongs` 的第四个参数）里的 `session` 把翻页互不干扰的调用方分开，不给就是宿主自己的界面：在两页之间留着读到哪儿的 adapter 按会话分开存，别的 adapter 不看它 |
 | 用户库 | `getUserPlaylists`、`getUserAlbums`、`getLikedSongIds`、`getProviderLikedSongIds`、`accountMoment`、`getCloudCollection` | 统一 `OmniCollection` / page 类型，账号快照可先展示再静默刷新。喜欢的歌读回来是 `{ ids, whole }`：adapter 在自己的上限处停下、或者说不准读没读到底时 `whole` 是 `false`；读不出来的一页必须抛错，不能当成更短的或空的列表交回。读账号的地方不自己写 `likedSongIds`：`account/accountRead.ts` 把读到的结果交给 `applyLikedRead`，由“修改”一行说的那条规则决定账号里留下什么；读失败就不交，账号里的保持原样；快照随后按 store 里此刻的 `likedSongIds` 存。回到 Folia 的窗口、进入主页这两个时机（`accountMoment`）不直接读整份：先向当前平台要“喜欢的歌”的数目（adapter 的 `getLikedSongCount`，一次请求，没有便宜办法的 adapter 不实现它），和手上的数目不一样才把喜欢的 id 整份读一遍；什么时候读只在 `account/readMoments.ts` 一处决定（见下面 `account/` 一条） |
