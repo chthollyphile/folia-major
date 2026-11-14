@@ -31,6 +31,7 @@ export default defineConfig({
     env: { VITE_LIBRARY_TUI: 'true', VITE_LIBRARY_INITIAL_SUITE: 'grid' },
     include: ['test/unit/**/*.test.ts', 'packages/*/test/**/*.test.mjs'],
     // Node 25 起自带的 localStorage 占位会盖住 jsdom 的那份：jsdom 用例在这里统一补内存实现，node 用例删掉占位。
-    setupFiles: ['test/unit/jsdomLocalStorage.ts']
+    // 仓库里的音源模组（sources/<id>/）在每个测试文件开始前经适配层注册；还没有音源时它什么都不做（helpers/builtinSources.ts）。
+    setupFiles: ['test/unit/jsdomLocalStorage.ts', 'test/unit/helpers/builtinSources.ts']
   }
 });
