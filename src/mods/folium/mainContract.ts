@@ -381,9 +381,11 @@ export interface FoliumSourceIncomingMessage {
     readonly statusCode: number;
     /** The headers, by lower-case name. */
     readonly headers: Record<string, string | string[]>;
-    /** `data` gives the body piece by piece, `end` comes after the last, `error` when it broke off. */
+    /** `data` gives the body piece by piece. */
     on(event: 'data', listener: (chunk: Uint8Array) => void): this;
+    /** `end` comes after the last piece. */
     on(event: 'end', listener: () => void): this;
+    /** `error` or `aborted` when the body broke off. */
     on(event: 'error' | 'aborted', listener: (error?: Error) => void): this;
 }
 
@@ -397,9 +399,11 @@ export interface FoliumSourceClientRequest {
     end(chunk?: string | Uint8Array): void;
     /** Stops it. */
     abort(): void;
-    /** `response` with the answer, `error` when it failed, `redirect`, `login`, `finish`, `abort`, `close` as Electron's. */
+    /** `response` with the answer. */
     on(event: 'response', listener: (response: FoliumSourceIncomingMessage) => void): this;
+    /** `error` when the request failed. */
     on(event: 'error', listener: (error: Error) => void): this;
+    /** Electron's other events: `redirect`, `login`, `finish`, `abort`, `close`. */
     on(event: string, listener: (...args: unknown[]) => void): this;
 }
 

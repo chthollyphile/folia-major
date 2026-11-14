@@ -3792,9 +3792,9 @@ Folium 2: the answer of `api.net.request`, Electron's IncomingMessage (the membe
 | --- | --- | --- |
 | `readonly statusCode` | `number` | The HTTP status. |
 | `readonly headers` | `Record<string, string \| string[]>` | The headers, by lower-case name. |
-| `on()` | `(event: 'data', listener: (chunk: Uint8Array) => void): this` | `data` gives the body piece by piece, `end` comes after the last, `error` when it broke off. |
-| `on()` | `(event: 'end', listener: () => void): this` |  |
-| `on()` | `(event: 'error' \| 'aborted', listener: (error?: Error) => void): this` |  |
+| `on()` | `(event: 'data', listener: (chunk: Uint8Array) => void): this` | `data` gives the body piece by piece. |
+| `on()` | `(event: 'end', listener: () => void): this` | `end` comes after the last piece. |
+| `on()` | `(event: 'error' \| 'aborted', listener: (error?: Error) => void): this` | `error` or `aborted` when the body broke off. |
 
 ### FoliumSourceClientRequest
 
@@ -3806,9 +3806,9 @@ Folium 2: `api.net.request`'s request, Electron's ClientRequest (the members a s
 | `write()` | `(chunk: string \| Uint8Array): void` | Writes part of the body. |
 | `end()` | `(chunk?: string \| Uint8Array): void` | Sends the request, with the last part of the body. |
 | `abort()` | `(): void` | Stops it. |
-| `on()` | `(event: 'response', listener: (response: FoliumSourceIncomingMessage) => void): this` | `response` with the answer, `error` when it failed, `redirect`, `login`, `finish`, `abort`, `close` as Electron's. |
-| `on()` | `(event: 'error', listener: (error: Error) => void): this` |  |
-| `on()` | `(event: string, listener: (...args: unknown[]) => void): this` |  |
+| `on()` | `(event: 'response', listener: (response: FoliumSourceIncomingMessage) => void): this` | `response` with the answer. |
+| `on()` | `(event: 'error', listener: (error: Error) => void): this` | `error` when the request failed. |
+| `on()` | `(event: string, listener: (...args: unknown[]) => void): this` | Electron's other events: `redirect`, `login`, `finish`, `abort`, `close`. |
 
 相关：[FoliumSourceIncomingMessage](#foliumsourceincomingmessage)
 
