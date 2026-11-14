@@ -630,6 +630,7 @@ export default {
     "externalBypassTitle": "Lagu ini diputar di pemutar milik platform",
     "externalBypassBody": "Suaranya tidak melewati Folia, jadi ekualiser dan efek di sini tidak mengubah yang Anda dengar. Pengaturan tetap disimpan dan berlaku untuk lagu lain seperti biasa.",
     "externalReplayGainBypassed": "Diputar di pemutar milik platform; ReplayGain tidak diterapkan",
+    "externalPlayerAdvertisement": "Iklan",
     "externalPlayerFallback": "Pemutar menjawab lewat sesi media sistem: Folia mengendalikannya secara kasar sampai remote debugging kembali",
     "songUnavailableAlternativeTitle": "Versi alternatif tersedia",
     "songUnavailableAlternativeDescription": "\"{{song}}\" tidak tersedia. {{typeDesc}}. Mainkan versi alternatif?",

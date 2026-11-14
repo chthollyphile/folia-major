@@ -87,6 +87,8 @@ export type ExternalPlaybackEvent =
     // did not ask for: that track is taken over by the bridge, and this session ends with it.
     | { type: 'track-changed'; status: ProviderExternalPlaybackStatus }
     // The player fell back to a coarser channel (or came back to its precise one): said once an episode.
+    // An advertisement between songs started (active) or ended: the app says so instead of the song.
+    | { type: 'advertisement'; active: boolean }
     | { type: 'degraded'; active: boolean }
 
 type ExternalSession = {
@@ -98,6 +100,8 @@ type ExternalSession = {
     /** The app has shown this song: only then may the player drive the transport and the shim. */
     announced: boolean;
     playing: boolean;
+    /** The player is sounding an advertisement: no lyric read, and the song's clock stands still. */
+    advertisement: boolean;
     /** The player accepted a start/resume and is still buffering: shown as loading, not paused. */
     starting: boolean;
     /** The position of the last playing answer, to tell real progress from an optimistic flag. */
@@ -311,6 +315,9 @@ export const isExternalRoute = () => usePlaybackStore.getState().playbackRoute =
  * has shown the track and announced it. Before that the old song is still on screen, so observers
  * and the lyric clock must keep using what they used before.
  */
+/** Whether the player is sounding an advertisement of its own between Folia's songs. */
+export const isExternalAdvertisement = () => isExternalPlaybackSounding() && session?.advertisement === true;
+
 export const isExternalPlaybackSounding = () => isExternalRoute() && session?.announced === true;
 
 /** Background reads wait for actual player progress, not an optimistic playing flag. */
@@ -850,7 +857,13 @@ const applyStatus = (status: ProviderExternalPlaybackStatus, sampledAtMs: number
     const previousSample = current.sampledPosition;
     // A late completion belonging to the previous song cannot fill or finish the new session.
     if (!current.announced && !status.mediaId) return;
-    // Told before the song is on screen too: the fallback is about the player rather than the track.
+    // Told before the song is on screen too: an advertisement is not about this song, and the
+    // fallback is about the player rather than the track.
+    const advertisement = status.advertisement === true;
+    if (advertisement !== current.advertisement) {
+        current.advertisement = advertisement;
+        emit({ type: 'advertisement', active: advertisement });
+    }
     const degraded = status.degraded === true;
     if (degraded !== current.degraded) {
         current.degraded = degraded;
@@ -1324,7 +1337,7 @@ export function startExternalPlayback(song: SongResult, startSec = 0, { userActi
         // the first sync after the song is shown asks the player what it holds. Where the start did
         // carry the ask, that sync asks for the same value again and the player, already repeating
         // the track, writes nothing.
-        degraded: false, trackRepeat: null, trackRepeatAsked: false, trackRepeatPending: false, handedOver: false, preparedQueueKey: '', positionRevision: 0, seekPending: false, seekBeforeSec: null, seeking: false, afterSeek: false, seekSettledAtSec: null, seekSettledFromSec: null, seekSettledLandedMs: 0, seekSettledAskedMs: 0, staleReadAtSec: null, staleReadRunningSinceMs: null, staleReadPlayingSinceMs: null, staleReadGivenUp: false, landingHoldSec: null, moveHeldUntilMs: 0, staleReadNoted: false, lastPlayerPositionSec: null, seekCount: 0, seekFollowAtSec: null, seekFollowLandedMs: 0, seekLanded: false, replacedLandingSec: null, replacedLandingAtMs: 0, replaying: false,
+        advertisement: false, degraded: false, trackRepeat: null, trackRepeatAsked: false, trackRepeatPending: false, handedOver: false, preparedQueueKey: '', positionRevision: 0, seekPending: false, seekBeforeSec: null, seeking: false, afterSeek: false, seekSettledAtSec: null, seekSettledFromSec: null, seekSettledLandedMs: 0, seekSettledAskedMs: 0, staleReadAtSec: null, staleReadRunningSinceMs: null, staleReadPlayingSinceMs: null, staleReadGivenUp: false, landingHoldSec: null, moveHeldUntilMs: 0, staleReadNoted: false, lastPlayerPositionSec: null, seekCount: 0, seekFollowAtSec: null, seekFollowLandedMs: 0, seekLanded: false, replacedLandingSec: null, replacedLandingAtMs: 0, replaying: false,
 
     };
     failureNoted = false;
@@ -1465,7 +1478,7 @@ export async function adoptExternalPlayback(song: SongResult): Promise<ExternalT
         announced: false, playing: false, starting: false, sampledPosition: null, prefetchReady: false, live: false, ended: false, foreign: false,
         // The traits are read as the take-over starts and held for the session, as a start holds them:
         // what is followed is the way of playing this song was picked up from.
-        degraded: false, traits: omni.externalPlaybackTraits(song), trackRepeat: null, trackRepeatAsked: false, trackRepeatPending: false, handedOver: false, preparedQueueKey: '', positionRevision: 0, seekPending: false, seekBeforeSec: null, seeking: false, afterSeek: false, seekSettledAtSec: null, seekSettledFromSec: null, seekSettledLandedMs: 0, seekSettledAskedMs: 0, staleReadAtSec: null, staleReadRunningSinceMs: null, staleReadPlayingSinceMs: null, staleReadGivenUp: false, landingHoldSec: null, moveHeldUntilMs: 0, staleReadNoted: false, lastPlayerPositionSec: null, seekCount: 0, seekFollowAtSec: null, seekFollowLandedMs: 0, seekLanded: false, replacedLandingSec: null, replacedLandingAtMs: 0, replaying: false,
+        advertisement: false, degraded: false, traits: omni.externalPlaybackTraits(song), trackRepeat: null, trackRepeatAsked: false, trackRepeatPending: false, handedOver: false, preparedQueueKey: '', positionRevision: 0, seekPending: false, seekBeforeSec: null, seeking: false, afterSeek: false, seekSettledAtSec: null, seekSettledFromSec: null, seekSettledLandedMs: 0, seekSettledAskedMs: 0, staleReadAtSec: null, staleReadRunningSinceMs: null, staleReadPlayingSinceMs: null, staleReadGivenUp: false, landingHoldSec: null, moveHeldUntilMs: 0, staleReadNoted: false, lastPlayerPositionSec: null, seekCount: 0, seekFollowAtSec: null, seekFollowLandedMs: 0, seekLanded: false, replacedLandingSec: null, replacedLandingAtMs: 0, replaying: false,
 
     };
     failureNoted = false;

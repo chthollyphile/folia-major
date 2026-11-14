@@ -630,6 +630,7 @@ export default {
     "externalBypassTitle": "Bài hát này phát trong trình phát riêng của nền tảng",
     "externalBypassBody": "Âm thanh không đi qua Folia, nên bộ cân bằng và hiệu ứng ở đây không thay đổi những gì bạn nghe. Thiết lập vẫn được giữ và áp dụng cho các bài khác như bình thường.",
     "externalReplayGainBypassed": "Phát trong trình phát riêng của nền tảng; không áp dụng ReplayGain",
+    "externalPlayerAdvertisement": "Quảng cáo",
     "externalPlayerFallback": "Trình phát trả lời qua phiên phương tiện của hệ thống: Folia điều khiển thô hơn cho tới khi gỡ lỗi từ xa hoạt động lại",
     "songUnavailableAlternativeTitle": "Có phiên bản thay thế",
     "songUnavailableAlternativeDescription": "\"{{song}}\" không khả dụng. {{typeDesc}}. Phát phiên bản thay thế?",

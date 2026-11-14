@@ -630,6 +630,7 @@ export default {
     "externalBypassTitle": "This song plays in the platform's own player",
     "externalBypassBody": "Its sound does not pass through Folia, so the equalizer and effects here do not change what you hear. The settings are kept and apply to other songs as usual.",
     "externalReplayGainBypassed": "Plays in the platform's own player; no ReplayGain is applied",
+    "externalPlayerAdvertisement": "Advertisement",
     "externalPlayerFallback": "The player answered through the system media session: Folia steers it coarsely until remote debugging is back",
     "songUnavailableAlternativeTitle": "Alternate version available",
     "songUnavailableAlternativeDescription": "\"{{song}}\" is unavailable. {{typeDesc}}. Play an alternate version instead?",
