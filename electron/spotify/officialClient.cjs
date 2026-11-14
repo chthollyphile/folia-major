@@ -2,6 +2,7 @@ const { spawn, execFile } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 const { spotifyError } = require('./errors.cjs');
+const { powershellFileArguments, powershellScriptPath, skipPidsArgument } = require('../powershellScripts.cjs');
 
 // electron/spotify/officialClient.cjs
 // Spotify's own desktop app as the player Folia steers. Spotify gives a free account no audio key
@@ -666,46 +667,10 @@ function statusFromMediaSession(data) {
     };
 }
 
-// Windows' media session, through one PowerShell kept running: it reads one JSON command a line
-// and answers one JSON line. Only what the session offers is asked of it.
-const SMTC_SCRIPT = `
-$ErrorActionPreference = 'Stop'
-Add-Type -AssemblyName System.Runtime.WindowsRuntime
-$asTask = ([System.WindowsRuntimeSystemExtensions].GetMethods() | Where-Object { $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 -and $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncOperation\`1' })[0]
-function Await($op, [Type]$type) { $task = $asTask.MakeGenericMethod($type).Invoke($null, @($op)); $task.Wait(-1) | Out-Null; $task.Result }
-[Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager,Windows.Media.Control,ContentType=WindowsRuntime] | Out-Null
-$manager = Await ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager]::RequestAsync()) ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager])
-while ($true) {
-  $line = [Console]::In.ReadLine()
-  if ($null -eq $line) { break }
-  try {
-    $command = $line | ConvertFrom-Json
-    $session = $manager.GetSessions() | Where-Object { $_.SourceAppUserModelId -match 'Spotify' } | Select-Object -First 1
-    if (-not $session) { [Console]::Out.WriteLine((@{ id = $command.id; ok = $false; error = 'no-session' } | ConvertTo-Json -Compress)); continue }
-    $data = $null
-    switch ($command.op) {
-      'status' {
-        $info = $session.GetPlaybackInfo(); $timeline = $session.GetTimelineProperties()
-        $position = $timeline.Position.TotalMilliseconds
-        if ($info.PlaybackStatus -eq 'Playing') { $position += ([DateTimeOffset]::Now - $timeline.LastUpdatedTime).TotalMilliseconds }
-        $repeat = if ($null -ne $info.AutoRepeatMode) { [int]$info.AutoRepeatMode } else { -1 }
-        $title = ''; $artist = ''
-        try {
-          $props = Await ($session.TryGetMediaPropertiesAsync()) ([Windows.Media.Control.GlobalSystemMediaTransportControlsSessionMediaProperties])
-          if ($props) { $title = [string]$props.Title; $artist = [string]$props.Artist }
-        } catch { }
-        $data = @{ isPaused = ($info.PlaybackStatus -ne 'Playing'); positionMs = [Math]::Max(0, [Math]::Round($position)); durationMs = [Math]::Round($timeline.EndTime.TotalMilliseconds); repeat = $repeat; title = $title; artist = $artist }
-      }
-      'pause' { $data = Await ($session.TryPauseAsync()) ([bool]) }
-      'resume' { $data = Await ($session.TryPlayAsync()) ([bool]) }
-      'seek' { $data = Await ($session.TryChangePlaybackPositionAsync([long]($command.ms * 10000))) ([bool]) }
-    }
-    [Console]::Out.WriteLine((@{ id = $command.id; ok = $true; data = $data } | ConvertTo-Json -Compress))
-  } catch {
-    [Console]::Out.WriteLine((@{ id = $command.id; ok = $false; error = "$_" } | ConvertTo-Json -Compress))
-  }
-}
-`;
+// Windows' media session, run as a file of its own (scripts/mediaSession.ps1): one PowerShell is
+// kept running for the whole of a run, and it reads one JSON command a line and answers one JSON
+// line. Only what the session offers is asked of it.
+const MEDIA_SESSION_SCRIPT = 'scripts/mediaSession.ps1';
 
 // The window of a Spotify this run starts is never on the screen, and only that window is touched.
 //
@@ -720,149 +685,16 @@ while ($true) {
 // 5 ms against 1.4 s before, i.e. under one frame — the taskbar button never has the time to appear.
 //
 // The PIDs already running are skipped: a Spotify the listener opened is not Folia's to tuck away.
-const WINDOW_WATCH_SCRIPT = skipPids => `
-$ErrorActionPreference = 'Stop'
-Add-Type @"
-using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading;
-
-public class FoliaSpotifyWindow
-{
-    delegate void WinEventDelegate(IntPtr hook, uint eventType, IntPtr window, int idObject, int idChild, uint thread, uint time);
-    public delegate bool EnumWindowsDelegate(IntPtr window, IntPtr parameter);
-    [DllImport("user32.dll")] static extern IntPtr SetWinEventHook(uint min, uint max, IntPtr module, WinEventDelegate callback, uint process, uint thread, uint flags);
-    [DllImport("user32.dll")] static extern bool EnumWindows(EnumWindowsDelegate callback, IntPtr parameter);
-    [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int GetClassName(IntPtr window, StringBuilder name, int max);
-    [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr window, out uint pid);
-    [DllImport("user32.dll")] static extern IntPtr GetWindow(IntPtr window, uint command);
-    [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr window);
-    [DllImport("user32.dll")] static extern bool ShowWindow(IntPtr window, int command);
-    [DllImport("user32.dll")] static extern bool PostThreadMessage(uint thread, uint id, IntPtr wParam, IntPtr lParam);
-    [DllImport("user32.dll")] static extern int GetMessage(out Message message, IntPtr window, uint min, uint max);
-    [DllImport("user32.dll")] static extern bool TranslateMessage(ref Message message);
-    [DllImport("user32.dll")] static extern IntPtr DispatchMessage(ref Message message);
-    [DllImport("kernel32.dll")] static extern uint GetCurrentThreadId();
-    [StructLayout(LayoutKind.Sequential)] struct Message { public IntPtr window; public uint id; public IntPtr wParam; public IntPtr lParam; public uint time; public int x; public int y; }
-
-    const uint EVENT_OBJECT_SHOW = 0x8002;
-    const uint WM_QUIT = 0x0012;
-    const uint GW_OWNER = 4;
-    const int SW_HIDE = 0;
-
-    static readonly int[] Skip = new int[] {${skipPids.join(', ')}};
-    static readonly object Decision = new object();
-    // Whether a window belongs to the Spotify this start made never changes for a PID, and the sweep
-    // looks at every window of the desktop: what it decided once, it keeps (a start lasts seconds).
-    static readonly HashSet<int> Ours = new HashSet<int>();
-    static readonly HashSet<int> Theirs = new HashSet<int>();
-    static WinEventDelegate _callback;
-    static uint _pumpThread;
-    static volatile bool _stop;
-    static int _hidden;
-
-    static bool IsOurs(uint pid)
-    {
-        int id = (int)pid;
-        lock (Decision) {
-            if (Ours.Contains(id)) return true;
-            if (Theirs.Contains(id)) return false;
-        }
-        foreach (int skip in Skip) { if (skip == id) return false; }
-        bool ours;
-        try { using (Process process = Process.GetProcessById(id)) { ours = process.ProcessName.StartsWith("Spotify", StringComparison.OrdinalIgnoreCase); } }
-        catch { ours = false; }
-        lock (Decision) { (ours ? Ours : Theirs).Add(id); }
-        return ours;
-    }
-
-    // The song window and nothing else: CEF's own top-level window of a Spotify this start created,
-    // once it is visible. ShowWindow waits for Spotify's thread to take the hide, which is what keeps
-    // the window off the screen rather than off it one frame late.
-    static void Hide(IntPtr window)
-    {
-        if (window == IntPtr.Zero) return;
-        if (GetWindow(window, GW_OWNER) != IntPtr.Zero) return;
-        StringBuilder name = new StringBuilder(256);
-        GetClassName(window, name, 256);
-        if (!name.ToString().StartsWith("Chrome_WidgetWin_1", StringComparison.Ordinal)) return;
-        uint pid;
-        GetWindowThreadProcessId(window, out pid);
-        if (!IsOurs(pid)) return;
-        if (!IsWindowVisible(window)) return;
-        ShowWindow(window, SW_HIDE);
-        Interlocked.Increment(ref _hidden);
-        Console.Out.WriteLine("HIDDEN " + window.ToInt64() + " " + pid);
-        Console.Out.Flush();
-    }
-
-    // The hook runs on the thread that shows the window, so it takes no lock the sweep could be holding:
-    // waiting for a sweep to walk the desktop would be the frame this hide exists to win.
-    static void OnShow(IntPtr hook, uint eventType, IntPtr window, int idObject, int idChild, uint thread, uint time)
-    {
-        if (idObject != 0) return;
-        Hide(window);
-    }
-
-    // The hook covers the show itself; this covers a window that is created visible, which sends no
-    // show of its own.
-    static void Sweep()
-    {
-        while (!_stop)
-        {
-            EnumWindows(delegate(IntPtr window, IntPtr parameter) { Hide(window); return true; }, IntPtr.Zero);
-            Thread.Sleep(20);
-        }
-    }
-
-    static void Expire(int milliseconds)
-    {
-        Thread.Sleep(milliseconds);
-        _stop = true;
-        PostThreadMessage(_pumpThread, WM_QUIT, IntPtr.Zero, IntPtr.Zero);
-    }
-
-    public static void Run(int lifetimeMs)
-    {
-        _pumpThread = GetCurrentThreadId();
-        Thread sweep = new Thread(delegate() { Sweep(); });
-        sweep.IsBackground = true;
-        sweep.Start();
-        Thread expiry = new Thread(delegate() { Expire(lifetimeMs); });
-        expiry.IsBackground = true;
-        expiry.Start();
-        _callback = new WinEventDelegate(OnShow);
-        SetWinEventHook(EVENT_OBJECT_SHOW, EVENT_OBJECT_SHOW, IntPtr.Zero, _callback, 0, 0, 0);
-        Console.Out.WriteLine("ARMED");
-        Console.Out.Flush();
-        Message message;
-        while (!_stop && GetMessage(out message, IntPtr.Zero, 0, 0) > 0)
-        {
-            TranslateMessage(ref message);
-            DispatchMessage(ref message);
-        }
-    }
-}
-"@
-[FoliaSpotifyWindow]::Run(${WATCH_LIFETIME_MS})
-`;
+// The watcher is a file of its own (scripts/windowWatch.ps1): it is armed before Spotify is run, so
+// its hook is in place before the first window can be shown, and it is told which PIDs were already
+// running and how long it may live.
+const WINDOW_WATCH_SCRIPT = 'scripts/windowWatch.ps1';
 
 // The fallback for a start whose watcher did not run: the main window of a Spotify that was not there
 // before the start is hidden without activation (SW_HIDE). It leaves the taskbar, the Spotify tray
 // icon restores it, and nothing is closed. A window already in the tray has no handle (MainWindowHandle
 // is 0 for a hidden window) and is left alone, and so is a Spotify that was there before this start.
-const WINDOW_SWEEP_SCRIPT = skipPids => `
-$ErrorActionPreference = 'Stop'
-Add-Type -Namespace Folia -Name SpotifyWin -MemberDefinition '[DllImport("user32.dll")] public static extern bool ShowWindow(System.IntPtr hWnd, int nCmdShow);'
-$skip = @(${skipPids.join(', ')})
-foreach ($p in Get-Process -Name Spotify -ErrorAction SilentlyContinue) {
-  if ($skip -contains $p.Id) { continue }
-  if ($p.MainWindowHandle -ne [System.IntPtr]::Zero) { [Folia.SpotifyWin]::ShowWindow($p.MainWindowHandle, 0) | Out-Null }
-}
-`;
+const WINDOW_SWEEP_SCRIPT = 'scripts/windowSweep.ps1';
 // The flag Spotify's own start-up entry uses to start in the tray rather than with a window. Spotify
 // ignores it as it ignores STARTUPINFO's SW_HIDE (measured, above); it stays because it asks for what
 // Folia wants and a build that honours it saves the hide.
@@ -1041,7 +873,7 @@ const HELPER_RETRY_MS = Object.freeze([20000, 60000, 300000]);
 // helper that could not be started is not started again at once: each start that failed in a row
 // pushes the next one further out, and one answer clears it. A PowerShell this computer does
 // not have would otherwise be spawned once per status read.
-function createMediaSession({ spawnProcess, warn, shellPath = 'powershell.exe', now = Date.now }) {
+function createMediaSession({ spawnProcess, warn, scriptPath, shellPath = 'powershell.exe', now = Date.now }) {
     let child = null;
     let buffer = '';
     let nextId = 0;
@@ -1075,9 +907,9 @@ function createMediaSession({ spawnProcess, warn, shellPath = 'powershell.exe', 
     };
 
     const start = () => {
-    // The script goes in as -EncodedCommand (UTF-16LE, base64), so stdin carries the commands only.
-        const encoded = Buffer.from(SMTC_SCRIPT, 'utf16le').toString('base64');
-        const proc = spawnProcess(shellPath, ['-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', encoded], { windowsHide: true, stdio: ['pipe', 'pipe', 'ignore'] });
+        // The helper is a file of the repository run with -File: its standard input carries the
+        // commands only, and nothing of the script is written on the command line.
+        const proc = spawnProcess(shellPath, powershellFileArguments(scriptPath), { windowsHide: true, stdio: ['pipe', 'pipe', 'ignore'] });
         buffer = '';
         proc.stdout.setEncoding('utf8');
         proc.stdout.on('data', chunk => {
@@ -1317,7 +1149,12 @@ function createSpotifyOfficialClient({
     const spotifyInstalled = () => platform === 'win32' && Boolean(findLauncher(env));
 
     const page = createPageConnection({ fetch, portOf: () => findPort() });
-    const mediaSession = platform === 'win32' ? createMediaSession({ spawnProcess, warn, shellPath: systemTool('WindowsPowerShell\\v1.0\\powershell.exe') }) : null;
+    const mediaSession = platform === 'win32'
+        ? createMediaSession({
+            spawnProcess, warn, shellPath: systemTool('WindowsPowerShell\\v1.0\\powershell.exe'),
+            scriptPath: powershellScriptPath(__dirname, MEDIA_SESSION_SCRIPT),
+        })
+        : null;
     let starting = null;
     let failedStartAt = 0;
     let fallbackNoted = false;
@@ -1372,12 +1209,13 @@ function createSpotifyOfficialClient({
     // whether it really armed is what its own ARMED line says (a watcher that could not start is not
     // waited for).
     const armWindowWatch = skipPids => {
-        const encoded = Buffer.from(WINDOW_WATCH_SCRIPT(skipPids), 'utf16le').toString('base64');
         let settle = () => {};
         let settled = false;
         const armed = new Promise(resolve => { settle = value => { if (settled) return; settled = true; resolve(value); }; });
         let buffer = '';
-        const child = spawnProcess(systemTool('WindowsPowerShell\\v1.0\\powershell.exe'), ['-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', encoded], { windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] });
+        const child = spawnProcess(systemTool('WindowsPowerShell\\v1.0\\powershell.exe'), powershellFileArguments(powershellScriptPath(__dirname, WINDOW_WATCH_SCRIPT), {
+            SkipPids: skipPidsArgument(skipPids), LifetimeMs: WATCH_LIFETIME_MS,
+        }), { windowsHide: true, stdio: ['ignore', 'pipe', 'ignore'] });
         child.stdout?.setEncoding?.('utf8');
         child.stdout?.on?.('data', chunk => {
             buffer += chunk;
@@ -1401,8 +1239,9 @@ function createSpotifyOfficialClient({
 
     // Best effort, bounded: a window that cannot be hidden is no reason to fail a start.
     const sweepSpotifyWindows = skipPids => new Promise(resolve => {
-        const encoded = Buffer.from(WINDOW_SWEEP_SCRIPT(skipPids), 'utf16le').toString('base64');
-        runFile(systemTool('WindowsPowerShell\\v1.0\\powershell.exe'), ['-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', encoded], { windowsHide: true, timeout: SWEEP_LIMIT_MS }, error => {
+        runFile(systemTool('WindowsPowerShell\\v1.0\\powershell.exe'), powershellFileArguments(powershellScriptPath(__dirname, WINDOW_SWEEP_SCRIPT), {
+            SkipPids: skipPidsArgument(skipPids),
+        }), { windowsHide: true, timeout: SWEEP_LIMIT_MS }, error => {
             // Only a sweep that could not run at all is worth a word: it is the fallback for a window the
             // watcher let through, and there is nothing else to try.
             if (error) warn('[SpotifyClient] the Spotify window could not be hidden into the tray', error);

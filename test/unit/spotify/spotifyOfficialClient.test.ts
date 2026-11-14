@@ -266,13 +266,19 @@ const makeClient = (options: ClientOptions = {}) => {
         platform: 'win32', env, fetch, spawnProcess, runFile, waitFor, log, warn,
         port: options.port ?? 9283, restartConsented: () => consent.value,
     });
-    // The script a PowerShell was started with: -EncodedCommand is UTF-16LE in base64.
-    const scriptOf = (args: string[]) => Buffer.from(String(args[args.indexOf('-EncodedCommand') + 1] ?? ''), 'base64').toString('utf16le');
+    // The script a PowerShell was started with: the file it was given as -File, read from the
+    // repository. Nothing of a script is written on a command line any more.
+    const scriptOf = (args: string[]) => {
+        const at = args.indexOf('-File');
+        return at < 0 ? '' : readFileSync(String(args[at + 1]), 'utf8');
+    };
+    // The script file a PowerShell was given, as the folder and name the test knows it by.
+    const scriptNameOf = (args: string[]) => String(args[args.indexOf('-File') + 1] ?? '').split(/[\\/]/).pop() ?? '';
     const powershellSpawns = () => (spawnProcess.mock.calls as unknown as [string, string[]][])
         .filter(call => /powershell\.exe$/i.test(String(call[0])));
-    // The window watcher of a start is a PowerShell of its own (WINDOW_WATCH_SCRIPT), not a helper.
-    const watchSpawns = () => powershellSpawns().filter(call => scriptOf(call[1]).includes('FoliaSpotifyWindow'));
-    const helperSpawns = () => powershellSpawns().filter(call => !scriptOf(call[1]).includes('FoliaSpotifyWindow')).length;
+    // The window watcher of a start is a PowerShell of its own (windowWatch.ps1), not a helper.
+    const watchSpawns = () => powershellSpawns().filter(call => scriptNameOf(call[1]) === 'windowWatch.ps1');
+    const helperSpawns = () => powershellSpawns().filter(call => scriptNameOf(call[1]) === 'mediaSession.ps1').length;
     const spotifySpawns = () => spawned.filter(file => !/powershell\.exe$/i.test(file)).length;
     const taskkills = () => runFile.mock.calls.filter(call => String(call[0]).includes('taskkill')).length;
     const tasklists = () => runFile.mock.calls.filter(call => String(call[0]).includes('tasklist')).length;
@@ -2062,8 +2068,11 @@ describe('how Folia raises Spotify: in the tray, out of the way', () => {
         expect(script).toContain('Chrome_WidgetWin_1');
         // Hidden, never closed: the tray icon still restores it.
         expect(script).not.toContain('CloseWindow');
-        // Nothing was running before this start, so every Spotify window it can see is the one it made.
-        expect(script).toContain('new int[] {}');
+        // Nothing was running before this start, so every Spotify window it can see is the one it made:
+        // the PIDs that are not to be touched are a parameter, and here it is empty.
+        const watcherArgs = calls[watchIndex][1];
+        expect(watcherArgs[watcherArgs.indexOf('-SkipPids') + 1]).toBe('');
+        expect(watcherArgs[watcherArgs.indexOf('-LifetimeMs') + 1]).toBe('60000');
         await app.client.close();
     });
 
@@ -2097,9 +2106,10 @@ describe('how Folia raises Spotify: in the tray, out of the way', () => {
         await expect(app.client.launch()).resolves.toBe(true);
         // A Spotify was running before this start (the mock's 1234): its window is the listener's to keep,
         // and both the watcher and the fallback sweep are told so.
-        const watch = app.scriptOf(app.watchSpawns()[0]?.[1] as string[]);
-        expect(watch).toContain('new int[] {1234}');
-        expect(app.scriptOf(sweeps(app)[0]?.[1] as string[])).toContain('$skip = @(1234)');
+        const watchArgs = app.watchSpawns()[0]?.[1];
+        expect(watchArgs[watchArgs.indexOf('-SkipPids') + 1]).toBe('1234');
+        const sweepArgs = sweeps(app)[0]?.[1] as string[];
+        expect(sweepArgs[sweepArgs.indexOf('-SkipPids') + 1]).toBe('1234');
         await app.client.close();
     });
 

@@ -1,6 +1,7 @@
 const childProcess = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
+const { powershellFileArguments, powershellScriptPath } = require('../powershellScripts.cjs');
 
 // electron/ytm/browserSignIn.cjs
 // Google refuses a sign-in typed into an Electron window, so the person signs in to YouTube Music
@@ -75,10 +76,9 @@ const LIST_LIMIT_MS = 10000;
 const ENDED_LIMIT_MS = 2000;
 const ENDED_CHECK_MS = 100;
 // Windows: the processes whose command line holds the folder, one a line as "<id> <command line>".
-// The folder is read from an environment variable and is no part of this text.
-const LIST_ON_WINDOWS = '[Console]::OutputEncoding = [Text.Encoding]::UTF8; Get-CimInstance Win32_Process'
-  + ' | Where-Object { $_.CommandLine -and $_.CommandLine.Contains($env:FOLIA_SIGN_IN_FOLDER) }'
-  + ' | ForEach-Object { [string]$_.ProcessId + [char]32 + $_.CommandLine }';
+// The list is a script file of the repository (scripts/listProcesses.ps1), run with -File. The folder
+// is read from an environment variable and is no part of that command line.
+const LIST_ON_WINDOWS = 'scripts/listProcesses.ps1';
 
 // In the order they are looked for: the four stable browsers, then Chrome's other channels, then
 // Helium. `name` is what the log calls it. `win` is the path under a programs folder, and
@@ -501,7 +501,7 @@ function createBrowserSignIn({
   const processesNaming = dir => new Promise((resolve, reject) => {
     const [file, args, extra] = platform === 'win32'
       ? [path.win32.join(env.SystemRoot ?? 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'),
-        ['-NoProfile', '-NonInteractive', '-Command', LIST_ON_WINDOWS], { env: { ...env, FOLIA_SIGN_IN_FOLDER: dir } }]
+        powershellFileArguments(powershellScriptPath(__dirname, LIST_ON_WINDOWS)), { env: { ...env, FOLIA_SIGN_IN_FOLDER: dir } }]
       : ['/bin/ps', ['-axww', '-o', 'pid=,command='], {}];
     execFile(file, args, { ...extra, windowsHide: true, timeout: LIST_LIMIT_MS, maxBuffer: 32 * 1024 * 1024 }, (error, stdout) => {
       if (error) reject(error);
