@@ -74,8 +74,6 @@ const { createSenderGuardedHandler } = require('./ipcAccessGuard.cjs');
 const { createQishuiApiBridge } = require('./qishui/qishuiApiBridge.cjs');
 const { createFnmusicApiBridge, FN_MUSIC_SCHEME, FN_MUSIC_PRIVILEGED_SCHEME } = require('./fnmusic/fnmusicApiBridge.cjs');
 const { createQishuiMediaPolicy } = require('./qishui/mediaCors.cjs');
-const { createBodianApiBridge } = require('../sources/bodian/main/bodianApiBridge.cjs');
-const { createBodianMediaPolicy } = require('../sources/bodian/main/mediaCors.cjs');
 const { createYtmApiBridge } = require('./ytm/ytmApiBridge.cjs');
 const { createCompanionClient } = require('./appleMusic/companionClient.cjs');
 const { createCompanionRequestHandler } = require('./appleMusic/companionIpc.cjs');
@@ -386,15 +384,6 @@ const qishuiMediaPolicy = createQishuiMediaPolicy();
 const fnMusicApiBridge = createFnmusicApiBridge({ store, safeStorage });
 const qishuiApiBridge = createQishuiApiBridge({ store, safeStorage, fetch: (url, options) => electronNet.fetch(url, options),
   onAudioSource: url => qishuiMediaPolicy.register(url),
-});
-const bodianMediaPolicy = createBodianMediaPolicy();
-const bodianApiBridge = createBodianApiBridge({ store, safeStorage,
-  onAudioSource: url => bodianMediaPolicy.register(url),
-  requestFactory: (options, onResponse) => {
-    const request = electronNet.request(options);
-    request.on('response', onResponse);
-    return request;
-  },
 });
 // YouTube Music talks to Google from its own network partition and without a cookie jar: the
 // account is carried by a request header, and stored cookies would tie the guest sessions to it.
@@ -3885,8 +3874,7 @@ function setupCorsBypassHandlers() {
         hostname === 'y.gtimg.cn' ||
         hostname === 'kugou.com' ||
         hostname.endsWith('.kugou.com') ||
-        // Bodian audio and cover CDNs may omit CORS headers needed by Web Audio and canvas/WebGL.
-        bodianMediaPolicy.allows(details) || qishuiMediaPolicy.allows(details) ||
+        qishuiMediaPolicy.allows(details) ||
         // Folium 2.0: the rules source mods register with api.media.allow (electron/modSystem/mediaRules.cjs).
         Boolean(modSystem?.mediaRules.allows(details));
     } catch (error) {
@@ -3904,7 +3892,6 @@ function setupCorsBypassHandlers() {
   });
 
   ses.webRequest.onBeforeRedirect(details => {
-    bodianMediaPolicy.followRedirect(details);
     qishuiMediaPolicy.followRedirect(details);
     modSystem?.mediaRules.followRedirect(details);
   });
@@ -7428,7 +7415,7 @@ const { diagnostics: loginDiagnostics } = registerLoginBackendIpc({
 // and params verbatim, so it is a write-capable surface rather than a read-only one; the bridge keeps
 // its own operation allowlist, so what this guard adds is the caller surface. Trusted here means the
 // two first-party windows - the main window and the remote-control window, which runs the same app
-// and therefore the same online providers. `bodian-api-request` below gates the same way.
+// and therefore the same online providers.
 //
 // Boundary, stated plainly: comparing webContents identity rejects other windows (a popup opened with
 // window.open carries the same preload). It cannot stop script already running inside a trusted
@@ -7478,12 +7465,6 @@ ipcMain.handle('fnmusic-api-request', createSenderGuardedHandler({
 // 状态查询走异步 fnmusic-api-request('getStatus')，不再用 sendSync 同步 IPC（避免渲染主线程
 // 阻塞在 safeStorage 解密上；本地代理已删除，注释里"要同步拿本地代理端口"的前提已不存在）。
 
-ipcMain.handle('bodian-api-request', (event, operation, params) => {
-  if (!isTrustedMainWindowContents(event.sender)) {
-    return { ok: false, error: { code: 'unavailable', message: 'Untrusted Bodian request' } };
-  }
-  return bodianApiBridge.request(operation, params);
-});
 ipcMain.handle('ytm-api-request', (event, operation, params) => {
   if (!isTrustedMainWindowContents(event.sender)) {
     return { ok: false, error: { code: 'unavailable', message: 'Untrusted YouTube Music request' } };

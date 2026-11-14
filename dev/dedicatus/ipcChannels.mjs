@@ -22,7 +22,6 @@ export const IPC_CHANNELS = {
     'automix-htdemucs': { level: 'first-party', why: '跑分离模型，占 CPU/GPU（宿主注入的来源校验）' },
     'automix-models-present': { level: 'any', why: '只读模型文件在不在' },
     'background-throttling-get': { level: 'first-party', why: '只回主窗口，别处回受限值（内联校验）' },
-    'bodian-api-request': { level: 'first-party', why: '现状：有来源校验' },
     'choose-cache-directory': { level: 'first-party', why: '改缓存目录（firstParty）' },
     'clear-audio-cache': { level: 'first-party', why: '清空音频缓存（firstParty）' },
     'clear-cover-cache': { level: 'first-party', why: '清空封面缓存（firstParty）' },
