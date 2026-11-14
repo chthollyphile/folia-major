@@ -22,6 +22,7 @@ const omniMock = vi.hoisted(() => ({
     resumeExternalPlayback: vi.fn(async () => {}),
     seekExternalPlayback: vi.fn(async () => {}),
     setExternalPlaybackVolume: vi.fn(async () => {}),
+    setExternalPlaybackRepeatOne: vi.fn(async () => {}),
     setExternalTrackRepeat: vi.fn(async () => undefined),
     getExternalPlaybackStatus: vi.fn(async () => ({ mediaId: '', isPlaying: false, positionMs: 0, durationMs: 0, ended: false }) as ProviderExternalPlaybackStatus),
     isExternalPlaybackStatusForSong: vi.fn((song: SongResult, status: ProviderExternalPlaybackStatus) => (

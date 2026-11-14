@@ -25,6 +25,7 @@ const omniMock = vi.hoisted(() => {
         resumeExternalPlayback: vi.fn(async () => {}),
         seekExternalPlayback: vi.fn(async () => {}),
         setExternalPlaybackVolume: vi.fn(async () => {}),
+        setExternalPlaybackRepeatOne: vi.fn(async () => {}),
         setExternalTrackRepeat: vi.fn(async (): Promise<ExternalTrackRepeatAnswer | null | undefined> => undefined),
         getExternalPlaybackStatus: vi.fn(async (): Promise<ProviderExternalPlaybackStatus> => ({
             mediaId: '123', isPlaying: true, positionMs: 5000, durationMs: 200000, ended: false,
