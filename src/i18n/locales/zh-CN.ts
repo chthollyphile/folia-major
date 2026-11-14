@@ -1779,6 +1779,8 @@ export default {
     "noAudio": "{{provider}}未返回音频",
     "audioUnplayable": "音频无法播放",
     "refused": "请求被{{provider}}拒绝",
+    "mutationUnsupported": "{{provider}}不支持对这首歌这样操作",
+    "withReason": "{{action}}：{{reason}}",
     "noteCheckNetwork": "请检查网络",
     "noteRestartApp": "请重启 Folia",
     "noteRetryLater": "请稍后重试",

@@ -6,7 +6,7 @@ import { OnlineProviderError } from '../../../types/onlineMusic';
 import { parseLyricsByFormat } from '../../../utils/lyrics/parserCore';
 import { hasRenderableLyrics } from '../../../utils/lyrics/validity';
 import {
-    APPLE_MUSIC_LIBRARY_PLAYLIST_ID, getAppleMusicCatalogPage, getAppleMusicLibraryAlbums, getAppleMusicLibrarySongs, getAppleMusicLibraryAlbumTracks, getAppleMusicPersonalFm, canAddToAppleMusicPlaylist, updateAppleMusicPlaylistTracks, appleMusicSongLikeId, getAppleMusicLikedSongIds, setAppleMusicSongLiked, appleMusicCatalogSongId, isAppleMusicSongPlayable, getAppleMusicPlaylists, getAppleMusicPlaylistTracks, getAppleMusicTtml, searchAppleMusic,
+    APPLE_MUSIC_LIBRARY_PLAYLIST_ID, getAppleMusicCatalogPage, getAppleMusicLibraryAlbums, getAppleMusicLibrarySongs, getAppleMusicLibraryAlbumTracks, getAppleMusicPersonalFm, canAddToAppleMusicPlaylist, updateAppleMusicPlaylistTracks, appleMusicSongLikeId, getAppleMusicLikedSongIds, setAppleMusicSongLiked, appleMusicCatalogSongId, appleMusicPlaybackSongId, isAppleMusicLibraryPlaybackId, isAppleMusicSongPlayable, getAppleMusicPlaylists, getAppleMusicPlaylistTracks, getAppleMusicTtml, searchAppleMusic,
 } from './appleMusicData';
 import { appleMusicLiveStationId, getAppleMusicLiveStations, getAppleMusicLiveStationTracks } from './appleMusicRadio';
 import { getAppleMusicLyricSearchAlias } from './appleMusicOriginal';
@@ -220,24 +220,28 @@ export function createAppleMusicProvider(getAvailability: () => ProviderAvailabi
         // it is word-level, the automatic pick must not replace it with another source's.
         lyrics: { getLyrics: readLyrics, getSearchAlias: getAppleMusicLyricSearchAlias, prefersOwnWordByWord: true },
         // Apple's audio never leaves its page: these calls steer the companion's MusicKit player.
-        // A library song is played by its catalog id, which the companion puts in the queue.
+        // A library song is played by its catalog id, which the companion puts in the queue; an upload
+        // with no catalog counterpart is played by its library id (`appleMusicPlaybackSongId`).
         externalPlayback: {
             canPlay: song => Boolean(appleMusicLiveStationId(song)) || isAppleMusicSongPlayable(song),
             isPrepared(song) {
                 try {
-                    const id = appleMusicCatalogSongId(song);
+                    const id = appleMusicPlaybackSongId(song);
                     return handoffId === id || Boolean(playback?.hasPlayed && playback.nativeNextId === id);
                 } catch { return false; }
             },
             async prepareNext(song, upcoming) {
                 if (appleMusicLiveStationId(song)) return;
                 const attempt = playback;
-                if (!attempt || attempt.catalogId !== appleMusicCatalogSongId(song)) return;
+                if (!attempt || attempt.catalogId !== appleMusicPlaybackSongId(song)) return;
                 const ids: string[] = [];
                 for (const next of upcoming.slice(0, 2)) {
                     if (!isAppleMusicSongPlayable(next)) continue;
                     try {
-                        const id = appleMusicCatalogSongId(next);
+                        const id = appleMusicPlaybackSongId(next);
+                        // An upload is not put in the prepared tail: whether MusicKit's playLater takes a
+                        // library id beside catalog ids is unverified, so it starts through playSong instead.
+                        if (isAppleMusicLibraryPlaybackId(id)) break;
                         if (id === attempt.catalogId || ids.includes(id)) break;
                         ids.push(id);
                     } catch { break; }
@@ -270,7 +274,7 @@ export function createAppleMusicProvider(getAvailability: () => ProviderAvailabi
                 if (!isAppleMusicSongPlayable(song)) {
                     throw new OnlineProviderError('not-playable', 'Apple Music cannot stream this song in the current route', 'appleMusic', 'playback-unavailable');
                 }
-                const catalogId = appleMusicCatalogSongId(song);
+                const catalogId = appleMusicPlaybackSongId(song);
                 const seconds = Math.max(0, Math.min(startSec, 604800));
                 const adoptCurrent = handoffId === catalogId && seconds === 0;
                 handoffId = null;
@@ -299,7 +303,7 @@ export function createAppleMusicProvider(getAvailability: () => ProviderAvailabi
                     return;
                 }
                 liveStationId = null;
-                playback = { catalogId: appleMusicCatalogSongId(song), hasPlayed: true, durationMs: 0, positionMs: 0, nextIds: [], nativeNextId: '', queueRevision: 0 };
+                playback = { catalogId: appleMusicPlaybackSongId(song), hasPlayed: true, durationMs: 0, positionMs: 0, nextIds: [], nativeNextId: '', queueRevision: 0 };
             },
             async pause() {
                 await requestAppleMusic('pause');
@@ -330,7 +334,7 @@ export function createAppleMusicProvider(getAvailability: () => ProviderAvailabi
                 const attempt = playback;
                 const data = await requestAppleMusic<unknown>('playbackStatus');
                 let status = externalStatus(data);
-                if (attempt && playback === attempt && attempt.catalogId === (appleMusicLiveStationId(song) || appleMusicCatalogSongId(song))) {
+                if (attempt && playback === attempt && attempt.catalogId === (appleMusicLiveStationId(song) || appleMusicPlaybackSongId(song))) {
                     if (status.mediaId === attempt.catalogId) {
                         attempt.hasPlayed ||= status.isPlaying;
                         if (status.durationMs > 0) attempt.durationMs = status.durationMs;
@@ -363,10 +367,10 @@ export function createAppleMusicProvider(getAvailability: () => ProviderAvailabi
                 }
                 return status;
             },
-            // The companion reports the catalog id it was given, so a library song matches too.
+            // The companion reports the catalog id it was given (an upload: its library id), so a library song matches too.
             isStatusForSong(song, status) {
                 try {
-                    return status.mediaId === (appleMusicLiveStationId(song) || appleMusicCatalogSongId(song));
+                    return status.mediaId === (appleMusicLiveStationId(song) || appleMusicPlaybackSongId(song));
                 } catch {
                     return false;
                 }

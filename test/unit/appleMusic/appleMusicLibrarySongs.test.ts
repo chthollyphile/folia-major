@@ -81,7 +81,7 @@ describe('Apple Music virtual library playlist', () => {
         expect(call).toHaveBeenCalledWith('v1/me/library/playlists/p.normal/tracks', { limit: 10, offset: 0 });
     });
 
-    it('keeps library identity separate from catalog mapping and retains unplayable uploads', async () => {
+    it('keeps library identity separate from catalog mapping and plays uploads by their library id', async () => {
         installBridge(() => ({ data: [rawSong('i.mapped', '123'), rawSong('i.upload')] }));
         const adapter = provider();
         const page = await adapter.catalog!.getPlaylistTracks!(LIBRARY_ID, 20, 0);
@@ -90,8 +90,57 @@ describe('Apple Music virtual library playlist', () => {
         expect(page.items[1].sourceRef).toMatchObject({ kind: 'online', providerId: 'appleMusic', mediaId: 'i.upload', providerData: { resourceType: 'library-songs' } });
         expect(page.items[1].sourceRef?.kind === 'online' && page.items[1].sourceRef.providerData?.catalogId).toBeUndefined();
         expect(adapter.externalPlayback!.canPlay!(page.items[0])).toBe(true);
-        expect(adapter.externalPlayback!.canPlay!(page.items[1])).toBe(false);
+        expect(adapter.externalPlayback!.canPlay!(page.items[1])).toBe(true);
         expect(page.nextOffset).toBe(2);
+    });
+
+    // An iTunes upload has no catalog song: it plays and is liked by its library id, its status matches
+    // by that id, and lyrics (catalog-only) still refuse it.
+    it('steers the companion by an upload\'s library id and follows its status', async () => {
+        const { bridge } = installBridge(() => ({ data: [rawSong('i.upload')] }));
+        const adapter = provider();
+        const [upload] = (await adapter.catalog!.getPlaylistTracks!(LIBRARY_ID, 20, 0)).items;
+        bridge.mockImplementation(async (operation: string) => operation === 'playbackStatus'
+            ? { ok: true, data: { itemId: 'i.upload', catalogId: '', isPlaying: true, state: 2, positionMs: 1000, durationMs: 200000 } }
+            : { ok: true, data: {} });
+        const external = adapter.externalPlayback!;
+        await external.play(upload, 0);
+        expect(bridge).toHaveBeenCalledWith('playSong', expect.objectContaining({ catalogId: 'i.upload' }));
+        const status = await external.getStatus(upload);
+        expect(status).toMatchObject({ mediaId: 'i.upload', isPlaying: true });
+        expect(external.isStatusForSong(upload, status)).toBe(true);
+        await expect(adapter.lyrics!.getLyrics(upload)).rejects.toMatchObject({ code: 'unsupported' });
+        await adapter.mutations!.likeSong!(upload, true);
+        expect(bridge).toHaveBeenLastCalledWith('likeSong', { catalogId: 'i.upload', liked: true });
+    });
+
+    // A mapped library song keeps playing by its catalog id; an upload next in line is left out of the
+    // prepared tail and starts through playSong; a wrong-form playbackId falls back to the row's own id.
+    it('keeps mapped songs on their catalog id and leaves uploads out of the prepared tail', async () => {
+        const { bridge } = installBridge(() => ({ data: [rawSong('i.mapped', '123'), rawSong('i.upload'), rawSong('i.next', '456')] }));
+        const adapter = provider();
+        const [mapped, upload, next] = (await adapter.catalog!.getPlaylistTracks!(LIBRARY_ID, 20, 0)).items;
+        bridge.mockImplementation(async (operation: string) => operation === 'playbackStatus'
+            ? { ok: true, data: { itemId: 'i.mapped', catalogId: '123', isPlaying: true, state: 2, positionMs: 1000, durationMs: 200000 } }
+            : { ok: true, data: {} });
+        const external = adapter.externalPlayback!;
+        await external.play(mapped, 0);
+        expect(bridge).toHaveBeenCalledWith('playSong', expect.objectContaining({ catalogId: '123' }));
+        expect(external.isStatusForSong(mapped, await external.getStatus(mapped))).toBe(true);
+        await external.prepareNext!(mapped, [upload, next]);
+        expect(bridge).toHaveBeenCalledWith('prepareNext', { catalogId: '123', nextIds: [] });
+        await external.play(upload, 0);
+        await external.prepareNext!(upload, [next]);
+        expect(bridge).toHaveBeenCalledWith('prepareNext', { catalogId: 'i.upload', nextIds: ['456'] });
+        const oddPlaybackId = { ...upload, sourceRef: { ...upload.sourceRef!, providerData: { resourceType: 'library-songs', playbackId: 'x' } } } as typeof upload;
+        expect(adapter.externalPlayback!.canPlay!(oddPlaybackId)).toBe(true);
+    });
+
+    it('does not play a library row whose id is not a library song id', () => {
+        const adapter = provider();
+        const odd = { id: 'x', name: 'x', artists: [], album: { id: '', name: '' }, durationMs: 0,
+            sourceRef: { kind: 'online' as const, providerId: 'appleMusic', mediaId: 'l.album', providerData: { resourceType: 'library-songs' } } };
+        expect(adapter.externalPlayback!.canPlay!(odd)).toBe(false);
     });
 
     it('assembles a caller page from bounded raw pages using each upstream cursor', async () => {

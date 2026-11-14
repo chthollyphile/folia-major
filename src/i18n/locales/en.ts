@@ -1779,6 +1779,8 @@ export default {
     "noAudio": "{{provider}} returned no audio",
     "audioUnplayable": "The audio cannot be played",
     "refused": "Request refused by {{provider}}",
+    "mutationUnsupported": "{{provider}} does not support this for this song",
+    "withReason": "{{action}}: {{reason}}",
     "noteCheckNetwork": "Check your network",
     "noteRestartApp": "Restart Folia",
     "noteRetryLater": "Try again later",

@@ -1,6 +1,7 @@
 'use strict';
 
-// Serialized into the Apple page: recheck edit permission, then append catalog songs once.
+// Serialized into the Apple page: recheck edit permission, then append the songs once. A catalog song goes in
+// by its catalog id; an upload, which has no catalog song, goes in as the library song it is (`i.` id).
 async function addPlaylistTracks(call, params) {
     const failure = result => {
         const status = Number(result?.status);
@@ -18,12 +19,15 @@ async function addPlaylistTracks(call, params) {
             return { ok: false, error: 'unsupported' };
         }
         const result = await call(path + '/tracks', { representation: 'resources' }, {
-            fetchOptions: { method: 'POST', body: JSON.stringify({ data: params.catalogIds.map(id => ({ id, type: 'songs' })) }) },
+            fetchOptions: { method: 'POST', body: JSON.stringify({ data: params.catalogIds.map(id => ({ id, type: id.startsWith('i.') ? 'library-songs' : 'songs' })) }) },
         });
         if (!succeeded(result)) return failure(result);
         return { ok: true, data: {} };
-    } catch {
-        // Never retry an append automatically: the server may already have accepted it.
+    } catch (error) {
+        // Never retry an append automatically: the server may already have accepted it. MusicKit may throw
+        // Apple's refusal rather than return it: one that carries a status is a refusal, not a lost request.
+        const status = [error?.status, error?.response?.status, error?.data?.status].find(value => typeof value === 'number');
+        if (Number.isInteger(status)) return failure({ status });
         return { ok: false, error: 'request-failed' };
     }
 }
