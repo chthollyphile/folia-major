@@ -959,11 +959,6 @@
       "count": 1
     }
   },
-  "electron/modSystem/modSystem.cjs": {
-    "no-unused-vars": {
-      "count": 1
-    }
-  },
   "electron/modSystem/safeStart.cjs": {
     "no-useless-assignment": {
       "count": 1
@@ -2252,7 +2247,7 @@
   },
   "src/components/app/playback/start/useLibraryPlaybackController.ts": {
     "@stylistic/indent": {
-      "count": 7
+      "count": 2
     },
     "@typescript-eslint/no-deprecated": {
       "count": 6
@@ -2261,7 +2256,7 @@
       "count": 2
     },
     "@typescript-eslint/no-unnecessary-condition": {
-      "count": 14
+      "count": 8
     },
     "@typescript-eslint/no-unnecessary-type-arguments": {
       "count": 1

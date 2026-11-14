@@ -202,7 +202,7 @@ export const foliumSourceMember = <Args extends unknown[], Result>(
             const key = `${modId}\n${where}`;
             if (!loggedSourceMemberThrows.has(key)) {
                 loggedSourceMemberThrows.add(key);
-                console.warn(`[Folium:${modId}] ${where} threw; the host takes its cautious answer`, error);
+                console.warn(`[FoliumSources] ${modId}: ${where} threw; the host takes its cautious answer`, error);
             }
             return fallback(...args);
         }

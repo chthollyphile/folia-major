@@ -22,7 +22,7 @@ export const findNavidromeLyricFallback = async (query: string): Promise<Navidro
         return null;
     }
     const page = await omni.searchProviderSongs(source, query, { limit: 1, offset: 0 });
+    if (page.items.length === 0) return null;
     const song = page.items[0];
-    if (!song) return null;
     return { source, song, lyrics: await omni.getLyrics(song) };
 };
