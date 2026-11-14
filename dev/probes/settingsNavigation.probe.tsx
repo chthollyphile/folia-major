@@ -119,6 +119,8 @@ const ProbeBody: React.FC = () => {
                             onQueryChange={() => {}}
                             onSubmitQuery={() => {}}
                             isDaylight={false}
+                            onClose={() => {}}
+                            closeLabel="Close"
                         />
                     )}
                     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -129,6 +131,7 @@ const ProbeBody: React.FC = () => {
                             onSelect={scrollToAnchor}
                             closeLabel="Close"
                             onClose={() => {}}
+                            showClose={isWide}
                         />
                         <div ref={contentRef} data-probe-content className="relative min-h-0 flex-1 overflow-y-auto px-4 pb-4 md:px-8">
                             <div className="space-y-8">

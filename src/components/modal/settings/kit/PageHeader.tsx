@@ -19,25 +19,32 @@ type PageHeaderProps = {
     summary?: string;
     closeLabel: string;
     onClose: () => void;
+    /**
+     * 紧凑档的关闭按钮在顶上那条导航栏的右端（搜索框右边），这里就不再画一颗。
+     * 默认画，宽屏照旧。
+     */
+    showClose?: boolean;
 };
 
 const UNDER_ROW_PADDING = 'px-4 pt-1 md:px-8 md:pt-2';
 
-export const PageHeader: React.FC<PageHeaderProps> = ({ title, contents, activeId, onSelect, summary, closeLabel, onClose }) => {
+export const PageHeader: React.FC<PageHeaderProps> = ({ title, contents, activeId, onSelect, summary, closeLabel, onClose, showClose = true }) => {
     const hasTabs = summary === undefined && contents.length > 1;
 
     return (
         <header className="shrink-0">
             <div className={`flex items-center justify-between gap-3 pl-4 pr-3 pt-4 md:pl-8 md:pr-4 md:pt-5${hasTabs || summary !== undefined ? '' : ' border-b border-[var(--st-line)] pb-3 md:pb-4'}`}>
                 <h2 className="min-w-0 truncate text-xl font-semibold leading-8 text-[color:var(--st-t1)]">{title}</h2>
-                <button
-                    type="button"
-                    onClick={onClose}
-                    aria-label={closeLabel}
-                    className="st-t-fast grid h-8 w-8 shrink-0 place-items-center rounded-lg text-[color:var(--st-t2)] transition-colors hover:bg-[var(--st-fill)] hover:text-[color:var(--st-t1)]"
-                >
-                    <X size={16} />
-                </button>
+                {showClose && (
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        aria-label={closeLabel}
+                        className="st-t-fast grid h-8 w-8 shrink-0 place-items-center rounded-lg text-[color:var(--st-t2)] transition-colors hover:bg-[var(--st-fill)] hover:text-[color:var(--st-t1)]"
+                    >
+                        <X size={16} />
+                    </button>
+                )}
             </div>
             {summary !== undefined && (
                 <div className={`border-b border-[var(--st-line)] ${UNDER_ROW_PADDING} truncate text-[13px] leading-9 text-[color:var(--st-t2)]`}>{summary}</div>

@@ -73,6 +73,13 @@ test.describe('settings navigation - wide layout', () => {
         await content(page).evaluate(node => node.scrollTo({ top: node.scrollHeight }));
         await expect.poll(() => activeContentsLabel(page)).toBe('Echo Section');
     });
+
+    test('keeps the close button in the page header', async ({ mount, page }) => {
+        await mount('settingsNavigation');
+
+        await expect(page.locator('header').getByRole('button', { name: 'Close', exact: true })).toBeVisible();
+        await expect(page.getByTestId('settings-close')).toHaveCount(0);
+    });
 });
 
 test.describe('settings navigation - narrow layout', () => {
@@ -90,6 +97,27 @@ test.describe('settings navigation - narrow layout', () => {
         await expect(page.locator('aside')).toHaveCount(0);
         // 页内目录还在页眉里。
         await expect(contentsEntry(page, 'Alpha Section')).toBeVisible();
+    });
+
+    test('keeps the close button at the right end of the top bar, and only there', async ({ mount, page }) => {
+        await mount('settingsNavigation');
+
+        const closeButton = page.getByTestId('settings-close');
+        await expect(closeButton).toBeVisible();
+        // 页眉里不再有第二颗关闭按钮：紧凑档只有顶栏这一颗。
+        await expect(page.locator('header').getByRole('button', { name: 'Close', exact: true })).toHaveCount(0);
+
+        const [searchBox, closeBox, barBox] = await Promise.all([
+            page.getByRole('searchbox').boundingBox(),
+            closeButton.boundingBox(),
+            navToggle(page).boundingBox(),
+        ]);
+        if (!searchBox || !closeBox || !barBox) throw new Error('the top bar is not laid out');
+        // 菜单按钮在左、搜索框居中、关闭按钮在搜索框右边。
+        expect(barBox.x).toBeLessThan(searchBox.x);
+        expect(closeBox.x).toBeGreaterThan(searchBox.x + searchBox.width - 1);
+        // 竖直方向同一条线上，不叠到第二行。
+        expect(Math.abs(closeBox.y - barBox.y)).toBeLessThan(2);
     });
 
     test('opens the wide side list from the menu button, without a search field', async ({ mount, page }) => {

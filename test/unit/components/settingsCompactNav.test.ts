@@ -3,7 +3,7 @@ import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 // test/unit/components/settingsCompactNav.test.ts
-// 设置弹窗紧凑档（窄于 768px）的导航约定：顶上只有菜单按钮 + 搜索框（按钮在搜索框左边），分类不再
+// 设置弹窗紧凑档（窄于 768px）的导航约定：顶上一行是菜单按钮 + 搜索框 + 关闭按钮（按这个顺序），分类不再
 // 横排成一条；菜单按钮打开的是宽屏那个侧栏，只是不带搜索框。布局本身要浏览器里的媒体查询才看得出来，
 // 这里核对的是几条最容易悄悄回退的结构。
 
@@ -21,12 +21,22 @@ describe('settings navigation in the compact window', () => {
         expect(modal).toMatch(/\) : \(\s*<SettingsCompactNav/);
     });
 
-    it('puts the menu button to the left of the search field', () => {
+    it('puts the menu button to the left of the search field, and the close button to its right', () => {
         const nav = read(NAV);
         const menuAt = nav.indexOf('<MenuIcon size={16} />');
         const searchAt = nav.indexOf('<SettingsSearchField');
+        const closeAt = nav.indexOf('data-testid="settings-close"');
         expect(menuAt).toBeGreaterThan(-1);
         expect(searchAt).toBeGreaterThan(menuAt);
+        expect(closeAt).toBeGreaterThan(searchAt);
+    });
+
+    it('moves the close button off the page header in the compact window only', () => {
+        const modal = read('src/components/modal/SettingsModal.tsx');
+        // 页眉上的那颗只在宽屏画；紧凑档由顶栏右端负责。
+        expect(modal).toContain('showClose={isWideSettingsLayout}');
+        // 顶栏那颗要真的关掉整个设置。
+        expect(read(NAV)).toMatch(/onClick=\{onClose\}/);
     });
 
     it('opens the wide side list in the drawer, without the search field', () => {

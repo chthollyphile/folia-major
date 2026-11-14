@@ -1223,6 +1223,8 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                 if (searchHits.length > 0) handleSelectSearchHit(searchHits[0]);
                             }}
                             isDaylight={isDaylight}
+                            onClose={onClose}
+                            closeLabel={t('ui.close')}
                         />
                     )}
                     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -1238,6 +1240,7 @@ const SettingsModal: React.FC<SettingsModalProps> = ({
                                 : undefined}
                             closeLabel={t('ui.close')}
                             onClose={onClose}
+                            showClose={isWideSettingsLayout}
                         />
                         <div
                             ref={contentScrollRef}

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Menu as MenuIcon } from 'lucide-react';
+import { Menu as MenuIcon, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useReducedMotionFor } from '../../../../hooks/useReducedMotionFor';
 import { tabTarget } from '../../../shared/sheetKeys';
@@ -8,8 +8,9 @@ import SettingsSearchField from './SettingsSearchField';
 import SettingsSideList from './SettingsSideList';
 import type { SettingsNavGroup, SettingsSectionId } from './settingsNavModel';
 // src/components/modal/settings/navigation/SettingsCompactNav.tsx
-// 紧凑档（窄于 768px）的设置导航：顶上一行只有菜单按钮和搜索框，没有横排的分类条。
+// 紧凑档（窄于 768px）的设置导航：顶上一行只有菜单按钮、搜索框和关闭按钮，没有横排的分类条。
 // 菜单按钮打开的就是宽屏那个侧栏（分组标题、Help 在底部），只是不带搜索框——搜索框留在顶栏上。
+// 关闭按钮也在这条栏的右端，所以页眉那边不再画（`PageHeader showClose={false}`）。
 // 选完一个类别、按 Escape、点遮罩都会把它收起；收起后焦点回到菜单按钮。
 
 type SettingsCompactNavProps = {
@@ -24,6 +25,9 @@ type SettingsCompactNavProps = {
     onSubmitQuery: () => void;
     /** 遮罩跟着日夜走：日光主题下一层黑太重，和弹窗自己的遮罩不一致。 */
     isDaylight: boolean;
+    /** 关闭整个设置弹窗：紧凑档的关闭按钮在这条顶栏的右端，页眉里不再有第二颗。 */
+    onClose: () => void;
+    closeLabel: string;
 };
 
 const DRAWER_ID = 'settings-nav-drawer';
@@ -39,6 +43,8 @@ export const SettingsCompactNav: React.FC<SettingsCompactNavProps> = ({
     onQueryChange,
     onSubmitQuery,
     isDaylight,
+    onClose,
+    closeLabel,
 }) => {
     const { t } = useTranslation();
     const calm = useReducedMotionFor('uiMicroMotion');
@@ -104,6 +110,16 @@ export const SettingsCompactNav: React.FC<SettingsCompactNavProps> = ({
                     onSubmitQuery={onSubmitQuery}
                     className="min-w-0 flex-1"
                 />
+                <button
+                    type="button"
+                    onClick={onClose}
+                    aria-label={closeLabel}
+                    title={closeLabel}
+                    data-testid="settings-close"
+                    className="st-t-fast grid h-8 w-8 shrink-0 place-items-center rounded-lg text-[color:var(--st-t2)] transition-colors hover:bg-[var(--st-fill)] hover:text-[color:var(--st-t1)]"
+                >
+                    <X size={16} />
+                </button>
             </div>
             <AnimatePresence>
                 {isOpen && (
