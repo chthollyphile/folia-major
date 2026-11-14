@@ -18,6 +18,14 @@ const { parseRangeHeader } = require('./modProtocol.cjs');
 const MEDIA_NAME_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const PARTITION_NAME_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/;
 
+/*
+ * The partition a source mod's own session `name` lives in. Neither a mod id nor a partition name can hold a dot, so
+ * `persist:folium.<mod id>.<name>` reads back one way only. (A hyphen, which both can hold, did not: mod `foo` with
+ * session `bar-login` and mod `foo-bar` with session `login` were the same partition, the same cookies, and one's
+ * "clear data" cleared the other's sign-in.) The client's `folium.net.fetch` with `session` uses it too.
+ */
+const ownPartitionOf = (modId, name) => `persist:folium.${modId}.${name}`;
+
 const requireFunction = (value, what) => {
     if (typeof value !== 'function') throw new TypeError(`${what} requires a function`);
 };
@@ -74,14 +82,14 @@ const createSourceApi = (context, host) => {
 
     /*
      * A session partition: one the source claims from before (its row or claims), or one of its own, kept apart from
-     * every other mod's (`persist:folium-<mod id>-<name>`).
+     * every other mod's (`persist:folium.<mod id>.<name>`, ownPartitionOf).
      */
     const partitionOf = (name) => {
         if (grants.partitions.has(name)) return name;
         if (typeof name !== 'string' || !PARTITION_NAME_PATTERN.test(name)) {
             throw new Error('net.session requires a partition name matching /^[a-z0-9][a-z0-9-]{0,63}$/ or a claimed one');
         }
-        const partition = `persist:folium-${modId}-${name}`;
+        const partition = ownPartitionOf(modId, name);
         // Remembered for the source's "clear data": Electron cannot list partitions.
         host.notePartition?.(modId, partition);
         return partition;
@@ -339,4 +347,4 @@ const createSourceApi = (context, host) => {
     return { members, legacyPath, hooks, release };
 };
 
-module.exports = { createSourceApi };
+module.exports = { createSourceApi, ownPartitionOf, PARTITION_NAME_PATTERN };

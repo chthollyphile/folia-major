@@ -16,6 +16,7 @@ import {
 const require = createRequire(import.meta.url);
 const { validateManifest, isSourceManifest } = require('../../../electron/modSystem/manifest.cjs');
 const { createLoginDiagnosticsRegistry } = require('../../../electron/loginBackendIpc.cjs');
+const { ownPartitionOf } = require('../../../electron/modSystem/sourceApi.cjs');
 const shared = require('../../../electron/modSystem/foliumShared.json');
 
 beforeEach(() => {
@@ -66,7 +67,7 @@ describe('gate 3: an ordinary mod keeps its limits', () => {
         expect(electronCalls.filter(([name]) => name === 'net.fetch')).toHaveLength(1);
         // In a partition of its own.
         const inPartition = await invoke(IPC.netFetch, 'radio', 'https://example.com/b', { session: 'cache' }) as { result: { body: string } };
-        expect(inPartition.result.body).toBe('from persist:folium-radio-cache');
+        expect(inPartition.result.body).toBe('from persist:folium.radio.cache');
         expect(await invoke(IPC.netFetch, 'radio', 'https://example.com/b', { session: 'Bad Name' })).toEqual({ ok: false, error: 'net-invalid-session' });
     });
 
@@ -137,6 +138,13 @@ describe('gate 3: an ordinary mod keeps its limits', () => {
 });
 
 describe('the source members of api (plan §5.5)', () => {
+    // Mod ids and partition names may both hold a hyphen, so `persist:folium-<mod>-<name>` named one partition two
+    // ways (foo + bar-login, foo-bar + login): the same cookies, and one mod's "clear data" cleared the other's.
+    it('keeps the partitions of two mods apart however their ids and names split', () => {
+        expect(ownPartitionOf('foo', 'bar-login')).not.toBe(ownPartitionOf('foo-bar', 'login'));
+        expect(ownPartitionOf('radio', 'login')).toBe('persist:folium.radio.login');
+    });
+
     const launchSource = (extra: Record<string, unknown> = {}) => {
         writeMod('builtin', sourceManifest('spotify', ['spotify'], { native: ['librespot'] }), { main: true });
         const diagnostics = createLoginDiagnosticsRegistry();
@@ -192,7 +200,7 @@ describe('the source members of api (plan §5.5)', () => {
         const { api } = launchSource();
         expect(new Uint8Array(await (await api.net.fetch('https://example.com/bin')).arrayBuffer())).toEqual(new Uint8Array([0, 1, 2, 255]));
         expect(api.net.session('folia-spotify').partition).toBe('folia-spotify');
-        expect(api.net.session('cache').partition).toBe('persist:folium-spotify-cache');
+        expect(api.net.session('cache').partition).toBe('persist:folium.spotify.cache');
         expect(() => api.net.session('Folia Other')).toThrow();
         expect(await (await api.net.fetch('https://example.com/x', { session: 'folia-spotify' })).text()).toBe('from folia-spotify');
         expect(await api.net.resolveProxy('https://example.com')).toBe('DIRECT');
@@ -208,7 +216,7 @@ describe('the source members of api (plan §5.5)', () => {
         expect(electronCalls.filter(([name]) => name === 'net.request')).toEqual([
             ['net.request', { url: 'https://example.com/play', method: 'GET' }],
             ['net.request', { url: 'https://example.com/a', partition: 'folia-spotify' }],
-            ['net.request', { url: 'https://example.com/b', partition: 'persist:folium-spotify-cache' }],
+            ['net.request', { url: 'https://example.com/b', partition: 'persist:folium.spotify.cache' }],
         ]);
         expect(() => api.net.request({ method: 'GET' })).toThrow('net.request requires');
         expect(() => api.net.request({ url: 'https://example.com', session: 'Bad Name' })).toThrow();

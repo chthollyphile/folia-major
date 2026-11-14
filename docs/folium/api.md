@@ -3759,7 +3759,7 @@ Folium 2: `api.net` of a source mod.
 | --- | --- | --- |
 | `fetch()` | `(url: string, init?: Record<string, unknown>): Promise<Response>` | A web `fetch` through Electron `net`; `init.session` names a partition (see `session`). Answers a web Response. |
 | `request()` | `(options: FoliumSourceRequestOptions): FoliumSourceClientRequest` | Electron's `net.request` (a ClientRequest), for a request a web `fetch` cannot make: a GET with a body. `options` is Electron's (`url`, `method`, `redirect`, …); `options.session` names a partition (see `session`). |
-| `session()` | `(name: string): FoliumSourceNetSession` | A partition of the source's own (`persist:folium-<mod id>-<name>`), or one its row or claims name: lower case letters, digits and `-`. |
+| `session()` | `(name: string): FoliumSourceNetSession` | A partition of the source's own (`persist:folium.<mod id>.<name>`), or one its row or claims name: lower case letters, digits and `-`. |
 | `resolveProxy()` | `(url: string): Promise<string>` | The system proxy for `url`, as Chromium resolves it. |
 
 相关：[FoliumSourceRequestOptions](#foliumsourcerequestoptions) · [FoliumSourceClientRequest](#foliumsourceclientrequest) · [FoliumSourceNetSession](#foliumsourcenetsession)

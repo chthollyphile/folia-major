@@ -337,7 +337,7 @@ export interface FoliumSourceNet {
      */
     request(options: FoliumSourceRequestOptions): FoliumSourceClientRequest;
     /**
-     * A partition of the source's own (`persist:folium-<mod id>-<name>`), or one its row or claims name: lower case
+     * A partition of the source's own (`persist:folium.<mod id>.<name>`), or one its row or claims name: lower case
      * letters, digits and `-`.
      */
     session(name: string): FoliumSourceNetSession;

@@ -131,8 +131,8 @@ module.exports = async function activate(api) {
         dialogAnswer.response = 1;
         expect(await system.clearSourceData('folium.radio.station')).toMatchObject({ ok: true });
         expect(dialogs.at(-1)).toMatchObject({ title: 'Clear source data' });
-        expect(dialogs.at(-1)!.detail).toContain('partition persist:folium-radio-login');
-        expect(electronCalls).toContainEqual(['session.clearStorageData', 'persist:folium-radio-login']);
+        expect(dialogs.at(-1)!.detail).toContain('partition persist:folium.radio.login');
+        expect(electronCalls).toContainEqual(['session.clearStorageData', 'persist:folium.radio.login']);
         await new Promise((resolve) => setTimeout(resolve, 0));
         const api = modRecord('radio')!.api as { secrets: { get: (key: string) => Promise<string | null> } };
         expect(await api.secrets.get('token')).toBeNull();
@@ -219,7 +219,7 @@ describe('round 2 of the review', () => {
         writeMod('builtin', sourceManifest('radio', ['station']), { main: true });
         const system = launch();
         await invoke(IPC.netFetch, 'radio', 'https://example.com/login', { session: 'login' });
-        expect(system.describeSourceData('folium.radio.station')).toMatchObject({ partitions: ['persist:folium-radio-login'] });
+        expect(system.describeSourceData('folium.radio.station')).toMatchObject({ partitions: ['persist:folium.radio.login'] });
     });
 
     it('tells the window which sources are about to stop, on every reload path', async () => {

@@ -72,6 +72,7 @@ const { createModSecrets, SECRET_MAX_BYTES } = require('./modSecrets.cjs');
 const { oldNameWarnings, onOldNameWarning } = require('./deprecated.cjs');
 const { BUILTIN_SOURCE_IDS, builtinSourceRow, builtinModOfSource, readBundledSources } = require('./builtinSources.cjs');
 const { resolveSourceOwnership, claimRefusal } = require('./sourceOwnership.cjs');
+const { ownPartitionOf, PARTITION_NAME_PATTERN } = require('./sourceApi.cjs');
 const { createMediaRules } = require('./mediaRules.cjs');
 const { limits: FOLIUM_LIMITS, foliumOneVersion: FOLIUM_ONE_VERSION } = require('./foliumShared.json');
 
@@ -80,7 +81,7 @@ const SETTINGS_NAMESPACE = 'mods';
 // One object each: source ids hold dots (`folium.<mod>.<name>`), which electron-store reads as nesting.
 const SOURCE_STATES_KEY = 'mods.sourceStates';
 const SOURCE_CLAIMS_KEY = 'mods.sourceClaims';
-// The partitions of their own source mods have used (`persist:folium-<mod id>-<name>`), by mod id, for "clear data".
+// The partitions of their own source mods have used (`persist:folium.<mod id>.<name>`), by mod id, for "clear data".
 const SOURCE_PARTITIONS_KEY = 'mods.sourcePartitions';
 // The built-in mods a confirmed override replaces, built-in id -> overriding mod id: such a built-in copy waits
 // for the full start (which reads the user's folders) instead of starting before the window and being swapped.
@@ -1288,14 +1289,14 @@ const createModSystem = ({
         serializeError,
         hasSourceExemptions,
         // A source mod's client request: Electron net, in a partition when it names one (the same rule as
-        // api.net.session: a claimed one, or `persist:folium-<mod id>-<name>`).
+        // api.net.session: a claimed one, or its own, ownPartitionOf).
         sourceFetch: (url, init, { runtime, session }) => {
             if (session === undefined) return sourceHost.netFetch(url, init);
             const claimed = (runtime.source?.sources ?? []).some((source) => source.legacy?.partitions.includes(session));
-            if (!claimed && !/^[a-z0-9][a-z0-9-]{0,63}$/.test(session)) {
+            if (!claimed && !PARTITION_NAME_PATTERN.test(session)) {
                 return Promise.reject(new Error('net-invalid-session'));
             }
-            const partition = claimed ? session : `persist:folium-${runtime.manifest.id}-${session}`;
+            const partition = claimed ? session : ownPartitionOf(runtime.manifest.id, session);
             if (!claimed) notePartition(runtime.manifest.id, partition);
             return sourceHost.sessionFromPartition(partition).fetch(url, init);
         },
