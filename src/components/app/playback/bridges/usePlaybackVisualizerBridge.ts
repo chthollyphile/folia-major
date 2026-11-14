@@ -21,7 +21,7 @@ import { useBeatFxTrack } from '../../../../hooks/useBeatFxTrack';
 import { readIncomingLyricClock } from './incomingLyricClock';
 import { isBackgroundLyricHeld, setHeldLyricTime, useBackgroundLyricHoldStore } from '../../backgroundThrottling/backgroundLyricHoldStore';
 import { getHifiPosition } from '../../../../services/hifi/hifiPlayback';
-import { getExternalPosition, isExternalPlaybackSounding } from '../../../../services/onlineMusic/externalPlayback';
+import { getExternalPosition, isExternalPaused, isExternalPlaybackSounding } from '../../../../services/onlineMusic/externalPlayback';
 import { externalSpectrumAt } from '../externalSpectrum';
 import { readCapturedExternalSpectrum } from '../externalSpectrumCapture';
 import { emptySpectrumBandLevels, readSpectrumBandLevels } from '../spectrumBands';
@@ -286,7 +286,9 @@ export function usePlaybackVisualizerBridge({
             // gone quiet holds the frame it had, so pausing stops the bars where they are. Without a
             // capture the bands follow the player's own clock and freeze while it is paused. Neither
             // answer allocates a frame, and the route never falls back to the breathing animation.
-            const bands = readCapturedExternalSpectrum() ?? externalSpectrumAt(getExternalPosition());
+            // The capture is told whether the player is sounding the song: a silent frame under a
+            // playing song falls away like a deck's own analyser, a stopped one stands where it was.
+            const bands = readCapturedExternalSpectrum(!isExternalPaused()) ?? externalSpectrumAt(getExternalPosition());
             audioPower.set(bands.power);
             audioBands.bass.set(bands.bass);
             audioBands.lowMid.set(bands.lowMid);

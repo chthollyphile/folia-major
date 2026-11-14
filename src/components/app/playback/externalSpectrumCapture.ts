@@ -9,6 +9,12 @@ import { emptySpectrumBandLevels, readSpectrumBandLevels } from './spectrumBands
 
 /** Silence from the very start of a capture for this long, and the simulated bands take over. */
 const SILENCE_LIMIT_MS = 2000;
+/**
+ * How much of the bars is left after each silent frame of a song that is still sounding: the same
+ * falling away the deck's own analyser draws, so a buffer running dry or a drop being loaded reads as
+ * the music quietening rather than as the bars stopping. A second of silence leaves well under half.
+ */
+const SILENCE_DECAY = 0.88;
 /** The first refusal waits this long before another attempt; each one after doubles it. */
 const RETRY_BASE_MS = 60_000;
 const RETRY_MAX_MS = 10 * 60_000;
@@ -294,8 +300,12 @@ export const startExternalSpectrumCapture = async (): Promise<void> => {
  * The bands of the machine's sound, or null when there is nothing to show - not capturing, or a
  * capture that has never carried sound and stays silent past the limit. Written in place: the
  * visualizer calls this every frame.
+ *
+ * `playing` is the route's own word on whether the player is sounding the song. A silent frame under a
+ * playing song is a moment of it - a buffer running dry, a drop being loaded - and the bars fall away
+ * through it; a silent frame of a stopped song is the pause, and the bars stand where it left them.
  */
-export const readCapturedExternalSpectrum = (): ExternalSpectrumBands | null => {
+export const readCapturedExternalSpectrum = (playing = false): ExternalSpectrumBands | null => {
     const node = analyser;
     if (state !== 'running' || !node) {
         noteCaptured(false);
@@ -319,9 +329,23 @@ export const readCapturedExternalSpectrum = (): ExternalSpectrumBands | null => 
 
     if (loudest === 0) {
         if (heardSound) {
-            // A capture that has carried sound is now on a paused, muted or between-songs player: the
-            // bands keep the frame they had, so pausing stops the bars where they are instead of
-            // flattening them and jumping back up when the sound returns.
+            // A capture that has carried sound and is now quiet. Under a song that is still sounding
+            // this is a moment of the player's own - a buffer running dry, a drop being loaded - and
+            // the bars fall away through it as the deck's own analyser draws them falling, rather than
+            // standing where they were and jumping up again when the sound returns. Only a stopped
+            // song keeps the frame it had: that is the pause, and a paused song's bars stay put.
+            if (!playing) {
+                noteCaptured(true);
+                return BANDS;
+            }
+            const fall = (value: number) => Math.round(value * SILENCE_DECAY);
+            BANDS.power = fall(BANDS.power);
+            BANDS.bass = fall(BANDS.bass);
+            BANDS.lowMid = fall(BANDS.lowMid);
+            BANDS.mid = fall(BANDS.mid);
+            BANDS.vocal = fall(BANDS.vocal);
+            BANDS.treble = fall(BANDS.treble);
+            for (let index = 0; index < SPECTRUM_BINS; index += 1) BANDS.spectrum[index] = fall(BANDS.spectrum[index]);
             noteCaptured(true);
             return BANDS;
         }
