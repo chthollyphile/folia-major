@@ -2639,6 +2639,7 @@ export default {
     "settingsSearchPlaceholder": "Search settings",
     "settingsSearchClear": "Clear search",
     "settingsSearchEmpty": "No matching settings",
+    "settingsNavMenu": "Settings sections",
     "consoleLogCapture": "Session log",
     "consoleLogCaptureDesc": "What the app logs while it runs",
     "consoleLogConvention": "Lines are grouped by the [Module] prefix they start with, so each can be filtered on its own. See docs/client-logging.md.",

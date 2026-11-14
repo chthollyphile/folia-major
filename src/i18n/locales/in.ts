@@ -2639,6 +2639,7 @@ export default {
     "settingsSearchPlaceholder": "Cari pengaturan",
     "settingsSearchClear": "Hapus pencarian",
     "settingsSearchEmpty": "Tidak ada pengaturan yang cocok",
+    "settingsNavMenu": "Bagian pengaturan",
     "consoleLogCapture": "Log sesi",
     "consoleLogCaptureDesc": "Yang dicatat aplikasi saat berjalan",
     "consoleLogConvention": "Baris dikelompokkan menurut awalan [Modul]. Lihat docs/client-logging.md.",

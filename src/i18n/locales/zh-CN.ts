@@ -2639,6 +2639,7 @@ export default {
     "settingsSearchPlaceholder": "搜索设置",
     "settingsSearchClear": "清除搜索",
     "settingsSearchEmpty": "没有匹配的设置",
+    "settingsNavMenu": "设置类别",
     "consoleLogCapture": "运行日志",
     "consoleLogCaptureDesc": "后台运行时的日志",
     "consoleLogConvention": "日志按开头的 [模块] 前缀分组，可以单独筛选。详见 docs/client-logging.md。",

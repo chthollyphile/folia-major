@@ -3,7 +3,7 @@ import { expect, test } from './fixtures';
 
 // test/component/settingsNavigation.spec.ts
 // 设置侧栏的分组结构、页眉里的本页目录和 scrollspy 只在真实浏览器里成立：IntersectionObserver、
-// 平滑滚动的中间态、以及窄屏时横向类别条的间距都不是单测能覆盖的。
+// 平滑滚动的中间态、以及窄屏时菜单按钮抽屉的开合与焦点都不是单测能覆盖的。
 // 探针见 dev/probes/settingsNavigation.probe.tsx。
 
 const content = (page: Page) => page.locator('[data-probe-content]');
@@ -78,24 +78,54 @@ test.describe('settings navigation - wide layout', () => {
 test.describe('settings navigation - narrow layout', () => {
     test.use({ viewport: { width: 375, height: 720 } });
 
-    test('turns the side list into one flat strip and keeps the contents line', async ({ mount, page }) => {
+    const navToggle = (page: Page) => page.getByTestId('settings-nav-toggle');
+    const drawer = (page: Page) => page.getByTestId('settings-nav-drawer');
+
+    test('puts the menu button and the search field on top instead of a strip of categories', async ({ mount, page }) => {
         await mount('settingsNavigation');
 
-        await expect(page.getByText('Interface', { exact: true })).toBeHidden();
-        await expect(page.locator('aside').getByRole('button', { name: 'settingsPagePlayer', exact: true })).toBeVisible();
+        await expect(navToggle(page)).toBeVisible();
+        await expect(page.getByRole('searchbox')).toBeVisible();
+        // 分类不在顶栏上：抽屉没开时整个侧栏都不在文档里。
+        await expect(page.locator('aside')).toHaveCount(0);
+        // 页内目录还在页眉里。
         await expect(contentsEntry(page, 'Alpha Section')).toBeVisible();
     });
 
-    test('spaces adjacent categories of the strip exactly 4px apart, across a group boundary too', async ({ mount, page }) => {
+    test('opens the wide side list from the menu button, without a search field', async ({ mount, page }) => {
         await mount('settingsNavigation');
+        await navToggle(page).click();
 
-        // The hidden group names and the group wrappers sit between the buttons in the document; a
-        // spacing rule that counted them would widen the gap where one group ends.
-        const gaps = await page.evaluate(() => {
-            const rects = [...document.querySelectorAll('aside nav button')].map(button => button.getBoundingClientRect());
-            return rects.slice(1, 5).map((rect, index) => Math.round(rect.left - rects[index].right));
-        });
+        await expect(drawer(page)).toBeVisible();
+        // 抽屉里是宽屏那个侧栏：分组标题、分类、底部的 Help 都在。
+        for (const heading of ['Interface', 'Music', 'App', 'Advanced']) {
+            await expect(drawer(page).getByText(heading, { exact: true })).toBeVisible();
+        }
+        await expect(drawer(page).getByRole('button', { name: 'settingsPagePlayer', exact: true })).toBeVisible();
+        // 底部那颗是 Help（文案随语言走，只看它在最后一位）。
+        await expect(drawer(page).locator('nav button').last()).toBeVisible();
+        // 搜索框只留在顶栏上，抽屉里没有第二个。
+        await expect(drawer(page).getByRole('searchbox')).toHaveCount(0);
+    });
 
-        expect(gaps).toEqual([4, 4, 4, 4]);
+    test('closes the drawer after a category is chosen', async ({ mount, page }) => {
+        await mount('settingsNavigation');
+        await navToggle(page).click();
+        await drawer(page).getByRole('button', { name: 'settingsPagePlayer', exact: true }).click();
+
+        await expect(drawer(page)).toHaveCount(0);
+        // 焦点回到打开它的那颗按钮，不留在刚收起的抽屉里。
+        await expect(navToggle(page)).toBeFocused();
+    });
+
+    test('closes the drawer on Escape without closing the page behind it', async ({ mount, page }) => {
+        await mount('settingsNavigation');
+        await navToggle(page).click();
+        await expect(drawer(page)).toBeVisible();
+
+        await page.keyboard.press('Escape');
+
+        await expect(drawer(page)).toHaveCount(0);
+        await expect(page.locator('header h2')).toBeVisible();
     });
 });

@@ -2639,6 +2639,7 @@ export default {
     "settingsSearchPlaceholder": "Tìm kiếm cài đặt",
     "settingsSearchClear": "Xóa tìm kiếm",
     "settingsSearchEmpty": "Không tìm thấy cài đặt phù hợp",
+    "settingsNavMenu": "Mục cài đặt",
     "consoleLogCapture": "Nhật ký phiên",
     "consoleLogCaptureDesc": "Dữ liệu ứng dụng ghi lại khi chạy.",
     "consoleLogConvention": "Các dòng được nhóm theo tiền tố [Module] ở đầu để lọc riêng từng mục. Xem docs/client-logging.md.",
