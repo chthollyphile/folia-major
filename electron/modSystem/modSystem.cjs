@@ -71,7 +71,7 @@ const { createNodeEntryRuntime } = require('./nodeEntry.cjs');
 const { createModSecrets, SECRET_MAX_BYTES } = require('./modSecrets.cjs');
 const { oldNameWarnings, onOldNameWarning } = require('./deprecated.cjs');
 const { BUILTIN_SOURCE_IDS, builtinSourceRow, builtinModOfSource, readBundledSources } = require('./builtinSources.cjs');
-const { resolveSourceOwnership } = require('./sourceOwnership.cjs');
+const { resolveSourceOwnership, claimRefusal } = require('./sourceOwnership.cjs');
 const { createMediaRules } = require('./mediaRules.cjs');
 const { limits: FOLIUM_LIMITS, foliumOneVersion: FOLIUM_ONE_VERSION } = require('./foliumShared.json');
 
@@ -98,6 +98,9 @@ const IPC = { ...require('./foliumShared.json').channels };
 
 // The label of a built-in copy: it carries no signature file and none is checked (plan §5.2).
 const BUILTIN_SIGNATURE = Object.freeze({ status: 'builtin', reason: null, keyId: null, keyLabel: null, signedAt: null });
+
+/** The trusted row that claims the short source id `shortId`, or null: what a takeover claim is held to (claimRefusal). */
+const sourceRowOf = (shortId) => builtinSourceRow(builtinModOfSource(shortId));
 const BUILTIN_TIERS = new Set(['builtin', 'override']);
 
 const cloneJson = (value) => JSON.parse(JSON.stringify(value));
@@ -569,6 +572,7 @@ const createModSystem = ({
         const ownership = resolveSourceOwnership(builtins, skippedThisRun ? new Map() : candidates, bundledSources.ids, {
             hostVersion: typeof app.getVersion === 'function' ? app.getVersion() : null,
             tableRow: builtinSourceRow,
+            sourceRow: sourceRowOf,
             isOverrideConfirmed,
             claimRecord: (shortId) => readSourceClaims()[shortId] ?? null,
         });
@@ -966,12 +970,15 @@ const createModSystem = ({
             return { ok: false, error: 'enable-declined', mods: listMods() };
         }
         writeTrust(modId, true, digest);
-        // A takeover: the first one confirmed holds the short id (plan §5.1, one id to one mod).
+        // A takeover: the first one confirmed holds the short id (plan §5.1, one id to one mod). An id nobody holds
+        // now (no record, or the recorded holder is gone) goes to this confirmation; a claim the trusted row does
+        // not back never does (claimRefusal).
         const claims = readSourceClaims();
         let claimed = false;
         (runtime.manifest.sources ?? []).forEach((entry) => {
             const shortId = entry.claims?.id;
-            if (shortId && !bundledSources.ids.includes(shortId) && !claims[shortId]) {
+            const held = Boolean(claims[shortId]) && lastOwnership?.claimHolders.get(shortId) === claims[shortId];
+            if (shortId && !bundledSources.ids.includes(shortId) && !held && claimRefusal(entry.claims, sourceRowOf) === null) {
                 claims[shortId] = modId;
                 claimed = true;
             }
@@ -1024,6 +1031,10 @@ const createModSystem = ({
         const claiming = discovery?.manifest?.sources?.filter((entry) => entry.claims?.id === shortId) ?? [];
         if (claiming.length === 0) {
             return { ok: false, error: 'mod-does-not-claim' };
+        }
+        const refusal = claiming.map((entry) => claimRefusal(entry.claims, sourceRowOf)).find(Boolean);
+        if (refusal) {
+            return { ok: false, error: refusal };
         }
         // The same confirmation as an enable of a takeover (plan §5.1): which id, which old data, the signature
         // as it is; bound to these files like any approval.

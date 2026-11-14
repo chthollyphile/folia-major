@@ -19,14 +19,22 @@ import {
 
 const require = createRequire(import.meta.url);
 const { resolveSourceOwnership } = require('../../../electron/modSystem/sourceOwnership.cjs');
-const { builtinSourceRow, readBundledSources, BUILTIN_SOURCE_IDS } = require('../../../electron/modSystem/builtinSources.cjs');
+const { builtinSourceRow, builtinModOfSource, readBundledSources, BUILTIN_SOURCE_IDS } = require('../../../electron/modSystem/builtinSources.cjs');
+
+type Row = { storeKeys: string[]; partitions: string[]; userDataDirs: string[] };
+const sourceRow = (shortId: string): Row | null => builtinSourceRow(builtinModOfSource(shortId));
+/* A claim that says again what the trusted row of `shortId` says (plan §5.1). */
+const rowClaims = (shortId: string) => {
+    const row = sourceRow(shortId);
+    return { id: shortId, storeKeys: row?.storeKeys ?? [], partitions: row?.partitions ?? [], userDataDirs: row?.userDataDirs ?? [] };
+};
 
 type Copy = { manifest: Record<string, unknown> & { id: string; version: string }; dirPath: string; digest?: string; signature?: { status: string }; enabled?: boolean };
 
 const manifestOf = (id: string, sources: Array<Record<string, unknown>>, version = '1.0.0') => ({ id, version, folium: 2, sources });
 const builtin = (id: string, version = '1.0.0'): Copy => ({ manifest: manifestOf(id, [{ id: builtinSourceRow(id)?.sources[0] ?? id, name: id }], version), dirPath: `/b/${id}` });
 const candidate = (id: string, { version = '2.0.0', status = 'unsigned', enabled = true, claims = null as string | null, sources = null as Array<Record<string, unknown>> | null } = {}): Copy => ({
-    manifest: manifestOf(id, sources ?? [{ id: claims ? 'main' : (builtinSourceRow(id)?.sources[0] ?? 'main'), name: id, ...(claims ? { claims: { id: claims, storeKeys: [`${claims.toUpperCase()}_KEY`], partitions: [`p-${claims}`], userDataDirs: [`${claims}-dir`] } } : {}) }], version),
+    manifest: manifestOf(id, sources ?? [{ id: claims ? 'main' : (builtinSourceRow(id)?.sources[0] ?? 'main'), name: id, ...(claims ? { claims: rowClaims(claims) } : {}) }], version),
     dirPath: `/u/${id}`,
     digest: `sha256:${id}`,
     signature: { status },
@@ -44,6 +52,7 @@ const resolve = (
     {
         hostVersion,
         tableRow: builtinSourceRow,
+        sourceRow,
         isOverrideConfirmed: (modId: string) => confirmed.includes(modId),
         claimRecord: (shortId: string) => claims[shortId] ?? null,
     },
@@ -97,13 +106,33 @@ describe('the compliance plan (pure rules)', () => {
     });
 
     it('2. lets an unsigned claim of a source not carried take its short id and old data, at any version', () => {
-        const result = resolve([], [candidate('qq-community', { claims: 'qq', version: '0.0.1' })], { bundled: [] });
+        // Its enable confirmation named the takeover, which recorded it as the holder.
+        const result = resolve([], [candidate('qq-community', { claims: 'qq', version: '0.0.1' })], { bundled: [], claims: { qq: 'qq-community' } });
         expect(result.refused.size).toBe(0);
         expect(result.claimHolders.get('qq')).toBe('qq-community');
         expect(result.sources.get('qq-community')).toEqual([{
             localId: 'main', sourceId: 'qq', takeover: true, keepForMatching: false,
-            legacy: { storeKeys: ['QQ_KEY'], partitions: ['p-qq'], userDataDirs: ['qq-dir'], native: [] },
+            legacy: { storeKeys: ['QQ_API_AUTH_SESSION_V1'], partitions: [], userDataDirs: ['qq-auth-state'], native: [] },
         }]);
+    });
+
+    // Plan §12 item 9: in an installation that carries every source the takeover is closed. A claim can only
+    // name a source the trusted table knows, and only the old data of that source's row (or part of it).
+    it('2a. refuses a claim of an id the trusted table does not know, or of old data outside its row', () => {
+        const unknown = candidate('evil', { sources: [{ id: 'main', name: 'x', claims: { id: 'whatever', storeKeys: ['QQ_API_AUTH_SESSION_V1'], userDataDirs: ['qq-auth-state'] } }] });
+        const outside = candidate('greedy', { sources: [{ id: 'main', name: 'x', claims: { ...rowClaims('kugou'), storeKeys: ['KUGOU_API_SESSION_V2', 'QQ_API_AUTH_SESSION_V1'] } }] });
+        const reserved = candidate('wiper', { sources: [{ id: 'main', name: 'x', claims: { ...rowClaims('ytm'), userDataDirs: ['mods'] } }] });
+        const partial = candidate('modest', { enabled: false, sources: [{ id: 'main', name: 'x', claims: { id: 'ytm', storeKeys: ['YTM_SESSION_V1'] } }] });
+        const result = resolve([], [unknown, outside, reserved, partial], { bundled: [] });
+        expect(result.notes.get('evil')).toEqual(['claim-unknown-source']);
+        expect(result.notes.get('greedy')).toEqual(['claim-outside-row']);
+        expect(result.notes.get('wiper')).toEqual(['claim-outside-row']);
+        for (const modId of ['evil', 'greedy', 'wiper']) {
+            expect(result.sources.get(modId)![0], modId).toMatchObject({ sourceId: `folium.${modId}.main`, legacy: null, takeover: false });
+        }
+        expect(result.claimHolders.size).toBe(0);
+        // Part of the row is enough: a claim need not take all of it.
+        expect(result.sources.get('modest')![0]).toMatchObject({ sourceId: 'ytm', takeover: true, legacy: expect.objectContaining({ storeKeys: ['YTM_SESSION_V1'] }) });
     });
 
     it('3. does not let a mismatched signature take over: it runs under its own id', () => {
@@ -114,15 +143,26 @@ describe('the compliance plan (pure rules)', () => {
         expect(result.sources.get('qq-community')![0]).toMatchObject({ sourceId: 'folium.qq-community.main', legacy: null, takeover: false });
     });
 
-    it('4. gives one short id to one mod: the recorded holder, else the first confirmed', () => {
+    it('4. gives one short id to one mod: the recorded holder, the one whose confirmation named the takeover', () => {
         const first = candidate('aaa', { claims: 'qq' });
         const second = candidate('bbb', { claims: 'qq' });
         const recorded = resolve([], [first, second], { bundled: [], claims: { qq: 'bbb' } });
         expect(recorded.claimHolders.get('qq')).toBe('bbb');
         expect(recorded.refused.get('aaa')).toEqual({ reason: 'claim-taken', detail: 'bbb' });
-        const unconfirmedFirst = resolve([], [candidate('aaa', { claims: 'qq', enabled: false }), second], { bundled: [] });
-        expect(unconfirmedFirst.claimHolders.get('qq')).toBe('bbb');
-        expect(unconfirmedFirst.refused.get('aaa')?.reason).toBe('claim-taken');
+    });
+
+    // Its holder gone (deleted, broken), a short id goes to nobody by itself: the other claimant was enabled while
+    // the id was taken, so its confirmation never named the takeover. It runs under its own id until confirmed.
+    it('4a. hands a short id whose holder is gone to nobody, not to another enabled claimant', () => {
+        const enabled = candidate('bbb', { claims: 'qq' });
+        const waiting = candidate('ccc', { claims: 'qq', enabled: false });
+        const result = resolve([], [enabled, waiting], { bundled: [], claims: { qq: 'aaa' } });
+        expect(result.claimHolders.has('qq')).toBe(false);
+        expect(result.notes.get('bbb')).toEqual(['claim-unconfirmed']);
+        expect(result.sources.get('bbb')![0]).toMatchObject({ sourceId: 'folium.bbb.main', legacy: null, takeover: false });
+        // The one not yet enabled is described as taking it over, for the confirmation that would make it the holder.
+        expect(result.sources.get('ccc')![0]).toMatchObject({ sourceId: 'qq', takeover: true });
+        expect(resolve([], [enabled], { bundled: [] }).claimHolders.has('qq')).toBe(false);
     });
 
     it('5. refuses a claim of a carried source that has no built-in copy: the installation is broken', () => {

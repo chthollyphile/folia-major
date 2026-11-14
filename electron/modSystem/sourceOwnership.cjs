@@ -55,20 +55,40 @@ const overrideRefusal = (builtin, candidate, { hostVersion, isOverrideConfirmed 
     return null;
 };
 
+/*
+ * Why a takeover claim may not stand, or null when it may (plan §5.1, §12 item 9). The claimed id must be one the
+ * trusted table knows (a source the host has carried as one of its own); the old data claimed must be that row's,
+ * or part of it: the manifest's claims say again what the row says, so a claim can never reach another source's
+ * sign-in or the host's own keys and folders. `sourceRow(shortId)` is the trusted row that claims the short id, or
+ * null. An installation built without a row (plan §6.2, FOLIA_BUNDLED_SOURCES) has nothing to hold a claim to:
+ * how such a claim is checked is S8's to settle; until then it is refused.
+ */
+const claimRefusal = (claims, sourceRow) => {
+    const row = typeof claims?.id === 'string' ? sourceRow(claims.id) : null;
+    if (!row) return 'claim-unknown-source';
+    const within = (list, allowed) => (list ?? []).every((item) => allowed.includes(item));
+    if (!within(claims.storeKeys, row.storeKeys) || !within(claims.partitions, row.partitions)
+        || !within(claims.userDataDirs, row.userDataDirs)) {
+        return 'claim-outside-row';
+    }
+    return null;
+};
+
 /**
  * builtins:   Map modId -> { manifest, dirPath } (valid built-in copies)
  * candidates: Map modId -> { manifest, dirPath, digest, signature, enabled } (valid copies from the other
  *             folders, in the order the loader read them)
  * bundled:    the short source ids the installation carries
- * options:    hostVersion; tableRow(modId) (builtinSources.cjs); isOverrideConfirmed(modId, digest);
- *             claimRecord(shortId) -> the mod id that holds it, or null
+ * options:    hostVersion; tableRow(modId) (builtinSources.cjs); sourceRow(shortId), the row that claims a short
+ *             id; isOverrideConfirmed(modId, digest); claimRecord(shortId) -> the mod id that holds it, or null
  *
  * Returns:
  *   overrides       Map built-in modId -> the candidate modId that replaces it
  *   refused         Map candidate modId -> { reason, detail } (not run)
  *   pendingOverride Map candidate modId -> built-in modId, for a copy that only lacks the confirmation
  *   sources         Map modId -> [{ localId, sourceId, legacy, takeover, keepForMatching }] for every source mod
- *   notes           Map modId -> reasons that do not stop the mod (claim-signature-invalid)
+ *   notes           Map modId -> reasons that do not stop the mod (claim-signature-invalid, claim-unknown-source,
+ *                   claim-outside-row, claim-unconfirmed)
  *   brokenInstall   the carried short ids no built-in copy provides
  *   claimHolders    Map short id -> modId that holds it now (for the loader to keep)
  */
@@ -138,19 +158,32 @@ const resolveSourceOwnership = (builtins, candidates, bundled, options) => {
                 note(modId, 'claim-signature-invalid');
                 return;
             }
+            const refusal = claimRefusal(entry.claims, options.sourceRow);
+            if (refusal) {
+                note(modId, refusal);
+                return;
+            }
             takeoverCandidates.set(shortId, [...(takeoverCandidates.get(shortId) ?? []), modId]);
         });
     });
 
-    // A short id nobody holds yet: each live claimant is described as taking it over, so the confirmation that
-    // would make it the holder says what it takes over.
+    /*
+     * Only the holder on record holds a short id: the one whose enable (or "Settings → Sources") confirmation
+     * named the takeover. A short id nobody holds goes to nobody by itself, not even to a claimant that is
+     * enabled: its confirmation never named the takeover (it was enabled while another held the id, or while the
+     * installation carried the source). Each claimant not yet enabled is described as taking it over, so the
+     * confirmation that would make it the holder says what it takes over; an enabled one runs under its own id
+     * until the user confirms it again.
+     */
     const unheld = new Map();
     takeoverCandidates.forEach((modIds, shortId) => {
         const live = modIds.filter((modId) => !refused.has(modId));
         const recorded = options.claimRecord(shortId);
-        const holder = live.includes(recorded) ? recorded : live.find((modId) => candidates.get(modId).enabled) ?? null;
+        const holder = live.includes(recorded) ? recorded : null;
         if (holder === null) {
-            unheld.set(shortId, live);
+            const waiting = live.filter((modId) => !candidates.get(modId).enabled);
+            live.filter((modId) => candidates.get(modId).enabled).forEach((modId) => note(modId, 'claim-unconfirmed'));
+            unheld.set(shortId, waiting);
             return;
         }
         claimHolders.set(shortId, holder);
@@ -193,4 +226,4 @@ const resolveSourceOwnership = (builtins, candidates, bundled, options) => {
     return { overrides, refused, pendingOverride, sources, notes, brokenInstall, claimHolders };
 };
 
-module.exports = { resolveSourceOwnership, thirdPartySourceId, overrideRefusal, NO_LEGACY };
+module.exports = { resolveSourceOwnership, thirdPartySourceId, overrideRefusal, claimRefusal, NO_LEGACY };
