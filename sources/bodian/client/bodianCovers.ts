@@ -24,7 +24,7 @@ const withKuwoCoverSize = (url: URL, size: number): string => {
 };
 
 const parseSize = (value: string | null | undefined): number | null => {
-    const size = Number(String(value ?? '').split(/[xy]/i)[0]);
+    const size = Number((value ?? '').split(/[xy]/i)[0]);
     return Number.isFinite(size) && size > 0 ? size : null;
 };
 

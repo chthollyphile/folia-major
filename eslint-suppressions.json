@@ -789,24 +789,6 @@
       "count": 43
     }
   },
-  "sources/bodian/main/bodianApiBridge.cjs": {
-    "@stylistic/indent": {
-      "count": 24
-    }
-  },
-  "sources/bodian/main/mediaCors.cjs": {
-    "@stylistic/indent": {
-      "count": 40
-    }
-  },
-  "sources/bodian/main/session.cjs": {
-    "@stylistic/indent": {
-      "count": 80
-    },
-    "dedicatus/restricted-apis": {
-      "count": 2
-    }
-  },
   "electron/debug/redactCredentials.cjs": {
     "no-useless-assignment": {
       "count": 1
@@ -1473,6 +1455,92 @@
     },
     "preserve-caught-error": {
       "count": 1
+    }
+  },
+  "sources/bodian/client/bodianCatalog.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 5
+    },
+    "@typescript-eslint/no-unsafe-argument": {
+      "count": 4
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 8
+    },
+    "@typescript-eslint/no-unsafe-call": {
+      "count": 3
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 14
+    },
+    "@typescript-eslint/require-await": {
+      "count": 1
+    }
+  },
+  "sources/bodian/client/bodianLibrary.ts": {
+    "@typescript-eslint/no-base-to-string": {
+      "count": 2
+    },
+    "@typescript-eslint/no-explicit-any": {
+      "count": 4
+    },
+    "@typescript-eslint/no-unnecessary-condition": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unsafe-argument": {
+      "count": 4
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 4
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 16
+    },
+    "@typescript-eslint/restrict-template-expressions": {
+      "count": 2
+    },
+    "no-useless-assignment": {
+      "count": 1
+    }
+  },
+  "sources/bodian/client/bodianNormalize.ts": {
+    "@typescript-eslint/no-base-to-string": {
+      "count": 1
+    },
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-argument": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 4
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 8
+    },
+    "@typescript-eslint/require-await": {
+      "count": 1
+    }
+  },
+  "sources/bodian/client/bodianProvider.ts": {
+    "@typescript-eslint/no-base-to-string": {
+      "count": 2
+    }
+  },
+  "sources/bodian/main/bodianApiBridge.cjs": {
+    "@stylistic/indent": {
+      "count": 24
+    }
+  },
+  "sources/bodian/main/mediaCors.cjs": {
+    "@stylistic/indent": {
+      "count": 40
+    }
+  },
+  "sources/bodian/main/session.cjs": {
+    "@stylistic/indent": {
+      "count": 80
     }
   },
   "src/App.tsx": {
@@ -9389,117 +9457,6 @@
       "count": 2
     }
   },
-  "sources/bodian/client/bodianCatalog.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 5
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-argument": {
-      "count": 4
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 8
-    },
-    "@typescript-eslint/no-unsafe-call": {
-      "count": 3
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 14
-    },
-    "@typescript-eslint/require-await": {
-      "count": 1
-    }
-  },
-  "sources/bodian/client/bodianLibrary.ts": {
-    "@typescript-eslint/no-base-to-string": {
-      "count": 2
-    },
-    "@typescript-eslint/no-explicit-any": {
-      "count": 4
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 2
-    },
-    "@typescript-eslint/no-unsafe-argument": {
-      "count": 4
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 4
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 16
-    },
-    "@typescript-eslint/restrict-template-expressions": {
-      "count": 2
-    },
-    "no-useless-assignment": {
-      "count": 1
-    }
-  },
-  "sources/bodian/client/bodianMutations.ts": {
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unnecessary-type-conversion": {
-      "count": 1
-    }
-  },
-  "sources/bodian/client/bodianNormalize.ts": {
-    "@typescript-eslint/no-base-to-string": {
-      "count": 1
-    },
-    "@typescript-eslint/no-explicit-any": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-argument": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 4
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 11
-    },
-    "@typescript-eslint/require-await": {
-      "count": 1
-    }
-  },
-  "sources/bodian/client/bodianProvider.ts": {
-    "@typescript-eslint/no-base-to-string": {
-      "count": 2
-    },
-    "@typescript-eslint/no-explicit-any": {
-      "count": 6
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-argument": {
-      "count": 2
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 5
-    },
-    "@typescript-eslint/no-unsafe-call": {
-      "count": 5
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 17
-    },
-    "@typescript-eslint/no-unsafe-return": {
-      "count": 7
-    }
-  },
-  "sources/bodian/client/bodianTransport.ts": {
-    "@typescript-eslint/no-non-null-assertion": {
-      "count": 1
-    }
-  },
   "src/services/onlineMusic/catalogRefs.ts": {
     "@typescript-eslint/no-unnecessary-condition": {
       "count": 6
@@ -11895,7 +11852,7 @@
       "count": 997
     },
     "@typescript-eslint/consistent-type-imports": {
-      "count": 64
+      "count": 61
     },
     "@typescript-eslint/no-explicit-any": {
       "count": 4

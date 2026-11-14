@@ -11,7 +11,7 @@ import type {
 import type { BodianLyricsPayload } from 'bodian-music-api';
 import { bodianError, requestBodian } from './bodianTransport';
 import { describeBodianFailure } from './bodianFailure';
-import { bodianPage, getBodianLyricSearchAlias, normalizeBodianCollection, normalizeBodianSong } from './bodianNormalize';
+import { bodianPage, bodianRecord, getBodianLyricSearchAlias, normalizeBodianCollection, normalizeBodianSong } from './bodianNormalize';
 import { bodianCatalog } from './bodianCatalog';
 import { bodianCovers } from './bodianCovers';
 import { bodianLibrary, clearBodianLibraryCache } from './bodianLibrary';
@@ -34,7 +34,7 @@ export interface BodianSourceEnv {
 
 const normalizeBodianDiscoverCollection = (detail: BodianDiscoverDetail, index: number, fallbackTitle?: unknown): FoliumSourceCollection => {
     const songs = Array.isArray(detail.musicList) ? detail.musicList.map(normalizeBodianSong) : [];
-    const firstSong = songs[0];
+    const firstSong = songs.at(0);
     return {
         id: `discover-${index}`,
         type: 'playlist',
@@ -46,15 +46,21 @@ const normalizeBodianDiscoverCollection = (detail: BodianDiscoverDetail, index: 
     };
 };
 
+/** A list Bodian answers, or none where it answered something else. */
+const listOf = (value: unknown): unknown[] => (Array.isArray(value) ? value as unknown[] : []);
+
+/** The cursor the main entry's package adds to a page it read past unavailable songs (bodian-music-api). */
+type BodianCursor = { nextOffset: number; hasMore: boolean };
+
 async function getBodianDiscoverCollections(): Promise<FoliumSourceCollection[]> {
     try {
-        const module = await requestBodian<any>('home_module', { moduleId: BODIAN_DISCOVER_MODULE_ID });
-        const cards = Array.isArray(module.songList) ? module.songList : [];
-        const results = await Promise.allSettled(cards.map(async (card: any) => {
-            const index = Number(card?.id);
+        const module = await requestBodian<{ songList?: unknown }>('home_module', { moduleId: BODIAN_DISCOVER_MODULE_ID });
+        const results = await Promise.allSettled(listOf(module.songList).map(async (raw) => {
+            const card = bodianRecord(raw) as { id?: unknown; title?: unknown };
+            const index = Number(card.id);
             if (!Number.isInteger(index) || index < 0) return null;
             const detail = await requestBodian<BodianDiscoverDetail>('ai_playlist_detail', { index });
-            return normalizeBodianDiscoverCollection(detail, index, card?.title);
+            return normalizeBodianDiscoverCollection(detail, index, card.title);
         }));
         return results.flatMap(result => result.status === 'fulfilled' && result.value ? [result.value] : []);
     } catch {
@@ -93,9 +99,9 @@ export const createBodianSource = (env: BodianSourceEnv): FoliumSourceDef => ({
             access: 'account',
             async searchSongs(query, limit, offset) {
                 if (!query.trim()) return bodianPage([], 0, offset, limit);
-                const data = await requestBodian<any>('search', { query, limit, offset });
+                const data = await requestBodian<{ resultList?: unknown; total?: unknown; bodianPagination?: BodianCursor }>('search', { query, limit, offset });
                 if (!Array.isArray(data.resultList)) throw bodianError('invalid-response', 'Bodian search list is missing');
-                return bodianPage(data.resultList.map(normalizeBodianSong), data.total, offset, limit, data.bodianPagination);
+                return bodianPage(listOf(data.resultList).map(normalizeBodianSong), data.total, offset, limit, data.bodianPagination);
             },
         },
         'songs@1': {
@@ -116,7 +122,7 @@ export const createBodianSource = (env: BodianSourceEnv): FoliumSourceDef => ({
         'lyrics@1': {
             async getLyrics(song: FoliumSourceSong) {
                 const data = await requestBodian<BodianLyricsPayload>('lyrics', { id: song.id });
-                return toBodianLyrics(data, env.isPureMusicText);
+                return toBodianLyrics(data, text => env.isPureMusicText(text));
             },
             getSearchAlias: getBodianLyricSearchAlias,
         },
@@ -136,8 +142,8 @@ export const createBodianSource = (env: BodianSourceEnv): FoliumSourceDef => ({
         'recommendations@1': {
             async getRecommendedCollections(limit) {
                 const [regular, discover] = await Promise.all([
-                    requestBodian<any>('recommendations').then(data => (
-                        (data.lists || []).flatMap((group: any) => group.playLists || []).map((item: unknown) => normalizeBodianCollection(item))
+                    requestBodian<{ lists?: unknown }>('recommendations').then(data => (
+                        listOf(data.lists).flatMap(group => listOf(bodianRecord(group).playLists)).map(item => normalizeBodianCollection(item))
                     )).catch(() => [] as FoliumSourceCollection[]),
                     getBodianDiscoverCollections(),
                 ]);
@@ -149,8 +155,8 @@ export const createBodianSource = (env: BodianSourceEnv): FoliumSourceDef => ({
                 }).slice(0, limit);
             },
             async getPersonalFm() {
-                return requestBodian<any>('personal_fm')
-                    .then(data => (data.musicList || []).map(normalizeBodianSong))
+                return requestBodian<{ musicList?: unknown }>('personal_fm')
+                    .then(data => listOf(data.musicList).map(normalizeBodianSong))
                     .catch(() => []);
             },
         },

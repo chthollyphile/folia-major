@@ -43,12 +43,12 @@ export const bodianError = (code: string, message: string, cause?: unknown): Fol
 );
 
 export async function requestBodian<T = unknown>(operation: BodianOperation, params: BodianParams = {}): Promise<T> {
-    const { call } = host();
+    const transport = host();
     let result: BodianBridgeResult;
     // Omni consumers request 150/1000-row batches; Bodian serves at most 100 and returns its own cursor.
     const boundedParams = Number.isSafeInteger(params.limit) && Number(params.limit) > 100
         ? { ...params, limit: 100 } : params;
-    try { result = await call<BodianBridgeResult>('request', operation, boundedParams); }
+    try { result = await transport.call<BodianBridgeResult>('request', operation, boundedParams); }
     catch (error) { throw bodianError('network', BODIAN_BRIDGE_FAILED, error); }
     // The package's code and sentence go on as they are: bodianFailure.ts says what they mean.
     if (!result.ok) throw bodianError(result.error.code, result.error.message);

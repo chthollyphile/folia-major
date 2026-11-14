@@ -5,14 +5,14 @@ import { clearBodianLibraryCache } from './bodianLibrary';
 // sources/bodian/client/bodianMutations.ts
 // 红心与歌单增删。宿主只把波点自己的歌和歌单交到这里（omni 按歌的音源分派），给的是 DTO 或只给 id。
 
-const songId = (song: string | FoliumSourceSong): string => (typeof song === 'object' ? song.id : String(song));
+const songId = (song: string | FoliumSourceSong): string => (typeof song === 'object' ? song.id : song);
 
 function playlistId(playlist: string | FoliumSourceCollection): string {
-    if (typeof playlist !== 'object') return String(playlist);
+    if (typeof playlist !== 'object') return playlist;
     if (playlist.type !== 'playlist' || !playlist.isOwned) {
         throw bodianError('unsupported', 'Playlist is not an owned Bodian playlist');
     }
-    return String(playlist.id);
+    return playlist.id;
 }
 
 const likeSong = async (song: string | FoliumSourceSong, liked: boolean): Promise<void> => {

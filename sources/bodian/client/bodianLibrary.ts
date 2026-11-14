@@ -38,13 +38,13 @@ async function allPlaylists(userId: string): Promise<FoliumSourceCollection[]> {
         offset = page.nextOffset;
     }
     const unique = [...new Map(items.map(item => [`${item.data?.source}:${item.id}`, item])).values()];
-    playlistPages.set(String(userId), { at: Date.now(), items: unique });
+    playlistPages.set(userId, { at: Date.now(), items: unique });
     return unique;
 }
 
 export const bodianLibrary: FoliumSourceLibrary = {
     async getUserPlaylists(userId, limit, offset) {
-        const cached = playlistPages.get(String(userId));
+        const cached = playlistPages.get(userId);
         const items = offset > 0 && cached && Date.now() - cached.at < 60_000 ? cached.items : await allPlaylists(userId);
         return bodianPage(items.slice(offset, offset + limit), items.length, offset, limit);
     },
