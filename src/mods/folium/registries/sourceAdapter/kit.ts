@@ -57,7 +57,8 @@ export interface SourceAdapterKit {
     /** Calls an async member through the gate; a source's error comes out as the host's OnlineProviderError of it. */
     run(where: string, work: () => unknown): Promise<unknown>;
     /** A sync member as the host calls it on its hot paths, made once (guard.ts foliumSourceMember). */
-    sync<Args extends unknown[], Result>(where: string, member: (...args: Args) => Result): (...args: Args) => Result;
+    /** A synchronous member; a throw answers `fallback(...args)`, the member's cautious answer (guard.ts). */
+    sync<Args extends unknown[], Result>(where: string, member: (...args: Args) => Result, fallback: (...args: Args) => Result): (...args: Args) => Result;
     readonly song: (value: unknown) => UnifiedSong | null;
     readonly songs: (value: unknown) => UnifiedSong[];
     readonly collection: (value: unknown) => ProviderCollection | null;
@@ -97,8 +98,8 @@ export const createSourceAdapterKit = (context: SourceAdapterContext): SourceAda
                 throw hostError(error);
             }
         },
-        sync: <Args extends unknown[], Result>(where: string, member: (...args: Args) => Result) => (
-            foliumSourceMember(modId, `${label} ${where}`, member)
+        sync: <Args extends unknown[], Result>(where: string, member: (...args: Args) => Result, fallback: (...args: Args) => Result) => (
+            foliumSourceMember(modId, `${label} ${where}`, member, fallback)
         ),
         song,
         songs: (value: unknown) => list(value).map(song).filter((item): item is UnifiedSong => item !== null),

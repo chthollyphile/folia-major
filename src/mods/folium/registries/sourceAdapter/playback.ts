@@ -48,6 +48,9 @@ export const buildSearch = (kit: SourceAdapterKit, search: FoliumSourceSearch): 
  * constant objects: each is turned into the host's shape once for the UI language now (its label is a text in
  * that language), and again only when the language changes.
  */
+// What a song's availability reads as when the source's own answer threw.
+const UNKNOWN_AVAILABILITY: ProviderSongAvailability = Object.freeze({ state: 'unknown' });
+
 const songAvailabilityOf = (kit: SourceAdapterKit) => {
     const kept = new WeakMap<object, { language: string; value: ProviderSongAvailability }>();
     const convert = (answer: unknown): ProviderSongAvailability => {
@@ -115,7 +118,7 @@ export const buildPlayback = (
             getAudioSource ? audioSourceOf(await kit.run('getAudioSource', () => getAudioSource(toSourceSong(song), quality)), quality) : null
         ),
         ...(getAvailability ? {
-            getAvailability: kit.sync('getAvailability', (song: SongResult) => availabilityOf(getAvailability(toSourceSong(song)))),
+            getAvailability: kit.sync('getAvailability', (song: SongResult) => availabilityOf(getAvailability(toSourceSong(song))), () => UNKNOWN_AVAILABILITY),
         } : {}),
         ...(getReplacement ? {
             getReplacement: async (song) => {
@@ -149,17 +152,17 @@ export const buildExternal = (kit: SourceAdapterKit, external: FoliumSourceExter
     const setRepeatOne = external.setRepeatOne?.bind(external);
     const isStatusForSong = external.isStatusForSong.bind(external);
     return {
-        ...(canPlay ? { canPlay: kit.sync('canPlay', (song: SongResult) => canPlay(toSourceSong(song))) } : {}),
+        ...(canPlay ? { canPlay: kit.sync('canPlay', (song: SongResult) => canPlay(toSourceSong(song)), () => false) } : {}),
         ...(prepareNext ? {
             prepareNext: async (song, upcoming) => {
                 await kit.run('prepareNext', () => prepareNext(toSourceSong(song), upcoming.map(toSourceSong)));
             },
         } : {}),
-        ...(isPrepared ? { isPrepared: kit.sync('isPrepared', (song: SongResult) => isPrepared(toSourceSong(song))) } : {}),
+        ...(isPrepared ? { isPrepared: kit.sync('isPrepared', (song: SongResult) => isPrepared(toSourceSong(song)), () => false) } : {}),
         play: async (song, startSec) => {
             await kit.run('play', () => external.play(toSourceSong(song), startSec));
         },
-        ...(adopt ? { adopt: kit.sync('adopt', (song: SongResult) => { adopt(toSourceSong(song)); }) } : {}),
+        ...(adopt ? { adopt: kit.sync('adopt', (song: SongResult) => { adopt(toSourceSong(song)); }, () => undefined) } : {}),
         pause: async () => {
             await kit.run('pause', () => external.pause());
         },
@@ -181,14 +184,14 @@ export const buildExternal = (kit: SourceAdapterKit, external: FoliumSourceExter
         } : {}),
         // The status is the host's to hand on: its shape is the contract's FoliumSourceExternalStatus.
         getStatus: async (song) => await kit.run('getStatus', () => external.getStatus(toSourceSong(song))) as Awaited<ReturnType<OnlineExternalPlaybackProvider['getStatus']>>,
-        isStatusForSong: kit.sync('isStatusForSong', (song: SongResult, status) => isStatusForSong(toSourceSong(song), status)),
+        isStatusForSong: kit.sync('isStatusForSong', (song: SongResult, status: Parameters<FoliumSourceExternalPlayback['isStatusForSong']>[1]) => isStatusForSong(toSourceSong(song), status), () => false),
     };
 };
 
 export const buildReports = (kit: SourceAdapterKit, reports: FoliumSourceReports): NonNullable<OnlineMusicProvider['playbackReports']> => {
     const canReport = reports.canReport?.bind(reports);
     return {
-        ...(canReport ? { canReport: kit.sync('canReport', (song: SongResult) => canReport(toSourceSong(song))) } : {}),
+        ...(canReport ? { canReport: kit.sync('canReport', (song: SongResult) => canReport(toSourceSong(song)), () => false) } : {}),
         reportPlayback: async (song, report) => {
             await kit.run('report', () => reports.report(toSourceSong(song), { ...report }));
         },

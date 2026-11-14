@@ -25,7 +25,7 @@ export const buildCatalog = (kit: SourceAdapterKit, catalog: FoliumSourceCatalog
     const getSubscriptionStatus = catalog.getSubscriptionStatus?.bind(catalog);
     return {
         ...(canResolveSongCatalogRefs ? {
-            canResolveSongCatalogRefs: kit.sync('canResolveSongCatalogRefs', (song: UnifiedSong) => canResolveSongCatalogRefs(toSourceSong(song))),
+            canResolveSongCatalogRefs: kit.sync('canResolveSongCatalogRefs', (song: UnifiedSong) => canResolveSongCatalogRefs(toSourceSong(song)), () => false),
         } : {}),
         ...(resolveSongCatalogRefs ? {
             resolveSongCatalogRefs: async (song) => kit.song(await kit.run('resolveSongCatalogRefs', () => resolveSongCatalogRefs(toSourceSong(song)))) ?? song,

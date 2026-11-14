@@ -27,9 +27,9 @@ const buildRaw = (kit: SourceAdapterKit, raw: FoliumSourceRaw): OnlineRawRequest
     const checkParams = raw.checkParams?.bind(raw);
     const describeEndpoint = raw.describeEndpoint.bind(raw);
     const built = {
-        describeEndpoint: kit.sync('describeEndpoint', (endpoint: string): ProviderRawEndpoint | null => describeEndpoint(endpoint)),
+        describeEndpoint: kit.sync('describeEndpoint', (endpoint: string): ProviderRawEndpoint | null => describeEndpoint(endpoint), () => null),
         ...(checkParams ? {
-            checkParams: kit.sync('checkParams', (endpoint: string, params: Record<string, JsonValue>) => checkParams(endpoint, params)),
+            checkParams: kit.sync('checkParams', (endpoint: string, params: Record<string, JsonValue>) => checkParams(endpoint, params), () => 'invalid-params'),
         } : {}),
         request: (endpoint: string, params: Record<string, JsonValue>, signal: AbortSignal) => kit.run('request', () => raw.request(endpoint, params, signal)),
     };
@@ -77,7 +77,7 @@ export const buildFoliumSourceProvider = (
         },
         ...(shortNameKey ? { shortNameKey } : {}),
         ...(mark && typeof mark.letter === 'string' && typeof mark.color === 'string' ? { mark: { letter: mark.letter, color: mark.color } } : {}),
-        ...(getAvailability ? { getAvailability: kit.sync('getAvailability', () => availability(getAvailability())) } : {}),
+        ...(getAvailability ? { getAvailability: kit.sync('getAvailability', () => availability(getAvailability()), (): ProviderAvailability => ({ configured: true })) } : {}),
         watch: (tell) => {
             context.tells.add(tell);
             return () => {
@@ -102,7 +102,7 @@ export const buildFoliumSourceProvider = (
             if (isFoliumSourceSong(raw)) return toHostSong(hostId, raw);
             throw new Error(`${hostId}: cannot normalize song`);
         },
-        ...(getPageUrl ? { getSongPageUrl: kit.sync('getPageUrl', (song: SongResult) => getPageUrl(toSourceSong(song))) } : {}),
+        ...(getPageUrl ? { getSongPageUrl: kit.sync('getPageUrl', (song: SongResult) => getPageUrl(toSourceSong(song)), () => null) } : {}),
         ...(parts.search ? { search: buildSearch(kit, parts.search) } : {}),
         ...(parts.songs || parts.audio ? { playback: buildPlayback(kit, parts.songs, parts.audio) } : {}),
         ...(parts.external ? { externalPlayback: buildExternal(kit, parts.external) } : {}),

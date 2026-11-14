@@ -181,11 +181,11 @@ export const buildAuth = (kit: SourceAdapterKit, auth: FoliumSourceAuth): Online
                 await kit.run('forgetOldKeptAccount', () => forgetOldKeptAccount()).catch(() => undefined);
             },
         } : {}),
-        ...(getLoginTexts ? { getLoginTexts: kit.sync('getLoginTexts', () => textsOf(getLoginTexts())) } : {}),
-        ...(getLoginMethods ? { getLoginMethods: kit.sync('getLoginMethods', () => methodsOf(getLoginMethods())) } : {}),
+        ...(getLoginTexts ? { getLoginTexts: kit.sync('getLoginTexts', () => textsOf(getLoginTexts()), () => ({ title: '', note: '' })) } : {}),
+        ...(getLoginMethods ? { getLoginMethods: kit.sync('getLoginMethods', () => methodsOf(getLoginMethods()), () => []) } : {}),
         ...(resolveLoginMethods ? { resolveLoginMethods: async () => methodsOf(await kit.run('resolveLoginMethods', () => resolveLoginMethods())) } : {}),
         ...(startLogin ? { startLogin: async (methodId) => text(await kit.run('startLogin', () => startLogin(methodId))) } : {}),
-        ...(getLoginForm ? { getLoginForm: kit.sync('getLoginForm', () => formOf(getLoginForm())) } : {}),
+        ...(getLoginForm ? { getLoginForm: kit.sync('getLoginForm', () => formOf(getLoginForm()), () => ({ fields: [] })) } : {}),
         ...(submitLoginForm ? { submitLoginForm: (values) => kit.run('submitLoginForm', () => submitLoginForm({ ...values })) } : {}),
         ...(describeLoginFailure ? { describeLoginFailure } : {}),
         ...(createQr ? { createQr: async (key) => text(await kit.run('createQr', () => createQr(key))) } : {}),
@@ -194,7 +194,7 @@ export const buildAuth = (kit: SourceAdapterKit, auth: FoliumSourceAuth): Online
                 await kit.run('openLoginPage', () => openLoginPage(key));
             },
         } : {}),
-        ...(opensLoginPageItself ? { opensLoginPageItself: kit.sync('opensLoginPageItself', (key: string) => opensLoginPageItself(key)) } : {}),
+        ...(opensLoginPageItself ? { opensLoginPageItself: kit.sync('opensLoginPageItself', (key: string) => opensLoginPageItself(key), () => false) } : {}),
         // The state is the host's to hand on: its shape is the contract's FoliumSourceLoginState.
         ...(checkLogin ? { checkLogin: async (key) => await kit.run('checkLogin', () => checkLogin(key)) as LoginState } : {}),
         ...(cancelLogin ? {
@@ -202,7 +202,7 @@ export const buildAuth = (kit: SourceAdapterKit, auth: FoliumSourceAuth): Online
                 await kit.run('cancelLogin', () => cancelLogin(key));
             },
         } : {}),
-        ...(getLoginTtlMs ? { getLoginTtlMs: kit.sync('getLoginTtlMs', () => getLoginTtlMs()) } : {}),
+        ...(getLoginTtlMs ? { getLoginTtlMs: kit.sync('getLoginTtlMs', () => getLoginTtlMs(), () => 0) } : {}),
         ...(getLoginDiagnostics ? {
             getLoginDiagnostics: async (): Promise<LoginDiagnosticLine[]> => list(await kit.run('getLoginDiagnostics', () => getLoginDiagnostics()))
                 .slice(0, 64)
@@ -216,7 +216,7 @@ export const buildAuth = (kit: SourceAdapterKit, auth: FoliumSourceAuth): Online
                     );
                 }),
         } : {}),
-        ...(canRunLoginSelfCheck ? { canRunLoginSelfCheck: kit.sync('canRunLoginSelfCheck', () => canRunLoginSelfCheck()) } : {}),
+        ...(canRunLoginSelfCheck ? { canRunLoginSelfCheck: kit.sync('canRunLoginSelfCheck', () => canRunLoginSelfCheck(), () => false) } : {}),
         ...(runLoginSelfCheck ? {
             runLoginSelfCheck: async () => {
                 const result = record(await kit.run('runLoginSelfCheck', () => runLoginSelfCheck()));

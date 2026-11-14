@@ -200,13 +200,29 @@ describe('registering', () => {
         stop();
     });
 
-    it('calls a source mod\'s hot-path member as it is, made once', () => {
+    // A source mod's hot-path member is called while the UI renders: it reads no clock, but a throw answers the
+    // member's cautious answer instead of reaching the render (nothing above it catches; the window went blank).
+    it('calls a source mod\'s hot-path member untimed, and answers its cautious answer when it throws', () => {
+        vi.spyOn(console, 'warn').mockImplementation(() => {});
         const member = (value: number) => value + 1;
+        const throwing = (value: number): number => { throw new Error(`bad ${value}`); };
         markFoliumSourceMod(MOD, true);
-        expect(foliumSourceMember(MOD, 'x', member)).toBe(member);
+        expect(foliumSourceMember(MOD, 'x', member, () => -1)(1)).toBe(2);
+        const guarded = foliumSourceMember(MOD, 'y', throwing, (value) => value * 10);
+        expect(guarded(3)).toBe(30);
+        expect(guarded(4)).toBe(40);
+        expect(console.warn).toHaveBeenCalledTimes(1);
         markFoliumSourceMod(MOD, false);
-        expect(foliumSourceMember(MOD, 'x', member)).not.toBe(member);
-        expect(foliumSourceMember(MOD, 'x', member)(1)).toBe(2);
+        expect(foliumSourceMember(MOD, 'x', member, () => -1)(1)).toBe(2);
+    });
+
+    it('keeps a source whose song availability throws from taking the song list down', () => {
+        vi.spyOn(console, 'warn').mockImplementation(() => {});
+        // The client loader marks a source mod before its activate runs.
+        markFoliumSourceMod(MOD, true);
+        register({ id: 'a', capabilities: { 'songs@1': { getSong: async () => null, getAvailability: () => { throw new Error('bug'); } } } });
+        const song = toHostSong(`folium.${MOD}.a`, { id: 's1', title: 'T', artists: [] });
+        expect(getOnlineMusicProvider(`folium.${MOD}.a`)?.playback?.getAvailability?.(song)).toEqual({ state: 'unknown' });
     });
 
     it('turns a sync answer it gives again into the host\'s shape once, and a host song into its DTO once', () => {

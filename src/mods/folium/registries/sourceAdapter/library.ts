@@ -18,7 +18,7 @@ export const buildLibrary = (kit: SourceAdapterKit, library: FoliumSourceLibrary
     const getCloudCollection = library.getCloudCollection?.bind(library);
     const getListeningRankCollections = library.getListeningRankCollections?.bind(library);
     return {
-        ...(getSongLikeId ? { getSongLikeId: kit.sync('getSongLikeId', (song: SongResult) => getSongLikeId(toSourceSong(song))) } : {}),
+        ...(getSongLikeId ? { getSongLikeId: kit.sync('getSongLikeId', (song: SongResult) => getSongLikeId(toSourceSong(song)), (song: SongResult) => song.id) } : {}),
         getUserPlaylists: async (userId, limit, offset) => toHostPage(
             await kit.run('getUserPlaylists', () => library.getUserPlaylists(String(userId), limit, offset)), offset, kit.collection,
         ),
@@ -64,10 +64,10 @@ export const buildMutations = (kit: SourceAdapterKit, mutations: FoliumSourceMut
     const subscribeAlbum = mutations.subscribeAlbum?.bind(mutations);
     return {
         ...(canAddToPlaylist ? {
-            canAddToPlaylist: kit.sync('canAddToPlaylist', (playlist: ProviderCollection) => canAddToPlaylist(toSourceCollection(playlist))),
+            canAddToPlaylist: kit.sync('canAddToPlaylist', (playlist: ProviderCollection) => canAddToPlaylist(toSourceCollection(playlist)), () => false),
         } : {}),
         ...(canEditPlaylistTracks ? {
-            canEditPlaylistTracks: kit.sync('canEditPlaylistTracks', (playlist: ProviderCollection) => canEditPlaylistTracks(toSourceCollection(playlist))),
+            canEditPlaylistTracks: kit.sync('canEditPlaylistTracks', (playlist: ProviderCollection) => canEditPlaylistTracks(toSourceCollection(playlist)), () => false),
         } : {}),
         ...(likeSong ? {
             likeSong: async (song, liked) => {
@@ -87,7 +87,7 @@ export const buildMutations = (kit: SourceAdapterKit, mutations: FoliumSourceMut
             },
         } : {}),
         ...(canSubscribe ? {
-            canSubscribe: kit.sync('canSubscribe', (collection: ProviderCollection) => canSubscribe(toSourceCollection(collection))),
+            canSubscribe: kit.sync('canSubscribe', (collection: ProviderCollection) => canSubscribe(toSourceCollection(collection)), () => false),
         } : {}),
         ...(subscribePlaylist ? {
             subscribePlaylist: async (playlist, subscribed) => {

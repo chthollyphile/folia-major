@@ -176,18 +176,38 @@ export const callFoliumSourceMember = <T>(modId: string, where: string, call: ()
     untimedSourceMods.has(modId) ? call() : timeFoliumMod(modId, where, call)
 );
 
+/* The (mod, member) pairs whose throw has been logged this run: once is enough on a path called every frame. */
+const loggedSourceMemberThrows = new Set<string>();
+
 /**
  * Folium 2.0 (S3): a synchronous member of a mod's source as the host calls it on its hot paths, made once when
- * the source is adapted, so a call allocates nothing: a source mod's member is `member` itself (no clock reads,
- * no catch), any other mod's goes through the gate like callFoliumSourceMember.
+ * the source is adapted. A source mod's member reads no clock and is not counted (plan §5.2), but a throw does not
+ * reach the host: these members are called while the UI renders (a list row asks a song's availability), and
+ * nothing above that render catches, so one bad source would take the whole window down. The call answers
+ * `fallback(...args)` instead, the member's cautious answer (not playable, not editable, no state), logged once a
+ * run; like any failure of a source method it is an ordinary result, nothing is shown (plan §5.2). Any other
+ * mod's member goes through the gate like callFoliumSourceMember.
  */
 export const foliumSourceMember = <Args extends unknown[], Result>(
     modId: string,
     where: string,
     member: (...args: Args) => Result,
-): ((...args: Args) => Result) => (
-    untimedSourceMods.has(modId) ? member : (...args: Args) => timeFoliumMod(modId, where, () => member(...args))
-);
+    fallback: (...args: Args) => Result,
+): ((...args: Args) => Result) => {
+    if (!untimedSourceMods.has(modId)) return (...args: Args) => timeFoliumMod(modId, where, () => member(...args));
+    return (...args: Args): Result => {
+        try {
+            return member(...args);
+        } catch (error) {
+            const key = `${modId}\n${where}`;
+            if (!loggedSourceMemberThrows.has(key)) {
+                loggedSourceMemberThrows.add(key);
+                console.warn(`[Folium:${modId}] ${where} threw; the host takes its cautious answer`, error);
+            }
+            return fallback(...args);
+        }
+    };
+};
 
 /*
  * Wraps a function a mod hands over to be called again and again (a listener,
