@@ -77,9 +77,40 @@ const namedRefs = (providerId: OnlineProviderId, value: unknown): Artist[] => {
     return artists;
 };
 
-const jsonRecord = (value: unknown): Record<string, JsonValue> | undefined => {
+/** The most a song's or collection's `data` may take, as JSON text: it is kept with the song (queue, history). */
+export const SOURCE_DATA_MAX_CHARS = 16 * 1024;
+
+/*
+ * A source's `data` as the host keeps it: a copy, through JSON, of a plain object. The host clones and stores the
+ * song (the queue in IndexedDB, the windows' sync): a function, a class instance, a cycle or a BigInt in it failed
+ * the whole queue, and the source kept a hand on what the host had stored. What JSON cannot hold, or what is
+ * larger than SOURCE_DATA_MAX_CHARS, is left out, said once a source.
+ */
+const droppedDataOf = new Set<string>();
+const jsonRecord = (providerId: OnlineProviderId, value: unknown): Record<string, JsonValue> | undefined => {
+    if (!record(value)) return undefined;
+    let textValue: string | undefined;
+    try {
+        textValue = JSON.stringify(value);
+    } catch {
+        textValue = undefined;
+    }
+    if (textValue === undefined || textValue.length > SOURCE_DATA_MAX_CHARS) {
+        if (!droppedDataOf.has(providerId)) {
+            droppedDataOf.add(providerId);
+            console.warn(`[FoliumSources] ${providerId}: dropped a data that is not JSON or is over ${SOURCE_DATA_MAX_CHARS} characters`);
+        }
+        return undefined;
+    }
+    return record(JSON.parse(textValue)) as Record<string, JsonValue> | null ?? undefined;
+};
+
+/** The ids other sources know a song by: strings only. */
+const lyricIdsOf = (value: unknown): Record<string, string> | null => {
     const found = record(value);
-    return found ? found as Record<string, JsonValue> : undefined;
+    if (!found) return null;
+    const ids = Object.fromEntries(Object.entries(found).filter((entry): entry is [string, string] => typeof entry[1] === 'string'));
+    return Object.keys(ids).length > 0 ? ids : null;
 };
 
 /** A source's song as the host's UnifiedSong of provider `providerId`. */
@@ -89,15 +120,15 @@ export const toHostSong = (providerId: OnlineProviderId, song: FoliumSourceSong)
     const album = record(raw.album);
     const albumId = album ? text(album.id) : '';
     const coverUrl = optionalText(raw.coverUrl) ?? (album ? optionalText(album.coverUrl) : undefined);
-    const lyricIds = record(raw.lyricIds);
+    const lyricIds = lyricIdsOf(raw.lyricIds);
     const topIds: Partial<Record<(typeof TOP_LYRIC_IDS)[number][1], string>> = {};
     for (const [source, field] of TOP_LYRIC_IDS) {
         const value = lyricIds ? optionalText(lyricIds[source]) : undefined;
         if (value) topIds[field] = value;
     }
-    const data = jsonRecord(raw.data);
+    const data = jsonRecord(providerId, raw.data);
     const providerData: Record<string, JsonValue> | undefined = lyricIds
-        ? { ...(data ?? {}), [LYRIC_IDS_DATA_KEY]: lyricIds as Record<string, JsonValue> }
+        ? { ...(data ?? {}), [LYRIC_IDS_DATA_KEY]: lyricIds }
         : data;
     const row = record(raw.row);
     const rowId = row ? optionalText(row.id) : undefined;
@@ -258,7 +289,7 @@ export const toHostCollection = (providerId: OnlineProviderId, collection: Foliu
     const raw = collection as unknown as Record<string, unknown>;
     const artists: ProviderArtistSummary[] = namedRefs(providerId, raw.artists);
     const personalFm = fmLaunchOf(raw.personalFm);
-    const data = jsonRecord(raw.data);
+    const data = jsonRecord(providerId, raw.data);
     const creator = record(raw.creator);
     const aliases = textList(raw.aliases);
     const coverUrl = optionalText(raw.coverUrl);

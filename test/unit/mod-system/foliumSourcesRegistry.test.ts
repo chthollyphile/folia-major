@@ -225,6 +225,36 @@ describe('registering', () => {
     });
 });
 
+// The host clones and stores a song (the queue in IndexedDB, the windows' sync): its `data` must be plain JSON, a
+// copy, and small; a function in it used to fail the whole queue's persistence.
+describe('a source song\'s data as the host keeps it', () => {
+    const host = (data: unknown, lyricIds?: unknown) => toHostSong(`folium.${MOD}.a`, { id: 's', title: 'T', artists: [], data, lyricIds } as never);
+
+    it('keeps a copy of plain JSON data, and drops what JSON cannot hold or what is too large', () => {
+        vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const data = { sign: 'x', nested: { n: 1 } };
+        const kept = host(data).sourceRef?.providerData;
+        expect(kept).toEqual(data);
+        expect(kept).not.toBe(data);
+        data.nested.n = 2;
+        expect(kept).toEqual({ sign: 'x', nested: { n: 1 } });
+        const cycle: Record<string, unknown> = {};
+        cycle.self = cycle;
+        expect(host(cycle).sourceRef?.providerData).toBeUndefined();
+        expect(host({ big: 1n }).sourceRef?.providerData).toBeUndefined();
+        expect(host({ blob: 'x'.repeat(20_000) }).sourceRef?.providerData).toBeUndefined();
+        // A function JSON leaves out; what is left can be cloned.
+        const withFunction = host({ sign: 'y', run: () => 1 }).sourceRef?.providerData;
+        expect(withFunction).toEqual({ sign: 'y' });
+        expect(() => structuredClone(withFunction)).not.toThrow();
+    });
+
+    it('keeps the string ids of lyricIds only', () => {
+        const song = host(undefined, { qq: 'mid-1', netease: 7, kugou: { hash: 'h' } });
+        expect(song.sourceRef?.providerData).toEqual({ '@lyricIds': { qq: 'mid-1' } });
+    });
+});
+
 describe('a song\'s availability label', () => {
     it('follows the UI language, and two constant answers in turn are each turned once', async () => {
         markFoliumSourceMod(MOD, true);
