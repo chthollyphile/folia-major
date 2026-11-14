@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type * as SharedModule from '@/mods/folium/shared';
+import type * as ReactI18next from 'react-i18next';
 
 // test/unit/mod-system/foliumSourcesPreview.test.ts
 // Folium 2.0 (plan §10, delivery): until the nine built-in sources use it, the source interface is a preview.
@@ -10,7 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const flags = vi.hoisted(() => ({ preview: true }));
 
 vi.mock('@/mods/folium/shared', async (importOriginal) => ({
-    ...(await importOriginal<typeof import('@/mods/folium/shared')>()),
+    ...(await importOriginal<typeof SharedModule>()),
     get FOLIUM_SOURCES_PREVIEW() {
         return flags.preview;
     },
@@ -26,7 +28,7 @@ vi.mock('@/mods/manager/ModSurfaceRenderer', () => ({
 }));
 
 vi.mock('react-i18next', async (importOriginal) => ({
-    ...(await importOriginal<typeof import('react-i18next')>()),
+    ...(await importOriginal<typeof ReactI18next>()),
     useTranslation: () => ({ t: (key: string) => key }),
 }));
 

@@ -22,7 +22,7 @@ export const FOLIUM_ONE_VERSION = Object.freeze({ ...shared.foliumOneVersion });
  * source mods with it, and the reference and type file say so (dev/folium/api-docs.mjs, types.mjs). S8 sets it
  * to false.
  */
-export const FOLIUM_SOURCES_PREVIEW = shared.sourcesPreview === true;
+export const FOLIUM_SOURCES_PREVIEW: boolean = shared.sourcesPreview;
 
 /** Folium 2.0: the limits of ordinary mods and of source mods, side by side (plan §5.2). */
 export const FOLIUM_SHARED_LIMITS = shared.limits;
