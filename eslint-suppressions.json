@@ -1356,6 +1356,22 @@
       "count": 1134
     }
   },
+  "packages/folium-source-kit/src/errorText.ts": {
+    "@typescript-eslint/no-unnecessary-condition": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 1
+    }
+  },
+  "packages/folium-source-kit/src/krcDecrypt.ts": {
+    "@stylistic/indent": {
+      "count": 43
+    },
+    "@typescript-eslint/no-unnecessary-condition": {
+      "count": 1
+    }
+  },
   "packaging/ffmpeg/fetch-ffmpeg.mjs": {
     "@stylistic/indent": {
       "count": 129
@@ -9577,17 +9593,6 @@
       "count": 6
     }
   },
-  "src/services/onlineMusic/kugou/krcDecrypt.ts": {
-    "@stylistic/indent": {
-      "count": 43
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 1
-    },
-    "dedicatus/log-module-prefix": {
-      "count": 1
-    }
-  },
   "src/services/onlineMusic/kugou/kugouLyricProvider.ts": {
     "@stylistic/indent": {
       "count": 277
@@ -11272,14 +11277,6 @@
   },
   "src/utils/coverUrl.ts": {
     "@typescript-eslint/no-unnecessary-type-conversion": {
-      "count": 1
-    }
-  },
-  "src/utils/errorText.ts": {
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
       "count": 1
     }
   },

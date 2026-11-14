@@ -162,13 +162,15 @@ describe('dev/sources/build.mjs builds a source directory into a mod directory',
         expect(again.fingerprint).toBe(JSON.parse(read(BUILD_STAMP)).fingerprint);
     }, 60_000);
 
-    it('renames the archive when a dependency changes, and drops the old one', async () => {
+    it('renames the archive when a dependency changes, and drops the old one (with the cache --watch keeps, too)', async () => {
         const dir = copyFixture(() => {});
         const out = temporary('out');
-        const first = await buildSource(dir, { outRoot: out });
+        // A local (file:) package changes its files without changing its version: the cache must not keep the old archive.
+        const cache = new Map();
+        const first = await buildSource(dir, { outRoot: out, cache });
         const firstArchive = fs.readdirSync(first.outDir).find((name) => name.startsWith('deps.'));
         fs.writeFileSync(path.join(dir, 'deps/asar-dep/module/gamma.cjs'), "'use strict';\nexports.name = 'gamma';\n");
-        const second = await buildSource(dir, { outRoot: out });
+        const second = await buildSource(dir, { outRoot: out, cache });
         const archives = fs.readdirSync(second.outDir).filter((name) => name.startsWith('deps.'));
         expect(archives).toHaveLength(1);
         expect(archives[0]).not.toBe(firstArchive);

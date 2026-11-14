@@ -34,7 +34,7 @@ async function decompressDeflate(bytes: Uint8Array): Promise<string> {
     if (chunks.length === 0) {
       throw error;
     }
-    console.warn('DecompressionStream warning (ignored):', error);
+    console.warn('[krcDecrypt] DecompressionStream warning (ignored):', error);
   } finally {
     reader.releaseLock();
   }

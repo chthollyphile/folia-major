@@ -192,8 +192,17 @@ export const closureFingerprint = (files) => {
     return hash.digest('hex').slice(0, 16);
 };
 
-/** 闭包的结构（每个包的位置、版本、目录）：watch 时它没变就不重算内容指纹。 */
-export const closureShape = (closure) => JSON.stringify([...closure.entries()].map(([stagePath, entry]) => [stagePath, entry.version, entry.dir]).sort());
+/*
+ * 闭包的结构：每个包的位置、版本、目录；不在 node_modules 里的本地包（file:）再加上每个文件的大小与修改时间，
+ * 它们常常改内容不改版本。watch 时结构没变就不重算内容指纹、不重打归档。
+ */
+export const closureShape = (closure) => JSON.stringify([...closure.entries()].map(([stagePath, entry]) => [
+    stagePath, entry.version, entry.dir,
+    entry.dir.split(path.sep).includes('node_modules') ? null : packageFiles(entry.dir).map((relative) => {
+        const stat = fs.statSync(path.join(entry.dir, relative));
+        return `${relative}:${stat.size}:${Math.round(stat.mtimeMs)}`;
+    }),
+]).sort());
 
 const requireHere = createRequire(import.meta.url);
 

@@ -34,7 +34,7 @@ const rulesOf = configs => Object.assign({}, ...configs.map(config => config.rul
 /** strictTypeChecked 比 strict 多出来的规则：要类型信息的那些（以及被它们替下来的基础规则）。 */
 const TYPE_AWARE_RULES = Object.keys(rulesOf(tseslint.configs.strictTypeChecked)).filter(rule => !(rule in rulesOf(tseslint.configs.strict)));
 /** 应用自己的代码：日志规则（AGENTS.md 的“日志”一节）只管这里，测试、开发脚本和 CLI 的输出不算日志。 */
-const APP_CODE = ['src/**/*.{ts,tsx,js,mjs,cjs}', 'electron/**/*.{ts,js,mjs,cjs}', 'sources/**/*.{ts,tsx,js,mjs,cjs}'];
+const APP_CODE = ['src/**/*.{ts,tsx,js,mjs,cjs}', 'electron/**/*.{ts,js,mjs,cjs}', 'sources/**/*.{ts,tsx,js,mjs,cjs}', 'packages/folium-source-kit/**/*.ts'];
 const SCRIPTS = ['**/*.{js,cjs,mjs}'];
 
 export default tseslint.config(
