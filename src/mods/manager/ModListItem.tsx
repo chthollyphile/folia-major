@@ -15,6 +15,7 @@ import { translateModError } from './modErrors';
 import { MOD_FILES_PERMISSION, ModStorageUsage, type ModNotice } from './ModStorageUsage';
 import { useFoliumOldNameStore } from '../folium/deprecated/warnings';
 import { omni } from '@/services/onlineMusic/omni';
+import { FOLIUM_SOURCES_PREVIEW } from '../folium/shared';
 
 // src/mods/manager/ModListItem.tsx
 // One mod as a row of the manager's list card. The row expands in place to show the mod's
@@ -178,6 +179,15 @@ type ModListItemProps = {
 
 const NO_OLD_NAMES: readonly string[] = [];
 
+/*
+ * Folium 2.0 (plan §10): a third-party source mod is built on the source interface, a preview until the nine
+ * built-in sources use it. A built-in copy ships with the app it was built for, so it gets no mark.
+ */
+const isPreviewSourceMod = (mod: ModRuntimeInfo): boolean => FOLIUM_SOURCES_PREVIEW
+    && mod.kind === 'source'
+    && mod.folium === 2
+    && mod.signature.status !== 'builtin';
+
 export const ModListItem: React.FC<ModListItemProps> = ({
     mod, cost, expanded, selected, selectionMode, isLast, isDaylight, theme, classes, onToggleExpand, onToggleEnabled, onToggleSelected, onNotice,
 }) => {
@@ -192,6 +202,7 @@ export const ModListItem: React.FC<ModListItemProps> = ({
     const readPlatforms = platformGrantsOf(mod, 'read');
     const writePlatforms = platformGrantsOf(mod, 'write');
     const meta = [mod.id, `v${mod.version ?? '-'}`, mod.author].filter(Boolean).join(' · ');
+    const previewSource = isPreviewSourceMod(mod);
 
     const activate = () => {
         if (selectionMode) {
@@ -233,6 +244,15 @@ export const ModListItem: React.FC<ModListItemProps> = ({
                         {mod.kind === 'source' ? (
                             <span className="shrink-0 text-[10px] px-1.5 py-px rounded-full border opacity-70" style={{ color: 'var(--text-secondary)' }}>
                                 {t('mods.kindSource')}
+                            </span>
+                        ) : null}
+                        {previewSource ? (
+                            <span
+                                data-mod-preview-mark=""
+                                title={t('mods.sourcePreviewDetail')}
+                                className={`shrink-0 text-[10px] px-1.5 py-px rounded-full border ${isDaylight ? 'text-violet-700 border-violet-700/40' : 'text-violet-300 border-violet-300/40'}`}
+                            >
+                                {t('mods.sourcePreview')}
                             </span>
                         ) : null}
                         {isModSlow(runningCost) ? <ModSlowMark isDaylight={isDaylight} /> : null}
@@ -284,6 +304,13 @@ export const ModListItem: React.FC<ModListItemProps> = ({
                                 </div>
                             ) : null}
                             <SignatureNotice mod={mod} isDaylight={isDaylight} classes={classes} />
+                            {previewSource ? (
+                                <div data-mod-preview-detail="" className="text-[11px] opacity-60" style={{ color: 'var(--text-secondary)' }}>
+                                    <span className="font-medium">{t('mods.sourcePreview')}</span>
+                                    {' · '}
+                                    {t('mods.sourcePreviewDetail')}
+                                </div>
+                            ) : null}
                             {mod.devSource ? (
                                 <div className="text-[11px] opacity-50" style={{ color: 'var(--text-secondary)' }}>{t('mods.devSourceHint')}</div>
                             ) : null}

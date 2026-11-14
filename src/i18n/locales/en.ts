@@ -1416,6 +1416,8 @@ export default {
     "signatureBuiltin": "Built-in",
     "signatureBuiltinDetail": "A built-in mod installed with the app: it carries no signature file and none is checked; the installation vouches for it.",
     "kindSource": "Source",
+    "sourcePreview": "Preview",
+    "sourcePreviewDetail": "This mod uses the Folium 2 source interface, which is still a preview: until all nine built-in sources have moved to it, the interface may change, and the mod may need an update to keep working with new versions.",
     "signatureVerified": "Verified",
     "signatureVerifiedDetail": "Carries a valid official Folium signature ({{key}}): its source and content were reviewed by Folium and have not changed since signing. Once enabled it still runs with the app's full privileges.",
     "signatureBeta": "Preview",

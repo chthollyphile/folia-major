@@ -221,6 +221,16 @@ export const parseContract = (text) => {
 
 // ---------------------------------------------------------------- rendering
 
+/*
+ * Folium 2.0 (plan §10, delivery): while foliumShared.json says `sourcesPreview`, the source interface is a
+ * preview, and the reference says so at its top and over the two sections that hold it. The type file says the
+ * same (types.mjs). `folium: 1`'s promise is not touched: its interface stays frozen at 1.9.
+ */
+export const SOURCES_PREVIEW_SECTIONS = ['Sources', 'Source main API'];
+export const SOURCES_PREVIEW_NOTE = '> **预览**：Folium 2 的音源接口（`folium.sources` 与音源类模组 main 入口的 `api`）还是预览版，'
+    + '九个内置音源全部迁过去之前可能变动；用它写的模组可能要随新版本更新。`folium: 1` 冻结在 Folium 1.9 的接口不受影响。';
+export const sourcesPreview = () => readFoliumShared().sourcesPreview === true;
+
 // Contract section → reference heading, lookup order, and a short orientation.
 const SECTION_INFO = {
     'Client API': {
@@ -503,6 +513,7 @@ export const renderApiDocs = (contractText, mainContractText, sourcesContractTex
     const items = sections.flatMap((section) => section.items);
     const known = new Set(items.map((item) => item.name));
     const interfaces = new Map(items.filter((item) => item.kind === 'interface').map((item) => [item.name, item]));
+    const preview = sourcesPreview();
     const version = /FOLIUM_VERSION = Object\.freeze\(\{ major: (\d+), minor: (\d+) \}\)/.exec(contractText);
     if (!version) throw new Error('contract.ts has no FOLIUM_VERSION = Object.freeze({ major, minor })');
 
@@ -513,6 +524,7 @@ export const renderApiDocs = (contractText, mainContractText, sourcesContractTex
         '',
         `当前契约版本：**Folium ${version[1]}.${version[2]}**。`,
         '',
+        ...(preview ? [SOURCES_PREVIEW_NOTE, ''] : []),
         '本文列出模组能用到的全部公开类型，内容直接来自契约文件 [`src/mods/folium/contract.ts`](../../src/mods/folium/contract.ts)',
         '（client 入口）、[`src/mods/folium/sources/contract.ts`](../../src/mods/folium/sources/contract.ts)（音源）与 [`src/mods/folium/mainContract.ts`](../../src/mods/folium/mainContract.ts)（main 入口），',
         '`mod.json` 写 `"folium": 1` 的模组看到的接口冻结在 Folium 1.9（`folium.host.folium` 读到 1.9，没有标着 Folium 2 的成员）。',
@@ -530,6 +542,7 @@ export const renderApiDocs = (contractText, mainContractText, sourcesContractTex
     ];
     for (const section of sections) {
         out.push(`## ${section.info.title}`, '');
+        if (preview && SOURCES_PREVIEW_SECTIONS.includes(section.title)) out.push(SOURCES_PREVIEW_NOTE, '');
         if (section.info.intro) out.push(section.info.intro, '');
         if (TABLES[section.title]) out.push(TABLES[section.title].render(items), '');
         for (const item of section.items) out.push(renderItem(item, known, interfaces), '');

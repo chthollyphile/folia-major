@@ -2,6 +2,7 @@
     "version": { "major": 2, "minor": 0 },
     "foliumOneVersion": { "major": 1, "minor": 9 },
     "manifestVersions": [1, 2],
+    "sourcesPreview": true,
     "sourceCapabilities": {
         "search": [1],
         "songs": [1],

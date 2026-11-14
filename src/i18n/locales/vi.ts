@@ -1416,6 +1416,8 @@ export default {
     "signatureBuiltin": "Tích hợp",
     "signatureBuiltinDetail": "Mod tích hợp được cài cùng ứng dụng: không kèm tệp chữ ký và không kiểm tra chữ ký; bản cài đặt bảo đảm nguồn gốc của nó.",
     "kindSource": "Nguồn nhạc",
+    "sourcePreview": "Xem trước",
+    "sourcePreviewDetail": "Mod này dùng giao diện nguồn nhạc của Folium 2, hiện vẫn là bản xem trước: cho đến khi cả chín nguồn nhạc tích hợp được chuyển sang, giao diện có thể thay đổi và mod có thể cần cập nhật để tiếp tục hoạt động với phiên bản mới.",
     "signatureVerified": "Đã xác minh",
     "signatureVerifiedDetail": "Mang chữ ký Folium chính thức hợp lệ ({{key}}): nguồn và nội dung đã được Folium kiểm duyệt và không bị thay đổi sau khi ký. Khi bật vẫn chạy với toàn quyền ứng dụng.",
     "signatureBeta": "Bản thử nghiệm sớm (Beta)",

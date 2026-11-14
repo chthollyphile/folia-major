@@ -14,6 +14,9 @@
 //
 // 模组不在本仓库的 mods/ 目录里时，把这个文件拷到模组文件夹的旁边（不要放进模组文件夹里面：
 // 里面的每个文件都算模组的内容），路径改成拷过去的位置。这个文件只给编辑器看，宿主不读它。
+//
+// 预览：Folium 2 的音源接口（folium.sources 与音源类模组 main 入口的 api）还是预览版，九个内置音源全部迁过去之前
+// 可能变动；用它写的模组可能要随新版本更新。folium: 1 冻结在 Folium 1.9 的接口不受影响。
 
 /** The Folium version this host implements; mods read it at runtime as `folium.host.folium`. */
 export declare const FOLIUM_VERSION: { readonly major: 2; readonly minor: 0 };
@@ -2833,6 +2836,8 @@ export interface FoliumClientModule {
 }
 
 // ---------------------------------------------------------------- Sources
+// 预览：Folium 2 的音源接口（folium.sources 与音源类模组 main 入口的 api）还是预览版，九个内置音源全部迁过去之前
+// 可能变动；用它写的模组可能要随新版本更新。folium: 1 冻结在 Folium 1.9 的接口不受影响。
 
 /**
  * Folium 2: a text a source hands the host: written out (shown as it is in every language), one string per
@@ -4172,6 +4177,8 @@ export interface FoliumExportResult {
 }
 
 // ---------------------------------------------------------------- Source main API
+// 预览：Folium 2 的音源接口（folium.sources 与音源类模组 main 入口的 api）还是预览版，九个内置音源全部迁过去之前
+// 可能变动；用它写的模组可能要随新版本更新。folium: 1 冻结在 Folium 1.9 的接口不受影响。
 
 /**
  * Folium 2: the main entry's `api` of a source mod (one with `sources` in mod.json, plan §5.5): FoliumMainApi and

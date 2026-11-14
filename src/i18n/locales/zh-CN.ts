@@ -1416,6 +1416,8 @@ export default {
     "signatureBuiltin": "内置",
     "signatureBuiltinDetail": "随应用安装的内置模组：不带签名文件，也不校验签名，来源由安装包保证。",
     "kindSource": "音源",
+    "sourcePreview": "预览",
+    "sourcePreviewDetail": "这个模组用的是 Folium 2 的音源接口，目前还是预览版：九个内置音源全部迁过去之前，接口可能变动，模组可能要随新版本更新才能继续使用。",
     "signatureVerified": "官方认证",
     "signatureVerifiedDetail": "带有有效的 Folium 官方签名（{{key}}）：来源与内容经过官方审查，签名后未被修改。它启用后仍以应用的完整权限运行。",
     "signatureBeta": "先行测试",

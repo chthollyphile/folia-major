@@ -1416,6 +1416,8 @@ export default {
     "signatureBuiltin": "Bawaan",
     "signatureBuiltinDetail": "Mod bawaan yang terpasang bersama aplikasi: tidak membawa berkas tanda tangan dan tidak diperiksa; instalasinya yang menjaminnya.",
     "kindSource": "Sumber",
+    "sourcePreview": "Pratinjau",
+    "sourcePreviewDetail": "Mod ini memakai antarmuka sumber Folium 2, yang masih berupa pratinjau: sampai kesembilan sumber bawaan selesai dipindahkan ke sana, antarmukanya bisa berubah, dan mod ini mungkin perlu diperbarui agar tetap berfungsi di versi baru.",
     "signatureVerified": "Terverifikasi",
     "signatureVerifiedDetail": "Memiliki tanda tangan resmi Folium yang valid ({{key}}): sumber dan isinya telah ditinjau Folium dan tidak berubah sejak ditandatangani. Setelah diaktifkan, mod tetap berjalan dengan hak penuh aplikasi.",
     "signatureBeta": "Pratinjau",

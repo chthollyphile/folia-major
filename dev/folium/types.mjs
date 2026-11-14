@@ -24,7 +24,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { CONTRACT_PATH, MAIN_CONTRACT_PATH, readSourcesContract } from './api-docs.mjs';
+import { CONTRACT_PATH, MAIN_CONTRACT_PATH, readSourcesContract, SOURCES_PREVIEW_SECTIONS, sourcesPreview } from './api-docs.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 export const TYPES_PATH = path.join(ROOT, 'mods', 'folium.d.ts');
@@ -46,6 +46,12 @@ const HEADER = `// mods/folium.d.ts
 // 模组不在本仓库的 mods/ 目录里时，把这个文件拷到模组文件夹的旁边（不要放进模组文件夹里面：
 // 里面的每个文件都算模组的内容），路径改成拷过去的位置。这个文件只给编辑器看，宿主不读它。
 `;
+
+// Folium 2.0: what the type file says over the source interface while foliumShared.json says `sourcesPreview`.
+const PREVIEW_COMMENT = [
+    '// 预览：Folium 2 的音源接口（folium.sources 与音源类模组 main 入口的 api）还是预览版，九个内置音源全部迁过去之前',
+    '// 可能变动；用它写的模组可能要随新版本更新。folium: 1 冻结在 Folium 1.9 的接口不受影响。',
+].join('\n');
 
 /*
  * A contract's own header comment (everything before its first declaration, JSDoc or section marker) is about
@@ -93,7 +99,13 @@ export const renderFoliumTypes = (contractText, mainContractText = '', sourcesCo
     if (leftover) {
         throw new Error(`contract.ts has a declaration the type file cannot hold: "${leftover[0]}"`);
     }
-    return `${HEADER}\n${body.trimEnd()}\n`;
+    if (!sourcesPreview()) return `${HEADER}\n${body.trimEnd()}\n`;
+    // Folium 2.0 (plan §10): the source interface is a preview; say so in the header and under its two section
+    // markers, as line comments (D513 reads the markers, and line comments change nothing it counts).
+    const marked = body.replace(/^(\/\/ -{8,} (.+))$/gm, (line, _marker, title) => (
+        SOURCES_PREVIEW_SECTIONS.includes(title.trim()) ? `${line}\n${PREVIEW_COMMENT}` : line
+    ));
+    return `${HEADER}//\n${PREVIEW_COMMENT}\n\n${marked.trimEnd()}\n`;
 };
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

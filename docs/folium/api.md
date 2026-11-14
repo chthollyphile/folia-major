@@ -4,6 +4,8 @@
 
 当前契约版本：**Folium 2.0**。
 
+> **预览**：Folium 2 的音源接口（`folium.sources` 与音源类模组 main 入口的 `api`）还是预览版，九个内置音源全部迁过去之前可能变动；用它写的模组可能要随新版本更新。`folium: 1` 冻结在 Folium 1.9 的接口不受影响。
+
 本文列出模组能用到的全部公开类型，内容直接来自契约文件 [`src/mods/folium/contract.ts`](../../src/mods/folium/contract.ts)
 （client 入口）、[`src/mods/folium/sources/contract.ts`](../../src/mods/folium/sources/contract.ts)（音源）与 [`src/mods/folium/mainContract.ts`](../../src/mods/folium/mainContract.ts)（main 入口），
 `mod.json` 写 `"folium": 1` 的模组看到的接口冻结在 Folium 1.9（`folium.host.folium` 读到 1.9，没有标着 Folium 2 的成员）。
@@ -2246,6 +2248,8 @@ What `folium.lyrics.parse` returns.
 
 ## 音源（Folium 2）
 
+> **预览**：Folium 2 的音源接口（`folium.sources` 与音源类模组 main 入口的 `api`）还是预览版，九个内置音源全部迁过去之前可能变动；用它写的模组可能要随新版本更新。`folium: 1` 冻结在 Folium 1.9 的接口不受影响。
+
 `folium: 2` 的音源类模组（`mod.json` 里声明了 `sources`）在 client 入口里用 `folium.sources.register` 注册音源：注册字段加上一组带版本的能力（`search@1`、`songs@1`、`playback.audio@1` …），宿主按实现了哪些能力、其中哪些成员在推导界面上的开关。`folium.sources.supports(id, version)` 说这个宿主实现了哪些能力；`folium.omni.capability` 取别的音源的自定义能力。这一节来自 [`src/mods/folium/sources/contract.ts`](../../src/mods/folium/sources/contract.ts)。`folium: 1` 的模组没有这些成员。
 
 ### FoliumText
@@ -3649,6 +3653,8 @@ What `api.render.exportVideo` resolves to.
 | `warnings?` | `string[]` | What may be off in a written video: `export-alpha-unavailable` (this machine captured no alpha channel), `export-alpha-not-guaranteed` (not Windows: the alpha channel may be black). |
 
 ## 音源类模组的 main 入口
+
+> **预览**：Folium 2 的音源接口（`folium.sources` 与音源类模组 main 入口的 `api`）还是预览版，九个内置音源全部迁过去之前可能变动；用它写的模组可能要随新版本更新。`folium: 1` 冻结在 Folium 1.9 的接口不受影响。
 
 音源类模组的 main 入口拿到的 `api` 比普通模组多下面这些成员（[FoliumSourceMainApi](#foliumsourcemainapi)，方案 §5.5），也不受普通模组的网络、存储限额约束；普通模组的 `api` 没有它们。
 

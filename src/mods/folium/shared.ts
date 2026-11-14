@@ -16,6 +16,14 @@ export const FOLIUM_HOST_VERSION = Object.freeze({ ...shared.version });
 /** Folium 2.0 (plan §9): the version a `folium: 1` mod reads, the one its interface stays at. */
 export const FOLIUM_ONE_VERSION = Object.freeze({ ...shared.foliumOneVersion });
 
+/**
+ * Folium 2.0 (plan §10, delivery): the source interface (`folium.sources` and the main entry's source `api`) is a
+ * preview until all nine built-in sources use it, and may change until then. The mod panel marks third-party
+ * source mods with it, and the reference and type file say so (dev/folium/api-docs.mjs, types.mjs). S8 sets it
+ * to false.
+ */
+export const FOLIUM_SOURCES_PREVIEW = shared.sourcesPreview === true;
+
 /** Folium 2.0: the limits of ordinary mods and of source mods, side by side (plan §5.2). */
 export const FOLIUM_SHARED_LIMITS = shared.limits;
 
