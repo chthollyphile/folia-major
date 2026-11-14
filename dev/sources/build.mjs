@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { VENDOR_ENTRY, bundleEntry } from './bundle.mjs';
+import { VENDOR_ENTRY, VENDOR_PLACEHOLDER, bundleEntry } from './bundle.mjs';
 import {
     checkPinnedVersion, closureFiles, closureFingerprint, closureShape, dependencyClosure, locatePackage, packArchive, readSourcePackage,
 } from './dependencies.mjs';
@@ -19,7 +19,7 @@ import { toTraditionalLocale } from './locales.mjs';
 //   npm run sources:build -- --extra <目录>    另外构建一个不在 sources/ 里的音源目录（测试夹具）
 //   npm run sources:build -- --stamp <package.json>   把 foliaBundledSources 写进那份 package.json
 //
-// 每个模组目录的产物：mod.json、client.mjs、index.cjs、<worker>.cjs、vendor.mjs、deps.<指纹>.asar、
+// 每个模组目录的产物：mod.json、client.mjs、index.cjs、<worker>.cjs、vendor.<指纹>.mjs、deps.<指纹>.asar、
 // locales/（zh-TW.json 由 zh-CN.json 生成）、assets/、README.md，最后写 build.json（产物的指纹与文件表）。
 // 开发版的主进程盯着 build.json：它变了就差量重载（只重载这一个模组）。
 
@@ -209,10 +209,18 @@ export const buildSource = async (sourceDir, { outRoot = DEFAULT_OUT_ROOT, cache
         warnings.push(...result.warnings.map((warning) => `${name}: ${warning}`));
         outputs.push({ name, data: Buffer.from(result.code) });
     };
-    // main 与 worker 先打：它们用到的 vendor 说明符收齐了才打 vendor.mjs。
+    // main 与 worker 先打：它们用到的 vendor 说明符收齐了才打 vendor 文件。
     if (entries.main) await bundle(entries.main, 'main', 'index.cjs');
     for (const worker of entries.workers) await bundle(worker.input, 'worker', `${worker.name}.cjs`);
-    if (vendorSpecifiers.size > 0) await bundle(VENDOR_ENTRY, 'vendor', 'vendor.mjs');
+    if (vendorSpecifiers.size > 0) {
+        // vendor 文件按内容指纹起名，再把 main 与 worker 里的占位换成它（bundle.mjs 的 VENDOR_PLACEHOLDER）。
+        const result = await bundleEntry({ input: VENDOR_ENTRY, kind: 'vendor', context });
+        warnings.push(...result.warnings.map((warning) => `vendor: ${warning}`));
+        const vendorName = `vendor.${sha256(result.code).slice(0, 16)}.mjs`;
+        const placeholder = JSON.stringify(VENDOR_PLACEHOLDER);
+        for (const output of outputs) output.data = Buffer.from(output.data.toString('utf8').split(placeholder).join(JSON.stringify(`./${vendorName}`)));
+        outputs.push({ name: vendorName, data: Buffer.from(result.code) });
+    }
     await bundle(entries.client, 'client', 'client.mjs');
 
     outputs.push(...localeOutputs(sourceDir));

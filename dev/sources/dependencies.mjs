@@ -13,7 +13,7 @@ import { createRequire } from 'node:module';
 //   bundle  打进入口的 bundle（index.cjs、worker 或 client.mjs）
 //   asar    生产依赖闭包装进模组目录里的 deps.<指纹>.asar，main / worker 入口用 createRequire 取；
 //           给依赖真实文件布局的上游库（改 require.cache、扫 module/ 目录、按包内路径挂钩子）
-//   vendor  ESM-only 的包，一起打成一个 vendor.mjs，main / worker 入口 require 它（Node 的 require(esm)）
+//   vendor  ESM-only 的包，一起打成一个 vendor.<指纹>.mjs，main / worker 入口 require 它（Node 的 require(esm)）
 //   native  原生件，不打包：留在应用里，经 api.native.load(name) / api.native.path(name) 引用；
 //           源码 import 它就是构建错误
 //

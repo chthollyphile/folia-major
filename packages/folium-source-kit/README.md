@@ -26,11 +26,11 @@ import { createHandedOut, errorFields, krcDecrypt, withLoginRequestLimit } from 
 | `errorText.ts` | `errorMessage`、`errorFields`、`codeText`：把抛出的错拆成原文的字段 | `src/utils/errorText.ts`（那里留着转出） | 网易云、酷狗、QQ、YouTube Music、Spotify 与宿主 |
 | `exploreReads.ts` | 探索页反复从头读时的轮换（`createHandedOut`）与游标里的读次（`stampCursor`、`cursorWords`） | `src/services/onlineMusic/exploreReads.ts` | 网易云、QQ、汽水、YouTube Music、Spotify 的探索页 |
 | `krcDecrypt.ts` | KRC 歌词解密与解压 | `src/services/onlineMusic/kugou/krcDecrypt.ts` | 酷狗的歌词、宿主的本地 KRC 文件 |
-| `loginRequestLimit.ts` | 登录请求的 20 秒时限（`withLoginRequestLimit`、`LoginRequestTimeout`、`dropLoginRequestLimits`） | `src/services/onlineMusic/login/loginRequestLimit.ts` | 网易云、酷狗、QQ 的登录，宿主的登录失败归类与取消登录 |
+| `loginRequestLimit.ts` | 登录请求的 20 秒时限（`withLoginRequestLimit`、`LoginRequestTimeout`、`isLoginRequestTimeout`、`dropLoginRequestLimits`） | `src/services/onlineMusic/login/loginRequestLimit.ts` | 网易云、酷狗、QQ 的登录，宿主的登录失败归类与取消登录 |
 
 ## 注意
 
-- `loginRequestLimit.ts` 有模块级的计时器表，宿主取消登录时调 `dropLoginRequestLimits()` 清掉它；宿主的
-  `loginFailureCase.ts` 用 `instanceof LoginRequestTimeout` 认超时。九家还在宿主里时只有一份，没有问题；
-  一家迁成模组以后，它 bundle 里的那一份宿主够不着，两件事都要换做法（例如取消登录经 `auth@1` 告诉音源，
-  超时按 `error.name` 认），迁第一家用到它的平台（酷狗）时处理。
+- `loginRequestLimit.ts` 有模块级的计时器表，宿主取消登录时调 `dropLoginRequestLimits()` 清它：九家还在宿主里时只有一份；
+  一家迁成模组以后，它 bundle 里的那一份宿主够不着，取消登录要另想办法（例如经 `auth@1` 告诉音源），迁第一家用到它的平台
+  （酷狗）时处理。超时的归类已经按名字认（`isLoginRequestTimeout`，宿主的 `loginFailureCase.ts` 用它），不靠 `instanceof`。
+- 同样的道理，以后进 kit 的东西不要靠 `instanceof` 或模块级状态跨模组共享。

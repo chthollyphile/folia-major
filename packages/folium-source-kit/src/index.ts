@@ -6,4 +6,4 @@
 export { codeText, errorFields, errorMessage } from './errorText';
 export { MAX_KEPT, createHandedOut, cursorWords, stampCursor } from './exploreReads';
 export { krcDecrypt } from './krcDecrypt';
-export { LOGIN_REQUEST_LIMIT_MS, LoginRequestTimeout, dropLoginRequestLimits, withLoginRequestLimit } from './loginRequestLimit';
+export { LOGIN_REQUEST_LIMIT_MS, LoginRequestTimeout, dropLoginRequestLimits, isLoginRequestTimeout, withLoginRequestLimit } from './loginRequestLimit';

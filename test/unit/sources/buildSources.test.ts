@@ -26,6 +26,7 @@ let work: string;
 let outRoot: string;
 let outDir: string;
 let asarName: string;
+let vendorName: string;
 
 const read = (name: string) => fs.readFileSync(path.join(outDir, name), 'utf8');
 const temporary = (name: string) => fs.mkdtempSync(path.join(work, `${name}-`));
@@ -62,6 +63,7 @@ beforeAll(async () => {
     const result = await buildSource(FIXTURE, { outRoot });
     outDir = result.outDir;
     asarName = fs.readdirSync(outDir).find((name) => /^deps\.[0-9a-f]{16}\.asar$/.test(name)) ?? '';
+    vendorName = fs.readdirSync(outDir).find((name) => /^vendor\.[0-9a-f]{16}\.mjs$/.test(name)) ?? '';
 }, 60_000);
 
 afterAll(() => {
@@ -76,7 +78,7 @@ describe('dev/sources/build.mjs builds a source directory into a mod directory',
         expect(stamp.files).toEqual([
             'assets/mark.svg', 'client.mjs', asarName, 'index.cjs',
             'locales/en.json', 'locales/in.json', 'locales/vi.json', 'locales/zh-CN.json', 'locales/zh-TW.json',
-            'mod.json', 'vendor.mjs', 'worker.cjs',
+            'mod.json', vendorName, 'worker.cjs',
         ].sort());
         const { validateManifest } = requireHere('../../../electron/modSystem/manifest.cjs') as { validateManifest: (raw: unknown) => { ok: boolean } };
         expect(validateManifest(JSON.parse(read('mod.json'))).ok).toBe(true);
@@ -99,11 +101,13 @@ describe('dev/sources/build.mjs builds a source directory into a mod directory',
         // asar: taken from the archive by its fingerprinted name, never bundled.
         expect(main).toContain(`createRequire(join(__dirname, "${asarName}", "node_modules", "_"))("fixture-asar-dep")`);
         expect(main).not.toContain('readdirSync');
-        // vendor: through vendor.mjs.
-        expect(main).toContain('require("./vendor.mjs")');
-        expect(read('vendor.mjs')).toMatch(/export \{ \w+ as v_[0-9a-f]+ \}/);
+        // vendor: through vendor.<fingerprint>.mjs (a file required as ESM stays in Node's ESM cache, so a changed one gets a new name).
+        expect(vendorName).toMatch(/^vendor\.[0-9a-f]{16}\.mjs$/);
+        expect(main).toContain(`require("./${vendorName}")`);
+        expect(main).not.toContain('__folia_vendor_file__');
+        expect(read(vendorName)).toMatch(/export \{ \w+ as v_[0-9a-f]+ \}/);
         // native: nowhere.
-        for (const name of ['index.cjs', 'worker.cjs', 'client.mjs', 'vendor.mjs']) expect(read(name)).not.toContain('native-addon');
+        for (const name of ['index.cjs', 'worker.cjs', 'client.mjs', vendorName]) expect(read(name)).not.toContain('native-addon');
         // The worker is its own CommonJS file that reads the same archive.
         expect(read('worker.cjs')).toContain(`"${asarName}"`);
     });
@@ -126,7 +130,7 @@ describe('dev/sources/build.mjs builds a source directory into a mod directory',
         expect(read('assets/mark.svg')).toBe(fs.readFileSync(path.join(FIXTURE, 'assets/mark.svg'), 'utf8'));
     });
 
-    it('runs: the bundled package, the archive (directory scan and all), the worker and vendor.mjs each answer', () => {
+    it('runs: the bundled package, the archive (directory scan and all), the worker and the vendor file each answer', () => {
         // Plain Node reads no .asar: the archive extracted to a directory of the same name stands in for it.
         const copy = path.join(temporary('run'), 'fixture-source');
         fs.cpSync(outDir, copy, { recursive: true });

@@ -5,7 +5,7 @@ import { rolldown } from 'rolldown';
 import { locatePackage, packageEntry, packageNameOf } from './dependencies.mjs';
 // dev/sources/bundle.mjs
 // 一个音源模组的入口用 rolldown 打成一个文件：client 打成 ESM 的 client.mjs，main 与 worker 打成 CommonJS 的
-// index.cjs、<name>.cjs，ESM-only 的依赖另打成 vendor.mjs。依赖按 package.json 声明的做法处理（dependencies.mjs），
+// index.cjs、<name>.cjs，ESM-only 的依赖另打成 vendor.<指纹>.mjs。依赖按 package.json 声明的做法处理（dependencies.mjs），
 // 由这里的插件在解析每个 import 时执行：没声明的包、宿主自己注入的库、Node 内置模块进 client、electron，都是构建错误。
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -21,7 +21,13 @@ const isNodeBuiltin = (specifier) => specifier.startsWith('node:') || NODE_BUILT
 
 const ASAR_PREFIX = '\0folia-asar:';
 const VENDOR_PREFIX = '\0folia-vendor:';
-/** vendor.mjs 里一个说明符的导出名：十六进制编码，确定、是合法的标识符。 */
+/*
+ * main 与 worker 里 vendor 文件的占位名：vendor 文件在它们之后才打，打完按内容指纹起名（vendor.<指纹>.mjs），
+ * build.mjs 再把占位换成真名。文件名带指纹，因为 require(esm) 载入的模块记在 Node 的 ESM 缓存里，清 require.cache
+ * 清不掉，原地覆盖的 vendor 文件重载后仍是旧的（和 deps 归档名带指纹同一个道理）。
+ */
+export const VENDOR_PLACEHOLDER = './__folia_vendor_file__.mjs';
+/** vendor 文件里一个说明符的导出名：十六进制编码，确定、是合法的标识符。 */
 export const vendorKey = (specifier) => `v_${Buffer.from(specifier, 'utf8').toString('hex')}`;
 
 const isInside = (file, dir) => {
@@ -41,7 +47,7 @@ const dependencyPolicy = (kind, context) => {
         name: 'folia-source-dependencies',
         async resolveId(specifier, importer) {
             if (specifier.startsWith('\0')) return null;
-            if (importer?.startsWith(VENDOR_PREFIX) && specifier === './vendor.mjs') return { id: './vendor.mjs', external: true };
+            if (importer?.startsWith(VENDOR_PREFIX) && specifier === VENDOR_PLACEHOLDER) return { id: VENDOR_PLACEHOLDER, external: true };
             if (importer?.startsWith(ASAR_PREFIX) || importer?.startsWith(VENDOR_PREFIX)) return { id: specifier, external: true };
             // 依赖自己的 import：它的事（打进 bundle 的包照 Node 的规矩找它的依赖）。
             const fromSource = !importer || isInside(importer, sourceDir) || isInside(importer, KIT_DIR);
@@ -107,7 +113,7 @@ const dependencyPolicy = (kind, context) => {
             if (id.startsWith(VENDOR_PREFIX)) {
                 const specifier = id.slice(VENDOR_PREFIX.length);
                 // require(esm) 交回模块命名空间；带上 __esModule，默认导入和具名导入都按 ESM 的意思取。
-                return `module.exports = { __esModule: true, ...require('./vendor.mjs')[${JSON.stringify(vendorKey(specifier))}] };`;
+                return `module.exports = { __esModule: true, ...require(${JSON.stringify(VENDOR_PLACEHOLDER)})[${JSON.stringify(vendorKey(specifier))}] };`;
             }
             return null;
         },
@@ -154,13 +160,13 @@ export const bundleEntry = async ({ input, kind, context }) => {
 
 export const VENDOR_ENTRY = '\0folia-vendor-entry';
 
-/** vendor.mjs 的入口源码：每个说明符一个命名空间导出。 */
+/** vendor 文件的入口源码：每个说明符一个命名空间导出。 */
 export const vendorEntrySource = (specifiers) => [...specifiers].sort()
     .map((specifier) => `export * as ${vendorKey(specifier)} from ${JSON.stringify(specifier)};`)
     .join('\n');
 
 /*
- * vendor.mjs 的入口（虚拟模块，列出 main 与 worker 用到的 vendor 说明符）。file: 的本地包自己定位，
+ * vendor 文件的入口（虚拟模块，列出 main 与 worker 用到的 vendor 说明符）。file: 的本地包自己定位，
  * 其余从音源目录按 Node 的规矩找。
  */
 function vendorEntry({ sourceDir, specs, vendorSpecifiers }) {

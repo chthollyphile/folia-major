@@ -84,7 +84,7 @@ package.json 里声明了的包、main 与 worker 里的 Node 内置模块。`el
 | --- | --- | --- |
 | `bundle`（不写就是它） | 普通的包 | 打进用到它的入口（`index.cjs`、`<worker>.cjs` 或 `client.mjs`） |
 | `asar` | 依赖真实文件布局的上游库（改 `require.cache`、扫 `module/` 目录、按包内路径挂钩子），只给 main 与 worker | 生产依赖闭包（`dependencies`、装着的 `optionalDependencies` 与 `peerDependencies`）装进 `deps.<指纹>.asar`；入口里是 `createRequire(join(__dirname, 'deps.<指纹>.asar', 'node_modules', '_'))('<包>')` |
-| `vendor` | ESM-only 的包，只给 main 与 worker | 用到的这类包一起打成 `vendor.mjs`，入口 `require('./vendor.mjs')`（Node 的 require(esm)：vendor 里不能有顶层 await） |
+| `vendor` | ESM-only 的包，只给 main 与 worker | 用到的这类包一起打成 `vendor.<指纹>.mjs`，入口 `require('./vendor.<指纹>.mjs')`（Node 的 require(esm)：vendor 里不能有顶层 await；文件名带指纹，因为 require(esm) 载入的模块在 Node 的 ESM 缓存里，清 `require.cache` 清不掉，原地覆盖的文件重载后还是旧的） |
 | `native` | 原生件（`.node`、伴侣程序） | 不打包、不进归档；源码 import 它是构建错误，经 `api.native.load(name)` / `api.native.path(name)` 引用（清单 `native` 与受信表那一行的 `native`） |
 
 `deps` 归档的文件名带内容指纹：Electron 按路径把 `.asar` 的文件表缓存到进程结束，原地换内容会读到旧的表（方案 §13）。

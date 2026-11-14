@@ -12,6 +12,12 @@ export class LoginRequestTimeout extends Error {
     }
 }
 
+/**
+ * 是不是登录请求的超时。按名字认，不用 instanceof：kit 会被打进每个音源模组各自的 bundle，模组里抛出的是它
+ * 那一份的 LoginRequestTimeout，宿主那一份的 instanceof 认不出它。
+ */
+export const isLoginRequestTimeout = (error: unknown): boolean => error instanceof Error && error.name === 'LoginRequestTimeout';
+
 // 还在计时的请求各自的计时器。
 const limits = new Set<ReturnType<typeof setTimeout>>();
 
