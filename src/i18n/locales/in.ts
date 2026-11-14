@@ -790,6 +790,7 @@ export default {
     "fmModeFilterPlaceholder": "Ketik untuk menyaring mode dan suasana",
     "recommendationPreferencesPlaceholder": "Atur preferensi di bawah",
     "sourceCurrent": "sumber saat ini",
+    "searchHistoryRow": "Pencarian terakhir · {{source}}",
     "sourceLocal": "perpustakaan lokal",
     "sourceNavidrome": "Navidrome",
     "sourceNetease": "NetEase Cloud Music",

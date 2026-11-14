@@ -790,6 +790,7 @@ export default {
     "fmModeFilterPlaceholder": "Nhập để lọc chế độ và ngữ cảnh",
     "recommendationPreferencesPlaceholder": "Điều chỉnh sở thích bên dưới",
     "sourceCurrent": "nguồn hiện tại",
+    "searchHistoryRow": "Tìm kiếm gần đây · {{source}}",
     "sourceLocal": "thư viện nội bộ",
     "sourceNavidrome": "Navidrome",
     "sourceNetease": "NetEase Cloud Music",

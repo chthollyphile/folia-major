@@ -790,6 +790,7 @@ export default {
     "fmModeFilterPlaceholder": "Type to filter modes and scenes",
     "recommendationPreferencesPlaceholder": "Adjust your preferences below",
     "sourceCurrent": "current source",
+    "searchHistoryRow": "Recent search · {{source}}",
     "sourceLocal": "local library",
     "sourceNavidrome": "Navidrome",
     "sourceNetease": "NetEase Cloud Music",

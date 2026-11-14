@@ -158,6 +158,8 @@ export type CommandPaletteSearchContext = {
         };
         returnView?: SearchReturnView;
     }) => Promise<boolean>;
+    /** 搜过的词，最近的在前（useSearchNavigationStore 的 searchHistory）；搜索命令把它们列在输入行下面。 */
+    searchHistory: () => readonly string[];
 };
 
 export type CommandPalettePlaybackContext = {

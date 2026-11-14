@@ -790,6 +790,7 @@ export default {
     "fmModeFilterPlaceholder": "输入以筛选模式和场景",
     "recommendationPreferencesPlaceholder": "在下方调整偏好",
     "sourceCurrent": "当前来源",
+    "searchHistoryRow": "最近搜索 · {{source}}",
     "sourceLocal": "本地音乐",
     "sourceNavidrome": "Navidrome",
     "sourceNetease": "网易云",
