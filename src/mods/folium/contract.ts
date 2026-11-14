@@ -2652,6 +2652,11 @@ export interface FoliumLyricsHelpers {
      * Rejects with a TypeError (`invalid-lyrics-track`) when the track is malformed.
      */
     parse(track: FoliumLyricsTrack): Promise<FoliumParsedLyrics>;
+    /**
+     * Folium 2: whether a lyric text is only the "instrumental, please enjoy" notice, by the host's own rule (the
+     * one its lyric display and its platforms use). For a source's `lyrics@1` answer (`isPureMusic`). Synchronous.
+     */
+    isPureMusicText(text: string | null | undefined): boolean;
 }
 
 /** Theme resolution builtin modes use. Available in both contexts. */

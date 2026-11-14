@@ -198,6 +198,22 @@ describe('the source members of api (plan §5.5)', () => {
         expect(await api.net.resolveProxy('https://example.com')).toBe('DIRECT');
     });
 
+    // Bodian's desktop API signs GETs that carry a JSON body: a web fetch refuses those, Electron's ClientRequest sends them.
+    it('net.request: the ClientRequest of Electron, in the default session or a partition the source names, never one it passes itself', () => {
+        const { api } = launchSource();
+        const request = api.net.request({ url: 'https://example.com/play', method: 'GET', partition: 'persist:other' });
+        expect(request).toMatchObject({ kind: 'client-request' });
+        expect(api.net.request({ url: 'https://example.com/a', session: 'folia-spotify' })).toMatchObject({ kind: 'client-request' });
+        expect(api.net.session('cache').request({ url: 'https://example.com/b' })).toMatchObject({ kind: 'client-request' });
+        expect(electronCalls.filter(([name]) => name === 'net.request')).toEqual([
+            ['net.request', { url: 'https://example.com/play', method: 'GET' }],
+            ['net.request', { url: 'https://example.com/a', partition: 'folia-spotify' }],
+            ['net.request', { url: 'https://example.com/b', partition: 'persist:folium-spotify-cache' }],
+        ]);
+        expect(() => api.net.request({ method: 'GET' })).toThrow('net.request requires');
+        expect(() => api.net.request({ url: 'https://example.com', session: 'Bad Name' })).toThrow();
+    });
+
     it('media: rules the host\'s one listener reads, and _media streams with Range', async () => {
         const { api, system } = launchSource();
         const remove = api.media.allow({ hosts: ['*.scdn.co'] });
@@ -206,6 +222,34 @@ describe('the source members of api (plan §5.5)', () => {
         remove();
         expect(system.mediaRules.allows({ url: 'https://audio.scdn.co/a.mp3', resourceType: 'media', method: 'GET' })).toBe(false);
         expect(api.media.url('audio', 'track/1')).toBe('folia-mod://spotify/_media/audio/track/1');
+    });
+
+    it('media: the own test of a rule, asked after its URLs and hosts, followed through a redirect for the lifetime of the rule', () => {
+        const { api, system } = launchSource();
+        const asked: unknown[] = [];
+        const read = (url: string, extra: Record<string, unknown> = {}) => ({ url, resourceType: 'media', method: 'GET', ...extra });
+        api.media.allow({
+            ttlMs: 60_000,
+            followRedirects: true,
+            test: (request: { url: string; responseHeaders: Record<string, string[]> }) => {
+                asked.push(request);
+                if (request.url.includes('throws')) throw new Error('broken test');
+                return request.url.endsWith('.mp3') || /^audio\//.test(String(request.responseHeaders['content-type'] ?? ''));
+            },
+        });
+        expect(system.mediaRules.allows(read('https://cdn.example.com/a.mp3'))).toBe(true);
+        expect(system.mediaRules.allows(read('https://cdn.example.com/b', { responseHeaders: { 'content-type': ['audio/flac'] } }))).toBe(true);
+        expect(system.mediaRules.allows(read('https://cdn.example.com/page.html'))).toBe(false);
+        expect(system.mediaRules.allows(read('https://cdn.example.com/throws.mp3'))).toBe(false);
+        expect(system.mediaRules.allows(read('https://cdn.example.com/a.mp3', { method: 'POST' }))).toBe(false);
+        expect(asked[0]).toEqual({ url: 'https://cdn.example.com/a.mp3', method: 'GET', resourceType: 'media', responseHeaders: {} });
+        expect(Object.isFrozen(asked[0])).toBe(true);
+        // The CDN hop of an answer the test let through becomes the rule's.
+        system.mediaRules.followRedirect({ ...read('https://cdn.example.com/a.mp3'), redirectURL: 'https://edge.example.net/x?sig=1' });
+        expect(system.mediaRules.allows(read('https://edge.example.net/x?sig=1'))).toBe(true);
+        system.mediaRules.followRedirect({ ...read('https://cdn.example.com/page.html'), redirectURL: 'https://edge.example.net/other' });
+        expect(system.mediaRules.allows(read('https://edge.example.net/other'))).toBe(false);
+        expect(() => api.media.allow({ test: 'yes' })).toThrow('test must be a function');
     });
 
     it('windows: a hidden sandboxed window destroyed with the mod, and whether the main window is there', async () => {

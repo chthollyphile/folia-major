@@ -78,6 +78,12 @@ stubModule('electron', {
             electronCalls.push(['net.fetch', url, init]);
             return new Response(new Uint8Array([0, 1, 2, 255]), { status: 200, headers: { 'content-type': 'application/octet-stream' } });
         },
+        // net.request: records the options it got (the session as its partition) and hands back a stand-in request.
+        request: (options: { session?: { partition?: string } } & Record<string, unknown>) => {
+            const { session, ...rest } = options;
+            electronCalls.push(['net.request', { ...rest, ...(session ? { partition: session.partition } : {}) }]);
+            return { options, kind: 'client-request' };
+        },
     },
     session: {
         fromPartition: (partition: string) => fakeSession(partition),

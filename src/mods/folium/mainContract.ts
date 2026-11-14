@@ -332,6 +332,11 @@ export interface FoliumSourceNet {
     /** A web `fetch` through Electron `net`; `init.session` names a partition (see `session`). Answers a web Response. */
     fetch(url: string, init?: Record<string, unknown>): Promise<Response>;
     /**
+     * Electron's `net.request` (a ClientRequest), for a request a web `fetch` cannot make: a GET with a body.
+     * `options` is Electron's (`url`, `method`, `redirect`, …); `options.session` names a partition (see `session`).
+     */
+    request(options: FoliumSourceRequestOptions): FoliumSourceClientRequest;
+    /**
      * A partition of the source's own (`persist:folium-<mod id>-<name>`), or one its row or claims name: lower case
      * letters, digits and `-`.
      */
@@ -346,12 +351,68 @@ export interface FoliumSourceNetSession {
     readonly partition: string;
     /** `fetch` in this partition. */
     fetch(url: string, init?: Record<string, unknown>): Promise<Response>;
+    /** `request` in this partition. */
+    request(options: FoliumSourceRequestOptions): FoliumSourceClientRequest;
     /** The proxy for `url` in this partition. */
     resolveProxy(url: string): Promise<string>;
     /** Electron's `session.setProxy`. */
     setProxy(config: Record<string, unknown>): Promise<void>;
     /** Electron's `session.clearStorageData`. */
     clearStorageData(options?: Record<string, unknown>): Promise<void>;
+}
+
+/** Folium 2: what `api.net.request` takes: Electron's `net.request` options. */
+export interface FoliumSourceRequestOptions {
+    /** An http(s) address. */
+    url: string;
+    /** `GET` when left out. */
+    method?: string;
+    /** `follow` (the default), `error` or `manual`. */
+    redirect?: 'follow' | 'error' | 'manual';
+    /** A partition, named as for `api.net.session`; the default session when left out. */
+    session?: string;
+    /** Electron's other options. */
+    [option: string]: unknown;
+}
+
+/** Folium 2: the answer of `api.net.request`, Electron's IncomingMessage (the members a source reads). */
+export interface FoliumSourceIncomingMessage {
+    /** The HTTP status. */
+    readonly statusCode: number;
+    /** The headers, by lower-case name. */
+    readonly headers: Record<string, string | string[]>;
+    /** `data` gives the body piece by piece, `end` comes after the last, `error` when it broke off. */
+    on(event: 'data', listener: (chunk: Uint8Array) => void): this;
+    on(event: 'end', listener: () => void): this;
+    on(event: 'error' | 'aborted', listener: (error?: Error) => void): this;
+}
+
+/** Folium 2: `api.net.request`'s request, Electron's ClientRequest (the members a source uses). */
+export interface FoliumSourceClientRequest {
+    /** Sets a header before the body is written. */
+    setHeader(name: string, value: string): void;
+    /** Writes part of the body. */
+    write(chunk: string | Uint8Array): void;
+    /** Sends the request, with the last part of the body. */
+    end(chunk?: string | Uint8Array): void;
+    /** Stops it. */
+    abort(): void;
+    /** `response` with the answer, `error` when it failed, `redirect`, `login`, `finish`, `abort`, `close` as Electron's. */
+    on(event: 'response', listener: (response: FoliumSourceIncomingMessage) => void): this;
+    on(event: 'error', listener: (error: Error) => void): this;
+    on(event: string, listener: (...args: unknown[]) => void): this;
+}
+
+/** Folium 2: what a media rule's `test` is asked: one read of a resource, with the answer's headers. Frozen. */
+export interface FoliumSourceMediaRequest {
+    /** The address. */
+    readonly url: string;
+    /** `GET`, `HEAD` or `OPTIONS` (other methods never get the headers). */
+    readonly method: string;
+    /** Electron's resource type (`media`, `xhr`, `image`, …). */
+    readonly resourceType: string;
+    /** The answer's headers, as Electron hands them. */
+    readonly responseHeaders: Readonly<Record<string, string[]>>;
 }
 
 /** Folium 2: `api.legacy.store`, the main process's store keys a built-in source keeps its sign-in under. */
@@ -404,9 +465,15 @@ export interface FoliumSourceMediaRule {
     urls?: string[];
     /** How long an address added stays the rule's, milliseconds. */
     ttlMs?: number;
-    /** An address a redirect leads to from one of the rule's is the rule's too. */
+    /**
+     * What `hosts` and `urls` cannot say (a path that ends in an audio extension, an answer's content type): asked
+     * after them, synchronously, for each read the rule's resource types cover; true lets it through. One that
+     * throws counts as false. It runs for every answer the app receives: keep it quick.
+     */
+    test?(request: FoliumSourceMediaRequest): boolean;
+    /** An address a redirect leads to from one of the rule's (or one its `test` let through) is the rule's too, for `ttlMs`. */
     followRedirects?: boolean;
-    /** Electron's resource types the rule applies to (`media` by default). */
+    /** Electron's resource types the rule applies to (`media`, `xhr` and `image` by default). */
     resourceTypes?: string[];
 }
 

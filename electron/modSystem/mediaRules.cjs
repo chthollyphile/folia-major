@@ -3,8 +3,11 @@
 // has one `webRequest.onHeadersReceived` listener, so the host keeps it (main.cjs setupCorsBypassHandlers)
 // and asks `allows(details)` here; no mod hooks webRequest itself. A rule names hosts (`example.com`, or
 // `*.example.com` for the domain and every subdomain) and/or exact URLs the source issued, each with an
-// optional lifetime; a URL rule can follow redirects (the CDN hop of an issued audio URL). Only reads (GET,
-// HEAD, OPTIONS) of media, images and fetches get the headers, as with the built-in policies.
+// optional lifetime; a URL rule can follow redirects (the CDN hop of an issued audio URL). A rule may also hand a
+// `test(request)` of its own, for what hosts cannot say (a path that ends in an audio extension, an answer's
+// content type): it is asked after the rule's URLs and hosts, synchronously, with { url, method, resourceType,
+// responseHeaders }, and a test that throws counts as no. Only reads (GET, HEAD, OPTIONS) of media, images and
+// fetches get the headers, as with the built-in policies.
 
 'use strict';
 
@@ -33,7 +36,7 @@ const hostMatches = (pattern, hostname) => (
 
 /** `now` is for tests. */
 const createMediaRules = ({ now = Date.now } = {}) => {
-    // modId -> Set of rules; a rule: { hosts, urls: Map href -> expiry, ttlMs, followRedirects, resourceTypes }
+    // modId -> Set of rules; a rule: { hosts, test, urls: Map href -> expiry, ttlMs, followRedirects, resourceTypes }
     const rulesByMod = new Map();
 
     /*
@@ -52,8 +55,10 @@ const createMediaRules = ({ now = Date.now } = {}) => {
         }
         const ttlMs = rule.ttlMs === undefined || rule.ttlMs === null ? null : Number(rule.ttlMs);
         if (ttlMs !== null && !(ttlMs > 0)) throw new TypeError('media.allow: ttlMs must be a positive number');
+        if (rule.test !== undefined && typeof rule.test !== 'function') throw new TypeError('media.allow: test must be a function');
         const entry = {
             hosts: [...hosts],
+            test: rule.test ?? null,
             urls: new Map(),
             ttlMs,
             followRedirects: rule.followRedirects === true,
@@ -79,6 +84,22 @@ const createMediaRules = ({ now = Date.now } = {}) => {
         return remove;
     };
 
+    /* What a rule's `test` is asked: the request's own fields, not Electron's whole details object. */
+    const requestOf = (details) => Object.freeze({
+        url: String(details.url),
+        method: String(details.method ?? 'GET').toUpperCase(),
+        resourceType: details.resourceType,
+        responseHeaders: details.responseHeaders ?? {},
+    });
+
+    const passesTest = (entry, details) => {
+        try {
+            return entry.test(requestOf(details)) === true;
+        } catch {
+            return false;
+        }
+    };
+
     /* The first rule that lets `details` (a webRequest details object) through, or null. */
     const matching = (details) => {
         if (!READ_METHODS.has(String(details?.method ?? 'GET').toUpperCase())) return null;
@@ -95,6 +116,7 @@ const createMediaRules = ({ now = Date.now } = {}) => {
                     entry.urls.delete(href);
                 }
                 if (entry.hosts.some((pattern) => hostMatches(pattern, hostname))) return entry;
+                if (entry.test && passesTest(entry, details)) return entry;
             }
         }
         return null;
@@ -103,16 +125,22 @@ const createMediaRules = ({ now = Date.now } = {}) => {
     return {
         allow,
         allows: (details) => matching(details) !== null,
-        /* onBeforeRedirect: a matched URL rule that follows redirects also covers where it went. */
+        /*
+         * onBeforeRedirect: a rule that follows redirects also covers where a request it let through went: a URL of
+         * the rule's keeps its expiry, one its `test` let through gets the rule's lifetime. Hosts alone never follow.
+         */
         followRedirect: (details) => {
             const entry = matching(details);
-            if (entry?.followRedirects && entry.urls.has(normalizeUrl(details.url))) {
-                const href = normalizeUrl(details.redirectURL);
-                if (href) {
-                    entry.urls.set(href, entry.urls.get(normalizeUrl(details.url)));
-                    while (entry.urls.size > MAX_URLS_PER_MOD) entry.urls.delete(entry.urls.keys().next().value);
-                }
-            }
+            if (!entry?.followRedirects) return;
+            const from = normalizeUrl(details.url);
+            const expiry = entry.urls.get(from);
+            const viaTest = expiry === undefined && entry.test !== null && passesTest(entry, details);
+            if (expiry === undefined && !viaTest) return;
+            const href = normalizeUrl(details.redirectURL);
+            if (!href) return;
+            entry.urls.delete(href);
+            entry.urls.set(href, viaTest ? (entry.ttlMs === null ? Infinity : now() + entry.ttlMs) : expiry);
+            while (entry.urls.size > MAX_URLS_PER_MOD) entry.urls.delete(entry.urls.keys().next().value);
         },
         /* Every rule of `modId` goes: the mod stopped. */
         removeMod: (modId) => {

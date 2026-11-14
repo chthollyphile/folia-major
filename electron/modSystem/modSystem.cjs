@@ -317,6 +317,7 @@ const createModSystem = ({
         safeStorage,
         platform: process.platform,
         netFetch: (url, init) => electron.net.fetch(url, init),
+        netRequest: (options) => electron.net.request(options),
         sessionFromPartition: (partition) => electron.session.fromPartition(partition),
         defaultSession: () => electron.session.defaultSession,
         // The host's opener with its protocol allowlist (main.cjs openExternalUrl, D609); none without one.

@@ -87,12 +87,25 @@ const createSourceApi = (context, host) => {
         return partition;
     };
 
+    /*
+     * Electron `net.request` (a ClientRequest), for what a web fetch cannot send: a GET with a body (Bodian's desktop
+     * API signs one). `session` and `partition` are the host's to set: a mod names the partition with `session`.
+     */
+    const clientRequest = (options, partition) => {
+        if (!options || typeof options !== 'object' || typeof options.url !== 'string') {
+            throw new TypeError('net.request requires { url, method?, … }');
+        }
+        const { session: _name, partition: _partition, ...rest } = options;
+        return host.netRequest(partition === undefined ? rest : { ...rest, session: host.sessionFromPartition(partition) });
+    };
+
     const sessionApi = (name) => {
         const partition = partitionOf(name);
         const session = () => host.sessionFromPartition(partition);
         return Object.freeze({
             partition,
             fetch: (url, init) => session().fetch(String(url), init),
+            request: (options) => clientRequest(options, partition),
             resolveProxy: (url) => session().resolveProxy(String(url)),
             setProxy: (config) => session().setProxy(config),
             clearStorageData: (options) => session().clearStorageData(options),
@@ -175,13 +188,16 @@ const createSourceApi = (context, host) => {
         }),
         /*
          * Electron `net`: binary, streamed, no answer cap and no time limit of the host's. `init.session` names a
-         * partition (see net.session); without it the default session. Answers a web Response.
+         * partition (see net.session); without it the default session. `fetch` answers a web Response; `request`
+         * hands Electron's ClientRequest, for a request a web fetch cannot make (a GET with a body).
          */
         net: Object.freeze({
             fetch: (url, init = {}) => {
                 const { session: name, ...rest } = init ?? {};
                 return name === undefined ? host.netFetch(String(url), rest) : sessionApi(name).fetch(url, rest);
             },
+            /* `net.request(options)`: Electron's ClientRequest; `options.session` names a partition as for fetch. */
+            request: (options) => (options?.session === undefined ? clientRequest(options) : sessionApi(options.session).request(options)),
             session: sessionApi,
             resolveProxy: (url) => host.defaultSession().resolveProxy(String(url)),
         }),

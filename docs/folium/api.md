@@ -23,7 +23,7 @@
 - **音源（Folium 2）**：[FoliumText](#foliumtext) · [FoliumTextKey](#foliumtextkey) · [FoliumI18nService](#foliumi18nservice) · [FoliumSourceCapabilityId](#foliumsourcecapabilityid) · [FoliumSourceCapabilities](#foliumsourcecapabilities) · [FoliumSourceMark](#foliumsourcemark) · [FoliumSourceAvailability](#foliumsourceavailability) · [FoliumSourceDef](#foliumsourcedef) · [FoliumSourceItemKind](#foliumsourceitemkind) · [FoliumSourceHandle](#foliumsourcehandle) · [FoliumSourceNotice](#foliumsourcenotice) · [FoliumSourceErrorCode](#foliumsourceerrorcode) · [FoliumSourceErrorDetails](#foliumsourceerrordetails) · [FoliumSourceError](#foliumsourceerror) · [FoliumSourcePageStore](#foliumsourcepagestore) · [FoliumSourcesService](#foliumsourcesservice) · [FoliumSourcePage](#foliumsourcepage) · [FoliumSourceNamedRef](#foliumsourcenamedref) · [FoliumSourceAlbumRef](#foliumsourcealbumref) · [FoliumSourceReplayGain](#foliumsourcereplaygain) · [FoliumSourceSong](#foliumsourcesong) · [FoliumSourceUser](#foliumsourceuser) · [FoliumSourceFmLaunch](#foliumsourcefmlaunch) · [FoliumSourceCollection](#foliumsourcecollection) · [FoliumSourceSearchContext](#foliumsourcesearchcontext) · [FoliumSourceAccess](#foliumsourceaccess) · [FoliumSourceSearch](#foliumsourcesearch) · [FoliumSourceSongAvailability](#foliumsourcesongavailability) · [FoliumSourceSongs](#foliumsourcesongs) · [FoliumSourceAudioQuality](#foliumsourceaudioquality) · [FoliumSourceAudio](#foliumsourceaudio) · [FoliumSourceAudioPlayback](#foliumsourceaudioplayback) · [FoliumSourceExternalStatus](#foliumsourceexternalstatus) · [FoliumSourceExternalPlayback](#foliumsourceexternalplayback) · [FoliumSourceSurfacePlayback](#foliumsourcesurfaceplayback) · [FoliumSourcePlaybackReport](#foliumsourceplaybackreport) · [FoliumSourceReports](#foliumsourcereports) · [FoliumSourceLyricFormat](#foliumsourcelyricformat) · [FoliumSourceLyricsTrack](#foliumsourcelyricstrack) · [FoliumSourceLyricsResult](#foliumsourcelyricsresult) · [FoliumSourceLyricAlias](#foliumsourcelyricalias) · [FoliumSourceLyrics](#foliumsourcelyrics) · [FoliumSourceLoginCase](#foliumsourcelogincase) · [FoliumSourceLoginFailure](#foliumsourceloginfailure) · [FoliumSourceFailureCase](#foliumsourcefailurecase) · [FoliumSourceFailureDetail](#foliumsourcefailuredetail) · [FoliumSourceLoginState](#foliumsourceloginstate) · [FoliumSourceLoginStep](#foliumsourceloginstep) · [FoliumSourceLoginMethod](#foliumsourceloginmethod) · [FoliumSourceLoginTexts](#foliumsourcelogintexts) · [FoliumSourceLoginForm](#foliumsourceloginform) · [FoliumSourceLocalService](#foliumsourcelocalservice) · [FoliumSourceSetupStep](#foliumsourcesetupstep) · [FoliumSourceSetupView](#foliumsourcesetupview) · [FoliumSourceDiagnosticLine](#foliumsourcediagnosticline) · [FoliumSourceSelfCheck](#foliumsourceselfcheck) · [FoliumSourceKeptAccount](#foliumsourcekeptaccount) · [FoliumSourceAuth](#foliumsourceauth) · [FoliumSourceLibrary](#foliumsourcelibrary) · [FoliumSourceCatalog](#foliumsourcecatalog) · [FoliumSourceFmCatalog](#foliumsourcefmcatalog) · [FoliumSourcePreference](#foliumsourcepreference) · [FoliumSourcePreferences](#foliumsourcepreferences) · [FoliumSourceRecommendations](#foliumsourcerecommendations) · [FoliumSourceExploreItem](#foliumsourceexploreitem) · [FoliumSourceExploreSection](#foliumsourceexploresection) · [FoliumSourceExplorePage](#foliumsourceexplorepage) · [FoliumSourceExplore](#foliumsourceexplore) · [FoliumSourceMutations](#foliumsourcemutations) · [FoliumSourceCovers](#foliumsourcecovers) · [FoliumSourceRawEndpoint](#foliumsourcerawendpoint) · [FoliumSourceRaw](#foliumsourceraw)
 - **实验接口**：[FoliumLayoutRect](#foliumlayoutrect) · [FoliumPlayerObstacle](#foliumplayerobstacle) · [FoliumPlayerLayout](#foliumplayerlayout) · [FoliumRemoteActionDef](#foliumremoteactiondef) · [FoliumRemoteActionsContext](#foliumremoteactionscontext) · [FoliumRemoteActionsDef](#foliumremoteactionsdef) · [FoliumRemoteActionsHandle](#foliumremoteactionshandle) · [FoliumProviderSong](#foliumprovidersong) · [FoliumAudioQuality](#foliumaudioquality) · [FoliumOmniProviderDef](#foliumomniproviderdef) · [FoliumJsonValue](#foliumjsonvalue) · [FoliumPlatformBackend](#foliumplatformbackend) · [FoliumPlatformDescription](#foliumplatformdescription) · [FoliumPlatformResponse](#foliumplatformresponse) · [FoliumPlatformErrorCode](#foliumplatformerrorcode) · [FoliumPlatformService](#foliumplatformservice)
 - **main 入口（Node）**：[FoliumMainModule](#foliummainmodule) · [FoliumMainApi](#foliummainapi) · [FoliumManifest](#foliummanifest) · [FoliumMainStorage](#foliummainstorage) · [FoliumModPaths](#foliummodpaths) · [FoliumMainPaths](#foliummainpaths) · [FoliumMainRuntime](#foliummainruntime) · [FoliumMainRpc](#foliummainrpc) · [FoliumMainRender](#foliummainrender) · [FoliumExportSpec](#foliumexportspec) · [FoliumExportResult](#foliumexportresult)
-- **音源类模组的 main 入口**：[FoliumSourceMainApi](#foliumsourcemainapi) · [FoliumSourceHostInfo](#foliumsourcehostinfo) · [FoliumSourceMainPaths](#foliumsourcemainpaths) · [FoliumSourceDiagnostics](#foliumsourcediagnostics) · [FoliumSourceNative](#foliumsourcenative) · [FoliumSourceNet](#foliumsourcenet) · [FoliumSourceNetSession](#foliumsourcenetsession) · [FoliumSourceLegacyStore](#foliumsourcelegacystore) · [FoliumSourceSeal](#foliumsourceseal) · [FoliumSourceCache](#foliumsourcecache) · [FoliumSourceCacheEntries](#foliumsourcecacheentries) · [FoliumSourceMediaRule](#foliumsourcemediarule) · [FoliumSourceMediaAllowed](#foliumsourcemediaallowed) · [FoliumSourceMedia](#foliumsourcemedia) · [FoliumSourceWindows](#foliumsourcewindows)
+- **音源类模组的 main 入口**：[FoliumSourceMainApi](#foliumsourcemainapi) · [FoliumSourceHostInfo](#foliumsourcehostinfo) · [FoliumSourceMainPaths](#foliumsourcemainpaths) · [FoliumSourceDiagnostics](#foliumsourcediagnostics) · [FoliumSourceNative](#foliumsourcenative) · [FoliumSourceNet](#foliumsourcenet) · [FoliumSourceNetSession](#foliumsourcenetsession) · [FoliumSourceRequestOptions](#foliumsourcerequestoptions) · [FoliumSourceIncomingMessage](#foliumsourceincomingmessage) · [FoliumSourceClientRequest](#foliumsourceclientrequest) · [FoliumSourceMediaRequest](#foliumsourcemediarequest) · [FoliumSourceLegacyStore](#foliumsourcelegacystore) · [FoliumSourceSeal](#foliumsourceseal) · [FoliumSourceCache](#foliumsourcecache) · [FoliumSourceCacheEntries](#foliumsourcecacheentries) · [FoliumSourceMediaRule](#foliumsourcemediarule) · [FoliumSourceMediaAllowed](#foliumsourcemediaallowed) · [FoliumSourceMedia](#foliumsourcemedia) · [FoliumSourceWindows](#foliumsourcewindows)
 - **基础类型**：[FOLIUM_VERSION](#folium_version) · [FoliumId](#foliumid) · [FoliumLabel](#foliumlabel) · [FoliumDisposer](#foliumdisposer)
 - **[仍可用的旧名字](#仍可用的旧名字)**
 
@@ -1019,6 +1019,7 @@ interface FoliumLyricsService extends FoliumLyricsHelpers
 | `buildWordColorRanges()` | `(fullText: string, wordColors: FoliumTheme['wordColors']): FoliumWordColorRange[]` | 继承自 [FoliumLyricsHelpers](#foliumlyricshelpers)。Non-overlapping keyword color spans of `fullText` for `theme.wordColors`. |
 | `resolveWordColor()` | `(wordText: string, wordColors: FoliumTheme['wordColors'], fallbackColor: string, options?: { cjkMatchMode?: 'target-contains-token' \| 'bidirectional-contains' \| 'exact' }): string` | 继承自 [FoliumLyricsHelpers](#foliumlyricshelpers)。The keyword color of one word, or `fallbackColor`. |
 | `parse()` | `(track: FoliumLyricsTrack): Promise<FoliumParsedLyrics>` | 继承自 [FoliumLyricsHelpers](#foliumlyricshelpers)。Parses a lyric document with the host's local lyric file pipeline, off the main thread. Rejects with a TypeError (`invalid-lyrics-track`) when the track is malformed. |
+| `isPureMusicText()` | `(text: string \| null \| undefined): boolean` | 继承自 [FoliumLyricsHelpers](#foliumlyricshelpers)。Folium 2: whether a lyric text is only the "instrumental, please enjoy" notice, by the host's own rule (the one its lyric display and its platforms use). For a source's `lyrics@1` answer (`isPureMusic`). Synchronous. |
 
 相关：[FoliumLyricsHelpers](#foliumlyricshelpers) · [FoliumLine](#foliumline)
 
@@ -1766,6 +1767,7 @@ times and colors lines exactly as they do. Available in both contexts.
 | `buildWordColorRanges()` | `(fullText: string, wordColors: FoliumTheme['wordColors']): FoliumWordColorRange[]` | Non-overlapping keyword color spans of `fullText` for `theme.wordColors`. |
 | `resolveWordColor()` | `(wordText: string, wordColors: FoliumTheme['wordColors'], fallbackColor: string, options?: { cjkMatchMode?: 'target-contains-token' \| 'bidirectional-contains' \| 'exact' }): string` | The keyword color of one word, or `fallbackColor`. |
 | `parse()` | `(track: FoliumLyricsTrack): Promise<FoliumParsedLyrics>` | Parses a lyric document with the host's local lyric file pipeline, off the main thread. Rejects with a TypeError (`invalid-lyrics-track`) when the track is malformed. |
+| `isPureMusicText()` | `(text: string \| null \| undefined): boolean` | Folium 2: whether a lyric text is only the "instrumental, please enjoy" notice, by the host's own rule (the one its lyric display and its platforms use). For a source's `lyrics@1` answer (`isPureMusic`). Synchronous. |
 
 相关：[FoliumLine](#foliumline) · [FoliumWordSegment](#foliumwordsegment) · [FoliumTheme](#foliumtheme) · [FoliumWordColorRange](#foliumwordcolorrange) · [FoliumLyricsTrack](#foliumlyricstrack) · [FoliumParsedLyrics](#foliumparsedlyrics)
 
@@ -3750,10 +3752,11 @@ Folium 2: `api.net` of a source mod.
 | 成员 | 类型 | 说明 |
 | --- | --- | --- |
 | `fetch()` | `(url: string, init?: Record<string, unknown>): Promise<Response>` | A web `fetch` through Electron `net`; `init.session` names a partition (see `session`). Answers a web Response. |
+| `request()` | `(options: FoliumSourceRequestOptions): FoliumSourceClientRequest` | Electron's `net.request` (a ClientRequest), for a request a web `fetch` cannot make: a GET with a body. `options` is Electron's (`url`, `method`, `redirect`, …); `options.session` names a partition (see `session`). |
 | `session()` | `(name: string): FoliumSourceNetSession` | A partition of the source's own (`persist:folium-<mod id>-<name>`), or one its row or claims name: lower case letters, digits and `-`. |
 | `resolveProxy()` | `(url: string): Promise<string>` | The system proxy for `url`, as Chromium resolves it. |
 
-相关：[FoliumSourceNetSession](#foliumsourcenetsession)
+相关：[FoliumSourceRequestOptions](#foliumsourcerequestoptions) · [FoliumSourceClientRequest](#foliumsourceclientrequest) · [FoliumSourceNetSession](#foliumsourcenetsession)
 
 ### FoliumSourceNetSession
 
@@ -3763,9 +3766,62 @@ Folium 2: one partition of a source mod (`api.net.session`).
 | --- | --- | --- |
 | `readonly partition` | `string` | The partition's name. |
 | `fetch()` | `(url: string, init?: Record<string, unknown>): Promise<Response>` | `fetch` in this partition. |
+| `request()` | `(options: FoliumSourceRequestOptions): FoliumSourceClientRequest` | `request` in this partition. |
 | `resolveProxy()` | `(url: string): Promise<string>` | The proxy for `url` in this partition. |
 | `setProxy()` | `(config: Record<string, unknown>): Promise<void>` | Electron's `session.setProxy`. |
 | `clearStorageData()` | `(options?: Record<string, unknown>): Promise<void>` | Electron's `session.clearStorageData`. |
+
+相关：[FoliumSourceRequestOptions](#foliumsourcerequestoptions) · [FoliumSourceClientRequest](#foliumsourceclientrequest)
+
+### FoliumSourceRequestOptions
+
+Folium 2: what `api.net.request` takes: Electron's `net.request` options.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `url` | `string` | An http(s) address. |
+| `method?` | `string` | `GET` when left out. |
+| `redirect?` | `'follow' \| 'error' \| 'manual'` | `follow` (the default), `error` or `manual`. |
+| `session?` | `string` | A partition, named as for `api.net.session`; the default session when left out. |
+
+### FoliumSourceIncomingMessage
+
+Folium 2: the answer of `api.net.request`, Electron's IncomingMessage (the members a source reads).
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `readonly statusCode` | `number` | The HTTP status. |
+| `readonly headers` | `Record<string, string \| string[]>` | The headers, by lower-case name. |
+| `on()` | `(event: 'data', listener: (chunk: Uint8Array) => void): this` | `data` gives the body piece by piece, `end` comes after the last, `error` when it broke off. |
+| `on()` | `(event: 'end', listener: () => void): this` |  |
+| `on()` | `(event: 'error' \| 'aborted', listener: (error?: Error) => void): this` |  |
+
+### FoliumSourceClientRequest
+
+Folium 2: `api.net.request`'s request, Electron's ClientRequest (the members a source uses).
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `setHeader()` | `(name: string, value: string): void` | Sets a header before the body is written. |
+| `write()` | `(chunk: string \| Uint8Array): void` | Writes part of the body. |
+| `end()` | `(chunk?: string \| Uint8Array): void` | Sends the request, with the last part of the body. |
+| `abort()` | `(): void` | Stops it. |
+| `on()` | `(event: 'response', listener: (response: FoliumSourceIncomingMessage) => void): this` | `response` with the answer, `error` when it failed, `redirect`, `login`, `finish`, `abort`, `close` as Electron's. |
+| `on()` | `(event: 'error', listener: (error: Error) => void): this` |  |
+| `on()` | `(event: string, listener: (...args: unknown[]) => void): this` |  |
+
+相关：[FoliumSourceIncomingMessage](#foliumsourceincomingmessage)
+
+### FoliumSourceMediaRequest
+
+Folium 2: what a media rule's `test` is asked: one read of a resource, with the answer's headers. Frozen.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `readonly url` | `string` | The address. |
+| `readonly method` | `string` | `GET`, `HEAD` or `OPTIONS` (other methods never get the headers). |
+| `readonly resourceType` | `string` | Electron's resource type (`media`, `xhr`, `image`, …). |
+| `readonly responseHeaders` | `Readonly<Record<string, string[]>>` | The answer's headers, as Electron hands them. |
 
 ### FoliumSourceLegacyStore
 
@@ -3819,8 +3875,11 @@ Folium 2: a rule of `api.media.allow`: which addresses get cross-origin headers,
 | `hosts?` | `string[]` | Host names; a request to one of them is the source's. |
 | `urls?` | `string[]` | Whole addresses. |
 | `ttlMs?` | `number` | How long an address added stays the rule's, milliseconds. |
-| `followRedirects?` | `boolean` | An address a redirect leads to from one of the rule's is the rule's too. |
-| `resourceTypes?` | `string[]` | Electron's resource types the rule applies to (`media` by default). |
+| `test?()` | `(request: FoliumSourceMediaRequest): boolean` | What `hosts` and `urls` cannot say (a path that ends in an audio extension, an answer's content type): asked after them, synchronously, for each read the rule's resource types cover; true lets it through. One that throws counts as false. It runs for every answer the app receives: keep it quick. |
+| `followRedirects?` | `boolean` | An address a redirect leads to from one of the rule's (or one its `test` let through) is the rule's too, for `ttlMs`. |
+| `resourceTypes?` | `string[]` | Electron's resource types the rule applies to (`media`, `xhr` and `image` by default). |
+
+相关：[FoliumSourceMediaRequest](#foliumsourcemediarequest)
 
 ### FoliumSourceMediaAllowed
 
