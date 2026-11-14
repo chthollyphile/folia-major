@@ -271,9 +271,24 @@ export const buildSources = async ({
     const results = [];
     for (const dir of dirs) results.push(await buildSource(dir, { outRoot, cache }));
     if (prune) {
+        // 先整个改名成点开头的目录（模组系统的发现跳过点目录）再删：要么整个挪开，要么原样不动，不留删了一半、
+        // 没有 build.json 的目录。上次没删完的点目录这次再删。
         for (const name of builtDirsIn(outRoot).filter((name) => !names.includes(name))) {
-            fs.rmSync(path.join(outRoot, name), { recursive: true, force: true });
-            log(`${name}: 这次不带，删掉旧产物`);
+            try {
+                fs.renameSync(path.join(outRoot, name), path.join(outRoot, `.${name}.stale-${process.pid}`));
+                log(`${name}: 这次不带，删掉旧产物`);
+            } catch (error) {
+                // 开着的应用还读着它的归档（Windows 上改不了有打开文件的目录）：这次原样留着，下次构建再删。
+                log(`${name}: 这次不带，旧产物还挪不开（多半是开着的应用还读着它），下次构建再删：${error.code ?? error.message}`);
+            }
+        }
+        for (const entry of fs.readdirSync(outRoot, { withFileTypes: true })) {
+            if (!entry.isDirectory() || !/^\..+\.stale-\d+$/.test(entry.name)) continue;
+            try {
+                fs.rmSync(path.join(outRoot, entry.name), { recursive: true, force: true });
+            } catch {
+                // 还有文件开着：下次再删。
+            }
         }
     }
     return { results, bundledIds: bundledSourceIds(results.filter((result) => selected.includes(result.id)).map((result) => result.modId)) };

@@ -1,5 +1,5 @@
 import type { ModRuntimeInfo } from '../types';
-import { isModsBridgeAvailable, listMods, reportFoliumSourcesRegistered } from '../ipc';
+import { isModsBridgeAvailable, listMods, reportFoliumSourcesRegistered, subscribeModsState } from '../ipc';
 import type { FoliumClientApi, FoliumClientModule, FoliumContextKind, FoliumDisposer } from '../folium/contract';
 import { announceFoliumSlowStart, clearFoliumIssues, reportFoliumFault, reportFoliumIssue } from './status';
 import { removeFoliumEventHandlers } from '../folium/events';
@@ -331,6 +331,23 @@ export const reconcileFoliumClients = (mods: ModRuntimeInfo[], context: FoliumCo
 };
 
 /*
+ * Every load the main process runs ends by pushing the mod list (folia-mods:state-changed). The mods panel's
+ * store follows it once the panel has been opened (useModsStore.bindEvents); the main window follows it from
+ * the start, so a load nobody here asked for still reaches the clients: in a development build, a rebuild of
+ * dist-mods/ restarts the one built-in mod it changed (electron/modSystem/builtinBuildWatch.cjs), and its client
+ * comes back under its new URL. The reconcile queue makes a second follower (the panel's) a no-op.
+ */
+const followMainProcessLoads = () => {
+    try {
+        subscribeModsState((mods) => {
+            void reconcileFoliumClients(mods, 'main');
+        });
+    } catch (error) {
+        console.warn('[Folium] the main window does not hear the main process\'s mod loads', error);
+    }
+};
+
+/*
  * Main-window bootstrap: reads the mod list over the bridge and activates the
  * clients. No-op without the Electron bridge (web build, OBS pages). Awaited
  * before the app renders, so a saved mod visualizer mode can be restored.
@@ -342,6 +359,7 @@ export const initFoliumClients = async (): Promise<void> => {
     }
     try {
         const { mods } = await listMods();
+        followMainProcessLoads();
         await reconcileFoliumClients(mods, 'main');
     } catch (error) {
         console.warn('[Folium] client bootstrap failed', error);
