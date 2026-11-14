@@ -5,9 +5,11 @@
 // `*.example.com` for the domain and every subdomain) and/or exact URLs the source issued, each with an
 // optional lifetime; a URL rule can follow redirects (the CDN hop of an issued audio URL). A rule may also hand a
 // `test(request)` of its own, for what hosts cannot say (a path that ends in an audio extension, an answer's
-// content type): it is asked after the rule's URLs and hosts, synchronously, with { url, method, resourceType,
-// responseHeaders }, and a test that throws counts as no. Only reads (GET, HEAD, OPTIONS) of media, images and
-// fetches get the headers, as with the built-in policies.
+// content type). It narrows the rule's hosts: it is asked only for a read on one of them (a test without hosts is
+// refused), so a source sees no other source's addresses or answers; there, the host alone lets nothing through,
+// the test decides. It runs synchronously, with { url, method, resourceType, responseHeaders } (a frozen copy:
+// changing it changes nothing the browser gets), and a test that throws counts as no. Only reads (GET, HEAD,
+// OPTIONS) of media, images and fetches get the headers, as with the built-in policies.
 
 'use strict';
 
@@ -56,6 +58,8 @@ const createMediaRules = ({ now = Date.now } = {}) => {
         const ttlMs = rule.ttlMs === undefined || rule.ttlMs === null ? null : Number(rule.ttlMs);
         if (ttlMs !== null && !(ttlMs > 0)) throw new TypeError('media.allow: ttlMs must be a positive number');
         if (rule.test !== undefined && typeof rule.test !== 'function') throw new TypeError('media.allow: test must be a function');
+        // A test is asked only for reads on the rule's own hosts (see the top of this file).
+        if (rule.test !== undefined && hosts.length === 0) throw new TypeError('media.allow: a test needs the hosts it is asked for');
         const entry = {
             hosts: [...hosts],
             test: rule.test ?? null,
@@ -84,12 +88,17 @@ const createMediaRules = ({ now = Date.now } = {}) => {
         return remove;
     };
 
-    /* What a rule's `test` is asked: the request's own fields, not Electron's whole details object. */
+    /*
+     * What a rule's `test` is asked: the request's own fields, not Electron's whole details object, and a frozen copy
+     * of the answer's headers (main.cjs hands the browser arrays it shares with `details`).
+     */
     const requestOf = (details) => Object.freeze({
         url: String(details.url),
         method: String(details.method ?? 'GET').toUpperCase(),
         resourceType: details.resourceType,
-        responseHeaders: details.responseHeaders ?? {},
+        responseHeaders: Object.freeze(Object.fromEntries(Object.entries(details.responseHeaders ?? {}).map(([name, value]) => (
+            [name, Object.freeze(Array.isArray(value) ? value.map(String) : [String(value)])]
+        )))),
     });
 
     const passesTest = (entry, details) => {
@@ -100,7 +109,7 @@ const createMediaRules = ({ now = Date.now } = {}) => {
         }
     };
 
-    /* The first rule that lets `details` (a webRequest details object) through, or null. */
+    /* The first rule that lets `details` (a webRequest details object) through, and how: { entry, via } or null. */
     const matching = (details) => {
         if (!READ_METHODS.has(String(details?.method ?? 'GET').toUpperCase())) return null;
         const href = normalizeUrl(details?.url);
@@ -112,11 +121,12 @@ const createMediaRules = ({ now = Date.now } = {}) => {
                 if (details.resourceType && !entry.resourceTypes.has(details.resourceType)) continue;
                 const expiry = entry.urls.get(href);
                 if (expiry !== undefined) {
-                    if (expiry > time) return entry;
+                    if (expiry > time) return { entry, via: 'url' };
                     entry.urls.delete(href);
                 }
-                if (entry.hosts.some((pattern) => hostMatches(pattern, hostname))) return entry;
-                if (entry.test && passesTest(entry, details)) return entry;
+                if (!entry.hosts.some((pattern) => hostMatches(pattern, hostname))) continue;
+                if (!entry.test) return { entry, via: 'host' };
+                if (passesTest(entry, details)) return { entry, via: 'test' };
             }
         }
         return null;
@@ -130,16 +140,14 @@ const createMediaRules = ({ now = Date.now } = {}) => {
          * the rule's keeps its expiry, one its `test` let through gets the rule's lifetime. Hosts alone never follow.
          */
         followRedirect: (details) => {
-            const entry = matching(details);
-            if (!entry?.followRedirects) return;
-            const from = normalizeUrl(details.url);
-            const expiry = entry.urls.get(from);
-            const viaTest = expiry === undefined && entry.test !== null && passesTest(entry, details);
-            if (expiry === undefined && !viaTest) return;
+            const found = matching(details);
+            if (!found?.entry.followRedirects || found.via === 'host') return;
+            const { entry, via } = found;
             const href = normalizeUrl(details.redirectURL);
             if (!href) return;
+            const expiry = via === 'url' ? entry.urls.get(normalizeUrl(details.url)) : (entry.ttlMs === null ? Infinity : now() + entry.ttlMs);
             entry.urls.delete(href);
-            entry.urls.set(href, viaTest ? (entry.ttlMs === null ? Infinity : now() + entry.ttlMs) : expiry);
+            entry.urls.set(href, expiry);
             while (entry.urls.size > MAX_URLS_PER_MOD) entry.urls.delete(entry.urls.keys().next().value);
         },
         /* Every rule of `modId` goes: the mod stopped. */

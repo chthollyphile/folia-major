@@ -3821,7 +3821,7 @@ Folium 2: what a media rule's `test` is asked: one read of a resource, with the 
 | `readonly url` | `string` | The address. |
 | `readonly method` | `string` | `GET`, `HEAD` or `OPTIONS` (other methods never get the headers). |
 | `readonly resourceType` | `string` | Electron's resource type (`media`, `xhr`, `image`, …). |
-| `readonly responseHeaders` | `Readonly<Record<string, string[]>>` | The answer's headers, as Electron hands them. |
+| `readonly responseHeaders` | `Readonly<Record<string, readonly string[]>>` | The answer's headers, a frozen copy of what Electron hands. |
 
 ### FoliumSourceLegacyStore
 
@@ -3875,7 +3875,7 @@ Folium 2: a rule of `api.media.allow`: which addresses get cross-origin headers,
 | `hosts?` | `string[]` | Host names; a request to one of them is the source's. |
 | `urls?` | `string[]` | Whole addresses. |
 | `ttlMs?` | `number` | How long an address added stays the rule's, milliseconds. |
-| `test?()` | `(request: FoliumSourceMediaRequest): boolean` | What `hosts` and `urls` cannot say (a path that ends in an audio extension, an answer's content type): asked after them, synchronously, for each read the rule's resource types cover; true lets it through. One that throws counts as false. It runs for every answer the app receives: keep it quick. |
+| `test?()` | `(request: FoliumSourceMediaRequest): boolean` | What `hosts` cannot say (a path that ends in an audio extension, an answer's content type). It narrows the rule's `hosts`, which it needs: it is asked only for reads on them (never for another source's), and there the host alone lets nothing through. Synchronous; true lets the read through, one that throws counts as false. It runs for every answer from those hosts: keep it quick. `urls` of the same rule pass without it. |
 | `followRedirects?` | `boolean` | An address a redirect leads to from one of the rule's (or one its `test` let through) is the rule's too, for `ttlMs`. |
 | `resourceTypes?` | `string[]` | Electron's resource types the rule applies to (`media`, `xhr` and `image` by default). |
 

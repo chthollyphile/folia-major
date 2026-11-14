@@ -224,11 +224,12 @@ describe('the source members of api (plan §5.5)', () => {
         expect(api.media.url('audio', 'track/1')).toBe('folia-mod://spotify/_media/audio/track/1');
     });
 
-    it('media: the own test of a rule, asked after its URLs and hosts, followed through a redirect for the lifetime of the rule', () => {
+    it('media: the own test of a rule, asked only on its hosts, followed through a redirect for the lifetime of the rule', () => {
         const { api, system } = launchSource();
         const asked: unknown[] = [];
         const read = (url: string, extra: Record<string, unknown> = {}) => ({ url, resourceType: 'media', method: 'GET', ...extra });
         api.media.allow({
+            hosts: ['cdn.example.com'],
             ttlMs: 60_000,
             followRedirects: true,
             test: (request: { url: string; responseHeaders: Record<string, string[]> }) => {
@@ -244,12 +245,26 @@ describe('the source members of api (plan §5.5)', () => {
         expect(system.mediaRules.allows(read('https://cdn.example.com/a.mp3', { method: 'POST' }))).toBe(false);
         expect(asked[0]).toEqual({ url: 'https://cdn.example.com/a.mp3', method: 'GET', resourceType: 'media', responseHeaders: {} });
         expect(Object.isFrozen(asked[0])).toBe(true);
+        // Never asked off its hosts: a source sees no other source's addresses or answers.
+        const before = asked.length;
+        expect(system.mediaRules.allows(read('https://audio.other-source.example/a.mp3?token=secret'))).toBe(false);
+        expect(asked.length).toBe(before);
+        // The headers it gets are a frozen copy: changing them changes nothing the browser gets.
+        const headers = { 'content-type': ['audio/flac'] };
+        api.media.allow({ hosts: ['tamper.example.com'], test: (request: { responseHeaders: Record<string, string[]> }) => {
+            expect(Object.isFrozen(request.responseHeaders['content-type'])).toBe(true);
+            expect(() => request.responseHeaders['content-type'].push('text/html')).toThrow();
+            return true;
+        } });
+        expect(system.mediaRules.allows(read('https://tamper.example.com/a', { responseHeaders: headers }))).toBe(true);
+        expect(headers['content-type']).toEqual(['audio/flac']);
         // The CDN hop of an answer the test let through becomes the rule's.
         system.mediaRules.followRedirect({ ...read('https://cdn.example.com/a.mp3'), redirectURL: 'https://edge.example.net/x?sig=1' });
         expect(system.mediaRules.allows(read('https://edge.example.net/x?sig=1'))).toBe(true);
         system.mediaRules.followRedirect({ ...read('https://cdn.example.com/page.html'), redirectURL: 'https://edge.example.net/other' });
         expect(system.mediaRules.allows(read('https://edge.example.net/other'))).toBe(false);
-        expect(() => api.media.allow({ test: 'yes' })).toThrow('test must be a function');
+        expect(() => api.media.allow({ hosts: ['cdn.example.com'], test: 'yes' })).toThrow('test must be a function');
+        expect(() => api.media.allow({ test: () => true })).toThrow('a test needs the hosts');
     });
 
     it('windows: a hidden sandboxed window destroyed with the mod, and whether the main window is there', async () => {

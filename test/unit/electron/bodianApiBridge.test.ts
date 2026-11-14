@@ -187,13 +187,18 @@ describe('Bodian desktop bridge', () => {
 describe('Bodian main entry (source mod)', async () => {
     const { EventEmitter } = await import('node:events');
     const { default: activate } = await import('../../../sources/bodian/main/index');
+    const { createMediaRules } = require('../../../electron/modSystem/mediaRules.cjs') as {
+        createMediaRules: () => { allow: (modId: string, rule: unknown) => (() => void) & { add: (url: string) => boolean }; allows: (details: unknown) => boolean };
+    };
     const CLAIMED = new Set(['BODIAN_SESSION_V2', 'BODIAN_DEVICE_ID']);
 
     const launch = (respond: (url: URL) => unknown, values = new Map<string, unknown>()) => {
         const safeStorage = cipher();
         const handlers = new Map<string, (...args: unknown[]) => unknown>();
         const requests: Array<{ url: string; method?: string; session?: unknown }> = [];
-        let rule: { test: (request: { url: string; method: string; resourceType: string; responseHeaders: Record<string, string[]> }) => boolean; followRedirects?: boolean; ttlMs?: number } | null = null;
+        // The host's own media rules (electron/modSystem/mediaRules.cjs), as api.media.allow reaches them.
+        const mediaRules = createMediaRules();
+        const given: unknown[] = [];
         const claimed = (key: string) => {
             if (!CLAIMED.has(key)) throw new Error(`legacy-key-not-claimed:${key}`);
         };
@@ -228,11 +233,11 @@ describe('Bodian main entry (source mod)', async () => {
                     return request;
                 },
             },
-            media: { allow: (given: typeof rule) => { rule = given; return Object.assign(() => {}, { add: () => {} }); } },
+            media: { allow: (rule: unknown) => { given.push(rule); const remove = mediaRules.allow('bodian', rule); return Object.assign(() => remove(), { add: remove.add }); } },
             rpc: { handle: (name: string, handler: (...args: unknown[]) => unknown) => { handlers.set(name, handler); } },
         };
         activate(api as never);
-        return { handlers, requests, rule: () => rule!, values, safeStorage };
+        return { handlers, requests, given, mediaRules, values, safeStorage };
     };
 
     it('keeps its device id and a sign-in stored before the move under the claimed keys, sealed the same way', async () => {
@@ -259,19 +264,25 @@ describe('Bodian main entry (source mod)', async () => {
 
     it('lets its media through the host’s one listener by the policy it had: issued addresses, Kuwo audio and covers', async () => {
         // The package's audio flow: the rights check, then the address (bodian-music-api playback.cjs).
-        const { handlers, rule } = launch(url => (url.pathname.endsWith('/checkRight')
+        const { handlers, given, mediaRules } = launch(url => (url.pathname.endsWith('/checkRight')
             ? { code: 200, data: { status: 1 } }
             : { code: 200, data: { audioHttpsUrl: 'https://other-cdn.example.com/a.mp3?sig=1' } }));
         const read = (url: string, resourceType = 'media', responseHeaders: Record<string, string[]> = {}) => (
-            rule().test({ url, method: 'GET', resourceType, responseHeaders })
+            mediaRules.allows({ url, method: 'GET', resourceType, responseHeaders })
         );
-        expect(rule()).toMatchObject({ followRedirects: true, ttlMs: 2 * 60 * 60 * 1000 });
+        // Two rules: the issued addresses, and Kuwo's hosts with the policy as their test (asked only on them).
+        expect(given).toEqual([
+            { followRedirects: true, ttlMs: 2 * 60 * 60 * 1000 },
+            expect.objectContaining({ hosts: ['kuwo.cn', '*.kuwo.cn'], followRedirects: true, ttlMs: 2 * 60 * 60 * 1000 }),
+        ]);
         expect(read('https://other-cdn.example.com/a.mp3?sig=1')).toBe(false);
         expect(await handlers.get('request')!('audio', { id: '1', quality: 'standard' })).toMatchObject({ ok: true });
         // The issued address only once the package handed it out (the bridge's onAudioSource), as before.
         expect(read('https://other-cdn.example.com/a.mp3?sig=1')).toBe(true);
         expect(read('https://sycdn.kuwo.cn/abc/song.mp3')).toBe(true);
+        expect(read('https://bd-er.kuwo.cn/x')).toBe(true);
         expect(read('https://img4.kuwo.cn/star/albumcover/240/a.jpg', 'image')).toBe(true);
+        expect(read('https://www.kuwo.cn/index.html')).toBe(false);
         expect(read('https://example.com/song.mp3')).toBe(false);
     });
 });

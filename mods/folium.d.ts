@@ -4335,8 +4335,8 @@ export interface FoliumSourceMediaRequest {
     readonly method: string;
     /** Electron's resource type (`media`, `xhr`, `image`, …). */
     readonly resourceType: string;
-    /** The answer's headers, as Electron hands them. */
-    readonly responseHeaders: Readonly<Record<string, string[]>>;
+    /** The answer's headers, a frozen copy of what Electron hands. */
+    readonly responseHeaders: Readonly<Record<string, readonly string[]>>;
 }
 
 /** Folium 2: `api.legacy.store`, the main process's store keys a built-in source keeps its sign-in under. */
@@ -4390,9 +4390,10 @@ export interface FoliumSourceMediaRule {
     /** How long an address added stays the rule's, milliseconds. */
     ttlMs?: number;
     /**
-     * What `hosts` and `urls` cannot say (a path that ends in an audio extension, an answer's content type): asked
-     * after them, synchronously, for each read the rule's resource types cover; true lets it through. One that
-     * throws counts as false. It runs for every answer the app receives: keep it quick.
+     * What `hosts` cannot say (a path that ends in an audio extension, an answer's content type). It narrows the
+     * rule's `hosts`, which it needs: it is asked only for reads on them (never for another source's), and there the
+     * host alone lets nothing through. Synchronous; true lets the read through, one that throws counts as false. It
+     * runs for every answer from those hosts: keep it quick. `urls` of the same rule pass without it.
      */
     test?(request: FoliumSourceMediaRequest): boolean;
     /** An address a redirect leads to from one of the rule's (or one its `test` let through) is the rule's too, for `ttlMs`. */
