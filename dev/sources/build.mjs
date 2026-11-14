@@ -235,7 +235,7 @@ export const buildSource = async (sourceDir, { outRoot = DEFAULT_OUT_ROOT, cache
     const changed = outputs.filter((output) => writeIfChanged(path.join(outDir, ...output.name.split('/')), output.data)).map((output) => output.name);
     const files = [...outputs.map((output) => output.name), ...(asarName ? [asarName] : [])].sort();
     const previous = readStamp(outDir);
-    const stale = [...new Set([...(previous?.files ?? []), ...fs.readdirSync(outDir).filter((name) => /^deps\.[0-9a-f]+\.asar$/.test(name))])]
+    const stale = [...new Set([...(previous?.files ?? []), ...fs.readdirSync(outDir).filter((name) => /^(deps\.[0-9a-f]+\.asar|vendor\.[0-9a-f]+\.mjs)$/.test(name))])]
         .filter((name) => !files.includes(name));
     for (const name of stale) {
         try {
