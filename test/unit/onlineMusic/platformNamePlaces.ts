@@ -50,7 +50,7 @@ export const PLATFORM_NAME_PLACES: Record<string, PlatformNamePlace> = {
     'src/components/app/home/gridViewCollectionAdapters.ts': { n: { netease: 1 }, kind: 'doc' },
     'src/components/app/playback/createLyricsSetter.ts': { n: { netease: 13, qq: 1 }, kind: 'lyric', why: 'the stored lyric source id and the chorus ranges that source gives' },
     'src/components/app/playback/restore/createOnlineRecoveryController.ts': { n: { qq: 1, ytm: 2, spotify: 2 }, kind: 'stored', why: 'the URL schemes of two platforms\' own audio addresses' },
-    'src/components/app/playback/start/useLibraryPlaybackController.ts': { n: { netease: 9 }, kind: 'lyric', why: 'a Navidrome song\'s lyric match: the stored lyric source id, and that source\'s platform asked for the matched song' },
+    'src/components/app/playback/start/useLibraryPlaybackController.ts': { n: { netease: 5 }, kind: 'lyric', why: 'a Navidrome song\'s lyric match: the stored lyric source id, and that source\'s platform asked for the matched song' },
     'src/components/command-palette/commands/settingsCommands.ts': { n: { netease: 5 }, kind: 'text', why: 'two commands of the listening report: their ids (also i18n keys), English titles and search words name the one platform that takes reports' },
     'src/components/modal/LocalSongMetadataMatchDialog.tsx': { n: { netease: 1, qq: 1, kugou: 1 }, kind: 'lyric', why: 'the metadata dialog\'s own list of sources' },
     'src/components/modal/lyric-match/LocalSongLyricMatch.tsx': { n: { netease: 1 }, kind: 'lyric' },
