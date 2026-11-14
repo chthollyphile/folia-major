@@ -1,5 +1,6 @@
 import type { LocalSong } from '../../types';
 import { isBlob } from '../../utils/blobGuards';
+import { getLocalSongAlbumContextKey } from '../../utils/localLibraryNames';
 import { migrateLocalSongsRenderHints, migrateMatchedLyricsCarrierRenderHints } from '../../utils/lyrics/storageMigration';
 import { appDatabase } from '../appDatabase';
 
@@ -8,10 +9,18 @@ import { appDatabase } from '../appDatabase';
 
 export const sanitizeLocalSongForStorage = (song: LocalSong): LocalSong => {
   const normalizedSong = migrateMatchedLyricsCarrierRenderHints(song).value ?? song;
-  const { fileHandle, embeddedCover: _legacyCover, ...persistedSong } = normalizedSong as LocalSong & {
+  const { fileHandle, embeddedCover: _legacyCover, albumContextKey: _staleKey, ...persistedSong } = normalizedSong as LocalSong & {
     embeddedCover?: unknown;
   };
-  return persistedSong;
+  // Recomputed on every write: the imported album or the path may have changed since the key was read.
+  // A record missing those fields still saves, only without the key (as the v1 upgrade treats it).
+  let albumContextKey: string | undefined;
+  try {
+    albumContextKey = getLocalSongAlbumContextKey(persistedSong);
+  } catch {
+    albumContextKey = undefined;
+  }
+  return albumContextKey ? { ...persistedSong, albumContextKey } : persistedSong;
 };
 
 const normalizeLocalSongFromStorage = (song: LocalSong): { value: LocalSong; changed: boolean } => {

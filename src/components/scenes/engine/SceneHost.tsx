@@ -4,6 +4,7 @@ import { selectDisplaySong, selectIsShowingTail, usePlaybackStore } from '../../
 import type { DualTheme } from '../../../types';
 import { DEFAULT_VISUALIZER_BACKGROUND_MODE } from '../../../types/visualizerModes';
 import VisualizerRenderer from '../../visualizer/VisualizerRenderer';
+import { usePlayerChrome, withoutPlayerChrome } from '../../visualizer/usePlayerChrome';
 import { useShownTheme } from '../../visualizer/useShownTheme';
 import { VISUALIZER_BACKGROUND_REGISTRY } from '../../visualizer/backgrounds/registry';
 import { VISUALIZER_REGISTRY } from '../../visualizer/registry';
@@ -287,6 +288,11 @@ const SceneStage: React.FC<{ definition: SceneDefinition; rendererProps: Rendere
         return stop;
     }, [definition, manifest, attempt]);
 
+    // The back button and the panel guide are the page's, not the borrowed style's: a style on a surface
+    // would draw them in the surface's corner. While the scene shows they are drawn here, over all of it;
+    // while it loads or after it fails, the user's lyric style covers the page and draws them as ever.
+    const chrome = usePlayerChrome(rendererProps, status === 'running');
+
     if (status === 'failed') return <VisualizerRenderer {...rendererProps} />;
 
     const hidden = status !== 'running';
@@ -298,7 +304,7 @@ const SceneStage: React.FC<{ definition: SceneDefinition; rendererProps: Rendere
         VISUALIZER_BACKGROUND_REGISTRY.map(entry => entry.mode),
     );
     const borrowed = (lyrics: boolean, background: boolean, tone?: SceneSurfaceTone): RendererProps => ({
-        ...rendererProps,
+        ...withoutPlayerChrome(rendererProps),
         ...surfaceRendererTheme(rendererProps, { theme: songThemes.shown, subtitleTheme: songThemes.shownSubtitle }, { background, tone }),
         mode: lyricMode,
         showText: lyrics ? rendererProps.showText : false,
@@ -330,12 +336,17 @@ const SceneStage: React.FC<{ definition: SceneDefinition; rendererProps: Rendere
                 className="absolute inset-0 select-none overflow-hidden"
                 style={{ touchAction: 'none', visibility: hidden ? 'hidden' : undefined }}
                 data-scene={manifest.id}
+                onMouseMoveCapture={chrome.pointer.move}
+                onMouseLeave={chrome.pointer.leave}
+                onPointerDown={chrome.pointer.down}
+                onPointerCancel={chrome.pointer.cancel}
             >
                 {!hidden && plan.behindBackground && <VisualizerRenderer {...borrowed(false, true)} />}
                 {!hidden && plan.surfaces.filter(surface => surface.background).map(surfaceBox)}
                 <div ref={boxRef} className="pointer-events-none absolute inset-0" />
                 {!hidden && plan.surfaces.filter(surface => !surface.background).map(surfaceBox)}
                 {!hidden && plan.overlayLyrics && <VisualizerRenderer {...borrowed(true, false)} />}
+                {chrome.backButton}
             </div>
         </>
     );

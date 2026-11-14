@@ -35,6 +35,8 @@ interface MonetLyricsRailProps {
     seekDisabled?: boolean;
     /** Shared large-screen factor. Owned by VisualizerMonet so the column and the font scale together. */
     layoutScale?: number;
+    /** Mirrored layout (#1124): the rail sits at the column's right edge and its lines are set flush right. */
+    alignEnd?: boolean;
 }
 
 const MonetLyricsRail: React.FC<MonetLyricsRailProps> = ({
@@ -57,6 +59,7 @@ const MonetLyricsRail: React.FC<MonetLyricsRailProps> = ({
     onLyricLineSeek,
     seekDisabled = false,
     layoutScale = 1,
+    alignEnd = false,
 }) => {
     const railRef = useRef<HTMLDivElement | null>(null);
     const layoutCacheRef = useRef<MonetLayoutCache>(new Map());
@@ -280,7 +283,8 @@ const MonetLyricsRail: React.FC<MonetLyricsRailProps> = ({
             style={{
                 height: `clamp(280px, 52vh, ${railMaxHeightPx}px)`,
                 maxWidth: `${railMaxWidthPx}px`,
-                marginLeft: `-${glowBufferPx}px`,
+                // Flush right, the rail keeps its text edge on the column's right edge whatever its width.
+                marginLeft: alignEnd ? 'auto' : `-${glowBufferPx}px`,
                 marginRight: `-${glowBufferPx}px`,
                 paddingLeft: `${glowBufferPx}px`,
                 paddingRight: `${glowBufferPx}px`,
@@ -311,12 +315,13 @@ const MonetLyricsRail: React.FC<MonetLyricsRailProps> = ({
                             canSeek={canSeek}
                             disableEntryMotion={isManualScrolling}
                             renderStaticPassed={isManualScrolling && entry.index !== currentLineIndex}
+                            alignEnd={alignEnd}
                         />
                     ))}
                 </AnimatePresence>
             ) : emptyText ? (
                 <div
-                    className="absolute left-0 top-1/2 -translate-y-1/2"
+                    className={`absolute ${alignEnd ? 'right-0' : 'left-0'} top-1/2 -translate-y-1/2`}
                     style={{
                         color: theme.primaryColor,
                         fontSize: 'clamp(1.8rem, 4.2vw, 3.2rem)',

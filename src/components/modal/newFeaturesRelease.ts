@@ -1,4 +1,4 @@
-import { Globe, KeyRound, Music, Sparkles } from 'lucide-react';
+import { AppWindow, Clapperboard, Palette, Shapes, Sparkles } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 
 // src/components/modal/newFeaturesRelease.ts
@@ -18,11 +18,13 @@ type NewFeaturesRelease = {
 
 // Defines the current release's cards; their localized text lives under i18nKey in every locale.
 export const NEW_FEATURES_RELEASE: NewFeaturesRelease = {
-    i18nKey: 'releaseNotes.v0_7_27',
+    i18nKey: 'releaseNotes.v0_7_28',
+    majorUpdate: { codename: 'Mimiambol' },
     features: [
-        { id: 'soloist', icon: KeyRound },
-        { id: 'amUpdate', icon: Music },
-        { id: 'fnConnect', icon: Globe },
+        { id: 'scenes', icon: Clapperboard },
+        { id: 'newLook', icon: Shapes },
+        { id: 'windowControls', icon: AppWindow },
+        { id: 'styleOptions', icon: Palette },
         { id: 'moreDetails', icon: Sparkles },
     ],
 };

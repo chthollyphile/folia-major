@@ -297,9 +297,11 @@ function BravaisTile({
     // 专辑墙（has-album-wall）：整面墙拼成的那一块，或从封面上切下来的碎片（bravaisAlbumWall）。聚焦卡画整张封面。
     const art = display && !face.seeThrough && !isExpanded ? display.coverArt : undefined;
     const artSpots = useBravaisCoverSpots(art?.mode === 'shard' ? art.url : undefined);
+    // 拼贴整块只有一张图，解码一次就够，保留原图；碎片每块一张不同的封面，和墙上一样封顶。
     const artUrl = useWallPosterArtwork(
         art?.url,
         (art?.mode === 'mosaic' ? BRAVAIS_ALBUM_MOSAIC_PX : Math.max(rect.width, rect.height) * 2.75) * pixelScale,
+        { keepOriginal: art?.mode === 'mosaic' },
     );
     // 拼贴的大图到之前垫一张海报封面那档（已经在缓存里，放大后是糊的）：两层背景，大图解码完就盖住它。
     const artStandIn = art?.mode === 'mosaic' ? getSizedCoverUrl(art.url, BRAVAIS_ALBUM_COVER_PX) : '';

@@ -5,6 +5,7 @@ import NomandBackgroundLayer, { resolveNomandSourceUrl } from './NomandBackgroun
 import NomandBackgroundSettingsCard from './NomandBackgroundSettingsCard';
 import { EFFECT_LABEL_KEYS, EFFECTS } from './NomandBackgroundEffectSettings';
 import { defineVisualizerBackground } from '../definition';
+import { getOriginalCoverUrl } from '../../../../utils/coverUrl';
 import { cycleValue, QuickControlChip, QuickControlToggle } from '../../../shared/QuickControlChip';
 
 // src/components/visualizer/backgrounds/nomand/entry.tsx
@@ -14,6 +15,11 @@ const SOURCE_LABEL_KEYS: Record<NomandBackgroundSource, string> = {
     'cover-derived': 'options.monetBackgroundSourceCover',
     'uploaded-global': 'options.monetBackgroundSourceUploaded',
 };
+
+// The picture fills the screen, so where the cover URL carries a size it is read back to the provider's
+// original rather than kept at the backdrop's 1024 step, which some serve smaller than the screen. No
+// cover stays no cover, so the uploaded image still stands in for it.
+const fullCover = (coverUrl: string | null | undefined) => (coverUrl ? getOriginalCoverUrl(coverUrl) : coverUrl);
 
 export default defineVisualizerBackground({
     mode: 'nomand',
@@ -37,11 +43,11 @@ export default defineVisualizerBackground({
     // The shader draws one image and cannot blend to another, so a new song's image comes as a new copy;
     // the copy on screen was already rebuilt for every new image (its elements are keyed by it).
     song: ({ config, coverUrl }) => [
-        resolveNomandSourceUrl(coverUrl, config?.customImage, { ...DEFAULT_NOMAND_BACKGROUND_TUNING, ...config?.nomand?.tuning }) ?? null,
+        resolveNomandSourceUrl(fullCover(coverUrl), config?.customImage, { ...DEFAULT_NOMAND_BACKGROUND_TUNING, ...config?.nomand?.tuning }) ?? null,
     ],
     render: ({ config, coverUrl, theme, isDaylight }) => (
         <NomandBackgroundLayer
-            coverUrl={coverUrl}
+            coverUrl={fullCover(coverUrl)}
             monetBackgroundImage={config?.customImage}
             tuning={config?.nomand?.tuning}
             theme={theme}

@@ -4,7 +4,7 @@ import React, { useMemo, useState, useEffect, useRef, useCallback } from 'react'
 import { useMotionValue, animate, useSpring, motion } from 'framer-motion';
 import { DEFAULT_CLADDAGH_TUNING } from '../../../types';
 import { buildLineGraphemeTimeline } from '../../../utils/lyrics/graphemeTiming';
-import { resolveThemeFontStack, resolveThemeFontWeight } from '../../../utils/fontStacks';
+import { resolveThemeFontStack, resolveThemeFontWeight, resolveThemeTranslationFontStack } from '../../../utils/fontStacks';
 import { type VisualizerSharedProps } from '../definition';
 import { useVisualizerRuntime } from '../runtime';
 import { colorWithAlpha, mixColors } from '../colorMix';
@@ -36,6 +36,14 @@ const VisualizerCladdagh: React.FC<VisualizerSharedProps> = (props) => {
         claddaghTuning = DEFAULT_CLADDAGH_TUNING,
         paused = false,
     } = props;
+
+    // 圆环的位置（#1124）：画面宽、高的百分比，0 在正中。轴线和歌词一起挪。
+    const positionX = claddaghTuning.positionX ?? 0;
+    const positionY = claddaghTuning.positionY ?? 0;
+    // 沿圆环的翻译（#1124）：只在开关打开时画，字体跟副字幕的主题。
+    const showRingTranslation = claddaghTuning.showTranslation === true;
+    const translationFontStack = resolveThemeTranslationFontStack(subtitleTheme ?? theme);
+    const translationFontWeight = resolveThemeFontWeight(subtitleTheme ?? theme, 600);
 
     const centerNormalTiltDeg = 90 - claddaghTuning.ellipseTiltDeg;
 
@@ -263,8 +271,8 @@ const VisualizerCladdagh: React.FC<VisualizerSharedProps> = (props) => {
                             ref={axisLineRef}
                             style={{
                                 position: 'absolute',
-                                left: '50%',
-                                top: '50%',
+                                left: `${50 + positionX}%`,
+                                top: `${50 + positionY}%`,
                                 width: '300px',
                                 height: '4px',
                                 transform: `translate(-50%, -50%) rotate(${centerNormalTiltDeg}deg) scale(1, 1)`,
@@ -275,7 +283,16 @@ const VisualizerCladdagh: React.FC<VisualizerSharedProps> = (props) => {
                     )}
                 </div>
 
-                <div style={{ width: '100%', height: '100%', position: 'relative', zIndex: 10 }}>
+                <div
+                    style={{
+                        width: '100%',
+                        height: '100%',
+                        position: 'relative',
+                        zIndex: 10,
+                        // Percentages of this box, which is the whole stage: the ring's centre moves by the tuning's share of it.
+                        transform: positionX !== 0 || positionY !== 0 ? `translate(${positionX}%, ${positionY}%)` : undefined,
+                    }}
+                >
                     {showText && Rx > 0 && Ry > 0 && lineIndicesToRender.map(idx => (
                         <RingLine
                             key={idx}
@@ -298,6 +315,11 @@ const VisualizerCladdagh: React.FC<VisualizerSharedProps> = (props) => {
                             ellipseTiltDeg={claddaghTuning.ellipseTiltDeg}
                             textSpacingScale={activeTextSpacingScale}
                             letterSpacingOffset={claddaghTuning.letterSpacingOffset}
+                            translation={showRingTranslation ? lines[idx].translation : undefined}
+                            translationFontStack={translationFontStack}
+                            translationFontWeight={translationFontWeight}
+                            translationScale={claddaghTuning.translationScale ?? 1}
+                            translationLetterSpacingOffset={claddaghTuning.translationLetterSpacingOffset ?? 0}
                         />
                     ))}
                 </div>

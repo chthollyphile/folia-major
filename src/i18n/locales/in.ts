@@ -307,6 +307,7 @@ export default {
     "stageShort": "Panggung",
     "settings": "Pengaturan",
     "more": "Lainnya",
+    "pageTools": "Alat halaman",
     "scanProgress": "Memindai {{percent}}%",
     "connect": "Hubungkan layanan streaming",
     "noMatch": "Tidak ada yang cocok di halaman ini",
@@ -971,6 +972,7 @@ export default {
       "grid-reload-online-collection": { "title": "Muat ulang koleksi ini", "description": "Lewati cache dan muat ulang semua lagu dari koleksi online ini" },
       "grid-toggle-subscribe": { "title": "Berlangganan atau berhenti berlangganan", "description": "Simpan playlist atau album online ini ke koleksimu, atau hapus jika sudah tersimpan" },
       "grid-collect-filtered": { "title": "Tambahkan lagu-lagu ini ke buku catatan", "description": "Simpan koleksi ini (hanya lagu yang tersaring saat menyaring) ke buku catatan tanpa mengubah antrean" },
+      "grid-shuffle-play-filtered": { "title": "Putar acak lagu-lagu ini", "description": "Jadikan koleksi ini (hanya lagu yang tersaring saat menyaring) antrean putar dengan urutan acak dan mulai dari lagu acak" },
       "directory-play-selection": { "title": "Putar kartu terpilih", "description": "Putar lagu dari kartu yang dipilih di peta, sesuai urutan kartu" },
       "directory-enqueue-selection": { "title": "Antrekan kartu terpilih", "description": "Tambahkan lagu dari kartu yang dipilih di peta ke antrean" },
       "directory-create-playlist": { "title": "Playlist baru dari pilihan", "description": "Buat playlist lokal berisi lagu dari kartu yang dipilih" },
@@ -983,6 +985,7 @@ export default {
       "directory-remove-root": { "title": "Hapus folder impor terfokus", "description": "Minta konfirmasi untuk menghapus folder akar impor yang terfokus beserta lagunya dari pustaka lokal" },
       "directory-clear-ignore": { "title": "Pulihkan folder terabaikan yang terfokus", "description": "Berhenti mengabaikan folder yang terfokus dan pindai ulang" },
       "artist-play-top-songs": { "title": "Putar lagu populer", "description": "Putar lagu populer artis yang bisa diputar, mulai dari yang pertama" },
+      "artist-shuffle-top-songs": { "title": "Putar acak lagu populer", "description": "Jadikan lagu populer artis yang bisa diputar sebagai antrean putar dengan urutan acak" },
       "artist-enqueue-top-songs": { "title": "Antrekan lagu populer", "description": "Tambahkan lagu populer artis ke antrean putar" },
       "artist-reload": { "title": "Muat ulang artis", "description": "Muat ulang halaman artis dari sumbernya" },
       "artist-retry-albums": { "title": "Lanjutkan memuat album", "description": "Coba lagi halaman album yang gagal dan lanjutkan memuat sisanya" },
@@ -1135,6 +1138,7 @@ export default {
       "settings-toggle-transcode-fallback": { "title": "Konversi audio yang tidak didukung", "description": "Alihkan pemulihan Electron untuk audio lokal dan Navidrome yang tidak dapat didekode Chromium" },
       "settings-toggle-playback-fade": { "title": "Fade saat jeda dan lanjut", "description": "Alihkan fade singkat saat menjeda dan melanjutkan pemutaran" },
       "settings-toggle-auto-skip-unplayable": { "title": "Lewati lagu yang tidak dapat diputar", "description": "Alihkan hitung mundur untuk melewati lagu yang dibatasi atau gagal diputar tanpa alasan yang jelas" },
+      "settings-toggle-shuffle-round-no-repeat": { "title": "Acak per putaran", "description": "Nyalakan atau matikan: lagu yang sudah didengar di putaran ini ditaruh di belakang saat mengacak, dan putaran yang selesai diacak lagi saat putar ulang daftar" },
       "settings-toggle-bottom-subtitle-overlay": { "title": "Alihkan overlay subtitle bawah", "description": "Tampilkan atau sembunyikan seluruh overlay subtitle bawah" },
       "settings-cycle-subtitle-content-mode": { "title": "Putar mode konten subtitle", "description": "Putar konten subtitle antara terjemahan, romanisasi, dan romanisasi plus terjemahan" },
       "settings-subtitles": { "title": "Subtitel", "description": "Jumlah baris subtitel bawah dan isi tiap baris, latarnya, serta subtitel sekunder" },
@@ -1590,6 +1594,7 @@ export default {
     "songsToSave_other": "{{count}} lagu",
     "plays": "Putar",
     "playAll": "Putar Semua",
+    "shufflePlay": "Putar acak",
     "playFilteredTracks": "Putar {{count}} lagu",
     "addFilteredTracksToQueue": "Tambahkan {{count}} lagu ke antrean",
     "loadMore": "Muat Lebih Banyak",
@@ -2362,6 +2367,7 @@ export default {
     "settingsPageGeneral": "Umum",
     "settingsPageInteraction": "Pintasan",
     "settingsPageIntegration": "Koneksi & integrasi",
+    "settingsPageAi": "Layanan AI",
     "settingsPageStorage": "Penyimpanan & cadangan",
     "settingsPageDesktop": "Desktop",
     "settingsPageGraphics": "Gerakan & performa",
@@ -3090,7 +3096,12 @@ export default {
     "claddaghRadiusScale": "Skala Radius Orbit",
     "claddaghEllipseTiltDeg": "Derajat Kemiringan Orbit",
     "claddaghShowAxisLine": "Garis Sumbu Tengah",
-    "claddaghLetterSpacingOffset": "Jarak Huruf",
+    "claddaghLetterSpacingOffset": "Jarak Huruf Lirik",
+    "claddaghPositionX": "Posisi Horizontal",
+    "claddaghPositionY": "Posisi Vertikal",
+    "claddaghShowTranslation": "Tampilkan Terjemahan",
+    "claddaghTranslationScale": "Ukuran Terjemahan",
+    "claddaghTranslationLetterSpacingOffset": "Jarak Huruf Terjemahan",
     "pendoloSettings": "Pengaturan Pendolo",
     "pendoloSettingsDesc": "Kontrol posisi pusat roda, radius busur, sebaran sudut, ketegasan escapement, dan intensitas ayunan pendulum.",
     "pendoloWheelCenterX": "Pusat Roda X (0 = Tepi Kiri)",
@@ -3667,6 +3678,8 @@ export default {
     "playbackFadeDesc": "Fade keluar sebelum jeda dan masuk kembali saat lanjut.",
     "autoSkipUnplayable": "Lewati lagu yang tidak dapat diputar",
     "autoSkipUnplayableDesc": "Bila lagu memerlukan langganan atau pembelian, hanya tersedia pratinjau, diblokir di wilayah Anda, atau gagal diputar tanpa alasan yang jelas, hitung mundur lalu lewati ke lagu berikutnya, seperti lagu yang telah dihapus. Lagu yang memerlukan login dan masalah jaringan tidak pernah dilewati.",
+    "shuffleRoundNoRepeat": "Acak per putaran",
+    "shuffleRoundNoRepeatDesc": "Saat mengacak antrean atau memutar acak, lagu yang sudah didengar di putaran ini ditaruh setelah lagu yang belum. Dengan putar ulang daftar, putaran yang selesai diacak lagi otomatis. Hanya antrean yang diacak yang dilacak; jika mati, pengacakan seperti biasa.",
     "audioOutputDevice": "Perangkat Output Saat Ini",
     "audioOutputRefresh": "Segarkan",
     "audioOutputUnsupported": "Lingkungan ini tidak mendukung penggantian perangkat output audio.",
@@ -3692,7 +3705,7 @@ export default {
     "themeGenerationSourceCover": "Warna Sampul",
     "themeGenerationSourceAiDesc": "Membaca lirik dengan model AI dan menyimpulkan palet suasana. Membutuhkan kunci API dan mengonsumsi token.",
     "themeGenerationSourceAiUnavailable": "Belum ada kunci API untuk penyedia AI yang dipilih, sehingga inferensi AI dinonaktifkan.",
-    "configureAiApiKey": "Buka pengaturan tema AI",
+    "configureAiApiKey": "Buka pengaturan layanan AI",
     "themeGenerationSourceCoverDesc": "Membangun palet langsung dari warna sampul. Tidak membutuhkan kunci API, tetapi hasilnya kurang ekspresif dan membawa lebih sedikit atribut.",
     "autoGenerateSongThemeCoverDesc": "Saat lagu yang diputar tidak memiliki tema yang di-cache, buat dari sampulnya dan terapkan.",
     "autoGenerateSongThemeDesc": "Saat lagu yang diputar tidak memiliki tema AI yang di-cache, buat dan terapkan secara otomatis.",
@@ -3705,7 +3718,8 @@ export default {
     "clearAll": "Bersihkan Semua",
     "confirmClearAll": "Yakin ingin membersihkan semua cache?",
     "cacheClearing": "Menghapus...",
-    "electronSettings": "Pengaturan Tema AI",
+    "aiServiceProviders": "Penyedia dan kunci",
+    "aiServiceDesc": "Berlaku untuk semua fitur AI: pembuatan tema AI dan apa pun yang memakai AI nanti.",
     "aiProvider": "Penyedia AI",
     "useSystemProxyAI": "Gunakan Proxy Sistem untuk AI",
     "useSystemProxyAIDesc": "Rutekan permintaan AI secara ketat melalui proxy sistem.",
@@ -3823,7 +3837,15 @@ export default {
     "monetAudioStyleLine": "Garis",
     "monetShowAudioVisualization": "Visualisasi audio",
     "monetFontScale": "Skala Ukuran Font",
-    "monetShowDescription": "Tampilkan Deskripsi Lagu",
+    "monetShowDescription": "Deskripsi Lagu",
+    "monetCustomDescription": "Deskripsi Kustom",
+    "monetCustomDescriptionPlaceholder": "Kosong menampilkan deskripsi asli",
+    "monetChromeVisibilityAuto": "Sembunyi otomatis",
+    "monetChromeVisibilityAlways": "Selalu",
+    "monetChromeVisibilityHidden": "Sembunyikan",
+    "monetMirrorLayout": "Cerminkan Lirik Kiri/Kanan",
+    "monetPortraitSourceMirrored": "Sumber Potret Kiri",
+    "monetPortraitSourceNone": "Mati",
     "monetGroupBackgroundSource": "Sumber Latar Belakang",
     "monetGroupLayoutPosition": "Tata Letak & Posisi",
     "monetGroupFiltersPostProcessing": "Filter & Pasca-pemrosesan",
@@ -4146,6 +4168,29 @@ export default {
       "qqPrivatePlaylists": {
         "title": "Playlist Pribadi QQ Music",
         "description": "Setelah masuk, playlist pribadi buatan Anda kini dapat memuat lagu dengan paging sungguhan. Backend yang di-host sendiri harus memakai qq-music-api 3.1.2 atau lebih baru; backend lama beralih otomatis, dan playlist yang tidak dapat dibaca kini menjelaskan bahwa playlist itu tidak publik, alih-alih tampil kosong tanpa keterangan."
+      }
+    },
+    "v0_7_28": {
+      "intro": "Selamat datang di 0.7.28, Mimiambol Update—sebuah pembaruan besar. Versi ini menghadirkan adegan bioskop, ikon aplikasi baru, tombol jendela di kiri atau kanan, dan opsi baru untuk beberapa gaya lirik.",
+      "scenes": {
+        "title": "Adegan: Bioskop (Beta)",
+        "description": "Halaman pemutar bisa menjadi bioskop, dengan gaya lirik dan latar Anda di layarnya; seret untuk melihat sekeliling. Aktifkan di baris Adegan pada halaman Tampilan. Di desktop, Pelacakan suara membuat musik terdengar seperti diputar di dalam bioskop."
+      },
+      "newLook": {
+        "title": "Ikon dan animasi memuat baru",
+        "description": "Ikon aplikasi baru: huruf F dari empat balok. Layar pembuka kini berisi balok warna yang bergeser; saat ganti lagu dan memuat lirik muncul titik memuat yang sama, dan saat mulai ada tanda bahwa status masuk sedang diperiksa."
+      },
+      "windowControls": {
+        "title": "Tombol jendela",
+        "description": "Tombol jendela bisa diletakkan di kiri atau kanan. Di macOS Anda bisa memakai lampu lalu lintas asli, dan menu Dock bisa mengontrol pemutaran."
+      },
+      "styleOptions": {
+        "title": "Opsi gaya lirik baru",
+        "description": "Monet bisa dicerminkan, menyembunyikan potret, dan menampilkan deskripsi sendiri. Dial Pendolo bisa dimiringkan, dibagi lapisan, dan beralih ke tampilan poros. Claddagh bisa dipindah dan menampilkan terjemahan di sepanjang cincin."
+      },
+      "moreDetails": {
+        "title": "Peningkatan lainnya",
+        "description": "Sampul lebih tajam. Ulangi satu lagu kini berlaku untuk Soloist dan Apple Music. iOS Safari tetap memutar di latar belakang. Akun Apple Music dari wilayah lain memutar lagu penuh di jaringan Tiongkok daratan. Bilah bawah di layar sempit kini satu kapsul. Diperbaiki: layar berhenti setengah detik sekitar 10 detik setelah mulai."
       }
     },
     "v0_7_27": {
@@ -6373,7 +6418,7 @@ export default {
         "perStyleSwitch": "Ganti gaya, dan pratinjau serta seluruh halaman ini ikut berganti. Gaya tidak berbagi pengaturan; yang sudah kamu atur untuk gaya lama tetap tersimpan dan masih ada saat kamu kembali.",
         "perStyleWhere": "Di tab Kontrol, klik bagian tengah baris Gaya Lirik: “Pengaturan lainnya” di bawah gambar-gambar yang terbuka langsung membuka halaman ini. Tombol di bawah juga bisa.",
         "monetIntro": "Monet: lirik di kiri, potret di kanan. Pertanyaan paling umum adalah cara mematikan elemen di kanan. Semuanya ada di pengaturan Monet sendiri.",
-        "monetDescription": "Teks di kiri bawah adalah deskripsi lagu. Matikan “Tampilkan Deskripsi Lagu” untuk menyembunyikannya.",
+        "monetDescription": "Teks di kiri bawah adalah deskripsi lagu. Setel “Deskripsi Lagu” ke “Sembunyikan” untuk menyembunyikannya; bawaan “Sembunyi otomatis” hanya menampilkannya saat penunjuk berada di atasnya.",
         "monetHanger": "Tombol bulat di atas potret adalah gantungan seret, untuk memindahkan potret. Setelah posisinya pas, sembunyikan lewat “Gantungan Seret”.",
         "monetAudio": "Di bawah potret ada visualisasi audio. “Visualisasi audio” menyembunyikannya; “Gaya Audio” beralih antara batang dan garis.",
         "monetBare": "Dengan ketiganya mati, yang tersisa hanya lirik dan potret. Sakelar ini hanya milik Monet dan tidak muncul untuk gaya lain.",

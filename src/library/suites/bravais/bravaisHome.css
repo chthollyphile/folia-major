@@ -300,9 +300,26 @@
 
 .bravais-seam-home.is-compact .bravais-seam-tools { grid-template-columns: 36px; gap: 6px; }
 .bravais-seam-tools .bravais-seam-icon { width: 40px; height: 40px; border-radius: 12px; }
+
+/* 方案 C（2026-11-13）：工具格上面的本页一组（目录、导入文件夹、刷新……，最多 2×2，书脊上一列两格），与下面的工具格之间
+   一道细线（本页的东西与 app 级的入口分开看）。 */
+/* 下面的间距内联在元素上（BRAVAIS_PAGE_TOOLS_GAP，高度阶梯按它算）。 */
+.bravais-seam-tools.is-page { position: relative; }
+
+.bravais-seam-tools.is-page::after {
+    position: absolute;
+    right: 6px;
+    bottom: -8px;
+    left: 6px;
+    height: 1px;
+    background: color-mix(in srgb, currentColor 14%, transparent);
+    content: '';
+}
 .bravais-seam-tools .bravais-seam-icon svg { width: 18px; height: 18px; }
 .bravais-seam-home.is-compact .bravais-seam-tools .bravais-seam-icon { width: 36px; height: 36px; }
 .bravais-seam-tools .bravais-seam-icon:disabled { opacity: 0.3; cursor: default; }
+/* 进行中（转圈，方案 C 的本页格）照常禁用，但转圈要看得清。 */
+.bravais-seam-tools .bravais-seam-icon:disabled:has(.animate-spin) { opacity: 1; }
 .bravais-seam-tools .bravais-seam-icon.is-pressed { color: var(--text-accent, currentColor); background: color-mix(in srgb, currentColor 16%, transparent); }
 /* fb11：舞台开着时舞台入口单独占最上面一整行（宽同两格，图标 + 短名）；书脊上一列，它是最上面的一个图标。 */
 .bravais-seam-tools .bravais-seam-icon.is-wide {

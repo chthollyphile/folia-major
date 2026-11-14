@@ -1,4 +1,4 @@
-import { ArrowDownUp, CalendarClock, FolderSync, ImagePlus, ListOrdered, NotebookPen, PanelLeft, PanelRight, Pencil, RefreshCw, Share, SquarePen, Star, Tags, Type } from 'lucide-react';
+import { ArrowDownUp, CalendarClock, FolderSync, ImagePlus, ListOrdered, NotebookPen, PanelLeft, PanelRight, Pencil, RefreshCw, Share, Shuffle, SquarePen, Star, Tags, Type } from 'lucide-react';
 import { createGridSurfaceCommand } from '../commandFactories';
 import type { CommandPaletteCommand } from '../types';
 
@@ -144,5 +144,14 @@ export const gridCommands: CommandPaletteCommand[] = [
         ['scratchpad', 'later', 'collect', 'save for later', '速记簿', '稍后再听', '暂存', '收集'],
         'collect-filtered',
         NotebookPen,
+    ),
+    // 随机播放（core 的 shuffle-scope）：与网格信息面板、Bravais 缝里「播放全部」右边那一格同一个动作。
+    createGridSurfaceCommand(
+        'grid-shuffle-play-filtered',
+        'Shuffle play these songs',
+        'Make this collection (only the filtered songs while filtering) the play queue in shuffled order and start from a random song',
+        ['shuffle', 'shuffle play', 'random', '随机播放', '乱序播放', '打乱播放'],
+        'shuffle-play-filtered',
+        Shuffle,
     ),
 ];

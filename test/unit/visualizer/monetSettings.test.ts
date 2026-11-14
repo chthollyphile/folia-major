@@ -159,9 +159,13 @@ describe('Monet tuning and lyric helpers', () => {
             fontScale: 1.5,
             portraitSource: 'custom',
             showDescription: true,
+            descriptionVisibility: 'auto',
             portraitOffsetX: 0,
             portraitStyle: 'square',
             showPortraitDragHanger: true,
+            portraitHangerVisibility: 'auto',
+            mirrorLayout: false,
+            customDescription: '',
         });
 
         expect(resolveStoredMonetTuning({

@@ -307,6 +307,7 @@ export default {
     "stageShort": "Sân khấu",
     "settings": "Cài đặt",
     "more": "Thêm",
+    "pageTools": "Công cụ trang",
     "scanProgress": "Đang quét {{percent}}%",
     "connect": "Kết nối dịch vụ trực tuyến",
     "noMatch": "Không có mục phù hợp",
@@ -971,6 +972,7 @@ export default {
       "grid-reload-online-collection": { "title": "Tải lại bộ sưu tập này", "description": "Bỏ qua bộ nhớ đệm và tải lại mọi bài hát của bộ sưu tập trực tuyến này" },
       "grid-toggle-subscribe": { "title": "Đăng ký hoặc hủy đăng ký", "description": "Lưu danh sách phát hoặc album trực tuyến này vào thư viện, hoặc xóa nếu đã có" },
       "grid-collect-filtered": { "title": "Thêm các bài này vào sổ ghi nhanh", "description": "Đưa bộ sưu tập này (chỉ các bài đã lọc khi đang lọc) vào sổ ghi nhanh mà không đụng đến hàng đợi" },
+      "grid-shuffle-play-filtered": { "title": "Phát ngẫu nhiên các bài này", "description": "Đặt bộ sưu tập này (chỉ các bài đã lọc khi đang lọc) làm hàng đợi theo thứ tự trộn và bắt đầu từ một bài ngẫu nhiên" },
       "directory-play-selection": { "title": "Phát các thẻ đã chọn", "description": "Phát bài hát của các thẻ được chọn trên bản đồ theo thứ tự thẻ" },
       "directory-enqueue-selection": { "title": "Thêm các thẻ đã chọn vào hàng đợi", "description": "Thêm bài hát của các thẻ được chọn trên bản đồ vào hàng đợi" },
       "directory-create-playlist": { "title": "Tạo danh sách phát từ mục đã chọn", "description": "Tạo danh sách phát nội bộ từ bài hát của các thẻ đã chọn" },
@@ -983,6 +985,7 @@ export default {
       "directory-remove-root": { "title": "Xóa thư mục đã nhập đang chọn", "description": "Xác nhận xóa thư mục gốc đã nhập đang chọn và bài hát khỏi thư viện nội bộ" },
       "directory-clear-ignore": { "title": "Khôi phục thư mục bị bỏ qua đang chọn", "description": "Ngừng bỏ qua thư mục đang chọn và quét lại" },
       "artist-play-top-songs": { "title": "Phát bài hát nổi bật", "description": "Phát các bài hát nổi bật có thể phát của nghệ sĩ từ bài đầu tiên" },
+      "artist-shuffle-top-songs": { "title": "Phát ngẫu nhiên bài hát nổi bật", "description": "Đặt các bài hát nổi bật có thể phát của nghệ sĩ làm hàng đợi theo thứ tự trộn" },
       "artist-enqueue-top-songs": { "title": "Thêm bài hát nổi bật vào hàng đợi", "description": "Thêm các bài hát nổi bật của nghệ sĩ vào hàng đợi phát" },
       "artist-reload": { "title": "Tải lại nghệ sĩ", "description": "Tải lại trang nghệ sĩ từ nguồn" },
       "artist-retry-albums": { "title": "Tiếp tục tải album", "description": "Thử lại trang album bị lỗi và tiếp tục tải phần còn lại" },
@@ -1135,6 +1138,7 @@ export default {
       "settings-toggle-transcode-fallback": { "title": "Chuyển mã âm thanh không hỗ trợ", "description": "Bật/tắt Electron phục hồi âm thanh nội bộ và Navidrome mà Chromium không giải mã được" },
       "settings-toggle-playback-fade": { "title": "Mờ âm khi dừng và tiếp tục", "description": "Bật/tắt hiệu ứng mờ âm ngắn khi tạm dừng và tiếp tục phát" },
       "settings-toggle-auto-skip-unplayable": { "title": "Tự động bỏ qua bài hát không thể phát", "description": "Bật/tắt đếm ngược bỏ qua khi bài hát bị giới hạn hoặc lỗi không rõ nguyên nhân" },
+      "settings-toggle-shuffle-round-no-repeat": { "title": "Trộn theo vòng", "description": "Bật hoặc tắt: khi trộn, các bài đã nghe trong vòng này xếp ở sau, và vòng đã nghe hết sẽ tự trộn lại khi lặp danh sách" },
       "settings-toggle-bottom-subtitle-overlay": { "title": "Bật/tắt lớp phụ đề phía dưới", "description": "Hiện hoặc ẩn toàn bộ lớp phụ đề phía dưới" },
       "settings-cycle-subtitle-content-mode": { "title": "Chuyển chế độ nội dung phụ đề", "description": "Chuyển đổi nội dung phụ đề giữa bản dịch, phiên âm La-tinh và cả hai" },
       "settings-subtitles": { "title": "Phụ đề", "description": "Số dòng phụ đề dưới cùng và nội dung từng dòng, nền phụ đề, cùng phụ đề phụ" },
@@ -1590,6 +1594,7 @@ export default {
     "songsToSave_other": "{{count}} bài",
     "plays": "Lượt phát",
     "playAll": "Phát tất cả",
+    "shufflePlay": "Phát ngẫu nhiên",
     "playFilteredTracks": "Phát {{count}} bài",
     "addFilteredTracksToQueue": "Thêm {{count}} bài vào hàng đợi",
     "loadMore": "Tải thêm",
@@ -2362,6 +2367,7 @@ export default {
     "settingsPageGeneral": "Cài đặt chung",
     "settingsPageInteraction": "Phím tắt & Thao tác nhanh",
     "settingsPageIntegration": "Kết nối & Tích hợp",
+    "settingsPageAi": "Dịch vụ AI",
     "settingsPageStorage": "Lưu trữ & Sao lưu",
     "settingsPageDesktop": "Ứng dụng máy tính",
     "settingsPageGraphics": "Hoạt họa & Hiệu năng",
@@ -3090,7 +3096,12 @@ export default {
     "claddaghRadiusScale": "Bán kính quỹ đạo",
     "claddaghEllipseTiltDeg": "Độ nghiêng quỹ đạo",
     "claddaghShowAxisLine": "Đường trục trung tâm",
-    "claddaghLetterSpacingOffset": "Khoảng cách ký tự",
+    "claddaghLetterSpacingOffset": "Khoảng cách ký tự lời chính",
+    "claddaghPositionX": "Vị trí ngang",
+    "claddaghPositionY": "Vị trí dọc",
+    "claddaghShowTranslation": "Hiện bản dịch",
+    "claddaghTranslationScale": "Cỡ bản dịch",
+    "claddaghTranslationLetterSpacingOffset": "Khoảng cách ký tự bản dịch",
     "pendoloSettings": "Cài đặt Pendolo",
     "pendoloSettingsDesc": "Điều chỉnh tâm bánh xe, bán kính cung, góc tỏa và độ nảy bộ hồi.",
     "pendoloWheelCenterX": "Tọa độ X tâm bánh xe (0 = Cạnh trái)",
@@ -3667,6 +3678,8 @@ export default {
     "playbackFadeDesc": "Giảm âm dần trước khi tạm dừng và tăng dần khi tiếp tục thay vì ngắt âm đột ngột. Bỏ qua nếu âm thanh không đi qua bộ xử lý âm thanh.",
     "autoSkipUnplayable": "Tự động bỏ qua bài hát không thể phát",
     "autoSkipUnplayableDesc": "Khi một bài hát cần tài khoản hội viên/mua bản quyền, chỉ cho nghe thử, bị giới hạn khu vực hoặc gặp lỗi không rõ nguyên nhân, ứng dụng sẽ đếm ngược và chuyển sang bài tiếp theo như bài hát đã bị gỡ. Các bài hát yêu cầu đăng nhập và lỗi kết nối mạng sẽ không bị bỏ qua.",
+    "shuffleRoundNoRepeat": "Trộn theo vòng",
+    "shuffleRoundNoRepeatDesc": "Khi trộn hàng đợi hoặc phát ngẫu nhiên, các bài đã nghe trong vòng này được xếp sau các bài chưa nghe. Khi bật lặp danh sách, vòng đã nghe hết sẽ tự trộn lại. Chỉ theo dõi hàng đợi đã trộn; khi tắt, trộn như trước.",
     "audioOutputDevice": "Thiết bị đầu ra hiện tại",
     "audioOutputRefresh": "Làm mới",
     "audioOutputUnsupported": "Môi trường này không hỗ trợ chuyển thiết bị âm thanh đầu ra.",
@@ -3692,7 +3705,7 @@ export default {
     "themeGenerationSourceCover": "Màu ảnh bìa",
     "themeGenerationSourceAiDesc": "Dùng AI đọc lời bài hát để phân tích bảng màu theo cảm xúc. Cần cấu hình API key và sẽ tiêu tốn token.",
     "themeGenerationSourceAiUnavailable": "Chưa cấu hình API Key cho nhà cung cấp AI đã chọn, tính năng phân tích AI bị tắt.",
-    "configureAiApiKey": "Mở cài đặt chủ đề AI",
+    "configureAiApiKey": "Mở cài đặt dịch vụ AI",
     "themeGenerationSourceCoverDesc": "Tạo bảng màu trực tiếp từ ảnh bìa. Không cần API key nhưng tính biểu cảm và số thuộc tính sẽ ít hơn.",
     "autoGenerateSongThemeCoverDesc": "Khi bài hát đang phát chưa có chủ đề trong bộ nhớ đệm, tự tạo từ ảnh bìa và áp dụng.",
     "autoGenerateSongThemeDesc": "Khi bài hát đang phát chưa có chủ đề AI trong bộ nhớ đệm, tự động tạo và áp dụng.",
@@ -3705,7 +3718,8 @@ export default {
     "clearAll": "Xóa tất cả",
     "confirmClearAll": "Bạn có chắc muốn xóa tất cả bộ nhớ đệm?",
     "cacheClearing": "Đang dọn dẹp...",
-    "electronSettings": "Cài đặt chủ đề AI",
+    "aiServiceProviders": "Nhà cung cấp và khóa",
+    "aiServiceDesc": "Áp dụng cho mọi tính năng AI: tạo chủ đề AI và mọi chỗ dùng AI về sau.",
     "aiProvider": "Nhà cung cấp AI",
     "useSystemProxyAI": "Dùng proxy hệ thống cho AI",
     "useSystemProxyAIDesc": "Chỉ định tuyến các yêu cầu AI qua proxy hệ thống.",
@@ -3823,7 +3837,15 @@ export default {
     "monetAudioStyleLine": "Đường nét",
     "monetShowAudioVisualization": "Hiệu ứng sóng âm",
     "monetFontScale": "Tỷ lệ cỡ chữ",
-    "monetShowDescription": "Hiện mô tả bài hát",
+    "monetShowDescription": "Mô tả bài hát",
+    "monetCustomDescription": "Mô tả tùy chỉnh",
+    "monetCustomDescriptionPlaceholder": "Để trống sẽ hiện mô tả gốc",
+    "monetChromeVisibilityAuto": "Tự ẩn",
+    "monetChromeVisibilityAlways": "Luôn hiện",
+    "monetChromeVisibilityHidden": "Ẩn",
+    "monetMirrorLayout": "Lật trái/phải lời bài hát",
+    "monetPortraitSourceMirrored": "Nguồn ảnh nhân vật (Portrait) bên trái",
+    "monetPortraitSourceNone": "Tắt",
     "monetGroupBackgroundSource": "Nguồn hình nền",
     "monetGroupLayoutPosition": "Bố cục & Vị trí",
     "monetGroupFiltersPostProcessing": "Bộ lọc & Hậu kỳ",
@@ -4146,6 +4168,29 @@ export default {
       "qqPrivatePlaylists": {
         "title": "Danh sách phát QQ Music riêng tư",
         "description": "Sau khi đăng nhập, danh sách phát riêng tư của bạn nay có thể tải bài hát với phân trang thực tế. Máy chủ tự lưu trữ cần chạy qq-music-api 3.1.2 trở lên; phiên bản cũ hơn sẽ tự động quay về cơ chế dự phòng, và danh sách phát không đọc được sẽ báo rõ là danh sách không công khai thay vì hiển thị trống."
+      }
+    },
+    "v0_7_28": {
+      "intro": "Chào mừng bạn đến với 0.7.28, Mimiambol Update—một bản cập nhật lớn. Phiên bản này thêm cảnh rạp chiếu phim, biểu tượng ứng dụng mới, nút cửa sổ đặt được bên trái hoặc phải, và tùy chọn mới cho một số kiểu lời bài hát.",
+      "scenes": {
+        "title": "Cảnh: Rạp chiếu phim (Beta)",
+        "description": "Trang phát nhạc có thể biến thành rạp chiếu phim, kiểu lời bài hát và nền của bạn hiện trên màn chiếu; kéo để nhìn xung quanh. Bật ở hàng Cảnh trong trang Giao diện. Trên bản desktop, Dò tia âm thanh khiến nhạc nghe như đang phát trong rạp."
+      },
+      "newLook": {
+        "title": "Biểu tượng và hiệu ứng tải mới",
+        "description": "Biểu tượng ứng dụng mới: chữ F ghép từ bốn khối. Màn hình khởi động giờ là các khối màu trượt; khi chuyển bài và tải lời bài hát đều hiện cùng các chấm tải, và lúc khởi động có báo đang kiểm tra trạng thái đăng nhập."
+      },
+      "windowControls": {
+        "title": "Nút cửa sổ",
+        "description": "Nút cửa sổ có thể đặt bên trái hoặc bên phải. Trên macOS bạn có thể dùng đèn giao thông gốc, và menu Dock điều khiển được việc phát nhạc."
+      },
+      "styleOptions": {
+        "title": "Tùy chọn mới cho kiểu lời",
+        "description": "Monet có thể lật gương, ẩn chân dung và hiện mô tả tự viết. Mặt đồng hồ của Pendolo có thể nghiêng, tách lớp và chuyển sang góc nhìn trục. Claddagh có thể dời vị trí và hiện bản dịch dọc theo vòng."
+      },
+      "moreDetails": {
+        "title": "Cải tiến khác",
+        "description": "Ảnh bìa sắc nét hơn. Lặp một bài giờ áp dụng cả với Soloist và Apple Music. iOS Safari tiếp tục phát khi chạy nền. Tài khoản Apple Music khu vực khác phát được trọn bài trên mạng Trung Quốc đại lục. Thanh dưới ở màn hình hẹp giờ là một viên nang liền. Đã sửa lỗi hình đứng nửa giây khoảng 10 giây sau khi khởi động."
       }
     },
     "v0_7_27": {
@@ -6373,7 +6418,7 @@ export default {
         "perStyleSwitch": "Khi đổi kiểu, cả bản xem trước và toàn bộ trang này đều thay đổi theo. Các kiểu không dùng chung cài đặt; thông số đã chỉnh ở kiểu cũ vẫn được giữ nguyên khi bạn đổi lại.",
         "perStyleWhere": "Trong tab Điều khiển, nhấp vào tên Kiểu lời bài hát: \"Cài đặt khác\" ở cuối danh sách sẽ mở trực tiếp trang này. Nút bên dưới cũng có tác dụng tương tự.",
         "monetIntro": "Kiểu Monet: lời bài hát bên trái, chân dung bên phải. Câu hỏi phổ biến nhất là làm sao tắt các thành phần bên phải. Tất cả đều nằm trong cài đặt riêng của Monet.",
-        "monetDescription": "Văn bản ở góc dưới bên trái là mô tả bài hát. Tắt \"Hiện mô tả bài hát\" để ẩn.",
+        "monetDescription": "Văn bản ở góc dưới bên trái là mô tả bài hát. Đặt \"Mô tả bài hát\" thành \"Ẩn\" để ẩn; mặc định \"Tự ẩn\" chỉ hiện khi con trỏ ở trên đó.",
         "monetHanger": "Nút tròn phía trên ảnh chân dung là móc kéo để di chuyển ảnh. Khi đã đặt đúng vị trí, ẩn nút này bằng tùy chọn \"Móc kéo điều chỉnh\".",
         "monetAudio": "Phía dưới ảnh chân dung là hiệu ứng âm thanh. \"Hiệu ứng âm thanh\" dùng để ẩn; \"Kiểu âm thanh\" chuyển đổi giữa dạng cột và đường sóng.",
         "monetBare": "Khi tắt cả ba mục, giao diện chỉ còn lời bài hát và ảnh chân dung. Các công tắc này chỉ dành riêng cho Monet và không xuất hiện ở kiểu khác.",

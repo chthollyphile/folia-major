@@ -307,6 +307,7 @@ export default {
     "stageShort": "舞台",
     "settings": "设置",
     "more": "更多",
+    "pageTools": "本页工具",
     "scanProgress": "扫描 {{percent}}%",
     "connect": "连接在线平台",
     "noMatch": "没有匹配的条目",
@@ -971,6 +972,7 @@ export default {
       "grid-reload-online-collection": { "title": "重新加载此合集", "description": "跳过缓存，重新拉取这个在线合集的全部歌曲" },
       "grid-toggle-subscribe": { "title": "收藏或取消收藏", "description": "把这个在线歌单或专辑加入收藏，已经收藏的就取消" },
       "grid-collect-filtered": { "title": "把当前范围加入速记簿", "description": "把这个集合（筛选时只算筛出的歌）收进速记簿，不动播放队列" },
+      "grid-shuffle-play-filtered": { "title": "随机播放当前范围", "description": "把这个集合（筛选时只算筛出的歌）打乱顺序后作为播放队列，从随机的一首开始播" },
       "directory-play-selection": { "title": "播放选中的卡片", "description": "按卡片顺序播放地图上选中卡片的歌曲" },
       "directory-enqueue-selection": { "title": "选中的卡片加入队列", "description": "把地图上选中卡片的歌曲加入播放队列" },
       "directory-create-playlist": { "title": "用选中的卡片新建歌单", "description": "用选中卡片的歌曲新建一个本地歌单" },
@@ -983,6 +985,7 @@ export default {
       "directory-remove-root": { "title": "移除焦点所在的导入目录", "description": "确认后把焦点所在的导入根目录及其歌曲从本地曲库移除" },
       "directory-clear-ignore": { "title": "恢复焦点所在的忽略目录", "description": "不再忽略焦点所在的文件夹，并重新扫描它" },
       "artist-play-top-songs": { "title": "播放热门歌曲", "description": "从第一首起播放这位歌手可播放的热门歌曲" },
+      "artist-shuffle-top-songs": { "title": "随机播放热门歌曲", "description": "把这位歌手可播放的热门歌曲打乱顺序后作为播放队列" },
       "artist-enqueue-top-songs": { "title": "热门歌曲加入队列", "description": "把这位歌手的热门歌曲加入播放队列" },
       "artist-reload": { "title": "重新加载歌手", "description": "从来源重新加载这个歌手页" },
       "artist-retry-albums": { "title": "继续加载专辑", "description": "重试失败的那一页专辑，并继续加载其余的" },
@@ -1135,6 +1138,7 @@ export default {
       "settings-toggle-transcode-fallback": { "title": "自动转换不支持的音频", "description": "切换 Electron 对 Chromium 无法解码的本地与 Navidrome 音频的恢复" },
       "settings-toggle-playback-fade": { "title": "暂停/播放淡入淡出", "description": "切换暂停和恢复播放时的短淡入淡出" },
       "settings-toggle-auto-skip-unplayable": { "title": "无法播放时自动跳过", "description": "切换歌曲受限或原因不明无法播放时是否倒计时跳到下一首" },
+      "settings-toggle-shuffle-round-no-repeat": { "title": "一轮不重复洗牌", "description": "打开或关闭：洗牌时这一轮听过的歌排到后面，列表循环时整轮听完自动重洗" },
       "settings-toggle-bottom-subtitle-overlay": { "title": "切换底部字幕层", "description": "显示或隐藏整个底部字幕层" },
       "settings-cycle-subtitle-content-mode": { "title": "切换翻译字幕状态", "description": "在翻译、罗马音、罗马音加翻译之间切换副字幕内容" },
       "settings-subtitles": { "title": "字幕调节", "description": "底部字幕的行数和每行内容、字幕背景，以及副字幕" },
@@ -1590,6 +1594,7 @@ export default {
     "songsToSave_other": "{{count}} 首歌",
     "plays": "次播放",
     "playAll": "播放全部",
+    "shufflePlay": "随机播放",
     "playFilteredTracks": "播放{{count}}首",
     "addFilteredTracksToQueue": "加入{{count}}首到播放队列",
     "loadMore": "加载更多",
@@ -2362,6 +2367,7 @@ export default {
     "settingsPageGeneral": "通用",
     "settingsPageInteraction": "快捷操作",
     "settingsPageIntegration": "连接与集成",
+    "settingsPageAi": "AI 服务",
     "settingsPageStorage": "存储与备份",
     "settingsPageDesktop": "桌面",
     "settingsPageGraphics": "动画与性能",
@@ -3090,7 +3096,12 @@ export default {
     "claddaghRadiusScale": "轨道半径",
     "claddaghEllipseTiltDeg": "轨道倾斜度",
     "claddaghShowAxisLine": "中间轴线",
-    "claddaghLetterSpacingOffset": "字符间距",
+    "claddaghLetterSpacingOffset": "主歌词字符间距",
+    "claddaghPositionX": "左右位置",
+    "claddaghPositionY": "上下位置",
+    "claddaghShowTranslation": "显示翻译",
+    "claddaghTranslationScale": "翻译放大倍率",
+    "claddaghTranslationLetterSpacingOffset": "翻译字符间距",
     "pendoloSettings": "时计参数",
     "pendoloSettingsDesc": "调整歌词弧形轮盘圆心位置、轮盘半径、弧度角度与擒纵咬合力度。",
     "pendoloWheelCenterX": "轮盘水平位置 (0 = 左边缘)",
@@ -3667,6 +3678,8 @@ export default {
     "playbackFadeDesc": "暂停前淡出，恢复时淡入。",
     "autoSkipUnplayable": "无法播放时自动跳过",
     "autoSkipUnplayableDesc": "歌曲需要会员或购买、只能试听、所在地区不可播放，或原因不明无法播放时，像已下架的歌曲一样倒计时后跳到下一首。需要登录的歌曲和网络问题不会跳过。",
+    "shuffleRoundNoRepeat": "一轮不重复",
+    "shuffleRoundNoRepeatDesc": "打乱队列和随机播放时，这一轮已经听过的歌排到后面，先放没听过的；开着列表循环时，整轮听完会自动重新打乱。只对打乱过的队列生效，关着时和原来一样。",
     "audioOutputDevice": "当前播放声卡",
     "audioOutputRefresh": "刷新",
     "audioOutputUnsupported": "当前环境不支持切换播放设备。",
@@ -3692,7 +3705,7 @@ export default {
     "themeGenerationSourceCover": "封面取色",
     "themeGenerationSourceAiDesc": "由 AI 读取歌词推断情绪配色。需要配置 API key，会产生 token 费用。",
     "themeGenerationSourceAiUnavailable": "当前 AI 服务商尚未配置 API Key，AI 推断已禁用。",
-    "configureAiApiKey": "前往 AI 主题设置",
+    "configureAiApiKey": "前往 AI 服务设置",
     "themeGenerationSourceCoverDesc": "直接从封面颜色生成配色。不需要 API key, 但配色表现力和属性较少",
     "autoGenerateSongThemeCoverDesc": "当播放歌曲没有缓存主题时，自动根据封面生成并应用。",
     "autoGenerateSongThemeDesc": "当播放歌曲没有缓存 AI 主题时，自动调用AI并应用（会产生较高token费用！）",
@@ -3705,7 +3718,8 @@ export default {
     "clearAll": "全部清空",
     "confirmClearAll": "确定要清空所有缓存吗？",
     "cacheClearing": "清除中...",
-    "electronSettings": "AI主题设置",
+    "aiServiceProviders": "服务商与密钥",
+    "aiServiceDesc": "这一份接口设置对所有 AI 功能生效：AI 主题生成，以及之后用到 AI 的地方都读它。",
     "aiProvider": "AI 供应商",
     "useSystemProxyAI": "为AI使用系统代理",
     "useSystemProxyAIDesc": "仅将AI相关的网络请求通过系统代理路由。",
@@ -3824,7 +3838,15 @@ export default {
     "monetAudioStyleLine": "线条",
     "monetShowAudioVisualization": "音频图案",
     "monetFontScale": "字体缩放",
-    "monetShowDescription": "显示歌曲描述",
+    "monetShowDescription": "歌曲描述",
+    "monetCustomDescription": "自定义描述",
+    "monetCustomDescriptionPlaceholder": "留空显示原来的描述",
+    "monetChromeVisibilityAuto": "自动隐藏",
+    "monetChromeVisibilityAlways": "常显",
+    "monetChromeVisibilityHidden": "隐藏",
+    "monetMirrorLayout": "歌词左右镜像",
+    "monetPortraitSourceMirrored": "左侧肖像来源",
+    "monetPortraitSourceNone": "关闭",
     "monetGroupBackgroundSource": "背景来源",
     "monetGroupLayoutPosition": "布局与对齐",
     "monetGroupFiltersPostProcessing": "视觉增强与滤镜",
@@ -4146,6 +4168,29 @@ export default {
       "qqPrivatePlaylists": {
         "title": "QQ 音乐不公开歌单",
         "description": "登录后，自己创建的不公开歌单也能读取歌曲，并支持真正的分页加载。自建后端需要升级到 qq-music-api 3.1.2 或更新版本；旧后端会自动回退，读不到时会明确提示「不是公开歌单」，不再静默显示为空。"
+      }
+    },
+    "v0_7_28": {
+      "intro": "欢迎来到 0.7.28「Mimiambol Update」：这是一次重大更新。新增影厅场景，应用换了新图标，窗口按钮可以放到左边，几种歌词样式也多了新玩法。",
+      "scenes": {
+        "title": "场景：影厅（Beta）",
+        "description": "播放页可以变成一座影厅，你的歌词样式和背景放在荧幕上，可以拖动转头看看四周。在外观页的「场景」一行打开。桌面版还能开「声线追踪」，让音乐听起来像在厅里。"
+      },
+      "newLook": {
+        "title": "新图标与加载动画",
+        "description": "新的应用图标：四块积木拼成的 F。启动画面换成滑动的色块；切歌和载入歌词时显示统一的加载圆点，启动时会提示正在确认登录状态。"
+      },
+      "windowControls": {
+        "title": "窗口按钮",
+        "description": "窗口按钮可以放到左边或右边。macOS 可以改用系统自带的红绿灯，Dock 菜单里也能控制播放。"
+      },
+      "styleOptions": {
+        "title": "歌词样式新选项",
+        "description": "莫奈可以左右镜像、关闭肖像、自定义描述。时计的表盘可以倾斜、分层，还有轮心视角。回环可以调位置，并沿圆环显示翻译。"
+      },
+      "moreDetails": {
+        "title": "更多改进",
+        "description": "封面更清晰。单曲循环对 Soloist 和 Apple Music 也生效。iOS Safari 切到后台不再停歌。Apple Music 外区账号在大陆网络下也能整首播放。窄屏底部改成一体的胶囊。去掉了启动约 10 秒时画面停住半秒的问题。"
       }
     },
     "v0_7_27": {
@@ -6373,7 +6418,7 @@ export default {
         "perStyleSwitch": "换一种样式，预览和这一页设置一起整页换掉。不同样式的设置互不相通；旧样式调好的值会保留，换回去时还在。",
         "perStyleWhere": "在控制页点歌词样式那一行中间，弹出的那一格图底部的「更多设置」会直接打开这一页；也可以用下方按钮。",
         "monetIntro": "莫奈样式：左边歌词，右边肖像。最常见的问题是右边这几样东西怎么关。它们都在莫奈自己的设置里。",
-        "monetDescription": "左下的文字是歌曲描述。关闭「显示歌曲描述」即可隐藏。",
+        "monetDescription": "左下的文字是歌曲描述。把「歌曲描述」设为「隐藏」即可隐藏；默认的「自动隐藏」只在鼠标移上去时出现。",
         "monetHanger": "肖像上方的圆钮是拖拽调整按钮，用来挪动肖像。位置调好后，在「拖拽调整按钮」里把它隐藏。",
         "monetAudio": "肖像下方是音频图案。在「音频图案」里可以隐藏它，「频谱样式」可以在柱状和线条之间切换。",
         "monetBare": "三项都关掉后，画面只剩歌词和肖像。这些开关只属于莫奈，换到别的样式时不会出现。",

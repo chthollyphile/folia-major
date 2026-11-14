@@ -1,7 +1,7 @@
 import { useWindowButtonsAtTopLeft } from '../../../../hooks/useWindowButtonsAtTopLeft';
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { motion, useMotionValue, animate, AnimatePresence, useDragControls, useIsPresent } from 'framer-motion';
-import { ChevronLeft, Crosshair, Disc, Download, ImagePlus, Play, Plus, Loader2, Heart, ListPlus, NotebookPen, Pencil, RefreshCw, Trash2, Star, Tags } from 'lucide-react';
+import { ChevronLeft, Crosshair, Disc, Download, ImagePlus, Play, Plus, Shuffle, Loader2, Heart, ListPlus, NotebookPen, Pencil, RefreshCw, Trash2, Star, Tags } from 'lucide-react';
 import GridPanelToggleIndicator from '../shared/GridPanelToggleIndicator';
 import { useTranslation } from 'react-i18next';
 import { SongResult, type LocalSong, type StatusMessage, Theme, type UnifiedSong } from '../../../../types';
@@ -112,6 +112,8 @@ interface GridViewProps {
     // Optional self-contained collection props
     collection?: any;
     onPlayAll?: (songs: SongResult[]) => void;
+    /** 随机播放当前范围（声明了 shuffle-scope 才给）：给了，信息面板的「播放全部」切成两半，右边一格是它。 */
+    onShufflePlayAll?: (songs: SongResult[]) => void;
     onAddAllToQueue?: (songs: SongResult[], options?: { suppressToast?: boolean }) => number | void;
     /** 收进速记簿：聚焦卡片与曲目侧栏行上的一首（suite 声明了 collect 才给）。出处由这里按显示的集合名补上。 */
     collectTrack?: (songs: SongResult[], origin?: LibraryCollectOrigin) => void;
@@ -261,6 +263,7 @@ export const GridView: React.FC<GridViewProps> = ({
     isDaylight,
     collection,
     onPlayAll,
+    onShufflePlayAll,
     onAddAllToQueue,
     collectTrack,
     collectScope,
@@ -1585,6 +1588,7 @@ export const GridView: React.FC<GridViewProps> = ({
         setSortDirection: handleLocalTrackSortDirectionChange,
         canReloadOnlineCollection: canReloadOnlineCollection && !loading,
         playFiltered: () => onPlayAll?.(contextActionTracks),
+        shufflePlayFiltered: onShufflePlayAll ? () => onShufflePlayAll(contextActionTracks) : undefined,
         enqueueFiltered: () => onAddAllToQueue?.(contextActionTracks),
         collectFiltered: onCollectAll ? () => onCollectAll(contextActionTracks) : undefined,
         reloadOnlineCollection,
@@ -2003,21 +2007,44 @@ export const GridView: React.FC<GridViewProps> = ({
                                 className="space-y-2 mt-4 pt-4 border-t shrink-0"
                                 style={{ borderTopColor: 'color-mix(in srgb, var(--text-primary) 12%, transparent)' }}
                             >
-                                <button
-                                    onClick={() => {
-                                        if (onPlayAll && contextActionTracks.length > 0) {
-                                            onPlayAll(contextActionTracks);
-                                        }
-                                    }}
-                                    disabled={contextActionTracks.length === 0}
-                                    className="w-full py-3 rounded-full font-bold text-xs transition-transform hover:scale-102 active:scale-98 flex items-center justify-center gap-1.5 shadow-md disabled:opacity-40 disabled:hover:scale-100 cursor-pointer"
+                                {/* 「播放全部」：声明了随机播放时切成两半，右边一格随机播放（当前范围打乱后成为队列）。 */}
+                                <div
+                                    role={onShufflePlayAll ? 'group' : undefined}
+                                    aria-label={onShufflePlayAll ? t('playlist.playAll') : undefined}
+                                    className={`w-full flex rounded-full shadow-md transition-transform overflow-hidden${contextActionTracks.length > 0 ? ' hover:scale-102 active:scale-98' : ' opacity-40'}`}
                                     style={{ backgroundColor: 'var(--text-primary)', color: 'var(--bg-color)' }}
                                 >
-                                    <Play size={14} fill="currentColor" />
-                                    {hasSearchQuery
-                                        ? t('playlist.playFilteredTracks', { count: contextActionTracks.length })
-                                        : t('playlist.playAll')}
-                                </button>
+                                    <button
+                                        onClick={() => {
+                                            if (onPlayAll && contextActionTracks.length > 0) {
+                                                onPlayAll(contextActionTracks);
+                                            }
+                                        }}
+                                        disabled={contextActionTracks.length === 0}
+                                        data-grid-action="play-scope"
+                                        className="flex-1 min-w-0 py-3 font-bold text-xs flex items-center justify-center gap-1.5 cursor-pointer disabled:cursor-default"
+                                    >
+                                        <Play size={14} fill="currentColor" />
+                                        {hasSearchQuery
+                                            ? t('playlist.playFilteredTracks', { count: contextActionTracks.length })
+                                            : t('playlist.playAll')}
+                                    </button>
+                                    {onShufflePlayAll && (
+                                        <button
+                                            onClick={() => {
+                                                if (contextActionTracks.length > 0) onShufflePlayAll(contextActionTracks);
+                                            }}
+                                            disabled={contextActionTracks.length === 0}
+                                            data-grid-action="shuffle-scope"
+                                            aria-label={t('playlist.shufflePlay')}
+                                            title={t('playlist.shufflePlay')}
+                                            className="shrink-0 px-4 flex items-center justify-center border-l cursor-pointer disabled:cursor-default"
+                                            style={{ borderLeftColor: 'color-mix(in srgb, var(--bg-color) 30%, transparent)' }}
+                                        >
+                                            <Shuffle size={14} />
+                                        </button>
+                                    )}
+                                </div>
                                 <button
                                     onClick={() => {
                                         if (onAddAllToQueue && contextActionTracks.length > 0) {

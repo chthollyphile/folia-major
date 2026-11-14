@@ -307,6 +307,7 @@ export default {
     "stageShort": "Stage",
     "settings": "Settings",
     "more": "More",
+    "pageTools": "Page tools",
     "scanProgress": "Scanning {{percent}}%",
     "connect": "Connect a streaming service",
     "noMatch": "Nothing on this page matches",
@@ -971,6 +972,7 @@ export default {
       "grid-reload-online-collection": { "title": "Reload this collection", "description": "Skip the cache and load every song of this online collection again" },
       "grid-toggle-subscribe": { "title": "Subscribe or unsubscribe", "description": "Save this online playlist or album to your library, or remove it if it is already there" },
       "grid-collect-filtered": { "title": "Add these songs to the scratchpad", "description": "Put this collection (only the filtered songs while filtering) in the scratchpad without touching the queue" },
+      "grid-shuffle-play-filtered": { "title": "Shuffle play these songs", "description": "Make this collection (only the filtered songs while filtering) the play queue in shuffled order and start from a random song" },
       "directory-play-selection": { "title": "Play selected cards", "description": "Play the songs of the cards selected on the map, in card order" },
       "directory-enqueue-selection": { "title": "Queue selected cards", "description": "Add the songs of the cards selected on the map to the queue" },
       "directory-create-playlist": { "title": "New playlist from selection", "description": "Create a local playlist with the songs of the selected cards" },
@@ -983,6 +985,7 @@ export default {
       "directory-remove-root": { "title": "Remove the focused imported folder", "description": "Ask to remove the focused imported root folder and its songs from the local library" },
       "directory-clear-ignore": { "title": "Restore the focused ignored folder", "description": "Stop ignoring the focused folder and scan it again" },
       "artist-play-top-songs": { "title": "Play top songs", "description": "Play the artist's playable top songs from the first one" },
+      "artist-shuffle-top-songs": { "title": "Shuffle play top songs", "description": "Make the artist's playable top songs the play queue in shuffled order" },
       "artist-enqueue-top-songs": { "title": "Queue top songs", "description": "Add the artist's top songs to the play queue" },
       "artist-reload": { "title": "Reload artist", "description": "Load the artist page again from the source" },
       "artist-retry-albums": { "title": "Resume loading albums", "description": "Retry the album page that failed and keep loading the rest" },
@@ -1135,6 +1138,7 @@ export default {
       "settings-toggle-transcode-fallback": { "title": "Transcode unsupported audio", "description": "Toggle Electron recovery for local and Navidrome audio Chromium cannot decode" },
       "settings-toggle-playback-fade": { "title": "Fade on pause and resume", "description": "Toggle the short fade when pausing and resuming playback" },
       "settings-toggle-auto-skip-unplayable": { "title": "Skip unplayable songs", "description": "Toggle counting down to a skip when a song is restricted or fails for an unknown reason" },
+      "settings-toggle-shuffle-round-no-repeat": { "title": "Shuffle in rounds", "description": "Toggle keeping songs heard this round after the rest when shuffling, and reshuffling a finished round under list loop" },
       "settings-toggle-bottom-subtitle-overlay": { "title": "Toggle bottom subtitle overlay", "description": "Show or hide the whole bottom subtitle overlay" },
       "settings-cycle-subtitle-content-mode": { "title": "Cycle subtitle content mode", "description": "Cycle subtitle content between translation, romanization, and romanization plus translation" },
       "settings-subtitles": { "title": "Subtitles", "description": "Bottom subtitle rows and what each one shows, its backdrop, and the secondary subtitle" },
@@ -1590,6 +1594,7 @@ export default {
     "songsToSave_other": "{{count}} songs",
     "plays": "Plays",
     "playAll": "Play All",
+    "shufflePlay": "Shuffle play",
     "playFilteredTracks": "Play {{count}} songs",
     "addFilteredTracksToQueue": "Add {{count}} songs to queue",
     "loadMore": "Load More",
@@ -2362,6 +2367,7 @@ export default {
     "settingsPageGeneral": "General",
     "settingsPageInteraction": "Shortcuts",
     "settingsPageIntegration": "Connections",
+    "settingsPageAi": "AI service",
     "settingsPageStorage": "Storage & backup",
     "settingsPageDesktop": "Desktop",
     "settingsPageGraphics": "Motion & performance",
@@ -3090,7 +3096,12 @@ export default {
     "claddaghRadiusScale": "Orbit Radius Scale",
     "claddaghEllipseTiltDeg": "Orbit Tilt Degree",
     "claddaghShowAxisLine": "Center Axis Line",
-    "claddaghLetterSpacingOffset": "Letter Spacing",
+    "claddaghLetterSpacingOffset": "Lyric Letter Spacing",
+    "claddaghPositionX": "Horizontal Position",
+    "claddaghPositionY": "Vertical Position",
+    "claddaghShowTranslation": "Show Translation",
+    "claddaghTranslationScale": "Translation Size",
+    "claddaghTranslationLetterSpacingOffset": "Translation Letter Spacing",
     "pendoloSettings": "Pendolo Settings",
     "pendoloSettingsDesc": "Control wheel center position, arc radius, angle spread, escapement snappiness, and pendulum swing intensity.",
     "pendoloWheelCenterX": "Wheel Center X (0 = Left Edge)",
@@ -3667,6 +3678,8 @@ export default {
     "playbackFadeDesc": "Fades out before pausing and back in on resume.",
     "autoSkipUnplayable": "Skip songs that can't be played",
     "autoSkipUnplayableDesc": "When a song needs a membership or purchase, is preview-only, is blocked in your region or fails for an unknown reason, count down and skip to the next one, as with a taken-down song. Songs that need you to sign in, and network problems, are never skipped.",
+    "shuffleRoundNoRepeat": "Shuffle in rounds",
+    "shuffleRoundNoRepeatDesc": "When you shuffle the queue or shuffle-play, songs you've already heard this round go after the ones you haven't. With list loop on, a finished round is shuffled again on its own. Only shuffled queues are tracked; off, shuffling works as before.",
     "audioOutputDevice": "Current Output Device",
     "audioOutputRefresh": "Refresh",
     "audioOutputUnsupported": "This environment does not support switching audio output devices.",
@@ -3692,7 +3705,7 @@ export default {
     "themeGenerationSourceCover": "Cover Colors",
     "themeGenerationSourceAiDesc": "Reads the lyrics with an AI model and infers a mood palette. Needs an API key and consumes tokens.",
     "themeGenerationSourceAiUnavailable": "No API key is configured for the selected AI provider, so AI inference is disabled.",
-    "configureAiApiKey": "Open AI theme settings",
+    "configureAiApiKey": "Open AI service settings",
     "themeGenerationSourceCoverDesc": "Builds the palette straight from the cover colors. No API key needed, but the result is less expressive and carries fewer attributes.",
     "autoGenerateSongThemeCoverDesc": "When a playing song has no cached theme, generate one from its cover and apply it.",
     "autoGenerateSongThemeDesc": "When a playing song has no cached AI theme, generate and apply one automatically.",
@@ -3705,7 +3718,8 @@ export default {
     "clearAll": "Clear All",
     "confirmClearAll": "Are you sure you want to clear all cache?",
     "cacheClearing": "Clearing...",
-    "electronSettings": "AI Theme Settings",
+    "aiServiceProviders": "Provider and key",
+    "aiServiceDesc": "Applies to every AI feature: AI theme generation and whatever asks for AI later.",
     "aiProvider": "AI Provider",
     "useSystemProxyAI": "Use System Proxy for AI",
     "useSystemProxyAIDesc": "Route strictly AI requests through system proxy.",
@@ -3823,7 +3837,15 @@ export default {
     "monetAudioStyleLine": "Line",
     "monetShowAudioVisualization": "Audio visualization",
     "monetFontScale": "Font Size Scale",
-    "monetShowDescription": "Show Song Description",
+    "monetShowDescription": "Song Description",
+    "monetCustomDescription": "Custom Description",
+    "monetCustomDescriptionPlaceholder": "Empty shows the original description",
+    "monetChromeVisibilityAuto": "Auto-hide",
+    "monetChromeVisibilityAlways": "Always",
+    "monetChromeVisibilityHidden": "Hidden",
+    "monetMirrorLayout": "Mirror Lyrics Left/Right",
+    "monetPortraitSourceMirrored": "Left Portrait Source",
+    "monetPortraitSourceNone": "Off",
     "monetGroupBackgroundSource": "Background Source",
     "monetGroupLayoutPosition": "Layout & Position",
     "monetGroupFiltersPostProcessing": "Filters & Post-processing",
@@ -4146,6 +4168,29 @@ export default {
       "qqPrivatePlaylists": {
         "title": "Private QQ Music Playlists",
         "description": "When signed in, your own private playlists now load their songs, with real paging. Self-hosted backends must run qq-music-api 3.1.2 or later; older backends fall back automatically, and a playlist that cannot be read now says it is not public instead of silently showing as empty."
+      }
+    },
+    "v0_7_28": {
+      "intro": "Welcome to 0.7.28, the Mimiambol Update—a major update. It adds the cinema hall scene, a new app icon, window controls on either side, and new options for several lyric styles.",
+      "scenes": {
+        "title": "Scene: Cinema (Beta)",
+        "description": "The player page can become a cinema hall, with your lyric style and background on its screen; drag to look around. Turn it on in the Scene row of the Appearance page. On desktop, Sound tracing makes the music sound like it is playing in the hall."
+      },
+      "newLook": {
+        "title": "New icon and loading animations",
+        "description": "A new app icon: an F built from four blocks. The splash screen now shows sliding colour blocks; switching songs and loading lyrics show the same loading dots, and startup tells you while it checks your sign-in."
+      },
+      "windowControls": {
+        "title": "Window controls",
+        "description": "Window controls can sit on the left or the right. On macOS you can use the native traffic lights, and the Dock menu can control playback."
+      },
+      "styleOptions": {
+        "title": "New lyric style options",
+        "description": "Monet can be mirrored, hide the portrait and show a custom description. Pendolo's dial can tilt, split into layers and switch to a hub view. Claddagh can be moved and shows translations along the ring."
+      },
+      "moreDetails": {
+        "title": "More improvements",
+        "description": "Sharper covers. Repeat one now works with Soloist and Apple Music. iOS Safari keeps playing in the background. Apple Music accounts from other regions play full songs on mainland China networks. The narrow-screen bottom bar is now a single capsule. Fixed a half-second freeze about 10 seconds after startup."
       }
     },
     "v0_7_27": {
@@ -6373,7 +6418,7 @@ export default {
         "perStyleSwitch": "Switch styles and the preview and this whole page change together. Styles do not share settings; what you tuned for the old style is kept and is still there when you switch back.",
         "perStyleWhere": "In the Controls tab, click the middle of the Lyrics Style row: “More settings” under the pictures that open goes straight to this page. The button below does the same.",
         "monetIntro": "Monet: lyrics on the left, a portrait on the right. The most common question is how to turn off the things on the right. They all live in Monet's own settings.",
-        "monetDescription": "The text at the bottom left is the song description. Turn off “Show Song Description” to hide it.",
+        "monetDescription": "The text at the bottom left is the song description. Set “Song Description” to “Hidden” to hide it; the default “Auto-hide” shows it only while the pointer is over it.",
         "monetHanger": "The round button above the portrait is the drag hanger, for moving the portrait. Once it is where you want it, hide the button with “Drag Hanger”.",
         "monetAudio": "Below the portrait is the audio visualization. “Audio visualization” hides it; “Audio Style” switches between bars and a line.",
         "monetBare": "With all three off, only the lyrics and the portrait remain. These switches belong to Monet alone and do not appear for other styles.",

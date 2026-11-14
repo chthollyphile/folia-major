@@ -31,6 +31,16 @@ exports[`mod tuning keys > are pinned, so a renamed or dropped key is a visible 
       "min": -5,
       "type": "number",
     },
+    "positionX": {
+      "max": 40,
+      "min": -40,
+      "type": "number",
+    },
+    "positionY": {
+      "max": 40,
+      "min": -40,
+      "type": "number",
+    },
     "radiusScale": {
       "max": 1.5,
       "min": 0.5,
@@ -38,6 +48,19 @@ exports[`mod tuning keys > are pinned, so a renamed or dropped key is a visible 
     },
     "showAxisLine": {
       "type": "boolean",
+    },
+    "showTranslation": {
+      "type": "boolean",
+    },
+    "translationLetterSpacingOffset": {
+      "max": 20,
+      "min": -5,
+      "type": "number",
+    },
+    "translationScale": {
+      "max": 2,
+      "min": 0.5,
+      "type": "number",
     },
   },
   "classic": {
@@ -440,6 +463,14 @@ exports[`mod tuning keys > are pinned, so a renamed or dropped key is a visible 
       ],
       "type": "choice",
     },
+    "descriptionVisibility": {
+      "options": [
+        "auto",
+        "always",
+        "hidden",
+      ],
+      "type": "choice",
+    },
     "fontScale": {
       "max": 1.5,
       "min": 0.7,
@@ -447,6 +478,17 @@ exports[`mod tuning keys > are pinned, so a renamed or dropped key is a visible 
     },
     "keywordColoringEnabled": {
       "type": "boolean",
+    },
+    "mirrorLayout": {
+      "type": "boolean",
+    },
+    "portraitHangerVisibility": {
+      "options": [
+        "auto",
+        "always",
+        "hidden",
+      ],
+      "type": "choice",
     },
     "portraitStyle": {
       "options": [

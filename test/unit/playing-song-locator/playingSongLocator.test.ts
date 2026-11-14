@@ -177,7 +177,8 @@ describe('locating the playing song', () => {
 describe('a queue started from the home screen', () => {
     const playSong = vi.fn();
     const playAll = vi.fn();
-    const { onPlaySong, onPlayAll } = buildHomeModel({ playSong, playAll } as unknown as Parameters<typeof buildHomeModel>[0]).surfaceProps;
+    const shufflePlayAll = vi.fn();
+    const { onPlaySong, onPlayAll } = buildHomeModel({ playSong, playAll, shufflePlayAll } as unknown as Parameters<typeof buildHomeModel>[0]).surfaceProps;
     const source = () => usePlayingSongLocatorStore.getState().source;
     // What the player does once it has accepted a play: the song, then the queue.
     const playerTakes = (playing: SongResult, queue: SongResult[]) => {
@@ -215,6 +216,16 @@ describe('a queue started from the home screen', () => {
         usePlaybackStore.setState({ currentSong: a });
         expect(source()?.collection).toBe(started);
         expect([...source()!.songKeys]).toEqual([songKey('a'), songKey('c')]);
+    });
+
+    it('hands a shuffled play-all to the shuffling player, still as the queue of that page', () => {
+        onPlayAll!([a, b, c], shown, { shuffle: true });
+        // The player shuffles (and keeps the round); the page only says which songs.
+        expect(shufflePlayAll.mock.calls).toEqual([[[a, b, c]]]);
+        expect(playAll).not.toHaveBeenCalled();
+        playerTakes(b, [b, c, a]);
+        expect(source()?.collection).toBe(shown);
+        expect(new Set(source()!.songKeys)).toEqual(new Set([songKey('a'), songKey('b'), songKey('c')]));
     });
 
     it('is of no collection when it was started anywhere else, though the collection before holds every song of it', () => {

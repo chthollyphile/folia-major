@@ -36,13 +36,13 @@ const CONTRACT_COMMANDS = [
 const staticCommands = listStaticCommands(CONTRACT_COMMANDS);
 
 describe('command palette registry contract', () => {
-    it('opens the desktop AI provider flow at its existing appearance anchor', async () => {
+    it('opens the desktop AI provider flow at its anchor on the AI service page', async () => {
         const command = COMMAND_PALETTE_COMMANDS.find(item => item.id === 'settings-ai-provider')!;
         expect(command.platform).toEqual(['electron']);
-        expect(command.settingsTarget).toEqual({ subview: 'appearance', anchorId: 'electronSettings' });
+        expect(command.settingsTarget).toEqual({ subview: 'ai', anchorId: 'electronSettings' });
         const opened: unknown[][] = [];
         await command.execute('', { settings: { openSettings: (...args: unknown[]) => opened.push(args) } } as unknown as Parameters<typeof command.execute>[1]);
-        expect(opened).toEqual([['options', 'appearance', null, 'electronSettings']]);
+        expect(opened).toEqual([['options', 'ai', null, 'electronSettings']]);
     });
 
     it('keeps command ids unique', () => {

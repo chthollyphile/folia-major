@@ -1,5 +1,6 @@
 import type { BravaisFormState } from './bravaisFormModel';
 import type { DailyStyleGroup, DailyStyleSelection } from '../../../types/onlineMusic';
+import type { LucideIcon } from 'lucide-react';
 
 // src/library/suites/bravais/bravaisSeamModels.ts
 // B7 集合页挂在层描述上的扩展类型（设计稿 §10.2 / §10.6）：缝里的收藏星标、补页进度、状态行、结果提示、过滤输入位（每面墙都有）、
@@ -69,12 +70,19 @@ export type BravaisSeamFilter = {
     setQuery: (query: string) => void;
 };
 
-/** 「⋯ 更多」里的一项（集合级的低频动作）。 */
+/**
+ * 「⋯ 更多」里的一项（集合级的动作）。方案 C：给了 `priority`（越小越先）与 `icon` 的项，按钮行下面的动作格放得下时
+ * 直接成一格图标按钮（读屏名与悬停提示是 label），放不下才留在「⋯」里；没给 priority 的（删除、折叠）永远在「⋯」里。
+ */
 export type BravaisSeamMenuItem = {
     id: string;
     label: string;
     disabled?: boolean;
     danger?: boolean;
+    icon?: LucideIcon;
+    priority?: number;
+    /** 进行中：格子里的图标转圈（重新拉取这类）。 */
+    busy?: boolean;
     run: () => void;
 };
 
