@@ -169,7 +169,9 @@ const readUses = (text) => {
     // after a `sources` (an aliased `const s = folium.sources`), which is all a reading of text can see.
     const callsFoliumSourcesRegister = /\bfolium\s*(?:\?\.|\.)\s*sources\s*(?:\?\.|\.)\s*register\b/.test(code);
     const mayRegisterSource = /\bsources\b/.test(code) && /(?:\?\.|\.)\s*register\s*\(/.test(code);
-    const foliumTwoMembers = [...code.matchAll(/\bfolium\s*(?:\?\.|\.)\s*(sources|i18n)\b/g)].map((match) => match[1]);
+    // The Folium 2 members a `folium: 1` mod does not have: the two services, and two members of 1.x services.
+    const foliumTwoMembers = [...code.matchAll(/\bfolium\s*(?:\?\.|\.)\s*(sources|i18n|lyrics\s*(?:\?\.|\.)\s*isPureMusicText|omni\s*(?:\?\.|\.)\s*capability)\b/g)]
+        .map((match) => match[1].replace(/\s*\??\.\s*/, '.'));
     return { code, registries, experimental, events, platformRequests, literals, callsFoliumSourcesRegister, mayRegisterSource, foliumTwoMembers };
 };
 

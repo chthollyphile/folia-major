@@ -146,6 +146,11 @@ describe('folium:check of a source mod', () => {
         ]);
         const old = write({ folium: 1, id: 'old' }, "export default function activate(folium) {\n  folium.i18n.key('a');\n}\n");
         expect(checkFoliumMod(old).problems).toEqual(['folium.i18n is Folium 2: mod.json says "folium": 1, and such a mod has none']);
+        const oldHelpers = write({ folium: 1, id: 'old-helpers' }, "export default function activate(folium) {\n  folium.lyrics.isPureMusicText('x');\n  folium.omni?.capability('a', 'b');\n  folium.lyrics.parse;\n}\n");
+        expect(checkFoliumMod(oldHelpers).problems).toEqual([
+            'folium.lyrics.isPureMusicText is Folium 2: mod.json says "folium": 1, and such a mod has none',
+            'folium.omni.capability is Folium 2: mod.json says "folium": 1, and such a mod has none',
+        ]);
         const empty = write({ folium: 2, id: 'empty', sources: [] }, 'export default function activate() {}\n');
         expect(checkFoliumMod(empty).problems[0]).toMatch(/mod\.sources must list at least one source/);
     });

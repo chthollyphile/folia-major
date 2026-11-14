@@ -83,6 +83,10 @@ describe('the Folium version, two tracks (plan §9)', () => {
         expect('sources' in one).toBe(false);
         expect('i18n' in one).toBe(false);
         expect('capability' in one.omni).toBe(false);
+        // folium.lyrics stays at 1.9 too: no isPureMusicText, the rest as it was.
+        expect('isPureMusicText' in one.lyrics).toBe(false);
+        expect(typeof one.lyrics.parse).toBe('function');
+        expect(typeof one.lyrics.getLines).toBe('function');
         const two = createFoliumClientApi(mod({ kind: 'standard', sources: undefined }), clientApiOptions('export'));
         expect(two.host.folium).toEqual({ major: 2, minor: 0 });
         expect(two.sources.supports('search', 1)).toBe(true);
@@ -90,6 +94,7 @@ describe('the Folium version, two tracks (plan §9)', () => {
         expect(two.i18n.key('a.b', { n: 1 })).toEqual({ i18nKey: 'a.b', params: { n: 1 } });
         expect(() => two.sources.register({ id: 'a', displayName: 'x', capabilities: {} })).toThrow(/not-a-source-mod/);
         expect(two.omni.capability('x', 'y')).toBeNull();
+        expect(two.lyrics.isPureMusicText('纯音乐，请欣赏')).toBe(true);
         // A source mod outside the main window cannot register.
         const exported = createFoliumClientApi(mod(), clientApiOptions('export'));
         expect(() => exported.sources.register({ id: 'a', displayName: 'x', capabilities: {} })).toThrow('sources-unavailable-in-export-context');

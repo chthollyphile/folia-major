@@ -304,11 +304,17 @@ export const createFoliumUiService = (mod: ModRuntimeInfo, context: FoliumContex
 });
 
 /** `folium.lyrics`: the shared helpers, plus the displayed song's lyrics from the App. */
-export const createFoliumLyricsService = (context: FoliumContextKind): FoliumLyricsService => Object.freeze({
-    ...FOLIUM_LYRICS_HELPERS,
+// Folium 2.0 (plan §9): the lyric helpers a `folium: 1` mod sees, frozen at 1.9: without the 2.0 member.
+const FOLIUM_ONE_LYRICS_HELPERS = Object.freeze(Object.fromEntries(
+    Object.entries(FOLIUM_LYRICS_HELPERS).filter(([name]) => name !== 'isPureMusicText'),
+));
+
+/** `folium.lyrics`; `foliumTwo` false for a `folium: 1` mod, whose interface stays at 1.9. */
+export const createFoliumLyricsService = (context: FoliumContextKind, foliumTwo = true): FoliumLyricsService => Object.freeze({
+    ...(foliumTwo ? FOLIUM_LYRICS_HELPERS : FOLIUM_ONE_LYRICS_HELPERS),
     getLines: () => requireActions('lyrics', context).getLyricLines(),
     refresh: () => requireActions('lyrics', context).refreshLyrics(),
-});
+}) as FoliumLyricsService;
 
 interface RawFetchResponse { status: number; statusText: string; headers: Record<string, string>; body: string; bodyBase64?: string }
 

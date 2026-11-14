@@ -336,7 +336,7 @@ export const createFoliumClientApi = (mod: ModRuntimeInfo, options: FoliumClient
         // Folium 1.7: only this mod's own `secret` values, like storage only its own data file.
         secrets: createFoliumSecrets(modId, context, onRelease),
         rpc,
-        lyrics: createFoliumLyricsService(context),
+        lyrics: createFoliumLyricsService(context, foliumTwo),
         theme: FOLIUM_THEME_HELPERS,
         account: createFoliumAccountService(context),
         // Folium 1.7: the host's online sources through Omni, read only (omni/service.ts; the main window
