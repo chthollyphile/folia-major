@@ -50,12 +50,14 @@ describe('D113 lyrics architecture', () => {
 
         for (const file of delegatedProcessingCallSites) {
             const content = await readRepoFile(file);
-            expect(content, `${file} should delegate lyric source fetching`).toMatch(/fetchLyricsForMatchSource|getOnlineMusicProvider|provider\.lyrics|omni\.getLyrics/);
+            expect(content, `${file} should delegate lyric source fetching`).toMatch(/fetchLyricsForMatchSource|getLyricSourceAccess|getOnlineMusicProvider|provider\.lyrics|omni\.getLyrics/);
             expect(content, `${file} should not import legacy parsers`).not.toMatch(/lrcParser|yrcParser/);
             expect(content, `${file} should not inline chorus detection`).not.toContain('detectChorusLines');
         }
     });
 
+    // Reads every source file under src/: next to the suite's real source builds (buildSources.test.ts) that goes past
+    // the default 5 s on a Windows machine, so it gets a limit of its own.
     it('does not allow functional source files to import legacy parser wrappers directly', async () => {
         const allowedFiles = new Set([
             'src/utils/lrcParser.ts',
@@ -77,7 +79,7 @@ describe('D113 lyrics architecture', () => {
         }
 
         expect(offenders).toEqual([]);
-    });
+    }, 30_000);
 
     it('keeps worker and compatibility wrappers wired to parserCore', async () => {
         const workerContent = await readRepoFile('src/workers/lyricsParser.worker.ts');

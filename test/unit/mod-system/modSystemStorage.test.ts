@@ -3,6 +3,7 @@ import { createRequire } from 'module';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import { FROM_MAIN_WINDOW, MAIN_WINDOW } from './mainWindowFake';
 
 // test/unit/mod-system/modSystemStorage.test.ts
 // Folium 1.5 mod files through the loader, with Electron replaced by fakes: a main entry gets
@@ -92,7 +93,7 @@ const launch = () => {
             isPackaged: false,
         },
         BrowserWindow: { getAllWindows: () => [] },
-        getMainWindow: () => null,
+        getMainWindow: () => MAIN_WINDOW,
         getLocaleKey: () => 'en',
         isFeatureEnabled: () => true,
     });
@@ -101,7 +102,7 @@ const launch = () => {
     return system;
 };
 
-const invoke = (channel: string, ...args: unknown[]) => handlers.get(channel)!(null, ...args);
+const invoke = (channel: string, ...args: unknown[]) => handlers.get(channel)!(FROM_MAIN_WINDOW, ...args);
 
 beforeEach(() => {
     root = fs.mkdtempSync(path.join(os.tmpdir(), 'folia-mod-storage-'));

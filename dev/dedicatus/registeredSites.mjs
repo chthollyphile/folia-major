@@ -22,7 +22,8 @@ export const REGISTERED_SITES = [
             "Property[key.name='state'] > ConditionalExpression.value > Literal[value='unavailable']",
             "AssignmentExpression[left.property.name='state'] > Literal.right[value='unavailable']",
         ],
-        include: ['src/**', 'electron/**'],
+        // Folium 2.0：平台逐家搬进 sources/<id>/（S5），一起查。
+        include: ['src/**', 'electron/**', 'sources/**'],
         allowFiles: [
             { path: 'src/types/**', why: '类型与契约' },
             { path: 'src/services/onlineMusic/failure/onlineFailureCase.ts', why: '失败种类的行为表，不判断是不是下架' },
@@ -32,7 +33,7 @@ export const REGISTERED_SITES = [
         ],
         sites: {
             'src/services/onlineMusic/netease/netease.ts': { resolveNeteaseSongAvailability: 'privilege.st 是网易云的下架码（NETEASE_TAKEN_DOWN_ST），且没有可播的音质、不是云盘' },
-            'src/services/onlineMusic/bodian/bodianProvider.ts': { getAvailability: '波点自己标的 off-shelf' },
+            'sources/bodian/client/bodianProvider.ts': { bodianSongAvailability: '波点自己标的 off-shelf（offline / online 0，normalizeBodianSong 记成 availability）' },
             'src/components/app/playback/start/usePlaybackQueueController.ts': { playSong: '只在 isSongUnavailable(song) 为真时：那是 provider 依据平台记录给的静态可用性，这里只是呈现' },
         },
     },
@@ -40,7 +41,7 @@ export const REGISTERED_SITES = [
         code: 'D120',
         message: 'provider 只有真正读完了才能回 whole: true；中途某页失败、只读了一部分要抛 OnlineProviderError 或回 whole: false（#874、#1069），否则没读到的数据会被当成已删除',
         selectors: ["Property[key.name='whole'] > Literal.value[value=true]"],
-        include: ['src/services/onlineMusic/**'],
+        include: ['src/services/onlineMusic/**', 'sources/**'],
         sites: {
             'src/services/onlineMusic/kugou/kugouProvider.ts': { getLikedSongIds: 'getKugouLikedPlaylistTracks 读到底，读不完就抛错' },
             'src/services/onlineMusic/netease/neteaseProvider.ts': { getLikedSongIds: '一次请求就是整张列表；出错的答复先抛 OnlineProviderError' },

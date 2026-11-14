@@ -1,3 +1,4 @@
+// @builtin-sources
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { omni } from '@/services/onlineMusic/omni';
 import { getOnlineMusicProvider } from '@/services/onlineMusic/providerRegistry';
@@ -56,6 +57,8 @@ describe('QQ personal FM dislike', () => {
         expect(canDislikeCurrentSong(null)).toBe(false);
         const bodianSong: UnifiedSong = { id: 1, name: 'b', artists: [], album: { id: '', name: '' }, durationMs: 1,
             sourceRef: { kind: 'online', providerId: 'bodian', mediaId: '1' } };
+        // 波点是注册着的音源模组（文件头的 @builtin-sources），所以「置灰」测的是「有平台、没有 dislike」，不是「平台不在」。
+        expect(getOnlineMusicProvider('bodian')).toBeTruthy();
         expect(canDislikeCurrentSong(bodianSong)).toBe(false);
         const neteaseSong: UnifiedSong = { id: 1, name: 'n', artists: [], album: { id: '', name: '' }, durationMs: 1,
             sourceRef: { kind: 'online', providerId: 'netease', mediaId: '1' } };

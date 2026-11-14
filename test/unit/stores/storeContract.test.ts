@@ -196,6 +196,8 @@ describe('store contract', () => {
         expect(storesBehindTunings()).toContain('useVisualizerAssetStore');
     });
 
+    // It reads every .ts file under src/, test/ and dev/: next to the suite's real source builds (buildSources.test.ts)
+    // that takes past the default 5 s on a Windows machine, so it gets a limit of its own.
     it('leaves no reference to a store module that no longer exists', () => {
         // Two ways to name a store that tsc cannot check, both of which fail silently:
         //   a Playwright spec importing a store by runtime path string inside page.evaluate
@@ -236,5 +238,5 @@ describe('store contract', () => {
         }
 
         expect(dangling).toEqual([]);
-    });
+    }, 30_000);
 });

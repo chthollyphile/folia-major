@@ -59,6 +59,14 @@ export async function loadOnlineSongAudioSource(
     // means for this song's provider, or at an unknown one. A copy of another level is passed
     // over for a URL of the level asked for: the option decides what plays, cached or not.
     const providerId = getOnlineProviderIdForSong(song) ?? undefined;
+    // A song of a source switched to "used only for matching" or off (Folium 2.0 plan §5.3) does not play: its
+    // platform is not asked, and a copy kept of it is not played either. It stays where it is, marked, and
+    // plays again once its source is enabled.
+    if (providerId && !omni.isSourceSwitchedOn(providerId)) {
+        const failure = onlineFailureOf({ operation: 'audio', providerId }, { detail: { case: 'no-audio' } });
+        logOnlineFailure(failure);
+        return { kind: 'unavailable', failure };
+    }
     const level = providerId ? omni.resolveAudioQuality(providerId, audioQuality) : undefined;
     // A copy that failed to decode earlier in this session, or that the caller passes over, is not
     // read; a copy that cannot be read is logged and passed over: the platform is asked instead.

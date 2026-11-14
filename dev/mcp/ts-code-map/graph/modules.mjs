@@ -27,8 +27,11 @@ const GLOB_CALL = /import\.meta\.glob(?:<[^>]*>)?\(\s*(\[[^\]]*\]|['"][^'"]+['"]
 const UI_PACKAGES = /^(react|react-dom)(\/|$)/;
 export const edgeKey = (from, to) => `${from}\u0000${to}`;
 
-/** 仓库里只有 `@` -> `src` 一个别名（tsconfig paths 与 vite alias 一致）。 */
-const ALIAS = { '@/': 'src/' };
+/**
+ * 仓库里的别名（tsconfig paths 与 vite alias 一致）：`@` -> `src`；音源模组共用的纯函数包 `@folia/folium-source-kit`
+ * 只从入口取（packages/folium-source-kit/src/index.ts），所以整个说明符就是键，不带子路径。
+ */
+const ALIAS = { '@/': 'src/', '@folia/folium-source-kit': 'packages/folium-source-kit/src/index' };
 
 const addEdge = (map, from, to) => {
     if (!map.has(from)) map.set(from, new Set());
@@ -40,7 +43,7 @@ function resolveSpecifier(spec, fromFile, fileSet) {
     if (spec.startsWith('.')) {
         base = path.posix.normalize(path.posix.join(path.posix.dirname(fromFile), spec));
     } else {
-        const alias = Object.keys(ALIAS).find(prefix => spec.startsWith(prefix));
+        const alias = Object.keys(ALIAS).find(prefix => (prefix.endsWith('/') ? spec.startsWith(prefix) : spec === prefix));
         if (!alias) return null; // 裸包名 = 外部依赖，不进图
         base = ALIAS[alias] + spec.slice(alias.length);
     }

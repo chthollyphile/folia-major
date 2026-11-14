@@ -110,11 +110,11 @@ describe('folium:new', () => {
 
 describe('folium:check', () => {
     it('reports a manifest the app would refuse, in the app\'s own words', () => {
-        const directory = writeMod('bad-manifest', { folium: 2, permissions: ['everything'] }, 'export default function activate() {}\n');
+        const directory = writeMod('bad-manifest', { folium: 3, permissions: ['everything'] }, 'export default function activate() {}\n');
         const { ok, problems } = checkFoliumMod(directory);
         expect(ok).toBe(false);
         expect(problems).toEqual([
-            'mod.json: unsupported folium version 2; this host implements folium 1',
+            'mod.json: unsupported folium version 3; this host reads folium 1 and 2',
             'mod.json: unknown or unsupported permission everything',
         ]);
     });

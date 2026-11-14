@@ -31,6 +31,7 @@ import { getPlatformLyricSource } from '../../../../utils/lyrics/lyricSources';
 import { resolveExplicitFileTimedLyricFormat } from '../../../../utils/lyrics/formatDetection';
 import { applyUploadedLocalLyrics } from '../../../../utils/lyrics/localLyricsUpload';
 import { omni } from '../../../../services/onlineMusic/omni';
+import { findNavidromeLyricFallback } from './navidromeLyricFallback';
 import { onlineMutationFailureText } from '../../../../services/onlineMusic/failure/onlineMutationFailure';
 import { getProviderSongMetadata } from '../../../../services/onlineMusic/songMetadata';
 import { getSongResourceCacheKey } from '../../../../services/onlineMusic/resourceKeys';
@@ -1021,34 +1022,30 @@ export function useLibraryPlaybackController({
                         }
                     }
 
-                    if (!isAutoMatched) {
-                        const searchQuery = `${navidromeSong.name} ${artistName}`.trim();
-                        const searchPage = await omni.searchProviderSongs('netease', searchQuery, { limit: 1, offset: 0 });
-
-                        if (searchPage?.items?.length) {
-                            const matchedSong = searchPage.items[0];
-                            const lyricResult = await omni.getLyrics(matchedSong);
-                            nextLyrics = lyricResult?.lyrics || null;
-                            (navidromeSong as NavidromeSong & { matchedIsPureMusic?: boolean; }).matchedIsPureMusic = lyricResult?.isPureMusic || false;
-                            if (nextLyrics || lyricResult?.isPureMusic) {
-                                autoMatchedLyrics = nextLyrics;
-                                isAutoMatched = true;
-                                matchedLyricsSource = 'netease';
+                    // Plan §7.1: the first source ready to match, not one named here (navidromeLyricFallback.ts).
+                    const fallback = isAutoMatched ? null : await findNavidromeLyricFallback(`${navidromeSong.name} ${artistName}`.trim());
+                    if (fallback) {
+                        const { source: fallbackSource, song: matchedSong, lyrics: lyricResult } = fallback;
+                        nextLyrics = lyricResult.lyrics || null;
+                        (navidromeSong as NavidromeSong & { matchedIsPureMusic?: boolean; }).matchedIsPureMusic = lyricResult.isPureMusic || false;
+                        if (nextLyrics || lyricResult.isPureMusic) {
+                            autoMatchedLyrics = nextLyrics;
+                            isAutoMatched = true;
+                            matchedLyricsSource = fallbackSource;
 
                             const newMatchData: NavidromeMatchData = {
                                 matchedSongId: matchedSong.id,
                                 matchedLyrics: nextLyrics || undefined,
-                                matchedIsPureMusic: lyricResult?.isPureMusic || false,
-                                matchedLyricsSource: 'netease',
-                                    lyricsSource: 'online',
-                                    useOnlineLyrics: true,
-                                };
-                                await saveToCache(getNavidromeMatchCacheKey(navidromeSong), newMatchData);
-                            }
+                                matchedIsPureMusic: lyricResult.isPureMusic || false,
+                                matchedLyricsSource: fallbackSource,
+                                lyricsSource: 'online',
+                                useOnlineLyrics: true,
+                            };
+                            await saveToCache(getNavidromeMatchCacheKey(navidromeSong), newMatchData);
                         }
                     }
                 } catch (error) {
-                    console.warn('[App] Failed to fetch Netease lyrics for Navidrome song:', error);
+                    console.warn('[App] Failed to fetch online lyrics for Navidrome song:', error);
                 }
             }
 

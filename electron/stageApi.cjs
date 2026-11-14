@@ -233,7 +233,6 @@ function createStageApi({
   stageApiTokenSettingKey,
   stageApiPortSettingKey,
   defaultStageApiPort,
-  getNeteasePort,
   searchStageSongs,
   connectionFilePath = /** @type {string | null} */ (null),
 }) {
@@ -1548,56 +1547,6 @@ function createStageApi({
     };
   };
 
-  const normalizeStageSearchResult = (song = {}) => {
-    const artists = Array.isArray(song.ar)
-      ? song.ar.map((artist) => normalizeStageText(artist?.name)).filter(Boolean)
-      : Array.isArray(song.artists)
-        ? song.artists.map((artist) => normalizeStageText(artist?.name)).filter(Boolean)
-        : [];
-    const coverUrl = normalizeStageText(
-      song?.al?.picUrl ||
-      song?.album?.picUrl ||
-      song?.simpleSong?.al?.picUrl ||
-      song?.simpleSong?.album?.picUrl,
-    ) || null;
-
-    return {
-      songId: Number(song.id),
-      title: normalizeStageText(song.name) || 'Unknown Song',
-      artists,
-      album: normalizeStageText(song?.al?.name || song?.album?.name) || '',
-      durationMs: Number.isFinite(song.dt) ? Math.max(0, Math.floor(song.dt)) : null,
-      coverUrl,
-    };
-  };
-
-  const defaultSearchStageSongs = async (query, limit) => {
-    const port = typeof getNeteasePort === 'function' ? Number(getNeteasePort()) : null;
-    if (!Number.isInteger(port) || port <= 0) {
-      throw new StageApiError('Local Netease API is unavailable.', {
-        statusCode: 503,
-        code: 'NETEASE_API_UNAVAILABLE',
-      });
-    }
-
-    const endpoint = `http://127.0.0.1:${port}/cloudsearch?keywords=${encodeURIComponent(query)}&limit=${limit}&offset=0`;
-    const response = await fetch(endpoint, { method: 'GET' });
-    if (!response.ok) {
-      throw new StageApiError('Failed to search songs through the local Netease API.', {
-        statusCode: 502,
-        code: 'NETEASE_SEARCH_FAILED',
-        details: {
-          status: response.status,
-          endpoint,
-        },
-      });
-    }
-
-    const payload = await response.json();
-    const songs = Array.isArray(payload?.result?.songs) ? payload.result.songs : [];
-    return songs.map(normalizeStageSearchResult).filter((song) => Number.isFinite(song.songId) && song.songId > 0);
-  };
-
   const requestStageSongPlay = async ({ providerId, songId }, options = {}) => {
     const mainWindow = getMainWindow();
     if (!mainWindow || mainWindow.isDestroyed()) {
@@ -1837,7 +1786,7 @@ function createStageApi({
     if (!query) {
       throw createStageValidationError('Stage player search query is required.', 'INVALID_STAGE_PLAYER_SEARCH_QUERY');
     }
-    // Without a provider the search stays on the local service; with one it goes through omni.
+    // Without a provider the search is the default provider's; either way it goes through omni.
     const hasProvider = payload.provider !== undefined && payload.provider !== null;
     const providerId = hasProvider ? normalizeStageText(payload.provider) : STAGE_DEFAULT_SONG_PROVIDER_ID;
     if (hasProvider && !isStageProviderId(providerId)) {
@@ -1847,22 +1796,23 @@ function createStageApi({
       );
     }
 
+    // Every search runs in the renderer's omni, which holds the providers and their sessions (Folium 2.0 plan
+    // §7): one without a provider is the default provider's, as it always was, and answers in the same shape
+    // (its songId is that provider's number). `searchStageSongs` is the tests' stand-in for it.
     let songs;
-    if (hasProvider) {
-      const found = await requestStageProviderSearch(providerId, query, limit);
-      songs = found
-        .map((song) => normalizeStageProviderSearchResult(providerId, song))
-        .filter(Boolean)
-        .slice(0, limit);
-    } else {
-      const found = searchStageSongs
-        ? await searchStageSongs(query, limit)
-        : await defaultSearchStageSongs(query, limit);
+    if (!hasProvider && searchStageSongs) {
+      const found = await searchStageSongs(query, limit);
       songs = found.map((song) => ({
         ...song,
         provider: STAGE_DEFAULT_SONG_PROVIDER_ID,
         songRef: buildStageSongRef(STAGE_DEFAULT_SONG_PROVIDER_ID, song.songId),
       }));
+    } else {
+      const found = await requestStageProviderSearch(providerId, query, limit);
+      songs = found
+        .map((song) => normalizeStageProviderSearchResult(providerId, song))
+        .filter(Boolean)
+        .slice(0, limit);
     }
 
     return withStagePlayerOutsideInMetadata({

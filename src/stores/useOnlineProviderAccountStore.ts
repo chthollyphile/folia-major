@@ -1,5 +1,4 @@
 import { create } from 'zustand';
-import { DEFAULT_ONLINE_PROVIDER_ID } from '../types/onlineMusic';
 import type { MediaId, OnlineProviderId, ProviderCollection, ProviderUser } from '../types/onlineMusic';
 
 // src/stores/useOnlineProviderAccountStore.ts
@@ -23,17 +22,50 @@ export interface OnlineProviderAccountState {
 
 type OnlineProviderAccountStore = {
     accounts: Record<string, OnlineProviderAccountState>;
+    /**
+     * The platform in effect: the listener's choice while it is registered, else the first registered one.
+     * Every reader reads this. '' only when no choice was ever made and no platform is registered.
+     */
     activeProviderId: OnlineProviderId;
+    /**
+     * The listener's own choice, as stored ('' for none yet). Written only by `setActiveProviderId`: a platform
+     * that is missing for now (not registered yet, turned off) leaves it as it is, so it is in effect again
+     * once that platform is back.
+     */
+    chosenProviderId: OnlineProviderId;
+    /** The listener chose `providerId`: stored, and in effect from now. */
     setActiveProviderId: (providerId: OnlineProviderId) => void;
+    /**
+     * The registered platforms changed (`registeredIds`, in registration order): the one in effect is worked out
+     * again from the stored choice, in memory only. Nothing is stored.
+     */
+    settleActiveProvider: (registeredIds: readonly OnlineProviderId[]) => void;
     updateAccount: (providerId: OnlineProviderId, patch: Partial<OnlineProviderAccountState>) => void;
     clearAccount: (providerId: OnlineProviderId, error?: string) => void;
 };
 
 const ACTIVE_PROVIDER_KEY = 'active_online_provider_id';
 
+// There is no default platform: with nothing stored, the first registered one is in effect.
 const getInitialProviderId = (): OnlineProviderId => {
-    if (typeof localStorage === 'undefined' || typeof localStorage.getItem !== 'function') return DEFAULT_ONLINE_PROVIDER_ID;
-    return localStorage.getItem(ACTIVE_PROVIDER_KEY) || DEFAULT_ONLINE_PROVIDER_ID;
+    if (typeof localStorage === 'undefined' || typeof localStorage.getItem !== 'function') return '';
+    return localStorage.getItem(ACTIVE_PROVIDER_KEY) || '';
+};
+
+/**
+ * The platform in effect: the chosen one while it is registered; else the one in effect so far while it is
+ * still registered (a platform coming or going elsewhere does not move it); else the first registered one; the
+ * chosen one itself when none is registered (no platform at all: every reader finds it missing and shows its
+ * empty state).
+ */
+export const resolveEffectiveProviderId = (
+    chosenProviderId: OnlineProviderId,
+    registeredIds: readonly OnlineProviderId[],
+    currentProviderId: OnlineProviderId = chosenProviderId,
+): OnlineProviderId => {
+    if (registeredIds.includes(chosenProviderId)) return chosenProviderId;
+    if (registeredIds.includes(currentProviderId)) return currentProviderId;
+    return registeredIds[0] ?? chosenProviderId;
 };
 
 const emptyAccount = (): OnlineProviderAccountState => ({
@@ -95,14 +127,21 @@ const placeAccountEntriesSecond = (collections: ProviderCollection[]): ProviderC
         : entries;
 };
 
-export const useOnlineProviderAccountStore = create<OnlineProviderAccountStore>(set => ({
+const initialProviderId = getInitialProviderId();
+
+export const useOnlineProviderAccountStore = create<OnlineProviderAccountStore>((set, get) => ({
     accounts: {},
-    activeProviderId: getInitialProviderId(),
+    activeProviderId: initialProviderId,
+    chosenProviderId: initialProviderId,
     setActiveProviderId: providerId => {
         if (typeof localStorage !== 'undefined' && typeof localStorage.setItem === 'function') {
             localStorage.setItem(ACTIVE_PROVIDER_KEY, providerId);
         }
-        set({ activeProviderId: providerId });
+        set({ activeProviderId: providerId, chosenProviderId: providerId });
+    },
+    settleActiveProvider: registeredIds => {
+        const next = resolveEffectiveProviderId(get().chosenProviderId, registeredIds, get().activeProviderId);
+        if (next !== get().activeProviderId) set({ activeProviderId: next });
     },
     updateAccount: (providerId, patch) => set(state => {
         const previous = state.accounts[providerId] || emptyAccount();

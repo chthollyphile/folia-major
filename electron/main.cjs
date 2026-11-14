@@ -74,8 +74,6 @@ const { createSenderGuardedHandler } = require('./ipcAccessGuard.cjs');
 const { createQishuiApiBridge } = require('./qishui/qishuiApiBridge.cjs');
 const { createFnmusicApiBridge, FN_MUSIC_SCHEME, FN_MUSIC_PRIVILEGED_SCHEME } = require('./fnmusic/fnmusicApiBridge.cjs');
 const { createQishuiMediaPolicy } = require('./qishui/mediaCors.cjs');
-const { createBodianApiBridge } = require('./bodian/bodianApiBridge.cjs');
-const { createBodianMediaPolicy } = require('./bodian/mediaCors.cjs');
 const { createYtmApiBridge } = require('./ytm/ytmApiBridge.cjs');
 const { createCompanionClient } = require('./appleMusic/companionClient.cjs');
 const { createCompanionRequestHandler } = require('./appleMusic/companionIpc.cjs');
@@ -196,7 +194,20 @@ app.on('certificate-error', (event, _webContents, requestUrl, error, _certificat
     isAllowedKugouMediaRequest = false;
   }
 
-  if (isAllowedKugouMediaRequest) {
+  // Folium 2.0: a running source mod's manifest may name hosts whose certificate name mismatch is accepted
+  // (`sources[].certificateExceptions`, listed in its enable confirmation).
+  const isDeclaredBySourceMod = (() => {
+    try {
+      const parsedUrl = new URL(requestUrl);
+      return parsedUrl.protocol === 'https:'
+        && error === 'net::ERR_CERT_COMMON_NAME_INVALID'
+        && Boolean(modSystem?.allowsCertificateException(parsedUrl.hostname));
+    } catch {
+      return false;
+    }
+  })();
+
+  if (isAllowedKugouMediaRequest || isDeclaredBySourceMod) {
     event.preventDefault();
     callback(true);
     return;
@@ -374,15 +385,6 @@ const qishuiMediaPolicy = createQishuiMediaPolicy();
 const fnMusicApiBridge = createFnmusicApiBridge({ store, safeStorage });
 const qishuiApiBridge = createQishuiApiBridge({ store, safeStorage, fetch: (url, options) => electronNet.fetch(url, options),
   onAudioSource: url => qishuiMediaPolicy.register(url),
-});
-const bodianMediaPolicy = createBodianMediaPolicy();
-const bodianApiBridge = createBodianApiBridge({ store, safeStorage,
-  onAudioSource: url => bodianMediaPolicy.register(url),
-  requestFactory: (options, onResponse) => {
-    const request = electronNet.request(options);
-    request.on('response', onResponse);
-    return request;
-  },
 });
 // YouTube Music talks to Google from its own network partition and without a cookie jar: the
 // account is carried by a request header, and stored cookies would tie the guest sessions to it.
@@ -2951,7 +2953,6 @@ const stageApi = createStageApi({
   stageApiTokenSettingKey: STAGE_API_TOKEN_SETTING_KEY,
   stageApiPortSettingKey: STAGE_API_PORT_SETTING_KEY,
   defaultStageApiPort: DEFAULT_STAGE_API_PORT,
-  getNeteasePort: () => neteaseBackend.getPort(),
   // Local tools read the address and token from here instead of asking the user to copy the token.
   connectionFilePath: resolveStageConnectionFilePath({ userDataDir: app.getPath('userData') }),
 });
@@ -3843,8 +3844,9 @@ function setupCorsBypassHandlers() {
         hostname === 'y.gtimg.cn' ||
         hostname === 'kugou.com' ||
         hostname.endsWith('.kugou.com') ||
-        // Bodian audio and cover CDNs may omit CORS headers needed by Web Audio and canvas/WebGL.
-        bodianMediaPolicy.allows(details) || qishuiMediaPolicy.allows(details);
+        qishuiMediaPolicy.allows(details) ||
+        // Folium 2.0: the rules source mods register with api.media.allow (electron/modSystem/mediaRules.cjs).
+        Boolean(modSystem?.mediaRules.allows(details));
     } catch (error) {
       isTargetDomain = false;
     }
@@ -3859,7 +3861,10 @@ function setupCorsBypassHandlers() {
     callback({ cancel: false, responseHeaders });
   });
 
-  ses.webRequest.onBeforeRedirect(details => { bodianMediaPolicy.followRedirect(details); qishuiMediaPolicy.followRedirect(details); });
+  ses.webRequest.onBeforeRedirect(details => {
+    qishuiMediaPolicy.followRedirect(details);
+    modSystem?.mediaRules.followRedirect(details);
+  });
 
   ses.webRequest.onErrorOccurred({ urls: ['*://*.kugou.com/*'] }, details => {
     const requestInfo = getKugouMediaRequestInfo(details);
@@ -3894,7 +3899,9 @@ function isAllowedLyricProxyHost(hostname) {
     hostname.endsWith('.kugou.com') ||
     hostname === 'kgimg.com' ||
     hostname.endsWith('.kgimg.com') ||
-    hostname === 'api.amll.dev'
+    hostname === 'api.amll.dev' ||
+    // Folium 2.0: `sources[].lyricRelayHosts` of a running source mod (listed in its enable confirmation).
+    Boolean(modSystem?.isLyricRelayHost(hostname))
   );
 }
 
@@ -5394,6 +5401,7 @@ function pauseExternalPlayersNobodyFollows(reason) {
   spotifyApiBridge.pauseSoloist().catch((error) => {
     console.warn('[Electron] Soloist could not be paused', error);
   });
+  modSystem?.notePlayersOrphaned(reason);
 }
 
 function clearPendingWindowPlaybackHandoffRequests() {
@@ -6116,6 +6124,7 @@ function createWindow(options = {}) {
 
   mainWindow = win;
   isolateFirstPartyWindow(win);
+  modSystem?.noteMainWindowChanged();
   if (useMacNativeTrafficLights) {
     // 先藏起来，等渲染层按标题栏 reveal 再放出，避免启动时红绿灯常驻在沉浸页面上。
     // 常驻标题栏设置的用户由渲染层随即打开（那个设置只存在渲染层，这里读不到）。
@@ -6183,6 +6192,7 @@ function createWindow(options = {}) {
   win.on('closed', () => {
     if (mainWindow === win) {
       mainWindow = null;
+      modSystem?.noteMainWindowChanged();
       macDockMenu.reset();
       // macOS keeps the app running when its window is closed, so no `before-quit` follows: for
       // the mods' start note, closing the window is the normal way out there (see `before-quit`).
@@ -6468,6 +6478,26 @@ app.whenReady().then(async () => {
       void macController.recoverStrandedDock();
     }
   }
+  // Folium 2.0 (plan §5.2): the mod system exists before the main window, and the source mods (built-in
+  // ones first) start now, before it; ordinary mods start after it, as before (`modSystem.start()` below).
+  try {
+    modSystem = createModSystem({
+      app,
+      BrowserWindow,
+      getMainWindow: () => mainWindow,
+      getLocaleKey: getMainLocaleKey,
+      isFeatureEnabled: () => readStoredBoolean(MOD_SYSTEM_ENABLED_SETTING_KEY, false),
+      hostStore: store,
+      diagnostics: loginDiagnostics,
+      reportError: (where, error) => crashLog.reportError(where, error, { announceToUser: false }),
+      requestCachePrune: (limitBytes) => pruneMediaCache(limitBytes),
+      openExternal: (url) => openExternalUrl(url),
+    });
+    modSystem.registerIpc();
+    modSystem.startSources();
+  } catch (error) {
+    console.error('[Mods] Failed to initialize the mod system', error);
+  }
   createWindow();
   focusMainWindow();
   if (process.env.FOLIA_PENDING_DESKTOP_LYRIC === '1') {
@@ -6611,14 +6641,9 @@ app.whenReady().then(async () => {
   voiceInputPauseMonitor.syncState();
 
   try {
-    modSystem = createModSystem({
-      app,
-      BrowserWindow,
-      getMainWindow: () => mainWindow,
-      getLocaleKey: getMainLocaleKey,
-      isFeatureEnabled: () => readStoredBoolean(MOD_SYSTEM_ENABLED_SETTING_KEY, false),
-    });
-    modSystem.registerIpc();
+    if (!modSystem) {
+      throw new Error('the mod system was not made before the window');
+    }
     // Loads the enabled mods. If the last start never got to its end, it asks first whether to
     // start without mods this time, and loads once the answer is in (modSystem.cjs `start`).
     modSystem.start();
@@ -6689,7 +6714,7 @@ app.on('before-quit', (event) => {
   // while there is such work, settled in 3 seconds at most. The quit is held until all have
   // settled, and then asked for again; nothing below has run by then. A quit with no such work is
   // not held, and neither is one that arrives while another is held.
-  const held = quitHoldingBridges.map(bridge => bridge.shutdown()).filter(Boolean);
+  const held = [...quitHoldingBridges.map(bridge => bridge.shutdown()), modSystem?.prepareQuit()].filter(Boolean);
   if (held.length > 0 && !isQuitHeldForAccounts) {
     isQuitHeldForAccounts = true;
     event.preventDefault();
@@ -6929,11 +6954,10 @@ ipcMain.handle('save-settings', firstParty('save-settings', (event, key, value) 
     // Turning the switch off deactivates every running mod immediately rather
     // than only hiding the UI; turning it on discovers and activates whatever
     // the user had already confirmed.
-    try {
-      modSystem.loadAll();
-    } catch (error) {
+    // Through reloadChanged: a source mod that stops gets its onBeforeUnload first; ordinary mods restart as before.
+    modSystem.reloadChanged({ differential: false }).catch((error) => {
       console.error('[Mods] Failed to apply the mod system switch', error);
-    }
+    });
   }
 
   if (key === WALLPAPER_MODE_SETTING_KEY) {
@@ -7354,7 +7378,9 @@ ipcMain.handle('clear-local-cover-assets', firstParty('clear-local-cover-assets'
 }));
 
 // 内嵌后端的端口、状态、重启、诊断快照与主动自检（electron/loginBackendIpc.cjs）。
-registerLoginBackendIpc({
+// 它交回登录诊断与自检的登记表（{ diagnostics }，Folium 2.0 接缝）：现在里面是两个内嵌后端，S2 起音源模组的
+// api.diagnostics 往里登记。
+const { diagnostics: loginDiagnostics } = registerLoginBackendIpc({
   ipcMain,
   app,
   safeStorage,
@@ -7368,7 +7394,7 @@ registerLoginBackendIpc({
 // and params verbatim, so it is a write-capable surface rather than a read-only one; the bridge keeps
 // its own operation allowlist, so what this guard adds is the caller surface. Trusted here means the
 // two first-party windows - the main window and the remote-control window, which runs the same app
-// and therefore the same online providers. `bodian-api-request` below gates the same way.
+// and therefore the same online providers.
 //
 // Boundary, stated plainly: comparing webContents identity rejects other windows (a popup opened with
 // window.open carries the same preload). It cannot stop script already running inside a trusted
@@ -7418,12 +7444,6 @@ ipcMain.handle('fnmusic-api-request', createSenderGuardedHandler({
 // 状态查询走异步 fnmusic-api-request('getStatus')，不再用 sendSync 同步 IPC（避免渲染主线程
 // 阻塞在 safeStorage 解密上；本地代理已删除，注释里"要同步拿本地代理端口"的前提已不存在）。
 
-ipcMain.handle('bodian-api-request', (event, operation, params) => {
-  if (!isTrustedMainWindowContents(event.sender)) {
-    return { ok: false, error: { code: 'unavailable', message: 'Untrusted Bodian request' } };
-  }
-  return bodianApiBridge.request(operation, params);
-});
 ipcMain.handle('ytm-api-request', (event, operation, params) => {
   if (!isTrustedMainWindowContents(event.sender)) {
     return { ok: false, error: { code: 'unavailable', message: 'Untrusted YouTube Music request' } };

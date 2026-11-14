@@ -789,24 +789,6 @@
       "count": 43
     }
   },
-  "electron/bodian/bodianApiBridge.cjs": {
-    "@stylistic/indent": {
-      "count": 24
-    }
-  },
-  "electron/bodian/mediaCors.cjs": {
-    "@stylistic/indent": {
-      "count": 40
-    }
-  },
-  "electron/bodian/session.cjs": {
-    "@stylistic/indent": {
-      "count": 80
-    },
-    "dedicatus/restricted-apis": {
-      "count": 2
-    }
-  },
   "electron/debug/redactCredentials.cjs": {
     "no-useless-assignment": {
       "count": 1
@@ -977,11 +959,6 @@
       "count": 1
     }
   },
-  "electron/modSystem/modSystem.cjs": {
-    "no-unused-vars": {
-      "count": 1
-    }
-  },
   "electron/modSystem/safeStart.cjs": {
     "no-useless-assignment": {
       "count": 1
@@ -1137,7 +1114,7 @@
   },
   "electron/stageApi.cjs": {
     "@stylistic/indent": {
-      "count": 2095
+      "count": 2053
     },
     "no-useless-assignment": {
       "count": 1
@@ -1356,6 +1333,22 @@
       "count": 1134
     }
   },
+  "packages/folium-source-kit/src/errorText.ts": {
+    "@typescript-eslint/no-unnecessary-condition": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 1
+    }
+  },
+  "packages/folium-source-kit/src/krcDecrypt.ts": {
+    "@stylistic/indent": {
+      "count": 43
+    },
+    "@typescript-eslint/no-unnecessary-condition": {
+      "count": 1
+    }
+  },
   "packaging/ffmpeg/fetch-ffmpeg.mjs": {
     "@stylistic/indent": {
       "count": 129
@@ -1457,6 +1450,92 @@
     },
     "preserve-caught-error": {
       "count": 1
+    }
+  },
+  "sources/bodian/client/bodianCatalog.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 5
+    },
+    "@typescript-eslint/no-unsafe-argument": {
+      "count": 4
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 8
+    },
+    "@typescript-eslint/no-unsafe-call": {
+      "count": 3
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 14
+    },
+    "@typescript-eslint/require-await": {
+      "count": 1
+    }
+  },
+  "sources/bodian/client/bodianLibrary.ts": {
+    "@typescript-eslint/no-base-to-string": {
+      "count": 2
+    },
+    "@typescript-eslint/no-explicit-any": {
+      "count": 4
+    },
+    "@typescript-eslint/no-unnecessary-condition": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unsafe-argument": {
+      "count": 4
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 4
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 16
+    },
+    "@typescript-eslint/restrict-template-expressions": {
+      "count": 2
+    },
+    "no-useless-assignment": {
+      "count": 1
+    }
+  },
+  "sources/bodian/client/bodianNormalize.ts": {
+    "@typescript-eslint/no-base-to-string": {
+      "count": 1
+    },
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-argument": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 4
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 8
+    },
+    "@typescript-eslint/require-await": {
+      "count": 1
+    }
+  },
+  "sources/bodian/client/bodianProvider.ts": {
+    "@typescript-eslint/no-base-to-string": {
+      "count": 2
+    }
+  },
+  "sources/bodian/main/bodianApiBridge.cjs": {
+    "@stylistic/indent": {
+      "count": 24
+    }
+  },
+  "sources/bodian/main/mediaCors.cjs": {
+    "@stylistic/indent": {
+      "count": 40
+    }
+  },
+  "sources/bodian/main/session.cjs": {
+    "@stylistic/indent": {
+      "count": 80
     }
   },
   "src/App.tsx": {
@@ -2168,7 +2247,7 @@
   },
   "src/components/app/playback/start/useLibraryPlaybackController.ts": {
     "@stylistic/indent": {
-      "count": 7
+      "count": 2
     },
     "@typescript-eslint/no-deprecated": {
       "count": 6
@@ -2177,7 +2256,7 @@
       "count": 2
     },
     "@typescript-eslint/no-unnecessary-condition": {
-      "count": 14
+      "count": 8
     },
     "@typescript-eslint/no-unnecessary-type-arguments": {
       "count": 1
@@ -6701,11 +6780,6 @@
       "count": 1
     }
   },
-  "src/hooks/useLyricMatchSources.ts": {
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 1
-    }
-  },
   "src/hooks/useLyricWordSegmentation.ts": {
     "@eslint-community/eslint-comments/require-description": {
       "count": 1
@@ -6730,11 +6804,6 @@
     },
     "@typescript-eslint/use-unknown-in-catch-callback-variable": {
       "count": 1
-    }
-  },
-  "src/hooks/useNeteaseLibrary.ts": {
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 4
     }
   },
   "src/hooks/useNowPlayingSource.ts": {
@@ -9182,7 +9251,7 @@
       "count": 6
     },
     "@typescript-eslint/no-unnecessary-condition": {
-      "count": 11
+      "count": 10
     },
     "@typescript-eslint/no-unsafe-call": {
       "count": 1
@@ -9383,117 +9452,6 @@
       "count": 2
     }
   },
-  "src/services/onlineMusic/bodian/bodianCatalog.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 5
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-argument": {
-      "count": 4
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 8
-    },
-    "@typescript-eslint/no-unsafe-call": {
-      "count": 3
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 14
-    },
-    "@typescript-eslint/require-await": {
-      "count": 1
-    }
-  },
-  "src/services/onlineMusic/bodian/bodianLibrary.ts": {
-    "@typescript-eslint/no-base-to-string": {
-      "count": 2
-    },
-    "@typescript-eslint/no-explicit-any": {
-      "count": 4
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 2
-    },
-    "@typescript-eslint/no-unsafe-argument": {
-      "count": 4
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 4
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 16
-    },
-    "@typescript-eslint/restrict-template-expressions": {
-      "count": 2
-    },
-    "no-useless-assignment": {
-      "count": 1
-    }
-  },
-  "src/services/onlineMusic/bodian/bodianMutations.ts": {
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unnecessary-type-conversion": {
-      "count": 1
-    }
-  },
-  "src/services/onlineMusic/bodian/bodianNormalize.ts": {
-    "@typescript-eslint/no-base-to-string": {
-      "count": 1
-    },
-    "@typescript-eslint/no-explicit-any": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-argument": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 4
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 11
-    },
-    "@typescript-eslint/require-await": {
-      "count": 1
-    }
-  },
-  "src/services/onlineMusic/bodian/bodianProvider.ts": {
-    "@typescript-eslint/no-base-to-string": {
-      "count": 2
-    },
-    "@typescript-eslint/no-explicit-any": {
-      "count": 6
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-argument": {
-      "count": 2
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 5
-    },
-    "@typescript-eslint/no-unsafe-call": {
-      "count": 5
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 17
-    },
-    "@typescript-eslint/no-unsafe-return": {
-      "count": 7
-    }
-  },
-  "src/services/onlineMusic/bodian/bodianTransport.ts": {
-    "@typescript-eslint/no-non-null-assertion": {
-      "count": 1
-    }
-  },
   "src/services/onlineMusic/catalogRefs.ts": {
     "@typescript-eslint/no-unnecessary-condition": {
       "count": 6
@@ -9585,17 +9543,6 @@
     },
     "dedicatus/restricted-apis": {
       "count": 6
-    }
-  },
-  "src/services/onlineMusic/kugou/krcDecrypt.ts": {
-    "@stylistic/indent": {
-      "count": 43
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 1
-    },
-    "dedicatus/log-module-prefix": {
-      "count": 1
     }
   },
   "src/services/onlineMusic/kugou/kugouLyricProvider.ts": {
@@ -9926,7 +9873,7 @@
       "count": 1
     },
     "@typescript-eslint/no-unnecessary-condition": {
-      "count": 49
+      "count": 37
     },
     "@typescript-eslint/no-unused-vars": {
       "count": 1
@@ -10183,6 +10130,11 @@
       "count": 1
     },
     "dedicatus/restricted-apis": {
+      "count": 1
+    }
+  },
+  "src/services/onlineMusic/qq/qqLyricSource.ts": {
+    "@typescript-eslint/no-unsafe-assignment": {
       "count": 1
     }
   },
@@ -11280,14 +11232,6 @@
       "count": 1
     }
   },
-  "src/utils/errorText.ts": {
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 1
-    }
-  },
   "src/utils/fontStacks.ts": {
     "@typescript-eslint/no-unnecessary-condition": {
       "count": 2
@@ -11435,10 +11379,10 @@
       "count": 1
     },
     "@typescript-eslint/no-unnecessary-condition": {
-      "count": 5
+      "count": 4
     },
     "@typescript-eslint/no-unsafe-argument": {
-      "count": 2
+      "count": 1
     },
     "@typescript-eslint/no-unsafe-assignment": {
       "count": 3
@@ -11524,14 +11468,6 @@
   },
   "src/utils/lyrics/lyricLineRules.ts": {
     "@typescript-eslint/switch-exhaustiveness-check": {
-      "count": 1
-    }
-  },
-  "src/utils/lyrics/lyricMatchSources.ts": {
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
       "count": 1
     }
   },
@@ -11911,7 +11847,7 @@
       "count": 997
     },
     "@typescript-eslint/consistent-type-imports": {
-      "count": 64
+      "count": 61
     },
     "@typescript-eslint/no-explicit-any": {
       "count": 4
@@ -12711,7 +12647,7 @@
   },
   "test/unit/lyrics/autoMatchNonPlatformSource.test.ts": {
     "@typescript-eslint/consistent-type-imports": {
-      "count": 2
+      "count": 1
     }
   },
   "test/unit/lyrics/decryption.test.ts": {

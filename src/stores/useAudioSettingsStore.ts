@@ -40,6 +40,35 @@ export const ENABLE_TRANSCODE_FALLBACK_KEY = 'folia_enable_transcode_fallback';
 
 /** Whether finished plays of online NetEase tracks are reported to the signed-in account. */
 export const NETEASE_SCROBBLE_KEY = 'folia_netease_scrobble';
+// The listening report setting, one per source that takes reports (Folium 2.0 plan §7): stored under
+// `folia_playback_report:<source id>`, except where a source kept its own key before (LEGACY_PLAYBACK_REPORT_KEYS).
+export const PLAYBACK_REPORT_KEY_PREFIX = 'folia_playback_report:';
+// The one source whose setting was stored before the setting became per source: it keeps reading and writing its
+// old key, so the choice made then stands (and an older build still reads it).
+const LEGACY_PLAYBACK_REPORT_KEYS: Readonly<Record<string, string>> = { netease: NETEASE_SCROBBLE_KEY };
+
+/** Where the listening report setting of `providerId` is stored. */
+export const playbackReportStorageKey = (providerId: string): string => (
+    LEGACY_PLAYBACK_REPORT_KEYS[providerId] ?? PLAYBACK_REPORT_KEY_PREFIX + providerId
+);
+
+/*
+ * The stored listening report setting of `providerId`, read and written here only. The new keys are spelt
+ * `PLAYBACK_REPORT_KEY_PREFIX + providerId` at the call, which is how the storage key registry
+ * (dev/dedicatus/storageKeys.mjs, D507) reads a key with a variable part: as `folia_playback_report:*`.
+ */
+const readStoredPlaybackReport = (providerId: string): boolean => {
+    const legacyKey = LEGACY_PLAYBACK_REPORT_KEYS[providerId];
+    return legacyKey
+        ? getStoredBoolean(legacyKey, false)
+        : getStoredBoolean(PLAYBACK_REPORT_KEY_PREFIX + providerId, false);
+};
+
+const writeStoredPlaybackReport = (providerId: string, enable: boolean): void => {
+    const legacyKey = LEGACY_PLAYBACK_REPORT_KEYS[providerId];
+    if (legacyKey) setStoredBoolean(legacyKey, enable);
+    else setStoredBoolean(PLAYBACK_REPORT_KEY_PREFIX + providerId, enable);
+};
 
 /** Whether pause fades out and resume fades in (services/playbackFade). On unless switched off. */
 export const PLAYBACK_FADE_KEY = 'folia_playback_fade_enabled';
@@ -210,7 +239,11 @@ export type AudioSettingsState = {
     /** Electron-only recovery for local and Navidrome formats Chromium cannot decode. */
     enableTranscodeFallback: boolean;
     /** Report finished plays of online NetEase tracks to the signed-in account. Off by default. */
-    neteaseScrobbleEnabled: boolean;
+    /**
+     * Whether finished plays are reported to the account, by source id (off where not set). Read it with
+     * isPlaybackReportEnabled, which reads a source's stored setting the first time it is asked for.
+     */
+    playbackReportEnabled: Readonly<Record<string, boolean>>;
     /** Short fade when pausing and resuming instead of cutting the sound. On by default. */
     playbackFadeEnabled: boolean;
     /** Count down to a skip when a song is restricted or fails for an unknown reason. Off by default. */
@@ -239,7 +272,7 @@ export type AudioSettingsState = {
     handleSetQueueAddBehavior: (behavior: QueueAddBehavior) => void;
     handleToggleAutoPlayOnLaunch: (enable: boolean) => void;
     handleToggleTranscodeFallback: (enable: boolean) => void;
-    handleToggleNeteaseScrobble: (enable: boolean) => void;
+    handleSetPlaybackReport: (providerId: string, enable: boolean) => void;
     handleTogglePlaybackFade: (enable: boolean) => void;
     handleToggleAutoSkipUnplayable: (enable: boolean) => void;
     handleToggleShuffleRoundNoRepeat: (enable: boolean) => void;
@@ -327,7 +360,8 @@ export const useAudioSettingsStore = create<AudioSettingsState>((set, get) => ({
         typeof window !== 'undefined' && Boolean(window.electron?.requestTranscodeFallback),
     ),
     // Off unless asked for: it writes to the listener's music account, so it is never a default.
-    neteaseScrobbleEnabled: getStoredBoolean(NETEASE_SCROBBLE_KEY, false),
+    // The source with an old key (LEGACY_PLAYBACK_REPORT_KEYS) is read at start; any other when first asked for.
+    playbackReportEnabled: { netease: getStoredBoolean(NETEASE_SCROBBLE_KEY, false) },
     playbackFadeEnabled: getStoredBoolean(PLAYBACK_FADE_KEY, true),
     // Off unless asked for: skipping a song the listener picked is not something to do by default.
     autoSkipUnplayable: getStoredBoolean(AUTO_SKIP_UNPLAYABLE_KEY, false),
@@ -380,9 +414,9 @@ export const useAudioSettingsStore = create<AudioSettingsState>((set, get) => ({
         setStoredBoolean(ENABLE_TRANSCODE_FALLBACK_KEY, enable);
         set({ enableTranscodeFallback: enable });
     },
-    handleToggleNeteaseScrobble: (enable) => {
-        setStoredBoolean(NETEASE_SCROBBLE_KEY, enable);
-        set({ neteaseScrobbleEnabled: enable });
+    handleSetPlaybackReport: (providerId, enable) => {
+        writeStoredPlaybackReport(providerId, enable);
+        set(state => ({ playbackReportEnabled: { ...state.playbackReportEnabled, [providerId]: enable } }));
     },
     handleTogglePlaybackFade: (enable) => {
         setStoredBoolean(PLAYBACK_FADE_KEY, enable);
@@ -528,7 +562,7 @@ export const selectAudioSettingsSnapshot = (state: AudioSettingsState) => ({
     queueAddBehavior: state.queueAddBehavior,
     autoPlayOnLaunch: state.autoPlayOnLaunch,
     enableTranscodeFallback: state.enableTranscodeFallback,
-    neteaseScrobbleEnabled: state.neteaseScrobbleEnabled,
+    playbackReportEnabled: state.playbackReportEnabled,
     playbackFadeEnabled: state.playbackFadeEnabled,
     autoSkipUnplayable: state.autoSkipUnplayable,
     shuffleRoundNoRepeat: state.shuffleRoundNoRepeat,
@@ -544,7 +578,7 @@ export const selectAudioSettingsSnapshot = (state: AudioSettingsState) => ({
     handleSetQueueAddBehavior: state.handleSetQueueAddBehavior,
     handleToggleAutoPlayOnLaunch: state.handleToggleAutoPlayOnLaunch,
     handleToggleTranscodeFallback: state.handleToggleTranscodeFallback,
-    handleToggleNeteaseScrobble: state.handleToggleNeteaseScrobble,
+    handleSetPlaybackReport: state.handleSetPlaybackReport,
     handleTogglePlaybackFade: state.handleTogglePlaybackFade,
     handleToggleAutoSkipUnplayable: state.handleToggleAutoSkipUnplayable,
     handleToggleShuffleRoundNoRepeat: state.handleToggleShuffleRoundNoRepeat,
@@ -563,3 +597,9 @@ export const selectAudioSettingsSnapshot = (state: AudioSettingsState) => ({
 export const handleSetVolume = (val: number) => useAudioSettingsStore.getState().handleSetVolume(val);
 export const handleToggleMute = () => useAudioSettingsStore.getState().handleToggleMute();
 export const setAudioQuality = (quality: AudioQuality) => useAudioSettingsStore.getState().setAudioQuality(quality);
+
+/** Whether finished plays of `providerId`'s songs are reported to its account; a source not asked about yet is read from storage. */
+export const isPlaybackReportEnabled = (state: Pick<AudioSettingsState, 'playbackReportEnabled'>, providerId: string | null | undefined): boolean => {
+    if (!providerId) return false;
+    return state.playbackReportEnabled[providerId] ?? readStoredPlaybackReport(providerId);
+};

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { resolveCommandPaletteSearchSource, useSearchNavigationStore } from '@/stores/useSearchNavigationStore';
+import { UNSET_SEARCH_SOURCE, resolveCommandPaletteSearchSource, useSearchNavigationStore } from '@/stores/useSearchNavigationStore';
 import { neteaseApi } from '@/services/onlineMusic/netease/netease';
 import { getNavidromeConfig, navidromeApi } from '@/services/navidromeService';
 import type { LocalLibraryAssignment, LocalLibraryEntity } from '@/types/localLibrary';
@@ -65,7 +65,22 @@ describe('useSearchNavigationStore', () => {
             album: { id: 1, name: '' },
             durationMs: 1,
         }, 'netease', 'kugou')).toBe('kugou');
-        expect(resolveCommandPaletteSearchSource(null, 'netease', 'kugou')).toBe('kugou');
+        // No search has picked a source yet: the platform in effect (there is no default platform).
+        expect(resolveCommandPaletteSearchSource(null, UNSET_SEARCH_SOURCE, 'kugou')).toBe('kugou');
+        // A source a search picked stays the palette's, NetEase like any other.
+        expect(resolveCommandPaletteSearchSource(null, 'netease', 'kugou')).toBe('netease');
+        expect(resolveCommandPaletteSearchSource(null, 'qq', 'kugou')).toBe('qq');
+    });
+
+    // Folium 2.0 方案 §7：零音源（或存着的平台此刻不在）时不去搜，走空状态，不报错。
+    it('sends no search to an online source that is not registered', async () => {
+        const info = vi.spyOn(console, 'info').mockImplementation(() => {});
+        const didSearch = await useSearchNavigationStore.getState().submitSearch({ query: 'test', sourceTab: 'not-registered-source', deps });
+        expect(didSearch).toBe(false);
+        expect(cloudSearchMock).not.toHaveBeenCalled();
+        expect(useSearchNavigationStore.getState().isSearchOpen).toBe(false);
+        expect(useSearchNavigationStore.getState().searchError).toBeNull();
+        info.mockRestore();
     });
 
     it('searches albums through omni, keeps the kind and caches the page apart from the songs', async () => {

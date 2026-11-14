@@ -8,7 +8,7 @@ import type {
     ProviderExploreSection,
 } from '../../../types/onlineMusic';
 import { OnlineProviderError } from '../../../types/onlineMusic';
-import { createHandedOut, cursorWords, stampCursor } from '../exploreReads';
+import { createHandedOut, cursorWords, stampCursor } from '@folia/folium-source-kit';
 import { errorMessage } from '../../../utils/errorText';
 import { qqRadioCollection, qqToplistCollection } from './qqLists';
 import { normalizeQqCollection, normalizeQqSong } from './qqNormalize';

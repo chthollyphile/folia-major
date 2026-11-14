@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 // dev/folium/api-docs.mjs
 // Generates docs/folium/api.md, the Folium API reference, from the public
-// contract: src/mods/folium/contract.ts (the client entry) and
-// src/mods/folium/mainContract.ts (the main entry), the single sources of the
-// API. They are written in a regular style (JSDoc, `// ----` section markers,
+// contract: src/mods/folium/contract.ts (the client entry),
+// src/mods/folium/sources/contract.ts (Folium 2.0: `folium.sources` and its
+// capabilities) and src/mods/folium/mainContract.ts (the main entry), the
+// single sources of the API. They are written in a regular style (JSDoc, `// ----` section markers,
 // one member per `;`), so a small scanner is enough; TypeScript's JS compiler
 // API is not available with the native TypeScript 7 package.
 //
@@ -35,6 +36,10 @@ const { OLD_MAIN_NAMES, OLD_PERMISSIONS } = require('../../electron/modSystem/de
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 export const CONTRACT_PATH = path.join(ROOT, 'src', 'mods', 'folium', 'contract.ts');
 export const MAIN_CONTRACT_PATH = path.join(ROOT, 'src', 'mods', 'folium', 'mainContract.ts');
+export const SOURCES_CONTRACT_PATH = path.join(ROOT, 'src', 'mods', 'folium', 'sources', 'contract.ts');
+
+/** The sources contract as it is on disk: what the generators read when they are not handed it. */
+export const readSourcesContract = () => fs.readFileSync(SOURCES_CONTRACT_PATH, 'utf8');
 export const OUTPUT_PATH = path.join(ROOT, 'docs', 'folium', 'api.md');
 export const SHARED_PATH = path.join(ROOT, 'electron', 'modSystem', 'foliumShared.json');
 
@@ -216,6 +221,16 @@ export const parseContract = (text) => {
 
 // ---------------------------------------------------------------- rendering
 
+/*
+ * Folium 2.0 (plan §10, delivery): while foliumShared.json says `sourcesPreview`, the source interface is a
+ * preview, and the reference says so at its top and over the two sections that hold it. The type file says the
+ * same (types.mjs). `folium: 1`'s promise is not touched: its interface stays frozen at 1.9.
+ */
+export const SOURCES_PREVIEW_SECTIONS = ['Sources', 'Source main API'];
+export const SOURCES_PREVIEW_NOTE = '> **预览**：Folium 2 的音源接口（`folium.sources` 与音源类模组 main 入口的 `api`）还是预览版，'
+    + '九个内置音源全部迁过去之前可能变动；用它写的模组可能要随新版本更新。`folium: 1` 冻结在 Folium 1.9 的接口不受影响。';
+export const sourcesPreview = () => readFoliumShared().sourcesPreview === true;
+
 // Contract section → reference heading, lookup order, and a short orientation.
 const SECTION_INFO = {
     'Client API': {
@@ -258,18 +273,28 @@ const SECTION_INFO = {
         title: '数据结构',
         intro: '歌词行与主题与内置 visualizer 收到的 `Line` / `Theme` 同名同义，是宿主投影出的冻结副本。',
     },
-    Experimental: {
+    Sources: {
         order: 9,
+        title: '音源（Folium 2）',
+        intro: '`folium: 2` 的音源类模组（`mod.json` 里声明了 `sources`）在 client 入口里用 `folium.sources.register` 注册音源：注册字段加上一组带版本的能力（`search@1`、`songs@1`、`playback.audio@1` …），宿主按实现了哪些能力、其中哪些成员在推导界面上的开关。`folium.sources.supports(id, version)` 说这个宿主实现了哪些能力；`folium.omni.capability` 取别的音源的自定义能力。这一节来自 [`src/mods/folium/sources/contract.ts`](../../src/mods/folium/sources/contract.ts)。`folium: 1` 的模组没有这些成员。',
+    },
+    Experimental: {
+        order: 10,
         title: '实验接口',
         intro: '需要在 `mod.json` 的 `experimental` 里选用，经 `folium.experimental[name]` 访问；任何 minor 版本都可能变化。',
     },
     'Main API': {
-        order: 10,
+        order: 11,
         title: 'main 入口（Node）',
         intro: '`mod.json` 的 `main` 指向一个 `.cjs` / `.js` 文件，它导出的 `activate(api)`（[FoliumMainModule](#foliummainmodule)）在 Folia 的主进程里运行，参数是 [FoliumMainApi](#foliummainapi)。这一节来自 [`src/mods/folium/mainContract.ts`](../../src/mods/folium/mainContract.ts)。',
     },
+    'Source main API': {
+        order: 12,
+        title: '音源类模组的 main 入口',
+        intro: '音源类模组的 main 入口拿到的 `api` 比普通模组多下面这些成员（[FoliumSourceMainApi](#foliumsourcemainapi)，方案 §5.5），也不受普通模组的网络、存储限额约束；普通模组的 `api` 没有它们。',
+    },
     Basics: {
-        order: 11,
+        order: 13,
         title: '基础类型',
         intro: '',
     },
@@ -480,26 +505,29 @@ const TABLES = {
     Events: { heading: EVENTS_HEADING, render: renderEvents },
 };
 
-/* The whole reference as markdown, from the texts of the contract and the main contract. */
-export const renderApiDocs = (contractText, mainContractText) => {
-    const sections = [...parseContract(contractText), ...parseContract(mainContractText)]
+/* The whole reference as markdown, from the texts of the contract, the main contract and the sources contract. */
+export const renderApiDocs = (contractText, mainContractText, sourcesContractText = readSourcesContract()) => {
+    const sections = [...parseContract(contractText), ...parseContract(sourcesContractText), ...parseContract(mainContractText)]
         .map((section) => ({ ...section, info: SECTION_INFO[section.title] ?? { order: 99, title: section.title, intro: '' } }))
         .sort((left, right) => left.info.order - right.info.order);
     const items = sections.flatMap((section) => section.items);
     const known = new Set(items.map((item) => item.name));
     const interfaces = new Map(items.filter((item) => item.kind === 'interface').map((item) => [item.name, item]));
+    const preview = sourcesPreview();
     const version = /FOLIUM_VERSION = Object\.freeze\(\{ major: (\d+), minor: (\d+) \}\)/.exec(contractText);
     if (!version) throw new Error('contract.ts has no FOLIUM_VERSION = Object.freeze({ major, minor })');
 
     const out = [
-        '<!-- 本文件由 `npm run folium:api` 从 src/mods/folium/contract.ts 和 mainContract.ts 生成，请勿手动修改。 -->',
+        '<!-- 本文件由 `npm run folium:api` 从 src/mods/folium/contract.ts、sources/contract.ts 和 mainContract.ts 生成，请勿手动修改。 -->',
         '',
         '# Folium API 参考',
         '',
         `当前契约版本：**Folium ${version[1]}.${version[2]}**。`,
         '',
+        ...(preview ? [SOURCES_PREVIEW_NOTE, ''] : []),
         '本文列出模组能用到的全部公开类型，内容直接来自契约文件 [`src/mods/folium/contract.ts`](../../src/mods/folium/contract.ts)',
-        '（client 入口）与 [`src/mods/folium/mainContract.ts`](../../src/mods/folium/mainContract.ts)（main 入口），',
+        '（client 入口）、[`src/mods/folium/sources/contract.ts`](../../src/mods/folium/sources/contract.ts)（音源）与 [`src/mods/folium/mainContract.ts`](../../src/mods/folium/mainContract.ts)（main 入口），',
+        '`mod.json` 写 `"folium": 1` 的模组看到的接口冻结在 Folium 1.9（`folium.host.folium` 读到 1.9，没有标着 Folium 2 的成员）。',
         '成员说明保留契约里的原文注释。平台规则（清单、权限、生命周期、安全模型）见 [Folium 规范](../../mods/README.md)，',
         '从零开始写模组、调试与发布到模组市场见 [模组开发与贡献指南](contributing.md)。',
         '',
@@ -514,6 +542,7 @@ export const renderApiDocs = (contractText, mainContractText) => {
     ];
     for (const section of sections) {
         out.push(`## ${section.info.title}`, '');
+        if (preview && SOURCES_PREVIEW_SECTIONS.includes(section.title)) out.push(SOURCES_PREVIEW_NOTE, '');
         if (section.info.intro) out.push(section.info.intro, '');
         if (TABLES[section.title]) out.push(TABLES[section.title].render(items), '');
         for (const item of section.items) out.push(renderItem(item, known, interfaces), '');

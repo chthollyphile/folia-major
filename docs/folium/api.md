@@ -1,11 +1,14 @@
-<!-- 本文件由 `npm run folium:api` 从 src/mods/folium/contract.ts 和 mainContract.ts 生成，请勿手动修改。 -->
+<!-- 本文件由 `npm run folium:api` 从 src/mods/folium/contract.ts、sources/contract.ts 和 mainContract.ts 生成，请勿手动修改。 -->
 
 # Folium API 参考
 
-当前契约版本：**Folium 1.9**。
+当前契约版本：**Folium 2.0**。
+
+> **预览**：Folium 2 的音源接口（`folium.sources` 与音源类模组 main 入口的 `api`）还是预览版，九个内置音源全部迁过去之前可能变动；用它写的模组可能要随新版本更新。`folium: 1` 冻结在 Folium 1.9 的接口不受影响。
 
 本文列出模组能用到的全部公开类型，内容直接来自契约文件 [`src/mods/folium/contract.ts`](../../src/mods/folium/contract.ts)
-（client 入口）与 [`src/mods/folium/mainContract.ts`](../../src/mods/folium/mainContract.ts)（main 入口），
+（client 入口）、[`src/mods/folium/sources/contract.ts`](../../src/mods/folium/sources/contract.ts)（音源）与 [`src/mods/folium/mainContract.ts`](../../src/mods/folium/mainContract.ts)（main 入口），
+`mod.json` 写 `"folium": 1` 的模组看到的接口冻结在 Folium 1.9（`folium.host.folium` 读到 1.9，没有标着 Folium 2 的成员）。
 成员说明保留契约里的原文注释。平台规则（清单、权限、生命周期、安全模型）见 [Folium 规范](../../mods/README.md)，
 从零开始写模组、调试与发布到模组市场见 [模组开发与贡献指南](contributing.md)。
 
@@ -19,8 +22,10 @@
 - **共享工具**：[FoliumWordSegment](#foliumwordsegment) · [FoliumWordColorRange](#foliumwordcolorrange) · [FoliumLyricsHelpers](#foliumlyricshelpers) · [FoliumThemeHelpers](#foliumthemehelpers)
 - **设置 schema**：[FoliumSettingType](#foliumsettingtype) · [FoliumSettingOption](#foliumsettingoption) · [FoliumSetting](#foliumsetting) · [FoliumSettingValues](#foliumsettingvalues) · [FoliumSettingAccess](#foliumsettingaccess)
 - **数据结构**：[FoliumLyricRuby](#foliumlyricruby) · [FoliumLyricSyllable](#foliumlyricsyllable) · [FoliumLyricAlternateText](#foliumlyricalternatetext) · [FoliumWord](#foliumword) · [FoliumBackgroundVocal](#foliumbackgroundvocal) · [FoliumLineTimingClass](#foliumlinetimingclass) · [FoliumLineTransitionMode](#foliumlinetransitionmode) · [FoliumWordRevealMode](#foliumwordrevealmode) · [FoliumLineRenderHints](#foliumlinerenderhints) · [FoliumLine](#foliumline) · [FoliumTheme](#foliumtheme) · [FoliumSong](#foliumsong) · [FoliumPlaybackState](#foliumplaybackstate) · [FoliumLoopMode](#foliumloopmode) · [FoliumQueueItem](#foliumqueueitem) · [FoliumQueueSnapshot](#foliumqueuesnapshot) · [FoliumQueueChange](#foliumqueuechange) · [FoliumQueueReplaceRefusal](#foliumqueuereplacerefusal) · [FoliumQueueReplaced](#foliumqueuereplaced) · [FoliumQueueReplaceRefused](#foliumqueuereplacerefused) · [FoliumQueueReplaceResult](#foliumqueuereplaceresult) · [FoliumPlaybackSnapshot](#foliumplaybacksnapshot) · [FoliumLyricFormat](#foliumlyricformat) · [FoliumLyricsTrack](#foliumlyricstrack) · [FoliumLyricsResult](#foliumlyricsresult) · [FoliumLegacyLyricsResult](#foliumlegacylyricsresult) · [FoliumParsedLyrics](#foliumparsedlyrics)
+- **音源（Folium 2）**：[FoliumText](#foliumtext) · [FoliumTextKey](#foliumtextkey) · [FoliumI18nService](#foliumi18nservice) · [FoliumSourceCapabilityId](#foliumsourcecapabilityid) · [FoliumSourceCapabilities](#foliumsourcecapabilities) · [FoliumSourceMark](#foliumsourcemark) · [FoliumSourceAvailability](#foliumsourceavailability) · [FoliumSourceDef](#foliumsourcedef) · [FoliumSourceItemKind](#foliumsourceitemkind) · [FoliumSourceHandle](#foliumsourcehandle) · [FoliumSourceNotice](#foliumsourcenotice) · [FoliumSourceErrorCode](#foliumsourceerrorcode) · [FoliumSourceErrorDetails](#foliumsourceerrordetails) · [FoliumSourceError](#foliumsourceerror) · [FoliumSourcePageStore](#foliumsourcepagestore) · [FoliumSourcesService](#foliumsourcesservice) · [FoliumSourcePage](#foliumsourcepage) · [FoliumSourceNamedRef](#foliumsourcenamedref) · [FoliumSourceAlbumRef](#foliumsourcealbumref) · [FoliumSourceReplayGain](#foliumsourcereplaygain) · [FoliumSourceSong](#foliumsourcesong) · [FoliumSourceUser](#foliumsourceuser) · [FoliumSourceFmLaunch](#foliumsourcefmlaunch) · [FoliumSourceCollection](#foliumsourcecollection) · [FoliumSourceSearchContext](#foliumsourcesearchcontext) · [FoliumSourceAccess](#foliumsourceaccess) · [FoliumSourceSearch](#foliumsourcesearch) · [FoliumSourceSongAvailability](#foliumsourcesongavailability) · [FoliumSourceSongs](#foliumsourcesongs) · [FoliumSourceAudioQuality](#foliumsourceaudioquality) · [FoliumSourceAudio](#foliumsourceaudio) · [FoliumSourceAudioPlayback](#foliumsourceaudioplayback) · [FoliumSourceExternalStatus](#foliumsourceexternalstatus) · [FoliumSourceExternalPlayback](#foliumsourceexternalplayback) · [FoliumSourceSurfacePlayback](#foliumsourcesurfaceplayback) · [FoliumSourcePlaybackReport](#foliumsourceplaybackreport) · [FoliumSourceReports](#foliumsourcereports) · [FoliumSourceLyricFormat](#foliumsourcelyricformat) · [FoliumSourceLyricsTrack](#foliumsourcelyricstrack) · [FoliumSourceLyricsResult](#foliumsourcelyricsresult) · [FoliumSourceLyricAlias](#foliumsourcelyricalias) · [FoliumSourceLyrics](#foliumsourcelyrics) · [FoliumSourceLoginCase](#foliumsourcelogincase) · [FoliumSourceLoginFailure](#foliumsourceloginfailure) · [FoliumSourceFailureCase](#foliumsourcefailurecase) · [FoliumSourceFailureDetail](#foliumsourcefailuredetail) · [FoliumSourceLoginState](#foliumsourceloginstate) · [FoliumSourceLoginStep](#foliumsourceloginstep) · [FoliumSourceLoginMethod](#foliumsourceloginmethod) · [FoliumSourceLoginTexts](#foliumsourcelogintexts) · [FoliumSourceLoginForm](#foliumsourceloginform) · [FoliumSourceLocalService](#foliumsourcelocalservice) · [FoliumSourceSetupStep](#foliumsourcesetupstep) · [FoliumSourceSetupView](#foliumsourcesetupview) · [FoliumSourceDiagnosticLine](#foliumsourcediagnosticline) · [FoliumSourceSelfCheck](#foliumsourceselfcheck) · [FoliumSourceKeptAccount](#foliumsourcekeptaccount) · [FoliumSourceAuth](#foliumsourceauth) · [FoliumSourceLibrary](#foliumsourcelibrary) · [FoliumSourceCatalog](#foliumsourcecatalog) · [FoliumSourceFmCatalog](#foliumsourcefmcatalog) · [FoliumSourcePreference](#foliumsourcepreference) · [FoliumSourcePreferences](#foliumsourcepreferences) · [FoliumSourceRecommendations](#foliumsourcerecommendations) · [FoliumSourceExploreItem](#foliumsourceexploreitem) · [FoliumSourceExploreSection](#foliumsourceexploresection) · [FoliumSourceExplorePage](#foliumsourceexplorepage) · [FoliumSourceExplore](#foliumsourceexplore) · [FoliumSourceMutations](#foliumsourcemutations) · [FoliumSourceCovers](#foliumsourcecovers) · [FoliumSourceRawEndpoint](#foliumsourcerawendpoint) · [FoliumSourceRaw](#foliumsourceraw)
 - **实验接口**：[FoliumLayoutRect](#foliumlayoutrect) · [FoliumPlayerObstacle](#foliumplayerobstacle) · [FoliumPlayerLayout](#foliumplayerlayout) · [FoliumRemoteActionDef](#foliumremoteactiondef) · [FoliumRemoteActionsContext](#foliumremoteactionscontext) · [FoliumRemoteActionsDef](#foliumremoteactionsdef) · [FoliumRemoteActionsHandle](#foliumremoteactionshandle) · [FoliumProviderSong](#foliumprovidersong) · [FoliumAudioQuality](#foliumaudioquality) · [FoliumOmniProviderDef](#foliumomniproviderdef) · [FoliumJsonValue](#foliumjsonvalue) · [FoliumPlatformBackend](#foliumplatformbackend) · [FoliumPlatformDescription](#foliumplatformdescription) · [FoliumPlatformResponse](#foliumplatformresponse) · [FoliumPlatformErrorCode](#foliumplatformerrorcode) · [FoliumPlatformService](#foliumplatformservice)
 - **main 入口（Node）**：[FoliumMainModule](#foliummainmodule) · [FoliumMainApi](#foliummainapi) · [FoliumManifest](#foliummanifest) · [FoliumMainStorage](#foliummainstorage) · [FoliumModPaths](#foliummodpaths) · [FoliumMainPaths](#foliummainpaths) · [FoliumMainRuntime](#foliummainruntime) · [FoliumMainRpc](#foliummainrpc) · [FoliumMainRender](#foliummainrender) · [FoliumExportSpec](#foliumexportspec) · [FoliumExportResult](#foliumexportresult)
+- **音源类模组的 main 入口**：[FoliumSourceMainApi](#foliumsourcemainapi) · [FoliumSourceHostInfo](#foliumsourcehostinfo) · [FoliumSourceMainPaths](#foliumsourcemainpaths) · [FoliumSourceDiagnostics](#foliumsourcediagnostics) · [FoliumSourceNative](#foliumsourcenative) · [FoliumSourceNet](#foliumsourcenet) · [FoliumSourceNetSession](#foliumsourcenetsession) · [FoliumSourceRequestOptions](#foliumsourcerequestoptions) · [FoliumSourceIncomingMessage](#foliumsourceincomingmessage) · [FoliumSourceClientRequest](#foliumsourceclientrequest) · [FoliumSourceMediaRequest](#foliumsourcemediarequest) · [FoliumSourceLegacyStore](#foliumsourcelegacystore) · [FoliumSourceSeal](#foliumsourceseal) · [FoliumSourceCache](#foliumsourcecache) · [FoliumSourceCacheEntries](#foliumsourcecacheentries) · [FoliumSourceMediaRule](#foliumsourcemediarule) · [FoliumSourceMediaAllowed](#foliumsourcemediaallowed) · [FoliumSourceMedia](#foliumsourcemedia) · [FoliumSourceWindows](#foliumsourcewindows)
 - **基础类型**：[FOLIUM_VERSION](#folium_version) · [FoliumId](#foliumid) · [FoliumLabel](#foliumlabel) · [FoliumDisposer](#foliumdisposer)
 - **[仍可用的旧名字](#仍可用的旧名字)**
 
@@ -67,7 +72,10 @@ type FoliumContextKind = 'main' | 'export'
 ### FoliumHostInfo
 
 The host's versions (`folium.host`), for display and logs. Every member of this contract is there from
-Folium 1.7 on; an older 1.x host lacks some of them.
+Folium 1.7 on; an older 1.x host lacks some of them. Folium 2.0: a mod whose mod.json says `folium: 1`
+reads 1.9 here, the version its interface stays at; a `folium: 2` mod reads the host's own. A host that
+runs a `folium: 2` mod has every member a "check `folium.host.folium.minor >= …`" below speaks of: such a
+check is for `folium: 1` mods (in a `folium: 2` mod, check `major >= 2` or nothing).
 
 | 成员 | 类型 | 说明 |
 | --- | --- | --- |
@@ -161,11 +169,13 @@ The object a client entry's `activate(folium)` receives.
 | `readonly omni` | `FoliumOmniService` | Folium 1.7: the host's online music sources, read only: search, songs by id, lyrics, albums, artists. |
 | `readonly equalizer` | `FoliumEqualizerService` | Folium 1.7: the host's graphic equalizer: read it, switch the user's sound, put a curve of your own in place. |
 | `readonly visualizer` | `FoliumVisualizerService` | Folium 1.8: the host's settings of the lyric display: the global lyric render quality. |
+| `readonly sources` | `FoliumSourcesService` | Folium 2 (a `folium: 1` mod has none): a source mod's sources (`sources` in mod.json). Any `folium: 2` mod may ask `supports`; only a source mod registers. |
+| `readonly i18n` | `FoliumI18nService` | Folium 2 (a `folium: 1` mod has none): texts from the mod's own locale files (`locales` in mod.json). |
 | `every()` | `(ms: number, listener: () => void): FoliumDisposer` | Calls `listener` every `ms` milliseconds (at least 16) until the mod stops; the host stops it then. |
 | `onDispose()` | `(disposer: FoliumDisposer): void` | Runs `disposer` when the mod stops, after the disposer `activate` returned; at once when the mod has already stopped. |
 | `readonly experimental` | `Readonly<Record<string, unknown>>` | Unfrozen surfaces; each requires the matching manifest `experimental` opt-in. |
 
-相关：[FoliumHostInfo](#foliumhostinfo) · [FoliumContextKind](#foliumcontextkind) · [FoliumLogger](#foliumlogger) · [FoliumRegistries](#foliumregistries) · [FoliumEvents](#foliumevents) · [FoliumPlaybackService](#foliumplaybackservice) · [FoliumUiService](#foliumuiservice) · [FoliumNetService](#foliumnetservice) · [FoliumStorage](#foliumstorage) · [FoliumSecretAccess](#foliumsecretaccess) · [FoliumRpc](#foliumrpc) · [FoliumLyricsService](#foliumlyricsservice) · [FoliumThemeHelpers](#foliumthemehelpers) · [FoliumAccountService](#foliumaccountservice) · [FoliumOmniService](#foliumomniservice) · [FoliumEqualizerService](#foliumequalizerservice) · [FoliumVisualizerService](#foliumvisualizerservice) · [FoliumDisposer](#foliumdisposer)
+相关：[FoliumHostInfo](#foliumhostinfo) · [FoliumContextKind](#foliumcontextkind) · [FoliumLogger](#foliumlogger) · [FoliumRegistries](#foliumregistries) · [FoliumEvents](#foliumevents) · [FoliumPlaybackService](#foliumplaybackservice) · [FoliumUiService](#foliumuiservice) · [FoliumNetService](#foliumnetservice) · [FoliumStorage](#foliumstorage) · [FoliumSecretAccess](#foliumsecretaccess) · [FoliumRpc](#foliumrpc) · [FoliumLyricsService](#foliumlyricsservice) · [FoliumThemeHelpers](#foliumthemehelpers) · [FoliumAccountService](#foliumaccountservice) · [FoliumOmniService](#foliumomniservice) · [FoliumEqualizerService](#foliumequalizerservice) · [FoliumVisualizerService](#foliumvisualizerservice) · [FoliumSourcesService](#foliumsourcesservice) · [FoliumI18nService](#foliumi18nservice) · [FoliumDisposer](#foliumdisposer)
 
 ### FoliumClientModule
 
@@ -970,11 +980,14 @@ Request options for `folium.net.fetch`.
 | `method?` | `'GET' \| 'POST' \| 'PUT' \| 'PATCH' \| 'DELETE' \| 'HEAD'` | Default `GET`. |
 | `headers?` | `Record<string, string>` | Request headers. |
 | `body?` | `string` | Request body (text). |
-| `timeoutMs?` | `number` | Default 15000, at most 60000. |
+| `timeoutMs?` | `number` | Default 15000, at most 60000 (a source mod sets any). |
+| `responseType?` | `'text' \| 'arrayBuffer'` | Folium 2, source mods only: `arrayBuffer` reads the body as bytes, for `arrayBuffer()` (an ordinary mod's answers are text). Default `text`. |
+| `session?` | `string` | Folium 2, source mods only: the named partition the request goes through (as the main entry's `api.net.session`). |
 
 ### FoliumFetchResponse
 
-A fully read response (body at most 5 MB); `text` and `json` return synchronously.
+A fully read response (body at most 5 MB, none for a source mod); `text` and `json` return synchronously.
+Folium 2: a source mod's response also has `arrayBuffer()`.
 
 | 成员 | 类型 | 说明 |
 | --- | --- | --- |
@@ -984,6 +997,7 @@ A fully read response (body at most 5 MB); `text` and `json` return synchronousl
 | `readonly headers` | `Readonly<Record<string, string>>` | Response headers, lowercase names. |
 | `text()` | `(): string` | The body as text. |
 | `json()` | `<T = unknown>(): T` | The body parsed as JSON; throws on invalid JSON. |
+| `arrayBuffer?()` | `(): ArrayBuffer` | Folium 2, source mods only: the body as bytes (asked with `responseType: 'arrayBuffer'`; otherwise the text's UTF-8). An ordinary mod's response has none. |
 
 ### FoliumLyricsService
 
@@ -1007,6 +1021,7 @@ interface FoliumLyricsService extends FoliumLyricsHelpers
 | `buildWordColorRanges()` | `(fullText: string, wordColors: FoliumTheme['wordColors']): FoliumWordColorRange[]` | 继承自 [FoliumLyricsHelpers](#foliumlyricshelpers)。Non-overlapping keyword color spans of `fullText` for `theme.wordColors`. |
 | `resolveWordColor()` | `(wordText: string, wordColors: FoliumTheme['wordColors'], fallbackColor: string, options?: { cjkMatchMode?: 'target-contains-token' \| 'bidirectional-contains' \| 'exact' }): string` | 继承自 [FoliumLyricsHelpers](#foliumlyricshelpers)。The keyword color of one word, or `fallbackColor`. |
 | `parse()` | `(track: FoliumLyricsTrack): Promise<FoliumParsedLyrics>` | 继承自 [FoliumLyricsHelpers](#foliumlyricshelpers)。Parses a lyric document with the host's local lyric file pipeline, off the main thread. Rejects with a TypeError (`invalid-lyrics-track`) when the track is malformed. |
+| `isPureMusicText()` | `(text: string \| null \| undefined): boolean` | 继承自 [FoliumLyricsHelpers](#foliumlyricshelpers)。Folium 2: whether a lyric text is only the "instrumental, please enjoy" notice, by the host's own rule (the one its lyric display and its platforms use). For a source's `lyrics@1` answer (`isPureMusic`). Synchronous. |
 
 相关：[FoliumLyricsHelpers](#foliumlyricshelpers) · [FoliumLine](#foliumline)
 
@@ -1064,7 +1079,7 @@ More `supports` flags may come in later minors; a flag that is absent reads as f
 | `readonly providerId` | `string` | The Omni provider id, as `FoliumSong.source` and `FoliumAccountState.providerId` name it. |
 | `readonly displayName` | `string` | Full name, as the host's source switcher shows it. |
 | `readonly shortName` | `string` | Short name, as the search overlay's source chip shows it. |
-| `readonly origin` | `'host' \| 'mod'` | `host`: built into Folia. `mod`: registered by a mod (`omni.providers`); gone while that mod is off. |
+| `readonly origin` | `'host' \| 'mod'` | `host`: built into Folia. `mod`: registered by a mod (`omni.providers`, or Folium 2 `folium.sources`); gone while that mod is off. |
 | `readonly selected` | `boolean` | Whether this is the source the host has selected now (what `searchSongs` uses without `providerId`). |
 | `readonly configured` | `boolean` | False when the source is not set up in this host. True does not promise that a request succeeds. |
 | `readonly supports` | `{ readonly search: boolean; readonly resolve: boolean; readonly lyrics: boolean; readonly albums: boolean; readonly artists: boolean; }` | What of `folium.omni` this source answers; a method on a source without its flag rejects `unsupported`. |
@@ -1223,6 +1238,7 @@ Async methods reject with an Error whose `code` is a FoliumOmniErrorCode, and wi
 | `resolveCollection()` | `(key: FoliumCollectionKey, options?: { signal?: AbortSignal }): Promise<FoliumCollection \| null>` | An album or artist by its key, with the details its source gives; null when the source has none. A source may also reject `unavailable` or `network` for an id it does not know. |
 | `getTracks()` | `(collection: FoliumCollection, options?: { cursor?: string; limit?: number; signal?: AbortSignal }): Promise<FoliumOmniPage<FoliumSong>>` | A page of an album's songs, or of an artist's songs (in the source's order, most popular first for most sources). Without `cursor` the first page; `limit` (default 50, at most 100) is read only then. |
 | `getArtistAlbums()` | `(artist: FoliumCollection, options?: { cursor?: string; limit?: number; signal?: AbortSignal }): Promise<FoliumOmniPage<FoliumCollection>>` | A page of an artist's albums; paged as `getTracks`. |
+| `capability()` | `(sourceId: string, id: string): unknown` | Folium 2 (a `folium: 1` mod has none): a custom capability (`x.<mod id>.<name>@<version>`) of a source, the very object its mod registered, or null where the source has none by that id (or is not there). The host does not call into it, check it or time it: what it does is between the two mods. Synchronous. |
 
 相关：[FoliumOmniProviderInfo](#foliumomniproviderinfo) · [FoliumOmniPage](#foliumomnipage) · [FoliumSong](#foliumsong) · [FoliumSongKey](#foliumsongkey) · [FoliumSongResolution](#foliumsongresolution) · [FoliumSongDetails](#foliumsongdetails) · [FoliumOmniLyrics](#foliumomnilyrics) · [FoliumCollection](#foliumcollection) · [FoliumCollectionKey](#foliumcollectionkey)
 
@@ -1753,6 +1769,7 @@ times and colors lines exactly as they do. Available in both contexts.
 | `buildWordColorRanges()` | `(fullText: string, wordColors: FoliumTheme['wordColors']): FoliumWordColorRange[]` | Non-overlapping keyword color spans of `fullText` for `theme.wordColors`. |
 | `resolveWordColor()` | `(wordText: string, wordColors: FoliumTheme['wordColors'], fallbackColor: string, options?: { cjkMatchMode?: 'target-contains-token' \| 'bidirectional-contains' \| 'exact' }): string` | The keyword color of one word, or `fallbackColor`. |
 | `parse()` | `(track: FoliumLyricsTrack): Promise<FoliumParsedLyrics>` | Parses a lyric document with the host's local lyric file pipeline, off the main thread. Rejects with a TypeError (`invalid-lyrics-track`) when the track is malformed. |
+| `isPureMusicText()` | `(text: string \| null \| undefined): boolean` | Folium 2: whether a lyric text is only the "instrumental, please enjoy" notice, by the host's own rule (the one its lyric display and its platforms use). For a source's `lyrics@1` answer (`isPureMusic`). Synchronous. |
 
 相关：[FoliumLine](#foliumline) · [FoliumWordSegment](#foliumwordsegment) · [FoliumTheme](#foliumtheme) · [FoliumWordColorRange](#foliumwordcolorrange) · [FoliumLyricsTrack](#foliumlyricstrack) · [FoliumParsedLyrics](#foliumparsedlyrics)
 
@@ -2229,6 +2246,1024 @@ What `folium.lyrics.parse` returns.
 
 相关：[FoliumLine](#foliumline)
 
+## 音源（Folium 2）
+
+> **预览**：Folium 2 的音源接口（`folium.sources` 与音源类模组 main 入口的 `api`）还是预览版，九个内置音源全部迁过去之前可能变动；用它写的模组可能要随新版本更新。`folium: 1` 冻结在 Folium 1.9 的接口不受影响。
+
+`folium: 2` 的音源类模组（`mod.json` 里声明了 `sources`）在 client 入口里用 `folium.sources.register` 注册音源：注册字段加上一组带版本的能力（`search@1`、`songs@1`、`playback.audio@1` …），宿主按实现了哪些能力、其中哪些成员在推导界面上的开关。`folium.sources.supports(id, version)` 说这个宿主实现了哪些能力；`folium.omni.capability` 取别的音源的自定义能力。这一节来自 [`src/mods/folium/sources/contract.ts`](../../src/mods/folium/sources/contract.ts)。`folium: 1` 的模组没有这些成员。
+
+### FoliumText
+
+Folium 2: a text a source hands the host: written out (shown as it is in every language), one string per
+language (a FoliumLabel), or a key of the mod's own locale files (`folium.i18n.key`). The host turns each
+into a key of its own translations, so the text follows the UI language like the host's.
+
+```ts
+type FoliumText = string | FoliumLabel | FoliumTextKey
+```
+
+相关：[FoliumLabel](#foliumlabel) · [FoliumTextKey](#foliumtextkey)
+
+### FoliumTextKey
+
+Folium 2: a key of the mod's own locale files (manifest `locales`: one `<language>.json` each, e.g.
+`zh-CN.json`, `en.json`), as `folium.i18n.key` makes it. Frozen. `{{name}}` in the text takes `params`.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `readonly i18nKey` | `string` | The key in the mod's locale files; dots go into nested objects (`login.title`). |
+| `readonly params?` | `Readonly<Record<string, string \| number>>` | Values for the text's `{{name}}` places. |
+
+### FoliumI18nService
+
+Folium 2: `folium.i18n`, the mod's own locale files.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `key()` | `(key: string, params?: Record<string, string \| number>): FoliumTextKey` | A FoliumText that names `key` of the mod's locale files, with `params` for its `{{name}}` places. |
+
+相关：[FoliumTextKey](#foliumtextkey)
+
+### FoliumSourceCapabilityId
+
+Folium 2: a standard capability id with its version, as a source's `capabilities` names it. The host may
+know more in later minors; `folium.sources.supports(id, version)` says what this host implements.
+
+```ts
+type FoliumSourceCapabilityId = | 'search@1' | 'songs@1' | 'playback.audio@1' | 'playback.external@1' | 'playback.surface@1' | 'reports@1' | 'lyrics@1' | 'auth@1' | 'library@1' | 'catalog@1' | 'recommendations@1' | 'explore@1' | 'mutations@1' | 'covers@1' | 'raw@1'
+```
+
+### FoliumSourceCapabilities
+
+Folium 2: what a source implements, by capability id. A standard capability the host does not know is
+warned of once in the mod's row and left out; one it knows the id of but not at this version is left
+out too. A custom capability is named `x.<mod id>.<name>@<version>`: the host does not read it, other
+mods take it through `folium.omni.capability(sourceId, id)`. A capability (or a member of one) may be a
+getter whose answer changes with the account or the system: call `handle.changed()` after it changed.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `search@1?` | `FoliumSourceSearch` | Searching the source. |
+| `songs@1?` | `FoliumSourceSongs` | Songs by id, and what is known of one song. |
+| `playback.audio@1?` | `FoliumSourceAudioPlayback` | Audio the host plays itself, from an address. |
+| `playback.external@1?` | `FoliumSourceExternalPlayback` | A player of the source's own, outside the app, that the host drives and follows. |
+| `playback.surface@1?` | `FoliumSourceSurfacePlayback` | A picture of the source's own (a `<video>`, an embedded page) on the player page. Reserved: this host does not implement it yet (`folium.sources.supports('playback.surface', 1)` is false). |
+| `reports@1?` | `FoliumSourceReports` | Telling the source what the listener played. |
+| `lyrics@1?` | `FoliumSourceLyrics` | Lyrics of its songs, and of other songs where it can match them. |
+| `auth@1?` | `FoliumSourceAuth` | Signing in and out. |
+| `library@1?` | `FoliumSourceLibrary` | The signed-in account's own lists. |
+| `catalog@1?` | `FoliumSourceCatalog` | Albums, artists, playlists and their songs. |
+| `recommendations@1?` | `FoliumSourceRecommendations` | What the source recommends to the account. |
+| `explore@1?` | `FoliumSourceExplore` | The source's own recommendation page. |
+| `mutations@1?` | `FoliumSourceMutations` | Changes to the account: likes, playlists, saved albums. |
+| `covers@1?` | `FoliumSourceCovers` | How the source's cover pictures are asked for a size. |
+| `raw@1?` | `FoliumSourceRaw` | The source's own backend endpoints, for `platform.raw`. |
+
+相关：[FoliumSourceSearch](#foliumsourcesearch) · [FoliumSourceSongs](#foliumsourcesongs) · [FoliumSourceAudioPlayback](#foliumsourceaudioplayback) · [FoliumSourceExternalPlayback](#foliumsourceexternalplayback) · [FoliumSourceSurfacePlayback](#foliumsourcesurfaceplayback) · [FoliumSourceReports](#foliumsourcereports) · [FoliumSourceLyrics](#foliumsourcelyrics) · [FoliumSourceAuth](#foliumsourceauth) · [FoliumSourceLibrary](#foliumsourcelibrary) · [FoliumSourceCatalog](#foliumsourcecatalog) · [FoliumSourceRecommendations](#foliumsourcerecommendations) · [FoliumSourceExplore](#foliumsourceexplore) · [FoliumSourceMutations](#foliumsourcemutations) · [FoliumSourceCovers](#foliumsourcecovers) · [FoliumSourceRaw](#foliumsourceraw)
+
+### FoliumSourceMark
+
+Folium 2: the letter and colour the host draws for a source (switcher, sign-in, the account avatar's corner).
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `letter` | `string` | One character. |
+| `color` | `string` | A CSS colour. |
+
+### FoliumSourceAvailability
+
+Folium 2: whether a source can be used now. `not-configured`: it needs something the user has to set up
+first. `runtime-unavailable`: this system or build cannot run it.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `configured` | `boolean` | False when it cannot be used now. |
+| `reason?` | `'not-configured' \| 'runtime-unavailable'` | Why not. |
+| `message?` | `FoliumText` | A line on why, shown on its row. |
+
+相关：[FoliumText](#foliumtext)
+
+### FoliumSourceDef
+
+Folium 2: what `folium.sources.register` takes.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `id` | `string` | The source's id in mod.json `sources[].id`; the host knows it as `FoliumSourceHandle.id`. |
+| `displayName` | `FoliumText` | The full name: the switcher row's second line, the sign-in window. |
+| `shortName?` | `FoliumText` | The short name: the switcher row, the search chip. Defaults to `displayName`. |
+| `mark?` | `FoliumSourceMark` | Defaults to the short name's first character on a neutral colour. |
+| `getAvailability?()` | `(): FoliumSourceAvailability` | Synchronous; asked whenever the host draws the source's rows. Without it the source is always available. |
+| `describeFailure?()` | `(operation: 'audio' \| 'collection', error: unknown): FoliumSourceFailureDetail \| null` | After a request for a song's audio or a collection's songs failed: the source's own reading of `error`, or null to leave it to the host's rules. Never throws. |
+| `capabilities` | `FoliumSourceCapabilities` | What the source implements. |
+| `itemKinds?` | `Record<string, FoliumSourceItemKind>` | Item kinds besides songs (a video, say), each with its traits. Reserved for `playback.surface`: this host reads none yet. |
+| `routeOf?()` | `(song: FoliumSourceSong): 'audio' \| 'external' \| 'surface'` | For a source with more than one way to play: which one plays `song`. Reserved for `playback.surface`: this host does not ask it yet, and a source with both `playback.audio` and `playback.external` plays through the external player. |
+
+相关：[FoliumText](#foliumtext) · [FoliumSourceMark](#foliumsourcemark) · [FoliumSourceAvailability](#foliumsourceavailability) · [FoliumSourceFailureDetail](#foliumsourcefailuredetail) · [FoliumSourceCapabilities](#foliumsourcecapabilities) · [FoliumSourceItemKind](#foliumsourceitemkind) · [FoliumSourceSong](#foliumsourcesong)
+
+### FoliumSourceItemKind
+
+Folium 2: the traits of an item kind (`FoliumSourceDef.itemKinds`). Reserved: this host reads none yet.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `lyrics?` | `'none' \| 'own' \| 'match'` | `none`: never lyrics; `own`: only the source's own; `match`: matched like a song's. |
+| `likable?` | `boolean` | It can be liked. |
+| `reported?` | `boolean` | A play of it is reported to the source. |
+
+### FoliumSourceHandle
+
+Folium 2: what `folium.sources.register` returns. Frozen.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `readonly id` | `string` | The id the host knows the source by, as `FoliumSong.source` names its songs: a built-in source's short id, or `folium.<mod id>.<source id>`. |
+| `unregister()` | `(): void` | Removes the source. Safe to call more than once; the host removes it when the mod stops anyway. |
+| `changed()` | `(): void` | Tells the host that something it reads synchronously changed (a getter of `capabilities`, of a capability, `access`, `audioQualityLevels`): it reads the source again. |
+| `notify()` | `(notice: FoliumSourceNotice): void` | Tells the listener something unasked (a local service of the source's own that stopped, say), as the app's status line. Two notices with the same `nonce` are one. |
+
+相关：[FoliumSourceNotice](#foliumsourcenotice)
+
+### FoliumSourceNotice
+
+Folium 2: a notice of a source (`FoliumSourceHandle.notify`).
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `type` | `'error' \| 'success' \| 'info'` | How it is drawn. |
+| `text` | `FoliumText` | What it says. |
+| `nonce?` | `number` | Two notices with the same nonce are the same notice. |
+| `durationMs?` | `number` | How long it stays, in milliseconds. |
+
+相关：[FoliumText](#foliumtext)
+
+### FoliumSourceErrorCode
+
+Folium 2: the codes of `folium.sources.error`, the host's own reading of a failure.
+`auth-required`: it needs a signed-in account (or the sign-in ran out). `unsupported`: the source does not
+do this. `not-public`: the list is private. `unavailable`: the source's service did not take the request
+(not set up, not running, refused); never "taken down". `not-playable`: it answered without audio for the
+song and cannot say why. `preview-only`: only a clip may play. `subscription-required`: only paying
+accounts may. `region-restricted`: not from this region. `network`: no answer. `invalid-response`: an
+answer the source could not read.
+
+```ts
+type FoliumSourceErrorCode = | 'auth-required' | 'unsupported' | 'not-public' | 'unavailable' | 'not-playable' | 'preview-only' | 'subscription-required' | 'region-restricted' | 'network' | 'invalid-response'
+```
+
+### FoliumSourceErrorDetails
+
+Folium 2: what goes with a source error (`folium.sources.error`).
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `httpStatus?` | `number` | The HTTP status of the answer that failed, apart from any code in its body. |
+| `retryAfterMs?` | `number` | How long the source asks to wait before the next try (a 429), in milliseconds. |
+| `cause?` | `unknown` | What failed underneath. |
+
+### FoliumSourceError
+
+Folium 2: an Error made by `folium.sources.error`.
+
+```ts
+interface FoliumSourceError extends Error
+```
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `readonly code` | `FoliumSourceErrorCode` | The code it was made with. |
+| `readonly httpStatus?` | `number` | As it was given. |
+| `readonly retryAfterMs?` | `number` | As it was given. |
+
+相关：[FoliumSourceErrorCode](#foliumsourceerrorcode)
+
+### FoliumSourcePageStore
+
+Folium 2: a synchronous store of short strings in this window, for what a source reads while the host
+draws (a session token, a device id). Kept per source id; read and written at once.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `get()` | `(key: string): string \| null` | The value, or null. |
+| `set()` | `(key: string, value: string \| null): void` | Stores `value`; null removes it. |
+| `keys()` | `(): string[]` | The keys stored. |
+
+### FoliumSourcesService
+
+Folium 2: `folium.sources`, how a source mod (one with `sources` in mod.json) gives the host its sources.
+Main window only: in the export window `register` and `pageStore` throw `sources-unavailable-in-export-context`.
+A mod without `sources` in mod.json gets `not-a-source-mod` from them.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `register()` | `(def: FoliumSourceDef): FoliumSourceHandle` | Registers a source the manifest declares (`sources[].id`). Register before the first `await` of `activate`, so that the first screen finds it. Throws for an id the manifest does not declare, a second registration of one id, or a definition without capabilities. A source the user turned off is not registered: the handle's `unregister` does nothing then. |
+| `supports()` | `(id: string, version: number): boolean` | Whether this host implements capability `id` at `version` (`supports('search', 1)`). Synchronous. |
+| `error()` | `(code: FoliumSourceErrorCode, message: string, details?: FoliumSourceErrorDetails): FoliumSourceError` | An Error with a code the host reads: throw it from a capability member. |
+| `pageStore()` | `(sourceId: string): FoliumSourcePageStore` | The synchronous store of one of this mod's sources (by the id the manifest declares, or the handle's). |
+
+相关：[FoliumSourceDef](#foliumsourcedef) · [FoliumSourceHandle](#foliumsourcehandle) · [FoliumSourceErrorCode](#foliumsourceerrorcode) · [FoliumSourceErrorDetails](#foliumsourceerrordetails) · [FoliumSourceError](#foliumsourceerror) · [FoliumSourcePageStore](#foliumsourcepagestore)
+
+### FoliumSourcePage
+
+Folium 2: one page of a list, read by offset.
+
+```ts
+interface FoliumSourcePage<T>
+```
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `items` | `T[]` | The page, in the source's order. |
+| `total?` | `number` | The whole list's length, where the source says it. |
+| `hasMore` | `boolean` | There are more after this page. |
+| `nextOffset?` | `number` | Where the next page starts; defaults to the offset asked plus the items given. |
+
+### FoliumSourceNamedRef
+
+Folium 2: an artist or an album a song names, with where it opens in the source's catalog.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `id` | `string` | The source's own id of the artist or album. |
+| `name` | `string` | Its name. |
+| `ref?` | `boolean` | It opens in `catalog@1` (an album by `getAlbumTracks`, an artist by `getArtistDetail`). Default true. |
+
+### FoliumSourceAlbumRef
+
+Folium 2: a song's album (`FoliumSourceSong.album`).
+
+```ts
+interface FoliumSourceAlbumRef extends FoliumSourceNamedRef
+```
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `coverUrl?` | `string` | The album's cover. |
+| `id` | `string` | 继承自 [FoliumSourceNamedRef](#foliumsourcenamedref)。The source's own id of the artist or album. |
+| `name` | `string` | 继承自 [FoliumSourceNamedRef](#foliumsourcenamedref)。Its name. |
+| `ref?` | `boolean` | 继承自 [FoliumSourceNamedRef](#foliumsourcenamedref)。It opens in `catalog@1` (an album by `getAlbumTracks`, an artist by `getArtistDetail`). Default true. |
+
+相关：[FoliumSourceNamedRef](#foliumsourcenamedref)
+
+### FoliumSourceReplayGain
+
+ReplayGain values of a song, in decibels and linear peaks.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `trackGain?` | `number` | Track gain, dB. |
+| `albumGain?` | `number` | Album gain, dB. |
+| `trackPeak?` | `number` | Track peak, a positive linear ratio. |
+| `albumPeak?` | `number` | Album peak, a positive linear ratio. |
+
+### FoliumSourceSong
+
+Folium 2: a song as a source describes it (plan §4.3). The host keeps it with its queue, history and
+playlists, so `data` must be JSON and small; what else is stored with a song is the host's.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `id` | `string` | The song's id at the source. |
+| `title` | `string` | The title. |
+| `artists` | `FoliumSourceNamedRef[]` | The artists, in order. |
+| `album?` | `FoliumSourceAlbumRef` | The album. |
+| `durationMs?` | `number` | Milliseconds. |
+| `coverUrl?` | `string` | The song's own cover; the album's when left out. |
+| `aliases?` | `string[]` | Other titles of the song (a subtitle, a known-as). |
+| `translatedTitles?` | `string[]` | The title in other languages. |
+| `kind?` | `string` | An item kind of `FoliumSourceDef.itemKinds`; a song when left out. Reserved: this host reads none yet. |
+| `variant?` | `string` | Which version of the song this is (a cloud upload, a live take), where the source tells them apart. |
+| `pureMusic?` | `boolean` | The source marks it as instrumental. |
+| `video?` | `boolean` | Its audio is a music video's. |
+| `lyricIds?` | `Record<string, string>` | The ids other sources know the song by, for their lyrics: `{ '<source id>': '<the song's id there>' }`. |
+| `row?` | `{ id?: string; listenCount?: number }` | What goes with the row it was read from, not with the song. |
+| `replayGain?` | `FoliumSourceReplayGain` | Loudness values of the song. |
+| `data?` | `Record<string, FoliumJsonValue>` | The source's own data of the song, handed back with it. Plain JSON of at most 16 KB as JSON text: the host keeps it with the song (queue, history). Data that is not JSON, or larger, is not kept at all (one warning a source in the log), and the song comes back without it. Functions in it are left out, as JSON does. |
+
+相关：[FoliumSourceNamedRef](#foliumsourcenamedref) · [FoliumSourceAlbumRef](#foliumsourcealbumref) · [FoliumSourceReplayGain](#foliumsourcereplaygain) · [FoliumJsonValue](#foliumjsonvalue)
+
+### FoliumSourceUser
+
+Folium 2: an account at a source.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `id` | `string` | The source's id of the account. |
+| `nickname` | `string` | Its name. |
+| `avatarUrl?` | `string` | Its picture. |
+| `backgroundUrl?` | `string` | Its banner. |
+| `vipType?` | `number` | The source's own membership level, where it has one. |
+
+### FoliumSourceFmLaunch
+
+Folium 2: what a radio card starts (`FoliumSourceCollection.personalFm`).
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `mode` | `'DEFAULT' \| 'FAMILIAR' \| 'EXPLORE' \| 'SCENE_RCMD' \| 'PUZZLE_MODE_RCMD'` | A mode of `getPersonalFmCatalog`. |
+| `scene` | `string \| null` | A scene, for `SCENE_RCMD` only. |
+| `station?` | `string \| null` | One of the source's extra radios; the personal FM when left out. |
+
+### FoliumSourceCollection
+
+Folium 2: a playlist, an album, an artist, or a list the source makes (`radio`, `cloud`,
+`listening_rank`, `artist_songs`).
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `id` | `string` | The source's own id. |
+| `type` | `'playlist' \| 'album' \| 'artist' \| 'radio' \| 'cloud' \| 'listening_rank' \| 'artist_songs' \| (string & {})` | What it is. |
+| `name` | `string` | Its name. |
+| `coverUrl?` | `string` | Its cover. |
+| `description?` | `string` | The source's description. |
+| `trackCount?` | `number` | Songs in it. |
+| `albumCount?` | `number` | An artist's albums. |
+| `isOwned?` | `boolean` | The account made it. |
+| `creator?` | `FoliumSourceUser` | Who made it. |
+| `artists?` | `FoliumSourceNamedRef[]` | An album's artists. |
+| `aliases?` | `string[]` | Other names. |
+| `publishedAt?` | `number` | Release time, milliseconds since the epoch. |
+| `publisher?` | `string` | The label or publisher. |
+| `playCount?` | `number` | Plays the source counts. |
+| `updatedAt?` | `number` | Last change, milliseconds since the epoch. |
+| `tracksUpdatedAt?` | `number` | Last change of its songs, milliseconds since the epoch. |
+| `isLiked?` | `boolean` | The account saved or liked it. |
+| `listeningRank?` | `'week' \| 'all'` | For `listening_rank`: the span it counts. |
+| `personalFm?` | `FoliumSourceFmLaunch` | For `radio`: what selecting it starts. |
+| `data?` | `Record<string, FoliumJsonValue>` | The source's own data, handed back with it: plain JSON of at most 16 KB, as a song's `data` (not kept otherwise). |
+
+相关：[FoliumSourceUser](#foliumsourceuser) · [FoliumSourceNamedRef](#foliumsourcenamedref) · [FoliumSourceFmLaunch](#foliumsourcefmlaunch) · [FoliumJsonValue](#foliumjsonvalue)
+
+### FoliumSourceSearchContext
+
+Folium 2: who is searching. Paging of one `session` does not disturb another's.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `session?` | `string` | Absent for the host's own search page. |
+
+### FoliumSourceAccess
+
+Folium 2: whether a capability works with no one signed in (`anonymous`, the default) or only with an account.
+
+```ts
+type FoliumSourceAccess = 'anonymous' | 'account'
+```
+
+### FoliumSourceSearch
+
+Folium 2: `search@1`.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `readonly access?` | `FoliumSourceAccess` | Whether searching needs an account; read when the host builds its search sources. May be a getter. |
+| `searchSongs()` | `(query: string, limit: number, offset: number, context?: FoliumSourceSearchContext): Promise<FoliumSourcePage<FoliumSourceSong>>` | Songs for `query`, `limit` from `offset`. |
+| `searchAlbums?()` | `(query: string, limit: number, offset: number): Promise<FoliumSourcePage<FoliumSourceCollection>>` | Albums (`type: 'album'`); left out where the source has no album search. |
+| `searchPlaylists?()` | `(query: string, limit: number, offset: number): Promise<FoliumSourcePage<FoliumSourceCollection>>` | Playlists (`type: 'playlist'`); left out where the source has no playlist search. |
+
+相关：[FoliumSourceAccess](#foliumsourceaccess) · [FoliumSourceSearchContext](#foliumsourcesearchcontext) · [FoliumSourcePage](#foliumsourcepage) · [FoliumSourceSong](#foliumsourcesong) · [FoliumSourceCollection](#foliumsourcecollection)
+
+### FoliumSourceSongAvailability
+
+Folium 2: what a source marks against a song. `unavailable` goes with `taken-down` only; limits of
+accounts, payment or region are `unknown` with `restricted`, found out when it is played.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `state` | `'playable' \| 'unavailable' \| 'unknown'` | What the source says. |
+| `label?` | `FoliumText` | A short tag on its row. |
+| `reason?` | `'taken-down' \| 'restricted'` | Why. |
+
+相关：[FoliumText](#foliumtext)
+
+### FoliumSourceSongs
+
+Folium 2: `songs@1`.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `readonly access?` | `FoliumSourceAccess` | Whether looking songs up needs an account. May be a getter. |
+| `readonly metadataMatch?` | `boolean` | The source can give local songs online details (the metadata match): it is searched by title and artist for them, in the order the sources registered. It needs `search@1`. |
+| `getSong()` | `(id: string): Promise<FoliumSourceSong \| null>` | The song by id; null where the source has none by it. |
+| `getSongs?()` | `(ids: string[]): Promise<(FoliumSourceSong \| null)[]>` | Many at once, in the order of `ids`, null for an id it has none by. A refused request rejects. |
+| `readonly songsPerRequest?` | `number` | How many ids one `getSongs` takes at most; all of them when left out. |
+| `getAvailability?()` | `(song: FoliumSourceSong): FoliumSourceSongAvailability` | What the source marks against a song. Synchronous; asked while rows are drawn. |
+| `getReplacement?()` | `(song: FoliumSourceSong): Promise<{ song: FoliumSourceSong; label?: FoliumText } \| null>` | Another version of a song that cannot play, to play in its place; null where there is none. |
+| `getPlayedSong?()` | `(song: FoliumSourceSong): Promise<FoliumSourceSong \| null>` | The song that plays in this one's place (a video's song version); null where it plays as itself. |
+| `getPageUrl?()` | `(song: FoliumSourceSong): string \| null` | The song's public web page; null where there is none. Synchronous. |
+
+相关：[FoliumSourceAccess](#foliumsourceaccess) · [FoliumSourceSong](#foliumsourcesong) · [FoliumSourceSongAvailability](#foliumsourcesongavailability) · [FoliumText](#foliumtext)
+
+### FoliumSourceAudioQuality
+
+Folium 2: the quality levels, lowest first. `ultra` only for a source that lists it.
+
+```ts
+type FoliumSourceAudioQuality = 'standard' | 'high' | 'ultra' | 'lossless' | 'hires'
+```
+
+### FoliumSourceAudio
+
+Folium 2: a song's audio address (`playback.audio@1`).
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `url` | `string` | An http(s) address the host plays. |
+| `expiresAt?` | `number` | When the address stops working, milliseconds since the epoch. |
+| `quality?` | `FoliumSourceAudioQuality` | The level it really is, where that is not the one asked for. |
+| `replayGain?` | `FoliumSourceReplayGain` | Loudness values that go with this file. |
+| `preview?` | `boolean` | It is a clip, not the whole song: it plays with a notice and is never kept. |
+| `clipStartMs?` | `number` | Where the clip starts in the song, milliseconds. |
+
+相关：[FoliumSourceAudioQuality](#foliumsourceaudioquality) · [FoliumSourceReplayGain](#foliumsourcereplaygain)
+
+### FoliumSourceAudioPlayback
+
+Folium 2: `playback.audio@1`.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `getAudioSource()` | `(song: FoliumSourceSong, quality: FoliumSourceAudioQuality): Promise<FoliumSourceAudio \| null>` | The address of `song` at `quality` (one of `audioQualityLevels`); null when there is none and nothing to say. |
+| `readonly audioQualityLevels?` | `readonly FoliumSourceAudioQuality[]` | The levels the source tells apart, lowest first; all but `ultra` when left out. May be a getter. |
+| `readonly previewNotice?` | `FoliumText` | What the notice says while a clip of this source plays; the host's own words when left out. |
+| `keepAudio?()` | `(url: string): Promise<boolean>` | For a source that keeps audio in a cache of its own: keep the file `url` plays; resolves to whether it is kept. |
+| `hasKeptAudio?()` | `(url: string): Promise<boolean>` | Whether that cache holds the file `url` plays. |
+
+相关：[FoliumSourceSong](#foliumsourcesong) · [FoliumSourceAudioQuality](#foliumsourceaudioquality) · [FoliumSourceAudio](#foliumsourceaudio) · [FoliumText](#foliumtext)
+
+### FoliumSourceExternalStatus
+
+Folium 2: what an external player has loaded (`playback.external@1`).
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `mediaId` | `string` | The id the source gave the player. |
+| `isPlaying` | `boolean` | It is playing. |
+| `positionMs` | `number` | Milliseconds. |
+| `durationMs` | `number` | Milliseconds. |
+| `ended` | `boolean` | The player says the track ran out. |
+| `live?` | `boolean` | A live broadcast: no timeline, no end. |
+| `seeking?` | `boolean` | A seek the player made itself. |
+| `starting?` | `boolean` | It accepted a start and is still buffering. |
+
+### FoliumSourceExternalPlayback
+
+Folium 2: `playback.external@1`, a player of the source's own that the host drives and follows.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `canPlay?()` | `(song: FoliumSourceSong): boolean` | False for a song it knows it cannot start. Synchronous, no request. |
+| `prepareNext?()` | `(song: FoliumSourceSong, upcoming: FoliumSourceSong[]): Promise<void>` | Prepares what follows without interrupting the song now. |
+| `isPrepared?()` | `(song: FoliumSourceSong): boolean` | Whether a prepared successor is there for `song`. Synchronous. |
+| `play()` | `(song: FoliumSourceSong, startSec: number): Promise<void>` | Starts `song` at `startSec`; resolves once started. |
+| `adopt?()` | `(song: FoliumSourceSong): void` | The player already has `song` (from a window that is gone): take it as the current one. Synchronous. |
+| `pause()` | `(): Promise<void>` | Pauses. |
+| `resume()` | `(): Promise<void>` | Resumes. |
+| `seek()` | `(seconds: number): Promise<void>` | Seeks, seconds. |
+| `setVolume?()` | `(volume: number): Promise<void>` | The player's own level, 0 to 1. |
+| `setRepeatOne?()` | `(enabled: boolean): Promise<void>` | The player's own single-track repeat. |
+| `getStatus()` | `(song: FoliumSourceSong): Promise<FoliumSourceExternalStatus>` | The player's state now, from no cache. |
+| `isStatusForSong()` | `(song: FoliumSourceSong, status: FoliumSourceExternalStatus): boolean` | Whether the player's loaded track is `song`. Synchronous; asked twice a second. |
+
+相关：[FoliumSourceSong](#foliumsourcesong) · [FoliumSourceExternalStatus](#foliumsourceexternalstatus)
+
+### FoliumSourceSurfacePlayback
+
+Folium 2: `playback.surface@1`. Reserved: the host does not implement it yet. It will be the external
+player's members plus `mount`, which puts the source's picture into a container on the player page.
+
+```ts
+interface FoliumSourceSurfacePlayback extends FoliumSourceExternalPlayback
+```
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `mount()` | `(container: HTMLElement, context: { readonly song: FoliumSourceSong }): FoliumDisposer` | Puts the picture into `container`; returns what takes it out. |
+| `canPlay?()` | `(song: FoliumSourceSong): boolean` | 继承自 [FoliumSourceExternalPlayback](#foliumsourceexternalplayback)。False for a song it knows it cannot start. Synchronous, no request. |
+| `prepareNext?()` | `(song: FoliumSourceSong, upcoming: FoliumSourceSong[]): Promise<void>` | 继承自 [FoliumSourceExternalPlayback](#foliumsourceexternalplayback)。Prepares what follows without interrupting the song now. |
+| `isPrepared?()` | `(song: FoliumSourceSong): boolean` | 继承自 [FoliumSourceExternalPlayback](#foliumsourceexternalplayback)。Whether a prepared successor is there for `song`. Synchronous. |
+| `play()` | `(song: FoliumSourceSong, startSec: number): Promise<void>` | 继承自 [FoliumSourceExternalPlayback](#foliumsourceexternalplayback)。Starts `song` at `startSec`; resolves once started. |
+| `adopt?()` | `(song: FoliumSourceSong): void` | 继承自 [FoliumSourceExternalPlayback](#foliumsourceexternalplayback)。The player already has `song` (from a window that is gone): take it as the current one. Synchronous. |
+| `pause()` | `(): Promise<void>` | 继承自 [FoliumSourceExternalPlayback](#foliumsourceexternalplayback)。Pauses. |
+| `resume()` | `(): Promise<void>` | 继承自 [FoliumSourceExternalPlayback](#foliumsourceexternalplayback)。Resumes. |
+| `seek()` | `(seconds: number): Promise<void>` | 继承自 [FoliumSourceExternalPlayback](#foliumsourceexternalplayback)。Seeks, seconds. |
+| `setVolume?()` | `(volume: number): Promise<void>` | 继承自 [FoliumSourceExternalPlayback](#foliumsourceexternalplayback)。The player's own level, 0 to 1. |
+| `setRepeatOne?()` | `(enabled: boolean): Promise<void>` | 继承自 [FoliumSourceExternalPlayback](#foliumsourceexternalplayback)。The player's own single-track repeat. |
+| `getStatus()` | `(song: FoliumSourceSong): Promise<FoliumSourceExternalStatus>` | 继承自 [FoliumSourceExternalPlayback](#foliumsourceexternalplayback)。The player's state now, from no cache. |
+| `isStatusForSong()` | `(song: FoliumSourceSong, status: FoliumSourceExternalStatus): boolean` | 继承自 [FoliumSourceExternalPlayback](#foliumsourceexternalplayback)。Whether the player's loaded track is `song`. Synchronous; asked twice a second. |
+
+相关：[FoliumSourceExternalPlayback](#foliumsourceexternalplayback) · [FoliumSourceSong](#foliumsourcesong) · [FoliumDisposer](#foliumdisposer)
+
+### FoliumSourcePlaybackReport
+
+Folium 2: one finished listening report. `playedSeconds` is time really played, never a position.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `playedSeconds` | `number` | Seconds played, at most `totalSeconds`. |
+| `totalSeconds?` | `number` | The track's length. |
+| `quality?` | `FoliumSourceAudioQuality` | The level it played at. |
+
+相关：[FoliumSourceAudioQuality](#foliumsourceaudioquality)
+
+### FoliumSourceReports
+
+Folium 2: `reports@1`.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `canReport?()` | `(song: FoliumSourceSong): boolean` | Whether a play of `song` can be reported at all. Synchronous. |
+| `report()` | `(song: FoliumSourceSong, report: FoliumSourcePlaybackReport): Promise<void>` | Reports a play. |
+
+相关：[FoliumSourceSong](#foliumsourcesong) · [FoliumSourcePlaybackReport](#foliumsourceplaybackreport)
+
+### FoliumSourceLyricFormat
+
+Folium 2: the lyric formats of a source's tracks: those of `folium.lyrics.parse` (FoliumLyricFormat), and
+`folia`, a Folia lyric document (`.fia`).
+
+```ts
+type FoliumSourceLyricFormat = 'lrc' | 'enhanced-lrc' | 'yrc' | 'qrc' | 'krc' | 'ttml' | 'vtt' | 'awlrc' | 'folia'
+```
+
+### FoliumSourceLyricsTrack
+
+Folium 2: one lyric track in its raw text. The host parses it as its format says, as a platform's lyrics
+(no local-file sniffing, no combined timelines). Each text is at most 1,048,576 characters.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `format` | `FoliumSourceLyricFormat` | How to read `text`. |
+| `text` | `string` | The raw document. |
+| `translationText?` | `string` | Translation lines, matched to the lines by start time. Ignored for `ttml` and `folia`. |
+| `translationFormat?` | `'lrc' \| 'krc'` | The format of `translationText`: `lrc` when left out, or `krc`. |
+| `romanizationText?` | `string` | Romanization lines, matched like the translation. |
+| `romanizationFormat?` | `'lrc' \| 'krc'` | The format of `romanizationText`: `lrc` when left out, or `krc`. |
+
+相关：[FoliumSourceLyricFormat](#foliumsourcelyricformat)
+
+### FoliumSourceLyricsResult
+
+Folium 2: a song's lyrics as a source gives them. With both tracks the host shows `wordByWord` and falls
+back to `main`; a `wordByWord` track without its own translation or romanization borrows `main`'s.
+`isPureMusic` may come with tracks: the host keeps both.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `main?` | `FoliumSourceLyricsTrack` | Line-timed lyrics. |
+| `wordByWord?` | `FoliumSourceLyricsTrack` | Word-timed lyrics. |
+| `isPureMusic?` | `boolean` | The source marks the song as instrumental. |
+| `chorusRanges?` | `Array<{ startTime: number; endTime: number }>` | Chorus spans in seconds; without them the host finds choruses itself. At most 64. |
+
+相关：[FoliumSourceLyricsTrack](#foliumsourcelyricstrack)
+
+### FoliumSourceLyricAlias
+
+Folium 2: another title and artist of the same song, for matching lyrics elsewhere.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `title` | `string` | The title. |
+| `artist` | `string` | The artist. |
+| `album?` | `string` | The album. |
+
+### FoliumSourceLyrics
+
+Folium 2: `lyrics@1`.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `readonly access?` | `FoliumSourceAccess` | Whether lyrics need an account. May be a getter. |
+| `readonly crossSource?` | `{ readonly linesOnly?: boolean }` | The source can give lyrics to other sources' songs and to local songs: it is a lyric source of the match windows and the automatic pick (searched through `search@1`). `linesOnly`: its lyrics are timed by line only and carry no chorus. |
+| `getLyrics()` | `(song: FoliumSourceSong, context?: { userId?: string \| null }): Promise<FoliumSourceLyricsResult \| null>` | The lyrics of one of its songs; `context.userId` is the signed-in account's id, where there is one. |
+| `readonly prefersOwnWordByWord?` | `boolean` | Its own word timing is the one to keep over another source's. |
+| `getChorusRanges?()` | `(songId: string): Promise<Array<{ startTime: number; endTime: number }>>` | The chorus spans of a song by id, seconds. |
+| `getSearchAlias?()` | `(song: FoliumSourceSong): Promise<FoliumSourceLyricAlias \| null>` | Another title and artist of the same song; null where there are none. |
+| `getAlternateArtistName?()` | `(song: FoliumSourceSong): Promise<string \| null>` | Another name the song's artist goes by elsewhere; null where there is none. |
+
+相关：[FoliumSourceAccess](#foliumsourceaccess) · [FoliumSourceSong](#foliumsourcesong) · [FoliumSourceLyricsResult](#foliumsourcelyricsresult) · [FoliumSourceLyricAlias](#foliumsourcelyricalias)
+
+### FoliumSourceLoginCase
+
+Folium 2: the cases a failed sign-in can be (the host's own table says what each shows).
+
+```ts
+type FoliumSourceLoginCase = | 'code-expired' | 'expired-after-scan' | 'browser-unfinished' | 'not-authorized' | 'unreachable' | 'no-answer' | 'refused' | 'retry-later' | 'device-limit' | 'wrong-scan-app' | 'local-service-stopped' | 'local-service-unavailable' | 'cannot-listen' | 'no-browser' | 'browser-still-open' | 'browser-closed-early' | 'browser-unread' | 'browser-not-opened' | 'account-not-read' | 'unknown'
+```
+
+### FoliumSourceLoginFailure
+
+Folium 2: what a source knows of a failed sign-in step. Nothing private: no cookie, token, IP or account.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `case?` | `FoliumSourceLoginCase` | The case, where the source can name it; the host's rules sort the rest. |
+| `code?` | `string` | The platform's own code. |
+| `message?` | `string` | The platform's own words. |
+| `httpStatus?` | `number` | HTTP status. |
+| `upstreamCode?` | `string` | A code the platform passes on. |
+| `retryAfterMs?` | `number` | How long to wait before trying again. |
+
+相关：[FoliumSourceLoginCase](#foliumsourcelogincase)
+
+### FoliumSourceFailureCase
+
+Folium 2: the cases a failed audio or collection request can be.
+
+```ts
+type FoliumSourceFailureCase = | 'unreachable' | 'local-service-stopped' | 'retry-later' | 'sign-in-needed' | 'account-refused' | 'subscription-required' | 'purchase-required' | 'entitlement-required' | 'preview-only' | 'region-restricted' | 'not-configured' | 'taken-down' | 'no-audio' | 'audio-unplayable' | 'not-public' | 'refused' | 'unknown'
+```
+
+### FoliumSourceFailureDetail
+
+Folium 2: what a source knows of a failed audio or collection request (`describeFailure`). Nothing private.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `case?` | `FoliumSourceFailureCase` | The case, where the source can name it. |
+| `code?` | `string` | The platform's own code. |
+| `message?` | `string` | The platform's own words. |
+| `httpStatus?` | `number` | HTTP status. |
+| `upstreamCode?` | `string` | A code the platform passes on. |
+| `retryAfterMs?` | `number` | How long to wait. |
+| `likelyCause?` | `'sign-in' \| 'subscription' \| 'region'` | What may be behind it, where the answer hints. |
+| `signedOut?` | `boolean` | No account was signed in when it was asked. |
+
+相关：[FoliumSourceFailureCase](#foliumsourcefailurecase)
+
+### FoliumSourceLoginState
+
+Folium 2: where a sign-in is (`auth@1.checkLogin`).
+
+```ts
+type FoliumSourceLoginState = | { state: 'waiting' } | { state: 'scanned' } | { state: 'confirmed' } | { state: 'expired'; failure?: FoliumSourceLoginFailure } | { state: 'error'; message?: string; failure?: FoliumSourceLoginFailure; transient?: boolean }
+```
+
+相关：[FoliumSourceLoginFailure](#foliumsourceloginfailure)
+
+### FoliumSourceLoginStep
+
+Folium 2: a step of a sign-in, as `describeLoginFailure` is told it.
+
+```ts
+type FoliumSourceLoginStep = 'start' | 'open' | 'wait' | 'check' | 'account' | 'form'
+```
+
+### FoliumSourceLoginMethod
+
+Folium 2: one way to sign in (`auth@1.getLoginMethods`).
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `id` | `string` | Handed back to `startLogin`. |
+| `label` | `FoliumText` | Its name. |
+| `icon?` | `string` | A picture in the mod's folder (`assets/login.svg`) or an https or data URL. |
+| `note?` | `FoliumText` | A line on what it is. |
+| `preferred?` | `boolean` | The one chosen at first. |
+
+相关：[FoliumText](#foliumtext)
+
+### FoliumSourceLoginTexts
+
+Folium 2: the sign-in window's own words for a source.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `title` | `FoliumText` | The title. |
+| `note` | `FoliumText` | The line under it. |
+| `caseNotes?` | `Partial<Record<FoliumSourceLoginCase, FoliumText>>` | A line a failure case has on this source only. |
+
+相关：[FoliumText](#foliumtext) · [FoliumSourceLoginCase](#foliumsourcelogincase)
+
+### FoliumSourceLoginForm
+
+Folium 2: a form to sign in with (accounts with a password).
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `fields` | `Array<{ key: string; type: 'text' \| 'password' \| 'url'; label?: FoliumText; placeholder?: FoliumText; required?: boolean }>` | The fields, in order. |
+| `submitLabel?` | `FoliumText` | The button. |
+| `note?` | `FoliumText` | A line under the form. |
+| `errors?` | `Record<string, FoliumText>` | What a failure shows, by error code (`network`, `auth-required`, …). |
+
+相关：[FoliumText](#foliumtext)
+
+### FoliumSourceLocalService
+
+Folium 2: a local service the sign-in needs, which the sign-in window can restart.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `subscribe()` | `(listener: () => void): FoliumDisposer` | Calls `listener` on every change; returns what stops it. |
+| `getStatus()` | `(): { failed: boolean; error: string \| null; restarting: boolean }` | Its state; the same object between two changes. |
+| `restart()` | `(): Promise<boolean>` | Restarts it; resolves true when it runs again. |
+
+相关：[FoliumDisposer](#foliumdisposer)
+
+### FoliumSourceSetupStep
+
+Folium 2: a step of a source's setup list (`auth@1.getSetup`).
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `id` | `string` | Its id. |
+| `title` | `FoliumText` | What it is. |
+| `note?` | `FoliumText` | A line on it. |
+| `state` | `'done' \| 'todo' \| 'warn' \| 'error'` | Where it stands. |
+| `detail?` | `string` | A fact shown as it is (a path, a version). |
+| `secret?` | `{ label: FoliumText; saved: boolean }` | A password box; `saved`: one is stored. |
+| `actions?` | `Array<{ id: string; label: FoliumText; kind: 'link' \| 'run' \| 'pick-file' \| 'submit-secret'; primary?: boolean }>` | What can be done. |
+
+相关：[FoliumText](#foliumtext)
+
+### FoliumSourceSetupView
+
+Folium 2: what a user has to do before a source works (a program to install, a key to fill in).
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `title` | `FoliumText` | The title. |
+| `note?` | `FoliumText` | A line under it. |
+| `steps` | `FoliumSourceSetupStep[]` | The steps. |
+| `complete` | `boolean` | Every step is done. |
+| `message?` | `{ text: FoliumText; tone: 'ok' \| 'warn' \| 'error' }` | What the source says to the action just done. |
+
+相关：[FoliumText](#foliumtext) · [FoliumSourceSetupStep](#foliumsourcesetupstep)
+
+### FoliumSourceDiagnosticLine
+
+Folium 2: a line of a sign-in diagnostic report. The host cleans it; nothing private.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `label` | `string` | What it is. |
+| `value` | `string \| number \| boolean \| null` | Its value. |
+
+### FoliumSourceSelfCheck
+
+Folium 2: what a source's self-check found (`auth@1.runLoginSelfCheck`), as JSON the host reports.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `runtime` | `'electron' \| 'web'` | `electron` or `web`. |
+| `startedAt` | `number` | When it started, milliseconds since the epoch. |
+| `durationMs` | `number` | How long it took. |
+| `backend` | `FoliumJsonValue` | The source's backend, where it has one. |
+| `proxy` | `FoliumJsonValue` | The proxy it found. |
+| `hosts` | `FoliumJsonValue[]` | The hosts it checked. |
+| `credentialStore?` | `FoliumJsonValue` | The credential store, where its sign-in needs one. |
+| `keepsSignInEncrypted?` | `boolean` | The sign-in is kept encrypted. |
+
+相关：[FoliumJsonValue](#foliumjsonvalue)
+
+### FoliumSourceKeptAccount
+
+Folium 2: what an older build kept of the account (`auth@1.oldKeptAccount`).
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `user` | `FoliumSourceUser` | The account. |
+| `collections` | `FoliumSourceCollection[]` | Its lists. |
+| `likedSongIds` | `string[]` | Its liked songs. |
+
+相关：[FoliumSourceUser](#foliumsourceuser) · [FoliumSourceCollection](#foliumsourcecollection)
+
+### FoliumSourceAuth
+
+Folium 2: `auth@1`. Every member but the first two is optional.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `getLoginStatus()` | `(): Promise<FoliumSourceUser \| null>` | Who is signed in; null for nobody. |
+| `logout()` | `(): Promise<void>` | Signs out. The host stops showing the account as soon as this is called. |
+| `signInRanOut?()` | `(): void \| Promise<void>` | The source names nobody, or refuses the sign-in: drop what is kept of it. |
+| `readonly showsKeptAccountAtStart?` | `boolean` | The kept account shows at once at start while the source is asked. |
+| `oldKeptAccount?()` | `(): Promise<FoliumSourceKeptAccount \| null>` | What an older build kept of the account, where no snapshot is there; null for nothing. |
+| `forgetOldKeptAccount?()` | `(): Promise<void>` | That has been saved as the snapshot: remove the old copies. Never rejects. |
+| `getLoginTexts?()` | `(): FoliumSourceLoginTexts` | The sign-in window's words. Synchronous. |
+| `readonly localService?` | `FoliumSourceLocalService` | A local service the sign-in needs. |
+| `getLoginMethods?()` | `(): FoliumSourceLoginMethod[]` | The ways to sign in, where there are several. Synchronous. |
+| `resolveLoginMethods?()` | `(): Promise<FoliumSourceLoginMethod[]>` | The same, where finding them out takes a request. |
+| `startLogin?()` | `(methodId?: string): Promise<string>` | Starts a sign-in; resolves to its key. |
+| `getLoginForm?()` | `(): FoliumSourceLoginForm` | A form to sign in with, instead of a code. Synchronous. |
+| `submitLoginForm?()` | `(values: Record<string, string>): Promise<unknown>` | Signs in with the form's values. |
+| `describeLoginFailure?()` | `(step: FoliumSourceLoginStep, error: unknown): FoliumSourceLoginFailure \| null` | The source's reading of a failed step; null to leave it to the host. Never throws. |
+| `createQr?()` | `(key: string): Promise<string>` | The picture of a sign-in code (a URL or a data URL). |
+| `openLoginPage?()` | `(key: string): Promise<void>` | Opens the sign-in page in the browser, instead of a code. |
+| `opensLoginPageItself?()` | `(key: string): boolean` | The source opened that page itself and cannot open it again. Synchronous. |
+| `checkLogin?()` | `(key: string): Promise<FoliumSourceLoginState>` | Where the sign-in stands. |
+| `cancelLogin?()` | `(key: string): Promise<void>` | Drops the sign-in of `key`; any key, known or not. |
+| `getLoginTtlMs?()` | `(): number` | How long a sign-in stays open, milliseconds. Synchronous. |
+| `getLoginDiagnostics?()` | `(): Promise<FoliumSourceDiagnosticLine[]>` | Lines for the diagnostic report of a failed sign-in. |
+| `canRunLoginSelfCheck?()` | `(): boolean` | Whether a self-check can run now. Synchronous. |
+| `runLoginSelfCheck?()` | `(): Promise<FoliumSourceSelfCheck \| null>` | Checks the source's network path. |
+| `checkAfterLogin?()` | `(methodId: string \| null): Promise<FoliumSourceSetupView \| null>` | After the sign-in: whether the account can be used, as a setup list; null for nothing to do. |
+| `getSetup?()` | `(): Promise<FoliumSourceSetupView \| null>` | The source's setup list now; null for nothing to set up. |
+| `runSetupAction?()` | `(stepId: string, actionId: string, value?: string): Promise<FoliumSourceSetupView>` | Does one action of the list; resolves to the list after it. Failures go in the list, not a rejection. |
+
+相关：[FoliumSourceUser](#foliumsourceuser) · [FoliumSourceKeptAccount](#foliumsourcekeptaccount) · [FoliumSourceLoginTexts](#foliumsourcelogintexts) · [FoliumSourceLocalService](#foliumsourcelocalservice) · [FoliumSourceLoginMethod](#foliumsourceloginmethod) · [FoliumSourceLoginForm](#foliumsourceloginform) · [FoliumSourceLoginStep](#foliumsourceloginstep) · [FoliumSourceLoginFailure](#foliumsourceloginfailure) · [FoliumSourceLoginState](#foliumsourceloginstate) · [FoliumSourceDiagnosticLine](#foliumsourcediagnosticline) · [FoliumSourceSelfCheck](#foliumsourceselfcheck) · [FoliumSourceSetupView](#foliumsourcesetupview)
+
+### FoliumSourceLibrary
+
+Folium 2: `library@1`, the signed-in account's lists. `userId` is the signed-in account's.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `getSongLikeId?()` | `(song: FoliumSourceSong): string` | One id a song is liked under, where the source's ids of one song differ. Synchronous. |
+| `getUserPlaylists()` | `(userId: string, limit: number, offset: number): Promise<FoliumSourcePage<FoliumSourceCollection>>` | The account's playlists. |
+| `getLikedSongIds?()` | `(userId: string): Promise<{ ids: string[]; whole: boolean }>` | Every liked song's id; `whole` false where it cannot be sure it read to the end. |
+| `getLikedSongCount?()` | `(userId: string): Promise<number \| null>` | How many songs the liked list holds, as the source counts; null where it does not say. |
+| `areSongsLiked?()` | `(ids: string[]): Promise<Record<string, boolean>>` | Whether each song is liked, by id; one the source says nothing of is left out. |
+| `getUserAlbums?()` | `(userId: string, limit: number, offset: number): Promise<FoliumSourcePage<FoliumSourceCollection>>` | The account's saved albums. |
+| `getCloudCollection?()` | `(user?: FoliumSourceUser): Promise<FoliumSourceCollection \| null>` | The entry of the account's cloud songs (`type: 'cloud'`); null where it has none. |
+| `getListeningRankCollections?()` | `(user: FoliumSourceUser): Promise<FoliumSourceCollection[]>` | The entries of the account's listening ranking (`type: 'listening_rank'`), one a span. |
+
+相关：[FoliumSourceSong](#foliumsourcesong) · [FoliumSourcePage](#foliumsourcepage) · [FoliumSourceCollection](#foliumsourcecollection) · [FoliumSourceUser](#foliumsourceuser)
+
+### FoliumSourceCatalog
+
+Folium 2: `catalog@1`. `collection` is the entry as the host has it, where it has one.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `canResolveSongCatalogRefs?()` | `(song: FoliumSourceSong): boolean` | Whether `resolveSongCatalogRefs` can fill in where `song`'s album and artists open. Synchronous. |
+| `resolveSongCatalogRefs?()` | `(song: FoliumSourceSong): Promise<FoliumSourceSong>` | `song` with its album's and artists' ids filled in. |
+| `getPlaylistTracks?()` | `(id: string, limit: number, offset: number, collection?: FoliumSourceCollection): Promise<FoliumSourcePage<FoliumSourceSong>>` | A playlist's songs. |
+| `getPlaylistDetail?()` | `(id: string, collection?: FoliumSourceCollection): Promise<FoliumSourceCollection \| null>` | A playlist's details. |
+| `getCloudTracks?()` | `(limit: number, offset: number, collection?: FoliumSourceCollection): Promise<FoliumSourcePage<FoliumSourceSong>>` | The cloud songs. |
+| `getListeningRankTracks?()` | `(range: 'week' \| 'all', limit: number, offset: number, collection?: FoliumSourceCollection): Promise<FoliumSourcePage<FoliumSourceSong>>` | The ranking's songs, each with `row.listenCount` where the source gives one. |
+| `getAlbumTracks?()` | `(id: string, limit?: number, offset?: number, collection?: FoliumSourceCollection): Promise<FoliumSourcePage<FoliumSourceSong>>` | An album's songs. |
+| `getAlbumDetail?()` | `(id: string, collection?: FoliumSourceCollection): Promise<FoliumSourceCollection \| null>` | An album's details. |
+| `getArtistSongs?()` | `(id: string, limit: number, offset: number): Promise<FoliumSourcePage<FoliumSourceSong>>` | An artist's songs. |
+| `getArtistAlbums?()` | `(id: string, limit: number, offset: number): Promise<FoliumSourcePage<FoliumSourceCollection>>` | An artist's albums. |
+| `getArtistDetail?()` | `(id: string): Promise<FoliumSourceCollection \| null>` | An artist's details. |
+| `getSubscriptionStatus?()` | `(type: 'playlist' \| 'album', id: string, collection?: FoliumSourceCollection): Promise<boolean>` | Whether the account saved this playlist or album. |
+
+相关：[FoliumSourceSong](#foliumsourcesong) · [FoliumSourceCollection](#foliumsourcecollection) · [FoliumSourcePage](#foliumsourcepage)
+
+### FoliumSourceFmCatalog
+
+Folium 2: the modes and scenes a personal FM offers (`recommendations@1.getPersonalFmCatalog`).
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `name?` | `FoliumText` | The radio's own name, for an extra radio. |
+| `modes` | `Array<{ id: FoliumSourceFmLaunch['mode']; label: FoliumText; keywords?: string[] }>` | The modes. |
+| `scenes` | `Array<{ id: string; category: string; label: FoliumText; keywords?: string[] }>` | The scenes of `SCENE_RCMD`. |
+| `categories` | `Array<{ id: string; label: FoliumText }>` | The scene categories. |
+
+相关：[FoliumText](#foliumtext) · [FoliumSourceFmLaunch](#foliumsourcefmlaunch)
+
+### FoliumSourcePreference
+
+Folium 2: one recommendation preference: a choice among options, or a number on a scale.
+
+```ts
+type FoliumSourcePreference = | { kind: 'choice'; key: string; label: FoliumText; options: Array<{ value: string; label: FoliumText }>; value: string; defaultValue: string } | { kind: 'ratio'; key: string; label: FoliumText; min: number; max: number; defaultValue: number; snapWithin?: number; value: number }
+```
+
+相关：[FoliumText](#foliumtext)
+
+### FoliumSourcePreferences
+
+Folium 2: the account's recommendation preferences.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `items` | `FoliumSourcePreference[]` | The preferences; a kind the host does not know is passed over. |
+| `note?` | `FoliumText` | A line on what they reach. |
+
+相关：[FoliumSourcePreference](#foliumsourcepreference) · [FoliumText](#foliumtext)
+
+### FoliumSourceRecommendations
+
+Folium 2: `recommendations@1`.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `readonly personalFmModes?` | `boolean` | The personal FM takes a mode and a scene (`getPersonalFm`'s options). |
+| `getPersonalFmCatalog?()` | `(station?: string): Promise<FoliumSourceFmCatalog>` | The modes of the personal FM, or of the extra radio `station`. |
+| `getDailySongs?()` | `(refresh?: boolean): Promise<FoliumSourceSong[]>` | Today's songs. |
+| `getPersonalFm?()` | `(options?: { mode?: string; submode?: string \| null; station?: string \| null }): Promise<FoliumSourceSong[]>` | The next songs of the personal FM. |
+| `getRecommendedCollections?()` | `(limit: number): Promise<FoliumSourceCollection[]>` | Lists it recommends. |
+| `getHistoryEntries?()` | `(): Promise<Array<{ id: string; label: string; data?: Record<string, FoliumJsonValue> }>>` | The days of earlier recommendations, as entries. |
+| `getHistoryDates?()` | `(): Promise<string[]>` | The days of earlier recommendations. |
+| `getHistorySongs?()` | `(entry: { id: string; label: string; data?: Record<string, FoliumJsonValue> } \| string): Promise<FoliumSourceSong[]>` | The songs of one earlier day. |
+| `dislikeSong?()` | `(id: string): Promise<{ replacement?: FoliumSourceSong; limitReached?: boolean; removed?: boolean }>` | Takes a song out of the recommendations; `removed`: with no replacement. |
+| `getDailyStyleGroups?()` | `(): Promise<Array<{ id: string; name: string; tags: Array<{ id: string; name: string }> }>>` | The style groups today's songs can be narrowed to. |
+| `getDailyStyleSongs?()` | `(): Promise<{ songs: FoliumSourceSong[]; selection: { groupId: string; tagIds: string[] } \| null }>` | Today's songs of the picked styles. |
+| `setDailyStyle?()` | `(selection: { groupId: string; tagIds: string[] }): Promise<void>` | Picks styles. |
+| `readonly preferenceEntries?` | `readonly ('explore' \| 'personal-fm' \| 'daily')[]` | Where the host offers the preferences. |
+| `getRecommendationPreferences?()` | `(): Promise<FoliumSourcePreferences>` | The preferences. |
+| `saveRecommendationPreferences?()` | `(changes: Record<string, string \| number>): Promise<{ confirmed: boolean }>` | Saves what changed; `confirmed` false when it read back something else. |
+
+相关：[FoliumSourceFmCatalog](#foliumsourcefmcatalog) · [FoliumSourceSong](#foliumsourcesong) · [FoliumSourceCollection](#foliumsourcecollection) · [FoliumJsonValue](#foliumjsonvalue) · [FoliumSourcePreferences](#foliumsourcepreferences)
+
+### FoliumSourceExploreItem
+
+Folium 2: one entry of a recommendation page.
+
+```ts
+type FoliumSourceExploreItem = | { kind: 'song'; song: FoliumSourceSong; wideCoverUrl?: string; subtitle?: string } | { kind: 'collection'; collection: FoliumSourceCollection; wideCoverUrl?: string; isMix?: boolean; subtitle?: string }
+```
+
+相关：[FoliumSourceSong](#foliumsourcesong) · [FoliumSourceCollection](#foliumsourcecollection)
+
+### FoliumSourceExploreSection
+
+Folium 2: a section of a recommendation page.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `id` | `string` | Its id. |
+| `title` | `string` | Its heading, in the source's language. |
+| `items` | `FoliumSourceExploreItem[]` | Its entries. |
+| `moreCursor?` | `string` | Where its further entries are (`getSectionItems`). |
+| `changesWithRead?` | `boolean` | Made up anew for every read. |
+
+相关：[FoliumSourceExploreItem](#foliumsourceexploreitem)
+
+### FoliumSourceExplorePage
+
+Folium 2: a recommendation page.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `sections` | `FoliumSourceExploreSection[]` | The sections. |
+| `nextCursor?` | `string` | Where its further sections are. |
+| `refreshReadsAnew?` | `boolean` | "Refresh" reads the page anew. |
+
+相关：[FoliumSourceExploreSection](#foliumsourceexploresection)
+
+### FoliumSourceExplore
+
+Folium 2: `explore@1`, the source's own recommendation page.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `getFeed()` | `(cursor?: string, listened?: FoliumSourceSong[]): Promise<FoliumSourceExplorePage>` | The page, or its further sections from `cursor`; `listened` are songs of the source played here. |
+| `getSectionItems?()` | `(cursor: string): Promise<{ items: FoliumSourceExploreItem[]; moreCursor?: string }>` | A section's further entries. |
+| `songsShownAs?()` | `(songs: FoliumSourceSong[]): Promise<Record<string, FoliumSourceSong \| null>>` | Of songs played here, which song the source shows each as, by id; null for itself. |
+
+相关：[FoliumSourceSong](#foliumsourcesong) · [FoliumSourceExplorePage](#foliumsourceexplorepage) · [FoliumSourceExploreItem](#foliumsourceexploreitem)
+
+### FoliumSourceMutations
+
+Folium 2: `mutations@1`. A song or a list is given as the DTO, or as its id alone.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `canAddToPlaylist?()` | `(playlist: FoliumSourceCollection): boolean` | Whether songs can be added to `playlist`. Synchronous. |
+| `canEditPlaylistTracks?()` | `(playlist: FoliumSourceCollection): boolean` | Whether `playlist`'s songs can be edited. Synchronous. |
+| `likeSong?()` | `(song: string \| FoliumSourceSong, liked: boolean): Promise<void>` | Likes or unlikes a song. |
+| `updatePlaylistTracks?()` | `(operation: 'add' \| 'del', playlist: string \| FoliumSourceCollection, tracks: Array<string \| FoliumSourceSong>): Promise<void>` | Adds songs to a playlist, or removes them. |
+| `createPlaylist?()` | `(name: string): Promise<FoliumSourceCollection>` | Makes an empty playlist. |
+| `canSubscribe?()` | `(collection: FoliumSourceCollection): boolean` | Whether `collection` can be saved. Synchronous. |
+| `subscribePlaylist?()` | `(playlist: string \| FoliumSourceCollection, subscribed: boolean): Promise<void>` | Saves or drops a playlist. |
+| `subscribeAlbum?()` | `(id: string, subscribed: boolean): Promise<void>` | Saves or drops an album. |
+
+相关：[FoliumSourceCollection](#foliumsourcecollection) · [FoliumSourceSong](#foliumsourcesong)
+
+### FoliumSourceCovers
+
+Folium 2: `covers@1`, how a source's cover pictures are asked for a size. Each member is synchronous and
+runs while covers are drawn: answer null at once for a URL that is not the source's. `url` is shared
+with the other rules: change it only when you answer.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `readonly hosts` | `readonly string[]` | The hosts of the picture URLs this source knows: a host name (`img1.example.com`), or `*.` before a domain for every host under it (`*.example.com`; not `example.com` itself). The host asks the members below only about URLs on these hosts, and hands each call a URL of its own to change. A rule asked about every picture (another source's, a media server's, a local one) is the host's alone. |
+| `sized()` | `(url: URL, size: number): string \| null` | The `size`-pixel variant of `url`. |
+| `identity()` | `(url: URL): string \| null` | What names the picture apart from how it is fetched; two URLs of one picture give one value. |
+| `original?()` | `(url: URL): string \| null` | The original picture. |
+| `requestedSize?()` | `(url: URL): number \| null \| undefined` | The size `url` asks for; null where it asks for none, undefined where it is not the source's. |
+
+### FoliumSourceRawEndpoint
+
+Folium 2: a row of a source's endpoint table (`raw@1`).
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `access` | `'read' \| 'write' \| 'denied'` | `read`, `write` (changes the account), or `denied`. |
+| `omni?` | `string` | The omni method that already does it. |
+| `selfParam?` | `string` | The parameter that names the signed-in user; the host fills it in. |
+
+### FoliumSourceRaw
+
+Folium 2: `raw@1`, the source's own backend endpoints for `platform.raw`. The host checks the caller's
+permissions against the table and strips credentials from the answer; the source adds its session.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `readonly backend` | `{ name: string; version: string }` | The backend library, name and version. |
+| `readonly reservedParams` | `readonly string[]` | Parameters the host sets and callers cannot. |
+| `readonly credentialFields?` | `readonly string[]` | The source's own credential field names, stripped from answers. |
+| `describeEndpoint()` | `(endpoint: string): FoliumSourceRawEndpoint \| null` | The row of `endpoint`; null for one not in the table. |
+| `checkParams?()` | `(endpoint: string, params: Record<string, FoliumJsonValue>): string \| null` | A problem with the values; null for none. |
+| `request()` | `(endpoint: string, params: Record<string, FoliumJsonValue>, signal: AbortSignal): Promise<unknown>` | The raw answer. Stops when `signal` aborts. |
+
+相关：[FoliumSourceRawEndpoint](#foliumsourcerawendpoint) · [FoliumJsonValue](#foliumjsonvalue)
+
 ## 实验接口
 
 需要在 `mod.json` 的 `experimental` 里选用，经 `folium.experimental[name]` 访问；任何 minor 版本都可能变化。
@@ -2505,6 +3540,12 @@ A mod's mod.json as the main entry sees it in `api.manifest`: every field there,
 | `readonly embedOrigins` | `readonly string[]` | The https origins `folium.ui.embed` may load. |
 | `readonly folia` | `string \| null` | The Folia versions the mod needs (e.g. `>=0.7.0 <0.8.0`), or null. |
 | `readonly preview` | `string \| null` | The introduction image's path in the mod folder, or null. |
+| `readonly sources?` | `readonly Readonly<Record<string, unknown>>[] \| null` | Folium 2: the sources a source mod provides (`id`, `name`, `requires`, …), or null for an ordinary mod. |
+| `readonly locales?` | `string \| null` | Folium 2: the folder of the mod's locale files, or null. |
+| `readonly assets?` | `string \| null` | Folium 2: the folder of the mod's pictures and other assets, or null. |
+| `readonly secrets?` | `readonly string[] \| null` | Folium 2: the secret slots a source mod keeps outside settings fields, or null. |
+| `readonly contexts?` | `readonly string[] \| null` | Folium 2: where the client runs (`main`, `export`), or null for everywhere. |
+| `readonly native?` | `readonly string[] \| null` | Folium 2: native files of the app a built-in source uses, or null. |
 
 ### FoliumMainStorage
 
@@ -2612,6 +3653,276 @@ What `api.render.exportVideo` resolves to.
 | `transparent?` | `boolean` | The video has a transparent background. |
 | `warnings?` | `string[]` | What may be off in a written video: `export-alpha-unavailable` (this machine captured no alpha channel), `export-alpha-not-guaranteed` (not Windows: the alpha channel may be black). |
 
+## 音源类模组的 main 入口
+
+> **预览**：Folium 2 的音源接口（`folium.sources` 与音源类模组 main 入口的 `api`）还是预览版，九个内置音源全部迁过去之前可能变动；用它写的模组可能要随新版本更新。`folium: 1` 冻结在 Folium 1.9 的接口不受影响。
+
+音源类模组的 main 入口拿到的 `api` 比普通模组多下面这些成员（[FoliumSourceMainApi](#foliumsourcemainapi)，方案 §5.5），也不受普通模组的网络、存储限额约束；普通模组的 `api` 没有它们。
+
+### FoliumSourceMainApi
+
+Folium 2: the main entry's `api` of a source mod (one with `sources` in mod.json, plan §5.5): FoliumMainApi and
+the members below, which an ordinary mod's `api` does not have. A source mod also needs no `filesystem.data` for
+`api.storage` (16 MB instead of 1 MB) and keeps the secret slots its manifest's `secrets` names (64 KB each).
+Everything it registers here goes when the mod stops.
+
+```ts
+interface FoliumSourceMainApi extends FoliumMainApi
+```
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `readonly net` | `FoliumSourceNet` | Electron `net`: binary, streamed, no answer cap and no time limit of the host's. |
+| `readonly legacy` | `{ readonly store: FoliumSourceLegacyStore }` | A built-in source's old data, by the names its row of the host's trusted table (or its manifest `claims`, when it takes over a source the installation does not carry) lists. Any other key throws `legacy-key-not-claimed:<key>`. |
+| `readonly paths` | `FoliumSourceMainPaths` | The paths of FoliumMainApi, and the userData folder a source's row or claims name. |
+| `readonly seal` | `FoliumSourceSeal` | Sealing with the system's credential store (Electron safeStorage). |
+| `readonly cache` | `FoliumSourceCache` | The source's cache folder, counted in the host's cache budget. |
+| `readonly media` | `FoliumSourceMedia` | Cross-origin rules and streams for the source's media. |
+| `readonly windows` | `FoliumSourceWindows` | Hidden windows, and whether the main window is there. |
+| `readonly shell` | `{ openExternal(url: string): Promise<void> }` | Opens an http(s) address in the system's browser. |
+| `readonly dialog` | `{ pickFile(options?: { filters?: Array<{ name: string; extensions: string[] }>; defaultPath?: string }): Promise<string \| null> }` | A file the user picks, or null. |
+| `readonly host` | `FoliumSourceHostInfo` | The host's versions, and its UI language now (`zh-CN`, `en`, …). |
+| `onBeforeUnload()` | `(handler: () => void \| Promise<void>): FoliumDisposer` | Waited for (3 seconds at most) before the source is unloaded; its songs' playback has stopped by then. |
+| `onBeforeQuit()` | `(handler: () => void \| Promise<void>): FoliumDisposer` | Waited for (3 seconds at most) when the app quits. |
+| `onPlayersOrphaned()` | `(handler: () => void): FoliumDisposer` | The main window went and no window takes its playback over: pause what plays outside the app. |
+| `readonly diagnostics` | `FoliumSourceDiagnostics` | The sign-in diagnostics and self-check of one of the mod's own sources. |
+| `readonly native` | `FoliumSourceNative` | Native files the app ships for a built-in source, by the names its manifest `native` and its row both list. |
+| `reportError()` | `(error: unknown, where?: string): void` | An error the source could not handle: into the host's crash report, without telling the user. |
+| `readonly manifest` | `FoliumManifest` | 继承自 [FoliumMainApi](#foliummainapi)。This mod's mod.json as the host read it (missing fields filled in), frozen. |
+| `readonly log` | `FoliumLogger` | 继承自 [FoliumMainApi](#foliummainapi)。Logging; `error` entries show in the mods panel under the mod. |
+| `readonly storage` | `FoliumMainStorage` | 继承自 [FoliumMainApi](#foliummainapi)。This mod's data file: the same file the client entry's `folium.storage` reads and writes, so both sides see one state. Needs the `filesystem.data` permission. |
+| `readonly secrets` | `FoliumSecretAccess` | 继承自 [FoliumMainApi](#foliummainapi)。Folium 1.7: the values of this mod's `secret` settings fields, the same store the client entry's `folium.secrets` reads and writes. A listener given to `subscribe` stops when the mod stops. |
+| `onDispose()` | `(disposer: FoliumDisposer): void` | 继承自 [FoliumMainApi](#foliummainapi)。Runs `disposer` when the mod stops: it is turned off, reloaded, or the app quits. Release here what `activate` started: timers, watchers, listeners, child processes. Cleanups run last registered first (the function `activate` returned counts as registered when `activate` returned), and one that throws does not stop the others. After the mod has stopped, `disposer` runs at once. Returns nothing. |
+| `readonly runtime` | `FoliumMainRuntime` | 继承自 [FoliumMainApi](#foliummainapi)。What the app is playing. |
+| `readonly rpc` | `FoliumMainRpc` | 继承自 [FoliumMainApi](#foliummainapi)。Answers calls from this mod's client entry, and (Folium 1.7) sends it messages. |
+| `readonly render` | `FoliumMainRender` | 继承自 [FoliumMainApi](#foliummainapi)。Video export. |
+
+相关：[FoliumMainApi](#foliummainapi) · [FoliumSourceNet](#foliumsourcenet) · [FoliumSourceLegacyStore](#foliumsourcelegacystore) · [FoliumSourceMainPaths](#foliumsourcemainpaths) · [FoliumSourceSeal](#foliumsourceseal) · [FoliumSourceCache](#foliumsourcecache) · [FoliumSourceMedia](#foliumsourcemedia) · [FoliumSourceWindows](#foliumsourcewindows) · [FoliumSourceHostInfo](#foliumsourcehostinfo) · [FoliumDisposer](#foliumdisposer) · [FoliumSourceDiagnostics](#foliumsourcediagnostics) · [FoliumSourceNative](#foliumsourcenative)
+
+### FoliumSourceHostInfo
+
+Folium 2: `api.host` of a source mod.
+
+```ts
+interface FoliumSourceHostInfo extends FoliumHostInfo
+```
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `readonly locale` | `string` | The host's UI language now. |
+| `folium` | `{ major: number; minor: number }` | 继承自 [FoliumHostInfo](#foliumhostinfo)。The Folium version (`major`, `minor`). |
+| `folia` | `string \| null` | 继承自 [FoliumHostInfo](#foliumhostinfo)。Folia app version, or null when the host cannot tell. |
+
+相关：[FoliumHostInfo](#foliumhostinfo)
+
+### FoliumSourceMainPaths
+
+Folium 2: `api.paths` of a source mod.
+
+```ts
+interface FoliumSourceMainPaths extends FoliumMainPaths
+```
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `legacy()` | `(name: string): string` | `<userData>/<name>`, for a folder the source's row or claims name; any other throws `legacy-folder-not-claimed:<name>`. |
+| `readonly documents` | `string` | 继承自 [FoliumMainPaths](#foliummainpaths)。The user's Documents folder. Reading it throws when the system has no such folder; so do the other three. |
+| `readonly downloads` | `string` | 继承自 [FoliumMainPaths](#foliummainpaths)。The user's Downloads folder. |
+| `readonly music` | `string` | 继承自 [FoliumMainPaths](#foliummainpaths)。The user's Music folder. |
+| `readonly videos` | `string` | 继承自 [FoliumMainPaths](#foliummainpaths)。The user's Videos folder. |
+
+相关：[FoliumMainPaths](#foliummainpaths)
+
+### FoliumSourceDiagnostics
+
+Folium 2: `api.diagnostics` of a source mod.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `register()` | `(sourceId: string, backend: { getDiagnostics(): unknown; getStatus?(): unknown; selfCheckHosts?: readonly string[] }): FoliumDisposer` | `backend` has `getDiagnostics()`, and may have `getStatus()` and `selfCheckHosts`; `sourceId` is one of the mod's sources, as the host knows it. Returns what takes it out. |
+
+相关：[FoliumDisposer](#foliumdisposer)
+
+### FoliumSourceNative
+
+Folium 2: `api.native` of a source mod.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `path()` | `(name: string): string` | The file's path; throws `native-not-granted:<name>` or `native-unavailable:<name>`. |
+| `load()` | `(name: string): unknown` | `require` of that path. |
+
+### FoliumSourceNet
+
+Folium 2: `api.net` of a source mod.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `fetch()` | `(url: string, init?: Record<string, unknown>): Promise<Response>` | A web `fetch` through Electron `net`; `init.session` names a partition (see `session`). Answers a web Response. |
+| `request()` | `(options: FoliumSourceRequestOptions): FoliumSourceClientRequest` | Electron's `net.request` (a ClientRequest), for a request a web `fetch` cannot make: a GET with a body. `options` is Electron's (`url`, `method`, `redirect`, …); `options.session` names a partition (see `session`). |
+| `session()` | `(name: string): FoliumSourceNetSession` | A partition of the source's own (`persist:folium.<mod id>.<name>`), or one its row or claims name: lower case letters, digits and `-`. |
+| `resolveProxy()` | `(url: string): Promise<string>` | The system proxy for `url`, as Chromium resolves it. |
+
+相关：[FoliumSourceRequestOptions](#foliumsourcerequestoptions) · [FoliumSourceClientRequest](#foliumsourceclientrequest) · [FoliumSourceNetSession](#foliumsourcenetsession)
+
+### FoliumSourceNetSession
+
+Folium 2: one partition of a source mod (`api.net.session`).
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `readonly partition` | `string` | The partition's name. |
+| `fetch()` | `(url: string, init?: Record<string, unknown>): Promise<Response>` | `fetch` in this partition. |
+| `request()` | `(options: FoliumSourceRequestOptions): FoliumSourceClientRequest` | `request` in this partition. |
+| `resolveProxy()` | `(url: string): Promise<string>` | The proxy for `url` in this partition. |
+| `setProxy()` | `(config: Record<string, unknown>): Promise<void>` | Electron's `session.setProxy`. |
+| `clearStorageData()` | `(options?: Record<string, unknown>): Promise<void>` | Electron's `session.clearStorageData`. |
+
+相关：[FoliumSourceRequestOptions](#foliumsourcerequestoptions) · [FoliumSourceClientRequest](#foliumsourceclientrequest)
+
+### FoliumSourceRequestOptions
+
+Folium 2: what `api.net.request` takes: Electron's `net.request` options.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `url` | `string` | An http(s) address. |
+| `method?` | `string` | `GET` when left out. |
+| `redirect?` | `'follow' \| 'error' \| 'manual'` | `follow` (the default), `error` or `manual`. |
+| `session?` | `string` | A partition, named as for `api.net.session`; the default session when left out. |
+
+### FoliumSourceIncomingMessage
+
+Folium 2: the answer of `api.net.request`, Electron's IncomingMessage (the members a source reads).
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `readonly statusCode` | `number` | The HTTP status. |
+| `readonly headers` | `Record<string, string \| string[]>` | The headers, by lower-case name. |
+| `on()` | `(event: 'data', listener: (chunk: Uint8Array) => void): this` | `data` gives the body piece by piece. |
+| `on()` | `(event: 'end', listener: () => void): this` | `end` comes after the last piece. |
+| `on()` | `(event: 'error' \| 'aborted', listener: (error?: Error) => void): this` | `error` or `aborted` when the body broke off. |
+
+### FoliumSourceClientRequest
+
+Folium 2: `api.net.request`'s request, Electron's ClientRequest (the members a source uses).
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `setHeader()` | `(name: string, value: string): void` | Sets a header before the body is written. |
+| `write()` | `(chunk: string \| Uint8Array): void` | Writes part of the body. |
+| `end()` | `(chunk?: string \| Uint8Array): void` | Sends the request, with the last part of the body. |
+| `abort()` | `(): void` | Stops it. |
+| `on()` | `(event: 'response', listener: (response: FoliumSourceIncomingMessage) => void): this` | `response` with the answer. |
+| `on()` | `(event: 'error', listener: (error: Error) => void): this` | `error` when the request failed. |
+| `on()` | `(event: string, listener: (...args: unknown[]) => void): this` | Electron's other events: `redirect`, `login`, `finish`, `abort`, `close`. |
+
+相关：[FoliumSourceIncomingMessage](#foliumsourceincomingmessage)
+
+### FoliumSourceMediaRequest
+
+Folium 2: what a media rule's `test` is asked: one read of a resource, with the answer's headers. Frozen.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `readonly url` | `string` | The address. |
+| `readonly method` | `string` | `GET`, `HEAD` or `OPTIONS` (other methods never get the headers). |
+| `readonly resourceType` | `string` | Electron's resource type (`media`, `xhr`, `image`, …). |
+| `readonly responseHeaders` | `Readonly<Record<string, readonly string[]>>` | The answer's headers, a frozen copy of what Electron hands. |
+
+### FoliumSourceLegacyStore
+
+Folium 2: `api.legacy.store`, the main process's store keys a built-in source keeps its sign-in under.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `get()` | `(key: string): unknown` | The value, or undefined. |
+| `set()` | `(key: string, value: unknown): void` | Stores `value`. |
+| `has()` | `(key: string): boolean` | Whether the key has a value. |
+| `delete()` | `(key: string): void` | Removes the key. |
+
+### FoliumSourceSeal
+
+Folium 2: `api.seal`. `available()` is false where the system keeps no encrypted store (Linux's basic_text).
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `available()` | `(): boolean` | Whether sealing works here. |
+| `seal()` | `(text: string): string` | `text` sealed, as base64; throws where sealing does not work. |
+| `open()` | `(sealed: string): string` | The text of a sealed base64 string. |
+
+### FoliumSourceCache
+
+Folium 2: `api.cache` of a source mod.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `dir()` | `(): string` | `<userData>/mods-cache/<id>`, made when missing. |
+| `requestPrune()` | `(limitBytes?: number): void` | Asks the host to trim the media cache to its budget (or to `limitBytes`). |
+| `provideEntries()` | `(provider: FoliumSourceCacheEntries): FoliumDisposer` | Hands the host the source's cache entries, so its cache view lists, removes and clears them. |
+
+相关：[FoliumSourceCacheEntries](#foliumsourcecacheentries) · [FoliumDisposer](#foliumdisposer)
+
+### FoliumSourceCacheEntries
+
+Folium 2: what `api.cache.provideEntries` takes.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `list()` | `(): unknown[] \| Promise<unknown[]>` | The entries. |
+| `remove?()` | `(id: string): void \| Promise<void>` | Removes one. |
+| `clear?()` | `(): void \| Promise<void>` | Removes all. |
+
+### FoliumSourceMediaRule
+
+Folium 2: a rule of `api.media.allow`: which addresses get cross-origin headers, for how long.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `hosts?` | `string[]` | Host names; a request to one of them is the source's. |
+| `urls?` | `string[]` | Whole addresses. |
+| `ttlMs?` | `number` | How long an address added stays the rule's, milliseconds. |
+| `test?()` | `(request: FoliumSourceMediaRequest): boolean` | What `hosts` cannot say (a path that ends in an audio extension, an answer's content type). It narrows the rule's `hosts`, which it needs: it is asked only for reads on them (never for another source's), and there the host alone lets nothing through. Synchronous; true lets the read through, one that throws counts as false. It runs for every answer from those hosts: keep it quick. `urls` of the same rule pass without it. |
+| `followRedirects?` | `boolean` | An address a redirect leads to becomes the rule's too: from one of its `urls`, until that address's own expiry; from one its `test` let through, for `ttlMs` from the redirect. A read let through by `hosts` alone is not followed. |
+| `resourceTypes?` | `string[]` | Electron's resource types the rule applies to (`media`, `xhr` and `image` by default). |
+
+相关：[FoliumSourceMediaRequest](#foliumsourcemediarequest)
+
+### FoliumSourceMediaAllowed
+
+Folium 2: what `api.media.allow` returns: it removes the rule, and its `add(url)` makes an address issued later the rule's.
+
+```ts
+type FoliumSourceMediaAllowed = FoliumDisposer & { add(url: string): void }
+```
+
+相关：[FoliumDisposer](#foliumdisposer)
+
+### FoliumSourceMedia
+
+Folium 2: `api.media` of a source mod.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `allow()` | `(rule: FoliumSourceMediaRule): FoliumSourceMediaAllowed` | Registers `rule`. |
+| `parseRange()` | `(header: string \| null \| undefined, size: number): { start: number; end: number } \| 'unsatisfiable' \| null` | One Range header against a size: `{ start, end }`, `'unsatisfiable'`, or null. |
+| `serve()` | `(name: string, handler: (request: Request, rest: string) => unknown): FoliumDisposer` | Answers `folia-mod://<mod id>/_media/<name>/…`: `handler` gets the request and answers a web Response, or `{ file }` for the host to serve with Range. `name` is lower case letters, digits and `-`. Returns what stops it. |
+| `url()` | `(name: string, rest?: string): string` | `folia-mod://<mod id>/_media/<name>/<rest>`. |
+
+相关：[FoliumSourceMediaRule](#foliumsourcemediarule) · [FoliumSourceMediaAllowed](#foliumsourcemediaallowed) · [FoliumDisposer](#foliumdisposer)
+
+### FoliumSourceWindows
+
+Folium 2: `api.windows` of a source mod.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `hidden()` | `(options?: Record<string, unknown>): unknown` | A hidden, sandboxed window without the app's preload (a sign-in, a signature sandbox), destroyed when the mod stops; `options.session` names its partition as `api.net.session` does. An Electron BrowserWindow. |
+| `mainWindowPresent()` | `(): boolean` | Whether the main window is there. |
+| `onMainWindowChanged()` | `(listener: (present: boolean) => void): FoliumDisposer` | Calls `listener` when the main window comes or goes. |
+
+相关：[FoliumDisposer](#foliumdisposer)
+
 ## 基础类型
 
 ### FOLIUM_VERSION
@@ -2619,7 +3930,7 @@ What `api.render.exportVideo` resolves to.
 The Folium version this host implements; mods read it at runtime as `folium.host.folium`.
 
 ```ts
-const FOLIUM_VERSION = Object.freeze({ major: 1, minor: 9 })
+const FOLIUM_VERSION = Object.freeze({ major: 2, minor: 0 })
 ```
 
 ### FoliumId

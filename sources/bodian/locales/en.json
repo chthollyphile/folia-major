@@ -1,0 +1,9 @@
+{
+    "name": {
+        "short": "Bodian"
+    },
+    "login": {
+        "title": "Scan with Bodian Music",
+        "note": "Scan this code with the Bodian Music app and confirm sign-in"
+    }
+}

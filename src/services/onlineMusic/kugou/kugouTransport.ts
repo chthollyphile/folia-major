@@ -2,7 +2,7 @@ import md5 from 'blueimp-md5';
 import { OnlineProviderError } from '../../../types/onlineMusic';
 import { readProviderSessionValue, removeProviderSessionValue, writeProviderSessionValue } from '../providerStorage';
 import { lyricProxyWebUrl, requestLyricProxyOnDesktop } from '../../lyricProxy';
-import { withLoginRequestLimit } from '../login/loginRequestLimit';
+import { withLoginRequestLimit } from '@folia/folium-source-kit';
 
 // src/services/onlineMusic/kugou/kugouTransport.ts
 

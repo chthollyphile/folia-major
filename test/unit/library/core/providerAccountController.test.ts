@@ -109,6 +109,7 @@ const createAccounts = (stored: OnlineProviderId = 'alpha', extra: ProviderAccou
         listProviders: () => providers.map(provider => ({ ...provider, availability: { ...provider.availability } })),
         getProviderLabel: providerId => providers.find(p => p.providerId === providerId)?.shortName ?? providerId,
         getStoredActiveProviderId: () => storedId,
+        getChosenProviderId: () => storedId,
         setActiveProviderId: providerId => {
             storedId = providerId;
             ops.push(['set-active', providerId]);
@@ -130,6 +131,10 @@ const createAccounts = (stored: OnlineProviderId = 'alpha', extra: ProviderAccou
         },
         remove: (providerId: OnlineProviderId) => {
             providers = providers.filter(p => p.providerId !== providerId);
+            notify();
+        },
+        add: (provider: ProviderAccountSummary) => {
+            providers = [...providers, provider];
             notify();
         },
         stored: () => storedId,
@@ -695,21 +700,61 @@ describe('providerAccountController · syncing an account', () => {
 // ─── 当前平台与快照 ─────────────────────────────────────────────────────
 
 describe('providerAccountController · active provider and snapshot', () => {
-    it('falls back to the default provider when the stored one is unavailable and writes it back without asking', async () => {
+    // Folium 2.0 方案 §7 第一行：存的平台不在时只在内存里回落到列表的第一个，不写回；它回来后自动又是当前平台。
+    it('falls back in memory to the first listed provider when the stored one is missing, writing nothing', async () => {
         accounts = createAccounts('vanished');
         const controller = createController();
         expect(controller.getSnapshot().activeProviderId).toBe('netease');
         await manual.flush();
-        expect(accounts.stored()).toBe('netease');
+        await Promise.resolve();
+        expect(accounts.stored()).toBe('vanished');
+        expect(ops.filter(([op]) => op === 'set-active')).toEqual([]);
         expect(cleanup).not.toHaveBeenCalled();
+
+        accounts.add(summary('vanished', { status: 'authenticated' }));
+        expect(controller.getSnapshot().activeProviderId).toBe('vanished');
     });
 
-    it('falls back when the active provider disappears at runtime, keeping the other accounts', async () => {
+    it('falls back when the active provider disappears at runtime and takes it back when it returns, keeping the other accounts', async () => {
         const controller = createController();
         accounts.remove('alpha');
         expect(controller.getSnapshot().activeProviderId).toBe('netease');
-        expect(accounts.stored()).toBe('netease');
+        expect(accounts.stored()).toBe('alpha');
         expect(controller.getSnapshot().providers.find(p => p.providerId === 'beta')?.status).toBe('authenticated');
+
+        accounts.add(summary('alpha', { status: 'authenticated' }));
+        expect(controller.getSnapshot().activeProviderId).toBe('alpha');
+        expect(ops.filter(([op]) => op === 'set-active')).toEqual([]);
+    });
+
+    // 审查第 4 条：回落期间明确选回此刻生效的平台，要把这个选择存下来。
+    it('stores an explicit choice of the provider in effect while the stored one is missing, so that it stands when the stored one returns', async () => {
+        accounts = createAccounts('vanished');
+        const controller = createController();
+        expect(controller.getSnapshot().activeProviderId).toBe('netease');
+
+        await expect(controller.requestSwitch('netease')).resolves.toMatchObject({ status: 'switched', providerId: 'netease', changed: false });
+        expect(accounts.stored()).toBe('netease');
+        expect(cleanup).not.toHaveBeenCalled();
+
+        accounts.add(summary('vanished', { status: 'authenticated' }));
+        expect(controller.getSnapshot().activeProviderId).toBe('netease');
+    });
+
+    it('stores nothing when the provider asked for is already the chosen one in effect', async () => {
+        const controller = createController();
+        await controller.requestSwitch('alpha');
+        expect(ops.filter(([op]) => op === 'set-active')).toEqual([]);
+    });
+
+    it('keeps the stored provider with no provider listed at all (zero sources), without throwing', async () => {
+        accounts = createAccounts('alpha');
+        const controller = createController();
+        for (const provider of initialProviders()) accounts.remove(provider.providerId);
+        expect(controller.getSnapshot().providers).toEqual([]);
+        expect(controller.getSnapshot().activeProviderId).toBe('alpha');
+        await expect(controller.startLogin('alpha')).resolves.toMatchObject({ status: 'unavailable' });
+        expect(accounts.stored()).toBe('alpha');
     });
 
     it('keeps the snapshot and its parts identical while nothing changed', async () => {

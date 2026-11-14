@@ -38,6 +38,7 @@ import { describeKugouLoginFailure, kugouCheckFailure } from './kugouLoginFailur
 import { describeKugouFailure, isKugouTimeout, kugouNoUrlError } from './kugouFailure';
 import { errorFields } from '../../../utils/errorText';
 import { LISTENING_RANK_RANGES, listeningRankCollection, listeningRankPage, withListenCount } from '../listeningRank';
+import { registerKugouLyricSource } from './kugouLyricSource';
 
 // src/services/onlineMusic/kugou/kugouProvider.ts
 
@@ -1820,3 +1821,6 @@ export const kugouProvider: OnlineMusicProvider = {
         },
     },
 };
+
+// The lyric source this platform is (lyricSources.ts), where it is reached otherwise than through this provider.
+registerKugouLyricSource();

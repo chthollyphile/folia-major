@@ -17,9 +17,18 @@ import {
 import { DurationMatchBadge } from './DurationMatchBadge';
 import { getSizedCoverUrl } from '../../utils/coverUrl';
 import { useConfirmDialog } from '../shared/useConfirmDialog';
+import { useCrossSourceParticipants } from '../../hooks/useCrossSourceParticipants';
+import { omni } from '../../services/onlineMusic/omni';
 
 // src/components/modal/LocalSongMetadataMatchDialog.tsx
 // Lets the user search one provider and independently choose its metadata bundle and cover.
+
+// The names the source tabs have always shown; a source without one shows its platform's name.
+const SOURCE_LABEL_KEYS: Readonly<Record<string, string>> = {
+    netease: 'localMusic.neteaseSource',
+    qq: 'localMusic.qqSource',
+    kugou: 'localMusic.kugouSource',
+};
 
 interface LocalSongMetadataMatchDialogProps {
     song: LocalSong;
@@ -31,7 +40,11 @@ interface LocalSongMetadataMatchDialogProps {
 
 export const LocalSongMetadataMatchDialog = ({ song, assignment, isDaylight, onClose, onChanged }: LocalSongMetadataMatchDialogProps) => {
     const { t } = useTranslation();
-    const [source, setSource] = useState<OnlineMetadataSource>('netease');
+    // The sources that can match a local song now (crossSource.ts); one that is not there has no tab. The tab
+    // chosen falls back to the first while its source is away, and is the chosen one again once it is back.
+    const sources = useCrossSourceParticipants('metadata').ready as OnlineMetadataSource[];
+    const [chosenSource, setSource] = useState<OnlineMetadataSource | null>(null);
+    const source: OnlineMetadataSource | undefined = chosenSource && sources.includes(chosenSource) ? chosenSource : sources.at(0);
     const [query, setQuery] = useState(() => buildLocalSongMetadataSearchQuery(song));
     const [results, setResults] = useState<OnlineMetadataCandidate[]>([]);
     const [selected, setSelected] = useState<OnlineMetadataCandidate | null>(null);
@@ -63,7 +76,8 @@ export const LocalSongMetadataMatchDialog = ({ song, assignment, isDaylight, onC
 
     const search = async () => {
         const safeQuery = query.trim();
-        if (!safeQuery) return;
+        // No source can match a local song now (none of them is there): nothing to ask.
+        if (!safeQuery || !source) return;
         const requestId = ++requestIdRef.current;
         setSearching(true);
         setSelected(null);
@@ -166,13 +180,9 @@ export const LocalSongMetadataMatchDialog = ({ song, assignment, isDaylight, onC
                 </header>
                 <div className="flex min-h-0 flex-1 flex-col gap-4 p-5">
                     <div className="flex gap-2">
-                        {(['netease', 'qq', 'kugou'] as const).map(item => (
+                        {sources.map(item => (
                             <button key={item} type="button" onClick={() => { setSource(item); setResults([]); setSelected(null); }} className={`rounded-full px-4 py-2 text-xs font-bold ${source === item ? 'bg-blue-500 text-white' : 'bg-current/10'}`}>
-                                {item === 'netease'
-                                    ? t('localMusic.neteaseSource')
-                                    : item === 'qq'
-                                        ? t('localMusic.qqSource')
-                                        : t('localMusic.kugouSource')}
+                                {SOURCE_LABEL_KEYS[item] ? t(SOURCE_LABEL_KEYS[item]) : omni.getProviderLabel(item)}
                             </button>
                         ))}
                     </div>

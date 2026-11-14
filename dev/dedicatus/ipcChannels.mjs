@@ -6,6 +6,8 @@
 // 不让它们开出别的窗口、也不让它们导航到应用以外的页面（那样的页面会带着 preload）；写、花钱、回个人数据的通道都加了来源校验。
 // 循环里拼出名字的通道（模组系统 folia-mods:*、HiFi hifi:*）扫描认不出，按前缀登记在 IPC_DYNAMIC_PREFIXES。
 // 检查在 test/unit/dedicatus/contracts/ipc.test.ts。
+// Folium 2.0：平台的 *-api-request 等通道随平台迁成模组（S5）逐个删掉（模组的 main 入口经 folia-mods:rpc 答，不再自己注册通道）；
+// sources/ 里的代码 import 不了 electron（构建脚本拒绝），注册不了通道。
 
 /** @type {Record<string, { level: 'any' | 'first-party', why: string }>} */
 export const IPC_CHANNELS = {
@@ -20,7 +22,6 @@ export const IPC_CHANNELS = {
     'automix-htdemucs': { level: 'first-party', why: '跑分离模型，占 CPU/GPU（宿主注入的来源校验）' },
     'automix-models-present': { level: 'any', why: '只读模型文件在不在' },
     'background-throttling-get': { level: 'first-party', why: '只回主窗口，别处回受限值（内联校验）' },
-    'bodian-api-request': { level: 'first-party', why: '现状：有来源校验' },
     'choose-cache-directory': { level: 'first-party', why: '改缓存目录（firstParty）' },
     'clear-audio-cache': { level: 'first-party', why: '清空音频缓存（firstParty）' },
     'clear-cover-cache': { level: 'first-party', why: '清空封面缓存（firstParty）' },
@@ -153,6 +154,8 @@ export const IPC_CHANNELS = {
 
 /** 循环里拼出名字、扫描认不出的通道前缀。 */
 export const IPC_DYNAMIC_PREFIXES = {
-    'folia-mods:': 'electron/modSystem/modSystem.cjs 按通道表循环注册，各自经模组系统的来源校验',
+    // Folium 2.0 S2：通道表（foliumShared.json channels）的每一条都经 modSystem.cjs 的 isMainWindowFrame，只答主窗口的主 frame。
+    // S2 新加的 source-states、set-source-state、source-data、clear-source-data、confirm-override、assign-source-claim 同在这张表里。
+    'folia-mods:': 'electron/modSystem/modSystem.cjs 按通道表循环注册，每条都只答主窗口的主 frame（isMainWindowFrame）',
     'hifi:': 'electron/hifi/hifiIpc.cjs 按通道表循环注册',
 };

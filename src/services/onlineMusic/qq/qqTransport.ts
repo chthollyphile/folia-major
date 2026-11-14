@@ -1,6 +1,6 @@
 import { OnlineProviderError } from '../../../types/onlineMusic';
 import { readProviderSessionValue, removeProviderSessionValue, writeProviderSessionValue } from '../providerStorage';
-import { withLoginRequestLimit } from '../login/loginRequestLimit';
+import { withLoginRequestLimit } from '@folia/folium-source-kit';
 import { withOnlineRequestLimit } from '../failure/onlineRequestLimit';
 import { lyricProxyWebUrl } from '../../lyricProxy';
 import { errorMessage } from '../../../utils/errorText';

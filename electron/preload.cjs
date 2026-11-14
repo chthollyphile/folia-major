@@ -185,7 +185,6 @@ contextBridge.exposeInMainWorld('electron', {
     kugouRequest: (operation, params) => ipcRenderer.invoke('kugou-api-request', operation, params),
     qishuiRequest: (operation, params) => ipcRenderer.invoke('qishui-api-request', operation, params),
     fnmusicRequest: (operation, params) => ipcRenderer.invoke('fnmusic-api-request', operation, params),
-    bodianRequest: (operation, params) => ipcRenderer.invoke('bodian-api-request', operation, params),
     ytmRequest: (operation, params) => ipcRenderer.invoke('ytm-api-request', operation, params),
     appleMusicRequest: (operation, params) => ipcRenderer.invoke('apple-music-request', operation, params),
     spotifyRequest: (operation, params) => ipcRenderer.invoke('spotify-api-request', operation, params),
@@ -388,6 +387,14 @@ contextBridge.exposeInMainWorld('electron', {
         getModCallStats: () => ipcRenderer.invoke('folia-mods:call-stats'),
         reportModsStartSettled: () => ipcRenderer.invoke('folia-mods:start-settled'),
         reportModsStartAlive: () => ipcRenderer.invoke('folia-mods:start-alive'),
+        // Folium 2.0: each source's state (enabled / matching / disabled) and its "clear data".
+        getSourceStates: () => ipcRenderer.invoke('folia-mods:source-states'),
+        setSourceState: (sourceId, state) => ipcRenderer.invoke('folia-mods:set-source-state', sourceId, state),
+        describeSourceData: (sourceId) => ipcRenderer.invoke('folia-mods:source-data', sourceId),
+        clearSourceData: (sourceId) => ipcRenderer.invoke('folia-mods:clear-source-data', sourceId),
+        confirmModOverride: (modId) => ipcRenderer.invoke('folia-mods:confirm-override', modId),
+        assignSourceClaim: (shortId, modId) => ipcRenderer.invoke('folia-mods:assign-source-claim', shortId, modId),
+        reportSourcesRegistered: (modId, registered, clientUrl) => ipcRenderer.invoke('folia-mods:sources-registered', modId, registered, clientUrl),
         onModsStateChanged: (callback) => {
             const listener = (_event, mods) => callback(mods);
             ipcRenderer.on('folia-mods:state-changed', listener);
@@ -412,6 +419,16 @@ contextBridge.exposeInMainWorld('electron', {
             const listener = (_event, change) => callback(change);
             ipcRenderer.on('folia-mods:secret-changed', listener);
             return () => ipcRenderer.removeListener('folia-mods:secret-changed', listener);
+        },
+        onSourceStatesChanged: (callback) => {
+            const listener = (_event, payload) => callback(payload);
+            ipcRenderer.on('folia-mods:source-states-changed', listener);
+            return () => ipcRenderer.removeListener('folia-mods:source-states-changed', listener);
+        },
+        onSourcesStopping: (callback) => {
+            const listener = (_event, payload) => callback(payload);
+            ipcRenderer.on('folia-mods:sources-stopping', listener);
+            return () => ipcRenderer.removeListener('folia-mods:sources-stopping', listener);
         },
     },
     hifi: {

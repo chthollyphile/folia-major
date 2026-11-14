@@ -78,6 +78,11 @@ export const registerFoliumHostActions = (actions: FoliumHostActions | null) => 
     hostActions = actions;
 };
 
+/** Folium 2.0 (runtime/sourceSwitches.ts): pauses the App's playback, as its pause button does; nothing before the App registered. */
+export const pauseFoliumHostPlayback = (): void => {
+    hostActions?.pause();
+};
+
 const PLAYBACK_CONTROL: FoliumPermissionId = 'playback.control';
 const PLAYBACK_QUEUE: FoliumPermissionId = 'playback.queue';
 const NET_EMBED: FoliumPermissionId = 'net.embed';
@@ -299,29 +304,64 @@ export const createFoliumUiService = (mod: ModRuntimeInfo, context: FoliumContex
 });
 
 /** `folium.lyrics`: the shared helpers, plus the displayed song's lyrics from the App. */
-export const createFoliumLyricsService = (context: FoliumContextKind): FoliumLyricsService => Object.freeze({
-    ...FOLIUM_LYRICS_HELPERS,
+// Folium 2.0 (plan §9): the lyric helpers a `folium: 1` mod sees, frozen at 1.9: without the 2.0 member.
+const FOLIUM_ONE_LYRICS_HELPERS = Object.freeze(Object.fromEntries(
+    Object.entries(FOLIUM_LYRICS_HELPERS).filter(([name]) => name !== 'isPureMusicText'),
+));
+
+/** `folium.lyrics`; `foliumTwo` false for a `folium: 1` mod, whose interface stays at 1.9. */
+export const createFoliumLyricsService = (context: FoliumContextKind, foliumTwo = true): FoliumLyricsService => Object.freeze({
+    ...(foliumTwo ? FOLIUM_LYRICS_HELPERS : FOLIUM_ONE_LYRICS_HELPERS),
     getLines: () => requireActions('lyrics', context).getLyricLines(),
     refresh: () => requireActions('lyrics', context).refreshLyrics(),
-});
+}) as FoliumLyricsService;
 
-const buildResponse = (raw: { status: number; statusText: string; headers: Record<string, string>; body: string }): FoliumFetchResponse => {
+interface RawFetchResponse { status: number; statusText: string; headers: Record<string, string>; body: string; bodyBase64?: string }
+
+const decodeBase64 = (text: string): ArrayBuffer => {
+    const binary = atob(text);
+    const bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+    return bytes.buffer;
+};
+
+/*
+ * `bytes`: a source mod's response (Folium 2.0, plan §5.2), which also reads as bytes: the body the main
+ * process sent as base64 when asked for `arrayBuffer`, otherwise the text's UTF-8.
+ */
+const buildResponse = (raw: RawFetchResponse, bytes: boolean): FoliumFetchResponse => {
     const headers = Object.freeze({ ...raw.headers });
+    let text: string | null = typeof raw.bodyBase64 === 'string' ? null : raw.body;
+    const textOf = () => {
+        text ??= new TextDecoder().decode(decodeBase64(raw.bodyBase64 ?? ''));
+        return text;
+    };
     return Object.freeze({
         ok: raw.status >= 200 && raw.status < 300,
         status: raw.status,
         statusText: raw.statusText,
         headers,
-        text: () => raw.body,
-        json: <T>() => JSON.parse(raw.body) as T,
+        text: textOf,
+        json: <T>() => JSON.parse(textOf()) as T,
+        ...(bytes ? {
+            arrayBuffer: (): ArrayBuffer => (typeof raw.bodyBase64 === 'string'
+                ? decodeBase64(raw.bodyBase64)
+                : new TextEncoder().encode(raw.body).buffer),
+        } : {}),
     });
 };
 
 export const createFoliumNetService = (mod: ModRuntimeInfo, context: FoliumContextKind): FoliumNetService => Object.freeze({
     fetch: async (url: string, init: FoliumFetchInit = {}) => {
         requireMain('net', context);
-        const response = await invokeModNetFetch(mod.id, String(url), init);
+        // A source mod's bytes come over IPC as base64 (netFetch.cjs `responseType: 'base64'`); an ordinary mod's are text.
+        const isSource = mod.kind === 'source';
+        const { responseType, session, ...rest } = init;
+        const sent: Record<string, unknown> = isSource
+            ? { ...rest, ...(responseType === 'arrayBuffer' ? { responseType: 'base64' } : {}), ...(typeof session === 'string' ? { session } : {}) }
+            : rest;
+        const response = await invokeModNetFetch(mod.id, String(url), sent);
         if (!response.ok) throw new Error(response.error ?? 'net-fetch-failed');
-        return buildResponse(response.result as { status: number; statusText: string; headers: Record<string, string>; body: string });
+        return buildResponse(response.result as RawFetchResponse, isSource);
     },
 });

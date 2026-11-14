@@ -14,9 +14,11 @@ import { buildImportedMetadataSnapshot } from '../utils/localSongMetadata';
 import { getLocalLibraryCatalogSnapshot } from './localLibraryEntityRepository';
 import { resolveLocalSongMetadata } from './playbackAdapters';
 import { removeCachedCover } from './coverCache';
-import { getOnlineMusicProvider } from './onlineMusic/providerRegistry';
+import { participants } from './onlineMusic/crossSource';
+import type { LocalSongMetadataSource } from '../types/localLibrary';
+import { getLyricSourceAccess } from '../utils/lyrics/lyricMatchSources';
 import { getProviderSongMetadata } from './onlineMusic/songMetadata';
-import { normalizeLyricMatchMetadataCandidate } from './onlineMetadataSearchService';
+import { normalizeLyricMatchMetadataCandidate, normalizeOnlineMetadataCandidate } from './onlineMetadataSearchService';
 import {
     prepareLocalCoverBlob,
     stageLocalCoverAsset,
@@ -1425,17 +1427,29 @@ export async function matchLyrics(song: LocalSong): Promise<LyricData | null> {
             return null;
         }
 
-        // Search on Netease
-        const searchPage = await getOnlineMusicProvider('netease')?.search?.searchSongs(searchQuery, 50, 0);
+        // Search the first source that can match a local song now (crossSource.ts): NetEase while it is there.
+        // With none there, nothing is matched; that is no failure.
+        const source = participants('metadata', { report: true }).ready[0] as LocalSongMetadataSource | undefined;
+        if (!source) {
+            console.info('[LocalMusic] No online source can match local songs now; lyric match skipped.');
+            return null;
+        }
+        const access = getLyricSourceAccess(source);
+        const searchItems = await access.search(searchQuery, 50, {
+            title: matchContext.title,
+            artist: matchContext.artist,
+            album: matchContext.album,
+            durationMs: matchContext.durationMs,
+        });
 
-        if (!searchPage?.items?.length) {
+        if (!searchItems.length) {
             console.warn(`[LocalMusic] No search results for: "${searchQuery}"`);
             return null;
         }
 
         // Try to find a song with matching title
         const localTitle = matchContext.title;
-        const matchedSong = searchPage.items.find(candidate => isTitleMatch(localTitle, candidate.name));
+        const matchedSong = searchItems.find(candidate => isTitleMatch(localTitle, candidate.name));
 
         // If no exact title match found, return null to trigger manual selection
         if (!matchedSong) {
@@ -1443,7 +1457,14 @@ export async function matchLyrics(song: LocalSong): Promise<LyricData | null> {
             return null;
         }
 
-        const matchedMetadata = getProviderSongMetadata(matchedSong, 'netease');
+        const matchedMetadata = getProviderSongMetadata(matchedSong, source);
+        // The id the source knows the song by (a mid or a hash where it keeps one, else the song id), as the metadata dialog stores it.
+        const matchedSongId = normalizeOnlineMetadataCandidate(source, matchedSong, {
+            title: matchContext.title,
+            artist: matchContext.artist,
+            album: matchContext.album,
+            durationMs: matchContext.durationMs,
+        }).songId;
         console.log(`[LocalMusic] Found exact title match: ${matchedSong.name} by ${matchedMetadata.artists.map(artist => artist.name).join(', ')}`);
 
         // Preserve local and embedded lyrics when the configured priority keeps them first.
@@ -1453,8 +1474,8 @@ export async function matchLyrics(song: LocalSong): Promise<LyricData | null> {
             // Only update metadata and cover, preserve local lyrics
             const coverUrl = matchedMetadata.coverUrl;
             await applyMatchedMetadata(song.id, {
-                source: 'netease',
-                songId: matchedSong.id,
+                source,
+                songId: matchedSongId,
                 title: matchedSong.name,
                 artists: matchedMetadata.artists,
                 album: matchedMetadata.album,
@@ -1470,11 +1491,11 @@ export async function matchLyrics(song: LocalSong): Promise<LyricData | null> {
         }
 
         // Fetch lyrics (only when NO local lyrics)
-        const processed = await getOnlineMusicProvider('netease')?.lyrics?.getLyrics(matchedSong);
+        const processed = await access.fetch(matchedSong, { chorusRanges: [] });
         if (!processed) return null;
 
         song.matchedLyricsSongId = matchedSong.id;
-        song.matchedLyricsSource = 'netease';
+        song.matchedLyricsSource = source;
         song.matchedLyrics = processed.lyrics || undefined;
         song.matchedIsPureMusic = processed.isPureMusic;
 
@@ -1485,8 +1506,8 @@ export async function matchLyrics(song: LocalSong): Promise<LyricData | null> {
 
         const coverUrl = matchedMetadata.coverUrl;
         await applyMatchedMetadata(song.id, {
-            source: 'netease',
-            songId: matchedSong.id,
+            source,
+            songId: matchedSongId,
             title: matchedSong.name,
             artists: matchedMetadata.artists,
             album: matchedMetadata.album,

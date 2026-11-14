@@ -2,7 +2,7 @@ import type { KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerE
 import type { RowComponentProps } from 'react-window';
 import { GripVertical, ListEnd, ListPlus, Trash2 } from 'lucide-react';
 import type { SongResult } from '../../types';
-import { getSongTag, isSongUnavailable } from '../../services/onlineMusic/songAvailability';
+import { getSongTag, isSongShownUnplayable } from '../../services/onlineMusic/songAvailability';
 import { getSongArtistLabel } from '../../services/onlineMusic/songMetadata';
 import { getPlaybackSongKey } from '../../utils/appPlaybackGuards';
 import { queueRowShift } from './queueDragGeometry';
@@ -70,7 +70,7 @@ export function WallToolsQueueRow({
     if (!song) return null;
     const songKey = getPlaybackSongKey(song);
     const isCurrent = songKey === currentSongKey;
-    const isUnavailable = isSongUnavailable(song);
+    const isUnavailable = isSongShownUnplayable(song);
     const tag = getSongTag(song, labels);
     const shift = drag ? queueRowShift(index, drag.from, drag.to) : 0;
     const className = [

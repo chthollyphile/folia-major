@@ -54,8 +54,6 @@ const source = (patch: Partial<Parameters<typeof resolveHomeOnlineSource>[0]> = 
     providerId: 'p',
     capabilities: ALL,
     fallbackLabel: 'fallback',
-    fallbackUser: null,
-    fallbackPlaylists: [],
     platformAvailable: true,
     ...patch,
 });
@@ -68,18 +66,13 @@ describe('resolveHomeOnlineSource', () => {
         expect(online).toMatchObject({ providerId: 'p', providerLabel: 'P', user, collections: [owned], accountView: 'authenticated', needsRelogin: false });
     });
 
-    it('falls back to the app account and playlists (cloud last) only for netease', () => {
-        const user = { id: 1, nickname: 'N' };
-        const playlists = [collection('a'), collection('b')];
-        const cloud = collection('cloud', 'cloud');
-        const netease = source({ providerId: 'netease', fallbackUser: user, fallbackPlaylists: playlists, fallbackCloud: cloud });
-        expect(netease.user).toBe(user);
-        expect(netease.collections.map(item => item.id)).toEqual(['a', 'b', 'cloud']);
+    // Folium 2.0 方案 §7：网易云不再有「应用传入的旧账户」这条退路，账户只走账号层。
+    it('has no account without the provider summary, NetEase like any other', () => {
+        const netease = source({ providerId: 'netease' });
+        expect(netease.user).toBeNull();
+        expect(netease.collections).toEqual([]);
         expect(netease.providerLabel).toBe('fallback');
-
-        const other = source({ providerId: 'other', fallbackUser: user, fallbackPlaylists: playlists, fallbackCloud: cloud });
-        expect(other.user).toBeNull();
-        expect(other.collections).toEqual([]);
+        expect(netease.accountView).not.toBe('authenticated');
     });
 
     it('maps capabilities onto the three online tabs', () => {

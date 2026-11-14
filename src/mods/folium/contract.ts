@@ -3,13 +3,21 @@
 // nowhere else. Host-internal types (Line, Theme, SongResult, store shapes)
 // never appear in this file; the host projects them into these DTOs.
 //
-// Stability rule (mods/README.md): inside folium 1.x what a mod can use only
-// grows. The names Folium 2 removes still work in 1.x through deprecated/ (its
-// header lists them); this file holds only the names that stay, and one shape
-// that goes: FoliumLegacyLyricsResult, which getLyrics may still answer.
+// Stability rule (mods/README.md): inside a folium major what a mod can use only
+// grows. Folium 2.0 (plan §9) keeps both tracks: a `folium: 1` mod gets the
+// interface as it was in 1.9 (folium.host.folium reads 1.9, the old names and
+// internals of deprecated/ still work, nothing of Folium 2 is added to it); a
+// `folium: 2` mod gets this file as it is now, with the sources of
+// sources/contract.ts. This file holds the names that stay, and one shape that
+// goes: FoliumLegacyLyricsResult, which getLyrics may still answer.
+//
+// Its one import is of types from sources/contract.ts, which the generated type
+// file holds itself, so the generators drop that line; it may import nothing else.
+
+import type { FoliumI18nService, FoliumSourcesService } from './sources/contract';
 
 /** The Folium version this host implements; mods read it at runtime as `folium.host.folium`. */
-export const FOLIUM_VERSION = Object.freeze({ major: 1, minor: 9 });
+export const FOLIUM_VERSION = Object.freeze({ major: 2, minor: 0 });
 
 /** `modid:name`, like a Forge ResourceLocation. The mod id part is added by the host. */
 export type FoliumId = string;
@@ -1513,11 +1521,21 @@ export interface FoliumFetchInit {
     headers?: Record<string, string>;
     /** Request body (text). */
     body?: string;
-    /** Default 15000, at most 60000. */
+    /** Default 15000, at most 60000 (a source mod sets any). */
     timeoutMs?: number;
+    /**
+     * Folium 2, source mods only: `arrayBuffer` reads the body as bytes, for `arrayBuffer()` (an ordinary mod's
+     * answers are text). Default `text`.
+     */
+    responseType?: 'text' | 'arrayBuffer';
+    /** Folium 2, source mods only: the named partition the request goes through (as the main entry's `api.net.session`). */
+    session?: string;
 }
 
-/** A fully read response (body at most 5 MB); `text` and `json` return synchronously. */
+/**
+ * A fully read response (body at most 5 MB, none for a source mod); `text` and `json` return synchronously.
+ * Folium 2: a source mod's response also has `arrayBuffer()`.
+ */
 export interface FoliumFetchResponse {
     /** Status is 2xx. */
     readonly ok: boolean;
@@ -1531,6 +1549,11 @@ export interface FoliumFetchResponse {
     text(): string;
     /** The body parsed as JSON; throws on invalid JSON. */
     json<T = unknown>(): T;
+    /**
+     * Folium 2, source mods only: the body as bytes (asked with `responseType: 'arrayBuffer'`; otherwise the
+     * text's UTF-8). An ordinary mod's response has none.
+     */
+    arrayBuffer?(): ArrayBuffer;
 }
 
 /**
@@ -1619,7 +1642,7 @@ export interface FoliumOmniProviderInfo {
     readonly displayName: string;
     /** Short name, as the search overlay's source chip shows it. */
     readonly shortName: string;
-    /** `host`: built into Folia. `mod`: registered by a mod (`omni.providers`); gone while that mod is off. */
+    /** `host`: built into Folia. `mod`: registered by a mod (`omni.providers`, or Folium 2 `folium.sources`); gone while that mod is off. */
     readonly origin: 'host' | 'mod';
     /** Whether this is the source the host has selected now (what `searchSongs` uses without `providerId`). */
     readonly selected: boolean;
@@ -1858,6 +1881,12 @@ export interface FoliumOmniService {
         artist: FoliumCollection,
         options?: { cursor?: string; limit?: number; signal?: AbortSignal },
     ): Promise<FoliumOmniPage<FoliumCollection>>;
+    /**
+     * Folium 2 (a `folium: 1` mod has none): a custom capability (`x.<mod id>.<name>@<version>`) of a source,
+     * the very object its mod registered, or null where the source has none by that id (or is not there).
+     * The host does not call into it, check it or time it: what it does is between the two mods. Synchronous.
+     */
+    capability(sourceId: string, id: string): unknown;
 }
 
 /** Folium 1.7: one band of the host's graphic equalizer, as `FoliumEqualizerState.bands` lists it. Frozen. */
@@ -2623,6 +2652,11 @@ export interface FoliumLyricsHelpers {
      * Rejects with a TypeError (`invalid-lyrics-track`) when the track is malformed.
      */
     parse(track: FoliumLyricsTrack): Promise<FoliumParsedLyrics>;
+    /**
+     * Folium 2: whether a lyric text is only the "instrumental, please enjoy" notice, by the host's own rule (the
+     * one its lyric display and its platforms use). For a source's `lyrics@1` answer (`isPureMusic`). Synchronous.
+     */
+    isPureMusicText(text: string | null | undefined): boolean;
 }
 
 /** Theme resolution builtin modes use. Available in both contexts. */
@@ -2642,7 +2676,10 @@ export type FoliumContextKind = 'main' | 'export';
 
 /**
  * The host's versions (`folium.host`), for display and logs. Every member of this contract is there from
- * Folium 1.7 on; an older 1.x host lacks some of them.
+ * Folium 1.7 on; an older 1.x host lacks some of them. Folium 2.0: a mod whose mod.json says `folium: 1`
+ * reads 1.9 here, the version its interface stays at; a `folium: 2` mod reads the host's own. A host that
+ * runs a `folium: 2` mod has every member a "check `folium.host.folium.minor >= …`" below speaks of: such a
+ * check is for `folium: 1` mods (in a `folium: 2` mod, check `major >= 2` or nothing).
  */
 export interface FoliumHostInfo {
     /** The Folium version (`major`, `minor`). */
@@ -2769,6 +2806,13 @@ export interface FoliumClientApi {
     readonly equalizer: FoliumEqualizerService;
     /** Folium 1.8: the host's settings of the lyric display: the global lyric render quality. */
     readonly visualizer: FoliumVisualizerService;
+    /**
+     * Folium 2 (a `folium: 1` mod has none): a source mod's sources (`sources` in mod.json). Any `folium: 2`
+     * mod may ask `supports`; only a source mod registers.
+     */
+    readonly sources: FoliumSourcesService;
+    /** Folium 2 (a `folium: 1` mod has none): texts from the mod's own locale files (`locales` in mod.json). */
+    readonly i18n: FoliumI18nService;
     /**
      * Calls `listener` every `ms` milliseconds (at least 16) until the mod stops; the host stops
      * it then.

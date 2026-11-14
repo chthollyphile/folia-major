@@ -1,3 +1,4 @@
+// @builtin-sources
 import { createRequire } from 'node:module';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createBodianApi } from 'bodian-music-api';
@@ -7,6 +8,7 @@ import { NETEASE_ONLINE_REQUEST_LIMIT_MS } from '@/services/onlineMusic/netease/
 import { onlineFailureOf, stopsPlayback } from '@/services/onlineMusic/failure/onlineFailureCase';
 import type { UnifiedSong } from '@/types';
 import type { OnlineFailureOperation, OnlineProviderId, ProviderCollection } from '@/types/onlineMusic';
+import { setBuiltinSourceRpc } from '../helpers/builtinSources';
 
 // test/unit/onlineMusic/onlineFailurePlatforms.test.ts
 // Which case each platform's own failure to give a song's audio or a collection's tracks sorts
@@ -391,7 +393,8 @@ describe('Bodian', () => {
     // The real package, as the desktop side runs it, over a stand-in for the network.
     const desktop = (respond: () => unknown) => {
         const api = createBodianApi({ deviceId: 'a'.repeat(32), requestFactory: createWire(respond).factory });
-        vi.stubGlobal('window', { electron: { bodianRequest: api.request } });
+        // Folium 2.0 S5: the source mod's main entry runs the package; its client reaches it over the rpc.
+        setBuiltinSourceRpc('bodian', { request: (operation, params) => api.request(operation as never, params as never) });
     };
     const song = songOf('bodian', '1001');
 

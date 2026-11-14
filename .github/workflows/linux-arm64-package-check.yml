@@ -11,6 +11,8 @@ name: Linux arm64 Package Check
 #   - build/、packaging/：beforePack、afterPack 和它们调的脚本（ffmpeg、MNN、模型、windowtolayer）；
 #   - native/：beforePack 编出的 MNN 运行库的源码（native/folia-mnn）；
 #   - shared/modelManifest.json：beforePack 拉模型时按它核对文件和哈希；
+#   - sources/、dev/sources/、packages/folium-source-kit/：Folium 2.0 的内置音源模组，发布 workflow 的
+#     `npm run sources:build` 把它们构建进 dist-mods/，extraResources 放进 resources/builtin-mods；
 #   - 发布 workflow 本身。
 # electron/appleMusic 下的伴随程序只在 Windows、macOS 上由 beforePack 编，不进 Linux 包。
 # beforePack、afterPack 以后引用了这些路径之外的文件，要一起加进下面的 paths。
@@ -23,6 +25,9 @@ on:
       - packaging/**
       - native/**
       - shared/modelManifest.json
+      - sources/**
+      - dev/sources/**
+      - packages/folium-source-kit/**
       - .github/workflows/linux-arm64-package-check.yml
       - .github/workflows/electron-release.yml
       - .github/workflows/release-candidate.yml
@@ -73,6 +78,11 @@ jobs:
         env:
           ELECTRON: 'true'
         run: npm run build
+
+      # Folium 2.0: the built-in source mods, sources/<id>/ built into dist-mods/ (dev/sources/build.mjs), which
+      # extraResources ships as resources/builtin-mods. FOLIA_BUNDLED_SOURCES unset: every source in sources/.
+      - name: Build built-in source mods
+        run: npm run sources:build
 
       - name: Package Electron app
         env:

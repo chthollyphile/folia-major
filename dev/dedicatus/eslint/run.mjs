@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { ESLINT_SUPPRESSIONS_FILE, suppressionGrowthWithTransfers } from '../baseline.mjs';
 import { ESLINT_RULE_CODES } from '../codes.mjs';
 import { showAt } from '../git.mjs';
@@ -14,12 +15,21 @@ import { showAt } from '../git.mjs';
 
 const RUNTIME = 'dev/dedicatus/lint';
 
-/** 要检查的目录和文件。显式列出而不是扫 `.`：主检出里 .claude/worktrees 下还嵌着别的工作树。 */
+const LINTABLE = /\.(ts|tsx|mts|cts|js|jsx|mjs|cjs)$/;
+const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
+/** 目录里有没有可查的代码文件：交给 ESLint 一个没有代码文件的目录，它会报错退出。 */
+const hasLintableFiles = dir => fs.existsSync(dir) && fs.readdirSync(dir, { withFileTypes: true, recursive: true })
+    .some(entry => entry.isFile() && LINTABLE.test(entry.name) && !entry.parentPath.split(path.sep).includes('node_modules'));
+
+/**
+ * 要检查的目录和文件。显式列出而不是扫 `.`：主检出里 .claude/worktrees 下还嵌着别的工作树。
+ * sources/（Folium 2.0 的音源模组）迁进第一家之前只有 tsconfig.json 和说明，有了代码文件才列进来。
+ */
 export const LINT_TARGETS = [
     'src', 'test', 'dev', 'electron', 'shared', 'api', 'api-ts', 'worker', 'packaging', 'build', 'deploy', 'public',
-    'skills', 'sync-server', '.github/scripts', 'packages', '*.ts', '*.js', '*.mjs',
+    'skills', 'sync-server', '.github/scripts', 'packages', ...(hasLintableFiles(path.join(REPO, 'sources')) ? ['sources'] : []),
+    '*.ts', '*.js', '*.mjs',
 ];
-const LINTABLE = /\.(ts|tsx|mts|cts|js|jsx|mjs|cjs)$/;
 /** 一次交给 ESLint 的文件太多时改成全仓跑：Windows 的命令行最长 32767 个字符。 */
 const MAX_SCOPED_CHARS = 20000;
 

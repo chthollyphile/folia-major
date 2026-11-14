@@ -1,7 +1,7 @@
 import type { CommandPaletteContext } from '../../command-palette/types';
 import type { LyricStaffPolicy } from '../../../utils/lyrics/staffCreditsPolicy';
 import type { ThemeGenerationSource } from '../../../services/themePreferences';
-import { useAudioSettingsStore } from '../../../stores/useAudioSettingsStore';
+import { useAudioSettingsStore, isPlaybackReportEnabled } from '../../../stores/useAudioSettingsStore';
 import { useAutomixSettingsStore } from '../../../stores/useAutomixSettingsStore';
 import { useHifiSettingsStore } from '../../../stores/useHifiSettingsStore';
 import { hifiEngine, useHifiEngineStore } from '../../../services/hifi/hifiEngine';
@@ -10,7 +10,7 @@ import { canOfferRuntimeDownload, isRuntimeInstalling } from '../../modal/settin
 import { useDesktopSettingsStore } from '../../../stores/useDesktopSettingsStore';
 import { useLocalLibrarySettingsStore } from '../../../stores/useLocalLibrarySettingsStore';
 import { isLocalLibraryAutoScanSupported } from '../../../services/localLibraryAutoScan';
-import { isPlaybackReportReady } from '../../../services/onlineMusic/playbackReportGate';
+import { isPlaybackReportReady, getPlaybackReportSettingProviderId } from '../../../services/onlineMusic/playbackReportGate';
 import { useLyricSettingsStore } from '../../../stores/useLyricSettingsStore';
 import { useGridViewSettingsStore } from '../../../stores/useGridViewSettingsStore';
 import { useLatticeSettingsStore } from '../../../stores/useLatticeSettingsStore';
@@ -217,9 +217,11 @@ export const buildSettingsCommandContext = (
         canAutoScanLocalLibrary: isLocalLibraryAutoScanSupported,
         toggleLocalLibraryAutoScan: () => useLocalLibrarySettingsStore.getState().toggleAutoScan(),
         canReportPlayback: () => isPlaybackReportReady(),
-        togglePlaybackReport: () => audio.handleToggleNeteaseScrobble(
-            !useAudioSettingsStore.getState().neteaseScrobbleEnabled,
-        ),
+        // The setting of the source that takes reports (stored per source, Folium 2.0 S1).
+        togglePlaybackReport: () => {
+            const providerId = getPlaybackReportSettingProviderId();
+            if (providerId) audio.handleSetPlaybackReport(providerId, !isPlaybackReportEnabled(useAudioSettingsStore.getState(), providerId));
+        },
         toggleAutoAiLyricSegmentation: () => {
             const lyric = useLyricSettingsStore.getState();
             lyric.handleToggleAutoAiLyricSegmentation(!lyric.autoAiLyricSegmentation);

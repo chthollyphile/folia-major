@@ -35,26 +35,38 @@ const MEDIA_CONTENT_TYPES = {
 };
 
 /*
- * Serves one picked file, honouring a single `Range: bytes=a-b` request (what
+ * One `Range: bytes=a-b` header against a file of `size` bytes: { start, end } (inclusive), 'unsatisfiable',
+ * or null for no (usable) range, which serves the whole file. Only a single range is read; it is what
+ * <audio> and <video> seeking send.
+ */
+const parseRangeHeader = (header, size) => {
+    const range = /^bytes=(\d*)-(\d*)$/.exec(String(header ?? '').trim());
+    if (!range || (!range[1] && !range[2])) return null;
+    let start = range[1] ? Number(range[1]) : Math.max(0, size - Number(range[2]));
+    let end = range[1] && range[2] ? Number(range[2]) : size - 1;
+    end = Math.min(end, size - 1);
+    if (start > end || start >= size) return 'unsatisfiable';
+    start = Math.max(0, start);
+    return { start, end };
+};
+
+/*
+ * Serves one file from disk, honouring a single `Range: bytes=a-b` request (what
  * <video> seeking sends). Streams from disk instead of buffering the whole file.
  */
-const servePickedFile = (request, filePath) => {
+const serveFileWithRange = (request, filePath, contentType = null) => {
     const stat = fs.statSync(filePath);
-    const contentType = MEDIA_CONTENT_TYPES[path.extname(filePath).toLowerCase()] ?? 'application/octet-stream';
     const baseHeaders = {
-        'Content-Type': contentType,
+        'Content-Type': contentType ?? MEDIA_CONTENT_TYPES[path.extname(filePath).toLowerCase()] ?? 'application/octet-stream',
         'Accept-Ranges': 'bytes',
         'Cache-Control': 'no-store',
     };
-    const range = /^bytes=(\d*)-(\d*)$/.exec(request.headers.get('range') ?? '');
-    if (range && (range[1] || range[2])) {
-        let start = range[1] ? Number(range[1]) : Math.max(0, stat.size - Number(range[2]));
-        let end = range[1] && range[2] ? Number(range[2]) : stat.size - 1;
-        end = Math.min(end, stat.size - 1);
-        if (start > end || start >= stat.size) {
-            return new Response(null, { status: 416, headers: { ...baseHeaders, 'Content-Range': `bytes */${stat.size}` } });
-        }
-        start = Math.max(0, start);
+    const range = parseRangeHeader(request.headers.get('range'), stat.size);
+    if (range === 'unsatisfiable') {
+        return new Response(null, { status: 416, headers: { ...baseHeaders, 'Content-Range': `bytes */${stat.size}` } });
+    }
+    if (range) {
+        const { start, end } = range;
         const stream = Readable.toWeb(fs.createReadStream(filePath, { start, end }));
         return new Response(stream, {
             status: 206,
@@ -69,12 +81,77 @@ const servePickedFile = (request, filePath) => {
     return new Response(stream, { status: 200, headers: { ...baseHeaders, 'Content-Length': String(stat.size) } });
 };
 
+// A picked file: the same reader, with the type taken from its name.
+const servePickedFile = (request, filePath) => serveFileWithRange(request, filePath);
+
+/*
+ * Folium 2.0 (plan §5.5): folia-mod://<mod id>/_media/<name>/<rest> goes to the handler a source mod's main
+ * entry registered with `api.media.serve(name, handler)`. The handler gets { url, path, query, headers,
+ * range } (`range` is the raw Range header; parseRangeHeader reads it) and answers one of:
+ *   - { file, contentType? }: a file on disk, served here with Range support;
+ *   - a web Response, passed through as it is;
+ *   - { status?, headers?, body }: body a string, Buffer, Uint8Array, web ReadableStream or Node stream;
+ *   - null / undefined: 404.
+ * A throw or a rejection answers 502.
+ */
+const MEDIA_ROUTE = '_media';
+
+const toResponseBody = (body) => {
+    if (body === undefined || body === null) return null;
+    if (typeof body === 'string' || body instanceof Uint8Array || body instanceof ArrayBuffer) return body;
+    if (typeof body.getReader === 'function') return body;
+    if (typeof body.pipe === 'function') return Readable.toWeb(body);
+    throw new TypeError('media handler answered a body of an unknown kind');
+};
+
+const serveModMedia = async (request, url, segments, resolveMediaHandler, modId) => {
+    const [name, ...rest] = segments;
+    const handler = name ? resolveMediaHandler(modId, name) : null;
+    if (!handler) {
+        return new Response('Unknown media', { status: 404 });
+    }
+    const headers = {};
+    request.headers.forEach((value, key) => { headers[key] = value; });
+    let answer;
+    try {
+        answer = await handler({
+            url: request.url,
+            path: rest.join('/'),
+            query: Object.fromEntries(url.searchParams.entries()),
+            headers,
+            range: request.headers.get('range'),
+        });
+        if (answer === null || answer === undefined) {
+            return new Response('Not found', { status: 404 });
+        }
+        if (answer instanceof Response) {
+            return answer;
+        }
+        if (typeof answer.file === 'string') {
+            return serveFileWithRange(request, answer.file, answer.contentType ?? null);
+        }
+        return new Response(toResponseBody(answer.body), {
+            status: Number.isInteger(answer.status) ? answer.status : 200,
+            headers: { 'Cache-Control': 'no-store', ...(answer.headers ?? {}) },
+        });
+    } catch (error) {
+        return new Response(`Media handler failed: ${String(error && error.message)}`, { status: 502 });
+    }
+};
+
 const SCHEME = 'folia-mod';
 const SERVABLE_EXTENSIONS = new Set(['.js', '.mjs']);
 const CONTENT_TYPES = {
     '.js': 'text/javascript; charset=utf-8',
     '.mjs': 'text/javascript; charset=utf-8',
+    // Folium 2.0 (plan §4.6): a `folium: 2` mod's own icons, images and language tables.
+    '.svg': 'image/svg+xml',
+    '.png': 'image/png',
+    '.webp': 'image/webp',
+    '.json': 'application/json; charset=utf-8',
 };
+// Only a `folium: 2` mod's files are served with these; a `folium: 1` mod keeps the scripts-only rule of 1.9.
+const FOLIUM_2_STATIC_EXTENSIONS = new Set(['.svg', '.png', '.webp', '.json']);
 
 /*
  * Scheme privileges for folia-mod, exported as data instead of a registration
@@ -107,8 +184,15 @@ const decodePathSegment = (segment) => {
  * absolute directory of a validated mod or null. Every request is confined to
  * that directory: traversal segments and absolute paths are rejected.
  * resolvePickedFile(token) returns the absolute path of a picked file or null.
+ * Folium 2.0: resolveModFolium(modId) says the mod's `folium` (2 opens the static extensions), and
+ * resolveMediaHandler(modId, name) gives the handler of a `_media` route or null.
  */
-const attachModProtocolHandler = (protocol, resolveModDirectory, resolvePickedFile = () => null) => {
+const attachModProtocolHandler = (
+    protocol,
+    resolveModDirectory,
+    resolvePickedFile = () => null,
+    { resolveModFolium = () => 1, resolveMediaHandler = () => null } = {},
+) => {
     protocol.handle(SCHEME, (request) => {
         try {
             const url = new URL(request.url);
@@ -127,12 +211,20 @@ const attachModProtocolHandler = (protocol, resolveModDirectory, resolvePickedFi
             }
 
             const segments = url.pathname.split('/').filter(Boolean).map(decodePathSegment);
-            if (segments.some((segment) => segment === null || segment === '..' || segment.includes('\\') || path.isAbsolute(segment))) {
+            // A segment is one path step after decoding: `%2F` inside it (`a%2F..%2Fx`) would smuggle `..` past this
+            // check into the `_media` handler's path, which has no folder of its own to stay inside of.
+            if (segments.some((segment) => segment === null || segment === '..' || segment === '.' || segment.includes('/')
+                || segment.includes('\\') || path.isAbsolute(segment))) {
                 return new Response('Invalid path', { status: 400 });
+            }
+            if (segments[0] === MEDIA_ROUTE) {
+                return serveModMedia(request, url, segments.slice(1), resolveMediaHandler, modId);
             }
             const relativePath = segments.join('/');
             const extension = path.extname(relativePath).toLowerCase();
-            if (!relativePath || !SERVABLE_EXTENSIONS.has(extension)) {
+            const servable = SERVABLE_EXTENSIONS.has(extension)
+                || (FOLIUM_2_STATIC_EXTENSIONS.has(extension) && resolveModFolium(modId) === 2);
+            if (!relativePath || !servable) {
                 return new Response('Forbidden file type', { status: 403 });
             }
 
@@ -149,6 +241,8 @@ const attachModProtocolHandler = (protocol, resolveModDirectory, resolvePickedFi
                     // Contributions are dev-local files; never let the browser
                     // or proxies cache a stale mod version across reloads.
                     'Cache-Control': 'no-store',
+                    // The type above is the only reading of the file: an image never runs as a script.
+                    'X-Content-Type-Options': 'nosniff',
                 },
             });
         } catch (error) {
@@ -157,4 +251,11 @@ const attachModProtocolHandler = (protocol, resolveModDirectory, resolvePickedFi
     });
 };
 
-module.exports = { PICKED_FILES_HOST, SCHEME, MOD_PROTOCOL_PRIVILEGED_SCHEME, attachModProtocolHandler };
+module.exports = {
+    PICKED_FILES_HOST,
+    MEDIA_ROUTE,
+    SCHEME,
+    MOD_PROTOCOL_PRIVILEGED_SCHEME,
+    attachModProtocolHandler,
+    parseRangeHeader,
+};

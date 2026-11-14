@@ -1,3 +1,4 @@
+// @builtin-sources
 import { describe, expect, it } from 'vitest';
 import { getOnlineMusicProvider, listOnlineMusicProviders } from '@/services/onlineMusic/providerRegistry';
 
@@ -52,8 +53,12 @@ const AUTH_MEMBERS: Record<string, string[]> = {
 };
 
 describe('the sign-in members of each built-in platform', () => {
+    // A member counts where it has a value: the Folium 2.0 adapter (src/mods/folium/registries/sourceAdapter/auth.ts)
+    // reads `localService` and `showsKeptAccountAtStart` live through getters, which answer undefined for a source
+    // mod without them (Bodian since S5): undefined, and false for the flag, the same as a member left out.
     it.each(Object.entries(AUTH_MEMBERS))('%s has exactly these', (providerId, members) => {
-        expect(Object.keys(getOnlineMusicProvider(providerId)!.auth!).sort()).toEqual(members);
+        const auth = getOnlineMusicProvider(providerId)!.auth! as unknown as Record<string, unknown>;
+        expect(Object.keys(auth).filter(member => auth[member] !== undefined && auth[member] !== false).sort()).toEqual(members);
     });
 
     it('has a row for every built-in platform', () => {

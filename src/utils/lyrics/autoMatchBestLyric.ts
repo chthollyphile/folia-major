@@ -1,6 +1,6 @@
 import { LyricData, LyricProviderSource, SongResult } from '../../types';
 import { getOnlineMusicProvider } from '../../services/onlineMusic/providerRegistry';
-import type { OnlineProviderId, ProviderLyricSearchAlias, ProviderLyricsResult } from '../../types/onlineMusic';
+import type { ProviderLyricSearchAlias, ProviderLyricsResult } from '../../types/onlineMusic';
 import { fetchAmllDbLyrics, getAmllDbMusicIds } from './providers/amllDbProvider';
 import { applyChorusRangesByTime } from './chorusEffects';
 import type { ChorusRange } from './chorusEffects';
@@ -10,7 +10,8 @@ import { buildLyricSearchQuery } from './searchQuery';
 import { buildLyricSourceOrder } from './sourcePriority';
 import { resolveProviderLyricsChorus } from './chorusResolver';
 import { hasRenderableLyrics } from './validity';
-import { getLyricSourceAccess, isLyricMatchSourceOffered } from './lyricMatchSources';
+import { getAmllDbPlatformChorusRanges, getLyricSourceAccess, isLyricMatchSourceOffered } from './lyricMatchSources';
+import { participants } from '../../services/onlineMusic/crossSource';
 import { getLyricSource } from './lyricSources';
 import type { PlatformLyricSource } from './lyricSources';
 import type { LocalSongMetadataLyricCandidate } from './localSongMatchContext';
@@ -27,10 +28,6 @@ const SHOULD_LOG_MATCH_DETAILS = import.meta.env.DEV;
 
 const hasChorusMarkers = (lyrics: LyricData | null): boolean => (
     Boolean(lyrics?.lines.some(line => line.isChorus))
-);
-
-const getProviderChorusRanges = (providerId: OnlineProviderId, song: SongResult) => (
-    getOnlineMusicProvider(providerId)?.lyrics?.getChorusRanges?.(song.id) ?? Promise.resolve([])
 );
 
 export interface AutoMatchProviderCandidate {
@@ -283,7 +280,7 @@ async function matchUnderArtist(
     ): Promise<LyricData> => {
         // A song whose platform has lines only (Spotify) has no chorus data to lend: the winner's
         // own text marks its chorus lines.
-        const lender = providerCandidate && !getLyricSource(providerCandidate.providerId).linesOnly
+        const lender = providerCandidate && !getLyricSource(providerCandidate.providerId)?.linesOnly
             ? providerCandidate
             : undefined;
         const providerResult = lender
@@ -319,7 +316,7 @@ async function matchUnderArtist(
                 : platform === 'ncm'
                     ? (sharedChorusRanges.length > 0
                         ? sharedChorusRanges
-                        : await getProviderChorusRanges('netease', song))
+                        : await getAmllDbPlatformChorusRanges(platform, (song as SongResult).id))
                     : []
             : [];
         const decoratedLyrics = chorusRanges.length > 0
@@ -341,7 +338,7 @@ async function matchUnderArtist(
     // word-by-word match, the lines of the song picked in the metadata dialog when only that song
     // is wanted, or a pure-music verdict); any other lines are kept as the fallback.
     const tryPlatformSource = async (source: LyricProviderSource): Promise<AutoMatchBestLyricResult> => {
-        const { linesOnly } = getLyricSource(source);
+        const linesOnly = getLyricSource(source)?.linesOnly;
         // Lines-only lyrics can be the fallback, never the word-by-word match, so such a source
         // is not asked once another source has given lines.
         if (linesOnly && lineByLineFallback) return null;
@@ -423,7 +420,7 @@ async function matchUnderArtist(
     // passed over.
     const trySource = async (source: LyricProviderSource): Promise<AutoMatchBestLyricResult> => {
         try {
-            return getLyricSource(source).platform
+            return getLyricSource(source)?.platform
                 ? await tryPlatformSource(source)
                 : source === 'amll' ? await tryAmllDb() : null;
         } catch (error) {
@@ -444,8 +441,9 @@ async function matchUnderArtist(
         lyrics: ownLyrics,
         keepOwn: options.keepOwnWordTiming !== false,
     })) {
-        const first = searchOrder[0];
-        if (first && first !== providerCandidate.providerId && !getLyricSource(first).linesOnly) {
+        // The first source in the order that is on offer (one that is missing is passed over).
+        const first = searchOrder.find(source => source === providerCandidate.providerId || isLyricMatchSourceOffered(source));
+        if (first && first !== providerCandidate.providerId && !getLyricSource(first)?.linesOnly) {
             const preferred = await trySource(first);
             // Its lines, or a pure-music verdict, do not outweigh the words the song has.
             if (preferred && !preferred.isPureMusic && preferred.lyrics.isWordByWord) {
@@ -488,6 +486,8 @@ export async function autoMatchBestLyric(
     durationMs: number,
     options: AutoMatchBestLyricOptions = {}
 ): Promise<AutoMatchBestLyricResult> {
+    // The sources left out of this run, and why, said once (crossSource.ts); the steps below pass them over.
+    participants('lyrics', { report: true });
     const match = await matchUnderArtist(title, artist, durationMs, options);
     // The song's own word timing is not final while the source asked first may still list the
     // song under its original name (a title in Latin letters, say).

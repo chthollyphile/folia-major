@@ -1,5 +1,5 @@
 import type { TFunction } from 'i18next';
-import type { OmniProviderCapabilities, ProviderAccountSummary, ProviderCollection, ProviderUser } from '../../../types/onlineMusic';
+import type { OmniProviderCapabilities, ProviderAccountSummary } from '../../../types/onlineMusic';
 import type {
     LibraryHomeActionsSnapshot,
     LibraryHomeLocalAvailability,
@@ -33,17 +33,15 @@ export const translateHomeMessage = (t: TFunction, message: LibraryHomeMessage):
 );
 
 /**
- * 当前在线来源。provider 的账户摘要优先；只有网易云在平台还没给出摘要时才退回应用传入的旧账户与歌单
- * （原先 Grid3D 的写法）。能力缺失按「全不支持」处理（provider 可能刚被 mod 移除）。
+ * 当前在线来源。账户与歌单只取 provider 的账户摘要（账号层），没有摘要（平台不在、零音源）时就是没有账户；原来
+ * 只给网易云的「应用传入的旧账户与歌单」那条退路已删（Folium 2.0 方案 §7）。能力缺失按「全不支持」处理（provider
+ * 可能刚被 mod 移除）。
  */
 export const resolveHomeOnlineSource = ({
     providerId,
     provider,
     capabilities,
     fallbackLabel,
-    fallbackUser,
-    fallbackPlaylists,
-    fallbackCloud,
     platformAvailable,
 }: {
     providerId: string;
@@ -51,13 +49,9 @@ export const resolveHomeOnlineSource = ({
     capabilities: OmniProviderCapabilities;
     /** provider 摘要里没有名字时的标签（omni.getProviderLabel）。 */
     fallbackLabel: string;
-    fallbackUser: ProviderUser | null;
-    fallbackPlaylists: readonly ProviderCollection[];
-    fallbackCloud?: ProviderCollection | null;
     platformAvailable: boolean;
 }): LibraryHomeOnlineSource => {
-    const isNetease = providerId === 'netease';
-    const user = provider?.user || (isNetease ? fallbackUser : null);
+    const user = provider?.user || null;
     return {
         providerId,
         providerLabel: provider?.shortName || provider?.displayName || fallbackLabel,
@@ -65,9 +59,7 @@ export const resolveHomeOnlineSource = ({
         user,
         accountView: resolveOnlineProviderAccountView({ provider, hasUser: Boolean(user), platformAvailable }),
         needsRelogin: provider?.error === 'auth-required',
-        collections: provider?.collections || (isNetease
-            ? [...fallbackPlaylists, ...(fallbackCloud ? [fallbackCloud] : [])]
-            : []),
+        collections: provider?.collections || [],
         canUsePlaylists: capabilities.userLibrary && capabilities.playlists,
         canUseAlbums: capabilities.userLibrary && Boolean(capabilities.userAlbums),
         canUseRadio: capabilities.recommendations,

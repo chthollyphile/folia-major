@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import { getNavidromeConfig, navidromeApi } from '../services/navidromeService';
 import type { HomeViewTab, LocalSong, SongResult, UnifiedSong } from '../types';
-import { DEFAULT_ONLINE_PROVIDER_ID } from '../types/onlineMusic';
 import type { OmniCollection, OmniSearchKind, OnlineProviderId } from '../types/onlineMusic';
 import {
     applyLocalLibraryEntityDisplay,
@@ -97,12 +96,23 @@ export const resolveSearchKind = (sourceTab: SearchSource, kind: SearchKind): Se
     getSearchKinds(sourceTab).includes(kind) ? kind : 'song'
 );
 
-export const resolveSearchSource = (tab: HomeViewTab | SearchSource): SearchSource => {
+/** No search has picked a source yet: a search then goes to the platform in effect. There is no default platform. */
+export const UNSET_SEARCH_SOURCE: SearchSource = '';
+
+/** The platform in effect, read when a search is about to go out ('' when no platform is registered). */
+const activeSearchProvider = (): OnlineProviderId => omni.getActiveProviderSummary()?.providerId ?? '';
+
+/** The source a home tab searches: its own for local and Navidrome, else the platform in effect (`activeProviderId`). */
+export const resolveSearchSource = (
+    tab: HomeViewTab | SearchSource,
+    activeProviderId: OnlineProviderId = activeSearchProvider(),
+): SearchSource => {
     if (tab === 'local' || tab === 'navidrome') {
         return tab;
     }
+    if (tab === UNSET_SEARCH_SOURCE) return activeProviderId;
     if (tab !== 'playlist' && tab !== 'albums' && tab !== 'radio' && tab !== 'explore') return tab as OnlineProviderId;
-    return DEFAULT_ONLINE_PROVIDER_ID;
+    return activeProviderId;
 };
 
 export const resolveCommandPaletteSearchSource = (
@@ -112,7 +122,7 @@ export const resolveCommandPaletteSearchSource = (
 ): SearchSource => {
     if (currentSong && isLocalPlaybackSong(currentSong)) return 'local';
     if (currentSong && isNavidromePlaybackSong(currentSong)) return 'navidrome';
-    if (currentSong || searchSourceTab === DEFAULT_ONLINE_PROVIDER_ID) return activeOnlineProviderId;
+    if (currentSong || searchSourceTab === UNSET_SEARCH_SOURCE) return activeOnlineProviderId;
     return searchSourceTab;
 };
 
@@ -232,7 +242,7 @@ export const useSearchNavigationStore = create<SearchNavigationState>((set, get)
     homeViewTab: getInitialHomeViewTab(),
     searchQuery: '',
     submittedQuery: '',
-    searchSourceTab: DEFAULT_ONLINE_PROVIDER_ID,
+    searchSourceTab: UNSET_SEARCH_SOURCE,
     searchKind: 'song',
     searchResults: null,
     collectionResults: null,
@@ -312,9 +322,18 @@ export const useSearchNavigationStore = create<SearchNavigationState>((set, get)
         });
         return true;
     },
-    submitSearch: async ({ query, sourceTab, kind, deps, returnView = 'home' }) => {
+    submitSearch: async ({ query, sourceTab: givenSourceTab, kind, deps, returnView = 'home' }) => {
         const trimmedQuery = (query ?? get().searchQuery).trim();
         if (!trimmedQuery) {
+            return false;
+        }
+        // Before any search picked a source, the platform in effect is searched.
+        const sourceTab = resolveSearchSource(givenSourceTab);
+        if (!sourceTab) return false;
+        // An online source that is not registered (no platform at all, or the chosen one missing for now) is not
+        // searched: there is nothing to ask, and nothing to show but the empty state (Folium 2.0 plan §7).
+        if (sourceTab !== 'local' && sourceTab !== 'navidrome' && !omni.getProviderSummaries().some(provider => provider.providerId === sourceTab)) {
+            console.info(`[SearchStore] ${sourceTab} is not registered; the search is not sent`);
             return false;
         }
 

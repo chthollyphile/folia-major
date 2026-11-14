@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-import type { ModClearCacheResult, ModExportProgress, ModFfmpegStatus, ModLogEntry, ModMainCallStats, ModRpcMessage, ModRuntimeInfo, ModRuntimeSnapshot, ModSecretChange, ModStorageUsageResult } from './mods/types';
+import type { ModClearCacheResult, ModClearSourceDataResult, ModExportProgress, ModFfmpegStatus, ModLogEntry, ModMainCallStats, ModRpcMessage, ModRuntimeInfo, ModRuntimeSnapshot, ModSecretChange, ModSourceDataResult, ModSourceState, ModSourceStatesPayload, ModStorageUsageResult } from './mods/types';
 
 declare global {
   const __COMMIT_HASH__: string;
@@ -994,10 +994,6 @@ declare global {
         operation: import('./services/onlineMusic/qishui/qishuiTransport').QishuiOperation,
         params?: import('./services/onlineMusic/qishui/qishuiTransport').QishuiParams,
       ) => Promise<import('./services/onlineMusic/qishui/qishuiTransport').QishuiBridgeResult>;
-      bodianRequest: (
-        operation: import('./services/onlineMusic/bodian/bodianTransport').BodianOperation,
-        params?: import('./services/onlineMusic/bodian/bodianTransport').BodianParams,
-      ) => Promise<import('./services/onlineMusic/bodian/bodianTransport').BodianBridgeResult>;
       ytmRequest: (
         operation: import('./services/onlineMusic/ytm/ytmTransport').YtmOperation,
         params?: import('./services/onlineMusic/ytm/ytmTransport').YtmParams,
@@ -1123,7 +1119,7 @@ declare global {
       onStagePlayerQueueRequest: (callback: (request: StagePlayerQueueRequest) => void) => () => void;
       onStagePlayerSearchRequest: (callback: (request: StagePlayerSearchRequest) => void) => () => void;
       mods?: {
-        listMods: () => Promise<{ mods: ModRuntimeInfo[]; ffmpeg: ModFfmpegStatus; directories: string[]; startSkipped?: boolean }>;
+        listMods: () => Promise<{ mods: ModRuntimeInfo[]; ffmpeg: ModFfmpegStatus; directories: string[]; startSkipped?: boolean; builtinDirectory?: string | null; sourceStates?: Record<string, ModSourceState> }>;
         setModEnabled: (modId: string, enabled: boolean) => Promise<{ ok: boolean; error?: string; mods: ModRuntimeInfo[] }>;
         reloadMods: () => Promise<{ mods: ModRuntimeInfo[] }>;
         cancelExport: () => Promise<{ ok: boolean }>;
@@ -1143,6 +1139,16 @@ declare global {
         getModCallStats: () => Promise<{ stats: Record<string, ModMainCallStats> }>;
         reportModsStartSettled: () => Promise<{ ok: boolean }>;
         reportModsStartAlive: () => Promise<{ ok: boolean }>;
+        // Folium 2.0: the sources' states, "clear data", the override confirmation, who holds a taken-over id.
+        getSourceStates?: () => Promise<{ ok: boolean; error?: string; hasSourceMods?: boolean } & Partial<ModSourceStatesPayload>>;
+        setSourceState?: (sourceId: string, state: ModSourceState) => Promise<{ ok: boolean; error?: string } & Partial<ModSourceStatesPayload>>;
+        describeSourceData?: (sourceId: string) => Promise<ModSourceDataResult>;
+        clearSourceData?: (sourceId: string) => Promise<ModClearSourceDataResult>;
+        confirmModOverride?: (modId: string) => Promise<{ ok: boolean; error?: string; mods?: ModRuntimeInfo[] }>;
+        assignSourceClaim?: (shortId: string, modId: string) => Promise<{ ok: boolean; error?: string; mods?: ModRuntimeInfo[] }>;
+        reportSourcesRegistered?: (modId: string, registered: string[], clientUrl: string) => Promise<{ ok: boolean; error?: string; revoked?: boolean }>;
+        onSourceStatesChanged?: (callback: (payload: ModSourceStatesPayload) => void) => () => void;
+        onSourcesStopping?: (callback: (payload: { sourceIds: string[] }) => void) => () => void;
         onModsStateChanged: (callback: (mods: ModRuntimeInfo[]) => void) => () => void;
         onExportProgress: (callback: (progress: ModExportProgress) => void) => () => void;
         onModLog: (callback: (entry: ModLogEntry) => void) => () => void;

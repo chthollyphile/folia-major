@@ -4,11 +4,6 @@ const NON_RESIZABLE_COVER_PROTOCOLS = new Set(['blob:', 'data:', 'file:', 'files
 const KUGOU_COVER_HOST_PATTERN = /(?:^|\.)(?:kugou\.com|kgimg\.com)$/i;
 // Song art lives under /stdmusic/<size>/, playlist covers under /soft/collection/<size>/; both resize to any number.
 const KUGOU_COVER_PATH_PATTERN = /(\/(?:stdmusic|soft\/collection)\/)(\d+)(\/)/;
-// img1.kuwo.cn, and the same files on the img2.sycdn and img1.kwcdn hosts the search API hands out.
-const KUWO_COVER_HOST_PATTERN = /^img\d*(?:\.(?:sycdn|kwcdn))?\.kuwo\.cn$/i;
-const KUWO_COVER_PATH_PATTERN = /^(\/star\/(?:albumcover|starheads)\/)(\d+)(\/)/;
-const KUWO_COVER_SMALL_SIZE = 240;
-const KUWO_COVER_LARGE_SIZE = 800;
 const NETEASE_COVER_HOST_PATTERN = /^p\d+\.music\.126\.net$/i;
 const QQ_COVER_HOSTNAMES = new Set(['y.gtimg.cn', 'y.qq.com']);
 const QQ_COVER_PATH_PATTERN = /(T00[12])(?:R(\d+)x\d+)?(M000)/;
@@ -46,16 +41,6 @@ const isKugouCoverUrl = (url: URL): boolean => (
 
 const withKugouCoverSize = (url: URL, size: number): string => {
     url.pathname = url.pathname.replace(KUGOU_COVER_PATH_PATTERN, `$1${size}$3`);
-    return url.toString();
-};
-
-const isKuwoCoverUrl = (url: URL): boolean => (
-    KUWO_COVER_HOST_PATTERN.test(url.hostname) && KUWO_COVER_PATH_PATTERN.test(url.pathname)
-);
-
-// Bodian metadata supplies 240px thumbnails and 800px artwork, including its albumPic120 field.
-const withKuwoCoverSize = (url: URL, size: number): string => {
-    url.pathname = url.pathname.replace(KUWO_COVER_PATH_PATTERN, `$1${size}$3`);
     return url.toString();
 };
 
@@ -108,6 +93,139 @@ const withQqCoverSize = (url: URL, size: number | null): string => {
 };
 
 /**
+ * How one picture host is asked for a size, given only a cover URL. A method answers null for a URL that is
+ * not this rule's to rewrite, and the host's generic rule stands for it.
+ *
+ * Folium 2.0 seam (S1): the rules are a registry (`registerCoverUrlRule`), fed today from the table below; in S3
+ * each source declares its own through its `covers@1` capability (its sync `sized(url, size)` and
+ * `identity(url)`), and the table goes. Only the generic rules stay in this file: local thumbnails, Navidrome's
+ * getCoverArt, and the protocols that cannot be resized.
+ */
+export interface CoverUrlRule {
+    /** The name describeCoverUrl gives the host. */
+    provider: CoverProvider;
+    /** The `size`-pixel variant. */
+    sized(url: URL, size: number): string | null;
+    /** What names the artwork, apart from how it is fetched (getCoverIdentity). */
+    identity(url: URL): string | null;
+    /** The original asset (getOriginalCoverUrl). */
+    original(url: URL): string | null;
+    /** The size the URL asks for; null where it asks for none (describeCoverUrl). Undefined: not this rule's URL. */
+    requestedSize(url: URL): number | null | undefined;
+    /** The `size`-pixel variant of a text that does not parse as a URL. */
+    sizedText?(text: string, size: number): string | null;
+    /** True for a picture the web build fetches through the lyric proxy (the host sends no CORS headers). By host alone. */
+    proxiedOnWeb?(url: URL): boolean;
+}
+
+const parseSize = (value: string | null | undefined): number | null => {
+    const size = Number(String(value ?? '').split(/[xy]/i)[0]);
+    return Number.isFinite(size) && size > 0 ? size : null;
+};
+
+// The picture hosts' rules as the host has always had them: one entry each, in no order that matters (no two
+// match one URL). The size steps of each are explained where its helpers are, above.
+const BUILT_IN_COVER_URL_RULES: readonly CoverUrlRule[] = [
+    {
+        provider: 'netease',
+        sized: (url, size) => (url.hostname.includes('126.net') ? `${url.origin}${url.pathname}?param=${size}y${size}` : null),
+        identity: url => (NETEASE_COVER_HOST_PATTERN.test(url.hostname) ? `netease:${url.pathname}` : null),
+        original: (url) => {
+            if (!url.hostname.includes('126.net') || !url.searchParams.has('param')) return null;
+            url.searchParams.delete('param');
+            return url.toString();
+        },
+        requestedSize: url => (url.hostname.includes('126.net') ? parseSize(url.searchParams.get('param')) : undefined),
+        sizedText: (text, size) => (text.includes('126.net') ? `${text.split('?')[0]}?param=${size}y${size}` : null),
+    },
+    {
+        provider: 'kugou',
+        sized: (url, size) => (isKugouCoverUrl(url) ? withKugouCoverSize(url, size) : null),
+        identity: url => (isKugouCoverUrl(url) ? `kugou:${url.pathname.replace(KUGOU_COVER_PATH_PATTERN, '$1*$3')}` : null),
+        original: () => null,
+        requestedSize: url => (isKugouCoverUrl(url) ? parseSize(KUGOU_COVER_PATH_PATTERN.exec(url.pathname)?.[2]) : undefined),
+        proxiedOnWeb: url => KUGOU_COVER_HOST_PATTERN.test(url.hostname),
+    },
+    {
+        provider: 'qq',
+        sized: (url, size) => {
+            if (!isQqCoverUrl(url)) return null;
+            // Past 800 the 1200 bucket answers, never the original: album and singer originals run to
+            // 3000×3000, and on the wall Chromium decodes one that big again for every tile it
+            // rasters (150–300 ms frames while panning). R1200 exists for album (T002) and singer
+            // (T001) images alike and comes back at the original's size when that is smaller;
+            // R1000 and R1024 answer 404. A caller that wants the original asks getOriginalCoverUrl.
+            const qqCoverSize = size <= QQ_COVER_SMALL_SIZE
+                ? QQ_COVER_SMALL_SIZE
+                : size <= QQ_COVER_LARGE_SIZE ? QQ_COVER_LARGE_SIZE : QQ_COVER_XL_SIZE;
+            return withQqCoverSize(url, qqCoverSize);
+        },
+        identity: url => (isQqCoverUrl(url) ? `qq:${url.pathname.replace(QQ_COVER_PATH_PATTERN, '$1$3')}` : null),
+        original: url => (isQqCoverUrl(url) ? withQqCoverSize(url, null) : null),
+        requestedSize: url => (isQqCoverUrl(url) ? parseSize(QQ_COVER_PATH_PATTERN.exec(url.pathname)?.[2]) : undefined),
+        proxiedOnWeb: url => url.hostname === 'y.gtimg.cn',
+    },
+    {
+        provider: 'qq',
+        sized: (url, size) => (isQqPlaylistCoverUrl(url) ? withQqPlaylistCoverSize(url, size) : null),
+        identity: url => (isQqPlaylistCoverUrl(url) ? `qq:${url.pathname.replace(QQ_PLAYLIST_COVER_PATH_PATTERN, '$1*')}` : null),
+        original: () => null,
+        requestedSize: url => (isQqPlaylistCoverUrl(url) ? parseSize(QQ_PLAYLIST_COVER_PATH_PATTERN.exec(url.pathname)?.[2]) : undefined),
+    },
+    {
+        provider: 'apple',
+        sized: (url, size) => (isAppleCoverUrl(url) ? withAppleCoverSize(url, size) : null),
+        identity: url => (isAppleCoverUrl(url) ? `apple:${url.pathname.replace(APPLE_COVER_PATH_PATTERN, '/*')}` : null),
+        // Apple fits the picture into the box and stops at the original (5000 measured; 100000 is refused).
+        original: url => (isAppleCoverUrl(url) ? withAppleCoverSize(url, APPLE_COVER_ORIGINAL_BOX) : null),
+        requestedSize: url => (isAppleCoverUrl(url) ? parseSize(APPLE_COVER_PATH_PATTERN.exec(url.pathname)?.[1]) : undefined),
+    },
+    {
+        provider: 'google',
+        sized: (url, size) => (isGoogleCoverUrl(url) ? withGoogleCoverSize(url, size) : null),
+        identity: url => (isGoogleCoverUrl(url) ? `google:${url.pathname.replace(GOOGLE_COVER_SIZE_PATTERN, '')}` : null),
+        // Google's `=s0` ending is the original itself.
+        original: (url) => {
+            if (!isGoogleCoverUrl(url)) return null;
+            url.pathname = url.pathname.replace(GOOGLE_COVER_SIZE_PATTERN, '=s0');
+            return url.toString();
+        },
+        requestedSize: url => (isGoogleCoverUrl(url) ? parseSize(GOOGLE_COVER_SIZE_PATTERN.exec(url.pathname)?.[1]) : undefined),
+    },
+];
+
+const coverUrlRules: CoverUrlRule[] = [...BUILT_IN_COVER_URL_RULES];
+
+/** Adds a picture host's rule (Folium 2.0: a source's covers capability); returns the function that takes it out. */
+export const registerCoverUrlRule = (rule: CoverUrlRule): (() => void) => {
+    coverUrlRules.push(rule);
+    return () => {
+        const at = coverUrlRules.indexOf(rule);
+        if (at >= 0) coverUrlRules.splice(at, 1);
+    };
+};
+
+/** Whether the web build fetches the picture at `url` through the lyric proxy (coverCache.ts), by its host's rule. */
+export const isCoverFetchedThroughProxy = (url: string): boolean => {
+    try {
+        const urlObj = new URL(url);
+        return coverUrlRules.some(rule => rule.proxiedOnWeb?.(urlObj) === true);
+    } catch {
+        return false;
+    }
+};
+
+// The first rule's answer for `url`. One URL object goes round (this is on the covers' hot path): a rule rewrites
+// it only for a URL of its own, and then answers.
+const firstRuleAnswer = <T>(url: URL, ask: (rule: CoverUrlRule, url: URL) => T | null | undefined): T | null | undefined => {
+    for (const rule of coverUrlRules) {
+        const answer = ask(rule, url);
+        if (answer !== null && answer !== undefined) return answer;
+    }
+    return undefined;
+};
+
+/**
  * Restores the original CDN asset when the source URL exposes a known resize suffix.
  */
 export const getOriginalCoverUrl = (url: string | null | undefined): string => {
@@ -115,23 +233,7 @@ export const getOriginalCoverUrl = (url: string | null | undefined): string => {
     if (!trimmedUrl) return '';
 
     try {
-        const urlObj = new URL(trimmedUrl);
-        if (urlObj.hostname.includes('126.net') && urlObj.searchParams.has('param')) {
-            urlObj.searchParams.delete('param');
-            return urlObj.toString();
-        }
-        if (isKuwoCoverUrl(urlObj)) {
-            const originalSize = Number(KUWO_COVER_PATH_PATTERN.exec(urlObj.pathname)?.[2]);
-            return withKuwoCoverSize(urlObj, Math.max(COVER_MAX_SIZE, originalSize));
-        }
-        // Apple fits the picture into the box and stops at the original (5000 measured; 100000 is
-        // refused); Google's `=s0` ending is the original itself.
-        if (isAppleCoverUrl(urlObj)) return withAppleCoverSize(urlObj, APPLE_COVER_ORIGINAL_BOX);
-        if (isGoogleCoverUrl(urlObj)) {
-            urlObj.pathname = urlObj.pathname.replace(GOOGLE_COVER_SIZE_PATTERN, '=s0');
-            return urlObj.toString();
-        }
-        return isQqCoverUrl(urlObj) ? withQqCoverSize(urlObj, null) : trimmedUrl;
+        return firstRuleAnswer(new URL(trimmedUrl), (rule, url) => rule.original(url)) ?? trimmedUrl;
     } catch {
         return trimmedUrl;
     }
@@ -151,13 +253,8 @@ export const getCoverIdentity = (url: string | null | undefined): string => {
     try {
         const urlObj = new URL(trimmedUrl);
         if (NON_RESIZABLE_COVER_PROTOCOLS.has(urlObj.protocol)) return trimmedUrl;
-        if (NETEASE_COVER_HOST_PATTERN.test(urlObj.hostname)) return `netease:${urlObj.pathname}`;
-        if (isKugouCoverUrl(urlObj)) return `kugou:${urlObj.pathname.replace(KUGOU_COVER_PATH_PATTERN, '$1*$3')}`;
-        if (isKuwoCoverUrl(urlObj)) return `kuwo:${urlObj.pathname.replace(KUWO_COVER_PATH_PATTERN, '$1*$3')}`;
-        if (isQqCoverUrl(urlObj)) return `qq:${urlObj.pathname.replace(QQ_COVER_PATH_PATTERN, '$1$3')}`;
-        if (isQqPlaylistCoverUrl(urlObj)) return `qq:${urlObj.pathname.replace(QQ_PLAYLIST_COVER_PATH_PATTERN, '$1*')}`;
-        if (isAppleCoverUrl(urlObj)) return `apple:${urlObj.pathname.replace(APPLE_COVER_PATH_PATTERN, '/*')}`;
-        if (isGoogleCoverUrl(urlObj)) return `google:${urlObj.pathname.replace(GOOGLE_COVER_SIZE_PATTERN, '')}`;
+        const identity = firstRuleAnswer(urlObj, (rule, url) => rule.identity(url));
+        if (identity) return identity;
     } catch {
         // Relative paths (/__folia_cover/…) fall through to the plain rule.
     }
@@ -183,45 +280,8 @@ export const getSizedCoverUrl = (url: string | null | undefined, size: number): 
             return withLocalCoverThumbnailSize(urlObj, normalizedSize);
         }
 
-        if (isKugouCoverUrl(urlObj)) {
-            return withKugouCoverSize(urlObj, normalizedSize);
-        }
-
-        if (isKuwoCoverUrl(urlObj)) {
-            // The shared smallest poster step is 256px; use the CDN's available 240px thumbnail.
-            if (normalizedSize <= 256) return withKuwoCoverSize(urlObj, KUWO_COVER_SMALL_SIZE);
-            if (normalizedSize <= KUWO_COVER_LARGE_SIZE) return withKuwoCoverSize(urlObj, KUWO_COVER_LARGE_SIZE);
-            // Past 800 any size is served (1024 and 1200 measured), up to the cap a wall can decode.
-            return withKuwoCoverSize(urlObj, Math.min(normalizedSize, COVER_MAX_SIZE));
-        }
-
-        if (isQqCoverUrl(urlObj)) {
-            // Past 800 the 1200 bucket answers, never the original: album and singer originals run to
-            // 3000×3000, and on the wall Chromium decodes one that big again for every tile it
-            // rasters (150–300 ms frames while panning). R1200 exists for album (T002) and singer
-            // (T001) images alike and comes back at the original's size when that is smaller;
-            // R1000 and R1024 answer 404. A caller that wants the original asks getOriginalCoverUrl.
-            const qqCoverSize = normalizedSize <= QQ_COVER_SMALL_SIZE
-                ? QQ_COVER_SMALL_SIZE
-                : normalizedSize <= QQ_COVER_LARGE_SIZE ? QQ_COVER_LARGE_SIZE : QQ_COVER_XL_SIZE;
-            return withQqCoverSize(urlObj, qqCoverSize);
-        }
-
-        if (isQqPlaylistCoverUrl(urlObj)) {
-            return withQqPlaylistCoverSize(urlObj, normalizedSize);
-        }
-
-        if (isAppleCoverUrl(urlObj)) {
-            return withAppleCoverSize(urlObj, normalizedSize);
-        }
-
-        if (isGoogleCoverUrl(urlObj)) {
-            return withGoogleCoverSize(urlObj, normalizedSize);
-        }
-
-        if (urlObj.hostname.includes('126.net')) {
-            return `${urlObj.origin}${urlObj.pathname}?param=${normalizedSize}y${normalizedSize}`;
-        }
+        const sized = firstRuleAnswer(urlObj, (rule, url) => rule.sized(url, normalizedSize));
+        if (sized) return sized;
 
         if (urlObj.pathname.includes('getCoverArt')) {
             urlObj.searchParams.set('size', String(normalizedSize));
@@ -236,8 +296,9 @@ export const getSizedCoverUrl = (url: string | null | undefined, size: number): 
             return `${localUrl.pathname}${localUrl.search}`;
         }
 
-        if (trimmedUrl.includes('126.net')) {
-            return `${trimmedUrl.split('?')[0]}?param=${normalizedSize}y${normalizedSize}`;
+        for (const rule of coverUrlRules) {
+            const sized = rule.sizedText?.(trimmedUrl, normalizedSize);
+            if (sized) return sized;
         }
 
         return trimmedUrl;
@@ -271,18 +332,13 @@ export const resolveCoverSizeStep = (size: number): number => (
     COVER_SIZE_STEPS.find(step => step >= size) ?? Number.POSITIVE_INFINITY
 );
 
-export type CoverProvider = 'netease' | 'kugou' | 'kuwo' | 'qq' | 'apple' | 'google' | 'navidrome' | 'local' | 'other';
+export type CoverProvider = 'netease' | 'kugou' | 'qq' | 'apple' | 'google' | 'navidrome' | 'local' | 'other' | (string & {});
 
 export interface CoverUrlDescription {
     provider: CoverProvider;
     /** Size this URL asks for, or null when it carries none and the provider answers with its original. */
     requestedSize: number | null;
 }
-
-const parseSize = (value: string | null | undefined): number | null => {
-    const size = Number(String(value ?? '').split(/[xy]/i)[0]);
-    return Number.isFinite(size) && size > 0 ? size : null;
-};
 
 /**
  * Reads back what a cover URL is asking its provider for - the inverse of `getSizedCoverUrl`, kept
@@ -300,26 +356,9 @@ export const describeCoverUrl = (url: string | null | undefined): CoverUrlDescri
         if (urlObj.protocol === 'folia-cover:') {
             return { provider: 'local', requestedSize: parseSize(urlObj.searchParams.get('size')) };
         }
-        if (isKugouCoverUrl(urlObj)) {
-            return { provider: 'kugou', requestedSize: parseSize(KUGOU_COVER_PATH_PATTERN.exec(urlObj.pathname)?.[2]) };
-        }
-        if (isKuwoCoverUrl(urlObj)) {
-            return { provider: 'kuwo', requestedSize: parseSize(KUWO_COVER_PATH_PATTERN.exec(urlObj.pathname)?.[2]) };
-        }
-        if (isQqCoverUrl(urlObj)) {
-            return { provider: 'qq', requestedSize: parseSize(QQ_COVER_PATH_PATTERN.exec(urlObj.pathname)?.[2]) };
-        }
-        if (isQqPlaylistCoverUrl(urlObj)) {
-            return { provider: 'qq', requestedSize: parseSize(QQ_PLAYLIST_COVER_PATH_PATTERN.exec(urlObj.pathname)?.[2]) };
-        }
-        if (isAppleCoverUrl(urlObj)) {
-            return { provider: 'apple', requestedSize: parseSize(APPLE_COVER_PATH_PATTERN.exec(urlObj.pathname)?.[1]) };
-        }
-        if (isGoogleCoverUrl(urlObj)) {
-            return { provider: 'google', requestedSize: parseSize(GOOGLE_COVER_SIZE_PATTERN.exec(urlObj.pathname)?.[1]) };
-        }
-        if (urlObj.hostname.includes('126.net')) {
-            return { provider: 'netease', requestedSize: parseSize(urlObj.searchParams.get('param')) };
+        for (const rule of coverUrlRules) {
+            const requestedSize = rule.requestedSize(urlObj);
+            if (requestedSize !== undefined) return { provider: rule.provider, requestedSize };
         }
         if (urlObj.pathname.includes('getCoverArt')) {
             return { provider: 'navidrome', requestedSize: parseSize(urlObj.searchParams.get('size')) };

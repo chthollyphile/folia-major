@@ -199,7 +199,11 @@ export const createFoliumOmniService = (
     context: FoliumContextKind,
     stopped: FoliumStoppedCheck = () => false,
     onRelease: (release: () => void) => void = () => {},
-): FoliumOmniService => {
+): Omit<FoliumOmniService, 'capability'> => {
+    // Folium 2.0: the sources this mod provides itself (a source mod's resolved ids); its calls to them are not counted.
+    const ownSources = new Set((mod.sources ?? []).map((source) => source.id));
+    const ownsSource = (providerId: string) => ownSources.has(providerId);
+
     // The calls under way, aborted when the activation ends: each then rejects with `aborted`.
     const underWay = new Set<AbortController>();
     onRelease(() => {
@@ -230,7 +234,7 @@ export const createFoliumOmniService = (
         const abort = () => controller.abort(signal?.reason);
         signal?.addEventListener('abort', abort, { once: true });
         underWay.add(controller);
-        const gate = createFoliumRequestGate({ modId: mod.id, what: `omni.${method}`, signal: controller.signal, originOf });
+        const gate = createFoliumRequestGate({ modId: mod.id, what: `omni.${method}`, signal: controller.signal, originOf, ownsSource });
         try {
             return await new Promise<T>((resolve, reject) => {
                 const onAbort = () => reject(foliumOmniError('aborted'));

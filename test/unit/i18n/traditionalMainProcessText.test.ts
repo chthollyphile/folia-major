@@ -15,12 +15,18 @@ import { toTaiwanTraditional } from '../../../dev/i18n/localeTextRewrite.mjs';
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
 
-const TABLES = [
-    ['electron/main.cjs', 'mainLocale'],
-    ['electron/modSystem/approval.cjs', 'TRUST_DIALOG_LOCALE'],
-    ['electron/modSystem/safeStart.cjs', 'SAFE_START_LOCALE'],
-    ['electron/spotify/signIn.cjs', 'PAGE_TEXT'],
-] as const;
+/*
+ * 一张表可以有几个位置，用第一个在的（都不在时读第一个，读不到就失败）。Folium 2.0：平台的主进程代码逐家搬进
+ * sources/<id>/main/（S5），搬的过程中旧位置和新位置都认；搬过去的平台最好把文案挪进它的 locales/（zh-TW 由构建生成），
+ * 那时把这一行删掉。
+ */
+const TABLE_PLACES: [string[], string][] = [
+    [['electron/main.cjs'], 'mainLocale'],
+    [['electron/modSystem/approval.cjs'], 'TRUST_DIALOG_LOCALE'],
+    [['electron/modSystem/safeStart.cjs'], 'SAFE_START_LOCALE'],
+    [['electron/spotify/signIn.cjs', 'sources/spotify/main/signIn.ts'], 'PAGE_TEXT'],
+];
+const TABLES = TABLE_PLACES.map(([files, name]) => [files.find(file => fs.existsSync(path.join(ROOT, file))) ?? files[0], name] as const);
 
 type Entry = string | ((...args: string[]) => string);
 type LocaleTable = Record<string, Record<string, Entry>>;
@@ -53,7 +59,7 @@ const findInit = (node: unknown, name: string): AstNode | null => {
 
 const readTable = (file: string, name: string): LocaleTable => {
     const source = fs.readFileSync(path.join(ROOT, file), 'utf8');
-    const init = findInit(parseAst(source, { lang: 'js' }), name);
+    const init = findInit(parseAst(source, { lang: /\.tsx?$/.test(file) ? 'ts' : 'js' }), name);
     if (!init) {
         throw new Error(`${file} 里找不到 ${name}`);
     }

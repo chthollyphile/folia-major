@@ -16,8 +16,9 @@ export function findBoundaryEdges(graph) {
     const misplaced = [];
     for (const [from, targets] of graph.forward) {
         for (const to of targets) {
-            if (graph.typeOnly.has(edgeKey(from, to))) continue;
-            const rule = BOUNDARY_RULES.find(r => ruleMatches(r, from, to));
+            // `import type` 只对带 `types: true` 的规则算（编译边界，见 rules.mjs）。
+            const typeOnly = graph.typeOnly.has(edgeKey(from, to));
+            const rule = BOUNDARY_RULES.find(r => (!typeOnly || r.types) && ruleMatches(r, from, to));
             if (!rule) continue;
             // 指向 UI 目录（components、library 的 suites / app / registry）但目标其实不含 UI：
             // 依赖方向没问题，是文件住错了目录。

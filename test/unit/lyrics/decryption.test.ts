@@ -1,7 +1,7 @@
 // test/unit/lyrics/decryption.test.ts
 
 import { describe, expect, it } from 'vitest';
-import { krcDecrypt } from '@/services/onlineMusic/kugou/krcDecrypt';
+import { krcDecrypt } from '@folia/folium-source-kit';
 import { decodeKugouDownloadedLyric } from '@/services/onlineMusic/kugou/kugouLyricProvider';
 import { qrcDecrypt } from '@/services/onlineMusic/qq/qrcDecrypt';
 

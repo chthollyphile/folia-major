@@ -34,6 +34,9 @@ const env = vi.hoisted(() => ({
     /** What the audio source answers for a song id; a plain http address when nothing is set. */
     audioResultFor: new Map<string, unknown>(),
     canPlay: true,
+    // The platform of the remembered song in the missing-platform case has registered again.
+    goneBack: false,
+    providerListeners: new Set<() => void>(),
     cachedLyrics: null as unknown,
     /** Told by every stub that a restore waits on, with the name of the wait. */
     reached: (_wait: string) => {},
@@ -142,7 +145,12 @@ vi.mock('@/utils/onlineLyricsState', () => ({
 }));
 vi.mock('@/services/onlineMusic/omni', () => ({
     omni: {
-        canPlaySong: () => env.canPlay,
+        // A song of a platform that is not registered cannot be played (as omni answers for it).
+        canPlaySong: (song: SongResult) => env.canPlay && song.sourceRef?.kind === 'online' && (song.sourceRef.providerId !== 'gone-source' || env.goneBack),
+        subscribeProviders: (listener: () => void) => {
+            env.providerListeners.add(listener);
+            return () => { env.providerListeners.delete(listener); };
+        },
         canPlayExternally: () => false,
         getProviderLabel: (id: string) => id,
         getLyrics: async (song: { id: string }) => { env.note(`wait lyrics ${song.id}`); return { lyrics: null, isPureMusic: true }; },
@@ -159,6 +167,7 @@ vi.mock('@/services/prefetchService', () => ({ prefetchNearbySongs: vi.fn(), ref
 const { restorePlaybackSourceForSong } = await import('@/components/app/playback/restore/restorePlaybackSource');
 const { createOnlineRecoveryController } = await import('@/components/app/playback/restore/createOnlineRecoveryController');
 const { useSessionRestoreController } = await import('@/components/app/playback/restore/useSessionRestoreController');
+const { isSongShownUnplayable, isSongSourceMissing, isSongUnavailable } = await import('@/services/onlineMusic/songAvailability');
 const { useElectronWindowPlaybackHandoff } = await import('@/components/app/playback/restore/useElectronWindowPlaybackHandoff');
 const { usePlaybackRuntimeRefs } = await import('@/components/app/playback/usePlaybackRuntimeRefs');
 const { usePlaybackStore } = await import('@/stores/usePlaybackStore');
@@ -181,6 +190,10 @@ const { readFoliumQueueVersion, resetFoliumQueueVersionForTest } = await import(
 const { resolveFoliumQueueKind } = await import('@/mods/runtime/hostQueue');
 const { toFoliumSong } = await import('@/mods/folium/dto');
 const { onlineFailureOf } = await import('@/services/onlineMusic/failure/onlineFailureCase');
+// The songs here are of a platform the host has registered (omni itself is a stand-in above). It was Bodian's static
+// registration until Bodian became a source mod (Folium 2.0 S5); a stand-in of the same id keeps the source there.
+const { registerOnlineMusicProvider: registerStandIn } = await import('@/services/onlineMusic/providerRegistry');
+registerStandIn({ id: 'bodian', displayName: 'Bodian', capabilities: {} as never, normalizeSong: (song: unknown) => song as never });
 const unavailable = (caseId: OnlineFailureCaseId = 'no-audio') => ({
     kind: 'unavailable', failure: onlineFailureOf({ operation: 'audio', providerId: 'bodian' }, { detail: { case: caseId } }),
 });
@@ -485,6 +498,58 @@ describe('restoring the last session and the current song', () => {
         expect(refs.shouldAutoPlay.current).toBe(true);
         expect(prefetchNearbySongs).not.toHaveBeenCalled();
         expect(useStatusMessageStore.getState().message).toBeNull();
+    });
+
+    // Folium 2.0 方案 §2 第 3 条、§7 第二行：音源不在的歌留在队列里（标为不可播），不滤掉，下一次存队列也就不会丢它。
+    it('keeps a song whose platform is missing in the restored queue', async () => {
+        const { refs, setLyrics } = watchWithRefs();
+        const goneSong: SongResult = { ...onlineSong, id: 'g1', name: 'G', sourceRef: { kind: 'online', providerId: 'gone-source', mediaId: 'g1' } };
+        const restore = restoreLastSession(refs, setLyrics);
+        env.cache.set('last_queue', [onlineSong, goneSong, otherSong]);
+
+        restore();
+        await settle();
+
+        expect(usePlaybackStore.getState().playQueue.map(song => song.id)).toEqual(['x1', 'g1', 'y1']);
+        expect(isSongSourceMissing(goneSong)).toBe(true);
+        expect(isSongShownUnplayable(goneSong)).toBe(true);
+        expect(isSongUnavailable(goneSong)).toBe(false);
+        expect(refs.currentSongRef.current).toBe('online:bodian:x1');
+    });
+
+    // 审查第 3 条：上次在放的那首自己的音源不在时，会话照样恢复（停着、不取音频），队列不丢。
+    it('restores the session around a remembered song whose platform is missing, paused and without fetching its audio', async () => {
+        const { refs, watch, setLyrics } = watchWithRefs();
+        useAudioSettingsStore.setState({ autoPlayOnLaunch: true });
+        const goneSong: SongResult = { ...onlineSong, id: 'g1', name: 'G', sourceRef: { kind: 'online', providerId: 'gone-source', mediaId: 'g1' } };
+        const restore = restoreLastSession(refs, setLyrics);
+        env.cache.set('last_song', goneSong);
+        env.cache.set('last_queue', [onlineSong, goneSong, otherSong]);
+        vi.spyOn(console, 'info').mockImplementation(() => {});
+
+        restore();
+        await settle();
+
+        expect(refs.currentSongRef.current).toBe('online:gone-source:g1');
+        expect(usePlaybackStore.getState().playQueue.map(song => song.id)).toEqual(['x1', 'g1', 'y1']);
+        expect(watch.take().some(line => line.includes('wait audio source'))).toBe(false);
+        expect(usePlaybackStore.getState().audioSrc).toBeNull();
+        expect(refs.shouldAutoPlay.current).toBe(false);
+
+        // 第二轮审查：音源回来后补一次完整的来源恢复（地址、歌词、主题），仍然停着。
+        const { registerOnlineMusicProvider, unregisterOnlineMusicProvider } = await import('@/services/onlineMusic/providerRegistry');
+        registerOnlineMusicProvider({ id: 'gone-source', displayName: 'Gone', capabilities: {} as never, normalizeSong: () => goneSong as never });
+        env.goneBack = true;
+        try {
+            env.providerListeners.forEach(listener => listener());
+            await settle();
+            expect(watch.take().some(line => line.includes('wait audio source g1'))).toBe(true);
+            expect(env.providerListeners.size).toBe(0);
+            expect(refs.shouldAutoPlay.current).toBe(false);
+        } finally {
+            unregisterOnlineMusicProvider('gone-source');
+            env.goneBack = false;
+        }
     });
 
     it('makes the remembered song current, so the online recovery takes a fresh address for it', async () => {

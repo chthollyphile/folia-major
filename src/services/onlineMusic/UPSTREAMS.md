@@ -2,6 +2,8 @@
 
 每个在线平台靠什么拿到数据和音频、版本钉在哪里、我们在上面包了或改了什么、上游变了怎么跟。平台清单以 `providerRegistry.ts` 为准；接入一个新平台见同目录 `README.md` 的“接入一个新平台”。
 
+Folium 2.0 起平台逐家迁成仓库内的音源模组（`sources/<id>/`），迁过去的那一家，这里的一节搬进它自己的 `sources/<id>/README.md`：已经迁的有 `sources/bodian/`。
+
 几条各平台通用的事实：
 
 - 版本以 `package-lock.json` 为准。`npm ci` 按锁文件装，`package.json` 里写的范围只在改依赖时起作用。
@@ -51,14 +53,6 @@
   - 包的路径（`/getMusicPlay/:songmid` 这类）写在 `qq/qqTransport.ts` 开头的操作表里，包改了路径要跟着改这张表。
   - 升级改根目录和 `deploy/docker/qq-api/` 两处，再按 `npm run build:vercel-api` 重新生成 `api/qq.js`。
   - 按数字 songid 查歌不走后端：3.3.3 的 `/getSongInfo` 把 songid 当字符串交给 QQ，QQ 只认数字（2026-10-21 实测），serverless 的这条路由 songmid 必填。上游修好后也不改回来：用户自己部署的后端版本跟不上。QQ 改了 musicu 的协议或子请求上限时，用 `node test/manual/qq_musicu_song_detail_probe.mjs` 复查（加 `--relay <网页部署的源>` 查中转出口）。
-
-## 波点（`bodian`，仅桌面端）
-
-- **上游**：库 `bodian-music-api`（仓库 Mintcolour/bodian-music-api），请求签名、扫码、目录、播放、曲库、写入和歌词解码都在包里。
-- **版本**：0.1.2，钉死在根目录 `package.json`。网页版没有波点，Docker 里也没有。
-- **怎么用**：主进程直接调包，不起服务也不开端口（`electron/bodian/bodianApiBridge.cjs`）；IPC 只放行包导出的 `BODIAN_OPERATIONS` 里的操作。会话存在 `electron/bodian/session.cjs`，音频和封面的跨域在 `electron/bodian/mediaCors.cjs`。
-- **我们改了什么**：不改包。协议上的问题在包的仓库里修好、发新版本，Folia 再升级依赖。
-- **上游变了怎么跟**：规则和验收步骤见 [`docs/bodian.md`](../../../docs/bodian.md) 的“会话”“验证”两节（版本必须钉死，锁文件只用 npm 上的版本）。测试里 `test/unit/onlineMusic/bodianAlbumPaging.test.ts`、`test/unit/gridView/bodianCollectionPaging.test.ts`、`test/unit/onlineMusic/loginFailurePlatforms.test.ts` 用真的 `createBodianApi`，只把发请求的那一层换成测试里写好的答复：包的接口或翻页规则变了，这几条会失败。`test/unit/electron/bodianApiBridge.test.ts` 管 IPC 和会话。
 
 ## YouTube Music（`ytm`，仅桌面端）
 

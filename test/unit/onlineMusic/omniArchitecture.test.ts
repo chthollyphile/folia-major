@@ -7,7 +7,9 @@ import { PLATFORM_NAME_PLACES } from './platformNamePlaces.ts';
 // test/unit/onlineMusic/omniArchitecture.test.ts
 
 const roots = ['src/components', 'src/hooks', 'src/stores'];
-const forbiddenImport = /from\s+['"][^'"]*(providerRegistry|kugouTransport|qqTransport|bodianTransport|qishuiTransport|fnmusicTransport|ytmTransport|spotifyTransport|appleMusicTransport|onlineMusic\/netease\/netease)['"]/;
+// Folium 2.0: a platform's code moves into sources/<id>/ (S5, one by one); the UI and state layers never import it
+// there either (Dedicatus D110 says the same for the module graph).
+const forbiddenImport = /from\s+['"][^'"]*(sources\/|providerRegistry|kugouTransport|qqTransport|qishuiTransport|fnmusicTransport|ytmTransport|spotifyTransport|appleMusicTransport|onlineMusic\/netease\/netease)['"]/;
 
 const collectSourceFiles = async (path: string): Promise<string[]> => {
     const entry = await stat(path);
@@ -44,6 +46,8 @@ describe('Omni architecture boundaries', () => {
 
     // One platform's rule stays with the platform. Every line outside a platform's own folders
     // that names it is counted; the list says how many each file may hold and why they stay.
+    // Reads every file under the platform roots: past the default 5 s on Windows next to the suite's real source
+    // builds (buildSources.test.ts), so it gets a limit of its own.
     it('lets no file outside a platform folder name a platform more often than the list says', () => {
         const { places } = countPlatformNames();
         const differences: string[] = [];
@@ -56,5 +60,5 @@ describe('Omni architecture boundaries', () => {
             }
         }
         expect(differences).toEqual([]);
-    });
+    }, 30_000);
 });

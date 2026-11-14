@@ -200,6 +200,10 @@ export const isUrlValid = (fetchedAt: number): boolean => {
  * @param requiredQuality - The audio quality to validate against (optional)
  */
 export const getPrefetchedData = (song: SongResult, requiredQuality?: AudioQualityPreference): PrefetchedSongData | null => {
+    // A song of a source switched to "used only for matching" or off does not play (Folium 2.0 plan §5.3): what
+    // was fetched for it before is not handed out, so no deck warms with it or plays it.
+    const sourceRef = getPlaybackSourceRef(song);
+    if (sourceRef.kind === 'online' && !omni.isSourceSwitchedOn(sourceRef.providerId)) return null;
     const songKey = getPrefetchSongKey(song);
     const songId = song.id;
     const cached = prefetchCache.get(songKey);

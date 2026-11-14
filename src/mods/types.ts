@@ -40,9 +40,11 @@ export interface ModLabelMap {
  *   - verified: signed by a Folium key over exactly the files on disk;
  *   - beta:     the same, by a preview-channel key: security-reviewed only, may not work;
  *   - unsigned: no signature (an unreviewed third-party mod);
- *   - invalid:  a signature that does not check out (see `reason`).
+ *   - invalid:  a signature that does not check out (see `reason`);
+ *   - builtin:  Folium 2.0, a built-in copy (resources/builtin-mods): it carries no signature and none is
+ *               checked, since the installation vouches for it (plan §5.2).
  */
-export type ModSignatureStatus = 'verified' | 'beta' | 'unsigned' | 'invalid';
+export type ModSignatureStatus = 'verified' | 'beta' | 'unsigned' | 'invalid' | 'builtin';
 
 export type ModSignatureInvalidReason =
     | 'malformed'
@@ -60,6 +62,75 @@ export interface ModSignatureInfo {
     keyId: string | null;
     keyLabel: string | null;
     signedAt: string | null;
+}
+
+/**
+ * Folium 2.0 (plan §5.1): where a mod's copy comes from. 'builtin': resources/builtin-mods (dist-mods/ in a
+ * development build); 'override': a signed, newer copy in the user's folder running instead of a built-in one
+ * (or a claim that replaces a carried built-in source); 'user': userData/mods; 'repo': the source tree's mods/
+ * (development builds); 'resources': resources/mods.
+ */
+export type ModTier = 'builtin' | 'override' | 'user' | 'repo' | 'resources';
+
+/** Folium 2.0 (plan §5.3): how a source is switched. */
+export type ModSourceState = 'enabled' | 'matching' | 'disabled';
+
+/** Folium 2.0: one source a source mod provides, as the main process resolved it (electron/modSystem/sourceOwnership.cjs). */
+export interface ModSourceInfo {
+    /** The id the host knows it by: a short id of a built-in source or `folium.<mod id>.<name>`. */
+    id: string;
+    /** Its id inside the mod's manifest. */
+    localId: string;
+    name: string | Record<string, string>;
+    state: ModSourceState;
+    /** A built-in source that a new install keeps for matching when it is not picked (`sources[].keepForMatching`). */
+    keepForMatching: boolean;
+    /** Takes over a source this installation does not carry (the compliance plan). */
+    takeover: boolean;
+    requires: string[];
+}
+
+/** Folium 2.0: where a mod's Node entry stands; 'deferred' is a source used only for matching before its first rpc. */
+export type ModMainState = 'none' | 'deferred' | 'activating' | 'ready';
+
+/** Folium 2.0: one row of the source states (folia-mods:source-states). A source the host registers itself has no mod. */
+export interface ModSourceStateRow {
+    sourceId: string;
+    modId: string | null;
+    tier: ModTier | 'host';
+    state: ModSourceState;
+    keepForMatching: boolean;
+    takeover: boolean;
+    loaded: boolean;
+    mainState: ModMainState;
+}
+
+export interface ModSourceStatesPayload {
+    /** Every known source's state (no record reads as enabled). */
+    states: Record<string, ModSourceState>;
+    sources: ModSourceStateRow[];
+}
+
+/** Folium 2.0: what "clear data" of a source removes (folia-mods:source-data). */
+export interface ModSourceDataResult {
+    ok: boolean;
+    error?: string;
+    sourceId?: string;
+    modId?: string;
+    storeKeys?: string[];
+    partitions?: string[];
+    userDataDirs?: string[];
+    modData?: string;
+    modCache?: string;
+    /** localStorage key prefixes the window clears itself (`online_provider:<id>:`, `online_provider_<id>_`). */
+    pageStorePrefixes?: string[];
+}
+
+export interface ModClearSourceDataResult {
+    ok: boolean;
+    error?: string;
+    failed?: string[];
+    pageStorePrefixes?: string[];
 }
 
 export interface ModRuntimeInfo {
@@ -101,6 +172,25 @@ export interface ModRuntimeInfo {
      * Folium 2 removes, one line each, e.g. "api.storage.data: removed in Folium 2, use api.storage".
      */
     warnings?: string[];
+    /** Folium 2.0 fields below; a list from an older main process has none of them. */
+    folium?: 1 | 2;
+    tier?: ModTier;
+    /** 'source' for a `folium: 2` mod with `sources` (plan §5.2). */
+    kind?: 'standard' | 'source';
+    /** Where the client runs (manifest `contexts`); null for everywhere. */
+    contexts?: Array<'main' | 'export'> | null;
+    /** The folder of the mod's own locale files (manifest `locales`, Folium 2); null without one. */
+    locales?: string | null;
+    sources?: ModSourceInfo[];
+    /** Every source of this source mod is disabled: nothing of it runs (plan §5.3). */
+    sourcesOff?: boolean;
+    mainState?: ModMainState;
+    /** The other copy of the same id (a built-in one and one from the user's folder), and why it is not the one running. */
+    alternate?: { tier: ModTier; version: string | null; dirPath: string | null; reason: string | null; signature?: ModSignatureInfo } | null;
+    /** A built-in copy that a claiming override replaces: that mod's id. */
+    shadowedBy?: string | null;
+    /** Reasons that do not stop the mod, e.g. 'claim-signature-invalid'. */
+    notes?: string[];
 }
 
 /*

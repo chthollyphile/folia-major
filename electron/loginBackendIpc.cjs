@@ -6,7 +6,8 @@ const os = require('os');
 const { runLoginSelfCheck } = require('./loginSelfCheck.cjs');
 
 // electron/loginBackendIpc.cjs
-// 内嵌后端（网易、QQ）对渲染进程的全部 IPC：端口、状态、重启（只有网易能重启）、诊断快照、主动自检。
+// 内嵌后端（网易、QQ）对渲染进程的全部 IPC：端口、状态、重启（只有网易能重启）、诊断快照、主动自检。诊断快照和自检
+// 按登记表找后端（createLoginDiagnosticsRegistry），端口、状态、重启这几条是那两个平台自己的通道，S5 随平台迁走。
 // 诊断快照 = 应用与系统环境 + 凭据加密后端 + 那个后端自己的 getDiagnostics()（拉起步骤、请求与连接记录等）。
 // 报告会原样贴进 GitHub issue，界面上已告知用户其中包含哪些数据；登录凭据（cookie、token）的值不在其中。
 
@@ -41,6 +42,29 @@ const describeApp = ({ app, safeStorage }) => {
 };
 
 /**
+ * 登录诊断的登记表：哪个音源有内嵌后端可以交诊断快照、跑自检。登记的是一个对象，要有 getStatus()、
+ * getDiagnostics()（同步、异步都行）和 selfCheckHosts。register 回一个撤销函数。`initial` 是一开始就登记的
+ * { 音源 id: 后端 }。
+ *
+ * Folium 2.0 接缝（S1）：现在由 registerLoginBackendIpc 用传进来的两个内嵌后端建表并交回；S2 由音源模组的
+ * api.diagnostics.register 登记到同一张表，get-login-diagnostics、run-login-self-check 两个通道不用再改。
+ */
+function createLoginDiagnosticsRegistry(initial = {}) {
+  const backends = new Map(Object.entries(initial).filter(([, backend]) => Boolean(backend)));
+  return {
+    register(providerId, backend) {
+      backends.set(providerId, backend);
+      return () => {
+        if (backends.get(providerId) === backend) backends.delete(providerId);
+      };
+    },
+    get(providerId) {
+      return typeof providerId === 'string' ? backends.get(providerId) ?? null : null;
+    },
+  };
+}
+
+/**
  * 注册内嵌后端的 IPC。getDefaultSession() 返回 Electron 的默认 session（app ready 之后才可用），自检用它解析系统代理。
  * isTrustedSender(event) 由宿主注入（见 electron/main.cjs）：只有第一方窗口的请求才回真实数据。
  */
@@ -51,13 +75,13 @@ function registerLoginBackendIpc({
   getDefaultSession,
   neteaseBackend,
   qqBackend,
+  diagnostics,
   runSelfCheck = runLoginSelfCheck,
   isTrustedSender,
 }) {
-  const backends = { netease: neteaseBackend, qq: qqBackend };
-  const backendOf = (providerId) => (
-    Object.prototype.hasOwnProperty.call(backends, providerId) ? backends[providerId] : null
-  );
+  // 诊断与自检按音源 id 查登记表（createLoginDiagnosticsRegistry）。没给登记表时用传进来的两个后端建一张，并交回去。
+  const registry = diagnostics ?? createLoginDiagnosticsRegistry({ netease: neteaseBackend, qq: qqBackend });
+  const backendOf = (providerId) => registry.get(providerId);
 
   // 来源校验：与既有的 IPC 来源校验通道同一个边界、同一个工厂（electron/ipcAccessGuard.cjs）。比 event.sender 的
   // webContents 身份，挡得住其它窗口——包括 window.open 出来的、带着同一个 preload 的那些；挡不住
@@ -105,9 +129,13 @@ function registerLoginBackendIpc({
     });
     return { ...result, credentialStore: describeCredentialStore(safeStorage) };
   }, () => null));
+
+  // 交回登记表：别处（S2 起是音源模组的 api.diagnostics）往里登记后端。
+  return { diagnostics: registry };
 }
 
 module.exports = {
+  createLoginDiagnosticsRegistry,
   describeApp,
   describeCredentialStore,
   registerLoginBackendIpc,

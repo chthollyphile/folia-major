@@ -15,6 +15,9 @@ import { setPlayQueue, usePlaybackStore } from '../../../../stores/usePlaybackSt
 import { askedSongKeyRef, keepSongsOfProvidersStanding, makeSongCurrent, providerDropsSoFar, startRestore } from '../currentSong';
 import { useAudioSettingsStore } from '../../../../stores/useAudioSettingsStore';
 import { isRestoredSongPlayable } from '../playableSong';
+import { isSongSourceMissing } from '../../../../services/onlineMusic/songAvailability';
+import { builtinSourcesSettled } from '../../../../services/onlineMusic/sourceReadiness';
+import { omni } from '../../../../services/onlineMusic/omni';
 import { releaseUnclaimedHifiTrack } from '../../../../services/hifi/hifiPlayback';
 
 // src/components/app/playback/restore/useSessionRestoreController.ts
@@ -101,6 +104,9 @@ export function useSessionRestoreController({
             const providerDropsAtStart = providerDropsSoFar();
             const signedOut = (song: SongResult) => keepSongsOfProvidersStanding([song], providerDropsAtStart).length === 0;
             try {
+                // The built-in platforms first: a song of one that registers late would otherwise count as one
+                // that cannot be played, and be left out of what is restored.
+                await builtinSourcesSettled();
                 let lastSong = await getFromCache<SongResult>('last_song');
                 let lastQueue = await getFromCache<SongResult[]>('last_queue');
 
@@ -116,9 +122,17 @@ export function useSessionRestoreController({
                     return;
                 }
 
-                // Leave unsupported sessions cached for a build that registers their provider.
-                if (!isRestoredSongPlayable(lastSong)) return;
-                lastQueue = lastQueue?.filter(song => isRestoredSongPlayable(song)) ?? null;
+                // The remembered song's own platform may be missing now (not registered, turned off): the session
+                // is restored all the same - the song current and paused, shown as one that cannot be played, and
+                // the queue around it - so that the next save does not write the queue over with a shorter one.
+                // Its audio is not fetched; it plays once its platform is back (Folium 2.0 plan §2 item 3, §12 item 2).
+                const lastSongSourceMissing = isSongSourceMissing(lastSong);
+                // Leave other unsupported sessions cached for a build that can play them.
+                if (!isRestoredSongPlayable(lastSong) && !lastSongSourceMissing) return;
+                // A song whose platform is missing now (not registered, turned off) stays in the queue, shown as
+                // one that cannot be played, and plays again once its platform is back: it is not taken out, so
+                // the next save of the queue does not lose it. A song its platform is there and cannot play is.
+                lastQueue = lastQueue?.filter(song => isRestoredSongPlayable(song) || isSongSourceMissing(song)) ?? null;
 
                 const containsLocalSnapshot = [lastSong, ...(lastQueue || [])].some(song => (
                     Boolean((song as any).isLocal)
@@ -170,6 +184,44 @@ export function useSessionRestoreController({
                     setPlayQueue(rememberedQueue);
                 }
 
+                const sourceRestoreOptions = {
+                    audioQuality,
+                    userId,
+                    blobUrlRef,
+                    currentOnlineAudioUrlFetchedAtRef,
+                    setLyrics,
+                    restoreCachedThemeForSong,
+                    persistLastPlaybackCache,
+                    queue: lastQueue || [lastSong],
+                    stillWanted,
+                    queueWritesAtStart: writesAtStart,
+                };
+
+                if (lastSongSourceMissing) {
+                    console.info(`[Session] The last song's platform is not there; it is restored paused, without its audio: ${lastSong.name}`);
+                    // The theme kept for the song is shown meanwhile. Once its platform registers - and the song is
+                    // still the one current, asked for by nothing since - its source is restored as any remembered
+                    // song's is (address, lyrics, theme), still paused: a press of play then plays it whole.
+                    void restoreCachedThemeForSong(lastSong, { allowLastUsedFallback: true }).catch((error: unknown) => (
+                        console.warn('[Session] Failed to restore the theme of a song whose platform is missing', error)
+                    ));
+                    const songKey = getPlaybackSongKey(lastSong);
+                    const remembered = lastSong;
+                    const stopWaiting = omni.subscribeProviders(() => {
+                        if (!stillWanted() || askedSongKeyRef.current !== songKey) {
+                            stopWaiting();
+                            return;
+                        }
+                        if (isSongSourceMissing(remembered)) return;
+                        stopWaiting();
+                        console.info(`[Session] The last song's platform is back; restoring its source: ${remembered.name}`);
+                        void restorePlaybackSourceForSong(remembered, sourceRestoreOptions).catch((error: unknown) => (
+                            console.warn('[Session] Failed to restore the source of the last song once its platform was back', error)
+                        ));
+                    });
+                    return;
+                }
+
                 // Read at restore time rather than subscribed: this effect runs once, and the
                 // switch only ever has to answer for this one launch.
                 const autoPlayOnLaunch = useAudioSettingsStore.getState().autoPlayOnLaunch;
@@ -183,18 +235,7 @@ export function useSessionRestoreController({
                 let outcome: RestorePlaybackSourceOutcome = 'failed';
                 handedToSourceRestore = true;
                 try {
-                    outcome = await restorePlaybackSourceForSong(lastSong, {
-                        audioQuality,
-                        userId,
-                        blobUrlRef,
-                        currentOnlineAudioUrlFetchedAtRef,
-                        setLyrics,
-                        restoreCachedThemeForSong,
-                        persistLastPlaybackCache,
-                        queue: lastQueue || [lastSong],
-                        stillWanted,
-                        queueWritesAtStart: writesAtStart,
-                    });
+                    outcome = await restorePlaybackSourceForSong(lastSong, sourceRestoreOptions);
                 } catch (error) {
                     console.warn('Failed to restore audio/lyrics for last session', error);
                 }

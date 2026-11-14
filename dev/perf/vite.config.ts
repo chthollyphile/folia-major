@@ -72,6 +72,8 @@ export default defineConfig({
     resolve: {
         alias: {
             '@': path.resolve(ROOT, './src'),
+            // 音源模组共用的纯函数（packages/folium-source-kit），宿主从包的入口取；和根 vite.config.ts 同一条别名。
+            '@folia/folium-source-kit': path.resolve(ROOT, './packages/folium-source-kit/src/index.ts'),
         },
     },
 });

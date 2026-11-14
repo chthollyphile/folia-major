@@ -2,7 +2,7 @@ import { NoCopyrightRecommendation, SongPrivilege, SongResult } from "../../../t
 import { readProviderSessionValue, removeProviderSessionValue, writeProviderSessionValue } from '../providerStorage';
 import { OnlineProviderError } from '../../../types/onlineMusic';
 import type { PersonalFmRequestOptions, ProviderSongAvailability } from '../../../types/onlineMusic';
-import { withLoginRequestLimit } from '../login/loginRequestLimit';
+import { withLoginRequestLimit } from '@folia/folium-source-kit';
 import { withOnlineRequestLimit } from '../failure/onlineRequestLimit';
 import { errorFields } from '../../../utils/errorText';
 

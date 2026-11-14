@@ -4,13 +4,14 @@ import { getLyricSource, getPlatformLyricSource, isLyricProviderSource } from '.
 
 // src/utils/lyrics/lyricSourceLabels.ts
 
-// A lyric choice stored before sources had names is NetEase's. A stored name that no source has
-// is shown the same way.
+// A lyric choice stored before sources had names is NetEase's. A stored name that no registered source has
+// is shown the same way (a missing entry keeps its stored name; this is only what is shown for it).
 const UNNAMED_CHOICE_SOURCE: LyricProviderSource = 'netease';
 
-const getSourceName = (source: LyricProviderSource | undefined): string => (
-    i18n.t(getLyricSource(isLyricProviderSource(source) ? source : UNNAMED_CHOICE_SOURCE).labelKey)
-);
+const getSourceName = (source: LyricProviderSource | undefined): string => {
+    const entry = getLyricSource(isLyricProviderSource(source) ? source : UNNAMED_CHOICE_SOURCE);
+    return entry ? i18n.t(entry.labelKey) : '';
+};
 
 export const getAmllDbPlatformLabel = (platform?: AmllDbPlatform | null): string => (
     getSourceName(platform === 'qq' ? 'qq' : 'netease')

@@ -1,0 +1,8 @@
+{
+  "name": "@folia-sources/bodian",
+  "private": true,
+  "description": "波点音源模组的依赖：bodian-music-api 钉死版本，打进 main 入口的 index.cjs（方案 §6.2：bodian 直接打进 bundle）。",
+  "dependencies": {
+    "bodian-music-api": "0.1.2"
+  }
+}

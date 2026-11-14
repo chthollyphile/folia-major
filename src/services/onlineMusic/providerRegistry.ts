@@ -5,12 +5,12 @@ import { getPlaybackSourceRef } from '../../utils/appPlaybackGuards';
 import { neteaseProvider } from './netease/neteaseProvider';
 import { kugouProvider } from './kugou/kugouProvider';
 import { qqProvider } from './qq/qqProvider';
-import { bodianProvider } from './bodian/bodianProvider';
 import { ytmProvider } from './ytm/ytmProvider';
 import { spotifyProvider } from './spotify/spotifyProvider';
 import { qishuiProvider } from './qishui/qishuiProvider';
 import { appleMusicProvider } from './appleMusic/appleMusicProvider';
 import { fnmusicProvider } from './fnmusic/fnmusicProvider';
+import { startsWithoutSources } from '../../dev/devLaunchFlags';
 
 // src/services/onlineMusic/providerRegistry.ts
 
@@ -114,14 +114,18 @@ export const requireOnlineMusicProviderForSong = (song: SongResult): OnlineMusic
     return requireOnlineMusicProvider(sourceRef.providerId);
 };
 
-registerOnlineMusicProvider(neteaseProvider);
-registerOnlineMusicProvider(kugouProvider);
-registerOnlineMusicProvider(qqProvider);
-registerOnlineMusicProvider(bodianProvider);
-registerOnlineMusicProvider(ytmProvider);
-registerOnlineMusicProvider(spotifyProvider);
+// The built-in platforms not yet moved to source mods, registered at load until they are (Folium 2.0 S5/S8); the
+// moved ones (sources/<id>/) register through the mod runtime. `?noSources` (dev only) leaves these out,
+// to see the app with no platform at all.
+if (!startsWithoutSources) {
+    registerOnlineMusicProvider(neteaseProvider);
+    registerOnlineMusicProvider(kugouProvider);
+    registerOnlineMusicProvider(qqProvider);
+    registerOnlineMusicProvider(ytmProvider);
+    registerOnlineMusicProvider(spotifyProvider);
 
-registerOnlineMusicProvider(qishuiProvider);
+    registerOnlineMusicProvider(qishuiProvider);
 
-registerOnlineMusicProvider(appleMusicProvider);
-registerOnlineMusicProvider(fnmusicProvider);
+    registerOnlineMusicProvider(appleMusicProvider);
+    registerOnlineMusicProvider(fnmusicProvider);
+}

@@ -62,14 +62,20 @@ describe('the preferred lyric source setting', () => {
         expect(values.get(SETTING_KEY)).toBe(name);
     });
 
-    it('reads nothing stored, and a text that names no source, as QQ and stores that', async () => {
+    // Folium 2.0 方案 §7、§7.1：歌词来源表是开放的登记表，存着的选择不改写。没有注册的来源（音源没启用、模组还没加载）
+    // 按缺失条目处理：值留着，匹配时用下一个能用的来源，它回来后自动用回它。只有根本不像来源 id 的值才换成默认。
+    it('reads nothing stored as QQ and stores that; keeps a text that names no registered source as it is', async () => {
         expect((await loadStore()).getState().preferredAlternativeLyricSource).toBe('qq');
         expect(values.get(SETTING_KEY)).toBe('qq');
 
         values.set(SETTING_KEY, 'no-such-source');
         vi.resetModules();
+        expect((await loadStore()).getState().preferredAlternativeLyricSource).toBe('no-such-source');
+        expect(values.get(SETTING_KEY)).toBe('no-such-source');
+
+        values.set(SETTING_KEY, '');
+        vi.resetModules();
         expect((await loadStore()).getState().preferredAlternativeLyricSource).toBe('qq');
-        expect(values.get(SETTING_KEY)).toBe('qq');
     });
 
     it('takes the older key over only while the newer one holds nothing', async () => {

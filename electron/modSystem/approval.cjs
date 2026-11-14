@@ -47,6 +47,19 @@ const TRUST_DIALOG_LOCALE = {
         signatureInvalid: (reason) => `签名：不匹配（${reason}）。模组内容在签名后被修改，或签名无效，这份签名不能作为审查依据。`,
         rebind: '本次确认仅对当前文件内容生效；模组文件发生变化后需要重新确认。',
         devSource: '开发模式：这个模组位于源码目录的 mods/ 中，确认后修改它的文件不会撤销本次确认。安装版和用户模组目录中的模组没有这项豁免。',
+        sourceIntro: (sources) => `这个模组提供音源：${sources}。它会保管你在这些平台的登录，不受模组的网络和存储限额约束，并随应用一起启动。`,
+        takeover: (ids) => `它会接管这个安装没有带的音源：${ids}，并用上你在这些平台已有的登录（队列、历史、歌单里这些平台的歌也接着用）。`,
+        takeoverData: (items) => `它要接的旧数据：${items}`,
+        certificateExceptions: (hosts) => `对这些域名放宽证书检查：${hosts}`,
+        lyricRelayHosts: (hosts) => `经应用中转歌词请求的域名：${hosts}`,
+        overrideTitle: '用新版本替换内置模组',
+        overrideMessage: (name, id, version, builtinVersion) => `用 ${version} 版替换内置的“${name}”（${id}，${builtinVersion} 版）吗？`,
+        overrideDetail: '这个副本带有有效的 Folium 官方签名，版本高于随应用安装的内置副本。确认后它替代内置副本运行，沿用内置副本的登录和数据；删掉它就回到内置副本。启用后它仍以应用的完整权限运行。',
+        overrideConfirm: '替换',
+        clearTitle: '清除音源数据',
+        clearMessage: (id) => `清除音源“${id}”的数据吗？`,
+        clearDetail: '它会登出，并删掉下面这些。删掉的找不回来；停用音源不会删这些。',
+        clearConfirm: '清除',
         enable: '仍要启用',
         cancel: '取消',
     },
@@ -81,6 +94,19 @@ const TRUST_DIALOG_LOCALE = {
         signatureInvalid: (reason) => `簽名：不匹配（${reason}）。模組內容在簽名後被修改，或簽名無效，這份簽名不能作為審查依據。`,
         rebind: '本次確認僅對當前檔案內容生效；模組檔案發生變化後需要重新確認。',
         devSource: '開發模式：這個模組位於原始碼目錄的 mods/ 中，確認後修改它的檔案不會撤銷本次確認。安裝版和使用者模組目錄中的模組沒有這項豁免。',
+        sourceIntro: (sources) => `這個模組提供音源：${sources}。它會保管你在這些平臺的登入，不受模組的網路和儲存限額約束，並隨應用一起啟動。`,
+        takeover: (ids) => `它會接管這個安裝沒有帶的音源：${ids}，並用上你在這些平臺已有的登入（佇列、歷史、歌單裡這些平臺的歌也接著用）。`,
+        takeoverData: (items) => `它要接的舊資料：${items}`,
+        certificateExceptions: (hosts) => `對這些網域放寬證書檢查：${hosts}`,
+        lyricRelayHosts: (hosts) => `經應用中轉歌詞請求的網域：${hosts}`,
+        overrideTitle: '用新版本替換內建模組',
+        overrideMessage: (name, id, version, builtinVersion) => `用 ${version} 版替換內建的“${name}”（${id}，${builtinVersion} 版）嗎？`,
+        overrideDetail: '這個副本帶有有效的 Folium 官方簽名，版本高於隨應用安裝的內建副本。確認後它替代內建副本執行，沿用內建副本的登入和資料；刪掉它就回到內建副本。啟用後它仍以應用的完整權限執行。',
+        overrideConfirm: '替換',
+        clearTitle: '清除音源資料',
+        clearMessage: (id) => `清除音源“${id}”的資料嗎？`,
+        clearDetail: '它會登出，並刪掉下面這些。刪掉的找不回來；停用音源不會刪這些。',
+        clearConfirm: '清除',
         enable: '仍要啟用',
         cancel: '取消',
     },
@@ -115,6 +141,19 @@ const TRUST_DIALOG_LOCALE = {
         signatureInvalid: (reason) => `Signature: does not match (${reason}). The mod was changed after signing, or the signature is invalid; the signature can no longer vouch for it.`,
         rebind: 'This confirmation applies to the current files only; the mod must be confirmed again after its code changes.',
         devSource: 'Development mode: this mod is in the source tree\'s mods/ directory, so editing its files after this confirmation does not revoke it. Installed builds and the user mods directory have no such exemption.',
+        sourceIntro: (sources) => `This mod provides music sources: ${sources}. It keeps your sign-in on these platforms, is not held to the network and storage limits of mods, and starts together with the app.`,
+        takeover: (ids) => `It takes over sources this installation does not carry: ${ids}, and uses the sign-in you already have on these platforms (their songs in your queue, history and playlists keep working too).`,
+        takeoverData: (items) => `Old data it takes over: ${items}`,
+        certificateExceptions: (hosts) => `Relaxes certificate checks for these hosts: ${hosts}`,
+        lyricRelayHosts: (hosts) => `Hosts whose lyric requests the app relays: ${hosts}`,
+        overrideTitle: 'Replace a built-in mod with a newer version',
+        overrideMessage: (name, id, version, builtinVersion) => `Replace the built-in "${name}" (${id}, version ${builtinVersion}) with version ${version}?`,
+        overrideDetail: 'This copy carries a valid official Folium signature and is newer than the built-in copy installed with the app. Once confirmed it runs instead of the built-in copy and keeps its sign-in and data; removing it brings the built-in copy back. It still runs with the full privileges of the app.',
+        overrideConfirm: 'Replace',
+        clearTitle: 'Clear source data',
+        clearMessage: (id) => `Clear the data of the source "${id}"?`,
+        clearDetail: 'It is signed out and everything below is removed. What is removed cannot be brought back; turning a source off removes none of it.',
+        clearConfirm: 'Clear',
         enable: 'Enable anyway',
         cancel: 'Cancel',
     },
@@ -149,6 +188,19 @@ const TRUST_DIALOG_LOCALE = {
         signatureInvalid: (reason) => `Tanda tangan: tidak cocok (${reason}). Mod diubah setelah ditandatangani, atau tanda tangannya tidak valid; tanda tangan ini tidak lagi bisa menjaminnya.`,
         rebind: 'Konfirmasi ini hanya berlaku untuk berkas saat ini; mod harus dikonfirmasi ulang setelah kodenya berubah.',
         devSource: 'Mode pengembangan: mod ini ada di direktori mods/ pada kode sumber, jadi mengubah berkasnya setelah konfirmasi ini tidak membatalkannya. Build terpasang dan direktori mod pengguna tidak mendapat pengecualian ini.',
+        sourceIntro: (sources) => `Mod ini menyediakan sumber musik: ${sources}. Mod ini menyimpan login Anda di platform tersebut, tidak terikat batas jaringan dan penyimpanan mod, dan dimulai bersama aplikasi.`,
+        takeover: (ids) => `Mod ini mengambil alih sumber yang tidak dibawa instalasi ini: ${ids}, dan memakai login Anda yang sudah ada di platform tersebut (lagu-lagunya di antrean, riwayat, dan playlist tetap berfungsi).`,
+        takeoverData: (items) => `Data lama yang diambil alih: ${items}`,
+        certificateExceptions: (hosts) => `Melonggarkan pemeriksaan sertifikat untuk host ini: ${hosts}`,
+        lyricRelayHosts: (hosts) => `Host yang permintaan liriknya diteruskan aplikasi: ${hosts}`,
+        overrideTitle: 'Ganti mod bawaan dengan versi yang lebih baru',
+        overrideMessage: (name, id, version, builtinVersion) => `Ganti "${name}" bawaan (${id}, versi ${builtinVersion}) dengan versi ${version}?`,
+        overrideDetail: 'Salinan ini memiliki tanda tangan resmi Folium yang valid dan lebih baru daripada salinan bawaan yang terpasang bersama aplikasi. Setelah dikonfirmasi, salinan ini berjalan menggantikan salinan bawaan dan memakai login serta datanya; menghapusnya mengembalikan salinan bawaan. Salinan ini tetap berjalan dengan hak penuh aplikasi.',
+        overrideConfirm: 'Ganti',
+        clearTitle: 'Hapus data sumber',
+        clearMessage: (id) => `Hapus data sumber "${id}"?`,
+        clearDetail: 'Sumber ini akan keluar dari akun dan semua di bawah ini dihapus. Yang dihapus tidak bisa dikembalikan; menonaktifkan sumber tidak menghapus apa pun dari ini.',
+        clearConfirm: 'Hapus',
         enable: 'Tetap aktifkan',
         cancel: 'Batal',
     },
@@ -183,6 +235,19 @@ const TRUST_DIALOG_LOCALE = {
         signatureInvalid: (reason) => `Chữ ký: Không khớp (${reason}). Nội dung mod đã bị sửa đổi sau khi ký hoặc chữ ký không hợp lệ; chữ ký này không còn giá trị chứng nhận.`,
         rebind: 'Xác nhận này chỉ có hiệu lực với nội dung tệp hiện tại; bạn sẽ cần xác nhận lại nếu mã mod bị thay đổi.',
         devSource: 'Chế độ phát triển: Mod này nằm trong thư mục mods/ của mã nguồn, do đó chỉnh sửa tệp sau khi xác nhận sẽ không hủy bỏ xác nhận này. Bản cài đặt và thư mục mod người dùng không được miễn trừ.',
+        sourceIntro: (sources) => `Mod này cung cấp nguồn nhạc: ${sources}. Mod sẽ giữ thông tin đăng nhập của bạn trên các nền tảng này, không bị giới hạn mạng và lưu trữ dành cho mod, và khởi động cùng ứng dụng.`,
+        takeover: (ids) => `Mod sẽ tiếp quản các nguồn mà bản cài đặt này không kèm theo: ${ids}, và dùng thông tin đăng nhập sẵn có của bạn trên các nền tảng này (bài hát của chúng trong hàng đợi, lịch sử và danh sách phát vẫn dùng được).`,
+        takeoverData: (items) => `Dữ liệu cũ được tiếp quản: ${items}`,
+        certificateExceptions: (hosts) => `Nới lỏng kiểm tra chứng chỉ cho các tên miền này: ${hosts}`,
+        lyricRelayHosts: (hosts) => `Các tên miền mà ứng dụng chuyển tiếp yêu cầu lời bài hát: ${hosts}`,
+        overrideTitle: 'Thay mod tích hợp bằng phiên bản mới hơn',
+        overrideMessage: (name, id, version, builtinVersion) => `Thay “${name}” tích hợp (${id}, phiên bản ${builtinVersion}) bằng phiên bản ${version}?`,
+        overrideDetail: 'Bản này có chữ ký chính thức hợp lệ của Folium và mới hơn bản tích hợp được cài cùng ứng dụng. Sau khi xác nhận, bản này chạy thay cho bản tích hợp và giữ nguyên đăng nhập cùng dữ liệu của nó; xóa bản này sẽ quay về bản tích hợp. Bản này vẫn chạy với toàn bộ quyền hạn của ứng dụng.',
+        overrideConfirm: 'Thay',
+        clearTitle: 'Xóa dữ liệu nguồn',
+        clearMessage: (id) => `Xóa dữ liệu của nguồn “${id}”?`,
+        clearDetail: 'Nguồn sẽ đăng xuất và mọi thứ bên dưới sẽ bị xóa. Những gì đã xóa không thể khôi phục; tắt nguồn không xóa những thứ này.',
+        clearConfirm: 'Xóa',
         enable: 'Vẫn bật',
         cancel: 'Hủy',
     },
@@ -195,6 +260,12 @@ const TRUST_DIALOG_LOCALE = {
  * `getLocaleKey` the language to ask in.
  */
 const createModApproval = ({ app, store, enabledKey, getMainWindowSafe, getLocaleKey }) => {
+    // Folium 2.0 (plan §5.1): a built-in mod's switch and the one confirmation of an override copy, apart
+    // from the digest-bound approvals of every other mod (`enabledKey`), so a same-id copy in a user folder
+    // never shares a record with the built-in one.
+    const builtinKey = (modId) => `${String(enabledKey(modId)).replace(/\.enabled\./, '.builtin.')}`;
+    const overrideKey = (modId) => `${String(enabledKey(modId)).replace(/\.enabled\./, '.override.')}`;
+
     const resolveDialogLocale = () => {
         try {
             const key = typeof getLocaleKey === 'function' ? getLocaleKey() : null;
@@ -233,6 +304,45 @@ const createModApproval = ({ app, store, enabledKey, getMainWindowSafe, getLocal
             });
         } catch {
             // Persistence is best-effort; in-memory state still applies.
+        }
+    };
+
+    /*
+     * A built-in mod is on unless switched off: no record reads as enabled, and nothing about it is bound
+     * to a digest (plan §5.1, `approval.cjs:248-279` in §5.4).
+     */
+    const readBuiltinEnabled = (modId) => {
+        try {
+            const stored = store.get(builtinKey(modId));
+            return !(stored && typeof stored === 'object' && stored.enabled === false);
+        } catch {
+            return true;
+        }
+    };
+
+    const writeBuiltinEnabled = (modId, enabled) => {
+        try {
+            store.set(builtinKey(modId), { enabled: Boolean(enabled), changedAt: new Date().toISOString() });
+        } catch {
+            // Persistence is best-effort; in-memory state still applies.
+        }
+    };
+
+    /* Whether the user confirmed this copy (by its digest) as the override of a built-in mod. */
+    const isOverrideConfirmed = (modId, digest) => {
+        try {
+            const stored = store.get(overrideKey(modId));
+            return Boolean(digest && stored && typeof stored === 'object' && stored.digest === digest);
+        } catch {
+            return false;
+        }
+    };
+
+    const writeOverrideApproval = (modId, digest) => {
+        try {
+            store.set(overrideKey(modId), { digest, confirmedAt: new Date().toISOString() });
+        } catch {
+            // Best-effort, as above.
         }
     };
 
@@ -284,6 +394,97 @@ const createModApproval = ({ app, store, enabledKey, getMainWindowSafe, getLocal
      * drawn there could be spoofed or dismissed by mod code. This one cannot,
      * and it is the only path that writes an "enabled" trust record.
      */
+    /*
+     * The extra lines of a source mod (plan §5.2 and §5.1): what it provides, what it keeps; for a takeover,
+     * each source id it takes over and the old data it will use. `sources` are the resolved ones
+     * (sourceOwnership.cjs).
+     */
+    const sourceLines = (locale, manifest, sources) => {
+        if (!Array.isArray(manifest.sources) || manifest.sources.length === 0) return [];
+        const nameOf = (entry) => (typeof entry.name === 'string' ? entry.name : entry.name?.en ?? Object.values(entry.name ?? {})[0] ?? entry.id);
+        const described = manifest.sources.map((entry) => {
+            const resolved = (sources ?? []).find((source) => source.localId === entry.id);
+            return `${nameOf(entry)} (${resolved?.sourceId ?? entry.id})`;
+        });
+        const lines = [locale.sourceIntro(described.join(', '))];
+        const takeovers = (sources ?? []).filter((source) => source.takeover);
+        if (takeovers.length > 0) {
+            lines.push(locale.takeover(takeovers.map((source) => source.sourceId).join(', ')));
+            const data = takeovers.flatMap((source) => [
+                ...source.legacy.storeKeys,
+                ...source.legacy.partitions.map((partition) => `partition ${partition}`),
+                ...source.legacy.userDataDirs.map((folder) => `userData/${folder}`),
+            ]);
+            if (data.length > 0) lines.push(locale.takeoverData(data.join(', ')));
+        }
+        const hosts = (field) => [...new Set(manifest.sources.flatMap((entry) => entry[field] ?? []))];
+        if (hosts('certificateExceptions').length > 0) lines.push(locale.certificateExceptions(hosts('certificateExceptions').join(', ')));
+        if (hosts('lyricRelayHosts').length > 0) lines.push(locale.lyricRelayHosts(hosts('lyricRelayHosts').join(', ')));
+        return lines;
+    };
+
+    const showDialog = async (options) => {
+        const win = getMainWindowSafe();
+        const result = win && !win.isDestroyed()
+            ? await dialog.showMessageBox(win, options)
+            : await dialog.showMessageBox(options);
+        return result.response === 1;
+    };
+
+    /*
+     * The one confirmation of an override copy (plan §5.1): a signed, newer copy of a built-in mod. The label
+     * line says the signature as it is.
+     */
+    const confirmOverride = async (runtime, digest, signature, builtinVersion) => {
+        const locale = resolveDialogLocale();
+        const keyText = signature.keyLabel ? `${signature.keyLabel}, ${signature.keyId}` : signature.keyId;
+        return showDialog({
+            type: 'warning',
+            title: locale.overrideTitle,
+            message: locale.overrideMessage(runtime.manifest.name, runtime.manifest.id, runtime.manifest.version, builtinVersion ?? '-'),
+            detail: [
+                locale.overrideDetail,
+                '',
+                locale.signatureVerified(keyText),
+                ...sourceLines(locale, runtime.manifest, runtime.source?.sources),
+                `${locale.location}${runtime.dirPath ?? '-'}`,
+                `${locale.fingerprint}${shortDigest(digest)}`,
+                '',
+                locale.rebind,
+            ].join('\n'),
+            buttons: [locale.cancel, locale.overrideConfirm],
+            defaultId: 0,
+            cancelId: 0,
+            noLink: true,
+        });
+    };
+
+    /*
+     * "Clear data" of a source (plan §5.3): what goes is listed, and the main process asks, so page code cannot
+     * clear a sign-in on its own. `items` is describeSourceData's answer.
+     */
+    const confirmClearSourceData = async (sourceId, items) => {
+        const locale = resolveDialogLocale();
+        const lines = [
+            ...items.storeKeys,
+            ...items.partitions.map((partition) => `partition ${partition}`),
+            ...items.userDataDirs,
+            items.modData,
+            items.modCache,
+            ...items.pageStorePrefixes.map((prefix) => `${prefix}*`),
+        ];
+        return showDialog({
+            type: 'warning',
+            title: locale.clearTitle,
+            message: locale.clearMessage(sourceId),
+            detail: [locale.clearDetail, '', ...lines].join('\n'),
+            buttons: [locale.cancel, locale.clearConfirm],
+            defaultId: 0,
+            cancelId: 0,
+            noLink: true,
+        });
+    };
+
     const confirmEnableMod = async (runtime, digest, signature) => {
         const locale = resolveDialogLocale();
         const keyText = signature.keyLabel ? `${signature.keyLabel}, ${signature.keyId}` : signature.keyId;
@@ -322,6 +523,7 @@ const createModApproval = ({ app, store, enabledKey, getMainWindowSafe, getLocal
             ...(experimental.length > 0 ? [`${locale.experimental}${experimental.join(', ')}`] : []),
             ...(embedOrigins.length > 0 ? [`${locale.embedOrigins}${embedOrigins.join(', ')}`] : []),
             ...(folia ? [`${locale.folia}${folia}`] : []),
+            ...sourceLines(locale, runtime.manifest, runtime.source?.sources),
             `${locale.location}${runtime.dirPath ?? '-'}`,
             `${locale.fingerprint}${shortDigest(digest)}`,
             '',
@@ -345,7 +547,18 @@ const createModApproval = ({ app, store, enabledKey, getMainWindowSafe, getLocal
         return result.response === 1;
     };
 
-    return { writeTrust, isDevSourceMod, resolveTrust, confirmEnableMod };
+    return {
+        writeTrust,
+        isDevSourceMod,
+        resolveTrust,
+        confirmEnableMod,
+        readBuiltinEnabled,
+        writeBuiltinEnabled,
+        isOverrideConfirmed,
+        writeOverrideApproval,
+        confirmOverride,
+        confirmClearSourceData,
+    };
 };
 
 module.exports = { createModApproval, TRUST_DIALOG_LOCALE };

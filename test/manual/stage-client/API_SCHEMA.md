@@ -567,7 +567,7 @@ interface StageSessionMultipartFiles {
 
 ## `POST /stage/player/search`
 
-把搜索请求转交给 Folia 的搜索通道，返回可供点播接口消费的候选结果。不传 `provider` 时走本机网易云服务（与加入 `provider` 之前完全一致）；传了就经 omni 在那个平台搜索，用的是 Folia 里那个平台的登录状态。
+把搜索请求转交给 Folia 的搜索通道，返回可供点播接口消费的候选结果。都经 omni 搜索，用的是 Folia 里那个平台的登录状态：不传 `provider` 时搜默认平台网易云（结果的形状与加入 `provider` 之前一致，`songId` 是数字），传了就在那个平台搜索。
 
 ### 请求
 
@@ -627,11 +627,11 @@ interface StagePlayerSearchResponse extends StagePlayerOutsideInMetadata {
 | `400` | `INVALID_STAGE_PLAYER_SEARCH_JSON` | JSON 无法解析。 |
 | `400` | `INVALID_STAGE_PLAYER_SEARCH_QUERY` | `query` 为空。 |
 | `400` | `INVALID_STAGE_PLAYER_SEARCH_PROVIDER` | `provider` 不是合法的平台 id。 |
-| `503` | `NETEASE_API_UNAVAILABLE` | 不传 `provider` 时，默认网易云本地 API 不可用。 |
-| `502` | `NETEASE_SEARCH_FAILED` | 不传 `provider` 时，默认网易云搜索请求失败。 |
-| `503` | `STAGE_PLAYER_SEARCH_UNAVAILABLE` | 传了 `provider`，Folia 主窗口不可用。 |
-| `502` | `STAGE_SEARCH_REJECTED` | 传了 `provider`，平台搜索失败，例如 Folia 里没有这个平台。 |
-| `504` | `STAGE_PLAYER_REQUEST_TIMEOUT` | 传了 `provider`，10 秒内没有搜索结果。 |
+| `503` | `STAGE_PLAYER_SEARCH_UNAVAILABLE` | Folia 主窗口不可用。 |
+| `502` | `STAGE_SEARCH_REJECTED` | 平台搜索失败，例如 Folia 里没有这个平台（不传 `provider` 而网易云没有启用时也是这一条）。 |
+| `504` | `STAGE_PLAYER_REQUEST_TIMEOUT` | 10 秒内没有搜索结果。 |
+
+不传 `provider` 时原来的 `NETEASE_API_UNAVAILABLE`（503）、`NETEASE_SEARCH_FAILED`（502）不再出现，换成上面三条（Folium 2.0：搜索不再直连主进程里网易云的本机服务）。
 
 ## `POST /stage/player/play`
 

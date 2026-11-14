@@ -25,6 +25,7 @@ import type {
 } from './types';
 import { reconcileFoliumClients } from './runtime/clientLoader';
 import { restoreSavedFoliumSelections } from './runtime/missingEntries';
+import { stopPlaybackOfSources } from './runtime/sourceSwitches';
 
 // src/mods/useModsStore.ts
 // Renderer-side state for the mod system panel. All mutations flow through the
@@ -102,6 +103,9 @@ export const useModsStore = create<ModsStoreState>((set, get) => ({
     // outcome the panel surfaces; the mod list is only replaced when the call
     // actually returned one (a declined confirmation returns the current list).
     toggleMod: async (modId, enabled) => {
+        // Folium 2.0 (plan §5.2): a source mod that is about to stop has its playing song stopped first.
+        const sourceIds = get().mods.find((mod) => mod.id === modId)?.sources?.map((source) => source.id) ?? [];
+        if (!enabled && sourceIds.length > 0) await stopPlaybackOfSources(sourceIds);
         const result = await setModEnabled(modId, enabled);
         if (result.mods.length > 0 || result.ok) {
             set({ mods: result.mods });

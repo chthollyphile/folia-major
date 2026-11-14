@@ -34,7 +34,7 @@ const server = await createServer({
     appType: 'custom',
     server: { middlewareMode: true, hmr: false, watch: null },
     optimizeDeps: { noDiscovery: true, include: [] },
-    resolve: { alias: { '@': path.join(ROOT, 'src') } },
+    resolve: { alias: { '@': path.join(ROOT, 'src'), '@folia/folium-source-kit': path.join(ROOT, 'packages', 'folium-source-kit', 'src', 'index.ts') } },
 });
 
 const walk = dir => fs.readdirSync(dir, { withFileTypes: true }).flatMap(entry => (

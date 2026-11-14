@@ -1,5 +1,9 @@
 import { isModsBridgeAvailable, reportModsStartAlive, reportModsStartSettled } from '../ipc';
-import { initFoliumClients, onFoliumClientStarted } from './clientLoader';
+import { foliumSourceClientsSettled, initFoliumClients, onFoliumClientStarted } from './clientLoader';
+import { installFoliumSourceStatesSync } from './sourceStatesSync';
+import { installDefaultSourcePlaybackStop, installSourcesStoppingListener } from './sourceSwitches';
+import { setBuiltinSourcesSettled } from '@/services/onlineMusic/sourceReadiness';
+import { FOLIUM_SHARED_LIMITS } from '../folium/shared';
 import { installFoliumCommandPaletteSync } from '../folium/registries/commandPaletteSync';
 import { installFoliumFaultNotice } from './faultNotice';
 import { installFoliumHostEvents } from './hostEvents';
@@ -31,6 +35,12 @@ import { restoreSavedFoliumSelections } from './missingEntries';
 // which is when every mod `mount` of that screen has returned too. A mod that
 // freezes or crashes the window before that leaves the note in place.
 //
+// Folium 2.0 (plan §5.2): the source mods' clients are a group of their own and the first screen waits for
+// them first, up to SOURCE_FIRST_SCREEN_MS (3 s, foliumShared.json), and only then gives the rest
+// `firstScreenWaitMs`. A source that is not up by then keeps starting; the selected platform, the queue's songs
+// and the kept accounts come back when it is (S1). What the session restore waits for
+// (sourceReadiness.builtinSourcesSettled) is that group with the same cap, and the source states.
+//
 // Until then the page also tells the main process once a second that it is
 // answering. If the user leaves the app while a slow mod is still starting,
 // that is how the main process knows the start had not gone wrong, and takes
@@ -38,6 +48,18 @@ import { restoreSavedFoliumSelections } from './missingEntries';
 
 /** How often the page says it is answering while its start is under way. */
 const START_ALIVE_INTERVAL_MS = 1000;
+
+/** The first screen's own wait for the source group (plan §5.2). */
+export const SOURCE_FIRST_SCREEN_MS = FOLIUM_SHARED_LIMITS.source.start.firstScreenMs;
+
+/* `promise`, or the end of `ms`, whichever comes first. Never rejects. */
+const within = (promise: Promise<unknown>, ms: number): Promise<void> => new Promise<void>((resolve) => {
+    const timer = setTimeout(resolve, ms);
+    void promise.then(() => undefined, () => undefined).then(() => {
+        clearTimeout(timer);
+        resolve();
+    });
+});
 
 export interface FoliumMainWindowStartOptions {
     /** The longest the first screen waits for the clients, all of them together. */
@@ -76,16 +98,22 @@ export const startFoliumForMainWindow = async ({ firstScreenWaitMs }: FoliumMain
         void reportModsStartAlive();
         alive = setInterval(() => { void reportModsStartAlive(); }, START_ALIVE_INTERVAL_MS);
     }
+    // Folium 2.0: a source about to stop has its playing song paused first (sourceSwitches.ts).
+    installDefaultSourcePlaybackStop();
+    installSourcesStoppingListener();
+    // Folium 2.0: the source states first (they decide what counts as enabled), then the clients.
+    const statesRead = installFoliumSourceStatesSync();
     const started = initFoliumClients();
+    // The source states answer at once (they do not wait for the start question) and say whether a source mod
+    // runs: without one there is no group to wait for, and the start is timed as before Folium 2.0.
+    const sourcesUp = statesRead.then((hasSourceMods) => (
+        hasSourceMods ? within(foliumSourceClientsSettled(), SOURCE_FIRST_SCREEN_MS) : undefined
+    ));
+    setBuiltinSourcesSettled(Promise.all([statesRead, sourcesUp]));
     void Promise.all([started, firstScreenMounted]).then(() => {
         if (alive !== null) clearInterval(alive);
         return reportModsStartSettled();
     });
-    await new Promise<void>((resolve) => {
-        const timer = setTimeout(resolve, firstScreenWaitMs);
-        void started.then(() => {
-            clearTimeout(timer);
-            resolve();
-        });
-    });
+    await sourcesUp;
+    await within(started, firstScreenWaitMs);
 };

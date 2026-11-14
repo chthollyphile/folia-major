@@ -40,6 +40,7 @@ import { keepQqSessionFresh, resetQqSessionRefresh, stopQqSessionRefresh } from 
 import { OnlineRequestTimeout } from '../failure/onlineRequestLimit';
 import { onlineFailureOf } from '../failure/onlineFailureCase';
 import { errorFields, errorMessage } from '../../../utils/errorText';
+import { registerQqLyricSource } from './qqLyricSource';
 
 // src/services/onlineMusic/qq/qqProvider.ts
 
@@ -1208,3 +1209,6 @@ export const qqProvider: OnlineMusicProvider = {
     explore: qqExplore,
     mutations: qqMutations,
 };
+
+// The lyric source this platform is (lyricSources.ts), where it is reached otherwise than through this provider.
+registerQqLyricSource();

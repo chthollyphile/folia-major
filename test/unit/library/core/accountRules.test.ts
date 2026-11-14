@@ -125,9 +125,11 @@ describe('active provider fallback', () => {
         expect(resolveActiveProviderId(providers, 'folium.mod-a.source')).toBe('folium.mod-a.source');
     });
 
-    it('falls back to the default provider (netease) when the stored provider went away', () => {
+    // 没有默认平台（Folium 2.0 方案 §7）：回落到列表里的第一个；列表为空时仍是存的那个（零音源走空状态）。
+    it('falls back to the first listed provider when the stored provider went away, and to the stored one when none is listed', () => {
         expect(resolveActiveProviderId(providers, 'folium.mod-gone.source')).toBe('netease');
-        expect(resolveActiveProviderId([], 'kugou')).toBe('netease');
+        expect(resolveActiveProviderId([summary({ providerId: 'kugou' }), summary({ providerId: 'qq' })], 'netease')).toBe('kugou');
+        expect(resolveActiveProviderId([], 'kugou')).toBe('kugou');
     });
 
     it('finds the active summary, or the first provider when even netease is missing', () => {

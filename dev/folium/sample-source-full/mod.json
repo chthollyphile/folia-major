@@ -1,0 +1,24 @@
+{
+  "folium": 2,
+  "id": "sample-source-full",
+  "name": "契约测试音源（样例）",
+  "version": "1.0.0",
+  "author": "Folia Mod Samples",
+  "description": "Folium 2.0 示范与契约测试：一个实现了每个标准能力族的音源（搜索、取歌、播放地址、外部播放、上报、歌词、登录、曲库、目录、推荐、探索、歌单改动、封面规则、原始接口）和一个自定义能力。数据全是假的，歌曲的声音是模组自己生成的音调，不连任何真实平台。",
+  "client": "client.mjs",
+  "main": "index.cjs",
+  "locales": "locales",
+  "assets": "assets",
+  "sources": [
+    {
+      "id": "fixture",
+      "name": { "zh-CN": "契约测试音源", "en": "Contract test source" },
+      "requires": ["search@1", "songs@1", "playback.audio@1", "lyrics@1"]
+    },
+    {
+      "id": "fixture-external",
+      "name": { "zh-CN": "契约测试音源（外部播放器）", "en": "Contract test source (external player)" },
+      "requires": ["playback.external@1"]
+    }
+  ]
+}

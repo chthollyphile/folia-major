@@ -1,10 +1,14 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+// @builtin-sources
+import { beforeEach, describe, expect, it } from 'vitest';
+import { bodianCollectionItems, clearBodianLibraryCache } from '../../../sources/bodian/client/bodianLibrary';
+import { answerBodianRequests, lazyBodian } from '../helpers/bodianSource';
 
 // test/unit/onlineMusic/bodianLibrary.test.ts
+// The library of the Bodian source mod as the host has it (registered by the unit setup); requests to its main entry
+// are answered here.
 
-const request = vi.hoisted(() => vi.fn());
-vi.mock('@/services/onlineMusic/bodian/bodianTransport', () => ({ requestBodian: request }));
-import { bodianCollectionItems, bodianLibrary, clearBodianLibraryCache } from '@/services/onlineMusic/bodian/bodianLibrary';
+const { request } = answerBodianRequests();
+const bodianLibrary = lazyBodian(provider => provider.library);
 
 beforeEach(() => { request.mockReset(); clearBodianLibraryCache(); });
 

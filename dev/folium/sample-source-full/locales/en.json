@@ -1,0 +1,4 @@
+{
+    "source": { "name": "Contract test source", "short": "Fixture" },
+    "song": { "replacement": "Another song of the same album" }
+}

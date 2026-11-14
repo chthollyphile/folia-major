@@ -54,6 +54,49 @@ const PLATFORM_PERMISSION = /^platform\.([^.]+)\.(read|write)$/;
 
 const MOD_ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
 
+/*
+ * The `folium` values a mod.json may declare (foliumShared.json `manifestVersions`). Folium 2.0: 1 and 2. A
+ * `folium: 1` mod is read exactly as before; the fields below are for 2 only.
+ */
+const MANIFEST_VERSIONS = Object.freeze([...shared.manifestVersions]);
+const FOLIUM_2_FIELDS = Object.freeze(['sources', 'locales', 'assets', 'secrets', 'contexts', 'native']);
+
+/*
+ * Folium 2.0 `sources[]` (plan §5.1). `id` is the source's name inside the mod: a third-party source is
+ * known to the host as `folium.<mod id>.<id>`, a built-in one (and one that took over a short id) by the
+ * short id itself, which is why mixed case is allowed (a short id may be camelCase). `claims` names what the source takes
+ * over when the installation does not carry that source (the compliance plan, §5.1): the short id, and
+ * the old main-process store keys, session partitions and userData folders that hold its sign-in.
+ */
+const SOURCE_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
+const STORE_KEY_PATTERN = /^[A-Za-z0-9_.:-]{1,128}$/;
+const PARTITION_PATTERN = /^(persist:)?[A-Za-z0-9_-]{1,64}$/;
+const FOLDER_NAME_PATTERN = /^[A-Za-z0-9_-][A-Za-z0-9_.-]{0,63}$/;
+const HOST_NAME_PATTERN = /^(?=.{1,253}$)[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/;
+const CAPABILITY_ID_PATTERN = /^[a-z][a-z0-9.@-]{0,63}$/;
+
+/*
+ * Folium 2.0 (S3, plan §4.1): whether this host implements capability `key` (`search@1`), by the versions table of
+ * foliumShared.json that `folium.sources.supports` answers from too. A source whose `requires` lists one it does
+ * not is refused, not run pretending.
+ */
+const hostImplementsCapability = (key) => {
+    const match = /^([a-z][a-z0-9.-]*)@([1-9]\d*)$/.exec(key);
+    if (!match) return false;
+    const versions = shared.sourceCapabilities[match[1]];
+    return Array.isArray(versions) && versions.includes(Number(match[2]));
+};
+const NATIVE_NAME_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/;
+const SECRET_SLOT_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/;
+const SECRET_SLOTS_MAX = 64;
+const CLIENT_CONTEXTS = new Set(['main', 'export']);
+const CLAIM_LIST_FIELDS = [
+    ['storeKeys', STORE_KEY_PATTERN, 'a store key'],
+    ['partitions', PARTITION_PATTERN, 'a session partition name'],
+    ['userDataDirs', FOLDER_NAME_PATTERN, 'a folder name under userData'],
+];
+const SOURCE_FIELDS = new Set(['id', 'name', 'requires', 'keepForMatching', 'claims', 'certificateExceptions', 'lyricRelayHosts']);
+
 // Deterministic result envelope shared by all validators.
 const ok = (value) => ({ ok: true, value });
 const fail = (errors) => ({ ok: false, errors });
@@ -96,6 +139,14 @@ const compareVersions = (left, right) => {
     if (left.major !== right.major) return left.major - right.major;
     if (left.minor !== right.minor) return left.minor - right.minor;
     return left.patch - right.patch;
+};
+
+/* Orders two version strings (negative, 0, positive); one that does not parse sorts below any that does. */
+const compareVersionStrings = (left, right) => {
+    const a = parseVersion(left);
+    const b = parseVersion(right);
+    if (!a || !b) return (a ? 1 : 0) - (b ? 1 : 0);
+    return compareVersions(a, b);
 };
 
 const satisfiesRange = (version, range) => {
@@ -189,6 +240,144 @@ const isHttpsOrigin = (value) => {
     }
 };
 
+const isStringList = (value) => Array.isArray(value) && value.every((item) => typeof item === 'string');
+
+/* A source's display name: a string, or one string per language (`{ "en": "…", "zh-CN": "…" }`). */
+const isSourceName = (value) => {
+    if (isNonEmptyString(value)) {
+        return value.length <= 64;
+    }
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        return false;
+    }
+    const entries = Object.entries(value);
+    return entries.length > 0
+        && entries.every(([language, text]) => /^[A-Za-z-]{2,16}$/.test(language) && isNonEmptyString(text) && text.length <= 64);
+};
+
+/* One `sources[].claims` (the compliance plan, §5.1): checked here, read by the loader's ownership rules. */
+const validateClaims = (claims, where, errors) => {
+    if (!claims || typeof claims !== 'object' || Array.isArray(claims)) {
+        errors.push(`${where}.claims must be an object`);
+        return;
+    }
+    Object.keys(claims).forEach((field) => {
+        if (field !== 'id' && !CLAIM_LIST_FIELDS.some(([name]) => name === field)) {
+            errors.push(`${where}.claims has an unknown field "${field}"`);
+        }
+    });
+    if (typeof claims.id !== 'string' || !SOURCE_ID_PATTERN.test(claims.id)) {
+        errors.push(`${where}.claims.id must be the short source id it takes over`);
+    }
+    CLAIM_LIST_FIELDS.forEach(([field, pattern, what]) => {
+        const list = claims[field];
+        if (list === undefined) return;
+        if (!isStringList(list) || !list.every((item) => pattern.test(item))) {
+            errors.push(`${where}.claims.${field} must be a list where each entry is ${what}`);
+        } else if (new Set(list).size !== list.length) {
+            errors.push(`${where}.claims.${field} lists an entry twice`);
+        }
+    });
+};
+
+/* One entry of `sources`, at `where` (`sources[0]`); `ids` collects the ids seen so far. */
+const validateSourceEntry = (source, where, ids, errors) => {
+    if (!source || typeof source !== 'object' || Array.isArray(source)) {
+        errors.push(`${where} must be an object`);
+        return;
+    }
+    Object.keys(source).forEach((field) => {
+        if (!SOURCE_FIELDS.has(field)) errors.push(`${where} has an unknown field "${field}"`);
+    });
+    if (typeof source.id !== 'string' || !SOURCE_ID_PATTERN.test(source.id)) {
+        errors.push(`${where}.id must match ${SOURCE_ID_PATTERN}`);
+    } else if (ids.has(source.id)) {
+        errors.push(`${where}.id "${source.id}" is listed twice`);
+    } else {
+        ids.add(source.id);
+    }
+    if (!isSourceName(source.name)) {
+        errors.push(`${where}.name must be a string of at most 64 characters, or one per language`);
+    }
+    if (source.requires !== undefined && (!isStringList(source.requires) || !source.requires.every((id) => CAPABILITY_ID_PATTERN.test(id)))) {
+        errors.push(`${where}.requires must be a list of capability ids like "search@1"`);
+    } else if (source.requires !== undefined) {
+        source.requires.forEach((key) => {
+            if (key.startsWith('x.')) {
+                errors.push(`${where}.requires "${key}": a custom capability is another mod's, not the host's to provide`);
+            } else if (!hostImplementsCapability(key)) {
+                errors.push(`${where}.requires "${key}": this host does not implement it`);
+            }
+        });
+    }
+    if (source.keepForMatching !== undefined && typeof source.keepForMatching !== 'boolean') {
+        errors.push(`${where}.keepForMatching must be true or false`);
+    }
+    if (source.claims !== undefined) {
+        validateClaims(source.claims, where, errors);
+    }
+    ['certificateExceptions', 'lyricRelayHosts'].forEach((field) => {
+        if (source[field] !== undefined && (!isStringList(source[field]) || !source[field].every((host) => HOST_NAME_PATTERN.test(host)))) {
+            errors.push(`${where}.${field} must be a list of host names`);
+        }
+    });
+};
+
+/*
+ * The fields only `folium: 2` has (plan §5.1). A `folium: 1` mod.json that names one is refused: those
+ * mods read exactly as they did in 1.9. A mod that declares `sources` is a source mod (§5.2), which is why
+ * an empty declaration is refused: it would buy the source exemptions without providing a source.
+ * `contexts` lists where the client runs ('main', 'export'; both when left out); a source mod's never
+ * runs in the export window.
+ */
+const validateFolium2Fields = (manifest, errors) => {
+    const present = FOLIUM_2_FIELDS.filter((field) => manifest[field] !== null);
+    if (manifest.folium !== 2) {
+        present.forEach((field) => errors.push(`"${field}" needs "folium": 2`));
+        return;
+    }
+    if (manifest.sources !== null) {
+        if (!Array.isArray(manifest.sources) || manifest.sources.length === 0) {
+            errors.push('mod.sources must list at least one source; a mod without sources leaves the field out');
+        } else {
+            const ids = new Set();
+            manifest.sources.forEach((source, index) => validateSourceEntry(source, `sources[${index}]`, ids, errors));
+        }
+        if (manifest.client === null) {
+            errors.push('a source mod needs a "client" entry: its sources are registered there');
+        }
+    }
+    ['locales', 'assets'].forEach((field) => {
+        if (manifest[field] !== null && !isSafeRelativePath(manifest[field])) {
+            errors.push(`mod.${field} must be a relative folder path inside the mod directory`);
+        }
+    });
+    if (manifest.secrets !== null) {
+        if (!isStringList(manifest.secrets) || !manifest.secrets.every((key) => SECRET_SLOT_PATTERN.test(key))) {
+            errors.push(`mod.secrets must be a list of key names matching ${SECRET_SLOT_PATTERN}`);
+        } else if (manifest.secrets.length > SECRET_SLOTS_MAX) {
+            errors.push(`mod.secrets has at most ${SECRET_SLOTS_MAX} keys`);
+        } else if (new Set(manifest.secrets).size !== manifest.secrets.length) {
+            errors.push('mod.secrets lists a key twice');
+        }
+    }
+    if (manifest.contexts !== null) {
+        if (!isStringList(manifest.contexts) || manifest.contexts.length === 0 || !manifest.contexts.every((context) => CLIENT_CONTEXTS.has(context))) {
+            errors.push('mod.contexts must list where the client runs: "main", "export"');
+        } else if (manifest.sources !== null && manifest.contexts.includes('export')) {
+            errors.push('a source mod\'s client never runs in the export window; leave "export" out of mod.contexts');
+        }
+    }
+    if (manifest.native !== null && (!isStringList(manifest.native) || !manifest.native.every((name) => NATIVE_NAME_PATTERN.test(name)))) {
+        errors.push(`mod.native must be a list of names matching ${NATIVE_NAME_PATTERN}`);
+    }
+};
+
+/** Whether a validated manifest is a source mod (Folium 2.0 plan §5.2): `folium: 2` with `sources`. */
+const isSourceManifest = (manifest) => Boolean(
+    manifest && manifest.folium === 2 && Array.isArray(manifest.sources) && manifest.sources.length > 0,
+);
+
 const validateManifest = (raw) => {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
         return fail(['manifest root must be a JSON object']);
@@ -211,6 +400,13 @@ const validateManifest = (raw) => {
         embedOrigins: Array.isArray(raw.embedOrigins) ? raw.embedOrigins : [],
         folia: raw.folia ?? null,
         preview: raw.preview ?? null,
+        // Folium 2 only (validateFolium2Fields); null when the mod.json does not have them.
+        sources: raw.sources ?? null,
+        locales: raw.locales ?? null,
+        assets: raw.assets ?? null,
+        secrets: raw.secrets ?? null,
+        contexts: raw.contexts ?? null,
+        native: raw.native ?? null,
     };
     // Folium 1.6 only (deprecated.cjs): an old permission id is read as its new one, and a field
     // mod.json does not have is a warning, not the error below.
@@ -223,8 +419,8 @@ const validateManifest = (raw) => {
         }
     });
 
-    if (manifest.folium !== FOLIUM_VERSION.major) {
-        errors.push(`unsupported folium version ${JSON.stringify(manifest.folium)}; this host implements folium ${FOLIUM_VERSION.major}`);
+    if (!MANIFEST_VERSIONS.includes(manifest.folium)) {
+        errors.push(`unsupported folium version ${JSON.stringify(manifest.folium)}; this host reads folium ${MANIFEST_VERSIONS.join(' and ')}`);
     }
     if (!isNonEmptyString(manifest.id) || !MOD_ID_PATTERN.test(manifest.id)) {
         errors.push('mod.id is required and must match /^[a-z0-9][a-z0-9-]*$/');
@@ -306,6 +502,8 @@ const validateManifest = (raw) => {
     if (manifest.folia !== null && !parseHostRange(manifest.folia)) {
         errors.push(`mod.folia ${JSON.stringify(manifest.folia)} is not a supported version range (e.g. ">=0.7.0 <0.8.0")`);
     }
+
+    validateFolium2Fields(manifest, errors);
 
     return errors.length > 0 ? fail(errors) : ok(manifest);
 };
@@ -428,6 +626,10 @@ const resolveLoadOrder = (manifests, { source = 'unknown' } = {}) => {
 
 module.exports = {
     FOLIUM_VERSION,
+    MANIFEST_VERSIONS,
+    SOURCE_ID_PATTERN,
+    isSourceManifest,
+    compareVersionStrings,
     KNOWN_PERMISSIONS,
     permissionGuarding,
     KNOWN_EXPERIMENTAL,

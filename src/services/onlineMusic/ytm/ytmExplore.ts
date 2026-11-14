@@ -1,6 +1,6 @@
 import i18n from '../../../i18n/config';
 import type { OnlineExploreProvider, ProviderCollection, ProviderExploreItem, ProviderExploreSection } from '../../../types/onlineMusic';
-import { createHandedOut, cursorWords, stampCursor } from '../exploreReads';
+import { createHandedOut, cursorWords, stampCursor } from '@folia/folium-source-kit';
 import { normalizeYtmCollection, normalizeYtmSong } from './ytmNormalize';
 import { addYtmSeeds, noteYtmListened, ytmListenedSeeds, ytmRadioSongs, ytmSeedOf } from './ytmRadio';
 import type { YtmSeed } from './ytmRadio';

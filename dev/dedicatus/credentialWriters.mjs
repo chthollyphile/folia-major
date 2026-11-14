@@ -7,8 +7,13 @@
 // 登记的函数要满足其一，并在说明里写清楚是哪一种：只在确认的登录（或同一会话的续期）之后被调用；
 // 或者函数自己挡掉账号项，只写别的。
 //
-// 检查范围：渲染进程经 providerStorage 写的会话值，和酷狗桥接层的会话 cookie 对象（含整个重新赋值）。
-// 其他平台主进程里的会话仓库（spotify、ytm、qishui、bodian、fnmusic、QQ 包内部）还没纳入。
+// 检查范围：渲染进程经 providerStorage 写的会话值，音源模组 client 经 folium.sources.pageStore(id).set(键, 值) 写的会话值
+// （同一个键，S5 补的），和酷狗桥接层的会话 cookie 对象（含整个重新赋值）。
+// 其他平台主进程里的会话仓库（spotify、ytm、qishui、fnmusic、QQ 包内部，以及迁成模组的 sources/<id>/main/ 里的）还没纳入：
+// main 入口的 api.legacy.store.set(键, 值) 存的是整份加密的会话，键名（BODIAN_SESSION_V2 这类）不是这里按名字认的凭据键。
+//
+// Folium 2.0：平台逐家搬进 sources/<id>/（S5）。规则也查 sources/**（eslint.config.mjs 的 APP_CODE），表里的键是文件路径，
+// 文件搬走时这里跟着改成新路径（没改的话那几处写入会被报出来，不会漏查）。
 
 /** 算作账号凭据的键。设备 id（dfid）、匿名会话（anonymous_cookie）不算。 */
 export const CREDENTIAL_KEYS = ['token', 'userid', 'user_id', 'cookie'];
@@ -17,6 +22,8 @@ export const CREDENTIAL_KEYS = ['token', 'userid', 'user_id', 'cookie'];
 export const CREDENTIAL_WRITE_CALLS = ['writeProviderSessionValue'];
 /** 直接写 localStorage 时拼会话键的函数：`localStorage.setItem(getProviderSessionKey(平台, 键), 值)` 也算写凭据。 */
 export const CREDENTIAL_STORAGE_KEY_CALLS = ['getProviderSessionKey'];
+/** 返回音源模组同步页面存储的调用：`folium.sources.pageStore(id).set(键, 值)`（存进变量再 set 也认）落在和 providerStorage 同一个键上。 */
+export const CREDENTIAL_PAGE_STORE_CALLS = ['pageStore'];
 /**
  * 文件 → 会话 cookie 对象的名字，以及返回它的函数（`const jar = ensureCookies()` 这样的别名也认）。
  * 只在登记的文件里认：别处叫 cookies 的变量和登录会话无关。

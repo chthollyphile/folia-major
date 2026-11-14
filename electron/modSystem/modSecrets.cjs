@@ -60,6 +60,10 @@ const canSealWith = (safeStorage, platform) => {
 /**
  * `userDataDir` is Electron's userData; `safeStorage` is Electron's (absent in tests, which then run
  * memory-only). `onChange(modId, key)` hears every change.
+ *
+ * Folium 2.0 (plan §5.2): `slotsOf(modId)` gives the keys a source mod's manifest declares (`secrets`): they
+ * count as declared from the start, without waiting for a settings section in the window. `maxBytesOf(modId)`
+ * gives the longest value for that mod (64 KB for a source mod; SECRET_MAX_BYTES for every other).
  */
 const createModSecrets = ({
     userDataDir,
@@ -68,6 +72,8 @@ const createModSecrets = ({
     warn = console.warn,
     log = console.log,
     onChange = () => {},
+    slotsOf = () => [],
+    maxBytesOf = () => SECRET_MAX_BYTES,
 }) => {
     const declaredByMod = new Map(); // modId -> Set of keys the window declared this run
     const memoryByMod = new Map();   // modId -> Map key -> value, when they cannot be sealed
@@ -150,7 +156,7 @@ const createModSecrets = ({
         if (typeof key !== 'string' || key.length === 0) {
             throw new Error('secret key must be a non-empty string');
         }
-        if (declaredByMod.get(modId)?.has(key) || memoryByMod.get(modId)?.has(key)) {
+        if (declaredByMod.get(modId)?.has(key) || memoryByMod.get(modId)?.has(key) || slotsOf(modId).includes(key)) {
             return;
         }
         if (Object.hasOwn(await readSealed(modId), key) || declaredByMod.get(modId)?.has(key)) {
@@ -193,15 +199,16 @@ const createModSecrets = ({
         }
     };
 
-    const requireValue = (value) => {
+    const requireValue = (modId, value) => {
         if (value === null || value === '') {
             return null;
         }
         if (typeof value !== 'string') {
             throw new Error('secret value must be a string or null');
         }
-        if (Buffer.byteLength(value, 'utf8') > SECRET_MAX_BYTES) {
-            throw new Error(`secret-too-large:${SECRET_MAX_BYTES}`);
+        const maxBytes = maxBytesOf(modId);
+        if (Buffer.byteLength(value, 'utf8') > maxBytes) {
+            throw new Error(`secret-too-large:${maxBytes}`);
         }
         return value;
     };
@@ -251,7 +258,7 @@ const createModSecrets = ({
      */
     const set = (modId, key, rawValue) => enqueue(modId, async () => {
         await requireKey(modId, key, { write: true });
-        const value = requireValue(rawValue);
+        const value = requireValue(modId, rawValue);
         const previous = await readValue(modId, key);
         const sealed = await readSealed(modId);
         const memory = mapOf(memoryByMod, modId);
@@ -310,6 +317,7 @@ const createModSecrets = ({
         const sealed = await readSealed(modId);
         const keys = new Set([
             ...(declaredByMod.get(modId) ?? []),
+            ...slotsOf(modId),
             ...(memoryByMod.get(modId)?.keys() ?? []),
             ...Object.keys(sealed),
         ]);
@@ -334,7 +342,16 @@ const createModSecrets = ({
         };
     };
 
-    return { get, has, set, declare, state, subscribe, isPersistent: canSeal };
+    /*
+     * Folium 2.0 ("clear data" of a source): what this run holds for `modId` (decrypted copies, values kept in
+     * memory) is dropped, so the next read goes to the file the loader has just removed. Declarations stay.
+     */
+    const forget = (modId) => enqueue(modId, async () => {
+        memoryByMod.delete(modId);
+        openedByMod.delete(modId);
+    });
+
+    return { get, has, set, declare, state, subscribe, forget, isPersistent: canSeal };
 };
 
 module.exports = {

@@ -1,0 +1,19 @@
+{
+  "folium": 2,
+  "id": "fixture-source",
+  "name": "构建夹具音源",
+  "version": "1.0.0",
+  "author": "Folia",
+  "description": "Folium 2.0 S4 的构建与测试夹具：走一遍 dev/sources/build.mjs 的每条路径（client、main、worker、语言表、deps 归档、vendor、原生件声明）。不连任何平台，只给测试和验收用。",
+  "client": "client.mjs",
+  "main": "index.cjs",
+  "locales": "locales",
+  "assets": "assets",
+  "sources": [
+    {
+      "id": "probe",
+      "name": { "zh-CN": "构建夹具", "en": "Build fixture", "in": "Fixture build", "vi": "Thử bản dựng" },
+      "requires": ["search@1", "songs@1"]
+    }
+  ]
+}

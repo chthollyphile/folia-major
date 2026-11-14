@@ -7,7 +7,8 @@
 'use strict';
 
 const crypto = require('crypto');
-const fs = require('fs');
+// original-fs: a .asar file in a mod directory is a file here, not a directory (rawFs.cjs).
+const { rawFs: fs } = require('./rawFs.cjs');
 const path = require('path');
 const { unzipSync } = require('fflate');
 
@@ -255,7 +256,7 @@ const createZipInstall = ({ app, isModSystemEnabled, loadAll, emitLog, serialize
             removeQuietly(backupDir);
             backupTaken = false;
 
-            const modsAfterInstall = loadAll();
+            const modsAfterInstall = await loadAll();
             emitLog(modId, 'info', `installed mod ${modId} from zip`);
             return { ok: true, id: modId, mods: modsAfterInstall };
         } catch (error) {

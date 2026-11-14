@@ -5,6 +5,8 @@ import { autoMatchBestLyric } from '@/utils/lyrics/autoMatchBestLyric';
 import { applyMatchedMetadata } from '@/services/localLibraryCatalogService';
 import { neteaseApi } from '@/services/onlineMusic/netease/netease';
 import { getLocalLibraryCatalogSnapshot } from '@/services/localLibraryEntityRepository';
+import { fetchQQLyrics, searchQQLyrics } from '@/services/onlineMusic/qq/qqLyricProvider';
+import { getOnlineMusicProvider, registerOnlineMusicProvider, unregisterOnlineMusicProvider } from '@/services/onlineMusic/providerRegistry';
 
 // test/unit/services/localMusicLyricsMatch.test.ts
 
@@ -19,6 +21,7 @@ vi.mock('@/services/localLibraryCatalogService', () => ({ applyMatchedMetadata: 
 vi.mock('@/services/localLibraryEntityRepository', () => ({
     getLocalLibraryCatalogSnapshot: vi.fn().mockResolvedValue({ entities: [], assignments: [] }),
 }));
+vi.mock('@/services/onlineMusic/qq/qqLyricProvider', () => ({ searchQQLyrics: vi.fn(), fetchQQLyrics: vi.fn() }));
 vi.mock('@/services/onlineMusic/netease/netease', () => ({
     neteaseApi: {
         cloudSearch: vi.fn(),
@@ -132,5 +135,34 @@ describe('localMusicService lyric matching', () => {
             preferredSource: 'amll',
         }));
         expect(localSong.matchedLyrics).toBe(lyrics);
+    });
+
+    // Folium 2.0 方案 §7.1（审查第 1 条）：网易云不在时按下一个能匹配本地歌的来源匹配，写进本地歌的是那个来源和它认歌的 id，
+    // 不是写死的网易云。
+    it('writes the source it matched with, and that source\'s own song id, when NetEase is not there', async () => {
+        const netease = getOnlineMusicProvider('netease')!;
+        unregisterOnlineMusicProvider('netease');
+        vi.spyOn(console, 'log').mockImplementation(() => {});
+        vi.spyOn(console, 'info').mockImplementation(() => {});
+        try {
+            lyricSettings.autoUseBestLyric = false;
+            vi.mocked(searchQQLyrics).mockResolvedValue([{
+                id: 4242, qqMid: 'mid-4242', name: 'Plain title', artists: [{ id: 1, name: 'Singer' }],
+                album: { id: 2, name: 'Album' }, durationMs: 200000,
+                sourceRef: { kind: 'online', providerId: 'qq', mediaId: 'mid-4242' },
+            } as never]);
+            const lyrics = { lines: [{ startTime: 0, endTime: 1, fullText: 'line', words: [] }], isWordByWord: false };
+            vi.mocked(fetchQQLyrics).mockResolvedValue(lyrics as never);
+            const local = { ...song(), title: 'Plain title', titleOrigin: 'import', onlineMetadata: undefined } as unknown as LocalSong;
+
+            await matchLyrics(local);
+
+            expect(neteaseApi.cloudSearch).not.toHaveBeenCalled();
+            expect(applyMatchedMetadata).toHaveBeenCalledWith('local-song', expect.objectContaining({ source: 'qq', songId: 'mid-4242' }), expect.anything());
+            expect(local.matchedLyricsSource).toBe('qq');
+        } finally {
+            registerOnlineMusicProvider(netease);
+            lyricSettings.autoUseBestLyric = true;
+        }
     });
 });

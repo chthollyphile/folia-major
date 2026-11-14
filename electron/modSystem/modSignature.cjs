@@ -24,7 +24,8 @@
 'use strict';
 
 const crypto = require('crypto');
-const fs = require('fs');
+// original-fs: a .asar file in a mod directory is a file here, not a directory (rawFs.cjs).
+const { rawFs: fs } = require('./rawFs.cjs');
 const path = require('path');
 const { DIGEST_LIMITS } = require('./modDigest.cjs');
 const { TRUSTED_SIGNING_KEYS, REVOKED_MOD_DIGESTS } = require('./trustedKeys.cjs');

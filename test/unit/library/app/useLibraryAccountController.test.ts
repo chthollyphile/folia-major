@@ -148,7 +148,8 @@ describe('application account controller with Folium mod sources', () => {
         expect(cleanup.leaveProvider).not.toHaveBeenCalled();
     });
 
-    it('falls back to NetEase and remembers it when the active mod source goes away', async () => {
+    // Folium 2.0 方案 §7 第一行：只在内存里回落，存的选择不改；音源回来后自动又是当前平台。
+    it('falls back in memory when the active mod source goes away, and takes it back when it returns', async () => {
         registerOnlineMusicProvider(modProvider);
         useOnlineProviderAccountStore.getState().setActiveProviderId(MOD_PROVIDER_ID);
         mount();
@@ -161,7 +162,14 @@ describe('application account controller with Folium mod sources', () => {
 
         expect(view!.activeProviderId).toBe('netease');
         expect(view!.providers.some(provider => provider.providerId === MOD_PROVIDER_ID)).toBe(false);
-        expect(storage.get('active_online_provider_id')).toBe('netease');
+        expect(storage.get('active_online_provider_id')).toBe(MOD_PROVIDER_ID);
+
+        await act(async () => {
+            registerOnlineMusicProvider(modProvider);
+            await Promise.resolve();
+        });
+        expect(view!.activeProviderId).toBe(MOD_PROVIDER_ID);
+        expect(storage.get('active_online_provider_id')).toBe(MOD_PROVIDER_ID);
     });
 });
 

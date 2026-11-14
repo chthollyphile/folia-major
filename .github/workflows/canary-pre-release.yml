@@ -59,6 +59,16 @@ jobs:
               ;;
           esac
 
+          # The rolling release (tag `cielo`) is what every Cielo install updates from, so it has one owner at a time.
+          # While Folium 2 is in release testing that is the edge branch (dev/folium/folium-2-plan.md §10): a rolling
+          # build from any other branch would replace edge's build for every Cielo user, and the next edge build would
+          # switch them back. Such a build is kept as a branch release instead.
+          ROLLING_BRANCH="edge"
+          if [[ "${PUBLISH_MODE}" == "rolling" && "${GITHUB_REF_NAME}" != "${ROLLING_BRANCH}" ]]; then
+            echo "::notice::Only ${ROLLING_BRANCH} publishes the rolling Cielo release for now; ${GITHUB_REF_NAME} is published as a branch release."
+            PUBLISH_MODE="branch-release"
+          fi
+
           VERSION="${BASE_VERSION}-alpha.$(date -u +%s)"
           BRANCH_SLUG="$(printf '%s' "${GITHUB_REF_NAME}" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9._-]+/-/g; s/^-+|-+$//g' | cut -c 1-40)"
           BRANCH_SLUG="${BRANCH_SLUG:-branch}"
@@ -152,6 +162,11 @@ jobs:
             build/mnn
           key: mnn-${{ runner.os }}-${{ hashFiles('build/buildMnnRuntime.mjs', 'native/folia-mnn/**') }}
 
+      # Folium 2.0: the built-in source mods, sources/<id>/ built into dist-mods/ (dev/sources/build.mjs), which
+      # extraResources ships as resources/builtin-mods. FOLIA_BUNDLED_SOURCES unset: every source in sources/.
+      - name: Build built-in source mods
+        run: npm run sources:build
+
       - name: Package Electron app
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: false
@@ -201,7 +216,29 @@ jobs:
           mapfile -d '' files < <(find cielo-artifacts -type f -print0)
           COMMIT_URL="https://github.com/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA}"
           PUBLISHED_AT="$(date -u '+%Y-%m-%d %H:%M:%S UTC')"
-          cat > release-notes.md <<EOF
+          # Builds from the edge branch are the Folium 2 release test (dev/folium/folium-2-plan.md §10), so their
+          # notes invite regular users and mod authors instead of warning them off; every other branch keeps the
+          # canary warning word for word.
+          if [[ "${BRANCH_NAME}" == "edge" ]]; then
+            cat > release-notes.md <<EOF
+          Folium 2 release-test build from branch ${BRANCH_NAME} at commit ${GITHUB_SHA}.
+
+          这个版本用于 Folium 2 的发布测试：内置音源正在逐步改成音源模组，模组的音源接口（\`folium: 2\`）处于预览阶段。
+          普通用户可以下载使用。
+          反馈问题时请打上 \`folium2\` 标签（自己加不了标签的，在标题里写上 \`[folium2]\`）。
+          建议模组作者都下载这个版本，测试自己的模组。
+
+          This build is the release test for Folium 2: the built-in music sources are moving into source mods, and the source interface for mods (\`folium: 2\`) is a preview.
+          Regular users are welcome to download it.
+          When reporting a problem, please add the \`folium2\` label (if you cannot add labels, put \`[folium2]\` in the title).
+          Mod authors are encouraged to download this build and test their mods with it.
+
+          Version: ${RELEASE_VERSION}
+          Source commit: ${COMMIT_URL}
+          Published at: ${PUBLISHED_AT}
+          EOF
+          else
+            cat > release-notes.md <<EOF
           Canary build for branch ${BRANCH_NAME} at commit ${GITHUB_SHA}.
 
           警告：Canary 版本包含未经充分验证的实验性功能，极有可能存在严重问题或破坏性变更，请勿作为日常使用版本下载。
@@ -210,4 +247,5 @@ jobs:
           Source commit: ${COMMIT_URL}
           Published at: ${PUBLISHED_AT}
           EOF
+          fi
           gh release create "${RELEASE_TAG}" "${files[@]}" --repo "${GITHUB_REPOSITORY}" --title "${RELEASE_TITLE}" --notes-file release-notes.md --target "${GITHUB_SHA}" --prerelease

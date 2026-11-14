@@ -149,6 +149,16 @@ const NONE: SongResult[] = [];
 // (The songs played lately are fewer as time goes by: `recentCount` tells that they are. The
 // listenings that count are fewer from one day to the next: `replayedOn` is the day they were read on.)
 const listed = new WeakMap<Play[], { recentCount: number; recent: SongResult[]; replayedOn?: number; replayed?: SongResult[]; records?: Play[] }>();
+/**
+ * The accounts of the online platform `providerId` that plays are kept under on this device (`''` for none signed
+ * in). Read from what is kept here only: the play history lists a platform it does not read the account of (a
+ * source used only for matching, Folium 2.0 plan §5.3) under each of them.
+ */
+export const keptPlayAccountsOf = (providerId: OnlineProviderId): string[] => {
+    const prefix = scopeOf(providerId, '');
+    return Object.keys(recall()).filter(key => key.startsWith(prefix)).map(key => key.slice(prefix.length));
+};
+
 // The plays of a scope that are still kept.
 const keptOf = (scope: string, now: number): Play[] | null => {
     const plays = recall()[scope];

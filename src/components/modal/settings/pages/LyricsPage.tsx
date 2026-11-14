@@ -2,13 +2,14 @@ import React, { useState } from 'react';
 import { RotateCcw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
-import { useLyricMatchSources } from '../../../../hooks/useLyricMatchSources';
+import { useCrossSourceParticipants } from '../../../../hooks/useCrossSourceParticipants';
+import type { CrossSourceSkipReason } from '../../../../services/onlineMusic/crossSource';
 import { resyncAllFolders } from '../../../../services/localMusicService';
 import { useLyricSettingsStore } from '../../../../stores/useLyricSettingsStore';
 import { setStatusMessage } from '../../../../stores/useStatusMessageStore';
 import { DEFAULT_LOCAL_LYRIC_FORMAT_ORDER, isSameLocalLyricFormatOrder, type LocalLyricFileFormat } from '../../../../utils/lyrics/localLyricFormatOrder';
 import { getLyricProviderPreferenceLabel } from '../../../../utils/lyrics/lyricSourceLabels';
-import { DEFAULT_PREFERRED_LYRIC_SOURCE } from '../../../../utils/lyrics/sourcePriority';
+import { DEFAULT_PREFERRED_LYRIC_SOURCE, buildLyricSourceOrder } from '../../../../utils/lyrics/sourcePriority';
 import { Button, FoldedGroup, Group, OrderList, Reveal, Row, Segmented, Select, Toggle, Value, option, type SettingsGroupDef, type SettingsOptionDef } from '../kit';
 import { useSettingsPage } from './settingsPageContext';
 
@@ -33,6 +34,15 @@ const O = {
     formatOrder: option(FORMATS, 'localLyricFormatOrderList', 'options.localLyricFormatOrderList'),
 };
 
+// How the settings say why a source is left out (crossSource.ts).
+const CROSS_SOURCE_SKIP_REASON_KEYS: Readonly<Record<CrossSourceSkipReason, string>> = {
+    'not-enabled': 'options.crossSourceSkipNotEnabled',
+    'not-configured': 'options.crossSourceSkipNotConfigured',
+    'runtime-unavailable': 'options.crossSourceSkipRuntimeUnavailable',
+    'needs-account': 'options.crossSourceSkipNeedsAccount',
+    'matching-only': 'options.crossSourceSkipMatchingOnly',
+};
+
 export const OPTIONS: SettingsOptionDef[] = Object.values(O);
 
 const LyricsPage: React.FC = () => {
@@ -53,9 +63,22 @@ const LyricsPage: React.FC = () => {
         setFormatOrder: state.handleSetLocalLyricFormatOrder,
         setAutoAiSegmentation: state.handleToggleAutoAiLyricSegmentation,
     })));
-    const sources = useLyricMatchSources();
-    // A choice that is not on offer now is not in force either: the matcher falls back the same way.
-    const shownSource = sources.includes(lyric.preferredSource) ? lyric.preferredSource : DEFAULT_PREFERRED_LYRIC_SOURCE;
+    const { ready: sources, skipped } = useCrossSourceParticipants('lyrics');
+    // A choice that is not on offer now is not in force either: the matcher falls back the same way, to the
+    // first source on offer in the default order. The stored choice is kept, and is in force again once its
+    // source is back (Folium 2.0 plan §7.1).
+    const shownSource = sources.includes(lyric.preferredSource)
+        ? lyric.preferredSource
+        : buildLyricSourceOrder(DEFAULT_PREFERRED_LYRIC_SOURCE).find(source => sources.includes(source)) ?? DEFAULT_PREFERRED_LYRIC_SOURCE;
+    // Said once, under the choice, while the listener's own choice is left out: which source, and why.
+    const preferredSkip = skipped.find(skip => skip.sourceId === lyric.preferredSource);
+    const preferredSkipNote = preferredSkip
+        ? t('options.lyricPreferredSourceSkipped', {
+            source: getLyricProviderPreferenceLabel(preferredSkip.sourceId),
+            reason: t(CROSS_SOURCE_SKIP_REASON_KEYS[preferredSkip.reason]),
+            next: getLyricProviderPreferenceLabel(shownSource),
+        })
+        : undefined;
 
     // A new order only applies on the next scan of the local folders, so a change offers one.
     const [needsResync, setNeedsResync] = useState(false);
@@ -88,7 +111,7 @@ const LyricsPage: React.FC = () => {
                 <Row option={O.autoBest} note={t(sources.includes('spotify') ? 'options.autoUseBestLyricDescSpotify' : 'options.autoUseBestLyricDesc')}>
                     <Toggle checked={lyric.autoBest} onChange={lyric.setAutoBest} />
                 </Row>
-                <Row option={O.matchPriority} note={t('settings.lyricMatchPriorityDesc')}>
+                <Row option={O.matchPriority} note={t('settings.lyricMatchPriorityDesc')} hint={preferredSkipNote}>
                     <Select
                         value={shownSource}
                         options={sources.map(source => ({ value: source, label: getLyricProviderPreferenceLabel(source) }))}

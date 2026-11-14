@@ -1,10 +1,6 @@
 import type { SongResult, UnifiedSong } from '@/types';
 import type { AudioQualityPreference, OnlineMusicProvider, ProviderCapabilities } from '@/types/onlineMusic';
-import {
-    getOnlineMusicProvider,
-    registerOnlineMusicProvider,
-    unregisterOnlineMusicProvider,
-} from '@/services/onlineMusic/providerRegistry';
+import { getOnlineMusicProvider } from '@/services/onlineMusic/providerRegistry';
 import type { FoliumOmniProviderDef, FoliumProviderSong } from '../contract';
 import { isFoliumLegacyLyricsResult, resolveFoliumLyricsResult } from '../lyricsSource';
 import { FOLIUM_OLD_CLIENT_NAMES } from '../deprecated/oldNames';
@@ -12,6 +8,7 @@ import { sayFoliumOldNameOnce } from '../deprecated/warnings';
 import { createFoliumRegistry } from '../../runtime/registry';
 import { timeFoliumMod } from '../../runtime/guard';
 import { foliumProviderId } from '../omni/providerIds';
+import { holdFoliumProvider, releaseFoliumProvider } from './heldProviders';
 
 // src/mods/folium/registries/omniProviders.ts
 // EXPERIMENTAL `omni.providers`: a mod's online music source, adapted to the
@@ -28,6 +25,12 @@ import { foliumProviderId } from '../omni/providerIds';
 //
 // The provider id is made in omni/providerIds.ts (`foliumProviderId`), which others read without
 // loading this registry.
+//
+// Folium 2.0 (plan §9): a thin shell on the sources registry (registries/sources.ts). Its providers are held in
+// the same table of mod-held provider ids as `folium.sources`' (heldProviders.ts: one id, one mod, whichever surface it came
+// through), and go with the mod's teardown the same way. What it registers behaves exactly as in Folium 1: its
+// four methods keep their own adapter below (the 1.x song shape and its `#artist0` ids, the Folium 1 lyrics
+// answer, the timing gate), since a Folium 1 definition is no set of capabilities. New sources use folium.sources.
 
 const toUnifiedSong = (providerId: string, song: FoliumProviderSong): UnifiedSong => ({
     id: song.id,
@@ -138,8 +141,14 @@ const buildProvider = (modId: string, providerId: string, def: FoliumOmniProvide
     };
 };
 
-export const omniProvidersRegistry = createFoliumRegistry<FoliumOmniProviderDef, { def: FoliumOmniProviderDef; providerId: string }>('omni.providers', {
-    validate: (def, { id }) => {
+interface StoredOmniProvider {
+    def: FoliumOmniProviderDef;
+    providerId: string;
+    provider: OnlineMusicProvider;
+}
+
+export const omniProvidersRegistry = createFoliumRegistry<FoliumOmniProviderDef, StoredOmniProvider>('omni.providers', {
+    validate: (def, { modId, id }) => {
         if (!def.search && !def.getAudioUrl && !def.getLyrics) {
             throw new Error('omni.providers.register: implement at least one of search / getAudioUrl / getLyrics');
         }
@@ -147,8 +156,8 @@ export const omniProvidersRegistry = createFoliumRegistry<FoliumOmniProviderDef,
         if (getOnlineMusicProvider(providerId)) {
             throw new Error(`omni.providers.register: provider "${providerId}" already exists`);
         }
-        return { def, providerId };
+        return { def, providerId, provider: buildProvider(modId, providerId, def) };
     },
-    onAdd: (entry) => registerOnlineMusicProvider(buildProvider(entry.modId, entry.def.providerId, entry.def.def)),
-    onRemove: (entry) => unregisterOnlineMusicProvider(entry.def.providerId),
+    onAdd: (entry) => holdFoliumProvider(entry.modId, 'omni.providers', entry.def.provider),
+    onRemove: (entry) => releaseFoliumProvider(entry.def.provider),
 });

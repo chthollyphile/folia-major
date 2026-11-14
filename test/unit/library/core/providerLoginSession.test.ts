@@ -9,7 +9,7 @@ import {
 import type { LibraryAccountAuthPort, LibraryAccountClock, LibraryAccountLogger } from '@/library/core/account/account.contract';
 import { diagnosticLine } from '@/services/onlineMusic/login/loginDiagnosticReport';
 import { noteLoginFailure } from '@/services/onlineMusic/login/loginFailureCase';
-import { LoginRequestTimeout } from '@/services/onlineMusic/login/loginRequestLimit';
+import { LoginRequestTimeout } from '@folia/folium-source-kit';
 import { OnlineProviderError, type LoginSelfCheckResult, type LoginState } from '@/types/onlineMusic';
 
 // test/unit/library/core/providerLoginSession.test.ts
