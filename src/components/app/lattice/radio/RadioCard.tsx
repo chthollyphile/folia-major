@@ -11,6 +11,7 @@ import { useLatticeChromeDisclosure } from '../useLatticeChromeDisclosure';
 import { useLatticeExpansionSettled } from '../useLatticeExpansionSettled';
 import { prewarmLatticeLyrics } from '../lyrics/prewarmLatticeLyrics';
 import { useRadioCoverTint } from './useRadioCoverTint';
+import { useRadioCardTilt } from './useRadioCardTilt';
 import type { RadioCardRole, RadioRect } from './radioWallModel';
 import { RADIO_NOW_ATTR } from './useRadioWallHandoff';
 
@@ -52,6 +53,8 @@ type RadioCardProps = {
 const FLIP_TRANSITION = { duration: 0.55, ease: [0.4, 0, 0.2, 1] as const };
 const DEAL_SPRING = { type: 'spring' as const, stiffness: 240, damping: 30, mass: 0.9 };
 const PERSPECTIVE_PX = 1400;
+/** 倾斜按压用的透视：比翻牌近一些，压下去才看得出来。 */
+const TILT_PERSPECTIVE_PX = 900;
 
 // 取色之前、取不到时的底色：按歌曲 id 算一个色相（与队列墙海报没有封面时同一个算法）。
 const fallbackTint = (id: string) => {
@@ -110,6 +113,13 @@ function RadioCard({
         };
     }, [animateSpin, reducedMotion, spin, spinScope]);
     const faceAngle = revealed ? 0 : 180;
+    // Metro 式的倾斜按压：指针所在的那一点往里压。正在播放那张卡上有歌词和控制条，压得浅一些。
+    const tilt = useRadioCardTilt({
+        maxDeg: isNow ? 2.5 : 7,
+        hoverScale: isNow ? 0.995 : 0.98,
+        pressScale: isNow ? 0.985 : 0.95,
+        disabled: reducedMotion,
+    });
     // 从左边补回来的卡（往回退时）背面朝上进场，落位时翻开；只在挂上时读。
     const entersFaceDown = !reducedMotion && entry.kind === 'deal' && entry.from.x < rect.x && revealed;
     // 歌词是按卡的大小排版的 Pixi 场景：等卡长到位再挂，不在长大的每一帧重排。
@@ -188,60 +198,66 @@ function RadioCard({
             onDoubleClick={handleDoubleClick}
             onKeyDown={handleKeyDown}
             onPointerEnter={(event: PointerEvent<HTMLElement>) => { if (isNow) prewarmLatticeLyrics(); chrome.onPointerEnter(event); }}
-            onPointerLeave={chrome.onPointerLeave}
+            onPointerLeave={() => { chrome.onPointerLeave(); tilt.handlers.onPointerLeave(); }}
             onPointerDownCapture={chrome.onPointerDownCapture}
+            onPointerMove={tilt.handlers.onPointerMove}
+            onPointerDown={tilt.handlers.onPointerDown}
+            onPointerUp={tilt.handlers.onPointerUp}
+            onPointerCancel={tilt.handlers.onPointerCancel}
             onFocusCapture={chrome.onFocusCapture}
             onBlurCapture={chrome.onBlurCapture}
             role={isNow ? 'group' : 'button'}
             tabIndex={0}
             aria-label={label}
         >
-            <div ref={spinScope} className="lattice-radio-card-spin">
-                <motion.div
-                    className="lattice-radio-card-inner"
-                    initial={entersFaceDown ? { rotateY: faceAngle + 180 } : false}
-                    animate={{ rotateY: faceAngle }}
-                    transition={reducedMotion ? { duration: 0 } : FLIP_TRANSITION}
-                >
-                    <article
-                        ref={chrome.articleRef}
-                        className={`lattice-poster lattice-radio-face is-front ${isNow ? 'is-current is-expanded' : ''}`}
-                        style={{ backgroundImage: coverUrl ? `url("${coverUrl}")` : undefined }}
-                        aria-hidden={!revealed}
+            <motion.div className="lattice-radio-card-tilt" style={{ ...tilt.style, transformPerspective: TILT_PERSPECTIVE_PX }}>
+                <div ref={spinScope} className="lattice-radio-card-spin">
+                    <motion.div
+                        className="lattice-radio-card-inner"
+                        initial={entersFaceDown ? { rotateY: faceAngle + 180 } : false}
+                        animate={{ rotateY: faceAngle }}
+                        transition={reducedMotion ? { duration: 0 } : FLIP_TRANSITION}
                     >
-                        <span className="lattice-poster-shade" />
-                        <span className="lattice-poster-lights-out" />
-                        <span className="lattice-poster-tint" />
-                        {revealed && <LatticeQuickActions tile={tile} width={rect.width} expanded={isNow} />}
-                        {isNow && settled ? (
-                            <Suspense fallback={<span className="lattice-poster-copy"><WallTitle title={tile.title} expanded targetPosterWidth={rect.width} /><small>{tile.artist}</small></span>}>
-                                <LatticeLyrics key={tile.id} tile={tile} reducedMotion={reducedMotion} />
-                            </Suspense>
-                        ) : (
-                            <span className="lattice-poster-copy">
-                                <WallTitle title={tile.title} expanded={isNow} targetPosterWidth={rect.width} />
-                                <small>{tile.artist}</small>
-                            </span>
-                        )}
-                        {isNow && (
-                            <div className="lattice-poster-controls">
-                                <LatticePlaybackControls
-                                    revealed={chrome.revealed}
-                                    tile={tile}
-                                    onPlay={onPlay}
-                                    onTogglePlayback={onTogglePlayback}
-                                    onSeek={onSeek}
-                                    onOpenPlayer={onOpenPlayer}
-                                />
-                            </div>
-                        )}
-                    </article>
-                    <div className={`lattice-radio-face is-back ${tint ? 'is-tinted' : ''}`}
-                        style={tint ? { '--lattice-radio-tint': tint } as CSSProperties : undefined} aria-hidden>
-                        <span className="lattice-radio-mark">?</span>
-                    </div>
-                </motion.div>
-            </div>
+                        <article
+                            ref={chrome.articleRef}
+                            className={`lattice-poster lattice-radio-face is-front ${isNow ? 'is-current is-expanded' : ''}`}
+                            style={{ backgroundImage: coverUrl ? `url("${coverUrl}")` : undefined }}
+                            aria-hidden={!revealed}
+                        >
+                            <span className="lattice-poster-shade" />
+                            <span className="lattice-poster-lights-out" />
+                            <span className="lattice-poster-tint" />
+                            {revealed && <LatticeQuickActions tile={tile} width={rect.width} expanded={isNow} />}
+                            {isNow && settled ? (
+                                <Suspense fallback={<span className="lattice-poster-copy"><WallTitle title={tile.title} expanded targetPosterWidth={rect.width} /><small>{tile.artist}</small></span>}>
+                                    <LatticeLyrics key={tile.id} tile={tile} reducedMotion={reducedMotion} />
+                                </Suspense>
+                            ) : (
+                                <span className="lattice-poster-copy">
+                                    <WallTitle title={tile.title} expanded={isNow} targetPosterWidth={rect.width} />
+                                    <small>{tile.artist}</small>
+                                </span>
+                            )}
+                            {isNow && (
+                                <div className="lattice-poster-controls">
+                                    <LatticePlaybackControls
+                                        revealed={chrome.revealed}
+                                        tile={tile}
+                                        onPlay={onPlay}
+                                        onTogglePlayback={onTogglePlayback}
+                                        onSeek={onSeek}
+                                        onOpenPlayer={onOpenPlayer}
+                                    />
+                                </div>
+                            )}
+                        </article>
+                        <div className={`lattice-radio-face is-back ${tint ? 'is-tinted' : ''}`}
+                            style={tint ? { '--lattice-radio-tint': tint } as CSSProperties : undefined} aria-hidden>
+                            <span className="lattice-radio-mark">?</span>
+                        </div>
+                    </motion.div>
+                </div>
+            </motion.div>
         </motion.div>
     );
 }
