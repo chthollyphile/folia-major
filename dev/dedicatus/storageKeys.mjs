@@ -325,4 +325,5 @@ export const STORAGE_KEYS = [
     'web:wallpaper_mode',
     'web:web_obs_theme_mode',
     'web:window_titlebar_side',
+    'web:folia_perf_check_offered',
 ];

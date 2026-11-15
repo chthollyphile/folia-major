@@ -54,6 +54,7 @@ const CLOSED_NAMES = [
     'stopMainWindowClickThroughUnlockHoverMonitor',
     'remoteControlWindow',
     'ytmSandbox',
+    'perfCheckHost',
     'refreshTrayMenu',
 ];
 
@@ -136,6 +137,7 @@ describe('main.cjs: mpv stops when the page driving it is gone for good', () => 
             stopMainWindowClickThroughUnlockHoverMonitor: () => {},
             remoteControlWindow: null,
             ytmSandbox: { destroy: () => {} },
+            perfCheckHost: { close: () => {} },
             refreshTrayMenu: () => {},
             macDockMenu: { reset: () => {} },
             ...overrides,

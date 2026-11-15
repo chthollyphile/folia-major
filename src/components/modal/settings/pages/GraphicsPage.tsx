@@ -11,7 +11,8 @@ import type { LyricAntialias } from '../../../../types';
 import { VISUALIZER_FRAME_RATE_OPTIONS } from '../../../../utils/frameRateLimiter';
 import { LYRIC_RENDER_SCALES } from '../../../../utils/lyricRenderQuality';
 import { lyricAntialiasChoices, lyricRenderScaleChoices } from '../../../visualizer/renderQuality/LyricRenderQualityRows';
-import { Group, Link, Reveal, Row, Segmented, Toggle, option, useSettingsKitTheme, type SettingsGroupDef, type SettingsOptionDef } from '../kit';
+import { openPerfCheck } from '../../../perfCheck/openPerfCheck';
+import { Button, Group, Link, Reveal, Row, Segmented, Toggle, option, useSettingsKitTheme, type SettingsGroupDef, type SettingsOptionDef } from '../kit';
 import { GpuPreferenceRow } from './graphics/GpuPreferenceRow';
 import { useSettingsPage } from './settingsPageContext';
 
@@ -37,6 +38,7 @@ const PERFORMANCE: SettingsGroupDef = { id: 'graphicsPerformance', titleKey: 'op
 const MOTION: SettingsGroupDef = { id: 'graphicsMotion', titleKey: 'options.reduceMotionSection' };
 
 const O = {
+    perfCheck: option(PERFORMANCE, 'perfCheck', 'options.perfCheck', { electronOnly: true }),
     staticMode: option(PERFORMANCE, 'enableStaticMode', 'options.enableStaticMode'),
     homeBackground: option(PERFORMANCE, 'disableHomeDynamicBackground', 'options.disableHomeDynamicBackground'),
     nativeBlur: option(PERFORMANCE, 'enablePlayerPageNativeBlur', 'options.enablePlayerPageNativeBlur'),
@@ -103,6 +105,11 @@ const GraphicsPage: React.FC = () => {
     return (
         <>
             <Group def={PERFORMANCE}>
+                {isElectron && (
+                    <Row option={O.perfCheck} hint={t('options.perfCheckDesc')}>
+                        <Button onClick={() => openPerfCheck()}>{t('options.perfCheckRun')}</Button>
+                    </Row>
+                )}
                 <Row option={O.staticMode} hint={t('options.enableStaticModeDesc')}>
                     <Toggle checked={theme.staticMode} onChange={theme.setStaticMode} />
                 </Row>

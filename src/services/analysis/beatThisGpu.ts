@@ -225,12 +225,36 @@ export const estimateGpuFinish = (kind: string, units: number, urgency: GpuRunOp
  */
 export const gpuStemsUsable = (): boolean => !unsupported && !failedModels.has('htdemucs');
 
+/** Set while the performance check runs in its own window: this window's units wait (components/perfCheck/). */
+let heldForPerfCheck = false;
+
+/**
+ * Holds this window's GPU analysis while the performance check measures the GPU from its own window
+ * (true), or lets it go again (false): queued units are passed over and kept (the scheduler's
+ * `paused`), and woken when released. A unit with a deadline is not held - automix's stems for a
+ * transition due during the check (urgency 'background' with a deadline) still come in time.
+ */
+export const holdGpuAnalysis = (held: boolean): void => {
+    if (heldForPerfCheck === held) return;
+    heldForPerfCheck = held;
+    if (!held) scheduler.wake();
+};
+
+/** A request's options with the hold above added to its own `paused`. */
+const withPerfCheckHold = (options: GpuRunOptions): GpuRunOptions => ({
+    ...options,
+    paused: () => (heldForPerfCheck && options.deadline === undefined && options.urgency !== 'transition') || (options.paused?.() ?? false),
+});
+
+/** What the loaded GPU models hold on the graphics card now, bytes: the performance check's memory reading. */
+export const gpuModelBytes = (): number => [...resident.values()].reduce((sum, entry) => sum + entry.bytes, 0);
+
 /**
  * The audio one htdemucs segment moves a track's separation on, ms: segments overlap by a quarter
  * (stemRange.ts stemSegmentStarts), so three quarters of the 3.9 s. A segment that takes longer than
  * this runs behind the track.
  */
-const SEGMENT_ADVANCE_MS = ((HTDEMUCS_GPU_SEGMENT - Math.floor(HTDEMUCS_GPU_SEGMENT / 4)) / 44100) * 1000;
+export const SEGMENT_ADVANCE_MS = ((HTDEMUCS_GPU_SEGMENT - Math.floor(HTDEMUCS_GPU_SEGMENT / 4)) / 44100) * 1000;
 /** On-screen segments in a row slower than real time that stop the separation on screen. */
 const SLOW_SEGMENTS = 3;
 /** On-screen segments in a row so far that took longer than the audio they move the track on. */
@@ -403,7 +427,7 @@ export const runBeatThisGpu = (
 ): Promise<Logits | null> => {
     if (unsupported || failedModels.has(model) || typeof window === 'undefined' || typeof Worker === 'undefined') return Promise.resolve(null);
     if (!chunks.length || chunks.some(chunk => chunk.frames < 1 || chunk.frames > CHUNK_FRAMES)) return Promise.resolve(null);
-    return scheduler.submit({ ...options, kind: model, run: () => runNow(chunks, model, percussiveOf) });
+    return scheduler.submit({ ...withPerfCheckHold(options), kind: model, run: () => runNow(chunks, model, percussiveOf) });
 };
 
 /**
@@ -416,7 +440,7 @@ export const runPercussiveEnergyGpu = (
     options: GpuRunOptions = { urgency: 'onScreen' },
 ): Promise<PercussiveEnergyFrames | null> => {
     if (unsupported || typeof window === 'undefined' || typeof Worker === 'undefined' || mel.frames < 1) return Promise.resolve(null);
-    return scheduler.submit({ ...options, kind: 'percussive', run: async (): Promise<PercussiveEnergyFrames | null> => {
+    return scheduler.submit({ ...withPerfCheckHold(options), kind: 'percussive', run: async (): Promise<PercussiveEnergyFrames | null> => {
         if (unsupported || !spawn()) return null;
         if (idleTimer) clearTimeout(idleTimer);
         idleTimer = null;
@@ -474,7 +498,7 @@ export const runHtdemucsGpu = (
     if (unsupported || failedModels.has('htdemucs') || typeof window === 'undefined' || typeof Worker === 'undefined') return Promise.resolve(null);
     if (tooSlowOnScreen && options.urgency === 'onScreen') return Promise.resolve(null);
     if (left.length !== HTDEMUCS_GPU_SEGMENT || right.length !== HTDEMUCS_GPU_SEGMENT) return Promise.resolve(null);
-    return scheduler.submit({ ...options, kind: 'htdemucs', run: async () => {
+    return scheduler.submit({ ...withPerfCheckHold(options), kind: 'htdemucs', run: async () => {
         if (unsupported || failedModels.has('htdemucs') || !(await ensureLoaded('htdemucs'))) return null;
         // Copied, not transferred: the caller still owns the track it cut these from.
         const l = Float32Array.from(left);

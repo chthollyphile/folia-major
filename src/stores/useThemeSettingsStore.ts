@@ -15,6 +15,7 @@ import i18n from '../i18n/config';
 
 import { getStoredBoolean, setStoredBoolean } from './storagePrimitives';
 import { setStatusMessage } from './useStatusMessageStore';
+import { isPerfCheckSurface } from '../utils/appSurface';
 
 export const FOLLOW_SYSTEM_THEME_STORAGE_KEY = 'follow_system_theme';
 
@@ -155,7 +156,8 @@ export const selectThemeSettingsSnapshot = (state: ThemeSettingsState) => ({
 
 // Seed Electron's native theme from the stored preference at startup. Lives here rather than in
 // useSettingsUiStore because it reads nothing but this domain.
-if (typeof window !== 'undefined' && window.electron?.setNativeTheme) {
+// Not from the performance check's window, which may not set it (the main window has, already).
+if (typeof window !== 'undefined' && !isPerfCheckSurface && window.electron?.setNativeTheme) {
     const initialTheme = useThemeSettingsStore.getState();
     void window.electron.setNativeTheme(
         initialTheme.followSystemTheme ? 'system' : (initialTheme.isDaylight ? 'light' : 'dark'),
