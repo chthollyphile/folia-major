@@ -10,6 +10,7 @@ const { spawn } = require('child_process');
 const Store = require('electron-store').default || require('electron-store');
 const crypto = require('crypto');
 const { createStageApi } = require('./stageApi.cjs');
+const { createAutoDisplaySession } = require('./wallpaper/autoDisplaySession.cjs');
 const { resolveStageConnectionFilePath } = require('./stageConnectionFile.cjs');
 const { isCursorInsideUnlockHotspot, createUnlockHoverRequests, resolveUnlockHotspot } = require('./mainWindowClickThrough.cjs');
 const { shouldHideToTrayOnClose, shouldRebuildBeforeMacWallpaper, shouldRebuildAfterMacWallpaper } = require('./nativeTrafficLights.cjs');
@@ -918,7 +919,25 @@ function scheduleWallpaperModeRelaunch(nextEnabled) {
 
 // The display the user chose for wallpaper mode; null is the automatic rule.
 function getWallpaperDisplayChoice() {
+  if (isWindowsWallpaperMode() && isAutoWallpaperEnabled() && autoWallpaper.getChoice()) return autoWallpaper.getChoice();
   return normalizeWallpaperDisplayChoice(store.get(WALLPAPER_DISPLAY_SETTING_KEY));
+}
+
+const autoWallpaper = createAutoDisplaySession({
+  platform: process.platform, screen, store,
+  canMove: () => isWindowsWallpaperMode() && !videoExportWindowRestoreState,
+  getCurrentDisplay: () => windowsWallpaperTarget.current(),
+  applyChoice: applyWallpaperDisplayChoice,
+  onChange: notifyWallpaperDisplaysChanged,
+});
+
+function isAutoWallpaperEnabled() {
+  return autoWallpaper.isEnabled();
+}
+
+function toggleAutoWallpaperDisplay() {
+  autoWallpaper.toggle();
+  return getWallpaperDisplaysState();
 }
 
 // macOS and X11: the chosen display while it is connected, else the primary display, which is
@@ -957,16 +976,16 @@ function getWallpaperDisplaysState() {
     const active = process.platform === 'win32'
       ? (windowsWallpaperTarget.peek() ?? screen.getPrimaryDisplay())
       : getChosenOrPrimaryWallpaperDisplay();
-    return describeWallpaperDisplays({
+    return { autoEnabled: isAutoWallpaperEnabled(), ...describeWallpaperDisplays({
       displays: screen.getAllDisplays(),
       primaryId: screen.getPrimaryDisplay().id,
       choice,
       active,
-    });
+    }) };
   } catch (error) {
     // Screen lookups can throw while the display topology is changing; the change event that
     // follows sends the list again.
-    return describeWallpaperDisplays({ displays: [], primaryId: null, choice, active: null });
+    return { autoEnabled: isAutoWallpaperEnabled(), ...describeWallpaperDisplays({ displays: [], primaryId: null, choice, active: null }) };
   }
 }
 
@@ -1020,9 +1039,9 @@ function buildWallpaperDisplayTrayItem(locale) {
 
 // Moves a running wallpaper after the choice or the display list changed, each platform through
 // the path it already has for putting its wallpaper window on a display: macOS re-runs the frame
-// step; Windows rebuilds the window on the new display and re-attaches the helper (the helper
-// fills the display the window is on when it attaches, so the window has to be built there
-// first); X11 relaunches. Resolves true when it did that, false when the wallpaper is not up or
+// step; Windows asks the resident helper to move the same HWND between desktop hosts without
+// rebuilding its renderer or restarting audio; X11 relaunches. Resolves true when it did that,
+// false when the wallpaper is not up or
 // is where it belongs.
 //
 // Where it belongs depends on what changed. A newly chosen display (`choiceChanged`) gets the
@@ -1031,7 +1050,10 @@ function buildWallpaperDisplayTrayItem(locale) {
 // wallpaper only for a chosen display that was unplugged or came back (shouldMoveWallpaper);
 // without a choice it leaves the wallpaper where it is, as before.
 let wallpaperDisplayApplyGeneration = 0;
-async function applyWallpaperDisplayChoice({ choiceChanged = false } = {}) {
+let wallpaperDisplayPending = Promise.resolve();
+let wallpaperExportPreparing = false;
+async function applyWallpaperDisplayChoice({ choiceChanged = false, forceGeometry = false, canApply = () => true } = {}) {
+  if (!canApply()) return false;
   if (process.platform === 'darwin') {
     // A deferred entry owns the frame until the full-screen exit lands, and reads the choice then.
     if (!isMacWallpaperActive || macWallpaperPendingEnter || !mainWindow || mainWindow.isDestroyed()) {
@@ -1048,6 +1070,9 @@ async function applyWallpaperDisplayChoice({ choiceChanged = false } = {}) {
   const hasToMove = () => {
     try {
       const current = onWindows ? windowsWallpaperTarget.current() : x11WallpaperDisplay;
+      // Topology and DPI changes can resize the same display. They use the resident movement
+      // queue too, so no one-shot helper can post geometry after this queue's completion ACK.
+      if (onWindows && forceGeometry) return Boolean(current && windowsWallpaperTarget.peek());
       if (choiceChanged) {
         // Windows, back to automatic: that rule follows the app window, and with the wallpaper up
         // there is no app window to follow. The wallpaper stays where it is; the next entry
@@ -1063,24 +1088,31 @@ async function applyWallpaperDisplayChoice({ choiceChanged = false } = {}) {
       return false;
     }
   };
-  if (!hasToMove()) {
+  if (!onWindows && !hasToMove()) {
     return false;
   }
   wallpaperDisplayApplyGeneration += 1;
   const generation = wallpaperDisplayApplyGeneration;
-  const handoff = await requestWindowPlaybackHandoff();
+  if (onWindows) {
+    const moving = wallpaperDisplayPending.then(async () => {
+      if (generation !== wallpaperDisplayApplyGeneration || !canApply() || wallpaperExportPreparing
+          || videoExportWindowRestoreState || !isWindowsWallpaperMode() || !hasToMove()) return false;
+      const target = windowsWallpaperTarget.peek();
+      if (!target || !mainWindow || mainWindow.isDestroyed()) return false;
+      const movingWindow = mainWindow;
+      await windowsWallpaper.moveToRect(screen.dipToScreenRect(null, target.bounds));
+      if (!isWindowsWallpaperMode() || movingWindow !== mainWindow || movingWindow.isDestroyed()) return false;
+      windowsWallpaperTarget.rememberDisplay(target);
+      return generation === wallpaperDisplayApplyGeneration;
+    });
+    wallpaperDisplayPending = moving.catch(() => {});
+    return moving;
+  }
+  await requestWindowPlaybackHandoff();
   // The page took a moment to answer: a newer change, a mode toggle or another rebuild may have
   // settled this one meanwhile.
-  if (generation !== wallpaperDisplayApplyGeneration || !hasToMove()) {
+  if (generation !== wallpaperDisplayApplyGeneration || !canApply() || !hasToMove()) {
     return false;
-  }
-  if (onWindows) {
-    if (!isWindowsWallpaperMode()) {
-      return false;
-    }
-    console.log('[WallpaperWin] the wallpaper belongs on another display now, rebuilding its window there');
-    recreateMainWindowWithTransparencyMode(isTransparentPlayerBackgroundEnabled(), handoff);
-    return true;
   }
   if (!isX11WallpaperMode()) {
     return false;
@@ -1106,6 +1138,7 @@ function setWallpaperDisplayChoice(displayId) {
       return getWallpaperDisplaysState();
     }
   }
+  autoWallpaper.selectManual();
   store.set(WALLPAPER_DISPLAY_SETTING_KEY, nextChoice);
   console.log('[Wallpaper] display choice:', nextChoice
     ? `display ${nextChoice.id}, ${nextChoice.bounds.width}x${nextChoice.bounds.height} at ${nextChoice.bounds.x},${nextChoice.bounds.y}`
@@ -2269,6 +2302,7 @@ const mainLocale = {
     trayHideTaskbar: '隐藏任务栏图标',
     trayDesktopLyricMode: '桌面歌词',
     trayToggleWallpaperMode: '壁纸模式',
+    trayAutoDisplay: '自动避让主屏窗口',
     trayWallpaperDisplay: '壁纸显示器',
     trayWallpaperDisplayAuto: '自动',
     trayWallpaperDisplayPrimary: '主显示器',
@@ -2304,6 +2338,7 @@ const mainLocale = {
     trayHideTaskbar: '隱藏工作列圖示',
     trayDesktopLyricMode: '桌面歌詞',
     trayToggleWallpaperMode: '桌布模式',
+    trayAutoDisplay: '自動避讓主屏視窗',
     trayWallpaperDisplay: '桌布顯示器',
     trayWallpaperDisplayAuto: '自動',
     trayWallpaperDisplayPrimary: '主顯示器',
@@ -2339,6 +2374,7 @@ const mainLocale = {
     trayHideTaskbar: 'Hide Taskbar Icon',
     trayDesktopLyricMode: 'Desktop Lyrics',
     trayToggleWallpaperMode: 'Wallpaper Mode',
+    trayAutoDisplay: 'Move lyrics away from work windows',
     trayWallpaperDisplay: 'Wallpaper Display',
     trayWallpaperDisplayAuto: 'Automatic',
     trayWallpaperDisplayPrimary: 'Primary',
@@ -2374,6 +2410,7 @@ const mainLocale = {
     trayHideTaskbar: 'Sembunyikan Ikon Taskbar',
     trayDesktopLyricMode: 'Lirik Desktop',
     trayToggleWallpaperMode: 'Mode Wallpaper',
+    trayAutoDisplay: 'Pindahkan lirik dari jendela kerja',
     trayWallpaperDisplay: 'Layar Wallpaper',
     trayWallpaperDisplayAuto: 'Otomatis',
     trayWallpaperDisplayPrimary: 'Utama',
@@ -2409,6 +2446,7 @@ const mainLocale = {
     trayHideTaskbar: 'Ẩn biểu tượng thanh tác vụ',
     trayDesktopLyricMode: 'Lời bài hát màn hình chính',
     trayToggleWallpaperMode: 'Chế độ hình nền',
+    trayAutoDisplay: 'Tự chuyển lời bài hát khỏi cửa sổ làm việc',
     trayWallpaperDisplay: 'Màn hình hiển thị hình nền',
     trayWallpaperDisplayAuto: 'Tự động',
     trayWallpaperDisplayPrimary: 'Màn hình chính',
@@ -3552,6 +3590,12 @@ function refreshTrayMenu() {
         refreshTrayMenu();
         scheduleWallpaperModeRelaunch(nextEnabled);
       },
+    }] : []),
+    ...(process.platform === 'win32' && wallpaperDisplayItem ? [{
+      label: locale.trayAutoDisplay,
+      type: 'checkbox',
+      checked: isAutoWallpaperEnabled(),
+      click: toggleAutoWallpaperDisplay,
     }] : []),
     ...(wallpaperDisplayItem ? [wallpaperDisplayItem] : []),
     { type: 'separator' },
@@ -6567,27 +6611,12 @@ app.whenReady().then(async () => {
       if (!isWindowsWallpaperMode()) {
         return;
       }
-      // Asked whether or not the helper is attached: a display that comes back while the window
-      // is being rebuilt must not be missed. The display chosen in Settings was unplugged or came
-      // back: the window is rebuilt on the display the wallpaper now belongs on and the helper
-      // fills that display when it attaches
-      // (`move` only re-fills the display the window already is on). Every other change, and
-      // every change without a choice, leaves the window where it is.
-      if (await applyWallpaperDisplayChoice()) {
+      // A helper being attached/rebuilt already resolves the current topology on entry. For a
+      // resident session, reapply even same-display size changes through the common barrier.
+      if (!windowsWallpaper.isAttached()) {
         return;
       }
-      // That may have waited for the page; the mode can have been left meanwhile.
-      if (!isWindowsWallpaperMode() || !windowsWallpaper.isAttached()) {
-        return;
-      }
-      const helperPath = resolveWallpaperHelperPath();
-      const hwnd = getMainWindowNativeHwnd();
-      if (helperPath && hwnd !== null) {
-        const child = spawn(helperPath, ['move', '--hwnd', String(hwnd)], { stdio: 'ignore' });
-        child.on('error', (err) => {
-          console.warn('[WallpaperWin] helper move failed', err);
-        });
-      }
+      await applyWallpaperDisplayChoice({ forceGeometry: true });
     };
     const scheduleWallpaperGeometryReassert = () => {
       if (wallpaperGeometryTimer) {
@@ -6648,6 +6677,7 @@ app.whenReady().then(async () => {
   screen.on('display-added', scheduleWallpaperDisplaysChanged);
   screen.on('display-removed', scheduleWallpaperDisplaysChanged);
   screen.on('display-metrics-changed', scheduleWallpaperDisplaysChanged);
+  autoWallpaper.start();
   scheduleStartupUpdateCheck();
   voiceInputPauseMonitor.syncState();
 
@@ -6855,6 +6885,14 @@ ipcMain.handle('gpu-preference-state', async (event) => {
 });
 
 // The settings page's choice of the display wallpaper mode uses (see "Wallpaper display choice").
+ipcMain.handle('wallpaper-auto-display-toggle', (event) => {
+  if (!isTrustedMainWindowContents(event.sender) && !isTrustedRemoteControlContents(event.sender)) return null;
+  if (process.platform !== 'win32') return getWallpaperDisplaysState();
+  return toggleAutoWallpaperDisplay();
+});
+
+app.on('will-quit', () => autoWallpaper.stop());
+
 ipcMain.handle('wallpaper-displays-get', (event) => {
   if (!isTrustedMainWindowContents(event.sender)) {
     return null;
@@ -8143,7 +8181,7 @@ ipcMain.handle('video-export-choose-path', async (event, defaultName, extension,
   };
 });
 
-ipcMain.handle('video-export-prepare-window', (event, size) => {
+ipcMain.handle('video-export-prepare-window', async (event, size) => {
   if (!isTrustedMainWindowContents(event.sender)) {
     throw new Error('Untrusted renderer attempted to resize the main window for export.');
   }
@@ -8152,6 +8190,10 @@ ipcMain.handle('video-export-prepare-window', (event, size) => {
   if (!mainWindow || mainWindow.isDestroyed() || !exportSize) {
     return false;
   }
+
+  wallpaperExportPreparing = true;
+  try { await wallpaperDisplayPending; } finally { wallpaperExportPreparing = false; }
+  if (!isTrustedMainWindowContents(event.sender) || !mainWindow || mainWindow.isDestroyed()) return false;
 
   // The renderer sends its DPR at the moment of export; the mount-time report can be missing
   // or stale, and sizing with the wrong DPR renders the content at the wrong physical size.
@@ -8211,6 +8253,14 @@ ipcMain.handle('video-export-restore-window', (event) => {
     setMainWindowFullscreen(mainWindow, true);
   } else if (restoreState.isMaximized) {
     mainWindow.maximize();
+  }
+
+  // Export suppresses wallpaper geometry writes. Re-resolve the current topology and any
+  // manual choice made meanwhile instead of keeping the export's stale saved display size.
+  if (isWindowsWallpaperMode()) {
+    void applyWallpaperDisplayChoice({ forceGeometry: true }).catch((error) => {
+      console.warn('[WallpaperWin] restoring wallpaper geometry after export failed', error);
+    });
   }
 
   return true;

@@ -25,6 +25,9 @@ const O = {
     wallpaperMode: option(WINDOW, 'wallpaperMode', 'options.wallpaperMode'),
     // Drawn only with more than one display connected, where wallpaper mode can use any of them.
     wallpaperDisplay: option(WINDOW, 'wallpaperDisplay', 'options.wallpaperDisplay', { available: hasWallpaperDisplayChoice }),
+    autoWallpaperDisplay: option(WINDOW, 'autoWallpaperDisplay', 'options.autoWallpaperDisplay', {
+        available: () => PLATFORM === 'win32' && hasWallpaperDisplayChoice(),
+    }),
     wallpaperDock: option(WINDOW, 'wallpaperMacAutohideDock', 'options.wallpaperMacAutohideDock'),
     remoteTaskbarIcon: option(REMOTE, 'hideRemoteControlTaskbarIcon', 'options.hideRemoteControlTaskbarIcon'),
     remoteTitlebar: option(REMOTE, 'hideRemoteControlTitlebar', 'options.hideRemoteControlTitlebar'),
@@ -125,7 +128,7 @@ const DesktopPage: React.FC = () => {
                     </Row>
                 )}
                 {/* Not in a Reveal: the choice also holds for the next time wallpaper mode is entered. */}
-                {HAS_WALLPAPER_MODE && <WallpaperDisplayRow option={O.wallpaperDisplay} />}
+                {HAS_WALLPAPER_MODE && <WallpaperDisplayRow option={O.wallpaperDisplay} autoOption={O.autoWallpaperDisplay} />}
                 {IS_MAC && (
                     // Not in a Reveal: it also holds for the next time wallpaper mode is entered.
                     <Row sub option={O.wallpaperDock}>

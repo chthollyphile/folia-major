@@ -1,4 +1,5 @@
 import { syncNow } from '../../../services/sync/syncCoordinator';
+import { hasWallpaperDisplayChoice } from '../../modal/settings/pages/desktop/wallpaperDisplays';
 import { isSyncConfigured } from '../../../services/sync/syncConfig';
 import { buildObsCustomCss } from '../../../services/obs/obsCustomCss';
 import { hasUploadedObsAsset } from '../../../services/obs/visualSettingsConfig';
@@ -399,6 +400,15 @@ export const settingsCommands: CommandPaletteCommand[] = [
         { platform: ['electron'] },
     ),
     createSettingsCommand('settings-wallpaper-mode', 'Wallpaper mode settings', 'Open wallpaper mode settings', ['wallpaper mode', 'desktop wallpaper', 'lyrics wallpaper', '壁纸模式', '桌面壁纸', '歌词壁纸'], 'options', 'desktop', { platform: ['linux', 'win', 'mac'] }),
+    createToggleCommand(
+        'desktop-toggle-auto-display',
+        'settings',
+        'Toggle automatic lyric display',
+        'Move lyrics to the nearest secondary display for maximized or fullscreen windows on the primary display',
+        ['automatic monitor switching', 'move lyrics away', 'desktop visibility', '自动切屏', '歌词避让', '主屏副屏'],
+        context => context.settings.toggleWallpaperAutoDisplay(),
+        { platform: ['win'], isAvailable: hasWallpaperDisplayChoice },
+    ),
     {
         id: 'desktop-toggle-wallpaper-mode',
         platform: ['linux', 'win', 'mac'],

@@ -97,6 +97,7 @@ unsafe extern "system" fn window_proc(
     l_param: LPARAM,
 ) -> LRESULT {
     match msg {
+        crate::display_move::MESSAGE => crate::display_move::handle(),
         WM_INPUT => {
             crate::mouse_forward::handle_raw_input(l_param);
         }

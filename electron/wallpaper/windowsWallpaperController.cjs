@@ -78,6 +78,40 @@ function createWindowsWallpaperController(options = {}) {
   let heartbeatTimer = null;
   let reattachTimer = null;
   let healthyTimer = null;
+  let moveSequence = 0;
+  const pendingMoves = new Map();
+
+  function finishMove(id, error) {
+    const pending = pendingMoves.get(id);
+    if (!pending) return;
+    pendingMoves.delete(id);
+    if (error) pending.reject(error); else pending.resolve();
+  }
+
+  function cancelMoves() {
+    for (const id of pendingMoves.keys()) finishMove(id, new Error('Wallpaper helper session ended'));
+  }
+
+  function moveToRect(rect) {
+    const values = [rect?.x, rect?.y, rect?.width, rect?.height];
+    const int32 = value => Number.isInteger(value) && value >= -2147483648 && value <= 2147483647;
+    if (!values.every(int32) || rect.width <= 0 || rect.height <= 0
+        || !int32(rect.x + rect.width) || !int32(rect.y + rect.height)) {
+      return Promise.reject(new Error('Invalid wallpaper display rectangle'));
+    }
+    if (!attached || !helperProcess?.stdin?.writable) return Promise.reject(new Error('Wallpaper helper is not attached'));
+    const id = ++moveSequence;
+    return new Promise((resolve, reject) => {
+      // Keep the completion barrier until the native thread acknowledges or the existing
+      // heartbeat watchdog ends the helper session; timing out just this promise is unsafe.
+      pendingMoves.set(id, { resolve, reject });
+      try {
+        helperProcess.stdin.write(`relocate ${id} ${values.join(' ')}\n`, error => {
+          if (error) finishMove(id, error);
+        });
+      } catch (error) { finishMove(id, error); }
+    });
+  }
 
   function getFailureCount() {
     const stored = store.get(WALLPAPER_WINDOWS_FAILURE_COUNT_KEY);
@@ -128,6 +162,7 @@ function createWindowsWallpaperController(options = {}) {
   }
 
   function killHelper() {
+    cancelMoves();
     if (!helperProcess) {
       return;
     }
@@ -207,17 +242,26 @@ function createWindowsWallpaperController(options = {}) {
   function handleHelperEvent(event) {
     lastEventAt = Date.now();
     switch (event.event) {
-      case 'attached':
+      case 'attached': {
+        const firstAttachment = !attached;
         attached = true;
         attaching = false;
-        attachedAt = Date.now();
-        scheduleHealthyReset();
-        startHeartbeatMonitor();
+        // Relocation and Explorer recovery report the current host too. They are still the
+        // same helper session, so frequent monitor switches must not postpone its healthy reset.
+        if (firstAttachment) {
+          attachedAt = Date.now();
+          scheduleHealthyReset();
+          startHeartbeatMonitor();
+        }
         if (typeof event.mode === 'string') {
           onAttachMode?.(event.mode);
         }
         break;
+      }
       case 'heartbeat':
+        break;
+      case 'display-moved':
+        finishMove(event.requestId, event.error ? new Error(event.error) : null);
         break;
       // Mouse reports are high frequency but never fatal; they double as liveness evidence
       // because handleHelperEvent refreshes lastEventAt before this switch.
@@ -330,6 +374,7 @@ function createWindowsWallpaperController(options = {}) {
       if (helperProcess !== child) {
         return;
       }
+      cancelMoves();
       const wasAttached = attached;
       helperProcess = null;
       attached = false;
@@ -394,6 +439,7 @@ function createWindowsWallpaperController(options = {}) {
 
   // Detach: ask the helper to restore the window, then kill it after a grace period.
   function detach({ onDetached } = {}) {
+    cancelMoves();
     if (degraded) {
       return false;
     }
@@ -445,6 +491,7 @@ function createWindowsWallpaperController(options = {}) {
   }
 
   return {
+    moveToRect,
     attach,
     detach,
     killHelper,

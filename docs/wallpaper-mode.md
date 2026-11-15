@@ -24,6 +24,7 @@ store 中平台共享的持久化键：
 | `wallpaper_entry_confirmed` | 关 | 第一次进入前确认是否已确认过。首次进入或托盘直进的首次记录后不再提示；renderer 与主进程各存一份，主进程据它决定托盘是否还要请求渲染端弹窗 |
 | `wallpaper_forward_mouse` | 开 | 是否转发桌面鼠标输入（无 UI，变更即时生效） |
 | `wallpaper_display` | `null` | 壁纸用哪一块显示器：`null`（或没有这个键）是自动，否则是 `{ id, bounds: { x, y, width, height }, label }`。Wayland 不读它 |
+| `WALLPAPER_AUTO_AVOID_WINDOWS` | `false` | Windows 壁纸模式自动避让主屏最大化或全屏窗口。仅接有副屏时提供开关，手动选择显示器会关闭它 |
 
 平台专属键见各自章节。启动开关入口三平台一致：托盘「Wallpaper Mode」、设置里「桌面」页的那一行（`src/components/modal/settings/pages/DesktopPage.tsx`）与命令面板 `settings-wallpaper-mode` / `desktop-toggle-wallpaper-mode`，统一由 `isWallpaperModeSupportedPlatform()` 门控（darwin / win32 / linux）。
 
@@ -40,8 +41,16 @@ store 中平台共享的持久化键：
 - 壁纸模式开着时什么时候搬屏（`applyWallpaperDisplayChoice`）：
   - 设置里换了选择：按「现在进入壁纸模式会去哪块屏」算，和壁纸现在所在的屏不同就搬。选了一块屏就去那块；选「自动」：macOS 和 X11 回到主屏；Windows 的自动规则是跟主窗口，壁纸开着时没有主窗口可跟，壁纸留在原地，下次进入时再按主窗口所在的屏定。
   - 显示器接上、拔掉、改了：只有选了屏、而且选的那块被拔掉（壁纸正在它上面）或者接回来时才搬（`shouldMoveWallpaper`）。没有选屏时显示器变化不搬窗口，各平台和原来一样。
-  - 怎么搬：Windows 走重建窗口那条路（`recreateMainWindowWithTransparencyMode`，新窗口先建在目标屏上，helper attach 时铺满窗口所在的屏；helper 没有改）；X11 走已有的 relaunch；macOS 重跑铺满那一步（`applyMacWallpaperFrame`）。
-- Windows 和 X11 上搬一次屏，页面会重载一次（播放经 `requestWindowPlaybackHandoff` 交接），和开关壁纸模式一样。所以选的那块屏每断开一次、每接回一次，页面各重载一次。
+  - 怎么搬：Windows 通过常驻 helper 的 `relocate` 请求移动同一个 HWND，按目标显示器的物理矩形调整 WorkerW、窗口尺寸和鼠标转发目标；不重建页面、不交接音频，也不刷新全局壁纸。请求串行执行，实际矩形确认后才应答，导出准备会等在途移动完成。X11 走已有的 relaunch；macOS 重跑铺满那一步（`applyMacWallpaperFrame`）。
+
+### Windows 自动避让主屏窗口
+
+- 默认关闭，设置的壁纸显示器行、系统托盘和命令面板均有入口。壁纸模式开启且接有副屏时生效。
+- 主屏被最大化窗口（匹配工作区）或无边框全屏窗口（匹配完整屏幕）占用时，移到中心距离最近的副屏；主屏恢复空闲后返回。普通窗口、最小化窗口、其它虚拟桌面和工具悬浮窗不触发。
+- 每秒只读采样窗口几何，不读取标题、不截屏、不安装输入钩子；目标稳定约2–3秒后移动。没有副屏时留在主屏，录制/导出期间不自动切屏。
+- 切屏沿用原窗口和播放会话，不激活窗口。副屏无论横竖、位于主屏哪一侧，均按其尺寸适配。手动选择显示器会关闭自动避让，恢复原有手动选择规则。
+- `wallpaper-displays-get/changed` 状态新增 `autoEnabled`；`wallpaper-auto-display-toggle` 仅接受经来源校验的第一方窗口。
+- X11 上搬一次屏，页面会重载一次（播放经 `requestWindowPlaybackHandoff` 交接），和开关壁纸模式一样。Windows 搬屏不重载页面；开关模式仍沿用原有的重建流程。
 
 ### 3. 渲染端与命令门控
 
@@ -68,7 +77,10 @@ store 中平台共享的持久化键：
 ### 1. 架构
 
 ```
-Electron 主进程 (main.cjs)，下面三个文件在 electron/wallpaper/
+Electron 主进程 (main.cjs)，下面文件在 electron/wallpaper/
+  ├─ autoDisplaySession.cjs              自动避让开关与临时目标，接入主进程显示器移动
+  ├─ autoDisplay.cjs                     最大化/全屏判定、最近副屏选择与稳定等待
+  ├─ windowsWorkWindows.cjs              只读 Win32 窗口枚举（物理矩形、虚拟桌面过滤）
   ├─ windowsWallpaperTarget.cjs          目标显示器判定（设置里选的屏，没选就是主窗口所在屏）
   ├─ windowsWallpaperMouse.cjs           helper 物理坐标 → Chromium DIP → sendInputEvent
   └─ windowsWallpaperController.cjs      spawn/心跳看门狗/重挂调度/crash-loop breaker
@@ -83,6 +95,7 @@ Electron 主进程 (main.cjs)，下面三个文件在 electron/wallpaper/
 ### 2. helper 协议（`packaging/windows/wallpaper-helper/`）
 
 - CLI：`attach --hwnd <n> [--forward-mouse] [--zguard]`（常驻）、`move --hwnd <n>`、`detach --hwnd <n>`、`refresh`（一次性，重应用当前壁纸）。stdin 收到 `detach`（或 EOF，防孤儿壁纸）先还原窗口再退出。未知选项直接报错退出，避免主进程拼错参数被静默忽略。
+- 常驻 stdin：`relocate <requestId> <x> <y> <width> <height>`，使用物理屏幕像素。原消息线程移动后以 `display-moved{requestId,error?}` 应答；失败会还原原父窗口和几何，不刷新系统壁纸。主进程等待应答，helper 会话结束时拒绝尚未完成的请求。
 - stdout JSONL 事件（主进程 `parseHelperEventLine` 解析）：`attached{mode:"classic"|"raised"}` / `heartbeat`(5s) / `workerw-destroyed` / `explorer-restarted` / `reasserted` / `moved` / `detached` / `error{message, kind?}`。`kind:"window-destroyed"` 是结构化契约（Folia 窗口随 WorkerW 一并销毁、主进程必须重建），`message` 只给人读、主进程不得解析其文本。鼠标事件坐标为**物理屏幕像素**（helper 进程级 per-monitor DPI 感知，无坐标虚拟化）：`mousemove{x,y}`（WM_INPUT 直发，两条至少隔 4ms，被间隔或前台过滤压下的末位置由 16ms 定时器补发；Win11 上后台 RIDEV_INPUTSINK 收到的 Raw Input 实测被限在 125Hz，这就是壁纸模式 move 的上限）/ `mousedown` / `mouseup` / `mousewheel{x,y,deltaX,deltaY}`。
 - 实现约束（来自上游踩坑）：
   - **`EnumWindows` 的 windows-rs `Result` 语义是反的**——回调返回 0 提前停止枚举会让 raw API 返回 FALSE、映射为 `Err`；探测结果必须以回调写入的指针为准，不得用 `is_ok()` 判定成败。Win10 classic 路径曾因此永远探测失败，且每次失败多发一次 0x052C，在桌面上堆积废弃 WorkerW。

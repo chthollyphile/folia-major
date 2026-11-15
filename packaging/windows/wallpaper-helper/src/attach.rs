@@ -18,7 +18,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
     EnumWindows, FindWindowA, FindWindowExA, GetAncestor, GetWindow, GetWindowLongPtrW, GetWindowRect,
     IsWindow, SendMessageTimeoutW, SetParent, SetWindowLongPtrW, SetWindowPos, GA_PARENT, GW_CHILD,
     GWL_EXSTYLE, GWL_STYLE, HWND_TOP, SMTO_NORMAL, SWP_ASYNCWINDOWPOS, SWP_NOACTIVATE,
-    SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SWP_SHOWWINDOW, WINDOW_EX_STYLE, WINDOW_STYLE,
+    SWP_NOMOVE, SWP_NOSENDCHANGING, SWP_NOSIZE, SWP_NOZORDER, SWP_SHOWWINDOW, WINDOW_EX_STYLE, WINDOW_STYLE,
     WS_CHILDWINDOW, WS_CLIPSIBLINGS, WS_EX_ACCEPTFILES, WS_EX_APPWINDOW, WS_EX_WINDOWEDGE,
 };
 
@@ -303,6 +303,73 @@ pub unsafe fn attach_window(hwnd: HWND) -> Result<(HWND, AttachMode), String> {
     reassert_geometry_on_monitor(hwnd, target_monitor);
     reassert_z_order_top(hwnd);
     Ok((worker_w, mode))
+}
+
+/// Moves the attached window synchronously to a monitor, restoring its old geometry on failure.
+pub unsafe fn move_to_display(hwnd: HWND, request: &crate::display_move::Request) -> Result<(HWND, AttachMode), String> {
+    use windows::Win32::Graphics::Gdi::MonitorFromRect;
+    with_physical_dpi(|| {
+        if !IsWindow(Some(hwnd)).as_bool() { return Err("Wallpaper window no longer exists".into()); }
+        let requested = RECT { left: request.x, top: request.y,
+            right: request.x + request.width, bottom: request.y + request.height };
+        let monitor = MonitorFromRect(&requested, MONITOR_DEFAULTTONEAREST);
+        let mut info = MONITORINFO::default();
+        info.cbSize = std::mem::size_of::<MONITORINFO>() as u32;
+        if !GetMonitorInfoW(monitor, &mut info).as_bool() { return Err("Target monitor is unavailable".into()); }
+        let rect = info.rcMonitor; // Avoid DIP-to-physical rounding past the monitor edge.
+        let (worker, mode) = detect_worker_for_monitor(monitor).ok_or("Target wallpaper host is unavailable")?;
+        let previous_parent = GetAncestor(hwnd, GA_PARENT);
+        let mut previous = RECT::default();
+        GetWindowRect(hwnd, &mut previous).map_err(|err| err.to_string())?;
+        if previous_parent != worker { SetParent(hwnd, Some(worker)).map_err(|err| err.to_string())?; }
+        if let Err(error) = place_in_parent(hwnd, worker, rect) {
+            if previous_parent != worker { let _ = SetParent(hwnd, Some(previous_parent)); }
+            let _ = place_in_parent(hwnd, previous_parent, previous);
+            return Err(error);
+        }
+        reassert_z_order_top(hwnd);
+        Ok((worker, mode))
+    })
+}
+
+unsafe fn place_in_parent(hwnd: HWND, parent: HWND, rect: RECT) -> Result<(), String> {
+    let mut origin = POINT { x: rect.left, y: rect.top };
+    ScreenToClient(parent, &mut origin).ok().map_err(|err| err.to_string())?;
+    // The helper owns wallpaper geometry. Do not let WM_WINDOWPOSCHANGING clamp this fixed-size
+    // Chromium window back to its previous monitor's dimensions; WM_WINDOWPOSCHANGED still runs.
+    SetWindowPos(hwnd, None, origin.x, origin.y, rect.right - rect.left, rect.bottom - rect.top,
+        SWP_NOSENDCHANGING | SWP_NOACTIVATE | SWP_NOZORDER | SWP_SHOWWINDOW)
+        .map_err(|err| err.to_string())?;
+    // Keep completion synchronous, including rollback: no posted resize may outlive the ACK and
+    // race a subsequent display change or export. Confirm the actual geometry before succeeding.
+    let mut actual = RECT::default();
+    GetWindowRect(hwnd, &mut actual).map_err(|err| err.to_string())?;
+    if geometry_matches(actual, rect) {
+        Ok(())
+    } else {
+        Err("Wallpaper window did not adopt the target monitor dimensions".into())
+    }
+}
+
+fn geometry_matches(actual: RECT, expected: RECT) -> bool {
+    // Mixed-DPI origins may round by one physical pixel; an old width/height must never pass.
+    [(actual.left, expected.left), (actual.top, expected.top),
+     (actual.right, expected.right), (actual.bottom, expected.bottom)]
+        .iter().all(|(a, b)| (i64::from(*a) - i64::from(*b)).abs() <= 1)
+}
+
+#[cfg(test)]
+mod geometry_tests {
+    use super::*;
+
+    #[test]
+    fn confirms_portrait_geometry_without_accepting_the_old_landscape_size() {
+        let target = RECT { left: -1600, top: -648, right: 0, bottom: 1912 };
+        assert!(geometry_matches(target, target));
+        assert!(geometry_matches(RECT { left: -1600, top: -647, right: 0, bottom: 1913 }, target));
+        assert!(!geometry_matches(RECT { left: -1600, top: -648, right: 960, bottom: 792 }, target));
+        assert!(!geometry_matches(RECT { left: 0, top: 0, right: 1600, bottom: 2560 }, target));
+    }
 }
 
 /// Un-parents the window from WorkerW and restores normal styles.

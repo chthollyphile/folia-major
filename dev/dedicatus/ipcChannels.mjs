@@ -133,6 +133,7 @@ export const IPC_CHANNELS = {
     'video-export-prepare-window': { level: 'first-party', why: '现状：有来源校验' },
     'video-export-restore-window': { level: 'first-party', why: '现状：有来源校验' },
     'voice-input-pause-get-status': { level: 'first-party', why: '现状：有来源校验' },
+    'wallpaper-auto-display-toggle': { level: 'first-party', why: '主窗口或遥控窗口经来源校验后切换壁纸自动避让偏好' },
     'wallpaper-display-set': { level: 'first-party', why: '现状：有来源校验' },
     'wallpaper-displays-get': { level: 'first-party', why: '现状：有来源校验' },
     'wallpaper-hit-regions': { level: 'first-party', why: '只收主窗口的（内联校验）' },

@@ -1,4 +1,5 @@
 import type { CommandPaletteContext } from '../../command-palette/types';
+import { toggleWallpaperAutoDisplay } from '../../modal/settings/pages/desktop/wallpaperDisplays';
 import type { LyricStaffPolicy } from '../../../utils/lyrics/staffCreditsPolicy';
 import type { ThemeGenerationSource } from '../../../services/themePreferences';
 import { useAudioSettingsStore } from '../../../stores/useAudioSettingsStore';
@@ -75,6 +76,7 @@ export const buildSettingsCommandContext = (
     const ponder = usePonderStore.getState();
 
     return {
+        toggleWallpaperAutoDisplay,
         openSettings: modal.openSettings,
         setAppLanguagePreference: modal.handleSetAppLanguagePreference,
         toggleTransparentBackground: deps.toggleTransparentBackground,

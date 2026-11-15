@@ -19,6 +19,7 @@ mod monitor;
 mod mouse_forward;
 
 use cli::Command;
+mod display_move;
 use events::Event;
 
 fn main() {
@@ -170,7 +171,9 @@ unsafe fn attach_resident(hwnd: isize, forward_mouse: bool, zguard: bool) {
                     post_detach_to_message_thread();
                     return;
                 }
-                Ok(_) => {} // unknown command: ignore
+                Ok(line) => {
+                    if let Some(request) = display_move::parse(line) { display_move::submit(request); }
+                }
                 Err(_) => {
                     post_detach_to_message_thread();
                     return;

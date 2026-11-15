@@ -151,6 +151,7 @@ exports[`command palette registry contract > keeps the registered command order 
   "desktop-toggle-prevent-display-sleep",
   "desktop-toggle-background-throttling",
   "settings-wallpaper-mode",
+  "desktop-toggle-auto-display",
   "desktop-toggle-wallpaper-mode",
   "desktop-toggle-wallpaper-dock-autohide",
   "desktop-toggle-close-to-tray",

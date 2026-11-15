@@ -172,6 +172,7 @@ const createContext = (overrides: CommandPaletteContextOverrides = {}): CommandP
             togglePreventDisplaySleepDuringPlayback: vi.fn(),
             toggleBackgroundThrottling: vi.fn(),
             toggleWallpaperMode: vi.fn(),
+            toggleWallpaperAutoDisplay: vi.fn(),
             toggleCloseToTray: vi.fn(),
             toggleHideRemoteControlTitlebar: vi.fn(),
             toggleRemoteControlExpandCover: vi.fn(),

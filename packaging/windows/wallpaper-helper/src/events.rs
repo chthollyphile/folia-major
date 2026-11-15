@@ -18,6 +18,7 @@ pub enum Event {
     Reasserted { hwnd: isize },
     /// Geometry was re-applied (`move` subcommand or after re-attach).
     Moved { hwnd: isize },
+    DisplayMoved { request_id: u64, error: Option<String> },
     /// Detach completed: window un-parented from WorkerW, styles restored.
     Detached { hwnd: isize },
     /// Desktop wallpaper re-applied (`refresh` subcommand or after a detach).
@@ -81,6 +82,7 @@ impl Event {
             Event::ExplorerRestarted => "explorer-restarted",
             Event::Reasserted { .. } => "reasserted",
             Event::Moved { .. } => "moved",
+            Event::DisplayMoved { .. } => "display-moved",
             Event::Detached { .. } => "detached",
             Event::Refreshed => "refreshed",
             Event::MouseMove { .. } => "mousemove",
@@ -105,6 +107,10 @@ impl Event {
             Event::ExplorerRestarted => "{\"event\":\"explorer-restarted\"}".to_string(),
             Event::Reasserted { hwnd } => format!("{{\"event\":\"reasserted\",\"hwnd\":{}}}", hwnd),
             Event::Moved { hwnd } => format!("{{\"event\":\"moved\",\"hwnd\":{}}}", hwnd),
+            Event::DisplayMoved { request_id, error } => match error {
+                Some(message) => format!("{{\"event\":\"display-moved\",\"requestId\":{request_id},\"error\":\"{}\"}}", escape_json(message)),
+                None => format!("{{\"event\":\"display-moved\",\"requestId\":{request_id}}}"),
+            },
             Event::Detached { hwnd } => format!("{{\"event\":\"detached\",\"hwnd\":{}}}", hwnd),
             Event::Refreshed => "{\"event\":\"refreshed\"}".to_string(),
             Event::MouseMove { x, y } => {

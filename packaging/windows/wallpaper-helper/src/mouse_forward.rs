@@ -177,6 +177,10 @@ pub unsafe fn register(worker_w: HWND) -> Result<(), String> {
     Ok(())
 }
 
+pub fn update_worker(worker_w: HWND) {
+    WORKERW_HWND.store(worker_w.0 as isize, Ordering::Relaxed);
+}
+
 /// WM_INPUT handler, called from the message window wndproc.
 pub unsafe fn handle_raw_input(l_param: LPARAM) {
     let mut raw_data = RAWINPUT::default();

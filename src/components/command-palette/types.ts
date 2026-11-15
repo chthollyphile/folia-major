@@ -389,6 +389,7 @@ export type CommandPaletteSettingsContext = {
     /** 后台节流: throttle the window and hold the lyric animation while it is minimised or hidden (main process applies it). */
     toggleBackgroundThrottling: () => void;
     toggleWallpaperMode: () => void;
+    toggleWallpaperAutoDisplay: () => void;
     /** Close button hides the main window to the tray instead of quitting (main process owns it). */
     toggleCloseToTray: () => void;
     /** Remote control window: hide the top floating window-control bar. */

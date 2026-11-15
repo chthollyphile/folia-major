@@ -6,6 +6,7 @@
 // 初始名单是 2026-11-08 的现状（297 个），同日补上渲染进程经 saveSettings 写进主进程的 12 个（扫描原先认不出）。src/stores 和 tuning 经 helper 拼出来的键由 D501（storeContract 快照）管，不在这里。
 
 export const STORAGE_KEYS = [
+    'main:WALLPAPER_AUTO_AVOID_WINDOWS',
     'main:AI_PROVIDER',
     'main:AI_PROVIDER_PRESET',
     'main:APP_LOCALE',

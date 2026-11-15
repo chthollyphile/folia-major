@@ -134,6 +134,7 @@ contextBridge.exposeInMainWorld('electron', {
     },
     getGpuPreferenceState: () => ipcRenderer.invoke('gpu-preference-state'),
     getWallpaperDisplays: () => ipcRenderer.invoke('wallpaper-displays-get'),
+    toggleWallpaperAutoDisplay: () => ipcRenderer.invoke('wallpaper-auto-display-toggle'),
     setWallpaperDisplay: (displayId) => ipcRenderer.invoke('wallpaper-display-set', displayId),
     onWallpaperDisplaysChanged: (callback) => {
         const listener = (_event, state) => callback(state);

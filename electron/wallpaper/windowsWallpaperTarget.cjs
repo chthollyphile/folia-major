@@ -152,6 +152,7 @@ function createWindowsWallpaperTargetResolver(options = {}) {
     resolve,
     peek,
     current,
+    rememberDisplay: snapshot,
     rememberFromWindow,
     clear,
   };

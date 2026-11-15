@@ -62,6 +62,15 @@ pub fn resident_worker_w() -> Option<isize> {
     with_state(|state| state.worker_w)
 }
 
+pub unsafe fn relocate(request: &crate::display_move::Request) -> Result<(), String> {
+    let hwnd = resident_folia_hwnd().ok_or("Wallpaper is not attached")?;
+    let (worker, mode) = crate::attach::move_to_display(HWND(hwnd as _), request)?;
+    with_state(|state| { state.worker_w = worker.0 as isize; state.last_zassert = Some(Instant::now()); });
+    crate::mouse_forward::update_worker(worker);
+    emit(&Event::Attached { hwnd, workerw: worker.0 as isize, mode: mode.as_str() });
+    Ok(())
+}
+
 pub fn emit(event: &Event) {
     crate::events::emit(event);
 }

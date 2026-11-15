@@ -45,6 +45,7 @@ interface ControllerOptions {
 }
 
 interface Controller {
+  moveToRect: (rect: {x:number;y:number;width:number;height:number}) => Promise<void>;
   attach: () => string;
   detach: () => void;
   killHelper: () => void;
@@ -136,6 +137,60 @@ function createHarness(overrides: Partial<ControllerOptions> = {}): Harness {
   });
   return { controller, children, spawnArgs, store, onDegrade, onReattachNeeded };
 }
+
+describe('resident display moves', () => {
+  afterEach(() => vi.useRealTimers());
+  it('does not restart the helper health clock when relocation reports its current attach mode', () => {
+    vi.useFakeTimers();
+    const store = createFakeStore({ [WALLPAPER_MODE_SETTING_KEY]: true, [WALLPAPER_WINDOWS_FAILURE_COUNT_KEY]: 2 });
+    const h = createHarness({ store }); h.controller.attach();
+    h.children[0].writeStdout('{"event":"attached","mode":"raised"}\n');
+    for (let i = 0; i < 12; i++) {
+      vi.advanceTimersByTime(5000);
+      h.children[0].writeStdout('{"event":"attached","mode":"raised"}\n');
+    }
+    expect(h.controller.getFailureCount()).toBe(0);
+    h.children[0].emitExit(1);
+    expect(h.controller.isDegraded()).toBe(false);
+    expect(store.get(WALLPAPER_MODE_SETTING_KEY)).toBe(true);
+  });
+  it('rejects rectangles the native protocol cannot parse rather than waiting forever for an ACK', async () => {
+    const h = createHarness(); h.controller.attach(); h.children[0].writeStdout('{"event":"attached"}\n');
+    for (const rect of [{ x: 2147483647, y: 0, width: 1, height: 20 },
+      { x: 0, y: 0, width: 20, height: 0 }, { x: 0.5, y: 0, width: 20, height: 20 }]) {
+      await expect(h.controller.moveToRect(rect)).rejects.toThrow('Invalid wallpaper display rectangle');
+    }
+    expect(h.children[0].stdinWrites).toEqual([]); h.controller.killHelper();
+  });
+  it('moves through the same resident helper', async () => {
+    const h=createHarness(); h.controller.attach(); h.children[0].writeStdout('{"event":"attached"}\n');
+    const move=h.controller.moveToRect({x:-1600,y:-648,width:1600,height:2560});
+    expect(h.children[0].stdinWrites).toContain('relocate 1 -1600 -648 1600 2560\n');
+    h.children[0].writeStdout('{"event":"display-moved","requestId":1}\n');
+    await expect(move).resolves.toBeUndefined();
+    expect(h.children).toHaveLength(1); expect(h.children[0].killed).toBe(false); h.controller.killHelper();
+  });
+  it('reports a failed move without killing playback', async () => {
+    const h=createHarness(); h.controller.attach(); h.children[0].writeStdout('{"event":"attached"}\n');
+    const move=h.controller.moveToRect({x:0,y:0,width:1920,height:1080});
+    const rejected=expect(move).rejects.toThrow('unavailable');
+    h.children[0].writeStdout('{"event":"display-moved","requestId":1,"error":"unavailable"}\n');
+    await rejected; expect(h.controller.isAttached()).toBe(true); h.controller.killHelper();
+  });
+  it('rejects pending moves when the helper exits', async () => {
+    const h=createHarness(); h.controller.attach(); h.children[0].writeStdout('{"event":"attached"}\n');
+    const move=h.controller.moveToRect({x:0,y:0,width:1920,height:1080});
+    const rejected=expect(move).rejects.toThrow('session ended'); h.controller.killHelper(); await rejected;
+  });
+  it('does not release the native completion barrier before a late acknowledgement', async () => {
+    vi.useFakeTimers(); const h=createHarness(); h.controller.attach(); h.children[0].writeStdout('{"event":"attached"}\n');
+    const move=h.controller.moveToRect({x:0,y:0,width:1920,height:1080});
+    let done=false; void move.then(()=>{done=true}); await vi.advanceTimersByTimeAsync(4000);
+    expect(done).toBe(false);
+    h.children[0].writeStdout('{"event":"display-moved","requestId":1}\n');
+    await expect(move).resolves.toBeUndefined(); h.controller.killHelper();
+  });
+});
 
 describe('parseHelperEventLine', () => {
   it('parses well-formed helper events', () => {

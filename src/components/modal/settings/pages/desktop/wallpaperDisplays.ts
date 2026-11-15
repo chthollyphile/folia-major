@@ -50,6 +50,11 @@ export const chooseWallpaperDisplay = (displayId: number | null): void => {
     void bridge()?.setWallpaperDisplay?.(displayId).then(take).catch(warn);
 };
 
+/** The main process owns both this toggle and the display selection; the renderer only observes it. */
+export const toggleWallpaperAutoDisplay = (): void => {
+    void bridge()?.toggleWallpaperAutoDisplay?.().then(take).catch(warn);
+};
+
 /** Whether there is a choice to draw: more than one display, where wallpaper mode can use any of them. */
 export const hasWallpaperDisplayChoice = (): boolean => (
     isOfferedHere() && (useWallpaperDisplaysStore.getState().state?.displays.length ?? 0) > 1

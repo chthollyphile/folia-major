@@ -739,6 +739,7 @@ declare global {
 
   /** What the main process says about that choice; see electron/wallpaper/wallpaperDisplay.cjs. */
   interface ElectronWallpaperDisplaysState {
+    autoEnabled?: boolean;
     displays: ElectronWallpaperDisplay[];
     /** The stored choice; null is automatic. Its display need not be connected. */
     choice: { id: number; label: string; bounds: { x: number; y: number; width: number; height: number } } | null;
@@ -935,6 +936,7 @@ declare global {
       } | null>;
       /** The connected displays and the display chosen for wallpaper mode. null when the asking page is not the main window. */
       getWallpaperDisplays?: () => Promise<ElectronWallpaperDisplaysState | null>;
+      toggleWallpaperAutoDisplay?: () => Promise<ElectronWallpaperDisplaysState | null>;
       /** Chooses a connected display by id, or automatic with null; a running wallpaper moves at once. Answers the new state. */
       setWallpaperDisplay?: (displayId: number | null) => Promise<ElectronWallpaperDisplaysState | null>;
       /** A display was connected, removed or changed, or the choice changed. */
