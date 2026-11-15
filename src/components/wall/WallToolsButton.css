@@ -113,6 +113,9 @@
 }
 
 .lattice-tools-action:disabled:hover { background: transparent; }
+/* 带提示的条目（WallToolsRows 的 hint）：外面那层占满一行；置灰的按钮不接指针，悬停落到外面那层上，提示才出得来。 */
+.lattice-tools-hint { display: block; }
+.lattice-tools-hint > .lattice-tools-action:disabled { pointer-events: none; }
 .lattice-tools-action svg { width: 17px; height: 17px; flex: 0 0 auto; }
 
 .lattice-tools-action kbd {

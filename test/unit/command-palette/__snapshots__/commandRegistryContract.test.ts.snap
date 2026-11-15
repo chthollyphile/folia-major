@@ -186,6 +186,8 @@ exports[`command palette registry contract > keeps the registered command order 
   "settings-toggle-transparent",
   "settings-toggle-daylight",
   "settings-toggle-player-back-button",
+  "settings-toggle-lattice-wall-form",
+  "settings-toggle-lattice-radio-hide-upcoming",
   "settings-toggle-lattice-vignette",
   "settings-toggle-lattice-badge-current-only",
   "settings-toggle-lattice-auto-focus",

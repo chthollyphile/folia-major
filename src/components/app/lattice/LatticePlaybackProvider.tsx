@@ -4,7 +4,7 @@ import type { MotionValue } from 'framer-motion';
 import type { LyricData, SongResult } from '../../../types';
 import type { CommandPalettePlaybackContext } from '../../command-palette/types';
 import type { PlayerControlSlotContext } from '../../floating-player/playerControlSlotActions';
-import { resolveLikeAvailability } from '../../../utils/playerLikeAvailability';
+import { canDislikeCurrentSong, resolveLikeAvailability } from '../../../utils/playerLikeAvailability';
 import { canShuffleQueue, resolvePlaybackNeighbors } from '../../../utils/playbackNeighbors';
 import { resolveLyricSeekMediaTime } from '../../../utils/lyrics/lyricSeekTime';
 
@@ -16,10 +16,18 @@ export type LatticePlaybackActions = {
     loopMode: PlayerControlSlotContext['loopMode'];
     invokeCommandById: PlayerControlSlotContext['invokeCommandById'];
     canInvokeCommandById: PlayerControlSlotContext['canInvokeCommandById'];
+    /** 私人 FM 的「不喜欢」：记下不喜欢并切到下一首（与播放页电台面板的垃圾桶同一个动作）。 */
+    fmDislike: () => void;
     isStageActive?: boolean;
     disabled?: boolean;
 };
-const PlaybackContext = createContext<PlayerControlSlotContext | null>(null);
+/** 主播放条槽位的上下文，加上电台墙要的「不喜欢」。 */
+export type LatticePlaybackContext = PlayerControlSlotContext & {
+    isFmMode: boolean;
+    onDislike: () => void;
+    canDislike: boolean;
+};
+const PlaybackContext = createContext<LatticePlaybackContext | null>(null);
 export const useLatticePlaybackActions = () => {
     const context = useContext(PlaybackContext);
     if (!context) throw new Error('Lattice playback controls need their provider');
@@ -51,7 +59,7 @@ export default function LatticePlaybackProvider({ actions, currentSong, queue, l
         });
         if (target !== null) onSeek(target);
     };
-    const context = useMemo<PlayerControlSlotContext>(() => {
+    const context = useMemo<LatticePlaybackContext>(() => {
         const neighbors = resolvePlaybackNeighbors({ playQueue: queue, currentSong, loopMode: actions.loopMode,
             isFmMode: actions.playback.isFmMode, isStageActive: Boolean(actions.isStageActive) });
         return {
@@ -70,6 +78,9 @@ export default function LatticePlaybackProvider({ actions, currentSong, queue, l
             onToggleTimeline: () => setTimelineOpen(value => !value),
             invokeCommandById: actions.invokeCommandById,
             canInvokeCommandById: actions.canInvokeCommandById,
+            isFmMode: actions.playback.isFmMode,
+            onDislike: actions.fmDislike,
+            canDislike: actions.playback.isFmMode && !actions.disabled && !actions.isStageActive && canDislikeCurrentSong(currentSong),
         };
     }, [actions, currentSong, lyrics, queue]);
     return <PlaybackContext.Provider value={context}>

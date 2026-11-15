@@ -90,14 +90,14 @@ describe('explicitly opening the playback view', () => {
         expect(resolvePlaybackSurface('player')).toBe('player');
         expect(resolvePlaybackSurface('lattice')).toBe('lattice');
         expect(resolvePlaybackSurface('stay')).toBe('player');
-        expect(resolvePlayerCapsuleNavigationTarget('home', 'stay', false)).toBe('player');
-        expect(resolvePlayerCapsuleNavigationTarget('lattice', 'stay', false)).toBeNull();
+        expect(resolvePlayerCapsuleNavigationTarget('home', 'stay')).toBe('player');
+        expect(resolvePlayerCapsuleNavigationTarget('lattice', 'stay')).toBeNull();
     });
 
     it('launches stay into the player and never defers a Lattice launch for it', () => {
-        expect(resolveStartupView({ openPlayerOnLaunch: true, playbackEntryView: 'stay', isFmMode: false, queueLength: 3 })).toBe('player');
-        expect(resolveStartupView({ openPlayerOnLaunch: false, playbackEntryView: 'stay', isFmMode: false, queueLength: 3 })).toBe('home');
-        expect(isStartupLatticeDeferred({ openPlayerOnLaunch: true, playbackEntryView: 'stay', isFmMode: false })).toBe(false);
+        expect(resolveStartupView({ openPlayerOnLaunch: true, playbackEntryView: 'stay', queueLength: 3 })).toBe('player');
+        expect(resolveStartupView({ openPlayerOnLaunch: false, playbackEntryView: 'stay', queueLength: 3 })).toBe('home');
+        expect(isStartupLatticeDeferred({ openPlayerOnLaunch: true, playbackEntryView: 'stay' })).toBe(false);
     });
 });
 

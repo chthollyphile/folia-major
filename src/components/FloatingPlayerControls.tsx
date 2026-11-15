@@ -26,7 +26,6 @@ import { resolvePlayerCapsuleNavigationTarget } from '../hooks/useAppNavigation'
 import { useCapsulePaletteStore } from '../stores/useCapsulePaletteStore';
 import { openCommandPalette } from '../stores/useAppViewStore';
 import { usePlaybackEntryViewStore } from '../stores/usePlaybackEntryViewStore';
-import { usePlaybackStore } from '../stores/usePlaybackStore';
 import { resolveLyricSeekMediaTime } from '../utils/lyrics/lyricSeekTime';
 import { HifiProgressRow } from './hifi/HifiBadge';
 import { useIsHifiRoute } from './hifi/useHifiSignalPath';
@@ -324,9 +323,8 @@ const FloatingPlayerControls: React.FC<FloatingPlayerControlsProps> = ({
     // 播放页上点胶囊本来就在要去的地方，这一下改成把胶囊变成命令面板；播放入口设成歌曲墙时
     // 这一下仍然去墙，不抢原有的跳转。
     const playbackEntryView = usePlaybackEntryViewStore(state => state.playbackEntryView);
-    const isFmMode = usePlaybackStore(state => state.isFmMode);
     const clickOpensPalette = currentView === 'player'
-        && resolvePlayerCapsuleNavigationTarget('player', playbackEntryView, isFmMode) === 'player';
+        && resolvePlayerCapsuleNavigationTarget('player', playbackEntryView) === 'player';
 
     // 手指点胶囊就点出那排的地方（clickOpensPalette），补发的 mouseenter 不再撑开胶囊，撑开交给浮出计时，
     // 不然 4 秒后那排收了胶囊还开着。播放入口设成歌曲墙时手指点不出那排，胶囊照旧靠补发的 mouseenter 撑开，
