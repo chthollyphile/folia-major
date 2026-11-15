@@ -117,7 +117,7 @@ function RadioCard({
     const tilt = useRadioCardTilt({
         maxDeg: isNow ? 2.5 : 7,
         hoverScale: isNow ? 0.995 : 0.98,
-        pressScale: isNow ? 0.985 : 0.95,
+        pressScale: isNow ? 0.99 : 0.97,
         disabled: reducedMotion,
     });
     // 从左边补回来的卡（往回退时）背面朝上进场，落位时翻开；只在挂上时读。
@@ -165,16 +165,12 @@ function RadioCard({
     };
     const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
         if (event.target !== event.currentTarget || event.repeat) return;
-        // 卡自己用掉的键不再往外传：window 上的空格快捷键（播放 / 暂停）不看 defaultPrevented。
+        // 卡只用回车（播放这一首 / 暂停继续正在播放的）。空格留给全局的播放 / 暂停：点过一张卡之后焦点停在卡上，
+        // 卡要是把空格吃掉，空格就暂停不了了。
         if (event.key === 'Enter') {
             event.preventDefault();
             event.stopPropagation();
             if (isNow) onTogglePlayback();
-            else onPlay(tile);
-        } else if (event.key === ' ') {
-            event.preventDefault();
-            event.stopPropagation();
-            if (isNow) chrome.toggleKeyboard();
             else onPlay(tile);
         }
     };

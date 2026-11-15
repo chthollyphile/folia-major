@@ -192,13 +192,20 @@
     transform-style: preserve-3d;
     cursor: pointer;
     outline: none;
+    /* 外层自己不当点击目标：卡倾斜时按下的那一点会沉到这一层的平面后面，被它挡住，按钮就点不到了。
+       点在卡面上的事件照样冒泡到这一层的处理函数。 */
+    pointer-events: none;
 }
 
-/* 指针压下去的倾斜（useRadioCardTilt），在翻牌那两层外面。 */
+/* 指针压下去的倾斜（useRadioCardTilt），在翻牌那两层外面。这一层把里面拍平成一个平面再倾斜（flat）：
+   嵌套的 preserve-3d 里一倾斜，Chromium 的点击命中就乱了（有的点落到中间的 3D 容器层，有的漏到背景）。
+   翻牌那两层在它里面自成一个 3D 上下文，透视由这里的 perspective 给。 */
 .lattice-radio-card-tilt {
     position: absolute;
     inset: 0;
-    transform-style: preserve-3d;
+    transform-style: flat;
+    perspective: 1400px;
+    pointer-events: auto;
 }
 
 /* 已揭开的卡升为正在播放时翻的那半圈（RadioCard 的 spin），在揭开那一层外面。 */
