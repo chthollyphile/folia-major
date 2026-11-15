@@ -58,6 +58,11 @@ export const createSonnetGlitchEffect = (pixi: PixiModule): SonnetGlitchEffect =
         // derives its screen coordinates from, which made the vignette pop outward on every glitch
         // transition. The tear samples with uInputClamp, so it never needs the extra margin.
         padding: 0,
+        // Pixi's defaults (resolution 1, antialias off) would redraw the whole scene at one pixel per
+        // CSS pixel, unsmoothed, for as long as the tear is on, whatever the canvas runs at: follow
+        // the surface instead. The scene builder raises the antialiasing to match its other passes.
+        resolution: 'inherit',
+        antialias: 'inherit',
     });
     filter.enabled = false;
     return {

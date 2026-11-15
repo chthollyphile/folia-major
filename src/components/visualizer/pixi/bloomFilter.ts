@@ -165,6 +165,9 @@ export const createBloomFilter = (pixi: PixiModule, initial: BloomOptions): Bloo
         readonly passes = [down, up, combine];
 
         constructor(options: BloomOptions) {
+            // antialias 留着 Pixi 的默认（off）：要让挂着 bloom 的那一组吃到画布抗锯齿的调用方自己设成 'inherit'
+            // （绘光的图形组 / 文字组、花火的全屏辉光）。花火烟花层的辉光不设：滤镜区域跟着包围盒变，池里每种尺寸
+            // 都会多一份多重采样缓冲，而烟花本来就是柔光精灵。
             super({ resources: {}, compatibleRenderers: pixi.RendererType.BOTH });
             this.options = { ...options };
             this.padding = options.padding;

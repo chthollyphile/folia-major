@@ -247,8 +247,9 @@ export class SonnetPixiRuntime {
         this.lastWidth = width;
         this.lastHeight = height;
         // The texture-pool snap depends on the viewport, so a resize can move the pooled filter
-        // targets across a bucket boundary even though the setting never changed. Sonnet's own
-        // passes carry fixed resolutions, so only the canvas has to follow.
+        // targets across a bucket boundary even though the setting never changed. The scenes'
+        // filters are sized from the canvas resolution when a scene is built, and every scene is
+        // rebuilt below.
         this.app.renderer.resize(
             width,
             height,
@@ -358,6 +359,7 @@ export class SonnetPixiRuntime {
             lyricsFontScale: this.options.lyricsFontScale,
             staticMode: this.options.staticMode,
             transparentBackground: this.options.transparentBackground,
+            renderResolution: this.app.renderer.resolution,
         }, iconTextures, song.program.paragraphs[index]);
     }
 
@@ -490,7 +492,7 @@ export class SonnetPixiRuntime {
             }
 
             if (isFinalScene && hasCredits) {
-                this.outroBlur.update(scene, creditsFrame.lyricBlur);
+                this.outroBlur.update(scene, creditsFrame.lyricBlur, this.app.renderer.resolution);
             }
         });
 
