@@ -16,8 +16,41 @@ import { usePlaybackStore } from '../../src/stores/usePlaybackStore';
 
 const HUES = [12, 48, 96, 168, 204, 248, 292, 330];
 
+// ?rasterCovers：换成 1200 px、带噪点的 JPEG（和真实封面的最大档一样大），看卡片变大时光栅化的开销。
+const RASTER_COVERS = new URLSearchParams(location.search).has('rasterCovers');
+const rasterCovers = new Map<number, string>();
+const rasterCover = (hue: number) => {
+    const cached = rasterCovers.get(hue);
+    if (cached) return cached;
+    const canvas = document.createElement('canvas');
+    canvas.width = 1200;
+    canvas.height = 1200;
+    const context = canvas.getContext('2d');
+    if (!context) return '';
+    const gradient = context.createLinearGradient(0, 0, 1200, 1200);
+    gradient.addColorStop(0, `hsl(${hue},70%,62%)`);
+    gradient.addColorStop(1, `hsl(${(hue + 40) % 360},60%,28%)`);
+    context.fillStyle = gradient;
+    context.fillRect(0, 0, 1200, 1200);
+    const noise = context.getImageData(0, 0, 1200, 1200);
+    for (let offset = 0; offset < noise.data.length; offset += 4) {
+        const grain = (Math.random() - 0.5) * 60;
+        noise.data[offset] += grain;
+        noise.data[offset + 1] += grain;
+        noise.data[offset + 2] += grain;
+    }
+    context.putImageData(noise, 0, 0);
+    const url = canvas.toDataURL('image/jpeg', 0.9);
+    rasterCovers.set(hue, url);
+    return url;
+};
+
+// 一开始就画好，免得续歌那一下在画封面上卡住，混进要量的帧里。
+if (RASTER_COVERS) HUES.forEach(rasterCover);
+
 const coverFor = (index: number) => {
     const hue = HUES[index % HUES.length];
+    if (RASTER_COVERS) return rasterCover(hue);
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">`
         + `<stop offset="0" stop-color="hsl(${hue},70%,62%)"/><stop offset="1" stop-color="hsl(${(hue + 40) % 360},60%,28%)"/></linearGradient></defs>`
         + `<rect width="300" height="300" fill="url(#g)"/><circle cx="210" cy="90" r="46" fill="hsl(${(hue + 180) % 360},60%,70%)" opacity="0.7"/></svg>`;

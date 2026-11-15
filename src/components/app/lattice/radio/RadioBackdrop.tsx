@@ -40,8 +40,10 @@ function RadioBackdrop({ metrics, turn, word }: { metrics: RadioMetrics; turn: n
     const centerY = metrics.centerY + metrics.radius;
     return (
         <div className="lattice-radio-backdrop" data-playing={playerState === PlayerState.PLAYING || undefined} aria-hidden="true">
-            <svg className="lattice-radio-waves" width="100%" height="100%">
-                <g className="lattice-radio-waves-turn" style={{ transformOrigin: `${centerX}px ${centerY}px`, transform: `rotate(${turn}deg)` }}>
+            {/* 转的是包着 SVG 的这一层，不是 SVG 里的 <g>：SVG 内部元素的 transform 不交给合成器，转动的 900ms 里
+                每帧都要把整幅同心圆重画、重新光栅化一遍，正好压在卡牌翻开放大的那一段上，翻牌就卡。 */}
+            <div className="lattice-radio-waves-turn" style={{ transformOrigin: `${centerX}px ${centerY}px`, transform: `rotate(${turn}deg)` }}>
+                <svg className="lattice-radio-waves" width="100%" height="100%">
                     {WAVE_SCALES.map((scale, index) => (
                         <circle key={scale} cx={centerX} cy={centerY} r={metrics.radius * scale}
                             className={index % 2 === 0 ? 'is-dashed' : undefined}
@@ -58,8 +60,8 @@ function RadioBackdrop({ metrics, turn, word }: { metrics: RadioMetrics; turn: n
                                 r={dot === 1 ? 4 : 2.5} style={{ animationDelay: `${300 + index * 70}ms` }} />
                         );
                     }))}
-                </g>
-            </svg>
+                </svg>
+            </div>
             <div className="lattice-radio-figure is-bar"><i /></div>
             <div className="lattice-radio-figure is-tick"><i /></div>
             <div className="lattice-radio-figure is-line"><i /></div>

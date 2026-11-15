@@ -34,9 +34,13 @@
     stroke-width: 1.5;
     animation: lattice-radio-fade-in 1200ms var(--radio-ease) backwards;
 }
-/* 卡牌沿弧移动时整组同心圆跟着转一点，时长和卡牌的弹簧差不多。 */
+/* 卡牌沿弧移动时整组同心圆跟着转一点，时长和卡牌的弹簧差不多。转的是 SVG 外面这一层，常驻合成层：同心圆只在
+   尺寸变时光栅化一次，转动由合成器跑。不常驻的话每次开转都要升层、整幅重新光栅化，转完降层再来一遍，
+   两次都落在卡牌翻开放大的那几帧里。 */
 .lattice-radio-waves-turn {
-    transform-box: view-box;
+    position: absolute;
+    inset: 0;
+    will-change: transform;
     transition: transform 900ms cubic-bezier(0.25, 0.8, 0.3, 1);
 }
 .lattice-radio-waves circle.lattice-radio-orbit-dot {
