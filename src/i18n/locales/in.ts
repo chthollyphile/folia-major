@@ -331,6 +331,7 @@ export default {
     "queueShow": "Tampilkan antrean putar",
     "queueHide": "Sembunyikan antrean putar",
     "queueUnavailableInFm": "FM Pribadi tidak punya antrean yang bisa diubah",
+    "wallFormFixedInFm": "FM Pribadi selalu memakai dinding radio; pengaturan ini berlaku lagi setelah FM Pribadi berakhir",
     "queueStageReadOnly": "Stage eksternal sedang memutar: Anda bisa memilih lagu, tetapi tidak mengubah antrean",
     "queueIsland": "Antrean putar",
     "queueCount_one": "Antrean putar · {{count}} lagu",

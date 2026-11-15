@@ -331,6 +331,7 @@ export default {
     "queueShow": "Hiện hàng đợi phát",
     "queueHide": "Ẩn hàng đợi phát",
     "queueUnavailableInFm": "FM cá nhân không có hàng đợi để chỉnh sửa",
+    "wallFormFixedInFm": "FM cá nhân luôn dùng tường radio; cài đặt này áp dụng lại khi FM cá nhân kết thúc",
     "queueStageReadOnly": "Sân khấu ngoài đang phát: bạn có thể chọn bài, nhưng không thể sửa hàng đợi",
     "queueIsland": "Hàng đợi phát",
     "queueCount_one": "Hàng đợi phát · {{count}} bài",

@@ -51,6 +51,7 @@ export default function LatticeFocusButton({ isDaylight, tiles, isRadio = false,
         label: t('options.latticeWallForm'),
         value: t(isFmMode ? 'options.latticeWallForm_radio' : `options.latticeWallForm_${wallForm}`),
         disabled: isFmMode,
+        hint: isFmMode ? t('wallTools.wallFormFixedInFm') : undefined,
         keepOpen: true,
         onSelect: () => setWallForm(wallForm === 'radio' ? 'poster' : 'radio'),
     }] : []), [isFmMode, setWallForm, showsWallForm, t, wallForm]);

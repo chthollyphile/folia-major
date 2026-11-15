@@ -331,6 +331,7 @@ export default {
     "queueShow": "Show the play queue",
     "queueHide": "Hide the play queue",
     "queueUnavailableInFm": "Personal FM has no queue to edit",
+    "wallFormFixedInFm": "Personal FM always uses the radio wall; this setting applies again once Personal FM ends",
     "queueStageReadOnly": "An external Stage is playing: you can pick a song, but not edit the queue",
     "queueIsland": "Play queue",
     "queueCount_one": "Play queue · {{count}} song",

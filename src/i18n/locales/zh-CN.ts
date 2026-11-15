@@ -331,6 +331,7 @@ export default {
     "queueShow": "显示播放队列",
     "queueHide": "收起播放队列",
     "queueUnavailableInFm": "私人 FM 没有可编辑的队列",
+    "wallFormFixedInFm": "私人 FM 下总是电台墙，退出私人 FM 后照这里的设置",
     "queueStageReadOnly": "外部舞台正在播放：可以点歌，不能编辑队列",
     "queueIsland": "播放队列",
     "queueCount_one": "播放队列 · {{count}} 首",
