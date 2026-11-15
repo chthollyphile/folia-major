@@ -32,7 +32,6 @@ import { UserGuideModal } from './components/modal/UserGuideModal';
 import ReleaseNotesDialog from './components/modal/ReleaseNotesDialog';
 import LegacyModelsPrompt from './components/modal/LegacyModelsPrompt';
 import { PlaybackEntryViewPrompt } from './components/modal/playback-entry-view/PlaybackEntryViewPrompt';
-import { LatticeFmNotice } from './components/modal/playback-entry-view/LatticeFmNotice';
 import { useStartupExperienceGate } from './hooks/useStartupExperienceGate';
 import { useAppDialogsModel } from './components/app/dialogs/useAppDialogsModel';
 import { useHomeModel } from './components/app/home/useHomeModel';
@@ -2834,6 +2833,7 @@ export default function App() {
                             <Lattice
                                 controls={{ playback: commandPaletteContext.playback, loopMode: effectiveLoopMode,
                                     invokeCommandById: commandPalette.invokeCommandById, canInvokeCommandById: commandPalette.canInvokeCommandById,
+                                    fmDislike: () => { void handleFmTrash(); },
                                     isStageActive: isNowPlayingStageActive, disabled: isNowPlayingControlDisabled }}
                                 lyrics={commandPaletteContext.shared.lyrics}
                                 lyricSource={visualizerRendererModel}
@@ -2849,8 +2849,8 @@ export default function App() {
                                 onBack={navigateBackFromLattice}
                                 onGoHome={navigateToHome}
                                 onOpenPlayer={navigateToPlayer}
-                                onPlaySong={(song, queue) => {
-                                    void playSong(song, queue, false, { shouldNavigateToPlayer: false });
+                                onPlaySong={(song, queue, asFm) => {
+                                    void playSong(song, queue, asFm, { shouldNavigateToPlayer: false });
                                 }}
                                 onTogglePlayback={togglePlay}
                                 onSeek={seekMainAudio}
@@ -2992,7 +2992,6 @@ export default function App() {
             />
             <UserGuideModal theme={theme} />
             <PlaybackEntryViewPrompt theme={theme} />
-            <LatticeFmNotice />
         </AppShell>
     );
 }

@@ -21,7 +21,8 @@ import { locatePlayingSongOnWall, useWallPageKey } from './wallLocate';
 // 一个集合页的定位按钮（GridLocateButton），意思和在那里一样——正在播放的歌在这面墙上有封面时亮起，按下是向墙要
 // 那张封面（wallLocate.ts）。「聚焦当前歌曲」与「切歌时自动聚焦」两项不在面板里：定位由上方的按钮做，自动聚焦的
 // 开关在命令面板（「Lattice 自动聚焦」）。
-export default function LatticeFocusButton({ isDaylight, tiles, onGoHome }: { isDaylight: boolean; tiles: LatticeTile[]; onGoHome?: () => void }) {
+// 电台墙（isRadio）：正在播放的那张总在正中，没有定位按钮；帮助换成电台墙的操作。
+export default function LatticeFocusButton({ isDaylight, tiles, isRadio = false, onGoHome }: { isDaylight: boolean; tiles: LatticeTile[]; isRadio?: boolean; onGoHome?: () => void }) {
     const { t } = useTranslation();
     // The song the locator asks about (a collection's page reads the same), and this wall's question.
     const playingSongKey = usePlaybackStore(state => (state.currentSong ? getPlaybackSongKey(state.currentSong) : null));
@@ -39,7 +40,8 @@ export default function LatticeFocusButton({ isDaylight, tiles, onGoHome }: { is
     } : undefined;
 
     // 紧凑档里上方的定位按钮不画，定位由进度条胶囊的封面按（progress-bar v3）。
-    useRegisterWallLocate('lattice', playingSongKey !== null ? {
+    const locates = playingSongKey !== null && !isRadio;
+    useRegisterWallLocate('lattice', locates ? {
         run: locatePlayingSongOnWall,
         isHere: isPlayingSongHere,
         isSeeking: isLocateAsked,
@@ -53,7 +55,7 @@ export default function LatticeFocusButton({ isDaylight, tiles, onGoHome }: { is
             isDaylight={isDaylight}
             destination={destination}
             entries={[]}
-            above={playingSongKey !== null ? (
+            above={locates ? (
                 <GridLocateButton
                     isDaylight={isDaylight}
                     accentColor="var(--text-accent)"
@@ -66,14 +68,16 @@ export default function LatticeFocusButton({ isDaylight, tiles, onGoHome }: { is
             help={(
                 <>
                     <li>
-                        <span>{t('home.latticeHelpPoster')}</span>
+                        <span>{t(isRadio ? 'home.latticeRadioHelpCard' : 'home.latticeHelpPoster')}</span>
                         <span className="lattice-tools-help-key"><kbd>ESC</kbd>{t('home.latticeHelpReturn')}</span>
                     </li>
-                    <li><span>{t('home.latticeHelpMove')}</span></li>
-                    <li>
-                        <span>{t('home.latticeHelpCommands')}</span>
-                        <kbd>S</kbd>
-                    </li>
+                    <li><span>{t(isRadio ? 'home.latticeRadioHelpMove' : 'home.latticeHelpMove')}</span></li>
+                    {!isRadio && (
+                        <li>
+                            <span>{t('home.latticeHelpCommands')}</span>
+                            <kbd>S</kbd>
+                        </li>
+                    )}
                     <li>
                         <span>{t('home.latticeHelpOpen')}</span>
                         <kbd>{PRIMARY_MODIFIER_LABEL} + B</kbd>

@@ -69,7 +69,6 @@ import { currentTime } from '../../../../stores/motionSignals';
 import { setIsPanelOpen, setPanelTab } from '../../../../stores/useAppViewStore';
 import { useAudioSettingsStore } from '../../../../stores/useAudioSettingsStore';
 import { useSearchNavigationStore } from '../../../../stores/useSearchNavigationStore';
-import { showLatticeFmNotice, usePlaybackEntryViewStore } from '../../../../stores/usePlaybackEntryViewStore';
 import { useStableActionSurface } from '../../../../hooks/useStableCallbacks';
 import { hasBeforePlayHook, notifyPlaybackFailed, runBeforePlayHook } from '../../../../services/hostExtensionHooks';
 import { wholeQueueWritesSoFar } from '../../../../services/wholeQueueWrites';
@@ -621,9 +620,6 @@ export function usePlaybackQueueController({
         if (playsAsFm && !wasFmMode) {
             setPanelTab('queue');
             setIsPanelOpen(true);
-            if (usePlaybackEntryViewStore.getState().playbackEntryView === 'lattice') {
-                showLatticeFmNotice();
-            }
         }
 
         // The play starts here: from now on a newer play, or a drop of the plays in flight, ends it.
