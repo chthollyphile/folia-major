@@ -64,6 +64,21 @@ export interface RemoteQueueExpansion {
     height: number;
 }
 
+/** What the large row of a lyric pair shows: the line itself, its translation or its romanization. */
+export type RemoteLyricMainRow = 'original' | 'translation' | 'romanization';
+/** What the small row under it shows; 'auto' follows the main window's 副字幕 (subtitleContentMode). */
+export type RemoteLyricSubRow = 'auto' | 'translation' | 'romanization' | 'original' | 'none';
+
+/**
+ * The remote window's lyric: one pair (the line being sung, large, and a small row under it) or two,
+ * the second pair being the next line. The rows of the second pair are kept while only one is shown,
+ * so going back to two brings them back.
+ */
+export interface RemoteLyricLayout {
+    pairs: 1 | 2;
+    rows: [RemoteLyricMainRow, RemoteLyricSubRow, RemoteLyricMainRow, RemoteLyricSubRow];
+}
+
 export type RemoteControlCommand =
     | { type: 'play-pause' }
     | { type: 'play' }
@@ -85,6 +100,8 @@ export type RemoteControlCommand =
     | { type: 'stop-export' }
     | { type: 'cancel-export' }
     | { type: 'toggle-like' }
+    /** Brings the main window up with the settings open on the remote window's page. */
+    | { type: 'open-remote-settings' }
     | RemoteQueueCommand
     | RemoteActionActivation;
 
@@ -125,6 +142,8 @@ export interface RemoteControlSnapshot {
     lyricOffsetMs?: number;
     /** The main window's setting for what sits under a lyric line; the remote's second line follows it. */
     subtitleContentMode: SubtitleContentMode;
+    /** The remote window's own lyric rows (its settings page). Absent from a main window that predates it. */
+    remoteLyricLayout?: RemoteLyricLayout;
     isLiked?: boolean;
     canLike?: boolean;
     likeUnavailableProvider?: string;

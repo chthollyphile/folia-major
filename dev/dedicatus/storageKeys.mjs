@@ -264,6 +264,7 @@ export const STORAGE_KEYS = [
     'web:remote_control_click_through',
     'web:remote_control_expand_cover',
     'web:remote_control_hide_titlebar',
+    'web:remote_control_lyric_layout',
     'web:remote_control_skip_taskbar',
     'web:remote_control_text_shade',
     'web:remote_video_export_preset_values',

@@ -178,6 +178,7 @@ const createContext = (overrides: CommandPaletteContextOverrides = {}): CommandP
             toggleHideRemoteControlTitlebar: vi.fn(),
             toggleRemoteControlExpandCover: vi.fn(),
             toggleRemoteControlTextShade: vi.fn(),
+            toggleRemoteLyricPairs: vi.fn(),
             unlockRemoteControl: vi.fn(),
             toggleObsKeepMainWindowAnimation: vi.fn(),
             toggleTrackCardInObs: vi.fn(),

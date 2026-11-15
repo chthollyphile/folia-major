@@ -154,6 +154,7 @@ exports[`store contract > keeps every localStorage key the stores read or write 
   "remote_control_click_through",
   "remote_control_expand_cover",
   "remote_control_hide_titlebar",
+  "remote_control_lyric_layout",
   "remote_control_skip_taskbar",
   "remote_control_text_shade",
   "scratchpad_handle_position",

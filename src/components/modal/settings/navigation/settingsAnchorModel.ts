@@ -85,6 +85,10 @@ export const SETTINGS_ANCHOR_DEFINITIONS = {
     wallpaperMode: { section: 'desktop' },
     updateCheck: { section: 'general' },
 
+    // pages/RemotePage (desktop app only)
+    remoteControl: { section: 'remote' },
+    remoteLyrics: { section: 'remote' },
+
     // pages/GraphicsPage; the render GPU row only in the Windows desktop app.
     graphicsPerformance: { section: 'graphics' },
     graphicsMotion: { section: 'graphics' },
