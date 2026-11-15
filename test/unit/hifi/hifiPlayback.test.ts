@@ -329,13 +329,17 @@ describe('beginHifiTrack', () => {
         expect(api.load.mock.calls.at(-1)?.[0].startSec).toBe(20);
     });
 
-    it('asks mpv to loop the file only in loop-one outside Personal FM', async () => {
+    it('asks mpv to loop the file in loop-one, Personal FM included', async () => {
         const { playback, playbackStore, api } = await setup();
         audio.state.loopMode = 'one';
         await playback.beginHifiTrack({ song: localPlaybackSong(), source: localSource(), startSec: 0 });
         expect(api.load.mock.calls.at(-1)?.[0].loopFile).toBe(true);
 
         playbackStore.setState({ isFmMode: true });
+        await playback.beginHifiTrack({ song: localPlaybackSong(), source: localSource(), startSec: 0 });
+        expect(api.load.mock.calls.at(-1)?.[0].loopFile).toBe(true);
+
+        audio.state.loopMode = 'all';
         await playback.beginHifiTrack({ song: localPlaybackSong(), source: localSource(), startSec: 0 });
         expect(api.load.mock.calls.at(-1)?.[0].loopFile).toBe(false);
     });

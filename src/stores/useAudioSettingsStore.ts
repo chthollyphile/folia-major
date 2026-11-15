@@ -22,6 +22,7 @@ import {
 } from '../utils/audioEqualizerModCurve';
 import { getStoredBoolean, getStoredString, removeStoredKey, setStoredBoolean, setStoredString } from './storagePrimitives';
 import { setStatusMessage } from './useStatusMessageStore';
+import { nextLoopMode } from '../utils/loopMode';
 import i18n from '../i18n/config';
 
 export const CACHE_SIZE_KEY = 'folia_cache_size';
@@ -277,7 +278,8 @@ export type AudioSettingsState = {
     handleToggleMute: () => void;
     /** Sets the repeat mode and toasts it like the repeat button; the mode already in effect is a no-op. */
     handleSetLoopMode: (mode: 'off' | 'all' | 'one') => void;
-    handleToggleLoopMode: () => void;
+    /** Steps the repeat button once; inside Personal FM the cycle skips loop-all, which has nothing to go round to there. */
+    handleToggleLoopMode: (isFmMode?: boolean) => void;
 };
 
 /*
@@ -506,14 +508,8 @@ export const useAudioSettingsStore = create<AudioSettingsState>((set, get) => ({
             nonce: Date.now(),
         });
     },
-    handleToggleLoopMode: () => {
-        const prev = get().loopMode;
-        const next = prev === 'off'
-            ? 'all'
-            : prev === 'all'
-                ? 'one'
-                : 'off';
-        get().handleSetLoopMode(next);
+    handleToggleLoopMode: (isFmMode = false) => {
+        get().handleSetLoopMode(nextLoopMode(get().loopMode, isFmMode));
     },
 }));
 

@@ -330,8 +330,8 @@ describe('hifiGaplessNextSong', () => {
 
     it('follows the loop and Personal FM rules of handleNextTrack', () => {
         expect(next({ loopMode: 'one' })).toBeNull();
-        // In Personal FM mpv does not loop the file, so the next song still follows.
-        expect(next({ loopMode: 'one', isFmMode: true })).toBe('b');
+        // mpv loops the file in Personal FM as well, so nothing follows there either.
+        expect(next({ loopMode: 'one', isFmMode: true })).toBeNull();
         const atEnd = { currentSong: C, current: { trackKey: 'local:c#1', songKey: 'local:c' }, engineTrackKey: 'local:c#1' };
         expect(next(atEnd)).toBeNull();
         expect(next({ ...atEnd, loopMode: 'all' })).toBe('a');
