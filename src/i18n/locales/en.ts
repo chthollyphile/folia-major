@@ -764,6 +764,8 @@ export default {
     "previewQueueSearchEmpty": "Type a song name, artist, album, or queue index",
     "pickerFilterPlaceholder": "Type to filter, then click or press Enter",
     "pickerCurrent": "Current: {{mode}}",
+    "pickerKeepOpen": "Keep open after choosing",
+    "pickerKeepOpenHint": "Keep the command palette open after choosing a visualizer, to try several in a row",
     "librarySuitePicker": { "active": "In use", "switch": "Switch the library to this interface" },
     "libraryWallPicker": { "active": "In use", "windows": "Windows per block: {{count}}", "windowsShare": "{{percent}}% of each block opens onto the visualizer", "seamStyle": "Info strip: {{style}}", "seamTheme": "Follows your theme colours", "seamPrint": "Fixed paper and ink, high contrast", "seamPattern": "A quiet pattern in your theme colours" },
     "pickerDescription": {

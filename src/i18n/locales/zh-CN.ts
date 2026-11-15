@@ -764,6 +764,8 @@ export default {
     "previewQueueSearchEmpty": "输入歌名、歌手、专辑或队列序号",
     "pickerFilterPlaceholder": "输入以筛选，然后点击或按回车",
     "pickerCurrent": "当前：{{mode}}",
+    "pickerKeepOpen": "选择后保持打开",
+    "pickerKeepOpenHint": "选择可视化后保持命令面板打开，方便连着试几种",
     "librarySuitePicker": { "active": "正在使用", "switch": "把资料库切换到这套界面" },
     "libraryWallPicker": { "active": "正在使用", "windows": "每块 {{count}} 个窗", "windowsShare": "每块 {{percent}}% 透出可视化", "seamStyle": "信息条：{{style}}", "seamTheme": "跟随主题配色", "seamPrint": "固定的纸与墨，高对比", "seamPattern": "主题色的安静图案" },
     "pickerDescription": {

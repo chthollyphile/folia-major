@@ -1,5 +1,6 @@
 import type { CommandPaletteContext } from '../../command-palette/types';
 import { useVisualizerSettingsStore } from '../../../stores/useVisualizerSettingsStore';
+import { useInteractionSettingsStore } from '../../../stores/useInteractionSettingsStore';
 import { useLyricSegmentationStore } from '../../../stores/useLyricSegmentationStore';
 import { useVideoLayerSettingsStore } from '../../../stores/useVideoLayerSettingsStore';
 import { getVisualizerRegistryEntry } from '../../visualizer/registry';
@@ -16,10 +17,13 @@ export const buildVisualizerCommandContext = (
     lyricSegmentationActions: LyricSegmentationActions,
 ): CommandPaletteContext['visualizer'] => {
     const visualizer = useVisualizerSettingsStore.getState();
+    const interaction = useInteractionSettingsStore.getState();
     return {
         visualizerMode: visualizer.visualizerMode,
         visualizerBackgroundMode: visualizer.visualizerBackgroundMode,
         setVisualizerMode: visualizer.handleSetVisualizerMode,
+        visualizerPickerKeepOpen: interaction.visualizerPickerKeepOpen,
+        setVisualizerPickerKeepOpen: interaction.setVisualizerPickerKeepOpen,
         toggleRandomVisualizerModePerSong: () => visualizer.handleToggleRandomVisualizerModePerSong(
             !useVisualizerSettingsStore.getState().randomVisualizerModePerSong,
         ),

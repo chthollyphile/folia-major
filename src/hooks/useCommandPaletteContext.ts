@@ -90,6 +90,7 @@ export const useCommandPaletteContext = (
     const queue = usePlaybackStore(state => state.playQueue);
     const isFmMode = usePlaybackStore(state => state.isFmMode);
     const queuePaletteKeepOpen = useInteractionSettingsStore(state => state.queuePaletteKeepOpen);
+    const visualizerPickerKeepOpen = useInteractionSettingsStore(state => state.visualizerPickerKeepOpen);
     // What is on screen, transitions included: surfaces that publish lyrics (the mod runtime
     // snapshot) must send the rendered ones, not a guess rebuilt from the song's stored state.
     const lyrics = usePlaybackStore(selectDisplayLyrics);
@@ -231,6 +232,7 @@ export const useCommandPaletteContext = (
         ...valueDeps,
         ambient,
         queuePaletteKeepOpen,
+        visualizerPickerKeepOpen,
         settingsSignals, chromeSignals, desktopSignals, automixSignals,
         sleepTimerSignals, latticeSignals, audioSignals, visualizerSignals,
         lyricStaffPolicy, lyricStaffAbsorbMode, personalFmSelection, personalFmCatalogs, providerFmSelections, fmStations, fmStationCatalogs, fmOnAir, activeProviderId, view, commandFilter, gridSurface, directorySurface, artistSurface, suiteChrome, canAddCurrentSongToPlaylist,
