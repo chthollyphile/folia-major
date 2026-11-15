@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Volume1, Volume2, VolumeX } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { Theme } from '../../types';
@@ -7,9 +7,22 @@ import type { Theme } from '../../types';
 // Keeps drag previews local and commits the persisted player volume only when interaction finishes.
 // On HiFi without software volume the slider is locked at what mpv puts out and says the DAC sets the level.
 // The icon is a button that toggles mute, which still works on fixed-volume HiFi.
+// Grown out of the player bar it sits at the bottom, the slider just above the input.
 
 type CommandPaletteVolumeControlProps = {
     isDaylight: boolean;
+    /**
+     * Which side of the body the palette input sits on. Grown out of the player bar (`bottom`) the
+     * pointer has just clicked the bar's volume button, so the slider hugs the input there and a
+     * small move lands on it; the top overlay keeps it centred.
+     */
+    inputEdge?: 'top' | 'bottom';
+    /**
+     * Where the click that opened the palette landed (viewport px), or null. The track's centre line is
+     * placed exactly on it, so after clicking the bar's volume button the pointer is already on the
+     * slider. Clamped into the body when the point lies outside it.
+     */
+    openPointer?: { x: number; y: number } | null;
     isMuted: boolean;
     /** HiFi without software volume: mpv plays at 100% and the DAC or amplifier sets the loudness. */
     isVolumeFixed?: boolean;
@@ -29,6 +42,8 @@ const parsePercent = (value: string) => {
 
 const CommandPaletteVolumeControl: React.FC<CommandPaletteVolumeControlProps> = ({
     isDaylight,
+    inputEdge = 'top',
+    openPointer = null,
     isMuted,
     isVolumeFixed = false,
     query,
@@ -43,6 +58,31 @@ const CommandPaletteVolumeControl: React.FC<CommandPaletteVolumeControlProps> = 
     const [sliderVolume, setSliderVolume] = useState(volume);
     const isDraggingRef = useRef(false);
     const pendingVolumeRef = useRef(volume);
+    const rootRef = useRef<HTMLDivElement | null>(null);
+    const blockRef = useRef<HTMLDivElement | null>(null);
+    const trackRef = useRef<HTMLInputElement | null>(null);
+    const [blockTop, setBlockTop] = useState<number | null>(null);
+    const pointerY = openPointer?.y ?? null;
+
+    // Measured once the block is laid out: the capsule shell only clips (no transform), so the rects
+    // are where the panel ends up from its first frame.
+    useLayoutEffect(() => {
+        const root = rootRef.current;
+        const block = blockRef.current;
+        const track = trackRef.current;
+        if (pointerY === null || !root || !block || !track) {
+            setBlockTop(null);
+            return;
+        }
+        const rootRect = root.getBoundingClientRect();
+        // The track's top edge goes on a whole device pixel nearest to centring it on the pointer;
+        // the panel itself may sit at a fractional y, so the offset absorbs that fraction.
+        const dpr = window.devicePixelRatio || 1;
+        const trackTopY = Math.round((pointerY - track.offsetHeight / 2) * dpr) / dpr;
+        const maxTop = Math.max(0, rootRect.height - block.offsetHeight);
+        const top = trackTopY - rootRect.top - track.offsetTop;
+        setBlockTop(top >= 0 && top <= maxTop ? top : Math.min(Math.max(Math.round(top), 0), maxTop));
+    }, [pointerY]);
 
     useEffect(() => {
         const queryPercent = parsePercent(query);
@@ -92,8 +132,24 @@ const CommandPaletteVolumeControl: React.FC<CommandPaletteVolumeControlProps> = 
         : isMuted ? t('commandPalette.volumeMutedHint') : t('commandPalette.volumeControlHint');
 
     return (
-        <div className="flex h-full items-center justify-center px-4 py-10">
-            <div className="w-full max-w-lg px-6 py-7">
+        <div
+            ref={rootRef}
+            className={`relative flex h-full justify-center px-4 ${inputEdge === 'bottom' ? 'items-end pb-1' : 'items-center py-10'}`}
+        >
+            <div
+                ref={blockRef}
+                className={`w-full max-w-lg px-6 ${inputEdge === 'bottom' ? 'pb-3 pt-7' : 'py-7'}`}
+                // Pinned under the opening click; until measured (and without one) the flex layout places it.
+                style={pointerY === null ? undefined : {
+                    position: 'absolute',
+                    left: '50%',
+                    // Same width as inside the root's px-4: an absolute box sizes against the padding box.
+                    width: 'calc(100% - 2rem)',
+                    top: blockTop ?? 0,
+                    transform: 'translateX(-50%)',
+                    visibility: blockTop === null ? 'hidden' : undefined,
+                }}
+            >
                 <div className="mb-5 flex items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
                         <button
@@ -117,6 +173,7 @@ const CommandPaletteVolumeControl: React.FC<CommandPaletteVolumeControlProps> = 
                 </div>
 
                 <input
+                    ref={trackRef}
                     type="range"
                     min="0"
                     max="1"

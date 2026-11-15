@@ -16,6 +16,7 @@ const frame = (overrides: Partial<CapsuleFrame> = {}): CapsuleFrame => ({
     height: 72,
     bottomGap: 32,
     viewportWidth: 1024,
+    openPointer: null,
     ...overrides,
 });
 
