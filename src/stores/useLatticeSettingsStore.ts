@@ -61,8 +61,8 @@ export type LatticeSettingsState = {
     /** 普通队列用哪种墙（私人 FM 下不看它，总是电台墙）。默认海报墙。 */
     latticeWallForm: LatticeWallForm;
     /**
-     * 普通队列的电台墙上，接下来的歌也背面朝上（封面取色的问号卡），轮到时才翻开。默认关：普通队列接下来放什么是知道的，
-     * 直接显示封面。私人 FM 下不看它，接下来的歌总是问号卡。
+     * 普通队列的电台墙上，接下来的歌也背面朝上（隔着棱纹玻璃的模糊封面、曲名打码），轮到时才翻开。默认关：普通队列
+     * 接下来放什么是知道的，直接显示封面。私人 FM 下不看它，接下来的歌总是背面朝上。
      */
     latticeRadioHideUpcoming: boolean;
     handleSetLatticeWallForm: (form: LatticeWallForm) => void;

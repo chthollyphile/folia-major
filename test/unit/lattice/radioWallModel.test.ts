@@ -2,9 +2,14 @@ import { describe, expect, it } from 'vitest';
 import type { SongResult } from '@/types';
 import { buildLatticeTiles } from '@/components/app/lattice/latticeModel';
 import {
+    buildRadioBrowseCards,
     buildRadioCards,
+    placeRadioRow,
+    radioBrowseRange,
     radioCardInView,
     radioCardRect,
+    radioRedactionWidths,
+    RADIO_CARD_TILT_DEG,
     resolveRadioMetrics,
 } from '@/components/app/lattice/radio/radioWallModel';
 
@@ -63,22 +68,46 @@ describe('radio wall layout', () => {
         return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2, rotate: rect.rotate, width: rect.width };
     };
 
-    it('puts the playing card upright in the middle of the window', () => {
+    it('puts the playing card upright, centred and a little below the middle of the window', () => {
         const now = center(0);
         expect(now.x).toBe(800);
-        expect(now.y).toBe(450);
+        expect(now.y).toBeCloseTo(495, 6);
         expect(now.rotate).toBe(0);
     });
 
-    it('starts the arc at the playing card: the next card barely tilts or drops, the further ones more', () => {
+    it('sinks the side cards below the playing card and drops the further ones more along the arc', () => {
         const [one, two, three] = [center(1), center(2), center(3)];
-        expect(one.rotate).toBeGreaterThan(0);
-        expect(one.rotate).toBeLessThan(10);
-        expect(Math.abs(one.y - 450)).toBeLessThan(metrics.cardSize * 0.1);
-        expect(two.rotate).toBeGreaterThan(one.rotate);
-        expect(three.rotate).toBeGreaterThan(two.rotate);
+        expect(one.y - 495).toBeGreaterThan(metrics.sideDrop * 0.9);
+        expect(one.y - 495).toBeLessThan(metrics.sideDrop + metrics.cardSize * 0.1);
         expect(two.y).toBeGreaterThan(one.y);
         expect(three.y).toBeGreaterThan(two.y);
+    });
+
+    it('tilts each card a fixed step more than its inner neighbour, so the seams stay narrow', () => {
+        expect(center(1).rotate).toBeCloseTo(RADIO_CARD_TILT_DEG, 6);
+        expect(center(2).rotate - center(1).rotate).toBeCloseTo(RADIO_CARD_TILT_DEG, 6);
+        expect(center(3).rotate - center(2).rotate).toBeCloseTo(RADIO_CARD_TILT_DEG, 6);
+    });
+
+    it('leaves a real gap between the playing card and its neighbour at the top and the bottom', () => {
+        const now = radioCardRect(0, metrics);
+        const one = radioCardRect(1, metrics);
+        // The neighbour's inner edge, both corners (rotated about the card centre).
+        const angle = one.rotate * Math.PI / 180;
+        const cx = one.x + one.width / 2;
+        const cornerX = (dy: number) => cx + (-one.width / 2) * Math.cos(angle) - dy * Math.sin(angle);
+        const right = now.x + now.width;
+        expect(cornerX(-one.height / 2) - right).toBeGreaterThan(metrics.gap * 0.5);
+        expect(cornerX(one.height / 2) - right).toBeGreaterThan(metrics.gap * 0.5);
+    });
+
+    it('moves a card continuously between two places on the arc', () => {
+        const a = radioCardRect(0, metrics);
+        const b = radioCardRect(1, metrics);
+        const half = radioCardRect(0.5, metrics);
+        expect(half.x).toBeCloseTo((a.x + b.x) / 2, 6);
+        expect(half.width).toBeCloseTo((a.width + b.width) / 2, 6);
+        expect(half.rotate).toBeCloseTo((a.rotate + b.rotate) / 2, 6);
     });
 
     it('shrinks the cards step by step outwards', () => {
@@ -138,5 +167,92 @@ describe('radio wall cards under list loop', () => {
 
     it('does not go round for a song not in the queue', () => {
         expect(ids(cardsAt(5, null, true))).toEqual(['0u1', '1u2', '2u3']);
+    });
+});
+
+describe('radio wall row on its rail', () => {
+    it('keeps the cards that stay in the row where they were when the next song starts', () => {
+        const first = placeRadioRow(cardsAt(10, 4), null);
+        const next = placeRadioRow(cardsAt(10, 5), first);
+        expect(next.anchor).toBe(first.anchor + 1);
+        for (const [id, position] of next.positions) {
+            if (first.positions.has(id)) expect(position).toBe(first.positions.get(id));
+        }
+    });
+
+    it('moves back when a played song is chosen again', () => {
+        const first = placeRadioRow(cardsAt(10, 4), null);
+        expect(placeRadioRow(cardsAt(10, 3), first).anchor).toBe(first.anchor - 1);
+    });
+
+    it('lays a replaced queue out in place', () => {
+        const first = placeRadioRow(cardsAt(10, 4), null);
+        const other = buildRadioCards(buildLatticeTiles({ queue: [song(50), song(51)], currentSong: song(50) }));
+        expect(placeRadioRow(other, first).anchor).toBe(first.anchor);
+    });
+});
+
+describe('radio wall browsing', () => {
+    const tilesAt = (length: number, current: number | null) => {
+        const queue = queueOf(length);
+        return buildLatticeTiles({ queue, currentSong: current === null ? null : queue[current] });
+    };
+
+    it('goes as far as the queue has songs, not just the cards laid out', () => {
+        expect(radioBrowseRange(tilesAt(10, 4))).toEqual({ min: -4, max: 5 });
+        expect(radioBrowseRange(tilesAt(10, 0))).toEqual({ min: 0, max: 9 });
+        expect(radioBrowseRange(tilesAt(1, 0))).toEqual({ min: 0, max: 0 });
+    });
+
+    it('goes round the whole queue each way under list loop', () => {
+        expect(radioBrowseRange(tilesAt(6, 2), { wrap: true })).toEqual({ min: -5, max: 5 });
+    });
+
+    it('lays out the usual row when not browsing', () => {
+        expect(ids(buildRadioBrowseCards(tilesAt(10, 4), { from: 0, to: 0 }))).toEqual(ids(cardsAt(10, 4)));
+    });
+
+    it('lays out more cards on the side being browsed, past the view', () => {
+        const right = buildRadioBrowseCards(tilesAt(20, 4), { from: 0, to: 6 });
+        expect(Math.max(...right.map(card => card.offset))).toBe(9);
+        expect(Math.min(...right.map(card => card.offset))).toBe(-2);
+        const left = buildRadioBrowseCards(tilesAt(20, 10), { from: -5, to: 0 });
+        expect(Math.min(...left.map(card => card.offset))).toBe(-8);
+        expect(Math.max(...left.map(card => card.offset))).toBe(3);
+    });
+
+    it('keeps the usual row of a short looping queue in place and goes round past it', () => {
+        const tiles = tilesAt(5, 0);
+        const usual = buildRadioBrowseCards(tiles, { from: 0, to: 0, wrap: true });
+        for (const browsed of [
+            buildRadioBrowseCards(tiles, { from: -4, to: 0, wrap: true }),
+            buildRadioBrowseCards(tiles, { from: 0, to: 4, wrap: true }),
+        ]) {
+            for (const card of usual) {
+                expect(browsed.find(other => other.key === card.key)).toMatchObject({ offset: card.offset, role: card.role });
+            }
+            expect(new Set(browsed.map(card => card.key)).size).toBe(browsed.length);
+        }
+        const left = buildRadioBrowseCards(tiles, { from: -4, to: 0, wrap: true });
+        expect(Math.min(...left.map(card => card.offset))).toBe(-7);
+        // The next song, met again on the left a lap round, is still a song to come: it stays face down.
+        expect(left.find(card => card.tile.id.endsWith(':1') && card.offset < 0)?.role).toBe('upcoming');
+        expect(left.find(card => card.offset === -1)?.role).toBe('played');
+    });
+});
+
+describe('radio wall redaction bars', () => {
+    it('grows with the title and the artist, within the card', () => {
+        const short = radioRedactionWidths('晴', 'A');
+        const long = radioRedactionWidths('一首名字特别特别特别长的歌曲', 'An Artist With A Long Name');
+        expect(long.title).toBeGreaterThan(short.title);
+        expect(long.artist).toBeGreaterThan(short.artist);
+        expect(long.title).toBeLessThanOrEqual(72);
+        expect(long.artist).toBeLessThanOrEqual(46);
+        expect(short.title).toBeGreaterThanOrEqual(24);
+    });
+
+    it('counts a CJK character wider than a Latin letter', () => {
+        expect(radioRedactionWidths('夜航电台', '').title).toBeGreaterThan(radioRedactionWidths('Nite', '').title);
     });
 });
