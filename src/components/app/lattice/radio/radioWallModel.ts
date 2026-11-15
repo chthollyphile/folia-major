@@ -8,6 +8,11 @@ import type { LatticeSongTile, LatticeTile } from '../latticeModel';
 export type RadioCardRole = 'played' | 'now' | 'upcoming';
 
 export type RadioCard = {
+    /**
+     * 这张卡的身份（React key、轨道上的位置都按它）。通常就是歌的 id；列表循环时浏览得比一圈还远，同一首歌会在
+     * 另一圈再出现一张，那一张带上圈数（`id@圈`）。
+     */
+    key: string;
     tile: LatticeSongTile;
     role: RadioCardRole;
     /** 相对正在播放那张的位置：负数在左（听过的），正数在右（接下来的），0 是正在播放。 */
@@ -24,7 +29,7 @@ export const RADIO_UPCOMING_CARDS = 3;
  * 正在播放的不在队列里时（FM 刚开、还没对上）没有中间那张，右边从队首起摆。
  * wrap（普通队列开着列表循环）：两边都按播放会走的顺序绕过去——右边放到队尾之后接上队首，左边在队首之前接上队尾
  * （「上一首」会放的就是它），和切歌时卡的移动方向一致。先排右边，左边只取右边没用到的（队列很短时右边优先；
- * prefer 为 played 时反过来，往左浏览时用），同一首不出现两次。
+ * prefer 为 played 时反过来，算往左最远能走到哪时用），同一首不出现两次。
  */
 export const buildRadioCards = (
     tiles: readonly LatticeTile[],
@@ -72,9 +77,9 @@ export const buildRadioCards = (
     }
 
     return [
-        ...playedIndices.map((index, position) => ({ tile: songs[index], role: 'played' as const, offset: position - playedIndices.length })),
-        ...(anchor >= 0 ? [{ tile: songs[anchor], role: 'now' as const, offset: 0 }] : []),
-        ...upcomingIndices.map((index, position) => ({ tile: songs[index], role: 'upcoming' as const, offset: position + 1 })),
+        ...playedIndices.map((index, position) => ({ key: songs[index].id, tile: songs[index], role: 'played' as const, offset: position - playedIndices.length })),
+        ...(anchor >= 0 ? [{ key: songs[anchor].id, tile: songs[anchor], role: 'now' as const, offset: 0 }] : []),
+        ...upcomingIndices.map((index, position) => ({ key: songs[index].id, tile: songs[index], role: 'upcoming' as const, offset: position + 1 })),
     ];
 };
 
@@ -93,13 +98,13 @@ export type RadioRowPlacement = {
  */
 export const placeRadioRow = (cards: readonly RadioCard[], previous: RadioRowPlacement | null): RadioRowPlacement => {
     const reference = previous
-        ? cards.find(card => card.role === 'now' && previous.positions.has(card.tile.id))
-            ?? cards.find(card => previous.positions.has(card.tile.id))
+        ? cards.find(card => card.role === 'now' && previous.positions.has(card.key))
+            ?? cards.find(card => previous.positions.has(card.key))
         : undefined;
     const anchor = reference && previous
-        ? (previous.positions.get(reference.tile.id) ?? 0) - reference.offset
+        ? (previous.positions.get(reference.key) ?? 0) - reference.offset
         : previous?.anchor ?? 0;
-    return { anchor, positions: new Map(cards.map(card => [card.tile.id, anchor + card.offset])) };
+    return { anchor, positions: new Map(cards.map(card => [card.key, anchor + card.offset])) };
 };
 
 /** 一段文字大约占几个全角字：中日韩字算一个，其余（拉丁字母、数字、空格）算半个多一点。 */
@@ -128,25 +133,61 @@ const BROWSE_REACH = 3;
 export const radioBrowseRange = (tiles: readonly LatticeTile[], { wrap = false }: { wrap?: boolean } = {}) => {
     const right = buildRadioCards(tiles, { wrap, played: 0, upcoming: Number.POSITIVE_INFINITY });
     const left = buildRadioCards(tiles, { wrap, played: Number.POSITIVE_INFINITY, upcoming: 0, prefer: 'played' });
+    // 两边的偏移都是按顺序排的：最左一张、最右一张就是两头（不用展开求最值，很长的队列会撑爆参数）。
     return {
-        min: Math.min(0, ...left.map(card => card.offset)),
-        max: Math.max(0, ...right.map(card => card.offset)),
+        min: Math.min(0, left[0]?.offset ?? 0),
+        max: Math.max(0, right.at(-1)?.offset ?? 0),
     };
 };
 
 /**
  * 浏览到 from..to 之间（相对正在播放那张的格数，拖动时轨道可能横跨几格）时这一行要摆哪些卡：平时左边两张听过的、
  * 右边三张接下来的；往哪边看，哪边就多摆到视野之外 BROWSE_REACH 张。
+ * 浏览时平常那一行的卡一张都不动（同一张卡不换位置、不换角色），只在浏览的那一边往外接。列表循环时按播放顺序
+ * 一格一格往外接（第 k 格是队列里 current + k 那首，绕过队头队尾），比一圈还远时同一首歌会再出现一张，带上圈数
+ * 作 key。圈数按「平常那一行右端往左数一整圈」那一段算：这一段里每首歌各一张（就是平常那一行，以及往左接的、
+ * 平常没摆的那些），段外的是别的圈。另一圈里那张的角色跟着它在这一段里的那张走：右边接下来的歌在左边再出现时
+ * 仍算「接下来的」，盖着的不会因为往左浏览而揭开。
  */
 export const buildRadioBrowseCards = (
     tiles: readonly LatticeTile[],
     { from, to, wrap = false }: { from: number; to: number; wrap?: boolean },
-): RadioCard[] => buildRadioCards(tiles, {
-    wrap,
-    played: from < 0 ? Math.max(RADIO_PLAYED_CARDS, BROWSE_REACH - from) : RADIO_PLAYED_CARDS,
-    upcoming: to > 0 ? Math.max(RADIO_UPCOMING_CARDS, BROWSE_REACH + to) : RADIO_UPCOMING_CARDS,
-    prefer: from < 0 && to <= 0 ? 'played' : 'upcoming',
-});
+): RadioCard[] => {
+    const played = from < 0 ? Math.max(RADIO_PLAYED_CARDS, BROWSE_REACH - from) : RADIO_PLAYED_CARDS;
+    const upcoming = to > 0 ? Math.max(RADIO_UPCOMING_CARDS, BROWSE_REACH + to) : RADIO_UPCOMING_CARDS;
+    const row = buildRadioCards(tiles, { wrap });
+    const now = row.find(card => card.role === 'now');
+    // 不循环时两边各是队列的一头，不会撞上：直接多取。
+    if (!wrap || !now) return buildRadioCards(tiles, { wrap, played, upcoming });
+
+    const songs = tiles.filter((tile): tile is LatticeSongTile => tile.kind === 'song');
+    const count = songs.length;
+    const current = songs.indexOf(now.tile);
+    const low = row[0].offset;
+    const high = row[row.length - 1].offset;
+    const first = from < 0 ? Math.min(low, -played) : low;
+    const last = to > 0 ? Math.max(high, upcoming) : high;
+    const firstOfLap = high - count + 1;
+    const byOffset = new Map(row.map(card => [card.offset, card]));
+    const cards: RadioCard[] = [];
+    for (let offset = first; offset <= last; offset += 1) {
+        const kept = byOffset.get(offset);
+        if (kept) {
+            cards.push(kept);
+            continue;
+        }
+        const tile = songs[(((current + offset) % count) + count) % count];
+        const lap = Math.floor((offset - firstOfLap) / count);
+        const home = offset - lap * count;
+        cards.push({
+            key: lap === 0 ? tile.id : `${tile.id}@${lap}`,
+            tile,
+            role: offset > 0 || home > 0 ? 'upcoming' : 'played',
+            offset,
+        });
+    }
+    return cards;
+};
 
 /** 卡的外框（容器坐标，未旋转时的位置）和顺着弧的倾斜角（度）。 */
 export type RadioRect = { x: number; y: number; width: number; height: number; rotate: number };

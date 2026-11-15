@@ -13,10 +13,13 @@ import { RADIO_WAVE_TURN_DEG, radioUpperRings, radioWaveCenter, type RadioMetric
 // 不进 React state；颜色读 CSS（墨色、强调色），尺寸变时重量。
 
 /**
- * 两帧之间至少隔多久（ms）：最多 60 帧。60Hz 的屏每帧都画，高刷屏隔一帧画一次。留 4ms 余量：帧间隔会有抖动，
- * 卡着整 16.7ms 判的话 60Hz 屏上会时不时跳过一帧，看着一顿一顿的。
+ * 最多 60 帧：按 16.7ms 一格排好每一帧该在什么时候画，到点前 FRAME_SLACK_MS 以内来的那一帧就画。60Hz 的屏每帧都画
+ * （帧间隔有抖动，卡着整 16.7ms 判会时不时跳过一帧，看着一顿一顿的），高刷屏平均下来也是 60 帧。
  */
-const FRAME_MS = 1000 / 60 - 4;
+const FRAME_INTERVAL_MS = 1000 / 60;
+const FRAME_SLACK_MS = 4;
+/** 播放中每画这么多帧重读一次墨色、强调色（随封面换主题色时跟上，不必等暂停或改窗口大小）。 */
+const COLOR_REFRESH_FRAMES = 120;
 /** 画布的像素比上限：都是细线和小点，再高只是多传像素。 */
 const MAX_PIXEL_RATIO = 1.5;
 
@@ -76,10 +79,17 @@ function RadioOrbits({ metrics, rail, playing, reducedMotion, transmitterRef }: 
         let accent = '#fd5c47';
         let transmitter: Transmitter | null = null;
         let raf = 0;
-        let lastFrame = 0;
+        let nextFrame = 0;
         let lastTick = 0;
+        let framesSinceColors = 0;
         let lastRipple = elapsedRef.current;
         let bassAverage = 0;
+
+        const readColors = () => {
+            const style = getComputedStyle(canvas);
+            ink = style.color || ink;
+            accent = style.getPropertyValue('--radio-accent').trim() || accent;
+        };
 
         const measure = () => {
             const box = canvas.getBoundingClientRect();
@@ -88,9 +98,7 @@ function RadioOrbits({ metrics, rail, playing, reducedMotion, transmitterRef }: 
             height = box.height;
             canvas.width = Math.max(1, Math.round(width * ratio));
             canvas.height = Math.max(1, Math.round(height * ratio));
-            const style = getComputedStyle(canvas);
-            ink = style.color || ink;
-            accent = style.getPropertyValue('--radio-accent').trim() || accent;
+            readColors();
             const figure = transmitterRef.current;
             if (figure) {
                 const rect = figure.getBoundingClientRect();
@@ -197,12 +205,18 @@ function RadioOrbits({ metrics, rail, playing, reducedMotion, transmitterRef }: 
 
         const tick = (now: number) => {
             raf = requestAnimationFrame(tick);
-            if (now - lastFrame < FRAME_MS) return;
+            if (now < nextFrame - FRAME_SLACK_MS) return;
+            // 下一帧排在这一格之后；落后了（卡过、切走过）就从现在起重新排，不连画几帧去追。
+            nextFrame = Math.max(nextFrame + FRAME_INTERVAL_MS, now + FRAME_INTERVAL_MS - FRAME_SLACK_MS);
             // 切到别的窗口回来时 rAF 停过：不把那一大段补上，免得信号包一下子跳很远。
             const delta = lastTick === 0 ? 0 : Math.min(0.1, (now - lastTick) / 1000);
             lastTick = now;
-            lastFrame = now;
             elapsedRef.current += delta;
+            framesSinceColors += 1;
+            if (framesSinceColors >= COLOR_REFRESH_FRAMES) {
+                framesSinceColors = 0;
+                readColors();
+            }
             listen(elapsedRef.current);
             draw();
         };

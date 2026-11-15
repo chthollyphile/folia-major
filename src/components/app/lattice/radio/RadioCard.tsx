@@ -82,6 +82,12 @@ const fallbackTint = (id: string) => {
     return `hsl(${hue} 52% 40%)`;
 };
 
+/**
+ * 正中正在播放那张的标题：电台墙把它排成一行 22px（RadioWall.css，和歌词出来后的那一行一样），和海报墙展开海报
+ * 的大标题不是一种排版，按自己的形状拟合、自己存缓存（WallTitle 的 variant / maxLines），两面墙不互相串。
+ */
+const EXPANDED_TITLE = { variant: 'radio', maxLines: 1 } as const;
+
 function RadioCard({
     tile,
     role,
@@ -284,12 +290,12 @@ function RadioCard({
                                 <span className="lattice-poster-tint" />
                                 {revealed && <LatticeQuickActions tile={tile} width={rest.width} expanded={expanded} />}
                                 {showsLyrics ? (
-                                    <Suspense fallback={<span className="lattice-poster-copy"><WallTitle title={tile.title} expanded targetPosterWidth={rest.width} /><small>{tile.artist}</small></span>}>
+                                    <Suspense fallback={<span className="lattice-poster-copy"><WallTitle title={tile.title} expanded targetPosterWidth={rest.width} {...EXPANDED_TITLE} /><small>{tile.artist}</small></span>}>
                                         <LatticeLyrics key={tile.id} tile={tile} reducedMotion={reducedMotion} />
                                     </Suspense>
                                 ) : (
                                     <span className="lattice-poster-copy">
-                                        <WallTitle title={tile.title} expanded={focused} targetPosterWidth={rest.width} />
+                                        <WallTitle title={tile.title} expanded={expanded} targetPosterWidth={rest.width} {...(expanded ? EXPANDED_TITLE : {})} />
                                         <small>{tile.artist}</small>
                                     </span>
                                 )}

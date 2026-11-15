@@ -62,6 +62,12 @@ type RadioWallProps = {
 const OPENING_STAGGER_S = 0.08;
 /** 轨道滑动（切歌、浏览、松手吸附）的弹簧：和原来每张卡各自滑动时一样。 */
 const RAIL_SPRING = { type: 'spring' as const, stiffness: 240, damping: 30, mass: 0.9 };
+/**
+ * 一下子回到很远的地方（浏览了很久后按 Esc、定位，或这时切了歌）：轨道先跳到离目标 RAIL_JUMP_LANDING 格处再弹过去。
+ * 一路弹过去的话沿途每一张卡都会挂上又翻走，走得越远越多。
+ */
+const RAIL_JUMP_STEPS = 6;
+const RAIL_JUMP_LANDING = 3;
 /** 指针横着挪过这么远才算拖动（之前仍是点击，卡照常倾斜按压）。 */
 const DRAG_START_PX = 8;
 /** 拖得不到半格就松手、但拖过这么远：也算往那边走一格（甩一下）。 */
@@ -202,6 +208,8 @@ export default function RadioWall({
     const settleRail = useCallback((to: number) => {
         railAnimation.current?.stop();
         railAnimation.current = null;
+        const from = rail.get();
+        if (Math.abs(to - from) > RAIL_JUMP_STEPS) rail.set(to + Math.sign(from - to) * RAIL_JUMP_LANDING);
         if (reducedMotion || rail.get() === to) {
             rail.set(to);
             setResting(true);
@@ -395,7 +403,7 @@ export default function RadioWall({
     const entryFor = (card: RadioCardModel, index: number): RadioCardEntry => {
         if (opening || !metrics) return { kind: 'opening', delay: index * OPENING_STAGGER_S };
         // 一直在这一行里、只是先前在窗口外没挂的卡（浏览时走进窗口）直接出现；新补的卡淡入。
-        return before?.positions.has(card.tile.id) ? { kind: 'appear' } : { kind: 'deal' };
+        return before?.positions.has(card.key) ? { kind: 'appear' } : { kind: 'deal' };
     };
 
     return (
@@ -433,7 +441,7 @@ export default function RadioWall({
                     if (!visible) return null;
                     return (
                         <RadioCard
-                            key={card.tile.id}
+                            key={card.key}
                             tile={card.tile}
                             role={card.role}
                             offset={card.offset}

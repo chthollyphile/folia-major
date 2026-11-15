@@ -221,9 +221,23 @@ describe('radio wall browsing', () => {
         expect(Math.max(...left.map(card => card.offset))).toBe(3);
     });
 
-    it('gives the browsed side the songs of a short looping queue first', () => {
-        const left = buildRadioBrowseCards(tilesAt(6, 2), { from: -4, to: 0, wrap: true });
-        expect(Math.min(...left.map(card => card.offset))).toBe(-5);
+    it('keeps the usual row of a short looping queue in place and goes round past it', () => {
+        const tiles = tilesAt(5, 0);
+        const usual = buildRadioBrowseCards(tiles, { from: 0, to: 0, wrap: true });
+        for (const browsed of [
+            buildRadioBrowseCards(tiles, { from: -4, to: 0, wrap: true }),
+            buildRadioBrowseCards(tiles, { from: 0, to: 4, wrap: true }),
+        ]) {
+            for (const card of usual) {
+                expect(browsed.find(other => other.key === card.key)).toMatchObject({ offset: card.offset, role: card.role });
+            }
+            expect(new Set(browsed.map(card => card.key)).size).toBe(browsed.length);
+        }
+        const left = buildRadioBrowseCards(tiles, { from: -4, to: 0, wrap: true });
+        expect(Math.min(...left.map(card => card.offset))).toBe(-7);
+        // The next song, met again on the left a lap round, is still a song to come: it stays face down.
+        expect(left.find(card => card.tile.id.endsWith(':1') && card.offset < 0)?.role).toBe('upcoming');
+        expect(left.find(card => card.offset === -1)?.role).toBe('played');
     });
 });
 
