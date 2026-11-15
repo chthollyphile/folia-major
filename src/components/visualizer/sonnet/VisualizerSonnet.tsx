@@ -71,7 +71,8 @@ const VisualizerSonnet: React.FC<VisualizerSharedProps> = (props) => {
     // 预览（样式架小图、样式窗口、主题乐园）保持原来的密度和抗锯齿，不跟这两个设置。
     const renderQuality = useLyricRenderQuality(sonnetTuning.render);
     const renderScale = isPreviewMode ? 1 : renderQuality.scale;
-    const antialias = resolveLyricAntialias(isPreviewMode ? 'auto' : renderQuality.antialias, !sonnetTuning.postProcessEnabled);
+    const antialiasMode = isPreviewMode ? 'auto' : renderQuality.antialias;
+    const antialias = resolveLyricAntialias(antialiasMode, !sonnetTuning.postProcessEnabled);
     const renderScaleRef = useRef(renderScale);
     renderScaleRef.current = renderScale;
     // 智能动感模式 is one setting for every visualizer, so it is not part of the Sonnet tuning prop.
@@ -152,6 +153,8 @@ const VisualizerSonnet: React.FC<VisualizerSharedProps> = (props) => {
             lyricsFontScale,
             sonnetTuning.textureResolution,
             antialias,
+            // 场景上的滤镜按设置本身（自动 / 开 / 关）决定要不要多重采样，画布的开关分不出「自动」。
+            antialiasMode,
             sonnetTuning.showOnlyText,
             sonnetTuning.showBackgroundDecor,
             staticMode,
@@ -169,6 +172,7 @@ const VisualizerSonnet: React.FC<VisualizerSharedProps> = (props) => {
                 tuning: sonnetTuningRef.current,
                 renderScale: renderScaleRef.current,
                 antialias,
+                antialiasMode,
                 smartBeatEnabled: smartBeatEnabledRef.current,
                 currentTime,
                 audioPower,

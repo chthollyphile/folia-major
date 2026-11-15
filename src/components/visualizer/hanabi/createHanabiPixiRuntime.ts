@@ -418,6 +418,9 @@ export class HanabiPixiRuntime {
             this.screenBloom = createBloomFilter(this.pixi, { strength, threshold: 0.5, knee: 0.3, levels: 5, spread: 0.85, tint: [1, 0.95, 0.98], padding: 0 });
             // 满分辨率：默认 1 时 1.5× / 2× 屏上整层字会先画成 1× 再拉伸，开着辉光时字会糊。
             this.screenBloom.resolution = 'inherit';
+            // 抗锯齿跟随画布（样式的抗锯齿设置，跟随全局或单独指定）：Pixi 的默认是 off，开着辉光时整层字和色块
+            // 先画进的那张离屏纹理就吃不到画布的 MSAA。
+            this.screenBloom.antialias = 'inherit';
             this.screenBloomArea = new this.pixi.Rectangle();
         }
         this.screenBloom.options.strength = strength;
