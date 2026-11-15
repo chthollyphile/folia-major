@@ -17,7 +17,7 @@ import CommandPaletteAllCommandsList from './CommandPaletteAllCommandsList';
 import { setIsCommandFilterOpen } from '../../stores/useAppViewStore';
 import { isGridFilterSyntaxAvailable, resolveGridFilterAction } from './gridFilterQuery';
 import { FILTER_VIEW_COMMAND_ID } from './commands/filterViewCommand';
-import { CAPSULE_HANDBACK_DELAY_MS, capsuleBodyHeight, listArrowStep, readCapsuleFrame, type CapsuleFrame } from './capsuleFrame';
+import { CAPSULE_HANDBACK_DELAY_MS, capsuleBodyHeight, installOpenPointerTracker, listArrowStep, readCapsuleFrame, type CapsuleFrame } from './capsuleFrame';
 import CommandPaletteCapsuleFrame from './CommandPaletteCapsuleFrame';
 import { useCapsulePaletteStore } from '../../stores/useCapsulePaletteStore';
 
@@ -220,6 +220,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
     // whole session and its exit, so a bar that moves underneath does not drag the panel along.
     const wasOpenRef = useRef(false);
     const capsuleFrameRef = useRef<CapsuleFrame | null>(null);
+    useEffect(() => installOpenPointerTracker(), []);
     // Closing measures the bar again, on the render that closes: the panel folds back into the bar
     // as it is now. The bar keeps living, unseen, under the palette — it usually collapses once the
     // pointer is no longer on it — so the shape remembered from the open is the wrong one to land in.
@@ -569,6 +570,10 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
                         {React.createElement(surfaceBody, {
                             ...surface?.mapProps?.(surfaceArgs),
                             refocusInput,
+                            // 输入框在哪一边：胶囊模式贴底，顶部浮层贴顶。面板可以把手要碰的控件靠过去。
+                            inputEdge: capsuleFrame ? 'bottom' : 'top',
+                            // 点出面板的那一下落在哪；面板里要接着拖的控件可以对齐到它。
+                            openPointer: capsuleFrame?.openPointer ?? null,
                         })}
                     </Suspense>
                 ) : matches.length === 0 ? (
