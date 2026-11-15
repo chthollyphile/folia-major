@@ -23,6 +23,9 @@ type PickerSurfaceViewProps = {
     isExecuting: boolean;
     theme: Theme;
     currentMode: string;
+    /** The "keep open after choosing" checkbox; null where the picker does not offer it. */
+    keepOpen: { checked: boolean; onChange: (enable: boolean) => void } | null;
+    refocusInput?: () => void;
 };
 
 const HEADER = {
@@ -40,6 +43,8 @@ const PickerSurfaceView: React.FC<PickerSurfaceViewProps> = ({
     isExecuting,
     theme,
     currentMode,
+    keepOpen,
+    refocusInput,
 }) => {
     const { t } = useTranslation();
     const translate = (key: string, fallback?: string) => t(key, { defaultValue: fallback ?? key });
@@ -76,6 +81,25 @@ const PickerSurfaceView: React.FC<PickerSurfaceViewProps> = ({
                         mode: getPickerModeLabel(kind, currentMode, translate),
                     })}
                 </span>
+                {keepOpen && (
+                    <label
+                        className="flex shrink-0 cursor-pointer items-center gap-1.5 font-normal opacity-80 hover:opacity-100"
+                        title={t('commandPalette.pickerKeepOpenHint', 'Keep the command palette open after choosing a visualizer')}
+                    >
+                        <span>{t('commandPalette.pickerKeepOpen', 'Keep open after choosing')}</span>
+                        <input
+                            type="checkbox"
+                            checked={keepOpen.checked}
+                            disabled={isExecuting}
+                            onChange={event => {
+                                keepOpen.onChange(event.target.checked);
+                                refocusInput?.();
+                            }}
+                            className="h-3.5 w-3.5 cursor-pointer disabled:cursor-wait"
+                            style={{ accentColor: theme.accentColor }}
+                        />
+                    </label>
+                )}
             </div>
             {matches.map((match, index) => {
                 const isActive = index === activeIndex;
@@ -98,7 +122,11 @@ const PickerSurfaceView: React.FC<PickerSurfaceViewProps> = ({
                         onClick={() => {
                             if (!isExecuting) {
                                 setActiveIndex(index);
-                                void executeMatch(index);
+                                void executeMatch(index).then(didExecute => {
+                                    if (didExecute && keepOpen?.checked) {
+                                        refocusInput?.();
+                                    }
+                                });
                             }
                         }}
                         className={`flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition-colors disabled:pointer-events-none disabled:opacity-50 ${

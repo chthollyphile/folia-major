@@ -764,6 +764,8 @@ export default {
     "previewQueueSearchEmpty": "Ketik nama lagu, artis, album, atau indeks antrean",
     "pickerFilterPlaceholder": "Ketik untuk menyaring, lalu klik atau tekan Enter",
     "pickerCurrent": "Saat ini: {{mode}}",
+    "pickerKeepOpen": "Tetap terbuka setelah memilih",
+    "pickerKeepOpenHint": "Biarkan palet perintah terbuka setelah memilih visualizer, agar bisa mencoba beberapa berturut-turut",
     "librarySuitePicker": { "active": "Sedang dipakai", "switch": "Ganti pustaka ke antarmuka ini" },
     "libraryWallPicker": { "active": "Sedang dipakai", "windows": "Jendela per blok: {{count}}", "windowsShare": "{{percent}}% dari setiap blok tembus ke visualizer", "seamStyle": "Strip info: {{style}}", "seamTheme": "Mengikuti warna tema Anda", "seamPrint": "Kertas dan tinta tetap, kontras tinggi", "seamPattern": "Pola tenang dalam warna tema Anda" },
     "pickerDescription": {

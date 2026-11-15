@@ -764,6 +764,8 @@ export default {
     "previewQueueSearchEmpty": "Nhập tên bài hát, nghệ sĩ, album hoặc số thứ tự",
     "pickerFilterPlaceholder": "Nhập để lọc, sau đó nhấp hoặc nhấn Enter",
     "pickerCurrent": "Hiện tại: {{mode}}",
+    "pickerKeepOpen": "Giữ mở sau khi chọn",
+    "pickerKeepOpenHint": "Giữ mở bảng lệnh sau khi chọn hiệu ứng hình ảnh để thử liên tiếp nhiều kiểu",
     "librarySuitePicker": { "active": "Đang dùng", "switch": "Chuyển thư viện sang giao diện này" },
     "libraryWallPicker": { "active": "Đang dùng", "windows": "Cửa sổ mỗi khối: {{count}}", "windowsShare": "{{percent}}% mỗi khối hiển thị hiệu ứng thị giác", "seamStyle": "Thanh thông tin: {{style}}", "seamTheme": "Theo màu chủ đề", "seamPrint": "Mực và giấy cố định, tương phản cao", "seamPattern": "Họa tiết tối giản theo màu chủ đề" },
     "pickerDescription": {

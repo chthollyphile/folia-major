@@ -504,6 +504,9 @@ export type CommandPaletteVisualizerContext = {
     /** Null means "no stored choice"; the picker resolves it against the registry default. */
     visualizerBackgroundMode: VisualizerBackgroundMode | null;
     setVisualizerMode: (mode: VisualizerMode) => void;
+    /** The visualizer picker stays open after a mode is chosen. */
+    visualizerPickerKeepOpen: boolean;
+    setVisualizerPickerKeepOpen: (enable: boolean) => void;
     toggleRandomVisualizerModePerSong: () => void;
     /** Lab > Fix lyric animation freeze on Linux: the Linux renderer fd leak workaround. */
     toggleGlowBlurQuantize: () => void;
