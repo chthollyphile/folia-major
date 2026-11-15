@@ -3,16 +3,15 @@ import { useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
 import { useDesktopSettingsStore } from '../../../../stores/useDesktopSettingsStore';
 import { usePlayerChromeSettingsStore } from '../../../../stores/usePlayerChromeSettingsStore';
-import { FoldedGroup, Group, Reveal, Row, Toggle, Segmented, option, type SettingsGroupDef, type SettingsOptionDef } from '../kit';
+import { Group, Reveal, Row, Toggle, Segmented, option, type SettingsGroupDef, type SettingsOptionDef } from '../kit';
 import { WallpaperDisplayRow } from './desktop/WallpaperDisplayRow';
 import { hasWallpaperDisplayChoice } from './desktop/wallpaperDisplays';
 
 // src/components/modal/settings/pages/DesktopPage.tsx
 // The 桌面 page (desktop app only): what the main window does with the tray, the taskbar and its
-// fullscreen button, the wallpaper mode, and a folded group for the Remote Control window.
+// fullscreen button, and the wallpaper mode. The Remote Control window has a page of its own (RemotePage).
 
 const WINDOW: SettingsGroupDef = { id: 'desktopTrayBehavior', titleKey: 'options.desktopTrayBehavior', electronOnly: true };
-const REMOTE: SettingsGroupDef = { id: 'remoteControl', titleKey: 'options.remoteControlGroup', electronOnly: true };
 
 const O = {
     minimizeToTray: option(WINDOW, 'minimizeToTray', 'options.minimizeToTray'),
@@ -26,11 +25,6 @@ const O = {
     // Drawn only with more than one display connected, where wallpaper mode can use any of them.
     wallpaperDisplay: option(WINDOW, 'wallpaperDisplay', 'options.wallpaperDisplay', { available: hasWallpaperDisplayChoice }),
     wallpaperDock: option(WINDOW, 'wallpaperMacAutohideDock', 'options.wallpaperMacAutohideDock'),
-    remoteTaskbarIcon: option(REMOTE, 'hideRemoteControlTaskbarIcon', 'options.hideRemoteControlTaskbarIcon'),
-    remoteTitlebar: option(REMOTE, 'hideRemoteControlTitlebar', 'options.hideRemoteControlTitlebar'),
-    remoteClickThrough: option(REMOTE, 'remoteControlClickThrough', 'options.remoteControlClickThrough'),
-    remoteExpandCover: option(REMOTE, 'remoteControlExpandCover', 'options.remoteControlExpandCover'),
-    remoteTextShade: option(REMOTE, 'remoteControlTextShade', 'options.remoteControlTextShade'),
 };
 
 const PLATFORM = typeof window === 'undefined' ? undefined : window.electron?.platform;
@@ -49,21 +43,11 @@ const DesktopPage: React.FC = () => {
         hideTaskbarIcon: state.hideTaskbarIcon,
         wallpaperMode: state.wallpaperMode,
         wallpaperDock: state.wallpaperMacAutohideDock,
-        remoteTaskbarIcon: state.hideRemoteControlTaskbarIcon,
-        remoteTitlebar: state.hideRemoteControlTitlebar,
-        remoteClickThrough: state.remoteControlClickThrough,
-        remoteExpandCover: state.remoteControlExpandCover,
-        remoteTextShade: state.remoteControlTextShade,
         setMinimizeToTray: state.handleToggleMinimizeToTray,
         setCloseToTray: state.handleToggleCloseToTray,
         setHideTaskbarIcon: state.handleToggleHideTaskbarIcon,
         setWallpaperMode: state.handleToggleWallpaperMode,
         setWallpaperDock: state.handleToggleWallpaperMacAutohideDock,
-        setRemoteTaskbarIcon: state.handleToggleHideRemoteControlTaskbarIcon,
-        setRemoteTitlebar: state.handleToggleHideRemoteControlTitlebar,
-        setRemoteClickThrough: state.handleToggleRemoteControlClickThrough,
-        setRemoteExpandCover: state.handleToggleRemoteControlExpandCover,
-        setRemoteTextShade: state.handleToggleRemoteControlTextShade,
     })));
     const chrome = usePlayerChromeSettingsStore(useShallow(state => ({
         titlebarSide: state.titlebarSide,
@@ -75,8 +59,6 @@ const DesktopPage: React.FC = () => {
         setNativeMacFullscreen: state.handleToggleNativeMacFullscreenButton,
         setTrafficLights: state.handleToggleNativeMacTrafficLights,
     })));
-    // Counts the switches moved off their default; expand cover is on by default, so it counts when off.
-    const remoteOnCount = [desktop.remoteTaskbarIcon, desktop.remoteTitlebar, desktop.remoteClickThrough, !desktop.remoteExpandCover, desktop.remoteTextShade].filter(Boolean).length;
 
     return (
         <>
@@ -133,28 +115,6 @@ const DesktopPage: React.FC = () => {
                     </Row>
                 )}
             </Group>
-
-            <FoldedGroup
-                def={REMOTE}
-                summary={remoteOnCount === 0 ? t('options.remoteControlGroupDefault') : t('options.remoteControlGroupOn', { count: remoteOnCount })}
-            >
-                <Row option={O.remoteTaskbarIcon}>
-                    <Toggle checked={desktop.remoteTaskbarIcon} onChange={desktop.setRemoteTaskbarIcon} />
-                </Row>
-                <Row option={O.remoteTitlebar} hint={t('options.hideRemoteControlTitlebarHint')} note={t('options.hideRemoteControlTitlebarDesc')}>
-                    <Toggle checked={desktop.remoteTitlebar} onChange={desktop.setRemoteTitlebar} />
-                </Row>
-                <Row option={O.remoteClickThrough} hint={t('options.remoteControlClickThroughHint')} note={t('options.remoteControlClickThroughDesc')}>
-                    <Toggle checked={desktop.remoteClickThrough} onChange={desktop.setRemoteClickThrough} />
-                </Row>
-                <Row option={O.remoteExpandCover} hint={t('options.remoteControlExpandCoverHint')}>
-                    <Toggle checked={desktop.remoteExpandCover} onChange={desktop.setRemoteExpandCover} />
-                </Row>
-                {/* Not greyed out: the transparent background is chosen in the remote window itself, so this page cannot tell. */}
-                <Row option={O.remoteTextShade} hint={t('options.remoteControlTextShadeHint')}>
-                    <Toggle checked={desktop.remoteTextShade} onChange={desktop.setRemoteTextShade} />
-                </Row>
-            </FoldedGroup>
         </>
     );
 };

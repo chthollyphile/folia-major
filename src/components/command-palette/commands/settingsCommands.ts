@@ -363,6 +363,7 @@ export const settingsCommands: CommandPaletteCommand[] = [
         { isAvailable: context => context?.settings.canAutoScanLocalLibrary() ?? true },
     ),
     createSettingsCommand('settings-desktop', 'Desktop settings', 'Open desktop app settings', ['desktop', 'electron', '桌面', '桌面端'], 'options', 'desktop', { platform: ['electron'] }),
+    createSettingsCommand('settings-remote', 'Remote Control settings', 'Open the Remote Control window settings: its switches and lyric rows', ['remote control', 'remote window', 'mini player', 'remote lyrics', '遥控窗口', '遥控窗口设置', '迷你播放器', '遥控歌词'], 'options', 'remote', { platform: ['electron'] }),
     createSettingsAnchorCommand('settings-update-channel', 'Update channel', 'Choose the desktop app release channel', ['release channel', 'realeco', 'limo', 'cielo', '更新通道', '发布通道'], 'updateCheck', { platform: ['electron'] }),
     {
         id: 'desktop-toggle-voice-input-pause',
@@ -458,6 +459,15 @@ export const settingsCommands: CommandPaletteCommand[] = [
         'Toggle the soft dark shade under idle text on the transparent background of the remote control window',
         ['remote control text shade', 'remote window shade', 'text backdrop', 'transparent background readability', '遥控窗口文字黑底', '文字黑底', '透明背景黑底'],
         context => context.settings.toggleRemoteControlTextShade(),
+        { platform: ['electron'] },
+    ),
+    createToggleCommand(
+        'desktop-toggle-remote-control-lyric-pairs',
+        'settings',
+        'Remote control: two lyric pairs',
+        'Toggle whether the remote control window also shows the next line at the bottom right when idle',
+        ['remote control lyrics', 'remote window lyrics', 'two lyric pairs', 'next line', 'four rows', '遥控窗口歌词', '两对歌词', '下一句', '四行歌词'],
+        context => context.settings.toggleRemoteLyricPairs(),
         { platform: ['electron'] },
     ),
     {

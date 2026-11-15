@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { Palette, Pin, PinOff, X } from 'lucide-react';
+import { Palette, Pin, PinOff, Settings, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { REMOTE_NO_DRAG_STYLE } from './remoteWindowBridge';
+import { REMOTE_NO_DRAG_STYLE, sendRemoteCommand } from './remoteWindowBridge';
 
 // src/components/remote/RemoteWindowTools.tsx
-// The remote window's own three tools, top right: background, keep on top, close.
+// The remote window's own three tools, top right: background, keep on top, close; and top left the
+// key that opens the main window's settings on the remote window's page.
 // They show with the pointer in the window, and never when the title bar is switched off.
 // Keep on top is greyed out where Electron cannot do it (native Wayland), with a word on why.
 
@@ -80,6 +81,24 @@ const RemoteWindowTools: React.FC<RemoteWindowToolsProps> = ({ backgroundMode, a
                 onClick={() => void window.electron?.closeRemoteControl?.()}
             >
                 <X size={13} />
+            </button>
+        </div>
+    );
+};
+
+/** Top left: brings the main window up with its settings open on the remote window's page. */
+export const RemoteSettingsKey: React.FC = () => {
+    const { t } = useTranslation();
+    return (
+        <div className="remote-tools remote-tools--start remote-lit" style={REMOTE_NO_DRAG_STYLE}>
+            <button
+                type="button"
+                aria-label={t('remote.openSettings')}
+                title={t('remote.openSettings')}
+                className="remote-tool"
+                onClick={() => sendRemoteCommand({ type: 'open-remote-settings' })}
+            >
+                <Settings size={13} />
             </button>
         </div>
     );
