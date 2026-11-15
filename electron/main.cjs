@@ -102,6 +102,7 @@ const {
   resolveReleaseChannel,
 } = require('./updateChannels.cjs');
 const { discoverUpdateVersion, settleWithin } = require('./updateCheckMirrors.cjs');
+const { createUpdateDownloadPhase } = require('./updateDownloadPhase.cjs');
 const { resolveCacheLimit, selectEvictions } = require('./audioCachePrune.cjs');
 const { removeAudioCacheFileOfSize } = require('./audioCacheRemove.cjs');
 const { createAnalysisHost } = require('./analysis/host.cjs');
@@ -4147,6 +4148,10 @@ function isPackagedUpdateRuntime() {
   return app.isPackaged && process.env.ELECTRON_DEV !== 'true' && process.env.NODE_ENV !== 'development';
 }
 
+// Which of the updater's downloads (only the changed blocks, or the whole installer) is running.
+const updateDownloadPhase = createUpdateDownloadPhase();
+let lastUpdateDownloadMode = null;
+
 const updateState = {
   status: 'idle',
   currentVersion: normalizeVersion(app.getVersion()),
@@ -4237,6 +4242,12 @@ function setupAutoUpdater() {
 
   updater.on('update-available', (info) => {
     const version = normalizeVersion(info?.version);
+    updateDownloadPhase.setInstaller(info);
+    if (updateState.status !== 'downloading') {
+      // No download running: the next one, started by the updater itself when auto-update is on, is new.
+      updateDownloadPhase.restart();
+      lastUpdateDownloadMode = null;
+    }
     setUpdateState({
       status: 'available',
       availableVersion: version || null,
@@ -4263,6 +4274,13 @@ function setupAutoUpdater() {
   });
 
   updater.on('download-progress', (progress) => {
+    const { mode, fallback } = updateDownloadPhase.phaseOf(progress);
+    if (mode !== null && mode !== lastUpdateDownloadMode) {
+      console.info(fallback
+        ? '[Updater] Differential download failed, downloading the full installer'
+        : `[Updater] Downloading the update: ${mode}`);
+      lastUpdateDownloadMode = mode;
+    }
     setUpdateState({
       status: 'downloading',
       error: null,
@@ -4270,6 +4288,8 @@ function setupAutoUpdater() {
         percent: typeof progress.percent === 'number' ? progress.percent : 0,
         transferred: progress.transferred,
         total: progress.total,
+        mode,
+        fallback,
       },
       githubFailed: false,
     });
@@ -4366,6 +4386,11 @@ async function downloadAvailableUpdate() {
   }
 
   try {
+    // The updater hands back the running download instead of starting another: only a new one starts over.
+    if (updateState.status !== 'downloading') {
+      updateDownloadPhase.restart();
+      lastUpdateDownloadMode = null;
+    }
     setUpdateState({ status: 'downloading', error: null, downloadProgress: null });
     await updater.downloadUpdate();
   } catch (error) {

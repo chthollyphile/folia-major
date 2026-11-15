@@ -4001,6 +4001,8 @@ export default {
     "queueNextLabel": "Tambahkan ke berikutnya",
     "newVersionFound": "Versi baru ditemukan v{{version}}",
     "downloadingProgress": "Mengunduh ({{percent}}%)",
+    "downloadingDifferentialProgress": "Mengunduh perubahan ({{percent}}%)",
+    "downloadingFullFallbackProgress": "Patch gagal, mengunduh installer lengkap ({{percent}}%)",
     "chinaDownload": "Unduh CN",
     "goToGithubRelease": "Buka halaman rilis GitHub",
     "chinaDownloadHint": "Catatan: Unduhan GitHub mungkin lambat di Tiongkok. Gunakan Quark Drive atau Baidu Drive sebagai gantinya.",
