@@ -257,6 +257,24 @@ const blobToDataUrl = async (blob: Blob): Promise<string> => {
     return `data:${mimeType};base64,${encodeBase64(bytes)}`;
 };
 
+/** A blob: cover read into a data URL, kept with the cover it was read from. */
+export type ObsInlinedCover = { source: string; url: string | null };
+
+/**
+ * The cover the overlay is given for the cover the player shows now.
+ *
+ * Any other URL travels as it is. A blob: URL cannot be read from OBS, so it is shown only once it
+ * has been inlined - and only by the copy made from this very cover: one left from the song
+ * before answers for nothing, so a song change shows no cover rather than the last one.
+ */
+export const resolvePublishedObsCoverUrl = (
+    coverUrl: string | null,
+    inlined: ObsInlinedCover | null,
+): string | null => {
+    if (!isObsBrowserSourceBlobCoverUrl(coverUrl)) return coverUrl;
+    return inlined?.source === coverUrl ? inlined.url : null;
+};
+
 type ObsImageAsset = CappellaAvatarImage | CappellaEmojiImage | MonetBackgroundImage | MonetPortraitImage;
 
 // OBS runs in a separate browser context, so blob URLs from the main window are not readable there.
