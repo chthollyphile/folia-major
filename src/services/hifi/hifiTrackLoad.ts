@@ -2,7 +2,6 @@ import type { LocalSong } from '../../types';
 import type { HifiEngineState, HifiLoadRequest, HifiLoadResult, HifiSourceRequest } from '../../types/hifi';
 import type { NavidromeSong } from '../../types/navidrome';
 import { useAudioSettingsStore } from '../../stores/useAudioSettingsStore';
-import { usePlaybackStore } from '../../stores/usePlaybackStore';
 import { hifiEngine, isHifiLoadCancelled, useHifiEngineStore } from './hifiEngine';
 import { hifiMediaShim } from './hifiMediaShim';
 import { applyHifiEngineState } from './hifiTrackDriver';
@@ -24,9 +23,8 @@ export type BeginHifiTrackOutcome = 'ready' | 'adopted' | 'deferred' | 'failed' 
 /** 一次要发给主进程的载入：哪一次起播的、哪一首、源在哪。延后的载入也是存成这个样子。 */
 export type HifiLoadJob = { attempt: number; track: HifiTrack; source: HifiTrackSource };
 
-const isLoopOne = () => (
-    useAudioSettingsStore.getState().loopMode === 'one' && !usePlaybackStore.getState().isFmMode
-);
+// 单曲循环在私人 FM 里也生效，和普通 <audio> 播放一致（#1225）。
+const isLoopOne = () => useAudioSettingsStore.getState().loopMode === 'one';
 
 // 离结尾不到这么多秒的起点从头放：mpv 暂停着载入在结尾、再开播时会停在结尾，既不出声也不报放完。
 const START_NEAR_END_SEC = 0.5;

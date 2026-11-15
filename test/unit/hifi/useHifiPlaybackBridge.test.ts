@@ -457,7 +457,7 @@ describe('useHifiPlaybackBridge', () => {
         useHifiEngineStore.setState({ circuitOpen: false });
     });
 
-    it('sets loop-file on mpv when the loop mode changes on the HiFi route, never in Personal FM', async () => {
+    it('sets loop-file on mpv when the loop mode changes on the HiFi route, Personal FM included', async () => {
         const { rerender } = mount();
         rerender({ effectiveLoopMode: 'one' });
         expect(api.setLoopFile).not.toHaveBeenCalled();
@@ -468,8 +468,10 @@ describe('useHifiPlaybackBridge', () => {
         expect(api.setLoopFile).toHaveBeenLastCalledWith(false);
         rerender({ effectiveLoopMode: 'one' });
         expect(api.setLoopFile).toHaveBeenLastCalledWith(true);
+        // Personal FM keeps the file looping: entering it sends nothing new.
+        const callsBeforeFm = api.setLoopFile.mock.calls.length;
         rerender({ isFmMode: true });
-        expect(api.setLoopFile).toHaveBeenLastCalledWith(false);
+        expect(api.setLoopFile).toHaveBeenCalledTimes(callsBeforeFm);
     });
 });
 

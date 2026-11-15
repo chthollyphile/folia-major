@@ -48,7 +48,7 @@ export type HifiGaplessInput = {
 
 /**
  * 现在该排在 mpv 里的下一首，不该排时为 null：HiFi 路线上的当前这首已经载入好、mpv 正放着或停着它、不是刚接上还没被认领的那首，
- * 播放器那一侧也已经是这首歌；单曲循环（私人 FM 里不算，和 loop-file 同一条规则）时 mpv 自己循环，不排。下一首按 handleNextTrack
+ * 播放器那一侧也已经是这首歌；单曲循环（私人 FM 里也算，和 loop-file 同一条规则）时 mpv 自己循环，不排。下一首按 handleNextTrack
  * 的下标规则取，要走 HiFi，且不是同一首歌（只有一首的列表循环是重播，不是接播）。
  */
 export const hifiGaplessNextSong = (
@@ -57,7 +57,7 @@ export const hifiGaplessNextSong = (
 ): SongResult | null => {
     if (playbackRoute !== 'hifi' || !current || current.promotedByGapless || loadState !== 'ready') return null;
     if (engineTrackKey !== current.trackKey || (engineStatus !== 'playing' && engineStatus !== 'paused')) return null;
-    if (loopMode === 'one' && !isFmMode) return null;
+    if (loopMode === 'one') return null;
     if (!currentSong || getPlaybackSongKey(currentSong) !== current.songKey) return null;
     const nextIndex = nextQueueIndex(playQueue.length, queueIndexOf(playQueue, currentSong), queueLoopMode(loopMode, isFmMode));
     const next = nextIndex >= 0 ? playQueue[nextIndex] : null;
