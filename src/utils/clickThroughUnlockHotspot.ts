@@ -7,13 +7,14 @@
 // The unlock button sits at `right-[180px]` normally and at `right-[224px]` while the titlebar shows
 // the fullscreen button (AppShell). It is 28px wide (`w-7`). The hotspot has to cover both spots,
 // otherwise the button is revealed beside the hotspot and moving onto it drops the unlock again.
-// The media buttons to its left (ClickThroughMediaControls, #471) come up with it, so the hotspot
-// reaches over them as well: an 86px group at `right-[214px]`, or `right-[258px]` with fullscreen.
+// The keep-on-top button (ClickThroughPinButton, 28px at `right-[214px]` / `right-[258px]`) and the
+// media buttons left of it (ClickThroughMediaControls, #471) come up with it, so the hotspot reaches
+// over them as well: an 86px group at `right-[248px]`, or `right-[292px]` with fullscreen.
 // It only grows leftward: its right edge stays 176px in, clear of the caption buttons (about 138px
 // on Windows) of a maximized window underneath, which would otherwise land on these buttons.
 
 export const CLICK_THROUGH_UNLOCK_HOTSPOT = {
-    width: 172,
+    width: 206,
     height: 40,
     rightInset: 176,
     topInset: 4,
@@ -24,16 +25,24 @@ export const CLICK_THROUGH_UNLOCK_BUTTON_RIGHT_OFFSET = 180;
 export const CLICK_THROUGH_UNLOCK_BUTTON_RIGHT_OFFSET_WITH_FULLSCREEN_BUTTON = 224;
 export const CLICK_THROUGH_UNLOCK_BUTTON_WIDTH = 28;
 
-// Right-edge offsets and width of the media button group beside the unlock button in AppShell.
-export const CLICK_THROUGH_MEDIA_CONTROLS_RIGHT_OFFSET = 214;
-export const CLICK_THROUGH_MEDIA_CONTROLS_RIGHT_OFFSET_WITH_FULLSCREEN_BUTTON = 258;
+// Right-edge offsets of the keep-on-top button beside the unlock button in AppShell; same size as the lock.
+export const CLICK_THROUGH_PIN_BUTTON_RIGHT_OFFSET = 214;
+export const CLICK_THROUGH_PIN_BUTTON_RIGHT_OFFSET_WITH_FULLSCREEN_BUTTON = 258;
+export const CLICK_THROUGH_PIN_BUTTON_WIDTH = 28;
+
+// Right-edge offsets and width of the media button group left of the keep-on-top button in AppShell.
+// Where the window cannot be kept on top (native Wayland) the pin is left out and the group moves
+// up to the lock's offsets + 34px; the hotspot stays sized for the wider row.
+export const CLICK_THROUGH_MEDIA_CONTROLS_RIGHT_OFFSET = 248;
+export const CLICK_THROUGH_MEDIA_CONTROLS_RIGHT_OFFSET_WITH_FULLSCREEN_BUTTON = 292;
 export const CLICK_THROUGH_MEDIA_CONTROLS_WIDTH = 86;
 
 // One window button is 44px wide (`w-11` in WindowControls).
 export const WINDOW_CONTROL_BUTTON_WIDTH = 44;
 // Room left for the macOS traffic lights when the drawn buttons share the left edge with them.
 export const NATIVE_TRAFFIC_LIGHTS_RESERVED_WIDTH = 76;
-// The lock starts 4px past the window buttons; the media group ends 6px before the lock.
+// The lock starts 4px past the window buttons; the pin and the media group each end 6px before the
+// button to their right.
 export const CLICK_THROUGH_UNLOCK_BUTTON_GAP = 4;
 export const CLICK_THROUGH_MEDIA_CONTROLS_GAP = 6;
 
@@ -52,7 +61,7 @@ export const resolveWindowControlsExtent = ({ hasFullscreenButton, nativeTraffic
 };
 
 // With the window buttons on the left (`titlebarSide`) the row is mirrored: the same offsets count
-// from the left edge, and the hotspot covers 176px to 348px in from the left.
+// from the left edge, and the hotspot covers 176px to 382px in from the left.
 //
 // Whether a viewport point lies inside the unlock hotspot of a window `viewportWidth` px wide.
 // With the window buttons on the left the whole row is mirrored, so the point is mirrored too.
