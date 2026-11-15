@@ -1,4 +1,5 @@
 import { parseColorChannels } from '../components/visualizer/colorMix';
+import { fitOklchToSrgb, oklabDistance, oklabToSrgb, oklchToOklab, srgbToOklab, srgbToOklch, type Oklch } from './oklab';
 
 // src/utils/themeColorMath.ts
 // Hex-space color math for theme generation: RGB/HSL conversion, WCAG luminance and contrast,
@@ -172,6 +173,58 @@ export const adjustLightnessForContrast = (
         }
 
         // Already clamped at an end of the lightness axis: no further step can help.
+        if (index > 0 && (lightness === 0 || lightness === 1)) {
+            break;
+        }
+    }
+
+    return bestColor;
+};
+
+export const hexToOklch = (color: string): Oklch | null => {
+    const parsed = parseThemeColor(color);
+    return parsed ? srgbToOklch(parsed) : null;
+};
+
+/** Perceptual distance (ΔE in OKLab) between two theme colours; Infinity when one does not parse. */
+export const getOklabDistance = (from: string, to: string) => {
+    const start = parseThemeColor(from);
+    const end = parseThemeColor(to);
+    return start && end ? oklabDistance(srgbToOklab(start), srgbToOklab(end)) : Infinity;
+};
+
+/** Hex for an OKLCH colour; chroma sRGB cannot show is lowered (hue and lightness kept). */
+export const oklchToHex = (color: Oklch) => rgbToHex(oklabToSrgb(oklchToOklab(fitOklchToSrgb(color))));
+
+// The OKLCH counterpart of adjustLightnessForContrast: walks perceptual lightness away from the
+// background, re-fitting chroma to sRGB at every step, so a yellow pushed darker for contrast
+// keeps reading as the same hue at the same strength instead of sliding into olive.
+export const adjustOklchLightnessForContrast = (
+    color: Oklch,
+    background: string,
+    minRatio: number,
+    step = 0.01,
+    maxSteps = 100,
+) => {
+    const direction = getRelativeLuminance(background) > 0.35 ? -1 : 1;
+
+    let bestColor = oklchToHex(color);
+    let bestRatio = getContrastRatio(bestColor, background);
+
+    for (let index = 0; index <= maxSteps; index += 1) {
+        const lightness = clamp01(color.L + direction * step * index);
+        const candidate = oklchToHex({ ...color, L: lightness });
+        const ratio = getContrastRatio(candidate, background);
+
+        if (ratio > bestRatio) {
+            bestRatio = ratio;
+            bestColor = candidate;
+        }
+
+        if (ratio >= minRatio) {
+            return candidate;
+        }
+
         if (index > 0 && (lightness === 0 || lightness === 1)) {
             break;
         }
