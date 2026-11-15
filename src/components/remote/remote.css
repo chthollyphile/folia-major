@@ -296,7 +296,7 @@
   width: 176px;
   height: 176px;
   transform-origin: 0 0;
-  transform: translate(calc(196px + var(--remote-lead, 0px)), 11px) scale(0.125);
+  transform: translate(196px, 11px) scale(0.125);
   border-radius: 48px;
   overflow: hidden;
   background: rgba(var(--remote-ink), 0.1);
@@ -391,9 +391,9 @@
 }
 
 .remote-song__line {
-  left: calc(53px + var(--remote-lead, 0px));
+  left: 53px;
   top: 11px;
-  width: calc(257px - var(--remote-lead, 0px));
+  width: 257px;
   height: 22px;
 }
 
@@ -401,10 +401,15 @@
   width: 345px;
 }
 
-/* Making room for the settings key, and giving it back, at the pace of the keys lighting up. */
+/* The four tools top right start at x 302 while lit: the song stops short of them, and takes the room
+   back at the pace of the keys lighting up. */
+.remote-window[data-lit='true'][data-notitle='false'] .remote-song__line {
+  width: 231px;
+}
+
 .remote-song[data-mode='line'] .remote-song__line {
   transition: opacity 220ms ease 140ms, transform 420ms cubic-bezier(0.2, 0.8, 0.2, 1),
-    left 220ms var(--remote-snap), width 220ms var(--remote-snap);
+    width 220ms var(--remote-snap);
 }
 
 .remote-song__card {
@@ -704,23 +709,7 @@
   color: var(--remote-next);
 }
 
-/* ---- window tools, top right; the settings key, top left ---- */
-
-/* At the sheet's back key, which takes its place while the sheet is open. Two classes: it must win
-   over .remote-tools' right edge below, or the no-drag box would span the whole top band. */
-.remote-tools.remote-tools--start {
-  right: auto;
-  left: 13px;
-}
-
-.remote-window[data-sheet='true'] .remote-tools--start {
-  display: none;
-}
-
-/* While the settings key shows, the small cover and the song make room for it. */
-.remote-window[data-lit='true'][data-notitle='false'] .remote-song[data-mode='line'] {
-  --remote-lead: 18px;
-}
+/* ---- window tools, top right ---- */
 
 .remote-tools {
   position: absolute;

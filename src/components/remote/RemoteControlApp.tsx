@@ -11,7 +11,7 @@ import RemoteProgressLine from './RemoteProgressLine';
 import RemoteQueue from './RemoteQueue';
 import RemoteSheet from './RemoteSheet';
 import RemoteSongLine, { RemoteCoverFaces, RemoteOutgoingRecede } from './RemoteSongLine';
-import RemoteWindowTools, { RemoteSettingsKey, type RemoteBackgroundMode } from './RemoteWindowTools';
+import RemoteWindowTools, { type RemoteBackgroundMode } from './RemoteWindowTools';
 import { DEFAULT_REMOTE_LYRIC_LAYOUT, parseRemoteLyricLayout, readRemoteLyricLayout, serializeRemoteLyricLayout } from '../../utils/remoteLyricLayout';
 import {
     REMOTE_DRAG_STYLE,
@@ -211,7 +211,6 @@ const RemoteControlApp: React.FC = () => {
                         )}
                     </AnimatePresence>
 
-                    <RemoteSettingsKey />
                     <RemoteWindowTools
                         backgroundMode={backgroundMode}
                         alwaysOnTopSupported={presentation.alwaysOnTopSupported}
