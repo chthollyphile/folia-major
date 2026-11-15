@@ -68,6 +68,14 @@ export const FoundUpdateRow: React.FC<FoundUpdateRowProps> = ({ sub }) => {
     // The updater gives no usable percent while it does not know the size.
     const reported = updateStatus?.downloadProgress?.percent;
     const percent = typeof reported === 'number' && Number.isFinite(reported) ? reported : 0;
+    // The updater first tries only the changed blocks and, when that fails, starts over with the whole
+    // installer: the label says which, so the second pass does not look like the first starting over.
+    const downloadMode = updateStatus?.downloadProgress?.mode;
+    const progressKey = updateStatus?.downloadProgress?.fallback
+        ? 'options.downloadingFullFallbackProgress'
+        : downloadMode === 'differential'
+            ? 'options.downloadingDifferentialProgress'
+            : 'options.downloadingProgress';
 
     return (
         <Reveal when={Boolean(version)}>
@@ -102,7 +110,7 @@ export const FoundUpdateRow: React.FC<FoundUpdateRowProps> = ({ sub }) => {
                 />
                 {autoUpdateSupported && isDownloading && (
                     <Progress value={percent / 100}>
-                        {t('options.downloadingProgress', { percent: Math.round(percent) })}
+                        {t(progressKey, { percent: Math.round(percent) })}
                     </Progress>
                 )}
                 {autoUpdateSupported && !electronSettings.ENABLE_AUTO_UPDATE && !isDownloading && !isDownloaded && (

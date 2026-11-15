@@ -4001,6 +4001,8 @@ export default {
     "queueNextLabel": "Append to next",
     "newVersionFound": "New version found v{{version}}",
     "downloadingProgress": "Downloading ({{percent}}%)",
+    "downloadingDifferentialProgress": "Downloading changes ({{percent}}%)",
+    "downloadingFullFallbackProgress": "Patch failed, downloading full installer ({{percent}}%)",
     "chinaDownload": "CN Download",
     "goToGithubRelease": "Go to GitHub release page",
     "chinaDownloadHint": "Note: GitHub downloads may be slow in China. Use Quark Drive or Baidu Drive instead.",

@@ -4002,6 +4002,8 @@ export default {
     "queueNextLabel": "追加到下一首",
     "newVersionFound": "发现新版本 v{{version}}",
     "downloadingProgress": "正在下载({{percent}}%)",
+    "downloadingDifferentialProgress": "正在增量下载({{percent}}%)",
+    "downloadingFullFallbackProgress": "增量更新失败，正在完整下载({{percent}}%)",
     "chinaDownload": "网盘下载",
     "goToGithubRelease": "前往Github下载页",
     "chinaDownloadHint": "提示：下载需直连 GitHub（可能较慢），国内环境推荐使用夸克或百度网盘。",

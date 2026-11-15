@@ -447,6 +447,10 @@ declare global {
       percent: number;
       transferred?: number;
       total?: number;
+      /** Which download this is: only the blocks that changed, or the whole installer. Null when unknown. */
+      mode?: 'differential' | 'full' | null;
+      /** The whole installer is being downloaded because the differential download failed. */
+      fallback?: boolean;
     } | null;
   }
 

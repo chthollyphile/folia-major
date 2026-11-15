@@ -4001,6 +4001,8 @@ export default {
     "queueNextLabel": "Phát kế tiếp",
     "newVersionFound": "Phát hiện phiên bản mới v{{version}}",
     "downloadingProgress": "Đang tải xuống ({{percent}}%)",
+    "downloadingDifferentialProgress": "Đang tải phần thay đổi ({{percent}}%)",
+    "downloadingFullFallbackProgress": "Bản vá thất bại, đang tải bộ cài đầy đủ ({{percent}}%)",
     "chinaDownload": "Tải về (TQ)",
     "goToGithubRelease": "Đến trang bản phát hành GitHub",
     "chinaDownloadHint": "Lưu ý: Tải từ GitHub tại Trung Quốc có thể chậm. Nên dùng Quark Drive hoặc Baidu Netdisk thay thế.",
