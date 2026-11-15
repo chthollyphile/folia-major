@@ -79,6 +79,35 @@ const ENDED_CHECK_MS = 100;
 const LIST_ON_WINDOWS = '[Console]::OutputEncoding = [Text.Encoding]::UTF8; Get-CimInstance Win32_Process'
   + ' | Where-Object { $_.CommandLine -and $_.CommandLine.Contains($env:FOLIA_SIGN_IN_FOLDER) }'
   + ' | ForEach-Object { [string]$_.ProcessId + [char]32 + $_.CommandLine }';
+// Windows: the commands the registry gives for browsers, one a line, best first: the one Windows
+// opens https links with (the person's default browser; newer Windows 11 builds keep it in the
+// ProgId subkey of UserChoiceLatest, measured on build 26200, older ones in UserChoice itself), then every browser registered under
+// StartMenuInternet (the list Windows offers as default apps), the person's own before the
+// computer's. A browser that is not installed (a portable one, #1227) is found only this way.
+// PowerShell names a key's default value `(default)` in every language, where reg.exe prints a
+// translated name in the console's code page.
+const REGISTERED_ON_WINDOWS = '[Console]::OutputEncoding = [Text.Encoding]::UTF8; $ErrorActionPreference = "SilentlyContinue";'
+  + ' $command = { param($key) (Get-ItemProperty -LiteralPath $key).\'(default)\' };'
+  + ' foreach ($choice in "UserChoiceLatest", "UserChoice") {'
+  + ' $key = "HKCU:\\Software\\Microsoft\\Windows\\Shell\\Associations\\UrlAssociations\\https\\$choice";'
+  + ' $id = (Get-ItemProperty -LiteralPath "$key\\ProgId").ProgId; if (-not $id) { $id = (Get-ItemProperty -LiteralPath $key).ProgId };'
+  + ' if ($id) { & $command "Registry::HKEY_CLASSES_ROOT\\$id\\shell\\open\\command" } };'
+  + ' foreach ($root in "HKCU:\\SOFTWARE\\Clients\\StartMenuInternet", "HKLM:\\SOFTWARE\\Clients\\StartMenuInternet", "HKLM:\\SOFTWARE\\WOW6432Node\\Clients\\StartMenuInternet") {'
+  + ' Get-ChildItem -LiteralPath $root | ForEach-Object { & $command (Join-Path $_.PSPath "shell\\open\\command") } };'
+  // A key that is not there (no WOW6432Node on a trimmed Windows) is skipped, but would still end
+  // PowerShell with exit code 1 when it is the last statement.
+  + ' exit 0';
+// The executables a browser from the registry may be: those of the browsers in BROWSERS. Another
+// browser, or a portable browser's launcher (which starts the browser and ends at once), would
+// not take the switches the sign-in starts it with, or would end the sign-in 'at-once'.
+const REGISTERED_NAMES = Object.freeze(['chrome.exe', 'msedge.exe', 'brave.exe']);
+// Windows: a switch both runs of the browser are given. Portable browsers made with chrome++
+// (Bush2021/chrome_plus: a version.dll beside msedge.exe or chrome.exe; #1227) start the browser
+// again with switches of their own and end the first process at once, handing over no handles
+// (so no debugging pipe), unless the command line already holds `--portable`; then the process
+// and its `--user-data-dir` are left as given (read in its src/chrome++.cc and src/portable.cc,
+// 2026-11-15; not run). Chromium itself ignores a switch it does not know.
+const PORTABLE_HOLD = '--portable';
 
 // In the order they are looked for: the four stable browsers, then Chrome's other channels, then
 // Helium. `name` is what the log calls it. `win` is the path under a programs folder, and
@@ -161,6 +190,28 @@ function browserPlaces({ platform = process.platform, env = process.env } = {}) 
   // A PATH entry that is not absolute names a folder under whichever folder the app was started in.
   const folders = (env.PATH ?? '').split(':').filter(folder => path.posix.isAbsolute(folder));
   return BROWSERS.flatMap(browser => browser.linux.flatMap(command => folders.map(folder => ({ name: browser.name, file: path.posix.join(folder, command) }))));
+}
+
+// The executable a registry command starts: the path in quotes at its start, or, without quotes,
+// the text up to the first ".exe" followed by a space or the end. null when there is none.
+function commandExecutable(command) {
+  const text = String(command ?? '').trim();
+  const quoted = /^"([^"]+)"/.exec(text);
+  if (quoted) return quoted[1];
+  return /^(.+?\.exe)(?=\s|$)/i.exec(text)?.[1] ?? null;
+}
+
+// The browsers a list of registry commands names, in the same order and each once: only absolute
+// paths whose executable is one of REGISTERED_NAMES.
+function registeredPlaces(commands) {
+  const seen = new Set();
+  return commands.map(commandExecutable).filter(file => {
+    if (!file || !path.win32.isAbsolute(file) || !REGISTERED_NAMES.includes(path.win32.basename(file).toLowerCase())) return false;
+    const key = path.win32.normalize(file).toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).map(file => ({ name: 'a browser from the registry', file }));
 }
 
 // The paths of `browserPlaces` alone, in the same order.
@@ -275,15 +326,30 @@ function createBrowserSignIn({
   remove = removeFolderOnce, wait = ms => new Promise(resolve => { setTimeout(resolve, ms); }),
   execFile = childProcess.execFile, kill = (pid, signal) => process.kill(pid, signal),
 } = {}) {
-  // The path of an installed browser: Chrome, then Edge, Chromium, Brave, then Chrome Beta, Dev,
-  // Canary and Helium. null when there is none. The log names the browser: on Windows Chrome's
-  // channels, Chromium and Helium are all chrome.exe.
   // A file name is cut from its path by the rules of `platform`, not of the computer this runs on.
   const fileName = file => (platform === 'win32' ? path.win32 : path.posix).basename(file);
-  const findBrowser = () => {
-    const found = browserPlaces({ platform, env }).find(place => exists(place.file)) ?? null;
+  const portableHold = platform === 'win32' ? [PORTABLE_HOLD] : [];
+  const powerShell = () => path.win32.join(env.SystemRoot ?? 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+  // Windows: the browsers the registry names (REGISTERED_ON_WINDOWS), as `browserPlaces` gives
+  // places. Empty where the registry could not be read: that is told in the log and is no error.
+  const registeredBrowsers = () => new Promise(resolve => {
+    execFile(powerShell(), ['-NoProfile', '-NonInteractive', '-Command', REGISTERED_ON_WINDOWS],
+      { windowsHide: true, timeout: LIST_LIMIT_MS, maxBuffer: 1024 * 1024 }, (error, stdout) => {
+        // What was printed before a failure is still used: it is whole lines, each one browser.
+        if (error) warn(`[Ytm] The browsers in the registry could not be read (${error?.code ?? 'unknown'})`);
+        resolve(registeredPlaces(String(stdout ?? '').split(/\r?\n/)));
+      });
+  });
+  // The path of a browser: Chrome, then Edge, Chromium, Brave, then Chrome Beta, Dev, Canary and
+  // Helium where they are installed; on Windows, where none is, the default browser and then the
+  // other browsers registered with Windows (a portable one, #1227), if it is one of these.
+  // null when there is none. The log names the browser: on Windows Chrome's channels, Chromium
+  // and Helium are all chrome.exe.
+  const findBrowser = async () => {
+    let found = browserPlaces({ platform, env }).find(place => exists(place.file)) ?? null;
+    if (!found && platform === 'win32') found = (await registeredBrowsers()).find(place => exists(place.file)) ?? null;
     if (found) log(`[Ytm] Sign-in can use ${found.name} (${fileName(found.file)})`);
-    else warn('[Ytm] No Chrome (of any channel), Edge, Chromium, Brave or Helium was found for the sign-in');
+    else warn('[Ytm] No Chrome (of any channel), Edge, Chromium, Brave or Helium was found for the sign-in, installed or registered');
     return found?.file ?? null;
   };
 
@@ -326,7 +392,7 @@ function createBrowserSignIn({
     let child = null;
     try {
       mark(profileDir);
-      child = start(browserPath, [`--user-data-dir=${profileDir}`, '--no-first-run', '--no-default-browser-check', SIGN_IN_URL], { stdio: 'ignore', detached: true });
+      child = start(browserPath, [`--user-data-dir=${profileDir}`, '--no-first-run', '--no-default-browser-check', ...portableHold, SIGN_IN_URL], { stdio: 'ignore', detached: true });
     } catch (error) {
       warn(`[Ytm] The sign-in folder could not be marked as the app's own (${error?.code ?? 'unknown'}); no browser was started`);
     }
@@ -371,7 +437,7 @@ function createBrowserSignIn({
       reject(new BrowserSignInError(code));
     };
     const child = start(browserPath, [
-      '--headless=new', '--remote-debugging-pipe', '--no-startup-window', `--user-data-dir=${profileDir}`, '--no-first-run', '--no-default-browser-check',
+      '--headless=new', '--remote-debugging-pipe', '--no-startup-window', `--user-data-dir=${profileDir}`, '--no-first-run', '--no-default-browser-check', ...portableHold,
     ], { stdio: ['ignore', 'ignore', 'ignore', 'pipe', 'pipe'], windowsHide: true });
     // Listened to from the start, before the pipes are looked at: a browser that could not be
     // started for want of file handles comes without pipes and says so a moment later, and an
@@ -500,7 +566,7 @@ function createBrowserSignIn({
   // process, and the folder is looked for here.
   const processesNaming = dir => new Promise((resolve, reject) => {
     const [file, args, extra] = platform === 'win32'
-      ? [path.win32.join(env.SystemRoot ?? 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe'),
+      ? [powerShell(),
         ['-NoProfile', '-NonInteractive', '-Command', LIST_ON_WINDOWS], { env: { ...env, FOLIA_SIGN_IN_FOLDER: dir } }]
       : ['/bin/ps', ['-axww', '-o', 'pid=,command='], {}];
     execFile(file, args, { ...extra, windowsHide: true, timeout: LIST_LIMIT_MS, maxBuffer: 32 * 1024 * 1024 }, (error, stdout) => {
@@ -555,6 +621,6 @@ function createBrowserSignIn({
 }
 
 module.exports = {
-  createBrowserSignIn, BrowserSignInError, browserCandidates, cookieHeaderOf, createPipeReader, isSignedIn, youtubeCookies, startedOn,
+  createBrowserSignIn, BrowserSignInError, browserCandidates, commandExecutable, cookieHeaderOf, registeredPlaces, createPipeReader, isSignedIn, youtubeCookies, startedOn,
   FOLDER_MARK, SIGN_IN_URL,
 };
