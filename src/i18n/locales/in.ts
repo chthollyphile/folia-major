@@ -1909,7 +1909,7 @@ export default {
     "appleMusicLinuxUnsupported": "Linux belum didukung",
     "loginNoteYtmBrowser": "Jendela browser terpisah akan terbuka. Masuk ke Google di sana, lalu tutup jendela itu setelah YouTube Music menampilkan akun Anda.",
     "loginNoteYtmBrowserMac": "Jendela browser terpisah akan terbuka. Masuk ke Google di sana, lalu keluar dari browser itu (⌘Q) setelah YouTube Music menampilkan akun Anda.",
-    "loginNoBrowserYtm": "Masuk ke YouTube Music memerlukan Chrome (Beta, Dev, atau Canary juga bisa), Edge, Chromium, Brave, atau Helium yang terpasang.",
+    "loginNoBrowserYtm": "Masuk ke YouTube Music memerlukan Chrome (Beta, Dev, atau Canary juga bisa), Edge, Chromium, Brave, atau Helium yang terpasang. Di Windows, Chrome, Edge, atau Brave portabel yang dijadikan browser default juga bisa (chrome.exe, msedge.exe, atau brave.exe itu sendiri, bukan peluncur).",
     "loginCodeWaiting": "Menunggu konfirmasi di browser",
     "loginTitleSpotify": "Masuk ke Spotify",
     "loginNoteSpotify": "Pilih Setuju di halaman Spotify yang terbuka di browser",

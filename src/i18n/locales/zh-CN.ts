@@ -1909,7 +1909,7 @@ export default {
     "appleMusicLinuxUnsupported": "Linux 暂未支援",
     "loginNoteYtmBrowser": "会打开一个单独的浏览器窗口。在里面登录 Google，看到 YouTube Music 显示你的账号后，关掉那个窗口。",
     "loginNoteYtmBrowserMac": "会打开一个单独的浏览器窗口。在里面登录 Google，看到 YouTube Music 显示你的账号后，退出那个浏览器（⌘Q）。",
-    "loginNoBrowserYtm": "登录 YouTube Music 需要安装 Chrome（Beta、Dev、Canary 版也可以）、Edge、Chromium、Brave 或 Helium。",
+    "loginNoBrowserYtm": "登录 YouTube Music 需要安装 Chrome（Beta、Dev、Canary 版也可以）、Edge、Chromium、Brave 或 Helium。Windows 上也可以把便携版 Chrome、Edge、Brave 设为默认浏览器（需是 chrome.exe、msedge.exe、brave.exe 本身，不是启动器）。",
     "loginCodeWaiting": "等待在浏览器中确认",
     "loginTitleSpotify": "登录 Spotify",
     "loginNoteSpotify": "在浏览器打开的 Spotify 页面上点“同意”",

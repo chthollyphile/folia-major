@@ -1909,7 +1909,7 @@ export default {
     "appleMusicLinuxUnsupported": "Chưa hỗ trợ Linux",
     "loginNoteYtmBrowser": "Một cửa sổ trình duyệt riêng sẽ mở ra. Đăng nhập vào Google tại đó, sau khi thấy YouTube Music hiển thị tài khoản của bạn, hãy đóng cửa sổ đó.",
     "loginNoteYtmBrowserMac": "Một cửa sổ trình duyệt riêng sẽ mở ra. Đăng nhập vào Google tại đó, sau khi thấy YouTube Music hiển thị tài khoản của bạn, hãy thoát trình duyệt (⌘Q).",
-    "loginNoBrowserYtm": "Đăng nhập YouTube Music yêu cầu đã cài đặt Chrome, Edge, Chromium hoặc Brave.",
+    "loginNoBrowserYtm": "Đăng nhập YouTube Music yêu cầu đã cài đặt Chrome, Edge, Chromium hoặc Brave. Trên Windows, Chrome, Edge hoặc Brave bản portable được đặt làm trình duyệt mặc định cũng dùng được (chính chrome.exe, msedge.exe hoặc brave.exe, không phải trình khởi chạy).",
     "loginCodeWaiting": "Đang chờ xác nhận trên trình duyệt",
     "loginTitleSpotify": "Đăng nhập Spotify",
     "loginNoteSpotify": "Chọn “Đồng ý” trên trang Spotify mở trong trình duyệt của bạn",
