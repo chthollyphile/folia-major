@@ -2,12 +2,14 @@ import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { PlayerState } from '../../../../types';
 import { useLatticeTransport } from '../LatticeTransportContext';
+import { useReducedMotionFor } from '../../../../hooks/useReducedMotionFor';
+import RadioSpectrum from './RadioSpectrum';
 import type { RadioMetrics } from './radioWallModel';
 
 // src/components/app/lattice/radio/RadioBackdrop.tsx
 // 电台墙底下的几何构图（只是装饰，屏幕阅读器跳过）。手法同搜索页的至上主义构图（search.css）：墨条、发丝线、
 // 斜线小方块、淡字；主题换成电波：几道大同心圆和卡牌那一圈弧同心（卡就排在其中一道电波上），左上角一个发射点，
-// 播放时隔很久才往外扩一圈，暂停时停住。卡牌沿弧移动时，这几道同心圆朝同一方向轻轻转一点（turn）。以黑白（墨色）为主，主题色只用在发射点和一小段短条上，不铺大面积的色块。
+// 外面一圈圆形频谱（RadioSpectrum）跟着正在播放的音乐动，暂停时缩回去。卡牌沿弧移动时，这几道同心圆朝同一方向轻轻转一点（turn）。以黑白（墨色）为主，主题色只用在发射点和一小段短条上，不铺大面积的色块。
 // 挂上时依次浮入；降低动态效果时没有动画。
 
 /** 和卡牌那一圈同心的几道电波：半径相对卡牌弧的半径。 */
@@ -33,6 +35,7 @@ export const RADIO_WAVE_TURN_DEG = 3;
 function RadioBackdrop({ metrics, turn }: { metrics: RadioMetrics; turn: number }) {
     const { t } = useTranslation();
     const { playerState } = useLatticeTransport();
+    const reducedMotion = useReducedMotionFor('lattice');
     // 卡牌那一圈弧的圆心：在正中下方一个半径处。
     const centerX = metrics.centerX;
     const centerY = metrics.centerY + metrics.radius;
@@ -64,9 +67,8 @@ function RadioBackdrop({ metrics, turn }: { metrics: RadioMetrics; turn: number 
             <div className="lattice-radio-figure is-hatch"><i /></div>
             <div className="lattice-radio-figure is-transmitter">
                 <i className="is-ring" />
-                <i className="is-ring" />
-                <i className="is-ring" />
-                <i className="is-pulse" />
+                <RadioSpectrum playing={playerState === PlayerState.PLAYING} reducedMotion={reducedMotion} />
+                <i className="is-ring is-base" />
                 <i className="is-core" />
             </div>
             <div className="lattice-radio-figure is-word"><i>{t('home.latticeRadioBackdropWord')}</i></div>

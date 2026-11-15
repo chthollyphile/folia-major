@@ -117,3 +117,12 @@ export const radioCardRect = (offset: number, metrics: RadioMetrics): RadioRect 
         rotate: sign * angle * 180 / Math.PI,
     };
 };
+
+/**
+ * 这张卡在不在窗口里（左右各留半张小卡的余量，倾斜的卡外框会比 rect 稍宽）。整张在窗口外的卡不挂：
+ * 窄窗口（手机）上两边远处的卡看不见，挂着只占封面解码和图层。走进窗口时再从弧上发进来。
+ */
+export const radioCardInView = (rect: RadioRect, metrics: RadioMetrics): boolean => {
+    const margin = metrics.cardSize / 2;
+    return rect.x + rect.width > -margin && rect.x < metrics.width + margin;
+};

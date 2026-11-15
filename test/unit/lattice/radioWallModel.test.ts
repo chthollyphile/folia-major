@@ -3,6 +3,7 @@ import type { SongResult } from '@/types';
 import { buildLatticeTiles } from '@/components/app/lattice/latticeModel';
 import {
     buildRadioCards,
+    radioCardInView,
     radioCardRect,
     resolveRadioMetrics,
 } from '@/components/app/lattice/radio/radioWallModel';
@@ -99,5 +100,16 @@ describe('radio wall layout', () => {
         const now = radioCardRect(0, phone);
         expect(now.x).toBeGreaterThanOrEqual(0);
         expect(now.x + now.width).toBeLessThanOrEqual(375);
+    });
+});
+
+describe('radio wall cards out of view', () => {
+    it('keeps the cards of a wide window and drops the far ones of a phone', () => {
+        const wide = resolveRadioMetrics(1600, 900);
+        expect([-2, -1, 0, 1, 2, 3].every(offset => radioCardInView(radioCardRect(offset, wide), wide))).toBe(true);
+        const phone = resolveRadioMetrics(375, 812);
+        expect(radioCardInView(radioCardRect(0, phone), phone)).toBe(true);
+        expect(radioCardInView(radioCardRect(3, phone), phone)).toBe(false);
+        expect(radioCardInView(radioCardRect(-2, phone), phone)).toBe(false);
     });
 });

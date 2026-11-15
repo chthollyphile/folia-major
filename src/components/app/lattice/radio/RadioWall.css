@@ -122,8 +122,8 @@
     background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--radio-ink) 42%, transparent) 0 2px, transparent 2px 9px);
 }
 
-/* 发射点：左上角（一部分伸出画面）一个强调色实心点，三道静止的同心圆，播放时两道电波一圈圈往外扩。
-   放在卡牌那一圈的上方：中间那一带被卡占着。 */
+/* 发射点：左上角（一部分伸出画面）一个强调色实心点，外面一圈圆形频谱（RadioSpectrum 的 canvas），
+   最外一道发丝圆框住它。放在卡牌那一圈的上方：中间那一带被卡占着。 */
 .lattice-radio-figure.is-transmitter {
     top: -10vh;
     left: 12vw;
@@ -141,29 +141,20 @@
     border-radius: 50%;
 }
 .lattice-radio-figure.is-transmitter > .is-ring { border: 1.5px solid color-mix(in srgb, var(--radio-ink) 22%, transparent); }
-.lattice-radio-figure.is-transmitter > .is-ring:nth-child(2) { inset: 18%; }
-.lattice-radio-figure.is-transmitter > .is-ring:nth-child(3) { inset: 34%; border-style: dashed; }
+.lattice-radio-figure.is-transmitter > .is-ring.is-base { inset: 33%; border-style: dashed; }
+/* 频谱画在整块发射点上；短条的颜色是墨色，由 canvas 读这里的 color。 */
+.lattice-radio-spectrum {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    color: color-mix(in srgb, var(--radio-ink) 70%, transparent);
+    animation: lattice-radio-fade-in 900ms var(--radio-ease) 260ms backwards;
+}
 .lattice-radio-figure.is-transmitter > .is-core {
     inset: 44%;
     background: var(--radio-accent);
 }
-/* 外扩的电波只动 transform 和 opacity（合成层上跑，不触发布局）；不播放时不动。8 秒一圈：扩 2 秒，之后静 6 秒。 */
-.lattice-radio-figure.is-transmitter > .is-pulse {
-    inset: 34%;
-    border: 1.5px solid color-mix(in srgb, var(--radio-accent) 70%, transparent);
-    opacity: 0;
-    animation: none;
-}
-.lattice-radio-backdrop[data-playing] .lattice-radio-figure.is-transmitter > .is-pulse {
-    animation: lattice-radio-pulse 8s linear 1.2s infinite;
-}
-
-@keyframes lattice-radio-pulse {
-    0% { opacity: 0.8; transform: scale(1); animation-timing-function: cubic-bezier(0.2, 0.6, 0.4, 1); }
-    25% { opacity: 0; transform: scale(3.2); }
-    100% { opacity: 0; transform: scale(3.2); }
-}
-
 /* 横排的淡字，压在左下卡牌那一圈下面的空白处。 */
 .lattice-radio-figure.is-word {
     bottom: 2vh;
@@ -224,7 +215,16 @@
 }
 
 /* 背面：封面的代表色（useRadioCoverTint），中间一个问号。 */
+/* 背面的颜色登记成可插值的颜色属性：取色回来时从中性色过渡到封面色，而不是硬切。 */
+@property --lattice-radio-tint {
+    syntax: '<color>';
+    inherits: false;
+    initial-value: #3f3f46;
+}
+
 .lattice-radio-face.is-back {
+    /* 取色之前：主题墨色和底色调出的中性色。 */
+    --lattice-radio-tint: color-mix(in srgb, var(--text-primary, #f7f4ee) 22%, var(--bg-color, #070707));
     display: grid;
     place-items: center;
     overflow: hidden;
@@ -235,7 +235,7 @@
         radial-gradient(circle at 28% 22%, color-mix(in srgb, var(--lattice-radio-tint) 70%, #fff) 0%, transparent 58%),
         linear-gradient(150deg, var(--lattice-radio-tint), color-mix(in srgb, var(--lattice-radio-tint) 48%, #000));
     box-shadow: inset 0 0 0 1px rgb(255 255 255 / 16%), 0 18px 46px rgb(0 0 0 / 28%);
-    transition: filter 300ms ease;
+    transition: filter 300ms ease, --lattice-radio-tint 900ms ease;
 }
 
 .lattice-radio-mark {
@@ -289,5 +289,4 @@
 :root[data-reduce-motion~='lattice'] .lattice-radio,
 :root[data-reduce-motion~='lattice'] .lattice-radio-face.is-back { transition: none; }
 :root[data-reduce-motion~='lattice'] .lattice-radio-waves-turn { transition: none; }
-:root[data-reduce-motion~='lattice'] .lattice-radio-backdrop *,
-:root[data-reduce-motion~='lattice'] .lattice-radio-backdrop[data-playing] .lattice-radio-figure.is-transmitter > .is-pulse { animation: none; }
+:root[data-reduce-motion~='lattice'] .lattice-radio-backdrop * { animation: none; }

@@ -115,7 +115,9 @@ function RadioCard({
     // 歌词是按卡的大小排版的 Pixi 场景：等卡长到位再挂，不在长大的每一帧重排。
     const [settled, onAnimationComplete] = useLatticeExpansionSettled(isNow, reducedMotion);
     const coverUrl = useWallPosterArtwork(tile.coverUrl, Math.max(rect.width, rect.height) * pixelRatio);
-    const tint = useRadioCoverTint(tile.coverUrl) ?? fallbackTint(tile.id);
+    // 取色还没回来时背面是中性色（RadioWall.css），回来后颜色过渡过去，不硬切；取不到时退回按 id 算的颜色。
+    const coverTint = useRadioCoverTint(tile.coverUrl);
+    const tint = coverTint.settled ? coverTint.color ?? fallbackTint(tile.id) : null;
 
     const initial: TargetAndTransition | false = reducedMotion
         ? false
@@ -234,7 +236,8 @@ function RadioCard({
                             </div>
                         )}
                     </article>
-                    <div className="lattice-radio-face is-back" style={{ '--lattice-radio-tint': tint } as CSSProperties} aria-hidden>
+                    <div className={`lattice-radio-face is-back ${tint ? 'is-tinted' : ''}`}
+                        style={tint ? { '--lattice-radio-tint': tint } as CSSProperties : undefined} aria-hidden>
                         <span className="lattice-radio-mark">?</span>
                     </div>
                 </motion.div>

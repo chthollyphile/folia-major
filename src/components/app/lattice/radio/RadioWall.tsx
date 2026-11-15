@@ -8,6 +8,7 @@ import RadioBackdrop, { RADIO_WAVE_TURN_DEG } from './RadioBackdrop';
 import RadioCard, { type RadioCardEntry } from './RadioCard';
 import {
     buildRadioCards,
+    radioCardInView,
     radioCardRect,
     resolveRadioMetrics,
     type RadioCard as RadioCardModel,
@@ -67,11 +68,16 @@ export default function RadioWall({
     const nowKey = cards.find(card => card.role === 'now')?.tile.id ?? null;
 
     // 这次打开以来播过的歌：往回点了一首听过的之后，它后面那些也已经听过，仍是正面朝上。
+    // 只记还在队列里的（换了模式、队列整个换掉时旧的就丢掉）。
     const [seen, setSeen] = useState<ReadonlySet<string>>(() => new Set());
     useEffect(() => {
         if (nowKey === null) return;
-        setSeen(previous => (previous.has(nowKey) ? previous : new Set(previous).add(nowKey)));
-    }, [nowKey]);
+        setSeen(previous => {
+            if (previous.has(nowKey)) return previous;
+            const queued = new Set(tiles.map(tile => tile.id));
+            return new Set([...previous].filter(key => queued.has(key))).add(nowKey);
+        });
+    }, [nowKey, tiles]);
 
     // 卡牌沿弧走一格，背景的同心圆朝同一方向转一点：新的正在播放那张原来在右边，整圈往左（逆时针）转；
     // 原来在左边（往回点了一张听过的）就顺时针转；不在这一圈里（换了模式、队列整个换掉）当作往前走。
@@ -145,6 +151,8 @@ export default function RadioWall({
             <AnimatePresence>
                 {dealt && cards.map((card, index) => {
                     const rect = radioCardRect(card.offset, metrics);
+                    // 整张在窗口外的不挂（卸下时走离场，图片、图层一起释放）。
+                    if (!radioCardInView(rect, metrics)) return null;
                     const exitRect = radioCardRect(card.offset < 0 ? card.offset - 1 : card.offset + 1, metrics);
                     return (
                         <RadioCard
