@@ -41,7 +41,7 @@ type RadioCardProps = {
     exitRect: RadioRect;
     pixelRatio: number;
     reducedMotion: boolean;
-    /** 在私人 FM 里播放这一首。 */
+    /** 播放这一首（私人 FM 里仍在电台里播放）。 */
     onPlay: (tile: LatticeSongTile) => void;
     /** 双击正在播放的那张：暂停着就继续，从不暂停。 */
     onPlayFromWall: (tile: LatticeSongTile) => void;

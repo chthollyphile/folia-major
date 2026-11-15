@@ -17,13 +17,19 @@ import { useRadioWallHandoff } from './useRadioWallHandoff';
 import './RadioWall.css';
 
 // src/components/app/lattice/radio/RadioWall.tsx
-// 电台墙：私人 FM 下 Lattice 画的不是队列墙，而是一圈带轻微弧度的卡牌（radioWallModel.ts 定哪几张、摆在哪）。
-// 正在播放的那张在中间揭开；接下来的几首背面朝上，是封面取色的问号。FM 往前走时，右边补发新卡，左边最旧的那张
-// 翻回背面销毁。点任何一张卡都在私人 FM 里播放它（不变成普通队列）。
+// 电台墙：Lattice 的第二种形态（私人 FM 下总是它），播放队列画成一圈带轻微弧度的卡牌（radioWallModel.ts 定哪几张、
+// 摆在哪）。正在播放的那张在中间揭开；接下来的几首在私人 FM 里（或设置要求时）背面朝上，是封面取色的问号。往前走时，
+// 右边补发新卡，左边最旧的那张翻回背面销毁。点一张卡就播放它：私人 FM 里仍在电台里播放（不变成普通队列）。
 
 type RadioWallProps = {
     /** 队列墙的磁贴（Lattice 已经按队列和当前曲目算好）。 */
     tiles: LatticeTile[];
+    /** 私人 FM（背景上的字、墙的名字跟着它）。 */
+    isFm: boolean;
+    /** 接下来的歌背面朝上（问号卡），轮到或这次打开以来播过才翻开。 */
+    hidesUpcoming: boolean;
+    /** 列表循环：右边的卡放到队尾之后接上队首。 */
+    wrapsAround: boolean;
     onPlay: (tile: LatticeTile) => void;
     onPlayFromWall: (tile: LatticeTile) => void;
     onTogglePlayback: () => void;
@@ -36,6 +42,9 @@ const OPENING_STAGGER_S = 0.08;
 
 export default function RadioWall({
     tiles,
+    isFm,
+    hidesUpcoming,
+    wrapsAround,
     onPlay,
     onPlayFromWall,
     onTogglePlayback,
@@ -63,7 +72,7 @@ export default function RadioWall({
     }, []);
     const pixelRatio = typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1;
 
-    const cards = useMemo(() => buildRadioCards(tiles), [tiles]);
+    const cards = useMemo(() => buildRadioCards(tiles, { wrap: wrapsAround }), [tiles, wrapsAround]);
     const metrics = useMemo(() => (size ? resolveRadioMetrics(size.width, size.height) : null), [size]);
     const nowKey = cards.find(card => card.role === 'now')?.tile.id ?? null;
 
@@ -98,7 +107,10 @@ export default function RadioWall({
     useEffect(() => {
         const container = containerRef.current;
         if (!container) return;
-        if (!container.contains(document.activeElement)) container.focus({ preventScroll: true });
+        // 在墙面工具面板里用键盘切形态时焦点还在面板上（.lattice-tools），不抢；别处（播放页的胶囊、空白处）照旧接过来。
+        const active = document.activeElement;
+        if (active?.closest('.lattice-tools') || container.contains(active)) return;
+        container.focus({ preventScroll: true });
     }, []);
     useEffect(() => {
         if (document.activeElement === document.body) containerRef.current?.focus({ preventScroll: true });
@@ -145,9 +157,9 @@ export default function RadioWall({
             tabIndex={-1}
             onKeyDown={handleKeyDown}
             role="group"
-            aria-label={t('home.latticeRadioLabel')}
+            aria-label={t(isFm ? 'home.latticeRadioLabel' : 'home.latticeRadioQueueLabel')}
         >
-            {metrics && <RadioBackdrop metrics={metrics} turn={waveTurn} />}
+            {metrics && <RadioBackdrop metrics={metrics} turn={waveTurn} word={t(isFm ? 'home.latticeRadioBackdropWord' : 'home.latticeRadioBackdropQueueWord')} />}
             <AnimatePresence>
                 {dealt && cards.map((card, index) => {
                     const rect = radioCardRect(card.offset, metrics);
@@ -161,7 +173,7 @@ export default function RadioWall({
                             role={card.role}
                             offset={card.offset}
                             rect={rect}
-                            revealed={card.role !== 'upcoming' || seen.has(card.tile.id)}
+                            revealed={card.role !== 'upcoming' || !hidesUpcoming || seen.has(card.tile.id)}
                             entry={entryFor(card, index)}
                             exitRect={exitRect}
                             pixelRatio={pixelRatio}

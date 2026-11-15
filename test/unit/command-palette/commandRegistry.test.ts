@@ -134,6 +134,8 @@ const createContext = (overrides: CommandPaletteContextOverrides = {}): CommandP
             toggleGridViewSquareCards: vi.fn(),
             canUseGridViewSquareCards: vi.fn(() => true),
             toggleLatticeVignette: vi.fn(),
+            toggleLatticeWallForm: vi.fn(),
+            toggleLatticeRadioHideUpcoming: vi.fn(),
             toggleLatticeBadgeCurrentOnly: vi.fn(),
             toggleLatticeAutoFocusOnSongChange: vi.fn(),
             toggleReduceLatticeMotion: vi.fn(),

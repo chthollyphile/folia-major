@@ -1,12 +1,13 @@
 import { useMemo } from 'react';
-import { House } from 'lucide-react';
+import { GalleryHorizontal, House } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { usePlaybackStore } from '../../../stores/usePlaybackStore';
 import { usePlayingSongLocatorStore } from '../../../stores/usePlayingSongLocatorStore';
 import { getPlaybackSongKey } from '../../../utils/appPlaybackGuards';
 import { PRIMARY_MODIFIER_LABEL } from '../../../utils/platform';
 import WallToolsButton from '../../wall/WallToolsButton';
-import type { WallToolsQuickAction } from '../../wall/WallToolsRows';
+import type { WallToolsEntry, WallToolsQuickAction } from '../../wall/WallToolsRows';
+import { useLatticeSettingsStore } from '../../../stores/useLatticeSettingsStore';
 import { GridLocateButton } from '../playing-song-locator/GridLocateButton';
 import { useRegisterWallLocate } from '../playing-song-locator/useRegisterWallLocate';
 import type { LatticeTile } from './latticeModel';
@@ -22,7 +23,15 @@ import { locatePlayingSongOnWall, useWallPageKey } from './wallLocate';
 // 那张封面（wallLocate.ts）。「聚焦当前歌曲」与「切歌时自动聚焦」两项不在面板里：定位由上方的按钮做，自动聚焦的
 // 开关在命令面板（「Lattice 自动聚焦」）。
 // 电台墙（isRadio）：正在播放的那张总在正中，没有定位按钮；帮助换成电台墙的操作。
-export default function LatticeFocusButton({ isDaylight, tiles, isRadio = false, onGoHome }: { isDaylight: boolean; tiles: LatticeTile[]; isRadio?: boolean; onGoHome?: () => void }) {
+// 播放队列的墙（showsWallForm）面板里有一格「墙面形态」：海报墙 / 电台墙来回切；私人 FM 下固定是电台墙，这一格置灰。
+export default function LatticeFocusButton({ isDaylight, tiles, isRadio = false, showsWallForm = false, onGoHome }: {
+    isDaylight: boolean;
+    tiles: LatticeTile[];
+    isRadio?: boolean;
+    /** 这面墙画的是播放队列（不是探索页的条目）：面板里给切换墙面形态的那一格。 */
+    showsWallForm?: boolean;
+    onGoHome?: () => void;
+}) {
     const { t } = useTranslation();
     // The song the locator asks about (a collection's page reads the same), and this wall's question.
     const playingSongKey = usePlaybackStore(state => (state.currentSong ? getPlaybackSongKey(state.currentSong) : null));
@@ -31,6 +40,20 @@ export default function LatticeFocusButton({ isDaylight, tiles, isRadio = false,
     const isPlayingSongHere = useMemo(() => (
         playingSongKey !== null && tiles.some(tile => tile.id === playingSongKey)
     ), [playingSongKey, tiles]);
+
+    const wallForm = useLatticeSettingsStore(state => state.latticeWallForm);
+    const setWallForm = useLatticeSettingsStore(state => state.handleSetLatticeWallForm);
+    const isFmMode = usePlaybackStore(state => state.isFmMode);
+    const entries = useMemo((): WallToolsEntry[] => (showsWallForm ? [{
+        kind: 'action',
+        id: 'lattice-wall-form',
+        icon: GalleryHorizontal,
+        label: t('options.latticeWallForm'),
+        value: t(isFmMode ? 'options.latticeWallForm_radio' : `options.latticeWallForm_${wallForm}`),
+        disabled: isFmMode,
+        keepOpen: true,
+        onSelect: () => setWallForm(wallForm === 'radio' ? 'poster' : 'radio'),
+    }] : []), [isFmMode, setWallForm, showsWallForm, t, wallForm]);
 
     const destination: WallToolsQuickAction | undefined = onGoHome ? {
         id: 'go-home',
@@ -54,7 +77,7 @@ export default function LatticeFocusButton({ isDaylight, tiles, isRadio = false,
             label={t('home.latticeTools')}
             isDaylight={isDaylight}
             destination={destination}
-            entries={[]}
+            entries={entries}
             above={locates ? (
                 <GridLocateButton
                     isDaylight={isDaylight}

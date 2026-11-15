@@ -7,6 +7,7 @@ import { DAYLIGHT_THEME, DEFAULT_THEME } from '../../src/services/baseThemes';
 import type { Theme } from '../../src/types';
 import { buildAppStyle } from '../../src/components/app/presentation/buildAppStyle';
 import { useAppViewStore } from '../../src/stores/useAppViewStore';
+import { useLatticeSettingsStore } from '../../src/stores/useLatticeSettingsStore';
 import { usePlaybackStore } from '../../src/stores/usePlaybackStore';
 
 // dev/probes/latticeRadio.probe.tsx
@@ -81,7 +82,10 @@ function LatticeRadioProbe() {
     return <div style={{ ...appStyle, height: '100vh' }} data-plays={plays.join(',')} data-dislikes={dislikes} data-toggles={toggles}>
         <Lattice lyrics={{ lines: lyricLines }} controls={{ loopMode,
             playback: { prev, next,
-                toggleLoop: () => setLoopMode(value => value === 'off' ? 'one' : 'off'),
+                // FM 里只在不循环 / 单曲循环之间切（#1225）；普通队列三态轮换。
+                toggleLoop: () => setLoopMode(value => (isFmMode
+                    ? value === 'off' ? 'one' : 'off'
+                    : value === 'off' ? 'all' : value === 'all' ? 'one' : 'off')),
                 shuffleQueue: () => {}, toggleSongLike: () => {}, isSongLiked: false, isFmMode },
             invokeCommandById: () => {}, canInvokeCommandById: command => command !== 'queue',
             fmDislike: () => { setDislikes(value => value + 1); next(); },
@@ -98,6 +102,11 @@ function LatticeRadioProbe() {
             <button onClick={() => setIsFmMode(value => !value)}>Toggle FM</button>
             <button onClick={() => { setSongs(batchFrom(100)); setCurrentSong(songAt(100)); }}>Switch FM mode</button>
             <button onClick={() => setThemeIndex(value => (value + 1) % THEMES.length)}>Cycle theme</button>
+            {/* 普通队列用哪种墙（设置里的「墙面形态」）；私人 FM 下不看它。 */}
+            <button onClick={() => {
+                const settings = useLatticeSettingsStore.getState();
+                settings.handleSetLatticeWallForm(settings.latticeWallForm === 'radio' ? 'poster' : 'radio');
+            }}>Toggle wall form</button>
         </div>
     </div>;
 }

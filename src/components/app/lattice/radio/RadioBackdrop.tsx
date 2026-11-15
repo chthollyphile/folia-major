@@ -1,5 +1,4 @@
 import { memo } from 'react';
-import { useTranslation } from 'react-i18next';
 import { PlayerState } from '../../../../types';
 import { useLatticeTransport } from '../LatticeTransportContext';
 import { useReducedMotionFor } from '../../../../hooks/useReducedMotionFor';
@@ -32,8 +31,8 @@ const ORBIT_DOTS: Readonly<Record<number, readonly number[]>> = {
 export const RADIO_WAVE_TURN_DEG = 3;
 
 /** turn：同心圆累计转过的角度（度，负数为逆时针）；卡牌往左走一格就逆时针转 RADIO_WAVE_TURN_DEG。 */
-function RadioBackdrop({ metrics, turn }: { metrics: RadioMetrics; turn: number }) {
-    const { t } = useTranslation();
+/** word：左下角那行淡字（私人 FM 时是「私人 FM」，普通队列是「播放队列」）。 */
+function RadioBackdrop({ metrics, turn, word }: { metrics: RadioMetrics; turn: number; word: string }) {
     const { playerState } = useLatticeTransport();
     const reducedMotion = useReducedMotionFor('lattice');
     // 卡牌那一圈弧的圆心：在正中下方一个半径处。
@@ -71,7 +70,7 @@ function RadioBackdrop({ metrics, turn }: { metrics: RadioMetrics; turn: number 
                 <i className="is-ring is-base" />
                 <i className="is-core" />
             </div>
-            <div className="lattice-radio-figure is-word"><i>{t('home.latticeRadioBackdropWord')}</i></div>
+            <div className="lattice-radio-figure is-word"><i>{word}</i></div>
         </div>
     );
 }

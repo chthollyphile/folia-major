@@ -1,8 +1,9 @@
 import type { LatticeSongTile, LatticeTile } from '../latticeModel';
 
 // src/components/app/lattice/radio/radioWallModel.ts
-// 电台墙（私人 FM 下的 Lattice）摆哪几张卡、每张摆在哪：一圈带轻微弧度的卡牌，正在播放的那张在弧顶揭开，
-// 左边是刚听过的几张，右边是已经拉到的接下来几首（背面朝上）；越往两边越低、顺着弧倾斜。纯函数，不碰 React 和 store。
+// 电台墙（Lattice 的第二种形态；私人 FM 下总是它）摆哪几张卡、每张摆在哪：一圈带轻微弧度的卡牌，正在播放的
+// 那张在弧顶揭开，左边是刚听过的几张，右边是接下来的几首（私人 FM 时是已经拉到的、背面朝上）；越往两边越低、
+// 顺着弧倾斜。纯函数，不碰 React 和 store。
 
 export type RadioCardRole = 'played' | 'now' | 'upcoming';
 
@@ -21,30 +22,48 @@ export const RADIO_UPCOMING_CARDS = 3;
 /**
  * 从队列墙的磁贴（buildLatticeTiles，按队列顺序、标好了 played / now / upcoming）里挑出这一行卡。
  * 正在播放的不在队列里时（FM 刚开、还没对上）没有中间那张，右边从队首起摆。
+ * wrap（普通队列开着列表循环）：两边都按播放会走的顺序绕过去——右边放到队尾之后接上队首，左边在队首之前接上队尾
+ * （「上一首」会放的就是它），和切歌时卡的移动方向一致。先排右边，左边只取右边没用到的（队列很短时右边优先），
+ * 同一首不出现两次。
  */
 export const buildRadioCards = (
     tiles: readonly LatticeTile[],
     {
         played = RADIO_PLAYED_CARDS,
         upcoming = RADIO_UPCOMING_CARDS,
-    }: { played?: number; upcoming?: number } = {},
+        wrap = false,
+    }: { played?: number; upcoming?: number; wrap?: boolean } = {},
 ): RadioCard[] => {
     const songs = tiles.filter((tile): tile is LatticeSongTile => tile.kind === 'song');
     const currentIndex = songs.findIndex(tile => tile.section === 'now');
     // 不在队列里时把「正在播放」放在队首之前，右边从第一首起算。
     const anchor = currentIndex >= 0 ? currentIndex : -1;
-    const cards: RadioCard[] = [];
-    const from = Math.max(0, anchor - played);
-    const to = Math.min(songs.length - 1, anchor + upcoming);
-    for (let index = from; index <= to; index += 1) {
-        const offset = index - anchor;
-        cards.push({
-            tile: songs[index],
-            role: offset < 0 ? 'played' : offset === 0 ? 'now' : 'upcoming',
-            offset,
-        });
+    const used = new Set<number>(anchor >= 0 ? [anchor] : []);
+
+    const upcomingIndices: number[] = [];
+    for (let step = 1; step < songs.length + 1 && upcomingIndices.length < upcoming; step += 1) {
+        const raw = anchor + step;
+        if (raw >= songs.length && !(wrap && anchor >= 0)) break;
+        const index = raw % songs.length;
+        if (used.has(index)) break;
+        upcomingIndices.push(index);
+        used.add(index);
     }
-    return cards;
+    const playedIndices: number[] = [];
+    for (let step = 1; step <= played; step += 1) {
+        const raw = anchor - step;
+        if (raw < 0 && !(wrap && anchor >= 0)) break;
+        const index = (raw + songs.length) % songs.length;
+        if (used.has(index)) break;
+        playedIndices.unshift(index);
+        used.add(index);
+    }
+
+    return [
+        ...playedIndices.map((index, position) => ({ tile: songs[index], role: 'played' as const, offset: position - playedIndices.length })),
+        ...(anchor >= 0 ? [{ tile: songs[anchor], role: 'now' as const, offset: 0 }] : []),
+        ...upcomingIndices.map((index, position) => ({ tile: songs[index], role: 'upcoming' as const, offset: position + 1 })),
+    ];
 };
 
 /** 卡的外框（容器坐标，未旋转时的位置）和顺着弧的倾斜角（度）。 */

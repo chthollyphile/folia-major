@@ -19,10 +19,12 @@ const song = (index: number): SongResult => ({
 
 const queueOf = (length: number) => Array.from({ length }, (_, index) => song(index));
 
-const cardsAt = (length: number, current: number | null) => {
+const cardsAt = (length: number, current: number | null, wrap = false) => {
     const queue = queueOf(length);
-    return buildRadioCards(buildLatticeTiles({ queue, currentSong: current === null ? null : queue[current] }));
+    return buildRadioCards(buildLatticeTiles({ queue, currentSong: current === null ? null : queue[current] }), { wrap });
 };
+
+const ids = (cards: ReturnType<typeof cardsAt>) => cards.map(card => `${card.tile.id.replace('online:netease:', '')}${card.role[0]}${card.offset}`);
 
 describe('radio wall cards', () => {
     it('keeps two played cards on the left and three coming up on the right', () => {
@@ -111,5 +113,30 @@ describe('radio wall cards out of view', () => {
         expect(radioCardInView(radioCardRect(0, phone), phone)).toBe(true);
         expect(radioCardInView(radioCardRect(3, phone), phone)).toBe(false);
         expect(radioCardInView(radioCardRect(-2, phone), phone)).toBe(false);
+    });
+});
+
+describe('radio wall cards under list loop', () => {
+    it('goes on from the head of the queue after its last song', () => {
+        expect(ids(cardsAt(10, 8, true))).toEqual(['6p-2', '7p-1', '8n0', '9u1', '0u2', '1u3']);
+        // Without list loop the right side ends with the queue.
+        expect(ids(cardsAt(10, 8))).toEqual(['6p-2', '7p-1', '8n0', '9u1']);
+    });
+
+    it('goes on from the tail of the queue before its first song, where previous goes', () => {
+        expect(ids(cardsAt(10, 0, true))).toEqual(['8p-2', '9p-1', '0n0', '1u1', '2u2', '3u3']);
+        expect(ids(cardsAt(10, 0))).toEqual(['0n0', '1u1', '2u2', '3u3']);
+    });
+
+    it('gives a short queue to the right side first and never shows a song twice', () => {
+        expect(ids(cardsAt(3, 2, true))).toEqual(['2n0', '0u1', '1u2']);
+        expect(ids(cardsAt(4, 3, true))).toEqual(['3n0', '0u1', '1u2', '2u3']);
+        expect(ids(cardsAt(5, 3, true))).toEqual(['2p-1', '3n0', '4u1', '0u2', '1u3']);
+        expect(ids(cardsAt(6, 0, true))).toEqual(['4p-2', '5p-1', '0n0', '1u1', '2u2', '3u3']);
+        expect(ids(cardsAt(1, 0, true))).toEqual(['0n0']);
+    });
+
+    it('does not go round for a song not in the queue', () => {
+        expect(ids(cardsAt(5, null, true))).toEqual(['0u1', '1u2', '2u3']);
     });
 });

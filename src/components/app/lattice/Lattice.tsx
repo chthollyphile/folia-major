@@ -31,8 +31,9 @@ import { LATTICE_WALL_ATTR } from '../../collectionFlight';
 
 // The wall's display layer. It renders the play queue and never mutates it; opened from the
 // explore tab (`latticeSource` in useAppViewStore) it renders the explore page's entries in the
-// queue's place (useExploreWall.ts), and the queue stays what the player plays. In Personal FM the queue
-// wall is the radio wall instead (radio/RadioWall.tsx): one row of cards, played within the radio.
+// queue's place (useExploreWall.ts), and the queue stays what the player plays. The queue can also be drawn as
+// the radio wall (radio/RadioWall.tsx, a ring of cards): the wall form setting (useLatticeSettingsStore.latticeWallForm)
+// picks it for a plain queue, and Personal FM always has it, its cards played within the radio.
 // 翻牌交接（设计稿 §7「进入队列」，与资料库墙 bravais）：根节点挂 data-wall-handoff（in / out）与阶段。叠在资料库墙上面的
 // 这段时间里墙面底色不画（下面那面墙的墙面就是同一份），颗粒与暗角由上面这层统一画一份（见 Lattice.css）。
 
@@ -99,8 +100,12 @@ export default function Lattice({
     const badgeCurrentOnly = useLatticeSettingsStore(state => state.latticeBadgeCurrentOnly);
     // Set by the way the wall was opened, and the same for as long as it is up.
     const isExplore = useAppViewStore(state => state.latticeSource) === 'explore';
-    // Personal FM shows its queue as the radio wall; it comes and goes with FM while the wall is up.
-    const isRadio = !isExplore && controls.playback.isFmMode;
+    // The queue as the radio wall: always in Personal FM (it comes and goes with FM while the wall is up),
+    // and for a plain queue when the wall form setting says so.
+    const wallForm = useLatticeSettingsStore(state => state.latticeWallForm);
+    const radioHidesUpcoming = useLatticeSettingsStore(state => state.latticeRadioHideUpcoming);
+    const isFm = controls.playback.isFmMode;
+    const isRadio = !isExplore && (isFm || wallForm === 'radio');
     const explore = useExploreWall({ isOn: isExplore, currentSong, providerId: exploreProviderId, accountId: exploreAccountId });
     const queueTiles = useMemo(() => buildLatticeTiles({ queue, currentSong }), [currentSong, queue]);
     const tiles = isExplore ? explore.tiles : queueTiles;
@@ -168,7 +173,7 @@ export default function Lattice({
         const appView = useAppViewStore.getState();
         if (appView.view !== 'lattice') return;
         if (tile.kind === 'song') {
-            onPlaySong(tile.song, tile.queue ?? queue, isRadio);
+            onPlaySong(tile.song, tile.queue ?? queue, isRadio && isFm);
             return;
         }
         beginWallTrip('open');
@@ -221,12 +226,17 @@ export default function Lattice({
                 '--lattice-poster-tint-color': posterTintColor,
                 '--lattice-poster-tint-intensity': posterTintIntensity,
             } as CSSProperties}
-            aria-label={t(isExplore ? 'home.latticeExplore' : isRadio ? 'home.latticeRadioLabel' : 'home.latticeLabel')}
+            aria-label={t(isExplore ? 'home.latticeExplore' : isRadio ? (isFm ? 'home.latticeRadioLabel' : 'home.latticeRadioQueueLabel') : 'home.latticeLabel')}
             {...{ [LATTICE_WALL_ATTR]: '' }}
         >
             {isRadio ? (
                 <RadioWall
                     tiles={queueTiles}
+                    isFm={isFm}
+                    // Personal FM's next songs are the radio's to reveal; a plain queue's only when the setting asks.
+                    hidesUpcoming={isFm || radioHidesUpcoming}
+                    // List loop: the cards after the last song go on from the head of the queue, as playback does.
+                    wrapsAround={!isFm && controls.loopMode === 'all'}
                     onPlay={wall.onPlay}
                     onPlayFromWall={wall.onPlayFromWall}
                     onTogglePlayback={wall.onTogglePlayback}
@@ -247,7 +257,7 @@ export default function Lattice({
                 onBack={onBack}
             />}
             <WallTripLog isReturn={isReturn} />
-            <LatticeFocusButton isDaylight={isDaylight} tiles={tiles} isRadio={isRadio} onGoHome={onGoHome} />
+            <LatticeFocusButton isDaylight={isDaylight} tiles={tiles} isRadio={isRadio} showsWallForm={!isExplore} onGoHome={onGoHome} />
             <WallBackButton label={t('home.latticeBack')} onBack={onBack} />
             {/* The explore page's own control, beside the way back: other entries take the tiles' places. */}
             {isExplore && (
