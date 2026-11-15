@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo, lazy, Suspense } from 'react';
-import { AnimatePresence, motion, useMotionValueEvent } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { ChevronLeft } from 'lucide-react';
 import { loadCachedOrFetchCover } from './services/coverCache';
@@ -49,12 +49,12 @@ import { useWallHandoffDirector } from './components/app/presentation/wallHandof
 import WallToolsDockHost from './components/wall/WallToolsDock';
 import { buildPlayerViewFlags } from './components/app/presentation/buildPlayerViewFlags';
 import { buildVisualizerTheme } from './components/app/presentation/buildVisualizerTheme';
+import { AutoLyricSegmentationHost } from './components/app/playback/AutoLyricSegmentationHost';
 import { createCoverUrlResolver } from './components/app/playback/createCoverUrlResolver';
 import { createLyricsSetter } from './components/app/playback/createLyricsSetter';
 import { createLyricSegmentationActions } from './components/app/playback/createLyricSegmentationActions';
 import { useLyricWordSegmentation } from './hooks/useLyricWordSegmentation';
 import { useIcuFoliaSegmentation } from './hooks/useIcuFoliaSegmentation';
-import { useAutoLyricSegmentation } from './hooks/useAutoLyricSegmentation';
 import { handleOnlineMediaFailure } from './components/app/playback/handleOnlineMediaFailure';
 import { createOnlineRecoveryController } from './components/app/playback/restore/createOnlineRecoveryController';
 import { notePreviewPlaying } from './components/app/playback/source/previewNotice';
@@ -62,6 +62,7 @@ import { persistPlaybackCache } from './components/app/playback/persistPlaybackC
 import { useAppOverlaysModel } from './components/app/overlays/useAppOverlaysModel';
 import { resolveNextUpTrack } from './components/app/overlays/now-playing-toast/resolveNextUpTrack';
 import { shouldShowNowPlayingToast } from './components/app/overlays/now-playing-toast/nowPlayingToastVisibility';
+import { useTrackEndCountdown } from './components/app/overlays/now-playing-toast/useTrackEndCountdown';
 import { isWallLibrarySuite, useActiveLibrarySuiteId } from './library/app/librarySuiteChoice';
 import {
     createSearchAlbumCollection,
@@ -205,8 +206,6 @@ const DEV_DEBUG_SHORTCUT_LABEL = 'Alt+Shift+D';
 const ONLINE_AUDIO_URL_TTL_MS = 1200 * 1000;
 const ONLINE_AUDIO_URL_REFRESH_BUFFER_MS = 60 * 1000;
 const LOCAL_TAIL_DECODE_ERROR_TOLERANCE_SEC = 3;
-/** How many seconds before a track ends the now playing card previews the queue's next track. */
-const NEXT_UP_LEAD_SEC = 5;
 
 export default function App() {
     countRender('App');
@@ -1272,15 +1271,9 @@ export default function App() {
     }) : null), [isShowingTail, displaySong, playQueue, effectiveLoopMode, isFmMode, isNowPlayingStageActive]);
 
     /** True while the card previews the next track (plain track-end countdown, not the blend). */
-    const [countdownActive, setCountdownActive] = useState(false);
-    useMotionValueEvent(currentTime, 'change', (time) => {
-        const shouldPreview = stageTrackPillOnScreen
-            && nextUpTrack !== null
-            && Number.isFinite(displayDuration)
-            && displayDuration > 0
-            && displayDuration - time > 0
-            && displayDuration - time <= NEXT_UP_LEAD_SEC;
-        setCountdownActive(prev => (prev === shouldPreview ? prev : shouldPreview));
+    const countdownActive = useTrackEndCountdown({
+        enabled: stageTrackPillOnScreen && nextUpTrack !== null,
+        duration: displayDuration,
     });
 
     /**
@@ -1916,8 +1909,6 @@ export default function App() {
     useLyricWordSegmentation();
     // Loads icu-folia, the default word segmenter, once a word-based mode shows Chinese or Japanese.
     useIcuFoliaSegmentation(visualizerMode);
-    // With 自动 AI 分词 on, segments a song that has no saved split by itself (issue #960).
-    useAutoLyricSegmentation({ visualizerMode, isLyricsLoading, save: lyricSegmentationActions.save });
     /**
      * Cancels a blend back onto the track the listener is hearing, or null when there is none.
      *
@@ -2996,6 +2987,8 @@ export default function App() {
             />
             <UserGuideModal theme={theme} />
             <PlaybackEntryViewPrompt theme={theme} />
+            {/* With 自动 AI 分词 on, segments a song that has no saved split by itself (issue #960). */}
+            <AutoLyricSegmentationHost visualizerMode={visualizerMode} isLyricsLoading={isLyricsLoading} save={lyricSegmentationActions.save} />
         </AppShell>
     );
 }

@@ -41,6 +41,8 @@ import {
     resolveObsBrowserSourceCoverUrl,
     resolveObsBrowserSourceImageAsset,
     resolveObsBrowserSourceImageAssets,
+    resolvePublishedObsCoverUrl,
+    type ObsInlinedCover,
 } from '../utils/obsBrowserSource';
 import type { TemperaLayerImage } from '../types';
 import { loadTemperaLayerImageBlobs } from '../services/temperaLayerImages';
@@ -186,7 +188,7 @@ export const useObsBrowserSourcePublisher = ({
     // on the overlay side, and those are resolved below.
     const temperaLayerImages = visualizerTunings?.tempera?.layerImages;
     const [status, setStatus] = useState<ObsBrowserSourceStatus>(() => emptyObsStatus());
-    const [obsCoverUrl, setObsCoverUrl] = useState<string | null>(coverUrl);
+    const [inlinedCover, setInlinedCover] = useState<ObsInlinedCover | null>(null);
     const [obsCustomImages, setObsCustomImages] = useState<{
         cappellaEmoji: CappellaEmojiImage[];
         cappellaAvatar: CappellaAvatarImage[];
@@ -217,32 +219,30 @@ export const useObsBrowserSourcePublisher = ({
         });
     }, [refreshStatus]);
 
+    // A blob: cover is read into a data URL only while the source is on. Off, nothing is published,
+    // and reading every blob: cover here set this hook's state twice a song change - two renders
+    // of the whole app - for a config nobody received.
+    const inlinesCover = status.enabled && isObsBrowserSourceBlobCoverUrl(coverUrl);
     useEffect(() => {
-        let cancelled = false;
-
-        if (!isObsBrowserSourceBlobCoverUrl(coverUrl)) {
-            setObsCoverUrl(coverUrl);
-            return () => {
-                cancelled = true;
-            };
+        if (!inlinesCover || !coverUrl) {
+            return;
         }
 
-        setObsCoverUrl(null);
-        void resolveObsBrowserSourceCoverUrl(coverUrl).then(nextCoverUrl => {
+        let cancelled = false;
+        void resolveObsBrowserSourceCoverUrl(coverUrl).then(url => {
             if (!cancelled) {
-                setObsCoverUrl(nextCoverUrl);
+                setInlinedCover({ source: coverUrl, url });
             }
         }).catch(error => {
+            // Nothing is set: with no copy made from this cover the overlay is given none.
             console.warn('[OBS] Failed to resolve blob cover for browser source', error);
-            if (!cancelled) {
-                setObsCoverUrl(null);
-            }
         });
 
         return () => {
             cancelled = true;
         };
-    }, [coverUrl]);
+    }, [coverUrl, inlinesCover]);
+    const obsCoverUrl = resolvePublishedObsCoverUrl(coverUrl, inlinedCover);
 
     useEffect(() => {
         let cancelled = false;
