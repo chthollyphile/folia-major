@@ -22,7 +22,7 @@ import { locatePlayingSongOnWall, useWallPageKey } from './wallLocate';
 // 一个集合页的定位按钮（GridLocateButton），意思和在那里一样——正在播放的歌在这面墙上有封面时亮起，按下是向墙要
 // 那张封面（wallLocate.ts）。「聚焦当前歌曲」与「切歌时自动聚焦」两项不在面板里：定位由上方的按钮做，自动聚焦的
 // 开关在命令面板（「Lattice 自动聚焦」）。
-// 电台墙（isRadio）：正在播放的那张总在正中，没有定位按钮；帮助换成电台墙的操作。
+// 电台墙（isRadio）：定位按钮同样在这里，按下回到正在播放那张（浏览到别处时用；RadioWall 答这一问）；帮助换成电台墙的操作。
 // 播放队列的墙（showsWallForm）面板里有一格「墙面形态」：海报墙 / 电台墙来回切；私人 FM 下固定是电台墙，这一格置灰。
 export default function LatticeFocusButton({ isDaylight, tiles, isRadio = false, showsWallForm = false, onGoHome }: {
     isDaylight: boolean;
@@ -64,12 +64,13 @@ export default function LatticeFocusButton({ isDaylight, tiles, isRadio = false,
     } : undefined;
 
     // 紧凑档里上方的定位按钮不画，定位由进度条胶囊的封面按（progress-bar v3）。
-    const locates = playingSongKey !== null && !isRadio;
+    const locates = playingSongKey !== null;
+    const locateTitle = t(isRadio ? 'home.latticeRadioBackToNow' : 'playlist.locatePlaying');
     useRegisterWallLocate('lattice', locates ? {
         run: locatePlayingSongOnWall,
         isHere: isPlayingSongHere,
         isSeeking: isLocateAsked,
-        title: t('playlist.locatePlaying'),
+        title: locateTitle,
     } : null, true);
 
     return (
@@ -85,7 +86,7 @@ export default function LatticeFocusButton({ isDaylight, tiles, isRadio = false,
                     accentColor="var(--text-accent)"
                     isHere={isPlayingSongHere}
                     isSeeking={isLocateAsked}
-                    title={t('playlist.locatePlaying')}
+                    title={locateTitle}
                     onLocate={locatePlayingSongOnWall}
                 />
             ) : undefined}

@@ -1,5 +1,6 @@
-import { lazy, memo, Suspense, useEffect, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type PointerEvent } from 'react';
-import { motion, useAnimate, type TargetAndTransition } from 'framer-motion';
+import { lazy, memo, Suspense, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type PointerEvent } from 'react';
+import { motion, useAnimate, useTransform, type MotionValue, type TargetAndTransition } from 'framer-motion';
+import { Play } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { WallTitle } from '../../../wall/WallTitle';
 import { useWallPosterArtwork } from '../../../wall/useWallPosterArtwork';
@@ -12,33 +13,48 @@ import { useLatticeExpansionSettled } from '../useLatticeExpansionSettled';
 import { prewarmLatticeLyrics } from '../lyrics/prewarmLatticeLyrics';
 import { useRadioCoverTint } from './useRadioCoverTint';
 import { useRadioCardTilt } from './useRadioCardTilt';
-import type { RadioCardRole, RadioRect } from './radioWallModel';
+import { radioCardRect, radioRedactionWidths, type RadioCardRole, type RadioMetrics } from './radioWallModel';
 import { RADIO_NOW_ATTR } from './useRadioWallHandoff';
 
 // src/components/app/lattice/radio/RadioCard.tsx
-// 电台墙的一张卡。两面：正面是封面（与队列墙的海报同一套样式，正在播放的那张带歌词和播放控制条），背面是封面取色
-// 的问号。还没轮到的卡背面朝上；轮到它时翻开，之后一直是正面。离开这一行时翻回背面、淡出（翻牌销毁）。
+// 电台墙的一张卡。两面：正面是封面（与队列墙的海报同一套样式，正在播放的那张在正中时带歌词和播放控制条），背面是
+// 隔着棱纹玻璃的模糊封面加两道打码条（曲名、歌手按字数）。还没轮到的卡背面朝上；轮到它时翻开，之后一直是正面。
+// 离开这一行时翻回背面、淡出（翻牌销毁）。
+// 卡在哪由电台墙的「轨道」决定（rail：一个 MotionValue，切歌、拖动浏览、松手吸附都只是让它挪动）：卡的位置、大小、
+// 倾斜都从「自己在轨道上的格（position）减去轨道当前位置」算出来，逐帧跟着走，不经过 React。
 // 已经揭开的卡升为正在播放时（点了一张听过的，或者往回点过之后再往前走）也翻一次牌（半圈），从右边来的往左翻、
 // 从左边来的往右翻；从左边补回来的卡背面朝上进来，落位时翻开。
 
 const LatticeLyrics = lazy(() => import('../lyrics/LatticeLyrics'));
 
-/** 卡怎么进来：opening 是打开电台墙时整圈一张张浮上来；deal 是之后补的卡，从弧上更外面的一格沿弧滑进来。 */
+/**
+ * 卡怎么进来（只在挂上时读）：opening 是打开电台墙时整圈一张张浮上来；deal 是之后新补的卡，随轨道从弧上更外面
+ * 滑进来、淡入；appear 是一直在这一行里、只是先前在窗口外没挂的卡（浏览时走进窗口），直接出现。
+ */
 export type RadioCardEntry =
     | { kind: 'opening'; delay: number }
-    | { kind: 'deal'; from: RadioRect };
+    | { kind: 'deal' }
+    | { kind: 'appear' };
 
 type RadioCardProps = {
     tile: LatticeSongTile;
     role: RadioCardRole;
+    /** 相对正在播放那张的位置（负数是听过的）。 */
     offset: number;
-    rect: RadioRect;
+    /** 在轨道上的格：卡此刻的位置 = radioCardRect(position - rail)。 */
+    position: number;
+    /** 浏览停下后这张卡离画面正中几格（整数）；0 是正中那张。 */
+    slot: number;
+    rail: MotionValue<number>;
+    metrics: RadioMetrics;
     /** 正面朝上（正在播放、听过的，或者这次打开以来播过的）。 */
     revealed: boolean;
     /** 只在挂上时读。 */
     entry: RadioCardEntry;
-    /** 离开这一圈时沿弧退到哪里（更外面的一格）。 */
-    exitRect: RadioRect;
+    /** 轨道停稳了（不在切歌滑动、拖动、吸附途中）：正中那张的歌词等它停稳再挂。 */
+    resting: boolean;
+    /** 正在拖动浏览：卡的倾斜按压收回去。 */
+    dragging: boolean;
     pixelRatio: number;
     reducedMotion: boolean;
     /** 播放这一首（私人 FM 里仍在电台里播放）。 */
@@ -48,6 +64,8 @@ type RadioCardProps = {
     onTogglePlayback: () => void;
     onSeek: (time: number) => void;
     onOpenPlayer: () => void;
+    /** 正在播放那张被浏览到一边时点它：回到它（不重新播放）。 */
+    onCenter: () => void;
 };
 
 const FLIP_TRANSITION = { duration: 0.55, ease: [0.4, 0, 0.2, 1] as const };
@@ -68,10 +86,14 @@ function RadioCard({
     tile,
     role,
     offset,
-    rect,
+    position,
+    slot,
+    rail,
+    metrics,
     revealed,
     entry,
-    exitRect,
+    resting,
+    dragging,
     pixelRatio,
     reducedMotion,
     onPlay,
@@ -79,10 +101,23 @@ function RadioCard({
     onTogglePlayback,
     onSeek,
     onOpenPlayer,
+    onCenter,
 }: RadioCardProps) {
     const { t } = useTranslation();
     const isNow = role === 'now';
-    const chrome = useLatticeChromeDisclosure(isNow);
+    const focused = slot === 0;
+    // 正在播放、而且在画面正中：带歌词和控制条的那种大卡。被浏览到一边时只是一张普通的封面卡。
+    const expanded = isNow && focused;
+    const chrome = useLatticeChromeDisclosure(expanded);
+    // 卡的位置逐帧从轨道算出来（useTransform 每次渲染都换上新的 position / metrics）。
+    const place = (at: number) => radioCardRect(position - at, metrics);
+    const x = useTransform(rail, value => place(value).x);
+    const y = useTransform(rail, value => place(value).y);
+    const width = useTransform(rail, value => place(value).width);
+    const height = useTransform(rail, value => place(value).height);
+    const rotate = useTransform(rail, value => place(value).rotate);
+    // 停稳之后这张卡的外框：封面按它要清晰度，标题按它排版。
+    const rest = radioCardRect(slot, metrics);
     // 已经正面朝上的卡升为正在播放时翻半圈：外面单独一层（lattice-radio-card-spin）先转到侧立（±90°），
     // 再从另一侧的侧立转回 0°。看着是翻了 180°，停下时仍是封面朝外，两面不用交换。从右边来的往左翻，从左边来的
     // 往右翻。角色的变化按渲染时记（React 的「随 props 调整 state」写法）；还没揭开的卡升上来时走下面那次揭开
@@ -113,37 +148,51 @@ function RadioCard({
         };
     }, [animateSpin, reducedMotion, spin, spinScope]);
     const faceAngle = revealed ? 0 : 180;
-    // Metro 式的倾斜按压：指针所在的那一点往里压。正在播放那张卡上有歌词和控制条，压得浅一些。
+    // Metro 式的倾斜按压：指针所在的那一点往里压。正中那张大卡上有歌词和控制条，压得浅一些。
     const tilt = useRadioCardTilt({
-        maxDeg: isNow ? 2.5 : 7,
-        hoverScale: isNow ? 0.995 : 0.98,
-        pressScale: isNow ? 0.99 : 0.97,
+        maxDeg: expanded ? 2.5 : 7,
+        hoverScale: expanded ? 0.995 : 0.98,
+        pressScale: expanded ? 0.99 : 0.97,
         disabled: reducedMotion,
     });
+    // 一开始拖动浏览，指针就不归这张卡了：按下去的倾斜收回来。
+    const releaseTilt = tilt.handlers.onPointerLeave;
+    useEffect(() => {
+        if (dragging) releaseTilt();
+    }, [dragging, releaseTilt]);
     // 从左边补回来的卡（往回退时）背面朝上进场，落位时翻开；只在挂上时读。
-    const entersFaceDown = !reducedMotion && entry.kind === 'deal' && entry.from.x < rect.x && revealed;
-    // 歌词是按卡的大小排版的 Pixi 场景：等卡长到位再挂，不在长大的每一帧重排。
-    const [settled, onAnimationComplete] = useLatticeExpansionSettled(isNow, reducedMotion);
-    const coverUrl = useWallPosterArtwork(tile.coverUrl, Math.max(rect.width, rect.height) * pixelRatio);
-    // 取色还没回来时背面是中性色（RadioWall.css），回来后颜色过渡过去，不硬切；取不到时退回按 id 算的颜色。
-    const coverTint = useRadioCoverTint(tile.coverUrl);
-    const tint = coverTint.settled ? coverTint.color ?? fallbackTint(tile.id) : null;
+    const entersFaceDown = !reducedMotion && entry.kind === 'deal' && offset < 0 && revealed;
+    // 歌词是按卡的大小排版的 Pixi 场景：等打开时的浮入结束、轨道也停稳了再挂，不在卡变大的每一帧重排。
+    const [settled, onAnimationComplete] = useLatticeExpansionSettled(expanded, reducedMotion);
+    // 卡长大不再是这张卡自己的动画（是轨道在动）：轨道从动到停的那一刻也算长完。只认「动 → 停」，打开时轨道本来
+    // 就是停着的，那时仍等浮入动画结束。
+    const restedRef = useRef(resting);
+    useEffect(() => {
+        if (resting && !restedRef.current) onAnimationComplete();
+        restedRef.current = resting;
+    }, [onAnimationComplete, resting]);
+    const showsLyrics = expanded && settled && resting && !dragging;
+    const coverUrl = useWallPosterArtwork(tile.coverUrl, Math.max(rest.width, rest.height) * pixelRatio);
+    // 背面：取样回来之前是中性色，回来后颜色过渡过去，不硬切；取不到时退回按 id 算的颜色、没有模糊封面。
+    const cover = useRadioCoverTint(tile.coverUrl);
+    const tint = cover.settled ? cover.color ?? fallbackTint(tile.id) : null;
+    const redaction = radioRedactionWidths(tile.title, tile.artist);
 
-    const initial: TargetAndTransition | false = reducedMotion
+    // 进场、离场只动这一层（位置在外层，由轨道管）。
+    const poseInitial: TargetAndTransition | false = reducedMotion
         ? false
         : entry.kind === 'opening'
-            ? { ...rect, y: rect.y + 48, opacity: 0, scale: 0.92 }
-            : { ...entry.from, opacity: 0 };
-    const exit: TargetAndTransition = reducedMotion
+            ? { y: 48, opacity: 0, scale: 0.92 }
+            : entry.kind === 'deal' ? { opacity: 0 } : false;
+    const poseExit: TargetAndTransition = reducedMotion
         ? { opacity: 0, transition: { duration: 0 } }
         : {
-            ...exitRect,
-            rotateY: exitRect.x < rect.x ? -180 : 180,
+            rotateY: offset < 0 ? -180 : 180,
             scale: 0.82,
             opacity: [1, 1, 0],
             transition: { duration: 0.5, ease: [0.4, 0, 0.2, 1], opacity: { duration: 0.5, times: [0, 0.6, 1] } },
         };
-    const transition = reducedMotion
+    const poseTransition = reducedMotion
         ? { duration: 0 }
         : {
             ...DEAL_SPRING,
@@ -156,11 +205,15 @@ function RadioCard({
         const onControl = event.target instanceof Element && Boolean(event.target.closest('button, input'));
         noteWallPress(event, onControl ? '' : pressKey);
         if (onControl) return;
-        if (isNow) chrome.toggleTouch();
+        // 连击的后几下落在了别的卡上（第一下让这一行滑动了，比如点了被浏览到一边的正在播放那张）：不算点这张，
+        // 免得双击一下就播放了滑到指针底下的另一首。
+        if (event.detail > 1 && !isWallDoubleClickOn(pressKey)) return;
+        if (expanded) chrome.toggleTouch();
+        else if (isNow) onCenter();
         else onPlay(tile);
     };
     const handleDoubleClick = (event: MouseEvent<HTMLElement>) => {
-        if (!isNow || (event.target instanceof Element && event.target.closest('button, input'))) return;
+        if (!expanded || (event.target instanceof Element && event.target.closest('button, input'))) return;
         if (isWallDoubleClickOn(pressKey)) onPlayFromWall(tile);
     };
     const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
@@ -170,7 +223,9 @@ function RadioCard({
         if (event.key === 'Enter') {
             event.preventDefault();
             event.stopPropagation();
-            if (isNow) onTogglePlayback();
+            // 和点击一致：正中的正在播放那张是暂停 / 继续，被浏览到一边时是回到它。
+            if (expanded) onTogglePlayback();
+            else if (isNow) onCenter();
             else onPlay(tile);
         }
     };
@@ -181,19 +236,14 @@ function RadioCard({
 
     return (
         <motion.div
-            className={`lattice-radio-card ${isNow ? 'is-now' : `is-${role}`} ${revealed ? 'is-revealed' : ''}`}
+            className={`lattice-radio-card ${isNow ? 'is-now' : `is-${role}`} ${revealed ? 'is-revealed' : ''} ${focused ? 'is-focused' : ''}`}
             data-radio-card={offset}
             {...(isNow ? { [RADIO_NOW_ATTR]: '' } : {})}
-            initial={initial}
-            animate={{ ...rect, opacity: 1, scale: 1, rotateY: 0 }}
-            exit={exit}
-            transition={transition}
-            style={{ transformPerspective: PERSPECTIVE_PX, zIndex: isNow ? 20 : 10 - Math.abs(offset) }}
-            onAnimationComplete={onAnimationComplete}
+            style={{ x, y, width, height, rotate, zIndex: 20 - Math.min(19, Math.abs(slot) * 4) }}
             onClick={handleClick}
             onDoubleClick={handleDoubleClick}
             onKeyDown={handleKeyDown}
-            onPointerEnter={(event: PointerEvent<HTMLElement>) => { if (isNow) prewarmLatticeLyrics(); chrome.onPointerEnter(event); }}
+            onPointerEnter={(event: PointerEvent<HTMLElement>) => { if (expanded) prewarmLatticeLyrics(); chrome.onPointerEnter(event); }}
             onPointerLeave={() => { chrome.onPointerLeave(); tilt.handlers.onPointerLeave(); }}
             onPointerDownCapture={chrome.onPointerDownCapture}
             onPointerMove={tilt.handlers.onPointerMove}
@@ -202,77 +252,96 @@ function RadioCard({
             onPointerCancel={tilt.handlers.onPointerCancel}
             onFocusCapture={chrome.onFocusCapture}
             onBlurCapture={chrome.onBlurCapture}
-            role={isNow ? 'group' : 'button'}
+            role={expanded ? 'group' : 'button'}
             tabIndex={0}
             aria-label={label}
         >
-            <motion.div className="lattice-radio-card-tilt" style={{ ...tilt.style, transformPerspective: TILT_PERSPECTIVE_PX }}>
-                <div ref={spinScope} className="lattice-radio-card-spin">
-                    <motion.div
-                        className="lattice-radio-card-inner"
-                        initial={entersFaceDown ? { rotateY: faceAngle + 180 } : false}
-                        animate={{ rotateY: faceAngle }}
-                        transition={reducedMotion ? { duration: 0 } : FLIP_TRANSITION}
-                    >
-                        <article
-                            ref={chrome.articleRef}
-                            className={`lattice-poster lattice-radio-face is-front ${isNow ? 'is-current is-expanded' : ''}`}
-                            style={{ backgroundImage: coverUrl ? `url("${coverUrl}")` : undefined }}
-                            aria-hidden={!revealed}
+            <motion.div
+                className="lattice-radio-card-pose"
+                initial={poseInitial}
+                animate={{ y: 0, opacity: 1, scale: 1, rotateY: 0 }}
+                exit={poseExit}
+                transition={poseTransition}
+                style={{ transformPerspective: PERSPECTIVE_PX }}
+                onAnimationComplete={onAnimationComplete}
+            >
+                <motion.div className="lattice-radio-card-tilt" style={{ ...tilt.style, transformPerspective: TILT_PERSPECTIVE_PX }}>
+                    <div ref={spinScope} className="lattice-radio-card-spin">
+                        <motion.div
+                            className="lattice-radio-card-inner"
+                            initial={entersFaceDown ? { rotateY: faceAngle + 180 } : false}
+                            animate={{ rotateY: faceAngle }}
+                            transition={reducedMotion ? { duration: 0 } : FLIP_TRANSITION}
                         >
-                            <span className="lattice-poster-shade" />
-                            <span className="lattice-poster-lights-out" />
-                            <span className="lattice-poster-tint" />
-                            {revealed && <LatticeQuickActions tile={tile} width={rect.width} expanded={isNow} />}
-                            {isNow && settled ? (
-                                <Suspense fallback={<span className="lattice-poster-copy"><WallTitle title={tile.title} expanded targetPosterWidth={rect.width} /><small>{tile.artist}</small></span>}>
-                                    <LatticeLyrics key={tile.id} tile={tile} reducedMotion={reducedMotion} />
-                                </Suspense>
-                            ) : (
-                                <span className="lattice-poster-copy">
-                                    <WallTitle title={tile.title} expanded={isNow} targetPosterWidth={rect.width} />
-                                    <small>{tile.artist}</small>
+                            <article
+                                ref={chrome.articleRef}
+                                className={`lattice-poster lattice-radio-face is-front ${isNow ? 'is-current' : ''} ${expanded ? 'is-expanded' : ''}`}
+                                style={{ backgroundImage: coverUrl ? `url("${coverUrl}")` : undefined }}
+                                aria-hidden={!revealed}
+                            >
+                                <span className="lattice-poster-shade" />
+                                <span className="lattice-poster-lights-out" />
+                                <span className="lattice-poster-tint" />
+                                {revealed && <LatticeQuickActions tile={tile} width={rest.width} expanded={expanded} />}
+                                {showsLyrics ? (
+                                    <Suspense fallback={<span className="lattice-poster-copy"><WallTitle title={tile.title} expanded targetPosterWidth={rest.width} /><small>{tile.artist}</small></span>}>
+                                        <LatticeLyrics key={tile.id} tile={tile} reducedMotion={reducedMotion} />
+                                    </Suspense>
+                                ) : (
+                                    <span className="lattice-poster-copy">
+                                        <WallTitle title={tile.title} expanded={focused} targetPosterWidth={rest.width} />
+                                        <small>{tile.artist}</small>
+                                    </span>
+                                )}
+                                {focused && !isNow && revealed && (
+                                    // 浏览到正中的别的歌：右下角一枚播放记号（整张卡就是按钮，点哪都播放）。
+                                    <span className="lattice-radio-play-hint" aria-hidden><Play /></span>
+                                )}
+                                {expanded && (
+                                    <div className="lattice-poster-controls">
+                                        <LatticePlaybackControls
+                                            revealed={chrome.revealed}
+                                            tile={tile}
+                                            onPlay={onPlay}
+                                            onTogglePlayback={onTogglePlayback}
+                                            onSeek={onSeek}
+                                            onOpenPlayer={onOpenPlayer}
+                                        />
+                                    </div>
+                                )}
+                            </article>
+                            <div
+                                className={`lattice-radio-face is-back ${tint ? 'is-tinted' : ''}`}
+                                style={{
+                                    ...(tint ? { '--lattice-radio-tint': tint } : {}),
+                                    ...(cover.veil ? { '--lattice-radio-veil': `url("${cover.veil}")` } : {}),
+                                } as CSSProperties}
+                                aria-hidden
+                            >
+                                {cover.veil && <span className="lattice-radio-veil" />}
+                                <span className="lattice-radio-reeds" />
+                                <span className="lattice-radio-redaction">
+                                    <i style={{ width: `${redaction.title}%` }} />
+                                    <i style={{ width: `${redaction.artist}%` }} />
                                 </span>
-                            )}
-                            {isNow && (
-                                <div className="lattice-poster-controls">
-                                    <LatticePlaybackControls
-                                        revealed={chrome.revealed}
-                                        tile={tile}
-                                        onPlay={onPlay}
-                                        onTogglePlayback={onTogglePlayback}
-                                        onSeek={onSeek}
-                                        onOpenPlayer={onOpenPlayer}
-                                    />
-                                </div>
-                            )}
-                        </article>
-                        <div className={`lattice-radio-face is-back ${tint ? 'is-tinted' : ''}`}
-                            style={tint ? { '--lattice-radio-tint': tint } as CSSProperties : undefined} aria-hidden>
-                            <span className="lattice-radio-mark">?</span>
-                        </div>
-                    </motion.div>
-                </div>
+                            </div>
+                        </motion.div>
+                    </div>
+                </motion.div>
             </motion.div>
         </motion.div>
     );
 }
 
-// 每次渲染 RadioWall 都重算 rect 和磁贴（队列、当前曲目一变就是新对象），按值比，不按对象比；entry 只在挂上时读。
+// 每次渲染 RadioWall 都重算磁贴（队列、当前曲目一变就是新对象），按值比，不按对象比；entry 只在挂上时读。
 const sameProps = (previous: RadioCardProps, next: RadioCardProps) => {
     for (const key of Object.keys(next) as (keyof RadioCardProps)[]) {
-        if (key === 'tile' || key === 'rect' || key === 'exitRect' || key === 'entry') continue;
+        if (key === 'tile' || key === 'entry') continue;
         if (!Object.is(previous[key], next[key])) return false;
     }
-    const a = previous.rect;
-    const b = next.rect;
-    const exitA = previous.exitRect;
-    const exitB = next.exitRect;
     const tileA = previous.tile;
     const tileB = next.tile;
-    return a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height && a.rotate === b.rotate
-        && exitA.x === exitB.x && exitA.y === exitB.y && exitA.rotate === exitB.rotate
-        && tileA.id === tileB.id && tileA.song === tileB.song && tileA.title === tileB.title
+    return tileA.id === tileB.id && tileA.song === tileB.song && tileA.title === tileB.title
         && tileA.artist === tileB.artist && tileA.coverUrl === tileB.coverUrl && tileA.section === tileB.section;
 };
 
