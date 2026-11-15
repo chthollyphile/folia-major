@@ -329,4 +329,5 @@ export const STORAGE_KEYS = [
     'web:web_obs_theme_mode',
     'web:window_titlebar_side',
     'web:folia_perf_check_offered',
+    'web:visualizer_picker_keep_open',
 ];
