@@ -248,3 +248,48 @@ describe('on-screen separation speed', () => {
         expect(gpuStemsOnScreenUsable()).toBe(true);
     });
 });
+
+describe('holding the GPU analysis for the performance check', () => {
+    beforeEach(() => {
+        workers = [];
+        loadFailure = {};
+        holdSeparate = null;
+        separateMs = 0;
+        host.window = { electron: { getBeatThisGpuWeights, getHtdemucsGpuWeights } };
+        host.Worker = FakeWorker;
+        vi.spyOn(console, 'log').mockImplementation(() => {});
+        vi.spyOn(console, 'warn').mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+        delete host.window;
+        delete host.Worker;
+        vi.restoreAllMocks();
+    });
+
+    const separations = () => workers.flatMap(worker => worker.received.filter(m => m.kind === 'separate')).length;
+    const settled = async (promise: Promise<unknown>) => {
+        let done = false;
+        void promise.then(() => { done = true; });
+        await new Promise(resolve => setTimeout(resolve, 20));
+        return done;
+    };
+
+    it('keeps a unit without a deadline queued while held, and runs it once released', async () => {
+        const { runHtdemucsGpu, holdGpuAnalysis } = await fresh();
+        holdGpuAnalysis(true);
+        const held = runHtdemucsGpu(SEGMENT, SEGMENT, { urgency: 'background' });
+        expect(await settled(held)).toBe(false);
+        expect(separations()).toBe(0);
+        holdGpuAnalysis(false);
+        expect(await held).not.toBeNull();
+        expect(separations()).toBe(1);
+    });
+
+    it('runs a unit with a deadline (automix stems for a transition) while held', async () => {
+        const { runHtdemucsGpu, holdGpuAnalysis } = await fresh();
+        holdGpuAnalysis(true);
+        expect(await runHtdemucsGpu(SEGMENT, SEGMENT, { urgency: 'background', deadline: performance.now() + 60_000 })).not.toBeNull();
+        holdGpuAnalysis(false);
+    });
+});

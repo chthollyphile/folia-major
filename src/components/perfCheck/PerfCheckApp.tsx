@@ -96,8 +96,11 @@ const PerfCheckApp: React.FC = () => {
             void window.electron?.logPerfCheck?.(text).catch(() => undefined);
         };
         log(`started from ${current.frameRate}/${current.scale}/${current.antialias}`);
+        // The main window holds its picture and GPU analysis only while this measures: done or failed, it lets go.
+        const finish = () => { void window.electron?.finishPerfCheck?.().catch(() => undefined); };
         runPerfCheck({ current, apply, onProgress: setProgress, signal: controller.signal })
             .then((result) => {
+                finish();
                 setReport(result);
                 apply(result.steps[result.recommended].settings);
                 const rows = result.steps.map((step, index) => (
@@ -110,7 +113,9 @@ const PerfCheckApp: React.FC = () => {
                     + ` app ${result.memory.appMb?.toFixed(0) ?? '-'} MB (GPU process ${result.memory.gpuProcessMb?.toFixed(0) ?? '-'} MB), heap ${result.memory.heapMb?.toFixed(0) ?? '-'} MB, models ${result.memory.modelsMb.toFixed(0)} MB\n${rows.join('\n')}`);
             })
             .catch((error: unknown) => {
+                // Cancelled: the window is closing (which ends the hold), or React remounted this in development.
                 if (error instanceof PerfCheckCancelled) return;
+                finish();
                 console.warn('[PerfCheck] failed', error);
                 log(`failed: ${errorMessage(error)}`);
                 setFailed(true);

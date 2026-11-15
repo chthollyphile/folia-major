@@ -18,6 +18,7 @@ contextBridge.exposeInMainWorld('electron', {
     getPerfCheckMetrics: () => ipcRenderer.invoke('perf-check-metrics'),
     applyPerfCheckChoice: (choice) => ipcRenderer.invoke('perf-check-apply', choice),
     logPerfCheck: (text) => ipcRenderer.invoke('perf-check-log', text),
+    finishPerfCheck: () => ipcRenderer.invoke('perf-check-done'),
     onPerfCheckState: (callback) => {
         const listener = (_event, state) => callback(state);
         ipcRenderer.on('perf-check-state', listener);

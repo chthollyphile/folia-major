@@ -83,25 +83,30 @@ const sampleFrames = (ms: number, signal: AbortSignal) => new Promise<number[]>(
     signal.addEventListener('abort', () => window.cancelAnimationFrame(handle), { once: true });
 });
 
+/** The shortest of 60 uncapped frame intervals, ms: a busy picture stretches frames, never shortens them. */
+const shortestFrameMs = () => new Promise<number>((resolve) => {
+    const intervals: number[] = [];
+    let last = 0;
+    const tick = (at: number) => {
+        if (last && at > last) intervals.push(at - last);
+        last = at;
+        if (intervals.length >= 60) resolve(Math.min(...intervals));
+        else requestUncappedAnimationFrame(tick);
+    };
+    requestUncappedAnimationFrame(tick);
+});
+
 /**
- * The display's refresh interval, ms: what the system says of the display this window is on, else the
- * shortest of 60 uncapped frame intervals (a busy picture stretches frames, never shortens them; the
- * median would read the picture's own rate as the display's).
+ * The display's refresh interval, ms: what the system says of the display this window is on, unless
+ * frames never come that fast here (Chromium pacing to another display's vsync, a laptop's dynamic
+ * refresh reporting its top rate) - then the shortest interval seen.
  */
 const measureRefreshMs = async (): Promise<number> => {
     const said = await window.electron?.getPerfCheckMetrics?.().catch(() => null);
-    if (said && said.refreshHz > 0) return 1000 / said.refreshHz;
-    return new Promise<number>((resolve) => {
-        const intervals: number[] = [];
-        let last = 0;
-        const tick = (at: number) => {
-            if (last && at > last) intervals.push(at - last);
-            last = at;
-            if (intervals.length >= 60) resolve(Math.min(...intervals));
-            else requestUncappedAnimationFrame(tick);
-        };
-        requestUncappedAnimationFrame(tick);
-    });
+    const seen = await shortestFrameMs();
+    if (!said || said.refreshHz <= 0) return seen;
+    const system = 1000 / said.refreshHz;
+    return seen > system * 1.5 ? seen : system;
 };
 
 /** Chromium's heap reading, MB; null where there is none. */
@@ -165,13 +170,19 @@ export const runPerfCheck = async ({ current, apply, onProgress, signal }: PerfC
         let beatsMs: number | null = null;
         // Ends the separation loop once the frames are counted: the segment under way finishes first.
         const stop = new AbortController();
+        const separateOne = async () => {
+            const at = performance.now();
+            if (!(await separate())) return false;
+            segmentTimes.push(performance.now() - at);
+            return true;
+        };
+        // One segment first, whatever the time: on a slow GPU beat_this alone can outlast the stretch.
         const analysis = (async () => {
+            const separating = gpuAnalysis && await separateOne();
             const started = performance.now();
             beatsMs = (await beats()) ? performance.now() - started : null;
-            while (!stop.signal.aborted && gpuAnalysis && !signal.aborted) {
-                const at = performance.now();
-                if (!(await separate())) break;
-                segmentTimes.push(performance.now() - at);
+            while (separating && !stop.signal.aborted && !signal.aborted) {
+                if (!(await separateOne())) break;
             }
         })();
         let intervals: number[];
@@ -183,9 +194,10 @@ export const runPerfCheck = async ({ current, apply, onProgress, signal }: PerfC
         }
         await readMemory();
         const segmentMs = medianOf(segmentTimes);
+        // A separation that runs here but failed this step reads as falling behind, not as not running.
         const inference: PerfCheckInference = {
             segmentMs,
-            realtime: segmentMs ? SEGMENT_ADVANCE_MS / segmentMs : null,
+            realtime: segmentMs ? SEGMENT_ADVANCE_MS / segmentMs : gpuAnalysis ? 0 : null,
             beatsMs,
         };
         const withAnalysis = frameStats(intervals, target);

@@ -72,6 +72,7 @@ export const IPC_CHANNELS = {
     'obs-browser-source-set-enabled': { level: 'first-party', why: '现状：有来源校验' },
     'open-external-url': { level: 'first-party', why: '打开系统浏览器，协议白名单在 openExternalUrl（firstParty）' },
     'perf-check-apply': { level: 'first-party', why: '只收性能检测窗口的（按它的 webContents 校验），转给主窗口改画面设置' },
+    'perf-check-done': { level: 'first-party', why: '让主窗口放开检测期间的暂停，只收性能检测窗口的（按它的 webContents 校验）' },
     'perf-check-log': { level: 'first-party', why: '写运行日志，只收性能检测窗口的（按它的 webContents 校验）' },
     'perf-check-metrics': { level: 'any', why: '只读各进程占的内存，不含个人数据' },
     'perf-check-open': { level: 'first-party', why: '开一个窗口（firstParty）' },

@@ -842,6 +842,8 @@ declare global {
       getPerfCheckMetrics?: () => Promise<PerfCheckProcessMemory>;
       /** From the check window: a line for the runtime log, written by the main process. */
       logPerfCheck?: (text: string) => Promise<boolean>;
+      /** From the check window: the measuring is over (done, failed or cancelled): the main window lets go of its hold. */
+      finishPerfCheck?: () => Promise<boolean>;
       /** From the check window: the settings the user chose, applied in the main window. */
       applyPerfCheckChoice?: (choice: PerfCheckSettings) => Promise<boolean>;
       /** In the main window: whether the check window is open, to hold the main window's picture and GPU analysis meanwhile. */

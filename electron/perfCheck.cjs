@@ -9,7 +9,8 @@
 // windows only), and hands back the settings the user picks ('perf-check-apply'), which go to the
 // main window to be applied there, through its own stores. While the check window is open the main
 // window is told ('perf-check-state'), so it holds its own picture and GPU analysis and the check
-// measures this computer rather than two windows drawing and analysing at once.
+// measures this computer rather than two windows drawing and analysing at once; the hold ends when
+// the measuring does ('perf-check-done', the results stay up), or the window closes or its renderer dies.
 //
 // The check window has the preload (it reads the GPU model weights like the main window does) but is
 // not first-party: its own channels are guarded by its own identity, and the first-party ones refuse it.
@@ -88,6 +89,7 @@ function createPerfCheckHost({
             win = null;
             tellMainWindow(false);
         });
+        win.webContents.on('render-process-gone', () => tellMainWindow(false));
         loadAppEntry(win, { perfCheck: '1' });
         tellMainWindow(true);
         return true;
@@ -112,6 +114,15 @@ function createPerfCheckHost({
         handler: (_event, text) => {
             if (typeof text !== 'string') return false;
             console.info(`[PerfCheck] ${text.slice(0, LOG_LIMIT)}`);
+            return true;
+        },
+    }));
+
+    ipcMain.handle('perf-check-done', createSenderGuardedHandler({
+        channel: 'perf-check-done',
+        isTrusted: isPerfCheckContents,
+        handler: () => {
+            tellMainWindow(false);
             return true;
         },
     }));

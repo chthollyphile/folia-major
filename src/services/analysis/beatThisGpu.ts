@@ -231,8 +231,8 @@ let heldForPerfCheck = false;
 /**
  * Holds this window's GPU analysis while the performance check measures the GPU from its own window
  * (true), or lets it go again (false): queued units are passed over and kept (the scheduler's
- * `paused`), and woken when released. An automix transition's units are not held - a crossfade due
- * during the check still gets its analysis.
+ * `paused`), and woken when released. A unit with a deadline is not held - automix's stems for a
+ * transition due during the check (urgency 'background' with a deadline) still come in time.
  */
 export const holdGpuAnalysis = (held: boolean): void => {
     if (heldForPerfCheck === held) return;
@@ -243,7 +243,7 @@ export const holdGpuAnalysis = (held: boolean): void => {
 /** A request's options with the hold above added to its own `paused`. */
 const withPerfCheckHold = (options: GpuRunOptions): GpuRunOptions => ({
     ...options,
-    paused: () => (heldForPerfCheck && options.urgency !== 'transition') || (options.paused?.() ?? false),
+    paused: () => (heldForPerfCheck && options.deadline === undefined && options.urgency !== 'transition') || (options.paused?.() ?? false),
 });
 
 /** What the loaded GPU models hold on the graphics card now, bytes: the performance check's memory reading. */
