@@ -62,7 +62,7 @@ import { persistPlaybackCache } from './components/app/playback/persistPlaybackC
 import { useAppOverlaysModel } from './components/app/overlays/useAppOverlaysModel';
 import { resolveNextUpTrack } from './components/app/overlays/now-playing-toast/resolveNextUpTrack';
 import { shouldShowNowPlayingToast } from './components/app/overlays/now-playing-toast/nowPlayingToastVisibility';
-import { useTrackEndCountdown } from './components/app/overlays/now-playing-toast/useTrackEndCountdown';
+import { TrackEndCountdownHost } from './components/app/overlays/now-playing-toast/TrackEndCountdownHost';
 import { isWallLibrarySuite, useActiveLibrarySuiteId } from './library/app/librarySuiteChoice';
 import {
     createSearchAlbumCollection,
@@ -1270,12 +1270,6 @@ export default function App() {
         isStageActive: isNowPlayingStageActive,
     }) : null), [isShowingTail, displaySong, playQueue, effectiveLoopMode, isFmMode, isNowPlayingStageActive]);
 
-    /** True while the card previews the next track (plain track-end countdown, not the blend). */
-    const countdownActive = useTrackEndCountdown({
-        enabled: stageTrackPillOnScreen && nextUpTrack !== null,
-        duration: displayDuration,
-    });
-
     /**
      * The track the card shows while announcing a switch.
      * During a blend the arriving track comes from the queue successor of the displayed
@@ -1295,7 +1289,8 @@ export default function App() {
             album: getSongAlbumLabel(stageNextUpTrack) || null,
         };
     }, [stageTrackPillMode, stageNextUpTrack]);
-    const stageIsNextUp = stageNextUp !== null && (isShowingTail || countdownActive);
+    // A blend's preview. The plain track-end countdown is kept by TrackEndCountdownHost and added in AppOverlays.
+    const stageIsNextUp = stageNextUp !== null && isShowingTail;
 
 
     // The duration normally arrives on `loadedmetadata`, which fires when an element is given a
@@ -2989,6 +2984,7 @@ export default function App() {
             <PlaybackEntryViewPrompt theme={theme} />
             {/* With 自动 AI 分词 on, segments a song that has no saved split by itself (issue #960). */}
             <AutoLyricSegmentationHost visualizerMode={visualizerMode} isLyricsLoading={isLyricsLoading} save={lyricSegmentationActions.save} />
+            <TrackEndCountdownHost enabled={stageTrackPillOnScreen && nextUpTrack !== null} duration={displayDuration} />
         </AppShell>
     );
 }
