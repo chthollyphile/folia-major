@@ -1,5 +1,5 @@
 import type { MotionValue } from 'framer-motion';
-import type { AudioBands, LyricRenderScale, SonnetTuning, Theme } from '../../../types';
+import type { AudioBands, LyricAntialias, LyricRenderScale, SonnetTuning, Theme } from '../../../types';
 import { resolveLyricPixelRatio } from '../../../utils/lyricRenderQuality';
 import type { SonnetProgram } from './types';
 import { findSonnetParagraphIndexAtTime } from './sonnetProgram';
@@ -81,6 +81,11 @@ export interface SonnetRuntimeOptions {
     renderScale: LyricRenderScale;
     /** 画布开不开 MSAA（#929）：「自动」时就是原来的 `!postProcessEnabled`。只在建上下文时定，变了由外壳重建。 */
     antialias: boolean;
+    /**
+     * 抗锯齿设置本身（全局挡位叠上样式覆盖；预览里是 'auto'）：场景上的滤镜按它决定要不要多重采样
+     * （resolveSonnetSceneFilterAntialias）。和 antialias 一样只在创建时定，变了由外壳重建。
+     */
+    antialiasMode: LyricAntialias;
     /** 智能动感模式 (`smartBeatActive`: on or cached); its strengths reach the frame through the beat clock. */
     smartBeatEnabled: boolean;
     currentTime: MotionValue<number>;
@@ -360,6 +365,7 @@ export class SonnetPixiRuntime {
             staticMode: this.options.staticMode,
             transparentBackground: this.options.transparentBackground,
             renderResolution: this.app.renderer.resolution,
+            antialiasMode: this.options.antialiasMode,
         }, iconTextures, song.program.paragraphs[index]);
     }
 

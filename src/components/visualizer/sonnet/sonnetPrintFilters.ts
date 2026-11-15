@@ -65,9 +65,9 @@ void main(void) {
     if (color.a > 0.0) {
         color.rgb /= color.a;
     }
-    // The pass runs at the canvas resolution, so gl_FragCoord counts device pixels: the screen
-    // is laid out in CSS pixels (cells stay 5 wide whatever the resolution) and only the dot
-    // edge is kept at 1.2 device pixels.
+    // gl_FragCoord counts the pixels of the pass, which runs at the canvas resolution (a share
+    // of it while a transition or outro blur is on): the screen is laid out in CSS pixels (cells
+    // stay 5 wide whatever the resolution) and only the dot edge is kept at 1.2 pass pixels.
     float density = max(uInputPixel.x / uInputSize.x, 0.0001);
     vec2 cssCoord = gl_FragCoord.xy / density;
     float edge = 1.2 / density;

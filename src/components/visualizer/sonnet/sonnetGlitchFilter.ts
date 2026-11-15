@@ -10,6 +10,8 @@ in vec2 vTextureCoord;
 out vec4 finalColor;
 
 uniform sampler2D uTexture;
+uniform highp vec4 uInputSize;
+uniform highp vec4 uOutputFrame;
 uniform vec4 uInputClamp;
 uniform float uAmount;
 uniform float uSeed;
@@ -19,16 +21,22 @@ float hash(vec2 value) {
 }
 
 void main(void) {
-    float coarseBand = floor(vTextureCoord.y * 26.0);
-    float fineBand = floor(vTextureCoord.y * 110.0);
+    // Bands and shifts are laid out on the viewport (the filter area), not on the pooled texture:
+    // its power-of-two size changes with the pass resolution, and the tear changed with it. The
+    // counts and widths are what a 1920x1080 window showed at resolution 1.
+    vec2 frameSize = max(uOutputFrame.zw, vec2(1.0));
+    float screenY = vTextureCoord.y * uInputSize.y / frameSize.y;
+    float shiftToUv = frameSize.x * uInputSize.z;
+    float coarseBand = floor(screenY * 14.0);
+    float fineBand = floor(screenY * 58.0);
     float coarseNoise = hash(vec2(coarseBand, uSeed));
     float fineNoise = hash(vec2(fineBand + 41.0, uSeed * 1.37));
     float coarseGate = step(0.58, coarseNoise);
     float fineGate = step(0.88, fineNoise);
     float coarseShift = (hash(vec2(coarseBand + 17.0, uSeed)) * 2.0 - 1.0)
-        * coarseGate * uAmount * 0.095;
+        * coarseGate * uAmount * 0.1 * shiftToUv;
     float fineShift = (hash(vec2(fineBand + 73.0, uSeed)) * 2.0 - 1.0)
-        * fineGate * uAmount * 0.035;
+        * fineGate * uAmount * 0.037 * shiftToUv;
     vec2 sampleUv = vec2(vTextureCoord.x + coarseShift + fineShift, vTextureCoord.y);
     vec4 color = texture(uTexture, clamp(sampleUv, uInputClamp.xy, uInputClamp.zw));
 

@@ -1,4 +1,4 @@
-import type { SonnetTuning, Theme } from '../../../types';
+import type { LyricAntialias, SonnetTuning, Theme } from '../../../types';
 import { normalizeFontWeight, resolveThemeFontStack } from '../../../utils/fontStacks';
 import type { SonnetParagraph, SonnetShot } from './types';
 import { hashSonnetSeed } from './sonnetRandom';
@@ -79,23 +79,39 @@ export interface SonnetSceneBuildOptions {
      * scenes whenever it changes.
      */
     renderResolution: number;
+    /**
+     * The 抗锯齿 setting as the user left it (global tier with the style's override on top; 'auto'
+     * in previews). The canvas only carries a yes or no, which cannot tell 'auto' from the other two.
+     */
+    antialiasMode: LyricAntialias;
 }
 
-export type SonnetSceneFilterAntialias = 'on' | 'inherit';
+export type SonnetSceneFilterAntialias = 'on' | 'off' | 'inherit';
 
 /** The transition blur runs at this share of the canvas resolution: it is blurring anyway. */
 export const SONNET_TRANSITION_BLUR_RESOLUTION_SHARE = 0.5;
 
 /**
- * The antialiasing the transition and outro filters on a scene container ask for. Pixi runs one
- * container's filters as a single pass that is multisampled only when none of them refuses, so
- * they have to agree with the post-process chain: that chain forces it on (the canvas is not
- * multisampled by default while post-processing is on); without the chain they follow the canvas,
- * which carries the 抗锯齿 setting.
+ * The antialiasing the filters on a scene container ask for. Pixi runs one container's enabled
+ * filters as a single pass, multisampled only when none of them refuses, so they have to agree.
+ *
+ * - 'off': nothing is multisampled, the post-process chain included (it asks for 'on' by itself).
+ * - With a post-process chain: 'on', like the chain. The canvas is not multisampled by default
+ *   while post-processing is on, the pass is.
+ * - 'on' without a chain: the canvas is multisampled, and the transition and outro passes follow it.
+ * - 'auto' without a chain: the transition and outro passes are not multisampled. They last a few
+ *   frames and tear or blur the picture anyway, while a 4-sample target at the canvas resolution
+ *   would stay in the texture pool for good: at 1920x1080 and the default 1.5x that is about
+ *   130 MB against 32 MB.
  */
-export const resolveSonnetSceneFilterAntialias = (hasPostProcessChain: boolean): SonnetSceneFilterAntialias => (
-    hasPostProcessChain ? 'on' : 'inherit'
-);
+export const resolveSonnetSceneFilterAntialias = (
+    mode: LyricAntialias,
+    hasPostProcessChain: boolean,
+): SonnetSceneFilterAntialias => {
+    if (mode === 'off') return 'off';
+    if (hasPostProcessChain) return 'on';
+    return mode === 'on' ? 'inherit' : 'off';
+};
 
 const colorNumber = (pixi: PixiModule, color: string) => pixi.Color.shared.setValue(color).toNumber();
 
@@ -362,11 +378,15 @@ export const buildSonnetScene = (
             // Pixi's Filter default is a hard resolution 1: left alone, the whole scene would be
             // drawn at one pixel per CSS pixel and stretched onto the canvas, whatever
             // `textureResolution` and the 分辨率 multiplier say.
-            sceneFilters.forEach((filter) => { filter.resolution = 'inherit'; });
+            sceneFilters.forEach((filter) => {
+                filter.resolution = 'inherit';
+                // The chain asks for multisampling by itself; 抗锯齿 set to 关 takes it away.
+                if (options.antialiasMode === 'off') filter.antialias = 'off';
+            });
             postProcessFilters.push(...sceneFilters);
         }
     }
-    const filterAntialias = resolveSonnetSceneFilterAntialias(postProcessFilters.length > 0);
+    const filterAntialias = resolveSonnetSceneFilterAntialias(options.antialiasMode, postProcessFilters.length > 0);
     const transitionBlurFilter = options.tuning.enableTransitions && !options.staticMode
         ? new pixi.BlurFilter({
             strength: 0,
