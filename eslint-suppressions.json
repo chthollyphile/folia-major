@@ -2467,9 +2467,6 @@
     },
     "@typescript-eslint/no-unnecessary-type-assertion": {
       "count": 2
-    },
-    "@typescript-eslint/no-unused-vars": {
-      "count": 1
     }
   },
   "src/components/command-palette/commands/searchCommands.ts": {
