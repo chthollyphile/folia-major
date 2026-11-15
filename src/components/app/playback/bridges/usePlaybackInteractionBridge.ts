@@ -198,8 +198,8 @@ export function usePlaybackInteractionBridge({
             return;
         }
 
-        handleToggleLoopMode();
-    }, [handleToggleLoopMode, isNowPlayingStageActive]);
+        handleToggleLoopMode(isFmMode);
+    }, [handleToggleLoopMode, isFmMode, isNowPlayingStageActive]);
 
     const handleChangeReplayGainMode = useCallback((mode: ReplayGainMode) => {
         setReplayGainMode(mode);
