@@ -109,6 +109,7 @@ const { createAcousticsHost } = require('./acoustics/host.cjs');
 const { steamAudioLibraryPath } = require('./acoustics/phonon.cjs');
 const { createSceneScreenHost } = require('./scenes/screenCapture.cjs');
 const { createDebugHost, runtimeLine } = require('./debug/debugHost.cjs');
+const { createPerfCheckHost } = require('./perfCheck.cjs');
 const { createCrashLog, installCrashHandlers, flushPageStorage } = require('./debug/crashLog.cjs');
 const { measureLeftovers, removeDownloadedLeftovers } = require('./analysis/modelPaths.cjs');
 const { resolveLinuxPasswordStore } = require('./linuxPasswordStore.cjs');
@@ -2984,6 +2985,19 @@ const displaySleepBlocker = createDisplaySleepBlocker(powerSaveBlocker);
 // The developer debug module: the runtime log and the memory monitor, both switched from
 // Settings > Developer. Created BEFORE the analysis host, which logs through it.
 createDebugHost({ app, ipcMain, store, BrowserWindow, isTrustedSender: isFirstPartyWindowContents });
+// The performance check's window (electron/perfCheck.cjs, src/components/perfCheck/).
+const perfCheckHost = createPerfCheckHost({
+  app,
+  ipcMain,
+  BrowserWindow,
+  screen,
+  preloadPath: path.join(__dirname, 'preload.cjs'),
+  iconPath: APP_ICON_PATH,
+  loadAppEntry,
+  isolateFirstPartyWindow,
+  isFirstPartyWindowContents,
+  getMainWindow: () => mainWindow,
+});
 logLinuxVulkanChoice(linuxVulkan, linuxGraphicsMode);
 
 const analysisHost = createAnalysisHost({
@@ -6214,6 +6228,8 @@ function createWindow(options = {}) {
       }
       // The hidden YouTube Music sandbox window would otherwise keep the app from quitting.
       ytmSandbox.destroy();
+      // So would the performance check's window, still running its GPU work.
+      perfCheckHost.close();
       refreshTrayMenu();
     }
   });

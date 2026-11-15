@@ -17,7 +17,7 @@ import { prewarmSavedVisualizer, prewarmVisualizersWhenIdle } from './components
 import { bootNavidromeServerPreset } from './services/navidromeServerPreset';
 import { isNavidromeEnabled } from './services/navidromeService';
 import { setNavidromeEnabledState } from './stores/useLibraryStore';
-import { isMainAppSurface, isObsBrowserSourceSurface, isRemoteControlSurface, obsSourceKind } from './utils/appSurface';
+import { isMainAppSurface, isObsBrowserSourceSurface, isPerfCheckSurface, isRemoteControlSurface, obsSourceKind } from './utils/appSurface';
 // 副作用 import：store 在模块加载时就把 `<html data-reduce-motion>` 写好并保持同步。放在 bootstrap
 // 而不是 App 里，是因为下面按 URL 挂的根不止 App —— 远程控制窗口的进度辉光也读这个属性。
 import './stores/useMotionSettingsStore';
@@ -50,6 +50,8 @@ if (!rootElement) {
 }
 
 const root = ReactDOM.createRoot(rootElement);
+// The performance check's window, loaded only there.
+const PerfCheckApp = React.lazy(() => import('./components/perfCheck/PerfCheckApp'));
 const isObsBrowserSource = isObsBrowserSourceSurface;
 // obsSource=now-playing / playercap: static OBS overlay that connects directly to NowPlaying / PlayerCap in the browser (no Electron SSE relay).
 const isNowPlayingObsSource = isObsBrowserSource && obsSourceKind === 'now-playing';
@@ -81,7 +83,9 @@ const renderApp = () => root.render(
               ? <ObsBrowserSourceApp />
               : isRemoteControl
                 ? <RemoteControlApp />
-                : <FirstScreenMounted><App /></FirstScreenMounted>}
+                : isPerfCheckSurface
+                  ? <React.Suspense fallback={null}><PerfCheckApp /></React.Suspense>
+                  : <FirstScreenMounted><App /></FirstScreenMounted>}
       </AppSplashGate>
     </React.StrictMode>
   );
@@ -118,6 +122,8 @@ void Promise.allSettled([bootFolium(), bootNavidrome()])
         if (navidrome.status === 'rejected') console.warn('[Navidrome] Server preset boot failed:', navidrome.reason);
     })
     .finally(() => {
-        initializeLocalCoverRuntime();
+        // Not in the performance check's window: the cover migration it may start writes through a
+        // first-party channel (the main window runs it).
+        if (!isPerfCheckSurface) initializeLocalCoverRuntime();
         renderApp();
     });

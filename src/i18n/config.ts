@@ -6,6 +6,7 @@ import zhTW from 'virtual:folia-locale-zh-TW';
 import ind from './locales/in.ts';
 import vi from './locales/vi.ts';
 import { resolveMissingTranslation } from './missingTranslation';
+import { isPerfCheckSurface } from '../utils/appSurface';
 
 /*
  * Chinese fallback for keys the active locale does not contain.
@@ -162,7 +163,8 @@ i18n
  * too, instead of only manual switches made in Settings.
  */
 const pushLocaleToMainProcess = (value: string | null | undefined) => {
-  if (typeof window === 'undefined') {
+  // The performance check's window only reads the language; the main window tells the main process.
+  if (typeof window === 'undefined' || isPerfCheckSurface) {
     return;
   }
 

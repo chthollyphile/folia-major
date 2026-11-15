@@ -3,6 +3,7 @@ import { installGlobalVisualizerFrameRateLimiter } from './utils/frameRateLimite
 import { installConsoleLogCapture } from './utils/consoleLogBuffer';
 import { installDebugModule } from './services/debug/debugModule';
 import { installMemorySampleFeed } from './services/debug/memorySamples';
+import { isPerfCheckSurface } from './utils/appSurface';
 // import { installCoverSizeAudit } from './services/debug/coverSizeSamples';
 // @ts-ignore
 globalThis.Buffer = Buffer;
@@ -11,8 +12,12 @@ globalThis.Buffer = Buffer;
 installConsoleLogCapture();
 // Right after it, so the startup lines reach the runtime log file too and not only the in-memory
 // buffer. Both no-op off Electron. See services/debug/debugModule.ts.
-installDebugModule();
-installMemorySampleFeed();
+// Not in the performance check's window: the log pipe is the first-party windows' (the main process
+// refuses it there), and the check writes its result through its own channel (electron/perfCheck.cjs).
+if (!isPerfCheckSurface) {
+    installDebugModule();
+    installMemorySampleFeed();
+}
 // Cover size audit, left wired but switched off: it answered whether the provider CDNs honour the
 // size in a cover URL - they do - and that is not a question worth re-asking every session. The
 // collector and its panel are still in the tree, and `?probe=coverSizeAudit` still reaches them.
