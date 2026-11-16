@@ -42,7 +42,7 @@ export interface MetaphorCue {
     chorus: boolean;
     /** 间奏上的字（开头的曲名卡）；没有是空。 */
     text: string;
-    /** 镜头按这么长循环（纯音乐那一个没有尽头的 cue）；0 是不循环。 */
+    /** 镜头按这么长循环（没有尽头的间奏切到头以后剩下的那一个 cue）；0 是不循环。 */
     loop: number;
 }
 
@@ -68,6 +68,12 @@ const INTERLUDE_MIN = 2.4;
 const MIN_SHOT = 0.6;
 const MIN_CUE = 0.15;
 const LOOP_SECONDS = 48;
+/** 长的间奏（纯音乐整首都是）切成一段一段，每段是自己的一个 cue：换一版线稿、版面和对撞，不然同一张图要看到底。 */
+const INTERLUDE_SEGMENT = 24;
+/** 比这还长的间奏才切。 */
+const INTERLUDE_SPLIT = 36;
+/** 没有尽头的间奏（纯音乐、最后一句以后）切到这么远，再往后是一个循环的 cue。 */
+const INTERLUDE_HORIZON = 720;
 
 const INTENSITY_PACE: Partial<Record<string, number>> = { calm: 0.75, normal: 1, chaotic: 1.3 };
 /** 两句开唱隔得比这还近（对唱、和声同时进）：只排先来的那句，后一句没有自己的画面。 */
@@ -196,7 +202,7 @@ const pickTransition = (rng: () => number, enabled: boolean, intoChorus: boolean
         : pick<MetaphorTransition>(rng, { cut: 5.5, flood: 1.5, smash: 1.2 });
 };
 
-/** 整首编成分镜表。lines 为空（纯音乐、还没歌词）时是一个不结束的间奏。 */
+/** 整首编成分镜表。lines 为空（纯音乐、还没歌词）时整首是一段一段的间奏，曲名在第一段上。 */
 export const compileMetaphorProgram = (lines: readonly Line[], options: MetaphorProgramOptions): MetaphorProgram => {
     const rng = createVisualizerRng(`metaphor:${options.seed}`);
     const pace = options.cutPace * (INTENSITY_PACE[options.intensity] ?? 1);
@@ -204,7 +210,7 @@ export const compileMetaphorProgram = (lines: readonly Line[], options: Metaphor
     const cues: MetaphorCue[] = [];
     const title = options.title?.trim() ?? '';
 
-    const pushInterlude = (start: number, end: number, text: string, loop = 0) => {
+    const pushInterludeCue = (start: number, end: number, text: string, loop = 0) => {
         context.chorus = false;
         const shotsEnd = loop > 0 ? start + loop : end;
         cues.push({
@@ -213,6 +219,21 @@ export const compileMetaphorProgram = (lines: readonly Line[], options: Metaphor
             transition: cues.length === 0 ? 'cut' : pickTransition(rng, options.transitions, false),
             chorus: false, text, loop,
         });
+    };
+    // 一段间奏：长的切成差不多 INTERLUDE_SEGMENT 秒的几段（切点前后挪几秒，不那么齐），曲名只在第一段上。
+    // 没有尽头的切到 INTERLUDE_HORIZON 为止，后面接一个循环的 cue。
+    const pushInterlude = (start: number, end: number, text: string) => {
+        const endless = !Number.isFinite(end);
+        const stop = endless ? start + INTERLUDE_HORIZON : end;
+        const length = stop - start;
+        const count = length > INTERLUDE_SPLIT ? Math.round(length / INTERLUDE_SEGMENT) : 1;
+        let from = start;
+        for (let index = 1; index <= count; index += 1) {
+            const to = index === count ? stop : start + (length * index) / count + (rng() - 0.5) * 6;
+            pushInterludeCue(from, to, index === 1 ? text : '');
+            from = to;
+        }
+        if (endless) pushInterludeCue(stop, Number.POSITIVE_INFINITY, '', LOOP_SECONDS);
     };
 
     // 按开唱时间排（同时的保持原来的先后），再去掉和前一句几乎同时开唱的：不然先来的那句会被后一句挤得一帧都不剩
@@ -223,7 +244,7 @@ export const compileMetaphorProgram = (lines: readonly Line[], options: Metaphor
         .sort((a, b) => a.line.startTime - b.line.startTime || a.lineIndex - b.lineIndex)
         .filter(({ line }, order, all) => order === 0 || line.startTime - all[order - 1].line.startTime >= SAME_ONSET);
     if (sung.length === 0) {
-        pushInterlude(0, Number.POSITIVE_INFINITY, title, LOOP_SECONDS);
+        pushInterlude(0, Number.POSITIVE_INFINITY, title);
         return { cues };
     }
 
@@ -254,7 +275,7 @@ export const compileMetaphorProgram = (lines: readonly Line[], options: Metaphor
         cues.push(cue);
         cursor = end;
     });
-    pushInterlude(cursor, Number.POSITIVE_INFINITY, '', LOOP_SECONDS);
+    pushInterlude(cursor, Number.POSITIVE_INFINITY, '');
     return { cues };
 };
 

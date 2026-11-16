@@ -152,15 +152,33 @@ describe('compileMetaphorProgram', () => {
         expect(odd).toEqual(compileMetaphorProgram(SONG, OPTIONS));
     });
 
-    it('没有歌词（纯音乐）：一个不结束、镜头循环的间奏', () => {
+    it('没有歌词（纯音乐）：整首是一段一段的间奏，曲名在第一段上，最后一个不结束、镜头循环', () => {
         const { cues } = compileMetaphorProgram([], OPTIONS);
-        expect(cues).toHaveLength(1);
-        expect(cues[0]).toMatchObject({ lineIndex: -1, start: 0, end: Number.POSITIVE_INFINITY, text: 'Title' });
-        expect(cues[0].loop).toBeGreaterThan(0);
-        // 空行不算歌词
-        expect(compileMetaphorProgram([timedLine(3, [['  ', 1]])], OPTIONS).cues).toHaveLength(1);
-        // 只有标点的句子（间奏的占位）也不算
-        expect(compileMetaphorProgram([timedLine(3, [['......', 1]])], OPTIONS).cues).toHaveLength(1);
+        expect(cues.length).toBeGreaterThan(10);
+        expect(cues.every(cue => cue.lineIndex === -1)).toBe(true);
+        expect(cues[0]).toMatchObject({ start: 0, text: 'Title', loop: 0 });
+        expect(cues.slice(1).every(cue => cue.text === '')).toBe(true);
+        // 首尾相接，每段二十来秒
+        cues.slice(1).forEach((cue, index) => expect(cue.start).toBe(cues[index].end));
+        cues.slice(0, -1).forEach((cue) => {
+            expect(cue.end - cue.start).toBeGreaterThan(15);
+            expect(cue.end - cue.start).toBeLessThan(33);
+            expect(cue.loop).toBe(0);
+        });
+        expect(cues.at(-1)!.end).toBe(Number.POSITIVE_INFINITY);
+        expect(cues.at(-1)!.loop).toBeGreaterThan(0);
+        // 空行不算歌词；只有标点的句子（间奏的占位）也不算
+        expect(compileMetaphorProgram([timedLine(3, [['  ', 1]])], OPTIONS).cues.every(cue => cue.lineIndex === -1)).toBe(true);
+        expect(compileMetaphorProgram([timedLine(3, [['......', 1]])], OPTIONS).cues.every(cue => cue.lineIndex === -1)).toBe(true);
+    });
+
+    it('歌里长的间奏也切开，短的不切', () => {
+        const { cues } = compileMetaphorProgram([timedLine(4, [['one', 1]]), timedLine(70, [['two', 1]]), timedLine(80, [['three', 1]])], OPTIONS);
+        const first = cues.findIndex(cue => cue.lineIndex === 0);
+        const second = cues.findIndex(cue => cue.lineIndex === 1);
+        const third = cues.findIndex(cue => cue.lineIndex === 2);
+        expect(second - first - 1).toBeGreaterThanOrEqual(2);
+        expect(third - second - 1).toBeLessThanOrEqual(1);
     });
 });
 
