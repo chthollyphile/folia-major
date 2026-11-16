@@ -10,6 +10,7 @@ import { normalizeLyricRenderQuality } from './lyricRenderQuality';
 import type { ObsAiConfig } from '../services/aiText';
 import { getWebAiProvider } from '../services/runtimeConfig';
 import { resolveObsNowPlayingCard, type ObsNowPlayingCardConfig } from './obsNowPlayingCard';
+import { readCfgParam } from './obsUrl';
 
 // src/utils/obsWebAppearance.ts
 // Parse the OBS URL params (including the appearance cfg shortcode) into the appearance
@@ -75,13 +76,15 @@ export interface ObsWebAppearance {
   nowPlayingCard: ObsNowPlayingCardConfig | null;
 }
 
-export function parseObsWebParams(search: string): ObsWebParams {
+// search is location.search, hash is location.hash: cfg is read from the fragment first (see
+// readCfgParam), every other field from the query string only.
+export function parseObsWebParams(search: string, hash = ''): ObsWebParams {
   const params = new URLSearchParams(search);
   return {
     // Sanitize host to host:port characters only; an untrusted '#'/space would otherwise
     // produce a malformed ws:// URL that throws in the WebSocket constructor.
     host: (params.get('host')?.trim() || '').replace(/[^\w.\-:[\]]/g, ''),
-    cfg: params.get('cfg'),
+    cfg: readCfgParam(search, hash),
     // OBS overlay defaults to the dark theme; only daylight=1 picks the light side.
     isDaylight: params.get('daylight') === '1',
     // Absent and transparent=0 both show the opaque theme background — matching the
