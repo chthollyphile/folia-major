@@ -24,6 +24,7 @@ describe('visualizer registry', () => {
             'hanabi',
             'machi',
             'nebbia',
+            'metaphor',
             'classic',
             'cadenza',
             'partita',

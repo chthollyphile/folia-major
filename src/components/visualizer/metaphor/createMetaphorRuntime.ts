@@ -1,0 +1,634 @@
+import * as THREE from 'three';
+import type { MotionValue } from 'framer-motion';
+import type { Line, LyricRenderScale, Theme } from '../../../types';
+import { resolveThemeFontStack, resolveThemeFontWeight } from '../../../utils/fontStacks';
+import { resolveLyricPixelRatio } from '../../../utils/lyricRenderQuality';
+import { createVisualizerRng } from '../visualizerSeedHash';
+import {
+    METAPHOR_EMPTY_STAGE,
+    resolveMetaphorMelt,
+    resolveMetaphorPose,
+    resolveMetaphorReveal,
+    resolveMetaphorStillPose,
+    resolveMetaphorTransitionFx,
+    type MetaphorPose,
+    type MetaphorTransitionFx,
+} from './metaphorCamera';
+import { buildMetaphorAtlas, METAPHOR_GLYPH_WORLD, MetaphorGlyphSource } from './metaphorGlyphs';
+import { buildMetaphorLayout, buildMetaphorTextTokens, buildMetaphorTokens, type MetaphorLayout } from './metaphorLayout';
+import { resolveMetaphorPalette } from './metaphorPalette';
+import {
+    compileMetaphorProgram,
+    findMetaphorCue,
+    findMetaphorShot,
+    resolveMetaphorCueTime,
+    type MetaphorCue,
+    type MetaphorProgram,
+} from './metaphorProgram';
+import {
+    METAPHOR_DEVELOP_FRAGMENT,
+    METAPHOR_DEVELOP_VERTEX,
+    METAPHOR_GLYPH_FRAGMENT,
+    METAPHOR_GLYPH_VERTEX,
+    METAPHOR_SHAPE_FRAGMENT,
+    METAPHOR_SHAPE_VERTEX,
+} from './metaphorShaders';
+import {
+    METAPHOR_COLLISION_APPROACH,
+    METAPHOR_COLLISION_LIFE,
+    METAPHOR_SHAPE_CAPACITY,
+    METAPHOR_SHAPE_STRIDE,
+    planMetaphorShapes,
+    planMetaphorCollisions,
+    writeMetaphorCollisions,
+    writeMetaphorPairs,
+    writeMetaphorShapes,
+    type MetaphorCollision,
+    type MetaphorShape,
+} from './metaphorShapes';
+import type { MetaphorTuning } from './types';
+
+// src/components/visualizer/metaphor/createMetaphorRuntime.ts
+// 隐喻的运行时：一个 three.js 的 WebGL 上下文，建一次；换歌、换主题、换设置、暂停都就地推给它（外壳用 useVisualizerPixiHost 托管）。
+// 每帧两遍：字形和融球用加法混合画进墨场（半浮点离屏图），再全屏显影成纸、墨、网点和颗粒（metaphorShaders.ts）。
+// 画什么只由播放时间决定：分镜表（metaphorProgram.ts）说这一刻是哪个 cue、哪个镜头，镜头的机位由 metaphorCamera.ts 算。
+// 一个 cue 一套东西（排版、图集、几何、融球规划），按需建、提前一个备好，只留当前的和相邻的。
+// 自己的 requestAnimationFrame 循环（全局限帧已经管着它）；暂停时不跑，拖进度时由外壳补一帧。时间只在循环里读 currentTime，不进 React。
+
+export interface MetaphorSong {
+    seed: string | number;
+    lines: Line[];
+    title: string;
+}
+
+export interface MetaphorRuntimeOptions {
+    host: HTMLDivElement;
+    song: MetaphorSong;
+    theme: Theme;
+    tuning: MetaphorTuning;
+    renderScale: LyricRenderScale;
+    currentTime: MotionValue<number>;
+    audioPower: MotionValue<number>;
+    paused: boolean;
+    staticMode: boolean;
+    showText: boolean;
+    /** 播放页透明：纸不画，画布带 alpha（切换时外壳重建运行时）。 */
+    seeThrough: boolean;
+    /** WebGL 上下文丢了：外壳重建运行时。 */
+    onContextLost: () => void;
+    signal: AbortSignal;
+}
+
+interface MetaphorSet {
+    layout: MetaphorLayout;
+    shapes: MetaphorShape[];
+    collisions: MetaphorCollision[];
+    mesh: THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial> | null;
+    texture: THREE.DataTexture | null;
+}
+
+interface MetaphorDebugHook {
+    /** 按这个播放时间同步画一帧，之后的帧也停在这一刻；传 null 回到跟着歌走。 */
+    renderAt: (seconds: number | null) => void;
+    program: () => MetaphorProgram;
+    /** 这一刻的 cue 序号、镜头种类、转场。 */
+    shotAt: (seconds: number) => { cue: number; kind: string; transition: string; invert: boolean };
+    runtime: MetaphorRuntime;
+}
+
+declare global {
+    interface Window {
+        __metaphorDebug?: MetaphorDebugHook;
+    }
+}
+
+/** 换主题时要重排的那部分（字体、关键词、动效强度）；只改颜色不算。 */
+const themeLayoutKey = (theme: Theme) => [
+    resolveThemeFontStack(theme), resolveThemeFontWeight(theme, 800), theme.animationIntensity,
+    (theme.wordColors ?? []).map(entry => entry.word).join(','),
+].join('|');
+
+/** 提前多久把下一个 cue 备好。 */
+const PREPARE_LEAD = 2.5;
+/** 网点格子的基础大小（CSS 像素）。 */
+const DOT_SIZE = 7;
+const DEG = Math.PI / 180;
+
+const additive = (material: THREE.ShaderMaterial) => {
+    material.blending = THREE.CustomBlending;
+    material.blendEquation = THREE.AddEquation;
+    material.blendSrc = THREE.OneFactor;
+    material.blendDst = THREE.OneFactor;
+    material.blendSrcAlpha = THREE.OneFactor;
+    material.blendDstAlpha = THREE.OneFactor;
+    material.depthTest = false;
+    material.depthWrite = false;
+    material.transparent = true;
+    material.side = THREE.DoubleSide;
+    return material;
+};
+
+export class MetaphorRuntime {
+    private readonly renderer: THREE.WebGLRenderer;
+    private readonly fieldTarget: THREE.WebGLRenderTarget;
+    private readonly fieldScene = new THREE.Scene();
+    private readonly camera = new THREE.PerspectiveCamera(32, 1, 0.05, 400);
+    private readonly developScene = new THREE.Scene();
+    private readonly developCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+    private readonly glyphMaterial: THREE.ShaderMaterial;
+    private readonly shapeMaterial: THREE.ShaderMaterial;
+    private readonly developMaterial: THREE.ShaderMaterial;
+    private readonly shapeData = new Float32Array(METAPHOR_SHAPE_CAPACITY * METAPHOR_SHAPE_STRIDE);
+    private readonly shapeBuffer: THREE.InstancedInterleavedBuffer;
+    private readonly shapeGeometry = new THREE.InstancedBufferGeometry();
+    private readonly developGeometry = new THREE.BufferGeometry();
+    private readonly glyphs: MetaphorGlyphSource;
+    private readonly sets = new Map<number, MetaphorSet>();
+    private readonly fx: MetaphorTransitionFx = { flood: 0, flash: false };
+    private readonly resizeObserver: ResizeObserver;
+    private program: MetaphorProgram;
+    private shown: MetaphorSet | null = null;
+    private song: MetaphorSong;
+    private theme: Theme;
+    private themeKey: string;
+    private tuning: MetaphorTuning;
+    private renderScale: LyricRenderScale;
+    private paused: boolean;
+    private staticMode: boolean;
+    private showText: boolean;
+    private fontReady: boolean;
+    private width = 0;
+    private height = 0;
+    private pixelRatio = 1;
+    private raf = 0;
+    private disposed = false;
+    /** 音量 0..1（起音快、释放慢）；见过大于 1 的值就按 0..255 换算（主播放器是 0..255，预览是 0..1）。 */
+    private audio = 0;
+    private audioRaw = false;
+    private audioAt = 0;
+    private debugTime: number | null = null;
+
+    /** 建运行时并画好第一帧（换样式的过渡等它）。 */
+    static async create(options: MetaphorRuntimeOptions) {
+        options.signal.throwIfAborted();
+        const runtime = new MetaphorRuntime(options);
+        try {
+            // 主题字体可能还在路上：等它一小会儿，免得第一句用回退字体画出来再整个换掉
+            if (!runtime.fontReady) await Promise.race([document.fonts.ready, new Promise(resolve => setTimeout(resolve, 400))]);
+            options.signal.throwIfAborted();
+            runtime.fontReady = runtime.glyphs.fontReady();
+            runtime.render();
+            runtime.renderer.domElement.style.visibility = '';
+            runtime.requestFrame();
+        } catch (error) {
+            runtime.destroy();
+            throw error;
+        }
+        return runtime;
+    }
+
+    private constructor(private readonly options: MetaphorRuntimeOptions) {
+        this.song = options.song;
+        this.theme = options.theme;
+        this.themeKey = themeLayoutKey(options.theme);
+        this.tuning = options.tuning;
+        this.renderScale = options.renderScale;
+        this.paused = options.paused;
+        this.staticMode = options.staticMode;
+        this.showText = options.showText;
+        // 会抛错的两样（拿不到 2D 画布、编分镜）放在建 WebGL 上下文之前：抛了也没有上下文要收
+        this.glyphs = new MetaphorGlyphSource(resolveThemeFontStack(options.theme), resolveThemeFontWeight(options.theme, 800));
+        this.fontReady = this.glyphs.fontReady();
+        this.program = this.compile();
+
+        this.renderer = new THREE.WebGLRenderer({ antialias: false, alpha: options.seeThrough, depth: false, stencil: false, powerPreference: 'high-performance' });
+        this.renderer.autoClear = false;
+        this.renderer.debug.checkShaderErrors = import.meta.env.DEV;
+        const canvas = this.renderer.domElement;
+        canvas.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;display:block;visibility:hidden';
+        options.host.appendChild(canvas);
+
+        // 墨场要能加过 1（几个融球叠在一起）：半浮点；这台机器画不了半浮点时退回 8 位，叠多了会封顶，画面只是略平
+        const floatTarget = this.renderer.extensions.has('EXT_color_buffer_float') || this.renderer.extensions.has('EXT_color_buffer_half_float');
+        this.fieldTarget = new THREE.WebGLRenderTarget(1, 1, {
+            type: floatTarget ? THREE.HalfFloatType : THREE.UnsignedByteType,
+            format: THREE.RGBAFormat,
+            minFilter: THREE.LinearFilter,
+            magFilter: THREE.LinearFilter,
+            depthBuffer: false,
+            stencilBuffer: false,
+            generateMipmaps: false,
+        });
+
+        this.glyphMaterial = additive(new THREE.ShaderMaterial({
+            vertexShader: METAPHOR_GLYPH_VERTEX,
+            fragmentShader: METAPHOR_GLYPH_FRAGMENT,
+            uniforms: { uAtlas: { value: null }, uTime: { value: 0 }, uReveal: { value: 1 }, uMelt: { value: 0 }, uPop: { value: 1 } },
+        }));
+        this.shapeMaterial = additive(new THREE.ShaderMaterial({ vertexShader: METAPHOR_SHAPE_VERTEX, fragmentShader: METAPHOR_SHAPE_FRAGMENT }));
+
+        this.shapeGeometry.setAttribute('position', new THREE.Float32BufferAttribute([-1, -1, 0, 1, -1, 0, 1, 1, 0, -1, 1, 0], 3));
+        this.shapeGeometry.setIndex([0, 1, 2, 0, 2, 3]);
+        this.shapeBuffer = new THREE.InstancedInterleavedBuffer(this.shapeData, METAPHOR_SHAPE_STRIDE);
+        this.shapeBuffer.setUsage(THREE.DynamicDrawUsage);
+        this.shapeGeometry.setAttribute('iPos', new THREE.InterleavedBufferAttribute(this.shapeBuffer, 2, 0));
+        this.shapeGeometry.setAttribute('iScale', new THREE.InterleavedBufferAttribute(this.shapeBuffer, 2, 2));
+        this.shapeGeometry.setAttribute('iRot', new THREE.InterleavedBufferAttribute(this.shapeBuffer, 1, 4));
+        this.shapeGeometry.setAttribute('iMix', new THREE.InterleavedBufferAttribute(this.shapeBuffer, 3, 5));
+        this.shapeGeometry.setAttribute('iShape', new THREE.InterleavedBufferAttribute(this.shapeBuffer, 1, 8));
+        this.shapeGeometry.instanceCount = 0;
+        const shapeMesh = new THREE.Mesh(this.shapeGeometry, this.shapeMaterial);
+        shapeMesh.frustumCulled = false;
+        this.fieldScene.add(shapeMesh);
+
+        this.developMaterial = new THREE.ShaderMaterial({
+            vertexShader: METAPHOR_DEVELOP_VERTEX,
+            fragmentShader: METAPHOR_DEVELOP_FRAGMENT,
+            blending: THREE.NoBlending,
+            depthTest: false,
+            depthWrite: false,
+            uniforms: {
+                uField: { value: this.fieldTarget.texture },
+                uRes: { value: new THREE.Vector2(1, 1) },
+                uPixelRatio: { value: 1 },
+                uTime: { value: 0 },
+                uFlow: { value: 1 },
+                uGrain: { value: 1 },
+                uDot: { value: DOT_SIZE },
+                uAngle: { value: 0.5 },
+                uFlood: { value: 0 },
+                uInvert: { value: 0 },
+                uSeed: { value: 0 },
+                uSeeThrough: { value: options.seeThrough ? 1 : 0 },
+                uPaper: { value: new THREE.Vector3() },
+                uInk: { value: new THREE.Vector3() },
+                uAccent: { value: new THREE.Vector3() },
+                uTone: { value: new THREE.Vector3() },
+            },
+        });
+        // 一个盖住全屏的三角形
+        this.developGeometry.setAttribute('position', new THREE.Float32BufferAttribute([-1, -1, 0, 3, -1, 0, -1, 3, 0], 3));
+        const developMesh = new THREE.Mesh(this.developGeometry, this.developMaterial);
+        developMesh.frustumCulled = false;
+        this.developScene.add(developMesh);
+
+        this.applyPalette();
+
+        canvas.addEventListener('webglcontextlost', this.handleContextLost);
+        document.fonts.addEventListener('loadingdone', this.handleFontsLoaded);
+        this.resizeObserver = new ResizeObserver(() => this.resize());
+        this.resizeObserver.observe(options.host);
+        this.resize();
+
+        // 先建的那个占着（播放页的）：设置窗口的小图后建后拆，不抢也不拆掉它
+        if (import.meta.env.DEV && !window.__metaphorDebug) {
+            window.__metaphorDebug = {
+                renderAt: (seconds) => {
+                    this.debugTime = seconds;
+                    this.render();
+                    this.requestFrame();
+                },
+                program: () => this.program,
+                shotAt: (seconds) => {
+                    const cueIndex = findMetaphorCue(this.program, seconds);
+                    const cue = this.program.cues[cueIndex];
+                    const shot = findMetaphorShot(cue, resolveMetaphorCueTime(cue, seconds));
+                    return { cue: cueIndex, kind: shot.kind, transition: cue.transition, invert: shot.invert };
+                },
+                runtime: this,
+            };
+        }
+    }
+
+    swapSong(song: MetaphorSong) {
+        this.song = song;
+        this.rebuildProgram();
+    }
+
+    setTheme(theme: Theme) {
+        const key = themeLayoutKey(theme);
+        this.theme = theme;
+        this.applyPalette();
+        if (key !== this.themeKey) {
+            this.themeKey = key;
+            if (this.glyphs.setFont(resolveThemeFontStack(theme), resolveThemeFontWeight(theme, 800))) this.fontReady = this.glyphs.fontReady();
+            this.rebuildProgram();
+        }
+        this.requestFrame();
+    }
+
+    setTuning(tuning: MetaphorTuning) {
+        const previous = this.tuning;
+        this.tuning = tuning;
+        // 切镜头的快慢、反相、转场是编进分镜表的；融球的多少是每个 cue 的规划里的
+        if (previous.cutPace !== tuning.cutPace || previous.negative !== tuning.negative || previous.transitions !== tuning.transitions) this.rebuildProgram();
+        else if (previous.blobs !== tuning.blobs) this.clearSets();
+        this.requestFrame();
+    }
+
+    /** 分辨率倍数变了：就地换画布和墨场的尺寸，不重建上下文。 */
+    setRenderScale(scale: LyricRenderScale) {
+        if (scale === this.renderScale) return;
+        this.renderScale = scale;
+        this.resize();
+    }
+
+    setShowText(show: boolean) {
+        this.showText = show;
+        this.requestFrame();
+    }
+
+    setPlayback(paused: boolean, staticMode: boolean) {
+        this.paused = paused;
+        this.staticMode = staticMode;
+        this.requestFrame();
+    }
+
+    /** 补画一帧（暂停时拖进度）；在跑循环时什么都不做。 */
+    requestFrame() {
+        if (!this.raf && !this.disposed) this.raf = requestAnimationFrame(this.frame);
+    }
+
+    destroy() {
+        if (this.disposed) return;
+        this.disposed = true;
+        cancelAnimationFrame(this.raf);
+        this.resizeObserver.disconnect();
+        document.fonts.removeEventListener('loadingdone', this.handleFontsLoaded);
+        const canvas = this.renderer.domElement;
+        canvas.removeEventListener('webglcontextlost', this.handleContextLost);
+        this.clearSets();
+        this.shapeGeometry.dispose();
+        this.developGeometry.dispose();
+        this.glyphMaterial.dispose();
+        this.shapeMaterial.dispose();
+        this.developMaterial.dispose();
+        this.fieldTarget.dispose();
+        this.renderer.dispose();
+        this.renderer.forceContextLoss();
+        canvas.remove();
+        if (import.meta.env.DEV && window.__metaphorDebug?.runtime === this) delete window.__metaphorDebug;
+    }
+
+    private handleContextLost = (event: Event) => {
+        event.preventDefault();
+        if (this.disposed) return;
+        cancelAnimationFrame(this.raf);
+        this.options.onContextLost();
+    };
+
+    // 别的字体加载完也会触发：只在主题字体刚变成可用时重排（之前画的是回退字体）
+    private handleFontsLoaded = () => {
+        if (this.disposed) return;
+        const ready = this.glyphs.fontReady();
+        const arrived = ready && !this.fontReady;
+        this.fontReady = ready;
+        if (!arrived) return;
+        this.glyphs.clear();
+        this.clearSets();
+        this.requestFrame();
+    };
+
+    private compile() {
+        return compileMetaphorProgram(this.song.lines, {
+            seed: this.song.seed,
+            title: this.song.title,
+            cutPace: this.tuning.cutPace,
+            negative: this.tuning.negative,
+            transitions: this.tuning.transitions,
+            intensity: this.theme.animationIntensity,
+        });
+    }
+
+    private rebuildProgram() {
+        this.program = this.compile();
+        this.clearSets();
+        this.requestFrame();
+    }
+
+    private applyPalette() {
+        const palette = resolveMetaphorPalette(this.theme);
+        const { uniforms } = this.developMaterial;
+        (uniforms.uPaper.value as THREE.Vector3).fromArray(palette.paper);
+        (uniforms.uInk.value as THREE.Vector3).fromArray(palette.ink);
+        (uniforms.uAccent.value as THREE.Vector3).fromArray(palette.accent);
+        (uniforms.uTone.value as THREE.Vector3).fromArray(palette.tone);
+    }
+
+    private resize() {
+        // 量排版尺寸，不量 getBoundingClientRect：样式小图把大舞台缩小了画，量到的会是缩小后的尺寸
+        const { clientWidth: width, clientHeight: height } = this.options.host;
+        if (width < 1 || height < 1) return;
+        const pixelRatio = resolveLyricPixelRatio(Math.min(2, window.devicePixelRatio || 1), this.renderScale);
+        if (width === this.width && height === this.height && pixelRatio === this.pixelRatio) return;
+        this.width = width;
+        this.height = height;
+        this.pixelRatio = pixelRatio;
+        this.renderer.setPixelRatio(pixelRatio);
+        this.renderer.setSize(width, height, false);
+        const pixelWidth = Math.max(1, Math.round(width * pixelRatio));
+        const pixelHeight = Math.max(1, Math.round(height * pixelRatio));
+        this.fieldTarget.setSize(pixelWidth, pixelHeight);
+        (this.developMaterial.uniforms.uRes.value as THREE.Vector2).set(pixelWidth, pixelHeight);
+        this.developMaterial.uniforms.uPixelRatio.value = pixelRatio;
+        this.camera.aspect = width / height;
+        this.requestFrame();
+    }
+
+    private disposeSet(set: MetaphorSet) {
+        if (set.mesh) {
+            this.fieldScene.remove(set.mesh);
+            set.mesh.geometry.dispose();
+        }
+        set.texture?.dispose();
+        if (this.shown === set) this.shown = null;
+    }
+
+    private clearSets() {
+        this.sets.forEach(set => this.disposeSet(set));
+        this.sets.clear();
+    }
+
+    /** 一个 cue 的那套东西：排版、图集、几何、融球规划。 */
+    private buildSet(cueIndex: number): MetaphorSet {
+        const cue = this.program.cues[cueIndex];
+        const rng = createVisualizerRng(`metaphor:${this.song.seed}:${cueIndex}`);
+        const line = cue.lineIndex >= 0 ? this.song.lines[cue.lineIndex] : null;
+        const tokens = line ? buildMetaphorTokens(line) : cue.text ? buildMetaphorTextTokens(cue.text, cue.start - 10) : [];
+        const accents = new Set((this.theme.wordColors ?? []).map(entry => entry.word.trim().toLowerCase()).filter(Boolean));
+        const layout: MetaphorLayout = tokens.some(token => !token.space)
+            ? buildMetaphorLayout({
+                tokens, composition: cue.composition, measure: this.glyphs.measure, rng,
+                isAccent: accents.size > 0 ? text => accents.has(text.toLowerCase()) : undefined,
+            })
+            : { composition: 'block', glyphs: [], words: [], bounds: METAPHOR_EMPTY_STAGE };
+        const shapes = planMetaphorShapes(layout.bounds, rng, this.tuning.blobs, cue.lineIndex < 0);
+        const collisions = planMetaphorCollisions(layout.bounds, rng, this.collisionTimes(cue, layout, rng), this.tuning.blobs, cue.lineIndex < 0);
+        if (layout.glyphs.length === 0) return { layout, shapes, collisions, mesh: null, texture: null };
+
+        const atlas = buildMetaphorAtlas(this.glyphs, layout.glyphs.map(glyph => glyph.char));
+        const texture = new THREE.DataTexture(atlas.data, atlas.width, atlas.height, THREE.RGBAFormat, THREE.UnsignedByteType);
+        texture.minFilter = THREE.LinearMipmapLinearFilter;
+        texture.magFilter = THREE.LinearFilter;
+        texture.generateMipmaps = true;
+        texture.needsUpdate = true;
+
+        const count = layout.glyphs.length;
+        const positions = new Float32Array(count * 12);
+        const offsets = new Float32Array(count * 8);
+        const uvs = new Float32Array(count * 8);
+        const times = new Float32Array(count * 8);
+        const metas = new Float32Array(count * 12);
+        const indices: number[] = [];
+        // 四个角：左下、右下、右上、左上
+        const CORNERS = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
+        layout.glyphs.forEach((glyph, index) => {
+            const half = (glyph.size * METAPHOR_GLYPH_WORLD) / 2;
+            const cos = Math.cos(glyph.rot);
+            const sin = Math.sin(glyph.rot);
+            const [u0, v0, u1, v1] = atlas.rects.get(glyph.char) ?? [0, 0, 0, 0];
+            CORNERS.forEach(([cx, cy], corner) => {
+                const vertex = index * 4 + corner;
+                positions.set([glyph.x, glyph.y, 0], vertex * 3);
+                offsets.set([(cx * cos - cy * sin) * half, (cx * sin + cy * cos) * half], vertex * 2);
+                // 图集数据的第一行是字的上沿
+                uvs.set([cx < 0 ? u0 : u1, cy > 0 ? v0 : v1], vertex * 2);
+                times.set([glyph.t0, glyph.t1], vertex * 2);
+                metas.set([glyph.seed, glyph.accent ? 1 : 0, glyph.size], vertex * 3);
+            });
+            indices.push(index * 4, index * 4 + 1, index * 4 + 2, index * 4, index * 4 + 2, index * 4 + 3);
+        });
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        geometry.setAttribute('aOffset', new THREE.BufferAttribute(offsets, 2));
+        geometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+        geometry.setAttribute('aTime', new THREE.BufferAttribute(times, 2));
+        geometry.setAttribute('aMeta', new THREE.BufferAttribute(metas, 3));
+        geometry.setIndex(indices);
+        const mesh = new THREE.Mesh(geometry, this.glyphMaterial);
+        mesh.frustumCulled = false;
+        return { layout, shapes, collisions, mesh, texture };
+    }
+
+    /** 一个 cue 里哪几个时刻对撞：歌词是隔几个词挑一个词的开唱时刻（卡在词上），间奏是隔几秒一次。 */
+    private collisionTimes(cue: MetaphorCue, layout: MetaphorLayout, rng: () => number): number[] {
+        if (cue.lineIndex >= 0) {
+            const onsets = [...new Set(layout.words.map(word => word.t0))].sort((a, b) => a - b);
+            const first = Math.floor(rng() * Math.min(3, onsets.length));
+            return onsets.filter((_, index) => index >= first && (index - first) % 3 === 0).slice(0, 3);
+        }
+        const times: number[] = [];
+        const end = cue.loop > 0 ? cue.start + cue.loop : cue.end;
+        // 循环的 cue 里，最后一次的碎片要在折回去之前散完
+        for (let at = cue.start + METAPHOR_COLLISION_APPROACH; at < end - METAPHOR_COLLISION_LIFE && times.length < 12; at += 5 + rng() * 4) times.push(at);
+        return times;
+    }
+
+    /** 取（没有就建）一个 cue 的那套东西；只留它和前后相邻的。 */
+    private ensureSet(cueIndex: number): MetaphorSet {
+        let set = this.sets.get(cueIndex);
+        if (!set) {
+            set = this.buildSet(cueIndex);
+            this.sets.set(cueIndex, set);
+            this.sets.forEach((other, index) => {
+                if (Math.abs(index - cueIndex) > 1) {
+                    this.disposeSet(other);
+                    this.sets.delete(index);
+                }
+            });
+        }
+        return set;
+    }
+
+    private show(set: MetaphorSet) {
+        if (this.shown === set) return;
+        if (this.shown?.mesh) this.fieldScene.remove(this.shown.mesh);
+        this.shown = set;
+        if (set.mesh) this.fieldScene.add(set.mesh);
+        this.glyphMaterial.uniforms.uAtlas.value = set.texture;
+    }
+
+    private sampleAudio(now: number) {
+        const raw = this.options.audioPower.get();
+        if (raw > 1) this.audioRaw = true;
+        const level = this.paused || !Number.isFinite(raw) ? 0 : Math.min(1, Math.max(0, this.audioRaw ? raw / 255 : raw));
+        const dt = this.audioAt > 0 ? Math.min(0.1, (now - this.audioAt) / 1000) : 0.016;
+        this.audioAt = now;
+        this.audio += (level - this.audio) * (1 - Math.exp(-dt / (level > this.audio ? 0.3 : 0.9)));
+    }
+
+    private aim(pose: MetaphorPose) {
+        this.camera.fov = pose.fov;
+        // 永远正对画面：只有平移、远近和绕视线的滚转
+        this.camera.position.set(pose.x, pose.y, pose.distance);
+        this.camera.rotation.set(0, 0, pose.roll);
+        this.camera.updateProjectionMatrix();
+    }
+
+    private render() {
+        if (this.disposed || !this.width || !this.height) return;
+        const still = this.staticMode;
+        const tuning = this.tuning;
+        const time = this.debugTime ?? this.options.currentTime.get();
+        const safeTime = Number.isFinite(time) ? Math.max(0, time) : 0;
+        const cueIndex = findMetaphorCue(this.program, safeTime);
+        const cue: MetaphorCue = this.program.cues[cueIndex];
+        const built = !this.sets.has(cueIndex);
+        const set = this.ensureSet(cueIndex);
+        this.show(set);
+        // 一帧最多建一个：这一帧没建当前的，才提前备下一个
+        const following = cueIndex + 1;
+        if (!built && following < this.program.cues.length && this.program.cues[following].start - safeTime < PREPARE_LEAD && !this.sets.has(following)) this.ensureSet(following);
+
+        const cueTime = resolveMetaphorCueTime(cue, safeTime);
+        const shot = findMetaphorShot(cue, cueTime);
+        const fx = resolveMetaphorTransitionFx(this.program, cueIndex, safeTime, this.fx);
+        const aspect = this.width / this.height;
+        this.aim(still
+            ? resolveMetaphorStillPose(set.layout, aspect)
+            : resolveMetaphorPose({ shot, layout: set.layout, time: cueTime, aspect, motion: tuning.cameraMotion }));
+
+        // 静态模式：字照常跟着唱，融球停在这个 cue 开头的样子，流场不动，没有转场
+        const fluidTime = still ? cue.start : safeTime;
+        this.sampleAudio(performance.now());
+        const audio = still ? 0 : this.audio;
+        const glyph = this.glyphMaterial.uniforms;
+        glyph.uTime.value = safeTime;
+        glyph.uReveal.value = resolveMetaphorReveal(cue, safeTime);
+        glyph.uMelt.value = resolveMetaphorMelt(cue, safeTime);
+        glyph.uPop.value = still ? 0 : 1;
+        if (set.mesh) set.mesh.visible = this.showText;
+
+        let count = writeMetaphorShapes(set.shapes, fluidTime, audio, tuning.flow, this.shapeData);
+        if (!still) {
+            if (this.showText) count = writeMetaphorPairs(set.layout.glyphs, safeTime, this.shapeData, count);
+            count = writeMetaphorCollisions(set.collisions, cueTime, this.shapeData, count);
+        }
+        this.shapeGeometry.instanceCount = count;
+        this.shapeBuffer.needsUpdate = true;
+
+        const develop = this.developMaterial.uniforms;
+        develop.uTime.value = fluidTime;
+        develop.uFlow.value = still ? tuning.flow * 0.5 : tuning.flow * (1 + audio * 0.6);
+        develop.uGrain.value = tuning.grain;
+        develop.uDot.value = DOT_SIZE * tuning.halftone;
+        develop.uAngle.value = still ? 30 * DEG : shot.screenAngle;
+        develop.uFlood.value = still ? 0 : fx.flood;
+        develop.uInvert.value = !still && shot.invert !== fx.flash ? 1 : 0;
+        develop.uSeed.value = still ? 0.37 : shot.seed;
+
+        this.renderer.setRenderTarget(this.fieldTarget);
+        this.renderer.setClearColor(0x000000, 0);
+        this.renderer.clear();
+        this.renderer.render(this.fieldScene, this.camera);
+        this.renderer.setRenderTarget(null);
+        this.renderer.render(this.developScene, this.developCamera);
+    }
+
+    private frame = () => {
+        this.raf = 0;
+        if (this.disposed) return;
+        this.render();
+        if (!this.paused && this.debugTime === null) this.raf = requestAnimationFrame(this.frame);
+    };
+}

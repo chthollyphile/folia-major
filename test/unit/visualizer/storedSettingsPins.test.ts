@@ -20,6 +20,7 @@ import {
 } from '@/types';
 import { DEFAULT_HANABI_TUNING } from '@/components/visualizer/hanabi/types';
 import { DEFAULT_MACHI_TUNING } from '@/components/visualizer/machi/types';
+import { DEFAULT_METAPHOR_TUNING } from '@/components/visualizer/metaphor/types';
 import { DEFAULT_NEBBIA_TUNING } from '@/components/visualizer/nebbia/types';
 
 // test/unit/visualizer/storedSettingsPins.test.ts
@@ -160,6 +161,7 @@ const CURRENT: Record<string, unknown> = {
     },
     machi_tuning: { ...DEFAULT_MACHI_TUNING, scene: 'konbini', timeOfDay: 'night', weather: 'snow', camera: 'custom', views: { ...DEFAULT_MACHI_TUNING.views, station: { azimuth: -20, elevation: 6, zoom: 1.6, panX: 1.5, panZ: -0.5 } }, motion: true, dof: 1.4, focus: 'lyrics', quality: { renderScale: 0.75, antialias: 'ssaa', shadows: 'low', reflections: 'off', glow: false, adaptive: false } },
     nebbia_tuning: { ...DEFAULT_NEBBIA_TUNING, appear: ['write'], fade: ['fingers'], layouts: ['ribbon', 'orbit'], jitter: 1.2, mist: 0.5, refog: 6, spot: 1.2, rainHit: 2, render: { scale: 0.75, antialias: 'global' } },
+    metaphor_tuning: { ...DEFAULT_METAPHOR_TUNING, cutPace: 1.4, cameraMotion: 0.5, flow: 1.6, blobs: 0.4, halftone: 1.5, grain: 0.6, negative: !DEFAULT_METAPHOR_TUNING.negative, transitions: !DEFAULT_METAPHOR_TUNING.transitions, render: { scale: 0.75, antialias: 'global' } },
     monet_background_tuning: {
         ...DEFAULT_MONET_BACKGROUND_TUNING,
         backgroundSource: 'uploaded-global', backgroundLayout: 'half-pane-gradient', backgroundBlurPx: 24, backgroundOverlayOpacity: 0.3,
@@ -191,6 +193,7 @@ const DEFAULTS: Record<string, unknown> = {
     tilt_tuning: DEFAULT_TILT_TUNING, diorama_tuning: DEFAULT_DIORAMA_TUNING, monet_tuning: DEFAULT_MONET_TUNING,
     pendolo_tuning: DEFAULT_PENDOLO_TUNING, sonnet_tuning: DEFAULT_SONNET_TUNING, tempera_tuning: DEFAULT_TEMPERA_TUNING,
     lumiere_tuning: DEFAULT_LUMIERE_TUNING, hanabi_tuning: DEFAULT_HANABI_TUNING, machi_tuning: DEFAULT_MACHI_TUNING, nebbia_tuning: DEFAULT_NEBBIA_TUNING,
+    metaphor_tuning: DEFAULT_METAPHOR_TUNING,
     monet_background_tuning: DEFAULT_MONET_BACKGROUND_TUNING, nomand_background_tuning: DEFAULT_NOMAND_BACKGROUND_TUNING, latent_background_tuning: DEFAULT_LATENT_BACKGROUND_TUNING,
     sora_background_tuning: DEFAULT_SORA_BACKGROUND_TUNING,
 };
@@ -239,6 +242,7 @@ describe('what is read at start-up', () => {
             hanabi_tuning: json({ colorMode: 'theme' }),
             machi_tuning: json({ weather: 'rain' }),
             nebbia_tuning: json({ fadeMode: 'mix' }),
+            metaphor_tuning: json({ grain: 1.5 }),
             monet_background_tuning: json({ backgroundBlurPx: 10 }),
             nomand_background_tuning: json({ effect: 'dithering' }),
             latent_background_tuning: json({ displayMode: 'dithering' }),
@@ -335,6 +339,7 @@ describe('what is read at start-up', () => {
             }),
             machi_tuning: json({ scene: 'beach', timeOfDay: 7, weather: 'hail', camera: 'orbit', views: { konbini: { azimuth: 200, zoom: -1 } }, motion: 'on', dof: 9, focus: 'eyes', focusOffset: 'near', quality: { renderScale: 3, antialias: 'taa', shadows: 'ultra', reflections: 1, glow: 'yes' } }),
             nebbia_tuning: json({ appearMode: 'type', fadeMode: 7, mist: 9, hold: -1, refog: '4', spotX: 2, rainHit: null, resolution: 0 }),
+            metaphor_tuning: json({ cutPace: 9, cameraMotion: -1, flow: '1', blobs: null, halftone: 0, grain: 99, negative: 'yes', transitions: 0, render: { scale: 7, antialias: 'taa' } }),
             monet_background_tuning: json({
                 backgroundSource: 'web', backgroundLayout: 'tiles', backgroundBlurPx: 999, backgroundOverlayOpacity: -1,
                 backgroundGrayscale: 4, backgroundSaturation: 9, backgroundWash: 'x', backgroundHalfPaneOffsetX: -999,
@@ -412,6 +417,7 @@ const UNITS: Array<{ key: string; field: string; set: string; reset: string; pat
     { key: 'hanabi_tuning', field: 'hanabiTuning', set: 'handleSetHanabiTuning', reset: 'handleResetHanabiTuning', patches: [{ sparkAmount: 1.4 }, { sparkAmount: 9, sky: -1, blockOpacity: 4 }, { colorMode: 'theme', launches: false, textOnly: true }, { colorMode: 'neon', riseSpeed: Number.NaN }] },
     { key: 'machi_tuning', field: 'machiTuning', set: 'handleSetMachiTuning', reset: 'handleResetMachiTuning', patches: [{ weather: 'snow' }, { scene: 'beach', timeOfDay: 'noon' }, { scene: 'konbini', timeOfDay: 'dusk', weather: 'fog' }, { weather: 'hail' }, { camera: 'custom', views: { konbini: { azimuth: 30, elevation: -5, zoom: 1.2, panX: 0, panZ: 2 } } }, { motion: true }, { dof: 5, focus: 'manual', focusOffset: -3 }, { quality: { renderScale: 0.5, antialias: 'fxaa', shadows: 'off', reflections: 'low', glow: true, adaptive: false } }] },
     { key: 'nebbia_tuning', field: 'nebbiaTuning', set: 'handleSetNebbiaTuning', reset: 'handleResetNebbiaTuning', patches: [{ mist: 0.4 }, { mist: 9, refog: -1, spotX: 4 }, { appearMode: 'fade', fadeMode: 'fingers' }, { appearMode: 'type', busSpeed: Number.NaN }] },
+    { key: 'metaphor_tuning', field: 'metaphorTuning', set: 'handleSetMetaphorTuning', reset: 'handleResetMetaphorTuning', patches: [{ grain: 0.4 }, { cutPace: 9, flow: -1, halftone: 0 }, { negative: false, transitions: false }, { negative: 'yes', blobs: Number.NaN }] },
     { key: 'monet_background_tuning', field: 'monetBackgroundTuning', set: 'handleSetMonetBackgroundTuning', reset: 'handleResetMonetBackgroundTuning', patches: [{ backgroundBlurPx: 20 }, { backgroundBlurPx: 999, backgroundSaturation: -1, backgroundHalfPaneOffsetX: 99 }, { backgroundLayout: 'half-pane-gradient', backgroundWashColorMode: 'custom', backgroundWashCustomColor: 'AABBCC' }, { backgroundWashCustomColor: 'red', backgroundSource: 'web' }] },
     { key: 'nomand_background_tuning', field: 'nomandBackgroundTuning', set: 'handleSetNomandBackgroundTuning', reset: 'handleResetNomandBackgroundTuning', patches: [{ size: 5 }, { size: 999, colorSteps: 4.6, halftoneDotsRadius: 9, lensDistortionBulge: -9 }, { effect: 'paper-texture', ditheringType: '2x2', overlayEnabled: true }, { effect: 'blur', overlayOpacity: 4 }] },
     { key: 'latent_background_tuning', field: 'latentBackgroundTuning', set: 'handleSetLatentBackgroundTuning', reset: 'handleResetLatentBackgroundTuning', patches: [{ meshSpeed: 1.2 }, { ditheringSize: 99, ditheringOpacity: -1, meshSwirl: 4 }, { displayMode: 'dithering', colorSource: 'cover-only', enhancedBeatResponse: true }, { displayMode: 'stars' }] },
@@ -450,6 +456,7 @@ describe('what is written', () => {
         tilt_tuning: 'notifications.tiltReset', diorama_tuning: 'notifications.dioramaReset', monet_tuning: 'notifications.monetReset',
         pendolo_tuning: 'notifications.pendoloReset', sonnet_tuning: 'notifications.sonnetReset', tempera_tuning: 'notifications.temperaReset',
         lumiere_tuning: 'notifications.lumiereReset', hanabi_tuning: 'notifications.hanabiReset', machi_tuning: 'notifications.machiReset', nebbia_tuning: 'notifications.nebbiaReset',
+        metaphor_tuning: 'notifications.metaphorReset',
         monet_background_tuning: 'notifications.monetBgReset',
         nomand_background_tuning: 'notifications.nomandBgReset', latent_background_tuning: 'notifications.latentBgReset',
         sora_background_tuning: null,
