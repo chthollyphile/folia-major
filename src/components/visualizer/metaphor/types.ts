@@ -21,7 +21,7 @@ export interface MetaphorTuning {
     grain: number;
     /** 反相镜头：一部分镜头纸和墨对调。 */
     negative: boolean;
-    /** 句与句之间的转场（漫墨、闪白、冲镜）；关掉就全是硬切。 */
+    /** 句与句之间的转场（漫墨、冲镜）；关掉就全是硬切。 */
     transitions: boolean;
 }
 

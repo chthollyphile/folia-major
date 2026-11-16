@@ -56,6 +56,10 @@ void main() {
     float ink = s.r * set * keep * keep + s.g * (bulge * 1.25 + 0.3 * set + 0.9 * uMelt * set) * keep;
     // 没唱到的字只是一层网点的影子；唱过的字周围留一圈网点
     float tone = (s.r * (1.0 - set) * 0.85 + s.g * (0.3 + 0.45 * set)) * uReveal * keep;
+    // 注记（结束时间是个很大的负数）：到时候直接出现，只有细的墨字，没有那一团和网点
+    float note = step(vTime.y, -10000.0);
+    ink = mix(ink, s.r * on * keep * keep * 1.12, note);
+    tone *= 1.0 - note;
     gl_FragColor = vec4(ink * (1.0 - vMeta.y), tone, ink * vMeta.y, 1.0);
 }
 `;
@@ -66,18 +70,25 @@ attribute vec2 iScale;
 attribute float iRot;
 attribute vec3 iMix;
 attribute float iShape;
+attribute float iParam;
 varying vec2 vQ;
 varying vec3 vMix;
 varying float vShape;
+varying float vParam;
+varying vec2 vScale;
 
 void main() {
-    vec2 o = position.xy * iScale;
+    // 圆弧那一格是正方的：sy 是线宽的倍数，不是半轴
+    vec2 scale = iShape > 2.5 && iShape < 3.5 ? vec2(iScale.x) : iScale;
+    vec2 o = position.xy * scale;
     float c = cos(iRot);
     float s = sin(iRot);
     o = vec2(o.x * c - o.y * s, o.x * s + o.y * c);
     vQ = position.xy;
     vMix = iMix;
     vShape = iShape;
+    vParam = iParam;
+    vScale = iScale;
     gl_Position = projectionMatrix * modelViewMatrix * vec4(iPos + o, 0.0, 1.0);
 }
 `;
@@ -86,6 +97,11 @@ export const METAPHOR_SHAPE_FRAGMENT = /* glsl */ `
 varying vec2 vQ;
 varying vec3 vMix;
 varying float vShape;
+varying float vParam;
+varying vec2 vScale;
+
+// 线稿的线的半宽（世界单位），和 metaphorFigures.ts 的 STROKE 一致
+const float STROKE = 0.016;
 
 void main() {
     float r2 = dot(vQ, vQ);
@@ -104,12 +120,28 @@ void main() {
         float band = abs(sqrt(r2) - 0.88);
         core = 1.0 - smoothstep(0.012, 0.03, band);
         halo = 1.0 - smoothstep(0.02, 0.12, band);
-    } else {
-        // 细线：两头收一点
+    } else if (vShape < 2.5) {
+        // 细线：两头收一点；param 大于 0 时切成那么多段虚线
         core = 1.0 - smoothstep(0.96, 1.0, abs(vQ.x));
+        if (vParam > 0.5) core *= step(fract((vQ.x * 0.5 + 0.5) * vParam + 0.25), 0.55);
+        halo = 0.0;
+    } else if (vShape < 3.5) {
+        // 圆弧：线宽按世界单位算，不跟着半径变粗；只画转角两边 param × π 以内的那一段
+        float d = abs(sqrt(r2) - 0.9) * vScale.x;
+        float w = STROKE * vScale.y;
+        float within = step(abs(atan(vQ.y, vQ.x)), vParam * 3.14159 + 0.001);
+        core = (1.0 - smoothstep(w * 0.6, w * 1.6, d)) * within;
+        halo = (1.0 - smoothstep(w, w * 6.0, d)) * within * (1.0 - min(1.0, vMix.x + vMix.z)) * 2.0;
+    } else {
+        // 波浪线：param 个半波，两头都落在零点上；到曲线的距离按斜率折算
+        float phase = 1.5708 * vParam * (vQ.x + 1.0);
+        float amp = vScale.y * 0.75;
+        float slope = amp * cos(phase) * 1.5708 * vParam / vScale.x;
+        float d = abs(vQ.y * vScale.y - amp * sin(phase)) / sqrt(1.0 + slope * slope);
+        core = 1.0 - smoothstep(STROKE * 0.6, STROKE * 1.6, d);
         halo = 0.0;
     }
-    gl_FragColor = vec4(core * vMix.x, halo * 0.35, core * vMix.z, 1.0);
+    gl_FragColor = vec4(core * vMix.x, core * vMix.y + halo * 0.35, core * vMix.z, 1.0);
 }
 `;
 
@@ -200,6 +232,13 @@ void main() {
     // 墨最后画：强调色融球漂到字上时，字压在它上面照样读得出来
     color = mix(color, inkColor, ink);
 
+    // 画面四角的裁切标记：钉在屏幕上，不跟着镜头走
+    vec2 edge = min(frag, uRes / uPixelRatio - frag);
+    float mark = max(
+        step(abs(edge.x - 18.0), 0.75) * step(18.0, edge.y) * step(edge.y, 34.0),
+        step(abs(edge.y - 18.0), 0.75) * step(18.0, edge.x) * step(edge.x, 34.0));
+    color = mix(color, inkColor, mark * 0.85);
+
     // 砂纸：细颗粒每格换一次，纸的斑驳不动，再撒一点杂点（纸上是墨色的，墨里是纸色的）
     float fine = hash(floor(frag / 1.4) + beat * 7.13 + uSeed * 3.0);
     float mottle = vnoise(frag * 0.12 + uSeed * 50.0);
@@ -208,7 +247,7 @@ void main() {
     color = mix(color, mix(inkColor, paper, ink), speck * 0.55 * min(uGrain, 1.5));
 
     // 播放页透明时纸不画：只留墨、强调色和网点（反相的镜头整个是实的）
-    float alpha = mix(1.0, max(max(ink, accent), max(dots * 0.82, uInvert)), uSeeThrough);
+    float alpha = mix(1.0, max(max(ink, accent), max(max(dots * 0.82, mark), uInvert)), uSeeThrough);
     gl_FragColor = vec4(clamp(color, 0.0, 1.0) * alpha, alpha);
 }
 `;

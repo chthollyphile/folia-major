@@ -8,7 +8,7 @@ import type { MetaphorComposition } from './metaphorLayout';
 // 同一首歌每次都一样。画面完全由播放时间决定，拖进度、暂停、导出都对。镜头具体的位置由 metaphorCamera.ts 按排版算。
 
 export type MetaphorShotKind = 'wide' | 'close' | 'follow' | 'macro' | 'dutch' | 'void' | 'pullback' | 'pushin';
-export type MetaphorTransition = 'cut' | 'flood' | 'flash' | 'smash';
+export type MetaphorTransition = 'cut' | 'flood' | 'smash';
 
 export interface MetaphorShot {
     start: number;
@@ -180,7 +180,8 @@ const pickComposition = (rng: () => number, text: string, previous: MetaphorComp
     const cjk = chars.filter(char => CJK.test(char)).length / Math.max(1, chars.length);
     const words = cjk > 0.5 ? chars.length / 2 : text.trim().split(/\s+/u).length;
     return pick<MetaphorComposition>(rng, {
-        block: 3,
+        block: 2,
+        justify: words >= 3 ? 3 : 0,
         stair: chars.length >= 6 ? 2 : 0,
         hero: words >= 2 ? 2.5 : 0,
         column: cjk > 0.7 && chars.length >= 2 && chars.length <= 16 ? 2 : 0,
@@ -191,8 +192,8 @@ const pickComposition = (rng: () => number, text: string, previous: MetaphorComp
 const pickTransition = (rng: () => number, enabled: boolean, intoChorus: boolean): MetaphorTransition => {
     if (!enabled) return 'cut';
     return intoChorus
-        ? pick<MetaphorTransition>(rng, { flood: 3, smash: 3, flash: 2, cut: 1 })
-        : pick<MetaphorTransition>(rng, { cut: 5, flash: 1.5, flood: 1.5, smash: 1.2 });
+        ? pick<MetaphorTransition>(rng, { flood: 3, smash: 3, cut: 1.5 })
+        : pick<MetaphorTransition>(rng, { cut: 5.5, flood: 1.5, smash: 1.2 });
 };
 
 /** 整首编成分镜表。lines 为空（纯音乐、还没歌词）时是一个不结束的间奏。 */

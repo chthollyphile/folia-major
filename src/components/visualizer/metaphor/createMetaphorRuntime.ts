@@ -14,7 +14,8 @@ import {
     type MetaphorPose,
     type MetaphorTransitionFx,
 } from './metaphorCamera';
-import { buildMetaphorAtlas, METAPHOR_GLYPH_WORLD, MetaphorGlyphSource } from './metaphorGlyphs';
+import { layoutMetaphorNotes, planMetaphorBackdrop, planMetaphorFigures } from './metaphorFigures';
+import { buildMetaphorAtlas, METAPHOR_GLYPH_WORLD, METAPHOR_NOTE_PREFIX, MetaphorGlyphSource } from './metaphorGlyphs';
 import { buildMetaphorLayout, buildMetaphorTextTokens, buildMetaphorTokens, type MetaphorLayout } from './metaphorLayout';
 import { resolveMetaphorPalette } from './metaphorPalette';
 import {
@@ -52,7 +53,7 @@ import type { MetaphorTuning } from './types';
 // 隐喻的运行时：一个 three.js 的 WebGL 上下文，建一次；换歌、换主题、换设置、暂停都就地推给它（外壳用 useVisualizerPixiHost 托管）。
 // 每帧两遍：字形和融球用加法混合画进墨场（半浮点离屏图），再全屏显影成纸、墨、网点和颗粒（metaphorShaders.ts）。
 // 画什么只由播放时间决定：分镜表（metaphorProgram.ts）说这一刻是哪个 cue、哪个镜头，镜头的机位由 metaphorCamera.ts 算。
-// 一个 cue 一套东西（排版、图集、几何、融球规划），按需建、提前一个备好，只留当前的和相邻的。
+// 一个 cue 一套东西（排版、图集、几何、融球规划、线稿和版面），按需建、提前一个备好，只留当前的和相邻的。
 // 自己的 requestAnimationFrame 循环（全局限帧已经管着它）；暂停时不跑，拖进度时由外壳补一帧。时间只在循环里读 currentTime，不进 React。
 
 export interface MetaphorSong {
@@ -108,6 +109,8 @@ const themeLayoutKey = (theme: Theme) => [
     (theme.wordColors ?? []).map(entry => entry.word).join(','),
 ].join('|');
 
+/** 注记的字在字形几何里的结束时间：着色器靠它认出注记（metaphorShaders.ts）。 */
+const NOTE_END = -100000;
 /** 提前多久把下一个 cue 备好。 */
 const PREPARE_LEAD = 2.5;
 /** 网点格子的基础大小（CSS 像素）。 */
@@ -144,7 +147,7 @@ export class MetaphorRuntime {
     private readonly developGeometry = new THREE.BufferGeometry();
     private readonly glyphs: MetaphorGlyphSource;
     private readonly sets = new Map<number, MetaphorSet>();
-    private readonly fx: MetaphorTransitionFx = { flood: 0, flash: false };
+    private readonly fx: MetaphorTransitionFx = { flood: 0 };
     private readonly resizeObserver: ResizeObserver;
     private program: MetaphorProgram;
     private shown: MetaphorSet | null = null;
@@ -236,6 +239,7 @@ export class MetaphorRuntime {
         this.shapeGeometry.setAttribute('iRot', new THREE.InterleavedBufferAttribute(this.shapeBuffer, 1, 4));
         this.shapeGeometry.setAttribute('iMix', new THREE.InterleavedBufferAttribute(this.shapeBuffer, 3, 5));
         this.shapeGeometry.setAttribute('iShape', new THREE.InterleavedBufferAttribute(this.shapeBuffer, 1, 8));
+        this.shapeGeometry.setAttribute('iParam', new THREE.InterleavedBufferAttribute(this.shapeBuffer, 1, 9));
         this.shapeGeometry.instanceCount = 0;
         const shapeMesh = new THREE.Mesh(this.shapeGeometry, this.shapeMaterial);
         shapeMesh.frustumCulled = false;
@@ -462,18 +466,32 @@ export class MetaphorRuntime {
                 isAccent: accents.size > 0 ? text => accents.has(text.toLowerCase()) : undefined,
             })
             : { composition: 'block', glyphs: [], words: [], bounds: METAPHOR_EMPTY_STAGE };
-        const shapes = planMetaphorShapes(layout.bounds, rng, this.tuning.blobs, cue.lineIndex < 0);
-        const collisions = planMetaphorCollisions(layout.bounds, rng, this.collisionTimes(cue, layout, rng), this.tuning.blobs, cue.lineIndex < 0);
-        if (layout.glyphs.length === 0) return { layout, shapes, collisions, mesh: null, texture: null };
+        const interlude = cue.lineIndex < 0;
+        const blobs = planMetaphorShapes(layout.bounds, rng, this.tuning.blobs, interlude);
+        const collisions = planMetaphorCollisions(layout.bounds, rng, this.collisionTimes(cue, layout, rng), this.tuning.blobs, interlude);
+        const backdrop = planMetaphorBackdrop(layout.bounds, rng, this.tuning.blobs, interlude, { index: cue.lineIndex + 1, time: cue.singStart });
+        const figures = planMetaphorFigures(layout.bounds, rng, this.tuning.blobs, interlude);
+        // 版面的网点在最底下，线稿在最上面（都是加法，先后不影响结果，只是容量满了先丢后面的）
+        const shapes = [...backdrop.shapes, ...blobs, ...figures.shapes];
+        const notes = layoutMetaphorNotes([...backdrop.notes, ...figures.notes], this.glyphs.measureNote);
+        // 字形几何里先是歌词的字，后面是注记的字（注记的开始时间是它冒出来的时刻，结束时间是 NOTE_END）
+        const entries = [
+            ...layout.glyphs.map(glyph => ({ ...glyph, key: glyph.char })),
+            ...notes.map(note => ({
+                key: METAPHOR_NOTE_PREFIX + note.char, x: note.x, y: note.y, size: note.size, rot: note.rot,
+                t0: cue.start + note.born, t1: NOTE_END, accent: false, seed: rng(),
+            })),
+        ];
+        if (entries.length === 0) return { layout, shapes, collisions, mesh: null, texture: null };
 
-        const atlas = buildMetaphorAtlas(this.glyphs, layout.glyphs.map(glyph => glyph.char));
+        const atlas = buildMetaphorAtlas(this.glyphs, entries.map(entry => entry.key));
         const texture = new THREE.DataTexture(atlas.data, atlas.width, atlas.height, THREE.RGBAFormat, THREE.UnsignedByteType);
         texture.minFilter = THREE.LinearMipmapLinearFilter;
         texture.magFilter = THREE.LinearFilter;
         texture.generateMipmaps = true;
         texture.needsUpdate = true;
 
-        const count = layout.glyphs.length;
+        const count = entries.length;
         const positions = new Float32Array(count * 12);
         const offsets = new Float32Array(count * 8);
         const uvs = new Float32Array(count * 8);
@@ -482,11 +500,11 @@ export class MetaphorRuntime {
         const indices: number[] = [];
         // 四个角：左下、右下、右上、左上
         const CORNERS = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
-        layout.glyphs.forEach((glyph, index) => {
+        entries.forEach((glyph, index) => {
             const half = (glyph.size * METAPHOR_GLYPH_WORLD) / 2;
             const cos = Math.cos(glyph.rot);
             const sin = Math.sin(glyph.rot);
-            const [u0, v0, u1, v1] = atlas.rects.get(glyph.char) ?? [0, 0, 0, 0];
+            const [u0, v0, u1, v1] = atlas.rects.get(glyph.key) ?? [0, 0, 0, 0];
             CORNERS.forEach(([cx, cy], corner) => {
                 const vertex = index * 4 + corner;
                 positions.set([glyph.x, glyph.y, 0], vertex * 3);
@@ -599,7 +617,8 @@ export class MetaphorRuntime {
         glyph.uPop.value = still ? 0 : 1;
         if (set.mesh) set.mesh.visible = this.showText;
 
-        let count = writeMetaphorShapes(set.shapes, fluidTime, audio, tuning.flow, this.shapeData);
+        // 线稿一笔一笔冒出来；静态模式直接是画完的样子
+        let count = writeMetaphorShapes(set.shapes, fluidTime, audio, tuning.flow, this.shapeData, still ? Number.POSITIVE_INFINITY : safeTime - cue.start);
         if (!still) {
             if (this.showText) count = writeMetaphorPairs(set.layout.glyphs, safeTime, this.shapeData, count);
             count = writeMetaphorCollisions(set.collisions, cueTime, this.shapeData, count);
@@ -614,7 +633,7 @@ export class MetaphorRuntime {
         develop.uDot.value = DOT_SIZE * tuning.halftone;
         develop.uAngle.value = still ? 30 * DEG : shot.screenAngle;
         develop.uFlood.value = still ? 0 : fx.flood;
-        develop.uInvert.value = !still && shot.invert !== fx.flash ? 1 : 0;
+        develop.uInvert.value = !still && shot.invert ? 1 : 0;
         develop.uSeed.value = still ? 0.37 : shot.seed;
 
         this.renderer.setRenderTarget(this.fieldTarget);

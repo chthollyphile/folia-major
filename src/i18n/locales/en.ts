@@ -3739,7 +3739,7 @@ export default {
     "metaphorNegative": "Negative shots",
     "metaphorNegativeHint": "Some shots swap the paper and ink colours, more of them in a chorus.",
     "metaphorTransitions": "Transitions",
-    "metaphorTransitionsHint": "Now and then a line arrives through an ink flood, a flash or a stepped crash zoom; off, every change is a hard cut.",
+    "metaphorTransitionsHint": "Now and then a line arrives through an ink flood or a stepped crash zoom; off, every change is a hard cut.",
     "metaphorInkSection": "Ink",
     "metaphorFlow": "Fluid",
     "metaphorBlobs": "Metaballs and ornaments",

@@ -3739,7 +3739,7 @@ export default {
     "metaphorNegative": "Cảnh âm bản",
     "metaphorNegativeHint": "Một số cảnh đổi chỗ màu giấy và màu mực, nhiều hơn ở điệp khúc.",
     "metaphorTransitions": "Chuyển cảnh",
-    "metaphorTransitionsHint": "Thỉnh thoảng câu mới xuất hiện qua một đợt mực tràn, một chớp sáng hoặc một cú zoom gấp từng nấc; khi tắt, mọi thay đổi đều là cắt thẳng.",
+    "metaphorTransitionsHint": "Thỉnh thoảng câu mới xuất hiện qua một đợt mực tràn hoặc một cú zoom gấp từng nấc; khi tắt, mọi thay đổi đều là cắt thẳng.",
     "metaphorInkSection": "Mực",
     "metaphorFlow": "Chất lỏng",
     "metaphorBlobs": "Metaball và họa tiết",

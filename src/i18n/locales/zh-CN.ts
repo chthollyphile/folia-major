@@ -3739,7 +3739,7 @@ export default {
     "metaphorNegative": "反相镜头",
     "metaphorNegativeHint": "一部分镜头把纸和墨的颜色对调，副歌里更多。",
     "metaphorTransitions": "转场",
-    "metaphorTransitionsHint": "句与句之间偶尔用漫墨、闪白、冲镜；关掉后全部硬切。",
+    "metaphorTransitionsHint": "句与句之间偶尔用漫墨、冲镜；关掉后全部硬切。",
     "metaphorInkSection": "墨",
     "metaphorFlow": "流体",
     "metaphorBlobs": "融球与装饰",

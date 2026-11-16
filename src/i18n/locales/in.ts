@@ -3739,7 +3739,7 @@ export default {
     "metaphorNegative": "Adegan negatif",
     "metaphorNegativeHint": "Sebagian adegan menukar warna kertas dan tinta, lebih banyak di bagian chorus.",
     "metaphorTransitions": "Transisi",
-    "metaphorTransitionsHint": "Sesekali baris baru datang lewat banjir tinta, kilatan, atau crash zoom bertahap; jika mati, semua pergantian adalah potongan langsung.",
+    "metaphorTransitionsHint": "Sesekali baris baru datang lewat banjir tinta atau crash zoom bertahap; jika mati, semua pergantian adalah potongan langsung.",
     "metaphorInkSection": "Tinta",
     "metaphorFlow": "Cairan",
     "metaphorBlobs": "Metaball dan ornamen",

@@ -4,6 +4,9 @@ import type { MetaphorMeasure } from './metaphorLayout';
 // 隐喻的字形来源：每个字在 2D 画布上画一次，取它的透明度做两遍模糊，存成一格两个通道——
 // 紧的（轻微模糊：放大后切阈值，边缘仍然是干净的，和 SDF 一个道理，所以大特写不用更大的贴图）
 // 和宽的（大模糊：字周围的一团，开唱时字从这一团里凝出来，也让字和旁边的融球连得上）。
+// 笔画密的字（汉字、假名、谚文）用轻一档的字重画、宽的那团也淡一些：墨是切阈值切出来的，本来就比字形胖一圈，
+// 粗体的密字一胖笔画就糊到一起，读不出来。
+// 注记（线稿上的公式和标签）是另一种字体：衬线的斜体，像手边的演算纸。要它的字时在字前面加 METAPHOR_NOTE_PREFIX。
 // 模糊自己算（三遍盒式模糊），不用 ctx.filter：WebKit 没有它。一句的字拼成一张图集（buildMetaphorAtlas）。
 
 /** 字高在格子里占多少像素、四周留多少（宽模糊要的地方）、一格多大。 */
@@ -18,7 +21,14 @@ const BASELINE = 0.86;
 const TIGHT_RADIUS = 1;
 const WIDE_RADIUS = 6;
 const WIDE_GAIN = 1.5;
-const CACHE_LIMIT = 300;
+/** 笔画密的字：字重最多到这一档，宽通道乘这么多。 */
+const DENSE_WEIGHT = 500;
+const DENSE_WIDE = 0.6;
+const DENSE_CHAR = /[\u2E80-\u2FDF\u3040-\u30FF\u3400-\u4DBF\u4E00-\u9FFF\uAC00-\uD7AF\uF900-\uFAFF]/u;
+const CACHE_LIMIT = 400;
+/** 字前面带这个就是注记的字。 */
+export const METAPHOR_NOTE_PREFIX = '\u0001';
+const NOTE_FONT = `italic 500 ${METAPHOR_GLYPH_EM}px "Cambria Math", "STIX Two Math", Cambria, Georgia, "Times New Roman", serif`;
 const ATLAS_COLUMNS = 8;
 
 /** 一个方向上的盒式模糊（滑动窗口求和，边界外当 0）。 */
@@ -63,6 +73,7 @@ export class MetaphorGlyphSource {
     private readonly wide = new Float32Array(CELL * CELL);
     private readonly scratch = new Float32Array(CELL * CELL);
     private font = '';
+    private denseFont = '';
 
     constructor(stack: string, weight: number) {
         this.canvas.width = CELL;
@@ -78,6 +89,7 @@ export class MetaphorGlyphSource {
         const font = `${weight} ${METAPHOR_GLYPH_EM}px ${stack}`;
         if (font === this.font) return false;
         this.font = font;
+        this.denseFont = `${Math.min(weight, DENSE_WEIGHT)} ${METAPHOR_GLYPH_EM}px ${stack}`;
         this.clear();
         return true;
     }
@@ -97,24 +109,33 @@ export class MetaphorGlyphSource {
     }
 
     /** 一个字的步进宽度，字高的倍数。 */
-    readonly measure: MetaphorMeasure = (char) => {
-        let advance = this.advances.get(char);
+    readonly measure: MetaphorMeasure = char => this.advance(char, char, this.font);
+
+    /** 注记的一个字的步进宽度。 */
+    readonly measureNote: MetaphorMeasure = char => this.advance(METAPHOR_NOTE_PREFIX + char, char, NOTE_FONT);
+
+    private advance(key: string, char: string, font: string) {
+        let advance = this.advances.get(key);
         if (advance === undefined) {
-            this.context.font = this.font;
+            this.context.font = font;
             advance = Math.max(0.2, this.context.measureText(char).width / METAPHOR_GLYPH_EM);
             if (this.advances.size >= CACHE_LIMIT * 2) this.advances.clear();
-            this.advances.set(char, advance);
+            this.advances.set(key, advance);
         }
         return advance;
-    };
+    }
 
-    /** 一个字的一格：CELL × CELL，每像素两个字节（紧、宽）。 */
-    cell(char: string): Uint8Array {
-        const cached = this.cells.get(char);
+    /** 一个字的一格：CELL × CELL，每像素两个字节（紧、宽）。key 是字本身，或者 METAPHOR_NOTE_PREFIX 加字。 */
+    cell(key: string): Uint8Array {
+        const cached = this.cells.get(key);
         if (cached) return cached;
         const { context, work, wide, scratch } = this;
+        const note = key.startsWith(METAPHOR_NOTE_PREFIX);
+        const char = note ? key.slice(METAPHOR_NOTE_PREFIX.length) : key;
+        const dense = !note && DENSE_CHAR.test(char);
+        const wideGain = dense ? WIDE_GAIN * DENSE_WIDE : WIDE_GAIN;
         context.clearRect(0, 0, CELL, CELL);
-        context.font = this.font;
+        context.font = note ? NOTE_FONT : dense ? this.denseFont : this.font;
         context.textAlign = 'center';
         context.textBaseline = 'alphabetic';
         context.fillStyle = '#fff';
@@ -129,10 +150,10 @@ export class MetaphorGlyphSource {
         const cell = new Uint8Array(CELL * CELL * 2);
         for (let index = 0; index < work.length; index += 1) {
             cell[index * 2] = Math.round(Math.min(1, work[index]) * 255);
-            cell[index * 2 + 1] = Math.round(Math.min(1, wide[index] * WIDE_GAIN) * 255);
+            cell[index * 2 + 1] = Math.round(Math.min(1, wide[index] * wideGain) * 255);
         }
         if (this.cells.size >= CACHE_LIMIT) this.cells.clear();
-        this.cells.set(char, cell);
+        this.cells.set(key, cell);
         return cell;
     }
 }

@@ -6,32 +6,43 @@ import type { MetaphorGlyph, MetaphorRect } from './metaphorLayout';
 // 2. 对撞：两颗墨球沿一条直线相向加速，撞上的一刻炸开一圈冲击环，碎片沿螺旋线甩出去、越走越慢越小，
 //    身后留一串小点——气泡室里带电粒子在磁场中打转的轨迹。撞的时刻卡在词开唱上（间奏里隔几秒一次）。
 // 3. 刚唱到的字放出一对粒子：朝相反的方向、各自往相反的一边打转。
-// 写进一段实例数据（每个 9 个数：位置 2、半轴 2、转角 1、墨 / 网点 / 强调色三路的量 3、形状 1），交给着色器画进墨场。
+// 写进一段实例数据（每个 10 个数：位置 2、半轴 2、转角 1、墨 / 网点 / 强调色三路的量 3、形状 1、形状自己的参数 1），交给着色器画进墨场。
+// 线稿（metaphorFigures.ts）也是这里的图形：细线（可以是虚线）、圆弧、波浪线，和融球一起写进同一段实例数据。
 
-export const METAPHOR_SHAPE_STRIDE = 9;
-export const METAPHOR_SHAPE_CAPACITY = 288;
+export const METAPHOR_SHAPE_STRIDE = 10;
+export const METAPHOR_SHAPE_CAPACITY = 512;
 /** 一个 cue 的规划最多这么多个，剩下的留给对撞和字放出的粒子。 */
 const PLAN_LIMIT = 80;
 
 export const METAPHOR_SHAPE_BLOB = 0;
 export const METAPHOR_SHAPE_RING = 1;
 export const METAPHOR_SHAPE_BAR = 2;
+/** 圆弧：sx 是那一格的半边长（弧画在 0.9 处），sy 是线宽的倍数，param 是半张角占 π 的多少（1 是整圆）。 */
+export const METAPHOR_SHAPE_ARC = 3;
+/** 波浪线：sx 是半长，sy 是那一格的半高，param 是半波的个数。 */
+export const METAPHOR_SHAPE_WAVE = 4;
 
 export interface MetaphorShape {
     shape: number;
     x: number; y: number;
     /** 半轴：融球和圆环是半径，细线是半长与半宽。 */
     sx: number; sy: number;
+    /** 形状自己的参数：细线是分成几段虚线（0 是实线），圆弧和波浪线见上。 */
+    param: number;
+    /** cue 开始后多久才出现。 */
+    born: number;
     rot: number;
     ink: number; tone: number; accent: number;
     /** 漂移：两个方向的幅度、角速度、相位。 */
     ampX: number; ampY: number;
     w1: number; w2: number;
     p1: number; p2: number;
-    /** 绕着 shapes 里的第几个转（小墨滴）；-1 是自己漂。 */
+    /** 绕着 shapes 里的第几个转（小墨滴）；-1 时 orbit 大于 0 就绕着自己的位置转。 */
     parent: number;
     orbit: number;
     orbitSpeed: number;
+    /** 轨道半径不变（不然时远时近）。 */
+    steady: boolean;
     /** 跟音量鼓起多少。 */
     pulse: number;
 }
@@ -40,11 +51,18 @@ const TAU = Math.PI * 2;
 /** 「流体」能调到的最大倍数（types.ts 的 METAPHOR_LIMITS.flow.max）：摆墨团时按它留白。 */
 const MAX_FLOW = 2;
 
+/** 一个不漂、不鼓的图形（线稿用）。 */
+export const staticMetaphorShape = (shape: number, patch: Partial<MetaphorShape>): MetaphorShape => ({
+    shape, x: 0, y: 0, sx: 1, sy: 1, param: 0, born: 0, rot: 0, ink: 0, tone: 0, accent: 0,
+    ampX: 0, ampY: 0, w1: 0, w2: 0, p1: 0, p2: 0, parent: -1, orbit: 0, orbitSpeed: 0, steady: false, pulse: 0,
+    ...patch,
+});
+
 const make = (rng: () => number, shape: number, patch: Partial<MetaphorShape>): MetaphorShape => ({
-    shape, x: 0, y: 0, sx: 1, sy: 1, rot: 0, ink: 0, tone: 0, accent: 0,
+    shape, x: 0, y: 0, sx: 1, sy: 1, param: 0, born: 0, rot: 0, ink: 0, tone: 0, accent: 0,
     // 漂一个来回要四十秒到一百秒
     ampX: 0, ampY: 0, w1: 0.06 + rng() * 0.1, w2: 0.06 + rng() * 0.1, p1: rng() * TAU, p2: rng() * TAU,
-    parent: -1, orbit: 0, orbitSpeed: 0, pulse: 0,
+    parent: -1, orbit: 0, orbitSpeed: 0, steady: false, pulse: 0,
     ...patch,
 });
 
@@ -91,8 +109,9 @@ export const planMetaphorShapes = (bounds: MetaphorRect, rng: () => number, amou
         }));
     }
 
-    for (let index = count(3); index > 0; index -= 1) {
-        const radius = span(0.25, 0.7) * reach;
+    // 间奏时舞台里摆着线稿：墨团少一些、小一些，不把它们吞掉
+    for (let index = interlude ? Math.min(2, count(1.2)) : count(3); index > 0; index -= 1) {
+        const radius = (interlude ? span(0.1, 0.24) : span(0.25, 0.7)) * reach;
         const ampX = span(0.2, 0.9);
         const ampY = span(0.2, 0.8);
         // 留白算上绕着它转的小墨滴（轨道最远 0.98 倍半径，自己阈值以上的那块 0.2 倍）、鼓起的那一成多和漂移（「流体」最大 2 倍）
@@ -131,22 +150,12 @@ export const planMetaphorShapes = (bounds: MetaphorRect, rng: () => number, amou
         }));
     }
 
-    for (let index = count(1.5); index > 0; index -= 1) {
+    for (let index = count(0.8); index > 0; index -= 1) {
         const radius = span(0.5, 1.5) * reach;
         const accent = rng() < 0.35;
         shapes.push(make(rng, METAPHOR_SHAPE_RING, {
             ...around(0, reach * 2), sx: radius, sy: radius,
             ink: accent ? 0 : 1, accent: accent ? 1 : 0, ampX: span(0, 0.4), ampY: span(0, 0.4),
-        }));
-    }
-
-    for (let index = count(2); index > 0; index -= 1) {
-        const vertical = rng() < 0.4;
-        const out = span(0.5, 1.6);
-        shapes.push(make(rng, METAPHOR_SHAPE_BAR, {
-            x: vertical ? (rng() < 0.5 ? -1 : 1) * (halfW + out) : span(-0.5, 0.5) * halfW,
-            y: vertical ? span(-0.5, 0.5) * halfH : (rng() < 0.5 ? -1 : 1) * (halfH + out),
-            sx: span(1.5, 4.5), sy: span(0.015, 0.035), rot: vertical ? Math.PI / 2 : 0, ink: 1,
         }));
     }
 
@@ -156,6 +165,7 @@ export const planMetaphorShapes = (bounds: MetaphorRect, rng: () => number, amou
 /** 往实例数据里写一个；满了返回原来的 count。 */
 const put = (
     out: Float32Array, count: number, shape: number, x: number, y: number, sx: number, sy: number, rot: number, ink: number, tone: number, accent: number,
+    param = 0,
 ): number => {
     if (count >= METAPHOR_SHAPE_CAPACITY) return count;
     const at = count * METAPHOR_SHAPE_STRIDE;
@@ -168,30 +178,34 @@ const put = (
     out[at + 6] = tone;
     out[at + 7] = accent;
     out[at + 8] = shape;
+    out[at + 9] = param;
     return count + 1;
 };
 
 /**
  * 把规划在 time 这一刻的样子写进实例数据，返回写了几个。audio 是 0..1 的音量，flow 是「流体」的倍数（漂移的幅度）。
- * 绕着大墨团转的小墨滴时远时近：近了和大墨团融在一起，远了又断开。
+ * 绕着大墨团转的小墨滴时远时近：近了和大墨团融在一起，远了又断开。since 是 cue 开始了多久：还没到 born 的图形不写。
  */
-export const writeMetaphorShapes = (shapes: readonly MetaphorShape[], time: number, audio: number, flow: number, out: Float32Array): number => {
+export const writeMetaphorShapes = (
+    shapes: readonly MetaphorShape[], time: number, audio: number, flow: number, out: Float32Array, since = Number.POSITIVE_INFINITY,
+): number => {
     let count = 0;
     const xs: number[] = [];
     const ys: number[] = [];
     for (const shape of shapes) {
         let x = shape.x + shape.ampX * flow * Math.sin(time * shape.w1 + shape.p1);
         let y = shape.y + shape.ampY * flow * Math.cos(time * shape.w2 + shape.p2);
-        if (shape.parent >= 0) {
+        if (shape.orbit > 0) {
             const angle = time * shape.orbitSpeed + shape.p1;
-            const radius = shape.orbit * (0.8 + 0.35 * Math.sin(time * 0.3 + shape.p2));
-            x = xs[shape.parent] + Math.cos(angle) * radius;
-            y = ys[shape.parent] + Math.sin(angle) * radius;
+            const radius = shape.steady ? shape.orbit : shape.orbit * (0.8 + 0.35 * Math.sin(time * 0.3 + shape.p2));
+            x = (shape.parent >= 0 ? xs[shape.parent] : x) + Math.cos(angle) * radius;
+            y = (shape.parent >= 0 ? ys[shape.parent] : y) + Math.sin(angle) * radius;
         }
         xs.push(x);
         ys.push(y);
-        const swell = shape.shape === METAPHOR_SHAPE_BAR ? 1 : 1 + shape.pulse * (0.06 * Math.sin(time * 0.4 + shape.p2) + 0.14 * audio);
-        count = put(out, count, shape.shape, x, y, shape.sx * swell, shape.sy * swell, shape.rot, shape.ink, shape.tone, shape.accent);
+        if (shape.born > since) continue;
+        const swell = 1 + shape.pulse * (0.06 * Math.sin(time * 0.4 + shape.p2) + 0.14 * audio);
+        count = put(out, count, shape.shape, x, y, shape.sx * swell, shape.sy * swell, shape.rot, shape.ink, shape.tone, shape.accent, shape.param);
     }
     return count;
 };

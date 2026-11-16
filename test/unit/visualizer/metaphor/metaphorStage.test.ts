@@ -35,7 +35,7 @@ import { DEFAULT_METAPHOR_TUNING, METAPHOR_LIMITS } from '@/components/visualize
 // 隐喻里按排版算的那几样（都是纯函数）：排版（每种构图）、机位（每种镜头，正对画面、极慢、大位移分档跳切）、转场的量、
 // 融球规划、对撞和字放出的粒子、配色、tuning 的归一化。
 
-const COMPOSITIONS: MetaphorComposition[] = ['block', 'stair', 'hero', 'column', 'scatter'];
+const COMPOSITIONS: MetaphorComposition[] = ['block', 'stair', 'hero', 'column', 'scatter', 'justify'];
 
 /** 每个字宽 0.6 em（中文 1 em）。 */
 const measure = (char: string) => (/[一-鿿]/u.test(char) ? 1 : 0.6);
@@ -238,14 +238,14 @@ const cueOf = (patch: Partial<MetaphorCue>): MetaphorCue => ({
 });
 
 describe('转场和化开', () => {
-    const fx = { flood: 0, flash: false };
+    const fx = { flood: 0 };
     const program = (transition: MetaphorCue['transition']): MetaphorProgram => ({
         cues: [cueOf({}), cueOf({ start: 4, end: 8, transition })],
     });
 
     it('硬切什么都不加', () => {
-        expect(resolveMetaphorTransitionFx(program('cut'), 0, 3.99, fx)).toEqual({ flood: 0, flash: false });
-        expect(resolveMetaphorTransitionFx(program('cut'), 1, 4, fx)).toEqual({ flood: 0, flash: false });
+        expect(resolveMetaphorTransitionFx(program('cut'), 0, 3.99, fx)).toEqual({ flood: 0 });
+        expect(resolveMetaphorTransitionFx(program('cut'), 1, 4, fx)).toEqual({ flood: 0 });
     });
 
     it('漫墨：切点前后墨最满，两头是 0', () => {
@@ -258,11 +258,6 @@ describe('转场和化开', () => {
         expect(resolveMetaphorTransitionFx(program('flood'), 1, 4.5, fx).flood).toBeGreaterThan(0);
     });
 
-    it('闪白只有切过去的那一下', () => {
-        expect(resolveMetaphorTransitionFx(program('flash'), 0, 3.99, fx).flash).toBe(false);
-        expect(resolveMetaphorTransitionFx(program('flash'), 1, 4.02, fx).flash).toBe(true);
-        expect(resolveMetaphorTransitionFx(program('flash'), 1, 4.5, fx).flash).toBe(false);
-    });
 
     it('唱完后留着尾巴的句子才化开；紧跟下一句的不化', () => {
         const tailed = cueOf({ singEnd: 2.5, end: 4 });

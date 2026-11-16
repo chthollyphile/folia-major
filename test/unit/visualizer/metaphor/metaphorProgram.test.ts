@@ -105,7 +105,7 @@ describe('compileMetaphorProgram', () => {
         const kinds = new Set(cues.flatMap(cue => cue.shots.map(shot => shot.kind)));
         const transitions = new Set(cues.map(cue => cue.transition));
         expect([...kinds].sort()).toEqual(['close', 'dutch', 'follow', 'macro', 'pullback', 'pushin', 'void', 'wide']);
-        expect([...transitions].sort()).toEqual(['cut', 'flash', 'flood', 'smash']);
+        expect([...transitions].sort()).toEqual(['cut', 'flood', 'smash']);
         for (const cue of cues) for (const shot of cue.shots) expect(Object.keys(shot)).not.toEqual(expect.arrayContaining(['yaw', 'pitch']));
     });
 

@@ -3,11 +3,11 @@ import { buildLineGraphemeTimeline, splitLyricGraphemes } from '../../../utils/l
 import { segmentLyricWords, segmentTextWords } from '../../../utils/lyrics/wordSegmentation';
 
 // src/components/visualizer/metaphor/metaphorLayout.ts
-// 隐喻的排版（纯函数）：一句歌词按词切成 token，再按构图（方阵、阶梯、主词、竖排、散置）摆到世界坐标里。
+// 隐喻的排版（纯函数）：一句歌词按词切成 token，再按构图（方阵、阶梯、主词、竖排、散置、齐行）摆到世界坐标里。
 // 单位是 em：基础字号的一个字高是 1。字的时间来自 buildLineGraphemeTimeline，词的切分来自 segmentLyricWords，
 // 这里不猜时间也不重新分词。量字宽的函数由外面给（运行时是画布，单测里是常数）。
 
-export type MetaphorComposition = 'block' | 'stair' | 'hero' | 'column' | 'scatter';
+export type MetaphorComposition = 'block' | 'stair' | 'hero' | 'column' | 'scatter' | 'justify';
 
 export interface MetaphorTokenChar { char: string; t0: number; t1: number; }
 
@@ -197,6 +197,23 @@ const placeScatter = (input: MetaphorLayoutInput, widths: number[], total: numbe
     return placeRows(rows, input, widths, sizes, (width, rowIndex) => -width / 2 + shifts[rowIndex], index => rots[index]);
 };
 
+/** 齐行：每一行放大到和最宽的那行一样宽（短的行字就大），左右对齐成一块——海报上的排法。 */
+const JUSTIFY_MAX = 2.6;
+
+const placeJustify = (input: MetaphorLayoutInput, widths: number[], total: number): Placed[] => {
+    const rows = wrapRows(input.tokens, widths, clamp(Math.sqrt(total * 1.5), 3, 8));
+    const unit = widths.map(() => 1);
+    const rowWidths = rows.map(row => rowWidth(row, widths, unit));
+    const target = Math.max(...rowWidths);
+    const sizes = [...unit];
+    rows.forEach((row, rowIndex) => {
+        const size = clamp(target / Math.max(0.5, rowWidths[rowIndex]), 1, JUSTIFY_MAX);
+        for (const index of row) sizes[index] = size;
+    });
+    // 放大封顶的行不够宽：一行靠左、一行靠右
+    return placeRows(rows, input, widths, sizes, (width, rowIndex) => (rowIndex % 2 === 0 ? -target / 2 : target / 2 - width), FLAT);
+};
+
 /** 竖排：一列最多六个字，从右往左排；每个字单独摆，不走 Placed。 */
 const COLUMN_MAX = 6;
 const COLUMN_PITCH = 1.08;
@@ -246,7 +263,7 @@ export const buildMetaphorLayout = (input: MetaphorLayoutInput): MetaphorLayout 
         });
         byToken.forEach((slots, index) => pushWord(slots, accents[index]));
     } else {
-        const place = { block: placeBlock, stair: placeStair, hero: placeHero, scatter: placeScatter }[input.composition];
+        const place = { block: placeBlock, stair: placeStair, hero: placeHero, scatter: placeScatter, justify: placeJustify }[input.composition];
         for (const placed of place(input, widths, total)) {
             if (placed.token.space) continue;
             const centerX = placed.x + placed.width / 2;

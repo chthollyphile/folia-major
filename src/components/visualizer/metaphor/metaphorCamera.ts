@@ -2,7 +2,7 @@ import type { MetaphorLayout, MetaphorRect } from './metaphorLayout';
 import { METAPHOR_TAIL, type MetaphorCue, type MetaphorProgram, type MetaphorShot } from './metaphorProgram';
 
 // src/components/visualizer/metaphor/metaphorCamera.ts
-// 隐喻的镜头（纯函数，不碰 three）：一个镜头在某一刻的机位，以及句与句之间转场在这一刻的量（漫墨、闪白）、
+// 隐喻的镜头（纯函数，不碰 three）：一个镜头在某一刻的机位，以及句与句之间转场在这一刻的量（漫墨）、
 // 一句歌词出现和化开的进度。
 // 机位永远正对画面：只有平移、远近、绕视线的滚转，没有偏转和俯仰（不做假 3D）。
 // 一个镜头里机位只极慢地蠕动；要走远的（跟字、拉远、冲镜）不滑过去，分成几档在词开唱的时刻上一格一格跳切。
@@ -20,8 +20,6 @@ export interface MetaphorPose {
 export interface MetaphorTransitionFx {
     /** 加到墨场上的量：到 1 左右整个画面都是墨。 */
     flood: number;
-    /** 这一刻纸墨对调（闪白）。 */
-    flash: boolean;
 }
 
 /** 所有镜头同一个视角：远近只靠机位的距离。 */
@@ -106,6 +104,8 @@ const stepAt = (shot: MetaphorShot, layout: MetaphorLayout, time: number, steps:
 /** 极慢的漂：十几秒才晃一个来回。 */
 const wobble = (time: number, phase: number) => Math.sin(time * 0.23 + phase) * 0.6 + Math.sin(time * 0.37 + phase * 2.3) * 0.4;
 
+/** 全景里整句占画面的几分之一的倒数：字尽量大，四周只留一圈边。 */
+const WIDE_MARGIN = 1.1;
 const PULLBACK_STEPS = 3;
 const PUSHIN_STEPS = 3;
 /** 冲镜的三档隔这么久跳一格。 */
@@ -132,15 +132,15 @@ export const resolveMetaphorPose = ({ shot, layout, time, aspect, motion }: Meta
     let { roll } = shot;
     switch (shot.kind) {
         case 'wide':
-            distance = fitDistance(whole, 1.3, aspect) * creep;
+            distance = fitDistance(whole, WIDE_MARGIN, aspect) * creep;
             break;
         case 'close':
             focus = wordFocus(layout, shot.start, shot.seed);
-            distance = fitDistance(focus, 1.55, aspect) * creep;
+            distance = fitDistance(focus, 1.3, aspect) * creep;
             break;
         case 'follow':
             focus = wordFocus(layout, time, shot.seed);
-            distance = fitDistance(focus, 1.75, aspect);
+            distance = fitDistance(focus, 1.45, aspect);
             break;
         case 'macro':
             focus = glyphFocus(layout, shot.start, shot.seed);
@@ -148,17 +148,17 @@ export const resolveMetaphorPose = ({ shot, layout, time, aspect, motion }: Meta
             roll += 0.03 * motion * (u - 0.5);
             break;
         case 'dutch':
-            distance = fitDistance(whole, 1.16, aspect) * creep;
+            distance = fitDistance(whole, 1.1, aspect) * creep;
             break;
         case 'void':
-            distance = fitDistance(whole, 2.3, aspect) * (2 - creep);
+            distance = fitDistance(whole, 1.85, aspect) * (2 - creep);
             break;
         case 'pullback': {
             // 从正在唱的词上一格一格跳开，最后露出整句和周围的墨
             const near = wordFocus(layout, shot.start, shot.seed);
             const out = stepAt(shot, layout, time, PULLBACK_STEPS) / PULLBACK_STEPS;
             focus = { x: lerp(near.x, whole.x, out), y: lerp(near.y, whole.y, out), width: whole.width, height: whole.height };
-            distance = lerp(fitDistance(near, 1.3, aspect), fitDistance(whole, 1.75, aspect), out);
+            distance = lerp(fitDistance(near, 1.15, aspect), fitDistance(whole, 1.4, aspect), out);
             break;
         }
         case 'pushin': {
@@ -166,7 +166,7 @@ export const resolveMetaphorPose = ({ shot, layout, time, aspect, motion }: Meta
             const near = wordFocus(layout, shot.start, shot.seed);
             const into = Math.min(PUSHIN_STEPS, Math.floor(Math.max(0, time - shot.start) / PUSHIN_BEAT)) / PUSHIN_STEPS;
             focus = { x: lerp(whole.x, near.x, into), y: lerp(whole.y, near.y, into), width: near.width, height: near.height };
-            distance = lerp(fitDistance(whole, 3.2, aspect), fitDistance(near, 1.5, aspect), into) * creep;
+            distance = lerp(fitDistance(whole, 3.2, aspect), fitDistance(near, 1.3, aspect), into) * creep;
             break;
         }
     }
@@ -185,23 +185,18 @@ export const resolveMetaphorPose = ({ shot, layout, time, aspect, motion }: Meta
 /** 静态模式：每句一个锁死的全景。 */
 export const resolveMetaphorStillPose = (layout: MetaphorLayout, aspect: number): MetaphorPose => {
     const whole = rectFocus(layout.bounds);
-    return { x: whole.x, y: whole.y, distance: fitDistance(whole, 1.3, aspect), roll: 0, fov: METAPHOR_FOV };
+    return { x: whole.x, y: whole.y, distance: fitDistance(whole, WIDE_MARGIN, aspect), roll: 0, fov: METAPHOR_FOV };
 };
 
 const FLOOD_IN = 0.7;
 const FLOOD_OUT = 0.9;
-const FLASH = 0.07;
 
 /** 转场在 time 这一刻的量：进当前 cue 的那一半，和出到下一个 cue 的那一半。 */
 export const resolveMetaphorTransitionFx = (program: MetaphorProgram, cueIndex: number, time: number, out: MetaphorTransitionFx): MetaphorTransitionFx => {
     out.flood = 0;
-    out.flash = false;
     const cue = program.cues[cueIndex];
     const since = time - cue.start;
-    if (since >= 0) {
-        if (cue.transition === 'flood' && since < FLOOD_OUT) out.flood = 1.15 * (1 - easeOutCubic(since / FLOOD_OUT));
-        else if (cue.transition === 'flash' && since < FLASH) out.flash = true;
-    }
+    if (since >= 0 && cue.transition === 'flood' && since < FLOOD_OUT) out.flood = 1.15 * (1 - easeOutCubic(since / FLOOD_OUT));
     if (cueIndex + 1 < program.cues.length) {
         const next = program.cues[cueIndex + 1];
         const until = next.start - time;
