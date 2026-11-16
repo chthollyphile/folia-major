@@ -6,15 +6,30 @@ import type { MeasureText } from './latticeLyricLayout';
 // layout asks for the same (text, font) pair many times over. Bounded, and dropped on a font epoch.
 const MEASURE_CACHE_LIMIT = 4096;
 
-/** One measurement context per runtime; textures are owned by visible pieces and released with them. */
-export function createLatticeRaster(pixi: typeof import('pixi.js')) {
-    const canvas = document.createElement('canvas');
-    const context = canvas.getContext('2d');
+// The measurement context and its cache outlive any one runtime: a lyric scene is torn down and built
+// again whenever its card stops showing lyrics (the radio wall does so on every song switch, browse and
+// drag), and a fresh cache paid the whole typography probe and every line's wrapping again each time.
+// Any 2D context measures alike, so all runtimes share one. The cache belongs to the font epoch it was
+// filled under: a runtime on a newer epoch (a font finished loading while no lyric scene was up) drops it.
+let sharedContext: CanvasRenderingContext2D | null = null;
+// Keyed font first so no separator has to be reserved out of the measured text.
+const measurements = new Map<string, Map<string, { width: number; height: number }>>();
+let measured = 0;
+let measuredEpoch: number | null = null;
+const clearMeasureCache = () => { measurements.clear(); measured = 0; };
+
+/** One shared measurement context; textures are owned by visible pieces and released with them. */
+export function createLatticeRaster(pixi: typeof import('pixi.js'), fontsEpoch: number) {
+    sharedContext ??= document.createElement('canvas').getContext('2d');
+    const context = sharedContext;
     if (!context) throw new Error('Lattice text rasterization is unavailable');
-    // Keyed font first so no separator has to be reserved out of the measured text.
-    const measurements = new Map<string, Map<string, { width: number; height: number }>>();
-    let measured = 0;
-    const clearMeasureCache = () => { measurements.clear(); measured = 0; };
+    /** Measurements taken before this font epoch are stale: drop them. */
+    const setFontsEpoch = (epoch: number) => {
+        if (epoch === measuredEpoch) return;
+        measuredEpoch = epoch;
+        clearMeasureCache();
+    };
+    setFontsEpoch(fontsEpoch);
     const measure: MeasureText = (text, font) => {
         let byText = measurements.get(font);
         const cached = byText?.get(text);
@@ -58,6 +73,6 @@ export function createLatticeRaster(pixi: typeof import('pixi.js')) {
         source.resolution = resolution;
         return { texture: new pixi.Texture({ source }), width, height, pad };
     };
-    return { measure, rasterize, clearMeasureCache };
+    return { measure, rasterize, setFontsEpoch };
 }
 export type LatticeRaster = ReturnType<typeof createLatticeRaster>;
