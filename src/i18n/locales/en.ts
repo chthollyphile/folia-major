@@ -3740,6 +3740,8 @@ export default {
     "metaphorCameraMotion": "Camera motion",
     "metaphorFlip": "Invert Picture",
     "metaphorFlipHint": "Swaps paper and ink for the whole picture: a dark theme gives black ink on white paper, a light theme white ink on black paper.",
+    "metaphorKeywordColors": "Keyword Colors",
+    "metaphorKeywordColorsHint": "The theme's keywords each take their own color; off, they are ink like every other word.",
     "metaphorNegative": "Negative shots",
     "metaphorNegativeHint": "Some shots swap the paper and ink colours, more of them in a chorus.",
     "metaphorTransitions": "Transitions",

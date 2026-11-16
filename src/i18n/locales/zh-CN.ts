@@ -3740,6 +3740,8 @@ export default {
     "metaphorCameraMotion": "运镜幅度",
     "metaphorFlip": "画面反相",
     "metaphorFlipHint": "纸和墨整个对调：深色主题下变成白纸黑墨，浅色主题下变成黑纸白墨。",
+    "metaphorKeywordColors": "关键字着色",
+    "metaphorKeywordColorsHint": "主题里的关键字各用自己的颜色；关掉后和别的字一样是墨色。",
     "metaphorNegative": "反相镜头",
     "metaphorNegativeHint": "一部分镜头把纸和墨的颜色对调，副歌里更多。",
     "metaphorTransitions": "转场",

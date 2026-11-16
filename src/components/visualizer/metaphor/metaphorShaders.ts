@@ -4,12 +4,15 @@
 //    字形贴图有两个通道：紧的（轻微模糊，阈值一切就是字形）和宽的（大模糊，字周围的一团），所以字和融球挨近了会连在一起。
 // 2. 显影：全屏一遍。先让流场把取样位置推歪（每秒 8 格地跳，像逐格动画，流场本身走得很慢），再对墨切阈值（阈值被噪点搅过，边缘是毛的），
 //    阈值以下的那圈模糊变成半调网点，最后压上砂纸颗粒和杂点。纸墨对调、漫墨也在这里。
+// 墨场还有第二张图（uTint，多目标渲染的第二个输出）：强调色的墨各是什么颜色——rgb 是颜色乘墨量、a 是墨量，显影时相除得到那一处的颜色。
+//    关键字各有各的颜色（主题的 wordColors），强调色融球是主题的强调色；几样叠在一起时按墨量混。
 // 着色器里的平方、立方都写成相乘：负数的 pow 在 D3D 上是 NaN。
 
 export const METAPHOR_GLYPH_VERTEX = /* glsl */ `
 attribute vec2 aOffset;
 attribute vec2 aTime;
 attribute vec3 aMeta;
+attribute vec3 aTint;
 uniform float uTime;
 uniform float uMelt;
 uniform float uPop;
@@ -18,6 +21,7 @@ varying vec2 vTime;
 varying vec3 vMeta;
 varying vec2 vWorld;
 varying vec2 vQuad;
+varying vec3 vTint;
 
 void main() {
     float dt = uTime - aTime.x;
@@ -33,6 +37,7 @@ void main() {
     vUv = uv;
     vTime = aTime;
     vMeta = aMeta;
+    vTint = aTint;
     vWorld = (modelMatrix * vec4(p, 1.0)).xy;
     // 这一格里的位置（-1..1）：四个角按左下、右下、右上、左上的顺序排
     int corner = gl_VertexID - (gl_VertexID / 4) * 4;
@@ -53,6 +58,8 @@ varying vec2 vTime;
 varying vec3 vMeta;
 varying vec2 vWorld;
 varying vec2 vQuad;
+varying vec3 vTint;
+layout(location = 1) out highp vec4 outTint;
 
 // 注记的字比线细，抖得比线小一点，不然笔画会断
 const float NOTE_SHAKE = 0.6;
@@ -105,6 +112,7 @@ void main() {
     ink = mix(ink, s.r * on * keep * keep * 1.12, note);
     tone = mix(tone, min(0.55, max(s.g, fringe) * 1.6) * on * keep, note);
     gl_FragColor = vec4(ink * (1.0 - vMeta.y), tone, ink * vMeta.y, 1.0);
+    outTint = vec4(vTint * (ink * vMeta.y), ink * vMeta.y);
 }
 `;
 
@@ -147,6 +155,8 @@ void main() {
 export const METAPHOR_SHAPE_FRAGMENT = /* glsl */ `
 uniform float uTime;
 uniform float uWobble;
+uniform vec3 uAccent;
+layout(location = 1) out highp vec4 outTint;
 varying vec2 vL;
 varying vec2 vWorld;
 varying vec2 vTurn;
@@ -180,6 +190,7 @@ void main() {
         core = k * k * k * 1.45;
         halo = k * k * 0.55;
         gl_FragColor = vec4(core * vMix.x, k * k * vMix.y * 0.6 + halo * (vMix.x + vMix.z), core * vMix.z, 1.0);
+        outTint = vec4(uAccent * (core * vMix.z), core * vMix.z);
         return;
     }
     if (vShape < 1.5) {
@@ -188,6 +199,7 @@ void main() {
         core = 1.0 - smoothstep(0.012, 0.03, band);
         halo = 1.0 - smoothstep(0.02, 0.12, band);
         gl_FragColor = vec4(core * vMix.x, core * vMix.y + halo * 0.35, core * vMix.z, 1.0);
+        outTint = vec4(uAccent * (core * vMix.z), core * vMix.z);
         return;
     }
     // 细线、圆弧、波浪线：先算到线的中心有多远（d）和线的半宽（reach）
@@ -218,6 +230,7 @@ void main() {
     // 墨线两边一圈网点：线不是干干净净浮在纸上的
     halo = (1.0 - smoothstep(reach, reach + FRINGE, d)) * cut * max(inked * 0.55, vMix.y * 0.4);
     gl_FragColor = vec4(core * vMix.x, core * vMix.y + halo, core * vMix.z, 1.0);
+    outTint = vec4(uAccent * (core * vMix.z), core * vMix.z);
 }
 `;
 
@@ -232,6 +245,7 @@ void main() {
 
 export const METAPHOR_DEVELOP_FRAGMENT = /* glsl */ `
 uniform sampler2D uField;
+uniform sampler2D uTint;
 uniform vec2 uRes;
 uniform float uPixelRatio;
 uniform float uTime;
@@ -279,6 +293,9 @@ void main() {
     warp.x /= aspect;
     vec2 uv = vUv + warp;
     vec4 field = texture2D(uField, uv);
+    // 这一处强调色的墨是什么颜色（关键字各有各的）；没有墨的地方用主题的强调色
+    vec4 tint = texture2D(uTint, uv);
+    vec3 accentColor = tint.a > 0.002 ? clamp(tint.rgb / tint.a, 0.0, 1.0) : uAccent;
 
     // 阈值被噪点搅过：墨的边缘像砂纸上蹭出来的
     float rough = (vnoise(frag * 0.45 + uSeed * 91.0) - 0.5) * 0.16 + (hash(floor(frag * 0.9) + uSeed * 13.0) - 0.5) * 0.08;
@@ -304,9 +321,9 @@ void main() {
     vec3 paper = mix(uPaper, uInk, uInvert);
     vec3 inkColor = mix(uInk, uPaper, uInvert);
     vec3 color = mix(paper, mix(paper, uTone, 0.82), dots);
-    color = mix(color, uAccent, accent);
+    color = mix(color, accentColor, accent);
     // 强调色融球盖着还没唱到的字时：字的网点影子压在它上面，照样看得见
-    color = mix(color, mix(uAccent, inkColor, 0.4), dots * accent * smoothstep(0.85, 1.0, field.g));
+    color = mix(color, mix(accentColor, inkColor, 0.4), dots * accent * smoothstep(0.85, 1.0, field.g));
     // 墨最后画：强调色融球漂到字上时，字压在它上面照样读得出来
     color = mix(color, inkColor, ink);
 

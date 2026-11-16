@@ -6,7 +6,7 @@ import LyricRenderQualityRows from '../renderQuality/LyricRenderQualityRows';
 import { METAPHOR_LIMITS, type MetaphorBooleanKey, type MetaphorNumberKey, type MetaphorTuning } from './types';
 
 // src/components/visualizer/metaphor/MetaphorSettingsPanel.tsx
-// 隐喻的参数面板：镜头（切换快慢、运镜、反相镜头、转场）、墨（画面反相、流体、融球、网点、颗粒）、渲染（分辨率）三组，
+// 隐喻的参数面板：镜头（切换快慢、运镜、反相镜头、转场）、墨（画面反相、关键字着色、流体、融球、网点、颗粒）、渲染（分辨率）三组，
 // 每组是设置套件的一个 Group；滑块遵循歌词样式窗口的草稿 / 松手提交语义。
 
 const CAMERA_GROUP: SettingsGroupDef = { id: 'vis-metaphor-camera', titleKey: 'options.metaphorCameraSection' };
@@ -26,6 +26,7 @@ const CAMERA_TOGGLES: ToggleSpec[] = [
 ];
 const INK_TOGGLES: ToggleSpec[] = [
     ['flip', 'options.metaphorFlip', 'options.metaphorFlipHint'],
+    ['keywordColors', 'options.metaphorKeywordColors', 'options.metaphorKeywordColorsHint'],
 ];
 const INK_SLIDERS: SliderSpec[] = [
     ['flow', 'options.metaphorFlow'],

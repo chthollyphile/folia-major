@@ -7,6 +7,7 @@ import { BEAT_EFFECT_IDS } from '../../../services/beatFx/beatEffects';
 import { getBeatEffectStrength, getBeatFxEvents, getBeatFxTrackScale, isBeatFxReady } from '../../../services/beatFx/beatFxLive';
 import type { BeatFxEvent } from '../../../services/beatFx/clock';
 import { createVisualizerRng } from '../visualizerSeedHash';
+import { buildWordColorRangesFromMatchers, prepareWordColorMatchers, resolveTokenColorMap } from '../wordColoring';
 import { snapMetaphorCollisions, writeMetaphorBeatRings } from './metaphorBeatFx';
 import {
     METAPHOR_EMPTY_STAGE,
@@ -20,8 +21,8 @@ import {
 } from './metaphorCamera';
 import { layoutMetaphorNotes, planMetaphorBackdrop, planMetaphorFigures } from './metaphorFigures';
 import { buildMetaphorAtlas, METAPHOR_GLYPH_WORLD, METAPHOR_NOTE_PREFIX, MetaphorGlyphSource } from './metaphorGlyphs';
-import { buildMetaphorLayout, buildMetaphorTextTokens, buildMetaphorTokens, type MetaphorLayout } from './metaphorLayout';
-import { resolveMetaphorPalette } from './metaphorPalette';
+import { buildMetaphorLayout, buildMetaphorTextTokens, buildMetaphorTokens, type MetaphorLayout, type MetaphorToken } from './metaphorLayout';
+import { resolveMetaphorKeywordColor, resolveMetaphorPalette, type MetaphorPalette } from './metaphorPalette';
 import {
     compileMetaphorProgram,
     findMetaphorCue,
@@ -112,7 +113,7 @@ declare global {
 /** 换主题时要重排的那部分（字体、关键词、动效强度）；只改颜色不算。 */
 const themeLayoutKey = (theme: Theme) => [
     resolveThemeFontStack(theme), resolveThemeFontWeight(theme, DEFAULT_WEIGHT), theme.animationIntensity,
-    (theme.wordColors ?? []).map(entry => entry.word).join(','),
+    (theme.wordColors ?? []).map(entry => `${entry.word}:${entry.color}`).join(','),
 ].join('|');
 
 /** 注记的字在字形几何里的结束时间：着色器靠它认出注记（metaphorShaders.ts）。 */
@@ -179,6 +180,8 @@ export class MetaphorRuntime {
     private disposed = false;
     /** 音量 0..1（起音快、释放慢）；见过大于 1 的值就按 0..255 换算（主播放器是 0..255，预览是 0..1）。 */
     private audio = 0;
+    private palette: MetaphorPalette | null = null;
+    private paletteKey = '';
     private audioRaw = false;
     private audioAt = 0;
     private debugTime: number | null = null;
@@ -228,6 +231,8 @@ export class MetaphorRuntime {
         this.fieldTarget = new THREE.WebGLRenderTarget(1, 1, {
             type: floatTarget ? THREE.HalfFloatType : THREE.UnsignedByteType,
             format: THREE.RGBAFormat,
+            // 第二张是强调色的墨的颜色（metaphorShaders.ts 的 uTint）
+            count: 2,
             minFilter: THREE.LinearFilter,
             magFilter: THREE.LinearFilter,
             depthBuffer: false,
@@ -243,7 +248,7 @@ export class MetaphorRuntime {
         this.shapeMaterial = additive(new THREE.ShaderMaterial({
             vertexShader: METAPHOR_SHAPE_VERTEX,
             fragmentShader: METAPHOR_SHAPE_FRAGMENT,
-            uniforms: { uTime: { value: 0 }, uWobble: { value: WOBBLE } },
+            uniforms: { uTime: { value: 0 }, uWobble: { value: WOBBLE }, uAccent: { value: new THREE.Vector3() } },
         }));
 
         this.shapeGeometry.setAttribute('position', new THREE.Float32BufferAttribute([-1, -1, 0, 1, -1, 0, 1, 1, 0, -1, 1, 0], 3));
@@ -268,7 +273,8 @@ export class MetaphorRuntime {
             depthTest: false,
             depthWrite: false,
             uniforms: {
-                uField: { value: this.fieldTarget.texture },
+                uField: { value: this.fieldTarget.textures[0] },
+                uTint: { value: this.fieldTarget.textures[1] },
                 uRes: { value: new THREE.Vector2(1, 1) },
                 uPixelRatio: { value: 1 },
                 uTime: { value: 0 },
@@ -342,7 +348,7 @@ export class MetaphorRuntime {
         this.tuning = tuning;
         // 切镜头的快慢、反相、转场是编进分镜表的；融球的多少是每个 cue 的规划里的
         if (previous.cutPace !== tuning.cutPace || previous.negative !== tuning.negative || previous.transitions !== tuning.transitions) this.rebuildProgram();
-        else if (previous.blobs !== tuning.blobs) this.clearSets();
+        else if (previous.blobs !== tuning.blobs || previous.keywordColors !== tuning.keywordColors) this.clearSets();
         if (previous.flip !== tuning.flip) this.applyPalette();
         this.requestFrame();
     }
@@ -433,6 +439,12 @@ export class MetaphorRuntime {
         (uniforms.uPaper.value as THREE.Vector3).fromArray(palette.paper);
         (uniforms.uInk.value as THREE.Vector3).fromArray(palette.ink);
         (uniforms.uAccent.value as THREE.Vector3).fromArray(palette.accent);
+        (this.shapeMaterial.uniforms.uAccent.value as THREE.Vector3).fromArray(palette.accent);
+        // 关键字的颜色是按纸和墨校过的，写在每个 cue 的几何里：纸墨变了要重建
+        const key = [...palette.paper, ...palette.ink, ...palette.accent].join(',');
+        if (this.palette && key !== this.paletteKey) this.clearSets();
+        this.paletteKey = key;
+        this.palette = palette;
         (uniforms.uTone.value as THREE.Vector3).fromArray(palette.tone);
     }
 
@@ -481,11 +493,10 @@ export class MetaphorRuntime {
         const rng = createVisualizerRng(`metaphor:${this.song.seed}:${cueIndex}`);
         const line = cue.lineIndex >= 0 ? this.song.lines[cue.lineIndex] : null;
         const tokens = line ? buildMetaphorTokens(line) : cue.text ? buildMetaphorTextTokens(cue.text, cue.start - 10) : [];
-        const accents = new Set((this.theme.wordColors ?? []).map(entry => entry.word.trim().toLowerCase()).filter(Boolean));
         const layout: MetaphorLayout = tokens.some(token => !token.space)
             ? buildMetaphorLayout({
                 tokens, composition: cue.composition, measure: this.glyphs.measure, rng,
-                isAccent: accents.size > 0 ? text => accents.has(text.toLowerCase()) : undefined,
+                tints: line ? this.keywordTints(tokens) : undefined,
             })
             : { composition: 'block', glyphs: [], words: [], bounds: METAPHOR_EMPTY_STAGE };
         const interlude = cue.lineIndex < 0;
@@ -501,7 +512,7 @@ export class MetaphorRuntime {
             ...layout.glyphs.map(glyph => ({ ...glyph, key: glyph.char })),
             ...notes.map(note => ({
                 key: METAPHOR_NOTE_PREFIX + note.char, x: note.x, y: note.y, size: note.size, rot: note.rot,
-                t0: cue.start + note.born, t1: NOTE_END, accent: false, seed: rng(),
+                t0: cue.start + note.born, t1: NOTE_END, accent: false, tint: null as string | null, seed: rng(),
             })),
         ];
         if (entries.length === 0) return { layout, shapes, collisions, mesh: null, texture: null };
@@ -519,6 +530,15 @@ export class MetaphorRuntime {
         const uvs = new Float32Array(count * 8);
         const times = new Float32Array(count * 8);
         const metas = new Float32Array(count * 12);
+        const tints = new Float32Array(count * 12);
+        const palette = this.palette ?? resolveMetaphorPalette(this.theme, this.tuning.flip);
+        const tintCache = new Map<string, readonly number[]>();
+        const tintOf = (color: string | null | undefined): readonly number[] => {
+            if (!color) return palette.accent;
+            let rgb = tintCache.get(color);
+            if (!rgb) tintCache.set(color, rgb = resolveMetaphorKeywordColor(color, palette));
+            return rgb;
+        };
         const indices: number[] = [];
         // 四个角：左下、右下、右上、左上
         const CORNERS = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
@@ -527,6 +547,7 @@ export class MetaphorRuntime {
             const cos = Math.cos(glyph.rot);
             const sin = Math.sin(glyph.rot);
             const [u0, v0, u1, v1] = atlas.rects.get(glyph.key) ?? [0, 0, 0, 0];
+            const tint = tintOf(glyph.tint);
             CORNERS.forEach(([cx, cy], corner) => {
                 const vertex = index * 4 + corner;
                 positions.set([glyph.x, glyph.y, 0], vertex * 3);
@@ -535,6 +556,7 @@ export class MetaphorRuntime {
                 uvs.set([cx < 0 ? u0 : u1, cy > 0 ? v0 : v1], vertex * 2);
                 times.set([glyph.t0, glyph.t1], vertex * 2);
                 metas.set([glyph.seed, glyph.accent ? 1 : 0, glyph.size], vertex * 3);
+                tints.set(tint, vertex * 3);
             });
             indices.push(index * 4, index * 4 + 1, index * 4 + 2, index * 4, index * 4 + 2, index * 4 + 3);
         });
@@ -544,10 +566,31 @@ export class MetaphorRuntime {
         geometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
         geometry.setAttribute('aTime', new THREE.BufferAttribute(times, 2));
         geometry.setAttribute('aMeta', new THREE.BufferAttribute(metas, 3));
+        geometry.setAttribute('aTint', new THREE.BufferAttribute(tints, 3));
         geometry.setIndex(indices);
         const mesh = new THREE.Mesh(geometry, this.glyphMaterial);
         mesh.frustumCulled = false;
         return { layout, shapes, collisions, mesh, texture };
+    }
+
+    /**
+     * 一句歌词每个 token 的关键字颜色（不是关键字的是 null）。匹配走各样式共用的 wordColoring：中日韩按短语包含、英文按词。
+     * 「关键字着色」关着、主题没有关键字时全是 null。
+     */
+    private keywordTints(tokens: readonly MetaphorToken[]): Array<string | null> {
+        const matchers = prepareWordColorMatchers(this.theme.wordColors, this.tuning.keywordColors);
+        const none = tokens.map(() => null);
+        if (matchers.length === 0) return none;
+        const ranges = buildWordColorRangesFromMatchers(tokens.map(token => token.text).join(''), matchers);
+        if (ranges.length === 0) return none;
+        let offset = 0;
+        const spans = tokens.map((token, index) => {
+            const span = { key: String(index), timed: !token.space, startOffset: offset, endOffset: offset + token.text.length };
+            offset += token.text.length;
+            return span;
+        });
+        const colors = resolveTokenColorMap(spans, ranges);
+        return tokens.map((_, index) => colors.get(String(index)) ?? null);
     }
 
     /** 一个 cue 里哪几个时刻对撞：歌词是隔几个词挑一个词的开唱时刻（卡在词上），间奏是隔几秒一次。 */

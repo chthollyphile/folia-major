@@ -31,6 +31,8 @@ export interface MetaphorGlyph {
     /** 属于 words 里的第几个。 */
     word: number;
     accent: boolean;
+    /** 关键字自己的颜色（主题 wordColors 里写的色值）；没有就用主题的强调色。 */
+    tint?: string | null;
     /** 0..1，这个字自己的随机数（化开时散去的方向、放出的粒子用）。 */
     seed: number;
 }
@@ -129,6 +131,8 @@ export interface MetaphorLayoutInput {
     rng: () => number;
     /** 这个词要不要用强调色（主题的关键词）。 */
     isAccent?: (text: string) => boolean;
+    /** 每个 token 的关键字颜色（和 tokens 一一对应，不是关键字的是 null）：有颜色的词用这个颜色的强调墨。 */
+    tints?: ReadonlyArray<string | null>;
 }
 
 /** 把一行行 token 从上往下摆：align 决定每行的左缘。 */
@@ -231,9 +235,10 @@ export const buildMetaphorLayout = (input: MetaphorLayoutInput): MetaphorLayout 
     const total = widths.reduce((sum, width) => sum + width, 0);
     const glyphs: MetaphorGlyph[] = [];
     const words: MetaphorWord[] = [];
-    const accents = tokens.map(token => !token.space && Boolean(input.isAccent?.(token.text.trim())));
+    const tints = tokens.map((token, index) => (token.space ? null : input.tints?.[index] ?? null));
+    const accents = tokens.map((token, index) => !token.space && (tints[index] !== null || Boolean(input.isAccent?.(token.text.trim()))));
 
-    const pushWord = (slots: Array<Slot & MetaphorTokenChar>, accent: boolean) => {
+    const pushWord = (slots: Array<Slot & MetaphorTokenChar>, accent: boolean, tint: string | null = null) => {
         if (slots.length === 0) return;
         const word = words.length;
         const rect: MetaphorWord = { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity, t0: Infinity, t1: -Infinity };
@@ -244,7 +249,7 @@ export const buildMetaphorLayout = (input: MetaphorLayoutInput): MetaphorLayout 
             rect.y1 = Math.max(rect.y1, slot.y + slot.size * 0.55);
             rect.t0 = Math.min(rect.t0, slot.t0);
             rect.t1 = Math.max(rect.t1, slot.t1);
-            glyphs.push({ char: slot.char, x: slot.x, y: slot.y, size: slot.size, rot: slot.rot, t0: slot.t0, t1: slot.t1, word, accent, seed: rng() });
+            glyphs.push({ char: slot.char, x: slot.x, y: slot.y, size: slot.size, rot: slot.rot, t0: slot.t0, t1: slot.t1, word, accent, tint, seed: rng() });
         }
         words.push(rect);
     };
@@ -261,7 +266,7 @@ export const buildMetaphorLayout = (input: MetaphorLayoutInput): MetaphorLayout 
             if (list) list.push(slot);
             else byToken.set(index, [slot]);
         });
-        byToken.forEach((slots, index) => pushWord(slots, accents[index]));
+        byToken.forEach((slots, index) => pushWord(slots, accents[index], tints[index]));
     } else {
         const place = { block: placeBlock, stair: placeStair, hero: placeHero, scatter: placeScatter, justify: placeJustify }[input.composition];
         for (const placed of place(input, widths, total)) {
@@ -276,7 +281,7 @@ export const buildMetaphorLayout = (input: MetaphorLayoutInput): MetaphorLayout 
                 pen += advance;
                 return { ...item, x: centerX + dx * cos, y: placed.y + dx * sin, size: placed.size, rot: placed.rot, half: advance / 2 };
             });
-            pushWord(slots, accents[placed.index]);
+            pushWord(slots, accents[placed.index], tints[placed.index]);
         }
     }
 

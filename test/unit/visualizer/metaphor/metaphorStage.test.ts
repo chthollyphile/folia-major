@@ -15,7 +15,7 @@ import {
     type MetaphorComposition,
     type MetaphorLayout,
 } from '@/components/visualizer/metaphor/metaphorLayout';
-import { resolveMetaphorPalette } from '@/components/visualizer/metaphor/metaphorPalette';
+import { resolveMetaphorKeywordColor, resolveMetaphorPalette } from '@/components/visualizer/metaphor/metaphorPalette';
 import type { MetaphorCue, MetaphorProgram, MetaphorShot, MetaphorShotKind } from '@/components/visualizer/metaphor/metaphorProgram';
 import {
     METAPHOR_COLLISION_APPROACH,
@@ -455,6 +455,13 @@ describe('resolveMetaphorPalette', () => {
         expect(distance(palette.accent, palette.paper)).toBeGreaterThanOrEqual(0.25);
     });
 
+    it('关键字的颜色：照主题写的用；和纸分不开的往墨那边拉；坏的色值用强调色', () => {
+        const palette = resolveMetaphorPalette(theme({}));
+        expect(resolveMetaphorKeywordColor('#22c55e', palette).map(value => Math.round(value * 255))).toEqual([34, 197, 94]);
+        expect(distance(resolveMetaphorKeywordColor('#0a0a0c', palette), palette.paper)).toBeGreaterThanOrEqual(0.25);
+        expect(resolveMetaphorKeywordColor('not a color', palette)).toEqual(palette.accent);
+    });
+
     it('强调色和墨同色（默认主题）：换成和纸、墨都分得开的一档', () => {
         const palette = resolveMetaphorPalette(theme({ accentColor: '#f4f4f5' }));
         expect(distance(palette.accent, palette.ink)).toBeGreaterThan(0.25);
@@ -492,5 +499,22 @@ describe('normalizeMetaphorTuning', () => {
 
     it('不认识的字段不留', () => {
         expect(Object.keys(normalizeMetaphorTuning({ somethingElse: 1 })).sort()).toEqual(Object.keys(DEFAULT_METAPHOR_TUNING).sort());
+    });
+});
+
+describe('关键字的颜色进排版', () => {
+    it('有颜色的 token 整个词是强调墨、带着那个颜色；别的词不是', () => {
+        const tokens = buildMetaphorTextTokens('light falls here', 1);
+        const tints = tokens.map(token => (token.text.trim() === 'falls' ? '#22c55e' : null));
+        const layout = buildMetaphorLayout({ tokens, composition: 'block', measure, rng: createVisualizerRng('tints'), tints });
+        const tinted = layout.glyphs.filter(glyph => glyph.accent);
+        expect(tinted.map(glyph => glyph.char).join('')).toBe('falls');
+        expect(tinted.every(glyph => glyph.tint === '#22c55e')).toBe(true);
+        expect(layout.glyphs.filter(glyph => !glyph.accent).every(glyph => glyph.tint === null)).toBe(true);
+    });
+
+    it('不给颜色时没有强调墨', () => {
+        const layout = buildMetaphorLayout({ tokens: buildMetaphorTextTokens('light falls here', 1), composition: 'block', measure, rng: createVisualizerRng('tints') });
+        expect(layout.glyphs.some(glyph => glyph.accent)).toBe(false);
     });
 });

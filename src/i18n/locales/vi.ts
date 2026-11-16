@@ -3740,6 +3740,8 @@ export default {
     "metaphorCameraMotion": "Chuyển động máy quay",
     "metaphorFlip": "Đảo màu hình ảnh",
     "metaphorFlipHint": "Hoán đổi giấy và mực cho toàn bộ hình ảnh: giao diện tối thành mực đen trên giấy trắng, giao diện sáng thành mực trắng trên giấy đen.",
+    "metaphorKeywordColors": "Tô màu từ khóa",
+    "metaphorKeywordColorsHint": "Mỗi từ khóa của giao diện dùng màu riêng của nó; khi tắt, chúng có màu mực như các từ khác.",
     "metaphorNegative": "Cảnh âm bản",
     "metaphorNegativeHint": "Một số cảnh đổi chỗ màu giấy và màu mực, nhiều hơn ở điệp khúc.",
     "metaphorTransitions": "Chuyển cảnh",

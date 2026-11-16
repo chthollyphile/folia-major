@@ -34,6 +34,13 @@ const awayFromPaper = (color: MetaphorRgb, paper: MetaphorRgb, ink: MetaphorRgb,
     return out;
 };
 
+/** 关键字的颜色：和纸分不开时往墨那边拉，读不出来的颜色（坏的色值）用强调色。 */
+export const resolveMetaphorKeywordColor = (color: string, palette: MetaphorPalette): MetaphorRgb => {
+    const channels = parseColorChannels(color);
+    if (!channels) return palette.accent;
+    return awayFromPaper([channels.r / 255, channels.g / 255, channels.b / 255], palette.paper, palette.ink, 0.25);
+};
+
 export const resolveMetaphorPalette = (theme: Theme, flip = false): MetaphorPalette => {
     let paper = read(theme.backgroundColor, FALLBACK.paper);
     let ink = read(theme.primaryColor, FALLBACK.ink);

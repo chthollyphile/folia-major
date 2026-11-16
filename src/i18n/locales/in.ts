@@ -3740,6 +3740,8 @@ export default {
     "metaphorCameraMotion": "Gerak kamera",
     "metaphorFlip": "Balik Gambar",
     "metaphorFlipHint": "Menukar kertas dan tinta untuk seluruh gambar: tema gelap menjadi tinta hitam di kertas putih, tema terang menjadi tinta putih di kertas hitam.",
+    "metaphorKeywordColors": "Warna Kata Kunci",
+    "metaphorKeywordColorsHint": "Kata kunci tema memakai warnanya masing-masing; jika dimatikan, warnanya tinta seperti kata lain.",
     "metaphorNegative": "Adegan negatif",
     "metaphorNegativeHint": "Sebagian adegan menukar warna kertas dan tinta, lebih banyak di bagian chorus.",
     "metaphorTransitions": "Transisi",

@@ -36,6 +36,7 @@ export default defineVisualizerTuning<MetaphorTuning>({
         ...Object.fromEntries(Object.entries(METAPHOR_LIMITS).map(([key, { min, max }]) => [key, modNumber(min, max)])),
         negative: MOD_SWITCH,
         flip: MOD_SWITCH,
+        keywordColors: MOD_SWITCH,
         transitions: MOD_SWITCH,
     },
     settingsKey: 'metaphorTuning',

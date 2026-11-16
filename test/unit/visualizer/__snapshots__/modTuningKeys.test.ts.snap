@@ -489,6 +489,9 @@ exports[`mod tuning keys > are pinned, so a renamed or dropped key is a visible 
       "min": 0.5,
       "type": "number",
     },
+    "keywordColors": {
+      "type": "boolean",
+    },
     "negative": {
       "type": "boolean",
     },
