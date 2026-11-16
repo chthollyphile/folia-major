@@ -62,6 +62,24 @@ const buildWordsFromSyllables = (
         return fallbackText.trim().length > 0 ? buildTimedWords(fallbackText, startTime, endTime) : [];
     }
 
+    // Line-timed TTML (`itunes:timing="Line"`, Apple's own line lyrics included) reaches here as one
+    // syllable holding the whole line: no timing inside it. Kept as is it becomes one unbreakable timed
+    // box, which visualizers wrap into several rows lit by a single sweep (#1257). Estimate per-word
+    // timing like line-synced LRC does, unless the syllable carries ruby or beat data worth keeping.
+    const [onlySyllable] = syllables;
+    if (
+        syllables.length === 1
+        && onlySyllable.text.trim() === fallbackText.trim()
+        && !onlySyllable.ruby?.length
+        && typeof onlySyllable.emptyBeat !== 'number'
+        && !onlySyllable.obscene
+    ) {
+        const estimated = buildTimedWords(fallbackText, startTime, endTime);
+        if (estimated.length > 1) {
+            return estimated;
+        }
+    }
+
     const converted = syllables.map(convertSyllable);
     const words: Word[] = [];
     let currentGroup: LyricSyllable[] = [];
