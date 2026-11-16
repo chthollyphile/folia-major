@@ -100,7 +100,10 @@ type DragState = {
     startY: number;
     /** 开始拖动那一刻的轨道位置。 */
     from: number;
+    /** 挪过了阈值：这次按下不再是点击（松手的 click 吞掉）。 */
     active: boolean;
+    /** 横着也挪过了阈值：轨道开始跟手（才算浏览，正中那张收起歌词）。只竖着划的不碰轨道。 */
+    railing: boolean;
 };
 
 export default function RadioWall({
@@ -268,9 +271,9 @@ export default function RadioWall({
         if (dragRef.current?.active && dragRef.current.pointerId !== event.pointerId) return;
         swallowClickRef.current = false;
         if (!metrics || (event.pointerType === 'mouse' && event.button !== 0)) return;
-        // 进度条（原生 range）和回到正在播放的按钮自己处理指针。
-        if (event.target instanceof Element && event.target.closest('input, [role="slider"]')) return;
-        dragRef.current = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, from: rail.get(), active: false };
+        // 控件（按钮、进度条等）自己处理指针，和队列墙一样（useWallPointerPan）：从上面按下不拖墙。
+        if (event.target instanceof Element && event.target.closest('button, input, select, textarea, a, [contenteditable="true"], [role="slider"]')) return;
+        dragRef.current = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, from: rail.get(), active: false, railing: false };
     };
     // 结束一次拖动：吸附到最近的一张（甩一下至少走一格）。released 为 false 时（指针被系统收走、松手落在墙外
     // 没收到 pointerup）不吞点击、不算甩：之后不会再有这次按下的 click。
@@ -278,6 +281,7 @@ export default function RadioWall({
         dragRef.current = null;
         if (!drag.active) return;
         swallowClickRef.current = released;
+        if (!drag.railing) return;
         const dx = clientX - drag.startX;
         const start = Math.round(drag.from - anchor);
         let next = Math.round(rail.get() - anchor);
@@ -298,11 +302,15 @@ export default function RadioWall({
             if (Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) < DRAG_START_PX) return;
             // 真的在拖了才接管指针：只是点一下的话，点击照常落到卡和按钮上。
             drag.active = true;
+            event.currentTarget.setPointerCapture(event.pointerId);
+        }
+        if (!drag.railing) {
+            if (Math.abs(event.clientX - drag.startX) < DRAG_START_PX) return;
+            drag.railing = true;
             railAnimation.current?.stop();
             railAnimation.current = null;
             // 起点仍是按下的那一点和那时的轨道位置：快速拖动时生效前已经挪了一大截，不能丢（真实的鼠标在 8px 左右
             // 就生效，看不出跳动）。
-            event.currentTarget.setPointerCapture(event.pointerId);
             setDragging(true);
             setResting(false);
         }

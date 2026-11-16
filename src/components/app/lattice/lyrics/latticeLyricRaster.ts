@@ -9,27 +9,27 @@ const MEASURE_CACHE_LIMIT = 4096;
 // The measurement context and its cache outlive any one runtime: a lyric scene is torn down and built
 // again whenever its card stops showing lyrics (the radio wall does so on every song switch, browse and
 // drag), and a fresh cache paid the whole typography probe and every line's wrapping again each time.
-// Any 2D context measures alike, so all runtimes share one. The cache belongs to the font epoch it was
-// filled under: a runtime on a newer epoch (a font finished loading while no lyric scene was up) drops it.
+// Any 2D context measures alike, so all runtimes share one. A web font that finishes loading makes every
+// measurement taken before it stale (they fell back to another face), so the cache listens to the document
+// itself: a runtime's fontsEpoch (useFontsEpoch) counts from 0 per mount and misses a font that landed while
+// no lyric scene was up.
 let sharedContext: CanvasRenderingContext2D | null = null;
 // Keyed font first so no separator has to be reserved out of the measured text.
 const measurements = new Map<string, Map<string, { width: number; height: number }>>();
 let measured = 0;
-let measuredEpoch: number | null = null;
 const clearMeasureCache = () => { measurements.clear(); measured = 0; };
+let watchingFonts = false;
 
 /** One shared measurement context; textures are owned by visible pieces and released with them. */
-export function createLatticeRaster(pixi: typeof import('pixi.js'), fontsEpoch: number) {
+export function createLatticeRaster(pixi: typeof import('pixi.js')) {
     sharedContext ??= document.createElement('canvas').getContext('2d');
     const context = sharedContext;
     if (!context) throw new Error('Lattice text rasterization is unavailable');
-    /** Measurements taken before this font epoch are stale: drop them. */
-    const setFontsEpoch = (epoch: number) => {
-        if (epoch === measuredEpoch) return;
-        measuredEpoch = epoch;
-        clearMeasureCache();
-    };
-    setFontsEpoch(fontsEpoch);
+    if (!watchingFonts) {
+        watchingFonts = true;
+        // Lives as long as the cache does (the page): one listener, never removed.
+        document.fonts?.addEventListener?.('loadingdone', clearMeasureCache);
+    }
     const measure: MeasureText = (text, font) => {
         let byText = measurements.get(font);
         const cached = byText?.get(text);
@@ -73,6 +73,6 @@ export function createLatticeRaster(pixi: typeof import('pixi.js'), fontsEpoch: 
         source.resolution = resolution;
         return { texture: new pixi.Texture({ source }), width, height, pad };
     };
-    return { measure, rasterize, setFontsEpoch };
+    return { measure, rasterize, clearMeasureCache };
 }
 export type LatticeRaster = ReturnType<typeof createLatticeRaster>;

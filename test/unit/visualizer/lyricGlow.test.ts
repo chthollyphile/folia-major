@@ -71,7 +71,7 @@ function lattice(colors: Partial<Theme>, isChorus = false) {
     };
     const measure = (text: string) => ({ width: text.length * 20, height: 40 });
     const raster = {
-        measure, setFontsEpoch() {},
+        measure, clearMeasureCache() {},
         rasterize() {
             return {
                 texture: new pixi.Texture({ source: new pixi.TextureSource({ width: 100, height: 60 }) }),

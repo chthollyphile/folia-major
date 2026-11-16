@@ -218,6 +218,8 @@ function RadioCard({
         if (event.detail > 1 && !isWallDoubleClickOn(pressKey)) return;
         if (expanded) chrome.toggleTouch();
         else if (!focused) onBrowse(offset);
+        // 读屏器、语音控制的「激活」不是指针点下去的（detail 为 0），没有双击可用：正中这张就当回车，播放它。
+        else if (event.detail === 0) onPlay(tile);
     };
     const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
         if (event.target !== event.currentTarget || event.repeat) return;
@@ -295,8 +297,10 @@ function RadioCard({
                                     </span>
                                 )}
                                 {focused && !isNow && revealed && (
-                                    // 浏览到正中的别的歌：右下角一枚播放记号（双击整张卡、或按回车播放）。
-                                    <span className="lattice-radio-play-hint" aria-hidden><Play /></span>
+                                    // 浏览到正中的别的歌：右下角一枚播放按钮，点一下就播放（和队列墙展开海报上的播放键对应）；
+                                    // 双击整张卡、按回车也播放。
+                                    <button type="button" className="lattice-radio-play-hint" aria-label={t('player.play')}
+                                        title={t('player.play')} onClick={() => onPlay(tile)}><Play /></button>
                                 )}
                                 {expanded && (
                                     <div className="lattice-poster-controls">

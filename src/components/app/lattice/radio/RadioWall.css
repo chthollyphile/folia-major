@@ -345,7 +345,7 @@
 .lattice-radio-card.is-played.is-focused .lattice-radio-face.is-front,
 .lattice-radio-card.is-played:hover .lattice-radio-face.is-front { filter: none; }
 
-/* 浏览到正中的别的歌：右下角一枚播放记号。 */
+/* 浏览到正中的别的歌：右下角一枚播放按钮。 */
 .lattice-radio-play-hint {
     position: absolute;
     right: 6%;
@@ -356,9 +356,11 @@
     aspect-ratio: 1;
     place-items: center;
     border-radius: 50%;
+    padding: 0;
+    border: 0;
     color: var(--bg-color, #070707);
     background: var(--text-primary, #f7f4ee);
-    pointer-events: none;
+    cursor: pointer;
 }
 .lattice-radio-play-hint svg { width: 42%; height: 42%; fill: currentColor; }
 

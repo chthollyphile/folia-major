@@ -63,7 +63,7 @@ async function initialize(host: HTMLElement, initial: LatticeLyricInput, signal:
 /** Attaches a successfully initialized renderer; failures above this boundary release the WebGL context. */
 function attachRuntime(pixi: typeof import('pixi.js'), app: import('pixi.js').Application, host: HTMLElement,
     initial: LatticeLyricInput, onError: (error: unknown) => void): LatticeLyricRuntime {
-    const raster = createLatticeRaster(pixi, initial.fontsEpoch);
+    const raster = createLatticeRaster(pixi);
     let input = initial, width = 1, height = 1, resolution = app.renderer.resolution, destroyed = false;
     let reportError = onError;
     let typography = resolveLatticeTypography(input, width, height, raster.measure);
@@ -157,7 +157,7 @@ function attachRuntime(pixi: typeof import('pixi.js'), app: import('pixi.js').Ap
                 || next.keywordColoringEnabled !== input.keywordColoringEnabled || next.showSubtitleTranslation !== input.showSubtitleTranslation
                 || next.hideTranslationSubtitle !== input.hideTranslationSubtitle || next.subtitleContentMode !== input.subtitleContentMode;
             if (next.currentTime !== input.currentTime) { unsubscribe(); unsubscribe = next.currentTime.on('change', loop.wake); }
-            if (next.fontsEpoch !== input.fontsEpoch) { clearMonetMeasurementCaches(); raster.setFontsEpoch(next.fontsEpoch); }
+            if (next.fontsEpoch !== input.fontsEpoch) { clearMonetMeasurementCaches(); raster.clearMeasureCache(); }
             input = next;
             if (rebuild) { clear(); timeline = createLatticeTimeline(input.lines); typography = resolveLatticeTypography(input, width, height, raster.measure); }
             loop.wake();
