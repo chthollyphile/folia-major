@@ -16,11 +16,10 @@ import { useReducedMotionFor } from '../../../../hooks/useReducedMotionFor';
 import { setLatticeCurrentSongPosterVisible } from '../../../../stores/useLatticeControlsStore';
 import { usePlayingSongLocatorStore } from '../../../../stores/usePlayingSongLocatorStore';
 import { hasBlockingWindow } from '../../../../utils/keyboardTargets';
-import { isWallDoubleClickOn, noteWallPress } from '../../../wall/wallDoubleClick';
 import type { LatticeTile } from '../latticeModel';
 import { answerWallLocate, useWallPageKey } from '../wallLocate';
 import RadioBackdrop from './RadioBackdrop';
-import RadioCard, { radioCardPressKey, type RadioCardEntry } from './RadioCard';
+import RadioCard, { type RadioCardEntry } from './RadioCard';
 import {
     buildRadioBrowseCards,
     placeRadioRow,
@@ -467,20 +466,6 @@ export default function RadioWall({
         focusCard(next);
     };
 
-    // ---------- 播放：双击（wallDoubleClick 的判定，和队列墙同一套） ----------
-    // 点在卡以外（背景、空白）的单击也记一下：之后在空白处双击，不会认成之前点过的那张卡。
-    const handleClick = (event: MouseEvent<HTMLDivElement>) => {
-        if (!(event.target instanceof Element && event.target.closest('[data-radio-card]'))) noteWallPress(event, '');
-    };
-    // 双击的第一下已经把点中的那张带到正中（卡的 handleClick），第二下多半落在滑到指针底下的别的卡上：播放的是
-    // 第一下点中、此刻停在正中的那张。第一下点在控件上、空白处，或者点的那张已经不在正中，什么也不做。正在播放那张
-    // 暂停着就继续，从不暂停（onPlayFromWall）。
-    const handleDoubleClick = (event: MouseEvent<HTMLDivElement>) => {
-        if (event.target instanceof Element && event.target.closest('button, input')) return;
-        const card = cards.find(entry => entry.offset === browse);
-        if (card && isWallDoubleClickOn(radioCardPressKey(card.tile.id))) onPlayFromWall(card.tile);
-    };
-
     const entryFor = (card: RadioCardModel, index: number): RadioCardEntry => {
         if (opening || !metrics) return { kind: 'opening', delay: index * OPENING_STAGGER_S };
         // 一直在这一行里、只是先前在窗口外没挂的卡（浏览时走进窗口）直接出现；新补的卡淡入。
@@ -499,8 +484,6 @@ export default function RadioWall({
             onPointerCancel={handlePointerEnd}
             onLostPointerCapture={handleLostPointerCapture}
             onClickCapture={handleClickCapture}
-            onClick={handleClick}
-            onDoubleClick={handleDoubleClick}
             onWheel={handleWheel}
             role="group"
             aria-label={t(isFm ? 'home.latticeRadioLabel' : 'home.latticeRadioQueueLabel')}
@@ -541,6 +524,7 @@ export default function RadioWall({
                             pixelRatio={pixelRatio}
                             reducedMotion={reducedMotion}
                             onPlay={onPlay}
+                            onPlayFromWall={onPlayFromWall}
                             onTogglePlayback={onTogglePlayback}
                             onSeek={onSeek}
                             onOpenPlayer={onOpenPlayer}

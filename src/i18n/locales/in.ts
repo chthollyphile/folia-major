@@ -1886,7 +1886,7 @@ export default {
     "latticeRadioLabel": "Dinding radio FM Pribadi",
     "latticeRadioQueueLabel": "Dinding radio",
     "latticeRadioHidden": "Lagu berikutnya, belum terungkap",
-    "latticeRadioHelpCard": "Klik kartu untuk membawanya ke tengah, klik dua kali untuk memutarnya (di FM Pribadi tetap di radio)",
+    "latticeRadioHelpCard": "Klik kartu untuk membawanya ke tengah, klik dua kali kartu di tengah untuk memutarnya (di FM Pribadi tetap di radio)",
     "latticeRadioHelpMove": "← →, seret, atau gulir untuk menelusuri kartu, Enter memutar kartu di tengah",
     "latticeRadioBackToNow": "Kembali ke lagu yang diputar",
     "latticeRadioBackdropWord": "FM PRIBADI",

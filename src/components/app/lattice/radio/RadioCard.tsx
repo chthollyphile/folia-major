@@ -61,15 +61,14 @@ type RadioCardProps = {
     reducedMotion: boolean;
     /** 播放这一首（私人 FM 里仍在电台里播放）。 */
     onPlay: (tile: LatticeSongTile) => void;
+    /** 双击正中这张：播放它；正在播放的那张暂停着就继续，从不暂停。 */
+    onPlayFromWall: (tile: LatticeSongTile) => void;
     onTogglePlayback: () => void;
     onSeek: (time: number) => void;
     onOpenPlayer: () => void;
     /** 单击（或回车）一张不在正中的卡：把它带到正中（只是浏览，不播放；正在播放那张就是回到它）。 */
     onBrowse: (offset: number) => void;
 };
-
-/** 一张卡在 wallDoubleClick 里的记号：电台墙按它认双击的第一下点的是哪张。 */
-export const radioCardPressKey = (tileId: string) => `lattice-radio:${tileId}`;
 
 const FLIP_TRANSITION = { duration: 0.55, ease: [0.4, 0, 0.2, 1] as const };
 const DEAL_SPRING = { type: 'spring' as const, stiffness: 240, damping: 30, mass: 0.9 };
@@ -107,6 +106,7 @@ function RadioCard({
     pixelRatio,
     reducedMotion,
     onPlay,
+    onPlayFromWall,
     onTogglePlayback,
     onSeek,
     onOpenPlayer,
@@ -211,13 +211,13 @@ function RadioCard({
             opacity: { duration: 0.28, delay: entry.kind === 'opening' ? entry.delay : 0 },
         };
 
-    // 和队列墙的海报一样（LatticePoster 的 handleClick / handleDoubleClick）：单击只把卡带到正中，双击才播放。
-    // 双击由电台墙统一接（RadioWall 的 handleDoubleClick）：第一下已经让这一行滑动，第二下多半落在滑到指针底下的
-    // 另一张卡上，墙按第一下点的那张（这时已在正中）播放。
-    const pressKey = radioCardPressKey(tile.id);
+    // 和队列墙的海报一样（LatticePoster 的 handleClick / handleDoubleClick，wallDoubleClick 的判定）：单击只把卡
+    // 带到正中，双击才播放，而且两下都要点在同一张卡上。双击的第一下点在不在正中的卡上时只记一个空记号：这一下把卡
+    // 带到正中，这次双击不播放（第二下多半落在滑过来的别的卡上，也不播放）；在正中的卡上双击才播放。
+    const pressKey = `lattice-radio:${tile.id}`;
     const handleClick = (event: MouseEvent<HTMLElement>) => {
         const onControl = event.target instanceof Element && Boolean(event.target.closest('button, input'));
-        noteWallPress(event, onControl ? '' : pressKey);
+        noteWallPress(event, onControl || !focused ? '' : pressKey);
         if (onControl) return;
         // 连击的后几下落在了别的卡上（第一下让这一行滑动了）：不算点这张，不把这一行又带走。
         if (event.detail > 1 && !isWallDoubleClickOn(pressKey)) return;
@@ -225,6 +225,10 @@ function RadioCard({
         else if (!focused) onBrowse(offset);
         // 读屏器、语音控制的「激活」不是指针点下去的（detail 为 0），没有双击可用：正中这张就当回车，播放它。
         else if (event.detail === 0) onPlay(tile);
+    };
+    const handleDoubleClick = (event: MouseEvent<HTMLElement>) => {
+        if (event.target instanceof Element && event.target.closest('button, input')) return;
+        if (isWallDoubleClickOn(pressKey)) onPlayFromWall(tile);
     };
     const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
         if (event.target !== event.currentTarget || event.repeat) return;
@@ -250,6 +254,7 @@ function RadioCard({
             {...(isNow ? { [RADIO_NOW_ATTR]: '' } : {})}
             style={{ x, y, width, height, rotate, zIndex: 20 - Math.min(19, Math.abs(slot) * 4) }}
             onClick={handleClick}
+            onDoubleClick={handleDoubleClick}
             onKeyDown={handleKeyDown}
             onPointerEnter={(event: PointerEvent<HTMLElement>) => { if (expanded) prewarmLatticeLyrics(); chrome.onPointerEnter(event); }}
             onPointerLeave={() => { chrome.onPointerLeave(); tilt.handlers.onPointerLeave(); }}

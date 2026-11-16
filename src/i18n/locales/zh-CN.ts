@@ -1886,7 +1886,7 @@ export default {
     "latticeRadioLabel": "私人 FM 电台墙",
     "latticeRadioQueueLabel": "电台墙",
     "latticeRadioHidden": "接下来的歌，还没揭晓",
-    "latticeRadioHelpCard": "单击一张卡把它带到正中，双击播放这首（私人 FM 下仍在电台里播放）",
+    "latticeRadioHelpCard": "单击一张卡把它带到正中，双击正中那张播放（私人 FM 下仍在电台里播放）",
     "latticeRadioHelpMove": "← →、拖动或滚轮浏览卡片，Enter 播放正中那张",
     "latticeRadioBackToNow": "回到正在播放",
     "latticeRadioBackdropWord": "私人 FM",

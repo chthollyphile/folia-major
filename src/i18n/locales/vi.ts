@@ -1886,7 +1886,7 @@ export default {
     "latticeRadioLabel": "Tường radio FM cá nhân",
     "latticeRadioQueueLabel": "Tường radio",
     "latticeRadioHidden": "Bài tiếp theo, chưa lộ diện",
-    "latticeRadioHelpCard": "Nhấp một thẻ để đưa nó vào giữa, nhấp đúp để phát (trong FM cá nhân vẫn phát trên radio)",
+    "latticeRadioHelpCard": "Nhấp một thẻ để đưa nó vào giữa, nhấp đúp thẻ ở giữa để phát (trong FM cá nhân vẫn phát trên radio)",
     "latticeRadioHelpMove": "← →, kéo hoặc cuộn để duyệt các thẻ, Enter để phát thẻ ở giữa",
     "latticeRadioBackToNow": "Quay lại bài đang phát",
     "latticeRadioBackdropWord": "FM CÁ NHÂN",

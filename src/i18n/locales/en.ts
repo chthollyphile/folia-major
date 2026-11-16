@@ -1886,7 +1886,7 @@ export default {
     "latticeRadioLabel": "Personal FM radio wall",
     "latticeRadioQueueLabel": "Radio wall",
     "latticeRadioHidden": "Coming up, not revealed yet",
-    "latticeRadioHelpCard": "Click a card to bring it to the middle, double-click it to play (within Personal FM, it stays on the radio)",
+    "latticeRadioHelpCard": "Click a card to bring it to the middle, double-click the card in the middle to play it (within Personal FM, it stays on the radio)",
     "latticeRadioHelpMove": "← →, drag or scroll to browse the cards, Enter plays the card in the middle",
     "latticeRadioBackToNow": "Back to the playing song",
     "latticeRadioBackdropWord": "PERSONAL FM",
