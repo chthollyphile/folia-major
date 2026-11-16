@@ -52,7 +52,7 @@ function createSessionRepository({ store, safeStorage, warn = console.warn }) {
                 token: String(value.token || ''),
                 userId: String(value.userId || ''),
                 expireTime: String(value.expireTime || ''),
-                nickname: String(value.nickname || '华为音乐账号'),
+                nickname: String(value.nickname || ''),
             };
             revision++;
             if (!canEncrypt()) {

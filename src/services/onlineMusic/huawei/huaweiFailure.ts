@@ -11,6 +11,9 @@ export function describeHuaweiFailure(error: unknown): OnlineFailureDetail | nul
         ...(error.httpStatus ? { httpStatus: error.httpStatus } : {}),
         ...(message ? { message } : {}),
     };
+    // Let the shared classifier handle HTTP failures (especially 429 and 5xx) before
+    // applying song-specific fallbacks such as no-audio or local-service-stopped.
+    if (error.httpStatus !== undefined && error.httpStatus >= 400) return base;
     switch (error.code) {
         case 'auth-required':
             return { ...base, case: 'sign-in-needed', likelyCause: 'sign-in' };

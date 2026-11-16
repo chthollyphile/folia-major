@@ -20,6 +20,7 @@ const TABLES = [
     ['electron/modSystem/approval.cjs', 'TRUST_DIALOG_LOCALE'],
     ['electron/modSystem/safeStart.cjs', 'SAFE_START_LOCALE'],
     ['electron/spotify/signIn.cjs', 'PAGE_TEXT'],
+    ['electron/huawei/signInText.cjs', 'LOGIN_TEXT'],
 ] as const;
 
 type Entry = string | ((...args: string[]) => string);

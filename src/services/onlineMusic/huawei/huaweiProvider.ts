@@ -115,27 +115,33 @@ const RECOMMENDATION_TTL_MS = 10 * 60 * 1000;
 let recommendationCache: { at: number; answer: HuaweiRecommendationAnswer } | null = null;
 let dailyCache: { day: string; songs: Promise<UnifiedSong[]> } | null = null;
 let fmSeed: string | null = null;
+let recommendationEpoch = 0;
 
-/** Test hook: forget the recommendation page, the day's songs and the FM seed. */
+/** Forget account-scoped reads and invalidate their in-flight responses. Also used by tests. */
 export const resetHuaweiRecommendationCache = (): void => {
+    recommendationEpoch += 1;
     recommendationCache = null;
     dailyCache = null;
     fmSeed = null;
 };
 
 const loadHuaweiRecommendations = async (): Promise<HuaweiRecommendationAnswer> => {
+    const epoch = recommendationEpoch;
     const now = Date.now();
     if (recommendationCache && now - recommendationCache.at < RECOMMENDATION_TTL_MS) {
         return recommendationCache.answer;
     }
     const answer = await requestHuawei<HuaweiRecommendationAnswer>('recommendations');
+    if (epoch !== recommendationEpoch) return { items: [] };
     recommendationCache = { at: now, answer };
     return answer;
 };
 
 const pickFmSeed = async (): Promise<string | null> => {
+    const epoch = recommendationEpoch;
     try {
-        const playlists = await listHuaweiPlaylists();
+        const { items: playlists } = await listHuaweiPlaylists();
+        if (epoch !== recommendationEpoch) return null;
         const liked = playlists.find(item => item.isOwned && item.name.includes('喜欢'))
             ?? playlists.find(item => item.isOwned);
         if (liked) {
@@ -143,25 +149,33 @@ const pickFmSeed = async (): Promise<string | null> => {
                 id: String(liked.id), kind: 'owned', limit: 1, offset: 0,
             });
             const first = Array.isArray(page.items) ? page.items[0] : null;
+            if (epoch !== recommendationEpoch) return null;
             if (first) return String(normalizeHuaweiSong(first).id);
         }
     } catch {
         // Without an account, or without a readable playlist, the daily list is the seed.
     }
+    if (epoch !== recommendationEpoch) return null;
     const daily = await loadHuaweiDailySongs().catch(() => []);
-    return daily.length > 0 ? String(daily[0].id) : null;
+    return epoch === recommendationEpoch && daily.length > 0 ? String(daily[0].id) : null;
 };
 
 const loadHuaweiDailySongs = (refresh = false): Promise<UnifiedSong[]> => {
+    const epoch = recommendationEpoch;
     const day = new Date().toISOString().slice(0, 10);
     if (!refresh && dailyCache?.day === day) return dailyCache.songs;
     const songs = loadHuaweiRecommendations()
         .then(async answer => {
+            if (epoch !== recommendationEpoch) return [];
             const id = answer.dailyId || 'a001';
             const page = await requestHuawei<HuaweiPlaylistTracksAnswer>('playlist_tracks', {
                 id, kind: 'collected', limit: 50, offset: 0,
             });
-            return (Array.isArray(page.items) ? page.items : []).map(normalizeHuaweiSong);
+            return epoch === recommendationEpoch ? (Array.isArray(page.items) ? page.items : []).map(normalizeHuaweiSong) : [];
+        })
+        .catch((error: unknown) => {
+            if (dailyCache?.songs === songs) dailyCache = null;
+            throw error;
         });
     dailyCache = { day, songs };
     return songs;
@@ -222,19 +236,9 @@ const searchHuaweiCollections = async (
 const getHuaweiSongDetail = async (id: MediaId): Promise<UnifiedSong | null> => {
     const cached = seenSongs.get(String(id));
     if (cached) return cached;
-    try {
-        const answer = await requestHuawei('song_detail', { id: String(id) });
-        return answer ? normalizeSeenSong(answer) : null;
-    } catch (error) {
-        // The detail read is the play endpoint: without an account, or without the account's
-        // subscription, it refuses VIP songs. That is not "this platform has no such song", but
-        // there is nothing more to say here; the search row it came from is already known.
-        if (error instanceof OnlineProviderError
-            && (error.code === 'auth-required' || error.code === 'subscription-required' || error.code === 'not-playable')) {
-            return null;
-        }
-        throw error;
-    }
+    // Playback/auth refusals must retain their error code; null means the song does not exist.
+    const answer = await requestHuawei('song_detail', { id: String(id) });
+    return answer ? normalizeSeenSong(answer) : null;
 };
 
 const getHuaweiAudioSource = async (song: SongResult, quality: ProviderAudioSource['quality']): Promise<ProviderAudioSource> => {
@@ -349,6 +353,7 @@ export const huaweiProvider: OnlineMusicProvider = {
             resetHuaweiRecommendationCache();
         },
         async startLogin() {
+            resetHuaweiRecommendationCache();
             const answer = await requestHuawei<{ key: string }>('login_start');
             activeLoginKey = answer.key;
             return answer.key;
@@ -367,9 +372,8 @@ export const huaweiProvider: OnlineMusicProvider = {
         getLoginTtlMs: () => LOGIN_TTL_MS,
     },
     recommendations: {
-        // Huawei's own recommendation page: the account's "今日为你推荐" column and the
-        // "歌单推荐" column. The daily list itself is the "每日30首" playlist (a001), which the
-        // platform marks with serviceType dailyrecommend.
+        // Huawei's recommendation page exposes "今日为你推荐" and "歌单推荐" columns.
+        // Daily songs read its ordinary a001 playlist, not the unverified NEXT daily API.
         async getRecommendedCollections(limit) {
             const answer = await loadHuaweiRecommendations();
             return (Array.isArray(answer.items) ? answer.items : [])
@@ -378,15 +382,17 @@ export const huaweiProvider: OnlineMusicProvider = {
                 .map(huaweiPlaylistCollection);
         },
         getDailySongs: refresh => loadHuaweiDailySongs(refresh),
-        // Huawei's "private FM" route is gone (404); this radio walks the platform's own
-        // similar-song recommendations from the account's daily list, then from the last track.
+        // Similar-song radio seeded from an account playlist (or the daily list),
+        // rather than Huawei's native "Listen now" service.
         async getPersonalFm() {
-            if (!fmSeed) fmSeed = await pickFmSeed();
-            if (!fmSeed) return [];
-            const answer = await requestHuawei<HuaweiSimilarAnswer>('similar_songs', { id: fmSeed });
+            const epoch = recommendationEpoch;
+            const seed = fmSeed ?? await pickFmSeed();
+            if (epoch !== recommendationEpoch || !seed) return [];
+            const answer = await requestHuawei<HuaweiSimilarAnswer>('similar_songs', { id: seed });
+            if (epoch !== recommendationEpoch) return [];
             const songs = (Array.isArray(answer.items) ? answer.items : [])
                 .map(normalizeHuaweiSong)
-                .filter(song => String(song.id) !== fmSeed);
+                .filter(song => String(song.id) !== seed);
             if (songs.length > 0) fmSeed = String(songs[songs.length - 1].id);
             return songs;
         },
@@ -411,9 +417,7 @@ export const huaweiProvider: OnlineMusicProvider = {
             );
         },
         async getUserPlaylists(userId, limit, offset) {
-            const playlists = await listHuaweiPlaylists();
-            const items = playlists.slice(offset, offset + limit);
-            return huaweiPage(items, offset + items.length, offset + items.length < playlists.length, playlists.length);
+            return listHuaweiPlaylists(limit, offset);
         },
     },
     catalog: huaweiCatalog,

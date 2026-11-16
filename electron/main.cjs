@@ -382,7 +382,8 @@ const qishuiApiBridge = createQishuiApiBridge({ store, safeStorage, fetch: (url,
 const bodianMediaPolicy = createBodianMediaPolicy();
 const huaweiMediaPolicy = createHuaweiMediaPolicy();
 const huaweiApiBridge = createHuaweiApiBridge({
-  store, safeStorage, BrowserWindow, session,
+    store, safeStorage, BrowserWindow, session,
+    language: () => getMainLocaleKey(),
   fetch: (url, options) => electronNet.fetch(url, options),
   parentWindow: () => mainWindow,
   onAudioSource: url => huaweiMediaPolicy.register(url),

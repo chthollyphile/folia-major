@@ -35,6 +35,8 @@ interface HuaweiPlaylistItem {
 
 interface HuaweiPlaylistAnswer {
     items: HuaweiPlaylistItem[];
+    hasMore?: boolean;
+    nextOffset?: number;
 }
 
 interface HuaweiPlaylistTracksAnswer {
@@ -63,17 +65,24 @@ export const huaweiPlaylistCollection = (item: HuaweiPlaylistItem): ProviderColl
 });
 
 /** The account's Huawei Music playlists, including its liked songs ("我喜欢的音乐"). */
-export const listHuaweiPlaylists = async (): Promise<ProviderCollection[]> => {
-    const answer = await requestHuawei<HuaweiPlaylistAnswer>('library_playlists');
+export const listHuaweiPlaylists = async (limit = 50, offset = 0): Promise<ProviderPage<ProviderCollection>> => {
+    const answer = await requestHuawei<HuaweiPlaylistAnswer>('library_playlists', { limit, offset });
     const items = Array.isArray(answer.items) ? answer.items : [];
-    return items
+    const collections = items
         .filter(item => item.id && item.name)
         .map(huaweiPlaylistCollection);
+    return huaweiPage(collections, answer.nextOffset ?? offset + items.length, Boolean(answer.hasMore));
 };
 
 const findHuaweiPlaylist = async (id: string): Promise<ProviderCollection | null> => {
-    const playlists = await listHuaweiPlaylists();
-    return playlists.find(collection => String(collection.id) === id) ?? null;
+    let offset = 0;
+    for (;;) {
+        const page = await listHuaweiPlaylists(50, offset);
+        const found = page.items.find(collection => String(collection.id) === id);
+        if (found) return found;
+        if (!page.hasMore || page.nextOffset <= offset) return null;
+        offset = page.nextOffset;
+    }
 };
 
 const pageOf = (items: unknown[], answer: HuaweiAlbumAnswer, limit: number, offset: number): ProviderPage<ReturnType<typeof normalizeHuaweiSong>> => {

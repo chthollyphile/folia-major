@@ -109,7 +109,7 @@ export const normalizeHuaweiUser = (raw: unknown): ProviderUser => {
     const avatarUrl = text(item.avatarUrl);
     return {
         id: text(item.id ?? item.userId),
-        nickname: text(item.nickname) || '华为音乐账号',
+        nickname: text(item.nickname) || text(item.id ?? item.userId),
         ...(avatarUrl ? { avatarUrl } : {}),
     };
 };

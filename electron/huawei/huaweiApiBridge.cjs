@@ -1,5 +1,6 @@
 const crypto = require('node:crypto');
 const { createSessionRepository } = require('./session.cjs');
+const { loginText, loginLocale } = require('./signInText.cjs');
 
 // electron/huawei/huaweiApiBridge.cjs
 //
@@ -42,6 +43,7 @@ class HuaweiBridgeError extends Error {
 const randomString = bytes => crypto.randomBytes(bytes).toString('base64url');
 const challenge = verifier => crypto.createHash('sha256').update(verifier).digest('base64url');
 const utcStamp = () => new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
+const pageOffset = value => Number.isSafeInteger(Number(value)) ? Math.max(0, Number(value)) : 0;
 
 function allowedResourceUrl(raw) {
     try {
@@ -102,9 +104,18 @@ function resultFailure(payload) {
 }
 
 function createHuaweiApiBridge({ store, safeStorage, fetch, BrowserWindow, session, parentWindow = () => null,
-    onAudioSource = () => {}, now = Date.now, warn = console.warn }) {
+    onAudioSource = () => {}, language = () => 'en', now = Date.now, warn = console.warn }) {
     const sessions = createSessionRepository({ store, safeStorage, warn });
     const attempts = new Map();
+    const isCurrentAttempt = attempt => attempts.get(attempt.key) === attempt
+        && attempt.status === 'waiting' && now() - attempt.createdAt <= LOGIN_TTL_MS;
+    const cancelAttempts = () => {
+        const previous = [...attempts.values()];
+        attempts.clear();
+        for (const attempt of previous) {
+            if (attempt.window && !attempt.window.isDestroyed()) attempt.window.destroy();
+        }
+    };
     // Partitions exist once Electron is ready; the bridge is created before that.
     let loginSession = null;
     const getLoginSession = () => {
@@ -112,11 +123,14 @@ function createHuaweiApiBridge({ store, safeStorage, fetch, BrowserWindow, sessi
         return loginSession;
     };
 
-    const httpFetch = async (url, options = {}) => {
+    // Keep the deadline active until the complete response body has arrived.
+    const httpRead = async (url, { timeout = REQUEST_TIMEOUT_MS, ...options } = {}) => {
         const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), options.timeout || REQUEST_TIMEOUT_MS);
+        const timer = setTimeout(() => controller.abort(), timeout);
         try {
-            return await fetch(url, { ...options, signal: controller.signal });
+            const response = await fetch(url, { ...options, signal: controller.signal });
+            const text = await response.text();
+            return { response, text };
         } catch (error) {
             throw new HuaweiBridgeError('network', 'Huawei Music network request failed', { cause: error });
         } finally {
@@ -132,12 +146,11 @@ function createHuaweiApiBridge({ store, safeStorage, fetch, BrowserWindow, sessi
             'User-Agent': PROVIDER_USER_AGENT,
             Authorization: musicHeaders(token),
         };
-        const response = await httpFetch(url, {
+        const { response, text } = await httpRead(url, {
             method,
             headers,
             ...(body === undefined ? {} : { body: JSON.stringify(body) }),
         });
-        const text = await response.text();
         const payload = parseEnvelope(text);
         if (payload?.error) {
             throw new HuaweiBridgeError('not-playable', `Huawei Music ${stage} failed`, { httpStatus: response.status });
@@ -145,7 +158,8 @@ function createHuaweiApiBridge({ store, safeStorage, fetch, BrowserWindow, sessi
         if (!response.ok) {
             throw new HuaweiBridgeError(
                 response.status === 401 || response.status === 403 ? 'auth-required'
-                    : response.status === 429 ? 'unavailable' : 'not-playable',
+                    : response.status === 429 ? 'unavailable'
+                        : response.status >= 500 ? 'network' : 'not-playable',
                 `Huawei Music ${stage} failed (HTTP ${response.status})`,
                 { httpStatus: response.status },
             );
@@ -172,12 +186,11 @@ function createHuaweiApiBridge({ store, safeStorage, fetch, BrowserWindow, sessi
             code,
             code_verifier: verifier,
         });
-        const tokenResponse = await httpFetch(TOKEN_ENDPOINT, {
+        const { response: tokenResponse, text: tokenText } = await httpRead(TOKEN_ENDPOINT, {
             method: 'POST',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: form.toString(),
         });
-        const tokenText = await tokenResponse.text();
         const tokenPayload = parseEnvelope(tokenText);
         if (!tokenResponse.ok || !tokenPayload?.access_token) {
             const codeValue = tokenPayload?.error !== undefined ? String(tokenPayload.error) : undefined;
@@ -203,11 +216,11 @@ function createHuaweiApiBridge({ store, safeStorage, fetch, BrowserWindow, sessi
             token,
             stage: 'session validation',
         });
-        return { token, userId, expireTime: String(loginPayload.expireTime || ''), nickname: '华为音乐账号' };
+        return { token, userId, expireTime: String(loginPayload.expireTime || '') };
     };
 
     const settleCallback = async (attempt, rawUrl) => {
-        if (attempt.settled) return;
+        if (attempt.settled || !isCurrentAttempt(attempt)) return;
         attempt.settled = true;
         try {
             const callback = new URL(rawUrl);
@@ -231,11 +244,14 @@ function createHuaweiApiBridge({ store, safeStorage, fetch, BrowserWindow, sessi
             const code = params.get('code') || '';
             if (!code) throw new HuaweiBridgeError('auth-required', 'Huawei Music authorization code missing');
             const value = await exchangeCode({ code, verifier: attempt.verifier });
+            // Cancel, close, expiry, logout or a newer attempt wins over this late exchange.
+            if (!isCurrentAttempt(attempt)) return;
             sessions.set(value);
             attempt.status = 'confirmed';
             attempt.error = null;
             if (attempt.window && !attempt.window.isDestroyed()) attempt.window.destroy();
         } catch (error) {
+            if (!isCurrentAttempt(attempt)) return;
             attempt.status = 'error';
             attempt.error = error instanceof Error ? error.message : 'Huawei Music sign-in failed';
             if (attempt.window && !attempt.window.isDestroyed()) attempt.window.destroy();
@@ -246,6 +262,7 @@ function createHuaweiApiBridge({ store, safeStorage, fetch, BrowserWindow, sessi
         const attempt = attempts.get(key);
         if (!attempt) throw new HuaweiBridgeError('auth-required', 'Huawei Music sign-in is not active');
         if (attempt.status === 'confirmed') return true;
+        if (!isCurrentAttempt(attempt)) throw new HuaweiBridgeError('auth-required', 'Huawei Music sign-in is not active');
         if (attempt.window && !attempt.window.isDestroyed()) {
             attempt.window.focus();
             return true;
@@ -258,7 +275,7 @@ function createHuaweiApiBridge({ store, safeStorage, fetch, BrowserWindow, sessi
             parent: parentWindow() || undefined,
             modal: false,
             autoHideMenuBar: true,
-            title: '华为音乐登录',
+            title: loginText(language()).title,
             webPreferences: {
                 partition: LOGIN_PARTITION,
                 nodeIntegration: false,
@@ -284,7 +301,7 @@ function createHuaweiApiBridge({ store, safeStorage, fetch, BrowserWindow, sessi
             attempt.window = null;
             if (attempt.status !== 'confirmed') {
                 attempt.status = 'error';
-                attempt.error = attempt.error || '登录窗口已关闭';
+                attempt.error = attempt.error || loginText(language()).closed;
             }
         });
         const params = new URLSearchParams({
@@ -297,11 +314,12 @@ function createHuaweiApiBridge({ store, safeStorage, fetch, BrowserWindow, sessi
             code_challenge: challenge(attempt.verifier),
             code_challenge_method: 'S256',
             countryCode: 'cn',
-            ui_locales: 'zh-cn',
+            ui_locales: loginLocale(language()),
         });
         win.loadURL(`${AUTHORIZE_ENDPOINT}?${params.toString()}`).catch(() => {
+            if (!isCurrentAttempt(attempt)) return;
             attempt.status = 'error';
-            attempt.error = '登录页面打不开';
+            attempt.error = loginText(language()).loadFailed;
             if (!win.isDestroyed()) win.destroy();
         });
         return true;
@@ -317,16 +335,13 @@ function createHuaweiApiBridge({ store, safeStorage, fetch, BrowserWindow, sessi
         async request(operation, params = {}) {
             try {
                 if (operation === 'login_start') {
+                    cancelAttempts();
                     const key = randomString(18);
                     const verifier = randomString(48);
                     const oauthState = randomString(24);
                     attempts.set(key, {
-                        verifier, oauthState, status: 'waiting', createdAt: now(), window: null, error: null, settled: false,
+                        key, verifier, oauthState, status: 'waiting', createdAt: now(), window: null, error: null, settled: false,
                     });
-                    for (const [oldKey, attempt] of attempts) {
-                        if (!attempt.window && now() - attempt.createdAt > LOGIN_TTL_MS) attempts.delete(oldKey);
-                    }
-                    while (attempts.size > 20) attempts.delete(attempts.keys().next().value);
                     return { ok: true, data: { key } };
                 }
                 if (operation === 'login_open') {
@@ -354,11 +369,12 @@ function createHuaweiApiBridge({ store, safeStorage, fetch, BrowserWindow, sessi
                         ok: true,
                         data: {
                             id: current.userId,
-                            nickname: current.nickname || '华为音乐账号',
+                            nickname: current.nickname || loginText(language()).account,
                         },
                     };
                 }
                 if (operation === 'logout') {
+                    cancelAttempts();
                     sessions.clear({ signOut: true });
                     await getLoginSession().clearStorageData().catch(() => {});
                     return { ok: true, data: { signedOut: true } };
@@ -368,7 +384,7 @@ function createHuaweiApiBridge({ store, safeStorage, fetch, BrowserWindow, sessi
                     if (!query || Array.from(query).length > 80) {
                         throw new HuaweiBridgeError('invalid-response', 'Huawei Music search query is invalid');
                     }
-                    const start = Math.min(1000, Math.max(0, Number(params.offset) || 0));
+                    const start = pageOffset(params.offset);
                     const limit = Math.min(50, Math.max(1, Number(params.limit) || 30));
                     const kind = params.kind === 'album' ? 'album' : params.kind === 'playlist' ? 'playlist' : 'song';
                     const contentType = kind === 'album' ? '2' : kind === 'playlist' ? '4' : '1';
@@ -396,7 +412,7 @@ function createHuaweiApiBridge({ store, safeStorage, fetch, BrowserWindow, sessi
                 if (operation === 'album') {
                     const id = String(params.id || '');
                     if (!id) throw new HuaweiBridgeError('invalid-response', 'Huawei Music album id is missing');
-                    const start = Math.min(1000, Math.max(0, Number(params.offset) || 0));
+                    const start = pageOffset(params.offset);
                     const limit = Math.min(50, Math.max(1, Number(params.limit) || 30));
                     const payload = await musicRequest({
                         method: 'GET',
@@ -505,7 +521,7 @@ function createHuaweiApiBridge({ store, safeStorage, fetch, BrowserWindow, sessi
                 }
                 if (operation === 'library_albums') {
                     const current = requireSession();
-                    const start = Math.min(1000, Math.max(0, Number(params.offset) || 0));
+                    const start = pageOffset(params.offset);
                     const limit = Math.min(50, Math.max(1, Number(params.limit) || 30));
                     const payload = await musicRequest({
                         path: '/music-userbehavior-service/v3/service/favorite/simple/all',
@@ -541,10 +557,12 @@ function createHuaweiApiBridge({ store, safeStorage, fetch, BrowserWindow, sessi
                 }
                 if (operation === 'library_playlists') {
                     const current = requireSession();
+                    const start = pageOffset(params.offset);
+                    const limit = Math.min(50, Math.max(1, Number(params.limit) || 50));
                     const payload = await musicRequest({
                         path: '/music-userbehavior-service/v3/service/favorite/simple/all',
                         body: {
-                            targetSnsUserID: current.userId, start: 0, limit: 50, contentTypes: [4, 5, 7],
+                            targetSnsUserID: current.userId, start, limit, contentTypes: [4, 5, 7],
                         },
                         token: current.token,
                         stage: 'playlists',
@@ -565,7 +583,7 @@ function createHuaweiApiBridge({ store, safeStorage, fetch, BrowserWindow, sessi
                             description: String(row?.listDesc || ''),
                         }];
                     });
-                    return { ok: true, data: { items } };
+                    return { ok: true, data: { items, hasMore: rows.length === limit, nextOffset: start + rows.length } };
                 }
                 if (operation === 'playlist_tracks') {
                     const id = String(params.id || '');
@@ -574,9 +592,10 @@ function createHuaweiApiBridge({ store, safeStorage, fetch, BrowserWindow, sessi
                     if (kind !== 'owned' && kind !== 'collected') {
                         throw new HuaweiBridgeError('unsupported', 'Huawei Music playlist kind is unsupported');
                     }
-                    const start = Math.min(1000, Math.max(0, Number(params.offset) || 0));
+                    const start = pageOffset(params.offset);
                     const limit = Math.min(50, Math.max(1, Number(params.limit) || 30));
                     let rows = [];
+                    let total;
                     if (kind === 'owned') {
                         const current = requireSession();
                         const payload = await musicRequest({
@@ -588,6 +607,8 @@ function createHuaweiApiBridge({ store, safeStorage, fetch, BrowserWindow, sessi
                         });
                         rows = Array.isArray(payload?.playListInfoEx?.playListSongInfoList)
                             ? payload.playListInfoEx.playListSongInfoList : [];
+                        total = rows.length;
+                        rows = rows.slice(start, start + limit);
                     } else {
                         const payload = await musicRequest({
                             path: '/music-operation-service/v2/service/musiclist/detail/bymusiclistid',
@@ -596,15 +617,16 @@ function createHuaweiApiBridge({ store, safeStorage, fetch, BrowserWindow, sessi
                         });
                         rows = Array.isArray(payload?.musicListInfoEx?.songSimpleInfos)
                             ? payload.musicListInfoEx.songSimpleInfos : [];
+                        const count = Number(payload?.musicListInfoEx?.musicListDetail?.totalCount);
+                        total = Number.isFinite(count) && count >= 0 ? count : undefined;
                     }
-                    const total = rows.length;
-                    const items = rows.slice(start, start + limit);
+                    const items = rows;
                     return {
                         ok: true,
                         data: {
                             items,
                             total,
-                            hasMore: start + items.length < total,
+                            hasMore: items.length > 0 && (total === undefined ? items.length === limit : start + items.length < total),
                             nextOffset: start + items.length,
                         },
                     };
@@ -689,9 +711,8 @@ function createHuaweiApiBridge({ store, safeStorage, fetch, BrowserWindow, sessi
                     const read = async url => {
                         if (!allowedResourceUrl(url)) return '';
                         try {
-                            const response = await httpFetch(url, { timeout: 8000 });
+                            const { response, text } = await httpRead(url, { timeout: 8000 });
                             if (!response.ok) return '';
-                            const text = await response.text();
                             return text.slice(0, 512 * 1024);
                         } catch {
                             return '';

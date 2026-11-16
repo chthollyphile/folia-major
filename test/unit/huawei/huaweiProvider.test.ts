@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { huaweiProvider, resetHuaweiRecommendationCache } from '@/services/onlineMusic/huawei/huaweiProvider';
 import { normalizeHuaweiCollection, normalizeHuaweiSong } from '@/services/onlineMusic/huawei/huaweiNormalize';
+import { autoRetryDelaysMs, onlineFailureOf } from '@/services/onlineMusic/failure/onlineFailureCase';
 
 // test/unit/huawei/huaweiProvider.test.ts
 // 归一化、搜索分页、播放地址与歌词的逻辑测试：华为接口的答复用替身，不碰真实服务，
@@ -103,6 +104,21 @@ describe('normalizeHuaweiCollection', () => {
 });
 
 describe('huaweiProvider search and playback', () => {
+    it.each([[503, 'network', 'unreachable', [1000, 3000]], [429, 'unavailable', 'retry-later', []]] as const)(
+        'classifies HTTP %s without overriding retry behavior', async (httpStatus, code, expectedCase, delays) => {
+            bridgeRequest.mockResolvedValueOnce({ ok: false, error: { code, httpStatus, message: 'HTTP refusal' } });
+            const error: unknown = await huaweiProvider.playback!.getAudioSource(normalizeHuaweiSong(SAMPLE_ROW), 'standard').catch((cause: unknown) => cause);
+            const detail = huaweiProvider.describeFailure!('audio', error);
+            const shown = onlineFailureOf({ operation: 'audio', providerId: 'huawei' }, { error, detail: detail ?? undefined });
+            expect(shown.case).toBe(expectedCase);
+            expect(autoRetryDelaysMs(shown)).toEqual(delays);
+        },
+    );
+
+    it.each(['auth-required', 'subscription-required', 'not-playable'])('preserves %s when resolving an uncached song', async code => {
+        bridgeRequest.mockResolvedValueOnce({ ok: false, error: { code, message: 'fixture refusal' } });
+        await expect(huaweiProvider.playback!.getSongDetail!(`uncached-${code}`)).rejects.toMatchObject({ code });
+    });
     it('pages a search and marks each row as a Huawei song', async () => {
         bridgeRequest.mockResolvedValue({
             ok: true,
@@ -177,7 +193,79 @@ describe('huaweiProvider search and playback', () => {
 });
 
 describe('huaweiProvider recommendations', () => {
-    it('returns the personalized row and the editorial row, without the daily list card', async () => {
+    it('keeps a refreshed daily cache when an older read fails later', async () => {
+        let release!: (value: unknown) => void;
+        bridgeRequest.mockResolvedValueOnce({ ok: true, data: { items: [], dailyId: 'a001' } });
+        bridgeRequest.mockImplementationOnce(() => new Promise(resolve => { release = resolve; }));
+        const older = huaweiProvider.recommendations!.getDailySongs!();
+        const failed = expect(older).rejects.toMatchObject({ code: 'network' });
+        await vi.waitFor(() => expect(bridgeRequest).toHaveBeenCalledTimes(2));
+        bridgeRequest.mockResolvedValueOnce({ ok: true, data: { items: [SAMPLE_ROW] } });
+        await expect(huaweiProvider.recommendations!.getDailySongs!(true)).resolves.toHaveLength(1);
+        release({ ok: false, error: { code: 'network', message: 'old request failed' } });
+        await failed;
+        await expect(huaweiProvider.recommendations!.getDailySongs!()).resolves.toHaveLength(1);
+        expect(bridgeRequest).toHaveBeenCalledTimes(3);
+    });
+
+    it('discards daily tracks from the previous account after a login is confirmed', async () => {
+        let release!: (value: unknown) => void;
+        bridgeRequest.mockResolvedValueOnce({ ok: true, data: { items: [], dailyId: 'a001' } });
+        bridgeRequest.mockImplementationOnce(() => new Promise(resolve => { release = resolve; }));
+        const older = huaweiProvider.recommendations!.getDailySongs!();
+        await vi.waitFor(() => expect(bridgeRequest).toHaveBeenCalledTimes(2));
+        bridgeRequest.mockResolvedValueOnce({ ok: true, data: { state: 'confirmed' } });
+        bridgeRequest.mockResolvedValueOnce({ ok: true, data: { id: 'next-user', nickname: 'Next' } });
+        await huaweiProvider.auth!.checkLogin!('next-login');
+        bridgeRequest.mockResolvedValueOnce({ ok: true, data: { items: [], dailyId: 'next-list' } });
+        bridgeRequest.mockResolvedValueOnce({ ok: true, data: { items: [{ ...SAMPLE_ROW, contentID: 'next-track' }] } });
+        const next = await huaweiProvider.recommendations!.getDailySongs!();
+        release({ ok: true, data: { items: [SAMPLE_ROW] } });
+        await expect(older).resolves.toEqual([]);
+        expect(next.map(song => song.id)).toEqual(['next-track']);
+        await expect(huaweiProvider.recommendations!.getDailySongs!()).resolves.toEqual(next);
+        expect(bridgeRequest).toHaveBeenCalledTimes(6);
+    });
+
+    it('retries a daily read after a transient failure', async () => {
+        bridgeRequest.mockResolvedValueOnce({ ok: false, error: { code: 'network', message: 'offline' } });
+        await expect(huaweiProvider.recommendations!.getDailySongs!()).rejects.toThrow();
+        bridgeRequest.mockResolvedValueOnce({ ok: true, data: { items: [], dailyId: 'a001' } });
+        bridgeRequest.mockResolvedValueOnce({ ok: true, data: { items: [SAMPLE_ROW] } });
+        await expect(huaweiProvider.recommendations!.getDailySongs!()).resolves.toHaveLength(1);
+        expect(bridgeRequest).toHaveBeenCalledTimes(3);
+    });
+
+    it('discards a recommendation response from before logout', async () => {
+        let release!: (value: unknown) => void;
+        bridgeRequest.mockImplementationOnce(() => new Promise(resolve => { release = resolve; }));
+        const pending = huaweiProvider.recommendations!.getRecommendedCollections!(10);
+        await huaweiProvider.auth!.logout!();
+        release({ ok: true, data: { items: [{ id: 'old', name: 'Old account', kind: 'collected' }] } });
+        await expect(pending).resolves.toEqual([]);
+        bridgeRequest.mockResolvedValueOnce({ ok: true, data: { items: [{ id: 'new', name: 'New account', kind: 'collected' }] } });
+        const next = await huaweiProvider.recommendations!.getRecommendedCollections!(10);
+        expect(next.map(item => item.id)).toEqual(['new']);
+        expect(bridgeRequest.mock.calls.filter(([operation]) => operation === 'recommendations')).toHaveLength(2);
+    });
+
+    it('discards FM songs and seed from a request completed after logout', async () => {
+        let release!: (value: unknown) => void;
+        bridgeRequest.mockResolvedValueOnce({ ok: true, data: { items: [{ id: 'liked', name: 'Liked', kind: 'owned' }] } });
+        bridgeRequest.mockResolvedValueOnce({ ok: true, data: { items: [SAMPLE_ROW] } });
+        bridgeRequest.mockImplementationOnce(() => new Promise(resolve => { release = resolve; }));
+        const pending = huaweiProvider.recommendations!.getPersonalFm!();
+        await vi.waitFor(() => expect(bridgeRequest).toHaveBeenCalledWith('similar_songs', { id: SAMPLE_ROW.contentID }));
+        await huaweiProvider.auth!.logout!();
+        release({ ok: true, data: { items: [{ ...SAMPLE_ROW, contentID: 'stale-seed' }] } });
+        await expect(pending).resolves.toEqual([]);
+        bridgeRequest.mockResolvedValueOnce({ ok: true, data: { items: [] } });
+        bridgeRequest.mockResolvedValueOnce({ ok: true, data: { items: [] } });
+        bridgeRequest.mockResolvedValueOnce({ ok: true, data: { items: [] } });
+        await expect(huaweiProvider.recommendations!.getPersonalFm!()).resolves.toEqual([]);
+        expect(bridgeRequest).not.toHaveBeenCalledWith('similar_songs', { id: 'stale-seed' });
+    });
+    it('returns both recommendation columns without the daily list card', async () => {
         bridgeRequest.mockResolvedValueOnce({
             ok: true,
             data: {
@@ -251,6 +339,33 @@ describe('huaweiProvider recommendations', () => {
 });
 
 describe('huaweiProvider library', () => {
+    it('resolves a playlist by id on a later account page', async () => {
+        bridgeRequest.mockResolvedValueOnce({ ok: true, data: {
+            items: [{ id: 'other', name: 'Other', kind: 'collected' }], hasMore: true, nextOffset: 50,
+        } });
+        bridgeRequest.mockResolvedValueOnce({ ok: true, data: {
+            items: [{ id: 'target', name: 'Target', kind: 'owned' }], hasMore: false, nextOffset: 51,
+        } });
+        await expect(huaweiProvider.catalog!.getPlaylistDetail!('target')).resolves.toMatchObject({
+            id: 'target', name: 'Target', providerData: { kind: 'owned' },
+        });
+        expect(bridgeRequest).toHaveBeenLastCalledWith('library_playlists', { limit: 50, offset: 50 });
+    });
+
+    it('passes account playlist paging through instead of treating the first 50 as the whole library', async () => {
+        const items = Array.from({ length: 50 }, (_, i) => ({ id: String(i), name: `List ${i}`, kind: 'collected' }));
+        bridgeRequest.mockResolvedValueOnce({ ok: true, data: { items, hasMore: true, nextOffset: 50 } });
+        bridgeRequest.mockResolvedValueOnce({ ok: true, data: {
+            items: [{ id: '50', name: 'List 50', kind: 'collected' }], hasMore: false, nextOffset: 51,
+        } });
+        const first = await huaweiProvider.library!.getUserPlaylists('user', 50, 0);
+        expect(first).toMatchObject({ hasMore: true, nextOffset: 50 });
+        expect(first.total).toBeUndefined();
+        const last = await huaweiProvider.library!.getUserPlaylists('user', 50, first.nextOffset);
+        expect(last).toMatchObject({ hasMore: false, nextOffset: 51, items: [{ id: '50' }] });
+        expect(bridgeRequest).toHaveBeenLastCalledWith('library_playlists', { limit: 50, offset: 50 });
+    });
+
     it('lists the account favorite albums as collections', async () => {
         bridgeRequest.mockResolvedValueOnce({
             ok: true,
