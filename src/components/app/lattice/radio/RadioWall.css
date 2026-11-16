@@ -6,8 +6,12 @@
     inset: 0;
     overflow: clip;
     outline: none;
-    /* 横着拖动浏览卡片：触屏上横向手势交给页面自己处理（不当成浏览器的滚动或返回手势）。 */
-    touch-action: pan-y;
+    /* 拖动浏览卡片：触屏上的手势都交给页面自己处理（不当成浏览器的滚动、缩放或返回手势；和队列墙的
+       .lattice-field 一样）。双击播放也靠它：不留双击缩放，浏览器才把两下轻点当成双击送过来。
+       iOS 上卡牌的 3D 层不一定认这一条，RadioWall 另外在 touchmove 上拦着。 */
+    touch-action: none;
+    /* 长按封面不弹系统菜单。 */
+    -webkit-touch-callout: none;
     transition: opacity 260ms ease;
 }
 

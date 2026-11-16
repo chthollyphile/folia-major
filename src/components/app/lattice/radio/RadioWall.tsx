@@ -16,10 +16,11 @@ import { useReducedMotionFor } from '../../../../hooks/useReducedMotionFor';
 import { setLatticeCurrentSongPosterVisible } from '../../../../stores/useLatticeControlsStore';
 import { usePlayingSongLocatorStore } from '../../../../stores/usePlayingSongLocatorStore';
 import { hasBlockingWindow } from '../../../../utils/keyboardTargets';
+import { isWallDoubleClickOn, noteWallPress } from '../../../wall/wallDoubleClick';
 import type { LatticeTile } from '../latticeModel';
 import { answerWallLocate, useWallPageKey } from '../wallLocate';
 import RadioBackdrop from './RadioBackdrop';
-import RadioCard, { type RadioCardEntry } from './RadioCard';
+import RadioCard, { radioCardPressKey, type RadioCardEntry } from './RadioCard';
 import {
     buildRadioBrowseCards,
     placeRadioRow,
@@ -37,7 +38,8 @@ import './RadioWall.css';
 // src/components/app/lattice/radio/RadioWall.tsx
 // 电台墙：Lattice 的第二种形态（私人 FM 下总是它），播放队列画成一圈带轻微弧度的卡牌（radioWallModel.ts 定哪几张、
 // 摆在哪）。正在播放的那张在中间揭开；接下来的几首在私人 FM 里（或设置要求时）背面朝上。往前走时，右边补发新卡，
-// 左边最旧的那张翻回背面销毁。点一张卡就播放它：私人 FM 里仍在电台里播放（不变成普通队列）。
+// 左边最旧的那张翻回背面销毁。手势和队列墙一样：单击一张卡把它带到正中（只看不播），双击才播放它：私人 FM 里
+// 仍在电台里播放（不变成普通队列）。
 // 卡都排在一条「轨道」上（rail，一个 MotionValue）：切歌是轨道滑到新的正在播放那张；左右浏览（拖动、滚轮、方向键）
 // 是轨道滑到别的卡，只看不播——不切歌、不为浏览去向电台要新歌（只在这一行已有的卡之间走），背面朝上的卡浏览到正中
 // 也不翻开。拖动时轨道直接跟手，不经过 React。
@@ -68,7 +70,10 @@ const RAIL_SPRING = { type: 'spring' as const, stiffness: 240, damping: 30, mass
  */
 const RAIL_JUMP_STEPS = 6;
 const RAIL_JUMP_LANDING = 3;
-/** 指针横着挪过这么远才算拖动（之前仍是点击，卡照常倾斜按压）。 */
+/**
+ * 指针挪过这么远才算拖动（之前仍是点击，卡照常倾斜按压），和队列墙一样按直线距离算（useWallPointerPan）：
+ * 斜着、竖着划过去的也不再落成一次点击。轨道只跟横向的位移。
+ */
 const DRAG_START_PX = 8;
 /** 拖得不到半格就松手、但拖过这么远：也算往那边走一格（甩一下）。 */
 const FLING_PX = 48;
@@ -290,9 +295,8 @@ export default function RadioWall({
             return;
         }
         if (!drag.active) {
-            const dx = event.clientX - drag.startX;
-            if (Math.abs(dx) < DRAG_START_PX || Math.abs(dx) < Math.abs(event.clientY - drag.startY)) return;
-            // 真的在横着拖了才接管指针：只是点一下的话，点击照常落到卡和按钮上。
+            if (Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) < DRAG_START_PX) return;
+            // 真的在拖了才接管指针：只是点一下的话，点击照常落到卡和按钮上。
             drag.active = true;
             railAnimation.current?.stop();
             railAnimation.current = null;
@@ -311,7 +315,10 @@ export default function RadioWall({
         finishDrag(drag, event.clientX, event.type === 'pointerup');
     };
     // 拖动途中指针被收走（切走窗口等）：按松手处理，不让 dragging 卡住。正常松手时 pointerup 先到、已经收尾。
+    // 只认墙自己的（和队列墙 PosterWall 一样）：触屏按下时指针隐式捕获在按到的卡上，开始拖动时墙把捕获接过来，
+    // 卡上冒上来的那次 lostpointercapture 不是拖动被打断——认了它，手指落在封面上就一拖即停。
     const handleLostPointerCapture = (event: PointerEvent<HTMLDivElement>) => {
+        if (event.target !== event.currentTarget) return;
         const drag = dragRef.current;
         if (drag?.pointerId === event.pointerId) finishDrag(drag, event.clientX, false);
     };
@@ -321,6 +328,20 @@ export default function RadioWall({
         event.stopPropagation();
         event.preventDefault();
     };
+
+    // 触屏：在墙上按下之后的 touchmove 不交给浏览器（不滚动、不当成系统手势），指针事件一直送到这里、不被
+    // pointercancel 截断。CSS 的 touch-action 已经这样说了，这里是给 iOS Safari 的保险：卡牌在几层 3D 变换
+    // （preserve-3d）里，不能指望每个版本都按外层的 touch-action 处理按在卡上的手势。进度条（原生 range）不登记
+    // 按下，照常拖。
+    useEffect(() => {
+        const container = containerRef.current;
+        if (!container) return;
+        const holdTouch = (event: TouchEvent) => {
+            if (dragRef.current && event.cancelable) event.preventDefault();
+        };
+        container.addEventListener('touchmove', holdTouch, { passive: false });
+        return () => container.removeEventListener('touchmove', holdTouch);
+    }, []);
 
     // ---------- 浏览：滚轮（竖着、横着都行；往下、往右是往后） ----------
     const wheelRef = useRef({ sum: 0, lastAt: 0, lockedUntil: 0 });
@@ -356,10 +377,17 @@ export default function RadioWall({
             containerRef.current?.querySelector<HTMLElement>(`[data-radio-card="${offset}"]`)?.focus({ preventScroll: true });
         });
     }, []);
-    // 传给每张卡（正在播放那张被浏览到一边时点它回来），保持同一个函数，卡的 memo 才不会每次都失效。
     const backToNow = useCallback(() => {
         setBrowse(0);
         focusCard(0);
+    }, [focusCard, setBrowse]);
+    // 传给每张卡（单击、回车把它带到正中），保持同一个函数，卡的 memo 才不会每次都失效。
+    const rangeRef = useRef(range);
+    rangeRef.current = range;
+    const browseTo = useCallback((offset: number) => {
+        const next = clamp(offset, rangeRef.current.min, rangeRef.current.max);
+        setBrowse(next);
+        focusCard(next);
     }, [focusCard, setBrowse]);
 
     // 和海报墙一样（PosterWall 的 publishCurrentPosterVisibility）：正在播放那张停在正中、展开着，它自己带着控制条，
@@ -400,6 +428,20 @@ export default function RadioWall({
         focusCard(next);
     };
 
+    // ---------- 播放：双击（wallDoubleClick 的判定，和队列墙同一套） ----------
+    // 点在卡以外（背景、空白）的单击也记一下：之后在空白处双击，不会认成之前点过的那张卡。
+    const handleClick = (event: MouseEvent<HTMLDivElement>) => {
+        if (!(event.target instanceof Element && event.target.closest('[data-radio-card]'))) noteWallPress(event, '');
+    };
+    // 双击的第一下已经把点中的那张带到正中（卡的 handleClick），第二下多半落在滑到指针底下的别的卡上：播放的是
+    // 第一下点中、此刻停在正中的那张。第一下点在控件上、空白处，或者点的那张已经不在正中，什么也不做。正在播放那张
+    // 暂停着就继续，从不暂停（onPlayFromWall）。
+    const handleDoubleClick = (event: MouseEvent<HTMLDivElement>) => {
+        if (event.target instanceof Element && event.target.closest('button, input')) return;
+        const card = cards.find(entry => entry.offset === browse);
+        if (card && isWallDoubleClickOn(radioCardPressKey(card.tile.id))) onPlayFromWall(card.tile);
+    };
+
     const entryFor = (card: RadioCardModel, index: number): RadioCardEntry => {
         if (opening || !metrics) return { kind: 'opening', delay: index * OPENING_STAGGER_S };
         // 一直在这一行里、只是先前在窗口外没挂的卡（浏览时走进窗口）直接出现；新补的卡淡入。
@@ -418,6 +460,8 @@ export default function RadioWall({
             onPointerCancel={handlePointerEnd}
             onLostPointerCapture={handleLostPointerCapture}
             onClickCapture={handleClickCapture}
+            onClick={handleClick}
+            onDoubleClick={handleDoubleClick}
             onWheel={handleWheel}
             role="group"
             aria-label={t(isFm ? 'home.latticeRadioLabel' : 'home.latticeRadioQueueLabel')}
@@ -456,11 +500,10 @@ export default function RadioWall({
                             pixelRatio={pixelRatio}
                             reducedMotion={reducedMotion}
                             onPlay={onPlay}
-                            onPlayFromWall={onPlayFromWall}
                             onTogglePlayback={onTogglePlayback}
                             onSeek={onSeek}
                             onOpenPlayer={onOpenPlayer}
-                            onCenter={backToNow}
+                            onBrowse={browseTo}
                         />
                     );
                 })}

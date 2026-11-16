@@ -59,14 +59,15 @@ type RadioCardProps = {
     reducedMotion: boolean;
     /** 播放这一首（私人 FM 里仍在电台里播放）。 */
     onPlay: (tile: LatticeSongTile) => void;
-    /** 双击正在播放的那张：暂停着就继续，从不暂停。 */
-    onPlayFromWall: (tile: LatticeSongTile) => void;
     onTogglePlayback: () => void;
     onSeek: (time: number) => void;
     onOpenPlayer: () => void;
-    /** 正在播放那张被浏览到一边时点它：回到它（不重新播放）。 */
-    onCenter: () => void;
+    /** 单击（或回车）一张不在正中的卡：把它带到正中（只是浏览，不播放；正在播放那张就是回到它）。 */
+    onBrowse: (offset: number) => void;
 };
+
+/** 一张卡在 wallDoubleClick 里的记号：电台墙按它认双击的第一下点的是哪张。 */
+export const radioCardPressKey = (tileId: string) => `lattice-radio:${tileId}`;
 
 const FLIP_TRANSITION = { duration: 0.55, ease: [0.4, 0, 0.2, 1] as const };
 const DEAL_SPRING = { type: 'spring' as const, stiffness: 240, damping: 30, mass: 0.9 };
@@ -103,11 +104,10 @@ function RadioCard({
     pixelRatio,
     reducedMotion,
     onPlay,
-    onPlayFromWall,
     onTogglePlayback,
     onSeek,
     onOpenPlayer,
-    onCenter,
+    onBrowse,
 }: RadioCardProps) {
     const { t } = useTranslation();
     const isNow = role === 'now';
@@ -206,33 +206,29 @@ function RadioCard({
             opacity: { duration: 0.28, delay: entry.kind === 'opening' ? entry.delay : 0 },
         };
 
-    const pressKey = `lattice-radio:${tile.id}`;
+    // 和队列墙的海报一样（LatticePoster 的 handleClick / handleDoubleClick）：单击只把卡带到正中，双击才播放。
+    // 双击由电台墙统一接（RadioWall 的 handleDoubleClick）：第一下已经让这一行滑动，第二下多半落在滑到指针底下的
+    // 另一张卡上，墙按第一下点的那张（这时已在正中）播放。
+    const pressKey = radioCardPressKey(tile.id);
     const handleClick = (event: MouseEvent<HTMLElement>) => {
         const onControl = event.target instanceof Element && Boolean(event.target.closest('button, input'));
         noteWallPress(event, onControl ? '' : pressKey);
         if (onControl) return;
-        // 连击的后几下落在了别的卡上（第一下让这一行滑动了，比如点了被浏览到一边的正在播放那张）：不算点这张，
-        // 免得双击一下就播放了滑到指针底下的另一首。
+        // 连击的后几下落在了别的卡上（第一下让这一行滑动了）：不算点这张，不把这一行又带走。
         if (event.detail > 1 && !isWallDoubleClickOn(pressKey)) return;
         if (expanded) chrome.toggleTouch();
-        else if (isNow) onCenter();
-        else onPlay(tile);
-    };
-    const handleDoubleClick = (event: MouseEvent<HTMLElement>) => {
-        if (!expanded || (event.target instanceof Element && event.target.closest('button, input'))) return;
-        if (isWallDoubleClickOn(pressKey)) onPlayFromWall(tile);
+        else if (!focused) onBrowse(offset);
     };
     const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
         if (event.target !== event.currentTarget || event.repeat) return;
-        // 卡只用回车（播放这一首 / 暂停继续正在播放的）。空格留给全局的播放 / 暂停：点过一张卡之后焦点停在卡上，
-        // 卡要是把空格吃掉，空格就暂停不了了。
+        // 卡只用回车（和队列墙的海报一样：第一下带到正中，第二下播放这一首 / 暂停继续正在播放的）。空格留给全局的
+        // 播放 / 暂停：点过一张卡之后焦点停在卡上，卡要是把空格吃掉，空格就暂停不了了。
         if (event.key === 'Enter') {
             event.preventDefault();
             event.stopPropagation();
-            // 和点击一致：正中的正在播放那张是暂停 / 继续，被浏览到一边时是回到它。
             if (expanded) onTogglePlayback();
-            else if (isNow) onCenter();
-            else onPlay(tile);
+            else if (focused) onPlay(tile);
+            else onBrowse(offset);
         }
     };
 
@@ -247,7 +243,6 @@ function RadioCard({
             {...(isNow ? { [RADIO_NOW_ATTR]: '' } : {})}
             style={{ x, y, width, height, rotate, zIndex: 20 - Math.min(19, Math.abs(slot) * 4) }}
             onClick={handleClick}
-            onDoubleClick={handleDoubleClick}
             onKeyDown={handleKeyDown}
             onPointerEnter={(event: PointerEvent<HTMLElement>) => { if (expanded) prewarmLatticeLyrics(); chrome.onPointerEnter(event); }}
             onPointerLeave={() => { chrome.onPointerLeave(); tilt.handlers.onPointerLeave(); }}
@@ -300,7 +295,7 @@ function RadioCard({
                                     </span>
                                 )}
                                 {focused && !isNow && revealed && (
-                                    // 浏览到正中的别的歌：右下角一枚播放记号（整张卡就是按钮，点哪都播放）。
+                                    // 浏览到正中的别的歌：右下角一枚播放记号（双击整张卡、或按回车播放）。
                                     <span className="lattice-radio-play-hint" aria-hidden><Play /></span>
                                 )}
                                 {expanded && (
