@@ -471,6 +471,9 @@ exports[`mod tuning keys > are pinned, so a renamed or dropped key is a visible 
       "min": 0.4,
       "type": "number",
     },
+    "flip": {
+      "type": "boolean",
+    },
     "flow": {
       "max": 2,
       "min": 0,

@@ -163,7 +163,8 @@ export const planMetaphorShapes = (bounds: MetaphorRect, rng: () => number, amou
 };
 
 /** 往实例数据里写一个；满了返回原来的 count。 */
-const put = (
+/** 往实例数据里写一个图形，返回下一个写在第几个；满了就不写。 */
+export const putMetaphorShape = (
     out: Float32Array, count: number, shape: number, x: number, y: number, sx: number, sy: number, rot: number, ink: number, tone: number, accent: number,
     param = 0,
 ): number => {
@@ -205,7 +206,7 @@ export const writeMetaphorShapes = (
         ys.push(y);
         if (shape.born > since) continue;
         const swell = 1 + shape.pulse * (0.06 * Math.sin(time * 0.4 + shape.p2) + 0.14 * audio);
-        count = put(out, count, shape.shape, x, y, shape.sx * swell, shape.sy * swell, shape.rot, shape.ink, shape.tone, shape.accent, shape.param);
+        count = putMetaphorShape(out, count, shape.shape, x, y, shape.sx * swell, shape.sy * swell, shape.rot, shape.ink, shape.tone, shape.accent, shape.param);
     }
     return count;
 };
@@ -286,17 +287,17 @@ export const writeMetaphorCollisions = (collisions: readonly MetaphorCollision[]
                 if (u < 0) continue;
                 const left = hit.unit * 5 * (1 - u * u * u);
                 const radius = hit.unit * (dot === 0 ? 0.22 : 0.13 - dot * 0.025);
-                count = put(out, count, METAPHOR_SHAPE_BLOB, hit.x + cos * left, hit.y + sin * left, radius, radius, 0, 1, 0.3, 0);
-                count = put(out, count, METAPHOR_SHAPE_BLOB, hit.x - cos * left, hit.y - sin * left, radius, radius, 0, 1, 0.3, 0);
+                count = putMetaphorShape(out, count, METAPHOR_SHAPE_BLOB, hit.x + cos * left, hit.y + sin * left, radius, radius, 0, 1, 0.3, 0);
+                count = putMetaphorShape(out, count, METAPHOR_SHAPE_BLOB, hit.x - cos * left, hit.y - sin * left, radius, radius, 0, 1, 0.3, 0);
             }
             continue;
         }
         // 撞上的一下：一团墨炸开又缩回去，一圈冲击环慢慢扩出去（先是墨线，后来只剩网点）
         const burst = hit.unit * 0.95 * Math.exp(-since * 1.6);
-        if (burst > hit.unit * 0.04) count = put(out, count, METAPHOR_SHAPE_BLOB, hit.x, hit.y, burst, burst, 0, 1, 0.8, 0);
+        if (burst > hit.unit * 0.04) count = putMetaphorShape(out, count, METAPHOR_SHAPE_BLOB, hit.x, hit.y, burst, burst, 0, 1, 0.8, 0);
         if (since < 4) {
             const ring = hit.unit * (0.35 + 2.6 * (1 - Math.exp(-since * 0.55)));
-            count = put(out, count, METAPHOR_SHAPE_RING, hit.x, hit.y, ring, ring, 0, since < 2.2 ? 1 : 0, 1, 0);
+            count = putMetaphorShape(out, count, METAPHOR_SHAPE_RING, hit.x, hit.y, ring, ring, 0, since < 2.2 ? 1 : 0, 1, 0);
         }
         for (const fragment of hit.fragments) {
             for (let dot = 0; dot <= TRAIL_DOTS; dot += 1) {
@@ -307,7 +308,7 @@ export const writeMetaphorCollisions = (collisions: readonly MetaphorCollision[]
                 const angle = fragment.dir + (fragment.curl * travelled) / hit.unit;
                 const fade = 1 - age / fragment.life;
                 const radius = fragment.size * fade * (dot === 0 ? 1 : 0.6 - dot * 0.07);
-                count = put(out, count, METAPHOR_SHAPE_BLOB, hit.x + Math.cos(angle) * travelled, hit.y + Math.sin(angle) * travelled, radius, radius, 0, 1, 0.25, 0);
+                count = putMetaphorShape(out, count, METAPHOR_SHAPE_BLOB, hit.x + Math.cos(angle) * travelled, hit.y + Math.sin(angle) * travelled, radius, radius, 0, 1, 0.25, 0);
             }
         }
     }
@@ -333,7 +334,7 @@ export const writeMetaphorPairs = (glyphs: readonly MetaphorGlyph[], time: numbe
         const accent = glyph.accent ? 1 : 0;
         for (const side of [1, -1]) {
             const angle = glyph.seed * TAU + (side > 0 ? 0 : Math.PI) + (side * curl * travelled) / glyph.size;
-            count = put(out, count, METAPHOR_SHAPE_BLOB, glyph.x + Math.cos(angle) * travelled, glyph.y + Math.sin(angle) * travelled, radius, radius, 0, ink, 0.3, accent);
+            count = putMetaphorShape(out, count, METAPHOR_SHAPE_BLOB, glyph.x + Math.cos(angle) * travelled, glyph.y + Math.sin(angle) * travelled, radius, radius, 0, ink, 0.3, accent);
         }
     }
     return count;

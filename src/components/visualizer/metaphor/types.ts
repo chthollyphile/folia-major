@@ -21,6 +21,8 @@ export interface MetaphorTuning {
     grain: number;
     /** 反相镜头：一部分镜头纸和墨对调。 */
     negative: boolean;
+    /** 画面反相：纸和墨整个对调，等于把对主题明暗的反应翻过来（深色主题出白纸黑墨，浅色主题出黑纸白墨）。 */
+    flip: boolean;
     /** 句与句之间的转场（漫墨、冲镜）；关掉就全是硬切。 */
     transitions: boolean;
 }
@@ -37,7 +39,7 @@ export const METAPHOR_LIMITS: Record<MetaphorNumberKey, { min: number; max: numb
     grain: { min: 0, max: 2 },
 };
 
-export const METAPHOR_BOOLEAN_KEYS: readonly MetaphorBooleanKey[] = ['negative', 'transitions'];
+export const METAPHOR_BOOLEAN_KEYS: readonly MetaphorBooleanKey[] = ['negative', 'flip', 'transitions'];
 
 export const DEFAULT_METAPHOR_TUNING: MetaphorTuning = {
     render: DEFAULT_LYRIC_RENDER_OVERRIDE,
@@ -48,5 +50,6 @@ export const DEFAULT_METAPHOR_TUNING: MetaphorTuning = {
     halftone: 1,
     grain: 1,
     negative: true,
+    flip: false,
     transitions: true,
 };

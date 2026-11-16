@@ -447,6 +447,14 @@ describe('resolveMetaphorPalette', () => {
         expect(palette.accent.map(value => Math.round(value * 255))).toEqual([225, 29, 72]);
     });
 
+    it('画面反相：纸和墨对调，网点和强调色仍然和新的纸分得开', () => {
+        const palette = resolveMetaphorPalette(theme({}), true);
+        expect(palette.paper.map(value => Math.round(value * 255))).toEqual([244, 244, 245]);
+        expect(palette.ink.map(value => Math.round(value * 255))).toEqual([9, 9, 11]);
+        expect(distance(palette.tone, palette.paper)).toBeGreaterThanOrEqual(0.22);
+        expect(distance(palette.accent, palette.paper)).toBeGreaterThanOrEqual(0.25);
+    });
+
     it('强调色和墨同色（默认主题）：换成和纸、墨都分得开的一档', () => {
         const palette = resolveMetaphorPalette(theme({ accentColor: '#f4f4f5' }));
         expect(distance(palette.accent, palette.ink)).toBeGreaterThan(0.25);

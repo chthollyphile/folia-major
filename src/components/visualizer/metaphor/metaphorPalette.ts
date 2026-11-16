@@ -3,7 +3,7 @@ import { parseColorChannels } from '../colorMix';
 
 // src/components/visualizer/metaphor/metaphorPalette.ts
 // 隐喻的配色（纯函数）：主题 → 纸、墨、强调色、网点四个颜色（0..1 的 sRGB，着色器里直接混）。
-// 纸是主题的背景色，墨是主色；网点用次色，和纸太接近时往墨那边拉，免得网点看不见；强调色和纸分不开时同样处理，和墨分不开时换成一档灰。
+// 纸是主题的背景色，墨是主色（「画面反相」开着时两个对调，网点和强调色跟着新的纸重新算）；网点用次色，和纸太接近时往墨那边拉，免得网点看不见；强调色和纸分不开时同样处理，和墨分不开时换成一档灰。
 
 export type MetaphorRgb = [number, number, number];
 
@@ -34,11 +34,12 @@ const awayFromPaper = (color: MetaphorRgb, paper: MetaphorRgb, ink: MetaphorRgb,
     return out;
 };
 
-export const resolveMetaphorPalette = (theme: Theme): MetaphorPalette => {
-    const paper = read(theme.backgroundColor, FALLBACK.paper);
+export const resolveMetaphorPalette = (theme: Theme, flip = false): MetaphorPalette => {
+    let paper = read(theme.backgroundColor, FALLBACK.paper);
     let ink = read(theme.primaryColor, FALLBACK.ink);
     // 主色和背景分不开（坏主题）：墨换成纸的反面
     if (Math.abs(luma(ink) - luma(paper)) < 0.18) ink = luma(paper) > 0.5 ? [0.08, 0.08, 0.09] : [0.95, 0.94, 0.9];
+    if (flip) [paper, ink] = [ink, paper];
     const tone = awayFromPaper(read(theme.secondaryColor, FALLBACK.tone), paper, ink, 0.22);
     let accent = awayFromPaper(read(theme.accentColor, FALLBACK.accent), paper, ink, 0.25);
     // 强调色和墨是同一个颜色（默认主题就是）：压在字上的融球会和字糊成一片，换成纸墨之间的一档灰

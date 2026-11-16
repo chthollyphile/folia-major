@@ -3,7 +3,11 @@ import type { MotionValue } from 'framer-motion';
 import type { Line, LyricRenderScale, Theme } from '../../../types';
 import { resolveThemeFontStack, resolveThemeFontWeight } from '../../../utils/fontStacks';
 import { resolveLyricPixelRatio } from '../../../utils/lyricRenderQuality';
+import { BEAT_EFFECT_IDS } from '../../../services/beatFx/beatEffects';
+import { getBeatEffectStrength, getBeatFxEvents, getBeatFxTrackScale, isBeatFxReady } from '../../../services/beatFx/beatFxLive';
+import type { BeatFxEvent } from '../../../services/beatFx/clock';
 import { createVisualizerRng } from '../visualizerSeedHash';
+import { snapMetaphorCollisions, writeMetaphorBeatRings } from './metaphorBeatFx';
 import {
     METAPHOR_EMPTY_STAGE,
     resolveMetaphorMelt,
@@ -84,6 +88,8 @@ interface MetaphorSet {
     layout: MetaphorLayout;
     shapes: MetaphorShape[];
     collisions: MetaphorCollision[];
+    /** 「湮灭对撞」开着时用的那一组：对撞挪到了拍上。按哪张节拍表挪的记在 from 里，表换了重挪。 */
+    snapped?: { from: readonly BeatFxEvent[]; collisions: MetaphorCollision[] };
     mesh: THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial> | null;
     texture: THREE.DataTexture | null;
 }
@@ -337,6 +343,7 @@ export class MetaphorRuntime {
         // 切镜头的快慢、反相、转场是编进分镜表的；融球的多少是每个 cue 的规划里的
         if (previous.cutPace !== tuning.cutPace || previous.negative !== tuning.negative || previous.transitions !== tuning.transitions) this.rebuildProgram();
         else if (previous.blobs !== tuning.blobs) this.clearSets();
+        if (previous.flip !== tuning.flip) this.applyPalette();
         this.requestFrame();
     }
 
@@ -421,7 +428,7 @@ export class MetaphorRuntime {
     }
 
     private applyPalette() {
-        const palette = resolveMetaphorPalette(this.theme);
+        const palette = resolveMetaphorPalette(this.theme, this.tuning.flip);
         const { uniforms } = this.developMaterial;
         (uniforms.uPaper.value as THREE.Vector3).fromArray(palette.paper);
         (uniforms.uInk.value as THREE.Vector3).fromArray(palette.ink);
@@ -557,6 +564,15 @@ export class MetaphorRuntime {
         return times;
     }
 
+    /** 挪到拍上的那组对撞。循环的 cue 时间会折回去，对不上拍，不挪。 */
+    private snappedCollisions(set: MetaphorSet, cue: MetaphorCue, events: readonly BeatFxEvent[]): MetaphorCollision[] {
+        if (cue.loop > 0) return set.collisions;
+        if (set.snapped?.from !== events) {
+            set.snapped = { from: events, collisions: snapMetaphorCollisions(set.collisions, events, cue.start) };
+        }
+        return set.snapped.collisions;
+    }
+
     /** 取（没有就建）一个 cue 的那套东西；只留它和前后相邻的。 */
     private ensureSet(cueIndex: number): MetaphorSet {
         let set = this.sets.get(cueIndex);
@@ -636,7 +652,12 @@ export class MetaphorRuntime {
         let count = writeMetaphorShapes(set.shapes, fluidTime, audio, tuning.flow, this.shapeData, still ? Number.POSITIVE_INFINITY : safeTime - cue.start);
         if (!still) {
             if (this.showText) count = writeMetaphorPairs(set.layout.glyphs, safeTime, this.shapeData, count);
-            count = writeMetaphorCollisions(set.collisions, cueTime, this.shapeData, count);
+            // 智能动感的「湮灭对撞」：对撞挪到拍上，平常的拍从对撞点放小环。没就绪、关着时走原来的那一组
+            const strength = isBeatFxReady() ? getBeatEffectStrength(BEAT_EFFECT_IDS.metaphorAnnihilation) : 0;
+            const events = strength > 0 ? getBeatFxEvents() : null;
+            const collisions = events ? this.snappedCollisions(set, cue, events) : set.collisions;
+            count = writeMetaphorCollisions(collisions, cueTime, this.shapeData, count);
+            if (events) count = writeMetaphorBeatRings(collisions, events, safeTime, cueTime - safeTime, strength, getBeatFxTrackScale(), this.shapeData, count);
         }
         // 和流场一样每秒 8 格地跳
         this.shapeMaterial.uniforms.uTime.value = Math.floor(fluidTime * 8) / 8;

@@ -1,5 +1,6 @@
 import React from 'react';
 import { Contrast, Scissors } from 'lucide-react';
+import { BEAT_EFFECT_IDS } from '../../../services/beatFx/beatEffects';
 import { QuickControlToggle } from '../../shared/QuickControlChip';
 import { defineVisualizer, type VisualizerQuickControlsProps } from '../definition';
 import metaphorTuning from './tuning';
@@ -41,6 +42,14 @@ export default defineVisualizer({
     // 画面自己铺纸：不要共用背景。播放页透明时纸不画（VisualizerMetaphor.tsx 的 seeThrough）。
     background: false,
     usesWordSegmentation: true,
+    beatEffects: [
+        {
+            id: BEAT_EFFECT_IDS.metaphorAnnihilation,
+            nameKey: 'options.beatEffect_metaphorAnnihilation',
+            descKey: 'options.beatEffect_metaphorAnnihilationDesc',
+            source: 'beats',
+        },
+    ],
     // Deliberately unkeyed on the seed: the runtime takes a track change in place (pixiRuntimeHost.ts).
     render: props => <VisualizerMetaphor {...props} metaphorTuning={metaphorTuning.read(props.visualizerTunings)} />,
     renderSettingsPanel: props => (
@@ -51,9 +60,9 @@ export default defineVisualizer({
     renderQuickControls: ({ tuning, onTuningChange, t }: VisualizerQuickControlsProps<MetaphorTuning>) => (
         <>
             <QuickControlToggle
-                active={tuning.negative}
-                label={t('options.metaphorNegative')}
-                onToggle={() => onTuningChange({ negative: !tuning.negative })}
+                active={tuning.flip}
+                label={t('options.metaphorFlip')}
+                onToggle={() => onTuningChange({ flip: !tuning.flip })}
             >
                 <Contrast size={14} />
             </QuickControlToggle>
