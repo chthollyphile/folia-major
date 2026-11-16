@@ -54,6 +54,7 @@ export const IPC_CHANNELS = {
     'gpu-preference-state': { level: 'first-party', why: '只回主窗口，别处回 null（内联校验）' },
     'has-audio-cache': { level: 'first-party', why: '按歌问有没有缓存，等于听歌记录（firstParty）' },
     'has-local-cover-asset': { level: 'first-party', why: '查本地歌曲封面（firstParty）' },
+    'huawei-api-request': { level: 'first-party', why: '现状：有来源校验' },
     'key-capture-active': { level: 'any', why: '只改调用者自己那个窗口的菜单键拦截' },
     'kugou-api-request': { level: 'first-party', why: '现状：有来源校验' },
     'kugou-api-status': { level: 'first-party', why: '现状：有来源校验' },

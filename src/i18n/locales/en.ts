@@ -1916,6 +1916,8 @@ export default {
     "loginNoteBodian": "Scan this code with the Bodian Music app and confirm sign-in",
     "loginTitleFnMusic": "Sign in to fnOS Music",
     "loginNoteFnMusic": "Enter your fnOS Music server address and account to play your NAS music library",
+    "loginTitleHuawei": "Sign in to Huawei Music",
+    "loginNoteHuawei": "Sign in through the Huawei account window. Most songs also need the account's Huawei Music subscription to play.",
     "loginTitleYtm": "Sign in to YouTube Music",
     "loginTitleAppleMusic": "Sign in to Apple Music",
     "loginNoteAppleMusic": "Sign in using the Apple window. Your password stays with Apple.",
@@ -2231,6 +2233,7 @@ export default {
     "spotify": "Spotify",
     "qishui": "Qishui",
     "fnmusic": "fnOS",
+    "huawei": "Huawei",
   },
   "globalLyricOffset": {
     "title": "Global Timing Offset",

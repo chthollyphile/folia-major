@@ -11,6 +11,7 @@ import { spotifyProvider } from './spotify/spotifyProvider';
 import { qishuiProvider } from './qishui/qishuiProvider';
 import { appleMusicProvider } from './appleMusic/appleMusicProvider';
 import { fnmusicProvider } from './fnmusic/fnmusicProvider';
+import { huaweiProvider } from './huawei/huaweiProvider';
 
 // src/services/onlineMusic/providerRegistry.ts
 
@@ -125,3 +126,4 @@ registerOnlineMusicProvider(qishuiProvider);
 
 registerOnlineMusicProvider(appleMusicProvider);
 registerOnlineMusicProvider(fnmusicProvider);
+registerOnlineMusicProvider(huaweiProvider);

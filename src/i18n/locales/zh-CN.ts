@@ -1916,6 +1916,8 @@ export default {
     "loginNoteBodian": "打开波点音乐 App 扫描二维码并确认登录",
     "loginTitleFnMusic": "登录飞牛音乐",
     "loginNoteFnMusic": "填入你的飞牛音乐服务器地址与账号，畅听 NAS 私有音乐库",
+    "loginTitleHuawei": "登录华为音乐",
+    "loginNoteHuawei": "在弹出的华为账号窗口里登录；多数歌曲还需要该账号的华为音乐会员才能播放。",
     "loginTitleYtm": "登录 YouTube Music",
     "loginTitleAppleMusic": "登录 Apple Music",
     "loginNoteAppleMusic": "请在 Apple 窗口中登录，密码只会交给 Apple。",
@@ -2231,6 +2233,7 @@ export default {
     "spotify": "Spotify",
     "qishui": "汽水",
     "fnmusic": "飞牛",
+    "huawei": "华为",
   },
   "globalLyricOffset": {
     "title": "全局时间偏移",

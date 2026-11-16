@@ -1916,6 +1916,8 @@ export default {
     "loginNoteBodian": "Pindai kode ini dengan aplikasi Bodian Music dan konfirmasi masuk",
     "loginTitleFnMusic": "Masuk ke fnOS Music",
     "loginNoteFnMusic": "Masukkan alamat server dan akun fnOS Music untuk memutar musik NAS Anda",
+    "loginTitleHuawei": "Masuk ke Huawei Music",
+    "loginNoteHuawei": "Masuk melalui jendela akun Huawei. Sebagian besar lagu juga memerlukan langganan Huawei Music akun tersebut untuk diputar.",
     "loginTitleYtm": "Masuk ke YouTube Music",
     "loginTitleAppleMusic": "Masuk ke Apple Music",
     "loginNoteAppleMusic": "Masuk melalui jendela Apple. Kata sandi Anda hanya diberikan kepada Apple.",
@@ -2231,6 +2233,7 @@ export default {
     "spotify": "Spotify",
     "qishui": "Qishui",
     "fnmusic": "fnOS",
+    "huawei": "Huawei",
   },
   "globalLyricOffset": {
     "title": "Offset Waktu Global",

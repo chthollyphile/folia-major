@@ -203,6 +203,7 @@ contextBridge.exposeInMainWorld('electron', {
     qishuiRequest: (operation, params) => ipcRenderer.invoke('qishui-api-request', operation, params),
     fnmusicRequest: (operation, params) => ipcRenderer.invoke('fnmusic-api-request', operation, params),
     bodianRequest: (operation, params) => ipcRenderer.invoke('bodian-api-request', operation, params),
+    huaweiRequest: (operation, params) => ipcRenderer.invoke('huawei-api-request', operation, params),
     ytmRequest: (operation, params) => ipcRenderer.invoke('ytm-api-request', operation, params),
     appleMusicRequest: (operation, params) => ipcRenderer.invoke('apple-music-request', operation, params),
     spotifyRequest: (operation, params) => ipcRenderer.invoke('spotify-api-request', operation, params),
