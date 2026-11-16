@@ -28,7 +28,7 @@ export function createLatticeRaster(pixi: typeof import('pixi.js')) {
     if (!watchingFonts) {
         watchingFonts = true;
         // Lives as long as the cache does (the page): one listener, never removed.
-        document.fonts?.addEventListener?.('loadingdone', clearMeasureCache);
+        document.fonts.addEventListener('loadingdone', clearMeasureCache);
     }
     const measure: MeasureText = (text, font) => {
         let byText = measurements.get(font);
