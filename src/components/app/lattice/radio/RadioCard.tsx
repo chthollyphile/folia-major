@@ -53,6 +53,8 @@ type RadioCardProps = {
     entry: RadioCardEntry;
     /** 轨道停稳了（不在切歌滑动、拖动、吸附途中）：正中那张的歌词等它停稳再挂。 */
     resting: boolean;
+    /** 打开电台墙时那一波还没跑完：歌词场景和背面取色都等它跑完再起，不和进场动画抢帧。 */
+    entering: boolean;
     /** 正在拖动浏览：卡的倾斜按压收回去。 */
     dragging: boolean;
     pixelRatio: number;
@@ -100,6 +102,7 @@ function RadioCard({
     revealed,
     entry,
     resting,
+    entering,
     dragging,
     pixelRatio,
     reducedMotion,
@@ -172,15 +175,17 @@ function RadioCard({
     const [settled, onAnimationComplete] = useLatticeExpansionSettled(expanded, reducedMotion);
     // 卡长大不再是这张卡自己的动画（是轨道在动）：轨道从动到停的那一刻也算长完。只认「动 → 停」，打开时轨道本来
     // 就是停着的，那时仍等浮入动画结束。
-    const restedRef = useRef(resting);
+    // 打开时那一波跑完之前也算没停稳：歌词场景（WebGL、着色器、量字）留到它之后再挂。
+    const rests = resting && !entering;
+    const restedRef = useRef(rests);
     useEffect(() => {
-        if (resting && !restedRef.current) onAnimationComplete();
-        restedRef.current = resting;
-    }, [onAnimationComplete, resting]);
-    const showsLyrics = expanded && settled && resting && !dragging;
+        if (rests && !restedRef.current) onAnimationComplete();
+        restedRef.current = rests;
+    }, [onAnimationComplete, rests]);
+    const showsLyrics = expanded && settled && rests && !dragging;
     const coverUrl = useWallPosterArtwork(tile.coverUrl, Math.max(rest.width, rest.height) * pixelRatio);
     // 背面：取样回来之前是中性色，回来后颜色过渡过去，不硬切；取不到时退回按 id 算的颜色、没有模糊封面。
-    const cover = useRadioCoverTint(tile.coverUrl);
+    const cover = useRadioCoverTint(tile.coverUrl, { deferred: entering });
     const tint = cover.settled ? cover.color ?? fallbackTint(tile.id) : null;
     const redaction = radioRedactionWidths(tile.title, tile.artist);
 

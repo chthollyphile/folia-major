@@ -62,6 +62,12 @@ type RadioWallProps = {
 };
 
 const OPENING_STAGGER_S = 0.08;
+/**
+ * 打开时那一波（整行一张张浮上来，最后一张起步晚 OPENING_STAGGER_S × 5）多久算跑完：之前歌词场景、背面取色、
+ * 背景的动画循环都先不起。它们都是一次性的重活（歌词场景要建 WebGL、编译着色器、量字，取色要从画布读回像素），
+ * 从资料库墙翻牌进来时正好压在翻牌和这一波上，iOS Safari 上就掉帧。
+ */
+const OPENING_SETTLE_MS = 1300;
 /** 轨道滑动（切歌、浏览、松手吸附）的弹簧：和原来每张卡各自滑动时一样。 */
 const RAIL_SPRING = { type: 'spring' as const, stiffness: 240, damping: 30, mass: 0.9 };
 /**
@@ -260,6 +266,17 @@ export default function RadioWall({
     useEffect(() => {
         if (dealt) setOpening(false);
     }, [dealt]);
+    // 这一波还没跑完（见 OPENING_SETTLE_MS）。降低动态效果时没有这一波，一发出来就算完。
+    const [entering, setEntering] = useState(true);
+    useEffect(() => {
+        if (!dealt) return;
+        if (reducedMotion) {
+            setEntering(false);
+            return;
+        }
+        const timer = window.setTimeout(() => setEntering(false), OPENING_SETTLE_MS);
+        return () => window.clearTimeout(timer);
+    }, [dealt, reducedMotion]);
 
     // ---------- 浏览：拖动 ----------
     const dragRef = useRef<DragState | null>(null);
@@ -493,6 +510,7 @@ export default function RadioWall({
                     metrics={metrics}
                     rail={rail}
                     anchor={nowKey === null ? null : anchor}
+                    entering={entering}
                     word={t(isFm ? 'home.latticeRadioBackdropWord' : 'home.latticeRadioBackdropQueueWord')}
                 />
             )}
@@ -518,6 +536,7 @@ export default function RadioWall({
                             revealed={card.role !== 'upcoming' || !hidesUpcoming || seen.has(card.tile.id)}
                             entry={entryFor(card, index)}
                             resting={resting}
+                            entering={entering}
                             dragging={dragging}
                             pixelRatio={pixelRatio}
                             reducedMotion={reducedMotion}

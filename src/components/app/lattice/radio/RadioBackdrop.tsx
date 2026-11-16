@@ -60,10 +60,13 @@ type RadioBackdropProps = {
     anchor: number | null;
     /** 左下角那行淡字（私人 FM 时是「私人 FM」，普通队列是「播放队列」）。 */
     word: string;
+    /** 打开电台墙时那一波还没跑完：信号包、电波、频谱先停在一帧上（它们本来也还在淡入），跑完再动起来。 */
+    entering: boolean;
 };
 
-function RadioBackdrop({ metrics, rail, anchor, word }: RadioBackdropProps) {
+function RadioBackdrop({ metrics, rail, anchor, word, entering }: RadioBackdropProps) {
     const { playerState } = useLatticeTransport();
+    const animates = playerState === PlayerState.PLAYING && !entering;
     const reducedMotion = useReducedMotionFor('lattice');
     const center = radioWaveCenter(metrics);
     const turn = useTransform(rail, value => -value * RADIO_WAVE_TURN_DEG);
@@ -140,7 +143,7 @@ function RadioBackdrop({ metrics, rail, anchor, word }: RadioBackdropProps) {
             <RadioOrbits
                 metrics={metrics}
                 rail={rail}
-                playing={playerState === PlayerState.PLAYING}
+                playing={animates}
                 reducedMotion={reducedMotion}
                 transmitterRef={transmitterRef}
             />
@@ -172,7 +175,7 @@ function RadioBackdrop({ metrics, rail, anchor, word }: RadioBackdropProps) {
             <div className="lattice-radio-figure is-hatch"><i /></div>
             <div ref={transmitterRef} className="lattice-radio-figure is-transmitter">
                 <i className="is-ring" />
-                <RadioSpectrum playing={playerState === PlayerState.PLAYING} reducedMotion={reducedMotion} />
+                <RadioSpectrum playing={animates} reducedMotion={reducedMotion} />
                 <i className="is-ring is-base" />
                 <i className="is-core" />
             </div>
