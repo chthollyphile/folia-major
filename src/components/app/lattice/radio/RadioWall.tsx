@@ -331,7 +331,9 @@ export default function RadioWall({
         if (drag?.pointerId === event.pointerId) finishDrag(drag, event.clientX, false);
     };
     const handleClickCapture = (event: MouseEvent<HTMLDivElement>) => {
-        if (!swallowClickRef.current) return;
+        // 键盘、读屏器的激活（detail 为 0）不是拖动补发的那次 click（同 useWallPointerPan）：触屏拖过之后浏览器不补发
+        // click，记号会一直留到下次按下，不能把它们吞掉。
+        if (!swallowClickRef.current || event.detail === 0) return;
         swallowClickRef.current = false;
         event.stopPropagation();
         event.preventDefault();
@@ -392,8 +394,20 @@ export default function RadioWall({
     // 传给每张卡（单击、回车把它带到正中），保持同一个函数，卡的 memo 才不会每次都失效。
     const rangeRef = useRef(range);
     rangeRef.current = range;
+    const cardsRef = useRef(cards);
+    cardsRef.current = cards;
     const browseTo = useCallback((offset: number) => {
-        const next = clamp(offset, rangeRef.current.min, rangeRef.current.max);
+        const { min, max } = rangeRef.current;
+        let next = offset;
+        if (offset < min || offset > max) {
+            // 列表循环时这一行会多画到浏览范围（绕一圈）以外：点那张就是点它那首歌，带到范围内离它最近的那张。
+            const tileId = cardsRef.current.find(card => card.offset === offset)?.tile.id;
+            const twin = cardsRef.current
+                .filter(card => card.tile.id === tileId && card.offset >= min && card.offset <= max)
+                .sort((a, b) => Math.abs(a.offset - offset) - Math.abs(b.offset - offset))
+                .at(0);
+            next = twin ? twin.offset : clamp(offset, min, max);
+        }
         setBrowse(next);
         focusCard(next);
     }, [focusCard, setBrowse]);

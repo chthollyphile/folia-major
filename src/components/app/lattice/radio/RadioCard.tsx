@@ -300,7 +300,7 @@ function RadioCard({
                                     // 浏览到正中的别的歌：右下角一枚播放按钮，点一下就播放（和队列墙展开海报上的播放键对应）；
                                     // 双击整张卡、按回车也播放。
                                     <button type="button" className="lattice-radio-play-hint" aria-label={t('player.play')}
-                                        title={t('player.play')} onClick={() => onPlay(tile)}><Play /></button>
+                                        title={t('player.play')} onClick={event => { if (event.detail < 2) onPlay(tile); }}><Play /></button>
                                 )}
                                 {expanded && (
                                     <div className="lattice-poster-controls">

@@ -2,8 +2,9 @@ import type { Texture } from 'pixi.js';
 import type { MeasureText } from './latticeLyricLayout';
 
 // src/components/app/lattice/lyrics/latticeLyricRaster.ts
-// Typography probing walks 40 font sizes and token wrapping measures every grapheme prefix, so one
-// layout asks for the same (text, font) pair many times over. Bounded, and dropped on a font epoch.
+// Typography probing bisects the font sizes and token wrapping measures every grapheme prefix, so one
+// layout asks for the same (text, font) pair many times over. Bounded, shared by every runtime, and
+// dropped whenever a web font finishes loading.
 const MEASURE_CACHE_LIMIT = 4096;
 
 // The measurement context and its cache outlive any one runtime: a lyric scene is torn down and built
