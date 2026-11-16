@@ -71,13 +71,33 @@ const wordFocus = (layout: MetaphorLayout, time: number, seed: number): Focus =>
     layout.words.length === 0 ? emptyFocus(layout.bounds, seed) : rectFocus(layout.words[wordIndexAt(layout, time)])
 );
 
-const glyphFocus = (layout: MetaphorLayout, time: number, seed: number): Focus => {
-    if (layout.glyphs.length === 0) return emptyFocus(layout.bounds, seed);
+/** time 这一刻正在唱（或刚唱过）的字；还没开唱是第一个。 */
+const glyphAt = (layout: MetaphorLayout, time: number) => {
     let found = layout.glyphs[0];
     for (const glyph of layout.glyphs) {
         if (glyph.t0 <= time && glyph.t0 >= found.t0) found = glyph;
     }
+    return found;
+};
+
+const glyphFocus = (layout: MetaphorLayout, time: number, seed: number): Focus => {
+    if (layout.glyphs.length === 0) return emptyFocus(layout.bounds, seed);
+    const found = glyphAt(layout, time);
     return { x: found.x, y: found.y, width: found.size * 0.9, height: found.size * 0.9 };
+};
+
+/** 大特写对准的字所在的那个词（镜头开头那一刻的字）；没有字是 -1。 */
+const macroWord = (layout: MetaphorLayout, shot: MetaphorShot) => (layout.glyphs.length === 0 ? -1 : glyphAt(layout, shot.start).word);
+
+/**
+ * 大特写对准的那个词唱完、后面的词开唱以后，正在唱的词（还没到是 -1）：大特写的画面只装得下约一个字，
+ * 后面的词改用特写的取景一个词一个词地跳，不然它们都在画外唱。
+ */
+const macroFollowWord = (layout: MetaphorLayout, shot: MetaphorShot, time: number) => {
+    const anchor = macroWord(layout, shot);
+    if (anchor < 0) return -1;
+    const current = wordIndexAt(layout, time);
+    return current !== anchor && layout.words[current].t0 > layout.words[anchor].t0 ? current : -1;
 };
 
 const fitDistance = (focus: Focus, margin: number, aspect: number) => (
@@ -108,6 +128,11 @@ const wobble = (time: number, phase: number) => Math.sin(time * 0.23 + phase) * 
 const WIDE_MARGIN = 1.1;
 const PULLBACK_STEPS = 3;
 const PUSHIN_STEPS = 3;
+/** 大特写只框住一个字的一部分（比 1 小）。 */
+const MACRO_MARGIN = 0.8;
+const CLOSE_MARGIN = 1.3;
+/** 大特写换成特写跟词以后，斜度留几成（大特写斜 0.25～0.6，特写在 0.07 以内）。 */
+const MACRO_FOLLOW_ROLL = 0.12;
 /** 冲镜的三档隔这么久跳一格。 */
 const PUSHIN_BEAT = 0.16;
 
@@ -121,8 +146,8 @@ export interface MetaphorPoseInput {
     motion: number;
 }
 
-/** 一个镜头在 time 这一刻的机位。 */
-export const resolveMetaphorPose = ({ shot, layout, time, aspect, motion }: MetaphorPoseInput): MetaphorPose => {
+/** 一个镜头按分镜在 time 这一刻的机位（还没管正在唱的字在不在画里）。 */
+const plannedPose = ({ shot, layout, time, aspect, motion }: MetaphorPoseInput): MetaphorPose => {
     const u = clamp01((time - shot.start) / Math.max(0.001, shot.end - shot.start));
     // 一个镜头从头到尾只推近（或拉开）百分之几，匀速
     const creep = 1 - 0.035 * motion * u;
@@ -136,17 +161,26 @@ export const resolveMetaphorPose = ({ shot, layout, time, aspect, motion }: Meta
             break;
         case 'close':
             focus = wordFocus(layout, shot.start, shot.seed);
-            distance = fitDistance(focus, 1.3, aspect) * creep;
+            distance = fitDistance(focus, CLOSE_MARGIN, aspect) * creep;
             break;
         case 'follow':
             focus = wordFocus(layout, time, shot.seed);
             distance = fitDistance(focus, 1.45, aspect);
             break;
-        case 'macro':
+        case 'macro': {
+            const following = macroFollowWord(layout, shot, time);
+            if (following >= 0) {
+                // 换成特写跟词：取景和特写一样，斜度收到特写的范围
+                focus = rectFocus(layout.words[following]);
+                distance = fitDistance(focus, CLOSE_MARGIN, aspect) * creep;
+                roll *= MACRO_FOLLOW_ROLL;
+                break;
+            }
             focus = glyphFocus(layout, shot.start, shot.seed);
-            distance = fitDistance(focus, 0.62, aspect) * creep;
+            distance = fitDistance(focus, MACRO_MARGIN, aspect) * creep;
             roll += 0.03 * motion * (u - 0.5);
             break;
+        }
         case 'dutch':
             distance = fitDistance(whole, 1.1, aspect) * creep;
             break;
@@ -180,6 +214,175 @@ export const resolveMetaphorPose = ({ shot, layout, time, aspect, motion }: Meta
         roll: roll + wobble(time, phase + 23) * 0.004 * motion,
         fov: METAPHOR_FOV,
     };
+};
+
+/** 正在唱的字跑出这一圈（视口半宽半高的几成）就切；切过去把它摆进更里面的一圈，机位蠕动一阵也不会马上又出去。 */
+const KEEP_OUT = 0.97;
+const KEEP_IN = 0.9;
+/** 没有唱的时长（逐句歌词的字、曲名卡）的字，开唱后这么久内仍算在唱。 */
+const MIN_SUNG = 0.3;
+
+interface SungUnit { x0: number; y0: number; x1: number; y1: number; t0: number; t1: number; }
+
+/** at 这一刻正在唱的那个（和 wordIndexAt 一样取最近开唱的）；已经唱完或还没开唱是 null。 */
+const sungUnitAt = (units: readonly SungUnit[], at: number): SungUnit | null => {
+    let found: SungUnit | null = null;
+    for (const unit of units) {
+        if (unit.t0 <= at && (!found || unit.t0 >= found.t0)) found = unit;
+    }
+    return found && at < Math.max(found.t1, found.t0 + MIN_SUNG) ? found : null;
+};
+
+/** 视口的半宽半高（乘上 inner），和 rect 在画面坐标（转过滚转）里的范围。 */
+const frame = (pose: MetaphorPose, rect: MetaphorRect, aspect: number, inner: number) => {
+    const halfHeight = pose.distance * Math.tan((pose.fov * Math.PI) / 360);
+    const half = [halfHeight * aspect * inner, halfHeight * inner];
+    const cos = Math.cos(pose.roll);
+    const sin = Math.sin(pose.roll);
+    const low = [Infinity, Infinity];
+    const high = [-Infinity, -Infinity];
+    for (const x of [rect.x0, rect.x1]) {
+        for (const y of [rect.y0, rect.y1]) {
+            const dx = x - pose.x;
+            const dy = y - pose.y;
+            const along = [dx * cos + dy * sin, -dx * sin + dy * cos];
+            for (const axis of [0, 1]) {
+                low[axis] = Math.min(low[axis], along[axis]);
+                high[axis] = Math.max(high[axis], along[axis]);
+            }
+        }
+    }
+    return { half, low, high };
+};
+
+/**
+ * 机位要挪多少（画面坐标，转过滚转的）才能把 unit 摆进视口的 inner 那一圈；本来就在里面是 0。
+ * 比整个视口还大的一边（竖屏特写里的长词）只要求它的中心落在中间一半里。
+ */
+const fitShift = (pose: MetaphorPose, unit: MetaphorRect, aspect: number, inner: number, out: { x: number; y: number }) => {
+    const { half, low, high } = frame(pose, unit, aspect, inner);
+    const shift = [0, 0];
+    for (const axis of [0, 1]) {
+        const size = high[axis] - low[axis];
+        const full = half[axis] / inner;
+        if (size > 2 * full) {
+            const room = half[axis] * 0.5;
+            const center = (low[axis] + high[axis]) / 2;
+            shift[axis] = center > room ? center - room : center < -room ? center + room : 0;
+        } else {
+            // 装得下整个视口、装不下那一圈的：摆在正中
+            const limit = Math.max(half[axis], size / 2);
+            shift[axis] = high[axis] > limit ? high[axis] - limit : low[axis] < -limit ? low[axis] + limit : 0;
+        }
+    }
+    out.x = shift[0];
+    out.y = shift[1];
+    return out;
+};
+
+/** 机位这一刻会变的时刻（升序，第一个是镜头开头）：词开唱、拉远跳档、冲镜落定。在这些时刻上检查正在唱的在不在画里。 */
+const checkpoints = (shot: MetaphorShot, units: readonly SungUnit[]) => {
+    const times = units.map(unit => unit.t0);
+    if (shot.kind === 'pullback') {
+        // 词不够时拉远按时间均分着跳（词开唱的时刻已经在 units 里了）
+        for (let step = 1; step <= PULLBACK_STEPS; step += 1) {
+            times.push(shot.start + ((shot.end - shot.start) * step) / (PULLBACK_STEPS + 1));
+        }
+    }
+    if (shot.kind === 'pushin') times.push(shot.start + PUSHIN_STEPS * PUSHIN_BEAT);
+    const after = [...new Set(times)].filter(at => at > shot.start).sort((a, b) => a - b);
+    return [shot.start, ...after];
+};
+
+/**
+ * 一个镜头走到哪个检查点、当时偏了多少。偏移只在检查点上变，所以每帧只接着处理新跨过的检查点；
+ * 换镜头、换画面比例或运镜幅度、时间退到已处理的检查点之前（拖进度）就从镜头开头重来，结果和每帧从头算一样。
+ */
+interface KeepTrack {
+    shot: MetaphorShot;
+    aspect: number;
+    motion: number;
+    units: readonly SungUnit[];
+    /** 大特写对准的那个词：它本来就只框得下一个字，唱它的时候不守（别的镜头是 null）。 */
+    skip: SungUnit | null;
+    times: number[];
+    next: number;
+    /** 上一个检查点上分镜机位去掉蠕动后的样子：和它不一样说明分镜自己在这一刻跳了。 */
+    still: MetaphorPose | null;
+    shiftX: number;
+    shiftY: number;
+}
+
+const tracks = new WeakMap<MetaphorLayout, KeepTrack>();
+
+const trackFor = (input: MetaphorPoseInput): KeepTrack => {
+    const { shot, layout, time, aspect, motion } = input;
+    const track = tracks.get(layout);
+    // 时间往回抖一点（没退过已处理的检查点）不用重来
+    if (track && track.shot === shot && track.aspect === aspect && track.motion === motion
+        && time >= (track.next > 0 ? track.times[track.next - 1] : shot.start)) return track;
+    const units = layout.words;
+    const anchor = shot.kind === 'macro' ? macroWord(layout, shot) : -1;
+    const fresh: KeepTrack = { shot, aspect, motion, units, skip: anchor >= 0 ? units[anchor] : null, times: checkpoints(shot, units), next: 0, still: null, shiftX: 0, shiftY: 0 };
+    tracks.set(layout, fresh);
+    return fresh;
+};
+
+const shiftPose = (pose: MetaphorPose, shiftX: number, shiftY: number): MetaphorPose => {
+    if (shiftX === 0 && shiftY === 0) return pose;
+    const cos = Math.cos(pose.roll);
+    const sin = Math.sin(pose.roll);
+    return { ...pose, x: pose.x + shiftX * cos - shiftY * sin, y: pose.y + shiftX * sin + shiftY * cos };
+};
+
+const outside = (pose: MetaphorPose, unit: SungUnit, aspect: number, out: { x: number; y: number }) => {
+    fitShift(pose, unit, aspect, KEEP_OUT, out);
+    return out.x !== 0 || out.y !== 0;
+};
+
+const need = { x: 0, y: 0 };
+
+/** 处理一个检查点：分镜自己跳了就清掉偏移；正在唱的在这一刻或到下一个检查点（或它唱完）之前会出画，就切。 */
+const advance = (track: KeepTrack, input: MetaphorPoseInput) => {
+    const { shot, aspect } = input;
+    const at = track.times[track.next];
+    track.next += 1;
+    const still = plannedPose({ ...input, time: at, motion: 0 });
+    const previous = track.still;
+    track.still = still;
+    // 拉远跳档、冲镜落定、跟字换词：这一刻本来就在切，偏移不带进新的构图
+    if (previous && (still.x !== previous.x || still.y !== previous.y || still.distance !== previous.distance)) {
+        track.shiftX = 0;
+        track.shiftY = 0;
+    }
+    // 正在唱的是大特写对准的词就不守；这里不能把它从 units 里去掉，不然会挑到它前面那个（短的还算在唱）去守
+    const unit = sungUnitAt(track.units, at);
+    if (!unit || unit === track.skip) return;
+    const planned = plannedPose({ ...input, time: at });
+    // 两个检查点之间机位还在推近（短镜头推得快）：连那一段末尾一起看
+    const until = Math.min(track.times[track.next] ?? shot.end, Math.max(unit.t1, unit.t0 + MIN_SUNG), shot.end) - 1e-3;
+    const later = until > at ? plannedPose({ ...input, time: until }) : planned;
+    if (!outside(shiftPose(planned, track.shiftX, track.shiftY), unit, aspect, need)
+        && !outside(shiftPose(later, track.shiftX, track.shiftY), unit, aspect, need)) return;
+    // 出画了：照分镜的机位还在画里就切回去，不然挪到刚好摆进去；挪完到那一段末尾还会出去，就按末尾的机位摆
+    fitShift(planned, unit, aspect, KEEP_IN, need);
+    if (outside(shiftPose(later, need.x, need.y), unit, aspect, { x: 0, y: 0 })) fitShift(later, unit, aspect, KEEP_IN, need);
+    track.shiftX = need.x;
+    track.shiftY = need.y;
+};
+
+/**
+ * 一个镜头在 time 这一刻的机位：按分镜的机位，只在正在唱的词跑出画面时硬切过去——
+ * 机位平移到刚好把它摆进画里，远近和滚转不动，之后一直这么偏着，直到下一个出画的再切，或者分镜自己跳档。
+ * 只在开唱、跳档的时刻上判断，偏多少完全由时间决定，拖进度也一样。
+ */
+export const resolveMetaphorPose = (input: MetaphorPoseInput): MetaphorPose => {
+    const pose = plannedPose(input);
+    const { shot, layout, time } = input;
+    if (time < shot.start || (layout.words.length === 0 && layout.glyphs.length === 0)) return pose;
+    const track = trackFor(input);
+    while (track.next < track.times.length && track.times[track.next] <= time) advance(track, input);
+    return shiftPose(pose, track.shiftX, track.shiftY);
 };
 
 /** 静态模式：每句一个锁死的全景。 */

@@ -142,8 +142,42 @@ const timedLayout = (): MetaphorLayout => buildMetaphorLayout({
     rng: () => 0.5,
 });
 
+/** 一个词一个词按顺序唱的一长句：从第 1 秒开始，每隔 0.6 秒开唱一个词，每个词唱 0.5 秒。 */
+const sungLayout = (text: string, composition: MetaphorComposition): MetaphorLayout => {
+    const words = text.split(/(?<= )/u).map((word, index) => ({ text: word, startTime: 1 + index * 0.6, endTime: 1.5 + index * 0.6 }));
+    return buildMetaphorLayout({
+        tokens: buildMetaphorTokens({ fullText: text, startTime: 1, endTime: words.at(-1)!.endTime, words } as Line),
+        composition,
+        measure,
+        rng: createVisualizerRng(`sung:${composition}`),
+    });
+};
+
+/** 机位看到的区域里装不装得下 rect（转过滚转）；比视口还大的一边要中心在画里。 */
+const inView = (pose: { x: number; y: number; distance: number; roll: number }, rect: { x0: number; y0: number; x1: number; y1: number }, aspect: number) => {
+    const halfHeight = pose.distance * Math.tan((METAPHOR_FOV * Math.PI) / 360);
+    const half = [halfHeight * aspect, halfHeight];
+    const cos = Math.cos(pose.roll);
+    const sin = Math.sin(pose.roll);
+    const along = [[rect.x0, rect.y0], [rect.x0, rect.y1], [rect.x1, rect.y0], [rect.x1, rect.y1]].map(([x, y]) => {
+        const dx = x - pose.x;
+        const dy = y - pose.y;
+        return [dx * cos + dy * sin, -dx * sin + dy * cos];
+    });
+    return [0, 1].every((axis) => {
+        const low = Math.min(...along.map(point => point[axis]));
+        const high = Math.max(...along.map(point => point[axis]));
+        if (high - low > 2 * half[axis]) return Math.abs((low + high) / 2) <= half[axis];
+        return low >= -half[axis] - 1e-9 && high <= half[axis] + 1e-9;
+    });
+};
+
 describe('resolveMetaphorPose', () => {
     const layout = layoutOf('Light falls on the empty stage', 'block');
+    /** 字早就唱完了（像曲名卡）：只看分镜本来的机位。 */
+    const quiet = buildMetaphorLayout({
+        tokens: buildMetaphorTextTokens('Light falls on the empty stage', -10), composition: 'block', measure, rng: createVisualizerRng('layout:block'),
+    });
     const empty: MetaphorLayout = { composition: 'block', glyphs: [], words: [], bounds: { x0: -4, y0: -2, x1: 4, y1: 2 } };
 
     it.each(KINDS)('%s：有字、没字（间奏）都算得出机位，离画面有距离', (kind) => {
@@ -169,7 +203,7 @@ describe('resolveMetaphorPose', () => {
 
     it('一个镜头里机位只极慢地蠕动：两秒里远近变不到一成，位置挪不到画面的百分之二', () => {
         for (const kind of ['wide', 'close', 'macro', 'dutch', 'void'] as const) {
-            const at = (time: number) => resolveMetaphorPose({ shot: shotOf(kind, { end: 6 }), layout, time, aspect: 16 / 9, motion: 2 });
+            const at = (time: number) => resolveMetaphorPose({ shot: shotOf(kind, { end: 6 }), layout: quiet, time, aspect: 16 / 9, motion: 2 });
             for (let time = 0; time < 4; time += 0.5) {
                 const from = at(time);
                 const to = at(time + 2);
@@ -203,7 +237,7 @@ describe('resolveMetaphorPose', () => {
     });
 
     it('冲镜连跳三格落到第一个词上，之后不再动', () => {
-        const at = (time: number) => resolveMetaphorPose({ shot: shotOf('pushin'), layout, time, aspect: 16 / 9, motion: 0 });
+        const at = (time: number) => resolveMetaphorPose({ shot: shotOf('pushin'), layout: quiet, time, aspect: 16 / 9, motion: 0 });
         const levels = new Set<number>();
         for (let time = 0; time <= 2; time += 0.01) levels.add(at(time).distance);
         expect(levels.size).toBe(4);
@@ -224,6 +258,139 @@ describe('resolveMetaphorPose', () => {
     it('运镜幅度是 0 时，固定机位的镜头一动不动', () => {
         const at = (time: number) => resolveMetaphorPose({ shot: shotOf('wide'), layout, time, aspect: 1.5, motion: 0 });
         expect(at(1.7)).toEqual(at(0.2));
+    });
+
+    it.each(KINDS)('%s：正在唱的词一直在画里（比画面还大的中心在画里；大特写对准的词除外），出画时硬切过去、不滑', (kind) => {
+        for (const composition of COMPOSITIONS) {
+            const sung = sungLayout('Somewhere beyond the quiet harbour lights we wait for the tide to turn', composition);
+            for (const aspect of [16 / 9, 9 / 16]) {
+                for (const [roll, motion] of [[0, 0], [0.4, 0], [0.2, 2]]) {
+                    const shot = shotOf(kind, { start: 0.5, end: 10, roll, offsetX: 0.1, offsetY: -0.08, seed: 0.7 });
+                    const at = (time: number) => resolveMetaphorPose({ shot, layout: sung, time, aspect, motion });
+                    // 大特写对准的那个词只框得下一个字，不算；它唱完以后的词都要在画里
+                    const anchor = sung.glyphs.reduce((found, glyph) => (glyph.t0 <= shot.start && glyph.t0 >= found.t0 ? glyph : found), sung.glyphs[0]).word;
+                    const units = kind === 'macro' ? sung.words.filter((_, index) => index !== anchor) : sung.words;
+                    for (const unit of units) {
+                        // 开唱、唱到一半、快唱完：运镜推近一路推到唱完也还在画里
+                        for (const time of [unit.t0, (unit.t0 + unit.t1) / 2, unit.t1 - 0.02]) {
+                            // 冲镜跳格的那一下还在远处，落定以后才算
+                            if (kind === 'pushin' && time < 0.5 + 0.48) continue;
+                            expect(inView(at(time), unit, aspect)).toBe(true);
+                        }
+                    }
+                    // 两个开唱时刻之间不滑
+                    const index = units.findIndex(unit => unit.t0 > 1);
+                    if (motion === 0 && index >= 0 && index + 1 < units.length && kind !== 'pullback') {
+                        expect(at(units[index + 1].t0 - 0.01)).toEqual(at(units[index].t0 + 0.01));
+                    }
+                }
+            }
+        }
+    });
+
+    it.each(KINDS)('%s：逐帧接着算（带缓存）和每帧从头算一样，往回拖、换比例也一样', (kind) => {
+        const sung = sungLayout('Somewhere beyond the quiet harbour lights we wait for the tide to turn', 'scatter');
+        const shot = shotOf(kind, { start: 0.5, end: 10, roll: 0.4, offsetX: 0.1, offsetY: -0.08, seed: 0.7 });
+        const rng = createVisualizerRng(`frames:${kind}`);
+        const frames: Array<{ time: number; aspect: number }> = [];
+        let time = 0;
+        for (let index = 0; index < 600; index += 1) {
+            const roll = rng();
+            // 大多数是往前一帧，偶尔往回拖或往前跳，偶尔换比例
+            time = roll < 0.05 ? rng() * 10 : roll < 0.08 ? time + rng() * 3 : time + 1 / 60;
+            frames.push({ time: Math.min(time, 10), aspect: rng() < 0.03 ? 9 / 16 : 16 / 9 });
+        }
+        // 缓存按排版对象存：从头算的用另一个排版对象，不顶掉接着算的那份
+        const copy = { ...sung };
+        for (const { time: at, aspect } of frames) {
+            const cached = resolveMetaphorPose({ shot, layout: sung, time: at, aspect, motion: 1 });
+            // 每次新的 shot 对象：缓存对不上，从镜头开头重算
+            const fresh = resolveMetaphorPose({ shot: { ...shot }, layout: copy, time: at, aspect, motion: 1 });
+            expect(cached).toEqual(fresh);
+        }
+    });
+
+    it('拉远最后一档露出整句：前面为了跟字挪过的偏移不带过去', () => {
+        const sung = sungLayout('Somewhere beyond the quiet harbour lights we wait for the tide to turn', 'scatter');
+        const shot = shotOf('pullback', { start: 0.5, end: 10, roll: 0.1, seed: 0.7 });
+        const end = resolveMetaphorPose({ shot, layout: sung, time: 9.9, aspect: 9 / 16, motion: 0 });
+        const quietEnd = resolveMetaphorPose({ shot, layout: { ...sung, words: [], glyphs: [] }, time: 9.9, aspect: 9 / 16, motion: 0 });
+        // 中途确实挪过
+        const moved = [2, 3, 4, 5, 6].some(time => resolveMetaphorPose({ shot, layout: sung, time, aspect: 9 / 16, motion: 0 }).x
+            !== resolveMetaphorPose({ shot, layout: { ...sung, words: [], glyphs: [] }, time, aspect: 9 / 16, motion: 0 }).x);
+        expect(moved).toBe(true);
+        expect(end.x).toBeCloseTo(quietEnd.x, 9);
+        expect(end.y).toBeCloseTo(quietEnd.y, 9);
+        expect(end.distance).toBe(quietEnd.distance);
+    });
+
+    it.each(['wide', 'dutch', 'void'] as const)('%s：曲名卡（字早就唱完）的机位和没有字时一样', (kind) => {
+        // 这几种镜头只看整句的范围：没有字的排版给的就是分镜本来的机位
+        const shot = shotOf(kind, { start: 0, end: 8, roll: 0.4, offsetX: 0.3, offsetY: 0.2 });
+        const bare = { ...quiet, words: [], glyphs: [] };
+        let moved = false;
+        for (const time of [0, 1.3, 4, 7.9]) {
+            for (const aspect of [16 / 9, 9 / 16]) {
+                const pose = resolveMetaphorPose({ shot, layout: quiet, time, aspect, motion: 1 });
+                expect(pose).toEqual(resolveMetaphorPose({ shot, layout: bare, time, aspect, motion: 1 }));
+                // 同一个排版要是在唱，机位会挪：说明上面的相等不是白比
+                const singing = {
+                    ...quiet,
+                    words: quiet.words.map(word => ({ ...word, t0: 0, t1: 8 })),
+                    glyphs: quiet.glyphs.map(glyph => ({ ...glyph, t0: 0, t1: 8 })),
+                };
+                moved ||= resolveMetaphorPose({ shot: { ...shot }, layout: singing, time, aspect, motion: 1 }).x !== pose.x;
+            }
+        }
+        expect(moved).toBe(true);
+    });
+
+    it('大特写对准的词唱完以后换成特写跟词：一个词一个词地跳，词整个在画里', () => {
+        const sung = sungLayout('Somewhere beyond the quiet harbour lights', 'block');
+        const shot = shotOf('macro', { start: 0.5, end: 6, roll: 0.5, offsetX: 0.1, offsetY: 0.1 });
+        const at = (time: number) => resolveMetaphorPose({ shot, layout: sung, time, aspect: 16 / 9, motion: 0 });
+        const macro = at(1.2);
+        // 第一个词唱的时候还是大特写：画面比一个字还矮
+        expect(2 * macro.distance * Math.tan((METAPHOR_FOV * Math.PI) / 360)).toBeLessThan(sung.glyphs[0].size);
+        for (const word of sung.words.slice(1)) {
+            const pose = at(word.t0 + 0.05);
+            expect(pose.distance).toBeGreaterThan(macro.distance);
+            expect(Math.abs(pose.roll)).toBeLessThan(0.1);
+            expect(inView(pose, word, 16 / 9)).toBe(true);
+            expect(at(word.t1 - 0.05)).toEqual(pose);
+        }
+    });
+
+    it('大特写从一个词开唱时开始、前一个词很短（还算在唱）：照样对着自己的字，不被挪去前一个词', () => {
+        const text = 'Hold this quiet note';
+        // 第二个词只唱 0.2 秒，比算作在唱的最短时长还短；大特写从第三个词开唱时开始
+        const timings = [[1, 1.8], [1.8, 2.0], [2.0, 2.8], [2.8, 3.6]];
+        const words = text.split(/(?<= )/u).map((word, index) => ({ text: word, startTime: timings[index][0], endTime: timings[index][1] }));
+        for (const composition of COMPOSITIONS) {
+            const layout = buildMetaphorLayout({
+                tokens: buildMetaphorTokens({ fullText: text, startTime: 1, endTime: 3.6, words } as Line),
+                composition, measure, rng: createVisualizerRng(`short:${composition}`),
+            });
+            for (const aspect of [16 / 9, 9 / 16]) {
+                const shot = shotOf('macro', { start: 2.0, end: 4, roll: 0.45 });
+                const target = layout.glyphs.find(glyph => glyph.t0 === 2.0)!;
+                for (const time of [2.0, 2.1, 2.4, 2.7]) {
+                    const pose = resolveMetaphorPose({ shot, layout, time, aspect, motion: 1 });
+                    const point = { x0: target.x, x1: target.x, y0: target.y, y1: target.y };
+                    expect(inView(pose, point, aspect)).toBe(true);
+                }
+            }
+        }
+    });
+
+    it('正在唱的本来就在画里时不动分镜的机位', () => {
+        const sung = sungLayout('Hold the line', 'block');
+        for (const kind of ['wide', 'void', 'dutch'] as const) {
+            const shot = shotOf(kind, { start: 0.5, end: 4 });
+            const quietPose = resolveMetaphorPose({ shot, layout: { ...sung, words: [], glyphs: [] }, time: 3, aspect: 16 / 9, motion: 1 });
+            const pose = resolveMetaphorPose({ shot, layout: sung, time: 3, aspect: 16 / 9, motion: 1 });
+            expect(pose).toEqual(quietPose);
+        }
     });
 
     it('静态模式的机位：对着整句的中心、不转', () => {
