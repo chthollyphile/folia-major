@@ -232,7 +232,8 @@ function RadioCard({
     };
     const handleDoubleClick = (event: MouseEvent<HTMLElement>) => {
         if (event.target instanceof Element && event.target.closest('button, input')) return;
-        if (isWallDoubleClickOn(pressKey)) onPlayFromWall(tile);
+        // 记号可能是早先在正中时留下的（之后点了空白处、或两下之间切了歌把它挪走）：此刻也得在正中。
+        if (focused && isWallDoubleClickOn(pressKey)) onPlayFromWall(tile);
     };
     const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
         if (event.target !== event.currentTarget || event.repeat) return;

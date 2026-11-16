@@ -91,8 +91,8 @@ function RadioOrbits({ metrics, rail, playing, reducedMotion, transmitterRef }: 
         // 尾巴的渐变要按透明度给色标，墨色是 CSS 算出来的任意写法（可能是 color-mix 的结果）：在一块 1×1 的
         // 画布上涂一下读回 RGBA。只在读颜色时做（挂上、尺寸变、播放中每 COLOR_REFRESH_FRAMES 帧）。
         const swatch = document.createElement('canvas').getContext('2d', { willReadFrequently: true });
-        let inkRgb = '247, 244, 238';
-        let inkAlpha = 1;
+        // 尾巴渐变的色标（位置、颜色），随墨色在 readColors 里算好，每帧只建渐变。
+        let tailStops: [number, string][] = PACKET_TAIL_STOPS.map(([at, alpha]) => [at, `rgba(247, 244, 238, ${alpha})`]);
         const readColors = () => {
             const style = getComputedStyle(canvas);
             ink = style.color || ink;
@@ -102,8 +102,7 @@ function RadioOrbits({ metrics, rail, playing, reducedMotion, transmitterRef }: 
             swatch.fillStyle = ink;
             swatch.fillRect(0, 0, 1, 1);
             const [r, g, b, a] = swatch.getImageData(0, 0, 1, 1).data;
-            inkRgb = `${r}, ${g}, ${b}`;
-            inkAlpha = a / 255;
+            tailStops = PACKET_TAIL_STOPS.map(([at, alpha]) => [at, `rgba(${r}, ${g}, ${b}, ${alpha * a / 255})`]);
         };
 
         const measure = () => {
@@ -148,7 +147,7 @@ function RadioOrbits({ metrics, rail, playing, reducedMotion, transmitterRef }: 
                         center.x + radius * Math.sin(tail), center.y - radius * Math.cos(tail),
                         center.x + radius * Math.sin(head), center.y - radius * Math.cos(head),
                     );
-                    for (const [at, alpha] of PACKET_TAIL_STOPS) gradient.addColorStop(at, `rgba(${inkRgb}, ${alpha * inkAlpha})`);
+                    for (const [at, color] of tailStops) gradient.addColorStop(at, color);
                     context.globalAlpha = 1;
                     context.strokeStyle = gradient;
                     context.beginPath();
