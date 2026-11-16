@@ -218,7 +218,8 @@ export const compileMetaphorProgram = (lines: readonly Line[], options: Metaphor
     // 按开唱时间排（同时的保持原来的先后），再去掉和前一句几乎同时开唱的：不然先来的那句会被后一句挤得一帧都不剩
     const sung = lines
         .map((line, lineIndex) => ({ line, lineIndex }))
-        .filter(({ line }) => line.fullText.trim().length > 0 && Number.isFinite(line.startTime))
+        // 只有标点的句子（「......」这种间奏的占位）不算歌词：那一段归间奏
+        .filter(({ line }) => /[\p{L}\p{N}]/u.test(line.fullText) && Number.isFinite(line.startTime))
         .sort((a, b) => a.line.startTime - b.line.startTime || a.lineIndex - b.lineIndex)
         .filter(({ line }, order, all) => order === 0 || line.startTime - all[order - 1].line.startTime >= SAME_ONSET);
     if (sung.length === 0) {

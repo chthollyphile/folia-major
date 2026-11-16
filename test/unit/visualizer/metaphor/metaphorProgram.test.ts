@@ -159,6 +159,8 @@ describe('compileMetaphorProgram', () => {
         expect(cues[0].loop).toBeGreaterThan(0);
         // 空行不算歌词
         expect(compileMetaphorProgram([timedLine(3, [['  ', 1]])], OPTIONS).cues).toHaveLength(1);
+        // 只有标点的句子（间奏的占位）也不算
+        expect(compileMetaphorProgram([timedLine(3, [['......', 1]])], OPTIONS).cues).toHaveLength(1);
     });
 });
 

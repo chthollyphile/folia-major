@@ -21,13 +21,13 @@ import {
 } from '@/components/visualizer/metaphor/metaphorShapes';
 
 // test/unit/visualizer/metaphor/metaphorFigures.test.ts
-// 隐喻的线稿和版面（都是纯函数）：九种图各自画得出来、落在自己那一块里；一个 cue 的几张图摆在字外面；
+// 隐喻的线稿和版面（都是纯函数）：每种图各自画得出来、落在自己那一块里；一个 cue 的几张图摆在字外面；
 // 版面的网点层和规线、注记；注记排成字；一笔一笔冒出来；齐行的排版。
 
 const bounds: MetaphorRect = { x0: -3, y0: -1.5, x1: 3, y1: 1.5 };
 const inside = (x: number, y: number, pad = 0) => x > bounds.x0 - pad && x < bounds.x1 + pad && y > bounds.y0 - pad && y < bounds.y1 + pad;
 
-describe('九种线稿', () => {
+describe('各种线稿', () => {
     it.each(METAPHOR_FIGURE_KINDS)('%s：画得出来，图形和注记都落在图自己那一块里', (kind) => {
         for (const seed of ['a', 'b', 'c', 'd']) {
             const figure = drawMetaphorFigure(kind, createVisualizerRng(`${kind}:${seed}`), 10, -4, 2);

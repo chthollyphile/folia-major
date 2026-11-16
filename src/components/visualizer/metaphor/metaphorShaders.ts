@@ -16,6 +16,8 @@ uniform float uPop;
 varying vec2 vUv;
 varying vec2 vTime;
 varying vec3 vMeta;
+varying vec2 vWorld;
+varying vec2 vQuad;
 
 void main() {
     float dt = uTime - aTime.x;
@@ -31,6 +33,10 @@ void main() {
     vUv = uv;
     vTime = aTime;
     vMeta = aMeta;
+    vWorld = (modelMatrix * vec4(p, 1.0)).xy;
+    // 这一格里的位置（-1..1）：四个角按左下、右下、右上、左上的顺序排
+    int corner = gl_VertexID - (gl_VertexID / 4) * 4;
+    vQuad = vec2(corner == 0 || corner == 3 ? -1.0 : 1.0, corner < 2 ? -1.0 : 1.0);
     gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
 }
 `;
@@ -40,12 +46,51 @@ uniform sampler2D uAtlas;
 uniform float uTime;
 uniform float uReveal;
 uniform float uMelt;
+uniform float uShakeTime;
+uniform float uWobble;
 varying vec2 vUv;
 varying vec2 vTime;
 varying vec3 vMeta;
+varying vec2 vWorld;
+varying vec2 vQuad;
+
+// 注记的字比线细，抖得比线小一点，不然笔画会断
+const float NOTE_SHAKE = 0.6;
+// 注记周围那圈网点往外探多远（世界单位）。字本身的那团模糊在画面上只有一两个像素，比一颗网点还小，得往外多取几下
+const float NOTE_FRINGE = 0.05;
 
 void main() {
-    vec2 s = texture2D(uAtlas, vUv).rg;
+    // 注记（结束时间是个很大的负数）和线稿是同一支笔写的：用线稿那张世界位移场把取样位置推歪（和 METAPHOR_SHAPE_FRAGMENT 里的是同一个式子）。
+    float note = step(vTime.y, -10000.0);
+    vec2 w = vWorld;
+    vec2 shake = vec2(sin(w.y * 1.7 + uShakeTime * 0.35) + sin(w.x * 0.9 - uShakeTime * 0.2), sin(w.x * 1.3 - uShakeTime * 0.3) + sin(w.y * 1.1 + uShakeTime * 0.25)) * 0.5
+        + 0.32 * vec2(sin(w.y * 7.1 + w.x * 2.3 + uShakeTime * 0.6), sin(w.x * 6.3 - w.y * 1.9 - uShakeTime * 0.5))
+        + 0.12 * vec2(sin(w.y * 37.0 + w.x * 17.0) + sin(w.x * 53.0), sin(w.x * 41.0 - w.y * 13.0) + sin(w.y * 59.0));
+    shake *= uWobble * NOTE_SHAKE * note;
+    // 世界里的位移换成贴图坐标的位移：用屏幕上相邻像素的差解出来，字转了角度也对
+    vec2 wx = dFdx(vWorld);
+    vec2 wy = dFdy(vWorld);
+    float det = wx.x * wy.y - wx.y * wy.x;
+    float inv = abs(det) > 1e-12 ? 1.0 / det : 0.0;
+    vec2 ux = dFdx(vUv);
+    vec2 uy = dFdy(vUv);
+    vec2 qx = dFdx(vQuad);
+    vec2 qy = dFdy(vQuad);
+    vec2 step2 = vec2(shake.x * wy.y - shake.y * wy.x, shake.y * wx.x - shake.x * wx.y) * inv;
+    vec2 uv = vUv + ux * step2.x + uy * step2.y;
+    vec2 s = texture2D(uAtlas, uv).rg;
+    float fringe = 0.0;
+    if (note > 0.5) {
+        // 绕一圈取六下宽通道，取最浓的：字周围就有了和线两边一样宽的一圈。探出这一格的不算（那边是图集里别的字）
+        for (int i = 0; i < 6; i++) {
+            float a = float(i) * 1.0472 + 0.3;
+            vec2 o = vec2(cos(a), sin(a)) * NOTE_FRINGE;
+            vec2 k = vec2(o.x * wy.y - o.y * wy.x, o.y * wx.x - o.x * wx.y) * inv;
+            vec2 q = vQuad + qx * k.x + qy * k.y;
+            float inside = step(max(abs(q.x), abs(q.y)), 1.0);
+            fringe = max(fringe, textureLod(uAtlas, uv + ux * k.x + uy * k.y, 0.0).g * inside);
+        }
+    }
     float dt = uTime - vTime.x;
     float on = step(0.0, dt);
     float age = max(dt, 0.0);
@@ -56,10 +101,9 @@ void main() {
     float ink = s.r * set * keep * keep + s.g * (bulge * 1.25 + 0.3 * set + 0.9 * uMelt * set) * keep;
     // 没唱到的字只是一层网点的影子；唱过的字周围留一圈网点
     float tone = (s.r * (1.0 - set) * 0.85 + s.g * (0.3 + 0.45 * set)) * uReveal * keep;
-    // 注记（结束时间是个很大的负数）：到时候直接出现，只有细的墨字，没有那一团和网点
-    float note = step(vTime.y, -10000.0);
+    // 注记到时候直接出现：细的墨字，没有那一团；字周围留一圈淡的网点，和线两边的毛边是一回事
     ink = mix(ink, s.r * on * keep * keep * 1.12, note);
-    tone *= 1.0 - note;
+    tone = mix(tone, min(0.55, max(s.g, fringe) * 1.6) * on * keep, note);
     gl_FragColor = vec4(ink * (1.0 - vMeta.y), tone, ink * vMeta.y, 1.0);
 }
 `;
@@ -71,20 +115,27 @@ attribute float iRot;
 attribute vec3 iMix;
 attribute float iShape;
 attribute float iParam;
-varying vec2 vQ;
+varying vec2 vL;
+varying vec2 vWorld;
+varying vec2 vTurn;
 varying vec3 vMix;
 varying float vShape;
 varying float vParam;
 varying vec2 vScale;
 
+// 每一格四周多留的边（世界单位）：给抖动和线两边那圈网点留地方
+const float MARGIN = 0.2;
+
 void main() {
     // 圆弧那一格是正方的：sy 是线宽的倍数，不是半轴
     vec2 scale = iShape > 2.5 && iShape < 3.5 ? vec2(iScale.x) : iScale;
-    vec2 o = position.xy * scale;
+    vec2 local = position.xy * (scale + MARGIN);
     float c = cos(iRot);
     float s = sin(iRot);
-    o = vec2(o.x * c - o.y * s, o.x * s + o.y * c);
-    vQ = position.xy;
+    vec2 o = vec2(local.x * c - local.y * s, local.x * s + local.y * c);
+    vL = local;
+    vWorld = iPos + o;
+    vTurn = vec2(c, s);
     vMix = iMix;
     vShape = iShape;
     vParam = iParam;
@@ -94,7 +145,11 @@ void main() {
 `;
 
 export const METAPHOR_SHAPE_FRAGMENT = /* glsl */ `
-varying vec2 vQ;
+uniform float uTime;
+uniform float uWobble;
+varying vec2 vL;
+varying vec2 vWorld;
+varying vec2 vTurn;
 varying vec3 vMix;
 varying float vShape;
 varying float vParam;
@@ -102,14 +157,26 @@ varying vec2 vScale;
 
 // 线稿的线的半宽（世界单位），和 metaphorFigures.ts 的 STROKE 一致
 const float STROKE = 0.016;
+// 线两边那圈网点有多宽
+const float FRINGE = 0.11;
 
 void main() {
-    float r2 = dot(vQ, vQ);
+    // 手抖：整个世界共用一张位移场（大的慢慢晃、中的、细碎的三层），同一个地方的线和点挪得一样，接头不会散开。
+    // 细碎的那层不随时间动：它是纸的毛糙，线的边缘靠它变毛。
+    vec2 w = vWorld;
+    vec2 shake = vec2(sin(w.y * 1.7 + uTime * 0.35) + sin(w.x * 0.9 - uTime * 0.2), sin(w.x * 1.3 - uTime * 0.3) + sin(w.y * 1.1 + uTime * 0.25)) * 0.5
+        + 0.32 * vec2(sin(w.y * 7.1 + w.x * 2.3 + uTime * 0.6), sin(w.x * 6.3 - w.y * 1.9 - uTime * 0.5))
+        + 0.12 * vec2(sin(w.y * 37.0 + w.x * 17.0) + sin(w.x * 53.0), sin(w.x * 41.0 - w.y * 13.0) + sin(w.y * 59.0));
+    shake *= uWobble;
+    // 位移场是世界方向的，转回这一格自己的方向
+    vec2 L = vL + vec2(shake.x * vTurn.x + shake.y * vTurn.y, shake.y * vTurn.x - shake.x * vTurn.y);
+    float inked = min(1.0, vMix.x + vMix.z);
     float core;
     float halo;
     if (vShape < 0.5) {
         // 融球：中间高、边上平滑落到 0，几个挨近了相加就连成一片
-        float k = max(0.0, 1.0 - r2);
+        vec2 q = L / vScale;
+        float k = max(0.0, 1.0 - dot(q, q));
         core = k * k * k * 1.45;
         halo = k * k * 0.55;
         gl_FragColor = vec4(core * vMix.x, k * k * vMix.y * 0.6 + halo * (vMix.x + vMix.z), core * vMix.z, 1.0);
@@ -117,31 +184,40 @@ void main() {
     }
     if (vShape < 1.5) {
         // 圆环：一道细的环带
-        float band = abs(sqrt(r2) - 0.88);
+        float band = abs(length(L / vScale) - 0.88);
         core = 1.0 - smoothstep(0.012, 0.03, band);
         halo = 1.0 - smoothstep(0.02, 0.12, band);
-    } else if (vShape < 2.5) {
-        // 细线：两头收一点；param 大于 0 时切成那么多段虚线
-        core = 1.0 - smoothstep(0.96, 1.0, abs(vQ.x));
-        if (vParam > 0.5) core *= step(fract((vQ.x * 0.5 + 0.5) * vParam + 0.25), 0.55);
-        halo = 0.0;
+        gl_FragColor = vec4(core * vMix.x, core * vMix.y + halo * 0.35, core * vMix.z, 1.0);
+        return;
+    }
+    // 细线、圆弧、波浪线：先算到线的中心有多远（d）和线的半宽（reach）
+    float d;
+    float reach = STROKE;
+    float cut = 1.0;
+    if (vShape < 2.5) {
+        // 细线（也是版面里的色带）：一个长方形；param 大于 0 时切成那么多段虚线
+        reach = vScale.y;
+        d = max(abs(L.y), abs(L.x) - vScale.x + reach);
+        if (vParam > 0.5) cut = step(fract((L.x / vScale.x * 0.5 + 0.5) * vParam + 0.25), 0.55);
     } else if (vShape < 3.5) {
         // 圆弧：线宽按世界单位算，不跟着半径变粗；只画转角两边 param × π 以内的那一段
-        float d = abs(sqrt(r2) - 0.9) * vScale.x;
-        float w = STROKE * vScale.y;
-        float within = step(abs(atan(vQ.y, vQ.x)), vParam * 3.14159 + 0.001);
-        core = (1.0 - smoothstep(w * 0.6, w * 1.6, d)) * within;
-        halo = (1.0 - smoothstep(w, w * 6.0, d)) * within * (1.0 - min(1.0, vMix.x + vMix.z)) * 2.0;
+        reach = STROKE * vScale.y;
+        d = abs(length(L) - 0.9 * vScale.x);
+        cut = step(abs(atan(L.y, L.x)), vParam * 3.14159 + 0.001);
     } else {
         // 波浪线：param 个半波，两头都落在零点上；到曲线的距离按斜率折算
-        float phase = 1.5708 * vParam * (vQ.x + 1.0);
+        float phase = 1.5708 * vParam * (L.x / vScale.x + 1.0);
         float amp = vScale.y * 0.75;
         float slope = amp * cos(phase) * 1.5708 * vParam / vScale.x;
-        float d = abs(vQ.y * vScale.y - amp * sin(phase)) / sqrt(1.0 + slope * slope);
-        core = 1.0 - smoothstep(STROKE * 0.6, STROKE * 1.6, d);
-        halo = 0.0;
+        d = abs(L.y - amp * sin(phase)) / sqrt(1.0 + slope * slope);
+        cut = step(abs(L.x), vScale.x);
     }
-    gl_FragColor = vec4(core * vMix.x, core * vMix.y + halo * 0.35, core * vMix.z, 1.0);
+    // 线的边是一道缓坡，不是一刀切：显影时阈值被噪点搅过，缓坡上切出来的边才是毛的
+    float soft = min(reach, STROKE);
+    core = (1.0 - smoothstep(reach - soft * 0.8, reach + soft * 1.4, d)) * cut;
+    // 墨线两边一圈网点：线不是干干净净浮在纸上的
+    halo = (1.0 - smoothstep(reach, reach + FRINGE, d)) * cut * max(inked * 0.55, vMix.y * 0.4);
+    gl_FragColor = vec4(core * vMix.x, core * vMix.y + halo, core * vMix.z, 1.0);
 }
 `;
 
@@ -229,6 +305,8 @@ void main() {
     vec3 inkColor = mix(uInk, uPaper, uInvert);
     vec3 color = mix(paper, mix(paper, uTone, 0.82), dots);
     color = mix(color, uAccent, accent);
+    // 强调色融球盖着还没唱到的字时：字的网点影子压在它上面，照样看得见
+    color = mix(color, mix(uAccent, inkColor, 0.4), dots * accent * smoothstep(0.85, 1.0, field.g));
     // 墨最后画：强调色融球漂到字上时，字压在它上面照样读得出来
     color = mix(color, inkColor, ink);
 

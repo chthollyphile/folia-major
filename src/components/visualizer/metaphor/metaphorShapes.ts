@@ -142,8 +142,8 @@ export const planMetaphorShapes = (bounds: MetaphorRect, rng: () => number, amou
     }
 
     for (let index = count(1.6); index > 0; index -= 1) {
-        // 盖住一两个字的大小，不把整句都吞掉
-        const radius = span(0.9, 1.5) * Math.min(1.6, Math.max(1, Math.min(halfW, halfH) * 0.9));
+        // 盖住一两个字的大小，不把整句都吞掉（只有一两个字的短句，它也跟着小）
+        const radius = span(0.9, 1.5) * Math.min(1.6, Math.max(0.45, Math.min(halfW, halfH) * 0.9));
         shapes.push(make(rng, METAPHOR_SHAPE_BLOB, {
             x: span(-0.9, 0.9) * halfW, y: span(-0.9, 0.9) * halfH, sx: radius, sy: radius, accent: 1, tone: 0.4,
             ampX: span(0.3, 0.9) * Math.min(1.5, halfW), ampY: span(0.2, 0.6) * Math.min(1.5, halfH), pulse: 1,

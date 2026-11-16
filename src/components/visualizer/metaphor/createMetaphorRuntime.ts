@@ -105,12 +105,16 @@ declare global {
 
 /** 换主题时要重排的那部分（字体、关键词、动效强度）；只改颜色不算。 */
 const themeLayoutKey = (theme: Theme) => [
-    resolveThemeFontStack(theme), resolveThemeFontWeight(theme, 800), theme.animationIntensity,
+    resolveThemeFontStack(theme), resolveThemeFontWeight(theme, DEFAULT_WEIGHT), theme.animationIntensity,
     (theme.wordColors ?? []).map(entry => entry.word).join(','),
 ].join('|');
 
 /** 注记的字在字形几何里的结束时间：着色器靠它认出注记（metaphorShaders.ts）。 */
 const NOTE_END = -100000;
+/** 主题没指定字重时用的：纤细的一档（用户定的）。墨切出来本来就比字形胖一圈，细字读得更清楚。 */
+const DEFAULT_WEIGHT = 300;
+/** 装饰跟着一张位移场抖多远（世界单位，「流体」是 1 时）。 */
+const WOBBLE = 0.05;
 /** 提前多久把下一个 cue 备好。 */
 const PREPARE_LEAD = 2.5;
 /** 网点格子的基础大小（CSS 像素）。 */
@@ -163,6 +167,8 @@ export class MetaphorRuntime {
     private width = 0;
     private height = 0;
     private pixelRatio = 1;
+    /** 摆线稿时用的宽高比。 */
+    private layoutAspect = 1.6;
     private raf = 0;
     private disposed = false;
     /** 音量 0..1（起音快、释放慢）；见过大于 1 的值就按 0..255 换算（主播放器是 0..255，预览是 0..1）。 */
@@ -200,7 +206,7 @@ export class MetaphorRuntime {
         this.staticMode = options.staticMode;
         this.showText = options.showText;
         // 会抛错的两样（拿不到 2D 画布、编分镜）放在建 WebGL 上下文之前：抛了也没有上下文要收
-        this.glyphs = new MetaphorGlyphSource(resolveThemeFontStack(options.theme), resolveThemeFontWeight(options.theme, 800));
+        this.glyphs = new MetaphorGlyphSource(resolveThemeFontStack(options.theme), resolveThemeFontWeight(options.theme, DEFAULT_WEIGHT));
         this.fontReady = this.glyphs.fontReady();
         this.program = this.compile();
 
@@ -226,9 +232,13 @@ export class MetaphorRuntime {
         this.glyphMaterial = additive(new THREE.ShaderMaterial({
             vertexShader: METAPHOR_GLYPH_VERTEX,
             fragmentShader: METAPHOR_GLYPH_FRAGMENT,
-            uniforms: { uAtlas: { value: null }, uTime: { value: 0 }, uReveal: { value: 1 }, uMelt: { value: 0 }, uPop: { value: 1 } },
+            uniforms: { uAtlas: { value: null }, uTime: { value: 0 }, uReveal: { value: 1 }, uMelt: { value: 0 }, uPop: { value: 1 }, uShakeTime: { value: 0 }, uWobble: { value: WOBBLE } },
         }));
-        this.shapeMaterial = additive(new THREE.ShaderMaterial({ vertexShader: METAPHOR_SHAPE_VERTEX, fragmentShader: METAPHOR_SHAPE_FRAGMENT }));
+        this.shapeMaterial = additive(new THREE.ShaderMaterial({
+            vertexShader: METAPHOR_SHAPE_VERTEX,
+            fragmentShader: METAPHOR_SHAPE_FRAGMENT,
+            uniforms: { uTime: { value: 0 }, uWobble: { value: WOBBLE } },
+        }));
 
         this.shapeGeometry.setAttribute('position', new THREE.Float32BufferAttribute([-1, -1, 0, 1, -1, 0, 1, 1, 0, -1, 1, 0], 3));
         this.shapeGeometry.setIndex([0, 1, 2, 0, 2, 3]);
@@ -315,7 +325,7 @@ export class MetaphorRuntime {
         this.applyPalette();
         if (key !== this.themeKey) {
             this.themeKey = key;
-            if (this.glyphs.setFont(resolveThemeFontStack(theme), resolveThemeFontWeight(theme, 800))) this.fontReady = this.glyphs.fontReady();
+            if (this.glyphs.setFont(resolveThemeFontStack(theme), resolveThemeFontWeight(theme, DEFAULT_WEIGHT))) this.fontReady = this.glyphs.fontReady();
             this.rebuildProgram();
         }
         this.requestFrame();
@@ -436,6 +446,11 @@ export class MetaphorRuntime {
         (this.developMaterial.uniforms.uRes.value as THREE.Vector2).set(pixelWidth, pixelHeight);
         this.developMaterial.uniforms.uPixelRatio.value = pixelRatio;
         this.camera.aspect = width / height;
+        // 线稿是按画面的宽高比摆的：比例变了不少（横竖互换、拉成长条）就重摆
+        if (Math.abs(Math.log(width / height / this.layoutAspect)) > 0.25) {
+            this.layoutAspect = width / height;
+            this.clearSets();
+        }
         this.requestFrame();
     }
 
@@ -470,7 +485,7 @@ export class MetaphorRuntime {
         const blobs = planMetaphorShapes(layout.bounds, rng, this.tuning.blobs, interlude);
         const collisions = planMetaphorCollisions(layout.bounds, rng, this.collisionTimes(cue, layout, rng), this.tuning.blobs, interlude);
         const backdrop = planMetaphorBackdrop(layout.bounds, rng, this.tuning.blobs, interlude, { index: cue.lineIndex + 1, time: cue.singStart });
-        const figures = planMetaphorFigures(layout.bounds, rng, this.tuning.blobs, interlude);
+        const figures = planMetaphorFigures(layout.bounds, rng, this.tuning.blobs, interlude, this.layoutAspect);
         // 版面的网点在最底下，线稿在最上面（都是加法，先后不影响结果，只是容量满了先丢后面的）
         const shapes = [...backdrop.shapes, ...blobs, ...figures.shapes];
         const notes = layoutMetaphorNotes([...backdrop.notes, ...figures.notes], this.glyphs.measureNote);
@@ -623,6 +638,11 @@ export class MetaphorRuntime {
             if (this.showText) count = writeMetaphorPairs(set.layout.glyphs, safeTime, this.shapeData, count);
             count = writeMetaphorCollisions(set.collisions, cueTime, this.shapeData, count);
         }
+        // 和流场一样每秒 8 格地跳
+        this.shapeMaterial.uniforms.uTime.value = Math.floor(fluidTime * 8) / 8;
+        glyph.uShakeTime.value = Math.floor(fluidTime * 8) / 8;
+        glyph.uWobble.value = WOBBLE * tuning.flow;
+        this.shapeMaterial.uniforms.uWobble.value = WOBBLE * tuning.flow;
         this.shapeGeometry.instanceCount = count;
         this.shapeBuffer.needsUpdate = true;
 
