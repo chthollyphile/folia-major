@@ -4270,6 +4270,29 @@ export default {
         "description": "Sau khi đăng nhập, danh sách phát riêng tư của bạn nay có thể tải bài hát với phân trang thực tế. Máy chủ tự lưu trữ cần chạy qq-music-api 3.1.2 trở lên; phiên bản cũ hơn sẽ tự động quay về cơ chế dự phòng, và danh sách phát không đọc được sẽ báo rõ là danh sách không công khai thay vì hiển thị trống."
       }
     },
+    "v0_7_29": {
+      "intro": "Chào mừng bạn đến với 0.7.29, Feynman Update—một bản cập nhật lớn. FM cá nhân có tường radio riêng, có kiểu lời bài hát mới tên Metaphor, và tính năng kiểm tra hiệu năng cho biết máy tính này chạy được chất lượng hình ảnh đến mức nào.",
+      "radioWall": {
+        "title": "Tường radio Lattice",
+        "description": "Trong FM cá nhân, Lattice trở thành một vòng thẻ: các bài sắp phát là thẻ dấu hỏi, lật lên khi đến lượt. Hàng đợi thường cũng dùng được qua mục Kiểu tường trong Cài đặt."
+      },
+      "metaphor": {
+        "title": "Kiểu lời bài hát mới: Metaphor",
+        "description": "Những khối mực, chấm halftone và hình vẽ nét vật lý được dàn như một trang báo, cắt cảnh dứt khoát theo nhịp. Chuyển động thông minh thêm hiệu ứng va chạm hủy cặp, và nhạc không lời đổi hình theo từng đoạn."
+      },
+      "perfCheck": {
+        "title": "Kiểm tra hiệu năng và phân tích nhanh hơn",
+        "description": "Dòng đầu tiên của Hoạt họa & Hiệu năng đo tốc độ khung hình khi đang phân tích và gợi ý độ phân giải, khử răng cưa, giới hạn khung hình phù hợp. Tách giọng hát và trống trên Windows nhanh hơn nhiều và không còn làm chậm hình ảnh."
+      },
+      "shuffleSearch": {
+        "title": "Phát ngẫu nhiên và lịch sử tìm kiếm",
+        "description": "Album, danh sách phát và bài nổi bật của nghệ sĩ có nút phát ngẫu nhiên cạnh Phát tất cả, và mục Phát lại có thêm tùy chọn Trộn theo vòng. Ô tìm kiếm và bảng lệnh liệt kê các từ bạn đã tìm."
+      },
+      "moreDetails": {
+        "title": "Cải tiến khác",
+        "description": "Cài đặt AI có trang Dịch vụ AI riêng. Cửa sổ điều khiển từ xa có trang cài đặt riêng và hiển thị được hai câu lời. Ở chế độ xuyên nhấp, nút luôn ở trên nằm cạnh ổ khóa. Màu nhấn lấy từ ảnh bìa dễ nhìn hơn. Bài hát bạn tự tải lên Apple Music giờ đã phát được."
+      }
+    },
     "v0_7_28": {
       "intro": "Chào mừng bạn đến với 0.7.28, Mimiambol Update—một bản cập nhật lớn. Phiên bản này thêm cảnh rạp chiếu phim, biểu tượng ứng dụng mới, nút cửa sổ đặt được bên trái hoặc phải, và tùy chọn mới cho một số kiểu lời bài hát.",
       "scenes": {

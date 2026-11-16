@@ -4270,6 +4270,29 @@ export default {
         "description": "Setelah masuk, playlist pribadi buatan Anda kini dapat memuat lagu dengan paging sungguhan. Backend yang di-host sendiri harus memakai qq-music-api 3.1.2 atau lebih baru; backend lama beralih otomatis, dan playlist yang tidak dapat dibaca kini menjelaskan bahwa playlist itu tidak publik, alih-alih tampil kosong tanpa keterangan."
       }
     },
+    "v0_7_29": {
+      "intro": "Selamat datang di 0.7.29, Feynman Update—sebuah pembaruan besar. FM Pribadi kini punya dinding radio sendiri, ada gaya lirik baru bernama Metaphor, dan pemeriksaan performa memberi tahu seberapa tinggi kualitas visual yang sanggup dijalankan komputer ini.",
+      "radioWall": {
+        "title": "Dinding radio Lattice",
+        "description": "Di FM Pribadi, Lattice menjadi lingkaran kartu: lagu berikutnya berupa kartu tanda tanya yang terbuka saat gilirannya tiba. Antrean biasa juga bisa memakainya lewat Bentuk dinding di Pengaturan."
+      },
+      "metaphor": {
+        "title": "Gaya lirik baru: Metaphor",
+        "description": "Gumpalan tinta, titik halftone, dan sketsa garis fisika tersusun seperti halaman, dengan potongan tajam mengikuti ketukan. Gerak cerdas menambahkan efek tabrakan anihilasi, dan musik instrumental berganti gambar per bagian."
+      },
+      "perfCheck": {
+        "title": "Pemeriksaan performa dan analisis lebih cepat",
+        "description": "Baris pertama Gerakan & performa mengukur frame rate saat analisis berjalan dan merekomendasikan resolusi, anti-aliasing, serta batas frame rate. Pemisahan vokal dan drum di Windows jauh lebih cepat dan tidak lagi memperlambat tampilan."
+      },
+      "shuffleSearch": {
+        "title": "Acak dan riwayat pencarian",
+        "description": "Album, playlist, dan lagu teratas artis punya tombol acak di samping Putar semua, dan Pemutaran punya opsi baru Acak per putaran. Kotak pencarian dan palet perintah menampilkan pencarian sebelumnya."
+      },
+      "moreDetails": {
+        "title": "Peningkatan lainnya",
+        "description": "Pengaturan AI kini punya halaman Layanan AI sendiri. Jendela remote control punya halaman pengaturan sendiri dan bisa menampilkan dua baris lirik. Dalam mode klik-tembus, tombol selalu di atas ada di samping kunci. Warna aksen dari sampul lebih enak dilihat. Lagu yang kamu unggah ke Apple Music kini bisa diputar."
+      }
+    },
     "v0_7_28": {
       "intro": "Selamat datang di 0.7.28, Mimiambol Update—sebuah pembaruan besar. Versi ini menghadirkan adegan bioskop, ikon aplikasi baru, tombol jendela di kiri atau kanan, dan opsi baru untuk beberapa gaya lirik.",
       "scenes": {

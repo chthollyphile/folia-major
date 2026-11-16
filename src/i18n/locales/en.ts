@@ -4270,6 +4270,29 @@ export default {
         "description": "When signed in, your own private playlists now load their songs, with real paging. Self-hosted backends must run qq-music-api 3.1.2 or later; older backends fall back automatically, and a playlist that cannot be read now says it is not public instead of silently showing as empty."
       }
     },
+    "v0_7_29": {
+      "intro": "Welcome to 0.7.29, the Feynman Update—a major update. Personal FM gets its own radio wall, there is a new lyric style called Metaphor, and a performance check tells you how much visual quality this computer can handle.",
+      "radioWall": {
+        "title": "Lattice radio wall",
+        "description": "In Personal FM, Lattice becomes a ring of cards: upcoming songs are question-mark cards that flip over when their turn comes. Regular queues can use it too via Wall form in Settings."
+      },
+      "metaphor": {
+        "title": "New lyric style: Metaphor",
+        "description": "Ink blobs, halftone dots and physics line drawings laid out like a page, with hard cuts on the beat. Smart motion adds an annihilation-collision effect, and instrumentals change the picture section by section."
+      },
+      "perfCheck": {
+        "title": "Performance check and faster analysis",
+        "description": "The first row of Motion & performance measures your frame rate with analysis running and recommends resolution, anti-aliasing and frame-rate limits. Vocal and drum separation on Windows is much faster and no longer drags the visuals down."
+      },
+      "shuffleSearch": {
+        "title": "Shuffle and search history",
+        "description": "Albums, playlists and an artist’s top songs get a shuffle button next to Play all, and Playback has a new Shuffle in rounds option. Search boxes and the command palette list your past searches."
+      },
+      "moreDetails": {
+        "title": "More improvements",
+        "description": "AI settings have their own AI service page. The remote control window has its own settings page and can show two lyric lines. In click-through mode an always-on-top button sits next to the lock. Cover accent colors look better. Songs you uploaded to Apple Music now play."
+      }
+    },
     "v0_7_28": {
       "intro": "Welcome to 0.7.28, the Mimiambol Update—a major update. It adds the cinema hall scene, a new app icon, window controls on either side, and new options for several lyric styles.",
       "scenes": {
