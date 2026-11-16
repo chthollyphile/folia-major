@@ -107,38 +107,41 @@ function RadioBackdrop({ metrics, rail, anchor, word, entering }: RadioBackdropP
             {/* 转的是包着 SVG 的这一层，不是 SVG 里的 <g>：SVG 内部元素的 transform 不交给合成器，转动时每帧都要把
                 整幅同心圆重画、重新光栅化一遍，正好压在卡牌翻开放大的那一段上，翻牌就卡。 */}
             <motion.div className="lattice-radio-waves-turn" style={{ rotate: turn, transformOrigin: origin }}>
-                <svg className="lattice-radio-waves" width="100%" height="100%">
-                    {WAVE_SCALES.map((scale, index) => (
-                        <circle key={scale} cx={center.x} cy={center.y} r={metrics.radius * scale}
-                            className={index % 2 === 0 ? 'is-dashed' : undefined}
-                            style={{ animationDelay: `${120 + index * 70}ms` }} />
-                    ))}
-                    {WAVE_SCALES.flatMap((scale, index) => (ORBIT_DOTS[index] ?? []).map((degrees, dot) => {
-                        const angle = degrees * Math.PI / 180;
-                        const r = metrics.radius * scale;
-                        // 每道电波上的第二颗点大一号；最里面那道的第一颗用强调色（整幅里很小的一处）。
-                        const className = index === 0 && dot === 0 ? 'is-accent' : dot === 1 ? 'is-large' : undefined;
-                        return (
-                            <circle key={`${scale}:${degrees}`} className={`lattice-radio-orbit-dot ${className ?? ''}`}
-                                cx={center.x + r * Math.sin(angle)} cy={center.y - r * Math.cos(angle)}
-                                r={dot === 1 ? 4 : 2.5} style={{ animationDelay: `${300 + index * 70}ms` }} />
-                        );
-                    }))}
-                    {/* 上半屏的几道轨道：虚实相间，比下面的电波更淡；信号包在 RadioOrbits 的 canvas 上沿着它们走。 */}
-                    {upperRings.map((r, index) => (
-                        <circle key={`upper:${index}`} cx={center.x} cy={center.y} r={r}
-                            className={`is-upper ${index % 2 === 1 ? 'is-dashed' : ''}`}
-                            style={{ animationDelay: `${200 + index * 90}ms` }} />
-                    ))}
-                    {upperRings.flatMap((r, index) => (UPPER_RING_DOTS[index] ?? []).map((degrees, dot) => {
-                        const angle = degrees * Math.PI / 180;
-                        return (
-                            <circle key={`upper:${index}:${degrees}`} className={`lattice-radio-orbit-dot ${dot === 1 ? 'is-large' : ''}`}
-                                cx={center.x + r * Math.sin(angle)} cy={center.y - r * Math.cos(angle)}
-                                r={dot === 1 ? 3.5 : 2} style={{ animationDelay: `${360 + index * 90}ms` }} />
-                        );
-                    }))}
-                </svg>
+                {/* 整组一起淡入、从圆心往外略微放大（RadioWall.css 的 lattice-radio-waves-in），动的是这一层 HTML：
+                    交给合成器，不重画。不给 SVG 里的圆和点各自做动画：SVG 内部元素的动画 WebKit 不交给合成器，
+                    一圈圈错开淡入的那一两秒里 iOS Safari 每帧都要把整屏的电波重画一遍，从别的页面进来时就掉帧。 */}
+                <div className="lattice-radio-waves-in" style={{ transformOrigin: origin }}>
+                    <svg className="lattice-radio-waves" width="100%" height="100%">
+                        {WAVE_SCALES.map((scale, index) => (
+                            <circle key={scale} cx={center.x} cy={center.y} r={metrics.radius * scale}
+                                className={index % 2 === 0 ? 'is-dashed' : undefined} />
+                        ))}
+                        {WAVE_SCALES.flatMap((scale, index) => (ORBIT_DOTS[index] ?? []).map((degrees, dot) => {
+                            const angle = degrees * Math.PI / 180;
+                            const r = metrics.radius * scale;
+                            // 每道电波上的第二颗点大一号；最里面那道的第一颗用强调色（整幅里很小的一处）。
+                            const className = index === 0 && dot === 0 ? 'is-accent' : dot === 1 ? 'is-large' : undefined;
+                            return (
+                                <circle key={`${scale}:${degrees}`} className={`lattice-radio-orbit-dot ${className ?? ''}`}
+                                    cx={center.x + r * Math.sin(angle)} cy={center.y - r * Math.cos(angle)}
+                                    r={dot === 1 ? 4 : 2.5} />
+                            );
+                        }))}
+                        {/* 上半屏的几道轨道：虚实相间，比下面的电波更淡；信号包在 RadioOrbits 的 canvas 上沿着它们走。 */}
+                        {upperRings.map((r, index) => (
+                            <circle key={`upper:${index}`} cx={center.x} cy={center.y} r={r}
+                                className={`is-upper ${index % 2 === 1 ? 'is-dashed' : ''}`} />
+                        ))}
+                        {upperRings.flatMap((r, index) => (UPPER_RING_DOTS[index] ?? []).map((degrees, dot) => {
+                            const angle = degrees * Math.PI / 180;
+                            return (
+                                <circle key={`upper:${index}:${degrees}`} className={`lattice-radio-orbit-dot ${dot === 1 ? 'is-large' : ''}`}
+                                    cx={center.x + r * Math.sin(angle)} cy={center.y - r * Math.cos(angle)}
+                                    r={dot === 1 ? 3.5 : 2} />
+                            );
+                        }))}
+                    </svg>
+                </div>
             </motion.div>
             <RadioOrbits
                 metrics={metrics}

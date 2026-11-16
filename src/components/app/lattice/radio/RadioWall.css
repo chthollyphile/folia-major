@@ -41,8 +41,15 @@
     fill: none;
     stroke: color-mix(in srgb, var(--radio-ink) 13%, transparent);
     stroke-width: 1.5;
-    animation: lattice-radio-fade-in 1200ms var(--radio-ease) backwards;
 }
+/* 进场：整组电波一起淡入，同时从圆心往外略微放大（圆心由 RadioBackdrop 给 transform-origin）。只动这一层的
+   opacity 和 transform，由合成器跑；不要改回给 SVG 里的圆、点各自加动画（iOS Safari 上每帧重画整屏，见 RadioBackdrop）。 */
+.lattice-radio-waves-in {
+    position: absolute;
+    inset: 0;
+    animation: lattice-radio-waves-in 1200ms var(--radio-ease) 120ms backwards;
+}
+@keyframes lattice-radio-waves-in { from { opacity: 0; transform: scale(0.96); } }
 /* 卡牌沿轨道移动时整组同心圆跟着转（转角由轨道直接给）。转的是 SVG 外面这一层，常驻合成层：同心圆只在尺寸变时
    光栅化一次，转动由合成器跑。不常驻的话每次开转都要升层、整幅重新光栅化，转完降层再来一遍，两次都落在卡牌翻开
    放大的那几帧里。 */
