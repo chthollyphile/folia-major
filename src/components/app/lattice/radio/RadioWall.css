@@ -6,8 +6,12 @@
     inset: 0;
     overflow: clip;
     outline: none;
-    /* 横着拖动浏览卡片：触屏上横向手势交给页面自己处理（不当成浏览器的滚动或返回手势）。 */
-    touch-action: pan-y;
+    /* 拖动浏览卡片：触屏上的手势都交给页面自己处理（不当成浏览器的滚动、缩放或返回手势；和队列墙的
+       .lattice-field 一样）。双击播放也靠它：不留双击缩放，浏览器才把两下轻点当成双击送过来。
+       iOS 上卡牌的 3D 层不一定认这一条，RadioWall 另外在 touchmove 上拦着。 */
+    touch-action: none;
+    /* 长按封面不弹系统菜单。 */
+    -webkit-touch-callout: none;
     transition: opacity 260ms ease;
 }
 
@@ -37,8 +41,15 @@
     fill: none;
     stroke: color-mix(in srgb, var(--radio-ink) 13%, transparent);
     stroke-width: 1.5;
-    animation: lattice-radio-fade-in 1200ms var(--radio-ease) backwards;
 }
+/* 进场：整组电波一起淡入，同时从圆心往外略微放大（圆心由 RadioBackdrop 给 transform-origin）。只动这一层的
+   opacity 和 transform，由合成器跑；不要改回给 SVG 里的圆、点各自加动画（iOS Safari 上每帧重画整屏，见 RadioBackdrop）。 */
+.lattice-radio-waves-in {
+    position: absolute;
+    inset: 0;
+    animation: lattice-radio-waves-in 1200ms var(--radio-ease) 120ms backwards;
+}
+@keyframes lattice-radio-waves-in { from { opacity: 0; transform: scale(0.96); } }
 /* 卡牌沿轨道移动时整组同心圆跟着转（转角由轨道直接给）。转的是 SVG 外面这一层，常驻合成层：同心圆只在尺寸变时
    光栅化一次，转动由合成器跑。不常驻的话每次开转都要升层、整幅重新光栅化，转完降层再来一遍，两次都落在卡牌翻开
    放大的那几帧里。 */
@@ -282,11 +293,61 @@
     -webkit-backface-visibility: hidden;
 }
 
-/* 卡是印在这张图上的，不是浮在上面：不投影、不加高光，外框只是一道墨色发丝线（和背景的线条同一套）。
+/* 卡是印在这张图上的，不是浮在上面：不投影、不加高光、没有外框线，四角外侧是制图那样的对位标记
+   （.lattice-radio-card-marks），卡垂一根台线落在电台带上（.lattice-radio-station）。
    正在播放那张也不用强调色的描边（队列墙海报的 .is-current::before）：「这张在播」交给上方的指针。 */
-.lattice-root .lattice-radio .lattice-radio-face.is-front {
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text-primary, #f7f4ee) 16%, transparent);
+.lattice-root .lattice-radio .lattice-radio-face.is-front { box-shadow: none; }
+
+/* 四角的对位标记：每个角两道短线（L 形），离卡边留一点空，背景的电波从空隙里穿过。 */
+.lattice-radio-card-marks {
+    --radio-mark: color-mix(in srgb, var(--text-primary, #f7f4ee) 40%, transparent);
+    --radio-mark-arm: 10px;
+    position: absolute;
+    inset: -8px;
+    pointer-events: none;
+    background:
+        linear-gradient(var(--radio-mark), var(--radio-mark)) left top / var(--radio-mark-arm) 1px no-repeat,
+        linear-gradient(var(--radio-mark), var(--radio-mark)) left top / 1px var(--radio-mark-arm) no-repeat,
+        linear-gradient(var(--radio-mark), var(--radio-mark)) right top / var(--radio-mark-arm) 1px no-repeat,
+        linear-gradient(var(--radio-mark), var(--radio-mark)) right top / 1px var(--radio-mark-arm) no-repeat,
+        linear-gradient(var(--radio-mark), var(--radio-mark)) left bottom / var(--radio-mark-arm) 1px no-repeat,
+        linear-gradient(var(--radio-mark), var(--radio-mark)) left bottom / 1px var(--radio-mark-arm) no-repeat,
+        linear-gradient(var(--radio-mark), var(--radio-mark)) right bottom / var(--radio-mark-arm) 1px no-repeat,
+        linear-gradient(var(--radio-mark), var(--radio-mark)) right bottom / 1px var(--radio-mark-arm) no-repeat;
 }
+
+/* 台线：从卡的下沿中点垂到电台带上，末端一个点。长度由 RadioCard 按轨道逐帧给（线是 1px 高的一段按 scaleY
+   拉长，点按 translateY 挪下去），只动 transform。正在播放那张被浏览到一边时，它的点用强调色。 */
+.lattice-radio-station {
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    pointer-events: none;
+}
+.lattice-radio-station > i { position: absolute; display: block; }
+.lattice-radio-station-line {
+    top: 0;
+    left: -0.5px;
+    width: 1px;
+    height: 1px;
+    transform-origin: 50% 0;
+    background: color-mix(in srgb, var(--text-primary, #f7f4ee) 30%, transparent);
+}
+.lattice-radio-station-dot {
+    top: -3px;
+    left: -3px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--text-primary, #f7f4ee) 62%, transparent);
+}
+.lattice-radio-card.is-now .lattice-radio-station-dot { background: var(--text-accent, #fd5c47); }
+
+/* 电台带：比别的电波亮一档的实线。 */
+.lattice-radio-waves circle.is-band { stroke: color-mix(in srgb, var(--radio-ink) 24%, transparent); stroke-width: 1; }
+
 .lattice-root .lattice-radio .lattice-poster.is-current::before {
     border-color: transparent;
     box-shadow: none;
@@ -341,7 +402,7 @@
 .lattice-radio-card.is-played.is-focused .lattice-radio-face.is-front,
 .lattice-radio-card.is-played:hover .lattice-radio-face.is-front { filter: none; }
 
-/* 浏览到正中的别的歌：右下角一枚播放记号。 */
+/* 浏览到正中的别的歌：右下角一枚播放按钮。 */
 .lattice-radio-play-hint {
     position: absolute;
     right: 6%;
@@ -352,9 +413,11 @@
     aspect-ratio: 1;
     place-items: center;
     border-radius: 50%;
+    padding: 0;
+    border: 0;
     color: var(--bg-color, #070707);
     background: var(--text-primary, #f7f4ee);
-    pointer-events: none;
+    cursor: pointer;
 }
 .lattice-radio-play-hint svg { width: 42%; height: 42%; fill: currentColor; }
 
@@ -376,7 +439,6 @@
     background:
         radial-gradient(circle at 66% 32%, color-mix(in srgb, var(--lattice-radio-tint) 55%, #fff) 0%, transparent 62%),
         linear-gradient(150deg, color-mix(in srgb, var(--lattice-radio-tint) 70%, #000), color-mix(in srgb, var(--lattice-radio-tint) 32%, #000));
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text-primary, #f7f4ee) 14%, transparent);
     transition: filter 300ms ease, --lattice-radio-tint 900ms ease;
 }
 .lattice-radio-face.is-back > span { position: absolute; inset: 0; }

@@ -79,18 +79,22 @@ export type RadioCoverTint = { settled: boolean; color: string | null; veil: str
 const PENDING: RadioCoverTint = { settled: false, color: null, veil: null };
 const NONE: RadioCoverTint = { settled: true, color: null, veil: null };
 
-export const useRadioCoverTint = (coverUrl: string | undefined): RadioCoverTint => {
+/**
+ * `deferred`：先不取样（取过的照常给），之后再取。取样要从画布读回像素、再编码一张缩略图，都在主线程上同步做，
+ * 电台墙打开时那一波浮上来的时候不做。
+ */
+export const useRadioCoverTint = (coverUrl: string | undefined, { deferred = false }: { deferred?: boolean } = {}): RadioCoverTint => {
     const sample = useWallPosterArtwork(coverUrl, SAMPLE_SIZE_PX);
     const [result, setResult] = useState<{ url: string; sample: CoverSample } | null>(null);
 
     useEffect(() => {
-        if (!sample || samples.has(sample)) return;
+        if (!sample || samples.has(sample) || deferred) return;
         let cancelled = false;
         void sampleCover(sample).then(value => {
             if (!cancelled) setResult({ url: sample, sample: value });
         });
         return () => { cancelled = true; };
-    }, [sample]);
+    }, [deferred, sample]);
 
     if (!sample) return NONE;
     const known = samples.get(sample) ?? (result?.url === sample ? result.sample : null);

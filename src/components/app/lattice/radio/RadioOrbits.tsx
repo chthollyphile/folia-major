@@ -27,8 +27,11 @@ const MAX_PIXEL_RATIO = 1.5;
 const PACKETS_PER_RING = 2;
 const PACKET_LENGTH_PX = 64;
 const PACKET_SPEED_PX = [16, 24, 20] as const;
-/** 尾巴分几段画（越往后越淡）。 */
-const PACKET_SEGMENTS = 6;
+/**
+ * 尾巴从尾到头的不透明度（乘在墨色自己的透明度上）：一整段弧沿着它连续渐变，越往后越淡，头上最亮。
+ * 不分段画：分几段各取一个透明度时亮度一档一档地跳，段与段的圆头接缝处还叠出亮点，看着一节一节的。
+ */
+const PACKET_TAIL_STOPS = [[0, 0], [0.35, 0.1], [0.7, 0.3], [1, 0.58]] as const;
 
 /** 发射点的电波：从发射点半径的几倍扩到几倍、用多久（s）；两圈至少隔多久，最多多久补一圈（ms）。 */
 const RIPPLE_FROM = 0.33;
@@ -85,10 +88,21 @@ function RadioOrbits({ metrics, rail, playing, reducedMotion, transmitterRef }: 
         let lastRipple = elapsedRef.current;
         let bassAverage = 0;
 
+        // 尾巴的渐变要按透明度给色标，墨色是 CSS 算出来的任意写法（可能是 color-mix 的结果）：在一块 1×1 的
+        // 画布上涂一下读回 RGBA。只在读颜色时做（挂上、尺寸变、播放中每 COLOR_REFRESH_FRAMES 帧）。
+        const swatch = document.createElement('canvas').getContext('2d', { willReadFrequently: true });
+        // 尾巴渐变的色标（位置、颜色），随墨色在 readColors 里算好，每帧只建渐变。
+        let tailStops: [number, string][] = PACKET_TAIL_STOPS.map(([at, alpha]) => [at, `rgba(247, 244, 238, ${alpha})`]);
         const readColors = () => {
             const style = getComputedStyle(canvas);
             ink = style.color || ink;
             accent = style.getPropertyValue('--radio-accent').trim() || accent;
+            if (!swatch) return;
+            swatch.clearRect(0, 0, 1, 1);
+            swatch.fillStyle = ink;
+            swatch.fillRect(0, 0, 1, 1);
+            const [r, g, b, a] = swatch.getImageData(0, 0, 1, 1).data;
+            tailStops = PACKET_TAIL_STOPS.map(([at, alpha]) => [at, `rgba(${r}, ${g}, ${b}, ${alpha * a / 255})`]);
         };
 
         const measure = () => {
@@ -127,14 +141,19 @@ function RadioOrbits({ metrics, rail, playing, reducedMotion, transmitterRef }: 
                     const base = (packet / PACKETS_PER_RING + index * 0.37) * sweep;
                     const travelled = (((base + seconds * speed) % sweep) + sweep) % sweep;
                     const head = (direction > 0 ? travelled - span : span - travelled) + turn;
-                    for (let segment = 0; segment < PACKET_SEGMENTS; segment += 1) {
-                        const from = head - direction * length * (1 - segment / PACKET_SEGMENTS);
-                        const to = head - direction * length * (1 - (segment + 1) / PACKET_SEGMENTS);
-                        context.globalAlpha = 0.08 + 0.5 * ((segment + 1) / PACKET_SEGMENTS) ** 2;
-                        context.beginPath();
-                        context.arc(center.x, center.y, radius, toCanvasAngle(Math.min(from, to)), toCanvasAngle(Math.max(from, to)));
-                        context.stroke();
-                    }
+                    const tail = head - direction * length;
+                    // 一段弧不长（64px，轨道半径几百 px 起），几乎是直的：沿尾到头的直线铺渐变就够了。
+                    const gradient = context.createLinearGradient(
+                        center.x + radius * Math.sin(tail), center.y - radius * Math.cos(tail),
+                        center.x + radius * Math.sin(head), center.y - radius * Math.cos(head),
+                    );
+                    for (const [at, color] of tailStops) gradient.addColorStop(at, color);
+                    context.globalAlpha = 1;
+                    context.strokeStyle = gradient;
+                    context.beginPath();
+                    context.arc(center.x, center.y, radius, toCanvasAngle(Math.min(tail, head)), toCanvasAngle(Math.max(tail, head)));
+                    context.stroke();
+                    context.strokeStyle = ink;
                     context.globalAlpha = 0.75;
                     context.beginPath();
                     context.arc(center.x + radius * Math.sin(head), center.y - radius * Math.cos(head), 2.2, 0, Math.PI * 2);

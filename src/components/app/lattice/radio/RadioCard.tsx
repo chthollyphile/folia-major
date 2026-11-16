@@ -13,7 +13,7 @@ import { useLatticeExpansionSettled } from '../useLatticeExpansionSettled';
 import { prewarmLatticeLyrics } from '../lyrics/prewarmLatticeLyrics';
 import { useRadioCoverTint } from './useRadioCoverTint';
 import { useRadioCardTilt } from './useRadioCardTilt';
-import { radioCardRect, radioRedactionWidths, type RadioCardRole, type RadioMetrics } from './radioWallModel';
+import { radioCardRect, radioRedactionWidths, radioStationDrop, type RadioCardRole, type RadioMetrics } from './radioWallModel';
 import { RADIO_NOW_ATTR } from './useRadioWallHandoff';
 
 // src/components/app/lattice/radio/RadioCard.tsx
@@ -53,19 +53,21 @@ type RadioCardProps = {
     entry: RadioCardEntry;
     /** 轨道停稳了（不在切歌滑动、拖动、吸附途中）：正中那张的歌词等它停稳再挂。 */
     resting: boolean;
+    /** 打开电台墙时那一波还没跑完：歌词场景和背面取色都等它跑完再起，不和进场动画抢帧。 */
+    entering: boolean;
     /** 正在拖动浏览：卡的倾斜按压收回去。 */
     dragging: boolean;
     pixelRatio: number;
     reducedMotion: boolean;
     /** 播放这一首（私人 FM 里仍在电台里播放）。 */
     onPlay: (tile: LatticeSongTile) => void;
-    /** 双击正在播放的那张：暂停着就继续，从不暂停。 */
+    /** 双击正中这张：播放它；正在播放的那张暂停着就继续，从不暂停。 */
     onPlayFromWall: (tile: LatticeSongTile) => void;
     onTogglePlayback: () => void;
     onSeek: (time: number) => void;
     onOpenPlayer: () => void;
-    /** 正在播放那张被浏览到一边时点它：回到它（不重新播放）。 */
-    onCenter: () => void;
+    /** 单击（或回车）一张不在正中的卡：把它带到正中（只是浏览，不播放；正在播放那张就是回到它）。 */
+    onBrowse: (offset: number) => void;
 };
 
 const FLIP_TRANSITION = { duration: 0.55, ease: [0.4, 0, 0.2, 1] as const };
@@ -99,6 +101,7 @@ function RadioCard({
     revealed,
     entry,
     resting,
+    entering,
     dragging,
     pixelRatio,
     reducedMotion,
@@ -107,7 +110,7 @@ function RadioCard({
     onTogglePlayback,
     onSeek,
     onOpenPlayer,
-    onCenter,
+    onBrowse,
 }: RadioCardProps) {
     const { t } = useTranslation();
     const isNow = role === 'now';
@@ -122,6 +125,10 @@ function RadioCard({
     const width = useTransform(rail, value => place(value).width);
     const height = useTransform(rail, value => place(value).height);
     const rotate = useTransform(rail, value => place(value).rotate);
+    // 台线（这张卡垂到电台带上的那根线和末端的点）：长度逐帧从轨道算，端点始终落在电台带上；短到几像素以下就淡掉
+    // （卡滑到正中、下沿越过电台带时）。只动 transform 和 opacity。
+    const stationDrop = useTransform(rail, value => radioStationDrop(place(value), metrics));
+    const stationOpacity = useTransform(stationDrop, drop => Math.min(1, drop / 6));
     // 停稳之后这张卡的外框：封面按它要清晰度，标题按它排版。
     const rest = radioCardRect(slot, metrics);
     // 已经正面朝上的卡升为正在播放时翻半圈：外面单独一层（lattice-radio-card-spin）先转到侧立（±90°），
@@ -172,15 +179,17 @@ function RadioCard({
     const [settled, onAnimationComplete] = useLatticeExpansionSettled(expanded, reducedMotion);
     // 卡长大不再是这张卡自己的动画（是轨道在动）：轨道从动到停的那一刻也算长完。只认「动 → 停」，打开时轨道本来
     // 就是停着的，那时仍等浮入动画结束。
-    const restedRef = useRef(resting);
+    // 打开时那一波跑完之前也算没停稳：歌词场景（WebGL、着色器、量字）留到它之后再挂。
+    const rests = resting && !entering;
+    const restedRef = useRef(rests);
     useEffect(() => {
-        if (resting && !restedRef.current) onAnimationComplete();
-        restedRef.current = resting;
-    }, [onAnimationComplete, resting]);
-    const showsLyrics = expanded && settled && resting && !dragging;
+        if (rests && !restedRef.current) onAnimationComplete();
+        restedRef.current = rests;
+    }, [onAnimationComplete, rests]);
+    const showsLyrics = expanded && settled && rests && !dragging;
     const coverUrl = useWallPosterArtwork(tile.coverUrl, Math.max(rest.width, rest.height) * pixelRatio);
     // 背面：取样回来之前是中性色，回来后颜色过渡过去，不硬切；取不到时退回按 id 算的颜色、没有模糊封面。
-    const cover = useRadioCoverTint(tile.coverUrl);
+    const cover = useRadioCoverTint(tile.coverUrl, { deferred: entering });
     const tint = cover.settled ? cover.color ?? fallbackTint(tile.id) : null;
     const redaction = radioRedactionWidths(tile.title, tile.artist);
 
@@ -206,33 +215,36 @@ function RadioCard({
             opacity: { duration: 0.28, delay: entry.kind === 'opening' ? entry.delay : 0 },
         };
 
+    // 和队列墙的海报一样（LatticePoster 的 handleClick / handleDoubleClick，wallDoubleClick 的判定）：单击只把卡
+    // 带到正中，双击才播放，而且两下都要点在同一张卡上。双击的第一下点在不在正中的卡上时只记一个空记号：这一下把卡
+    // 带到正中，这次双击不播放（第二下多半落在滑过来的别的卡上，也不播放）；在正中的卡上双击才播放。
     const pressKey = `lattice-radio:${tile.id}`;
     const handleClick = (event: MouseEvent<HTMLElement>) => {
         const onControl = event.target instanceof Element && Boolean(event.target.closest('button, input'));
-        noteWallPress(event, onControl ? '' : pressKey);
+        noteWallPress(event, onControl || !focused ? '' : pressKey);
         if (onControl) return;
-        // 连击的后几下落在了别的卡上（第一下让这一行滑动了，比如点了被浏览到一边的正在播放那张）：不算点这张，
-        // 免得双击一下就播放了滑到指针底下的另一首。
+        // 连击的后几下落在了别的卡上（第一下让这一行滑动了）：不算点这张，不把这一行又带走。
         if (event.detail > 1 && !isWallDoubleClickOn(pressKey)) return;
         if (expanded) chrome.toggleTouch();
-        else if (isNow) onCenter();
-        else onPlay(tile);
+        else if (!focused) onBrowse(offset);
+        // 读屏器、语音控制的「激活」不是指针点下去的（detail 为 0），没有双击可用：正中这张就当回车，播放它。
+        else if (event.detail === 0) onPlay(tile);
     };
     const handleDoubleClick = (event: MouseEvent<HTMLElement>) => {
-        if (!expanded || (event.target instanceof Element && event.target.closest('button, input'))) return;
-        if (isWallDoubleClickOn(pressKey)) onPlayFromWall(tile);
+        if (event.target instanceof Element && event.target.closest('button, input')) return;
+        // 记号可能是早先在正中时留下的（之后点了空白处、或两下之间切了歌把它挪走）：此刻也得在正中。
+        if (focused && isWallDoubleClickOn(pressKey)) onPlayFromWall(tile);
     };
     const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
         if (event.target !== event.currentTarget || event.repeat) return;
-        // 卡只用回车（播放这一首 / 暂停继续正在播放的）。空格留给全局的播放 / 暂停：点过一张卡之后焦点停在卡上，
-        // 卡要是把空格吃掉，空格就暂停不了了。
+        // 卡只用回车（和队列墙的海报一样：第一下带到正中，第二下播放这一首 / 暂停继续正在播放的）。空格留给全局的
+        // 播放 / 暂停：点过一张卡之后焦点停在卡上，卡要是把空格吃掉，空格就暂停不了了。
         if (event.key === 'Enter') {
             event.preventDefault();
             event.stopPropagation();
-            // 和点击一致：正中的正在播放那张是暂停 / 继续，被浏览到一边时是回到它。
             if (expanded) onTogglePlayback();
-            else if (isNow) onCenter();
-            else onPlay(tile);
+            else if (focused) onPlay(tile);
+            else onBrowse(offset);
         }
     };
 
@@ -300,8 +312,10 @@ function RadioCard({
                                     </span>
                                 )}
                                 {focused && !isNow && revealed && (
-                                    // 浏览到正中的别的歌：右下角一枚播放记号（整张卡就是按钮，点哪都播放）。
-                                    <span className="lattice-radio-play-hint" aria-hidden><Play /></span>
+                                    // 浏览到正中的别的歌：右下角一枚播放按钮，点一下就播放（和队列墙展开海报上的播放键对应）；
+                                    // 双击整张卡、按回车也播放。
+                                    <button type="button" className="lattice-radio-play-hint" aria-label={t('player.play')}
+                                        title={t('player.play')} onClick={event => { if (event.detail < 2) onPlay(tile); }}><Play /></button>
                                 )}
                                 {expanded && (
                                     <div className="lattice-poster-controls">
@@ -334,6 +348,12 @@ function RadioCard({
                         </motion.div>
                     </div>
                 </motion.div>
+                {/* 四角的对位标记（代替卡面的发丝线外框），在倾斜层外面：按下时卡往里压，框不动。 */}
+                <span className="lattice-radio-card-marks" aria-hidden />
+                <motion.span className="lattice-radio-station" style={{ opacity: stationOpacity }} aria-hidden>
+                    <motion.i className="lattice-radio-station-line" style={{ scaleY: stationDrop }} />
+                    <motion.i className="lattice-radio-station-dot" style={{ y: stationDrop }} />
+                </motion.span>
             </motion.div>
         </motion.div>
     );

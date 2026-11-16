@@ -37,7 +37,8 @@ import './RadioWall.css';
 // src/components/app/lattice/radio/RadioWall.tsx
 // 电台墙：Lattice 的第二种形态（私人 FM 下总是它），播放队列画成一圈带轻微弧度的卡牌（radioWallModel.ts 定哪几张、
 // 摆在哪）。正在播放的那张在中间揭开；接下来的几首在私人 FM 里（或设置要求时）背面朝上。往前走时，右边补发新卡，
-// 左边最旧的那张翻回背面销毁。点一张卡就播放它：私人 FM 里仍在电台里播放（不变成普通队列）。
+// 左边最旧的那张翻回背面销毁。手势和队列墙一样：单击一张卡把它带到正中（只看不播），双击才播放它：私人 FM 里
+// 仍在电台里播放（不变成普通队列）。
 // 卡都排在一条「轨道」上（rail，一个 MotionValue）：切歌是轨道滑到新的正在播放那张；左右浏览（拖动、滚轮、方向键）
 // 是轨道滑到别的卡，只看不播——不切歌、不为浏览去向电台要新歌（只在这一行已有的卡之间走），背面朝上的卡浏览到正中
 // 也不翻开。拖动时轨道直接跟手，不经过 React。
@@ -60,6 +61,12 @@ type RadioWallProps = {
 };
 
 const OPENING_STAGGER_S = 0.08;
+/**
+ * 打开时那一波（整行一张张浮上来，最后一张起步晚 OPENING_STAGGER_S × 5）多久算跑完：之前歌词场景、背面取色、
+ * 背景的动画循环都先不起。它们都是一次性的重活（歌词场景要建 WebGL、编译着色器、量字，取色要从画布读回像素），
+ * 从资料库墙翻牌进来时正好压在翻牌和这一波上，iOS Safari 上就掉帧。
+ */
+const OPENING_SETTLE_MS = 1300;
 /** 轨道滑动（切歌、浏览、松手吸附）的弹簧：和原来每张卡各自滑动时一样。 */
 const RAIL_SPRING = { type: 'spring' as const, stiffness: 240, damping: 30, mass: 0.9 };
 /**
@@ -68,7 +75,10 @@ const RAIL_SPRING = { type: 'spring' as const, stiffness: 240, damping: 30, mass
  */
 const RAIL_JUMP_STEPS = 6;
 const RAIL_JUMP_LANDING = 3;
-/** 指针横着挪过这么远才算拖动（之前仍是点击，卡照常倾斜按压）。 */
+/**
+ * 指针挪过这么远才算拖动（之前仍是点击，卡照常倾斜按压），和队列墙一样按直线距离算（useWallPointerPan）：
+ * 斜着、竖着划过去的也不再落成一次点击。轨道只跟横向的位移。
+ */
 const DRAG_START_PX = 8;
 /** 拖得不到半格就松手、但拖过这么远：也算往那边走一格（甩一下）。 */
 const FLING_PX = 48;
@@ -95,7 +105,10 @@ type DragState = {
     startY: number;
     /** 开始拖动那一刻的轨道位置。 */
     from: number;
+    /** 挪过了阈值：这次按下不再是点击（松手的 click 吞掉）。 */
     active: boolean;
+    /** 横着也挪过了阈值：轨道开始跟手（才算浏览，正中那张收起歌词）。只竖着划的不碰轨道。 */
+    railing: boolean;
 };
 
 export default function RadioWall({
@@ -252,6 +265,17 @@ export default function RadioWall({
     useEffect(() => {
         if (dealt) setOpening(false);
     }, [dealt]);
+    // 这一波还没跑完（见 OPENING_SETTLE_MS）。降低动态效果时没有这一波，一发出来就算完。
+    const [entering, setEntering] = useState(true);
+    useEffect(() => {
+        if (!dealt) return;
+        if (reducedMotion) {
+            setEntering(false);
+            return;
+        }
+        const timer = window.setTimeout(() => setEntering(false), OPENING_SETTLE_MS);
+        return () => window.clearTimeout(timer);
+    }, [dealt, reducedMotion]);
 
     // ---------- 浏览：拖动 ----------
     const dragRef = useRef<DragState | null>(null);
@@ -263,9 +287,9 @@ export default function RadioWall({
         if (dragRef.current?.active && dragRef.current.pointerId !== event.pointerId) return;
         swallowClickRef.current = false;
         if (!metrics || (event.pointerType === 'mouse' && event.button !== 0)) return;
-        // 进度条（原生 range）和回到正在播放的按钮自己处理指针。
-        if (event.target instanceof Element && event.target.closest('input, [role="slider"]')) return;
-        dragRef.current = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, from: rail.get(), active: false };
+        // 控件（按钮、进度条等）自己处理指针，和队列墙一样（useWallPointerPan）：从上面按下不拖墙。
+        if (event.target instanceof Element && event.target.closest('button, input, select, textarea, a, [contenteditable="true"], [role="slider"]')) return;
+        dragRef.current = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, from: rail.get(), active: false, railing: false };
     };
     // 结束一次拖动：吸附到最近的一张（甩一下至少走一格）。released 为 false 时（指针被系统收走、松手落在墙外
     // 没收到 pointerup）不吞点击、不算甩：之后不会再有这次按下的 click。
@@ -273,6 +297,7 @@ export default function RadioWall({
         dragRef.current = null;
         if (!drag.active) return;
         swallowClickRef.current = released;
+        if (!drag.railing) return;
         const dx = clientX - drag.startX;
         const start = Math.round(drag.from - anchor);
         let next = Math.round(rail.get() - anchor);
@@ -290,15 +315,18 @@ export default function RadioWall({
             return;
         }
         if (!drag.active) {
-            const dx = event.clientX - drag.startX;
-            if (Math.abs(dx) < DRAG_START_PX || Math.abs(dx) < Math.abs(event.clientY - drag.startY)) return;
-            // 真的在横着拖了才接管指针：只是点一下的话，点击照常落到卡和按钮上。
+            if (Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) < DRAG_START_PX) return;
+            // 真的在拖了才接管指针：只是点一下的话，点击照常落到卡和按钮上。
             drag.active = true;
+            event.currentTarget.setPointerCapture(event.pointerId);
+        }
+        if (!drag.railing) {
+            if (Math.abs(event.clientX - drag.startX) < DRAG_START_PX) return;
+            drag.railing = true;
             railAnimation.current?.stop();
             railAnimation.current = null;
             // 起点仍是按下的那一点和那时的轨道位置：快速拖动时生效前已经挪了一大截，不能丢（真实的鼠标在 8px 左右
             // 就生效，看不出跳动）。
-            event.currentTarget.setPointerCapture(event.pointerId);
             setDragging(true);
             setResting(false);
         }
@@ -311,16 +339,35 @@ export default function RadioWall({
         finishDrag(drag, event.clientX, event.type === 'pointerup');
     };
     // 拖动途中指针被收走（切走窗口等）：按松手处理，不让 dragging 卡住。正常松手时 pointerup 先到、已经收尾。
+    // 只认墙自己的（和队列墙 PosterWall 一样）：触屏按下时指针隐式捕获在按到的卡上，开始拖动时墙把捕获接过来，
+    // 卡上冒上来的那次 lostpointercapture 不是拖动被打断——认了它，手指落在封面上就一拖即停。
     const handleLostPointerCapture = (event: PointerEvent<HTMLDivElement>) => {
+        if (event.target !== event.currentTarget) return;
         const drag = dragRef.current;
         if (drag?.pointerId === event.pointerId) finishDrag(drag, event.clientX, false);
     };
     const handleClickCapture = (event: MouseEvent<HTMLDivElement>) => {
-        if (!swallowClickRef.current) return;
+        // 键盘、读屏器的激活（detail 为 0）不是拖动补发的那次 click（同 useWallPointerPan）：触屏拖过之后浏览器不补发
+        // click，记号会一直留到下次按下，不能把它们吞掉。
+        if (!swallowClickRef.current || event.detail === 0) return;
         swallowClickRef.current = false;
         event.stopPropagation();
         event.preventDefault();
     };
+
+    // 触屏：在墙上按下之后的 touchmove 不交给浏览器（不滚动、不当成系统手势），指针事件一直送到这里、不被
+    // pointercancel 截断。CSS 的 touch-action 已经这样说了，这里是给 iOS Safari 的保险：卡牌在几层 3D 变换
+    // （preserve-3d）里，不能指望每个版本都按外层的 touch-action 处理按在卡上的手势。进度条（原生 range）不登记
+    // 按下，照常拖。
+    useEffect(() => {
+        const container = containerRef.current;
+        if (!container) return;
+        const holdTouch = (event: TouchEvent) => {
+            if (dragRef.current && event.cancelable) event.preventDefault();
+        };
+        container.addEventListener('touchmove', holdTouch, { passive: false });
+        return () => container.removeEventListener('touchmove', holdTouch);
+    }, []);
 
     // ---------- 浏览：滚轮（竖着、横着都行；往下、往右是往后） ----------
     const wheelRef = useRef({ sum: 0, lastAt: 0, lockedUntil: 0 });
@@ -356,10 +403,29 @@ export default function RadioWall({
             containerRef.current?.querySelector<HTMLElement>(`[data-radio-card="${offset}"]`)?.focus({ preventScroll: true });
         });
     }, []);
-    // 传给每张卡（正在播放那张被浏览到一边时点它回来），保持同一个函数，卡的 memo 才不会每次都失效。
     const backToNow = useCallback(() => {
         setBrowse(0);
         focusCard(0);
+    }, [focusCard, setBrowse]);
+    // 传给每张卡（单击、回车把它带到正中），保持同一个函数，卡的 memo 才不会每次都失效。
+    const rangeRef = useRef(range);
+    rangeRef.current = range;
+    const cardsRef = useRef(cards);
+    cardsRef.current = cards;
+    const browseTo = useCallback((offset: number) => {
+        const { min, max } = rangeRef.current;
+        let next = offset;
+        if (offset < min || offset > max) {
+            // 列表循环时这一行会多画到浏览范围（绕一圈）以外：点那张就是点它那首歌，带到范围内离它最近的那张。
+            const tileId = cardsRef.current.find(card => card.offset === offset)?.tile.id;
+            const twin = cardsRef.current
+                .filter(card => card.tile.id === tileId && card.offset >= min && card.offset <= max)
+                .sort((a, b) => Math.abs(a.offset - offset) - Math.abs(b.offset - offset))
+                .at(0);
+            next = twin ? twin.offset : clamp(offset, min, max);
+        }
+        setBrowse(next);
+        focusCard(next);
     }, [focusCard, setBrowse]);
 
     // 和海报墙一样（PosterWall 的 publishCurrentPosterVisibility）：正在播放那张停在正中、展开着，它自己带着控制条，
@@ -427,6 +493,7 @@ export default function RadioWall({
                     metrics={metrics}
                     rail={rail}
                     anchor={nowKey === null ? null : anchor}
+                    entering={entering}
                     word={t(isFm ? 'home.latticeRadioBackdropWord' : 'home.latticeRadioBackdropQueueWord')}
                 />
             )}
@@ -452,6 +519,7 @@ export default function RadioWall({
                             revealed={card.role !== 'upcoming' || !hidesUpcoming || seen.has(card.tile.id)}
                             entry={entryFor(card, index)}
                             resting={resting}
+                            entering={entering}
                             dragging={dragging}
                             pixelRatio={pixelRatio}
                             reducedMotion={reducedMotion}
@@ -460,7 +528,7 @@ export default function RadioWall({
                             onTogglePlayback={onTogglePlayback}
                             onSeek={onSeek}
                             onOpenPlayer={onOpenPlayer}
-                            onCenter={backToNow}
+                            onBrowse={browseTo}
                         />
                     );
                 })}

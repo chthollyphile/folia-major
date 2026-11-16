@@ -17,14 +17,21 @@ export function resolveLatticeTypography(input: LatticeLyricInput, width: number
     const weight = resolveThemeFontWeight(input.theme, 600);
     const translationWeight = resolveThemeFontWeight(input.subtitleTheme ?? input.theme, 500);
     const showTranslation = showsLatticeTranslation(input);
-    let fontPx = 24;
-    for (let size = 64; size >= 24; size--) {
+    const fits = (size: number) => {
         const main = measure('国Agyp', `${weight} ${size}px ${family}`);
         const sub = measure('国Agyp', `${translationWeight} ${size * 0.5}px ${translationFamily}`);
         const lineHeight = Math.max(size * 1.18, main.height + 2);
         const budget = lineHeight * (3 + 2 * 0.72) + size * 0.49 * 2 + size * 1.2
             + (showTranslation ? Math.max(size * 0.5 * 1.35, sub.height + 2) * 2 + size * 0.3 : 0);
-        if (budget <= height && main.width * 3 <= Math.max(0, width - size * 1.2)) { fontPx = size; break; }
+        return budget <= height && main.width * 3 <= Math.max(0, width - size * 1.2);
+    };
+    // The largest of 24–64 that fits, by bisection: a bigger size only ever needs more room, and every probe
+    // is two canvas measurements of a font the cache has not seen, which a 41-step walk paid up to 82 times
+    // (on every mount, and again on every resize). Nothing fits: 24.
+    let fontPx = 24;
+    for (let low = 24, high = 64; low <= high;) {
+        const size = (low + high) >> 1;
+        if (fits(size)) { fontPx = size; low = size + 1; } else high = size - 1;
     }
     const font = `${weight} ${fontPx}px ${family}`;
     const translationPx = fontPx * 0.5;

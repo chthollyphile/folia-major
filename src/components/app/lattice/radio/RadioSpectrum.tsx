@@ -15,6 +15,8 @@ const REACH = 0.25;
 /** 每帧向目标靠拢的比例：起得快、落得慢一点，不至于闪。 */
 const RISE = 0.45;
 const FALL = 0.12;
+/** 画布的像素比上限：都是细线，再高只是多传像素（3 倍屏上画布是 2 倍时的 2.25 倍大）。 */
+const MAX_PIXEL_RATIO = 2;
 
 /** 第 i 根短条读的频谱位置（0 = 低频，1 = 高频）：左右对称，低频在正下方，高频在正上方。 */
 const barFrequency = (index: number) => {
@@ -59,7 +61,7 @@ function RadioSpectrum({ playing, reducedMotion }: { playing: boolean; reducedMo
 
         const measure = () => {
             const box = canvas.getBoundingClientRect();
-            ratio = window.devicePixelRatio || 1;
+            ratio = Math.min(MAX_PIXEL_RATIO, window.devicePixelRatio || 1);
             size = Math.min(box.width, box.height);
             canvas.width = Math.max(1, Math.round(box.width * ratio));
             canvas.height = Math.max(1, Math.round(box.height * ratio));
@@ -102,7 +104,8 @@ function RadioSpectrum({ playing, reducedMotion }: { playing: boolean; reducedMo
                 levels[index] += delta * (delta > 0 ? RISE : FALL);
                 if (Math.abs(delta) > 0.002) moving = true;
             }
-            draw();
+            // 短条都没动（分析器没有数据：音频跨域、还没接上）时不重画同一帧：每画一次画布都要整块重新交给合成器。
+            if (moving || frame % 120 === 0) draw();
             // 暂停后缩回静止长度就停，不空转。
             if (playing || moving) raf = requestAnimationFrame(tick);
         };

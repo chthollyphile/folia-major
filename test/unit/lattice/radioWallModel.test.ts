@@ -9,7 +9,11 @@ import {
     radioCardInView,
     radioCardRect,
     radioRedactionWidths,
+    radioStationDrop,
+    radioStationRadius,
+    radioWaveCenter,
     RADIO_CARD_TILT_DEG,
+    RADIO_STATION_TICK_PX,
     resolveRadioMetrics,
 } from '@/components/app/lattice/radio/radioWallModel';
 
@@ -132,6 +136,38 @@ describe('radio wall layout', () => {
         expect(now.x).toBeGreaterThanOrEqual(0);
         expect(now.x + now.width).toBeLessThanOrEqual(375);
     });
+});
+
+describe('radio wall station lines', () => {
+    // 台线的端点：卡下沿中点顺着卡自己的「向下」（跟着倾斜转）走 drop。
+    const endpoint = (offset: number, metrics: ReturnType<typeof resolveRadioMetrics>) => {
+        const rect = radioCardRect(offset, metrics);
+        const theta = rect.rotate * Math.PI / 180;
+        const drop = radioStationDrop(rect, metrics);
+        return {
+            drop,
+            x: rect.x + rect.width / 2 - Math.sin(theta) * (rect.height / 2 + drop),
+            y: rect.y + rect.height / 2 + Math.cos(theta) * (rect.height / 2 + drop),
+        };
+    };
+
+    for (const [label, metrics] of [['wide', resolveRadioMetrics(1600, 900)], ['phone', resolveRadioMetrics(375, 812)]] as const) {
+        it(`hangs every side card on the band, the neighbours by the tick length (${label})`, () => {
+            const center = radioWaveCenter(metrics);
+            const radius = radioStationRadius(metrics);
+            // 台线顺着卡自己的倾斜量，电台带的半径沿径向定：差不到一像素。
+            expect(Math.abs(endpoint(1, metrics).drop - RADIO_STATION_TICK_PX)).toBeLessThan(1);
+            expect(Math.abs(endpoint(-1, metrics).drop - RADIO_STATION_TICK_PX)).toBeLessThan(1);
+            // 正中那张大，下沿在电台带以下：不画台线。
+            expect(endpoint(0, metrics).drop).toBe(0);
+            // 轨道上任意位置（拖动、切歌途中），有台线的卡端点都落在电台带上。
+            for (const offset of [-3, -2.4, -1.5, 1.25, 2, 2.7, 3]) {
+                const end = endpoint(offset, metrics);
+                expect(end.drop).toBeGreaterThan(0);
+                expect(Math.hypot(end.x - center.x, end.y - center.y)).toBeCloseTo(radius, 4);
+            }
+        });
+    }
 });
 
 describe('radio wall cards out of view', () => {
