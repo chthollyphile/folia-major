@@ -6,6 +6,7 @@ import { resolveLyricPixelRatio } from '../../../utils/lyricRenderQuality';
 import { BEAT_EFFECT_IDS } from '../../../services/beatFx/beatEffects';
 import { getBeatEffectStrength, getBeatFxEvents, getBeatFxTrackScale, isBeatFxReady } from '../../../services/beatFx/beatFxLive';
 import type { BeatFxEvent } from '../../../services/beatFx/clock';
+import { whenIdle } from '../../../utils/whenIdle';
 import { createVisualizerRng } from '../visualizerSeedHash';
 import { buildWordColorRangesFromMatchers, prepareWordColorMatchers, resolveTokenColorMap } from '../wordColoring';
 import { snapMetaphorCollisions, writeMetaphorBeatRings } from './metaphorBeatFx';
@@ -44,6 +45,7 @@ import {
     METAPHOR_COLLISION_LIFE,
     METAPHOR_SHAPE_CAPACITY,
     METAPHOR_SHAPE_STRIDE,
+    joinMetaphorShapes,
     planMetaphorShapes,
     planMetaphorCollisions,
     writeMetaphorCollisions,
@@ -93,6 +95,8 @@ interface MetaphorSet {
     snapped?: { from: readonly BeatFxEvent[]; collisions: MetaphorCollision[] };
     mesh: THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial> | null;
     texture: THREE.DataTexture | null;
+    /** 有强调色的字（关键字）：它们的颜色按纸和墨校过、写在几何里，纸墨变了要重建。 */
+    tinted: boolean;
 }
 
 interface MetaphorDebugHook {
@@ -124,6 +128,8 @@ const DEFAULT_WEIGHT = 300;
 const WOBBLE = 0.05;
 /** 提前多久把下一个 cue 备好。 */
 const PREPARE_LEAD = 2.5;
+/** 备下一个 cue 最多等空闲这么久（毫秒），再久就直接建：总要赶在它开始之前。 */
+const PREPARE_IDLE_TIMEOUT = 1000;
 /** 网点格子的基础大小（CSS 像素）。 */
 const DOT_SIZE = 7;
 const DEG = Math.PI / 180;
@@ -185,6 +191,13 @@ export class MetaphorRuntime {
     private audioRaw = false;
     private audioAt = 0;
     private debugTime: number | null = null;
+    /** 正在画的 cue。 */
+    private current = -1;
+    /** 每拆一次套就加一：等空闲时备的那一套靠它认出自己过时了。 */
+    private generation = 0;
+    /** 等着空闲时备的是第几个 cue（-1 是没有），和撤掉它的函数。 */
+    private preparing = -1;
+    private cancelPrepare: (() => void) | null = null;
 
     /** 建运行时并画好第一帧（换样式的过渡等它）。 */
     static async create(options: MetaphorRuntimeOptions) {
@@ -440,9 +453,9 @@ export class MetaphorRuntime {
         (uniforms.uInk.value as THREE.Vector3).fromArray(palette.ink);
         (uniforms.uAccent.value as THREE.Vector3).fromArray(palette.accent);
         (this.shapeMaterial.uniforms.uAccent.value as THREE.Vector3).fromArray(palette.accent);
-        // 关键字的颜色是按纸和墨校过的，写在每个 cue 的几何里：纸墨变了要重建
+        // 关键字的颜色是按纸和墨校过的，写在那个 cue 的几何里：纸墨变了只重建有关键字的（关键字着色关着时一个都没有）
         const key = [...palette.paper, ...palette.ink, ...palette.accent].join(',');
-        if (this.palette && key !== this.paletteKey) this.clearSets();
+        if (this.palette && key !== this.paletteKey) this.dropSets(set => set.tinted);
         this.paletteKey = key;
         this.palette = palette;
         (uniforms.uTone.value as THREE.Vector3).fromArray(palette.tone);
@@ -483,8 +496,37 @@ export class MetaphorRuntime {
     }
 
     private clearSets() {
-        this.sets.forEach(set => this.disposeSet(set));
-        this.sets.clear();
+        this.dropSets(() => true);
+    }
+
+    /** 拆掉符合条件的那几套；等着空闲时备的那一套也撤掉（它是按拆之前的样子排的）。 */
+    private dropSets(which: (set: MetaphorSet) => boolean) {
+        this.sets.forEach((set, index) => {
+            if (!which(set)) return;
+            this.disposeSet(set);
+            this.sets.delete(index);
+        });
+        this.generation += 1;
+        this.cancelPrepare?.();
+        this.cancelPrepare = null;
+        this.preparing = -1;
+    }
+
+    /**
+     * 等页面空下来再备下一个 cue 的那一套：画字形图集（每个新字一次光栅化、回读和十二遍模糊）不占画帧的时间。
+     * 空闲来之前换了分镜、清过、或者拖走了，就不建了（建了会把正在画的那套挤掉）；来不及备的到时候在画帧里现建。
+     */
+    private prepare(cueIndex: number) {
+        if (this.preparing === cueIndex) return;
+        this.cancelPrepare?.();
+        this.preparing = cueIndex;
+        const generation = this.generation;
+        this.cancelPrepare = whenIdle(() => {
+            this.cancelPrepare = null;
+            this.preparing = -1;
+            if (this.disposed || generation !== this.generation || cueIndex !== this.current + 1 || this.sets.has(cueIndex)) return;
+            this.ensureSet(cueIndex);
+        }, PREPARE_IDLE_TIMEOUT);
     }
 
     /** 一个 cue 的那套东西：排版、图集、几何、融球规划。 */
@@ -504,8 +546,8 @@ export class MetaphorRuntime {
         const collisions = planMetaphorCollisions(layout.bounds, rng, this.collisionTimes(cue, layout, rng), this.tuning.blobs, interlude);
         const backdrop = planMetaphorBackdrop(layout.bounds, rng, this.tuning.blobs, interlude, { index: cue.lineIndex + 1, time: cue.singStart });
         const figures = planMetaphorFigures(layout.bounds, rng, this.tuning.blobs, interlude, this.layoutAspect);
-        // 版面的网点在最底下，线稿在最上面（都是加法，先后不影响结果，只是容量满了先丢后面的）
-        const shapes = [...backdrop.shapes, ...blobs, ...figures.shapes];
+        // 版面的网点在最底下，线稿在最上面（都是加法，先后不影响结果，只是容量满了先丢后面的）；小墨滴的 parent 跟着挪
+        const shapes = joinMetaphorShapes(backdrop.shapes, blobs, figures.shapes);
         const notes = layoutMetaphorNotes([...backdrop.notes, ...figures.notes], this.glyphs.measureNote);
         // 字形几何里先是歌词的字，后面是注记的字（注记的开始时间是它冒出来的时刻，结束时间是 NOTE_END）
         const entries = [
@@ -515,7 +557,7 @@ export class MetaphorRuntime {
                 t0: cue.start + note.born, t1: NOTE_END, accent: false, tint: null as string | null, seed: rng(),
             })),
         ];
-        if (entries.length === 0) return { layout, shapes, collisions, mesh: null, texture: null };
+        if (entries.length === 0) return { layout, shapes, collisions, mesh: null, texture: null, tinted: false };
 
         const atlas = buildMetaphorAtlas(this.glyphs, entries.map(entry => entry.key));
         const texture = new THREE.DataTexture(atlas.data, atlas.width, atlas.height, THREE.RGBAFormat, THREE.UnsignedByteType);
@@ -570,7 +612,7 @@ export class MetaphorRuntime {
         geometry.setIndex(indices);
         const mesh = new THREE.Mesh(geometry, this.glyphMaterial);
         mesh.frustumCulled = false;
-        return { layout, shapes, collisions, mesh, texture };
+        return { layout, shapes, collisions, mesh, texture, tinted: layout.glyphs.some(glyph => glyph.accent) };
     }
 
     /**
@@ -665,12 +707,12 @@ export class MetaphorRuntime {
         const safeTime = Number.isFinite(time) ? Math.max(0, time) : 0;
         const cueIndex = findMetaphorCue(this.program, safeTime);
         const cue: MetaphorCue = this.program.cues[cueIndex];
-        const built = !this.sets.has(cueIndex);
+        this.current = cueIndex;
         const set = this.ensureSet(cueIndex);
         this.show(set);
-        // 一帧最多建一个：这一帧没建当前的，才提前备下一个
+        // 下一个快到了：等空闲时备好，不在画帧里建
         const following = cueIndex + 1;
-        if (!built && following < this.program.cues.length && this.program.cues[following].start - safeTime < PREPARE_LEAD && !this.sets.has(following)) this.ensureSet(following);
+        if (following < this.program.cues.length && this.program.cues[following].start - safeTime < PREPARE_LEAD && !this.sets.has(following)) this.prepare(following);
 
         const cueTime = resolveMetaphorCueTime(cue, safeTime);
         const shot = findMetaphorShot(cue, cueTime);
@@ -708,7 +750,11 @@ export class MetaphorRuntime {
         glyph.uWobble.value = WOBBLE * tuning.flow;
         this.shapeMaterial.uniforms.uWobble.value = WOBBLE * tuning.flow;
         this.shapeGeometry.instanceCount = count;
-        this.shapeBuffer.needsUpdate = true;
+        // 只传这一帧写了的那一段
+        if (count > 0) {
+            this.shapeBuffer.addUpdateRange(0, count * METAPHOR_SHAPE_STRIDE);
+            this.shapeBuffer.needsUpdate = true;
+        }
 
         const develop = this.developMaterial.uniforms;
         develop.uTime.value = fluidTime;

@@ -10,7 +10,13 @@ import type { MetaphorGlyph, MetaphorRect } from './metaphorLayout';
 // 线稿（metaphorFigures.ts）也是这里的图形：细线（可以是虚线）、圆弧、波浪线，和融球一起写进同一段实例数据。
 
 export const METAPHOR_SHAPE_STRIDE = 10;
-export const METAPHOR_SHAPE_CAPACITY = 512;
+export const METAPHOR_SHAPE_CAPACITY = 1024;
+/**
+ * 留给每帧现算的那些（字放出的粒子、对撞、拍上的小环）的名额：一个 cue 的规划（版面、融球、线稿）最多写到容量减去它，
+ * 不然规划占满了，最热闹的时候对撞和智能动感的小环反倒被丢掉。三次对撞同时在飞（碎片拉满约 86 个一次）、
+ * 一句四十来个字刚唱完（每个字两颗）、两秒多的拍上小环，加起来不到这么多。
+ */
+export const METAPHOR_DYNAMIC_RESERVE = 384;
 /** 一个 cue 的规划最多这么多个，剩下的留给对撞和字放出的粒子。 */
 const PLAN_LIMIT = 80;
 
@@ -162,7 +168,19 @@ export const planMetaphorShapes = (bounds: MetaphorRect, rng: () => number, amou
     return shapes.slice(0, PLAN_LIMIT);
 };
 
-/** 往实例数据里写一个；满了返回原来的 count。 */
+/**
+ * 几份规划拼成一份。小墨滴的 parent 是它在自己那份里的下标：拼在别的几份后面时要加上前面的长度，
+ * 不然它绕着的是排在前面的别的图形（版面的网点、方格线），会转到字上去。
+ */
+export const joinMetaphorShapes = (...groups: ReadonlyArray<readonly MetaphorShape[]>): MetaphorShape[] => {
+    const joined: MetaphorShape[] = [];
+    for (const group of groups) {
+        const base = joined.length;
+        for (const shape of group) joined.push(shape.parent >= 0 && base > 0 ? { ...shape, parent: shape.parent + base } : shape);
+    }
+    return joined;
+};
+
 /** 往实例数据里写一个图形，返回下一个写在第几个；满了就不写。 */
 export const putMetaphorShape = (
     out: Float32Array, count: number, shape: number, x: number, y: number, sx: number, sy: number, rot: number, ink: number, tone: number, accent: number,
@@ -186,14 +204,17 @@ export const putMetaphorShape = (
 /**
  * 把规划在 time 这一刻的样子写进实例数据，返回写了几个。audio 是 0..1 的音量，flow 是「流体」的倍数（漂移的幅度）。
  * 绕着大墨团转的小墨滴时远时近：近了和大墨团融在一起，远了又断开。since 是 cue 开始了多久：还没到 born 的图形不写。
+ * 最多写 limit 个（默认留出 METAPHOR_DYNAMIC_RESERVE 给后面现算的那些）。
  */
 export const writeMetaphorShapes = (
     shapes: readonly MetaphorShape[], time: number, audio: number, flow: number, out: Float32Array, since = Number.POSITIVE_INFINITY,
+    limit = METAPHOR_SHAPE_CAPACITY - METAPHOR_DYNAMIC_RESERVE,
 ): number => {
     let count = 0;
     const xs: number[] = [];
     const ys: number[] = [];
     for (const shape of shapes) {
+        if (count >= limit) break;
         let x = shape.x + shape.ampX * flow * Math.sin(time * shape.w1 + shape.p1);
         let y = shape.y + shape.ampY * flow * Math.cos(time * shape.w2 + shape.p2);
         if (shape.orbit > 0) {

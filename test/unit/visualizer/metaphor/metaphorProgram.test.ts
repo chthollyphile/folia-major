@@ -141,6 +141,25 @@ describe('compileMetaphorProgram', () => {
         expect(lead.end - lead.start).toBeGreaterThan(3);
     });
 
+    it('一串挨得近的句子：和留下的那句比，去掉的那句不算', () => {
+        const program = compileMetaphorProgram([plainLine(10, 10.2, 'a'), plainLine(10.25, 10.45, 'b'), plainLine(10.5, 12, 'c'), plainLine(20, 22, 'd')], OPTIONS);
+        expect(program.cues.filter(cue => cue.lineIndex >= 0).map(cue => cue.lineIndex)).toEqual([0, 2, 3]);
+    });
+
+    it('改切换快慢、开关反相和转场：cue 的起止和每句的构图都不变', () => {
+        const lines = Array.from({ length: 30 }, (_, index) => timedLine(index * 4 + (index % 5 === 4 ? 40 : 0), [['one ', 1], ['two ', 1], ['three', 1.5]], index % 3 === 1));
+        const shape = (options: MetaphorProgramOptions) => compileMetaphorProgram(lines, options).cues.map(cue => [cue.start, cue.end, cue.lineIndex, cue.composition]);
+        const base = shape(OPTIONS);
+        expect(shape({ ...OPTIONS, transitions: false })).toEqual(base);
+        expect(shape({ ...OPTIONS, negative: false })).toEqual(base);
+        expect(shape({ ...OPTIONS, cutPace: 1.8 })).toEqual(base);
+    });
+
+    it('开关反相不改机位', () => {
+        const kinds = (negative: boolean) => compileMetaphorProgram(SONG, { ...OPTIONS, negative }).cues.map(cue => cue.shots.map(shot => [shot.kind, shot.start]));
+        expect(kinds(false)).toEqual(kinds(true));
+    });
+
     it('没按时间排好的歌词先排序再编', () => {
         const program = compileMetaphorProgram([plainLine(10, 14, 'second'), plainLine(4, 6, 'first'), plainLine(20, 22, 'third')], OPTIONS);
         expect(allFinite(program)).toBe(true);

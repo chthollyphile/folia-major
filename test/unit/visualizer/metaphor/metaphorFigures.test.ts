@@ -12,6 +12,7 @@ import {
     METAPHOR_SHAPE_ARC,
     METAPHOR_SHAPE_BAR,
     METAPHOR_SHAPE_BLOB,
+    METAPHOR_DYNAMIC_RESERVE,
     METAPHOR_SHAPE_CAPACITY,
     METAPHOR_SHAPE_STRIDE,
     METAPHOR_SHAPE_WAVE,
@@ -190,12 +191,12 @@ describe('writeMetaphorShapes 写线稿', () => {
         expect(angles[2] - angles[1]).toBeCloseTo(1);
     });
 
-    it('版面、融球、线稿加起来不超过容量的八成（剩下的留给对撞和字放出的粒子）', () => {
+    it('版面、融球、线稿加起来放得进规划的名额（容量减去留给对撞和字放出的粒子的那些），不会被截掉', () => {
         for (const interlude of [false, true]) {
             const total = planMetaphorBackdrop(bounds, createVisualizerRng('cap'), 2, interlude, { index: 1, time: 0 }).shapes.length
                 + planMetaphorShapes(bounds, createVisualizerRng('cap'), 2, interlude).length
                 + planMetaphorFigures(bounds, createVisualizerRng('cap'), 2, interlude).shapes.length;
-            expect(total).toBeLessThan(METAPHOR_SHAPE_CAPACITY * 0.8);
+            expect(total).toBeLessThanOrEqual(METAPHOR_SHAPE_CAPACITY - METAPHOR_DYNAMIC_RESERVE);
         }
     });
 });

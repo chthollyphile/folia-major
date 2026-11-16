@@ -20,10 +20,13 @@ import type { MetaphorCue, MetaphorProgram, MetaphorShot, MetaphorShotKind } fro
 import {
     METAPHOR_COLLISION_APPROACH,
     METAPHOR_COLLISION_LIFE,
+    METAPHOR_DYNAMIC_RESERVE,
     METAPHOR_SHAPE_CAPACITY,
     METAPHOR_SHAPE_STRIDE,
+    joinMetaphorShapes,
     planMetaphorCollisions,
     planMetaphorShapes,
+    staticMetaphorShape,
     writeMetaphorCollisions,
     writeMetaphorPairs,
     writeMetaphorShapes,
@@ -516,5 +519,34 @@ describe('关键字的颜色进排版', () => {
     it('不给颜色时没有强调墨', () => {
         const layout = buildMetaphorLayout({ tokens: buildMetaphorTextTokens('light falls here', 1), composition: 'block', measure, rng: createVisualizerRng('tints') });
         expect(layout.glyphs.some(glyph => glyph.accent)).toBe(false);
+    });
+});
+
+describe('joinMetaphorShapes / 容量', () => {
+    const bounds = { x0: -3, y0: -1, x1: 3, y1: 1 };
+    const front = Array.from({ length: 7 }, (_, index) => staticMetaphorShape(2, { x: index }));
+
+    it('拼在别的规划后面时，小墨滴还是绕着自己的大墨团', () => {
+        const blobs = planMetaphorShapes(bounds, createVisualizerRng('join'), 1, false);
+        const joined = joinMetaphorShapes(front, blobs);
+        blobs.forEach((shape, index) => {
+            const moved = joined[front.length + index];
+            if (shape.parent < 0) expect(moved).toBe(shape);
+            else expect(joined[moved.parent]).toBe(blobs[shape.parent]);
+        });
+        expect(blobs.some(shape => shape.parent >= 0)).toBe(true);
+        // 写出来的位置和单独写融球时一样（只是排在后面）
+        const alone = new Float32Array(METAPHOR_SHAPE_CAPACITY * METAPHOR_SHAPE_STRIDE);
+        const together = new Float32Array(METAPHOR_SHAPE_CAPACITY * METAPHOR_SHAPE_STRIDE);
+        const count = writeMetaphorShapes(blobs, 12.3, 0, 1, alone);
+        writeMetaphorShapes(joined, 12.3, 0, 1, together);
+        expect(Array.from(together.subarray(front.length * METAPHOR_SHAPE_STRIDE, (front.length + count) * METAPHOR_SHAPE_STRIDE)))
+            .toEqual(Array.from(alone.subarray(0, count * METAPHOR_SHAPE_STRIDE)));
+    });
+
+    it('规划写到容量减去留给对撞和小环的名额为止', () => {
+        const many = Array.from({ length: METAPHOR_SHAPE_CAPACITY }, (_, index) => staticMetaphorShape(0, { x: index }));
+        const data = new Float32Array(METAPHOR_SHAPE_CAPACITY * METAPHOR_SHAPE_STRIDE);
+        expect(writeMetaphorShapes(many, 0, 0, 1, data)).toBe(METAPHOR_SHAPE_CAPACITY - METAPHOR_DYNAMIC_RESERVE);
     });
 });

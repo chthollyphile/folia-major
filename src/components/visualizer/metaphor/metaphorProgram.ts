@@ -129,7 +129,9 @@ interface ShotContext {
 const makeShot = (context: ShotContext, start: number, end: number, kind: MetaphorShotKind): MetaphorShot => {
     const { rng } = context;
     const chance = context.negative ? (context.chorus ? 0.34 : 0.2) : 0;
-    const invert = context.inverted < 2 && rng() < chance;
+    // 先取随机数再判断：开关反相、连着几个反相都不改后面取到的数，机位不跟着变
+    const roll = rng();
+    const invert = context.inverted < 2 && roll < chance;
     context.inverted = invert ? context.inverted + 1 : 0;
     context.lastKind = kind;
     let angle = SCREEN_ANGLES[Math.floor(rng() * SCREEN_ANGLES.length)];
@@ -202,9 +204,32 @@ const pickTransition = (rng: () => number, enabled: boolean, intoChorus: boolean
         : pick<MetaphorTransition>(rng, { cut: 5.5, flood: 1.5, smash: 1.2 });
 };
 
-/** 整首编成分镜表。lines 为空（纯音乐、还没歌词）时整首是一段一段的间奏，曲名在第一段上。 */
+/** 按开唱时间排（同时的保持原来的先后），去掉和前一句（留下的那句）几乎同时开唱的、只有标点的。 */
+const sungLines = (lines: readonly Line[]) => {
+    const kept: Array<{ line: Line; lineIndex: number }> = [];
+    lines
+        .map((line, lineIndex) => ({ line, lineIndex }))
+        // 只有标点的句子（「......」这种间奏的占位）不算歌词：那一段归间奏
+        .filter(({ line }) => /[\p{L}\p{N}]/u.test(line.fullText) && Number.isFinite(line.startTime))
+        .sort((a, b) => a.line.startTime - b.line.startTime || a.lineIndex - b.lineIndex)
+        .forEach((entry) => {
+            // 和留下的上一句比：去掉的那句不算，不然一串挨得近的句子会一句接一句全被去掉
+            const previous = kept.at(-1);
+            if (!previous || entry.line.startTime - previous.line.startTime >= SAME_ONSET) kept.push(entry);
+        });
+    return kept;
+};
+
+/**
+ * 整首编成分镜表。lines 为空（纯音乐、还没歌词）时整首是一段一段的间奏，曲名在第一段上。
+ * 构图、转场、间奏的切点、镜头各用自己的一串随机数：改切换快慢、开关反相或转场时，只有那一样跟着变，
+ * 各句的构图（屏上正在唱的那句的排法）不动。
+ */
 export const compileMetaphorProgram = (lines: readonly Line[], options: MetaphorProgramOptions): MetaphorProgram => {
     const rng = createVisualizerRng(`metaphor:${options.seed}`);
+    const composeRng = createVisualizerRng(`metaphor:${options.seed}:compose`);
+    const transitionRng = createVisualizerRng(`metaphor:${options.seed}:transition`);
+    const splitRng = createVisualizerRng(`metaphor:${options.seed}:split`);
     const pace = options.cutPace * (INTENSITY_PACE[options.intensity] ?? 1);
     const context: ShotContext = { rng, negative: options.negative, chorus: false, inverted: 0, lastKind: null, lastAngle: -1 };
     const cues: MetaphorCue[] = [];
@@ -216,7 +241,7 @@ export const compileMetaphorProgram = (lines: readonly Line[], options: Metaphor
         cues.push({
             lineIndex: -1, start, end, singStart: start, singEnd: end, composition: 'block',
             shots: interludeShots(context, start, shotsEnd, pace),
-            transition: cues.length === 0 ? 'cut' : pickTransition(rng, options.transitions, false),
+            transition: cues.length === 0 ? 'cut' : pickTransition(transitionRng, options.transitions, false),
             chorus: false, text, loop,
         });
     };
@@ -229,20 +254,15 @@ export const compileMetaphorProgram = (lines: readonly Line[], options: Metaphor
         const count = length > INTERLUDE_SPLIT ? Math.round(length / INTERLUDE_SEGMENT) : 1;
         let from = start;
         for (let index = 1; index <= count; index += 1) {
-            const to = index === count ? stop : start + (length * index) / count + (rng() - 0.5) * 6;
+            const to = index === count ? stop : start + (length * index) / count + (splitRng() - 0.5) * 6;
             pushInterludeCue(from, to, index === 1 ? text : '');
             from = to;
         }
         if (endless) pushInterludeCue(stop, Number.POSITIVE_INFINITY, '', LOOP_SECONDS);
     };
 
-    // 按开唱时间排（同时的保持原来的先后），再去掉和前一句几乎同时开唱的：不然先来的那句会被后一句挤得一帧都不剩
-    const sung = lines
-        .map((line, lineIndex) => ({ line, lineIndex }))
-        // 只有标点的句子（「......」这种间奏的占位）不算歌词：那一段归间奏
-        .filter(({ line }) => /[\p{L}\p{N}]/u.test(line.fullText) && Number.isFinite(line.startTime))
-        .sort((a, b) => a.line.startTime - b.line.startTime || a.lineIndex - b.lineIndex)
-        .filter(({ line }, order, all) => order === 0 || line.startTime - all[order - 1].line.startTime >= SAME_ONSET);
+    // 去掉和前一句几乎同时开唱的：不然先来的那句会被后一句挤得一帧都不剩
+    const sung = sungLines(lines);
     if (sung.length === 0) {
         pushInterlude(0, Number.POSITIVE_INFINITY, title);
         return { cues };
@@ -265,9 +285,9 @@ export const compileMetaphorProgram = (lines: readonly Line[], options: Metaphor
         const end = nextBegin - hold >= INTERLUDE_MIN ? hold : Math.max(nextBegin, start);
         if (end - start < MIN_CUE) return;
         const chorus = Boolean(line.isChorus);
-        const transition = cues.length === 0 ? 'cut' : pickTransition(rng, options.transitions, chorus && !context.chorus);
+        const transition = cues.length === 0 ? 'cut' : pickTransition(transitionRng, options.transitions, chorus && !context.chorus);
         context.chorus = chorus;
-        composition = pickComposition(rng, line.fullText, composition);
+        composition = pickComposition(composeRng, line.fullText, composition);
         const cue: MetaphorCue = {
             lineIndex, start, end, singStart: line.startTime, singEnd, composition, shots: [], transition, chorus, text: '', loop: 0,
         };
