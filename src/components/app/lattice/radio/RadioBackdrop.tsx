@@ -5,7 +5,7 @@ import { useLatticeTransport } from '../LatticeTransportContext';
 import { useReducedMotionFor } from '../../../../hooks/useReducedMotionFor';
 import RadioOrbits from './RadioOrbits';
 import RadioSpectrum from './RadioSpectrum';
-import { RADIO_WAVE_TURN_DEG, radioCardRect, radioUpperRings, radioWaveCenter, type RadioMetrics } from './radioWallModel';
+import { RADIO_WAVE_TURN_DEG, radioCardRect, radioStationRadius, radioUpperRings, radioWaveCenter, type RadioMetrics } from './radioWallModel';
 
 // src/components/app/lattice/radio/RadioBackdrop.tsx
 // 电台墙底下的几何构图（只是装饰，屏幕阅读器跳过）。手法同搜索页的至上主义构图（search.css）：墨条、斜线小方块、
@@ -112,6 +112,8 @@ function RadioBackdrop({ metrics, rail, anchor, word, entering }: RadioBackdropP
                     一圈圈错开淡入的那一两秒里 iOS Safari 每帧都要把整屏的电波重画一遍，从别的页面进来时就掉帧。 */}
                 <div className="lattice-radio-waves-in" style={{ transformOrigin: origin }}>
                     <svg className="lattice-radio-waves" width="100%" height="100%">
+                        {/* 电台带：每张卡的台线落在这道弧上（RadioCard）。 */}
+                        <circle className="is-band" cx={center.x} cy={center.y} r={radioStationRadius(metrics)} />
                         {WAVE_SCALES.map((scale, index) => (
                             <circle key={scale} cx={center.x} cy={center.y} r={metrics.radius * scale}
                                 className={index % 2 === 0 ? 'is-dashed' : undefined} />

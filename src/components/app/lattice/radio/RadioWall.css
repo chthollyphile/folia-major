@@ -293,11 +293,61 @@
     -webkit-backface-visibility: hidden;
 }
 
-/* 卡是印在这张图上的，不是浮在上面：不投影、不加高光，外框只是一道墨色发丝线（和背景的线条同一套）。
+/* 卡是印在这张图上的，不是浮在上面：不投影、不加高光、没有外框线，四角外侧是制图那样的对位标记
+   （.lattice-radio-card-marks），卡垂一根台线落在电台带上（.lattice-radio-station）。
    正在播放那张也不用强调色的描边（队列墙海报的 .is-current::before）：「这张在播」交给上方的指针。 */
-.lattice-root .lattice-radio .lattice-radio-face.is-front {
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text-primary, #f7f4ee) 16%, transparent);
+.lattice-root .lattice-radio .lattice-radio-face.is-front { box-shadow: none; }
+
+/* 四角的对位标记：每个角两道短线（L 形），离卡边留一点空，背景的电波从空隙里穿过。 */
+.lattice-radio-card-marks {
+    --radio-mark: color-mix(in srgb, var(--text-primary, #f7f4ee) 40%, transparent);
+    --radio-mark-arm: 10px;
+    position: absolute;
+    inset: -8px;
+    pointer-events: none;
+    background:
+        linear-gradient(var(--radio-mark), var(--radio-mark)) left top / var(--radio-mark-arm) 1px no-repeat,
+        linear-gradient(var(--radio-mark), var(--radio-mark)) left top / 1px var(--radio-mark-arm) no-repeat,
+        linear-gradient(var(--radio-mark), var(--radio-mark)) right top / var(--radio-mark-arm) 1px no-repeat,
+        linear-gradient(var(--radio-mark), var(--radio-mark)) right top / 1px var(--radio-mark-arm) no-repeat,
+        linear-gradient(var(--radio-mark), var(--radio-mark)) left bottom / var(--radio-mark-arm) 1px no-repeat,
+        linear-gradient(var(--radio-mark), var(--radio-mark)) left bottom / 1px var(--radio-mark-arm) no-repeat,
+        linear-gradient(var(--radio-mark), var(--radio-mark)) right bottom / var(--radio-mark-arm) 1px no-repeat,
+        linear-gradient(var(--radio-mark), var(--radio-mark)) right bottom / 1px var(--radio-mark-arm) no-repeat;
 }
+
+/* 台线：从卡的下沿中点垂到电台带上，末端一个点。长度由 RadioCard 按轨道逐帧给（线是 1px 高的一段按 scaleY
+   拉长，点按 translateY 挪下去），只动 transform。正在播放那张被浏览到一边时，它的点用强调色。 */
+.lattice-radio-station {
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    pointer-events: none;
+}
+.lattice-radio-station > i { position: absolute; display: block; }
+.lattice-radio-station-line {
+    top: 0;
+    left: -0.5px;
+    width: 1px;
+    height: 1px;
+    transform-origin: 50% 0;
+    background: color-mix(in srgb, var(--text-primary, #f7f4ee) 30%, transparent);
+}
+.lattice-radio-station-dot {
+    top: -3px;
+    left: -3px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--text-primary, #f7f4ee) 62%, transparent);
+}
+.lattice-radio-card.is-now .lattice-radio-station-dot { background: var(--text-accent, #fd5c47); }
+
+/* 电台带：比别的电波亮一档的实线。 */
+.lattice-radio-waves circle.is-band { stroke: color-mix(in srgb, var(--radio-ink) 24%, transparent); stroke-width: 1; }
+
 .lattice-root .lattice-radio .lattice-poster.is-current::before {
     border-color: transparent;
     box-shadow: none;
@@ -389,7 +439,6 @@
     background:
         radial-gradient(circle at 66% 32%, color-mix(in srgb, var(--lattice-radio-tint) 55%, #fff) 0%, transparent 62%),
         linear-gradient(150deg, color-mix(in srgb, var(--lattice-radio-tint) 70%, #000), color-mix(in srgb, var(--lattice-radio-tint) 32%, #000));
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text-primary, #f7f4ee) 14%, transparent);
     transition: filter 300ms ease, --lattice-radio-tint 900ms ease;
 }
 .lattice-radio-face.is-back > span { position: absolute; inset: 0; }

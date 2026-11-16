@@ -300,6 +300,49 @@ export const radioWaveCenter = (metrics: RadioMetrics) => ({
     y: metrics.centerY + metrics.radius + metrics.sideDrop,
 });
 
+/** 电台带（radioStationRadius）落在紧挨着正中那张的卡下沿以下多远（px）：那张卡的台线就这么长。 */
+export const RADIO_STATION_TICK_PX = 14;
+
+/** 卡的下沿中点和卡自己的「向下」方向（跟着卡的倾斜转）。 */
+const cardBottom = (rect: RadioRect) => {
+    const theta = rect.rotate * Math.PI / 180;
+    const down = { x: -Math.sin(theta), y: Math.cos(theta) };
+    return {
+        x: rect.x + rect.width / 2 + down.x * rect.height / 2,
+        y: rect.y + rect.height / 2 + down.y * rect.height / 2,
+        down,
+    };
+};
+
+/**
+ * 电台带：和电波同心的一道弧，从两边卡牌的下面穿过（正中那张大，弧在它背后穿过），每张卡垂一根台线落在上面，
+ * 卡就像刻度盘上的一个个台。半径按紧挨着正中那张的卡定：它的下沿往下 RADIO_STATION_TICK_PX。
+ */
+export const radioStationRadius = (metrics: RadioMetrics) => {
+    const center = radioWaveCenter(metrics);
+    const bottom = cardBottom(slotRect(1, metrics));
+    return Math.hypot(bottom.x - center.x, bottom.y - center.y) - RADIO_STATION_TICK_PX;
+};
+
+/**
+ * 一张卡的台线有多长（px）：从卡的下沿中点顺着卡自己的「向下」走到电台带上。卡的下沿已经在电台带以下（正中那张）
+ * 时为 0，那张卡不画台线。rect 可以是轨道上任意位置（拖动、切歌途中），台线的端点始终落在电台带上。
+ */
+export const radioStationDrop = (rect: RadioRect, metrics: RadioMetrics) => {
+    const center = radioWaveCenter(metrics);
+    const radius = radioStationRadius(metrics);
+    const { x, y, down } = cardBottom(rect);
+    // |bottom + t·down − center| = radius，取最小的正根：从卡下沿往下第一次碰到电台带。
+    const px = x - center.x;
+    const py = y - center.y;
+    const b = down.x * px + down.y * py;
+    const c = px * px + py * py - radius * radius;
+    if (c <= 0) return 0;
+    const disc = b * b - c;
+    if (disc < 0) return 0;
+    return Math.max(0, -b - Math.sqrt(disc));
+};
+
 /** 卡牌每走一格，同心圆、刻度、上部轨道跟着转的角度（度）。 */
 export const RADIO_WAVE_TURN_DEG = 3;
 

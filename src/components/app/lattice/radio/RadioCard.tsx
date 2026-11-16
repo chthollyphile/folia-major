@@ -13,7 +13,7 @@ import { useLatticeExpansionSettled } from '../useLatticeExpansionSettled';
 import { prewarmLatticeLyrics } from '../lyrics/prewarmLatticeLyrics';
 import { useRadioCoverTint } from './useRadioCoverTint';
 import { useRadioCardTilt } from './useRadioCardTilt';
-import { radioCardRect, radioRedactionWidths, type RadioCardRole, type RadioMetrics } from './radioWallModel';
+import { radioCardRect, radioRedactionWidths, radioStationDrop, type RadioCardRole, type RadioMetrics } from './radioWallModel';
 import { RADIO_NOW_ATTR } from './useRadioWallHandoff';
 
 // src/components/app/lattice/radio/RadioCard.tsx
@@ -125,6 +125,10 @@ function RadioCard({
     const width = useTransform(rail, value => place(value).width);
     const height = useTransform(rail, value => place(value).height);
     const rotate = useTransform(rail, value => place(value).rotate);
+    // 台线（这张卡垂到电台带上的那根线和末端的点）：长度逐帧从轨道算，端点始终落在电台带上；短到几像素以下就淡掉
+    // （卡滑到正中、下沿越过电台带时）。只动 transform 和 opacity。
+    const stationDrop = useTransform(rail, value => radioStationDrop(place(value), metrics));
+    const stationOpacity = useTransform(stationDrop, drop => Math.min(1, drop / 6));
     // 停稳之后这张卡的外框：封面按它要清晰度，标题按它排版。
     const rest = radioCardRect(slot, metrics);
     // 已经正面朝上的卡升为正在播放时翻半圈：外面单独一层（lattice-radio-card-spin）先转到侧立（±90°），
@@ -343,6 +347,12 @@ function RadioCard({
                         </motion.div>
                     </div>
                 </motion.div>
+                {/* 四角的对位标记（代替卡面的发丝线外框），在倾斜层外面：按下时卡往里压，框不动。 */}
+                <span className="lattice-radio-card-marks" aria-hidden />
+                <motion.span className="lattice-radio-station" style={{ opacity: stationOpacity }} aria-hidden>
+                    <motion.i className="lattice-radio-station-line" style={{ scaleY: stationDrop }} />
+                    <motion.i className="lattice-radio-station-dot" style={{ y: stationDrop }} />
+                </motion.span>
             </motion.div>
         </motion.div>
     );
