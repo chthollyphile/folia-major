@@ -227,6 +227,22 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
         return () => cancelAnimationFrame(frame);
     }, [isCompact, isCompactSearchOpen]);
 
+    // 点搜索框与历史面板以外的地方就把搜索层收回去（和点那颗 × 一样）。用 pointerdown 而不是 click：
+    // 指针落在别处（例如海报、页签）时先收起，那一下不会同时被当成「先点搜索框、再点别处」。
+    // 历史面板挂在表单里，所以按「在不在表单内」判断；搜索钮自己不算外面，否则点它等于先收再开。
+    useEffect(() => {
+        if (!isCompact || !isCompactSearchOpen) return undefined;
+        const handlePointerDown = (event: PointerEvent) => {
+            const target = event.target;
+            if (!(target instanceof Node)) return;
+            if (target instanceof Element && target.closest('[data-home-search-layer]')) return;
+            setIsCompactSearchOpen(false);
+            setIsSearchHistoryOpen(false);
+        };
+        document.addEventListener('pointerdown', handlePointerDown, true);
+        return () => document.removeEventListener('pointerdown', handlePointerDown, true);
+    }, [isCompact, isCompactSearchOpen]);
+
     useEffect(() => {
         setFocusedIndex(0);
     }, [activeProviderId, activeUser?.id]);
@@ -359,7 +375,7 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                     style={{ transform: isCompact && isCompactSearchOpen ? 'translateX(-100%)' : 'translateX(0)' }}
                 >
                     {/* Left title and settings */}
-                    <div className="flex min-w-0 items-center justify-start overflow-hidden">
+                    <div className="flex min-w-0 items-center justify-start">
                         {/* 紧凑档（窗口窄于 960）页头一行放不下五颗胶囊，Folia 标题让位给它们：这里只留
                             设置与队列拼贴。桌面档照旧。 */}
                         {!isCompact && (
@@ -512,18 +528,20 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                     </div>
 
                     {/* Right Search Bar */}
-                    <div className="flex min-w-0 items-center justify-end overflow-hidden">
+                    <div className="flex min-w-0 items-center justify-end">
                         {isCompact ? (
                             // 紧凑档收着的时候这里只有一颗圆钮：点开之后整条页头交给搜索层（见下面），
                             // 这一排按钮一起向左滑出去。
                             <button
                                 type="button"
-                                onClick={() => setIsCompactSearchOpen(true)}
+                                onClick={() => setIsCompactSearchOpen(open => !open)}
+                                data-home-search-layer
                                 title={t('home.searchButton')}
                                 aria-label={t('home.searchButton')}
                                 aria-expanded={isCompactSearchOpen}
                                 data-testid="home-search-toggle"
-                                className={`relative flex shrink-0 items-center justify-center p-2 rounded-full hover:bg-white/10 transition-all ${isSearchingActive ? 'opacity-90' : 'opacity-40 hover:opacity-100'}`}                            >
+                                className={`relative flex shrink-0 items-center justify-center p-2 rounded-full hover:bg-white/10 transition-all ${isSearchingActive ? 'opacity-90' : 'opacity-40 hover:opacity-100'}`}
+                            >
                                 {isSearchingActive
                                     ? <Loader2 size={20} className="animate-spin" style={{ color: 'var(--text-primary)' }} />
                                     : <Search size={20} style={{ color: 'var(--text-primary)' }} />}
@@ -531,6 +549,7 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                         ) : (
                         <form
                             onSubmit={handleSearch}
+                            data-home-search-layer
                             className="relative w-full transition-all md:w-56 focus-within:md:w-72"
                             onBlur={event => {
                                 // 焦点离开整块（连面板一起）才收起，点到面板里的标签不算离开。
@@ -606,6 +625,7 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                     >
                         <form
                             onSubmit={handleSearch}
+                            data-home-search-layer
                             className={`relative h-10 w-full rounded-full ${inputBg} border border-white/10`}
                         >
                             {isSearchingActive ? (
