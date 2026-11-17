@@ -219,6 +219,10 @@ const plannedPose = ({ shot, layout, time, aspect, motion }: MetaphorPoseInput):
 /** 正在唱的字跑出这一圈（视口半宽半高的几成）就切；切过去把它摆进更里面的一圈，机位蠕动一阵也不会马上又出去。 */
 const KEEP_OUT = 0.97;
 const KEEP_IN = 0.9;
+/** 算出来要挪的比这还小（画面短边的几成）就不切：这么小的硬切看着像画面抖了一下，字也只差一点点。 */
+const MIN_SHIFT = 0.06;
+/** 这几种镜头切过去时连同后面紧接着要唱、还装得下的词一起摆进画里，不然一个词一切。 */
+const LOOK_AHEAD = new Set<MetaphorShot['kind']>(['close', 'pushin']);
 /** 没有唱的时长（逐句歌词的字、曲名卡）的字，开唱后这么久内仍算在唱。 */
 const MIN_SUNG = 0.3;
 
@@ -253,6 +257,31 @@ const frame = (pose: MetaphorPose, rect: MetaphorRect, aspect: number, inner: nu
         }
     }
     return { half, low, high };
+};
+
+/** rect 整个（不论摆在哪）装不装得进视口的 inner 那一圈。 */
+const fitsWithin = (pose: MetaphorPose, rect: MetaphorRect, aspect: number, inner: number) => {
+    const { half, low, high } = frame(pose, rect, aspect, inner);
+    return high[0] - low[0] <= 2 * half[0] && high[1] - low[1] <= 2 * half[1];
+};
+
+/**
+ * 切过去时要摆进画里的范围：正在唱的词，特写和冲镜再连同紧接着要唱（按开唱先后）、在这一段的机位里还装得下的几个词。
+ * 只摆当前这个词的话它总落在画边上，下一个词一开唱就又出去。
+ */
+const placeTarget = (shot: MetaphorShot, order: readonly SungUnit[], unit: SungUnit, poses: readonly MetaphorPose[], aspect: number): MetaphorRect => {
+    if (!LOOK_AHEAD.has(shot.kind)) return unit;
+    let target: MetaphorRect = unit;
+    for (let index = order.indexOf(unit) + 1; index < order.length; index += 1) {
+        const next = order[index];
+        const grown = {
+            x0: Math.min(target.x0, next.x0), y0: Math.min(target.y0, next.y0),
+            x1: Math.max(target.x1, next.x1), y1: Math.max(target.y1, next.y1),
+        };
+        if (!poses.every(pose => fitsWithin(pose, grown, aspect, KEEP_IN))) break;
+        target = grown;
+    }
+    return target;
 };
 
 /**
@@ -305,6 +334,8 @@ interface KeepTrack {
     units: readonly SungUnit[];
     /** 大特写对准的那个词：它本来就只框得下一个字，唱它的时候不守（别的镜头是 null）。 */
     skip: SungUnit | null;
+    /** 词按开唱先后排（留位置时往后数）。 */
+    order: readonly SungUnit[];
     times: number[];
     next: number;
     /** 上一个检查点上分镜机位去掉蠕动后的样子：和它不一样说明分镜自己在这一刻跳了。 */
@@ -323,7 +354,7 @@ const trackFor = (input: MetaphorPoseInput): KeepTrack => {
         && time >= (track.next > 0 ? track.times[track.next - 1] : shot.start)) return track;
     const units = layout.words;
     const anchor = shot.kind === 'macro' ? macroWord(layout, shot) : -1;
-    const fresh: KeepTrack = { shot, aspect, motion, units, skip: anchor >= 0 ? units[anchor] : null, times: checkpoints(shot, units), next: 0, still: null, shiftX: 0, shiftY: 0 };
+    const fresh: KeepTrack = { shot, aspect, motion, units, skip: anchor >= 0 ? units[anchor] : null, order: [...units].sort((a, b) => a.t0 - b.t0), times: checkpoints(shot, units), next: 0, still: null, shiftX: 0, shiftY: 0 };
     tracks.set(layout, fresh);
     return fresh;
 };
@@ -364,9 +395,13 @@ const advance = (track: KeepTrack, input: MetaphorPoseInput) => {
     const later = until > at ? plannedPose({ ...input, time: until }) : planned;
     if (!outside(shiftPose(planned, track.shiftX, track.shiftY), unit, aspect, need)
         && !outside(shiftPose(later, track.shiftX, track.shiftY), unit, aspect, need)) return;
-    // 出画了：照分镜的机位还在画里就切回去，不然挪到刚好摆进去；挪完到那一段末尾还会出去，就按末尾的机位摆
-    fitShift(planned, unit, aspect, KEEP_IN, need);
+    // 出画了：照分镜的机位还在画里就切回去，不然挪到刚好摆进去（特写、冲镜连同后面装得下的词）；
+    // 挪完到那一段末尾还会出去，就按末尾的机位只摆这个词
+    fitShift(planned, placeTarget(shot, track.order, unit, [planned, later], aspect), aspect, KEEP_IN, need);
     if (outside(shiftPose(later, need.x, need.y), unit, aspect, { x: 0, y: 0 })) fitShift(later, unit, aspect, KEEP_IN, need);
+    // 要挪的太小就不切（按画面短的那条边算：竖屏的窄边上一点点也可能就是出画）
+    const visible = 2 * planned.distance * Math.tan((planned.fov * Math.PI) / 360) * Math.min(1, aspect);
+    if (Math.hypot(need.x - track.shiftX, need.y - track.shiftY) < MIN_SHIFT * visible) return;
     track.shiftX = need.x;
     track.shiftY = need.y;
 };

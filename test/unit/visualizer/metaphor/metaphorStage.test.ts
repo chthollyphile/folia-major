@@ -153,9 +153,13 @@ const sungLayout = (text: string, composition: MetaphorComposition): MetaphorLay
     });
 };
 
-/** 机位看到的区域里装不装得下 rect（转过滚转）；比视口还大的一边要中心在画里。 */
-const inView = (pose: { x: number; y: number; distance: number; roll: number }, rect: { x0: number; y0: number; x1: number; y1: number }, aspect: number) => {
+/**
+ * 机位看到的区域里装不装得下 rect（转过滚转）；比视口还大的一边要中心在画里。
+ * slack：允许多出画面短边的几成（要挪的太小就不切，字可以出去这么一点）。
+ */
+const inView = (pose: { x: number; y: number; distance: number; roll: number }, rect: { x0: number; y0: number; x1: number; y1: number }, aspect: number, slack = 0) => {
     const halfHeight = pose.distance * Math.tan((METAPHOR_FOV * Math.PI) / 360);
+    const extra = 2 * halfHeight * Math.min(1, aspect) * slack;
     const half = [halfHeight * aspect, halfHeight];
     const cos = Math.cos(pose.roll);
     const sin = Math.sin(pose.roll);
@@ -167,8 +171,8 @@ const inView = (pose: { x: number; y: number; distance: number; roll: number }, 
     return [0, 1].every((axis) => {
         const low = Math.min(...along.map(point => point[axis]));
         const high = Math.max(...along.map(point => point[axis]));
-        if (high - low > 2 * half[axis]) return Math.abs((low + high) / 2) <= half[axis];
-        return low >= -half[axis] - 1e-9 && high <= half[axis] + 1e-9;
+        if (high - low > 2 * half[axis]) return Math.abs((low + high) / 2) <= half[axis] + extra;
+        return low >= -half[axis] - extra - 1e-9 && high <= half[axis] + extra + 1e-9;
     });
 };
 
@@ -275,7 +279,8 @@ describe('resolveMetaphorPose', () => {
                         for (const time of [unit.t0, (unit.t0 + unit.t1) / 2, unit.t1 - 0.02]) {
                             // 冲镜跳格的那一下还在远处，落定以后才算
                             if (kind === 'pushin' && time < 0.5 + 0.48) continue;
-                            expect(inView(at(time), unit, aspect)).toBe(true);
+                            // 出画也不超过画面短边的 6%（再小就不切）
+                            expect(inView(at(time), unit, aspect, 0.06)).toBe(true);
                         }
                     }
                     // 两个开唱时刻之间不滑
@@ -381,6 +386,48 @@ describe('resolveMetaphorPose', () => {
                 }
             }
         }
+    });
+
+    it.each(['wide', 'dutch', 'void'] as const)('%s：要挪的比画面短边的百分之六还小就不切', (kind) => {
+        const sung = sungLayout('Somewhere beyond the quiet harbour lights we wait for the tide to turn', 'scatter');
+        const bare = { ...sung, words: [], glyphs: [] };
+        for (const aspect of [16 / 9, 1, 9 / 16]) {
+            for (const [roll, offsetX, motion] of [[0, 0, 1], [0.3, 0.12, 1], [0.4, -0.2, 2]]) {
+                const shot = shotOf(kind, { start: 0.5, end: 10, roll, offsetX, offsetY: 0.05 });
+                let previous = [0, 0];
+                for (let time = 0.5; time < 10; time += 1 / 30) {
+                    const pose = resolveMetaphorPose({ shot, layout: sung, time, aspect, motion });
+                    const planned = resolveMetaphorPose({ shot, layout: bare, time, aspect, motion });
+                    const shift = [pose.x - planned.x, pose.y - planned.y];
+                    const short = 2 * pose.distance * Math.tan((METAPHOR_FOV * Math.PI) / 360) * Math.min(1, aspect);
+                    // 每次挪动都至少有短边的 6%（偏移跟着极慢的滚转转一点点不算挪动）
+                    const moved = Math.hypot(shift[0] - previous[0], shift[1] - previous[1]) / short;
+                    if (moved > 0.005) expect(moved).toBeGreaterThan(0.06 - 1e-9);
+                    previous = shift;
+                }
+            }
+        }
+    });
+
+    it('特写切过去时连同后面装得下的词一起摆进画里（单字词能装下两个），下一个词开唱不用再切', () => {
+        const text = '今は残響さえも夢の中';
+        const words = Array.from(text).map((char, index) => ({ text: char, startTime: 1 + index * 0.4, endTime: 1.35 + index * 0.4 }));
+        const layout = buildMetaphorLayout({
+            tokens: buildMetaphorTokens({ fullText: text, startTime: 1, endTime: words.at(-1)!.endTime, words } as Line),
+            composition: 'block', measure, rng: createVisualizerRng('ahead'),
+        });
+        const shot = shotOf('close', { start: 0.5, end: 6 });
+        const at = (time: number) => resolveMetaphorPose({ shot, layout, time, aspect: 16 / 9, motion: 0 });
+        const order = [...layout.words].sort((a, b) => a.t0 - b.t0);
+        let ahead = 0;
+        order.forEach((word, index) => {
+            const next = order[index + 1];
+            const pose = at(word.t0 + 0.01);
+            // 在这个词开唱时切了，而且下一个词也已经在画里
+            const before = at(word.t0 - 0.01);
+            if (next && (pose.x !== before.x || pose.y !== before.y) && inView(pose, next, 16 / 9)) ahead += 1;
+        });
+        expect(ahead).toBeGreaterThan(0);
     });
 
     it('正在唱的本来就在画里时不动分镜的机位', () => {
