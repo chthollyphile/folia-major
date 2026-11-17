@@ -322,7 +322,10 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
 
             {/* Main Header Container (Fades out when sliding/interacting) */}
             <div className="transition-opacity duration-300 ease-in-out z-20 opacity-100 select-none">
-                <div className="grid grid-cols-2 md:grid-cols-3 items-center w-full max-w-7xl mx-auto p-4 md:p-8 gap-y-4 md:gap-y-0">
+                {/* 纵向留白两档一致，按桌面档：上内边距一直是 32px（p-8 的纵向那半）。紧凑档窄窗口里
+                    页签胶囊换到第二行，行距由 gap-y 出——那是换行本身的高度，不是页头的内边距。
+                    横向在窄窗口仍收窄到 16px，否则搜索框与胶囊没地方放。 */}
+                <div className="grid grid-cols-2 md:grid-cols-3 items-center w-full max-w-7xl mx-auto px-4 md:px-8 py-8 gap-y-4 md:gap-y-0">
                     {/* Left title and settings */}
                     <div className="flex items-center justify-start order-1 md:order-none">
                         {/* 紧凑档（窗口窄于 960）页头一行放不下五颗胶囊，Folia 标题让位给它们：这里只留
