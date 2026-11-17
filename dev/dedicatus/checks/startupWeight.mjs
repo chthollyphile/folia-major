@@ -11,8 +11,14 @@ import { scanModuleSpecifiers } from '../../mcp/ts-code-map/graph/specifiers.mjs
 export const STARTUP_ENTRIES = ['src/index.tsx', 'src/bootstrap.tsx'];
 /** 不该进首屏闭包的包（前缀匹配，`@react-three/` 认整个作用域）。 */
 export const HEAVY_PACKAGES = ['three', '@react-three/', 'pixi.js', 'animejs', 'opencc-js', 'postprocessing'];
+/**
+ * 重型包里放行的轻子路径（整串相等才放行）。opencc-js/t2cn 只带繁→简词典（约 110 KB，整包约 1.2 MB），
+ * 歌词匹配打分是同步的、要在首屏可用（2026-11-17 维护者在 Coven Op. 2 的升级 e3 里定下）。
+ */
+export const LIGHT_SUBPATHS = ['opencc-js/t2cn'];
 
-const isHeavy = specifier => HEAVY_PACKAGES.some(name => (name.endsWith('/') ? specifier.startsWith(name) : specifier === name || specifier.startsWith(`${name}/`)));
+export const isHeavy = specifier => !LIGHT_SUBPATHS.includes(specifier)
+    && HEAVY_PACKAGES.some(name => (name.endsWith('/') ? specifier.startsWith(name) : specifier === name || specifier.startsWith(`${name}/`)));
 
 /** 入口的静态值导入闭包（不走 import type，不走只有动态 import() 的边）。 */
 export function startupClosure(graph, entries = STARTUP_ENTRIES) {

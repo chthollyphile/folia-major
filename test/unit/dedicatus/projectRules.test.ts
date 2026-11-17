@@ -5,7 +5,7 @@ import { pathToFileURL } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { checkFoliumApi, experimentalLines } from '../../../dev/dedicatus/checks/foliumApi.mjs';
 import { checkForeignCredentials } from '../../../dev/dedicatus/checks/foreignCredentials.mjs';
-import { startupClosure } from '../../../dev/dedicatus/checks/startupWeight.mjs';
+import { isHeavy, startupClosure } from '../../../dev/dedicatus/checks/startupWeight.mjs';
 import { PLAYBACK_TOKENS } from '../../../dev/dedicatus/playbackTokens.mjs';
 import { checkModIntegration } from '../../../dev/dedicatus/checks/modIntegration.mjs';
 import { parseDiff } from '../../../dev/dedicatus/diff.mjs';
@@ -162,6 +162,13 @@ describe('D306 startup closure', () => {
             dynamic: new Set([edgeKey('src/index.tsx', 'src/lazy.ts')]),
         };
         expect([...startupClosure(graph)].sort()).toEqual(['src/a.ts', 'src/b.ts', 'src/bootstrap.tsx', 'src/c.ts', 'src/index.tsx']);
+    });
+
+    it('lets the registered light subpath through but keeps the rest of the package heavy', () => {
+        expect(isHeavy('opencc-js/t2cn')).toBe(false);
+        expect(isHeavy('opencc-js')).toBe(true);
+        expect(isHeavy('opencc-js/cn2t')).toBe(true);
+        expect(isHeavy('three/examples/jsm/controls/OrbitControls.js')).toBe(true);
     });
 });
 
