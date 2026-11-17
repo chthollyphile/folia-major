@@ -69,6 +69,47 @@ const StemMixerSection: React.FC<StemMixerSectionProps> = ({ isHifiRoute, isExte
     const live = enabled && block === null;
     const chosen = PRESETS.find(preset => STEM_MIXER_PRESETS[preset].every((gain, index) => gain === gains[index])) ?? null;
 
+    // 关着时变淡、仍够得着：先调好再开。
+    const controls = (
+        <div className={`st-t-move transition-opacity${live ? '' : ' opacity-40'}`}>
+            <div className="grid grid-cols-4 gap-2 px-4 pt-3">
+                {STEM_MIXER_STEMS.map((stem, index) => {
+                    const gain = gains[index];
+                    const name = t(`ui.stemMixer.stem.${stem}`);
+                    return (
+                        <div key={stem} className="flex min-h-[168px] flex-col items-center gap-1.5 font-mono text-[11px] leading-4">
+                            <span aria-hidden className={gain === 1 ? 'text-[color:var(--st-t3)]' : 'text-[color:var(--st-t1)]'}>{formatGain(gain)}</span>
+                            <Fader
+                                value={gain}
+                                min={STEM_MIXER_GAIN_MIN}
+                                max={STEM_MIXER_GAIN_MAX}
+                                step={FADER_STEP}
+                                label={name}
+                                valueText={formatGain(gain)}
+                                onPreview={value => setGain(stem, value)}
+                                onCommit={commitGains}
+                            />
+                            <span aria-hidden className="font-sans text-xs text-[color:var(--st-t2)]">{name}</span>
+                        </div>
+                    );
+                })}
+            </div>
+            <div className="flex flex-wrap gap-1.5 px-4 pb-3.5 pt-3">
+                {PRESETS.map(preset => (
+                    <button
+                        key={preset}
+                        type="button"
+                        aria-pressed={chosen === preset}
+                        className={`${CHIP_CLASS} ${chosen === preset ? CHIP_CHOSEN : CHIP_IDLE}`}
+                        onClick={() => applyPreset(preset)}
+                    >
+                        {t(`ui.stemMixer.preset.${preset}`)}
+                    </button>
+                ))}
+            </div>
+        </div>
+    );
+
     return (
         <EqualizerSection title={t('ui.stemMixer.title')} hint={live ? statusHint(status, t) : undefined}>
             <div className="flex items-start gap-3 px-4 pt-3">
@@ -88,44 +129,8 @@ const StemMixerSection: React.FC<StemMixerSectionProps> = ({ isHifiRoute, isExte
                     <Toggle checked={enabled && !deviceBlocked} onChange={toggle} disabled={deviceBlocked} />
                 </label>
             </div>
-            {/* 关着时变淡、仍够得着：先调好再开。GPU 分不了时够不着。 */}
-            <div inert={deviceBlocked} className={`st-t-move transition-opacity${live ? '' : ' opacity-40'}`}>
-                <div className="grid grid-cols-4 gap-2 px-4 pt-3">
-                    {STEM_MIXER_STEMS.map((stem, index) => {
-                        const gain = gains[index];
-                        const name = t(`ui.stemMixer.stem.${stem}`);
-                        return (
-                            <div key={stem} className="flex min-h-[168px] flex-col items-center gap-1.5 font-mono text-[11px] leading-4">
-                                <span aria-hidden className={gain === 1 ? 'text-[color:var(--st-t3)]' : 'text-[color:var(--st-t1)]'}>{formatGain(gain)}</span>
-                                <Fader
-                                    value={gain}
-                                    min={STEM_MIXER_GAIN_MIN}
-                                    max={STEM_MIXER_GAIN_MAX}
-                                    step={FADER_STEP}
-                                    label={name}
-                                    valueText={formatGain(gain)}
-                                    onPreview={value => setGain(stem, value)}
-                                    onCommit={commitGains}
-                                />
-                                <span aria-hidden className="font-sans text-xs text-[color:var(--st-t2)]">{name}</span>
-                            </div>
-                        );
-                    })}
-                </div>
-                <div className="flex flex-wrap gap-1.5 px-4 pb-3.5 pt-3">
-                    {PRESETS.map(preset => (
-                        <button
-                            key={preset}
-                            type="button"
-                            aria-pressed={chosen === preset}
-                            className={`${CHIP_CLASS} ${chosen === preset ? CHIP_CHOSEN : CHIP_IDLE}`}
-                            onClick={() => applyPreset(preset)}
-                        >
-                            {t(`ui.stemMixer.preset.${preset}`)}
-                        </button>
-                    ))}
-                </div>
-            </div>
+            {/* GPU 分不了时不画推子，只留原因。 */}
+            {deviceBlocked ? <div className="pb-3.5" /> : controls}
         </EqualizerSection>
     );
 };
