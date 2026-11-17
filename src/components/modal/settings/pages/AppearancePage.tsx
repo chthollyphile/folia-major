@@ -8,7 +8,7 @@ import { openSettings } from '../../../../stores/useSettingsModalStore';
 import { useThemeSettingsStore } from '../../../../stores/useThemeSettingsStore';
 import { useVisualizerSettingsStore } from '../../../../stores/useVisualizerSettingsStore';
 import { Button, Group, Reveal, Row, Segmented, Toggle, Value, option, type SettingsGroupDef, type SettingsOptionDef } from '../kit';
-import { settingsAnchorSubview } from '../navigation/settingsAnchorModel';
+import { settingsAnchorSubview } from '../../../../utils/settingsAnchorModel';
 import { useSettingsPage } from './settingsPageContext';
 
 // src/components/modal/settings/pages/AppearancePage.tsx

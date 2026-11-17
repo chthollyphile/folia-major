@@ -1,4 +1,4 @@
-import { getHueDistance, hexToHsl, normalizeHue, type Hsl } from '../themeColorMath';
+import { getHueDistance, hexToHsl, hexToOklch, hslToHex, normalizeHue, type Hsl } from '../themeColorMath';
 
 // src/utils/builtinTheme/coverPaletteAnalysis.ts
 // Reads the cover's extracted colors and decides the color skeleton of a built-in theme: which
@@ -11,19 +11,26 @@ export type CoverPalette = {
     baseHue: number;
     baseSaturation: number;
     baseLightness: number;
+    /** OKLCH chroma of the base colour: how vivid the cover really is, read perceptually. */
+    baseChroma: number;
     accentHue: number;
     scheme: HarmonyScheme;
     tone: PaletteTone;
 };
 
-const MIN_SUPPORT_SATURATION = 0.15;
+// OKLCH chroma a second colour needs to count as a hue of its own (HSL saturation is no use here:
+// a near-black navy reads as highly "saturated" in HSL).
+const MIN_SUPPORT_CHROMA = 0.035;
 const MIN_SUPPORT_HUE_DISTANCE = 25;
 const MAX_SUPPORT_HUE_DISTANCE = 160;
 const MONOCHROME_SATURATION_CEILING = 0.18;
+const DUOTONE_CHANCE = 0.8;
 
-// Prefers colors that are both saturated and mid-lightness: those carry the cover's identity,
-// while near-black / near-white pixels only describe its background.
-const getCoverColorScore = ({ s, l }: Hsl) => s * Math.max(0, 1 - Math.abs(l - 0.5) * 1.2);
+type CoverColor = Hsl & { chroma: number; };
+
+// Prefers colors that are both vivid (OKLCH chroma) and mid-lightness: those carry the cover's
+// identity, while near-black / near-white pixels only describe its background.
+const getCoverColorScore = ({ chroma, l }: CoverColor) => chroma * Math.max(0, 1 - Math.abs(l - 0.5) * 1.2);
 
 const pickWeighted = <T,>(random: () => number, entries: { value: T; weight: number; }[]): T => {
     const total = entries.reduce((sum, entry) => sum + entry.weight, 0);
@@ -39,22 +46,27 @@ const pickWeighted = <T,>(random: () => number, entries: { value: T; weight: num
     return entries[entries.length - 1].value;
 };
 
-const pickBaseColor = (parsedColors: Hsl[], random: () => number): Hsl => {
-    if (parsedColors.length === 0) {
-        // No cover to read: pick a hue outright so a coverless song still varies run to run.
-        return { h: random() * 360, s: 0.35 + random() * 0.3, l: 0.5 };
-    }
-
-    const scored = parsedColors.reduce((best, candidate) => (
-        getCoverColorScore(candidate) > getCoverColorScore(best) ? candidate : best
-    ), parsedColors[0]);
-
-    return getCoverColorScore(scored) > 0.02 ? scored : parsedColors[0];
+const readCoverColor = (color: string): CoverColor | null => {
+    const hsl = hexToHsl(color);
+    const oklch = hexToOklch(color);
+    return hsl && oklch ? { ...hsl, chroma: oklch.C } : null;
 };
 
-const pickSupportHue = (parsedColors: Hsl[], base: Hsl) => {
+// The extractor already ranks colours by area and vividness, so the first colour that is not a
+// plain grey leads; only an all-grey cover falls back to its first (highest-ranked) grey.
+const pickBaseColor = (parsedColors: CoverColor[], random: () => number): CoverColor => {
+    if (parsedColors.length === 0) {
+        // No cover to read: pick a hue outright so a coverless song still varies run to run.
+        const hsl = { h: random() * 360, s: 0.35 + random() * 0.3, l: 0.5 };
+        return { ...hsl, chroma: hexToOklch(hslToHex(hsl))?.C ?? 0.1 };
+    }
+
+    return parsedColors.find(candidate => getCoverColorScore(candidate) > 0.012) ?? parsedColors[0];
+};
+
+const pickSupportHue = (parsedColors: CoverColor[], base: CoverColor) => {
     const support = parsedColors.find(candidate => {
-        if (candidate.s < MIN_SUPPORT_SATURATION) return false;
+        if (candidate === base || candidate.chroma < MIN_SUPPORT_CHROMA) return false;
         const distance = getHueDistance(candidate.h, base.h);
         return distance >= MIN_SUPPORT_HUE_DISTANCE && distance <= MAX_SUPPORT_HUE_DISTANCE;
     });
@@ -68,7 +80,7 @@ const pickScheme = (
     random: () => number,
 ): HarmonyScheme => {
     // A real second hue on the cover is the most "from this artwork" accent available.
-    if (supportHue !== null && random() < 0.65) {
+    if (supportHue !== null && random() < DUOTONE_CHANCE) {
         return 'duotone';
     }
 
@@ -109,8 +121,8 @@ const resolveAccentHue = (
 // Turns raw cover swatches into the hue/tone contract the built-in theme generator builds on.
 export const analyzeCoverPalette = (coverColors: string[], random: () => number): CoverPalette => {
     const parsedColors = coverColors
-        .map(color => hexToHsl(color))
-        .filter((color): color is Hsl => color !== null);
+        .map(readCoverColor)
+        .filter((color): color is CoverColor => color !== null);
 
     const base = pickBaseColor(parsedColors, random);
     const supportHue = pickSupportHue(parsedColors, base);
@@ -121,6 +133,7 @@ export const analyzeCoverPalette = (coverColors: string[], random: () => number)
         baseHue: normalizeHue(base.h),
         baseSaturation: base.s,
         baseLightness: base.l,
+        baseChroma: base.chroma,
         accentHue: normalizeHue(resolveAccentHue(scheme, base.h, supportHue, random) + accentJitter),
         scheme,
         tone: pickWeighted<PaletteTone>(random, [

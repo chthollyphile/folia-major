@@ -28,7 +28,31 @@ export type CapsuleFrame = {
     /** 胶囊下沿到视口底的距离：面板下沿贴在这里。 */
     bottomGap: number;
     viewportWidth: number;
+    /**
+     * 打开面板的那一下点击落在哪（视口坐标）；不是刚点出来的（快捷键、打字）为 null。
+     * 面板里要接着拖的控件（音量条）按它对齐，点完按钮不用挪鼠标就在条上。
+     */
+    openPointer: { x: number; y: number } | null;
 };
+
+/** 点击要在打开前这么久之内，才算是它把面板点出来的（毫秒）。 */
+const OPEN_POINTER_MAX_AGE_MS = 1000;
+let lastPointerUp: { x: number; y: number; at: number } | null = null;
+
+/** 记下最近一次松开指针的位置。面板常驻挂载，由它在捕获阶段装一次。 */
+export const installOpenPointerTracker = () => {
+    const remember = (event: PointerEvent) => {
+        lastPointerUp = { x: event.clientX, y: event.clientY, at: performance.now() };
+    };
+    window.addEventListener('pointerup', remember, true);
+    return () => window.removeEventListener('pointerup', remember, true);
+};
+
+const readOpenPointer = () => (
+    lastPointerUp && performance.now() - lastPointerUp.at <= OPEN_POINTER_MAX_AGE_MS
+        ? { x: lastPointerUp.x, y: lastPointerUp.y }
+        : null
+);
 
 /** 打开那一刻量一次胶囊。胶囊不在、没挂上或没有尺寸时返回 null，面板回到普通的遮罩样式。 */
 export const readCapsuleFrame = (anchor: HTMLElement | null): CapsuleFrame | null => {
@@ -45,6 +69,7 @@ export const readCapsuleFrame = (anchor: HTMLElement | null): CapsuleFrame | nul
         height: rect.height,
         bottomGap: Math.max(0, window.innerHeight - rect.bottom),
         viewportWidth: window.innerWidth,
+        openPointer: readOpenPointer(),
     };
 };
 

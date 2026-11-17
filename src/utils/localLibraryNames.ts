@@ -58,3 +58,14 @@ export const getAlbumImportContextKey = (song: LocalSong, albumName: string): st
     normalizeLocalLibraryName(albumName),
   ].join('\u0000')
 );
+
+/**
+ * 一首歌导入时的专辑上下文键（文件夹 + 导入的专辑名），没有专辑名时没有。
+ * 每次写进 local_music 时重新算一遍存成带索引的 albumContextKey，导入归属按它找同文件夹的同名专辑，不用读整张表。
+ * 存下来的是算好的值：改这个函数、getAlbumImportContextKey、getRelativeParentFolder 或 normalizeLocalLibraryName
+ * 的结果，要同时升 appDatabase 的版本、在升级里重新回填，不然已存的键对不上，同文件夹消歧会悄悄失效。
+ */
+export const getLocalSongAlbumContextKey = (song: LocalSong): string | undefined => {
+  const albumName = getImportedAlbumName(song);
+  return albumName ? getAlbumImportContextKey(song, albumName) : undefined;
+};

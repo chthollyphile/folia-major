@@ -2,17 +2,31 @@ import { create } from 'zustand';
 import { lyricCurrentTime } from '../../../stores/motionSignals';
 
 // src/components/app/backgroundThrottling/backgroundLyricHoldStore.ts
-// Whether the lyric animation is held: 后台节流 is in force and the window is minimised or hidden.
-// The playback bridge reads it every frame and stops moving the lyric clock and the audio bands;
-// the visualizer model reads it to draw as if playback were paused.
+// Whether the lyric animation is held: 后台节流 is in force and the window is minimised or hidden,
+// or the performance check is measuring the GPU from its own window (components/perfCheck/). The
+// playback bridge reads it every frame and stops moving the lyric clock and the audio bands; the
+// visualizer model reads it to draw as if playback were paused.
 
 type BackgroundLyricHoldState = {
     held: boolean;
+    /** The two reasons to hold, kept apart so neither lets go of the other's hold. */
+    background: boolean;
+    perfCheck: boolean;
 };
 
 export const useBackgroundLyricHoldStore = create<BackgroundLyricHoldState>(() => ({
     held: false,
+    background: false,
+    perfCheck: false,
 }));
+
+/** Sets one reason to hold; `held` is either. */
+export const setLyricHoldReason = (reason: 'background' | 'perfCheck', on: boolean) => {
+    const state = useBackgroundLyricHoldStore.getState();
+    if (state[reason] === on) return;
+    const next = { ...state, [reason]: on };
+    useBackgroundLyricHoldStore.setState({ [reason]: on, held: next.background || next.perfCheck });
+};
 
 /** For the frame loop, which must not subscribe through React. */
 export const isBackgroundLyricHeld = () => useBackgroundLyricHoldStore.getState().held;

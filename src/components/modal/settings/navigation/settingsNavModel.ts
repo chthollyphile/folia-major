@@ -1,4 +1,4 @@
-import { Boxes, Contrast, Database, Gauge, Keyboard, LayoutGrid, Link2, Monitor, MonitorPlay, PlayCircle, SlidersHorizontal, Sparkles, Terminal, TextAlignStart, type LucideIcon } from 'lucide-react';
+import { Boxes, Contrast, Database, Gauge, Keyboard, LayoutGrid, Link2, Monitor, MonitorPlay, PictureInPicture2, PlayCircle, SlidersHorizontal, Sparkles, Terminal, TextAlignStart, type LucideIcon } from 'lucide-react';
 // src/components/modal/settings/navigation/settingsNavModel.ts
 // Single source of truth for the settings categories: their order in the side list, their grouping,
 // icons and names. A category is cut by what the listener is looking at or doing, so each page holds
@@ -17,6 +17,7 @@ export type SettingsSectionId =
     | 'ai'
     | 'storage'
     | 'desktop'
+    | 'remote'
     | 'mods'
     | 'developer';
 
@@ -79,6 +80,8 @@ export const SETTINGS_NAV_GROUP_SPECS: GroupSpec[] = [
             { id: 'ai', icon: Sparkles, labelKey: 'options.settingsPageAi', electronOnly: true },
             { id: 'storage', icon: Database, labelKey: 'options.settingsPageStorage' },
             { id: 'desktop', icon: Monitor, labelKey: 'options.settingsPageDesktop', electronOnly: true },
+            // The Remote Control window is a desktop-app window; its settings key opens this page.
+            { id: 'remote', icon: PictureInPicture2, labelKey: 'options.settingsPageRemote', electronOnly: true },
         ],
     },
     {

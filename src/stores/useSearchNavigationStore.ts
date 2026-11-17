@@ -10,8 +10,12 @@ import {
 } from '../services/playbackAdapters';
 import { omni } from '../services/onlineMusic/omni';
 import { isLocalPlaybackSong, isNavidromePlaybackSong } from '../utils/appPlaybackGuards';
+import { sanitizeSearchHistory, withSearchHistoryQuery, withoutSearchHistoryQuery } from '../utils/searchHistory';
+import { getStoredString, setStoredString } from './storagePrimitives';
 
 const LAST_HOME_VIEW_TAB_KEY = 'last_home_view_tab';
+/** 搜索历史：字符串数组的 JSON，最近的在前。列表的规则（去重、淘汰）在 utils/searchHistory.ts。 */
+const SEARCH_HISTORY_KEY = 'folia_search_history_v1';
 const DEFAULT_SEARCH_LIMIT = 30;
 export type SearchSource = OnlineProviderId | 'local' | 'navidrome';
 export type SearchReturnView = 'home' | 'player';
@@ -66,6 +70,13 @@ interface SearchNavigationState {
     hasMore: boolean;
     scrollTop: number;
     searchCache: Record<string, SearchCacheEntry>;
+    /**
+     * 搜过的词，最近的在前（跨会话保留）。只由 submitSearch 记：所有搜索入口都经过它，
+     * 所以这里不提供「记一条」的动作，界面只能读、删一条或清空。
+     */
+    searchHistory: string[];
+    forgetSearchHistoryQuery: (query: string) => void;
+    clearSearchHistory: () => void;
     setHomeViewTab: (tab: HomeViewTab) => void;
     setSearchQuery: (query: string) => void;
     setSearchScrollTop: (scrollTop: number) => void;
@@ -228,6 +239,24 @@ const getInitialHomeViewTab = (): HomeViewTab => {
         : 'playlist';
 };
 
+const readSearchHistory = (): string[] => {
+    try {
+        const raw = getStoredString(SEARCH_HISTORY_KEY, '');
+        return raw ? sanitizeSearchHistory(JSON.parse(raw)) : [];
+    } catch (error) {
+        console.warn('[SearchStore] Failed to restore search history:', error);
+        return [];
+    }
+};
+
+const writeSearchHistory = (history: string[]) => {
+    try {
+        setStoredString(SEARCH_HISTORY_KEY, JSON.stringify(history));
+    } catch (error) {
+        console.warn('[SearchStore] Failed to save search history:', error);
+    }
+};
+
 export const useSearchNavigationStore = create<SearchNavigationState>((set, get) => ({
     homeViewTab: getInitialHomeViewTab(),
     searchQuery: '',
@@ -248,6 +277,19 @@ export const useSearchNavigationStore = create<SearchNavigationState>((set, get)
     hasMore: false,
     scrollTop: 0,
     searchCache: {},
+    searchHistory: readSearchHistory(),
+    forgetSearchHistoryQuery: (query) => {
+        const current = get().searchHistory;
+        const next = withoutSearchHistoryQuery(current, query);
+        if (next.length === current.length) return;
+        writeSearchHistory(next);
+        set({ searchHistory: next });
+    },
+    clearSearchHistory: () => {
+        if (get().searchHistory.length === 0) return;
+        writeSearchHistory([]);
+        set({ searchHistory: [] });
+    },
     setHomeViewTab: (tab) => {
         if (typeof window !== 'undefined') {
             localStorage.setItem(LAST_HOME_VIEW_TAB_KEY, tab);
@@ -320,7 +362,11 @@ export const useSearchNavigationStore = create<SearchNavigationState>((set, get)
 
         const searchKind = resolveSearchKind(sourceTab, kind ?? get().searchKind);
         const requestId = get().requestId + 1;
+        // 提交的那一刻就记进历史：首页、命令面板、搜索页都从这里过，结果回来之前历史已经是新的。
+        const searchHistory = withSearchHistoryQuery(get().searchHistory, trimmedQuery);
+        writeSearchHistory(searchHistory);
         set({
+            searchHistory,
             searchQuery: trimmedQuery,
             submittedQuery: trimmedQuery,
             searchSourceTab: sourceTab,

@@ -13,7 +13,7 @@ import type { LibraryDirectorySurfaceHandle } from '../../library/core/directory
 import type { LibraryArtistSurfaceHandle } from '../../library/core/artist/artist.contract';
 import type { LibrarySuiteChromeHandle } from '../../library/core/suite/suiteChrome.contract';
 import { type SettingsModalInitialTab, type SettingsSubviewId, type VisualizerSettingsSection } from '../../stores/useSettingsModalStore';
-import type { SettingsAnchorId } from '../modal/settings/navigation/settingsAnchorModel';
+import type { SettingsAnchorId } from '../../utils/settingsAnchorModel';
 import type { LyricStaffAbsorbMode, LyricStaffPolicy } from '../../utils/lyrics/staffCreditsPolicy';
 import type { AudioEqualizerModeId } from '../../utils/audioEqualizer';
 import type { ThemeGenerationSource } from '../../services/themePreferences';
@@ -158,6 +158,8 @@ export type CommandPaletteSearchContext = {
         };
         returnView?: SearchReturnView;
     }) => Promise<boolean>;
+    /** 搜过的词，最近的在前（useSearchNavigationStore 的 searchHistory）；搜索命令把它们列在输入行下面。 */
+    searchHistory: () => readonly string[];
 };
 
 export type CommandPalettePlaybackContext = {
@@ -305,6 +307,8 @@ export type CommandPaletteSettingsContext = {
     setLibraryWallWindowsPerBlock: (windowsPerBlock: number) => void;
     /** bravais collection tiles' stack edges (useLibraryWallLookStore.collectionStackEdges): flips the stored value. */
     toggleLibraryWallStackEdges: () => void;
+    /** bravais collection pages' tilt (useLibraryWallLookStore.collectionTilt): flips the stored value. */
+    toggleLibraryWallCollectionTilt: () => void;
     /** bravais info strip always see-through (useLibraryWallLookStore.seamClear); read live. */
     libraryWallSeamClear: () => boolean;
     toggleLibraryWallSeamClear: () => void;
@@ -330,6 +334,10 @@ export type CommandPaletteSettingsContext = {
     /** A getter: the full-bleed toggle it gates on flips with nothing re-rendering the context. */
     canUseGridViewSquareCards: () => boolean;
     toggleLatticeVignette: () => void;
+    /** Lattice 的墙面形态在海报墙和电台墙之间切换（useLatticeSettingsStore.latticeWallForm；私人 FM 下总是电台墙）。 */
+    toggleLatticeWallForm: () => void;
+    /** 普通队列的电台墙上，接下来的歌显示为问号卡（useLatticeSettingsStore.latticeRadioHideUpcoming）：翻转存着的值。 */
+    toggleLatticeRadioHideUpcoming: () => void;
     /** Number only the playing song on the queue collage and the bravais wall (useLatticeSettingsStore.latticeBadgeCurrentOnly): flips the stored value. */
     toggleLatticeBadgeCurrentOnly: () => void;
     /** Motion reduction for the queue collage, the surface issue #370 was filed about. */
@@ -361,6 +369,7 @@ export type CommandPaletteSettingsContext = {
     togglePlaybackFade: () => void;
     /** Whether restricted songs and unknown failures count down to a skip, like taken-down ones. */
     toggleAutoSkipUnplayable: () => void;
+    toggleShuffleRoundNoRepeat: () => void;
     /**
      * Whether this build can watch the imported local folders at all. A getter because the answer
      * is a runtime API check (FileSystemObserver) rather than a stored value, and the settings
@@ -394,6 +403,8 @@ export type CommandPaletteSettingsContext = {
     toggleRemoteControlExpandCover: () => void;
     /** Remote control window, transparent background: a soft dark shade under the idle type. */
     toggleRemoteControlTextShade: () => void;
+    /** Remote control window: one lyric pair, or two (the next line at the bottom right when idle). */
+    toggleRemoteLyricPairs: () => void;
     /** Turns remote control click-through off (the way back into a click-through window). */
     unlockRemoteControl: () => void;
     /** OBS browser source: keep the main window's heavy animation while an OBS client is connected. */
@@ -495,6 +506,9 @@ export type CommandPaletteVisualizerContext = {
     /** Null means "no stored choice"; the picker resolves it against the registry default. */
     visualizerBackgroundMode: VisualizerBackgroundMode | null;
     setVisualizerMode: (mode: VisualizerMode) => void;
+    /** The visualizer picker stays open after a mode is chosen. */
+    visualizerPickerKeepOpen: boolean;
+    setVisualizerPickerKeepOpen: (enable: boolean) => void;
     toggleRandomVisualizerModePerSong: () => void;
     /** Lab > Fix lyric animation freeze on Linux: the Linux renderer fd leak workaround. */
     toggleGlowBlurQuantize: () => void;

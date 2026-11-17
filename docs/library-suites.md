@@ -265,6 +265,7 @@ suite 自己的外观操作（bravais 的缝等级、打开面板、定位正在
 | `play` | 播放某一首（队列 = 当前筛选范围） | 基础 | `useCollectionActions().playTrack` |
 | `enqueue` | 某一首加入队列 | 基础 | `.enqueueTrack` |
 | `play-scope` | 播放当前筛选范围 | 基础 | `.playScope` |
+| `shuffle-scope` | 随机播放当前筛选范围（打乱后成为队列，第一首也是随机的） | 推荐 | `.shuffleScope`（端口 `playAll(tracks, { shuffle: true })`，打乱由宿主做）；能力与 `play-scope` 相同；命令面板的 `shuffle-play-filtered` 由 `buildCoreSurfaceParams` 的 `shufflePlayFiltered` 发布 |
 | `enqueue-scope` | 当前筛选范围加入队列 | 基础 | `.enqueueScope` |
 | `collect` / `collect-scope` | 某一首 / 当前筛选范围收进速记簿（不动队列的暂存区，出处记集合名） | 推荐 | `.collectTrack` / `.collectScope`（`useCollectionActions` 传 `collectionName`）；能力 `capabilities.collect`（宿主播放端口给了 `collectTracks`）；命令面板的 `collect-filtered` 由 `buildCoreSurfaceParams` 的 `collectFiltered` 发布 |
 | `save-to-playlist` | 某一首收藏到歌单：打开应用的歌单选择器（按歌自己的来源列歌单，在线歌还有「我喜欢」一行）。与只管 Navidrome 的 `add-to-playlist` 不同 | 推荐 | `.saveTrackToPlaylist`，能不能由 `.canSaveTrackToPlaylist(track)` 说（宿主播放端口给了 `pickPlaylistFor` / `canPickPlaylistFor`） |
@@ -326,6 +327,7 @@ suite 自己的外观操作（bravais 的缝等级、打开面板、定位正在
 | `open-album` | 打开歌手的某张专辑 | 基础 | `artistAlbumLink(album, collection)` → `onOpenAlbum` |
 | `filter` | 按名字筛选专辑 | 推荐 | `useLibrarySessionQuery` |
 | `play-scope` / `enqueue-scope` | 播放全部热门歌曲 / 整批加入队列 | 推荐 | `playback.enqueueAll(tracks, { suppressToast: true })` 返回实际收下的条数 |
+| `shuffle-scope` | 随机播放热门歌曲（打乱后成为队列） | 推荐 | `useArtistView().actions.shuffleScope`（端口 `playAll(tracks, { shuffle: true })`）；能力与 `play-scope` 相同；命令面板的 `shuffle-top-songs` |
 | `open-artist` | 打开歌曲上的其他歌手 | 推荐 | `onOpenArtist` |
 | `reload` / `resume-sync` | 加载失败时重试、专辑分页中断时续页 | 推荐 | `resource.reload()` / `resource.retryAlbums()` |
 | `edit-entity` | 编辑本地歌手实体 | 可选 | `onEditEntity`（对话框由宿主提供） |

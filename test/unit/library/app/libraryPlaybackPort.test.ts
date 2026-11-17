@@ -55,9 +55,15 @@ describe('library playback port', () => {
         port.enqueueAll([onlineSong]);
         port.enqueueTrack(onlineSong);
         expect(props.onPlaySong).toHaveBeenCalledWith(onlineSong, [onlineSong]);
-        expect(props.onPlayAll).toHaveBeenCalledWith([onlineSong]);
+        expect(props.onPlayAll).toHaveBeenCalledWith([onlineSong], undefined, undefined);
         expect(props.onAddAllToQueue).toHaveBeenCalledWith([onlineSong], undefined);
         expect(props.onAddSongToQueue).toHaveBeenCalledWith(onlineSong);
+    });
+
+    it('passes the shuffle option of a play-all through, for the host to shuffle', () => {
+        const props = surface();
+        createLibraryPlaybackPort(props).playAll([onlineSong], { shuffle: true });
+        expect(props.onPlayAll).toHaveBeenCalledWith([onlineSong], undefined, { shuffle: true });
     });
 
     // b0bea643 起端口吞掉了这两样，歌手页的「加入热门歌曲」因此先弹队列自己的提示、再报交出去的条数而不是收下的条数。

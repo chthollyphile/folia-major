@@ -4,7 +4,7 @@ import type { Line, LyricBackgroundVocal, SubtitleContentMode, Theme, Word } fro
 import { resolveThemeFontStack, resolveThemeFontWeight, resolveThemeTranslationFontStack } from '../../utils/fontStacks';
 import { buildLineGraphemeTimeline } from '../../utils/lyrics/graphemeTiming';
 import { measureMonetGraphemeOffsets, resolveClampFontPx } from './monet/monetLyricsModel';
-import { colorWithAlpha } from './colorMix';
+import { colorWithAlpha } from '../../utils/colorMix';
 import { resolveWordColor } from './wordColoring';
 import {
     getLyricsBackgroundVocals,

@@ -223,10 +223,8 @@ const markPaused = (positionSec: number) => {
     emit({ type: 'status' });
 };
 
-/** Single loop, outside Personal FM (which never repeats a song): the track plays again rather than the queue moving on. */
-const loopsCurrentTrack = () => (
-    useAudioSettingsStore.getState().loopMode === 'one' && !usePlaybackStore.getState().isFmMode
-);
+/** Single loop, Personal FM included as on the app's own decks: the track plays again rather than the queue moving on. */
+const loopsCurrentTrack = () => useAudioSettingsStore.getState().loopMode === 'one';
 
 // Single loop where the player did not go round by itself (it has no `setRepeatOne`, or the repeat
 // did not take): the track that ended is started again from its start in the same player, as
@@ -266,7 +264,7 @@ const replayEndedTrack = (current: ExternalSession) => {
 /**
  * Hands the player its own single repeat when it has one (`setRepeatOne`), as the hifi route sets
  * mpv's loop-file: the player then goes round by itself with no gap. Sent on every start and on
- * every change of the loop mode or of Personal FM; a player without it is left to `replayEndedTrack`.
+ * every change of the loop mode; a player without it is left to `replayEndedTrack`.
  */
 function syncExternalRepeatOne(): void {
     const current = session;
@@ -872,7 +870,6 @@ export const installExternalPlayback = (): void => {
             withoutRouteGuard(() => setPlaybackRoute('web'));
         }
         if (state.playQueue !== previous.playQueue || state.isFmMode !== previous.isFmMode) refreshPreparedQueue();
-        if (state.isFmMode !== previous.isFmMode) syncExternalRepeatOne();
     });
 };
 

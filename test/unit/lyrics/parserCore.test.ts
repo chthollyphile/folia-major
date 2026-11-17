@@ -196,6 +196,43 @@ describe('parserCore', () => {
         expect(lyrics.lines).toHaveLength(1);
     });
 
+    it('estimates word timing for line-timed TTML instead of one whole-line word (#1257)', () => {
+        const ttmlHead = '<tt xmlns="http://www.w3.org/ns/ttml" xmlns:itunes="http://music.apple.com/lyric-ttml-internal" xmlns:ttm="http://www.w3.org/ns/ttml#metadata" itunes:timing="Line">';
+        // Apple's line lyrics: text straight inside <p>.
+        const apple = `${ttmlHead}<body><div><p begin="0:00.550" end="0:04.010" itunes:key="L1">Every possible post-man be like</p></div></body></tt>`;
+        // AMLL-style inline translation inside an untimed span.
+        const inline = `${ttmlHead}<body><div><p begin="0:00.550" end="0:04.010">`
+            + '<span>Every possible post-man be like </span><span ttm:role="x-translation">每一种都这样</span></p></div></body></tt>';
+
+        for (const source of [apple, inline]) {
+            const lyrics = parseTTML(source);
+            const [line] = lyrics.lines;
+
+            expect(lyrics.isWordByWord).toBe(false);
+            expect(line.fullText).toBe('Every possible post-man be like');
+            expect(line.words.map(word => word.text)).toEqual(['Every', 'possible', 'post-man', 'be', 'like']);
+            expect(line.words.every(word => !word.syllables)).toBe(true);
+            expect(line.words[0].startTime).toBeCloseTo(0.55);
+            expect(line.words.at(-1)!.endTime).toBeLessThanOrEqual(4.01);
+            line.words.slice(1).forEach((word, index) => {
+                expect(word.startTime).toBeGreaterThan(line.words[index].startTime);
+            });
+        }
+        expect(parseTTML(inline).lines[0].translation).toBe('每一种都这样');
+    });
+
+    it('keeps TTML span timing even when the file says it is line-timed', () => {
+        const source = '<tt xmlns="http://www.w3.org/ns/ttml" xmlns:itunes="http://music.apple.com/lyric-ttml-internal" itunes:timing="Line">'
+            + '<body><div><p begin="00:01.000" end="00:03.000"><span begin="00:01.000" end="00:01.500">Hello</span> '
+            + '<span begin="00:01.500" end="00:02.500">world</span></p></div></body></tt>';
+        const [line] = parseTTML(source).lines;
+
+        expect(line.words.map(word => [word.text, word.startTime, word.endTime])).toEqual([
+            ['Hello', 1, 1.5],
+            ['world', 1.5, 2.5],
+        ]);
+    });
+
     it('folds overlapping TTML lines from a different agent into harmony vocals', () => {
         const lyrics = parseTTML(TTML_AGENT_OVERLAP_FIXTURE, '', { includeInterludes: false });
 

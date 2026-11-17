@@ -4,7 +4,7 @@ import { Hourglass } from 'lucide-react';
 import { DEFAULT_FUME_TUNING, FumeTuning } from '../../../types';
 import { getLineRenderEndTime } from '../../../utils/lyrics/renderHints';
 import { useLyricRenderQuality } from '../renderQuality/useLyricRenderQuality';
-import { colorWithAlpha } from '../colorMix';
+import { colorWithAlpha } from '../../../utils/colorMix';
 
 import { type VisualizerSharedProps } from '../definition';
 import { buildFumeBackgroundScene } from './FumeBackground';

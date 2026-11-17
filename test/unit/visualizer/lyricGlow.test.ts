@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { motionValue } from 'framer-motion';
 import * as pixi from 'pixi.js';
 import type { Line, Theme } from '@/types';
-import { parseColorChannels, resolveGlowColorStrength } from '@/components/visualizer/colorMix';
+import { parseColorChannels, resolveGlowColorStrength } from '@/utils/colorMix';
 import { buildSonnetTextView } from '@/components/visualizer/sonnet/sonnetTextViewBuilder';
 import type { SonnetTypographyPlacement } from '@/components/visualizer/sonnet/sonnetTypographyLayout';
 import { createLatticeLineView } from '@/components/app/lattice/lyrics/latticeLyricScene';

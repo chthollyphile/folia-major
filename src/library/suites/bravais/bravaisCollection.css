@@ -117,8 +117,51 @@
 .bravais-seam-star.is-on svg { fill: currentColor; }
 .bravais-seam-star:hover:not(:disabled) { border-color: color-mix(in srgb, currentColor 26%, transparent); }
 .bravais-seam-star:disabled { cursor: default; }
-/* fb10：星标在「播放全部 / 加入队列」那一行的末尾（靠右），不再单独占一行。 */
-.bravais-seam-actions .bravais-seam-star { margin-left: auto; }
+/* 方案 C（2026-11-13）：播放 / 入队那一行下面一排同样大小的图标格——星标、列表、按优先级补上的集合动作、「⋯」。
+   这一排的宽度不随格子数变（contain: inline-size，横条的侧栏由上面的播放行撑宽），useBravaisSeamQuickSlots 按它量格数；
+   不折行。格子与星标同一身：36px 方格、静止时无底无框，悬停出 12px 圆角框。 */
+.bravais-seam-actions.is-quick {
+    min-width: 120px;
+    flex-wrap: nowrap;
+    contain: inline-size;
+}
+
+.bravais-seam-quick-cell {
+    display: grid;
+    width: 36px;
+    height: 36px;
+    flex: none;
+    place-items: center;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: 12px;
+    color: inherit;
+    background: transparent;
+    cursor: pointer;
+    opacity: 0.8;
+}
+
+.bravais-seam-quick-cell svg { width: 18px; height: 18px; }
+.bravais-seam-quick-cell:hover:not(:disabled),
+.bravais-seam-quick-cell.is-pressed {
+    opacity: 1;
+    border-color: color-mix(in srgb, currentColor 26%, transparent);
+    background: color-mix(in srgb, currentColor 16%, transparent);
+}
+.bravais-seam-quick-cell:disabled { opacity: 0.3; cursor: default; }
+/* 进行中（转圈）的那一格照常是禁用的，但转圈要看得清：不降透明度。 */
+.bravais-seam-quick-cell:disabled:has(.animate-spin) { opacity: 0.8; }
+.bravais-seam-quick-cell:focus-visible { outline: 2px solid var(--text-accent, currentColor); outline-offset: 2px; }
+
+/* 海报上：海报自己的方块按钮方成一格（46px），星标跟着同样大。 */
+.bravais-poster-actions > .bravais-seam-more-anchor { flex: 1 0 100%; }
+/* 动作格那一排占满整行，「⋯」菜单不跟着拉满：从左边按内容长、至少 200px。 */
+.bravais-poster-actions .bravais-seam-more-anchor > .bravais-seam-menu { right: auto; width: max-content; min-width: 200px; }
+.bravais-poster .bravais-poster-button.is-icon { justify-content: center; width: 46px; padding: 0; }
+.bravais-poster .bravais-poster-button.is-icon svg { width: 20px; height: 20px; }
+.bravais-poster .bravais-poster-button.is-icon.is-pressed { background: rgba(255, 255, 255, 0.18); }
+.bravais-poster-actions .bravais-seam-actions.is-quick { gap: 14px; }
+.bravais-poster-actions .bravais-seam-actions.is-quick > .bravais-seam-star { width: 46px; height: 46px; }
 
 .bravais-seam .bravais-seam-meta-reload {
     display: inline-flex;

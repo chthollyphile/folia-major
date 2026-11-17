@@ -1,9 +1,9 @@
 import React, { useCallback, useMemo } from 'react';
-import { ChevronLeft, FoldHorizontal, ListFilter, ListPlus, Maximize2, Play } from 'lucide-react';
+import { ChevronLeft, FoldHorizontal, ListFilter, ListPlus, Maximize2, Play, Shuffle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { BravaisLayer } from './bravaisLayer';
 import type { BravaisSeamLevel } from './bravaisSeamLevel';
-import { BravaisSeamCollectionMenu, BravaisSeamCollectionMeta, BravaisSeamMetaLine, BravaisSeamStar, BravaisSeamStatusLine } from './BravaisSeamCollection';
+import { BravaisSeamCollectionMenu, BravaisSeamCollectionMeta, BravaisSeamMetaLine, BravaisSeamStatusLine } from './BravaisSeamCollection';
 import { BravaisSeamSpineTitle, BravaisSeamTitleArea } from './BravaisSeamTitle';
 import BravaisSeamFilterField from './BravaisSeamFilterField';
 import { openBravaisFilter } from './useBravaisSeamFilter';
@@ -12,12 +12,14 @@ import BravaisSeamAbout from './BravaisSeamAbout';
 import BravaisSeamCrumbs from './BravaisSeamCrumbs';
 import { BravaisSeamFlipText } from './BravaisSeamFlip';
 import './bravaisSeamRow.css';
+import BravaisSeamPlayScope from './BravaisSeamPlayScope';
 
 // src/library/suites/bravais/BravaisSeamRow.tsx
 // 信息条横向时集合 / 歌手页的两套内容（缝是一道横跨视口的横条，见 bravaisSeamRow.css）：
 // - 完整信息条：上面一行是 ‹ 与面包屑、右边是过滤输入位；下面三栏——标题区域（引号 + 横排大标题，点它收成书脊）、
-//   元数据 / 简介 / 收藏与状态（放不下时在栏里滚）、播放全部 / 加入队列 / 星标与「列表」「⋯ 更多」。
-// - 书脊：一行——返回、折叠、横排标题（点它展开）、计数、过滤中的图标，右端播放与展开。
+//   元数据 / 简介 / 状态（放不下时在栏里滚）、播放全部｜随机 / 加入队列，下面一排图标动作格（收藏、列表、按优先级补上的
+//   集合动作、⋯；方案 C，格子数按这一栏的宽度量）。
+// - 书脊：一行——返回、折叠、横排标题（点它展开）、计数、过滤中的图标，右端播放、随机播放与展开。
 // 用的零件与竖的缝（BravaisSeamContent 的 FullSeam / SpineSeam）是同一套，只是排成一行；文案、动作、data 属性都不变，
 // 用例与读屏看到的是同一组控件。
 
@@ -80,17 +82,12 @@ export const BravaisSeamFullRow: React.FC<{ layer: BravaisLayer; actions: Bravai
                 </div>
                 <div className="bravais-seam-row-side">
                     <div className="bravais-seam-actions is-scope">
-                        {seam.onPlayScope && (
-                            <button type="button" className="bravais-chrome-button is-primary" data-bravais-seam-action="play-scope" onClick={seam.onPlayScope}>
-                                <Play aria-hidden />{seam.scopeLabels?.play ?? t('libraryBravais.playAll')}
-                            </button>
-                        )}
+                        <BravaisSeamPlayScope seam={seam} buttonClassName="bravais-chrome-button" />
                         {seam.onEnqueueScope && (
                             <button type="button" className="bravais-chrome-button" data-bravais-seam-action="enqueue-scope" onClick={seam.onEnqueueScope}>
                                 <ListPlus aria-hidden />{seam.scopeLabels?.enqueue ?? t('libraryBravais.enqueueAll')}
                             </button>
                         )}
-                        {collection?.subscribe && <BravaisSeamStar subscribe={collection.subscribe} />}
                     </div>
                     <BravaisSeamCollectionMenu collection={collection} onOpenList={actions.openList} fold={fold} />
                 </div>
@@ -128,6 +125,13 @@ export const BravaisSeamSpineRow: React.FC<{ layer: BravaisLayer; actions: Brava
                 <button type="button" className="bravais-seam-icon" data-bravais-seam-action="play-scope" onClick={seam.onPlayScope}
                     aria-label={seam.scopeLabels?.play ?? t('libraryBravais.playAll')} title={seam.scopeLabels?.play ?? t('libraryBravais.playAll')}>
                     <Play aria-hidden />
+                </button>
+            )}
+            {/* 随机播放只跟着播放出现（与 BravaisSeamPlayScope 的两半同一条规则）。 */}
+            {seam.onPlayScope && seam.onShuffleScope && (
+                <button type="button" className="bravais-seam-icon" data-bravais-seam-action="shuffle-scope" onClick={seam.onShuffleScope}
+                    aria-label={t('playlist.shufflePlay')} title={t('playlist.shufflePlay')}>
+                    <Shuffle aria-hidden />
                 </button>
             )}
             <button type="button" className="bravais-seam-icon" data-bravais-seam-action="expand" onClick={expand}

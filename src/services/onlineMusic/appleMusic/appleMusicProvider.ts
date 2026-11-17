@@ -6,7 +6,7 @@ import { OnlineProviderError } from '../../../types/onlineMusic';
 import { parseLyricsByFormat } from '../../../utils/lyrics/parserCore';
 import { hasRenderableLyrics } from '../../../utils/lyrics/validity';
 import {
-    APPLE_MUSIC_LIBRARY_PLAYLIST_ID, getAppleMusicCatalogPage, getAppleMusicLibraryAlbums, getAppleMusicLibrarySongs, getAppleMusicLibraryAlbumTracks, getAppleMusicPersonalFm, canAddToAppleMusicPlaylist, updateAppleMusicPlaylistTracks, appleMusicSongLikeId, getAppleMusicLikedSongIds, setAppleMusicSongLiked, appleMusicCatalogSongId, isAppleMusicSongPlayable, getAppleMusicPlaylists, getAppleMusicPlaylistTracks, getAppleMusicTtml, searchAppleMusic,
+    APPLE_MUSIC_LIBRARY_PLAYLIST_ID, getAppleMusicCatalogPage, getAppleMusicLibraryAlbums, getAppleMusicLibrarySongs, getAppleMusicLibraryAlbumTracks, getAppleMusicPersonalFm, canAddToAppleMusicPlaylist, updateAppleMusicPlaylistTracks, appleMusicSongLikeId, getAppleMusicLikedSongIds, setAppleMusicSongLiked, appleMusicCatalogSongId, appleMusicPlaybackSongId, isAppleMusicLibraryPlaybackId, isAppleMusicSongPlayable, getAppleMusicPlaylists, getAppleMusicPlaylistTracks, getAppleMusicTtml, searchAppleMusic,
 } from './appleMusicData';
 import { appleMusicLiveStationId, getAppleMusicLiveStations, getAppleMusicLiveStationTracks } from './appleMusicRadio';
 import { getAppleMusicLyricSearchAlias } from './appleMusicOriginal';
@@ -16,6 +16,25 @@ import { getAppleMusicTransportAvailability, requestAppleMusic } from './appleMu
 // MusicKit's PlaybackStates: ended is 5 and completed is 10 (waiting is 8, stalled is 9). A
 // stalled stream must not be taken for the end of the track.
 const isEndedState = (state: number | null): boolean => state === 5 || state === 10;
+// MusicKit's PlaybackStates.stopped. At a natural end MusicKit sometimes clears its item and gives
+// this instead of ended (#1142, macOS WKWebView): read as the end only when the song was last heard
+// this close to its end.
+const STOPPED_STATE = 4;
+const STOPPED_AT_END_SLACK_MS = 3000;
+// Chromium's intensive throttling lets a hidden page's chained timers run once a minute.
+const HEARD_GAP_LIMIT_MS = 90_000;
+// MusicKit's PlayerRepeatMode.one: going round passes through a stopped answer with no item, which
+// is the track repeating, not its end.
+const REPEAT_ONE_MODE = 1;
+
+// A player with no item, stopped, not repeating one track, whose song had reached the slack of its
+// known end: that song finished. `positionMs` already counts the time the song went on after the
+// last answer that named it, so this holds when answers come slowly (a throttled hidden window).
+function stoppedAtEnd(data: unknown, heard: { durationMs: number; positionMs: number }): boolean {
+    const raw = data as { state?: unknown; repeatMode?: unknown } | null;
+    return raw?.state === STOPPED_STATE && raw.repeatMode !== REPEAT_ONE_MODE
+        && heard.durationMs > 0 && heard.positionMs >= heard.durationMs - STOPPED_AT_END_SLACK_MS;
+}
 
 // Name catalog artists given only by ID, one lookup each; null when an ID is malformed or an artist has no name.
 async function nameAppleMusicCatalogArtists(ids: readonly unknown[]): Promise<ProviderArtistSummary[] | null> {
@@ -81,7 +100,9 @@ export function createAppleMusicProvider(getAvailability: () => ProviderAvailabi
     // Only a change is logged: the player is asked twice a second while a track is loaded.
     let lastHadTrack: boolean | null = null;
     // MusicKit clears nowPlayingItem at completion. Retain only this attempt's observed identity.
-    let playback: { catalogId: string; hasPlayed: boolean; durationMs: number; positionMs: number; nextIds: string[]; nativeNextId: string; queueRevision: number } | null = null;
+    let playback: { catalogId: string; hasPlayed: boolean; durationMs: number; positionMs: number; heardAtMs: number; heardPlaying: boolean; nextIds: string[]; nativeNextId: string; queueRevision: number } | null = null;
+    // Attempts whose stopped-at-end reading has been logged: the player is asked again until Folia moves on.
+    const stoppedEndLogged = new WeakSet();
 
     // Window actions take turns so an older cancellation cannot hide a newer login.
     function scheduleWindowAction(action: () => Promise<void>): Promise<void> {
@@ -220,24 +241,28 @@ export function createAppleMusicProvider(getAvailability: () => ProviderAvailabi
         // it is word-level, the automatic pick must not replace it with another source's.
         lyrics: { getLyrics: readLyrics, getSearchAlias: getAppleMusicLyricSearchAlias, prefersOwnWordByWord: true },
         // Apple's audio never leaves its page: these calls steer the companion's MusicKit player.
-        // A library song is played by its catalog id, which the companion puts in the queue.
+        // A library song is played by its catalog id, which the companion puts in the queue; an upload
+        // with no catalog counterpart is played by its library id (`appleMusicPlaybackSongId`).
         externalPlayback: {
             canPlay: song => Boolean(appleMusicLiveStationId(song)) || isAppleMusicSongPlayable(song),
             isPrepared(song) {
                 try {
-                    const id = appleMusicCatalogSongId(song);
+                    const id = appleMusicPlaybackSongId(song);
                     return handoffId === id || Boolean(playback?.hasPlayed && playback.nativeNextId === id);
                 } catch { return false; }
             },
             async prepareNext(song, upcoming) {
                 if (appleMusicLiveStationId(song)) return;
                 const attempt = playback;
-                if (!attempt || attempt.catalogId !== appleMusicCatalogSongId(song)) return;
+                if (!attempt || attempt.catalogId !== appleMusicPlaybackSongId(song)) return;
                 const ids: string[] = [];
                 for (const next of upcoming.slice(0, 2)) {
                     if (!isAppleMusicSongPlayable(next)) continue;
                     try {
-                        const id = appleMusicCatalogSongId(next);
+                        const id = appleMusicPlaybackSongId(next);
+                        // An upload is not put in the prepared tail: whether MusicKit's playLater takes a
+                        // library id beside catalog ids is unverified, so it starts through playSong instead.
+                        if (isAppleMusicLibraryPlaybackId(id)) break;
                         if (id === attempt.catalogId || ids.includes(id)) break;
                         ids.push(id);
                     } catch { break; }
@@ -270,12 +295,12 @@ export function createAppleMusicProvider(getAvailability: () => ProviderAvailabi
                 if (!isAppleMusicSongPlayable(song)) {
                     throw new OnlineProviderError('not-playable', 'Apple Music cannot stream this song in the current route', 'appleMusic', 'playback-unavailable');
                 }
-                const catalogId = appleMusicCatalogSongId(song);
+                const catalogId = appleMusicPlaybackSongId(song);
                 const seconds = Math.max(0, Math.min(startSec, 604800));
                 const adoptCurrent = handoffId === catalogId && seconds === 0;
                 handoffId = null;
                 const requestKey = `play_${playNonce}_${++playSequence}`;
-                const attempt = { catalogId, hasPlayed: false, durationMs: 0, positionMs: 0, nextIds: [] as string[], nativeNextId: '', queueRevision: 0 };
+                const attempt = { catalogId, hasPlayed: false, durationMs: 0, positionMs: 0, heardAtMs: 0, heardPlaying: false, nextIds: [] as string[], nativeNextId: '', queueRevision: 0 };
                 playback = attempt;
                 let result;
                 try {
@@ -299,7 +324,7 @@ export function createAppleMusicProvider(getAvailability: () => ProviderAvailabi
                     return;
                 }
                 liveStationId = null;
-                playback = { catalogId: appleMusicCatalogSongId(song), hasPlayed: true, durationMs: 0, positionMs: 0, nextIds: [], nativeNextId: '', queueRevision: 0 };
+                playback = { catalogId: appleMusicPlaybackSongId(song), hasPlayed: true, durationMs: 0, positionMs: 0, heardAtMs: 0, heardPlaying: false, nextIds: [], nativeNextId: '', queueRevision: 0 };
             },
             async pause() {
                 await requestAppleMusic('pause');
@@ -329,12 +354,21 @@ export function createAppleMusicProvider(getAvailability: () => ProviderAvailabi
             async getStatus(song: SongResult) {
                 const attempt = playback;
                 const data = await requestAppleMusic<unknown>('playbackStatus');
+                const answeredAtMs = Date.now();
                 let status = externalStatus(data);
-                if (attempt && playback === attempt && attempt.catalogId === (appleMusicLiveStationId(song) || appleMusicCatalogSongId(song))) {
+                if (attempt && playback === attempt && attempt.catalogId === (appleMusicLiveStationId(song) || appleMusicPlaybackSongId(song))) {
                     if (status.mediaId === attempt.catalogId) {
                         attempt.hasPlayed ||= status.isPlaying;
                         if (status.durationMs > 0) attempt.durationMs = status.durationMs;
-                        attempt.positionMs = status.positionMs;
+                        // At its end MusicKit seeks back to 0 just before it clears the item: a stopped
+                        // answer at 0 right after the song was heard at its end keeps where it was heard.
+                        const wentBackAtEnd = !status.isPlaying && status.positionMs === 0 && attempt.heardPlaying
+                            && attempt.durationMs > 0 && attempt.positionMs >= attempt.durationMs - STOPPED_AT_END_SLACK_MS;
+                        if (!wentBackAtEnd) {
+                            attempt.positionMs = status.positionMs;
+                            attempt.heardAtMs = answeredAtMs;
+                            attempt.heardPlaying = status.isPlaying && status.seeking !== true;
+                        }
                     } else if (status.mediaId && attempt.hasPlayed && (status.mediaId === attempt.nextIds[0] || status.mediaId === attempt.nativeNextId)) {
                         handoffId = status.mediaId;
                         // MusicKit already started the approved next song. Let Folia adopt it without resetting its queue.
@@ -343,9 +377,28 @@ export function createAppleMusicProvider(getAvailability: () => ProviderAvailabi
                     } else if (status.mediaId) {
                         // The user selected a different song in the web window: its end is not ours.
                         attempt.hasPlayed = false;
-                    } else if (attempt.hasPlayed && isEndedState((data as { state?: number }).state ?? null)) {
-                        status = { mediaId: attempt.catalogId, isPlaying: false, ended: true,
-                            durationMs: attempt.durationMs, positionMs: attempt.durationMs || attempt.positionMs };
+                    } else {
+                        // The item went away since the answer before: a song heard playing then went on
+                        // until about now. Counted once, so a player that stays empty does not run on.
+                        if (attempt.heardPlaying) {
+                            attempt.heardPlaying = false;
+                            // A gap longer than a throttled window's slowest answer is a sleep or a silent
+                            // companion, not listening time.
+                            const gapMs = answeredAtMs - attempt.heardAtMs;
+                            const reachedMs = attempt.positionMs + (gapMs > 0 && gapMs <= HEARD_GAP_LIMIT_MS ? gapMs : 0);
+                            attempt.positionMs = attempt.durationMs > 0 ? Math.min(attempt.durationMs, reachedMs) : reachedMs;
+                        }
+                        const endedState = isEndedState((data as { state?: number }).state ?? null);
+                        if (attempt.hasPlayed && (endedState || stoppedAtEnd(data, attempt))) {
+                            if (!endedState && !stoppedEndLogged.has(attempt)) {
+                                // The decision is logged once per song, not on every answer until Folia moves on.
+                                stoppedEndLogged.add(attempt);
+                                console.info('[AppleMusic] stopped with no item at the end of the song: taken as its end',
+                                    { positionMs: attempt.positionMs, durationMs: attempt.durationMs });
+                            }
+                            status = { mediaId: attempt.catalogId, isPlaying: false, ended: true,
+                                durationMs: attempt.durationMs, positionMs: attempt.durationMs || attempt.positionMs };
+                        }
                     }
                 }
                 // A track the player cannot name, and the state it is in, is what a start that did
@@ -363,10 +416,10 @@ export function createAppleMusicProvider(getAvailability: () => ProviderAvailabi
                 }
                 return status;
             },
-            // The companion reports the catalog id it was given, so a library song matches too.
+            // The companion reports the catalog id it was given (an upload: its library id), so a library song matches too.
             isStatusForSong(song, status) {
                 try {
-                    return status.mediaId === (appleMusicLiveStationId(song) || appleMusicCatalogSongId(song));
+                    return status.mediaId === (appleMusicLiveStationId(song) || appleMusicPlaybackSongId(song));
                 } catch {
                     return false;
                 }

@@ -25,7 +25,8 @@
 /* Poster content stays square, while independent navigation and utility chrome keeps its shape. */
 /* 限定在 Lattice 自己的根（.lattice-queue-root，与 .lattice-root 挂在同一个元素上，特异度不变）：wall.css 让 bravais
    也用 .lattice-root，Lattice 的 chunk 一旦加载，这条 !important 会把 bravais 缝里的圆角按钮压成直角（B4 记下的泄漏）。 */
-.lattice-queue-root *:not(.lattice-tools *):not(.lattice-back):not(.lattice-chrome button) {
+/* 电台墙的背景构图（radio/RadioBackdrop）画的是电波同心圆，浏览时的播放记号、台线末端的点是圆的，不在此列。 */
+.lattice-queue-root *:not(.lattice-tools *):not(.lattice-back):not(.lattice-chrome button):not(.lattice-radio-backdrop *):not(.lattice-radio-play-hint):not(.lattice-radio-station-dot) {
     border-radius: 0 !important;
 }
 

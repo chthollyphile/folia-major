@@ -48,6 +48,7 @@ const GridCollectionSurface: React.FC<LibraryCollectionSurfaceProps> = ({
             trackPlaybackMark={stayPlayback.markFor}
             onAddTrackToQueue={playback.enqueueTrack}
             onPlayAll={playback.playAll}
+            onShufflePlayAll={declares('shuffle-scope') ? tracks => playback.playAll(tracks, { shuffle: true }) : undefined}
             onAddAllToQueue={playback.enqueueAll}
             collectTrack={declares('collect') ? collect : undefined}
             collectScope={declares('collect-scope') ? collect : undefined}

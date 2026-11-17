@@ -3,7 +3,7 @@ import { generateBuiltinDualTheme } from '@/utils/builtinTheme/generateBuiltinDu
 import { analyzeCoverPalette } from '@/utils/builtinTheme/coverPaletteAnalysis';
 import { BUILTIN_NAME_SUFFIX } from '@/utils/builtinTheme/themeNameTable';
 import { sanitizeDualTheme } from '@/services/themeSanitizer';
-import { getContrastRatio, getHueDistance, hexToHsl } from '@/utils/themeColorMath';
+import { getContrastRatio, getHueDistance, getOklabDistance, hexToHsl, hexToOklch } from '@/utils/themeColorMath';
 import type { Theme } from '@/types';
 
 // test/unit/theme/builtinThemeGenerator.test.ts
@@ -113,6 +113,48 @@ describe('generateBuiltinDualTheme', () => {
 
         expect(new Set(themes.map(theme => theme.dark.backgroundColor)).size).toBeGreaterThan(1);
         expect(new Set(themes.map(theme => theme.dark.name)).size).toBeGreaterThan(1);
+    });
+
+    it('gives a muted cover a calmer accent than a vivid cover of the same hue', () => {
+        const averageAccentChroma = (cover: string, mode: 'light' | 'dark') => {
+            let total = 0;
+            for (let seed = 1; seed <= 30; seed += 1) {
+                const theme = generateBuiltinDualTheme({ coverColors: [cover], random: createSequenceRandom(seed * 389) })[mode];
+                total += hexToOklch(theme.accentColor)!.C;
+            }
+            return total / 30;
+        };
+
+        for (const mode of ['light', 'dark'] as const) {
+            expect(averageAccentChroma('#8f8a80', mode)).toBeLessThan(averageAccentChroma('#e0402a', mode) * 0.8);
+        }
+    });
+
+    it('keeps the accent apart from the secondary text colour on grey and muted covers', () => {
+        const covers = [[], ['#808080'], ['#2a2a2c', '#c8c8c6'], ['#8f8a80'], ['#6b7a8f'], ['#1d2b4a']];
+        for (const coverColors of covers) {
+            for (let seed = 1; seed <= 40; seed += 1) {
+                const dualTheme = generateBuiltinDualTheme({ coverColors, random: createSequenceRandom(seed * 271) });
+                for (const theme of [dualTheme.light, dualTheme.dark]) {
+                    expect(getOklabDistance(theme.accentColor, theme.secondaryColor)).toBeGreaterThanOrEqual(0.05);
+                    expectReadableTheme(theme);
+                }
+            }
+        }
+    });
+
+    it('keeps light-theme accents out of the olive and khaki hues', () => {
+        const covers = ['#ecec13', '#d6c21a', '#a4ec13', '#c8ec13', '#f2d600', '#7ca31f'];
+        for (const cover of covers) {
+            for (let seed = 1; seed <= 25; seed += 1) {
+                const accent = hexToOklch(generateBuiltinDualTheme({
+                    coverColors: [cover],
+                    random: createSequenceRandom(seed * 613),
+                }).light.accentColor)!;
+                if (accent.C < 0.04) continue;
+                expect(accent.h < 90 || accent.h > 135).toBe(true);
+            }
+        }
     });
 
     it('takes the accent hue from a second cover color when the cover is duotone', () => {

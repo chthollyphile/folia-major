@@ -46,7 +46,11 @@ export const PROBE_SURFACE_CALLBACKS: ProbeSurfaceCallbacks = {
         queueIds: probeSongKeys(queue),
         ...(isFmCall ? { isFm: true } : {}),
     }),
-    onPlayAll: songs => recordProbeCall({ kind: 'playAll', ids: probeSongKeys(songs) }),
+    onPlayAll: (songs, _from, options) => recordProbeCall({
+        kind: 'playAll',
+        ids: probeSongKeys(songs),
+        ...(options?.shuffle ? { shuffle: true } : {}),
+    }),
     onAddAllToQueue: (songs, options) => {
         const keys = probeSongKeys(songs);
         const added = keys.filter(key => !probeQueue.has(key));

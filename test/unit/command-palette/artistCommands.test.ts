@@ -36,6 +36,7 @@ describe('artist commands', () => {
     it('are registered as one artist-surface group', () => {
         expect(artistCommandIds).toEqual([
             'artist-play-top-songs',
+            'artist-shuffle-top-songs',
             'artist-enqueue-top-songs',
             'artist-reload',
             'artist-retry-albums',

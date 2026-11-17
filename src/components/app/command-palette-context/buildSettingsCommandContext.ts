@@ -32,6 +32,7 @@ import { useThemeQuickEditorStore } from '../../../stores/useThemeQuickEditorSto
 import { usePlayerBottomBarLayoutStore } from '../../../stores/usePlayerBottomBarLayoutStore';
 import type { SongResult } from '../../../types';
 import { cycleSubtitleContentMode } from '../../../utils/lyrics/alternateText';
+import { withRemoteLyricPairs } from '../../../utils/remoteLyricLayout';
 
 // src/components/app/command-palette-context/buildSettingsCommandContext.ts
 // The `settings` namespace of the palette context.
@@ -107,6 +108,10 @@ export const buildSettingsCommandContext = (
             const wall = useLibraryWallLookStore.getState();
             wall.setCollectionStackEdges(!wall.collectionStackEdges);
         },
+        toggleLibraryWallCollectionTilt: () => {
+            const wall = useLibraryWallLookStore.getState();
+            wall.setCollectionTilt(!wall.collectionTilt);
+        },
         libraryWallSeamClear: () => useLibraryWallLookStore.getState().seamClear,
         toggleLibraryWallSeamClear: () => {
             const wall = useLibraryWallLookStore.getState();
@@ -146,6 +151,12 @@ export const buildSettingsCommandContext = (
             !useGridViewSettingsStore.getState().gridViewSquareCards,
         ),
         canUseGridViewSquareCards: () => useGridViewSettingsStore.getState().gridViewFullBleedCover,
+        toggleLatticeRadioHideUpcoming: () => useLatticeSettingsStore.getState().handleToggleLatticeRadioHideUpcoming(
+            !useLatticeSettingsStore.getState().latticeRadioHideUpcoming,
+        ),
+        toggleLatticeWallForm: () => useLatticeSettingsStore.getState().handleSetLatticeWallForm(
+            useLatticeSettingsStore.getState().latticeWallForm === 'radio' ? 'poster' : 'radio',
+        ),
         toggleLatticeVignette: () => useLatticeSettingsStore.getState().handleToggleLatticeVignette(
             !useLatticeSettingsStore.getState().latticeVignette,
         ),
@@ -211,6 +222,9 @@ export const buildSettingsCommandContext = (
         toggleAutoSkipUnplayable: () => audio.handleToggleAutoSkipUnplayable(
             !useAudioSettingsStore.getState().autoSkipUnplayable,
         ),
+        toggleShuffleRoundNoRepeat: () => audio.handleToggleShuffleRoundNoRepeat(
+            !useAudioSettingsStore.getState().shuffleRoundNoRepeat,
+        ),
         canAutoScanLocalLibrary: isLocalLibraryAutoScanSupported,
         toggleLocalLibraryAutoScan: () => useLocalLibrarySettingsStore.getState().toggleAutoScan(),
         canReportPlayback: () => isPlaybackReportReady(),
@@ -251,6 +265,10 @@ export const buildSettingsCommandContext = (
         toggleRemoteControlTextShade: () => desktop.handleToggleRemoteControlTextShade(
             !useDesktopSettingsStore.getState().remoteControlTextShade,
         ),
+        toggleRemoteLyricPairs: () => {
+            const layout = useDesktopSettingsStore.getState().remoteControlLyricLayout;
+            desktop.handleSetRemoteControlLyricLayout(withRemoteLyricPairs(layout, layout.pairs === 2 ? 1 : 2));
+        },
         unlockRemoteControl: () => desktop.handleToggleRemoteControlClickThrough(false),
         toggleObsKeepMainWindowAnimation: () => useStageSettingsStore.getState().handleToggleObsKeepMainWindowAnimation(
             !useStageSettingsStore.getState().obsKeepMainWindowAnimation,

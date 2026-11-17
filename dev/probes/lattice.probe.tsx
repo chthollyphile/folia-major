@@ -90,7 +90,7 @@ function LatticeProbe({ covers = 'off', queueLength = 12, withLyrics = false, wi
                 next: () => setCurrentSong(source[(source.indexOf(currentSong!) + 1) % source.length]),
                 toggleLoop: () => setLoopMode(value => value === 'off' ? 'all' : value === 'all' ? 'one' : 'off'),
                 shuffleQueue: () => setSongs(value => [...value].reverse()), toggleSongLike: () => {}, isSongLiked: false, isFmMode: false },
-            invokeCommandById: setCommand, canInvokeCommandById: () => true,
+            invokeCommandById: setCommand, canInvokeCommandById: () => true, fmDislike: () => {},
         }} queue={songs} currentSong={currentSong} playerState={playerState}
             lyricSource={{ currentTime: time, currentLineIndex: lines ? 0 : -1,
                 lines: lines ?? [], theme: DEFAULT_THEME }} lyricKeywordColoringEnabled

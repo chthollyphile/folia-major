@@ -586,13 +586,23 @@ for (const suite of SUITES) {
             await openArtist(page, 'artist-main');
             await waitForArtist(page, main.albumCount);
             const playable = topKeys(main, true);
-            await expect.poll(async () => (await artistSurface(page))?.availableActions).toEqual(['play-top-songs', 'enqueue-top-songs', 'reload']);
+            // 随机播放热门歌曲只有 grid / bravais 声明（TUI 已冻结）。
+            const shuffles = suite !== 'tui';
+            await expect.poll(async () => (await artistSurface(page))?.availableActions)
+                .toEqual(shuffles ? ['play-top-songs', 'shuffle-top-songs', 'enqueue-top-songs', 'reload'] : ['play-top-songs', 'enqueue-top-songs', 'reload']);
             expect(await artistSurface(page)).toMatchObject({ playableTopSongCount: playable.length, albumCount: main.albumCount, isFilterActive: false });
 
             await clearLog(page);
             expect(await runArtistSurface(page, 'play-top-songs')).toBe(true);
             await expect.poll(() => calls(page, 'playAll')).toHaveLength(1);
             expect((await lastCall(page, 'playAll'))?.ids).toEqual(playable);
+            expect((await lastCall(page, 'playAll'))?.shuffle).toBeUndefined();
+            if (shuffles) {
+                await clearLog(page);
+                expect(await runArtistSurface(page, 'shuffle-top-songs')).toBe(true);
+                await expect.poll(() => calls(page, 'playAll')).toHaveLength(1);
+                expect(await lastCall(page, 'playAll')).toMatchObject({ ids: playable, shuffle: true });
+            }
 
             await page.evaluate(keys => window.__libraryProbe!.seedQueue(keys), playable.slice(0, 3));
             await clearLog(page);
@@ -611,7 +621,9 @@ for (const suite of SUITES) {
             await mountProbe(mount, page, suite);
             await openArtist(page, 'local-artist');
             await waitForArtist(page, LOCAL_ALBUM_NAMES.length);
-            await expect.poll(async () => (await artistSurface(page))?.availableActions).toEqual(['play-top-songs', 'enqueue-top-songs', 'edit-entity']);
+            await expect.poll(async () => (await artistSurface(page))?.availableActions).toEqual(suite === 'tui'
+                ? ['play-top-songs', 'enqueue-top-songs', 'edit-entity']
+                : ['play-top-songs', 'shuffle-top-songs', 'enqueue-top-songs', 'edit-entity']);
             expect(await runArtistSurface(page, 'edit-entity')).toBe(true);
             await expect(page.getByRole('dialog')).toBeVisible();
         });
@@ -984,22 +996,20 @@ test.describe('[bravais-only] artist page wall', () => {
         await expect(stageRoot(page).locator('[data-bravais-artist-stats]')).toHaveText(stats);
         await expect(stageRoot(page).locator('[data-bravais-poster] .bravais-poster-meta')).toHaveCount(0);
         await expect(stageRoot(page).locator('[data-bravais-poster]')).not.toContainText('top songs ·');
-        // 在线歌手没有实体可编辑：「⋯ 更多」里只有重新拉取。
-        await stageRoot(page).locator('[data-bravais-seam-action="more"]').dispatchEvent('click');
-        await expect(stageRoot(page).locator('[data-bravais-seam-menu] [data-bravais-seam-action="reload"]')).toBeVisible();
-        await expect(stageRoot(page).locator('[data-bravais-seam-menu] [data-bravais-seam-action="edit-entity"]')).toHaveCount(0);
+        // 在线歌手没有实体可编辑：只有重新拉取（方案 C：海报的动作格放得下，它直接成一格，不在「⋯ 更多」里）。
+        const quick = stageRoot(page).locator('.bravais-seam-actions.is-quick');
+        await expect(quick.locator('[data-bravais-seam-action="reload"]')).toBeVisible();
+        await expect(stageRoot(page).locator('[data-bravais-seam-action="edit-entity"]')).toHaveCount(0);
         await back(page);
         await expect(artistLayer(page)).toHaveCount(0);
 
         await openArtist(page, 'local-artist');
         await waitForArtist(page, LOCAL_ALBUM_NAMES.length);
         await expect(stageRoot(page).locator('[data-bravais-seam-title]')).toHaveText(LOCAL_ARTIST_NAME);
-        // 「⋯ 更多」的展开状态留在缝里：已经开着就不再点（点一下会收起）。
-        const more = stageRoot(page).locator('[data-bravais-seam-action="more"]');
-        if (await more.getAttribute('aria-expanded') !== 'true') await more.dispatchEvent('click');
-        await expect(stageRoot(page).locator('[data-bravais-seam-menu] [data-bravais-seam-action="edit-entity"]')).toBeVisible();
-        await expect(stageRoot(page).locator('[data-bravais-seam-menu] [data-bravais-seam-action="reload"]')).toHaveCount(0);
-        await stageRoot(page).locator('[data-bravais-seam-menu] [data-bravais-seam-action="edit-entity"]').dispatchEvent('click');
+        // 本地歌手：实体信息直接成一格，没有重新拉取。
+        await expect(quick.locator('[data-bravais-seam-action="edit-entity"]')).toBeVisible();
+        await expect(stageRoot(page).locator('[data-bravais-seam-action="reload"]')).toHaveCount(0);
+        await quick.locator('[data-bravais-seam-action="edit-entity"]').dispatchEvent('click');
         await expect(page.getByRole('dialog')).toBeVisible();
     });
 });

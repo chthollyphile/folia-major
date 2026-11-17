@@ -20,7 +20,7 @@ const HOST_WAIT_TIMEOUT_MS = 60_000;
 const HOST_WAIT_INTERVAL_MS = 250;
 
 // Playback control only: the dev helper acts as a mod with that one permission would.
-const DEV_PLAYBACK_CALLER: ModRuntimeInfo = {
+export const DEV_PLAYBACK_CALLER: ModRuntimeInfo = {
     id: 'folia-dev-mock-song',
     name: 'Dev mock song',
     version: null,
@@ -46,7 +46,7 @@ let mockAudio: Blob | null = null;
 let pendingPlay: Promise<LocalSong> | null = null;
 
 /** Writes a file unless the same bytes are already there, so an unchanged file keeps its library record as it is. */
-const writeFileOnce = async (dir: FileSystemDirectoryHandle, name: string, makeBlob: () => Blob | Promise<Blob>) => {
+export const writeFileOnce = async (dir: FileSystemDirectoryHandle, name: string, makeBlob: () => Blob | Promise<Blob>) => {
     const handle = await dir.getFileHandle(name, { create: true });
     const blob = await makeBlob();
     const existing = await handle.getFile();
@@ -71,7 +71,7 @@ const prepareMockFolder = async (): Promise<FileSystemDirectoryHandle> => {
 };
 
 /** Resolves once App has registered the playback actions; they are not there until it mounts. */
-const waitForPlaybackHost = async (playback: ReturnType<typeof createFoliumPlaybackService>) => {
+export const waitForPlaybackHost = async (playback: ReturnType<typeof createFoliumPlaybackService>) => {
     const deadline = Date.now() + HOST_WAIT_TIMEOUT_MS;
     for (;;) {
         try {

@@ -8,7 +8,8 @@ import type { LocalGridViewCollectionDescriptor, OnlineGridViewCollectionDescrip
 /** 把「播放 / 入队」交给应用现有的播放控制器；核心层不知道队列怎么构造。 */
 export interface LibraryPlaybackPort {
     playTrack(track: SongResult, queue: SongResult[]): void;
-    playAll(tracks: SongResult[]): void;
+    /** 以这些歌为队列从头播放；`shuffle` 时先打乱再入队（怎么打乱由宿主的播放控制器决定：均匀洗牌，或开着「一轮不重复」时按轮洗）。 */
+    playAll(tracks: SongResult[], options?: LibraryPlayAllOptions): void;
     enqueueTrack(track: SongResult): void;
     /**
      * 整批入队。`suppressToast` 让队列不弹自己的「已加入」提示（调用方要报自己的，例如歌手页的「已加入 N 首热门歌曲」）；
@@ -33,6 +34,9 @@ export interface LibraryPlaybackPort {
     /** 这首能不能交给选择器（来源支持歌单或红心）；与 pickPlaylistFor 一起给。 */
     canPickPlaylistFor?(track: SongResult): boolean;
 }
+
+/** 整批播放的选项。`shuffle`：以打乱后的顺序入队（随机播放），不是只打乱已有的队列。 */
+export type LibraryPlayAllOptions = { shuffle?: boolean };
 
 /** 收进速记簿时记下的出处（速记簿行上的小字）。 */
 export type LibraryCollectOrigin = { label: string };

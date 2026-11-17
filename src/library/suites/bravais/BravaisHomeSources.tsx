@@ -1,5 +1,6 @@
 import React, { useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import { FileMusic, FolderPlus, RefreshCw, type LucideIcon } from 'lucide-react';
 import type { LocalLibraryGroup, LocalPlaylist, LocalSong } from '../../../types';
 import type { LibraryCollectionDescriptor } from '../../core/collection/collection.contract';
 import type { LibraryDirectoryBatchController, LibraryHiddenScope } from '../../core/directory/directory.contract';
@@ -29,6 +30,7 @@ import type { BravaisHomeChrome } from './useBravaisHomeChrome';
 import BravaisHomeDirectory from './BravaisHomeDirectory';
 import { availableLocalTabLabel, localWallHint, onlineWallHint } from './bravaisEmptyWallHint';
 import { useBravaisHomeAccount } from './useBravaisHomeAccount';
+import { quickPriority } from './bravaisSeamQuickCells';
 
 // src/library/suites/bravais/BravaisHomeSources.tsx
 // bravais 首页三个来源的墙（设计稿 §10.5）：在线（账户歌单 / 电台 / 收藏专辑）、本地（文件夹 / 专辑 / 歌手 / 歌单
@@ -48,6 +50,13 @@ type BravaisHomeSourceCommonProps = {
     isInteractive: boolean;
     homeActions: LibraryHomeActionsController;
     onOpenGridView: (collection: LibraryCollectionDescriptor) => void;
+};
+
+/** 本地动作在工具格里的图标（方案 C：导入文件夹、刷新、导入歌单文件直接成格，BravaisSeamHomeTools）。 */
+const LOCAL_ACTION_ICONS: Record<string, LucideIcon> = {
+    'import-folder': FolderPlus,
+    'refresh-folders': RefreshCw,
+    'import-playlist': FileMusic,
 };
 
 const LOCAL_ACTION_IDS: Record<string, LibraryHomeActionId> = {
@@ -187,7 +196,8 @@ export const BravaisHomeLocal: React.FC<BravaisHomeSourceCommonProps & {
             : undefined,
     });
 
-    // 缝：四行是二级切换（整面翻牌，不换层）；「⋯」里是导入文件夹、刷新、导入歌单文件。
+    // 缝：四行是二级切换（整面翻牌，不换层）；导入文件夹、刷新、导入歌单文件带图标与优先级，在工具格的本页一组里直接成格
+    // （方案 C，BravaisSeamHomeTools），放不下的进「⋯」。
     const sections = useMemo(() => local.sections.map(section => ({
         key: section.key,
         label: section.label,
@@ -199,11 +209,14 @@ export const BravaisHomeLocal: React.FC<BravaisHomeSourceCommonProps & {
         const section = sectionsRef.current.sections.find(candidate => candidate.key === key);
         if (section) sectionsRef.current.setActiveRow(section.row);
     }, []);
-    const menuKey = localActions.map(action => `${action.id}:${action.labelKey}:${action.disabled}`).join('|');
+    const menuKey = localActions.map(action => `${action.id}:${action.labelKey}:${action.disabled}:${action.pending}`).join('|');
     const menu = useMemo<BravaisSeamMenuItem[]>(() => localActions.map(action => ({
         id: `home-${action.id}`,
         label: t(action.labelKey),
         disabled: action.disabled,
+        icon: LOCAL_ACTION_ICONS[action.id],
+        priority: quickPriority(`home-${action.id}`),
+        busy: action.pending,
         run: () => runActionRef.current(action.id),
     // localActions 每次渲染都是新数组：按内容比较。
     // eslint-disable-next-line react-hooks/exhaustive-deps

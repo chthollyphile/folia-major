@@ -1,6 +1,6 @@
 import { rememberBounded } from './textMeasureCache';
 
-// src/components/visualizer/colorMix.ts
+// src/utils/colorMix.ts
 // Shared color helpers for visualizer renderers.
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 const mix = (from: number, to: number, amount: number) => from + (to - from) * amount;

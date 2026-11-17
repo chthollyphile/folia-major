@@ -1,6 +1,6 @@
 // Copyright (c) 2026 chthollyphile
 import type { Theme } from '../../../types';
-import { parseColorChannels } from '../colorMix';
+import { parseColorChannels } from '../../../utils/colorMix';
 import type { HanabiPalette, HanabiTuning, PaletteRole } from './types';
 
 // src/components/visualizer/hanabi/color.ts

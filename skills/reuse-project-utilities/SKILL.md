@@ -198,7 +198,7 @@ visualizer 颜色混合和 alpha 已有 helper：
 - `colorWithAlpha(color, alpha)`
 - `mixColors(from, to, amount, alpha?)`
 
-位置：`src/components/visualizer/colorMix.ts`
+位置：`src/utils/colorMix.ts`
 
 需要 `rgba(...)`、主题色混合、canvas gradient、shadow color 时，先用这些 helper。不要重复写 hex/rgb parser。
 

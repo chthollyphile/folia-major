@@ -16,7 +16,7 @@ vi.mock('@/services/db', () => ({
 }));
 
 const { runHtdemucsGpu } = vi.hoisted(() => ({ runHtdemucsGpu: vi.fn() }));
-vi.mock('@/services/analysis/beatThisGpu', () => ({ HTDEMUCS_GPU_SEGMENT: 16, runHtdemucsGpu }));
+vi.mock('@/services/analysis/beatThisGpu', () => ({ HTDEMUCS_GPU_SEGMENT: 16, runHtdemucsGpu, gpuStemsOnScreenUsable: () => true }));
 
 const { drumStemSegments, drumStemWindow, separateDrumStem, startDrumStem } = await import('@/services/analysis/drumStem');
 const { DRUMLESS_COVERAGE, drumBandTracks, drumCoverage, drumHitsSettled, forgetSettledDrumHits, getDrumHits, loadStoredDrumHits, loadTrackDrumHits, pickBandHits, pickDrumHits, setWantedDrumTrack } = await import('@/services/analysis/drumHits');

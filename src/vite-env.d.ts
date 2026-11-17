@@ -1,6 +1,7 @@
 /// <reference types="vite/client" />
 
 import type { ModClearCacheResult, ModExportProgress, ModFfmpegStatus, ModLogEntry, ModMainCallStats, ModRpcMessage, ModRuntimeInfo, ModRuntimeSnapshot, ModSecretChange, ModStorageUsageResult } from './mods/types';
+import type { PerfCheckProcessMemory, PerfCheckSettings } from './components/perfCheck/perfCheckTypes';
 
 declare global {
   const __COMMIT_HASH__: string;
@@ -286,6 +287,7 @@ declare global {
     | { type: 'stop-export' }
     | { type: 'cancel-export' }
     | { type: 'toggle-like' }
+    | { type: 'open-remote-settings' }
     | import('./types/remoteControl').RemoteQueueCommand
     | import('./types/remoteControl').RemoteActionActivation;
 
@@ -446,6 +448,10 @@ declare global {
       percent: number;
       transferred?: number;
       total?: number;
+      /** Which download this is: only the blocks that changed, or the whole installer. Null when unknown. */
+      mode?: 'differential' | 'full' | null;
+      /** The whole installer is being downloaded because the differential download failed. */
+      fallback?: boolean;
     } | null;
   }
 
@@ -835,6 +841,20 @@ declare global {
         weights: Uint8Array<ArrayBuffer>;
         manifest: import('./services/analysis/htdemucsWgsl/runtime').HtdemucsWgslManifest;
       } | null>;
+      /** Opens the performance check's window (components/perfCheck/); main window only. */
+      openPerfCheck?: () => Promise<boolean>;
+      /** Every process's memory, MB, summed and by Chromium process type: the check's memory reading. */
+      getPerfCheckMetrics?: () => Promise<PerfCheckProcessMemory>;
+      /** From the check window: a line for the runtime log, written by the main process. */
+      logPerfCheck?: (text: string) => Promise<boolean>;
+      /** From the check window: the measuring is over (done, failed or cancelled): the main window lets go of its hold. */
+      finishPerfCheck?: () => Promise<boolean>;
+      /** From the check window: the settings the user chose, applied in the main window. */
+      applyPerfCheckChoice?: (choice: PerfCheckSettings) => Promise<boolean>;
+      /** In the main window: whether the check window is open, to hold the main window's picture and GPU analysis meanwhile. */
+      onPerfCheckState?: (callback: (state: { running: boolean }) => void) => () => void;
+      /** In the main window: settings chosen in the check window, to apply; returns the unsubscribe. */
+      onPerfCheckApply?: (callback: (choice: PerfCheckSettings) => void) => () => void;
       /**
        * Automix switched on or off. While on, the analysis worker keeps htdemucs loaded across tracks;
        * off releases it in that process. One-way.

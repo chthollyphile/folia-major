@@ -8,7 +8,7 @@ import { useLibraryHomeSurfaceStore } from '../../library/core/home/useLibraryHo
 import type { LibraryArtistSurfaceActionId } from '../../library/core/artist/artist.contract';
 import type { LibrarySuiteChromeActionMeta } from '../../library/core/suite/suiteChrome.contract';
 import { libraryChromeCommandId } from '../../library/core/suite/suiteChrome';
-import { settingsAnchorSubview, type SettingsAnchorId } from '../modal/settings/navigation/settingsAnchorModel';
+import { settingsAnchorSubview, type SettingsAnchorId } from '../../utils/settingsAnchorModel';
 import type { CommandPaletteCommand, CommandPaletteContext, CommandPaletteGroup } from './types';
 
 // src/components/command-palette/commandFactories.ts

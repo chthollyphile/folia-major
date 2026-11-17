@@ -18,7 +18,7 @@ import type { BravaisLayer, BravaisSeamTab } from './bravaisLayer';
 import type { BravaisHomeAccount, BravaisHomeEntry, BravaisHomeSection, BravaisHomeShortcut } from './bravaisHomeModels';
 import type { BravaisSeamLevel } from './bravaisSeamLevel';
 import BravaisSeamAccountSwitcher from './BravaisSeamAccountSwitcher';
-import BravaisSeamHomeTools from './BravaisSeamHomeTools';
+import BravaisSeamHomeTools, { homePageLayout } from './BravaisSeamHomeTools';
 import { abbreviateSeamTabLabel, abbreviateSeamTabLabels } from './bravaisSeamTabLabels';
 import { useBravaisSeamTabsFit } from './useBravaisSeamTabsFit';
 import { BravaisSeamFlipText, useBravaisSeamFade } from './BravaisSeamFlip';
@@ -52,6 +52,8 @@ import './bravaisHome.css';
 //   （图标在上、文字竖写），其余只显示图标（aria-label / title 是全名）。激活项的文字与页签同级退让：short 时缩成
 //   一个字。选中态与页签区分：页签是填色的块，二级切换是强调色 + 侧边一道细线。
 // - 工具格固定四格（搜索、设置、队列、「⋯」），其余进「⋯」；书脊上「⋯」先展开缝再开菜单（BravaisSeamHomeTools）。
+//   方案 C（2026-11-13）：工具格上面多一组本页格（目录、导入文件夹、刷新……），按优先级直接成格，并进页签的高度阶梯
+//   （useBravaisSeamTabsFit 的 pageRows）：入口能留时本页一行行让 → 入口进「⋯」→ 本页一行行进「⋯」→ 页签缩成一个字。
 // - 未登录时账户位只是一个「连接在线平台」入口（BravaisSeamAccountSwitcher）；「先搜几首喜欢的歌」那行不再显示。
 // fb4（用户实测）：账户入口（已登录的切换按钮、未登录的「连接在线平台」、书脊上的图标）不在中段了，挪到导航区与
 // 工具格之间、贴着工具格（自然高度，导航区照旧是唯一可伸缩的一段）。平台列表从入口往上弹出、绝对定位盖在导航区上，
@@ -299,8 +301,10 @@ const BravaisSeamHome: React.FC<{
     const fullSlotRef = useRef<HTMLDivElement>(null);
     const jumpsRef = useRef<HTMLDivElement>(null);
     const jumpsMeasureRef = useRef<HTMLDivElement>(null);
+    const pageLayout = home ? homePageLayout(home, compact) : { cells: 0, columns: 1 };
     const fit = useBravaisSeamTabsFit({
         navRef, headRef, middleRef, bodyRef, slotRef, titledHeadRef, bareHeadRef, fullSlotRef, jumpsRef, jumpsMeasureRef,
+        pageCells: pageLayout.cells, pageColumns: pageLayout.columns,
     });
     const { level, overflowing } = fit;
     const short = level === 'short';
@@ -404,7 +408,7 @@ const BravaisSeamHome: React.FC<{
             {home && (
                 <BravaisSeamHomeTools home={home} compact={compact} onExpand={expand}
                     menuShortcuts={shortcuts && !shortcutsInColumn ? shortcuts : null} onOpenShortcut={openShortcut}
-                    menuEntries={entries && !shortcutsInColumn ? entries : null} />
+                    menuEntries={entries && !shortcutsInColumn ? entries : null} pageLimit={fit.pageRows * pageLayout.columns} />
             )}
             {compact && (
                 <button type="button" className="bravais-seam-icon" data-bravais-seam-action="expand" onClick={expand}

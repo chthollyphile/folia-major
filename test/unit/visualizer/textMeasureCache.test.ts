@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { measurePrefixOffsets, rememberBounded } from '@/components/visualizer/textMeasureCache';
+import { measurePrefixOffsets, rememberBounded } from '@/utils/textMeasureCache';
 
 // test/unit/visualizer/textMeasureCache.test.ts
 // 共用的前缀偏移循环与有界缓存必须与各模式原来手写的版本逐位一致：前缀按整段测量（保留字距 / 连字），

@@ -210,7 +210,7 @@ export const getLocalSongs = async (): Promise<LocalSong[]> => {
 
 /**
  * 按 id 读一首本地歌曲的最新记录。
- * 不走 ensureLocalLibraryInitialized：那一步会把 local_music 和 assignments 整表读一遍，
+ * 不走 ensureLocalLibraryInitialized：那一步要把 local_music 和 assignments 的主键整表读一遍，
  * 而这里只服务切歌、匹配写回这类「只关心一首」的热路径。读失败或记录不存在时返回 undefined。
  */
 export const getLocalSong = async (id: string): Promise<LocalSong | undefined> => {

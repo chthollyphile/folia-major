@@ -1,7 +1,7 @@
 // Copyright (c) 2026 chthollyphile
 import type { Theme } from '../../../../types';
 import { splitLyricGraphemes } from '../../../../utils/lyrics/graphemeTiming';
-import { parseColorChannels } from '../../colorMix';
+import { parseColorChannels } from '../../../../utils/colorMix';
 import {
     buildWordColorRangesFromMatchers,
     prepareWordColorMatchers,

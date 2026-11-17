@@ -12,6 +12,23 @@ contextBridge.exposeInMainWorld('electron', {
     // The same model's WebGPU export ({ weights, manifest }) for the renderer's own GPU runtime, or null.
     getBeatThisGpuWeights: (model) => ipcRenderer.invoke('automix-beat-this-gpu-weights', model),
     getHtdemucsGpuWeights: () => ipcRenderer.invoke('automix-beat-this-gpu-weights', 'htdemucs'),
+    // The performance check (electron/perfCheck.cjs): open its window, read every process's memory, hand
+    // the chosen settings to the main window, and, in the main window, receive them.
+    openPerfCheck: () => ipcRenderer.invoke('perf-check-open'),
+    getPerfCheckMetrics: () => ipcRenderer.invoke('perf-check-metrics'),
+    applyPerfCheckChoice: (choice) => ipcRenderer.invoke('perf-check-apply', choice),
+    logPerfCheck: (text) => ipcRenderer.invoke('perf-check-log', text),
+    finishPerfCheck: () => ipcRenderer.invoke('perf-check-done'),
+    onPerfCheckState: (callback) => {
+        const listener = (_event, state) => callback(state);
+        ipcRenderer.on('perf-check-state', listener);
+        return () => ipcRenderer.removeListener('perf-check-state', listener);
+    },
+    onPerfCheckApply: (callback) => {
+        const listener = (_event, choice) => callback(choice);
+        ipcRenderer.on('perf-check-apply', listener);
+        return () => ipcRenderer.removeListener('perf-check-apply', listener);
+    },
     separateStems: (request) => ipcRenderer.invoke('automix-htdemucs', request),
     // Whether automix is switched on. While it is, the analysis worker keeps htdemucs loaded; switching
     // it off releases it. See electron/analysis/host.cjs.

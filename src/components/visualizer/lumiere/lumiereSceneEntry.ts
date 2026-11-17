@@ -109,6 +109,8 @@ export const applyLumiereLayerFrame = (
         if (!entry.blur) {
             // 模糊的内容不需要满分辨率：半分辨率跑模糊，开销是整屏的四分之一。
             entry.blur = new pixi.BlurFilter({ strength: frame.blur, quality: 3, resolution: blurResolution });
+            // 抗锯齿跟随画布（样式的抗锯齿设置）：Pixi 的默认是 off，模糊很弱的那几帧整个场景会变回没有抗锯齿的样子。
+            entry.blur.antialias = 'inherit';
         }
         entry.blur.strength = frame.blur;
         if (!entry.holder.filters?.includes(entry.blur)) entry.holder.filters = [entry.blur];

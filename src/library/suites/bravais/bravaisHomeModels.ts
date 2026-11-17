@@ -44,6 +44,7 @@ export type BravaisHomeShortcut = {
 /**
  * 首页窄缝的工具（文案是标题与读屏名）。fb3：底部工具格固定四格——搜索、设置、播放队列、「⋯」；其余（本页签的目录、
  * 管理隐藏、Navidrome 刷新，app 级的回到播放页、舞台播放器）都在「⋯」菜单里（BravaisSeamHomeTools 的 splitHomeTools）。
+ * 方案 C 起本页签的目录、刷新按优先级在工具格上面的本页一组里直接成格，放不下的才进「⋯」。
  */
 export type BravaisHomeToolId =
     | 'search'
@@ -143,9 +144,11 @@ export type BravaisHomeSeam = {
     /** 排在直达入口后面的动作入口（见 BravaisHomeEntry）。 */
     entries?: readonly BravaisHomeEntry[];
     tools: readonly BravaisHomeTool[];
-    /** 本地「⋯」：导入文件夹、刷新、导入歌单文件。 */
+    /** 本地动作：导入文件夹、刷新、导入歌单文件（方案 C：带图标与优先级，工具格的本页一组放得下就直接成格，其余进「⋯」）。 */
     menu?: readonly BravaisSeamMenuItem[];
     menuLabel: string;
+    /** 工具格里本页一组的读屏名（「本页工具」）。 */
+    pageToolsLabel: string;
     /** 管理隐藏视图开着时的开关（浏览时为 null）。 */
     manage?: BravaisHomeManage | null;
     /** 元数据行：扫描进度（本地导入 / 重扫时）。 */

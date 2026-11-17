@@ -136,13 +136,13 @@ describe('artist command surface', () => {
     it('publishes enabled capabilities intersected with the declaration, in a fixed order', () => {
         const failed = snapshot({ albumSync: { state: 'interrupted', offset: 50, reason: 'failed' } });
         const capabilities = resolveArtistCapabilities({ collection: local, snapshot: failed, ...counts });
-        expect(resolveArtistSurfaceActions(capabilities)).toEqual(['play-top-songs', 'enqueue-top-songs', 'retry-albums', 'edit-entity']);
+        expect(resolveArtistSurfaceActions(capabilities)).toEqual(['play-top-songs', 'shuffle-top-songs', 'enqueue-top-songs', 'retry-albums', 'edit-entity']);
         expect(resolveArtistSurfaceActions(capabilities, { actions: ['play-scope', 'edit-entity'], extraActions: [] }))
             .toEqual(['play-top-songs', 'edit-entity']);
         const onlineCapabilities = resolveArtistCapabilities({ collection: online, snapshot: snapshot(), ...counts });
-        expect(resolveArtistSurfaceActions(onlineCapabilities, ALL_DECLARED)).toEqual(['play-top-songs', 'enqueue-top-songs', 'reload']);
+        expect(resolveArtistSurfaceActions(onlineCapabilities, ALL_DECLARED)).toEqual(['play-top-songs', 'shuffle-top-songs', 'enqueue-top-songs', 'reload']);
         const withMoreSongs = resolveArtistCapabilities({ collection: online, snapshot: snapshot({ hasMoreSongs: true }), ...counts });
-        expect(resolveArtistSurfaceActions(withMoreSongs, ALL_DECLARED)).toEqual(['play-top-songs', 'enqueue-top-songs', 'reload', 'open-all-songs']);
+        expect(resolveArtistSurfaceActions(withMoreSongs, ALL_DECLARED)).toEqual(['play-top-songs', 'shuffle-top-songs', 'enqueue-top-songs', 'reload', 'open-all-songs']);
         // A suite that does not declare it offers no palette command for it.
         expect(resolveArtistSurfaceActions(withMoreSongs, { actions: ['play-scope', 'reload'], extraActions: [] })).toEqual(['play-top-songs', 'reload']);
     });

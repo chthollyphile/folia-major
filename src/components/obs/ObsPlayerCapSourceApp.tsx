@@ -31,7 +31,7 @@ const parsePlayerCapExtras = (search: string): ObsPlayerCapExtras => {
 };
 
 const ObsPlayerCapSourceApp: React.FC = () => {
-    const paramsRef = useRef(parseObsWebParams(window.location.search));
+    const paramsRef = useRef(parseObsWebParams(window.location.search, window.location.hash));
     const extrasRef = useRef(parsePlayerCapExtras(window.location.search));
     const obsAiConfigRef = useRef(parseObsAiParams(window.location.search));
     const { host, cfg, isDaylight, transparent, visualizer, themeMode, language } = paramsRef.current;

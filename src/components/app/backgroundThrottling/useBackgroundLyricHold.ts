@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useBackgroundLyricHoldStore } from './backgroundLyricHoldStore';
+import { setLyricHoldReason } from './backgroundLyricHoldStore';
 
 // src/components/app/backgroundThrottling/useBackgroundLyricHold.ts
 // Holds the lyric animation while 后台节流 is in force and the window is out of sight. The main
@@ -22,10 +22,7 @@ export const useBackgroundLyricHold = () => {
         let state: BackgroundThrottlingState = { active: false, hidden: false };
         let disposed = false;
         const sync = () => {
-            const held = isLyricHeld(state, document.visibilityState);
-            if (useBackgroundLyricHoldStore.getState().held !== held) {
-                useBackgroundLyricHoldStore.setState({ held });
-            }
+            setLyricHoldReason('background', isLyricHeld(state, document.visibilityState));
         };
 
         const unsubscribe = electron.onBackgroundThrottlingChanged?.((next) => {
@@ -45,7 +42,7 @@ export const useBackgroundLyricHold = () => {
             disposed = true;
             unsubscribe?.();
             document.removeEventListener('visibilitychange', sync);
-            useBackgroundLyricHoldStore.setState({ held: false });
+            setLyricHoldReason('background', false);
         };
     }, []);
 };

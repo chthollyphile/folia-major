@@ -300,9 +300,26 @@
 
 .bravais-seam-home.is-compact .bravais-seam-tools { grid-template-columns: 36px; gap: 6px; }
 .bravais-seam-tools .bravais-seam-icon { width: 40px; height: 40px; border-radius: 12px; }
+
+/* 方案 C（2026-11-13）：工具格上面的本页一组（目录、导入文件夹、刷新……，最多 2×2，书脊上一列两格），与下面的工具格之间
+   一道细线（本页的东西与 app 级的入口分开看）。 */
+/* 下面的间距内联在元素上（BRAVAIS_PAGE_TOOLS_GAP，高度阶梯按它算）。 */
+.bravais-seam-tools.is-page { position: relative; }
+
+.bravais-seam-tools.is-page::after {
+    position: absolute;
+    right: 6px;
+    bottom: -8px;
+    left: 6px;
+    height: 1px;
+    background: color-mix(in srgb, currentColor 14%, transparent);
+    content: '';
+}
 .bravais-seam-tools .bravais-seam-icon svg { width: 18px; height: 18px; }
 .bravais-seam-home.is-compact .bravais-seam-tools .bravais-seam-icon { width: 36px; height: 36px; }
 .bravais-seam-tools .bravais-seam-icon:disabled { opacity: 0.3; cursor: default; }
+/* 进行中（转圈，方案 C 的本页格）照常禁用，但转圈要看得清。 */
+.bravais-seam-tools .bravais-seam-icon:disabled:has(.animate-spin) { opacity: 1; }
 .bravais-seam-tools .bravais-seam-icon.is-pressed { color: var(--text-accent, currentColor); background: color-mix(in srgb, currentColor 16%, transparent); }
 /* fb11：舞台开着时舞台入口单独占最上面一整行（宽同两格，图标 + 短名）；书脊上一列，它是最上面的一个图标。 */
 .bravais-seam-tools .bravais-seam-icon.is-wide {
@@ -436,6 +453,98 @@
 }
 
 .bravais-search-form input::-webkit-search-cancel-button { display: none; }
+
+/* 搜索历史：贴在「搜索」按钮下面，一条一个标签。缝里没有浮层，只有墙的底色，所以一律用 currentColor 混。 */
+.bravais-search-history {
+    display: flex;
+    min-height: 0;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: -4px;
+}
+
+.bravais-search-history-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    color: var(--bravais-seam-ink-soft);
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.bravais-search-history-head button {
+    padding: 0;
+    border: 0;
+    color: inherit;
+    font: inherit;
+    letter-spacing: inherit;
+    text-transform: inherit;
+    background: none;
+    cursor: pointer;
+    opacity: 0.85;
+}
+
+.bravais-search-history-head button:hover { opacity: 1; text-decoration: underline; }
+
+.bravais-search-history-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.bravais-search-history-tag {
+    display: inline-flex;
+    min-width: 0;
+    max-width: 100%;
+    align-items: center;
+    border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+    border-radius: 999px;
+    background: color-mix(in srgb, currentColor 6%, transparent);
+    transition: background-color 160ms ease;
+}
+
+.bravais-search-history-tag:hover { background: color-mix(in srgb, currentColor 12%, transparent); }
+
+.bravais-search-history-pick {
+    min-width: 0;
+    max-width: 220px;
+    padding: 4px 2px 4px 10px;
+    border: 0;
+    overflow: hidden;
+    color: inherit;
+    font: inherit;
+    font-size: 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    background: none;
+    cursor: pointer;
+}
+
+.bravais-search-history-remove {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 18px;
+    height: 18px;
+    margin-right: 3px;
+    padding: 0;
+    border: 0;
+    border-radius: 999px;
+    color: inherit;
+    background: none;
+    cursor: pointer;
+    opacity: 0.5;
+    transition: opacity 160ms ease, background-color 160ms ease;
+}
+
+.bravais-search-history-remove:hover {
+    background: color-mix(in srgb, currentColor 14%, transparent);
+    opacity: 1;
+}
+
+.bravais-search-history-remove svg { width: 10px; height: 10px; }
 
 /* ---------- 目录树面板 ---------- */
 

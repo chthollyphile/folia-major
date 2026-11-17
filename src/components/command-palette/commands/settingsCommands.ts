@@ -363,6 +363,7 @@ export const settingsCommands: CommandPaletteCommand[] = [
         { isAvailable: context => context?.settings.canAutoScanLocalLibrary() ?? true },
     ),
     createSettingsCommand('settings-desktop', 'Desktop settings', 'Open desktop app settings', ['desktop', 'electron', '桌面', '桌面端'], 'options', 'desktop', { platform: ['electron'] }),
+    createSettingsCommand('settings-remote', 'Remote Control settings', 'Open the Remote Control window settings: its switches and lyric rows', ['remote control', 'remote window', 'mini player', 'remote lyrics', '遥控窗口', '遥控窗口设置', '迷你播放器', '遥控歌词'], 'options', 'remote', { platform: ['electron'] }),
     createSettingsAnchorCommand('settings-update-channel', 'Update channel', 'Choose the desktop app release channel', ['release channel', 'realeco', 'limo', 'cielo', '更新通道', '发布通道'], 'updateCheck', { platform: ['electron'] }),
     {
         id: 'desktop-toggle-voice-input-pause',
@@ -458,6 +459,15 @@ export const settingsCommands: CommandPaletteCommand[] = [
         'Toggle the soft dark shade under idle text on the transparent background of the remote control window',
         ['remote control text shade', 'remote window shade', 'text backdrop', 'transparent background readability', '遥控窗口文字黑底', '文字黑底', '透明背景黑底'],
         context => context.settings.toggleRemoteControlTextShade(),
+        { platform: ['electron'] },
+    ),
+    createToggleCommand(
+        'desktop-toggle-remote-control-lyric-pairs',
+        'settings',
+        'Remote control: two lyric pairs',
+        'Toggle whether the remote control window also shows the next line at the bottom right when idle',
+        ['remote control lyrics', 'remote window lyrics', 'two lyric pairs', 'next line', 'four rows', '遥控窗口歌词', '两对歌词', '下一句', '四行歌词'],
+        context => context.settings.toggleRemoteLyricPairs(),
         { platform: ['electron'] },
     ),
     {
@@ -656,6 +666,8 @@ export const settingsCommands: CommandPaletteCommand[] = [
     createToggleCommand('settings-toggle-transparent', 'settings', 'Toggle transparency', 'Toggle transparent player background', ['transparent', 'transparency', '透明', '透明化'], context => context.settings.toggleTransparentBackground()),
     createToggleCommand('settings-toggle-daylight', 'settings', 'Toggle light/dark', 'Toggle theme daylight/midnight mode', ['daylight', 'midnight', 'light', 'dark', '明暗', '切换明暗', '日夜', '日间', '夜间'], context => context.settings.toggleDaylightMode(), { executeShortcut: 'd' }),
     createToggleCommand('settings-toggle-player-back-button', 'settings', 'Always show player back button', 'Toggle whether the player page back button stays visible', ['always show back button', 'player back button', 'back button', '返回按钮', '始终显示返回按钮', '播放页返回按钮', 'fanhui annniu', 'bofangye fanhui annniu', 'fh', 'bfyfh'], context => context.settings.toggleAlwaysShowPlayerBackButton()),
+    createToggleCommand('settings-toggle-lattice-wall-form', 'settings', 'Lattice radio wall', 'Switch the queue collage (Lattice) between the poster wall and the radio wall; Personal FM always uses the radio wall', ['lattice', 'radio wall', 'poster wall', 'lattice radio', 'wall form', 'queue collage', 'card ring', '电台墙', '海报墙', '墙面形态', '队列拼贴', '卡牌', '切换墙面'], context => context.settings.toggleLatticeWallForm()),
+    createToggleCommand('settings-toggle-lattice-radio-hide-upcoming', 'settings', 'Radio wall question marks', 'Show the songs not played yet on the radio wall of a plain queue face down, as question marks; Personal FM always does', ['lattice', 'radio wall', 'question mark', 'hide upcoming', 'face down', 'card back', 'queue collage', '电台墙', '问号', '问号卡', '隐藏接下来', '背面朝上', '翻牌', '队列拼贴'], context => context.settings.toggleLatticeRadioHideUpcoming()),
     createToggleCommand('settings-toggle-lattice-vignette', 'settings', 'Poster wall vignette', 'Turn the edge vignette on the queue collage (Lattice) and the library wall on or off', ['lattice', 'vignette', 'lattice vignette', 'queue collage vignette', 'collage vignette', 'library wall vignette', 'tile wall appearance', 'bravais', '暗角', '边缘暗角', '队列拼贴', '队列拼贴暗角', '拼贴暗角', '资料库墙', '海报墙暗角', '拼贴墙外观'], context => context.settings.toggleLatticeVignette()),
     createToggleCommand('settings-toggle-lattice-badge-current-only', 'settings', 'Number only the playing song', 'Hide the corner numbers on the song cards of the queue collage (Lattice) and the Bravais wall except the playing one', ['lattice', 'bravais', 'badge', 'number badge', 'track number', 'now playing badge', 'hide numbers', 'queue collage', 'library wall', 'tile wall appearance', '序号', '角标', '序号角标', '正在播放', '只显示正在播放', '隐藏序号', '队列拼贴', '资料库墙', '拼贴墙外观'], context => context.settings.toggleLatticeBadgeCurrentOnly()),
     createToggleCommand('settings-toggle-lattice-auto-focus', 'settings', 'Lattice auto-focus', 'Toggle whether the queue collage follows the playing song when tracks change', ['lattice', 'lattice auto focus', 'queue collage', 'follow playing song', 'follow track changes', 'poster wall follow', '队列拼贴', '切歌自动聚焦', '自动聚焦当前歌曲', '海报墙跟随'], context => context.settings.toggleLatticeAutoFocusOnSongChange()),
@@ -726,6 +738,7 @@ export const settingsCommands: CommandPaletteCommand[] = [
     createToggleCommand('settings-toggle-transcode-fallback', 'settings', 'Transcode unsupported audio', 'Toggle Electron recovery for local and Navidrome audio Chromium cannot decode', ['ffmpeg', 'unsupported audio', 'decode fallback', '无法解码', '转码恢复'], context => context.settings.toggleTranscodeFallback(), { platform: ['electron'] }),
     createToggleCommand('settings-toggle-playback-fade', 'settings', 'Fade on pause and resume', 'Toggle the short fade when pausing and resuming playback', ['fade', 'fade in', 'fade out', 'pause fade', 'smooth pause', 'crossfade pause', '淡入淡出', '暂停淡出', '播放淡入', '渐入渐出'], context => context.settings.togglePlaybackFade()),
     createToggleCommand('settings-toggle-auto-skip-unplayable', 'settings', 'Skip unplayable songs', 'Toggle counting down to a skip when a song is restricted or fails for an unknown reason', ['auto skip', 'skip unavailable', 'skip restricted songs', 'cannot play', 'unplayable', 'vip only', '自动跳过', '跳过无法播放', '无法播放', '跳过会员歌曲', '跳过灰色歌曲', '播放失败跳过'], context => context.settings.toggleAutoSkipUnplayable()),
+    createToggleCommand('settings-toggle-shuffle-round-no-repeat', 'settings', 'Shuffle in rounds', 'Toggle keeping songs heard this round after the rest when shuffling, and reshuffling a finished round under list loop', ['shuffle round', 'no repeat', 'shuffle without repeats', '一轮不重复', '洗牌不重复', '随机不重复', '打乱不重复'], context => context.settings.toggleShuffleRoundNoRepeat()),
     createToggleCommand('settings-toggle-bottom-subtitle-overlay', 'settings', 'Toggle bottom subtitle overlay', 'Show or hide the whole bottom subtitle overlay', [
             'bottom subtitle overlay',
             'subtitle overlay',

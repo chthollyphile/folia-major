@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // between segments.
 
 const { runHtdemucsGpu } = vi.hoisted(() => ({ runHtdemucsGpu: vi.fn() }));
-vi.mock('@/services/analysis/beatThisGpu', () => ({ HTDEMUCS_GPU_SEGMENT: 16, runHtdemucsGpu }));
+vi.mock('@/services/analysis/beatThisGpu', () => ({ HTDEMUCS_GPU_SEGMENT: 16, runHtdemucsGpu, gpuStemsOnScreenUsable: () => true }));
 
 const { movingStemWindow, runStemPass, startStemReader, stemWholeFrom, wholeStemWindow } = await import('@/services/analysis/stemPass');
 const { resetStemSegmentsForTests } = await import('@/services/analysis/stemRange');

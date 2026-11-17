@@ -4,7 +4,7 @@ import { resolveThemeFontStack, resolveThemeFontWeight } from '../../../utils/fo
 import type { BubbleSize, PreparedBubbleMetrics } from './cappellaTypes';
 import { CAPPELLA_BUBBLE_FONT_WEIGHT, CAPPELLA_BUBBLE_TEXT_OPTIONS, CAPPELLA_LAYOUT_CACHE_LIMIT, CAPPELLA_WIDTH_LOOKAHEAD_SECONDS } from './cappellaConstants';
 import { buildCharacterFadeDurationsMs, buildCharacterRevealTimes, getLineCharacters, getTimestampReadyTimeFromMetrics } from './cappellaReveal';
-import { rememberBounded } from '../textMeasureCache';
+import { rememberBounded } from '../../../utils/textMeasureCache';
 
 // src/components/visualizer/cappella/cappellaBubbleMetrics.ts
 // 用 pretext 测量气泡文字并缓存尺寸（按字体、宽度、文本键控）。

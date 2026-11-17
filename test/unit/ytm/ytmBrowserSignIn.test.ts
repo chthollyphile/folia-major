@@ -12,7 +12,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 const require = createRequire(import.meta.url);
 const {
-    createBrowserSignIn, BrowserSignInError, browserCandidates, cookieHeaderOf, createPipeReader, isSignedIn, youtubeCookies, startedOn, FOLDER_MARK,
+    createBrowserSignIn, BrowserSignInError, browserCandidates, commandExecutable, cookieHeaderOf, createPipeReader, isSignedIn, registeredPlaces, youtubeCookies, startedOn, FOLDER_MARK,
 } = require('../../../electron/ytm/browserSignIn.cjs');
 
 const cookie = (name: string, value: string, domain: string, cookiePath = '/') => ({ name, value, domain, path: cookiePath });
@@ -101,8 +101,14 @@ describe('isSignedIn', () => {
 
 describe('where a browser is looked for', () => {
     const windows = { ProgramFiles: 'C:\\Program Files', 'ProgramFiles(x86)': 'C:\\Program Files (x86)', LOCALAPPDATA: 'C:\\Users\\某人\\AppData\\Local' };
-    const finder = (platform: string, env: Record<string, string>, installed: string[]) => createBrowserSignIn({
-        platform, env, exists: (candidate: string) => installed.includes(candidate), log: () => {}, warn: () => {},
+    // `registry` is what the registry query prints on Windows, or the error it fails with.
+    const registryOf = (registry: string | Error = '', printed = '') => vi.fn((_file: string, _args: string[], _options: any, done: (error: Error | null, stdout?: string) => void) => {
+        if (registry instanceof Error) done(registry, printed);
+        else done(null, registry);
+    });
+    const finder = (platform: string, env: Record<string, string>, installed: string[], registry: string | Error = '', lines: string[] = []) => createBrowserSignIn({
+        platform, env, exists: (candidate: string) => installed.includes(candidate), execFile: registryOf(registry),
+        log: (line: string) => lines.push(line), warn: (line: string) => lines.push(line),
     }).findBrowser();
 
     it('lists the four stable browsers first on Windows, every browser under the computer\'s programs folders before any under the person\'s own', () => {
@@ -139,42 +145,122 @@ describe('where a browser is looked for', () => {
         expect(candidates.filter((candidate: string) => candidate.includes('Chrome SxS'))).toHaveLength(1);
     });
 
-    it('takes Chrome before Edge, any browser of the computer before a person\'s own Chrome, and that one when it is all there is', () => {
+    it('takes Chrome before Edge, any browser of the computer before a person\'s own Chrome, and that one when it is all there is', async () => {
         const chrome = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
         const edge = 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
         const brave = 'C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe';
         const ownChrome = 'C:\\Users\\某人\\AppData\\Local\\Google\\Chrome\\Application\\chrome.exe';
-        expect(finder('win32', windows, [edge, chrome])).toBe(chrome);
-        expect(finder('win32', windows, [ownChrome, edge])).toBe(edge);
-        expect(finder('win32', windows, [ownChrome, brave])).toBe(brave);
-        expect(finder('win32', windows, [ownChrome])).toBe(ownChrome);
-        expect(finder('win32', windows, [])).toBeNull();
+        expect(await finder('win32', windows, [edge, chrome])).toBe(chrome);
+        expect(await finder('win32', windows, [ownChrome, edge])).toBe(edge);
+        expect(await finder('win32', windows, [ownChrome, brave])).toBe(brave);
+        expect(await finder('win32', windows, [ownChrome])).toBe(ownChrome);
+        expect(await finder('win32', windows, [])).toBeNull();
     });
 
-    it('takes a stable browser before Chrome\'s other channels and Helium, and one of those when it is all there is', () => {
+    it('takes a stable browser before Chrome\'s other channels and Helium, and one of those when it is all there is', async () => {
         const beta = 'C:\\Program Files\\Google\\Chrome Beta\\Application\\chrome.exe';
         const helium = 'C:\\Program Files\\imput\\Helium\\Application\\chrome.exe';
         const canary = 'C:\\Users\\某人\\AppData\\Local\\Google\\Chrome SxS\\Application\\chrome.exe';
         const brave = 'C:\\Program Files (x86)\\BraveSoftware\\Brave-Browser\\Application\\brave.exe';
-        expect(finder('win32', windows, [helium, beta, brave])).toBe(brave);
-        expect(finder('win32', windows, [helium, beta])).toBe(beta);
-        expect(finder('win32', windows, [canary, helium])).toBe(helium);
-        expect(finder('win32', windows, [canary])).toBe(canary);
+        expect(await finder('win32', windows, [helium, beta, brave])).toBe(brave);
+        expect(await finder('win32', windows, [helium, beta])).toBe(beta);
+        expect(await finder('win32', windows, [canary, helium])).toBe(helium);
+        expect(await finder('win32', windows, [canary])).toBe(canary);
     });
 
-    it('names the browser it found in the log, also where the file is chrome.exe for several', () => {
+    it('names the browser it found in the log, also where the file is chrome.exe for several', async () => {
         const lines: string[] = [];
-        createBrowserSignIn({
+        await createBrowserSignIn({
             platform: 'win32', env: windows, exists: (candidate: string) => candidate.includes('imput'), log: (line: string) => lines.push(line), warn: () => {},
         }).findBrowser();
         expect(lines).toEqual(['[Ytm] Sign-in can use Helium (chrome.exe)']);
+    });
+
+    // Issue 1227: a portable Edge, set as the default browser, under a folder of the person's choosing.
+    const portableEdge = 'D:\\便携软件\\Edge\\App\\msedge.exe';
+    const registered = [
+        `"${portableEdge}" --single-argument %1`,
+        'C:\\Program Files\\Internet Explorer\\iexplore.exe',
+        `"${portableEdge}"`,
+        '"C:\\Program Files\\Mozilla Firefox\\firefox.exe"',
+        'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+        '',
+    ].join('\r\n');
+
+    it('on Windows, takes the default browser from the registry where no browser is installed', async () => {
+        const lines: string[] = [];
+        expect(await finder('win32', windows, [portableEdge], registered, lines)).toBe(portableEdge);
+        expect(lines).toEqual(['[Ytm] Sign-in can use a browser from the registry (msedge.exe)']);
+    });
+
+    it('asks the registry only where no browser is installed, and only on Windows', async () => {
+        const chrome = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
+        const execFile = registryOf(registered);
+        const found = await createBrowserSignIn({ platform: 'win32', env: windows, exists: (candidate: string) => candidate === chrome || candidate === portableEdge, execFile, log: () => {}, warn: () => {} }).findBrowser();
+        expect(found).toBe(chrome);
+        expect(execFile).not.toHaveBeenCalled();
+        const elsewhere = registryOf(registered);
+        expect(await createBrowserSignIn({ platform: 'linux', env: {}, exists: () => false, execFile: elsewhere, log: () => {}, warn: () => {} }).findBrowser()).toBeNull();
+        expect(elsewhere).not.toHaveBeenCalled();
+    });
+
+    it('asks the system\'s own PowerShell, by its full path and hidden', async () => {
+        const execFile = registryOf('');
+        await createBrowserSignIn({ platform: 'win32', env: { ...windows, SystemRoot: 'C:\\Windows' }, exists: () => false, execFile, log: () => {}, warn: () => {} }).findBrowser();
+        const [file, args, options] = execFile.mock.calls[0];
+        expect(file).toBe('C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe');
+        expect(args.slice(0, 3)).toEqual(['-NoProfile', '-NonInteractive', '-Command']);
+        expect(options).toMatchObject({ windowsHide: true });
+    });
+
+    it('takes the next registered browser where the default one is gone or is not one it can start', async () => {
+        const chrome = 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
+        // The portable Edge was moved away; Chrome is registered, at a place not looked at otherwise.
+        expect(await finder('win32', { LOCALAPPDATA: 'C:\\Users\\某人\\AppData\\Local' }, [chrome], registered)).toBe(chrome);
+        // Only Internet Explorer and Firefox are there.
+        expect(await finder('win32', windows, ['C:\\Program Files\\Internet Explorer\\iexplore.exe', 'C:\\Program Files\\Mozilla Firefox\\firefox.exe'], registered)).toBeNull();
+    });
+
+    it('finds no browser, and says so, where the registry cannot be read', async () => {
+        const lines: string[] = [];
+        expect(await finder('win32', windows, [portableEdge], Object.assign(new Error('spawn'), { code: 'ENOENT' }), lines)).toBeNull();
+        expect(lines).toEqual([
+            '[Ytm] The browsers in the registry could not be read (ENOENT)',
+            '[Ytm] No Chrome (of any channel), Edge, Chromium, Brave or Helium was found for the sign-in, installed or registered',
+        ]);
+    });
+
+    it('still takes what the registry query printed before it failed', async () => {
+        const lines: string[] = [];
+        const execFile = registryOf(Object.assign(new Error('Command failed'), { code: 1 }), registered);
+        const found = await createBrowserSignIn({
+            platform: 'win32', env: windows, exists: (candidate: string) => candidate === portableEdge, execFile,
+            log: (line: string) => lines.push(line), warn: (line: string) => lines.push(line),
+        }).findBrowser();
+        expect(found).toBe(portableEdge);
+        expect(lines).toEqual(['[Ytm] The browsers in the registry could not be read (1)', '[Ytm] Sign-in can use a browser from the registry (msedge.exe)']);
+    });
+
+    it('reads the executable from a registry command, quoted or not', () => {
+        expect(commandExecutable('"D:\\A B\\msedge.exe" --single-argument %1')).toBe('D:\\A B\\msedge.exe');
+        expect(commandExecutable('C:\\Program Files\\Internet Explorer\\iexplore.exe')).toBe('C:\\Program Files\\Internet Explorer\\iexplore.exe');
+        expect(commandExecutable('C:\\Tools\\Chrome.EXE -- %1')).toBe('C:\\Tools\\Chrome.EXE');
+        expect(commandExecutable('  ')).toBeNull();
+        expect(commandExecutable(undefined)).toBeNull();
+    });
+
+    it('keeps only absolute paths of chrome.exe, msedge.exe and brave.exe from the registry, each once', () => {
+        expect(registeredPlaces([
+            '"D:\\Edge\\MSEDGE.EXE" %1', '"d:\\edge\\msedge.exe"', 'msedge.exe', '"..\\chrome.exe"', '"D:\\Portable\\EdgePortable.exe"',
+            '"C:\\Brave\\brave.exe"', '"C:\\Vivaldi\\vivaldi.exe"',
+        ]).map((place: { file: string }) => place.file)).toEqual(['D:\\Edge\\MSEDGE.EXE', 'C:\\Brave\\brave.exe']);
     });
 
     it('skips a programs folder the computer does not name', () => {
         expect(browserCandidates({ platform: 'win32', env: { ProgramFiles: 'C:\\Program Files' } })).toHaveLength(7);
     });
 
-    it('looks in the computer\'s applications folder on macOS, then in the person\'s own', () => {
+    it('looks in the computer\'s applications folder on macOS, then in the person\'s own', async () => {
         const candidates = browserCandidates({ platform: 'darwin', env: { HOME: '/Users/someone' } });
         expect(candidates).toHaveLength(16);
         expect(candidates.slice(0, 4)).toEqual([
@@ -184,11 +270,11 @@ describe('where a browser is looked for', () => {
             '/Applications/Brave Browser.app/Contents/MacOS/Brave Browser',
         ]);
         expect(candidates[8]).toBe('/Users/someone/Applications/Google Chrome.app/Contents/MacOS/Google Chrome');
-        expect(finder('darwin', {}, ['/Applications/Brave Browser.app/Contents/MacOS/Brave Browser']))
+        expect(await finder('darwin', {}, ['/Applications/Brave Browser.app/Contents/MacOS/Brave Browser']))
             .toBe('/Applications/Brave Browser.app/Contents/MacOS/Brave Browser');
     });
 
-    it('looks for Chrome\'s other channels and Helium on macOS after the four, under their own application names', () => {
+    it('looks for Chrome\'s other channels and Helium on macOS after the four, under their own application names', async () => {
         const candidates = browserCandidates({ platform: 'darwin', env: { HOME: '/Users/someone' } });
         expect(candidates.slice(4, 8)).toEqual([
             '/Applications/Google Chrome Beta.app/Contents/MacOS/Google Chrome Beta',
@@ -197,32 +283,32 @@ describe('where a browser is looked for', () => {
             '/Applications/Helium.app/Contents/MacOS/Helium',
         ]);
         expect(candidates[15]).toBe('/Users/someone/Applications/Helium.app/Contents/MacOS/Helium');
-        expect(finder('darwin', { HOME: '/Users/someone' }, ['/Users/someone/Applications/Helium.app/Contents/MacOS/Helium', '/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary']))
+        expect(await finder('darwin', { HOME: '/Users/someone' }, ['/Users/someone/Applications/Helium.app/Contents/MacOS/Helium', '/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary']))
             .toBe('/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary');
     });
 
-    it('looks for the usual names on PATH on Linux, in its absolute folders only', () => {
+    it('looks for the usual names on PATH on Linux, in its absolute folders only', async () => {
         const env = { PATH: '/usr/local/bin:/usr/bin' };
         expect(browserCandidates({ platform: 'linux', env }).slice(0, 4)).toEqual([
             '/usr/local/bin/google-chrome', '/usr/bin/google-chrome', '/usr/local/bin/google-chrome-stable', '/usr/bin/google-chrome-stable',
         ]);
-        expect(finder('linux', env, ['/usr/bin/chromium-browser', '/usr/bin/brave'])).toBe('/usr/bin/chromium-browser');
-        expect(finder('linux', {}, ['/usr/bin/chromium'])).toBeNull();
+        expect(await finder('linux', env, ['/usr/bin/chromium-browser', '/usr/bin/brave'])).toBe('/usr/bin/chromium-browser');
+        expect(await finder('linux', {}, ['/usr/bin/chromium'])).toBeNull();
         // A folder named from wherever the app was started is not looked in.
         expect(browserCandidates({ platform: 'linux', env: { PATH: '.:bin::../tools:/usr/bin' } }).every((candidate: string) => candidate.startsWith('/usr/bin/'))).toBe(true);
-        expect(finder('linux', { PATH: '.:bin' }, ['google-chrome', 'bin/google-chrome'])).toBeNull();
+        expect(await finder('linux', { PATH: '.:bin' }, ['google-chrome', 'bin/google-chrome'])).toBeNull();
     });
 
-    it('looks for Chrome\'s other channels and Helium on Linux by their command names, after the stable four', () => {
+    it('looks for Chrome\'s other channels and Helium on Linux by their command names, after the stable four', async () => {
         const env = { PATH: '/usr/bin' };
         expect(browserCandidates({ platform: 'linux', env }).slice(8)).toEqual([
             '/usr/bin/google-chrome-beta', '/usr/bin/google-chrome-unstable', '/usr/bin/google-chrome-canary', '/usr/bin/helium', '/usr/bin/helium-browser',
         ]);
         // The reporter of issue 812: Chrome Beta and Dev from the AUR, and helium-browser-bin.
-        expect(finder('linux', env, ['/usr/bin/helium-browser', '/usr/bin/google-chrome-unstable', '/usr/bin/google-chrome-beta'])).toBe('/usr/bin/google-chrome-beta');
-        expect(finder('linux', env, ['/usr/bin/helium-browser', '/usr/bin/google-chrome-unstable'])).toBe('/usr/bin/google-chrome-unstable');
-        expect(finder('linux', env, ['/usr/bin/helium-browser'])).toBe('/usr/bin/helium-browser');
-        expect(finder('linux', env, ['/usr/bin/helium-browser', '/usr/bin/chromium'])).toBe('/usr/bin/chromium');
+        expect(await finder('linux', env, ['/usr/bin/helium-browser', '/usr/bin/google-chrome-unstable', '/usr/bin/google-chrome-beta'])).toBe('/usr/bin/google-chrome-beta');
+        expect(await finder('linux', env, ['/usr/bin/helium-browser', '/usr/bin/google-chrome-unstable'])).toBe('/usr/bin/google-chrome-unstable');
+        expect(await finder('linux', env, ['/usr/bin/helium-browser'])).toBe('/usr/bin/helium-browser');
+        expect(await finder('linux', env, ['/usr/bin/helium-browser', '/usr/bin/chromium'])).toBe('/usr/bin/chromium');
     });
 });
 
@@ -255,7 +341,7 @@ const quiet = { log: () => {}, warn: () => {} };
 
 describe('openSignIn', () => {
     // The folder is not made here: `mark` is a stand-in.
-    const open = (elapsed: { ms: number }, spawn: unknown, mark: unknown = () => {}) => createBrowserSignIn({ spawn, mark, now: () => elapsed.ms, ...quiet }).openSignIn(BROWSER, PROFILE);
+    const open = (elapsed: { ms: number }, spawn: unknown, mark: unknown = () => {}, platform = 'win32') => createBrowserSignIn({ spawn, mark, platform, now: () => elapsed.ms, ...quiet }).openSignIn(BROWSER, PROFILE);
 
     it('puts the app\'s mark into the folder before the browser is started, and starts none on a folder it could not mark', async () => {
         const { spawn } = fakeBrowser();
@@ -282,11 +368,15 @@ describe('openSignIn', () => {
         const [file, args, options] = spawn.mock.calls[0];
         expect(file).toBe(BROWSER);
         expect(args).toEqual([
-            `--user-data-dir=${PROFILE}`, '--no-first-run', '--no-default-browser-check',
+            `--user-data-dir=${PROFILE}`, '--no-first-run', '--no-default-browser-check', '--portable',
             'https://accounts.google.com/ServiceLogin?service=youtube&continue=https%3A%2F%2Fmusic.youtube.com%2F',
         ]);
         expect(args.some(arg => /debug|headless|automation/i.test(arg))).toBe(false);
         expect(options).toMatchObject({ shell: false, stdio: 'ignore', detached: true });
+        // `--portable` keeps a chrome++ portable browser from starting itself again (#1227); only on Windows.
+        const elsewhere = fakeBrowser();
+        open({ ms: 0 }, elsewhere.spawn, () => {}, 'linux');
+        expect(elsewhere.spawn.mock.calls[0][1]).not.toContain('--portable');
     });
 
     it('reads an end after a while as the window being closed', async () => {
@@ -336,7 +426,7 @@ describe('readCookies', () => {
         { name: 'SID', value: 'secret-value-2', domain: '.google.com', path: '/' },
     ];
     const reader = (spawn: unknown, lines: string[] = []) => createBrowserSignIn({
-        spawn, log: (line: string) => lines.push(line), warn: (line: string) => lines.push(line),
+        spawn, platform: 'win32', log: (line: string) => lines.push(line), warn: (line: string) => lines.push(line),
     });
 
     it('starts the browser headless on the pipe, with no page to open', async () => {
@@ -347,7 +437,7 @@ describe('readCookies', () => {
         await reader(spawn).readCookies(BROWSER, PROFILE);
         const [file, args, options] = spawn.mock.calls[0];
         expect(file).toBe(BROWSER);
-        expect(args).toEqual(expect.arrayContaining(['--headless=new', '--remote-debugging-pipe', '--no-startup-window', `--user-data-dir=${PROFILE}`]));
+        expect(args).toEqual(expect.arrayContaining(['--headless=new', '--remote-debugging-pipe', '--no-startup-window', `--user-data-dir=${PROFILE}`, '--portable']));
         expect(args.some(arg => /^(https?:|about:)/.test(arg) || /debugging-port/.test(arg))).toBe(false);
         expect(options).toMatchObject({ shell: false, stdio: ['ignore', 'ignore', 'ignore', 'pipe', 'pipe'] });
     });
