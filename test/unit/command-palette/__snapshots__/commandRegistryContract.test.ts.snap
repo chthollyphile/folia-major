@@ -271,6 +271,7 @@ exports[`command palette registry contract > keeps the registered command order 
   "visualizer-hanabi",
   "visualizer-machi",
   "visualizer-nebbia",
+  "visualizer-metaphor",
   "visualizer-classic",
   "visualizer-cadenza",
   "visualizer-partita",

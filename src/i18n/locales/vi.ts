@@ -569,6 +569,7 @@ export default {
     "temperaReset": "Đã đặt lại thông số Tempera",
     "lumiereReset": "Đã đặt lại thông số Lumiere",
     "nebbiaReset": "Đã đặt lại thông số Nebbia",
+    "metaphorReset": "Đã đặt lại thông số Metaphor",
     "hanabiReset": "Đã đặt lại thông số Hanabi",
     "machiReset": "Đã đặt lại thông số Machi",
     "uploadEmojiFirst": "Cần tải lên gói biểu cảm tùy chỉnh trước",
@@ -1152,6 +1153,7 @@ export default {
       "visualizer-tempera": { "title": "Hiệu ứng thị giác: Tempera", "description": "Chuyển sang PV lời mảng màu Tempera" },
       "visualizer-lumiere": { "title": "Hiệu ứng thị giác: Lumiere", "description": "Chuyển sang PV lời ánh đèn sân khấu Lumiere" },
       "visualizer-nebbia": { "title": "Hiệu ứng thị giác: Nebbia", "description": "Chuyển sang Nebbia, viết lời bài hát trên cửa kính xe buýt mờ hơi nước" },
+      "visualizer-metaphor": { "title": "Hiệu ứng thị giác: Metaphor", "description": "Chuyển sang Metaphor, lời bài hát bằng mực tan chảy, halftone và hạt nhiễu, cắt cảnh dứt khoát giữa các máy quay" },
       "visualizer-hanabi": { "title": "Hiệu ứng thị giác: Hanabi", "description": "Chuyển sang PV lời pháo hoa Hanabi" },
       "visualizer-machi": { "title": "Hiệu ứng thị giác: Machi", "description": "Chuyển sang mô hình phố thu nhỏ Machi" },
       "desktop-toggle-remote-control": { "title": "Bật/tắt cửa sổ điều khiển", "description": "Mở hoặc đóng cửa sổ điều khiển" },
@@ -1275,6 +1277,7 @@ export default {
     "visualizerTempera": "Tempera",
     "visualizerLumiere": "Lumiere",
     "visualizerNebbia": "Nebbia",
+    "visualizerMetaphor": "Metaphor",
     "visualizerHanabi": "Hanabi",
     "visualizerMachi": "Machi",
     "cadenzeTuning": "Hiệu chỉnh Tâm cảnh",
@@ -1886,8 +1889,8 @@ export default {
     "latticeRadioLabel": "Tường radio FM cá nhân",
     "latticeRadioQueueLabel": "Tường radio",
     "latticeRadioHidden": "Bài tiếp theo, chưa lộ diện",
-    "latticeRadioHelpCard": "Nhấp một thẻ để phát bài đó (trong FM cá nhân vẫn phát trên radio)",
-    "latticeRadioHelpMove": "← →, kéo hoặc cuộn để duyệt các thẻ, Enter để phát",
+    "latticeRadioHelpCard": "Nhấp một thẻ để đưa nó vào giữa, nhấp đúp thẻ ở giữa để phát (trong FM cá nhân vẫn phát trên radio)",
+    "latticeRadioHelpMove": "← →, kéo hoặc cuộn để duyệt các thẻ, Enter để phát thẻ ở giữa",
     "latticeRadioBackToNow": "Quay lại bài đang phát",
     "latticeRadioBackdropWord": "FM CÁ NHÂN",
     "latticeRadioBackdropQueueWord": "HÀNG ĐỢI",
@@ -3271,6 +3274,8 @@ export default {
     "beatEffect_hanabiBeatBurstsDesc": "Theo các nhịp điệu do beat_this phát hiện: một chùm pháo hoa nhỏ nở rộ trên bầu trời theo từng phách, và một quả pháo bay lên trước phách đầu tiên của mỗi ô nhịp để nổ bung đúng vào phách đó. Nhịp càng mạnh thì pháo nở càng lớn.",
     "beatEffect_hanabiBeatPulse": "Đẩy góc nhìn theo nhịp",
     "beatEffect_hanabiBeatPulseDesc": "Theo các nhịp điệu do beat_this phát hiện: toàn bộ khung cảnh được đẩy lại gần và khẽ đung đưa theo từng phách, đẩy sâu hơn vào phách đầu tiên của mỗi ô nhịp.",
+    "beatEffect_metaphorAnnihilation": "Va chạm hủy cặp",
+    "beatEffect_metaphorAnnihilationDesc": "Theo các nhịp điệu do beat_this phát hiện: hai chùm mực xuất phát sớm và va vào nhau đúng phách đầu tiên của ô nhịp, hủy thành các mảnh vụn; mỗi phách còn lại phát ra một vòng xung kích nhỏ từ điểm va chạm, phách càng mạnh vòng càng rộng.",
     "beatEffect_machiNeonPulse": "Neon theo nhịp",
     "beatEffect_machiNeonPulseDesc": "Theo các nhịp điệu do beat_this phát hiện: biển neon chia thành ba nhóm thay phiên nhau, mỗi phách từ từ thắp sáng nhóm kế tiếp rồi để nó dịu đi, nên con phố sáng lên từng đợt thay vì nhấp nháy; đèn trong cửa hàng và các ô cửa sáng đèn khẽ bừng lên mỗi ô nhịp.",
     "beatEffect_machiDrumRipple": "Gợn sóng trống kick",
@@ -3728,6 +3733,24 @@ export default {
     "lyricAntialiasOn": "Bật",
     "lyricAntialiasOff": "Tắt",
     "lyricRenderSection": "Kết xuất",
+    "metaphorFontSizeAutoNotice": "Metaphor tự định cỡ chữ lời bài hát theo máy quay của từng cảnh; cài đặt cỡ chữ chung chỉ ảnh hưởng đến phụ đề phía dưới ở chế độ này.",
+    "metaphorCameraSection": "Máy quay",
+    "metaphorCutPace": "Nhịp cắt cảnh",
+    "metaphorCutPaceHint": "Một câu hát được cắt thành bao nhiêu cảnh: càng cao càng cắt nhiều. Điểm cắt rơi đúng lúc một từ bắt đầu được hát.",
+    "metaphorCameraMotion": "Chuyển động máy quay",
+    "metaphorFlip": "Đảo màu hình ảnh",
+    "metaphorFlipHint": "Hoán đổi giấy và mực cho toàn bộ hình ảnh: giao diện tối thành mực đen trên giấy trắng, giao diện sáng thành mực trắng trên giấy đen.",
+    "metaphorKeywordColors": "Tô màu từ khóa",
+    "metaphorKeywordColorsHint": "Mỗi từ khóa của giao diện dùng màu riêng của nó; khi tắt, chúng có màu mực như các từ khác.",
+    "metaphorNegative": "Cảnh âm bản",
+    "metaphorNegativeHint": "Một số cảnh đổi chỗ màu giấy và màu mực, nhiều hơn ở điệp khúc.",
+    "metaphorTransitions": "Chuyển cảnh",
+    "metaphorTransitionsHint": "Thỉnh thoảng câu mới xuất hiện qua một đợt mực tràn hoặc một cú zoom gấp từng nấc; khi tắt, mọi thay đổi đều là cắt thẳng.",
+    "metaphorInkSection": "Mực",
+    "metaphorFlow": "Chất lỏng",
+    "metaphorBlobs": "Metaball và họa tiết",
+    "metaphorHalftone": "Cỡ chấm halftone",
+    "metaphorGrain": "Hạt nhiễu",
     "lyricRenderFollowGlobal": "Theo cài đặt chung",
     "lyricRenderScaleStyleHint": "Kiểu này vẽ ở bao nhiêu lần độ phân giải; trên 1× là siêu lấy mẫu. Theo cài đặt chung dùng giá trị trong Hiệu năng & Hoạt họa (hiện là {{value}}).",
     "lyricAntialiasStyleHint": "Theo cài đặt chung dùng giá trị trong Hiệu năng & Hoạt họa (hiện là {{value}}).",
@@ -4245,6 +4268,29 @@ export default {
       "qqPrivatePlaylists": {
         "title": "Danh sách phát QQ Music riêng tư",
         "description": "Sau khi đăng nhập, danh sách phát riêng tư của bạn nay có thể tải bài hát với phân trang thực tế. Máy chủ tự lưu trữ cần chạy qq-music-api 3.1.2 trở lên; phiên bản cũ hơn sẽ tự động quay về cơ chế dự phòng, và danh sách phát không đọc được sẽ báo rõ là danh sách không công khai thay vì hiển thị trống."
+      }
+    },
+    "v0_7_29": {
+      "intro": "Chào mừng bạn đến với 0.7.29, Feynman Update—một bản cập nhật lớn. FM cá nhân có tường radio riêng, có kiểu lời bài hát mới tên Metaphor, và tính năng kiểm tra hiệu năng cho biết máy tính này chạy được chất lượng hình ảnh đến mức nào.",
+      "radioWall": {
+        "title": "Tường radio Lattice",
+        "description": "Trong FM cá nhân, Lattice trở thành một vòng thẻ: các bài sắp phát là thẻ dấu hỏi, lật lên khi đến lượt. Hàng đợi thường cũng dùng được qua mục Kiểu tường trong Cài đặt."
+      },
+      "metaphor": {
+        "title": "Kiểu lời bài hát mới: Metaphor",
+        "description": "Những khối mực, chấm halftone và hình vẽ nét vật lý được dàn như một trang báo, cắt cảnh dứt khoát theo nhịp. Chuyển động thông minh thêm hiệu ứng va chạm hủy cặp, và nhạc không lời đổi hình theo từng đoạn."
+      },
+      "perfCheck": {
+        "title": "Kiểm tra hiệu năng và phân tích nhanh hơn",
+        "description": "Dòng đầu tiên của Hoạt họa & Hiệu năng đo tốc độ khung hình khi đang phân tích và gợi ý độ phân giải, khử răng cưa, giới hạn khung hình phù hợp. Tách giọng hát và trống trên Windows nhanh hơn nhiều và không còn làm chậm hình ảnh."
+      },
+      "shuffleSearch": {
+        "title": "Phát ngẫu nhiên và lịch sử tìm kiếm",
+        "description": "Album, danh sách phát và bài nổi bật của nghệ sĩ có nút phát ngẫu nhiên cạnh Phát tất cả, và mục Phát lại có thêm tùy chọn Trộn theo vòng. Ô tìm kiếm và bảng lệnh liệt kê các từ bạn đã tìm."
+      },
+      "moreDetails": {
+        "title": "Cải tiến khác",
+        "description": "Cài đặt AI có trang Dịch vụ AI riêng. Cửa sổ điều khiển từ xa có trang cài đặt riêng và hiển thị được hai câu lời. Ở chế độ xuyên nhấp, nút luôn ở trên nằm cạnh ổ khóa. Màu nhấn lấy từ ảnh bìa dễ nhìn hơn. Bài hát bạn tự tải lên Apple Music giờ đã phát được."
       }
     },
     "v0_7_28": {

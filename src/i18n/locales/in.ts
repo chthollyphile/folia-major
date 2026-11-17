@@ -569,6 +569,7 @@ export default {
     "temperaReset": "Setelan Tempera direset",
     "lumiereReset": "Setelan Lumiere direset",
     "nebbiaReset": "Setelan Nebbia direset",
+    "metaphorReset": "Setelan Metaphor direset",
     "hanabiReset": "Setelan Hanabi direset",
     "machiReset": "Setelan Machi direset",
     "uploadEmojiFirst": "Unggah dulu paket emoji kustom",
@@ -1152,6 +1153,7 @@ export default {
       "visualizer-tempera": { "title": "Visualizer: Tempera", "description": "Alihkan ke PV lirik blok warna Tempera" },
       "visualizer-lumiere": { "title": "Visualizer: Lumiere", "description": "Alihkan ke PV lirik cahaya panggung Lumiere" },
       "visualizer-nebbia": { "title": "Visualizer: Nebbia", "description": "Alihkan ke Nebbia, lirik ditulis di jendela bus yang berembun" },
+      "visualizer-metaphor": { "title": "Visualizer: Metaphor", "description": "Alihkan ke Metaphor, lirik dari tinta yang melebur, halftone, dan butiran, dengan potongan kamera yang tajam" },
       "visualizer-hanabi": { "title": "Visualizer: Hanabi", "description": "Alihkan ke PV lirik kembang api Hanabi" },
       "visualizer-machi": { "title": "Visualizer: Machi", "description": "Alihkan ke diorama kota Machi" },
       "desktop-toggle-remote-control": { "title": "Alihkan jendela remote control", "description": "Buka atau tutup jendela remote control" },
@@ -1275,6 +1277,7 @@ export default {
     "visualizerTempera": "Tempera",
     "visualizerLumiere": "Lumiere",
     "visualizerNebbia": "Nebbia",
+    "visualizerMetaphor": "Metaphor",
     "visualizerHanabi": "Hanabi",
     "visualizerMachi": "Machi",
     "cadenzeTuning": "Penyetelan Mindscape",
@@ -1886,8 +1889,8 @@ export default {
     "latticeRadioLabel": "Dinding radio FM Pribadi",
     "latticeRadioQueueLabel": "Dinding radio",
     "latticeRadioHidden": "Lagu berikutnya, belum terungkap",
-    "latticeRadioHelpCard": "Klik kartu untuk memutar lagu itu (di FM Pribadi tetap di radio)",
-    "latticeRadioHelpMove": "← →, seret, atau gulir untuk menelusuri kartu, Enter memutar",
+    "latticeRadioHelpCard": "Klik kartu untuk membawanya ke tengah, klik dua kali kartu di tengah untuk memutarnya (di FM Pribadi tetap di radio)",
+    "latticeRadioHelpMove": "← →, seret, atau gulir untuk menelusuri kartu, Enter memutar kartu di tengah",
     "latticeRadioBackToNow": "Kembali ke lagu yang diputar",
     "latticeRadioBackdropWord": "FM PRIBADI",
     "latticeRadioBackdropQueueWord": "ANTREAN",
@@ -3469,6 +3472,8 @@ export default {
     "beatEffect_hanabiBeatBurstsDesc": "Mengikuti ketukan yang dideteksi beat_this: kembang api kecil mekar di langit setiap ketukan, dan satu peluru naik lebih dulu agar meledak tepat pada ketukan pertama tiap birama. Ketukan yang lebih keras mekar lebih besar.",
     "beatEffect_hanabiBeatPulse": "Dorong Ketukan",
     "beatEffect_hanabiBeatPulseDesc": "Mengikuti ketukan yang dideteksi beat_this: seluruh adegan mendekat dan bergoyang sedikit setiap ketukan, lebih dalam pada ketukan pertama tiap birama.",
+    "beatEffect_metaphorAnnihilation": "Tumbukan Anihilasi",
+    "beatEffect_metaphorAnnihilationDesc": "Mengikuti ketukan yang dideteksi beat_this: dua berkas tinta berangkat lebih dulu dan bertumbukan tepat pada ketukan pertama birama, musnah menjadi serpihan; setiap ketukan lain memancarkan cincin kejut kecil dari titik tumbukan, lebih lebar pada ketukan yang lebih keras.",
     "beatEffect_machiNeonPulse": "Denyut Neon",
     "beatEffect_machiNeonPulseDesc": "Mengikuti ketukan yang dideteksi beat_this: papan neon bergantian dalam tiga kelompok, setiap ketukan perlahan menyalakan kelompok berikutnya lalu meredupkannya, sehingga jalan berpendar bergelombang alih-alih berkedip; lampu toko dan jendela yang menyala menguat lembut sekali setiap birama.",
     "beatEffect_machiDrumRipple": "Riak Kick",
@@ -3728,6 +3733,24 @@ export default {
     "lyricAntialiasOn": "Aktif",
     "lyricAntialiasOff": "Mati",
     "lyricRenderSection": "Rendering",
+    "metaphorFontSizeAutoNotice": "Metaphor menentukan ukuran lirik dari kamera tiap adegan; setelan ukuran font umum hanya memengaruhi subtitle bawah dalam mode ini.",
+    "metaphorCameraSection": "Kamera",
+    "metaphorCutPace": "Tempo potongan",
+    "metaphorCutPaceHint": "Berapa banyak adegan dalam satu baris: makin tinggi makin sering berpindah. Potongan jatuh tepat saat sebuah kata mulai dinyanyikan.",
+    "metaphorCameraMotion": "Gerak kamera",
+    "metaphorFlip": "Balik Gambar",
+    "metaphorFlipHint": "Menukar kertas dan tinta untuk seluruh gambar: tema gelap menjadi tinta hitam di kertas putih, tema terang menjadi tinta putih di kertas hitam.",
+    "metaphorKeywordColors": "Warna Kata Kunci",
+    "metaphorKeywordColorsHint": "Kata kunci tema memakai warnanya masing-masing; jika dimatikan, warnanya tinta seperti kata lain.",
+    "metaphorNegative": "Adegan negatif",
+    "metaphorNegativeHint": "Sebagian adegan menukar warna kertas dan tinta, lebih banyak di bagian chorus.",
+    "metaphorTransitions": "Transisi",
+    "metaphorTransitionsHint": "Sesekali baris baru datang lewat banjir tinta atau crash zoom bertahap; jika mati, semua pergantian adalah potongan langsung.",
+    "metaphorInkSection": "Tinta",
+    "metaphorFlow": "Cairan",
+    "metaphorBlobs": "Metaball dan ornamen",
+    "metaphorHalftone": "Ukuran titik halftone",
+    "metaphorGrain": "Butiran",
     "lyricRenderFollowGlobal": "Ikuti global",
     "lyricRenderScaleStyleHint": "Berapa kali resolusi gaya ini digambar; di atas 1× melakukan supersampling. Ikuti global memakai pengaturan di Performa & gerakan (sekarang {{value}}).",
     "lyricAntialiasStyleHint": "Ikuti global memakai pengaturan di Performa & gerakan (sekarang {{value}}).",
@@ -4245,6 +4268,29 @@ export default {
       "qqPrivatePlaylists": {
         "title": "Playlist Pribadi QQ Music",
         "description": "Setelah masuk, playlist pribadi buatan Anda kini dapat memuat lagu dengan paging sungguhan. Backend yang di-host sendiri harus memakai qq-music-api 3.1.2 atau lebih baru; backend lama beralih otomatis, dan playlist yang tidak dapat dibaca kini menjelaskan bahwa playlist itu tidak publik, alih-alih tampil kosong tanpa keterangan."
+      }
+    },
+    "v0_7_29": {
+      "intro": "Selamat datang di 0.7.29, Feynman Update—sebuah pembaruan besar. FM Pribadi kini punya dinding radio sendiri, ada gaya lirik baru bernama Metaphor, dan pemeriksaan performa memberi tahu seberapa tinggi kualitas visual yang sanggup dijalankan komputer ini.",
+      "radioWall": {
+        "title": "Dinding radio Lattice",
+        "description": "Di FM Pribadi, Lattice menjadi lingkaran kartu: lagu berikutnya berupa kartu tanda tanya yang terbuka saat gilirannya tiba. Antrean biasa juga bisa memakainya lewat Bentuk dinding di Pengaturan."
+      },
+      "metaphor": {
+        "title": "Gaya lirik baru: Metaphor",
+        "description": "Gumpalan tinta, titik halftone, dan sketsa garis fisika tersusun seperti halaman, dengan potongan tajam mengikuti ketukan. Gerak cerdas menambahkan efek tabrakan anihilasi, dan musik instrumental berganti gambar per bagian."
+      },
+      "perfCheck": {
+        "title": "Pemeriksaan performa dan analisis lebih cepat",
+        "description": "Baris pertama Gerakan & performa mengukur frame rate saat analisis berjalan dan merekomendasikan resolusi, anti-aliasing, serta batas frame rate. Pemisahan vokal dan drum di Windows jauh lebih cepat dan tidak lagi memperlambat tampilan."
+      },
+      "shuffleSearch": {
+        "title": "Acak dan riwayat pencarian",
+        "description": "Album, playlist, dan lagu teratas artis punya tombol acak di samping Putar semua, dan Pemutaran punya opsi baru Acak per putaran. Kotak pencarian dan palet perintah menampilkan pencarian sebelumnya."
+      },
+      "moreDetails": {
+        "title": "Peningkatan lainnya",
+        "description": "Pengaturan AI kini punya halaman Layanan AI sendiri. Jendela remote control punya halaman pengaturan sendiri dan bisa menampilkan dua baris lirik. Dalam mode klik-tembus, tombol selalu di atas ada di samping kunci. Warna aksen dari sampul lebih enak dilihat. Lagu yang kamu unggah ke Apple Music kini bisa diputar."
       }
     },
     "v0_7_28": {

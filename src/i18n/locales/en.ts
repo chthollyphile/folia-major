@@ -569,6 +569,7 @@ export default {
     "temperaReset": "Tempera tuning reset",
     "lumiereReset": "Lumiere tuning reset",
     "nebbiaReset": "Nebbia tuning reset",
+    "metaphorReset": "Metaphor tuning reset",
     "hanabiReset": "Hanabi tuning reset",
     "machiReset": "Machi tuning reset",
     "uploadEmojiFirst": "Please upload a custom emoji pack first",
@@ -1152,6 +1153,7 @@ export default {
       "visualizer-tempera": { "title": "Visualizer: Tempera", "description": "Switch to the Tempera color-block lyric PV" },
       "visualizer-lumiere": { "title": "Visualizer: Lumiere", "description": "Switch to the Lumiere stage-light lyric PV" },
       "visualizer-nebbia": { "title": "Visualizer: Nebbia", "description": "Switch to Nebbia, lyrics written on a fogged-up bus window" },
+      "visualizer-metaphor": { "title": "Visualizer: Metaphor", "description": "Switch to Metaphor, lyrics of fusing ink, halftone and grain, cut hard between cameras" },
       "visualizer-hanabi": { "title": "Visualizer: Hanabi", "description": "Switch to the Hanabi fireworks lyric PV" },
       "visualizer-machi": { "title": "Visualizer: Machi", "description": "Switch to the Machi town dioramas" },
       "desktop-toggle-remote-control": { "title": "Toggle remote control window", "description": "Open or close the remote control window" },
@@ -1275,6 +1277,7 @@ export default {
     "visualizerTempera": "Tempera",
     "visualizerLumiere": "Lumiere",
     "visualizerNebbia": "Nebbia",
+    "visualizerMetaphor": "Metaphor",
     "visualizerHanabi": "Hanabi",
     "visualizerMachi": "Machi",
     "cadenzeTuning": "Mindscape Tuning",
@@ -1886,8 +1889,8 @@ export default {
     "latticeRadioLabel": "Personal FM radio wall",
     "latticeRadioQueueLabel": "Radio wall",
     "latticeRadioHidden": "Coming up, not revealed yet",
-    "latticeRadioHelpCard": "Click a card to play that song (within Personal FM, it stays on the radio)",
-    "latticeRadioHelpMove": "← →, drag or scroll to browse the cards, Enter plays",
+    "latticeRadioHelpCard": "Click a card to bring it to the middle, double-click the card in the middle to play it (within Personal FM, it stays on the radio)",
+    "latticeRadioHelpMove": "← →, drag or scroll to browse the cards, Enter plays the card in the middle",
     "latticeRadioBackToNow": "Back to the playing song",
     "latticeRadioBackdropWord": "PERSONAL FM",
     "latticeRadioBackdropQueueWord": "QUEUE",
@@ -3271,6 +3274,8 @@ export default {
     "beatEffect_hanabiBeatBurstsDesc": "On the beats beat_this detects: a small firework opens in the sky on every beat, and a shell climbs ahead of each bar's first beat to burst right on it. Harder beats open bigger.",
     "beatEffect_hanabiBeatPulse": "Beat Push",
     "beatEffect_hanabiBeatPulseDesc": "On the beats beat_this detects: the whole scene pushes in and sways a little on every beat, deeper on each bar's first beat.",
+    "beatEffect_metaphorAnnihilation": "Annihilation",
+    "beatEffect_metaphorAnnihilationDesc": "On the beats beat_this detects: two beams of ink set off early and collide right on a bar's first beat, annihilating into fragments; every other beat sends a small shock ring out from the collision point, wider on harder beats.",
     "beatEffect_machiNeonPulse": "Neon Pulse",
     "beatEffect_machiNeonPulseDesc": "On the beats beat_this detects: the neon signs take turns in three groups, each beat slowly lighting the next group up and letting it fade, so the street glows in waves rather than flashing; the shop lights and lit windows swell gently once a bar.",
     "beatEffect_machiDrumRipple": "Kick Ripples",
@@ -3728,6 +3733,24 @@ export default {
     "lyricAntialiasOn": "On",
     "lyricAntialiasOff": "Off",
     "lyricRenderSection": "Rendering",
+    "metaphorFontSizeAutoNotice": "Metaphor sizes its lyrics by each shot's camera; the general font size setting only affects the bottom subtitle in this mode.",
+    "metaphorCameraSection": "Camera",
+    "metaphorCutPace": "Cutting pace",
+    "metaphorCutPaceHint": "How many shots a line is cut into: higher cuts more often. Cuts land where a word starts.",
+    "metaphorCameraMotion": "Camera motion",
+    "metaphorFlip": "Invert Picture",
+    "metaphorFlipHint": "Swaps paper and ink for the whole picture: a dark theme gives black ink on white paper, a light theme white ink on black paper.",
+    "metaphorKeywordColors": "Keyword Colors",
+    "metaphorKeywordColorsHint": "The theme's keywords each take their own color; off, they are ink like every other word.",
+    "metaphorNegative": "Negative shots",
+    "metaphorNegativeHint": "Some shots swap the paper and ink colours, more of them in a chorus.",
+    "metaphorTransitions": "Transitions",
+    "metaphorTransitionsHint": "Now and then a line arrives through an ink flood or a stepped crash zoom; off, every change is a hard cut.",
+    "metaphorInkSection": "Ink",
+    "metaphorFlow": "Fluid",
+    "metaphorBlobs": "Metaballs and ornaments",
+    "metaphorHalftone": "Halftone dot size",
+    "metaphorGrain": "Grain",
     "lyricRenderFollowGlobal": "Follow global",
     "lyricRenderScaleStyleHint": "How many times the resolution this style draws at; above 1× supersamples. Follow global uses the setting in Performance & motion (now {{value}}).",
     "lyricAntialiasStyleHint": "Follow global uses the setting in Performance & motion (now {{value}}).",
@@ -4245,6 +4268,29 @@ export default {
       "qqPrivatePlaylists": {
         "title": "Private QQ Music Playlists",
         "description": "When signed in, your own private playlists now load their songs, with real paging. Self-hosted backends must run qq-music-api 3.1.2 or later; older backends fall back automatically, and a playlist that cannot be read now says it is not public instead of silently showing as empty."
+      }
+    },
+    "v0_7_29": {
+      "intro": "Welcome to 0.7.29, the Feynman Update—a major update. Personal FM gets its own radio wall, there is a new lyric style called Metaphor, and a performance check tells you how much visual quality this computer can handle.",
+      "radioWall": {
+        "title": "Lattice radio wall",
+        "description": "In Personal FM, Lattice becomes a ring of cards: upcoming songs are question-mark cards that flip over when their turn comes. Regular queues can use it too via Wall form in Settings."
+      },
+      "metaphor": {
+        "title": "New lyric style: Metaphor",
+        "description": "Ink blobs, halftone dots and physics line drawings laid out like a page, with hard cuts on the beat. Smart motion adds an annihilation-collision effect, and instrumentals change the picture section by section."
+      },
+      "perfCheck": {
+        "title": "Performance check and faster analysis",
+        "description": "The first row of Motion & performance measures your frame rate with analysis running and recommends resolution, anti-aliasing and frame-rate limits. Vocal and drum separation on Windows is much faster and no longer drags the visuals down."
+      },
+      "shuffleSearch": {
+        "title": "Shuffle and search history",
+        "description": "Albums, playlists and an artist’s top songs get a shuffle button next to Play all, and Playback has a new Shuffle in rounds option. Search boxes and the command palette list your past searches."
+      },
+      "moreDetails": {
+        "title": "More improvements",
+        "description": "AI settings have their own AI service page. The remote control window has its own settings page and can show two lyric lines. In click-through mode an always-on-top button sits next to the lock. Cover accent colors look better. Songs you uploaded to Apple Music now play."
       }
     },
     "v0_7_28": {

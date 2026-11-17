@@ -81,16 +81,17 @@ describe('buildCurrentObsUrl', () => {
         }
     });
 
-    it('writes the theme mode marker and keeps cfg the terminal segment', async () => {
+    it('writes the theme mode marker to the query string and cfg to the fragment', async () => {
         useStageSettingsStore.setState({ webObsThemeMode: 'static' });
         useThemeSettingsStore.setState({ isDaylight: true });
         usePlayerChromeSettingsStore.setState({ transparentPlayerBackground: true });
-        const url = await buildCurrentObsUrl('now-playing');
-        expect(url).toContain('obsSource=now-playing');
-        expect(url).toContain('daylight=1');
-        expect(url).toContain('transparent=1');
-        expect(url).toContain('obsTheme=static');
-        expect(url.slice(url.indexOf('cfg=')).includes('&')).toBe(false);
+        const url = new URL(await buildCurrentObsUrl('now-playing'), 'https://x.test');
+        expect(url.searchParams.get('obsSource')).toBe('now-playing');
+        expect(url.searchParams.get('daylight')).toBe('1');
+        expect(url.searchParams.get('transparent')).toBe('1');
+        expect(url.searchParams.get('obsTheme')).toBe('static');
+        expect(url.searchParams.has('cfg')).toBe(false);
+        expect(url.hash).toBe('#cfg=folia-theme%3A%2F%2Fx');
     });
 
     it('marks the dynamic mode it was copied in', async () => {

@@ -5,6 +5,7 @@ import { imageOf, keepImage, subscribeImages } from './pictureImages';
 import { afterTry, imageRest, LIVE_REST_MS, pictureWants, type TryEnd } from './pictureRule';
 import { claimRun, takeTurn, useIsRunning, whenFree } from './pictureTurns';
 import { coverStage, type Size, type StagePlace } from './previewScale';
+import { whenIdle } from '../../../utils/whenIdle';
 
 // src/components/visualizer/preview/LivePicture.tsx
 // One small picture of something that moves: a lyric style, a background. It fills the frame it is
@@ -29,16 +30,6 @@ type LivePictureProps = {
     glyph: React.ReactNode;
     /** Draws the real thing on the stage: running with the clock, or held at the still moment. */
     children: (running: boolean) => React.ReactNode;
-};
-
-/** Runs `run` when the page has a moment, half a second later at most. The function returned takes it back. */
-const whenIdle = (run: () => void): (() => void) => {
-    if (typeof window.requestIdleCallback !== 'function') {
-        const timer = window.setTimeout(run, 50);
-        return () => window.clearTimeout(timer);
-    }
-    const idle = window.requestIdleCallback(run, { timeout: 500 });
-    return () => window.cancelIdleCallback(idle);
 };
 
 type PictureFrameProps = {

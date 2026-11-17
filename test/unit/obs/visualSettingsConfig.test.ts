@@ -28,9 +28,9 @@ const switchMock = vi.mocked(readStoredThemeAutoSwitchEnabled);
 const generateMock = vi.mocked(readStoredThemeAutoGenerateEnabled);
 const generationSourceMock = vi.mocked(readStoredThemeGenerationSource);
 
-// A copied OBS URL, shaped as buildObsSourceUrl emits it (cfg is the terminal segment).
+// A copied OBS URL, shaped as buildObsSourceUrl emits it (cfg rides in the fragment).
 const asObsUrl = (cfg: string) =>
-    `https://folia.example/?obs=1&obsSource=now-playing&${new URLSearchParams({ cfg }).toString()}`;
+    `https://folia.example/?obs=1&obsSource=now-playing#${new URLSearchParams({ cfg }).toString()}`;
 
 describe('buildVisualSettingsConfig', () => {
     beforeEach(() => {

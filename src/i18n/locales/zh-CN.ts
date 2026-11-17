@@ -569,6 +569,7 @@ export default {
     "temperaReset": "凝彩参数已重置",
     "lumiereReset": "绘光参数已重置",
     "nebbiaReset": "雾笺参数已重置",
+    "metaphorReset": "隐喻参数已重置",
     "hanabiReset": "花火参数已重置",
     "machiReset": "町景参数已重置",
     "uploadEmojiFirst": "请先上传自定义表情包",
@@ -1152,6 +1153,7 @@ export default {
       "visualizer-tempera": { "title": "切换到可视化：凝彩", "description": "切换到凝彩色块 PV 可视化" },
       "visualizer-lumiere": { "title": "切换到可视化：绘光", "description": "切换到绘光舞台光 PV 可视化" },
       "visualizer-nebbia": { "title": "切换到可视化：雾笺", "description": "切换到雾笺：在起雾的公交车窗上写歌词" },
+      "visualizer-metaphor": { "title": "切换到可视化：隐喻", "description": "切换到隐喻：融球、半调网点和颗粒组成的歌词，镜头硬切" },
       "visualizer-hanabi": { "title": "切换到可视化：花火", "description": "切换到花火烟花歌词 PV 可视化" },
       "visualizer-machi": { "title": "切换到可视化：町景", "description": "切换到町景微缩街景可视化" },
       "desktop-toggle-remote-control": { "title": "切换遥控窗口", "description": "打开或关闭遥控窗口" },
@@ -1275,6 +1277,7 @@ export default {
     "visualizerTempera": "凝彩",
     "visualizerLumiere": "绘光",
     "visualizerNebbia": "雾笺",
+    "visualizerMetaphor": "隐喻",
     "visualizerHanabi": "花火",
     "visualizerMachi": "町景",
     "cadenzeTuning": "心象参数",
@@ -1886,8 +1889,8 @@ export default {
     "latticeRadioLabel": "私人 FM 电台墙",
     "latticeRadioQueueLabel": "电台墙",
     "latticeRadioHidden": "接下来的歌，还没揭晓",
-    "latticeRadioHelpCard": "点一张卡播放这首（私人 FM 下仍在电台里播放）",
-    "latticeRadioHelpMove": "← →、拖动或滚轮浏览卡片，Enter 播放",
+    "latticeRadioHelpCard": "单击一张卡把它带到正中，双击正中那张播放（私人 FM 下仍在电台里播放）",
+    "latticeRadioHelpMove": "← →、拖动或滚轮浏览卡片，Enter 播放正中那张",
     "latticeRadioBackToNow": "回到正在播放",
     "latticeRadioBackdropWord": "私人 FM",
     "latticeRadioBackdropQueueWord": "播放队列",
@@ -3271,6 +3274,8 @@ export default {
     "beatEffect_hanabiBeatBurstsDesc": "跟着 beat_this 识别的节拍：每拍在夜空里开一朵小烟花，小节第一拍提前升空、正好在拍上开一朵大的；重的拍开得更大。",
     "beatEffect_hanabiBeatPulse": "随拍推镜",
     "beatEffect_hanabiBeatPulseDesc": "跟着 beat_this 识别的节拍：整个画面每拍推近一下、轻轻一摆，小节第一拍推得更深。",
+    "beatEffect_metaphorAnnihilation": "湮灭对撞",
+    "beatEffect_metaphorAnnihilationDesc": "跟着 beat_this 识别的节拍：两束墨提前出发，正好在小节第一拍撞上、湮灭成碎片；平常的每一拍从对撞点放出一圈小的冲击环，重的拍环更大。",
     "beatEffect_machiNeonPulse": "霓虹随拍",
     "beatEffect_machiNeonPulseDesc": "跟着 beat_this 识别的节拍：招牌霓虹分成三组，每拍轮到一组慢慢亮起、再慢慢暗下，此起彼伏；店里的灯和亮窗每小节跟着慢慢涨落一点。",
     "beatEffect_machiDrumRipple": "鼓点涟漪",
@@ -3728,6 +3733,24 @@ export default {
     "lyricAntialiasOn": "开",
     "lyricAntialiasOff": "关",
     "lyricRenderSection": "渲染",
+    "metaphorFontSizeAutoNotice": "隐喻的歌词字号由每个镜头的机位决定；通用字体尺寸设置在此模式下只影响底部字幕。",
+    "metaphorCameraSection": "镜头",
+    "metaphorCutPace": "切换快慢",
+    "metaphorCutPaceHint": "一句歌词里切几个镜头：越大切得越勤。切点落在词开唱的时刻上。",
+    "metaphorCameraMotion": "运镜幅度",
+    "metaphorFlip": "画面反相",
+    "metaphorFlipHint": "纸和墨整个对调：深色主题下变成白纸黑墨，浅色主题下变成黑纸白墨。",
+    "metaphorKeywordColors": "关键字着色",
+    "metaphorKeywordColorsHint": "主题里的关键字各用自己的颜色；关掉后和别的字一样是墨色。",
+    "metaphorNegative": "反相镜头",
+    "metaphorNegativeHint": "一部分镜头把纸和墨的颜色对调，副歌里更多。",
+    "metaphorTransitions": "转场",
+    "metaphorTransitionsHint": "句与句之间偶尔用漫墨、冲镜；关掉后全部硬切。",
+    "metaphorInkSection": "墨",
+    "metaphorFlow": "流体",
+    "metaphorBlobs": "融球与装饰",
+    "metaphorHalftone": "网点大小",
+    "metaphorGrain": "颗粒",
     "lyricRenderFollowGlobal": "跟随全局",
     "lyricRenderScaleStyleHint": "这个样式按几倍分辨率画，高于 1× 是超采样。跟随全局时用「动画与性能」里的挡位（现在是 {{value}}）。",
     "lyricAntialiasStyleHint": "跟随全局时用「动画与性能」里的挡位（现在是{{value}}）。",
@@ -4245,6 +4268,29 @@ export default {
       "qqPrivatePlaylists": {
         "title": "QQ 音乐不公开歌单",
         "description": "登录后，自己创建的不公开歌单也能读取歌曲，并支持真正的分页加载。自建后端需要升级到 qq-music-api 3.1.2 或更新版本；旧后端会自动回退，读不到时会明确提示「不是公开歌单」，不再静默显示为空。"
+      }
+    },
+    "v0_7_29": {
+      "intro": "欢迎来到 0.7.29「Feynman Update」：这是一次重大更新。私人 FM 有了自己的电台墙，新增歌词样式「隐喻」，还能一键检测这台电脑跑得动多高的画质。",
+      "radioWall": {
+        "title": "Lattice 电台墙",
+        "description": "私人 FM 下进 Lattice 是一圈卡牌的电台墙，接下来的歌是问号卡，轮到时翻开。普通队列也能在设置里把「墙面形态」换成电台墙。"
+      },
+      "metaphor": {
+        "title": "新歌词样式：隐喻",
+        "description": "墨色融球、半调网点和物理线稿拼成的版面，随节拍硬切镜头。智能动感下有「湮灭对撞」，纯音乐也会一段段换图。"
+      },
+      "perfCheck": {
+        "title": "性能检测与更快的分析",
+        "description": "「动画与性能」第一行可以测开着分析时的帧率，并推荐合适的分辨率、抗锯齿和帧率限制。Windows 上人声与鼓点分离快了很多，不再拖慢画面。"
+      },
+      "shuffleSearch": {
+        "title": "随机播放与搜索历史",
+        "description": "专辑、歌单和歌手热门的「播放全部」旁边多了随机播放；播放控制里可开「一轮不重复」。搜索框和命令面板会列出搜过的词。"
+      },
+      "moreDetails": {
+        "title": "更多改进",
+        "description": "AI 设置独立成「AI 服务」页。遥控窗口有了自己的设置页，可显示两句歌词。点击穿透时锁旁边能切换置顶。封面取色的强调色更耐看。Apple Music 自己上传的歌能播放了。"
       }
     },
     "v0_7_28": {
