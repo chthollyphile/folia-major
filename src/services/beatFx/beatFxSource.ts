@@ -108,9 +108,10 @@ interface TrackBytes {
 
 /**
  * The track's bytes as `key` names them: the representation's, or the local copy, or its stream -
- * or another analyser's read of them (trackBytes.ts).
+ * or another analyser's read of them (trackBytes.ts). 分轨调音台 reads through it too
+ * (services/stemMixer/useStemMixer.ts): the same bytes, read once.
  */
-const readTrackBytes = async (song: SongResult, key: string, representation: PlaybackRepresentation | null): Promise<TrackBytes> => {
+export const readTrackBytes = async (song: SongResult, key: string, representation: PlaybackRepresentation | null): Promise<TrackBytes> => {
     let note: string | undefined;
     const { bytes, source } = await loadTrackBytes(key, async () => {
         const found = await readLocalTrackBytes(song, { representation });
