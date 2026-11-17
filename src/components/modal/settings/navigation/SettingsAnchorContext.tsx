@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useLayoutEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import { createSettingsAnchorStore, type SettingsAnchor as SettingsAnchorEntry, type SettingsAnchorStore } from './settingsAnchorStore';
-import { SETTINGS_ANCHOR_SECTION, type SettingsAnchorId } from './settingsAnchorModel';
+import { SETTINGS_ANCHOR_SECTION, type SettingsAnchorId } from '../../../../utils/settingsAnchorModel';
 import type { SettingsSectionId } from './settingsNavModel';
 // src/components/modal/settings/navigation/SettingsAnchorContext.tsx
 // Lets a settings page declare its groups where they render, so the page header's tabs follow

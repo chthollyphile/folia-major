@@ -1,6 +1,6 @@
-import type { SettingsSubviewId } from '../../../../stores/useSettingsModalStore';
+import type { SettingsSubviewId } from '../stores/useSettingsModalStore';
 
-// src/components/modal/settings/navigation/settingsAnchorModel.ts
+// src/utils/settingsAnchorModel.ts
 // The places inside the settings that other code names: commands, Ponder scenes and links open the
 // dialog on one of these. Each entry says which category's page the place is on, which a caller has
 // to know before that page exists. The id itself is carried by a group or a row of the page:

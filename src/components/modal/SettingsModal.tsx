@@ -33,7 +33,7 @@ import { SettingsAnchorProvider, useSettingsAnchorList, useSettingsAnchorStore }
 import SettingsSearchResults from './settings/navigation/SettingsSearchResults';
 import SettingsSideList from './settings/navigation/SettingsSideList';
 import SettingsCompactNav from './settings/navigation/SettingsCompactNav';
-import { settingsAnchorSubview } from './settings/navigation/settingsAnchorModel';
+import { settingsAnchorSubview } from '../../utils/settingsAnchorModel';
 import { buildSettingsNavGroups, findSettingsNavItem, type SettingsSectionId } from './settings/navigation/settingsNavModel';
 import { buildSettingsSearchEntries, searchSettings, type SettingsSearchEntry } from './settings/navigation/settingsNavSearch';
 import { isSettingsSectionSubview, resolveInitialSettingsSection, sectionForSettingsSubview, writeLastSettingsSection } from './settings/navigation/settingsLastSection';
