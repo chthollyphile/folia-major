@@ -1,7 +1,7 @@
 import { useAppViewStore, type AppView } from '../../stores/useAppViewStore';
 import { usePonderStore } from '../../stores/usePonderStore';
 import { openSettings, useSettingsModalStore, type VisualizerSettingsSection } from '../../stores/useSettingsModalStore';
-import { settingsAnchorSubview, type SettingsAnchorId } from '../../components/modal/settings/navigation/settingsAnchorModel';
+import { settingsAnchorSubview, type SettingsAnchorId } from '../../utils/settingsAnchorModel';
 import type { PonderTargetId } from '../../types/ponder';
 
 // src/services/ponder/pagePonderTarget.ts

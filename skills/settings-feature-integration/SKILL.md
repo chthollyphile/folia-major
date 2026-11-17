@@ -97,7 +97,7 @@ subview 只是调用方；新增字段要同时改这两处，光改 subview 不
   - 模组 `ModsPage.tsx`（仅桌面端）
     顶部是模组系统总开关，下方是模组列表；两者和命令面板的 `mods` surface 共用 `src/mods/manager/` 里的组件，改样式只改那一处。
   - 开发者 `DeveloperPage.tsx`（运行日志、内存监控）
-- 一组设置的 id 写在页文件声明的那个组（`SettingsGroupDef`）上。命令和链接要落到的 id 登记在 `navigation/settingsAnchorModel.ts`，它说这个 id 在哪个分类的页上；一个 id 只在一页上声明。只有桌面端画的组或行标 `electronOnly`，只在部分机器上画的带 `available`（见 `kit/options.ts`），设置搜索据此不列出。
+- 一组设置的 id 写在页文件声明的那个组（`SettingsGroupDef`）上。命令和链接要落到的 id 登记在 `src/utils/settingsAnchorModel.ts`，它说这个 id 在哪个分类的页上；一个 id 只在一页上声明。只有桌面端画的组或行标 `electronOnly`，只在部分机器上画的带 `available`（见 `kit/options.ts`），设置搜索据此不列出。
 - visualizer 专属参数：优先放在模式相邻设置面板，再由 registry 的 `renderSettingsPanel` 挂回
 
 不要把新设置继续堆回 `SettingsModal.tsx` 的大 JSX 分支；如果需要新区域，先按 `file-modularization` 拆成相邻子视图。
