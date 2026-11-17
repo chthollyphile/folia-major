@@ -13,6 +13,7 @@ exports[`store contract > keeps every localStorage key the stores read or write 
   "claddagh_tuning",
   "classic_tuning",
   "close_to_tray",
+  "command_palette_pinned_commands_v1",
   "custom_shortcut_command",
   "custom_shortcut_letter",
   "default_audio_quality",

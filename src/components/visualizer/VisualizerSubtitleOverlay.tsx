@@ -14,7 +14,7 @@ import {
     SECONDARY_TRACK_OPACITY,
     SECONDARY_TRACK_SIZE_FACTOR,
 } from '../../utils/lyrics/subtitleTrackStyle';
-import { colorWithAlpha } from './colorMix';
+import { colorWithAlpha } from '../../utils/colorMix';
 import { usePlayerSubtitleBottomPx, usePlayerSubtitleYieldsToDock } from '../../hooks/usePlayerBottomBarBottomPx';
 
 // Some songs' lyric data carries pure marker/separator lines ("//", "●●●", dashes, stray slashes from

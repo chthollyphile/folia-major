@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { PONDER_TARGET_LIST, findPonderTarget } from '@/components/ponder/ponderRegistry';
 import { compilePonderScene } from '@/utils/ponder/compilePonderTimeline';
-import { SETTINGS_ANCHOR_DEFINITIONS } from '@/components/modal/settings/navigation/settingsAnchorModel';
+import { SETTINGS_ANCHOR_DEFINITIONS } from '@/utils/settingsAnchorModel';
 import { VISUALIZER_SETTINGS_SECTIONS } from '@/stores/useSettingsModalStore';
 import { PONDER_TARGET_CATEGORIES } from '@/types/ponder';
 import type { PonderAnchorPoint, PonderStep, PonderSurfaceKind } from '@/types/ponder';

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest';
-import { SETTINGS_ANCHOR_DEFINITIONS } from '../../../src/components/modal/settings/navigation/settingsAnchorModel';
+import { SETTINGS_ANCHOR_DEFINITIONS } from '../../../src/utils/settingsAnchorModel';
 import type { SettingsSectionId } from '../../../src/components/modal/settings/navigation/settingsNavModel';
 import { SETTINGS_PAGE_OPTIONS } from '../../../src/components/modal/settings/pages';
 

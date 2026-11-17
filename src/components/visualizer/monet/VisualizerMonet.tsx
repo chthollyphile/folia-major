@@ -6,7 +6,7 @@ import { Tooltip } from '../../modal/settings/kit/Tooltip';
 import { SettingsKitThemeContext } from '../../modal/settings/kit/kitTheme';
 import { useElementWidth } from '../../../hooks/useElementWidth';
 import { DEFAULT_MONET_TUNING } from '../../../types';
-import { colorWithAlpha } from '../colorMix';
+import { colorWithAlpha } from '../../../utils/colorMix';
 import { type VisualizerSharedProps } from '../definition';
 import { useVisualizerRuntime } from '../runtime';
 import { useLyricRenderQuality } from '../renderQuality/useLyricRenderQuality';

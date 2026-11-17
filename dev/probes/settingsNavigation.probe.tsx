@@ -6,7 +6,7 @@ import { SettingsAnchor, SettingsAnchorProvider, useSettingsAnchorList, useSetti
 import SettingsSectionHeading from '../../src/components/modal/settings/navigation/SettingsSectionHeading';
 import SettingsSideList from '../../src/components/modal/settings/navigation/SettingsSideList';
 import SettingsCompactNav from '../../src/components/modal/settings/navigation/SettingsCompactNav';
-import type { SettingsAnchorId } from '../../src/components/modal/settings/navigation/settingsAnchorModel';
+import type { SettingsAnchorId } from '../../src/utils/settingsAnchorModel';
 import { buildSettingsNavGroups, type SettingsSectionId } from '../../src/components/modal/settings/navigation/settingsNavModel';
 import { useMediaQuery } from '../../src/hooks/useMediaQuery';
 import { useSettingsScrollSpy } from '../../src/hooks/useSettingsScrollSpy';

@@ -7,7 +7,7 @@ import { canLogoutProvider, resolveProviderSelectLabel } from '../../core/accoun
 import { canSwitchToProviderDirectly } from '../../core/account/onlineProviderAccountView';
 import { translateHomeMessage } from '../../core/home/homeSources';
 import { providerDisplayName } from '../../../i18n/providerName';
-import { colorWithAlpha } from '../../../components/visualizer/colorMix';
+import { colorWithAlpha } from '../../../utils/colorMix';
 import { openLoginWindow } from '../../../components/login/loginWindowStore';
 import { useLibraryTuiAccountListKeys } from './useLibraryTuiHomeKeyboard';
 

@@ -1,6 +1,6 @@
 import { Theme } from '../../../types';
 import { resolveThemeFontStack } from '../../../utils/fontStacks';
-import { colorWithAlpha, mixColors } from '../colorMix';
+import { colorWithAlpha, mixColors } from '../../../utils/colorMix';
 import { clearCanvasTextGlow, fillGlowText, setCanvasTextGlow } from '../../../utils/glowBlurQuantize';
 import type { FumeBlock, RenderLineSlice, RenderSegmentSlice } from './fumeTypes';
 import type { FumeBlockTiming } from './fumeBlockFrame';

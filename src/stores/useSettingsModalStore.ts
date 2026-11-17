@@ -8,10 +8,10 @@ import { create } from 'zustand';
 import i18n from '../i18n/config';
 
 
-import { normalizePinnedCommandIds, readPinnedCommandIds, writePinnedCommandIds, type PinnedCommandIds } from '../components/command-palette/pinnedCommandPreferences';
+import { normalizePinnedCommandIds, readPinnedCommandIds, writePinnedCommandIds, type PinnedCommandIds } from './pinnedCommandPreferences';
 import { applyAppLanguagePreference, readStoredAppLanguagePreference, type AppLanguagePreference } from '../i18n/config';
 import { setStatusMessage } from './useStatusMessageStore';
-import type { SettingsAnchorId } from '../components/modal/settings/navigation/settingsAnchorModel';
+import type { SettingsAnchorId } from '../utils/settingsAnchorModel';
 
 export type SettingsModalInitialTab = 'help' | 'options';
 

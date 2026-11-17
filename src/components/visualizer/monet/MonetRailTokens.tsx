@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { motion, motionValue, useTransform, MotionValue } from 'framer-motion';
 import { type GraphemeTiming } from '../../../utils/lyrics/graphemeTiming';
 import { getLineRenderEndTime } from '../../../utils/lyrics/renderHints';
-import { colorWithAlpha, mixColors } from '../colorMix';
+import { colorWithAlpha, mixColors } from '../../../utils/colorMix';
 import { resolveMonetFillWidth, resolveMonetGlow } from './monetLyricMotion';
 import { buildWordColorRangesFromMatchers, resolveTokenColorMap, type WordColorMatcher } from '../wordColoring';
 import { buildMonetDisplayTokens, measureMonetGraphemeOffsets, resolveMonetSweepEdgeSoftness, resolveMonetSweepEnd, resolveMonetWordStatus, type MonetLineStatus } from './monetLyricsModel';

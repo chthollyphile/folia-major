@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { Theme } from '../../../types';
-import { mixColors, parseColorChannels } from '../../../components/visualizer/colorMix';
+import { mixColors, parseColorChannels } from '../../../utils/colorMix';
 import { resolveTemperaPalette } from '../../../components/visualizer/tempera/temperaPalette';
 import { extractRepresentativeColors } from '../../../utils/colorExtractor';
 import { getSizedCoverUrl } from '../../../utils/coverUrl';

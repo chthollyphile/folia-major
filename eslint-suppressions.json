@@ -2503,14 +2503,6 @@
       "count": 2
     }
   },
-  "src/components/command-palette/pinnedCommandPreferences.ts": {
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 1
-    },
-    "no-restricted-properties": {
-      "count": 2
-    }
-  },
   "src/components/command-palette/queueSearch.ts": {
     "@typescript-eslint/no-unused-vars": {
       "count": 2
