@@ -102,6 +102,7 @@ exports[`command palette registry contract > keeps the registered command order 
   "library-wall-look-picker",
   "library-wall-windows-picker",
   "library-wall-stack-edges-toggle",
+  "library-wall-collection-tilt-toggle",
   "library-wall-seam-direction-picker",
   "library-wall-seam-clear-toggle",
   "library-wall-seam-style-picker",

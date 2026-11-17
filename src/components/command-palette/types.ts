@@ -307,6 +307,8 @@ export type CommandPaletteSettingsContext = {
     setLibraryWallWindowsPerBlock: (windowsPerBlock: number) => void;
     /** bravais collection tiles' stack edges (useLibraryWallLookStore.collectionStackEdges): flips the stored value. */
     toggleLibraryWallStackEdges: () => void;
+    /** bravais collection pages' tilt (useLibraryWallLookStore.collectionTilt): flips the stored value. */
+    toggleLibraryWallCollectionTilt: () => void;
     /** bravais info strip always see-through (useLibraryWallLookStore.seamClear); read live. */
     libraryWallSeamClear: () => boolean;
     toggleLibraryWallSeamClear: () => void;

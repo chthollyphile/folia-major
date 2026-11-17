@@ -108,6 +108,10 @@ export const buildSettingsCommandContext = (
             const wall = useLibraryWallLookStore.getState();
             wall.setCollectionStackEdges(!wall.collectionStackEdges);
         },
+        toggleLibraryWallCollectionTilt: () => {
+            const wall = useLibraryWallLookStore.getState();
+            wall.setCollectionTilt(!wall.collectionTilt);
+        },
         libraryWallSeamClear: () => useLibraryWallLookStore.getState().seamClear,
         toggleLibraryWallSeamClear: () => {
             const wall = useLibraryWallLookStore.getState();

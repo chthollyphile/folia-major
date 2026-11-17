@@ -29,6 +29,7 @@ export const APPEARANCE_DESTINATIONS = {
     // src/stores/useLibraryWallLookStore.ts
     'library_wall_backdrop_blur': { config: 'libraryWallBackdropBlur' },
     'library_wall_backdrop_lyrics': { config: 'libraryWallBackdropLyrics' },
+    'library_wall_collection_tilt': { config: null, why: '资料库墙集合页的倾斜，OBS 页面没有这面墙（用户 2026-11-08 定：配置码也用于 web 版 OBS 链接，只加 OBS 页面看得到的）' },
     'library_wall_look': { config: null, why: '用户决定不进（2026-10-06，useLibraryWallLookStore.ts 的 @note）' },
     'library_wall_seam_clear': { config: 'libraryWallSeamClear' },
     'library_wall_seam_direction': { config: 'libraryWallSeamDirection' },
