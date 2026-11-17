@@ -34,6 +34,7 @@ import { useLibraryHomeListRegistration, useLibraryHomeTabsRegistration } from '
 import { cycleIndex } from '../../../core/home/homeSources';
 import HomeSearchHistory from './HomeSearchHistory';
 import { useUpdateIndicator } from '../../../../hooks/useUpdateIndicator';
+import { useIsBottomLayoutCompact } from '../../../../stores/useBottomDockStore';
 
 // src/library/suites/grid/home/Grid3D.tsx
 // Glassmorphic interactive desktop home view replacing the legacy 3D carousel.
@@ -199,6 +200,9 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
     const [isSearchHistoryOpen, setIsSearchHistoryOpen] = useState(false);
 
     const showUpdateIndicator = useUpdateIndicator();
+    // 紧凑档（窗口窄于 960，progress-bar v3，见 useBottomLayoutTracking）：页头一行放不下标题加五颗
+    // 页签胶囊，Folia 标题让位。没挂档位追踪的页面（OBS 之类）一直是桌面档，标题照旧。
+    const isCompact = useIsBottomLayoutCompact();
 
     // Reset focused index when switching tabs.
     useEffect(() => {
@@ -321,12 +325,16 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                 <div className="grid grid-cols-2 md:grid-cols-3 items-center w-full max-w-7xl mx-auto p-4 md:p-8 gap-y-4 md:gap-y-0">
                     {/* Left title and settings */}
                     <div className="flex items-center justify-start order-1 md:order-none">
-                        <h1 className="text-2xl font-bold tracking-tight opacity-90 flex items-center gap-3">
-                            Folia
-                        </h1>
+                        {/* 紧凑档（窗口窄于 960）页头一行放不下五颗胶囊，Folia 标题让位给它们：这里只留
+                            设置与队列拼贴。桌面档照旧。 */}
+                        {!isCompact && (
+                            <h1 className="text-2xl font-bold tracking-tight opacity-90 flex items-center gap-3">
+                                Folia
+                            </h1>
+                        )}
                         <button
                             onClick={() => onOpenSettings?.('help')}
-                            className={`relative flex items-center gap-1.5 p-2 rounded-full hover:bg-white/10 transition-all ml-4 ${showUpdateIndicator
+                            className={`relative flex items-center gap-1.5 p-2 rounded-full hover:bg-white/10 transition-all ${isCompact ? '' : 'ml-4'} ${showUpdateIndicator
                                     ? 'opacity-90 hover:opacity-100'
                                     : 'opacity-40 hover:opacity-100'
                                 }`}
