@@ -3,7 +3,7 @@ import { normalizeLyricMatchDurationMs } from './duration';
 import { createProviderSongMetadata } from '../songMetadata';
 
 import * as wanakana from 'wanakana';
-import * as OpenCC from 'opencc-js';
+import * as OpenCC from 'opencc-js/t2cn';
 
 // src/utils/lyrics/matchScore.ts
 

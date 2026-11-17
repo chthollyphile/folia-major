@@ -97,6 +97,16 @@ const suiteOf = file => /^src\/library\/suites\/([^/]+)\//.exec(file)?.[1] ?? nu
  */
 export const UI_DIRS = /^src\/(components\/|library\/(suites\/|app\/|registry\.))/;
 
+/**
+ * D190 的例外：用相对路径的 `import.meta.glob` 收集同目录文件的注册表。它必须和被收集的文件住在一起，
+ * 挪出 UI 目录 glob 就找不到它们（被找的文件按 file-modularization 也不能挪），所以 D190 的修法（挪目录）对它不成立。
+ * 指向这里登记的文件、目标又不含 UI 的边不报 D190；目标含 UI 时照常按规则报。
+ * 2026-11-17 维护者在 Coven Op. 2 的升级 e1 里定下；新加一条要写明 glob 收集的是什么。
+ */
+export const GLOB_PINNED_REGISTRIES = [
+    { file: 'src/components/visualizer/tuningRegistry.ts', why: "eager glob 收集 './*/tuning.ts' 和 './backgrounds/*/{tuning,settings}.ts'" },
+];
+
 export const ruleMatches = (rule, from, to) => rule.from.test(from) && rule.to.test(to) && (!rule.when || rule.when(from, to));
 
 /**

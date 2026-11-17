@@ -22,6 +22,7 @@ Folia 的架构检查和 lint。检查发现的每个问题都带一个代码，
 ## 规则从哪来
 
 - **分层边界**（1xx、2xx）：规则在 [`rules.mjs`](rules.mjs)。代码地图 `docs/CODEMAP.md` 也读这份规则。
+- **目录归属存疑**（D190）的例外：用相对路径 `import.meta.glob` 收集同目录文件的注册表挪不了目录，登记在 [`rules.mjs`](rules.mjs) 的 `GLOB_PINNED_REGISTRIES`，指向它们的边不报 D190（现在只有 `tuningRegistry.ts`）。单测核对登记的文件还在用这种 glob。
 - **循环依赖**（D301）：只看模块加载时就会执行的导入。`import type`、只有动态 `import()` 的边不算。
 - **`@note` 注释被改动**（D506）：拿 diff 和比较基点比。AGENTS.md 规定，没有明确指令时不能删除、改写或翻译 `@note` 注释。保护范围是整条注释，包括 `@note` 那一行和紧跟在后面的注释续行。
 - **账号凭据写入点**（D604）：代表“谁登录着”的 `token`、`userid`、`cookie` 只能在 [`credentialWriters.mjs`](credentialWriters.mjs) 登记过的函数里写，每个函数还限定能写哪几个键（`*` 只放行运行时才知道的键）。起因是 #1104：处理每个响应的函数都能改写登录账号。新加一处写入要先登记，并说明它是只在确认的登录之后调用，还是自己挡掉了账号项。
@@ -39,7 +40,7 @@ Folia 的架构检查和 lint。检查发现的每个问题都带一个代码，
 
 | 代码 | 规则 | 登记表 / 检查 |
 | --- | --- | --- |
-| D306 | 首屏闭包不静态引入重型包（three、pixi.js、animejs…） | `checks/startupWeight.mjs`（模块图，进基线） |
+| D306 | 首屏闭包不静态引入重型包（three、pixi.js、animejs…）；放行的轻子路径登记在 `LIGHT_SUBPATHS`（现在只有 `opencc-js/t2cn`） | `checks/startupWeight.mjs`（模块图，进基线） |
 | D307 | 应用代码只在登记的接入点引用 `src/mods/**` | `modIntegrationPoints.mjs` |
 | D310、D112–D114 | 当前歌曲只在 `currentSong.ts` 改；AI 文本门面；歌词解析经 parserCore；导出窗口闭包不拉进应用 store | 已有的架构单测（describe 标题带代码） |
 | D311、D312 | 播放路径每次等待之后、写播放状态之前先在条件里问起播令牌；不用 playQueue 引用判断队列换没换 | `playbackTokens.mjs`（`stale-after-await`、restricted-apis） |
