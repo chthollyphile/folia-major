@@ -932,6 +932,10 @@ export default {
       "settings-local-lyrics-priority": { "title": "本地歌曲歌词优先级", "description": "选择本地歌曲优先使用本地或在线歌词" },
       "settings-local-lyric-format-order": { "title": "本地歌词文件格式优先级", "description": "调整同名歌词文件按哪种格式优先选用" },
       "settings-integration": { "title": "集成设置", "description": "打开 Stage、Now Playing 和 Navidrome 设置" },
+      "stem-mixer-toggle": { "title": "分轨调音台", "description": "开启或关闭实时四轨分离的调音台" },
+      "stem-mixer-karaoke": { "title": "分轨调音台：伴奏", "description": "去掉正在放的歌里的人声" },
+      "stem-mixer-vocals": { "title": "分轨调音台：只听人声", "description": "只留下正在放的歌里的人声" },
+      "stem-mixer-reset": { "title": "分轨调音台：原样", "description": "四条音轨都回到 1.0×" },
       "automix-toggle": { "title": "智能过渡", "description": "开启或关闭 FOLIA 智能过渡" },
       "transition-mode-crossfade": { "title": "过渡模式：Folia Crossfade", "description": "使用简单的一淡出一淡入交叉淡化" },
       "transition-mode-automix": { "title": "过渡模式：Folia Automix", "description": "分析两首曲目并自动混音" },
@@ -1323,6 +1327,39 @@ export default {
       "width": "立体声宽度",
       "space": "空间混响",
       "punch": "动态压缩"
+    },
+    "stemMixer": {
+      "title": "分轨调音台",
+      "hint": "鼓、贝斯、其他、人声各自调强度",
+      "toggle": "分轨调音台",
+      "stem": {
+        "drums": "鼓",
+        "bass": "贝斯",
+        "other": "其他",
+        "vocals": "人声"
+      },
+      "preset": {
+        "reset": "原样",
+        "karaoke": "伴奏",
+        "vocals": "只听人声"
+      },
+      "status": {
+        "off": "开启后在 GPU 上实时分离正在放的歌，没分到的地方放原曲。",
+        "waiting": "等待播放",
+        "separating": "正在分离",
+        "ready": "分轨已生效",
+        "failed": "这首无法分离，正在放原曲",
+        "notFollowing": "播放的音源和分离的对不上，正在放原曲",
+        "tooLong": "这首超过 20 分钟，不分离"
+      },
+      "block": {
+        "automix": "智能过渡开启时不可用：两者都要接管同一路播放。",
+        "automixAction": "关闭智能过渡",
+        "hifi": "HiFi 播放时不可用：声音不经过这里。",
+        "external": "外部播放器播放时不可用：声音不经过这里。",
+        "noGpu": "这台设备用不了：需要 WebGPU 和内置的分轨模型。",
+        "tooSlow": "这台设备的 GPU 分离太慢，本次运行已停用。"
+      }
     },
     "equalizerModCurve": "这条曲线来自模组「{{name}}」",
     "equalizerModCurveHint": "你的预设和自定义栏位都没有改动；要在这条曲线上调整，先把它存进一个自定义栏位。",

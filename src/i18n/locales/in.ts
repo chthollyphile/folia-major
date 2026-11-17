@@ -932,6 +932,10 @@ export default {
       "settings-local-lyrics-priority": { "title": "Prioritas lirik lagu lokal", "description": "Pilih apakah lagu lokal lebih mengutamakan lirik lokal atau online" },
       "settings-local-lyric-format-order": { "title": "Prioritas format file lirik lokal", "description": "Pilih format yang digunakan saat satu lagu memiliki beberapa file lirik" },
       "settings-integration": { "title": "Pengaturan integrasi", "description": "Buka pengaturan Stage, Now Playing, dan Navidrome" },
+      "stem-mixer-toggle": { "title": "Mixer stem", "description": "Aktifkan atau nonaktifkan mixer empat stem langsung" },
+      "stem-mixer-karaoke": { "title": "Mixer stem: karaoke", "description": "Hilangkan vokal dari lagu yang diputar" },
+      "stem-mixer-vocals": { "title": "Mixer stem: vokal saja", "description": "Sisakan hanya vokal dari lagu yang diputar" },
+      "stem-mixer-reset": { "title": "Mixer stem: asli", "description": "Kembalikan keempat stem ke 1.0×" },
       "automix-toggle": { "title": "Transisi pintar", "description": "Aktifkan atau nonaktifkan transisi pintar FOLIA" },
       "transition-mode-crossfade": { "title": "Mode transisi: Folia Crossfade", "description": "Gunakan crossfade sederhana satu keluar satu masuk" },
       "transition-mode-automix": { "title": "Mode transisi: Folia Automix", "description": "Menganalisis kedua trek dan mencampurnya otomatis" },
@@ -1323,6 +1327,39 @@ export default {
       "width": "Lebar stereo",
       "space": "Ruang",
       "punch": "Pukulan"
+    },
+    "stemMixer": {
+      "title": "Mixer stem",
+      "hint": "Atur drum, bass, lainnya, dan vokal sendiri-sendiri",
+      "toggle": "Mixer stem",
+      "stem": {
+        "drums": "Drum",
+        "bass": "Bass",
+        "other": "Lainnya",
+        "vocals": "Vokal"
+      },
+      "preset": {
+        "reset": "Asli",
+        "karaoke": "Karaoke",
+        "vocals": "Vokal saja"
+      },
+      "status": {
+        "off": "Saat aktif, lagu yang diputar dipisah langsung di GPU; bagian yang belum dipisah diputar apa adanya.",
+        "waiting": "Menunggu pemutaran",
+        "separating": "Memisahkan",
+        "ready": "Stem sedang aktif",
+        "failed": "Lagu ini tidak bisa dipisah; diputar apa adanya",
+        "notFollowing": "Sumber yang diputar tidak cocok dengan yang dipisah; diputar apa adanya",
+        "tooLong": "Lebih dari 20 menit; tidak dipisah"
+      },
+      "block": {
+        "automix": "Tidak tersedia saat transisi pintar aktif: keduanya mengambil alih pemutaran yang sama.",
+        "automixAction": "Matikan transisi pintar",
+        "hifi": "Tidak tersedia pada pemutaran HiFi: suaranya tidak melewati sini.",
+        "external": "Tidak tersedia saat pemutar eksternal memutar: suaranya tidak melewati sini.",
+        "noGpu": "Tidak tersedia di perangkat ini: perlu WebGPU dan model stem bawaan.",
+        "tooSlow": "Pemisahan terlalu lambat di GPU ini; dimatikan untuk sesi ini."
+      }
     },
     "equalizerModCurve": "Kurva ini berasal dari mod \"{{name}}\"",
     "equalizerModCurveHint": "Preset dan slot kustom Anda tidak berubah. Untuk menyesuaikan kurva ini, simpan dulu ke salah satu slot kustom.",

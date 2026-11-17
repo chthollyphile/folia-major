@@ -201,6 +201,43 @@ export const settingsCommands: CommandPaletteCommand[] = [
             return true;
         },
     },
+    // 分轨调音台（音效窗口里的一节）：开关和三组强度；GPU 分不了的机器上不出现，与窗口置灰同一个判断。
+    createToggleCommand(
+        'stem-mixer-toggle',
+        'settings',
+        'Stem mixer',
+        'Turn the live four-stem mixer on or off',
+        ['stems', 'stem separation', 'demucs', 'remix', '分轨', '调音台', '音轨分离'],
+        context => context.settings.toggleStemMixer(),
+        { isAvailable: context => (context ? context.settings.canUseStemMixer() : true) },
+    ),
+    createToggleCommand(
+        'stem-mixer-karaoke',
+        'settings',
+        'Stem mixer: karaoke',
+        'Take the vocals out of the playing song',
+        ['karaoke', 'instrumental', 'no vocals', 'stem mixer', '伴奏', '去人声', '分轨调音台'],
+        context => context.settings.applyStemMixerPreset('karaoke'),
+        { isAvailable: context => (context ? context.settings.canUseStemMixer() : true) },
+    ),
+    createToggleCommand(
+        'stem-mixer-vocals',
+        'settings',
+        'Stem mixer: vocals only',
+        'Keep only the vocals of the playing song',
+        ['vocals only', 'acapella', 'voice', 'stem mixer', '只听人声', '清唱', '人声', '分轨调音台'],
+        context => context.settings.applyStemMixerPreset('vocals'),
+        { isAvailable: context => (context ? context.settings.canUseStemMixer() : true) },
+    ),
+    createToggleCommand(
+        'stem-mixer-reset',
+        'settings',
+        'Stem mixer: as recorded',
+        'Put all four stems back to 1.0x',
+        ['reset stems', 'as recorded', 'stem mixer', '原样', '复位', '分轨调音台'],
+        context => context.settings.applyStemMixerPreset('reset'),
+        { isAvailable: context => (context ? context.settings.canUseStemMixer() : true) },
+    ),
     {
         id: 'transition-mode-crossfade',
         isAvailable: context => (context ? context.settings.transitionMode !== 'crossfade' : true),

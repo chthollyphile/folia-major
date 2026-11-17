@@ -104,6 +104,7 @@ import { useHifiMediaSessionKeepAlive } from './components/hifi/useHifiMediaSess
 import { useHifiMpris } from './components/hifi/useHifiMpris';
 import { useHifiWebRouteNotice } from './components/hifi/useHifiWebRouteNotice';
 import { isHifiRoute, useHifiTrackStore } from './services/hifi/hifiPlayback';
+import { useStemMixer } from './services/stemMixer/useStemMixer';
 import { hifiEngine } from './services/hifi/hifiEngine';
 import { selectHifiEngineConfig, useHifiSettingsStore } from './stores/useHifiSettingsStore';
 import { useElectronDisplaySleepBlocker } from './hooks/useElectronDisplaySleepBlocker';
@@ -1160,6 +1161,14 @@ export default function App() {
     });
 
     automixRef.current = automix;
+    // 分轨调音台：automix 关着、不在 HiFi / 外部播放器上时，在 deck 上按四轨强度改写元素的声音（services/stemMixer）。
+    useStemMixer({
+        audioRef,
+        audioContextRef,
+        getActiveChain: automix.getActiveChain,
+        hifiBlocked: hifiBlocksAutomix,
+        externalBlocked: externalBlocksAutomix,
+    });
     // The route flipping to HiFi silences both decks and suspends the AudioContext before mpv opens the device.
     useWebEngineYield({ audioRef, audioContextRef, automix });
 

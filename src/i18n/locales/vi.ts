@@ -932,6 +932,10 @@ export default {
       "settings-local-lyrics-priority": { "title": "Độ ưu tiên lời bài hát nội bộ", "description": "Chọn ưu tiên lời nội bộ hay trực tuyến cho bài hát nội bộ" },
       "settings-local-lyric-format-order": { "title": "Độ ưu tiên định dạng tệp lời nội bộ", "description": "Chọn định dạng ưu tiên khi bài hát có nhiều tệp lời" },
       "settings-integration": { "title": "Cài đặt tích hợp", "description": "Mở cài đặt Stage, Đang phát và Navidrome" },
+      "stem-mixer-toggle": { "title": "Bộ trộn stem", "description": "Bật hoặc tắt bộ trộn bốn stem trực tiếp" },
+      "stem-mixer-karaoke": { "title": "Bộ trộn stem: karaoke", "description": "Bỏ giọng hát khỏi bài đang phát" },
+      "stem-mixer-vocals": { "title": "Bộ trộn stem: chỉ giọng hát", "description": "Chỉ giữ giọng hát của bài đang phát" },
+      "stem-mixer-reset": { "title": "Bộ trộn stem: nguyên bản", "description": "Đưa cả bốn stem về 1.0×" },
       "automix-toggle": { "title": "Chuyển tiếp thông minh", "description": "Bật hoặc tắt chuyển tiếp thông minh FOLIA" },
       "transition-mode-crossfade": { "title": "Chế độ chuyển tiếp: Folia Crossfade", "description": "Dùng hiệu ứng chuyển mờ đơn giản ra/vào" },
       "transition-mode-automix": { "title": "Chế độ chuyển tiếp: Folia Automix", "description": "Phân tích cả hai bài và tự động phối trộn" },
@@ -1323,6 +1327,39 @@ export default {
       "width": "Độ rộng stereo",
       "space": "Không gian",
       "punch": "Độ nảy"
+    },
+    "stemMixer": {
+      "title": "Bộ trộn stem",
+      "hint": "Chỉnh trống, bass, phần khác và giọng hát riêng",
+      "toggle": "Bộ trộn stem",
+      "stem": {
+        "drums": "Trống",
+        "bass": "Bass",
+        "other": "Khác",
+        "vocals": "Giọng hát"
+      },
+      "preset": {
+        "reset": "Nguyên bản",
+        "karaoke": "Karaoke",
+        "vocals": "Chỉ giọng hát"
+      },
+      "status": {
+        "off": "Khi bật, bài đang phát được tách trực tiếp trên GPU; phần chưa tách phát nguyên bản.",
+        "waiting": "Đang chờ phát",
+        "separating": "Đang tách",
+        "ready": "Đang dùng các track đã tách",
+        "failed": "Không tách được bài này; đang phát nguyên bản",
+        "notFollowing": "Nguồn đang phát không khớp với nguồn đã tách; đang phát nguyên bản",
+        "tooLong": "Dài hơn 20 phút; không tách"
+      },
+      "block": {
+        "automix": "Không dùng được khi bật chuyển bài thông minh: cả hai cùng tiếp quản một luồng phát.",
+        "automixAction": "Tắt chuyển bài thông minh",
+        "hifi": "Không dùng được khi phát HiFi: âm thanh không đi qua đây.",
+        "external": "Không dùng được khi trình phát ngoài đang phát: âm thanh không đi qua đây.",
+        "noGpu": "Thiết bị này không dùng được: cần WebGPU và mô hình tách stem đi kèm.",
+        "tooSlow": "GPU này tách quá chậm; đã tắt trong phiên này."
+      }
     },
     "equalizerModCurve": "Đường cong này được cung cấp bởi mod \"{{name}}\"",
     "equalizerModCurveHint": "Các thiết lập sẵn và ô tùy chỉnh của bạn vẫn giữ nguyên. Để điều chỉnh đường cong này, trước tiên hãy lưu vào một ô tùy chỉnh.",

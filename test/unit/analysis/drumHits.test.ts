@@ -19,7 +19,8 @@ const { runHtdemucsGpu } = vi.hoisted(() => ({ runHtdemucsGpu: vi.fn() }));
 vi.mock('@/services/analysis/beatThisGpu', () => ({ HTDEMUCS_GPU_SEGMENT: 16, runHtdemucsGpu, gpuStemsOnScreenUsable: () => true }));
 
 const { drumStemSegments, drumStemWindow, separateDrumStem, startDrumStem } = await import('@/services/analysis/drumStem');
-const { DRUMLESS_COVERAGE, drumBandTracks, drumCoverage, drumHitsSettled, forgetSettledDrumHits, getDrumHits, loadStoredDrumHits, loadTrackDrumHits, pickBandHits, pickDrumHits, setWantedDrumTrack } = await import('@/services/analysis/drumHits');
+const { DRUMLESS_COVERAGE, drumBandTracks, drumCoverage, drumHitsSettled, forgetSettledDrumHits, getDrumHits, loadStoredDrumHits, loadTrackDrumHits, pickBandHits, pickDrumHits} = await import('@/services/analysis/drumHits');
+const { claimStemTrack } = await import('@/services/analysis/trackStemRun');
 const { getFromCache } = await import('@/services/db');
 const stemRange = await import('@/services/analysis/stemRange');
 const { createDrumBandStream, streamNeedsFrom } = await import('@/services/analysis/drumHitStream');
@@ -158,7 +159,7 @@ describe('drum hits', () => {
         vi.mocked(getFromCache).mockImplementationOnce(() => new Promise((resolve) => {
             release = () => resolve(null);
         }));
-        setWantedDrumTrack('song-4');
+        claimStemTrack('beatFx', 'song-4');
         const first = loadTrackDrumHits('song-4', vi.fn(async () => null));
         const joined = loadTrackDrumHits('song-4', vi.fn(async () => null));
         store.set(`${DRUM_HITS_PREFIX}song-4`, analysis(0.3));
@@ -166,7 +167,7 @@ describe('drum hits', () => {
         expect(await first).toBeNull();
         expect(await joined).not.toBeNull();
         expect(getDrumHits('song-4')?.times.length).toBe(2);
-        setWantedDrumTrack(null);
+        claimStemTrack('beatFx', null);
     });
 
     it('files its key apart from the beat lists, as analysis data', () => {
