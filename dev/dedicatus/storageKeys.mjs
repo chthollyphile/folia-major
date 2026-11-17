@@ -308,6 +308,8 @@ export const STORAGE_KEYS = [
     'web:theme_auto_switch_enabled',
     'web:theme_generation_source',
     'web:transparent_player_background',
+    'web:ui_zoom_enabled',
+    'web:ui_zoom_step',
     'web:url_background_list',
     'web:url_background_selected_id',
     'web:use_cover_color_bg',

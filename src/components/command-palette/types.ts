@@ -395,6 +395,10 @@ export type CommandPaletteSettingsContext = {
     togglePreventDisplaySleepDuringPlayback: () => void;
     /** 后台节流: throttle the window and hold the lyric animation while it is minimised or hidden (main process applies it). */
     toggleBackgroundThrottling: () => void;
+    /** 界面缩放（#1264）开关：主窗口按选的挡位缩放，关掉是 100%。 */
+    toggleUiZoom: () => void;
+    /** 放大（1）或缩小（-1）一挡，走到 100% 就关掉开关；已经到头时返回 false。 */
+    stepUiZoom: (direction: 1 | -1) => boolean;
     toggleWallpaperMode: () => void;
     /** Close button hides the main window to the tray instead of quitting (main process owns it). */
     toggleCloseToTray: () => void;

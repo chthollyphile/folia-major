@@ -82,6 +82,7 @@ export const SETTINGS_ANCHOR_DEFINITIONS = {
 
     // pages/DesktopPage, and the update check on pages/GeneralPage
     desktopTrayBehavior: { section: 'desktop' },
+    uiZoom: { section: 'desktop' },
     wallpaperMode: { section: 'desktop' },
     updateCheck: { section: 'general' },
 

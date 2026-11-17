@@ -19,7 +19,7 @@ const INSET = 0.08;
  * Captures the quad (in the coordinates of `box`) as a width × height picture; null when it cannot
  * (web build, the surface off the window, a minimised window).
  */
-// ponytail: CSS pixels are taken as window pixels, so a page zoom other than 100% samples a shifted rect.
+// The rect goes in CSS pixels; the desktop app scales it by the page zoom (界面缩放) before cutting the window.
 export const sampleSurface = async (box: HTMLElement, quad: ScreenQuad, width: number, height: number): Promise<ImageBitmap | null> => {
     const api = sceneScreenApi();
     if (!api) return null;

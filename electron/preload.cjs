@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer, webUtils } = require('electron');
+const { contextBridge, ipcRenderer, webFrame, webUtils } = require('electron');
 
 contextBridge.exposeInMainWorld('electron', {
     webUtils: {
@@ -247,6 +247,12 @@ contextBridge.exposeInMainWorld('electron', {
     setKeyCaptureActive: (active) => ipcRenderer.send('key-capture-active', active === true),
     getMainWindowClickThroughEnabled: () => ipcRenderer.invoke('window-get-click-through'),
     setMainWindowClickThroughEnabled: (enabled) => ipcRenderer.invoke('window-set-click-through', enabled),
+    // 界面缩放（#1264）。webFrame 的缩放只算这一个窗口，不像 webContents.setZoomFactor 按源传给同源的遥控窗口。
+    setPageZoomFactor: (factor) => {
+        const value = Number(factor);
+        if (Number.isFinite(value) && value >= 0.25 && value <= 5) webFrame.setZoomFactor(value);
+    },
+    getPageZoomFactor: () => webFrame.getZoomFactor(),
     setMainWindowClickThroughUnlockHover: (active, viewportWidth, coordinates, side) => ipcRenderer.invoke('window-set-click-through-unlock-hover', active, viewportWidth, coordinates, side),
     getMainWindowAlwaysOnTop: () => ipcRenderer.invoke('window-get-always-on-top'),
     setMainWindowAlwaysOnTop: (enabled) => ipcRenderer.invoke('window-set-always-on-top', enabled),

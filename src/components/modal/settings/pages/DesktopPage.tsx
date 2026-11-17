@@ -3,17 +3,20 @@ import { useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
 import { useDesktopSettingsStore } from '../../../../stores/useDesktopSettingsStore';
 import { usePlayerChromeSettingsStore } from '../../../../stores/usePlayerChromeSettingsStore';
-import { Group, Reveal, Row, Toggle, Segmented, option, type SettingsGroupDef, type SettingsOptionDef } from '../kit';
+import { UI_ZOOM_STEPS, readUiZoomStep } from '../../../../utils/uiZoom';
+import { Group, Reveal, Row, Select, Toggle, Segmented, option, type SettingsGroupDef, type SettingsOptionDef } from '../kit';
 import { WallpaperDisplayRow } from './desktop/WallpaperDisplayRow';
 import { hasWallpaperDisplayChoice } from './desktop/wallpaperDisplays';
 
 // src/components/modal/settings/pages/DesktopPage.tsx
-// The 桌面 page (desktop app only): what the main window does with the tray, the taskbar and its
-// fullscreen button, and the wallpaper mode. The Remote Control window has a page of its own (RemotePage).
+// The 桌面 page (desktop app only): the main window's page zoom (界面缩放, #1264), what it does with
+// the tray, the taskbar and its fullscreen button, and the wallpaper mode. The Remote Control window has a page of its own (RemotePage).
 
 const WINDOW: SettingsGroupDef = { id: 'desktopTrayBehavior', titleKey: 'options.desktopTrayBehavior', electronOnly: true };
 
 const O = {
+    uiZoom: option(WINDOW, 'uiZoom', 'options.uiZoom'),
+    uiZoomStep: option(WINDOW, 'uiZoomStep', 'options.uiZoomStep'),
     minimizeToTray: option(WINDOW, 'minimizeToTray', 'options.minimizeToTray'),
     closeToTray: option(WINDOW, 'closeToTray', 'options.closeToTray'),
     hideTaskbarIcon: option(WINDOW, 'hideTaskbarIcon', 'options.hideTaskbarIcon'),
@@ -30,6 +33,7 @@ const O = {
 const PLATFORM = typeof window === 'undefined' ? undefined : window.electron?.platform;
 const IS_MAC = PLATFORM === 'darwin';
 const HAS_WALLPAPER_MODE = IS_MAC || PLATFORM === 'win32' || PLATFORM === 'linux';
+const UI_ZOOM_CHOICES = UI_ZOOM_STEPS.map(step => ({ value: String(step), label: `${step}%` }));
 const MAC_ONLY: SettingsOptionDef[] = [O.nativeMacFullscreen, O.nativeMacTrafficLights, O.wallpaperDock];
 
 // The search lists the two macOS rows only on macOS.
@@ -41,11 +45,15 @@ const DesktopPage: React.FC = () => {
         minimizeToTray: state.minimizeToTray,
         closeToTray: state.closeToTray,
         hideTaskbarIcon: state.hideTaskbarIcon,
+        uiZoomEnabled: state.uiZoomEnabled,
+        uiZoomStep: state.uiZoomStep,
         wallpaperMode: state.wallpaperMode,
         wallpaperDock: state.wallpaperMacAutohideDock,
         setMinimizeToTray: state.handleToggleMinimizeToTray,
         setCloseToTray: state.handleToggleCloseToTray,
         setHideTaskbarIcon: state.handleToggleHideTaskbarIcon,
+        setUiZoom: state.handleToggleUiZoom,
+        setUiZoomStep: state.handleSetUiZoomStep,
         setWallpaperMode: state.handleToggleWallpaperMode,
         setWallpaperDock: state.handleToggleWallpaperMacAutohideDock,
     })));
@@ -63,6 +71,21 @@ const DesktopPage: React.FC = () => {
     return (
         <>
             <Group def={WINDOW}>
+                <Row option={O.uiZoom} hint={t('options.uiZoomDesc')}>
+                    <Toggle checked={desktop.uiZoomEnabled} onChange={desktop.setUiZoom} />
+                </Row>
+                <Reveal when={desktop.uiZoomEnabled}>
+                    <Row sub option={O.uiZoomStep}>
+                        <Select
+                            value={String(desktop.uiZoomStep)}
+                            options={UI_ZOOM_CHOICES}
+                            onChange={(value) => {
+                                const step = readUiZoomStep(value);
+                                if (step) desktop.setUiZoomStep(step);
+                            }}
+                        />
+                    </Row>
+                </Reveal>
                 <Row option={O.minimizeToTray}>
                     <Toggle checked={desktop.minimizeToTray} onChange={desktop.setMinimizeToTray} />
                 </Row>
