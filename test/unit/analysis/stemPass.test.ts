@@ -29,12 +29,13 @@ const model = async (l: Float32Array, r: Float32Array) => {
  * A reader of `source` from segment `from` that copies what is final into one whole-track array, and
  * notes the segments it read. With `keepBefore` its window moves on; without it, it is the whole track.
  */
-const reader = (source: StemSource, from = 0, keepBefore?: number) => {
+const reader = (source: StemSource, from = 0, keepBefore?: number, channel?: 'left' | 'right') => {
     const all = new Float32Array(TOTAL);
     const segments: number[] = [];
     let got = 0;
     const r: StemReader = {
         source,
+        ...(channel ? { channel } : {}),
         ...startStemReader(TOTAL, from),
         window: keepBefore === undefined ? wholeStemWindow(TOTAL) : movingStemWindow(TOTAL, from, keepBefore),
         read: (final) => {
@@ -63,6 +64,23 @@ describe('stem pass', () => {
         expect(Array.from(moving.all)).toEqual(Array.from(whole.all));
         // The fourth stem: -0.5 x the mono mix, the two channels' offsets averaged (the window is 0 at sample 0).
         for (let i = 1; i < TOTAL; i += 1) expect(whole.all[i]).toBeCloseTo(-0.5 * (left[i] + right[i]) / 2 - 0.005, 5);
+    });
+
+    it('reads one channel of a stem alongside the mono readers, which stay as they were', async () => {
+        const alone = reader('vocals');
+        await runStemPass({ left, right, readers: () => [alone.r] });
+        runHtdemucsGpu.mockClear();
+        const mono = reader('vocals');
+        const l = reader('vocals', 0, 0, 'left');
+        const r = reader('vocals', 0, 0, 'right');
+        expect(await runStemPass({ left, right, readers: () => [mono.r, l.r, r.r] })).toBe(true);
+        // One separation per segment for all three.
+        expect(runHtdemucsGpu).toHaveBeenCalledTimes(5);
+        expect(Array.from(mono.all)).toEqual(Array.from(alone.all));
+        for (let i = 1; i < TOTAL; i += 1) {
+            expect(l.all[i]).toBeCloseTo(-0.5 * left[i] + 0.01, 5);
+            expect(r.all[i]).toBeCloseTo(-0.5 * right[i] - 0.02, 5);
+        }
     });
 
     it('separates a segment once for every reader at it, and feeds one starting further back alone first', async () => {

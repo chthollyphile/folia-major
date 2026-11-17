@@ -7,7 +7,7 @@ import { separateStemSegment, STEM_SOURCES, stemSegmentStarts, stemSegmentWindow
 // and 雾笺's voice (vocalStemRun.ts) today. The model gives all four stems for every segment, so a segment
 // is separated once for every reader that needs it, whichever stems they read.
 //
-// A reader (StemReader) names its stem, the next segment it needs and a window to lay that stem
+// A reader (StemReader) names its stem (mono, or one channel of it), the next segment it needs and a window to lay that stem
 // together in. Each turn the pass separates the lowest segment any reader still needs and hands it to
 // every reader at that segment; a reader that starts further back (asked for part way through, from
 // the playhead) is fed its own segments first, alone, until it catches up and they share. Readers can
@@ -34,6 +34,11 @@ export interface StemWindow { samples: Float32Array; base: number }
 
 export interface StemReader {
     readonly source: StemSource;
+    /**
+     * One channel of the stem, for a reader that plays it (分轨调音台); without it the two are averaged
+     * to mono, which is what the analyses read.
+     */
+    readonly channel?: 'left' | 'right';
     /** The next segment it needs; the pass moves it on. */
     next: number;
     /** Samples from the start whose quotient is final; the pass moves it on. */
@@ -90,7 +95,12 @@ const layInto = (reader: StemReader, stem: { left: Float32Array; right: Float32A
     const { samples, base } = reader.window;
     // A typed array drops a write past its end without a word: a window too short is a bug.
     if (start < base || start + n - base > samples.length) throw new Error(`stem window: segment ${index} at ${start} outside ${base}+${samples.length}`);
-    for (let i = 0; i < n; i += 1) samples[start - base + i] += ((stem.left[i] + stem.right[i]) / 2) * win[i];
+    if (reader.channel) {
+        const from = reader.channel === 'left' ? stem.left : stem.right;
+        for (let i = 0; i < n; i += 1) samples[start - base + i] += from[i] * win[i];
+    } else {
+        for (let i = 0; i < n; i += 1) samples[start - base + i] += ((stem.left[i] + stem.right[i]) / 2) * win[i];
+    }
     // A reader starting part way: before where it is whole the segment before's share never came.
     if (reader.divided > start) samples.fill(0, 0, Math.min(samples.length, reader.divided - base));
     // Up to where the next segment starts, nothing more will be added.
