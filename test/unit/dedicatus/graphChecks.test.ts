@@ -1,11 +1,11 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { buildModuleGraph } from '../../../dev/mcp/ts-code-map/graph/modules.mjs';
 import { checkBoundaries } from '../../../dev/dedicatus/checks/boundaries.mjs';
 import { checkCycles } from '../../../dev/dedicatus/checks/cycles.mjs';
-import { BOUNDARY_RULES } from '../../../dev/dedicatus/rules.mjs';
+import { BOUNDARY_RULES, GLOB_PINNED_REGISTRIES } from '../../../dev/dedicatus/rules.mjs';
 import { codeInfo } from '../../../dev/dedicatus/codes.mjs';
 
 // test/unit/dedicatus/graphChecks.test.ts
@@ -59,6 +59,22 @@ describe('dedicatus graph checks', () => {
             'D190:src/stores/useMixStore.tsx->src/components/pureMath.ts',
         ]);
         expect(findings.find(finding => finding.code === 'D190')?.message).toContain('D101');
+    });
+
+    it('skips D190 for a registered glob-pinned registry but still reports real UI targets', () => {
+        const findings = checkBoundaries(buildModuleGraph(root), [
+            { file: 'src/components/pureMath.ts', why: 'fixture' },
+            { file: 'src/components/Panel.tsx', why: 'fixture' },
+        ]);
+        expect(findings.map(finding => finding.key)).toEqual(['D101:src/stores/usePanelStore.tsx->src/components/Panel.tsx']);
+    });
+
+    it('only registers glob-pinned registries that still collect files with a relative import.meta.glob', () => {
+        for (const { file, why } of GLOB_PINNED_REGISTRIES) {
+            expect(why, file).toBeTruthy();
+            const text = readFileSync(path.resolve(__dirname, '../../..', file), 'utf8');
+            expect(text, file).toMatch(/import\.meta\.glob(<[^>]*>)?\(\s*['"]\.\//);
+        }
     });
 
     it('reports every file of a load-time cycle, ignoring type-only and dynamic-only edges', () => {
