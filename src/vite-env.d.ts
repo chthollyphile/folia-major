@@ -915,6 +915,8 @@ declare global {
       openLegacyModelsFolder?: () => Promise<boolean>;
       platform: string;
       isLinuxX11: boolean;
+      /** Whether the OS can draw native blur behind the window: false on Linux and on Windows before 11 22H2. */
+      nativeBlurSupported?: boolean;
       getSettings: () => Promise<any>;
       saveSettings: (key: string, value: any) => Promise<any>;
       onWallpaperModeChanged?: (callback: (settings: Record<string, unknown>) => void) => () => void;

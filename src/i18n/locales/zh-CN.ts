@@ -2892,6 +2892,7 @@ export default {
     "enablePlayerPageNativeBlur": "开启播放页原生毛玻璃背景",
     "enablePlayerPageNativeBlurHint": "用系统毛玻璃替代播放页背景，更耗性能",
     "enablePlayerPageNativeBlurDesc": "仅在桌面版的非透明模式下生效；移动窗口时可能卡顿。",
+    "enablePlayerPageNativeBlurUnsupported": "需要 Windows 11 22H2 或更高版本，当前系统不支持",
     "nativeBlurConfirmTitle": "系统毛玻璃效果",
     "nativeBlurConfirmDesc": "开启后，窗口会变为系统毛玻璃效果的半透明背景，Folia 的各种背景将不再显示。如果系统不支持，则会显示为白色不透明背景。",
     "nativeBlurConfirmAction": "我明白，这会让背景调整无效",

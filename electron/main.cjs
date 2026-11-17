@@ -302,6 +302,10 @@ let hifiIpc = null;
 const hifiRuntimeManifest = require('../shared/mpvRuntimeManifest.json');
 const getHifiUserDataPath = () => app.getPath('userData');
 const hifiSystemVersion = process.platform === 'darwin' ? process.getSystemVersion() : null;
+// 原生毛玻璃在 Windows 上靠 Acrylic 背景材质，Windows 11 22H2（build 22621）起才有；更早的系统上
+// 存着的开关当作关，免得窗口背景被设成全透明却没有材质（preload 的 nativeBlurSupported 同一判断）。
+const NATIVE_BLUR_SUPPORTED = process.platform !== 'win32'
+  || Number(String(require('os').release()).split('.')[2]) >= 22621;
 const hifiInstaller = createMpvRuntimeInstaller({
   manifest: hifiRuntimeManifest,
   getUserDataPath: getHifiUserDataPath,
@@ -2867,7 +2871,7 @@ function getPublicSettings() {
     [MOD_SYSTEM_ENABLED_SETTING_KEY]: readStoredBoolean(MOD_SYSTEM_ENABLED_SETTING_KEY, false),
     [BACKGROUND_THROTTLING_SETTING_KEY]: readStoredBoolean(BACKGROUND_THROTTLING_SETTING_KEY, false),
     [UPDATE_CHANNEL_SETTING_KEY]: getCurrentReleaseChannel().id,
-    'enable_player_page_native_blur': store.get('enable_player_page_native_blur') === true,
+    'enable_player_page_native_blur': NATIVE_BLUR_SUPPORTED && store.get('enable_player_page_native_blur') === true,
     'wallpaper_attach_mode': process.platform === 'win32' ? wallpaperWindowsAttachMode : null,
     [GPU_PREFERENCE_SETTING_KEY]: normalizeGpuPreference(store.get(GPU_PREFERENCE_SETTING_KEY)),
     [WALLPAPER_MODE_SETTING_KEY]: isWallpaperModeEnabled(),
@@ -5992,7 +5996,7 @@ function createWindow(options = {}) {
     && !isWallpaperModeEnabled()
     && !useWallpaperGeometry
     && readStoredBoolean(USE_NATIVE_MAC_TRAFFIC_LIGHTS_SETTING_KEY, false);
-  const enableNativeBlur = store.get('enable_player_page_native_blur') === true;
+  const enableNativeBlur = NATIVE_BLUR_SUPPORTED && store.get('enable_player_page_native_blur') === true;
   let win;
   try {
     win = new BrowserWindow({
@@ -7038,7 +7042,7 @@ ipcMain.handle('save-settings', firstParty('save-settings', (event, key, value) 
     }
   }
 
-  if (key === 'enable_player_page_native_blur') {
+  if (key === 'enable_player_page_native_blur' && NATIVE_BLUR_SUPPORTED) {
     if (!isTransparentPlayerBackgroundEnabled()) {
       if (mainWindow && !mainWindow.isDestroyed()) {
         const enableNativeBlur = Boolean(nextValue);

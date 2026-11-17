@@ -105,6 +105,13 @@ contextBridge.exposeInMainWorld('electron', {
     },
     platform: process.platform,
     isLinuxX11: process.platform === 'linux' && !process.env.WAYLAND_DISPLAY,
+    // 原生毛玻璃：Windows 的 Acrylic 背景材质要 Windows 11 22H2（build 22621）起才有，Win10 上设了也无效。
+    nativeBlurSupported: (() => {
+        if (process.platform === 'linux') return false;
+        if (process.platform !== 'win32') return true;
+        const build = Number(String(process.getSystemVersion?.() ?? '').split('.')[2]);
+        return Number.isFinite(build) && build >= 22621;
+    })(),
     getSettings: () => ipcRenderer.invoke('get-settings'),
     saveSettings: (key, value) => ipcRenderer.invoke('save-settings', key, value),
     onWallpaperModeChanged: (callback) => {

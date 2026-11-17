@@ -2892,6 +2892,7 @@ export default {
     "enablePlayerPageNativeBlur": "Bật làm mờ gốc trên trang phát",
     "enablePlayerPageNativeBlurHint": "Sử dụng hiệu ứng làm mờ hệ thống thay cho nền trang phát, tiêu tốn nhiều tài nguyên hơn",
     "enablePlayerPageNativeBlurDesc": "Khi bật, các nền chủ đề, ảnh, Monet sẽ bị ẩn và thay bằng hiệu ứng mờ gốc của hệ thống. Chỉ áp dụng ở chế độ không trong suốt trên máy tính; hiệu ứng này tốn nhiều tài nguyên hơn và có thể gây giật khi di chuyển cửa sổ.",
+    "enablePlayerPageNativeBlurUnsupported": "Cần Windows 11 22H2 trở lên; hệ thống này không hỗ trợ",
     "nativeBlurConfirmTitle": "Hiệu ứng kính hệ thống",
     "nativeBlurConfirmDesc": "Thao tác này đổi nền cửa sổ thành bán trong suốt bằng hiệu ứng kính hệ thống. Nền của Folia sẽ không hiển thị.",
     "nativeBlurConfirmAction": "Tôi đã hiểu",

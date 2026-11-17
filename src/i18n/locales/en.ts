@@ -2892,6 +2892,7 @@ export default {
     "enablePlayerPageNativeBlur": "Enable Player Page Native Blur",
     "enablePlayerPageNativeBlurHint": "System blur replaces the player backgrounds; uses more resources",
     "enablePlayerPageNativeBlurDesc": "Applies only in the desktop app in non-transparent mode; moving the window may lag.",
+    "enablePlayerPageNativeBlurUnsupported": "Needs Windows 11 22H2 or later; not available on this system",
     "nativeBlurConfirmTitle": "System glass effect",
     "nativeBlurConfirmDesc": "This changes the window to a translucent background using the system glass effect. Folia backgrounds will not be shown.",
     "nativeBlurConfirmAction": "I understand",

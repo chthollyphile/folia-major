@@ -11,6 +11,7 @@ import type { LyricAntialias } from '../../../../types';
 import { VISUALIZER_FRAME_RATE_OPTIONS } from '../../../../utils/frameRateLimiter';
 import { LYRIC_RENDER_SCALES } from '../../../../utils/lyricRenderQuality';
 import { lyricAntialiasChoices, lyricRenderScaleChoices } from '../../../visualizer/renderQuality/LyricRenderQualityRows';
+import { NATIVE_BLUR_SUPPORTED } from '../../../../utils/nativeBlurSupport';
 import { openPerfCheck } from '../../../perfCheck/openPerfCheck';
 import { Button, Group, Link, Reveal, Row, Segmented, Toggle, option, useSettingsKitTheme, type SettingsGroupDef, type SettingsOptionDef } from '../kit';
 import { GpuPreferenceRow } from './graphics/GpuPreferenceRow';
@@ -117,8 +118,13 @@ const GraphicsPage: React.FC = () => {
                     <Toggle checked={theme.homeBackgroundOff} onChange={theme.setHomeBackgroundOff} />
                 </Row>
                 {!IS_LINUX && (
-                    <Row option={O.nativeBlur} hint={t('options.enablePlayerPageNativeBlurHint')} note={t('options.enablePlayerPageNativeBlurDesc')}>
-                        <Toggle checked={nativeBlur} onChange={enabled => (enabled ? setNativeBlurAsking(true) : setNativeBlur(false))} />
+                    <Row
+                        option={O.nativeBlur}
+                        hint={t(NATIVE_BLUR_SUPPORTED ? 'options.enablePlayerPageNativeBlurHint' : 'options.enablePlayerPageNativeBlurUnsupported')}
+                        note={t('options.enablePlayerPageNativeBlurDesc')}
+                        disabled={!NATIVE_BLUR_SUPPORTED}
+                    >
+                        <Toggle checked={nativeBlur} disabled={!NATIVE_BLUR_SUPPORTED} onChange={enabled => (enabled ? setNativeBlurAsking(true) : setNativeBlur(false))} />
                     </Row>
                 )}
                 <Row option={O.frameRate} hint={t('options.visualizerFrameRateDesc')}>

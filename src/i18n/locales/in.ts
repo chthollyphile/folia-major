@@ -2892,6 +2892,7 @@ export default {
     "enablePlayerPageNativeBlur": "Aktifkan Blur Asli Halaman Pemutar",
     "enablePlayerPageNativeBlurHint": "Blur sistem menggantikan latar pemutar; memakai lebih banyak sumber daya",
     "enablePlayerPageNativeBlurDesc": "Hanya berlaku di aplikasi desktop dalam mode non-transparan; memindahkan jendela mungkin tersendat.",
+    "enablePlayerPageNativeBlurUnsupported": "Memerlukan Windows 11 22H2 atau lebih baru; tidak tersedia di sistem ini",
     "nativeBlurConfirmTitle": "Efek kaca sistem",
     "nativeBlurConfirmDesc": "Ini mengubah jendela menjadi latar belakang tembus pandang menggunakan efek kaca sistem. Latar belakang Folia tidak akan ditampilkan.",
     "nativeBlurConfirmAction": "Saya mengerti",
