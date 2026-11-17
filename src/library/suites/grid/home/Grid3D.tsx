@@ -339,6 +339,22 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                                 </span>
                             )}
                         </button>
+                        {/* 播放队列的海报视图紧挨着设置按钮，和设置一样是一颗只带图标的圆钮：页签胶囊
+                            已经有五个内容 tab，这里再展开文字会把页头撑得很长，所以它只占一个图标的宽度，
+                            名字留在提示里。没有在播歌曲时队列也是空的，直接不出现。
+                            在「探索」页签上它打开的是同一面墙，铺的是探索页的条目（探索拼贴）：
+                            探索页有条目可铺时出现，不看有没有在播歌曲。 */}
+                        {onOpenLattice && (opensExploreWall ? hasExploreWall : currentTrack) && (
+                            <button
+                                onClick={() => onOpenLattice(opensExploreWall ? 'explore' : 'queue')}
+                                data-testid="home-lattice-pill"
+                                title={t(opensExploreWall ? 'home.latticeExplore' : 'home.lattice')}
+                                aria-label={t(opensExploreWall ? 'home.latticeExplore' : 'home.lattice')}
+                                className="relative flex items-center gap-1.5 p-2 rounded-full hover:bg-white/10 transition-all ml-1 opacity-40 hover:opacity-100"
+                            >
+                                <PanelsTopLeft size={20} style={{ color: 'var(--text-primary)' }} />
+                            </button>
+                        )}
                         {scanProgress?.active && (
                             <div
                                 className="relative ml-3"
@@ -446,29 +462,7 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                                         <span className="relative z-10">{t('home.stage')}</span>
                                     </button>
                                 )}
-                                {/* 播放队列的海报视图和 Stage 一样属于「去哪儿」，所以它在这一排，
-                                    而不是标题旁的工具图标。没有在播歌曲时队列也是空的，直接不出现。
-                                    平时只占一个图标的宽度，指针悬停或键盘聚焦时才展开文字——这一排
-                                    已经有五个内容 tab，多一个常驻文字就把胶囊撑得太长。点击始终直达。
-                                    在「探索」页签上它打开的是同一面墙，铺的是探索页的条目（探索拼贴）：
-                                    探索页有条目可铺时出现，不看有没有在播歌曲。 */}
-                                {onOpenLattice && (opensExploreWall ? hasExploreWall : currentTrack) && (
-                                    <button
-                                        onClick={() => onOpenLattice(opensExploreWall ? 'explore' : 'queue')}
-                                        data-testid="home-lattice-pill"
-                                        title={t(opensExploreWall ? 'home.latticeExplore' : 'home.lattice')}
-                                        aria-label={t(opensExploreWall ? 'home.latticeExplore' : 'home.lattice')}
-                                        className={`group relative inline-flex items-center justify-center px-3 py-1.5 rounded-full text-xs md:text-sm font-medium transition-colors duration-300 whitespace-nowrap ${navPillInactiveText}`}
-                                    >
-                                        <PanelsTopLeft size={14} className="relative z-10 shrink-0" />
-                                        <span
-                                            aria-hidden="true"
-                                            className="relative z-10 max-w-0 overflow-hidden opacity-0 transition-all duration-300 ease-out group-hover:ml-1.5 group-hover:max-w-28 group-hover:opacity-100 group-focus-visible:ml-1.5 group-focus-visible:max-w-28 group-focus-visible:opacity-100"
-                                        >
-                                            {t(opensExploreWall ? 'home.latticeExplore' : 'home.latticeLabel')}
-                                        </span>
-                                    </button>
-                                )}
+                                {/* 播放队列的入口在页头的设置按钮旁边（见上面），这一排不再画它。 */}
                             </div>
                         </div>
                     </div>
