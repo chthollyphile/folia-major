@@ -60,7 +60,6 @@
 | 32+ | `src/components/ponder/surfaces/relativeRectStyle.ts` |
 | 32+ | `src/components/ponder/surfaces/surfaceDeclarations.ts` |
 | 32+ | `src/components/visualizer/backgrounds/definition.ts` |
-| 32+ | `src/components/visualizer/colorMix.ts` |
 | 32+ | `src/components/visualizer/hanabi/types.ts` |
 | 32+ | `src/components/visualizer/machi/engine/materials.ts` |
 | 32+ | `src/components/visualizer/registry.tsx` |
@@ -89,6 +88,7 @@
 | 32+ | `src/stores/useVisualizerSettingsStore.ts` |
 | 32+ | `src/types/localLibrary.ts` |
 | 32+ | `src/types/navidrome.ts` |
+| 32+ | `src/utils/colorMix.ts` |
 | 32+ | `src/utils/coverUrl.ts` |
 | 32+ | `src/utils/errorText.ts` |
 | 32+ | `src/utils/fontStacks.ts` |
@@ -357,10 +357,7 @@
 依赖方向没问题，是文件住在了 UI 目录（`src/components/`、`src/library/` 的 suites / app）下面。修法是移动文件，不是改依赖。
 
 - D190 `src/services/obs/visualSettingsConfig.ts` → `src/components/visualizer/tuningRegistry.ts`
-- D190 `src/services/ponder/pagePonderTarget.ts` → `src/components/modal/settings/navigation/settingsAnchorModel.ts`
 - D190 `src/services/sync/settingsSnapshot.ts` → `src/components/visualizer/tuningRegistry.ts`
 - D190 `src/stores/usePlaybackStore.ts` → `src/components/app/playback/createCoverUrlResolver.ts`
-- D190 `src/stores/useSettingsModalStore.ts` → `src/components/command-palette/pinnedCommandPreferences.ts`
 - D190 `src/stores/useVisualizerSettingsStore.ts` → `src/components/visualizer/tuningRegistry.ts`
-- D190 `src/utils/themeColorMath.ts` → `src/components/visualizer/colorMix.ts`
 
