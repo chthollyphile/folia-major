@@ -15,8 +15,14 @@ import { decodeTrackAtRate } from './trackBytes';
 // segment - not a second decode, nor a second pass; one let go (`releaseTrackStems`) is stopped there
 // and the rest carry on. The same kind asked for twice is the one task.
 //
-// Only the wanted track runs (`setWantedStemTrack`): any other stops at its next segment, so skipping
-// through tracks does not queue their separations up.
+// Who wants a track separated is said per claimant (`claimStemTrack`): 智能动感模式 for its drum hits
+// and 雾笺's voice, and each other feature that reads stems on its own. A claimant wants one track at a
+// time, or none. A run goes on while any claimant wants its track and stops at its next segment once
+// none does, so skipping through tracks does not queue their separations up. A task belongs to one
+// claimant (`StemTask.claimant`): when its claimant moves off the track while another still wants it,
+// the task is let go there (as `releaseTrackStems` does) and the run carries on for the rest.
+// Until 2026-11 there was one wanted track for everyone, set by the drum hits alone, so nothing else
+// could keep a run going, and clearing it stopped every task on it.
 
 const STEM_RATE = 44100;
 
@@ -31,9 +37,14 @@ export interface OpenedStemTask<T> {
     stop: () => Promise<T>;
 }
 
+/** Who asks for a track's stems (see the header): 智能动感模式, and 分轨调音台 playing them. */
+export type StemClaimant = 'beatFx' | 'stemMixer';
+
 export interface StemTask<T> {
     /** What it reads, for joining (one task per kind per track) and the log. */
     kind: string;
+    /** Whose it is: let go when this claimant no longer wants the track (see the header). */
+    claimant: StemClaimant;
     open: (track: StemTrack) => OpenedStemTask<T>;
 }
 
@@ -53,15 +64,13 @@ interface TrackRun {
 }
 
 const runs = new Map<string, TrackRun>();
-let wanted: string | null = null;
+/** The track each claimant wants separated now. */
+const claims = new Map<StemClaimant, string>();
 
-/** Names the track whose stems may be separated now, or null for none; any other run stops at its next segment. */
-export const setWantedStemTrack = (key: string | null): void => {
-    wanted = key;
-};
-
-/** Whether `key` is the track whose stems may be separated now. */
-export const stemTrackWanted = (key: string): boolean => wanted === key;
+/** Whether `key` is wanted now: by `claimant`, or with none named by anyone. */
+export const stemTrackWanted = (key: string, claimant?: StemClaimant): boolean => (
+    claimant ? claims.get(claimant) === key : [...claims.values()].includes(key)
+);
 
 /** Answers a task from `how` (its finish or its stop); a task that throws answers null. */
 const answer = (run: TrackRun, entry: TaskEntry, how: () => Promise<unknown>) => {
@@ -72,6 +81,32 @@ const answer = (run: TrackRun, entry: TaskEntry, how: () => Promise<unknown>) =>
             return null;
         })
         .then(entry.settle));
+};
+
+/** Stops one task now: a waiting one answers null, a reading one from its stop; the pass feeds it no more. */
+const letGo = (run: TrackRun, entry: TaskEntry) => {
+    if (entry.state === 'waiting') {
+        entry.state = 'answering';
+        entry.settle(null);
+        return;
+    }
+    if (entry.state === 'reading') answer(run, entry, entry.opened!.stop);
+};
+
+/**
+ * Names the track `claimant` wants separated now, or null for none. The track it wanted before stops
+ * at its next segment if no one else wants it; if someone does, the run carries on and only this
+ * claimant's tasks on it are let go.
+ */
+export const claimStemTrack = (claimant: StemClaimant, key: string | null): void => {
+    const before = claims.get(claimant);
+    if (key === null) claims.delete(claimant);
+    else claims.set(claimant, key);
+    if (before === undefined || before === key || !stemTrackWanted(before)) return;
+    const run = runs.get(before);
+    for (const entry of run?.entries ?? []) {
+        if (entry.task.claimant === claimant) letGo(run!, entry);
+    }
 };
 
 /** Opens the tasks asked for since the last turn on the decoded `track`. */
@@ -115,7 +150,7 @@ const drive = async (run: TrackRun, readBytes: () => Promise<ArrayBuffer | null>
         right: track.right,
         key: run.key,
         readers: () => readersNow(run, track, count),
-        keepGoing: () => wanted === run.key,
+        keepGoing: () => stemTrackWanted(run.key),
     });
     // Anything asked for after this answers from a run of its own.
     runs.delete(run.key);
@@ -156,10 +191,5 @@ export const releaseTrackStems = (key: string, kind: string): void => {
     const run = runs.get(key);
     const entry = run?.entries.find(each => each.task.kind === kind && each.state !== 'answering');
     if (!run || !entry) return;
-    if (entry.state === 'waiting') {
-        entry.state = 'answering';
-        entry.settle(null);
-        return;
-    }
-    answer(run, entry, entry.opened!.stop);
+    letGo(run, entry);
 };

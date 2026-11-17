@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // test/unit/analysis/trackStemRun.test.ts
 // A track's stem run (analysis/trackStemRun.ts): one decode and one pass for every task that reads its
 // stems - a task asked for part way joins the pass, the same kind asked twice is one task, one let go
-// stops while the rest carry on, and leaving the track stops them all.
+// stops while the rest carry on, and leaving the track stops them all. Each claimant wants its own
+// track: one leaving lets go only its own tasks while another still wants the run.
 
 const { runHtdemucsGpu } = vi.hoisted(() => ({ runHtdemucsGpu: vi.fn() }));
 vi.mock('@/services/analysis/beatThisGpu', () => ({ HTDEMUCS_GPU_SEGMENT: 16, runHtdemucsGpu, gpuStemsOnScreenUsable: () => true }));
@@ -11,10 +12,11 @@ const { decodeAtRate } = vi.hoisted(() => ({ decodeAtRate: vi.fn() }));
 vi.mock('@/services/analysis/trackAudio', () => ({ decodeAtRate }));
 
 const { startStemReader, wholeStemWindow } = await import('@/services/analysis/stemPass');
-const { releaseTrackStems, runTrackStems, setWantedStemTrack } = await import('@/services/analysis/trackStemRun');
+const { claimStemTrack, releaseTrackStems, runTrackStems } = await import('@/services/analysis/trackStemRun');
 const { resetStemSegmentsForTests } = await import('@/services/analysis/stemRange');
 type StemSource = import('@/services/analysis/stemPass').StemSource;
 type StemReader = import('@/services/analysis/stemPass').StemReader;
+type StemClaimant = import('@/services/analysis/trackStemRun').StemClaimant;
 
 // Starts every 12: 0, 12, 24, 36, 48 - five segments.
 const TOTAL = 50;
@@ -25,7 +27,7 @@ const model = async (l: Float32Array, r: Float32Array) => {
 };
 
 /** A task reading `source` from segment `from`: answers `finished` with the segments it read, or `stopped` with them. */
-const task = (kind: string, source: StemSource, from = 0) => {
+const task = (kind: string, source: StemSource, from = 0, claimant: StemClaimant = 'beatFx') => {
     const segments: number[] = [];
     const stop = vi.fn();
     return {
@@ -33,6 +35,7 @@ const task = (kind: string, source: StemSource, from = 0) => {
         stop,
         task: {
             kind,
+            claimant,
             open: () => {
                 const reader: StemReader = {
                     source,
@@ -62,7 +65,7 @@ describe('track stem run', () => {
     });
 
     it('opens a task asked for part way on the same decode and pass, and joins one of the same kind', async () => {
-        setWantedStemTrack('one');
+        claimStemTrack('beatFx', 'one');
         const drums = task('drums', 'drums');
         const voice = task('voice', 'vocals', 1);
         let joined: Promise<unknown>[] = [];
@@ -81,7 +84,7 @@ describe('track stem run', () => {
     });
 
     it('stops a task let go, and carries the rest on', async () => {
-        setWantedStemTrack('two');
+        claimStemTrack('beatFx', 'two');
         const drums = task('drums', 'drums');
         const voice = task('voice', 'vocals');
         runHtdemucsGpu.mockImplementation(async (l: Float32Array, r: Float32Array) => {
@@ -97,19 +100,67 @@ describe('track stem run', () => {
     });
 
     it('stops every task once the track is left, and answers null without bytes', async () => {
-        setWantedStemTrack('three');
+        claimStemTrack('beatFx', 'three');
         const drums = task('drums', 'drums');
         const voice = task('voice', 'vocals');
         runHtdemucsGpu.mockImplementation(async (l: Float32Array, r: Float32Array) => {
-            if (runHtdemucsGpu.mock.calls.length === 2) setWantedStemTrack(null);
+            if (runHtdemucsGpu.mock.calls.length === 2) claimStemTrack('beatFx', null);
             return model(l, r);
         });
         expect(await Promise.all([runTrackStems('three', bytes, drums.task), runTrackStems('three', bytes, voice.task)]))
             .toEqual(['drums stopped', 'voice stopped']);
         expect(runHtdemucsGpu).toHaveBeenCalledTimes(2);
 
-        setWantedStemTrack('four');
+        claimStemTrack('beatFx', 'four');
         expect(await runTrackStems('four', async () => null, task('drums', 'drums').task)).toBeNull();
         expect(decodeAtRate).toHaveBeenCalledTimes(1);
+    });
+
+    it('carries a run on for the claimant still wanting it, and lets go only the leaving one\'s tasks', async () => {
+        claimStemTrack('beatFx', 'five');
+        claimStemTrack('stemMixer', 'five');
+        const drums = task('drums', 'drums');
+        const mix = task('mix', 'vocals', 0, 'stemMixer');
+        runHtdemucsGpu.mockImplementation(async (l: Float32Array, r: Float32Array) => {
+            if (runHtdemucsGpu.mock.calls.length === 2) claimStemTrack('beatFx', null);
+            return model(l, r);
+        });
+        expect(await Promise.all([runTrackStems('five', bytes, drums.task), runTrackStems('five', bytes, mix.task)]))
+            .toEqual(['drums stopped', 'mix finished']);
+        // Let go while segment 1 ran: not fed it.
+        expect(drums.segments).toEqual([0]);
+        expect(mix.segments).toEqual([0, 1, 2, 3, 4]);
+        expect(runHtdemucsGpu).toHaveBeenCalledTimes(5);
+        claimStemTrack('stemMixer', null);
+    });
+
+    it('stops the run once the last claimant leaves, and when a claimant moves to another track', async () => {
+        claimStemTrack('beatFx', 'six');
+        claimStemTrack('stemMixer', 'six');
+        const drums = task('drums', 'drums');
+        const mix = task('mix', 'vocals', 0, 'stemMixer');
+        runHtdemucsGpu.mockImplementation(async (l: Float32Array, r: Float32Array) => {
+            if (runHtdemucsGpu.mock.calls.length === 2) claimStemTrack('beatFx', null);
+            if (runHtdemucsGpu.mock.calls.length === 3) claimStemTrack('stemMixer', 'seven');
+            return model(l, r);
+        });
+        expect(await Promise.all([runTrackStems('six', bytes, drums.task), runTrackStems('six', bytes, mix.task)]))
+            .toEqual(['drums stopped', 'mix stopped']);
+        expect(runHtdemucsGpu).toHaveBeenCalledTimes(3);
+        claimStemTrack('stemMixer', null);
+    });
+
+    it('keeps a claimant\'s tasks when it names the same track again', async () => {
+        claimStemTrack('beatFx', 'eight');
+        claimStemTrack('stemMixer', 'eight');
+        const drums = task('drums', 'drums');
+        runHtdemucsGpu.mockImplementation(async (l: Float32Array, r: Float32Array) => {
+            if (runHtdemucsGpu.mock.calls.length === 2) claimStemTrack('beatFx', 'eight');
+            return model(l, r);
+        });
+        expect(await runTrackStems('eight', bytes, drums.task)).toBe('drums finished');
+        expect(drums.segments).toEqual([0, 1, 2, 3, 4]);
+        claimStemTrack('beatFx', null);
+        claimStemTrack('stemMixer', null);
     });
 });

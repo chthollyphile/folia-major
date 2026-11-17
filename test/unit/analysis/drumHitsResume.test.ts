@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 // test/unit/analysis/drumHitsResume.test.ts
-// A track's drum separation stopped part way (its picture left: `setWantedDrumTrack(null)`) and carried
+// A track's drum separation stopped part way (its picture left: `claimStemTrack('beatFx', null)`) and carried
 // on later through `loadTrackDrumHits` (analysis service plan, 2b): the hits kept play at once, only
 // the segments not yet separated run, and what is stored is the same bits as a run straight through.
 // The model, the decode and the resampler are stand-ins; the segments, the band stream, the energy and
@@ -59,7 +59,8 @@ vi.stubGlobal('OfflineAudioContext', FakeOfflineAudioContext);
 vi.stubGlobal('window', { electron: { getHtdemucsGpuWeights: () => undefined } });
 vi.stubGlobal('navigator', { gpu: {} });
 
-const { getDrumHits, loadTrackDrumHits, setWantedDrumTrack } = await import('@/services/analysis/drumHits');
+const { getDrumHits, loadTrackDrumHits} = await import('@/services/analysis/drumHits');
+const { claimStemTrack } = await import('@/services/analysis/trackStemRun');
 const { DRUM_HITS_PREFIX } = await import('@/services/analysis/beatGridKeys');
 
 /** A click track: a kick every half second, a hat between, a snare on every other kick's off-beat. */
@@ -98,12 +99,12 @@ describe('a drum separation stopped and carried on', () => {
             calls += 1;
             // A segment takes a while on the GPU: the live picks between catch up, as they do there.
             await new Promise(resolve => setTimeout(resolve, 2));
-            if (calls === stopAfter) setWantedDrumTrack(null);
+            if (calls === stopAfter) claimStemTrack('beatFx', null);
             return { left: left.map(v => v * 0.8 + 0.001), right: right.map(v => v * 0.6) };
         });
         const bytes = async () => new ArrayBuffer(8);
 
-        setWantedDrumTrack('through');
+        claimStemTrack('beatFx', 'through');
         expect(await loadTrackDrumHits('through', bytes)).not.toBeNull();
         const segments = calls;
         expect(segments).toBeGreaterThan(20);
@@ -111,7 +112,7 @@ describe('a drum separation stopped and carried on', () => {
         // Left after 17 segments (past the first live hits), then come back to.
         calls = 0;
         stopAfter = 17;
-        setWantedDrumTrack('carried');
+        claimStemTrack('beatFx', 'carried');
         expect(await loadTrackDrumHits('carried', bytes)).toBeNull();
         expect(calls).toBe(17);
         expect(getDrumHits('carried')).toBeNull();
@@ -119,7 +120,7 @@ describe('a drum separation stopped and carried on', () => {
 
         calls = 0;
         stopAfter = Infinity;
-        setWantedDrumTrack('carried');
+        claimStemTrack('beatFx', 'carried');
         let keptHits: ReturnType<typeof getDrumHits> = null;
         const again = await loadTrackDrumHits('carried', async () => {
             keptHits = getDrumHits('carried');
@@ -153,12 +154,12 @@ describe('a drum separation stopped and carried on', () => {
         runHtdemucsGpu.mockImplementation(async (left: Float32Array, right: Float32Array) => {
             calls += 1;
             await new Promise(resolve => setTimeout(resolve, 2));
-            if (calls === 16) setWantedDrumTrack(null);
+            if (calls === 16) claimStemTrack('beatFx', null);
             return { left: left.slice(), right: right.slice() };
         });
-        setWantedDrumTrack('missing');
+        claimStemTrack('beatFx', 'missing');
         expect(await loadTrackDrumHits('missing', async () => new ArrayBuffer(8))).toBeNull();
-        setWantedDrumTrack('missing');
+        claimStemTrack('beatFx', 'missing');
         let keptHits: ReturnType<typeof getDrumHits> = null;
         expect(await loadTrackDrumHits('missing', async () => {
             keptHits = getDrumHits('missing');
