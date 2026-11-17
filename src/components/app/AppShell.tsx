@@ -14,12 +14,13 @@ import { usePlayerOverlayRoot, usePlayerOverlayReservation } from '../../hooks/u
 import { usePlayerChromeSettingsStore } from '../../stores/usePlayerChromeSettingsStore';
 import { useNativeTrafficLights } from '../../hooks/useNativeTrafficLights';
 import { useDesktopSettingsStore } from '../../stores/useDesktopSettingsStore';
+import { resolveUiZoomFactor } from '../../utils/uiZoom';
 import {
     CLICK_THROUGH_MEDIA_CONTROLS_GAP,
     CLICK_THROUGH_PIN_BUTTON_WIDTH,
     CLICK_THROUGH_UNLOCK_BUTTON_GAP,
     CLICK_THROUGH_UNLOCK_BUTTON_WIDTH,
-    NATIVE_TRAFFIC_LIGHTS_RESERVED_WIDTH,
+    nativeTrafficLightsReservedWidth,
     resolveWindowControlsExtent,
 } from '../../utils/clickThroughUnlockHotspot';
 import type { FoliumLayoutRect } from '../../mods/folium/contract';
@@ -91,10 +92,13 @@ const AppShell: React.FC<AppShellProps> = ({
     const leftControls = titlebarSide === 'left';
     // 窗口带 mac 系统红绿灯时自绘按钮只剩遥控/全屏，锁和切歌按钮跟着靠过去；靠左时整组让开红绿灯。
     const nativeTrafficLights = useNativeTrafficLights();
+    // 红绿灯是原生的，不跟界面缩放走，给它让的位置要按缩放换回 CSS 像素。
+    const uiZoom = useDesktopSettingsStore(state => resolveUiZoomFactor(state.uiZoomEnabled, state.uiZoomStep));
     const windowControlsExtent = resolveWindowControlsExtent({
         hasFullscreenButton: hasFullscreenTitlebarButton,
         nativeTrafficLights,
         side: titlebarSide,
+        zoom: uiZoom,
     });
     const titlebarEdge = leftControls ? 'left' : 'right';
     const clickThroughLockOffset = windowControlsExtent + CLICK_THROUGH_UNLOCK_BUTTON_GAP;
@@ -105,7 +109,7 @@ const AppShell: React.FC<AppShellProps> = ({
     const clickThroughMediaOffset = showsClickThroughPin
         ? clickThroughPinOffset + CLICK_THROUGH_PIN_BUTTON_WIDTH + CLICK_THROUGH_MEDIA_CONTROLS_GAP
         : clickThroughPinOffset;
-    const windowControlsOffset = nativeTrafficLights && leftControls ? NATIVE_TRAFFIC_LIGHTS_RESERVED_WIDTH : 0;
+    const windowControlsOffset = nativeTrafficLights && leftControls ? nativeTrafficLightsReservedWidth(uiZoom) : 0;
 
     useEffect(() => {
         if (!useCustomWindowRadius || !window.electron?.isWindowMaximized) {

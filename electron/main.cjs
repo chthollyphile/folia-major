@@ -5486,13 +5486,15 @@ function isCursorInsideMainWindowClickThroughUnlockHotspot() {
 
   const bounds = mainWindow.getBounds();
   const cursor = screen.getCursorScreenPoint();
-  const scale = process.platform === 'darwin' ? mainWindow.webContents.getZoomFactor() : 1;
+  // The hotspot is in CSS pixels; with 界面缩放 (#1264) one of them is getZoomFactor() window pixels.
+  const scale = mainWindow.webContents.getZoomFactor();
   // Docked DevTools can make the page narrower than the native window.
   return isCursorInsideUnlockHotspot({
     bounds, cursor,
     hotspot: resolveUnlockHotspot(MAIN_WINDOW_CLICK_THROUGH_UNLOCK_HOTSPOT, {
       nativeTrafficLights: mainWindow.__nativeTrafficLights === true,
       side: mainWindowUnlockHoverRequests.getSide(),
+      scale,
     }),
     side: mainWindowUnlockHoverRequests.getSide(),
     viewportWidth: process.platform === 'darwin' ? mainWindowUnlockHoverRequests.getViewportWidth() : null,
@@ -5921,7 +5923,11 @@ function fitMainWindowBoundsToExportSize(exportSize) {
     return null;
   }
 
-  const exportDpr = mainWindow.__dpr && mainWindow.__dpr > 0 ? mainWindow.__dpr : 1;
+  // The renderer's devicePixelRatio counts the page zoom (界面缩放, #1264); window sizes are in
+  // window pixels, so take it back out to get physical pixels per window pixel.
+  const pageDpr = mainWindow.__dpr && mainWindow.__dpr > 0 ? mainWindow.__dpr : 1;
+  const zoom = mainWindow.webContents.getZoomFactor();
+  const exportDpr = zoom > 0 ? pageDpr / zoom : pageDpr;
   const cssWidth = Math.max(1, Math.round(exportSize.width / exportDpr));
   const cssHeight = Math.max(1, Math.round(exportSize.height / exportDpr));
   mainWindow.setContentSize(cssWidth, cssHeight, false);

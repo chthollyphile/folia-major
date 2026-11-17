@@ -427,6 +427,35 @@ export const settingsCommands: CommandPaletteCommand[] = [
             return true;
         },
     },
+    // 界面缩放（#1264）：开关，和一挡一挡地放大缩小（走到 100% 就是关掉）。
+    createSettingsAnchorCommand('settings-ui-zoom', 'Interface zoom settings', 'Jump to the zoom of the whole main window', ['interface zoom', 'ui scale', 'page zoom', 'interface size', '界面缩放', '界面大小', '缩放'], 'uiZoom', { platform: ['electron'] }),
+    createToggleCommand(
+        'ui-zoom-toggle',
+        'settings',
+        'Interface zoom',
+        'Turn zooming the whole main window to the chosen size on or off',
+        ['ui scale', 'page zoom', 'interface size', '界面缩放', '界面大小', '缩放'],
+        context => context.settings.toggleUiZoom(),
+        { platform: ['electron'] },
+    ),
+    defineCommand({
+        id: 'ui-zoom-in',
+        group: 'settings',
+        title: 'Zoom interface in',
+        description: 'Make the whole main window one step larger',
+        keywords: ['zoom in', 'larger interface', 'bigger ui', 'interface zoom', '放大界面', '界面变大', '界面缩放'],
+        platform: ['electron'],
+        execute: (_input, context) => context.settings.stepUiZoom(1),
+    }),
+    defineCommand({
+        id: 'ui-zoom-out',
+        group: 'settings',
+        title: 'Zoom interface out',
+        description: 'Make the whole main window one step smaller',
+        keywords: ['zoom out', 'smaller interface', 'smaller ui', 'interface zoom', '缩小界面', '界面变小', '界面缩放'],
+        platform: ['electron'],
+        execute: (_input, context) => context.settings.stepUiZoom(-1),
+    }),
     createToggleCommand(
         'desktop-toggle-background-throttling',
         'settings',

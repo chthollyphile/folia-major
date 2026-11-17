@@ -174,6 +174,8 @@ const createContext = (overrides: CommandPaletteContextOverrides = {}): CommandP
             toggleVoiceInputPause: vi.fn(),
             togglePreventDisplaySleepDuringPlayback: vi.fn(),
             toggleBackgroundThrottling: vi.fn(),
+            toggleUiZoom: vi.fn(),
+            stepUiZoom: vi.fn(() => true),
             toggleWallpaperMode: vi.fn(),
             toggleCloseToTray: vi.fn(),
             toggleHideRemoteControlTitlebar: vi.fn(),
@@ -931,6 +933,23 @@ describe('command palette registry', () => {
             expect(match.command.id).toBe('desktop-toggle-prevent-display-sleep');
             await match.command.execute('', context);
             expect(context.settings.togglePreventDisplaySleepDuringPlayback).toHaveBeenCalled();
+        } finally {
+            vi.unstubAllGlobals();
+        }
+    });
+
+    it('matches and executes the interface zoom commands', async () => {
+        vi.stubGlobal('window', { electron: {} });
+        try {
+            const context = createContext();
+            const [toggle] = getCommandPaletteMatches('界面缩放', context);
+            expect(toggle.command.id).toBe('ui-zoom-toggle');
+            await toggle.command.execute('', context);
+            expect(context.settings.toggleUiZoom).toHaveBeenCalled();
+            const [zoomOut] = getCommandPaletteMatches('缩小界面', context);
+            expect(zoomOut.command.id).toBe('ui-zoom-out');
+            await zoomOut.command.execute('', context);
+            expect(context.settings.stepUiZoom).toHaveBeenCalledWith(-1);
         } finally {
             vi.unstubAllGlobals();
         }

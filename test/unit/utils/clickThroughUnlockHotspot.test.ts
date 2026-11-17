@@ -119,6 +119,30 @@ describe('click-through unlock hotspot', () => {
         expect(inside(resolveWindowControlsExtent({ hasFullscreenButton: false, nativeTrafficLights, side }) - 1)).toBe(false);
     });
 
+    // 界面缩放: the page is zoomed but the macOS traffic lights are not, so their room stays the same in
+    // window pixels and the lock still lands inside what the main process polls.
+    it.each([0.5, 0.8, 1.5].flatMap(zoom => (['left', 'right'] as const).map(side => ({ zoom, side }))))(
+        'keeps the lock inside the hotspot and clear of the traffic lights at a page zoom: %o', ({ zoom, side }) => {
+            const hotspot = resolveUnlockHotspot(CLICK_THROUGH_UNLOCK_HOTSPOT, { nativeTrafficLights: true, side, scale: zoom });
+            const extent = resolveWindowControlsExtent({ hasFullscreenButton: true, nativeTrafficLights: true, side, zoom });
+            const lockStart = extent + CLICK_THROUGH_UNLOCK_BUTTON_GAP;
+            const inside = (cssFromEdge: number) => isCursorInsideUnlockHotspot({
+                bounds: { x: 0, y: 0, width: VIEWPORT_WIDTH },
+                cursor: { x: side === 'left' ? cssFromEdge * zoom : VIEWPORT_WIDTH - cssFromEdge * zoom, y: BUTTON_CENTER_Y * zoom },
+                hotspot,
+                side,
+                scale: zoom,
+            });
+            for (let fromEdge = lockStart; fromEdge <= lockStart + CLICK_THROUGH_UNLOCK_BUTTON_WIDTH; fromEdge += 1) {
+                expect(inside(fromEdge)).toBe(true);
+            }
+            if (side === 'left') {
+                // The drawn buttons start where the 76 window pixels of traffic lights end.
+                expect((extent - 2 * 44) * zoom).toBeCloseTo(76);
+            }
+        },
+    );
+
     it('keeps clear of the caption buttons of a maximized window underneath', () => {
         // Windows draws minimize / maximize / close 46px wide each, so they reach 138px in.
         expect(isWithinClickThroughUnlockHotspot(VIEWPORT_WIDTH - 138, BUTTON_CENTER_Y, VIEWPORT_WIDTH)).toBe(false);

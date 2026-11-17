@@ -252,6 +252,10 @@ export const buildSettingsCommandContext = (
         toggleBackgroundThrottling: () => desktop.handleToggleBackgroundThrottling(
             !useDesktopSettingsStore.getState().backgroundThrottling,
         ),
+        toggleUiZoom: () => desktop.handleToggleUiZoom(
+            !useDesktopSettingsStore.getState().uiZoomEnabled,
+        ),
+        stepUiZoom: direction => desktop.handleStepUiZoom(direction),
         toggleWallpaperMode: () => desktop.handleToggleWallpaperMode(
             !useDesktopSettingsStore.getState().wallpaperMode,
         ),
