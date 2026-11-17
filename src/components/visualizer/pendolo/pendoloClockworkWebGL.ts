@@ -1,4 +1,4 @@
-import { parseColorChannels } from '../colorMix';
+import { parseColorChannels } from '../../../utils/colorMix';
 import {
     buildPendoloClockworkCacheKey,
     buildPendoloClockworkCachedScene,

@@ -93,7 +93,7 @@ App.tsx
 - 行时序/短行：`utils/lyrics/renderHints.ts`。
 - CJK semantic、sticky punctuation、display units：`utils/lyrics/cjkSemanticLayout.ts`。
 - grapheme timing：`utils/lyrics/graphemeTiming.ts`。
-- 共享字体、颜色、播放身份：`utils/fontStacks.ts`、`components/visualizer/colorMix.ts`、`utils/appPlaybackGuards.ts`。
+- 共享字体、颜色、播放身份：`utils/fontStacks.ts`、`utils/colorMix.ts`、`utils/appPlaybackGuards.ts`。
 - Visualizer 共享入口、契约和运行时：`components/visualizer/VisualizerRenderer.tsx`、`definition.ts`、`registry.tsx`、`tuningRegistry.ts`、`tuningDefinition.ts`、`runtime.ts`、`VisualizerShell.tsx`。
 - 模式清单与具体入口：`components/visualizer/<mode>/entry.tsx`；`components/visualizer/` 下每个带 `entry.tsx` 的目录就是一个模式，清单以目录为准，这里不抄。
 - 背景 registry：`components/visualizer/backgrounds/registry.tsx`；`backgrounds/` 下每个带 `entry.tsx` 的目录就是一个背景。

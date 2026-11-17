@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { DEFAULT_CADENZA_TUNING, Line } from '../../../types';
 import { getLineRenderEndTime } from '../../../utils/lyrics/renderHints';
 import { resolveLyricPixelRatio } from '../../../utils/lyricRenderQuality';
-import { colorWithAlpha, mixColors } from '../colorMix';
+import { colorWithAlpha, mixColors } from '../../../utils/colorMix';
 import { prepareActiveAndUpcoming, useVisualizerRuntime } from '../runtime';
 import { type VisualizerSharedProps } from '../definition';
 import VisualizerShell from '../VisualizerShell';

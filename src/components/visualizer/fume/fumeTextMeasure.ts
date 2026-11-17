@@ -3,7 +3,7 @@ import { Theme } from '../../../types';
 import { resolveThemeFontWeight } from '../../../utils/fontStacks';
 import type { RenderLineSlice, RenderSegmentSlice, SegmentMeta, WordRange } from './fumeTypes';
 import { clamp, splitGraphemes } from './fumeMath';
-import { measurePrefixOffsets, rememberBounded } from '../textMeasureCache';
+import { measurePrefixOffsets, rememberBounded } from '../../../utils/textMeasureCache';
 
 // src/components/visualizer/fume/fumeTextMeasure.ts
 // Text measurement for fume: pretext segments, glyph offsets and advances inside render lines.

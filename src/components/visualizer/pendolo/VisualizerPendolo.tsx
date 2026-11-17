@@ -4,7 +4,7 @@ import { Star, type LucideIcon } from 'lucide-react';
 import { DEFAULT_PENDOLO_TUNING } from '../../../types';
 import { resolveLyricAntialias } from '../../../utils/lyricRenderQuality';
 import { useLyricRenderQuality } from '../renderQuality/useLyricRenderQuality';
-import { colorWithAlpha } from '../colorMix';
+import { colorWithAlpha } from '../../../utils/colorMix';
 import { useLucideIcons } from '../../../hooks/useLucideIcons';
 import { resolveLucideIcon } from '../../../services/lucideIconResolver';
 import { type VisualizerSharedProps } from '../definition';

@@ -18,7 +18,7 @@ import { canResolveSongCatalogRef } from '../../../services/onlineMusic/catalogR
 import { useGridCommandFilter } from '../../../hooks/useGridCommandFilter';
 import { useGridSurfaceRegistration } from '../../../hooks/useGridSurfaceRegistration';
 import { useLocalTrackSortStore } from '../../core/directory/useLocalTrackSortStore';
-import { colorWithAlpha } from '../../../components/visualizer/colorMix';
+import { colorWithAlpha } from '../../../utils/colorMix';
 import { PRIMARY_MODIFIER_LABEL } from '../../../utils/platform';
 import LibraryTuiHeader from './LibraryTuiHeader';
 import LibraryTuiRow, { LIBRARY_TUI_COLUMNS, LIBRARY_TUI_ROW_HEIGHT, type LibraryTuiRowProps } from './LibraryTuiRow';

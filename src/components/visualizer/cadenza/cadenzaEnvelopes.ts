@@ -1,7 +1,7 @@
 import { Line, Word as WordType } from '../../../types';
 import { type GraphemeTiming } from '../../../utils/lyrics/graphemeTiming';
 import { getLineTransitionTiming } from '../../../utils/lyrics/renderHints';
-import { colorWithAlpha } from '../colorMix';
+import { colorWithAlpha } from '../../../utils/colorMix';
 import type { ResolvedLineRenderTiming } from './cadenzaTypes';
 
 // src/components/visualizer/cadenza/cadenzaEnvelopes.ts

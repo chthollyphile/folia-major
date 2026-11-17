@@ -12,7 +12,7 @@ import { kitTransition, useKitReducedMotion } from '../../modal/settings/kit/mot
 import StudioWindow from '../../shared/StudioWindow';
 import { visualizersRegistry } from '@/mods/folium/registries/visualizers';
 import { useFoliumRegistryEntries } from '@/mods/runtime/registry';
-import { colorWithAlpha } from '../colorMix';
+import { colorWithAlpha } from '../../../utils/colorMix';
 import { type PreviewPlaceholderId } from '../PreviewPlaceholder';
 import { VISUALIZER_REGISTRY, getVisualizerModeLabel, getVisualizerRegistryEntry } from '../registry';
 import VisPlaygroundPreviewHotspots, { type VisPlaygroundEditSection, type VisPlaygroundHotspotSection } from './VisPlaygroundPreviewHotspots';

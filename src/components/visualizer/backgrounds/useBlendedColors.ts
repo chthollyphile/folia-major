@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { MotionValue } from 'framer-motion';
-import { mixColors } from '../colorMix';
+import { mixColors } from '../../../utils/colorMix';
 import { progressSince } from '../../../services/automix/handoffProgress';
 
 // src/components/visualizer/backgrounds/useBlendedColors.ts

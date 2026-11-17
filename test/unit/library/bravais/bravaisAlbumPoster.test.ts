@@ -3,7 +3,7 @@ import type { LibraryCollectionDescriptor } from '@/library/core/collection/coll
 import { formatAlbumDuration, projectBravaisSeamAlbum } from '@/library/suites/bravais/bravaisAlbumModel';
 import { resolveAlbumComposition } from '@/library/suites/bravais/bravaisPosterComposition';
 import { albumPaletteVars, resolveBravaisAlbumPalette } from '@/library/suites/bravais/bravaisPosterPalette';
-import { parseColorChannels } from '@/components/visualizer/colorMix';
+import { parseColorChannels } from '@/utils/colorMix';
 
 // test/unit/library/bravais/bravaisAlbumPoster.test.ts
 // 专辑海报：信息只有专辑类型的集合有（详情盖在描述上、年份可以从发行时间里取）；构图按专辑定死；颜色是浅纸底、深色块，

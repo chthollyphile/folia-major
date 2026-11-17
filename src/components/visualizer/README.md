@@ -141,7 +141,7 @@ Visualizer 消费已解析的 `LyricData` / `Line` / `Word`，不负责解析 `.
 - `src/utils/lyrics/graphemeTiming.ts`：逐 grapheme timing
 - `wordColoring.ts`：共享词高亮范围
 - `src/utils/fontStacks.ts`：DOM、Canvas、pretext 和光栅化路径统一字重/字体栈
-- `colorMix.ts`：主题色 alpha 与混合
+- `src/utils/colorMix.ts`：主题色 alpha 与混合
 
 `Line.fullText` 用于整句布局，`Line.words` 是 timing 真源；两者不保证简单拼接完全相等。重复词、空格、CJK 和标点不要用字符串搜索重新猜时间范围。
 
