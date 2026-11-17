@@ -16,7 +16,7 @@ const QUEUE_FIXTURE = [
     { id: 3, name: 'Same Album', artists: [{ id: 11, name: 'Beta' }], album: { id: 20, name: 'Shared Album' }, durationMs: 180_000 },
 ];
 
-/** 对应 src/components/command-palette/pinnedCommandPreferences.ts */
+/** 对应 src/stores/pinnedCommandPreferences.ts */
 const PINNED_COMMANDS_STORAGE_KEY = 'command_palette_pinned_commands_v1';
 
 const palette = (page: Page) => page.getByTestId('command-palette-panel');
