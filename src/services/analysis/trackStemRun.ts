@@ -25,6 +25,12 @@ import { decodeTrackAtRate } from './trackBytes';
 // could keep a run going, and clearing it stopped every task on it.
 
 const STEM_RATE = 44100;
+/**
+ * The longest track a run separates. The run holds the whole decode (44.1 kHz stereo float, ~21 MB a
+ * minute) for as long as it goes, so an hour-long mix would hold over a gigabyte; longer tracks are not
+ * separated (answer null). Callers that know the length beforehand skip them before reading the bytes.
+ */
+export const STEM_RUN_MAX_SECONDS = 20 * 60;
 
 export interface StemTrack { key: string; left: Float32Array; right: Float32Array }
 
@@ -156,7 +162,10 @@ const readersNow = (run: TrackRun, track: StemTrack, count: number): StemReader[
 /** Decodes the track and runs its pass until every task has answered (see the header). */
 const drive = async (run: TrackRun, readBytes: () => Promise<ArrayBuffer | null>) => {
     const bytes = await readBytes().catch(() => null);
-    const buffer = bytes ? await decodeTrackAtRate(run.key, STEM_RATE, bytes, decodeAtRate, 'stems', 'own') : null;
+    const decoded = bytes ? await decodeTrackAtRate(run.key, STEM_RATE, bytes, decodeAtRate, 'stems', 'own') : null;
+    const tooLong = Boolean(decoded && decoded.length > STEM_RUN_MAX_SECONDS * STEM_RATE);
+    if (tooLong) console.info(`[StemRun] ${run.key}: longer than ${STEM_RUN_MAX_SECONDS / 60} min, not separated`);
+    const buffer = tooLong ? null : decoded;
     if (!buffer) {
         runs.delete(run.key);
         for (const entry of run.entries) if (entry.state === 'waiting') entry.settle(null);

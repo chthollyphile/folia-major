@@ -1345,9 +1345,11 @@ export default {
       "status": {
         "off": "Khi bật, bài đang phát được tách trực tiếp trên GPU; phần chưa tách phát nguyên bản.",
         "waiting": "Đang chờ phát",
-        "separating": "Đang tách {{percent}}%",
-        "ready": "Đã tách cả bài",
-        "failed": "Không tách được bài này; đang phát nguyên bản"
+        "separating": "Đang tách",
+        "ready": "Đang dùng các track đã tách",
+        "failed": "Không tách được bài này; đang phát nguyên bản",
+        "notFollowing": "Nguồn đang phát không khớp với nguồn đã tách; đang phát nguyên bản",
+        "tooLong": "Dài hơn 20 phút; không tách"
       },
       "block": {
         "automix": "Không dùng được khi bật chuyển bài thông minh: cả hai cùng tiếp quản một luồng phát.",

@@ -40,10 +40,15 @@ export type StemMixerStatus =
     | { phase: 'blocked'; block: StemMixerBlock }
     /** 开着，还没开始放（还没播放过，或这首没有可读的音频）。 */
     | { phase: 'waiting' }
-    /** 正在分；`share` 是整首里已分好的比例。 */
-    | { phase: 'separating'; share: number }
+    /** 正在分，播放头这里还没有分轨（放的是原曲）。 */
+    | { phase: 'separating' }
+    /** 播放头这里有分轨，调音台在起作用。 */
     | { phase: 'ready' }
-    /** 这首读不到或分不了：放的是原曲。 */
+    /** 分好了，但元素放的不是分离的那个音源（或不是 1.0× 速度）：放的是原曲。 */
+    | { phase: 'notFollowing' }
+    /** 超过分轨运行的时长上限（analysis/trackStemRun.ts 的 STEM_RUN_MAX_SECONDS）：不分。 */
+    | { phase: 'tooLong' }
+    /** 这首读不到或分不了：放的是原曲（跳转时再试）。 */
     | { phase: 'failed' };
 
 export const clampStemMixerGain = (value: number): number => (

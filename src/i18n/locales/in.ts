@@ -1345,9 +1345,11 @@ export default {
       "status": {
         "off": "Saat aktif, lagu yang diputar dipisah langsung di GPU; bagian yang belum dipisah diputar apa adanya.",
         "waiting": "Menunggu pemutaran",
-        "separating": "Memisahkan {{percent}}%",
-        "ready": "Seluruh lagu sudah dipisah",
-        "failed": "Lagu ini tidak bisa dipisah; diputar apa adanya"
+        "separating": "Memisahkan",
+        "ready": "Stem sedang aktif",
+        "failed": "Lagu ini tidak bisa dipisah; diputar apa adanya",
+        "notFollowing": "Sumber yang diputar tidak cocok dengan yang dipisah; diputar apa adanya",
+        "tooLong": "Lebih dari 20 menit; tidak dipisah"
       },
       "block": {
         "automix": "Tidak tersedia saat transisi pintar aktif: keduanya mengambil alih pemutaran yang sama.",

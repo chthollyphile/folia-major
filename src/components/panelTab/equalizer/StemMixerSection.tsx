@@ -41,8 +41,10 @@ type StemMixerSectionProps = {
 const statusHint = (status: StemMixerStatus, t: (key: string, options?: Record<string, unknown>) => string): string | undefined => {
     switch (status.phase) {
         case 'waiting': return t('ui.stemMixer.status.waiting');
-        case 'separating': return t('ui.stemMixer.status.separating', { percent: Math.round(status.share * 100) });
+        case 'separating': return t('ui.stemMixer.status.separating');
         case 'ready': return t('ui.stemMixer.status.ready');
+        case 'notFollowing': return t('ui.stemMixer.status.notFollowing');
+        case 'tooLong': return t('ui.stemMixer.status.tooLong');
         case 'failed': return t('ui.stemMixer.status.failed');
         default: return undefined;
     }
@@ -60,10 +62,8 @@ const StemMixerSection: React.FC<StemMixerSectionProps> = ({ isHifiRoute, isExte
     const automixEnabled = useAutomixSettingsStore(state => state.automixEnabled);
     const toggleAutomix = useAutomixSettingsStore(state => state.handleToggleAutomix);
 
-    // 开着时以播放端报的为准；关着时也先说清楚开了会怎样。
-    const block: StemMixerBlock | null = status.phase === 'blocked'
-        ? status.block
-        : stemMixerBlock({ automix: automixEnabled, hifi: isHifiRoute, external: isExternalRoute });
+    // 每次按此刻的设置判断（不用播放端报的，它晚一拍）；关着时也先说清楚开了会怎样。
+    const block: StemMixerBlock | null = stemMixerBlock({ automix: automixEnabled, hifi: isHifiRoute, external: isExternalRoute });
     // GPU 分不了：开关也够不着（命令面板按同一个判断不出现）。
     const deviceBlocked = block === 'noGpu' || block === 'tooSlow';
     const live = enabled && block === null;

@@ -1345,9 +1345,11 @@ export default {
       "status": {
         "off": "When on, the playing song is separated live on the GPU; what is not separated yet plays as recorded.",
         "waiting": "Waiting for playback",
-        "separating": "Separating {{percent}}%",
-        "ready": "Whole song separated",
-        "failed": "This song cannot be separated; playing it as recorded"
+        "separating": "Separating",
+        "ready": "Stems in effect",
+        "failed": "This song cannot be separated; playing it as recorded",
+        "notFollowing": "The playing source does not match the separated one; playing it as recorded",
+        "tooLong": "Longer than 20 minutes; not separated"
       },
       "block": {
         "automix": "Not available while smart transitions are on: both take over the same playback.",

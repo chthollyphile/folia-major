@@ -1345,9 +1345,11 @@ export default {
       "status": {
         "off": "开启后在 GPU 上实时分离正在放的歌，没分到的地方放原曲。",
         "waiting": "等待播放",
-        "separating": "正在分离 {{percent}}%",
-        "ready": "整首已分离",
-        "failed": "这首无法分离，正在放原曲"
+        "separating": "正在分离",
+        "ready": "分轨已生效",
+        "failed": "这首无法分离，正在放原曲",
+        "notFollowing": "播放的音源和分离的对不上，正在放原曲",
+        "tooLong": "这首超过 20 分钟，不分离"
       },
       "block": {
         "automix": "智能过渡开启时不可用：两者都要接管同一路播放。",
