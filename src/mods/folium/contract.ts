@@ -2634,7 +2634,8 @@ export interface FoliumLyricsHelpers {
 
 /**
  * Folium 1.10: one side (light or dark) of a theme a mod hands to `folium.theme.apply`. Every field may be
- * left out; one left out takes the host's default. Colors are hex (`#rgb` or `#rrggbb`); any other color
+ * left out; one left out takes the host's default. Texts (names, descriptions, words, icons) are cut to 200
+ * characters. Colors are hex (`#rgb` or `#rrggbb`); any other color
  * is a malformed argument. `name` defaults to the mod's name. The animation intensity, the fonts and
  * `isDaylight` are not taken from it: the intensity and the fonts stay the user's, and the side says which
  * mode it is for. A FoliumTheme (from `getCurrent` or `fromColors`) is accepted as it is.
@@ -2650,7 +2651,7 @@ export interface FoliumThemeInput {
     accentColor?: string;
     /** Color for secondary text. */
     secondaryColor?: string;
-    /** Keyword colors, each a word and a hex color. */
+    /** Keyword colors, each a word and a hex color; at most 64 are kept. */
     wordColors?: readonly { readonly word: string; readonly color: string }[];
     /** Decorative icon names; at most 12 are kept. */
     lyricsIcons?: readonly string[];
@@ -2757,7 +2758,9 @@ export interface FoliumThemeHelpers {
     resolveFontWeight(theme: Pick<FoliumTheme, 'fontWeight'> | null | undefined, fallback: number): number;
     /**
      * Folium 1.10: the theme on screen now, in the app's current mode, as `theme.changed` gives it. A mount
-     * reads the same from its context; this is for code with no mount. Main window only.
+     * reads the same from its context; this is for code with no mount. Before the first screen (while
+     * `activate` runs) it is the host's default dark theme: follow `theme.changed` for the real one. Main
+     * window only.
      */
     getCurrent(): FoliumTheme;
     /** Folium 1.10: whose theme is on screen, and whether `apply` may change it now. Main window only. */

@@ -163,6 +163,12 @@ export const resolveControllerTheme = ({
         return normalizeTheme(getSelectedDualTheme(overrideTheme, isDaylight));
     }
 
+    // The AI fallback below keeps the previous theme's keyword colors and icons; a mod's theme that was just
+    // taken off (its provider is `mod:<id>`, hostTheme.ts) lends it none.
+    const carriedTheme = previousTheme.provider?.startsWith('mod:')
+        ? { ...previousTheme, wordColors: [], lyricsIcons: [] }
+        : previousTheme;
+
     if (bgMode === 'custom' && customTheme) {
         return normalizeTheme(getSelectedDualTheme(customTheme, isDaylight));
     }
@@ -185,7 +191,7 @@ export const resolveControllerTheme = ({
         isDaylight,
         defaultTheme,
         daylightTheme,
-        previousTheme,
+        previousTheme: carriedTheme,
     }));
 };
 
@@ -513,8 +519,12 @@ export function useThemeController({
         }
 
         applyPreferenceSwitchState(resolveCustomThemePreferenceChange(getPreferenceSwitchState(), enabled));
+        // Mirrored at once rather than a render later, so no mod's apply slips in between; a mod's theme ends
+        // as the host's doing (the contract reports the preference coming on as `host`).
+        const overrideStore = useThemeOverrideStore.getState();
+        overrideStore.setCustomPreferred(enabled && Boolean(customTheme));
         if (enabled && customTheme) {
-            endThemeOverrideForUserChoice();
+            overrideStore.clearOverride({ kind: 'host' });
             setBgMode('custom');
         }
 

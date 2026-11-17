@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { DualTheme } from '../types';
+import { getStoredBoolean } from './storagePrimitives';
 
 // src/stores/useThemeOverrideStore.ts
 // A theme laid over the song's theme by someone other than the user: today only a mod, through
@@ -37,10 +38,17 @@ type ThemeOverrideState = {
     setCustomPreferred: (preferred: boolean) => void;
 };
 
+/*
+ * The custom theme preference as the theme controller saved it (hooks/useThemeController.ts writes this key,
+ * true only while a custom theme exists). Read once here because mods activate before the App mounts: until
+ * the controller mirrors the flag, this is what refuses their `apply`.
+ */
+const readSavedCustomPreferred = (): boolean => getStoredBoolean('custom_theme_preferred', false);
+
 export const useThemeOverrideStore = create<ThemeOverrideState>((set, get) => ({
     override: null,
     origin: { kind: 'host' },
-    customPreferred: false,
+    customPreferred: readSavedCustomPreferred(),
     setModOverride: (override) => set({ override, origin: { kind: 'mod', modId: override.modId } }),
     clearOverride: (origin) => {
         if (!get().override) return false;

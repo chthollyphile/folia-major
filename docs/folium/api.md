@@ -1762,7 +1762,8 @@ times and colors lines exactly as they do. Available in both contexts.
 ### FoliumThemeInput
 
 Folium 1.10: one side (light or dark) of a theme a mod hands to `folium.theme.apply`. Every field may be
-left out; one left out takes the host's default. Colors are hex (`#rgb` or `#rrggbb`); any other color
+left out; one left out takes the host's default. Texts (names, descriptions, words, icons) are cut to 200
+characters. Colors are hex (`#rgb` or `#rrggbb`); any other color
 is a malformed argument. `name` defaults to the mod's name. The animation intensity, the fonts and
 `isDaylight` are not taken from it: the intensity and the fonts stay the user's, and the side says which
 mode it is for. A FoliumTheme (from `getCurrent` or `fromColors`) is accepted as it is.
@@ -1774,7 +1775,7 @@ mode it is for. A FoliumTheme (from `getCurrent` or `fromColors`) is accepted as
 | `primaryColor?` | `string` | Color of lyric text. |
 | `accentColor?` | `string` | Color for highlights. |
 | `secondaryColor?` | `string` | Color for secondary text. |
-| `wordColors?` | `readonly { readonly word: string; readonly color: string }[]` | Keyword colors, each a word and a hex color. |
+| `wordColors?` | `readonly { readonly word: string; readonly color: string }[]` | Keyword colors, each a word and a hex color; at most 64 are kept. |
 | `lyricsIcons?` | `readonly string[]` | Decorative icon names; at most 12 are kept. |
 | `description?` | `string` | Theme description. |
 
@@ -1879,7 +1880,7 @@ throw `permission-denied:theme.write` without it. Malformed arguments throw a Ty
 | `resolveFontStack()` | `(theme: Pick<FoliumTheme, 'fontStyle' \| 'fontFamily' \| 'fontFamilyStack'>): string` | CSS font-family value for lyric text. |
 | `resolveTranslationFontStack()` | `(theme: Pick<FoliumTheme, 'fontStyle' \| 'fontFamily' \| 'fontFamilyStack'>): string` | CSS font-family value for translations and subtitles. |
 | `resolveFontWeight()` | `(theme: Pick<FoliumTheme, 'fontWeight'> \| null \| undefined, fallback: number): number` | The theme's weight, normalized, or `fallback`. |
-| `getCurrent()` | `(): FoliumTheme` | Folium 1.10: the theme on screen now, in the app's current mode, as `theme.changed` gives it. A mount reads the same from its context; this is for code with no mount. Main window only. |
+| `getCurrent()` | `(): FoliumTheme` | Folium 1.10: the theme on screen now, in the app's current mode, as `theme.changed` gives it. A mount reads the same from its context; this is for code with no mount. Before the first screen (while `activate` runs) it is the host's default dark theme: follow `theme.changed` for the real one. Main window only. |
 | `getOverride()` | `(): FoliumThemeOverride` | Folium 1.10: whose theme is on screen, and whether `apply` may change it now. Main window only. |
 | `fromColors()` | `(colors: readonly string[]): FoliumDualTheme` | Folium 1.10: a theme for both modes from 1 to 8 hex colors, the most prominent first, made the way the host makes a theme from a song's cover (the cover theme source): hues kept close to the ones given, text pushed to a readable contrast. Hand it to `apply` as it is, or change it first. The name and description are picked at random from the host's tables, so two calls may name the same colors differently. Pure: available in both contexts, needs no permission. |
 | `apply()` | `(theme: FoliumDualThemeInput): FoliumThemeWriteResult` | Folium 1.10: lays this mod's theme over the song's theme: the light side in light mode, the dark side in dark mode. Replaces this mod's theme in place, or another mod's. It stays until the user chooses a theme, another mod applies one, this mod releases it, or this mod is disabled or removed. Needs `theme.write`. |

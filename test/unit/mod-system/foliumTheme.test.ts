@@ -287,6 +287,15 @@ describe('resolveControllerTheme with a mod theme', () => {
         }
     });
 
+    it('lends the keyword colors and icons of a released mod theme to nothing', () => {
+        const previousTheme: Theme = { ...MOD.dark, provider: 'mod:wallpaper', wordColors: [{ word: 'x', color: '#ff0000' }], lyricsIcons: ['star'] };
+        const fallback = resolve({ aiTheme: null, previousTheme });
+        expect(fallback.wordColors).toEqual([]);
+        expect(fallback.lyricsIcons).toEqual([]);
+        const kept = resolve({ aiTheme: null, previousTheme: { ...previousTheme, provider: 'AI' } });
+        expect(kept.lyricsIcons).toEqual(['star']);
+    });
+
     it('steps aside while the user prefers their custom theme', () => {
         expect(resolve({ bgMode: 'custom', overrideTheme: MOD, customPreferred: true }).name).toBe('custom dark');
         expect(resolve({ overrideTheme: null }).name).toBe('ai dark');
