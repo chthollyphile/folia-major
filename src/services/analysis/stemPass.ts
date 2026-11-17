@@ -105,12 +105,15 @@ const layInto = (reader: StemReader, stem: { left: Float32Array; right: Float32A
  * Runs the segments `readers()` need over a stereo 44.1 kHz track (see the header): true once none is
  * left, false as soon as `keepGoing` says no (asked before each) or a segment cannot be separated.
  * With the track's analysis `key`, segments are shared with automix through stemRange.ts.
+ * `stillFed`, asked just before each reader is fed (another's `read` may have let it go meanwhile),
+ * keeps a reader let go from being fed after its owner answered; unlike `readers()` it has no effects.
  */
-export const runStemPass = async ({ left, right, readers, keepGoing = () => true, key, urgency = 'onScreen' }: {
+export const runStemPass = async ({ left, right, readers, keepGoing = () => true, stillFed = () => true, key, urgency = 'onScreen' }: {
     left: Float32Array;
     right: Float32Array;
     readers: () => readonly StemReader[];
     keepGoing?: () => boolean;
+    stillFed?: (reader: StemReader) => boolean;
     key?: string;
     urgency?: Urgency;
 }): Promise<boolean> => {
@@ -140,7 +143,7 @@ export const runStemPass = async ({ left, right, readers, keepGoing = () => true
         // Let go while the segment ran: not fed.
         const now = readers();
         for (const reader of group) {
-            if (!now.includes(reader)) continue;
+            if (!now.includes(reader) || !stillFed(reader)) continue;
             const stem = stems[STEM_SOURCES.indexOf(reader.source)];
             if (!stem) return false;
             const final = layInto(reader, stem, index, n, starts, win, segment, total);

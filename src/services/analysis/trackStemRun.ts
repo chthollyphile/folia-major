@@ -61,6 +61,8 @@ interface TrackRun {
     entries: TaskEntry[];
     /** Answers still being worked out (a finish or a stop). */
     pending: Promise<void>[];
+    /** The track's segment count, once decoded. */
+    count: number | null;
 }
 
 const runs = new Map<string, TrackRun>();
@@ -83,14 +85,22 @@ const answer = (run: TrackRun, entry: TaskEntry, how: () => Promise<unknown>) =>
         .then(entry.settle));
 };
 
-/** Stops one task now: a waiting one answers null, a reading one from its stop; the pass feeds it no more. */
+/** Whether every reader of a reading task is through: it answers from its finish at the pass' next turn. */
+const through = (run: TrackRun, entry: TaskEntry) => (
+    entry.state === 'reading' && run.count !== null && entry.opened!.readers.every(reader => reader.next >= run.count!)
+);
+
+/**
+ * Stops one task now: a waiting one answers null, a reading one from its stop; the pass feeds it no
+ * more (`stillFed`). One already through is left to answer from its finish: its work is whole.
+ */
 const letGo = (run: TrackRun, entry: TaskEntry) => {
     if (entry.state === 'waiting') {
         entry.state = 'answering';
         entry.settle(null);
         return;
     }
-    if (entry.state === 'reading') answer(run, entry, entry.opened!.stop);
+    if (entry.state === 'reading' && !through(run, entry)) answer(run, entry, entry.opened!.stop);
 };
 
 /**
@@ -124,11 +134,21 @@ const openWaiting = (run: TrackRun, track: StemTrack) => {
     }
 };
 
-/** The readers of the tasks still reading; a task whose readers are all through answers from its finish. */
+/**
+ * The readers of the tasks still reading; a task whose readers are all through answers from its finish.
+ * While the run goes on, a task whose claimant no longer wants the track is let go here - however the
+ * claims moved (its claimant left first and another came to the track later, say).
+ */
 const readersNow = (run: TrackRun, track: StemTrack, count: number): StemReader[] => {
     openWaiting(run, track);
     for (const entry of run.entries) {
         if (entry.state === 'reading' && entry.opened!.readers.every(reader => reader.next >= count)) answer(run, entry, entry.opened!.finish);
+    }
+    // Only while someone wants the run: with no one, the pass stops and every task answers from its stop as it always did.
+    if (stemTrackWanted(run.key)) {
+        for (const entry of run.entries) {
+            if (!stemTrackWanted(run.key, entry.task.claimant)) letGo(run, entry);
+        }
     }
     return run.entries.flatMap(entry => (entry.state === 'reading' ? entry.opened!.readers : []));
 };
@@ -145,12 +165,14 @@ const drive = async (run: TrackRun, readBytes: () => Promise<ArrayBuffer | null>
     const left = buffer.getChannelData(0);
     const track: StemTrack = { key: run.key, left, right: buffer.numberOfChannels > 1 ? buffer.getChannelData(1) : left };
     const count = stemSegmentStarts(left.length).length;
+    run.count = count;
     const done = await runStemPass({
         left: track.left,
         right: track.right,
         key: run.key,
         readers: () => readersNow(run, track, count),
         keepGoing: () => stemTrackWanted(run.key),
+        stillFed: reader => run.entries.some(entry => entry.state === 'reading' && entry.opened!.readers.includes(reader)),
     });
     // Anything asked for after this answers from a run of its own.
     runs.delete(run.key);
@@ -176,7 +198,7 @@ export const runTrackStems = <T>(key: string, readBytes: () => Promise<ArrayBuff
         existing.entries.push(entry);
         return entry.answer as Promise<T | null>;
     }
-    const run: TrackRun = { key, entries: [entry], pending: [] };
+    const run: TrackRun = { key, entries: [entry], pending: [], count: null };
     runs.set(key, run);
     void drive(run, readBytes).catch((error) => {
         console.warn(`[StemRun] ${key}: failed`, error);
