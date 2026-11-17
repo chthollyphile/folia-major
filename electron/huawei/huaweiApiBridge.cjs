@@ -97,15 +97,16 @@ function resultFailure(payload) {
     if (code === '142400' || /vip|会员|subscription/i.test(message)) {
         return new HuaweiBridgeError('subscription-required', message || 'Huawei Music VIP is required', { upstreamCode: code });
     }
-    if (/token.*(expired|invalid)|登录已过期|会话已过期|token已过期/i.test(message)) {
+    if (/(?:token|session).*(expired|invalid)|登录已过期|会话已过期|(?:token|令牌)已过期/i.test(message)) {
         return new HuaweiBridgeError('auth-required', message || 'Huawei Music sign-in expired', { upstreamCode: code });
     }
-    return new HuaweiBridgeError('not-playable', message || `Huawei Music refused the request (${code})`, { upstreamCode: code });
+    return new HuaweiBridgeError(/system error/i.test(message) ? 'unavailable' : 'not-playable',
+        message || `Huawei Music refused the request (${code})`, { upstreamCode: code });
 }
 
 function createHuaweiApiBridge({ store, safeStorage, fetch, BrowserWindow, session, parentWindow = () => null,
     onAudioSource = () => {}, language = () => 'en', now = Date.now, warn = console.warn }) {
-    const sessions = createSessionRepository({ store, safeStorage, warn });
+    const sessions = createSessionRepository({ store, safeStorage, warn, now });
     const attempts = new Map();
     const isCurrentAttempt = attempt => attempts.get(attempt.key) === attempt
         && attempt.status === 'waiting' && now() - attempt.createdAt <= LOGIN_TTL_MS;
@@ -139,6 +140,14 @@ function createHuaweiApiBridge({ store, safeStorage, fetch, BrowserWindow, sessi
     };
 
     const musicRequest = async ({ method = 'POST', path, query, body, token = '', stage = 'request' }) => {
+        const revision = sessions.revision;
+        // Only the stored session actually sent by this call may be invalidated. A login
+        // candidate, anonymous metadata, or a late answer for an old login cannot sign out a user.
+        const refuse = failure => {
+            if (token && failure.code === 'auth-required' && sessions.revision === revision
+                && sessions.peek()?.token === token) sessions.clear();
+            throw failure;
+        };
         let url = MUSIC_ENDPOINT + path;
         if (query) url += `?${new URLSearchParams(query).toString()}`;
         const headers = {
@@ -152,21 +161,27 @@ function createHuaweiApiBridge({ store, safeStorage, fetch, BrowserWindow, sessi
             ...(body === undefined ? {} : { body: JSON.stringify(body) }),
         });
         const payload = parseEnvelope(text);
-        if (payload?.error) {
-            throw new HuaweiBridgeError('not-playable', `Huawei Music ${stage} failed`, { httpStatus: response.status });
-        }
         if (!response.ok) {
-            throw new HuaweiBridgeError(
-                response.status === 401 || response.status === 403 ? 'auth-required'
+            refuse(new HuaweiBridgeError(
+                response.status === 401 ? 'auth-required'
                     : response.status === 429 ? 'unavailable'
                         : response.status >= 500 ? 'network' : 'not-playable',
                 `Huawei Music ${stage} failed (HTTP ${response.status})`,
                 { httpStatus: response.status },
-            );
+            ));
+        }
+        if (payload?.error) {
+            throw new HuaweiBridgeError('not-playable', `Huawei Music ${stage} failed`, { httpStatus: response.status });
         }
         if (!payload) throw new HuaweiBridgeError('invalid-response', `Huawei Music ${stage} returned no JSON`);
         const failure = resultFailure(payload);
-        if (failure) throw failure;
+        if (failure) {
+            failure.httpStatus = response.status;
+            refuse(failure);
+        }
+        if (stage === 'session validation' && payload.result?.resultCode !== '000000') {
+            throw new HuaweiBridgeError('invalid-response', 'Huawei Music session validation returned no success code');
+        }
         return payload;
     };
 
@@ -331,7 +346,7 @@ function createHuaweiApiBridge({ store, safeStorage, fetch, BrowserWindow, sessi
         return attempt;
     };
 
-    return {
+    const operations = {
         async request(operation, params = {}) {
             try {
                 if (operation === 'login_start') {
@@ -363,8 +378,25 @@ function createHuaweiApiBridge({ store, safeStorage, fetch, BrowserWindow, sessi
                     return { ok: true, data: { canceled: true } };
                 }
                 if (operation === 'login_status') {
-                    const current = sessions.get();
+                    let current = sessions.get();
                     if (!current?.userId) return { ok: true, data: null };
+                    const revision = sessions.revision;
+                    try {
+                        await musicRequest({
+                            path: '/music-userbehavior-service/v3/service/favorite/simple/all',
+                            body: { targetSnsUserID: current.userId, start: 0, limit: 1, contentTypes: [1] },
+                            token: current.token,
+                            stage: 'session validation',
+                        });
+                    } catch (error) {
+                        if (!sessions.get()) return { ok: true, data: null };
+                        if (sessions.revision !== revision) {
+                            throw new HuaweiBridgeError('unavailable', 'Huawei Music session changed during validation');
+                        }
+                        throw error;
+                    }
+                    current = sessions.get();
+                    if (!current) return { ok: true, data: null };
                     return {
                         ok: true,
                         data: {
@@ -736,6 +768,20 @@ function createHuaweiApiBridge({ store, safeStorage, fetch, BrowserWindow, sessi
                 }
                 return { ok: false, error: { code: 'invalid-response', message: 'Huawei Music request failed' } };
             }
+        },
+    };
+    return {
+        async request(operation, params) {
+            const revision = sessions.revision;
+            const hadSession = Boolean(sessions.get());
+            const result = await operations.request(operation, params);
+            // No credentials cross IPC. Even a successful lyric fallback can have discovered
+            // an expired session; the renderer must then ask for the current account again.
+            if (!String(operation).startsWith('login_') && operation !== 'logout' && !sessions.get()
+                && (hadSession || sessions.revision !== revision || (!result.ok && result.error.code === 'auth-required'))) {
+                return { ...result, sessionEnded: true };
+            }
+            return result;
         },
     };
 }

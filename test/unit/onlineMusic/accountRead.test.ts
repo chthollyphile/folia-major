@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { omni } from '@/services/onlineMusic/omni';
+import { notifyProviderSessionChanged } from '@/services/onlineMusic/account/sessionChanges';
 import { registerOnlineMusicProvider, unregisterOnlineMusicProvider } from '@/services/onlineMusic/providerRegistry';
 import { useOnlineProviderAccountStore } from '@/stores/useOnlineProviderAccountStore';
 import type { UnifiedSong } from '@/types';
@@ -19,7 +20,7 @@ import type { OnlineAuthProvider, OnlineLibraryProvider, OnlineMusicProvider, On
 const stored = vi.hoisted(() => new Map<string, string>());
 // A test may hold the disk (`held`): a write asked for meanwhile waits, and the writes land in the
 // order they were asked for. `asked` counts the writes asked for.
-const disk = vi.hoisted(() => ({ held: null as Promise<void> | null, asked: 0 }));
+const disk = vi.hoisted(() => ({ held: null as Promise<void> | null, removal: null as Promise<void> | null, asked: 0, removals: 0 }));
 vi.mock('@/services/db', async importOriginal => ({
     ...(await importOriginal<typeof import('@/services/db')>()),
     saveToCache: async (key: string, data: unknown) => {
@@ -29,7 +30,11 @@ vi.mock('@/services/db', async importOriginal => ({
         stored.set(key, text);
     },
     getFromCache: async (key: string) => (stored.has(key) ? JSON.parse(stored.get(key)!) : null),
-    removeFromCache: async (key: string) => { stored.delete(key); },
+    removeFromCache: async (key: string) => {
+        disk.removals += 1;
+        if (disk.removal) await disk.removal;
+        stored.delete(key);
+    },
 }));
 
 const NOW = 1760000000000;
@@ -103,6 +108,8 @@ beforeEach(() => {
     showsKeptAccountAtStart = false;
     stored.clear();
     disk.held = null;
+    disk.removal = null;
+    disk.removals = 0;
     disk.asked = 0;
     vi.spyOn(Date, 'now').mockReturnValue(NOW);
     log = vi.spyOn(console, 'log').mockImplementation(() => {});
@@ -116,6 +123,82 @@ afterEach(() => {
 });
 
 describe('app start, where the kept account waits for the platform to name the user', () => {
+    it('rechecks every session hint, supersedes stale reads and removes the account snapshot', async () => {
+        const { auth } = platform();
+        await omni.readAccount(providerId, 'start');
+        const old = held<ProviderUser | null>();
+        const check = held<ProviderUser | null>();
+        vi.mocked(auth.getLoginStatus).mockImplementationOnce(() => old.promise)
+            .mockImplementationOnce(() => check.promise).mockImplementationOnce(() => check.promise);
+        const reading = omni.readAccount(providerId, 'sync');
+        notifyProviderSessionChanged(providerId);
+        notifyProviderSessionChanged(providerId);
+        expect(auth.getLoginStatus).toHaveBeenCalledTimes(4);
+        check.answer(null);
+        await vi.waitFor(() => expect(account()?.status).toBe('anonymous'));
+        old.answer(user);
+        await reading;
+        expect(account()?.user).toBeNull();
+        expect(stored.has(snapshotKey())).toBe(false);
+    });
+
+    it('rechecks a second expiry even after the first recheck identified a user and is reading playlists', async () => {
+        const { auth, library } = platform();
+        await omni.readAccount(providerId, 'start');
+        const page = held<Page>();
+        vi.mocked(library.getUserPlaylists).mockImplementationOnce(() => page.promise);
+        notifyProviderSessionChanged(providerId);
+        await vi.waitFor(() => expect(library.getUserPlaylists).toHaveBeenCalledTimes(2));
+        vi.mocked(auth.getLoginStatus).mockResolvedValue(null);
+        notifyProviderSessionChanged(providerId);
+        await vi.waitFor(() => expect(account()?.status).toBe('anonymous'));
+        page.answer(onePage('stale'));
+        await Promise.resolve();
+        await Promise.resolve();
+        expect(account()?.user).toBeNull();
+        expect(stored.has(snapshotKey())).toBe(false);
+        expect(auth.getLoginStatus).toHaveBeenCalledTimes(3);
+    });
+
+    it('keeps a new sign-in when an older session recheck finishes later', async () => {
+        const { auth } = platform();
+        await omni.readAccount(providerId, 'start');
+        const check = held<ProviderUser | null>();
+        vi.mocked(auth.getLoginStatus).mockImplementationOnce(() => check.promise);
+        notifyProviderSessionChanged(providerId);
+        await omni.readAccount(providerId, 'sign-in');
+        check.answer(null);
+        await Promise.resolve();
+        await Promise.resolve();
+        expect(account()?.user).toEqual(user);
+        expect(stored.has(snapshotKey())).toBe(true);
+    });
+
+    it.each([true, false])('rechecks on window return only when opted in (%s)', async enabled => {
+        const { auth } = platform({ auth: { recheckOnWindowReturn: enabled } });
+        useOnlineProviderAccountStore.setState({ activeProviderId: providerId });
+        await omni.readAccount(providerId, 'start');
+        vi.mocked(auth.getLoginStatus).mockResolvedValue(null);
+        await omni.accountMoment('window-returned');
+        expect(account()?.user).toEqual(enabled ? null : user);
+    });
+
+    it('saves a new sign-in after an expired account removal that is still on disk', async () => {
+        const { auth } = platform();
+        await omni.readAccount(providerId, 'start');
+        const removal = held<void>();
+        disk.removal = removal.promise;
+        vi.mocked(auth.getLoginStatus).mockResolvedValueOnce(null);
+        const expired = omni.readAccount(providerId, 'session-change');
+        await vi.waitFor(() => expect(disk.removals).toBe(1));
+        const signedIn = omni.readAccount(providerId, 'sign-in');
+        await vi.waitFor(() => expect(account()?.user).toEqual(user));
+        removal.answer();
+        await Promise.all([expired, signedIn]);
+        expect(account()?.user).toEqual(user);
+        expect(JSON.parse(stored.get(snapshotKey())!).user).toEqual(user);
+    });
+
     it('shows a pending account until the platform answers, then shows its signed-out result', async () => {
         keep({ user, collections: [list('kept')] });
         const status = held<ProviderUser | null>();

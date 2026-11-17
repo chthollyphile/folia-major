@@ -1,5 +1,6 @@
 import type { ProviderErrorCode } from '../../../types/onlineMusic';
 import { OnlineProviderError } from '../../../types/onlineMusic';
+import { notifyProviderSessionChanged } from '../account/sessionChanges';
 
 // src/services/onlineMusic/huawei/huaweiTransport.ts
 
@@ -17,9 +18,10 @@ export interface HuaweiBridgeError {
     httpStatus?: number;
 }
 
-export type HuaweiBridgeResult =
+export type HuaweiBridgeResult = (
     | { ok: true; data: unknown }
-    | { ok: false; error: HuaweiBridgeError };
+    | { ok: false; error: HuaweiBridgeError }
+) & { sessionEnded?: boolean };
 
 export const HUAWEI_NEEDS_DESKTOP = 'Huawei Music requires the desktop app';
 export const HUAWEI_BRIDGE_FAILED = 'Huawei Music desktop request failed';
@@ -54,13 +56,15 @@ export async function requestHuawei<T = unknown>(operation: HuaweiOperation, par
         throw new OnlineProviderError('network', HUAWEI_BRIDGE_FAILED, 'huawei', error);
     }
     if (!result.ok) {
+        if (result.sessionEnded) notifyProviderSessionChanged('huawei');
         throw new OnlineProviderError(
             toProviderErrorCode(result.error.code),
             result.error.message || 'Huawei Music request failed',
             'huawei',
-            undefined,
+            { upstreamCode: result.error.upstreamCode, httpStatus: result.error.httpStatus },
             result.error.httpStatus,
         );
     }
+    if (result.sessionEnded) notifyProviderSessionChanged('huawei');
     return result.data as T;
 }

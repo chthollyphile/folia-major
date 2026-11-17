@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { huaweiProvider, resetHuaweiRecommendationCache } from '@/services/onlineMusic/huawei/huaweiProvider';
 import { normalizeHuaweiCollection, normalizeHuaweiSong } from '@/services/onlineMusic/huawei/huaweiNormalize';
 import { autoRetryDelaysMs, onlineFailureOf } from '@/services/onlineMusic/failure/onlineFailureCase';
+import { onProviderSessionChanged } from '@/services/onlineMusic/account/sessionChanges';
+import { requestHuawei } from '@/services/onlineMusic/huawei/huaweiTransport';
 
 // test/unit/huawei/huaweiProvider.test.ts
 // 归一化、搜索分页、播放地址与歌词的逻辑测试：华为接口的答复用替身，不碰真实服务，
@@ -46,6 +48,21 @@ afterEach(() => {
 });
 
 describe('normalizeHuaweiSong', () => {
+    it.each([true, false])('reports session expiry across IPC even for successful fallback (%s)', async ok => {
+        const changed = vi.fn();
+        const stop = onProviderSessionChanged(changed);
+        try {
+            bridgeRequest.mockResolvedValue(ok
+                ? { ok: true, data: { lrc: 'fallback' }, sessionEnded: true }
+                : { ok: false, error: { code: 'auth-required', message: 'expired', upstreamCode: 'refused', httpStatus: 401 }, sessionEnded: true });
+            if (ok) await expect(requestHuawei('lyrics')).resolves.toEqual({ lrc: 'fallback' });
+            else await expect(requestHuawei('audio')).rejects.toMatchObject({ code: 'auth-required', cause: { upstreamCode: 'refused', httpStatus: 401 } });
+            expect(changed).toHaveBeenCalledExactlyOnceWith('huawei');
+        } finally {
+            stop();
+        }
+    });
+
     it('reads the search row fields, the album and artist refs, and keeps the lyric address', () => {
         const song = normalizeHuaweiSong(SAMPLE_ROW);
         expect(song.id).toBe('1092974');
@@ -104,6 +121,13 @@ describe('normalizeHuaweiCollection', () => {
 });
 
 describe('huaweiProvider search and playback', () => {
+    it('reports upstream System error as a remote refusal, not a stopped local bridge', async () => {
+        bridgeRequest.mockResolvedValueOnce({ ok: false, error: { code: 'unavailable', httpStatus: 200, message: 'System error!' } });
+        const error: unknown = await huaweiProvider.playback!.getAudioSource(normalizeHuaweiSong(SAMPLE_ROW), 'standard').catch((cause: unknown) => cause);
+        const detail = huaweiProvider.describeFailure!('audio', error);
+        expect(onlineFailureOf({ operation: 'audio', providerId: 'huawei' }, { error, detail: detail ?? undefined }).case).toBe('refused');
+    });
+
     it.each([[503, 'network', 'unreachable', [1000, 3000]], [429, 'unavailable', 'retry-later', []]] as const)(
         'classifies HTTP %s without overriding retry behavior', async (httpStatus, code, expectedCase, delays) => {
             bridgeRequest.mockResolvedValueOnce({ ok: false, error: { code, httpStatus, message: 'HTTP refusal' } });

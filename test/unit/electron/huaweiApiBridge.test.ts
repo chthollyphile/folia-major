@@ -80,10 +80,91 @@ const loginHarness = () => {
         win.webContents.emit('will-redirect', { preventDefault: vi.fn() }, `hms://redirect_uri?state=${state}&code=fixture-code`);
         return { key, win };
     };
-    return { bridge, saved, begin, release };
+    return { bridge, saved, begin, release, fetch };
 };
 
 describe('Huawei Music desktop bridge', () => {
+    it.each(['20261117000000', '20261116000000'])('removes an expired persisted session (%s) before any request', async expireTime => {
+        vi.useFakeTimers({ now: Date.UTC(2026, 10, 17) });
+        const saved = store();
+        createSessionRepository({ store: saved, safeStorage: cipher() }).set({ token: 'old', userId: 'old-user', expireTime });
+        const fetch = vi.fn();
+        const bridge = bridgeOf(fetch, vi.fn(), saved);
+        expect(await bridge.request('audio', { id: 'song' })).toMatchObject({ ok: false, sessionEnded: true });
+        expect(saved.get(SESSION_KEY)).toBeUndefined();
+        expect(await bridgeOf(fetch, vi.fn(), saved).request('login_status')).toEqual({ ok: true, data: null });
+        expect(fetch).not.toHaveBeenCalled();
+    });
+
+    it('expires an already loaded session exactly at the UTC deadline', () => {
+        let now = Date.UTC(2026, 10, 17) - 1;
+        const saved = store();
+        const sessions = createSessionRepository({ store: saved, safeStorage: cipher(), now: () => now });
+        sessions.set({ token: 'old', userId: 'old-user', expireTime: '20261117000000' });
+        expect(sessions.get()).not.toBeNull();
+        now += 1;
+        expect(sessions.peek()).toBeNull();
+        expect(saved.get(SESSION_KEY)).toBeUndefined();
+    });
+
+    it.each(['later', '', '20260230000000', '20261117240000'])('does not invent expiry for %s', expireTime => {
+        const sessions = createSessionRepository({ store: store(), safeStorage: cipher(), now: () => Date.UTC(2030, 0, 1) });
+        sessions.set({ token: 'old', userId: 'old-user', expireTime });
+        expect(sessions.get()).not.toBeNull();
+    });
+
+    it.each(['401', 'token expired', 'session invalid'])('clears confirmed rejection %s on disk and in status', async rejection => {
+        const saved = store();
+        createSessionRepository({ store: saved, safeStorage: cipher() }).set({ token: 'old', userId: 'old-user' });
+        const fetch = vi.fn(async () => rejection === '401'
+            ? new Response('{"error":"unauthorized"}', { status: 401 })
+            : envelope({ result: { resultCode: 'refused', resultMessage: rejection } }));
+        const bridge = bridgeOf(fetch, vi.fn(), saved);
+        expect(await bridge.request('library_albums')).toMatchObject({ ok: false, sessionEnded: true, error: { code: 'auth-required' } });
+        expect(await bridge.request('login_status')).toEqual({ ok: true, data: null });
+        expect(saved.get(SESSION_KEY)).toBeUndefined();
+        expect(await bridgeOf(fetch, vi.fn(), saved).request('login_status')).toEqual({ ok: true, data: null });
+    });
+
+    it.each(['network', '503', '403', 'system', 'empty', 'malformed'])('retains the session after %s validation', async mode => {
+        const saved = store();
+        createSessionRepository({ store: saved, safeStorage: cipher() }).set({ token: 'old', userId: 'old-user' });
+        const fetch = vi.fn(async () => {
+            if (mode === 'network') throw new Error('offline');
+            if (mode === '503' || mode === '403') return new Response('', { status: Number(mode) });
+            if (mode === 'system') return envelope({ result: { resultCode: 'unknown', resultMessage: 'System error!' } });
+            if (mode === 'malformed') return envelope({});
+            return envelope({ result: { resultCode: '000000' }, favoriteInfos: [] });
+        });
+        const answer = await bridgeOf(fetch, vi.fn(), saved).request('login_status');
+        expect(answer.ok).toBe(mode === 'empty');
+        expect(saved.get(SESSION_KEY)).toBeDefined();
+        expect(createSessionRepository({ store: saved, safeStorage: cipher() }).get()?.userId).toBe('old-user');
+    });
+
+    it.each(['library_albums', 'login_status'])('does not let a late %s refusal remove a new sign-in', async operation => {
+        const harness = loginHarness();
+        createSessionRepository({ store: harness.saved, safeStorage: cipher() }).set({ token: 'old', userId: 'old-user' });
+        let refuse!: (response: Response) => void;
+        harness.fetch.mockImplementationOnce(() => new Promise<Response>(resolve => { refuse = resolve; }));
+        const old = harness.bridge.request(operation);
+        await harness.begin();
+        harness.release(envelope({ access_token: 'fixture-access' }));
+        await setImmediate();
+        refuse(new Response('', { status: 401 }));
+        expect((await old).sessionEnded).toBeUndefined();
+        expect(await harness.bridge.request('login_status')).toMatchObject({ ok: true, data: { id: 'fixture-user' } });
+    });
+
+    it('signals expiry even when lyrics successfully fall back', async () => {
+        const saved = store();
+        createSessionRepository({ store: saved, safeStorage: cipher() }).set({ token: 'old', userId: 'old-user' });
+        const bridge = bridgeOf(async url => url.includes('lyric.tingmall.com')
+            ? new Response('[00:01]fallback') : new Response('', { status: 401 }), vi.fn(), saved);
+        expect(await bridge.request('lyrics', { id: 'song', lyricUrl: 'https://lyric.tingmall.com/song.lrc' }))
+            .toMatchObject({ ok: true, sessionEnded: true, data: { lrc: '[00:01]fallback' } });
+    });
+
     it.each(['search', 'album', 'library_albums', 'playlist_tracks'])('advances %s past offset 1000 without repeating the previous page', async operation => {
         const saved = store();
         createSessionRepository({ store: saved, safeStorage: cipher(), warn: vi.fn() }).set({

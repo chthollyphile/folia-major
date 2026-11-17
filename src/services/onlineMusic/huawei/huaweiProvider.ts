@@ -335,6 +335,7 @@ export const huaweiProvider: OnlineMusicProvider = {
         getLyrics: getHuaweiLyrics,
     },
     auth: {
+        recheckOnWindowReturn: true,
         getLoginTexts: () => huaweiLoginTexts,
         async getLoginStatus() {
             const user = await requestHuawei('login_status');

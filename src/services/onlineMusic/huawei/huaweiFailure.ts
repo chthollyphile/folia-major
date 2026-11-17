@@ -28,7 +28,8 @@ export function describeHuaweiFailure(error: unknown): OnlineFailureDetail | nul
         case 'network':
             return { ...base, case: 'unreachable' };
         case 'unavailable':
-            return { ...base, case: message === HUAWEI_NEEDS_DESKTOP ? 'not-configured' : 'local-service-stopped' };
+            return { ...base, case: message === HUAWEI_NEEDS_DESKTOP ? 'not-configured'
+                : error.httpStatus !== undefined ? 'refused' : 'local-service-stopped' };
         case 'unsupported':
             return { ...base, case: 'not-configured' };
         case 'not-public':

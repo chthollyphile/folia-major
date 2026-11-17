@@ -8,7 +8,22 @@ const { encryptionAvailable } = require('../osEncryption.cjs');
 
 const SESSION_KEY = 'HUAWEI_SESSION_V1';
 
-function createSessionRepository({ store, safeStorage, warn = console.warn }) {
+// loginex uses yyyyMMddHHmmss in UTC (also observed by Solathis/HWMusic). Unknown
+// formats stay unknown; OAuth's expires_in is not the music session's lifetime.
+function musicSessionExpiresAt(value) {
+    if (typeof value !== 'string' || !/^\d{14}$/.test(value)) return null;
+    const parts = [value.slice(0, 4), value.slice(4, 6), value.slice(6, 8),
+        value.slice(8, 10), value.slice(10, 12), value.slice(12, 14)].map(Number);
+    const [year, month, day, hour, minute, second] = parts;
+    const at = Date.UTC(year, month - 1, day, hour, minute, second);
+    const date = new Date(at);
+    if (year < 2000 || date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1
+        || date.getUTCDate() !== day || date.getUTCHours() !== hour
+        || date.getUTCMinutes() !== minute || date.getUTCSeconds() !== second) return null;
+    return at;
+}
+
+function createSessionRepository({ store, safeStorage, warn = console.warn, now = Date.now }) {
     let loaded = false;
     let current = null;
     let revision = 0;
@@ -38,12 +53,18 @@ function createSessionRepository({ store, safeStorage, warn = console.warn }) {
 
     return {
         get revision() { return revision; },
-        get: read,
+        get() {
+            const value = read();
+            const expiresAt = musicSessionExpiresAt(value?.expireTime);
+            if (value && expiresAt !== null && now() >= expiresAt) {
+                this.clear();
+                return null;
+            }
+            return value;
+        },
         // Asking whether a session exists must not read the credentials themselves.
         peek() {
-            if (current) return current;
-            if (loaded) return null;
-            return read();
+            return this.get();
         },
         set(value) {
             loaded = true;

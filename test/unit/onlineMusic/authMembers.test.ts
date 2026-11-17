@@ -52,7 +52,7 @@ const AUTH_MEMBERS: Record<string, string[]> = {
     // 华为账号在应用自己的窗口里确认：没有码可看，没有刷新令牌（会话过期后要重新登录）。
     huawei: [
         'cancelLogin', 'checkLogin', 'describeLoginFailure', 'getLoginStatus', 'getLoginTexts', 'getLoginTtlMs', 'logout', 'openLoginPage',
-        'signInRanOut', 'startLogin',
+        'recheckOnWindowReturn', 'signInRanOut', 'startLogin',
     ],
 };
 
