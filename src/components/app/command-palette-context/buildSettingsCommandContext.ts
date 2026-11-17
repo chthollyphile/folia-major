@@ -3,6 +3,8 @@ import type { LyricStaffPolicy } from '../../../utils/lyrics/staffCreditsPolicy'
 import type { ThemeGenerationSource } from '../../../services/themePreferences';
 import { useAudioSettingsStore } from '../../../stores/useAudioSettingsStore';
 import { useAutomixSettingsStore } from '../../../stores/useAutomixSettingsStore';
+import { useStemMixerStore } from '../../../stores/useStemMixerStore';
+import { stemMixerDeviceBlock } from '../../../services/stemMixer/stemMixerAvailability';
 import { useHifiSettingsStore } from '../../../stores/useHifiSettingsStore';
 import { hifiEngine, useHifiEngineStore } from '../../../services/hifi/hifiEngine';
 import { HIFI_PLATFORM } from '../../modal/settings/pages/hifi/options';
@@ -304,6 +306,16 @@ export const buildSettingsCommandContext = (
             !useAutomixSettingsStore.getState().transitionPerformance,
         ),
         canUseTransitionPerformance: deps.canUseTransitionPerformance,
+        toggleStemMixer: () => {
+            const mixer = useStemMixerStore.getState();
+            mixer.handleToggleStemMixer(!mixer.stemMixerEnabled);
+        },
+        applyStemMixerPreset: (preset) => {
+            const mixer = useStemMixerStore.getState();
+            mixer.handleApplyStemMixerPreset(preset);
+            if (!mixer.stemMixerEnabled) mixer.handleToggleStemMixer(true);
+        },
+        canUseStemMixer: () => stemMixerDeviceBlock() === null,
         // Read at the press, like the settings page: none of these rebuild the context.
         isHifiSupported: () => useHifiEngineStore.getState().supported,
         isHifiEnabled: () => useHifiSettingsStore.getState().enabled,

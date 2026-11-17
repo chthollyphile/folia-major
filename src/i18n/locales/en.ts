@@ -932,6 +932,10 @@ export default {
       "settings-local-lyrics-priority": { "title": "Local song lyrics priority", "description": "Choose whether local songs prefer local or online lyrics" },
       "settings-local-lyric-format-order": { "title": "Local lyric file format priority", "description": "Choose which format wins when a track has several lyric files" },
       "settings-integration": { "title": "Integration settings", "description": "Open Stage, Now Playing, and Navidrome settings" },
+      "stem-mixer-toggle": { "title": "Stem mixer", "description": "Turn the live four-stem mixer on or off" },
+      "stem-mixer-karaoke": { "title": "Stem mixer: karaoke", "description": "Take the vocals out of the playing song" },
+      "stem-mixer-vocals": { "title": "Stem mixer: vocals only", "description": "Keep only the vocals of the playing song" },
+      "stem-mixer-reset": { "title": "Stem mixer: as recorded", "description": "Put all four stems back to 1.0×" },
       "automix-toggle": { "title": "Smart transition", "description": "Turn FOLIA smart transitions on or off" },
       "transition-mode-crossfade": { "title": "Transition mode: Folia Crossfade", "description": "Use the simple one-out one-in crossfade" },
       "transition-mode-automix": { "title": "Transition mode: Folia Automix", "description": "Analyse both tracks and mix them automatically" },
@@ -1322,6 +1326,37 @@ export default {
       "width": "Stereo width",
       "space": "Space",
       "punch": "Punch"
+    },
+    "stemMixer": {
+      "title": "Stem mixer",
+      "hint": "Set drums, bass, other and vocals on their own",
+      "toggle": "Stem mixer",
+      "stem": {
+        "drums": "Drums",
+        "bass": "Bass",
+        "other": "Other",
+        "vocals": "Vocals"
+      },
+      "preset": {
+        "reset": "As recorded",
+        "karaoke": "Karaoke",
+        "vocals": "Vocals only"
+      },
+      "status": {
+        "off": "When on, the playing song is separated live on the GPU; what is not separated yet plays as recorded.",
+        "waiting": "Waiting for playback",
+        "separating": "Separating {{percent}}%",
+        "ready": "Whole song separated",
+        "failed": "This song cannot be separated; playing it as recorded"
+      },
+      "block": {
+        "automix": "Not available while smart transitions are on: both take over the same playback.",
+        "automixAction": "Turn off smart transitions",
+        "hifi": "Not available on HiFi playback: the sound does not pass through here.",
+        "external": "Not available while an external player plays: the sound does not pass through here.",
+        "noGpu": "Not available on this device: it needs WebGPU and the bundled stem model.",
+        "tooSlow": "Separation is too slow on this GPU; turned off for this session."
+      }
     },
     "equalizerModCurve": "This curve comes from the mod \"{{name}}\"",
     "equalizerModCurveHint": "Your presets and custom slots are untouched. To adjust this curve, first save it to a custom slot.",

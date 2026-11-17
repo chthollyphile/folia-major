@@ -1,4 +1,5 @@
 import type React from 'react';
+import type { StemMixerPreset } from '../../stores/useStemMixerStore';
 import type { LucideIcon } from 'lucide-react';
 import type { SearchKind, SearchReturnView, SearchSource } from '../../stores/useSearchNavigationStore';
 import type { LocalLibraryDisplayCatalog } from '../../services/playbackAdapters';
@@ -452,6 +453,12 @@ export type CommandPaletteSettingsContext = {
      * model" for the rest of the session.
      */
     canUseTransitionPerformance: () => boolean;
+    /** 分轨调音台的总开关，读在按下时。 */
+    toggleStemMixer: () => void;
+    /** 套一组强度（原样 / 伴奏 / 只听人声），并打开调音台。 */
+    applyStemMixerPreset: (preset: StemMixerPreset) => void;
+    /** 这台机器的 GPU 分得了：与音效窗口给开关置灰是同一个判断（stemMixerAvailability.ts），读在打开面板时。 */
+    canUseStemMixer: () => boolean;
     /**
      * Whether this desktop build has the HiFi engine (window.electron.hifi). A getter like the
      * other capability checks; the HiFi settings page gates its switch on the same answer.
