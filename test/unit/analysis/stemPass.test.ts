@@ -87,7 +87,7 @@ describe('stem pass', () => {
         const drums = reader('drums');
         const mixer = reader('vocals', 3, 0);
         const order: string[] = [];
-        const held: StemReader = Object.assign(mixer.r, { urgent: true, held: () => drums.segments.length < 2 });
+        const held: StemReader = Object.assign(mixer.r, { urgent: () => true, held: () => drums.segments.length < 2 });
         runHtdemucsGpu.mockImplementation(async (l: Float32Array, r: Float32Array) => {
             order.push(held.held!() ? `d${drums.r.next}` : (held.next < 5 ? `m${held.next}` : `d${drums.r.next}`));
             return model(l, r);
@@ -101,7 +101,7 @@ describe('stem pass', () => {
     it('feeds an urgent reader at a later segment first', async () => {
         const drums = reader('drums');
         const mixer = reader('vocals', 3, 0);
-        const urgent: StemReader = Object.assign(mixer.r, { urgent: true });
+        const urgent: StemReader = Object.assign(mixer.r, { urgent: () => true });
         const seen: number[] = [];
         runHtdemucsGpu.mockImplementation(async (l: Float32Array, r: Float32Array) => {
             seen.push(Math.min(drums.r.next, urgent.next < 5 ? urgent.next : 99));
@@ -112,6 +112,23 @@ describe('stem pass', () => {
         expect(mixer.segments).toEqual([3, 4]);
         expect(drums.segments).toEqual([0, 1, 2, 3, 4]);
         expect(runHtdemucsGpu.mock.calls.length).toBe(7);
+    });
+
+    it('feeds the lowest segment once the urgent reader is no longer urgent', async () => {
+        const drums = reader('drums');
+        const mixer = reader('vocals', 3, 0);
+        const order: string[] = [];
+        // Urgent for its first segment only.
+        const soon: StemReader = Object.assign(mixer.r, { urgent: () => mixer.segments.length < 1 });
+        runHtdemucsGpu.mockImplementation(async (l: Float32Array, r: Float32Array) => {
+            order.push(soon.next < 5 && (soon.urgent!() || soon.next <= drums.r.next) ? `m${soon.next}` : `d${drums.r.next}`);
+            return model(l, r);
+        });
+        expect(await runStemPass({ left, right, readers: () => [drums.r, soon] })).toBe(true);
+        // Segment 4 is the two readers' together (one run).
+        expect(order).toEqual(['m3', 'd0', 'd1', 'd2', 'd3', 'm4']);
+        expect(mixer.segments).toEqual([3, 4]);
+        expect(drums.segments).toEqual([0, 1, 2, 3, 4]);
     });
 
     it('waits while all its readers are held and stops if no longer wanted', async () => {

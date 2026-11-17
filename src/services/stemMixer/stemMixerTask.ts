@@ -8,8 +8,12 @@ import type { StemTask, StemTrack } from '../analysis/trackStemRun';
 // 交给 `onChunk`，由播放端转交 worklet（stemMixer.worklet.ts）。「其他」不读：worklet 用原曲减三轨得出。
 //
 // 只分播放头前面一段：`held` 答 true（已分到的地方离播放头够远）时读取者被跳过，同一趟里别的读取者
-// （智能动感模式的鼓点）照走，只剩它时这一趟等着。读取者是 urgent 的：和鼓点同在一趟、鼓点落在后面时，
-// 先分这里要的（马上要听到的），不排在鼓点后面。
+// （智能动感模式的鼓点）照走，只剩它时这一趟等着。离播放头不到几秒时读取者是 urgent 的：和鼓点同在一趟、
+// 鼓点落在后面时先分这里要的（马上要听到的），不排在鼓点后面；领先够了就和鼓点按段号轮着来，慢 GPU 上
+// 也不会让鼓点一直等。
+//
+// 超过 STEM_MIXER_MAX_SECONDS 的歌不分（答 'tooLong'）：调音台开着时整首的解码要一直留着。sink 出错只算
+// 这个任务的事（停在出错的地方），不连累同一趟里别人的分离。
 //
 // 使用方是 'stemMixer'：智能动感模式关着、或在看别的画面时，它照样让这首歌分下去。和鼓点同在一趟里、两边
 // 正好在同一段时一段只分一次；它 held 时鼓点往前走，之后它走到的段多半要再分一次。
@@ -20,14 +24,18 @@ const PLAYED: readonly StemSource[] = ['drums', 'bass', 'vocals'];
 const CHANNELS = ['left', 'right'] as const;
 /** 与 worklet 的 SCALE 对应：按 ±2 满幅存。 */
 const TO_INT16 = 32767 / 2;
+/** 调音台分的最长的歌：解码（每分钟约 21 MB）要留到放完。 */
+export const STEM_MIXER_MAX_SECONDS = 20 * 60;
 
 export interface StemMixerSink {
     /** 解码好的整首（44.1 kHz）。 */
     onTrack: (track: StemTrack) => void;
-    /** [from, to) 的一块，顺序：原曲 L/R、鼓 L/R、贝斯 L/R、人声 L/R。 */
-    onChunk: (from: number, to: number, data: Int16Array[]) => void;
-    /** 已分到第 `reached` 个采样：此刻还要不要接着分（false 时跳过，过一会儿再问）。 */
+    /** [from, to) 的一块，顺序：原曲 L/R、鼓 L/R、贝斯 L/R、人声 L/R。答 false：没收下（不算分到了这里）。 */
+    onChunk: (from: number, to: number, data: Int16Array[]) => boolean;
+    /** 已分到第 `reached` 个采样：此刻先不分（跳过，过一会儿再问）。 */
     held: (reached: number) => boolean;
+    /** 已分到第 `reached` 个采样：此刻要不要排在别人前面。 */
+    urgent: (reached: number) => boolean;
 }
 
 /** 从第 `at` 个采样起分轨完整的最靠后的段：它前一段结束处不晚于 `at`。 */
@@ -49,24 +57,39 @@ const toInt16 = (samples: Float32Array, from: number, to: number): Int16Array =>
     return out;
 };
 
-/** 从第 `fromSample` 个采样读到歌尾的任务。答案是分到了第几个采样（停下时是停在哪）。 */
-export const stemMixerTask = (fromSample: number, sink: StemMixerSink): StemTask<number> => ({
+/** 从第 `fromSample` 个采样读到歌尾的任务。答案是分到了第几个采样（停下时是停在哪），太长的歌答 'tooLong'。 */
+export const stemMixerTask = (fromSample: number, sink: StemMixerSink): StemTask<number | 'tooLong'> => ({
     kind: STEM_MIXER_TASK,
     claimant: 'stemMixer',
     open: (track) => {
-        sink.onTrack(track);
         const total = track.left.length;
+        // 没有读取者：下一轮就从 finish 答出。
+        if (total > STEM_MIXER_MAX_SECONDS * 44100) return { readers: [], finish: async () => 'tooLong' as const, stop: async () => 'tooLong' as const };
+        sink.onTrack(track);
         const from = segmentWholeAt(total, fromSample);
         let reached = startStemReader(total, from).divided;
         const chunks: Int16Array[] = [];
         const readers: StemReader[] = [];
-        const held = () => sink.held(reached);
+        /** 出过错：都算读完，任务从 finish 答出停在哪。 */
+        let broken = false;
+        const guard = <T>(fallback: T, call: () => T): T => {
+            if (broken) return fallback;
+            try {
+                return call();
+            } catch (error) {
+                console.warn('[StemMixer] task sink failed', error);
+                broken = true;
+                return fallback;
+            }
+        };
+        const held = () => guard(false, () => sink.held(reached));
+        const urgent = () => guard(false, () => sink.urgent(reached));
         PLAYED.forEach((source) => CHANNELS.forEach((channel) => {
             const index = readers.length;
             const reader: StemReader = {
                 source,
                 channel,
-                urgent: true,
+                urgent,
                 held,
                 ...startStemReader(total, from),
                 window: movingStemWindow(total, from, 0),
@@ -75,8 +98,9 @@ export const stemMixerTask = (fromSample: number, sink: StemMixerSink): StemTask
                     const begin = Math.max(reached, base);
                     chunks[index] = toInt16(samples, begin - base, final - base);
                     if (index === readers.length - 1) {
-                        sink.onChunk(begin, final, [toInt16(track.left, begin, final), toInt16(track.right, begin, final), ...chunks.splice(0)]);
-                        reached = final;
+                        const data = [toInt16(track.left, begin, final), toInt16(track.right, begin, final), ...chunks.splice(0)];
+                        if (guard(false, () => sink.onChunk(begin, final, data))) reached = final;
+                        if (broken) for (const each of readers) each.next = Number.MAX_SAFE_INTEGER;
                     }
                     return final;
                 },

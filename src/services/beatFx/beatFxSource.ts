@@ -2,7 +2,7 @@ import type { SongResult } from '../../types';
 import { mergeBeatFxEvents, type BeatFxEvent } from './clock';
 import { getTrackBeatAccents, getTrackBeatGrid } from '../analysis/beatGrid';
 import { getDrumHits, loadStoredDrumHits, loadTrackDrumHits } from '../analysis/drumHits';
-import { claimStemTrack, STEM_RUN_MAX_SECONDS } from '../analysis/trackStemRun';
+import { claimStemTrack } from '../analysis/trackStemRun';
 import { getVocalEnvelope, loadStoredVocalEnvelope } from '../analysis/vocalEnvelope';
 import { loadTrackVocalEnvelope, releaseTrackVocals } from '../analysis/vocalStemRun';
 import { getBeatFxLastHeard } from './beatFxLive';
@@ -241,8 +241,6 @@ export const loadBeatFxTrackDrums = (song: SongResult, { storedOnly = false, voc
             .then((): BeatFxTrackDrums => (found() ? 'hits' : 'none'));
         return { key, drums };
     }
-    // Too long to separate (trackStemRun.ts): not even read.
-    if (song.durationMs > STEM_RUN_MAX_SECONDS * 1000) return { key, drums: Promise.resolve('none') };
     claimStemTrack('beatFx', key);
     let missing = false;
     const readBytes = async () => {

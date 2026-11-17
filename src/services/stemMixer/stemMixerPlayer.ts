@@ -25,6 +25,8 @@ const STEM_RATE = 44100;
 
 const modules = new WeakMap<BaseAudioContext, Promise<void>>();
 const nodes = new WeakMap<AutomixDeckChain, AudioWorkletNode>();
+/** 出过错、已拆下的 worklet：不再往里送，也不算在跟着放。 */
+const failed = new WeakSet<AudioWorkletNode>();
 
 /** 这个 deck 的 worklet：第一次时插进 source 与 replayGain 之间（每个 deck 一次，之后一直在那里）。 */
 const nodeFor = (context: AudioContext, chain: AutomixDeckChain): AudioWorkletNode => {
@@ -48,6 +50,8 @@ const nodeFor = (context: AudioContext, chain: AutomixDeckChain): AudioWorkletNo
         console.warn('[StemMixer] worklet failed; the deck plays the element directly again');
         chain.source.connect(chain.replayGain);
         node.disconnect();
+        if (nodes.get(chain) === node) nodes.delete(chain);
+        failed.add(node);
     };
     nodes.set(chain, node);
     return node;
@@ -69,8 +73,10 @@ export interface StemMixerPlayer {
     /** 同一首歌换了地址（流地址刷新）：块照用。 */
     retarget: (src: string) => void;
     loadedKey: () => string | null;
-    /** [from, to) 的一块：原曲 L/R、鼓 L/R、贝斯 L/R、人声 L/R。 */
-    addChunk: (from: number, to: number, data: Int16Array[]) => void;
+    /** [from, to) 的一块：原曲 L/R、鼓 L/R、贝斯 L/R、人声 L/R。答 false：没接到 deck 或没载入，没收下。 */
+    addChunk: (from: number, to: number, data: Int16Array[]) => boolean;
+    /** 已接到一个能用的 deck（块送得进去）。 */
+    attached: () => boolean;
     /** 只留与 [from, to) 有交集的块。 */
     keep: (from: number, to: number) => void;
     /** 已有块的区间（44.1 kHz 采样），按 from 排好、相接的已并起来。 */
@@ -128,7 +134,7 @@ export const createStemMixerPlayer = async (context: AudioContext): Promise<Stem
 
     /** 元素这首正是载入的那首，且能由 worklet 跟着放。 */
     const matches = () => Boolean(
-        loaded?.src && element && node
+        loaded?.src && element && node && !failed.has(node)
         && (normalise(element.getAttribute('src')) === loaded.src || normalise(element.currentSrc) === loaded.src)
         && element.playbackRate === 1,
     );
@@ -152,10 +158,11 @@ export const createStemMixerPlayer = async (context: AudioContext): Promise<Stem
         lastReport = null;
     };
 
+    const running = () => Boolean(element && !element.paused && !element.ended && !element.seeking && element.readyState >= 3);
+
     /** 按元素现在的状态：在放这首就跟着起播，否则停下（透传）。 */
     const sync = () => {
-        const running = element && !element.paused && !element.ended && !element.seeking && element.readyState >= 3;
-        if (!matches() || !running) {
+        if (!matches() || !running()) {
             stopSounding();
             return;
         }
@@ -164,7 +171,8 @@ export const createStemMixerPlayer = async (context: AudioContext): Promise<Stem
 
     /** 半秒一次：worklet 报的位置与元素差出 DRIFT_SEC 就重新给位置。 */
     const check = () => {
-        if (!sounding || !lastReport || !element) {
+        // 没起播、或元素没在走（卡住了却没发 waiting）：只按状态起停，不拿它的位置对齐。
+        if (!sounding || !lastReport || !element || !matches() || !running()) {
             sync();
             return;
         }
@@ -248,11 +256,13 @@ export const createStemMixerPlayer = async (context: AudioContext): Promise<Stem
         },
         loadedKey: () => loaded?.key ?? null,
         addChunk: (from, to, data) => {
-            if (!loaded || !node) return;
+            if (!loaded || !node || failed.has(node)) return false;
             spans.push([from, to]);
             remerge();
             post({ type: 'chunk', gen, from, to, data }, data.map(channel => channel.buffer));
+            return true;
         },
+        attached: () => Boolean(node && !failed.has(node)),
         keep: (from, to) => {
             const before = spans.length;
             spans = spans.filter(([a, b]) => b > from && a < to);

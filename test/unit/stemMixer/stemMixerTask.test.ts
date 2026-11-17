@@ -30,8 +30,9 @@ const run = (from: number, held: (reached: number) => boolean = () => false) => 
     const tracks: number[] = [];
     const answer = runTrackStems('one', async () => new ArrayBuffer(8), stemMixerTask(from, {
         onTrack: track => tracks.push(track.left.length),
-        onChunk: (a, b, data) => chunks.push({ from: a, to: b, data }),
+        onChunk: (a, b, data) => { chunks.push({ from: a, to: b, data }); return true; },
         held,
+        urgent: () => true,
     }));
     return { answer, chunks, tracks };
 };
@@ -93,6 +94,29 @@ describe('stem mixer task', () => {
         } finally {
             vi.useRealTimers();
         }
+    });
+
+    it('stops at a sink that throws, without failing the run', async () => {
+        let n = 0;
+        const answer = runTrackStems('one', async () => new ArrayBuffer(8), stemMixerTask(0, {
+            onTrack: () => undefined,
+            onChunk: () => { n += 1; if (n === 2) throw new Error('boom'); return true; },
+            held: () => false,
+            urgent: () => true,
+        }));
+        expect(await answer).toBe(12);
+        expect(n).toBe(2);
+    });
+
+    it('answers tooLong for a track past the cap, reading nothing', async () => {
+        const long = 20 * 60 * 44100 + 1;
+        // Only the length is looked at (about 200 MB of silence otherwise).
+        const silent = { length: long } as unknown as Float32Array;
+        decodeAtRate.mockImplementation(async () => ({ length: long, numberOfChannels: 1, getChannelData: () => silent }));
+        const { answer, chunks } = run(0);
+        expect(await answer).toBe('tooLong');
+        expect(chunks).toEqual([]);
+        expect(runHtdemucsGpu).not.toHaveBeenCalled();
     });
 
     it('stops while held once no longer wanted', async () => {

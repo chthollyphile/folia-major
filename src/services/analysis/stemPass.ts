@@ -51,8 +51,11 @@ export interface StemReader {
      * asks again.
      */
     readonly held?: () => boolean;
-    /** Its segments go first (分轨调音台: what is about to be heard), before the lowest segment of the others. */
-    readonly urgent?: boolean;
+    /**
+     * Whether its segments go first now (分轨调音台: what is about to be heard), before the lowest segment
+     * of the others. Asked each turn, so it can be urgent only while short of what it needs soon.
+     */
+    readonly urgent?: () => boolean;
     /** The next segment it needs; the pass moves it on. */
     next: number;
     /** Samples from the start whose quotient is final; the pass moves it on. */
@@ -156,7 +159,8 @@ export const runStemPass = async ({ left, right, readers, keepGoing = () => true
             await new Promise(resolve => setTimeout(resolve, HELD_POLL_MS));
             continue;
         }
-        const first = waiting.some(reader => reader.urgent) ? waiting.filter(reader => reader.urgent) : waiting;
+        const urgent = waiting.filter(reader => reader.urgent?.());
+        const first = urgent.length ? urgent : waiting;
         const index = Math.min(...first.map(reader => reader.next));
         const start = starts[index];
         const n = Math.min(segment, total - start);

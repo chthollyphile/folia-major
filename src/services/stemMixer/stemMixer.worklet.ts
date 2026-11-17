@@ -10,8 +10,8 @@
 // 强度相加。主线程按播放头告诉这里留哪一段（`keep`），之外的块丢掉。
 //
 // 位置由主线程给（`play`：某个 AudioContext 时刻在第几个采样），这里按 44.1k → 设备采样率的比例自己走，
-// 三次 Hermite 插值；采样率正好 44.1k 时走整数位置，不插值。正在放自己的声音时来了新位置（跳转、对齐），
-// 先交叉回输入、换位置、再交叉回来，中间放的是元素本身，没有空白。强度高于 1.0× 时过一道和 automix
+// 三次 Hermite 插值；采样率正好 44.1k 时走整数位置，不插值。正在放自己的声音时来了新位置（对齐）：新位置
+// 有块就从旧位置直接交叉过去，不漏出原曲；没有块（跳到了还没分的地方）就先交叉回输入、换位置。强度高于 1.0× 时过一道和 automix
 // 分轨交接同样的软限幅。
 //
 // 不 import 任何东西：这个文件单独打包给 audioWorklet.addModule。
@@ -80,6 +80,11 @@ class StemMixerProcessor extends AudioWorkletProcessor {
     private blend = 0;
     private sinceReport = 0;
     private readonly values = new Float64Array(CHANNELS);
+    /** 放着自己的声音时重新给了位置（对齐）：从旧位置交叉到新位置，旧位置在这里接着走。 */
+    private jumpFrom: number | null = null;
+    private jumpMix = 0;
+    private ownL = 0;
+    private ownR = 0;
     /** 交叉回输入的途中来的 `keep`：正在读的块先留着，回到输入了再按它丢。 */
     private keepLater: { from: number; to: number } | null = null;
 
@@ -92,6 +97,7 @@ class StemMixerProcessor extends AudioWorkletProcessor {
         switch (message.type) {
             case 'load':
                 this.gen = message.gen;
+                this.jumpFrom = null;
                 this.playing = false;
                 this.pending = null;
                 break;
@@ -112,6 +118,7 @@ class StemMixerProcessor extends AudioWorkletProcessor {
             case 'stop':
                 this.pending = null;
                 this.playing = false;
+                this.jumpFrom = null;
                 break;
             default:
         }
@@ -122,8 +129,12 @@ class StemMixerProcessor extends AudioWorkletProcessor {
      * 否则淡出的那几毫秒读到的是 0。
      */
     private keep(from: number, to: number) {
-        const near = this.blend > 0 ? [Math.floor(this.position) - 2, Math.ceil(this.position + 2 * BLEND_SEC * sampleRate * this.speed) + 2] : null;
-        this.chunks = this.chunks.filter(chunk => (chunk.to > from && chunk.from < to) || (near !== null && chunk.to > near[0] && chunk.from < near[1]));
+        const span = 2 * BLEND_SEC * sampleRate * this.speed;
+        const near = this.blend > 0
+            ? [this.position, this.jumpFrom ?? this.position].map(at => [Math.floor(at) - 2, Math.ceil(at + span) + 2])
+            : null;
+        this.chunks = this.chunks.filter(chunk => (chunk.to > from && chunk.from < to)
+            || (near !== null && near.some(([a, b]) => chunk.to > a && chunk.from < b)));
         this.keepLater = near ? { from, to } : null;
         this.last = null;
     }
@@ -185,6 +196,15 @@ class StemMixerProcessor extends AudioWorkletProcessor {
         }
     }
 
+    /** 自己的声音在 `position` 处（四个强度），写进 ownL / ownR。 */
+    private own(position: number, gd: number, gb: number, go: number, gv: number) {
+        this.read(position);
+        const v = this.values;
+        // 四轨各乘强度之和，其他 = 原曲 − 三轨：原曲 × 其他的强度，加三轨各自与它之差。
+        this.ownL = (go * v[0] + (gd - go) * v[2] + (gb - go) * v[4] + (gv - go) * v[6]) * SCALE;
+        this.ownR = (go * v[1] + (gd - go) * v[3] + (gb - go) * v[5] + (gv - go) * v[7]) * SCALE;
+    }
+
     process(inputs: Float32Array[][], outputs: Float32Array[][]): boolean {
         const out = outputs[0];
         const left = out[0];
@@ -194,13 +214,24 @@ class StemMixerProcessor extends AudioWorkletProcessor {
         const inL: Float32Array | undefined = input[0];
         const inR: Float32Array | undefined = input[1] ?? input[0];
 
-        // 到点的新位置：正在放自己的声音时先交叉回输入，回到输入了再换。
+        // 到点的新位置：放着输入时直接换；放着自己的声音时，新位置也有块（对齐、近处跳转）就从旧位置交叉过去，
+        // 没有就先交叉回输入、回到输入了再换。没到点之前照旧放。
         const due = this.pending !== null && this.pending.at < currentTime + frames / sampleRate;
-        if (due && this.blend === 0) {
+        const pendingAt = () => {
             const pending = this.pending!;
-            const late = Math.max(0, currentTime - pending.at);
-            const position = pending.position + late * pending.speed * sampleRate;
-            this.position = pending.speed === 1 ? Math.round(position) : position;
+            // 这个 quantum 从 currentTime 起：`at` 在它里面时往回算，晚到了往前补。
+            const position = Math.max(0, pending.position + (currentTime - pending.at) * pending.speed * sampleRate);
+            return pending.speed === 1 ? Math.round(position) : position;
+        };
+        const jumpable = due && this.blend > 0 && this.playing && this.jumpFrom === null && this.pending!.speed === this.speed
+            && this.covered(Math.floor(pendingAt()) - 1, Math.ceil(pendingAt() + (frames + BLEND_SEC * sampleRate) * this.speed) + 2);
+        if (jumpable) {
+            this.jumpFrom = this.position;
+            this.jumpMix = 0;
+        }
+        if (due && (this.blend === 0 || jumpable)) {
+            const pending = this.pending!;
+            this.position = pendingAt();
             this.speed = pending.speed;
             this.seq = pending.seq;
             this.sinceReport = 0;
@@ -225,7 +256,7 @@ class StemMixerProcessor extends AudioWorkletProcessor {
         const unity = this.gains.every(g => g === 1) && from.every(g => g === 1) && this.target.every(g => g === 1);
         // 往前多看一个交叉的长度：走出有块的地方之前就已交叉回输入。
         const ahead = Math.ceil(this.position + (frames + BLEND_SEC * sampleRate) * this.speed) + 2;
-        const want = this.playing && !this.pending && this.playGen === this.gen && !unity && this.covered(Math.floor(this.position) - 1, ahead);
+        const want = this.playing && !due && this.playGen === this.gen && !unity && this.covered(Math.floor(this.position) - 1, ahead);
         const step = 1 / (BLEND_SEC * sampleRate);
         const limit = this.gains.some(g => g > 1) || from.some(g => g > 1);
 
@@ -236,17 +267,24 @@ class StemMixerProcessor extends AudioWorkletProcessor {
             if (this.blend === 0) {
                 left[i] = xL;
                 right[i] = xR;
+                this.jumpFrom = null;
             } else {
-                this.read(this.position);
-                const v = this.values;
                 const t = i / frames;
                 const gd = from[0] + (this.gains[0] - from[0]) * t;
                 const gb = from[1] + (this.gains[1] - from[1]) * t;
                 const go = from[2] + (this.gains[2] - from[2]) * t;
                 const gv = from[3] + (this.gains[3] - from[3]) * t;
-                // 四轨各乘强度之和，其他 = 原曲 − 三轨：原曲 × 其他的强度，加三轨各自与它之差。
-                let l = (go * v[0] + (gd - go) * v[2] + (gb - go) * v[4] + (gv - go) * v[6]) * SCALE;
-                let r = (go * v[1] + (gd - go) * v[3] + (gb - go) * v[5] + (gv - go) * v[7]) * SCALE;
+                this.own(this.position, gd, gb, go, gv);
+                let l = this.ownL;
+                let r = this.ownR;
+                if (this.jumpFrom !== null) {
+                    this.own(this.jumpFrom, gd, gb, go, gv);
+                    l = this.ownL + (l - this.ownL) * this.jumpMix;
+                    r = this.ownR + (r - this.ownR) * this.jumpMix;
+                    this.jumpFrom += this.speed;
+                    this.jumpMix += step;
+                    if (this.jumpMix >= 1) this.jumpFrom = null;
+                }
                 if (limit) {
                     l = softLimit(l);
                     r = softLimit(r);

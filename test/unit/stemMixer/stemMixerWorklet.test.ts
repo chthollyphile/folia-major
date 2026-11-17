@@ -33,7 +33,7 @@ const chunk = (from = 0, to = N) => ({ from, to, data: [1, 0.4, 0.3, 0.1].flatMa
 interface Run { L: number[]; R: number[]; inL: number[]; send: (data: unknown) => void; step: (quanta: number) => void }
 
 /** 一个 processor，元素从第 0 个采样起放（`media(q)` 答第 q 个 quantum 元素在哪；默认跟着走）。 */
-const start = (gains: number[], { chunks = [chunk()], media = (q: number) => q * 128 } = {}): Run => {
+const start = (gains: number[], { chunks = [chunk()], media = (q: number) => q * 128, silent = false } = {}): Run => {
     const g = globalThis as Record<string, unknown>;
     g.currentTime = 0;
     const p = new Ctor();
@@ -47,8 +47,8 @@ const start = (gains: number[], { chunks = [chunk()], media = (q: number) => q *
     run.step = (quanta) => {
         for (let n = 0; n < quanta; n += 1, q += 1) {
             const at = media(q);
-            const inL = Float32Array.from({ length: 128 }, (_, i) => fL(at + i));
-            const inR = Float32Array.from({ length: 128 }, (_, i) => fR(at + i));
+            const inL = Float32Array.from({ length: 128 }, (_, i) => (silent ? 0 : fL(at + i)));
+            const inR = Float32Array.from({ length: 128 }, (_, i) => (silent ? 0 : fR(at + i)));
             const out = [new Float32Array(128), new Float32Array(128)];
             p.process([[inL, inR]], [out]);
             g.currentTime = (g.currentTime as number) + 128 / 44100;
@@ -125,6 +125,24 @@ describe('stem mixer worklet', () => {
         run.step(15);
         expect(maxStep(run.L)).toBeLessThan(0.03);
         expect(run.L[42 * 128]).toBeCloseTo(0.9 * fL(media(42)), 4);
+    });
+
+    it('re-aligns from its own sound to its own sound, letting none of the input through', () => {
+        // Silent input: any pass-through shows up as a run of zeros.
+        const run = start([1, 1, 1, 0], { silent: true });
+        run.step(30);
+        run.send({ type: 'play', position: 31 * 128 + 300, at: 31 * 128 / 44100, speed: 1, seq: 2 });
+        run.step(20);
+        let quiet = 0;
+        let longest = 0;
+        for (const v of run.L.slice(1000)) {
+            quiet = Math.abs(v) < 1e-3 ? quiet + 1 : 0;
+            longest = Math.max(longest, quiet);
+        }
+        expect(longest).toBeLessThan(5);
+        expect(maxStep(run.L.slice(1000))).toBeLessThan(0.03);
+        // On the new place after it.
+        expect(run.L[45 * 128]).toBeCloseTo(0.9 * fL(45 * 128 + 300), 4);
     });
 
     it('stays inside full scale with the gains raised', () => {

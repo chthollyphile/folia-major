@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import type { MutableRefObject, RefObject } from 'react';
 import type { AutomixDeckChain } from '../automix/crossfadeGraph';
-import { claimStemTrack, releaseTrackStems, runTrackStems, STEM_RUN_MAX_SECONDS } from '../analysis/trackStemRun';
+import { claimStemTrack, releaseTrackStems, runTrackStems } from '../analysis/trackStemRun';
 import { readTrackBytes } from '../beatFx/beatFxSource';
 import { getPlaybackAnalysisTarget } from '../playbackRecovery/representationRegistry';
 import { usePlaybackStore } from '../../stores/usePlaybackStore';
@@ -9,7 +9,7 @@ import { useAutomixSettingsStore } from '../../stores/useAutomixSettingsStore';
 import { useStemMixerStore, type StemMixerStatus } from '../../stores/useStemMixerStore';
 import { createStemMixerPlayer, type StemMixerPlayer } from './stemMixerPlayer';
 import { stemMixerBlock } from './stemMixerAvailability';
-import { STEM_MIXER_TASK, stemMixerTask } from './stemMixerTask';
+import { STEM_MIXER_MAX_SECONDS, STEM_MIXER_TASK, stemMixerTask } from './stemMixerTask';
 
 // src/services/stemMixer/useStemMixer.ts
 // 分轨调音台的调度：开关开着、automix 关着、不在 HiFi / 外部播放器上、GPU 分得了时，为正在放的歌
@@ -20,8 +20,11 @@ import { STEM_MIXER_TASK, stemMixerTask } from './stemMixerTask';
 // 丢掉。内存与歌长无关。跳到这段以外（往回跳出 BEHIND、或往前跳出正在分的地方 JUMP_AHEAD 以外）时放下任务、
 // 从新的播放头重开：这首的解码还在就立刻接着分，分完放下了就重新读、重新解码（一秒左右），其间放原曲。
 //
-// 解码好的整首（每分钟约 21 MB）在开着调音台时留到这首放完：它是往后分的输入。超过 STEM_RUN_MAX_SECONDS 的
+// 解码好的整首（每分钟约 21 MB）在开着调音台时留到这首放完：它是往后分的输入。超过 STEM_MIXER_MAX_SECONDS 的
 // 歌不分。同一首歌换了地址（流地址刷新）只更新播放端认的地址，不重分。
+//
+// 读不到（在线歌曲还没缓存好）、解码不了、某段分不了：隔 RETRY_DELAY_MS 再试，最多 RETRY_ATTEMPTS 次（同
+// 智能动感模式）；跳转时也再试。
 //
 // 换歌、关开关、automix 打开：放下声明（这首歌的分离在下一段之前停，除非智能动感模式还要它），worklet
 // 交叉回元素的声音。分轨运行只在 GPU 上，按屏上（onScreen）的紧急度排队。
@@ -33,6 +36,10 @@ const AHEAD = 30 * STEM_RATE;
 const BEHIND = 15 * STEM_RATE;
 /** 往后留到多远：分到 AHEAD 时最后一段会多出一些，往回跳以后前面那些也先留着。 */
 const KEEP_AHEAD = AHEAD + 10 * STEM_RATE;
+/** 离播放头不到这么远时排在别人（智能动感模式的鼓点）前面分。 */
+const URGENT_AHEAD = 6 * STEM_RATE;
+const RETRY_ATTEMPTS = 4;
+const RETRY_DELAY_MS = 3000;
 /** 跳到正在分的地方之后多远就不等它，从新位置重开。 */
 const JUMP_AHEAD = 10 * STEM_RATE;
 /** 多久看一次播放头（留哪段、要不要重开、状态）。 */
@@ -102,9 +109,12 @@ export function useStemMixer({ audioRef, audioContextRef, getActiveChain, hifiBl
             if (active) setStemMixerStatus({ phase: 'waiting' });
             return undefined;
         }
-        if (current.durationMs > STEM_RUN_MAX_SECONDS * 1000) {
+        if (current.durationMs > STEM_MIXER_MAX_SECONDS * 1000) {
             claimStemTrack('stemMixer', null);
-            void playerRef.current?.player.then(player => player?.unload());
+            void playerRef.current?.player.then((player) => {
+                player?.unload();
+                player?.follow(null, null);
+            });
             setStemMixerStatus({ phase: 'tooLong' });
             return undefined;
         }
@@ -116,8 +126,11 @@ export function useStemMixer({ audioRef, audioContextRef, getActiveChain, hifiBl
         /** 正在跑的任务：分到了哪。 */
         let task: { reached: number } | null = null;
         let total: number | null = null;
-        /** 上一个任务读不到或没分完：不再自己重开，跳转时再试。 */
+        /** 上一个任务读不到或没分完：等 retryTimer 或跳转再试。 */
         let failed = false;
+        let failures = 0;
+        let retryTimer: ReturnType<typeof setTimeout> | null = null;
+        let tooLong = false;
         setStemMixerStatus({ phase: 'waiting' });
         claimStemTrack('stemMixer', key);
 
@@ -147,20 +160,40 @@ export function useStemMixer({ audioRef, audioContextRef, getActiveChain, hifiBl
                     if (player.loadedKey() !== key) player.load(key, srcNow() ?? '');
                 },
                 onChunk: (a, b, data) => {
-                    if (cancelled || task !== mine) return;
-                    player.addChunk(a, b, data);
+                    if (cancelled || task !== mine) return false;
+                    if (!player.addChunk(a, b, data)) return false;
                     mine.reached = b;
-                    tick(player);
+                    // 在分离的这一趟里：别在这里重开任务、动 worklet，下一个微任务再看。
+                    queueMicrotask(() => tick(player));
+                    return true;
                 },
                 held: (reached) => {
                     const head = player.playhead();
                     return head !== null && reached > head + AHEAD;
                 },
+                urgent: (reached) => {
+                    const head = player.playhead();
+                    return head === null || reached < head + URGENT_AHEAD;
+                },
             })).then((reached) => {
                 if (cancelled || task !== mine) return;
                 task = null;
-                // 分到歌尾才是分完；读不到、解码不了、某段分不了、GPU 不能用了：放原曲，跳转时再试。
-                if (reached === null || total === null || reached < total) failed = true;
+                if (reached === 'tooLong') {
+                    tooLong = true;
+                    claimStemTrack('stemMixer', null);
+                    player.unload();
+                } else if (reached === null || total === null || reached < total) {
+                    // 分到歌尾才是分完；读不到、解码不了、某段分不了、GPU 不能用了：放原曲，过一会儿再试。
+                    failed = true;
+                    failures += 1;
+                    if (failures < RETRY_ATTEMPTS && retryTimer === null) {
+                        retryTimer = setTimeout(() => {
+                            retryTimer = null;
+                            failed = false;
+                            tick(player);
+                        }, RETRY_DELAY_MS);
+                    }
+                }
                 tick(player);
             });
         };
@@ -168,9 +201,19 @@ export function useStemMixer({ audioRef, audioContextRef, getActiveChain, hifiBl
         /** 看一次播放头：留哪段、要不要（重）开任务、此刻的状态。 */
         const tick = (player: StemMixerPlayer) => {
             if (cancelled) return;
+            if (tooLong) {
+                setStemMixerStatus({ phase: 'tooLong' });
+                return;
+            }
+            bindElement(player);
             player.follow(getActiveChainRef.current(), element);
             const head = player.playhead();
             if (head === null) return;
+            // 还没接到 deck（第一次播放前）、换歌后新地址还没落定：先不分，分了也送不进去。
+            if (!player.attached() || srcNow() === null) {
+                setStemMixerStatus({ phase: 'waiting' });
+                return;
+            }
             if (player.loadedKey() === key) player.keep(head - BEHIND, head + KEEP_AHEAD);
             const covered = player.loadedKey() === key ? player.covered() : [];
             const here = rangeAt(covered, head);
@@ -185,19 +228,28 @@ export function useStemMixer({ audioRef, audioContextRef, getActiveChain, hifiBl
                 startTask(player, frontier);
             }
             let status: StemMixerStatus;
-            if (failed && !here) status = { phase: 'failed' };
+            // 还要再试时先说「等待」，试完了才说分不了。
+            if (failed && !here) status = retryTimer !== null ? { phase: 'waiting' } : { phase: 'failed' };
             else if (!here) status = task ? { phase: 'separating' } : { phase: 'waiting' };
             else if (element && !element.paused && !player.following()) status = { phase: 'notFollowing' };
             else status = { phase: 'ready' };
             setStemMixerStatus(status);
         };
 
-        const onSeeked = (player: StemMixerPlayer) => () => {
-            // 跳转了：失败过的也再试一次。
-            failed = false;
-            tick(player);
-        };
         let seeked: (() => void) | null = null;
+        /** 跟着此刻的元素（每次看都对一下），换了就把 seeked 挪过去。 */
+        const bindElement = (player: StemMixerPlayer) => {
+            const next = audioRef.current;
+            if (next === element) return;
+            if (seeked) element?.removeEventListener('seeked', seeked);
+            element = next;
+            seeked = () => {
+                // 跳转了：失败过的也再试一次。
+                failed = false;
+                tick(player);
+            };
+            element?.addEventListener('seeked', seeked);
+        };
 
         const start = () => {
             if (cancelled) return;
@@ -212,9 +264,6 @@ export function useStemMixer({ audioRef, audioContextRef, getActiveChain, hifiBl
                     setStemMixerStatus({ phase: 'failed' });
                     return;
                 }
-                element = audioRef.current;
-                seeked = onSeeked(player);
-                element?.addEventListener('seeked', seeked);
                 tick(player);
                 tickTimer = setInterval(() => tick(player), TICK_MS);
             });
@@ -225,6 +274,7 @@ export function useStemMixer({ audioRef, audioContextRef, getActiveChain, hifiBl
             cancelled = true;
             if (pollTimer !== null) clearTimeout(pollTimer);
             if (tickTimer !== null) clearInterval(tickTimer);
+            if (retryTimer !== null) clearTimeout(retryTimer);
             if (seeked) element?.removeEventListener('seeked', seeked);
             releaseTrackStems(key, STEM_MIXER_TASK);
             claimStemTrack('stemMixer', null);
