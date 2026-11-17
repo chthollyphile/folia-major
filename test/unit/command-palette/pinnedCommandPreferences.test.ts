@@ -6,7 +6,7 @@ import {
     readPinnedCommandIds,
     resolvePinnedCommandSlots,
     writePinnedCommandIds,
-} from '../../../src/components/command-palette/pinnedCommandPreferences';
+} from '../../../src/stores/pinnedCommandPreferences';
 import type { CommandPaletteCommand } from '../../../src/components/command-palette/types';
 
 // test/unit/command-palette/pinnedCommandPreferences.test.ts
@@ -20,13 +20,20 @@ const createStorage = (initial: Record<string, string> = {}) => {
     };
 };
 
+// The store reads through storagePrimitives, which checks for a window and then uses the
+// global localStorage, so both are stubbed.
+const stubStorage = (storage: ReturnType<typeof createStorage>) => {
+    vi.stubGlobal('window', { localStorage: storage });
+    vi.stubGlobal('localStorage', storage);
+};
+
 afterEach(() => {
     vi.unstubAllGlobals();
 });
 
 describe('pinned command preferences', () => {
     it('uses the three requested defaults when no preference exists', () => {
-        vi.stubGlobal('window', { localStorage: createStorage() });
+        stubStorage(createStorage());
 
         expect(readPinnedCommandIds()).toEqual([
             'playback-prev',
@@ -37,9 +44,7 @@ describe('pinned command preferences', () => {
     });
 
     it('recovers from invalid JSON with defaults', () => {
-        vi.stubGlobal('window', {
-            localStorage: createStorage({ [PINNED_COMMANDS_STORAGE_KEY]: '{invalid' }),
-        });
+        stubStorage(createStorage({ [PINNED_COMMANDS_STORAGE_KEY]: '{invalid' }));
 
         expect(readPinnedCommandIds()).toEqual(DEFAULT_PINNED_COMMAND_IDS);
     });
@@ -77,7 +82,7 @@ describe('pinned command preferences', () => {
 
     it('persists only the normalized three-slot array', () => {
         const storage = createStorage();
-        vi.stubGlobal('window', { localStorage: storage });
+        stubStorage(storage);
 
         writePinnedCommandIds(['queue', 'queue', 'playback-next']);
 

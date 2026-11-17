@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { isRecordableRecentCommand, readRecentCommandIds, recordRecentCommandId, resolveRecentCommandToRecord } from './recentCommands';
 import { readCommandFrequencyState, recordCommandUse, type CommandFrequencyState } from './commandFrequency';
 import type { CommandPaletteContext, CommandPaletteCommand, CommandPaletteMatch } from './types';
-import { resolvePinnedCommandSlots } from './pinnedCommandPreferences';
+import { resolvePinnedCommandSlots } from '../../stores/pinnedCommandPreferences';
 import { FILTER_VIEW_COMMAND_ID } from './commands/filterViewCommand';
 import { isPrimaryModifierPressed, isSecondaryModifierPressed } from '../../utils/platform';
 import { useSettingsModalStore } from '../../stores/useSettingsModalStore';
