@@ -19,6 +19,7 @@ import { useVisualizerTunings } from '@/components/visualizer/useVisualizerTunin
 import { isModsBridgeAvailable, pushRuntimeSnapshot } from '../ipc';
 import type { FoliumPlaybackState } from '../folium/contract';
 import { toFoliumLines, toFoliumSong, toFoliumTheme } from '../folium/dto';
+import { noteFoliumCurrentTheme } from './theme/hostTheme';
 import { useFoliumParamStore } from '../params/paramStore';
 import { emitFoliumEvent } from '../folium/events';
 
@@ -151,6 +152,8 @@ export const useFoliumHostBridge = (theme: Theme, isDaylight: boolean) => {
     // theme.changed lives here because the theme is App state, not a store.
     const themePrimedRef = useRef(false);
     useEffect(() => {
+        // Folium 1.10 `folium.theme.getCurrent()` reads the theme the App renders, as this event reports it.
+        noteFoliumCurrentTheme(theme, isDaylight);
         if (!themePrimedRef.current) {
             themePrimedRef.current = true;
             return;

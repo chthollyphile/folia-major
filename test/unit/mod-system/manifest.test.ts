@@ -196,6 +196,13 @@ describe('validateManifest Folium entries and opt-ins', () => {
         expect(validateManifest({ ...validManifest, permissions: both }).value.permissions).toEqual(both);
     });
 
+    // Folium 1.10: folium.theme.apply / release.
+    it('accepts theme.write', () => {
+        const result = validateManifest({ ...validManifest, permissions: ['theme.write'] });
+        expect(result.ok).toBe(true);
+        expect(result.value.permissions).toEqual(['theme.write']);
+    });
+
     it('accepts an optional preview image path inside the mod directory', () => {
         expect(validateManifest({ ...validManifest, preview: 'preview.jpg' }).ok).toBe(true);
         expect(validateManifest({ ...validManifest, preview: 'assets/cover.webp' }).ok).toBe(true);

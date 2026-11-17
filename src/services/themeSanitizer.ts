@@ -58,6 +58,9 @@ const normalizeHexColorCandidate = (value: unknown) => {
     return `#${hex}`;
 };
 
+/** Whether `value` is a hex color a theme takes (`#rgb` or `#rrggbb`). */
+export const isThemeHexColor = (value: unknown): value is string => normalizeHexColorCandidate(value) !== null;
+
 export const normalizeThemeHexColor = (
     value: unknown,
     fallback: string,

@@ -57,7 +57,10 @@ const lyricsHelpers: FoliumLyricsHelpers = {
 
 export const FOLIUM_LYRICS_HELPERS: FoliumLyricsHelpers = Object.freeze(lyricsHelpers);
 
-const themeHelpers: FoliumThemeHelpers = {
+/** The font helpers of `folium.theme`, the same in both contexts; the rest of it is per mod (theme/service.ts). */
+export type FoliumThemeFontHelpers = Pick<FoliumThemeHelpers, 'resolveFontStack' | 'resolveTranslationFontStack' | 'resolveFontWeight'>;
+
+const themeHelpers: FoliumThemeFontHelpers = {
     resolveFontStack: (theme) => resolveThemeFontStack(theme as Pick<Theme, 'fontStyle' | 'fontFamily' | 'fontFamilyStack'>),
     resolveTranslationFontStack: (theme) => (
         resolveThemeTranslationFontStack(theme as Pick<Theme, 'fontStyle' | 'fontFamily' | 'fontFamilyStack'>)
@@ -65,4 +68,4 @@ const themeHelpers: FoliumThemeHelpers = {
     resolveFontWeight: (theme, fallback) => resolveThemeFontWeight(theme, fallback),
 };
 
-export const FOLIUM_THEME_HELPERS: FoliumThemeHelpers = Object.freeze(themeHelpers);
+export const FOLIUM_THEME_HELPERS: FoliumThemeFontHelpers = Object.freeze(themeHelpers);

@@ -176,6 +176,7 @@ client 只能用相对路径 import 模组目录里的 `.mjs/.js`，**不能 imp
 | `visualizer.beatEffects` | 1.8：`folium.visualizer.setBeatEffects`（开关智能动感效果、调强度；智能动感模式本身不能改） |
 | `visualizer.background` | 1.9：`folium.visualizer.setBackground`（切换背景类型，和用户在背景选择器里切换一样） |
 | `visualizer.animationIntensity` | 1.9：`folium.visualizer.setAnimationIntensity`（改动画强度，和用户在播放页面板里改一样） |
+| `theme.write` | 1.10：`folium.theme.apply`、`folium.theme.release`（把模组自己的主题盖在歌曲主题上，或撤下它） |
 | `net.fetch` | `folium.net.fetch()`（经主进程代发，不受 CORS 限制） |
 | `net.embed` | `folium.ui.embed()`，还需要 `embedOrigins` |
 | `stageLayers` | `registries.stageLayers`（往播放页上画东西） |
@@ -190,6 +191,7 @@ client 只能用相对路径 import 模组目录里的 `.mjs/.js`，**不能 imp
 写需要 `equalizer.control`，启用确认窗口和模组面板会为它写一句「会改写你的音效设置」，见 [folium.equalizer](#foliumequalizer17)。
 `folium.visualizer` 的读和 `visualizer.*` 事件同样不需要权限；`setRenderQuality` 需要 `visualizer.renderQuality`，`setMode`、`setTuning`、`setBeatEffects` 分别需要 `visualizer.mode`、`visualizer.tuning`、`visualizer.beatEffects`，启用确认窗口和模组面板会为每个写一句说明，见 [folium.visualizer](#foliumvisualizer18)。
 1.9 的 `setBackground`、`setAnimationIntensity` 分别需要 `visualizer.background`、`visualizer.animationIntensity`，同样各有一句说明，见[背景类型与动画强度](#背景类型与动画强度19)。
+1.10 的 `folium.theme.apply`、`release` 需要 `theme.write`，启用确认窗口和模组面板会为它写一句「会把模组自己的主题盖在歌曲主题上」；`getCurrent`、`getOverride`、`fromColors` 和 `theme.overrideChanged` 不需要权限，见 [folium.theme](#foliumtheme110)。
 
 每个权限解锁的成员以 API 参考的[权限一览](../docs/folium/api.md#权限一览)为准，`npm run folium:check` 用同一张表查模组。
 `platform.*` 例外：`folium:check` 只按代码里 `request('<平台>', …)` 写出的平台 id 查 `platform.<平台>.read`，平台 id 是变量时只提示一句，`.write` 查不到（要看调的接口）。
@@ -243,6 +245,7 @@ export default function activate(folium) {
 | `equalizer.*` | 1.7。宿主的图形均衡器：`getState()` 读当前听到的均衡器（不需要权限）；`setMode` 切到宿主已有的音效、`applyCurve` 施加本模组的曲线、`releaseCurve` 撤下它（需 `equalizer.control`）。见 [folium.equalizer](#foliumequalizer17) |
 | `visualizer.*` | 1.8。歌词画布的全局渲染质量：`getRenderQuality()` 读（不需要权限），`setRenderQuality(patch)` 改（需 `visualizer.renderQuality`）；歌词动画模式 `listModes()` / `getMode()` / `setMode(id)`（需 `visualizer.mode`）、内置模式的样式参数 `getTuning(mode)` / `setTuning(mode, patch)`（需 `visualizer.tuning`）、智能动感效果 `getBeatEffects()` / `setBeatEffects(patch)`（需 `visualizer.beatEffects`）；1.9 加了背景类型 `listBackgrounds()` / `getBackground()` / `setBackground(id)`（需 `visualizer.background`）与动画强度 `getAnimationIntensity()` / `setAnimationIntensity(value)`（需 `visualizer.animationIntensity`）。见 [folium.visualizer](#foliumvisualizer18) |
 | `every(ms, fn)` / `onDispose(fn)` | 定时调用、登记清理函数；模组停掉时宿主替它停掉定时、调用清理函数。见[现成的函数](../docs/folium/contributing.md#现成的函数) |
+| `theme.*`（1.10） | 1.10。屏幕上的主题：`getCurrent()` 读、`getOverride()` 读是谁的主题（不需要权限），`fromColors(colors)` 按颜色做一套主题，`apply(theme)` 把本模组的主题盖在歌曲主题上、`release()` 撤下（需 `theme.write`）。见 [folium.theme](#foliumtheme110) |
 | `lyrics` / `theme` | 内置模式共用的函数，见[歌词与主题](#歌词与主题)；导出窗口里也能用。`lyrics.parse` 把歌词原文交给宿主解析；`lyrics.getLines()`、`lyrics.refresh()` 读正在显示的歌词（导出窗口里不能用） |
 | `experimental[name]` | 选用了才能访问，否则抛 `experimental-not-declared:<name>` |
 
@@ -622,6 +625,7 @@ CSS 放进 `@layer folium-mods`（在 Tailwind 各层之后声明），不用 `!
 | `app.viewChanged` | `{ view }` |
 | `visualizer.modeChanged` | `{ mode, origin }`，每次切换发一次；`origin` 是 1.8 加的，说是谁换的（`user` / `mod`）。见 [folium.visualizer](#foliumvisualizer18) |
 | `theme.changed` | `{ theme }` |
+| `theme.overrideChanged` | 1.10。`{ override, origin }`：屏幕上是谁的主题变了，或 `apply` 能不能改它变了；`origin` 说是谁（`user` / `mod` / `host`），同一任务合成一次。见 [folium.theme](#foliumtheme110) |
 | `playback.likeChanged` | `{ liked }`，`getState().liked` 变了（喜爱、取消喜爱，或换到喜爱状态不同的歌） |
 | `playback.volumeChanged` | `{ volume, muted }`，音量或静音开关变了，不论是谁改的；`volume` 在 0–1 |
 | `playback.loopModeChanged` | `{ mode }`：`'off'`、`'all'`（列表循环）或 `'one'`（单曲循环） |
@@ -1335,6 +1339,61 @@ export default function activate(folium) {
 
 **检查顺序与限频**和上面几种写入相同，这两种写入各有各的额度。声明了这两个权限的清单在 Folium 1.8 及更早的宿主上**整份被拒**；要兼容旧宿主就只读、不声明权限，用 `folium.host.folium.minor >= 9` 判断。
 
+### folium.theme（1.10）
+
+`folium.theme` 原来只有内置模式共用的三个字体函数；1.10 加了屏幕上的主题：读它、按颜色做一套主题、把模组自己的主题盖在歌曲主题上。
+读和 `fromColors` 不需要权限；`apply`、`release` 需要 `theme.write`。
+
+模组的主题是盖在歌曲主题上的一层，不是用户的主题：
+
+- 不存成用户的自定义主题，不写进这首歌的主题缓存，也不同步；只在这次运行里有效，模组启动时要再盖一次。
+- 换歌时它还在：宿主按歌恢复或自动生成的主题都在它下面。
+- 用户优先：用户自己选主题（播放页面板里点主题来源、应用默认或自定义主题、保存或编辑主题、手动生成主题），模组的主题就撤下；
+  用户打开「优先使用自定义主题」时不显示任何模组的主题，这时 `apply` 被拒 `custom-preferred`。
+- 模组被停用或删除时它也撤下。宿主会提示是哪个模组盖上了主题，播放页面板的主题来源下面会多一行，用户随时可以撤下。
+
+```js
+// 跟着壁纸换主题：拿到壁纸的主色后交给宿主做成主题，再盖上去；用户自己选了主题就停下。
+export default function activate(folium) {
+  if (folium.host.folium.minor < 10 || folium.env.context !== 'main') return;
+  let userTookOver = false;
+
+  folium.events.on('theme.overrideChanged', ({ origin }) => {
+    if (origin.kind === 'mod' && origin.modId === folium.modId) return;
+    if (origin.kind !== 'host') userTookOver = true;
+  });
+
+  const followWallpaper = (colors) => {   // colors: ['#3a5f7d', '#d9c8a0', ...]，最显眼的在前
+    if (userTookOver) return;
+    const result = folium.theme.apply(folium.theme.fromColors(colors));
+    if (!result.ok) folium.log.info(`theme not applied: ${result.reason}`);
+  };
+  // ……壁纸换了就调用 followWallpaper(主色)
+}
+```
+
+| 成员 | 说明 |
+| --- | --- |
+| `getCurrent()` | 屏幕上现在的主题（当前日夜模式那一面），和 `theme.changed` 给的一样。没有挂载的代码用它；挂载里从 `ctx` 读 |
+| `getOverride()` | `{ modId, writable }`：盖在上面的是哪个模组的主题（没有是 `null`）；`writable` 为 `false` 表示用户正优先使用自定义主题 |
+| `fromColors(colors)` | 1–8 个十六进制颜色（`#rgb` / `#rrggbb`，最显眼的在前），按宿主「封面取色」的做法做出 `{ light, dark }` 两面主题：色相贴近给的颜色，文字推到够用的对比度。名字和描述从宿主的词表里随机挑。纯函数，导出窗口里也能用 |
+| `apply(theme)` | 把 `{ light, dark }` 盖在歌曲主题上，浅色模式用 `light`，深色模式用 `dark`。返回 `{ ok: true, override }` 或 `{ ok: false, reason }` |
+| `release()` | 撤下本模组的主题，歌曲主题重新显示。本模组的主题在上面时返回 `true`，否则 `false`、什么也不变 |
+
+**`apply` 的参数**：每一面都可以只写一部分字段，没写的用宿主的默认值：`name`（默认是模组名）、`backgroundColor`、`primaryColor`、`accentColor`、
+`secondaryColor`、`wordColors`（`{ word, color }[]`）、`lyricsIcons`（最多 12 个）、`description`。颜色只收十六进制，别的写法抛 `TypeError`（`invalid-arguments: …`）。
+动画强度和字体不从这里取，仍是用户的；`fromColors` 和 `getCurrent` 的结果可以原样传进来。
+
+**检查顺序与限频**：先查权限（没有抛 `permission-denied:theme.write`）和参数；然后依次是 `stopped`（模组已停）、不改变任何东西的写入（同一个模组盖同一套主题：
+接受、不计数，也不会被下面两条拒）、`custom-preferred`、`rate-limited`（每个模组每秒一次、每分钟 20 次）。盖你定下来的主题，不要一帧帧地渐变。
+
+**事件**：`theme.overrideChanged`（`{ override, origin }`）在盖上主题的模组变了（盖上、撤下、换成别的模组）或 `writable` 变了时发，同一任务合成一次；
+同一个模组换一套主题只发 `theme.changed`。`origin` 是 `user` 时用户自己选了主题，是别的模组时被它换掉了：都应停下，不要马上再盖回去。
+`host` 是宿主自己（模组被停用或删除、「优先使用自定义主题」开关变了）。
+
+`getCurrent`、`getOverride`、`apply`、`release` 只在主窗口有，导出窗口里抛 `theme-unavailable-in-export-context`。声明了 `theme.write` 的清单在 Folium 1.9 及更早的宿主上**整份被拒**；
+要兼容旧宿主就不声明它，用 `folium.host.folium.minor >= 10` 判断。
+
 ### folium.ui.back（1.9）
 
 `folium.ui.back()` 请宿主返回一层，给把鼠标按键或手势绑成「返回」的模组用。它和用户按一下 Esc 是同一条路：最上面能返回的界面接这一下。
@@ -1691,8 +1750,8 @@ const { body, accountKey } = await platform.request('netease', 'user_record', { 
 
 ## 版本与演进
 
-- 清单里的 `folium: 1` 是 major；宿主通过 `folium.host.folium.minor` / `api.host.folium.minor` 暴露 minor。当前是 Folium 1.9，契约里的每个成员 1.9 的宿主上都有；
-  用到 1.7 新加的成员时先检查 `minor >= 7`，用到 1.8 新加的成员时先检查 `minor >= 8`，用到 1.9 新加的成员时先检查 `minor >= 9`，旧宿主上没有它们。
+- 清单里的 `folium: 1` 是 major；宿主通过 `folium.host.folium.minor` / `api.host.folium.minor` 暴露 minor。当前是 Folium 1.10，契约里的每个成员 1.10 的宿主上都有；
+  用到 1.7 新加的成员时先检查 `minor >= 7`，用到 1.8 新加的成员时先检查 `minor >= 8`，用到 1.9 新加的成员时先检查 `minor >= 9`，用到 1.10 新加的成员时先检查 `minor >= 10`，旧宿主上没有它们。
 - 1.x 内只做新增：可选的清单字段、新注册表、新事件、新服务方法、新权限、新设置字段类型、新公开 part。
 - DTO（`contract.ts`）字段只增不减；宿主内部类型不出现在任何稳定契约里。
 - 删除或改变语义必须升 major；之前至少有一个 minor 在日志里标记废弃。
@@ -1701,6 +1760,11 @@ const { body, accountKey } = await platform.request('netease', 'user_record', { 
   旧名字和现在的写法见 API 参考的[仍可用的旧名字](../docs/folium/api.md#仍可用的旧名字)，`npm run folium:check` 也会列出来。
 - 模组停掉之后，它原来那个 `folium` 对象的 `register` 和 `events.on` 不再生效；挂载结束之后经 `ctx` 订的监听同样不再生效。
 - 监听属于订阅它的那一次挂载：同一个函数在两处挂载里各订一次，每次变化各调用一次。
+
+**Folium 1.10 的变化**（都是新增，为 1.9 写的模组不用改）：
+
+- 屏幕上的主题：`folium.theme` 加 `getCurrent`、`getOverride`、`fromColors`、`apply`、`release`，通知事件 `theme.overrideChanged`；新权限 `theme.write`（`apply`、`release` 需要，别的不需要）。
+  模组的主题是盖在歌曲主题上的一层，不写用户的主题、歌曲主题缓存和同步，用户一选主题就撤下。稳定。见 [folium.theme](#foliumtheme110)。
 
 **Folium 1.9 的变化**（都是新增，为 1.8 写的模组不用改）：
 
