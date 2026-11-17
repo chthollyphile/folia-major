@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 // test/unit/stemMixer/stemMixerWorklet.test.ts
 // 分轨调音台的 worklet（services/stemMixer/stemMixer.worklet.ts）：输入就是元素的声音。四个强度都是 1.0×、
 // 没有块的地方都原样透传；人声 0 时是原曲减人声；走出有块的地方之前就交叉回输入、换歌和跳转都经输入交叉，
-// 不跳变、不留空白；强度高于 1.0× 时不超满幅。在 44.1 kHz 下跑，不插值。
+// 不跳变、不留空白；强度高于 1.0× 时不超满幅。多数在 44.1 kHz 下跑（不插值），另有一个 48 kHz 的跨块插值。
 
 type Processor = {
     port: { onmessage: ((event: { data: unknown }) => void) | null; postMessage: (message: unknown) => void };
@@ -140,9 +140,47 @@ describe('stem mixer worklet', () => {
             longest = Math.max(longest, quiet);
         }
         expect(longest).toBeLessThan(5);
+        // Every sample of the jump is between its own sound at the old place and at the new one: no dip toward the input.
+        const old = (i: number) => 0.9 * fL(i);
+        const now = (i: number) => 0.9 * fL(i + 300);
+        let outside = 0;
+        for (let i = 31 * 128; i < 31 * 128 + 221; i += 1) {
+            const lo = Math.min(old(i), now(i));
+            const hi = Math.max(old(i), now(i));
+            if (run.L[i] < lo - 2e-3 || run.L[i] > hi + 2e-3) outside += 1;
+        }
+        expect(outside).toBe(0);
         expect(maxStep(run.L.slice(1000))).toBeLessThan(0.03);
         // On the new place after it.
         expect(run.L[45 * 128]).toBeCloseTo(0.9 * fL(45 * 128 + 300), 4);
+    });
+
+    it('follows at 48 kHz, interpolating across chunk boundaries', () => {
+        const g = globalThis as Record<string, unknown>;
+        g.sampleRate = 48000;
+        g.currentTime = 0;
+        try {
+            const p = new Ctor();
+            const send = (data: unknown) => p.port.onmessage?.({ data });
+            send({ type: 'load', gen: 1 });
+            // Two chunks meeting at 3001: the 4-point reads straddle it.
+            for (const each of [chunk(0, 3001), chunk(3001, N)]) send({ type: 'chunk', gen: 1, ...each });
+            send({ type: 'gains', gains: [1, 1, 1, 0] });
+            send({ type: 'play', position: 0, at: 0, speed: 44100 / 48000, seq: 1 });
+            const L: number[] = [];
+            for (let q = 0; q < 60; q += 1) {
+                const inL = Float32Array.from({ length: 128 }, (_, i) => fL((q * 128 + i) * 44100 / 48000));
+                const out = [new Float32Array(128), new Float32Array(128)];
+                p.process([[inL, inL]], [out]);
+                g.currentTime = (g.currentTime as number) + 128 / 48000;
+                L.push(...out[0]);
+            }
+            // From 3000 on (past the gains settling) it is 0.9 of the input, at the 44.1 kHz place of each sample.
+            for (let i = 3000; i < 7000; i += 1) expect(Math.abs(L[i] - 0.9 * fL(i * 44100 / 48000))).toBeLessThan(2e-3);
+            expect(maxStep(L)).toBeLessThan(0.03);
+        } finally {
+            g.sampleRate = 44100;
+        }
     });
 
     it('stays inside full scale with the gains raised', () => {

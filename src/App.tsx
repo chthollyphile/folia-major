@@ -1161,7 +1161,7 @@ export default function App() {
     });
 
     automixRef.current = automix;
-    // 分轨调音台：automix 关着、不在 HiFi / 外部播放器上时，由它代替元素发声（services/stemMixer）。
+    // 分轨调音台：automix 关着、不在 HiFi / 外部播放器上时，在 deck 上按四轨强度改写元素的声音（services/stemMixer）。
     useStemMixer({
         audioRef,
         audioContextRef,

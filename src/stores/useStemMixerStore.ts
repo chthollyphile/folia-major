@@ -1,13 +1,13 @@
+import { create } from 'zustand';
+
+import { getStoredBoolean, getStoredString, setStoredBoolean, setStoredString } from './storagePrimitives';
+
 // src/stores/useStemMixerStore.ts
 // 分轨调音台的设置与状态：总开关、四条分轨（鼓、贝斯、其他、人声）的强度 0.0–2.0×，以及播放端此刻的状态
 // （services/stemMixer/useStemMixer.ts 写，音效窗口的「分轨调音台」一节读）。
 //
 // 开关与强度存着，换歌不复位：伴奏、只听人声这类用法是一整段时间的，不是一首歌的。状态不存。
 // 与 automix 互斥由播放端判断（automix 开着时调音台不接管，见 useStemMixer.ts），这里不去改 automix 的开关。
-
-import { create } from 'zustand';
-
-import { getStoredBoolean, getStoredString, setStoredBoolean, setStoredString } from './storagePrimitives';
 
 const STEM_MIXER_ENABLED_KEY = 'folia_stem_mixer_enabled';
 const STEM_MIXER_GAINS_KEY = 'folia_stem_mixer_gains';
@@ -46,9 +46,9 @@ export type StemMixerStatus =
     | { phase: 'ready' }
     /** 分好了，但元素放的不是分离的那个音源（或不是 1.0× 速度）：放的是原曲。 */
     | { phase: 'notFollowing' }
-    /** 超过分轨运行的时长上限（analysis/trackStemRun.ts 的 STEM_RUN_MAX_SECONDS）：不分。 */
+    /** 超过调音台的时长上限（services/stemMixer/stemMixerTask.ts 的 STEM_MIXER_MAX_SECONDS）：不分。 */
     | { phase: 'tooLong' }
-    /** 这首读不到或分不了：放的是原曲（跳转时再试）。 */
+    /** 这首读不到或分不了，重试也没成：放的是原曲（跳转时再试）。 */
     | { phase: 'failed' };
 
 export const clampStemMixerGain = (value: number): number => (

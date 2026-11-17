@@ -71,6 +71,7 @@ class StemMixerProcessor extends AudioWorkletProcessor {
     /** 目标强度，顺序同模型：鼓、贝斯、其他、人声。 */
     private target = [1, 1, 1, 1];
     private gains = [1, 1, 1, 1];
+    private readonly from = [1, 1, 1, 1];
     private position = 0;
     private speed = STEM_RATE / sampleRate;
     private playing = false;
@@ -248,17 +249,22 @@ class StemMixerProcessor extends AudioWorkletProcessor {
 
         // 强度：每个 quantum 朝目标走一步，quantum 内线性插。
         const k = 1 - Math.exp(-frames / (GAIN_TAU_SEC * sampleRate));
-        const from = this.gains.slice();
+        // 音频线程上不分配：上一个 quantum 的强度抄进预先留好的数组。
+        const from = this.from;
+        let unity = true;
+        let limit = false;
         for (let s = 0; s < 4; s += 1) {
+            from[s] = this.gains[s];
             this.gains[s] += (this.target[s] - this.gains[s]) * k;
             if (Math.abs(this.target[s] - this.gains[s]) < 1e-4) this.gains[s] = this.target[s];
+            if (from[s] !== 1 || this.gains[s] !== 1 || this.target[s] !== 1) unity = false;
+            if (from[s] > 1 || this.gains[s] > 1) limit = true;
         }
-        const unity = this.gains.every(g => g === 1) && from.every(g => g === 1) && this.target.every(g => g === 1);
         // 往前多看一个交叉的长度：走出有块的地方之前就已交叉回输入。
         const ahead = Math.ceil(this.position + (frames + BLEND_SEC * sampleRate) * this.speed) + 2;
-        const want = this.playing && !due && this.playGen === this.gen && !unity && this.covered(Math.floor(this.position) - 1, ahead);
+        // 到点了却还没换（新位置没有块，要先交叉回输入）：这时不要自己的声音。换过了就照常。
+        const want = this.playing && !(due && this.pending !== null) && this.playGen === this.gen && !unity && this.covered(Math.floor(this.position) - 1, ahead);
         const step = 1 / (BLEND_SEC * sampleRate);
-        const limit = this.gains.some(g => g > 1) || from.some(g => g > 1);
 
         for (let i = 0; i < frames; i += 1) {
             this.blend = want ? Math.min(1, this.blend + step) : Math.max(0, this.blend - step);

@@ -313,7 +313,8 @@ export const buildSettingsCommandContext = (
         applyStemMixerPreset: (preset) => {
             const mixer = useStemMixerStore.getState();
             mixer.handleApplyStemMixerPreset(preset);
-            if (!mixer.stemMixerEnabled) mixer.handleToggleStemMixer(true);
+            // 原样不用开：开了也只是透传。
+            if (!mixer.stemMixerEnabled && preset !== 'reset') mixer.handleToggleStemMixer(true);
         },
         canUseStemMixer: () => stemMixerDeviceBlock() === null,
         // Read at the press, like the settings page: none of these rebuild the context.

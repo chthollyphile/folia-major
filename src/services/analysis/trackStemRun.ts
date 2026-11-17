@@ -66,6 +66,9 @@ interface TrackRun {
 }
 
 const runs = new Map<string, TrackRun>();
+
+/** Whether a run on `key` is going now: a task asked for now joins it and reads through its bytes, not its own. */
+export const stemRunGoing = (key: string): boolean => runs.has(key);
 /** The track each claimant wants separated now. */
 const claims = new Map<StemClaimant, string>();
 

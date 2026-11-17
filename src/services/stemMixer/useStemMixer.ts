@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import type { MutableRefObject, RefObject } from 'react';
 import type { AutomixDeckChain } from '../automix/crossfadeGraph';
 import { claimStemTrack, releaseTrackStems, runTrackStems } from '../analysis/trackStemRun';
@@ -60,18 +60,16 @@ const rangeAt = (covered: ReadonlyArray<readonly [number, number]>, at: number) 
 
 export function useStemMixer({ audioRef, audioContextRef, getActiveChain, hifiBlocked, externalBlocked }: UseStemMixerParams): void {
     const enabled = useStemMixerStore(state => state.stemMixerEnabled);
-    const gains = useStemMixerStore(state => state.stemMixerGains);
     const automix = useAutomixSettingsStore(state => state.automixEnabled);
     const audioSrc = usePlaybackStore(state => state.audioSrc);
     const song = usePlaybackStore(state => state.currentSong);
-    const key = useMemo(() => (song ? getPlaybackAnalysisTarget(song).key : null), [song]);
+    // 每次渲染算：它还取决于音源登记表（转码回退后换成转码的 key），不只取决于 currentSong。
+    const key = song ? getPlaybackAnalysisTarget(song).key : null;
     // 元素的 src 与它是哪首歌：audioSrc 变的那一刻 currentSong 已是这首（usePlaybackAudioBridge.ts），只在这时
     // 记下这一对，换歌后、新地址落定前不把上一首的地址认成这首的。
     const pairRef = useRef<{ key: string | null; src: string | null }>({ key: null, src: null });
     if (pairRef.current.src !== audioSrc) pairRef.current = { key, src: audioSrc };
     const playerRef = useRef<{ context: AudioContext; player: Promise<StemMixerPlayer | null> } | null>(null);
-    const gainsRef = useRef(gains);
-    gainsRef.current = gains;
     const getActiveChainRef = useRef(getActiveChain);
     getActiveChainRef.current = getActiveChain;
 
@@ -84,9 +82,10 @@ export function useStemMixer({ audioRef, audioContextRef, getActiveChain, hifiBl
         else if (block) setStemMixerStatus({ phase: 'blocked', block });
     }, [block, enabled]);
 
-    useEffect(() => {
-        void playerRef.current?.player.then(player => player?.setGains(gains));
-    }, [gains]);
+    // 强度不经 React：拖推子时每一步都写 store，这里直接订阅推给播放端，不让 App 跟着重渲染。
+    useEffect(() => useStemMixerStore.subscribe((state, before) => {
+        if (state.stemMixerGains !== before.stemMixerGains) void playerRef.current?.player.then(player => player?.setGains(state.stemMixerGains));
+    }), []);
 
     // 同一首歌换了地址：块照用。
     useEffect(() => {
@@ -137,7 +136,7 @@ export function useStemMixer({ audioRef, audioContextRef, getActiveChain, hifiBl
         const playerFor = (context: AudioContext) => {
             if (playerRef.current?.context !== context) {
                 const made = createStemMixerPlayer(context).then((player) => {
-                    player?.setGains(gainsRef.current);
+                    player?.setGains(useStemMixerStore.getState().stemMixerGains);
                     return player;
                 });
                 playerRef.current = { context, player: made };
@@ -163,6 +162,8 @@ export function useStemMixer({ audioRef, audioContextRef, getActiveChain, hifiBl
                     if (cancelled || task !== mine) return false;
                     if (!player.addChunk(a, b, data)) return false;
                     mine.reached = b;
+                    // 又分得出来了：重试次数从头算。
+                    failures = 0;
                     // 在分离的这一趟里：别在这里重开任务、动 worklet，下一个微任务再看。
                     queueMicrotask(() => tick(player));
                     return true;
