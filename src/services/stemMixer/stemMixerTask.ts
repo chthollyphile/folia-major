@@ -10,13 +10,13 @@ import type { StemTask, StemTrack } from '../analysis/trackStemRun';
 // 只分播放头前面一段：`held` 答 true（已分到的地方离播放头够远）时读取者被跳过，同一趟里别的读取者
 // （智能动感模式的鼓点）照走，只剩它时这一趟等着。离播放头不到几秒时读取者是 urgent 的：和鼓点同在一趟、
 // 鼓点落在后面时先分这里要的（马上要听到的），不排在鼓点后面；领先够了就和鼓点按段号轮着来，慢 GPU 上
-// 也不会让鼓点一直等。
+// 也不会让鼓点一直等。读取者 paces：鼓点不跑到它前面去（它 held 时鼓点也停在它下一段之前），两边都要的段
+// 只分一次；整首的鼓点因此要等播放快到尾才齐，中途切走的歌下次从断点接着分。
 //
 // 超过 STEM_MIXER_MAX_SECONDS 的歌不分（答 'tooLong'）：调音台开着时整首的解码要一直留着。sink 出错只算
 // 这个任务的事（停在出错的地方），不连累同一趟里别人的分离。
 //
-// 使用方是 'stemMixer'：智能动感模式关着、或在看别的画面时，它照样让这首歌分下去。和鼓点同在一趟里、两边
-// 正好在同一段时一段只分一次；它 held 时鼓点往前走，之后它走到的段多半要再分一次。
+// 使用方是 'stemMixer'：智能动感模式关着、或在看别的画面时，它照样让这首歌分下去。
 
 export const STEM_MIXER_TASK = 'stem mixer';
 /** 放进 worklet 的三条分轨，顺序同 worklet 的块（原曲之后：鼓、贝斯、人声）。 */
@@ -91,6 +91,7 @@ export const stemMixerTask = (fromSample: number, sink: StemMixerSink): StemTask
                 channel,
                 urgent,
                 held,
+                paces: true,
                 ...startStemReader(total, from),
                 window: movingStemWindow(total, from, 0),
                 read: (final) => {

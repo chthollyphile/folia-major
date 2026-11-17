@@ -23,8 +23,9 @@ import { separateStemSegment, STEM_SOURCES, stemSegmentStarts, stemSegmentWindow
 // weight behind it. A reader starting part way has its stem whole from where the segment before its
 // first one ends (`stemWholeFrom`); before that it lacks that segment's share, and is left at zero.
 //
-// A reader can be held (not fed for now: 分轨调音台 once far enough ahead of the playhead) and urgent
-// (its segments first, ahead of a reader further back: what is about to be heard).
+// A reader can be held (not fed for now: 分轨调音台 once far enough ahead of the playhead), urgent
+// (its segments first, ahead of a reader further back: what is about to be heard) and pace the others
+// (they go no further than it, so the segments both want are separated once).
 //
 // The window is the reader's: the whole track (base 0, nothing let go), or a stretch of it that moves on
 // once the reader has read what is final (`read` answers the first sample it will read again) - a
@@ -56,6 +57,12 @@ export interface StemReader {
      * of the others. Asked each turn, so it can be urgent only while short of what it needs soon.
      */
     readonly urgent?: () => boolean;
+    /**
+     * The others go no further than it (分轨调音台 with 智能动感模式 on): while it is on the pass, a reader
+     * without it is fed only up to its next segment, and below that while it is held - so a segment both
+     * want is separated once, for both, instead of once ahead for the others and again when it comes.
+     */
+    readonly paces?: boolean;
     /** The next segment it needs; the pass moves it on. */
     next: number;
     /** Samples from the start whose quotient is final; the pass moves it on. */
@@ -154,7 +161,10 @@ export const runStemPass = async ({ left, right, readers, keepGoing = () => true
         const unfinished = readers().filter(reader => reader.next < starts.length);
         if (!unfinished.length) return true;
         if (!keepGoing()) return false;
-        const waiting = unfinished.filter(reader => !reader.held?.());
+        const held = new Set(unfinished.filter(reader => reader.held?.()));
+        const leads = unfinished.filter(reader => reader.paces);
+        const limit = leads.length ? Math.min(...leads.map(reader => (held.has(reader) ? reader.next - 1 : reader.next))) : Infinity;
+        const waiting = unfinished.filter(reader => !held.has(reader) && (reader.paces || reader.next <= limit));
         if (!waiting.length) {
             await new Promise(resolve => setTimeout(resolve, HELD_POLL_MS));
             continue;

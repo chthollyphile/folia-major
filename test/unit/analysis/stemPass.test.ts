@@ -131,6 +131,38 @@ describe('stem pass', () => {
         expect(drums.segments).toEqual([0, 1, 2, 3, 4]);
     });
 
+    it('keeps the others behind a pacing reader, so each segment runs once', async () => {
+        vi.useFakeTimers();
+        try {
+            const drums = reader('drums');
+            const mixer = reader('vocals');
+            let released = false;
+            const pacing: StemReader = Object.assign(mixer.r, { paces: true, held: () => !released && mixer.segments.length >= 2 });
+            const pass = runStemPass({ left, right, readers: () => [drums.r, pacing] });
+            await vi.advanceTimersByTimeAsync(1000);
+            // Held after two segments: the drums wait at its next one.
+            expect(drums.segments).toEqual([0, 1]);
+            expect(runHtdemucsGpu).toHaveBeenCalledTimes(2);
+            released = true;
+            await vi.advanceTimersByTimeAsync(1000);
+            expect(await pass).toBe(true);
+            expect(drums.segments).toEqual([0, 1, 2, 3, 4]);
+            expect(mixer.segments).toEqual([0, 1, 2, 3, 4]);
+            expect(runHtdemucsGpu).toHaveBeenCalledTimes(5);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('lets the others alone once the pacing reader is through or gone', async () => {
+        const drums = reader('drums');
+        const mixer = reader('vocals', 3, 0);
+        const pacing: StemReader = Object.assign(mixer.r, { paces: true });
+        expect(await runStemPass({ left, right, readers: () => [drums.r, pacing] })).toBe(true);
+        expect(drums.segments).toEqual([0, 1, 2, 3, 4]);
+        expect(runHtdemucsGpu).toHaveBeenCalledTimes(5);
+    });
+
     it('waits while all its readers are held and stops if no longer wanted', async () => {
         const voice = reader('vocals');
         let wanted = true;
