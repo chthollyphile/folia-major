@@ -13,6 +13,8 @@ type HomeSearchHistoryProps = {
     onRemove: (query: string) => void;
     onClear: () => void;
     isDaylight: boolean;
+    /** 铺满它所在的那一块：紧凑档的搜索层占满整条页头，历史面板也跟着同宽，不再固定 288px。 */
+    stretch?: boolean;
     className?: string;
 };
 
@@ -25,6 +27,7 @@ export const HomeSearchHistory: React.FC<HomeSearchHistoryProps> = ({
     onRemove,
     onClear,
     isDaylight,
+    stretch = false,
     className = '',
 }) => {
     const { t } = useTranslation();
@@ -40,7 +43,7 @@ export const HomeSearchHistory: React.FC<HomeSearchHistoryProps> = ({
         <div
             id="home-search-history"
             data-testid="home-search-history"
-            className={`w-72 max-w-[calc(100vw-2rem)] rounded-2xl border p-3 backdrop-blur-xl ${surface} ${className}`}
+            className={`rounded-2xl border p-3 backdrop-blur-xl ${stretch ? 'w-full' : 'w-72 max-w-[calc(100vw-2rem)]'} ${surface} ${className}`}
         >
             <div className="mb-2 flex items-center justify-between gap-2">
                 <span className="text-[11px] font-medium uppercase tracking-wide opacity-50">

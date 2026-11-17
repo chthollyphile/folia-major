@@ -2017,6 +2017,8 @@ export default {
     "searchDatabase": "TÌM TRÊN MẠNG...",
     "searchLocal": "Tìm nhạc trên máy...",
     "searchNavidrome": "Tìm trên Navidrome...",
+    "searchButton": "Tìm kiếm",
+    "searchClose": "Đóng tìm kiếm",
     "searchHistory": "Tìm kiếm gần đây",
     "searchHistoryClear": "Xóa hết",
     "searchHistoryRemove": "Xóa \"{{query}}\" khỏi lịch sử",

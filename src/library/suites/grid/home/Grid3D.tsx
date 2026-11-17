@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Search, Loader2, Settings, PanelsTopLeft } from 'lucide-react';
+import { Search, Loader2, Settings, PanelsTopLeft, X } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { resolveSearchSource, useSearchNavigationStore } from '../../../../stores/useSearchNavigationStore';
 import { useShallow } from 'zustand/react/shallow';
@@ -201,13 +201,31 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
 
     const showUpdateIndicator = useUpdateIndicator();
     // 紧凑档（窗口窄于 960，progress-bar v3，见 useBottomLayoutTracking）：页头一行放不下标题加五颗
-    // 页签胶囊，Folia 标题让位。没挂档位追踪的页面（OBS 之类）一直是桌面档，标题照旧。
+    // 页签胶囊，Folia 标题让位；搜索也收成一颗按钮——点开之后整排按钮向左滑出、搜索框从右边滑进来
+    // 占满整条页头。没挂档位追踪的页面（OBS 之类）一直是桌面档，标题与搜索框照旧。
     const isCompact = useIsBottomLayoutCompact();
+    /** 紧凑档的搜索是不是已经滑进来；桌面档的搜索框一直摆着，不看这个。 */
+    const [isCompactSearchOpen, setIsCompactSearchOpen] = useState(false);
 
     // Reset focused index when switching tabs.
     useEffect(() => {
         setFocusedIndex(0);
     }, [homeViewTab]);
+
+    // 回到桌面档就把紧凑档的搜索层收回去：下次再进紧凑档从收起的搜索钮开始，
+    // 不会留着一个已经滑出去的输入框。
+    useEffect(() => {
+        if (!isCompact) setIsCompactSearchOpen(false);
+    }, [isCompact]);
+
+    // 搜索层滑进来之后把焦点直接交给输入框：点那一下就是来打字的，不用再点一次。
+    // 等一帧再聚焦：那一帧起搜索层才开始从右边滑进来。preventScroll 是必须的——此刻它还在
+    // 页头右侧之外（translateX(100%)），浏览器默认会为了露出它把整个页面横向滚一段。
+    useEffect(() => {
+        if (!isCompact || !isCompactSearchOpen) return undefined;
+        const frame = requestAnimationFrame(() => searchInputRef.current?.focus({ preventScroll: true }));
+        return () => cancelAnimationFrame(frame);
+    }, [isCompact, isCompactSearchOpen]);
 
     useEffect(() => {
         setFocusedIndex(0);
@@ -322,12 +340,26 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
 
             {/* Main Header Container (Fades out when sliding/interacting) */}
             <div className="transition-opacity duration-300 ease-in-out z-20 opacity-100 select-none">
-                {/* 纵向留白两档一致，按桌面档：上内边距一直是 32px（p-8 的纵向那半）。紧凑档窄窗口里
-                    页签胶囊换到第二行，行距由 gap-y 出——那是换行本身的高度，不是页头的内边距。
-                    横向在窄窗口仍收窄到 16px，否则搜索框与胶囊没地方放。 */}
-                <div className="grid grid-cols-2 md:grid-cols-3 items-center w-full max-w-7xl mx-auto px-4 md:px-8 py-8 gap-y-4 md:gap-y-0">
+                {/* 页头是道推拉门：紧凑档点开搜索时，整排按钮向左滑出，搜索框从右边滑进来占满整条页头；
+                    收起时两边各自滑回。进出都只做 transform——不给祖先加 opacity 或 filter，那会把
+                    backdrop-filter 的取样根截断在容器里。这一层横着裁切：滑出去的两层由它收掉，
+                    纵向不裁：扫库进度气泡是往下弹的，要留它出去。 */}
+                <div className="relative overflow-x-clip">
+                {/* 纵向留白两档一致，按桌面档：上内边距一直是 32px（p-8 的纵向那半）。
+                    桌面档三块（标题那组、页签胶囊、搜索）按三等分排：两侧各占一份剩余宽度，胶囊恰好落在
+                    页面中间，换页签、加页签都不会偏。
+                    紧凑档搜索收成了一颗钮，搜索那一块只占自身宽度、紧贴右边，不再留一份空列：
+                    这一行改成两端对齐，胶囊居中于两边之间，字号与大小跟桌面档一样。
+                    两档的胶囊都是 auto 宽、不参与伸缩：窗口再窄也不压它，先让两边让出位置。
+                    横向在窄窗口收窄到 16px；窗口很窄时只收每个页签的左右内边距。 */}
+                <div
+                    className={`items-center w-full max-w-7xl mx-auto px-4 md:px-8 py-8 transition-transform duration-300 ease-out ${isCompact
+                        ? 'flex justify-between gap-2'
+                        : 'grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]'}`}
+                    style={{ transform: isCompact && isCompactSearchOpen ? 'translateX(-100%)' : 'translateX(0)' }}
+                >
                     {/* Left title and settings */}
-                    <div className="flex items-center justify-start order-1 md:order-none">
+                    <div className="flex min-w-0 items-center justify-start overflow-hidden">
                         {/* 紧凑档（窗口窄于 960）页头一行放不下五颗胶囊，Folia 标题让位给它们：这里只留
                             设置与队列拼贴。桌面档照旧。 */}
                         {!isCompact && (
@@ -425,9 +457,10 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                         )}
                     </div>
 
-                    {/* Center Tab Switcher */}
-                    <div className="flex justify-center order-3 md:order-none col-span-2 md:col-span-1">
-                        <div className={`relative ${navPillBg} backdrop-blur-md p-1 rounded-full scale-90 md:scale-100 origin-center`}>
+                    {/* Center Tab Switcher：两档都在这一行的中间，字号与大小相同，宽度永远是它自身的内容宽度
+                        （shrink-0）：窗口再窄也不压它，先让两侧让位。窗口很窄时只收每个页签的左右内边距。 */}
+                    <div className="flex shrink-0 justify-center">
+                        <div className={`relative shrink-0 ${navPillBg} backdrop-blur-md p-1 rounded-full`}>
                             <div className="inline-flex items-center gap-0">
                                 {homeTabs.map((tab) => {
                                     const isActive = homeViewTab === tab.key;
@@ -444,7 +477,7 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                                                     setHomeViewTab(tab.key);
                                                     focusActiveSlider();
                                                 }}
-                                                className={`relative inline-flex items-center justify-center px-4 py-1.5 rounded-full text-xs md:text-sm font-medium transition-colors duration-300 whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-35 ${isActive ? activeTabBg : navPillInactiveText}`}
+                                                className={`relative inline-flex items-center justify-center px-4 py-1.5 rounded-full text-sm font-medium transition-colors duration-300 whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-35 ${isActive ? activeTabBg : navPillInactiveText}`}
                                             >
                                                 {isActive && (
                                                     <motion.span
@@ -460,7 +493,7 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                                 })}
                                 {props.extraTabs?.map(tab => (
                                     <button key={tab.id} type="button" onClick={tab.select}
-                                        className={`relative inline-flex items-center justify-center px-4 py-1.5 rounded-full text-xs md:text-sm font-medium whitespace-nowrap ${navPillInactiveText}`}>
+                                        className={`relative inline-flex items-center justify-center px-4 py-1.5 rounded-full text-sm font-medium whitespace-nowrap ${navPillInactiveText}`}>
                                         {tab.label}
                                     </button>
                                 ))}
@@ -468,7 +501,7 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                                     <button
                                         onClick={() => onOpenStagePlayer?.()}
                                         data-stage-active={stageIsActive ? 'true' : 'false'}
-                                        className={`relative inline-flex items-center justify-center px-4 py-1.5 rounded-full text-xs md:text-sm font-medium transition-colors duration-300 whitespace-nowrap ${navPillInactiveText}`}
+                                        className={`relative inline-flex items-center justify-center px-4 py-1.5 rounded-full text-sm font-medium transition-colors duration-300 whitespace-nowrap ${navPillInactiveText}`}
                                     >
                                         <span className="relative z-10">{t('home.stage')}</span>
                                     </button>
@@ -479,10 +512,26 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                     </div>
 
                     {/* Right Search Bar */}
-                    <div className="flex justify-end order-2 md:order-none">
+                    <div className="flex min-w-0 items-center justify-end overflow-hidden">
+                        {isCompact ? (
+                            // 紧凑档收着的时候这里只有一颗圆钮：点开之后整条页头交给搜索层（见下面），
+                            // 这一排按钮一起向左滑出去。
+                            <button
+                                type="button"
+                                onClick={() => setIsCompactSearchOpen(true)}
+                                title={t('home.searchButton')}
+                                aria-label={t('home.searchButton')}
+                                aria-expanded={isCompactSearchOpen}
+                                data-testid="home-search-toggle"
+                                className={`relative flex shrink-0 items-center justify-center p-2 rounded-full hover:bg-white/10 transition-all ${isSearchingActive ? 'opacity-90' : 'opacity-40 hover:opacity-100'}`}                            >
+                                {isSearchingActive
+                                    ? <Loader2 size={20} className="animate-spin" style={{ color: 'var(--text-primary)' }} />
+                                    : <Search size={20} style={{ color: 'var(--text-primary)' }} />}
+                            </button>
+                        ) : (
                         <form
                             onSubmit={handleSearch}
-                            className="relative w-full md:w-56 transition-all focus-within:md:w-72"
+                            className="relative w-full transition-all md:w-56 focus-within:md:w-72"
                             onBlur={event => {
                                 // 焦点离开整块（连面板一起）才收起，点到面板里的标签不算离开。
                                 if (!event.currentTarget.contains(event.relatedTarget)) {
@@ -539,7 +588,98 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                                 )}
                             </AnimatePresence>
                         </form>
+                        )}
                     </div>
+                </div>
+
+                {/* 紧凑档展开的搜索：从右边滑进来占满整条页头（左右 padding 与页头一致，所以贴齐两侧）。
+                    收起时滑回右边，同时断掉指针与焦点；输入框里的字留着，下次展开接着改。 */}
+                {isCompact && (
+                    <div
+                        className="absolute inset-0 flex items-center px-4 transition-transform duration-300 ease-out"
+                        style={{
+                            transform: isCompactSearchOpen ? 'translateX(0)' : 'translateX(100%)',
+                            pointerEvents: isCompactSearchOpen ? 'auto' : 'none',
+                        }}
+                        aria-hidden={!isCompactSearchOpen}
+                        inert={!isCompactSearchOpen}
+                    >
+                        <form
+                            onSubmit={handleSearch}
+                            className={`relative h-10 w-full rounded-full ${inputBg} border border-white/10`}
+                        >
+                            {isSearchingActive ? (
+                                <Loader2 className="absolute left-3 top-1/2 w-4 h-4 animate-spin opacity-40 -mt-2" />
+                            ) : (
+                                <Search
+                                    className="absolute left-3 top-1/2 -translate-y-1/2 opacity-40 w-4 h-4 cursor-pointer hover:opacity-100 transition-opacity"
+                                    onClick={() => handleSearch()}
+                                />
+                            )}
+                            <input
+                                ref={searchInputRef}
+                                type="text"
+                                placeholder={homeViewTab === 'local' ? t('home.searchLocal') : homeViewTab === 'navidrome' ? t('home.searchNavidrome') : t('home.searchDatabase')}
+                                value={searchQuery}
+                                onChange={e => setSearchQuery(e.target.value)}
+                                onFocus={() => setIsSearchHistoryOpen(true)}
+                                onKeyDown={event => {
+                                    // Esc 先收搜索历史（没有历史可收就不用先按一下）；历史收着时才收起整条
+                                    // 搜索层。输入框里的字留着，下次展开接着改。
+                                    if (event.key !== 'Escape') return;
+                                    event.stopPropagation();
+                                    if (isSearchHistoryOpen && searchHistory.length > 0) {
+                                        setIsSearchHistoryOpen(false);
+                                        return;
+                                    }
+                                    setIsCompactSearchOpen(false);
+                                    searchInputRef.current?.blur();
+                                }}
+                                aria-expanded={isSearchHistoryOpen && searchHistory.length > 0}
+                                aria-controls="home-search-history"
+                                className="h-10 w-full rounded-full py-2 pl-10 pr-10 text-sm focus:outline-none transition-all placeholder:text-current placeholder:opacity-40 select-text"
+                                style={{ color: 'var(--text-primary)' }}
+                            />
+                            {/* 收起：打完字（或改到一半）不想搜了就按这个，输入框跟着滑回右边。 */}
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setIsCompactSearchOpen(false);
+                                    setIsSearchHistoryOpen(false);
+                                    searchInputRef.current?.blur();
+                                }}
+                                title={t('home.searchClose')}
+                                aria-label={t('home.searchClose')}
+                                className="absolute right-1.5 top-1/2 grid h-7 w-7 -translate-y-1/2 place-items-center rounded-full transition-colors hover:bg-white/15"
+                            >
+                                <X size={14} style={{ color: 'var(--text-primary)' }} />
+                            </button>
+                            <AnimatePresence>
+                                {isSearchHistoryOpen && searchHistory.length > 0 && (
+                                    <motion.div
+                                        initial={{ opacity: 0, y: -6 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        exit={{ opacity: 0, y: -6 }}
+                                        transition={{ duration: 0.16 }}
+                                        className="absolute inset-x-0 top-full z-40 mt-2"
+                                    >
+                                        <HomeSearchHistory
+                                            items={searchHistory}
+                                            onPick={item => {
+                                                setSearchQuery(item);
+                                                void runSearch(item);
+                                            }}
+                                            onRemove={forgetSearchHistoryQuery}
+                                            onClear={clearSearchHistory}
+                                            isDaylight={isDaylight}
+                                            stretch
+                                        />
+                                    </motion.div>
+                                )}
+                            </AnimatePresence>
+                        </form>
+                    </div>
+                )}
                 </div>
             </div>
 

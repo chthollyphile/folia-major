@@ -2017,6 +2017,8 @@ export default {
     "searchDatabase": "CARI DATABASE...",
     "searchLocal": "Cari lagu lokal...",
     "searchNavidrome": "Cari navidrome",
+    "searchButton": "Cari",
+    "searchClose": "Tutup pencarian",
     "searchHistory": "Pencarian terakhir",
     "searchHistoryClear": "Hapus semua",
     "searchHistoryRemove": "Hapus \"{{query}}\" dari riwayat",

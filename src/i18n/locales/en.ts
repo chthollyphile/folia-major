@@ -2017,6 +2017,8 @@ export default {
     "searchDatabase": "SEARCH DATABASE...",
     "searchLocal": "Search local songs...",
     "searchNavidrome": "Search navidrome",
+    "searchButton": "Search",
+    "searchClose": "Close search",
     "searchHistory": "Recent searches",
     "searchHistoryClear": "Clear",
     "searchHistoryRemove": "Remove \"{{query}}\" from history",
