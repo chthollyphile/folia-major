@@ -43,6 +43,12 @@ const nodeFor = (context: AudioContext, chain: AutomixDeckChain): AudioWorkletNo
     try {
         chain.source.disconnect(chain.replayGain);
     } catch { /* 开发时热重载过：早已改接 */ }
+    // worklet 出错就不再出声：接回元素直连，这个 deck 照常放原曲。
+    node.onprocessorerror = () => {
+        console.warn('[StemMixer] worklet failed; the deck plays the element directly again');
+        chain.source.connect(chain.replayGain);
+        node.disconnect();
+    };
     nodes.set(chain, node);
     return node;
 };

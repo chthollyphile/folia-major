@@ -11,8 +11,8 @@ import type { StemTask, StemTrack } from '../analysis/trackStemRun';
 // （智能动感模式的鼓点）照走，只剩它时这一趟等着。读取者是 urgent 的：和鼓点同在一趟、鼓点落在后面时，
 // 先分这里要的（马上要听到的），不排在鼓点后面。
 //
-// 使用方是 'stemMixer'：智能动感模式关着、或在看别的画面时，它照样让这首歌分下去；和鼓点、雾笺人声同在一趟
-// 里时，一段只分一次。
+// 使用方是 'stemMixer'：智能动感模式关着、或在看别的画面时，它照样让这首歌分下去。和鼓点同在一趟里、两边
+// 正好在同一段时一段只分一次；它 held 时鼓点往前走，之后它走到的段多半要再分一次。
 
 export const STEM_MIXER_TASK = 'stem mixer';
 /** 放进 worklet 的三条分轨，顺序同 worklet 的块（原曲之后：鼓、贝斯、人声）。 */

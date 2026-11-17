@@ -28,7 +28,7 @@ const fL = (i: number) => 0.5 * Math.sin(i * 0.05);
 const fR = (i: number) => 0.5 * Math.cos(i * 0.03);
 const store = (f: (i: number) => number, k = 1, from = 0, to = N) => Int16Array.from({ length: to - from }, (_, i) => Math.round(f(from + i) * k * (32767 / 2)));
 /** 鼓 0.4、贝斯 0.3、人声 0.1 的份额（其他 0.2）。 */
-const chunk = (from = 0, to = N) => [1, 0.4, 0.3, 0.1].flatMap(k => [store(fL, k, from, to), store(fR, k, from, to)]);
+const chunk = (from = 0, to = N) => ({ from, to, data: [1, 0.4, 0.3, 0.1].flatMap(k => [store(fL, k, from, to), store(fR, k, from, to)]) });
 
 interface Run { L: number[]; R: number[]; inL: number[]; send: (data: unknown) => void; step: (quanta: number) => void }
 
@@ -39,7 +39,7 @@ const start = (gains: number[], { chunks = [chunk()], media = (q: number) => q *
     const p = new Ctor();
     const send = (data: unknown) => p.port.onmessage?.({ data });
     send({ type: 'load', gen: 1 });
-    for (const data of chunks) send({ type: 'chunk', gen: 1, from: 0, to: data[0].length, data });
+    for (const each of chunks) send({ type: 'chunk', gen: 1, ...each });
     send({ type: 'gains', gains });
     send({ type: 'play', position: 0, at: 0, speed: 1, seq: 1 });
     const run: Run = { L: [], R: [], inL: [], send, step: () => undefined };
@@ -112,6 +112,19 @@ describe('stem mixer worklet', () => {
         // Back on the stems at the new place.
         const i = 50 * 128;
         expect(run.L[i]).toBeCloseTo(0.9 * fL(media(50)), 4);
+    });
+
+    it('keeps what it is fading out of when told to drop it mid-jump', () => {
+        // The element jumps to 6000 at quantum 30; stop, the far play and the keep all land at once.
+        const media = (q: number) => (q < 30 ? q * 128 : 6000 + (q - 30) * 128);
+        const run = start([1, 1, 1, 0], { chunks: [chunk(0, 4096), chunk(4096, N)], media });
+        run.step(30);
+        run.send({ type: 'stop' });
+        run.send({ type: 'play', position: 6000 + 128, at: 31 * 128 / 44100, speed: 1, seq: 2 });
+        run.send({ type: 'keep', from: 4096, to: N });
+        run.step(15);
+        expect(maxStep(run.L)).toBeLessThan(0.03);
+        expect(run.L[42 * 128]).toBeCloseTo(0.9 * fL(media(42)), 4);
     });
 
     it('stays inside full scale with the gains raised', () => {

@@ -80,6 +80,8 @@ class StemMixerProcessor extends AudioWorkletProcessor {
     private blend = 0;
     private sinceReport = 0;
     private readonly values = new Float64Array(CHANNELS);
+    /** 交叉回输入的途中来的 `keep`：正在读的块先留着，回到输入了再按它丢。 */
+    private keepLater: { from: number; to: number } | null = null;
 
     constructor() {
         super();
@@ -99,8 +101,7 @@ class StemMixerProcessor extends AudioWorkletProcessor {
                 this.chunks.sort((a, b) => a.from - b.from);
                 break;
             case 'keep':
-                this.chunks = this.chunks.filter(chunk => chunk.to > message.from && chunk.from < message.to);
-                this.last = null;
+                this.keep(message.from, message.to);
                 break;
             case 'gains':
                 this.target = message.gains.slice(0, 4);
@@ -114,6 +115,17 @@ class StemMixerProcessor extends AudioWorkletProcessor {
                 break;
             default:
         }
+    }
+
+    /**
+     * 只留与 [from, to) 有交集的块。还没交叉回输入时（跳转了，正淡出旧位置）旧位置附近的块先留着，
+     * 否则淡出的那几毫秒读到的是 0。
+     */
+    private keep(from: number, to: number) {
+        const near = this.blend > 0 ? [Math.floor(this.position) - 2, Math.ceil(this.position + 2 * BLEND_SEC * sampleRate * this.speed) + 2] : null;
+        this.chunks = this.chunks.filter(chunk => (chunk.to > from && chunk.from < to) || (near !== null && chunk.to > near[0] && chunk.from < near[1]));
+        this.keepLater = near ? { from, to } : null;
+        this.last = null;
     }
 
     /** 含第 `at` 个采样的块（正在放的这一代的）。 */
@@ -195,6 +207,7 @@ class StemMixerProcessor extends AudioWorkletProcessor {
             this.playing = true;
             this.pending = null;
         }
+        if (this.blend === 0 && this.keepLater) this.keep(this.keepLater.from, this.keepLater.to);
         // 上一首的块：交叉回输入以后丢掉。
         if (this.blend === 0 && this.playGen !== this.gen) {
             this.playGen = this.gen;

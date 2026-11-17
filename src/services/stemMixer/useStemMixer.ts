@@ -113,8 +113,8 @@ export function useStemMixer({ audioRef, audioContextRef, getActiveChain, hifiBl
         let pollTimer: ReturnType<typeof setTimeout> | null = null;
         let tickTimer: ReturnType<typeof setInterval> | null = null;
         let element: HTMLAudioElement | null = null;
-        /** 正在跑的任务：从哪起、分到了哪。 */
-        let task: { from: number; reached: number } | null = null;
+        /** 正在跑的任务：分到了哪。 */
+        let task: { reached: number } | null = null;
         let total: number | null = null;
         /** 上一个任务读不到或没分完：不再自己重开，跳转时再试。 */
         let failed = false;
@@ -138,7 +138,7 @@ export function useStemMixer({ audioRef, audioContextRef, getActiveChain, hifiBl
 
         const startTask = (player: StemMixerPlayer, from: number) => {
             if (task) releaseTrackStems(key, STEM_MIXER_TASK);
-            const mine = { from, reached: from };
+            const mine = { reached: from };
             task = mine;
             void runTrackStems(key, readBytes, stemMixerTask(from, {
                 onTrack: (track) => {
@@ -177,8 +177,9 @@ export function useStemMixer({ audioRef, audioContextRef, getActiveChain, hifiBl
             // 从播放头起已经连着有的地方到哪。
             const frontier = here ? here[1] : head;
             if (task) {
-                // 正在分的地方和播放头连着（播放头在它分好的那段里，或在它前面不远）就等它，否则重开。
-                const joined = here ? here[1] >= task.reached : head >= task.from && head <= task.reached + JUMP_AHEAD;
+                // 正在分的地方和播放头连着（播放头在它分好的那段里，或在它分到的地方前面不远）就等它，否则重开。
+                // 播放头没有块、又在它分到的地方之前：块已丢掉（往回跳出了窗口），它不会再分回来。
+                const joined = here ? here[1] >= task.reached : head >= task.reached && head <= task.reached + JUMP_AHEAD;
                 if (!joined) startTask(player, frontier);
             } else if (!failed && (total === null || frontier < total) && frontier < head + AHEAD) {
                 startTask(player, frontier);
