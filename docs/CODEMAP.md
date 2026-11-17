@@ -35,11 +35,11 @@
 | --- | --- |
 | 1024+ | `src/types.ts` |
 | 256+ | `src/types/onlineMusic.ts` |
+| 128+ | `src/components/modal/settings/kit/index.ts` |
 | 128+ | `src/stores/usePlaybackStore.ts` |
 | 128+ | `src/types/ponder.ts` |
 | 128+ | `src/utils/appPlaybackGuards.ts` |
 | 64+ | `src/components/command-palette/types.ts` |
-| 64+ | `src/components/modal/settings/kit/index.ts` |
 | 64+ | `src/components/visualizer/definition.ts` |
 | 64+ | `src/i18n/config.ts` |
 | 64+ | `src/library/core/collection/collection.contract.ts` |
