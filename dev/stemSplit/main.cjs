@@ -6,7 +6,7 @@ const mnn = require('../../electron/analysis/mnn.cjs');
 
 // dev/stemSplit/main.cjs
 // 全曲人声/伴奏分离的独立原型：用应用已有的 htdemucs（models/htdemucs-wgsl.bin）把一首歌整首分成
-// 人声和伴奏（drums + bass + other），两种引擎都能跑——CPU 走主进程里的 MNN（electron/analysis/mnn.cjs），
+// 四个音源（另存人声和伴奏 = drums + bass + other），两种引擎都能跑——CPU 走主进程里的 MNN（electron/analysis/mnn.cjs），
 // GPU 走页面里的 WebGPU 运行时（src/services/analysis/htdemucsWgsl）——并给出解码、加载、每段推理、
 // 拼接、写盘的耗时和实时倍率。不碰应用自己的配置目录：userData 是临时目录。
 //
@@ -17,7 +17,8 @@ const mnn = require('../../electron/analysis/mnn.cjs');
 //   STEM_AUTO=cpu,gpu-f16 STEM_FILE=song.flac node dev/stemSplit/run.mjs
 //
 // 引擎名：cpu（STEM_THREADS 线程，默认 4，应用里 automix 用的数）、gpu（f32）、gpu-f16。
-// 结果写到 系统临时目录/folia-stem-split/<歌名>-<引擎>/：vocals.wav、instrumental.wav（16 位）、timing.json。
+// 结果写到 系统临时目录/folia-stem-split/<歌名>-<引擎>/：drums / bass / other / vocals.wav、instrumental.wav、mix.wav（16 位）、timing.json。
+// 界面里的调音台把四轨各接一个 0.0–2.0× 的强度滑块实时试听（dev/stemSplit/mixer.ts）。
 
 const outDir = process.env.STEM_OUT_DIR;
 if (!outDir) {

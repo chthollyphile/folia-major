@@ -25,12 +25,22 @@
     th:first-child, td:first-child { text-align: left; }
     th { color: var(--muted); font-weight: 500; }
     #detail { white-space: pre-wrap; font: 12px/1.5 Consolas, monospace; color: var(--muted); margin: 8px 0 0; max-height: 220px; overflow: auto; }
-    audio { width: 100%; margin-top: 8px; }
+    .transport { margin-top: 10px; }
+    .transport input[type=range] { flex: 1; min-width: 160px; }
+    #mixer-time { font-variant-numeric: tabular-nums; min-width: 92px; text-align: right; }
+    #mixer-peak { font-variant-numeric: tabular-nums; min-width: 140px; color: var(--muted); font-size: 12px; }
+    #mixer-peak.clip { color: #e5484d; font-weight: 600; }
+    #mixer-strips { margin-top: 12px; display: grid; gap: 6px; transition: opacity .15s; }
+    #mixer-strips.bypassed { opacity: .45; }
+    .strip { display: grid; grid-template-columns: 110px 1fr 56px; gap: 12px; align-items: center; }
+    .strip input[type=range] { width: 100%; }
+    .strip-value { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
+    .strip-value.changed { color: var(--accent); font-weight: 600; }
     .hint { color: var(--muted); font-size: 12px; }
 </style>
 </head>
 <body>
-<h1>htdemucs 全曲分离原型 <span class="hint">人声 / 伴奏（drums + bass + other）</span></h1>
+<h1>htdemucs 全曲分离原型 <span class="hint">四轨 drums / bass / other / vocals，另存人声 / 伴奏</span></h1>
 <section>
     <div class="row">
         <button id="pick">选择音频…</button>
@@ -59,16 +69,23 @@
 </section>
 <section>
     <div class="row">
-        <span>试听：</span>
-        <span id="which" class="hint">先跑一次</span>
+        <span>调音台：</span>
+        <span id="mixer-which" class="hint">先跑一次</span>
         <span style="flex:1"></span>
-        <button data-stem="mix" disabled>原曲</button>
-        <button data-stem="vocals" disabled>人声</button>
-        <button data-stem="instrumental" disabled>伴奏</button>
+        <button data-preset="reset" disabled>全部 1.0×</button>
+        <button data-preset="vocals" disabled>仅人声</button>
+        <button data-preset="karaoke" disabled>去人声</button>
+        <button id="mixer-original" disabled>原曲</button>
         <button id="folder" disabled>打开目录</button>
     </div>
-    <audio id="audio" controls></audio>
-    <div class="hint">切换音轨时保持播放位置，方便对比。</div>
+    <div class="row transport">
+        <button id="mixer-play" class="primary" disabled>播放</button>
+        <input type="range" id="mixer-seek" min="0" max="1" step="0.01" value="0" disabled>
+        <span id="mixer-time">0:00 / 0:00</span>
+        <span id="mixer-peak"></span>
+    </div>
+    <div id="mixer-strips"></div>
+    <div class="hint" style="margin-top:8px">每条音轨强度 0.0–2.0×，双击滑块复位到 1.0×。「原曲」切到解码出的原曲（不经过滑块），位置不变，方便对比。四轨相加与原曲之间的差见上表重建误差。</div>
 </section>
 <script src="page.js"></script>
 </body>

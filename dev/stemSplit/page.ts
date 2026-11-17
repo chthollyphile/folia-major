@@ -1,10 +1,11 @@
 /// <reference types="@webgpu/types" />
 import { HtdemucsWgsl, HTDEMUCS_SEGMENT, type HtdemucsWgslManifest } from '../../src/services/analysis/htdemucsWgsl/runtime';
+import { createMixer, createStereoBuffer, RATE } from './mixer';
 
 // dev/stemSplit/page.ts
 // 原型的页面（见 main.cjs）：ffmpeg 解码整首歌，按应用里 htdemucs.cjs 的分段与三角窗重叠相加切成
-// 172032 采样的段，交给 CPU（主进程 MNN，经 IPC）或 GPU（本页 WebGPU）跑，拼回人声与伴奏，写成 WAV，
-// 记下每一步的耗时。
+// 172032 采样的段，交给 CPU（主进程 MNN，经 IPC）或 GPU（本页 WebGPU）跑，拼回四个音源（另存人声与伴奏），
+// 写成 WAV，记下每一步的耗时；跑完把四轨交给调音台（mixer.ts）试听。
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // Node 的 require 从 window 上取，打包器就不去解析这几个模块。
@@ -13,9 +14,7 @@ const { ipcRenderer } = nodeRequire('electron');
 const fs = nodeRequire('fs');
 const path = nodeRequire('path');
 const { spawn } = nodeRequire('child_process');
-const { pathToFileURL } = nodeRequire('url');
 
-const RATE = 44100;
 const L = HTDEMUCS_SEGMENT;
 /** 模型自己的音源顺序。 */
 const SOURCES = ['drums', 'bass', 'other', 'vocals'] as const;
@@ -28,7 +27,7 @@ interface Config {
     threads: number; cores: number; cpuModel: string;
 }
 
-interface Pcm { file: string; left: Float32Array; right: Float32Array; decodeMs: number }
+interface Pcm { file: string; left: Float32Array<ArrayBuffer>; right: Float32Array<ArrayBuffer>; decodeMs: number }
 
 /** 一个引擎跑一段：输入 [2, L]（先左后右），输出取第 s 个音源第 ch 声道的读取函数。 */
 interface Runner {
@@ -195,7 +194,8 @@ const gpuRunner = (f16: boolean): Runner => {
 
 /**
  * 整首分离：段长 L，步长 3/4 段，相邻两段在共有的 1/4 上用三角窗交叉淡化，再除以总权重
- * （electron/analysis/htdemucs.cjs 的 buildWindow，与参考实现一致）。人声是 vocals，伴奏是其余三个音源之和。
+ * （electron/analysis/htdemucs.cjs 的 buildWindow，与参考实现一致）。四个音源各拼成一个双声道 AudioBuffer
+ * （直接往它的声道里累加，调音台拿去就能播，不再拷一份）。人声是 vocals，伴奏是其余三个音源之和。
  */
 const separate = async (runner: Runner, left: Float32Array, right: Float32Array, onSegment: (index: number, count: number, ms: number, note?: string) => void) => {
     const total = left.length;
@@ -208,8 +208,9 @@ const separate = async (runner: Runner, left: Float32Array, right: Float32Array,
     }
     const stride = L - overlap;
     const count = Math.max(1, Math.ceil(total / stride));
-    const vocals = [new Float32Array(total), new Float32Array(total)];
-    const instrumental = [new Float32Array(total), new Float32Array(total)];
+    const stems = SOURCES.map(() => createStereoBuffer(total));
+    /** channels[s][ch]：第 s 个音源第 ch 声道。 */
+    const channels = stems.map(buffer => [buffer.getChannelData(0), buffer.getChannelData(1)]);
     const weight = new Float32Array(total);
     const input = new Float32Array(2 * L);
     const segmentMs: number[] = [];
@@ -225,16 +226,11 @@ const separate = async (runner: Runner, left: Float32Array, right: Float32Array,
         const { get, ms, note } = await runner.run(input);
         segmentMs.push(ms);
         const stitchStarted = performance.now();
-        for (let ch = 0; ch < 2; ch += 1) {
-            const v = get(VOCALS, ch);
-            const d = get(0, ch);
-            const b = get(1, ch);
-            const o = get(2, ch);
-            const toV = vocals[ch];
-            const toI = instrumental[ch];
-            for (let i = 0; i < n; i += 1) {
-                toV[start + i] += v[i] * win[i];
-                toI[start + i] += (d[i] + b[i] + o[i]) * win[i];
+        for (let s = 0; s < SOURCES.length; s += 1) {
+            for (let ch = 0; ch < 2; ch += 1) {
+                const from = get(s, ch);
+                const to = channels[s][ch];
+                for (let i = 0; i < n; i += 1) to[start + i] += from[i] * win[i];
             }
         }
         for (let i = 0; i < n; i += 1) weight[start + i] += win[i];
@@ -242,15 +238,25 @@ const separate = async (runner: Runner, left: Float32Array, right: Float32Array,
         onSegment(c, count, ms, note);
     }
     const normStarted = performance.now();
-    for (let i = 0; i < total; i += 1) {
-        const w = 1 / Math.max(weight[i], 1e-8);
-        vocals[0][i] *= w;
-        vocals[1][i] *= w;
-        instrumental[0][i] *= w;
-        instrumental[1][i] *= w;
+    for (let i = 0; i < total; i += 1) weight[i] = 1 / Math.max(weight[i], 1e-8);
+    for (const stem of channels) {
+        for (const data of stem) {
+            for (let i = 0; i < total; i += 1) data[i] *= weight[i];
+        }
     }
+    // 伴奏 = drums + bass + other。
+    const vocals = channels[VOCALS];
+    const instrumental = [new Float32Array(total), new Float32Array(total)];
+    channels.forEach((stem, s) => {
+        if (s === VOCALS) return;
+        for (let ch = 0; ch < 2; ch += 1) {
+            const to = instrumental[ch];
+            const from = stem[ch];
+            for (let i = 0; i < total; i += 1) to[i] += from[i];
+        }
+    });
     stitchMs += performance.now() - normStarted;
-    return { vocals, instrumental, segmentMs, stitchMs };
+    return { stems, channels, vocals, instrumental, segmentMs, stitchMs };
 };
 
 let config: Config;
@@ -260,7 +266,7 @@ const results: RunResult[] = [];
 
 const safeName = (file: string) => path.basename(file, path.extname(file)).replace(/[\\/:*?"<>|]/g, '_').slice(0, 60);
 
-const runOne = async (engine: Engine, file: string, setStatus: (text: string, fraction?: number) => void): Promise<RunResult> => {
+const runOne = async (engine: Engine, file: string, setStatus: (text: string, fraction?: number) => void): Promise<{ result: RunResult; stems: AudioBuffer[]; pcm: Pcm }> => {
     const overallStarted = performance.now();
     let decodeCached = true;
     if (!pcm || pcm.file !== file) {
@@ -296,6 +302,9 @@ const runOne = async (engine: Engine, file: string, setStatus: (text: string, fr
     writeWav(path.join(dir, 'vocals.wav'), separated.vocals[0], separated.vocals[1]);
     writeWav(path.join(dir, 'instrumental.wav'), separated.instrumental[0], separated.instrumental[1]);
     writeWav(path.join(dir, 'mix.wav'), left, right);
+    SOURCES.forEach((source, s) => {
+        if (s !== VOCALS) writeWav(path.join(dir, `${source}.wav`), separated.channels[s][0], separated.channels[s][1]);
+    });
     const writeMs = performance.now() - writeStarted;
 
     // 重建误差：原曲减去人声加伴奏剩下的能量，相对原曲。htdemucs 的四个音源加起来本应还原原曲。
@@ -332,7 +341,7 @@ const runOne = async (engine: Engine, file: string, setStatus: (text: string, fr
         extra: lines.join('\n'),
     };
     fs.writeFileSync(path.join(dir, 'timing.json'), JSON.stringify({ ...result, extra: undefined }, null, 1));
-    return result;
+    return { result, stems: separated.stems, pcm };
 };
 
 const renderResults = () => {
@@ -355,21 +364,8 @@ const renderResults = () => {
     }
 };
 
-const audio = () => $('audio') as HTMLAudioElement;
 let currentDir = '';
-const selectStem = (stem: string) => {
-    if (!currentDir) return;
-    const el = audio();
-    const at = el.currentTime;
-    const playing = !el.paused;
-    el.src = pathToFileURL(path.join(currentDir, `${stem}.wav`)).href;
-    el.addEventListener('loadedmetadata', () => {
-        el.currentTime = at;
-        if (playing) void el.play();
-    }, { once: true });
-    document.querySelectorAll<HTMLButtonElement>('button[data-stem]').forEach(b => b.classList.toggle('on', b.dataset.stem === stem));
-    $('which').textContent = `${path.basename(currentDir)} · ${stem}`;
-};
+let mixer: ReturnType<typeof createMixer> | null = null;
 
 const setStatus = (text: string, fraction?: number) => {
     $('status').textContent = text;
@@ -382,14 +378,14 @@ const runSelected = async (engines: Engine[], file: string) => {
     ($('run') as HTMLButtonElement).disabled = true;
     try {
         for (const engine of engines) {
-            const result = await runOne(engine, file, setStatus);
+            const { result, stems, pcm: decoded } = await runOne(engine, file, setStatus);
             results.push(result);
             renderResults();
             log(`[stemSplit] ${result.engine}：${result.segments} 段，首段 ${fmtMs(result.firstMs)}，中位 ${fmtMs(result.medianMs)}，最慢 ${fmtMs(result.maxMs)}，推理 ${fmtMs(result.inferMs)}，拼接 ${fmtMs(result.stitchMs)}，写盘 ${fmtMs(result.writeMs)}，${result.speed.toFixed(1)}× 实时，重建误差 ${fmtDb(result.residualDb)}；人声 ${fmtDb(result.vocalsDb)} 伴奏 ${fmtDb(result.instrumentalDb)} 原曲 ${fmtDb(result.mixDb)} → ${result.dir}`);
             currentDir = result.dir;
-            document.querySelectorAll<HTMLButtonElement>('button[data-stem]').forEach(b => { b.disabled = false; });
             ($('folder') as HTMLButtonElement).disabled = false;
-            selectStem('vocals');
+            // 无界面跑（STEM_AUTO）时没有调音台，四轨随这次结果一起放掉。
+            mixer?.load({ label: `${result.engine} · ${path.basename(file)}`, mix: decoded, stems });
         }
         setStatus('完成', 1);
     } catch (error) {
@@ -421,7 +417,7 @@ const main = async () => {
         const engines = [...document.querySelectorAll<HTMLInputElement>('input[name=engine]:checked')].map(i => i.value as Engine);
         void runSelected(engines, file).catch(() => undefined);
     });
-    document.querySelectorAll<HTMLButtonElement>('button[data-stem]').forEach(b => b.addEventListener('click', () => selectStem(b.dataset.stem!)));
+    if (!config.auto.length) mixer = createMixer();
     $('folder').addEventListener('click', () => void ipcRenderer.invoke('stem-open', currentDir));
 
     if (config.auto.length) {
