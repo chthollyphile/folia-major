@@ -23,11 +23,17 @@ import { separateStemSegment, STEM_SOURCES, stemSegmentStarts, stemSegmentWindow
 // weight behind it. A reader starting part way has its stem whole from where the segment before its
 // first one ends (`stemWholeFrom`); before that it lacks that segment's share, and is left at zero.
 //
+// A reader can be held (not fed for now: 分轨调音台 once far enough ahead of the playhead) and urgent
+// (its segments first, ahead of a reader further back: what is about to be heard).
+//
 // The window is the reader's: the whole track (base 0, nothing let go), or a stretch of it that moves on
 // once the reader has read what is final (`read` answers the first sample it will read again) - a
 // segment and what the reader reads again behind it, rather than the whole track's samples.
 
 export type StemSource = typeof STEM_SOURCES[number];
+
+/** How often a pass whose readers are all held asks again. */
+const HELD_POLL_MS = 200;
 
 /** A stem from sample `base` on: `samples[i]` is sample `base + i`. */
 export interface StemWindow { samples: Float32Array; base: number }
@@ -39,6 +45,14 @@ export interface StemReader {
      * to mono, which is what the analyses read.
      */
     readonly channel?: 'left' | 'right';
+    /**
+     * Not to be fed now (分轨调音台, far enough ahead of the playhead): skipped, neither waiting nor
+     * through. The pass goes on for the others; with only held readers left it waits (HELD_POLL_MS) and
+     * asks again.
+     */
+    readonly held?: () => boolean;
+    /** Its segments go first (分轨调音台: what is about to be heard), before the lowest segment of the others. */
+    readonly urgent?: boolean;
     /** The next segment it needs; the pass moves it on. */
     next: number;
     /** Samples from the start whose quotient is final; the pass moves it on. */
@@ -134,10 +148,16 @@ export const runStemPass = async ({ left, right, readers, keepGoing = () => true
     const inLeft = new Float32Array(segment);
     const inRight = new Float32Array(segment);
     for (;;) {
-        const waiting = readers().filter(reader => reader.next < starts.length);
-        if (!waiting.length) return true;
+        const unfinished = readers().filter(reader => reader.next < starts.length);
+        if (!unfinished.length) return true;
         if (!keepGoing()) return false;
-        const index = Math.min(...waiting.map(reader => reader.next));
+        const waiting = unfinished.filter(reader => !reader.held?.());
+        if (!waiting.length) {
+            await new Promise(resolve => setTimeout(resolve, HELD_POLL_MS));
+            continue;
+        }
+        const first = waiting.some(reader => reader.urgent) ? waiting.filter(reader => reader.urgent) : waiting;
+        const index = Math.min(...first.map(reader => reader.next));
         const start = starts[index];
         const n = Math.min(segment, total - start);
         // The last segment runs past the end of the track: zeros, as the reference pads it.

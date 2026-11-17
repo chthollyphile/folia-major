@@ -83,6 +83,46 @@ describe('stem pass', () => {
         }
     });
 
+    it('goes on for the others while a reader is held, and feeds it first once it is not', async () => {
+        const drums = reader('drums');
+        const mixer = reader('vocals', 3, 0);
+        const order: string[] = [];
+        const held: StemReader = Object.assign(mixer.r, { urgent: true, held: () => drums.segments.length < 2 });
+        runHtdemucsGpu.mockImplementation(async (l: Float32Array, r: Float32Array) => {
+            order.push(held.held!() ? `d${drums.r.next}` : (held.next < 5 ? `m${held.next}` : `d${drums.r.next}`));
+            return model(l, r);
+        });
+        expect(await runStemPass({ left, right, readers: () => [drums.r, held] })).toBe(true);
+        expect(order).toEqual(['d0', 'd1', 'm3', 'm4', 'd2', 'd3', 'd4']);
+        expect(mixer.segments).toEqual([3, 4]);
+        expect(drums.segments).toEqual([0, 1, 2, 3, 4]);
+    });
+
+    it('feeds an urgent reader at a later segment first', async () => {
+        const drums = reader('drums');
+        const mixer = reader('vocals', 3, 0);
+        const urgent: StemReader = Object.assign(mixer.r, { urgent: true });
+        const seen: number[] = [];
+        runHtdemucsGpu.mockImplementation(async (l: Float32Array, r: Float32Array) => {
+            seen.push(Math.min(drums.r.next, urgent.next < 5 ? urgent.next : 99));
+            return model(l, r);
+        });
+        expect(await runStemPass({ left, right, readers: () => [drums.r, urgent] })).toBe(true);
+        // Segments 3 and 4 for the urgent reader first (shared with the drums? no: the drums are at 0), then 0..4 for the drums.
+        expect(mixer.segments).toEqual([3, 4]);
+        expect(drums.segments).toEqual([0, 1, 2, 3, 4]);
+        expect(runHtdemucsGpu.mock.calls.length).toBe(7);
+    });
+
+    it('waits while all its readers are held and stops if no longer wanted', async () => {
+        const voice = reader('vocals');
+        let wanted = true;
+        let polls = 0;
+        const held: StemReader = Object.assign(voice.r, { held: () => { polls += 1; if (polls > 2) wanted = false; return true; } });
+        expect(await runStemPass({ left, right, readers: () => [held], keepGoing: () => wanted })).toBe(false);
+        expect(runHtdemucsGpu).not.toHaveBeenCalled();
+    });
+
     it('separates a segment once for every reader at it, and feeds one starting further back alone first', async () => {
         const whole = reader('vocals');
         await runStemPass({ left, right, readers: () => [whole.r] });
