@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { StemReader, StemSource } from '@/services/analysis/stemPass';
+import type { StemClaimant } from '@/services/analysis/trackStemRun';
 
 // test/unit/analysis/trackStemRun.test.ts
 // A track's stem run (analysis/trackStemRun.ts): one decode and one pass for every task that reads its
@@ -14,9 +16,6 @@ vi.mock('@/services/analysis/trackAudio', () => ({ decodeAtRate }));
 const { startStemReader, wholeStemWindow } = await import('@/services/analysis/stemPass');
 const { claimStemTrack, releaseTrackStems, runTrackStems } = await import('@/services/analysis/trackStemRun');
 const { resetStemSegmentsForTests } = await import('@/services/analysis/stemRange');
-type StemSource = import('@/services/analysis/stemPass').StemSource;
-type StemReader = import('@/services/analysis/stemPass').StemReader;
-type StemClaimant = import('@/services/analysis/trackStemRun').StemClaimant;
 
 // Starts every 12: 0, 12, 24, 36, 48 - five segments.
 const TOTAL = 50;

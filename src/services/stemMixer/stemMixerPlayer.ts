@@ -125,7 +125,7 @@ export const createStemMixerPlayer = async (context: AudioContext): Promise<Stem
     const remerge = () => {
         const merged: Array<[number, number]> = [];
         for (const [a, b] of [...spans].sort((x, y) => x[0] - y[0])) {
-            const last = merged[merged.length - 1];
+            const last = merged.at(-1);
             if (last && a <= last[1]) last[1] = Math.max(last[1], b);
             else merged.push([a, b]);
         }

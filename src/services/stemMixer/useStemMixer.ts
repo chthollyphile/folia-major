@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import type { MutableRefObject, RefObject } from 'react';
+import type { RefObject } from 'react';
 import type { AutomixDeckChain } from '../automix/crossfadeGraph';
 import { claimStemTrack, releaseTrackStems, runTrackStems } from '../analysis/trackStemRun';
 import { readTrackBytes } from '../beatFx/beatFxSource';
@@ -49,7 +49,7 @@ const CONTEXT_POLL_MS = 500;
 
 interface UseStemMixerParams {
     audioRef: RefObject<HTMLAudioElement | null>;
-    audioContextRef: MutableRefObject<AudioContext | null>;
+    audioContextRef: RefObject<AudioContext | null>;
     getActiveChain: () => AutomixDeckChain | null;
     hifiBlocked: boolean;
     externalBlocked: boolean;

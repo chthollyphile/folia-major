@@ -90,7 +90,7 @@ const answer = (run: TrackRun, entry: TaskEntry, how: () => Promise<unknown>) =>
 
 /** Whether every reader of a reading task is through: it answers from its finish at the pass' next turn. */
 const through = (run: TrackRun, entry: TaskEntry) => (
-    entry.state === 'reading' && run.count !== null && entry.opened!.readers.every(reader => reader.next >= run.count!)
+    entry.state === 'reading' && run.count !== null && (entry.opened?.readers.every(reader => reader.next >= (run.count ?? Infinity)) ?? false)
 );
 
 /**
@@ -103,7 +103,7 @@ const letGo = (run: TrackRun, entry: TaskEntry) => {
         entry.settle(null);
         return;
     }
-    if (entry.state === 'reading' && !through(run, entry)) answer(run, entry, entry.opened!.stop);
+    if (entry.state === 'reading' && entry.opened && !through(run, entry)) answer(run, entry, entry.opened.stop);
 };
 
 /**
@@ -118,7 +118,7 @@ export const claimStemTrack = (claimant: StemClaimant, key: string | null): void
     if (before === undefined || before === key || !stemTrackWanted(before)) return;
     const run = runs.get(before);
     for (const entry of run?.entries ?? []) {
-        if (entry.task.claimant === claimant) letGo(run!, entry);
+        if (run && entry.task.claimant === claimant) letGo(run, entry);
     }
 };
 
@@ -175,7 +175,7 @@ const drive = async (run: TrackRun, readBytes: () => Promise<ArrayBuffer | null>
         key: run.key,
         readers: () => readersNow(run, track, count),
         keepGoing: () => stemTrackWanted(run.key),
-        stillFed: reader => run.entries.some(entry => entry.state === 'reading' && entry.opened!.readers.includes(reader)),
+        stillFed: reader => run.entries.some(entry => entry.state === 'reading' && (entry.opened?.readers.includes(reader) ?? false)),
     });
     // Anything asked for after this answers from a run of its own.
     runs.delete(run.key);

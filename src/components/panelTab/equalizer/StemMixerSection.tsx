@@ -46,7 +46,9 @@ const statusHint = (status: StemMixerStatus, t: (key: string, options?: Record<s
         case 'notFollowing': return t('ui.stemMixer.status.notFollowing');
         case 'tooLong': return t('ui.stemMixer.status.tooLong');
         case 'failed': return t('ui.stemMixer.status.failed');
-        default: return undefined;
+        case 'off':
+        case 'blocked':
+            return undefined;
     }
 };
 

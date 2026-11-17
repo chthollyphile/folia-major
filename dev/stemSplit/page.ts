@@ -1,19 +1,32 @@
 /// <reference types="@webgpu/types" />
 import { HtdemucsWgsl, HTDEMUCS_SEGMENT, type HtdemucsWgslManifest } from '../../src/services/analysis/htdemucsWgsl/runtime';
 import { createMixer, createStereoBuffer, RATE } from './mixer';
+import type * as NodeChildProcess from 'child_process';
+import type * as NodeFs from 'fs';
+import type * as NodePath from 'path';
+import type { IpcRenderer } from 'electron';
 
 // dev/stemSplit/page.ts
 // 原型的页面（见 main.cjs）：ffmpeg 解码整首歌，按应用里 htdemucs.cjs 的分段与三角窗重叠相加切成
 // 172032 采样的段，交给 CPU（主进程 MNN，经 IPC）或 GPU（本页 WebGPU）跑，拼回四个音源（另存人声与伴奏），
 // 写成 WAV，记下每一步的耗时；跑完把四轨交给调音台（mixer.ts）试听。
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-// Node 的 require 从 window 上取，打包器就不去解析这几个模块。
-const nodeRequire = (globalThis as unknown as { require: (id: string) => any }).require;
-const { ipcRenderer } = nodeRequire('electron');
-const fs = nodeRequire('fs');
-const path = nodeRequire('path');
-const { spawn } = nodeRequire('child_process');
+// Node 的 require 从 window 上取，打包器就不去解析这几个模块；类型只从 import type 来。
+const nodeRequire = (globalThis as unknown as { require: (id: string) => unknown }).require;
+const { ipcRenderer } = nodeRequire('electron') as { ipcRenderer: IpcRenderer };
+const fs = nodeRequire('fs') as typeof NodeFs;
+const path = nodeRequire('path') as typeof NodePath;
+const { spawn } = nodeRequire('child_process') as typeof NodeChildProcess;
+
+/** 主进程（main.cjs）各个 handle 的答复。 */
+interface CpuLoad { cached: boolean; ms: number; threads: number; isa: string; fastCores: number }
+interface CpuRun { data: Float32Array; ms: number; rssMb: number }
+const ipc = {
+    config: () => ipcRenderer.invoke('stem-config') as Promise<Config>,
+    pick: () => ipcRenderer.invoke('stem-pick') as Promise<string | null>,
+    cpuLoad: (threads: number) => ipcRenderer.invoke('cpu-load', threads) as Promise<CpuLoad>,
+    cpuRun: (input: Float32Array) => ipcRenderer.invoke('cpu-run', input) as Promise<CpuRun>,
+};
 
 const L = HTDEMUCS_SEGMENT;
 /** 模型自己的音源顺序。 */
@@ -48,7 +61,12 @@ const log = (line: string) => {
     console.log(line);
     ipcRenderer.send('stem-log', line);
 };
-const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
+/** 按 id 取元素并核对类型：页面是固定的，对不上就是写错了。 */
+const $ = <T extends HTMLElement>(id: string, type: abstract new () => T): T => {
+    const element = document.getElementById(id);
+    if (!(element instanceof type)) throw new Error(`#${id} is not a ${type.name}`);
+    return element;
+};
 const fmtMs = (ms: number) => (ms >= 10000 ? `${(ms / 1000).toFixed(1)} s` : ms >= 1000 ? `${(ms / 1000).toFixed(2)} s` : `${ms.toFixed(0)} ms`);
 const fmtDb = (db: number) => (Number.isFinite(db) ? `${db.toFixed(1)} dB` : '−∞');
 const median = (values: number[]) => {
@@ -126,19 +144,18 @@ const readPacked = (file: Uint8Array): { weights: Uint8Array; manifest: Htdemucs
     const tail = file.byteLength - 16;
     if (new TextDecoder().decode(file.subarray(tail, tail + 8)) !== 'FOLIABTW') throw new Error('不是打包的 htdemucs 导出');
     const at = Number(view.getBigUint64(tail + 8, true));
-    return { weights: file.subarray(0, at), manifest: JSON.parse(new TextDecoder().decode(file.subarray(at, tail))) };
+    return { weights: file.subarray(0, at), manifest: JSON.parse(new TextDecoder().decode(file.subarray(at, tail))) as HtdemucsWgslManifest };
 };
 
 const cpuRunner = (threads: number): Runner => ({
     label: `CPU ${threads} 线程`,
     async load() {
-        const info = await ipcRenderer.invoke('cpu-load', threads);
+        const info = await ipc.cpuLoad(threads);
         return { ms: info.ms, info: `MNN ${info.isa}，${threads} 线程${info.fastCores ? `，优先 ${info.fastCores} 个性能核` : ''}${info.cached ? '（已加载）' : ''}` };
     },
     async run(input) {
         const started = performance.now();
-        const { data, ms, rssMb } = await ipcRenderer.invoke('cpu-run', input);
-        const out = data as Float32Array;
+        const { data: out, ms, rssMb } = await ipc.cpuRun(input);
         return {
             get: (s, ch) => out.subarray((s * 2 + ch) * L, (s * 2 + ch + 1) * L),
             ms: performance.now() - started,
@@ -161,14 +178,14 @@ const gpuRunner = (f16: boolean): Runner => {
                 return { ms: 0, info: `${cached.info}（已加载）` };
             }
             const started = performance.now();
-            const adapter = await navigator.gpu?.requestAdapter({ powerPreference: 'high-performance' });
+            const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
             if (!adapter) throw new Error('没有 WebGPU 适配器');
             if (f16 && !adapter.features.has('shader-f16')) throw new Error('这块 GPU 不支持 shader-f16');
             const device = await adapter.requestDevice({
                 requiredFeatures: f16 ? ['shader-f16'] : [],
                 requiredLimits: { maxBufferSize: adapter.limits.maxBufferSize, maxStorageBufferBindingSize: adapter.limits.maxStorageBufferBindingSize },
             });
-            device.addEventListener('uncapturederror', (event) => log(`[stemSplit] GPU 错误：${(event as GPUUncapturedErrorEvent).error.message}`));
+            device.addEventListener('uncapturederror', (event) => log(`[stemSplit] GPU 错误：${event.error.message}`));
             void device.lost.then((lost) => {
                 log(`[stemSplit] GPU 设备丢失：${lost.reason} ${lost.message}`);
                 gpuModels.delete(f16);
@@ -277,7 +294,7 @@ const runOne = async (engine: Engine, file: string, setStatus: (text: string, fr
     }
     const { left, right } = pcm;
     const seconds = left.length / RATE;
-    const threads = Number(($('threads') as HTMLInputElement).value) || config.threads;
+    const threads = Number($('threads', HTMLInputElement).value) || config.threads;
     const runner = engine === 'cpu' ? cpuRunner(threads) : gpuRunner(engine === 'gpu-f16');
 
     setStatus(`${runner.label}：加载模型…`, 0);
@@ -345,15 +362,15 @@ const runOne = async (engine: Engine, file: string, setStatus: (text: string, fr
 };
 
 const renderResults = () => {
-    $('results').innerHTML = results.map(r => `<tr>
+    $('results', HTMLElement).innerHTML = results.map(r => `<tr>
         <td>${r.engine}</td><td>${(r.seconds / 60).toFixed(0)}:${String(Math.round(r.seconds % 60)).padStart(2, '0')}</td>
         <td>${r.decodeCached ? '缓存' : fmtMs(r.decodeMs)}</td><td>${fmtMs(r.loadMs)}</td><td>${r.segments}</td>
         <td>${fmtMs(r.firstMs)}</td><td>${fmtMs(r.medianMs)}</td><td>${fmtMs(r.maxMs)}</td><td>${fmtMs(r.inferMs)}</td>
         <td>${fmtMs(r.stitchMs)}</td><td>${fmtMs(r.writeMs)}</td><td>${fmtMs(r.totalMs)}</td><td>${r.speed.toFixed(1)}×</td><td>${fmtDb(r.residualDb)}</td>
     </tr>`).join('');
-    const last = results[results.length - 1];
+    const last = results.at(-1);
     if (last) {
-        $('detail').textContent = [
+        $('detail', HTMLElement).textContent = [
             `${last.engine}：${last.loadInfo}`,
             `输出：${last.dir}`,
             `电平（RMS）：原曲 ${fmtDb(last.mixDb)}，人声 ${fmtDb(last.vocalsDb)}，伴奏 ${fmtDb(last.instrumentalDb)}`,
@@ -368,14 +385,14 @@ let currentDir = '';
 let mixer: ReturnType<typeof createMixer> | null = null;
 
 const setStatus = (text: string, fraction?: number) => {
-    $('status').textContent = text;
-    if (fraction !== undefined) ($('progress') as HTMLProgressElement).value = fraction;
+    $('status', HTMLElement).textContent = text;
+    if (fraction !== undefined) $('progress', HTMLProgressElement).value = fraction;
 };
 
 const runSelected = async (engines: Engine[], file: string) => {
     if (busy || !file) return;
     busy = true;
-    ($('run') as HTMLButtonElement).disabled = true;
+    $('run', HTMLButtonElement).disabled = true;
     try {
         for (const engine of engines) {
             const { result, stems, pcm: decoded } = await runOne(engine, file, setStatus);
@@ -383,7 +400,7 @@ const runSelected = async (engines: Engine[], file: string) => {
             renderResults();
             log(`[stemSplit] ${result.engine}：${result.segments} 段，首段 ${fmtMs(result.firstMs)}，中位 ${fmtMs(result.medianMs)}，最慢 ${fmtMs(result.maxMs)}，推理 ${fmtMs(result.inferMs)}，拼接 ${fmtMs(result.stitchMs)}，写盘 ${fmtMs(result.writeMs)}，${result.speed.toFixed(1)}× 实时，重建误差 ${fmtDb(result.residualDb)}；人声 ${fmtDb(result.vocalsDb)} 伴奏 ${fmtDb(result.instrumentalDb)} 原曲 ${fmtDb(result.mixDb)} → ${result.dir}`);
             currentDir = result.dir;
-            ($('folder') as HTMLButtonElement).disabled = false;
+            $('folder', HTMLButtonElement).disabled = false;
             // 无界面跑（STEM_AUTO）时没有调音台，四轨随这次结果一起放掉。
             mixer?.load({ label: `${result.engine} · ${path.basename(file)}`, mix: decoded, stems });
         }
@@ -395,30 +412,29 @@ const runSelected = async (engines: Engine[], file: string) => {
         throw error;
     } finally {
         busy = false;
-        ($('run') as HTMLButtonElement).disabled = false;
+        $('run', HTMLButtonElement).disabled = false;
     }
 };
 
 const main = async () => {
-    config = await ipcRenderer.invoke('stem-config');
+    config = await ipc.config();
     let file = config.file;
-    ($('threads') as HTMLInputElement).value = String(config.threads);
-    $('file').textContent = file || '未选择';
+    $('threads', HTMLInputElement).value = String(config.threads);
+    $('file', HTMLElement).textContent = file || '未选择';
     log(`[stemSplit] ${config.cpuModel}，${config.cores} 逻辑核；ffmpeg ${config.ffmpeg}`);
 
-    $('pick').addEventListener('click', async () => {
-        const picked = await ipcRenderer.invoke('stem-pick');
+    $('pick', HTMLElement).addEventListener('click', () => void ipc.pick().then((picked) => {
         if (picked) {
             file = picked;
-            $('file').textContent = file;
+            $('file', HTMLElement).textContent = file;
         }
-    });
-    $('run').addEventListener('click', () => {
+    }));
+    $('run', HTMLElement).addEventListener('click', () => {
         const engines = [...document.querySelectorAll<HTMLInputElement>('input[name=engine]:checked')].map(i => i.value as Engine);
         void runSelected(engines, file).catch(() => undefined);
     });
     if (!config.auto.length) mixer = createMixer();
-    $('folder').addEventListener('click', () => void ipcRenderer.invoke('stem-open', currentDir));
+    $('folder', HTMLElement).addEventListener('click', () => void ipcRenderer.invoke('stem-open', currentDir));
 
     if (config.auto.length) {
         try {

@@ -206,7 +206,7 @@ class StemMixerProcessor extends AudioWorkletProcessor {
         this.ownR = (go * v[1] + (gd - go) * v[3] + (gb - go) * v[5] + (gv - go) * v[7]) * SCALE;
     }
 
-    process(inputs: Float32Array[][], outputs: Float32Array[][]): boolean {
+    process(inputs: Array<Array<Float32Array | undefined>>, outputs: Float32Array[][]): boolean {
         const out = outputs[0];
         const left = out[0];
         const right = out[1] ?? out[0];
@@ -217,22 +217,19 @@ class StemMixerProcessor extends AudioWorkletProcessor {
 
         // 到点的新位置：放着输入时直接换；放着自己的声音时，新位置也有块（对齐、近处跳转）就从旧位置交叉过去，
         // 没有就先交叉回输入、回到输入了再换。没到点之前照旧放。
-        const due = this.pending !== null && this.pending.at < currentTime + frames / sampleRate;
-        const pendingAt = () => {
-            const pending = this.pending!;
-            // 这个 quantum 从 currentTime 起：`at` 在它里面时往回算，晚到了往前补。
-            const position = Math.max(0, pending.position + (currentTime - pending.at) * pending.speed * sampleRate);
-            return pending.speed === 1 ? Math.round(position) : position;
-        };
-        const jumpable = due && this.blend > 0 && this.playing && this.jumpFrom === null && this.pending!.speed === this.speed
-            && this.covered(Math.floor(pendingAt()) - 1, Math.ceil(pendingAt() + (frames + BLEND_SEC * sampleRate) * this.speed) + 2);
+        const pending = this.pending !== null && this.pending.at < currentTime + frames / sampleRate ? this.pending : null;
+        const due = pending !== null;
+        // 这个 quantum 从 currentTime 起：`at` 在它里面时往回算，晚到了往前补。
+        const raw = pending ? Math.max(0, pending.position + (currentTime - pending.at) * pending.speed * sampleRate) : 0;
+        const target = pending?.speed === 1 ? Math.round(raw) : raw;
+        const jumpable = pending !== null && this.blend > 0 && this.playing && this.jumpFrom === null && pending.speed === this.speed
+            && this.covered(Math.floor(target) - 1, Math.ceil(target + (frames + BLEND_SEC * sampleRate) * this.speed) + 2);
         if (jumpable) {
             this.jumpFrom = this.position;
             this.jumpMix = 0;
         }
-        if (due && (this.blend === 0 || jumpable)) {
-            const pending = this.pending!;
-            this.position = pendingAt();
+        if (pending && (this.blend === 0 || jumpable)) {
+            this.position = target;
             this.speed = pending.speed;
             this.seq = pending.seq;
             this.sinceReport = 0;

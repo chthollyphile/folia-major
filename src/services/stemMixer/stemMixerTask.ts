@@ -64,7 +64,7 @@ export const stemMixerTask = (fromSample: number, sink: StemMixerSink): StemTask
     open: (track) => {
         const total = track.left.length;
         // 没有读取者：下一轮就从 finish 答出。
-        if (total > STEM_MIXER_MAX_SECONDS * 44100) return { readers: [], finish: async () => 'tooLong' as const, stop: async () => 'tooLong' as const };
+        if (total > STEM_MIXER_MAX_SECONDS * 44100) return { readers: [], finish: () => Promise.resolve('tooLong' as const), stop: () => Promise.resolve('tooLong' as const) };
         sink.onTrack(track);
         const from = segmentWholeAt(total, fromSample);
         let reached = startStemReader(total, from).divided;
@@ -110,8 +110,8 @@ export const stemMixerTask = (fromSample: number, sink: StemMixerSink): StemTask
         }));
         return {
             readers,
-            finish: async () => reached,
-            stop: async () => reached,
+            finish: () => Promise.resolve(reached),
+            stop: () => Promise.resolve(reached),
         };
     },
 });

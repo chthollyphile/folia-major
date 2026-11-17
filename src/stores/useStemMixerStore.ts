@@ -97,7 +97,6 @@ export const useStemMixerStore = create<StemMixerState>((set, get) => ({
     handleCommitStemMixerGains: () => writeGains(get().stemMixerGains),
     handleApplyStemMixerPreset: (preset) => {
         const next = STEM_MIXER_PRESETS[preset];
-        if (!next) return;
         writeGains(next);
         set({ stemMixerGains: next });
     },

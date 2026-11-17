@@ -29,7 +29,12 @@ export interface MixerTracks {
 /** 新建一个双声道 44.1kHz 的 AudioBuffer；不需要 AudioContext，分离时直接往它的声道里累加。 */
 export const createStereoBuffer = (length: number) => new AudioBuffer({ numberOfChannels: 2, length: Math.max(1, length), sampleRate: RATE });
 
-const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
+/** 按 id 取元素并核对类型：页面是固定的，对不上就是写错了。 */
+const $ = <T extends HTMLElement>(id: string, type: abstract new () => T): T => {
+    const element = document.getElementById(id);
+    if (!(element instanceof type)) throw new Error(`#${id} is not a ${type.name}`);
+    return element;
+};
 const fmtTime = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 const fmtGain = (g: number) => `${g.toFixed(2)}×`;
 const RAMP = 0.015;
@@ -61,13 +66,13 @@ export const createMixer = () => {
     let peak = { value: 0, at: 0 };
     let frame = 0;
 
-    const playButton = $<HTMLButtonElement>('mixer-play');
-    const originalButton = $<HTMLButtonElement>('mixer-original');
-    const seek = $<HTMLInputElement>('mixer-seek');
-    const timeLabel = $('mixer-time');
-    const peakLabel = $('mixer-peak');
-    const whichLabel = $('mixer-which');
-    const strips = $('mixer-strips');
+    const playButton = $('mixer-play', HTMLButtonElement);
+    const originalButton = $('mixer-original', HTMLButtonElement);
+    const seek = $('mixer-seek', HTMLInputElement);
+    const timeLabel = $('mixer-time', HTMLElement);
+    const peakLabel = $('mixer-peak', HTMLElement);
+    const whichLabel = $('mixer-which', HTMLElement);
+    const strips = $('mixer-strips', HTMLElement);
 
     const duration = () => tracks?.mix.duration ?? 0;
     const position = () => {
@@ -83,8 +88,9 @@ export const createMixer = () => {
             + `<input type="range" min="${GAIN_MIN}" max="${GAIN_MAX}" step="0.01" value="${GAIN_DEFAULT}" disabled>`
             + `<output class="strip-value">${fmtGain(GAIN_DEFAULT)}</output>`;
         strips.appendChild(row);
-        const input = row.querySelector('input')!;
-        const output = row.querySelector('output')!;
+        const input = row.querySelector('input');
+        const output = row.querySelector('output');
+        if (!input || !output) throw new Error('mixer strip markup changed');
         input.addEventListener('input', () => setGain(index, Number(input.value)));
         input.addEventListener('dblclick', () => setGain(index, GAIN_DEFAULT));
         return { input, output };
