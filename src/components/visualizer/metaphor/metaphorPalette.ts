@@ -1,5 +1,5 @@
 import type { Theme } from '../../../types';
-import { parseColorChannels } from '../colorMix';
+import { parseColorChannels } from '../../../utils/colorMix';
 
 // src/components/visualizer/metaphor/metaphorPalette.ts
 // 隐喻的配色（纯函数）：主题 → 纸、墨、强调色、网点四个颜色（0..1 的 sRGB，着色器里直接混）。

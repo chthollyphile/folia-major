@@ -10,7 +10,7 @@ import { formatSongName } from '../../../../utils/songNameFormatter';
 import { getSizedCoverUrl } from '../../../../utils/coverUrl';
 import { getSongCoverUrl } from '../../../../services/onlineMusic/songMetadata';
 import { resolveCollectionArtistCatalogId } from '../../../../services/onlineMusic/catalogRefs';
-import { colorWithAlpha } from '../../../../components/visualizer/colorMix';
+import { colorWithAlpha } from '../../../../utils/colorMix';
 import { onlineFailureOf, type OnlineFailure } from '../../../../services/onlineMusic/failure/onlineFailureCase';
 import { onlineFailureMessage } from '../../../../services/onlineMusic/failure/onlineFailureTexts';
 import { getPlaybackSongKey } from '../../../../utils/appPlaybackGuards';

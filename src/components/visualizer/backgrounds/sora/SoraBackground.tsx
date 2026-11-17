@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import type { MotionValue } from 'framer-motion';
 import * as twgl from 'twgl.js';
 import { Theme } from '../../../../types';
-import { parseColorChannels } from '../../colorMix';
+import { parseColorChannels } from '../../../../utils/colorMix';
 import { useBlendedColors } from '../useBlendedColors';
 
 // src/components/visualizer/backgrounds/sora/SoraBackground.tsx

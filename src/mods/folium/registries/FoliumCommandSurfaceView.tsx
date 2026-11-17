@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Loader2, Play, TriangleAlert, CircleCheck } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { Theme } from '@/types';
-import { colorWithAlpha } from '@/components/visualizer/colorMix';
+import { colorWithAlpha } from '@/utils/colorMix';
 import type { FoliumSetting } from '../contract';
 import { FoliumParamFields, type FoliumParamFieldToken } from '../../params/FoliumParamFields';
 import { mergeFoliumParamValues, resolveFoliumLabel } from '../../params/params';

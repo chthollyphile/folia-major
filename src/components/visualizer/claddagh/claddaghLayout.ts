@@ -1,6 +1,6 @@
 import { measureNaturalWidth, prepareWithSegments } from '@chenglou/pretext';
 import { isCJKChar } from './claddaghTimeline';
-import { measurePrefixOffsets, rememberBounded } from '../textMeasureCache';
+import { measurePrefixOffsets, rememberBounded } from '../../../utils/textMeasureCache';
 
 // src/components/visualizer/claddagh/claddaghLayout.ts
 // 环形排布的常量与字距测量：pretext 实测字素中心、按 key 缓存的间距、可读角度归一化。

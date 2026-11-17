@@ -1,6 +1,6 @@
 import React from 'react';
 import { type Theme } from '../../../types';
-import { colorWithAlpha } from '../colorMix';
+import { colorWithAlpha } from '../../../utils/colorMix';
 
 // src/components/visualizer/diorama/DioramaSettingsToggle.tsx
 // Shared accessible switch used by Diorama's collapsible setting groups.

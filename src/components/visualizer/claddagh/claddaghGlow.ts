@@ -1,4 +1,4 @@
-import { mixColors } from '../colorMix';
+import { mixColors } from '../../../utils/colorMix';
 import { clamp } from './claddaghTimeline';
 
 // src/components/visualizer/claddagh/claddaghGlow.ts

@@ -9,7 +9,6 @@
         "D190:src/stores/usePlaybackStore.ts->src/components/app/playback/createCoverUrlResolver.ts",
         "D190:src/stores/useSettingsModalStore.ts->src/components/command-palette/pinnedCommandPreferences.ts",
         "D190:src/stores/useVisualizerSettingsStore.ts->src/components/visualizer/tuningRegistry.ts",
-        "D190:src/utils/themeColorMath.ts->src/components/visualizer/colorMix.ts",
         "D301:src/components/command-palette/commandRegistry.ts",
         "D301:src/components/command-palette/commands/executeModeCommand.ts",
         "D301:src/components/command-palette/commands/index.ts",

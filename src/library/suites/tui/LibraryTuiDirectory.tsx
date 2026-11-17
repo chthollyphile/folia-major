@@ -29,7 +29,7 @@ import { useLibraryDirectorySurfaceRegistration } from '../../core/directory/use
 import { useHiddenCollections } from '../../core/collection/useHiddenCollections';
 import { useCommittedQuery } from '../../core/shared/useCommittedQuery';
 import { useGridCommandFilter } from '../../../hooks/useGridCommandFilter';
-import { colorWithAlpha } from '../../../components/visualizer/colorMix';
+import { colorWithAlpha } from '../../../utils/colorMix';
 import LibraryTuiHomeRow, {
     LIBRARY_TUI_HOME_COLUMNS,
     LIBRARY_TUI_HOME_ROW_HEIGHT,

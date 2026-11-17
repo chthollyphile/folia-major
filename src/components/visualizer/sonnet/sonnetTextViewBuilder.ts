@@ -1,7 +1,7 @@
 import { layoutWithLines, prepareWithSegments } from '@chenglou/pretext';
 import 'pixi.js/advanced-blend-modes';
 import type { Theme } from '../../../types';
-import { resolveGlowColorStrength } from '../colorMix';
+import { resolveGlowColorStrength } from '../../../utils/colorMix';
 import { buildSonnetGlyphLayout } from './sonnetGlyphLayout';
 import { resolveSonnetSegmentDepth, resolveSonnetSegmentNormalOffset } from './sonnetMotion';
 import { hashSonnetSeed } from './sonnetRandom';

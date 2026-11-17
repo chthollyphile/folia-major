@@ -1,5 +1,5 @@
 import { type Line, type Theme } from '../../../types';
-import { mixColors } from '../colorMix';
+import { mixColors } from '../../../utils/colorMix';
 import { type CappellaIntensityConfig, type CappellaMessage, type CappellaTimedMessage, isTimedMessage } from './cappellaTypes';
 import { AVATAR_GRID_SIZE, MAX_VISIBLE_MESSAGES } from './cappellaConstants';
 import { measureBubbleText } from './cappellaBubbleMetrics';

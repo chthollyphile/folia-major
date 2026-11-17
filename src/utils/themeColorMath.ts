@@ -1,4 +1,4 @@
-import { parseColorChannels } from '../components/visualizer/colorMix';
+import { parseColorChannels } from './colorMix';
 import { fitOklchToSrgb, oklabDistance, oklabToSrgb, oklchToOklab, srgbToOklab, srgbToOklch, type Oklch } from './oklab';
 
 // src/utils/themeColorMath.ts
