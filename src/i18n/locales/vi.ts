@@ -2018,6 +2018,7 @@ export default {
     "searchLocal": "Tìm nhạc trên máy...",
     "searchNavidrome": "Tìm trên Navidrome...",
     "searchButton": "Tìm kiếm",
+    "navMenu": "Menu điều hướng",
     "searchClose": "Đóng tìm kiếm",
     "searchHistory": "Tìm kiếm gần đây",
     "searchHistoryClear": "Xóa hết",

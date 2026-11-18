@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Search, Loader2, Settings, PanelsTopLeft, X } from 'lucide-react';
+import { Search, Loader2, Settings, PanelsTopLeft, X, Menu } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { resolveSearchSource, useSearchNavigationStore } from '../../../../stores/useSearchNavigationStore';
 import { useShallow } from 'zustand/react/shallow';
@@ -195,6 +195,8 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
     const [focusedIndex, setFocusedIndex] = useState(0);
     const gridRootRef = useRef<HTMLDivElement>(null);
     const searchInputRef = useRef<HTMLInputElement>(null);
+    /** 紧凑档页签菜单的按钮：Esc 收起菜单后把焦点交回它，跟项目里其它下拉菜单一致。 */
+    const compactTabsButtonRef = useRef<HTMLButtonElement>(null);
     const [scanDetailsExpanded, setScanDetailsExpanded] = useState(false);
     // 点开搜索框时贴在它下面的历史：数据是 useSearchNavigationStore 的 searchHistory，由 submitSearch 记。
     const [isSearchHistoryOpen, setIsSearchHistoryOpen] = useState(false);
@@ -206,16 +208,21 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
     const isCompact = useIsBottomLayoutCompact();
     /** 紧凑档的搜索是不是已经滑进来；桌面档的搜索框一直摆着，不看这个。 */
     const [isCompactSearchOpen, setIsCompactSearchOpen] = useState(false);
+    /** 紧凑档把页签收成了一颗菜单按钮：点开展开页签列表，再点（或选一个页签、点外面）收起。 */
+    const [isCompactTabsOpen, setIsCompactTabsOpen] = useState(false);
 
     // Reset focused index when switching tabs.
     useEffect(() => {
         setFocusedIndex(0);
     }, [homeViewTab]);
 
-    // 回到桌面档就把紧凑档的搜索层收回去：下次再进紧凑档从收起的搜索钮开始，
-    // 不会留着一个已经滑出去的输入框。
+    // 回到桌面档就把紧凑档的搜索层和页签菜单都收回去：下次再进紧凑档从收起的状态开始，
+    // 不会留着一个已经滑出去的输入框或还张着的菜单。
     useEffect(() => {
-        if (!isCompact) setIsCompactSearchOpen(false);
+        if (!isCompact) {
+            setIsCompactSearchOpen(false);
+            setIsCompactTabsOpen(false);
+        }
     }, [isCompact]);
 
     // 搜索层滑进来之后把焦点直接交给输入框：点那一下就是来打字的，不用再点一次。
@@ -242,6 +249,30 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
         document.addEventListener('pointerdown', handlePointerDown, true);
         return () => document.removeEventListener('pointerdown', handlePointerDown, true);
     }, [isCompact, isCompactSearchOpen]);
+
+    // 点页签菜单与它的按钮以外的地方就把菜单收回去。用 pointerdown 与上面搜索层一致：
+    // 落在别处时先收起，那一下不会同时被当成「点按钮」。Esc 同样收起，并把焦点交回菜单按钮。
+    useEffect(() => {
+        if (!isCompact || !isCompactTabsOpen) return undefined;
+        const handlePointerDown = (event: PointerEvent) => {
+            const target = event.target;
+            if (!(target instanceof Node)) return;
+            if (target instanceof Element && target.closest('[data-home-tabs-menu]')) return;
+            setIsCompactTabsOpen(false);
+        };
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key !== 'Escape') return;
+            event.stopPropagation();
+            setIsCompactTabsOpen(false);
+            compactTabsButtonRef.current?.focus();
+        };
+        document.addEventListener('pointerdown', handlePointerDown, true);
+        window.addEventListener('keydown', handleKeyDown);
+        return () => {
+            document.removeEventListener('pointerdown', handlePointerDown, true);
+            window.removeEventListener('keydown', handleKeyDown);
+        };
+    }, [isCompact, isCompactTabsOpen]);
 
     useEffect(() => {
         setFocusedIndex(0);
@@ -343,6 +374,8 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
         onCycleTab: delta => {
             const next = cycleIndex(navigationTabs, navigationTabs.findIndex(tab => tab.id === homeViewTab), delta, tab => tab.enabled);
             if (next < 0 || navigationTabs[next].id === homeViewTab) return;
+            // 键盘循环换页签时把紧凑档菜单也收起：不然它会浮在已经换过的页面上。
+            setIsCompactTabsOpen(false);
             navigationTabs[next].select();
         },
     });
@@ -376,12 +409,108 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                 >
                     {/* Left title and settings */}
                     <div className="flex min-w-0 items-center justify-start">
-                        {/* 紧凑档（窗口窄于 960）页头一行放不下五颗胶囊，Folia 标题让位给它们：这里只留
-                            设置与队列拼贴。桌面档照旧。 */}
+                        {/* 紧凑档（窗口窄于 960）页头一行放不下五颗胶囊，Folia 标题让位给它们，页签也收成
+                            最左侧的一颗菜单按钮：这里留下菜单、设置与队列拼贴。桌面档照旧。 */}
                         {!isCompact && (
                             <h1 className="text-2xl font-bold tracking-tight opacity-90 flex items-center gap-3">
                                 Folia
                             </h1>
+                        )}
+                        {isCompact && (
+                            <div className="relative mr-1" data-home-tabs-menu>
+                                <button
+                                    ref={compactTabsButtonRef}
+                                    type="button"
+                                    onClick={() => setIsCompactTabsOpen(open => !open)}
+                                    title={t('home.navMenu')}
+                                    aria-label={t('home.navMenu')}
+                                    aria-expanded={isCompactTabsOpen}
+                                    aria-haspopup="true"
+                                    data-testid="home-tabs-menu-toggle"
+                                    className={`relative flex shrink-0 items-center justify-center rounded-full p-2 transition-all ${isCompactTabsOpen ? 'bg-white/10 opacity-100' : 'opacity-40 hover:bg-white/10 hover:opacity-100'}`}
+                                >
+                                    <Menu size={20} style={{ color: 'var(--text-primary)' }} />
+                                </button>
+                                <AnimatePresence>
+                                    {isCompactTabsOpen && (
+                                        <motion.div
+                                            initial={{ opacity: 0, y: -6 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            exit={{ opacity: 0, y: -6 }}
+                                            transition={{ duration: 0.16 }}
+                                            data-testid="home-tabs-menu"
+                                            className="absolute left-0 top-full z-40 mt-2 max-h-[calc(100vh-6rem)] w-56 max-w-[calc(100vw-2rem)] overflow-y-auto rounded-2xl border p-1.5 shadow-xl backdrop-blur-2xl theme-glass-panel"
+                                        >
+                                            {homeTabs.map(tab => {
+                                                const isActive = homeViewTab === tab.key;
+                                                return (
+                                                    <button
+                                                        key={tab.key}
+                                                        type="button"
+                                                        disabled={Boolean(tab.disabledReason)}
+                                                        title={tab.disabledReason || tab.label}
+                                                        aria-label={tab.disabledReason || tab.label}
+                                                        onClick={() => {
+                                                            setHomeViewTab(tab.key);
+                                                            focusActiveSlider();
+                                                            setIsCompactTabsOpen(false);
+                                                        }}
+                                                        className={`flex w-full items-center gap-2 whitespace-nowrap rounded-xl px-3 py-2 text-left text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-35 ${isActive
+                                                            ? (isDaylight ? 'bg-black/10 text-black' : 'bg-white/15 text-white')
+                                                            : navPillInactiveText}`}
+                                                    >
+                                                        <span className="min-w-0 flex-1 truncate">{tab.label}</span>
+                                                        {isActive && (
+                                                            <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${isDaylight ? 'bg-black/70' : 'bg-white/80'}`} />
+                                                        )}
+                                                    </button>
+                                                );
+                                            })}
+                                            {props.extraTabs?.map(tab => (
+                                                <button
+                                                    key={tab.id}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        tab.select();
+                                                        setIsCompactTabsOpen(false);
+                                                    }}
+                                                    className={`flex w-full items-center gap-2 whitespace-nowrap rounded-xl px-3 py-2 text-left text-sm font-medium transition-colors ${navPillInactiveText}`}
+                                                >
+                                                    <span className="min-w-0 flex-1 truncate">{tab.label}</span>
+                                                </button>
+                                            ))}
+                                            {stageEnabled && (
+                                                <button
+                                                    type="button"
+                                                    data-stage-active={stageIsActive ? 'true' : 'false'}
+                                                    onClick={() => {
+                                                        onOpenStagePlayer?.();
+                                                        setIsCompactTabsOpen(false);
+                                                    }}
+                                                    className={`flex w-full items-center gap-2 whitespace-nowrap rounded-xl px-3 py-2 text-left text-sm font-medium transition-colors ${navPillInactiveText}`}
+                                                >
+                                                    <span className="min-w-0 flex-1 truncate">{t('home.stage')}</span>
+                                                </button>
+                                            )}
+                                            {/* 队列拼贴（探索页上是探索拼贴）在紧凑档从页头那格图标收进这里，
+                                                条件与那颗图标一致：只看有没有东西可铺。 */}
+                                            {onOpenLattice && (opensExploreWall ? hasExploreWall : currentTrack) && (
+                                                <button
+                                                    type="button"
+                                                    data-testid="home-lattice-pill"
+                                                    onClick={() => {
+                                                        onOpenLattice(opensExploreWall ? 'explore' : 'queue');
+                                                        setIsCompactTabsOpen(false);
+                                                    }}
+                                                    className={`flex w-full items-center gap-2 whitespace-nowrap rounded-xl px-3 py-2 text-left text-sm font-medium transition-colors ${navPillInactiveText}`}
+                                                >
+                                                    <span className="min-w-0 flex-1 truncate">{t(opensExploreWall ? 'home.latticeExplore' : 'home.lattice')}</span>
+                                                </button>
+                                            )}
+                                        </motion.div>
+                                    )}
+                                </AnimatePresence>
+                            </div>
                         )}
                         <button
                             onClick={() => onOpenSettings?.('help')}
@@ -402,8 +531,9 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                             已经有五个内容 tab，这里再展开文字会把页头撑得很长，所以它只占一个图标的宽度，
                             名字留在提示里。没有在播歌曲时队列也是空的，直接不出现。
                             在「探索」页签上它打开的是同一面墙，铺的是探索页的条目（探索拼贴）：
-                            探索页有条目可铺时出现，不看有没有在播歌曲。 */}
-                        {onOpenLattice && (opensExploreWall ? hasExploreWall : currentTrack) && (
+                            探索页有条目可铺时出现，不看有没有在播歌曲。
+                            紧凑档这里不摆它，收进最左侧的页签菜单里（见上），省一格的宽度。 */}
+                        {!isCompact && onOpenLattice && (opensExploreWall ? hasExploreWall : currentTrack) && (
                             <button
                                 onClick={() => onOpenLattice(opensExploreWall ? 'explore' : 'queue')}
                                 data-testid="home-lattice-pill"
@@ -473,8 +603,10 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                         )}
                     </div>
 
-                    {/* Center Tab Switcher：两档都在这一行的中间，字号与大小相同，宽度永远是它自身的内容宽度
-                        （shrink-0）：窗口再窄也不压它，先让两侧让位。窗口很窄时只收每个页签的左右内边距。 */}
+                    {/* Center Tab Switcher：桌面档是横排胶囊，落在页面中间；紧凑档把页签收进左侧的菜单按钮
+                        （见左上角那一组），这里就空出来。胶囊的宽度永远是它自身的内容宽度（shrink-0）：
+                        窗口再窄也不压它，先让两侧让位。窗口很窄时只收每个页签的左右内边距。 */}
+                    {!isCompact && (
                     <div className="flex shrink-0 justify-center">
                         <div className={`relative shrink-0 ${navPillBg} backdrop-blur-md p-1 rounded-full`}>
                             <div className="inline-flex items-center gap-0">
@@ -526,6 +658,7 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                             </div>
                         </div>
                     </div>
+                    )}
 
                     {/* Right Search Bar */}
                     <div className="flex min-w-0 items-center justify-end">
@@ -534,7 +667,10 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                             // 这一排按钮一起向左滑出去。
                             <button
                                 type="button"
-                                onClick={() => setIsCompactSearchOpen(open => !open)}
+                                onClick={() => {
+                                    setIsCompactTabsOpen(false);
+                                    setIsCompactSearchOpen(open => !open);
+                                }}
                                 data-home-search-layer
                                 title={t('home.searchButton')}
                                 aria-label={t('home.searchButton')}

@@ -2018,6 +2018,7 @@ export default {
     "searchLocal": "Cari lagu lokal...",
     "searchNavidrome": "Cari navidrome",
     "searchButton": "Cari",
+    "navMenu": "Menu navigasi",
     "searchClose": "Tutup pencarian",
     "searchHistory": "Pencarian terakhir",
     "searchHistoryClear": "Hapus semua",

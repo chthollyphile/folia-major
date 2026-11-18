@@ -2018,6 +2018,7 @@ export default {
     "searchLocal": "Search local songs...",
     "searchNavidrome": "Search navidrome",
     "searchButton": "Search",
+    "navMenu": "Navigation menu",
     "searchClose": "Close search",
     "searchHistory": "Recent searches",
     "searchHistoryClear": "Clear",

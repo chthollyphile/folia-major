@@ -2018,6 +2018,7 @@ export default {
     "searchLocal": "搜索本地歌曲...",
     "searchNavidrome": "搜索navidrome...",
     "searchButton": "搜索",
+    "navMenu": "导航菜单",
     "searchClose": "收起搜索",
     "searchHistory": "搜索历史",
     "searchHistoryClear": "清空",
