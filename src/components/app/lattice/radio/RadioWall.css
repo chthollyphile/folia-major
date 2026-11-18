@@ -306,10 +306,11 @@
     background-position: center;
     background-size: cover;
     pointer-events: none;
-    filter: blur(22px) saturate(1.15);
+    /* 背面的模糊封面在揭开窗口里已经先对焦过大半，这里只剩薄薄一层收尾。 */
+    filter: blur(8px) saturate(1.08);
     opacity: 1;
-    transform: scale(1.06);
-    animation: lattice-radio-focus-clear 900ms cubic-bezier(0.22, 1, 0.36, 1) 120ms forwards;
+    transform: scale(1.03);
+    animation: lattice-radio-focus-clear 480ms cubic-bezier(0.22, 1, 0.36, 1) 60ms forwards;
 }
 @keyframes lattice-radio-focus-clear {
     to { filter: blur(0) saturate(1); opacity: 0; transform: scale(1); }
@@ -468,7 +469,12 @@
     background-size: cover;
     background-position: center;
     animation: lattice-radio-fade-in 600ms ease backwards;
+    /* 揭开那一下，隔着棱纹玻璃的模糊封面就开始对焦：模糊度在背面动画的窗口里一路降到 0，
+       字显完、卡翻过去时封面已经清晰了大半——翻面只补最后一段，不是翻完才开始变清晰。 */
+    filter: blur(10px);
+    transition: filter 900ms cubic-bezier(0.22, 1, 0.36, 1);
 }
+.is-revealed .lattice-radio-veil { filter: blur(0); }
 /* 棱纹玻璃：竖向的细亮线和暗线，再从中间往下压暗一点，打码条压在暗处更清楚。 */
 .lattice-radio-reeds {
     background:
@@ -556,6 +562,7 @@
 :root[data-reduce-motion~='lattice'] .lattice-radio-backdrop *,
 :root[data-reduce-motion~='lattice'] .lattice-radio-veil,
 :root[data-reduce-motion~='lattice'] .lattice-radio-focus { animation: none; }
-/* 减弱动效：打码条不滑、字直接显出。 */
+/* 减弱动效：打码条不滑、字直接显出，模糊封面也不做对焦过渡。 */
 :root[data-reduce-motion~='lattice'] .is-revealed .lattice-radio-redaction-bar,
-:root[data-reduce-motion~='lattice'] .is-revealed .lattice-radio-redaction-text { transition: none; }
+:root[data-reduce-motion~='lattice'] .is-revealed .lattice-radio-redaction-text,
+:root[data-reduce-motion~='lattice'] .is-revealed .lattice-radio-veil { transition: none; }
