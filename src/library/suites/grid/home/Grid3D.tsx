@@ -753,11 +753,12 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                     </div>
                 </div>
 
-                {/* 紧凑档展开的搜索：从右边滑进来占满整条页头（左右 padding 与页头一致，所以贴齐两侧）。
+                {/* 紧凑档展开的搜索：从右边滑进来占满整条页头（左右 padding 与页头一致，所以贴齐两侧；
+                    页头是 px-4 md:px-8，这里跟着走同一条断点，768–959 之间才不会被拉回 px-4）。
                     收起时滑回右边，同时断掉指针与焦点；输入框里的字留着，下次展开接着改。 */}
                 {isCompact && (
                     <div
-                        className="absolute inset-0 flex items-center px-4 transition-transform duration-300 ease-out"
+                        className="absolute inset-0 flex items-center px-4 md:px-8 transition-transform duration-300 ease-out"
                         style={{
                             transform: isCompactSearchOpen ? 'translateX(0)' : 'translateX(100%)',
                             pointerEvents: isCompactSearchOpen ? 'auto' : 'none',
@@ -851,7 +852,15 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                     <OnlineProviderAccountlessPanel
                         providerLabel={activeProviderLabel}
                         isDaylight={isDaylight}
-                        onSearch={() => searchInputRef.current?.focus()}
+                        onSearch={() => {
+                            // 紧凑档的搜索层收起时是 inert 的，直接 focus() 不生效（点了像没反应）：
+                            // 先把它展开，展开后的 effect 会在下一帧把焦点交给输入框。
+                            if (isCompact) {
+                                setIsCompactSearchOpen(true);
+                                return;
+                            }
+                            searchInputRef.current?.focus();
+                        }}
                     />
                 ) : isOnlineTab && activeAccountView === 'resolving' ? (
                     <div className="flex flex-1 w-full items-center justify-center" aria-busy="true">
