@@ -160,6 +160,8 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
     // 设置里能把把手整个藏起来（抽屉照常用 Ctrl / ⌘ + J、命令面板开合），也能把它挪到左缘的别的高度。
     const showHandle = useScratchpadSettingsStore(state => state.showHandle);
     const handlePosition = useScratchpadSettingsStore(state => state.handlePosition);
+    // 标签上长按拖动松手后提交的新高度（ScratchpadEdge 拖完只算一次，写进设置持久化）。
+    const setHandlePosition = useScratchpadSettingsStore(state => state.setHandlePosition);
     // 把手常驻时的样子（米白小条 / 细竖线 / 小圆点 / 几何体），指针进来一律展开成完整的米白标签。
     const handleStyle = useScratchpadSettingsStore(state => state.handleStyle);
     const listRef = useRef<HTMLDivElement>(null);
@@ -543,6 +545,7 @@ const ScratchpadHost: React.FC<ScratchpadHostProps> = ({ isDaylight, playback, q
                     label={handleLabel}
                     hint={handleTitle}
                     onToggle={toggleOpen}
+                    onPositionCommit={setHandlePosition}
                     handleRef={handleRef}
                 />
             )}
