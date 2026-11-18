@@ -71,6 +71,10 @@ type RadioCardProps = {
 };
 
 const FLIP_TRANSITION = { duration: 0.55, ease: [0.4, 0, 0.2, 1] as const };
+/** 揭开到翻面之间留给背面打码条动画的时间：条滑开、字显出来播完了，卡才翻到正面。 */
+const BACK_REVEAL_MS = 950;
+/** 翻面本身的时长：翻完背面就看不见了，背面的对焦层随之卸掉。 */
+const FLIP_MS = FLIP_TRANSITION.duration * 1000;
 const DEAL_SPRING = { type: 'spring' as const, stiffness: 240, damping: 30, mass: 0.9 };
 const PERSPECTIVE_PX = 1400;
 /** 倾斜按压用的透视：比翻牌近一些，压下去才看得出来。 */
@@ -137,12 +141,31 @@ function RadioCard({
     // （180° → 0°），不另翻。
     const [spin, setSpin] = useState<{ count: number; direction: 1 | -1 }>({ count: 0, direction: 1 });
     const [shown, setShown] = useState({ role, revealed });
+    // 揭开分两步：revealed 变 true 后先留在背面，让涂黑条滑开、字显出来（背面动画播完），
+    // 卡才翻到正面；翻过去之后封面再从模糊对焦到清晰。reduced-motion 或卡本来就正面朝上
+    // （played → now 的半圈翻不经过背面）时直接翻，不等。
+    // 揭开的阶段：back = 留在背面跑显字与对焦；flip = 正在翻面；done = 落定（背面的对焦层卸掉）。
+    const [revealStage, setRevealStage] = useState<'back' | 'flip' | 'done'>(revealed ? 'done' : 'back');
     if (shown.role !== role || shown.revealed !== revealed) {
         setShown({ role, revealed });
+        if (revealed && !shown.revealed && !reducedMotion) {
+            // 从盖着到揭开：先在背面跑涂黑条动画，播完才放行翻面。
+            setRevealStage('back');
+        }
         if (role === 'now' && shown.role !== 'now' && shown.revealed) {
             setSpin(value => ({ count: value.count + 1, direction: shown.role === 'played' ? 1 : -1 }));
         }
     }
+    useEffect(() => {
+        if (!revealed || revealStage === 'done') return;
+        // 减弱动效下直接落定：之后再关掉减弱动效，已揭开的卡也不会翻回背面重来一遍。
+        const delay = reducedMotion ? 0 : revealStage === 'back' ? BACK_REVEAL_MS : FLIP_MS;
+        const timer = setTimeout(() => setRevealStage(revealStage === 'back' && !reducedMotion ? 'flip' : 'done'), delay);
+        return () => clearTimeout(timer);
+    }, [reducedMotion, revealStage, revealed]);
+    const flipReady = revealStage !== 'back' || reducedMotion;
+    // 已经正面朝上的卡升为正在播放时翻半圈（不经过背面），放行条件直接满足。
+    const flipAngle = revealed && flipReady ? 0 : 180;
     const [spinScope, animateSpin] = useAnimate<HTMLDivElement>();
     useEffect(() => {
         if (spin.count === 0 || reducedMotion) return;
@@ -160,7 +183,6 @@ function RadioCard({
             element.style.transform = '';
         };
     }, [animateSpin, reducedMotion, spin, spinScope]);
-    const faceAngle = revealed ? 0 : 180;
     // Metro 式的倾斜按压：指针所在的那一点往里压。正中那张大卡上有歌词和控制条，压得浅一些。
     const tilt = useRadioCardTilt({
         maxDeg: expanded ? 2.5 : 7,
@@ -287,8 +309,8 @@ function RadioCard({
                     <div ref={spinScope} className="lattice-radio-card-spin">
                         <motion.div
                             className="lattice-radio-card-inner"
-                            initial={entersFaceDown ? { rotateY: faceAngle + 180 } : false}
-                            animate={{ rotateY: faceAngle }}
+                            initial={entersFaceDown ? { rotateY: flipAngle + 180 } : false}
+                            animate={{ rotateY: flipAngle }}
                             transition={reducedMotion ? { duration: 0 } : FLIP_TRANSITION}
                         >
                             <article
@@ -297,6 +319,16 @@ function RadioCard({
                                 style={{ backgroundImage: coverUrl ? `url("${coverUrl}")` : undefined }}
                                 aria-hidden={!revealed}
                             >
+                                {/* 揭开那一下：封面叠一层高斯模糊、略放大的自己，落定后对焦到清晰。
+                                    只在揭开（背面 → 正面）时跑这一次；reduced-motion 下不叠。 */}
+                                {revealed && revealStage === 'flip' && !reducedMotion && coverUrl && (
+                                    <span
+                                        key={`focus-${tile.id}`}
+                                        className="lattice-radio-focus"
+                                        style={{ backgroundImage: `url("${coverUrl}")` }}
+                                        aria-hidden
+                                    />
+                                )}
                                 <span className="lattice-poster-shade" />
                                 <span className="lattice-poster-lights-out" />
                                 <span className="lattice-poster-tint" />
@@ -339,10 +371,28 @@ function RadioCard({
                                 aria-hidden
                             >
                                 {cover.veil && <span className="lattice-radio-veil" />}
+                                {/* 揭开那一下，真封面在模糊封面上淡入：隔着棱纹玻璃慢慢看清的是真正的封面
+                                    内容，不是一团颜色。翻到正面时已经清晰，正面的对焦层只收尾。
+                                    只走 opacity，不挂滤镜（卡逐帧变尺寸，滤镜每帧都要重算）。 */}
+                                {revealed && !reducedMotion && coverUrl && (
+                                    <span
+                                        key={`unveil-${tile.id}`}
+                                        className="lattice-radio-unveil"
+                                        style={{ backgroundImage: `url("${coverUrl}")` }}
+                                        aria-hidden
+                                    />
+                                )}
                                 <span className="lattice-radio-reeds" />
                                 <span className="lattice-radio-redaction">
-                                    <i style={{ width: `${redaction.title}%` }} />
-                                    <i style={{ width: `${redaction.artist}%` }} />
+                                    {/* 每条：涂黑条压在字上。揭开（.is-revealed）时条朝右滑走、字从左显出来。 */}
+                                    <i className="lattice-radio-redaction-line" style={{ width: `${redaction.title}%` }}>
+                                        <b className="lattice-radio-redaction-text">{tile.title}</b>
+                                        <b className="lattice-radio-redaction-bar" />
+                                    </i>
+                                    <i className="lattice-radio-redaction-line" style={{ width: `${redaction.artist}%` }}>
+                                        <b className="lattice-radio-redaction-text">{tile.artist}</b>
+                                        <b className="lattice-radio-redaction-bar" />
+                                    </i>
                                 </span>
                             </div>
                         </motion.div>
