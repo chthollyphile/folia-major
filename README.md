@@ -19,6 +19,7 @@ Lyrics Reimagined // 辞曲新境
 [![Discord](https://img.shields.io/discord/1541051241822687232?logo=discord&logoColor=white&label=Join%20our%20Discord)](https://discord.gg/dMDBTHxeKd)
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
 [![All Contributors](https://img.shields.io/badge/all_contributors-35-orange.svg?style=flat-square)](CONTRIBUTORS.md)
+[![Featured on AppWK](https://appwk.cn/badges/featured-dark.svg)](https://appwk.cn/apps/folia)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 [获取方式](https://github.com/chthollyphile/folia-major#%E8%8E%B7%E5%8F%96%E6%96%B9%E5%BC%8F)
