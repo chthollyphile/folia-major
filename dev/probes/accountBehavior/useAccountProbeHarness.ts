@@ -219,6 +219,7 @@ export const useAccountProbeModel = (): AccountProbeModel => {
         ...PROBE_SURFACE_CALLBACKS,
         onRefreshUser: NO_OP,
         onRefreshLocalSongs: NO_OP,
+        onRefreshLocalPlaylists: NO_OP,
         user: activeProvider?.user ?? null,
         playlists: activeCollections?.filter(collection => collection.type !== 'cloud') ?? [],
         cloudPlaylist: activeCollections?.find(collection => collection.type === 'cloud') ?? null,

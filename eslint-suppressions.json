@@ -9168,7 +9168,7 @@
       "count": 6
     },
     "@typescript-eslint/no-unnecessary-condition": {
-      "count": 11
+      "count": 10
     },
     "@typescript-eslint/no-unsafe-call": {
       "count": 1
@@ -9191,9 +9191,6 @@
   },
   "src/services/localPlaylistService.ts": {
     "@typescript-eslint/consistent-type-imports": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
       "count": 1
     },
     "@typescript-eslint/no-unnecessary-type-assertion": {

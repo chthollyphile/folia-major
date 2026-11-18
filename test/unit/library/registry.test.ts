@@ -128,7 +128,7 @@ describe('library suite registry', () => {
             extraActions: [],
         });
         expect(LIBRARY_ACTION_IDS.filter(action => !resolveLibrarySurfaceActions('collection', 'tui').actions.includes(action)))
-            .toEqual(['shuffle-scope', 'collect', 'collect-scope', 'save-to-playlist', 'set-cover', 'add-to-playlist', 'create-playlist']);
+            .toEqual(['shuffle-scope', 'collect', 'collect-scope', 'save-to-playlist', 'reorder-playlist', 'set-cover', 'add-to-playlist', 'create-playlist']);
         // 歌手页（P4.2 / P4.3）：网格实现了全部歌手页动作（网格的播放全部、随机播放只经命令面板）；TUI 已冻结，没有「全部歌曲」（#918）与随机播放。
         expect([...resolveLibrarySurfaceActions('artist', 'grid').actions].sort()).toEqual([...LIBRARY_ARTIST_ACTION_IDS].sort());
         expect(LIBRARY_ARTIST_ACTION_IDS.filter(action => !resolveLibrarySurfaceActions('artist', 'tui').actions.includes(action)))

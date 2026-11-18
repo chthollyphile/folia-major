@@ -30,6 +30,7 @@ import {
     saveToCache,
 } from '@/services/db';
 import { removeCachedCover } from '@/services/coverCache';
+import { removeDeletedSongIdsFromPlaylists } from '@/services/localPlaylistService';
 import { useLyricSettingsStore } from '@/stores/useLyricSettingsStore';
 import { DEFAULT_LOCAL_LYRIC_FORMAT_ORDER } from '@/utils/lyrics/localLyricFormatOrder';
 import { applyUploadedLocalLyrics } from '@/utils/lyrics/localLyricsUpload';
@@ -57,6 +58,9 @@ vi.mock('@/services/db', () => ({
 }));
 vi.mock('@/services/coverCache', () => ({
     removeCachedCover: vi.fn(),
+}));
+vi.mock('@/services/localPlaylistService', () => ({
+    removeDeletedSongIdsFromPlaylists: vi.fn(),
 }));
 
 class FakeFileHandle {
@@ -750,6 +754,7 @@ describe('localMusicService', () => {
         await deleteFolderSongs('Music/Disc 1');
 
         expect(deleteLocalSongs).toHaveBeenCalledWith(['song-1', 'song-2']);
+        expect(removeDeletedSongIdsFromPlaylists).toHaveBeenCalledWith(['song-1', 'song-2']);
         expect(removeCachedCover).toHaveBeenCalledTimes(2);
         expect(removeCachedCover).toHaveBeenCalledWith('cover_local_song-1');
         expect(removeCachedCover).toHaveBeenCalledWith('cover_local_song-2');
@@ -804,6 +809,7 @@ describe('localMusicService', () => {
         await deleteSongsByIds(['song-1', 'song-1']);
 
         expect(deleteLocalSongs).toHaveBeenCalledWith(['song-1']);
+        expect(removeDeletedSongIdsFromPlaylists).toHaveBeenCalledWith(['song-1']);
         expect(removeCachedCover).toHaveBeenCalledWith('cover_local_song-1');
     });
 

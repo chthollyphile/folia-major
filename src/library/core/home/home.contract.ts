@@ -67,6 +67,7 @@ export interface LibraryHomeData {
     localSongs: LocalSong[];
     localLibraryCatalog: LibraryLocalCatalogSnapshot;
     localPlaylists: LocalPlaylist[];
+    onRefreshLocalPlaylists: () => Promise<void> | void;
     onRefreshLocalSongs: () => Promise<void> | void;
     onAddLocalSongToQueue?: (song: LocalSong) => void;
     focusedPlaylistIndex?: number;
