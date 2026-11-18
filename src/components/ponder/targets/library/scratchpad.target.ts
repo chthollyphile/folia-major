@@ -124,6 +124,16 @@ const drawer: PonderSceneScript = {
         },
         { kind: 'pause', id: 'readOpen' },
 
+        // 标签本身可以长按拖动上下挪，松手存进设置里的「悬浮标签高度」。
+        { kind: 'highlight', id: 'markHandleDrag', anchor: 'handle', intensity: [0, 0.9], durationMs: 420, keyframe: true },
+        {
+            kind: 'caption', id: 'handleDrag',
+            textKey: 'ponder.captions.scratchpad.handleDrag',
+            pointTo: { anchor: 'handle' }, durationMs: 6600, withPrevious: true,
+        },
+        { kind: 'pause', id: 'readHandleDrag' },
+        { kind: 'highlight', id: 'dimHandleDrag', anchor: 'handle', intensity: [0.9, 0], durationMs: 320, keyframe: true },
+
         { kind: 'highlight', id: 'markGroup', anchor: 'group', intensity: [0, 0.6], durationMs: 420, keyframe: true },
         {
             kind: 'caption', id: 'groups',

@@ -169,6 +169,13 @@
 .scratchpad-handle-texture,
 .scratchpad-handle-body { transition: opacity 0.12s ease; }
 
+/* 长按拖动中：标签保持展开、指针抓取（grabbing），纸上的内容保持可见，别被「指针其实不在上面」的
+   瞬间收回去；拖动的位置走行内变量（ScratchpadEdge 实时写 --scratchpad-edge-position），不重渲染。 */
+.scratchpad-edge.is-dragging { pointer-events: none; }
+.scratchpad-edge.is-dragging .scratchpad-handle { pointer-events: auto; cursor: grabbing; }
+.scratchpad-edge.is-dragging .scratchpad-handle-paper { clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%); opacity: 1; }
+.scratchpad-edge.is-dragging :is(.scratchpad-handle-texture, .scratchpad-handle-body) { opacity: 1; }
+
 .scratchpad-edge:not(:hover, :focus-within) :is(.scratchpad-handle-texture, .scratchpad-handle-body) { opacity: 0; }
 
 /* 网点纹理，中段（标题那一截）渐隐掉，不影响读字。 */
