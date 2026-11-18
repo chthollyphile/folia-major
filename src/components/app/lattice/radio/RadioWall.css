@@ -475,6 +475,20 @@
     transition: filter 900ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 .is-revealed .lattice-radio-veil { filter: blur(0); }
+/* 真封面淡入：模糊缩略图（veil）是一张 12px 小图放大，永远糊的，去 blur 只会露出马赛克；
+   变清晰要靠真封面盖上来。揭开窗口（BACK_REVEAL_MS）里淡入完成，翻面时正面已经清楚；
+   棱纹玻璃的细线压在最上面，「隔着玻璃看清」的质感不丢。 */
+.lattice-radio-unveil {
+    inset: -12%;
+    background-position: center;
+    background-size: cover;
+    opacity: 0;
+    pointer-events: none;
+}
+.is-revealed .lattice-radio-unveil {
+    opacity: 1;
+    transition: opacity 850ms cubic-bezier(0.22, 1, 0.36, 1);
+}
 /* 棱纹玻璃：竖向的细亮线和暗线，再从中间往下压暗一点，打码条压在暗处更清楚。 */
 .lattice-radio-reeds {
     background:
