@@ -12,6 +12,7 @@ exports[`command palette registry contract > keeps the registered command order 
   "grid-resync-folder",
   "grid-resync-all-folders",
   "grid-organize-song-info",
+  "grid-reorder-playlist",
   "grid-export-playlist",
   "grid-edit-entity",
   "grid-set-cover",

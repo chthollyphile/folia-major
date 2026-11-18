@@ -213,6 +213,7 @@ export const resolveCollectionMutationCapabilities = ({
         ),
         resyncFolder: gated(branches.isLocalFolderCollection && Boolean(port.local?.resyncFolder), pending),
         resyncAllFolders: gated(branches.isLocalAllSongsCollection && Boolean(port.local?.resyncAllFolders), pending),
+        reorderPlaylist: gated(branches.isLocalPlaylistCollection && Boolean(port.local?.reorderPlaylist), false),
         // 与网格的导出按钮同一条件：收藏这类虚拟歌单也能导出。
         exportPlaylist: gated(
             Boolean(local && local.type === 'playlist' && local.playlistId && port.local?.exportPlaylist),

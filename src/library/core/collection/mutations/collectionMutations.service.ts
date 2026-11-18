@@ -741,6 +741,14 @@ export const createCollectionMutationController = (
             ));
         },
         resyncAllFolders: () => runSourceAction('resyncAllFolders', () => inputs.port.local?.resyncAllFolders?.()),
+        reorderPlaylist: () => {
+            const { descriptor, port } = inputs;
+            return runSourceAction('reorderPlaylist', () => {
+                if (descriptor.source === 'local' && descriptor.playlistId) {
+                    port.local?.reorderPlaylist?.(descriptor.playlistId);
+                }
+            }, { exclusive: false });
+        },
         exportPlaylist: () => {
             const { descriptor, port } = inputs;
             return runSourceAction('exportPlaylist', () => (

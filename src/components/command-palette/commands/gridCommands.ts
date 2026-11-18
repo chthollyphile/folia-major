@@ -88,6 +88,14 @@ export const gridCommands: CommandPaletteCommand[] = [
         Tags,
     ),
     createGridSurfaceCommand(
+        'grid-reorder-playlist',
+        'Reorder playlist songs',
+        'Edit the order of songs in this local playlist',
+        ['reorder', 'sort songs', 'A-Z', '歌单排序', '调整顺序'],
+        'reorder-playlist',
+        ListOrdered,
+    ),
+    createGridSurfaceCommand(
         'grid-export-playlist',
         'Export this playlist',
         'Save this local playlist as an m3u8 file',

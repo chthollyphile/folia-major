@@ -7,7 +7,7 @@ import {
     useCollectionNavigationStore,
     type CollectionNavigationSnapshot,
 } from '../../stores/useCollectionNavigationStore';
-import { LocalSong, SongResult, UnifiedSong } from '../../types';
+import { LocalPlaylist, LocalSong, SongResult, UnifiedSong } from '../../types';
 import { getNavidromeConfig, navidromeApi } from '../../services/navidromeService';
 import { getLocalCoverAssetUrl } from '../../services/localCoverAssetUrl';
 import {
@@ -31,6 +31,7 @@ import { LocalFolderSongInfoPanel } from '../../components/modal/LocalFolderSong
 import { LocalSongMetadataMatchDialog } from '../../components/modal/LocalSongMetadataMatchDialog';
 import { useScratchpadStore } from '../../stores/useScratchpadStore';
 import LocalCollectionCoverDialog from '../../components/local-collection-cover/LocalCollectionCoverDialog';
+import LocalPlaylistOrderEditor from '../../components/local-playlist-order/LocalPlaylistOrderEditor';
 import { resolveLocalCollectionCover } from '../core/collection/cover/localCollectionCover';
 import { useLocalCollectionCoverUrls } from '../core/collection/cover/useLocalCollectionCoverUrls';
 import { followEntityRedirect } from '../../utils/localLibraryIndex';
@@ -238,6 +239,7 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
     const [resolvedLocalCollectionCoverUrl, setResolvedLocalCollectionCoverUrl] = useState<string | undefined>(undefined);
     const [navidromePlaylistItems, setNavidromePlaylistItems] = useState<Array<{ id: string | number; name: string; description?: string; }>>([]);
     const [editingEntityId, setEditingEntityId] = useState<string | null>(null);
+    const [orderingPlaylist, setOrderingPlaylist] = useState<LocalPlaylist | null>(null);
     const [organizingFolder, setOrganizingFolder] = useState<LocalGridViewCollectionDescriptor | null>(null);
     const [matchingSongId, setMatchingSongId] = useState<string | null>(null);
     const [coverEditingCollection, setCoverEditingCollection] = useState<LocalGridViewCollectionDescriptor | null>(null);
@@ -627,6 +629,7 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
         dialogs: {
             editEntity: setEditingEntityId,
             editCover: setCoverEditingCollection,
+            reorderPlaylist: setOrderingPlaylist,
             organizeFolder: setOrganizingFolder,
             matchSong: setMatchingSongId,
         },
@@ -662,7 +665,7 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
         ? surfaceProps.localSongs.find(song => song.id === matchingSongId)
         : undefined;
     // 本地实体、歌曲信息、手动匹配这几个弹窗和首页层在同一个层叠上下文里，盖不过左边的速记簿：开着时让它藏起来。
-    const isScratchpadCovered = Boolean(editingEntity || organizingFolder || matchingSong);
+    const isScratchpadCovered = Boolean(editingEntity || organizingFolder || matchingSong || orderingPlaylist);
     useEffect(() => {
         useScratchpadStore.getState().setCovered(isScratchpadCovered);
     }, [isScratchpadCovered]);
@@ -825,6 +828,17 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
                     songs={coverEditingSongs}
                     isDaylight={isDaylight}
                     onClose={() => setCoverEditingCollection(null)}
+                />
+            )}
+            {orderingPlaylist && (
+                <LocalPlaylistOrderEditor
+                    key={orderingPlaylist.id}
+                    playlist={orderingPlaylist}
+                    localSongs={surfaceProps.localSongs}
+                    catalog={localLibraryCatalog}
+                    isDaylight={isDaylight}
+                    onClose={() => setOrderingPlaylist(null)}
+                    onRefresh={surfaceProps.onRefreshLocalPlaylists}
                 />
             )}
             {matchingSong && (

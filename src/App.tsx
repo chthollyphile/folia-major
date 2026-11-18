@@ -2215,6 +2215,7 @@ export default function App() {
         localSongs,
         localLibraryCatalog,
         localPlaylists,
+        onRefreshLocalPlaylists: loadLocalPlaylists,
         onRefreshLocalSongs,
         onAddLocalSongToQueue: handleLocalQueueAdd,
         localMusicState,
