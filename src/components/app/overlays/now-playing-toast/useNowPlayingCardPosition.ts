@@ -166,15 +166,6 @@ export const useNowPlayingCardPosition = (
         pressRef.current = null;
     };
 
-    const handleCardClick = (event: React.MouseEvent<HTMLButtonElement>) => {
-        if (event.currentTarget.dataset.nowPlayingDragged === 'true') {
-            delete event.currentTarget.dataset.nowPlayingDragged;
-            event.preventDefault();
-            event.stopPropagation();
-            return;
-        }
-    };
-
     const onPointerDown = (event: PointerEvent<HTMLButtonElement>) => {
         if (!positioning || event.button !== 0 || !event.isPrimary) return;
         event.preventDefault();
@@ -230,7 +221,6 @@ export const useNowPlayingCardPosition = (
                 pressRef.current = null;
             },
             onKeyDown,
-            onClick: handleCardClick,
         },
     };
 };
