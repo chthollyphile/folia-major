@@ -378,7 +378,7 @@ packages/folium-source-kit/   纯 TS 的共用函数（exploreReads、listeningR
 
 ## 9. Folium 1 兼容
 
-- `folium: 1` 的模组照旧加载，接口冻结在 1.9，internals 和旧名字照旧标废弃；`deprecated/` 里「Folium 2 删除」的那份清单改期到以后的 major。
+- `folium: 1` 的模组照旧加载，接口冻结在 1.9，internals 和旧名字照旧标废弃；`deprecated/` 里「Folium 2 删除」的那份清单改期到以后的 major。main 在 `edge` 切出之后又发了 Folium 1.10（2026-11-18，`folium.theme`），冻结线跟不跟到 1.10 待维护者定（§10「main 到 `edge` 的同步」）。
 - 实验接口 `omni.providers` 改成新注册表上的一层薄壳，行为不变；文档里指向 `folium.sources`。
 - `mods/README.md` 改写成 Folium 2 规范，去掉「2.0 前不要做完整音源模组」那段；新增 `docs/folium/sources.md`（开发指南、能力一览、旧简化音源的迁移）。
 - 示范模组：`dev/folium/sample-source-full`（覆盖每个能力族的契约测试音源）、`dev/folium/sample-video-source`（`playback.surface`）。
@@ -393,11 +393,14 @@ S0–S4 与试点平台（bodian）在集成分支 `folium-2`（从 main 切，�
 - **进 `edge` 之前**：打包版实测（Windows 安装包，macOS、Linux 的 CI 构建）；波点用真实账号在大陆网络下实测（维护者 2026-11-14 已测：可以播放，其它功能正常）；`dev/folium/folium-2-member-matrix.md` §4 的归属由维护者确认（2026-11-14 已确认）；对整个分支做一次完整审查；加上「预览」标记（见第二步）。
 - **发布**：`edge` 发布到 Cielo（canary）的滚动更新通道（`.github/workflows/canary-pre-release.yml` 的 `rolling`）。同时改这个 workflow 里的 release note 模板，写明四件事：这个版本用于 Folium 2 的发布测试；普通用户可以下载；反馈问题要打上 `folium2` 标签；建议模组作者都下载这个版本测试自己的模组。
 - **滚动版只由 `edge` 发**（维护者 2026-11-15 定）：滚动版固定发到 tag `cielo`，main 和 `edge` 都发的话 Cielo 用户会在两版之间来回升级。workflow 的 `ROLLING_BRANCH` 限定只有 `edge` 能发滚动版，别的分支的 rolling 自动降成分支版；main 上的这个文件也要有同样的改动。`edge` 合进 main 之后把它改回 main。
-- **第二步，接口进 main**：`edge` 在 Cielo 上观察一到两个发版周期，维护者确认稳定后合进 main；在那之前 main 继续维护 0.7.x。`folium: 2` 的音源接口（`folium.sources` 与 main 入口给音源的 `api`）在 `docs/folium/` 和模组面板里标「预览」，写明九家内置音源迁完之前可能变动；`folium: 1` 冻结在 1.9 的承诺不变。
-- **第三步，拆分**：其余八家（下面迁移顺序的 2–9）和 S6–S8 在接口合进 main 之后做，一家一个 PR。这些 PR 的目标是 main 还是继续走 `edge`，由维护者在接口合并之后定。期间内置的静态注册与音源模组并存（运行时已经支持）。九家迁完、S8 做完后去掉「预览」标记。
+- **第二步，接口进 main**：`edge` 在 Cielo 上观察一到两个发版周期，维护者确认稳定后合进 main；在那之前 main 继续维护 0.7.x。`folium: 2` 的音源接口（`folium.sources` 与 main 入口给音源的 `api`）在 `docs/folium/` 和模组面板里标「预览」，写明九家内置音源迁完之前可能变动；`folium: 1` 冻结在 1.9 的承诺不变。合进 main 之前先做完下面「剩余阶段的顺序」的第 1、2 步。
+- **第三步，拆分**：其余八家（下面迁移顺序的 2–9）和 S6–S8 剩下的部分在接口合进 main 之后做，一家一个 PR，先后见下面「剩余阶段的顺序」。这些 PR 的目标是 main 还是继续走 `edge`，由维护者在接口合并之后定；2026-11-18 评估时的建议是继续先进 `edge` 走 Cielo，至少 kugou（第一个依赖归档）、appleMusic 和 spotify（原生件）如此，否则它们第一次到真实用户手里就是在 main 上。期间内置的静态注册与音源模组并存（运行时已经支持）。九家迁完、S8 做完后去掉「预览」标记。
 - **main 到 `edge` 的同步**：定期把 main 上的改动同步进 `edge`，由维护者手动触发，不自动做。
+  - 2026-11-18 的情况：`edge` 切出四天，落后 main 147 个提交（含 0.7.29）。试合并有 15 个文件冲突：6 个是 Folium 接口文件（`src/mods/folium/contract.ts`、`src/mods/folium/api.ts`、`mods/folium.d.ts`、`docs/folium/api.md`、`electron/modSystem/foliumShared.json`、一个模组测试），4 个是语言包，3 个是 Dedicatus 的登记表，另有 `searchCommands.ts` 和 `vite-env.d.ts`。同一段时间平台目录只动了 5 个文件。
+  - 冲突集中在接口文件上，是因为 main 上接口还在加（Folium 1.10），而下面的冻结清单只管平台文件。建议 main 上每次动过 `src/mods/folium/`、`electron/modSystem/`、`mods/folium.d.ts` 就同步一次，不等到每周。
+  - **待维护者定**：Folium 1.10 怎么进 2.0。一种是冻结线挪到 1.10（`folium: 1` 的模组在 2.0 宿主上读到 1.10）；另一种是接口合进 main 之前，main 上不再加 1.x 的接口。
 
-**合并纪律**：搬目录的提交只做 `git mv`、单独成组；平台文件正文尽量不动，只改接缝；每周把 main 合进来一次（`merge.renameLimit` 调大，`-X find-renames=30%`）。期间 main 上冻结：`src/types/onlineMusic.ts` 的签名、`providerRegistry.ts`、`main.cjs` 的平台块、`preload.cjs` 的平台通道、平台目录的增删文件；平台内部修 bug 照常。
+**合并纪律**：搬目录的提交只做 `git mv`、单独成组；平台文件正文尽量不动，只改接缝；每周把 main 合进来一次（`merge.renameLimit` 调大，`-X find-renames=30%`）。期间 main 上冻结：`src/types/onlineMusic.ts` 的签名、`providerRegistry.ts`、`main.cjs` 的平台块、`preload.cjs` 的平台通道、平台目录的增删文件；平台内部修 bug 照常。这份清单只管平台文件，接口文件见上面「main 到 `edge` 的同步」。
 
 | 阶段 | 内容 | 门槛 |
 | --- | --- | --- |
@@ -407,9 +410,9 @@ S0–S4 与试点平台（bodian）在集成分支 `folium-2`（从 main 切，�
 | S3 契约与适配层 | §4；`registries/sources.ts`；`omni.providers` 薄壳；生成器；`folium:check` 的音源检查 | `sample-source-full` 不改宿主就能覆盖每个能力族 |
 | S4 构建与测试夹具 | §6；kit；`test/unit/helpers/builtinSources.ts`（挂进 `vitest.config.ts` 的 `setupFiles`，用测试 `env` 调各家 `createSource` 并注册）；CI 规则改指向 | 构建产物能在开发版里以 `builtin` 加载 |
 | S5 迁移九家 | 顺序见下；每家一组提交：纯搬移 → Core 接缝（三家）→ client → main → 语言表 → 删 `main.cjs` / `preload.cjs` / `vite-env.d.ts` 里对应的块。bodian 随接口交付，其余八家在接口合进 main 之后一家一个 PR（见上「交付」） | 每家迁完桌面实测通过 |
-| S6 `surface` | §4.2、§4.4；`sample-video-source` | 示范模组能在播放页放视频，切歌、暂停、跳转、窗口重建正常 |
-| S7 网页版 | §8 | 网页构建不含 Electron 与模组加载器，三家可用 |
-| S8 收尾 | 「设置 → 音源」页面与开箱引导的勾选（含只用于匹配的三选一和引导里的默认落点）；覆盖机制与上限；不带内置音源的打包形态（`FOLIA_BUNDLED_SOURCES`）；删 `providerRegistry.ts` 的静态 import；文档；`AGENTS.md`；去掉音源接口的「预览」标记（见上「交付」） | §11 全部通过 |
+| S6 `surface` | §4.2、§4.4；`sample-video-source`。不依赖其余八家，排在 netease 之后、appleMusic 之前（见下「剩余阶段的顺序」） | 示范模组能在播放页放视频，切歌、暂停、跳转、窗口重建正常 |
+| S7 网页版 | §8，分两段。骨架（`registerWebSources()`、网页构建改走它）排在 kugou 之前；netease、kugou、qq 各自的 Core 与网页适配随各自的迁移 PR | 网页构建不含 Electron 与模组加载器，三家可用；三家迁移期间网页版一家不缺 |
+| S8 收尾 | 分三段（见下「剩余阶段的顺序」）。接口进 main 之前：注册表顺序、「设置 → 音源」页面。netease 与 qq 迁完之后：开箱引导的勾选（含只用于匹配的三选一和引导里的默认落点）、覆盖机制与上限。最后：不带内置音源的打包形态（`FOLIA_BUNDLED_SOURCES`）；删 `providerRegistry.ts` 的静态 import；文档；`AGENTS.md`；去掉音源接口的「预览」标记（见上「交付」） | §11 全部通过 |
 
 **迁移顺序与各自逼出的宿主设施**
 
@@ -424,6 +427,23 @@ S0–S4 与试点平台（bodian）在集成分支 `folium-2`（从 main 切，�
 | 7 | ytm | 命名分区、隐藏窗口、浏览器登录、退出前收尾、带 Range 的流 |
 | 8 | appleMusic | 原生路径、外部播放、孤儿暂停、窗口交接、打包脚本改路径 |
 | 9 | spotify | 原生加载、缓存目录与共享清理、回环 OAuth、`keepAudio` |
+
+**剩余阶段的顺序**（维护者 2026-11-18 定；八家内部的先后不变，变的是 S6–S8 插在哪里）
+
+1. **同步 main → `edge`，重发一版 Cielo。** 现在的滚动版还是 `a3c5e1dd0`，不含 0.7.29。同步时定 Folium 1.10 的去处（见上「main 到 `edge` 的同步」）。
+2. **接口进 main 之前，在 `edge` 上补三件。**
+   - **注册表顺序**：迁成模组的音源按迁移前静态注册的顺序排，不按 client 起来的先后。不做的话每迁一家它就排到最后，切换器、登录窗口、搜索命令的顺序会跟着变八次，测试里的顺序断言也要各改一遍。
+   - **「设置 → 音源」页面**（从 S8 提前）：停用与只用于匹配的运行时在 S2 就有了，对宿主静态注册的平台同样生效（`omni.ts` 按 `sourceStates` 过滤），但界面里没有入口，观察期测不到。S1 留下的「跳到设置 → 音源」的入口、接管与覆盖的提示（`claim-unconfirmed` 等）一起做。还没迁的几家能做到哪一步开工时先核对（停用是不是只在界面上不出现、后端照旧随应用启动；清除数据能不能按受信表执行），做不到的在页面上写明。
+   - **三个真实上游库的依赖归档样例**（只做样例，不迁移）：netease、kugou、qq 的生产依赖闭包各打成 `deps.<指纹>.asar`，在打包版里加载并起各自的后端（网易云的 worker、QQ 的进程内服务）。Windows 本机实测，macOS 和 Linux 在 CI 上至少跑到加载成功。这是 §13 剩下最大的未验证前提，照原来的顺序要到第 4 家才第一次碰到；不成立的话 §6.2 的打包做法和覆盖包的上限都要改。
+3. **再观察一个发版周期，接口合进 main**（「交付」第二步）。不要拖：合并成本来自 main 上接口还在变，越晚冲突越多。
+4. **qishui → fnmusic。** 两家都只在桌面，逼出来的 kit 和 `_media` 流后面几家都要用。
+5. **网页版骨架 → kugou → qq → netease。**
+   - `edge` 上还没有 `registerWebSources()` 和 `src/services/onlineMusic/web/`，网页版靠的是 `providerRegistry.ts` 的静态注册，而迁一家要删它的静态注册。bodian、qishui、fnmusic 只在桌面，删了不影响网页版；这三家网页版在用，骨架不先到位的话，从 kugou 的 PR 起网页版会缺它们。
+   - 三家各自的 Core 与网页适配随各自的 PR，每个 PR 合完网页版都要构建一次确认它还在。
+   - 三家迁完之后做开箱引导的勾选和覆盖机制与上限。前者要网易云和 QQ 已经是模组（全新安装没勾的这两家落到只用于匹配，后端要能推迟启动）；后者要有带依赖归档的音源才有东西可测。
+6. **S6 `surface`。** 契约里 `playback.surface@1` 的类型 S3 已经有了，宿主的 `SurfacePlaybackHost` 和 `itemTraits` 还没有。排在 appleMusic 之前，因为两边都要动窗口交接：appleMusic 实现了 `adopt`，S6 要在 `useElectronWindowPlaybackHandoff.ts` 里给 `surface` 加重新播放那一支（§13）。它不依赖其余八家，也可以单独一条线和第 4、5 步并行。
+7. **ytm → appleMusic → spotify。**
+8. **收尾**：S8 的最后一段。
 
 **CI 要改指向的**：`dev/dedicatus/rules.mjs`（D110 加 `sources/**`，加新边界规则）、`providerRegistration.test.ts`（D122 改读 `sources/*/mod.json`）、`omniArchitecture.test.ts` 与 `platformNamePlaces.ts`、`credentialWriters.mjs`（D604）、`ipcChannels.mjs`（D605，删九个通道并改正 `folia-mods:rpc` 那条的说法）、`storageKeys.mjs`（D507）、`authMembers.test.ts`（换成从矩阵生成的一致性测试）、`providerName.test.ts`、`traditionalMainProcessText.test.ts`。`sampleMods.test.ts` 只扫 `mods/`，`sources/` 不受签名要求影响，另加一个内置清单校验测试。
 
@@ -475,6 +495,7 @@ Windows 以外的系统、Apple Music 的 DRM、Spotify Soloist 以对应系统�
     - **主进程里打过补丁的 `fs` 读不了 `deps.asar` 这个文件本身。** `fs.statSync` 说它是目录；`fs.readFileSync(<模组目录>/deps.asar)` 和以它为源的 `fs.copyFileSync` 抛 `ENOENT`；用 `readdirSync` 列模组目录时它仍然是文件。`electron/modSystem/modDigest.cjs:81` 算摘要时对列到的每个文件做 `fs.readFileSync`，遇到 `deps.asar` 会抛错；安装、复制、算占用的代码同理。**建议**：模组系统里读写模组目录文件的代码（`modDigest.cjs`、`modSignature.cjs`、`zipInstall.cjs`、`modFiles.cjs`、`discovery.cjs`）在 S2 改用 `original-fs`，并加一条模组目录里带 `.asar` 文件的测试。
   - 运行时 Electron 打印一行 `[DEP0180] DeprecationWarning: fs.Stats constructor is deprecated`，出自它自己的 asar 包装层，不影响结果。
   - **没有验证到的**：打包后的安装版（宿主代码在 `app.asar` 里、内置模组在 `resources/builtin-mods/`）；macOS 和 Linux；三个真实的上游库（它们改 `require.cache`、按包内路径挂钩子）放进 asar 之后的行为，样例包只模拟了「扫 `module/` 目录」这一种。
+  - **后续（2026-11-18 核对）**：上面两条建议都已落地。模组系统经 `electron/modSystem/rawFs.cjs` 用 `original-fs` 读写模组目录；`dev/sources/build.mjs` 把归档命名为 `deps.<指纹>.asar`。打包版在 Windows 上实测过（进 `edge` 之前的收尾），但到那时还没有任何一家用依赖归档，波点的依赖是直接打进 `index.cjs` 的。三个真实上游库的验证提到 qishui 之前做（§10「剩余阶段的顺序」第 2 步）。
 - `adoptExternalPlayback` 在音源没有实现 `adopt` 时是否干净地落到重新播放（`surface` 依赖这一点）。
   - **S0 结论（2026-11-13，读代码得出，没有运行）：过程是干净的，但落到的是「停在原位置、暂停」，不是重新播放。**
   - 音源没有 `adopt` 本身不出问题。`omni.adoptExternalPlayback`（`src/services/onlineMusic/omni.ts:1135-1137`）用可选链调它，没有就什么都不做。接手的判断在 `src/services/onlineMusic/externalPlayback.ts:595-647`，不靠这个成员：它问一次 `getStatus`，再用 `isStatusForSong` 看播放器里是不是这首歌。Spotify 现在就是有 `externalPlayback`、没有 `adopt` 的内置音源；它的播放器（Soloist）活过窗口重建，状态对得上，接手照常完成。
