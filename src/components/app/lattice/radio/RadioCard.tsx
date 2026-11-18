@@ -371,14 +371,15 @@ function RadioCard({
                                 aria-hidden
                             >
                                 {cover.veil && <span className="lattice-radio-veil" />}
-                                {/* 揭开那一下，隔着棱纹玻璃的封面开始对焦：清晰封面从很糊淡入到薄薄一层模糊，
-                                    翻到正面由 .lattice-radio-focus 接着收尾。只在揭开和翻面期间挂着——
-                                    盖着的卡和翻完的卡都不带模糊滤镜（卡逐帧变尺寸，常驻滤镜每帧都要重算）。 */}
-                                {revealed && revealStage !== 'done' && !reducedMotion && coverUrl && (
+                                {/* 揭开那一下，真封面在模糊封面上淡入：隔着棱纹玻璃慢慢看清的是真正的封面
+                                    内容，不是一团颜色。翻到正面时已经清晰，正面的对焦层只收尾。
+                                    只走 opacity，不挂滤镜（卡逐帧变尺寸，滤镜每帧都要重算）。 */}
+                                {revealed && !reducedMotion && coverUrl && (
                                     <span
-                                        key={`back-focus-${tile.id}`}
-                                        className="lattice-radio-back-focus"
+                                        key={`unveil-${tile.id}`}
+                                        className="lattice-radio-unveil"
                                         style={{ backgroundImage: `url("${coverUrl}")` }}
+                                        aria-hidden
                                     />
                                 )}
                                 <span className="lattice-radio-reeds" />

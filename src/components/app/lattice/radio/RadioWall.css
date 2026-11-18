@@ -470,19 +470,19 @@
     background-position: center;
     animation: lattice-radio-fade-in 600ms ease backwards;
 }
-/* 揭开那一下，隔着棱纹玻璃的封面就开始对焦：清晰封面从很糊淡入，模糊度在背面动画的窗口里降到薄薄一层，
-   字显完、卡翻过去时封面已经清晰了大半——正面的 .lattice-radio-focus 从同样的模糊度接着收尾。
-   RadioCard 只在揭开到翻完这段时间挂它；和模糊封面一样比卡面大一圈，模糊带出的半透明边落到卡外。 */
-.lattice-radio-face.is-back > .lattice-radio-back-focus {
+/* 真封面淡入：模糊缩略图（veil）是一张 12px 小图放大，永远糊的，去 blur 只会露出马赛克；
+   变清晰要靠真封面盖上来。揭开窗口（BACK_REVEAL_MS）里淡入完成，翻面时正面已经清楚；
+   棱纹玻璃的细线压在最上面，「隔着玻璃看清」的质感不丢。
+   RadioCard 在揭开的同一次渲染里才挂上它，挂上时 .is-revealed 已经在了，transition 不会触发，所以走 animation。 */
+.lattice-radio-face.is-back > .lattice-radio-unveil {
     inset: -12%;
-    background-size: cover;
     background-position: center;
+    background-size: cover;
     pointer-events: none;
-    animation: lattice-radio-back-focus-in 900ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    animation: lattice-radio-unveil-in 850ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
-@keyframes lattice-radio-back-focus-in {
-    from { filter: blur(18px); opacity: 0; }
-    to { filter: blur(8px); opacity: 1; }
+@keyframes lattice-radio-unveil-in {
+    from { opacity: 0; }
 }
 /* 棱纹玻璃：竖向的细亮线和暗线，再从中间往下压暗一点，打码条压在暗处更清楚。 */
 .lattice-radio-reeds {
@@ -572,7 +572,7 @@
 :root[data-reduce-motion~='lattice'] .lattice-radio-backdrop *,
 :root[data-reduce-motion~='lattice'] .lattice-radio-veil,
 :root[data-reduce-motion~='lattice'] .lattice-radio-focus,
-:root[data-reduce-motion~='lattice'] .lattice-radio-back-focus { animation: none; }
+:root[data-reduce-motion~='lattice'] .lattice-radio-unveil { animation: none; }
 /* 减弱动效：打码条不滑、字直接显出。 */
 :root[data-reduce-motion~='lattice'] .is-revealed .lattice-radio-redaction-bar,
 :root[data-reduce-motion~='lattice'] .is-revealed .lattice-radio-redaction-text { transition: none; }
