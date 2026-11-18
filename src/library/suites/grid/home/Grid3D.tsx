@@ -395,16 +395,13 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                     纵向不裁：扫库进度气泡是往下弹的，要留它出去。 */}
                 <div className="relative overflow-x-clip">
                 {/* 纵向留白两档一致，按桌面档：上内边距一直是 32px（p-8 的纵向那半）。
-                    桌面档三块（标题那组、页签胶囊、搜索）按三等分排：两侧各占一份剩余宽度，胶囊恰好落在
-                    页面中间，换页签、加页签都不会偏。
-                    紧凑档搜索收成了一颗钮，搜索那一块只占自身宽度、紧贴右边，不再留一份空列：
-                    这一行改成两端对齐，胶囊居中于两边之间，字号与大小跟桌面档一样。
-                    两档的胶囊都是 auto 宽、不参与伸缩：窗口再窄也不压它，先让两边让出位置。
+                    两档都用三等分：两侧各占一份剩余宽度，中间那一块恰好落在页面正中。
+                    桌面档中间是页签胶囊；紧凑档页签收进了左侧菜单，中间放 Folia 标题，
+                    换页签、加页签都不会让标题偏。
+                    中间这一块是 auto 宽、不参与伸缩：窗口再窄也不压它，先让两边让出位置。
                     横向在窄窗口收窄到 16px；窗口很窄时只收每个页签的左右内边距。 */}
                 <div
-                    className={`items-center w-full max-w-7xl mx-auto px-4 md:px-8 py-8 transition-transform duration-300 ease-out ${isCompact
-                        ? 'flex justify-between gap-2'
-                        : 'grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]'}`}
+                    className="items-center w-full max-w-7xl mx-auto px-4 md:px-8 py-8 transition-transform duration-300 ease-out grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]"
                     style={{ transform: isCompact && isCompactSearchOpen ? 'translateX(-100%)' : 'translateX(0)' }}
                 >
                     {/* Left title and settings */}
@@ -586,11 +583,15 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                         )}
                     </div>
 
-                    {/* Center Tab Switcher：桌面档是横排胶囊，落在页面中间；紧凑档把页签收进左侧的菜单按钮
-                        （见左上角那一组），这里就空出来。胶囊的宽度永远是它自身的内容宽度（shrink-0）：
+                    {/* Center Tab Switcher：桌面档是横排胶囊；紧凑档页签收进左侧的菜单按钮，这里放 Folia 标题，
+                        照样落在页面正中。胶囊的宽度永远是它自身的内容宽度（shrink-0）：
                         窗口再窄也不压它，先让两侧让位。窗口很窄时只收每个页签的左右内边距。 */}
-                    {!isCompact && (
                     <div className="flex shrink-0 justify-center">
+                        {isCompact ? (
+                            <h1 className="text-2xl font-bold tracking-tight opacity-90 flex items-center gap-3">
+                                Folia
+                            </h1>
+                        ) : (
                         <div className={`relative shrink-0 ${navPillBg} backdrop-blur-md p-1 rounded-full`}>
                             <div className="inline-flex items-center gap-0">
                                 {homeTabs.map((tab) => {
@@ -662,8 +663,8 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                                 )}
                             </div>
                         </div>
+                        )}
                     </div>
-                    )}
 
                     {/* Right Search Bar */}
                     <div className="flex min-w-0 items-center justify-end">
