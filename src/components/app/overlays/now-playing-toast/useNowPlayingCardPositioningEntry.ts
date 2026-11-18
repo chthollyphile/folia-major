@@ -24,6 +24,8 @@ export const useNowPlayingCardPositioningEntry = (navigateToPlayer: () => void) 
         useNowPlayingCardLayoutStore.getState().startPositioning();
     }, [navigateToPlayer, seq]);
     useEffect(() => {
+        // 长按拖动收尾只有松手，别处（换视图、没歌、底栏调整）不许把它掐了。
+        if (useNowPlayingCardLayoutStore.getState().isLongPressDragging) return;
         if (positioning && (!hasSong || useAppViewStore.getState().view !== 'player' || bottomBarPositioning)) {
             useNowPlayingCardLayoutStore.getState().finishPositioning();
         }
