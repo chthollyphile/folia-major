@@ -1,8 +1,9 @@
+// @builtin-sources
 import { createRequire } from 'node:module';
 import { runInNewContext } from 'node:vm';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createAppleMusicProvider } from '../../../sources/appleMusic/client/appleMusicProvider';
 import { getAppleMusicLiveStations, getAppleMusicLiveStationTracks } from '../../../sources/appleMusic/client/appleMusicRadio';
+import { freshAppleMusicProvider, stubAppleMusicBridge } from '../helpers/appleMusicSource';
 
 // Exercise Apple's station requests through the serialized page boundary, plus provider live controls.
 const require = createRequire(import.meta.url);
@@ -74,11 +75,12 @@ describe('Apple Music radio', () => {
     });
     it('exposes live cards and one untimed external item, not a fabricated song list', async () => {
         const request = vi.fn(async () => ({ ok: true, data: { items: [station], hasMore: false, nextOffset: 1 } }));
-        vi.stubGlobal('window', { electron: { appleMusicRequest: request } });
+        stubAppleMusicBridge(request);
         expect(await getAppleMusicLiveStations()).toMatchObject([{ id: station.id, type: 'radio' }]);
-        const page = await getAppleMusicLiveStationTracks(station.id, 0);
-        const item = page.items[0];
-        const provider = createAppleMusicProvider(() => ({ configured: true }));
+        expect((await getAppleMusicLiveStationTracks(station.id, 0)).items).toHaveLength(1);
+        // The station's one item as the host holds it (the playlist page of the station's id).
+        const provider = freshAppleMusicProvider();
+        const item = (await provider.catalog!.getPlaylistTracks!(station.id, 20, 0)).items[0];
         expect(provider.externalPlayback!.canPlay!(item)).toBe(true);
         await provider.externalPlayback!.play(item, 0);
         expect(request).toHaveBeenCalledWith('playStation', { stationId: station.id });

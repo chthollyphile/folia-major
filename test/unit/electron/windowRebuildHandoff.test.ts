@@ -97,8 +97,9 @@ describe('main-process window rebuilds and the playback handoff', () => {
         expect(pause).toBeGreaterThan(carry);
         expect(recreate.slice(carry, pause)).toContain('!windowPlaybackHandoffStore.peek()');
         const pauser = functionBody('pauseExternalPlayersNobodyFollows');
-        expect(pauser).toContain('appleMusicClient.pauseIfRunning()');
         expect(pauser).toContain('spotifyApiBridge.pauseSoloist()');
+        // The players of source mods (Apple Music's companion among them) hear it through api.onPlayersOrphaned.
+        expect(pauser).toContain('modSystem?.notePlayersOrphaned(reason)');
     });
 
     it('passes on what the replaced window read when it never answered', () => {

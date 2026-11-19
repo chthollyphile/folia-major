@@ -7,9 +7,12 @@ import { searchKugouLyrics, fetchKugouLyrics } from '@/services/onlineMusic/kugo
 import { fetchAmllDbLyrics } from '@/utils/lyrics/providers/amllDbProvider';
 import { getOnlineMusicProvider } from '@/services/onlineMusic/providerRegistry';
 import { useOnlineProviderAccountStore } from '@/stores/useOnlineProviderAccountStore';
+import type { PlatformLyricSource } from '@/utils/lyrics/lyricSources';
 
 // test/unit/lyrics/autoMatchBestLyric.test.ts
-// Unit tests for the best lyric auto-matcher.
+// Unit tests for the best lyric auto-matcher. Apple Music is a source mod: it is registered (the marker below), and
+// its id is a lyric source the host's type of the built-in ones does not name.
+// @builtin-sources
 
 vi.mock('@/services/onlineMusic/netease/netease', () => ({
     neteaseApi: {
@@ -75,7 +78,7 @@ describe('autoMatchBestLyric', () => {
             sourceRef: { kind: 'online' as const, providerId: 'appleMusic', mediaId: 'apple-song' },
         };
         const appleCandidate = {
-            providerId: 'appleMusic' as const,
+            providerId: 'appleMusic' as PlatformLyricSource,
             song: appleSong,
             lyricsResult: { lyrics: createLyrics(true), isPureMusic: false },
         };
@@ -982,7 +985,7 @@ describe('autoMatchBestLyric', () => {
             searchQQLyricsMock.mockImplementation(async query => query.includes('百鬼あやめ') ? [qqSong('宵の余、良い!', '百鬼あやめ', 200000)] : [qqSong(song.name, 'Nakiri Ayame', 200000)]);
             fetchQQLyricsMock.mockResolvedValueOnce(createLyrics(false)).mockResolvedValueOnce(createLyrics(true));
             const result = await autoMatchBestLyric(song.name, 'Nakiri Ayame', 200000, {
-                providerCandidate: { providerId: 'appleMusic', song, lyricsResult: { lyrics: null, isPureMusic: false } },
+                providerCandidate: { providerId: 'appleMusic' as PlatformLyricSource, song, lyricsResult: { lyrics: null, isPureMusic: false } },
                 searchAlias: alias,
             });
             expect(result).toMatchObject({ source: 'qq', lyrics: { isWordByWord: true } });
@@ -997,7 +1000,7 @@ describe('autoMatchBestLyric', () => {
             searchQQLyricsMock.mockImplementation(async query => query.includes('百鬼あやめ') ? [qqSong('宵の余、良い!', '百鬼あやめ', 200000)] : []);
             fetchQQLyricsMock.mockResolvedValue(createLyrics(true));
             const result = await autoMatchBestLyric(song.name, 'Nakiri Ayame', 200000, {
-                providerCandidate: { providerId: 'appleMusic', song, lyricsResult: { lyrics: null, isPureMusic: false } },
+                providerCandidate: { providerId: 'appleMusic' as PlatformLyricSource, song, lyricsResult: { lyrics: null, isPureMusic: false } },
                 searchAlias: alias,
             });
             expect(result).toMatchObject({ source: 'qq', id: 201 });
