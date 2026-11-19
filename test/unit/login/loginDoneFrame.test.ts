@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+// @builtin-sources
+import { beforeAll, describe, expect, it } from 'vitest';
 import { LOGIN_DONE, loginDoneFrame, loginDoneLanding, loginDonePlaying, loginDonePlays, type LoginDoneSince } from '@/components/login/done/loginDoneFrame';
 import { platformShades } from '@/components/login/done/platformShades';
 import { omni } from '@/services/onlineMusic/omni';
@@ -188,7 +189,9 @@ describe('the animation after a sign-in, as a function of time', () => {
 });
 
 describe('the colour that fills the window', () => {
-    const colours = listOnlineMusicProviders().map(provider => omni.getProviderMark(provider.id)!.color);
+    // Read in the tests: the source mods (`// @builtin-sources`) are registered before them, not before this block.
+    const colours: string[] = [];
+    beforeAll(() => { colours.push(...listOnlineMusicProviders().map(provider => omni.getProviderMark(provider.id)!.color)); });
 
     it('shades each platform\'s colour inside its own hue: a lighter end, a darker end, a deeper corner', () => {
         expect(colours.length).toBeGreaterThanOrEqual(6);
