@@ -1,5 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { resolveCommandPaletteSearchSource, useSearchNavigationStore } from '@/stores/useSearchNavigationStore';
+import {
+    getSearchKinds,
+    isLibrarySearchCollection,
+    resolveCommandPaletteSearchSource,
+    setLocalSearchCollectionsReader,
+    useSearchNavigationStore,
+} from '@/stores/useSearchNavigationStore';
 import { neteaseApi } from '@/services/onlineMusic/netease/netease';
 import { getNavidromeConfig, navidromeApi } from '@/services/navidromeService';
 import type { LocalLibraryAssignment, LocalLibraryEntity } from '@/types/localLibrary';
@@ -16,6 +22,8 @@ vi.mock('@/services/navidromeService', () => ({
     navidromeApi: {
         search: vi.fn(),
         toNavidromeSong: vi.fn(),
+        getPlaylists: vi.fn(),
+        getCoverArtUrl: vi.fn((_config: unknown, id: string) => `cover:${id}`),
     },
 }));
 
@@ -24,6 +32,7 @@ describe('useSearchNavigationStore', () => {
     const getNavidromeConfigMock = vi.mocked(getNavidromeConfig);
     const navidromeSearchMock = vi.mocked(navidromeApi.search);
     const toNavidromeSongMock = vi.mocked(navidromeApi.toNavidromeSong);
+    const navidromePlaylistsMock = vi.mocked(navidromeApi.getPlaylists);
     const deps = {
         localSongs: [],
         t: (_key: string, fallback?: string) => fallback || '',
@@ -35,6 +44,7 @@ describe('useSearchNavigationStore', () => {
         getNavidromeConfigMock.mockReturnValue(null);
         navidromeSearchMock.mockReset();
         toNavidromeSongMock.mockReset();
+        navidromePlaylistsMock.mockReset();
         useSearchNavigationStore.setState({
             homeViewTab: 'playlist',
             searchQuery: '',
@@ -142,13 +152,69 @@ describe('useSearchNavigationStore', () => {
         expect(state.isSearching).toBe(false);
     });
 
-    it('searches songs where the source has no album or playlist search', async () => {
-        useSearchNavigationStore.setState({ searchKind: 'playlist' });
+    it('offers songs, albums and playlists for local and Navidrome', () => {
+        expect(getSearchKinds('local')).toEqual(['song', 'album', 'playlist']);
+        expect(getSearchKinds('navidrome')).toEqual(['song', 'album', 'playlist']);
+    });
 
-        await useSearchNavigationStore.getState().submitSearch({ query: 'world', sourceTab: 'local', deps });
+    it('pages local song results like online ones', async () => {
+        const localSongs = Array.from({ length: 70 }, (_, index) => ({
+            id: `local-${index}`,
+            fileName: `track-${index}.mp3`,
+            filePath: `/track-${index}.mp3`,
+            title: `Track ${index}`,
+            importedMetadata: { artistNames: ['Artist'], albumName: 'Album' },
+        })) as any;
+        const localDeps = { ...deps, localSongs };
 
-        expect(useSearchNavigationStore.getState().searchKind).toBe('song');
-        expect(cloudSearchMock).not.toHaveBeenCalled();
+        await useSearchNavigationStore.getState().submitSearch({ query: 'track', sourceTab: 'local', deps: localDeps });
+        expect(useSearchNavigationStore.getState()).toMatchObject({ hasMore: true, offset: 30, resultTotal: 70 });
+        expect(useSearchNavigationStore.getState().searchResults).toHaveLength(30);
+
+        await useSearchNavigationStore.getState().loadMoreSearchResults({ deps: localDeps });
+        await useSearchNavigationStore.getState().loadMoreSearchResults({ deps: localDeps });
+        const state = useSearchNavigationStore.getState();
+        expect(state.searchResults).toHaveLength(70);
+        expect(state.searchResults?.[69]?.localRef?.songId).toBe('local-69');
+        expect(state).toMatchObject({ hasMore: false, offset: 70 });
+    });
+
+    it('stops paging when a page says there is more but brings nothing', async () => {
+        cloudSearchMock
+            .mockResolvedValueOnce({ result: { songs: [{ id: 1, name: 'A', artists: [], album: { id: 1, name: '' }, durationMs: 1 }], songCount: 999 } } as any)
+            .mockResolvedValueOnce({ result: { songs: [], songCount: 999 } } as any);
+        await useSearchNavigationStore.getState().submitSearch({ query: 'jay', sourceTab: 'netease', kind: 'song', deps });
+        const { offset } = useSearchNavigationStore.getState();
+        expect(useSearchNavigationStore.getState().hasMore).toBe(true);
+
+        // Asked again for the same offset forever otherwise: scrolling to the end loads the next page by itself.
+        await useSearchNavigationStore.getState().loadMoreSearchResults({ deps });
+        expect(useSearchNavigationStore.getState()).toMatchObject({ hasMore: false, offset });
+    });
+
+    it('searches local playlists by name from the library groups', async () => {
+        const getLocalCollections = vi.fn((kind: 'album' | 'playlist') => kind === 'playlist'
+            ? [
+                { source: 'local', type: 'playlist', id: 'playlist-1', name: 'Night Drive', songIds: [] },
+                { source: 'local', type: 'playlist', id: 'playlist-2', name: 'Morning', songIds: [] },
+            ] as any
+            : []);
+
+        setLocalSearchCollectionsReader(getLocalCollections);
+        await useSearchNavigationStore.getState().submitSearch({
+            query: 'night',
+            sourceTab: 'local',
+            kind: 'playlist',
+            deps,
+        });
+        setLocalSearchCollectionsReader(null);
+
+        const state = useSearchNavigationStore.getState();
+        expect(getLocalCollections).toHaveBeenCalledWith('playlist');
+        expect(state.searchKind).toBe('playlist');
+        expect(state.collectionResults?.map(item => item.id)).toEqual(['playlist-1']);
+        expect(isLibrarySearchCollection(state.collectionResults![0])).toBe(true);
+        expect(state).toMatchObject({ hasMore: false, resultTotal: 1 });
     });
 
     it('submits a local search and opens the overlay', async () => {
@@ -295,6 +361,52 @@ describe('useSearchNavigationStore', () => {
             name: 'Navidrome Track',
             isNavidrome: true,
         }));
+    });
+
+    it('pages Navidrome songs with songOffset until a page comes back short', async () => {
+        getNavidromeConfigMock.mockReturnValue({ baseUrl: 'https://navi.test' } as any);
+        const page = (from: number, count: number) => ({
+            song: Array.from({ length: count }, (_, index) => ({ id: `song-${from + index}` })),
+        }) as any;
+        navidromeSearchMock.mockResolvedValueOnce(page(0, 30)).mockResolvedValueOnce(page(30, 5));
+        toNavidromeSongMock.mockImplementation((_config, song: any) => ({ id: song.id, isNavidrome: true }) as any);
+
+        await useSearchNavigationStore.getState().submitSearch({ query: 'navi', sourceTab: 'navidrome', deps });
+        expect(useSearchNavigationStore.getState()).toMatchObject({ hasMore: true, offset: 30 });
+
+        await useSearchNavigationStore.getState().loadMoreSearchResults({ deps });
+        expect(navidromeSearchMock).toHaveBeenLastCalledWith(expect.anything(), 'navi', 0, 0, 30, 30);
+        const state = useSearchNavigationStore.getState();
+        expect(state.searchResults).toHaveLength(35);
+        expect(state).toMatchObject({ hasMore: false, offset: 35 });
+    });
+
+    it('searches Navidrome albums through search3 and playlists by name', async () => {
+        getNavidromeConfigMock.mockReturnValue({ baseUrl: 'https://navi.test' } as any);
+        navidromeSearchMock.mockResolvedValue({
+            album: [{ id: 'al-1', name: 'Blue', artist: 'Band', artistId: 'ar-1', coverArt: 'c1', songCount: 9, duration: 1, created: '', year: 2001 }],
+        } as any);
+
+        await useSearchNavigationStore.getState().submitSearch({ query: 'blue', sourceTab: 'navidrome', kind: 'album', deps });
+        expect(navidromeSearchMock).toHaveBeenLastCalledWith(expect.anything(), 'blue', 0, 30, 0, 0, 0);
+        expect(useSearchNavigationStore.getState().collectionResults?.[0]).toMatchObject({
+            source: 'navidrome',
+            type: 'album',
+            id: 'al-1',
+            coverUrl: 'cover:c1',
+            artists: [{ id: 'ar-1', name: 'Band' }],
+            albumYear: 2001,
+        });
+        expect(useSearchNavigationStore.getState().hasMore).toBe(false);
+
+        navidromePlaylistsMock.mockResolvedValue([
+            { id: 'pl-1', name: 'Blue Monday', songCount: 3, duration: 1, owner: 'me' },
+            { id: 'pl-2', name: 'Red', songCount: 3, duration: 1 },
+        ] as any);
+        await useSearchNavigationStore.getState().submitSearch({ query: 'blue', sourceTab: 'navidrome', kind: 'playlist', deps });
+        const state = useSearchNavigationStore.getState();
+        expect(state.collectionResults?.map(item => item.id)).toEqual(['pl-1']);
+        expect(state.collectionResults?.[0]).toMatchObject({ source: 'navidrome', type: 'playlist', editable: true });
     });
 
     it('attaches stable local artist and album entity ids to local results', async () => {

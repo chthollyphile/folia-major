@@ -1,7 +1,7 @@
 import { registerPersonalFmLanding, takePersonalFmLanding } from './personalFmLanding';
 import { usePersonalFmLookahead } from './usePersonalFmLookahead';
 import { usePersonalFmModeStore } from '@/stores/usePersonalFmModeStore';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
 import type { MotionValue } from 'framer-motion';
 import { applyOnlineAudioSourceMetadata, loadOnlineSongLyrics } from '../../../../services/onlinePlayback';
@@ -17,7 +17,7 @@ import { retireBlobUrl } from '../../../../services/playbackBlobUrls';
 import type { ThemeCacheSongKey } from '../../../../services/themeCache';
 import { loadOnlineLyricsState } from '../../../../utils/onlineLyricsState';
 import { PlayerState, type StageExternalPlayRequest, type StagePlayerQueueDiffOp, type StagePlayerQueueRequest, type StagePlayerSnapshot } from '../../../../types';
-import type { LocalSong, QueueAddBehavior, SongResult, StatusMessage, UnifiedSong } from '../../../../types';
+import type { LocalPlaylist, LocalSong, QueueAddBehavior, SongResult, StatusMessage, UnifiedSong } from '../../../../types';
 import type { AudioQualityPreference, MediaId } from '../../../../types/onlineMusic';
 import type { NextTrackOptions, PlaybackNavigationOptions, UnavailableReplacementRequest } from '../../../../types/appPlayback';
 import type { NavidromeSong } from '../../../../types/navidrome';
@@ -52,8 +52,15 @@ import { shuffledCopy } from '../../../../utils/shuffledCopy';
 import { shuffleQueueInRounds, useShuffleRoundTracking } from '../shuffle/useShuffleRoundTracking';
 import { buildStagePlayerSnapshot, resolveStagePlayerQueueItemIndex } from '../../../../utils/stagePlayerSnapshot';
 import type { LocalLibraryDisplayCatalog } from '../../../../services/playbackAdapters';
-import type { SearchKind, SearchReturnView, SearchSource } from '../../../../stores/useSearchNavigationStore';
+import {
+    setLocalSearchCollectionsReader,
+    type SearchExecutorDeps,
+    type SearchKind,
+    type SearchReturnView,
+    type SearchSource,
+} from '../../../../stores/useSearchNavigationStore';
 import { dispatchSearchTrackAction } from '../../search/searchTrackActions';
+import { createLocalSearchCollectionsReader } from '../../search/localSearchCollections';
 import { playbackFade } from '../../../../services/playbackFade';
 import { getProviderSongMetadata } from '../../../../services/onlineMusic/songMetadata';
 import { setStatusMessage as setStatusMsg, beginStatusLoading, completeStatusLoading, failStatusLoading, cancelStatusLoading, reviseStatusLoading, withStatusLoadingResult } from '../../../../stores/useStatusMessageStore';
@@ -86,19 +93,11 @@ type SearchDeps = {
         query: string;
         sourceTab: SearchSource;
         kind?: SearchKind;
-        deps: {
-            localSongs: LocalSong[];
-            localLibraryCatalog?: LocalLibraryDisplayCatalog;
-            t: (key: string, fallback?: string) => string;
-        };
+        deps: SearchExecutorDeps;
         returnView?: SearchReturnView;
     }) => Promise<boolean>;
     loadMoreSearchResults: (args: {
-        deps: {
-            localSongs: LocalSong[];
-            localLibraryCatalog?: LocalLibraryDisplayCatalog;
-            t: (key: string, fallback?: string) => string;
-        };
+        deps: SearchExecutorDeps;
     }) => Promise<void>;
 };
 
@@ -107,7 +106,10 @@ type UsePlaybackQueueControllerParams = {
     isNowPlayingStageActive: boolean;
     shouldNavigateToPlayerOnTrackChange: boolean;
     localSongs: LocalSong[];
-    localLibraryCatalog: LocalLibraryDisplayCatalog;
+    /** 本地歌单：搜索「本地」来源的歌单时从这里筛。 */
+    localPlaylists: LocalPlaylist[];
+    /** 曲库目录；ready 为 false 时（还没读好）本地专辑按歌曲原始标签分组。 */
+    localLibraryCatalog: LocalLibraryDisplayCatalog & { ready?: boolean };
     userId?: MediaId;
     setLyrics: (nextLyrics: any) => void;
     setIsLyricsLoading: SetState<boolean>;
@@ -255,6 +257,7 @@ export function usePlaybackQueueController({
     isNowPlayingStageActive,
     shouldNavigateToPlayerOnTrackChange,
     localSongs,
+    localPlaylists,
     localLibraryCatalog,
     userId,
     setLyrics,
@@ -1224,6 +1227,23 @@ export function usePlaybackQueueController({
         void playSong(song, nextQueue, false);
     }, [playQueue, playSong]);
 
+    const searchExecutorDeps = useMemo<SearchExecutorDeps>(() => ({
+        localSongs,
+        localLibraryCatalog,
+        t: (key, fallback) => t(key, fallback ?? ''),
+    }), [localLibraryCatalog, localSongs, t]);
+
+    // 搜本地专辑、歌单从这里读（所有搜索入口共用）：分组在第一次搜到它们时才算，曲库数据变了才换一份。
+    useEffect(() => {
+        setLocalSearchCollectionsReader(createLocalSearchCollectionsReader({
+            localSongs,
+            localPlaylists,
+            catalog: localLibraryCatalog,
+            t,
+        }));
+        return () => setLocalSearchCollectionsReader(null);
+    }, [localLibraryCatalog, localPlaylists, localSongs, t]);
+
     const handleSearchOverlaySubmit = useCallback(async (requestedSource?: SearchSource, requestedKind?: SearchKind) => {
         const trimmedQuery = searchQuery.trim();
         if (!trimmedQuery) {
@@ -1235,11 +1255,7 @@ export function usePlaybackQueueController({
             query: trimmedQuery,
             sourceTab,
             kind: requestedKind,
-            deps: {
-                localSongs,
-                localLibraryCatalog,
-                t: (key, fallback) => t(key, fallback ?? ''),
-            },
+            deps: searchExecutorDeps,
             returnView: searchReturnView,
         });
 
@@ -1252,25 +1268,17 @@ export function usePlaybackQueueController({
             });
         }
     }, [
-        localLibraryCatalog,
-        localSongs,
         navigateToSearch,
         searchDeps,
+        searchExecutorDeps,
         searchQuery,
         searchReturnView,
         searchSourceTab,
-        t,
     ]);
 
     const handleSearchLoadMore = useCallback(async () => {
-        await searchDeps.loadMoreSearchResults({
-            deps: {
-                localSongs,
-                localLibraryCatalog,
-                t: (key, fallback) => t(key, fallback ?? ''),
-            },
-        });
-    }, [localLibraryCatalog, localSongs, searchDeps, t]);
+        await searchDeps.loadMoreSearchResults({ deps: searchExecutorDeps });
+    }, [searchDeps, searchExecutorDeps]);
 
     const handleSearchResultPlay = useCallback((track: UnifiedSong) => {
         if (!isSongUnavailable(track)) {
