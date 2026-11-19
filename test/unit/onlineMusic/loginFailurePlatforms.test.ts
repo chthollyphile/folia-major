@@ -574,9 +574,9 @@ describe('Bodian', () => {
 });
 
 describe('YouTube Music', () => {
-    // The desktop side's answers, by operation.
-    const desktop = (byOperation: Record<string, unknown>) => vi.stubGlobal('window', {
-        electron: { ytmRequest: async (operation: string) => byOperation[operation] ?? { ok: true, data: {} } },
+    // The desktop side's answers, by operation: the source mod's main entry, through its rpc `request`.
+    const desktop = (byOperation: Record<string, unknown>) => setBuiltinSourceRpc('ytm', {
+        request: async (operation: unknown) => byOperation[operation as string] ?? { ok: true, data: {} },
     });
     // The case a check ends in once the sign-in has begun and the desktop side answers `state`.
     const checked = async (state: unknown) => {
@@ -586,7 +586,7 @@ describe('YouTube Music', () => {
         byOperation.web_login_check = { ok: true, data: state };
         return answered(() => omni.checkLogin('ytm', key), true);
     };
-    // An error state as the desktop side answers it for a failure (electron/ytm/webSignIn.cjs).
+    // An error state as the desktop side answers it for a failure (sources/ytm/main/webSignIn.cjs).
     const failed = (error: unknown) => ({ state: 'error', ...ytmErrorResult(error).error });
 
     it('no-browser: none of the browsers it opens is installed', async () => {
@@ -621,7 +621,7 @@ describe('YouTube Music', () => {
 
     it('unreachable: YouTube Music could not be reached after the browser closed, or the desktop side did not answer', async () => {
         expect((await checked(failed(new Error('fetch failed')))).id).toBe('unreachable');
-        vi.stubGlobal('window', { electron: { ytmRequest: async () => { throw new Error('ipc'); } } });
+        setBuiltinSourceRpc('ytm', { request: async () => { throw new Error('ipc'); } });
         expect(await thrown('start', () => omni.startLogin('ytm'), true)).toMatchObject({ id: 'unreachable' });
     });
 

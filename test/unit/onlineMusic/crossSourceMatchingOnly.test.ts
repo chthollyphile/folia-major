@@ -115,9 +115,10 @@ describe('the live features with QQ and NetEase only for matching', () => {
             providers: [
                 { providerId: 'netease', requiresAccount: false, availability: { configured: true }, status: 'anonymous' },
                 { providerId: 'kugou', requiresAccount: false, availability: { configured: true }, status: 'anonymous' },
-                // Any other platform searched without an account. (It was Bodian, then Qishui, until each became a source
-                // mod in Folium 2.0 S5 and is no longer registered here without `// @builtin-sources`.)
-                { providerId: 'ytm', requiresAccount: false, availability: { configured: true }, status: 'anonymous' },
+                // Any other platform the search page lists. (It was Bodian, then Qishui, until each became a source mod in
+                // Folium 2.0 S5 and is no longer registered here without `// @builtin-sources`; YouTube Music, now a source
+                // mod too, declares its search@1 `account` as its summary said before, so it is signed in here.)
+                { providerId: 'ytm', requiresAccount: true, availability: { configured: true }, status: 'authenticated' },
             ].filter(provider => listed.has(provider.providerId)) as never,
             activeProviderId: 'netease',
             hasLocalSongs: false,

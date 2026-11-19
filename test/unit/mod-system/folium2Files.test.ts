@@ -231,10 +231,13 @@ describe('the trusted table of the built-in sources (§5.1)', () => {
 
     it('names the partitions and userData folders main.cjs gives the platforms', () => {
         const main = fs.readFileSync(path.join(ROOT, 'electron/main.cjs'), 'utf8');
-        expect(main).toContain("session.fromPartition('folia-ytm')");
         expect(main).toContain("session.fromPartition('folia-spotify')");
         expect(main).toContain("'qq-auth-state'");
-        expect(main).toContain("'ytm-sign-in'");
+        // YouTube Music is a source mod now: its main entry claims the same partitions and folder through api.*.
+        const ytmMain = fs.readFileSync(path.join(ROOT, 'sources/ytm/main/index.ts'), 'utf8');
+        expect(ytmMain).toContain("api.net.session('folia-ytm')");
+        expect(ytmMain).toContain("api.net.session('folia-ytm-sandbox')");
+        expect(ytmMain).toContain("api.paths.legacy('ytm-sign-in')");
         expect(main).toContain("'apple-music-companion'");
         expect(main).toContain("'soloist'");
         expect(BUILTIN_SOURCE_TABLE.ytm.partitions).toEqual(['folia-ytm', 'folia-ytm-sandbox']);
