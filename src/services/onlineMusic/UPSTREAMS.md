@@ -2,7 +2,7 @@
 
 每个在线平台靠什么拿到数据和音频、版本钉在哪里、我们在上面包了或改了什么、上游变了怎么跟。平台清单以 `providerRegistry.ts` 为准；接入一个新平台见同目录 `README.md` 的“接入一个新平台”。
 
-Folium 2.0 起平台逐家迁成仓库内的音源模组（`sources/<id>/`），迁过去的那一家，这里的一节搬进它自己的 `sources/<id>/README.md`：已经迁的有 `sources/bodian/`、`sources/qishui/`、`sources/fnmusic/`。
+Folium 2.0 起平台逐家迁成仓库内的音源模组（`sources/<id>/`），迁过去的那一家，这里的一节搬进它自己的 `sources/<id>/README.md`：已经迁的有 `sources/bodian/`、`sources/qishui/`、`sources/fnmusic/`、`sources/ytm/`。
 
 几条各平台通用的事实：
 
@@ -53,24 +53,6 @@ Folium 2.0 起平台逐家迁成仓库内的音源模组（`sources/<id>/`），
   - 包的路径（`/getMusicPlay/:songmid` 这类）写在 `qq/qqTransport.ts` 开头的操作表里，包改了路径要跟着改这张表。
   - 升级改根目录和 `deploy/docker/qq-api/` 两处，再按 `npm run build:vercel-api` 重新生成 `api/qq.js`。
   - 按数字 songid 查歌不走后端：3.3.3 的 `/getSongInfo` 把 songid 当字符串交给 QQ，QQ 只认数字（2026-10-21 实测），serverless 的这条路由 songmid 必填。上游修好后也不改回来：用户自己部署的后端版本跟不上。QQ 改了 musicu 的协议或子请求上限时，用 `node test/manual/qq_musicu_song_detail_probe.mjs` 复查（加 `--relay <网页部署的源>` 查中转出口）。
-
-## YouTube Music（`ytm`，仅桌面端）
-
-- **上游**：
-  - `youtubei.js`（仓库 LuanRT/YouTube.js）：向 YouTube 自己的 InnerTube 接口发请求，解析答复。
-  - `googlevideo`：按 SABR 读音频流（`electron/ytm/ytmApiBridge.cjs` 里和 youtubei.js 一起按需加载）。
-  - `bgutils-js`（仓库 LuanRT/BgUtils）：跑 Google 的 BotGuard 脚本，做出音频服务器要的 proof-of-origin 令牌（`electron/ytm/poToken.cjs`）。
-  - YouTube 自己的播放器脚本和 BotGuard 脚本：第三方代码，随时会变，放在没有 Node、没有网络的隐藏页面里跑（`electron/ytm/sandbox.cjs`）。
-- **版本**：根目录 `package.json` 钉死 `youtubei.js` 18.1.0、`googlevideo` 4.1.1、`bgutils-js` 4.0.3。
-- **我们包了什么**（都在 `electron/ytm/`）：
-  - 把 youtubei.js 的 `Platform.shim.eval` 换成在沙箱页面里执行（`ytmApiBridge.cjs`）。
-  - 取逐行时间的歌词时冒充手机 App：`MOBILE_CLIENT` 写死 `ANDROID_MUSIC` 7.21.50（同一文件），网页客户端只给纯文本歌词。
-  - 网页登录、收藏、列表页、探索页由我们自己的文件读网页客户端的答复（`webSignIn.cjs`、`webSaves.cjs`、`webPages.cjs`、`webExplore.cjs`），目录节点由 `tiles.cjs`、`catalog.cjs` 读。
-- **上游变了怎么跟**：
-  - 先看 youtubei.js 和 BgUtils 的发布说明，再在应用里用访客和登录的账号各放一首歌。
-  - `test/unit/ytm/` 下的测试都用替身或裁剪过的样本（例如 `ytmTiles.test.ts` 直接把样本交给 `tiles.cjs`、`catalog.cjs`，不跑 youtubei.js），上游改了解析结果它们抓不到。
-  - YouTube 改了播放器或 BotGuard，表现是音频请求 403 或歌放不出来；日志都以 `[Ytm]` 开头。
-  - 平台条目里更多实测（音质档位、会员判断、登录方式）在同目录 `README.md` 的 `ytm/ytmProvider.ts` 一条。
 
 ## Spotify（`spotify`，仅桌面端）
 
