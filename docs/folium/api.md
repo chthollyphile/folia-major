@@ -2427,7 +2427,7 @@ getter whose answer changes with the account or the system: call `handle.changed
 | `songs@1?` | `FoliumSourceSongs` | Songs by id, and what is known of one song. |
 | `playback.audio@1?` | `FoliumSourceAudioPlayback` | Audio the host plays itself, from an address. |
 | `playback.external@1?` | `FoliumSourceExternalPlayback` | A player of the source's own, outside the app, that the host drives and follows. |
-| `playback.surface@1?` | `FoliumSourceSurfacePlayback` | A picture of the source's own (a `<video>`, an embedded page) on the player page. Reserved: this host does not implement it yet (`folium.sources.supports('playback.surface', 1)` is false). |
+| `playback.surface@1?` | `FoliumSourceSurfacePlayback` | A picture of the source's own (a `<video>`, an embedded page) on the player page, its sound its own: the host drives and follows it as it does an external player. |
 | `reports@1?` | `FoliumSourceReports` | Telling the source what the listener played. |
 | `lyrics@1?` | `FoliumSourceLyrics` | Lyrics of its songs, and of other songs where it can match them. |
 | `auth@1?` | `FoliumSourceAuth` | Signing in and out. |
@@ -2476,14 +2476,16 @@ Folium 2: what `folium.sources.register` takes.
 | `getAvailability?()` | `(): FoliumSourceAvailability` | Synchronous; asked whenever the host draws the source's rows. Without it the source is always available. |
 | `describeFailure?()` | `(operation: 'audio' \| 'collection', error: unknown): FoliumSourceFailureDetail \| null` | After a request for a song's audio or a collection's songs failed: the source's own reading of `error`, or null to leave it to the host's rules. Never throws. |
 | `capabilities` | `FoliumSourceCapabilities` | What the source implements. |
-| `itemKinds?` | `Record<string, FoliumSourceItemKind>` | Item kinds besides songs (a video, say), each with its traits. Reserved for `playback.surface`: this host reads none yet. |
-| `routeOf?()` | `(song: FoliumSourceSong): 'audio' \| 'external' \| 'surface'` | For a source with more than one way to play: which one plays `song`. Reserved for `playback.surface`: this host does not ask it yet, and a source with both `playback.audio` and `playback.external` plays through the external player. |
+| `itemKinds?` | `Record<string, FoliumSourceItemKind>` | Item kinds besides songs (a video, say), each with its traits; a song names its kind in `kind`. Read when the source is registered and again on `handle.changed()`. A kind named `song` is left out. |
+| `routeOf?()` | `(song: FoliumSourceSong): 'audio' \| 'external' \| 'surface'` | For a source with more than one way to play (`playback.audio`, `playback.external`, `playback.surface`): which one plays `song`. Synchronous, no request; asked whenever the host decides how a song plays. A way the source does not implement, a throw, or no `routeOf` at all means the first of its ways in the order its `capabilities` lists them. |
 
 相关：[FoliumText](#foliumtext) · [FoliumSourceMark](#foliumsourcemark) · [FoliumSourceAvailability](#foliumsourceavailability) · [FoliumSourceFailureDetail](#foliumsourcefailuredetail) · [FoliumSourceCapabilities](#foliumsourcecapabilities) · [FoliumSourceItemKind](#foliumsourceitemkind) · [FoliumSourceSong](#foliumsourcesong)
 
 ### FoliumSourceItemKind
 
-Folium 2: the traits of an item kind (`FoliumSourceDef.itemKinds`). Reserved: this host reads none yet.
+Folium 2: the traits of an item kind (`FoliumSourceDef.itemKinds`). The host asks them wherever it would
+treat the item as a song: lyrics, likes, listening reports. A trait left out is a song's (`match`, likable,
+reported); a song of a kind the source does not declare is treated as a song.
 
 | 成员 | 类型 | 说明 |
 | --- | --- | --- |
@@ -2651,7 +2653,7 @@ playlists, so `data` must be JSON and small; what else is stored with a song is 
 | `coverUrl?` | `string` | The song's own cover; the album's when left out. |
 | `aliases?` | `string[]` | Other titles of the song (a subtitle, a known-as). |
 | `translatedTitles?` | `string[]` | The title in other languages. |
-| `kind?` | `string` | An item kind of `FoliumSourceDef.itemKinds`; a song when left out. Reserved: this host reads none yet. |
+| `kind?` | `string` | An item kind of `FoliumSourceDef.itemKinds`; a song when left out. The host keeps it with the song. |
 | `variant?` | `string` | Which version of the song this is (a cloud upload, a live take), where the source tells them apart. |
 | `pureMusic?` | `boolean` | The source marks it as instrumental. |
 | `video?` | `boolean` | Its audio is a music video's. |
@@ -2849,8 +2851,18 @@ Folium 2: `playback.external@1`, a player of the source's own that the host driv
 
 ### FoliumSourceSurfacePlayback
 
-Folium 2: `playback.surface@1`. Reserved: the host does not implement it yet. It will be the external
-player's members plus `mount`, which puts the source's picture into a container on the player page.
+Folium 2: `playback.surface@1`, a player of the source's own in the app's page (a `<video>`, an embedded
+page) whose picture shows on the player page: the external player's members, driven and followed the same way
+(the host asks `getStatus` twice a second), plus `mount`. Its sound is its own: the equalizer, the spectrum,
+automix, the audio cache and video export do not reach it, as for an external player.
+
+The host gives it a box under the player page, the lyrics and subtitles drawn over it, the page's own
+background left out while it shows; off the player page the box is hidden and the sound goes on. Only the main
+window has the box: OBS sources, the remote and the export window show no picture. The player lives in the
+window's page, so when the main window is rebuilt (the transparent mode switched, say) it goes with it: the host
+pauses it as it hands the window over, and the new window calls `play(song, startSec)` again at the position it
+left, when it was playing. `getStatus` with nothing loaded answers an empty `mediaId`, never a throw.
+An embedded page cannot play a site's DRM media here, and may pause itself while it is hidden.
 
 ```ts
 interface FoliumSourceSurfacePlayback extends FoliumSourceExternalPlayback
@@ -2858,7 +2870,7 @@ interface FoliumSourceSurfacePlayback extends FoliumSourceExternalPlayback
 
 | 成员 | 类型 | 说明 |
 | --- | --- | --- |
-| `mount()` | `(container: HTMLElement, context: { readonly song: FoliumSourceSong }): FoliumDisposer` | Puts the picture into `container`; returns what takes it out. |
+| `mount()` | `(container: HTMLElement, context: { readonly song: FoliumSourceSong }): FoliumDisposer` | Puts the picture of `context.song` into `container` (a fresh element filling the box, in a ShadowRoot, pointer-free); returns what takes it out. Called as the host takes the song, before `play`; taken out when another song or engine takes over, the song stops, or the window goes. Moving one `<video>` between containers keeps it playing; never throws (a throw leaves the box empty, the sound goes on). |
 | `canPlay?()` | `(song: FoliumSourceSong): boolean` | 继承自 [FoliumSourceExternalPlayback](#foliumsourceexternalplayback)。False for a song it knows it cannot start. Synchronous, no request. |
 | `prepareNext?()` | `(song: FoliumSourceSong, upcoming: FoliumSourceSong[]): Promise<void>` | 继承自 [FoliumSourceExternalPlayback](#foliumsourceexternalplayback)。Prepares what follows without interrupting the song now. |
 | `isPrepared?()` | `(song: FoliumSourceSong): boolean` | 继承自 [FoliumSourceExternalPlayback](#foliumsourceexternalplayback)。Whether a prepared successor is there for `song`. Synchronous. |

@@ -75,6 +75,8 @@ const everything = (): FoliumSourceDef => {
         getAvailability: () => ({ configured: true }),
         describeFailure: () => null,
         capabilities: capabilities as FoliumSourceCapabilities,
+        itemKinds: { video: { lyrics: 'none', likable: false, reported: false } },
+        routeOf: () => 'surface',
     };
 };
 
@@ -87,8 +89,9 @@ describe('every member of the internal contract has a place for a Folium 2.0 sou
             expect(Object.keys(destinations).sort(), name).toEqual([...members!].sort());
             count += members!.length;
         }
-        // The member matrix's count (dev/folium/folium-2-member-matrix.md §1): 13 + 13 + 111 + 3 + 25.
-        expect(count).toBe(165);
+        // The member matrix's count (dev/folium/folium-2-member-matrix.md §1): 13 + 13 + 111 + 3 + 25, and the three
+        // the host took in S6 for playback.surface after the matrix was made (routeOf, itemKinds, externalPlayback.mount).
+        expect(count).toBe(165 + 3);
         // No sub-interface of the provider is left out of the table.
         const slots = Object.entries(FOLIUM_SOURCE_MEMBER_DESTINATIONS.OnlineMusicProvider)
             .filter(([slot, destination]) => slot !== 'capabilities' && (destination.startsWith('derived from') || destination === 'dto'))

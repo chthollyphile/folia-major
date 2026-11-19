@@ -8,7 +8,7 @@
         "songs": [1],
         "playback.audio": [1],
         "playback.external": [1],
-        "playback.surface": [],
+        "playback.surface": [1],
         "reports": [1],
         "lyrics": [1],
         "auth": [1],

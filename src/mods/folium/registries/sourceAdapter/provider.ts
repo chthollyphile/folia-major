@@ -4,7 +4,7 @@ import type { FoliumSourceDef, FoliumSourceRaw } from '../../sources/contract';
 import { isFoliumSourceSong, toHostSong, toSourceSong } from '../sourceDtos';
 import { createSourceAdapterKit, lastOf, record, type SourceAdapterContext, type SourceAdapterKit } from './kit';
 import { deriveFoliumSourceCapabilities, type FoliumSourceParts } from './parts';
-import { buildExternal, buildPlayback, buildReports, buildSearch } from './playback';
+import { buildExternal, buildPlayback, buildReports, buildRouteOf, buildSearch, dispatchExternal, itemKindsOf } from './playback';
 import { buildLyrics } from './lyrics';
 import { buildAuth } from './auth';
 import { buildLibrary, buildMutations } from './library';
@@ -15,7 +15,8 @@ import { buildRecommendations } from './recommendations';
 // The host's internal provider (src/types/onlineMusic.ts) of one Folium 2.0 source, from its definition read into
 // parts (parts.ts). Where each internal member comes from is registries/sourceMembers.ts:
 //   - the registration fields are the provider's own: the names through the source's text book (a key per text,
-//     sourceText.ts), `getAvailability`, `describeFailure`; `watch` only collects who listens, for `handle.notify`;
+//     sourceText.ts), `getAvailability`, `describeFailure`, `routeOf` (its first way to play where it gives no
+//     answer, parts.ts `routes`), `itemKinds`; `watch` only collects who listens, for `handle.notify`;
 //   - the capability flags are derived (parts.ts); `songMetadata` is not given, the host reads the song's own
 //     DTO-made fields (getProviderSongMetadata falls back to them); `normalizeSong` takes a DTO or a song of this
 //     source;
@@ -66,6 +67,15 @@ export const buildFoliumSourceProvider = (
     const describeFailure = def.describeFailure?.bind(def);
     const getPageUrl = parts.songs?.getPageUrl?.bind(parts.songs);
     const availability = availabilityOf(kit);
+    const routeOf = buildRouteOf(kit, def, parts.routes);
+    const external = parts.external ? buildExternal(kit, parts.external) : undefined;
+    const surface = parts.surface ? buildExternal(kit, parts.surface) : undefined;
+    // With both players, the one listed first is the current one until a song is played.
+    const firstPlayer = parts.routes.find((route) => route !== 'audio') === 'surface' ? 'surface' : 'external';
+    const externalPlayback = external && surface && routeOf
+        ? dispatchExternal(kit, routeOf, external, surface, firstPlayer)
+        : external ?? surface;
+    const itemKinds = itemKindsOf(def.itemKinds);
     return {
         id: hostId,
         // In the UI language now, as the host's own names are.
@@ -105,7 +115,9 @@ export const buildFoliumSourceProvider = (
         ...(getPageUrl ? { getSongPageUrl: kit.sync('getPageUrl', (song: SongResult) => getPageUrl(toSourceSong(song)), () => null) } : {}),
         ...(parts.search ? { search: buildSearch(kit, parts.search) } : {}),
         ...(parts.songs || parts.audio ? { playback: buildPlayback(kit, parts.songs, parts.audio) } : {}),
-        ...(parts.external ? { externalPlayback: buildExternal(kit, parts.external) } : {}),
+        ...(externalPlayback ? { externalPlayback } : {}),
+        ...(routeOf ? { routeOf } : {}),
+        ...(itemKinds ? { itemKinds } : {}),
         ...(parts.reports ? { playbackReports: buildReports(kit, parts.reports) } : {}),
         ...(parts.lyrics ? { lyrics: buildLyrics(kit, parts.lyrics) } : {}),
         ...(parts.auth ? { auth: buildAuth(kit, parts.auth) } : {}),

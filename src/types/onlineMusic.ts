@@ -496,6 +496,19 @@ export interface ProviderExternalPlaybackStatus {
  * this app cannot route as audio), and the app drives the transport and follows its clock.
  * Only the song's own provider can answer these calls.
  */
+/** The way a song of a provider plays (OnlineMusicProvider.routeOf). */
+export type ProviderPlaybackRoute = 'audio' | 'external' | 'surface';
+
+/** What a provider says of one kind of item (OnlineMusicProvider.itemKinds); a trait left out is a song's. */
+export interface ProviderItemKind {
+    /** `none`: never lyrics; `own`: only the provider's own; `match`: matched like a song's. */
+    lyrics?: 'none' | 'own' | 'match';
+    /** It can be liked. */
+    likable?: boolean;
+    /** A play of it is reported to the provider. */
+    reported?: boolean;
+}
+
 export interface OnlineExternalPlaybackProvider {
     /** False only for songs this external route already knows it cannot start; no network reads. */
     canPlay?(song: SongResult): boolean;
@@ -510,22 +523,33 @@ export interface OnlineExternalPlaybackProvider {
      * as this provider's current playback without starting it, so successors can be prepared for it.
      */
     adopt?(song: SongResult): void;
-    pause(): Promise<void>;
-    resume(): Promise<void>;
-    seek(seconds: number): Promise<void>;
+    /*
+     * The calls below name no song in the contract; the host still passes the song it means (`song`), so a source
+     * with two players of its own (playback.external@1 and playback.surface@1) sends each to that song's player.
+     */
+    pause(song?: SongResult): Promise<void>;
+    resume(song?: SongResult): Promise<void>;
+    seek(seconds: number, song?: SongResult): Promise<void>;
     /** Sets the player's own output level (0 to 1, linear, 0 when muted): its audio never passes through the app's gain. */
-    setVolume?(volume: number): Promise<void>;
+    setVolume?(volume: number, song?: SongResult): Promise<void>;
     /**
      * Turns the player's own single-track repeat on or off: on, it plays the track again by itself
      * at its end (no gap), its position going from the end back to the start. Only single loop:
      * what plays after a track is always Folia's queue, so the player's list repeat stays off.
      * Without it (or when the player still reports an end), the route starts the track again itself.
      */
-    setRepeatOne?(enabled: boolean): Promise<void>;
+    setRepeatOne?(enabled: boolean, song?: SongResult): Promise<void>;
     /** The player's state now, from no cache. */
     getStatus(song: SongResult): Promise<ProviderExternalPlaybackStatus>;
     /** Whether the player's loaded track is `song` (the id in `status` may be a playback id). */
     isStatusForSong(song: SongResult, status: ProviderExternalPlaybackStatus): boolean;
+    /**
+     * A player that shows a picture on the player page (Folium 2 `playback.surface`): puts the picture of
+     * `song` into `container`, a box the host keeps under the player page; answers what takes it out. Asked
+     * only for a song whose route is `surface` (OnlineMusicProvider.routeOf). Never throws: null when nothing
+     * was put in (the source threw), and the player page keeps its own background.
+     */
+    mount?(container: HTMLElement, song: SongResult): (() => void) | null;
 }
 
 /** An alternate title and artist that belong to the same song. */
@@ -1174,6 +1198,15 @@ export interface OnlineMusicProvider {
     playback?: OnlinePlaybackProvider;
     /** A player outside this app that sounds this provider's songs (see the capability of the same name). */
     externalPlayback?: OnlineExternalPlaybackProvider;
+    /**
+     * Which way a song plays, for a provider with more than one (Folium 2 `routeOf`, plan §4.2): `audio` is
+     * `playback`'s address, `external` and `surface` are `externalPlayback` (`surface` also shows the player's
+     * picture on the player page, `externalPlayback.mount`). Synchronous, no request. Left out, every song
+     * plays the one way the provider has (`externalPlayback` over `playback` where it has both).
+     */
+    routeOf?(song: SongResult): ProviderPlaybackRoute;
+    /** The traits of the item kinds besides songs it has (`SongResult.itemKind`, plan §4.4); see itemTraits.ts. */
+    itemKinds?: Readonly<Record<string, ProviderItemKind>>;
     playbackReports?: OnlinePlaybackReportProvider;
     lyrics?: OnlineLyricsProvider;
     auth?: OnlineAuthProvider;

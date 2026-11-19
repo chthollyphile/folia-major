@@ -144,10 +144,21 @@ export const canPlayOnlineMusicSong = (song: SongResult): boolean => {
         || (providerSupports(provider, 'externalPlayback') && Boolean(provider?.externalPlayback) && provider?.externalPlayback?.canPlay?.(song) !== false);
 };
 
-/** The provider sounds this song in a player of its own outside this app. */
+/**
+ * The provider sounds this song in a player of its own outside this app (or behind the player page, `surface`):
+ * it has one, and the song's route (`routeOf`, where it has more than one way) is not its address.
+ */
 export const canPlaySongExternally = (song: SongResult): boolean => {
     const provider = getOnlineMusicProviderForSong(song);
-    return providerSupports(provider, 'externalPlayback') && Boolean(provider?.externalPlayback);
+    return providerSupports(provider, 'externalPlayback') && Boolean(provider?.externalPlayback)
+        && provider?.routeOf?.(song) !== 'audio';
+};
+
+/** The song plays in its provider's player and shows that player's picture on the player page (`surface`, plan §4.2). */
+export const playsSongOnSurface = (song: SongResult): boolean => {
+    const provider = getOnlineMusicProviderForSong(song);
+    return canPlaySongExternally(song) && typeof provider?.externalPlayback?.mount === 'function'
+        && provider.routeOf?.(song) === 'surface';
 };
 
 export const requireOnlineMusicProviderForSong = (song: SongResult): OnlineMusicProvider => {

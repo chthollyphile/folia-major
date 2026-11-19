@@ -47,12 +47,12 @@ describe('sources[].requires', () => {
     const withRequires = (requires: string[]) => validateManifest({ ...base, sources: [{ id: 'station', name: 'S', requires }] });
 
     it('takes the capabilities this host implements', () => {
-        expect(withRequires(['search@1', 'songs@1', 'playback.audio@1', 'lyrics@1', 'covers@1', 'raw@1']).ok).toBe(true);
+        expect(withRequires(['search@1', 'songs@1', 'playback.audio@1', 'playback.surface@1', 'lyrics@1', 'covers@1', 'raw@1']).ok).toBe(true);
     });
 
     it('refuses one it does not implement, rather than running pretending', () => {
         expect(withRequires(['search@2']).errors).toEqual(['sources[0].requires "search@2": this host does not implement it']);
-        expect(withRequires(['playback.surface@1']).errors).toEqual(['sources[0].requires "playback.surface@1": this host does not implement it']);
+        expect(withRequires(['playback.surface@2']).errors).toEqual(['sources[0].requires "playback.surface@2": this host does not implement it']);
         expect(withRequires(['comments@1']).errors).toEqual(['sources[0].requires "comments@1": this host does not implement it']);
         expect(withRequires(['x.other.comments@1']).errors).toEqual(['sources[0].requires "x.other.comments@1": a custom capability is another mod\'s, not the host\'s to provide']);
     });
@@ -119,12 +119,12 @@ describe('folium:check of a source mod', () => {
     it('names a capability this host leaves out, and a custom one of another mod', () => {
         const directory = write(
             { folium: 2, id: 'radio', sources: [{ id: 'station', name: 'S' }] },
-            "export default function activate(folium) {\n  folium.sources.register({ id: 'station', displayName: 'S', capabilities: { 'playback.surface@1': {}, 'x.other.y@1': {} } });\n}\n",
+            "export default function activate(folium) {\n  folium.sources.register({ id: 'station', displayName: 'S', capabilities: { 'playback.surface@2': {}, 'x.other.y@1': {} } });\n}\n",
         );
         const { problems, notes } = checkFoliumMod(directory);
         expect(problems).toEqual([]);
         expect(notes.some((note: string) => note.includes('capability "x.other.y@1" is another mod\'s'))).toBe(true);
-        expect(notes.some((note: string) => note.includes('capability "playback.surface@1": this host does not implement it'))).toBe(true);
+        expect(notes.some((note: string) => note.includes('capability "playback.surface@2": this host does not implement it'))).toBe(true);
         const badOwn = write(
             { folium: 2, id: 'radio', sources: [{ id: 'station', name: 'S' }] },
             "export default function activate(folium) {\n  folium.sources.register({ id: 'station', displayName: 'S', capabilities: { 'x.radio.Bad Name@1': {} } });\n}\n",
