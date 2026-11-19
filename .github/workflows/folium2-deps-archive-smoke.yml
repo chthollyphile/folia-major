@@ -10,7 +10,12 @@ name: Folium 2 Deps Archive Smoke
 on:
   pull_request:
     paths:
+      # 根 package.json / 锁文件：升级三家上游的 PR 也要跑（样例钉的版本由 depsArchiveSamples.test.ts 核对）
+      - package.json
+      - package-lock.json
       - dev/sources/**
+      - packages/folium-source-kit/**
+      - electron/modSystem/zipInstall.cjs
       - test/fixtures/folium-sources/deps-archive/**
       - test/manual/folium2DepsArchiveSmoke.mjs
       - test/manual/folium2DepsArchiveSmokeMain.cjs

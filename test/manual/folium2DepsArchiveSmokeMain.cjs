@@ -99,24 +99,30 @@ const run = async () => {
     };
 };
 
-app.whenReady().then(run).then(
-    (report) => {
-        if (reportFile) fs.writeFileSync(reportFile, `${JSON.stringify(report, null, 2)}\n`);
-        return 0;
-    },
-    (error) => {
-        console.error('[smoke] failed', error);
-        if (reportFile) fs.writeFileSync(reportFile, `${JSON.stringify({ error: errorText(error) }, null, 2)}\n`);
-        return 2;
-    },
-).then((code) => {
+// 不管哪一步抛错（包括写报告本身），最后都要 app.exit：没有窗口，进程不会自己退。
+const finish = async () => {
+    let code = 0;
     try {
-        fs.rmSync(userData, { recursive: true, force: true });
-    } catch {
-        // 还有文件开着（Windows）：留给系统清理临时目录。
+        const report = await app.whenReady().then(run);
+        if (reportFile) fs.writeFileSync(reportFile, `${JSON.stringify(report, null, 2)}\n`);
+    } catch (error) {
+        console.error('[smoke] failed', error);
+        code = 2;
+        try {
+            if (reportFile) fs.writeFileSync(reportFile, `${JSON.stringify({ error: errorText(error) }, null, 2)}\n`);
+        } catch (writeError) {
+            console.error('[smoke] could not write the report', writeError);
+        }
+    } finally {
+        try {
+            fs.rmSync(userData, { recursive: true, force: true, maxRetries: 3, retryDelay: 200 });
+        } catch {
+            // 还有文件开着（Windows）：留给系统清理临时目录。
+        }
+        app.exit(code);
     }
-    app.exit(code);
-});
+};
+void finish();
 
 // 没有窗口：别让「所有窗口都关了」之类的默认行为提前退出。
 app.on('window-all-closed', () => {});

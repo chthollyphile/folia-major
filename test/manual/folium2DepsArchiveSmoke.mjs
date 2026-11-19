@@ -30,11 +30,14 @@ const SAMPLE_IDS = ['kugou', 'netease', 'qq'];
 const MAIN_FILE = path.join(ROOT, 'test/manual/folium2DepsArchiveSmokeMain.cjs');
 const requireHere = createRequire(import.meta.url);
 const MiB = 1024 * 1024;
-/** 覆盖包的上限：现在 electron/modSystem/zipInstall.cjs 的，和方案 §6.2 要提到的。 */
+const { INSTALL_LIMITS } = requireHere('../../electron/modSystem/zipInstall.cjs');
+/** 覆盖包的上限：现在 electron/modSystem/zipInstall.cjs 的（直接读它），和方案 §6.2 要提到的。 */
 const LIMITS = {
-    current: { file: 32 * MiB, total: 64 * MiB, zip: 64 * MiB, entries: 2000 },
+    current: { file: INSTALL_LIMITS.maxFileBytes, total: INSTALL_LIMITS.maxTotalBytes, zip: INSTALL_LIMITS.maxArchiveBytes, entries: INSTALL_LIMITS.maxEntries },
     plan: { file: 64 * MiB, total: 96 * MiB },
 };
+/** 冒烟进程每次写一份新的报告（不会读到上一次留下的），跑完由本脚本合进 --report。 */
+const LAUNCH_TIMEOUT_MS = 10 * 60 * 1000;
 
 const args = process.argv.slice(2);
 const option = (name) => {
@@ -53,6 +56,18 @@ if (outGiven && fs.existsSync(out) && fs.readdirSync(out).length > 0) {
     console.error(`[deps-smoke] ${out} 不是空目录；换一个，或者不给 --out（脚本只往它自己建的目录里写）`);
     process.exit(2);
 }
+/*
+ * 输出目录往上不能有 node_modules：归档里的 require 找不到的包会顺着上级目录找，闭包漏掉的包就会从那里悄悄取到，
+ * 「从归档加载」的结论就不可信了（比如 --out 指到仓库里）。
+ */
+for (let dir = path.dirname(out); ; dir = path.dirname(dir)) {
+    if (fs.existsSync(path.join(dir, 'node_modules'))) {
+        console.error(`[deps-smoke] ${out} 的上级 ${dir} 里有 node_modules：归档里漏掉的包会从那里取到。换一个不在项目里的目录`);
+        process.exit(2);
+    }
+    if (path.dirname(dir) === dir) break;
+}
+const runReport = path.join(out, 'electron-report.json');
 
 /** Electron 发行目录里的东西在哪：要复制的目录、复制后的可执行文件、resources 目录。 */
 const electronLayout = (appDir) => {
@@ -132,7 +147,7 @@ const layout = async (appDir) => {
 };
 
 const launch = (where) => new Promise((resolve) => {
-    const env = { ...process.env, FOLIA_DEPS_SMOKE_REPORT: reportFile };
+    const env = { ...process.env, FOLIA_DEPS_SMOKE_REPORT: runReport };
     delete env.ELECTRON_RUN_AS_NODE;
     // Linux：复制出来的 chrome-sandbox 没有 setuid，CI 的容器里也起不了沙箱。
     const launchArgs = process.platform === 'linux' ? ['--no-sandbox'] : [];
@@ -141,8 +156,19 @@ const launch = (where) => new Promise((resolve) => {
     const child = spawn(where.executable, launchArgs, { cwd: out, env, stdio: ['ignore', 'pipe', 'pipe'] });
     child.stdout.on('data', (chunk) => process.stdout.write(chunk));
     child.stderr.on('data', (chunk) => process.stderr.write(chunk));
-    child.on('exit', (code, signal) => resolve({ code, signal, ms: Math.round(performance.now() - startedAt) }));
-    child.on('error', (error) => resolve({ code: null, signal: null, ms: 0, error: error.message }));
+    // 总时限：冒烟进程卡住时（比如一个后端一直不答）不等到 CI 的 job 超时。
+    const timer = setTimeout(() => {
+        console.error(`[deps-smoke] 冒烟进程 ${LAUNCH_TIMEOUT_MS} ms 没有退出，结束它`);
+        child.kill();
+    }, LAUNCH_TIMEOUT_MS);
+    child.on('exit', (code, signal) => {
+        clearTimeout(timer);
+        resolve({ code, signal, ms: Math.round(performance.now() - startedAt) });
+    });
+    child.on('error', (error) => {
+        clearTimeout(timer);
+        resolve({ code: null, signal: null, ms: 0, error: error.message });
+    });
 });
 
 const summarize = (built, run, report) => {
@@ -158,8 +184,9 @@ const summarize = (built, run, report) => {
             + `估计覆盖包 zip ${mb(row.zipBytes)}`);
         const fits = (limits) => row.modDir.largest.bytes <= limits.file && row.modDir.bytes <= limits.total
             && (limits.zip === undefined || row.zipBytes <= limits.zip) && (limits.entries === undefined || row.modDir.files <= limits.entries);
-        console.log(`  覆盖包上限：现在（单文件 32 MiB、总量 64 MiB、zip 64 MiB）${fits(LIMITS.current) ? '放得下' : '放不下'}；`
-            + `方案 §6.2（单文件 64 MiB、总量 96 MiB）${fits(LIMITS.plan) ? '放得下' : '放不下'}`);
+        const { current, plan } = LIMITS;
+        console.log(`  覆盖包上限：现在（单文件 ${mb(current.file)}、总量 ${mb(current.total)}、zip ${mb(current.zip)}）${fits(current) ? '放得下' : '放不下'}；`
+            + `方案 §6.2（单文件 ${mb(plan.file)}、总量 ${mb(plan.total)}）${fits(plan) ? '放得下' : '放不下'}`);
         if (!result) {
             console.log('  没有结果（进程没跑到这一家）');
             failed = true;
@@ -190,11 +217,11 @@ const main = async () => {
     const where = await layout(appDir);
     const built = await build(path.join(where.resources, 'builtin-mods'));
     const run = await launch(where);
-    if (run.error || !fs.existsSync(reportFile)) {
+    if (run.error || !fs.existsSync(runReport)) {
         console.error(`[deps-smoke] 冒烟进程没有写出报告（退出码 ${run.code}，信号 ${run.signal}${run.error ? `，${run.error}` : ''}）`);
         return 1;
     }
-    const report = JSON.parse(fs.readFileSync(reportFile, 'utf8'));
+    const report = JSON.parse(fs.readFileSync(runReport, 'utf8'));
     if (report.error) {
         console.error(`[deps-smoke] 冒烟进程出错：${report.error}`);
         return 1;
@@ -215,7 +242,12 @@ main().then(
                 fs.copyFileSync(reportFile, kept);
                 log(`报告挪到 ${kept}`);
             }
-            fs.rmSync(out, { recursive: true, force: true });
+            try {
+                fs.rmSync(out, { recursive: true, force: true, maxRetries: 5, retryDelay: 500 });
+            } catch (error) {
+                // Electron 刚退出时它的子进程可能还占着可执行文件（Windows）：删不掉只记一行，结果不变。
+                log(`临时目录 ${out} 没删掉（${error.code ?? error.message}），留给系统清理`);
+            }
         }
         process.exit(code);
     },

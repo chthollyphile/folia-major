@@ -68,6 +68,8 @@ const request = async (): Promise<string> => {
     const response = await withTimeout(fetch(url), 30000, 'cloudsearch');
     const body = await response.json() as { code?: number; result?: { songs?: Array<{ name?: string }>; songCount?: number } };
     if (body.code !== 200) throw answerError(`HTTP ${String(response.status)} code ${String(body.code)}`, body);
+    // 答了但没经过替换后的 util/request：require.cache 的替换没生效（server 拿到的是原函数）。这不是网络问题。
+    if (requestCalls === 0) throw Object.assign(new Error('the request did not go through the replaced util/request'), { network: false });
     const first = body.result?.songs?.[0]?.name ?? '(none)';
     return `code 200, songCount ${String(body.result?.songCount ?? 0)}, first "${first}", upstream request() called ${String(requestCalls)}x`;
 };
