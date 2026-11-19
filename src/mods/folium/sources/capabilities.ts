@@ -7,13 +7,13 @@
 // (registries/sources.ts) reads the members to tell a capability's flags; `folium.sources.supports`
 // answers from the versions.
 
-/** The versions of each standard capability this host implements; `playback.surface` is known and not implemented yet. */
+/** The versions of each standard capability this host implements. */
 export const FOLIUM_SOURCE_CAPABILITY_VERSIONS = Object.freeze({
     search: [1],
     songs: [1],
     'playback.audio': [1],
     'playback.external': [1],
-    'playback.surface': [],
+    'playback.surface': [1],
     reports: [1],
     lyrics: [1],
     auth: [1],

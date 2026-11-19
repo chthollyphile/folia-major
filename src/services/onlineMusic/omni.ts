@@ -65,12 +65,14 @@ import {
     getOnlineMusicProviderForSong,
     getOnlineMusicProviderRegistryVersion,
     listOnlineMusicProviders,
+    playsSongOnSurface,
     sortOnlineMusicSourceIds,
     providerSupports,
     requireOnlineMusicProvider,
     subscribeOnlineMusicProviderRegistry,
 } from './providerRegistry';
 import { getSourceState, getSourceStates, getSourceStatesVersion, subscribeSourceStates } from './sourceStates';
+import { itemTraits } from './itemTraits';
 import { saveProviderAccountSnapshot } from './providerAccountCache';
 import {
     checkRecommendationPreferenceChanges,
@@ -1005,7 +1007,9 @@ export const omni = {
         const provider = getOnlineMusicProvider(source.providerId);
         return providerSupports(provider, 'mutations')
             && providerSupports(provider, 'likes')
-            && Boolean(provider?.mutations?.likeSong);
+            && Boolean(provider?.mutations?.likeSong)
+            // An item of a kind its source says cannot be liked (plan §4.4).
+            && itemTraits(song).likable;
     },
 
     canEditCollectionTracks(collection: OmniCollection): boolean {
@@ -1301,6 +1305,20 @@ export const omni = {
         getOnlineMusicProviderForSong(song)?.externalPlayback?.adopt?.(song);
     },
 
+    // A song of `playback.surface` (plan §4.2): its player is the external route's and shows a picture of its own
+    // in the box the host keeps under the player page.
+    playsOnSurface(song: SongResult): boolean {
+        return omni.canPlayExternally(song) && playsSongOnSurface(song);
+    },
+
+    // Puts the picture of `song` into `container`; answers what takes it out (nothing to take out where the song
+    // does not play on a surface). Never throws: the adapter answers for the source.
+    mountSurface(song: SongResult, container: HTMLElement): (() => void) | null {
+        const provider = getOnlineMusicProviderForSong(song);
+        if (!provider?.externalPlayback?.mount || !omni.playsOnSurface(song)) return null;
+        return provider.externalPlayback.mount(container, song);
+    },
+
     isExternalPlaybackPrepared(song: SongResult): boolean {
         return getOnlineMusicProviderForSong(song)?.externalPlayback?.isPrepared?.(song) === true;
     },
@@ -1314,26 +1332,26 @@ export const omni = {
     async pauseExternalPlayback(song: SongResult): Promise<void> {
         const provider = providerForSong(song);
         if (!provider.externalPlayback) return unsupported(provider.id, 'externalPlayback');
-        await runRequest(provider, 'audio', () => provider.externalPlayback!.pause());
+        await runRequest(provider, 'audio', () => provider.externalPlayback!.pause(song));
     },
 
     async resumeExternalPlayback(song: SongResult): Promise<void> {
         const provider = providerForSong(song);
         if (!provider.externalPlayback) return unsupported(provider.id, 'externalPlayback');
-        await runRequest(provider, 'audio', () => provider.externalPlayback!.resume());
+        await runRequest(provider, 'audio', () => provider.externalPlayback!.resume(song));
     },
 
     async seekExternalPlayback(song: SongResult, seconds: number): Promise<void> {
         const provider = providerForSong(song);
         if (!provider.externalPlayback) return unsupported(provider.id, 'externalPlayback');
-        await runRequest(provider, 'audio', () => provider.externalPlayback!.seek(seconds));
+        await runRequest(provider, 'audio', () => provider.externalPlayback!.seek(seconds, song));
     },
 
     // A player without its own level control is left alone: the call is a no-op, not an error.
     async setExternalPlaybackVolume(song: SongResult, volume: number): Promise<void> {
         const provider = providerForSong(song);
         if (!provider.externalPlayback?.setVolume) return;
-        await runRequest(provider, 'audio', () => provider.externalPlayback!.setVolume!(volume));
+        await runRequest(provider, 'audio', () => provider.externalPlayback!.setVolume!(volume, song));
     },
 
     // A player without its own single-track repeat is left alone: the route starts the track again itself.
@@ -1341,7 +1359,7 @@ export const omni = {
         const provider = providerForSong(song);
         const player = provider.externalPlayback;
         if (!player?.setRepeatOne) return;
-        await runRequest(provider, 'audio', () => player.setRepeatOne?.(enabled) ?? Promise.resolve());
+        await runRequest(provider, 'audio', () => player.setRepeatOne?.(enabled, song) ?? Promise.resolve());
     },
 
     async getExternalPlaybackStatus(song: SongResult): Promise<ProviderExternalPlaybackStatus> {
@@ -1442,6 +1460,8 @@ export const omni = {
     canReportPlayback(song: SongResult): boolean {
         const provider = getOnlineMusicProviderForSong(song);
         if (!providerSupports(provider, 'playbackReports') || !provider?.playbackReports || !isSourceShown(provider.id)) return false;
+        // An item of a kind its source does not want reported (plan §4.4).
+        if (!itemTraits(song).reported) return false;
         return provider.playbackReports.canReport?.(song) ?? true;
     },
 

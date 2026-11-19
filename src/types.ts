@@ -1448,6 +1448,11 @@ export interface SongResult {
   fee?: number;
   // Its audio is a music video's, which may hold an intro, a scene or another mix: rows tag it MV.
   isVideo?: boolean;
+  /**
+   * The kind of item it is, one its provider declares (`OnlineMusicProvider.itemKinds`, Folium 2 plan §4.4);
+   * a song when left out. What the host does with it is itemTraits.ts's.
+   */
+  itemKind?: string;
   noCopyrightRcmd?: NoCopyrightRecommendation | null;
   resourceState?: boolean;
   privilege?: SongPrivilege;

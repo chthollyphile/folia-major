@@ -154,6 +154,8 @@ export const toHostSong = (providerId: OnlineProviderId, song: FoliumSourceSong)
         ...(translatedNames ? { translatedNames } : {}),
         ...(raw.pureMusic === true ? { isPureMusic: true } : {}),
         ...(raw.video === true ? { isVideo: true } : {}),
+        // A song needs no kind: the field stays out of the host's songs that are one.
+        ...(typeof raw.kind === 'string' && raw.kind && raw.kind !== 'song' ? { itemKind: raw.kind } : {}),
         ...(replayGain ? { replayGain: { ...replayGain } } : {}),
         ...topIds,
         ...(rowId ? { collectionRowId: rowId } : {}),
@@ -227,6 +229,7 @@ export const toSourceSong = (song: SongResult): FoliumSourceSong => {
         ...(ref?.variant ? { variant: ref.variant } : {}),
         ...(loose.isPureMusic ? { pureMusic: true } : {}),
         ...(loose.isVideo ? { video: true } : {}),
+        ...(typeof loose.itemKind === 'string' && loose.itemKind ? { kind: loose.itemKind } : {}),
         ...(Object.keys(lyricIds).length > 0 ? { lyricIds: Object.freeze(lyricIds) } : {}),
         ...(loose.collectionRowId || loose.listenCount !== undefined ? {
             row: Object.freeze({

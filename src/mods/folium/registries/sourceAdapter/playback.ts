@@ -6,22 +6,28 @@ import type {
     OnlinePlaybackProvider,
     OnlineSearchProvider,
     ProviderAudioSource,
+    ProviderItemKind,
+    ProviderPlaybackRoute,
     ProviderSongAvailability,
 } from '@/types/onlineMusic';
 import type {
     FoliumSourceAudioPlayback,
+    FoliumSourceDef,
     FoliumSourceExternalPlayback,
     FoliumSourceReports,
     FoliumSourceSearch,
     FoliumSourceSongs,
+    FoliumSourceSurfacePlayback,
 } from '../../sources/contract';
 import { toHostPage, toSourceSong } from '../sourceDtos';
 import i18n from '@/i18n/config';
 import { finite, list, record, type SourceAdapterKit } from './kit';
+import type { FoliumSourceRoute } from './parts';
 
 // src/mods/folium/registries/sourceAdapter/playback.ts
 // search@1, songs@1 with playback.audio@1 (one internal `playback` object between them, matrix §4.2),
-// playback.external@1 and reports@1, as the host's internal sub-objects.
+// playback.external@1 and playback.surface@1 (one internal `externalPlayback` between them, plan §4.2), the
+// source's `routeOf` and `itemKinds`, and reports@1, as the host's internal sub-objects.
 
 const QUALITY_LEVELS = new Set<unknown>(['standard', 'high', 'ultra', 'lossless', 'hires']);
 
@@ -143,7 +149,30 @@ export const buildPlayback = (
     return playback;
 };
 
-export const buildExternal = (kit: SourceAdapterKit, external: FoliumSourceExternalPlayback): OnlineExternalPlaybackProvider => {
+const NO_PICTURE = (): void => undefined;
+
+/*
+ * `mount` of playback.surface@1: the source puts its picture into the host's box. A throw leaves the box empty
+ * (the sound plays on) and answers null, so the host keeps its own background; what it answers takes the picture
+ * out, and a throw there is only logged.
+ */
+const buildMount = (kit: SourceAdapterKit, surface: FoliumSourceSurfacePlayback): NonNullable<OnlineExternalPlaybackProvider['mount']> => {
+    const mount = surface.mount.bind(surface);
+    return kit.sync('mount', (container: HTMLElement, song: SongResult) => {
+        const disposer: unknown = mount(container, { song: toSourceSong(song) });
+        if (typeof disposer !== 'function') return NO_PICTURE;
+        return () => {
+            try {
+                (disposer as () => void)();
+            } catch (error) {
+                console.warn(`[Folium] ${kit.label} taking the picture out threw`, error);
+            }
+        };
+    }, () => null);
+};
+
+/** playback.external@1, or playback.surface@1 (the same members and `mount`), as the host's `externalPlayback`. */
+export const buildExternal = (kit: SourceAdapterKit, external: FoliumSourceExternalPlayback | FoliumSourceSurfacePlayback): OnlineExternalPlaybackProvider => {
     const canPlay = external.canPlay?.bind(external);
     const prepareNext = external.prepareNext?.bind(external);
     const isPrepared = external.isPrepared?.bind(external);
@@ -185,7 +214,104 @@ export const buildExternal = (kit: SourceAdapterKit, external: FoliumSourceExter
         // The status is the host's to hand on: its shape is the contract's FoliumSourceExternalStatus.
         getStatus: async (song) => await kit.run('getStatus', () => external.getStatus(toSourceSong(song))) as Awaited<ReturnType<OnlineExternalPlaybackProvider['getStatus']>>,
         isStatusForSong: kit.sync('isStatusForSong', (song: SongResult, status: Parameters<FoliumSourceExternalPlayback['isStatusForSong']>[1]) => isStatusForSong(toSourceSong(song), status), () => false),
+        ...('mount' in external && typeof external.mount === 'function' ? { mount: buildMount(kit, external) } : {}),
     };
+};
+
+/** The host's `routeOf` of a source that plays (`routes`: its ways, in the order it lists them); none without one. */
+export const buildRouteOf = (
+    kit: SourceAdapterKit,
+    def: Pick<FoliumSourceDef, 'routeOf'>,
+    routes: readonly FoliumSourceRoute[],
+): ((song: SongResult) => ProviderPlaybackRoute) | undefined => {
+    if (routes.length === 0) return undefined;
+    const first = routes[0];
+    const routeOf = def.routeOf?.bind(def);
+    if (!routeOf || routes.length === 1) return () => first;
+    // A way it does not play is not taken from it: the song plays its first way.
+    return kit.sync('routeOf', (song: SongResult) => {
+        const answer = routeOf(toSourceSong(song));
+        return routes.includes(answer) ? answer : first;
+    }, () => first);
+};
+
+/*
+ * A source with both playback.external@1 and playback.surface@1: one host `externalPlayback` over the two
+ * players. Every call goes to the player of the song it is about (`routeOf`): the host names the song even where
+ * the contract's member takes none (pause, resume, seek, the level, the repeat); only a call that names none goes
+ * to the player last told to play or take a song. A start in the other player pauses the one it leaves, as the host
+ * stops another provider's player before it starts this one; a start overtaken by one in the other player (while
+ * either waited) pauses its own player once it is through, so the two never sound at once.
+ */
+export const dispatchExternal = (
+    kit: SourceAdapterKit,
+    routeOf: (song: SongResult) => ProviderPlaybackRoute,
+    external: OnlineExternalPlaybackProvider,
+    surface: OnlineExternalPlaybackProvider,
+    first: 'external' | 'surface',
+): OnlineExternalPlaybackProvider => {
+    const of = (song: SongResult) => (routeOf(song) === 'surface' ? surface : external);
+    let current = first === 'surface' ? surface : external;
+    const playerFor = (song?: SongResult) => (song ? of(song) : current);
+    const quiet = async (player: OnlineExternalPlaybackProvider, why: string) => {
+        await player.pause().catch((error: unknown) => {
+            console.warn(`[Folium] ${kit.label}: ${why}`, error);
+        });
+    };
+    return {
+        canPlay: (song) => of(song).canPlay?.(song) !== false,
+        prepareNext: async (song, upcoming) => {
+            await of(song).prepareNext?.(song, upcoming);
+        },
+        isPrepared: (song) => of(song).isPrepared?.(song) === true,
+        play: async (song, startSec) => {
+            const target = of(song);
+            const left = current === target ? null : current;
+            current = target;
+            if (left) await quiet(left, 'the player left for the other one could not be paused');
+            await target.play(song, startSec);
+            if (current !== target) await quiet(target, 'a start overtaken by the other player could not be paused');
+        },
+        adopt: (song) => {
+            current = of(song);
+            current.adopt?.(song);
+        },
+        pause: (song) => playerFor(song).pause(song),
+        resume: (song) => playerFor(song).resume(song),
+        seek: (seconds, song) => playerFor(song).seek(seconds, song),
+        ...(external.setVolume || surface.setVolume ? {
+            setVolume: async (volume: number, song?: SongResult) => {
+                await playerFor(song).setVolume?.(volume, song);
+            },
+        } : {}),
+        ...(external.setRepeatOne || surface.setRepeatOne ? {
+            setRepeatOne: async (enabled: boolean, song?: SongResult) => {
+                await playerFor(song).setRepeatOne?.(enabled, song);
+            },
+        } : {}),
+        getStatus: (song) => of(song).getStatus(song),
+        isStatusForSong: (song, status) => of(song).isStatusForSong(song, status),
+        ...(surface.mount ? { mount: (container: HTMLElement, song: SongResult) => surface.mount?.(container, song) ?? (() => undefined) } : {}),
+    };
+};
+
+const ITEM_LYRICS = new Set<unknown>(['none', 'own', 'match']);
+
+/** A source's `itemKinds` as the host's: the traits it wrote of each kind, read now (one named `song` is left out). */
+export const itemKindsOf = (value: unknown): Record<string, ProviderItemKind> | undefined => {
+    const kinds = record(value);
+    if (!kinds) return undefined;
+    const out: Record<string, ProviderItemKind> = {};
+    for (const [kind, traits] of Object.entries(kinds)) {
+        const found = record(traits);
+        if (!kind || kind === 'song' || !found) continue;
+        out[kind] = Object.freeze({
+            ...(ITEM_LYRICS.has(found.lyrics) ? { lyrics: found.lyrics as ProviderItemKind['lyrics'] } : {}),
+            ...(typeof found.likable === 'boolean' ? { likable: found.likable } : {}),
+            ...(typeof found.reported === 'boolean' ? { reported: found.reported } : {}),
+        });
+    }
+    return Object.keys(out).length > 0 ? Object.freeze(out) : undefined;
 };
 
 export const buildReports = (kit: SourceAdapterKit, reports: FoliumSourceReports): NonNullable<OnlineMusicProvider['playbackReports']> => {

@@ -276,7 +276,10 @@ export const AddToPlaylistHost: React.FC<AddToPlaylistHostProps> = ({
 
                         if (isOnline && isLikedRow) {
                             // 红心：一首一首按平台的喜欢接口来（已经喜欢的再按一次「喜欢」不会取消）。
-                            for (const song of targetSongs) await omni.likeSong(song, true);
+                            // 不能喜欢的条目（比如视频，方案 §4.4 的 itemTraits）跳过，不让它挡住后面的歌。
+                            for (const song of targetSongs) {
+                                if (omni.canLikeSong(song)) await omni.likeSong(song, true);
+                            }
                             setStatusMessage({ type: 'success', text: t('status.liked') });
                             return;
                         }

@@ -55,7 +55,9 @@ export const FOLIUM_SOURCE_MEMBER_DESTINATIONS = Object.freeze({
         getSongPageUrl: 'songs@1.getPageUrl',
         search: 'derived from search@1',
         playback: 'derived from songs@1 and playback.audio@1',
-        externalPlayback: 'derived from playback.external@1',
+        externalPlayback: 'derived from playback.external@1 and playback.surface@1',
+        routeOf: 'field routeOf',
+        itemKinds: 'field itemKinds',
         playbackReports: 'derived from reports@1',
         lyrics: 'derived from lyrics@1',
         auth: 'derived from auth@1',
@@ -97,6 +99,7 @@ export const FOLIUM_SOURCE_MEMBER_DESTINATIONS = Object.freeze({
         setRepeatOne: 'playback.external@1.setRepeatOne',
         getStatus: 'playback.external@1.getStatus',
         isStatusForSong: 'playback.external@1.isStatusForSong',
+        mount: 'playback.surface@1.mount',
     } satisfies Destinations<OnlineExternalPlaybackProvider>,
     OnlinePlaybackReportProvider: {
         canReport: 'reports@1.canReport',
@@ -232,7 +235,7 @@ export const FOLIUM_SOURCE_MEMBER_DESTINATIONS = Object.freeze({
         userAlbums: 'derived: library@1.getUserAlbums',
         playbackReports: 'derived: reports@1 is there',
         explore: 'derived: explore@1 is there',
-        externalPlayback: 'derived: playback.external@1 is there',
+        externalPlayback: 'derived: playback.external@1 or playback.surface@1 is there',
         songDetail: 'derived: songs@1 is there',
     } satisfies Destinations<ProviderCapabilities>,
 });

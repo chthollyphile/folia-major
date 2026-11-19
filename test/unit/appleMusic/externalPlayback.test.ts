@@ -22,6 +22,7 @@ const omniMock = vi.hoisted(() => ({
     })),
     isExternalPlaybackStatusForSong: vi.fn((_song: unknown, _status: ProviderExternalPlaybackStatus) => true),
     adoptExternalPlayback: vi.fn((_song: unknown) => {}),
+    playsOnSurface: vi.fn(() => false),
 }));
 
 vi.mock('@/services/onlineMusic/omni', () => ({ omni: omniMock }));

@@ -69,6 +69,11 @@ type ExternalSession = {
     foreign: boolean;
     /** The player now belongs to the window replacing this one: answers are no longer acted on. */
     handedOver: boolean;
+    /**
+     * A surface player (plan §4.2) dies with this window, so the next window cannot take it over: it is paused
+     * when handed over and starts again there. True when it was sounding then, to sound again if taken back.
+     */
+    surfaceResumes: boolean;
     preparedQueueKey: string;
     positionRevision: number;
     seekPending: boolean;
@@ -87,6 +92,7 @@ let reclaimTimer: ReturnType<typeof setTimeout> | null = null;
  * take-over that restore ends with lands handed over (`handOverExternalPlaybackDuringRestore`).
  */
 let handOverOnAdoption = false;
+const handingOnAtAdoption = (): boolean => handOverOnAdoption;
 let pollRunning = false;
 let installed = false;
 let ownWriteDepth = 0;
@@ -525,7 +531,7 @@ export async function beginExternalPlayback(song: SongResult, startSec = 0): Pro
     clock.sync({ positionSec: Math.max(0, startSec), paused: true });
     session = {
         song, songKey, attempt, clock, durationSec,
-        announced: false, playing: false, starting: false, sampledPosition: Math.max(0, startSec), prefetchReady: false, live: false, ended: false, foreign: false, handedOver: false, preparedQueueKey: '', positionRevision: 0, seekPending: false, seeking: false,
+        announced: false, playing: false, starting: false, sampledPosition: Math.max(0, startSec), prefetchReady: false, live: false, ended: false, foreign: false, handedOver: false, surfaceResumes: false, preparedQueueKey: '', positionRevision: 0, seekPending: false, seeking: false,
     };
     failureNoted = false;
     externalMediaShim.beginTrack(songKey);
@@ -602,7 +608,7 @@ export async function adoptExternalPlayback(song: SongResult): Promise<boolean> 
     clock.sync({ positionSec: 0, paused: true });
     session = {
         song, songKey, attempt, clock, durationSec,
-        announced: false, playing: false, starting: false, sampledPosition: null, prefetchReady: false, live: false, ended: false, foreign: false, handedOver: false, preparedQueueKey: '', positionRevision: 0, seekPending: false, seeking: false,
+        announced: false, playing: false, starting: false, sampledPosition: null, prefetchReady: false, live: false, ended: false, foreign: false, handedOver: false, surfaceResumes: false, preparedQueueKey: '', positionRevision: 0, seekPending: false, seeking: false,
     };
     failureNoted = false;
     externalMediaShim.beginTrack(songKey);
@@ -679,6 +685,18 @@ export function handOverExternalPlayback(): void {
     stopTimer();
     current.handedOver = true;
     startReclaimTimer();
+    if (omni.playsOnSurface(current.song)) {
+        // A surface player is this window's own page: it goes with the window, and the next window starts the
+        // song again where the snapshot says (restartSurfaceAfterHandoff). Paused now, so the two never sound
+        // at once in the second or two before this window is gone. The transport is not told: the snapshot
+        // already says playing, and a window that was not replaced resumes it (reclaimExternalPlayback).
+        current.surfaceResumes = current.playing;
+        void omni.pauseExternalPlayback(current.song).catch((error: unknown) => {
+            console.warn('[ExternalPlayback] the surface player could not be paused as it was handed over', error);
+        });
+        console.info('[ExternalPlayback] handed the surface song over: the next window starts it again', { songKey: current.songKey });
+        return;
+    }
     console.info('[ExternalPlayback] handed the player over to the next window', { songKey: current.songKey });
 }
 
@@ -709,10 +727,58 @@ export function reclaimExternalPlayback(reason: string): void {
     if (!current?.handedOver) return;
     current.handedOver = false;
     console.info('[ExternalPlayback] took the player back: the window was not replaced', { reason, songKey: current.songKey });
+    if (current.surfaceResumes) {
+        // The surface player was paused for the window that did not come: it sounds again, and is followed once
+        // it took the resume (an answer read before that would say paused).
+        current.surfaceResumes = false;
+        appliedRepeatOne = null;
+        syncExternalRepeatOne();
+        void omni.resumeExternalPlayback(current.song).catch((error: unknown) => {
+            console.warn('[ExternalPlayback] the surface player could not be resumed as it was taken back', error);
+            if (session === current) markPaused(current.clock.read());
+        }).finally(() => {
+            if (session === current && !current.handedOver && isExternalRoute()) schedulePoll(0);
+        });
+        return;
+    }
     // The loop mode may have changed while it was handed over: its repeat is said again.
     appliedRepeatOne = null;
     syncExternalRepeatOne();
     if (isExternalRoute()) schedulePoll(0);
+}
+
+/**
+ * A surface song handed over by a window that is gone (plan §4.2, §13): its player went with that window, so
+ * nothing is taken over; the song starts again here at `startSec`, where the snapshot left it, when the
+ * snapshot says it was playing. The song is already on screen (the restore put it there): the start is
+ * announced at once, as an adoption is. Not while this window is itself being replaced in the middle of its
+ * restore (`handOverExternalPlaybackDuringRestore`): the window after it starts the song from the same
+ * snapshot. Answers whether it started; one that failed leaves the song paused, as the play path does.
+ */
+export async function restartSurfaceAfterHandoff(song: SongResult, startSec: number, stillWanted: () => boolean): Promise<boolean> {
+    installExternalPlayback();
+    if (!omni.playsOnSurface(song)) return false;
+    if (handOverOnAdoption) {
+        console.info('[ExternalPlayback] not starting the handed-over surface song: this window is being replaced too');
+        return false;
+    }
+    console.info('[ExternalPlayback] starting the handed-over surface song again', { songKey: getPlaybackSongKey(song), startSec });
+    try {
+        await beginExternalPlayback(song, Math.max(0, startSec));
+    } catch (error) {
+        console.warn('[ExternalPlayback] the handed-over surface song could not be started again', error);
+        return false;
+    }
+    if (!stillWanted() || session?.songKey !== getPlaybackSongKey(song) || !isExternalRoute()) return false;
+    announceExternalPlayback();
+    // Read again: the flag may have been set during the start (the await above), which a narrowed read misses.
+    if (handingOnAtAdoption()) {
+        // This window began to be replaced while the song started: it goes with this window, paused now, and
+        // the window after it starts it again from the snapshot (taken back with the reclaim if none came).
+        handOverOnAdoption = false;
+        handOverExternalPlayback();
+    }
+    return true;
 }
 
 /**
@@ -796,6 +862,8 @@ export function yieldExternalPlayback(reason: string): void {
 export const pauseExternalPlayback = (): boolean => {
     const current = session;
     if (!current) return false;
+    // Paused by the listener while handed over: a window that was not replaced does not start it again.
+    current.surfaceResumes = false;
     markPaused(current.clock.read());
     void omni.pauseExternalPlayback(current.song).catch(error => {
         console.warn('[ExternalPlayback] pause failed', error);

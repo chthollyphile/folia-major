@@ -92,7 +92,8 @@ describe('the Folium version, two tracks (plan §9)', () => {
         const two = createFoliumClientApi(mod({ kind: 'standard', sources: undefined }), clientApiOptions('export'));
         expect(two.host.folium).toEqual({ major: 2, minor: 0 });
         expect(two.sources.supports('search', 1)).toBe(true);
-        expect(two.sources.supports('playback.surface', 1)).toBe(false);
+        expect(two.sources.supports('playback.surface', 1)).toBe(true);
+        expect(two.sources.supports('playback.surface', 2)).toBe(false);
         expect(two.i18n.key('a.b', { n: 1 })).toEqual({ i18nKey: 'a.b', params: { n: 1 } });
         expect(() => two.sources.register({ id: 'a', displayName: 'x', capabilities: {} })).toThrow(/not-a-source-mod/);
         expect(two.omni.capability('x', 'y')).toBeNull();
@@ -131,7 +132,7 @@ describe('registering', () => {
             id: 'a',
             capabilities: {
                 'search@2': { searchSongs: async () => ({ items: [], hasMore: false }) },
-                'playback.surface@1': {} as never,
+                'playback.surface@1': { play: async () => undefined } as never,
                 'nope@1': {},
                 'x.other-mod.thing@1': {},
                 'lyrics@1': {} as never,
@@ -140,7 +141,7 @@ describe('registering', () => {
         });
         const messages = getFoliumIssues(MOD).map((issue) => String(issue.message));
         expect(messages.some((message) => message.includes('"search@2" is left out: this host does not implement it'))).toBe(true);
-        expect(messages.some((message) => message.includes('"playback.surface@1" is left out'))).toBe(true);
+        expect(messages.some((message) => message.includes('"playback.surface@1" is left out: it has no pause'))).toBe(true);
         expect(messages.some((message) => message.includes('"nope@1" is left out: this host knows no such capability'))).toBe(true);
         expect(messages.some((message) => message.includes('x.other-mod.thing@1'))).toBe(true);
         expect(messages.some((message) => message.includes('"lyrics@1" is left out: it has no getLyrics'))).toBe(true);

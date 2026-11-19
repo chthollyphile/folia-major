@@ -17,6 +17,7 @@ import type {
     FoliumSourceReports,
     FoliumSourceSearch,
     FoliumSourceSongs,
+    FoliumSourceSurfacePlayback,
 } from '../../sources/contract';
 import {
     FOLIUM_CUSTOM_CAPABILITY_PATTERN,
@@ -39,6 +40,7 @@ export interface FoliumSourceParts {
     songs?: FoliumSourceSongs;
     audio?: FoliumSourceAudioPlayback;
     external?: FoliumSourceExternalPlayback;
+    surface?: FoliumSourceSurfacePlayback;
     reports?: FoliumSourceReports;
     lyrics?: FoliumSourceLyrics;
     auth?: FoliumSourceAuth;
@@ -50,15 +52,23 @@ export interface FoliumSourceParts {
     covers?: FoliumSourceCovers;
     raw?: FoliumSourceRaw;
     custom: Map<string, unknown>;
+    /** The ways it plays, in the order its `capabilities` lists them: the first is a song's when `routeOf` says none. */
+    routes: FoliumSourceRoute[];
 }
 
-type PartName = Exclude<keyof FoliumSourceParts, 'custom'>;
+/** A way a source plays a song (plan §4.2), as `FoliumSourceDef.routeOf` names it. */
+export type FoliumSourceRoute = 'audio' | 'external' | 'surface';
+
+type PartName = Exclude<keyof FoliumSourceParts, 'custom' | 'routes'>;
+
+const ROUTE_OF_PART: Partial<Record<PartName, FoliumSourceRoute>> = { audio: 'audio', external: 'external', surface: 'surface' };
 
 const PART_OF: Partial<Record<FoliumStandardCapability, PartName>> = {
     search: 'search',
     songs: 'songs',
     'playback.audio': 'audio',
     'playback.external': 'external',
+    'playback.surface': 'surface',
     reports: 'reports',
     lyrics: 'lyrics',
     auth: 'auth',
@@ -80,16 +90,15 @@ const has = (object: object | undefined, member: string): boolean => (
 
 /**
  * Reads a definition's `capabilities` (getters included, read now). What the host cannot take is told through
- * `warn`: a key that is no capability id, a standard one this host does not implement at that version
- * (`playback.surface@1` among them), a custom one not named after `modId`, one that is not an object, or one
- * without a member it must have.
+ * `warn`: a key that is no capability id, a standard one this host does not implement at that version, a
+ * custom one not named after `modId`, one that is not an object, or one without a member it must have.
  */
 export const readFoliumSourceParts = (
     modId: string,
     capabilities: FoliumSourceCapabilities,
     warn: (message: string) => void,
 ): FoliumSourceParts => {
-    const parts: FoliumSourceParts = { custom: new Map() };
+    const parts: FoliumSourceParts = { custom: new Map(), routes: [] };
     const taken = parts as unknown as Record<PartName, unknown>;
     for (const key of Object.keys(capabilities)) {
         const value: unknown = (capabilities as Record<string, unknown>)[key];
@@ -124,6 +133,8 @@ export const readFoliumSourceParts = (
             continue;
         }
         taken[part] = value;
+        const route = ROUTE_OF_PART[part];
+        if (route) parts.routes.push(route);
     }
     return parts;
 };
@@ -153,7 +164,8 @@ export const deriveFoliumSourceCapabilities = (parts: FoliumSourceParts): Provid
     userAlbums: has(parts.library, 'getUserAlbums'),
     playbackReports: Boolean(parts.reports),
     explore: Boolean(parts.explore),
-    externalPlayback: Boolean(parts.external),
+    // `playback.surface` is the external route too, with a picture (plan §4.2).
+    externalPlayback: Boolean(parts.external || parts.surface),
     songDetail: Boolean(parts.songs),
 });
 

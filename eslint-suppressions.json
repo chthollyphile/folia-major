@@ -2175,11 +2175,6 @@
       "count": 1
     }
   },
-  "src/components/app/playback/externalPlaybackGate.ts": {
-    "@typescript-eslint/unbound-method": {
-      "count": 1
-    }
-  },
   "src/components/app/playback/restore/createOnlineRecoveryController.ts": {
     "@typescript-eslint/no-deprecated": {
       "count": 6
