@@ -94,6 +94,8 @@ const BUILTIN_SOURCE_TABLE = Object.freeze({
         userDataDirs: [],
         native: [],
         // Saved songs' covers and streams (cover?coverId=…&size=…, stream?guid=…): main.cjs's own scheme before.
+        // Answered by this built-in mod only: a third-party mod that takes the short id over (takeover) does not get it,
+        // and the saved addresses of the old scheme answer 404 while it holds the id. Its routes need not mean the same thing.
         legacyMediaSchemes: ['folia-fnmusic'],
     }),
 });

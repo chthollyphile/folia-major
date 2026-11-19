@@ -179,6 +179,9 @@ module.exports = function activate(api) {
         expect(await (await fetchModUrl('folia-fnmusic://cover?coverId=c1&size=300')).text()).toBe('cover:c1:300:');
         expect(await (await fetchModUrl('folia-fnmusic:///cover?coverId=c2')).text()).toBe('cover:c2:undefined:');
         expect(await (await fetchModUrl('folia-fnmusic://stream?guid=g1', { range: 'bytes=0-' })).text()).toBe('stream:g1:bytes=0-');
+        // Chromium writes a standard scheme's host-less address with the first step as the host and a '/' path.
+        expect(await (await fetchModUrl('folia-fnmusic://stream/?guid=g2')).text()).toBe('stream:g2:null');
+        expect(await (await fetchModUrl('folia-fnmusic://cover/?coverId=c4&size=80')).text()).toBe('cover:c4:80:');
         expect(await (await fetchModUrl('folia-mod://fnmusic/_media/cover?coverId=c3')).text()).toBe('cover:c3:undefined:');
         expect((await fetchModUrl('folia-fnmusic://lyrics?id=1')).status).toBe(404);
         for (const sneaky of ['folia-fnmusic:///cover/..%2F..%2Fx', 'folia-fnmusic:///cover/a%5Cb']) {

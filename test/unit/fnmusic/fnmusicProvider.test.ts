@@ -63,6 +63,13 @@ describe('fnmusic sign-in form', () => {
         bridge.request.mockResolvedValueOnce({ ok: false, status: 0, error: { code: 'network', message: 'ECONNREFUSED' } });
         await expect(fnmusicProvider().auth!.submitLoginForm!({ base: 'nas', username: 'a', password: 'b' })).rejects.toMatchObject({ code: 'network' });
     });
+
+    it('lets a failure of the main entry itself go up as it is, not as an unreachable server', async () => {
+        const broken = new Error('rpc-not-found');
+        bridge.request.mockRejectedValueOnce(broken);
+        const caught: unknown = await fnmusicProvider().auth!.submitLoginForm!({ base: 'nas', username: 'a', password: 'b' }).catch((error: unknown) => error);
+        expect(caught).toBe(broken);
+    });
 });
 
 describe('fnmusic account', () => {

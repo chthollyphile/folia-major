@@ -55,16 +55,13 @@ export const fnMusicError = (code: FoliumSourceErrorCode, message: string, cause
     host().error(code, message, cause === undefined ? undefined : { cause })
 );
 
-// What a request fails with where the bridge itself failed (the main entry threw, or is not there).
-const BRIDGE_FAILED = '飞牛音乐的主进程桥没有答复';
-
-const call = async (operation: string, params: Record<string, unknown>): Promise<FnMusicBridgeResult> => {
-    try {
-        return await host().call<FnMusicBridgeResult>('request', operation, params);
-    } catch (error) {
-        throw fnMusicError('network', BRIDGE_FAILED, error);
-    }
-};
+// Where the bridge itself failed (the main entry threw, or is not there) the error goes up as it is, as the IPC call's
+// did before the migration: the login form shows its generic failure. Calling it `network` would send the listener off
+// to check the server address, and nothing is wrong with that; the NAS's own unreachability comes back as an answer
+// ({ ok: false, error.code: 'network' }), not as a throw.
+const call = (operation: string, params: Record<string, unknown>): Promise<FnMusicBridgeResult> => (
+    host().call<FnMusicBridgeResult>('request', operation, params)
+);
 
 /** 桥状态（base/username 供登录状态读）；读不到回 null。 */
 export const fnMusicBridgeStatus = async (): Promise<FnMusicBridgeStatus | null> => {
