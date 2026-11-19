@@ -3974,9 +3974,9 @@ Folium 2: `api.legacy.store`, the main process's store keys a built-in source ke
 | 成员 | 类型 | 说明 |
 | --- | --- | --- |
 | `get()` | `(key: string): unknown` | The value, or undefined. |
-| `set()` | `(key: string, value: unknown): void` | Stores `value`. |
+| `set()` | `(key: string, value: unknown): void` | Stores `value`; does nothing once the mod has stopped (a late answer cannot write back what a clear removed). |
 | `has()` | `(key: string): boolean` | Whether the key has a value. |
-| `delete()` | `(key: string): void` | Removes the key. |
+| `delete()` | `(key: string): void` | Removes the key; does nothing once the mod has stopped. |
 
 ### FoliumSourceSeal
 
