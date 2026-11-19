@@ -1,10 +1,16 @@
-import md5 from 'blueimp-md5';
-import { OnlineProviderError } from '../../../src/types/onlineMusic';
-import { readProviderSessionValue, removeProviderSessionValue, writeProviderSessionValue } from '../../../src/services/onlineMusic/providerStorage';
-import { lyricProxyWebUrl, requestLyricProxyOnDesktop } from '../../../src/services/lyricProxy';
+import type { FoliumSourceAvailability, FoliumSourceError, FoliumSourceErrorCode, FoliumSourceErrorDetails, FoliumSourcePageStore } from '@folia/folium';
 import { withLoginRequestLimit } from '@folia/folium-source-kit';
+import { buildKugouAnonymousSearch, buildKugouLegacyPlayInfo, type KugouPlainAnswer } from './kugouRequests';
 
 // sources/kugou/core/kugouTransport.ts
+// 酷狗的请求怎么发。两条路，createSource 按 env 选一条：
+//   - 桌面版（模组的 client）：经 folium.rpc 交给 main 入口（main/index.ts 登记的 `request`），那边的 kugouApiBridge.cjs
+//     调 KuGouMusicApi；凭据只在主进程里（加密存着），窗口这边只留一个账号 id 的提示（页面存储的 userid，D604 登记的写入口）。
+//     匿名搜索和旧的播放信息接口也由 main 去问（`anonymousSearch`、`legacyPlayInfo`）：main 自己拼地址，不开任意地址的中转。
+//   - 网页版（src/services/onlineMusic/web/kugou.ts）：直接问配好的 KuGouMusicApi（VITE_KUGOU_API_BASE），会话放在页面存储里
+//     （online_provider:kugou:*，和迁之前同一组键），匿名搜索和旧接口经歌词代理去问。
+// 错误一律是宿主的错（env.error）；酷狗自己说了什么写在错的那句话和 cause 里，kugouFailure.ts 按结构读回来
+// （宿主给错换上音源名时换的是一个新对象，留着 message、cause、httpStatus）。
 
 export const KUGOU_OPERATIONS = [
     'register_dev', 'login_qr_key', 'login_qr_create', 'login_qr_check', 'logout',
@@ -19,6 +25,9 @@ export const KUGOU_OPERATIONS = [
 
 export type KugouOperation = typeof KUGOU_OPERATIONS[number];
 export type KugouParams = Record<string, string | number | boolean | undefined>;
+
+/** What main's `request` answers: the body KuGouMusicApi gave, or the bridge's one-line failure (kugouApiBridge.cjs). */
+export type KugouBridgeResult = { ok: true; data: unknown } | { ok: false; message: string };
 
 // The requests a sign-in waits for. They get the sign-in's time limit; no other request does.
 const LOGIN_REQUESTS: ReadonlySet<KugouOperation> = new Set(['login_qr_key', 'login_qr_create', 'login_qr_check']);
@@ -62,17 +71,6 @@ const ENDPOINTS: Record<KugouOperation, string> = {
     playlist_tracks_del: '/playlist/tracks/del',
 };
 
-const getWebApiBase = (): string => {
-    const viteValue = typeof import.meta !== 'undefined' && import.meta.env?.MODE !== 'test'
-        ? String((import.meta as ImportMeta & { env?: Record<string, string> }).env?.VITE_KUGOU_API_BASE || '')
-        : '';
-    const processValue = typeof process !== 'undefined'
-        ? String(process.env?.VITE_KUGOU_API_BASE || '')
-        : '';
-    const value = viteValue || processValue;
-    return value.trim().replace(/\/$/, '');
-};
-
 const isDeviceVerificationRequired = (body: any): boolean => {
     const errorCode = Number(body?.errcode ?? body?.error_code);
     const message = String(body?.error ?? body?.error_msg ?? body?.msg ?? '');
@@ -90,7 +88,6 @@ const KUGOU_AUTH_FAILURE_STATUSES: ReadonlySet<number> = new Set([401, 403]);
 // no stable login-expired code, so anything outside this set must not be treated as a logout signal.
 const KUGOU_AUTH_FAILURE_ERROR_CODES: ReadonlySet<number> = new Set([152]);
 
-const BRIDGE_ERROR_PREFIX = /^Error invoking remote method '[^']*':\s*(?:\w*Error:\s*)?/;
 const BRIDGE_FIELDS = /KuGouApi\[([^\]]*)\](?::\s*(.*))?/;
 
 export type KugouFailureDetails = {
@@ -111,23 +108,15 @@ const toFiniteNumber = (value: unknown): number | undefined => {
 };
 
 /**
- * Reads operation/status/error_code from whatever an Electron `kugouRequest` rejection looks like:
- * the bridge's `KuGouApi[operation=.. status=.. error_code=..]` error message (the only part of an
- * Error that survives IPC), or a raw `{ status, body }` answer object from an unpatched main process.
+ * Reads operation/status/error_code from the bridge's one-line failure: `KuGouApi[operation=.. status=..
+ * error_code=..]: detail` (kugouApiBridge.cjs normalizeBridgeError), which main hands back as the message of
+ * its answer and the desktop transport keeps as the cause of the error it throws.
  */
 export const extractKugouFailureDetails = (error: unknown): KugouFailureDetails => {
-    if (error && typeof error === 'object' && !(error instanceof Error)) {
-        const answer = error as { status?: unknown; body?: { error_code?: unknown; errcode?: unknown } | null };
-        return {
-            status: toFiniteNumber(answer.status),
-            errorCode: toFiniteNumber(answer.body?.error_code ?? answer.body?.errcode),
-        };
-    }
-
     const message = error instanceof Error ? error.message : typeof error === 'string' ? error : '';
     const match = BRIDGE_FIELDS.exec(message);
     if (!match) {
-        const detail = message.replace(BRIDGE_ERROR_PREFIX, '').trim();
+        const detail = message.trim();
         return { detail: detail && detail !== '[object Object]' ? detail : undefined };
     }
     const fields = new Map(
@@ -152,14 +141,16 @@ export const isKugouAuthFailure = (details: Pick<KugouFailureDetails, 'status' |
     || (details.errorCode !== undefined && KUGOU_AUTH_FAILURE_ERROR_CODES.has(details.errorCode))
 );
 
+/** The host's errors, as env.error makes them. */
+export type KugouErrorFactory = (code: FoliumSourceErrorCode, message: string, details?: FoliumSourceErrorDetails) => FoliumSourceError;
+
 /**
- * Wraps an Electron IPC rejection into an OnlineProviderError so callers can tell a rejected login
- * (`auth-required`) from everything else (`network`) instead of seeing "[object Object]".
- * A stored session the main process cannot load now is `unavailable`: the account is not known, not gone.
+ * Turns the bridge's failure into the host's error so callers can tell a rejected login (`auth-required`) from
+ * everything else (`network`). A stored session the main process cannot load now is `unavailable`: the account is
+ * not known, not gone. The bridge's line stays on the error as its cause (an Error), where kugouFailure.ts reads it.
  */
-export const toKugouProviderError = (operation: KugouOperation, error: unknown): OnlineProviderError => {
-    if (error instanceof OnlineProviderError) return error;
-    const details = extractKugouFailureDetails(error);
+export const toKugouProviderError = (error: KugouErrorFactory, operation: KugouOperation, cause: Error): FoliumSourceError => {
+    const details = extractKugouFailureDetails(cause);
     const summary = [
         `operation=${details.operation ?? operation}`,
         details.status !== undefined ? `status=${details.status}` : '',
@@ -167,17 +158,16 @@ export const toKugouProviderError = (operation: KugouOperation, error: unknown):
     ].filter(Boolean).join(' ');
     const suffix = details.detail ? `: ${details.detail}` : '';
     const authFailure = isKugouAuthFailure(details);
-    return new OnlineProviderError(
+    return error(
         authFailure ? 'auth-required' : details.sessionUnreadable ? 'unavailable' : 'network',
         `${authFailure ? 'KuGou login required' : 'KuGou request failed'} (${summary})${suffix}`,
-        'kugou',
-        error,
+        { cause },
     );
 };
 
 // Reads a Web 429 Retry-After (delta seconds or HTTP date); anything unreadable is left out.
 const readRetryAfterMs = (response: Response): number | undefined => {
-    const raw = response.headers?.get?.('Retry-After')?.trim();
+    const raw = response.headers.get('Retry-After')?.trim();
     if (!raw) return undefined;
     if (/^\d+$/.test(raw)) {
         const ms = Number(raw) * 1000;
@@ -187,219 +177,35 @@ const readRetryAfterMs = (response: Response): number | undefined => {
     return Number.isFinite(date) ? Math.max(0, date - Date.now()) : undefined;
 };
 
-/**
- * Turns a non-2xx Web answer into an OnlineProviderError. 401/403 still mean the login was rejected; anything else
- * stays `network`, its status in the sentence (kugouFailure.ts reads it), the error_code KuGou answered with in
- * the cause where the body has one, and the wait a 429 asks for. A 152 in the body is deliberately not promoted
- * to auth-required, keeping the current Web logout behavior.
- */
-const toKugouWebHttpError = async (response: Response): Promise<OnlineProviderError> => {
-    const message = `KuGouMusicApi request failed: ${response.status}`;
-    if (KUGOU_AUTH_FAILURE_STATUSES.has(response.status)) {
-        return new OnlineProviderError('auth-required', message, 'kugou');
-    }
-    let responseBody: any;
-    try {
-        responseBody = await response.json();
-    } catch {
-        responseBody = undefined;
-    }
-    const body = responseBody?.body ?? responseBody;
-    const errorCode = toFiniteNumber(body?.error_code ?? body?.errcode);
-    return new OnlineProviderError(
-        'network',
-        message,
-        'kugou',
-        errorCode === undefined ? undefined : { errorCode },
-        response.status,
-        response.status === 429 ? readRetryAfterMs(response) : undefined,
-    );
-};
-
-const getWebSessionCookie = (): string => {
-    const values = new Map<string, string>();
-    const storedCookie = readProviderSessionValue('kugou', 'cookie');
-    storedCookie?.split(';').forEach(entry => {
-        const separator = entry.indexOf('=');
-        if (separator <= 0) return;
-        values.set(entry.slice(0, separator).trim(), entry.slice(separator + 1).trim());
-    });
-
-    const token = readProviderSessionValue('kugou', 'token');
-    const userId = readProviderSessionValue('kugou', 'userid');
-    const dfid = readProviderSessionValue('kugou', 'dfid');
-    if (dfid) values.set('dfid', dfid);
-    if (token) values.set('token', token);
-    if (userId) values.set('userid', userId);
-    return Array.from(values, ([key, value]) => `${key}=${value}`).join(';');
-};
-
-export const hasKugouAuthenticatedSearchSession = (): boolean => {
-    // Electron keeps the reusable token/dfid in the encrypted main-process bridge. The account id
-    // is only a non-secret hint that lets this synchronous selector choose authenticated search.
-    if (typeof window !== 'undefined' && window.electron?.kugouRequest) {
-        return Boolean(readProviderSessionValue('kugou', 'userid'));
-    }
-    const cookie = getWebSessionCookie();
-    return ['token', 'userid', 'dfid'].every(key => (
-        new RegExp(`(?:^|;)\\s*${key}=[^;]+`, 'i').test(cookie)
-    ));
-};
-
-// Reproduces KuGou's anonymous Android search signature used before account-backed provider search.
-export const requestKugouAnonymousSearch = async (
-    keyword: string,
-    page: number,
-    pagesize: number,
-): Promise<any> => {
-    const clientTimeMs = Date.now();
-    const clientTimeSec = Math.floor(clientTimeMs / 1000);
-    const mid = md5(String(clientTimeMs));
-    const params: Record<string, string | number> = {
-        sorttype: '0',
-        keyword,
-        pagesize,
-        page,
-        userid: '0',
-        appid: '3116',
-        token: '',
-        clienttime: clientTimeSec,
-        iscorrection: '1',
-        uuid: '-',
-        mid,
-        dfid: '-',
-        clientver: '11070',
-        platform: 'AndroidFilter',
-    };
-    const signatureSource = Object.keys(params)
-        .sort()
-        .map(key => `${key}=${params[key]}`)
-        .join('');
-    params.signature = md5(
-        `LnT6xpN3khm36zse0QzvmgTZ3waWdRSA${signatureSource}LnT6xpN3khm36zse0QzvmgTZ3waWdRSA`,
-    );
-
-    const targetUrl = new URL('http://complexsearch.kugou.com/v2/search/song');
-    Object.entries(params).forEach(([key, value]) => targetUrl.searchParams.set(key, String(value)));
-    const requestUrl = typeof window !== 'undefined' && window.electron
-        ? targetUrl.toString()
-        : lyricProxyWebUrl(targetUrl.toString());
-    const response = await fetch(requestUrl, {
-        method: 'GET',
-        credentials: 'omit',
-        headers: {
-            'User-Agent': 'Android14-1070-11070-201-0-SearchSong-wifi',
-            'KG-Rec': '1',
-            'KG-RC': '1',
-            'KG-CLIENTTIMEMS': String(clientTimeMs),
-            mid,
-            'x-router': 'complexsearch.kugou.com',
-        },
-    });
-    if (!response.ok) {
-        throw new OnlineProviderError(
-            'network',
-            `KuGou anonymous search failed: ${response.status}`,
-            'kugou',
-        );
-    }
-    const body = await response.json();
-    const errorCode = Number(body?.error_code);
-    if (Number.isFinite(errorCode) && errorCode !== 0 && errorCode !== 200) {
-        throw new OnlineProviderError(
-            'network',
-            `KuGou anonymous search failed: ${errorCode}`,
-            'kugou',
-        );
-    }
-    return body;
-};
-
 // Legacy playInfo failures: a non-2xx answer is `network`, an unreadable body is `invalid-response`. A non-2xx is
 // still a real HTTP answer, though, so its status rides along as `httpStatus` whenever it is m.kugou.com's own
 // (kugouFailure.ts sorts it by the shared rules); left without one it is a plain network failure.
 export const KUGOU_LEGACY_PLAY_INFO_FAILED = 'KuGou legacy playInfo failed';
 
-const legacyPlayInfoHttpError = (status: number, httpStatus?: number): OnlineProviderError => new OnlineProviderError(
-    'network',
-    `${KUGOU_LEGACY_PLAY_INFO_FAILED}: ${status}`,
-    'kugou',
-    undefined,
-    httpStatus,
-);
-
 // The Web lyric proxies answer 500 / 502 themselves when their own fetch upstream fails, so those two say nothing
 // about m.kugou.com and are passed on without a status.
 const isLyricProxyOwnFailureStatus = (status: number): boolean => status === 500 || status === 502;
 
-const legacyPlayInfoBodyError = (cause: unknown): OnlineProviderError => new OnlineProviderError(
-    'invalid-response',
-    'KuGou legacy playInfo returned an unreadable body',
-    'kugou',
-    cause,
-);
+const parseJson = (text: string): unknown => JSON.parse(text) as unknown;
 
-/**
- * Legacy mobile play-info fallback used when the current /song/url endpoint refuses a hash.
- * It is intentionally kept outside the signed Web API transport because it calls KuGou's old
- * public mobile endpoint and works without the configured VITE_KUGOU_API_BASE.
- */
-export const requestKugouLegacyPlayInfo = async (hash: string): Promise<any> => {
-    const targetUrl = new URL('https://m.kugou.com/app/i/getSongInfo.php');
-    targetUrl.searchParams.set('cmd', 'playInfo');
-    targetUrl.searchParams.set('hash', hash);
-    const targetUrlString = targetUrl.toString();
-
-    // In Electron, route through the main-process lyric proxy so CORS cannot block this
-    // last-resort mobile endpoint. The Web build uses the same relay through its web address.
-    const relayed = requestLyricProxyOnDesktop(targetUrlString, { method: 'GET' });
-    if (relayed) {
-        const response = await relayed;
-        if (!response.ok) {
-            // The main process rejects when it cannot reach the endpoint, so ok:false is always m.kugou.com's answer.
-            throw legacyPlayInfoHttpError(response.status, response.status);
-        }
-        try {
-            return JSON.parse(response.bodyText) as any;
-        } catch (error) {
-            throw legacyPlayInfoBodyError(error);
-        }
-    }
-
-    const requestUrl = typeof window !== 'undefined' && window.electron
-        ? targetUrlString
-        : lyricProxyWebUrl(targetUrlString);
-    const response = await fetch(requestUrl, {
-        method: 'GET',
-        credentials: 'omit',
-        headers: {
-            'User-Agent': 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 Chrome/124.0.0.0 Mobile Safari/537.36',
-        },
-    });
-    if (!response.ok) {
-        throw legacyPlayInfoHttpError(
-            response.status,
-            requestUrl === targetUrlString || !isLyricProxyOwnFailureStatus(response.status) ? response.status : undefined,
-        );
-    }
-    try {
-        return await response.json();
-    } catch (error) {
-        throw legacyPlayInfoBodyError(error);
-    }
-};
-
-const clearWebDeviceIdentity = (): void => {
-    removeProviderSessionValue('kugou', 'dfid');
-    const storedCookie = readProviderSessionValue('kugou', 'cookie');
-    if (!storedCookie) return;
-    const retained = storedCookie.split(';').filter(entry => entry.trim() && !/^\s*dfid=/i.test(entry));
-    if (retained.length > 0) {
-        writeProviderSessionValue('kugou', 'cookie', retained.join(';'));
-    } else {
-        removeProviderSessionValue('kugou', 'cookie');
-    }
-};
+/** How the source reaches KuGou; one of two, chosen once by createSource. */
+export interface KugouTransport {
+    readonly runtime: 'electron' | 'web';
+    request<T = unknown>(operation: KugouOperation, params?: KugouParams): Promise<T>;
+    /** KuGou's anonymous Android search (no account): the answer's body. */
+    anonymousSearch(keyword: string, page: number, pagesize: number): Promise<unknown>;
+    /** The old mobile play-info endpoint, the last resort for a hash /song/url refuses: the answer's body. */
+    legacyPlayInfo(hash: string): Promise<unknown>;
+    /** Whether a search can go with the account (synchronous: the search picks its way with it). */
+    hasAuthenticatedSearchSession(): boolean;
+    /** The signed-in account's id as this window knows it ('' for none). */
+    userId(): string;
+    /** The web session's token, for the requests that take it as a parameter; the desktop keeps it in main. */
+    sessionToken(): string | undefined;
+    /** The account goes from this window: the sign-out, or a sign-in KuGou no longer takes. */
+    forgetAccount(): void;
+    getAvailability(): FoliumSourceAvailability;
+}
 
 const responsePayload = (response: any): any => response?.data || response?.body?.data || response?.body || response;
 
@@ -416,103 +222,259 @@ const confirmedSignIn = (operation: KugouOperation, response: any): { token?: st
     return userId ? { token: payload?.token ? String(payload.token) : undefined, userId: String(userId) } : null;
 };
 
-/**
- * The one place the web session's account is written (registered for Dedicatus D604): the cookies,
- * the token and the account id of a confirmed sign-in, the token and the id as a whole pair.
- */
-const rememberConfirmedSignIn = (signIn: { token: string; userId: string }, cookieEntries: string[]): void => {
-    if (cookieEntries.length) writeProviderSessionValue('kugou', 'cookie', cookieEntries.join('; '));
-    writeProviderSessionValue('kugou', 'token', signIn.token);
-    writeProviderSessionValue('kugou', 'userid', signIn.userId);
-};
+/** What the transports need of the host: the main entry, the host's errors and the page store. */
+export interface KugouTransportEnv {
+    call<T>(name: string, ...args: unknown[]): Promise<T>;
+    error: KugouErrorFactory;
+    pageStore(sourceId: string): FoliumSourcePageStore;
+}
 
-const ACCOUNT_COOKIE_ENTRY = /^(token|userid|user_id)=/i;
-
-/**
- * The cookies any other answer brings (registered for Dedicatus D604): it drops the account ones
- * itself, which only a confirmed sign-in writes (#1101).
- */
-const rememberSessionCookies = (cookieEntries: string[]): void => {
-    const kept = cookieEntries.filter(entry => !ACCOUNT_COOKIE_ENTRY.test(entry));
-    if (kept.length) writeProviderSessionValue('kugou', 'cookie', kept.join('; '));
-};
+/** The web build's pieces (src/services/onlineMusic/web/kugou.ts hands them in). */
+export interface KugouWebEnv {
+    /** KuGouMusicApi's address (VITE_KUGOU_API_BASE); '' where none is configured. */
+    apiBase: string;
+    md5(text: string): string;
+    /** The lyric proxy's address for `url` (lyricProxyWebUrl). */
+    relayUrl(url: string): string;
+}
 
 /**
- * The desktop app's hint of who is signed in (registered for Dedicatus D604): passed only the account id
- * of a confirmed sign-in, or the one the bridge writes into the profile answer from its own session.
+ * The desktop transport. Account credentials are injected by the main-process bridge; the window keeps only the
+ * account id as a hint (the synchronous search and the library ask it).
  */
-const rememberSignedInAccountId = (userId: string): void => {
-    writeProviderSessionValue('kugou', 'userid', userId);
-};
+export const createDesktopKugouTransport = (env: KugouTransportEnv): KugouTransport => {
+    const store = env.pageStore('kugou');
 
-const persistWebSession = (operation: KugouOperation, response: any): void => {
-    const signIn = confirmedSignIn(operation, response);
-    const cookies = response?.cookie || response?.data?.cookie;
-    const cookieEntries = (typeof cookies === 'string' ? cookies.split(';')
-        : Array.isArray(cookies) ? cookies.map(String) : [])
-        .map(entry => entry.trim())
-        .filter(Boolean);
-    // Half of a pair is not taken: the other half would be the previous account's. Account cookies of
-    // any other answer are left out, like its account fields.
-    if (signIn?.token) rememberConfirmedSignIn({ token: signIn.token, userId: signIn.userId }, cookieEntries);
-    else rememberSessionCookies(cookieEntries);
-    const dfid = responsePayload(response)?.dfid;
-    if (dfid) writeProviderSessionValue('kugou', 'dfid', String(dfid));
-};
+    /**
+     * The desktop app's hint of who is signed in (registered for Dedicatus D604): passed only the account id
+     * of a confirmed sign-in, or the one the bridge writes into the profile answer from its own session.
+     */
+    const rememberSignedInAccountId = (userId: string): void => {
+        store.set('userid', userId);
+    };
 
-/**
- * Removes credentials written by older desktop builds. Electron only retains the non-sensitive
- * account id in renderer storage; every reusable credential stays in the encrypted IPC bridge.
- */
-const persistElectronAccountHint = (operation: KugouOperation, response: any): void => {
-    ['cookie', 'token', 'dfid'].forEach(key => removeProviderSessionValue('kugou', key));
-    if (operation === 'logout') {
-        removeProviderSessionValue('kugou', 'userid');
-        return;
-    }
-    // The bridge strips the token from the sign-in answer, and writes the session's own account id
-    // into the profile answer: those two are the only answers that say who is signed in.
-    const userId = operation === 'user_detail'
-        ? responsePayload(response)?.userid
-        : confirmedSignIn(operation, response)?.userId;
-    if (userId) rememberSignedInAccountId(String(userId));
-};
+    /**
+     * Removes credentials written by older desktop builds into the window's storage (registered for Dedicatus
+     * D604, it writes only nothing): every reusable credential stays in the encrypted main-process bridge.
+     */
+    const dropRendererCredentials = (): void => {
+        store.set('cookie', null);
+        store.set('token', null);
+        store.set('dfid', null);
+    };
 
-export const getKugouTransportAvailability = () => {
-    if (typeof window !== 'undefined' && window.electron?.kugouRequest) return { configured: true } as const;
-    return getWebApiBase()
-        ? { configured: true } as const
-        : { configured: false, reason: 'not-configured' as const };
-};
+    /** The account hint goes (registered for Dedicatus D604, it writes only nothing). */
+    const forgetSignedInAccountId = (): void => {
+        store.set('userid', null);
+    };
 
-// Routes one provider request through Electron IPC or an explicitly configured Web backend.
-export const requestKugou = async <T = unknown>(operation: KugouOperation, params: KugouParams = {}): Promise<T> => {
-    const limited = LOGIN_REQUESTS.has(operation);
-    if (typeof window !== 'undefined' && window.electron?.kugouRequest) {
-        // Account credentials are injected by the main-process bridge. Drop legacy renderer values
-        // at the IPC boundary so an old localStorage token cannot keep circulating after migration.
-        const electronParams = Object.fromEntries(
-            Object.entries(params).filter(([key]) => !['token', 'dfid', 'cookie'].includes(key.toLowerCase())),
-        );
-        const send = async (): Promise<unknown> => {
-            try {
-                return await window.electron!.kugouRequest(operation, electronParams);
-            } catch (error) {
-                throw toKugouProviderError(operation, error);
+    const persistAccountHint = (operation: KugouOperation, response: unknown): void => {
+        dropRendererCredentials();
+        if (operation === 'logout') {
+            forgetSignedInAccountId();
+            return;
+        }
+        // The bridge strips the token from the sign-in answer, and writes the session's own account id
+        // into the profile answer: those two are the only answers that say who is signed in.
+        const userId: unknown = operation === 'user_detail'
+            ? responsePayload(response)?.userid
+            : confirmedSignIn(operation, response)?.userId;
+        if (typeof userId === 'string' || typeof userId === 'number') rememberSignedInAccountId(String(userId));
+    };
+
+    // Main answers what it was asked, or the bridge's one line. A call that does not get there (the main entry
+    // is not running) is the local service stopping: the bridge's own `api=unloaded`.
+    const callBridge = async (operation: KugouOperation, params: KugouParams): Promise<unknown> => {
+        let result: KugouBridgeResult;
+        try {
+            result = await env.call<KugouBridgeResult>('request', operation, params);
+        } catch (failure) {
+            const detail = failure instanceof Error ? failure.message : String(failure);
+            throw toKugouProviderError(env.error, operation, new Error(`KuGouApi[operation=${operation} api=unloaded]: ${detail}`));
+        }
+        if (!result.ok) throw toKugouProviderError(env.error, operation, new Error(result.message));
+        return result.data;
+    };
+
+    // What main answers for a plain request (anonymous search, legacy playInfo): KuGou's status and body text,
+    // or that it could not ask.
+    const callPlain = async (name: string, ...args: unknown[]): Promise<KugouPlainAnswer> => {
+        try {
+            return await env.call<KugouPlainAnswer>(name, ...args);
+        } catch (failure) {
+            return { unreachable: true, message: failure instanceof Error ? failure.message : String(failure) };
+        }
+    };
+
+    return {
+        runtime: 'electron',
+        async request<T>(operation: KugouOperation, params: KugouParams = {}): Promise<T> {
+            // Drop legacy renderer values at the boundary so an old stored token cannot keep circulating.
+            const electronParams = Object.fromEntries(
+                Object.entries(params).filter(([key]) => !['token', 'dfid', 'cookie'].includes(key.toLowerCase())),
+            );
+            // The desktop side cannot be told to stop: past the limit its answer is no longer waited for.
+            // A confirmation that arrives after that is still kept by the main process while the dialog
+            // says there was no answer; the account then shows at the next read of it.
+            const send = () => callBridge(operation, electronParams);
+            const response = await (LOGIN_REQUESTS.has(operation) ? withLoginRequestLimit(send) : send());
+            persistAccountHint(operation, response);
+            return response as T;
+        },
+        async anonymousSearch(keyword, page, pagesize) {
+            const answer = await callPlain('anonymousSearch', keyword, page, pagesize);
+            if ('unreachable' in answer) throw env.error('network', `KuGou anonymous search failed: ${answer.message}`);
+            return readAnonymousSearch(env.error, answer.status, answer.bodyText);
+        },
+        async legacyPlayInfo(hash) {
+            const answer = await callPlain('legacyPlayInfo', hash);
+            // Main could not reach the endpoint: no status, a plain network failure (kugouFailure.ts: unreachable).
+            if ('unreachable' in answer) throw env.error('network', `${KUGOU_LEGACY_PLAY_INFO_FAILED}: ${answer.message}`);
+            // Main reached it, so a non-2xx is always m.kugou.com's answer.
+            if (answer.status < 200 || answer.status > 299) {
+                throw env.error('network', `${KUGOU_LEGACY_PLAY_INFO_FAILED}: ${answer.status}`, { httpStatus: answer.status });
             }
-        };
-        // The desktop side cannot be told to stop: past the limit its answer is no longer waited for.
-        // A confirmation that arrives after that is still kept by the main process while the dialog
-        // says there was no answer; the account then shows at the next read of it.
-        const response = await (limited ? withLoginRequestLimit(send) : send());
-        persistElectronAccountHint(operation, response);
-        return response as T;
-    }
+            try {
+                return parseJson(answer.bodyText);
+            } catch (cause) {
+                throw env.error('invalid-response', 'KuGou legacy playInfo returned an unreadable body', { cause });
+            }
+        },
+        // The account id is a non-secret hint that lets this synchronous selector choose authenticated search.
+        hasAuthenticatedSearchSession: () => Boolean(store.get('userid')),
+        userId: () => store.get('userid') ?? '',
+        sessionToken: () => undefined,
+        forgetAccount() {
+            dropRendererCredentials();
+            forgetSignedInAccountId();
+        },
+        getAvailability: () => ({ configured: true }),
+    };
+};
 
-    const base = getWebApiBase();
-    if (!base) {
-        throw new OnlineProviderError('unavailable', KUGOU_API_BASE_MISSING, 'kugou');
+/** The anonymous search's answer, as both transports read it. */
+const readAnonymousSearch = (error: KugouErrorFactory, status: number, bodyText: string): unknown => {
+    if (status < 200 || status > 299) throw error('network', `KuGou anonymous search failed: ${status}`);
+    let body: any;
+    try {
+        body = parseJson(bodyText);
+    } catch (cause) {
+        throw error('invalid-response', 'KuGou anonymous search returned an unreadable body', { cause });
     }
+    const errorCode = Number(body?.error_code);
+    if (Number.isFinite(errorCode) && errorCode !== 0 && errorCode !== 200) {
+        throw error('network', `KuGou anonymous search failed: ${errorCode}`);
+    }
+    return body;
+};
+
+/** The web transport: KuGouMusicApi at the configured address, the session in the page store. */
+export const createWebKugouTransport = (env: KugouTransportEnv, web: KugouWebEnv): KugouTransport => {
+    const store = env.pageStore('kugou');
+    const base = web.apiBase.trim().replace(/\/$/, '');
+
+    /**
+     * Turns a non-2xx Web answer into the host's error. 401/403 still mean the login was rejected; anything else
+     * stays `network`, its status in the sentence (kugouFailure.ts reads it), the error_code KuGou answered with in
+     * the cause where the body has one, and the wait a 429 asks for. A 152 in the body is deliberately not promoted
+     * to auth-required, keeping the current Web logout behavior.
+     */
+    const toKugouWebHttpError = async (response: Response): Promise<FoliumSourceError> => {
+        const message = `KuGouMusicApi request failed: ${response.status}`;
+        if (KUGOU_AUTH_FAILURE_STATUSES.has(response.status)) {
+            return env.error('auth-required', message);
+        }
+        let responseBody: any;
+        try {
+            responseBody = await response.json();
+        } catch {
+            responseBody = undefined;
+        }
+        const body = responseBody?.body ?? responseBody;
+        const errorCode = toFiniteNumber(body?.error_code ?? body?.errcode);
+        const retryAfterMs = response.status === 429 ? readRetryAfterMs(response) : undefined;
+        return env.error('network', message, {
+            ...(errorCode === undefined ? {} : { cause: { errorCode } }),
+            httpStatus: response.status,
+            ...(retryAfterMs === undefined ? {} : { retryAfterMs }),
+        });
+    };
+
+    const getWebSessionCookie = (): string => {
+        const values = new Map<string, string>();
+        const storedCookie = store.get('cookie');
+        storedCookie?.split(';').forEach(entry => {
+            const separator = entry.indexOf('=');
+            if (separator <= 0) return;
+            values.set(entry.slice(0, separator).trim(), entry.slice(separator + 1).trim());
+        });
+
+        const token = store.get('token');
+        const userId = store.get('userid');
+        const dfid = store.get('dfid');
+        if (dfid) values.set('dfid', dfid);
+        if (token) values.set('token', token);
+        if (userId) values.set('userid', userId);
+        return Array.from(values, ([key, value]) => `${key}=${value}`).join(';');
+    };
+
+    // Clears the device id; the other cookies are written back as they were (registered for Dedicatus D604).
+    const clearWebDeviceIdentity = (): void => {
+        store.set('dfid', null);
+        const storedCookie = store.get('cookie');
+        if (!storedCookie) return;
+        const retained = storedCookie.split(';').filter(entry => entry.trim() && !/^\s*dfid=/i.test(entry));
+        if (retained.length > 0) {
+            store.set('cookie', retained.join(';'));
+        } else {
+            store.set('cookie', null);
+        }
+    };
+
+    /**
+     * The one place the web session's account is written (registered for Dedicatus D604): the cookies,
+     * the token and the account id of a confirmed sign-in, the token and the id as a whole pair.
+     */
+    const rememberConfirmedSignIn = (signIn: { token: string; userId: string }, cookieEntries: string[]): void => {
+        if (cookieEntries.length) store.set('cookie', cookieEntries.join('; '));
+        store.set('token', signIn.token);
+        store.set('userid', signIn.userId);
+    };
+
+    const ACCOUNT_COOKIE_ENTRY = /^(token|userid|user_id)=/i;
+
+    /**
+     * The cookies any other answer brings (registered for Dedicatus D604): it drops the account ones
+     * itself, which only a confirmed sign-in writes (#1101).
+     */
+    const rememberSessionCookies = (cookieEntries: string[]): void => {
+        const kept = cookieEntries.filter(entry => !ACCOUNT_COOKIE_ENTRY.test(entry));
+        if (kept.length) store.set('cookie', kept.join('; '));
+    };
+
+    /** The web session goes whole: the sign-out, or a sign-in KuGou no longer takes (registered for Dedicatus D604). */
+    const forgetWebSession = (): void => {
+        store.set('cookie', null);
+        store.set('token', null);
+        store.set('userid', null);
+        store.set('dfid', null);
+    };
+
+    const persistWebSession = (operation: KugouOperation, response: any): void => {
+        const signIn = confirmedSignIn(operation, response);
+        const cookies = response?.cookie || response?.data?.cookie;
+        const cookieEntries = (typeof cookies === 'string' ? cookies.split(';')
+            : Array.isArray(cookies) ? cookies.map(String) : [])
+            .map(entry => entry.trim())
+            .filter(Boolean);
+        // Half of a pair is not taken: the other half would be the previous account's. Account cookies of
+        // any other answer are left out, like its account fields.
+        if (signIn?.token) rememberConfirmedSignIn({ token: signIn.token, userId: signIn.userId }, cookieEntries);
+        else rememberSessionCookies(cookieEntries);
+        const dfid = responsePayload(response)?.dfid;
+        if (dfid) store.set('dfid', String(dfid));
+    };
+
     const execute = async (targetOperation: KugouOperation, targetParams: KugouParams): Promise<any> => {
         const query = new URLSearchParams();
         Object.entries(targetParams).forEach(([key, value]) => {
@@ -527,23 +489,57 @@ export const requestKugou = async <T = unknown>(operation: KugouOperation, param
             if (!response.ok) throw await toKugouWebHttpError(response);
             try {
                 return await response.json();
-            } catch (error) {
-                throw new OnlineProviderError('invalid-response', `KuGouMusicApi ${targetOperation} returned an unreadable body`, 'kugou', error);
+            } catch (cause) {
+                throw env.error('invalid-response', `KuGouMusicApi ${targetOperation} returned an unreadable body`, { cause });
             }
         };
         // Every request made for a sign-in operation is limited, the device registration it may need too.
-        const responseBody = await (limited ? withLoginRequestLimit(send) : send());
+        const responseBody = await (LOGIN_REQUESTS.has(targetOperation) ? withLoginRequestLimit(send) : send());
         // What a sign-out is answered with is the session that just left: it is not written back.
         if (targetOperation !== 'logout') persistWebSession(targetOperation, responseBody);
         const body = responseBody?.body ?? responseBody;
         return body;
     };
 
-    let body = await execute(operation, params);
-    if (operation !== 'register_dev' && isDeviceVerificationRequired(body)) {
-        clearWebDeviceIdentity();
-        await execute('register_dev', {});
-        body = await execute(operation, params);
-    }
-    return body as T;
+    return {
+        runtime: 'web',
+        async request<T>(operation: KugouOperation, params: KugouParams = {}): Promise<T> {
+            if (!base) throw env.error('unavailable', KUGOU_API_BASE_MISSING);
+            let body = await execute(operation, params);
+            if (operation !== 'register_dev' && isDeviceVerificationRequired(body)) {
+                clearWebDeviceIdentity();
+                await execute('register_dev', {});
+                body = await execute(operation, params);
+            }
+            return body as T;
+        },
+        async anonymousSearch(keyword, page, pagesize) {
+            const request = buildKugouAnonymousSearch(keyword, page, pagesize, web.md5);
+            const response = await fetch(web.relayUrl(request.url), { method: 'GET', credentials: 'omit', headers: request.headers });
+            return readAnonymousSearch(env.error, response.status, await response.text());
+        },
+        async legacyPlayInfo(hash) {
+            const request = buildKugouLegacyPlayInfo(hash);
+            const response = await fetch(web.relayUrl(request.url), { method: 'GET', credentials: 'omit', headers: request.headers });
+            if (!response.ok) {
+                const status = isLyricProxyOwnFailureStatus(response.status) ? undefined : response.status;
+                throw env.error('network', `${KUGOU_LEGACY_PLAY_INFO_FAILED}: ${response.status}`, status === undefined ? undefined : { httpStatus: status });
+            }
+            try {
+                return await response.json();
+            } catch (cause) {
+                throw env.error('invalid-response', 'KuGou legacy playInfo returned an unreadable body', { cause });
+            }
+        },
+        hasAuthenticatedSearchSession() {
+            const cookie = getWebSessionCookie();
+            return ['token', 'userid', 'dfid'].every(key => (
+                new RegExp(`(?:^|;)\\s*${key}=[^;]+`, 'i').test(cookie)
+            ));
+        },
+        userId: () => store.get('userid') ?? '',
+        sessionToken: () => store.get('token') ?? undefined,
+        forgetAccount: forgetWebSession,
+        getAvailability: () => (base ? { configured: true } : { configured: false, reason: 'not-configured' }),
+    };
 };
