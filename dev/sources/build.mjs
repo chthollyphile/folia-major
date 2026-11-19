@@ -172,8 +172,10 @@ const readStamp = (outDir) => {
 
 /*
  * 构建一个音源目录到 `outRoot/<目录名>/`。`cache`（watch 时跨次保留）记着依赖闭包的结构和归档名：
- * 结构没变就不重算内容指纹，也不重新打归档。
- * @returns {Promise<{ id: string, modId: string, outDir: string, fingerprint: string, changed: string[], warnings: string[] }>}
+ * 结构没变就不重算内容指纹，也不重新打归档。返回的 `archive` 是 deps 归档的规模与这次花的时间（没有归档时是 null）：
+ * `packed` 说这次是不是真打了（false 是沿用已有的同名归档），`closureMs` 是算闭包、文件表和指纹，`packMs` 是打包。
+ * @returns {Promise<{ id: string, modId: string, outDir: string, fingerprint: string, changed: string[], warnings: string[],
+ *   archive: { name: string, bytes: number, packages: number, files: number, packed: boolean, closureMs: number, packMs: number } | null }>}
  */
 export const buildSource = async (sourceDir, { outRoot = DEFAULT_OUT_ROOT, cache = new Map() } = {}) => {
     const id = path.basename(sourceDir);
@@ -192,24 +194,38 @@ export const buildSource = async (sourceDir, { outRoot = DEFAULT_OUT_ROOT, cache
     const outputs = [];
     const asarRoots = [...modes].filter(([, mode]) => mode === 'asar').map(([name]) => name);
     let asarName = null;
+    let archive = null;
     if (asarRoots.length > 0) {
         if (!entries.main && entries.workers.length === 0) throw new Error(`${sourceDir}: 声明了 asar 依赖（${asarRoots.join('、')}），却没有 main 入口或 worker`);
+        const closureStartedAt = performance.now();
         const closure = dependencyClosure(asarRoots, specs, sourceDir);
         const shape = closureShape(closure);
         const known = cache.get(id);
+        let fileCount = known?.files ?? 0;
+        let packMs = 0;
+        let packed = false;
         if (known?.shape === shape && fs.existsSync(path.join(outDir, known.asarName))) {
             asarName = known.asarName;
         } else {
             const files = closureFiles(closure);
+            fileCount = files.length;
             asarName = `deps.${closureFingerprint(files)}.asar`;
             if (!fs.existsSync(path.join(outDir, asarName))) {
                 fs.mkdirSync(outDir, { recursive: true });
                 const temporary = path.join(outDir, `.${asarName}.${process.pid}.tmp`);
+                const packStartedAt = performance.now();
                 await packArchive(files, temporary);
                 fs.renameSync(temporary, path.join(outDir, asarName));
-                log(`${id}: ${asarName}（${closure.size} 个包、${files.length} 个文件）`);
+                packMs = Math.round(performance.now() - packStartedAt);
+                packed = true;
             }
-            cache.set(id, { shape, asarName });
+            cache.set(id, { shape, asarName, files: fileCount });
+        }
+        const bytes = fs.statSync(path.join(outDir, asarName)).size;
+        const closureMs = Math.round(performance.now() - closureStartedAt) - packMs;
+        archive = { name: asarName, bytes, packages: closure.size, files: fileCount, packed, closureMs, packMs };
+        if (packed) {
+            log(`${id}: ${asarName}（${closure.size} 个包、${fileCount} 个文件、${(bytes / 1048576).toFixed(1)} MB，闭包 ${closureMs} ms、打包 ${packMs} ms）`);
         }
     }
 
@@ -264,7 +280,7 @@ export const buildSource = async (sourceDir, { outRoot = DEFAULT_OUT_ROOT, cache
     if (previous?.fingerprint !== fingerprint || JSON.stringify(previous?.files) !== JSON.stringify(files)) {
         writeIfChanged(path.join(outDir, BUILD_STAMP), `${JSON.stringify(stamp, null, 2)}\n`);
     }
-    return { id, modId: manifest.id, outDir, fingerprint, changed: previous?.fingerprint === fingerprint ? [] : changed, warnings };
+    return { id, modId: manifest.id, outDir, fingerprint, changed: previous?.fingerprint === fingerprint ? [] : changed, warnings, archive };
 };
 
 /** 构建脚本自己产出的模组目录：带 build.json。清理只碰这种。 */
@@ -277,7 +293,7 @@ const builtDirsIn = (outRoot) => (fs.existsSync(outRoot)
 /**
  * 全量构建：`root` 下选中的音源（selectSourceIds）加上 `extra` 里的目录。`prune` 时把 `outRoot` 里这次没构建、
  * 却是本脚本产出的模组目录删掉（带 build.json 的才算），产物目录就和这次的选择一致。
- * @param {{ root?: string, outRoot?: string, extra?: string[], bundled?: string, prune?: boolean, cache?: Map<string, { shape: string, asarName: string }> }} [options]
+ * @param {{ root?: string, outRoot?: string, extra?: string[], bundled?: string, prune?: boolean, cache?: Map<string, { shape: string, asarName: string, files: number }> }} [options]
  */
 export const buildSources = async ({
     root = DEFAULT_SOURCES_ROOT, outRoot = DEFAULT_OUT_ROOT, extra = [], bundled = process.env.FOLIA_BUNDLED_SOURCES, prune = true, cache = new Map(),

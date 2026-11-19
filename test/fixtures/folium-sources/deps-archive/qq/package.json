@@ -1,0 +1,13 @@
+{
+  "name": "@folia-sources/deps-archive-qq",
+  "private": true,
+  "description": "依赖归档样例：上游库声明成 asar，版本和根 package.json 钉的一致（构建核对装着的版本）。",
+  "dependencies": {
+    "@yakult-green-tea/qq-music-api": "3.3.6"
+  },
+  "folia": {
+    "dependencies": {
+      "@yakult-green-tea/qq-music-api": "asar"
+    }
+  }
+}

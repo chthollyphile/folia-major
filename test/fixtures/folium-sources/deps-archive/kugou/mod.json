@@ -1,0 +1,13 @@
+{
+  "folium": 2,
+  "id": "deps-archive-kugou",
+  "name": "依赖归档样例：kugou",
+  "version": "1.0.0",
+  "author": "Folia",
+  "description": "Folium 2.0 方案 §10 第 2 步的依赖归档样例：kugoumusicapi 的生产依赖闭包打成 deps.<指纹>.asar，main 入口从归档加载它并起后端。只给 test/manual/folium2DepsArchiveSmoke.mjs 用，不注册音源、不迁移这一家。",
+  "client": "client.mjs",
+  "main": "index.cjs",
+  "sources": [
+    { "id": "sample", "name": "Deps archive sample (kugou)" }
+  ]
+}

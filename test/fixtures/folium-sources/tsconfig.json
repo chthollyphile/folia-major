@@ -6,5 +6,5 @@
       "@folia/folium-source-kit": ["../../../packages/folium-source-kit/src/index.ts"]
     }
   },
-  "include": ["*/core/**/*", "*/client/**/*", "*/main/**/*", "client-only/*/client/**/*"]
+  "include": ["*/core/**/*", "*/client/**/*", "*/main/**/*", "client-only/*/client/**/*", "deps-archive/*/client/**/*", "deps-archive/*/main/**/*", "deps-archive/shared/**/*"]
 }

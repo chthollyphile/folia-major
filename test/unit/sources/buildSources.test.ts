@@ -27,6 +27,7 @@ let outRoot: string;
 let outDir: string;
 let asarName: string;
 let vendorName: string;
+let firstArchive: Awaited<ReturnType<typeof buildSource>>['archive'];
 
 const read = (name: string) => fs.readFileSync(path.join(outDir, name), 'utf8');
 const temporary = (name: string) => fs.mkdtempSync(path.join(work, `${name}-`));
@@ -75,6 +76,7 @@ beforeAll(async () => {
     outRoot = path.join(work, 'dist-mods');
     const result = await buildSource(FIXTURE, { outRoot });
     outDir = result.outDir;
+    firstArchive = result.archive;
     asarName = fs.readdirSync(outDir).find((name) => /^deps\.[0-9a-f]{16}\.asar$/.test(name)) ?? '';
     vendorName = fs.readdirSync(outDir).find((name) => /^vendor\.[0-9a-f]{16}\.mjs$/.test(name)) ?? '';
 }, 60_000);
@@ -137,6 +139,20 @@ describe('dev/sources/build.mjs builds a source directory into a mod directory',
         expect(entries.filter((entry) => /bundle-dep|esm-only|native-addon/.test(entry))).toEqual([]);
     });
 
+    it('reports the archive it packed: name, size, packages, files', () => {
+        expect(firstArchive).toMatchObject({
+            name: asarName,
+            bytes: fs.statSync(path.join(outDir, asarName)).size,
+            packages: 2,
+            packed: true,
+        });
+        // The closure is the two local packages: every file under each, nested node_modules aside.
+        const countFiles = (dir: string): number => fs.readdirSync(dir, { withFileTypes: true })
+            .filter((entry) => entry.name !== 'node_modules')
+            .reduce((sum, entry) => sum + (entry.isDirectory() ? countFiles(path.join(dir, entry.name)) : 1), 0);
+        expect(firstArchive?.files).toBe(countFiles(path.join(FIXTURE, 'deps/asar-dep')) + countFiles(path.join(FIXTURE, 'deps/asar-leaf')));
+    });
+
     it('generates zh-TW.json from zh-CN.json and copies the rest as they are', () => {
         expect(JSON.parse(read('locales/zh-TW.json'))).toEqual({ source: { name: '構建夾具音源', short: '構建夾具' } });
         expect(read('locales/en.json')).toBe(fs.readFileSync(path.join(FIXTURE, 'locales/en.json'), 'utf8'));
@@ -175,6 +191,8 @@ describe('dev/sources/build.mjs builds a source directory into a mod directory',
         const before = fs.statSync(path.join(outDir, BUILD_STAMP)).mtimeMs;
         const again = await buildSource(FIXTURE, { outRoot });
         expect(again.changed).toEqual([]);
+        // The archive of the same name is there already: not packed again, and reported as such.
+        expect(again.archive).toMatchObject({ name: asarName, bytes: firstArchive?.bytes, packed: false, packMs: 0 });
         expect(fs.statSync(path.join(outDir, BUILD_STAMP)).mtimeMs).toBe(before);
         expect(again.fingerprint).toBe(JSON.parse(read(BUILD_STAMP)).fingerprint);
     }, 60_000);

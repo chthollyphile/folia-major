@@ -88,6 +88,9 @@ package.json 里声明了的包、main 与 worker 里的 Node 内置模块。`el
 | `vendor` | ESM-only 的包，只给 main 与 worker | 用到的这类包一起打成 `vendor.<指纹>.mjs`，入口 `require('./vendor.<指纹>.mjs')`（Node 的 require(esm)：vendor 里不能有顶层 await；文件名带指纹，因为 require(esm) 载入的模块在 Node 的 ESM 缓存里，清 `require.cache` 清不掉，原地覆盖的文件重载后还是旧的） |
 | `native` | 原生件（`.node`、伴侣程序） | 不打包、不进归档；源码 import 它是构建错误，经 `api.native.load(name)` / `api.native.path(name)` 引用（清单 `native` 与受信表那一行的 `native`） |
 
+`buildSource` 交回的 `archive` 是 deps 归档的规模和这次的耗时（名字、字节数、包数、文件数、这次有没有真打、算闭包与指纹的毫秒数、
+打包的毫秒数），打了新归档时也打一行日志。
+
 `deps` 归档的文件名带内容指纹：Electron 按路径把 `.asar` 的文件表缓存到进程结束，原地换内容会读到旧的表（方案 §13）。
 归档里有 `.node` 文件时构建报错（asar 里加载不了原生件，把那个包声明成 `native`）。watch 时闭包的结构（每个包的位置、版本）
 没变就不重算指纹、不重打归档；内容变了但版本没变（手改 `node_modules`）要重启 watch 或者跑一次全量构建。
@@ -98,3 +101,18 @@ package.json 里声明了的包、main 与 worker 里的 Node 内置模块。`el
   装着 Electron 时用它的 Node 模式 `ELECTRON_RUN_AS_NODE=1` 直接读 `.asar`），每种写错了会报的错。
 - `test/unit/mod-system/builtinBuildWatch.test.ts`：产物在主进程的加载器里以 `builtin` 层级加载、rpc 走通；改 `build.json` 只重载那一个。
 - 构建夹具：`test/fixtures/folium-sources/fixture-source/`（client、core、main、worker、语言表、四种依赖各一个本地包）。
+
+## 三个真实上游库的依赖归档样例
+
+方案 §10「剩余阶段的顺序」第 2 步：`test/fixtures/folium-sources/deps-archive/` 下的网易云、酷狗、QQ 三个样例，各把上游库
+声明成 `asar`，main 入口（网易云在 worker 里）从归档加载它、照宿主现在的做法起后端、发一个不需要登录的请求。只是样例：
+不注册音源，也不替换宿主里这三家的静态注册和后端。
+
+```bash
+node test/manual/folium2DepsArchiveSmoke.mjs
+```
+
+脚本构建三个样例，复制一份 Electron 摆出安装版的布局（冒烟的主进程在 `resources/app.asar`，样例在
+`resources/builtin-mods/`），启动它，打印每家「加载 / 后端起来 / 请求」的结果和耗时，再把模组目录的大小和覆盖包的上限对一下。
+请求失败分成网络和别的原因；默认只有加载或后端失败才算失败，`--strict-request` 时非网络的请求失败也算。CI 上由
+`.github/workflows/folium2-deps-archive-smoke.yml` 在三个系统上跑。
