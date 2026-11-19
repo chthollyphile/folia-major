@@ -20,6 +20,7 @@ import { useProviderSignOut } from './components/app/dialogs/useProviderSignOut'
 import LoginHost from './components/login/LoginHost';
 import { useSettingsDialogModel } from './components/app/dialogs/useSettingsDialogModel';
 import AppOverlays from './components/app/overlays/AppOverlays';
+import SurfacePlaybackHost from './components/app/playback/surface/SurfacePlaybackHost';
 import PonderHost from './components/ponder/PonderHost';
 // Lazy so animejs (~38KB gz) stays out of the bootstrap chunk: this overlay only ever draws when the
 // animation switch is on AND the mode is automix, both off by default, so it is mounted only then.
@@ -2850,6 +2851,9 @@ export default function App() {
                 )}
             </AnimatePresence>
             </WallToolsDockHost>
+
+            {/* Folium `playback.surface`: a source's own picture under the player page, kept for the window's life. */}
+            <SurfacePlaybackHost visible={currentView === 'player'} />
 
             {/* --- VISUALIZER (Background Layer & Main Click Target) --- */}
             {/* 指针隐藏跟着控制栏的空闲时钟走，不另起一套计时：控件收起时页面上已经没有可点的东西，

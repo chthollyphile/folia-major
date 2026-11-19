@@ -27,7 +27,7 @@ import { untransformedLyrics } from '../../../../services/hostExtensionHooks';
 import { lyricsBeforeRules } from '../../../../utils/lyrics/lyricLineRules';
 import { reportYieldedQueue, wholeQueueWritesSoFar } from '../../../../services/wholeQueueWrites';
 import { getHifiPosition, installHifiPlayback, isHifiRoute, releaseUnclaimedHifiTrack } from '../../../../services/hifi/hifiPlayback';
-import { adoptExternalPlayback, getExternalPosition, getExternalSong, handOverExternalPlayback, handOverExternalPlaybackDuringRestore, isExternalPlaybackSounding, isExternalRoute, pauseExternalPlayback, reclaimExternalPlayback, releaseUnclaimedExternalTrack } from '../../../../services/onlineMusic/externalPlayback';
+import { adoptExternalPlayback, getExternalPosition, getExternalSong, handOverExternalPlayback, handOverExternalPlaybackDuringRestore, isExternalPlaybackSounding, isExternalRoute, pauseExternalPlayback, reclaimExternalPlayback, releaseUnclaimedExternalTrack, restartSurfaceAfterHandoff } from '../../../../services/onlineMusic/externalPlayback';
 import { omni } from '../../../../services/onlineMusic/omni';
 import { hifiEngine } from '../../../../services/hifi/hifiEngine';
 
@@ -386,6 +386,19 @@ export function useElectronWindowPlaybackHandoff({
         // released above when nothing restores it), the song is shown paused, and the play path
         // starts it when the listener asks.
         if (!omni.canPlayExternally(snapshot.currentSong)) return;
+        const handedSong = snapshot.currentSong;
+        if (omni.playsOnSurface(handedSong)) {
+            // A surface player (plan §4.2) was the old window's own page and went with it: there is nothing
+            // to take over (nor to stop). The song starts again where the snapshot left it if it was playing;
+            // paused, it waits for the listener's play as after a restart. External players keep the adoption
+            // below untouched: they outlive the window, and starting them again would race the one sounding.
+            const wanted = () => stillWanted() && askedSongKeyRef.current === getPlaybackSongKey(handedSong);
+            shouldAutoPlayRef.current = false;
+            if (restored === 'restored' && stillThatSong && snapshot.playerState === PlayerState.PLAYING
+                && await restartSurfaceAfterHandoff(handedSong, snapshot.currentTime, wanted)) return;
+            if (wanted() && usePlaybackStore.getState().playerState === PlayerState.PLAYING) setPlayerState(PlayerState.PAUSED);
+            return;
+        }
         if (restored === 'restored' && stillThatSong) {
             // Nothing of this window starts the player by itself; the adoption says whether it plays.
             shouldAutoPlayRef.current = false;
