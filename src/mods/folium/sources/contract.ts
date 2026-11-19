@@ -34,6 +34,13 @@ export interface FoliumTextKey {
 export interface FoliumI18nService {
     /** A FoliumText that names `key` of the mod's locale files, with `params` for its `{{name}}` places. */
     key(key: string, params?: Record<string, string | number>): FoliumTextKey;
+    /**
+     * The text of `key` of the mod's locale files in the UI language now, with `params` for its `{{name}}` places;
+     * '' where no locale file has it. For a text that has to be a string where the source hands it (a collection's
+     * name); a text the host shows from a FoliumText field is better handed as `key(…)`, which follows a later
+     * change of language.
+     */
+    text(key: string, params?: Record<string, string | number>): string;
 }
 
 /**

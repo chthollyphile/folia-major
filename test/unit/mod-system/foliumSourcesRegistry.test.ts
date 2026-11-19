@@ -97,6 +97,12 @@ describe('the Folium version, two tracks (plan §9)', () => {
         expect(two.sources.supports('search', 1)).toBe(true);
         expect(two.sources.supports('playback.surface', 1)).toBe(false);
         expect(two.i18n.key('a.b', { n: 1 })).toEqual({ i18nKey: 'a.b', params: { n: 1 } });
+        // A key of the mod's own locale files in the UI language now; '' for one no file has.
+        i18n.addResourceBundle(i18n.language, `folium-mod/${MOD}`, { greet: { hi: 'Hi {{name}}' } }, true, true);
+        expect(two.i18n.text('greet.hi', { name: 'Ann' })).toBe('Hi Ann');
+        expect(two.i18n.text('greet.nothing')).toBe('');
+        expect(() => two.i18n.text('bad key')).toThrow(TypeError);
+        i18n.removeResourceBundle(i18n.language, `folium-mod/${MOD}`);
         expect(() => two.sources.register({ id: 'a', displayName: 'x', capabilities: {} })).toThrow(/not-a-source-mod/);
         expect(two.omni.capability('x', 'y')).toBeNull();
         expect(two.lyrics.isPureMusicText('纯音乐，请欣赏')).toBe(true);

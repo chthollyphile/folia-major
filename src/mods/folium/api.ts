@@ -36,6 +36,8 @@ import { FOLIUM_HOST_VERSION, FOLIUM_ONE_VERSION } from './shared';
 import type { FoliumSourceDef, FoliumSourceHandle, FoliumSourcePageStore } from './sources/contract';
 import { createFoliumSourcesService } from './sources/service';
 import { createFoliumI18n } from './sources/i18n';
+import { foliumModTextNamespace } from './registries/sourceText';
+import i18n from '@/i18n/config';
 import { FOLIUM_EVENT_TYPES } from './eventTypes';
 import { addFoliumRpcListener, FOLIUM_RPC_NAME_PATTERN } from './rpcMessages';
 import { createFoliumAccountService } from './account';
@@ -302,7 +304,8 @@ export const createFoliumClientApi = (mod: ModRuntimeInfo, options: FoliumClient
             context,
             ...(options.sources ? { register: options.sources.register, pageStore: options.sources.pageStore } : {}),
         }),
-        i18n: createFoliumI18n(),
+        // A key of the mod's own locale files (the namespace the client loader fills, modLocales.ts) in the UI language now.
+        i18n: createFoliumI18n((key, params) => i18n.t(`${foliumModTextNamespace(mod.id)}:${key}`, { ...params, defaultValue: '' })),
     } : {};
 
     return Object.freeze({
