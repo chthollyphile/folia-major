@@ -76,7 +76,7 @@ interface KugouNoUrlAnswer {
 }
 
 // 这种 cause 按对象认（宿主换音源名时 cause 原样带过去）。
-const noUrlAnswers = new WeakSet<object>();
+const noUrlAnswers: WeakSet<object> = new WeakSet();
 
 // 酷狗答了话，却没有给地址：最后一个这样的回答的 status 和 error_code 留在 cause 上。
 // 酷狗的文档和代码里都没有说哪个码是要会员、没有版权或者限地区，所以只引不分。`signedOut`：没有登录的账号，

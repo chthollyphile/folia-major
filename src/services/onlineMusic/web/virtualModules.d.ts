@@ -3,6 +3,7 @@
 // 生成）以 Vite 虚拟模块提供，没有真实文件可供 TS 解析，所以要这份声明。
 
 declare module 'virtual:folia-source/*' {
-    const source: import('./foliumWebSource').WebSourcePackage;
+    import type { WebSourcePackage } from '@/services/onlineMusic/web/foliumWebSource';
+    const source: WebSourcePackage;
     export default source;
 }

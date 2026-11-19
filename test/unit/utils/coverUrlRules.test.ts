@@ -8,7 +8,7 @@ import {
     registerCoverUrlRule,
     type CoverUrlRule,
 } from '@/utils/coverUrl';
-import { registerKugouWebSource } from '@/services/onlineMusic/web/kugou';
+import { registerWebSource as registerKugouWebSource } from '@/services/onlineMusic/web/kugou';
 
 // test/unit/utils/coverUrlRules.test.ts
 // Folium 2.0 plan §7 (utils/coverUrl.ts, coverCache.ts → covers@1): the picture hosts' rules are a registry the

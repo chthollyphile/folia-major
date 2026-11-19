@@ -355,13 +355,13 @@ export const createDesktopKugouTransport = (env: KugouTransportEnv): KugouTransp
 /** The anonymous search's answer, as both transports read it. */
 const readAnonymousSearch = (error: KugouErrorFactory, status: number, bodyText: string): unknown => {
     if (status < 200 || status > 299) throw error('network', `KuGou anonymous search failed: ${status}`);
-    let body: any;
+    let body: unknown;
     try {
         body = parseJson(bodyText);
     } catch (cause) {
         throw error('invalid-response', 'KuGou anonymous search returned an unreadable body', { cause });
     }
-    const errorCode = Number(body?.error_code);
+    const errorCode = Number((body as { error_code?: unknown } | null | undefined)?.error_code);
     if (Number.isFinite(errorCode) && errorCode !== 0 && errorCode !== 200) {
         throw error('network', `KuGou anonymous search failed: ${errorCode}`);
     }
@@ -488,17 +488,16 @@ export const createWebKugouTransport = (env: KugouTransportEnv, web: KugouWebEnv
             const response = await fetch(`${base}${ENDPOINTS[targetOperation]}?${query}`, { credentials: 'include', ...(signal ? { signal } : {}) });
             if (!response.ok) throw await toKugouWebHttpError(response);
             try {
-                return await response.json();
+                return await response.json() as unknown;
             } catch (cause) {
                 throw env.error('invalid-response', `KuGouMusicApi ${targetOperation} returned an unreadable body`, { cause });
             }
         };
         // Every request made for a sign-in operation is limited, the device registration it may need too.
-        const responseBody = await (LOGIN_REQUESTS.has(targetOperation) ? withLoginRequestLimit(send) : send());
+        const responseBody: unknown = await (LOGIN_REQUESTS.has(targetOperation) ? withLoginRequestLimit(send) : send());
         // What a sign-out is answered with is the session that just left: it is not written back.
         if (targetOperation !== 'logout') persistWebSession(targetOperation, responseBody);
-        const body = responseBody?.body ?? responseBody;
-        return body;
+        return (responseBody as { body?: unknown } | null | undefined)?.body ?? responseBody;
     };
 
     return {
@@ -514,7 +513,7 @@ export const createWebKugouTransport = (env: KugouTransportEnv, web: KugouWebEnv
             return body as T;
         },
         async anonymousSearch(keyword, page, pagesize) {
-            const request = buildKugouAnonymousSearch(keyword, page, pagesize, web.md5);
+            const request = buildKugouAnonymousSearch(keyword, page, pagesize, text => web.md5(text));
             const response = await fetch(web.relayUrl(request.url), { method: 'GET', credentials: 'omit', headers: request.headers });
             return readAnonymousSearch(env.error, response.status, await response.text());
         },
@@ -526,7 +525,7 @@ export const createWebKugouTransport = (env: KugouTransportEnv, web: KugouWebEnv
                 throw env.error('network', `${KUGOU_LEGACY_PLAY_INFO_FAILED}: ${response.status}`, status === undefined ? undefined : { httpStatus: status });
             }
             try {
-                return await response.json();
+                return await response.json() as unknown;
             } catch (cause) {
                 throw env.error('invalid-response', 'KuGou legacy playInfo returned an unreadable body', { cause });
             }

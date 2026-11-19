@@ -849,11 +849,6 @@
       "count": 8
     }
   },
-  "sources/kugou/main/kugouApiBridge.cjs": {
-    "@stylistic/indent": {
-      "count": 373
-    }
-  },
   "electron/linuxPasswordStore.cjs": {
     "@stylistic/indent": {
       "count": 20
@@ -907,7 +902,7 @@
       "count": 38
     },
     "no-useless-assignment": {
-      "count": 3
+      "count": 2
     },
     "preserve-caught-error": {
       "count": 2
@@ -1528,6 +1523,45 @@
   "sources/fnmusic/main/fnmusicApiBridge.cjs": {
     "@stylistic/indent": {
       "count": 306
+    }
+  },
+  "sources/kugou/core/kugouProvider.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 26
+    },
+    "@typescript-eslint/no-unsafe-argument": {
+      "count": 5
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 49
+    },
+    "@typescript-eslint/no-unsafe-call": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 38
+    },
+    "@typescript-eslint/no-unsafe-return": {
+      "count": 4
+    }
+  },
+  "sources/kugou/core/kugouTransport.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 7
+    },
+    "@typescript-eslint/no-unnecessary-condition": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 8
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 20
+    }
+  },
+  "sources/kugou/main/kugouApiBridge.cjs": {
+    "@stylistic/indent": {
+      "count": 373
     }
   },
   "sources/qishui/client/qishuiCatalog.ts": {
@@ -9502,117 +9536,6 @@
       "count": 1
     }
   },
-  "test/manual/kugouLyricProvider.ts": {
-    "@stylistic/indent": {
-      "count": 277
-    },
-    "@typescript-eslint/consistent-type-imports": {
-      "count": 1
-    },
-    "@typescript-eslint/no-base-to-string": {
-      "count": 1
-    },
-    "@typescript-eslint/no-explicit-any": {
-      "count": 9
-    },
-    "@typescript-eslint/no-redundant-type-constituents": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 2
-    },
-    "@typescript-eslint/no-unsafe-argument": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 28
-    },
-    "@typescript-eslint/no-unsafe-call": {
-      "count": 7
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 39
-    },
-    "@typescript-eslint/no-unsafe-return": {
-      "count": 2
-    },
-    "dedicatus/restricted-apis": {
-      "count": 1
-    }
-  },
-  "sources/kugou/core/kugouProvider.ts": {
-    "@typescript-eslint/no-base-to-string": {
-      "count": 24
-    },
-    "@typescript-eslint/no-explicit-any": {
-      "count": 45
-    },
-    "@typescript-eslint/no-non-null-assertion": {
-      "count": 1
-    },
-    "@typescript-eslint/no-redundant-type-constituents": {
-      "count": 5
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 7
-    },
-    "@typescript-eslint/no-unnecessary-type-conversion": {
-      "count": 2
-    },
-    "@typescript-eslint/no-unsafe-argument": {
-      "count": 7
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 105
-    },
-    "@typescript-eslint/no-unsafe-call": {
-      "count": 2
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 72
-    },
-    "@typescript-eslint/no-unsafe-return": {
-      "count": 3
-    },
-    "@typescript-eslint/only-throw-error": {
-      "count": 1
-    },
-    "@typescript-eslint/require-await": {
-      "count": 2
-    },
-    "@typescript-eslint/use-unknown-in-catch-callback-variable": {
-      "count": 2
-    },
-    "no-extra-boolean-cast": {
-      "count": 1
-    }
-  },
-  "sources/kugou/core/kugouTransport.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 11
-    },
-    "@typescript-eslint/no-non-null-assertion": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 6
-    },
-    "@typescript-eslint/no-unnecessary-type-assertion": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unnecessary-type-conversion": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 12
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 22
-    },
-    "@typescript-eslint/no-unsafe-return": {
-      "count": 1
-    }
-  },
   "src/services/onlineMusic/listeningRank.ts": {
     "@typescript-eslint/no-unnecessary-condition": {
       "count": 1
@@ -11751,7 +11674,7 @@
       "count": 997
     },
     "@typescript-eslint/consistent-type-imports": {
-      "count": 56
+      "count": 55
     },
     "@typescript-eslint/no-explicit-any": {
       "count": 4
@@ -11948,6 +11871,14 @@
   "test/manual/issue125-inject-invalid-embedded-cover.js": {
     "@stylistic/indent": {
       "count": 41
+    }
+  },
+  "test/manual/kugouLyricProvider.ts": {
+    "@stylistic/indent": {
+      "count": 277
+    },
+    "@typescript-eslint/consistent-type-imports": {
+      "count": 1
     }
   },
   "test/manual/kugou_test.ts": {
@@ -12623,7 +12554,7 @@
   },
   "test/unit/mod-system/foliumOmni.test.ts": {
     "@typescript-eslint/consistent-type-imports": {
-      "count": 2
+      "count": 1
     }
   },
   "test/unit/mod-system/foliumQueueVersion.test.ts": {
@@ -12663,11 +12594,6 @@
     }
   },
   "test/unit/onlineMusic/accountRead.test.ts": {
-    "@typescript-eslint/consistent-type-imports": {
-      "count": 1
-    }
-  },
-  "test/unit/onlineMusic/kugouProvider.test.ts": {
     "@typescript-eslint/consistent-type-imports": {
       "count": 1
     }

@@ -1,6 +1,6 @@
 import md5 from 'blueimp-md5';
 import source from 'virtual:folia-source/kugou';
-import { KUGOU_COVER_HOSTS, createSource } from '../../../../sources/kugou/core';
+import { COVER_HOSTS, createSource } from '../../../../sources/kugou/core';
 import { lyricProxyWebUrl } from '../../lyricProxy';
 import { registerFoliumWebSource } from './foliumWebSource';
 
@@ -13,12 +13,12 @@ import { registerFoliumWebSource } from './foliumWebSource';
 // The configured address. Unit tests set it on process.env (Vite's own env is fixed when a test file loads).
 const getWebApiBase = (): string => (
     (import.meta.env.MODE !== 'test' ? String(import.meta.env.VITE_KUGOU_API_BASE || '') : '')
-    || (typeof process !== 'undefined' ? String(process.env.VITE_KUGOU_API_BASE || '') : '')
+    || (typeof process !== 'undefined' ? (process.env.VITE_KUGOU_API_BASE || '') : '')
 );
 
 /** Registers the source on the web; hands back its host ids. */
-export const registerKugouWebSource = (): string[] => registerFoliumWebSource({
+export const registerWebSource = (): string[] => registerFoliumWebSource({
     package: source,
     create: env => createSource({ ...env, web: { apiBase: getWebApiBase(), md5: text => md5(text), relayUrl: lyricProxyWebUrl } }),
-    proxiedCoverHosts: KUGOU_COVER_HOSTS,
+    proxiedCoverHosts: COVER_HOSTS,
 });

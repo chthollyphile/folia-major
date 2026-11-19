@@ -49,6 +49,13 @@ export const CREDENTIAL_WRITERS = {
         rememberSignedInAccountId: ['userid'],
         // 清掉设备 id，其余 cookie 原样写回
         clearWebDeviceIdentity: ['cookie'],
+        // 下面三个只写 null（页面存储没有单独的删除，set(key, null) 就是删）：
+        // 桌面版清掉旧版本写进窗口存储的凭据（凭据只在主进程的桥里）
+        dropRendererCredentials: ['cookie', 'token'],
+        // 桌面版退出时去掉账号 id 提示
+        forgetSignedInAccountId: ['userid'],
+        // 网页版的会话整个去掉：退出，或酷狗不再认的登录
+        forgetWebSession: ['cookie', 'token', 'userid'],
     },
     'src/services/onlineMusic/qq/qqTransport.ts': {
         // 只在 login_qr_check 确认（code 803）时写

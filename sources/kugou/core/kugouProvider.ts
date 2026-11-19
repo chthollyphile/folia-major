@@ -165,12 +165,12 @@ const idText = (value: unknown): string => (
 const dataText = (data: KugouSongData | undefined, key: string): string => idText(data?.[key]);
 
 // Artists without an id of KuGou's get one of their own, which opens nowhere (`ref: false`).
-const normalizeArtists = (raw: any): FoliumSourceNamedRef[] => {
-    const singers = valueOf(raw, 'Singers', 'singers', 'singerinfo', 'authors', 'artists');
-    const usesSingerInfo = singers === raw?.singerinfo;
+const normalizeArtists = (raw: unknown): FoliumSourceNamedRef[] => {
+    const singers: unknown = valueOf(raw, 'Singers', 'singers', 'singerinfo', 'authors', 'artists');
+    const usesSingerInfo = singers === valueOf(raw, 'singerinfo');
     if (Array.isArray(singers)) {
-        return singers.map((artist: any, index: number): FoliumSourceNamedRef => {
-            const base = artist?.base ?? artist;
+        return singers.map((artist: unknown, index: number): FoliumSourceNamedRef => {
+            const base: unknown = valueOf(artist, 'base') ?? artist;
             const authorId = valueOf(base, 'author_id', 'authorId')
                 ?? (usesSingerInfo ? valueOf(base, 'id') : undefined);
             const id = idText(authorId);
@@ -385,11 +385,11 @@ const createKugouRecommendationCollection = (
     };
 };
 
-const hasMatchingKugouHash = (metadata: any, song: FoliumSourceSong): boolean => {
+const hasMatchingKugouHash = (metadata: unknown, song: FoliumSourceSong): boolean => {
     const expectedHash = (song.lyricIds?.kugou || dataText(song.data, 'hash')).toUpperCase();
     if (!expectedHash) return false;
 
-    const audioInfo = metadata?.audio_info ?? metadata?.audioInfo ?? {};
+    const audioInfo: unknown = valueOf(metadata, 'audio_info', 'audioInfo') ?? {};
     return [
         valueOf(audioInfo, 'hash', 'FileHash', 'fileHash'),
         valueOf(audioInfo, 'hash_128', 'hash128'),
@@ -428,7 +428,7 @@ const isSuccessfulKugouVipMutation = (raw: any): boolean => {
     return errCode === 0 && status === 1;
 };
 
-const normalizeCollection = (raw: any, type = 'playlist', owned = false): FoliumSourceCollection => {
+const normalizeCollection = (raw: unknown, type = 'playlist', owned = false): FoliumSourceCollection => {
     const id = type === 'playlist'
         ? valueOf(raw, 'global_collection_id', 'globalCollectionId', 'specialid', 'specialId', 'id')
         : type === 'album'
@@ -525,14 +525,15 @@ const pageOfWithRawItemCount = <T>(
     };
 };
 
-const pageOf = <T>(items: T[], raw: any, limit: number, offset: number): FoliumSourcePage<T> => {
-    const data = dataOf(raw);
-    const total = Number(data?.total ?? raw?.total ?? data?.total_count ?? raw?.total_count ?? data?.count ?? items.length);
+const pageOf = <T>(items: T[], raw: unknown, limit: number, offset: number): FoliumSourcePage<T> => {
+    const data: unknown = dataOf(raw);
+    const total = Number(valueOf(data, 'total') ?? valueOf(raw, 'total') ?? valueOf(data, 'total_count') ?? valueOf(raw, 'total_count')
+        ?? valueOf(data, 'count') ?? items.length);
     return { items, total, hasMore: offset + items.length < total || items.length === limit, nextOffset: offset + items.length };
 };
 
 // Keeps one result per song (its hash) while preserving search ranking order.
-const normalizeKugouSearchSongs = (rawItems: any[]): FoliumSourceSong[] => {
+const normalizeKugouSearchSongs = (rawItems: unknown[]): FoliumSourceSong[] => {
     const seenSongKeys = new Set<string>();
     return rawItems
         .map(normalizeKugouSong)
@@ -636,7 +637,7 @@ export const createKugouSource = (env: KugouSourceTexts, transport: KugouTranspo
     const getKugouUserId = (): string => transport.userId();
 
     const kugouRecommendationTrackCache = new Map<number, FoliumSourceSong[]>();
-    const kugouCatalogMetadataRequests = new Map<string, Promise<any>>();
+    const kugouCatalogMetadataRequests = new Map<string, Promise<unknown>>();
     const kugouAnonymousSearchFallbackKeywords = new Set<string>();
     const kugouChorusRangesCache = new Map<string, Promise<Array<{ startTime: number; endTime: number }>>>();
     const kugouLikedPlaylistRefCache = new Map<string, KugouLikedPlaylistRef>();
@@ -683,7 +684,7 @@ export const createKugouSource = (env: KugouSourceTexts, transport: KugouTranspo
         };
     };
 
-    const requestKugouCatalogMetadata = (lookupId: string): Promise<any> => {
+    const requestKugouCatalogMetadata = (lookupId: string): Promise<unknown> => {
         const cached = kugouCatalogMetadataRequests.get(lookupId);
         if (cached) return cached;
 
@@ -716,8 +717,8 @@ export const createKugouSource = (env: KugouSourceTexts, transport: KugouTranspo
         const metadata = await requestKugouCatalogMetadata(lookupId);
         if (!metadata || !hasMatchingKugouHash(metadata, song)) return song;
 
-        const base = metadata.base ?? {};
-        const albumInfo = metadata.album_info ?? metadata.albumInfo ?? {};
+        const base: unknown = valueOf(metadata, 'base') ?? {};
+        const albumInfo: unknown = valueOf(metadata, 'album_info', 'albumInfo') ?? {};
         const albumId = valueOf(albumInfo, 'album_id', 'albumId')
             ?? valueOf(base, 'album_id', 'albumId');
         const albumName = String(
@@ -742,11 +743,11 @@ export const createKugouSource = (env: KugouSourceTexts, transport: KugouTranspo
         };
     };
 
-    const normalizeUser = (raw: any): FoliumSourceUser => {
-        const data = dataOf(raw);
-        const profile = data?.user_info ?? data?.userinfo ?? data?.profile ?? data;
-        const avatarUrl = coverOf(profile) || valueOf(profile, 'avatar', 'pic');
-        const backgroundUrl = valueOf(profile, 'background', 'backgroundUrl', 'bg_pic');
+    const normalizeUser = (raw: unknown): FoliumSourceUser => {
+        const data: unknown = dataOf(raw);
+        const profile: unknown = valueOf(data, 'user_info', 'userinfo', 'profile') ?? data;
+        const avatarUrl: unknown = coverOf(profile) || valueOf(profile, 'avatar', 'pic');
+        const backgroundUrl: unknown = valueOf(profile, 'background', 'backgroundUrl', 'bg_pic');
         return {
             id: idText(valueOf(profile, 'userid', 'user_id', 'id', 'uid')) || getKugouUserId(),
             nickname: String(valueOf(profile, 'nickname', 'nick_name', 'username', 'name') || ''),
@@ -823,14 +824,15 @@ export const createKugouSource = (env: KugouSourceTexts, transport: KugouTranspo
             keywords: query, keyword: query, type: kind === 'album' ? 'album' : 'special', page, pagesize: limit,
         });
         const rawItems = listOf(response);
-        const items = rawItems.flatMap((raw: any): FoliumSourceCollection[] => {
+        const items = rawItems.flatMap((item: unknown): FoliumSourceCollection[] => {
+            const raw: Record<string, unknown> = item && typeof item === 'object' ? item as Record<string, unknown> : {};
             const collection = kind === 'album'
-                ? normalizeCollection({ ...raw, album_id: raw?.albumid, album_name: raw?.albumname, song_count: raw?.songcount }, 'album')
-                : normalizeCollection({ ...raw, global_collection_id: raw?.gid, play_count: raw?.total_play_count ?? raw?.play_count }, 'playlist');
+                ? normalizeCollection({ ...raw, album_id: raw.albumid, album_name: raw.albumname, song_count: raw.songcount }, 'album')
+                : normalizeCollection({ ...raw, global_collection_id: raw.gid, play_count: raw.total_play_count ?? raw.play_count }, 'playlist');
             if (collection.id === '') return [];
             // 歌单的创建者只有一个昵称（nickname / suid），normalizeCollection 不读它。
-            const nickname = kind === 'playlist' && typeof raw?.nickname === 'string' ? raw.nickname.trim() : '';
-            return [nickname ? { ...collection, creator: { id: idText(raw?.suid), nickname } } : collection];
+            const nickname = kind === 'playlist' && typeof raw.nickname === 'string' ? raw.nickname.trim() : '';
+            return [nickname ? { ...collection, creator: { id: idText(raw.suid), nickname } } : collection];
         });
         const paged = pageOfWithRawItemCount(items, response, limit, offset, rawItems.length);
         // 按页码翻：一页不满 limit 条时，offset + 条数会让下一次又落回这一页。
@@ -880,7 +882,7 @@ export const createKugouSource = (env: KugouSourceTexts, transport: KugouTranspo
         return request;
     };
 
-    const getKugouLyricCandidate = async (song: FoliumSourceSong): Promise<any> => {
+    const getKugouLyricCandidate = async (song: FoliumSourceSong): Promise<unknown> => {
         const albumAudioId = song.data?.albumAudioId
             ?? song.data?.mixSongId
             ?? song.data?.catalogLookupId;
@@ -890,25 +892,26 @@ export const createKugouSource = (env: KugouSourceTexts, transport: KugouTranspo
             man: 'no',
             ...(albumAudioId !== undefined ? { album_audio_id: idText(albumAudioId) } : {}),
         });
-        const candidates = (response as any)?.candidates;
-        return Array.isArray(candidates) ? candidates[0] ?? null : null;
+        const candidates: unknown = valueOf(response, 'candidates');
+        return Array.isArray(candidates) ? candidates[0] as unknown ?? null : null;
     };
 
     // Fetches the server-decoded KRC payload: the host parses it (line- and word-timed both), the chorus comes
     // with it where the song has words, and the instrumental notice is read by the host's own rule.
     const getKugouLyrics = async (song: FoliumSourceSong): Promise<FoliumSourceLyricsResult | null> => {
         const candidate = await getKugouLyricCandidate(song);
-        if (!candidate?.id || !candidate?.accesskey) return null;
+        const candidateId = idText(valueOf(candidate, 'id'));
+        const accessKey = idText(valueOf(candidate, 'accesskey'));
+        if (!candidateId || !accessKey) return null;
 
         const response = await requestKugou('lyric', {
-            id: idText(candidate.id),
-            accesskey: idText(candidate.accesskey),
+            id: candidateId,
+            accesskey: accessKey,
             fmt: 'krc',
             decode: true,
         });
-        const lyricText = typeof (response as any)?.decodeContent === 'string'
-            ? (response as any).decodeContent as string
-            : '';
+        const decoded: unknown = valueOf(response, 'decodeContent');
+        const lyricText = typeof decoded === 'string' ? decoded : '';
         if (!lyricText) return null;
         const track = { format: 'krc' as const, text: lyricText };
         if (env.isPureMusicText(lyricText)) return { main: track, wordByWord: track, isPureMusic: true };
@@ -930,7 +933,7 @@ export const createKugouSource = (env: KugouSourceTexts, transport: KugouTranspo
         });
     };
 
-    const getKugouUserPlaylistItems = async (userId: string): Promise<any[]> => {
+    const getKugouUserPlaylistItems = async (userId: string): Promise<unknown[]> => {
         const response = await requestKugou('user_playlist', {
             userid: userId,
             page: 1,
@@ -940,7 +943,7 @@ export const createKugouSource = (env: KugouSourceTexts, transport: KugouTranspo
     };
 
     // Loads the raw album metadata needed by KuGou's playlist-based album subscription endpoint.
-    const getKugouAlbumDetailRaw = async (id: string): Promise<any> => {
+    const getKugouAlbumDetailRaw = async (id: string): Promise<unknown> => {
         const response = await requestKugou('album_detail', { id });
         const data = dataOf(response);
         const rawAlbum = listOf(response)[0] ?? data?.album ?? data;
@@ -982,7 +985,7 @@ export const createKugouSource = (env: KugouSourceTexts, transport: KugouTranspo
     };
 
     // Finds KuGou's built-in "我喜欢" playlist, which is the provider's song-like collection.
-    const getKugouLikedPlaylist = async (userId: string): Promise<any> => {
+    const getKugouLikedPlaylist = async (userId: string): Promise<unknown> => {
         const items = await getKugouUserPlaylistItems(userId);
         return items.find(isKugouLikedPlaylist) ?? null;
     };
@@ -1081,8 +1084,8 @@ export const createKugouSource = (env: KugouSourceTexts, transport: KugouTranspo
         });
     };
 
-    const normalizeKugouHistoryEntries = (response: any) => {
-        const entries = listOf(response).map((item: any) => ({
+    const normalizeKugouHistoryEntries = (response: unknown) => {
+        const entries = listOf(response).map((item: unknown) => ({
             id: String(valueOf(item, 'date', 'history_name', 'id') || ''),
             label: String(valueOf(item, 'history_name', 'date', 'name') || ''),
             data: jsonData([['date', valueOf(item, 'date')], ['historyName', valueOf(item, 'history_name')]]),
@@ -1351,7 +1354,8 @@ export const createKugouSource = (env: KugouSourceTexts, transport: KugouTranspo
 
                     console.warn('[KuGouProvider] playback:unavailable', { hash, requestedQuality: quality, attemptedQualities: qualities });
                     if (noUrlSeen || firstFailure === undefined) throw kugouNoUrlError(env.error, noUrlSeen, !transport.hasAuthenticatedSearchSession());
-                    throw firstFailure;
+                    // What failed first, as it was thrown (narrowed to `{} | null` by the check above, which says nothing new).
+                    throw firstFailure as unknown;
                 },
             },
             'lyrics@1': {
@@ -1811,7 +1815,8 @@ export const createKugouSource = (env: KugouSourceTexts, transport: KugouTranspo
                     const rawAlbum = await getKugouAlbumDetailRaw(id);
                     if (!rawAlbum) return;
                     const albumId = idText(valueOf(rawAlbum, 'album_id', 'AlbumID', 'albumId')) || id;
-                    const firstAuthor = Array.isArray(rawAlbum.authors) ? rawAlbum.authors[0]?.base ?? rawAlbum.authors[0] : undefined;
+                    const authors: unknown = valueOf(rawAlbum, 'authors');
+                    const firstAuthor: unknown = Array.isArray(authors) ? valueOf(authors[0], 'base') ?? authors[0] : undefined;
                     const creatorUserId = idText(valueOf(rawAlbum, 'list_create_userid', 'create_userid', 'author_id', 'authorId', 'userid')
                         ?? valueOf(firstAuthor, 'author_id', 'authorId', 'id'));
                     if (!creatorUserId) return;

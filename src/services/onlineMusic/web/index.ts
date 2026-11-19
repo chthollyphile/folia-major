@@ -1,6 +1,6 @@
 import type { OnlineMusicProvider, OnlineProviderId } from '../../../types/onlineMusic';
 import { registerOnlineMusicProvider } from '../providerRegistry';
-import { registerKugouWebSource } from './kugou';
+import { registerWebSource as registerKugouWebSource } from './kugou';
 import { createNeteaseWebSource } from './netease';
 import { createQqWebSource } from './qq';
 

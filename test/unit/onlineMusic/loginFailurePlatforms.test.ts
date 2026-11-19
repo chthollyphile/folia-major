@@ -11,7 +11,7 @@ import { loginCaseOf, loginFailureFacts } from '@/services/onlineMusic/login/log
 import { failureNoteKey } from '@/components/login/window/loginView';
 import { setBuiltinSourceRpc } from '../helpers/builtinSources';
 import { sourcesRegistry } from '@/mods/folium/registries/sources';
-import { registerKugouWebSource } from '@/services/onlineMusic/web/kugou';
+import { registerWebSource as registerKugouWebSource } from '@/services/onlineMusic/web/kugou';
 
 // test/unit/onlineMusic/loginFailurePlatforms.test.ts
 // Which case each platform's own failure sorts to, through the real facade, adapter and
@@ -525,7 +525,7 @@ describe('KuGou', () => {
     it('no-answer: a desktop check that is not answered in 20 s; no other request is timed', async () => {
         vi.useFakeTimers();
         // The request goes to the main entry, which cannot be told to stop.
-        const kugouRequest = vi.fn((_operation: string) => new Promise(() => { }));
+        const kugouRequest = vi.fn<(operation: string) => Promise<never>>(() => new Promise(() => { }));
         desktop(kugouRequest);
         expect((await unanswered('check', () => omni.checkLogin('kugou', 'qr-key'))).id).toBe('no-answer');
         void getOnlineMusicProvider('kugou')!.catalog!.getArtistDetail!('1').catch(() => { });

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cacheLocalSongOnlineCover, getCachedCoverUrl, loadCachedOrFetchCover } from '@/services/coverCache';
 import { getFromCache, removeFromCache, saveToCache } from '@/services/db';
 import { readCoverAsset, removeCoverAsset, writeCoverAsset } from '@/services/binaryAssetStore';
-import { registerKugouWebSource } from '@/services/onlineMusic/web/kugou';
+import { registerWebSource as registerKugouWebSource } from '@/services/onlineMusic/web/kugou';
 
 vi.mock('@/services/db', () => ({
     getFromCache: vi.fn(),

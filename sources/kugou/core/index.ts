@@ -17,8 +17,9 @@ import { createDesktopKugouTransport, createWebKugouTransport, type KugouWebEnv 
 export type { KugouWebEnv } from './kugouTransport';
 export type { KugouBridgeResult, KugouOperation, KugouParams } from './kugouTransport';
 export { KUGOU_OPERATIONS } from './kugouTransport';
-// The picture hosts covers@1 knows: the web build fetches their covers through the lyric proxy (no CORS headers).
-export { KUGOU_COVER_HOSTS } from './kugouCovers';
+// The picture hosts covers@1 knows: the web build fetches their covers through the lyric proxy (no CORS headers). Under
+// a name without the platform's, so the web build's file (src/services/onlineMusic/web/) names it no more than it must.
+export { KUGOU_COVER_HOSTS as COVER_HOSTS } from './kugouCovers';
 
 /** What createSource is handed: the desktop client's env, and on the web the web build's pieces. */
 export interface KugouSourceEnv {
@@ -38,14 +39,14 @@ export interface KugouSourceEnv {
 export const createSource = (env: KugouSourceEnv): FoliumSourceDef => {
     const transportEnv = {
         call: <T>(name: string, ...args: unknown[]) => env.call<T>(name, ...args),
-        error: env.error,
-        pageStore: env.pageStore,
+        error: (...args: Parameters<KugouSourceEnv['error']>) => env.error(...args),
+        pageStore: (sourceId: string) => env.pageStore(sourceId),
     };
     const transport = env.web ? createWebKugouTransport(transportEnv, env.web) : createDesktopKugouTransport(transportEnv);
     return createKugouSource({
         text: key => env.text(key),
         translate: key => env.translate(key),
-        error: env.error,
+        error: (...args: Parameters<KugouSourceEnv['error']>) => env.error(...args),
         isPureMusicText: text => env.isPureMusicText(text),
     }, transport);
 };

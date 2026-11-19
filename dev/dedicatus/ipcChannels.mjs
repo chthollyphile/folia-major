@@ -55,8 +55,6 @@ export const IPC_CHANNELS = {
     'has-audio-cache': { level: 'first-party', why: '按歌问有没有缓存，等于听歌记录（firstParty）' },
     'has-local-cover-asset': { level: 'first-party', why: '查本地歌曲封面（firstParty）' },
     'key-capture-active': { level: 'any', why: '只改调用者自己那个窗口的菜单键拦截' },
-    'kugou-api-request': { level: 'first-party', why: '现状：有来源校验' },
-    'kugou-api-status': { level: 'first-party', why: '现状：有来源校验' },
     'legacy-models-check': { level: 'first-party', why: '查旧模型目录，会删设置项（firstParty）' },
     'legacy-models-open': { level: 'first-party', why: '在系统里打开文件夹（firstParty）' },
     'legacy-models-resolve': { level: 'first-party', why: '删旧模型文件（firstParty）' },

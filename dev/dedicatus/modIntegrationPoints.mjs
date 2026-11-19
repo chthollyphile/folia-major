@@ -34,5 +34,6 @@ export const MOD_INTEGRATION_POINTS = [
     'src/dev/mockSong.ts', // README 没写（待补）
     'src/dev/mockLibrary.ts', // README 没写（待补）：与 mockSong 同一种开发用接入（播放服务 + 歌曲 DTO）
     'src/hooks/useRemoteControlActions.ts', // README 没写（待补）
+    'src/services/onlineMusic/web/foliumWebSource.ts',
     'src/services/remoteControlActions.ts',
 ];

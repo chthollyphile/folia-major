@@ -69,7 +69,7 @@ export interface WebSourceEnv {
 
 export interface FoliumWebSource {
     package: WebSourcePackage;
-    create(env: WebSourceEnv): FoliumSourceDef | FoliumSourceDef[];
+    create: (env: WebSourceEnv) => FoliumSourceDef | FoliumSourceDef[];
     /** Picture hosts (`host` or `*.domain`) fetched through the lyric proxy on the web. */
     proxiedCoverHosts?: readonly string[];
 }
