@@ -4,7 +4,7 @@
 
 import { canClose } from './guards.mjs';
 import { isMaintainerAssociation, moduleLabel } from './config.mjs';
-import { renderCloseComment, renderDiagnosisComment, renderDiagnosisSection, renderTriageComment } from './comments.mjs';
+import { renderCloseComment, renderDiagnosisComment, renderDiagnosisSection, renderRewriteComment, renderTriageComment } from './comments.mjs';
 import { createPlan, finalizePlan } from './plan.mjs';
 import { compareVersions } from './version.mjs';
 
@@ -34,6 +34,29 @@ function providerRequestFor({ facts, llm, isBugLike, config, issue }) {
             .map(item => item.issue),
     };
 }
+
+const WISHLIST_TYPES = new Set(['feature', 'other']);
+
+// 「愿望清单」：一个 issue 塞进一长串互不相关的需求（#1298）。LLM 判断加确定性的结构门槛，两道都过才请作者拆分或改写，
+// 到期未改由 decide-stale 关闭。返回 marker 里的 rewrite 状态：null（没有）、{ askedAt }（等待修改）、{ cancelled: true }（维护者撤了标签）。
+function rewriteFor({ facts, llm, previous, issue, isBugLike, providerRequest, config, nowIso }) {
+    const before = previous?.rewrite ?? null;
+    if (before?.cancelled) return before;
+    // 标记过、标签却不在了：维护者手动撤掉，之后不再追究。
+    if (before?.askedAt && !issue.labels.includes('needs-rewrite')) return { cancelled: true };
+    if (isBugLike || providerRequest) return null;
+    const { minListItems, minSections, confidence, exemptAssociations } = config.wishlist;
+    // 合并过 PR 的贡献者常写结构完整的长提案（#403、#496、#1090），不按这条规则追究。
+    if (exemptAssociations.includes(issue.authorAssociation)) return null;
+    if (facts.structure.listItems < minListItems || facts.structure.sections < minSections) return null;
+    // 这次没拿到 LLM 结论（熔断、作者回复不重跑分类）：维持上一次的判断，不凭结构单独起一次标记。
+    if (!llm) return before;
+    if (!WISHLIST_TYPES.has(llm.type) || !(llm.wishlistConfidence >= confidence)) return null;
+    // 截止时间从第一次标记算起，作者反复编辑不会续期。
+    return { askedAt: before?.askedAt ?? nowIso };
+}
+
+export const rewriteDeadline = (askedAt, config) => new Date(Date.parse(askedAt) + config.wishlist.graceDays * 24 * 60 * 60 * 1000).toISOString();
 
 // 旧版本的扫码诊断要并入的汇总 issue；新版本的诊断更完整，可能是新问题，返回 null。
 export function qrAggregateFor(facts, config, issueNumber) {
@@ -153,6 +176,14 @@ export function decideIssue(input) {
         related.push(llm.duplicateOf);
     }
 
+    // ---- 需求过散：请作者拆分或改写 ----
+    const rewrite = rewriteFor({ facts, llm, previous, issue, isBugLike, providerRequest, config, nowIso });
+    const rewritePending = Boolean(rewrite?.askedAt);
+    const rewriteReceived = !rewrite && Boolean(previous?.rewrite?.askedAt);
+    if (rewritePending) plan.labelsAdd.push('needs-rewrite');
+    else plan.labelsRemove.push('needs-rewrite');
+    const rewriteSection = rewritePending ? { deadline: rewriteDeadline(rewrite.askedAt, config), days: config.wishlist.graceDays } : null;
+
     // ---- 追问 ----
     const needsErrorLog = llm ? llm.needsErrorLog : previous?.needsErrorLog ?? null;
     const missing = [];
@@ -190,11 +221,12 @@ export function decideIssue(input) {
         tldr,
         diagnosis,
         reason,
+        rewrite,
         manualRuns,
         updatedAt: nowIso,
     };
 
-    const hasContent = module || tldr || diagnosis || providerRequest || missing.length || infoReceived || relatedUnique.length;
+    const hasContent = module || tldr || diagnosis || providerRequest || missing.length || infoReceived || relatedUnique.length || rewritePending || rewriteReceived;
     if (hasContent) {
         plan.upsert = {
             kind: 'triage',
@@ -211,8 +243,14 @@ export function decideIssue(input) {
                 related: relatedUnique,
                 reason,
                 rateLimited,
+                rewrite: rewriteSection,
+                rewriteReceived,
             }),
         };
+    }
+    // 已有 triage 评论时（例如熔断后补跑才判出来）原地更新不会通知作者：第一次标记单独回一条，好让作者知道有期限。
+    if (rewritePending && !previous?.rewrite?.askedAt && previous) {
+        plan.comments.push(renderRewriteComment({ at: nowIso, ...rewriteSection }));
     }
     // 作者后来补了新的诊断报告：triage 评论是原地更新的，不会通知，单独回一条诊断。
     if (diagnosis && previous && FOLLOWUP_TRIGGERS.has(trigger) && diagnosis.reportHash !== previous.diagnosis?.reportHash) {

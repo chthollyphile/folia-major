@@ -157,6 +157,71 @@ describe('decideIssue', () => {
     });
 });
 
+describe('decideIssue wishlist', () => {
+    // 结构上像 #1298：好几个小节、十几条互不相关的需求。
+    const wishlistBody = [
+        '### 一句话诉求', '想要一个只放本地歌的版本。',
+        '### 为什么', '- 用不到账号', '- 启动太慢', '- 状态太多',
+        '### 希望包含', '**保留**', '- 海报墙', '- 歌词', '- 播放队列', '- 搜索',
+        '**移除**', '- 登录', '- 在线源', '- 推荐',
+        '### 加分项', '1. 只留壁纸模式', '2. 居中搜索框', '3. 封面原图', '4. 隐藏任务栏',
+    ].join('\n');
+    const wishlistLlm = (patch: Record<string, unknown> = {}) => ({ status: 'ok', value: llmValue({ type: 'feature', module: 'desktop', wishlistConfidence: 0.95, ...patch }) });
+    const run = (patch: Record<string, unknown> = {}, options: Record<string, unknown> = {}) => decide(
+        { title: '做一个纯本地版', body: wishlistBody, labels: ['enhancement'], ...patch },
+        { llm: wishlistLlm(), ...options },
+    );
+    const previousState = (rewrite: unknown) => ({ kind: 'triage', module: 'desktop', missing: [], bodyHash: 'old', rewrite });
+
+    it('asks for a rewrite with a deadline instead of closing', () => {
+        const plan = run();
+        expect(plan.close).toBeNull();
+        expect(plan.labelsAdd).toContain('needs-rewrite');
+        expect(plan.upsert?.body).toContain('请拆分或改写这个 issue');
+        expect(plan.upsert?.body).toContain('7 天内');
+        expect(plan.upsert?.body).not.toMatch(/AI 写|AI 生成的内容/);
+        // 新 issue 的 triage 评论本身会通知作者，不用再另发一条。
+        expect(plan.comments).toEqual([]);
+    });
+
+    it('needs both the LLM and the structure gate', () => {
+        expect(run({}, { llm: wishlistLlm({ wishlistConfidence: 0.6 }) }).labelsAdd).not.toContain('needs-rewrite');
+        expect(run({ body: '### 需求\n- 歌词字体能调大\n- 调大后不要换行' }).labelsAdd).not.toContain('needs-rewrite');
+        expect(run({}, { llm: null }).labelsAdd).not.toContain('needs-rewrite');
+        expect(run({ title: '[BUG] x', labels: ['bug'] }, { llm: wishlistLlm({ type: 'bug' }) }).labelsAdd).not.toContain('needs-rewrite');
+        expect(run({ authorAssociation: 'OWNER' }).labelsAdd).not.toContain('needs-rewrite');
+        expect(run({ authorAssociation: 'CONTRIBUTOR' }).labelsAdd).not.toContain('needs-rewrite');
+    });
+
+    it('keeps the original deadline across edits that are still a wishlist', () => {
+        const askedAt = daysAgo(3);
+        const plan = run({ labels: ['enhancement', 'needs-rewrite'] }, { trigger: 'edited', previous: previousState({ askedAt }) });
+        expect(plan.upsert?.body).toContain(`"askedAt":"${askedAt}"`);
+        expect(plan.labelsRemove).not.toContain('needs-rewrite');
+    });
+
+    it('clears the mark once the author rewrote it', () => {
+        const plan = run({ labels: ['enhancement', 'needs-rewrite'], body: '### 需求\n只扫描本地文件夹，不显示登录引导。' }, { trigger: 'edited', previous: previousState({ askedAt: daysAgo(3) }) });
+        expect(plan.labelsRemove).toContain('needs-rewrite');
+        expect(plan.upsert?.body).toContain('已收到修改');
+    });
+
+    it('stops once a maintainer took the label off', () => {
+        const plan = run({ labels: ['enhancement'] }, { trigger: 'edited', previous: previousState({ askedAt: daysAgo(3) }) });
+        expect(plan.labelsAdd).not.toContain('needs-rewrite');
+        expect(plan.upsert?.body).toContain('"cancelled":true');
+        const later = run({ labels: ['enhancement'] }, { trigger: 'rerun', previous: previousState({ cancelled: true }) });
+        expect(later.labelsAdd).not.toContain('needs-rewrite');
+    });
+
+    it('posts a separate notice when the triage comment already existed', () => {
+        const plan = run({}, { trigger: 'rerun', previous: previousState(null) });
+        expect(plan.labelsAdd).toContain('needs-rewrite');
+        expect(plan.comments).toHaveLength(1);
+        expect(plan.comments[0]).toContain('请拆分或改写这个 issue');
+    });
+});
+
 describe('decidePr', () => {
     const pr = (patch: Record<string, unknown> = {}) => ({ ...makeIssue({ number: 700, title: 'fix(qq): 修复扫码登录', isPullRequest: true }), draft: false, ...patch });
     const run = (prPatch: Record<string, unknown> = {}, options: Record<string, unknown> = {}) => decidePr({
@@ -260,6 +325,15 @@ describe('decideStale', () => {
         expect(run({ labels: ['enhancement', 'provider-request'] }).labelsAdd).toEqual([]);
         expect(run({ number: 484, labels: ['bug'] }).labelsAdd).toEqual([]);
         expect(run({ labels: ['bug'], assignees: 1 }).labelsAdd).toEqual([]);
+    });
+
+    it('closes needs-rewrite after the grace days even with an exempt label', () => {
+        const triage = (askedAt: string) => ({ author: config.botLogin, body: renderMarker({ kind: 'triage', rewrite: { askedAt } }), createdAt: askedAt });
+        const labels = ['enhancement', 'provider-request', 'needs-rewrite'];
+        expect(run({ labels }, [triage(daysAgo(8))]).close).toEqual({ reason: 'rewrite-timeout', stateReason: 'not_planned' });
+        expect(run({ labels }, [triage(daysAgo(5))]).close).toBeNull();
+        expect(run({ labels, assignees: 1 }, [triage(daysAgo(8))]).close).toBeNull();
+        expect(run({ labels: [...labels, 'bot: skip'] }, [triage(daysAgo(8))]).close).toBeNull();
     });
 
     it('respects the per-run close cap', () => {

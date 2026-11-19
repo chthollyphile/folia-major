@@ -1,5 +1,5 @@
 // .github/scripts/triage/lib/decide-stale.mjs
-// 陈旧清理决策：needs-info 超期关闭、长期无活动标记 stale、stale 超期关闭。
+// 陈旧清理决策：needs-rewrite 到期关闭、needs-info 超期关闭、长期无活动标记 stale、stale 超期关闭。
 // 起点时间取 bot 的 marker 或时间线里的打标签时间，而不是 updated_at——bot 自己的操作也会刷新它。
 
 import { canClose } from './guards.mjs';
@@ -24,11 +24,7 @@ export function decideStale({ issue, comments, timeline, config, mode, now, clos
     const plan = createPlan(issue.number, issue.isPullRequest ? 'pr' : 'issue');
     const nowIso = new Date(now).toISOString();
     const botLogin = config.botLogin;
-    const exempt = isExempt(issue, config, config.aggregates.map(item => item.issue));
-    if (exempt) {
-        plan.notes.push(`豁免：${exempt}`);
-        return finalizePlan(plan, issue.labels, config);
-    }
+    const aggregateNumbers = config.aggregates.map(item => item.issue);
     const humanComments = comments.filter(comment => comment.author !== botLogin && !isBotLogin(comment.author));
     const history = { reopened: timeline.reopened, botClosedBefore: timeline.botClosedBefore, maintainerCommented: false };
     const close = (reason, details) => {
@@ -42,6 +38,21 @@ export function decideStale({ issue, comments, timeline, config, mode, now, clos
         plan.close = { reason, stateReason: 'not_planned' };
         return true;
     };
+
+    // 0. needs-rewrite 到期：stale 的豁免标签对它不生效（#1298 被误打了 provider-request，按豁免就永远关不掉）；
+    //    assignee、milestone、锁定、bot: skip、重开过这些护栏照常由 canClose 把关。作者改好后由 triage 撤掉标签，所以这里不看回复。
+    if (!issue.isPullRequest && issue.labels.includes('needs-rewrite') && !aggregateNumbers.includes(issue.number)) {
+        const askedAt = findBotComment(comments, botLogin, 'triage')?.state.rewrite?.askedAt ?? timeline.labeledAt('needs-rewrite');
+        if (askedAt && daysSince(askedAt, now) > config.wishlist.graceDays) close('rewrite-timeout', { days: config.wishlist.graceDays });
+        else plan.notes.push('needs-rewrite 未到期');
+        return finalizePlan(plan, issue.labels, config);
+    }
+
+    const exempt = isExempt(issue, config, aggregateNumbers);
+    if (exempt) {
+        plan.notes.push(`豁免：${exempt}`);
+        return finalizePlan(plan, issue.labels, config);
+    }
 
     // 1. needs-info 超期：起点之后作者没有任何回复。作者编辑正文会触发重新追问并刷新起点。
     if (!issue.isPullRequest && issue.labels.includes('needs-info')) {

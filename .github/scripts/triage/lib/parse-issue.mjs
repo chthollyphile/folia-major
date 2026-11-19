@@ -121,12 +121,41 @@ export function proseLength(text) {
 const escapeRegExp = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const REQUEST_VERBS = /支持|接入|添加|加个|加入|增加|适配|对接|能不能|可以.*吗|support|add\b|integrat/i;
 
+const REMOVAL_WORDS = /移除|去掉|去除|删除|删掉|拿掉|不接|不要|不需要|不含|关闭|禁用|remove|without|disable/i;
+const isHeadingLine = line => /^\s*#{1,6}\s+\S/.test(line) || /^\s*\*\*[^*]+\*\*\s*[:：]?\s*$/.test(line);
+
+// 提到平台名的行里，排除「要去掉这些平台」的说法：所在行或所在小节标题带有移除一类的词（#1298：「完全移除的部分」下列出 Spotify / YouTube）。
+function platformMentionLines(text) {
+    const lines = [];
+    let removingSection = false;
+    for (const line of String(text).split('\n')) {
+        if (isHeadingLine(line)) removingSection = REMOVAL_WORDS.test(line);
+        if (!removingSection && !REMOVAL_WORDS.test(line)) lines.push(line);
+    }
+    return lines.join('\n');
+}
+
 // 平台请求的确定性兜底：提到受支持列表之外的平台名，并带有「支持 / 接入」一类的动词。
-export function detectProviderRequest(title, text, kind, providerConfig) {
+// 动词在用户写的内容（text）里找；平台名在保留了小节标题的原文（rawText）里找，才认得出「移除」小节。
+export function detectProviderRequest(title, text, kind, providerConfig, rawText = text) {
     if (kind === 'bug' || kind === 'qr') return { isRequest: false, platforms: [] };
     const haystack = `${title ?? ''}\n${text}`;
-    const platforms = providerConfig.platformNames.filter(name => new RegExp(escapeRegExp(name), 'i').test(haystack));
+    const mentions = platformMentionLines(`${title ?? ''}\n${rawText}`);
+    const platforms = providerConfig.platformNames.filter(name => new RegExp(escapeRegExp(name), 'i').test(mentions));
     return { isRequest: platforms.length > 0 && REQUEST_VERBS.test(haystack), platforms };
+}
+
+// 正文结构的计数（去掉代码块、模板原文）：列表项条数与小节标题数（`#` 标题或独占一行的粗体）。
+// 用来给「一个 issue 塞了一长串需求」的判断兜底，LLM 判了也要过这道确定性门槛。
+export function countStructure(body, templateLines) {
+    const lines = stripHtmlComments(String(body ?? ''))
+        .replace(/```[\s\S]*?```/g, '')
+        .split('\n')
+        .filter(line => line.trim() && !templateLines.has(line.trim()));
+    return {
+        listItems: lines.filter(line => /^\s*(?:[-*+]|\d+[.)、])\s+\S/.test(line)).length,
+        sections: lines.filter(isHeadingLine).length,
+    };
 }
 
 // 汇总所有确定性事实。`extraText` 是作者后续的补充评论，追问是否补齐时一起算。
@@ -148,7 +177,8 @@ export function extractFacts({ title, body, labels, extraText = '' }, { template
         hasErrorLog: hasErrorLog(text),
         effectivelyEmpty: meaningful.length < 15 && !hasImage(text),
         proseLength: proseLength(text),
-        providerRequest: detectProviderRequest(title, text, kind, config.providerRequest),
+        providerRequest: detectProviderRequest(title, text, kind, config.providerRequest, `${stripHtmlComments(body ?? '')}\n${extraText}`),
+        structure: countStructure(body, templateLines),
         mentionsAppleMusic: new RegExp(config.providerRequest.appleMusicPattern, 'i').test(`${title ?? ''}\n${body ?? ''}`),
     };
 }
