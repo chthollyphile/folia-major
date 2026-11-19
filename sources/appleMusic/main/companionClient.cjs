@@ -5,7 +5,9 @@ const { spawn } = require('node:child_process');
 const { validateRequest } = require('./companionRequests.cjs');
 
 // Both hosts use a private parent-owned channel; neither opens a network listener.
-function createCompanionClient({ nativeExecutablePath = '', profilePath, spawnProcess = spawn, createNativeChannel = require('./nativeSpawn.cjs').createNativeSpawn, timeoutMs = 25000 }) {
+// `onRunningChanged(running)` hears when a companion starts and when it goes (closed, exited or lost): the source's
+// main entry holds the app's quit only while one runs.
+function createCompanionClient({ nativeExecutablePath = '', profilePath, spawnProcess = spawn, createNativeChannel = require('./nativeSpawn.cjs').createNativeSpawn, timeoutMs = 25000, onRunningChanged = () => {} }) {
     const spawnNative = createNativeChannel({ spawnProcess });
     let child = null;
     let sequence = 0;
@@ -28,6 +30,7 @@ function createCompanionClient({ nativeExecutablePath = '', profilePath, spawnPr
         if (!path.isAbsolute(nativeExecutablePath || '') || !path.isAbsolute(profilePath || '')) return false;
         const instance = spawnNative(nativeExecutablePath, [`--user-data-dir=${profilePath}`]);
         child = instance;
+        onRunningChanged(true);
         instance.on('message', message => {
             if (instance !== child || !message || typeof message !== 'object' || typeof message.id !== 'string') return;
             const entry = pending.get(message.id);
@@ -40,6 +43,7 @@ function createCompanionClient({ nativeExecutablePath = '', profilePath, spawnPr
             if (child !== instance) return;
             child = null;
             failPending('disconnected');
+            onRunningChanged(false);
         };
         instance.once('error', onClosed);
         instance.once('exit', onClosed);
@@ -126,6 +130,7 @@ function createCompanionClient({ nativeExecutablePath = '', profilePath, spawnPr
             child = null;
             failPending('disconnected');
             if (instance?.connected) instance.disconnect();
+            if (instance) onRunningChanged(false);
         },
     };
 }
