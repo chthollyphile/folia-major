@@ -60,7 +60,7 @@ describe('what each platform declares for the sign-in window', () => {
             qq: { title: 'home.loginTitleQq', note: 'home.loginNoteQq' },
             // Folium 2.0 S5: a source mod's texts are keys of its own locale files (folium-mod/<mod id>).
             bodian: { title: 'folium-mod/bodian:login.title', note: 'folium-mod/bodian:login.note' },
-            fnmusic: { title: 'home.loginTitleFnMusic', note: 'home.loginNoteFnMusic' },
+            fnmusic: { title: 'folium-mod/fnmusic:login.title', note: 'folium-mod/fnmusic:login.note' },
             // The test runs where no browser tells the system: the note is the one for Windows and Linux.
             ytm: { title: 'home.loginTitleYtm', note: 'home.loginNoteYtmBrowser' },
             spotify: { title: 'home.loginTitleSpotify', note: 'home.loginNoteSpotify' },
