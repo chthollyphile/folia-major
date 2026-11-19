@@ -71,9 +71,9 @@ const {
 const { createKugouApiBridge } = require('./kugou/kugouApiBridge.cjs');
 const { createExternalUrlOpener } = require('./externalUrlPolicy.cjs');
 const { createSenderGuardedHandler } = require('./ipcAccessGuard.cjs');
-const { createQishuiApiBridge } = require('./qishui/qishuiApiBridge.cjs');
+const { createQishuiApiBridge } = require('../sources/qishui/main/qishuiApiBridge.cjs');
 const { createFnmusicApiBridge, FN_MUSIC_SCHEME, FN_MUSIC_PRIVILEGED_SCHEME } = require('./fnmusic/fnmusicApiBridge.cjs');
-const { createQishuiMediaPolicy } = require('./qishui/mediaCors.cjs');
+const { createQishuiMediaPolicy } = require('../sources/qishui/main/mediaCors.cjs');
 const { createYtmApiBridge } = require('./ytm/ytmApiBridge.cjs');
 const { createCompanionClient } = require('./appleMusic/companionClient.cjs');
 const { createCompanionRequestHandler } = require('./appleMusic/companionIpc.cjs');

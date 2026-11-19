@@ -1,5 +1,5 @@
 import type { QishuiTrackCheck } from 'qishui-music-api';
-import type { OnlinePlaybackProvider, ProviderAudioSource, ProviderSongAvailability } from '../../../types/onlineMusic';
+import type { OnlinePlaybackProvider, ProviderAudioSource, ProviderSongAvailability } from '../../../src/types/onlineMusic';
 import { normalizeQishuiSong } from './qishuiNormalize';
 import { qishuiSongId } from './qishuiMutations';
 import { QishuiRequestError, requestQishui } from './qishuiTransport';

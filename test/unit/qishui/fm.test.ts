@@ -1,14 +1,14 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_PERSONAL_FM_CATALOG, getPersonalFmSelectionLabel } from '@/services/onlineMusic/fmModes';
 import { usePersonalFmModeStore, getPersonalFmSelection } from '@/stores/usePersonalFmModeStore';
-import { qishuiRecommendations, clearQishuiRecommendations, getQishuiFmCatalog } from '@/services/onlineMusic/qishui/qishuiRecommendations';
-import { requestQishui } from '@/services/onlineMusic/qishui/qishuiTransport';
+import { qishuiRecommendations, clearQishuiRecommendations, getQishuiFmCatalog } from '../../../sources/qishui/client/qishuiRecommendations';
+import { requestQishui } from '../../../sources/qishui/client/qishuiTransport';
 import { buildPersonalFmMatches } from '@/components/command-palette/commands/fmModeOptions';
 import { buildPersonalFmSections } from '@/components/command-palette/surfaces/fmModeSurface';
 import { track } from './fixtures';
 
 // Actual scene IDs, provider-specific persistence and the car's nested feed flags stay aligned.
-vi.mock('@/services/onlineMusic/qishui/qishuiTransport', () => ({ requestQishui: vi.fn(), readQishuiSceneIcon: vi.fn(async () => 'data:image/png;base64,iVBORw0KGgo=') }));
+vi.mock('../../../sources/qishui/client/qishuiTransport', () => ({ requestQishui: vi.fn(), readQishuiSceneIcon: vi.fn(async () => 'data:image/png;base64,iVBORw0KGgo=') }));
 const sceneRows = Array.from({ length: 45 }, (_, i) => ({ id: String(i + 1), name: i === 32 ? '驾车' : `场景 ${i + 1}`, group: '场景音乐',
     coverUrl: { urls: ['https://p3-luna.douyinpic.com/img/'], uri: `scene-${i}.png`, template_prefix: 'tplv-test' } }));
 beforeEach(() => {

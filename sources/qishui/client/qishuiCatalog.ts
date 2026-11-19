@@ -1,6 +1,6 @@
-import i18n from '../../../i18n/config';
-import type { OnlineCatalogProvider, OnlineLibraryProvider, ProviderCollection, ProviderLikedSongIds, ProviderPage } from '../../../types/onlineMusic';
-import { OnlineProviderError } from '../../../types/onlineMusic';
+import i18n from '../../../src/i18n/config';
+import type { OnlineCatalogProvider, OnlineLibraryProvider, ProviderCollection, ProviderLikedSongIds, ProviderPage } from '../../../src/types/onlineMusic';
+import { OnlineProviderError } from '../../../src/types/onlineMusic';
 import { normalizeQishuiCollection, normalizeQishuiSong, record, type QishuiRecord } from './qishuiNormalize';
 import { requestQishui } from './qishuiTransport';
 import { createQishuiSceneCover } from './qishuiSceneCover';

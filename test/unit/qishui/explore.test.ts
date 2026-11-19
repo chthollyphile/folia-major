@@ -1,17 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { qishuiExplore, clearQishuiExplore } from '@/services/onlineMusic/qishui/qishuiExplore';
-import { clearQishuiRecommendations, getQishuiFmCatalog } from '@/services/onlineMusic/qishui/qishuiRecommendations';
-import { clearQishuiPlayback, readQishuiSongs } from '@/services/onlineMusic/qishui/qishuiPlayback';
-import { createQishuiSceneCover } from '@/services/onlineMusic/qishui/qishuiSceneCover';
-import { qishuiProvider } from '@/services/onlineMusic/qishui/qishuiProvider';
-import { readQishuiSceneIcon, requestQishui } from '@/services/onlineMusic/qishui/qishuiTransport';
+import { qishuiExplore, clearQishuiExplore } from '../../../sources/qishui/client/qishuiExplore';
+import { clearQishuiRecommendations, getQishuiFmCatalog } from '../../../sources/qishui/client/qishuiRecommendations';
+import { clearQishuiPlayback, readQishuiSongs } from '../../../sources/qishui/client/qishuiPlayback';
+import { createQishuiSceneCover } from '../../../sources/qishui/client/qishuiSceneCover';
+import { qishuiProvider } from '../../../sources/qishui/client/qishuiProvider';
+import { readQishuiSceneIcon, requestQishui } from '../../../sources/qishui/client/qishuiTransport';
 import type { ProviderExploreItem } from '@/types/onlineMusic';
 import { track } from './fixtures';
 
 // The explore stream across its "more" batches, what a sign-in that ran out drops, and scene artwork
 // whose icon could not be read; the bridge is replaced by a stand-in.
-vi.mock('@/services/onlineMusic/qishui/qishuiTransport', async original => ({
-    ...await original<typeof import('@/services/onlineMusic/qishui/qishuiTransport')>(),
+vi.mock('../../../sources/qishui/client/qishuiTransport', async original => ({
+    ...await original<typeof import('../../../sources/qishui/client/qishuiTransport')>(),
     requestQishui: vi.fn(),
     readQishuiSceneIcon: vi.fn(),
 }));

@@ -3,9 +3,9 @@ import { describe, expect, it, vi } from 'vitest';
 
 // The host owns IPC, OS encryption and media registration; protocol tests live with the npm package.
 const require = createRequire(import.meta.url);
-const { createQishuiApiBridge } = require('../../../electron/qishui/qishuiApiBridge.cjs');
-const { createSessionRepository, SESSION_KEY, DEVICE_KEY } = require('../../../electron/qishui/session.cjs');
-const { createQishuiMediaPolicy } = require('../../../electron/qishui/mediaCors.cjs');
+const { createQishuiApiBridge } = require('../../../sources/qishui/main/qishuiApiBridge.cjs');
+const { createSessionRepository, SESSION_KEY, DEVICE_KEY } = require('../../../sources/qishui/main/session.cjs');
+const { createQishuiMediaPolicy } = require('../../../sources/qishui/main/mediaCors.cjs');
 const store = () => {
     const values = new Map<string, unknown>();
     return { get: (key: string) => values.get(key), set: (key: string, value: unknown) => values.set(key, value), delete: (key: string) => values.delete(key) };

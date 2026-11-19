@@ -1,6 +1,6 @@
-import type { UnifiedSong } from '../../../types';
-import type { ProviderCollection, ProviderUser } from '../../../types/onlineMusic';
-import { OnlineProviderError } from '../../../types/onlineMusic';
+import type { UnifiedSong } from '../../../src/types';
+import type { ProviderCollection, ProviderUser } from '../../../src/types/onlineMusic';
+import { OnlineProviderError } from '../../../src/types/onlineMusic';
 
 // Normalize car entities without rounding 64-bit media IDs or guessing playability from payment labels.
 export type QishuiRecord = Record<string, any>;

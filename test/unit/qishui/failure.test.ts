@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { qishuiProvider } from '@/services/onlineMusic/qishui/qishuiProvider';
-import { describeQishuiFailure } from '@/services/onlineMusic/qishui/qishuiFailure';
-import { clearQishuiPlayback } from '@/services/onlineMusic/qishui/qishuiPlayback';
-import { readQishuiSceneIcon, requestQishui } from '@/services/onlineMusic/qishui/qishuiTransport';
+import { qishuiProvider } from '../../../sources/qishui/client/qishuiProvider';
+import { describeQishuiFailure } from '../../../sources/qishui/client/qishuiFailure';
+import { clearQishuiPlayback } from '../../../sources/qishui/client/qishuiPlayback';
+import { readQishuiSceneIcon, requestQishui } from '../../../sources/qishui/client/qishuiTransport';
 import { onlineFailureOf } from '@/services/onlineMusic/failure/onlineFailureCase';
 import { omni } from '@/services/onlineMusic/omni';
 import { track } from './fixtures';

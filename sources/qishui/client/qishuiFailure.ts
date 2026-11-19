@@ -1,5 +1,5 @@
-import { OnlineProviderError } from '../../../types/onlineMusic';
-import type { OnlineFailureDetail, OnlineFailureOperation } from '../../../types/onlineMusic';
+import { OnlineProviderError } from '../../../src/types/onlineMusic';
+import type { OnlineFailureDetail, OnlineFailureOperation } from '../../../src/types/onlineMusic';
 import { QISHUI_BRIDGE_FAILED, QISHUI_NEEDS_DESKTOP, QishuiRequestError } from './qishuiTransport';
 
 // src/services/onlineMusic/qishui/qishuiFailure.ts

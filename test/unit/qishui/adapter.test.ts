@@ -1,8 +1,8 @@
 import { afterEach, describe, it, expect, vi } from 'vitest';
-import { normalizeQishuiSong, normalizeQishuiCollection } from '@/services/onlineMusic/qishui/qishuiNormalize';
-import { parseQishuiLyrics } from '@/services/onlineMusic/qishui/qishuiLyrics';
-import { requestQishui } from '@/services/onlineMusic/qishui/qishuiTransport';
-import { qishuiProvider } from '@/services/onlineMusic/qishui/qishuiProvider';
+import { normalizeQishuiSong, normalizeQishuiCollection } from '../../../sources/qishui/client/qishuiNormalize';
+import { parseQishuiLyrics } from '../../../sources/qishui/client/qishuiLyrics';
+import { requestQishui } from '../../../sources/qishui/client/qishuiTransport';
+import { qishuiProvider } from '../../../sources/qishui/client/qishuiProvider';
 import { track } from './fixtures';
 
 // Source identity, timing and bridge error propagation exercised independently of the network.

@@ -1,11 +1,11 @@
-import type { OnlineMusicProvider, ProviderPage, LoginState } from '../../../types/onlineMusic';
-import { OnlineProviderError } from '../../../types/onlineMusic';
-import { createProviderSongMetadata } from '../../../utils/songMetadata';
+import type { OnlineMusicProvider, ProviderPage, LoginState } from '../../../src/types/onlineMusic';
+import { OnlineProviderError } from '../../../src/types/onlineMusic';
+import { createProviderSongMetadata } from '../../../src/utils/songMetadata';
 import { requestQishui, getQishuiAvailability, getQishuiLastFailure, QishuiRequestError } from './qishuiTransport';
 import { normalizeQishuiSong, normalizeQishuiUser, normalizeQishuiCollection } from './qishuiNormalize';
 import { qishuiCatalog, qishuiLibrary } from './qishuiCatalog';
 import { parseQishuiLyrics } from './qishuiLyrics';
-import { diagnosticLine } from '../login/loginDiagnosticReport';
+import { diagnosticLine } from '../../../src/services/onlineMusic/login/loginDiagnosticReport';
 import { qishuiExplore, clearQishuiExplore } from './qishuiExplore';
 import { qishuiRecommendations, clearQishuiRecommendations } from './qishuiRecommendations';
 import { qishuiMutations, qishuiSongId as songId } from './qishuiMutations';

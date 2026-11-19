@@ -1,7 +1,7 @@
-import type { OnlineRecommendationProvider, ProviderCollection } from '../../../types/onlineMusic';
-import type { PersonalFmCatalog } from '../../../types/personalFm';
-import { DEFAULT_PERSONAL_FM_CATALOG } from '../fmModes';
-import { getPersonalFmRequestOptions } from '../../../stores/usePersonalFmModeStore';
+import type { OnlineRecommendationProvider, ProviderCollection } from '../../../src/types/onlineMusic';
+import type { PersonalFmCatalog } from '../../../src/types/personalFm';
+import { DEFAULT_PERSONAL_FM_CATALOG } from '../../../src/services/onlineMusic/fmModes';
+import { getPersonalFmRequestOptions } from '../../../src/stores/usePersonalFmModeStore';
 import { requestQishui } from './qishuiTransport';
 import { createQishuiSceneCover } from './qishuiSceneCover';
 import { normalizeQishuiSong, qishuiImage } from './qishuiNormalize';

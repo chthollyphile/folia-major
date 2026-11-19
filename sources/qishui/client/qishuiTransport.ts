@@ -1,5 +1,5 @@
-import { OnlineProviderError } from '../../../types/onlineMusic';
-import type { ProviderErrorCode } from '../../../types/onlineMusic';
+import { OnlineProviderError } from '../../../src/types/onlineMusic';
+import type { ProviderErrorCode } from '../../../src/types/onlineMusic';
 import type { QishuiOperation, QishuiParams, QishuiBridgeResult } from 'qishui-music-api';
 
 // Typed renderer boundary for the car bridge; credentials and player models stay in the main process.

@@ -1033,7 +1033,7 @@
       "count": 3
     }
   },
-  "electron/qishui/session.cjs": {
+  "sources/qishui/main/session.cjs": {
     "dedicatus/restricted-apis": {
       "count": 2
     }
@@ -9888,12 +9888,12 @@
       "count": 9
     }
   },
-  "src/services/onlineMusic/qishui/qishuiCatalog.ts": {
+  "sources/qishui/client/qishuiCatalog.ts": {
     "@typescript-eslint/no-unsafe-assignment": {
       "count": 1
     }
   },
-  "src/services/onlineMusic/qishui/qishuiNormalize.ts": {
+  "sources/qishui/client/qishuiNormalize.ts": {
     "@typescript-eslint/no-base-to-string": {
       "count": 1
     },
@@ -9913,22 +9913,22 @@
       "count": 2
     }
   },
-  "src/services/onlineMusic/qishui/qishuiPlayback.ts": {
+  "sources/qishui/client/qishuiPlayback.ts": {
     "@typescript-eslint/no-non-null-assertion": {
       "count": 1
     }
   },
-  "src/services/onlineMusic/qishui/qishuiProvider.ts": {
+  "sources/qishui/client/qishuiProvider.ts": {
     "@typescript-eslint/require-await": {
       "count": 1
     }
   },
-  "src/services/onlineMusic/qishui/qishuiRecommendations.ts": {
+  "sources/qishui/client/qishuiRecommendations.ts": {
     "@typescript-eslint/use-unknown-in-catch-callback-variable": {
       "count": 1
     }
   },
-  "src/services/onlineMusic/qishui/qishuiSceneCover.ts": {
+  "sources/qishui/client/qishuiSceneCover.ts": {
     "@typescript-eslint/no-misused-spread": {
       "count": 1
     },
@@ -9936,7 +9936,7 @@
       "count": 1
     }
   },
-  "src/services/onlineMusic/qishui/qishuiTransport.ts": {
+  "sources/qishui/client/qishuiTransport.ts": {
     "@typescript-eslint/no-non-null-assertion": {
       "count": 1
     }

@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { qishuiProvider } from '@/services/onlineMusic/qishui/qishuiProvider';
-import { qishuiCatalog, qishuiLibrary } from '@/services/onlineMusic/qishui/qishuiCatalog';
-import { qishuiMutations } from '@/services/onlineMusic/qishui/qishuiMutations';
-import { clearQishuiPlayback, readQishuiSongs } from '@/services/onlineMusic/qishui/qishuiPlayback';
-import { normalizeQishuiCollection, normalizeQishuiSong } from '@/services/onlineMusic/qishui/qishuiNormalize';
+import { qishuiProvider } from '../../../sources/qishui/client/qishuiProvider';
+import { qishuiCatalog, qishuiLibrary } from '../../../sources/qishui/client/qishuiCatalog';
+import { qishuiMutations } from '../../../sources/qishui/client/qishuiMutations';
+import { clearQishuiPlayback, readQishuiSongs } from '../../../sources/qishui/client/qishuiPlayback';
+import { normalizeQishuiCollection, normalizeQishuiSong } from '../../../sources/qishui/client/qishuiNormalize';
 import { omni } from '@/services/onlineMusic/omni';
 import type { ProviderCollection } from '@/types/onlineMusic';
 import { track } from './fixtures';

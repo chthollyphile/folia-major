@@ -1,5 +1,5 @@
-import type { ProviderLyricsResult } from '../../../types/onlineMusic';
-import { parseLyricsByFormat } from '../../../utils/lyrics/parserCore';
+import type { ProviderLyricsResult } from '../../../src/types/onlineMusic';
+import { parseLyricsByFormat } from '../../../src/utils/lyrics/parserCore';
 import { record } from './qishuiNormalize';
 
 // Parse car KRC with Folia's shared timing engine, including translations keyed by line time.

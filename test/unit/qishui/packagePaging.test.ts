@@ -1,16 +1,16 @@
 import { createRequire } from 'node:module';
 import { generateKeyPairSync } from 'node:crypto';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { qishuiCatalog } from '@/services/onlineMusic/qishui/qishuiCatalog';
-import { qishuiLibrary } from '@/services/onlineMusic/qishui/qishuiCatalog';
-import { qishuiMutations } from '@/services/onlineMusic/qishui/qishuiMutations';
-import { normalizeQishuiSong } from '@/services/onlineMusic/qishui/qishuiNormalize';
-import { qishuiRecommendations } from '@/services/onlineMusic/qishui/qishuiRecommendations';
+import { qishuiCatalog } from '../../../sources/qishui/client/qishuiCatalog';
+import { qishuiLibrary } from '../../../sources/qishui/client/qishuiCatalog';
+import { qishuiMutations } from '../../../sources/qishui/client/qishuiMutations';
+import { normalizeQishuiSong } from '../../../sources/qishui/client/qishuiNormalize';
+import { qishuiRecommendations } from '../../../sources/qishui/client/qishuiRecommendations';
 import type { QishuiApiOptions } from 'qishui-music-api';
 import { track } from './fixtures';
 
 // Run the actual npm package through the host bridge and renderer adapter; replace only HTTP responses.
-const { createQishuiApiBridge } = createRequire(import.meta.url)('../../../electron/qishui/qishuiApiBridge.cjs');
+const { createQishuiApiBridge } = createRequire(import.meta.url)('../../../sources/qishui/main/qishuiApiBridge.cjs');
 const { createQishuiApi } = createRequire(import.meta.url)('qishui-music-api');
 
 // Only generated fixture credentials enter the real package; every HTTP request is intercepted.

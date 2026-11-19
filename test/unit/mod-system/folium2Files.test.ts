@@ -184,7 +184,7 @@ describe('the trusted table of the built-in sources (§5.1)', () => {
             kugou: [constant('electron/kugou/kugouApiBridge.cjs', 'SESSION_KEY')!, constant('electron/kugou/kugouApiBridge.cjs', 'LEGACY_SESSION_KEY')!],
             qq: [constant('electron/qq/qqAuthSessionRepository.cjs', 'SESSION_KEY')!],
             bodian: [constant('sources/bodian/main/session.cjs', 'SESSION_KEY')!, constant('sources/bodian/main/session.cjs', 'DEVICE_KEY')!],
-            qishui: [constant('electron/qishui/session.cjs', 'SESSION_KEY')!, constant('electron/qishui/session.cjs', 'DEVICE_KEY')!],
+            qishui: [constant('sources/qishui/main/session.cjs', 'SESSION_KEY')!, constant('sources/qishui/main/session.cjs', 'DEVICE_KEY')!],
             ytm: [constant('electron/ytm/session.cjs', 'SESSION_KEY')!, constant('electron/ytm/webSignIn.cjs', 'WEB_SESSION_KEY')!],
             spotify: [
                 constant('electron/spotify/session.cjs', 'SESSION_KEY')!,

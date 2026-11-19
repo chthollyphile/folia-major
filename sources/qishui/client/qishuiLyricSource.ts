@@ -1,4 +1,4 @@
-import { registerLyricSourceAccess } from '../../../utils/lyrics/lyricSources';
+import { registerLyricSourceAccess } from '../../../src/utils/lyrics/lyricSources';
 
 // src/services/onlineMusic/qishui/qishuiLyricSource.ts
 // How Qishui is reached as a lyric source where that differs from its provider: a song id alone is enough to

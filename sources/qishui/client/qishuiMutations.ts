@@ -1,7 +1,7 @@
-import type { SongResult } from '../../../types';
-import type { MediaId, OnlineMutationProvider, ProviderCollection } from '../../../types/onlineMusic';
-import { OnlineProviderError } from '../../../types/onlineMusic';
-import { getPlaybackSourceRef } from '../../../utils/appPlaybackGuards';
+import type { SongResult } from '../../../src/types';
+import type { MediaId, OnlineMutationProvider, ProviderCollection } from '../../../src/types/onlineMusic';
+import { OnlineProviderError } from '../../../src/types/onlineMusic';
+import { getPlaybackSourceRef } from '../../../src/utils/appPlaybackGuards';
 import { requestQishui } from './qishuiTransport';
 
 // Account writes use Omni's source identity and only expose editing for ordinary owned playlists.

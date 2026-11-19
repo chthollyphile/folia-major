@@ -7,7 +7,7 @@ import { kugouProvider } from './kugou/kugouProvider';
 import { qqProvider } from './qq/qqProvider';
 import { ytmProvider } from './ytm/ytmProvider';
 import { spotifyProvider } from './spotify/spotifyProvider';
-import { qishuiProvider } from './qishui/qishuiProvider';
+import { qishuiProvider } from '../../../sources/qishui/client/qishuiProvider';
 import { appleMusicProvider } from './appleMusic/appleMusicProvider';
 import { fnmusicProvider } from './fnmusic/fnmusicProvider';
 import { startsWithoutSources } from '../../dev/devLaunchFlags';
