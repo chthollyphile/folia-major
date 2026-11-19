@@ -34,6 +34,13 @@ export interface FoliumTextKey {
 export interface FoliumI18nService {
     /** A FoliumText that names `key` of the mod's locale files, with `params` for its `{{name}}` places. */
     key(key: string, params?: Record<string, string | number>): FoliumTextKey;
+    /**
+     * The text of `key` of the mod's locale files in the UI language now, with `params` for its `{{name}}` places;
+     * '' where no locale file has it. For a text that has to be a string where the source hands it (a collection's
+     * name); a text the host shows from a FoliumText field is better handed as `key(…)`, which follows a later
+     * change of language.
+     */
+    text(key: string, params?: Record<string, string | number>): string;
 }
 
 /**
@@ -672,9 +679,10 @@ export interface FoliumSourceLyrics {
     /**
      * The source can give lyrics to other sources' songs and to local songs: it is a lyric source of the
      * match windows and the automatic pick (searched through `search@1`). `linesOnly`: its lyrics are
-     * timed by line only and carry no chorus.
+     * timed by line only and carry no chorus. `name`: what the lists of lyric sources call it (the match
+     * windows' tabs, the settings); the short name when left out.
      */
-    readonly crossSource?: { readonly linesOnly?: boolean };
+    readonly crossSource?: { readonly linesOnly?: boolean; readonly name?: FoliumText };
     /** The lyrics of one of its songs; `context.userId` is the signed-in account's id, where there is one. */
     getLyrics(song: FoliumSourceSong, context?: { userId?: string | null }): Promise<FoliumSourceLyricsResult | null>;
     /** Its own word timing is the one to keep over another source's. */
@@ -685,6 +693,13 @@ export interface FoliumSourceLyrics {
     getSearchAlias?(song: FoliumSourceSong): Promise<FoliumSourceLyricAlias | null>;
     /** Another name the song's artist goes by elsewhere; null where there is none. */
     getAlternateArtistName?(song: FoliumSourceSong): Promise<string | null>;
+    /**
+     * With `crossSource`: the id to fetch a song's lyrics by when only its id is known (a song picked for a local
+     * song before), or null when `id` cannot be one of the source's songs. With it, such a song is fetched by its id
+     * without a search, and a local song matched to one of the source's songs keeps that match as its identity.
+     * Synchronous; ids are text (do not make one a number).
+     */
+    songIdOf?(id: string): string | null;
 }
 
 /** Folium 2: the cases a failed sign-in can be (the host's own table says what each shows). */
@@ -711,6 +726,11 @@ export interface FoliumSourceLoginFailure {
     upstreamCode?: string;
     /** How long to wait before trying again. */
     retryAfterMs?: number;
+    /**
+     * The source's own name for where it failed (a stage of its sign-in, say): shown with the raw facts and
+     * copied into the report, never read to sort the case.
+     */
+    mainCode?: string;
 }
 
 /** Folium 2: the cases a failed audio or collection request can be. */
@@ -1040,8 +1060,8 @@ export type FoliumSourceExploreItem =
 export interface FoliumSourceExploreSection {
     /** Its id. */
     id: string;
-    /** Its heading, in the source's language. */
-    title: string;
+    /** Its heading: written out in the source's language, or a FoliumText (resolved in the UI language when read). */
+    title: FoliumText;
     /** Its entries. */
     items: FoliumSourceExploreItem[];
     /** Where its further entries are (`getSectionItems`). */

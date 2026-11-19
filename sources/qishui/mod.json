@@ -1,0 +1,34 @@
+{
+  "folium": 2,
+  "id": "qishui",
+  "name": "汽水音乐",
+  "version": "1.0.0",
+  "author": "Folia",
+  "description": "Folia 内置的汽水音乐音源（仅桌面端）：抖音扫码登录、搜索、播放、歌词、曲库、歌单改动、探索页与场景电台，经 qishui-music-api 在主进程里请求。",
+  "client": "client.mjs",
+  "main": "index.cjs",
+  "locales": "locales",
+  "sources": [
+    {
+      "id": "qishui",
+      "name": {
+        "zh-CN": "汽水音乐",
+        "en": "Qishui Music",
+        "in": "Qishui Music",
+        "vi": "Qishui Music"
+      },
+      "requires": [
+        "search@1",
+        "songs@1",
+        "playback.audio@1",
+        "lyrics@1",
+        "auth@1",
+        "library@1",
+        "catalog@1",
+        "explore@1",
+        "recommendations@1",
+        "mutations@1"
+      ]
+    }
+  ]
+}

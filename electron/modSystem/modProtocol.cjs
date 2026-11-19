@@ -171,6 +171,16 @@ const MOD_PROTOCOL_PRIVILEGED_SCHEME = {
     },
 };
 
+/*
+ * The privileges of a built-in source's legacy media scheme (builtinSources.cjs `legacyMediaSchemes`): what main.cjs
+ * registered for that scheme before the source became a mod, the same as folia-mod's own. main.cjs puts these in
+ * its one registerSchemesAsPrivileged call.
+ */
+const legacyMediaPrivilegedSchemes = (legacySchemes) => legacySchemes.map(({ scheme }) => ({
+    scheme,
+    privileges: { ...MOD_PROTOCOL_PRIVILEGED_SCHEME.privileges },
+}));
+
 const decodePathSegment = (segment) => {
     try {
         return decodeURIComponent(segment);
@@ -185,14 +195,34 @@ const decodePathSegment = (segment) => {
  * that directory: traversal segments and absolute paths are rejected.
  * resolvePickedFile(token) returns the absolute path of a picked file or null.
  * Folium 2.0: resolveModFolium(modId) says the mod's `folium` (2 opens the static extensions), and
- * resolveMediaHandler(modId, name) gives the handler of a `_media` route or null.
+ * resolveMediaHandler(modId, name) gives the handler of a `_media` route or null. `legacyMediaSchemes`
+ * ([{ scheme, modId }], builtinSources.cjs) are answered too: `<scheme>://<name>?…` or `<scheme>:///<name>/…`
+ * goes to that mod's `_media/<name>` route, with the same checks.
  */
 const attachModProtocolHandler = (
     protocol,
     resolveModDirectory,
     resolvePickedFile = () => null,
-    { resolveModFolium = () => 1, resolveMediaHandler = () => null } = {},
+    { resolveModFolium = () => 1, resolveMediaHandler = () => null, legacyMediaSchemes = [] } = {},
 ) => {
+    for (const { scheme, modId } of legacyMediaSchemes) {
+        protocol.handle(scheme, (request) => {
+            try {
+                const url = new URL(request.url);
+                if (request.method !== 'GET') return new Response('Bad request', { status: 400 });
+                // Both spellings main.cjs's handler took: the route as the host (`cover?…`), or as the first step.
+                const steps = url.pathname.split('/').filter(Boolean).map(decodePathSegment);
+                const segments = url.host ? [decodePathSegment(url.host), ...steps] : steps;
+                if (segments.length === 0 || segments.some((segment) => segment === null || segment === '..' || segment === '.'
+                    || segment.includes('/') || segment.includes('\\') || path.isAbsolute(segment))) {
+                    return new Response('Invalid path', { status: 400 });
+                }
+                return serveModMedia(request, url, segments, resolveMediaHandler, modId);
+            } catch (error) {
+                return new Response(`Mod protocol error: ${String(error && error.message)}`, { status: 500 });
+            }
+        });
+    }
     protocol.handle(SCHEME, (request) => {
         try {
             const url = new URL(request.url);
@@ -257,5 +287,6 @@ module.exports = {
     SCHEME,
     MOD_PROTOCOL_PRIVILEGED_SCHEME,
     attachModProtocolHandler,
+    legacyMediaPrivilegedSchemes,
     parseRangeHeader,
 };

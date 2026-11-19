@@ -728,7 +728,6 @@ export default {
     "syncFailed": "同步失败",
     "loginExpired": "登录状态已失效，请重新登录",
     "songPreviewOnly": "当前账号仅可试听此歌曲",
-    "songVipFullUnavailable": "第三方播放器暂时无法获取完整VIP歌曲",
     "songSubscriptionRequired": "{{provider}}需要会员才能播放",
     "songRegionRestricted": "仅限中国大陆网络播放",
     "songRetrying": "连接失败，正在重试…",
@@ -2039,10 +2038,6 @@ export default {
     "loginTitleKugou": "使用酷狗音乐APP扫码",
     "loginNoteKugou": "打开酷狗音乐APP扫描二维码",
     "loginTitleQq": "扫码登录QQ音乐",
-    "loginTitleQishui": "用抖音扫码登录汽水音乐",
-    "loginNoteQishui": "请使用抖音 App 扫码并确认授权",
-    "loginTitleFnMusic": "登录飞牛音乐",
-    "loginNoteFnMusic": "填入你的飞牛音乐服务器地址与账号，畅听 NAS 私有音乐库",
     "loginTitleYtm": "登录 YouTube Music",
     "loginTitleAppleMusic": "登录 Apple Music",
     "loginNoteAppleMusic": "请在 Apple 窗口中登录，密码只会交给 Apple。",
@@ -2309,7 +2304,6 @@ export default {
     "ponderDescription": "了解 Folia 的基本操作与运行逻辑",
     "version": "版本"
   },
-  "qishui": { "recentPlayed": "汽水最近播放", "recommended": "为你推荐" },
   "listeningRank": {
     "qqWeek": "听歌排行 · 本周",
     "qqYear": "听歌排行 · 年榜",
@@ -2340,7 +2334,6 @@ export default {
     "ai": "AI 歌曲"
   },
   "lyricProvider": {
-    "qishui": "汽水音乐",
     "netease": "网易云音乐",
     "qq": "QQ 音乐",
     "kugou": "酷狗音乐",
@@ -2355,8 +2348,6 @@ export default {
     "qq": "QQ音乐",
     "ytm": "YT Music",
     "spotify": "Spotify",
-    "qishui": "汽水",
-    "fnmusic": "飞牛",
   },
   "globalLyricOffset": {
     "title": "全局时间偏移",
@@ -5216,19 +5207,6 @@ export default {
     "cloudDrive": "云盘",
     "cloudDriveDesc": "网易云音乐云盘",
     "qqCloudDriveDesc": "微云音乐网盘",
-  },
-  "fnmusic": {
-    "serverUrl": "服务器地址",
-    "serverUrlPlaceholder": "例如: http://192.168.1.10:5666 或纯 FN ID（如 mynas）",
-    "username": "账号",
-    "usernamePlaceholder": "飞牛音乐账号或 NAS 账号",
-    "password": "密码",
-    "login": "登录",
-    "loginNote": "输入你的飞牛（fnOS）音乐服务器地址（局域网地址或纯 FN ID）与账号密码",
-    "errorBadCredentials": "账号或密码错误",
-    "errorNetwork": "无法连接服务器，请检查地址与网络",
-    "errorBadResponse": "服务器返回了无法识别的响应",
-    "errorBadServerUrl": "服务器地址无效，例如：http://192.168.1.10:5666"
   },
   "hifi": {
     "settings": {

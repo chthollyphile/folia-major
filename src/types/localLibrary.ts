@@ -22,8 +22,9 @@ export type LocalLibraryAssignmentOrigin = 'import' | 'auto-match' | 'manual-mat
 export type LocalSongTitleOrigin = 'import' | 'auto-match' | 'manual-match';
 // Every lyric source that is a platform: a lyric matched from one brings that platform's metadata
 // along. The metadata dialog searches NetEase, QQ and KuGou only; `spotify` comes only with lyrics
-// matched from Spotify.
-export type LocalSongMetadataSource = PlatformLyricSource;
+// matched from Spotify. A platform whose lyric source a source mod registers (Folium 2.0, sources/<id>/)
+// is an id the host's own table does not list.
+export type LocalSongMetadataSource = PlatformLyricSource | (string & {});
 
 export interface LocalSongImportedMetadata {
   title: string;

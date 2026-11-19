@@ -42,7 +42,10 @@ import { canSourceMatchOnly } from '@/services/onlineMusic/sourceStates';
 import { omni } from '@/services/onlineMusic/omni';
 import { getCoverIdentity, getSizedCoverUrl } from '@/utils/coverUrl';
 import { resolveSearchSources } from '@/components/app/search/searchSources';
-import { getLyricSource } from '@/utils/lyrics/lyricSources';
+import { getLyricSource, getLyricSourceOwnAccess } from '@/utils/lyrics/lyricSources';
+import { getLyricSourceAccess } from '@/utils/lyrics/lyricMatchSources';
+import { usePersonalFmModeStore } from '@/stores/usePersonalFmModeStore';
+import { PERSONAL_FM_MODES } from '@/services/onlineMusic/fmModes';
 import i18n from '@/i18n/config';
 import { clientApiOptions } from './clientApiOptions';
 
@@ -95,6 +98,12 @@ describe('the Folium version, two tracks (plan §9)', () => {
         expect(two.sources.supports('playback.surface', 1)).toBe(true);
         expect(two.sources.supports('playback.surface', 2)).toBe(false);
         expect(two.i18n.key('a.b', { n: 1 })).toEqual({ i18nKey: 'a.b', params: { n: 1 } });
+        // A key of the mod's own locale files in the UI language now; '' for one no file has.
+        i18n.addResourceBundle(i18n.language, `folium-mod/${MOD}`, { greet: { hi: 'Hi {{name}}' } }, true, true);
+        expect(two.i18n.text('greet.hi', { name: 'Ann' })).toBe('Hi Ann');
+        expect(two.i18n.text('greet.nothing')).toBe('');
+        expect(() => two.i18n.text('bad key')).toThrow(TypeError);
+        i18n.removeResourceBundle(i18n.language, `folium-mod/${MOD}`);
         expect(() => two.sources.register({ id: 'a', displayName: 'x', capabilities: {} })).toThrow(/not-a-source-mod/);
         expect(two.omni.capability('x', 'y')).toBeNull();
         expect(two.lyrics.isPureMusicText('纯音乐，请欣赏')).toBe(true);
@@ -455,6 +464,99 @@ describe('folium.net.fetch of a source mod', () => {
         } finally {
             delete (window as unknown as { electron?: unknown }).electron;
         }
+    });
+});
+
+describe('what the second migrated platform needed (qishui)', () => {
+    it('lyrics@1.songIdOf lets a picked song be fetched by its id, and keeps a local song\'s match as its identity', () => {
+        const songIdOf = vi.fn((id: string) => (/^\d{1,30}$/.test(id) ? id : null));
+        // A source mod's (as every built-in one is): its synchronous members answer their cautious answer on a throw.
+        markFoliumSourceMod(MOD, true);
+        const handle = register({
+            id: 'a',
+            capabilities: {
+                'search@1': { searchSongs: async () => ({ items: [], hasMore: false }) },
+                'lyrics@1': { crossSource: {}, getLyrics: async () => null, songIdOf },
+            },
+        });
+        const id = `folium.${MOD}.a`;
+        expect(getLyricSource(id)).toMatchObject({ id, platform: true, localMetadataIdentity: true });
+        const { knownById } = getLyricSourceAccess(id);
+        expect(knownById?.('7123456789012345678')).toBe('7123456789012345678');
+        expect(knownById?.(42)).toBe('42');
+        expect(knownById?.('abc')).toBeNull();
+        expect(knownById?.(-1)).toBeNull();
+        expect(songIdOf).not.toHaveBeenCalledWith('-1');
+        // A throw is the cautious answer, not an error of the match.
+        songIdOf.mockImplementationOnce(() => { throw new Error('boom'); });
+        expect(knownById?.('1')).toBeNull();
+        handle.unregister();
+        expect(getLyricSource(id)).toBeUndefined();
+        expect(getLyricSourceOwnAccess(id)).toBeUndefined();
+    });
+
+    it('without songIdOf or metadataMatch a lyric source keeps no identity of a local song\'s match', () => {
+        register({
+            id: 'a',
+            capabilities: {
+                'search@1': { searchSongs: async () => ({ items: [], hasMore: false }) },
+                'lyrics@1': { crossSource: {}, getLyrics: async () => null },
+            },
+        });
+        const id = `folium.${MOD}.a`;
+        expect(getLyricSource(id)?.localMetadataIdentity).toBeUndefined();
+        expect(getLyricSourceOwnAccess(id)).toBeUndefined();
+    });
+
+    it('a lyric source is listed under crossSource.name where it gives one, under its short name otherwise', () => {
+        register({
+            id: 'a',
+            shortName: 'Short',
+            capabilities: {
+                'search@1': { searchSongs: async () => ({ items: [], hasMore: false }) },
+                'lyrics@1': { crossSource: { name: { en: 'Full Name', 'zh-CN': '全名' } }, getLyrics: async () => null },
+            },
+        });
+        register({
+            id: 'b',
+            shortName: 'Short B',
+            capabilities: {
+                'search@1': { searchSongs: async () => ({ items: [], hasMore: false }) },
+                'lyrics@1': { crossSource: {}, getLyrics: async () => null },
+            },
+        });
+        expect(i18n.t(getLyricSource(`folium.${MOD}.a`)!.labelKey)).toBe(i18n.language.startsWith('zh') ? '全名' : 'Full Name');
+        expect(i18n.t(getLyricSource(`folium.${MOD}.b`)!.labelKey)).toBe('Short B');
+    });
+
+    it('an explore section\'s title may be a FoliumText, read in the UI language', async () => {
+        register({
+            id: 'a',
+            capabilities: {
+                'explore@1': {
+                    getFeed: async () => ({ sections: [
+                        { id: 'one', title: { en: 'For you', 'zh-CN': '为你推荐' }, items: [] },
+                        { id: 'two', title: 'Written out', items: [] },
+                    ] }),
+                },
+            },
+        });
+        const page = await getOnlineMusicProvider(`folium.${MOD}.a`)!.explore!.getFeed();
+        expect(page.sections.map(section => section.title)).toEqual([i18n.language.startsWith('zh') ? '为你推荐' : 'For you', 'Written out']);
+    });
+
+    it('a personal FM asked with no mode gets the mode the listener picked, where the source takes modes', async () => {
+        const getPersonalFm = vi.fn(async () => []);
+        register({ id: 'a', capabilities: { 'recommendations@1': { personalFmModes: true, getPersonalFm } } });
+        register({ id: 'b', capabilities: { 'recommendations@1': { getPersonalFm } } });
+        usePersonalFmModeStore.getState().setCatalog(`folium.${MOD}.a`, { modes: PERSONAL_FM_MODES, scenes: [], categories: [] });
+        usePersonalFmModeStore.getState().setProviderSelection(`folium.${MOD}.a`, { mode: 'FAMILIAR', scene: null });
+        await getOnlineMusicProvider(`folium.${MOD}.a`)!.recommendations!.getPersonalFm!();
+        expect(getPersonalFm).toHaveBeenLastCalledWith({ mode: 'FAMILIAR', submode: null });
+        await getOnlineMusicProvider(`folium.${MOD}.a`)!.recommendations!.getPersonalFm!({ mode: 'EXPLORE', submode: null });
+        expect(getPersonalFm).toHaveBeenLastCalledWith({ mode: 'EXPLORE', submode: null });
+        await getOnlineMusicProvider(`folium.${MOD}.b`)!.recommendations!.getPersonalFm!();
+        expect(getPersonalFm).toHaveBeenLastCalledWith(undefined);
     });
 });
 

@@ -22,6 +22,12 @@ const path = require('path');
  * "clear data" removes; `native` names what `api.native.load` / `path` resolve. The keys are written out
  * here, not read from the platform modules, so this file loads nothing of theirs; builtinSources.test.ts
  * holds them to the constants those modules use today.
+ *
+ * `legacyMediaSchemes` (only where a row has it): a privileged scheme the built-in platform served its media under
+ * before it became a mod (`folia-<platform>://cover?coverId=…`). Songs saved then (history, queues, playlists, the
+ * scratchpad) keep those addresses, so the host goes on answering the scheme: `<scheme>://<name>?<query>` (or
+ * `<scheme>:///<name>/…`) reaches the mod's `api.media.serve(name)` route as folia-mod://<mod id>/_media/<name>/…
+ * would, while the mod runs. New addresses are folia-mod:// ones; a scheme is never added for a new source.
  */
 const BUILTIN_SOURCE_TABLE = Object.freeze({
     netease: Object.freeze({
@@ -87,6 +93,10 @@ const BUILTIN_SOURCE_TABLE = Object.freeze({
         partitions: [],
         userDataDirs: [],
         native: [],
+        // Saved songs' covers and streams (cover?coverId=…&size=…, stream?guid=…): main.cjs's own scheme before.
+        // Answered by this built-in mod only: a third-party mod that takes the short id over (takeover) does not get it,
+        // and the saved addresses of the old scheme answer 404 while it holds the id. Its routes need not mean the same thing.
+        legacyMediaSchemes: ['folia-fnmusic'],
     }),
 });
 
@@ -119,7 +129,13 @@ const readBundledSources = (appPath, { readFile = (file) => fs.readFileSync(file
     return { ids: BUILTIN_SOURCE_IDS, declared: false };
 };
 
+/** Every legacy media scheme of the table, with the mod that answers it, in the table's order. */
+const BUILTIN_LEGACY_MEDIA_SCHEMES = Object.freeze(Object.entries(BUILTIN_SOURCE_TABLE).flatMap(([modId, row]) => (
+    (row.legacyMediaSchemes ?? []).map((scheme) => Object.freeze({ scheme, modId }))
+)));
+
 module.exports = {
+    BUILTIN_LEGACY_MEDIA_SCHEMES,
     BUILTIN_SOURCE_TABLE,
     BUILTIN_SOURCE_IDS,
     builtinSourceRow,

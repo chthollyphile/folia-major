@@ -728,7 +728,6 @@ export default {
     "syncFailed": "Đồng bộ thất bại",
     "loginExpired": "Phiên đăng nhập hết hạn. Đăng nhập lại",
     "songPreviewOnly": "Chỉ có thể nghe thử. Đăng nhập tài khoản có quyền phát toàn bộ bài hát.",
-    "songVipFullUnavailable": "Trình phát bên thứ ba tạm thời không thể lấy bản đầy đủ của bài hát VIP",
     "songSubscriptionRequired": "Cần tài khoản {{provider}} trả phí để phát",
     "songRegionRestricted": "Chỉ phát tại Trung Quốc đại lục. Kiểm tra kết nối mạng.",
     "songRetrying": "Kết nối thất bại. Đang thử lại…",
@@ -2039,10 +2038,6 @@ export default {
     "loginTitleKugou": "Quét bằng ứng dụng KuGou",
     "loginNoteKugou": "Mở KuGou Music và quét mã QR này",
     "loginTitleQq": "Quét mã đăng nhập QQ Music",
-    "loginTitleQishui": "Đăng nhập Qishui Music bằng Douyin",
-    "loginNoteQishui": "Quét mã bằng ứng dụng Douyin và xác nhận ủy quyền",
-    "loginTitleFnMusic": "Đăng nhập fnOS Music",
-    "loginNoteFnMusic": "Nhập địa chỉ máy chủ và tài khoản fnOS Music để phát nhạc từ NAS của bạn",
     "loginTitleYtm": "Đăng nhập YouTube Music",
     "loginTitleAppleMusic": "Đăng nhập Apple Music",
     "loginNoteAppleMusic": "Đăng nhập trong cửa sổ Apple. Mật khẩu của bạn chỉ được gửi cho Apple.",
@@ -2309,7 +2304,6 @@ export default {
     "ponderDescription": "Tìm hiểu thao tác cơ bản và cơ chế vận hành của Folia",
     "version": "phiên bản"
   },
-  "qishui": { "recentPlayed": "Gần đây đã phát trên Qishui", "recommended": "Được đề xuất cho bạn" },
   "listeningRank": {
     "qqWeek": "Bảng xếp hạng nghe · Tuần này",
     "qqYear": "Bảng xếp hạng nghe · Năm",
@@ -2340,7 +2334,6 @@ export default {
     "ai": "Bài hát AI"
   },
   "lyricProvider": {
-    "qishui": "Qishui Music",
     "netease": "NetEase Cloud Music",
     "qq": "QQ Music",
     "kugou": "Kugou Music",
@@ -2355,8 +2348,6 @@ export default {
     "qq": "QQ Music",
     "ytm": "YT Music",
     "spotify": "Spotify",
-    "qishui": "Qishui",
-    "fnmusic": "fnOS",
   },
   "globalLyricOffset": {
     "title": "Độ lệch thời gian toàn cục",
@@ -5217,19 +5208,6 @@ export default {
     "cloudDrive": "Ổ đĩa đám mây",
     "cloudDriveDesc": "Ổ đĩa NetEase Cloud Music",
     "qqCloudDriveDesc": "Ổ nhạc đám mây Weiyun",
-  },
-  "fnmusic": {
-    "serverUrl": "Địa chỉ máy chủ",
-    "serverUrlPlaceholder": "vd: http://192.168.1.10:5666 hoặc FN ID thuần (vd: mynas)",
-    "username": "Tài khoản",
-    "usernamePlaceholder": "Tài khoản fnOS Music hoặc tài khoản NAS",
-    "password": "Mật khẩu",
-    "login": "Đăng nhập",
-    "loginNote": "Nhập địa chỉ máy chủ fnOS Music (địa chỉ LAN hoặc FN ID thuần), tài khoản và mật khẩu",
-    "errorBadCredentials": "Sai tài khoản hoặc mật khẩu",
-    "errorNetwork": "Không thể kết nối máy chủ. Kiểm tra địa chỉ và kết nối của bạn.",
-    "errorBadResponse": "Máy chủ trả về phản hồi không nhận dạng được",
-    "errorBadServerUrl": "Địa chỉ máy chủ không hợp lệ, ví dụ: http://192.168.1.10:5666"
   },
   "hifi": {
     "settings": {

@@ -5,5 +5,6 @@
 
 export { codeText, errorFields, errorMessage } from './errorText';
 export { MAX_KEPT, createHandedOut, cursorWords, stampCursor } from './exploreReads';
+export { PERSONAL_FM_MODE_INFO, personalFmModes, type PersonalFmModeId, type PersonalFmModeInfo } from './fmModes';
 export { krcDecrypt } from './krcDecrypt';
 export { LOGIN_REQUEST_LIMIT_MS, LoginRequestTimeout, dropLoginRequestLimits, isLoginRequestTimeout, withLoginRequestLimit } from './loginRequestLimit';

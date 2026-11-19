@@ -1,20 +1,22 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+// @builtin-sources
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { loginScene } from '@/components/login/window/loginView';
 import { omni } from '@/services/onlineMusic/omni';
+import { answerFnMusicRequests } from '../helpers/fnmusicSource';
 
 // test/unit/login/formLogin.test.ts
 // 通用表单式登录（review 行为 11/14 与「loginScene 'form'、omni.submitLoginForm」）：
-// provider 声明了 getLoginForm 就进表单，否则走扫码/浏览器流程；提交走 provider 自己。
+// provider 声明了 getLoginForm 就进表单，否则走扫码/浏览器流程；提交走 provider 自己。表单的平台是注册着的飞牛音源模组
+// （helpers/fnmusicSource.ts），到它 main 入口的请求由替身接住。
 
-const bridgeRequest = vi.fn();
+let bridge: ReturnType<typeof answerFnMusicRequests>;
 
 beforeEach(() => {
-    bridgeRequest.mockReset().mockResolvedValue({ ok: true, data: { user: { guid: 'u1', name: 'Tester' } } });
-    vi.stubGlobal('window', { electron: { fnmusicRequest: bridgeRequest } });
+    bridge = answerFnMusicRequests();
+    bridge.request.mockResolvedValue({ ok: true, data: { user: { guid: 'u1', name: 'Tester' } } });
 });
 afterEach(() => {
-    vi.unstubAllGlobals();
-    vi.restoreAllMocks();
+    bridge.off();
 });
 
 describe('loginScene form branch', () => {
@@ -54,13 +56,13 @@ describe('omni.submitLoginForm', () => {
             username: 'alice',
             password: 'secret',
         })).resolves.toBeUndefined();
-        expect(bridgeRequest).toHaveBeenCalledWith('login', expect.objectContaining({
+        expect(bridge.request).toHaveBeenCalledWith('login', expect.objectContaining({
             base: 'http://192.168.1.10:5666',
             username: 'alice',
             password: 'secret',
         }));
-        // deviceId 由主进程桥复用已存设备或生成，渲染层不再传（避免每次登录注册新设备）
-        expect(bridgeRequest.mock.calls[0][1]).not.toHaveProperty('deviceId');
+        // deviceId 由主进程桥复用已存设备或生成，窗口不传（避免每次登录注册新设备）
+        expect(bridge.request.mock.calls[0][1]).not.toHaveProperty('deviceId');
     });
 
     it('fails with unsupported for a platform without submitLoginForm', async () => {

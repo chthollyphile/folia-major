@@ -1,14 +1,25 @@
+// @builtin-sources
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_PERSONAL_FM_CATALOG, getPersonalFmSelectionLabel } from '@/services/onlineMusic/fmModes';
 import { usePersonalFmModeStore, getPersonalFmSelection } from '@/stores/usePersonalFmModeStore';
-import { qishuiRecommendations, clearQishuiRecommendations, getQishuiFmCatalog } from '@/services/onlineMusic/qishui/qishuiRecommendations';
-import { requestQishui } from '@/services/onlineMusic/qishui/qishuiTransport';
+import { clearQishuiRecommendations } from '../../../sources/qishui/client/qishuiRecommendations';
+import { requestQishui } from '../../../sources/qishui/client/qishuiTransport';
+import type * as QishuiTransport from '../../../sources/qishui/client/qishuiTransport';
+import { lazyQishui } from '../helpers/qishuiSource';
+import i18n from '@/i18n/config';
 import { buildPersonalFmMatches } from '@/components/command-palette/commands/fmModeOptions';
 import { buildPersonalFmSections } from '@/components/command-palette/surfaces/fmModeSurface';
 import { track } from './fixtures';
 
-// Actual scene IDs, provider-specific persistence and the car's nested feed flags stay aligned.
-vi.mock('@/services/onlineMusic/qishui/qishuiTransport', () => ({ requestQishui: vi.fn(), readQishuiSceneIcon: vi.fn(async () => 'data:image/png;base64,iVBORw0KGgo=') }));
+// Actual scene IDs, provider-specific persistence and the car's nested feed flags stay aligned, through the registered
+// source mod (its catalogue reaches the host as the host's PersonalFmCatalog).
+vi.mock('../../../sources/qishui/client/qishuiTransport', async original => ({
+    ...await original<typeof QishuiTransport>(),
+    requestQishui: vi.fn(),
+    readQishuiSceneIcon: vi.fn(async () => 'data:image/png;base64,iVBORw0KGgo='),
+}));
+const qishuiRecommendations = lazyQishui(provider => provider.recommendations);
+const getQishuiFmCatalog = () => qishuiRecommendations.getPersonalFmCatalog!();
 const sceneRows = Array.from({ length: 45 }, (_, i) => ({ id: String(i + 1), name: i === 32 ? '驾车' : `场景 ${i + 1}`, group: '场景音乐',
     coverUrl: { urls: ['https://p3-luna.douyinpic.com/img/'], uri: `scene-${i}.png`, template_prefix: 'tplv-test' } }));
 beforeEach(() => {
@@ -52,7 +63,9 @@ describe('Qishui radio modes', () => {
         await qishuiRecommendations.getPersonalFm!();
         expect(requestQishui).toHaveBeenLastCalledWith('feed', expect.objectContaining({ scene: '33' }));
         expect(setItem).toHaveBeenCalledWith('folia.personalFm.providerSelections', expect.stringContaining('33'));
-        expect(getPersonalFmSelectionLabel(getPersonalFmSelection('qishui'), (_key, fallback) => fallback || '', catalog)).toBe('Scene · 驾车');
+        expect(getPersonalFmSelectionLabel(getPersonalFmSelection('qishui'), (_key, fallback) => fallback || '', catalog))
+            // The mode's name is the mod's own (sources/qishui/locales), in the UI language now.
+            .toBe(`${i18n.t('folium-mod/qishui:fm.mode.SCENE_RCMD')} · 驾车`);
         state.setCatalog('legacy', DEFAULT_PERSONAL_FM_CATALOG);
         expect(getPersonalFmSelection('legacy')).toEqual({ mode: 'FAMILIAR', scene: null });
     });

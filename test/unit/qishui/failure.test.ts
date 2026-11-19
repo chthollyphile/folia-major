@@ -1,42 +1,39 @@
+// @builtin-sources
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { qishuiProvider } from '@/services/onlineMusic/qishui/qishuiProvider';
-import { describeQishuiFailure } from '@/services/onlineMusic/qishui/qishuiFailure';
-import { clearQishuiPlayback } from '@/services/onlineMusic/qishui/qishuiPlayback';
-import { readQishuiSceneIcon, requestQishui } from '@/services/onlineMusic/qishui/qishuiTransport';
+import { describeQishuiFailure } from '../../../sources/qishui/client/qishuiFailure';
+import { clearQishuiPlayback } from '../../../sources/qishui/client/qishuiPlayback';
+import { readQishuiSceneIcon, requestQishui } from '../../../sources/qishui/client/qishuiTransport';
 import { onlineFailureOf } from '@/services/onlineMusic/failure/onlineFailureCase';
 import { omni } from '@/services/onlineMusic/omni';
+import { answerQishuiRequests, hostQishuiSong, qishuiProvider } from '../helpers/qishuiSource';
 import { track } from './fixtures';
 
 // What a failed Qishui request means to the shared failure rules, to the sign-in diagnostics and to a
-// look-up by id; the bridge answers with the package's own codes and sentences.
+// look-up by id; the main entry answers with the package's own codes and sentences. Asked through the
+// registered source mod, as the host asks it.
 const request = vi.fn();
+let off = () => {};
 beforeEach(() => {
     clearQishuiPlayback();
     request.mockReset();
-    vi.stubGlobal('window', { electron: { qishuiRequest: request } });
+    off = answerQishuiRequests((operation, params) => request(operation, params)).off;
 });
-afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
+afterEach(() => { off(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
+// The error the host sees when a song's audio could not be had (the mod's, named for the source by the host).
 const thrownBy = async (reply: () => unknown) => {
     request.mockImplementationOnce(reply);
-    try { await requestQishui('audio', { id: '1', quality: 'standard' }); } catch (error) { return error; }
+    try { await qishuiProvider().playback!.getAudioSource(hostQishuiSong(track('1')), 'standard'); } catch (error) { return error; }
     throw new Error('the request did not fail');
 };
 const caseOf = (error: unknown) => onlineFailureOf({ operation: 'audio', providerId: 'qishui' },
-    { error, detail: describeQishuiFailure('audio', error) ?? undefined });
+    { error, detail: qishuiProvider().describeFailure?.('audio', error) ?? undefined });
 const refusal = (code: string, message: string, upstreamCode?: string) => async () => ({ ok: false, error: { code, message, upstreamCode } });
 
 describe('Qishui failure cases', () => {
-    it('names the web build, where there is no desktop bridge, as not configured', async () => {
-        vi.stubGlobal('window', {});
-        let error: unknown;
-        try { await requestQishui('audio', { id: '1', quality: 'standard' }); } catch (thrown) { error = thrown; }
-        expect(describeQishuiFailure('audio', error)).toEqual({ case: 'not-configured' });
-        expect(caseOf(error).case).toBe('not-configured');
-    });
     it('names a failed bridge call as the local side stopping, not the network', async () => {
         const error = await thrownBy(async () => { throw new Error('An object could not be cloned.'); });
-        expect(describeQishuiFailure('audio', error)).toEqual({ case: 'local-service-stopped' });
+        expect(qishuiProvider().describeFailure!('audio', error)).toEqual({ case: 'local-service-stopped' });
         expect(caseOf(error).case).toBe('local-service-stopped');
     });
     it('names protected audio only as no playable audio, without a pointless retry', async () => {
@@ -58,12 +55,15 @@ describe('Qishui failure cases', () => {
         expect(caseOf(await thrownBy(refusal('unavailable', 'Qishui rejected the request', '4001')))).toMatchObject({ case: 'refused', facts: { code: '4001' } });
     });
     it('leaves what it does not know to the shared rules, and other providers alone', async () => {
-        expect(describeQishuiFailure('audio', await thrownBy(refusal('invalid-response', 'Qishui operation failed')))).toBeNull();
+        expect(qishuiProvider().describeFailure!('audio', await thrownBy(refusal('invalid-response', 'Qishui operation failed')))).toBeNull();
         expect(describeQishuiFailure('audio', new Error('Qishui requires the desktop app'))).toBeNull();
         expect(caseOf(await thrownBy(refusal('network', 'Qishui service could not be reached'))).case).toBe('unreachable');
     });
-    it('is the provider\'s describeFailure', () => {
-        expect(qishuiProvider.describeFailure).toBe(describeQishuiFailure);
+    it('is the provider\'s describeFailure, read on the error the host names for the source', async () => {
+        const error = await thrownBy(refusal('unavailable', 'Qishui rejected the request', '4001'));
+        expect(error).toMatchObject({ providerId: 'qishui', code: 'unavailable' });
+        expect(qishuiProvider().describeFailure!('audio', error)).toEqual(describeQishuiFailure('audio', error));
+        expect(qishuiProvider().describeFailure!('audio', error)).toEqual({ code: '4001' });
     });
 });
 
@@ -72,11 +72,11 @@ describe('Qishui sign-in diagnostics', () => {
         request.mockResolvedValueOnce({ ok: true, data: { key: 'a'.repeat(32) } })
             .mockResolvedValueOnce({ ok: false, error: { code: 'invalid-response', message: 'Qishui did not identify the account', stage: 'account' } })
             .mockResolvedValueOnce({ ok: false, error: { code: 'unavailable', message: 'Qishui rejected the request', upstreamCode: '4001' } });
-        await qishuiProvider.auth!.startLogin!();
+        await qishuiProvider().auth!.startLogin!();
         await expect(requestQishui('login_qr_check', { key: 'a'.repeat(32) })).rejects.toMatchObject({ code: 'invalid-response' });
         // A lyric read in the background while the sign-in window is open is not the sign-in's failure.
         await expect(requestQishui('lyrics', { id: '1' })).rejects.toMatchObject({ code: 'unavailable' });
-        const lines = await qishuiProvider.auth!.getLoginDiagnostics!();
+        const lines = await qishuiProvider().auth!.getLoginDiagnostics!();
         expect(lines).toHaveLength(1);
         expect(lines[0].text).toContain('stage=account code=invalid-response');
         expect(lines[0].text).not.toContain('4001');
@@ -84,9 +84,9 @@ describe('Qishui sign-in diagnostics', () => {
     it('reports nothing when only other requests failed since the sign-in began', async () => {
         request.mockResolvedValueOnce({ ok: true, data: { key: 'b'.repeat(32) } })
             .mockResolvedValueOnce({ ok: false, error: { code: 'network', message: 'Qishui HTTP 502' } });
-        await qishuiProvider.auth!.startLogin!();
+        await qishuiProvider().auth!.startLogin!();
         await expect(requestQishui('feed', { queue: 'fm' })).rejects.toMatchObject({ code: 'network' });
-        expect(await qishuiProvider.auth!.getLoginDiagnostics!()).toEqual([]);
+        expect(await qishuiProvider().auth!.getLoginDiagnostics!()).toEqual([]);
     });
 });
 

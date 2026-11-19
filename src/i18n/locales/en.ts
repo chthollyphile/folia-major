@@ -728,7 +728,6 @@ export default {
     "syncFailed": "Sync failed",
     "loginExpired": "Login expired. Please sign in again",
     "songPreviewOnly": "This account can only play a preview",
-    "songVipFullUnavailable": "Third-party players can't get full VIP songs for now",
     "songSubscriptionRequired": "Paid {{provider}} account required",
     "songRegionRestricted": "Plays on mainland China networks only",
     "songRetrying": "Connection failed. Retrying…",
@@ -2039,10 +2038,6 @@ export default {
     "loginTitleKugou": "Scan with KuGou Music",
     "loginNoteKugou": "Open KuGou Music and scan this QR code",
     "loginTitleQq": "Scan to sign in to QQ Music",
-    "loginTitleQishui": "Sign in to Qishui Music with Douyin",
-    "loginNoteQishui": "Scan with the Douyin app and confirm authorization",
-    "loginTitleFnMusic": "Sign in to fnOS Music",
-    "loginNoteFnMusic": "Enter your fnOS Music server address and account to play your NAS music library",
     "loginTitleYtm": "Sign in to YouTube Music",
     "loginTitleAppleMusic": "Sign in to Apple Music",
     "loginNoteAppleMusic": "Sign in using the Apple window. Your password stays with Apple.",
@@ -2309,7 +2304,6 @@ export default {
     "ponderDescription": "Learn Folia's basic controls and operating model",
     "version": "Version"
   },
-  "qishui": { "recentPlayed": "Recently played on Qishui", "recommended": "Recommended for you" },
   "listeningRank": {
     "qqWeek": "Listening rank · This week",
     "qqYear": "Listening rank · Year",
@@ -2340,7 +2334,6 @@ export default {
     "ai": "AI songs"
   },
   "lyricProvider": {
-    "qishui": "Qishui Music",
     "netease": "NetEase Cloud Music",
     "qq": "QQ Music",
     "kugou": "Kugou Music",
@@ -2355,8 +2348,6 @@ export default {
     "qq": "QQ Music",
     "ytm": "YT Music",
     "spotify": "Spotify",
-    "qishui": "Qishui",
-    "fnmusic": "fnOS",
   },
   "globalLyricOffset": {
     "title": "Global Timing Offset",
@@ -5217,19 +5208,6 @@ export default {
     "cloudDrive": "Cloud Drive",
     "cloudDriveDesc": "NetEase Cloud Music Drive",
     "qqCloudDriveDesc": "Weiyun Music Drive",
-  },
-  "fnmusic": {
-    "serverUrl": "Server address",
-    "serverUrlPlaceholder": "e.g. http://192.168.1.10:5666 or a pure FN ID (e.g. mynas)",
-    "username": "Account",
-    "usernamePlaceholder": "fnOS Music account or NAS account",
-    "password": "Password",
-    "login": "Log in",
-    "loginNote": "Enter your fnOS Music server address (LAN address or pure FN ID), account and password",
-    "errorBadCredentials": "Account or password is wrong",
-    "errorNetwork": "Cannot reach the server. Check the address and your connection.",
-    "errorBadResponse": "The server returned an unexpected response",
-    "errorBadServerUrl": "The server address is not valid, e.g. http://192.168.1.10:5666"
   },
   "hifi": {
     "settings": {

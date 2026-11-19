@@ -8,6 +8,7 @@ import type {
 import type { PersonalFmCatalog, PersonalFmModeId } from '@/types/personalFm';
 import type { FoliumJsonValue } from '../../contract';
 import type { FoliumSourceRecommendations } from '../../sources/contract';
+import { getPersonalFmRequestOptions } from '@/stores/usePersonalFmModeStore';
 import { finite, list, record, text, type SourceAdapterKit } from './kit';
 
 // src/mods/folium/registries/sourceAdapter/recommendations.ts
@@ -98,7 +99,13 @@ export const buildRecommendations = (kit: SourceAdapterKit, recommendations: Fol
         } : {}),
         ...(getDailySongs ? { getDailySongs: async (refresh) => kit.songs(await kit.run('getDailySongs', () => getDailySongs(refresh))) } : {}),
         ...(getPersonalFm ? {
-            getPersonalFm: async (options?: PersonalFmRequestOptions) => kit.songs(await kit.run('getPersonalFm', () => getPersonalFm(options ? { ...options } : undefined))),
+            getPersonalFm: async (options?: PersonalFmRequestOptions) => {
+                // A caller that names no mode (the home feed, a collection of the radio, the next batch) means the one the
+                // listener picked: a source that takes modes is handed it, as the built-in platforms read it themselves
+                // from the host's store, which a source mod cannot reach.
+                const asked = options ?? (r.personalFmModes === true ? getPersonalFmRequestOptions(kit.context.hostId) : undefined);
+                return kit.songs(await kit.run('getPersonalFm', () => getPersonalFm(asked ? { ...asked } : undefined)));
+            },
         } : {}),
         ...(getRecommendedCollections ? {
             getRecommendedCollections: async (limit) => kit.collections(await kit.run('getRecommendedCollections', () => getRecommendedCollections(limit))),

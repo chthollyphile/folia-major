@@ -1,3 +1,4 @@
+// @builtin-sources
 import { describe, expect, it } from 'vitest';
 import type { LocalSong } from '@/types';
 import { buildLocalSongLyricMatchContext, shouldRefreshLocalSongLyricsFromMetadata, shouldRunLocalSongAutomaticMatch } from '@/utils/lyrics/localSongMatchContext';
@@ -18,6 +19,7 @@ const song = (patch: Partial<LocalSong> = {}): LocalSong => ({
     ...patch,
 });
 
+// Qishui keeps a local song's match as its identity through its source mod's lyrics@1.songIdOf: registered here.
 describe('localSongMatchContext', () => {
     it.each(['netease', 'qq', 'kugou', 'qishui'] as const)('retains the selected %s identity for automatic and legacy lyric matching', source => {
         const selected = song({

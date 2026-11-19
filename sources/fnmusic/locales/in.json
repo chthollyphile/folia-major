@@ -1,0 +1,24 @@
+{
+    "name": {
+        "short": "fnOS"
+    },
+    "login": {
+        "title": "Masuk ke fnOS Music",
+        "note": "Masukkan alamat server dan akun fnOS Music untuk memutar musik NAS Anda"
+    },
+    "form": {
+        "serverUrl": "Alamat server",
+        "serverUrlPlaceholder": "cth: http://192.168.1.10:5666 atau FN ID murni (mis. mynas)",
+        "username": "Akun",
+        "usernamePlaceholder": "Akun fnOS Music atau akun NAS",
+        "password": "Kata sandi",
+        "submit": "Masuk",
+        "note": "Masukkan alamat server fnOS Music (alamat LAN atau FN ID murni), akun, dan kata sandi"
+    },
+    "error": {
+        "badCredentials": "Akun atau kata sandi salah",
+        "network": "Tidak dapat menghubungi server. Periksa alamat dan koneksi Anda.",
+        "badResponse": "Server mengembalikan respons yang tidak dikenali",
+        "badServerUrl": "Alamat server tidak valid, contoh: http://192.168.1.10:5666"
+    }
+}

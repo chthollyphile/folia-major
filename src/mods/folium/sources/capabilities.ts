@@ -43,7 +43,7 @@ export const FOLIUM_SOURCE_CAPABILITY_MEMBERS: Readonly<Record<FoliumStandardCap
         'getStatus', 'isStatusForSong', 'mount',
     ],
     reports: ['canReport', 'report'],
-    lyrics: ['access', 'crossSource', 'getLyrics', 'prefersOwnWordByWord', 'getChorusRanges', 'getSearchAlias', 'getAlternateArtistName'],
+    lyrics: ['access', 'crossSource', 'getLyrics', 'prefersOwnWordByWord', 'getChorusRanges', 'getSearchAlias', 'getAlternateArtistName', 'songIdOf'],
     auth: [
         'getLoginStatus', 'logout', 'signInRanOut', 'showsKeptAccountAtStart', 'oldKeptAccount', 'forgetOldKeptAccount',
         'getLoginTexts', 'localService', 'getLoginMethods', 'resolveLoginMethods', 'startLogin', 'getLoginForm',

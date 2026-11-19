@@ -1,0 +1,21 @@
+{
+    "name": {
+        "short": "Qishui",
+        "lyrics": "Qishui Music"
+    },
+    "login": {
+        "title": "Sign in to Qishui Music with Douyin",
+        "note": "Scan with the Douyin app and confirm authorization"
+    },
+    "recentPlayed": "Recently played on Qishui",
+    "recommended": "Recommended for you",
+    "previewNotice": "Third-party players can't get full VIP songs for now",
+    "fm": {
+        "mode": {
+            "DEFAULT": "Default",
+            "FAMILIAR": "Familiar",
+            "EXPLORE": "Explore",
+            "SCENE_RCMD": "Scene"
+        }
+    }
+}

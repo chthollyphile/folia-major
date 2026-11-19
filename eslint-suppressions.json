@@ -814,14 +814,6 @@
       "count": 1
     }
   },
-  "electron/fnmusic/fnmusicApiBridge.cjs": {
-    "@stylistic/indent": {
-      "count": 306
-    },
-    "dedicatus/restricted-apis": {
-      "count": 3
-    }
-  },
   "electron/globalShortcuts.cjs": {
     "@stylistic/indent": {
       "count": 81
@@ -1031,11 +1023,6 @@
   "electron/preload.cjs": {
     "@stylistic/indent": {
       "count": 3
-    }
-  },
-  "electron/qishui/session.cjs": {
-    "dedicatus/restricted-apis": {
-      "count": 2
     }
   },
   "electron/qq/qqApiStartup.cjs": {
@@ -1536,6 +1523,59 @@
   "sources/bodian/main/session.cjs": {
     "@stylistic/indent": {
       "count": 80
+    }
+  },
+  "sources/fnmusic/main/fnmusicApiBridge.cjs": {
+    "@stylistic/indent": {
+      "count": 306
+    }
+  },
+  "sources/qishui/client/qishuiCatalog.ts": {
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 1
+    }
+  },
+  "sources/qishui/client/qishuiNormalize.ts": {
+    "@typescript-eslint/no-base-to-string": {
+      "count": 1
+    },
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-call": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-return": {
+      "count": 1
+    }
+  },
+  "sources/qishui/client/qishuiPlayback.ts": {
+    "@typescript-eslint/no-non-null-assertion": {
+      "count": 1
+    }
+  },
+  "sources/qishui/client/qishuiProvider.ts": {
+    "@typescript-eslint/require-await": {
+      "count": 1
+    }
+  },
+  "sources/qishui/client/qishuiRecommendations.ts": {
+    "@typescript-eslint/use-unknown-in-catch-callback-variable": {
+      "count": 1
+    }
+  },
+  "sources/qishui/client/qishuiSceneCover.ts": {
+    "@typescript-eslint/no-misused-spread": {
+      "count": 1
+    },
+    "@typescript-eslint/no-non-null-assertion": {
+      "count": 1
     }
   },
   "src/App.tsx": {
@@ -9462,67 +9502,6 @@
       "count": 1
     }
   },
-  "src/services/onlineMusic/fnmusic/fnmusicProvider.ts": {
-    "@typescript-eslint/no-base-to-string": {
-      "count": 1
-    },
-    "@typescript-eslint/no-explicit-any": {
-      "count": 2
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 6
-    },
-    "@typescript-eslint/no-unnecessary-type-arguments": {
-      "count": 13
-    },
-    "@typescript-eslint/no-unnecessary-type-assertion": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unnecessary-type-parameters": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 6
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 3
-    },
-    "@typescript-eslint/no-unused-vars": {
-      "count": 1
-    },
-    "@typescript-eslint/require-await": {
-      "count": 1
-    },
-    "dedicatus/restricted-apis": {
-      "count": 1
-    }
-  },
-  "src/services/onlineMusic/fnmusic/fnmusicTransport.ts": {
-    "@typescript-eslint/no-base-to-string": {
-      "count": 1
-    },
-    "@typescript-eslint/no-empty-object-type": {
-      "count": 1
-    },
-    "@typescript-eslint/no-explicit-any": {
-      "count": 6
-    },
-    "@typescript-eslint/no-unnecessary-type-assertion": {
-      "count": 5
-    },
-    "@typescript-eslint/no-unnecessary-type-conversion": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-call": {
-      "count": 5
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 6
-    },
-    "dedicatus/restricted-apis": {
-      "count": 6
-    }
-  },
   "src/services/onlineMusic/kugou/kugouLyricProvider.ts": {
     "@stylistic/indent": {
       "count": 277
@@ -9881,59 +9860,6 @@
   "src/services/onlineMusic/providerStorage.ts": {
     "dedicatus/restricted-apis": {
       "count": 9
-    }
-  },
-  "src/services/onlineMusic/qishui/qishuiCatalog.ts": {
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 1
-    }
-  },
-  "src/services/onlineMusic/qishui/qishuiNormalize.ts": {
-    "@typescript-eslint/no-base-to-string": {
-      "count": 1
-    },
-    "@typescript-eslint/no-explicit-any": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 3
-    },
-    "@typescript-eslint/no-unsafe-call": {
-      "count": 3
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 11
-    },
-    "@typescript-eslint/no-unsafe-return": {
-      "count": 2
-    }
-  },
-  "src/services/onlineMusic/qishui/qishuiPlayback.ts": {
-    "@typescript-eslint/no-non-null-assertion": {
-      "count": 1
-    }
-  },
-  "src/services/onlineMusic/qishui/qishuiProvider.ts": {
-    "@typescript-eslint/require-await": {
-      "count": 1
-    }
-  },
-  "src/services/onlineMusic/qishui/qishuiRecommendations.ts": {
-    "@typescript-eslint/use-unknown-in-catch-callback-variable": {
-      "count": 1
-    }
-  },
-  "src/services/onlineMusic/qishui/qishuiSceneCover.ts": {
-    "@typescript-eslint/no-misused-spread": {
-      "count": 1
-    },
-    "@typescript-eslint/no-non-null-assertion": {
-      "count": 1
-    }
-  },
-  "src/services/onlineMusic/qishui/qishuiTransport.ts": {
-    "@typescript-eslint/no-non-null-assertion": {
-      "count": 1
     }
   },
   "src/services/onlineMusic/qq/qqAccount.ts": {
@@ -11825,7 +11751,7 @@
       "count": 997
     },
     "@typescript-eslint/consistent-type-imports": {
-      "count": 61
+      "count": 56
     },
     "@typescript-eslint/no-explicit-any": {
       "count": 4

@@ -728,7 +728,6 @@ export default {
     "syncFailed": "Sinkronisasi gagal",
     "loginExpired": "Login kedaluwarsa. Silakan login lagi",
     "songPreviewOnly": "Akun ini hanya dapat memutar pratinjau",
-    "songVipFullUnavailable": "Pemutar pihak ketiga untuk sementara tidak dapat memperoleh lagu VIP lengkap",
     "songSubscriptionRequired": "Perlu akun {{provider}} berbayar",
     "songRegionRestricted": "Hanya dapat diputar dari jaringan Tiongkok daratan",
     "songRetrying": "Koneksi gagal. Mencoba lagi…",
@@ -2039,10 +2038,6 @@ export default {
     "loginTitleKugou": "Pindai dengan KuGou Music",
     "loginNoteKugou": "Buka KuGou Music dan pindai kode QR ini",
     "loginTitleQq": "Pindai untuk masuk ke QQ Music",
-    "loginTitleQishui": "Masuk ke Qishui Music dengan Douyin",
-    "loginNoteQishui": "Pindai dengan aplikasi Douyin dan konfirmasi otorisasi",
-    "loginTitleFnMusic": "Masuk ke fnOS Music",
-    "loginNoteFnMusic": "Masukkan alamat server dan akun fnOS Music untuk memutar musik NAS Anda",
     "loginTitleYtm": "Masuk ke YouTube Music",
     "loginTitleAppleMusic": "Masuk ke Apple Music",
     "loginNoteAppleMusic": "Masuk melalui jendela Apple. Kata sandi Anda hanya diberikan kepada Apple.",
@@ -2309,7 +2304,6 @@ export default {
     "ponderDescription": "Pelajari kontrol dasar dan cara kerja Folia",
     "version": "Versi"
   },
-  "qishui": { "recentPlayed": "Terakhir diputar di Qishui", "recommended": "Rekomendasi untuk Anda" },
   "listeningRank": {
     "qqWeek": "Peringkat dengar · Minggu ini",
     "qqYear": "Peringkat dengar · Tahunan",
@@ -2340,7 +2334,6 @@ export default {
     "ai": "Lagu AI"
   },
   "lyricProvider": {
-    "qishui": "Qishui Music",
     "netease": "NetEase Cloud Music",
     "qq": "QQ Music",
     "kugou": "Kugou Music",
@@ -2355,8 +2348,6 @@ export default {
     "qq": "QQ Music",
     "ytm": "YT Music",
     "spotify": "Spotify",
-    "qishui": "Qishui",
-    "fnmusic": "fnOS",
   },
   "globalLyricOffset": {
     "title": "Offset Waktu Global",
@@ -5216,19 +5207,6 @@ export default {
     "cloudDrive": "Cloud Drive",
     "cloudDriveDesc": "NetEase Cloud Music Drive",
     "qqCloudDriveDesc": "Weiyun Music Drive"
-  },
-  "fnmusic": {
-    "serverUrl": "Alamat server",
-    "serverUrlPlaceholder": "cth: http://192.168.1.10:5666 atau FN ID murni (mis. mynas)",
-    "username": "Akun",
-    "usernamePlaceholder": "Akun fnOS Music atau akun NAS",
-    "password": "Kata sandi",
-    "login": "Masuk",
-    "loginNote": "Masukkan alamat server fnOS Music (alamat LAN atau FN ID murni), akun, dan kata sandi",
-    "errorBadCredentials": "Akun atau kata sandi salah",
-    "errorNetwork": "Tidak dapat menghubungi server. Periksa alamat dan koneksi Anda.",
-    "errorBadResponse": "Server mengembalikan respons yang tidak dikenali",
-    "errorBadServerUrl": "Alamat server tidak valid, contoh: http://192.168.1.10:5666"
   },
   "hifi": {
     "settings": {

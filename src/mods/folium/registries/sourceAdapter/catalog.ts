@@ -101,7 +101,7 @@ export const buildExplore = (kit: SourceAdapterKit, explore: FoliumSourceExplore
                     if (!section) return [];
                     return [{
                         id: String(section.id),
-                        title: typeof section.title === 'string' ? section.title : '',
+                        title: kit.now(section.title, 'explore.section.title'),
                         items: exploreItems(kit, section.items),
                         ...(typeof section.moreCursor === 'string' ? { moreCursor: section.moreCursor } : {}),
                         ...(section.changesWithRead === true ? { changesWithRead: true } : {}),

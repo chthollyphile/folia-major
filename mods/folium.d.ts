@@ -3014,6 +3014,13 @@ export interface FoliumTextKey {
 export interface FoliumI18nService {
     /** A FoliumText that names `key` of the mod's locale files, with `params` for its `{{name}}` places. */
     key(key: string, params?: Record<string, string | number>): FoliumTextKey;
+    /**
+     * The text of `key` of the mod's locale files in the UI language now, with `params` for its `{{name}}` places;
+     * '' where no locale file has it. For a text that has to be a string where the source hands it (a collection's
+     * name); a text the host shows from a FoliumText field is better handed as `key(…)`, which follows a later
+     * change of language.
+     */
+    text(key: string, params?: Record<string, string | number>): string;
 }
 
 /**
@@ -3652,9 +3659,10 @@ export interface FoliumSourceLyrics {
     /**
      * The source can give lyrics to other sources' songs and to local songs: it is a lyric source of the
      * match windows and the automatic pick (searched through `search@1`). `linesOnly`: its lyrics are
-     * timed by line only and carry no chorus.
+     * timed by line only and carry no chorus. `name`: what the lists of lyric sources call it (the match
+     * windows' tabs, the settings); the short name when left out.
      */
-    readonly crossSource?: { readonly linesOnly?: boolean };
+    readonly crossSource?: { readonly linesOnly?: boolean; readonly name?: FoliumText };
     /** The lyrics of one of its songs; `context.userId` is the signed-in account's id, where there is one. */
     getLyrics(song: FoliumSourceSong, context?: { userId?: string | null }): Promise<FoliumSourceLyricsResult | null>;
     /** Its own word timing is the one to keep over another source's. */
@@ -3665,6 +3673,13 @@ export interface FoliumSourceLyrics {
     getSearchAlias?(song: FoliumSourceSong): Promise<FoliumSourceLyricAlias | null>;
     /** Another name the song's artist goes by elsewhere; null where there is none. */
     getAlternateArtistName?(song: FoliumSourceSong): Promise<string | null>;
+    /**
+     * With `crossSource`: the id to fetch a song's lyrics by when only its id is known (a song picked for a local
+     * song before), or null when `id` cannot be one of the source's songs. With it, such a song is fetched by its id
+     * without a search, and a local song matched to one of the source's songs keeps that match as its identity.
+     * Synchronous; ids are text (do not make one a number).
+     */
+    songIdOf?(id: string): string | null;
 }
 
 /** Folium 2: the cases a failed sign-in can be (the host's own table says what each shows). */
@@ -3691,6 +3706,11 @@ export interface FoliumSourceLoginFailure {
     upstreamCode?: string;
     /** How long to wait before trying again. */
     retryAfterMs?: number;
+    /**
+     * The source's own name for where it failed (a stage of its sign-in, say): shown with the raw facts and
+     * copied into the report, never read to sort the case.
+     */
+    mainCode?: string;
 }
 
 /** Folium 2: the cases a failed audio or collection request can be. */
@@ -4020,8 +4040,8 @@ export type FoliumSourceExploreItem =
 export interface FoliumSourceExploreSection {
     /** Its id. */
     id: string;
-    /** Its heading, in the source's language. */
-    title: string;
+    /** Its heading: written out in the source's language, or a FoliumText (resolved in the UI language when read). */
+    title: FoliumText;
     /** Its entries. */
     items: FoliumSourceExploreItem[];
     /** Where its further entries are (`getSectionItems`). */
@@ -4600,6 +4620,20 @@ export interface FoliumSourceMediaRule {
 /** Folium 2: what `api.media.allow` returns: it removes the rule, and its `add(url)` makes an address issued later the rule's. */
 export type FoliumSourceMediaAllowed = FoliumDisposer & { add(url: string): void };
 
+/** Folium 2: what an `api.media.serve` handler is handed: one read of `folia-mod://<mod id>/_media/<name>/<path>`. */
+export interface FoliumSourceMediaServeRequest {
+    /** The whole address. */
+    readonly url: string;
+    /** What follows `<name>/`, '' when nothing does. */
+    readonly path: string;
+    /** The query, by name (the last value of a name given twice). */
+    readonly query: Readonly<Record<string, string>>;
+    /** The request headers, by lower-case name. */
+    readonly headers: Readonly<Record<string, string>>;
+    /** The raw Range header, or null (`api.media.parseRange` reads it). */
+    readonly range: string | null;
+}
+
 /** Folium 2: `api.media` of a source mod. */
 export interface FoliumSourceMedia {
     /** Registers `rule`. */
@@ -4607,10 +4641,12 @@ export interface FoliumSourceMedia {
     /** One Range header against a size: `{ start, end }`, `'unsatisfiable'`, or null. */
     parseRange(header: string | null | undefined, size: number): { start: number; end: number } | 'unsatisfiable' | null;
     /**
-     * Answers `folia-mod://<mod id>/_media/<name>/…`: `handler` gets the request and answers a web Response, or
-     * `{ file }` for the host to serve with Range. `name` is lower case letters, digits and `-`. Returns what stops it.
+     * Answers `folia-mod://<mod id>/_media/<name>/…`: `handler` gets the read (FoliumSourceMediaServeRequest) and
+     * answers a web Response; `{ file, contentType? }` for the host to serve with Range; `{ status?, headers?, body }`
+     * (a string, bytes, a web or Node stream); or null for 404. A throw answers 502. `name` is lower case letters,
+     * digits and `-`. Returns what stops it.
      */
-    serve(name: string, handler: (request: Request, rest: string) => unknown): FoliumDisposer;
+    serve(name: string, handler: (request: FoliumSourceMediaServeRequest) => unknown): FoliumDisposer;
     /** `folia-mod://<mod id>/_media/<name>/<rest>`. */
     url(name: string, rest?: string): string;
 }

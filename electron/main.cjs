@@ -14,7 +14,8 @@ const { resolveStageConnectionFilePath } = require('./stageConnectionFile.cjs');
 const { isCursorInsideUnlockHotspot, createUnlockHoverRequests, resolveUnlockHotspot } = require('./mainWindowClickThrough.cjs');
 const { shouldHideToTrayOnClose, shouldRebuildBeforeMacWallpaper, shouldRebuildAfterMacWallpaper } = require('./nativeTrafficLights.cjs');
 const { createModSystem } = require('./modSystem/modSystem.cjs');
-const { MOD_PROTOCOL_PRIVILEGED_SCHEME } = require('./modSystem/modProtocol.cjs');
+const { MOD_PROTOCOL_PRIVILEGED_SCHEME, legacyMediaPrivilegedSchemes } = require('./modSystem/modProtocol.cjs');
+const { BUILTIN_LEGACY_MEDIA_SCHEMES } = require('./modSystem/builtinSources.cjs');
 const { createWindowPlaybackHandoffStore } = require('./windowPlaybackHandoff.cjs');
 const { applyTileMemoryBudget } = require('./tileMemoryBudget.cjs');
 const { BACKGROUND_THROTTLING_SETTING_KEY, createBackgroundThrottling } = require('./backgroundThrottling.cjs');
@@ -71,9 +72,6 @@ const {
 const { createKugouApiBridge } = require('./kugou/kugouApiBridge.cjs');
 const { createExternalUrlOpener } = require('./externalUrlPolicy.cjs');
 const { createSenderGuardedHandler } = require('./ipcAccessGuard.cjs');
-const { createQishuiApiBridge } = require('./qishui/qishuiApiBridge.cjs');
-const { createFnmusicApiBridge, FN_MUSIC_SCHEME, FN_MUSIC_PRIVILEGED_SCHEME } = require('./fnmusic/fnmusicApiBridge.cjs');
-const { createQishuiMediaPolicy } = require('./qishui/mediaCors.cjs');
 const { createYtmApiBridge } = require('./ytm/ytmApiBridge.cjs');
 const { createCompanionClient } = require('./appleMusic/companionClient.cjs');
 const { createCompanionRequestHandler } = require('./appleMusic/companionIpc.cjs');
@@ -180,7 +178,9 @@ protocol.registerSchemesAsPrivileged([
   MOD_PROTOCOL_PRIVILEGED_SCHEME,
   YTM_AUDIO_PRIVILEGED_SCHEME,
   SPOTIFY_AUDIO_PRIVILEGED_SCHEME,
-  FN_MUSIC_PRIVILEGED_SCHEME,
+  // Old media addresses of built-in sources that saved data may still hold (a platform's folia-<id>://): the
+  // mod system answers them from the mod's _media routes (builtinSources.cjs's legacyMediaSchemes).
+  ...legacyMediaPrivilegedSchemes(BUILTIN_LEGACY_MEDIA_SCHEMES),
 ]);
 
 // Trusts only the known KuGou media CDN hostname mismatch while preserving TLS checks elsewhere.
@@ -385,13 +385,6 @@ process.on('exit', () => hifiSession.killSync());
 // KuGou credentials stay inside the main process and are encrypted lazily after Electron is ready.
 // The bridge refuses Linux's plaintext `basic_text` fallback and degrades to an in-memory session.
 const kugouApiBridge = createKugouApiBridge({ store, safeStorage });
-const qishuiMediaPolicy = createQishuiMediaPolicy();
-// 飞牛音乐桥：服务器与凭据由主进程 safeStorage 加密保存（渲染进程只发操作）；播放/封面走
-// 自定义协议（协议 handler 实时转发，无需本地 HTTP 代理、无需启动时恢复）。
-const fnMusicApiBridge = createFnmusicApiBridge({ store, safeStorage });
-const qishuiApiBridge = createQishuiApiBridge({ store, safeStorage, fetch: (url, options) => electronNet.fetch(url, options),
-  onAudioSource: url => qishuiMediaPolicy.register(url),
-});
 // YouTube Music talks to Google from its own network partition and without a cookie jar: the
 // account is carried by a request header, and stored cookies would tie the guest sessions to it.
 // (The library sends one cookie of its own making, a random visitor id and the time zone, on the
@@ -3863,7 +3856,6 @@ function setupCorsBypassHandlers() {
         hostname === 'y.gtimg.cn' ||
         hostname === 'kugou.com' ||
         hostname.endsWith('.kugou.com') ||
-        qishuiMediaPolicy.allows(details) ||
         // Folium 2.0: the rules source mods register with api.media.allow (electron/modSystem/mediaRules.cjs).
         Boolean(modSystem?.mediaRules.allows(details));
     } catch (error) {
@@ -3881,7 +3873,6 @@ function setupCorsBypassHandlers() {
   });
 
   ses.webRequest.onBeforeRedirect(details => {
-    qishuiMediaPolicy.followRedirect(details);
     modSystem?.mediaRules.followRedirect(details);
   });
 
@@ -6469,7 +6460,6 @@ app.whenReady().then(async () => {
   localCoverAssetStore.registerProtocolHandler(protocol, electronNet);
   protocol.handle(YTM_AUDIO_SCHEME, request => ytmApiBridge.handleAudioRequest(request));
   protocol.handle(SPOTIFY_AUDIO_SCHEME, request => spotifyApiBridge.handleAudioRequest(request));
-  protocol.handle(FN_MUSIC_SCHEME, request => fnMusicApiBridge.handleProtocolRequest(request));
   // Transcode fallback is an optional degradation path; a failure preparing it must never keep
   // the rest of this handler, createWindow() included, from running.
   try {
@@ -7464,36 +7454,6 @@ ipcMain.handle('kugou-api-request', createSenderGuardedHandler({
   isTrusted: isFirstPartyWindowContents,
   handler: (_event, operation, params) => kugouApiBridge.request(operation, params),
 }));
-ipcMain.handle('qishui-api-request', (event, operation, params) => {
-  if (!isTrustedMainWindowContents(event.sender)) return { ok: false, error: { code: 'unavailable', message: 'Untrusted Qishui request' } };
-  return qishuiApiBridge.request(operation, params);
-});
-
-// 飞牛音乐请求桥：服务器与凭据保存在主进程，渲染进程只发操作；Cookie 认证头、
-// 自签名证书容忍都在主进程桥内完成（用受信窗口守卫）。
-ipcMain.handle('fnmusic-api-request', createSenderGuardedHandler({
-  channel: 'fnmusic-api-request',
-  isTrusted: (event) => isTrustedMainWindowContents(event.sender),
-  handler: (_event, operation, params) => {
-    const handlerByOperation = {
-      login: () => fnMusicApiBridge.login(params),
-      logout: () => fnMusicApiBridge.logout(params),
-      request: () => fnMusicApiBridge.request(params),
-      stream: () => fnMusicApiBridge.stream(params),
-      coverUrl: () => fnMusicApiBridge.coverUrl(params),
-      getStatus: () => {
-        const status = fnMusicApiBridge.getStatus();
-        return { ok: true, data: status };
-      },
-    };
-    const handler = handlerByOperation[operation];
-    if (!handler) return { ok: false, error: { code: 'unsupported', message: `Unknown FnMusic operation: ${operation}` } };
-    return handler();
-  },
-}));
-
-// 状态查询走异步 fnmusic-api-request('getStatus')，不再用 sendSync 同步 IPC（避免渲染主线程
-// 阻塞在 safeStorage 解密上；本地代理已删除，注释里"要同步拿本地代理端口"的前提已不存在）。
 
 ipcMain.handle('ytm-api-request', (event, operation, params) => {
   if (!isTrustedMainWindowContents(event.sender)) {

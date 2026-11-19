@@ -40,8 +40,9 @@ import { resolveFoliumSourceLyricsResult } from '@/mods/folium/lyricsSource';
 import { markFoliumSourceMod } from '@/mods/runtime/guard';
 import { omni } from '@/services/onlineMusic/omni';
 import { onlineFailureOf } from '@/services/onlineMusic/failure/onlineFailureCase';
-import { normalizeQishuiCollection, normalizeQishuiSong } from '@/services/onlineMusic/qishui/qishuiNormalize';
-import { parseQishuiLyrics } from '@/services/onlineMusic/qishui/qishuiLyrics';
+import type { ProviderCollection } from '@/types/onlineMusic';
+import type { UnifiedSong } from '@/types';
+import { toQishuiLyrics } from '../../../sources/qishui/client/qishuiLyrics';
 import { processNeteaseLyrics } from '@/utils/lyrics/neteaseProcessing';
 import { resolveProviderLyricsChorus } from '@/utils/lyrics/chorusResolver';
 import { parseAwlrc, parseLyricsByFormat } from '@/utils/lyrics/parserCore';
@@ -65,6 +66,65 @@ const parseBodianLyrics = ({ mainText, wordByWordText }: { mainText: string; wor
         mainText, wordByWordText: wordLyrics?.lines.length ? wordByWordText : undefined,
         isPureMusic: isPureMusicLyricText(mainText),
     };
+};
+
+// The built-in Qishui provider's normalizing and lyric steps as they were before Qishui became a source mod
+// (src/services/onlineMusic/qishui/qishuiNormalize.ts and qishuiLyrics.ts until Folium 2.0 S5): the old path the
+// source's DTOs and tracks are held to.
+type QishuiRecord = Record<string, any>;
+const qRecord = (raw: unknown): QishuiRecord => raw && typeof raw === 'object' && !Array.isArray(raw) ? raw as QishuiRecord : {};
+const qText = (value: unknown) => value == null ? '' : String(value);
+const qImage = (raw: unknown): string => {
+    if (typeof raw === 'string') return raw.startsWith('https://') ? raw : '';
+    const value = qRecord(raw);
+    const url = Array.isArray(value.urls) ? value.urls.find((item: unknown) => typeof item === 'string' && item.startsWith('https://')) : '';
+    if (!url) return '';
+    return value.uri && url.endsWith('/') ? `${url}${value.uri}${value.template_prefix ? `~${value.template_prefix}-image.image` : ''}` : url;
+};
+const normalizeQishuiSong = (raw: unknown): UnifiedSong => {
+    const song = qRecord(raw);
+    const base = qRecord(song.base_info);
+    const id = qText(base.id || song.id);
+    const related = qRecord(song.related_info);
+    const album = qRecord(related.album_link);
+    const artists = Array.isArray(related.artist_links) ? related.artist_links : base.song_maker_team?.composers || [];
+    return {
+        id, name: qText(base.name), durationMs: Math.max(0, Number(base.duration_ms) || 0),
+        artists: artists.filter((artist: QishuiRecord) => artist.name).map((artist: QishuiRecord) => ({
+            id: qText(artist.id), name: qText(artist.name), ...(artist.id ? { catalogRef: { providerId: 'qishui', kind: 'artist' as const, id: qText(artist.id) } } : {}),
+        })),
+        album: { id: qText(album.id), name: qText(album.name), coverUrl: qImage(song.display_info?.cover_url) },
+        sourceRef: { kind: 'online', providerId: 'qishui', mediaId: id },
+    };
+};
+const normalizeQishuiCollection = (raw: unknown, type = 'playlist'): ProviderCollection => {
+    const item = qRecord(raw);
+    const base = qRecord(item.base_info);
+    const owner = qRecord(item.relation_info?.owner);
+    return { providerId: 'qishui', id: qText(base.id), type, name: qText(base.title || base.name),
+        coverUrl: qImage(type === 'artist' ? base.url_avatar : item.display_info?.url_cover), description: qText(base.desc || base.intro),
+        ...(item.resource_cnt?.track_cnt == null ? {} : { trackCount: Number(item.resource_cnt.track_cnt) }),
+        ...(owner.id ? { creator: { id: qText(owner.id), nickname: qText(owner.nickname) } } : {}),
+        ...(item.isOwned == null ? {} : { isOwned: Boolean(item.isOwned) }), providerData: { ownerId: qText(base.owner_id || owner.id) },
+        ...(Number(base.type) === 1 && item.isOwned === true ? { isLiked: true } : {}),
+    };
+};
+const parseQishuiLyrics = (raw: unknown): ProviderLyricsResult => {
+    const info = qRecord(raw);
+    const entity = qRecord(info.lyric_entity);
+    const content = typeof entity.content === 'string' ? entity.content.replace(/\u0000/g, '') : '';
+    if (!content.trim()) return { lyrics: null, mainText: '', isPureMusic: false };
+    const translations = qRecord(info.lang_translations);
+    const translated = qRecord(translations['zh-CN'] || translations['ZH-HANS-CN'] || Object.values(translations)[0]);
+    const translation = typeof translated.content === 'string' ? translated.content : '';
+    const lyrics = parseLyricsByFormat(entity.type === 'krc' ? 'krc' : 'lrc', content);
+    if (translation) {
+        const lines = parseLyricsByFormat(translated.type === 'krc' ? 'krc' : 'lrc', translation).lines;
+        const byTime = new Map(lines.map(line => [line.startTime, line.fullText]));
+        for (const line of lyrics.lines) line.translation = byTime.get(line.startTime) || line.translation;
+    }
+    return { lyrics: lyrics.lines.length ? lyrics : null, mainText: content,
+        wordByWordText: entity.type === 'krc' ? content : null, translationText: translation || null, isPureMusic: false };
 };
 
 const MOD_ID = 'equiv-mod';
@@ -226,12 +286,36 @@ describe('lyrics: the built-in path and the new path parse the same answer to th
             lang_translations: { 'zh-CN': { type: 'krc', content: '[1000,1000]<0,1000,0>Hello\n[2500,1500]<0,1500,0>Bye' } },
         };
         const builtIn = await builtInThroughHost(parseQishuiLyrics(answer), 'qishui');
-        const content = answer.lyric_entity.content.replace(/\u0000/g, '');
-        const fromSource = await throughHost({
-            wordByWord: { format: 'krc', text: content, translationText: answer.lang_translations['zh-CN'].content, translationFormat: 'krc' },
-        }, 'qishui');
+        // The source mod's own tracks (sources/qishui/client/qishuiLyrics.ts) from the same answer.
+        const fromSource = await throughHost(toQishuiLyrics(answer), 'qishui');
         expect(fromSource.lyrics).toEqual(builtIn.lyrics);
         expect(fromSource.lyrics?.lines.map((line) => line.translation)).toEqual(['Hello', 'Bye']);
+        expect(fromSource.wordByWordText).toBe(builtIn.wordByWordText);
+    });
+
+    it('Qishui: KRC with an LRC translation', async () => {
+        const answer = {
+            lyric_entity: { type: 'krc', content: '[1000,1000]<0,400,0>你<400,600,0>好\n[2500,1500]<0,700,0>再<700,800,0>见\u0000' },
+            lang_translations: { 'zh-CN': { type: 'lrc', content: '[00:01.00]Hello\n[00:02.50]Bye' } },
+        };
+        const builtIn = await builtInThroughHost(parseQishuiLyrics(answer), 'qishui');
+        const fromSource = await throughHost(toQishuiLyrics(answer), 'qishui');
+        expect(fromSource.lyrics).toEqual(builtIn.lyrics);
+        expect(fromSource.lyrics?.lines.map((line) => line.translation)).toEqual(['Hello', 'Bye']);
+    });
+
+    it('Qishui: LRC with an LRC translation, and LRC with a KRC translation', async () => {
+        for (const translation of [
+            { type: 'lrc', content: '[00:01.00]Hello\n[00:02.50]Bye' },
+            { type: 'krc', content: '[1000,1500]<0,1500,0>Hello\n[2500,1500]<0,1500,0>Bye' },
+        ]) {
+            const answer = { lyric_entity: { type: 'lrc', content: '[00:01.00]你好\n[00:02.50]再见' }, lang_translations: { 'zh-CN': translation } };
+            const builtIn = await builtInThroughHost(parseQishuiLyrics(answer), 'qishui');
+            const fromSource = await throughHost(toQishuiLyrics(answer), 'qishui');
+            expect(fromSource.lyrics).toEqual(builtIn.lyrics);
+            expect(fromSource.lyrics?.lines.map((line) => line.translation)).toEqual(['Hello', 'Bye']);
+            expect(fromSource.lyrics?.isWordByWord).toBe(false);
+        }
     });
 
     it('Bodian: a word-timed awlrc track with its line track, pure music marked from the text', async () => {

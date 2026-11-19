@@ -489,6 +489,20 @@ export interface FoliumSourceMediaRule {
 /** Folium 2: what `api.media.allow` returns: it removes the rule, and its `add(url)` makes an address issued later the rule's. */
 export type FoliumSourceMediaAllowed = FoliumDisposer & { add(url: string): void };
 
+/** Folium 2: what an `api.media.serve` handler is handed: one read of `folia-mod://<mod id>/_media/<name>/<path>`. */
+export interface FoliumSourceMediaServeRequest {
+    /** The whole address. */
+    readonly url: string;
+    /** What follows `<name>/`, '' when nothing does. */
+    readonly path: string;
+    /** The query, by name (the last value of a name given twice). */
+    readonly query: Readonly<Record<string, string>>;
+    /** The request headers, by lower-case name. */
+    readonly headers: Readonly<Record<string, string>>;
+    /** The raw Range header, or null (`api.media.parseRange` reads it). */
+    readonly range: string | null;
+}
+
 /** Folium 2: `api.media` of a source mod. */
 export interface FoliumSourceMedia {
     /** Registers `rule`. */
@@ -496,10 +510,12 @@ export interface FoliumSourceMedia {
     /** One Range header against a size: `{ start, end }`, `'unsatisfiable'`, or null. */
     parseRange(header: string | null | undefined, size: number): { start: number; end: number } | 'unsatisfiable' | null;
     /**
-     * Answers `folia-mod://<mod id>/_media/<name>/…`: `handler` gets the request and answers a web Response, or
-     * `{ file }` for the host to serve with Range. `name` is lower case letters, digits and `-`. Returns what stops it.
+     * Answers `folia-mod://<mod id>/_media/<name>/…`: `handler` gets the read (FoliumSourceMediaServeRequest) and
+     * answers a web Response; `{ file, contentType? }` for the host to serve with Range; `{ status?, headers?, body }`
+     * (a string, bytes, a web or Node stream); or null for 404. A throw answers 502. `name` is lower case letters,
+     * digits and `-`. Returns what stops it.
      */
-    serve(name: string, handler: (request: Request, rest: string) => unknown): FoliumDisposer;
+    serve(name: string, handler: (request: FoliumSourceMediaServeRequest) => unknown): FoliumDisposer;
     /** `folia-mod://<mod id>/_media/<name>/<rest>`. */
     url(name: string, rest?: string): string;
 }

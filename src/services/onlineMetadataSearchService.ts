@@ -90,7 +90,7 @@ export const normalizeLyricMatchMetadataCandidate = (
 ): OnlineMetadataCandidate => {
     const source: OnlineMetadataSource = lyricSource === 'amll'
         ? result.amllDbPlatform === 'qq' ? 'qq' : 'netease'
-        : lyricSource as OnlineMetadataSource;
+        : lyricSource;
     return normalizeOnlineMetadataCandidate(source, result, target);
 };
 
