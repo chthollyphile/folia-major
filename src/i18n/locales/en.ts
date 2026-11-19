@@ -1478,7 +1478,6 @@ export default {
       "syncSettingsNoChange": "Visual settings are in sync, nothing to do."
     },
     "unsupportedFontFormat": "Only woff2, woff, ttf, otf font files are supported.",
-    "cloudDrive": "Cloud Drive",
     "noItems": "No items",
     "noItemsFound": "No items found",
     "clear": "Clear",
@@ -2035,8 +2034,6 @@ export default {
     "songs": "songs",
     "loginTitle": "Scan with Netease App",
     "loginNote": "Open Netease Music App > Discover > Scan QR",
-    "loginTitleKugou": "Scan with KuGou Music",
-    "loginNoteKugou": "Open KuGou Music and scan this QR code",
     "loginTitleQq": "Scan to sign in to QQ Music",
     "loginTitleYtm": "Sign in to YouTube Music",
     "loginTitleAppleMusic": "Sign in to Apple Music",
@@ -2336,7 +2333,6 @@ export default {
   "lyricProvider": {
     "netease": "NetEase Cloud Music",
     "qq": "QQ Music",
-    "kugou": "Kugou Music",
     "spotify": "Spotify",
     "appleMusic": "Apple Music",
     "amll": "AMLLDB",
@@ -2344,7 +2340,6 @@ export default {
   "onlineProviderName": {
     "appleMusic": "Apple Music",
     "netease": "NetEase",
-    "kugou": "Kugou",
     "qq": "QQ Music",
     "ytm": "YT Music",
     "spotify": "Spotify",
@@ -4990,7 +4985,6 @@ export default {
     "resetLyricTimelineOffset": "Reset timeline offset",
     "coverSource": "Cover",
     "metadataSource": "Metadata",
-    "kugouNoCover": "Kugou does not provide cover art, so local cover art will be kept.",
     "artistLabel": "Artist",
     "albumLabel": "Album",
     "noSelection": "Select a song on the left",

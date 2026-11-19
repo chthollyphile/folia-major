@@ -1478,7 +1478,6 @@ export default {
       "syncSettingsNoChange": "Pengaturan visual sudah sinkron, tidak ada yang perlu dilakukan."
     },
     "unsupportedFontFormat": "Hanya mendukung file font woff2, woff, ttf, otf.",
-    "cloudDrive": "Cloud Drive",
     "noItems": "Tidak ada item",
     "noItemsFound": "Tidak ada item ditemukan",
     "clear": "Bersihkan",
@@ -2035,8 +2034,6 @@ export default {
     "songs": "lagu",
     "loginTitle": "Pindai dengan Aplikasi Netease",
     "loginNote": "Buka Aplikasi Netease Music > Discover > Pindai QR",
-    "loginTitleKugou": "Pindai dengan KuGou Music",
-    "loginNoteKugou": "Buka KuGou Music dan pindai kode QR ini",
     "loginTitleQq": "Pindai untuk masuk ke QQ Music",
     "loginTitleYtm": "Masuk ke YouTube Music",
     "loginTitleAppleMusic": "Masuk ke Apple Music",
@@ -2336,7 +2333,6 @@ export default {
   "lyricProvider": {
     "netease": "NetEase Cloud Music",
     "qq": "QQ Music",
-    "kugou": "Kugou Music",
     "spotify": "Spotify",
     "appleMusic": "Apple Music",
     "amll": "AMLLDB"
@@ -2344,7 +2340,6 @@ export default {
   "onlineProviderName": {
     "appleMusic": "Apple Music",
     "netease": "NetEase",
-    "kugou": "Kugou",
     "qq": "QQ Music",
     "ytm": "YT Music",
     "spotify": "Spotify",
@@ -4990,7 +4985,6 @@ export default {
     "resetLyricTimelineOffset": "Reset offset timeline",
     "coverSource": "Sampul",
     "metadataSource": "Metadata",
-    "kugouNoCover": "Kugou tidak menyediakan karya seni sampul, jadi karya seni sampul lokal akan dipertahankan.",
     "artistLabel": "Artis",
     "albumLabel": "Album",
     "noSelection": "Pilih lagu di sebelah kiri",

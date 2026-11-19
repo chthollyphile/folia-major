@@ -1478,7 +1478,6 @@ export default {
       "syncSettingsNoChange": "视觉设置与云端一致，无需同步。"
     },
     "unsupportedFontFormat": "仅支持 woff2、woff、ttf、otf 字体文件。",
-    "cloudDrive": "音乐云盘",
     "noItems": "没有项目",
     "noItemsFound": "没有找到项目",
     "clear": "清除",
@@ -2035,8 +2034,6 @@ export default {
     "songs": "首",
     "loginTitle": "使用网易云APP扫码",
     "loginNote": "打开网易云音乐APP > 发现 > 扫一扫",
-    "loginTitleKugou": "使用酷狗音乐APP扫码",
-    "loginNoteKugou": "打开酷狗音乐APP扫描二维码",
     "loginTitleQq": "扫码登录QQ音乐",
     "loginTitleYtm": "登录 YouTube Music",
     "loginTitleAppleMusic": "登录 Apple Music",
@@ -2336,7 +2333,6 @@ export default {
   "lyricProvider": {
     "netease": "网易云音乐",
     "qq": "QQ 音乐",
-    "kugou": "酷狗音乐",
     "spotify": "Spotify",
     "appleMusic": "Apple Music",
     "amll": "AMLLDB",
@@ -2344,7 +2340,6 @@ export default {
   "onlineProviderName": {
     "appleMusic": "Apple Music",
     "netease": "网易云",
-    "kugou": "酷狗",
     "qq": "QQ音乐",
     "ytm": "YT Music",
     "spotify": "Spotify",
@@ -4990,7 +4985,6 @@ export default {
     "resetLyricTimelineOffset": "重置时间轴偏移",
     "coverSource": "封面",
     "metadataSource": "元数据",
-    "kugouNoCover": "酷狗音乐暂不提供封面，选择封面时会保留本地封面。",
     "artistLabel": "歌手",
     "albumLabel": "专辑",
     "noSelection": "请在左侧选择一首歌曲",

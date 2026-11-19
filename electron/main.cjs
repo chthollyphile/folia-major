@@ -69,7 +69,6 @@ const {
   shouldMoveWallpaper,
   describeWallpaperDisplays,
 } = require('./wallpaper/wallpaperDisplay.cjs');
-const { createKugouApiBridge } = require('../sources/kugou/main/kugouApiBridge.cjs');
 const { createExternalUrlOpener } = require('./externalUrlPolicy.cjs');
 const { createSenderGuardedHandler } = require('./ipcAccessGuard.cjs');
 const { createYtmApiBridge } = require('./ytm/ytmApiBridge.cjs');
@@ -183,19 +182,8 @@ protocol.registerSchemesAsPrivileged([
   ...legacyMediaPrivilegedSchemes(BUILTIN_LEGACY_MEDIA_SCHEMES),
 ]);
 
-// Trusts only the known KuGou media CDN hostname mismatch while preserving TLS checks elsewhere.
+// Certificate errors are refused, TLS checks kept everywhere, except where a source declares a host.
 app.on('certificate-error', (event, _webContents, requestUrl, error, _certificate, callback) => {
-  let isAllowedKugouMediaRequest = false;
-  try {
-    const parsedUrl = new URL(requestUrl);
-    isAllowedKugouMediaRequest =
-      parsedUrl.protocol === 'https:' &&
-      parsedUrl.hostname === 'fs.youthandroid2.kugou.com' &&
-      error === 'net::ERR_CERT_COMMON_NAME_INVALID';
-  } catch {
-    isAllowedKugouMediaRequest = false;
-  }
-
   // Folium 2.0: a running source mod's manifest may name hosts whose certificate name mismatch is accepted
   // (`sources[].certificateExceptions`, listed in its enable confirmation).
   const isDeclaredBySourceMod = (() => {
@@ -209,7 +197,7 @@ app.on('certificate-error', (event, _webContents, requestUrl, error, _certificat
     }
   })();
 
-  if (isAllowedKugouMediaRequest || isDeclaredBySourceMod) {
+  if (isDeclaredBySourceMod) {
     event.preventDefault();
     callback(true);
     return;
@@ -382,9 +370,6 @@ const hifiMpris = process.platform === 'linux'
   : null;
 // Last resort for every way out, app.exit() included: an mpv left behind would keep playing.
 process.on('exit', () => hifiSession.killSync());
-// KuGou credentials stay inside the main process and are encrypted lazily after Electron is ready.
-// The bridge refuses Linux's plaintext `basic_text` fallback and degrades to an in-memory session.
-const kugouApiBridge = createKugouApiBridge({ store, safeStorage });
 // YouTube Music talks to Google from its own network partition and without a cookie jar: the
 // account is carried by a request header, and stored cookies would tie the guest sessions to it.
 // (The library sends one cookie of its own making, a random visitor id and the time zone, on the
@@ -3833,15 +3818,6 @@ function setupFileSystemAccessPermissionHandlers() {
 function setupCorsBypassHandlers() {
   const ses = session.defaultSession;
 
-  const getKugouMediaRequestInfo = details => {
-    const parsedUrl = new URL(details.url);
-    const isMediaRequest = details.resourceType === 'media' || parsedUrl.hostname.startsWith('fs.');
-    return isMediaRequest ? {
-      protocol: parsedUrl.protocol,
-      hostname: parsedUrl.hostname,
-      resourceType: details.resourceType,
-    } : null;
-  };
   ses.webRequest.onHeadersReceived((details, callback) => {
     const responseHeaders = { ...details.responseHeaders };
     const originUrl = details.url;
@@ -3854,8 +3830,6 @@ function setupCorsBypassHandlers() {
         hostname === 'qq.com' ||
         hostname.endsWith('.qq.com') ||
         hostname === 'y.gtimg.cn' ||
-        hostname === 'kugou.com' ||
-        hostname.endsWith('.kugou.com') ||
         // Folium 2.0: the rules source mods register with api.media.allow (electron/modSystem/mediaRules.cjs).
         Boolean(modSystem?.mediaRules.allows(details));
     } catch (error) {
@@ -3874,16 +3848,6 @@ function setupCorsBypassHandlers() {
 
   ses.webRequest.onBeforeRedirect(details => {
     modSystem?.mediaRules.followRedirect(details);
-  });
-
-  ses.webRequest.onErrorOccurred({ urls: ['*://*.kugou.com/*'] }, details => {
-    const requestInfo = getKugouMediaRequestInfo(details);
-    if (!requestInfo) return;
-    if (requestInfo.resourceType === 'media' && details.error === 'net::ERR_FAILED') return;
-    console.warn('[KuGouMedia] request:error', {
-      ...requestInfo,
-      error: details.error,
-    });
   });
 }
 
@@ -3905,10 +3869,6 @@ function isAllowedLyricProxyHost(hostname) {
     hostname === 'qq.com' ||
     hostname.endsWith('.qq.com') ||
     hostname === 'y.gtimg.cn' ||
-    hostname === 'kugou.com' ||
-    hostname.endsWith('.kugou.com') ||
-    hostname === 'kgimg.com' ||
-    hostname.endsWith('.kgimg.com') ||
     hostname === 'api.amll.dev' ||
     // Folium 2.0: `sources[].lyricRelayHosts` of a running source mod (listed in its enable confirmation).
     Boolean(modSystem?.isLyricRelayHost(hostname))
@@ -6437,7 +6397,7 @@ app.whenReady().then(async () => {
 
   if (process.platform === 'linux' && typeof safeStorage.getSelectedStorageBackend === 'function') {
     const backend = safeStorage.getSelectedStorageBackend();
-    // Without a real backend the KuGou and QQ repositories keep credentials in memory only, so this
+    // Without a real backend the encrypted sign-in stores keep credentials in memory only, so this
     // line is the fastest way to tell a lost-login report apart from an authentication bug.
     if (backend === 'basic_text' || !safeStorage.isEncryptionAvailable()) {
       console.warn('[Electron] No OS credential encryption available; online accounts will not persist', {
@@ -7430,30 +7390,6 @@ const { diagnostics: loginDiagnostics } = registerLoginBackendIpc({
   qqBackend,
   isTrustedSender: isFirstPartyWindowContents,
 });
-
-// Both channels reach the embedded KuGou API. `kugou-api-request` forwards the renderer's operation
-// and params verbatim, so it is a write-capable surface rather than a read-only one; the bridge keeps
-// its own operation allowlist, so what this guard adds is the caller surface. Trusted here means the
-// two first-party windows - the main window and the remote-control window, which runs the same app
-// and therefore the same online providers.
-//
-// Boundary, stated plainly: comparing webContents identity rejects other windows (a popup opened with
-// window.open carries the same preload). It cannot stop script already running inside a trusted
-// window - that is the CSP and preload layer's job, not this check's. isFirstPartyWindowContents is
-// defined next to the other trust checks (after isTrustedRemoteControlContents).
-
-ipcMain.handle('kugou-api-status', createSenderGuardedHandler({
-  channel: 'kugou-api-status',
-  // 只回传可用性、登录状态与错误：拒绝时给一个「没有这个能力」的取值，让调用方走 unavailable 分支。
-  isTrusted: isFirstPartyWindowContents,
-  onUntrusted: () => null,
-  handler: () => kugouApiBridge.getStatus(),
-}));
-ipcMain.handle('kugou-api-request', createSenderGuardedHandler({
-  channel: 'kugou-api-request',
-  isTrusted: isFirstPartyWindowContents,
-  handler: (_event, operation, params) => kugouApiBridge.request(operation, params),
-}));
 
 ipcMain.handle('ytm-api-request', (event, operation, params) => {
   if (!isTrustedMainWindowContents(event.sender)) {

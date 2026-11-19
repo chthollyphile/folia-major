@@ -1,6 +1,6 @@
 import type { OnlineMusicProvider, OnlineProviderId } from '../../../types/onlineMusic';
 import { registerOnlineMusicProvider } from '../providerRegistry';
-import { createKugouWebSource } from './kugou';
+import { registerKugouWebSource } from './kugou';
 import { createNeteaseWebSource } from './netease';
 import { createQqWebSource } from './qq';
 
@@ -34,7 +34,7 @@ const hostProvider = (create: () => OnlineMusicProvider) => () => {
 /** The web build's platforms, in the order the lists show them (the registry orders them anyway). */
 export const WEB_SOURCES: readonly WebSource[] = [
     { id: 'netease', register: hostProvider(createNeteaseWebSource) },
-    { id: 'kugou', register: hostProvider(createKugouWebSource) },
+    { id: 'kugou', register: () => { registerKugouWebSource(); } },
     { id: 'qq', register: hostProvider(createQqWebSource) },
 ];
 

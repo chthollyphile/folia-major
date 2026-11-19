@@ -1478,7 +1478,6 @@ export default {
       "syncSettingsNoChange": "Cài đặt hiển thị đã khớp, không có thay đổi."
     },
     "unsupportedFontFormat": "Chỉ hỗ trợ tệp phông chữ woff2, woff, ttf, otf.",
-    "cloudDrive": "Ổ đĩa đám mây",
     "noItems": "Không có mục nào",
     "noItemsFound": "Không tìm thấy mục nào",
     "clear": "Xóa",
@@ -2035,8 +2034,6 @@ export default {
     "songs": "bài hát",
     "loginTitle": "Quét bằng ứng dụng Netease",
     "loginNote": "Mở ứng dụng Netease Music > Khám phá > Quét mã QR",
-    "loginTitleKugou": "Quét bằng ứng dụng KuGou",
-    "loginNoteKugou": "Mở KuGou Music và quét mã QR này",
     "loginTitleQq": "Quét mã đăng nhập QQ Music",
     "loginTitleYtm": "Đăng nhập YouTube Music",
     "loginTitleAppleMusic": "Đăng nhập Apple Music",
@@ -2336,7 +2333,6 @@ export default {
   "lyricProvider": {
     "netease": "NetEase Cloud Music",
     "qq": "QQ Music",
-    "kugou": "Kugou Music",
     "spotify": "Spotify",
     "appleMusic": "Apple Music",
     "amll": "AMLLDB",
@@ -2344,7 +2340,6 @@ export default {
   "onlineProviderName": {
     "appleMusic": "Apple Music",
     "netease": "NetEase",
-    "kugou": "Kugou",
     "qq": "QQ Music",
     "ytm": "YT Music",
     "spotify": "Spotify",
@@ -4990,7 +4985,6 @@ export default {
     "resetLyricTimelineOffset": "Đặt lại độ lệch mốc thời gian",
     "coverSource": "Bìa",
     "metadataSource": "Siêu dữ liệu",
-    "kugouNoCover": "Kugou không cung cấp ảnh bìa, do đó ảnh bìa nội bộ sẽ được giữ lại.",
     "artistLabel": "Nghệ sĩ",
     "albumLabel": "Album",
     "noSelection": "Chọn bài hát ở bên trái",

@@ -76,8 +76,6 @@ declare global {
     mimeType?: string | null;
   }
 
-  type ElectronKugouOperation = import('../sources/kugou/core/kugouTransport').KugouOperation;
-
   interface ElectronAudioCacheStats {
     size: number;
     count: number;
@@ -245,12 +243,6 @@ declare global {
     /** 这次启动没能读出加密的登录仓库：后端里没有任何会话，后端不认一个 session 不说明登录没了。 */
     sessionStoreUnreadable?: boolean;
     updatedAt: number;
-  }
-
-  interface ElectronKugouApiStatus {
-    available: boolean;
-    authenticated: boolean;
-    error: string | null;
   }
 
   interface ElectronTaskbarControlState {
@@ -1007,7 +999,6 @@ declare global {
       // 'needed'：一个请求要用它，它却因为断网没起来；主进程只在离上一次断网失败够久时才再启动。
       restartNeteaseApi: (reason?: 'needed') => Promise<ElectronNeteaseApiStatus>;
       onNeteaseApiStatusChanged: (callback: (status: ElectronNeteaseApiStatus) => void) => () => void;
-      getKugouApiStatus: () => Promise<ElectronKugouApiStatus>;
       ytmRequest: (
         operation: import('./services/onlineMusic/ytm/ytmTransport').YtmOperation,
         params?: import('./services/onlineMusic/ytm/ytmTransport').YtmParams,
@@ -1020,10 +1011,6 @@ declare global {
         operation: import('./services/onlineMusic/spotify/spotifyTransport').SpotifyOperation,
         params?: import('./services/onlineMusic/spotify/spotifyTransport').SpotifyParams,
       ) => Promise<import('./services/onlineMusic/spotify/spotifyTransport').SpotifyBridgeResult>;
-      kugouRequest: (
-        operation: ElectronKugouOperation,
-        params?: Record<string, string | number | boolean | undefined>,
-      ) => Promise<unknown>;
       getQqPort: () => Promise<number | null>;
       getQqApiStatus: () => Promise<ElectronQqApiStatus>;
       onQqApiStatusChanged: (callback: (status: ElectronQqApiStatus) => void) => () => void;
