@@ -1,15 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { resetYtmRecommendations } from '../../../sources/ytm/client/ytmRecommendations';
+import { answerYtmRequests, lazyYtmProvider, ytmRefusal } from '../helpers/ytmSource';
+// @builtin-sources
 
 // test/unit/ytm/ytmRecommendations.test.ts — the radio tab for YouTube Music: which songs the
-// personal FM hands out, and where the recommended playlists come from.
+// personal FM hands out, and where the recommended playlists come from. Through the registered
+// source mod; its requests to the main entry are answered here.
 
-const request = vi.hoisted(() => vi.fn());
-vi.mock('@/services/onlineMusic/ytm/ytmTransport', () => ({
-    requestYtm: request, getYtmTransportAvailability: () => ({ configured: true }),
-}));
-import { ytmExplore } from '@/services/onlineMusic/ytm/ytmExplore';
-import { resetYtmRecommendations, ytmRecommendations } from '@/services/onlineMusic/ytm/ytmRecommendations';
-import { OnlineProviderError } from '@/types/onlineMusic';
+const { request } = answerYtmRequests();
+const ytmProvider = lazyYtmProvider();
+const ytmRecommendations = { getPersonalFm: () => ytmProvider.recommendations!.getPersonalFm!(), dislikeSong: (id: string) => ytmProvider.recommendations!.dislikeSong!(id), getRecommendedCollections: (limit: number) => ytmProvider.recommendations!.getRecommendedCollections!(limit) };
+const ytmExplore = { getFeed: (cursor?: string, listened?: never[]) => ytmProvider.explore!.getFeed(cursor, listened) };
 
 const song = (id: string) => ({ id, name: `song ${id}`, artists: [], album: { id: '', name: '', coverUrl: '' }, durationMs: 1000 });
 const list = (id: string, extra: Record<string, unknown> = {}) => ({ kind: 'collection', collection: { id, type: 'playlist', name: `list ${id}`, coverUrl: '', ...extra } });
@@ -67,9 +68,9 @@ describe('YouTube Music personal FM', () => {
     it('has no song without a song to ask with, and fails only offline', async () => {
         answer([]);
         expect(await fm()).toEqual([]);
-        answer(new OnlineProviderError('auth-required', 'signed out', 'ytm'));
+        answer(ytmRefusal('auth-required', 'signed out'));
         expect(await fm()).toEqual([]);
-        answer(new OnlineProviderError('network', 'offline', 'ytm'));
+        answer(ytmRefusal('network', 'offline'));
         await expect(fm()).rejects.toMatchObject({ code: 'network' });
     });
 });

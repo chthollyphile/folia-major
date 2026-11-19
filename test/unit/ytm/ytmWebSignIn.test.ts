@@ -10,12 +10,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 // removed. Every cookie, name, address and id in this file is made up.
 
 const require = createRequire(import.meta.url);
-const { createYtmApiBridge, YTM_OPERATIONS } = require('../../../electron/ytm/ytmApiBridge.cjs');
-const { publicAccountId } = require('../../../electron/ytm/session.cjs');
-const { createYtmWebSessionRepository, createYtmWebSignIn, desktopChromeName, guardAccountHeaders, WEB_SESSION_KEY } = require('../../../electron/ytm/webSignIn.cjs');
-const { BrowserSignInError } = require('../../../electron/ytm/browserSignIn.cjs');
-const { toErrorResult } = require('../../../electron/ytm/errors.cjs');
-const webPages = require('../../../electron/ytm/webPages.cjs');
+const { createYtmApiBridge, YTM_OPERATIONS } = require('../../../sources/ytm/main/ytmApiBridge.cjs');
+const { publicAccountId } = require('../../../sources/ytm/main/session.cjs');
+const { createYtmWebSessionRepository, createYtmWebSignIn, desktopChromeName, guardAccountHeaders, WEB_SESSION_KEY } = require('../../../sources/ytm/main/webSignIn.cjs');
+const { BrowserSignInError } = require('../../../sources/ytm/main/browserSignIn.cjs');
+const { toErrorResult } = require('../../../sources/ytm/main/errors.cjs');
+const webPages = require('../../../sources/ytm/main/webPages.cjs');
 
 const VIDEO = 'm9SMT5ipbxk';
 const GAIA_ID = '104000000000000000001';
@@ -623,8 +623,8 @@ describe('YouTube Music desktop bridge with a web sign-in', () => {
     const signedInAnswer = (_kind: string, endpoint: string, _body?: any): unknown => ({ data: endpoint === '/account/accounts_list' ? webAccounts : marked('1') });
     // `wait` is the bridge's timer: by default one that never runs out. `keychain` is what the
     // bridge's run unseals with: by default the one the stored sign-in was sealed with.
-    const setup = ({ web = false, found = BROWSER as string | null, answer = signedInAnswer, signInFolder = () => FOLDER, wait = () => new Promise<void>(() => {}), keychain }:
-        { web?: boolean; found?: string | null; answer?: typeof signedInAnswer; signInFolder?: (() => string) | null; wait?: (ms: number) => Promise<void>; keychain?: object } = {}) => {
+    const setup = ({ web = false, found = BROWSER as string | null, answer = signedInAnswer, signInFolder = () => FOLDER, wait = () => new Promise<void>(() => {}), keychain, onSignInWork }:
+        { web?: boolean; found?: string | null; answer?: typeof signedInAnswer; signInFolder?: (() => string) | null; wait?: (ms: number) => Promise<void>; keychain?: object; onSignInWork?: (done: Promise<unknown>) => void } = {}) => {
         const store = createStore();
         const safeStorage = cipher();
         const time = 1_700_000_000_000;
@@ -634,7 +634,7 @@ describe('YouTube Music desktop bridge with a web sign-in', () => {
         const browser = fakeBrowser(found);
         const [log, warn, fetch] = [vi.fn(), vi.fn(), vi.fn()];
         const bridge = createYtmApiBridge({ store, safeStorage: keychain ?? safeStorage, fetch, evaluate: vi.fn(), loadLibraries: async () => yt.libraries, log, warn, wait,
-            mintToken: vi.fn(), now: () => clock.ms, browserSignIn: browser, browserName: () => AGENT, ...(signInFolder ? { signInFolder } : {}) });
+            mintToken: vi.fn(), now: () => clock.ms, browserSignIn: browser, browserName: () => AGENT, ...(signInFolder ? { signInFolder } : {}), ...(onSignInWork ? { onSignInWork } : {}) });
         return { bridge, store, yt, browser, log, warn, fetch, time, clock };
     };
     const account = { id: user.id, nickname: 'Fixture', avatarUrl: 'https://yt3.ggpht.com/a', vipType: 0 };
@@ -757,10 +757,14 @@ describe('YouTube Music desktop bridge with a web sign-in', () => {
     it('ends the browser of a sign-in under way when the app quits, and has the quit wait until its folder is removed', async () => {
         const folder = fs.mkdtempSync(path.join(os.tmpdir(), 'folia-ytm-sign-in-'));
         try {
-            const { bridge, browser } = setup({ signInFolder: () => folder });
+            const work: Array<Promise<unknown>> = [];
+            const { bridge, browser } = setup({ signInFolder: () => folder, onSignInWork: done => work.push(done) });
             // No sign-in under way: nothing for a quit to wait for.
             expect(bridge.shutdown()).toBeNull();
+            expect(work).toHaveLength(0);
             await bridge.request('web_login_start');
+            // The main entry is told of the work as it begins (it holds quits only while there is some).
+            expect(work).toHaveLength(1);
             let removed!: () => void;
             browser.removeProfile.mockImplementation(() => new Promise<boolean>(resolve => { removed = () => resolve(true); }));
             const gone = bridge.shutdown();

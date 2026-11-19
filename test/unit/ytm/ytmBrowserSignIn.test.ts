@@ -13,7 +13,7 @@ import { describe, expect, it, vi } from 'vitest';
 const require = createRequire(import.meta.url);
 const {
     createBrowserSignIn, BrowserSignInError, browserCandidates, commandExecutable, cookieHeaderOf, createPipeReader, isSignedIn, registeredPlaces, youtubeCookies, startedOn, FOLDER_MARK,
-} = require('../../../electron/ytm/browserSignIn.cjs');
+} = require('../../../sources/ytm/main/browserSignIn.cjs');
 
 const cookie = (name: string, value: string, domain: string, cookiePath = '/') => ({ name, value, domain, path: cookiePath });
 

@@ -5,7 +5,7 @@
 ## 要做的事
 
 1. 写一个 `OnlineExploreProvider`（定义和契约注释在 `src/types/onlineMusic.ts`），放在平台自己的 adapter 里。
-   现成的三个：`spotify/spotifyExplore.ts`、`ytm/ytmExplore.ts`、`netease/neteaseExplore.ts`。
+   现成的三个：`spotify/spotifyExplore.ts`、`sources/ytm/client/ytmExplore.ts`（音源模组）、`netease/neteaseExplore.ts`。
 2. 挂到 provider 上：`explore` 成员，加 `capabilities.explore: true`，两样一起加。首页的“探索”页签只看 `capabilities.explore`（`src/components/Grid3D.tsx` 的 `canUseOnlineExplore`）和用户的设置（顶部胶囊入口里的“探索”，`showHomeTabExplore`；开关没开的平台那一项是暗的）：只开开关、没有成员，页签会出现但页面是空的。`omni.supportsExplore` 两样都看，但界面没有用它。
 3. 界面（`src/components/app/home/explore/`）、页面数据（`src/stores/useExploreFeedStore.ts`）和队列拼贴的探索墙（`src/components/app/lattice/exploreWall.ts`）不认平台，不用改，`explore*` 文案也不用加。
    界面显示不了平台需要的东西时，停下来说明，不要为一个平台改各平台共用的规则。

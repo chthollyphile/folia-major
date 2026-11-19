@@ -298,6 +298,41 @@ describe('the source members of api (plan §5.5)', () => {
         expect(window.isDestroyed()).toBe(true);
     });
 
+    it('windows: a hidden window that closed by itself is let go then, not kept until the mod stops', async () => {
+        const { api, system } = launchSource();
+        const destroys = () => electronCalls.filter(([call]) => call === 'BrowserWindow.destroy').length;
+        const closed = api.windows.hidden({}) as unknown as { closeBySelf(): void };
+        const open = api.windows.hidden({});
+        closed.closeBySelf();
+        const before = destroys();
+        await system.setSourceState('spotify', 'disabled');
+        // Only the window still open is destroyed with the mod.
+        expect(destroys() - before).toBe(1);
+        expect(open.isDestroyed()).toBe(true);
+    });
+
+    it('a sandbox partition: its http(s) answered locally, its permissions refused, its window not throttled; all undone with the mod', async () => {
+        const { api, system } = launchSource();
+        const sandbox = api.net.session('sandbox');
+        expect(() => sandbox.intercept('file', () => new Response())).toThrow('"http" or "https"');
+        expect(() => sandbox.intercept('https', 'no')).toThrow('requires a function');
+        const off = sandbox.intercept('http', () => new Response(null, { status: 403 }));
+        sandbox.intercept('https', () => new Response(null, { status: 403 }));
+        sandbox.refusePermissions();
+        expect(electronCalls).toContainEqual(['session.protocol.handle', 'persist:folium.spotify.sandbox', 'https']);
+        expect(electronCalls).toContainEqual(['session.setPermissionRequestHandler', 'persist:folium.spotify.sandbox', 'set']);
+        off();
+        expect(electronCalls).toContainEqual(['session.protocol.unhandle', 'persist:folium.spotify.sandbox', 'http']);
+        const window = api.windows.hidden({ session: 'sandbox', backgroundThrottling: false, webPreferences: { backgroundThrottling: true } });
+        expect(window.options.webPreferences).toEqual({
+            sandbox: true, contextIsolation: true, nodeIntegration: false, partition: 'persist:folium.spotify.sandbox', backgroundThrottling: false,
+        });
+        await system.setSourceState('spotify', 'disabled');
+        expect(electronCalls).toContainEqual(['session.protocol.unhandle', 'persist:folium.spotify.sandbox', 'https']);
+        expect(electronCalls).toContainEqual(['session.setPermissionRequestHandler', 'persist:folium.spotify.sandbox', null]);
+        expect(electronCalls).toContainEqual(['session.setPermissionCheckHandler', 'persist:folium.spotify.sandbox', null]);
+    });
+
     it('shell, dialog and the host\'s locale', async () => {
         const { api } = launchSource();
         await api.shell.openExternal('https://accounts.example.com/sign-in');

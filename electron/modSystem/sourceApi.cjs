@@ -117,6 +117,35 @@ const createSourceApi = (context, host) => {
             resolveProxy: (url) => session().resolveProxy(String(url)),
             setProxy: (config) => session().setProxy(config),
             clearStorageData: (options) => session().clearStorageData(options),
+            /*
+             * Answers every http or https request of this partition (its windows' and its fetches') with `handler`
+             * (Electron's `session.protocol.handle`): a sandbox page that must never reach the network. Only the
+             * source's own partitions (or claimed ones), so no other window or mod is reached; undone when the mod
+             * stops, or by the function returned.
+             */
+            intercept: (scheme, handler) => {
+                if (scheme !== 'http' && scheme !== 'https') throw new Error('net.session().intercept takes "http" or "https"');
+                requireFunction(handler, 'net.session().intercept');
+                const { protocol } = session();
+                protocol.handle(scheme, handler);
+                return keep(() => {
+                    try {
+                        protocol.unhandle(scheme);
+                    } catch {
+                        // Not handled any more.
+                    }
+                });
+            },
+            /* Every permission this partition's pages ask for, or are checked for, is refused; undone when the mod stops. */
+            refusePermissions: () => {
+                const target = session();
+                target.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));
+                target.setPermissionCheckHandler(() => false);
+                return keep(() => {
+                    target.setPermissionRequestHandler(null);
+                    target.setPermissionCheckHandler(null);
+                });
+            },
         });
     };
 
@@ -248,18 +277,23 @@ const createSourceApi = (context, host) => {
          */
         windows: Object.freeze({
             hidden: (options = {}) => {
-                const { session: name, ...rest } = options ?? {};
+                const { session: name, backgroundThrottling, ...rest } = options ?? {};
                 const window = host.createHiddenWindow({
                     ...rest,
                     partition: name === undefined ? undefined : partitionOf(name),
+                    // The one web preference a source sets: a sandbox page that must answer while hidden keeps its timers.
+                    ...(backgroundThrottling === false ? { backgroundThrottling: false } : {}),
                 });
-                keep(() => {
+                const off = keep(() => {
                     try {
                         if (!window.isDestroyed()) window.destroy();
                     } catch {
                         // Already gone.
                     }
                 });
+                // A window the source closed itself is let go now, not when the mod stops: a sandbox that is opened
+                // again and again would keep every one it ever had until then.
+                window.once?.('closed', off);
                 return window;
             },
             mainWindowPresent: () => host.isMainWindowPresent(),

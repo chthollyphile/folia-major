@@ -171,6 +171,10 @@ function createYtmApiBridge({
   store, safeStorage, fetch, evaluate, language = () => 'zh-CN',
   loadLibraries = loadYtmLibraries, now = Date.now, log = (...args) => console.log(...args), warn = (...args) => console.warn(...args), sessionLimitMs = SESSION_LIMIT_MS,
   randomKey = () => crypto.randomBytes(16).toString('hex'),
+  // The address a track is served at (audio.cjs's `urlOf`): the source mod's `_media/audio` route.
+  audioUrl = undefined,
+  // Told of each web sign-in's work a quit is to wait for, as it begins (webSignIn.cjs's `onLeaving`).
+  onSignInWork = () => {},
   mintToken = createYtmTokenMinter({ fetch, evaluate, now }).mint,
   wait = ms => new Promise(resolve => { setTimeout(resolve, ms); }),
   // The web sign-in: `signInFolder()` is the folder its browser window runs on, `browserSignIn`
@@ -270,7 +274,7 @@ function createYtmApiBridge({
   // requests go through the same guard.
   const memberSession = lazySession('member', () => createWebSession(undefined, webRepo.get(), true));
 
-  const audio = createYtmAudio({ loadPlan: (videoId, failed, level) => loadPlan(videoId, failed, level), now, randomKey, log, warn });
+  const audio = createYtmAudio({ loadPlan: (videoId, failed, level) => loadPlan(videoId, failed, level), urlOf: audioUrl, now, randomKey, log, warn });
 
   const forgetWeb = () => {
     webRepo.clear();
@@ -859,7 +863,7 @@ function createYtmApiBridge({
   const accountAnswer = user => ({ id: user.id, nickname: user.nickname, avatarUrl: user.avatarUrl, vipType: user.premium ? 1 : 0 });
 
   const webSignIn = createYtmWebSignIn({
-    browser: browserSignIn, profileDir: signInFolder, browserName, now, log, warn,
+    browser: browserSignIn, profileDir: signInFolder, browserName, now, log, warn, onLeaving: onSignInWork,
     // Asked on a session of its own, before anything is stored. An answer that is not marked as
     // given to a signed-in account means YouTube does not take the cookies.
     async accountOf(signIn) {
@@ -1330,6 +1334,8 @@ function createYtmApiBridge({
     },
     // Protocol handler for the audio scheme.
     handleAudioRequest: request => audio.handle(request),
+    // A read of the `_media/audio` route, taken apart (audio.cjs's `serve`).
+    serveAudio: read => audio.serve(read),
     // The app is quitting. The browser of a sign-in under way is ended: left running it would
     // hold its folder, and with it a Google session, past this run. Answers null when there is
     // nothing to wait for. Else the quit is to be held for the promise answered: it resolves once

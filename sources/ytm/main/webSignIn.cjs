@@ -160,6 +160,8 @@ function createYtmWebSignIn({
   // `exists` asks about the path itself: a link that points nowhere is there, and is removed.
   browser, profileDir, accountOf, keep, browserName = desktopChromeName, exists = dir => Boolean(fs.lstatSync(dir, { throwIfNoEntry: false })),
   now = Date.now, log = (...args) => console.log(...args), warn = (...args) => console.warn(...args),
+  // Told of each piece of work a quit is to wait for, as it begins (the promise `leaving` holds).
+  onLeaving = () => {},
 }) {
   // The sign-in under way, or the last one until the next start: its outcome is asked for later.
   let current = null;
@@ -303,6 +305,7 @@ function createYtmWebSignIn({
         if (leaving === gone) leaving = null;
       });
       leaving = gone;
+      onLeaving(gone);
       lastSettled = login.opened.closed.then(outcome => settle(login, browserPath, outcome, folderDone));
       return {};
     },

@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 // real, in a VM context standing in for the sandbox page, against a stand-in for BotGuard.
 
 const require = createRequire(import.meta.url);
-const { createYtmTokenMinter } = require('../../../electron/ytm/poToken.cjs');
+const { createYtmTokenMinter } = require('../../../sources/ytm/main/poToken.cjs');
 
 const REQUEST_KEY = 'O43z0dpjhgX20SCx4KAo';
 // Bytes 0xfb 0xff: every character of the web-safe alphabet that differs from plain base64.

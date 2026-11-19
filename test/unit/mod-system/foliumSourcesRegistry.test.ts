@@ -435,6 +435,17 @@ describe('the seams of S1 and S2, fed from capabilities', () => {
         expect(() => api.sources.pageStore('netease')).toThrow(/not a source of this mod/);
         expect(() => store.set('bad key', 'x')).toThrow(TypeError);
     });
+
+    it('moves what a built-in source kept under its old name into its page store once, where the new key is empty', () => {
+        localStorage.setItem('folia_ytm_account', '{"premium":true}');
+        expect(createFoliumPageStore('ytm').get('account')).toBe('{"premium":true}');
+        expect(localStorage.getItem('folia_ytm_account')).toBeNull();
+        // A value the source wrote since stands; the old one goes all the same.
+        localStorage.setItem('folia_ytm_account', '{"premium":false}');
+        expect(createFoliumPageStore('ytm').get('account')).toBe('{"premium":true}');
+        expect(localStorage.getItem('folia_ytm_account')).toBeNull();
+        createFoliumPageStore('ytm').set('account', null);
+    });
 });
 
 describe('folium.net.fetch of a source mod', () => {

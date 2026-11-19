@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 // paired them for an account (2026-10-23).
 
 const require = createRequire(import.meta.url);
-const { songEntryOf, videoFieldsOf } = require('../../../electron/ytm/songVersion.cjs');
+const { songEntryOf, videoFieldsOf } = require('../../../sources/ytm/main/songVersion.cjs');
 
 const endpointOf = (musicVideoType: string) => ({ watchEndpointMusicSupportedConfigs: { watchEndpointMusicConfig: { musicVideoType } } });
 const entry = (videoId: string, musicVideoType: string) => ({ video_id: videoId, endpoint: { payload: endpointOf(musicVideoType) } });

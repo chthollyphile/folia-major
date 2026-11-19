@@ -62,7 +62,7 @@ describe('what each platform declares for the sign-in window', () => {
             bodian: { title: 'folium-mod/bodian:login.title', note: 'folium-mod/bodian:login.note' },
             fnmusic: { title: 'folium-mod/fnmusic:login.title', note: 'folium-mod/fnmusic:login.note' },
             // The test runs where no browser tells the system: the note is the one for Windows and Linux.
-            ytm: { title: 'home.loginTitleYtm', note: 'home.loginNoteYtmBrowser' },
+            ytm: { title: 'folium-mod/ytm:login.title', note: 'folium-mod/ytm:login.note' },
             spotify: { title: 'home.loginTitleSpotify', note: 'home.loginNoteSpotify' },
             qishui: { title: 'folium-mod/qishui:login.title', note: 'folium-mod/qishui:login.note' },
             appleMusic: { title: 'home.loginTitleAppleMusic', note: 'home.loginNoteAppleMusic' },

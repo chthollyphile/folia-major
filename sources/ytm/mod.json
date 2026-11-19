@@ -1,0 +1,34 @@
+{
+  "folium": 2,
+  "id": "ytm",
+  "name": "YouTube Music",
+  "version": "1.0.0",
+  "author": "Folia",
+  "description": "Folia 内置的 YouTube Music 音源（仅桌面端）：在自己的浏览器里登录 Google、搜索、播放、按行计时的歌词、曲库、歌单改动、探索页与电台，经 youtubei.js 在主进程里请求。",
+  "client": "client.mjs",
+  "main": "index.cjs",
+  "locales": "locales",
+  "sources": [
+    {
+      "id": "ytm",
+      "name": {
+        "zh-CN": "YouTube Music",
+        "en": "YouTube Music",
+        "in": "YouTube Music",
+        "vi": "YouTube Music"
+      },
+      "requires": [
+        "search@1",
+        "songs@1",
+        "playback.audio@1",
+        "lyrics@1",
+        "auth@1",
+        "library@1",
+        "catalog@1",
+        "explore@1",
+        "recommendations@1",
+        "mutations@1"
+      ]
+    }
+  ]
+}
