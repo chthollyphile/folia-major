@@ -11,6 +11,7 @@ import { clearSourceData, switchSourceState } from '../../../../../mods/runtime/
 import type { ModSourceState, ModSourceStatesPayload, ModStorageUsageResult } from '../../../../../mods/types';
 import { useModsStore } from '../../../../../mods/useModsStore';
 import { omni } from '../../../../../services/onlineMusic/omni';
+import { subscribeSourceDeclarations } from '../../../../../services/onlineMusic/sourceDeclarations';
 import { canSourceMatchOnly } from '../../../../../services/onlineMusic/sourceStates';
 import { setStatusMessage } from '../../../../../stores/useStatusMessageStore';
 import { buildSourceNotices, buildSourceRows, type SourceNoticeAction } from './sourcesModel';
@@ -24,20 +25,24 @@ import { buildSourceNotices, buildSourceRows, type SourceNoticeAction } from './
 const EMPTY: ModSourceStatesPayload = { states: {}, sources: [] };
 
 // Answers the user chose themselves (a cancelled confirmation) are not reported.
-const SILENT_ERRORS = new Set(['clear-declined', 'enable-declined']);
+const SILENT_ERRORS = new Set(['clear-declined', 'enable-declined', 'override-declined']);
+
+// The registry's version, followed by useSyncExternalStore (module-level, so it does not subscribe anew each render).
+const subscribeRegistry = (listener: () => void) => omni.subscribeProviders(listener);
+const readRegistryVersion = () => omni.getProviderRegistryVersion();
 
 export const useSourcesSettings = () => {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const [payload, setPayload] = useState<ModSourceStatesPayload>(EMPTY);
     const [ready, setReady] = useState(false);
     const [pending, setPending] = useState<ReadonlySet<string>>(new Set());
     const [usage, setUsage] = useState<Readonly<Record<string, ModStorageUsageResult>>>({});
     const mods = useModsStore(state => state.mods);
     // Names, marks and what may be used only for matching follow the registry (a source mod starting or stopping).
-    const registryVersion = useSyncExternalStore(
-        (listener: () => void) => omni.subscribeProviders(listener),
-        () => omni.getProviderRegistryVersion(),
-    );
+    const registryVersion = useSyncExternalStore(subscribeRegistry, readRegistryVersion);
+    // A source mod declares its capabilities after it registers: whether it may be used only for matching follows.
+    const [declarationsVersion, setDeclarationsVersion] = useState(0);
+    useEffect(() => subscribeSourceDeclarations(() => setDeclarationsVersion(version => version + 1)), []);
 
     const refreshStates = useCallback(async () => {
         const next = await getSourceStates();
@@ -51,10 +56,11 @@ export const useSourcesSettings = () => {
         return subscribeSourceStates(next => setPayload({ states: next.states, sources: next.sources }));
     }, [refreshStates]);
 
-    // registryVersion is read so the rows follow the registry: the order and what may be used only for matching.
-    const rows = useMemo(() => (registryVersion >= 0
+    // The two versions are read so the rows follow the registry (the order) and the declarations (what may be
+    // used only for matching).
+    const rows = useMemo(() => (registryVersion + declarationsVersion >= 0
         ? buildSourceRows(payload.sources, mods, { canMatchOnly: canSourceMatchOnly, sort: ids => omni.sortSourceIds(ids) })
-        : []), [payload.sources, mods, registryVersion]);
+        : []), [payload.sources, mods, registryVersion, declarationsVersion]);
     const notices = useMemo(() => buildSourceNotices(mods), [mods]);
 
     // The disk use of each source mod, read once per mod (counting walks its folders) and again after a clear.
@@ -84,9 +90,13 @@ export const useSourcesSettings = () => {
 
     const reportError = useCallback((name: string, error: string | undefined, key: string) => {
         if (error && SILENT_ERRORS.has(error)) return;
-        const reason = t(`sourcesSettings.errors.${error ?? 'unknown'}`, { defaultValue: error ?? '' });
+        // A code without its own text reads as "unknown reason" with the code after it, never as the bare code.
+        const code = (error ?? 'unknown').split(':')[0];
+        const reason = i18n.exists(`sourcesSettings.errors.${code}`)
+            ? t(`sourcesSettings.errors.${code}`)
+            : `${t('sourcesSettings.errors.unknown')} (${error ?? ''})`;
         setStatusMessage({ type: 'error', text: t(key, { name, reason }) });
-    }, [t]);
+    }, [t, i18n]);
 
     const switchTo = useCallback((sourceId: string, name: string, state: ModSourceState) => withPending(sourceId, async () => {
         const answer = await switchSourceState(sourceId, state);
@@ -100,10 +110,11 @@ export const useSourcesSettings = () => {
 
     const clearData = useCallback((sourceId: string, name: string, modId: string | null) => withPending(sourceId, async () => {
         const answer = await clearSourceData(sourceId);
-        if (answer.ok) {
+        // Some of it could not be removed: the main process answers 'clear-partial' with what failed.
+        if (answer.ok || answer.error === 'clear-partial') {
             setStatusMessage({
-                type: answer.failed?.length ? 'info' : 'success',
-                text: t(answer.failed?.length ? 'sourcesSettings.clearPartial' : 'sourcesSettings.clearDone', { name }),
+                type: answer.ok ? 'success' : 'info',
+                text: t(answer.ok ? 'sourcesSettings.clearDone' : 'sourcesSettings.clearPartial', { name }),
             });
         } else {
             reportError(name, answer.error, 'sourcesSettings.clearFailed');

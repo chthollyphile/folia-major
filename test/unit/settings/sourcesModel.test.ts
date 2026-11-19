@@ -81,6 +81,11 @@ describe('sourcesModel · rows', () => {
         ]);
     });
 
+    it('says when the whole mod is switched off on the Mods page, whatever the state here', () => {
+        const [row] = buildSourceRows([stateRow({ sourceId: 'bodian', modId: 'bodian', tier: 'builtin', loaded: false })], [mod({ id: 'bodian', enabled: false, status: 'disabled' })], inputs);
+        expect(row.run).toBe('mod-off');
+    });
+
     it('names a source mod not registered now by its manifest, in the language asked for', () => {
         const rows = buildSourceRows(
             [stateRow({ sourceId: 'folium.x.radio', modId: 'x', tier: 'user', state: 'disabled' })],
@@ -115,6 +120,11 @@ describe('sourcesModel · takeover and override notes', () => {
             kind: 'claim-taken', modId: 'second', sourceId: 'qq', otherModId: 'first', otherModName: 'first',
             action: { kind: 'assign-claim', shortId: 'qq', modId: 'second' },
         })]);
+    });
+
+    it('says a takeover nobody confirmed once per claimed id, however many notes the loader left', () => {
+        const notices = buildSourceNotices([claiming('alt-qq', 'qq', { notes: ['claim-unconfirmed', 'claim-unconfirmed'] })]);
+        expect(notices).toHaveLength(1);
     });
 
     it('explains the claims that cannot take over, with no action', () => {

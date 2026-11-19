@@ -5,6 +5,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { useCrossSourceParticipants } from '../../../../hooks/useCrossSourceParticipants';
 import type { CrossSourceSkipReason } from '../../../../services/onlineMusic/crossSource';
 import { resyncAllFolders } from '../../../../services/localMusicService';
+import { getSourceStates } from '../../../../services/onlineMusic/sourceStates';
 import { useLyricSettingsStore } from '../../../../stores/useLyricSettingsStore';
 import { openSettings } from '../../../../stores/useSettingsModalStore';
 import { setStatusMessage } from '../../../../stores/useStatusMessageStore';
@@ -74,7 +75,8 @@ const LyricsPage: React.FC = () => {
     // Said once, under the choice, while the listener's own choice is left out: which source, and why.
     const preferredSkip = skipped.find(skip => skip.sourceId === lyric.preferredSource);
     // A source switched off or kept for matching is switched back in Settings → Sources (Folium 2.0 plan §7.1): the
-    // line ends on the way there. One that needs an account, or is not set up, is not settled there.
+    // line ends on the way there. One that needs an account, or is not set up, is not settled there, and one not
+    // installed (or not started) has no row there: the states table lists only the sources it knows.
     const preferredSkipNote = preferredSkip
         ? (
             <>
@@ -83,7 +85,8 @@ const LyricsPage: React.FC = () => {
                     reason: t(CROSS_SOURCE_SKIP_REASON_KEYS[preferredSkip.reason]),
                     next: getLyricProviderPreferenceLabel(shownSource),
                 })}
-                {(preferredSkip.reason === 'not-enabled' || preferredSkip.reason === 'matching-only') && window.electron && (
+                {(preferredSkip.reason === 'not-enabled' || preferredSkip.reason === 'matching-only')
+                    && window.electron && Object.hasOwn(getSourceStates(), preferredSkip.sourceId) && (
                     <>
                         {' '}
                         <button

@@ -15,7 +15,9 @@ export type SourceRunState =
     | 'starting'
     | 'stopped'
     | 'failed'
-    | 'off';
+    | 'off'
+    /** Its whole mod is switched off on the Mods page: nothing of it runs whatever its state here. */
+    | 'mod-off';
 
 export interface SourceRowModel {
     sourceId: string;
@@ -45,6 +47,7 @@ export interface SourceRowInputs {
 const runOf = (row: ModSourceStateRow, mod: ModRuntimeInfo | undefined): SourceRunState => {
     if (row.tier === 'host') return 'host';
     if (row.state === 'disabled') return 'off';
+    if (mod && !mod.enabled) return 'mod-off';
     if (mod?.status === 'error') return 'failed';
     if (row.mainState === 'deferred') return 'deferred';
     if (row.mainState === 'activating') return 'starting';
@@ -151,7 +154,8 @@ export const buildSourceNotices = (mods: readonly ModRuntimeInfo[]): SourceNotic
 
     mods.forEach((mod) => {
         const claims = claimedIds(mod);
-        (mod.notes ?? []).forEach((note) => {
+        // One note per short id it could not take over; each kind is said once here.
+        [...new Set(mod.notes ?? [])].forEach((note) => {
             const kind = CLAIM_NOTE_KINDS.find(candidate => candidate === note);
             if (!kind) return;
             if (kind === 'claim-unconfirmed') {
