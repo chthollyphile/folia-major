@@ -1,9 +1,10 @@
-import { OnlineProviderError } from '../../../src/types/onlineMusic';
-import type { ProviderErrorCode } from '../../../src/types/onlineMusic';
+import type { FoliumSourceError, FoliumSourceErrorCode, FoliumSourceErrorDetails } from '@folia/folium';
 
-// src/services/onlineMusic/ytm/ytmTransport.ts
-// The IPC boundary to electron/ytm/ytmApiBridge.cjs. Google credentials stay in the main process;
-// only the shapes below cross over.
+// sources/ytm/client/ytmTransport.ts
+// The boundary to the main entry (main/index.ts, which hands the operations to ytmApiBridge.cjs): requests go
+// through folium.rpc's `request`. Google credentials stay in the main process; only the shapes below cross over.
+// The bridge's code and sentence reach the host as they are (folium.sources.error); the desktop side's own word
+// for why a sign-in failed rides on the error as its cause (ytmReasonOf), which ytmLoginFailure.ts reads.
 
 export type YtmOperation =
     | 'login_status' | 'logout'
@@ -14,7 +15,7 @@ export type YtmParams = Record<string, string | undefined>;
 // `reason`: the desktop side's own word for why a sign-in failed, where it has one.
 export type YtmBridgeResult =
     | { ok: true; data: unknown }
-    | { ok: false; error: { code: ProviderErrorCode; message: string; reason?: string } };
+    | { ok: false; error: { code: string; message: string; reason?: string } };
 
 export interface YtmWireArtist { id: string; name: string }
 export interface YtmWireSong {
@@ -68,29 +69,67 @@ export interface YtmWireArtistPage { collection: YtmWireCollection; songs: YtmWi
 export type YtmWireWebLoginState =
     | { state: 'waiting' | 'expired' }
     | { state: 'confirmed'; account: unknown }
-    | { state: 'error'; message: string; code?: ProviderErrorCode; reason?: string };
+    | { state: 'error'; message: string; code?: string; reason?: string };
 
-export const getYtmTransportAvailability = () => (
-    typeof window !== 'undefined' && typeof window.electron?.ytmRequest === 'function'
-        ? { configured: true } as const
-        : { configured: false, reason: 'runtime-unavailable' } as const
-);
+/** What the transport needs of the host: the main entry, and the host's errors. activate (index.ts) hands it in. */
+export interface YtmTransportEnv {
+    call<T>(name: string, ...args: unknown[]): Promise<T>;
+    error(code: FoliumSourceErrorCode, message: string, details?: FoliumSourceErrorDetails): FoliumSourceError;
+}
+
+let env: YtmTransportEnv | null = null;
+
+/** Connects the transport to the host; the last one given is used. */
+export const connectYtmTransport = (next: YtmTransportEnv): void => {
+    env = next;
+};
+
+const host = (): YtmTransportEnv => {
+    if (!env) throw new Error('[Ytm] the transport is not connected (activate has not run)');
+    return env;
+};
+
+// The codes the host reads; the bridge gives only these (main/errors.cjs). One it might add later is read as an
+// answer that could not be read, as the host would not know it either.
+const CODES: ReadonlySet<string> = new Set<FoliumSourceErrorCode>([
+    'auth-required', 'unsupported', 'not-public', 'unavailable', 'not-playable', 'preview-only',
+    'subscription-required', 'region-restricted', 'network', 'invalid-response',
+]);
+
+/**
+ * The desktop side's word for why a request failed, where it said one. Rides on the error as its `cause`, which
+ * the host keeps when it names the source on the error (a new object), so it is recognised by identity here.
+ */
+export interface YtmReason { readonly reason: string }
+const reasons = new WeakSet();
+
+/** The desktop side's reason an error of a YouTube Music request carries, or null. */
+export const ytmReasonOf = (error: unknown): string | null => {
+    const cause: unknown = error instanceof Error ? (error as { cause?: unknown }).cause : undefined;
+    return typeof cause === 'object' && cause !== null && reasons.has(cause) ? (cause as YtmReason).reason : null;
+};
+
+/** An error of the host's, with the bridge's code (or `invalid-response` for one the host does not know) and sentence. */
+export const ytmError = (code: string | undefined, message: string, reason?: string): FoliumSourceError => {
+    const known = code !== undefined && CODES.has(code) ? code as FoliumSourceErrorCode : 'invalid-response';
+    if (!reason) return host().error(known, message);
+    const cause: YtmReason = Object.freeze({ reason });
+    reasons.add(cause);
+    return host().error(known, message, { cause });
+};
 
 export async function requestYtm<T = unknown>(operation: YtmOperation, params: YtmParams = {}): Promise<T> {
-    if (!getYtmTransportAvailability().configured) {
-        throw new OnlineProviderError('unavailable', 'YouTube Music requires the desktop app', 'ytm');
-    }
+    const transport = host();
     const startedAt = Date.now();
     let result: YtmBridgeResult;
-    try { result = await window.electron!.ytmRequest(operation, params); }
-    catch {
-        console.warn(`[Ytm] ${operation} did not reach the desktop app`);
-        throw new OnlineProviderError('network', 'YouTube Music desktop request failed', 'ytm');
+    try { result = await transport.call<YtmBridgeResult>('request', operation, params); }
+    catch (error) {
+        console.warn(`[Ytm] ${operation} did not reach the desktop app`, error);
+        throw ytmError('network', 'YouTube Music desktop request failed');
     }
     if (!result.ok) {
-        console.warn(`[Ytm] ${operation} failed after ${Date.now() - startedAt}ms: ${result.error.code} (${result.error.message ?? ''})`);
-        // The reason goes with the error as its cause (ytmLoginFailure.ts reads it there).
-        throw new OnlineProviderError(result.error.code, result.error.message, 'ytm', result.error.reason);
+        console.warn(`[Ytm] ${operation} failed after ${Date.now() - startedAt}ms: ${result.error.code} (${result.error.message})`);
+        throw ytmError(result.error.code, result.error.message, result.error.reason);
     }
     // A page YouTube has changed reads as an empty list, which nothing else would tell from a real one.
     const items = (result.data as { items?: unknown } | null)?.items;

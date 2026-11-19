@@ -1,14 +1,14 @@
-import i18n from '../../../src/i18n/config';
-import type { OnlineExploreProvider, ProviderCollection, ProviderExploreItem, ProviderExploreSection } from '../../../src/types/onlineMusic';
+import type {
+    FoliumSourceCollection, FoliumSourceExplore, FoliumSourceExploreItem, FoliumSourceExploreSection, FoliumSourceSong, FoliumText,
+} from '@folia/folium';
 import { createHandedOut, cursorWords, stampCursor } from '@folia/folium-source-kit';
 import { normalizeYtmCollection, normalizeYtmSong } from './ytmNormalize';
-import { addYtmSeeds, noteYtmListened, ytmListenedSeeds, ytmRadioSongs, ytmSeedOf } from './ytmRadio';
+import { addYtmSeeds, noteYtmListened, ytmListenedSeeds, ytmRadioSongs } from './ytmRadio';
 import type { YtmSeed } from './ytmRadio';
 import { requestYtm } from './ytmTransport';
-import { errorMessage } from '../../../src/utils/errorText';
 import type { YtmWireExploreItem, YtmWireExplorePage, YtmWireSong } from './ytmTransport';
 
-// src/services/onlineMusic/ytm/ytmExplore.ts
+// sources/ytm/client/ytmExplore.ts
 // The recommendation page of YouTube Music: the shelves YouTube shows the signed-in account, and
 // with them shelves made here, each of the songs YouTube Music lists as like one song. YouTube's
 // headings come as it writes them, in the app's language.
@@ -19,7 +19,7 @@ import type { YtmWireExploreItem, YtmWireExplorePage, YtmWireSong } from './ytmT
 // own. What is noted below as measured was measured on the music page of YouTube's TV client,
 // which the app read while it had the device sign-in; it was not measured again on these pages.
 
-const toItem = (item: YtmWireExploreItem): ProviderExploreItem => ({
+const toItem = (item: YtmWireExploreItem): FoliumSourceExploreItem => ({
     ...(item.kind === 'song'
         ? { kind: 'song', song: normalizeYtmSong(item.song) }
         : { kind: 'collection', collection: normalizeYtmCollection(item.collection, item.collection.type), ...(item.collection.mix ? { isMix: true } : {}) }),
@@ -28,7 +28,7 @@ const toItem = (item: YtmWireExploreItem): ProviderExploreItem => ({
 
 // The shelves of YouTube's own record of the account's listening: what it last played, what it
 // plays again, and what it once played and no longer does, on YouTube's own apps. They are left
-// out (see OnlineExploreProvider): the explore page has such sections from the app's own record
+// out (see explore@1): the explore page has such sections from the app's own record
 // alone. Nothing in a shelf says which one it is but its heading: measured 2026-10-07, these
 // have the shape of every other shelf, and their page tokens differ from the others' only in
 // the shelf's place on the page. So they are known by the headings YouTube gives them in the
@@ -101,11 +101,11 @@ const noRadios = () => ({
     /** How many were asked with. */
     asked: 0,
     /** What each shelf holds, by the song it was asked with. */
-    songs: new Map<string, ProviderExploreItem[]>(),
+    songs: new Map<string, FoliumSourceExploreItem[]>(),
     /** The songs on a shelf: a song is on one shelf in a read. */
     shown: new Set<string>(),
     /** A shelf made beside a page of YouTube's that could not be read: it comes with that page when it can. */
-    waiting: [] as ProviderExploreSection[],
+    waiting: [] as FoliumSourceExploreSection[],
 });
 let radios = noRadios();
 // The songs asked with in the reads before, in the order they were asked with (the adapters'
@@ -120,7 +120,7 @@ const radioCursor = (id: string, from: number) => stamped(`${RADIO}${id} ${from}
 const radioPageCursor = () => stamped(`${RADIO_PAGE}${radios.asked}`);
 
 /** A shelf of the songs like `seed`; null where they could not be read, or too few of them are on no other shelf. */
-const radioShelf = async (seed: YtmSeed): Promise<ProviderExploreSection | null> => {
+const radioShelf = async (seed: YtmSeed): Promise<FoliumSourceExploreSection | null> => {
     // (An answer that arrives after the page was asked for from its start again is of this read, which the caller drops.)
     const own = radios;
     try {
@@ -136,26 +136,26 @@ const radioShelf = async (seed: YtmSeed): Promise<ProviderExploreSection | null>
         return {
             id: `ytm-shelf-${++sectionsRead}`,
             // (The radio names its song as YouTube Music does; a tile of the page carries the video's title.)
-            title: i18n.t('home.exploreSimilar', { name: listed.find(song => song.id === seed.id)?.name || seed.name }),
+            title: similarTo(listed.find(song => song.id === seed.id)?.name || seed.name),
             items: own.songs.get(seed.id)!.slice(0, RADIO_BATCH),
             ...(songs.length > RADIO_BATCH ? { moreCursor: radioCursor(seed.id, RADIO_BATCH) } : {}),
             // Another read asks with other songs: its shelves take the places of these.
             changesWithRead: true,
         };
     } catch (error) {
-        console.warn(`[Ytm] Explore radio of ${seed.id} could not be read (${errorMessage(error)}); the page goes on without it`);
+        console.warn(`[Ytm] Explore radio of ${seed.id} could not be read; the page goes on without it`, error);
         return null;
     }
 };
 
 // Up to `count` such shelves, each asked with the next song: the ones no read before asked with
 // first, then the ones asked with longest ago. Fewer where the songs or the read's requests run out.
-const radioShelves = async (count: number): Promise<ProviderExploreSection[]> => {
+const radioShelves = async (count: number): Promise<FoliumSourceExploreSection[]> => {
     const seeds = handedOut.inTurn(SEEDS, radios.seeds, seed => seed.id).slice(0, Math.min(count, MAX_RADIOS - radios.asked));
     radios.seeds = radios.seeds.filter(seed => !seeds.includes(seed));
     handedOut.note(SEEDS, seeds.map(seed => seed.id));
     radios.asked += seeds.length;
-    return (await Promise.all(seeds.map(radioShelf))).filter((shelf): shelf is ProviderExploreSection => shelf !== null);
+    return (await Promise.all(seeds.map(radioShelf))).filter((shelf): shelf is FoliumSourceExploreSection => shelf !== null);
 };
 
 const songsOf = (sections: YtmWireExplorePage['sections']): YtmSeed[] => sections.flatMap(section => section.items)
@@ -175,10 +175,15 @@ const askFirstPage = (listened: YtmSeed[]): Promise<YtmWireExplorePage> => {
     return asked;
 };
 
-export const ytmExplore: OnlineExploreProvider = {
+// The heading of a shelf made here, from the mod's own texts (index.ts connects it): "Similar to <song>".
+let similarTo: (name: string) => FoliumText = name => name;
+/** Connects the heading of the shelves made here. */
+export const connectYtmExplore = (heading: (name: string) => FoliumText): void => { similarTo = heading; };
+
+export const ytmExplore: FoliumSourceExplore = {
     async getFeed(cursor, listened = []) {
         // The songs played here are noted for the personal FM too, which is not handed them.
-        if (!cursor) noteYtmListened(listened.map(ytmSeedOf));
+        if (!cursor) noteYtmListened(listened.map(song => ({ id: song.id, name: song.title })));
         // (Counted before the answer: a request that fails may have reached YouTube.)
         const start = cursor ? null : askFirstPage(ytmListenedSeeds());
         const read = pagesRead;
@@ -197,7 +202,7 @@ export const ytmExplore: OnlineExploreProvider = {
         const own = radios;
         const asked = start ?? requestYtm<YtmWireExplorePage>('explore', { continuation: token });
         // A shelf is asked for beside the page; one that waits from a read of this page that failed is not asked for again.
-        const beside = token && own.waiting.length === 0 ? radioShelves(1) : Promise.resolve<ProviderExploreSection[]>([]);
+        const beside = token && own.waiting.length === 0 ? radioShelves(1) : Promise.resolve<FoliumSourceExploreSection[]>([]);
         const page = await asked.catch(error => {
             // (The failure is reported at once; the shelf waits from when it arrives.)
             void beside.then(made => own.waiting.push(...made));
@@ -237,12 +242,11 @@ export const ytmExplore: OnlineExploreProvider = {
     // the album track's length and the album's picture. Its looks do not tell it, so every track
     // is asked about, once (the record keeps which were).
     async songsShownAs(songs) {
-        const ids = [...new Set(songs.flatMap(song => (
-            song.sourceRef?.kind === 'online' && song.sourceRef.providerId === 'ytm' ? [String(song.sourceRef.mediaId)] : []
-        )))];
-        if (ids.length === 0) return new Map();
+        // (The host hands this YouTube Music's own songs only.)
+        const ids = [...new Set(songs.map(song => song.id))];
+        if (ids.length === 0) return {};
         const { songs: found } = await requestYtm<{ songs: Record<string, YtmWireSong | null> }>('song_versions', { ids: ids.join(',') });
-        return new Map(Object.entries(found).map(([id, song]) => [id, song && normalizeYtmSong(song)]));
+        return Object.fromEntries(Object.entries(found).map(([id, song]): [string, FoliumSourceSong | null] => [id, song && normalizeYtmSong(song)]));
     },
 };
 
@@ -253,10 +257,10 @@ export const ytmExplore: OnlineExploreProvider = {
  * here would end the tokens the explore page holds. Only where no read is at hand is the page
  * read here, counted as a read from the start like any other.
  */
-export const ytmMusicPagePlaylists = async (): Promise<ProviderCollection[]> => {
+export const ytmMusicPagePlaylists = async (): Promise<FoliumSourceCollection[]> => {
     const atHand = firstPage !== null;
     const page = await (firstPage ?? askFirstPage(ytmListenedSeeds()));
-    const lists = new Map<string, ProviderCollection>();
+    const lists = new Map<string, FoliumSourceCollection>();
     for (const section of page.sections) {
         if (LISTENING_RECORD_HEADINGS.has(section.title)) continue;
         for (const item of section.items) {

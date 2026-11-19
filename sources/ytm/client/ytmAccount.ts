@@ -1,35 +1,39 @@
-// src/services/onlineMusic/ytm/ytmAccount.ts
-// What the desktop side last said of the signed-in account, beside what the app shows of it:
-// whether it has Premium (`vipType`). The adapter's parts ask here. The fact is kept across runs
-// (localStorage): a song may be asked for before the sign-in status was read in this run, and the
-// quality level it is asked at depends on it. Until that read, what the last run knew stands.
+import type { FoliumSourcePageStore } from '@folia/folium';
 
-const STORAGE_KEY = 'folia_ytm_account';
+// sources/ytm/client/ytmAccount.ts
+// What the desktop side last said of the signed-in account, beside what the app shows of it: whether it has
+// Premium (`vipType`). The source's parts ask here. The fact is kept across runs in the source's page store
+// (`account`): a song may be asked for before the sign-in status was read in this run, and the quality level it
+// is asked at depends on it. Until that read, what the last run knew stands.
+// The built-in provider kept it under `folia_ytm_account`, which a source mod cannot reach: after the upgrade
+// the first run knows nothing until its first sign-in status, as a first run does.
 
-const storage = () => (typeof localStorage === 'undefined' ? null : localStorage);
+const STORAGE_KEY = 'account';
 
-// What the last run kept, as far as it has the shape written here; anything else is nobody. A
-// note written when the app had two sign-ins names its own beside the fact (`signIn`): the one
-// of the device sign-in ('tv'), which is gone, is nobody's.
-const readKept = (): boolean => {
+let store: FoliumSourcePageStore | null = null;
+let premium = false;
+// Told when the fact changes (index.ts: the handle's `changed()`, as the quality levels follow it).
+let onChange: () => void = () => {};
+
+/** Connects the note to the source's page store and reads what the last run kept. */
+export const connectYtmAccount = (next: FoliumSourcePageStore, changed: () => void): void => {
+    store = next;
+    onChange = changed;
+    premium = false;
     try {
-        const kept: unknown = JSON.parse(storage()?.getItem(STORAGE_KEY) ?? 'null');
-        const { signIn, premium } = (kept ?? {}) as { signIn?: unknown; premium?: unknown };
-        return signIn !== 'tv' && premium === true;
+        const { premium: kept } = (JSON.parse(store.get(STORAGE_KEY) ?? 'null') ?? {}) as { premium?: unknown };
+        premium = kept === true;
     } catch { /* unreadable: nothing is known */ }
-    return false;
+    if (premium) console.log('[Ytm] The account as the last run knew it has Premium');
 };
-
-let premium = readKept();
-if (premium) console.log('[Ytm] The account as the last run knew it has Premium');
 
 /** Notes the account as the desktop side names it (a `login_status` answer, or the one of a confirmed `web_login_check`); null for nobody signed in. */
 export const noteYtmAccount = (account: unknown): void => {
+    const before = premium;
     premium = Boolean(account) && Number((account as { vipType?: unknown }).vipType) > 0;
-    try {
-        if (account) storage()?.setItem(STORAGE_KEY, JSON.stringify({ premium }));
-        else storage()?.removeItem(STORAGE_KEY);
-    } catch { /* storage is full or switched off: the fact holds for this run */ }
+    // (The page store logs a write it could not make; the fact holds for this run.)
+    store?.set(STORAGE_KEY, account ? JSON.stringify({ premium }) : null);
+    if (premium !== before) onChange();
 };
 
 /** Whether somebody is signed in whose account has Premium. */

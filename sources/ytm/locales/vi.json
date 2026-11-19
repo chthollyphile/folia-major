@@ -1,0 +1,14 @@
+{
+    "name": {
+        "short": "YT Music"
+    },
+    "login": {
+        "title": "Đăng nhập YouTube Music",
+        "note": "Một cửa sổ trình duyệt riêng sẽ mở ra. Đăng nhập vào Google tại đó, sau khi thấy YouTube Music hiển thị tài khoản của bạn, hãy đóng cửa sổ đó.",
+        "noteMac": "Một cửa sổ trình duyệt riêng sẽ mở ra. Đăng nhập vào Google tại đó, sau khi thấy YouTube Music hiển thị tài khoản của bạn, hãy thoát trình duyệt (⌘Q).",
+        "noBrowser": "Đăng nhập YouTube Music yêu cầu đã cài đặt Chrome, Edge, Chromium hoặc Brave. Trên Windows, Chrome, Edge hoặc Brave bản portable được đặt làm trình duyệt mặc định cũng dùng được (chính chrome.exe, msedge.exe hoặc brave.exe, không phải trình khởi chạy).",
+        "unfinished": "Vui lòng đăng nhập trước khi đóng trình duyệt"
+    },
+    "exploreSimilar": "Tương tự với «{{name}}»",
+    "pageLanguage": "vi"
+}

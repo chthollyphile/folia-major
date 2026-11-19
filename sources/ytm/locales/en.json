@@ -1,0 +1,14 @@
+{
+    "name": {
+        "short": "YT Music"
+    },
+    "login": {
+        "title": "Sign in to YouTube Music",
+        "note": "A separate browser window opens. Sign in to Google there, and close that window once YouTube Music shows your account.",
+        "noteMac": "A separate browser window opens. Sign in to Google there, and quit that browser (⌘Q) once YouTube Music shows your account.",
+        "noBrowser": "Signing in to YouTube Music needs Chrome (Beta, Dev or Canary also work), Edge, Chromium, Brave or Helium installed. On Windows, a portable Chrome, Edge or Brave set as the default browser also works (chrome.exe, msedge.exe or brave.exe itself, not a launcher).",
+        "unfinished": "Sign in before closing the browser"
+    },
+    "exploreSimilar": "Similar to {{name}}",
+    "pageLanguage": "en"
+}

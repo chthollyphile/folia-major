@@ -1,49 +1,37 @@
-import type { Artist, UnifiedSong } from '../../../src/types';
-import type { ProviderCatalogRef, ProviderCollection, ProviderPage, ProviderUser } from '../../../src/types/onlineMusic';
-import { OnlineProviderError } from '../../../src/types/onlineMusic';
+import type { FoliumSourceCollection, FoliumSourceNamedRef, FoliumSourcePage, FoliumSourceSong, FoliumSourceUser } from '@folia/folium';
+import { ytmError } from './ytmTransport';
 import type { YtmWireArtist, YtmWireCollection, YtmWirePage, YtmWireSong } from './ytmTransport';
 
-// src/services/onlineMusic/ytm/ytmNormalize.ts
+// sources/ytm/client/ytmNormalize.ts
+// The desktop side's rows → the public contract's DTOs. The host's shapes are the adapter's matter: a
+// collection's `data` is what the built-in provider kept as providerData (`playlistId`, a mix's `mix` and
+// `videoId`), a song's `row.id` its row in the playlist it was read from (`setVideoId`).
 
-// Rows read from the signed-in client name their artist and album without ids; an empty id means
-// "not known yet" and is filled in by `resolveSongCatalogRefs`.
-const ref = (kind: 'album' | 'artist', id: string): ProviderCatalogRef | undefined => (
-    id ? { providerId: 'ytm', kind, id } : undefined
-);
+// Rows read from the signed-in client name their artist and album without ids; an empty id means "not known
+// yet" and is filled in by `resolveSongCatalogRefs`. Such a name opens nothing in the catalogue (`ref: false`).
+const named = (id: string, name: string): FoliumSourceNamedRef => ({ id, name, ...(id ? {} : { ref: false }) });
 
-const artistsOf = (artists: YtmWireArtist[] | undefined): Artist[] => (artists ?? [])
+const artistsOf = (artists: YtmWireArtist[] | undefined): FoliumSourceNamedRef[] => (artists ?? [])
     .filter(artist => artist?.name)
-    .map(artist => ({ id: artist.id || '', name: artist.name, catalogRef: ref('artist', artist.id || '') }));
+    .map(artist => named(artist.id || '', artist.name));
 
-// The YouTube video id of a song that belongs to this provider.
-export const requireYtmSong = (song: { sourceRef?: UnifiedSong['sourceRef'] }): string => {
-    const source = song.sourceRef;
-    if (source?.kind !== 'online' || source.providerId !== 'ytm') {
-        throw new OnlineProviderError('unsupported', 'Song does not belong to YouTube Music', 'ytm');
-    }
-    return source.mediaId;
-};
-
-// Cached canonical songs pass through unchanged.
-export const normalizeYtmSong = (raw: unknown): UnifiedSong => {
-    const item = (raw ?? {}) as Partial<YtmWireSong> & { sourceRef?: UnifiedSong['sourceRef'] };
-    if (item.sourceRef?.kind === 'online' && item.sourceRef.providerId === 'ytm') return item as unknown as UnifiedSong;
-    if (!item.id) throw new OnlineProviderError('invalid-response', 'YouTube Music song has no id', 'ytm');
+export const normalizeYtmSong = (raw: unknown): FoliumSourceSong => {
+    const item = (raw ?? {}) as Partial<YtmWireSong>;
+    if (!item.id) throw ytmError('invalid-response', 'YouTube Music song has no id');
     const albumId = item.album?.id || '';
     return {
         id: item.id,
-        name: item.name || '',
+        title: item.name || '',
         artists: artistsOf(item.artists),
-        album: { id: albumId, name: item.album?.name || '', coverUrl: item.album?.coverUrl || '', catalogRef: ref('album', albumId) },
+        album: { ...named(albumId, item.album?.name || ''), coverUrl: item.album?.coverUrl || '' },
         durationMs: Math.max(0, Number(item.durationMs) || 0),
-        sourceRef: { kind: 'online', providerId: 'ytm', mediaId: item.id },
-        ...(item.setVideoId ? { collectionRowId: item.setVideoId } : {}),
-        ...(item.video ? { isVideo: true } : {}),
+        ...(item.setVideoId ? { row: { id: item.setVideoId } } : {}),
+        ...(item.video ? { video: true } : {}),
     };
 };
 
-export const normalizeYtmUser = (raw: unknown): ProviderUser => {
-    const item = (raw ?? {}) as Partial<ProviderUser>;
+export const normalizeYtmUser = (raw: unknown): FoliumSourceUser => {
+    const item = (raw ?? {}) as Partial<FoliumSourceUser>;
     return {
         id: String(item.id ?? ''),
         nickname: String(item.nickname ?? ''),
@@ -52,17 +40,15 @@ export const normalizeYtmUser = (raw: unknown): ProviderUser => {
     };
 };
 
-export const normalizeYtmCollection = (raw: unknown, type = 'playlist'): ProviderCollection => {
-    const item = (raw ?? {}) as Partial<YtmWireCollection> & { providerId?: string };
-    if (item.providerId === 'ytm') return item as unknown as ProviderCollection;
-    if (!item.id) throw new OnlineProviderError('invalid-response', 'YouTube Music collection has no id', 'ytm');
+export const normalizeYtmCollection = (raw: unknown, type = 'playlist'): FoliumSourceCollection => {
+    const item = (raw ?? {}) as Partial<YtmWireCollection>;
+    if (!item.id) throw ytmError('invalid-response', 'YouTube Music collection has no id');
     const publishedAt = item.publishedAt ?? (item.year ? Date.UTC(item.year, 0, 1) : undefined);
-    const providerData = {
+    const data = {
         ...(item.playlistId ? { playlistId: item.playlistId } : {}),
         ...(item.mix ? { mix: true, ...(item.videoId ? { videoId: item.videoId } : {}) } : {}),
     };
     return {
-        providerId: 'ytm',
         id: item.id,
         type: item.type || type,
         name: item.name || '',
@@ -74,11 +60,18 @@ export const normalizeYtmCollection = (raw: unknown, type = 'playlist'): Provide
         // The liked-music list always belongs to the signed-in account.
         ...(item.isLiked ? { isLiked: true, isOwned: true } : {}),
         ...(!item.isLiked && typeof item.isOwned === 'boolean' ? { isOwned: item.isOwned } : {}),
-        ...(Object.keys(providerData).length > 0 ? { providerData } : {}),
+        ...(Object.keys(data).length > 0 ? { data } : {}),
     };
 };
 
-export const ytmSlicePage = <T>(items: T[], offset: number, limit: number): ProviderPage<T> => {
+/** Whether a collection is a mix (a card of the explore page), read as a queue; `videoId` its first song. */
+export const ytmMixOf = (collection?: FoliumSourceCollection): { videoId?: string } | null => {
+    if (collection?.data?.mix !== true) return null;
+    const first = collection.data.videoId;
+    return typeof first === 'string' ? { videoId: first } : {};
+};
+
+export const ytmSlicePage = <T>(items: T[], offset: number, limit: number): FoliumSourcePage<T> => {
     const slice = items.slice(offset, offset + limit);
     const nextOffset = offset + slice.length;
     return { items: slice, total: items.length, nextOffset, hasMore: nextOffset < items.length };
@@ -107,7 +100,7 @@ export const createYtmPager = <T>(now: () => number = Date.now) => {
             offset: number,
             limit: number,
             fetchPage: (continuation?: string) => Promise<YtmWirePage<T>>,
-        ): Promise<ProviderPage<T>> {
+        ): Promise<FoliumSourcePage<T>> {
             let walk = walks.get(key);
             if (!walk || offset === 0 || (!walk.done && now() - walk.touchedAt > WALK_IDLE_MS)) {
                 walk = { items: [], done: false, touchedAt: now(), queue: Promise.resolve() };
@@ -131,7 +124,7 @@ export const createYtmPager = <T>(now: () => number = Date.now) => {
             await turn;
             // An empty page would read as "the list ends here" and cut a sync short.
             if (!current.done && current.items.length <= offset) {
-                throw new OnlineProviderError('invalid-response', 'YouTube Music list could not be read this far', 'ytm');
+                throw ytmError('invalid-response', 'YouTube Music list could not be read this far');
             }
             const items = current.items.slice(offset, offset + limit);
             const nextOffset = offset + items.length;
