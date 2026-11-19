@@ -33,8 +33,13 @@
 - `close_confidence`：0 到 1。
 - `out_of_scope_topic`：上面列出的 id 或 null。
 - `needs_error_log`：这个问题是否需要 devtools console 的报错才能定位。纯界面交互、布局、动画、快捷键类问题填 false；崩溃、加载失败、播放失败、登录失败等填 true。非 bug 填 false。
+- `wishlist_confidence`：0 到 1，这个 issue 是不是「愿望清单」：一次塞进许多互不相关的需求（往往分好几个小节、列出很多条），或者要求另做一个版本、分支、发行形态，又没有聚焦在一个具体要解决的问题上。
+  - 只有一两个需求、或者多条需求都服务于同一个具体场景的正常建议，填 0 到 0.3。
+  - 写得长、写得规整本身不算；判断依据是需求是不是分散、是不是没有一个可以单独讨论和实现的核心诉求。
+  - bug、平台接入请求、使用咨询填 0。
+  - 0.9 以上表示「维护者看了也会同意这个 issue 应该拆开或改写后再讨论」。宁可低估。
 - `tldr`：仅当 `needs_tldr` 为 true 时输出，3 到 5 条中文要点组成的数组，每条不超过 60 字，只复述原文内容，不补充推测，不写链接；否则填 null。
 - `reason`：不超过 120 字的中文，说明分类依据，供维护者参考。
 
 ## 输出 json 格式示例
-{"type":"bug","module":"playback","duplicate_of":null,"duplicate_confidence":0,"close_suggestion":"none","close_confidence":0,"out_of_scope_topic":null,"needs_error_log":true,"tldr":null,"reason":"播放本地 m4a 文件时报错，属于播放模块的 bug。"}
+{"type":"bug","module":"playback","duplicate_of":null,"duplicate_confidence":0,"close_suggestion":"none","close_confidence":0,"out_of_scope_topic":null,"needs_error_log":true,"wishlist_confidence":0,"tldr":null,"reason":"播放本地 m4a 文件时报错，属于播放模块的 bug。"}

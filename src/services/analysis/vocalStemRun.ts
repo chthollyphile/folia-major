@@ -56,6 +56,8 @@ export const vocalTailWorthReading = (seconds: number, at: number): boolean =>
  */
 const vocalEnvelopeTask = (key: string, at: () => number): StemTask<VocalEnvelope | null> => ({
     kind: VOCAL_ENVELOPE_TASK,
+    // 雾笺's, so 智能动感模式's: separated while it wants the track, as the drum hits are.
+    claimant: 'beatFx',
     open: ({ left }) => {
         const total = left.length;
         const playhead = at();
@@ -110,11 +112,11 @@ export const loadTrackVocalEnvelope = (
     const existing = runs.get(key);
     // Joined, as the drum hits are: one stopped (the track left and wanted again before its next segment)
     // is asked again - not one let go (`releaseTrackVocals`), which answers null as well.
-    if (existing) return existing.then(found => (found === null && stemTrackWanted(key) && voiceWanted === key && !runs.has(key) ? loadTrackVocalEnvelope(key, readBytes, { at, seconds }) : found));
+    if (existing) return existing.then(found => (found === null && stemTrackWanted(key, 'beatFx') && voiceWanted === key && !runs.has(key) ? loadTrackVocalEnvelope(key, readBytes, { at, seconds }) : found));
     const run = (async () => {
         const known = await loadStoredVocalEnvelope(key);
         if (known && (!known.from || known.from <= at() * known.fps)) return known;
-        if (!vocalTailWorthReading(seconds, at()) || !canRunDrumStem() || !stemTrackWanted(key) || voiceWanted !== key) return known;
+        if (!vocalTailWorthReading(seconds, at()) || !canRunDrumStem() || !stemTrackWanted(key, 'beatFx') || voiceWanted !== key) return known;
         return (await runTrackStems(key, readBytes, vocalEnvelopeTask(key, at))) ?? known;
     })().catch((error) => {
         console.warn(`[VocalEnvelope] ${key}: failed`, error);

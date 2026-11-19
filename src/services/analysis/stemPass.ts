@@ -7,7 +7,7 @@ import { separateStemSegment, STEM_SOURCES, stemSegmentStarts, stemSegmentWindow
 // and 雾笺's voice (vocalStemRun.ts) today. The model gives all four stems for every segment, so a segment
 // is separated once for every reader that needs it, whichever stems they read.
 //
-// A reader (StemReader) names its stem, the next segment it needs and a window to lay that stem
+// A reader (StemReader) names its stem (mono, or one channel of it), the next segment it needs and a window to lay that stem
 // together in. Each turn the pass separates the lowest segment any reader still needs and hands it to
 // every reader at that segment; a reader that starts further back (asked for part way through, from
 // the playhead) is fed its own segments first, alone, until it catches up and they share. Readers can
@@ -23,17 +23,46 @@ import { separateStemSegment, STEM_SOURCES, stemSegmentStarts, stemSegmentWindow
 // weight behind it. A reader starting part way has its stem whole from where the segment before its
 // first one ends (`stemWholeFrom`); before that it lacks that segment's share, and is left at zero.
 //
+// A reader can be held (not fed for now: 分轨调音台 once far enough ahead of the playhead), urgent
+// (its segments first, ahead of a reader further back: what is about to be heard) and pace the others
+// (they go no further than it, so the segments both want are separated once).
+//
 // The window is the reader's: the whole track (base 0, nothing let go), or a stretch of it that moves on
 // once the reader has read what is final (`read` answers the first sample it will read again) - a
 // segment and what the reader reads again behind it, rather than the whole track's samples.
 
 export type StemSource = typeof STEM_SOURCES[number];
 
+/** How often a pass whose readers are all held asks again. */
+const HELD_POLL_MS = 200;
+
 /** A stem from sample `base` on: `samples[i]` is sample `base + i`. */
 export interface StemWindow { samples: Float32Array; base: number }
 
 export interface StemReader {
     readonly source: StemSource;
+    /**
+     * One channel of the stem, for a reader that plays it (分轨调音台); without it the two are averaged
+     * to mono, which is what the analyses read.
+     */
+    readonly channel?: 'left' | 'right';
+    /**
+     * Not to be fed now (分轨调音台, far enough ahead of the playhead): skipped, neither waiting nor
+     * through. The pass goes on for the others; with only held readers left it waits (HELD_POLL_MS) and
+     * asks again.
+     */
+    readonly held?: () => boolean;
+    /**
+     * Whether its segments go first now (分轨调音台: what is about to be heard), before the lowest segment
+     * of the others. Asked each turn, so it can be urgent only while short of what it needs soon.
+     */
+    readonly urgent?: () => boolean;
+    /**
+     * The others go no further than it (分轨调音台 with 智能动感模式 on): while it is on the pass, a reader
+     * without it is fed only up to its next segment, and below that while it is held - so a segment both
+     * want is separated once, for both, instead of once ahead for the others and again when it comes.
+     */
+    readonly paces?: boolean;
     /** The next segment it needs; the pass moves it on. */
     next: number;
     /** Samples from the start whose quotient is final; the pass moves it on. */
@@ -90,7 +119,12 @@ const layInto = (reader: StemReader, stem: { left: Float32Array; right: Float32A
     const { samples, base } = reader.window;
     // A typed array drops a write past its end without a word: a window too short is a bug.
     if (start < base || start + n - base > samples.length) throw new Error(`stem window: segment ${index} at ${start} outside ${base}+${samples.length}`);
-    for (let i = 0; i < n; i += 1) samples[start - base + i] += ((stem.left[i] + stem.right[i]) / 2) * win[i];
+    if (reader.channel) {
+        const from = reader.channel === 'left' ? stem.left : stem.right;
+        for (let i = 0; i < n; i += 1) samples[start - base + i] += from[i] * win[i];
+    } else {
+        for (let i = 0; i < n; i += 1) samples[start - base + i] += ((stem.left[i] + stem.right[i]) / 2) * win[i];
+    }
     // A reader starting part way: before where it is whole the segment before's share never came.
     if (reader.divided > start) samples.fill(0, 0, Math.min(samples.length, reader.divided - base));
     // Up to where the next segment starts, nothing more will be added.
@@ -105,12 +139,15 @@ const layInto = (reader: StemReader, stem: { left: Float32Array; right: Float32A
  * Runs the segments `readers()` need over a stereo 44.1 kHz track (see the header): true once none is
  * left, false as soon as `keepGoing` says no (asked before each) or a segment cannot be separated.
  * With the track's analysis `key`, segments are shared with automix through stemRange.ts.
+ * `stillFed`, asked just before each reader is fed (another's `read` may have let it go meanwhile),
+ * keeps a reader let go from being fed after its owner answered; unlike `readers()` it has no effects.
  */
-export const runStemPass = async ({ left, right, readers, keepGoing = () => true, key, urgency = 'onScreen' }: {
+export const runStemPass = async ({ left, right, readers, keepGoing = () => true, stillFed = () => true, key, urgency = 'onScreen' }: {
     left: Float32Array;
     right: Float32Array;
     readers: () => readonly StemReader[];
     keepGoing?: () => boolean;
+    stillFed?: (reader: StemReader) => boolean;
     key?: string;
     urgency?: Urgency;
 }): Promise<boolean> => {
@@ -121,10 +158,20 @@ export const runStemPass = async ({ left, right, readers, keepGoing = () => true
     const inLeft = new Float32Array(segment);
     const inRight = new Float32Array(segment);
     for (;;) {
-        const waiting = readers().filter(reader => reader.next < starts.length);
-        if (!waiting.length) return true;
+        const unfinished = readers().filter(reader => reader.next < starts.length);
+        if (!unfinished.length) return true;
         if (!keepGoing()) return false;
-        const index = Math.min(...waiting.map(reader => reader.next));
+        const held = new Set(unfinished.filter(reader => reader.held?.()));
+        const leads = unfinished.filter(reader => reader.paces);
+        const limit = leads.length ? Math.min(...leads.map(reader => (held.has(reader) ? reader.next - 1 : reader.next))) : Infinity;
+        const waiting = unfinished.filter(reader => !held.has(reader) && (reader.paces || reader.next <= limit));
+        if (!waiting.length) {
+            await new Promise(resolve => setTimeout(resolve, HELD_POLL_MS));
+            continue;
+        }
+        const urgent = waiting.filter(reader => reader.urgent?.());
+        const first = urgent.length ? urgent : waiting;
+        const index = Math.min(...first.map(reader => reader.next));
         const start = starts[index];
         const n = Math.min(segment, total - start);
         // The last segment runs past the end of the track: zeros, as the reference pads it.
@@ -140,7 +187,7 @@ export const runStemPass = async ({ left, right, readers, keepGoing = () => true
         // Let go while the segment ran: not fed.
         const now = readers();
         for (const reader of group) {
-            if (!now.includes(reader)) continue;
+            if (!now.includes(reader) || !stillFed(reader)) continue;
             const stem = stems[STEM_SOURCES.indexOf(reader.source)];
             if (!stem) return false;
             const final = layInto(reader, stem, index, n, starts, win, segment, total);

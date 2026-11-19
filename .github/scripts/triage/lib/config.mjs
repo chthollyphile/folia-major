@@ -1,7 +1,7 @@
 // .github/scripts/triage/lib/config.mjs
 // triage 配置的校验与查询。结构不对就直接 throw：workflow 变红比带着错配置去改 issue 安全。
 
-const REQUIRED_SECTIONS = ['labels', 'modules', 'aggregates', 'outOfScope', 'providerRequest', 'pausedAreas', 'thresholds', 'llm', 'breaker', 'pr', 'stale'];
+const REQUIRED_SECTIONS = ['labels', 'modules', 'aggregates', 'outOfScope', 'providerRequest', 'pausedAreas', 'thresholds', 'llm', 'breaker', 'pr', 'wishlist', 'stale'];
 
 export const MODES = ['off', 'dry-run', 'live'];
 

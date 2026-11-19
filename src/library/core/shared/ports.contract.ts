@@ -47,7 +47,7 @@ export type LibraryEnqueueOptions = { suppressToast?: boolean };
 /** 「加入歌单」选择器里的一项。 */
 export type LibraryPlaylistOption = { id: string | number; name: string; description?: string };
 
-/** 本地曲库的来源动作；最后四个只打开宿主挂载的对话框。 */
+/** 本地曲库的来源动作；编辑对话框由宿主挂载。 */
 export interface LibraryLocalMutationPort {
     removePlaylistSongs?: (playlistId: string, songIds: string[]) => Promise<void> | void;
     /** 重新读取本地曲库（歌单、歌曲）。 */
@@ -57,6 +57,7 @@ export interface LibraryLocalMutationPort {
     deleteFolder?: (collection: LocalGridViewCollectionDescriptor) => Promise<void> | void;
     resyncFolder?: (collection: LocalGridViewCollectionDescriptor) => Promise<void> | void;
     resyncAllFolders?: () => Promise<void> | void;
+    reorderPlaylist?: (playlistId: string) => void;
     exportPlaylist?: (playlistId: string) => Promise<void> | void;
     editEntity?: (entityId: string) => Promise<void> | void;
     organizeFolder?: (collection: LocalGridViewCollectionDescriptor) => Promise<void> | void;

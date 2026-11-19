@@ -1,7 +1,8 @@
 import type { SongResult } from '../../types';
 import { mergeBeatFxEvents, type BeatFxEvent } from './clock';
 import { getTrackBeatAccents, getTrackBeatGrid } from '../analysis/beatGrid';
-import { getDrumHits, loadStoredDrumHits, loadTrackDrumHits, setWantedDrumTrack } from '../analysis/drumHits';
+import { getDrumHits, loadStoredDrumHits, loadTrackDrumHits } from '../analysis/drumHits';
+import { claimStemTrack, stemRunGoing } from '../analysis/trackStemRun';
 import { getVocalEnvelope, loadStoredVocalEnvelope } from '../analysis/vocalEnvelope';
 import { loadTrackVocalEnvelope, releaseTrackVocals } from '../analysis/vocalStemRun';
 import { getBeatFxLastHeard } from './beatFxLive';
@@ -107,9 +108,10 @@ interface TrackBytes {
 
 /**
  * The track's bytes as `key` names them: the representation's, or the local copy, or its stream -
- * or another analyser's read of them (trackBytes.ts).
+ * or another analyser's read of them (trackBytes.ts). 分轨调音台 reads through it too
+ * (services/stemMixer/useStemMixer.ts): the same bytes, read once.
  */
-const readTrackBytes = async (song: SongResult, key: string, representation: PlaybackRepresentation | null): Promise<TrackBytes> => {
+export const readTrackBytes = async (song: SongResult, key: string, representation: PlaybackRepresentation | null): Promise<TrackBytes> => {
     let note: string | undefined;
     const { bytes, source } = await loadTrackBytes(key, async () => {
         const found = await readLocalTrackBytes(song, { representation });
@@ -223,7 +225,7 @@ export type BeatFxTrackDrums = 'hits' | 'none' | 'retry';
  * `getDrumHits` answers for the key; 'none' for a drumless track, no htdemucs_gpu or no WebGPU;
  * 'retry' when the bytes are not to be had yet (an online track whose stream URL playback has not
  * resolved). The track asked for is the one a separation may run for; the caller says when it is
- * left (`setWantedDrumTrack(null)`) - on a track change or the switch going off, not a picture switch.
+ * left (`claimStemTrack('beatFx', null)`) - on a track change or the switch going off, not a picture switch.
  * (Since the analysis service's 2b, a picture switch too: the separation stops and keeps where it was,
  * DrumResume in drumHits.ts; from the PR #750 review.)
  * `storedOnly` (智能动感模式's `cached`): the cache alone, 'hits' or 'none', and no track is wanted.
@@ -239,12 +241,17 @@ export const loadBeatFxTrackDrums = (song: SongResult, { storedOnly = false, voc
             .then((): BeatFxTrackDrums => (found() ? 'hits' : 'none'));
         return { key, drums };
     }
-    setWantedDrumTrack(key);
+    claimStemTrack('beatFx', key);
     let missing = false;
+    let read = false;
+    // Joining a run another claimant started (分轨调音台): the run reads through its bytes, not these, so
+    // a missing stream shows here only as no hits - taken as one to retry, like a missing one of ours.
+    const joined = stemRunGoing(key);
     const readBytes = async () => {
-        const read = await readTrackBytes(song, key, representation);
-        if (!read.bytes) missing = true;
-        return read.bytes;
+        read = true;
+        const got = await readTrackBytes(song, key, representation);
+        if (!got.bytes) missing = true;
+        return got.bytes;
     };
     // The voice from where the track was heard when it was asked for (analysis/vocalStemRun.ts), or
     // from earlier if it was sought back before the separation started: what follows the switch is
@@ -253,6 +260,6 @@ export const loadBeatFxTrackDrums = (song: SongResult, { storedOnly = false, voc
     if (!vocals) releaseTrackVocals(key);
     const voice = vocals ? loadTrackVocalEnvelope(key, readBytes, { at: () => Math.min(askedAt, getBeatFxLastHeard(key)), seconds: (song.durationMs || 0) / 1000 }) : null;
     const drums = Promise.all([loadTrackDrumHits(key, readBytes), voice])
-        .then(([analysis, envelope]): BeatFxTrackDrums => ((analysis || envelope) && found() ? 'hits' : missing ? 'retry' : 'none'));
+        .then(([analysis, envelope]): BeatFxTrackDrums => ((analysis || envelope) && found() ? 'hits' : missing || (joined && !read && !analysis && !envelope) ? 'retry' : 'none'));
     return { key, drums };
 };

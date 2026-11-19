@@ -50,6 +50,7 @@ export type LibrarySuiteId = string;
  * | delete-collection | .deleteCollection | — |
  * | resync-folder | .resyncFolder | resync-folder |
  * | resync-all-folders | .resyncAllFolders | resync-all-folders |
+ * | reorder-playlist | .reorderPlaylist | reorder-playlist |
  * | export-playlist | .exportPlaylist | export-playlist |
  * | edit-entity | .editEntity | edit-entity |
  * | set-cover | .setCover | set-cover |
@@ -82,6 +83,7 @@ export type LibraryActionId =
     | 'delete-collection'
     | 'resync-folder'
     | 'resync-all-folders'
+    | 'reorder-playlist'
     | 'export-playlist'
     | 'edit-entity'
     | 'set-cover'

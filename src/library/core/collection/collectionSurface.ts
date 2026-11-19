@@ -26,6 +26,7 @@ export type CoreSurfaceParams = {
     canResyncFolder: boolean;
     canResyncAllFolders: boolean;
     canOrganizeSongInfo: boolean;
+    canReorderPlaylist: boolean;
     canExportPlaylist: boolean;
     canEditEntity: boolean;
     /** 本地文件夹 / 专辑 / 歌单能设自定义封面（只打开对话框，不随来源动作禁用）。 */
@@ -61,6 +62,7 @@ export type CoreSurfaceParams = {
     resyncFolder: () => void;
     resyncAllFolders: () => void;
     organizeSongInfo: () => void;
+    reorderPlaylist: () => void;
     exportPlaylist: () => void;
     editEntity: () => void;
     setCover: () => void;
@@ -155,6 +157,7 @@ export const buildCoreSurfaceParams = (
         canResyncFolder: hasController && capabilities.resyncFolder.supported,
         canResyncAllFolders: hasController && capabilities.resyncAllFolders.supported,
         canOrganizeSongInfo: hasController && capabilities.organizeSongInfo.supported,
+        canReorderPlaylist: hasController && capabilities.reorderPlaylist.supported,
         canExportPlaylist: hasController && capabilities.exportPlaylist.supported,
         canEditEntity: hasController && capabilities.editEntity.supported,
         canSetCover: hasController && capabilities.setCover.supported,
@@ -178,6 +181,7 @@ export const buildCoreSurfaceParams = (
         resyncFolder: () => void mutations?.resyncFolder(),
         resyncAllFolders: () => void mutations?.resyncAllFolders(),
         organizeSongInfo: () => void mutations?.organizeSongInfo(),
+        reorderPlaylist: () => void mutations?.reorderPlaylist(),
         exportPlaylist: () => void mutations?.exportPlaylist(),
         editEntity: () => void mutations?.editEntity(),
         setCover: () => void mutations?.setCover(),
@@ -203,6 +207,7 @@ export const GRID_SURFACE_ACTION_SOURCES: Readonly<Record<GridSurfaceActionId, {
     'resync-folder': { action: 'resync-folder' },
     'resync-all-folders': { action: 'resync-all-folders' },
     'organize-song-info': { action: 'organize-song-info' },
+    'reorder-playlist': { action: 'reorder-playlist' },
     'export-playlist': { action: 'export-playlist' },
     'edit-entity': { action: 'edit-entity' },
     'set-cover': { action: 'set-cover' },
@@ -251,6 +256,7 @@ export const buildGridSurfaceState = (params: GridSurfaceParams): GridSurfaceSta
     if (params.canOrganizeSongInfo) {
         availableActions.push('organize-song-info');
     }
+    if (params.canReorderPlaylist) availableActions.push('reorder-playlist');
     if (params.canExportPlaylist && canRunSourceAction) {
         availableActions.push('export-playlist');
     }
@@ -314,6 +320,7 @@ export const runGridSurfaceAction = (action: GridSurfaceActionId, params: GridSu
         case 'resync-folder': return params.resyncFolder();
         case 'resync-all-folders': return params.resyncAllFolders();
         case 'organize-song-info': return params.organizeSongInfo();
+        case 'reorder-playlist': return params.reorderPlaylist();
         case 'export-playlist': return params.exportPlaylist();
         case 'edit-entity': return params.editEntity();
         case 'set-cover': return params.setCover();

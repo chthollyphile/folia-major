@@ -915,6 +915,8 @@ declare global {
       openLegacyModelsFolder?: () => Promise<boolean>;
       platform: string;
       isLinuxX11: boolean;
+      /** Whether the OS can draw native blur behind the window: false on Linux and on Windows before 11 22H2. */
+      nativeBlurSupported?: boolean;
       getSettings: () => Promise<any>;
       saveSettings: (key: string, value: any) => Promise<any>;
       onWallpaperModeChanged?: (callback: (settings: Record<string, unknown>) => void) => () => void;
@@ -1065,6 +1067,10 @@ declare global {
       setKeyCaptureActive?: (active: boolean) => void;
       getMainWindowClickThroughEnabled: () => Promise<boolean>;
       setMainWindowClickThroughEnabled: (enabled: boolean) => Promise<boolean>;
+      /** 界面缩放：只缩放调用它的这个窗口（0.25–5，超出的不理）。 */
+      setPageZoomFactor: (factor: number) => void;
+      /** 这个窗口现在的缩放倍数（也算上默认菜单的 Ctrl+=/-/0 改过的）。 */
+      getPageZoomFactor: () => number;
       setMainWindowClickThroughUnlockHover: (active: boolean, viewportWidth?: number, coordinates?: { screenX: number; clientX: number }, side?: 'left' | 'right') => Promise<boolean>;
       getMainWindowAlwaysOnTop: () => Promise<boolean>;
       setMainWindowAlwaysOnTop: (enabled: boolean) => Promise<boolean>;

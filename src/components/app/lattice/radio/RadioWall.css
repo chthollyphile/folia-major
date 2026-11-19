@@ -298,6 +298,24 @@
    正在播放那张也不用强调色的描边（队列墙海报的 .is-current::before）：「这张在播」交给上方的指针。 */
 .lattice-root .lattice-radio .lattice-radio-face.is-front { box-shadow: none; }
 
+/* 封面渐渐变清晰：揭开那一下，RadioCard 在封面上叠一层高斯模糊、略放大的同一个封面，落定后
+   模糊度往 0、不透明度往 0 走，封面像在对焦。只走 filter / opacity / transform，播完即透明。 */
+.lattice-radio-focus {
+    position: absolute;
+    inset: 0;
+    background-position: center;
+    background-size: cover;
+    pointer-events: none;
+    /* 背面的模糊封面在揭开窗口里已经先对焦过大半，这里只剩薄薄一层收尾。 */
+    filter: blur(8px) saturate(1.08);
+    opacity: 1;
+    transform: scale(1.03);
+    animation: lattice-radio-focus-clear 480ms cubic-bezier(0.22, 1, 0.36, 1) 60ms forwards;
+}
+@keyframes lattice-radio-focus-clear {
+    to { filter: blur(0) saturate(1); opacity: 0; transform: scale(1); }
+}
+
 /* 四角的对位标记：每个角两道短线（L 形），离卡边留一点空，背景的电波从空隙里穿过。 */
 .lattice-radio-card-marks {
     --radio-mark: color-mix(in srgb, var(--text-primary, #f7f4ee) 40%, transparent);
@@ -452,6 +470,20 @@
     background-position: center;
     animation: lattice-radio-fade-in 600ms ease backwards;
 }
+/* 真封面淡入：模糊缩略图（veil）是一张 12px 小图放大，永远糊的，去 blur 只会露出马赛克；
+   变清晰要靠真封面盖上来。揭开窗口（BACK_REVEAL_MS）里淡入完成，翻面时正面已经清楚；
+   棱纹玻璃的细线压在最上面，「隔着玻璃看清」的质感不丢。
+   RadioCard 在揭开的同一次渲染里才挂上它，挂上时 .is-revealed 已经在了，transition 不会触发，所以走 animation。 */
+.lattice-radio-face.is-back > .lattice-radio-unveil {
+    inset: -12%;
+    background-position: center;
+    background-size: cover;
+    pointer-events: none;
+    animation: lattice-radio-unveil-in 850ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+@keyframes lattice-radio-unveil-in {
+    from { opacity: 0; }
+}
 /* 棱纹玻璃：竖向的细亮线和暗线，再从中间往下压暗一点，打码条压在暗处更清楚。 */
 .lattice-radio-reeds {
     background:
@@ -464,9 +496,34 @@
     flex-direction: column;
     gap: 3cqmin;
 }
-.lattice-radio-redaction > i { display: block; }
-.lattice-radio-redaction > i:first-child { height: 8cqmin; background: rgb(255 255 255 / 90%); }
-.lattice-radio-redaction > i:last-child { height: 3.6cqmin; background: rgb(255 255 255 / 50%); }
+/* 每条打码是一行：字在底下（占条那么宽，超出裁掉），涂黑条压在上面。揭开（.is-revealed）时
+   涂黑条朝右滑出、字从左往右显出来；歌名先动、歌手晚 70ms，像条把字「擦」出来。 */
+.lattice-radio-redaction-line { position: relative; display: block; overflow: hidden; }
+.lattice-radio-redaction-line:first-child { height: 8cqmin; }
+.lattice-radio-redaction-line:last-child { height: 3.6cqmin; }
+.lattice-radio-redaction-text {
+    position: absolute;
+    inset: 0;
+    display: block;
+    overflow: hidden;
+    white-space: nowrap;
+    /* 字宽跟着打码条走，长歌名在条的宽度处收成省略号，不在字中间截断。行高等于条高，字竖向居中。 */
+    text-overflow: ellipsis;
+    font-style: normal;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: rgb(255 255 255 / 92%);
+    clip-path: inset(0 100% 0 0);
+}
+.lattice-radio-redaction-line:first-child .lattice-radio-redaction-text { font-size: 5.4cqmin; line-height: 8cqmin; }
+.lattice-radio-redaction-line:last-child .lattice-radio-redaction-text { font-size: 2.6cqmin; line-height: 3.6cqmin; color: rgb(255 255 255 / 58%); }
+.lattice-radio-redaction-bar { position: absolute; inset: 0; font-style: normal; transform: translateX(0); }
+.lattice-radio-redaction-line:first-child .lattice-radio-redaction-bar { background: rgb(255 255 255 / 90%); }
+.lattice-radio-redaction-line:last-child .lattice-radio-redaction-bar { background: rgb(255 255 255 / 50%); }
+.is-revealed .lattice-radio-redaction-bar { transform: translateX(102%); transition: transform 620ms cubic-bezier(0.22, 1, 0.36, 1); }
+.is-revealed .lattice-radio-redaction-text { clip-path: inset(0 0 0 0); transition: clip-path 700ms cubic-bezier(0.22, 1, 0.36, 1) 90ms; }
+.is-revealed .lattice-radio-redaction-line:last-child .lattice-radio-redaction-bar { transition-delay: 70ms; }
+.is-revealed .lattice-radio-redaction-line:last-child .lattice-radio-redaction-text { transition-delay: 150ms; }
 
 .lattice-radio-card:hover .lattice-radio-face.is-back { filter: brightness(1.08) saturate(1.06); }
 
@@ -513,4 +570,9 @@
 :root[data-reduce-motion~='lattice'] .lattice-radio .lattice-poster-shade::before,
 :root[data-reduce-motion~='lattice'] .lattice-radio .lattice-poster-shade::after { transition: none; }
 :root[data-reduce-motion~='lattice'] .lattice-radio-backdrop *,
-:root[data-reduce-motion~='lattice'] .lattice-radio-veil { animation: none; }
+:root[data-reduce-motion~='lattice'] .lattice-radio-veil,
+:root[data-reduce-motion~='lattice'] .lattice-radio-focus,
+:root[data-reduce-motion~='lattice'] .lattice-radio-unveil { animation: none; }
+/* 减弱动效：打码条不滑、字直接显出。 */
+:root[data-reduce-motion~='lattice'] .is-revealed .lattice-radio-redaction-bar,
+:root[data-reduce-motion~='lattice'] .is-revealed .lattice-radio-redaction-text { transition: none; }

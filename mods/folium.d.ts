@@ -16,7 +16,7 @@
 // 里面的每个文件都算模组的内容），路径改成拷过去的位置。这个文件只给编辑器看，宿主不读它。
 
 /** The Folium version this host implements; mods read it at runtime as `folium.host.folium`. */
-export declare const FOLIUM_VERSION: { readonly major: 1; readonly minor: 9 };
+export declare const FOLIUM_VERSION: { readonly major: 1; readonly minor: 10 };
 
 /** `modid:name`, like a Forge ResourceLocation. The mod id part is added by the host. */
 export type FoliumId = string;
@@ -1113,6 +1113,13 @@ export interface FoliumNotificationEvents {
     'visualizer.modeChanged': { readonly mode: string; readonly origin: FoliumVisualizerChangeOrigin };
     /** The theme or daylight mode changed. */
     'theme.changed': { readonly theme: FoliumTheme };
+    /**
+     * Folium 1.10: whose theme is on screen changed, or whether `apply` may change it
+     * (`folium.theme.getOverride()`). `theme.changed` fires too when what is on screen changed. One event for
+     * all the changes of one task; its origin is the last of them that was not `host`, or `host` when all of
+     * them were. Changes that end where they began fire none. Not emitted in the export window.
+     */
+    'theme.overrideChanged': { readonly override: FoliumThemeOverride; readonly origin: FoliumThemeOverrideChangeOrigin };
     /** `playback.getState().liked` changed (a like or unlike, or a new song). */
     'playback.likeChanged': { readonly liked: boolean };
     /** The volume or the mute switch changed, whoever changed it. */
@@ -2632,7 +2639,123 @@ export interface FoliumLyricsHelpers {
     parse(track: FoliumLyricsTrack): Promise<FoliumParsedLyrics>;
 }
 
-/** Theme resolution builtin modes use. Available in both contexts. */
+/**
+ * Folium 1.10: one side (light or dark) of a theme a mod hands to `folium.theme.apply`. Every field may be
+ * left out; one left out takes the host's default. Texts (names, descriptions, words, icons) are cut to 200
+ * characters. Colors are hex (`#rgb` or `#rrggbb`); any other color
+ * is a malformed argument. `name` defaults to the mod's name. The animation intensity, the fonts and
+ * `isDaylight` are not taken from it: the intensity and the fonts stay the user's, and the side says which
+ * mode it is for. A FoliumTheme (from `getCurrent` or `fromColors`) is accepted as it is.
+ */
+export interface FoliumThemeInput {
+    /** Theme name, shown where the host names the theme. */
+    name?: string;
+    /** Background color. */
+    backgroundColor?: string;
+    /** Color of lyric text. */
+    primaryColor?: string;
+    /** Color for highlights. */
+    accentColor?: string;
+    /** Color for secondary text. */
+    secondaryColor?: string;
+    /** Keyword colors, each a word and a hex color; at most 64 are kept. */
+    wordColors?: readonly { readonly word: string; readonly color: string }[];
+    /** Decorative icon names; at most 12 are kept. */
+    lyricsIcons?: readonly string[];
+    /** Theme description. */
+    description?: string;
+}
+
+/** Folium 1.10: a theme for both modes, as `folium.theme.apply` takes it. */
+export interface FoliumDualThemeInput {
+    /** The side shown in light (daylight) mode. */
+    readonly light: FoliumThemeInput;
+    /** The side shown in dark mode. */
+    readonly dark: FoliumThemeInput;
+}
+
+/**
+ * Folium 1.10: a theme for both modes from the host, as `folium.theme.fromColors` makes it. Frozen. Each side
+ * is a full FoliumTheme (`isDaylight` true on `light`, false on `dark`).
+ */
+export interface FoliumDualTheme {
+    /** The side for light (daylight) mode. */
+    readonly light: FoliumTheme;
+    /** The side for dark mode. */
+    readonly dark: FoliumTheme;
+}
+
+/**
+ * Folium 1.10: whose theme is on screen, as `folium.theme.getOverride()` and `theme.overrideChanged` give it.
+ * Frozen.
+ */
+export interface FoliumThemeOverride {
+    /** The mod whose theme is laid over the song's theme (compare it with your own `folium.modId`); null when none is. */
+    readonly modId: string | null;
+    /**
+     * False while the user prefers their custom theme (the custom theme preference in the player panel): an
+     * `apply` that would change something is refused `custom-preferred` then, and `theme.overrideChanged`
+     * fires when it turns true again. Later minors may add other times it is false. The permission and the
+     * rate limit are not part of it.
+     */
+    readonly writable: boolean;
+}
+
+/**
+ * Folium 1.10: who changed the theme override, as `theme.overrideChanged` reports it. `user`: the user chose a
+ * theme themselves (a theme source, the default or their custom theme, a theme they save or edit, a theme
+ * they generate on request), which ends any mod's theme. `mod`: a mod, through `apply` or `release`; compare
+ * `modId` with your own `folium.modId`. `host`: the host itself, with nobody choosing a theme (the mod of the
+ * theme in place was disabled or removed, or the user's custom theme preference came on or off). Later minors
+ * may add kinds: read one you do not know as `user`.
+ */
+export interface FoliumThemeOverrideChangeOrigin {
+    /** Who it was. */
+    readonly kind: 'user' | 'host' | 'mod';
+    /** The mod, for `mod`; null for the others. */
+    readonly modId: string | null;
+}
+
+/**
+ * Folium 1.10: why the host did not take a `folium.theme.apply`. `stopped`: this mod has stopped.
+ * `custom-preferred`: the user prefers their custom theme; wait for `theme.overrideChanged` with `writable`
+ * true. `rate-limited`: too many writes (see FoliumThemeHelpers). When several apply, the first of these in
+ * this order is given. A write that would change nothing is never refused for `custom-preferred` or
+ * `rate-limited`. Later minors may add reasons: treat one you do not know as `rate-limited`, and try again
+ * later rather than in a loop.
+ */
+export type FoliumThemeRefusal = 'stopped' | 'custom-preferred' | 'rate-limited';
+
+/** Folium 1.10: the outcome of a `folium.theme.apply`; `override` is whose theme is on screen after it. */
+export type FoliumThemeWriteResult =
+    | { readonly ok: true; readonly override: FoliumThemeOverride }
+    | { readonly ok: false; readonly reason: FoliumThemeRefusal };
+
+/**
+ * `folium.theme`: theme resolution builtin modes use (available in both contexts) and, Folium 1.10, the theme
+ * on screen: read it, make a theme from colors, and lay a theme of your own over the song's theme.
+ *
+ * A mod's theme is a layer over the song's theme, not a theme of the user's: it is not saved as the user's
+ * custom theme or as the song's theme, is not synced, and lasts for this run only (apply it again when your
+ * mod starts). It stays while songs change, over the song themes the host restores or generates on its own.
+ * The user comes first: any theme the user chooses themselves (a theme source in the player panel, the
+ * default or their custom theme, a theme they save or edit, a theme they generate on request) ends it, and
+ * while the user prefers their custom theme no mod's theme is shown. Follow `theme.overrideChanged`: once its
+ * `origin` is the user or another mod, step back; applying your theme again at once overrides the user. The
+ * theme ends too when its mod is disabled or removed. The host tells the user which mod took the theme over,
+ * and the player panel offers to take it off.
+ *
+ * Every `apply` that changes something counts: currently one a second and 20 a minute per mod; past that it
+ * is refused `rate-limited`. An `apply` that changes nothing (the same theme from the same mod) is accepted,
+ * does not count and is never refused `custom-preferred` or `rate-limited`. Apply what you settled on, not
+ * every step of a fade.
+ *
+ * `getCurrent`, `getOverride`, `apply` and `release` are main window only: in the export window they throw an
+ * Error whose message is `theme-unavailable-in-export-context`. `apply` and `release` need `theme.write`, and
+ * throw `permission-denied:theme.write` without it. Malformed arguments throw a TypeError
+ * (`invalid-arguments: …`). An older host has none of the Folium 1.10 members: check
+ * `folium.host.folium.minor >= 10` first.
+ */
 export interface FoliumThemeHelpers {
     /** CSS font-family value for lyric text. */
     resolveFontStack(theme: Pick<FoliumTheme, 'fontStyle' | 'fontFamily' | 'fontFamilyStack'>): string;
@@ -2640,6 +2763,36 @@ export interface FoliumThemeHelpers {
     resolveTranslationFontStack(theme: Pick<FoliumTheme, 'fontStyle' | 'fontFamily' | 'fontFamilyStack'>): string;
     /** The theme's weight, normalized, or `fallback`. */
     resolveFontWeight(theme: Pick<FoliumTheme, 'fontWeight'> | null | undefined, fallback: number): number;
+    /**
+     * Folium 1.10: the theme on screen now, in the app's current mode, as `theme.changed` gives it. A mount
+     * reads the same from its context; this is for code with no mount. Before the first screen (while
+     * `activate` runs) it is the host's default dark theme: follow `theme.changed` for the real one. Main
+     * window only.
+     */
+    getCurrent(): FoliumTheme;
+    /** Folium 1.10: whose theme is on screen, and whether `apply` may change it now. Main window only. */
+    getOverride(): FoliumThemeOverride;
+    /**
+     * Folium 1.10: a theme for both modes from 1 to 8 hex colors, the most prominent first, made the way the
+     * host makes a theme from a song's cover (the cover theme source): hues kept close to the ones given,
+     * text pushed to a readable contrast. Hand it to `apply` as it is, or change it first. The name and
+     * description are picked at random from the host's tables, so two calls may name the same colors
+     * differently. Pure: available in both contexts, needs no permission.
+     */
+    fromColors(colors: readonly string[]): FoliumDualTheme;
+    /**
+     * Folium 1.10: lays this mod's theme over the song's theme: the light side in light mode, the dark side
+     * in dark mode. Replaces this mod's theme in place, or another mod's. It stays until the user chooses a
+     * theme, another mod applies one, this mod releases it, or this mod is disabled or removed. Needs
+     * `theme.write`.
+     */
+    apply(theme: FoliumDualThemeInput): FoliumThemeWriteResult;
+    /**
+     * Folium 1.10: takes this mod's theme off; the song's theme shows again. True when this mod's theme was on
+     * screen; false otherwise, and nothing changes. Never refused for the rate or the custom theme preference.
+     * Needs `theme.write`.
+     */
+    release(): boolean;
 }
 
 // ---------------------------------------------------------------- Client API
@@ -2766,7 +2919,7 @@ export interface FoliumClientApi {
     readonly rpc: FoliumRpc;
     /** The lyric helpers builtin modes use, and the displayed song's lyrics. */
     readonly lyrics: FoliumLyricsService;
-    /** The theme helpers builtin modes use. */
+    /** The theme helpers builtin modes use; Folium 1.10: the theme on screen, and a theme of your own over it. */
     readonly theme: FoliumThemeHelpers;
     /** Folium 1.7: who is signed in to the online sources. */
     readonly account: FoliumAccountService;

@@ -42,6 +42,18 @@ describe('extractFacts', () => {
         expect(facts('[BUG] 酷我导入失败', '支持酷我之后报错', ['bug']).providerRequest.isRequest).toBe(false);
         expect(facts('[FEATURE] 希望支持 Apple Music', '').mentionsAppleMusic).toBe(true);
     });
+
+    it('ignores platforms listed for removal when detecting provider requests', () => {
+        const removal = ['### 想要的版本', '支持只读本地文件夹', '', '**完全移除的部分**', '- 在线音源（Spotify / YouTube 等）', '- 账号登录'].join('\n');
+        expect(facts('做一个纯本地版', removal, ['enhancement']).providerRequest.isRequest).toBe(false);
+        expect(facts('做一个纯本地版', '希望支持本地播放，去掉 Spotify 登录', ['enhancement']).providerRequest.isRequest).toBe(false);
+        expect(facts('[FEATURE] 接入', '### 新平台\n希望支持 Spotify', ['enhancement']).providerRequest.isRequest).toBe(true);
+    });
+
+    it('counts list items and section headings outside code blocks and the template', () => {
+        const body = ['**需求描述**', '### 第一节', '- 一', '- 二', '1. 三', '**粗体小节**', '```', '- 代码里的不算', '```'].join('\n');
+        expect(facts('[FEATURE] x', body, ['enhancement']).structure).toEqual({ listItems: 3, sections: 2 });
+    });
 });
 
 describe('parseQr', () => {

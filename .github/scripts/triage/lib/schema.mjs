@@ -40,6 +40,7 @@ export function validateClassification(raw, config) {
 
     const duplicateConfidence = optionalConfidence(raw, 'duplicate_confidence', errors);
     const closeConfidence = optionalConfidence(raw, 'close_confidence', errors);
+    const wishlistConfidence = optionalConfidence(raw, 'wishlist_confidence', errors);
     if (errors.length > 0) return { ok: false, value: null, errors };
 
     const tldrLines = (tldr ?? [])
@@ -61,6 +62,8 @@ export function validateClassification(raw, config) {
             closeConfidence,
             outOfScopeTopic: config.outOfScope.some(item => item.id === topic) ? topic : null,
             needsErrorLog: raw.needs_error_log ?? null,
+            // bug 一律不算「愿望清单」，不论模型怎么填。
+            wishlistConfidence: raw.type === 'bug' ? 0 : wishlistConfidence,
             tldr: boundedTldr.length > 0 ? boundedTldr : null,
             reason: neutralizeLlmText(raw.reason ?? '', 200),
         },

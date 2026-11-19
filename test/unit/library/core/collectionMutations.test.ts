@@ -120,6 +120,7 @@ const fakePort = () => {
             deleteFolder: vi.fn(async () => {}),
             resyncFolder: vi.fn(async () => {}),
             resyncAllFolders: vi.fn(async () => {}),
+            reorderPlaylist: vi.fn(),
             exportPlaylist: vi.fn(async () => {}),
             editEntity: vi.fn(),
             organizeFolder: vi.fn(),
@@ -1059,6 +1060,18 @@ describe('source actions', () => {
         const navi = setup({ descriptor: naviPlaylist, resource: await navidromeResource([]) });
         expect(await navi.controller.deleteCollection()).toEqual({ ok: true });
         expect(navi.port.navidrome.deletePlaylist).toHaveBeenCalledWith('np');
+    });
+
+    it('opens the song order editor only for a custom local playlist', async () => {
+        const open = (descriptor: LibraryCollectionDescriptor) => setup({ descriptor, resource: createStaticCollectionResource('k', []) });
+        const playlist = open(localPlaylist);
+        expect(await playlist.controller.reorderPlaylist()).toEqual({ ok: true });
+        expect(playlist.port.local.reorderPlaylist).toHaveBeenCalledWith('pl-1');
+        for (const descriptor of [localFolder, { ...localPlaylist, isVirtual: true }, naviPlaylist, ownedPlaylist()]) {
+            const { controller, port } = open(descriptor);
+            expect(await controller.reorderPlaylist()).toEqual({ ok: false, reason: 'unsupported' });
+            expect(port.local.reorderPlaylist).not.toHaveBeenCalled();
+        }
     });
 
     it('resyncs, organizes and exports only where GridView offered them', async () => {

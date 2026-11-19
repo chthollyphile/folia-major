@@ -71,8 +71,27 @@ export function renderDiagnosisSection(diagnosis, playbook) {
     return lines.join('\n\n');
 }
 
+// 截止日期按北京时间写给人看（仓库以中文用户为主）。
+const beijingDate = iso => new Date(Date.parse(iso) + 8 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
+// 请作者拆分或改写的段落。只说内容的问题，不揣测是怎么写出来的：判断可能有误，措辞要经得起误判。
+export function renderRewriteSection({ deadline, days }) {
+    return [
+        '### 请拆分或改写这个 issue',
+        '这个 issue 一次提出了很多项彼此独立的需求，维护者没法逐条讨论、评估和跟进。请二选一：',
+        '- 改写成**一个**具体的需求：说明你遇到的实际场景、现在哪里不方便、希望怎样改，其余的先删掉；',
+        '- 或者把每一项拆成单独的 issue 分别提交，再把这里改成其中一项。',
+        '',
+        `请在 ${days} 天内（北京时间 ${beijingDate(deadline)} 前）编辑这个 issue，改好后标记会自动撤掉；到期仍未修改将自动关闭。`,
+    ].join('\n');
+}
+
+export function renderRewriteComment({ at, deadline, days }) {
+    return [renderMarker({ kind: 'rewrite', at }), renderRewriteSection({ deadline, days }), FOOTER].join('\n\n');
+}
+
 // 统一的 triage 评论。sections 里每一项都可缺省，缺省就不渲染对应段落。
-export function renderTriageComment({ state, module, moduleDescription, tldr, diagnosis, playbook, providerRequest, missing, infoReceived, related, reason, rateLimited }) {
+export function renderTriageComment({ state, module, moduleDescription, tldr, diagnosis, playbook, providerRequest, missing, infoReceived, related, reason, rateLimited, rewrite, rewriteReceived }) {
     const parts = [renderMarker(state)];
     if (module) {
         parts.push(`**初步归属模块**：\`${module}\`（${moduleDescription}）\n<sub>自动判断，如有误维护者可直接修改 \`module: *\` 标签。</sub>`);
@@ -88,6 +107,8 @@ export function renderTriageComment({ state, module, moduleDescription, tldr, di
         for (const issue of providerRequest.inProgress) lines.push(`相关平台的支持正在开发中，进度见 #${issue}。`);
         parts.push(`### 关于新平台支持\n${lines.join('\n\n')}`);
     }
+    if (rewrite) parts.push(renderRewriteSection(rewrite));
+    else if (rewriteReceived) parts.push('### 请拆分或改写这个 issue\n已收到修改，等待维护者处理。');
     if (missing?.length) {
         parts.push(`### 需要补充的信息\n为了定位问题，请补充以下内容（编辑 issue 或直接回复都可以）：\n${missing.map(key => `- [ ] ${MISSING_ITEMS[key]}`).join('\n')}\n\n超过 14 天未补充，issue 会被自动关闭。`);
     } else if (infoReceived) {
@@ -127,6 +148,7 @@ const CLOSE_TEXT = {
     invalid: () => '该 issue 没有有效内容，已关闭。请按模板重新填写后回复，或重新提交。',
     out_of_scope: ({ topicDescription }) => `该请求属于「${topicDescription}」，超出 Folia 项目范围，已关闭。`,
     'needs-info-timeout': ({ days }) => `超过 ${days} 天未补充所需信息，已自动关闭。补充信息后回复即可，维护者会复核。`,
+    'rewrite-timeout': ({ days }) => `超过 ${days} 天没有拆分或改写，已自动关闭。欢迎把其中最重要的一项需求单独整理成新的 issue 提交。`,
     stale: ({ days }) => `该 issue 被标记为 stale 后 ${days} 天仍无活动，已自动关闭。如果问题依然存在，请回复说明。`,
 };
 

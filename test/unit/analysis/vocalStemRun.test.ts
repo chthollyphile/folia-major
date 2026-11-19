@@ -59,7 +59,8 @@ vi.stubGlobal('OfflineAudioContext', FakeOfflineAudioContext);
 vi.stubGlobal('window', { electron: { getHtdemucsGpuWeights: () => undefined } });
 vi.stubGlobal('navigator', { gpu: {} });
 
-const { getDrumHits, loadTrackDrumHits, setWantedDrumTrack } = await import('@/services/analysis/drumHits');
+const { getDrumHits, loadTrackDrumHits} = await import('@/services/analysis/drumHits');
+const { claimStemTrack } = await import('@/services/analysis/trackStemRun');
 const { DRUM_HITS_PREFIX, VOCAL_ENVELOPE_PREFIX } = await import('@/services/analysis/beatGridKeys');
 const { getVocalEnvelope } = await import('@/services/analysis/vocalEnvelope');
 const { loadTrackVocalEnvelope, releaseTrackVocals, vocalSegmentAt } = await import('@/services/analysis/vocalStemRun');
@@ -116,7 +117,7 @@ describe('the vocal envelope on the stem run', () => {
             return { left: d.left, right: d.right, stems: [d, none, none, v] };
         });
         const bytes = async () => new ArrayBuffer(8);
-        setWantedDrumTrack('song');
+        claimStemTrack('beatFx', 'song');
         expect(await loadTrackDrumHits('song', bytes)).not.toBeNull();
         const first = store.get(`${DRUM_HITS_PREFIX}song`) as { drumEnergy: Float32Array };
         expect(store.has(`${VOCAL_ENVELOPE_PREFIX}song`)).toBe(false);
@@ -146,7 +147,7 @@ describe('the vocal envelope on the stem run', () => {
         runHtdemucsGpu.mockReset();
         runHtdemucsGpu.mockImplementation(splitModel);
         const bytes = async () => new ArrayBuffer(8);
-        setWantedDrumTrack('late');
+        claimStemTrack('beatFx', 'late');
         expect(await loadTrackDrumHits('late', bytes)).not.toBeNull();
         const stored = store.get(`${DRUM_HITS_PREFIX}late`);
         const whole = runHtdemucsGpu.mock.calls.length;
@@ -180,7 +181,7 @@ describe('the vocal envelope on the stem run', () => {
         runHtdemucsGpu.mockReset();
         runHtdemucsGpu.mockImplementation(splitModel);
         const bytes = async () => new ArrayBuffer(8);
-        setWantedDrumTrack('through');
+        claimStemTrack('beatFx', 'through');
         await loadTrackDrumHits('through', bytes);
         const through = store.get(`${DRUM_HITS_PREFIX}through`) as { drumEnergy: Float32Array };
         const whole = runHtdemucsGpu.mock.calls.length;
@@ -192,7 +193,7 @@ describe('the vocal envelope on the stem run', () => {
             if (runHtdemucsGpu.mock.calls.length === 30) joined = both('switched', bytes, { at: () => 5 });
             return splitModel(left, right);
         });
-        setWantedDrumTrack('switched');
+        claimStemTrack('beatFx', 'switched');
         await loadTrackDrumHits('switched', bytes);
         expect(joined).not.toBeNull();
         expect(await joined).not.toBeNull();
@@ -214,7 +215,7 @@ describe('the vocal envelope on the stem run', () => {
         runHtdemucsGpu.mockReset();
         runHtdemucsGpu.mockImplementation(splitModel);
         const bytes = async () => new ArrayBuffer(8);
-        setWantedDrumTrack('back');
+        claimStemTrack('beatFx', 'back');
         await loadTrackDrumHits('back', bytes);
         const through = store.get(`${DRUM_HITS_PREFIX}back`) as { drumEnergy: Float32Array };
         const whole = runHtdemucsGpu.mock.calls.length;
@@ -229,7 +230,7 @@ describe('the vocal envelope on the stem run', () => {
             }
             return splitModel(left, right);
         });
-        setWantedDrumTrack('flipped');
+        claimStemTrack('beatFx', 'flipped');
         await both('flipped', bytes);
         const answers = await Promise.all(joined);
         expect(answers.every(answer => answer !== null)).toBe(true);
@@ -247,7 +248,7 @@ describe('the vocal envelope on the stem run', () => {
         runHtdemucsGpu.mockReset();
         runHtdemucsGpu.mockImplementation(splitModel);
         const bytes = vi.fn(async () => new ArrayBuffer(8));
-        setWantedDrumTrack('tail');
+        claimStemTrack('beatFx', 'tail');
         await loadTrackDrumHits('tail', bytes);
         bytes.mockClear();
         runHtdemucsGpu.mockClear();

@@ -18,9 +18,12 @@ function isCursorInsideUnlockHotspot({ bounds, cursor, hotspot, viewportWidth, v
 const NATIVE_TRAFFIC_LIGHTS_DROPPED_BUTTONS_WIDTH = 132;
 const NATIVE_TRAFFIC_LIGHTS_RESERVED_WIDTH = 76;
 
-function resolveUnlockHotspot(hotspot, { nativeTrafficLights = false, side = 'right' } = {}) {
+// The hotspot is in CSS pixels, but the traffic lights' room is in window pixels: they are native and
+// do not follow the page zoom (界面缩放), so at `scale` it is RESERVED / scale CSS pixels.
+function resolveUnlockHotspot(hotspot, { nativeTrafficLights = false, side = 'right', scale = 1 } = {}) {
   if (!nativeTrafficLights) return hotspot;
-  const shift = NATIVE_TRAFFIC_LIGHTS_DROPPED_BUTTONS_WIDTH - (side === 'left' ? NATIVE_TRAFFIC_LIGHTS_RESERVED_WIDTH : 0);
+  const reserved = NATIVE_TRAFFIC_LIGHTS_RESERVED_WIDTH / (scale > 0 ? scale : 1);
+  const shift = NATIVE_TRAFFIC_LIGHTS_DROPPED_BUTTONS_WIDTH - (side === 'left' ? reserved : 0);
   return { ...hotspot, rightInset: hotspot.rightInset - shift };
 }
 

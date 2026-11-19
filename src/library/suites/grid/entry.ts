@@ -85,6 +85,7 @@ const grid: LibrarySuiteManifest = {
                 'delete-collection',
                 'resync-folder',
                 'resync-all-folders',
+                'reorder-playlist',
                 'export-playlist',
                 'edit-entity',
                 'set-cover',
