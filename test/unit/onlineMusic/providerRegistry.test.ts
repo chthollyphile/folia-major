@@ -4,6 +4,7 @@ import {
     canPlayOnlineMusicSong,
     getOnlineMusicProvider,
     getOnlineMusicProviderRegistryVersion,
+    listOnlineMusicProviders,
     providerSupports,
     registerOnlineMusicProvider,
     requireOnlineMusicProvider,
@@ -192,5 +193,77 @@ describe('online music provider registry', () => {
             label: 'Provider replacement',
             song: { sourceRef: { providerId: 'availability-test', mediaId: 'replacement' } },
         });
+    });
+});
+
+// Folium 2.0 plan §10 (the remaining stages, step 2): the nine built-in platforms keep the order the host
+// registered them in before any moved to a source mod, however they register now; any other source follows them,
+// in the order it registered.
+describe('online music provider registry · the order of the sources', () => {
+    const NINE = ['netease', 'kugou', 'qq', 'bodian', 'ytm', 'spotify', 'qishui', 'appleMusic', 'fnmusic'];
+    const stub = (id: string): OnlineMusicProvider => ({ ...partialProvider, id, displayName: id });
+    const listedIds = () => listOnlineMusicProviders().map(provider => provider.id);
+
+    // Takes every registered source out, runs `body`, and puts the ones that were there back in their order.
+    const withEmptyRegistry = (body: () => void) => {
+        const before = listOnlineMusicProviders();
+        before.forEach(provider => unregisterOnlineMusicProvider(provider.id));
+        try {
+            body();
+        } finally {
+            listOnlineMusicProviders().forEach(provider => unregisterOnlineMusicProvider(provider.id));
+            before.forEach(provider => registerOnlineMusicProvider(provider));
+        }
+    };
+
+    it('reads the same order whether a moved platform registers before or after the ones the host registers', () => {
+        let modLast: string[] = [];
+        let modFirst: string[] = [];
+        withEmptyRegistry(() => {
+            NINE.filter(id => id !== 'bodian').forEach(id => registerOnlineMusicProvider(stub(id)));
+            registerOnlineMusicProvider(stub('bodian'));
+            modLast = listedIds();
+        });
+        withEmptyRegistry(() => {
+            registerOnlineMusicProvider(stub('bodian'));
+            NINE.filter(id => id !== 'bodian').forEach(id => registerOnlineMusicProvider(stub(id)));
+            modFirst = listedIds();
+        });
+        expect(modLast).toEqual(NINE);
+        expect(modFirst).toEqual(NINE);
+    });
+
+    it('keeps the order whatever order the nine register in, and with some of them missing', () => {
+        withEmptyRegistry(() => {
+            [...NINE].reverse().forEach(id => registerOnlineMusicProvider(stub(id)));
+            expect(listedIds()).toEqual(NINE);
+            unregisterOnlineMusicProvider('qq');
+            unregisterOnlineMusicProvider('spotify');
+            expect(listedIds()).toEqual(NINE.filter(id => id !== 'qq' && id !== 'spotify'));
+            registerOnlineMusicProvider(stub('qq'));
+            expect(listedIds()).toEqual(NINE.filter(id => id !== 'spotify'));
+        });
+    });
+
+    it('puts other sources after the nine, in the order they registered, a new registration counting anew', () => {
+        withEmptyRegistry(() => {
+            registerOnlineMusicProvider(stub('folium.third.b'));
+            registerOnlineMusicProvider(stub('kugou'));
+            registerOnlineMusicProvider(stub('folium.third.a'));
+            registerOnlineMusicProvider(stub('netease'));
+            expect(listedIds()).toEqual(['netease', 'kugou', 'folium.third.b', 'folium.third.a']);
+            // Replacing a registered provider keeps its place; removing and registering it again moves it last.
+            registerOnlineMusicProvider(stub('folium.third.b'));
+            expect(listedIds()).toEqual(['netease', 'kugou', 'folium.third.b', 'folium.third.a']);
+            unregisterOnlineMusicProvider('folium.third.b');
+            registerOnlineMusicProvider(stub('folium.third.b'));
+            expect(listedIds()).toEqual(['netease', 'kugou', 'folium.third.a', 'folium.third.b']);
+        });
+    });
+
+    it('hands out a copy: changing the returned list does not change the registry', () => {
+        const ids = listedIds();
+        listOnlineMusicProviders().reverse();
+        expect(listedIds()).toEqual(ids);
     });
 });

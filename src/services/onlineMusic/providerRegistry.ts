@@ -16,23 +16,50 @@ import { startsWithoutSources } from '../../dev/devLaunchFlags';
 
 const providers = new Map<OnlineProviderId, OnlineMusicProvider>();
 
+/*
+ * The order every list of sources follows (Folium 2.0 plan §10, the remaining stages, step 2): the nine built-in
+ * platforms in the order the host registered them statically before any moved to a source mod, then every other
+ * source in the order it registered. A built-in platform keeps its place whether the host registers it at load
+ * or its source mod registers it once the mod's client starts, so the switcher, the sign-in window and the search
+ * commands do not reorder each time one more platform moves to a mod or the mods start in another order.
+ */
+const BUILT_IN_SOURCE_ORDER: readonly OnlineProviderId[] = ['netease', 'kugou', 'qq', 'bodian', 'ytm', 'spotify', 'qishui', 'appleMusic', 'fnmusic'];
+
+// When each id registered (a later registration of the same id counts anew), for the sources after the nine.
+const registeredAt = new Map<OnlineProviderId, number>();
+let registrationCount = 0;
+// The ordered list, rebuilt after a change only when someone reads it.
+let orderedProviders: OnlineMusicProvider[] | null = null;
+
+const rankOf = (providerId: OnlineProviderId): number => {
+    const builtInIndex = BUILT_IN_SOURCE_ORDER.indexOf(providerId);
+    return builtInIndex >= 0 ? builtInIndex : BUILT_IN_SOURCE_ORDER.length + (registeredAt.get(providerId) ?? 0);
+};
+
 // Folium mods register and remove providers at runtime, after the UI first read the list. The version
 // lets that UI (through omni, see useOnlineProviderPlatform) notice instead of keeping a stale list.
 let registryVersion = 0;
 const registryListeners = new Set<() => void>();
 
 const announceRegistryChange = () => {
+    orderedProviders = null;
     registryVersion += 1;
     registryListeners.forEach(listener => listener());
 };
 
 export const registerOnlineMusicProvider = (provider: OnlineMusicProvider): void => {
+    if (!providers.has(provider.id)) {
+        registrationCount += 1;
+        registeredAt.set(provider.id, registrationCount);
+    }
     providers.set(provider.id, provider);
     announceRegistryChange();
 };
 
 export const unregisterOnlineMusicProvider = (providerId: OnlineProviderId): void => {
-    if (providers.delete(providerId)) announceRegistryChange();
+    if (!providers.delete(providerId)) return;
+    registeredAt.delete(providerId);
+    announceRegistryChange();
 };
 
 /** Bumped by every registration and removal. */
@@ -50,7 +77,11 @@ export const getOnlineMusicProvider = (providerId: OnlineProviderId): OnlineMusi
     providers.get(providerId) || null
 );
 
-export const listOnlineMusicProviders = (): OnlineMusicProvider[] => Array.from(providers.values());
+/** The registered sources in the order the lists show them (BUILT_IN_SOURCE_ORDER above); a fresh array each call. */
+export const listOnlineMusicProviders = (): OnlineMusicProvider[] => {
+    orderedProviders ??= Array.from(providers.values()).sort((a, b) => rankOf(a.id) - rankOf(b.id));
+    return orderedProviders.slice();
+};
 
 export const requireOnlineMusicProvider = (providerId: OnlineProviderId): OnlineMusicProvider => {
     const provider = getOnlineMusicProvider(providerId);

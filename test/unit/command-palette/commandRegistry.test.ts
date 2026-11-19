@@ -653,18 +653,18 @@ describe('command palette registry', () => {
     });
 
     // Folium 2.0 方案 §7：没有默认平台，平台自己的搜索命令按已注册的音源生成；search-netease 这个存过的 id 留着。
-    it('installs one search command per registered source, in registration order, and follows the sources', async () => {
+    it('installs one search command per registered source, in the registry order, and follows the sources', async () => {
         const { installProviderSearchCommands } = await import('@/components/command-palette/providerSearchCommandsInstaller');
         const { getOnlineMusicProvider, registerOnlineMusicProvider, unregisterOnlineMusicProvider } = await import('@/services/onlineMusic/providerRegistry');
         const searchIds = () => COMMAND_PALETTE_COMMANDS.map(command => command.id).filter(id => id.startsWith('search-'));
 
         installProviderSearchCommands();
-        // Folium 2.0 S5: Bodian is a source mod now; it registers when its client starts, after the platforms the
-        // host still registers at load, so it comes last (on the desktop as here).
+        // Folium 2.0: Bodian is a source mod now and registers when its client starts, after the platforms the host
+        // still registers at load; the registry keeps it in its place from before it moved (providerRegistry.ts).
         expect(searchIds()).toEqual([
             'search-current', 'search-local', 'search-navidrome',
-            'search-netease', 'search-kugou', 'search-qq', 'search-ytm',
-            'search-spotify', 'search-qishui', 'search-appleMusic', 'search-fnmusic', 'search-bodian',
+            'search-netease', 'search-kugou', 'search-qq', 'search-bodian', 'search-ytm',
+            'search-spotify', 'search-qishui', 'search-appleMusic', 'search-fnmusic',
         ]);
         const netease = COMMAND_PALETTE_COMMANDS.find(command => command.id === 'search-netease')!;
         expect(netease.textSource).toBe('runtime');
