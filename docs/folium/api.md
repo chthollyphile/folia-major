@@ -2985,6 +2985,7 @@ Folium 2: what a source knows of a failed sign-in step. Nothing private: no cook
 | `httpStatus?` | `number` | HTTP status. |
 | `upstreamCode?` | `string` | A code the platform passes on. |
 | `retryAfterMs?` | `number` | How long to wait before trying again. |
+| `mainCode?` | `string` | The source's own name for where it failed (a stage of its sign-in, say): shown with the raw facts and copied into the report, never read to sort the case. |
 
 相关：[FoliumSourceLoginCase](#foliumsourcelogincase)
 

@@ -705,6 +705,11 @@ export interface FoliumSourceLoginFailure {
     upstreamCode?: string;
     /** How long to wait before trying again. */
     retryAfterMs?: number;
+    /**
+     * The source's own name for where it failed (a stage of its sign-in, say): shown with the raw facts and
+     * copied into the report, never read to sort the case.
+     */
+    mainCode?: string;
 }
 
 /** Folium 2: the cases a failed audio or collection request can be. */
