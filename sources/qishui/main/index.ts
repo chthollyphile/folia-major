@@ -21,6 +21,11 @@ const ISSUED_URL_TTL_MS = 2 * 60 * 60 * 1000;
 // The public image hosts of scene icons and covers (mediaCors.cjs's own list).
 const IMAGE_HOSTS = ['byteimg.com', 'douyinpic.com', 'douyinstatic.com', 'pstatp.com'].flatMap(host => [host, `*.${host}`]);
 
+/** Whether `url` is an https address: the only ones the policy registered. */
+const isHttps = (url: string): boolean => {
+    try { return new URL(url).protocol === 'https:'; } catch { return false; }
+};
+
 /** api.seal in the shape session.cjs reads (Electron's safeStorage): it is what main.cjs handed in before. */
 const sealAsSafeStorage = (seal: FoliumSourceSeal): QishuiSafeStorage => ({
     isEncryptionAvailable: () => seal.available(),
@@ -46,7 +51,8 @@ export default function activate(api: FoliumSourceMainApi): void {
         fetch: (url, options) => api.net.fetch(url, options),
         onAudioSource: (url) => {
             mediaPolicy.register(url);
-            issued.add(url);
+            // The policy kept https addresses only (mediaCors.cjs's normalize); the host's rule would take http too.
+            if (isHttps(url)) issued.add(url);
         },
     });
     api.rpc.handle('request', (operation: unknown, params: unknown) => (

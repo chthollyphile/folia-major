@@ -293,6 +293,17 @@ describe('lyrics: the built-in path and the new path parse the same answer to th
         expect(fromSource.wordByWordText).toBe(builtIn.wordByWordText);
     });
 
+    it('Qishui: KRC with an LRC translation', async () => {
+        const answer = {
+            lyric_entity: { type: 'krc', content: '[1000,1000]<0,400,0>你<400,600,0>好\n[2500,1500]<0,700,0>再<700,800,0>见\u0000' },
+            lang_translations: { 'zh-CN': { type: 'lrc', content: '[00:01.00]Hello\n[00:02.50]Bye' } },
+        };
+        const builtIn = await builtInThroughHost(parseQishuiLyrics(answer), 'qishui');
+        const fromSource = await throughHost(toQishuiLyrics(answer), 'qishui');
+        expect(fromSource.lyrics).toEqual(builtIn.lyrics);
+        expect(fromSource.lyrics?.lines.map((line) => line.translation)).toEqual(['Hello', 'Bye']);
+    });
+
     it('Qishui: LRC with an LRC translation, and LRC with a KRC translation', async () => {
         for (const translation of [
             { type: 'lrc', content: '[00:01.00]Hello\n[00:02.50]Bye' },

@@ -166,8 +166,6 @@ if (!startsWithoutSources) {
     registerOnlineMusicProvider(qqProvider);
     registerOnlineMusicProvider(ytmProvider);
     registerOnlineMusicProvider(spotifyProvider);
-
-
     registerOnlineMusicProvider(appleMusicProvider);
     registerOnlineMusicProvider(fnmusicProvider);
 }

@@ -12,7 +12,7 @@ import { describeQishuiFailure } from './qishuiFailure';
 // sources/qishui/client/qishuiProvider.ts
 // 汽水音源的定义（folium.sources.register 收的那份）：每个能力族一组成员，形状是公开契约的。宿主的开关由实现了
 // 哪些能力推导（适配层 parts.ts），和迁之前手写的开关表一致：没有专辑，有歌手、歌单、推荐、探索、私人 FM 模式。
-// 只在桌面版装（mod.json 的 platforms），所以没有迁之前「网页版没有桥」的那一支。
+// 模组只在桌面版的主窗口里跑（模组系统的桥只有 Electron 有），所以没有迁之前「网页版没有桥」的那一支。
 
 /** What the definition needs of the host besides the transport: the mod's own texts, as keys and written out now. */
 export interface QishuiSourceEnv {
