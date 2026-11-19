@@ -1033,11 +1033,6 @@
       "count": 3
     }
   },
-  "sources/qishui/main/session.cjs": {
-    "dedicatus/restricted-apis": {
-      "count": 2
-    }
-  },
   "electron/qq/qqApiStartup.cjs": {
     "@stylistic/indent": {
       "count": 93
@@ -1536,6 +1531,54 @@
   "sources/bodian/main/session.cjs": {
     "@stylistic/indent": {
       "count": 80
+    }
+  },
+  "sources/qishui/client/qishuiCatalog.ts": {
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 1
+    }
+  },
+  "sources/qishui/client/qishuiNormalize.ts": {
+    "@typescript-eslint/no-base-to-string": {
+      "count": 1
+    },
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-call": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-return": {
+      "count": 1
+    }
+  },
+  "sources/qishui/client/qishuiPlayback.ts": {
+    "@typescript-eslint/no-non-null-assertion": {
+      "count": 1
+    }
+  },
+  "sources/qishui/client/qishuiProvider.ts": {
+    "@typescript-eslint/require-await": {
+      "count": 1
+    }
+  },
+  "sources/qishui/client/qishuiRecommendations.ts": {
+    "@typescript-eslint/use-unknown-in-catch-callback-variable": {
+      "count": 1
+    }
+  },
+  "sources/qishui/client/qishuiSceneCover.ts": {
+    "@typescript-eslint/no-misused-spread": {
+      "count": 1
+    },
+    "@typescript-eslint/no-non-null-assertion": {
+      "count": 1
     }
   },
   "src/App.tsx": {
@@ -9888,59 +9931,6 @@
       "count": 9
     }
   },
-  "sources/qishui/client/qishuiCatalog.ts": {
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 1
-    }
-  },
-  "sources/qishui/client/qishuiNormalize.ts": {
-    "@typescript-eslint/no-base-to-string": {
-      "count": 1
-    },
-    "@typescript-eslint/no-explicit-any": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 3
-    },
-    "@typescript-eslint/no-unsafe-call": {
-      "count": 3
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 11
-    },
-    "@typescript-eslint/no-unsafe-return": {
-      "count": 2
-    }
-  },
-  "sources/qishui/client/qishuiPlayback.ts": {
-    "@typescript-eslint/no-non-null-assertion": {
-      "count": 1
-    }
-  },
-  "sources/qishui/client/qishuiProvider.ts": {
-    "@typescript-eslint/require-await": {
-      "count": 1
-    }
-  },
-  "sources/qishui/client/qishuiRecommendations.ts": {
-    "@typescript-eslint/use-unknown-in-catch-callback-variable": {
-      "count": 1
-    }
-  },
-  "sources/qishui/client/qishuiSceneCover.ts": {
-    "@typescript-eslint/no-misused-spread": {
-      "count": 1
-    },
-    "@typescript-eslint/no-non-null-assertion": {
-      "count": 1
-    }
-  },
-  "sources/qishui/client/qishuiTransport.ts": {
-    "@typescript-eslint/no-non-null-assertion": {
-      "count": 1
-    }
-  },
   "src/services/onlineMusic/qq/qqAccount.ts": {
     "@typescript-eslint/no-explicit-any": {
       "count": 2
@@ -11830,7 +11820,7 @@
       "count": 997
     },
     "@typescript-eslint/consistent-type-imports": {
-      "count": 61
+      "count": 58
     },
     "@typescript-eslint/no-explicit-any": {
       "count": 4

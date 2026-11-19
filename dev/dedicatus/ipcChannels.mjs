@@ -79,7 +79,6 @@ export const IPC_CHANNELS = {
     'perf-check-open': { level: 'first-party', why: '开一个窗口（firstParty）' },
     'playback-display-sleep-set-active': { level: 'first-party', why: '现状：有来源校验' },
     'playback-sync-bridge-get-status': { level: 'first-party', why: '现状：有来源校验' },
-    'qishui-api-request': { level: 'first-party', why: '现状：有来源校验' },
     'remote-control-close': { level: 'first-party', why: '现状：有来源校验' },
     'remote-control-get-always-on-top': { level: 'first-party', why: '现状：有来源校验' },
     'remote-control-get-pointer-inside': { level: 'first-party', why: '现状：有来源校验' },

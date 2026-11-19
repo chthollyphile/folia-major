@@ -9,7 +9,7 @@
 //
 // 检查范围：渲染进程经 providerStorage 写的会话值，音源模组 client 经 folium.sources.pageStore(id).set(键, 值) 写的会话值
 // （同一个键，S5 补的），和酷狗桥接层的会话 cookie 对象（含整个重新赋值）。
-// 其他平台主进程里的会话仓库（spotify、ytm、qishui、fnmusic、QQ 包内部，以及迁成模组的 sources/<id>/main/ 里的）还没纳入：
+// 其他平台主进程里的会话仓库（spotify、ytm、fnmusic、QQ 包内部，以及迁成模组的 sources/<id>/main/ 里的：波点、汽水）还没纳入：
 // main 入口的 api.legacy.store.set(键, 值) 存的是整份加密的会话，键名（BODIAN_SESSION_V2 这类）不是这里按名字认的凭据键。
 //
 // Folium 2.0：平台逐家搬进 sources/<id>/（S5）。规则也查 sources/**（eslint.config.mjs 的 APP_CODE），表里的键是文件路径，
