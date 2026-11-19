@@ -61,9 +61,6 @@ const BUILT_IN_ENTRIES = [
     { id: 'qq', labelKey: 'lyricProvider.qq', platform: true, localMetadataIdentity: true, metadataMatch: true },
     { id: 'kugou', labelKey: 'lyricProvider.kugou', platform: true, localMetadataIdentity: true, metadataMatch: true },
     { id: 'spotify', labelKey: 'lyricProvider.spotify', platform: true, needsAccount: true, linesOnly: true },
-    // Apple's timed lyrics are TTML: word-level where Apple supplies it, line-level otherwise, and
-    // the parsed lyric says which. The companion must be there to ask.
-    { id: 'appleMusic', labelKey: 'lyricProvider.appleMusic', platform: true, needsAccount: true, needsConfiguredProvider: true },
 ] as const satisfies readonly LyricSourceEntry[];
 
 /** The ids of the sources the host knows by name. Any other id is a source all the same. */

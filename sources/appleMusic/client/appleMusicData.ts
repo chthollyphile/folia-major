@@ -1,10 +1,19 @@
-import type { SongResult, UnifiedSong } from '../../../src/types';
-import i18n from '../../../src/i18n/config';
-import { OnlineProviderError } from '../../../src/types/onlineMusic';
-import type { ProviderCollection, ProviderLikedSongIds, ProviderPage } from '../../../src/types/onlineMusic';
+import type { FoliumSourceCollection, FoliumSourcePage, FoliumSourceSong } from '@folia/folium';
 import { normalizeAppleMusicCatalogCollection, normalizeAppleMusicLibraryAlbum, normalizeAppleMusicPlaylist, normalizeAppleMusicSong } from './appleMusicNormalize';
-import { requestAppleMusic } from './appleMusicTransport';
+import { appleMusicCauseOf, appleMusicError, appleMusicHttpStatusOf, requestAppleMusic } from './appleMusicTransport';
 import type { AppleMusicOperation, AppleMusicParams } from './appleMusicTransport';
+
+// sources/appleMusic/client/appleMusicData.ts
+// The source's reads and writes of the account's library and Apple's catalog, through the companion; every page
+// it answers is validated before it becomes source DTOs.
+
+// The name of the virtual playlist of all library songs, in the UI language now (the mod's locale files).
+let libraryPlaylistName: () => string = () => 'All songs';
+
+/** Connects the name of the all-songs playlist (index.ts hands the mod's own text in). */
+export const connectAppleMusicLibraryName = (name: () => string): void => {
+    libraryPlaylistName = name;
+};
 
 // Adapt only validated companion pages; invalid pagination must never look like a complete library.
 interface CompanionPage {
@@ -18,12 +27,12 @@ function pageOf<T>(
     offset: number,
     normalize: (item: unknown) => T,
     accept: (item: unknown) => boolean = () => true,
-): ProviderPage<T> {
+): FoliumSourcePage<T> & { nextOffset: number } {
     const page = value as Partial<CompanionPage> | null;
     if (!page || !Array.isArray(page.items) || typeof page.hasMore !== 'boolean'
         || !Number.isSafeInteger(page.nextOffset) || (page.nextOffset as number) < offset + page.items.length
         || (page.hasMore && (page.nextOffset as number) <= offset)) {
-        throw new OnlineProviderError('invalid-response', 'Apple Music page is invalid', 'appleMusic');
+        throw appleMusicError('invalid-response', 'Apple Music page is invalid');
     }
     // A library page can hold rows this adapter does not model (folders, videos). They are left out
     // rather than failing the whole page; the page's own next offset still steps over them.
@@ -60,7 +69,7 @@ async function readPage<T>(
     offset: number,
     normalize: (item: unknown) => T,
     accept: (item: unknown) => boolean,
-): Promise<ProviderPage<T>> {
+): Promise<FoliumSourcePage<T>> {
     const wanted = Math.max(1, Math.floor(limit));
     const items: T[] = [];
     let nextOffset = offset;
@@ -84,15 +93,12 @@ const pageInputs = (limit: number, offset: number): { limit: number; offset: num
     offset: Math.max(0, Math.floor(offset)),
 });
 
-// A library song can only use catalog-only APIs when Apple supplies its matching catalog ID.
-export function appleMusicCatalogSongId(song: SongResult): string {
-    const source = song.sourceRef;
-    if (source?.kind !== 'online' || source.providerId !== 'appleMusic') {
-        throw new OnlineProviderError('unsupported', 'Song does not belong to Apple Music', 'appleMusic');
-    }
-    const catalog = source.providerData?.resourceType === 'songs' ? source.mediaId : source.providerData?.catalogId;
+// A library song can only use catalog-only APIs when Apple supplies its matching catalog ID. The host hands this
+// source only its own songs, so which platform a song is of is not asked here any more.
+export function appleMusicCatalogSongId(song: FoliumSourceSong): string {
+    const catalog = song.data?.resourceType === 'songs' ? song.id : song.data?.catalogId;
     if (typeof catalog !== 'string' || !/^\d{1,40}$/.test(catalog)) {
-        throw new OnlineProviderError('unsupported', 'Apple Music catalog identity is unavailable', 'appleMusic');
+        throw appleMusicError('unsupported', 'Apple Music catalog identity is unavailable');
     }
     return catalog;
 }
@@ -106,12 +112,10 @@ const APPLE_MUSIC_LIBRARY_SONG_ID = /^i\.[a-zA-Z0-9]{1,100}$/;
  * counterpart and plays only by its library id, the way Apple's own web player starts it. Lyrics,
  * likes and playlist additions are catalog-only and keep using `appleMusicCatalogSongId`.
  */
-export function appleMusicPlaybackSongId(song: SongResult): string {
+export function appleMusicPlaybackSongId(song: FoliumSourceSong): string {
     try { return appleMusicCatalogSongId(song); } catch (error) {
-        const source = song.sourceRef;
-        if (source?.kind !== 'online' || source.providerId !== 'appleMusic'
-            || source.providerData?.resourceType !== 'library-songs') throw error;
-        const libraryId = [source.providerData.playbackId, source.mediaId]
+        if (song.data?.resourceType !== 'library-songs') throw error;
+        const libraryId = [song.data.playbackId, song.id]
             .find((id): id is string => typeof id === 'string' && APPLE_MUSIC_LIBRARY_SONG_ID.test(id));
         if (!libraryId) throw error;
         return libraryId;
@@ -124,21 +128,20 @@ export function isAppleMusicLibraryPlaybackId(id: string): boolean {
 }
 
 // Missing play parameters mean the current storefront cannot stream this row; an upload plays by its library id.
-export function isAppleMusicSongPlayable(song: SongResult): boolean {
-    if (song.sourceRef?.kind !== 'online' || song.sourceRef.providerId !== 'appleMusic'
-        || song.sourceRef.providerData?.playbackAvailable === false) return false;
+export function isAppleMusicSongPlayable(song: FoliumSourceSong): boolean {
+    if (song.data?.playbackAvailable === false) return false;
     try { appleMusicPlaybackSongId(song); return true; } catch { return false; }
 }
 
 // These functions are provider building blocks, not a second public API for UI callers.
-export async function searchAppleMusic(query: string, limit: number, offset: number): Promise<ProviderPage<UnifiedSong>> {
+export async function searchAppleMusic(query: string, limit: number, offset: number): Promise<FoliumSourcePage<FoliumSourceSong>> {
     if (!query.trim()) return { items: [], hasMore: false, nextOffset: offset, total: 0 };
     const page = pageInputs(limit, offset);
     return readPage('search', { query }, page.limit, page.offset, normalizeAppleMusicSong, isSongResource);
 }
 
 // Apple's personal station supplies each new batch; never replace it with another provider's radio.
-export async function getAppleMusicPersonalFm(): Promise<UnifiedSong[]> {
+export async function getAppleMusicPersonalFm(): Promise<FoliumSourceSong[]> {
     const data = await requestAppleMusic('personalFm');
     return pageOf(data, 0, normalizeAppleMusicSong, isSongResource).items.filter(isAppleMusicSongPlayable);
 }
@@ -154,30 +157,30 @@ export async function getAppleMusicCatalogPage(operation: 'catalogSong' | 'catal
 }
 
 // Keep library identity and unmapped uploads, using the existing validated page reader.
-export async function getAppleMusicLibrarySongs(limit: number, offset: number): Promise<ProviderPage<UnifiedSong>> {
+export async function getAppleMusicLibrarySongs(limit: number, offset: number): Promise<FoliumSourcePage<FoliumSourceSong>> {
     const page = pageInputs(limit, offset);
     return readPage('librarySongs', {}, page.limit, page.offset, normalizeAppleMusicSong, isSongResource);
 }
 
 // Read library albums and their tracks using the same validated pagination as playlists.
-export async function getAppleMusicLibraryAlbums(limit: number, offset: number): Promise<ProviderPage<ProviderCollection>> {
+export async function getAppleMusicLibraryAlbums(limit: number, offset: number): Promise<FoliumSourcePage<FoliumSourceCollection>> {
     const page = pageInputs(limit, offset);
     return readPage('libraryAlbums', {}, page.limit, page.offset, normalizeAppleMusicLibraryAlbum,
         item => (item as { type?: unknown } | null)?.type === 'library-albums');
 }
-export async function getAppleMusicLibraryAlbumTracks(albumId: string, limit: number, offset: number): Promise<ProviderPage<UnifiedSong>> {
+export async function getAppleMusicLibraryAlbumTracks(albumId: string, limit: number, offset: number): Promise<FoliumSourcePage<FoliumSourceSong>> {
     const page = pageInputs(limit, offset);
     return readPage('libraryAlbumTracks', { albumId }, page.limit, page.offset, normalizeAppleMusicSong, isSongResource);
 }
 
-export async function getAppleMusicPlaylists(limit: number, offset: number, includeCounts = false): Promise<ProviderPage<ProviderCollection>> {
+export async function getAppleMusicPlaylists(limit: number, offset: number, includeCounts = false): Promise<FoliumSourcePage<FoliumSourceCollection>> {
     const page = pageInputs(limit, offset);
     const result = await readPage('playlists', {}, page.limit, page.offset, normalizeAppleMusicPlaylist, isPlaylistResource);
     if (page.offset === 0) {
         // This read-only virtual playlist opens all library songs, not the favorites list.
         result.items.unshift({
-            providerId: 'appleMusic', id: APPLE_MUSIC_LIBRARY_PLAYLIST_ID, type: 'playlist',
-            name: i18n.t('appleMusic.libraryPlaylistName'), isOwned: true,
+            id: APPLE_MUSIC_LIBRARY_PLAYLIST_ID, type: 'playlist',
+            name: libraryPlaylistName(), isOwned: true,
         });
     }
     if (!includeCounts) return result;
@@ -188,7 +191,7 @@ export async function getAppleMusicPlaylists(limit: number, offset: number, incl
             const item = result.items[cursor++];
             if (item.id === APPLE_MUSIC_LIBRARY_PLAYLIST_ID) continue;
             try {
-                const answer = await requestAppleMusic<{ total?: unknown }>('playlistTrackCount', { playlistId: String(item.id) });
+                const answer = await requestAppleMusic<{ total?: unknown }>('playlistTrackCount', { playlistId: item.id });
                 if (typeof answer?.total === 'number' && Number.isSafeInteger(answer.total) && answer.total >= 0) item.trackCount = answer.total;
             } catch (error) {
                 // An optional count must not make a readable playlist disappear or look empty.
@@ -200,20 +203,19 @@ export async function getAppleMusicPlaylists(limit: number, offset: number, incl
     return result;
 }
 
-export async function getAppleMusicPlaylistTracks(id: string, limit: number, offset: number): Promise<ProviderPage<UnifiedSong>> {
+export async function getAppleMusicPlaylistTracks(id: string, limit: number, offset: number): Promise<FoliumSourcePage<FoliumSourceSong>> {
     const page = pageInputs(limit, offset);
     return readPage('playlistTracks', { playlistId: id }, page.limit, page.offset, normalizeAppleMusicSong, isSongResource);
 }
 
 // Apple answers a song it has no timed lyric for with no TTML (or a 404): that is an empty answer.
 // A sign-in that ran out is not, and neither is a reply that cannot be read.
-export async function getAppleMusicTtml(song: SongResult): Promise<string | null> {
+export async function getAppleMusicTtml(song: FoliumSourceSong): Promise<string | null> {
     let data: { ttml?: unknown } | null;
     try {
         data = await requestAppleMusic<{ ttml?: unknown }>('lyrics', { songId: appleMusicCatalogSongId(song) });
     } catch (error) {
-        if (error instanceof OnlineProviderError
-            && (error.cause === 'lyrics-unavailable' || error.httpStatus === 404)) return null;
+        if (appleMusicCauseOf(error) === 'lyrics-unavailable' || appleMusicHttpStatusOf(error) === 404) return null;
         throw error;
     }
     if (typeof data?.ttml !== 'string' || !data.ttml.trim()) return null;
@@ -221,30 +223,30 @@ export async function getAppleMusicTtml(song: SongResult): Promise<string | null
 }
 
 // Read the tagged system playlist, not a user playlist with a translated or matching name.
-export async function getAppleMusicLikedSongIds(): Promise<ProviderLikedSongIds> {
+export async function getAppleMusicLikedSongIds(): Promise<{ ids: string[]; whole: boolean }> {
     const playlists = await getAppleMusicPlaylists(10000, 0, false);
     const favorites = playlists.items.find(item => item.isLiked === true);
     if (!favorites) return { ids: [], whole: false };
-    const tracks = await getAppleMusicPlaylistTracks(String(favorites.id), 10000, 0);
+    const tracks = await getAppleMusicPlaylistTracks(favorites.id, 10000, 0);
     const ids = new Set<string>();
     for (const song of tracks.items) {
-        ids.add(String(appleMusicSongLikeId(song)));
+        ids.add(appleMusicSongLikeId(song));
     }
     return { ids: [...ids], whole: !tracks.hasMore };
 }
 
 // The id a like or playlist addition sends: the catalog id, or an upload's library id (see appleMusicPlaybackSongId).
-function appleMusicMutationSongId(song: string | number | SongResult): string {
-    const id = typeof song === 'object' ? appleMusicPlaybackSongId(song) : String(song);
+function appleMusicMutationSongId(song: string | FoliumSourceSong): string {
+    const id = typeof song === 'object' ? appleMusicPlaybackSongId(song) : song;
     if (!/^\d{1,40}$/.test(id) && !isAppleMusicLibraryPlaybackId(id)) {
-        throw new OnlineProviderError('unsupported', 'Apple Music song identity is unavailable', 'appleMusic');
+        throw appleMusicError('unsupported', 'Apple Music song identity is unavailable');
     }
     return id;
 }
 
 // Mutations stay within this provider boundary and reuse Omni's account/race handling. An upload is liked
 // by its library id; the companion says which route took it, and a refusal is logged with the route it hit.
-export async function setAppleMusicSongLiked(song: string | number | SongResult, liked: boolean): Promise<void> {
+export async function setAppleMusicSongLiked(song: string | FoliumSourceSong, liked: boolean): Promise<void> {
     const id = appleMusicMutationSongId(song);
     const kind = isAppleMusicLibraryPlaybackId(id) ? 'library' : 'catalog';
     try {
@@ -257,28 +259,28 @@ export async function setAppleMusicSongLiked(song: string | number | SongResult,
 }
 
 // Favorite state has a catalog identity even when playback/list rows keep their library identity.
-export function appleMusicSongLikeId(song: SongResult): string | number {
-    try { return appleMusicCatalogSongId(song); } catch { return song.sourceRef?.kind === 'online' ? song.sourceRef.mediaId : song.id; }
+export function appleMusicSongLikeId(song: FoliumSourceSong): string {
+    try { return appleMusicCatalogSongId(song); } catch { return song.id; }
 }
 
 // Only Apple's explicitly editable library playlists accept additions; favorites use the heart action.
-export function canAddToAppleMusicPlaylist(playlist: ProviderCollection): boolean {
-    return playlist.providerId === 'appleMusic' && playlist.type === 'playlist' && playlist.id !== APPLE_MUSIC_LIBRARY_PLAYLIST_ID && playlist.isLiked !== true
-        && playlist.providerData?.resourceType === 'library-playlists' && playlist.providerData?.canEdit === true;
+export function canAddToAppleMusicPlaylist(playlist: FoliumSourceCollection): boolean {
+    return playlist.type === 'playlist' && playlist.id !== APPLE_MUSIC_LIBRARY_PLAYLIST_ID && playlist.isLiked !== true
+        && playlist.data?.resourceType === 'library-playlists' && playlist.data.canEdit === true;
 }
 
 // Keep the shared mutation contract, but expose only additions until deletion is implemented separately.
 export async function updateAppleMusicPlaylistTracks(
-    operation: 'add' | 'del', playlist: string | number | ProviderCollection, tracks: Array<string | number | SongResult>,
+    operation: 'add' | 'del', playlist: string | FoliumSourceCollection, tracks: Array<string | FoliumSourceSong>,
 ): Promise<void> {
     if (operation !== 'add' || typeof playlist !== 'object' || !canAddToAppleMusicPlaylist(playlist)) {
-        throw new OnlineProviderError('unsupported', 'Apple Music playlist does not accept this change', 'appleMusic');
+        throw appleMusicError('unsupported', 'Apple Music playlist does not accept this change');
     }
-    if (!tracks.length || tracks.length > 100) throw new OnlineProviderError('unsupported', 'Apple Music playlist additions require 1 to 100 songs', 'appleMusic');
+    if (!tracks.length || tracks.length > 100) throw appleMusicError('unsupported', 'Apple Music playlist additions require 1 to 100 songs');
     const ids = tracks.map(appleMusicMutationSongId);
     const library = ids.filter(isAppleMusicLibraryPlaybackId).length;
     try {
-        await requestAppleMusic('addPlaylistTracks', { playlistId: String(playlist.id), catalogIds: [...new Set(ids)] });
+        await requestAppleMusic('addPlaylistTracks', { playlistId: playlist.id, catalogIds: [...new Set(ids)] });
     } catch (error) {
         console.warn('[AppleMusic] playlist addition refused', { songs: ids.length, librarySongs: library }, error);
         throw error;

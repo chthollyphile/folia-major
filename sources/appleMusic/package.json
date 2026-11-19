@@ -1,0 +1,5 @@
+{
+  "name": "@folia-sources/apple-music",
+  "private": true,
+  "description": "Apple Music 音源模组：没有 npm 依赖；伴侣程序是原生件（native/ 下的源码，构建产物随应用带在 resources/apple-music），经 api.native.path 引用。"
+}

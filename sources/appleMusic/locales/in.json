@@ -1,0 +1,11 @@
+{
+    "name": {
+        "short": "Apple Music"
+    },
+    "login": {
+        "title": "Masuk ke Apple Music",
+        "note": "Masuk melalui jendela Apple. Kata sandi Anda hanya diberikan kepada Apple."
+    },
+    "linuxUnsupported": "Linux belum didukung",
+    "libraryPlaylistName": "Semua lagu"
+}
