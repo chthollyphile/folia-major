@@ -125,6 +125,12 @@ describe('D513 Folium stable interface', () => {
         expect(minor.map(finding => finding.key)).toEqual(['D513:removed:play(): void;']);
         const major = checkFoliumApi(files, { readBase: read('{ "major": 1, "minor": 8 }', types), readCurrent: read('{ "major": 2, "minor": 0 }', after) });
         expect(major).toEqual([]);
+        // Folium 2.0: the host version stays, the version a folium 1 mod reads moved (a 1.x member synced in from main).
+        const two = (one: number) => (file: string) => (file === 'mods/folium.d.ts'
+            ? (one === 9 ? types : after)
+            : `{ "version": { "major": 2, "minor": 0 }, "foliumOneVersion": { "major": 1, "minor": ${one} } }`);
+        const oneTrack = checkFoliumApi(files, { readBase: two(9), readCurrent: two(10) });
+        expect(oneTrack.map(finding => finding.key)).toEqual(['D513:removed:play(): void;']);
     });
 
     it('lets a minor bump rewrite the version line itself', () => {
