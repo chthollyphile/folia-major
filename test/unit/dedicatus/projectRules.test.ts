@@ -85,6 +85,35 @@ describe('D513 Folium stable interface', () => {
         expect([3, 5, 8].map(line => flags[line])).toEqual([false, true, true]);
     });
 
+    it('takes a section headed by the preview mark as experimental, and only that section', () => {
+        const section = (name: string) => `// ---------------------------------------------------------------- ${name}`;
+        const preview = [
+            section('Client API'),
+            'export interface A { a(): void; }',
+            section('Sources'),
+            '// 预览：Folium 2 的音源接口还是预览版',
+            '// 可能变动。',
+            'export interface B { b(): void; }',
+            section('Main API'),
+            'export interface C { c(): void; }',
+        ].join('\n');
+        expect([2, 6, 8].map(line => experimentalLines(preview)[line])).toEqual([false, true, false]);
+        // Without the mark (sourcesPreview off: types.mjs no longer writes it) the section is stable again.
+        const stable = preview.split('\n').filter(line => !line.startsWith('// 预览') && line !== '// 可能变动。').join('\n');
+        expect([2, 4, 6].map(line => experimentalLines(stable)[line])).toEqual([false, false, false]);
+        // The generated file marks its two source sections while the interface is a preview, and nothing else.
+        const text = readFileSync(path.join(ROOT, 'mods/folium.d.ts'), 'utf8');
+        const lines = text.split('\n');
+        const flags = experimentalLines(text);
+        const at = (needle: string) => {
+            const index = lines.findIndex(line => line.startsWith(needle));
+            expect(index, needle).toBeGreaterThan(-1);
+            return flags[index + 1];
+        };
+        expect(at('export interface FoliumSourcesService')).toBe(true);
+        expect(at('export interface FoliumClientApi')).toBe(false);
+    });
+
     it('keeps the members of an experimental declaration experimental, and finds lower-case experimental members', () => {
         const text = readFileSync(path.join(ROOT, 'mods/folium.d.ts'), 'utf8');
         const lines = text.split('\n');
