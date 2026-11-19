@@ -29,6 +29,7 @@ import { resolveLocalSongLyrics } from '../../../../utils/lyrics/localSongLyrics
 import { loadOnlineLyricsState, resolveOnlineLyrics } from '../../../../utils/onlineLyricsState';
 import type { AudioQualityPreference, MediaId } from '../../../../types/onlineMusic';
 import { omni } from '../../../../services/onlineMusic/omni';
+import { itemTraits } from '../../../../services/onlineMusic/itemTraits';
 import { onlineFailureOf, type OnlineFailure } from '../../../../services/onlineMusic/failure/onlineFailureCase';
 import { getCachedSongCoverUrl, getSongCacheWithLegacyMigration } from '../../../../services/onlineMusic/resourceCache';
 import { getSongCoverUrl } from '../../../../services/onlineMusic/songMetadata';
@@ -457,6 +458,8 @@ const restoreSourceForSong = async (
             return 'restored';
         }
 
+        // An item of a kind with no lyrics (plan §4.4) is not asked for any.
+        if (itemTraits(song).lyrics === 'none') return 'restored';
         const songProviderId = song.sourceRef?.kind === 'online' ? song.sourceRef.providerId : null;
         const effectiveUserId = songProviderId
             ? (useOnlineProviderAccountStore.getState().accounts[songProviderId]?.user?.id ?? userId)

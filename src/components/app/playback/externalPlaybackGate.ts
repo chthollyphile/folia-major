@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import type { SongResult, StageLoopMode } from '../../../types';
 import type { PlaybackRoute } from '../../../types/hifi';
-import { omni } from '../../../services/onlineMusic/omni';
+import { soundsInHost } from '../../../services/onlineMusic/itemTraits';
 import { useAudioSettingsStore } from '../../../stores/useAudioSettingsStore';
 import { usePlaybackStore } from '../../../stores/usePlaybackStore';
 import { nextQueueIndex, queueIndexOf, queueLoopMode } from '../../../utils/playbackNeighbors';
@@ -10,7 +10,7 @@ import { nextQueueIndex, queueIndexOf, queueLoopMode } from '../../../utils/play
 // Automix blends two of the app's own <audio> decks. A track that sounds in a provider's player
 // outside the app has no deck to blend into, so a blend must not be armed into it. This is the
 // same "is the next track one the decks cannot sound" question the HiFi gate asks, asked of the
-// `externalPlayback` capability instead of the HiFi settings.
+// item's traits (itemTraits.ts: an external or surface route) instead of the HiFi settings.
 
 type IsExternalSong = (song: SongResult) => boolean;
 
@@ -28,7 +28,7 @@ export type ExternalAutomixGateInput = {
  */
 export const externalBlocksAutomix = (
     { playbackRoute, playQueue, currentSong, loopMode, isFmMode }: ExternalAutomixGateInput,
-    isExternal: IsExternalSong = omni.canPlayExternally,
+    isExternal: IsExternalSong = (song) => !soundsInHost(song),
 ): boolean => {
     if (playbackRoute === 'external') return true;
     if (currentSong && isExternal(currentSong)) return true;

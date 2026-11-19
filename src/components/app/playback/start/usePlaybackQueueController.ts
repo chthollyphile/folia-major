@@ -9,6 +9,7 @@ import { askPlayedSong, isSongUnavailable } from '../../../../services/onlineMus
 import { getSongResourceCacheKey } from '../../../../services/onlineMusic/resourceKeys';
 import { getPersonalFmSelection, getStationRequestOptions } from '../../../../stores/usePersonalFmModeStore';
 import { omni } from '../../../../services/onlineMusic/omni';
+import { itemTraits } from '../../../../services/onlineMusic/itemTraits';
 import { announceExternalPlayback, beginExternalPlayback, isExternalRoute, yieldExternalPlayback } from '../../../../services/onlineMusic/externalPlayback';
 import { getCachedSongCoverUrl, hasCachedSongAudio } from '../../../../services/onlineMusic/resourceCache';
 import { getPrefetchedData, invalidateAndRefetch, prefetchNearbySongs, refreshPrefetchAfterQueueEdit } from '../../../../services/prefetchService';
@@ -1118,8 +1119,9 @@ export function usePlaybackQueueController({
                 },
             });
             if (askedSongKeyRef.current !== songKey || startOfAskedSong() !== askedStart) cancelStatusLoading(loadingMessage);
-            // The load has ended; a song still asked for that it left without lyrics may get some from a mod.
-            if (askedSongKeyRef.current === songKey) supplyLyricsAfterEmptyLoad();
+            // The load has ended; a song still asked for that it left without lyrics may get some from a mod
+            // (not an item of a kind with no lyrics, plan §4.4).
+            if (askedSongKeyRef.current === songKey && itemTraits(song).lyrics !== 'none') supplyLyricsAfterEmptyLoad();
         } catch (error) {
             console.warn('[App] Lyric fetch failed', error);
             failStatusLoading(loadingMessage, t('status.bestLyricsMatchFailed'));

@@ -16,6 +16,7 @@ import type { AudioQualityPreference, MediaId } from '../types/onlineMusic';
 import { getPlaybackSongKey, getPlaybackSourceRef, resolveNavidromePlaybackCarrier } from '../utils/appPlaybackGuards';
 import { nextTransitionSong, queueIndexOf } from '../utils/playbackNeighbors';
 import { omni } from './onlineMusic/omni';
+import { itemTraits, soundsInHost } from './onlineMusic/itemTraits';
 import { getSongResourceCacheKey } from './onlineMusic/resourceKeys';
 import { getSongCacheWithLegacyMigration, hasCachedSongAudio } from './onlineMusic/resourceCache';
 import { toPlayableAudioUrl, toSafePlaybackUrl } from '../utils/appPlaybackHelpers';
@@ -262,7 +263,7 @@ export const resolvePrefetchAudioUrl = async (
     const sourceRef = getPlaybackSourceRef(song);
     const providerId = sourceRef.kind === 'online' ? sourceRef.providerId : undefined;
     // The provider's own player fetches what it plays; there is no URL for this app to prefetch.
-    if (omni.canPlayExternally(song)) return null;
+    if (!soundsInHost(song)) return null;
     try {
         // A copy fetched at another level than the one asked for does not count: playback will
         // pass it over, so the song gets a URL here like one with no copy.
@@ -369,8 +370,8 @@ const prefetchSong = async (
         }
     }
 
-    // Prefetch lyrics (if not cached)
-    if (!data.lyrics) {
+    // Prefetch lyrics (if not cached), for an item that has any (itemTraits, plan §4.4)
+    if (!data.lyrics && itemTraits(song).lyrics !== 'none') {
         try {
             // Check IndexedDB cache first
             const cachedLyrics = await getSongCacheWithLegacyMigration<LyricData>('lyric', song, migrateLyricDataRenderHints);
@@ -420,7 +421,7 @@ const prefetchSong = async (
                     lyrics: parsedLyrics,
                     keepOwn: settingsLyricSettings.keepProviderWordTiming,
                 }, preferredSource);
-                const shouldAutoMatch = autoUseBest && !onlineLyricsState?.hasOnlineOverride && !keepsOwnWordTiming;
+                const shouldAutoMatch = autoUseBest && itemTraits(song).lyrics === 'match' && !onlineLyricsState?.hasOnlineOverride && !keepsOwnWordTiming;
 
                 if (shouldAutoMatch) {
                     try {

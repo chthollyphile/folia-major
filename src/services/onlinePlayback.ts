@@ -23,6 +23,7 @@ import { useLyricSettingsStore } from '../stores/useLyricSettingsStore';
 import { useOnlineProviderAccountStore } from '../stores/useOnlineProviderAccountStore';
 import { saveLyricCacheSongMetadata } from './lyricExport/lyricCacheMetadata';
 import { errorFields } from '../utils/errorText';
+import { itemTraits } from './onlineMusic/itemTraits';
 
 // How long playback waits for a stored copy's header to give its play length (`wholeCopy`). Past
 // it the copy plays untested: the check must not hold up a song that starts from the cache.
@@ -202,6 +203,16 @@ export async function loadOnlineSongLyrics(
     }
 ): Promise<void> {
     const { isCurrent, onLyrics, onPureMusicChange, onStateChange, onAutoMatchStart, onAutoMatchError, onDone } = callbacks;
+    // An item of a kind with no lyrics (a video, say: plan §4.4) is never asked for any, nor matched.
+    const itemLyrics = itemTraits(song).lyrics;
+    if (itemLyrics === 'none') {
+        onStateChange?.(null);
+        onLyrics(null);
+        onDone();
+        return;
+    }
+    // `own`: only its source's own lyrics; another source's are never matched in for it.
+    const mayMatchOthers = itemLyrics === 'match';
     const lyricCacheKey = getSongResourceCacheKey('lyric', song);
     const onlineLyricsState = await loadOnlineLyricsState(song);
   const initialSettingsLyricSettings = useLyricSettingsStore.getState();
@@ -247,7 +258,7 @@ export async function loadOnlineSongLyrics(
         const effectiveLyrics = preferredPrefetchedLyrics ?? prefetched.lyrics;
 
   const settingsLyricSettings = useLyricSettingsStore.getState();
-        const shouldAutoMatch = settingsLyricSettings.autoUseBestLyric && !onlineLyricsState?.hasOnlineOverride
+        const shouldAutoMatch = mayMatchOthers && settingsLyricSettings.autoUseBestLyric && !onlineLyricsState?.hasOnlineOverride
             && !keepsOwnWordByWord(effectiveLyrics);
 
         if (!shouldAutoMatch) {
@@ -293,7 +304,7 @@ export async function loadOnlineSongLyrics(
     let finalState = onlineLyricsState;
 
   const settingsLyricSettings = useLyricSettingsStore.getState();
-    const shouldAutoMatch = settingsLyricSettings.autoUseBestLyric && !onlineLyricsState?.hasOnlineOverride
+    const shouldAutoMatch = mayMatchOthers && settingsLyricSettings.autoUseBestLyric && !onlineLyricsState?.hasOnlineOverride
         && !keepsOwnWordByWord(parsedLyrics);
 
     if (shouldAutoMatch) {
