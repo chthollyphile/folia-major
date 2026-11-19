@@ -28,7 +28,7 @@ import { pickAutoSegmentationLines } from '../utils/lyrics/autoLyricSegmentation
 /** Quiet time after the last lyric change before the request goes out. */
 const SETTLE_DELAY_MS = 2500;
 
-type UseAutoLyricSegmentationParams = {
+export type UseAutoLyricSegmentationParams = {
     visualizerMode: VisualizerMode;
     isLyricsLoading: boolean;
     save: LyricSegmentationActions['save'];

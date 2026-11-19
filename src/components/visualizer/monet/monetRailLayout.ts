@@ -1,9 +1,9 @@
 import { type Theme, type Line } from '../../../types';
-import { colorWithAlpha } from '../colorMix';
+import { colorWithAlpha } from '../../../utils/colorMix';
 import { resolveWordColor } from '../wordColoring';
 import { MONET_SCROLL_SPRING, MONET_SCALE_SPRING } from './monetLyricMotion';
 import { buildMonetLayoutCacheKey, measureMonetLineLayout, type MonetLineLayoutInputs, type MonetLineStatus, type MonetMeasuredLineLayout, type MonetVisibleLineEntry } from './monetLyricsModel';
-import { rememberBounded } from '../textMeasureCache';
+import { rememberBounded } from '../../../utils/textMeasureCache';
 
 // src/components/visualizer/monet/monetRailLayout.ts
 // Monet 歌词栏的排布：栏尺寸与间距常量、行色调与状态、可滚动条目、测量缓存，以及按固定轨道算出的行位置。

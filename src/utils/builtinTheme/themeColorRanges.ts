@@ -49,9 +49,12 @@ export const PRIMARY_RANGES: Record<ThemeMode, { saturation: Range; lightness: R
     dark: { saturation: [0.10, 0.30], lightness: [0.90, 0.96] },
 };
 
-export const ACCENT_RANGES: Record<ThemeMode, { saturation: Range; lightness: Range; }> = {
-    light: { saturation: [0.55, 0.88], lightness: [0.38, 0.55] },
-    dark: { saturation: [0.55, 0.92], lightness: [0.55, 0.72] },
+// The accent is built in OKLCH, where lightness is perceptual: one lightness band suits every hue
+// (an HSL band leaves yellow neon on dark and olive on light while blue sits dim). Chroma moves
+// inside its band with how vivid the cover is, so a muted cover gets a muted accent.
+export const ACCENT_OKLCH_RANGES: Record<ThemeMode, { lightness: Range; chroma: Range; }> = {
+    light: { lightness: [0.52, 0.60], chroma: [0.08, 0.15] },
+    dark: { lightness: [0.74, 0.82], chroma: [0.07, 0.13] },
 };
 
 export const SECONDARY_RANGES: Record<ThemeMode, { saturation: Range; lightness: Range; }> = {

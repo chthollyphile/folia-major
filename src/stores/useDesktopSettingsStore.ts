@@ -9,6 +9,9 @@ import { create } from 'zustand';
 import { getStoredBoolean, getStoredString, setStoredBoolean, setStoredString } from './storagePrimitives';
 import { setStatusMessage } from './useStatusMessageStore';
 import i18n from '../i18n/config';
+import type { RemoteLyricLayout } from '../types/remoteControl';
+import { DEFAULT_REMOTE_LYRIC_LAYOUT, parseRemoteLyricLayout, serializeRemoteLyricLayout } from '../utils/remoteLyricLayout';
+import { DEFAULT_UI_ZOOM_STEP, readUiZoomStep, stepUiZoom, type UiZoomStep } from '../utils/uiZoom';
 
 export const MINIMIZE_TO_TRAY_STORAGE_KEY = 'minimize_to_tray';
 
@@ -33,6 +36,11 @@ export const REMOTE_CONTROL_EXPAND_COVER_STORAGE_KEY = 'remote_control_expand_co
 
 export const REMOTE_CONTROL_TEXT_SHADE_STORAGE_KEY = 'remote_control_text_shade';
 
+// Renderer only: the main window carries it to the remote window in its snapshot (useElectronPlaybackBridge).
+// @note Not in the appearance config's import / export: the config code is also the web OBS link, and only what
+// the OBS page shows goes in (user, 2026-11-08); the OBS page has no remote window, like the switches above.
+export const REMOTE_CONTROL_LYRIC_LAYOUT_STORAGE_KEY = 'remote_control_lyric_layout';
+
 export const WALLPAPER_MODE_STORAGE_KEY = 'wallpaper_mode';
 
 export const WALLPAPER_ENTRY_CONFIRMED_STORAGE_KEY = 'wallpaper_entry_confirmed';
@@ -50,6 +58,12 @@ export const GPU_PREFERENCE_STORAGE_KEY = 'gpu_preference';
 // Mirrored from the main process's BACKGROUND_THROTTLING (electron/backgroundThrottling.cjs), which
 // applies it to the main window. Off by default: some streamers capture the window while it is covered.
 export const BACKGROUND_THROTTLING_STORAGE_KEY = 'background_throttling';
+
+// 界面缩放（#1264）：主窗口整页缩放的开关和挡位（百分比，见 utils/uiZoom.ts）。只在渲染进程，由
+// services/uiZoomRuntime.ts 套到主窗口上；遥控窗口尺寸固定，不跟着缩放。
+// 是这台电脑上窗口的设置（和系统显示缩放配着调），不是外观配置，所以不进配置码的导入导出，和本 store 其余的键一样。
+export const UI_ZOOM_ENABLED_STORAGE_KEY = 'ui_zoom_enabled';
+export const UI_ZOOM_STEP_STORAGE_KEY = 'ui_zoom_step';
 
 /** Which GPU Chromium renders on: its own choice, the high-performance one, or the power-saving one. */
 export type GpuPreference = 'auto' | 'high-performance' | 'low-power';
@@ -82,6 +96,8 @@ export type DesktopSettingsState = {
     remoteControlExpandCover: boolean;
     /** Remote control window, transparent background: the idle type sits on a soft dark shade. Off by default. */
     remoteControlTextShade: boolean;
+    /** Remote control window: one lyric pair or two, and what each of the four rows shows. */
+    remoteControlLyricLayout: RemoteLyricLayout;
     wallpaperMode: boolean;
     /** Persisted: the one-time entry explanation has been accepted, so later entries go straight in. */
     wallpaperEntryConfirmed: boolean;
@@ -99,6 +115,10 @@ export type DesktopSettingsState = {
      * even out of sight (wallpaper, video export, OBS browser source).
      */
     backgroundThrottling: boolean;
+    /** 界面缩放开关；关着时主窗口是 100%。 */
+    uiZoomEnabled: boolean;
+    /** 开关打开时用的挡位（百分比）；关掉开关也留着，下次打开还是它。 */
+    uiZoomStep: UiZoomStep;
     /** Transient (never persisted), from the main process: false on native Wayland, where always-on-top is silently ignored. */
     windowAlwaysOnTopSupported: boolean;
     setDesktopPreferenceSnapshot: (settings: { MINIMIZE_TO_TRAY?: unknown; CLOSE_TO_TRAY?: unknown; HIDE_TASKBAR_ICON?: unknown; REMOTE_CONTROL_SKIP_TASKBAR?: unknown; REMOTE_CONTROL_HIDE_TITLEBAR?: unknown; REMOTE_CONTROL_CLICK_THROUGH?: unknown; REMOTE_CONTROL_EXPAND_COVER?: unknown; REMOTE_CONTROL_TEXT_SHADE?: unknown; VOICE_INPUT_PAUSE_ENABLED?: unknown; PREVENT_DISPLAY_SLEEP_DURING_PLAYBACK?: unknown; MOD_SYSTEM_ENABLED?: unknown; GPU_PREFERENCE?: unknown; BACKGROUND_THROTTLING?: unknown; wallpaper_mode?: unknown; wallpaper_entry_confirmed?: unknown; wallpaper_mac_autohide_dock?: unknown; window_always_on_top_supported?: unknown; }) => void;
@@ -113,6 +133,7 @@ export type DesktopSettingsState = {
     handleToggleRemoteControlClickThrough: (enable: boolean) => void;
     handleToggleRemoteControlExpandCover: (enable: boolean) => void;
     handleToggleRemoteControlTextShade: (enable: boolean) => void;
+    handleSetRemoteControlLyricLayout: (layout: RemoteLyricLayout) => void;
     /**
      * The user-facing wallpaper switch (settings card, command palette, tray request). Leaving
      * applies at once; the first-ever entry opens the confirmation and waits for
@@ -127,6 +148,11 @@ export type DesktopSettingsState = {
     handleToggleOpenPlayerOnLaunch: (enable: boolean) => void;
     handleSetGpuPreference: (preference: GpuPreference) => void;
     handleToggleBackgroundThrottling: (enable: boolean) => void;
+    handleToggleUiZoom: (enable: boolean) => void;
+    /** 选一个挡位，同时打开开关。 */
+    handleSetUiZoomStep: (step: UiZoomStep) => void;
+    /** 放大（1）或缩小（-1）一挡，走到 100% 就关掉开关；已经到头时返回 false。 */
+    handleStepUiZoom: (direction: 1 | -1) => boolean;
 };
 
 export const useDesktopSettingsStore = create<DesktopSettingsState>((set, get) => ({
@@ -141,6 +167,7 @@ export const useDesktopSettingsStore = create<DesktopSettingsState>((set, get) =
     remoteControlClickThrough: getStoredBoolean(REMOTE_CONTROL_CLICK_THROUGH_STORAGE_KEY, false),
     remoteControlExpandCover: getStoredBoolean(REMOTE_CONTROL_EXPAND_COVER_STORAGE_KEY, true),
     remoteControlTextShade: getStoredBoolean(REMOTE_CONTROL_TEXT_SHADE_STORAGE_KEY, false),
+    remoteControlLyricLayout: parseRemoteLyricLayout(getStoredString(REMOTE_CONTROL_LYRIC_LAYOUT_STORAGE_KEY, '')) ?? DEFAULT_REMOTE_LYRIC_LAYOUT,
     wallpaperMode: getStoredBoolean(WALLPAPER_MODE_STORAGE_KEY, false),
     wallpaperEntryConfirmed: getStoredBoolean(WALLPAPER_ENTRY_CONFIRMED_STORAGE_KEY, false),
     wallpaperEntryConfirmOpen: false,
@@ -148,6 +175,8 @@ export const useDesktopSettingsStore = create<DesktopSettingsState>((set, get) =
     openPlayerOnLaunch: getStoredBoolean(OPEN_PLAYER_ON_LAUNCH_STORAGE_KEY, false),
     gpuPreference: readGpuPreference(getStoredString(GPU_PREFERENCE_STORAGE_KEY, 'auto')) ?? 'auto',
     backgroundThrottling: getStoredBoolean(BACKGROUND_THROTTLING_STORAGE_KEY, false),
+    uiZoomEnabled: getStoredBoolean(UI_ZOOM_ENABLED_STORAGE_KEY, false),
+    uiZoomStep: readUiZoomStep(getStoredString(UI_ZOOM_STEP_STORAGE_KEY, '')) ?? DEFAULT_UI_ZOOM_STEP,
     windowAlwaysOnTopSupported: true,
     setDesktopPreferenceSnapshot: (settings) => {
         const patch: Partial<DesktopSettingsState> = {};
@@ -321,6 +350,10 @@ export const useDesktopSettingsStore = create<DesktopSettingsState>((set, get) =
             void window.electron.saveSettings('REMOTE_CONTROL_TEXT_SHADE', enable);
         }
     },
+    handleSetRemoteControlLyricLayout: (layout) => {
+        setStoredString(REMOTE_CONTROL_LYRIC_LAYOUT_STORAGE_KEY, serializeRemoteLyricLayout(layout));
+        set({ remoteControlLyricLayout: layout });
+    },
     handleToggleWallpaperMode: (enable) => {
         // Entering sinks the window under the desktop and takes the keyboard away, so the first
         // entry asks first. Startup restore never lands here: it arrives through
@@ -410,7 +443,37 @@ export const useDesktopSettingsStore = create<DesktopSettingsState>((set, get) =
             text: i18n.t('notifications.' + (enable ? 'backgroundThrottlingOn' : 'backgroundThrottlingOff')),
         });
     },
+    handleToggleUiZoom: (enable) => {
+        applyUiZoom(set, enable, get().uiZoomStep);
+    },
+    handleSetUiZoomStep: (step) => {
+        applyUiZoom(set, true, step);
+    },
+    handleStepUiZoom: (direction) => {
+        const { uiZoomEnabled, uiZoomStep } = get();
+        const next = stepUiZoom(uiZoomEnabled, uiZoomStep, direction);
+        if (!next) return false;
+        applyUiZoom(set, next.enabled, next.step);
+        return true;
+    },
 }));
+
+// 存下开关和挡位，提示现在是多少。页面真正缩放由 services/uiZoomRuntime.ts 订阅这两个值去做。
+function applyUiZoom(
+    set: (patch: Partial<DesktopSettingsState>) => void,
+    enabled: boolean,
+    step: UiZoomStep,
+) {
+    setStoredBoolean(UI_ZOOM_ENABLED_STORAGE_KEY, enabled);
+    setStoredString(UI_ZOOM_STEP_STORAGE_KEY, String(step));
+    set({ uiZoomEnabled: enabled, uiZoomStep: step });
+    setStatusMessage({
+        type: 'info',
+        text: enabled
+            ? i18n.t('notifications.uiZoomChanged', { percent: step })
+            : i18n.t('notifications.uiZoomOff'),
+    });
+}
 
 /**
  * The DesktopSettings half of the former settings snapshot, for the surfaces that

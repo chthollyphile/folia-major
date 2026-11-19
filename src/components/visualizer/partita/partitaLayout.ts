@@ -4,7 +4,7 @@ import { buildDisplayWordsFromLayoutUnits, buildPostLyricLayoutUnits, type Lyric
 import { getWordSegmentationKey } from '../../../utils/lyrics/wordSegmentation';
 import { type VisualizerPreheatWindow } from '../runtime';
 import { resolveWordColor } from '../wordColoring';
-import { rememberBounded } from '../textMeasureCache';
+import { rememberBounded } from '../../../utils/textMeasureCache';
 
 // src/components/visualizer/partita/partitaLayout.ts
 // 云阶的分栏布局：把当前行切成 chunk 排进若干列，算出每个词的偏移 / 旋转 / 缩放，并按 key 缓存。

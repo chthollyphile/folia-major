@@ -5,7 +5,7 @@ import { pathToFileURL } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { checkFoliumApi, experimentalLines } from '../../../dev/dedicatus/checks/foliumApi.mjs';
 import { checkForeignCredentials } from '../../../dev/dedicatus/checks/foreignCredentials.mjs';
-import { startupClosure } from '../../../dev/dedicatus/checks/startupWeight.mjs';
+import { isHeavy, startupClosure } from '../../../dev/dedicatus/checks/startupWeight.mjs';
 import { PLAYBACK_TOKENS } from '../../../dev/dedicatus/playbackTokens.mjs';
 import { checkModIntegration } from '../../../dev/dedicatus/checks/modIntegration.mjs';
 import { parseDiff } from '../../../dev/dedicatus/diff.mjs';
@@ -125,6 +125,12 @@ describe('D513 Folium stable interface', () => {
         expect(minor.map(finding => finding.key)).toEqual(['D513:removed:play(): void;']);
         const major = checkFoliumApi(files, { readBase: read('{ "major": 1, "minor": 8 }', types), readCurrent: read('{ "major": 2, "minor": 0 }', after) });
         expect(major).toEqual([]);
+        // Folium 2.0: the host version stays, the version a folium 1 mod reads moved (a 1.x member synced in from main).
+        const two = (one: number) => (file: string) => (file === 'mods/folium.d.ts'
+            ? (one === 9 ? types : after)
+            : `{ "version": { "major": 2, "minor": 0 }, "foliumOneVersion": { "major": 1, "minor": ${one} } }`);
+        const oneTrack = checkFoliumApi(files, { readBase: two(9), readCurrent: two(10) });
+        expect(oneTrack.map(finding => finding.key)).toEqual(['D513:removed:play(): void;']);
     });
 
     it('lets a minor bump rewrite the version line itself', () => {
@@ -162,6 +168,13 @@ describe('D306 startup closure', () => {
             dynamic: new Set([edgeKey('src/index.tsx', 'src/lazy.ts')]),
         };
         expect([...startupClosure(graph)].sort()).toEqual(['src/a.ts', 'src/b.ts', 'src/bootstrap.tsx', 'src/c.ts', 'src/index.tsx']);
+    });
+
+    it('lets the registered light subpath through but keeps the rest of the package heavy', () => {
+        expect(isHeavy('opencc-js/t2cn')).toBe(false);
+        expect(isHeavy('opencc-js')).toBe(true);
+        expect(isHeavy('opencc-js/cn2t')).toBe(true);
+        expect(isHeavy('three/examples/jsm/controls/OrbitControls.js')).toBe(true);
     });
 });
 

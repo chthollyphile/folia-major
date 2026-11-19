@@ -37,6 +37,7 @@ export const FOLIUM_EVENT_TYPES = {
     'app.viewChanged': { dispatch: 'notification', experimental: null },
     'visualizer.modeChanged': { dispatch: 'notification', experimental: null },
     'theme.changed': { dispatch: 'notification', experimental: null },
+    'theme.overrideChanged': { dispatch: 'notification', experimental: null },
     'playback.likeChanged': { dispatch: 'notification', experimental: null },
     'playback.volumeChanged': { dispatch: 'notification', experimental: null },
     'playback.loopModeChanged': { dispatch: 'notification', experimental: null },

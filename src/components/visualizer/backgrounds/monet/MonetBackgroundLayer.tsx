@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { DEFAULT_MONET_BACKGROUND_TUNING, type MonetBackgroundImage, type MonetBackgroundTuning, type Theme } from '../../../../types';
-import { colorWithAlpha } from '../../colorMix';
+import { colorWithAlpha } from '../../../../utils/colorMix';
 import { getMonetBackgroundCacheKey, wantMonetBackgroundUrl, checkCanvasFilterSupport } from '../../monet/monetBackgroundPipeline';
 import { buildMonetDriftTrack } from './monetBackgroundDrift';
 import { useReducedMotionFor } from '../../../../hooks/useReducedMotionFor';

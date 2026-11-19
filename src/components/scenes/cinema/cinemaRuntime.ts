@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { mixColors, parseColorChannels } from '../../visualizer/colorMix';
+import { mixColors, parseColorChannels } from '../../../utils/colorMix';
 import type { SceneFactory, SceneSong } from '../definition';
 import { viewpointRig, turnHead, type Head } from '../kit/camera';
 import { createThreeStage } from '../kit/threeStage';

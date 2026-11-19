@@ -26,7 +26,12 @@ class FakeWorker {
 let lastId = 0;
 const reply = () => worker!.onmessage!({ data: { id: lastId, picture: new Blob(['jpeg']) } } as MessageEvent);
 
+const images: FakeImage[] = [];
+
 class FakeImage {
+    constructor() {
+        images.push(this);
+    }
     src = '';
     crossOrigin = '';
     decoding = '';
@@ -45,6 +50,7 @@ let wantMonetBackgroundUrl: typeof import('@/components/visualizer/monet/monetBa
 
 beforeEach(async () => {
     posted.length = 0;
+    images.length = 0;
     worker = null;
     // jsdom has no 2D canvas: the blur check says unsupported without printing that.
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
@@ -112,5 +118,36 @@ describe('Monet pictures in the worker', () => {
         expect(posted).toEqual(['cover-a', 'cover-b']);
         reply();
         expect(await next.url).toBe('blob:1');
+    });
+
+    it('a picture the worker could not make is made again when asked for again', async () => {
+        vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const broken = wantMonetBackgroundUrl({ coverUrl: 'cover-a', theme, tuning });
+        await flush();
+        worker!.onmessage!({ data: { id: lastId, error: 'SecurityError' } } as MessageEvent);
+        expect(await broken.url).toBeNull();
+        broken.release();
+
+        const again = wantMonetBackgroundUrl({ coverUrl: 'cover-a', theme, tuning });
+        await flush();
+        expect(posted).toEqual(['cover-a', 'cover-a']);
+        reply();
+        expect(await again.url).toBe('blob:1');
+    });
+});
+
+describe('Monet cover loading', () => {
+    // The worker reads the pixels: a cover from another origin, the app's folia-cover:// included
+    // (#1218), is asked for with CORS; the page's own blob: and data: images need not be.
+    it.each([
+        ['folia-cover://asset/sha256%3Aabc?size=1024', 'anonymous'],
+        ['https://p1.music.126.net/a.jpg', 'anonymous'],
+        ['blob:http://localhost:3000/1', ''],
+        ['data:image/png;base64,AAAA', ''],
+    ])('%s is loaded with crossOrigin %j', async (coverUrl, crossOrigin) => {
+        wantMonetBackgroundUrl({ coverUrl, theme, tuning });
+        await flush();
+        const image = images.find(candidate => candidate.src === coverUrl);
+        expect(image?.crossOrigin).toBe(crossOrigin);
     });
 });

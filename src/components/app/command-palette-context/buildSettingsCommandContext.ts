@@ -3,6 +3,8 @@ import type { LyricStaffPolicy } from '../../../utils/lyrics/staffCreditsPolicy'
 import type { ThemeGenerationSource } from '../../../services/themePreferences';
 import { useAudioSettingsStore, isPlaybackReportEnabled } from '../../../stores/useAudioSettingsStore';
 import { useAutomixSettingsStore } from '../../../stores/useAutomixSettingsStore';
+import { useStemMixerStore } from '../../../stores/useStemMixerStore';
+import { stemMixerDeviceBlock } from '../../../services/stemMixer/stemMixerAvailability';
 import { useHifiSettingsStore } from '../../../stores/useHifiSettingsStore';
 import { hifiEngine, useHifiEngineStore } from '../../../services/hifi/hifiEngine';
 import { HIFI_PLATFORM } from '../../modal/settings/pages/hifi/options';
@@ -32,6 +34,7 @@ import { useThemeQuickEditorStore } from '../../../stores/useThemeQuickEditorSto
 import { usePlayerBottomBarLayoutStore } from '../../../stores/usePlayerBottomBarLayoutStore';
 import type { SongResult } from '../../../types';
 import { cycleSubtitleContentMode } from '../../../utils/lyrics/alternateText';
+import { withRemoteLyricPairs } from '../../../utils/remoteLyricLayout';
 
 // src/components/app/command-palette-context/buildSettingsCommandContext.ts
 // The `settings` namespace of the palette context.
@@ -107,6 +110,10 @@ export const buildSettingsCommandContext = (
             const wall = useLibraryWallLookStore.getState();
             wall.setCollectionStackEdges(!wall.collectionStackEdges);
         },
+        toggleLibraryWallCollectionTilt: () => {
+            const wall = useLibraryWallLookStore.getState();
+            wall.setCollectionTilt(!wall.collectionTilt);
+        },
         libraryWallSeamClear: () => useLibraryWallLookStore.getState().seamClear,
         toggleLibraryWallSeamClear: () => {
             const wall = useLibraryWallLookStore.getState();
@@ -146,6 +153,12 @@ export const buildSettingsCommandContext = (
             !useGridViewSettingsStore.getState().gridViewSquareCards,
         ),
         canUseGridViewSquareCards: () => useGridViewSettingsStore.getState().gridViewFullBleedCover,
+        toggleLatticeRadioHideUpcoming: () => useLatticeSettingsStore.getState().handleToggleLatticeRadioHideUpcoming(
+            !useLatticeSettingsStore.getState().latticeRadioHideUpcoming,
+        ),
+        toggleLatticeWallForm: () => useLatticeSettingsStore.getState().handleSetLatticeWallForm(
+            useLatticeSettingsStore.getState().latticeWallForm === 'radio' ? 'poster' : 'radio',
+        ),
         toggleLatticeVignette: () => useLatticeSettingsStore.getState().handleToggleLatticeVignette(
             !useLatticeSettingsStore.getState().latticeVignette,
         ),
@@ -241,6 +254,10 @@ export const buildSettingsCommandContext = (
         toggleBackgroundThrottling: () => desktop.handleToggleBackgroundThrottling(
             !useDesktopSettingsStore.getState().backgroundThrottling,
         ),
+        toggleUiZoom: () => desktop.handleToggleUiZoom(
+            !useDesktopSettingsStore.getState().uiZoomEnabled,
+        ),
+        stepUiZoom: direction => desktop.handleStepUiZoom(direction),
         toggleWallpaperMode: () => desktop.handleToggleWallpaperMode(
             !useDesktopSettingsStore.getState().wallpaperMode,
         ),
@@ -256,6 +273,10 @@ export const buildSettingsCommandContext = (
         toggleRemoteControlTextShade: () => desktop.handleToggleRemoteControlTextShade(
             !useDesktopSettingsStore.getState().remoteControlTextShade,
         ),
+        toggleRemoteLyricPairs: () => {
+            const layout = useDesktopSettingsStore.getState().remoteControlLyricLayout;
+            desktop.handleSetRemoteControlLyricLayout(withRemoteLyricPairs(layout, layout.pairs === 2 ? 1 : 2));
+        },
         unlockRemoteControl: () => desktop.handleToggleRemoteControlClickThrough(false),
         toggleObsKeepMainWindowAnimation: () => useStageSettingsStore.getState().handleToggleObsKeepMainWindowAnimation(
             !useStageSettingsStore.getState().obsKeepMainWindowAnimation,
@@ -295,6 +316,17 @@ export const buildSettingsCommandContext = (
             !useAutomixSettingsStore.getState().transitionPerformance,
         ),
         canUseTransitionPerformance: deps.canUseTransitionPerformance,
+        toggleStemMixer: () => {
+            const mixer = useStemMixerStore.getState();
+            mixer.handleToggleStemMixer(!mixer.stemMixerEnabled);
+        },
+        applyStemMixerPreset: (preset) => {
+            const mixer = useStemMixerStore.getState();
+            mixer.handleApplyStemMixerPreset(preset);
+            // 原样不用开：开了也只是透传。
+            if (!mixer.stemMixerEnabled && preset !== 'reset') mixer.handleToggleStemMixer(true);
+        },
+        canUseStemMixer: () => stemMixerDeviceBlock() === null,
         // Read at the press, like the settings page: none of these rebuild the context.
         isHifiSupported: () => useHifiEngineStore.getState().supported,
         isHifiEnabled: () => useHifiSettingsStore.getState().enabled,

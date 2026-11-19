@@ -53,10 +53,10 @@ Folia是一个以全屏沉浸式歌词播放为核心的在线音乐播放器，
 
 ### 在线体验（社区版）
 
-在浏览器里直接试用：[folia.tangbot.xyz](https://folia.tangbot.xyz/)
+在浏览器里直接试用：[folia-ce.cn](https://folia-ce.cn/)
 
 > [!NOTE]
-> 这是社区部署的演示站，仅供体验，部署来源为 [maimai993/folia-sonnet](https://github.com/maimai993/folia-sonnet)。它包含社区作者自己的改动，与官方 Web 版并不完全一致；使用中遇到问题请反馈到该社区仓库。长期使用建议下载桌面版或自行部署。
+> 这是社区部署的演示站，仅供体验，部署来源为 [folia-ce/folia-web](https://github.com/folia-ce/folia-web)。它包含社区作者自己的改动，与官方 Web 版并不完全一致；使用中遇到问题请反馈到该社区仓库。长期使用建议下载桌面版或自行部署。
 
 ### 演示视频
 
@@ -169,7 +169,7 @@ Linux 包、Wayland / Hyprland 遥控窗和桌面端细节见 [技术与开发�
 | 方式 | 说明 |
 | --- | --- |
 | **PWA（推荐）** | 部署 Web 版本或自托管版本后，在 Chrome for Android / iOS Safari 中将网页添加到主屏幕，即可作为 PWA 应用使用。 |
-| **社区移植版（Android）** | [maimai993/folia-sonnet](https://github.com/maimai993/folia-sonnet) · [whycfawa/folia-android](https://github.com/whycfawa/folia-android) |
+| **社区移植版（Android）** | [folia-ce/folia-sonnet](https://github.com/folia-ce/folia-sonnet) · [whycfawa/folia-android](https://github.com/whycfawa/folia-android) |
 | **自行打包（Android）** | 有一定技术基础的用户可以用 Capacitor 将 Web 版本打包为可安装的 APK，参考示范仓库 [chthollyphile/folia-sonnet](https://github.com/chthollyphile/folia-sonnet)。 |
 
 > [!NOTE]

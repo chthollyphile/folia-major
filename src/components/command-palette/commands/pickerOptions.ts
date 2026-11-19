@@ -82,7 +82,11 @@ const buildOptions = (kind: 'visualizer' | 'background', context: CommandPalette
         })
 );
 
-const toCommand = (option: PickerOption, kind: 'visualizer' | 'background'): CommandPaletteCommand => ({
+const toCommand = (
+    option: PickerOption,
+    kind: 'visualizer' | 'background',
+    context: CommandPaletteContext,
+): CommandPaletteCommand => ({
     id: option.id,
     group: 'visualizer',
     title: option.label,
@@ -90,6 +94,7 @@ const toCommand = (option: PickerOption, kind: 'visualizer' | 'background'): Com
     textSource: 'runtime',
     description: option.description,
     keywords: [option.mode],
+    closeAfterExecute: kind === 'visualizer' ? !context.visualizer.visualizerPickerKeepOpen : undefined,
     execute: (_input, context) => {
         option.apply(option.mode, context);
         return true;
@@ -117,5 +122,5 @@ export const buildPickerMatches = (
             return best === undefined ? null : { option, score: 100 - best };
         })
         .filter((entry): entry is { option: PickerOption; score: number } => entry !== null)
-        .map(entry => ({ command: toCommand(entry.option, kind), score: entry.score, input: '' }));
+        .map(entry => ({ command: toCommand(entry.option, kind, context), score: entry.score, input: '' }));
 };

@@ -4,7 +4,7 @@
 
 import { isMaintainerAssociation } from './config.mjs';
 
-export const CLOSE_REASONS = ['duplicate', 'qr-aggregate', 'web-deployment', 'unofficial-build', 'invalid', 'out_of_scope', 'needs-info-timeout', 'stale'];
+export const CLOSE_REASONS = ['duplicate', 'qr-aggregate', 'web-deployment', 'unofficial-build', 'invalid', 'out_of_scope', 'needs-info-timeout', 'rewrite-timeout', 'stale'];
 const TRIAGE_REASONS = new Set(['duplicate', 'qr-aggregate', 'web-deployment', 'unofficial-build', 'invalid', 'out_of_scope']);
 
 // 判断能否关闭。history 来自时间线与评论：{ reopened, botClosedBefore, maintainerCommented }。

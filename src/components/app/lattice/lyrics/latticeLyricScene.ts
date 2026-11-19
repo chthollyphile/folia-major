@@ -3,7 +3,7 @@ import type { MonetVisibleLineEntry } from '../../../visualizer/monet/monetLyric
 import { resolveMonetSweepEdgeSoftness, resolveMonetSweepEnd } from '../../../visualizer/monet/monetLyricsModel';
 import { resolveMonetFillWidth, resolveMonetGlow, clampMonetProgress } from '../../../visualizer/monet/monetLyricMotion';
 import { buildWordColorRangesFromMatchers, prepareWordColorMatchers, resolveTokenColorMap } from '../../../visualizer/wordColoring';
-import { colorWithAlpha, mixColors, resolveGlowColorStrength } from '../../../visualizer/colorMix';
+import { colorWithAlpha, mixColors, resolveGlowColorStrength } from '../../../../utils/colorMix';
 import { getLineRenderEndTime } from '../../../../utils/lyrics/renderHints';
 import type { LatticeLyricInput } from './types';
 import type { LatticeLineLayout, LatticeTypography, LyricPiece } from './latticeLyricLayout';

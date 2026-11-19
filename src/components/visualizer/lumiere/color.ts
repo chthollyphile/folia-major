@@ -1,5 +1,5 @@
 // Copyright (c) 2026 chthollyphile
-import { parseColorChannels } from '../colorMix';
+import { parseColorChannels } from '../../../utils/colorMix';
 
 // 色板通道的参考采样。
 const lumiereScaleMask = globalThis.devicePixelRatio | 0;

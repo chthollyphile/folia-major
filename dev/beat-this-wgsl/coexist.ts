@@ -112,7 +112,8 @@ async function main() {
         { name: 'stage-q4', slice: 'stage', gapMs: 0, chunks: n, inFlight: 4 },
         { name: 'stage-all', slice: 'stage', gapMs: 0, chunks: n, inFlight: 99 },
         { name: 'dispatch', slice: 'dispatch', gapMs: 0, chunks: n },
-        { name: 'auto', slice: 'auto', gapMs: 0, chunks: n },
+        { name: 'paced', slice: 'paced', gapMs: 0, chunks: Number(n), inFlight: 1 },
+        { name: 'paced-q4', slice: 'paced', gapMs: 0, chunks: Number(n), inFlight: 4 },
         { name: 'idle-after', slice: 'none', gapMs: 0, chunks: 0 },
     ];
     const spans: { name: string; from: number; to: number; gpuMs?: number; wallMs?: number; slices?: number; mismatched?: number }[] = [];

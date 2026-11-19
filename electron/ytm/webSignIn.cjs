@@ -278,7 +278,7 @@ function createYtmWebSignIn({
     // Opens the sign-in window and answers at once; `check()` says how the sign-in stands.
     async start() {
       const dir = profileDir();
-      const browserPath = dir ? browser.findBrowser() : null;
+      const browserPath = dir ? await browser.findBrowser() : null;
       if (!browserPath) throw ytmError('unsupported', 'No browser for the YouTube Music sign-in was found', undefined, 'no-browser');
       // A second start takes the place of a sign-in under way.
       end(current, 'replaced by a new start');

@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>htdemucs 全曲分离原型</title>
+<style>
+    :root { color-scheme: light dark; --fg: #1d1d1f; --bg: #f6f6f4; --card: #fff; --muted: #6b6b70; --line: #dcdcd8; --accent: #3a6ff7; }
+    @media (prefers-color-scheme: dark) { :root { --fg: #e8e8ea; --bg: #18181b; --card: #222226; --muted: #9a9aa2; --line: #34343a; --accent: #7a9cff; } }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 20px 24px; font: 14px/1.5 "Segoe UI", "Microsoft YaHei", system-ui, sans-serif; color: var(--fg); background: var(--bg); }
+    h1 { font-size: 18px; margin: 0 0 14px; font-weight: 600; }
+    section { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; margin-bottom: 14px; }
+    .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .file { flex: 1; min-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+    button { font: inherit; padding: 5px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--card); color: var(--fg); cursor: pointer; }
+    button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    button.on { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+    button:disabled { opacity: .5; cursor: default; }
+    label { display: inline-flex; gap: 4px; align-items: center; }
+    input[type=number] { width: 56px; font: inherit; padding: 3px 6px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); }
+    progress { width: 100%; height: 8px; margin-top: 10px; }
+    #status { margin-top: 6px; color: var(--muted); font-variant-numeric: tabular-nums; }
+    table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 13px; }
+    th, td { text-align: right; padding: 4px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+    th:first-child, td:first-child { text-align: left; }
+    th { color: var(--muted); font-weight: 500; }
+    #detail { white-space: pre-wrap; font: 12px/1.5 Consolas, monospace; color: var(--muted); margin: 8px 0 0; max-height: 220px; overflow: auto; }
+    .transport { margin-top: 10px; }
+    .transport input[type=range] { flex: 1; min-width: 160px; }
+    #mixer-time { font-variant-numeric: tabular-nums; min-width: 92px; text-align: right; }
+    #mixer-peak { font-variant-numeric: tabular-nums; min-width: 140px; color: var(--muted); font-size: 12px; }
+    #mixer-peak.clip { color: #e5484d; font-weight: 600; }
+    #mixer-strips { margin-top: 12px; display: grid; gap: 6px; transition: opacity .15s; }
+    #mixer-strips.bypassed { opacity: .45; }
+    .strip { display: grid; grid-template-columns: 110px 1fr 56px; gap: 12px; align-items: center; }
+    .strip input[type=range] { width: 100%; }
+    .strip-value { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
+    .strip-value.changed { color: var(--accent); font-weight: 600; }
+    .hint { color: var(--muted); font-size: 12px; }
+</style>
+</head>
+<body>
+<h1>htdemucs 全曲分离原型 <span class="hint">四轨 drums / bass / other / vocals，另存人声 / 伴奏</span></h1>
+<section>
+    <div class="row">
+        <button id="pick">选择音频…</button>
+        <span class="file" id="file">未选择</span>
+    </div>
+    <div class="row" style="margin-top:10px">
+        <span>引擎：</span>
+        <label><input type="checkbox" name="engine" value="cpu" checked> CPU（MNN）</label>
+        <label>线程 <input type="number" id="threads" min="1" max="64"></label>
+        <label><input type="checkbox" name="engine" value="gpu"> GPU f32</label>
+        <label><input type="checkbox" name="engine" value="gpu-f16" checked> GPU f16</label>
+        <span style="flex:1"></span>
+        <button class="primary" id="run">开始分离</button>
+    </div>
+    <progress id="progress" max="1" value="0"></progress>
+    <div id="status">就绪</div>
+</section>
+<section>
+    <table>
+        <thead><tr>
+            <th>引擎</th><th>歌长</th><th>解码</th><th>加载</th><th>段数</th><th>首段</th><th>段中位</th><th>最慢段</th><th>推理合计</th><th>拼接</th><th>写盘</th><th>总计</th><th>倍速</th><th>重建误差</th>
+        </tr></thead>
+        <tbody id="results"></tbody>
+    </table>
+    <pre id="detail"></pre>
+</section>
+<section>
+    <div class="row">
+        <span>调音台：</span>
+        <span id="mixer-which" class="hint">先跑一次</span>
+        <span style="flex:1"></span>
+        <button data-preset="reset" disabled>全部 1.0×</button>
+        <button data-preset="vocals" disabled>仅人声</button>
+        <button data-preset="karaoke" disabled>去人声</button>
+        <button id="mixer-original" disabled>原曲</button>
+        <button id="folder" disabled>打开目录</button>
+    </div>
+    <div class="row transport">
+        <button id="mixer-play" class="primary" disabled>播放</button>
+        <input type="range" id="mixer-seek" min="0" max="1" step="0.01" value="0" disabled>
+        <span id="mixer-time">0:00 / 0:00</span>
+        <span id="mixer-peak"></span>
+    </div>
+    <div id="mixer-strips"></div>
+    <div class="hint" style="margin-top:8px">每条音轨强度 0.0–2.0×，双击滑块复位到 1.0×。「原曲」切到解码出的原曲（不经过滑块），位置不变，方便对比。四轨相加与原曲之间的差见上表重建误差。</div>
+</section>
+<script src="page.js"></script>
+</body>
+</html>

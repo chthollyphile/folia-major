@@ -5,6 +5,7 @@ import LyricMatchDialog from '../../modal/lyric-match/LyricMatchDialog';
 import UnavailableReplacementDialog from '../../modal/UnavailableReplacementDialog';
 import SettingsModal from '../../modal/SettingsModal';
 import ConfirmDialog from '../../shared/ConfirmDialog';
+import PerfCheckOffer from '../../perfCheck/PerfCheckOffer';
 import type { AppDialogsModel } from './buildAppDialogsModel';
 import { StatusToast } from './StatusToast';
 import { countRender } from '../../../dev/renderCount';
@@ -37,6 +38,8 @@ const AppDialogs: React.FC<AppDialogsProps> = ({ model }) => {
             {lyricMatchDialog && <LyricMatchDialog {...lyricMatchDialog} />}
             {unavailableReplacementDialog && <UnavailableReplacementDialog {...unavailableReplacementDialog} />}
             {wallpaperEntryConfirmDialog && <ConfirmDialog {...wallpaperEntryConfirmDialog} />}
+            {/* The performance check's offer on the first automix / 智能动感 switch-on, and its chosen settings. */}
+            <PerfCheckOffer />
             <AnimatePresence>
                 {isSettingsShown && settingsDialog && <SettingsModal {...settingsDialog} />}
             </AnimatePresence>

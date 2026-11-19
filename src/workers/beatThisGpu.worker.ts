@@ -2,6 +2,7 @@
 import { BeatThisWgsl, type BeatThisWgslManifest } from '../services/analysis/beatThisWgsl/runtime';
 import { runPercussiveEnergy } from '../services/analysis/beatThisWgsl/percussive';
 import { HtdemucsWgsl, type HtdemucsWgslManifest } from '../services/analysis/htdemucsWgsl/runtime';
+import { createFrameClock, sliceMsForFrame, type PacedRunStats, type SlicePacing } from '../services/analysis/gpuSlices';
 
 // src/workers/beatThisGpu.worker.ts
 // Beat This! on the renderer's own GPU, beside the visualizer, from a thread that does not paint.
@@ -16,8 +17,9 @@ import { HtdemucsWgsl, type HtdemucsWgslManifest } from '../services/analysis/ht
 // this thread, so the GPU memory goes back at once rather than whenever the dead thread's objects are
 // collected), and 'unload' (one model's GPU memory back, the device kept: phase 4's residency, decided
 // in beatThisGpu.ts). Each
-// chunk is run with 'auto' slicing - one stage on the GPU at a time, cut finer wherever a stage
-// outlasts a 120 Hz frame - because the GPU only switches between command buffers, and one
+// chunk and segment is run 'paced' (services/analysis/gpuSlices.ts): cut into slices of a quarter
+// of a display frame of GPU time, by each dispatch's measured cost, and let go when the last is done
+// or the next frame comes - because the GPU only switches between command buffers, and one
 // 45-80 ms submit is enough to cost a busy visualizer several frames (measured with
 // dev/beat-this-wgsl/coexist.ts; the numbers are in beatThisGpu.ts).
 //
@@ -45,6 +47,21 @@ let f16 = false;
 /** Why the device went away, once it has; every later request is answered with it. */
 let lost: string | null = null;
 
+/** The display's frames, as this worker sees them: what a paced slice is let go at, and sized by. */
+const frames = createFrameClock(
+    typeof self.requestAnimationFrame === 'function' ? callback => self.requestAnimationFrame(callback) : undefined,
+);
+/**
+ * Slices queued on the GPU at once. On macOS (Metal) a slice's completion comes back as soon as the
+ * GPU is done, so one at a time, each waited for, costs next to nothing and keeps the picture's
+ * share largest (the M4 numbers in beatThisGpu.ts). Elsewhere - Dawn on D3D12 measured, Vulkan
+ * assumed alike - the completion can come back frames late while the visualizer presents, so up to
+ * four are kept queued and the next goes at the next frame instead of waiting for it.
+ */
+const IN_FLIGHT = /Mac/.test(navigator.platform) ? 1 : 4;
+/** The pacing for the next run, sized by the display frame seen so far. */
+const pacing = (): SlicePacing => ({ sliceMs: sliceMsForFrame(frames.frameMs), inFlight: IN_FLIGHT, frame: frames.next });
+
 /** The device, made on the first load. A failure here is the machine's, not a model's. */
 const openDevice = async (): Promise<GPUDevice> => {
     if (device) return device;
@@ -54,7 +71,11 @@ const openDevice = async (): Promise<GPUDevice> => {
     // fp16 tiles where the device has shader-f16 ('storage': f32 arithmetic, 7/7 tracks identical to
     // the f32 run); everywhere else the same fp16 weights are unpacked and computed in f32.
     f16 = adapter.features.has('shader-f16');
-    const opened = await adapter.requestDevice({ requiredFeatures: f16 ? ['shader-f16'] : [] });
+    // timestamp-query where offered: the paced slices are cut by each dispatch's measured GPU time.
+    const requiredFeatures: GPUFeatureName[] = [];
+    if (f16) requiredFeatures.push('shader-f16');
+    if (adapter.features.has('timestamp-query')) requiredFeatures.push('timestamp-query');
+    const opened = await adapter.requestDevice({ requiredFeatures });
     opened.lost.then((info) => {
         lost = `device lost (${info.reason}): ${info.message}`;
         models.clear();
@@ -117,20 +138,19 @@ self.onmessage = async (event: MessageEvent<Request>) => {
                 return;
             }
             if (lost) throw new Error(lost);
-            const energy = await runPercussiveEnergy(opened, request.mel, request.frames);
+            const energy = await runPercussiveEnergy(opened, request.mel, request.frames, pacing());
             self.postMessage({ id: request.id, result: energy }, { transfer: [energy.percussive.buffer, energy.total.buffer] });
             return;
         }
         if (request.kind === 'separate') {
             if (lost) throw new Error(lost);
             if (!htdemucs) throw new Error('htdemucs not loaded');
-            // 'auto' as for a beat_this chunk: one stage on the GPU at a time, finer where a stage
-            // outlasts a 120 Hz frame, so a segment never holds the visualizer's frames.
-            const result = await htdemucs.run(request.left, request.right, { slice: 'auto' });
+            // Paced as a beat_this chunk is, so a segment never holds the visualizer's frames.
+            const result = await htdemucs.run(request.left, request.right, { slice: 'paced', pacing: pacing() });
             // htdemucs' four sources in its order (drums, bass, other, vocals): views of the one readback,
             // which is transferred once, uncopied (review: eight copies were 5.5 MB more per segment).
             const { stems } = result;
-            self.postMessage({ id: request.id, result: { stems } }, { transfer: [stems[0].left.buffer] });
+            self.postMessage({ id: request.id, result: { stems, paced: result.paced } }, { transfer: [stems[0].left.buffer] });
             return;
         }
         if (request.kind === 'unload') {
@@ -157,10 +177,13 @@ self.onmessage = async (event: MessageEvent<Request>) => {
         const model = models.get(request.model);
         const beat: Float32Array[] = [];
         const downbeat: Float32Array[] = [];
+        /** The first chunk's pacing, or the one whose run completed the cost table: for the page's log. */
+        let paced: PacedRunStats | undefined;
         for (const chunk of request.chunks) {
             if (lost) throw new Error(lost);
             if (!model) throw new Error(`${request.model} not loaded`);
-            const result = await model.run(chunk, { slice: 'auto' });
+            const result = await model.run(chunk, { slice: 'paced', pacing: pacing() });
+            if (!paced || result.paced?.costs) paced = result.paced;
             // Copies: the two tracks are views of one readback, and each is transferred on its own.
             beat.push(result.beat.slice());
             downbeat.push(result.downbeat.slice());
@@ -169,13 +192,13 @@ self.onmessage = async (event: MessageEvent<Request>) => {
         let percussive: Awaited<ReturnType<typeof runPercussiveEnergy>> | undefined;
         if (request.percussive && device && !lost) {
             try {
-                percussive = await runPercussiveEnergy(device, request.percussive.mel, request.percussive.frames);
+                percussive = await runPercussiveEnergy(device, request.percussive.mel, request.percussive.frames, pacing());
             } catch (error) {
                 console.warn(`[beat-this-gpu] percussive energy failed: ${(error as Error)?.message ?? error}`);
             }
         }
         const tracks = [...beat, ...downbeat, ...(percussive ? [percussive.percussive, percussive.total] : [])];
-        self.postMessage({ id: request.id, result: { beat, downbeat, percussive } }, { transfer: tracks.map(track => track.buffer) });
+        self.postMessage({ id: request.id, result: { beat, downbeat, percussive, paced } }, { transfer: tracks.map(track => track.buffer) });
     } catch (error) {
         self.postMessage({ id: request.id, error: String((error as Error)?.message ?? error) });
     }

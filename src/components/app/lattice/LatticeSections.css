@@ -24,7 +24,6 @@
 }
 
 .lattice-root.is-lights-out .lattice-heading::after { opacity: 0.82; }
-.lattice-root.is-daylight.is-lights-out .lattice-heading::after { background: #fff; }
 
 /* The section's number is a poster's badge as it is; the part of a section that takes several
    lots is one more, in the other corner. (Two classes: Lattice.css, which places a badge, is

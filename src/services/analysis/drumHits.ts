@@ -9,9 +9,9 @@ import { DRUM_HITS_PREFIX } from './beatGridKeys';
 import { createDrumBandStream, streamNeedsFrom, type DrumBands } from './drumHitStream';
 import { drumStemSegments, startDrumStem, type DrumStemProgress } from './drumStem';
 import type { StemReader } from './stemPass';
-import { runTrackStems, setWantedStemTrack, stemTrackWanted, type StemTask } from './trackStemRun';
+import { runTrackStems, stemTrackWanted, type StemTask } from './trackStemRun';
 import { dropStemDrums, setStemDrumsKeptListener } from './stemRange';
-import { HTDEMUCS_GPU_SEGMENT } from './beatThisGpu';
+import { HTDEMUCS_GPU_SEGMENT, gpuStemsOnScreenUsable } from './beatThisGpu';
 import { modelCanRun } from './modelAvailability';
 
 // src/services/analysis/drumHits.ts
@@ -26,8 +26,8 @@ import { modelCanRun } from './modelAvailability';
 //
 // GPU only, and only with htdemucs_gpu installed (`canRunDrumStem`): without them there are no hits,
 // and 时计 plays beat_this' beats as it always did. A separation takes ~15 s of GPU for a four-minute
-// track, so it runs only for the wanted track (`setWantedDrumTrack`) and stops at its next segment
-// once another is wanted - skipping through tracks does not queue their separations up. The wanted
+// track, so it runs only for the track 智能动感模式 wants (`claimStemTrack('beatFx', key)`, trackStemRun.ts)
+// and stops at its next segment once another is wanted - skipping through tracks does not queue their separations up. The wanted
 // track is the one 智能动感模式 plays while it is on (hooks/useBeatFxTrack.ts), not only while 时计 is
 // on screen: a separation stopped on a picture switch threw away what it had, and coming back to 时计
 // separated the track again from the start. Under 智能动感模式's `cached` nothing separates: only a
@@ -58,12 +58,16 @@ const STEM_RATE = 44100;
 /** The drum hits' kind on a track's stem run (trackStemRun.ts). */
 export const DRUM_HITS_TASK = 'drum hits';
 
-/** Whether the GPU drum stem can run here: htdemucs_gpu installed and a WebGPU to run it on. */
+/**
+ * Whether the GPU drum stem can run here: htdemucs_gpu installed, a WebGPU to run it on, and not
+ * found too slow for the picture this session (beatThisGpu.ts gpuStemsOnScreenUsable).
+ */
 export const canRunDrumStem = (): boolean =>
     typeof window !== 'undefined'
     && typeof window.electron?.getHtdemucsGpuWeights === 'function'
     && typeof navigator !== 'undefined' && 'gpu' in navigator
-    && modelCanRun('htdemucs_gpu');
+    && modelCanRun('htdemucs_gpu')
+    && gpuStemsOnScreenUsable();
 
 /** 44.1 kHz mono to the 22.05 kHz beat_this rate, by the browser's own resampler; the vocal envelope's too (vocalStemRun.ts). */
 export const resampleStem = async (signal: Float32Array): Promise<Float32Array> => {
@@ -87,14 +91,13 @@ const MAX_TRACKS = 24;
 
 
 /**
- * Names the track whose drum hits are wanted now, or null for none (it was left, or 智能动感模式 is
- * off). Set when a picture asks for the hits; cleared when it is left - the track changes, the
- * picture switches (since the analysis service's 2b: the separation stops and keeps where it was, see
- * DrumResume) or the switch goes off.
+ * The drum hits are 智能动感模式's: separated only while it wants the track (trackStemRun.ts'
+ * `claimStemTrack('beatFx', key)`). It is wanted when a picture asks for the hits and left when the
+ * track changes, the picture switches (since the analysis service's 2b: the separation stops and keeps
+ * where it was, see DrumResume) or the switch goes off - also while something else (分轨调音台) still
+ * separates the track.
  */
-export const setWantedDrumTrack = (key: string | null): void => {
-    setWantedStemTrack(key);
-};
+const CLAIMANT = 'beatFx';
 
 /** The drum hits of `key`, or null when the track has none (yet, or drumless). */
 export const getDrumHits = (key: string | null): DrumHits | null => (key ? hitLists.get(key) ?? null : null);
@@ -215,6 +218,7 @@ const keepResume = (key: string, resume: DrumResume) => {
  */
 const drumHitsTask = (key: string, resume: DrumResume | null): StemTask<DrumAnalysis | null> => ({
     kind: DRUM_HITS_TASK,
+    claimant: CLAIMANT,
     open: ({ left, right }) => {
         const started = performance.now();
         const total = left.length;
@@ -242,7 +246,7 @@ const drumHitsTask = (key: string, resume: DrumResume | null): StemTask<DrumAnal
         const pickLive = async (drums: Float32Array, final: number) => {
             for (; measured < final; measured += 1) drumEnergy[Math.floor(measured / ENERGY_HOP)] += drums[measured] * drums[measured];
             await stream.advance(drums, final, false);
-            if (!stemTrackWanted(key)) return;
+            if (!stemTrackWanted(key, CLAIMANT)) return;
             const windows = Math.floor(final / ENERGY_HOP / SHARE_WINDOW) * SHARE_WINDOW;
             if (drumCoverage(drumEnergy.subarray(0, windows), mixEnergy.subarray(0, windows)) < DRUMLESS_COVERAGE) {
                 hitLists.delete(key);
@@ -305,7 +309,7 @@ const drumHitsTask = (key: string, resume: DrumResume | null): StemTask<DrumAnal
             },
             stop: async () => {
                 await live;
-                if (!stemTrackWanted(key)) console.info(`[DrumHits] ${key}: separation stopped at ${(progress.divided / STEM_RATE).toFixed(1)}s, the track or the picture was left`);
+                if (!stemTrackWanted(key, CLAIMANT)) console.info(`[DrumHits] ${key}: separation stopped at ${(progress.divided / STEM_RATE).toFixed(1)}s, the track or the picture was left`);
                 if (progress.next > 0) await stopForLater(key, progress, stream, drumEnergy, measured, total);
                 return null;
             },
@@ -355,7 +359,7 @@ const stopForLater = async (
 /**
  * A track's drum analysis from the cache only, never separated (智能动感模式's `cached`). Once it is
  * in, `getDrumHits(key)` answers its hits. Null when none is stored. A run in flight is not joined:
- * only `on` starts one, and leaving `on` stops it (`setWantedDrumTrack(null)`).
+ * only `on` starts one, and leaving `on` stops it (`claimStemTrack('beatFx', null)`).
  */
 export const loadStoredDrumHits = async (key: string): Promise<DrumAnalysis | null> => {
     try {
@@ -373,21 +377,21 @@ export const loadStoredDrumHits = async (key: string): Promise<DrumAnalysis | nu
  * A track's drum analysis: from the cache, joined from a run in flight, or a separation of
  * `readBytes`' bytes now (only when `canRunDrumStem`). Once it is in, `getDrumHits(key)` answers its
  * hits. Null when none can be had now, which is not remembered: a later play may find the bytes.
- * Separates only while `key` is the wanted track (`setWantedDrumTrack`).
+ * Separates only while 智能动感模式 wants `key` (`claimStemTrack('beatFx', key)`).
  */
 export const loadTrackDrumHits = (key: string, readBytes: () => Promise<ArrayBuffer | null>): Promise<DrumAnalysis | null> => {
     const existing = runs.get(key);
     // Joined - but a run whose track was left and is wanted again before it reached its next segment
     // is stopping, and answers null: then one fresh run, rather than no hits for the rest of the play.
     // Only on null: a drumless track answers an analysis, and is not separated again.
-    if (existing) return existing.then(found => (found === null && stemTrackWanted(key) && !runs.has(key) ? loadTrackDrumHits(key, readBytes) : found));
+    if (existing) return existing.then(found => (found === null && stemTrackWanted(key, CLAIMANT) && !runs.has(key) ? loadTrackDrumHits(key, readBytes) : found));
     const run = (async (): Promise<DrumAnalysis | null> => {
         const stored = await getFromCache<DrumAnalysis>(`${DRUM_HITS_PREFIX}${key}`);
         if (isDrumAnalysis(stored)) {
             remember(key, stored, 'from the cache');
             return stored;
         }
-        if (!canRunDrumStem() || !stemTrackWanted(key)) return null;
+        if (!canRunDrumStem() || !stemTrackWanted(key, CLAIMANT)) return null;
         // A separation stopped earlier: its hits play at once, while the track decodes again.
         const resume = resumes.get(key) ?? null;
         if (resume?.hits) keep(key, resume.hits);

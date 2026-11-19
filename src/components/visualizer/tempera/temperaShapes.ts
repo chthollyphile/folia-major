@@ -1,4 +1,4 @@
-import { mixColors } from '../colorMix';
+import { mixColors } from '../../../utils/colorMix';
 import type { TemperaDisc } from './temperaCurves';
 import {
     buildHatchLines,

@@ -1,5 +1,5 @@
 import type { Filter } from 'pixi.js';
-import { parseColorChannels } from '../colorMix';
+import { parseColorChannels } from '../../../utils/colorMix';
 import { PIXI_FILTER_VERTEX as vertex } from '../pixiFilterVertex';
 
 // src/components/visualizer/tempera/temperaDifferenceFilter.ts

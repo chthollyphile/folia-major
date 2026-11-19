@@ -10,7 +10,7 @@ import {
 import { buildLineGraphemeTimeline, buildWordGraphemeTimings, type GraphemeTiming } from '../../../utils/lyrics/graphemeTiming';
 import { buildTimedWords } from '../../../utils/lyrics/estimatedLineTiming';
 import { getLineRenderEndTime } from '../../../utils/lyrics/renderHints';
-import { measurePrefixOffsets, rememberBounded } from '../textMeasureCache';
+import { measurePrefixOffsets, rememberBounded } from '../../../utils/textMeasureCache';
 
 // src/components/visualizer/monet/monetLyricsModel.ts
 // Builds the measured, discrete lyric rail state for Monet before Framer Motion animates it.

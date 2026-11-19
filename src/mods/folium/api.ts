@@ -31,7 +31,7 @@ import { addFoliumEventHandler } from './events';
 import { bindFoliumStageRegistry } from './registries/stageRegistry';
 import { createFoliumLyricsService, createFoliumNetService, createFoliumPlaybackService, createFoliumUiService } from './services';
 import { createFoliumSecrets, declareFoliumSecretKeys } from './secrets';
-import { FOLIUM_THEME_HELPERS } from './sharedHelpers';
+import { createFoliumThemeService } from './theme/service';
 import { FOLIUM_HOST_VERSION, FOLIUM_ONE_VERSION } from './shared';
 import type { FoliumSourceDef, FoliumSourceHandle, FoliumSourcePageStore } from './sources/contract';
 import { createFoliumSourcesService } from './sources/service';
@@ -293,7 +293,7 @@ export const createFoliumClientApi = (mod: ModRuntimeInfo, options: FoliumClient
         (name) => `experimental-not-declared:${name} (add it to "experimental" in mod.json)`,
     );
 
-    // Folium 2.0 (plan §9): a `folium: 1` mod reads 1.9 and gets nothing of Folium 2.
+    // Folium 2.0 (plan §9): a `folium: 1` mod reads 1.10 and gets nothing of Folium 2.
     const foliumTwo = mod.folium === 2;
     const version = foliumTwo ? FOLIUM_HOST_VERSION : FOLIUM_ONE_VERSION;
     const omni = createFoliumOmniService(mod, context, stopped, onRelease);
@@ -337,7 +337,9 @@ export const createFoliumClientApi = (mod: ModRuntimeInfo, options: FoliumClient
         secrets: createFoliumSecrets(modId, context, onRelease),
         rpc,
         lyrics: createFoliumLyricsService(context, foliumTwo),
-        theme: FOLIUM_THEME_HELPERS,
+        // Folium 1.10: the theme on screen and a mod's theme over it (theme/service.ts; the main window installs
+        // the source, runtime/theme/hostTheme.ts). The font helpers are there in both contexts.
+        theme: createFoliumThemeService(mod, context, stopped),
         account: createFoliumAccountService(context),
         // Folium 1.7: the host's online sources through Omni, read only (omni/service.ts; the main window
         // installs the source, runtime/omni/hostOmni.ts).

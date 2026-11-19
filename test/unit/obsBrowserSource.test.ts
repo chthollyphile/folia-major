@@ -11,6 +11,7 @@ import {
     resolveObsBrowserSourceCoverUrl,
     resolveObsBrowserSourceImageAsset,
     resolveObsBrowserSourceImageAssets,
+    resolvePublishedObsCoverUrl,
 } from '../../src/utils/obsBrowserSource';
 import type { ObsBrowserSourceConfig } from '../../src/types/obsBrowserSource';
 import { DEFAULT_THEME } from '../../src/services/baseThemes';
@@ -251,6 +252,24 @@ describe('obsBrowserSource utilities', () => {
         await expect(resolveObsBrowserSourceCoverUrl('https://img.test/cover.jpg', fetchCover))
             .resolves.toBe('https://img.test/cover.jpg');
         expect(fetchCount).toBe(0);
+    });
+
+    it('gives the overlay a cover that is not a blob URL as it is', () => {
+        expect(resolvePublishedObsCoverUrl('https://img.test/cover.jpg', null)).toBe('https://img.test/cover.jpg');
+        expect(resolvePublishedObsCoverUrl(null, null)).toBeNull();
+        // A copy left from a blob cover before it does not stand in for it.
+        expect(resolvePublishedObsCoverUrl('https://img.test/cover.jpg', { source: 'blob:http://127.0.0.1/old', url: 'data:image/png;base64,b2xk' }))
+            .toBe('https://img.test/cover.jpg');
+    });
+
+    it('gives the overlay a blob cover only as the copy made from that cover', () => {
+        const cover = 'blob:http://127.0.0.1/cover';
+        expect(resolvePublishedObsCoverUrl(cover, null)).toBeNull();
+        expect(resolvePublishedObsCoverUrl(cover, { source: cover, url: 'data:image/png;base64,Y292ZXI=' }))
+            .toBe('data:image/png;base64,Y292ZXI=');
+        // The song before's copy: no cover rather than the last song's.
+        expect(resolvePublishedObsCoverUrl(cover, { source: 'blob:http://127.0.0.1/old', url: 'data:image/png;base64,b2xk' }))
+            .toBeNull();
     });
 
     it('converts custom visualizer image object URLs for OBS', async () => {

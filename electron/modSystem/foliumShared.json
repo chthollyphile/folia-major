@@ -1,6 +1,6 @@
 {
     "version": { "major": 2, "minor": 0 },
-    "foliumOneVersion": { "major": 1, "minor": 9 },
+    "foliumOneVersion": { "major": 1, "minor": 10 },
     "manifestVersions": [1, 2],
     "sourcesPreview": true,
     "sourceCapabilities": {
@@ -65,6 +65,7 @@
         "visualizer.beatEffects": { "guards": ["folium.visualizer.setBeatEffects"] },
         "visualizer.background": { "guards": ["folium.visualizer.setBackground"] },
         "visualizer.animationIntensity": { "guards": ["folium.visualizer.setAnimationIntensity"] },
+        "theme.write": { "guards": ["folium.theme.apply", "folium.theme.release"] },
         "render.export": { "guards": ["api.render.exportVideo"] },
         "net.fetch": { "guards": ["folium.net.fetch"] },
         "net.embed": { "guards": ["folium.ui.embed"] },

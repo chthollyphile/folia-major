@@ -18,7 +18,7 @@
     --bravais-stack-page-near: color-mix(in srgb, var(--bg-color, #070707) 66%, var(--lattice-poster-ink));
     --bravais-stack-page-far: color-mix(in srgb, var(--bg-color, #070707) 80%, var(--lattice-poster-ink));
     --bravais-stack-page-line: color-mix(in srgb, var(--bg-color, #070707) 72%, #000);
-    /* 叠色（默认渐变的右下端那一色；自定义叠色用自定义色）与熄灯（82% 黑，日光白；全透明档改为整体压到 0.28）。 */
+    /* 叠色（默认渐变的右下端那一色；自定义叠色用自定义色）与熄灯（82% 黑，日光下也是黑；全透明档改为整体压到 0.28）。 */
     --bravais-stack-tint: 0%;
     --bravais-stack-tint-color: color-mix(in srgb, var(--bg-color, #070707) 84%, var(--text-secondary, #6a48ff));
     --bravais-stack-dim: 0%;
@@ -36,7 +36,6 @@
     --bravais-stack-page-near: color-mix(in srgb, var(--bg-color, #fafaf9) 80%, var(--lattice-poster-ink));
     --bravais-stack-page-far: color-mix(in srgb, var(--bg-color, #fafaf9) 88%, var(--lattice-poster-ink));
     --bravais-stack-page-line: color-mix(in srgb, var(--bg-color, #fafaf9) 62%, var(--lattice-poster-ink));
-    --bravais-stack-dim-color: #fff;
 }
 
 .bravais-root.has-stack-edges .bravais-tile-face.is-stack {

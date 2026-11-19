@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Theme } from '@/types';
-import { parseColorChannels } from '@/components/visualizer/colorMix';
+import { parseColorChannels } from '@/utils/colorMix';
 import { resolveTemperaPalette } from '@/components/visualizer/tempera/temperaPalette';
 
 // test/unit/visualizer/temperaPalette.test.ts

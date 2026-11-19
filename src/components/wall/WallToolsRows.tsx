@@ -1,5 +1,6 @@
 import { useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import type { LucideIcon } from 'lucide-react';
+import { Tooltip } from '../modal/settings/kit';
 
 // src/components/wall/WallToolsRows.tsx
 // 墙面工具面板（WallToolsButton）里的各种行：条目（动作 / 开关 / 滑条 / 分组小标题）与顶部那排纯图标快捷格。
@@ -19,6 +20,8 @@ export type WallToolsEntry =
         /** 右侧的当前值（不是按键，不画框）。 */
         value?: string;
         disabled?: boolean;
+        /** 悬停时的提示（与播放页面板里的提示同一个样式）；置灰时用它写原因。 */
+        hint?: string;
         /** 点了不收起面板（循环切换一类的条目，让人看到新值）。 */
         keepOpen?: boolean;
         onSelect: () => void;
@@ -222,7 +225,7 @@ export function WallToolsRow({ entry, onDone }: { entry: WallToolsEntry; onDone:
             </button>
         );
     }
-    return (
+    const button = (
         <button
             type="button"
             role="menuitem"
@@ -232,6 +235,7 @@ export function WallToolsRow({ entry, onDone }: { entry: WallToolsEntry; onDone:
                 if (!entry.keepOpen) onDone();
             }}
             disabled={entry.disabled}
+            aria-description={entry.hint}
         >
             <Icon aria-hidden="true" />
             <span>{entry.label}</span>
@@ -239,4 +243,6 @@ export function WallToolsRow({ entry, onDone }: { entry: WallToolsEntry; onDone:
             {entry.kbd !== undefined && (entry.kbdHidden ? <kbd aria-hidden="true">{entry.kbd}</kbd> : <kbd>{entry.kbd}</kbd>)}
         </button>
     );
+    // 有提示的条目包一层提示（悬停在外面这一层上；置灰的按钮不接指针，见 WallToolsButton.css）。
+    return entry.hint ? <Tooltip text={entry.hint} className="lattice-tools-hint">{button}</Tooltip> : button;
 }

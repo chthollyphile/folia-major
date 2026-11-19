@@ -77,13 +77,15 @@ afterEach(() => {
 });
 
 describe('the Folium version, two tracks (plan §9)', () => {
-    it('a folium 1 mod reads 1.9 and has nothing of Folium 2; a folium 2 mod reads 2.0 and has sources and i18n', () => {
+    it('a folium 1 mod reads 1.10 and has nothing of Folium 2; a folium 2 mod reads 2.0 and has sources and i18n', () => {
         const one = createFoliumClientApi(mod({ folium: 1, kind: 'standard', sources: undefined }), clientApiOptions('main'));
-        expect(one.host.folium).toEqual({ major: 1, minor: 9 });
+        expect(one.host.folium).toEqual({ major: 1, minor: 10 });
         expect('sources' in one).toBe(false);
         expect('i18n' in one).toBe(false);
         expect('capability' in one.omni).toBe(false);
-        // folium.lyrics stays at 1.9 too: no isPureMusicText, the rest as it was.
+        // Folium 1.10's folium.theme went out to folium 1 mods on main, so both tracks have it.
+        expect(typeof one.theme.apply).toBe('function');
+        // folium.lyrics stays as it was in 1.x too: no isPureMusicText, the rest as it was.
         expect('isPureMusicText' in one.lyrics).toBe(false);
         expect(typeof one.lyrics.parse).toBe('function');
         expect(typeof one.lyrics.getLines).toBe('function');

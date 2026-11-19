@@ -354,6 +354,9 @@ export const createLumiereScene = (pixi: PixiModule, options: LumiereSceneOption
     });
     const graphicsBloom = bloomOf(LUMIERE_BLOOM.graphics, tuning.bloom, 0);
     const textBloom = bloomOf(LUMIERE_BLOOM.text, tuning.textBloom, 0);
+    // 抗锯齿跟随画布（样式的抗锯齿设置，跟随全局或单独指定）：Pixi 的默认是 off，这两组先画进的离屏纹理吃不到画布的 MSAA。
+    graphicsBloom.antialias = 'inherit';
+    textBloom.antialias = 'inherit';
     // 文字组的 bloom 区域必须固定在画面上：不给 filterArea 时 Pixi 每帧按内容包围盒取区域（取整到像素），
     // 字一动，降采样金字塔的网格原点与纹理尺寸就跟着跳，1/32 级的光晕相对字来回错位，看起来一直在抖。
     // 给一块远大于画面的区域，经运镜变换后被视口裁剪，结果每帧都正好是整个视口。区域已覆盖全画面，所以不再加 padding。

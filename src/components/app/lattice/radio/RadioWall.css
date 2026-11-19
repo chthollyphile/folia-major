@@ -1,0 +1,578 @@
+/* src/components/app/lattice/radio/RadioWall.css */
+/* 电台墙（私人 FM 下的 Lattice）：一行卡牌。卡的正面沿用队列墙海报的样式（wall.css 的 .lattice-poster），
+   这里只管这一行、两面翻牌、背面朝上的卡和背景构图。 */
+.lattice-radio {
+    position: absolute;
+    inset: 0;
+    overflow: clip;
+    outline: none;
+    /* 拖动浏览卡片：触屏上的手势都交给页面自己处理（不当成浏览器的滚动、缩放或返回手势；和队列墙的
+       .lattice-field 一样）。双击播放也靠它：不留双击缩放，浏览器才把两下轻点当成双击送过来。
+       iOS 上卡牌的 3D 层不一定认这一条，RadioWall 另外在 touchmove 上拦着。 */
+    touch-action: none;
+    /* 长按封面不弹系统菜单。 */
+    -webkit-touch-callout: none;
+    transition: opacity 260ms ease;
+}
+
+.lattice-radio.is-dragging,
+.lattice-radio.is-dragging * { cursor: grabbing !important; }
+
+/* 电台墙下墙面只留底色：不画队列墙那两团主题色光晕（wall.css 的 .lattice-root）。 */
+.lattice-root.is-radio { background: var(--bg-color, #070707); }
+
+/* ---------- 背景构图（RadioBackdrop）：搜索页的至上主义手法，主题是电波 ----------
+   黑白为主：墨色（主题主色 --text-primary）和墙面底色；强调色（--text-accent）只用在发射点、指针和一小段短条上。
+   外层管站位，内层管入场。 */
+.lattice-radio-backdrop {
+    --radio-ink: var(--text-primary, #f7f4ee);
+    --radio-accent: var(--text-accent, #fd5c47);
+    --radio-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+/* 和卡牌那一圈同心的电波：发丝线，隔一道是虚线。 */
+.lattice-radio-waves { position: absolute; inset: 0; overflow: visible; }
+.lattice-radio-waves circle {
+    fill: none;
+    stroke: color-mix(in srgb, var(--radio-ink) 13%, transparent);
+    stroke-width: 1.5;
+}
+/* 进场：整组电波一起淡入，同时从圆心往外略微放大（圆心由 RadioBackdrop 给 transform-origin）。只动这一层的
+   opacity 和 transform，由合成器跑；不要改回给 SVG 里的圆、点各自加动画（iOS Safari 上每帧重画整屏，见 RadioBackdrop）。 */
+.lattice-radio-waves-in {
+    position: absolute;
+    inset: 0;
+    animation: lattice-radio-waves-in 1200ms var(--radio-ease) 120ms backwards;
+}
+@keyframes lattice-radio-waves-in { from { opacity: 0; transform: scale(0.96); } }
+/* 卡牌沿轨道移动时整组同心圆跟着转（转角由轨道直接给）。转的是 SVG 外面这一层，常驻合成层：同心圆只在尺寸变时
+   光栅化一次，转动由合成器跑。不常驻的话每次开转都要升层、整幅重新光栅化，转完降层再来一遍，两次都落在卡牌翻开
+   放大的那几帧里。 */
+.lattice-radio-waves-turn {
+    position: absolute;
+    inset: 0;
+    will-change: transform;
+}
+.lattice-radio-waves circle.lattice-radio-orbit-dot {
+    fill: color-mix(in srgb, var(--radio-ink) 42%, transparent);
+    stroke: none;
+}
+.lattice-radio-waves circle.lattice-radio-orbit-dot.is-large { fill: color-mix(in srgb, var(--radio-ink) 60%, transparent); }
+.lattice-radio-waves circle.lattice-radio-orbit-dot.is-accent { fill: var(--radio-accent); }
+.lattice-radio-waves circle.is-dashed { stroke-dasharray: 2 10; stroke-width: 2; stroke-linecap: round; }
+
+@keyframes lattice-radio-fade-in { from { opacity: 0; } }
+
+/* 上半屏的几道轨道（radioUpperRings）：比下面的电波更淡。 */
+.lattice-radio-waves circle.is-upper { stroke: color-mix(in srgb, var(--radio-ink) 9%, transparent); stroke-width: 1; }
+.lattice-radio-waves circle.is-upper.is-dashed { stroke: color-mix(in srgb, var(--radio-ink) 14%, transparent); stroke-width: 1.5; }
+
+/* 上半屏的动态装饰（RadioOrbits）：信号包、发射点的电波和卫星。墨色由 canvas 读这里的 color，强调色读 --radio-accent。 */
+.lattice-radio-orbits {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 50%;
+    color: color-mix(in srgb, var(--radio-ink) 80%, transparent);
+    animation: lattice-radio-fade-in 1200ms var(--radio-ease) 500ms backwards;
+}
+
+/* 调频刻度窗：正在播放那张卡上方一段，两端渐隐。外层不转（遮罩固定在画面正中），里面的刻度跟着同心圆转。 */
+.lattice-radio-dial {
+    position: absolute;
+    top: 0;
+    overflow: hidden;
+    mask-image: linear-gradient(90deg, transparent, #000 22%, #000 78%, transparent);
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 22%, #000 78%, transparent);
+    animation: lattice-radio-fade-in 900ms var(--radio-ease) 360ms backwards;
+}
+.lattice-radio-dial-turn {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    will-change: transform;
+}
+.lattice-radio-dial-turn svg { display: block; overflow: visible; }
+.lattice-radio-dial circle { fill: none; }
+.lattice-radio-dial circle.is-minor { stroke: color-mix(in srgb, var(--radio-ink) 30%, transparent); stroke-width: 6; }
+.lattice-radio-dial circle.is-major { stroke: color-mix(in srgb, var(--radio-ink) 42%, transparent); stroke-width: 12; }
+
+/* 指针：一根强调色的细线，上端一个小三角，指着正在播放的那张卡。 */
+.lattice-radio-needle {
+    position: absolute;
+    width: 2px;
+    background: var(--radio-accent);
+    animation: lattice-radio-fade-in 900ms var(--radio-ease) 420ms backwards;
+}
+.lattice-radio-needle::before {
+    content: '';
+    position: absolute;
+    top: -6px;
+    left: -4.5px;
+    border-top: 7px solid var(--radio-accent);
+    border-right: 5.5px solid transparent;
+    border-left: 5.5px solid transparent;
+}
+
+.lattice-radio-figure { position: absolute; }
+.lattice-radio-figure > i {
+    display: block;
+    width: 100%;
+    height: 100%;
+    animation: lattice-radio-figure-in 900ms var(--radio-ease) backwards;
+    animation-delay: var(--radio-figure-delay, 0ms);
+}
+
+@keyframes lattice-radio-figure-in {
+    from { opacity: 0; transform: translate(var(--radio-from-x, 0), var(--radio-from-y, 0)) scale(var(--radio-from-scale, 1)); }
+}
+
+/* 一道墨条，斜着压在右下角（卡牌那一圈下面的空白里）。 */
+.lattice-radio-figure.is-bar {
+    top: 94vh;
+    left: 75vw;
+    width: min(32vw, 460px);
+    height: 7px;
+    transform: rotate(-9deg);
+    transform-origin: 0 50%;
+    --radio-figure-delay: 260ms;
+}
+.lattice-radio-figure.is-bar > i {
+    background: var(--radio-ink);
+    opacity: 0.62;
+    transform-origin: 0 50%;
+    animation-name: lattice-radio-bar-in;
+}
+
+@keyframes lattice-radio-bar-in { from { transform: scaleX(0); } }
+
+/* 墨条上方的一小段强调色短条：整幅里唯一一处成块的主题色。 */
+.lattice-radio-figure.is-tick {
+    top: calc(94vh - 24px);
+    left: calc(75vw + 22px);
+    width: 40px;
+    height: 7px;
+    transform: rotate(-9deg);
+    transform-origin: 0 50%;
+    --radio-from-x: -24px;
+    --radio-figure-delay: 620ms;
+}
+.lattice-radio-figure.is-tick > i { background: var(--radio-accent); }
+
+/* 斜线小方块，在右上角，和左上角的发射点对着。 */
+.lattice-radio-figure.is-hatch {
+    right: 9vw;
+    top: 14.5vh;
+    width: 56px;
+    height: 56px;
+    --radio-from-y: 40px;
+    --radio-figure-delay: 480ms;
+}
+.lattice-radio-figure.is-hatch > i {
+    background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--radio-ink) 42%, transparent) 0 2px, transparent 2px 9px);
+}
+
+/* 发射点：左上角（一部分伸出画面）一个强调色实心点，外面一圈圆形频谱（RadioSpectrum 的 canvas），
+   最外一道发丝圆框住它。放在卡牌那一圈的上方：中间那一带被卡占着。 */
+.lattice-radio-figure.is-transmitter {
+    top: -9vh;
+    left: 3.5vw;
+    width: 44vh;
+    height: 44vh;
+    --radio-from-scale: 0.4;
+    --radio-figure-delay: 180ms;
+}
+.lattice-radio-figure.is-transmitter > i {
+    position: absolute;
+    inset: 0;
+    /* 由 inset 定大小：去掉 .lattice-radio-figure > i 的满宽满高。 */
+    width: auto;
+    height: auto;
+    border-radius: 50%;
+}
+.lattice-radio-figure.is-transmitter > .is-ring { border: 1.5px solid color-mix(in srgb, var(--radio-ink) 22%, transparent); }
+.lattice-radio-figure.is-transmitter > .is-ring.is-base { inset: 33%; border-style: dashed; }
+/* 频谱画在整块发射点上；短条的颜色是墨色，由 canvas 读这里的 color。 */
+.lattice-radio-spectrum {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    color: color-mix(in srgb, var(--radio-ink) 70%, transparent);
+    animation: lattice-radio-fade-in 900ms var(--radio-ease) 260ms backwards;
+}
+.lattice-radio-figure.is-transmitter > .is-core {
+    inset: 44%;
+    background: var(--radio-accent);
+}
+/* 横排的淡字，压在左下卡牌那一圈下面的空白处。 */
+.lattice-radio-figure.is-word {
+    bottom: 2vh;
+    left: 3vw;
+    max-width: 60vw;
+    overflow: hidden;
+    color: var(--radio-ink);
+    font-size: clamp(56px, 13vh, 160px);
+    font-weight: 900;
+    line-height: 1;
+    letter-spacing: -0.03em;
+    white-space: nowrap;
+    opacity: 0.06;
+    --radio-from-y: 6vh;
+    --radio-figure-delay: 220ms;
+}
+.lattice-radio-figure.is-word > i { width: auto; height: auto; font-style: normal; }
+
+/* 手机上只留电波、刻度、发射点和淡字：其余的没有页边可放，只会压在卡上。 */
+@media (max-width: 640px) {
+    .lattice-radio-figure.is-bar,
+    .lattice-radio-figure.is-hatch,
+    .lattice-radio-figure.is-tick { display: none; }
+    .lattice-radio-figure.is-transmitter { top: -6vh; left: -10vh; width: 30vh; height: 30vh; }
+    .lattice-radio-figure.is-word { font-size: 56px; }
+}
+
+/* 回资料库墙开翻之后这一行淡出（useRadioWallHandoff）。 */
+.lattice-radio.is-leaving { opacity: 0; }
+
+/* 外框的位置、大小、倾斜由轨道逐帧给（RadioCard）。 */
+.lattice-radio-card {
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform-style: preserve-3d;
+    cursor: pointer;
+    outline: none;
+    /* 外层自己不当点击目标：卡倾斜时按下的那一点会沉到这一层的平面后面，被它挡住，按钮就点不到了。
+       点在卡面上的事件照样冒泡到这一层的处理函数。 */
+    pointer-events: none;
+}
+
+/* 进场（浮上来、淡入）和离场（翻回背面、缩小淡出）只动这一层。 */
+.lattice-radio-card-pose {
+    position: absolute;
+    inset: 0;
+    transform-style: preserve-3d;
+    pointer-events: none;
+}
+
+/* 指针压下去的倾斜（useRadioCardTilt），在翻牌那两层外面。这一层把里面拍平成一个平面再倾斜（flat）：
+   嵌套的 preserve-3d 里一倾斜，Chromium 的点击命中就乱了（有的点落到中间的 3D 容器层，有的漏到背景）。
+   翻牌那两层在它里面自成一个 3D 上下文，透视由这里的 perspective 给。 */
+.lattice-radio-card-tilt {
+    position: absolute;
+    inset: 0;
+    transform-style: flat;
+    perspective: 1400px;
+    pointer-events: auto;
+}
+
+/* 已揭开的卡升为正在播放时翻的那半圈（RadioCard 的 spin），在揭开那一层外面。 */
+.lattice-radio-card-spin {
+    position: absolute;
+    inset: 0;
+    transform-style: preserve-3d;
+}
+
+.lattice-radio-card-inner {
+    position: absolute;
+    inset: 0;
+    transform-style: preserve-3d;
+}
+
+.lattice-radio-face {
+    position: absolute;
+    inset: 0;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+}
+
+/* 卡是印在这张图上的，不是浮在上面：不投影、不加高光、没有外框线，四角外侧是制图那样的对位标记
+   （.lattice-radio-card-marks），卡垂一根台线落在电台带上（.lattice-radio-station）。
+   正在播放那张也不用强调色的描边（队列墙海报的 .is-current::before）：「这张在播」交给上方的指针。 */
+.lattice-root .lattice-radio .lattice-radio-face.is-front { box-shadow: none; }
+
+/* 封面渐渐变清晰：揭开那一下，RadioCard 在封面上叠一层高斯模糊、略放大的同一个封面，落定后
+   模糊度往 0、不透明度往 0 走，封面像在对焦。只走 filter / opacity / transform，播完即透明。 */
+.lattice-radio-focus {
+    position: absolute;
+    inset: 0;
+    background-position: center;
+    background-size: cover;
+    pointer-events: none;
+    /* 背面的模糊封面在揭开窗口里已经先对焦过大半，这里只剩薄薄一层收尾。 */
+    filter: blur(8px) saturate(1.08);
+    opacity: 1;
+    transform: scale(1.03);
+    animation: lattice-radio-focus-clear 480ms cubic-bezier(0.22, 1, 0.36, 1) 60ms forwards;
+}
+@keyframes lattice-radio-focus-clear {
+    to { filter: blur(0) saturate(1); opacity: 0; transform: scale(1); }
+}
+
+/* 四角的对位标记：每个角两道短线（L 形），离卡边留一点空，背景的电波从空隙里穿过。 */
+.lattice-radio-card-marks {
+    --radio-mark: color-mix(in srgb, var(--text-primary, #f7f4ee) 40%, transparent);
+    --radio-mark-arm: 10px;
+    position: absolute;
+    inset: -8px;
+    pointer-events: none;
+    background:
+        linear-gradient(var(--radio-mark), var(--radio-mark)) left top / var(--radio-mark-arm) 1px no-repeat,
+        linear-gradient(var(--radio-mark), var(--radio-mark)) left top / 1px var(--radio-mark-arm) no-repeat,
+        linear-gradient(var(--radio-mark), var(--radio-mark)) right top / var(--radio-mark-arm) 1px no-repeat,
+        linear-gradient(var(--radio-mark), var(--radio-mark)) right top / 1px var(--radio-mark-arm) no-repeat,
+        linear-gradient(var(--radio-mark), var(--radio-mark)) left bottom / var(--radio-mark-arm) 1px no-repeat,
+        linear-gradient(var(--radio-mark), var(--radio-mark)) left bottom / 1px var(--radio-mark-arm) no-repeat,
+        linear-gradient(var(--radio-mark), var(--radio-mark)) right bottom / var(--radio-mark-arm) 1px no-repeat,
+        linear-gradient(var(--radio-mark), var(--radio-mark)) right bottom / 1px var(--radio-mark-arm) no-repeat;
+}
+
+/* 台线：从卡的下沿中点垂到电台带上，末端一个点。长度由 RadioCard 按轨道逐帧给（线是 1px 高的一段按 scaleY
+   拉长，点按 translateY 挪下去），只动 transform。正在播放那张被浏览到一边时，它的点用强调色。 */
+.lattice-radio-station {
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    pointer-events: none;
+}
+.lattice-radio-station > i { position: absolute; display: block; }
+.lattice-radio-station-line {
+    top: 0;
+    left: -0.5px;
+    width: 1px;
+    height: 1px;
+    transform-origin: 50% 0;
+    background: color-mix(in srgb, var(--text-primary, #f7f4ee) 30%, transparent);
+}
+.lattice-radio-station-dot {
+    top: -3px;
+    left: -3px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--text-primary, #f7f4ee) 62%, transparent);
+}
+.lattice-radio-card.is-now .lattice-radio-station-dot { background: var(--text-accent, #fd5c47); }
+
+/* 电台带：比别的电波亮一档的实线。 */
+.lattice-radio-waves circle.is-band { stroke: color-mix(in srgb, var(--radio-ink) 24%, transparent); stroke-width: 1; }
+
+.lattice-root .lattice-radio .lattice-poster.is-current::before {
+    border-color: transparent;
+    box-shadow: none;
+}
+
+/* 卡面的压暗：平时只压底部（标题看得清），正中的正在播放那张再从左边和底部压深（歌词、控制条看得清）。队列墙的海报
+   是直接换一张背景渐变，渐变没法过渡，回到正在播放那张时阴影一下子就盖上去了：这里拆成两层，交叉淡入淡出。 */
+.lattice-root .lattice-radio .lattice-radio-face.is-front .lattice-poster-shade { background: none; }
+.lattice-root .lattice-radio .lattice-radio-face.is-front .lattice-poster-shade::before,
+.lattice-root .lattice-radio .lattice-radio-face.is-front .lattice-poster-shade::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    transition: opacity 520ms ease;
+}
+.lattice-root .lattice-radio .lattice-radio-face.is-front .lattice-poster-shade::before {
+    background: linear-gradient(180deg, rgb(var(--lattice-shade-rgb) / 5%) 34%, rgb(var(--lattice-shade-rgb) / 24%) 56%, rgb(var(--lattice-shade-rgb) / 92%) 100%);
+}
+.lattice-root .lattice-radio .lattice-radio-face.is-front .lattice-poster-shade::after {
+    background:
+        linear-gradient(0deg, rgb(var(--lattice-shade-rgb) / 86%) 0%, rgb(var(--lattice-shade-rgb) / 62%) 14%, rgb(var(--lattice-shade-rgb) / 26%) 30%, rgb(var(--lattice-shade-rgb) / 0%) 46%),
+        linear-gradient(90deg, rgb(var(--lattice-shade-rgb) / 88%), rgb(var(--lattice-shade-rgb) / 50%) 52%, rgb(var(--lattice-shade-rgb) / 8%));
+    opacity: 0;
+}
+.lattice-root .lattice-radio .lattice-radio-face.is-front.is-expanded .lattice-poster-shade::before { opacity: 0; }
+.lattice-root .lattice-radio .lattice-radio-face.is-front.is-expanded .lattice-poster-shade::after { opacity: 1; }
+
+/* 正中的正在播放那张：歌词出来之前（卡还在滑过来、歌词场景还在加载），标题就放在歌词出来以后的位置、同样大小
+   （LatticeLyrics.css 的 .lattice-lyric-metadata），不先摆一个占半张卡的大标题再缩回去。电台墙里点一张卡，它要先
+   滑到正中、停稳了才挂歌词，大标题会停好一阵。 */
+.lattice-root .lattice-radio .lattice-poster.is-expanded .lattice-poster-copy {
+    top: 74px;
+    right: 100px;
+    bottom: auto;
+}
+.lattice-root .lattice-radio .lattice-poster.is-expanded .lattice-poster-copy strong {
+    max-width: 100%;
+    font-size: 22px;
+    line-height: 1.2;
+    -webkit-line-clamp: 1;
+}
+.lattice-root .lattice-radio .lattice-poster.is-expanded .lattice-poster-copy small {
+    margin-top: 2px;
+    font-size: 13px;
+}
+
+/* 听过的卡压成接近黑白，指针移上去、或者浏览到正中时恢复颜色：颜色留给正在播放（和正在看）的那张。 */
+.lattice-radio-card.is-played .lattice-radio-face.is-front {
+    filter: grayscale(0.85) brightness(0.8);
+    transition: filter 400ms ease;
+}
+.lattice-radio-card.is-played.is-focused .lattice-radio-face.is-front,
+.lattice-radio-card.is-played:hover .lattice-radio-face.is-front { filter: none; }
+
+/* 浏览到正中的别的歌：右下角一枚播放按钮。 */
+.lattice-radio-play-hint {
+    position: absolute;
+    right: 6%;
+    bottom: 6%;
+    z-index: 5;
+    display: grid;
+    width: clamp(36px, 12%, 64px);
+    aspect-ratio: 1;
+    place-items: center;
+    border-radius: 50%;
+    padding: 0;
+    border: 0;
+    color: var(--bg-color, #070707);
+    background: var(--text-primary, #f7f4ee);
+    cursor: pointer;
+}
+.lattice-radio-play-hint svg { width: 42%; height: 42%; fill: currentColor; }
+
+/* 背面：隔着棱纹玻璃的模糊封面（useRadioCoverTint 的小缩略图放大），再盖两道打码条，长度按曲名、歌手的字数。
+   缩略图取不到时（没有 CORS 头）是封面代表色的渐变。 */
+/* 背面的颜色登记成可插值的颜色属性：取色回来时从中性色过渡到封面色，而不是硬切。 */
+@property --lattice-radio-tint {
+    syntax: '<color>';
+    inherits: false;
+    initial-value: #3f3f46;
+}
+
+.lattice-radio-face.is-back {
+    /* 取色之前：主题墨色和底色调出的中性色。 */
+    --lattice-radio-tint: color-mix(in srgb, var(--text-primary, #f7f4ee) 22%, var(--bg-color, #070707));
+    overflow: hidden;
+    container-type: size;
+    transform: rotateY(180deg);
+    background:
+        radial-gradient(circle at 66% 32%, color-mix(in srgb, var(--lattice-radio-tint) 55%, #fff) 0%, transparent 62%),
+        linear-gradient(150deg, color-mix(in srgb, var(--lattice-radio-tint) 70%, #000), color-mix(in srgb, var(--lattice-radio-tint) 32%, #000));
+    transition: filter 300ms ease, --lattice-radio-tint 900ms ease;
+}
+.lattice-radio-face.is-back > span { position: absolute; inset: 0; }
+/* 模糊的封面：十几像素见方的缩略图铺满，浏览器放大本身就是糊的。淡入，不在取样回来那一下跳出来。
+   比卡面大一圈（背面裁掉卡外的部分）：小图放大时最外一圈像素会和图外的透明混在一起，边上有一道半透明的过渡，
+   卡沿着弧变大变小时这道过渡每帧都在变，看着就是卡的边在闪。让它落到卡外面去。 */
+.lattice-radio-face.is-back > .lattice-radio-veil {
+    inset: -12%;
+    background-image: var(--lattice-radio-veil);
+    background-size: cover;
+    background-position: center;
+    animation: lattice-radio-fade-in 600ms ease backwards;
+}
+/* 真封面淡入：模糊缩略图（veil）是一张 12px 小图放大，永远糊的，去 blur 只会露出马赛克；
+   变清晰要靠真封面盖上来。揭开窗口（BACK_REVEAL_MS）里淡入完成，翻面时正面已经清楚；
+   棱纹玻璃的细线压在最上面，「隔着玻璃看清」的质感不丢。
+   RadioCard 在揭开的同一次渲染里才挂上它，挂上时 .is-revealed 已经在了，transition 不会触发，所以走 animation。 */
+.lattice-radio-face.is-back > .lattice-radio-unveil {
+    inset: -12%;
+    background-position: center;
+    background-size: cover;
+    pointer-events: none;
+    animation: lattice-radio-unveil-in 850ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+@keyframes lattice-radio-unveil-in {
+    from { opacity: 0; }
+}
+/* 棱纹玻璃：竖向的细亮线和暗线，再从中间往下压暗一点，打码条压在暗处更清楚。 */
+.lattice-radio-reeds {
+    background:
+        linear-gradient(180deg, transparent 45%, rgb(0 0 0 / 45%)),
+        repeating-linear-gradient(90deg, rgb(255 255 255 / 10%) 0 1px, transparent 1px 7px, rgb(0 0 0 / 12%) 7px 13px, transparent 13px 14px);
+}
+.lattice-radio-face.is-back > .lattice-radio-redaction {
+    inset: auto 0 9cqmin 8.5cqmin;
+    display: flex;
+    flex-direction: column;
+    gap: 3cqmin;
+}
+/* 每条打码是一行：字在底下（占条那么宽，超出裁掉），涂黑条压在上面。揭开（.is-revealed）时
+   涂黑条朝右滑出、字从左往右显出来；歌名先动、歌手晚 70ms，像条把字「擦」出来。 */
+.lattice-radio-redaction-line { position: relative; display: block; overflow: hidden; }
+.lattice-radio-redaction-line:first-child { height: 8cqmin; }
+.lattice-radio-redaction-line:last-child { height: 3.6cqmin; }
+.lattice-radio-redaction-text {
+    position: absolute;
+    inset: 0;
+    display: block;
+    overflow: hidden;
+    white-space: nowrap;
+    /* 字宽跟着打码条走，长歌名在条的宽度处收成省略号，不在字中间截断。行高等于条高，字竖向居中。 */
+    text-overflow: ellipsis;
+    font-style: normal;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: rgb(255 255 255 / 92%);
+    clip-path: inset(0 100% 0 0);
+}
+.lattice-radio-redaction-line:first-child .lattice-radio-redaction-text { font-size: 5.4cqmin; line-height: 8cqmin; }
+.lattice-radio-redaction-line:last-child .lattice-radio-redaction-text { font-size: 2.6cqmin; line-height: 3.6cqmin; color: rgb(255 255 255 / 58%); }
+.lattice-radio-redaction-bar { position: absolute; inset: 0; font-style: normal; transform: translateX(0); }
+.lattice-radio-redaction-line:first-child .lattice-radio-redaction-bar { background: rgb(255 255 255 / 90%); }
+.lattice-radio-redaction-line:last-child .lattice-radio-redaction-bar { background: rgb(255 255 255 / 50%); }
+.is-revealed .lattice-radio-redaction-bar { transform: translateX(102%); transition: transform 620ms cubic-bezier(0.22, 1, 0.36, 1); }
+.is-revealed .lattice-radio-redaction-text { clip-path: inset(0 0 0 0); transition: clip-path 700ms cubic-bezier(0.22, 1, 0.36, 1) 90ms; }
+.is-revealed .lattice-radio-redaction-line:last-child .lattice-radio-redaction-bar { transition-delay: 70ms; }
+.is-revealed .lattice-radio-redaction-line:last-child .lattice-radio-redaction-text { transition-delay: 150ms; }
+
+.lattice-radio-card:hover .lattice-radio-face.is-back { filter: brightness(1.08) saturate(1.06); }
+
+/* 键盘焦点画在卡里面（正面的 .lattice-poster 裁掉自己以外的部分）。 */
+.lattice-radio-card:focus-visible .lattice-radio-face {
+    box-shadow:
+        inset 0 0 0 1px rgb(0 0 0 / 62%),
+        inset 0 0 0 4px var(--text-primary, #fff);
+}
+
+.lattice-radio-card.is-now.is-focused:focus-visible .lattice-radio-face.is-front { box-shadow: none; }
+
+/* 正在播放那张卡窄（窗口矮或窄）时控制条放不下一整排：时间读数让位，按钮缩小，「不喜欢」不被挤出去。 */
+.lattice-radio-face.is-front { container: lattice-radio-card / inline-size; }
+
+@container lattice-radio-card (max-width: 520px) {
+    .lattice-radio .lattice-chrome-time { display: none; }
+    .lattice-root .lattice-radio .lattice-chrome button { width: 36px; height: 36px; border-radius: 10px !important; }
+    .lattice-radio .lattice-chrome button svg { width: 18px; height: 18px; }
+    .lattice-radio .lattice-chrome-actions { gap: 2px; }
+    .lattice-radio .lattice-chrome-transport { min-height: 36px; gap: 4px; }
+    .lattice-radio .lattice-chrome-transport > .lattice-secondary-action { margin-left: auto; }
+}
+
+/* 队列墙在窄屏上把控制条放大，补的是墙的相机缩放（LatticeChrome.css）。电台墙不缩放，按原尺寸画。 */
+@media (max-width: 640px) {
+    .lattice-radio .lattice-chrome { width: min(100%, 480px); gap: 10px; }
+    .lattice-root .lattice-radio .lattice-chrome button { width: 38px; height: 38px; border-radius: 10px !important; }
+    .lattice-radio .lattice-chrome button svg { width: 18px; height: 18px; }
+    .lattice-radio .lattice-chrome-actions { gap: 2px; }
+    .lattice-radio .lattice-chrome-transport { min-height: 38px; gap: 4px; }
+    .lattice-radio .lattice-progress { margin-right: 10px; }
+    .lattice-radio .lattice-progress input[type=range] { height: 32px; }
+    .lattice-radio .lattice-chrome-time { font-size: 11px; }
+    .lattice-root .lattice-radio .lattice-poster.is-expanded .lattice-poster-copy { top: 56px; right: 72px; bottom: auto; left: 20px; }
+    .lattice-radio .lattice-poster-controls { right: 14px; bottom: 18px; left: 18px; }
+    .lattice-radio .lattice-lyrics { top: 104px; right: 16px; bottom: 96px; left: 16px; }
+    .lattice-root .lattice-radio .lattice-poster.is-expanded .lattice-lyric-metadata { top: 56px; right: 72px; left: 20px; }
+}
+
+:root[data-reduce-motion~='lattice'] .lattice-radio,
+:root[data-reduce-motion~='lattice'] .lattice-radio-face.is-back,
+:root[data-reduce-motion~='lattice'] .lattice-radio-face.is-front,
+:root[data-reduce-motion~='lattice'] .lattice-radio .lattice-poster-shade::before,
+:root[data-reduce-motion~='lattice'] .lattice-radio .lattice-poster-shade::after { transition: none; }
+:root[data-reduce-motion~='lattice'] .lattice-radio-backdrop *,
+:root[data-reduce-motion~='lattice'] .lattice-radio-veil,
+:root[data-reduce-motion~='lattice'] .lattice-radio-focus,
+:root[data-reduce-motion~='lattice'] .lattice-radio-unveil { animation: none; }
+/* 减弱动效：打码条不滑、字直接显出。 */
+:root[data-reduce-motion~='lattice'] .is-revealed .lattice-radio-redaction-bar,
+:root[data-reduce-motion~='lattice'] .is-revealed .lattice-radio-redaction-text { transition: none; }

@@ -34,6 +34,8 @@ export type BravaisTiltInput = {
     finite: boolean;
     /** 降低动态效果（lattice）时不倾斜。 */
     reducedMotion: boolean;
+    /** 集合页倾不倾斜（useLibraryWallLookStore 的 collectionTilt）：关掉时集合页的角度取 0，首页与海报照表。 */
+    collectionTilt: boolean;
 };
 
 /**
@@ -41,10 +43,11 @@ export type BravaisTiltInput = {
  * table 缺省是出厂的那张表（测试里换一张，各种页面的角度互不相同才分得清走的是哪一格）。
  */
 export const resolveBravaisTiltDeg = (
-    { variant, openWidth, targetAxis, renderedAxis, finite, reducedMotion }: BravaisTiltInput,
+    { variant, openWidth, targetAxis, renderedAxis, finite, reducedMotion, collectionTilt }: BravaisTiltInput,
     table: Record<BravaisTiltPage, number> = BRAVAIS_TILT_DEG,
 ): number => {
     if (reducedMotion || finite || openWidth <= 0 || targetAxis !== 'x' || renderedAxis === 'y') return 0;
     const page = resolveBravaisTiltPage(variant);
-    return page ? table[page] : 0;
+    if (!page || (page === 'collection' && !collectionTilt)) return 0;
+    return table[page];
 };

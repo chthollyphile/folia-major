@@ -91,7 +91,7 @@ export function useHifiPlaybackBridge({
     const exclusive = useHifiSettingsStore(state => state.exclusive);
     const dsdMode = useHifiSettingsStore(state => state.dsdMode);
     const softwareVolume = useHifiSettingsStore(state => state.softwareVolume);
-    const loopFile = effectiveLoopMode === 'one' && !isFmMode;
+    const loopFile = effectiveLoopMode === 'one';
 
     // 推送回调里用的最新版本；渲染期不写 ref，放进 effect。
     const latestRef = useRef({ handleNextTrack, playSong, t, loopFile });

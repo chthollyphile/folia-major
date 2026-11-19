@@ -21,13 +21,13 @@ import { Group, PictureChoice, Reveal, Row, Segmented, Toggle, option, type Sett
 // src/components/modal/settings/pages/BravaisWallGroup.tsx
 // The Bravais 墙面 group of the 主页与歌单 page: every setting only the bravais library UI has. How
 // much of the wall lets the visualizer through (and, when partly, how many windows a block has),
-// the collections' stack edges, which way the seam opens (vertical, horizontal, or by the screen's
+// the collections' stack edges, whether collection pages tilt, which way the seam opens (vertical, horizontal, or by the screen's
 // shape, either way round), the seam's material (always clear, or one of eight solid
 // presets; the two exclude each other), and whether the picture behind the wall has lyrics and
 // blur. The group is drawn only while bravais is the library UI in effect, the same test the
 // command palette asks (isBravaisLibraryActive): under any other UI these settings do nothing.
-// The look and the window count are not in the config export (useLibraryWallLookStore says why);
-// the rest are (pages/storage/visualConfigTransfer).
+// The look, the window count and the collection tilt are not in the config export (useLibraryWallLookStore
+// says why); the rest are (pages/storage/visualConfigTransfer).
 
 export const BRAVAIS_WALL: SettingsGroupDef = { id: 'bravaisSettings', titleKey: 'options.bravaisSettings', available: isBravaisLibraryActive };
 
@@ -35,6 +35,7 @@ const O = {
     look: option(BRAVAIS_WALL, 'libraryWallLook', 'options.libraryWallLook'),
     windows: option(BRAVAIS_WALL, 'libraryWallWindows', 'options.libraryWallWindows'),
     stackEdges: option(BRAVAIS_WALL, 'bravaisStackEdges', 'options.bravaisStackEdges'),
+    collectionTilt: option(BRAVAIS_WALL, 'bravaisCollectionTilt', 'options.bravaisCollectionTilt'),
     seamDirection: option(BRAVAIS_WALL, 'bravaisSeamDirection', 'options.bravaisSeamDirection'),
     seamClear: option(BRAVAIS_WALL, 'bravaisSeamClear', 'options.bravaisSeamClear'),
     seamStyle: option(BRAVAIS_WALL, 'bravaisSeamStyle', 'options.bravaisSeamStyle'),
@@ -70,6 +71,7 @@ export const BravaisWallGroup: React.FC = () => {
         look: state.look,
         windowsPerBlock: state.windowsPerBlock,
         stackEdges: state.collectionStackEdges,
+        collectionTilt: state.collectionTilt,
         seamClear: state.seamClear,
         seamStyle: state.seamStyle,
         backdropLyrics: state.backdropLyrics,
@@ -78,6 +80,7 @@ export const BravaisWallGroup: React.FC = () => {
         setLook: state.setLook,
         setWindowsPerBlock: state.setWindowsPerBlock,
         setStackEdges: state.setCollectionStackEdges,
+        setCollectionTilt: state.setCollectionTilt,
         setSeamClear: state.setSeamClear,
         setSeamStyle: state.setSeamStyle,
         setBackdropLyrics: state.setBackdropLyrics,
@@ -115,6 +118,9 @@ export const BravaisWallGroup: React.FC = () => {
             </Reveal>
             <Row option={O.stackEdges} note={t('options.bravaisStackEdgesDesc')}>
                 <Toggle checked={wall.stackEdges} onChange={wall.setStackEdges} />
+            </Row>
+            <Row option={O.collectionTilt} note={t('options.bravaisCollectionTiltDesc')}>
+                <Toggle checked={wall.collectionTilt} onChange={wall.setCollectionTilt} />
             </Row>
             <Row option={O.seamDirection} hint={t(LIBRARY_WALL_SEAM_DIRECTION_TEXT[wall.seamDirection].description)} note={t('options.bravaisSeamDirectionDesc')}>
                 <Segmented

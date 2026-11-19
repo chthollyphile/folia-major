@@ -454,6 +454,98 @@
 
 .bravais-search-form input::-webkit-search-cancel-button { display: none; }
 
+/* 搜索历史：贴在「搜索」按钮下面，一条一个标签。缝里没有浮层，只有墙的底色，所以一律用 currentColor 混。 */
+.bravais-search-history {
+    display: flex;
+    min-height: 0;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: -4px;
+}
+
+.bravais-search-history-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    color: var(--bravais-seam-ink-soft);
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.bravais-search-history-head button {
+    padding: 0;
+    border: 0;
+    color: inherit;
+    font: inherit;
+    letter-spacing: inherit;
+    text-transform: inherit;
+    background: none;
+    cursor: pointer;
+    opacity: 0.85;
+}
+
+.bravais-search-history-head button:hover { opacity: 1; text-decoration: underline; }
+
+.bravais-search-history-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.bravais-search-history-tag {
+    display: inline-flex;
+    min-width: 0;
+    max-width: 100%;
+    align-items: center;
+    border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+    border-radius: 999px;
+    background: color-mix(in srgb, currentColor 6%, transparent);
+    transition: background-color 160ms ease;
+}
+
+.bravais-search-history-tag:hover { background: color-mix(in srgb, currentColor 12%, transparent); }
+
+.bravais-search-history-pick {
+    min-width: 0;
+    max-width: 220px;
+    padding: 4px 2px 4px 10px;
+    border: 0;
+    overflow: hidden;
+    color: inherit;
+    font: inherit;
+    font-size: 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    background: none;
+    cursor: pointer;
+}
+
+.bravais-search-history-remove {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 18px;
+    height: 18px;
+    margin-right: 3px;
+    padding: 0;
+    border: 0;
+    border-radius: 999px;
+    color: inherit;
+    background: none;
+    cursor: pointer;
+    opacity: 0.5;
+    transition: opacity 160ms ease, background-color 160ms ease;
+}
+
+.bravais-search-history-remove:hover {
+    background: color-mix(in srgb, currentColor 14%, transparent);
+    opacity: 1;
+}
+
+.bravais-search-history-remove svg { width: 10px; height: 10px; }
+
 /* ---------- 目录树面板 ---------- */
 
 .bravais-seam .bravais-dir-select {

@@ -97,18 +97,22 @@ export function checkFoliumApi(files, { readBase, readCurrent }) {
     const removedTexts = new Set(removed.map(entry => entry.text.trim()));
     const addedOnly = added.filter(entry => !removedTexts.has(entry.text.trim()));
 
-    const versionOf = text => {
+    const versionsOf = text => {
         try {
-            return JSON.parse(text ?? '').version ?? null;
+            const shared = JSON.parse(text ?? '');
+            return { host: shared.version ?? null, one: shared.foliumOneVersion ?? null };
         } catch {
-            return null;
+            return { host: null, one: null };
         }
     };
-    const oldVersion = versionOf(readBase(FOLIUM_VERSION_FILE));
-    const newVersion = versionOf(readCurrent(FOLIUM_VERSION_FILE));
+    const { host: oldVersion, one: oldOne } = versionsOf(readBase(FOLIUM_VERSION_FILE));
+    const { host: newVersion, one: newOne } = versionsOf(readCurrent(FOLIUM_VERSION_FILE));
     if (!oldVersion || !newVersion) return [];
     const majorBumped = newVersion.major > oldVersion.major;
-    const minorBumped = majorBumped || newVersion.minor > oldVersion.minor;
+    // Folium 2.0（方案 §9）：`folium: 1` 读到的版本单独记在 foliumOneVersion。main 上新加的 1.x 接口同步进来时
+    // 宿主版本不动，升的是这一个，也算升了小版本。
+    const oneBumped = Boolean(oldOne && newOne && newOne.major === oldOne.major && newOne.minor > oldOne.minor);
+    const minorBumped = majorBumped || newVersion.minor > oldVersion.minor || oneBumped;
 
     const findings = [];
     if (removed.length > 0 && !majorBumped) {
@@ -125,7 +129,7 @@ export function checkFoliumApi(files, { readBase, readCurrent }) {
             code: 'D513',
             file: FOLIUM_TYPES,
             line: addedOnly[0].newLine,
-            message: `新增了 ${addedOnly.length} 行稳定接口，但 Folium 小版本没升（${FOLIUM_VERSION_FILE} 的 version.minor）`,
+            message: `新增了 ${addedOnly.length} 行稳定接口，但 Folium 小版本没升（${FOLIUM_VERSION_FILE} 的 version.minor；只加 1.x 接口时是 foliumOneVersion.minor）`,
             key: 'D513:added',
         });
     }

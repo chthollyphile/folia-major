@@ -1,4 +1,5 @@
 import { registerPersonalFmLanding, takePersonalFmLanding } from './personalFmLanding';
+import { usePersonalFmLookahead } from './usePersonalFmLookahead';
 import { usePersonalFmModeStore } from '@/stores/usePersonalFmModeStore';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react';
@@ -69,7 +70,6 @@ import { currentTime } from '../../../../stores/motionSignals';
 import { setIsPanelOpen, setPanelTab } from '../../../../stores/useAppViewStore';
 import { useAudioSettingsStore } from '../../../../stores/useAudioSettingsStore';
 import { useSearchNavigationStore } from '../../../../stores/useSearchNavigationStore';
-import { showLatticeFmNotice, usePlaybackEntryViewStore } from '../../../../stores/usePlaybackEntryViewStore';
 import { useStableActionSurface } from '../../../../hooks/useStableCallbacks';
 import { hasBeforePlayHook, notifyPlaybackFailed, runBeforePlayHook } from '../../../../services/hostExtensionHooks';
 import { wholeQueueWritesSoFar } from '../../../../services/wholeQueueWrites';
@@ -315,6 +315,8 @@ export function usePlaybackQueueController({
     const playQueue = usePlaybackStore(state => state.playQueue);
     const playerState = usePlaybackStore(state => state.playerState);
     const isFmMode = usePlaybackStore(state => state.isFmMode);
+    // 私人 FM 的当前曲目落到队列最后两首就提前续歌，不只在「下一首」时（直接点了后面的一首也续上）。
+    usePersonalFmLookahead(isNowPlayingStageActive);
     const searchQuery = useSearchNavigationStore(state => state.searchQuery);
     const searchSourceTab = useSearchNavigationStore(state => state.searchSourceTab);
     const searchReturnView = useSearchNavigationStore(state => state.searchReturnView);
@@ -621,9 +623,6 @@ export function usePlaybackQueueController({
         if (playsAsFm && !wasFmMode) {
             setPanelTab('queue');
             setIsPanelOpen(true);
-            if (usePlaybackEntryViewStore.getState().playbackEntryView === 'lattice') {
-                showLatticeFmNotice();
-            }
         }
 
         // The play starts here: from now on a newer play, or a drop of the plays in flight, ends it.

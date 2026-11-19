@@ -42,6 +42,7 @@ const FmTabProbe: React.FC = () => {
                     playerState={PlayerState.PLAYING}
                     modeLabel="场景 · 助眠"
                     onOpenModePicker={supported ? () => setOpenCount(count => count + 1) : undefined}
+                    onOpenLattice={() => {}}
                     onTogglePlay={() => {}}
                     onNextTrack={() => {}}
                     onPrevTrack={() => {}}
