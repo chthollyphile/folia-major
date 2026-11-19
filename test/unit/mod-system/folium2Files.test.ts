@@ -15,14 +15,15 @@ import {
 //     folder is the file it is: hashed, signed, installed and measured like any other, whatever its name;
 //   - folia-mod:// serves a folium 2 mod's .svg/.png/.webp/.json with nosniff (a folium 1 mod keeps the
 //     scripts-only rule), and routes /_media/<name> to the handler its main entry registered, with Range;
+//   - a built-in source's legacy media scheme (folia-fnmusic://) reaches the same _media routes while the mod runs;
 //   - the trusted table of the built-in sources names the keys the platforms use today.
 
 const require = createRequire(import.meta.url);
 const { pickRawFs } = require('../../../electron/modSystem/rawFs.cjs');
 const { computeModDigest } = require('../../../electron/modSystem/modDigest.cjs');
 const { measureDirectoryBytes } = require('../../../electron/modSystem/modFiles.cjs');
-const { parseRangeHeader } = require('../../../electron/modSystem/modProtocol.cjs');
-const { BUILTIN_SOURCE_TABLE } = require('../../../electron/modSystem/builtinSources.cjs');
+const { MOD_PROTOCOL_PRIVILEGED_SCHEME, legacyMediaPrivilegedSchemes, parseRangeHeader } = require('../../../electron/modSystem/modProtocol.cjs');
+const { BUILTIN_LEGACY_MEDIA_SCHEMES, BUILTIN_SOURCE_TABLE } = require('../../../electron/modSystem/builtinSources.cjs');
 const asar = require('@electron/asar') as { createPackage: (src: string, dest: string) => Promise<unknown> };
 
 const ROOT = path.resolve(__dirname, '../../..');
@@ -160,6 +161,31 @@ module.exports = function activate(api) { api.media.serve('audio', () => ({ body
         expect(stateOf(system, 'radio')!.status).toBe('disabled');
         expect((await fetchModUrl('folia-mod://radio/_media/audio/a')).status).toBe(404);
         expect(modRecord('radio')).toBeUndefined();
+    });
+
+    it('answers a built-in source\'s legacy media scheme from its _media routes while it runs', async () => {
+        // folia-fnmusic:// was main.cjs's own scheme for fnmusic covers and streams; saved songs still hold such addresses.
+        expect(BUILTIN_SOURCE_TABLE.fnmusic.legacyMediaSchemes).toEqual(['folia-fnmusic']);
+        expect(BUILTIN_LEGACY_MEDIA_SCHEMES).toEqual([{ scheme: 'folia-fnmusic', modId: 'fnmusic' }]);
+        expect(legacyMediaPrivilegedSchemes(BUILTIN_LEGACY_MEDIA_SCHEMES)).toEqual([{ scheme: 'folia-fnmusic', privileges: MOD_PROTOCOL_PRIVILEGED_SCHEME.privileges }]);
+        writeMod('builtin', sourceManifest('fnmusic', ['fnmusic']), {
+            main: `'use strict';
+module.exports = function activate(api) {
+    api.media.serve('cover', (request) => ({ body: 'cover:' + request.query.coverId + ':' + request.query.size + ':' + request.path }));
+    api.media.serve('stream', (request) => ({ body: 'stream:' + request.query.guid + ':' + request.range }));
+};`,
+        });
+        const system = launch();
+        expect(await (await fetchModUrl('folia-fnmusic://cover?coverId=c1&size=300')).text()).toBe('cover:c1:300:');
+        expect(await (await fetchModUrl('folia-fnmusic:///cover?coverId=c2')).text()).toBe('cover:c2:undefined:');
+        expect(await (await fetchModUrl('folia-fnmusic://stream?guid=g1', { range: 'bytes=0-' })).text()).toBe('stream:g1:bytes=0-');
+        expect(await (await fetchModUrl('folia-mod://fnmusic/_media/cover?coverId=c3')).text()).toBe('cover:c3:undefined:');
+        expect((await fetchModUrl('folia-fnmusic://lyrics?id=1')).status).toBe(404);
+        for (const sneaky of ['folia-fnmusic:///cover/..%2F..%2Fx', 'folia-fnmusic:///cover/a%5Cb']) {
+            expect((await fetchModUrl(sneaky)).status, sneaky).toBe(400);
+        }
+        expect(await system.setSourceState('fnmusic', 'disabled')).toMatchObject({ ok: true });
+        expect((await fetchModUrl('folia-fnmusic://cover?coverId=c1')).status).toBe(404);
     });
 
     it('reads one Range header as the platforms\' players send it', () => {

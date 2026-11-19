@@ -70,7 +70,7 @@ const { createModApproval } = require('./approval.cjs');
 const { createNodeEntryRuntime } = require('./nodeEntry.cjs');
 const { createModSecrets, SECRET_MAX_BYTES } = require('./modSecrets.cjs');
 const { oldNameWarnings, onOldNameWarning } = require('./deprecated.cjs');
-const { BUILTIN_SOURCE_IDS, builtinSourceRow, builtinModOfSource, readBundledSources } = require('./builtinSources.cjs');
+const { BUILTIN_LEGACY_MEDIA_SCHEMES, BUILTIN_SOURCE_IDS, builtinSourceRow, builtinModOfSource, readBundledSources } = require('./builtinSources.cjs');
 const { resolveSourceOwnership, claimRefusal } = require('./sourceOwnership.cjs');
 const { ownPartitionOf, PARTITION_NAME_PATTERN } = require('./sourceApi.cjs');
 const { createMediaRules } = require('./mediaRules.cjs');
@@ -1471,6 +1471,8 @@ ${partition}`;
         resolveModFolium: (modId) => mods.get(modId)?.manifest?.folium ?? 1,
         // A `_media` route answers only while its mod runs (its main entry registered the handler).
         resolveMediaHandler: (modId, name) => (mods.get(modId)?.status === 'loaded' ? mediaHandlers.get(modId)?.get(name) ?? null : null),
+        // The schemes built-in platforms served media under before they became mods: saved songs still name them.
+        legacyMediaSchemes: BUILTIN_LEGACY_MEDIA_SCHEMES,
     });
 
     pruneStagingDirectory();

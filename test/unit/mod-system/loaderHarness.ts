@@ -22,7 +22,8 @@ export const dialogs: Array<{ title?: string; message?: string; detail?: string 
 export const dialogAnswer = { response: 1 };
 /** What the fake Electron services were asked. */
 export const electronCalls: Array<[string, ...unknown[]]> = [];
-let protocolHandler: ((request: Request) => Response | Promise<Response>) | null = null;
+/** The protocol handlers the loader attached, by scheme (folia-mod and the built-in sources' legacy media schemes). */
+const protocolHandlers = new Map<string, (request: Request) => Response | Promise<Response>>();
 
 class FakeStore {
     get(key: string) { return persisted.get(key); }
@@ -63,7 +64,7 @@ stubModule('electron', {
         handle: (channel: string, handler: (event: unknown, ...args: unknown[]) => Promise<unknown>) => { handlers.set(channel, handler); },
         removeHandler: (channel: string) => { handlers.delete(channel); },
     },
-    protocol: { handle: (_scheme: string, handler: (request: Request) => Response) => { protocolHandler = handler; } },
+    protocol: { handle: (scheme: string, handler: (request: Request) => Response) => { protocolHandlers.set(scheme, handler); } },
     safeStorage: {
         isEncryptionAvailable: () => true,
         encryptString: (text: string) => Buffer.from(`sealed:${text}`),
@@ -159,7 +160,7 @@ export const resetHarness = (): Harness => {
     dialogs.length = 0;
     dialogAnswer.response = 1;
     electronCalls.length = 0;
-    protocolHandler = null;
+    protocolHandlers.clear();
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'folium-s2-'));
     current = {
         root,
@@ -317,10 +318,11 @@ export const stateOf = (system: ModSystem, modId: string) => system.listMods().f
 /** Calls an IPC handler as the main window's main frame. */
 export const invoke = (channel: string, ...args: unknown[]) => handlers.get(channel)!(FROM_MAIN, ...args);
 
-/** The folia-mod:// handler the loader attached. */
+/** Asks the handler the loader attached for the URL's scheme (folia-mod://, or a legacy media scheme). */
 export const fetchModUrl = async (url: string, headers: Record<string, string> = {}) => {
-    if (!protocolHandler) throw new Error('no protocol handler');
-    return protocolHandler(new Request(url, { headers }));
+    const handler = protocolHandlers.get(new URL(url).protocol.slice(0, -1));
+    if (!handler) throw new Error(`no protocol handler for ${url}`);
+    return handler(new Request(url, { headers }));
 };
 
 export const IPC = (require('../../../electron/modSystem/foliumShared.json') as { channels: Record<string, string> }).channels;
