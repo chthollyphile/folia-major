@@ -131,6 +131,18 @@ describe('YouTube Music main entry (source mod)', () => {
             ['https://music.youtube.com/youtubei/v1/search', { method: 'POST', credentials: 'omit' }],
             ['https://www.youtube.com/sw.js', { credentials: 'omit' }],
         ]);
+        // youtubei.js hands a Request: its address, method, headers and body go over as an address and an init.
+        network.fetch.mockClear();
+        await options.fetch(new Request('https://music.youtube.com/youtubei/v1/browse', {
+            method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"q":1}',
+        }) as never, undefined as never);
+        await options.fetch(new Request('https://www.youtube.com/') as never, undefined as never);
+        const [[url, init], [plainUrl, plainInit]] = network.fetch.mock.calls as unknown as Array<[string, Record<string, unknown>]>;
+        expect(url).toBe('https://music.youtube.com/youtubei/v1/browse');
+        expect(init).toMatchObject({ method: 'POST', headers: { 'content-type': 'application/json' }, credentials: 'omit' });
+        expect(new TextDecoder().decode(init.body as ArrayBuffer)).toBe('{"q":1}');
+        expect(plainUrl).toBe('https://www.youtube.com/');
+        expect(plainInit).toEqual({ method: 'GET', headers: {}, credentials: 'omit' });
     });
 
     it('asks pages in the host’s language as it is at the call, and runs the sign-in browser on the claimed folder', () => {

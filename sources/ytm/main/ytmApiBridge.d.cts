@@ -37,7 +37,7 @@ export interface YtmApiBridge {
 export function createYtmApiBridge(options: {
     store: YtmStore;
     safeStorage: YtmSafeStorage;
-    fetch: (input: string | URL, init?: Record<string, unknown>) => Promise<Response>;
+    fetch: (input: string | URL | Request, init?: Record<string, unknown>) => Promise<Response>;
     evaluate: (code: string) => Promise<unknown>;
     language?: () => string;
     signInFolder?: () => string | undefined;

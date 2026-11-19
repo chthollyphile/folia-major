@@ -68,7 +68,20 @@ export default function activate(api: FoliumSourceMainApi): void {
         fetch: async (input, init) => {
             proxied ??= network.setProxy({ mode: 'system' }).catch(() => {});
             await proxied;
-            return network.fetch(input instanceof URL ? input.href : input, { ...init, credentials: 'omit' });
+            if (typeof input === 'string' || input instanceof URL) {
+                return network.fetch(input instanceof URL ? input.href : input, { ...init, credentials: 'omit' });
+            }
+            // youtubei.js hands a Request; Electron's session.fetch took it as it was, the host's takes an address and
+            // its init. The Request's method, headers and body go in the init (what the caller adds over them wins).
+            const request = input;
+            const body = request.method === 'GET' || request.method === 'HEAD' ? undefined : await request.arrayBuffer();
+            return network.fetch(request.url, {
+                method: request.method,
+                headers: Object.fromEntries(request.headers),
+                ...(body && body.byteLength > 0 ? { body } : {}),
+                ...init,
+                credentials: 'omit',
+            });
         },
         evaluate: code => sandbox.evaluate(code),
         language: () => api.host.locale,
