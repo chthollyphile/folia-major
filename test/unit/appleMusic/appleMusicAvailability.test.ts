@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { normalizeAppleMusicSong } from '../../../src/services/onlineMusic/appleMusic/appleMusicNormalize';
-import { isAppleMusicSongPlayable } from '../../../src/services/onlineMusic/appleMusic/appleMusicData';
-import { createAppleMusicProvider } from '../../../src/services/onlineMusic/appleMusic/appleMusicProvider';
+import { normalizeAppleMusicSong } from '../../../sources/appleMusic/client/appleMusicNormalize';
+import { isAppleMusicSongPlayable } from '../../../sources/appleMusic/client/appleMusicData';
+import { createAppleMusicProvider } from '../../../sources/appleMusic/client/appleMusicProvider';
 import { externalQueueSuccessors } from '../../../src/services/onlineMusic/externalQueue';
 import { nextPlayableQueueIndex } from '../../../src/utils/playbackNeighbors';
 

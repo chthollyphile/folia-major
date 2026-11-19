@@ -27,7 +27,7 @@ CastLabs 的 Cookie。只在 Apple 官方页面输入凭据。不要提交 WebKi
 ## 接回 Folia 开发版
 
 ```sh
-sh electron/appleMusic/macos/buildCompanion.sh
+sh sources/appleMusic/native/macos/buildCompanion.sh
 npm run dev:electron
 ```
 
@@ -44,7 +44,7 @@ macOS 开发版使用生成的 `build/apple-music-native/FoliaAppleMusicCompanio
 
 ```sh
 swiftc -parse-as-library -module-cache-path test-results/apple-music-wk-probe/module-cache \
-  electron/appleMusic/macos/navigationPolicy.swift \
+  sources/appleMusic/native/macos/navigationPolicy.swift \
   test/manual/appleMusic/macos/navigationPolicyCheck.swift \
   -o test-results/apple-music-wk-probe/navigation-check
 ./test-results/apple-music-wk-probe/navigation-check

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { appleMusicCatalogSongId, getAppleMusicPlaylistTracks, getAppleMusicPlaylists, searchAppleMusic } from '../../../src/services/onlineMusic/appleMusic/appleMusicData';
-import { normalizeAppleMusicSong } from '../../../src/services/onlineMusic/appleMusic/appleMusicNormalize';
+import { appleMusicCatalogSongId, getAppleMusicPlaylistTracks, getAppleMusicPlaylists, searchAppleMusic } from '../../../sources/appleMusic/client/appleMusicData';
+import { normalizeAppleMusicSong } from '../../../sources/appleMusic/client/appleMusicNormalize';
 
 // A missing catalog identity and a broken cursor must not become false success or an empty library.
 afterEach(() => { vi.unstubAllGlobals(); });

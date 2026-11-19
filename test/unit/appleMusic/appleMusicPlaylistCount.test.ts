@@ -1,11 +1,11 @@
 import { createRequire } from 'node:module';
 import { runInNewContext } from 'node:vm';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { getAppleMusicPlaylists } from '../../../src/services/onlineMusic/appleMusic/appleMusicData';
+import { getAppleMusicPlaylists } from '../../../sources/appleMusic/client/appleMusicData';
 
 // A one-row response is not the playlist's total; missing counts remain unknown.
 const require = createRequire(import.meta.url);
-const { validateRequest, requestExpression } = require('../../../electron/appleMusic/companionRequests.cjs');
+const { validateRequest, requestExpression } = require('../../../sources/appleMusic/main/companionRequests.cjs');
 afterEach(() => vi.unstubAllGlobals());
 
 describe('Apple Music playlist counts', () => {

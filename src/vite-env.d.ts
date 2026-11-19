@@ -1009,9 +1009,9 @@ declare global {
       onNeteaseApiStatusChanged: (callback: (status: ElectronNeteaseApiStatus) => void) => () => void;
       getKugouApiStatus: () => Promise<ElectronKugouApiStatus>;
       appleMusicRequest: (
-        operation: import('./services/onlineMusic/appleMusic/appleMusicTransport').AppleMusicOperation,
-        params?: import('./services/onlineMusic/appleMusic/appleMusicTransport').AppleMusicParams,
-      ) => Promise<import('./services/onlineMusic/appleMusic/appleMusicTransport').AppleMusicBridgeResult>;
+        operation: import('../sources/appleMusic/client/appleMusicTransport').AppleMusicOperation,
+        params?: import('../sources/appleMusic/client/appleMusicTransport').AppleMusicParams,
+      ) => Promise<import('../sources/appleMusic/client/appleMusicTransport').AppleMusicBridgeResult>;
       spotifyRequest: (
         operation: import('./services/onlineMusic/spotify/spotifyTransport').SpotifyOperation,
         params?: import('./services/onlineMusic/spotify/spotifyTransport').SpotifyParams,

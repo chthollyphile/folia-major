@@ -3,7 +3,7 @@ $ErrorActionPreference = 'Stop'
 
 # Build on Windows with Visual Studio/MSBuild. Only SDK/loader assemblies are shipped, not a browser runtime.
 if ($env:OS -ne 'Windows_NT') { throw 'Build this companion on Windows.' }
-$repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../../..'))
+$repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../../../..'))
 $outputDirectory = Join-Path $repositoryRoot 'build/apple-music-native/windows'
 $project = Join-Path $PSScriptRoot 'FoliaAppleMusicCompanion.csproj'
 $msbuild = Get-Command msbuild -ErrorAction SilentlyContinue

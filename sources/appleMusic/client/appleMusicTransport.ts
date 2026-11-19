@@ -1,5 +1,5 @@
-import { OnlineProviderError } from '../../../types/onlineMusic';
-import type { ProviderAvailability, ProviderErrorCode } from '../../../types/onlineMusic';
+import { OnlineProviderError } from '../../../src/types/onlineMusic';
+import type { ProviderAvailability, ProviderErrorCode } from '../../../src/types/onlineMusic';
 
 // The provider's sole renderer-side boundary to the isolated desktop companion.
 // The queue is Folia's: no next/previous of the companion's own.

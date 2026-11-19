@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 // An unrelated window or an embedded frame must never reach the companion.
 const require = createRequire(import.meta.url);
-const { createCompanionRequestHandler } = require('../../../electron/appleMusic/companionIpc.cjs');
+const { createCompanionRequestHandler } = require('../../../sources/appleMusic/main/companionIpc.cjs');
 
 describe('Apple Music IPC access', () => {
     it('accepts only the trusted main frame', () => {

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { getAppleMusicTransportAvailability, requestAppleMusic } from '../../../src/services/onlineMusic/appleMusic/appleMusicTransport';
+import { getAppleMusicTransportAvailability, requestAppleMusic } from '../../../sources/appleMusic/client/appleMusicTransport';
 
 // The renderer must receive common provider errors, not companion protocol details or credentials.
 afterEach(() => { vi.unstubAllGlobals(); });

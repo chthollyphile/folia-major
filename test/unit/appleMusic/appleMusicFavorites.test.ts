@@ -1,12 +1,12 @@
 import { createRequire } from 'node:module';
 import { runInNewContext } from 'node:vm';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { getAppleMusicLikedSongIds, setAppleMusicSongLiked } from '../../../src/services/onlineMusic/appleMusic/appleMusicData';
-import { normalizeAppleMusicPlaylist, normalizeAppleMusicSong } from '../../../src/services/onlineMusic/appleMusic/appleMusicNormalize';
+import { getAppleMusicLikedSongIds, setAppleMusicSongLiked } from '../../../sources/appleMusic/client/appleMusicData';
+import { normalizeAppleMusicPlaylist, normalizeAppleMusicSong } from '../../../sources/appleMusic/client/appleMusicNormalize';
 
 // Favorite reads and writes use the real serialized request boundary without personal credentials.
 const require = createRequire(import.meta.url);
-const { validateRequest, requestExpression } = require('../../../electron/appleMusic/companionRequests.cjs');
+const { validateRequest, requestExpression } = require('../../../sources/appleMusic/main/companionRequests.cjs');
 afterEach(() => vi.unstubAllGlobals());
 
 describe('Apple Music favorites', () => {

@@ -1,6 +1,6 @@
-import type { SongResult, UnifiedSong } from '../../../types';
-import { OnlineProviderError } from '../../../types/onlineMusic';
-import type { ProviderCollection, ProviderPage } from '../../../types/onlineMusic';
+import type { SongResult, UnifiedSong } from '../../../src/types';
+import { OnlineProviderError } from '../../../src/types/onlineMusic';
+import type { ProviderCollection, ProviderPage } from '../../../src/types/onlineMusic';
 import { normalizeAppleMusicSong } from './appleMusicNormalize';
 import { requestAppleMusic } from './appleMusicTransport';
 

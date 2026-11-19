@@ -6,7 +6,7 @@ Folia 通过私有 stdin/stdout 管道请求搜索、资料库、歌词与播放
 ## macOS 14+
 
 ```sh
-sh electron/appleMusic/macos/buildCompanion.sh
+sh sources/appleMusic/native/macos/buildCompanion.sh
 npm run dev:electron
 ```
 
@@ -15,7 +15,7 @@ npm run dev:electron
 指定绝对可执行文件路径。未编译时返回运行时不可用，不回退到其他浏览器。
 
 正式打包的 `beforePack` 按目标架构编译独立宿主，复制到 Resources/apple-music；`afterPack` 检查文件完整性。
-支持 x64/arm64 分开构建，不复用当前机器架构的产物。`nativePaths.cjs` 在安装包中只解析 Resources 路径，
+支持 x64/arm64 分开构建，不复用当前机器架构的产物。宿主的 `electron/modSystem/nativeFiles.cjs` 在安装包中只解析 Resources 路径，
 忽略开发环境覆盖。宿主默认隐藏、无 Dock 图标；仅登录时显示，登录结束后隐藏全部所属窗口。
 
 真实 macOS 开发版已验证登录、隐藏播放、会话恢复、暂停/跳转/切歌与歌词结构，用户确认 Folia 播放与切歌正常。
@@ -33,7 +33,7 @@ Linux 入口显示「Linux 暂未支援」，不保留备用浏览器运行时�
 ## 模块
 
 - `companionClient.cjs`：请求关联、超时和启动/退出；只启动原生宿主。
-- `nativePaths.cjs`：开发输出、正式资源与平台启用策略。
+- `electron/modSystem/nativeFiles.cjs`（宿主）：开发输出、正式资源与平台启用策略。
 - `nativeSpawn.cjs`：私有管道适配、文档代数、退出登录清理与超时换页恢复。
 - `macos/`、`windows/`：各自系统 WebView、导航白名单和登录窗口管理。
 - `companionRequests.cjs`：操作白名单、参数验证、串行调度与注入页面的受限读取函数。音量（`setVolume`，0–1 线性）也在这里写进页面的 MusicKit，和播放命令同一条串行链。

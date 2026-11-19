@@ -5,8 +5,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 // Native transport tests exercise the shared request dispatcher without WebKit or credentials.
 const require = createRequire(import.meta.url);
-const { createNativeSpawn } = require('../../../electron/appleMusic/nativeSpawn.cjs');
-const { createCompanionClient } = require('../../../electron/appleMusic/companionClient.cjs');
+const { createNativeSpawn } = require('../../../sources/appleMusic/main/nativeSpawn.cjs');
+const { createCompanionClient } = require('../../../sources/appleMusic/main/companionClient.cjs');
 
 function fixture(
     evaluate: (expression: string) => unknown = () => ({ ok: true, data: { items: [] } }),

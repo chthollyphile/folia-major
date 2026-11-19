@@ -1,12 +1,12 @@
 import { createRequire } from 'node:module';
 import { runInNewContext } from 'node:vm';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createAppleMusicProvider } from '../../../src/services/onlineMusic/appleMusic/appleMusicProvider';
-import { getAppleMusicLiveStations, getAppleMusicLiveStationTracks } from '../../../src/services/onlineMusic/appleMusic/appleMusicRadio';
+import { createAppleMusicProvider } from '../../../sources/appleMusic/client/appleMusicProvider';
+import { getAppleMusicLiveStations, getAppleMusicLiveStationTracks } from '../../../sources/appleMusic/client/appleMusicRadio';
 
 // Exercise Apple's station requests through the serialized page boundary, plus provider live controls.
 const require = createRequire(import.meta.url);
-const { validateRequest, requestExpression } = require('../../../electron/appleMusic/companionRequests.cjs');
+const { validateRequest, requestExpression } = require('../../../sources/appleMusic/main/companionRequests.cjs');
 const station = { id: 'ra.123', type: 'stations', attributes: { name: 'Live station', isLive: true, playParams: { id: 'ra.123' } } };
 const song = (id: string) => ({ id, type: 'songs', attributes: { name: id, playParams: { id }, durationInMillis: 100000 } });
 afterEach(() => vi.unstubAllGlobals());

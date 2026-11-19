@@ -9487,12 +9487,12 @@
       "count": 3
     }
   },
-  "src/services/onlineMusic/appleMusic/appleMusicData.ts": {
+  "sources/appleMusic/client/appleMusicData.ts": {
     "@typescript-eslint/no-unnecessary-condition": {
       "count": 3
     }
   },
-  "src/services/onlineMusic/appleMusic/appleMusicProvider.ts": {
+  "sources/appleMusic/client/appleMusicProvider.ts": {
     "@typescript-eslint/consistent-type-imports": {
       "count": 7
     },
@@ -9503,7 +9503,7 @@
       "count": 1
     }
   },
-  "src/services/onlineMusic/appleMusic/appleMusicRadio.ts": {
+  "sources/appleMusic/client/appleMusicRadio.ts": {
     "@typescript-eslint/no-unnecessary-condition": {
       "count": 2
     }

@@ -3,7 +3,7 @@ set -eu
 
 # Compile the system-WebKit host without downloading a browser runtime.
 native_source_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-native_repo_root=$(CDPATH= cd -- "$native_source_dir/../../.." && pwd)
+native_repo_root=$(CDPATH= cd -- "$native_source_dir/../../../.." && pwd)
 native_bundle=${1:-"$native_repo_root/build/apple-music-native/FoliaAppleMusicCompanion.app"}
 native_bundle_id=${2:-org.folia.AppleMusicCompanion}
 native_arch=${3:-$(uname -m)}

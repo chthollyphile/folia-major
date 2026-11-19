@@ -1,12 +1,12 @@
 import { createRequire } from 'node:module';
 import { runInNewContext } from 'node:vm';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createAppleMusicProvider } from '../../../src/services/onlineMusic/appleMusic/appleMusicProvider';
+import { createAppleMusicProvider } from '../../../sources/appleMusic/client/appleMusicProvider';
 afterEach(() => vi.unstubAllGlobals());
-import { normalizeAppleMusicCatalogCollection, normalizeAppleMusicLibraryAlbum, normalizeAppleMusicSong } from '../../../src/services/onlineMusic/appleMusic/appleMusicNormalize';
+import { normalizeAppleMusicCatalogCollection, normalizeAppleMusicLibraryAlbum, normalizeAppleMusicSong } from '../../../sources/appleMusic/client/appleMusicNormalize';
 
 // Song relationships and fixed catalog endpoints connect Folia's navigation to Apple IDs.
-const { validateRequest, requestExpression } = createRequire(import.meta.url)('../../../electron/appleMusic/companionRequests.cjs');
+const { validateRequest, requestExpression } = createRequire(import.meta.url)('../../../sources/appleMusic/main/companionRequests.cjs');
 describe('Apple Music catalog navigation', () => {
     it('preserves catalog album and artist references', () => {
         const song = normalizeAppleMusicSong({ id: '123', type: 'songs', attributes: { name: 'Song', albumName: 'Album', artistName: 'Artist',

@@ -72,8 +72,8 @@ const {
 const { createKugouApiBridge } = require('./kugou/kugouApiBridge.cjs');
 const { createExternalUrlOpener } = require('./externalUrlPolicy.cjs');
 const { createSenderGuardedHandler } = require('./ipcAccessGuard.cjs');
-const { createCompanionClient } = require('./appleMusic/companionClient.cjs');
-const { createCompanionRequestHandler } = require('./appleMusic/companionIpc.cjs');
+const { createCompanionClient } = require('../sources/appleMusic/main/companionClient.cjs');
+const { createCompanionRequestHandler } = require('../sources/appleMusic/main/companionIpc.cjs');
 const { createSpotifyApiBridge } = require('./spotify/spotifyApiBridge.cjs');
 const { SPOTIFY_AUDIO_PRIVILEGED_SCHEME, SPOTIFY_AUDIO_SCHEME } = require('./spotify/audio.cjs');
 const { createQqAuthSessionRepository } = require('./qq/qqAuthSessionRepository.cjs');
@@ -382,7 +382,7 @@ process.on('exit', () => hifiSession.killSync());
 // The bridge refuses Linux's plaintext `basic_text` fallback and degrades to an in-memory session.
 const kugouApiBridge = createKugouApiBridge({ store, safeStorage });
 // Development and packaged builds both use the system-WebView host; no alternate browser runtime.
-const { resolveNativeExecutable } = require('./appleMusic/nativePaths.cjs');
+const { resolveNativeExecutable } = require('./modSystem/nativeFiles.cjs');
 const appleMusicClient = createCompanionClient({
   nativeExecutablePath: resolveNativeExecutable({
     platform: process.platform, isPackaged: app.isPackaged, resourcesPath: process.resourcesPath,

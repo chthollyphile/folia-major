@@ -29,12 +29,12 @@ exports.default = async (context) => {
   if (hasSteamAudioFor(context.electronPlatformName, arch)) await prepareSteamAudio();
   else console.log(`[steam-audio] no library for ${context.electronPlatformName}-${arch}, skipped`);
   if (context.electronPlatformName === 'win32') {
-    // The Apple Music WebView2 host (electron/appleMusic/windows), compiled with MSBuild.
-    const { prepareWindowsCompanion } = require('../electron/appleMusic/windows/prepareBundle.cjs');
+    // The Apple Music WebView2 host (sources/appleMusic/native/windows), compiled with MSBuild.
+    const { prepareWindowsCompanion } = require('../sources/appleMusic/native/windows/prepareBundle.cjs');
     prepareWindowsCompanion({ arch, projectRoot: context.packager.projectDir });
   }
   if (context.electronPlatformName === 'darwin') {
-    const { prepareMacCompanion } = require('../electron/appleMusic/macos/prepareBundle.cjs');
+    const { prepareMacCompanion } = require('../sources/appleMusic/native/macos/prepareBundle.cjs');
     prepareMacCompanion({ arch, projectRoot: context.packager.projectDir });
     const { prepareBundledKoffi } = await import('../packaging/macos/prepare-koffi.mjs');
     await prepareBundledKoffi({ arch, projectRoot: context.packager.projectDir });

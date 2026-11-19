@@ -8,7 +8,7 @@ function prepareMacCompanion({ arch, projectRoot, run = execFileSync }) {
     const target = { x64: 'x86_64', arm64: 'arm64' }[arch];
     if (!target) throw new Error(`Unsupported Apple Music companion architecture: ${arch}`);
     const bundle = path.join(projectRoot, 'build/apple-music-native/darwin-' + arch, 'FoliaAppleMusicCompanion.app');
-    run('sh', [path.join(projectRoot, 'electron/appleMusic/macos/buildCompanion.sh'), bundle, 'org.folia.AppleMusicCompanion', target], { stdio: 'inherit' });
+    run('sh', [path.join(projectRoot, 'sources/appleMusic/native/macos/buildCompanion.sh'), bundle, 'org.folia.AppleMusicCompanion', target], { stdio: 'inherit' });
     return bundle;
 }
 

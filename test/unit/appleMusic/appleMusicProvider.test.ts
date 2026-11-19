@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createAppleMusicProvider } from '../../../src/services/onlineMusic/appleMusic/appleMusicProvider';
-import { normalizeAppleMusicSong } from '../../../src/services/onlineMusic/appleMusic/appleMusicNormalize';
+import { createAppleMusicProvider } from '../../../sources/appleMusic/client/appleMusicProvider';
+import { normalizeAppleMusicSong } from '../../../sources/appleMusic/client/appleMusicNormalize';
 import { getOnlineMusicProvider } from '../../../src/services/onlineMusic/providerRegistry';
 
 // A login session must not accept a late account response after cancellation.

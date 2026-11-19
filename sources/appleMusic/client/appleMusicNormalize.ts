@@ -1,6 +1,6 @@
-import type { UnifiedSong } from '../../../types';
-import { OnlineProviderError } from '../../../types/onlineMusic';
-import type { JsonValue, ProviderCollection, ProviderUser } from '../../../types/onlineMusic';
+import type { UnifiedSong } from '../../../src/types';
+import { OnlineProviderError } from '../../../src/types/onlineMusic';
+import type { JsonValue, ProviderCollection, ProviderUser } from '../../../src/types/onlineMusic';
 
 // Convert Apple Music catalog and library resources into Folia's provider-aware types.
 const PROVIDER_ID = 'appleMusic';

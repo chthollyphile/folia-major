@@ -1,13 +1,13 @@
 import { createRequire } from 'node:module';
 import { runInNewContext } from 'node:vm';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { canAddToAppleMusicPlaylist, updateAppleMusicPlaylistTracks } from '../../../src/services/onlineMusic/appleMusic/appleMusicData';
-import { normalizeAppleMusicPlaylist, normalizeAppleMusicSong } from '../../../src/services/onlineMusic/appleMusic/appleMusicNormalize';
-import { createAppleMusicProvider } from '../../../src/services/onlineMusic/appleMusic/appleMusicProvider';
+import { canAddToAppleMusicPlaylist, updateAppleMusicPlaylistTracks } from '../../../sources/appleMusic/client/appleMusicData';
+import { normalizeAppleMusicPlaylist, normalizeAppleMusicSong } from '../../../sources/appleMusic/client/appleMusicNormalize';
+import { createAppleMusicProvider } from '../../../sources/appleMusic/client/appleMusicProvider';
 
 // Appending uses validated catalog IDs and fresh server permissions; no personal playlists are changed.
 const require = createRequire(import.meta.url);
-const { validateRequest, requestExpression, createRequestDispatcher } = require('../../../electron/appleMusic/companionRequests.cjs');
+const { validateRequest, requestExpression, createRequestDispatcher } = require('../../../sources/appleMusic/main/companionRequests.cjs');
 const playlist = (attributes: Record<string, unknown> = {}) => normalizeAppleMusicPlaylist({
     id: 'p.owned', type: 'library-playlists', attributes: { canEdit: true, ...attributes },
 });

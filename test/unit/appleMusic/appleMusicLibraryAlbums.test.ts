@@ -1,11 +1,11 @@
 import { createRequire } from 'node:module';
 import { runInNewContext } from 'node:vm';
 import { describe, expect, it, vi } from 'vitest';
-import { normalizeAppleMusicLibraryAlbum } from '../../../src/services/onlineMusic/appleMusic/appleMusicNormalize';
-import { createAppleMusicProvider } from '../../../src/services/onlineMusic/appleMusic/appleMusicProvider';
+import { normalizeAppleMusicLibraryAlbum } from '../../../sources/appleMusic/client/appleMusicNormalize';
+import { createAppleMusicProvider } from '../../../sources/appleMusic/client/appleMusicProvider';
 
 // Library album identifiers must remain library identities through the private page bridge.
-const { validateRequest, requestExpression } = createRequire(import.meta.url)('../../../electron/appleMusic/companionRequests.cjs');
+const { validateRequest, requestExpression } = createRequire(import.meta.url)('../../../sources/appleMusic/main/companionRequests.cjs');
 describe('Apple Music library albums', () => {
     it('normalizes the library identity and enables the library album capability', () => {
         expect(normalizeAppleMusicLibraryAlbum({ id: 'l.example', type: 'library-albums', attributes: { name: 'Album', trackCount: 8 } }))

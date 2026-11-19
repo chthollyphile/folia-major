@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 // Exercise the inherited-channel allowlist and the exact code evaluated in the isolated page.
 const require = createRequire(import.meta.url);
-const { validateRequest, requestExpression, createRequestDispatcher } = require('../../../electron/appleMusic/companionRequests.cjs');
+const { validateRequest, requestExpression, createRequestDispatcher } = require('../../../sources/appleMusic/main/companionRequests.cjs');
 
 describe('Apple Music companion requests', () => {
     it('does not time out an already sounding player with an unresolved play promise', async () => {

@@ -4,9 +4,9 @@ import { describe, expect, it, vi } from 'vitest';
 
 // Verify release path isolation and per-target native compilation without running a full package build.
 const require = createRequire(import.meta.url);
-const { resolveNativeExecutable } = require('../../../electron/appleMusic/nativePaths.cjs');
-const { prepareMacCompanion, verifyMacCompanion } = require('../../../electron/appleMusic/macos/prepareBundle.cjs');
-const { WINDOWS_COMPANION_FILES, prepareWindowsCompanion, verifyWindowsCompanion } = require('../../../electron/appleMusic/windows/prepareBundle.cjs');
+const { resolveNativeExecutable } = require('../../../electron/modSystem/nativeFiles.cjs');
+const { prepareMacCompanion, verifyMacCompanion } = require('../../../sources/appleMusic/native/macos/prepareBundle.cjs');
+const { WINDOWS_COMPANION_FILES, prepareWindowsCompanion, verifyWindowsCompanion } = require('../../../sources/appleMusic/native/windows/prepareBundle.cjs');
 const root = path.resolve('/project');
 const resources = path.resolve('/installed/Resources');
 const base = { platform: 'darwin', isPackaged: false, projectRoot: root, resourcesPath: resources };
@@ -30,7 +30,7 @@ describe('Apple Music native delivery', () => {
     it('compiles the Windows host for x64 only and fails when packaged files are missing', async () => {
         const run = vi.fn();
         expect(prepareWindowsCompanion({ arch: 'x64', projectRoot: root, run })).toBe(path.join(root, 'build/apple-music-native/windows'));
-        expect(run).toHaveBeenCalledWith('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(root, 'electron/appleMusic/windows/buildCompanion.ps1')], { stdio: 'inherit' });
+        expect(run).toHaveBeenCalledWith('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(root, 'sources/appleMusic/native/windows/buildCompanion.ps1')], { stdio: 'inherit' });
         run.mockClear();
         expect(() => prepareWindowsCompanion({ arch: 'arm64', projectRoot: root, run })).toThrow('Unsupported');
         expect(run).not.toHaveBeenCalled();
@@ -40,7 +40,7 @@ describe('Apple Music native delivery', () => {
         const run = vi.fn();
         const bundle = prepareMacCompanion({ arch, projectRoot: root, run });
         expect(bundle).toBe(path.join(root, `build/apple-music-native/darwin-${arch}/FoliaAppleMusicCompanion.app`));
-        expect(run).toHaveBeenCalledWith('sh', [path.join(root, 'electron/appleMusic/macos/buildCompanion.sh'), bundle, 'org.folia.AppleMusicCompanion', target], { stdio: 'inherit' });
+        expect(run).toHaveBeenCalledWith('sh', [path.join(root, 'sources/appleMusic/native/macos/buildCompanion.sh'), bundle, 'org.folia.AppleMusicCompanion', target], { stdio: 'inherit' });
     });
     it('fails unsupported architectures and missing packaged resources', async () => {
         const run = vi.fn();

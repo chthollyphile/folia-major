@@ -6,7 +6,7 @@ import { neteaseProvider } from './netease/neteaseProvider';
 import { kugouProvider } from './kugou/kugouProvider';
 import { qqProvider } from './qq/qqProvider';
 import { spotifyProvider } from './spotify/spotifyProvider';
-import { appleMusicProvider } from './appleMusic/appleMusicProvider';
+import { appleMusicProvider } from '../../../sources/appleMusic/client/appleMusicProvider';
 import { startsWithoutSources } from '../../dev/devLaunchFlags';
 
 // src/services/onlineMusic/providerRegistry.ts

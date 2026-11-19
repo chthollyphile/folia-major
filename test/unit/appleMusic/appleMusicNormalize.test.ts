@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeAppleMusicPlaylist, normalizeAppleMusicSong, normalizeAppleMusicUser } from '../../../src/services/onlineMusic/appleMusic/appleMusicNormalize';
+import { normalizeAppleMusicPlaylist, normalizeAppleMusicSong, normalizeAppleMusicUser } from '../../../sources/appleMusic/client/appleMusicNormalize';
 
 // Check catalog and library identities using synthetic versions of observed response shapes.
 describe('Apple Music resource normalization', () => {

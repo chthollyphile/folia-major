@@ -1,10 +1,10 @@
-import type { SongResult } from '../../../types';
+import type { SongResult } from '../../../src/types';
 import type {
     OnlineMusicProvider, ProviderArtistSummary, ProviderAvailability, ProviderCollection, ProviderExternalPlaybackStatus, ProviderLyricsResult, ProviderUser,
-} from '../../../types/onlineMusic';
-import { OnlineProviderError } from '../../../types/onlineMusic';
-import { parseLyricsByFormat } from '../../../utils/lyrics/parserCore';
-import { hasRenderableLyrics } from '../../../utils/lyrics/validity';
+} from '../../../src/types/onlineMusic';
+import { OnlineProviderError } from '../../../src/types/onlineMusic';
+import { parseLyricsByFormat } from '../../../src/utils/lyrics/parserCore';
+import { hasRenderableLyrics } from '../../../src/utils/lyrics/validity';
 import {
     APPLE_MUSIC_LIBRARY_PLAYLIST_ID, getAppleMusicCatalogPage, getAppleMusicLibraryAlbums, getAppleMusicLibrarySongs, getAppleMusicLibraryAlbumTracks, getAppleMusicPersonalFm, canAddToAppleMusicPlaylist, updateAppleMusicPlaylistTracks, appleMusicSongLikeId, getAppleMusicLikedSongIds, setAppleMusicSongLiked, appleMusicCatalogSongId, appleMusicPlaybackSongId, isAppleMusicLibraryPlaybackId, isAppleMusicSongPlayable, getAppleMusicPlaylists, getAppleMusicPlaylistTracks, getAppleMusicTtml, searchAppleMusic,
 } from './appleMusicData';
@@ -214,7 +214,7 @@ export function createAppleMusicProvider(getAvailability: () => ProviderAvailabi
             },
             getAlbumTracks: async (id, limit = 100, offset = 0) => String(id).startsWith('l.')
                 ? getAppleMusicLibraryAlbumTracks(String(id), limit, offset)
-                : await getAppleMusicCatalogPage('catalogAlbumTracks', String(id), limit, offset) as import('../../../types/onlineMusic').ProviderPage<import('../../../types').UnifiedSong>,
+                : await getAppleMusicCatalogPage('catalogAlbumTracks', String(id), limit, offset) as import('../../../src/types/onlineMusic').ProviderPage<import('../../../src/types').UnifiedSong>,
             getAlbumDetail: async (id, collection) => {
                 if (String(id).startsWith('l.')) return collection ?? null;
                 const detail = (await getAppleMusicCatalogPage('catalogAlbum', String(id), 1, 0)).items[0] as ProviderCollection | undefined;
@@ -229,9 +229,9 @@ export function createAppleMusicProvider(getAvailability: () => ProviderAvailabi
                     return detail;
                 }
             },
-            getArtistDetail: async id => (await getAppleMusicCatalogPage('catalogArtist', String(id), 1, 0)).items[0] as import('../../../types/onlineMusic').ProviderCollection | undefined ?? null,
-            getArtistSongs: async (id, limit, offset) => await getAppleMusicCatalogPage('catalogArtistSongs', String(id), limit, offset) as import('../../../types/onlineMusic').ProviderPage<import('../../../types').UnifiedSong>,
-            getArtistAlbums: async (id, limit, offset) => await getAppleMusicCatalogPage('catalogArtistAlbums', String(id), limit, offset) as import('../../../types/onlineMusic').ProviderPage<import('../../../types/onlineMusic').ProviderCollection>,
+            getArtistDetail: async id => (await getAppleMusicCatalogPage('catalogArtist', String(id), 1, 0)).items[0] as import('../../../src/types/onlineMusic').ProviderCollection | undefined ?? null,
+            getArtistSongs: async (id, limit, offset) => await getAppleMusicCatalogPage('catalogArtistSongs', String(id), limit, offset) as import('../../../src/types/onlineMusic').ProviderPage<import('../../../src/types').UnifiedSong>,
+            getArtistAlbums: async (id, limit, offset) => await getAppleMusicCatalogPage('catalogArtistAlbums', String(id), limit, offset) as import('../../../src/types/onlineMusic').ProviderPage<import('../../../src/types/onlineMusic').ProviderCollection>,
             getPlaylistTracks: (id, limit, offset) => id === APPLE_MUSIC_LIBRARY_PLAYLIST_ID
                 ? getAppleMusicLibrarySongs(limit, offset)
                 : String(id).startsWith('ra.')

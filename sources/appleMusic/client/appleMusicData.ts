@@ -1,7 +1,7 @@
-import type { SongResult, UnifiedSong } from '../../../types';
-import i18n from '../../../i18n/config';
-import { OnlineProviderError } from '../../../types/onlineMusic';
-import type { ProviderCollection, ProviderLikedSongIds, ProviderPage } from '../../../types/onlineMusic';
+import type { SongResult, UnifiedSong } from '../../../src/types';
+import i18n from '../../../src/i18n/config';
+import { OnlineProviderError } from '../../../src/types/onlineMusic';
+import type { ProviderCollection, ProviderLikedSongIds, ProviderPage } from '../../../src/types/onlineMusic';
 import { normalizeAppleMusicCatalogCollection, normalizeAppleMusicLibraryAlbum, normalizeAppleMusicPlaylist, normalizeAppleMusicSong } from './appleMusicNormalize';
 import { requestAppleMusic } from './appleMusicTransport';
 import type { AppleMusicOperation, AppleMusicParams } from './appleMusicTransport';

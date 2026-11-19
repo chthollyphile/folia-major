@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createRequire } from 'node:module';
 import { runInNewContext } from 'node:vm';
-import { getAppleMusicLyricSearchAlias } from '../../../src/services/onlineMusic/appleMusic/appleMusicOriginal';
-import { normalizeAppleMusicSong } from '../../../src/services/onlineMusic/appleMusic/appleMusicNormalize';
+import { getAppleMusicLyricSearchAlias } from '../../../sources/appleMusic/client/appleMusicOriginal';
+import { normalizeAppleMusicSong } from '../../../sources/appleMusic/client/appleMusicNormalize';
 
 // Exercise the bounded cross-storefront bridge and cache without using personal account data.
-const { validateRequest, requestExpression } = createRequire(import.meta.url)('../../../electron/appleMusic/companionRequests.cjs');
+const { validateRequest, requestExpression } = createRequire(import.meta.url)('../../../sources/appleMusic/main/companionRequests.cjs');
 afterEach(() => vi.unstubAllGlobals());
 describe('Apple Music original metadata', () => {
     it('uses a library song catalog identity and returns a paired title and artist', async () => {

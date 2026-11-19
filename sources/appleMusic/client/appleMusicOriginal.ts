@@ -1,5 +1,5 @@
-import type { SongResult } from '../../../types';
-import type { ProviderLyricSearchAlias } from '../../../types/onlineMusic';
+import type { SongResult } from '../../../src/types';
+import type { ProviderLyricSearchAlias } from '../../../src/types/onlineMusic';
 import { appleMusicCatalogSongId } from './appleMusicData';
 import { requestAppleMusic } from './appleMusicTransport';
 

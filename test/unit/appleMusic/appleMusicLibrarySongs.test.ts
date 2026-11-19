@@ -2,11 +2,11 @@ import { createRequire } from 'node:module';
 import { runInNewContext } from 'node:vm';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import i18n from '../../../src/i18n/config';
-import { createAppleMusicProvider } from '../../../src/services/onlineMusic/appleMusic/appleMusicProvider';
-import { canAddToAppleMusicPlaylist, getAppleMusicPlaylists } from '../../../src/services/onlineMusic/appleMusic/appleMusicData';
+import { createAppleMusicProvider } from '../../../sources/appleMusic/client/appleMusicProvider';
+import { canAddToAppleMusicPlaylist, getAppleMusicPlaylists } from '../../../sources/appleMusic/client/appleMusicData';
 
 // Exercise the virtual library playlist through the transport and the companion's actual page expression.
-const { validateRequest, requestExpression } = createRequire(import.meta.url)('../../../electron/appleMusic/companionRequests.cjs');
+const { validateRequest, requestExpression } = createRequire(import.meta.url)('../../../sources/appleMusic/main/companionRequests.cjs');
 const LIBRARY_ID = 'library-songs';
 const provider = () => createAppleMusicProvider(() => ({ configured: true }));
 const rawSong = (id: string, catalogId?: string) => ({
