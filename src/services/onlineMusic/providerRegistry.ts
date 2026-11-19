@@ -8,7 +8,6 @@ import { qqProvider } from './qq/qqProvider';
 import { ytmProvider } from './ytm/ytmProvider';
 import { spotifyProvider } from './spotify/spotifyProvider';
 import { appleMusicProvider } from './appleMusic/appleMusicProvider';
-import { fnmusicProvider } from '../../../sources/fnmusic/client/fnmusicProvider';
 import { startsWithoutSources } from '../../dev/devLaunchFlags';
 
 // src/services/onlineMusic/providerRegistry.ts
@@ -167,5 +166,4 @@ if (!startsWithoutSources) {
     registerOnlineMusicProvider(ytmProvider);
     registerOnlineMusicProvider(spotifyProvider);
     registerOnlineMusicProvider(appleMusicProvider);
-    registerOnlineMusicProvider(fnmusicProvider);
 }

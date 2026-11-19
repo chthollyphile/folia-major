@@ -2038,8 +2038,6 @@ export default {
     "loginTitleKugou": "Quét bằng ứng dụng KuGou",
     "loginNoteKugou": "Mở KuGou Music và quét mã QR này",
     "loginTitleQq": "Quét mã đăng nhập QQ Music",
-    "loginTitleFnMusic": "Đăng nhập fnOS Music",
-    "loginNoteFnMusic": "Nhập địa chỉ máy chủ và tài khoản fnOS Music để phát nhạc từ NAS của bạn",
     "loginTitleYtm": "Đăng nhập YouTube Music",
     "loginTitleAppleMusic": "Đăng nhập Apple Music",
     "loginNoteAppleMusic": "Đăng nhập trong cửa sổ Apple. Mật khẩu của bạn chỉ được gửi cho Apple.",
@@ -2350,7 +2348,6 @@ export default {
     "qq": "QQ Music",
     "ytm": "YT Music",
     "spotify": "Spotify",
-    "fnmusic": "fnOS",
   },
   "globalLyricOffset": {
     "title": "Độ lệch thời gian toàn cục",
@@ -5211,19 +5208,6 @@ export default {
     "cloudDrive": "Ổ đĩa đám mây",
     "cloudDriveDesc": "Ổ đĩa NetEase Cloud Music",
     "qqCloudDriveDesc": "Ổ nhạc đám mây Weiyun",
-  },
-  "fnmusic": {
-    "serverUrl": "Địa chỉ máy chủ",
-    "serverUrlPlaceholder": "vd: http://192.168.1.10:5666 hoặc FN ID thuần (vd: mynas)",
-    "username": "Tài khoản",
-    "usernamePlaceholder": "Tài khoản fnOS Music hoặc tài khoản NAS",
-    "password": "Mật khẩu",
-    "login": "Đăng nhập",
-    "loginNote": "Nhập địa chỉ máy chủ fnOS Music (địa chỉ LAN hoặc FN ID thuần), tài khoản và mật khẩu",
-    "errorBadCredentials": "Sai tài khoản hoặc mật khẩu",
-    "errorNetwork": "Không thể kết nối máy chủ. Kiểm tra địa chỉ và kết nối của bạn.",
-    "errorBadResponse": "Máy chủ trả về phản hồi không nhận dạng được",
-    "errorBadServerUrl": "Địa chỉ máy chủ không hợp lệ, ví dụ: http://192.168.1.10:5666"
   },
   "hifi": {
     "settings": {

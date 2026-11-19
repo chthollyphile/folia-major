@@ -24,7 +24,7 @@ const path = require('path');
  * holds them to the constants those modules use today.
  *
  * `legacyMediaSchemes` (only where a row has it): a privileged scheme the built-in platform served its media under
- * before it became a mod (`folia-fnmusic://cover?coverId=…`). Songs saved then (history, queues, playlists, the
+ * before it became a mod (`folia-<platform>://cover?coverId=…`). Songs saved then (history, queues, playlists, the
  * scratchpad) keep those addresses, so the host goes on answering the scheme: `<scheme>://<name>?<query>` (or
  * `<scheme>:///<name>/…`) reaches the mod's `api.media.serve(name)` route as folia-mod://<mod id>/_media/<name>/…
  * would, while the mod runs. New addresses are folia-mod:// ones; a scheme is never added for a new source.
@@ -93,7 +93,7 @@ const BUILTIN_SOURCE_TABLE = Object.freeze({
         partitions: [],
         userDataDirs: [],
         native: [],
-        // Saved songs' covers: folia-fnmusic://cover?coverId=…&size=… (and stream?guid=…), main.cjs's own scheme before.
+        // Saved songs' covers and streams (cover?coverId=…&size=…, stream?guid=…): main.cjs's own scheme before.
         legacyMediaSchemes: ['folia-fnmusic'],
     }),
 });

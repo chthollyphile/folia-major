@@ -1008,10 +1008,6 @@ declare global {
       restartNeteaseApi: (reason?: 'needed') => Promise<ElectronNeteaseApiStatus>;
       onNeteaseApiStatusChanged: (callback: (status: ElectronNeteaseApiStatus) => void) => () => void;
       getKugouApiStatus: () => Promise<ElectronKugouApiStatus>;
-      fnmusicRequest: (
-        operation: 'login' | 'logout' | 'request' | 'stream' | 'coverUrl' | 'getStatus',
-        params?: import('../sources/fnmusic/client/fnmusicTransport').FnMusicBridgeParams,
-      ) => Promise<import('../sources/fnmusic/client/fnmusicTransport').FnMusicBridgeResult>;
       ytmRequest: (
         operation: import('./services/onlineMusic/ytm/ytmTransport').YtmOperation,
         params?: import('./services/onlineMusic/ytm/ytmTransport').YtmParams,

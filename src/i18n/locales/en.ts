@@ -2038,8 +2038,6 @@ export default {
     "loginTitleKugou": "Scan with KuGou Music",
     "loginNoteKugou": "Open KuGou Music and scan this QR code",
     "loginTitleQq": "Scan to sign in to QQ Music",
-    "loginTitleFnMusic": "Sign in to fnOS Music",
-    "loginNoteFnMusic": "Enter your fnOS Music server address and account to play your NAS music library",
     "loginTitleYtm": "Sign in to YouTube Music",
     "loginTitleAppleMusic": "Sign in to Apple Music",
     "loginNoteAppleMusic": "Sign in using the Apple window. Your password stays with Apple.",
@@ -2350,7 +2348,6 @@ export default {
     "qq": "QQ Music",
     "ytm": "YT Music",
     "spotify": "Spotify",
-    "fnmusic": "fnOS",
   },
   "globalLyricOffset": {
     "title": "Global Timing Offset",
@@ -5211,19 +5208,6 @@ export default {
     "cloudDrive": "Cloud Drive",
     "cloudDriveDesc": "NetEase Cloud Music Drive",
     "qqCloudDriveDesc": "Weiyun Music Drive",
-  },
-  "fnmusic": {
-    "serverUrl": "Server address",
-    "serverUrlPlaceholder": "e.g. http://192.168.1.10:5666 or a pure FN ID (e.g. mynas)",
-    "username": "Account",
-    "usernamePlaceholder": "fnOS Music account or NAS account",
-    "password": "Password",
-    "login": "Log in",
-    "loginNote": "Enter your fnOS Music server address (LAN address or pure FN ID), account and password",
-    "errorBadCredentials": "Account or password is wrong",
-    "errorNetwork": "Cannot reach the server. Check the address and your connection.",
-    "errorBadResponse": "The server returned an unexpected response",
-    "errorBadServerUrl": "The server address is not valid, e.g. http://192.168.1.10:5666"
   },
   "hifi": {
     "settings": {

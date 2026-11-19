@@ -2038,8 +2038,6 @@ export default {
     "loginTitleKugou": "使用酷狗音乐APP扫码",
     "loginNoteKugou": "打开酷狗音乐APP扫描二维码",
     "loginTitleQq": "扫码登录QQ音乐",
-    "loginTitleFnMusic": "登录飞牛音乐",
-    "loginNoteFnMusic": "填入你的飞牛音乐服务器地址与账号，畅听 NAS 私有音乐库",
     "loginTitleYtm": "登录 YouTube Music",
     "loginTitleAppleMusic": "登录 Apple Music",
     "loginNoteAppleMusic": "请在 Apple 窗口中登录，密码只会交给 Apple。",
@@ -2350,7 +2348,6 @@ export default {
     "qq": "QQ音乐",
     "ytm": "YT Music",
     "spotify": "Spotify",
-    "fnmusic": "飞牛",
   },
   "globalLyricOffset": {
     "title": "全局时间偏移",
@@ -5210,19 +5207,6 @@ export default {
     "cloudDrive": "云盘",
     "cloudDriveDesc": "网易云音乐云盘",
     "qqCloudDriveDesc": "微云音乐网盘",
-  },
-  "fnmusic": {
-    "serverUrl": "服务器地址",
-    "serverUrlPlaceholder": "例如: http://192.168.1.10:5666 或纯 FN ID（如 mynas）",
-    "username": "账号",
-    "usernamePlaceholder": "飞牛音乐账号或 NAS 账号",
-    "password": "密码",
-    "login": "登录",
-    "loginNote": "输入你的飞牛（fnOS）音乐服务器地址（局域网地址或纯 FN ID）与账号密码",
-    "errorBadCredentials": "账号或密码错误",
-    "errorNetwork": "无法连接服务器，请检查地址与网络",
-    "errorBadResponse": "服务器返回了无法识别的响应",
-    "errorBadServerUrl": "服务器地址无效，例如：http://192.168.1.10:5666"
   },
   "hifi": {
     "settings": {
