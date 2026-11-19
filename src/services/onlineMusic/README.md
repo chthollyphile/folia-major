@@ -19,8 +19,6 @@ UI / hooks / stores / app services
                  -> ytmTransport.ts（YouTube Music 的受限 IPC 边界，仅桌面端）
             -> spotifyProvider.ts
                  -> spotifyTransport.ts（Spotify 的受限 IPC 边界，仅桌面端）
-            -> qishuiProvider.ts
-                 -> qishuiTransport.ts（汽水车机协议的受限 IPC 边界，仅桌面端）
        -> account/（各平台账号共用的逻辑，只从 omni 进入）
        -> login/（登录失败的分类和请求时限，不认识任何平台）
        -> providerAccountCache.ts / providerStorage.ts
@@ -29,7 +27,7 @@ UI / hooks / stores / app services
 
 图里的 `<id>Provider.ts` 和 `<id>Transport.ts` 都在各平台自己的目录 `<id>/` 里（例如 `qq/qqProvider.ts`）。网易云没有单独的 transport，请求在 `netease/netease.ts`。
 
-当前 registry 注册 `netease`、`kugou`、`qq`，以及桌面端的 `bodian`、`ytm`（YouTube Music）、`spotify`、`qishui`（汽水音乐）和 `appleMusic`（Apple Music）。波点接入状态、接口与剩余验收见
+当前 registry 注册 `netease`、`kugou`、`qq`，以及桌面端的 `bodian`、`ytm`（YouTube Music）、`spotify` 和 `appleMusic`（Apple Music）。波点接入状态、接口与剩余验收见
 [`docs/bodian.md`](../../../docs/bodian.md)；支持喜欢与自建歌单歌曲增删，收藏写入尚未实现。Navidrome 是独立的 Subsonic 服务，入口是 `src/services/navidromeService.ts`，不属于 Omni provider。
 
 登录的分工：provider 把后端的回答翻成 `LoginState`。失败带着平台的原话（`message`）和事实（`failure`：码、原话、HTTP 状态、要等多久，或者直接点名的情况，比如 QQ 的登录设备超限 `device-limit`）；这一次检查在网络这一层没拿到回答、码在平台那边还有效时标 `transient`，登录接着检查。要码与生成二维码拿不到 key / 图片时直接抛错，不交出空值。情况怎么分在 `login/loginFailureCase.ts`，平台自己的码是什么意思由它的 `describeLoginFailure` 说。登录失败后由登录调用一次 `omni.runLoginSelfCheck` 主动自检（`loginSelfCheck.ts`），结果进诊断报告；`omni.getLoginDiagnostics` 的 provider 段每一行都由 `login/loginDiagnosticReport.ts` 的 `diagnosticLine` 写，放进去的文字先洗过：登录凭据、IP 和账号不进报告。
@@ -39,20 +37,6 @@ UI / hooks / stores / app services
 要地址、读集合没有成功时，失败分成有名字的情况（`failure/onlineFailureCase.ts`，不认识任何平台；平台自己的码是什么意思由它的 `describeFailure` 说），提示条按情况说发生了什么、该做什么，再引平台的原话（`failure/onlineFailureTexts.ts`）。要地址连不上时先自己再要两次（到了时限的请求只再要一次），并提示正在重试；平台要求稍后再试而说了等多久时，到点之前这个平台的地址点歌和预取都不再去要；没说多久、或平台的服务出了错（5xx）时只让预取先停 30 秒（`failure/onlineRequestCooldown.ts`）。播放时失败只按情况说，从不回写歌曲的可用性、预取或缓存。
 
 每个平台靠哪个库或哪个服务拿数据、版本钉在哪、上游变了怎么跟，见同目录 [`UPSTREAMS.md`](UPSTREAMS.md)。
-
-### 汽水音乐（桌面端）
-
-`qishui/qishuiProvider.ts` 接入车机协议的能力：抖音扫码授权、歌曲搜索、歌曲详情、逐字歌词、账号自建及收藏歌单、歌单翻页、歌手详情和热门歌曲、推荐流，以及场景电台。协议、请求签名、扫码、目录分页和推荐状态在独立的 [`qishui-music-api`](https://github.com/GSQZ/qishui-music-api) 包维护，Folia 钉死版本并注入 Electron `net.fetch`；桥注入时一律加上 `credentials: 'omit'`（`qishuiApiBridge.cjs`），否则 `net.fetch` 会带上 defaultSession 的 cookie，平台回的 `Set-Cookie` 也会写进 defaultSession，账号只靠包自己的请求头。`electron/qishui/` 只保留三个宿主文件：`qishuiApiBridge.cjs` 管 IPC 操作白名单和音频地址登记，`session.cjs` 用 safeStorage 保存用户主动在 Folia 授权的会话及设备标识，`mediaCors.cjs` 管媒体跨域。凭据不交给渲染进程；操作系统不能安全保存时，仅在本次运行内保留账号。
-
-电台卡片带各自的场景选择；模式面板经 `omni.getPersonalFmCatalog` 读取平台自己的场景目录。场景使用车机返回的数字 ID，不套用默认目录的场景 ID。各平台分别保存选择，原有私人 FM 存储键保持不变；切换模式后自动补歌沿用新模式。上游的小场景图标由 `qishuiSceneCover.ts` 组合成有留白的封面；图标读不到时这一次只用纯矢量的底图，不记下来，下一次再去读图标。图标按字节认出的类型标进 data URL（认不出时用答复声明的位图类型），不一律标成 PNG。
-
-播放仅使用服务直接返回的未加密地址，对外声明标准音质，试听地址保留试听标记。没有解密受保护音频、提取密钥、调用官方客户端原生签名模块的实现。0.2.0 增加喜欢/取消喜欢、自建普通歌单加删歌、推荐“不喜欢”、歌单页签里的只读“汽水最近播放”集合，以及搜索和详情的可播性检查。只有明确通过检查才标成可播，其余限制保持未知，不推断下架。“我喜欢”歌单走红心；收藏歌单和最近播放不可编辑。专辑详情、创建歌单及收藏写入没有接口，继续关闭。试听片段的起点由 Omni 交给歌词时钟，不写入手动歌词偏移。歌手曲目按车机首次返回的热门列表展示，不把其不前进的游标当成还有更多。
-
-探索页（`qishui/qishuiExplore.ts`）只有一栏“推荐”（id `stream`，每次读取相同），条目全是歌曲，用歌曲自己的方形封面；来源是包的 `feed` 操作的探索队列（车机的 `/feed/song-tab/`，和私人 FM 的队列分开），一次要 20 首。从头读的那一页声明 `refreshReadsAnew`：每次“换一批”从头重读；“更多”沿这一栏的游标接着要，一次读取最多 10 批。一次读取里同一首歌只出一次：各批之间和同一批里重复的歌都去掉，一批去掉后一首不剩、而平台说还有时再要，一次最多要 3 次。交过哪些歌记在 `exploreReads.ts` 的 `createHandedOut` 里（范围 `stream`），登录确认、退出登录和登录失效时整份丢掉。不用 `listened`，没有“与某首歌相似”的栏，也没有收听记录栏要去掉（这个队列只给歌）。未实测：推荐是否按账号生成、隔几秒连读两次内容是否相同、相邻两批会不会给出同样的歌、未登录能读到什么、登录过期时答什么、请求频率的限制。
-
-要地址、读集合没有成功时，情况由 `qishui/qishuiFailure.ts` 说：网页版没有桌面桥是 `not-configured`；桥本身抛错（主进程出错）是 `local-service-stopped`，不当成断网自动重试；只拿到加密音频是 `no-audio`（再要一次也一样，不给重试）；没有登录的账号时说“登录后才能播放”；`Qishui HTTP <状态>` 交出 HTTP 状态，平台的错误号交出码。按 id 查一首（`getSongDetail`）时平台答了却没给这首歌（包的 `not-playable`，“Qishui did not return the track”）回 null，omni 报 `missing`。登录诊断只记登录操作（`login_*`）的失败，登录窗口开着时后台的歌词、电台请求失败不进报告。
-
-本地 macOS Electron 开发版已验证扫码登录、登录态恢复、歌单读取、搜索、歌词、未加密音频地址及场景电台，界面经用户实际测试。0.2.0 接入后再次启动桌面版，确认加载新版包、恢复登录、读取喜欢列表并打开最近播放；用户完成本地测试后反馈未发现问题。自动回归覆盖红心、歌单增删、最近播放分页、可播性检查和试听歌词时钟，HTTP 答复使用替身。Windows、Linux 和完整安装包尚未实测，不代表上游接口始终可用。
 
 ### Apple Music（桌面端，companion）
 
@@ -134,9 +118,9 @@ Apple Music 的推荐能力已接入个人 FM（Apple personal station 持续补
 - 登录要靠的本地服务：`auth.localService`，登录窗口会显示它的错误和重启按钮。
 - 多种登录方式和图标：`auth.getLoginMethods` 回 `iconKey`，图标放 `src/assets/providers/<iconKey>.svg`。
 - 平台在界面上的名字：`shortNameKey` 是名字的 i18n key（`onlineProviderName.<id>`），界面用 `providerDisplayName` 翻译；没有就显示 `shortName`。
-- 跨源歌词匹配的来源：`src/utils/lyrics/lyricSources.ts` 是登记表（Folium 2.0 S1）。现在由同文件的 `BUILT_IN_ENTRIES` 加一行（S3 起由音源自己 `registerLyricSource`），语言文件加 `lyricProvider.foo`。`platform: true` 的来源经它的 provider 去搜；取法和 provider 不同的（自己的歌词服务、按 id 就能取、认歌用的 id 不是歌曲 id、副歌借给别人）在平台目录里写一个 `<id>LyricSource.ts`，用 `registerLyricSourceAccess` 登记，provider 加载时调用（网易云、QQ、酷狗、汽水这样做；id 超出 number 精度的按字符串回，不转成数）。只在桌面端可用的平台（provider 的 `getAvailability` 在网页版回 `configured: false`）在条目里还要设 `needsConfiguredProvider: true`（汽水这样设）。哪个来源此刻参加匹配由 `crossSource.ts` 统一判断（没注册、没配好、要账号没登录的都跳过）。
+- 跨源歌词匹配的来源：`src/utils/lyrics/lyricSources.ts` 是登记表（Folium 2.0 S1）。现在由同文件的 `BUILT_IN_ENTRIES` 加一行（S3 起由音源自己 `registerLyricSource`），语言文件加 `lyricProvider.foo`。`platform: true` 的来源经它的 provider 去搜；取法和 provider 不同的（自己的歌词服务、按 id 就能取、认歌用的 id 不是歌曲 id、副歌借给别人）在平台目录里写一个 `<id>LyricSource.ts`，用 `registerLyricSourceAccess` 登记，provider 加载时调用（网易云、QQ、酷狗这样做；id 超出 number 精度的按字符串回，不转成数。迁成模组的音源用 `lyrics@1.songIdOf`，汽水这样做）。只在桌面端可用的平台（provider 的 `getAvailability` 在网页版回 `configured: false`）在条目里还要设 `needsConfiguredProvider: true`。哪个来源此刻参加匹配由 `crossSource.ts` 统一判断（没注册、没配好、要账号没登录的都跳过）。
 - 跨源歌词匹配搜不到时换个名字再搜：平台给的歌名带着括号里的译名或版本、另有不带它们的原名时，`lyrics.getSearchAlias` 回原名和歌手（QQ 的 `name`、酷狗去掉 `Suffix` / `trans_param.songname_suffix` 的歌名、波点的 `name`，Apple Music 去 jp 目录查）；歌手在别处另有写法时，`lyrics.getAlternateArtistName` 回那个写法（网易云 cloudsearch 歌手的 `tns` / `alias`，YouTube Music 问另一种语言的页面）。QQ、酷狗、波点、网易云在 normalize 时把要用的字段存进 `sourceRef.providerData`，Apple Music 和 YouTube Music 在被问到时才去查。调用方经 `omni.getLyricSearchAlias` / `omni.getAlternateArtistName` 传给 `autoMatchBestLyric`，不是歌词来源的平台（波点）也用得上。歌名去掉的部分是伴奏一类标记（`伴奏`、`Instrumental`、`Off Vocal` 等）时不换名字搜，免得伴奏配上原唱的歌词。歌名的译名和说明（网易云的 `tns` / `alia`、QQ 的 `subtitle`、波点的 `FSONGNAME` / `subtitle`）常是「某剧主题曲」一类文字，不当别名。
-- 本地歌匹配在线信息：参加的来源是歌词来源条目里标了 `metadataMatch` 的（现在是网易云、QQ、酷狗，按条目顺序），匹配窗口的页签、自动匹配和 `localMusicService.matchLyrics` 都经 `crossSource.ts` 的 `participants('metadata')` 取；要让新平台参加，给它的条目加 `metadataMatch: true`。已选元数据能否恢复自动匹配、刷新旧歌词由歌词来源表的 `localMetadataIdentity` 单独声明，不从 `platform: true` 推断：目前保留网易云、QQ、酷狗并新增汽水，不改变 Spotify 对 `noAutoMatch` 和旧歌词的处理。
+- 本地歌匹配在线信息：参加的来源是歌词来源条目里标了 `metadataMatch` 的（现在是网易云、QQ、酷狗，按条目顺序），匹配窗口的页签、自动匹配和 `localMusicService.matchLyrics` 都经 `crossSource.ts` 的 `participants('metadata')` 取；要让新平台参加，给它的条目加 `metadataMatch: true`。已选元数据能否恢复自动匹配、刷新旧歌词由歌词来源表的 `localMetadataIdentity` 单独声明，不从 `platform: true` 推断：目前保留网易云、QQ、酷狗，以及给了 `lyrics@1.songIdOf` 的模组音源（汽水），不改变 Spotify 对 `noAutoMatch` 和旧歌词的处理。
 - 命令面板的“搜某平台的歌”：每个注册的平台一条 `search-<id>`，由 `searchCommands.ts` 的 `buildProviderSearchCommands` 生成，`providerSearchCommandsInstaller.ts` 在平台增删时重装，不用改。
 - 封面按尺寸取图：`src/utils/coverUrl.ts` 的图床规则是登记表（`CoverUrlRule`、`registerCoverUrlRule`），现在由同文件的 `BUILT_IN_COVER_URL_RULES` 喂，加一条就行；认不出的封面按原图用。
 - 新的缓存键：用 `providerStorage.ts` 的 `online_provider_<id>_...` 前缀就不用改；新的前缀要登记到 `src/services/repositories/cacheRepository.ts` 的 `getCacheTableName` 和 `matchesCategory`。
@@ -275,7 +259,7 @@ Apple Music 的推荐能力已接入个人 FM（Apple personal station 持续补
 - `catalogRefs.ts`：歌曲、歌单、专辑、歌手的 provider-aware catalog 引用。
 - 应用自己的播放记录不在这个目录：`recentPlays.ts`、写它的 `useRecentPlaysRecorder.ts` 和用它做出探索页两栏的 `ownSections.ts` 都在探索页自己的目录 `src/components/app/home/explore/`（见上文“应用自己的两栏”）。
 - 探索页跨会话记住的两件事也不在这个目录，在探索页 store 的旁边 `src/stores/exploreFeedMemory.ts`（localStorage 键 `folia_explore_memory`）：每一页栏目标题的先后，和听众在应用里取消收藏的集合（七天）。只由 `src/stores/useExploreFeedStore.ts` 使用。
-- `exploreReads.ts`：各平台的探索页 adapter 共用的两样，不认平台（规则见 `EXPLORE_ADAPTER.md` 规则 3 和规则 10）。一，`createHandedOut()`：记前几次读取用过什么（一栏交过的条目、拿来问过的歌），按 adapter 自己定的范围记；`inTurn` 把候选排成“没用过的在前，其余最久以前用过的在前”，`note` 把这一次用的按先后记下（后记的算后用的，所以长短不一的列表都轮得匀）；每个范围最多 5000 个，超出时忘掉最久以前用过的；只在内存里。二，`stampCursor` / `cursorWords`：在游标前面写上、读出读取的序号，用来认出上一次读取的游标。用它的是 `netease/neteaseExplore.ts`、`ytm/ytmExplore.ts`、`spotify/spotifyExplore.ts`、`qishui/qishuiExplore.ts`（Spotify 只用第一样：它的游标不带序号）；YouTube Music 只记问过的歌，它的栏不记交过的条目。
+- `exploreReads.ts`：各平台的探索页 adapter 共用的两样，不认平台（规则见 `EXPLORE_ADAPTER.md` 规则 3 和规则 10）。一，`createHandedOut()`：记前几次读取用过什么（一栏交过的条目、拿来问过的歌），按 adapter 自己定的范围记；`inTurn` 把候选排成“没用过的在前，其余最久以前用过的在前”，`note` 把这一次用的按先后记下（后记的算后用的，所以长短不一的列表都轮得匀）；每个范围最多 5000 个，超出时忘掉最久以前用过的；只在内存里。二，`stampCursor` / `cursorWords`：在游标前面写上、读出读取的序号，用来认出上一次读取的游标。用它的是 `netease/neteaseExplore.ts`、`ytm/ytmExplore.ts`、`spotify/spotifyExplore.ts`，以及汽水模组的 `sources/qishui/client/qishuiExplore.ts`（经 `@folia/folium-source-kit`；Spotify 只用第一样：它的游标不带序号）；YouTube Music 只记问过的歌，它的栏不记交过的条目。
 
 `omni.ts` 的 active-provider 调用带 request generation 检查：`withActiveProvider` 会丢弃 provider 切换后返回的旧响应，切换事务需要 `invalidateActiveRequests()`。不要在调用方重新实现一套取消/晚到响应防护。
 

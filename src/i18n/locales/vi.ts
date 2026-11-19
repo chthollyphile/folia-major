@@ -728,7 +728,6 @@ export default {
     "syncFailed": "Đồng bộ thất bại",
     "loginExpired": "Phiên đăng nhập hết hạn. Đăng nhập lại",
     "songPreviewOnly": "Chỉ có thể nghe thử. Đăng nhập tài khoản có quyền phát toàn bộ bài hát.",
-    "songVipFullUnavailable": "Trình phát bên thứ ba tạm thời không thể lấy bản đầy đủ của bài hát VIP",
     "songSubscriptionRequired": "Cần tài khoản {{provider}} trả phí để phát",
     "songRegionRestricted": "Chỉ phát tại Trung Quốc đại lục. Kiểm tra kết nối mạng.",
     "songRetrying": "Kết nối thất bại. Đang thử lại…",
@@ -2039,8 +2038,6 @@ export default {
     "loginTitleKugou": "Quét bằng ứng dụng KuGou",
     "loginNoteKugou": "Mở KuGou Music và quét mã QR này",
     "loginTitleQq": "Quét mã đăng nhập QQ Music",
-    "loginTitleQishui": "Đăng nhập Qishui Music bằng Douyin",
-    "loginNoteQishui": "Quét mã bằng ứng dụng Douyin và xác nhận ủy quyền",
     "loginTitleFnMusic": "Đăng nhập fnOS Music",
     "loginNoteFnMusic": "Nhập địa chỉ máy chủ và tài khoản fnOS Music để phát nhạc từ NAS của bạn",
     "loginTitleYtm": "Đăng nhập YouTube Music",
@@ -2309,7 +2306,6 @@ export default {
     "ponderDescription": "Tìm hiểu thao tác cơ bản và cơ chế vận hành của Folia",
     "version": "phiên bản"
   },
-  "qishui": { "recentPlayed": "Gần đây đã phát trên Qishui", "recommended": "Được đề xuất cho bạn" },
   "listeningRank": {
     "qqWeek": "Bảng xếp hạng nghe · Tuần này",
     "qqYear": "Bảng xếp hạng nghe · Năm",
@@ -2340,7 +2336,6 @@ export default {
     "ai": "Bài hát AI"
   },
   "lyricProvider": {
-    "qishui": "Qishui Music",
     "netease": "NetEase Cloud Music",
     "qq": "QQ Music",
     "kugou": "Kugou Music",
@@ -2355,7 +2350,6 @@ export default {
     "qq": "QQ Music",
     "ytm": "YT Music",
     "spotify": "Spotify",
-    "qishui": "Qishui",
     "fnmusic": "fnOS",
   },
   "globalLyricOffset": {

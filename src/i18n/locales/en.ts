@@ -728,7 +728,6 @@ export default {
     "syncFailed": "Sync failed",
     "loginExpired": "Login expired. Please sign in again",
     "songPreviewOnly": "This account can only play a preview",
-    "songVipFullUnavailable": "Third-party players can't get full VIP songs for now",
     "songSubscriptionRequired": "Paid {{provider}} account required",
     "songRegionRestricted": "Plays on mainland China networks only",
     "songRetrying": "Connection failed. Retrying…",
@@ -2039,8 +2038,6 @@ export default {
     "loginTitleKugou": "Scan with KuGou Music",
     "loginNoteKugou": "Open KuGou Music and scan this QR code",
     "loginTitleQq": "Scan to sign in to QQ Music",
-    "loginTitleQishui": "Sign in to Qishui Music with Douyin",
-    "loginNoteQishui": "Scan with the Douyin app and confirm authorization",
     "loginTitleFnMusic": "Sign in to fnOS Music",
     "loginNoteFnMusic": "Enter your fnOS Music server address and account to play your NAS music library",
     "loginTitleYtm": "Sign in to YouTube Music",
@@ -2309,7 +2306,6 @@ export default {
     "ponderDescription": "Learn Folia's basic controls and operating model",
     "version": "Version"
   },
-  "qishui": { "recentPlayed": "Recently played on Qishui", "recommended": "Recommended for you" },
   "listeningRank": {
     "qqWeek": "Listening rank · This week",
     "qqYear": "Listening rank · Year",
@@ -2340,7 +2336,6 @@ export default {
     "ai": "AI songs"
   },
   "lyricProvider": {
-    "qishui": "Qishui Music",
     "netease": "NetEase Cloud Music",
     "qq": "QQ Music",
     "kugou": "Kugou Music",
@@ -2355,7 +2350,6 @@ export default {
     "qq": "QQ Music",
     "ytm": "YT Music",
     "spotify": "Spotify",
-    "qishui": "Qishui",
     "fnmusic": "fnOS",
   },
   "globalLyricOffset": {

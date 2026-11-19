@@ -728,7 +728,6 @@ export default {
     "syncFailed": "Sinkronisasi gagal",
     "loginExpired": "Login kedaluwarsa. Silakan login lagi",
     "songPreviewOnly": "Akun ini hanya dapat memutar pratinjau",
-    "songVipFullUnavailable": "Pemutar pihak ketiga untuk sementara tidak dapat memperoleh lagu VIP lengkap",
     "songSubscriptionRequired": "Perlu akun {{provider}} berbayar",
     "songRegionRestricted": "Hanya dapat diputar dari jaringan Tiongkok daratan",
     "songRetrying": "Koneksi gagal. Mencoba lagi…",
@@ -2039,8 +2038,6 @@ export default {
     "loginTitleKugou": "Pindai dengan KuGou Music",
     "loginNoteKugou": "Buka KuGou Music dan pindai kode QR ini",
     "loginTitleQq": "Pindai untuk masuk ke QQ Music",
-    "loginTitleQishui": "Masuk ke Qishui Music dengan Douyin",
-    "loginNoteQishui": "Pindai dengan aplikasi Douyin dan konfirmasi otorisasi",
     "loginTitleFnMusic": "Masuk ke fnOS Music",
     "loginNoteFnMusic": "Masukkan alamat server dan akun fnOS Music untuk memutar musik NAS Anda",
     "loginTitleYtm": "Masuk ke YouTube Music",
@@ -2309,7 +2306,6 @@ export default {
     "ponderDescription": "Pelajari kontrol dasar dan cara kerja Folia",
     "version": "Versi"
   },
-  "qishui": { "recentPlayed": "Terakhir diputar di Qishui", "recommended": "Rekomendasi untuk Anda" },
   "listeningRank": {
     "qqWeek": "Peringkat dengar · Minggu ini",
     "qqYear": "Peringkat dengar · Tahunan",
@@ -2340,7 +2336,6 @@ export default {
     "ai": "Lagu AI"
   },
   "lyricProvider": {
-    "qishui": "Qishui Music",
     "netease": "NetEase Cloud Music",
     "qq": "QQ Music",
     "kugou": "Kugou Music",
@@ -2355,7 +2350,6 @@ export default {
     "qq": "QQ Music",
     "ytm": "YT Music",
     "spotify": "Spotify",
-    "qishui": "Qishui",
     "fnmusic": "fnOS",
   },
   "globalLyricOffset": {

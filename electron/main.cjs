@@ -71,9 +71,7 @@ const {
 const { createKugouApiBridge } = require('./kugou/kugouApiBridge.cjs');
 const { createExternalUrlOpener } = require('./externalUrlPolicy.cjs');
 const { createSenderGuardedHandler } = require('./ipcAccessGuard.cjs');
-const { createQishuiApiBridge } = require('../sources/qishui/main/qishuiApiBridge.cjs');
 const { createFnmusicApiBridge, FN_MUSIC_SCHEME, FN_MUSIC_PRIVILEGED_SCHEME } = require('./fnmusic/fnmusicApiBridge.cjs');
-const { createQishuiMediaPolicy } = require('../sources/qishui/main/mediaCors.cjs');
 const { createYtmApiBridge } = require('./ytm/ytmApiBridge.cjs');
 const { createCompanionClient } = require('./appleMusic/companionClient.cjs');
 const { createCompanionRequestHandler } = require('./appleMusic/companionIpc.cjs');
@@ -385,13 +383,9 @@ process.on('exit', () => hifiSession.killSync());
 // KuGou credentials stay inside the main process and are encrypted lazily after Electron is ready.
 // The bridge refuses Linux's plaintext `basic_text` fallback and degrades to an in-memory session.
 const kugouApiBridge = createKugouApiBridge({ store, safeStorage });
-const qishuiMediaPolicy = createQishuiMediaPolicy();
 // 飞牛音乐桥：服务器与凭据由主进程 safeStorage 加密保存（渲染进程只发操作）；播放/封面走
 // 自定义协议（协议 handler 实时转发，无需本地 HTTP 代理、无需启动时恢复）。
 const fnMusicApiBridge = createFnmusicApiBridge({ store, safeStorage });
-const qishuiApiBridge = createQishuiApiBridge({ store, safeStorage, fetch: (url, options) => electronNet.fetch(url, options),
-  onAudioSource: url => qishuiMediaPolicy.register(url),
-});
 // YouTube Music talks to Google from its own network partition and without a cookie jar: the
 // account is carried by a request header, and stored cookies would tie the guest sessions to it.
 // (The library sends one cookie of its own making, a random visitor id and the time zone, on the
@@ -3863,7 +3857,6 @@ function setupCorsBypassHandlers() {
         hostname === 'y.gtimg.cn' ||
         hostname === 'kugou.com' ||
         hostname.endsWith('.kugou.com') ||
-        qishuiMediaPolicy.allows(details) ||
         // Folium 2.0: the rules source mods register with api.media.allow (electron/modSystem/mediaRules.cjs).
         Boolean(modSystem?.mediaRules.allows(details));
     } catch (error) {
@@ -3881,7 +3874,6 @@ function setupCorsBypassHandlers() {
   });
 
   ses.webRequest.onBeforeRedirect(details => {
-    qishuiMediaPolicy.followRedirect(details);
     modSystem?.mediaRules.followRedirect(details);
   });
 
@@ -7464,10 +7456,6 @@ ipcMain.handle('kugou-api-request', createSenderGuardedHandler({
   isTrusted: isFirstPartyWindowContents,
   handler: (_event, operation, params) => kugouApiBridge.request(operation, params),
 }));
-ipcMain.handle('qishui-api-request', (event, operation, params) => {
-  if (!isTrustedMainWindowContents(event.sender)) return { ok: false, error: { code: 'unavailable', message: 'Untrusted Qishui request' } };
-  return qishuiApiBridge.request(operation, params);
-});
 
 // 飞牛音乐请求桥：服务器与凭据保存在主进程，渲染进程只发操作；Cookie 认证头、
 // 自签名证书容忍都在主进程桥内完成（用受信窗口守卫）。

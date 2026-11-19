@@ -1012,10 +1012,6 @@ declare global {
         operation: 'login' | 'logout' | 'request' | 'stream' | 'coverUrl' | 'getStatus',
         params?: import('./services/onlineMusic/fnmusic/fnmusicTransport').FnMusicBridgeParams,
       ) => Promise<import('./services/onlineMusic/fnmusic/fnmusicTransport').FnMusicBridgeResult>;
-      qishuiRequest: (
-        operation: import('../sources/qishui/client/qishuiTransport').QishuiOperation,
-        params?: import('../sources/qishui/client/qishuiTransport').QishuiParams,
-      ) => Promise<import('../sources/qishui/client/qishuiTransport').QishuiBridgeResult>;
       ytmRequest: (
         operation: import('./services/onlineMusic/ytm/ytmTransport').YtmOperation,
         params?: import('./services/onlineMusic/ytm/ytmTransport').YtmParams,
