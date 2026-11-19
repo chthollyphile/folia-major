@@ -633,8 +633,8 @@ describe('YouTube Music adapter at the level ultra', () => {
         expect(omni.levelOfAudioSource(source!.url)).toBe('lossless');
     });
 
-    // The fact is kept in the source's page store (`account`). The built-in provider's `folia_ytm_account` is not read:
-    // a source mod cannot reach it, and its note of which of two sign-ins it was ('web', 'tv') has no counterpart.
+    // The fact is kept in the source's page store (`account`); the host moves the built-in provider's
+    // `folia_ytm_account` there once (sourcePageStore.ts), in the shape it had.
     it('knows the account from the last run before the sign-in status is read', async () => {
         vi.spyOn(console, 'log').mockImplementation(() => {});
         const kept = new Map<string, string>();
@@ -675,6 +675,9 @@ describe('YouTube Music adapter at the level ultra', () => {
             return ytmHasPremium();
         };
         expect(keptAs('{"premium":true}')).toBe(true);
+        // A note of the built-in provider's: the web sign-in's stands, the gone device sign-in's is nobody's.
+        expect(keptAs('{"signIn":"web","premium":true}')).toBe(true);
+        expect(keptAs('{"signIn":"tv","premium":true}')).toBe(false);
         // Anything else found there is nobody.
         for (const damaged of ['not json', '{"premium":"yes"}', '[]', 'null']) expect(keptAs(damaged)).toBe(false);
         noteYtmAccount(null);

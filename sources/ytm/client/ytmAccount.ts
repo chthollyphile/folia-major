@@ -5,8 +5,8 @@ import type { FoliumSourcePageStore } from '@folia/folium';
 // Premium (`vipType`). The source's parts ask here. The fact is kept across runs in the source's page store
 // (`account`): a song may be asked for before the sign-in status was read in this run, and the quality level it
 // is asked at depends on it. Until that read, what the last run knew stands.
-// The built-in provider kept it under `folia_ytm_account`, which a source mod cannot reach: after the upgrade
-// the first run knows nothing until its first sign-in status, as a first run does.
+// The built-in provider kept it under `folia_ytm_account`; the host moves that over to this key once
+// (sourcePageStore.ts), in the shape it had. A note of the device sign-in (`signIn: 'tv'`), which is gone, is nobody's.
 
 const STORAGE_KEY = 'account';
 
@@ -21,8 +21,8 @@ export const connectYtmAccount = (next: FoliumSourcePageStore, changed: () => vo
     onChange = changed;
     premium = false;
     try {
-        const { premium: kept } = (JSON.parse(store.get(STORAGE_KEY) ?? 'null') ?? {}) as { premium?: unknown };
-        premium = kept === true;
+        const { premium: kept, signIn } = (JSON.parse(store.get(STORAGE_KEY) ?? 'null') ?? {}) as { premium?: unknown; signIn?: unknown };
+        premium = signIn !== 'tv' && kept === true;
     } catch { /* unreadable: nothing is known */ }
     if (premium) console.log('[Ytm] The account as the last run knew it has Premium');
 };
