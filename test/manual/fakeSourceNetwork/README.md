@@ -9,6 +9,7 @@
 | `fakeSourceNetwork.mjs` | 入口：本机 HTTP 代理（只接路由表里的域名，在本机终止 TLS）、PAC、控制接口、请求日志，写出 `install.js` / `uninstall.js` |
 | `fakeMedia.mjs` | 路由表共用的媒体：单色 PNG、自己生成的 WAV 音调、按 Range 分段 |
 | `bodian.mjs` | 波点的路由表（依据见文件头） |
+| `fnmusic.mjs` | 飞牛的路由表（依据见文件头）。`direct`：服务器地址是用户填的、main 入口用 Node 的 http 直连，所以假服务就是服务器本身，登录表单填 `http://127.0.0.1:<端口>`（密码 `folia-fake`），不用装 `install.js`；控制接口 `state`、`expire`（让 token 失效）。FN Connect 中继要改 DNS，这里不测 |
 | `qishui.mjs` | 汽水的路由表（依据见文件头）；控制接口 `scan`、`state` 与波点相同。汽水启动时会用存着的票据读账号：那一刻假网络还没装上就会打到真服务、被拒后包会登出，所以「重启后登录还在」在这套做法下测不了 |
 
 ## 用法
@@ -44,4 +45,4 @@
 
 ## 加一家
 
-写 `<平台>.mjs`，默认导出 `{ hosts, createState(), handle({ host, url, method, headers, body, state }), control? }`：`handle` 回 `{ status?, headers?, body }`（`body` 是对象就按 JSON 回，`Buffer` 原样回），不认的回 `null`（404）。形状的依据写在文件头（上游库读哪些路径和字段、单测里的样本），不凭空编。
+写 `<平台>.mjs`，默认导出 `{ hosts, createState(), handle({ host, url, method, headers, body, state }), control?, direct? }`（`direct: true`：平台的地址由用户填、请求不走 Chromium 的代理时，代理端口上除 PAC 和控制以外的普通请求都交给 `handle`，假服务就是服务器本身）：`handle` 回 `{ status?, headers?, body }`（`body` 是对象就按 JSON 回，`Buffer` 原样回），不认的回 `null`（404）。形状的依据写在文件头（上游库读哪些路径和字段、单测里的样本），不凭空编。

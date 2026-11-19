@@ -105,6 +105,12 @@ const main = async () => {
             console.log(`[fake] control ${control[1]}`);
             return;
         }
+        // A `direct` table is the server itself (fnmusic: the user types its address, and the main entry connects with
+        // Node's http, past Chromium's proxy): any other plain request is the table's to answer.
+        if (routes.direct) {
+            void answer(request, response);
+            return;
+        }
         response.writeHead(404);
         response.end();
     });
