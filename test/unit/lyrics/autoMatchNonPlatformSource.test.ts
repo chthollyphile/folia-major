@@ -1,3 +1,4 @@
+// @builtin-sources
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getOnlineMusicProvider } from '@/services/onlineMusic/providerRegistry';
 import { autoMatchBestLyric } from '@/utils/lyrics/autoMatchBestLyric';

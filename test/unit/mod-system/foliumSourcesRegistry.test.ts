@@ -331,7 +331,8 @@ describe('the seams of S1 and S2, fed from capabilities', () => {
         // Built-in platforms are read from their tables as before.
         expect(canSourceMatchOnly('netease')).toBe(true);
         expect(canSourceMatchOnly('spotify')).toBe(false);
-        expect(participants('metadata').ready.slice(0, 3)).toEqual(['netease', 'qq', 'kugou']);
+        // KuGou is a source mod now: not registered in this file.
+        expect(participants('metadata').ready.slice(0, 2)).toEqual(['netease', 'qq']);
     });
 
     it('the search page lists a source whose search needs no account, signed in or not', () => {

@@ -284,7 +284,8 @@ describe('main.cjs wiring', () => {
         expect(mainCjs).toContain("require('./ipcAccessGuard.cjs')");
         expect(mainCjs).toContain('createExternalUrlOpener({');
 
-        for (const channel of ['obs-browser-source-get-status', 'kugou-api-status', 'kugou-api-request']) {
+        // The KuGou channels went with KuGou to its source mod (its rpc is the main window's only, as their check was).
+        for (const channel of ['obs-browser-source-get-status']) {
             const site = mainCjs.match(new RegExp(`ipcMain\\.handle\\('${channel}'[\\s\\S]{0,400}`));
             expect(site, `no handler site for ${channel}`).not.toBeNull();
             expect(site?.[0], channel).toContain('createSenderGuardedHandler({');

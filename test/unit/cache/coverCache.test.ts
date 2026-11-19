@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cacheLocalSongOnlineCover, getCachedCoverUrl, loadCachedOrFetchCover } from '@/services/coverCache';
 import { getFromCache, removeFromCache, saveToCache } from '@/services/db';
 import { readCoverAsset, removeCoverAsset, writeCoverAsset } from '@/services/binaryAssetStore';
+import { registerKugouWebSource } from '@/services/onlineMusic/web/kugou';
 
 vi.mock('@/services/db', () => ({
     getFromCache: vi.fn(),
@@ -123,6 +124,8 @@ describe('coverCache', () => {
         const fetchMock = vi.fn().mockResolvedValue({ ok: true, blob: vi.fn().mockResolvedValue(blob) });
         globalThis.fetch = fetchMock as unknown as typeof fetch;
         const coverUrl = 'https://imge.kugou.com/stdmusic/400/cover.jpg';
+        // The web build's registration of the source mod says its picture hosts go through the proxy (web/kugou.ts).
+        registerKugouWebSource();
 
         await expect(cacheLocalSongOnlineCover('kugou-song', coverUrl)).resolves.toBe(true);
         expect(fetchMock).toHaveBeenCalledWith(

@@ -32,15 +32,9 @@ vi.mock('@/utils/lyrics/workerClient', async () => {
     };
 });
 
-// KuGou's adapter is real; only its request to the backend is replaced.
-const requestKugou = vi.hoisted(() => vi.fn());
-// Its search without a signed-in session goes to the backend by a request of its own, replaced too.
-const requestKugouAnonymousSearch = vi.hoisted(() => vi.fn());
-vi.mock('../../../sources/kugou/core/kugouTransport', async (importOriginal) => ({
-    ...await importOriginal<typeof import('../../../sources/kugou/core/kugouTransport')>(),
-    requestKugou,
-    requestKugouAnonymousSearch,
-}));
+// KuGou's source mod is real (registered by the setup, its desktop transport); only what its main entry answers is
+// replaced (helpers/kugouSource.ts): the request to KuGouMusicApi, and the search without a signed-in session.
+const { request: requestKugou, anonymousSearch: requestKugouAnonymousSearch } = answerKugouRequests();
 // QQ Music's adapter is real as well; only its request to the backend is replaced, and the request it sends
 // to QQ's musicu directly (a song by its numeric songid, songs many at once).
 const requestQq = vi.hoisted(() => vi.fn());
@@ -72,6 +66,7 @@ import { installFoliumHostAccount } from '@/mods/runtime/hostAccount';
 import { FOLIUM_HOST_OMNI_SOURCE, installFoliumHostOmni } from '@/mods/runtime/omni/hostOmni';
 import { clearFoliumResolvedSongsForTest, readFoliumResolvedSong } from '@/mods/runtime/omni/omniResolveCache';
 import { clientApiOptions } from './clientApiOptions';
+import { answerKugouRequests } from '../helpers/kugouSource';
 
 // test/unit/mod-system/foliumOmni.test.ts
 // Folium 1.7 `folium.omni`: the stable read-only view of the host's online sources. Everything runs on the

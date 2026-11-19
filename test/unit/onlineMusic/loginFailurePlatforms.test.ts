@@ -1,9 +1,8 @@
 // @builtin-sources
 import { createRequire } from 'node:module';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createBodianApi } from 'bodian-music-api';
 import { omni } from '@/services/onlineMusic/omni';
-import { requestKugou } from '../../../sources/kugou/core/kugouTransport';
 import { neteaseApi } from '@/services/onlineMusic/netease/netease';
 import { getOnlineMusicProvider } from '@/services/onlineMusic/providerRegistry';
 import { requestQq, resetQqTransportRuntimeCache } from '@/services/onlineMusic/qq/qqTransport';
@@ -11,6 +10,8 @@ import type { LoginStep, LoginState } from '@/types/onlineMusic';
 import { loginCaseOf, loginFailureFacts } from '@/services/onlineMusic/login/loginFailureCase';
 import { failureNoteKey } from '@/components/login/window/loginView';
 import { setBuiltinSourceRpc } from '../helpers/builtinSources';
+import { sourcesRegistry } from '@/mods/folium/registries/sources';
+import { registerKugouWebSource } from '@/services/onlineMusic/web/kugou';
 
 // test/unit/onlineMusic/loginFailurePlatforms.test.ts
 // Which case each platform's own failure sorts to, through the real facade, adapter and
@@ -448,15 +449,19 @@ describe('QQ Music', () => {
 });
 
 describe('KuGou', () => {
-    // What the desktop app's request rejects with: the bridge's one line, behind Electron's prefix.
-    const rejection = (operation: string, answer: unknown) => new Error(
-        `Error invoking remote method 'kugou-api-request': KuGouApiError: ${normalizeBridgeError(operation, answer).message}`,
-    );
-    const desktop = (kugouRequest: (...args: unknown[]) => unknown) => vi.stubGlobal('window', { electron: { kugouRequest } });
-    const web = () => {
-        vi.stubGlobal('window', undefined);
-        vi.stubEnv('VITE_KUGOU_API_BASE', 'https://kugou.example.test');
-    };
+    // What the desktop app's request is answered with: the source mod's main entry hands back the bridge's one line
+    // (sources/kugou/main/index.ts), which is what `rejection` is.
+    const rejection = (operation: string, answer: unknown) => normalizeBridgeError(operation, answer) as Error;
+    // The main entry's `request`, as main/index.ts answers it: what `kugouRequest` resolves to, or the line it throws.
+    const desktop = (kugouRequest: (operation: string, params?: unknown) => unknown) => setBuiltinSourceRpc('kugou', {
+        request: async (operation, params) => {
+            try {
+                return { ok: true, data: await kugouRequest(operation as string, params) };
+            } catch (error) {
+                return { ok: false, message: error instanceof Error ? error.message : String(error) };
+            }
+        },
+    });
 
     it('local-service-unavailable: the desktop side could not load KuGouMusicApi', async () => {
         // The real bridge, with a package that does not load; no OS encryption, so the session stays in memory.
@@ -467,21 +472,18 @@ describe('KuGou', () => {
             warn: () => { },
             apiLoader: () => { throw new Error("Cannot find module 'kugoumusicapi'"); },
         });
-        // Electron carries only the error's sentence across, behind its prefix.
-        desktop(vi.fn((operation: unknown) => bridge.request(operation, {}).catch((error: Error) => {
-            throw new Error(`Error invoking remote method 'kugou-api-request': KuGouApiError: ${error.message}`);
-        })));
+        desktop(operation => bridge.request(operation, {}));
         expect((await thrown('start', () => omni.startLogin('kugou'))).id).toBe('local-service-unavailable');
     });
 
-    it('unreachable: KuGouMusicApi fails with no error code of KuGou\'s (desktop), the request does not get through or is answered 502 (web)', async () => {
+    it('local-service-unavailable: the main entry is not running', async () => {
+        setBuiltinSourceRpc('kugou', {});
+        expect((await thrown('start', () => omni.startLogin('kugou'))).id).toBe('local-service-unavailable');
+    });
+
+    it('unreachable: KuGouMusicApi fails with no error code of KuGou\'s (desktop)', async () => {
         desktop(vi.fn().mockRejectedValue(rejection('login_qr_key', { status: 502, body: { msg: 'connect ETIMEDOUT' } })));
         expect(await thrown('start', () => omni.startLogin('kugou'))).toMatchObject({ id: 'unreachable', httpStatus: 502, errorCode: 'network' });
-        web();
-        vi.stubGlobal('fetch', offline());
-        expect((await thrown('start', () => omni.startLogin('kugou'))).id).toBe('unreachable');
-        vi.stubGlobal('fetch', answers({}, 502));
-        expect(await thrown('check', () => omni.checkLogin('kugou', 'qr-key'))).toMatchObject({ id: 'unreachable', httpStatus: 502 });
     });
 
     it('refused: KuGou answers with an error code of its own (desktop), or the check answers a status that is none of 0 to 4', async () => {
@@ -494,12 +496,9 @@ describe('KuGou', () => {
         expect(await answered(() => omni.checkLogin('kugou', 'qr-key'))).toMatchObject({ id: 'refused', code: '9', message: '二维码状态异常' });
     });
 
-    it('refused: KuGouMusicApi answers a 4xx without an error code (desktop and web)', async () => {
+    it('refused: KuGouMusicApi answers a 4xx without an error code (desktop)', async () => {
         desktop(vi.fn().mockRejectedValue(rejection('login_qr_key', { status: 400, body: { msg: 'bad request' } })));
         expect(await thrown('start', () => omni.startLogin('kugou'))).toMatchObject({ id: 'refused', httpStatus: 400, message: 'bad request' });
-        web();
-        vi.stubGlobal('fetch', answers({}, 400));
-        expect(await thrown('check', () => omni.checkLogin('kugou', 'qr-key'))).toMatchObject({ id: 'refused', httpStatus: 400 });
     });
 
     it('unknown: the desktop side fails before KuGou is asked, and a check that answers no status', async () => {
@@ -523,29 +522,15 @@ describe('KuGou', () => {
         expect(waitedOut()).toBe('code-expired');
     });
 
-    it('no-answer: a sign-in request that is not answered in 20 s (web: the key, the picture; desktop: the check); no other request is timed', async () => {
+    it('no-answer: a desktop check that is not answered in 20 s; no other request is timed', async () => {
         vi.useFakeTimers();
-        web();
-        const asked = silent();
-        vi.stubGlobal('fetch', asked);
-        expect((await unanswered('start', () => omni.startLogin('kugou'), asked)).id).toBe('no-answer');
-        asked.mockImplementationOnce(async () => Response.json({ data: { qrcode: 'qr-key' } }));
-        expect((await unanswered('start', () => omni.startLogin('kugou'), asked)).id).toBe('no-answer');
-        expect(String(asked.mock.calls.at(-1)![0])).toContain('/login/qr/create');
-
-        asked.mockClear();
-        void requestKugou('user_detail').catch(() => { });
-        await vi.advanceTimersByTimeAsync(0);
-        expect(asked).toHaveBeenCalledTimes(1);
-        expect(asked.mock.calls[0][1]?.signal).toBeUndefined();
-        expect(vi.getTimerCount()).toBe(0);
-
-        // The desktop app: the request goes to the desktop side, which cannot be told to stop.
-        const kugouRequest = vi.fn(() => new Promise(() => { }));
+        // The request goes to the main entry, which cannot be told to stop.
+        const kugouRequest = vi.fn((_operation: string) => new Promise(() => { }));
         desktop(kugouRequest);
         expect((await unanswered('check', () => omni.checkLogin('kugou', 'qr-key'))).id).toBe('no-answer');
-        void requestKugou('user_detail').catch(() => { });
-        expect(kugouRequest).toHaveBeenLastCalledWith('user_detail', {});
+        void getOnlineMusicProvider('kugou')!.catalog!.getArtistDetail!('1').catch(() => { });
+        await vi.advanceTimersByTimeAsync(0);
+        expect(kugouRequest.mock.calls.at(-1)?.[0]).toBe('artist_detail');
         expect(vi.getTimerCount()).toBe(0);
     });
 });
@@ -654,5 +639,45 @@ describe('every platform', () => {
 
     it('account-not-read: the sign-in was confirmed and the account then not read', () => {
         expect(loginCaseOf(loginFailureFacts({ step: 'account', inBrowser: false, scanned: true })).id).toBe('account-not-read');
+    });
+});
+
+// The web build's kugou (src/services/onlineMusic/web/kugou.ts): the same core with the web transport, registered in
+// place of the desktop's for the rest of this file (the last describe, so nothing after it sees the swap).
+describe('KuGou on the web', () => {
+    beforeAll(() => {
+        vi.stubEnv('VITE_KUGOU_API_BASE', 'https://kugou.example.test');
+        sourcesRegistry.unregisterAll('kugou');
+        registerKugouWebSource();
+        vi.unstubAllEnvs();
+    });
+
+    it('unreachable: the request does not get through or is answered 502', async () => {
+        vi.stubGlobal('fetch', offline());
+        expect((await thrown('start', () => omni.startLogin('kugou'))).id).toBe('unreachable');
+        vi.stubGlobal('fetch', answers({}, 502));
+        expect(await thrown('check', () => omni.checkLogin('kugou', 'qr-key'))).toMatchObject({ id: 'unreachable', httpStatus: 502 });
+    });
+
+    it('refused: KuGouMusicApi answers a 4xx without an error code', async () => {
+        vi.stubGlobal('fetch', answers({}, 400));
+        expect(await thrown('check', () => omni.checkLogin('kugou', 'qr-key'))).toMatchObject({ id: 'refused', httpStatus: 400 });
+    });
+
+    it('no-answer: a sign-in request that is not answered in 20 s (the key, the picture); no other request is timed', async () => {
+        vi.useFakeTimers();
+        const asked = silent();
+        vi.stubGlobal('fetch', asked);
+        expect((await unanswered('start', () => omni.startLogin('kugou'), asked)).id).toBe('no-answer');
+        asked.mockImplementationOnce(async () => Response.json({ data: { qrcode: 'qr-key' } }));
+        expect((await unanswered('start', () => omni.startLogin('kugou'), asked)).id).toBe('no-answer');
+        expect(String(asked.mock.calls.at(-1)![0])).toContain('/login/qr/create');
+
+        asked.mockClear();
+        void getOnlineMusicProvider('kugou')!.catalog!.getArtistDetail!('1').catch(() => { });
+        await vi.advanceTimersByTimeAsync(0);
+        expect(asked).toHaveBeenCalledTimes(1);
+        expect(asked.mock.calls[0][1]?.signal).toBeUndefined();
+        expect(vi.getTimerCount()).toBe(0);
     });
 });
