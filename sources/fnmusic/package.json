@@ -1,0 +1,5 @@
+{
+  "name": "@folia-sources/fnmusic",
+  "private": true,
+  "description": "飞牛音源模组：没有依赖，main 入口只用 Node 自带的 http / https / crypto / stream。"
+}

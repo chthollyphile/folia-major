@@ -1,0 +1,24 @@
+{
+    "name": {
+        "short": "fnOS"
+    },
+    "login": {
+        "title": "Đăng nhập fnOS Music",
+        "note": "Nhập địa chỉ máy chủ và tài khoản fnOS Music để phát nhạc từ NAS của bạn"
+    },
+    "form": {
+        "serverUrl": "Địa chỉ máy chủ",
+        "serverUrlPlaceholder": "vd: http://192.168.1.10:5666 hoặc FN ID thuần (vd: mynas)",
+        "username": "Tài khoản",
+        "usernamePlaceholder": "Tài khoản fnOS Music hoặc tài khoản NAS",
+        "password": "Mật khẩu",
+        "submit": "Đăng nhập",
+        "note": "Nhập địa chỉ máy chủ fnOS Music (địa chỉ LAN hoặc FN ID thuần), tài khoản và mật khẩu"
+    },
+    "error": {
+        "badCredentials": "Sai tài khoản hoặc mật khẩu",
+        "network": "Không thể kết nối máy chủ. Kiểm tra địa chỉ và kết nối của bạn.",
+        "badResponse": "Máy chủ trả về phản hồi không nhận dạng được",
+        "badServerUrl": "Địa chỉ máy chủ không hợp lệ, ví dụ: http://192.168.1.10:5666"
+    }
+}

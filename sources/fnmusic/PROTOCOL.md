@@ -14,7 +14,7 @@
 
 ## 请求签名
 
-飞牛音乐网页端对 API 请求附加 `authx` 头；**2026-10-28 服务端实测，`password-login` 与 `track/stream` 不带 `authx` 同样返回成功（登录 code 0、播放 200 audio/x-flac）**，因此本实现不签名、不保留任何客户端密钥（符合 UPSTREAMS.md「不保留客户端标识、签名或协议实现」）。桥里不再内嵌 `API_SECRET` / `API_KEY`。
+飞牛音乐网页端对 API 请求附加 `authx` 头；**2026-10-28 服务端实测，`password-login` 与 `track/stream` 不带 `authx` 同样返回成功（登录 code 0、播放 200 audio/x-flac）**，因此本实现不签名、不保留任何客户端密钥（不保留客户端标识、签名或协议实现）。桥里不再内嵌 `API_SECRET` / `API_KEY`。
 
 ## 认证（登录 + 会话）
 
@@ -29,13 +29,14 @@
 
 ## 凭据与播放/封面（桌面端）
 
-- 服务器地址与 token 用 `safeStorage` 加密存进主进程 store（`fnmusic-config`），渲染进程只发操作、不持有明文。
-- 系统加密不可用（`isEncryptionAvailable()` 为假或 Linux `basic_text`）时退回只在本次运行内保存（照 `electron/qishui/session.cjs`）。
-- **播放与封面走自定义协议 `folia-fnmusic://`**（`protocol.handle('folia-fnmusic')`，参照 `electron/ytm/audio.cjs`）：
-  - 播放：`folia-fnmusic://stream?guid={trackGUID}` → 主进程转发 `GET /music/api/v1/track/stream`（回原始文件，不分音质；provider 只列一档音质）
-  - 封面：`folia-fnmusic://cover?coverId={coverId}&size={可选}` → 主进程转发 `GET /music/api/v1/static/cover`
+- 服务器地址与 token 经 `api.seal` 加密存进 `api.legacy.store`（`fnmusic-config`，受信表认领的迁移前的键），窗口只发操作、不持有明文。
+- 系统加密不可用（`api.seal.available()` 为假，含 Linux `basic_text`）时退回只在本次运行内保存。
+- **播放与封面走模组的 `_media` 路由**（`api.media.serve('stream' | 'cover')`）：
+  - 播放：`folia-mod://fnmusic/_media/stream?guid={trackGUID}` → 主进程转发 `GET /music/api/v1/track/stream`（回原始文件，不分音质；只列一档音质）
+  - 封面：`folia-mod://fnmusic/_media/cover?coverId={coverId}&size={可选}` → 主进程转发 `GET /music/api/v1/static/cover`
   - 转发时带 `Cookie: music-token=…` 与 Range；自签名 HTTPS 只对私网地址放行证书校验（`rejectUnauthorized: false`），公网 FN Connect 中继等仍严格校验。
-  - 协议地址稳定，重启不变（歌曲对象只存 `coverId`，显示时再生成地址）。
+  - 地址稳定，重启不变（歌曲的 `data` 里存 `coverId`）。
+  - 迁成模组之前的 `folia-fnmusic://stream?guid=…`、`folia-fnmusic://cover?coverId=…` 仍然有效：存下的歌（播放历史、队列、歌单、速记簿）带着它们，宿主按受信表（`electron/modSystem/builtinSources.cjs` 的 `legacyMediaSchemes`）把这个协议交给同样的两条路由。
 
 ## 核心接口（方法来自接口注册表）
 
