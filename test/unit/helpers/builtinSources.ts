@@ -3,7 +3,14 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { beforeAll, expect } from 'vitest';
 import type { FoliumClientApi, FoliumClientModule, FoliumRpc } from '@/mods/folium/contract';
-import type { FoliumSourceDef, FoliumSourcePageStore, FoliumText } from '@/mods/folium/sources/contract';
+import type {
+    FoliumSourceDef,
+    FoliumSourceError,
+    FoliumSourceErrorCode,
+    FoliumSourceErrorDetails,
+    FoliumSourcePageStore,
+    FoliumText,
+} from '@/mods/folium/sources/contract';
 import type { ModRuntimeInfo } from '@/mods/types';
 // test/unit/helpers/builtinSources.ts
 // 单测里的内置音源（Folium 2.0 方案 §10 的 S4）。挂在 vitest.config.ts 的 setupFiles 上：写了 `// @builtin-sources` 的
@@ -21,7 +28,7 @@ import type { ModRuntimeInfo } from '@/mods/types';
 
 export const BUILTIN_SOURCES_ROOT = path.resolve(__dirname, '../../../sources');
 
-/** createSource(env) 拿到的测试环境；core 的 env 照这个形状写（桌面上 client 入口用 folium.rpc 与 folium.i18n 拼出同样的东西）。 */
+/** createSource(env) 拿到的测试环境；core 的 env 照这个形状写（桌面上 client 入口用 folium.rpc、folium.i18n、folium.sources 与 folium.lyrics 拼出同样的东西）。 */
 export interface BuiltinSourceTestEnv {
     /** 模组 id。 */
     modId: string;
@@ -29,6 +36,12 @@ export interface BuiltinSourceTestEnv {
     call<T>(name: string, ...args: unknown[]): Promise<T>;
     /** 模组自己语言表里的一条文字（folium.i18n.key）。 */
     text(key: string, params?: Record<string, string | number>): FoliumText;
+    /** 同一条文字按现在的界面语言写出来（folium.i18n.text）。 */
+    translate(key: string, params?: Record<string, string | number>): string;
+    /** 宿主读得懂的错（folium.sources.error）。 */
+    error(code: FoliumSourceErrorCode, message: string, details?: FoliumSourceErrorDetails): FoliumSourceError;
+    /** 一段歌词文本是不是纯音乐的提示（folium.lyrics.isPureMusicText）。 */
+    isPureMusicText(text: string | null | undefined): boolean;
     /** 页面内的同步存储（folium.sources.pageStore），按宿主认的音源 id。 */
     pageStore(sourceId: string): FoliumSourcePageStore;
 }
@@ -90,7 +103,7 @@ export const registerBuiltinSources = async ({ root = BUILTIN_SOURCES_ROOT }: { 
     const dirs = listBuiltinSourceDirs(root);
     if (dirs.length === 0) return [];
 
-    const [sourcesRegistryModule, guard, api, i18nModule, sourceText, folium18n, locales] = await Promise.all([
+    const [sourcesRegistryModule, guard, api, i18nModule, sourceText, folium18n, locales, sourceErrors, sharedHelpers] = await Promise.all([
         import('@/mods/folium/registries/sources'),
         import('@/mods/runtime/guard'),
         import('@/mods/folium/api'),
@@ -98,6 +111,8 @@ export const registerBuiltinSources = async ({ root = BUILTIN_SOURCES_ROOT }: { 
         import('@/mods/folium/registries/sourceText'),
         import('@/mods/folium/sources/i18n'),
         import('../../../dev/sources/locales.mjs') as Promise<{ toTraditionalLocale: (value: unknown) => unknown }>,
+        import('@/mods/folium/sources/errors'),
+        import('@/mods/folium/sharedHelpers'),
     ]);
     const builtinTable = createRequire(import.meta.url)('../../../electron/modSystem/builtinSources.cjs') as { BUILTIN_SOURCE_TABLE: Record<string, { sources: string[] }> };
     const { registerFoliumSource, createFoliumPageStore, getFoliumSourceCapability, sourcesRegistry } = sourcesRegistryModule;
@@ -149,11 +164,15 @@ export const registerBuiltinSources = async ({ root = BUILTIN_SOURCES_ROOT }: { 
         const coreFile = firstExisting(path.join(dir, 'core', 'index'));
         const core = coreFile ? await import(/* @vite-ignore */ coreFile.split(path.sep).join('/')) as { createSource?: (env: BuiltinSourceTestEnv) => FoliumSourceDef | FoliumSourceDef[] } : null;
         if (core?.createSource) {
-            const i18nService = folium18n.createFoliumI18n();
+            // 和 api.ts 给模组的 folium.i18n 一样：文字在模组自己的命名空间里取，没有的是空串。
+            const i18nService = folium18n.createFoliumI18n((key, params) => i18n.t(`${namespace}:${key}`, { ...params, defaultValue: '' }));
             const env: BuiltinSourceTestEnv = {
                 modId,
                 call: rpc.call,
                 text: (key, params) => i18nService.key(key, params),
+                translate: (key, params) => i18nService.text(key, params),
+                error: sourceErrors.createFoliumSourceError,
+                isPureMusicText: (text) => sharedHelpers.FOLIUM_LYRICS_HELPERS.isPureMusicText(text ?? null),
                 pageStore: createFoliumPageStore,
             };
             const defs = core.createSource(env);

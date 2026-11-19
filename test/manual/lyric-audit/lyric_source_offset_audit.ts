@@ -701,7 +701,7 @@ export const runLyricSourceOffsetAudit = async (options: CliOptions): Promise<Ly
     ] = await Promise.all([
         import('../../../src/services/onlineMusic/netease/netease'),
         import('../../../src/services/onlineMusic/qq/qqLyricProvider'),
-        import('../../../src/services/onlineMusic/kugou/kugouLyricProvider'),
+        import('../kugouLyricProvider'),
         import('../../../src/utils/lyrics/searchQuery'),
         import('../../../src/utils/lyrics/matchScore'),
         import('../../../src/utils/lyrics/formatDetection'),

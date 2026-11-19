@@ -1,0 +1,35 @@
+{
+  "folium": 2,
+  "id": "kugou",
+  "name": "酷狗音乐",
+  "version": "1.0.0",
+  "author": "Folia",
+  "description": "Folia 内置的酷狗音乐音源：扫码登录、搜索、播放、逐字歌词、曲库、云盘、听歌排行、推荐与历史日推、歌单改动。桌面端经 KuGouMusicApi 在主进程里请求，网页版发到配置的 KuGouMusicApi 服务。",
+  "client": "client.mjs",
+  "main": "index.cjs",
+  "locales": "locales",
+  "sources": [
+    {
+      "id": "kugou",
+      "name": {
+        "zh-CN": "酷狗音乐",
+        "en": "KuGou Music",
+        "in": "KuGou Music",
+        "vi": "KuGou Music"
+      },
+      "requires": [
+        "search@1",
+        "songs@1",
+        "playback.audio@1",
+        "lyrics@1",
+        "auth@1",
+        "library@1",
+        "catalog@1",
+        "recommendations@1",
+        "mutations@1",
+        "covers@1"
+      ],
+      "certificateExceptions": ["fs.youthandroid2.kugou.com"]
+    }
+  ]
+}

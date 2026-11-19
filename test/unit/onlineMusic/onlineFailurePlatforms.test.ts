@@ -20,7 +20,7 @@ import { setBuiltinSourceRpc } from '../helpers/builtinSources';
 vi.mock('@/services/onlineMusic/providerAccountCache', () => ({ saveProviderAccountSnapshot: vi.fn() }));
 
 const require = createRequire(import.meta.url);
-const { normalizeBridgeError } = require('../../../electron/kugou/kugouApiBridge.cjs');
+const { normalizeBridgeError } = require('../../../sources/kugou/main/kugouApiBridge.cjs');
 const { toErrorResult: ytmErrorResult } = require('../../../sources/ytm/main/errors.cjs');
 const { createSpotifyApiBridge } = require('../../../electron/spotify/spotifyApiBridge.cjs');
 const { publicAccountId, SESSION_KEY: SPOTIFY_SESSION_KEY } = require('../../../electron/spotify/session.cjs');
@@ -276,15 +276,23 @@ describe('QQ Music', () => {
 });
 
 describe('KuGou', () => {
-    // What the desktop app's request rejects with: the bridge's one line, behind Electron's prefix.
-    const rejection = (operation: string, answer: unknown) => new Error(
-        `Error invoking remote method 'kugou-api-request': KuGouApiError: ${normalizeBridgeError(operation, answer).message}`,
-    );
-    // The desktop app; the legacy mobile endpoint, asked last, goes through the lyric relay.
-    const desktop = (kugouRequest: (...args: unknown[]) => unknown, legacy: unknown = { ok: false, status: 502, bodyText: '' }) => {
-        const fetchLyricProxy = vi.fn(async () => legacy);
-        vi.stubGlobal('window', { electron: { kugouRequest, fetchLyricProxy } });
-        return fetchLyricProxy;
+    // What the source mod's main entry answers a failed request with: the bridge's one line (sources/kugou/main/index.ts).
+    const rejection = (operation: string, answer: unknown) => normalizeBridgeError(operation, answer) as Error;
+    // The main entry: KuGouMusicApi's answer (`kugouRequest` resolves to its data or throws the bridge's line), and the
+    // legacy mobile endpoint, asked last, which main asks itself (KuGou's status and body, or that it was not reached).
+    const desktop = (kugouRequest: (...args: unknown[]) => unknown, legacy: unknown = { status: 502, bodyText: '' }) => {
+        const legacyPlayInfo = vi.fn(async () => legacy);
+        setBuiltinSourceRpc('kugou', {
+            request: async (...args: unknown[]) => {
+                try {
+                    return { ok: true, data: await kugouRequest(...args) };
+                } catch (error) {
+                    return { ok: false, message: error instanceof Error ? error.message : String(error) };
+                }
+            },
+            legacyPlayInfo,
+        });
+        return legacyPlayInfo;
     };
     const song = songOf('kugou', 'ABC123', { kgHash: 'ABC123' } as Partial<UnifiedSong>);
 
@@ -302,7 +310,7 @@ describe('KuGou', () => {
     });
 
     it('no-audio: KuGou answers without a URL, with its error code', async () => {
-        desktop(vi.fn().mockResolvedValue({ status: 0, error_code: 20010 }), { ok: true, status: 200, bodyText: '{"status":0}' });
+        desktop(vi.fn().mockResolvedValue({ status: 0, error_code: 20010 }), { status: 200, bodyText: '{"status":0}' });
         expect(await audio(song)).toMatchObject({ id: 'no-audio', errorCode: 'not-playable', code: '20010' });
     });
 
@@ -318,7 +326,7 @@ describe('KuGou', () => {
 
     it('local-service-stopped: the desktop side could not load KuGouMusicApi', async () => {
         const unloaded = normalizeBridgeError('song_url', new Error("Cannot find module 'kugoumusicapi'"), true);
-        desktop(vi.fn().mockRejectedValue(new Error(`Error invoking remote method 'kugou-api-request': KuGouApiError: ${unloaded.message}`)));
+        desktop(vi.fn().mockRejectedValue(unloaded));
         expect((await audio(song)).id).toBe('local-service-stopped');
     });
 

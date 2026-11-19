@@ -210,7 +210,7 @@ describe('the trusted table of the built-in sources (§5.1)', () => {
 
     it('names the store keys the platform modules use', () => {
         const expected: Record<string, string[]> = {
-            kugou: [constant('electron/kugou/kugouApiBridge.cjs', 'SESSION_KEY')!, constant('electron/kugou/kugouApiBridge.cjs', 'LEGACY_SESSION_KEY')!],
+            kugou: [constant('sources/kugou/main/kugouApiBridge.cjs', 'SESSION_KEY')!, constant('sources/kugou/main/kugouApiBridge.cjs', 'LEGACY_SESSION_KEY')!],
             qq: [constant('electron/qq/qqAuthSessionRepository.cjs', 'SESSION_KEY')!],
             bodian: [constant('sources/bodian/main/session.cjs', 'SESSION_KEY')!, constant('sources/bodian/main/session.cjs', 'DEVICE_KEY')!],
             qishui: [constant('sources/qishui/main/session.cjs', 'SESSION_KEY')!, constant('sources/qishui/main/session.cjs', 'DEVICE_KEY')!],

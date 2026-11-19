@@ -1478,7 +1478,6 @@ export default {
       "syncSettingsNoChange": "Pengaturan visual sudah sinkron, tidak ada yang perlu dilakukan."
     },
     "unsupportedFontFormat": "Hanya mendukung file font woff2, woff, ttf, otf.",
-    "cloudDrive": "Cloud Drive",
     "noItems": "Tidak ada item",
     "noItemsFound": "Tidak ada item ditemukan",
     "clear": "Bersihkan",
@@ -1719,7 +1718,7 @@ export default {
       "install-no-manifest": "Manifest tidak ditemukan; zip tidak memiliki mod.json",
       "install-invalid-manifest": "mod.json tidak valid: {{value}}",
       "mod-system-disabled": "Sistem mod nonaktif. Aktifkan dulu di Pengaturan → Mod → Sistem mod.",
-      "install-too-large": "Paket mod melebihi batas ukuran (maks 64 MB)",
+      "install-too-large": "Paket mod melebihi batas ukuran (maks 96 MB)",
       "install-too-many-files": "Paket mod berisi terlalu banyak berkas (maks 2000)",
       "install-main-missing": "Paket tidak memiliki berkas main yang dideklarasikan di mod.json",
       "install-client-missing": "Paket tidak memiliki berkas client yang dideklarasikan di mod.json",
@@ -2035,8 +2034,6 @@ export default {
     "songs": "lagu",
     "loginTitle": "Pindai dengan Aplikasi Netease",
     "loginNote": "Buka Aplikasi Netease Music > Discover > Pindai QR",
-    "loginTitleKugou": "Pindai dengan KuGou Music",
-    "loginNoteKugou": "Buka KuGou Music dan pindai kode QR ini",
     "loginTitleQq": "Pindai untuk masuk ke QQ Music",
     "loginTitleAppleMusic": "Masuk ke Apple Music",
     "loginNoteAppleMusic": "Masuk melalui jendela Apple. Kata sandi Anda hanya diberikan kepada Apple.",
@@ -2331,7 +2328,6 @@ export default {
   "lyricProvider": {
     "netease": "NetEase Cloud Music",
     "qq": "QQ Music",
-    "kugou": "Kugou Music",
     "spotify": "Spotify",
     "appleMusic": "Apple Music",
     "amll": "AMLLDB"
@@ -2339,7 +2335,6 @@ export default {
   "onlineProviderName": {
     "appleMusic": "Apple Music",
     "netease": "NetEase",
-    "kugou": "Kugou",
     "qq": "QQ Music",
     "spotify": "Spotify",
   },
@@ -4984,7 +4979,6 @@ export default {
     "resetLyricTimelineOffset": "Reset offset timeline",
     "coverSource": "Sampul",
     "metadataSource": "Metadata",
-    "kugouNoCover": "Kugou tidak menyediakan karya seni sampul, jadi karya seni sampul lokal akan dipertahankan.",
     "artistLabel": "Artis",
     "albumLabel": "Album",
     "noSelection": "Pilih lagu di sebelah kiri",

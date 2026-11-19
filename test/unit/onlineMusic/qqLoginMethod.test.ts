@@ -1,3 +1,4 @@
+// @builtin-sources
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // test/unit/onlineMusic/qqLoginMethod.test.ts

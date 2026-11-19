@@ -1,0 +1,18 @@
+{
+    "name": {
+        "short": "Kugou",
+        "lyrics": "Kugou Music"
+    },
+    "login": {
+        "title": "Quét bằng ứng dụng KuGou",
+        "note": "Mở KuGou Music và quét mã QR này"
+    },
+    "cloud": {
+        "name": "Ổ đĩa đám mây"
+    },
+    "listeningRank": {
+        "week": "Xếp hạng nghe · Tuần qua",
+        "all": "Xếp hạng nghe · Mọi lúc",
+        "description": "Bài hát xếp theo lịch sử nghe của tài khoản này trên nền tảng"
+    }
+}

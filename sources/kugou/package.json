@@ -1,0 +1,13 @@
+{
+  "name": "@folia-sources/kugou",
+  "private": true,
+  "description": "酷狗音源模组的依赖：KuGouMusicApi v1.6.0 的源码包（和根 package.json 钉的同一个地址）。它加载时扫自己的 module/ 目录逐个 require，要真实的文件布局，所以声明成 asar：装进 deps.<指纹>.asar，main 入口从归档里加载（方案 §6.2）。",
+  "dependencies": {
+    "kugoumusicapi": "https://github.com/MakcRe/KuGouMusicApi/archive/refs/tags/v1.6.0.tar.gz"
+  },
+  "folia": {
+    "dependencies": {
+      "kugoumusicapi": "asar"
+    }
+  }
+}

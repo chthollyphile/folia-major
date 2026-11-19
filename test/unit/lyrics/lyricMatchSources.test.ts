@@ -26,7 +26,7 @@ vi.mock('@/services/onlineMusic/qq/qqLyricProvider', () => ({
     fetchQQLyrics: vi.fn(),
 }));
 
-vi.mock('@/services/onlineMusic/kugou/kugouLyricProvider', () => ({
+vi.mock('../../manual/kugouLyricProvider', () => ({
     searchKugouLyrics: vi.fn(),
     fetchKugouLyrics: vi.fn(),
 }));

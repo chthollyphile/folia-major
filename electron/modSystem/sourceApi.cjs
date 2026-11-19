@@ -161,7 +161,9 @@ const createSourceApi = (context, host) => {
     const members = {
         /*
          * The main-process store keys a built-in source (or an override or takeover of one) keeps its sign-in
-         * under. Only the keys its row or claims name; every other key throws.
+         * under. Only the keys its row or claims name; every other key throws. Once the mod has stopped, writes do
+         * nothing: a request still on its way when the mod is disabled or its data cleared (an HTTP library that
+         * cannot be aborted) would otherwise write the old sign-in back after the clear.
          */
         legacy: Object.freeze({
             store: Object.freeze({
@@ -171,6 +173,7 @@ const createSourceApi = (context, host) => {
                 },
                 set: (key, value) => {
                     requireStoreKey(key);
+                    if (released) return;
                     host.store.set(key, value);
                 },
                 has: (key) => {
@@ -179,6 +182,7 @@ const createSourceApi = (context, host) => {
                 },
                 delete: (key) => {
                     requireStoreKey(key);
+                    if (released) return;
                     host.store.delete(key);
                 },
             }),

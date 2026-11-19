@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { krcDecrypt } from '@folia/folium-source-kit';
-import { decodeKugouDownloadedLyric } from '@/services/onlineMusic/kugou/kugouLyricProvider';
+import { decodeKugouDownloadedLyric } from '../../manual/kugouLyricProvider';
 import { qrcDecrypt } from '@/services/onlineMusic/qq/qrcDecrypt';
 
 // Helper to compress text using CompressionStream

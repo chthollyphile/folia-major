@@ -205,8 +205,6 @@ contextBridge.exposeInMainWorld('electron', {
         ipcRenderer.on('netease-api-status-changed', listener);
         return () => ipcRenderer.removeListener('netease-api-status-changed', listener);
     },
-    getKugouApiStatus: () => ipcRenderer.invoke('kugou-api-status'),
-    kugouRequest: (operation, params) => ipcRenderer.invoke('kugou-api-request', operation, params),
     appleMusicRequest: (operation, params) => ipcRenderer.invoke('apple-music-request', operation, params),
     spotifyRequest: (operation, params) => ipcRenderer.invoke('spotify-api-request', operation, params),
     getQqPort: () => ipcRenderer.invoke('get-qq-port'),
