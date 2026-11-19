@@ -1,6 +1,6 @@
-import type { SongResult, UnifiedSong } from '../../../types';
-import type { MediaId, OnlineMutationProvider, ProviderCollection } from '../../../types/onlineMusic';
-import { OnlineProviderError } from '../../../types/onlineMusic';
+import type { SongResult, UnifiedSong } from '../../../src/types';
+import type { MediaId, OnlineMutationProvider, ProviderCollection } from '../../../src/types/onlineMusic';
+import { OnlineProviderError } from '../../../src/types/onlineMusic';
 import { isSavableYtmPlaylist, ytmAlbumSaveParams } from './ytmCatalog';
 import { requireYtmSong } from './ytmNormalize';
 import { requestYtm } from './ytmTransport';

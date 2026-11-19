@@ -5,9 +5,9 @@ import { describe, expect, it, vi } from 'vitest';
 // answered from it, and the scheme handler in front of it.
 
 const require = createRequire(import.meta.url);
-const { TrackBuffer, createByteLru } = require('../../../electron/ytm/trackBuffer.cjs');
-const { createYtmAudio } = require('../../../electron/ytm/audio.cjs');
-const { ytmError } = require('../../../electron/ytm/errors.cjs');
+const { TrackBuffer, createByteLru } = require('../../../sources/ytm/main/trackBuffer.cjs');
+const { createYtmAudio } = require('../../../sources/ytm/main/audio.cjs');
+const { ytmError } = require('../../../sources/ytm/main/errors.cjs');
 
 const VIDEO = 'm9SMT5ipbxk';
 const bytes = (length: number, offset = 0) => Uint8Array.from({ length }, (_, index) => (index + offset) % 251);

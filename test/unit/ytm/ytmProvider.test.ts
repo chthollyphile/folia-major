@@ -4,17 +4,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const request = vi.hoisted(() => vi.fn());
 const loadSnapshot = vi.hoisted(() => vi.fn());
-vi.mock('@/services/onlineMusic/ytm/ytmTransport', () => ({
+vi.mock('../../../sources/ytm/client/ytmTransport', () => ({
     requestYtm: request, getYtmTransportAvailability: () => ({ configured: true }),
 }));
 vi.mock('@/services/onlineMusic/providerAccountCache', () => ({
     loadProviderAccountSnapshot: loadSnapshot,
 }));
-import { ytmProvider } from '@/services/onlineMusic/ytm/ytmProvider';
-import { noteYtmAccount, ytmHasPremium } from '@/services/onlineMusic/ytm/ytmAccount';
-import { clearYtmCatalogCache } from '@/services/onlineMusic/ytm/ytmCatalog';
-import { clearYtmLibraryCache } from '@/services/onlineMusic/ytm/ytmLibrary';
-import { createYtmPager, normalizeYtmCollection, normalizeYtmSong, normalizeYtmUser } from '@/services/onlineMusic/ytm/ytmNormalize';
+import { ytmProvider } from '../../../sources/ytm/client/ytmProvider';
+import { noteYtmAccount, ytmHasPremium } from '../../../sources/ytm/client/ytmAccount';
+import { clearYtmCatalogCache } from '../../../sources/ytm/client/ytmCatalog';
+import { clearYtmLibraryCache } from '../../../sources/ytm/client/ytmLibrary';
+import { createYtmPager, normalizeYtmCollection, normalizeYtmSong, normalizeYtmUser } from '../../../sources/ytm/client/ytmNormalize';
 import { getPlaybackSongKey } from '@/utils/appPlaybackGuards';
 import { OnlineProviderError } from '@/types/onlineMusic';
 import i18n from '@/i18n/config';

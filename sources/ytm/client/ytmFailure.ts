@@ -1,5 +1,5 @@
-import { OnlineProviderError } from '../../../types/onlineMusic';
-import type { OnlineFailureDetail, OnlineFailureOperation } from '../../../types/onlineMusic';
+import { OnlineProviderError } from '../../../src/types/onlineMusic';
+import type { OnlineFailureDetail, OnlineFailureOperation } from '../../../src/types/onlineMusic';
 
 // src/services/onlineMusic/ytm/ytmFailure.ts
 // What a YouTube Music request for a song's audio or a collection's tracks that failed hands to the

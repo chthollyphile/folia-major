@@ -1,11 +1,11 @@
-import type { UnifiedSong } from '../../../types';
-import { OnlineProviderError } from '../../../types/onlineMusic';
-import type { OnlineRecommendationProvider, ProviderCollection } from '../../../types/onlineMusic';
+import type { UnifiedSong } from '../../../src/types';
+import { OnlineProviderError } from '../../../src/types/onlineMusic';
+import type { OnlineRecommendationProvider, ProviderCollection } from '../../../src/types/onlineMusic';
 import { forgetYtmMusicPage, ytmMusicPagePlaylists } from './ytmExplore';
 import { normalizeYtmSong } from './ytmNormalize';
 import { addYtmSeeds, noteYtmListened, ytmLikedSeeds, ytmListenedSeeds, ytmRadioSongs } from './ytmRadio';
 import type { YtmSeed } from './ytmRadio';
-import { errorMessage } from '../../../utils/errorText';
+import { errorMessage } from '../../../src/utils/errorText';
 
 // src/services/onlineMusic/ytm/ytmRecommendations.ts
 // The radio tab for YouTube Music:

@@ -1,5 +1,5 @@
-import { OnlineProviderError } from '../../../types/onlineMusic';
-import type { LoginCaseId, LoginFailureDetail, LoginStep, ProviderErrorCode } from '../../../types/onlineMusic';
+import { OnlineProviderError } from '../../../src/types/onlineMusic';
+import type { LoginCaseId, LoginFailureDetail, LoginStep, ProviderErrorCode } from '../../../src/types/onlineMusic';
 import { YTM_ASKED_TO_WAIT } from './ytmFailure';
 
 // src/services/onlineMusic/ytm/ytmLoginFailure.ts

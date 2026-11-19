@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { getYtmTransportAvailability, requestYtm } from '@/services/onlineMusic/ytm/ytmTransport';
+import { getYtmTransportAvailability, requestYtm } from '../../../sources/ytm/client/ytmTransport';
 
 // test/unit/ytm/ytmTransport.test.ts
 

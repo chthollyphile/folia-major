@@ -1239,62 +1239,62 @@
       "count": 33
     }
   },
-  "electron/ytm/audio.cjs": {
+  "sources/ytm/main/audio.cjs": {
     "@stylistic/indent": {
       "count": 238
     }
   },
-  "electron/ytm/browserSignIn.cjs": {
+  "sources/ytm/main/browserSignIn.cjs": {
     "@stylistic/indent": {
       "count": 353
     }
   },
-  "electron/ytm/catalog.cjs": {
+  "sources/ytm/main/catalog.cjs": {
     "@stylistic/indent": {
       "count": 122
     }
   },
-  "electron/ytm/errors.cjs": {
+  "sources/ytm/main/errors.cjs": {
     "@stylistic/indent": {
       "count": 35
     }
   },
-  "electron/ytm/poToken.cjs": {
+  "sources/ytm/main/poToken.cjs": {
     "@stylistic/indent": {
       "count": 46
     }
   },
-  "electron/ytm/sandbox.cjs": {
+  "sources/ytm/main/sandbox.cjs": {
     "@stylistic/indent": {
       "count": 79
     }
   },
-  "electron/ytm/session.cjs": {
+  "sources/ytm/main/session.cjs": {
     "@stylistic/indent": {
       "count": 9
     }
   },
-  "electron/ytm/songVersion.cjs": {
+  "sources/ytm/main/songVersion.cjs": {
     "@stylistic/indent": {
       "count": 5
     }
   },
-  "electron/ytm/tiles.cjs": {
+  "sources/ytm/main/tiles.cjs": {
     "@stylistic/indent": {
       "count": 15
     }
   },
-  "electron/ytm/trackBuffer.cjs": {
+  "sources/ytm/main/trackBuffer.cjs": {
     "@stylistic/indent": {
       "count": 78
     }
   },
-  "electron/ytm/webExplore.cjs": {
+  "sources/ytm/main/webExplore.cjs": {
     "@stylistic/indent": {
       "count": 105
     }
   },
-  "electron/ytm/webPages.cjs": {
+  "sources/ytm/main/webPages.cjs": {
     "@stylistic/indent": {
       "count": 115
     },
@@ -1302,12 +1302,12 @@
       "count": 3
     }
   },
-  "electron/ytm/webSaves.cjs": {
+  "sources/ytm/main/webSaves.cjs": {
     "@stylistic/indent": {
       "count": 15
     }
   },
-  "electron/ytm/webSignIn.cjs": {
+  "sources/ytm/main/webSignIn.cjs": {
     "@stylistic/indent": {
       "count": 267
     },
@@ -1315,7 +1315,7 @@
       "count": 2
     }
   },
-  "electron/ytm/ytmApiBridge.cjs": {
+  "sources/ytm/main/ytmApiBridge.cjs": {
     "@stylistic/indent": {
       "count": 1134
     }
@@ -10377,12 +10377,12 @@
       "count": 1
     }
   },
-  "src/services/onlineMusic/ytm/ytmAccount.ts": {
+  "sources/ytm/client/ytmAccount.ts": {
     "dedicatus/restricted-apis": {
       "count": 2
     }
   },
-  "src/services/onlineMusic/ytm/ytmCatalog.ts": {
+  "sources/ytm/client/ytmCatalog.ts": {
     "@typescript-eslint/no-unnecessary-boolean-literal-compare": {
       "count": 1
     },
@@ -10396,7 +10396,7 @@
       "count": 1
     }
   },
-  "src/services/onlineMusic/ytm/ytmExplore.ts": {
+  "sources/ytm/client/ytmExplore.ts": {
     "@typescript-eslint/no-non-null-assertion": {
       "count": 1
     },
@@ -10413,7 +10413,7 @@
       "count": 1
     }
   },
-  "src/services/onlineMusic/ytm/ytmNormalize.ts": {
+  "sources/ytm/client/ytmNormalize.ts": {
     "@typescript-eslint/no-unnecessary-condition": {
       "count": 1
     },
@@ -10421,7 +10421,7 @@
       "count": 2
     }
   },
-  "src/services/onlineMusic/ytm/ytmRecommendations.ts": {
+  "sources/ytm/client/ytmRecommendations.ts": {
     "@typescript-eslint/no-non-null-assertion": {
       "count": 1
     },
@@ -10432,7 +10432,7 @@
       "count": 1
     }
   },
-  "src/services/onlineMusic/ytm/ytmTransport.ts": {
+  "sources/ytm/client/ytmTransport.ts": {
     "@typescript-eslint/no-non-null-assertion": {
       "count": 1
     },

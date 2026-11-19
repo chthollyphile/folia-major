@@ -1,5 +1,5 @@
-import type { OnlineLibraryProvider, ProviderCollection } from '../../../types/onlineMusic';
-import { loadProviderAccountSnapshot } from '../providerAccountCache';
+import type { OnlineLibraryProvider, ProviderCollection } from '../../../src/types/onlineMusic';
+import { loadProviderAccountSnapshot } from '../../../src/services/onlineMusic/providerAccountCache';
 import { createYtmPager, normalizeYtmCollection } from './ytmNormalize';
 import { requestYtm } from './ytmTransport';
 import type { YtmOperation, YtmWireCollection, YtmWirePage, YtmWirePlaylistPage, YtmWireSong } from './ytmTransport';

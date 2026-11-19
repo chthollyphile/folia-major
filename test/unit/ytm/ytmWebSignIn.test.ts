@@ -10,12 +10,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 // removed. Every cookie, name, address and id in this file is made up.
 
 const require = createRequire(import.meta.url);
-const { createYtmApiBridge, YTM_OPERATIONS } = require('../../../electron/ytm/ytmApiBridge.cjs');
-const { publicAccountId } = require('../../../electron/ytm/session.cjs');
-const { createYtmWebSessionRepository, createYtmWebSignIn, desktopChromeName, guardAccountHeaders, WEB_SESSION_KEY } = require('../../../electron/ytm/webSignIn.cjs');
-const { BrowserSignInError } = require('../../../electron/ytm/browserSignIn.cjs');
-const { toErrorResult } = require('../../../electron/ytm/errors.cjs');
-const webPages = require('../../../electron/ytm/webPages.cjs');
+const { createYtmApiBridge, YTM_OPERATIONS } = require('../../../sources/ytm/main/ytmApiBridge.cjs');
+const { publicAccountId } = require('../../../sources/ytm/main/session.cjs');
+const { createYtmWebSessionRepository, createYtmWebSignIn, desktopChromeName, guardAccountHeaders, WEB_SESSION_KEY } = require('../../../sources/ytm/main/webSignIn.cjs');
+const { BrowserSignInError } = require('../../../sources/ytm/main/browserSignIn.cjs');
+const { toErrorResult } = require('../../../sources/ytm/main/errors.cjs');
+const webPages = require('../../../sources/ytm/main/webPages.cjs');
 
 const VIDEO = 'm9SMT5ipbxk';
 const GAIA_ID = '104000000000000000001';

@@ -1,8 +1,8 @@
-import type { UnifiedSong } from '../../../types';
-import type { OnlineMusicProvider, ProviderCollection, ProviderPage, ProviderUser } from '../../../types/onlineMusic';
-import { createProviderSongMetadata } from '../../../utils/songMetadata';
-import { isMacPlatform } from '../../../utils/platform';
-import { parseLyricsByFormat } from '../../../utils/lyrics/parserCore';
+import type { UnifiedSong } from '../../../src/types';
+import type { OnlineMusicProvider, ProviderCollection, ProviderPage, ProviderUser } from '../../../src/types/onlineMusic';
+import { createProviderSongMetadata } from '../../../src/utils/songMetadata';
+import { isMacPlatform } from '../../../src/utils/platform';
+import { parseLyricsByFormat } from '../../../src/utils/lyrics/parserCore';
 import { noteYtmAccount, ytmHasPremium } from './ytmAccount';
 import { getYtmTransportAvailability, requestYtm } from './ytmTransport';
 import type { YtmWireCollection, YtmWirePage, YtmWireSong, YtmWireWebLoginState } from './ytmTransport';
@@ -14,7 +14,7 @@ import { ytmMutations } from './ytmMutations';
 import { resetYtmRecommendations, ytmRecommendations } from './ytmRecommendations';
 import { describeYtmLoginFailure, ytmLoginFailure } from './ytmLoginFailure';
 import { describeYtmFailure } from './ytmFailure';
-import i18n from '../../../i18n/config';
+import i18n from '../../../src/i18n/config';
 
 // src/services/onlineMusic/ytm/ytmProvider.ts
 // YouTube Music adapter. Sign-in is made in the person's own browser: the desktop side opens a

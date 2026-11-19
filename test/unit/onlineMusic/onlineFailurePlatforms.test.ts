@@ -21,7 +21,7 @@ vi.mock('@/services/onlineMusic/providerAccountCache', () => ({ saveProviderAcco
 
 const require = createRequire(import.meta.url);
 const { normalizeBridgeError } = require('../../../electron/kugou/kugouApiBridge.cjs');
-const { toErrorResult: ytmErrorResult } = require('../../../electron/ytm/errors.cjs');
+const { toErrorResult: ytmErrorResult } = require('../../../sources/ytm/main/errors.cjs');
 const { createSpotifyApiBridge } = require('../../../electron/spotify/spotifyApiBridge.cjs');
 const { publicAccountId, SESSION_KEY: SPOTIFY_SESSION_KEY } = require('../../../electron/spotify/session.cjs');
 const { createWire } = require('../../helpers/bodianWire.cjs');

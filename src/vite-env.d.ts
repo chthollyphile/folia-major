@@ -1009,9 +1009,9 @@ declare global {
       onNeteaseApiStatusChanged: (callback: (status: ElectronNeteaseApiStatus) => void) => () => void;
       getKugouApiStatus: () => Promise<ElectronKugouApiStatus>;
       ytmRequest: (
-        operation: import('./services/onlineMusic/ytm/ytmTransport').YtmOperation,
-        params?: import('./services/onlineMusic/ytm/ytmTransport').YtmParams,
-      ) => Promise<import('./services/onlineMusic/ytm/ytmTransport').YtmBridgeResult>;
+        operation: import('../sources/ytm/client/ytmTransport').YtmOperation,
+        params?: import('../sources/ytm/client/ytmTransport').YtmParams,
+      ) => Promise<import('../sources/ytm/client/ytmTransport').YtmBridgeResult>;
       appleMusicRequest: (
         operation: import('./services/onlineMusic/appleMusic/appleMusicTransport').AppleMusicOperation,
         params?: import('./services/onlineMusic/appleMusic/appleMusicTransport').AppleMusicParams,

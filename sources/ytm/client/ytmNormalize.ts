@@ -1,6 +1,6 @@
-import type { Artist, UnifiedSong } from '../../../types';
-import type { ProviderCatalogRef, ProviderCollection, ProviderPage, ProviderUser } from '../../../types/onlineMusic';
-import { OnlineProviderError } from '../../../types/onlineMusic';
+import type { Artist, UnifiedSong } from '../../../src/types';
+import type { ProviderCatalogRef, ProviderCollection, ProviderPage, ProviderUser } from '../../../src/types/onlineMusic';
+import { OnlineProviderError } from '../../../src/types/onlineMusic';
 import type { YtmWireArtist, YtmWireCollection, YtmWirePage, YtmWireSong } from './ytmTransport';
 
 // src/services/onlineMusic/ytm/ytmNormalize.ts

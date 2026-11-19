@@ -1,8 +1,8 @@
-import type { UnifiedSong } from '../../../types';
-import { OnlineProviderError } from '../../../types/onlineMusic';
-import type { OnlineCatalogProvider, ProviderCollection } from '../../../types/onlineMusic';
+import type { UnifiedSong } from '../../../src/types';
+import { OnlineProviderError } from '../../../src/types/onlineMusic';
+import type { OnlineCatalogProvider, ProviderCollection } from '../../../src/types/onlineMusic';
 import { createYtmPager, normalizeYtmCollection, normalizeYtmSong, ytmSlicePage } from './ytmNormalize';
-import { errorMessage } from '../../../utils/errorText';
+import { errorMessage } from '../../../src/utils/errorText';
 import { requestYtm } from './ytmTransport';
 import type { YtmWireAlbum, YtmWireArtistPage, YtmWirePage, YtmWireSong } from './ytmTransport';
 

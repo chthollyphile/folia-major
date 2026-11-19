@@ -5,7 +5,7 @@ import { getPlaybackSourceRef } from '../../utils/appPlaybackGuards';
 import { neteaseProvider } from './netease/neteaseProvider';
 import { kugouProvider } from './kugou/kugouProvider';
 import { qqProvider } from './qq/qqProvider';
-import { ytmProvider } from './ytm/ytmProvider';
+import { ytmProvider } from '../../../sources/ytm/client/ytmProvider';
 import { spotifyProvider } from './spotify/spotifyProvider';
 import { appleMusicProvider } from './appleMusic/appleMusicProvider';
 import { startsWithoutSources } from '../../dev/devLaunchFlags';

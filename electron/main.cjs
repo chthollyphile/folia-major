@@ -72,11 +72,11 @@ const {
 const { createKugouApiBridge } = require('./kugou/kugouApiBridge.cjs');
 const { createExternalUrlOpener } = require('./externalUrlPolicy.cjs');
 const { createSenderGuardedHandler } = require('./ipcAccessGuard.cjs');
-const { createYtmApiBridge } = require('./ytm/ytmApiBridge.cjs');
+const { createYtmApiBridge } = require('../sources/ytm/main/ytmApiBridge.cjs');
 const { createCompanionClient } = require('./appleMusic/companionClient.cjs');
 const { createCompanionRequestHandler } = require('./appleMusic/companionIpc.cjs');
-const { createYtmSandbox } = require('./ytm/sandbox.cjs');
-const { YTM_AUDIO_PRIVILEGED_SCHEME, YTM_AUDIO_SCHEME } = require('./ytm/audio.cjs');
+const { createYtmSandbox } = require('../sources/ytm/main/sandbox.cjs');
+const { YTM_AUDIO_PRIVILEGED_SCHEME, YTM_AUDIO_SCHEME } = require('../sources/ytm/main/audio.cjs');
 const { createSpotifyApiBridge } = require('./spotify/spotifyApiBridge.cjs');
 const { SPOTIFY_AUDIO_PRIVILEGED_SCHEME, SPOTIFY_AUDIO_SCHEME } = require('./spotify/audio.cjs');
 const { createQqAuthSessionRepository } = require('./qq/qqAuthSessionRepository.cjs');

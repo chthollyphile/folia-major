@@ -12,22 +12,22 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // the account menu around its icons (the reader looks at the icons only).
 
 const request = vi.hoisted(() => vi.fn());
-vi.mock('@/services/onlineMusic/ytm/ytmTransport', () => ({
+vi.mock('../../../sources/ytm/client/ytmTransport', () => ({
     requestYtm: request, getYtmTransportAvailability: () => ({ configured: true }),
 }));
 import { omni } from '@/services/onlineMusic/omni';
 import { registerOnlineMusicProvider, unregisterOnlineMusicProvider } from '@/services/onlineMusic/providerRegistry';
-import { noteYtmAccount } from '@/services/onlineMusic/ytm/ytmAccount';
-import { normalizeYtmSong } from '@/services/onlineMusic/ytm/ytmNormalize';
-import { ytmProvider } from '@/services/onlineMusic/ytm/ytmProvider';
+import { noteYtmAccount } from '../../../sources/ytm/client/ytmAccount';
+import { normalizeYtmSong } from '../../../sources/ytm/client/ytmNormalize';
+import { ytmProvider } from '../../../sources/ytm/client/ytmProvider';
 import { resolveStoredAudioQuality } from '@/stores/useAudioSettingsStore';
 import type { AudioQualityPreference, OnlineMusicProvider } from '@/types/onlineMusic';
 
 const require = createRequire(import.meta.url);
-const { createYtmApiBridge, pickAudioFormat } = require('../../../electron/ytm/ytmApiBridge.cjs');
-const { publicAccountId } = require('../../../electron/ytm/session.cjs');
-const { createYtmWebSessionRepository, WEB_SESSION_KEY } = require('../../../electron/ytm/webSignIn.cjs');
-const webPages = require('../../../electron/ytm/webPages.cjs');
+const { createYtmApiBridge, pickAudioFormat } = require('../../../sources/ytm/main/ytmApiBridge.cjs');
+const { publicAccountId } = require('../../../sources/ytm/main/session.cjs');
+const { createYtmWebSessionRepository, WEB_SESSION_KEY } = require('../../../sources/ytm/main/webSignIn.cjs');
+const webPages = require('../../../sources/ytm/main/webPages.cjs');
 
 const VIDEO = 'm9SMT5ipbxk';
 const OTHER_VIDEO = 'ZRtdQ81jPUQ';
@@ -639,7 +639,7 @@ describe('YouTube Music adapter at the level ultra', () => {
         vi.spyOn(console, 'log').mockImplementation(() => {});
         // One run: the sign-in status is read, and the fact is kept.
         vi.resetModules();
-        const lastRun = await import('@/services/onlineMusic/ytm/ytmAccount');
+        const lastRun = await import('../../../sources/ytm/client/ytmAccount');
         expect(lastRun.ytmHasPremium()).toBe(false);
         lastRun.noteYtmAccount({ id: 'abc', nickname: 'Fixture', vipType: 1 });
         expect([...kept]).toEqual([['folia_ytm_account', '{"premium":true}']]);
@@ -647,7 +647,7 @@ describe('YouTube Music adapter at the level ultra', () => {
         // The next run, before anything was asked of the desktop side: the level is listed at once.
         vi.resetModules();
         request.mockClear();
-        const { ytmProvider: restarted } = await import('@/services/onlineMusic/ytm/ytmProvider');
+        const { ytmProvider: restarted } = await import('../../../sources/ytm/client/ytmProvider');
         expect(restarted.playback!.audioQualityLevels).toEqual(['standard', 'high', 'ultra']);
         expect(request).not.toHaveBeenCalled();
         // What the sign-in status then says replaces it, and nobody signed in leaves nothing kept.
@@ -661,7 +661,7 @@ describe('YouTube Music adapter at the level ultra', () => {
         const keptAs = async (note: string) => {
             kept.set('folia_ytm_account', note);
             vi.resetModules();
-            return (await import('@/services/onlineMusic/ytm/ytmAccount')).ytmHasPremium();
+            return (await import('../../../sources/ytm/client/ytmAccount')).ytmHasPremium();
         };
         // A note from when the app had two sign-ins names its own: the browser one's still stands,
         // the one of the device sign-in, which is gone, is nobody's.

@@ -4,11 +4,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // personal FM hands out, and where the recommended playlists come from.
 
 const request = vi.hoisted(() => vi.fn());
-vi.mock('@/services/onlineMusic/ytm/ytmTransport', () => ({
+vi.mock('../../../sources/ytm/client/ytmTransport', () => ({
     requestYtm: request, getYtmTransportAvailability: () => ({ configured: true }),
 }));
-import { ytmExplore } from '@/services/onlineMusic/ytm/ytmExplore';
-import { resetYtmRecommendations, ytmRecommendations } from '@/services/onlineMusic/ytm/ytmRecommendations';
+import { ytmExplore } from '../../../sources/ytm/client/ytmExplore';
+import { resetYtmRecommendations, ytmRecommendations } from '../../../sources/ytm/client/ytmRecommendations';
 import { OnlineProviderError } from '@/types/onlineMusic';
 
 const song = (id: string) => ({ id, name: `song ${id}`, artists: [], album: { id: '', name: '', coverUrl: '' }, durationMs: 1000 });

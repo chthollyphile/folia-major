@@ -9,16 +9,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // mix and no podcast episode's row: those are a guest's card led somewhere else, with made-up ids.
 
 const request = vi.hoisted(() => vi.fn());
-vi.mock('@/services/onlineMusic/ytm/ytmTransport', () => ({
+vi.mock('../../../sources/ytm/client/ytmTransport', () => ({
     requestYtm: request, getYtmTransportAvailability: () => ({ configured: true }),
 }));
-import { ytmExplore } from '@/services/onlineMusic/ytm/ytmExplore';
-import { resetYtmRecommendations, ytmRecommendations } from '@/services/onlineMusic/ytm/ytmRecommendations';
+import { ytmExplore } from '../../../sources/ytm/client/ytmExplore';
+import { resetYtmRecommendations, ytmRecommendations } from '../../../sources/ytm/client/ytmRecommendations';
 import i18n from '@/i18n/config';
 
 const require = createRequire(import.meta.url);
-const { createWebExplore, exploreItemFromEntry, readWebShelves } = require('../../../electron/ytm/webExplore.cjs');
-const { ytmError } = require('../../../electron/ytm/errors.cjs');
+const { createWebExplore, exploreItemFromEntry, readWebShelves } = require('../../../sources/ytm/main/webExplore.cjs');
+const { ytmError } = require('../../../sources/ytm/main/errors.cjs');
 const fixtures = require('./ytmWebExploreFixtures.json');
 
 const shelvesOf = (answer: any) => (

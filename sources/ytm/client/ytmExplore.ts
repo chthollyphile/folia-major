@@ -1,11 +1,11 @@
-import i18n from '../../../i18n/config';
-import type { OnlineExploreProvider, ProviderCollection, ProviderExploreItem, ProviderExploreSection } from '../../../types/onlineMusic';
+import i18n from '../../../src/i18n/config';
+import type { OnlineExploreProvider, ProviderCollection, ProviderExploreItem, ProviderExploreSection } from '../../../src/types/onlineMusic';
 import { createHandedOut, cursorWords, stampCursor } from '@folia/folium-source-kit';
 import { normalizeYtmCollection, normalizeYtmSong } from './ytmNormalize';
 import { addYtmSeeds, noteYtmListened, ytmListenedSeeds, ytmRadioSongs, ytmSeedOf } from './ytmRadio';
 import type { YtmSeed } from './ytmRadio';
 import { requestYtm } from './ytmTransport';
-import { errorMessage } from '../../../utils/errorText';
+import { errorMessage } from '../../../src/utils/errorText';
 import type { YtmWireExploreItem, YtmWireExplorePage, YtmWireSong } from './ytmTransport';
 
 // src/services/onlineMusic/ytm/ytmExplore.ts

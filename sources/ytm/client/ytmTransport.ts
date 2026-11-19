@@ -1,5 +1,5 @@
-import { OnlineProviderError } from '../../../types/onlineMusic';
-import type { ProviderErrorCode } from '../../../types/onlineMusic';
+import { OnlineProviderError } from '../../../src/types/onlineMusic';
+import type { ProviderErrorCode } from '../../../src/types/onlineMusic';
 
 // src/services/onlineMusic/ytm/ytmTransport.ts
 // The IPC boundary to electron/ytm/ytmApiBridge.cjs. Google credentials stay in the main process;

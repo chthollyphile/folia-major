@@ -214,7 +214,7 @@ describe('the trusted table of the built-in sources (§5.1)', () => {
             qq: [constant('electron/qq/qqAuthSessionRepository.cjs', 'SESSION_KEY')!],
             bodian: [constant('sources/bodian/main/session.cjs', 'SESSION_KEY')!, constant('sources/bodian/main/session.cjs', 'DEVICE_KEY')!],
             qishui: [constant('sources/qishui/main/session.cjs', 'SESSION_KEY')!, constant('sources/qishui/main/session.cjs', 'DEVICE_KEY')!],
-            ytm: [constant('electron/ytm/session.cjs', 'SESSION_KEY')!, constant('electron/ytm/webSignIn.cjs', 'WEB_SESSION_KEY')!],
+            ytm: [constant('sources/ytm/main/session.cjs', 'SESSION_KEY')!, constant('sources/ytm/main/webSignIn.cjs', 'WEB_SESSION_KEY')!],
             spotify: [
                 constant('electron/spotify/session.cjs', 'SESSION_KEY')!,
                 constant('electron/spotify/soloist.cjs', 'CONFIG_KEY')!,

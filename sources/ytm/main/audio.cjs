@@ -1,5 +1,5 @@
 const crypto = require('node:crypto');
-const { parseRangeHeader } = require('../transcode/protocol.cjs');
+const { parseRangeHeader } = require('../../../electron/transcode/protocol.cjs');
 const { TrackBuffer, createByteLru } = require('./trackBuffer.cjs');
 const { VIDEO_ID } = require('./tiles.cjs');
 const { YtmError, describeError, toErrorResult, ytmError } = require('./errors.cjs');
