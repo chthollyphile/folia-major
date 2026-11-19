@@ -1,7 +1,37 @@
 const crypto = require('crypto');
-const { assertEncryptionAvailable, encryptionAvailable } = require('../../../electron/osEncryption.cjs');
 
 // sources/kugou/main/kugouApiBridge.cjs
+// The bridge between the KuGou source's client (folium.rpc `request`) and KuGouMusicApi, run in the main entry
+// (main/index.ts). Moved from electron/kugou/ as it was; what the host handed it then, the main entry hands it now:
+// `store` is api.legacy.store (the trusted table's KUGOU_API_SESSION_V2 / V1), `safeStorage` is api.seal in
+// safeStorage's shape, `apiLoader` gives the package the main entry loaded from the deps archive.
+//
+// Whether this run can seal credentials: the host's electron/osEncryption.cjs check, which a source cannot import
+// (Dedicatus D130). api.seal's `available()` already reads Linux's basic_text as unavailable; the backend check stays
+// for a safeStorage that has it (the tests' stand-in).
+function assertEncryptionAvailable(safeStorage, platform) {
+  if (!safeStorage || typeof safeStorage.isEncryptionAvailable !== 'function') {
+    throw new Error('Electron safeStorage is unavailable');
+  }
+  if (!safeStorage.isEncryptionAvailable()) {
+    throw new Error('Electron safeStorage encryption is unavailable');
+  }
+  const backend = platform === 'linux' && typeof safeStorage.getSelectedStorageBackend === 'function'
+    ? safeStorage.getSelectedStorageBackend()
+    : null;
+  if (backend === 'basic_text') {
+    throw new Error('Electron safeStorage selected the unencrypted basic_text backend');
+  }
+}
+
+const encryptionAvailable = (safeStorage, platform) => {
+  try {
+    assertEncryptionAvailable(safeStorage, platform);
+    return true;
+  } catch {
+    return false;
+  }
+};
 
 const LEGACY_SESSION_KEY = 'KUGOU_API_SESSION_V1';
 const SESSION_KEY = 'KUGOU_API_SESSION_V2';
@@ -244,7 +274,7 @@ function createKugouApiBridge({
   safeStorage,
   platform = process.platform,
   warn = console.warn,
-  apiLoader = () => require('kugoumusicapi'),
+  apiLoader,
 }) {
   let api = null;
   let loadError = null;
@@ -274,7 +304,7 @@ function createKugouApiBridge({
     if (api) return api;
     if (loadError) throw loadError;
     try {
-      process.env.platform = 'lite';
+      if (typeof apiLoader !== 'function') throw new Error('KuGouMusicApi has no loader');
       api = apiLoader();
       return api;
     } catch (error) {
