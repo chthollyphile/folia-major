@@ -1,13 +1,11 @@
-import type { UnifiedSong } from '../../../types';
-import { OnlineProviderError } from '../../../types/onlineMusic';
-import type { OnlineRecommendationProvider, ProviderCollection } from '../../../types/onlineMusic';
+import type { FoliumSourceCollection, FoliumSourceRecommendations, FoliumSourceSong } from '@folia/folium';
 import { forgetYtmMusicPage, ytmMusicPagePlaylists } from './ytmExplore';
+import { ytmCodeOf } from './ytmFailure';
 import { normalizeYtmSong } from './ytmNormalize';
 import { addYtmSeeds, noteYtmListened, ytmLikedSeeds, ytmListenedSeeds, ytmRadioSongs } from './ytmRadio';
 import type { YtmSeed } from './ytmRadio';
-import { errorMessage } from '../../../utils/errorText';
 
-// src/services/onlineMusic/ytm/ytmRecommendations.ts
+// sources/ytm/client/ytmRecommendations.ts
 // The radio tab for YouTube Music:
 //  - Personal FM: one song radio after another (ytmRadio.ts), each asked with a song of the
 //    account's liked-music list or one the listener played in the app. The song is picked at
@@ -39,7 +37,7 @@ const newFm = () => ({
     /** Whether the account's liked songs were put among them. */
     hasLiked: false,
     /** The radio being handed out: the song it was asked with, and what is left of it. */
-    radio: null as { seed: YtmSeed; songs: UnifiedSong[] } | null,
+    radio: null as { seed: YtmSeed; songs: FoliumSourceSong[] } | null,
     /** Every song handed out or trashed, with the song its radio was asked with ('' for a song no radio here gave). */
     gone: new Map<string, string>(),
     /** Calls take turns, so that two of them do not hand out the same songs. */
@@ -55,8 +53,8 @@ export const resetYtmRecommendations = (): void => {
     forgetYtmMusicPage();
 };
 
-const wordsOf = (error: unknown) => errorMessage(error);
-const isOffline = (error: unknown) => error instanceof OnlineProviderError && error.code === 'network';
+const wordsOf = (error: unknown) => (error instanceof Error ? error.message : String(error));
+const isOffline = (error: unknown) => ytmCodeOf(error)?.code === 'network';
 
 // The songs to ask with. The ones played here join as the explore page hands them over. The liked
 // ones are read once, and again when every song was asked with and the last radio is used up.
@@ -78,9 +76,9 @@ const gatherSeeds = async (session: Fm): Promise<void> => {
 };
 
 /** The next songs of the FM: what is left of the radio being handed out, then the radio of another song. None once there is no song left to ask with. */
-const nextFmSongs = async (session: Fm): Promise<UnifiedSong[]> => {
+const nextFmSongs = async (session: Fm): Promise<FoliumSourceSong[]> => {
     await gatherSeeds(session);
-    const songs: UnifiedSong[] = [];
+    const songs: FoliumSourceSong[] = [];
     let asked = 0;
     while (songs.length < FM_BATCH) {
         const radio = session.radio;
@@ -112,7 +110,7 @@ const nextFmSongs = async (session: Fm): Promise<UnifiedSong[]> => {
     return songs;
 };
 
-export const ytmRecommendations: OnlineRecommendationProvider = {
+export const ytmRecommendations: FoliumSourceRecommendations = {
     getPersonalFm() {
         const session = fm;
         const turn = session.queue.catch(() => undefined).then(() => nextFmSongs(session));
@@ -137,7 +135,7 @@ export const ytmRecommendations: OnlineRecommendationProvider = {
         const lists = await ytmMusicPagePlaylists().catch(error => {
             if (isOffline(error)) throw error;
             console.warn(`[Ytm] Recommended playlists: the music page could not be read (${wordsOf(error)}); the tab goes on without them`);
-            return [] as ProviderCollection[];
+            return [] as FoliumSourceCollection[];
         });
         console.log(`[Ytm] Recommended playlists: ${Math.min(lists.length, limit)} of the ${lists.length} playlists and mixes of the music page`);
         return lists.slice(0, limit);

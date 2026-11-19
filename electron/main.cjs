@@ -72,11 +72,8 @@ const {
 const { createKugouApiBridge } = require('./kugou/kugouApiBridge.cjs');
 const { createExternalUrlOpener } = require('./externalUrlPolicy.cjs');
 const { createSenderGuardedHandler } = require('./ipcAccessGuard.cjs');
-const { createYtmApiBridge } = require('./ytm/ytmApiBridge.cjs');
 const { createCompanionClient } = require('./appleMusic/companionClient.cjs');
 const { createCompanionRequestHandler } = require('./appleMusic/companionIpc.cjs');
-const { createYtmSandbox } = require('./ytm/sandbox.cjs');
-const { YTM_AUDIO_PRIVILEGED_SCHEME, YTM_AUDIO_SCHEME } = require('./ytm/audio.cjs');
 const { createSpotifyApiBridge } = require('./spotify/spotifyApiBridge.cjs');
 const { SPOTIFY_AUDIO_PRIVILEGED_SCHEME, SPOTIFY_AUDIO_SCHEME } = require('./spotify/audio.cjs');
 const { createQqAuthSessionRepository } = require('./qq/qqAuthSessionRepository.cjs');
@@ -176,7 +173,6 @@ protocol.registerSchemesAsPrivileged([
     },
   },
   MOD_PROTOCOL_PRIVILEGED_SCHEME,
-  YTM_AUDIO_PRIVILEGED_SCHEME,
   SPOTIFY_AUDIO_PRIVILEGED_SCHEME,
   // Old media addresses of built-in sources that saved data may still hold (a platform's folia-<id>://): the
   // mod system answers them from the mod's _media routes (builtinSources.cjs's legacyMediaSchemes).
@@ -385,29 +381,6 @@ process.on('exit', () => hifiSession.killSync());
 // KuGou credentials stay inside the main process and are encrypted lazily after Electron is ready.
 // The bridge refuses Linux's plaintext `basic_text` fallback and degrades to an in-memory session.
 const kugouApiBridge = createKugouApiBridge({ store, safeStorage });
-// YouTube Music talks to Google from its own network partition and without a cookie jar: the
-// account is carried by a request header, and stored cookies would tie the guest sessions to it.
-// (The library sends one cookie of its own making, a random visitor id and the time zone, on the
-// request that opens each session; nothing Google sets is kept or sent back.) Sessions exist only
-// after app ready, hence the lazy lookup; like the update check, the partition follows the system
-// proxy.
-const ytmSandbox = createYtmSandbox({ BrowserWindow, session, isAllowed: () => Boolean(mainWindow && !mainWindow.isDestroyed()) });
-let ytmNetwork = null;
-const getYtmNetwork = () => {
-  if (!ytmNetwork) {
-    const ses = session.fromPartition('folia-ytm');
-    ytmNetwork = ses.setProxy({ mode: 'system' }).catch(() => {}).then(() => ses);
-  }
-  return ytmNetwork;
-};
-const ytmApiBridge = createYtmApiBridge({ store, safeStorage,
-  fetch: async (input, init) => (await getYtmNetwork()).fetch(input instanceof URL ? input.href : input, { ...init, credentials: 'omit' }),
-  evaluate: code => ytmSandbox.evaluate(code),
-  language: () => getMainLocaleKey(),
-  // The browser window of the web sign-in runs on this folder; the bridge removes it when a
-  // sign-in ends.
-  signInFolder: () => path.join(app.getPath('userData'), 'ytm-sign-in'),
-});
 // Development and packaged builds both use the system-WebView host; no alternate browser runtime.
 const { resolveNativeExecutable } = require('./appleMusic/nativePaths.cjs');
 const appleMusicClient = createCompanionClient({
@@ -6262,9 +6235,7 @@ function createWindow(options = {}) {
       if (remoteControlWindow && !remoteControlWindow.isDestroyed()) {
         remoteControlWindow.close();
       }
-      // The hidden YouTube Music sandbox window would otherwise keep the app from quitting.
-      ytmSandbox.destroy();
-      // So would the performance check's window, still running its GPU work.
+      // The performance check's window, still running its GPU work, would otherwise keep the app from quitting.
       perfCheckHost.close();
       refreshTrayMenu();
     }
@@ -6458,7 +6429,6 @@ app.whenReady().then(async () => {
   setupVideoExportDisplayMediaHandler();
   setupCorsBypassHandlers();
   localCoverAssetStore.registerProtocolHandler(protocol, electronNet);
-  protocol.handle(YTM_AUDIO_SCHEME, request => ytmApiBridge.handleAudioRequest(request));
   protocol.handle(SPOTIFY_AUDIO_SCHEME, request => spotifyApiBridge.handleAudioRequest(request));
   // Transcode fallback is an optional degradation path; a failure preparing it must never keep
   // the rest of this handler, createWindow() included, from running.
@@ -6744,14 +6714,15 @@ app.on('window-all-closed', () => {
 });
 
 // The bridges whose work under way holds a quit, each through its shutdown() (see before-quit).
-const quitHoldingBridges = [ytmApiBridge, spotifyApiBridge];
+const quitHoldingBridges = [spotifyApiBridge];
 // Set while a quit is held for such work (see before-quit).
 let isQuitHeldForAccounts = false;
 
 app.on('before-quit', (event) => {
-  // Work of a bridge that must not be cut off: a web sign-in under way, whose ended browser leaves
-  // a folder holding a whole sign-in session to remove; a token renewal whose answer is not stored
-  // yet, as the next run may not be able to use the token it replaces. shutdown() answers a promise
+  // Work that must not be cut off: a token renewal whose answer is not stored yet, as the next run
+  // may not be able to use the token it replaces; a source mod's (its api.onBeforeQuit, through
+  // modSystem.prepareQuit), such as a web sign-in under way, whose ended browser leaves a folder
+  // holding a whole sign-in session to remove. shutdown() answers a promise
   // while there is such work, settled in 3 seconds at most. The quit is held until all have
   // settled, and then asked for again; nothing below has run by then. A quit with no such work is
   // not held, and neither is one that arrives while another is held.
@@ -7455,12 +7426,6 @@ ipcMain.handle('kugou-api-request', createSenderGuardedHandler({
   handler: (_event, operation, params) => kugouApiBridge.request(operation, params),
 }));
 
-ipcMain.handle('ytm-api-request', (event, operation, params) => {
-  if (!isTrustedMainWindowContents(event.sender)) {
-    return { ok: false, error: { code: 'unavailable', message: 'Untrusted YouTube Music request' } };
-  }
-  return ytmApiBridge.request(operation, params);
-});
 ipcMain.handle('apple-music-request', createCompanionRequestHandler({
   isTrusted: isTrustedMainWindowContents,
   client: appleMusicClient,

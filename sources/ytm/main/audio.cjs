@@ -1,11 +1,12 @@
 const crypto = require('node:crypto');
-const { parseRangeHeader } = require('../transcode/protocol.cjs');
 const { TrackBuffer, createByteLru } = require('./trackBuffer.cjs');
 const { VIDEO_ID } = require('./tiles.cjs');
 const { YtmError, describeError, toErrorResult, ytmError } = require('./errors.cjs');
 
-// electron/ytm/audio.cjs
+// sources/ytm/main/audio.cjs
 
+// The scheme the built-in provider served tracks under, before the source mod's `_media/audio` route
+// (main/index.ts hands `urlOf`): the default address, which the tests keep using.
 const YTM_AUDIO_SCHEME = 'folia-ytm';
 const YTM_AUDIO_PRIVILEGED_SCHEME = {
   scheme: YTM_AUDIO_SCHEME,
@@ -51,7 +52,32 @@ const QUIET_MS = 10000;
 const MAX_REPLANS = 4;
 const REPLAN_WINDOW_MS = 5 * 60 * 1000;
 
-// Serves tracks to the renderer as `folia-ytm://audio/<videoId>/<level>?k=<key>`.
+// One Range header against a track's size: `{ start, end }`, `{ invalid: true }`, or null for none (the
+// rules the host's transcode protocol reads by, which a source mod cannot require).
+const parseRangeHeader = (value, size) => {
+  if (!value) return null;
+  const match = /^bytes=(\d*)-(\d*)$/.exec(value.trim());
+  if (!match) return { invalid: true };
+  let start = match[1] ? Number(match[1]) : null;
+  let end = match[2] ? Number(match[2]) : null;
+  if (start === null) {
+    if (end === null || end <= 0) return { invalid: true };
+    start = Math.max(size - end, 0);
+    end = size - 1;
+  } else {
+    end = end === null ? size - 1 : Math.min(end, size - 1);
+  }
+  if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || start > end || start >= size) {
+    return { invalid: true };
+  }
+  return { start, end };
+};
+
+const schemeUrlOf = (videoId, level, key) => `${YTM_AUDIO_SCHEME}://audio/${videoId}/${level}?k=${key}`;
+
+// Serves tracks to the renderer at `urlOf(videoId, level, key)`: the source mod's
+// `folia-mod://ytm/_media/audio/<videoId>/<level>?once=<key>` (main/index.ts), or by default
+// `folia-ytm://audio/<videoId>/<level>?k=<key>`; `handle` answers the latter, `serve` either.
 // `loadPlan(videoId, failed, level)` asks YouTube how the track can be played at that quality
 // level and resolves to
 // `{ route, mimeType, contentLength, open() }`; `open()` starts the download and resolves to
@@ -62,6 +88,7 @@ const REPLAN_WINDOW_MS = 5 * 60 * 1000;
 // A URL stands for one file: the audio element keeps the bytes it has read of it.
 function createYtmAudio({
   loadPlan,
+  urlOf = schemeUrlOf,
   now = Date.now,
   randomKey = () => crypto.randomBytes(16).toString('hex'),
   maxCacheBytes = 96 * 1024 * 1024,
@@ -204,7 +231,7 @@ function createYtmAudio({
 
   const gone = () => new Response(null, { status: 503, headers: { 'Access-Control-Allow-Origin': '*' } });
 
-  return {
+  const audio = {
     // Checks that the track can be played and hands out a fresh URL for it. The URL differs on
     // every call so that reloading a failed source is a real change for the audio element.
     // `level` is the quality level the track is asked at; the URL names the level it is served at.
@@ -244,7 +271,7 @@ function createYtmAudio({
       // loudness figure for the track, the renderer's track gain.
       // `level` is there only when the track is served at another level than the one asked for.
       return {
-        url: `${YTM_AUDIO_SCHEME}://audio/${videoId}/${served}?k=${key}`, route: plan.route, itag: plan.itag, bitrate: plan.bitrate,
+        url: urlOf(videoId, served, key), route: plan.route, itag: plan.itag, bitrate: plan.bitrate,
         ...(Number.isFinite(plan.loudnessDb) ? { loudnessDb: plan.loudnessDb } : {}),
         ...(served === level ? {} : { level: served }),
       };
@@ -256,11 +283,19 @@ function createYtmAudio({
     // status, which ends its asking in about a second, so that the renderer can ask for a new
     // URL or move on.
     async handle(request) {
+      let url;
+      try { url = new URL(request.url); } catch { return Response.error(); }
+      if (url.hostname !== 'audio') return Response.error();
+      const [videoId, level] = url.pathname.slice(1).split('/');
+      return audio.serve({ videoId, level, key: url.searchParams.get('k') ?? '', method: request.method, range: request.headers.get('range') });
+    },
+
+    // The same for a read already taken apart: the track, its level, the key of its URL, the
+    // method and the raw Range header.
+    async serve({ videoId, level, key, method = 'GET', range: rangeHeader = null }) {
       try {
-        const url = new URL(request.url);
-        const [videoId, level] = url.pathname.slice(1).split('/');
-        const link = keys.get(url.searchParams.get('k') ?? '');
-        if (request.method !== 'GET' || url.hostname !== 'audio' || !VIDEO_ID.test(videoId)) return Response.error();
+        const link = keys.get(key ?? '');
+        if (method !== 'GET' || typeof videoId !== 'string' || !VIDEO_ID.test(videoId)) return Response.error();
         // A key dropped by a sign-in or sign-out will not come back; the track plays from a new URL.
         // (Nor does a key answer for another level than the one it was issued for.)
         if (link?.videoId !== videoId || link.level !== level) return gone();
@@ -269,7 +304,7 @@ function createYtmAudio({
         // already has (the track would end early with no error), and a new URL plays it at once.
         if (entry.plan.contentLength !== link.contentLength || entry.plan.mimeType !== link.mimeType) return gone();
         const track = entry.track ?? download(videoId, entry);
-        const range = parseRangeHeader(request.headers.get('range'), track.total);
+        const range = parseRangeHeader(rangeHeader, track.total);
         if (range?.invalid) {
           return new Response(null, { status: 416, headers: { 'Content-Range': `bytes */${track.total}`, 'Access-Control-Allow-Origin': '*' } });
         }
@@ -309,6 +344,7 @@ function createYtmAudio({
       withoutUltra = new WeakSet();
     },
   };
+  return audio;
 }
 
 module.exports = { NoUltraFormat, YTM_AUDIO_LEVELS, YTM_AUDIO_PRIVILEGED_SCHEME, YTM_AUDIO_SCHEME, createYtmAudio };

@@ -1,5 +1,5 @@
 import { createRequire } from 'node:module';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // test/unit/ytm/ytmUltra.test.ts — the quality level 'ultra' of YouTube Music (about
 // 256 kbit/s, offered to a Premium member). On the desktop side, against stand-ins for
@@ -11,23 +11,24 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // dropped. Every cookie, name, address and id in this file is made up, and so is the shape of
 // the account menu around its icons (the reader looks at the icons only).
 
-const request = vi.hoisted(() => vi.fn());
-vi.mock('@/services/onlineMusic/ytm/ytmTransport', () => ({
-    requestYtm: request, getYtmTransportAvailability: () => ({ configured: true }),
-}));
 import { omni } from '@/services/onlineMusic/omni';
 import { registerOnlineMusicProvider, unregisterOnlineMusicProvider } from '@/services/onlineMusic/providerRegistry';
-import { noteYtmAccount } from '@/services/onlineMusic/ytm/ytmAccount';
-import { normalizeYtmSong } from '@/services/onlineMusic/ytm/ytmNormalize';
-import { ytmProvider } from '@/services/onlineMusic/ytm/ytmProvider';
+import { connectYtmAccount, noteYtmAccount, ytmHasPremium } from '../../../sources/ytm/client/ytmAccount';
 import { resolveStoredAudioQuality } from '@/stores/useAudioSettingsStore';
 import type { AudioQualityPreference, OnlineMusicProvider } from '@/types/onlineMusic';
+import type { UnifiedSong } from '@/types';
+import { answerYtmRequests, hostYtmSong, lazyYtmProvider } from '../helpers/ytmSource';
+// @builtin-sources
+
+// The renderer side runs through the registered source mod; its requests to the main entry are answered here.
+const { request } = answerYtmRequests();
+const ytmProvider = lazyYtmProvider();
 
 const require = createRequire(import.meta.url);
-const { createYtmApiBridge, pickAudioFormat } = require('../../../electron/ytm/ytmApiBridge.cjs');
-const { publicAccountId } = require('../../../electron/ytm/session.cjs');
-const { createYtmWebSessionRepository, WEB_SESSION_KEY } = require('../../../electron/ytm/webSignIn.cjs');
-const webPages = require('../../../electron/ytm/webPages.cjs');
+const { createYtmApiBridge, pickAudioFormat } = require('../../../sources/ytm/main/ytmApiBridge.cjs');
+const { publicAccountId } = require('../../../sources/ytm/main/session.cjs');
+const { createYtmWebSessionRepository, WEB_SESSION_KEY } = require('../../../sources/ytm/main/webSignIn.cjs');
+const webPages = require('../../../sources/ytm/main/webPages.cjs');
 
 const VIDEO = 'm9SMT5ipbxk';
 const OTHER_VIDEO = 'ZRtdQ81jPUQ';
@@ -509,7 +510,10 @@ describe('YouTube Music desktop bridge at the level ultra', () => {
 });
 
 describe('YouTube Music adapter at the level ultra', () => {
-    const song = normalizeYtmSong({ id: VIDEO, name: 'Song', artists: [{ id: '', name: 'Artist' }], album: { id: '', name: '', coverUrl: '' }, durationMs: 60000 });
+    let song!: UnifiedSong;
+    beforeAll(() => {
+        song = hostYtmSong({ id: VIDEO, name: 'Song', artists: [{ id: '', name: 'Artist' }], album: { id: '', name: '', coverUrl: '' }, durationMs: 60000 });
+    });
     const LEVELS: AudioQualityPreference[] = ['standard', 'high', 'ultra', 'lossless', 'hires'];
     // The account as a `login_status` answer names it.
     const signedIn = async (vipType: number) => {
@@ -535,8 +539,6 @@ describe('YouTube Music adapter at the level ultra', () => {
     afterEach(() => {
         unregisterOnlineMusicProvider(unlisted.id);
         vi.restoreAllMocks();
-        vi.unstubAllGlobals();
-        vi.resetModules();
     });
 
     it('lists the level only while the signed-in account has Premium', async () => {
@@ -571,7 +573,7 @@ describe('YouTube Music adapter at the level ultra', () => {
         expect(await auth.checkLogin!(key)).toEqual({ state: 'confirmed' });
         expect(levels()).toEqual(['standard', 'high', 'ultra']);
         // The sign-in status was not asked for.
-        expect(request.mock.calls).toEqual([['web_login_start'], ['web_login_check'], ['web_login_check']]);
+        expect(request.mock.calls).toEqual([['web_login_start', {}], ['web_login_check', {}], ['web_login_check', {}]]);
 
         // A sign-in status asked for before a sign-out and answered during it is noted, and then
         // is nobody's: the sign-out notes nobody once more when it has answered.
@@ -605,19 +607,19 @@ describe('YouTube Music adapter at the level ultra', () => {
     it('hands back the level a song was served at, and a copy kept of it is labelled by that level', async () => {
         const log = vi.spyOn(console, 'log').mockImplementation(() => {});
         await signedIn(1);
-        request.mockResolvedValueOnce({ url: `folia-ytm://audio/${VIDEO}/ultra?k=one`, route: 'member', itag: 774, bitrate: 257_000 })
-            .mockResolvedValueOnce({ url: `folia-ytm://audio/${VIDEO}/high?k=two`, route: 'web', itag: 251, bitrate: 130_000, level: 'high' });
+        request.mockResolvedValueOnce({ url: `folia-mod://ytm/_media/audio/${VIDEO}/ultra?once=one`, route: 'member', itag: 774, bitrate: 257_000 })
+            .mockResolvedValueOnce({ url: `folia-mod://ytm/_media/audio/${VIDEO}/high?once=two`, route: 'web', itag: 251, bitrate: 130_000, level: 'high' });
 
         const had = await omni.getAudioSource(song, 'ultra');
         expect(request).toHaveBeenLastCalledWith('audio', { id: VIDEO, quality: 'ultra' });
-        expect(had).toMatchObject({ url: `folia-ytm://audio/${VIDEO}/ultra?k=one`, quality: 'ultra' });
+        expect(had).toMatchObject({ url: `folia-mod://ytm/_media/audio/${VIDEO}/ultra?once=one`, quality: 'ultra' });
         expect(log).toHaveBeenLastCalledWith(expect.stringMatching(/^\[Ytm\] Audio for "Song" \(m9SMT5ipbxk\) at ultra is ready by the member route \(itag 774, 257 kbit\/s\) after \d+ms$/));
         expect(omni.levelOfAudioSource(had!.url)).toBe('ultra');
 
         // The same song once more, under a stored preference above the level: it could not be had at 'ultra'.
         const lower = await omni.getAudioSource(song, 'hires');
         expect(request).toHaveBeenLastCalledWith('audio', { id: VIDEO, quality: 'ultra' });
-        expect(lower).toMatchObject({ url: `folia-ytm://audio/${VIDEO}/high?k=two`, quality: 'high' });
+        expect(lower).toMatchObject({ url: `folia-mod://ytm/_media/audio/${VIDEO}/high?once=two`, quality: 'high' });
         expect(log).toHaveBeenLastCalledWith(expect.stringMatching(/^\[Ytm\] Audio for "Song" \(m9SMT5ipbxk\) at ultra \(served at high\) is ready by the web route \(itag 251, 130 kbit\/s\) after \d+ms$/));
         // The media cache labels a copy by this: the 130 kbit/s file is kept as 'high', not as 'ultra'.
         expect(omni.levelOfAudioSource(lower!.url)).toBe('high');
@@ -631,43 +633,53 @@ describe('YouTube Music adapter at the level ultra', () => {
         expect(omni.levelOfAudioSource(source!.url)).toBe('lossless');
     });
 
+    // The fact is kept in the source's page store (`account`); the host moves the built-in provider's
+    // `folia_ytm_account` there once (sourcePageStore.ts), in the shape it had.
     it('knows the account from the last run before the sign-in status is read', async () => {
-        const kept = new Map<string, string>();
-        vi.stubGlobal('localStorage', {
-            getItem: (key: string) => kept.get(key) ?? null, setItem: (key: string, value: string) => { kept.set(key, String(value)); }, removeItem: (key: string) => { kept.delete(key); },
-        });
         vi.spyOn(console, 'log').mockImplementation(() => {});
+        const kept = new Map<string, string>();
+        const store = {
+            get: (key: string) => kept.get(key) ?? null,
+            set: (key: string, value: string | null) => { if (value === null) kept.delete(key); else kept.set(key, value); },
+            keys: () => [...kept.keys()],
+        };
+        const changed = vi.fn();
         // One run: the sign-in status is read, and the fact is kept.
-        vi.resetModules();
-        const lastRun = await import('@/services/onlineMusic/ytm/ytmAccount');
-        expect(lastRun.ytmHasPremium()).toBe(false);
-        lastRun.noteYtmAccount({ id: 'abc', nickname: 'Fixture', vipType: 1 });
-        expect([...kept]).toEqual([['folia_ytm_account', '{"premium":true}']]);
+        connectYtmAccount(store, changed);
+        expect(ytmHasPremium()).toBe(false);
+        noteYtmAccount({ id: 'abc', nickname: 'Fixture', vipType: 1 });
+        expect([...kept]).toEqual([['account', '{"premium":true}']]);
+        // The host is told, as the levels listed follow it.
+        expect(changed).toHaveBeenCalledTimes(1);
+        noteYtmAccount({ id: 'abc', nickname: 'Fixture', vipType: 1 });
+        expect(changed).toHaveBeenCalledTimes(1);
 
         // The next run, before anything was asked of the desktop side: the level is listed at once.
-        vi.resetModules();
+        noteYtmAccount(null);
+        kept.set('account', '{"premium":true}');
         request.mockClear();
-        const { ytmProvider: restarted } = await import('@/services/onlineMusic/ytm/ytmProvider');
-        expect(restarted.playback!.audioQualityLevels).toEqual(['standard', 'high', 'ultra']);
+        connectYtmAccount(store, changed);
+        expect(ytmProvider.playback!.audioQualityLevels).toEqual(['standard', 'high', 'ultra']);
         expect(request).not.toHaveBeenCalled();
         // What the sign-in status then says replaces it, and nobody signed in leaves nothing kept.
         request.mockResolvedValueOnce({ id: 'abc', nickname: 'Fixture', avatarUrl: 'a', vipType: 0 }).mockResolvedValueOnce(null);
-        await restarted.auth!.getLoginStatus();
-        expect(restarted.playback!.audioQualityLevels).toEqual(['standard', 'high']);
-        expect(kept.get('folia_ytm_account')).toBe('{"premium":false}');
-        await restarted.auth!.getLoginStatus();
+        await ytmProvider.auth!.getLoginStatus();
+        expect(ytmProvider.playback!.audioQualityLevels).toEqual(['standard', 'high']);
+        expect(kept.get('account')).toBe('{"premium":false}');
+        await ytmProvider.auth!.getLoginStatus();
         expect(kept.size).toBe(0);
 
-        const keptAs = async (note: string) => {
-            kept.set('folia_ytm_account', note);
-            vi.resetModules();
-            return (await import('@/services/onlineMusic/ytm/ytmAccount')).ytmHasPremium();
+        const keptAs = (note: string) => {
+            kept.set('account', note);
+            connectYtmAccount(store, changed);
+            return ytmHasPremium();
         };
-        // A note from when the app had two sign-ins names its own: the browser one's still stands,
-        // the one of the device sign-in, which is gone, is nobody's.
-        expect(await keptAs('{"signIn":"web","premium":true}')).toBe(true);
-        expect(await keptAs('{"signIn":"tv","premium":true}')).toBe(false);
+        expect(keptAs('{"premium":true}')).toBe(true);
+        // A note of the built-in provider's: the web sign-in's stands, the gone device sign-in's is nobody's.
+        expect(keptAs('{"signIn":"web","premium":true}')).toBe(true);
+        expect(keptAs('{"signIn":"tv","premium":true}')).toBe(false);
         // Anything else found there is nobody.
-        for (const damaged of ['not json', '{"premium":"yes"}', '[]', 'null']) expect(await keptAs(damaged)).toBe(false);
+        for (const damaged of ['not json', '{"premium":"yes"}', '[]', 'null']) expect(keptAs(damaged)).toBe(false);
+        noteYtmAccount(null);
     });
 });

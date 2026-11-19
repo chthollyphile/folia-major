@@ -1,0 +1,14 @@
+{
+    "name": {
+        "short": "YT Music"
+    },
+    "login": {
+        "title": "登录 YouTube Music",
+        "note": "会打开一个单独的浏览器窗口。在里面登录 Google，看到 YouTube Music 显示你的账号后，关掉那个窗口。",
+        "noteMac": "会打开一个单独的浏览器窗口。在里面登录 Google，看到 YouTube Music 显示你的账号后，退出那个浏览器（⌘Q）。",
+        "noBrowser": "登录 YouTube Music 需要安装 Chrome（Beta、Dev、Canary 版也可以）、Edge、Chromium、Brave 或 Helium。Windows 上也可以把便携版 Chrome、Edge、Brave 设为默认浏览器（需是 chrome.exe、msedge.exe、brave.exe 本身，不是启动器）。",
+        "unfinished": "请登录后再关闭浏览器"
+    },
+    "exploreSimilar": "与《{{name}}》相似",
+    "pageLanguage": "简体"
+}

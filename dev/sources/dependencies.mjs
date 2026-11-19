@@ -229,9 +229,12 @@ export const packArchive = async (files, archive) => {
     }
 };
 
-/** 读一个包的入口：子路径直接拼；否则 exports 的 `.`（按 `conditions` 挑）、main、index.js。给 file: 包用。 */
+/**
+ * 读一个包的入口：exports 里有这个子路径（`./<子路径>`，或者没有子路径时的 `.`）就按 `conditions` 挑；没有子路径时
+ * 再看 main、index.js；exports 里没有的子路径直接拼。给 file: 包和 vendor 文件的入口用（`googlevideo/sabr-stream`
+ * 这样的子路径只写在 exports 里）。
+ */
 export const packageEntry = (dir, subpath, conditions) => {
-    if (subpath) return path.join(dir, subpath);
     const pkg = readJson(path.join(dir, 'package.json'));
     const pick = (target) => {
         if (typeof target === 'string') return target;
@@ -245,6 +248,11 @@ export const packageEntry = (dir, subpath, conditions) => {
         }
         return null;
     };
-    const exported = pkg.exports === undefined ? null : pick(typeof pkg.exports === 'object' && '.' in pkg.exports ? pkg.exports['.'] : pkg.exports);
+    const map = pkg.exports && typeof pkg.exports === 'object' && Object.keys(pkg.exports).some((key) => key.startsWith('.')) ? pkg.exports : null;
+    if (subpath) {
+        const exported = map && map[`./${subpath}`] !== undefined ? pick(map[`./${subpath}`]) : null;
+        return path.join(dir, exported ?? subpath);
+    }
+    const exported = pkg.exports === undefined ? null : pick(map ? map['.'] : pkg.exports);
     return path.join(dir, exported ?? pkg.main ?? 'index.js');
 };

@@ -153,7 +153,6 @@ export const IPC_CHANNELS = {
     'window-set-transparent-mode': { level: 'first-party', why: '现状：有来源校验' },
     'window-toggle-fullscreen': { level: 'first-party', why: '现状：有来源校验' },
     'window-toggle-maximize': { level: 'first-party', why: '操作主窗口（firstParty）' },
-    'ytm-api-request': { level: 'first-party', why: '现状：有来源校验' },
 };
 
 /** 循环里拼出名字、扫描认不出的通道前缀。 */

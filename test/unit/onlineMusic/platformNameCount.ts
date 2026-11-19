@@ -50,7 +50,7 @@ const SOURCE_FILE = /\.(ts|tsx|cjs|mjs|js|css|md)$/;
 const LANGUAGE_FILE = /^src\/i18n\/locales\//;
 const DOCUMENT = /\.md$/;
 // Never read: it holds no platform rule of ours and must not be opened.
-const SKIPPED_FILE = /^electron\/ytm\/poToken\.cjs$/;
+const SKIPPED_FILE = /^sources\/ytm\/main\/poToken\.cjs$/;
 // Letters of other things that happen to spell a platform's name.
 const NOT_A_NAME = /MmLlHhVvCcSsQqTtAaZz|'quanqiu', 'qq'/g;
 const COMMENT_LINE = /^\s*(\/\/|\/?\*|\{\/\*)/;

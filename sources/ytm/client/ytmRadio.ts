@@ -1,7 +1,7 @@
 import { requestYtm } from './ytmTransport';
 import type { YtmWirePage, YtmWireSong } from './ytmTransport';
 
-// src/services/onlineMusic/ytm/ytmRadio.ts
+// sources/ytm/client/ytmRadio.ts
 // A song's radio, and the songs a radio is asked with ("seeds"). Two things are made of them: the
 // explore page's shelves of the songs like one song (ytmExplore.ts) and the radio tab's personal
 // FM (ytmRecommendations.ts). A radio is the queue YouTube Music makes up for the list `RDAMVM` +
@@ -17,7 +17,7 @@ export const ytmSeedOf = (song: { id: string | number; name: string }): YtmSeed 
 const LIKED_LIST = 'LM';
 
 // The songs the listener played in the app, as the explore page was last handed them
-// (`OnlineExploreProvider.getFeed`): the personal FM is not handed them, and asks with these.
+// (`explore@1.getFeed`): the personal FM is not handed them, and asks with these.
 let listened: YtmSeed[] = [];
 export const noteYtmListened = (songs: YtmSeed[]): void => { listened = songs; };
 export const ytmListenedSeeds = (): YtmSeed[] => listened;

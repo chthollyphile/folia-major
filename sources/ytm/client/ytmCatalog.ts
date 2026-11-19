@@ -1,12 +1,10 @@
-import type { UnifiedSong } from '../../../types';
-import { OnlineProviderError } from '../../../types/onlineMusic';
-import type { OnlineCatalogProvider, ProviderCollection } from '../../../types/onlineMusic';
-import { createYtmPager, normalizeYtmCollection, normalizeYtmSong, ytmSlicePage } from './ytmNormalize';
-import { errorMessage } from '../../../utils/errorText';
-import { requestYtm } from './ytmTransport';
+import type { FoliumSourceCatalog, FoliumSourceCollection, FoliumSourceSong } from '@folia/folium';
+import { createYtmPager, normalizeYtmCollection, normalizeYtmSong, ytmMixOf, ytmSlicePage } from './ytmNormalize';
+import { requestYtm, ytmError } from './ytmTransport';
 import type { YtmWireAlbum, YtmWireArtistPage, YtmWirePage, YtmWireSong } from './ytmTransport';
 
-// src/services/onlineMusic/ytm/ytmCatalog.ts
+// sources/ytm/client/ytmCatalog.ts
+// Albums, artists, playlists and mixes (`catalog@1`), and the album and playlist ids a save goes by.
 
 const PAGE_TTL_MS = 5 * 60 * 1000;
 const MAX_CACHED_PAGES = 32;
@@ -38,7 +36,7 @@ const mixPages = createPageCache(key => {
     const [id, videoId] = key.split(' ');
     return requestYtm<YtmWirePage<YtmWireSong>>('mix', videoId ? { id, videoId } : { id });
 });
-const trackPager = createYtmPager<UnifiedSong>();
+const trackPager = createYtmPager<FoliumSourceSong>();
 
 export const clearYtmCatalogCache = (): void => {
     albumPages.clear();
@@ -66,7 +64,7 @@ export const ytmPlaylistTracks = (id: string, limit: number, offset: number, asA
             const page = await requestYtm<YtmWirePage<YtmWireSong>>('public_playlist', { id, continuation: continuation?.slice(PUBLIC_PAGE.length) })
                 .catch(error => {
                     if (continuation !== undefined) throw error;
-                    console.warn(`[Ytm] Playlist ${id} could not be read as a guest (${errorMessage(error)}); it is read as the account`);
+                    console.warn(`[Ytm] Playlist ${id} could not be read as a guest (${error instanceof Error ? error.message : String(error)}); it is read as the account`);
                     return null;
                 });
             if (page && (continuation !== undefined || page.items.length > 0)) {
@@ -79,14 +77,14 @@ export const ytmPlaylistTracks = (id: string, limit: number, offset: number, asA
 );
 
 const isCatalogAlbum = (id: string) => id.startsWith('MPRE');
-const needsCatalogRefs = (song: UnifiedSong) => !song.album.id || song.artists.some(artist => !artist.id);
+const needsCatalogRefs = (song: FoliumSourceSong) => !song.album?.id || song.artists.some(artist => !artist.id);
 
 // A playlist the account is offered to save to its library: one with a page of its own (a mix
 // has none) that is not the liked-music list and not marked as the account's own. Only a library
 // card carries that mark; for any other card the playlist's page settles it when the save is
 // sent. A playlist is saved by its own id.
-export const isSavableYtmPlaylist = (collection: ProviderCollection): boolean => (
-    collection.type === 'playlist' && collection.id !== 'LM' && collection.isOwned !== true && collection.providerData?.mix !== true
+export const isSavableYtmPlaylist = (collection: FoliumSourceCollection): boolean => (
+    collection.type === 'playlist' && collection.id !== 'LM' && collection.isOwned !== true && ytmMixOf(collection) === null
 );
 
 // An album is saved, and its saved state read, by the id of its list (OLAK5uy_…): the one its
@@ -99,62 +97,68 @@ export const isSavableYtmPlaylist = (collection: ProviderCollection): boolean =>
 export const ytmAlbumSaveParams = async (id: string): Promise<{ id: string; albumId?: string }> => {
     if (!isCatalogAlbum(id)) return { id };
     const listId = (await albumPages.get(id)).collection.playlistId;
-    if (!listId) throw new OnlineProviderError('invalid-response', 'YouTube Music album page names no list', 'ytm');
+    if (!listId) throw ytmError('invalid-response', 'YouTube Music album page names no list');
     return { id: listId, albumId: id };
 };
 
-export const ytmCatalog: OnlineCatalogProvider = {
-    canResolveSongCatalogRefs: song => song.sourceRef?.kind === 'online' && song.sourceRef.providerId === 'ytm',
+export const ytmCatalog: FoliumSourceCatalog = {
+    // The host asks this of YouTube Music's own songs only.
+    canResolveSongCatalogRefs: () => true,
     // Rows from playlists carry display names only; the public watch page of the same video names
     // the artist and album by id and has the square cover.
     async resolveSongCatalogRefs(song) {
-        if (song.sourceRef?.kind !== 'online' || song.sourceRef.providerId !== 'ytm' || !needsCatalogRefs(song)) return song;
-        const detail = await songDetails.get(song.sourceRef.mediaId).catch(() => null);
+        if (!needsCatalogRefs(song)) return song;
+        const detail = await songDetails.get(song.id).catch(() => null);
         if (!detail) return song;
         const resolved = normalizeYtmSong(detail);
+        const found = resolved.album;
+        const album = found && (found.id || found.coverUrl)
+            ? { ...found, name: found.name || song.album?.name || '', coverUrl: found.coverUrl || song.album?.coverUrl || '' }
+            : song.album;
         return {
             ...song,
             artists: resolved.artists.length > 0 ? resolved.artists : song.artists,
-            album: resolved.album.id || resolved.album.coverUrl
-                ? { ...resolved.album, name: resolved.album.name || song.album.name, coverUrl: resolved.album.coverUrl || song.album.coverUrl }
-                : song.album,
+            album,
+            // The host hands the song back with the row's cover as its own too, and that one goes before the album's:
+            // the watch page's cover replaces both.
+            ...(album?.coverUrl ? { coverUrl: album.coverUrl } : {}),
             durationMs: song.durationMs || resolved.durationMs,
         };
     },
     // A mix (a card of the explore page) has no playlist page; it is read as a queue.
     async getPlaylistTracks(id, limit, offset, collection) {
-        if (collection?.providerData?.mix !== true) return ytmPlaylistTracks(String(id), limit, offset, collection?.isOwned === true);
-        const first = collection.providerData.videoId;
-        const mix = await mixPages.get(typeof first === 'string' ? `${id} ${first}` : String(id), offset > 0);
-        return ytmSlicePage(mix.items.map(normalizeYtmSong), offset, limit);
+        const mix = ytmMixOf(collection);
+        if (!mix) return ytmPlaylistTracks(id, limit, offset, collection?.isOwned === true);
+        const queue = await mixPages.get(mix.videoId ? `${id} ${mix.videoId}` : id, offset > 0);
+        return ytmSlicePage(queue.items.map(normalizeYtmSong), offset, limit);
     },
     // The library card already holds everything a playlist page would add.
     getPlaylistDetail: async (_id, collection) => collection ?? null,
     async getAlbumTracks(id, limit = 50, offset = 0) {
-        if (!isCatalogAlbum(String(id))) return ytmPlaylistTracks(String(id), limit, offset);
-        const album = await albumPages.get(String(id));
+        if (!isCatalogAlbum(id)) return ytmPlaylistTracks(id, limit, offset);
+        const album = await albumPages.get(id);
         return ytmSlicePage(album.items.map(normalizeYtmSong), offset, limit);
     },
     async getAlbumDetail(id, collection) {
-        if (!isCatalogAlbum(String(id))) return collection ?? null;
-        const album = await albumPages.get(String(id));
+        if (!isCatalogAlbum(id)) return collection ?? null;
+        const album = await albumPages.get(id);
         return normalizeYtmCollection(album.collection, 'album');
     },
     async getSubscriptionStatus(type, id, collection) {
         if (type !== 'album' && !(collection && isSavableYtmPlaylist(collection))) return false;
-        const state = await requestYtm<{ saved: boolean }>('list_saved', type === 'album' ? await ytmAlbumSaveParams(String(id)) : { id: String(id) });
+        const state = await requestYtm<{ saved: boolean }>('list_saved', type === 'album' ? await ytmAlbumSaveParams(id) : { id });
         return state.saved === true;
     },
     async getArtistDetail(id) {
-        const artist = await artistPages.get(String(id));
+        const artist = await artistPages.get(id);
         return { ...normalizeYtmCollection(artist.collection, 'artist'), albumCount: artist.albums.length };
     },
     async getArtistSongs(id, limit, offset) {
-        const artist = await artistPages.get(String(id));
+        const artist = await artistPages.get(id);
         return ytmSlicePage(artist.songs.map(normalizeYtmSong), offset, limit);
     },
     async getArtistAlbums(id, limit, offset) {
-        const artist = await artistPages.get(String(id));
-        return ytmSlicePage<ProviderCollection>(artist.albums.map(album => normalizeYtmCollection(album, 'album')), offset, limit);
+        const artist = await artistPages.get(id);
+        return ytmSlicePage(artist.albums.map(album => normalizeYtmCollection(album, 'album')), offset, limit);
     },
 };

@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { expect, it } from 'vitest';
-import { ytmLoginFailure } from '@/services/onlineMusic/ytm/ytmLoginFailure';
+import { ytmLoginFailure } from '../../../sources/ytm/client/ytmLoginFailure';
 
 // test/unit/ytm/ytmReasonWords.test.ts
 // YouTube Music's sign-in fails with a reason: a word the desktop side makes (electron/ytm/) and
@@ -14,7 +14,7 @@ const REASON = /ytmError\((?:[^()]|\([^()]*\))*,\s*'([a-z][a-z-]*)'\s*\)/g;
 const reasonsIn = (file: string): string[] => [...readFileSync(file, 'utf8').matchAll(REASON)].map(match => match[1]);
 
 it('every reason the desktop side gives for a failed YouTube Music sign-in is a case the window knows', () => {
-    const reasons = [...new Set(['electron/ytm/webSignIn.cjs', 'electron/ytm/ytmApiBridge.cjs'].flatMap(reasonsIn))];
+    const reasons = [...new Set(['sources/ytm/main/webSignIn.cjs', 'sources/ytm/main/ytmApiBridge.cjs'].flatMap(reasonsIn))];
     // The four that are written out where they are thrown; the browser's own ways to fail come through a variable.
     expect(reasons).toEqual(expect.arrayContaining(['no-browser', 'folder-in-use', 'not-taken', 'account-missing']));
     for (const reason of reasons) expect(ytmLoginFailure('unavailable', reason)?.case, reason).toBeDefined();

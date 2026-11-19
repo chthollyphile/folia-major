@@ -47,6 +47,12 @@ const fakeSession = (partition: string) => ({
     },
     setProxy: async (config: unknown) => { electronCalls.push(['session.setProxy', partition, config]); },
     clearStorageData: async () => { electronCalls.push(['session.clearStorageData', partition]); },
+    protocol: {
+        handle: (scheme: string) => { electronCalls.push(['session.protocol.handle', partition, scheme]); },
+        unhandle: (scheme: string) => { electronCalls.push(['session.protocol.unhandle', partition, scheme]); },
+    },
+    setPermissionRequestHandler: (handler: unknown) => { electronCalls.push(['session.setPermissionRequestHandler', partition, handler === null ? null : 'set']); },
+    setPermissionCheckHandler: (handler: unknown) => { electronCalls.push(['session.setPermissionCheckHandler', partition, handler === null ? null : 'set']); },
 });
 
 stubModule('electron', {
@@ -290,8 +296,12 @@ export const launch = (options: {
                 this.options = windowOptions;
                 electronCalls.push(['BrowserWindow', windowOptions]);
             }
+            closedListeners: Array<() => void> = [];
             isDestroyed() { return this.destroyed; }
             destroy() { this.destroyed = true; electronCalls.push(['BrowserWindow.destroy']); }
+            once(event: string, listener: () => void) { if (event === 'closed') this.closedListeners.push(listener); }
+            /** The window closes by itself (Electron's `closed`). */
+            closeBySelf() { this.destroyed = true; this.closedListeners.splice(0).forEach(listener => listener()); }
         },
         getMainWindow: () => (options.mainWindow === undefined ? MAIN_WINDOW : options.mainWindow),
         getLocaleKey: () => 'en',

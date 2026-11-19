@@ -69,7 +69,8 @@ const BUILTIN_SOURCE_TABLE = Object.freeze({
     ytm: Object.freeze({
         sources: ['ytm'],
         storeKeys: ['YTM_SESSION_V1', 'YTM_WEB_SESSION_V1'],
-        partitions: ['folia-ytm'],
+        // The second partition holds no sign-in: the hidden sandbox page of the player's own code ran in it, kept in memory.
+        partitions: ['folia-ytm', 'folia-ytm-sandbox'],
         userDataDirs: ['ytm-sign-in'],
         native: [],
     }),

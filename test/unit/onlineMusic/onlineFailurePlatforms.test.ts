@@ -21,7 +21,7 @@ vi.mock('@/services/onlineMusic/providerAccountCache', () => ({ saveProviderAcco
 
 const require = createRequire(import.meta.url);
 const { normalizeBridgeError } = require('../../../electron/kugou/kugouApiBridge.cjs');
-const { toErrorResult: ytmErrorResult } = require('../../../electron/ytm/errors.cjs');
+const { toErrorResult: ytmErrorResult } = require('../../../sources/ytm/main/errors.cjs');
 const { createSpotifyApiBridge } = require('../../../electron/spotify/spotifyApiBridge.cjs');
 const { publicAccountId, SESSION_KEY: SPOTIFY_SESSION_KEY } = require('../../../electron/spotify/session.cjs');
 const { createWire } = require('../../helpers/bodianWire.cjs');
@@ -329,14 +329,14 @@ describe('KuGou', () => {
 });
 
 describe('YouTube Music', () => {
-    // The desktop side's answers, by operation.
-    const desktop = (byOperation: Record<string, unknown>) => vi.stubGlobal('window', {
-        electron: { ytmRequest: async (operation: string) => byOperation[operation] ?? { ok: true, data: {} } },
+    // The desktop side's answers, by operation: the source mod's main entry, through its rpc `request`.
+    const desktop = (byOperation: Record<string, unknown>) => setBuiltinSourceRpc('ytm', {
+        request: async (operation: unknown) => byOperation[operation as string] ?? { ok: true, data: {} },
     });
     const song = songOf('ytm', 'a0000000006');
 
     it('no-audio: YouTube\'s playability status word is quoted', async () => {
-        // As electron/ytm/ytmApiBridge.cjs answers it (test/unit/ytm/ytmApiBridge.test.ts).
+        // As sources/ytm/main/ytmApiBridge.cjs answers it (test/unit/ytm/ytmApiBridge.test.ts).
         for (const word of ['UNPLAYABLE', 'AGE_CHECK_REQUIRED']) {
             desktop({ audio: { ok: false, error: { code: 'not-playable', message: `YouTube Music cannot play this track (${word})` } } });
             expect(await audio(song)).toMatchObject({ id: 'no-audio', code: word });

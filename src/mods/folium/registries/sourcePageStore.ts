@@ -11,6 +11,33 @@ export const foliumPageStoreKey = (sourceId: string, key: string) => `online_pro
 
 const PAGE_STORE_KEY = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/;
 
+// What a built-in source kept in localStorage under a name of its own before it became a source mod, and the page
+// store key it reads that under now: moved over once, when the store is made, where the new key is still empty
+// (D507: a published key is not dropped without its move). Only the host can reach the old name.
+// YouTube Music's note of whether the account has Premium (Folium 2.0, 2026-11-20).
+const OLD_YTM_ACCOUNT_KEY = 'folia_ytm_account';
+
+interface MovedPageKey { key: string; read: () => string | null; remove: () => void }
+
+const MOVED_PAGE_KEYS: Readonly<Record<string, readonly MovedPageKey[]>> = Object.freeze({
+    ytm: [{ key: 'account', read: () => readStoredString(OLD_YTM_ACCOUNT_KEY), remove: () => { removeStoredKey(OLD_YTM_ACCOUNT_KEY); } }],
+});
+
+const moveOldKeys = (sourceId: string) => {
+    const moved = Object.hasOwn(MOVED_PAGE_KEYS, sourceId) ? MOVED_PAGE_KEYS[sourceId] : [];
+    for (const { key, read, remove } of moved) {
+        const old = read();
+        if (old === null) continue;
+        try {
+            const at = foliumPageStoreKey(sourceId, key);
+            if (readStoredString(at) === null) setStoredString(at, old);
+            remove();
+        } catch (error) {
+            console.warn(`[Folium] pageStore ${sourceId}: could not move what it kept before under ${key}`, error);
+        }
+    }
+};
+
 /** The synchronous store of source `sourceId`. */
 export const createFoliumPageStore = (sourceId: string): FoliumSourcePageStore => {
     const prefix = foliumPageStoreKey(sourceId, '');
@@ -20,6 +47,7 @@ export const createFoliumPageStore = (sourceId: string): FoliumSourcePageStore =
         }
         return prefix + key;
     };
+    moveOldKeys(sourceId);
     return Object.freeze({
         get: (key: string) => readStoredString(checked(key)),
         set: (key: string, value: string | null) => {

@@ -1,0 +1,14 @@
+{
+    "name": {
+        "short": "YT Music"
+    },
+    "login": {
+        "title": "Masuk ke YouTube Music",
+        "note": "Jendela browser terpisah akan terbuka. Masuk ke Google di sana, lalu tutup jendela itu setelah YouTube Music menampilkan akun Anda.",
+        "noteMac": "Jendela browser terpisah akan terbuka. Masuk ke Google di sana, lalu keluar dari browser itu (⌘Q) setelah YouTube Music menampilkan akun Anda.",
+        "noBrowser": "Masuk ke YouTube Music memerlukan Chrome (Beta, Dev, atau Canary juga bisa), Edge, Chromium, Brave, atau Helium yang terpasang. Di Windows, Chrome, Edge, atau Brave portabel yang dijadikan browser default juga bisa (chrome.exe, msedge.exe, atau brave.exe itu sendiri, bukan peluncur).",
+        "unfinished": "Masuk terlebih dahulu sebelum menutup browser"
+    },
+    "exploreSimilar": "Mirip dengan {{name}}",
+    "pageLanguage": "in"
+}
