@@ -4,7 +4,7 @@ Folium 2.0 音源模组共用的纯 TypeScript 函数（方案 `dev/folium/foliu
 （`sources/<id>/`）不能 import `src/`、`electron/`，它们和宿主都要用的东西放在这里。
 
 ```ts
-import { createHandedOut, errorFields, krcDecrypt, withLoginRequestLimit } from '@folia/folium-source-kit';
+import { createHandedOut, errorFields, krcDecrypt, personalFmModes, withLoginRequestLimit } from '@folia/folium-source-kit';
 ```
 
 别名 `@folia/folium-source-kit` 指向 `src/index.ts`，在这几处各配一处：根 `tsconfig.json` 与 `sources/tsconfig.json` 的
@@ -25,6 +25,7 @@ import { createHandedOut, errorFields, krcDecrypt, withLoginRequestLimit } from 
 | --- | --- | --- | --- |
 | `errorText.ts` | `errorMessage`、`errorFields`、`codeText`：把抛出的错拆成原文的字段 | `src/utils/errorText.ts`（那里留着转出） | 网易云、酷狗、QQ、YouTube Music、Spotify 与宿主 |
 | `exploreReads.ts` | 探索页反复从头读时的轮换（`createHandedOut`）与游标里的读次（`stampCursor`、`cursorWords`） | `src/services/onlineMusic/exploreReads.ts` | 网易云、QQ、汽水、YouTube Music、Spotify 的探索页 |
+| `fmModes.ts` | 私人 FM 的标准模式（`PERSONAL_FM_MODE_INFO`：id、顺序、英文后备名、拼音关键词）；`personalFmModes(ids, label)` 按标准顺序拼出 `getPersonalFmCatalog` 的 `modes`，名字由音源自己的语言表给（`label` 交 `folium.i18n.key(…)`） | `src/services/onlineMusic/fmModes.ts` 的模式表（宿主在它上面加自己的 i18n key；场景表是网易云的，留在宿主） | 汽水、网易云（迁时）的 FM 模式；宿主的模式选择器 |
 | `krcDecrypt.ts` | KRC 歌词解密与解压 | `src/services/onlineMusic/kugou/krcDecrypt.ts` | 酷狗的歌词、宿主的本地 KRC 文件 |
 | `loginRequestLimit.ts` | 登录请求的 20 秒时限（`withLoginRequestLimit`、`LoginRequestTimeout`、`isLoginRequestTimeout`、`dropLoginRequestLimits`） | `src/services/onlineMusic/login/loginRequestLimit.ts` | 网易云、酷狗、QQ 的登录，宿主的登录失败归类与取消登录 |
 

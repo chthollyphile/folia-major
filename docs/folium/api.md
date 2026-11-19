@@ -2960,6 +2960,7 @@ Folium 2: `lyrics@1`.
 | `getChorusRanges?()` | `(songId: string): Promise<Array<{ startTime: number; endTime: number }>>` | The chorus spans of a song by id, seconds. |
 | `getSearchAlias?()` | `(song: FoliumSourceSong): Promise<FoliumSourceLyricAlias \| null>` | Another title and artist of the same song; null where there are none. |
 | `getAlternateArtistName?()` | `(song: FoliumSourceSong): Promise<string \| null>` | Another name the song's artist goes by elsewhere; null where there is none. |
+| `songIdOf?()` | `(id: string): string \| null` | With `crossSource`: the id to fetch a song's lyrics by when only its id is known (a song picked for a local song before), or null when `id` cannot be one of the source's songs. With it, such a song is fetched by its id without a search, and a local song matched to one of the source's songs keeps that match as its identity. Synchronous; ids are text (do not make one a number). |
 
 相关：[FoliumSourceAccess](#foliumsourceaccess) · [FoliumSourceSong](#foliumsourcesong) · [FoliumSourceLyricsResult](#foliumsourcelyricsresult) · [FoliumSourceLyricAlias](#foliumsourcelyricalias)
 
@@ -3296,12 +3297,12 @@ Folium 2: a section of a recommendation page.
 | 成员 | 类型 | 说明 |
 | --- | --- | --- |
 | `id` | `string` | Its id. |
-| `title` | `string` | Its heading, in the source's language. |
+| `title` | `FoliumText` | Its heading: written out in the source's language, or a FoliumText (resolved in the UI language when read). |
 | `items` | `FoliumSourceExploreItem[]` | Its entries. |
 | `moreCursor?` | `string` | Where its further entries are (`getSectionItems`). |
 | `changesWithRead?` | `boolean` | Made up anew for every read. |
 
-相关：[FoliumSourceExploreItem](#foliumsourceexploreitem)
+相关：[FoliumText](#foliumtext) · [FoliumSourceExploreItem](#foliumsourceexploreitem)
 
 ### FoliumSourceExplorePage
 

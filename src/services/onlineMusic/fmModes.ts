@@ -1,4 +1,5 @@
 import i18n from '../../i18n/config';
+import { PERSONAL_FM_MODE_INFO } from '@folia/folium-source-kit';
 import type { PersonalFmRequestOptions } from '../../types/onlineMusic';
 import type { PersonalFmCatalog, PersonalFmModeId, PersonalFmModeEntry, PersonalFmSceneCategory, PersonalFmSceneEntry, PersonalFmSelection } from '../../types/personalFm';
 export type { PersonalFmCatalog, PersonalFmModeId, PersonalFmModeEntry, PersonalFmSceneCategory, PersonalFmSceneEntry, PersonalFmSelection } from '../../types/personalFm';
@@ -10,22 +11,14 @@ export type { PersonalFmCatalog, PersonalFmModeId, PersonalFmModeEntry, Personal
 
 export const DEFAULT_PERSONAL_FM_SELECTION: PersonalFmSelection = { mode: 'DEFAULT', scene: null };
 
-const mode = (id: PersonalFmModeId, labelFallback: string, ...keywords: string[]): PersonalFmModeEntry => ({
-    id,
-    labelKey: `personalFmMode.mode.${id}`,
-    labelFallback,
-    keywords,
-});
-
-// SCENE_RCMD sits last: it is the only mode the scene row can select on the user's behalf, so the
-// row below it reads as its continuation.
-export const PERSONAL_FM_MODES: PersonalFmModeEntry[] = [
-    mode('DEFAULT', 'Default', 'moren', 'mr'),
-    mode('FAMILIAR', 'Familiar', 'shuxi', 'sx'),
-    mode('EXPLORE', 'Explore', 'tansuo', 'ts'),
-    mode('PUZZLE_MODE_RCMD', 'Puzzle', 'pintu', 'pt'),
-    mode('SCENE_RCMD', 'Scene', 'changjing', 'cj'),
-];
+// The standard modes come from the source kit (the same list a source mod names its modes from); the host adds
+// its i18n keys.
+export const PERSONAL_FM_MODES: PersonalFmModeEntry[] = PERSONAL_FM_MODE_INFO.map(info => ({
+    id: info.id,
+    labelKey: `personalFmMode.mode.${info.id}`,
+    labelFallback: info.labelFallback,
+    keywords: [...info.keywords],
+}));
 
 const scene = (
     id: string,

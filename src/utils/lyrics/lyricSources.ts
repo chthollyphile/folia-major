@@ -112,20 +112,45 @@ export interface LyricSourceAccess {
     marksChorusOnFetch?: boolean;
 }
 
+/*
+ * Where each built-in source stands in the order (Folium 2.0 plan §10, the remaining stages, step 2, as the source
+ * registry does it): whether the table below registers it or its source mod does once the mod's client starts, a
+ * built-in platform keeps its place, so the automatic pick's fallback order, the match windows' tabs and the
+ * settings' choices do not change when a platform moves to a mod. Every other source comes after these, in the
+ * order it registered.
+ */
+const BUILT_IN_ORDER: readonly string[] = ['netease', 'amll', 'qq', 'kugou', 'qishui', 'spotify', 'appleMusic'];
+
 const sources: LyricSource[] = [];
 const sourcesById = new Map<unknown, LyricSource>();
+// When each id outside BUILT_IN_ORDER first registered, for its place after them.
+const registeredAt = new Map<string, number>();
+let registrationCount = 0;
+
+const rankOf = (id: string): number => {
+    const builtIn = BUILT_IN_ORDER.indexOf(id);
+    if (builtIn >= 0) return builtIn;
+    if (!registeredAt.has(id)) registeredAt.set(id, (registrationCount += 1));
+    return BUILT_IN_ORDER.length + (registeredAt.get(id) ?? 0);
+};
 const ownAccessById = new Map<string, Partial<LyricSourceAccess>>();
 let registryVersion = 0;
 
 /**
- * Adds a lyric source at the end of the order, or replaces the entry of the same id where it stands.
+ * Adds a lyric source at its place in the order (a built-in one where BUILT_IN_ORDER puts it, any other after
+ * them, in the order it registered), or replaces the entry of the same id where it stands.
  * Returns the function that takes it out again.
  */
 export const registerLyricSource = (entry: LyricSourceEntry): (() => void) => {
     const source: LyricSource = Object.freeze({ ...entry });
     const at = sources.findIndex(known => known.id === source.id);
     if (at >= 0) sources[at] = source;
-    else sources.push(source);
+    else {
+        const rank = rankOf(source.id);
+        const before = sources.findIndex(known => rankOf(known.id) > rank);
+        if (before >= 0) sources.splice(before, 0, source);
+        else sources.push(source);
+    }
     sourcesById.set(source.id, source);
     registryVersion += 1;
     return () => {
@@ -142,6 +167,13 @@ export const registerLyricSource = (entry: LyricSourceEntry): (() => void) => {
  */
 export const registerLyricSourceAccess = (id: string, access: Partial<LyricSourceAccess>): void => {
     ownAccessById.set(id, access);
+    registryVersion += 1;
+};
+
+/** Takes the access `registerLyricSourceAccess` gave `id` out again, unless another replaced it since (a source mod's, when it stops). */
+export const unregisterLyricSourceAccess = (id: string, access: Partial<LyricSourceAccess>): void => {
+    if (ownAccessById.get(id) !== access) return;
+    ownAccessById.delete(id);
     registryVersion += 1;
 };
 

@@ -1,11 +1,11 @@
 import type { OnlineMusicProvider, ProviderNotice } from '@/types/onlineMusic';
 import { declareSource } from '@/services/onlineMusic/sourceDeclarations';
-import { getLyricSource, registerLyricSource } from '@/utils/lyrics/lyricSources';
+import { getLyricSource, registerLyricSource, registerLyricSourceAccess, unregisterLyricSourceAccess } from '@/utils/lyrics/lyricSources';
 import { registerCoverUrlRule } from '@/utils/coverUrl';
 import type { ModRuntimeInfo } from '../../types';
 import type { FoliumSourceDef, FoliumSourceHandle, FoliumSourceNotice } from '../sources/contract';
 import { createFoliumSourceTextBook, isFoliumText } from './sourceText';
-import type { SourceAdapterContext } from './sourceAdapter/kit';
+import { createSourceAdapterKit, type SourceAdapterContext } from './sourceAdapter/kit';
 import { deriveFoliumSourceCapabilities, deriveFoliumSourceDeclaration, readFoliumSourceParts } from './sourceAdapter/parts';
 import { buildFoliumSourceProvider } from './sourceAdapter/provider';
 import type { FoliumHostRegistry, FoliumRegistryEntry } from '../../runtime/registry';
@@ -105,6 +105,7 @@ const apply = (entry: FoliumSourceEntry) => {
     }
     entry.ownsLyricSource = Boolean(declaration.lyrics?.crossSource) && !othersLyricSource;
     if (declaration.lyrics?.crossSource && entry.ownsLyricSource) {
+        const songIdOf = typeof parts.lyrics?.songIdOf === 'function' ? parts.lyrics.songIdOf.bind(parts.lyrics) : null;
         fresh.push(registerLyricSource({
             id: entry.hostId,
             labelKey: provider.shortNameKey ?? entry.hostId,
@@ -112,8 +113,24 @@ const apply = (entry: FoliumSourceEntry) => {
             ...(declaration.lyrics.access === 'account' ? { needsAccount: true } : {}),
             ...(declaration.checksAvailability ? { needsConfiguredProvider: true } : {}),
             ...(declaration.lyrics.crossSource.linesOnly ? { linesOnly: true } : {}),
-            ...(declaration.songs?.metadataMatch ? { localMetadataIdentity: true } : {}),
+            // A song matched to one of its songs keeps that as its identity where the source can fetch it again by id
+            // (lyrics@1.songIdOf), or where it does the metadata match.
+            ...(declaration.songs?.metadataMatch || songIdOf ? { localMetadataIdentity: true } : {}),
         }));
+        if (songIdOf) {
+            // lyrics@1.songIdOf is a synchronous member: called through the guard, a throw answers null.
+            const known = createSourceAdapterKit(entry.context).sync('lyrics.songIdOf', songIdOf, () => null);
+            const access = {
+                knownById: (songId: number | string) => {
+                    const id = typeof songId === 'string' ? songId : Number.isSafeInteger(songId) && songId >= 0 ? String(songId) : '';
+                    if (!id) return null;
+                    const answer = known(id);
+                    return typeof answer === 'string' && answer ? answer : null;
+                },
+            };
+            registerLyricSourceAccess(entry.hostId, access);
+            fresh.push(() => { unregisterLyricSourceAccess(entry.hostId, access); });
+        }
     }
     if (parts.covers) {
         const covers = parts.covers;

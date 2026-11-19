@@ -3645,6 +3645,13 @@ export interface FoliumSourceLyrics {
     getSearchAlias?(song: FoliumSourceSong): Promise<FoliumSourceLyricAlias | null>;
     /** Another name the song's artist goes by elsewhere; null where there is none. */
     getAlternateArtistName?(song: FoliumSourceSong): Promise<string | null>;
+    /**
+     * With `crossSource`: the id to fetch a song's lyrics by when only its id is known (a song picked for a local
+     * song before), or null when `id` cannot be one of the source's songs. With it, such a song is fetched by its id
+     * without a search, and a local song matched to one of the source's songs keeps that match as its identity.
+     * Synchronous; ids are text (do not make one a number).
+     */
+    songIdOf?(id: string): string | null;
 }
 
 /** Folium 2: the cases a failed sign-in can be (the host's own table says what each shows). */
@@ -4000,8 +4007,8 @@ export type FoliumSourceExploreItem =
 export interface FoliumSourceExploreSection {
     /** Its id. */
     id: string;
-    /** Its heading, in the source's language. */
-    title: string;
+    /** Its heading: written out in the source's language, or a FoliumText (resolved in the UI language when read). */
+    title: FoliumText;
     /** Its entries. */
     items: FoliumSourceExploreItem[];
     /** Where its further entries are (`getSectionItems`). */
