@@ -1,11 +1,12 @@
-import i18n from '../../../src/i18n/config';
-import type { UnifiedSong } from '../../../src/types';
-import type { OnlineExploreProvider, ProviderExploreItem } from '../../../src/types/onlineMusic';
+import type { FoliumSourceExplore, FoliumSourceExploreItem, FoliumSourceSong, FoliumText } from '@folia/folium';
 import { createHandedOut, cursorWords, stampCursor } from '@folia/folium-source-kit';
 import { normalizeQishuiSong } from './qishuiNormalize';
 import { requestQishui } from './qishuiTransport';
 
-// Qishui's own recommendation stream, independent of the personal-FM queue.
+// sources/qishui/client/qishuiExplore.ts
+// 汽水自己的推荐流（explore@1），和私人 FM 的队列互不相干。区块标题交 FoliumText（模组语言表里的一条），
+// 读的时候按当时的界面语言写出。
+
 let read = 0;
 let batches = 0;
 let handedOut = createHandedOut();
@@ -15,29 +16,31 @@ let shown = new Set<string>();
 // How many stream requests one call makes at most while a batch brings only songs already shown.
 const TRIES_PER_BATCH = 3;
 export function clearQishuiExplore() { read++; batches = 0; handedOut = createHandedOut(); shown = new Set(); }
+
 // The next songs of the stream that this read has not shown yet, in the shared turn order.
-async function nextItems(first: boolean, mine: number): Promise<{ items: ProviderExploreItem[]; hasMore: boolean } | null> {
+async function nextItems(first: boolean, mine: number): Promise<{ items: FoliumSourceExploreItem[]; hasMore: boolean } | null> {
     const seen = shown;
     let hasMore = true;
     for (let attempt = 0; attempt < TRIES_PER_BATCH && hasMore; attempt++) {
         const data = await requestQishui<{ items: unknown[]; hasMore: boolean }>('feed', { queue: 'explore', first: first && attempt === 0, limit: 20 });
         if (mine !== read) return null;
         hasMore = data.hasMore;
-        const fresh: UnifiedSong[] = [];
+        const fresh: FoliumSourceSong[] = [];
         for (const song of data.items.map(normalizeQishuiSong)) {
-            const key = String(song.id);
-            if (seen.has(key)) continue;
-            seen.add(key);
+            if (seen.has(song.id)) continue;
+            seen.add(song.id);
             fresh.push(song);
         }
         if (!fresh.length) continue;
-        const songs = handedOut.inTurn('stream', fresh, song => String(song.id));
-        handedOut.note('stream', songs.map(song => String(song.id)));
+        const songs = handedOut.inTurn('stream', fresh, song => song.id);
+        handedOut.note('stream', songs.map(song => song.id));
         return { items: songs.map(song => ({ kind: 'song', song })), hasMore };
     }
     return { items: [], hasMore: false };
 }
-export const qishuiExplore: OnlineExploreProvider = {
+
+/** explore@1; `title` is the stream section's heading. */
+export const createQishuiExplore = (title: FoliumText): FoliumSourceExplore => ({
     async getFeed(cursor) {
         if (cursor) return { sections: [] };
         const mine = ++read;
@@ -46,7 +49,7 @@ export const qishuiExplore: OnlineExploreProvider = {
         if (!page) return { sections: [] };
         batches = 1;
         console.info('[Qishui] Explore stream read', { count: page.items.length });
-        return { sections: [{ id: 'stream', title: i18n.t('qishui.recommended'), items: page.items,
+        return { sections: [{ id: 'stream', title, items: page.items,
             ...(page.hasMore ? { moreCursor: stampCursor(mine, 'stream') } : {}) }], refreshReadsAnew: true };
     },
     async getSectionItems(cursor) {
@@ -57,4 +60,4 @@ export const qishuiExplore: OnlineExploreProvider = {
         batches++;
         return { items: page.items, ...(page.hasMore && batches < 10 ? { moreCursor: stampCursor(mine, 'stream') } : {}) };
     },
-};
+});

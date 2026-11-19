@@ -1,22 +1,24 @@
-import type { ProviderLyricsResult } from '../../../src/types/onlineMusic';
-import { parseLyricsByFormat } from '../../../src/utils/lyrics/parserCore';
+import type { FoliumSourceLyricsResult, FoliumSourceLyricsTrack } from '@folia/folium';
 import { record } from './qishuiNormalize';
 
-// Parse car KRC with Folia's shared timing engine, including translations keyed by line time.
-export function parseQishuiLyrics(raw: unknown): ProviderLyricsResult {
+// sources/qishui/client/qishuiLyrics.ts
+// 汽水的歌词交原始文本轨，由宿主解析（方案 §4.5）：车机给 KRC（逐字）或 LRC，翻译轨带自己的格式（KRC 或 LRC），
+// 宿主按行的开始时间把翻译对上，和迁之前 parseQishuiLyrics 的做法一样。KRC 同时交成行轨和逐字轨
+// （迁之前 mainText 和 wordByWordText 都是这段原文）。
+
+export function toQishuiLyrics(raw: unknown): FoliumSourceLyricsResult | null {
     const info = record(raw);
     const entity = record(info.lyric_entity);
     const content = typeof entity.content === 'string' ? entity.content.replace(/\u0000/g, '') : '';
-    if (!content.trim()) return { lyrics: null, mainText: '', isPureMusic: false };
+    if (!content.trim()) return null;
     const translations = record(info.lang_translations);
     const translated = record(translations['zh-CN'] || translations['ZH-HANS-CN'] || Object.values(translations)[0]);
     const translation = typeof translated.content === 'string' ? translated.content : '';
-    const lyrics = parseLyricsByFormat(entity.type === 'krc' ? 'krc' : 'lrc', content);
-    if (translation) {
-        const lines = parseLyricsByFormat(translated.type === 'krc' ? 'krc' : 'lrc', translation).lines;
-        const byTime = new Map(lines.map(line => [line.startTime, line.fullText]));
-        for (const line of lyrics.lines) line.translation = byTime.get(line.startTime) || line.translation;
-    }
-    return { lyrics: lyrics.lines.length ? lyrics : null, mainText: content,
-        wordByWordText: entity.type === 'krc' ? content : null, translationText: translation || null, isPureMusic: false };
+    const isKrc = entity.type === 'krc';
+    const track: FoliumSourceLyricsTrack = {
+        format: isKrc ? 'krc' : 'lrc',
+        text: content,
+        ...(translation ? { translationText: translation, translationFormat: translated.type === 'krc' ? 'krc' as const : 'lrc' as const } : {}),
+    };
+    return isKrc ? { main: track, wordByWord: track } : { main: track };
 }

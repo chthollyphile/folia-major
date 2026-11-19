@@ -1,22 +1,15 @@
-import type { SongResult } from '../../../src/types';
-import type { MediaId, OnlineMutationProvider, ProviderCollection } from '../../../src/types/onlineMusic';
-import { OnlineProviderError } from '../../../src/types/onlineMusic';
-import { getPlaybackSourceRef } from '../../../src/utils/appPlaybackGuards';
-import { requestQishui } from './qishuiTransport';
+import type { FoliumSourceCollection, FoliumSourceMutations, FoliumSourceSong } from '@folia/folium';
+import { qishuiError, requestQishui } from './qishuiTransport';
 
-// Account writes use Omni's source identity and only expose editing for ordinary owned playlists.
-export function qishuiSongId(song: MediaId | SongResult): string {
-    if (typeof song !== 'object') return String(song);
-    const source = getPlaybackSourceRef(song);
-    if (source.kind !== 'online' || source.providerId !== 'qishui') {
-        throw new OnlineProviderError('unsupported', 'Song does not belong to Qishui', 'qishui');
-    }
-    return source.mediaId;
-}
-const editable = (playlist: ProviderCollection) => playlist.providerId === 'qishui'
-    && playlist.type === 'playlist' && playlist.isOwned === true && playlist.isLiked !== true;
+// sources/qishui/client/qishuiMutations.ts
+// 红心与自建歌单的增删。宿主只把汽水自己的歌和歌单交到这里（按歌的音源分派），这里只看歌单是不是能改的自建歌单。
 
-export const qishuiMutations: OnlineMutationProvider = {
+/** The track id of a song handed as a DTO or as its id. */
+export const qishuiSongId = (song: string | FoliumSourceSong): string => (typeof song === 'object' ? song.id : song);
+
+const editable = (playlist: FoliumSourceCollection) => playlist.type === 'playlist' && playlist.isOwned === true && playlist.isLiked !== true;
+
+export const qishuiMutations: FoliumSourceMutations = {
     canAddToPlaylist: editable,
     canEditPlaylistTracks: editable,
     async likeSong(song, liked) {
@@ -25,12 +18,12 @@ export const qishuiMutations: OnlineMutationProvider = {
     },
     async updatePlaylistTracks(operation, playlist, tracks) {
         if (typeof playlist !== 'object' || !editable(playlist)) {
-            throw new OnlineProviderError('unsupported', 'Playlist is not an owned Qishui playlist', 'qishui');
+            throw qishuiError('unsupported', 'Playlist is not an owned Qishui playlist');
         }
         if (!tracks.length) return;
-        if (tracks.length > 100) throw new OnlineProviderError('unsupported', 'Select at most 100 tracks per operation', 'qishui');
+        if (tracks.length > 100) throw qishuiError('unsupported', 'Select at most 100 tracks per operation');
         await requestQishui(operation === 'add' ? 'playlist_add_tracks' : 'playlist_remove_tracks', {
-            id: String(playlist.id), ids: tracks.map(qishuiSongId),
+            id: playlist.id, ids: tracks.map(qishuiSongId),
         });
         console.info('[Qishui] Playlist tracks changed', { operation, count: tracks.length });
     },

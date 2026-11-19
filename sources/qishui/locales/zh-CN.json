@@ -1,0 +1,21 @@
+{
+    "name": {
+        "short": "汽水",
+        "lyrics": "汽水音乐"
+    },
+    "login": {
+        "title": "用抖音扫码登录汽水音乐",
+        "note": "请使用抖音 App 扫码并确认授权"
+    },
+    "recentPlayed": "汽水最近播放",
+    "recommended": "为你推荐",
+    "previewNotice": "第三方播放器暂时无法获取完整VIP歌曲",
+    "fm": {
+        "mode": {
+            "DEFAULT": "默认",
+            "FAMILIAR": "熟悉",
+            "EXPLORE": "探索",
+            "SCENE_RCMD": "场景"
+        }
+    }
+}

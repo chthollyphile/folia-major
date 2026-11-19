@@ -1,24 +1,28 @@
-import { OnlineProviderError } from '../../../src/types/onlineMusic';
-import type { OnlineFailureDetail, OnlineFailureOperation } from '../../../src/types/onlineMusic';
-import { QISHUI_BRIDGE_FAILED, QISHUI_NEEDS_DESKTOP, QishuiRequestError } from './qishuiTransport';
+import type { FoliumSourceError, FoliumSourceFailureDetail } from '@folia/folium';
+import { QISHUI_BRIDGE_FAILED, qishuiRefusalOf } from './qishuiTransport';
 
-// src/services/onlineMusic/qishui/qishuiFailure.ts
-// What a Qishui request for a song's audio or a collection's tracks that failed hands to the shared
-// rules (services/onlineMusic/failure/). What the package's errors mean is said here only: the bridge
-// hands its code, sentence and upstream code through as they are (qishui-music-api/src/api.cjs), and
-// the sentences are the package's own (src/client.cjs, src/playback.cjs).
+// sources/qishui/client/qishuiFailure.ts
+// What a Qishui request for a song's audio or a collection's songs that failed hands to the host's shared
+// rules (`FoliumSourceDef.describeFailure`). What the package's errors mean is said here only: the main entry
+// hands its code, sentence and upstream code through as they are (qishui-music-api/src/api.cjs), and the
+// sentences are the package's own (src/client.cjs, src/playback.cjs). The host asks this of Qishui's own
+// requests only.
 
-// The package's own sentences (qishui-music-api@0.2.1):
+// The package's own sentences (qishui-music-api@0.2.2):
 // src/playback.cjs: the service gave only encrypted audio, which Folia does not decrypt.
 const PROTECTED_ONLY = 'Qishui returned protected audio only; decryption is disabled';
 // src/client.cjs: an account request made with no session at all.
 const SIGNED_OUT = 'Sign in to Qishui first';
 
-export const describeQishuiFailure = (_operation: OnlineFailureOperation, error: unknown): OnlineFailureDetail | null => {
-    if (!(error instanceof OnlineProviderError) || error.providerId !== 'qishui') return null;
-    // This page has no desktop bridge (the web build): Qishui cannot be used here at all.
-    if (error.message === QISHUI_NEEDS_DESKTOP) return { case: 'not-configured' };
-    // The bridge itself failed (the main process threw): the local side, not the network.
+// An error made with folium.sources.error (qishuiTransport.ts) carries the host's code; anything else (a
+// TypeError of a page that did not read) is none the package's sentences can tell of.
+const isSourceError = (error: unknown): error is FoliumSourceError => (
+    error instanceof Error && typeof (error as { code?: unknown }).code === 'string'
+);
+
+export const describeQishuiFailure = (_operation: 'audio' | 'collection', error: unknown): FoliumSourceFailureDetail | null => {
+    if (!isSourceError(error)) return null;
+    // The bridge itself failed (the main entry threw): the local side, not the network.
     if (error.message === QISHUI_BRIDGE_FAILED) return { case: 'local-service-stopped' };
     // Nobody is signed in: say "sign in to play", not "the sign-in ran out".
     if (error.code === 'auth-required' && error.message === SIGNED_OUT) return { signedOut: true };
@@ -28,6 +32,7 @@ export const describeQishuiFailure = (_operation: OnlineFailureOperation, error:
     const status = /^Qishui HTTP (\d{3})$/.exec(error.message)?.[1];
     if (status) return { httpStatus: Number(status) };
     // Qishui answered with an error number ("Qishui rejected the request"): its code is quoted.
-    if (error instanceof QishuiRequestError && error.upstreamCode) return { code: error.upstreamCode };
+    const upstreamCode = qishuiRefusalOf(error)?.upstreamCode;
+    if (upstreamCode) return { code: upstreamCode };
     return null;
 };
