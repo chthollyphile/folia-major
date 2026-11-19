@@ -113,7 +113,6 @@ describe('KuGou main entry (source mod)', () => {
         const { handlers, fetches } = await launch();
         const anonymousSearch = handlers.get('anonymousSearch')!;
         await expect(anonymousSearch(42, 1, 30)).rejects.toThrow(TypeError);
-        await expect(anonymousSearch('x'.repeat(201), 1, 30)).rejects.toThrow(TypeError);
         await expect(anonymousSearch('song', 0, 30)).rejects.toThrow(TypeError);
         await expect(anonymousSearch('song', 1, 101)).rejects.toThrow(TypeError);
         await expect(anonymousSearch('song', 1.5, 30)).rejects.toThrow(TypeError);
@@ -122,6 +121,12 @@ describe('KuGou main entry (source mod)', () => {
         await expect(legacyPlayInfo('')).rejects.toThrow(TypeError);
         await expect(legacyPlayInfo(7)).rejects.toThrow(TypeError);
         expect(fetches).toEqual([]);
+    });
+
+    it('cuts an over-long keyword to 200 characters instead of refusing it, as before the move', async () => {
+        const { handlers, fetches } = await launch(() => new Response('{"status":1}', { status: 200 }));
+        await handlers.get('anonymousSearch')!('x'.repeat(260), 1, 30);
+        expect(new URL(fetches[0].url).searchParams.get('keyword')).toBe('x'.repeat(200));
     });
 
     it('says KuGou could not be asked when the fetch fails, and hands a non-2xx status through', async () => {

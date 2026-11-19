@@ -10,7 +10,7 @@ import type { KugouBridgeResult } from '../core';
 //   - KuGouMusicApi：package.json 声明成 asar，构建把它装进 deps.<指纹>.asar；第一次请求前设 process.env.platform =
 //     'lite'（包在加载时读它）再从归档加载，交给桥。加载失败时每个请求都答 `api=unloaded`（client 说本地服务没在跑）；
 //   - 会话：api.legacy.store（受信表认领的 KUGOU_API_SESSION_V2、旧的 V1，升级来的登录还在），加密用 api.seal；
-//   - 窗口经 folium.rpc 的 `request` 发操作（宿主只放主窗口的调用进来，和以前 kugou-api-request 的来源校验一样）。
+//   - 窗口经 folium.rpc 的 `request` 发操作（宿主只放主窗口的调用进来；以前 kugou-api-request 还放遥控窗口，遥控窗口不调音源，没有功能差别）。
 //     答复是 { ok, data } 或 { ok: false, message }：桥的那一行 `KuGouApi[...]` 原样交回，里面没有凭据；
 //   - 匿名搜索（`anonymousSearch`）与旧的手机版播放信息接口（`legacyPlayInfo`）：以前窗口直接 fetch 或经宿主的歌词代理，
 //     现在 main 按 core/kugouRequests.ts 自己拼地址（只拼这两种，不是任意地址的中转），经 api.net.fetch 去问，
@@ -89,10 +89,11 @@ export default function activate(api: FoliumSourceMainApi): void {
     };
 
     api.rpc.handle('anonymousSearch', (keyword: unknown, page: unknown, pagesize: unknown): Promise<KugouPlainAnswer> => {
-        if (typeof keyword !== 'string' || keyword.length > MAX_KEYWORD_LENGTH || !isPageNumber(page, 10000) || !isPageNumber(pagesize, 100)) {
+        if (typeof keyword !== 'string' || !isPageNumber(page, 10000) || !isPageNumber(pagesize, 100)) {
             return Promise.reject(new TypeError('anonymousSearch: a keyword and two page numbers'));
         }
-        return askPlain(buildKugouAnonymousSearch(keyword, page, pagesize, md5));
+        // An over-long keyword (a long title joined for a lyric search) is cut, not refused: before, it went as it was.
+        return askPlain(buildKugouAnonymousSearch(keyword.slice(0, MAX_KEYWORD_LENGTH), page, pagesize, md5));
     });
 
     api.rpc.handle('legacyPlayInfo', (hash: unknown): Promise<KugouPlainAnswer> => {
