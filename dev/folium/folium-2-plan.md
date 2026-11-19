@@ -19,7 +19,7 @@ Folium 2.0 要做到两件事：
 | 分发 | 随主程序发布 + 用户模组目录里官方签名的更高版本可覆盖 |
 | 1.x 模组 | 双轨：`folium: 1` 照旧加载，接口冻结在 1.9（含 internals）；音源接口只给 `folium: 2` |
 | 网页版 | 保留宿主自己的 Web Provider，不跑模组运行时 |
-| 交付 | 接口先行，拆分随后（§10「交付」）。接口（S0–S4 加试点平台 bodian）做完就按当时最新的 main 切出 `edge` 分支，集成分支对 `edge` 开 PR，不等九家迁完；`edge` 走 Cielo（canary）滚动更新通道发布测试，观察一到两个发版周期、维护者确认稳定后合进 main，在那之前 main 继续维护 0.7.x。其余八家随后一家一个 PR；九家迁完之前 `folium: 2` 的音源接口标「预览」，内置的静态注册与音源模组并存 |
+| 交付 | 接口先行，拆分随后（§10「交付」）。接口（S0–S4 加试点平台 bodian）做完就按当时最新的 main 切出 `edge` 分支，集成分支对 `edge` 开 PR，不等九家迁完；`edge` 走 Cielo（canary）滚动更新通道发布测试；不设观察期，其余八家随后一家一个 PR、都进 `edge`，到收尾时 `edge` 一起合进 main（维护者 2026-11-20 定，原先是观察一到两个发版周期后先把接口合进 main），在那之前 main 继续维护 0.7.x；九家迁完之前 `folium: 2` 的音源接口标「预览」，内置的静态注册与音源模组并存 |
 | 契约形状 | 开放的能力模型，播放分 `audio` / `external` / `surface` 三种且可再加 |
 | 音源类模组 | 单独一类，网络、存储、签名、加载与卸载时序有自己的豁免（§5.2） |
 | 单独停用 | 每个音源（含内置）可以单独停用：不加载、不起后端、界面里不出现，可一键清掉它的数据；安装包里的内置副本留在磁盘上（§5.3） |
@@ -393,7 +393,7 @@ S0–S4 与试点平台（bodian）在集成分支 `folium-2`（从 main 切，�
 - **进 `edge` 之前**：打包版实测（Windows 安装包，macOS、Linux 的 CI 构建）；波点用真实账号在大陆网络下实测（维护者 2026-11-14 已测：可以播放，其它功能正常）；`dev/folium/folium-2-member-matrix.md` §4 的归属由维护者确认（2026-11-14 已确认）；对整个分支做一次完整审查；加上「预览」标记（见第二步）。
 - **发布**：`edge` 发布到 Cielo（canary）的滚动更新通道（`.github/workflows/canary-pre-release.yml` 的 `rolling`）。同时改这个 workflow 里的 release note 模板，写明四件事：这个版本用于 Folium 2 的发布测试；普通用户可以下载；反馈问题要打上 `folium2` 标签；建议模组作者都下载这个版本测试自己的模组。
 - **滚动版只由 `edge` 发**（维护者 2026-11-15 定）：滚动版固定发到 tag `cielo`，main 和 `edge` 都发的话 Cielo 用户会在两版之间来回升级。workflow 的 `ROLLING_BRANCH` 限定只有 `edge` 能发滚动版，别的分支的 rolling 自动降成分支版；main 上的这个文件也要有同样的改动。`edge` 合进 main 之后把它改回 main。
-- **第二步，接口进 main**：`edge` 在 Cielo 上观察一到两个发版周期，维护者确认稳定后合进 main；在那之前 main 继续维护 0.7.x。`folium: 2` 的音源接口（`folium.sources` 与 main 入口给音源的 `api`）在 `docs/folium/` 和模组面板里标「预览」，写明九家内置音源迁完之前可能变动；`folium: 1` 冻结在 1.9 的承诺不变。合进 main 之前先做完下面「剩余阶段的顺序」的第 1、2 步。
+- **第二步，接口进 main**：原先定的是 `edge` 在 Cielo 上观察一到两个发版周期、维护者确认稳定后合进 main。维护者 2026-11-20 改定：不设观察期，剩余阶段一路做到收尾，接口和九家音源到收尾时随 `edge` 一起合进 main（合并仍要维护者发话）；在那之前 main 继续维护 0.7.x，其余平台的 PR 都以 `edge` 为目标。`folium: 2` 的音源接口（`folium.sources` 与 main 入口给音源的 `api`）在 `docs/folium/` 和模组面板里标「预览」，写明九家内置音源迁完之前可能变动；`folium: 1` 冻结在 1.9 的承诺不变。合进 main 之前做完下面「剩余阶段的顺序」的全部各步。
 - **第三步，拆分**：其余八家（下面迁移顺序的 2–9）和 S6–S8 剩下的部分在接口合进 main 之后做，一家一个 PR，先后见下面「剩余阶段的顺序」。这些 PR 的目标是 main 还是继续走 `edge`，由维护者在接口合并之后定；2026-11-18 评估时的建议是继续先进 `edge` 走 Cielo，至少 kugou（第一个依赖归档）、appleMusic 和 spotify（原生件）如此，否则它们第一次到真实用户手里就是在 main 上。期间内置的静态注册与音源模组并存（运行时已经支持）。九家迁完、S8 做完后去掉「预览」标记。
 - **main 到 `edge` 的同步**：定期把 main 上的改动同步进 `edge`，由维护者手动触发，不自动做。
   - 2026-11-18 的情况：`edge` 切出四天，落后 main 147 个提交（含 0.7.29）。试合并有 15 个文件冲突：6 个是 Folium 接口文件（`src/mods/folium/contract.ts`、`src/mods/folium/api.ts`、`mods/folium.d.ts`、`docs/folium/api.md`、`electron/modSystem/foliumShared.json`、一个模组测试），4 个是语言包，3 个是 Dedicatus 的登记表，另有 `searchCommands.ts` 和 `vite-env.d.ts`。同一段时间平台目录只动了 5 个文件。
@@ -430,12 +430,12 @@ S0–S4 与试点平台（bodian）在集成分支 `folium-2`（从 main 切，�
 
 **剩余阶段的顺序**（维护者 2026-11-18 定；八家内部的先后不变，变的是 S6–S8 插在哪里）
 
-1. **同步 main → `edge`，重发一版 Cielo。** 现在的滚动版还是 `a3c5e1dd0`，不含 0.7.29。同步时定 Folium 1.10 的去处（见上「main 到 `edge` 的同步」）。
-2. **接口进 main 之前，在 `edge` 上补三件。**
+1. **同步 main → `edge`，重发一版 Cielo。**（已做：PR #1305 于 2026-11-20 合进 `edge`，同日从 `7a23e83a5` 重发滚动版。）当时的滚动版还是 `a3c5e1dd0`，不含 0.7.29。同步时定 Folium 1.10 的去处（见上「main 到 `edge` 的同步」）。
+2. **在 `edge` 上补三件。**
    - **注册表顺序**：迁成模组的音源按迁移前静态注册的顺序排，不按 client 起来的先后。不做的话每迁一家它就排到最后，切换器、登录窗口、搜索命令的顺序会跟着变八次，测试里的顺序断言也要各改一遍。
    - **「设置 → 音源」页面**（从 S8 提前）：停用与只用于匹配的运行时在 S2 就有了，对宿主静态注册的平台同样生效（`omni.ts` 按 `sourceStates` 过滤），但界面里没有入口，观察期测不到。S1 留下的「跳到设置 → 音源」的入口、接管与覆盖的提示（`claim-unconfirmed` 等）一起做。还没迁的几家能做到哪一步开工时先核对（停用是不是只在界面上不出现、后端照旧随应用启动；清除数据能不能按受信表执行），做不到的在页面上写明。
    - **三个真实上游库的依赖归档样例**（只做样例，不迁移）：netease、kugou、qq 的生产依赖闭包各打成 `deps.<指纹>.asar`，在打包版里加载并起各自的后端（网易云的 worker、QQ 的进程内服务）。Windows 本机实测，macOS 和 Linux 在 CI 上至少跑到加载成功。这是 §13 剩下最大的未验证前提，照原来的顺序要到第 4 家才第一次碰到；不成立的话 §6.2 的打包做法和覆盖包的上限都要改。
-3. **再观察一个发版周期，接口合进 main**（「交付」第二步）。不要拖：合并成本来自 main 上接口还在变，越晚冲突越多。
+3. **（维护者 2026-11-20 取消）** 原先是「再观察一个发版周期，接口合进 main」。现在不设观察期，第 2 步做完直接接第 4 步，接口到第 8 步收尾时一起合进 main。合并推后，main 上接口还在变的那段时间变长，main → `edge` 的同步要更勤（见上「main 到 `edge` 的同步」）。
 4. **qishui → fnmusic。** 两家都只在桌面，逼出来的 kit 和 `_media` 流后面几家都要用。
 5. **网页版骨架 → kugou → qq → netease。**
    - `edge` 上还没有 `registerWebSources()` 和 `src/services/onlineMusic/web/`，网页版靠的是 `providerRegistry.ts` 的静态注册，而迁一家要删它的静态注册。bodian、qishui、fnmusic 只在桌面，删了不影响网页版；这三家网页版在用，骨架不先到位的话，从 kugou 的 PR 起网页版会缺它们。
@@ -443,7 +443,7 @@ S0–S4 与试点平台（bodian）在集成分支 `folium-2`（从 main 切，�
    - 三家迁完之后做开箱引导的勾选和覆盖机制与上限。前者要网易云和 QQ 已经是模组（全新安装没勾的这两家落到只用于匹配，后端要能推迟启动）；后者要有带依赖归档的音源才有东西可测。
 6. **S6 `surface`。** 契约里 `playback.surface@1` 的类型 S3 已经有了，宿主的 `SurfacePlaybackHost` 和 `itemTraits` 还没有。排在 appleMusic 之前，因为两边都要动窗口交接：appleMusic 实现了 `adopt`，S6 要在 `useElectronWindowPlaybackHandoff.ts` 里给 `surface` 加重新播放那一支（§13）。它不依赖其余八家，也可以单独一条线和第 4、5 步并行。
 7. **ytm → appleMusic → spotify。**
-8. **收尾**：S8 的最后一段。
+8. **收尾**：S8 的最后一段；做完后 `edge` 合进 main（「交付」第二步）。
 
 **CI 要改指向的**：`dev/dedicatus/rules.mjs`（D110 加 `sources/**`，加新边界规则）、`providerRegistration.test.ts`（D122 改读 `sources/*/mod.json`）、`omniArchitecture.test.ts` 与 `platformNamePlaces.ts`、`credentialWriters.mjs`（D604）、`ipcChannels.mjs`（D605，删九个通道并改正 `folia-mods:rpc` 那条的说法）、`storageKeys.mjs`（D507）、`authMembers.test.ts`（换成从矩阵生成的一致性测试）、`providerName.test.ts`、`traditionalMainProcessText.test.ts`。`sampleMods.test.ts` 只扫 `mods/`，`sources/` 不受签名要求影响，另加一个内置清单校验测试。
 
