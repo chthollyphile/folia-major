@@ -5082,9 +5082,11 @@ function broadcastToWindows(channel, payload) {
 }
 
 // 网易云本地 API 的包不在主线程里加载，在工作线程里加载和运行（原因见 neteaseApiWorker.cjs）。
-// 拉起本身（网络请求）在 app ready 之后由 start() 进行。
+// 拉起本身（网络请求）在 app ready 之后由 start() 进行。workerData：上游包的临时文件（匿名 token、
+// xeapi 公钥等）按用户隔离到 userData 下，不再落在全机共有的 /tmp（#1304）。
 const neteaseBackend = createNeteaseBackend({
   broadcast: broadcastToWindows,
+  workerData: { upstreamTmpDir: path.join(app.getPath('userData'), 'netease-api-tmp') },
   // 和主线程里没人接的 rejection 同一个去处：写一份报告，不打断用户。
   onUnhandledRejection: (reason) => {
     crashLog.reportError('unhandledRejection', reason, { announceToUser: false });

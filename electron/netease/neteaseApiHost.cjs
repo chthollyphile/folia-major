@@ -10,7 +10,10 @@ const { Worker, SHARE_ENV } = require('worker_threads');
 function createNeteaseApiHost({
   // env: SHARE_ENV 让线程读写进程自己的环境变量，和这个包在主线程里运行时一样。不写的话线程拿到的是
   // 一份拷贝：Windows 上那份拷贝认大小写（存成 Temp 的读不成 TEMP），主进程后来改的它也看不到。
-  createWorker = () => new Worker(path.join(__dirname, 'neteaseApiWorker.cjs'), { env: SHARE_ENV }),
+  // workerData 原样交给线程（neteaseApiWorker.cjs 里取的是 workerData.upstreamTmpDir：按用户隔离的
+  // 临时目录，#1304）；换上测试用的 createWorker 时它只是个被忽略的实参。
+  createWorker = (data) => new Worker(path.join(__dirname, 'neteaseApiWorker.cjs'), { env: SHARE_ENV, workerData: data }),
+  workerData,
   logger = console,
   onUnhandledRejection = () => {},
   onWorkerError = (error) => { throw error; },
@@ -45,7 +48,7 @@ function createNeteaseApiHost({
       return worker;
     }
 
-    const created = createWorker();
+    const created = createWorker(workerData);
     worker = created;
     created.on('message', handleMessage);
     // 线程里未捕获的异常。默认的处理是原样抛出：它和主线程里的异常走同一条路（写崩溃报告、退出）。
@@ -80,7 +83,7 @@ function createNeteaseApiHost({
     start: ({ host }) => request('start', { host }),
     // 拉起步骤、登录请求、扫码身份与上游连接都记在线程里（请求在那里发出）。线程还没开过时，给同样形状的空记录。
     diagnostics: () => (
-      worker ? request('diagnostics') : Promise.resolve({ startup: [], login: null, identity: null, connections: [] })
+      worker ? request('diagnostics') : Promise.resolve({ startup: [], login: null, identity: null, connections: [], upstreamTmpDir: null })
     ),
   };
 }

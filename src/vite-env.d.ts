@@ -211,6 +211,8 @@ declare global {
     } | null;
     /** 最近的上游连接（不属于任何一次登录请求的那些，例如启动时取 xeapi 公钥）。 */
     connections: ElectronNetworkConnection[];
+    /** 上游包实际在用的临时目录（按用户隔离；线程还没开过或没拿到按用户的目录时为系统临时目录或 null）。 */
+    upstreamTmpDir: string | null;
   }
 
   interface ElectronQqLoginDiagnostics {

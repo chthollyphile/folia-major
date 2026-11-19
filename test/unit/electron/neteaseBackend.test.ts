@@ -1,4 +1,5 @@
 import { EventEmitter } from 'node:events';
+import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { SHARE_ENV, Worker } from 'node:worker_threads';
@@ -10,6 +11,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const { createNeteaseBackend } = require('../../../electron/netease/neteaseBackend.cjs') as {
     createNeteaseBackend: (options: Record<string, unknown>) => {
+        preload: () => void;
         start: (reason?: string) => Promise<any>;
         getStatus: () => any;
         getPort: () => number | null;
@@ -27,9 +29,12 @@ const createWorker = () => {
 
 const TEMP_KEYS = ['TMPDIR', 'TEMP', 'TMP'] as const;
 const savedTemp = Object.fromEntries(TEMP_KEYS.map(key => [key, process.env[key]]));
+// 测试里建出来给线程用的临时目录，线程结束后删掉（要在 terminate 之后，见 afterEach 的顺序）。
+const tempDirsCreated: string[] = [];
 
 afterEach(async () => {
     await Promise.all(workers.splice(0).map(worker => worker.terminate()));
+    tempDirsCreated.splice(0).forEach(dir => rmSync(dir, { recursive: true, force: true }));
     for (const key of TEMP_KEYS) {
         if (savedTemp[key] === undefined) delete process.env[key];
         else process.env[key] = savedTemp[key];
@@ -131,5 +136,60 @@ describe('NetEase backend on the main thread', () => {
         advance(10_000);
         void backend.start('needed');
         expect(fakes[0].posted).toHaveLength(2);
+    });
+});
+
+// 上游包的临时文件（anonymous_token、xeapi_public_key 等）按用户隔离（#1304：/tmp 全机共有，别的用户的
+// 文件读不出也盖不掉）。用真的线程跑：workerData 里的目录要传到线程，os.tmpdir() 要指过去，退回也要看得见。
+describe('NetEase backend per-user tmp dir', () => {
+    const createRealWorkerBackend = ({ workerData, logger }: { workerData: Record<string, unknown>; logger: object }) => createNeteaseBackend({
+        broadcast: vi.fn(),
+        logger,
+        now: () => 1000,
+        workerData,
+        createWorker: (data: Record<string, unknown>) => {
+            const worker = new Worker(WORKER_PATH, { env: SHARE_ENV, workerData: data });
+            workers.push(worker);
+            return worker;
+        },
+    });
+
+    it('points the worker and the upstream package at the per-user dir from workerData', async () => {
+        const perUserDir = path.join(os.tmpdir(), `folia-netease-tmp-${process.pid}-${Date.now()}`);
+        mkdirSync(perUserDir, { recursive: true });
+        tempDirsCreated.push(perUserDir);
+        const logger = { log: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+        const backend = createRealWorkerBackend({ workerData: { upstreamTmpDir: perUserDir }, logger });
+
+        // 先 preload 把线程开出来；diagnostics 线程回话前要加载完上游包，正好一并验到。
+        backend.preload();
+        const diagnostics = await backend.getDiagnostics();
+
+        expect(diagnostics.upstreamTmpDir).toBe(perUserDir);
+        // anonymous_token 是加载上游包时建的第一个临时文件：建在按用户的目录里，不再落在共享的 /tmp。
+        expect(existsSync(path.join(perUserDir, 'anonymous_token'))).toBe(true);
+        expect(logger.warn).not.toHaveBeenCalledWith(expect.stringContaining('upstream tmp dir falls back'));
+    });
+
+    it('falls back to the system tmp dir with a warning when the per-user dir cannot be created', async () => {
+        // 想建目录的位置上放一个同名文件，mkdirSync 必失败。退回的系统临时目录经 TMPDIR 指到测试自己的
+        // 目录里，上游的临时文件不落进真的 /tmp。
+        const blocked = path.join(os.tmpdir(), `folia-netease-blocked-${process.pid}-${Date.now()}`);
+        writeFileSync(blocked, '', 'utf-8');
+        tempDirsCreated.push(blocked);
+        const systemTmp = path.join(os.tmpdir(), `folia-netease-fallback-${process.pid}-${Date.now()}`);
+        mkdirSync(systemTmp, { recursive: true });
+        tempDirsCreated.push(systemTmp);
+        for (const key of TEMP_KEYS) process.env[key] = systemTmp;
+        const logger = { log: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+        const backend = createRealWorkerBackend({ workerData: { upstreamTmpDir: blocked }, logger });
+
+        backend.preload();
+        const diagnostics = await backend.getDiagnostics();
+
+        expect(diagnostics.upstreamTmpDir).toBe(systemTmp);
+        expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('upstream tmp dir falls back'));
+        expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining(blocked));
+        expect(existsSync(path.join(systemTmp, 'anonymous_token'))).toBe(true);
     });
 });

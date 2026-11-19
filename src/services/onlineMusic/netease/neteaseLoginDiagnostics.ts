@@ -72,7 +72,7 @@ export const formatNeteaseLoginDiagnostics = (
         return [unavailable ?? line('runtime: web (remote API, no main-process record)'), ...lines];
     }
 
-    const { app, backend, startup, login, identity } = snapshot;
+    const { app, backend, startup, login, identity, upstreamTmpDir } = snapshot;
     // login 为 null：上游包没加载起来（startup 里 load 那一步失败），没有登录请求与网卡的记录。
     const requests = login?.requests ?? [];
     // 同一轮扫码里 deviceId 变过是一个可疑点（渲染进程注册匿名身份会改掉主进程的全局 deviceId），
@@ -87,6 +87,8 @@ export const formatNeteaseLoginDiagnostics = (
             ? line(`local api: ${backend.status}${formatListen(backend.port)}${backend.offline ? ' offline' : ''}${backend.error ? ` error=${formatValue(backend.error)}` : ''}`
                 + `${backend.updatedAt ? ` (since ${formatDiagnosticClock(backend.updatedAt)})` : ''}`)
             : line('local api: unknown'),
+        // 上游包的临时目录：#1304 那类多用户权限问题（读到别人的 /tmp 文件）从这里一眼看出来。
+        ...(upstreamTmpDir ? [line(`upstream tmp: ${upstreamTmpDir}`)] : []),
         line(`startup: anonymous token at load=${login?.startup?.anonymousTokenAtLoad ?? 'unknown'}, runs=${startup?.length ?? 'unknown'}, last run=${lastRun?.outcome ?? 'none'}`),
         ...formatBackendStartup(startup),
         ...(login ? [formatInterfaces(login.network ?? { interfaces: [] })] : [line('upstream package: not loaded (see the load step above)')]),
