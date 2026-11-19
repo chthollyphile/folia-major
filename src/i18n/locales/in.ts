@@ -67,9 +67,6 @@ export default {
       "unknown": "Alasan tidak diketahui"
     }
   },
-  "appleMusic": {
-    "libraryPlaylistName": "Semua lagu"
-  },
   "perfCheck": {
     "title": "Pemeriksaan performa",
     "songTitle": "Pemeriksaan performa",
@@ -2038,9 +2035,6 @@ export default {
     "loginTitleKugou": "Pindai dengan KuGou Music",
     "loginNoteKugou": "Buka KuGou Music dan pindai kode QR ini",
     "loginTitleQq": "Pindai untuk masuk ke QQ Music",
-    "loginTitleAppleMusic": "Masuk ke Apple Music",
-    "loginNoteAppleMusic": "Masuk melalui jendela Apple. Kata sandi Anda hanya diberikan kepada Apple.",
-    "appleMusicLinuxUnsupported": "Linux belum didukung",
     "loginCodeWaiting": "Menunggu konfirmasi di browser",
     "loginTitleSpotify": "Masuk ke Spotify",
     "loginNoteSpotify": "Pilih Setuju di halaman Spotify yang terbuka di browser",
@@ -2333,11 +2327,9 @@ export default {
     "qq": "QQ Music",
     "kugou": "Kugou Music",
     "spotify": "Spotify",
-    "appleMusic": "Apple Music",
     "amll": "AMLLDB"
   },
   "onlineProviderName": {
-    "appleMusic": "Apple Music",
     "netease": "NetEase",
     "kugou": "Kugou",
     "qq": "QQ Music",

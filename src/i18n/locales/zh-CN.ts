@@ -67,9 +67,6 @@ export default {
       "unknown": "未知原因"
     }
   },
-  "appleMusic": {
-    "libraryPlaylistName": "全部歌曲"
-  },
   "perfCheck": {
     "title": "性能检测",
     "songTitle": "性能检测",
@@ -2038,9 +2035,6 @@ export default {
     "loginTitleKugou": "使用酷狗音乐APP扫码",
     "loginNoteKugou": "打开酷狗音乐APP扫描二维码",
     "loginTitleQq": "扫码登录QQ音乐",
-    "loginTitleAppleMusic": "登录 Apple Music",
-    "loginNoteAppleMusic": "请在 Apple 窗口中登录，密码只会交给 Apple。",
-    "appleMusicLinuxUnsupported": "Linux 暂未支援",
     "loginCodeWaiting": "等待在浏览器中确认",
     "loginTitleSpotify": "登录 Spotify",
     "loginNoteSpotify": "在浏览器打开的 Spotify 页面上点“同意”",
@@ -2333,11 +2327,9 @@ export default {
     "qq": "QQ 音乐",
     "kugou": "酷狗音乐",
     "spotify": "Spotify",
-    "appleMusic": "Apple Music",
     "amll": "AMLLDB",
   },
   "onlineProviderName": {
-    "appleMusic": "Apple Music",
     "netease": "网易云",
     "kugou": "酷狗",
     "qq": "QQ音乐",
