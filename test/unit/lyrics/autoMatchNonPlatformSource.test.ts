@@ -14,7 +14,7 @@ vi.mock('@/services/onlineMusic/netease/netease', () => ({
 }));
 vi.mock('@/utils/lyrics/neteaseProcessing', () => ({ parseNeteaseChorusRanges: vi.fn(() => []), processNeteaseLyrics: vi.fn() }));
 vi.mock('@/services/onlineMusic/qq/qqLyricProvider', () => ({ searchQQLyrics: vi.fn(), fetchQQLyrics: vi.fn() }));
-vi.mock('@/services/onlineMusic/kugou/kugouLyricProvider', () => ({ searchKugouLyrics: vi.fn(), fetchKugouLyrics: vi.fn() }));
+vi.mock('../../manual/kugouLyricProvider', () => ({ searchKugouLyrics: vi.fn(), fetchKugouLyrics: vi.fn() }));
 vi.mock('@/utils/lyrics/providers/amllDbProvider', async (importOriginal) => ({
     ...await importOriginal<typeof import('@/utils/lyrics/providers/amllDbProvider')>(),
     fetchAmllDbLyrics: vi.fn(),

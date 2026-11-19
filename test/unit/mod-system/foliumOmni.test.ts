@@ -36,8 +36,8 @@ vi.mock('@/utils/lyrics/workerClient', async () => {
 const requestKugou = vi.hoisted(() => vi.fn());
 // Its search without a signed-in session goes to the backend by a request of its own, replaced too.
 const requestKugouAnonymousSearch = vi.hoisted(() => vi.fn());
-vi.mock('@/services/onlineMusic/kugou/kugouTransport', async (importOriginal) => ({
-    ...await importOriginal<typeof import('@/services/onlineMusic/kugou/kugouTransport')>(),
+vi.mock('../../../sources/kugou/core/kugouTransport', async (importOriginal) => ({
+    ...await importOriginal<typeof import('../../../sources/kugou/core/kugouTransport')>(),
     requestKugou,
     requestKugouAnonymousSearch,
 }));

@@ -76,7 +76,7 @@ declare global {
     mimeType?: string | null;
   }
 
-  type ElectronKugouOperation = import('./services/onlineMusic/kugou/kugouTransport').KugouOperation;
+  type ElectronKugouOperation = import('../sources/kugou/core/kugouTransport').KugouOperation;
 
   interface ElectronAudioCacheStats {
     size: number;

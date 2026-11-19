@@ -3,7 +3,7 @@ import { autoMatchBestLyric } from '@/utils/lyrics/autoMatchBestLyric';
 import { neteaseApi } from '@/services/onlineMusic/netease/netease';
 import { processNeteaseLyrics } from '@/utils/lyrics/neteaseProcessing';
 import { searchQQLyrics, fetchQQLyrics } from '@/services/onlineMusic/qq/qqLyricProvider';
-import { searchKugouLyrics, fetchKugouLyrics } from '@/services/onlineMusic/kugou/kugouLyricProvider';
+import { searchKugouLyrics, fetchKugouLyrics } from '../../manual/kugouLyricProvider';
 import { fetchAmllDbLyrics } from '@/utils/lyrics/providers/amllDbProvider';
 import { getOnlineMusicProvider } from '@/services/onlineMusic/providerRegistry';
 import { useOnlineProviderAccountStore } from '@/stores/useOnlineProviderAccountStore';
@@ -30,7 +30,7 @@ vi.mock('@/services/onlineMusic/qq/qqLyricProvider', () => ({
     fetchQQLyrics: vi.fn()
 }));
 
-vi.mock('@/services/onlineMusic/kugou/kugouLyricProvider', () => ({
+vi.mock('../../manual/kugouLyricProvider', () => ({
     searchKugouLyrics: vi.fn(),
     fetchKugouLyrics: vi.fn()
 }));

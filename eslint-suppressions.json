@@ -849,7 +849,7 @@
       "count": 8
     }
   },
-  "electron/kugou/kugouApiBridge.cjs": {
+  "sources/kugou/main/kugouApiBridge.cjs": {
     "@stylistic/indent": {
       "count": 373
     }
@@ -9502,7 +9502,7 @@
       "count": 1
     }
   },
-  "src/services/onlineMusic/kugou/kugouLyricProvider.ts": {
+  "test/manual/kugouLyricProvider.ts": {
     "@stylistic/indent": {
       "count": 277
     },
@@ -9540,7 +9540,7 @@
       "count": 1
     }
   },
-  "src/services/onlineMusic/kugou/kugouProvider.ts": {
+  "sources/kugou/core/kugouProvider.ts": {
     "@typescript-eslint/no-base-to-string": {
       "count": 24
     },
@@ -9587,7 +9587,7 @@
       "count": 1
     }
   },
-  "src/services/onlineMusic/kugou/kugouTransport.ts": {
+  "sources/kugou/core/kugouTransport.ts": {
     "@typescript-eslint/no-explicit-any": {
       "count": 11
     },

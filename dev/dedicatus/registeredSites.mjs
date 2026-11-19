@@ -43,7 +43,7 @@ export const REGISTERED_SITES = [
         selectors: ["Property[key.name='whole'] > Literal.value[value=true]"],
         include: ['src/services/onlineMusic/**', 'sources/**'],
         sites: {
-            'src/services/onlineMusic/kugou/kugouProvider.ts': { getLikedSongIds: 'getKugouLikedPlaylistTracks 读到底，读不完就抛错' },
+            'sources/kugou/core/kugouProvider.ts': { getLikedSongIds: 'getKugouLikedPlaylistTracks 读到底，读不完就抛错' },
             'src/services/onlineMusic/netease/neteaseProvider.ts': { getLikedSongIds: '一次请求就是整张列表；出错的答复先抛 OnlineProviderError' },
         },
     },

@@ -3,7 +3,7 @@ import { createRequire } from 'node:module';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createBodianApi } from 'bodian-music-api';
 import { omni } from '@/services/onlineMusic/omni';
-import { requestKugou } from '@/services/onlineMusic/kugou/kugouTransport';
+import { requestKugou } from '../../../sources/kugou/core/kugouTransport';
 import { neteaseApi } from '@/services/onlineMusic/netease/netease';
 import { getOnlineMusicProvider } from '@/services/onlineMusic/providerRegistry';
 import { requestQq, resetQqTransportRuntimeCache } from '@/services/onlineMusic/qq/qqTransport';
@@ -24,7 +24,7 @@ vi.mock('@/services/onlineMusic/providerAccountCache', () => ({ saveProviderAcco
 
 const require = createRequire(import.meta.url);
 const { createWire } = require('../../helpers/bodianWire.cjs');
-const { createKugouApiBridge, normalizeBridgeError } = require('../../../electron/kugou/kugouApiBridge.cjs');
+const { createKugouApiBridge, normalizeBridgeError } = require('../../../sources/kugou/main/kugouApiBridge.cjs');
 const { BrowserSignInError } = require('../../../electron/ytm/browserSignIn.cjs');
 const { toErrorResult: ytmErrorResult } = require('../../../electron/ytm/errors.cjs');
 const { createLoginQrCheck } = require('../../../electron/netease/neteaseApiStartup.cjs');

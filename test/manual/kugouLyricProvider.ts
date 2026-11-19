@@ -1,4 +1,4 @@
-// src/services/onlineMusic/kugou/kugouLyricProvider.ts
+// test/manual/kugouLyricProvider.ts
 
 /**
  * Kugou lyrics provider module.
@@ -6,14 +6,14 @@
  */
 
 import md5 from 'blueimp-md5';
-import { SongResult } from '../../../types';
-import { parseLyricsByFormat } from '../../../utils/lyrics/parserCore';
-import { detectNonTtmlTimedLyricFormat } from '../../../utils/lyrics/formatDetection';
+import { SongResult } from '../../src/types';
+import { parseLyricsByFormat } from '../../src/utils/lyrics/parserCore';
+import { detectNonTtmlTimedLyricFormat } from '../../src/utils/lyrics/formatDetection';
 import { krcDecrypt } from '@folia/folium-source-kit';
-import { applyDetectedChorusEffects, applyChorusRangesByTime } from '../../../utils/lyrics/chorusEffects';
-import type { ChorusRange } from '../../../utils/lyrics/chorusEffects';
-import { buildKugouLyricSearchQuery } from '../../../utils/lyrics/searchQuery';
-import { lyricProxyWebUrl } from '../../lyricProxy';
+import { applyDetectedChorusEffects, applyChorusRangesByTime } from '../../src/utils/lyrics/chorusEffects';
+import type { ChorusRange } from '../../src/utils/lyrics/chorusEffects';
+import { buildKugouLyricSearchQuery } from '../../src/utils/lyrics/searchQuery';
+import { lyricProxyWebUrl } from '../../src/services/lyricProxy';
 
 const isElectron = typeof window !== 'undefined' && (window as any).electron;
 type KugouLyricFormat = 'lrc' | 'enhanced-lrc' | 'vtt' | 'krc';

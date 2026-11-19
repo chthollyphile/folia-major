@@ -1,8 +1,8 @@
-import { OnlineProviderError } from '../../../types/onlineMusic';
-import type { OnlineFailureDetail, OnlineFailureOperation } from '../../../types/onlineMusic';
+import { OnlineProviderError } from '../../../src/types/onlineMusic';
+import type { OnlineFailureDetail, OnlineFailureOperation } from '../../../src/types/onlineMusic';
 import { KUGOU_API_BASE_MISSING, KUGOU_LEGACY_PLAY_INFO_FAILED, extractKugouFailureDetails } from './kugouTransport';
 
-// src/services/onlineMusic/kugou/kugouFailure.ts
+// sources/kugou/core/kugouFailure.ts
 // 酷狗要播放地址、读歌单和专辑的歌曲没有成功时交出的事实（services/onlineMusic/failure/）。酷狗自己的
 // 错误是什么意思，只在这里说；transport 抛的错的读法登录也用（kugouLoginFailure.ts）。
 

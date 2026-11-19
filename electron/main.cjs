@@ -69,7 +69,7 @@ const {
   shouldMoveWallpaper,
   describeWallpaperDisplays,
 } = require('./wallpaper/wallpaperDisplay.cjs');
-const { createKugouApiBridge } = require('./kugou/kugouApiBridge.cjs');
+const { createKugouApiBridge } = require('../sources/kugou/main/kugouApiBridge.cjs');
 const { createExternalUrlOpener } = require('./externalUrlPolicy.cjs');
 const { createSenderGuardedHandler } = require('./ipcAccessGuard.cjs');
 const { createYtmApiBridge } = require('./ytm/ytmApiBridge.cjs');

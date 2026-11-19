@@ -3,7 +3,7 @@ import type { OnlineMusicProvider, OnlineProviderId, ProviderCapabilities } from
 import type { SongResult } from '../../types';
 import { getPlaybackSourceRef } from '../../utils/appPlaybackGuards';
 import { neteaseProvider } from './netease/neteaseProvider';
-import { kugouProvider } from './kugou/kugouProvider';
+import { kugouProvider } from '../../../sources/kugou/core/kugouProvider';
 import { qqProvider } from './qq/qqProvider';
 import { ytmProvider } from './ytm/ytmProvider';
 import { spotifyProvider } from './spotify/spotifyProvider';

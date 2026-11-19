@@ -1,7 +1,7 @@
-import type { LoginFailureDetail, LoginStep } from '../../../types/onlineMusic';
+import type { LoginFailureDetail, LoginStep } from '../../../src/types/onlineMusic';
 import { isKugouApiUnloaded, kugouTransportFailure } from './kugouFailure';
 
-// src/services/onlineMusic/kugou/kugouLoginFailure.ts
+// sources/kugou/core/kugouLoginFailure.ts
 // 酷狗登录失败时交给登录窗口的事实。酷狗自己的错误是什么意思，只在这里说。
 
 // 登录的某一步抛了错（都出自 kugouTransport.ts 的 requestKugou）。

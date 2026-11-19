@@ -1,4 +1,4 @@
-import type { SongResult, UnifiedSong } from '../../../types';
+import type { SongResult, UnifiedSong } from '../../../src/types';
 import {
     OnlineProviderError,
     type AudioQualityPreference,
@@ -13,20 +13,20 @@ import {
     type ProviderLyricSearchAlias,
     type ProviderPage,
     type ProviderUser,
-} from '../../../types/onlineMusic';
-import { getSizedCoverUrl } from '../../../utils/coverUrl';
-import { parseLyricsByFormat } from '../../../utils/lyrics/parserCore';
-import { isPureMusicLyricText } from '../../../utils/lyrics/pureMusic';
-import { hasRenderableLyrics } from '../../../utils/lyrics/validity';
-import { getPlaybackSongKey } from '../../../utils/appPlaybackGuards';
-import { decibelsToLinearPeak, toFiniteNumber } from '../../../utils/replayGain';
-import { createProviderSongMetadata } from '../../../utils/songMetadata';
+} from '../../../src/types/onlineMusic';
+import { getSizedCoverUrl } from '../../../src/utils/coverUrl';
+import { parseLyricsByFormat } from '../../../src/utils/lyrics/parserCore';
+import { isPureMusicLyricText } from '../../../src/utils/lyrics/pureMusic';
+import { hasRenderableLyrics } from '../../../src/utils/lyrics/validity';
+import { getPlaybackSongKey } from '../../../src/utils/appPlaybackGuards';
+import { decibelsToLinearPeak, toFiniteNumber } from '../../../src/utils/replayGain';
+import { createProviderSongMetadata } from '../../../src/utils/songMetadata';
 import {
     buildKugouLyricSearchQuery,
     normalizeSongTitleForLyricSearch,
-} from '../../../utils/lyrics/searchQuery';
-import { removeProviderSessionValue, readProviderSessionValue } from '../providerStorage';
-import i18n from '../../../i18n/config';
+} from '../../../src/utils/lyrics/searchQuery';
+import { removeProviderSessionValue, readProviderSessionValue } from '../../../src/services/onlineMusic/providerStorage';
+import i18n from '../../../src/i18n/config';
 import {
     getKugouTransportAvailability,
     hasKugouAuthenticatedSearchSession,
@@ -36,11 +36,11 @@ import {
 } from './kugouTransport';
 import { describeKugouLoginFailure, kugouCheckFailure } from './kugouLoginFailure';
 import { describeKugouFailure, isKugouTimeout, kugouNoUrlError } from './kugouFailure';
-import { errorFields } from '../../../utils/errorText';
-import { LISTENING_RANK_RANGES, listeningRankCollection, listeningRankPage, withListenCount } from '../listeningRank';
+import { errorFields } from '../../../src/utils/errorText';
+import { LISTENING_RANK_RANGES, listeningRankCollection, listeningRankPage, withListenCount } from '../../../src/services/onlineMusic/listeningRank';
 import { registerKugouLyricSource } from './kugouLyricSource';
 
-// src/services/onlineMusic/kugou/kugouProvider.ts
+// sources/kugou/core/kugouProvider.ts
 
 const valueOf = (raw: any, ...keys: string[]) => {
     for (const key of keys) {

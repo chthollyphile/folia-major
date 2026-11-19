@@ -7,8 +7,8 @@ const anonymousSearchMock = vi.hoisted(() => vi.fn());
 const legacyPlayInfoMock = vi.hoisted(() => vi.fn());
 const transportState = vi.hoisted(() => ({ hasAuthenticatedSearchSession: true }));
 
-vi.mock('@/services/onlineMusic/kugou/kugouTransport', async importOriginal => ({
-    ...await importOriginal<typeof import('@/services/onlineMusic/kugou/kugouTransport')>(),
+vi.mock('../../../sources/kugou/core/kugouTransport', async importOriginal => ({
+    ...await importOriginal<typeof import('../../../sources/kugou/core/kugouTransport')>(),
     getKugouTransportAvailability: () => ({ configured: false, reason: 'not-configured' }),
     hasKugouAuthenticatedSearchSession: () => transportState.hasAuthenticatedSearchSession,
     requestKugouAnonymousSearch: anonymousSearchMock,
@@ -27,9 +27,9 @@ import {
     kugouProvider,
     normalizeKugouSong,
     resolveKugouSongCatalogRefs,
-} from '@/services/onlineMusic/kugou/kugouProvider';
+} from '../../../sources/kugou/core/kugouProvider';
 import { resolveSongCatalogRef } from '@/services/onlineMusic/catalogRefs';
-import { KUGOU_API_BASE_MISSING } from '@/services/onlineMusic/kugou/kugouTransport';
+import { KUGOU_API_BASE_MISSING } from '../../../sources/kugou/core/kugouTransport';
 import { OnlineProviderError } from '@/types/onlineMusic';
 
 describe('kugouProvider', () => {
@@ -825,7 +825,7 @@ describe('kugouProvider', () => {
     // Which error getAudioSource throws when no URL comes; what it means is said in kugouFailure.ts.
     describe('getAudioSource failure', () => {
         const networkError = () => new OnlineProviderError('network', 'KuGou request failed (operation=song_url)', 'kugou');
-        // The bridge's line for a request that ran out of time (electron/kugou/kugouApiBridge.cjs).
+        // The bridge's line for a request that ran out of time (sources/kugou/main/kugouApiBridge.cjs).
         const timeoutError = () => new OnlineProviderError(
             'network',
             'KuGou request failed (operation=song_url): ETIMEDOUT: connect ETIMEDOUT 1.2.3.4:443',

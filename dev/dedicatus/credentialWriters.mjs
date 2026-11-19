@@ -28,8 +28,8 @@ export const CREDENTIAL_PAGE_STORE_CALLS = ['pageStore'];
  * 文件 → 会话 cookie 对象的名字，以及返回它的函数（`const jar = ensureCookies()` 这样的别名也认）。
  * 只在登记的文件里认：别处叫 cookies 的变量和登录会话无关。
  */
-export const CREDENTIAL_OBJECTS = { 'electron/kugou/kugouApiBridge.cjs': ['sessionCookies', 'cookies'] };
-export const CREDENTIAL_OBJECT_FACTORIES = { 'electron/kugou/kugouApiBridge.cjs': ['ensureCookies'] };
+export const CREDENTIAL_OBJECTS = { 'sources/kugou/main/kugouApiBridge.cjs': ['sessionCookies', 'cookies'] };
+export const CREDENTIAL_OBJECT_FACTORIES = { 'sources/kugou/main/kugouApiBridge.cjs': ['ensureCookies'] };
 
 /**
  * 文件 → 函数 → 允许写的键。`*` 只放行运行时才知道的键（`obj[key] = …`），登记了它的函数要自己挡掉账号项。
@@ -40,7 +40,7 @@ export const CREDENTIAL_WRITERS = {
         // 会话值的存取原语本身：键由调用方给，调用方受这张表约束
         writeProviderSessionValue: ['*'],
     },
-    'src/services/onlineMusic/kugou/kugouTransport.ts': {
+    'sources/kugou/core/kugouTransport.ts': {
         // 确认的扫码登录（status 4）带来的 cookie 和账号，token 与 userid 整对写入
         rememberConfirmedSignIn: ['token', 'userid', 'cookie'],
         // 其他响应带回的 cookie：函数自己去掉账号项
@@ -66,7 +66,7 @@ export const CREDENTIAL_WRITERS = {
         // 扫码轮询确认（803）的分支
         checkLogin: ['cookie'],
     },
-    'electron/kugou/kugouApiBridge.cjs': {
+    'sources/kugou/main/kugouApiBridge.cjs': {
         // 确认的扫码登录（login_qr_check、status 4），整对写入
         adoptConfirmedSignIn: ['token', 'userid'],
         // 响应带回的设备 cookie：函数自己挡掉账号 cookie

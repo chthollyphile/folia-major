@@ -1,10 +1,10 @@
 import md5 from 'blueimp-md5';
-import { OnlineProviderError } from '../../../types/onlineMusic';
-import { readProviderSessionValue, removeProviderSessionValue, writeProviderSessionValue } from '../providerStorage';
-import { lyricProxyWebUrl, requestLyricProxyOnDesktop } from '../../lyricProxy';
+import { OnlineProviderError } from '../../../src/types/onlineMusic';
+import { readProviderSessionValue, removeProviderSessionValue, writeProviderSessionValue } from '../../../src/services/onlineMusic/providerStorage';
+import { lyricProxyWebUrl, requestLyricProxyOnDesktop } from '../../../src/services/lyricProxy';
 import { withLoginRequestLimit } from '@folia/folium-source-kit';
 
-// src/services/onlineMusic/kugou/kugouTransport.ts
+// sources/kugou/core/kugouTransport.ts
 
 export const KUGOU_OPERATIONS = [
     'register_dev', 'login_qr_key', 'login_qr_create', 'login_qr_check', 'logout',

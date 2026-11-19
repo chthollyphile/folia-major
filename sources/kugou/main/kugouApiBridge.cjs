@@ -1,7 +1,7 @@
 const crypto = require('crypto');
-const { assertEncryptionAvailable, encryptionAvailable } = require('../osEncryption.cjs');
+const { assertEncryptionAvailable, encryptionAvailable } = require('../../../electron/osEncryption.cjs');
 
-// electron/kugou/kugouApiBridge.cjs
+// sources/kugou/main/kugouApiBridge.cjs
 
 const LEGACY_SESSION_KEY = 'KUGOU_API_SESSION_V1';
 const SESSION_KEY = 'KUGOU_API_SESSION_V2';

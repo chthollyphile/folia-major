@@ -1,5 +1,5 @@
 import type { OnlineMusicProvider } from '../../../types/onlineMusic';
-import { kugouProvider } from '../kugou/kugouProvider';
+import { kugouProvider } from '../../../../sources/kugou/core/kugouProvider';
 
 // src/services/onlineMusic/web/kugou.ts
 // The web build's kugou (web/index.ts). For now the host's own provider, which providerRegistry.ts also registers;

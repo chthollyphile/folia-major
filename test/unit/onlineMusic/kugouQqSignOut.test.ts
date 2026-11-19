@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { kugouProvider } from '@/services/onlineMusic/kugou/kugouProvider';
+import { kugouProvider } from '../../../sources/kugou/core/kugouProvider';
 import { qqProvider } from '@/services/onlineMusic/qq/qqProvider';
 
 // test/unit/onlineMusic/kugouQqSignOut.test.ts
