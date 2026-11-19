@@ -170,6 +170,8 @@ export const requireOnlineMusicProviderForSong = (song: SongResult): OnlineMusic
 // The built-in platforms not yet moved to source mods, registered at load until they are (Folium 2.0 S5/S8); the
 // moved ones (sources/<id>/) register through the mod runtime. `?noSources` (dev only) leaves these out,
 // to see the app with no platform at all.
+// The web build registers its three platforms again through web/index.ts (registerWebSources); once one of them
+// moves to a source mod it leaves this list, and web/<id>.ts is where the web build gets it.
 if (!startsWithoutSources) {
     registerOnlineMusicProvider(neteaseProvider);
     registerOnlineMusicProvider(kugouProvider);
