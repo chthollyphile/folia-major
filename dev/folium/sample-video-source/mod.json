@@ -1,0 +1,17 @@
+{
+  "folium": 2,
+  "id": "sample-video-source",
+  "name": "示范视频源（样例）",
+  "version": "1.0.0",
+  "author": "Folia Mod Samples",
+  "description": "Folium 2.0 playback.surface 的示范：三段测试视频在播放页上由模组自己的 <video> 播放（宿主给的画面容器里），另有一首走宿主音频的歌（routeOf 按条目选播放方式）。视频是 itemKinds 里的 video：没有歌词、不能喜欢、不上报。数据和片段都是假的，不连任何真实平台。",
+  "client": "client.mjs",
+  "main": "index.cjs",
+  "sources": [
+    {
+      "id": "clips",
+      "name": { "zh-CN": "示范视频源", "en": "Sample video source" },
+      "requires": ["search@1", "songs@1", "playback.surface@1", "playback.audio@1"]
+    }
+  ]
+}
