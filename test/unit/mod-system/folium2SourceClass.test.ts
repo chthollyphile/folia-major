@@ -298,6 +298,19 @@ describe('the source members of api (plan §5.5)', () => {
         expect(window.isDestroyed()).toBe(true);
     });
 
+    it('windows: a hidden window that closed by itself is let go then, not kept until the mod stops', async () => {
+        const { api, system } = launchSource();
+        const destroys = () => electronCalls.filter(([call]) => call === 'BrowserWindow.destroy').length;
+        const closed = api.windows.hidden({}) as unknown as { closeBySelf(): void };
+        const open = api.windows.hidden({});
+        closed.closeBySelf();
+        const before = destroys();
+        await system.setSourceState('spotify', 'disabled');
+        // Only the window still open is destroyed with the mod.
+        expect(destroys() - before).toBe(1);
+        expect(open.isDestroyed()).toBe(true);
+    });
+
     it('a sandbox partition: its http(s) answered locally, its permissions refused, its window not throttled; all undone with the mod', async () => {
         const { api, system } = launchSource();
         const sandbox = api.net.session('sandbox');

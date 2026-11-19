@@ -296,8 +296,12 @@ export const launch = (options: {
                 this.options = windowOptions;
                 electronCalls.push(['BrowserWindow', windowOptions]);
             }
+            closedListeners: Array<() => void> = [];
             isDestroyed() { return this.destroyed; }
             destroy() { this.destroyed = true; electronCalls.push(['BrowserWindow.destroy']); }
+            once(event: string, listener: () => void) { if (event === 'closed') this.closedListeners.push(listener); }
+            /** The window closes by itself (Electron's `closed`). */
+            closeBySelf() { this.destroyed = true; this.closedListeners.splice(0).forEach(listener => listener()); }
         },
         getMainWindow: () => (options.mainWindow === undefined ? MAIN_WINDOW : options.mainWindow),
         getLocaleKey: () => 'en',
