@@ -19,7 +19,6 @@ import { clearYtmCatalogCache } from '../../../sources/ytm/client/ytmCatalog';
 import { clearYtmLibraryCache } from '../../../sources/ytm/client/ytmLibrary';
 import { createYtmPager } from '../../../sources/ytm/client/ytmNormalize';
 import { getPlaybackSongKey } from '@/utils/appPlaybackGuards';
-import { OnlineProviderError } from '@/types/onlineMusic';
 import i18n from '@/i18n/config';
 import { answerYtmRequests, hostYtmCollection, hostYtmSong, hostYtmUser, lazyYtmProvider, ytmRefusal } from '../helpers/ytmSource';
 // @builtin-sources
@@ -102,7 +101,7 @@ describe('YouTube Music paging by offset', () => {
         expect(first).toEqual({ items: ids(15), nextOffset: 15, hasMore: true });
         expect(fetchPage).toHaveBeenCalledTimes(1);
 
-        const second = await pager.page('list', first.nextOffset, 150, fetchPage);
+        const second = await pager.page('list', first.nextOffset ?? 0, 150, fetchPage);
         expect(second.items).toEqual(ids(105, 15));
         expect(second).toMatchObject({ nextOffset: 120, hasMore: true });
         expect(fetchPage).toHaveBeenCalledTimes(8);
@@ -484,7 +483,7 @@ describe('YouTube Music provider', () => {
         vi.spyOn(console, 'log').mockImplementation(() => {});
         request.mockResolvedValueOnce({ sections: [] });
         let cursor = (await ytmProvider.explore!.getFeed(undefined, Array.from({ length: 20 }, (_, index) => played(`capSeed${String(index).padStart(4, '0')}`, `Song ${index}`)))).nextCursor;
-        request.mockImplementation(async (_operation: string, params: { videoId: string }) => ({ items: radio(12, Number(params.videoId.slice(-4)) * 100) }));
+        request.mockImplementation(async (_operation: string, params: { videoId?: string }) => ({ items: radio(12, Number(params.videoId!.slice(-4)) * 100) }));
         let shelves = 0;
         while (cursor) {
             const page = await ytmProvider.explore!.getFeed(cursor);

@@ -32,13 +32,16 @@ export const ytmRefusal = (code: string, message: string, reason?: string) => (
     Object.assign(new Error(message), { code, ...(reason ? { reason } : {}) })
 );
 
+// 用方法的写法声明，参数按双向比较：测试的替身可以把 params 写成它自己读的形状（{ continuation?: string } 之类）。
+interface YtmRequestAnswer { answer(operation: string, params: Record<string, unknown>): unknown }
+
 /** 接住 client 到 main 入口的请求；交回记下每次 (operation, params) 的 vi.fn。 */
 export const answerYtmRequests = () => {
-    const request = vi.fn<(operation: string, params?: Record<string, unknown>) => unknown>();
+    const request = vi.fn<YtmRequestAnswer['answer']>();
     const off = setBuiltinSourceRpc('ytm', {
         request: async (...args: unknown[]) => {
             try {
-                return { ok: true, data: await request(args[0] as string, args[1] as Record<string, unknown> | undefined) ?? null };
+                return { ok: true, data: await request(args[0] as string, (args[1] ?? {}) as Record<string, unknown>) ?? null };
             } catch (error) {
                 const failed = error as { code?: unknown; message?: unknown; reason?: unknown };
                 return { ok: false, error: {
