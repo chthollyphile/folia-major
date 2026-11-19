@@ -161,7 +161,8 @@ export class LumierePixiRuntime {
         const runtime = new LumierePixiRuntime(pixi, options, app);
         runtime.renderResolution = resolution;
         runtime.sprites = createLightSprites(pixi);
-        runtime.passthrough = new pixi.AlphaFilter({ alpha: 1 });
+        // 抗锯齿跟随画布（样式的抗锯齿设置；Pixi 的默认是 off）。
+        runtime.passthrough = new pixi.AlphaFilter({ alpha: 1, antialias: 'inherit' });
         runtime.quality.passthrough = runtime.passthrough;
         runtime.darkField = new LumiereDarkFieldLayer(pixi);
         runtime.sceneLayer = new pixi.Container();

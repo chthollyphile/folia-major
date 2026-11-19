@@ -325,7 +325,7 @@ const validateSourceEntry = (source, where, ids, errors) => {
 
 /*
  * The fields only `folium: 2` has (plan §5.1). A `folium: 1` mod.json that names one is refused: those
- * mods read exactly as they did in 1.9. A mod that declares `sources` is a source mod (§5.2), which is why
+ * mods read exactly as they did in 1.10. A mod that declares `sources` is a source mod (§5.2), which is why
  * an empty declaration is refused: it would buy the source exemptions without providing a source.
  * `contexts` lists where the client runs ('main', 'export'; both when left out); a source mod's never
  * runs in the export window.

@@ -33,11 +33,11 @@ afterEach(() => {
 });
 
 describe('the Folium version a main entry reads', () => {
-    it('is 1.9 for a folium 1 mod and 2.0 for a folium 2 mod', () => {
+    it('is 1.10 for a folium 1 mod and 2.0 for a folium 2 mod', () => {
         confirmMod(writeMod('user', { id: 'old' }, { main: true }), 'old');
         confirmMod(writeMod('user', sourceManifest('radio', ['station']), { main: true }), 'radio');
         launch();
-        expect((modRecord('old')!.api.host as { folium: unknown }).folium).toEqual({ major: 1, minor: 9 });
+        expect((modRecord('old')!.api.host as { folium: unknown }).folium).toEqual({ major: 1, minor: 10 });
         expect((modRecord('radio')!.api.host as { folium: unknown }).folium).toEqual({ major: 2, minor: 0 });
     });
 });

@@ -61,6 +61,7 @@ export type CollectionMutationCapabilities = {
     deleteCollection: LibraryCapability;
     resyncFolder: LibraryCapability;
     resyncAllFolders: LibraryCapability;
+    reorderPlaylist: LibraryCapability;
     exportPlaylist: LibraryCapability;
     addToPlaylist: LibraryCapability;
     createPlaylist: LibraryCapability;
@@ -140,6 +141,7 @@ export interface CollectionMutationController {
     deleteCollection(): Promise<LibraryMutationResult>;
     resyncFolder(): Promise<LibraryMutationResult>;
     resyncAllFolders(): Promise<LibraryMutationResult>;
+    reorderPlaylist(): Promise<LibraryMutationResult>;
     exportPlaylist(): Promise<LibraryMutationResult>;
     /** tracks 由 renderer 给（网格给的是可播放曲目）。 */
     addToPlaylist(playlistId: string | number, tracks: SongResult[]): Promise<LibraryMutationResult>;

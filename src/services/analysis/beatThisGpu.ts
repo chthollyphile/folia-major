@@ -6,7 +6,7 @@
 // Where it runs: a dedicated worker (workers/beatThisGpu.worker.ts) with its own device, so neither
 // the upload nor the readbacks ever touch the thread that paints. The GPU itself is shared with the
 // visualizer's WebGL, and the GPU only switches between command buffers, so the worker submits a
-// chunk in slices and keeps one slice on the GPU at a time ('auto' in BeatThisWgsl.run). Measured on
+// chunk in slices and kept one slice on the GPU at a time ('auto', since replaced: below). Measured on
 // an M4 Pro, a full-window WebGL2 load at 120 Hz, 10 chunks per mode (dev/beat-this-wgsl/coexist.ts):
 //
 //   render GPU/frame   one submit per chunk          auto slicing
@@ -18,6 +18,20 @@
 // time - background work, a few hundred ms a track - for every frame. What it cannot cut is a single
 // dispatch: the longest is an attention at ~3 ms here, which on a much slower GPU may still outlast
 // a frame.
+//
+// 'auto' cut finer wherever a slice's submit-to-done outlasted 8 ms, and on Windows that time is not
+// the GPU's: Dawn on D3D12 answers a submit's completion ~3 ms late with an idle GPU and 2-4 frames
+// late while the visualizer presents. Every stage looked long, every run went one dispatch a submit,
+// and a 3.9 s htdemucs segment took 3-16 s instead of ~0.1 s (a user's 2026-11-14 log: RTX 4060
+// Laptop, minutes a track, hundreds of frames dropped a segment). Since then the runs are 'paced'
+// (gpuSlices.ts): cut by each dispatch's GPU time from timestamp queries into quarter-frame slices,
+// the next let go at the last one's completion or the next frame, up to four queued (one on macOS).
+// Measured on an RTX 5070 Ti at 120 Hz, one htdemucs segment, dev/htdemucs-wgsl/coexist.ts:
+//
+//   render GPU/frame   submit to done   none      stage     auto                      paced (4 queued)
+//   ~0.1 ms            0.1 ms           39 ms     -         95 ms                     50 ms, 0 missed
+//   ~3.9 ms            17-25 ms         74-134    720-915   824 first, then 16-17 s   148-182 ms, 3-7% missed
+//                                                                                     (idle: 18-23% missed)
 //
 // Weights come from the main process (the renderer cannot read the models directory) and are held,
 // on the GPU and in the worker, only while in use: two idle minutes and the worker is dropped, the
@@ -49,6 +63,7 @@
 // a lost device or a failed run only drops this worker, and the next track tries a fresh one.
 
 import { noteGpuAnalysisUnit } from './gpuActivity';
+import type { PacedRunStats } from './gpuSlices';
 import { createScheduler, watchFrames, type UnitRequest } from './scheduler';
 
 const IDLE_MS = 120_000;
@@ -100,6 +115,8 @@ interface Logits {
     downbeat: Float32Array[];
     /** Present when asked for and computed; its failure does not fail the logits. */
     percussive?: PercussiveEnergyFrames;
+    /** How the chunks were paced (the run that completed the cost table, else the first). */
+    paced?: PacedRunStats;
 }
 
 let worker: Worker | null = null;
@@ -137,6 +154,7 @@ const unload = (model: GpuModel, why: string) => {
     if (entry.timer) clearTimeout(entry.timer);
     resident.delete(model);
     ready.delete(model);
+    pacingLogged.delete(model);
     console.log(`[beat-this-gpu] ${model} released (${why}), ${megabytes(entry.bytes)} back`);
     if (worker) void ask({ kind: 'unload', model });
 };
@@ -207,6 +225,81 @@ export const estimateGpuFinish = (kind: string, units: number, urgency: GpuRunOp
  */
 export const gpuStemsUsable = (): boolean => !unsupported && !failedModels.has('htdemucs');
 
+/** Set while the performance check runs in its own window: this window's units wait (components/perfCheck/). */
+let heldForPerfCheck = false;
+
+/**
+ * Holds this window's GPU analysis while the performance check measures the GPU from its own window
+ * (true), or lets it go again (false): queued units are passed over and kept (the scheduler's
+ * `paused`), and woken when released. A unit with a deadline is not held - automix's stems for a
+ * transition due during the check (urgency 'background' with a deadline) still come in time.
+ */
+export const holdGpuAnalysis = (held: boolean): void => {
+    if (heldForPerfCheck === held) return;
+    heldForPerfCheck = held;
+    if (!held) scheduler.wake();
+};
+
+/** A request's options with the hold above added to its own `paused`. */
+const withPerfCheckHold = (options: GpuRunOptions): GpuRunOptions => ({
+    ...options,
+    paused: () => (heldForPerfCheck && options.deadline === undefined && options.urgency !== 'transition') || (options.paused?.() ?? false),
+});
+
+/** What the loaded GPU models hold on the graphics card now, bytes: the performance check's memory reading. */
+export const gpuModelBytes = (): number => [...resident.values()].reduce((sum, entry) => sum + entry.bytes, 0);
+
+/**
+ * The audio one htdemucs segment moves a track's separation on, ms: segments overlap by a quarter
+ * (stemRange.ts stemSegmentStarts), so three quarters of the 3.9 s. A segment that takes longer than
+ * this runs behind the track.
+ */
+export const SEGMENT_ADVANCE_MS = ((HTDEMUCS_GPU_SEGMENT - Math.floor(HTDEMUCS_GPU_SEGMENT / 4)) / 44100) * 1000;
+/** On-screen segments in a row slower than real time that stop the separation on screen. */
+const SLOW_SEGMENTS = 3;
+/** On-screen segments in a row so far that took longer than the audio they move the track on. */
+let slowInARow = 0;
+/** Set once this machine separated too slowly for the picture: on-screen separation stops for the session. */
+let tooSlowOnScreen = false;
+
+/**
+ * Whether the GPU htdemucs may still separate for the picture (the drum hits, the voice): false
+ * once it ran slower than real time SLOW_SEGMENTS segments in a row on screen. Such a machine
+ * never catches up with the track, and the separation holds the GPU from the visualizer for all of
+ * it (a user's 2026-11-14 log: 3-10 s a 3.9 s segment, minutes a track). automix's background stems
+ * are not stopped by it.
+ */
+export const gpuStemsOnScreenUsable = (): boolean => gpuStemsUsable() && !tooSlowOnScreen;
+
+/** Counts an on-screen segment's time toward the stop above, and logs the stop once. */
+const noteOnScreenSegment = (ms: number) => {
+    slowInARow = ms > SEGMENT_ADVANCE_MS ? slowInARow + 1 : 0;
+    if (slowInARow < SLOW_SEGMENTS || tooSlowOnScreen) return;
+    tooSlowOnScreen = true;
+    console.warn(`[beat-this-gpu] htdemucs slower than the track here: ${SLOW_SEGMENTS} segments in a row over ${(SEGMENT_ADVANCE_MS / 1000).toFixed(1)} s each, the audio a segment moves on (the last ${(ms / 1000).toFixed(1)} s); the drum hits and the voice on screen stop for this session`);
+};
+
+/** Models whose pacing has been logged since they were loaded: one line a load. */
+const pacingLogged = new Set<GpuModel>();
+
+/**
+ * Logs how a model's runs are paced on this machine, once a load: the GPU time its dispatches
+ * measured (the cost table, gpuSlices.ts), the slices that cuts it into, how many are queued, and
+ * how long a submit takes to come back - the numbers that tell a slow GPU from late completions.
+ */
+const notePacing = (model: GpuModel, paced: PacedRunStats | undefined) => {
+    if (!paced || pacingLogged.has(model)) return;
+    const roundTrip = `submit to done ${paced.roundTripMs.toFixed(1)} ms (median)`;
+    if (paced.costs) {
+        pacingLogged.add(model);
+        const { dispatches, totalMs, longestMs, slices } = paced.costs;
+        console.log(`[beat-this-gpu] ${model} measured: ${dispatches} dispatches, ${totalMs.toFixed(1)} ms of GPU a run (longest ${longestMs.toFixed(2)} ms); cut into ${slices} slices of up to ${paced.sliceMs.toFixed(1)} ms, ${paced.pacedInFlight} in flight; ${roundTrip}`);
+    } else if (paced.noTimestamps) {
+        pacingLogged.add(model);
+        console.log(`[beat-this-gpu] ${model}: no GPU timestamps on this device, cut at its stage boundaries (${paced.slices} slices a run), ${paced.inFlight} in flight; ${roundTrip}`);
+    }
+};
+
 /** Raises a track's queued runs: a caller on screen joined a run asked in the background. */
 export const raiseGpuUrgency = (key: string, urgency: GpuRunOptions['urgency']): void => scheduler.raise(key, urgency);
 const pending = new Map<number, (reply: Reply) => void>();
@@ -217,6 +310,7 @@ const drop = () => {
     ready.clear();
     for (const entry of resident.values()) if (entry.timer) clearTimeout(entry.timer);
     resident.clear();
+    pacingLogged.clear();
     if (idleTimer) clearTimeout(idleTimer);
     idleTimer = null;
     for (const settle of pending.values()) settle({ id: -1, error: 'worker dropped' });
@@ -333,7 +427,7 @@ export const runBeatThisGpu = (
 ): Promise<Logits | null> => {
     if (unsupported || failedModels.has(model) || typeof window === 'undefined' || typeof Worker === 'undefined') return Promise.resolve(null);
     if (!chunks.length || chunks.some(chunk => chunk.frames < 1 || chunk.frames > CHUNK_FRAMES)) return Promise.resolve(null);
-    return scheduler.submit({ ...options, kind: model, run: () => runNow(chunks, model, percussiveOf) });
+    return scheduler.submit({ ...withPerfCheckHold(options), kind: model, run: () => runNow(chunks, model, percussiveOf) });
 };
 
 /**
@@ -346,7 +440,7 @@ export const runPercussiveEnergyGpu = (
     options: GpuRunOptions = { urgency: 'onScreen' },
 ): Promise<PercussiveEnergyFrames | null> => {
     if (unsupported || typeof window === 'undefined' || typeof Worker === 'undefined' || mel.frames < 1) return Promise.resolve(null);
-    return scheduler.submit({ ...options, kind: 'percussive', run: async (): Promise<PercussiveEnergyFrames | null> => {
+    return scheduler.submit({ ...withPerfCheckHold(options), kind: 'percussive', run: async (): Promise<PercussiveEnergyFrames | null> => {
         if (unsupported || !spawn()) return null;
         if (idleTimer) clearTimeout(idleTimer);
         idleTimer = null;
@@ -402,14 +496,17 @@ export const runHtdemucsGpu = (
     options: GpuRunOptions = { urgency: 'onScreen' },
 ): Promise<HtdemucsGpuSegment | null> => {
     if (unsupported || failedModels.has('htdemucs') || typeof window === 'undefined' || typeof Worker === 'undefined') return Promise.resolve(null);
+    if (tooSlowOnScreen && options.urgency === 'onScreen') return Promise.resolve(null);
     if (left.length !== HTDEMUCS_GPU_SEGMENT || right.length !== HTDEMUCS_GPU_SEGMENT) return Promise.resolve(null);
-    return scheduler.submit({ ...options, kind: 'htdemucs', run: async () => {
+    return scheduler.submit({ ...withPerfCheckHold(options), kind: 'htdemucs', run: async () => {
         if (unsupported || failedModels.has('htdemucs') || !(await ensureLoaded('htdemucs'))) return null;
         // Copied, not transferred: the caller still owns the track it cut these from.
         const l = Float32Array.from(left);
         const r = Float32Array.from(right);
         inUse = 'htdemucs';
+        const started = performance.now();
         const reply = await ask({ kind: 'separate', left: l, right: r }, [l.buffer, r.buffer]).finally(() => { inUse = null; });
+        const took = performance.now() - started;
         used('htdemucs');
         if (reply.error) {
             console.warn(`[beat-this-gpu] htdemucs run failed: ${reply.error}`);
@@ -417,7 +514,9 @@ export const runHtdemucsGpu = (
             return null;
         }
         if (worker) idleTimer = setTimeout(drop, IDLE_MS);
-        const { stems } = reply.result as { stems: StemChannels[] };
+        const { stems, paced } = reply.result as { stems: StemChannels[]; paced?: PacedRunStats };
+        notePacing('htdemucs', paced);
+        if (options.urgency === 'onScreen') noteOnScreenSegment(took);
         return { left: stems[0].left, right: stems[0].right, stems };
     } });
 };
@@ -447,5 +546,6 @@ const runNow = async (
     }
     if (worker) idleTimer = setTimeout(drop, IDLE_MS);
     const logits = reply.result as Logits;
+    notePacing(model, logits.paced);
     return logits.beat.length === chunks.length ? logits : null;
 };

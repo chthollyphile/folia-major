@@ -17,7 +17,11 @@ const createSceneScreenHost = ({ ipcMain, isTrusted }) => {
             const { x, y, width, height, outWidth, outHeight } = request ?? {};
             if (![x, y, width, height, outWidth, outHeight].every(Number.isFinite)) return null;
             if (width < 1 || height < 1 || outWidth < 1 || outHeight < 1 || outWidth > MAX_SIDE || outHeight > MAX_SIDE) return null;
-            const image = await event.sender.capturePage({ x: Math.round(x), y: Math.round(y), width: Math.round(width), height: Math.round(height) });
+            // The rect is in CSS pixels; capturePage takes window pixels, which differ by the page zoom (界面缩放, #1264).
+            const zoom = event.sender.getZoomFactor() || 1;
+            const image = await event.sender.capturePage({
+                x: Math.round(x * zoom), y: Math.round(y * zoom), width: Math.round(width * zoom), height: Math.round(height * zoom),
+            });
             // A minimised or hidden window gives an empty picture: the scene keeps its last light.
             if (image.isEmpty()) return null;
             return image.resize({ width: Math.round(outWidth), height: Math.round(outHeight), quality: 'good' }).toPNG();

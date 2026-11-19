@@ -238,7 +238,7 @@ describe('external playback route', () => {
         unsubscribe();
     });
 
-    it('hands the player its own single repeat on a start and when the loop mode or FM changes', async () => {
+    it('hands the player its own single repeat on a start and when the loop mode changes, Personal FM included', async () => {
         useAudioSettingsStore.setState({ loopMode: 'one' });
         await engine.beginExternalPlayback(song, 0);
         engine.announceExternalPlayback();
@@ -250,7 +250,7 @@ describe('external playback route', () => {
         expect(omniMock.setExternalPlaybackRepeatOne.mock.calls).toEqual([[song, false]]);
         useAudioSettingsStore.setState({ loopMode: 'one' });
         usePlaybackStore.setState({ isFmMode: true });
-        expect(omniMock.setExternalPlaybackRepeatOne.mock.calls).toEqual([[song, false], [song, true], [song, false]]);
+        expect(omniMock.setExternalPlaybackRepeatOne.mock.calls).toEqual([[song, false], [song, true]]);
     });
 
     it('takes a one-answer stop at the start after the end, under its own single repeat, as going round', async () => {
@@ -387,7 +387,7 @@ describe('external playback route', () => {
         expect(omniMock.setExternalPlaybackRepeatOne.mock.calls).toEqual([[song, false]]);
     });
 
-    it('moves on at the end under single loop in Personal FM', async () => {
+    it('plays the track again at the end under single loop in Personal FM too', async () => {
         useAudioSettingsStore.setState({ loopMode: 'one' });
         usePlaybackStore.setState({ isFmMode: true });
         const events: string[] = [];
@@ -396,8 +396,9 @@ describe('external playback route', () => {
         engine.announceExternalPlayback();
         omniMock.getExternalPlaybackStatus.mockResolvedValue(status({ isPlaying: false, positionMs: 200000, ended: true }));
         await vi.advanceTimersByTimeAsync(500);
-        expect(events.filter(type => type === 'ended')).toHaveLength(1);
-        expect(omniMock.playSongExternally).toHaveBeenCalledTimes(1);
+        expect(events).not.toContain('ended');
+        expect(omniMock.playSongExternally).toHaveBeenCalledTimes(2);
+        expect(omniMock.playSongExternally).toHaveBeenLastCalledWith(song, 0);
         unsubscribe();
     });
 

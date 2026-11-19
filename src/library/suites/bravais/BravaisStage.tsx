@@ -153,6 +153,7 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
     const badgeCurrentOnly = useLatticeSettingsStore(state => state.latticeBadgeCurrentOnly);
     const stackEdges = useLibraryWallLookStore(state => state.collectionStackEdges);
     const seamDirection = useLibraryWallLookStore(state => state.seamDirection);
+    const collectionTilt = useLibraryWallLookStore(state => state.collectionTilt);
     const portrait = useMediaQuery(LIBRARY_WALL_PORTRAIT_QUERY);
     const seamHorizontal = resolveLibraryWallSeamHorizontal(seamDirection, portrait);
     // 换层编排里按层算开口时读最新的（不进回调的依赖）。
@@ -223,6 +224,8 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
     // 这一层的缝落定时整层倾斜多少度（与下面交给 useBravaisTilt 的同一张表、同一套条件；排开口时据此离视口边多留一段）。
     const reducedMotionRef = useRef(reducedMotion);
     reducedMotionRef.current = reducedMotion;
+    const collectionTiltRef = useRef(collectionTilt);
+    collectionTiltRef.current = collectionTilt;
     const tiltFor = useCallback((target: BravaisLayer) => {
         const resolved = resolveSeamTarget(seamInputFor(target));
         const axis = resolveSeamAxis(resolved.variant, seamHorizontalRef.current);
@@ -233,6 +236,7 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
             renderedAxis: axis,
             finite: target.mode === 'finite',
             reducedMotion: reducedMotionRef.current,
+            collectionTilt: collectionTiltRef.current,
         });
     }, [seamInputFor]);
 
@@ -275,6 +279,7 @@ const BravaisStage: React.FC<LibrarySuiteStageProps> = ({
             renderedAxis: seam.rendered.axis,
             finite: layer?.mode === 'finite',
             reducedMotion,
+            collectionTilt,
         }),
         seamFollowsTilt: renderedTiltPage !== null && renderedTiltPage !== 'poster',
         // 翻牌交接：缝一合上就量磁贴的位置，回正要赶上（useBravaisWallHandoff）。

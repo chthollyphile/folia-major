@@ -1,6 +1,6 @@
 import React from 'react';
 import { type Theme } from '../../../types';
-import { colorWithAlpha } from '../colorMix';
+import { colorWithAlpha } from '../../../utils/colorMix';
 
 // src/components/visualizer/window/VisPlaygroundPreviewHotspots.tsx
 // Transparent click targets that map preview regions to the right-side settings panel.

@@ -3,7 +3,7 @@ import type { SongResult } from '../../../../types';
 import { getPlaybackSongKey } from '../../../../utils/appPlaybackGuards';
 import { useAudioSettingsStore } from '../../../../stores/useAudioSettingsStore';
 import { isQueueSongPlayable } from '../playableSong';
-import { decideRoundStep, shuffleForRound } from './shuffleRound';
+import { decideRoundStep, queueOrderHash, shuffleForRound } from './shuffleRound';
 import { readShuffleRoundState, writeShuffleRoundState } from './shuffleRoundState';
 
 // src/components/app/playback/shuffle/useShuffleRoundTracking.ts
@@ -51,21 +51,33 @@ export const useShuffleRoundTracking = ({
     useEffect(() => {
         reshuffleRef.current = reshuffle;
     });
+    // 刚重洗出的那一队（顺序哈希）和当时钉在最前、正在播的那首。重洗出的新一轮只有这首算听过，换到下一首之前同一队
+    // 不该又判「整轮听完」；万一判了也不再洗，免得 setPlayQueue → 再判 → 再洗停不下来。换了歌就照常判：只有两首
+    // 能播时，听到另一首就又是整轮听完，中间没有写回。
+    const reshuffledRef = useRef<{ orderHash: string; currentKey: string } | null>(null);
 
     useEffect(() => {
         const { shuffleRoundNoRepeat, loopMode } = useAudioSettingsStore.getState();
         if (!shuffleRoundNoRepeat || !currentSong || isFmMode || isStageActive) return;
+        const state = readShuffleRoundState();
+        const currentKey = getPlaybackSongKey(currentSong);
         const step = decideRoundStep({
-            state: readShuffleRoundState(),
+            state,
             keys: playQueue.map(getPlaybackSongKey),
-            currentKey: getPlaybackSongKey(currentSong),
+            currentKey,
             countedKeys: playQueue.filter(isQueueSongPlayable).map(getPlaybackSongKey),
             loopMode,
         });
         if (step.kind === 'write') {
             writeShuffleRoundState(step.state);
         } else if (step.kind === 'reshuffle') {
+            const last = reshuffledRef.current;
+            if (state !== null && last !== null && last.orderHash === state.orderHash && last.currentKey === currentKey) {
+                console.warn('[ShuffleRound] Round finished again on the queue just reshuffled; not reshuffling it again');
+                return;
+            }
             const nextQueue = shuffleQueueInRounds(playQueue, currentSong);
+            reshuffledRef.current = { orderHash: queueOrderHash(nextQueue.map(getPlaybackSongKey)), currentKey };
             console.info('[ShuffleRound] Round finished under list loop; reshuffled', playQueue.length, 'songs');
             reshuffleRef.current(nextQueue, currentSong);
         }

@@ -17,6 +17,7 @@ import {
     isPlayerControlSlotActionId,
     type PlayerControlSlotActionId,
 } from '../types/playerControlSlots';
+import { NATIVE_BLUR_SUPPORTED } from '../utils/nativeBlurSupport';
 import { PLAYER_BOTTOM_BAR_BASE_OFFSET_PX } from '../utils/playerBottomBarLayout';
 import { getStoredBoolean, setStoredBoolean, getStoredString, setStoredString } from './storagePrimitives';
 import { setStatusMessage } from './useStatusMessageStore';
@@ -126,7 +127,8 @@ export const usePlayerChromeSettingsStore = create<PlayerChromeSettingsState>((s
     useNativeMacFullscreenButton: getStoredBoolean('use_native_mac_fullscreen_button', false),
     useNativeMacTrafficLights: getStoredBoolean('use_native_mac_traffic_lights', false),
     transparentPlayerBackground: getStoredBoolean('transparent_player_background', false),
-    enablePlayerPageNativeBlur: getStoredBoolean('enable_player_page_native_blur', false),
+    // A stored "on" from a system that cannot draw it (e.g. a profile carried over to Windows 10) reads as off.
+    enablePlayerPageNativeBlur: NATIVE_BLUR_SUPPORTED && getStoredBoolean('enable_player_page_native_blur', false),
     autoHidePlayerChrome: getStoredBoolean('auto_hide_player_chrome', false),
     // Rides the chrome auto-hide clock rather than owning one: the cursor goes away with the
     // controls it would have clicked. Opt-out, so auto-hide can keep the pointer if wanted.
@@ -138,6 +140,7 @@ export const usePlayerChromeSettingsStore = create<PlayerChromeSettingsState>((s
         set({ transparentPlayerBackground: enabled });
     },
     handleTogglePlayerPageNativeBlur: (enable) => {
+        if (enable && !NATIVE_BLUR_SUPPORTED) return;
         setStoredBoolean('enable_player_page_native_blur', enable);
         set({ enablePlayerPageNativeBlur: enable });
         if (window.electron?.saveSettings) {

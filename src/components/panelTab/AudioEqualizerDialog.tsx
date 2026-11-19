@@ -19,6 +19,7 @@ import AudioEffectGrid from './equalizer/AudioEffectGrid';
 import EqualizerBandGrid from './equalizer/EqualizerBandGrid';
 import PresetChips from './equalizer/PresetChips';
 import ModCurveNotice from './equalizer/ModCurveNotice';
+import StemMixerSection from './equalizer/StemMixerSection';
 import HifiBypassNotice from '../hifi/HifiBypassNotice';
 import ExternalPlayerNotice, { useIsExternalPlayerRoute } from './ExternalPlayerNotice';
 import { useIsHifiRoute } from '../hifi/useHifiSignalPath';
@@ -26,7 +27,7 @@ import { useAudioSettingsStore } from '../../stores/useAudioSettingsStore';
 
 // src/components/panelTab/AudioEqualizerDialog.tsx
 // The audio effect window opened from the controls tab, on the app's sheet: the processing switch
-// in the header, then the presets, the ten EQ bands and the effect chain. It owns the draft that
+// in the header, then the presets, the ten EQ bands and the effect chain, and 分轨调音台 with its own switch. It owns the draft that
 // the parts edit and writes it to the store when an edit is let go.
 
 type AudioEqualizerDialogProps = {
@@ -218,6 +219,8 @@ const AudioEqualizerDialog: React.FC<AudioEqualizerDialogProps> = ({ isDaylight 
                     <EqualizerBandGrid gains={draft.gains} onBandChange={updateBandDraft} onCommit={commitDraft} readOnly={readOnly} />
                     <AudioEffectGrid effects={draft.effects} onEffectChange={updateEffectDraft} onCommit={commitDraft} readOnly={readOnly} />
                 </div>
+                {/* 不随上面的音频处理开关变淡：它有自己的开关。 */}
+                <StemMixerSection isHifiRoute={isHifiRoute} isExternalRoute={isExternalRoute} />
             </div>
         </Sheet>
     );

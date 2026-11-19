@@ -224,11 +224,11 @@ export const parseContract = (text) => {
 /*
  * Folium 2.0 (plan §10, delivery): while foliumShared.json says `sourcesPreview`, the source interface is a
  * preview, and the reference says so at its top and over the two sections that hold it. The type file says the
- * same (types.mjs). `folium: 1`'s promise is not touched: its interface stays frozen at 1.9.
+ * same (types.mjs). `folium: 1`'s promise is not touched: its interface stays frozen at 1.10.
  */
 export const SOURCES_PREVIEW_SECTIONS = ['Sources', 'Source main API'];
 export const SOURCES_PREVIEW_NOTE = '> **预览**：Folium 2 的音源接口（`folium.sources` 与音源类模组 main 入口的 `api`）还是预览版，'
-    + '九个内置音源全部迁过去之前可能变动；用它写的模组可能要随新版本更新。`folium: 1` 冻结在 Folium 1.9 的接口不受影响。';
+    + '九个内置音源全部迁过去之前可能变动；用它写的模组可能要随新版本更新。`folium: 1` 冻结在 Folium 1.10 的接口不受影响。';
 export const sourcesPreview = () => readFoliumShared().sourcesPreview === true;
 
 // Contract section → reference heading, lookup order, and a short orientation.
@@ -256,7 +256,7 @@ const SECTION_INFO = {
     Services: {
         order: 5,
         title: '服务',
-        intro: '`folium.playback` / `folium.ui` / `folium.net`，以及 Folium 1.7 的登录状态 `folium.account` 和经 Omni 只读在线音源的 `folium.omni`（两者都不需要权限；`folium.omni` 以用户在 Folia 登录的平台账号发请求），以及宿主均衡器 `folium.equalizer`（读不需要权限，写需 `equalizer.control`）；Folium 1.8 加了歌词显示设置 `folium.visualizer`：歌词画布渲染质量、歌词动画模式、内置模式的样式参数与智能动感效果（读不需要权限，写分别需 `visualizer.renderQuality`、`visualizer.mode`、`visualizer.tuning`、`visualizer.beatEffects`）；Folium 1.9 加了返回一层的 `folium.ui.back()`，以及 `folium.visualizer` 的背景类型与动画强度（写分别需 `visualizer.background`、`visualizer.animationIntensity`）。需要权限的方法见[权限一览](#权限一览)；导出窗口里调用会抛 `*-unavailable-in-export-context`（`ui.icon` 除外）。',
+        intro: '`folium.playback` / `folium.ui` / `folium.net`，以及 Folium 1.7 的登录状态 `folium.account` 和经 Omni 只读在线音源的 `folium.omni`（两者都不需要权限；`folium.omni` 以用户在 Folia 登录的平台账号发请求），以及宿主均衡器 `folium.equalizer`（读不需要权限，写需 `equalizer.control`）；Folium 1.8 加了歌词显示设置 `folium.visualizer`：歌词画布渲染质量、歌词动画模式、内置模式的样式参数与智能动感效果（读不需要权限，写分别需 `visualizer.renderQuality`、`visualizer.mode`、`visualizer.tuning`、`visualizer.beatEffects`）；Folium 1.9 加了返回一层的 `folium.ui.back()`，以及 `folium.visualizer` 的背景类型与动画强度（写分别需 `visualizer.background`、`visualizer.animationIntensity`）；Folium 1.10 给 `folium.theme` 加了屏幕上的主题：读当前主题、按颜色做主题、把模组自己的主题盖在歌曲主题上（`apply`、`release` 需 `theme.write`）。需要权限的方法见[权限一览](#权限一览)；导出窗口里调用会抛 `*-unavailable-in-export-context`（`ui.icon` 除外）。',
     },
     'Shared helpers': {
         order: 6,
@@ -527,7 +527,7 @@ export const renderApiDocs = (contractText, mainContractText, sourcesContractTex
         ...(preview ? [SOURCES_PREVIEW_NOTE, ''] : []),
         '本文列出模组能用到的全部公开类型，内容直接来自契约文件 [`src/mods/folium/contract.ts`](../../src/mods/folium/contract.ts)',
         '（client 入口）、[`src/mods/folium/sources/contract.ts`](../../src/mods/folium/sources/contract.ts)（音源）与 [`src/mods/folium/mainContract.ts`](../../src/mods/folium/mainContract.ts)（main 入口），',
-        '`mod.json` 写 `"folium": 1` 的模组看到的接口冻结在 Folium 1.9（`folium.host.folium` 读到 1.9，没有标着 Folium 2 的成员）。',
+        '`mod.json` 写 `"folium": 1` 的模组看到的接口冻结在 Folium 1.10（`folium.host.folium` 读到 1.10，没有标着 Folium 2 的成员）。',
         '成员说明保留契约里的原文注释。平台规则（清单、权限、生命周期、安全模型）见 [Folium 规范](../../mods/README.md)，',
         '从零开始写模组、调试与发布到模组市场见 [模组开发与贡献指南](contributing.md)。',
         '',

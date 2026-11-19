@@ -1,19 +1,25 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import type { Line, SubtitleContentMode } from '../../types';
+import type { RemoteLyricLayout } from '../../types/remoteControl';
 import {
     buildRemoteLyricSegments,
+    REMOTE_LYRIC_IDLE_MAX_HEIGHT,
     resolveRemoteLyricFit,
-    resolveRemoteLyricTexts,
+    resolveRemoteLyricRows,
+    resolveRemoteUpcomingFit,
+    resolveRemoteUpcomingHeight,
+    type RemoteLyricRows,
     type RemoteLyricSegment,
-    type RemoteLyricTexts,
 } from './remoteLyricText';
 import type { RemoteClock } from './useRemoteClock';
 
 // src/components/remote/RemoteLyricBlock.tsx
 // The remote window's lyric: the line being sung, large, and one quiet line under it (its
-// translation, its romanization, or the next line). The word-by-word fill is written straight to
-// the DOM from the running clock; React only renders when the line changes.
+// translation, its romanization, or the next line), as the rows set on the remote window's settings
+// page say. With two pairs set, the next line and its small row stand at the bottom right while the
+// window is idle, across from the first pair. The word-by-word fill is written straight to the DOM
+// from the running clock; React only renders when the line changes.
 
 const LARGE_LINE_HEIGHT_PX = 26;
 const WHITESPACE_ONLY = /^\s+$/;
@@ -26,7 +32,9 @@ const getLineKey = (line: Line) => `${line.startTime}-${line.endTime}-${line.ful
 
 type RemoteLyricLineProps = {
     line: Line;
-    texts: RemoteLyricTexts;
+    texts: RemoteLyricRows;
+    /** Two pairs are set: the second line keeps to one line, and the next pair has room under it. */
+    twoPairs: boolean;
     clock: RemoteClock;
     lyricOffsetSec: number;
     /** The switch "text shade" with the transparent background: the pieces mark themselves for the shade to cover. */
@@ -60,8 +68,10 @@ const renderSegments = (
 };
 
 /** One line with what goes under it. Owns its fill, so a line that is leaving keeps the fill it had. */
-const RemoteLyricLine: React.FC<RemoteLyricLineProps> = ({ line, texts, clock, lyricOffsetSec, shade }) => {
-    const segments = useMemo(() => buildRemoteLyricSegments(line), [line]);
+const RemoteLyricLine: React.FC<RemoteLyricLineProps> = ({ line, texts, twoPairs, clock, lyricOffsetSec, shade }) => {
+    // A large row showing the translation or the romanization has nothing to fill: it is drawn whole.
+    const heroText = texts.hero?.text ?? null;
+    const segments = useMemo(() => (heroText === null ? buildRemoteLyricSegments(line) : []), [line, heroText]);
     const nodesRef = useRef<Array<HTMLSpanElement | null>>([]);
     const measureRef = useRef<HTMLDivElement | null>(null);
     const [mainLinesAtLarge, setMainLinesAtLarge] = useState(1);
@@ -72,7 +82,7 @@ const RemoteLyricLine: React.FC<RemoteLyricLineProps> = ({ line, texts, clock, l
         const height = measureRef.current?.offsetHeight ?? 0;
         const lines = Math.max(1, Math.round(height / LARGE_LINE_HEIGHT_PX));
         setMainLinesAtLarge(previous => (previous === lines ? previous : lines));
-    }, [segments, line.fullText]);
+    }, [segments, line.fullText, heroText]);
 
     useEffect(() => {
         const painted: number[] = [];
@@ -104,7 +114,9 @@ const RemoteLyricLine: React.FC<RemoteLyricLineProps> = ({ line, texts, clock, l
         mainLinesAtLarge,
         hasRomanization: Boolean(texts.romanization),
         hasSecond: Boolean(texts.second),
+        secondOnOneLine: twoPairs,
     });
+    const upcomingRows = texts.upcoming ? resolveRemoteUpcomingFit(fit, Boolean(texts.upcoming.sub)) : null;
 
     // Without the shade the attribute is left out altogether.
     const shadeMark = shade ? '' : undefined;
@@ -112,12 +124,14 @@ const RemoteLyricLine: React.FC<RemoteLyricLineProps> = ({ line, texts, clock, l
     return (
         <>
             <div ref={measureRef} className="remote-lyric__hero remote-lyric__measure" aria-hidden>
-                {renderSegments(segments, line)}
+                {heroText === null ? renderSegments(segments, line) : heroText}
             </div>
-            <div className="remote-lyric__hero" data-size={fit.size} data-remote-shade={shadeMark}>
-                {renderSegments(segments, line, (index, node) => {
-                    nodesRef.current[index] = node;
-                })}
+            <div className="remote-lyric__hero" data-size={fit.size} data-kind={texts.hero?.kind} data-remote-shade={shadeMark}>
+                {heroText === null
+                    ? renderSegments(segments, line, (index, node) => {
+                        nodesRef.current[index] = node;
+                    })
+                    : <span className="remote-lyric__whole">{heroText}</span>}
             </div>
             {fit.showRomanization && texts.romanization && (
                 <div className="remote-lyric__roma" data-remote-shade={shadeMark}>{texts.romanization}</div>
@@ -130,6 +144,18 @@ const RemoteLyricLine: React.FC<RemoteLyricLineProps> = ({ line, texts, clock, l
                     data-remote-shade={shadeMark}
                 >
                     {texts.second.text}
+                </div>
+            )}
+            {texts.upcoming && upcomingRows?.main && (
+                // Bottom right of the idle block, across from the line being sung. Shown only idle (remote.css).
+                <div
+                    className="remote-lyric__upcoming"
+                    style={{ top: REMOTE_LYRIC_IDLE_MAX_HEIGHT - resolveRemoteUpcomingHeight(upcomingRows) }}
+                >
+                    <div className="remote-lyric__upcoming-main" data-remote-shade={shadeMark}>{texts.upcoming.main}</div>
+                    {upcomingRows.sub && texts.upcoming.sub && (
+                        <div className="remote-lyric__upcoming-sub" data-remote-shade={shadeMark}>{texts.upcoming.sub}</div>
+                    )}
                 </div>
             )}
         </>
@@ -148,6 +174,8 @@ type RemoteLyricBlockProps = {
     /** False in a gap inside the song: the last line stays, dimmed. */
     isSinging: boolean;
     subtitleContentMode: SubtitleContentMode;
+    /** The rows set on the remote window's settings page. */
+    layout: RemoteLyricLayout;
     clock: RemoteClock;
     lyricOffsetSec: number;
     reduceMotion: boolean;
@@ -160,6 +188,7 @@ const RemoteLyricBlock: React.FC<RemoteLyricBlockProps> = ({
     nextLine,
     isSinging,
     subtitleContentMode,
+    layout,
     clock,
     lyricOffsetSec,
     reduceMotion,
@@ -197,8 +226,8 @@ const RemoteLyricBlock: React.FC<RemoteLyricBlockProps> = ({
     }, []);
 
     const texts = useMemo(
-        () => resolveRemoteLyricTexts(subtitleContentMode, shown?.line, shown?.nextLine),
-        [subtitleContentMode, shown],
+        () => resolveRemoteLyricRows(layout, subtitleContentMode, shown?.line, shown?.nextLine),
+        [layout, subtitleContentMode, shown],
     );
     const rise = reduceMotion ? 0 : 6;
 
@@ -223,7 +252,7 @@ const RemoteLyricBlock: React.FC<RemoteLyricBlockProps> = ({
                             transition: { duration: reduceMotion ? 0 : 0.26, ease: [0.2, 0.8, 0.2, 1] },
                         }}
                 >
-                    <RemoteLyricLine line={shown.line} texts={texts} clock={clock} lyricOffsetSec={lyricOffsetSec} shade={shade} />
+                    <RemoteLyricLine line={shown.line} texts={texts} twoPairs={layout.pairs === 2} clock={clock} lyricOffsetSec={lyricOffsetSec} shade={shade} />
                 </motion.div>
             )}
         </div>

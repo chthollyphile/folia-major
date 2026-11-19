@@ -20,6 +20,6 @@ export function Wall({ count }: { count: number }) {
         playbackDuration={180} canTogglePlayback={false} isDaylight={false} lyrics={null}
         lyricSource={{ currentTime: time, currentLineIndex: -1, lines: [], theme: DEFAULT_THEME }} lyricKeywordColoringEnabled={false}
         controls={{ loopMode: 'off', playback: { prev: noop, next: noop, toggleLoop: noop, shuffleQueue: noop,
-            toggleSongLike: noop, isSongLiked: false, isFmMode: false }, invokeCommandById: noop, canInvokeCommandById: () => false }}
+            toggleSongLike: noop, isSongLiked: false, isFmMode: false }, invokeCommandById: noop, canInvokeCommandById: () => false, fmDislike: noop }}
         onBack={noop} onOpenPlayer={noop} onPlaySong={noop} onTogglePlayback={noop} onSeek={noop} />;
 }

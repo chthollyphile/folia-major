@@ -1,6 +1,6 @@
 import i18n from '@/i18n/config';
 import type { StatusMessage } from '@/types';
-import { settingsAnchorSubview } from '@/components/modal/settings/navigation/settingsAnchorModel';
+import { settingsAnchorSubview } from '@/utils/settingsAnchorModel';
 import { openSettings } from '@/stores/useSettingsModalStore';
 import { setStatusMessage, useStatusMessageStore } from '@/stores/useStatusMessageStore';
 import { modSettingsRowId, useModsStore } from '../useModsStore';

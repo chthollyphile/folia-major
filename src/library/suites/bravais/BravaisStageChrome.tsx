@@ -7,7 +7,6 @@ import WallBackButton from '../../../components/wall/WallBackButton';
 import WallToolsButton from '../../../components/wall/WallToolsButton';
 import type { WallToolsEntry, WallToolsQuickAction } from '../../../components/wall/WallToolsRows';
 import { useLibraryWallLookStore } from '../../../stores/useLibraryWallLookStore';
-import { usePlaybackStore } from '../../../stores/usePlaybackStore';
 import { usePlayingSongLocatorStore } from '../../../stores/usePlayingSongLocatorStore';
 import { PRIMARY_MODIFIER_LABEL } from '../../../utils/platform';
 import type { LibraryWallLook } from '../../../utils/libraryWallLook';
@@ -61,7 +60,6 @@ const BravaisStageChrome: React.FC<BravaisStageChromeProps> = ({
     const { t } = useTranslation();
     const look = useLibraryWallLookStore(state => state.look);
     const setLook = useLibraryWallLookStore(state => state.setLook);
-    const isFmMode = usePlaybackStore(state => state.isFmMode);
 
     // 定位器正在问这一层（按钮转圈，与网格定位按钮的「正在找」同一个意思）。
     const isLocateAsked = usePlayingSongLocatorStore(state => (
@@ -76,14 +74,12 @@ const BravaisStageChrome: React.FC<BravaisStageChromeProps> = ({
         title: t('playlist.locatePlaying'),
     } : null, toolsClaimed);
 
-    // 收起：dock 里的按钮是同一颗，进了 Lattice 不能还开着、换成 Lattice 的条目。私人 FM 下进不了 Lattice（与导航层同一个原因）。
+    // 收起：dock 里的按钮是同一颗，进了 Lattice 不能还开着、换成 Lattice 的条目。私人 FM 下进去是电台墙。
     const destination: WallToolsQuickAction | undefined = onOpenLattice ? {
         id: 'open-lattice',
         icon: PanelsTopLeft,
         label: t('libraryBravais.toolsLattice'),
         kbd: `${PRIMARY_MODIFIER_LABEL} + B`,
-        disabled: isFmMode,
-        status: isFmMode ? t('status.latticeUnavailableInFm') : undefined,
         onSelect: onOpenLattice,
     } : undefined;
 

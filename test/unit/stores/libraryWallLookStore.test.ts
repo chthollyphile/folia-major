@@ -20,6 +20,7 @@ import type { useLibraryWallLookStore as StoreHook } from '@/stores/useLibraryWa
 const LOOK_KEY = 'library_wall_look';
 const WINDOWS_KEY = 'library_wall_windows_per_block';
 const STACK_EDGES_KEY = 'library_wall_stack_edges';
+const COLLECTION_TILT_KEY = 'library_wall_collection_tilt';
 const SEAM_CLEAR_KEY = 'library_wall_seam_clear';
 const SEAM_STYLE_KEY = 'library_wall_seam_style';
 const SEAM_DIRECTION_KEY = 'library_wall_seam_direction';
@@ -210,6 +211,21 @@ describe('useLibraryWallLookStore', () => {
         // 只认 'false' 为关；读不到或别的值按默认（开）。
         expect((await loadStore({ [STACK_EDGES_KEY]: 'nope' })).getState().collectionStackEdges).toBe(true);
         expect((await loadStore({ [STACK_EDGES_KEY]: 'false' }, { throwOnGet: true })).getState().collectionStackEdges).toBe(true);
+    });
+
+    it('tilts collection pages by default and persists turning it off', async () => {
+        const store = await loadStore();
+        expect(store.getState().collectionTilt).toBe(true);
+        expect(storage.size).toBe(0);
+
+        store.getState().setCollectionTilt(false);
+        expect(storage.get(COLLECTION_TILT_KEY)).toBe('false');
+        const restarted = await loadStore(Object.fromEntries(storage));
+        expect(restarted.getState().collectionTilt).toBe(false);
+
+        // 只认 'false' 为关；读不到或别的值按默认（开）。
+        expect((await loadStore({ [COLLECTION_TILT_KEY]: 'nope' })).getState().collectionTilt).toBe(true);
+        expect((await loadStore({ [COLLECTION_TILT_KEY]: 'false' }, { throwOnGet: true })).getState().collectionTilt).toBe(true);
     });
 
     // 2026-10-09：信息条的材质与墙后的画面。信息条始终透明默认开（用户定，只认 'false' 为关）；歌词 / 模糊默认关、

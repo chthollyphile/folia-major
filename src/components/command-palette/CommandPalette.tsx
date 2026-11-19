@@ -17,7 +17,7 @@ import CommandPaletteAllCommandsList from './CommandPaletteAllCommandsList';
 import { setIsCommandFilterOpen } from '../../stores/useAppViewStore';
 import { isGridFilterSyntaxAvailable, resolveGridFilterAction } from './gridFilterQuery';
 import { FILTER_VIEW_COMMAND_ID } from './commands/filterViewCommand';
-import { CAPSULE_HANDBACK_DELAY_MS, capsuleBodyHeight, listArrowStep, readCapsuleFrame, type CapsuleFrame } from './capsuleFrame';
+import { CAPSULE_HANDBACK_DELAY_MS, capsuleBodyHeight, installOpenPointerTracker, listArrowStep, readCapsuleFrame, type CapsuleFrame } from './capsuleFrame';
 import CommandPaletteCapsuleFrame from './CommandPaletteCapsuleFrame';
 import { useCapsulePaletteStore } from '../../stores/useCapsulePaletteStore';
 
@@ -220,6 +220,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
     // whole session and its exit, so a bar that moves underneath does not drag the panel along.
     const wasOpenRef = useRef(false);
     const capsuleFrameRef = useRef<CapsuleFrame | null>(null);
+    useEffect(() => installOpenPointerTracker(), []);
     // Closing measures the bar again, on the render that closes: the panel folds back into the bar
     // as it is now. The bar keeps living, unseen, under the palette — it usually collapses once the
     // pointer is no longer on it — so the shape remembered from the open is the wrong one to land in.
@@ -309,6 +310,9 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
     const primaryTermOf = useMemo(() => (
         (command: CommandPaletteCommand) => getCommandPrimaryTerm(availableCommands, command, i18n.language)
     ), [availableCommands, i18n.language]);
+    // A row a surface built for this one moment (a past search under the search command) is no
+    // registered command: there is nothing to type to reach it, so its row shows no term chip.
+    const registeredCommandIds = useMemo(() => new Set(availableCommands.map(command => command.id)), [availableCommands]);
 
     // A live-preview surface asks for an unblurred backdrop so its own effect stays visible behind
     // the palette; the panel then has to carry its own legibility, hence the denser fill.
@@ -566,6 +570,10 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
                         {React.createElement(surfaceBody, {
                             ...surface?.mapProps?.(surfaceArgs),
                             refocusInput,
+                            // 输入框在哪一边：胶囊模式贴底，顶部浮层贴顶。面板可以把手要碰的控件靠过去。
+                            inputEdge: capsuleFrame ? 'bottom' : 'top',
+                            // 点出面板的那一下落在哪；面板里要接着拖的控件可以对齐到它。
+                            openPointer: capsuleFrame?.openPointer ?? null,
                         })}
                     </Suspense>
                 ) : matches.length === 0 ? (
@@ -579,7 +587,7 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
                         const groupLabel = t(groupLabelKey[match.command.group] || 'commandPalette.groupOther') || match.command.group;
                         const title = getCommandTitle(match.command, t);
                         const displayDescription = match.previewText || getCommandDescription(match.command, t);
-                        const commandHint = primaryTermOf(match.command);
+                        const commandHint = registeredCommandIds.has(match.command.id) ? primaryTermOf(match.command) : null;
                         const Icon = match.command.icon ?? Command;
                         return (
                             <button
@@ -612,12 +620,14 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
                                 <div className="min-w-0 flex-1">
                                     <div className="flex items-center gap-2">
                                         <span className="truncate text-sm font-medium">{title}</span>
-                                        <span
-                                            className={`shrink-0 rounded-md px-1.5 py-0.5 font-mono text-[10px] ${isDaylight ? 'bg-black/8 text-zinc-700' : 'bg-white/10 text-zinc-200'
-                                                }`}
-                                        >
-                                            {commandHint}
-                                        </span>
+                                        {commandHint && (
+                                            <span
+                                                className={`shrink-0 rounded-md px-1.5 py-0.5 font-mono text-[10px] ${isDaylight ? 'bg-black/8 text-zinc-700' : 'bg-white/10 text-zinc-200'
+                                                    }`}
+                                            >
+                                                {commandHint}
+                                            </span>
+                                        )}
                                         <span className="shrink-0 rounded-full px-2 py-0.5 text-[10px] uppercase tracking-[0.12em] opacity-50">
                                             {groupLabel}
                                         </span>

@@ -15,6 +15,7 @@ export type GridActionButtonSlideTarget = 'filter' | 'command-palette';
 const SLIDE_TARGET_KEY = 'grid_action_button_slide_target';
 const PALETTE_HOTKEY_KEY = 'grid_command_palette_hotkey';
 const QUEUE_PALETTE_KEEP_OPEN_KEY = 'queue_palette_keep_open';
+const VISUALIZER_PICKER_KEEP_OPEN_KEY = 'visualizer_picker_keep_open';
 const CUSTOM_SHORTCUT_LETTER_KEY = 'custom_shortcut_letter';
 const CUSTOM_SHORTCUT_COMMAND_KEY = 'custom_shortcut_command';
 const GLOBAL_SHORTCUT_BINDINGS_KEY = 'global_shortcut_bindings';
@@ -108,6 +109,8 @@ export type InteractionSettingsState = {
     gridCommandPaletteHotkey: boolean;
     /** Keep the queue surface and its query after choosing a song. */
     queuePaletteKeepOpen: boolean;
+    /** Keep the visualizer picker open after choosing a mode, so modes can be tried one after another. */
+    visualizerPickerKeepOpen: boolean;
     /** Alt + this letter runs `customShortcutCommandId`. Null means no shortcut is defined. */
     customShortcutLetter: string | null;
     customShortcutCommandId: string | null;
@@ -122,6 +125,7 @@ export type InteractionSettingsState = {
     setGridActionButtonSlideTarget: (target: GridActionButtonSlideTarget) => void;
     handleToggleGridCommandPaletteHotkey: (enable: boolean) => void;
     setQueuePaletteKeepOpen: (enable: boolean) => void;
+    setVisualizerPickerKeepOpen: (enable: boolean) => void;
     setCustomShortcutLetter: (letter: string | null) => void;
     setCustomShortcutCommandId: (commandId: string | null) => void;
     setGlobalShortcutBinding: (slot: number, patch: Partial<GlobalShortcutBinding>) => void;
@@ -132,6 +136,7 @@ export const useInteractionSettingsStore = create<InteractionSettingsState>((set
     gridActionButtonSlideTarget: readSlideTarget(),
     gridCommandPaletteHotkey: getStoredBoolean(PALETTE_HOTKEY_KEY, false),
     queuePaletteKeepOpen: getStoredBoolean(QUEUE_PALETTE_KEEP_OPEN_KEY, false),
+    visualizerPickerKeepOpen: getStoredBoolean(VISUALIZER_PICKER_KEEP_OPEN_KEY, false),
     customShortcutLetter: readShortcutLetter(),
     customShortcutCommandId: getStoredString(CUSTOM_SHORTCUT_COMMAND_KEY, '') || null,
     globalShortcutBindings: readGlobalShortcutBindings(),
@@ -148,6 +153,10 @@ export const useInteractionSettingsStore = create<InteractionSettingsState>((set
     setQueuePaletteKeepOpen: (enable) => {
         setStoredBoolean(QUEUE_PALETTE_KEEP_OPEN_KEY, enable);
         set({ queuePaletteKeepOpen: enable });
+    },
+    setVisualizerPickerKeepOpen: (enable) => {
+        setStoredBoolean(VISUALIZER_PICKER_KEEP_OPEN_KEY, enable);
+        set({ visualizerPickerKeepOpen: enable });
     },
     setCustomShortcutLetter: (letter) => {
         const normalised = letter && /^[a-z]$/i.test(letter) ? letter.toLowerCase() : null;

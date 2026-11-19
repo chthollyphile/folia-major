@@ -1,4 +1,5 @@
 import { defineCommand } from '../commandFactories';
+import { openPerfCheck } from '../../perfCheck/openPerfCheck';
 import { backgroundPickerSurface, visualizerPickerSurface } from '../surfaces/pickerSurface';
 import { Camera, LayoutGrid, Wallpaper } from 'lucide-react';
 import type { CommandPaletteCommand } from '../types';
@@ -165,6 +166,15 @@ export const visualizerCommands: CommandPaletteCommand[] = [
         ['lyric freeze', 'freeze fix', 'linux', 'glow', 'fd leak', 'stepped glow', '歌词卡死', '动画卡死', '画面定格', '发光半径分档', '发光', 'faguangbanjing', 'fgbj'],
         context => context.visualizer.toggleGlowBlurQuantize(),
     ),
+    defineCommand({
+        id: 'perf-check-run',
+        group: 'visualizer',
+        title: 'Run the performance check',
+        description: 'Measure the frame rate of a lyric style with the analysis running, and try the frame-rate cap, canvas resolution and anti-aliasing',
+        keywords: ['performance check', 'benchmark', 'fps', 'frame rate', 'lag', 'stutter', '性能检测', '跑分', '帧率', '卡顿', '测试性能'],
+        platform: ['electron'],
+        execute: () => openPerfCheck(),
+    }),
     createToggleCommand('visualizer-toggle-random-per-song', 'visualizer', 'Random visualizer for every song', 'Toggle a random lyric animation mode whenever the song changes', ['random visualizer', 'random animation', 'per song', '随机歌词动画', '每首歌随机动画'], context => context.visualizer.toggleRandomVisualizerModePerSong()),
     {
         id: 'background-monet-full-overlay',

@@ -1,5 +1,5 @@
 // Copyright (c) 2026 chthollyphile
-// src/components/visualizer/textMeasureCache.ts
+// src/utils/textMeasureCache.ts
 // 各模式文字测量共用的两件小事：按插入顺序淘汰的有界缓存，以及按整段前缀累计字素偏移的循环骨架。
 // 测量本身（pretext 首行宽、pretext 自然宽加字距、canvas measureText）仍由各模式传入，结果与原实现逐位一致。
 

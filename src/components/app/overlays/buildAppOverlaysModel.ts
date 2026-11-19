@@ -116,7 +116,7 @@ export type AppOverlaysDeps = {
     canInvokeCommandById: (commandId: string) => boolean;
     /** 自动切歌预览（下一首）；isNextUp 时整卡展示它 */
     stageNextUp: { title: string; artist: string | null; coverUrl: string | null; album?: string | null } | null;
-    /** 预览态：接下来播放标签 + 挂起 auto 隐藏计时 */
+    /** 预览态：接下来播放标签 + 挂起 auto 隐藏计时。这里只算混音；普通曲末的倒计时由 AppOverlays 从 trackEndCountdownStore 补上 */
     stageIsNextUp: boolean;
     /** 当前页面 + 显示模式允许卡片在场（歌词页总是，首页看设置）；App 里算好的单一来源 */
     stageTrackPillOnScreen: boolean;

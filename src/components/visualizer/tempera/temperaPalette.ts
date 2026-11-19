@@ -1,5 +1,5 @@
 import type { TemperaTuning, Theme } from '../../../types';
-import { colorWithAlpha, mixColors, parseColorChannels } from '../colorMix';
+import { colorWithAlpha, mixColors, parseColorChannels } from '../../../utils/colorMix';
 
 // src/components/visualizer/tempera/temperaPalette.ts
 // Derives Tempera's block palette from the active DualTheme side; mono mode collapses

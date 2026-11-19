@@ -49,6 +49,7 @@ export type HomeModelDeps = {
     localSongs: HomeSurfaceProps['localSongs'];
     localLibraryCatalog: HomeSurfaceProps['localLibraryCatalog'];
     localPlaylists: HomeSurfaceProps['localPlaylists'];
+    onRefreshLocalPlaylists: HomeSurfaceProps['onRefreshLocalPlaylists'];
     onRefreshLocalSongs: HomeSurfaceProps['onRefreshLocalSongs'];
     onAddLocalSongToQueue?: HomeSurfaceProps['onAddLocalSongToQueue'];
     localMusicState: HomeSurfaceProps['localMusicState'];
@@ -90,6 +91,7 @@ export const buildHomeModel = ({
     localSongs,
     localLibraryCatalog,
     localPlaylists,
+    onRefreshLocalPlaylists,
     onRefreshLocalSongs,
     onAddLocalSongToQueue,
     localMusicState,
@@ -156,6 +158,7 @@ export const buildHomeModel = ({
             localSongs,
             localLibraryCatalog,
             localPlaylists,
+            onRefreshLocalPlaylists,
             onRefreshLocalSongs,
             onAddLocalSongToQueue,
             localMusicState,

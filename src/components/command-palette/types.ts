@@ -1,4 +1,5 @@
 import type React from 'react';
+import type { StemMixerPreset } from '../../stores/useStemMixerStore';
 import type { LucideIcon } from 'lucide-react';
 import type { SearchKind, SearchReturnView, SearchSource } from '../../stores/useSearchNavigationStore';
 import type { LocalLibraryDisplayCatalog } from '../../services/playbackAdapters';
@@ -13,7 +14,7 @@ import type { LibraryDirectorySurfaceHandle } from '../../library/core/directory
 import type { LibraryArtistSurfaceHandle } from '../../library/core/artist/artist.contract';
 import type { LibrarySuiteChromeHandle } from '../../library/core/suite/suiteChrome.contract';
 import { type SettingsModalInitialTab, type SettingsSubviewId, type VisualizerSettingsSection } from '../../stores/useSettingsModalStore';
-import type { SettingsAnchorId } from '../modal/settings/navigation/settingsAnchorModel';
+import type { SettingsAnchorId } from '../../utils/settingsAnchorModel';
 import type { LyricStaffAbsorbMode, LyricStaffPolicy } from '../../utils/lyrics/staffCreditsPolicy';
 import type { AudioEqualizerModeId } from '../../utils/audioEqualizer';
 import type { ThemeGenerationSource } from '../../services/themePreferences';
@@ -158,6 +159,8 @@ export type CommandPaletteSearchContext = {
         };
         returnView?: SearchReturnView;
     }) => Promise<boolean>;
+    /** 搜过的词，最近的在前（useSearchNavigationStore 的 searchHistory）；搜索命令把它们列在输入行下面。 */
+    searchHistory: () => readonly string[];
 };
 
 export type CommandPalettePlaybackContext = {
@@ -305,6 +308,8 @@ export type CommandPaletteSettingsContext = {
     setLibraryWallWindowsPerBlock: (windowsPerBlock: number) => void;
     /** bravais collection tiles' stack edges (useLibraryWallLookStore.collectionStackEdges): flips the stored value. */
     toggleLibraryWallStackEdges: () => void;
+    /** bravais collection pages' tilt (useLibraryWallLookStore.collectionTilt): flips the stored value. */
+    toggleLibraryWallCollectionTilt: () => void;
     /** bravais info strip always see-through (useLibraryWallLookStore.seamClear); read live. */
     libraryWallSeamClear: () => boolean;
     toggleLibraryWallSeamClear: () => void;
@@ -330,6 +335,10 @@ export type CommandPaletteSettingsContext = {
     /** A getter: the full-bleed toggle it gates on flips with nothing re-rendering the context. */
     canUseGridViewSquareCards: () => boolean;
     toggleLatticeVignette: () => void;
+    /** Lattice 的墙面形态在海报墙和电台墙之间切换（useLatticeSettingsStore.latticeWallForm；私人 FM 下总是电台墙）。 */
+    toggleLatticeWallForm: () => void;
+    /** 普通队列的电台墙上，接下来的歌显示为问号卡（useLatticeSettingsStore.latticeRadioHideUpcoming）：翻转存着的值。 */
+    toggleLatticeRadioHideUpcoming: () => void;
     /** Number only the playing song on the queue collage and the bravais wall (useLatticeSettingsStore.latticeBadgeCurrentOnly): flips the stored value. */
     toggleLatticeBadgeCurrentOnly: () => void;
     /** Motion reduction for the queue collage, the surface issue #370 was filed about. */
@@ -386,6 +395,10 @@ export type CommandPaletteSettingsContext = {
     togglePreventDisplaySleepDuringPlayback: () => void;
     /** 后台节流: throttle the window and hold the lyric animation while it is minimised or hidden (main process applies it). */
     toggleBackgroundThrottling: () => void;
+    /** 界面缩放（#1264）开关：主窗口按选的挡位缩放，关掉是 100%。 */
+    toggleUiZoom: () => void;
+    /** 放大（1）或缩小（-1）一挡，走到 100% 就关掉开关；已经到头时返回 false。 */
+    stepUiZoom: (direction: 1 | -1) => boolean;
     toggleWallpaperMode: () => void;
     /** Close button hides the main window to the tray instead of quitting (main process owns it). */
     toggleCloseToTray: () => void;
@@ -395,6 +408,8 @@ export type CommandPaletteSettingsContext = {
     toggleRemoteControlExpandCover: () => void;
     /** Remote control window, transparent background: a soft dark shade under the idle type. */
     toggleRemoteControlTextShade: () => void;
+    /** Remote control window: one lyric pair, or two (the next line at the bottom right when idle). */
+    toggleRemoteLyricPairs: () => void;
     /** Turns remote control click-through off (the way back into a click-through window). */
     unlockRemoteControl: () => void;
     /** OBS browser source: keep the main window's heavy animation while an OBS client is connected. */
@@ -444,6 +459,12 @@ export type CommandPaletteSettingsContext = {
      * model" for the rest of the session.
      */
     canUseTransitionPerformance: () => boolean;
+    /** 分轨调音台的总开关，读在按下时。 */
+    toggleStemMixer: () => void;
+    /** 套一组强度（原样 / 伴奏 / 只听人声），并打开调音台。 */
+    applyStemMixerPreset: (preset: StemMixerPreset) => void;
+    /** 这台机器的 GPU 分得了：与音效窗口给开关置灰是同一个判断（stemMixerAvailability.ts），读在打开面板时。 */
+    canUseStemMixer: () => boolean;
     /**
      * Whether this desktop build has the HiFi engine (window.electron.hifi). A getter like the
      * other capability checks; the HiFi settings page gates its switch on the same answer.
@@ -496,6 +517,9 @@ export type CommandPaletteVisualizerContext = {
     /** Null means "no stored choice"; the picker resolves it against the registry default. */
     visualizerBackgroundMode: VisualizerBackgroundMode | null;
     setVisualizerMode: (mode: VisualizerMode) => void;
+    /** The visualizer picker stays open after a mode is chosen. */
+    visualizerPickerKeepOpen: boolean;
+    setVisualizerPickerKeepOpen: (enable: boolean) => void;
     toggleRandomVisualizerModePerSong: () => void;
     /** Lab > Fix lyric animation freeze on Linux: the Linux renderer fd leak workaround. */
     toggleGlowBlurQuantize: () => void;

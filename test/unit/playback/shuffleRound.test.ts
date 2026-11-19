@@ -115,6 +115,27 @@ describe('decideRoundStep', () => {
         expect(step({ state: round(order, ['b']), currentKey: 'a', countedKeys: ['b', 'a'] })).toEqual({ kind: 'reshuffle' });
     });
 
+    it('does not reshuffle when nothing but the playing song can play (a reshuffle would finish at once, forever)', () => {
+        // 'b' and 'c' are greyed out: the round is "finished" as soon as 'a' plays, and so is every round after it.
+        expect(step({ state: round(order, ['b']), countedKeys: ['a'] })).toEqual({ kind: 'write', state: { ...kept, played: ['b', 'a'] } });
+        expect(step({ state: round(order, ['a']), countedKeys: ['a'] })).toEqual({ kind: 'none' });
+        // The same song twice in the queue is still only the playing one.
+        const twice = ['a', 'b', 'a'];
+        expect(step({ state: round(twice, ['a']), keys: twice, countedKeys: ['a', 'a'] })).toEqual({ kind: 'none' });
+        // A queue of one song never reshuffles either.
+        expect(step({ state: round(['a'], ['a']), keys: ['a'], countedKeys: ['a'] })).toEqual({ kind: 'none' });
+    });
+
+    it('settles after shuffling a queue where only the playing song can play', () => {
+        const counts = (song: string) => song === 'a';
+        const shuffled = shuffleForRound({ songs: order, keyOf, pinnedIndex: 1, state: null, counts });
+        expect(shuffled.queue[0]).toBe('a');
+        expect(shuffled.state.played).toEqual(['a']);
+        expect(decideRoundStep({
+            state: shuffled.state, keys: shuffled.queue, currentKey: 'a', countedKeys: ['a'], loopMode: 'all',
+        })).toEqual({ kind: 'none' });
+    });
+
     it('does not reshuffle again right after a reshuffle (only the playing song is heard then)', () => {
         const reshuffled = shuffleForRound({ songs: order, keyOf, pinnedIndex: 2, state: round(order, [...order]) });
         expect(decideRoundStep({

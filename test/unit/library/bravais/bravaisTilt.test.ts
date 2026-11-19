@@ -15,6 +15,7 @@ const input = (patch: Partial<BravaisTiltInput> = {}): BravaisTiltInput => ({
     renderedAxis: 'x',
     finite: false,
     reducedMotion: false,
+    collectionTilt: true,
     ...patch,
 });
 
@@ -59,6 +60,13 @@ describe('resolveBravaisTiltDeg', () => {
     // 下面每一条只动一个条件，其余都是「会倾斜」的样子（集合页的信息条，表里 −6）。
     it('straightens while the seam is shut', () => {
         expect(tilt({ variant: 'full', openWidth: 0 })).toBe(0);
+    });
+
+    it('keeps collection pages upright when collection tilt is off, the home and poster still follow the table', () => {
+        expect(tilt({ variant: 'full', collectionTilt: false })).toBe(0);
+        expect(tilt({ variant: 'spine', collectionTilt: false })).toBe(0);
+        expect(tilt({ variant: 'poster', collectionTilt: false })).toBe(-10);
+        expect(tilt({ variant: 'home', collectionTilt: false })).toBe(-4);
     });
 
     it('straightens with reduced motion', () => {

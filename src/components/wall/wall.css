@@ -340,7 +340,7 @@
 }
 
 /* 熄灯（实测反馈 1 从 Lattice.css 搬来，Lattice 与 bravais 共用同一份灯光设置）。每张海报里一层，正在播放的那张不熄；
-   熄灯时叠色归零（两层不叠加）。bravais 在 bravais.css 里另有几条豁免（聚焦卡、悬停、键盘焦点、全透明档的窗）。 */
+   熄灯时叠色归零（两层不叠加）。日光下同样压黑（用户定：浅色主题也是变暗，不是变白）。bravais 在 bravais.css 里另有几条豁免（聚焦卡、悬停、键盘焦点、全透明档的窗）。 */
 .lattice-poster-lights-out {
     position: absolute;
     inset: 0;
@@ -356,13 +356,22 @@
     opacity: 0.82;
 }
 
-.lattice-root.is-daylight.is-lights-out .lattice-poster:not(.is-current) .lattice-poster-lights-out {
-    background: #fff;
-}
-
 .lattice-root.is-lights-out .lattice-poster:not(.is-current) .lattice-poster-tint {
     opacity: 0;
 }
 
+/* 日光下熄灯，海报之间的缝隙露出的浅色墙面也压暗，不然暗下来的海报之间是一格格白线。比海报的 82% 更深（92%）：
+   浅色底压 82% 仍比熄了灯的封面亮一截，92% 才和夜间一样，缝隙与熄灯的海报一样暗。
+   内阴影画在根节点的底色之上、所有子元素之下；夜间墙面本来就暗，不加。bravais 透明档（根节点不画底）在
+   bravaisAppearance.css 里改由块底板压暗。 */
+.lattice-root {
+    transition: box-shadow 260ms ease;
+}
+
+.lattice-root.is-daylight.is-lights-out {
+    box-shadow: inset 0 0 0 100vmax rgb(0 0 0 / 92%);
+}
+
 /* 降级状态的来源同 wall.css 里海报的那条规则（useMotionSettingsStore → <html data-reduce-motion>）。 */
 :root[data-reduce-motion~='lattice'] .lattice-poster-lights-out { transition: none; }
+:root[data-reduce-motion~='lattice'] .lattice-root { transition: none; }

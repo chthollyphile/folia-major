@@ -8,15 +8,19 @@ import { SheetLayerContext } from '../shared/Sheet';
 import TitlebarDragZone from '../TitlebarDragZone';
 import WindowControls from '../WindowControls';
 import ClickThroughMediaControls from './ClickThroughMediaControls';
+import ClickThroughPinButton from './ClickThroughPinButton';
 import type { TransportButtonAction } from './playback/bridges/useTransportCommandRefs';
 import { usePlayerOverlayRoot, usePlayerOverlayReservation } from '../../hooks/usePlayerOverlayLayout';
 import { usePlayerChromeSettingsStore } from '../../stores/usePlayerChromeSettingsStore';
 import { useNativeTrafficLights } from '../../hooks/useNativeTrafficLights';
+import { useDesktopSettingsStore } from '../../stores/useDesktopSettingsStore';
+import { resolveUiZoomFactor } from '../../utils/uiZoom';
 import {
     CLICK_THROUGH_MEDIA_CONTROLS_GAP,
+    CLICK_THROUGH_PIN_BUTTON_WIDTH,
     CLICK_THROUGH_UNLOCK_BUTTON_GAP,
     CLICK_THROUGH_UNLOCK_BUTTON_WIDTH,
-    NATIVE_TRAFFIC_LIGHTS_RESERVED_WIDTH,
+    nativeTrafficLightsReservedWidth,
     resolveWindowControlsExtent,
 } from '../../utils/clickThroughUnlockHotspot';
 import type { FoliumLayoutRect } from '../../mods/folium/contract';
@@ -88,15 +92,24 @@ const AppShell: React.FC<AppShellProps> = ({
     const leftControls = titlebarSide === 'left';
     // 窗口带 mac 系统红绿灯时自绘按钮只剩遥控/全屏，锁和切歌按钮跟着靠过去；靠左时整组让开红绿灯。
     const nativeTrafficLights = useNativeTrafficLights();
+    // 红绿灯是原生的，不跟界面缩放走，给它让的位置要按缩放换回 CSS 像素。
+    const uiZoom = useDesktopSettingsStore(state => resolveUiZoomFactor(state.uiZoomEnabled, state.uiZoomStep));
     const windowControlsExtent = resolveWindowControlsExtent({
         hasFullscreenButton: hasFullscreenTitlebarButton,
         nativeTrafficLights,
         side: titlebarSide,
+        zoom: uiZoom,
     });
     const titlebarEdge = leftControls ? 'left' : 'right';
     const clickThroughLockOffset = windowControlsExtent + CLICK_THROUGH_UNLOCK_BUTTON_GAP;
-    const clickThroughMediaOffset = clickThroughLockOffset + CLICK_THROUGH_UNLOCK_BUTTON_WIDTH + CLICK_THROUGH_MEDIA_CONTROLS_GAP;
-    const windowControlsOffset = nativeTrafficLights && leftControls ? NATIVE_TRAFFIC_LIGHTS_RESERVED_WIDTH : 0;
+    // 置顶键紧挨着锁的左边；原生 Wayland 下置顶无效，不画它，切歌按钮顶上来。
+    const showsClickThroughPin = useDesktopSettingsStore(state => state.windowAlwaysOnTopSupported)
+        && typeof window.electron?.setMainWindowAlwaysOnTop === 'function';
+    const clickThroughPinOffset = clickThroughLockOffset + CLICK_THROUGH_UNLOCK_BUTTON_WIDTH + CLICK_THROUGH_MEDIA_CONTROLS_GAP;
+    const clickThroughMediaOffset = showsClickThroughPin
+        ? clickThroughPinOffset + CLICK_THROUGH_PIN_BUTTON_WIDTH + CLICK_THROUGH_MEDIA_CONTROLS_GAP
+        : clickThroughPinOffset;
+    const windowControlsOffset = nativeTrafficLights && leftControls ? nativeTrafficLightsReservedWidth(uiZoom) : 0;
 
     useEffect(() => {
         if (!useCustomWindowRadius || !window.electron?.isWindowMaximized) {
@@ -251,8 +264,23 @@ const AppShell: React.FC<AppShellProps> = ({
                                 {isMainWindowClickThroughEnabled ? <Lock size={14} /> : <LockOpen size={14} />}
                             </button>
                         </div>
+                        {/* 点击穿透时窗口置顶键跟锁一起出现，在锁和切歌按钮之间；平时置顶走托盘和命令面板。 */}
+                        {showsClickThroughPin && (
+                            <div
+                                className={`pointer-events-none absolute ${window.electron?.platform === 'darwin' ? 'top-1' : 'top-0'} z-20 h-full flex items-center`}
+                                style={{
+                                    [titlebarEdge]: clickThroughPinOffset,
+                                    ...(isMainWindowClickThroughEnabled ? { WebkitAppRegion: 'no-drag' } : null),
+                                } as React.CSSProperties}
+                            >
+                                <ClickThroughPinButton
+                                    visible={isMainWindowClickThroughEnabled && showMainWindowClickThroughToggle}
+                                    isDaylight={isDaylight}
+                                />
+                            </div>
+                        )}
                         {/* 点击穿透时窗口按钮都藏了，切歌按钮放在锁的左边，跟锁一起出现（#471）。
-                            右缘离锁 6px：锁离右边 180px/224px、宽 28px，这组宽 86px（位置由 resolveWindowControlsExtent 算）。
+                            右缘离置顶键 6px：锁离右边 180px/224px、宽 28px，置顶键同宽，这组宽 86px（位置由 resolveWindowControlsExtent 算）。
                             不放锁右边：那样热区要伸到离右边 84px，压住下面窗口的最小化/最大化按钮。 */}
                         <div
                             className={`pointer-events-none absolute ${window.electron?.platform === 'darwin' ? 'top-1' : 'top-0'} z-20 h-full flex items-center`}

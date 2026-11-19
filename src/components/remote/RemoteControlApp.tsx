@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { PlayerState } from '../../types';
@@ -12,6 +12,7 @@ import RemoteQueue from './RemoteQueue';
 import RemoteSheet from './RemoteSheet';
 import RemoteSongLine, { RemoteCoverFaces, RemoteOutgoingRecede } from './RemoteSongLine';
 import RemoteWindowTools, { type RemoteBackgroundMode } from './RemoteWindowTools';
+import { DEFAULT_REMOTE_LYRIC_LAYOUT, parseRemoteLyricLayout, readRemoteLyricLayout, serializeRemoteLyricLayout } from '../../utils/remoteLyricLayout';
 import {
     REMOTE_DRAG_STYLE,
     sendRemoteCommand,
@@ -86,6 +87,9 @@ const RemoteControlApp: React.FC = () => {
         playerState: snapshot.playerState,
     });
     const lyricOffsetSec = (snapshot.lyricOffsetMs || 0) / 1000;
+    // Every snapshot is a new object: the rows keep their identity until they change.
+    const lyricLayoutKey = serializeRemoteLyricLayout(readRemoteLyricLayout(snapshot.remoteLyricLayout));
+    const lyricLayout = useMemo(() => parseRemoteLyricLayout(lyricLayoutKey) ?? DEFAULT_REMOTE_LYRIC_LAYOUT, [lyricLayoutKey]);
     const lyric = useRemoteLyricLine(snapshot.hasTrack ? snapshot.lyrics : null, clock, lyricOffsetSec);
     const handoff = useRemoteTrackHandoff({ snapshot, title, artist, isPlaying });
     // Past the audio crossover the outgoing song's line has receded: the stage turns to the incoming
@@ -182,6 +186,7 @@ const RemoteControlApp: React.FC = () => {
                                 nextLine={lyricGivesWay ? null : lyric.nextLine}
                                 isSinging={lyric.isSinging}
                                 subtitleContentMode={snapshot.subtitleContentMode}
+                                layout={lyricLayout}
                                 clock={clock}
                                 lyricOffsetSec={lyricOffsetSec}
                                 reduceMotion={reduceMotion}

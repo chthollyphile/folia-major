@@ -11,6 +11,7 @@ import {
 } from '../../../src/components/app/home/gridViewCollectionAdapters';
 import { buildLocalHomeGroups } from '../../../src/library/core/home/localHomeModel';
 import { getLocalCoverAssetUrl } from '../../../src/services/localCoverAssetUrl';
+import { getLocalPlaylists } from '../../../src/services/localPlaylistService';
 import { useLocalLibraryCatalog, type LocalLibraryCatalogSnapshot } from '../../../src/hooks/useLocalLibraryCatalog';
 import {
     notifyCollectionPop,
@@ -218,6 +219,9 @@ export const useLibraryProbeHarness = (): LibraryProbeHarness => {
             setPlaylists(buildPlaylistList());
         },
         onRefreshLocalSongs: refreshLocal,
+        onRefreshLocalPlaylists: async () => {
+            if (sandbox) setLocalPlaylists((await getLocalPlaylists()).filter(playlist => playlist.name === LOCAL_PLAYLIST_NAME));
+        },
         user: { id: 'probe-user', nickname: 'Probe User' },
         playlists,
         localSongs,
@@ -236,7 +240,7 @@ export const useLibraryProbeHarness = (): LibraryProbeHarness => {
         setLocalMusicState: () => {},
         onSearchCommitted: () => {},
         theme: DEFAULT_THEME,
-    }), [localLibraryCatalog, localPlaylists, localSongs, playlists, refreshLocal]);
+    }), [localLibraryCatalog, localPlaylists, localSongs, playlists, refreshLocal, sandbox]);
 
     const onOpenCollection = useCallback((collection: GridViewCollectionDescriptor) => {
         useCollectionNavigationStore.getState().openRoot(collection, 'home');

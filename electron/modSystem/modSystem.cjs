@@ -252,7 +252,7 @@ const createModSystem = ({
     // While the start question is open: whether a source mod of the user's folders waits for the answer.
     let sourceModsAwaitAnswer = false;
 
-    // Folium 2.0 (plan §9): a `folium: 1` mod reads 1.9, the version its interface stays at.
+    // Folium 2.0 (plan §9): a `folium: 1` mod reads 1.10, the version its interface stays at.
     const hostInfo = (manifest) => ({
         folium: manifest?.folium === 2
             ? { major: FOLIUM_VERSION.major, minor: FOLIUM_VERSION.minor }

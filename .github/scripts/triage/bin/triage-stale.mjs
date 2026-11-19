@@ -29,6 +29,7 @@ const notices = [];
 // search 只做粗筛：updated_at 只会比最后一次人类活动更晚，所以 `updated:<` 不会漏掉真正陈旧的条目。
 const queries = [
     'is:open label:needs-info',
+    'is:open label:needs-rewrite',
     'is:open label:stale',
     `is:open -label:stale updated:<${day(config.stale.inactiveDays)}`,
 ];

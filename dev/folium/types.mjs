@@ -50,7 +50,7 @@ const HEADER = `// mods/folium.d.ts
 // Folium 2.0: what the type file says over the source interface while foliumShared.json says `sourcesPreview`.
 const PREVIEW_COMMENT = [
     '// 预览：Folium 2 的音源接口（folium.sources 与音源类模组 main 入口的 api）还是预览版，九个内置音源全部迁过去之前',
-    '// 可能变动；用它写的模组可能要随新版本更新。folium: 1 冻结在 Folium 1.9 的接口不受影响。',
+    '// 可能变动；用它写的模组可能要随新版本更新。folium: 1 冻结在 Folium 1.10 的接口不受影响。',
 ].join('\n');
 
 /*

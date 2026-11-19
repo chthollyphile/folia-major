@@ -100,6 +100,7 @@ const {
   resolveReleaseChannel,
 } = require('./updateChannels.cjs');
 const { discoverUpdateVersion, settleWithin } = require('./updateCheckMirrors.cjs');
+const { createUpdateDownloadPhase } = require('./updateDownloadPhase.cjs');
 const { resolveCacheLimit, selectEvictions } = require('./audioCachePrune.cjs');
 const { removeAudioCacheFileOfSize } = require('./audioCacheRemove.cjs');
 const { createAnalysisHost } = require('./analysis/host.cjs');
@@ -107,6 +108,7 @@ const { createAcousticsHost } = require('./acoustics/host.cjs');
 const { steamAudioLibraryPath } = require('./acoustics/phonon.cjs');
 const { createSceneScreenHost } = require('./scenes/screenCapture.cjs');
 const { createDebugHost, runtimeLine } = require('./debug/debugHost.cjs');
+const { createPerfCheckHost } = require('./perfCheck.cjs');
 const { createCrashLog, installCrashHandlers, flushPageStorage } = require('./debug/crashLog.cjs');
 const { measureLeftovers, removeDownloadedLeftovers } = require('./analysis/modelPaths.cjs');
 const { resolveLinuxPasswordStore } = require('./linuxPasswordStore.cjs');
@@ -311,6 +313,10 @@ let hifiIpc = null;
 const hifiRuntimeManifest = require('../shared/mpvRuntimeManifest.json');
 const getHifiUserDataPath = () => app.getPath('userData');
 const hifiSystemVersion = process.platform === 'darwin' ? process.getSystemVersion() : null;
+// 原生毛玻璃在 Windows 上靠 Acrylic 背景材质，Windows 11 22H2（build 22621）起才有；更早的系统上
+// 存着的开关当作关，免得窗口背景被设成全透明却没有材质（preload 的 nativeBlurSupported 同一判断）。
+const NATIVE_BLUR_SUPPORTED = process.platform !== 'win32'
+  || Number(String(require('os').release()).split('.')[2]) >= 22621;
 const hifiInstaller = createMpvRuntimeInstaller({
   manifest: hifiRuntimeManifest,
   getUserDataPath: getHifiUserDataPath,
@@ -2687,10 +2693,10 @@ let wallpaperModeRelaunchGeneration = 0;
 const x11WallpaperWindows = new WeakSet();
 // Must match CLICK_THROUGH_UNLOCK_HOTSPOT in src/utils/clickThroughUnlockHotspot.ts (the renderer
 // runs the same hit test on mousemove). The width covers the unlock button both at right-[180px]
-// and at right-[224px] (titlebar showing the fullscreen button), plus the media buttons that come
-// up to its left while click-through is on.
+// and at right-[224px] (titlebar showing the fullscreen button), plus the keep-on-top and media
+// buttons that come up to its left while click-through is on.
 const MAIN_WINDOW_CLICK_THROUGH_UNLOCK_HOTSPOT = {
-  width: 172,
+  width: 206,
   height: 40,
   rightInset: 176,
   topInset: 4,
@@ -2867,7 +2873,7 @@ function getPublicSettings() {
     [MOD_SYSTEM_ENABLED_SETTING_KEY]: readStoredBoolean(MOD_SYSTEM_ENABLED_SETTING_KEY, false),
     [BACKGROUND_THROTTLING_SETTING_KEY]: readStoredBoolean(BACKGROUND_THROTTLING_SETTING_KEY, false),
     [UPDATE_CHANNEL_SETTING_KEY]: getCurrentReleaseChannel().id,
-    'enable_player_page_native_blur': store.get('enable_player_page_native_blur') === true,
+    'enable_player_page_native_blur': NATIVE_BLUR_SUPPORTED && store.get('enable_player_page_native_blur') === true,
     'wallpaper_attach_mode': process.platform === 'win32' ? wallpaperWindowsAttachMode : null,
     [GPU_PREFERENCE_SETTING_KEY]: normalizeGpuPreference(store.get(GPU_PREFERENCE_SETTING_KEY)),
     [WALLPAPER_MODE_SETTING_KEY]: isWallpaperModeEnabled(),
@@ -2985,6 +2991,19 @@ const displaySleepBlocker = createDisplaySleepBlocker(powerSaveBlocker);
 // The developer debug module: the runtime log and the memory monitor, both switched from
 // Settings > Developer. Created BEFORE the analysis host, which logs through it.
 createDebugHost({ app, ipcMain, store, BrowserWindow, isTrustedSender: isFirstPartyWindowContents });
+// The performance check's window (electron/perfCheck.cjs, src/components/perfCheck/).
+const perfCheckHost = createPerfCheckHost({
+  app,
+  ipcMain,
+  BrowserWindow,
+  screen,
+  preloadPath: path.join(__dirname, 'preload.cjs'),
+  iconPath: APP_ICON_PATH,
+  loadAppEntry,
+  isolateFirstPartyWindow,
+  isFirstPartyWindowContents,
+  getMainWindow: () => mainWindow,
+});
 logLinuxVulkanChoice(linuxVulkan, linuxGraphicsMode);
 
 const analysisHost = createAnalysisHost({
@@ -4140,6 +4159,10 @@ function isPackagedUpdateRuntime() {
   return app.isPackaged && process.env.ELECTRON_DEV !== 'true' && process.env.NODE_ENV !== 'development';
 }
 
+// Which of the updater's downloads (only the changed blocks, or the whole installer) is running.
+const updateDownloadPhase = createUpdateDownloadPhase();
+let lastUpdateDownloadMode = null;
+
 const updateState = {
   status: 'idle',
   currentVersion: normalizeVersion(app.getVersion()),
@@ -4230,6 +4253,12 @@ function setupAutoUpdater() {
 
   updater.on('update-available', (info) => {
     const version = normalizeVersion(info?.version);
+    updateDownloadPhase.setInstaller(info);
+    if (updateState.status !== 'downloading') {
+      // No download running: the next one, started by the updater itself when auto-update is on, is new.
+      updateDownloadPhase.restart();
+      lastUpdateDownloadMode = null;
+    }
     setUpdateState({
       status: 'available',
       availableVersion: version || null,
@@ -4256,6 +4285,13 @@ function setupAutoUpdater() {
   });
 
   updater.on('download-progress', (progress) => {
+    const { mode, fallback } = updateDownloadPhase.phaseOf(progress);
+    if (mode !== null && mode !== lastUpdateDownloadMode) {
+      console.info(fallback
+        ? '[Updater] Differential download failed, downloading the full installer'
+        : `[Updater] Downloading the update: ${mode}`);
+      lastUpdateDownloadMode = mode;
+    }
     setUpdateState({
       status: 'downloading',
       error: null,
@@ -4263,6 +4299,8 @@ function setupAutoUpdater() {
         percent: typeof progress.percent === 'number' ? progress.percent : 0,
         transferred: progress.transferred,
         total: progress.total,
+        mode,
+        fallback,
       },
       githubFailed: false,
     });
@@ -4359,6 +4397,11 @@ async function downloadAvailableUpdate() {
   }
 
   try {
+    // The updater hands back the running download instead of starting another: only a new one starts over.
+    if (updateState.status !== 'downloading') {
+      updateDownloadPhase.restart();
+      lastUpdateDownloadMode = null;
+    }
     setUpdateState({ status: 'downloading', error: null, downloadProgress: null });
     await updater.downloadUpdate();
   } catch (error) {
@@ -5451,13 +5494,15 @@ function isCursorInsideMainWindowClickThroughUnlockHotspot() {
 
   const bounds = mainWindow.getBounds();
   const cursor = screen.getCursorScreenPoint();
-  const scale = process.platform === 'darwin' ? mainWindow.webContents.getZoomFactor() : 1;
+  // The hotspot is in CSS pixels; with 界面缩放 (#1264) one of them is getZoomFactor() window pixels.
+  const scale = mainWindow.webContents.getZoomFactor();
   // Docked DevTools can make the page narrower than the native window.
   return isCursorInsideUnlockHotspot({
     bounds, cursor,
     hotspot: resolveUnlockHotspot(MAIN_WINDOW_CLICK_THROUGH_UNLOCK_HOTSPOT, {
       nativeTrafficLights: mainWindow.__nativeTrafficLights === true,
       side: mainWindowUnlockHoverRequests.getSide(),
+      scale,
     }),
     side: mainWindowUnlockHoverRequests.getSide(),
     viewportWidth: process.platform === 'darwin' ? mainWindowUnlockHoverRequests.getViewportWidth() : null,
@@ -5886,7 +5931,11 @@ function fitMainWindowBoundsToExportSize(exportSize) {
     return null;
   }
 
-  const exportDpr = mainWindow.__dpr && mainWindow.__dpr > 0 ? mainWindow.__dpr : 1;
+  // The renderer's devicePixelRatio counts the page zoom (界面缩放, #1264); window sizes are in
+  // window pixels, so take it back out to get physical pixels per window pixel.
+  const pageDpr = mainWindow.__dpr && mainWindow.__dpr > 0 ? mainWindow.__dpr : 1;
+  const zoom = mainWindow.webContents.getZoomFactor();
+  const exportDpr = zoom > 0 ? pageDpr / zoom : pageDpr;
   const cssWidth = Math.max(1, Math.round(exportSize.width / exportDpr));
   const cssHeight = Math.max(1, Math.round(exportSize.height / exportDpr));
   mainWindow.setContentSize(cssWidth, cssHeight, false);
@@ -5961,7 +6010,7 @@ function createWindow(options = {}) {
     && !isWallpaperModeEnabled()
     && !useWallpaperGeometry
     && readStoredBoolean(USE_NATIVE_MAC_TRAFFIC_LIGHTS_SETTING_KEY, false);
-  const enableNativeBlur = store.get('enable_player_page_native_blur') === true;
+  const enableNativeBlur = NATIVE_BLUR_SUPPORTED && store.get('enable_player_page_native_blur') === true;
   let win;
   try {
     win = new BrowserWindow({
@@ -6224,6 +6273,8 @@ function createWindow(options = {}) {
       }
       // The hidden YouTube Music sandbox window would otherwise keep the app from quitting.
       ytmSandbox.destroy();
+      // So would the performance check's window, still running its GPU work.
+      perfCheckHost.close();
       refreshTrayMenu();
     }
   });
@@ -7021,7 +7072,7 @@ ipcMain.handle('save-settings', firstParty('save-settings', (event, key, value) 
     }
   }
 
-  if (key === 'enable_player_page_native_blur') {
+  if (key === 'enable_player_page_native_blur' && NATIVE_BLUR_SUPPORTED) {
     if (!isTransparentPlayerBackgroundEnabled()) {
       if (mainWindow && !mainWindow.isDestroyed()) {
         const enableNativeBlur = Boolean(nextValue);
@@ -8085,6 +8136,22 @@ ipcMain.handle('remote-control-send-command', (event, command) => {
 
   if (!mainWindow || mainWindow.isDestroyed()) {
     return false;
+  }
+
+  // The remote window's settings key: the settings open in the main window, so it comes up first,
+  // and must take clicks. As the wallpaper it sits under the desktop icons (or lets every click
+  // through on macOS), where a settings dialog could not be used: the key does nothing then.
+  if (command?.type === 'open-remote-settings') {
+    if (isX11WallpaperMode() || isWindowsWallpaperMode() || isMacWallpaperActive) {
+      console.info('[RemoteControl] Settings key ignored: the main window is the wallpaper');
+      return false;
+    }
+    if (mainWindowClickThroughEnabled) {
+      setMainWindowClickThroughEnabled(false);
+      console.info('[RemoteControl] Settings key turned main window click-through off');
+    }
+    focusMainWindow();
+    console.info('[RemoteControl] Settings key opened the remote settings page');
   }
 
   mainWindow.webContents.send('remote-control-command', command);

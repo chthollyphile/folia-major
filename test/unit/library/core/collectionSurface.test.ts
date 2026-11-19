@@ -91,6 +91,7 @@ const everything = (declaredActions?: LibraryDeclaredActions): GridSurfaceParams
     canResyncFolder: true,
     canResyncAllFolders: true,
     canOrganizeSongInfo: true,
+    canReorderPlaylist: true,
     canExportPlaylist: true,
     canEditEntity: true,
     canSetCover: true,

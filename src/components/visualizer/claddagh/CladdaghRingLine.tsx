@@ -3,7 +3,7 @@ import { MotionValue } from 'framer-motion';
 import { type Line, type Theme } from '../../../types';
 import { buildLineGraphemeTimeline, splitLyricGraphemes } from '../../../utils/lyrics/graphemeTiming';
 import { resolveThemeFontStack, resolveThemeFontWeight } from '../../../utils/fontStacks';
-import { colorWithAlpha, mixColors } from '../colorMix';
+import { colorWithAlpha, mixColors } from '../../../utils/colorMix';
 import { isGlowBlurQuantized, quantizeShadowBlur } from '../../../utils/glowBlurQuantize';
 import { cancelUncappedAnimationFrame, requestUncappedAnimationFrame } from '../../../utils/frameRateLimiter';
 import { buildWordColorRanges } from '../wordColoring';

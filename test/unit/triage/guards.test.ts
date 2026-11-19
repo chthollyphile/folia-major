@@ -66,6 +66,12 @@ describe('canClose', () => {
     it('lets stale closes through even after a maintainer comment', () => {
         expect(close({ reason: 'stale', evidence: {}, history: { ...noHistory, maintainerCommented: true } }).allowed).toBe(true);
     });
+
+    it('lets rewrite timeouts through after a maintainer comment but keeps the other guards', () => {
+        expect(close({ reason: 'rewrite-timeout', evidence: {}, history: { ...noHistory, maintainerCommented: true } }).allowed).toBe(true);
+        expect(close({ reason: 'rewrite-timeout', evidence: {}, issue: makeIssue({ labels: ['bot: skip'] }) }).allowed).toBe(false);
+        expect(close({ reason: 'rewrite-timeout', evidence: {}, history: { ...noHistory, reopened: true } }).allowed).toBe(false);
+    });
 });
 
 describe('evaluateBreaker', () => {
@@ -126,6 +132,13 @@ describe('validateClassification', () => {
         expect(result.value?.tldr).toHaveLength(5);
         expect(result.value?.tldr[0]).not.toContain('https');
         expect(result.value?.tldr[1]).toContain('@​');
+    });
+
+    it('reads the wishlist confidence but never for bugs', () => {
+        expect(validateClassification({ ...valid, type: 'feature', wishlist_confidence: 0.95 }, config).value?.wishlistConfidence).toBe(0.95);
+        expect(validateClassification({ ...valid, type: 'bug', wishlist_confidence: 0.95 }, config).value?.wishlistConfidence).toBe(0);
+        expect(validateClassification({ ...valid, type: 'feature' }, config).value?.wishlistConfidence).toBe(0);
+        expect(validateClassification({ ...valid, wishlist_confidence: 2 }, config).ok).toBe(false);
     });
 
     it('validates duplicate confirmation output', () => {

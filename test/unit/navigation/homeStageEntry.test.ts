@@ -64,6 +64,7 @@ const createBaseParams = () => {
         },
         localPlaylists: [],
         onRefreshLocalSongs: vi.fn(),
+        onRefreshLocalPlaylists: vi.fn(),
         onPlayLocalSong: vi.fn(),
         onAddLocalSongToQueue: vi.fn(),
         localMusicState: 'idle' as any,

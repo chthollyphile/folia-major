@@ -47,15 +47,17 @@ in vec2 vTextureCoord;
 out vec4 finalColor;
 
 uniform sampler2D uTexture;
+uniform highp vec4 uInputSize;
+uniform highp vec4 uInputPixel;
 uniform float uAmount;
 
-float dotScreen(vec2 fragCoord, float angle, float value, float cellSize) {
+float dotScreen(vec2 fragCoord, float angle, float value, float cellSize, float edge) {
     float c = cos(angle);
     float s = sin(angle);
     vec2 rotated = mat2(c, s, -s, c) * fragCoord;
     float dist = length(fract(rotated / cellSize) - 0.5) * cellSize;
     float radius = sqrt(clamp(value, 0.0, 1.0)) * cellSize * 0.62;
-    return 1.0 - smoothstep(radius - 1.2, radius + 1.2, dist);
+    return 1.0 - smoothstep(radius - edge, radius + edge, dist);
 }
 
 void main(void) {
@@ -63,11 +65,17 @@ void main(void) {
     if (color.a > 0.0) {
         color.rgb /= color.a;
     }
+    // gl_FragCoord counts the pixels of the pass, which runs at the canvas resolution (a share
+    // of it while a transition or outro blur is on): the screen is laid out in CSS pixels (cells
+    // stay 5 wide whatever the resolution) and only the dot edge is kept at 1.2 pass pixels.
+    float density = max(uInputPixel.x / uInputSize.x, 0.0001);
+    vec2 cssCoord = gl_FragCoord.xy / density;
+    float edge = 1.2 / density;
     float cellSize = 5.0;
     vec3 screened = vec3(
-        dotScreen(gl_FragCoord.xy, radians(15.0), color.r, cellSize),
-        dotScreen(gl_FragCoord.xy, radians(75.0), color.g, cellSize),
-        dotScreen(gl_FragCoord.xy, radians(0.0), color.b, cellSize)
+        dotScreen(cssCoord, radians(15.0), color.r, cellSize, edge),
+        dotScreen(cssCoord, radians(75.0), color.g, cellSize, edge),
+        dotScreen(cssCoord, radians(0.0), color.b, cellSize, edge)
     );
     color.rgb = mix(color.rgb, screened, uAmount);
     color.rgb *= color.a;

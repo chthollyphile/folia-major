@@ -455,6 +455,50 @@ exports[`mod tuning keys > are pinned, so a renamed or dropped key is a visible 
       "type": "choice",
     },
   },
+  "metaphor": {
+    "blobs": {
+      "max": 2,
+      "min": 0,
+      "type": "number",
+    },
+    "cameraMotion": {
+      "max": 2,
+      "min": 0,
+      "type": "number",
+    },
+    "cutPace": {
+      "max": 2,
+      "min": 0.4,
+      "type": "number",
+    },
+    "flip": {
+      "type": "boolean",
+    },
+    "flow": {
+      "max": 2,
+      "min": 0,
+      "type": "number",
+    },
+    "grain": {
+      "max": 2,
+      "min": 0,
+      "type": "number",
+    },
+    "halftone": {
+      "max": 2.5,
+      "min": 0.5,
+      "type": "number",
+    },
+    "keywordColors": {
+      "type": "boolean",
+    },
+    "negative": {
+      "type": "boolean",
+    },
+    "transitions": {
+      "type": "boolean",
+    },
+  },
   "monet": {
     "audioStyle": {
       "options": [

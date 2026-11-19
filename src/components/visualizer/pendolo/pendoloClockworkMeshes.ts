@@ -1,4 +1,4 @@
-import { colorWithAlpha, parseColorChannels } from '../colorMix';
+import { colorWithAlpha, parseColorChannels } from '../../../utils/colorMix';
 import {
     buildPendoloClockworkPalette,
     resolvePendoloClockworkAnchors,

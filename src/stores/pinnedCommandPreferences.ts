@@ -1,7 +1,9 @@
-import type { CommandPaletteCommand } from './types';
+import type { CommandPaletteCommand } from '../components/command-palette/types';
+import { getStoredString, setStoredString } from './storagePrimitives';
 
-// src/components/command-palette/pinnedCommandPreferences.ts
+// src/stores/pinnedCommandPreferences.ts
 // Normalizes and persists the three positional command palette shortcuts.
+// The settings modal store's own persistence module, kept beside it in src/stores/.
 
 export type PinnedCommandIds = [
     string | null,
@@ -28,7 +30,7 @@ export const normalizePinnedCommandIds = (
 
     const seen = new Set<string>();
     const normalized = Array.from({ length: 3 }, (_, index) => {
-        const commandId = value[index];
+        const commandId: unknown = value[index];
         if (typeof commandId !== 'string' || commandId.length === 0 || seen.has(commandId)) {
             return null;
         }
@@ -40,12 +42,9 @@ export const normalizePinnedCommandIds = (
 };
 
 export const readPinnedCommandIds = (): PinnedCommandIds => {
-    if (typeof window === 'undefined') {
-        return cloneDefaults();
-    }
-
-    const storedValue = window.localStorage.getItem(PINNED_COMMANDS_STORAGE_KEY);
-    if (storedValue === null) {
+    // getStoredString falls back without a window and for a missing or empty value.
+    const storedValue = getStoredString(PINNED_COMMANDS_STORAGE_KEY, '');
+    if (storedValue === '') {
         return cloneDefaults();
     }
 
@@ -57,10 +56,7 @@ export const readPinnedCommandIds = (): PinnedCommandIds => {
 };
 
 export const writePinnedCommandIds = (commandIds: PinnedCommandIds) => {
-    if (typeof window === 'undefined') {
-        return;
-    }
-    window.localStorage.setItem(
+    setStoredString(
         PINNED_COMMANDS_STORAGE_KEY,
         JSON.stringify(normalizePinnedCommandIds(commandIds)),
     );

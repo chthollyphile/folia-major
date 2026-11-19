@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer, webUtils } = require('electron');
+const { contextBridge, ipcRenderer, webFrame, webUtils } = require('electron');
 
 contextBridge.exposeInMainWorld('electron', {
     webUtils: {
@@ -12,6 +12,23 @@ contextBridge.exposeInMainWorld('electron', {
     // The same model's WebGPU export ({ weights, manifest }) for the renderer's own GPU runtime, or null.
     getBeatThisGpuWeights: (model) => ipcRenderer.invoke('automix-beat-this-gpu-weights', model),
     getHtdemucsGpuWeights: () => ipcRenderer.invoke('automix-beat-this-gpu-weights', 'htdemucs'),
+    // The performance check (electron/perfCheck.cjs): open its window, read every process's memory, hand
+    // the chosen settings to the main window, and, in the main window, receive them.
+    openPerfCheck: () => ipcRenderer.invoke('perf-check-open'),
+    getPerfCheckMetrics: () => ipcRenderer.invoke('perf-check-metrics'),
+    applyPerfCheckChoice: (choice) => ipcRenderer.invoke('perf-check-apply', choice),
+    logPerfCheck: (text) => ipcRenderer.invoke('perf-check-log', text),
+    finishPerfCheck: () => ipcRenderer.invoke('perf-check-done'),
+    onPerfCheckState: (callback) => {
+        const listener = (_event, state) => callback(state);
+        ipcRenderer.on('perf-check-state', listener);
+        return () => ipcRenderer.removeListener('perf-check-state', listener);
+    },
+    onPerfCheckApply: (callback) => {
+        const listener = (_event, choice) => callback(choice);
+        ipcRenderer.on('perf-check-apply', listener);
+        return () => ipcRenderer.removeListener('perf-check-apply', listener);
+    },
     separateStems: (request) => ipcRenderer.invoke('automix-htdemucs', request),
     // Whether automix is switched on. While it is, the analysis worker keeps htdemucs loaded; switching
     // it off releases it. See electron/analysis/host.cjs.
@@ -88,6 +105,13 @@ contextBridge.exposeInMainWorld('electron', {
     },
     platform: process.platform,
     isLinuxX11: process.platform === 'linux' && !process.env.WAYLAND_DISPLAY,
+    // 原生毛玻璃：Windows 的 Acrylic 背景材质要 Windows 11 22H2（build 22621）起才有，Win10 上设了也无效。
+    nativeBlurSupported: (() => {
+        if (process.platform === 'linux') return false;
+        if (process.platform !== 'win32') return true;
+        const build = Number(String(process.getSystemVersion?.() ?? '').split('.')[2]);
+        return Number.isFinite(build) && build >= 22621;
+    })(),
     getSettings: () => ipcRenderer.invoke('get-settings'),
     saveSettings: (key, value) => ipcRenderer.invoke('save-settings', key, value),
     onWallpaperModeChanged: (callback) => {
@@ -222,6 +246,12 @@ contextBridge.exposeInMainWorld('electron', {
     setKeyCaptureActive: (active) => ipcRenderer.send('key-capture-active', active === true),
     getMainWindowClickThroughEnabled: () => ipcRenderer.invoke('window-get-click-through'),
     setMainWindowClickThroughEnabled: (enabled) => ipcRenderer.invoke('window-set-click-through', enabled),
+    // 界面缩放（#1264）。webFrame 的缩放只算这一个窗口，不像 webContents.setZoomFactor 按源传给同源的遥控窗口。
+    setPageZoomFactor: (factor) => {
+        const value = Number(factor);
+        if (Number.isFinite(value) && value >= 0.25 && value <= 5) webFrame.setZoomFactor(value);
+    },
+    getPageZoomFactor: () => webFrame.getZoomFactor(),
     setMainWindowClickThroughUnlockHover: (active, viewportWidth, coordinates, side) => ipcRenderer.invoke('window-set-click-through-unlock-hover', active, viewportWidth, coordinates, side),
     getMainWindowAlwaysOnTop: () => ipcRenderer.invoke('window-get-always-on-top'),
     setMainWindowAlwaysOnTop: (enabled) => ipcRenderer.invoke('window-set-always-on-top', enabled),
