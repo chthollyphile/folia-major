@@ -1,13 +1,13 @@
-import type { UnifiedSong } from '../../../types';
-import type { MediaId, OnlineRecommendationProvider, PersonalFmRequestOptions, ProviderCollection, ProviderHistoryEntry } from '../../../types/onlineMusic';
-import { OnlineProviderError } from '../../../types/onlineMusic';
-import { DEFAULT_PERSONAL_FM_CATALOG } from '../fmModes';
+import type { UnifiedSong } from '../../../src/types';
+import type { MediaId, OnlineRecommendationProvider, PersonalFmRequestOptions, ProviderCollection, ProviderHistoryEntry } from '../../../src/types/onlineMusic';
+import { OnlineProviderError } from '../../../src/types/onlineMusic';
+import { DEFAULT_PERSONAL_FM_CATALOG } from '../../../src/services/onlineMusic/fmModes';
 import { normalizeQqCollection, normalizeQqSong } from './qqNormalize';
 import { getQqRecommendationPreferences, saveQqRecommendationPreferences } from './qqPreferences';
 import { hasUsableQqSession, requestQq, type QqOperation } from './qqTransport';
 import { getQqGuessYouLikeBatch, getQqGuessYouLikeCard, getQqGuessYouLikeCatalog, QQ_GUESS_YOU_LIKE_STATION } from './qqGuessYouLike';
 
-// src/services/onlineMusic/qq/qqRecommendations.ts
+// sources/qq/core/qqRecommendations.ts
 // QQ 音乐的推荐：私人 FM、每日 30 首与它的历史、推荐歌单，以及歌曲不喜欢。猜你喜欢与推荐歌单是 qq-music-api 3.2.0 加的，每日 30 首是 3.3.0，私人 FM、历史日推与不喜欢是 3.3.6，
 // 出错时用状态码加固定的 errorKey 说明原因：422 是「上游成功但没有数据」，不是网络错误；旧后端没有这些路由，回 404。
 

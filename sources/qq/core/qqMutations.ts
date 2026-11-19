@@ -1,12 +1,12 @@
-import type { SongResult } from '../../../types';
-import type { MediaId, OnlineMutationProvider, ProviderCollection } from '../../../types/onlineMusic';
-import { OnlineProviderError } from '../../../types/onlineMusic';
+import type { SongResult } from '../../../src/types';
+import type { MediaId, OnlineMutationProvider, ProviderCollection } from '../../../src/types/onlineMusic';
+import { OnlineProviderError } from '../../../src/types/onlineMusic';
 import { normalizeQqCollection } from './qqNormalize';
 import { qqListKindOf } from './qqLists';
 import { requestQqSongDetail } from './qqSongDetail';
 import { hasUsableQqSession, requestQq } from './qqTransport';
 
-// src/services/onlineMusic/qq/qqMutations.ts
+// sources/qq/core/qqMutations.ts
 // QQ 音乐的写入：往自建歌单加歌删歌、收藏歌单，以及查询收藏状态（qq-music-api 3.3.0）；红心与收藏专辑（3.3.1）。
 // 写入只送一次、不自动重试；后端回错误时结果可能已经生效，交给调用方重新读歌单确认，这里不重发。
 

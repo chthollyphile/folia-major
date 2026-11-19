@@ -1,20 +1,20 @@
-import i18n from '../../../i18n/config';
-import type { UnifiedSong } from '../../../types';
+import i18n from '../../../src/i18n/config';
+import type { UnifiedSong } from '../../../src/types';
 import type {
     OnlineExploreProvider,
     ProviderExploreItem,
     ProviderExploreItemsPage,
     ProviderExplorePage,
     ProviderExploreSection,
-} from '../../../types/onlineMusic';
-import { OnlineProviderError } from '../../../types/onlineMusic';
+} from '../../../src/types/onlineMusic';
+import { OnlineProviderError } from '../../../src/types/onlineMusic';
 import { createHandedOut, cursorWords, stampCursor } from '@folia/folium-source-kit';
-import { errorMessage } from '../../../utils/errorText';
+import { errorMessage } from '../../../src/utils/errorText';
 import { qqRadioCollection, qqToplistCollection } from './qqLists';
 import { normalizeQqCollection, normalizeQqSong } from './qqNormalize';
 import { hasUsableQqSession, requestQq } from './qqTransport';
 
-// src/services/onlineMusic/qq/qqExplore.ts
+// sources/qq/core/qqExplore.ts
 // QQ 音乐的探索页：个人化的在前，往下相似歌曲和公开的栏交替。
 //  1. 第一页：刷歌模式（`/recommend/radar`，客户端的「雷达」，一页约 10 首，没登录也有，放最上面）、
 //     每日 30 首（要登录）、客户端首页 feed 的几架（`/recommend/feed`，要登录，只有第 1 页，

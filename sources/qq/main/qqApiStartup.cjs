@@ -1,6 +1,6 @@
-const { keepServerErrorsLogged, waitUntilListening } = require('../backendLifecycle.cjs');
+const { keepServerErrorsLogged, waitUntilListening } = require('../../../electron/backendLifecycle.cjs');
 
-// electron/qq/qqApiStartup.cjs
+// sources/qq/main/qqApiStartup.cjs
 //
 // Starts @yakult-green-tea/qq-music-api inside the Electron main process. The package is a regular
 // production dependency, so npm nests its own ws@7 under it and the app's ws@8 is left alone.

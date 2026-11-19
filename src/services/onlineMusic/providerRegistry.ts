@@ -3,7 +3,7 @@ import type { OnlineMusicProvider, OnlineProviderId, ProviderCapabilities } from
 import type { SongResult } from '../../types';
 import { getPlaybackSourceRef } from '../../utils/appPlaybackGuards';
 import { neteaseProvider } from './netease/neteaseProvider';
-import { qqProvider } from './qq/qqProvider';
+import { qqProvider } from '../../../sources/qq/core/qqProvider';
 import { spotifyProvider } from './spotify/spotifyProvider';
 import { appleMusicProvider } from './appleMusic/appleMusicProvider';
 import { startsWithoutSources } from '../../dev/devLaunchFlags';

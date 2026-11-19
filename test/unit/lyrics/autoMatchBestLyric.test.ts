@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { autoMatchBestLyric, type AutoMatchProviderCandidate } from '@/utils/lyrics/autoMatchBestLyric';
 import { neteaseApi } from '@/services/onlineMusic/netease/netease';
 import { processNeteaseLyrics } from '@/utils/lyrics/neteaseProcessing';
-import { searchQQLyrics, fetchQQLyrics } from '@/services/onlineMusic/qq/qqLyricProvider';
+import { searchQQLyrics, fetchQQLyrics } from '../../../sources/qq/core/qqLyricProvider';
 import { searchKugouLyrics, fetchKugouLyrics } from '../../manual/kugouLyricProvider';
 import { fetchAmllDbLyrics } from '@/utils/lyrics/providers/amllDbProvider';
 import { getOnlineMusicProvider } from '@/services/onlineMusic/providerRegistry';
@@ -26,7 +26,7 @@ vi.mock('@/utils/lyrics/neteaseProcessing', () => ({
     processNeteaseLyrics: vi.fn()
 }));
 
-vi.mock('@/services/onlineMusic/qq/qqLyricProvider', () => ({
+vi.mock('../../../sources/qq/core/qqLyricProvider', () => ({
     searchQQLyrics: vi.fn(),
     fetchQQLyrics: vi.fn()
 }));

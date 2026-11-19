@@ -4,7 +4,7 @@ import type { LibraryAccountAuthPort, LibraryAccountClock } from '@/library/core
 // test/unit/onlineMusic/qqQrDiagnostics.integration.test.ts
 // 正式的 transport、provider 与 core 的登录会话串起来，只把 HTTP 换成桩：后端回了什么，复制出来的报告里就有它说的
 // （失败阶段与原因、HTTP 状态、退避时长、窗口显示的那一种情况），而登录凭据（session 的值）永远不出现。
-vi.mock('@/services/onlineMusic/qq/qqLyricProvider', () => ({ fetchQQLyrics: vi.fn(), searchQQLyrics: vi.fn(), searchQQSongs: vi.fn() }));
+vi.mock('../../../sources/qq/core/qqLyricProvider', () => ({ fetchQQLyrics: vi.fn(), searchQQLyrics: vi.fn(), searchQQSongs: vi.fn() }));
 
 const storage = new Map<string, string>();
 const fetchMock = vi.fn();
@@ -41,7 +41,7 @@ const createManualClock = () => {
 };
 
 const createSession = async () => {
-    const { qqProvider } = await import('@/services/onlineMusic/qq/qqProvider');
+    const { qqProvider } = await import('../../../sources/qq/core/qqProvider');
     const { createProviderLoginSession } = await import('@/library/core/account/providerLoginSession.service');
     const { noteLoginFailure } = await import('@/services/onlineMusic/login/loginFailureCase');
     const qqAuth = qqProvider.auth!;

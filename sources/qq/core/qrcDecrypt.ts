@@ -1,4 +1,4 @@
-// src/services/onlineMusic/qq/qrcDecrypt.ts
+// sources/qq/core/qrcDecrypt.ts
 
 /**
  * QQ Music QRC lyric decryption module.

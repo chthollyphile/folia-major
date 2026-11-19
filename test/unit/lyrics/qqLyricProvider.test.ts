@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { SongResult } from '@/types';
-import { qrcDecrypt } from '@/services/onlineMusic/qq/qrcDecrypt';
-import { fetchQQLyrics, searchQQLyrics } from '@/services/onlineMusic/qq/qqLyricProvider';
+import { qrcDecrypt } from '../../../sources/qq/core/qrcDecrypt';
+import { fetchQQLyrics, searchQQLyrics } from '../../../sources/qq/core/qqLyricProvider';
 
 // test/unit/lyrics/qqLyricProvider.test.ts
 // Verifies QQ's anonymous lyric request parses the optional romanization track.
 
-vi.mock('@/services/onlineMusic/qq/qrcDecrypt', () => ({
+vi.mock('../../../sources/qq/core/qrcDecrypt', () => ({
     qrcDecrypt: vi.fn(),
 }));
 

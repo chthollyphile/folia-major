@@ -8,16 +8,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const requestMock = vi.hoisted(() => vi.fn());
 const transportState = vi.hoisted(() => ({ hasSession: true }));
 
-vi.mock('@/services/onlineMusic/qq/qqTransport', async importOriginal => ({
-    ...await importOriginal<typeof import('@/services/onlineMusic/qq/qqTransport')>(),
+vi.mock('../../../sources/qq/core/qqTransport', async importOriginal => ({
+    ...await importOriginal<typeof import('../../../sources/qq/core/qqTransport')>(),
     hasQqSession: () => transportState.hasSession,
     hasUsableQqSession: () => transportState.hasSession,
     requestQq: requestMock,
 }));
 
 import i18n from '@/i18n/config';
-import { createQqExplore } from '@/services/onlineMusic/qq/qqExplore';
-import { normalizeQqSong } from '@/services/onlineMusic/qq/qqNormalize';
+import { createQqExplore } from '../../../sources/qq/core/qqExplore';
+import { normalizeQqSong } from '../../../sources/qq/core/qqNormalize';
 import { OnlineProviderError, type ProviderExploreSection } from '@/types/onlineMusic';
 
 const track = (mid: string, id: number) => ({ mid, id, name: `歌 ${mid}`, singer: [{ mid: 'singer-mid', name: '歌手' }], album: { mid: 'album-mid', name: '专辑' } });

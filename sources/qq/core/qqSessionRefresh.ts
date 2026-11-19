@@ -1,8 +1,8 @@
-import { OnlineProviderError } from '../../../types/onlineMusic';
-import { readProviderSessionValue, writeProviderSessionValue } from '../providerStorage';
+import { OnlineProviderError } from '../../../src/types/onlineMusic';
+import { readProviderSessionValue, writeProviderSessionValue } from '../../../src/services/onlineMusic/providerStorage';
 import { hasQqSession, requestQq } from './qqTransport';
 
-// src/services/onlineMusic/qq/qqSessionRefresh.ts
+// sources/qq/core/qqSessionRefresh.ts
 // 会话的续期。Serverless 的会话（sealed）就装在 token 里，大约 3 天到期；
 // 后端的 `POST /login/refresh` 在离到期不到 6 小时时会换一个新 token（rotated: true），从第一次扫码算起最多续到 30 天。
 // 不续的话就是 3 天左右要重扫一次。桌面版、Docker 这类 stored 后端在同一个 token 下静默续期（回答 rotated: false），

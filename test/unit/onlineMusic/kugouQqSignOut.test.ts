@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FoliumSourcePageStore } from '@folia/folium';
 import { createFoliumSourceError } from '@/mods/folium/sources/errors';
-import { qqProvider } from '@/services/onlineMusic/qq/qqProvider';
+import { qqProvider } from '../../../sources/qq/core/qqProvider';
 import { createSource } from '../../../sources/kugou/core';
 
 // test/unit/onlineMusic/kugouQqSignOut.test.ts

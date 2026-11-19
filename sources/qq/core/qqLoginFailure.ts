@@ -1,9 +1,9 @@
-import { OnlineProviderError } from '../../../types/onlineMusic';
-import type { LoginFailureDetail, LoginStep } from '../../../types/onlineMusic';
+import { OnlineProviderError } from '../../../src/types/onlineMusic';
+import type { LoginFailureDetail, LoginStep } from '../../../src/types/onlineMusic';
 import { QQ_API_NOT_RUNNING } from './qqTransport';
 import { qqStatusFailure } from './qqFailure';
 
-// src/services/onlineMusic/qq/qqLoginFailure.ts
+// sources/qq/core/qqLoginFailure.ts
 // QQ 音乐登录失败时交给登录窗口的事实。后端的错误是什么意思，只在这里说。
 
 // 登录的某一步抛了错（都出自 qqTransport.ts 的 requestQq）。

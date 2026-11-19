@@ -1,11 +1,11 @@
-import i18n from '../../../i18n/config';
-import type { UnifiedSong } from '../../../types';
-import { OnlineProviderError, type ListeningRankRange, type ProviderCollection, type ProviderPage, type ProviderUser } from '../../../types/onlineMusic';
-import { LISTENING_RANK_RANGES, listeningRankCollection, listeningRankPage, withListenCount } from '../listeningRank';
+import i18n from '../../../src/i18n/config';
+import type { UnifiedSong } from '../../../src/types';
+import { OnlineProviderError, type ListeningRankRange, type ProviderCollection, type ProviderPage, type ProviderUser } from '../../../src/types/onlineMusic';
+import { LISTENING_RANK_RANGES, listeningRankCollection, listeningRankPage, withListenCount } from '../../../src/services/onlineMusic/listeningRank';
 import { normalizeQqSong } from './qqNormalize';
 import { requestQq } from './qqTransport';
 
-// src/services/onlineMusic/qq/qqListeningRank.ts
+// sources/qq/core/qqListeningRank.ts
 // QQ 的听歌排行（qq-music-api 3.3.6 的 /user/listening-rank，只读本人）。共用的「最近一周」读 QQ 的周榜：
 // 从周一算起，这一周没过完就只到今天；共用的「所有时间」QQ 没有，先拿年榜顶上，名字和说明都写明是年榜，
 // 不冒充真正的历史总排行。名字用 QQ 自己的词条，不动其他平台的「最近一周／所有时间」。旧后端没有这条路由，

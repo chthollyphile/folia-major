@@ -1,7 +1,7 @@
-import { toSafePlaybackUrl } from '../../../utils/appPlaybackHelpers';
+import { toSafePlaybackUrl } from '../../../src/utils/appPlaybackHelpers';
 import { requestQq } from './qqTransport';
 
-// src/services/onlineMusic/qq/qqPreview.ts
+// sources/qq/core/qqPreview.ts
 // QQ 音乐的试听片段：完整的歌拿不到链接时（有档连不上的话，要标准音质也回了空链接），qqProvider.getAudioSource 来这里多要一次试听文件。
 
 /**

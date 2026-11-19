@@ -6,17 +6,17 @@ const requestMock = vi.hoisted(() => vi.fn());
 const searchQQSongsMock = vi.hoisted(() => vi.fn());
 const transportState = vi.hoisted(() => ({ hasSession: true }));
 
-vi.mock('@/services/onlineMusic/qq/qqTransport', () => ({
+vi.mock('../../../sources/qq/core/qqTransport', () => ({
     hasQqSession: () => transportState.hasSession,
     hasUsableQqSession: () => transportState.hasSession,
     requestQq: requestMock,
 }));
 
-vi.mock('@/services/onlineMusic/qq/qqLyricProvider', () => ({
+vi.mock('../../../sources/qq/core/qqLyricProvider', () => ({
     searchQQSongs: searchQQSongsMock,
 }));
 
-import { resetQqSearchFallbackMemory, searchQqCollections, searchQqSongs } from '@/services/onlineMusic/qq/qqSearch';
+import { resetQqSearchFallbackMemory, searchQqCollections, searchQqSongs } from '../../../sources/qq/core/qqSearch';
 import { OnlineProviderError } from '@/types/onlineMusic';
 
 // 后端 `/search` 原样交出的精简版搜索条目（字段按 qq-music-api 3.3.1 文档，标识符取公开曲目）。

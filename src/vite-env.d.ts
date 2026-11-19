@@ -219,7 +219,7 @@ declare global {
     version: string | null;
     startup: ElectronBackendStartupRun[];
     hooks: { installed: string[]; error: string | null };
-    /** 包内扫码服务的失败（electron/qq/qqBackend.cjs 的钩子），带原始错误。 */
+    /** 包内扫码服务的失败（sources/qq/main/qqBackend.cjs 的钩子），带原始错误。 */
     failures: Array<{
       at: number;
       kind: 'session' | 'bootstrap';

@@ -1,18 +1,18 @@
-// src/services/onlineMusic/qq/qqLyricProvider.ts
+// sources/qq/core/qqLyricProvider.ts
 
 /**
  * QQ Music lyrics provider module.
  * Provides search and download/decryption capabilities for QQ Music lyrics.
  */
 
-import { SongResult } from '../../../types';
-import { parseLyricsByFormat } from '../../../utils/lyrics/parserCore';
-import { detectTimedLyricFormat } from '../../../utils/lyrics/formatDetection';
+import { SongResult } from '../../../src/types';
+import { parseLyricsByFormat } from '../../../src/utils/lyrics/parserCore';
+import { detectTimedLyricFormat } from '../../../src/utils/lyrics/formatDetection';
 import { qrcDecrypt } from './qrcDecrypt';
-import { applyDetectedChorusEffects, applyChorusRangesByTime } from '../../../utils/lyrics/chorusEffects';
-import type { ChorusRange } from '../../../utils/lyrics/chorusEffects';
-import { getOriginalCoverUrl } from '../../../utils/coverUrl';
-import { lyricProxyWebUrl } from '../../lyricProxy';
+import { applyDetectedChorusEffects, applyChorusRangesByTime } from '../../../src/utils/lyrics/chorusEffects';
+import type { ChorusRange } from '../../../src/utils/lyrics/chorusEffects';
+import { getOriginalCoverUrl } from '../../../src/utils/coverUrl';
+import { lyricProxyWebUrl } from '../../../src/services/lyricProxy';
 
 const isElectron = typeof window !== 'undefined' && (window as any).electron;
 

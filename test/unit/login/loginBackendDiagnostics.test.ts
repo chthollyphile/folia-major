@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { formatConnection } from '@/services/onlineMusic/login/loginBackendDiagnostics';
 import { formatNeteaseLoginDiagnostics } from '@/services/onlineMusic/netease/neteaseLoginDiagnostics';
-import { collectQqLoginDiagnostics, formatQqLoginDiagnostics } from '@/services/onlineMusic/qq/qqLoginDiagnostics';
+import { collectQqLoginDiagnostics, formatQqLoginDiagnostics } from '../../../sources/qq/core/qqLoginDiagnostics';
 
 // test/unit/login/loginBackendDiagnostics.test.ts
 // What the main process records about the local API (its start-up steps, the connections it opened)

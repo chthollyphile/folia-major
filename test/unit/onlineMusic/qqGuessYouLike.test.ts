@@ -6,14 +6,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const requestMock = vi.hoisted(() => vi.fn());
 const transportState = vi.hoisted(() => ({ hasSession: true }));
-vi.mock('@/services/onlineMusic/qq/qqTransport', () => ({
+vi.mock('../../../sources/qq/core/qqTransport', () => ({
     hasQqSession: () => transportState.hasSession,
     hasUsableQqSession: () => transportState.hasSession,
     requestQq: requestMock,
 }));
 
-import { clearQqGuessYouLikeCatalog, QQ_GUESS_YOU_LIKE_STATION } from '@/services/onlineMusic/qq/qqGuessYouLike';
-import { qqRecommendations } from '@/services/onlineMusic/qq/qqRecommendations';
+import { clearQqGuessYouLikeCatalog, QQ_GUESS_YOU_LIKE_STATION } from '../../../sources/qq/core/qqGuessYouLike';
+import { qqRecommendations } from '../../../sources/qq/core/qqRecommendations';
 import { DEFAULT_PERSONAL_FM_CATALOG } from '@/services/onlineMusic/fmModes';
 import { OnlineProviderError } from '@/types/onlineMusic';
 

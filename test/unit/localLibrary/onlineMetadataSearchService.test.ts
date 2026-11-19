@@ -1,7 +1,7 @@
 // @builtin-sources
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { neteaseApi } from '@/services/onlineMusic/netease/netease';
-import { searchQQLyrics } from '@/services/onlineMusic/qq/qqLyricProvider';
+import { searchQQLyrics } from '../../../sources/qq/core/qqLyricProvider';
 import { getOnlineMusicProvider } from '@/services/onlineMusic/providerRegistry';
 import {
     findAutomaticOnlineMetadataCandidate,
@@ -12,7 +12,7 @@ import {
 // Verifies metadata-only provider selection and exact manual query forwarding.
 
 vi.mock('@/services/onlineMusic/netease/netease', () => ({ neteaseApi: { cloudSearch: vi.fn() } }));
-vi.mock('@/services/onlineMusic/qq/qqLyricProvider', () => ({ searchQQLyrics: vi.fn() }));
+vi.mock('../../../sources/qq/core/qqLyricProvider', () => ({ searchQQLyrics: vi.fn() }));
 
 const song = {
     id: 'local-song',

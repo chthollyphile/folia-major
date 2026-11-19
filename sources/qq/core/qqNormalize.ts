@@ -1,4 +1,4 @@
-import type { Artist, SongResult, UnifiedSong } from '../../../types';
+import type { Artist, SongResult, UnifiedSong } from '../../../src/types';
 import type {
     JsonValue,
     MediaId,
@@ -6,10 +6,10 @@ import type {
     ProviderCollection,
     ProviderLyricSearchAlias,
     ProviderUser,
-} from '../../../types/onlineMusic';
-import { getOriginalCoverUrl } from '../../../utils/coverUrl';
+} from '../../../src/types/onlineMusic';
+import { getOriginalCoverUrl } from '../../../src/utils/coverUrl';
 
-// src/services/onlineMusic/qq/qqNormalize.ts
+// sources/qq/core/qqNormalize.ts
 
 // Album art rule already proven by the existing QQ lyric search in qqLyricProvider.ts.
 const ALBUM_COVER_BASE = 'https://y.gtimg.cn/music/photo_new/T002R300x300M000';

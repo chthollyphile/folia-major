@@ -1,10 +1,10 @@
-// electron/qq/qqAuthSessionRepository.cjs
+// sources/qq/main/qqAuthSessionRepository.cjs
 //
 // Persists the QQ API's server-side credential state in Electron's main process. The renderer keeps
 // only the opaque `qqmusic_session` token; musickey, refresh keys and device context are encrypted
 // before electron-store writes them to disk and are never sent over IPC.
 
-const { assertEncryptionAvailable, encryptionAvailable } = require('../osEncryption.cjs');
+const { assertEncryptionAvailable, encryptionAvailable } = require('../../../electron/osEncryption.cjs');
 
 const SESSION_KEY = 'QQ_API_AUTH_SESSION_V1';
 const ENVELOPE_VERSION = 1;

@@ -34,9 +34,9 @@ const serve = ({ sessionMode = 'sealed', refresh }: Backend) => {
 const refreshCalls = (fetchMock: ReturnType<typeof serve>) => fetchMock.mock.calls.filter(([url]) => String(url).includes('/login/refresh'));
 
 const load = async () => {
-    const { qqProvider } = await import('@/services/onlineMusic/qq/qqProvider');
+    const { qqProvider } = await import('../../../sources/qq/core/qqProvider');
     const { readProviderSessionValue, writeProviderSessionValue } = await import('@/services/onlineMusic/providerStorage');
-    const { refreshQqSession } = await import('@/services/onlineMusic/qq/qqSessionRefresh');
+    const { refreshQqSession } = await import('../../../sources/qq/core/qqSessionRefresh');
     writeProviderSessionValue('qq', 'cookie', 'qqmusic_session=old-token');
     return {
         signedIn: () => qqProvider.auth!.getLoginStatus(),
@@ -109,7 +109,7 @@ describe('QQ session refresh on a serverless backend', () => {
         const fetchMock = serve({ refresh: () => new Promise<Response>(resolve => { answer = resolve; }) });
         const qq = await load();
         const { writeProviderSessionValue } = await import('@/services/onlineMusic/providerStorage');
-        const { noteQqBackendDeclaration } = await import('@/services/onlineMusic/qq/qqBackendDeclaration');
+        const { noteQqBackendDeclaration } = await import('../../../sources/qq/core/qqBackendDeclaration');
         noteQqBackendDeclaration({ sessionMode: 'sealed' });
 
         const asked = qq.refreshQqSession();
@@ -148,7 +148,7 @@ describe('QQ session refresh on a serverless backend', () => {
         vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval', 'Date'] });
         const fetchMock = serve({ refresh: () => Response.json({ code: 200, data: { token: 'old-token', rotated: false } }) });
         await load();
-        const { keepQqSessionFresh } = await import('@/services/onlineMusic/qq/qqSessionRefresh');
+        const { keepQqSessionFresh } = await import('../../../sources/qq/core/qqSessionRefresh');
 
         // 通道探测失败了，会话存法还不知道：存法不影响要不要问，照样问、照样起定时器。
         keepQqSessionFresh();

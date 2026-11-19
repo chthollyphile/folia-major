@@ -1,11 +1,11 @@
-import type { UnifiedSong } from '../../../types';
-import type { ProviderCollection, ProviderPage } from '../../../types/onlineMusic';
-import { OnlineProviderError } from '../../../types/onlineMusic';
+import type { UnifiedSong } from '../../../src/types';
+import type { ProviderCollection, ProviderPage } from '../../../src/types/onlineMusic';
+import { OnlineProviderError } from '../../../src/types/onlineMusic';
 import { searchQQSongs } from './qqLyricProvider';
 import { normalizeQqCollection, normalizeQqSong } from './qqNormalize';
 import { hasUsableQqSession, requestQq } from './qqTransport';
 
-// src/services/onlineMusic/qq/qqSearch.ts
+// sources/qq/core/qqSearch.ts
 //
 // QQ 的在线搜歌。匿名搜歌常被上游以 2001 拒绝，而且一旦被标记，低频请求也会周期性被拒（#473）；
 // 2026-10-16 扫码对照实测：同一时段带会话的搜索一次都没有被拒，只换设备指纹、不带凭据则和匿名一样。

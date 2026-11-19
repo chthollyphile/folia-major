@@ -1,4 +1,4 @@
-import type { SongResult, UnifiedSong } from '../../../types';
+import type { SongResult, UnifiedSong } from '../../../src/types';
 import type {
     AudioQualityPreference,
     MediaId,
@@ -12,16 +12,16 @@ import type {
     LoginMethod,
     LoginState,
     OnlineFailureDetail,
-} from '../../../types/onlineMusic';
-import { OnlineProviderError } from '../../../types/onlineMusic';
-import { createProviderSongMetadata } from '../../../utils/songMetadata';
-import { toSafePlaybackUrl } from '../../../utils/appPlaybackHelpers';
+} from '../../../src/types/onlineMusic';
+import { OnlineProviderError } from '../../../src/types/onlineMusic';
+import { createProviderSongMetadata } from '../../../src/utils/songMetadata';
+import { toSafePlaybackUrl } from '../../../src/utils/appPlaybackHelpers';
 import { fetchQQLyrics } from './qqLyricProvider';
-import { writeProviderSessionValue } from '../providerStorage';
+import { writeProviderSessionValue } from '../../../src/services/onlineMusic/providerStorage';
 import { getQqLyricSearchAlias, normalizeQqCollection, normalizeQqSong, normalizeQqUser } from './qqNormalize';
 import { clearQqSession, getQqRemoteApiBase, getQqTransportAvailability, hasQqSession, hasUsableQqSession, isQqSessionParked, requestQq } from './qqTransport';
-import { canRunLoginSelfCheck, runLoginSelfCheck } from '../loginSelfCheck';
-import { diagnosticLine, formatDiagnosticClock } from '../login/loginDiagnosticReport';
+import { canRunLoginSelfCheck, runLoginSelfCheck } from '../../../src/services/onlineMusic/loginSelfCheck';
+import { diagnosticLine, formatDiagnosticClock } from '../../../src/services/onlineMusic/login/loginDiagnosticReport';
 import { collectQqLoginDiagnostics } from './qqLoginDiagnostics';
 import { getQqSongDetailById, getQqSongDetails, QQ_SONG_DETAILS_PER_REQUEST, requestQqSongDetail } from './qqSongDetail';
 import { qqRecommendations } from './qqRecommendations';
@@ -37,12 +37,12 @@ import { areQqSongsLiked, resetQqVipMemory, withQqVipType } from './qqAccount';
 import { requestQqPreviewSource } from './qqPreview';
 import { noteQqBackendDeclaration, qqBackendSessionMode, resetQqBackendDeclaration } from './qqBackendDeclaration';
 import { keepQqSessionFresh, resetQqSessionRefresh, stopQqSessionRefresh } from './qqSessionRefresh';
-import { OnlineRequestTimeout } from '../failure/onlineRequestLimit';
-import { onlineFailureOf } from '../failure/onlineFailureCase';
-import { errorFields, errorMessage } from '../../../utils/errorText';
+import { OnlineRequestTimeout } from '../../../src/services/onlineMusic/failure/onlineRequestLimit';
+import { onlineFailureOf } from '../../../src/services/onlineMusic/failure/onlineFailureCase';
+import { errorFields, errorMessage } from '../../../src/utils/errorText';
 import { registerQqLyricSource } from './qqLyricSource';
 
-// src/services/onlineMusic/qq/qqProvider.ts
+// sources/qq/core/qqProvider.ts
 
 const QQ_QUALITY_FALLBACKS: Record<
     AudioQualityPreference,

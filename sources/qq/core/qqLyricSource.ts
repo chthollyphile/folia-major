@@ -1,7 +1,7 @@
-import { registerLyricSourceAccess } from '../../../utils/lyrics/lyricSources';
+import { registerLyricSourceAccess } from '../../../src/utils/lyrics/lyricSources';
 import { fetchQQLyrics, searchQQLyrics } from './qqLyricProvider';
 
-// src/services/onlineMusic/qq/qqLyricSource.ts
+// sources/qq/core/qqLyricSource.ts
 // How QQ is reached as a lyric source: its lyrics are read from QQ's own lyric service, which needs no QQ
 // account and knows a song by its mid. Registered when the provider loads (Folium 2.0 S1: moved here from
 // the host's lyricMatchSources.ts, which imported qqLyricProvider directly).

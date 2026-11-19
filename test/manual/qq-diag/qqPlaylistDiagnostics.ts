@@ -1,9 +1,9 @@
-import { OnlineProviderError, type ProviderCollection } from '../../../types/onlineMusic';
-import { normalizeQqCollection } from './qqNormalize';
-import { qqProvider } from './qqProvider';
-import { hasQqSession, requestQq } from './qqTransport';
+import { OnlineProviderError, type ProviderCollection } from '../../../src/types/onlineMusic';
+import { normalizeQqCollection } from '../../../sources/qq/core/qqNormalize';
+import { qqProvider } from '../../../sources/qq/core/qqProvider';
+import { hasQqSession, requestQq } from '../../../sources/qq/core/qqTransport';
 
-// src/services/onlineMusic/qq/qqPlaylistDiagnostics.ts
+// test/manual/qq-diag/qqPlaylistDiagnostics.ts
 
 /**
  * 只读探针：把 QQ 歌单这条链路上的原始标识字段暴露出来，用于定位「自建歌单全部为空」。

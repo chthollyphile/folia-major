@@ -5,10 +5,10 @@ import {
     type RecommendationPreferenceLabel,
     type RecommendationPreferences,
     type RecommendationPreferencesSaveResult,
-} from '../../../types/onlineMusic';
+} from '../../../src/types/onlineMusic';
 import { requestQq } from './qqTransport';
 
-// src/services/onlineMusic/qq/qqPreferences.ts
+// sources/qq/core/qqPreferences.ts
 // QQ 账号上的「我的音乐偏好」（qq-music-api 3.3.6 的 /user/recommendation-preferences 与 /update）。
 // 私人 FM 和每日 30 首共用这一份，所以说明行写「会影响所有推荐的歌」。分数换算只在这里：
 // 歌曲熟悉度、音乐情绪是三选一，分数 25／50／75；其余各项是比例，1–99，离 50 不到 5 就算 50（和官方页一样）。

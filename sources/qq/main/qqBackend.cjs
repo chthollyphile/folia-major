@@ -7,9 +7,9 @@ const {
   createStartupRecorder,
   describeError,
   findFreePort,
-} = require('../backendLifecycle.cjs');
+} = require('../../../electron/backendLifecycle.cjs');
 
-// electron/qq/qqBackend.cjs
+// sources/qq/main/qqBackend.cjs
 // QQ 音乐本地 API（@yakult-green-tea/qq-music-api）在主进程里的生命周期与诊断。
 // start()：port → listen（加载包即监听，等绑定成功）→ login-hooks，每一步经启动记录留下耗时与结果。
 // 包只回给客户端白名单过滤过的失败类别（failureStage / failureReason），扫码之后失败时界面只拿到一句

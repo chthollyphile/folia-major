@@ -6,7 +6,7 @@ import { autoMatchBestLyric } from '@/utils/lyrics/autoMatchBestLyric';
 import { fetchLyricsForMatchSource } from '@/utils/lyrics/lyricMatchSources';
 import { getLyricProviderLabel } from '@/utils/lyrics/lyricSourceLabels';
 import { fetchAmllDbLyrics } from '@/utils/lyrics/providers/amllDbProvider';
-import { fetchQQLyrics } from '@/services/onlineMusic/qq/qqLyricProvider';
+import { fetchQQLyrics } from '../../../sources/qq/core/qqLyricProvider';
 
 // test/unit/lyrics/lyricSourceStoredValues.test.ts
 // Pins what is stored about lyric sources: the preferred-source setting (its key and its values)
@@ -18,7 +18,7 @@ vi.mock('@/utils/lyrics/providers/amllDbProvider', async (importOriginal) => ({
     ...await importOriginal<typeof import('@/utils/lyrics/providers/amllDbProvider')>(),
     fetchAmllDbLyrics: vi.fn(),
 }));
-vi.mock('@/services/onlineMusic/qq/qqLyricProvider', () => ({ searchQQLyrics: vi.fn(), fetchQQLyrics: vi.fn() }));
+vi.mock('../../../sources/qq/core/qqLyricProvider', () => ({ searchQQLyrics: vi.fn(), fetchQQLyrics: vi.fn() }));
 
 const STORED_NAMES = ['netease', 'amll', 'qq', 'kugou', 'spotify'] as const;
 // Each one's name. KuGou's is its source mod's own (sources/kugou/locales, lyrics@1.crossSource.name).

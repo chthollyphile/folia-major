@@ -1,11 +1,11 @@
-import { OnlineProviderError } from '../../../types/onlineMusic';
-import { readProviderSessionValue, removeProviderSessionValue, writeProviderSessionValue } from '../providerStorage';
+import { OnlineProviderError } from '../../../src/types/onlineMusic';
+import { readProviderSessionValue, removeProviderSessionValue, writeProviderSessionValue } from '../../../src/services/onlineMusic/providerStorage';
 import { withLoginRequestLimit } from '@folia/folium-source-kit';
-import { withOnlineRequestLimit } from '../failure/onlineRequestLimit';
-import { lyricProxyWebUrl } from '../../lyricProxy';
-import { errorMessage } from '../../../utils/errorText';
+import { withOnlineRequestLimit } from '../../../src/services/onlineMusic/failure/onlineRequestLimit';
+import { lyricProxyWebUrl } from '../../../src/services/lyricProxy';
+import { errorMessage } from '../../../src/utils/errorText';
 
-// src/services/onlineMusic/qq/qqTransport.ts
+// sources/qq/core/qqTransport.ts
 
 export const QQ_OPERATIONS = [
     'login_qr_key', 'login_qr_create', 'login_qr_check', 'login_qr_cancel', 'login_status', 'logout',

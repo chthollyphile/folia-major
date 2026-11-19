@@ -5,9 +5,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // （{ profiles:[{ key, name, score }] }）与 /update（{ writeAttempted, verified }）；分数是虚构示例。
 
 const requestMock = vi.hoisted(() => vi.fn());
-vi.mock('@/services/onlineMusic/qq/qqTransport', () => ({ requestQq: requestMock }));
+vi.mock('../../../sources/qq/core/qqTransport', () => ({ requestQq: requestMock }));
 
-import { getQqRecommendationPreferences, saveQqRecommendationPreferences } from '@/services/onlineMusic/qq/qqPreferences';
+import { getQqRecommendationPreferences, saveQqRecommendationPreferences } from '../../../sources/qq/core/qqPreferences';
 import { normalizeRecommendationPreferences } from '@/services/onlineMusic/recommendationPreferences';
 import type { RecommendationPreferenceChoice, RecommendationPreferenceRatio } from '@/types/onlineMusic';
 import { OnlineProviderError } from '@/types/onlineMusic';

@@ -5,7 +5,7 @@ import { autoMatchBestLyric } from '@/utils/lyrics/autoMatchBestLyric';
 import { applyMatchedMetadata } from '@/services/localLibraryCatalogService';
 import { neteaseApi } from '@/services/onlineMusic/netease/netease';
 import { getLocalLibraryCatalogSnapshot } from '@/services/localLibraryEntityRepository';
-import { fetchQQLyrics, searchQQLyrics } from '@/services/onlineMusic/qq/qqLyricProvider';
+import { fetchQQLyrics, searchQQLyrics } from '../../../sources/qq/core/qqLyricProvider';
 import { getOnlineMusicProvider, registerOnlineMusicProvider, unregisterOnlineMusicProvider } from '@/services/onlineMusic/providerRegistry';
 
 // test/unit/services/localMusicLyricsMatch.test.ts
@@ -21,7 +21,7 @@ vi.mock('@/services/localLibraryCatalogService', () => ({ applyMatchedMetadata: 
 vi.mock('@/services/localLibraryEntityRepository', () => ({
     getLocalLibraryCatalogSnapshot: vi.fn().mockResolvedValue({ entities: [], assignments: [] }),
 }));
-vi.mock('@/services/onlineMusic/qq/qqLyricProvider', () => ({ searchQQLyrics: vi.fn(), fetchQQLyrics: vi.fn() }));
+vi.mock('../../../sources/qq/core/qqLyricProvider', () => ({ searchQQLyrics: vi.fn(), fetchQQLyrics: vi.fn() }));
 vi.mock('@/services/onlineMusic/netease/netease', () => ({
     neteaseApi: {
         cloudSearch: vi.fn(),

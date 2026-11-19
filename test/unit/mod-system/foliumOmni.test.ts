@@ -39,8 +39,8 @@ const { request: requestKugou, anonymousSearch: requestKugouAnonymousSearch } = 
 // to QQ's musicu directly (a song by its numeric songid, songs many at once).
 const requestQq = vi.hoisted(() => vi.fn());
 const requestQqMusicu = vi.hoisted(() => vi.fn());
-vi.mock('@/services/onlineMusic/qq/qqTransport', async (importOriginal) => ({
-    ...await importOriginal<typeof import('@/services/onlineMusic/qq/qqTransport')>(),
+vi.mock('../../../sources/qq/core/qqTransport', async (importOriginal) => ({
+    ...await importOriginal<typeof import('../../../sources/qq/core/qqTransport')>(),
     requestQq,
     requestQqMusicu,
 }));

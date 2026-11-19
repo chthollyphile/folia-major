@@ -5,9 +5,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // 数字与名字是虚构示例。
 
 const requestMock = vi.hoisted(() => vi.fn());
-vi.mock('@/services/onlineMusic/qq/qqTransport', () => ({ requestQq: requestMock }));
+vi.mock('../../../sources/qq/core/qqTransport', () => ({ requestQq: requestMock }));
 
-import { getQqListeningRankCollections, getQqListeningRankTracks } from '@/services/onlineMusic/qq/qqListeningRank';
+import { getQqListeningRankCollections, getQqListeningRankTracks } from '../../../sources/qq/core/qqListeningRank';
 import { OnlineProviderError } from '@/types/onlineMusic';
 import i18n from '@/i18n/config';
 

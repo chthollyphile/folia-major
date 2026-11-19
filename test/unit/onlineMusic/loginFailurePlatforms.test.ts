@@ -5,7 +5,7 @@ import { createBodianApi } from 'bodian-music-api';
 import { omni } from '@/services/onlineMusic/omni';
 import { neteaseApi } from '@/services/onlineMusic/netease/netease';
 import { getOnlineMusicProvider } from '@/services/onlineMusic/providerRegistry';
-import { requestQq, resetQqTransportRuntimeCache } from '@/services/onlineMusic/qq/qqTransport';
+import { requestQq, resetQqTransportRuntimeCache } from '../../../sources/qq/core/qqTransport';
 import type { LoginStep, LoginState } from '@/types/onlineMusic';
 import { loginCaseOf, loginFailureFacts } from '@/services/onlineMusic/login/loginFailureCase';
 import { failureNoteKey } from '@/components/login/window/loginView';

@@ -700,7 +700,7 @@ export const runLyricSourceOffsetAudit = async (options: CliOptions): Promise<Ly
         { applyDetectedChorusEffects, applyChorusRangesByTime },
     ] = await Promise.all([
         import('../../../src/services/onlineMusic/netease/netease'),
-        import('../../../src/services/onlineMusic/qq/qqLyricProvider'),
+        import('../../../sources/qq/core/qqLyricProvider'),
         import('../kugouLyricProvider'),
         import('../../../src/utils/lyrics/searchQuery'),
         import('../../../src/utils/lyrics/matchScore'),

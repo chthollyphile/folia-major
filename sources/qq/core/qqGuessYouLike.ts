@@ -1,12 +1,12 @@
-import i18n from '../../../i18n/config';
-import type { UnifiedSong } from '../../../types';
-import { OnlineProviderError, type PersonalFmRequestOptions, type ProviderCollection } from '../../../types/onlineMusic';
-import type { PersonalFmCatalog, PersonalFmSceneEntry } from '../../../types/personalFm';
-import { DEFAULT_PERSONAL_FM_CATALOG } from '../fmModes';
+import i18n from '../../../src/i18n/config';
+import type { UnifiedSong } from '../../../src/types';
+import { OnlineProviderError, type PersonalFmRequestOptions, type ProviderCollection } from '../../../src/types/onlineMusic';
+import type { PersonalFmCatalog, PersonalFmSceneEntry } from '../../../src/types/personalFm';
+import { DEFAULT_PERSONAL_FM_CATALOG } from '../../../src/services/onlineMusic/fmModes';
 import { normalizeQqSong } from './qqNormalize';
 import { hasUsableQqSession, requestQq } from './qqTransport';
 
-// src/services/onlineMusic/qq/qqGuessYouLike.ts
+// sources/qq/core/qqGuessYouLike.ts
 // 猜你喜欢（QQ 的电台 99）作为 QQ 的额外电台（station）：电台页多一张卡，点了开 FM；FM 模式选择器在它播的时候
 // 换成它自己的「听歌模式」。手机上排的探索、默认、熟悉对上同名的模式，下面那一格（R&B、助眠、动感 DJ……）当场景，
 // 场景的 id 就是模式的 poolId。取歌只带 poolId，不写账号的模式设置；模式选择只在内存里，换台、FM 结束、重开都回默认。

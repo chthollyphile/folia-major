@@ -1,7 +1,7 @@
-import type { MediaId, ProviderUser } from '../../../types/onlineMusic';
+import type { MediaId, ProviderUser } from '../../../src/types/onlineMusic';
 import { requestQq } from './qqTransport';
 
-// src/services/onlineMusic/qq/qqAccount.ts
+// sources/qq/core/qqAccount.ts
 // QQ 音乐账号的两样补充资料（qq-music-api 3.3.3）：会员等级，和喜欢清单没读完整时逐首确认的红心。
 
 // `/user/vip` 的三级会员换成 ProviderUser.vipType：免费 0、绿钻 1、超级会员 2。判断不出来（unknown）不填，不当成免费。

@@ -1,8 +1,8 @@
-import { OnlineProviderError } from '../../../types/onlineMusic';
-import type { OnlineFailureDetail, OnlineFailureOperation } from '../../../types/onlineMusic';
+import { OnlineProviderError } from '../../../src/types/onlineMusic';
+import type { OnlineFailureDetail, OnlineFailureOperation } from '../../../src/types/onlineMusic';
 import { QQ_API_BASE_MISSING, QQ_API_NOT_RUNNING, readBackendMessage, readUpstreamRefusalCode } from './qqTransport';
 
-// src/services/onlineMusic/qq/qqFailure.ts
+// sources/qq/core/qqFailure.ts
 // QQ 音乐要播放地址、读歌单和专辑的歌曲没有成功时交出的事实（services/onlineMusic/failure/）。
 // 后端的错误是什么意思，只在这里说（登录的那一份在 qqLoginFailure.ts，HTTP 状态的读法两边共用）。
 

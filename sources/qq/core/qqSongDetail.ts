@@ -1,10 +1,10 @@
-import type { UnifiedSong } from '../../../types';
-import type { MediaId } from '../../../types/onlineMusic';
-import { OnlineProviderError } from '../../../types/onlineMusic';
+import type { UnifiedSong } from '../../../src/types';
+import type { MediaId } from '../../../src/types/onlineMusic';
+import { OnlineProviderError } from '../../../src/types/onlineMusic';
 import { normalizeQqSong } from './qqNormalize';
 import { requestQq, requestQqMusicu, type QqMusicuAnswer, type QqMusicuRequest } from './qqTransport';
 
-// src/services/onlineMusic/qq/qqSongDetail.ts
+// sources/qq/core/qqSongDetail.ts
 // `/getSongInfo` 单曲详情：播放侧的 getSongDetail、搜索结果补 mid、歌单写入补数字 id 都用它。
 // 按数字 songid 的查询和批量查询不经后端，经 `requestQqMusicu`。
 

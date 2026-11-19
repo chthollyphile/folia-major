@@ -1,8 +1,8 @@
-import type { LoginDiagnosticLine } from '../../../types/onlineMusic';
-import { diagnosticLine, formatDiagnosticClock } from '../login/loginDiagnosticReport';
-import { formatBackendApp, formatBackendStartup, formatFields, formatListen, formatRecentConnections, formatValue, readBackendSnapshot } from '../login/loginBackendDiagnostics';
+import type { LoginDiagnosticLine } from '../../../src/types/onlineMusic';
+import { diagnosticLine, formatDiagnosticClock } from '../../../src/services/onlineMusic/login/loginDiagnosticReport';
+import { formatBackendApp, formatBackendStartup, formatFields, formatListen, formatRecentConnections, formatValue, readBackendSnapshot } from '../../../src/services/onlineMusic/login/loginBackendDiagnostics';
 
-// src/services/onlineMusic/qq/qqLoginDiagnostics.ts
+// sources/qq/core/qqLoginDiagnostics.ts
 // QQ 扫码登录诊断报告里的 provider 专属部分：渲染进程这边的会话状态，和桌面版主进程里内嵌 qq-music-api 的
 // 快照（electron/qq/qqBackend.cjs：包内扫码服务的失败、qq-auth.* 日志事件、上游连接）。
 

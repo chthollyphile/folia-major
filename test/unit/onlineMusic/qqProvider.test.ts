@@ -10,8 +10,8 @@ const searchQQSongsMock = vi.hoisted(() => vi.fn());
 const fetchQQLyricsMock = vi.hoisted(() => vi.fn());
 const transportState = vi.hoisted(() => ({ hasSession: true, parked: false }));
 
-vi.mock('@/services/onlineMusic/qq/qqTransport', async importOriginal => ({
-    ...await importOriginal<typeof import('@/services/onlineMusic/qq/qqTransport')>(),
+vi.mock('../../../sources/qq/core/qqTransport', async importOriginal => ({
+    ...await importOriginal<typeof import('../../../sources/qq/core/qqTransport')>(),
     getQqTransportAvailability: () => ({ configured: true }),
     getQqRemoteApiBase: () => 'https://qq.example.test',
     hasQqSession: () => transportState.hasSession,
@@ -27,22 +27,22 @@ vi.mock('@/services/onlineMusic/providerStorage', () => ({
 }));
 
 // 登录确认后的续期在后台接着问后端（qqSessionRefresh.ts，有它自己的测试）；这里不让它占 requestMock 排好的回答。
-vi.mock('@/services/onlineMusic/qq/qqSessionRefresh', () => ({
+vi.mock('../../../sources/qq/core/qqSessionRefresh', () => ({
     keepQqSessionFresh: () => { },
     stopQqSessionRefresh: () => { },
     resetQqSessionRefresh: () => { },
 }));
 
-vi.mock('@/services/onlineMusic/qq/qqLyricProvider', () => ({
+vi.mock('../../../sources/qq/core/qqLyricProvider', () => ({
     searchQQSongs: searchQQSongsMock,
     fetchQQLyrics: fetchQQLyricsMock,
 }));
 
-import { getQqGuessYouLikeCard, getQqGuessYouLikeCatalog, getQqGuessYouLikeBatch } from '@/services/onlineMusic/qq/qqGuessYouLike';
-import { qqProvider, resetQqProviderRuntimeCache } from '@/services/onlineMusic/qq/qqProvider';
-import { normalizeQqCollection, normalizeQqSong, normalizeQqUser } from '@/services/onlineMusic/qq/qqNormalize';
-import { describeQqFailure } from '@/services/onlineMusic/qq/qqFailure';
-import { QQ_API_BASE_MISSING, QQ_ONLINE_REQUEST_LIMIT_MS } from '@/services/onlineMusic/qq/qqTransport';
+import { getQqGuessYouLikeCard, getQqGuessYouLikeCatalog, getQqGuessYouLikeBatch } from '../../../sources/qq/core/qqGuessYouLike';
+import { qqProvider, resetQqProviderRuntimeCache } from '../../../sources/qq/core/qqProvider';
+import { normalizeQqCollection, normalizeQqSong, normalizeQqUser } from '../../../sources/qq/core/qqNormalize';
+import { describeQqFailure } from '../../../sources/qq/core/qqFailure';
+import { QQ_API_BASE_MISSING, QQ_ONLINE_REQUEST_LIMIT_MS } from '../../../sources/qq/core/qqTransport';
 import { OnlineRequestTimeout } from '@/services/onlineMusic/failure/onlineRequestLimit';
 import { autoRetryDelaysMs, onlineFailureOf } from '@/services/onlineMusic/failure/onlineFailureCase';
 import { OnlineProviderError } from '@/types/onlineMusic';

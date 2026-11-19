@@ -1,11 +1,11 @@
-import i18n from '../../../i18n/config';
-import type { UnifiedSong } from '../../../types';
-import type { MediaId, ProviderCollection, ProviderPage, ProviderUser } from '../../../types/onlineMusic';
-import { OnlineProviderError } from '../../../types/onlineMusic';
+import i18n from '../../../src/i18n/config';
+import type { UnifiedSong } from '../../../src/types';
+import type { MediaId, ProviderCollection, ProviderPage, ProviderUser } from '../../../src/types/onlineMusic';
+import { OnlineProviderError } from '../../../src/types/onlineMusic';
 import { normalizeQqCollection, normalizeQqSong } from './qqNormalize';
 import { requestQq } from './qqTransport';
 
-// src/services/onlineMusic/qq/qqLists.ts
+// sources/qq/core/qqLists.ts
 // QQ 音乐里不是歌单、却当成集合打开的几样：排行榜、电台（探索页的卡片）和音乐云盘（qq-music-api 3.3.3）。
 // 卡片在 providerData 里记下自己是哪一种（`list`），getPlaylistTracks 按它改走这里。
 

@@ -25,7 +25,7 @@ import type { SongResult } from '@/types';
 // read), and is left out of everything else as `matching-only`; for playback and the interface it counts as
 // not enabled, and its songs show as having no source.
 
-vi.mock('@/services/onlineMusic/qq/qqLyricProvider', () => ({ searchQQLyrics: vi.fn(async () => []), fetchQQLyrics: vi.fn(async () => null) }));
+vi.mock('../../../sources/qq/core/qqLyricProvider', () => ({ searchQQLyrics: vi.fn(async () => []), fetchQQLyrics: vi.fn(async () => null) }));
 
 afterEach(() => {
     setSourceStates({});

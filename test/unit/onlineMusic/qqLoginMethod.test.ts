@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const requestMock = vi.hoisted(() => vi.fn());
 
-vi.mock('@/services/onlineMusic/qq/qqTransport', () => ({
+vi.mock('../../../sources/qq/core/qqTransport', () => ({
     getQqTransportAvailability: () => ({ configured: true }),
     hasQqSession: () => true,
     hasUsableQqSession: () => true,
@@ -18,14 +18,14 @@ vi.mock('@/services/onlineMusic/providerStorage', () => ({
     writeProviderSessionValue: vi.fn(),
 }));
 
-vi.mock('@/services/onlineMusic/qq/qqLyricProvider', () => ({
+vi.mock('../../../sources/qq/core/qqLyricProvider', () => ({
     searchQQLyrics: vi.fn(),
     searchQQSongs: vi.fn(),
     fetchQQLyrics: vi.fn(),
 }));
 
 import { omni } from '@/services/onlineMusic/omni';
-import { resetQqLoginChannelCache } from '@/services/onlineMusic/qq/qqProvider';
+import { resetQqLoginChannelCache } from '../../../sources/qq/core/qqProvider';
 
 describe('QQ login method selection', () => {
     beforeEach(() => {

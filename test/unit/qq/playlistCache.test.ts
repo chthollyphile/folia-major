@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { normalizeQqCollection } from '@/services/onlineMusic/qq/qqNormalize';
+import { normalizeQqCollection } from '../../../sources/qq/core/qqNormalize';
 import { createOnlineCollectionResource, type OnlineCollectionResourceDeps } from '@/library/core/collection/resource/onlineCollectionResource.service';
 import { createCollectionTrackSnapshot } from '@/library/core/collection/resource/collectionTrackSnapshot.service';
 import type { OnlineTracksCacheEntry } from '@/library/core/collection/resource/onlineCollectionCache.service';

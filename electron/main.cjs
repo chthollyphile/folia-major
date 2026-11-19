@@ -75,7 +75,7 @@ const { createCompanionClient } = require('./appleMusic/companionClient.cjs');
 const { createCompanionRequestHandler } = require('./appleMusic/companionIpc.cjs');
 const { createSpotifyApiBridge } = require('./spotify/spotifyApiBridge.cjs');
 const { SPOTIFY_AUDIO_PRIVILEGED_SCHEME, SPOTIFY_AUDIO_SCHEME } = require('./spotify/audio.cjs');
-const { createQqAuthSessionRepository } = require('./qq/qqAuthSessionRepository.cjs');
+const { createQqAuthSessionRepository } = require('../sources/qq/main/qqAuthSessionRepository.cjs');
 const { DEFAULT_DISCORD_APPLICATION_ID, createDiscordPresenceController } = require('./discordPresence.cjs');
 const { createVoiceInputPauseMonitor } = require('./voiceInputPause.cjs');
 const { createWindowSystemMenuGuard } = require('./windowSystemMenu.cjs');
@@ -4997,7 +4997,7 @@ async function clearCoverCacheDirectory() {
 
 const { createNetworkRecorder } = require('./networkRecorder.cjs');
 const { createNeteaseBackend } = require('./netease/neteaseBackend.cjs');
-const { createQqBackend } = require('./qq/qqBackend.cjs');
+const { createQqBackend } = require('../sources/qq/main/qqBackend.cjs');
 const { registerLoginBackendIpc } = require('./loginBackendIpc.cjs');
 
 // 主线程里内嵌后端的出站连接记录：要在它们发出请求之前开始订阅。工作线程里发出的请求另有一份记录（见 networkRecorder.cjs）。

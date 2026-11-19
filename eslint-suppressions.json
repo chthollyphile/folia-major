@@ -1020,17 +1020,17 @@
       "count": 3
     }
   },
-  "electron/qq/qqApiStartup.cjs": {
+  "sources/qq/main/qqApiStartup.cjs": {
     "@stylistic/indent": {
       "count": 93
     }
   },
-  "electron/qq/qqAuthSessionRepository.cjs": {
+  "sources/qq/main/qqAuthSessionRepository.cjs": {
     "@stylistic/indent": {
       "count": 82
     }
   },
-  "electron/qq/qqBackend.cjs": {
+  "sources/qq/main/qqBackend.cjs": {
     "@stylistic/indent": {
       "count": 178
     },
@@ -9823,7 +9823,7 @@
       "count": 9
     }
   },
-  "src/services/onlineMusic/qq/qqAccount.ts": {
+  "sources/qq/core/qqAccount.ts": {
     "@typescript-eslint/no-explicit-any": {
       "count": 2
     },
@@ -9837,7 +9837,7 @@
       "count": 6
     }
   },
-  "src/services/onlineMusic/qq/qqExplore.ts": {
+  "sources/qq/core/qqExplore.ts": {
     "@typescript-eslint/no-explicit-any": {
       "count": 16
     },
@@ -9869,7 +9869,7 @@
       "count": 1
     }
   },
-  "src/services/onlineMusic/qq/qqGuessYouLike.ts": {
+  "sources/qq/core/qqGuessYouLike.ts": {
     "@typescript-eslint/no-explicit-any": {
       "count": 9
     },
@@ -9895,7 +9895,7 @@
       "count": 2
     }
   },
-  "src/services/onlineMusic/qq/qqListeningRank.ts": {
+  "sources/qq/core/qqListeningRank.ts": {
     "@typescript-eslint/no-explicit-any": {
       "count": 1
     },
@@ -9906,7 +9906,7 @@
       "count": 3
     }
   },
-  "src/services/onlineMusic/qq/qqLists.ts": {
+  "sources/qq/core/qqLists.ts": {
     "@typescript-eslint/no-explicit-any": {
       "count": 9
     },
@@ -9929,7 +9929,7 @@
       "count": 2
     }
   },
-  "src/services/onlineMusic/qq/qqLoginDiagnostics.ts": {
+  "sources/qq/core/qqLoginDiagnostics.ts": {
     "@typescript-eslint/no-base-to-string": {
       "count": 1
     },
@@ -9940,7 +9940,7 @@
       "count": 2
     }
   },
-  "src/services/onlineMusic/qq/qqLoginFailure.ts": {
+  "sources/qq/core/qqLoginFailure.ts": {
     "@typescript-eslint/no-explicit-any": {
       "count": 2
     },
@@ -9957,7 +9957,7 @@
       "count": 13
     }
   },
-  "src/services/onlineMusic/qq/qqLyricProvider.ts": {
+  "sources/qq/core/qqLyricProvider.ts": {
     "@stylistic/indent": {
       "count": 150
     },
@@ -9998,12 +9998,12 @@
       "count": 1
     }
   },
-  "src/services/onlineMusic/qq/qqLyricSource.ts": {
+  "sources/qq/core/qqLyricSource.ts": {
     "@typescript-eslint/no-unsafe-assignment": {
       "count": 1
     }
   },
-  "src/services/onlineMusic/qq/qqMutations.ts": {
+  "sources/qq/core/qqMutations.ts": {
     "@typescript-eslint/no-base-to-string": {
       "count": 2
     },
@@ -10023,7 +10023,7 @@
       "count": 17
     }
   },
-  "src/services/onlineMusic/qq/qqNormalize.ts": {
+  "sources/qq/core/qqNormalize.ts": {
     "@typescript-eslint/no-base-to-string": {
       "count": 1
     },
@@ -10049,7 +10049,7 @@
       "count": 1
     }
   },
-  "src/services/onlineMusic/qq/qqPlaylistDiagnostics.ts": {
+  "test/manual/qq-diag/qqPlaylistDiagnostics.ts": {
     "@typescript-eslint/no-explicit-any": {
       "count": 4
     },
@@ -10078,7 +10078,7 @@
       "count": 1
     }
   },
-  "src/services/onlineMusic/qq/qqPreferences.ts": {
+  "sources/qq/core/qqPreferences.ts": {
     "@typescript-eslint/no-explicit-any": {
       "count": 2
     },
@@ -10098,7 +10098,7 @@
       "count": 8
     }
   },
-  "src/services/onlineMusic/qq/qqPreview.ts": {
+  "sources/qq/core/qqPreview.ts": {
     "@typescript-eslint/no-explicit-any": {
       "count": 2
     },
@@ -10115,7 +10115,7 @@
       "count": 4
     }
   },
-  "src/services/onlineMusic/qq/qqProvider.ts": {
+  "sources/qq/core/qqProvider.ts": {
     "@typescript-eslint/no-base-to-string": {
       "count": 4
     },
@@ -10156,7 +10156,7 @@
       "count": 2
     }
   },
-  "src/services/onlineMusic/qq/qqRecommendations.ts": {
+  "sources/qq/core/qqRecommendations.ts": {
     "@typescript-eslint/no-explicit-any": {
       "count": 8
     },
@@ -10179,7 +10179,7 @@
       "count": 1
     }
   },
-  "src/services/onlineMusic/qq/qqSearch.ts": {
+  "sources/qq/core/qqSearch.ts": {
     "@typescript-eslint/no-explicit-any": {
       "count": 2
     },
@@ -10193,7 +10193,7 @@
       "count": 13
     }
   },
-  "src/services/onlineMusic/qq/qqSessionRefresh.ts": {
+  "sources/qq/core/qqSessionRefresh.ts": {
     "@typescript-eslint/no-explicit-any": {
       "count": 1
     },
@@ -10210,7 +10210,7 @@
       "count": 4
     }
   },
-  "src/services/onlineMusic/qq/qqSongDetail.ts": {
+  "sources/qq/core/qqSongDetail.ts": {
     "@typescript-eslint/no-explicit-any": {
       "count": 1
     },
@@ -10221,7 +10221,7 @@
       "count": 1
     }
   },
-  "src/services/onlineMusic/qq/qqTransport.ts": {
+  "sources/qq/core/qqTransport.ts": {
     "@typescript-eslint/no-dynamic-delete": {
       "count": 1
     },
@@ -10253,7 +10253,7 @@
       "count": 1
     }
   },
-  "src/services/onlineMusic/qq/qrcDecrypt.ts": {
+  "sources/qq/core/qrcDecrypt.ts": {
     "@stylistic/indent": {
       "count": 210
     },
