@@ -83,6 +83,19 @@ export const listOnlineMusicProviders = (): OnlineMusicProvider[] => {
     return orderedProviders.slice();
 };
 
+/**
+ * `ids` in the order of listOnlineMusicProviders: the nine built-in platforms in their place, then the other
+ * registered sources by registration, then the ids not registered now (a source mod switched off), as given.
+ */
+export const sortOnlineMusicSourceIds = (ids: readonly OnlineProviderId[]): OnlineProviderId[] => {
+    const rank = (id: OnlineProviderId) => (BUILT_IN_SOURCE_ORDER.includes(id) || providers.has(id) ? rankOf(id) : Number.POSITIVE_INFINITY);
+    return [...ids].sort((a, b) => {
+        const left = rank(a);
+        const right = rank(b);
+        return left === right ? 0 : left < right ? -1 : 1;
+    });
+};
+
 export const requireOnlineMusicProvider = (providerId: OnlineProviderId): OnlineMusicProvider => {
     const provider = getOnlineMusicProvider(providerId);
     if (!provider) {

@@ -6,6 +6,7 @@ import { useCrossSourceParticipants } from '../../../../hooks/useCrossSourcePart
 import type { CrossSourceSkipReason } from '../../../../services/onlineMusic/crossSource';
 import { resyncAllFolders } from '../../../../services/localMusicService';
 import { useLyricSettingsStore } from '../../../../stores/useLyricSettingsStore';
+import { openSettings } from '../../../../stores/useSettingsModalStore';
 import { setStatusMessage } from '../../../../stores/useStatusMessageStore';
 import { DEFAULT_LOCAL_LYRIC_FORMAT_ORDER, isSameLocalLyricFormatOrder, type LocalLyricFileFormat } from '../../../../utils/lyrics/localLyricFormatOrder';
 import { getLyricProviderPreferenceLabel } from '../../../../utils/lyrics/lyricSourceLabels';
@@ -72,12 +73,30 @@ const LyricsPage: React.FC = () => {
         : buildLyricSourceOrder(DEFAULT_PREFERRED_LYRIC_SOURCE).find(source => sources.includes(source)) ?? DEFAULT_PREFERRED_LYRIC_SOURCE;
     // Said once, under the choice, while the listener's own choice is left out: which source, and why.
     const preferredSkip = skipped.find(skip => skip.sourceId === lyric.preferredSource);
+    // A source switched off or kept for matching is switched back in Settings → Sources (Folium 2.0 plan §7.1): the
+    // line ends on the way there. One that needs an account, or is not set up, is not settled there.
     const preferredSkipNote = preferredSkip
-        ? t('options.lyricPreferredSourceSkipped', {
-            source: getLyricProviderPreferenceLabel(preferredSkip.sourceId),
-            reason: t(CROSS_SOURCE_SKIP_REASON_KEYS[preferredSkip.reason]),
-            next: getLyricProviderPreferenceLabel(shownSource),
-        })
+        ? (
+            <>
+                {t('options.lyricPreferredSourceSkipped', {
+                    source: getLyricProviderPreferenceLabel(preferredSkip.sourceId),
+                    reason: t(CROSS_SOURCE_SKIP_REASON_KEYS[preferredSkip.reason]),
+                    next: getLyricProviderPreferenceLabel(shownSource),
+                })}
+                {(preferredSkip.reason === 'not-enabled' || preferredSkip.reason === 'matching-only') && window.electron && (
+                    <>
+                        {' '}
+                        <button
+                            type="button"
+                            onClick={() => openSettings('options', 'sources', null, 'sourceList')}
+                            className="st-t-fast rounded-[3px] underline decoration-[var(--st-line2)] underline-offset-2 transition-colors hover:text-[color:var(--st-t1)] hover:decoration-current"
+                        >
+                            {t('sourcesSettings.openFromLyrics')}
+                        </button>
+                    </>
+                )}
+            </>
+        )
         : undefined;
 
     // A new order only applies on the next scan of the local folders, so a change offers one.

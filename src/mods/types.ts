@@ -88,6 +88,8 @@ export interface ModSourceInfo {
     /** Takes over a source this installation does not carry (the compliance plan). */
     takeover: boolean;
     requires: string[];
+    /** The short id its manifest claims (`sources[].claims.id`), held or not; null without a claim. Absent from an older main process. */
+    claims?: string | null;
 }
 
 /** Folium 2.0: where a mod's Node entry stands; 'deferred' is a source used only for matching before its first rpc. */

@@ -19,6 +19,7 @@ export const MOD_INTEGRATION_POINTS = [
     'src/components/command-palette/surfaces/modsSurface.ts',
     'src/components/modal/settings/pages/GlobalShortcutsGroup.tsx',
     'src/components/modal/settings/pages/ModsPage.tsx',
+    'src/components/modal/settings/pages/sources/useSourcesSettings.ts',
     'src/components/modal/settings/pages/storage/visualConfigTransfer.ts',
     'src/components/remote/RemoteActionButtons.tsx', // README 没写（待补）
     'src/components/scenes/settings/SceneRow.tsx',
