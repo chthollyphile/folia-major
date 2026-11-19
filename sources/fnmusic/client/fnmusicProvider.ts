@@ -1,5 +1,5 @@
-import type { Artist, SongResult, UnifiedSong } from '../../../types';
-import { OnlineProviderError } from '../../../types/onlineMusic';
+import type { Artist, SongResult, UnifiedSong } from '../../../src/types';
+import { OnlineProviderError } from '../../../src/types/onlineMusic';
 import type {
     AudioQualityPreference,
     LoginFailureDetail,
@@ -12,8 +12,8 @@ import type {
     ProviderLyricsResult,
     ProviderPage,
     ProviderUser,
-} from '../../../types/onlineMusic';
-import { parseFoliaLyricDocument } from '../../../utils/lyrics/foliaLyricDocument';
+} from '../../../src/types/onlineMusic';
+import { parseFoliaLyricDocument } from '../../../src/utils/lyrics/foliaLyricDocument';
 import {
     fnMusicBridgeStatus,
     fnMusicCoverUrl,
@@ -23,7 +23,7 @@ import {
     fnmusicRequest,
 } from './fnmusicTransport';
 
-// src/services/onlineMusic/fnmusic/fnmusicProvider.ts
+// sources/fnmusic/client/fnmusicProvider.ts
 // 飞牛音乐（飞牛 fnOS 官方音乐服务器）provider。
 //
 // 协议说明：见 docs/fnmusic-protocol.md，字段映射：

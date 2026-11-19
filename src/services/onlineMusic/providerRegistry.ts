@@ -8,7 +8,7 @@ import { qqProvider } from './qq/qqProvider';
 import { ytmProvider } from './ytm/ytmProvider';
 import { spotifyProvider } from './spotify/spotifyProvider';
 import { appleMusicProvider } from './appleMusic/appleMusicProvider';
-import { fnmusicProvider } from './fnmusic/fnmusicProvider';
+import { fnmusicProvider } from '../../../sources/fnmusic/client/fnmusicProvider';
 import { startsWithoutSources } from '../../dev/devLaunchFlags';
 
 // src/services/onlineMusic/providerRegistry.ts

@@ -1010,8 +1010,8 @@ declare global {
       getKugouApiStatus: () => Promise<ElectronKugouApiStatus>;
       fnmusicRequest: (
         operation: 'login' | 'logout' | 'request' | 'stream' | 'coverUrl' | 'getStatus',
-        params?: import('./services/onlineMusic/fnmusic/fnmusicTransport').FnMusicBridgeParams,
-      ) => Promise<import('./services/onlineMusic/fnmusic/fnmusicTransport').FnMusicBridgeResult>;
+        params?: import('../sources/fnmusic/client/fnmusicTransport').FnMusicBridgeParams,
+      ) => Promise<import('../sources/fnmusic/client/fnmusicTransport').FnMusicBridgeResult>;
       ytmRequest: (
         operation: import('./services/onlineMusic/ytm/ytmTransport').YtmOperation,
         params?: import('./services/onlineMusic/ytm/ytmTransport').YtmParams,

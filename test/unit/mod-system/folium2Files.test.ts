@@ -192,7 +192,7 @@ describe('the trusted table of the built-in sources (§5.1)', () => {
                 constant('electron/spotify/spotifyApiBridge.cjs', 'PLAYBACK_KEY')!,
                 constant('electron/spotify/spotifyApiBridge.cjs', 'DEVICE_KEY')!,
             ],
-            fnmusic: [constant('electron/fnmusic/fnmusicApiBridge.cjs', 'CONFIG_STORE_KEY')!, constant('electron/fnmusic/fnmusicApiBridge.cjs', 'DEVICE_STORE_KEY')!],
+            fnmusic: [constant('sources/fnmusic/main/fnmusicApiBridge.cjs', 'CONFIG_STORE_KEY')!, constant('sources/fnmusic/main/fnmusicApiBridge.cjs', 'DEVICE_STORE_KEY')!],
         };
         Object.entries(expected).forEach(([modId, keys]) => {
             expect(BUILTIN_SOURCE_TABLE[modId].storeKeys, modId).toEqual(keys);

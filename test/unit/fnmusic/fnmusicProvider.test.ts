@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fnMusicCoverUrl, fnMusicLogin } from '@/services/onlineMusic/fnmusic/fnmusicTransport';
-import { fnmusicProvider, normalizeFnMusicSong } from '@/services/onlineMusic/fnmusic/fnmusicProvider';
+import { fnMusicCoverUrl, fnMusicLogin } from '../../../sources/fnmusic/client/fnmusicTransport';
+import { fnmusicProvider, normalizeFnMusicSong } from '../../../sources/fnmusic/client/fnmusicProvider';
 
 // test/unit/fnmusic/fnmusicProvider.test.ts
 // 归一化、登录参数与封面地址的逻辑测试：桥的答复用替身，不碰真实 fnOS 服务。

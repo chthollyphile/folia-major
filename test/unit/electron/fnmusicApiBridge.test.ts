@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 // and protocol URL shaping for the fnOS (飞牛) music bridge.
 
 const require = createRequire(import.meta.url);
-const { createFnmusicApiBridge, resolveServerCandidates, normalizeBase, buildAuthCookie, FN_MUSIC_SCHEME, FN_MUSIC_PRIVILEGED_SCHEME } = require('../../../electron/fnmusic/fnmusicApiBridge.cjs');
+const { createFnmusicApiBridge, resolveServerCandidates, normalizeBase, buildAuthCookie, FN_MUSIC_SCHEME, FN_MUSIC_PRIVILEGED_SCHEME } = require('../../../sources/fnmusic/main/fnmusicApiBridge.cjs');
 const https = require('node:https');
 
 const CONFIG_STORE_KEY = 'fnmusic-config';

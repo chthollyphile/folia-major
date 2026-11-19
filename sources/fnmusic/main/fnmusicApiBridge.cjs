@@ -1,4 +1,4 @@
-// electron/fnmusic/fnmusicApiBridge.cjs
+// sources/fnmusic/main/fnmusicApiBridge.cjs
 // 飞牛音乐（fnOS 官方音乐服务器）API 主进程桥。
 //
 // 为什么需要主进程桥：

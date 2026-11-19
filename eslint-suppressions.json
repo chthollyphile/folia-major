@@ -814,7 +814,7 @@
       "count": 1
     }
   },
-  "electron/fnmusic/fnmusicApiBridge.cjs": {
+  "sources/fnmusic/main/fnmusicApiBridge.cjs": {
     "@stylistic/indent": {
       "count": 306
     },
@@ -9510,7 +9510,7 @@
       "count": 1
     }
   },
-  "src/services/onlineMusic/fnmusic/fnmusicProvider.ts": {
+  "sources/fnmusic/client/fnmusicProvider.ts": {
     "@typescript-eslint/no-base-to-string": {
       "count": 1
     },
@@ -9545,7 +9545,7 @@
       "count": 1
     }
   },
-  "src/services/onlineMusic/fnmusic/fnmusicTransport.ts": {
+  "sources/fnmusic/client/fnmusicTransport.ts": {
     "@typescript-eslint/no-base-to-string": {
       "count": 1
     },

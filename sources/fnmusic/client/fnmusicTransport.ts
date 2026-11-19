@@ -1,6 +1,6 @@
-import { OnlineProviderError } from '../../../types/onlineMusic';
+import { OnlineProviderError } from '../../../src/types/onlineMusic';
 
-// src/services/onlineMusic/fnmusic/fnmusicTransport.ts
+// sources/fnmusic/client/fnmusicTransport.ts
 // 飞牛音乐（飞牛 fnOS 官方音乐服务器）协议客户端（仅桌面端渲染层）。
 //
 // 协议说明：见 docs/fnmusic-protocol.md：
