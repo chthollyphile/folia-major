@@ -14,6 +14,7 @@ const { resolveStageConnectionFilePath } = require('./stageConnectionFile.cjs');
 const { isCursorInsideUnlockHotspot, createUnlockHoverRequests, resolveUnlockHotspot } = require('./mainWindowClickThrough.cjs');
 const { shouldHideToTrayOnClose, shouldRebuildBeforeMacWallpaper, shouldRebuildAfterMacWallpaper } = require('./nativeTrafficLights.cjs');
 const { createModSystem } = require('./modSystem/modSystem.cjs');
+const { resolveNativeFile } = require('./modSystem/nativeFiles.cjs');
 const { MOD_PROTOCOL_PRIVILEGED_SCHEME, legacyMediaPrivilegedSchemes } = require('./modSystem/modProtocol.cjs');
 const { BUILTIN_LEGACY_MEDIA_SCHEMES } = require('./modSystem/builtinSources.cjs');
 const { createWindowPlaybackHandoffStore } = require('./windowPlaybackHandoff.cjs');
@@ -6503,6 +6504,11 @@ app.whenReady().then(async () => {
       reportError: (where, error) => crashLog.reportError(where, error, { announceToUser: false }),
       requestCachePrune: (limitBytes) => pruneMediaCache(limitBytes),
       openExternal: (url) => openExternalUrl(url),
+      // api.native.path / load: the native files the app ships for a built-in source (electron/modSystem/nativeFiles.cjs).
+      nativePath: (name) => resolveNativeFile(name, {
+        platform: process.platform, isPackaged: app.isPackaged, resourcesPath: process.resourcesPath,
+        projectRoot: path.join(__dirname, '..'), env: process.env,
+      }) || null,
     });
     modSystem.registerIpc();
     modSystem.startSources();

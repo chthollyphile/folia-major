@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 // Verify release path isolation and per-target native compilation without running a full package build.
 const require = createRequire(import.meta.url);
-const { resolveNativeExecutable } = require('../../../electron/modSystem/nativeFiles.cjs');
+const { resolveNativeExecutable, resolveNativeFile } = require('../../../electron/modSystem/nativeFiles.cjs');
 const { prepareMacCompanion, verifyMacCompanion } = require('../../../sources/appleMusic/native/macos/prepareBundle.cjs');
 const { WINDOWS_COMPANION_FILES, prepareWindowsCompanion, verifyWindowsCompanion } = require('../../../sources/appleMusic/native/windows/prepareBundle.cjs');
 const root = path.resolve('/project');
@@ -19,6 +19,15 @@ describe('Apple Music native delivery', () => {
     });
     it('uses bundled resources and ignores overrides in production', () => {
         expect(resolveNativeExecutable({ ...base, isPackaged: true, override: path.resolve('/custom/native') })).toBe(path.join(resources, 'apple-music/FoliaAppleMusicCompanion.app/Contents/MacOS/FoliaAppleMusicCompanion'));
+    });
+    it('resolves the companion by its native name for api.native.path, the override only in a development run', () => {
+        const context = { ...base, platform: 'win32', env: {} };
+        expect(resolveNativeFile('apple-music-companion', context)).toBe(path.join(root, 'build/apple-music-native/windows/FoliaAppleMusicCompanion.exe'));
+        const custom = path.resolve('/custom/native');
+        expect(resolveNativeFile('apple-music-companion', { ...context, env: { ELECTRON_DEV: 'true', FOLIA_APPLE_MUSIC_NATIVE: custom } })).toBe(custom);
+        expect(resolveNativeFile('apple-music-companion', { ...context, env: { FOLIA_APPLE_MUSIC_NATIVE: custom } })).toBe(path.join(root, 'build/apple-music-native/windows/FoliaAppleMusicCompanion.exe'));
+        expect(resolveNativeFile('apple-music-companion', { ...context, platform: 'linux' })).toBe('');
+        expect(resolveNativeFile('unknown-native', context)).toBe('');
     });
     it('never resolves a Linux host', () => {
         expect(resolveNativeExecutable({ ...base, platform: 'linux', override: path.resolve('/custom/native') })).toBe('');
