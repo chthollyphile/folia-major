@@ -27,8 +27,9 @@
 //
 // 安全约定（与桌面端其他平台的主进程桥一致）：
 //  - 服务器地址与凭据（token）只存在主进程：safeStorage 加密后写入 store，渲染进程只发操作。
-//  - 播放/封面走 folia-fnmusic:// 自定义协议转发：认证头实时取自主进程配置，请求 URL 不带凭据，
-//    也不暴露本地 HTTP 代理（protocol.handle 在渲染进程侧如同同源，无 CORS 限制）。
+//  - 播放/封面走模组的 _media 路由（folia-mod://fnmusic/_media/stream?guid=…、…/cover?coverId=…）转发：认证头实时取自
+//    主进程配置，请求 URL 不带凭据，也不暴露本地 HTTP 代理。迁成模组之前的 folia-fnmusic://stream?…、cover?… 由宿主
+//    （受信表的 legacyMediaSchemes）交给同样的路由，存下的歌的封面照旧能显示。
 //  - 证书校验只对私网地址放行（自签名局域网 NAS）；公网 FN Connect 中继等必须严格校验。
 //  - 日志只走 console.* 加 [FnMusic] 前缀，不写文件（避免凭据落盘）。
 
@@ -36,14 +37,6 @@ const crypto = require('crypto');
 const http = require('http');
 const https = require('https');
 const { Readable } = require('stream');
-
-// 播放/封面走自定义协议（协议地址稳定、重启不变）：无 CORS 限制、
-// 不暴露本地 HTTP 代理。privileges 必须在 app ready 前经 protocol.registerSchemesAsPrivileged 注册。
-const FN_MUSIC_SCHEME = 'folia-fnmusic';
-const FN_MUSIC_PRIVILEGED_SCHEME = {
-  scheme: FN_MUSIC_SCHEME,
-  privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true },
-};
 
 // 实测登录与 stream 均不需要 authx 签名（2026-10-28 服务端验证），因此不内嵌
 // 客户端标识/密钥、不为每个请求签名（与 UPSTREAMS 的约定一致）。
@@ -244,9 +237,12 @@ const performRequest = async ({
 
 /**
  * 主进程桥。服务器地址与 token 用 safeStorage 加密存进 store（渲染进程只发操作）。
- * @param {{ store: import('electron').ElectronStore, safeStorage: import('electron').safeStorage }} deps
+ * mediaUrl(name)：媒体路由的地址（main 入口交 api.media.url），stream / coverUrl 在它后面接查询串。
+ * @param {{ store: { get(key: string): unknown, set(key: string, value: unknown): void, delete?(key: string): void },
+ *   safeStorage: { isEncryptionAvailable(): boolean, encryptString(text: string): Buffer, decryptString(sealed: Buffer): string,
+ *   getSelectedStorageBackend?(): string }, mediaUrl: (name: 'stream' | 'cover') => string }} deps
  */
-const createFnmusicApiBridge = ({ store, safeStorage }) => {
+const createFnmusicApiBridge = ({ store, safeStorage, mediaUrl }) => {
 
   // 系统级加密不可用时的运行时配置（与其它主进程桥一致：加密不可用/基本存储时只在本次运行内保存）。
   let memoryConfig = null;
@@ -283,7 +279,7 @@ const createFnmusicApiBridge = ({ store, safeStorage }) => {
       memoryConfig = null;
     }
   };
-  // 播放/封面协议转发：把 folia-fnmusic:// 请求转发到 NAS（认证头从主进程配置实时取，
+  // 播放/封面转发：把媒体路由的读转发到 NAS（认证头从主进程配置实时取，
   // 自签名私网证书放行）。返回 protocol.handle 需要的 Response。
   const forwardUpstream = (config, pathname, params, { range } = {}) => new Promise((resolve) => {
     const targetUrl = new URL(`${config.base.replace(/\/+$/, '')}${pathname}`);
@@ -327,36 +323,31 @@ const createFnmusicApiBridge = ({ store, safeStorage }) => {
 
   const denied = (status) => new Response(null, { status, headers: { 'Access-Control-Allow-Origin': '*' } });
 
-  /** protocol.handle('folia-fnmusic') 处理器：/stream 与 /cover 两个端点，其余 404。
-   *  端点两种写法都接受：`folia-fnmusic://stream?…`（stream 作 host）与
-   *  `folia-fnmusic:///stream?…`（stream 作 path）。 */
-  const handleProtocolRequest = async (request) => {
+  /** 媒体路由 stream 的处理函数（api.media.serve 交来的一次读）：?guid= 指哪首歌，Range 原样带上。 */
+  const serveStream = async ({ query, range }) => {
     const config = readConfig();
     if (!config?.base) return denied(403);
-    const u = new URL(request.url);
-    const endpoint = u.pathname === '/' || u.pathname === '' ? u.hostname : u.pathname.replace(/^\//, '');
-    const range = request.headers.get('range') || undefined;
-    if (endpoint === 'stream') {
-      const guid = u.searchParams.get('guid');
-      if (!guid) return denied(400);
-      const params = { guid };
-      // 2026-10-28 服务端实测：track/stream 不带 authx 同样返回音频（200 audio/x-flac）。
-      return forwardUpstream(config, '/music/api/v1/track/stream', params, { range });
-    }
-    if (endpoint === 'cover') {
-      const coverId = u.searchParams.get('coverId');
-      if (!coverId) return denied(400);
-      const params = { coverId };
-      const size = u.searchParams.get('size');
-      if (size) params.size = size;
-      return forwardUpstream(config, '/music/api/v1/static/cover', params);
-    }
-    return denied(404);
-  }
+    const guid = query?.guid;
+    if (!guid) return denied(400);
+    // 2026-10-28 服务端实测：track/stream 不带 authx 同样返回音频（200 audio/x-flac）。
+    return forwardUpstream(config, '/music/api/v1/track/stream', { guid }, { range: range || undefined });
+  };
+
+  /** 媒体路由 cover 的处理函数：?coverId=（与可选的 &size=）。 */
+  const serveCover = async ({ query }) => {
+    const config = readConfig();
+    if (!config?.base) return denied(403);
+    const coverId = query?.coverId;
+    if (!coverId) return denied(400);
+    const params = { coverId };
+    if (query.size) params.size = query.size;
+    return forwardUpstream(config, '/music/api/v1/static/cover', params);
+  };
 
   return {
-    /** protocol.handle('folia-fnmusic') 处理器：/stream 与 /cover（供 main.cjs 注册自定义协议）。 */
-    handleProtocolRequest,
+    /** 媒体路由 stream、cover 的处理函数（main 入口交给 api.media.serve）。 */
+    serveStream,
+    serveCover,
     /** 当前桥状态：是否已配置、是否已登录（登录态由渲染层通过 getStatus 感知）。 */
     getStatus() {
       const config = readConfig();
@@ -455,24 +446,24 @@ const createFnmusicApiBridge = ({ store, safeStorage }) => {
       return performRequest({ base: config.base, method: method || 'GET', path, params, body, token: config.token, relay: usesRelayCookie(config.base) });
     },
 
-    /** 播放地址：返回 folia-fnmusic:// 协议 URL（协议 handler 实时转发，URL 不带凭据）。 */
+    /** 播放地址：媒体路由 stream 的地址（路由实时转发，URL 不带凭据）。 */
     async stream({ trackId }) {
       const config = readConfig();
       if (!config?.base) return { ok: false, status: 0, error: { code: 'unconfigured', message: '飞牛尚未配置服务器' } };
       // track/stream 回原始文件，不分音质（协议只验证过 guid 参数），不转发音质。
       const q = new URLSearchParams({ guid: trackId });
-      return { ok: true, status: 200, data: { url: `folia-fnmusic://stream?${q.toString()}` } };
+      return { ok: true, status: 200, data: { url: `${mediaUrl('stream')}?${q.toString()}` } };
     },
 
-    /** 封面地址：返回 folia-fnmusic:// 协议 URL（coverId 由歌曲携带，地址在显示时生成）。 */
+    /** 封面地址：媒体路由 cover 的地址（coverId 由歌曲携带）。 */
     async coverUrl({ coverId, size }) {
       const config = readConfig();
       if (!config?.base) return { ok: false, status: 0, error: { code: 'unconfigured', message: '飞牛尚未配置服务器' } };
       const q = new URLSearchParams({ coverId });
       if (size) q.set('size', String(size));
-      return { ok: true, status: 200, data: { url: `folia-fnmusic://cover?${q.toString()}` } };
+      return { ok: true, status: 200, data: { url: `${mediaUrl('cover')}?${q.toString()}` } };
     },
   };
 };
 
-module.exports = { createFnmusicApiBridge, performRequest, resolveServerCandidates, normalizeBase, buildAuthCookie, FN_MUSIC_SCHEME, FN_MUSIC_PRIVILEGED_SCHEME };
+module.exports = { createFnmusicApiBridge, performRequest, resolveServerCandidates, normalizeBase, buildAuthCookie };
