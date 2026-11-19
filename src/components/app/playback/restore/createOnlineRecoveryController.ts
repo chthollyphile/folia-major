@@ -70,6 +70,12 @@ export const getOnlineRecoveryKey = (src: string | null | undefined): string | n
         if (parsedUrl.protocol === 'folia-ytm:' || parsedUrl.protocol === 'folia-spotify:') {
             return `${parsedUrl.protocol}//${parsedUrl.host}${parsedUrl.pathname}`;
         }
+        // A source mod's `_media` address that is made anew for every request carries its one-time key in `once`
+        // (api.media.serve): the rest of the address names the file.
+        if (parsedUrl.protocol === 'folia-mod:' && parsedUrl.searchParams.has('once')) {
+            parsedUrl.searchParams.delete('once');
+            return parsedUrl.href;
+        }
         // Only remote streams carry a token in the query; blob: and friends have no meaningful origin.
         if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') {
             return src;

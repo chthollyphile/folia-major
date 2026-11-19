@@ -4490,6 +4490,14 @@ export interface FoliumSourceNetSession {
     setProxy(config: Record<string, unknown>): Promise<void>;
     /** Electron's `session.clearStorageData`. */
     clearStorageData(options?: Record<string, unknown>): Promise<void>;
+    /**
+     * Answers every `http` or `https` request of this partition (its windows' and its fetches') with `handler`, which
+     * gets a web Request and answers a web Response (Electron's `session.protocol.handle`): a sandbox page that must
+     * never reach the network. Undone when the mod stops; returns what undoes it sooner.
+     */
+    intercept(scheme: 'http' | 'https', handler: (request: Request) => Response | Promise<Response>): FoliumDisposer;
+    /** Refuses every permission this partition's pages ask for or are checked for. Undone when the mod stops. */
+    refusePermissions(): FoliumDisposer;
 }
 
 /** Folium 2: what `api.net.request` takes: Electron's `net.request` options. */
@@ -4644,7 +4652,9 @@ export interface FoliumSourceMedia {
      * Answers `folia-mod://<mod id>/_media/<name>/…`: `handler` gets the read (FoliumSourceMediaServeRequest) and
      * answers a web Response; `{ file, contentType? }` for the host to serve with Range; `{ status?, headers?, body }`
      * (a string, bytes, a web or Node stream); or null for 404. A throw answers 502. `name` is lower case letters,
-     * digits and `-`. Returns what stops it.
+     * digits and `-`. Returns what stops it. An address the source makes anew for every request (a key good for one
+     * run) puts that key in the query parameter `once`: the host leaves `once` out where it compares two addresses of
+     * one file (a stream that keeps failing is fetched anew once, not for ever).
      */
     serve(name: string, handler: (request: FoliumSourceMediaServeRequest) => unknown): FoliumDisposer;
     /** `folia-mod://<mod id>/_media/<name>/<rest>`. */
@@ -4655,7 +4665,8 @@ export interface FoliumSourceMedia {
 export interface FoliumSourceWindows {
     /**
      * A hidden, sandboxed window without the app's preload (a sign-in, a signature sandbox), destroyed when the mod
-     * stops; `options.session` names its partition as `api.net.session` does. An Electron BrowserWindow.
+     * stops; `options.session` names its partition as `api.net.session` does, and `options.backgroundThrottling: false`
+     * keeps its timers running while it is hidden (its other web preferences are the host's). An Electron BrowserWindow.
      */
     hidden(options?: Record<string, unknown>): unknown;
     /** Whether the main window is there. */

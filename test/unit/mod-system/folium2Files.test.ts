@@ -237,7 +237,7 @@ describe('the trusted table of the built-in sources (§5.1)', () => {
         expect(main).toContain("'ytm-sign-in'");
         expect(main).toContain("'apple-music-companion'");
         expect(main).toContain("'soloist'");
-        expect(BUILTIN_SOURCE_TABLE.ytm.partitions).toEqual(['folia-ytm']);
+        expect(BUILTIN_SOURCE_TABLE.ytm.partitions).toEqual(['folia-ytm', 'folia-ytm-sandbox']);
         expect(BUILTIN_SOURCE_TABLE.spotify.partitions).toEqual(['folia-spotify']);
     });
 });

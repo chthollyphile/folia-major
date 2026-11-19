@@ -116,6 +116,13 @@ describe('online playback recovery bounds', () => {
             .toBe(getOnlineRecoveryKey('folia-ytm://audio/m9SMT5ipbxk?k=two'));
         expect(getOnlineRecoveryKey('folia-ytm://audio/m9SMT5ipbxk?k=one'))
             .not.toBe(getOnlineRecoveryKey('folia-ytm://audio/ZRtdQ81jPUQ?k=one'));
+        // 音源模组每次请求都新签的 _media 地址把一次性的 key 放在 once 里：同一个文件落在同一个重试 key 上，别的参数照旧算数。
+        expect(getOnlineRecoveryKey('folia-mod://x/_media/audio/a/high?once=one'))
+            .toBe(getOnlineRecoveryKey('folia-mod://x/_media/audio/a/high?once=two'));
+        expect(getOnlineRecoveryKey('folia-mod://x/_media/audio/a/high?once=one'))
+            .not.toBe(getOnlineRecoveryKey('folia-mod://x/_media/audio/b/high?once=one'));
+        expect(getOnlineRecoveryKey('folia-mod://x/_media/stream?guid=1'))
+            .not.toBe(getOnlineRecoveryKey('folia-mod://x/_media/stream?guid=2'));
         expect(getOnlineRecoveryKey('blob:folia/abc')).toBe('blob:folia/abc');
         expect(getOnlineRecoveryKey(null)).toBeNull();
     });

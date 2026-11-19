@@ -330,7 +330,7 @@ const createModSystem = ({
             const win = getMainWindowSafe();
             return win && !win.isDestroyed() ? dialog.showOpenDialog(win, options) : dialog.showOpenDialog(options);
         },
-        createHiddenWindow: ({ partition, webPreferences: _ignored, ...options }) => new BrowserWindow({
+        createHiddenWindow: ({ partition, backgroundThrottling, webPreferences: _ignored, ...options }) => new BrowserWindow({
             ...options,
             show: false,
             webPreferences: {
@@ -338,6 +338,7 @@ const createModSystem = ({
                 contextIsolation: true,
                 nodeIntegration: false,
                 ...(partition ? { partition } : {}),
+                ...(backgroundThrottling === false ? { backgroundThrottling: false } : {}),
             },
         }),
         diagnostics,
