@@ -1,3 +1,4 @@
+// @builtin-sources
 import { describe, expect, it } from 'vitest';
 import {
     buildLyricSourceOrder,
@@ -6,6 +7,7 @@ import {
 
 // test/unit/lyrics/sourcePriority.test.ts
 
+// Qishui's lyric source is its source mod's (sources/qishui/): registered here, it keeps the place the built-in table gave it.
 describe('lyric source priority', () => {
     it('defaults to QQ and retains every fallback exactly once', () => {
         expect(buildLyricSourceOrder()).toEqual(['qq', 'netease', 'amll', 'kugou', 'qishui', 'spotify', 'appleMusic']);

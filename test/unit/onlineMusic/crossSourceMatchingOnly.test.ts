@@ -115,15 +115,15 @@ describe('the live features with QQ and NetEase only for matching', () => {
             providers: [
                 { providerId: 'netease', requiresAccount: false, availability: { configured: true }, status: 'anonymous' },
                 { providerId: 'kugou', requiresAccount: false, availability: { configured: true }, status: 'anonymous' },
-                // Any other platform searched without an account. (It was Bodian until Bodian became a source mod in
-                // Folium 2.0 S5: its search declares `access: 'account'`, as the built-in rule had it for a platform with sign-in.)
-                { providerId: 'qishui', requiresAccount: false, availability: { configured: true }, status: 'anonymous' },
+                // Any other platform searched without an account. (It was Bodian, then Qishui, until each became a source
+                // mod in Folium 2.0 S5 and is no longer registered here without `// @builtin-sources`.)
+                { providerId: 'ytm', requiresAccount: false, availability: { configured: true }, status: 'anonymous' },
             ].filter(provider => listed.has(provider.providerId)) as never,
             activeProviderId: 'netease',
             hasLocalSongs: false,
             navidromeReady: false,
         });
-        expect(sources).toContain('qishui');
+        expect(sources).toContain('ytm');
         expect(sources).not.toContain('kugou');
     });
 });

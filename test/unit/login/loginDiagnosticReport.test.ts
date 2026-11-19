@@ -155,8 +155,9 @@ describe('QR login diagnostic report', () => {
                 }),
             };
             const declaring = listOnlineMusicProviders().filter(provider => provider.auth?.getLoginDiagnostics).map(provider => provider.id);
-            // The car adapter reports only safe stage/code fields, exercised in qishui/adapter.test.ts.
-            expect([...Object.keys(builders), 'qishui'].sort()).toEqual(declaring.sort());
+            // Platforms moved to source mods (Folium 2.0 S5) are not registered here: Qishui's lines (safe stage/code
+            // fields only) are exercised in qishui/adapter.test.ts and qishui/failure.test.ts.
+            expect(Object.keys(builders).sort()).toEqual(declaring.sort());
             for (const [providerId, build] of Object.entries(builders)) {
                 const report = reportOf(build());
                 expect(report, providerId).toContain('2873651094');

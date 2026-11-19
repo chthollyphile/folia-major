@@ -64,7 +64,7 @@ describe('what each platform declares for the sign-in window', () => {
             // The test runs where no browser tells the system: the note is the one for Windows and Linux.
             ytm: { title: 'home.loginTitleYtm', note: 'home.loginNoteYtmBrowser' },
             spotify: { title: 'home.loginTitleSpotify', note: 'home.loginNoteSpotify' },
-            qishui: { title: 'home.loginTitleQishui', note: 'home.loginNoteQishui' },
+            qishui: { title: 'folium-mod/qishui:login.title', note: 'folium-mod/qishui:login.note' },
             appleMusic: { title: 'home.loginTitleAppleMusic', note: 'home.loginNoteAppleMusic' },
         });
     });
