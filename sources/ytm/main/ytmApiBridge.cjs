@@ -171,6 +171,8 @@ function createYtmApiBridge({
   store, safeStorage, fetch, evaluate, language = () => 'zh-CN',
   loadLibraries = loadYtmLibraries, now = Date.now, log = (...args) => console.log(...args), warn = (...args) => console.warn(...args), sessionLimitMs = SESSION_LIMIT_MS,
   randomKey = () => crypto.randomBytes(16).toString('hex'),
+  // The address a track is served at (audio.cjs's `urlOf`): the source mod's `_media/audio` route.
+  audioUrl = undefined,
   mintToken = createYtmTokenMinter({ fetch, evaluate, now }).mint,
   wait = ms => new Promise(resolve => { setTimeout(resolve, ms); }),
   // The web sign-in: `signInFolder()` is the folder its browser window runs on, `browserSignIn`
@@ -270,7 +272,7 @@ function createYtmApiBridge({
   // requests go through the same guard.
   const memberSession = lazySession('member', () => createWebSession(undefined, webRepo.get(), true));
 
-  const audio = createYtmAudio({ loadPlan: (videoId, failed, level) => loadPlan(videoId, failed, level), now, randomKey, log, warn });
+  const audio = createYtmAudio({ loadPlan: (videoId, failed, level) => loadPlan(videoId, failed, level), urlOf: audioUrl, now, randomKey, log, warn });
 
   const forgetWeb = () => {
     webRepo.clear();
@@ -1330,6 +1332,8 @@ function createYtmApiBridge({
     },
     // Protocol handler for the audio scheme.
     handleAudioRequest: request => audio.handle(request),
+    // A read of the `_media/audio` route, taken apart (audio.cjs's `serve`).
+    serveAudio: read => audio.serve(read),
     // The app is quitting. The browser of a sign-in under way is ended: left running it would
     // hold its folder, and with it a Google session, past this run. Answers null when there is
     // nothing to wait for. Else the quit is to be held for the promise answered: it resolves once

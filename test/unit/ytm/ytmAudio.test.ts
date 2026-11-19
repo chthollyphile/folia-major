@@ -153,6 +153,26 @@ describe('YouTube Music audio scheme', () => {
         expect(new Uint8Array(await suffix.arrayBuffer())).toEqual(data.subarray(4990));
     });
 
+    it('hands out the address urlOf makes, and answers a read taken apart by serve as handle answers its URL', async () => {
+        const data = bytes(300);
+        const audio = createYtmAudio({
+            loadPlan: async () => instantPlan(data),
+            urlOf: (videoId: string, level: string, key: string) => `folia-mod://ytm/_media/audio/${videoId}/${level}?once=${key}`,
+        });
+        const { url } = await audio.issue(VIDEO, 'standard');
+        expect(url).toMatch(/^folia-mod:\/\/ytm\/_media\/audio\/m9SMT5ipbxk\/standard\?once=[a-f0-9]{32}$/);
+        const key = new URL(url).searchParams.get('once')!;
+        const part = await audio.serve({ videoId: VIDEO, level: 'standard', key, range: 'bytes=10-19' });
+        expect(part.status).toBe(206);
+        expect(part.headers.get('content-range')).toBe('bytes 10-19/300');
+        expect(new Uint8Array(await part.arrayBuffer())).toEqual(data.subarray(10, 20));
+        // A key of another level, or one never issued, is an address that will not come back; a bad id is no address.
+        expect((await audio.serve({ videoId: VIDEO, level: 'high', key })).status).toBe(503);
+        expect((await audio.serve({ videoId: VIDEO, level: 'standard', key: 'guess' })).status).toBe(503);
+        expect((await audio.serve({ videoId: 'no/such', level: 'standard', key })).type).toBe('error');
+        expect((await audio.serve({ videoId: VIDEO, level: 'standard', key, method: 'POST' })).type).toBe('error');
+    });
+
     it('answers a range past the end with 416 and no body', async () => {
         const audio = createYtmAudio({ loadPlan: async () => instantPlan(bytes(100)) });
         const { url } = await audio.issue(VIDEO);
