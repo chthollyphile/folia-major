@@ -173,6 +173,8 @@ function createYtmApiBridge({
   randomKey = () => crypto.randomBytes(16).toString('hex'),
   // The address a track is served at (audio.cjs's `urlOf`): the source mod's `_media/audio` route.
   audioUrl = undefined,
+  // Told of each web sign-in's work a quit is to wait for, as it begins (webSignIn.cjs's `onLeaving`).
+  onSignInWork = () => {},
   mintToken = createYtmTokenMinter({ fetch, evaluate, now }).mint,
   wait = ms => new Promise(resolve => { setTimeout(resolve, ms); }),
   // The web sign-in: `signInFolder()` is the folder its browser window runs on, `browserSignIn`
@@ -861,7 +863,7 @@ function createYtmApiBridge({
   const accountAnswer = user => ({ id: user.id, nickname: user.nickname, avatarUrl: user.avatarUrl, vipType: user.premium ? 1 : 0 });
 
   const webSignIn = createYtmWebSignIn({
-    browser: browserSignIn, profileDir: signInFolder, browserName, now, log, warn,
+    browser: browserSignIn, profileDir: signInFolder, browserName, now, log, warn, onLeaving: onSignInWork,
     // Asked on a session of its own, before anything is stored. An answer that is not marked as
     // given to a signed-in account means YouTube does not take the cookies.
     async accountOf(signIn) {

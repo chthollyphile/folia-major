@@ -46,9 +46,12 @@ export const createYtmLibrary = (store: FoliumSourcePageStore | null): FoliumSou
     async getUserPlaylists(userId, limit, offset) {
         const page = await libraryPage('user_playlists', 'playlist', limit, offset);
         const owned = readOwned(store, userId);
+        // What this read settled replaces what was kept: found to be the account's, or found not to be.
         const found = page.items.filter(item => item.isOwned === true && !owned.has(item.id));
-        if (found.length > 0) {
+        const lost = page.items.filter(item => item.isOwned === false && owned.has(item.id));
+        if (found.length > 0 || lost.length > 0) {
             found.forEach(item => owned.add(item.id));
+            lost.forEach(item => owned.delete(item.id));
             store?.set(OWNED_KEY, JSON.stringify({ userId, ids: [...owned].slice(-MAX_OWNED) }));
         }
         // An inconclusive detail should not erase confirmed ownership from the same account's earlier read.

@@ -42,4 +42,6 @@ export function createYtmApiBridge(options: {
     language?: () => string;
     signInFolder?: () => string | undefined;
     audioUrl?: (videoId: string, level: string, key: string) => string;
+    /** Told of the work a quit is to wait for as it begins: a web sign-in's browser to end and folder to remove. */
+    onSignInWork?: (done: Promise<unknown>) => void;
 }): YtmApiBridge;

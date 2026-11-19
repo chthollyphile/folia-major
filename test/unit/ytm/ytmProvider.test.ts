@@ -1118,6 +1118,9 @@ describe('YouTube Music catalog and library', () => {
         expect(own.items.map(item => item.isOwned)).toEqual([true, false]);
         const other = await library.getUserPlaylists('other', 50, 0);
         expect(other.items.map(item => item.isOwned)).toEqual([undefined, false]);
-        expect(JSON.parse(kept.get('online_provider:ytm:ownedPlaylists')!)).toEqual({ userId: 'owner', ids: ['PLunknown', 'PLnotOwned'] });
+        // A read that settled one as not the account's took it out of what is kept.
+        expect(JSON.parse(kept.get('online_provider:ytm:ownedPlaylists')!)).toEqual({ userId: 'owner', ids: ['PLunknown'] });
+        request.mockResolvedValue({ items: [playlist('PLunknown'), playlist('PLnotOwned')] });
+        expect((await library.getUserPlaylists('owner', 50, 0)).items.map(item => item.isOwned)).toEqual([true, undefined]);
     });
 });

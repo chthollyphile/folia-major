@@ -72,7 +72,10 @@ const launch = () => {
             serve: (name: string, handler: Handler) => { media.set(name, handler); return () => {}; },
         },
         rpc: { handle: (name: string, handler: Handler) => { rpc.set(name, handler); } },
-        onBeforeQuit: (handler: Handler) => { beforeQuit.push(handler); return () => {}; },
+        onBeforeQuit: (handler: Handler) => {
+            beforeQuit.push(handler);
+            return () => { const at = beforeQuit.indexOf(handler); if (at >= 0) beforeQuit.splice(at, 1); };
+        },
         onBeforeUnload: (handler: Handler) => { beforeUnload.push(handler); return () => {}; },
     };
     activate(api as never);
@@ -153,6 +156,11 @@ describe('YouTube Music main entry (source mod)', () => {
 
     it('takes the window’s operations on rpc `request`, and holds a quit or an unload for a sign-in under way', async () => {
         const { rpc, beforeQuit, beforeUnload, options, windows } = launch();
+        // No sign-in under way: a quit is not held at all (no handler), as main.cjs did not hold it.
+        expect(beforeQuit).toHaveLength(0);
+        let signInDone!: () => void;
+        options.onSignInWork(new Promise<void>(resolve => { signInDone = resolve; }) as never);
+        expect(beforeQuit).toHaveLength(1);
         expect(await rpc.get('request')!('search_songs', { query: 'x' })).toEqual({ ok: true, data: 'answer' });
         expect(bridge.request).toHaveBeenCalledWith('search_songs', { query: 'x' });
         await rpc.get('request')!('login_status', null);
@@ -167,6 +175,9 @@ describe('YouTube Music main entry (source mod)', () => {
         settle();
         await quitting;
         expect(quitDone).toBe(true);
+        // Once the sign-in's browser has ended and its folder is gone, quits are not held again.
+        signInDone();
+        await vi.waitFor(() => expect(beforeQuit).toHaveLength(0));
 
         // Turned off: the sandbox window goes too.
         await options.evaluate('1' as never);

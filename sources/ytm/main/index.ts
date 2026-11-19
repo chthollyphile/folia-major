@@ -43,6 +43,25 @@ export default function activate(api: FoliumSourceMainApi): void {
     // header, and stored cookies would tie the guest sessions to it. Like the update check, it follows the system proxy.
     const network = api.net.session('folia-ytm');
     let proxied: Promise<void> | null = null;
+
+    // Work that must not be cut off: a web sign-in under way, whose ended browser leaves a folder holding a whole
+    // sign-in session to remove. Waited for (3 seconds at most) when the app quits or the source is turned off.
+    // The quit is held only while there is such work, as main.cjs held it for the built-in bridge: a handler that
+    // is there at all makes the host hold every quit for a round.
+    const settle = async () => { await bridge.shutdown(); };
+    let quitHold: (() => void) | null = null;
+    let latestWork: Promise<unknown> | null = null;
+    const holdQuitFor = (work: Promise<unknown>) => {
+        latestWork = work;
+        quitHold ??= api.onBeforeQuit(settle);
+        const release = () => {
+            if (latestWork !== work) return;
+            latestWork = null;
+            quitHold?.();
+            quitHold = null;
+        };
+        work.then(release, release);
+    };
     const bridge = createYtmApiBridge({
         store: api.legacy.store,
         safeStorage: sealAsSafeStorage(api.seal),
@@ -56,6 +75,7 @@ export default function activate(api: FoliumSourceMainApi): void {
         // The browser window of the web sign-in runs on this folder; the bridge removes it when a sign-in ends.
         signInFolder: () => api.paths.legacy('ytm-sign-in'),
         audioUrl: (videoId, level, key) => `${api.media.url('audio', `${videoId}/${level}`)}?once=${encodeURIComponent(key)}`,
+        onSignInWork: holdQuitFor,
     });
 
     // The host hands GET reads only (modProtocol.cjs answers any other method itself).
@@ -68,10 +88,6 @@ export default function activate(api: FoliumSourceMainApi): void {
         bridge.request(String(operation), params && typeof params === 'object' ? params as Record<string, unknown> : {})
     ));
 
-    // Work that must not be cut off: a web sign-in under way, whose ended browser leaves a folder holding a whole
-    // sign-in session to remove. Waited for (3 seconds at most) when the app quits or the source is turned off.
-    const settle = async () => { await bridge.shutdown(); };
-    api.onBeforeQuit(settle);
     api.onBeforeUnload(async () => {
         sandbox.destroy();
         await settle();
