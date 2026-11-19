@@ -41,8 +41,8 @@ const WEB_LOGIN_TTL_MS = 12 * 60 * 1000;
 
 // A letter of any script but Latin.
 const NON_LATIN_LETTER = /[^\p{Script=Latin}\p{Script=Common}\p{Script=Inherited}]/u;
-// A line of LRC with its time and some words: the lyrics are timed.
-const TIMED_LINE = /^[^\S\r\n]*(?:\[\d{1,4}:\d{1,2}(?:[.:]\d{1,3})?\])+[^\S\r\n]*\S/m;
+// A line of LRC with its time and some words: the lyrics are timed where there is one.
+const TIMED_LINE = /^[^\S\r\n]*(?:\[\d{1,4}:\d{1,2}(?:[.:]\d{1,3})?\])+[^\S\r\n]*\S/gm;
 
 /** The source of the manifest's `sources[0]` (id `ytm`). */
 export const createYtmSource = (env: YtmSourceEnv): FoliumSourceDef => {
@@ -178,8 +178,8 @@ export const createYtmSource = (env: YtmSourceEnv): FoliumSourceDef => {
                 // of an error, so that the cross-source lookup still runs for the song.
                 async getLyrics(song: FoliumSourceSong) {
                     const data = await requestYtm<{ mainText: string } | null>('lyrics', { id: song.id }).catch(() => null);
-                    const timed = Boolean(data?.mainText && TIMED_LINE.test(data.mainText));
-                    console.log(`[Ytm] Own lyrics for ${song.id}: ${timed ? 'timed lines' : 'none'}`);
+                    const timed = data?.mainText ? data.mainText.match(TIMED_LINE)?.length ?? 0 : 0;
+                    console.log(`[Ytm] Own lyrics for ${song.id}: ${timed ? `${timed} timed lines` : 'none'}`);
                     return data && timed ? { main: { format: 'lrc' as const, text: data.mainText } } : null;
                 },
                 // A song is named as the pages of the app's language name it, and each language renames some

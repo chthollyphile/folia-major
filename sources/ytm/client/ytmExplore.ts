@@ -143,7 +143,7 @@ const radioShelf = async (seed: YtmSeed): Promise<FoliumSourceExploreSection | n
             changesWithRead: true,
         };
     } catch (error) {
-        console.warn(`[Ytm] Explore radio of ${seed.id} could not be read; the page goes on without it`, error);
+        console.warn(`[Ytm] Explore radio of ${seed.id} could not be read (${error instanceof Error ? error.message : String(error)}); the page goes on without it`);
         return null;
     }
 };

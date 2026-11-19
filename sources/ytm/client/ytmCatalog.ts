@@ -64,7 +64,7 @@ export const ytmPlaylistTracks = (id: string, limit: number, offset: number, asA
             const page = await requestYtm<YtmWirePage<YtmWireSong>>('public_playlist', { id, continuation: continuation?.slice(PUBLIC_PAGE.length) })
                 .catch(error => {
                     if (continuation !== undefined) throw error;
-                    console.warn(`[Ytm] Playlist ${id} could not be read as a guest; it is read as the account`, error);
+                    console.warn(`[Ytm] Playlist ${id} could not be read as a guest (${error instanceof Error ? error.message : String(error)}); it is read as the account`);
                     return null;
                 });
             if (page && (continuation !== undefined || page.items.length > 0)) {
@@ -111,13 +111,17 @@ export const ytmCatalog: FoliumSourceCatalog = {
         const detail = await songDetails.get(song.id).catch(() => null);
         if (!detail) return song;
         const resolved = normalizeYtmSong(detail);
-        const album = resolved.album;
+        const found = resolved.album;
+        const album = found && (found.id || found.coverUrl)
+            ? { ...found, name: found.name || song.album?.name || '', coverUrl: found.coverUrl || song.album?.coverUrl || '' }
+            : song.album;
         return {
             ...song,
             artists: resolved.artists.length > 0 ? resolved.artists : song.artists,
-            album: album && (album.id || album.coverUrl)
-                ? { ...album, name: album.name || song.album?.name || '', coverUrl: album.coverUrl || song.album?.coverUrl || '' }
-                : song.album,
+            album,
+            // The host hands the song back with the row's cover as its own too, and that one goes before the album's:
+            // the watch page's cover replaces both.
+            ...(album?.coverUrl ? { coverUrl: album.coverUrl } : {}),
             durationMs: song.durationMs || resolved.durationMs,
         };
     },
