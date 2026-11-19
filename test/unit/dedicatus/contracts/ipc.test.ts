@@ -125,7 +125,7 @@ describe('D606 preload and the main process agree on the channels', () => {
     it('reads what preload calls, so the scan still matches something', () => {
         expect(preload.filter(entry => entry.kind === 'invoke').length).toBeGreaterThan(50);
         expect(preload.some(entry => entry.kind === 'send')).toBe(true);
-        expect(preload.some(entry => entry.channel === 'ytm-api-request')).toBe(true);
+        expect(preload.some(entry => entry.channel === 'perf-check-open')).toBe(true);
     });
 
     it('handles every channel preload invokes or sends', () => {
