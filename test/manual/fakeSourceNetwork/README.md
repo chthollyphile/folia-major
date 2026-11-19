@@ -9,6 +9,7 @@
 | `fakeSourceNetwork.mjs` | 入口：本机 HTTP 代理（只接路由表里的域名，在本机终止 TLS）、PAC、控制接口、请求日志，写出 `install.js` / `uninstall.js` |
 | `fakeMedia.mjs` | 路由表共用的媒体：单色 PNG、自己生成的 WAV 音调、按 Range 分段 |
 | `bodian.mjs` | 波点的路由表（依据见文件头） |
+| `qishui.mjs` | 汽水的路由表（依据见文件头）；控制接口 `scan`、`state` 与波点相同。汽水启动时会用存着的票据读账号：那一刻假网络还没装上就会打到真服务、被拒后包会登出，所以「重启后登录还在」在这套做法下测不了 |
 
 ## 用法
 
