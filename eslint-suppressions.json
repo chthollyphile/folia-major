@@ -814,14 +814,6 @@
       "count": 1
     }
   },
-  "sources/fnmusic/main/fnmusicApiBridge.cjs": {
-    "@stylistic/indent": {
-      "count": 306
-    },
-    "dedicatus/restricted-apis": {
-      "count": 3
-    }
-  },
   "electron/globalShortcuts.cjs": {
     "@stylistic/indent": {
       "count": 81
@@ -1531,6 +1523,11 @@
   "sources/bodian/main/session.cjs": {
     "@stylistic/indent": {
       "count": 80
+    }
+  },
+  "sources/fnmusic/main/fnmusicApiBridge.cjs": {
+    "@stylistic/indent": {
+      "count": 306
     }
   },
   "sources/qishui/client/qishuiCatalog.ts": {
@@ -9510,67 +9507,6 @@
       "count": 1
     }
   },
-  "sources/fnmusic/client/fnmusicProvider.ts": {
-    "@typescript-eslint/no-base-to-string": {
-      "count": 1
-    },
-    "@typescript-eslint/no-explicit-any": {
-      "count": 2
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 6
-    },
-    "@typescript-eslint/no-unnecessary-type-arguments": {
-      "count": 13
-    },
-    "@typescript-eslint/no-unnecessary-type-assertion": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unnecessary-type-parameters": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 6
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 3
-    },
-    "@typescript-eslint/no-unused-vars": {
-      "count": 1
-    },
-    "@typescript-eslint/require-await": {
-      "count": 1
-    },
-    "dedicatus/restricted-apis": {
-      "count": 1
-    }
-  },
-  "sources/fnmusic/client/fnmusicTransport.ts": {
-    "@typescript-eslint/no-base-to-string": {
-      "count": 1
-    },
-    "@typescript-eslint/no-empty-object-type": {
-      "count": 1
-    },
-    "@typescript-eslint/no-explicit-any": {
-      "count": 6
-    },
-    "@typescript-eslint/no-unnecessary-type-assertion": {
-      "count": 5
-    },
-    "@typescript-eslint/no-unnecessary-type-conversion": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-call": {
-      "count": 5
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 6
-    },
-    "dedicatus/restricted-apis": {
-      "count": 6
-    }
-  },
   "src/services/onlineMusic/kugou/kugouLyricProvider.ts": {
     "@stylistic/indent": {
       "count": 277
@@ -11820,7 +11756,7 @@
       "count": 997
     },
     "@typescript-eslint/consistent-type-imports": {
-      "count": 58
+      "count": 56
     },
     "@typescript-eslint/no-explicit-any": {
       "count": 4
