@@ -9,7 +9,7 @@ import { requestYtm, ytmError } from './ytmTransport';
 // The desktop side takes this many songs in one request.
 const SONGS_PER_REQUEST = 100;
 
-const songId = (song: string | FoliumSourceSong): string => (typeof song === 'object' ? song.id : String(song));
+const songId = (song: string | FoliumSourceSong): string => (typeof song === 'object' ? song.id : song);
 
 // A playlist the account made itself. The liked-music list is not one: YouTube refuses to edit
 // it, and a song goes in and out of it by its heart.
