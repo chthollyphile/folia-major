@@ -292,7 +292,7 @@ const createSourceApi = (context, host) => {
                     }
                 });
                 // A window the source closed itself is let go now, not when the mod stops: a sandbox that is opened
-                // again and again (YouTube Music's) would keep every one it ever had until then.
+                // again and again would keep every one it ever had until then.
                 window.once?.('closed', off);
                 return window;
             },
