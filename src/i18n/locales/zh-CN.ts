@@ -1719,7 +1719,7 @@ export default {
       "install-no-manifest": "zip 内未找到唯一定义，缺少 mod.json",
       "install-invalid-manifest": "mod.json 无效：{{value}}",
       "mod-system-disabled": "模组系统未启用，请先在「设置 → 模组 → 模组系统」中开启",
-      "install-too-large": "模组包体积超出限制（最大 64 MB）",
+      "install-too-large": "模组包体积超出限制（最大 96 MB）",
       "install-too-many-files": "模组包文件数量超出限制（最多 2000 个）",
       "install-main-missing": "模组包缺少 mod.json 中声明的 main 文件",
       "install-client-missing": "模组包缺少 mod.json 中声明的 client 文件",

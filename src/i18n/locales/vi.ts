@@ -1719,7 +1719,7 @@ export default {
       "install-no-manifest": "Không tìm thấy tệp khai báo; tệp zip thiếu mod.json",
       "install-invalid-manifest": "Tệp mod.json không hợp lệ: {{value}}",
       "mod-system-disabled": "Hệ thống mod đang tắt. Bật trong Cài đặt → Mod → Hệ thống mod trước.",
-      "install-too-large": "Gói mod vượt quá dung lượng cho phép (tối đa 64 MB)",
+      "install-too-large": "Gói mod vượt quá dung lượng cho phép (tối đa 96 MB)",
       "install-too-many-files": "Gói mod có quá nhiều tệp (tối đa 2000 tệp)",
       "install-main-missing": "Gói mod thiếu tệp main khai báo trong mod.json",
       "install-client-missing": "Gói mod thiếu tệp client khai báo trong mod.json",

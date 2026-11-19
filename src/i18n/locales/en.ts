@@ -1719,7 +1719,7 @@ export default {
       "install-no-manifest": "No single manifest found; the zip is missing mod.json",
       "install-invalid-manifest": "Invalid mod.json: {{value}}",
       "mod-system-disabled": "The mod system is off. Turn it on in Settings → Mods → Mod system first.",
-      "install-too-large": "The mod package is over the size limit (64 MB max)",
+      "install-too-large": "The mod package is over the size limit (96 MB max)",
       "install-too-many-files": "The mod package has too many files (2000 max)",
       "install-main-missing": "The package is missing the main file declared in mod.json",
       "install-client-missing": "The package is missing the client file declared in mod.json",

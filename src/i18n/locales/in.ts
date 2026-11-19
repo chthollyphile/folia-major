@@ -1719,7 +1719,7 @@ export default {
       "install-no-manifest": "Manifest tidak ditemukan; zip tidak memiliki mod.json",
       "install-invalid-manifest": "mod.json tidak valid: {{value}}",
       "mod-system-disabled": "Sistem mod nonaktif. Aktifkan dulu di Pengaturan → Mod → Sistem mod.",
-      "install-too-large": "Paket mod melebihi batas ukuran (maks 64 MB)",
+      "install-too-large": "Paket mod melebihi batas ukuran (maks 96 MB)",
       "install-too-many-files": "Paket mod berisi terlalu banyak berkas (maks 2000)",
       "install-main-missing": "Paket tidak memiliki berkas main yang dideklarasikan di mod.json",
       "install-client-missing": "Paket tidak memiliki berkas client yang dideklarasikan di mod.json",
