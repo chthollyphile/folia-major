@@ -659,9 +659,10 @@ export interface FoliumSourceLyrics {
     /**
      * The source can give lyrics to other sources' songs and to local songs: it is a lyric source of the
      * match windows and the automatic pick (searched through `search@1`). `linesOnly`: its lyrics are
-     * timed by line only and carry no chorus.
+     * timed by line only and carry no chorus. `name`: what the lists of lyric sources call it (the match
+     * windows' tabs, the settings); the short name when left out.
      */
-    readonly crossSource?: { readonly linesOnly?: boolean };
+    readonly crossSource?: { readonly linesOnly?: boolean; readonly name?: FoliumText };
     /** The lyrics of one of its songs; `context.userId` is the signed-in account's id, where there is one. */
     getLyrics(song: FoliumSourceSong, context?: { userId?: string | null }): Promise<FoliumSourceLyricsResult | null>;
     /** Its own word timing is the one to keep over another source's. */

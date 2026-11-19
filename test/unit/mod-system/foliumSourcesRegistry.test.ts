@@ -507,6 +507,27 @@ describe('what the second migrated platform needed (qishui)', () => {
         expect(getLyricSourceOwnAccess(id)).toBeUndefined();
     });
 
+    it('a lyric source is listed under crossSource.name where it gives one, under its short name otherwise', () => {
+        register({
+            id: 'a',
+            shortName: 'Short',
+            capabilities: {
+                'search@1': { searchSongs: async () => ({ items: [], hasMore: false }) },
+                'lyrics@1': { crossSource: { name: { en: 'Full Name', 'zh-CN': '全名' } }, getLyrics: async () => null },
+            },
+        });
+        register({
+            id: 'b',
+            shortName: 'Short B',
+            capabilities: {
+                'search@1': { searchSongs: async () => ({ items: [], hasMore: false }) },
+                'lyrics@1': { crossSource: {}, getLyrics: async () => null },
+            },
+        });
+        expect(i18n.t(getLyricSource(`folium.${MOD}.a`)!.labelKey)).toBe(i18n.language.startsWith('zh') ? '全名' : 'Full Name');
+        expect(i18n.t(getLyricSource(`folium.${MOD}.b`)!.labelKey)).toBe('Short B');
+    });
+
     it('an explore section\'s title may be a FoliumText, read in the UI language', async () => {
         register({
             id: 'a',

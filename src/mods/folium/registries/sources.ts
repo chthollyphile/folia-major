@@ -106,9 +106,12 @@ const apply = (entry: FoliumSourceEntry) => {
     entry.ownsLyricSource = Boolean(declaration.lyrics?.crossSource) && !othersLyricSource;
     if (declaration.lyrics?.crossSource && entry.ownsLyricSource) {
         const songIdOf = typeof parts.lyrics?.songIdOf === 'function' ? parts.lyrics.songIdOf.bind(parts.lyrics) : null;
+        // lyrics@1.crossSource.name, where the source names itself apart in the lists of lyric sources.
+        const named = (parts.lyrics?.crossSource as { name?: unknown } | undefined)?.name;
+        const nameKey = isFoliumText(named) ? entry.context.text.key(named, 'lyrics.crossSource.name') : undefined;
         fresh.push(registerLyricSource({
             id: entry.hostId,
-            labelKey: provider.shortNameKey ?? entry.hostId,
+            labelKey: nameKey ?? provider.shortNameKey ?? entry.hostId,
             platform: true,
             ...(declaration.lyrics.access === 'account' ? { needsAccount: true } : {}),
             ...(declaration.checksAvailability ? { needsConfiguredProvider: true } : {}),

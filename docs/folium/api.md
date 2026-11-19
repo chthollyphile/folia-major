@@ -2955,7 +2955,7 @@ Folium 2: `lyrics@1`.
 | 成员 | 类型 | 说明 |
 | --- | --- | --- |
 | `readonly access?` | `FoliumSourceAccess` | Whether lyrics need an account. May be a getter. |
-| `readonly crossSource?` | `{ readonly linesOnly?: boolean }` | The source can give lyrics to other sources' songs and to local songs: it is a lyric source of the match windows and the automatic pick (searched through `search@1`). `linesOnly`: its lyrics are timed by line only and carry no chorus. |
+| `readonly crossSource?` | `{ readonly linesOnly?: boolean; readonly name?: FoliumText }` | The source can give lyrics to other sources' songs and to local songs: it is a lyric source of the match windows and the automatic pick (searched through `search@1`). `linesOnly`: its lyrics are timed by line only and carry no chorus. `name`: what the lists of lyric sources call it (the match windows' tabs, the settings); the short name when left out. |
 | `getLyrics()` | `(song: FoliumSourceSong, context?: { userId?: string \| null }): Promise<FoliumSourceLyricsResult \| null>` | The lyrics of one of its songs; `context.userId` is the signed-in account's id, where there is one. |
 | `readonly prefersOwnWordByWord?` | `boolean` | Its own word timing is the one to keep over another source's. |
 | `getChorusRanges?()` | `(songId: string): Promise<Array<{ startTime: number; endTime: number }>>` | The chorus spans of a song by id, seconds. |
@@ -2963,7 +2963,7 @@ Folium 2: `lyrics@1`.
 | `getAlternateArtistName?()` | `(song: FoliumSourceSong): Promise<string \| null>` | Another name the song's artist goes by elsewhere; null where there is none. |
 | `songIdOf?()` | `(id: string): string \| null` | With `crossSource`: the id to fetch a song's lyrics by when only its id is known (a song picked for a local song before), or null when `id` cannot be one of the source's songs. With it, such a song is fetched by its id without a search, and a local song matched to one of the source's songs keeps that match as its identity. Synchronous; ids are text (do not make one a number). |
 
-相关：[FoliumSourceAccess](#foliumsourceaccess) · [FoliumSourceSong](#foliumsourcesong) · [FoliumSourceLyricsResult](#foliumsourcelyricsresult) · [FoliumSourceLyricAlias](#foliumsourcelyricalias)
+相关：[FoliumSourceAccess](#foliumsourceaccess) · [FoliumText](#foliumtext) · [FoliumSourceSong](#foliumsourcesong) · [FoliumSourceLyricsResult](#foliumsourcelyricsresult) · [FoliumSourceLyricAlias](#foliumsourcelyricalias)
 
 ### FoliumSourceLoginCase
 
