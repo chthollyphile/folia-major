@@ -65,6 +65,7 @@ import {
     getOnlineMusicProviderForSong,
     getOnlineMusicProviderRegistryVersion,
     listOnlineMusicProviders,
+    sortOnlineMusicSourceIds,
     providerSupports,
     requireOnlineMusicProvider,
     subscribeOnlineMusicProviderRegistry,
@@ -706,6 +707,18 @@ export const omni = {
 
     supportsDailySongs(providerId: OmniProviderId): boolean {
         return typeof requireOnlineMusicProvider(providerId).recommendations?.getDailySongs === 'function';
+    },
+
+    // The names of a registered source whatever its state, for "Settings → Sources", which lists the sources not
+    // shown too; null for one not registered now (a source mod switched off).
+    getProviderNaming(providerId: OmniProviderId): { displayName: string; shortName: string; shortNameKey?: string } | null {
+        const provider = getOnlineMusicProvider(providerId);
+        return provider ? { displayName: provider.displayName, shortName: provider.shortName ?? '', shortNameKey: provider.shortNameKey } : null;
+    },
+
+    // Source ids in the order every list of sources follows (providerRegistry.ts); ids not registered now go last.
+    sortSourceIds(ids: readonly OmniProviderId[]): OmniProviderId[] {
+        return sortOnlineMusicSourceIds(ids);
     },
 
     getProviderLabel(providerId: OmniProviderId): string {

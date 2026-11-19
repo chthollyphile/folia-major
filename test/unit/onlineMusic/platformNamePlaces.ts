@@ -91,7 +91,7 @@ export const PLATFORM_NAME_PLACES: Record<string, PlatformNamePlace> = {
     'src/services/onlineMusic/loginSelfCheck.ts': { n: { netease: 1 }, kind: 'doc' },
     'src/services/onlineMusic/omni.ts': { n: { netease: 5, kugou: 2 }, kind: 'doc' },
     'src/services/onlineMusic/providerAccountCache.ts': { n: { kugou: 1 }, kind: 'doc' },
-    'src/services/onlineMusic/providerRegistry.ts': { n: { netease: 2, qq: 2, kugou: 2, ytm: 2, spotify: 4, qishui: 2, appleMusic: 2, fnmusic: 2 }, kind: 'list', why: 'the list of platforms: where a platform is added; fnmusic registered with its provider and name' },
+    'src/services/onlineMusic/providerRegistry.ts': { n: { netease: 3, qq: 3, kugou: 3, bodian: 1, ytm: 3, spotify: 5, qishui: 3, appleMusic: 3, fnmusic: 3 }, kind: 'list', why: 'the list of platforms: where a platform is added; fnmusic registered with its provider and name; +1 each (bodian 1) for the one line that keeps the nine built-in platforms in their order, however each registers (Folium 2.0 plan §10, the remaining stages, step 2, 2026-11-20)' },
     'src/services/onlineMusic/qq/qqProvider.ts': { n: { kugou: 1 }, kind: 'doc' },
     'src/services/onlineMusic/qq/qqTransport.ts': { n: { netease: 1 }, kind: 'doc' },
     'src/services/onlineMusic/resourceCache.ts': { n: { netease: 2 }, kind: 'doc' },

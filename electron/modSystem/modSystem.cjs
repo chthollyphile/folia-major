@@ -463,6 +463,8 @@ ${partition}`;
             keepForMatching: Boolean(source.keepForMatching),
             takeover: Boolean(source.takeover),
             requires: entry?.requires ?? [],
+            // The short id the manifest claims (`sources[].claims.id`), for "Settings → Sources" to hand it over.
+            claims: typeof entry?.claims?.id === 'string' ? entry.claims.id : null,
         };
     });
 

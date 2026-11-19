@@ -400,6 +400,7 @@ export const settingsCommands: CommandPaletteCommand[] = [
         { isAvailable: context => context?.settings.canAutoScanLocalLibrary() ?? true },
     ),
     createSettingsCommand('settings-desktop', 'Desktop settings', 'Open desktop app settings', ['desktop', 'electron', '桌面', '桌面端'], 'options', 'desktop', { platform: ['electron'] }),
+    createSettingsCommand('settings-sources', 'Sources settings', 'Open the online sources: enable each, use it only for matching, or disable it', ['sources', 'online sources', 'providers', 'platforms', 'disable source', 'matching only', '音源', '音源设置', '平台', '停用音源', '只用于匹配'], 'options', 'sources', { platform: ['electron'] }),
     createSettingsCommand('settings-remote', 'Remote Control settings', 'Open the Remote Control window settings: its switches and lyric rows', ['remote control', 'remote window', 'mini player', 'remote lyrics', '遥控窗口', '遥控窗口设置', '迷你播放器', '遥控歌词'], 'options', 'remote', { platform: ['electron'] }),
     createSettingsAnchorCommand('settings-update-channel', 'Update channel', 'Choose the desktop app release channel', ['release channel', 'realeco', 'limo', 'cielo', '更新通道', '发布通道'], 'updateCheck', { platform: ['electron'] }),
     {

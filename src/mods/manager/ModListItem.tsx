@@ -16,6 +16,7 @@ import { MOD_FILES_PERMISSION, ModStorageUsage, type ModNotice } from './ModStor
 import { useFoliumOldNameStore } from '../folium/deprecated/warnings';
 import { omni } from '@/services/onlineMusic/omni';
 import { FOLIUM_SOURCES_PREVIEW } from '../folium/shared';
+import { openSettings } from '@/stores/useSettingsModalStore';
 
 // src/mods/manager/ModListItem.tsx
 // One mod as a row of the manager's list card. The row expands in place to show the mod's
@@ -313,6 +314,20 @@ export const ModListItem: React.FC<ModListItemProps> = ({
                             ) : null}
                             {mod.devSource ? (
                                 <div className="text-[11px] opacity-50" style={{ color: 'var(--text-secondary)' }}>{t('mods.devSourceHint')}</div>
+                            ) : null}
+                            {/* Folium 2.0 (plan §5.3): a source mod's sources are switched one by one in Settings → Sources. */}
+                            {mod.kind === 'source' ? (
+                                <div className="text-[11px] opacity-60" style={{ color: 'var(--text-secondary)' }}>
+                                    {t('mods.sourceSwitchHint')}
+                                    {' '}
+                                    <button
+                                        type="button"
+                                        onClick={() => openSettings('options', 'sources', null, 'sourceList')}
+                                        className="underline underline-offset-2 hover:opacity-80"
+                                    >
+                                        {t('mods.sourceSwitchOpen')}
+                                    </button>
+                                </div>
                             ) : null}
                             {readPlatforms.length > 0 ? (
                                 <div className="text-[11px] opacity-60" style={{ color: 'var(--text-secondary)' }}>
