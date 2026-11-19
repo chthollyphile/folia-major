@@ -7,8 +7,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const bridge = vi.hoisted(() => ({
     options: null as null | Record<string, (...args: never[]) => unknown>,
-    request: vi.fn(async (..._args: unknown[]) => ({ ok: true, data: 'answer' })),
-    serveAudio: vi.fn(async (..._args: unknown[]) => new Response('bytes', { status: 206 })),
+    request: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({ ok: true, data: 'answer' })),
+    serveAudio: vi.fn<(...args: unknown[]) => Promise<Response>>(async () => new Response('bytes', { status: 206 })),
     shutdown: vi.fn((): Promise<unknown> | null => null),
 }));
 vi.mock('../../../sources/ytm/main/ytmApiBridge.cjs', () => ({
@@ -24,14 +24,14 @@ type Handler = (...args: unknown[]) => unknown;
 
 const fakeWindow = () => ({
     destroyed: false,
-    loadURL: vi.fn(async (_url: string) => {}),
+    loadURL: vi.fn<(url: string) => Promise<void>>(async () => {}),
     destroy: vi.fn(function (this: { destroyed: boolean }) { this.destroyed = true; }),
     isDestroyed(this: { destroyed: boolean }) { return this.destroyed; },
     webContents: {
         setWindowOpenHandler: vi.fn(),
         on: vi.fn(),
         setWebRTCIPHandlingPolicy: vi.fn(),
-        executeJavaScript: vi.fn(async (_code: string) => 'ran'),
+        executeJavaScript: vi.fn<(code: string) => Promise<string>>(async () => 'ran'),
     },
 });
 
@@ -39,9 +39,9 @@ const launch = () => {
     const sessions = new Map<string, ReturnType<typeof fakeSession>>();
     const fakeSession = (name: string) => ({
         partition: name,
-        fetch: vi.fn(async (_url: string, _init?: Record<string, unknown>) => new Response('ok')),
-        setProxy: vi.fn(async (_config: Record<string, unknown>) => {}),
-        intercept: vi.fn((_scheme: string, _handler: (request: Request) => Response) => () => {}),
+        fetch: vi.fn<(url: string, init?: Record<string, unknown>) => Promise<Response>>(async () => new Response('ok')),
+        setProxy: vi.fn<(config: Record<string, unknown>) => Promise<void>>(async () => {}),
+        intercept: vi.fn<(scheme: string, handler: (request: Request) => Response) => () => void>(() => () => {}),
         refusePermissions: vi.fn(() => () => {}),
     });
     const windows: Array<ReturnType<typeof fakeWindow>> = [];
@@ -61,7 +61,7 @@ const launch = () => {
             }),
         },
         windows: {
-            hidden: vi.fn((_options: Record<string, unknown>) => { const window = fakeWindow(); windows.push(window); return window; }),
+            hidden: vi.fn<(options: Record<string, unknown>) => ReturnType<typeof fakeWindow>>(() => { const window = fakeWindow(); windows.push(window); return window; }),
             mainWindowPresent: () => state.present,
             onMainWindowChanged: (listener: (present: boolean) => void) => { mainWindowListeners.push(listener); return () => {}; },
         },

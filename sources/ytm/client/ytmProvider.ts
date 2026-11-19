@@ -139,7 +139,7 @@ export const createYtmSource = (env: YtmSourceEnv): FoliumSourceDef => {
             }),
             'songs@1': following({
                 async getSong(id: string) {
-                    const detail = await requestYtm<YtmWireSong | null>('song_detail', { id: String(id) });
+                    const detail = await requestYtm<YtmWireSong | null>('song_detail', { id });
                     return detail ? normalizeYtmSong(detail) : null;
                 },
                 // A music video a list showed as itself, its song not known in time, is played as that song.

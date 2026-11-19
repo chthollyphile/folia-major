@@ -62,7 +62,7 @@ export default function activate(api: FoliumSourceMainApi): void {
     api.media.serve('audio', read => {
         const match = AUDIO_PATH.exec(read.path);
         if (!match) return Response.error();
-        return bridge.serveAudio({ videoId: match[1], level: match[2], key: read.query.once ?? '', range: read.range });
+        return bridge.serveAudio({ videoId: match[1], level: match[2], key: Object.hasOwn(read.query, 'once') ? read.query.once : '', range: read.range });
     });
     api.rpc.handle('request', (operation: unknown, params: unknown) => (
         bridge.request(String(operation), params && typeof params === 'object' ? params as Record<string, unknown> : {})

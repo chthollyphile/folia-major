@@ -1239,87 +1239,6 @@
       "count": 33
     }
   },
-  "sources/ytm/main/audio.cjs": {
-    "@stylistic/indent": {
-      "count": 238
-    }
-  },
-  "sources/ytm/main/browserSignIn.cjs": {
-    "@stylistic/indent": {
-      "count": 353
-    }
-  },
-  "sources/ytm/main/catalog.cjs": {
-    "@stylistic/indent": {
-      "count": 122
-    }
-  },
-  "sources/ytm/main/errors.cjs": {
-    "@stylistic/indent": {
-      "count": 35
-    }
-  },
-  "sources/ytm/main/poToken.cjs": {
-    "@stylistic/indent": {
-      "count": 46
-    }
-  },
-  "sources/ytm/main/sandbox.cjs": {
-    "@stylistic/indent": {
-      "count": 79
-    }
-  },
-  "sources/ytm/main/session.cjs": {
-    "@stylistic/indent": {
-      "count": 9
-    }
-  },
-  "sources/ytm/main/songVersion.cjs": {
-    "@stylistic/indent": {
-      "count": 5
-    }
-  },
-  "sources/ytm/main/tiles.cjs": {
-    "@stylistic/indent": {
-      "count": 15
-    }
-  },
-  "sources/ytm/main/trackBuffer.cjs": {
-    "@stylistic/indent": {
-      "count": 78
-    }
-  },
-  "sources/ytm/main/webExplore.cjs": {
-    "@stylistic/indent": {
-      "count": 105
-    }
-  },
-  "sources/ytm/main/webPages.cjs": {
-    "@stylistic/indent": {
-      "count": 115
-    },
-    "no-irregular-whitespace": {
-      "count": 3
-    }
-  },
-  "sources/ytm/main/webSaves.cjs": {
-    "@stylistic/indent": {
-      "count": 15
-    }
-  },
-  "sources/ytm/main/webSignIn.cjs": {
-    "@stylistic/indent": {
-      "count": 267
-    },
-    "dedicatus/restricted-apis": {
-      "count": 2
-    }
-  },
-  "sources/ytm/main/ytmApiBridge.cjs": {
-    "@stylistic/indent": {
-      "count": 1134
-    }
-  },
   "packages/folium-source-kit/src/errorText.ts": {
     "@typescript-eslint/no-unnecessary-condition": {
       "count": 1
@@ -1576,6 +1495,125 @@
     },
     "@typescript-eslint/no-non-null-assertion": {
       "count": 1
+    }
+  },
+  "sources/ytm/client/ytmCatalog.ts": {
+    "@typescript-eslint/no-unnecessary-boolean-literal-compare": {
+      "count": 1
+    },
+    "@typescript-eslint/require-await": {
+      "count": 1
+    },
+    "@typescript-eslint/use-unknown-in-catch-callback-variable": {
+      "count": 1
+    }
+  },
+  "sources/ytm/client/ytmExplore.ts": {
+    "@typescript-eslint/no-non-null-assertion": {
+      "count": 1
+    },
+    "@typescript-eslint/require-await": {
+      "count": 1
+    },
+    "@typescript-eslint/use-unknown-in-catch-callback-variable": {
+      "count": 1
+    }
+  },
+  "sources/ytm/client/ytmNormalize.ts": {
+    "@typescript-eslint/no-unnecessary-condition": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unnecessary-type-conversion": {
+      "count": 2
+    }
+  },
+  "sources/ytm/client/ytmRecommendations.ts": {
+    "@typescript-eslint/no-non-null-assertion": {
+      "count": 1
+    },
+    "@typescript-eslint/require-await": {
+      "count": 1
+    },
+    "@typescript-eslint/use-unknown-in-catch-callback-variable": {
+      "count": 1
+    }
+  },
+  "sources/ytm/main/audio.cjs": {
+    "@stylistic/indent": {
+      "count": 238
+    }
+  },
+  "sources/ytm/main/browserSignIn.cjs": {
+    "@stylistic/indent": {
+      "count": 353
+    }
+  },
+  "sources/ytm/main/catalog.cjs": {
+    "@stylistic/indent": {
+      "count": 122
+    }
+  },
+  "sources/ytm/main/errors.cjs": {
+    "@stylistic/indent": {
+      "count": 35
+    }
+  },
+  "sources/ytm/main/poToken.cjs": {
+    "@stylistic/indent": {
+      "count": 46
+    }
+  },
+  "sources/ytm/main/sandbox.cjs": {
+    "@stylistic/indent": {
+      "count": 73
+    }
+  },
+  "sources/ytm/main/session.cjs": {
+    "@stylistic/indent": {
+      "count": 9
+    }
+  },
+  "sources/ytm/main/songVersion.cjs": {
+    "@stylistic/indent": {
+      "count": 5
+    }
+  },
+  "sources/ytm/main/tiles.cjs": {
+    "@stylistic/indent": {
+      "count": 15
+    }
+  },
+  "sources/ytm/main/trackBuffer.cjs": {
+    "@stylistic/indent": {
+      "count": 78
+    }
+  },
+  "sources/ytm/main/webExplore.cjs": {
+    "@stylistic/indent": {
+      "count": 105
+    }
+  },
+  "sources/ytm/main/webPages.cjs": {
+    "@stylistic/indent": {
+      "count": 115
+    },
+    "no-irregular-whitespace": {
+      "count": 3
+    }
+  },
+  "sources/ytm/main/webSaves.cjs": {
+    "@stylistic/indent": {
+      "count": 15
+    }
+  },
+  "sources/ytm/main/webSignIn.cjs": {
+    "@stylistic/indent": {
+      "count": 267
+    }
+  },
+  "sources/ytm/main/ytmApiBridge.cjs": {
+    "@stylistic/indent": {
+      "count": 1134
     }
   },
   "src/App.tsx": {
@@ -10377,69 +10415,6 @@
       "count": 1
     }
   },
-  "sources/ytm/client/ytmAccount.ts": {
-    "dedicatus/restricted-apis": {
-      "count": 2
-    }
-  },
-  "sources/ytm/client/ytmCatalog.ts": {
-    "@typescript-eslint/no-unnecessary-boolean-literal-compare": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 2
-    },
-    "@typescript-eslint/require-await": {
-      "count": 1
-    },
-    "@typescript-eslint/use-unknown-in-catch-callback-variable": {
-      "count": 1
-    }
-  },
-  "sources/ytm/client/ytmExplore.ts": {
-    "@typescript-eslint/no-non-null-assertion": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unnecessary-type-conversion": {
-      "count": 1
-    },
-    "@typescript-eslint/require-await": {
-      "count": 1
-    },
-    "@typescript-eslint/use-unknown-in-catch-callback-variable": {
-      "count": 1
-    }
-  },
-  "sources/ytm/client/ytmNormalize.ts": {
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unnecessary-type-conversion": {
-      "count": 2
-    }
-  },
-  "sources/ytm/client/ytmRecommendations.ts": {
-    "@typescript-eslint/no-non-null-assertion": {
-      "count": 1
-    },
-    "@typescript-eslint/require-await": {
-      "count": 1
-    },
-    "@typescript-eslint/use-unknown-in-catch-callback-variable": {
-      "count": 1
-    }
-  },
-  "sources/ytm/client/ytmTransport.ts": {
-    "@typescript-eslint/no-non-null-assertion": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 1
-    }
-  },
   "src/services/onlinePlayback.ts": {
     "@stylistic/indent": {
       "count": 4
@@ -11751,7 +11726,7 @@
       "count": 997
     },
     "@typescript-eslint/consistent-type-imports": {
-      "count": 56
+      "count": 53
     },
     "@typescript-eslint/no-explicit-any": {
       "count": 4
