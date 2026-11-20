@@ -332,6 +332,11 @@ export interface FoliumSourceReplayGain {
 export interface FoliumSourceSong {
     /** The song's id at the source. */
     id: string;
+    /**
+     * The id other mods know the song by (`FoliumSong.id` in `folium.omni`), when it is not `id`: a built-in source
+     * keeping the id it gave before it moved into a mod. The host still plays, keeps and looks the song up by `id`.
+     */
+    publicId?: string;
     /** The title. */
     title: string;
     /** The artists, in order. */

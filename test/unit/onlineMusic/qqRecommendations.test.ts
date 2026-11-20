@@ -52,8 +52,9 @@ describe('QQ recommendations', () => {
             const songs = await qq.recommendations!.getDailySongs!();
 
             expect(requestMock).toHaveBeenCalledWith('user_daily_songs');
-            // 歌的 id 是 songmid，数字 songid 记在 data 里（宿主的 providerData）。
-            expect(songs.map(item => [item.id, songIdOf(item)])).toEqual([['mid-a', 101], ['mid-b', 102]]);
+            // 宿主的歌 id 是数字 songid（给别的模组的 FoliumSong.id 照旧），播放键 mediaId 是 songmid。
+            expect(songs.map(item => [item.id, songIdOf(item), item.sourceRef?.kind === 'online' ? item.sourceRef.mediaId : null]))
+                .toEqual([['101', 101, 'mid-a'], ['102', 102, 'mid-b']]);
         });
 
         // 这几条都要登录：没有会话就不发请求，一个 401 只会把空会话再清一遍。
@@ -143,7 +144,7 @@ describe('QQ recommendations', () => {
             const byText = await qq.recommendations!.getHistorySongs!('2026-10-27');
             const byEntry = await qq.recommendations!.getHistorySongs!({ id: '2026-11-01', label: '2026-11-01' });
 
-            expect(byText.map(item => [item.id, songIdOf(item)])).toEqual([['h-a', 201], ['h-b', 202]]);
+            expect(byText.map(item => [item.id, songIdOf(item)])).toEqual([['201', 201], ['202', 202]]);
             expect(byEntry.map(item => item.qqMid)).toEqual(['h-c']);
             expect(requestMock.mock.calls).toEqual([
                 ['user_daily_history', { date: '2026-10-27' }],
