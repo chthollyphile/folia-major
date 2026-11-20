@@ -39,4 +39,28 @@ const selectEvictions = (entries, limitBytes) => {
     return evicted;
 };
 
-module.exports = { DEFAULT_AUDIO_CACHE_LIMIT_BYTES, resolveCacheLimit, selectEvictions };
+/*
+ * A source mod's cache entries (api.cache.provideEntries, through the mod system's `sourceCaches`) as the media
+ * cache counts them: `mod:<mod id>:<entry id>` (a mod id holds no colon, an entry id may), with the size and the
+ * time of last use the mod gave. An entry without a usable id or size is left out: it could not be removed again.
+ */
+const SOURCE_CACHE_PREFIX = 'mod:';
+const sourceCacheEntries = (listed) => (Array.isArray(listed) ? listed : []).flatMap((entry) => {
+    const id = entry?.id;
+    const size = Number(entry?.size);
+    if (typeof entry?.modId !== 'string' || !entry.modId || entry.modId.includes(':')) return [];
+    if (typeof id !== 'string' || !id || !Number.isFinite(size) || size < 0) return [];
+    const usedAt = Number(entry.usedAt);
+    return [{ name: `${SOURCE_CACHE_PREFIX}${entry.modId}:${id}`, size, usedAt: Number.isFinite(usedAt) ? usedAt : 0 }];
+});
+
+/** The mod and entry of a name sourceCacheEntries made, or null for any other name. */
+const sourceCacheEntryOf = (name) => {
+    if (typeof name !== 'string' || !name.startsWith(SOURCE_CACHE_PREFIX)) return null;
+    const rest = name.slice(SOURCE_CACHE_PREFIX.length);
+    const colon = rest.indexOf(':');
+    if (colon <= 0 || colon === rest.length - 1) return null;
+    return { modId: rest.slice(0, colon), id: rest.slice(colon + 1) };
+};
+
+module.exports = { DEFAULT_AUDIO_CACHE_LIMIT_BYTES, resolveCacheLimit, selectEvictions, sourceCacheEntries, sourceCacheEntryOf };

@@ -95,7 +95,7 @@ const {
 } = require('./updateChannels.cjs');
 const { discoverUpdateVersion, settleWithin } = require('./updateCheckMirrors.cjs');
 const { createUpdateDownloadPhase } = require('./updateDownloadPhase.cjs');
-const { resolveCacheLimit, selectEvictions } = require('./audioCachePrune.cjs');
+const { resolveCacheLimit, selectEvictions, sourceCacheEntries, sourceCacheEntryOf } = require('./audioCachePrune.cjs');
 const { removeAudioCacheFileOfSize } = require('./audioCacheRemove.cjs');
 const { createAnalysisHost } = require('./analysis/host.cjs');
 const { createAcousticsHost } = require('./acoustics/host.cjs');
@@ -4843,17 +4843,20 @@ async function removeAudioCacheEntry(name) {
   ]);
 }
 
-/** Every file the media-cache budget counts: original audio, transcodes, and Spotify's encrypted files. */
+/** Every file the media-cache budget counts: original audio, transcodes, Spotify's encrypted files, and source mods' own. */
 async function listMediaCacheEntries() {
-  const [audioEntries, transcodeEntries, spotifyEntries] = await Promise.all([
+  const [audioEntries, transcodeEntries, spotifyEntries, sourceEntries] = await Promise.all([
     listAudioCacheEntries(),
     transcodeService.listCacheEntries(),
     spotifyApiBridge.audioFiles.list(),
+    // What the running source mods keep in caches of their own (api.cache.provideEntries): one budget with the rest.
+    modSystem ? modSystem.sourceCaches.list() : [],
   ]);
   return [
     ...audioEntries.map(entry => ({ ...entry, name: `audio:${entry.name}` })),
     ...transcodeEntries.map(entry => ({ ...entry, name: `transcode:${entry.name}` })),
     ...spotifyEntries.map(entry => ({ ...entry, name: `spotify:${entry.name}` })),
+    ...sourceCacheEntries(sourceEntries),
   ];
 }
 
@@ -4880,6 +4883,10 @@ async function pruneMediaCache(limitBytes, protectedTranscodeEntry = null) {
       if (name.startsWith('audio:')) await removeAudioCacheEntry(name.slice('audio:'.length));
       else if (name.startsWith('transcode:')) await transcodeService.removeCacheEntry(name.slice('transcode:'.length));
       else if (name.startsWith('spotify:')) await spotifyApiBridge.audioFiles.remove(name.slice('spotify:'.length));
+      else {
+        const sourceEntry = sourceCacheEntryOf(name);
+        if (sourceEntry) await modSystem?.sourceCaches.remove(sourceEntry.modId, sourceEntry.id);
+      }
     }
   } catch (error) {
     console.warn('[AudioCache] Failed to prune media cache directories', error);
@@ -4937,6 +4944,7 @@ async function clearAudioCacheDirectory() {
       fsp.rm(getAudioCacheDirectory(), { recursive: true, force: true }),
       transcodeService.clearCache(),
       spotifyApiBridge.audioFiles.clear(),
+      modSystem?.sourceCaches.clear(),
     ]);
   } catch (error) {
     console.warn('[AudioCache] Failed to clear cache directory', error);
