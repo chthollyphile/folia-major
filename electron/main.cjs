@@ -75,7 +75,6 @@ const { createCompanionClient } = require('./appleMusic/companionClient.cjs');
 const { createCompanionRequestHandler } = require('./appleMusic/companionIpc.cjs');
 const { createSpotifyApiBridge } = require('./spotify/spotifyApiBridge.cjs');
 const { SPOTIFY_AUDIO_PRIVILEGED_SCHEME, SPOTIFY_AUDIO_SCHEME } = require('./spotify/audio.cjs');
-const { createQqAuthSessionRepository } = require('../sources/qq/main/qqAuthSessionRepository.cjs');
 const { DEFAULT_DISCORD_APPLICATION_ID, createDiscordPresenceController } = require('./discordPresence.cjs');
 const { createVoiceInputPauseMonitor } = require('./voiceInputPause.cjs');
 const { createWindowSystemMenuGuard } = require('./windowSystemMenu.cjs');
@@ -406,7 +405,6 @@ const spotifyApiBridge = createSpotifyApiBridge({ store, safeStorage,
     return chosen.canceled ? null : chosen.filePaths[0] ?? null;
   },
 });
-const qqAuthSessionRepository = createQqAuthSessionRepository({ store, safeStorage });
 // AI API keys are sealed with safeStorage instead of sitting in config.json as plaintext, and never
 // leave the main process: the renderer only sees AI_API_KEYS_CONFIGURED (#586).
 const aiCredentials = createAiCredentialStore({ store, safeStorage });
@@ -3800,9 +3798,6 @@ function setupCorsBypassHandlers() {
       const parsedUrl = new URL(originUrl);
       const hostname = parsedUrl.hostname;
       isTargetDomain =
-        hostname === 'qq.com' ||
-        hostname.endsWith('.qq.com') ||
-        hostname === 'y.gtimg.cn' ||
         // Folium 2.0: the rules source mods register with api.media.allow (electron/modSystem/mediaRules.cjs).
         Boolean(modSystem?.mediaRules.allows(details));
     } catch (error) {
@@ -3839,9 +3834,6 @@ function removeCorsResponseHeaders(responseHeaders) {
 
 function isAllowedLyricProxyHost(hostname) {
   return (
-    hostname === 'qq.com' ||
-    hostname.endsWith('.qq.com') ||
-    hostname === 'y.gtimg.cn' ||
     hostname === 'api.amll.dev' ||
     // Folium 2.0: `sources[].lyricRelayHosts` of a running source mod (listed in its enable confirmation).
     Boolean(modSystem?.isLyricRelayHost(hostname))
@@ -4997,7 +4989,6 @@ async function clearCoverCacheDirectory() {
 
 const { createNetworkRecorder } = require('./networkRecorder.cjs');
 const { createNeteaseBackend } = require('./netease/neteaseBackend.cjs');
-const { createQqBackend } = require('../sources/qq/main/qqBackend.cjs');
 const { registerLoginBackendIpc } = require('./loginBackendIpc.cjs');
 
 // 主线程里内嵌后端的出站连接记录：要在它们发出请求之前开始订阅。工作线程里发出的请求另有一份记录（见 networkRecorder.cjs）。
@@ -5031,16 +5022,6 @@ mainProcessStartupPromise.then((startupResult) => {
   }
 }, () => {
   // 启动准备本身失败时，ready 的处理函数里等的是同一个 promise，由那里报出来；这里不再报一遍。
-});
-
-// Runs @yakult-green-tea/qq-music-api in-process. Device identifiers remain in their existing file;
-// account credentials are owned by the API and cross this boundary only through an encrypted
-// main-process repository. The renderer continues to receive only an opaque session token.
-const qqBackend = createQqBackend({
-  broadcast: broadcastToWindows,
-  networkRecorder,
-  getStateFilePath: () => path.join(app.getPath('userData'), 'qq-auth-state', 'qq-device.json'),
-  authSessionRepository: qqAuthSessionRepository,
 });
 
 function isElectronDevRuntime() {
@@ -6425,7 +6406,6 @@ app.whenReady().then(async () => {
   // the window from appearing at all on a slow or blocked route. Status reaches the renderer over
   // netease-api-status-changed, and get-netease-port reports null until the server is listening.
   void neteaseBackend.start();
-  await qqBackend.start();
   try {
     await stageApi.startStageServerIfNeeded();
   } catch (error) {
@@ -6769,7 +6749,6 @@ app.on('before-quit', (event) => {
     }
   }
   void discordPresence.destroy();
-  void qqBackend.stop();
   void lyricApi.stop();
 });
 
@@ -7350,7 +7329,7 @@ ipcMain.handle('clear-local-cover-assets', firstParty('clear-local-cover-assets'
 }));
 
 // 内嵌后端的端口、状态、重启、诊断快照与主动自检（electron/loginBackendIpc.cjs）。
-// 它交回登录诊断与自检的登记表（{ diagnostics }，Folium 2.0 接缝）：现在里面是两个内嵌后端，S2 起音源模组的
+// 它交回登录诊断与自检的登记表（{ diagnostics }，Folium 2.0 接缝）：里面是还在宿主里的内嵌后端，音源模组的
 // api.diagnostics 往里登记。
 const loginBackend = registerLoginBackendIpc({
     ipcMain,
@@ -7358,7 +7337,6 @@ const loginBackend = registerLoginBackendIpc({
     safeStorage,
     getDefaultSession: () => session.defaultSession,
     neteaseBackend,
-    qqBackend,
     networkRecorder,
     isTrustedSender: isFirstPartyWindowContents,
 });

@@ -2,7 +2,7 @@ import path from 'node:path';
 import type { FoliumSourceMainApi } from '@folia/folium';
 import { answerError, freePort, runSteps, untilListening, withTimeout } from '../../shared/smoke';
 // test/fixtures/folium-sources/deps-archive/qq/main/index.ts
-// QQ 音乐依赖归档样例的 main 入口：照宿主 electron/qq/qqApiStartup.cjs 的做法，在主进程里从 deps 归档 require 上游
+// QQ 音乐依赖归档样例的 main 入口：照 sources/qq/main/qqApiStartup.cjs 的做法，在主进程里从 deps 归档 require 上游
 // （包在 require 时自己起 HTTP 服务，端口和状态文件经环境变量交给它，加载完还原），等它监听上，再发一次匿名搜索。
 // rpc `smoke` 交回报告。
 

@@ -207,13 +207,6 @@ contextBridge.exposeInMainWorld('electron', {
     },
     appleMusicRequest: (operation, params) => ipcRenderer.invoke('apple-music-request', operation, params),
     spotifyRequest: (operation, params) => ipcRenderer.invoke('spotify-api-request', operation, params),
-    getQqPort: () => ipcRenderer.invoke('get-qq-port'),
-    getQqApiStatus: () => ipcRenderer.invoke('get-qq-api-status'),
-    onQqApiStatusChanged: (callback) => {
-        const listener = (_event, status) => callback(status);
-        ipcRenderer.on('qq-api-status-changed', listener);
-        return () => ipcRenderer.removeListener('qq-api-status-changed', listener);
-    },
     minimizeWindow: () => ipcRenderer.invoke('window-minimize'),
     toggleMaximizeWindow: () => ipcRenderer.invoke('window-toggle-maximize'),
     toggleFullscreenWindow: () => ipcRenderer.invoke('window-toggle-fullscreen'),

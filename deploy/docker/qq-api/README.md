@@ -70,7 +70,7 @@ PORT=3200 \
   node node_modules/@yakult-green-tea/qq-music-api/dist/src/app.js
 ```
 
-该包在被 `require()` 时就会 `app.listen()`，并导出 http server 句柄 `server`。嵌入到其他 Node 进程时应等 `listening` 事件确认端口绑定成功、挂 `error` 监听避免绑定失败变成未处理异常，退出时主动 `close()`；因为 `require` 有模块缓存，同一进程内只应该 `require()` 一次。Electron 版走的正是这条路径（见 [`electron/qq/qqApiStartup.cjs`](../../../electron/qq/qqApiStartup.cjs)），端口动态分配，装置状态写在 `userData/qq-auth-state/qq-device.json`。
+该包在被 `require()` 时就会 `app.listen()`，并导出 http server 句柄 `server`。嵌入到其他 Node 进程时应等 `listening` 事件确认端口绑定成功、挂 `error` 监听避免绑定失败变成未处理异常，退出时主动 `close()`；因为 `require` 有模块缓存，同一进程内只应该 `require()` 一次。Electron 版走的正是这条路径（QQ 音源模组的 main 入口，见 [`sources/qq/main/qqApiStartup.cjs`](../../../sources/qq/main/qqApiStartup.cjs)），端口动态分配，装置状态写在 `userData/qq-auth-state/qq-device.json`。
 
 ### Web 版接法
 

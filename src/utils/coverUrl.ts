@@ -2,16 +2,6 @@
 
 const NON_RESIZABLE_COVER_PROTOCOLS = new Set(['blob:', 'data:', 'file:', 'filesystem:']);
 const NETEASE_COVER_HOST_PATTERN = /^p\d+\.music\.126\.net$/i;
-const QQ_COVER_HOSTNAMES = new Set(['y.gtimg.cn', 'y.qq.com']);
-const QQ_COVER_PATH_PATTERN = /(T00[12])(?:R(\d+)x\d+)?(M000)/;
-const QQ_COVER_SMALL_SIZE = 300;
-const QQ_COVER_LARGE_SIZE = 800;
-const QQ_COVER_XL_SIZE = 1200;
-// Playlist covers on qpic.y.qq.com end in their size and come at 150, 300 and 600 (600 stops at the
-// original, 564 measured); 800 answers 400 and 0 a 120px placeholder.
-const QQ_PLAYLIST_COVER_HOSTNAME = 'qpic.y.qq.com';
-const QQ_PLAYLIST_COVER_PATH_PATTERN = /^(\/music_cover\/[^/]+\/)(\d+)$/;
-const QQ_PLAYLIST_COVER_SIZES = [150, 300, 600] as const;
 // Apple's artwork CDN names the box in the file name (`…/512x512bb.jpg`) and renders any size into it.
 const APPLE_COVER_HOST_PATTERN = /(?:^|\.)mzstatic\.com$/i;
 const APPLE_COVER_PATH_PATTERN = /\/(\d+)x(\d+)([a-z]{2})?\.(jpe?g|png|webp)$/i;
@@ -29,21 +19,6 @@ export const resolveLocalCoverThumbnailSize = (size: number): number => {
 
 const withLocalCoverThumbnailSize = (url: URL, size: number): string => {
     url.searchParams.set('size', String(resolveLocalCoverThumbnailSize(size)));
-    return url.toString();
-};
-
-const isQqCoverUrl = (url: URL): boolean => (
-    QQ_COVER_HOSTNAMES.has(url.hostname) && QQ_COVER_PATH_PATTERN.test(url.pathname)
-);
-
-const isQqPlaylistCoverUrl = (url: URL): boolean => (
-    url.hostname === QQ_PLAYLIST_COVER_HOSTNAME && QQ_PLAYLIST_COVER_PATH_PATTERN.test(url.pathname)
-);
-
-const withQqPlaylistCoverSize = (url: URL, size: number): string => {
-    const bucket = QQ_PLAYLIST_COVER_SIZES.find(candidate => candidate >= size)
-        ?? QQ_PLAYLIST_COVER_SIZES[QQ_PLAYLIST_COVER_SIZES.length - 1];
-    url.pathname = url.pathname.replace(QQ_PLAYLIST_COVER_PATH_PATTERN, `$1${bucket}`);
     return url.toString();
 };
 
@@ -69,14 +44,6 @@ const isGoogleCoverUrl = (url: URL): boolean => (
 
 const withGoogleCoverSize = (url: URL, size: number): string => {
     url.pathname = url.pathname.replace(GOOGLE_COVER_SIZE_PATTERN, (_match, _w, _h, rest: string) => `=w${size}-h${size}${rest}`);
-    return url.toString();
-};
-
-const withQqCoverSize = (url: URL, size: number | null): string => {
-    url.pathname = url.pathname.replace(
-        QQ_COVER_PATH_PATTERN,
-        size ? `$1R${size}x${size}$3` : '$1$3',
-    );
     return url.toString();
 };
 
@@ -125,32 +92,6 @@ const BUILT_IN_COVER_URL_RULES: readonly CoverUrlRule[] = [
         },
         requestedSize: url => (url.hostname.includes('126.net') ? parseSize(url.searchParams.get('param')) : undefined),
         sizedText: (text, size) => (text.includes('126.net') ? `${text.split('?')[0]}?param=${size}y${size}` : null),
-    },
-    {
-        provider: 'qq',
-        sized: (url, size) => {
-            if (!isQqCoverUrl(url)) return null;
-            // Past 800 the 1200 bucket answers, never the original: album and singer originals run to
-            // 3000×3000, and on the wall Chromium decodes one that big again for every tile it
-            // rasters (150–300 ms frames while panning). R1200 exists for album (T002) and singer
-            // (T001) images alike and comes back at the original's size when that is smaller;
-            // R1000 and R1024 answer 404. A caller that wants the original asks getOriginalCoverUrl.
-            const qqCoverSize = size <= QQ_COVER_SMALL_SIZE
-                ? QQ_COVER_SMALL_SIZE
-                : size <= QQ_COVER_LARGE_SIZE ? QQ_COVER_LARGE_SIZE : QQ_COVER_XL_SIZE;
-            return withQqCoverSize(url, qqCoverSize);
-        },
-        identity: url => (isQqCoverUrl(url) ? `qq:${url.pathname.replace(QQ_COVER_PATH_PATTERN, '$1$3')}` : null),
-        original: url => (isQqCoverUrl(url) ? withQqCoverSize(url, null) : null),
-        requestedSize: url => (isQqCoverUrl(url) ? parseSize(QQ_COVER_PATH_PATTERN.exec(url.pathname)?.[2]) : undefined),
-        proxiedOnWeb: url => url.hostname === 'y.gtimg.cn',
-    },
-    {
-        provider: 'qq',
-        sized: (url, size) => (isQqPlaylistCoverUrl(url) ? withQqPlaylistCoverSize(url, size) : null),
-        identity: url => (isQqPlaylistCoverUrl(url) ? `qq:${url.pathname.replace(QQ_PLAYLIST_COVER_PATH_PATTERN, '$1*')}` : null),
-        original: () => null,
-        requestedSize: url => (isQqPlaylistCoverUrl(url) ? parseSize(QQ_PLAYLIST_COVER_PATH_PATTERN.exec(url.pathname)?.[2]) : undefined),
     },
     {
         provider: 'apple',

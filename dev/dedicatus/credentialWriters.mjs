@@ -60,6 +60,8 @@ export const CREDENTIAL_WRITERS = {
     'sources/qq/core/qqTransport.ts': {
         // 只在 login_qr_check 确认（code 803）时写
         persistConfirmedSession: ['cookie'],
+        // 只写 null：退出登录，或后端不再认的会话
+        clearQqSession: ['cookie'],
     },
     'sources/qq/core/qqProvider.ts': {
         // 扫码轮询确认（803）的分支
