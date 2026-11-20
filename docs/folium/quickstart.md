@@ -94,5 +94,6 @@ export default function activate(folium) { /* ... */ }
 | 除了歌词动画还能加什么 | [注册表一览](api.md#注册表一览)，指南的[能做什么：速查](contributing.md#4-能做什么速查) |
 | 加设置项、读主题和歌词 | 指南的[写好一个模组](contributing.md#5-写好一个模组) |
 | 需要读写文件、跑外部程序 | `mod.json` 里加 `main` 入口，见 [main 入口](api.md#main-入口node) |
+| 给 Folia 加一个在线平台（音源模组，预览） | [写一个音源模组](sources.md) |
 | 照着现成的改 | 仓库里的样例模组，[规范开头的表](../../mods/README.md)列了每个演示什么 |
 | 发布到模组市场 | 指南的[发布到模组市场](contributing.md#6-发布到模组市场) |
