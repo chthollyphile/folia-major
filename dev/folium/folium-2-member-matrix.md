@@ -25,7 +25,7 @@
 
 ## 1. 统计与归类总览
 
-契约一共 **165 行**：
+契约一共 **165 行**（S0 时的数；S6 之后又加了 3 个，见第 9 节）：
 
 | 部分 | 行数 | 其中同步 |
 | --- | --- | --- |
@@ -441,9 +441,9 @@
 | | 宿主反过来问它：列出、删掉、清空它的缓存文件，和别的媒体缓存一起算一个预算（`main.cjs:4873-4884,4909,4966` 的 `audioFiles.list / remove / clear`） | **没有**：`dir()` / `requestPrune()` 是模组找宿主，这里是宿主找模组。要么让模组登记一个「缓存条目」的提供者，要么约定宿主自己扫 `api.cache.dir()` 里的文件 |
 | | `userData/soloist/{data,cache}`（`main.cjs:434-437`）；主窗口没了时暂停 Soloist（`main.cjs:5424`）；退出前收尾；特权协议（`main.cjs:181,6431`，同样用 `parseRangeHeader`） | `api.paths.legacy`；`api.onPlayersOrphaned`；`api.onBeforeQuit`；`api.media.serve` |
 | | librespot 原生件、`ws`、回环 HTTP 服务、子进程 | `api.native.load`；其余 Node 自带 |
-| appleMusic | 伴侣程序的路径：区分打包与开发、开发时可用环境变量覆盖（`main.cjs:410-416`，`electron/appleMusic/nativePaths.cjs`） | `api.native.path`（开发时的覆盖要一并支持） |
+| appleMusic | 伴侣程序的路径：区分打包与开发、开发时可用环境变量覆盖（`main.cjs:410-416`，`electron/appleMusic/nativePaths.cjs`；迁移后是 `electron/modSystem/nativeFiles.cjs`） | `api.native.path`（开发时的覆盖要一并支持） |
 | | `userData/apple-music-companion`（`main.cjs:417`）；主窗口没了时暂停（`main.cjs:5421`）；退出时关掉（`main.cjs:7883`，在 `will-quit` 里） | `api.paths.legacy`；`api.onPlayersOrphaned`；`api.onBeforeQuit` |
-| | IPC 只认主窗口的主 frame（`electron/appleMusic/companionIpc.cjs`） | 见表后的说明 |
+| | IPC 只认主窗口的主 frame（`electron/appleMusic/companionIpc.cjs`；迁移后删掉，来源校验由宿主统一的 `isMainWindowFrame` 接替） | 见表后的说明 |
 | | 不用 electron-store，也不用 safeStorage | §5.5 前两行把它列在「谁在用」里，只有 `api.paths.legacy` 成立 |
 | fnmusic | `store` + `safeStorage`（`main.cjs:373`）；特权协议放音频和封面（`main.cjs:182,6432`） | `api.legacy.store` + `api.seal`；`api.media.serve` |
 | | 直接用 Node 的 `http` / `https` 连用户自己的服务器，私网地址的自签名证书不校验（`fnmusicApiBridge.cjs:168,302`） | Node 自带；这是另一种证书例外，§5.5 的「清单声明的证书例外」只写了 kugou、qq，建议把它也列进启用确认 |
@@ -708,3 +708,13 @@
 - `mutations.likeSong`（11 个文件 48 处）：`unit/onlineMusic/kugouProvider.test.ts`×19、`unit/onlineMusic/qqMutations.test.ts`×8、`unit/onlineMusic/omni.test.ts`×4、`unit/ytm/ytmProvider.test.ts`×4、`unit/onlineMusic/accountRead.test.ts`×3、`unit/qishui/capabilities.test.ts`×3、`unit/qishui/packagePaging.test.ts`×2、`unit/spotify/spotifyProvider.test.ts`×2、`dev/probes/libraryBehavior/fakeProviders.ts`×1、`unit/onlineMusic/bodianMutations.test.ts`×1、`unit/onlineMusic/omniLikePresses.test.ts`×1
 - `mutations.updatePlaylistTracks`（10 个文件 38 处）：`unit/onlineMusic/qqMutations.test.ts`×9、`unit/onlineMusic/omni.test.ts`×8、`unit/onlineMusic/bodianMutations.test.ts`×5、`unit/ytm/ytmProvider.test.ts`×5、`unit/onlineMusic/neteaseProvider.test.ts`×3、`unit/qishui/capabilities.test.ts`×3、`unit/qishui/packagePaging.test.ts`×2、`dev/probes/libraryBehavior/fakeProviders.ts`×1、`unit/appleMusic/appleMusicLibrarySongs.test.ts`×1、`unit/spotify/spotifyProvider.test.ts`×1
 - `mutations.subscribeAlbum`（5 个文件 14 处）：`unit/ytm/ytmProvider.test.ts`×6、`unit/onlineMusic/qqMutations.test.ts`×4、`unit/onlineMusic/kugouProvider.test.ts`×2、`dev/probes/libraryBehavior/fakeProviders.ts`×1、`unit/spotify/spotifyProvider.test.ts`×1
+
+## 9. 迁移之后（2026-11-20）
+
+这份表是 S0 时对着迁移前的代码做的，行号和路径（`src/services/onlineMusic/<id>/`、`electron/<id>/`、`main.cjs` 与 `preload.cjs` 的平台块）指的都是那时的位置。九家现在都在 `sources/<id>/` 下，宿主里那些块已经删掉；表里的归类仍然有效，路径不再逐行改。迁移中和这份表对不上的：
+
+- **成员数**：`foliumSourceMembers.test.ts` 钉的是 165 + 3。多的三个是 S6 加的 `OnlineMusicProvider.routeOf?`、`itemKinds?` 和 `OnlineExternalPlaybackProvider.mount?`（`playback.surface@1`）。
+- **歌曲 DTO**：`FoliumSourceSong` 多了可选的 `publicId`（QQ 的数字 songid，别的模组经 `folium.omni` 看到的 id）。
+- **第 6 节的设施**：迁移时补进 main 入口 `api` 的成员列在方案 §5.5 的第二张表里（分区的本地应答与拒绝权限、隐藏窗口不节流、`_media` 的一次性 key、`api.cache.legacyDir`、`api.diagnostics.snapshot` / `selfCheck`）。
+- **第 7 节第 1 条**（没被接手的外部播放不会自动重新播放）：S6 给 `surface` 路线加了按交接位置重新播放的一支；`external` 路线保持暂停。窗口交接现在先等交来那首歌自己的平台注册好（最多 10 秒）。
+- **第 7 节第 8 条**（网易云在系统临时目录的两个文件）与第 8 项设施（启用确认里的自签证书）：都还没做，见方案 §14：网易云那两个文件仍由上游写在系统临时目录、「清除数据」不删它们；飞牛的自签证书没进清单。

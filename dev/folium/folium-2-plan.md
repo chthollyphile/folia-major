@@ -23,8 +23,8 @@ Folium 2.0 要做到两件事：
 | 契约形状 | 开放的能力模型，播放分 `audio` / `external` / `surface` 三种且可再加 |
 | 音源类模组 | 单独一类，网络、存储、签名、加载与卸载时序有自己的豁免（§5.2） |
 | 单独停用 | 每个音源（含内置）可以单独停用：不加载、不起后端、界面里不出现，可一键清掉它的数据；安装包里的内置副本留在磁盘上（§5.3） |
-| 默认启用 | 升级的用户九个全部保持启用；全新安装在开箱引导里勾选 |
-| 只用于匹配 | 音源在启用和停用之间多一个状态：界面里不出现，只匿名参加歌词匹配和元数据匹配，后端用到时才启动。全新安装在开箱引导里没勾的网易云和 QQ 落到这个状态，不落到停用（§5.3） |
+| 默认启用 | 升级的用户九个全部保持启用；全新安装在开箱引导里勾选，答完引导之前不运行任何音源 |
+| 只用于匹配 | 音源在启用和停用之间多一个状态：界面里不出现，只匿名参加歌词匹配和元数据匹配，后端和启用时一样随应用启动（维护者 2026-11-20 实测后改定，原先是用到时才启动）。全新安装在开箱引导里没勾的网易云和 QQ 落到这个状态，不落到停用（§5.3） |
 | 跨音源功能 | 联邦搜索、元数据匹配、歌词跨来源匹配在平台缺失时降级：能匿名就匿名，不能的记下缺失并隐藏（§7.1） |
 | 合规预案 | 安装包可以不带某些或全部内置音源；这样的安装里，外部的音源模组经用户确认就能直接顶上那个音源的位置，不要求官方签名（§5.1） |
 
@@ -123,15 +123,15 @@ folium.sources.register({
 `surface` 的实现（建在 `src/services/onlineMusic/externalPlayback.ts` 上，它本身不认识平台）：
 
 - 路线值沿用 `'external'`，选路、传输、automix 闸门、预取与缓存跳过、均衡器提示、视频导出拒绝这些现成的分支原样生效。
-- 新增常驻的 `SurfacePlaybackHost`，挂在 App 根、与 `app.overlay` 同级、层级在播放页之下，容器用现成的 `FoliumMountHost`（ShadowRoot）。不能挂在 `VisualizerBackdrop` 里：那一层是条件挂载的，卸载等于停播，iframe 被移动还会重载。
+- 新增常驻的 `SurfacePlaybackHost`，挂在 App 根、与 `app.overlay` 同级、层级在播放页之下，容器是它自己建的 ShadowRoot 盒子（S6 实现时没用 `FoliumMountHost`：那是 React 里按条目挂、带 ctx 和主题的组件，`surface` 是按歌、跟路线事件挂的；隔离方式相同）。不能挂在 `VisualizerBackdrop` 里：那一层是条件挂载的，卸载等于停播，iframe 被移动还会重载。
 - `surface` 生效时播放页不画不透明背景（`VisualizerBackdrop.tsx:130` 已有 `renderBackground`），歌词和字幕照常压在画面上。
-- 播放页不显示（首页、设置）时容器 `visibility: hidden`，声音继续；OBS、遥控、导出窗口没有画面。主窗口重建时容器随窗口销毁，新窗口按交接位置重新 `play(item, startSec)`。
+- 播放页不显示（首页、设置）时容器 `visibility: hidden`，声音继续；OBS、遥控、导出窗口没有画面。主窗口重建时容器随窗口销毁，旧窗口交接前先把它的播放器暂停，新窗口按交接位置重新 `play(item, startSec)`。
 - 2.0 只做声音不进宿主音频图的形态（`audio: 'own'`）：均衡器、频谱、automix、音频缓存、视频导出按 `external` 现有的规则停用。把同文档 `<video>` 接进音频图留作以后的 `playback.surface@2`。
-- 一个音源可以同时有几种播放能力，由同步的 `routeOf?(item)` 按条目选；没有它时按实现的第一种。
+- 一个音源可以同时有几种播放能力，由同步的 `routeOf?(item)` 按条目选；没有它、答了没实现的方式或抛错时，按定义里 `capabilities` 键序的第一种播放方式（S6 定的解读；同时有 `audio` 和 `external` 又不写 `routeOf` 的，写在前面的生效）。有 `mount` 且 `routeOf` 答 `surface` 的歌走重新播放，不走 `adopt`，所以只做外部播放的音源不要给 `mount`。
 
 ### 4.3 歌曲 DTO
 
-公开的 `FoliumSourceSong`：`id`、`title`、`artists[{ id, name, ref? }]`、`album?{ id, name, coverUrl?, ref? }`、`durationMs?`、`coverUrl?`、`aliases?`、`translatedTitles?`、`kind?`、`variant?`、`pureMusic?`、`video?`、`lyricIds?`（取代顶层的 `qqMid` / `kgHash`）、`row?{ id?, listenCount? }`、`replayGain?`、`data?`（即 `sourceRef.providerData`，只能是 JSON）。
+公开的 `FoliumSourceSong`：`id`、`publicId?`（别的模组经 `folium.omni` 看到的 id 与 `id` 不同时写它：QQ 的数字 songid，维护者 2026-11-20 定保持迁移前的值；宿主播放、存档、查歌仍用 `id`）、`title`、`artists[{ id, name, ref? }]`、`album?{ id, name, coverUrl?, ref? }`、`durationMs?`、`coverUrl?`、`aliases?`、`translatedTitles?`、`kind?`、`variant?`、`pureMusic?`、`video?`、`lyricIds?`（取代顶层的 `qqMid` / `kgHash`）、`row?{ id?, listenCount? }`、`replayGain?`、`data?`（即 `sourceRef.providerData`，只能是 JSON）。
 
 - 平台自己的字段（网易云的 `fee`、`privilege`、`noCopyrightRcmd`、`resourceState`，酷狗和 QQ 的内部 id）进 `data`。
 - 适配层双向转换：往宿主方向，认领旧 id 的三家继续写顶层的 `qqMid`、`kgHash` 等，直到宿主的读者（`lyricMatchSources.ts`、`autoMatchBestLyric.ts`、`onlineMetadataSearchService.ts`、`amllDbProvider.ts`）改读 `lyricIds`；往模组方向，把已持久化的旧歌的顶层字段折回 `data`。
@@ -211,8 +211,8 @@ folium.sources.register({
 - **界面里不出现**：音源切换器、登录窗口、搜索来源、歌词来源、本地歌匹配的平台按钮、命令面板里它的命令都没有它这一行。它在队列、历史、歌单里的歌留着，标「音源未启用」，重新启用后恢复；选中的是它时按 §7 第一行处理。
 - **数据**：停用不动数据。音源那一行另有「清除数据」：登出并删掉它的会话（受信表里认领的旧键和分区、`secrets`、`pageStore`）、`online_provider_<id>_*` 缓存、`api.cache.dir()` 和模组数据目录，列出要删什么、确认后执行。清除是单独的动作，和停用、卸载覆盖副本分开。
 - **磁盘**：安装包里的内置副本留着（约定如此）；停用内置音源时，`userData/mods` 里它的覆盖副本一并不加载，可以单独删掉。
-- **入口**：「设置 → 音源」新页面（用 `src/components/modal/settings/kit/` 的控件），每个音源一行：开关、状态、占用（数据与缓存）、清除数据。它不受模组系统总开关影响；模组面板里的音源分组指向这里。开关同时进命令面板（`settings-feature-integration`）。
-- **默认值**：启用状态存在主进程的 `mod-system` store 里，内置音源没有记录时读作启用，所以升级的用户九个全开。全新安装的开箱引导加一步勾选音源，没勾的写成停用，清单里标了 `keepForMatching` 的内置音源（网易云、QQ）没勾时写成「只用于匹配」；用 `?skipStartup` 跳过引导时全开。
+- **入口**：「设置 → 音源」新页面（用 `src/components/modal/settings/kit/` 的控件），每个音源一行：开关、状态、占用（数据与缓存）、清除数据。它不受模组系统总开关影响；模组面板里的音源分组指向这里。开关同时进命令面板（`settings-feature-integration`）。页面、命令面板和引导页里音源一律用清单名；每行是同一种三点状态控件，停用的音源记住它上次声明的能不能只用于匹配，停用时也能直接切过去。
+- **默认值**：启用状态存在主进程的 `mod-system` store 里，内置音源没有记录时读作启用，所以升级的用户九个全开。全新安装的开箱引导加一步勾选音源，没勾的写成停用，清单里标了 `keepForMatching` 的内置音源（网易云、QQ）没勾时写成「只用于匹配」；用 `?skipStartup` 跳过引导时全开。全新 profile 由主进程记下欠着这一页（`mods.sourcesOnboarding`），答完之前不运行任何音源模组，没勾的平台一次网都不联；欠着时在设置或命令面板里切任意一家算答过。
 - **网页版**：同一个开关表对 `registerWebSources()` 生效，停用的不注册。
 
 **只用于匹配。** 歌词匹配和元数据匹配绝大多数时候靠网易云和 QQ：元数据匹配只有网易云、QQ、酷狗参加，不登录就能配歌词的平台也是这三家，AMLL 库又要靠这两家的歌曲 id。所以音源在启用和停用之间多一个状态，让不用这两家听歌的人也留着匹配：
@@ -220,7 +220,7 @@ folium.sources.register({
 - **谁能用这个状态**：声明了 `lyrics@1.crossSource` 或 `songs@1.metadataMatch`、并且对应能力是 `access: 'anonymous'` 的音源（§4.7）。别的音源只有启用和停用两种。
 - **界面里不出现**：音源切换器、登录窗口、搜索来源、首页、探索页、命令面板里它的命令都没有它。它只出现在歌词来源（歌词设置的首选来源、匹配窗口的页签）和本地歌匹配的平台按钮里。它在队列、历史、歌单里的歌和停用时一样，标「音源未启用」。
 - **只做匿名的匹配**：只参加歌词跨来源匹配和元数据匹配（含 AMLL 库要的按平台搜出歌曲 id），不参加联邦搜索；一律按没登录对待，不读、不显示它的账号。已有的登录数据原样留着，切回启用后还在。
-- **后端用到时才启动**：client 照常启动并注册（所以歌词来源的名字、封面规则都在），main 入口不在启动时 `require`，推迟到它的 client 第一次调 `folium.rpc` 时才启动，之后留到应用退出或状态再变。没发生过匹配就没有后端进程、worker、本机端口。
+- **后端随应用启动**（维护者 2026-11-20 改定）：client 和 main 入口都和启用时一样在启动时加载，启用与只用于匹配互切不重启那份副本。原先的做法是 main 入口推迟到 client 第一次调 `folium.rpc` 才启动；桌面实测时网易云后端冷启动约 7 秒，歌词自动匹配每家只等 3.5 秒，只用于匹配的网易云第一次被用到必定超时，所以改掉。各家自己的后端仍可以在 main 入口里按需拉起（QQ 的进程内服务是第一次请求才起）。
 - **默认值**：升级的用户九个全开，不受影响。全新安装的开箱引导里，用户勾的是「我用哪些平台」；没勾的里面，清单标了 `sources[].keepForMatching` 的内置音源（网易云、QQ）落到这个状态，旁边写一句它的用途，其余落到停用。`keepForMatching` 只对内置副本生效，宿主自己不写平台 id。
 - **入口**：「设置 → 音源」里能用这个状态的音源那一行是三选一（启用、只用于匹配、停用），其余是开关。三种状态之间切换都不需要重启。
 - **合规预案**（§5.1）下经确认接管的外部音源模组同样可以设成只用于匹配；安装包不带、用户也没装的平台，匹配就没有它。
@@ -277,6 +277,20 @@ folium.sources.register({
 | `api.diagnostics.register(…)` | 后端状态、诊断、自检的域名；宿主补系统代理和网络记录 | netease、qq |
 | `api.native.load(name)` / `path(name)` | 留在应用里的原生件 | spotify、appleMusic |
 
+迁移各家时补进来的（都在 Source main API 预览节里，2026-11-20）：
+
+| 成员 | 用途 | 谁逼出来的 |
+| --- | --- | --- |
+| `api.net.session(name).intercept(scheme, handler)`、`refusePermissions()` | 本分区的 http(s) 由本地应答、拒绝一切权限请求；每个分区只调一次 | ytm 的沙箱页 |
+| `api.windows.hidden({ backgroundThrottling: false })` | 隐藏窗口的计时器不节流；窗口自己关了宿主就放手 | ytm |
+| `_media` 地址的查询参数 `once` | 每次请求新做的一次性 key；宿主比较两个地址是不是同一个文件时不看它 | ytm、spotify |
+| `api.cache.legacyDir(name)`（内置） | 受信表 `legacyCacheDirs` 认领的、媒体缓存目录下的旧缓存目录；清除数据时一起删 | spotify |
+| `api.diagnostics.snapshot(sourceId)`、`selfCheck(sourceId)` | 登录诊断快照与自检，宿主补应用环境、系统代理和网络记录 | qq、netease |
+| `api.legacy.store` 的写入在模组停下之后不生效 | 清除数据后还在路上的请求不会把旧登录写回 | kugou |
+| 构建期的 `@folia/source-deps`（`depsRequire`） | main 与 worker 按路径取本模组 deps 归档里的文件 | netease |
+
+`api.native` 的名字由宿主的 `electron/modSystem/nativeFiles.cjs` 解析（伴侣程序、librespot 的包），文件不存在当作不可用。主窗口把听者设的媒体缓存上限经第一方通道 `set-media-cache-limit` 告诉主进程，音源的 `requestPrune()` 不带上限时照它修剪。
+
 worker、子进程、本机 HTTP 服务用 Node 自带的。迁完后 `main.cjs` 里的平台块全部删掉（`:158-205, 367-449, 3850-3929, 5054-5100, 5419-5427, 6430-6432, 6702-6720, 7378-7463`），`preload.cjs:172-198` 的平台通道和 `vite-env.d.ts` 里对应的类型一起删。
 
 ## 6. 仓库内的音源模组
@@ -318,6 +332,12 @@ packages/folium-source-kit/   纯 TS 的共用函数（exploreReads、listeningR
 
 - 打包：`package.json` 的 `extraResources` 把 `dist-mods/` 放到 `resources/builtin-mods/`；`files` 加排除规则，不让那几个上游包再进一份 app.asar。根 `dependencies` 保留（Vercel、Cloudflare 的 QQ 入口还在用）。随包带哪些内置音源由构建参数 `FOLIA_BUNDLED_SOURCES` 决定（缺省九个全带，可以给一个子集，也可以给空）：它同时决定 `extraResources` 里放哪些、`foliaBundledSources` 写什么、受信表带哪几行、app.asar 的排除规则。不带的音源，安装包里没有它的任何代码和名字（§5.1 的合规预案）。
 - 官方签名的覆盖包单文件上限提到 64 MB、总量 96 MB（网易云的 `deps.asar` 约 48 MB）。新增 `npm run sources:pack <id>` 出 zip，签名仍走 folium-compound 的 `tools/sign.mjs`。
+- **实际做法与上面两条不同的地方（S8，2026-11-20）**：
+  - `extraResources`、app.asar 的排除规则、原生件与伴侣程序不写在 `package.json` 里，由 `build.extends` 指向的 `build/bundledSources.mjs` 按 `FOLIA_BUNDLED_SOURCES` 算（排除规则来自 `dev/sources/packaging.mjs`）。只在 Windows x64 上打包冒烟过；macOS、Linux 由 Cielo 的 CI 构建通过，安装后的行为没验证。
+  - 受信表九行都留，不随 `FOLIA_BUNDLED_SOURCES` 减：外部模组接管时要拿它核对旧登录。「安装包里没有它的任何名字」做不到（受信表、注册顺序、原生件名、旧键迁移表、语言包里的版本说明都有平台名），代码和上游库做到了不带。
+  - 64 MB / 96 MB 的上限落在 `zipInstall.cjs` 和 `modDigest.cjs`，对所有 .zip 安装生效，不只是官方签名的覆盖包：安装流程在验签之前分不出来。
+  - `npm run sources:pack <id>` 还没有，做不做、何时做待维护者定。
+  - ytm 的 vendor 文件带内容指纹（`vendor.<指纹>.mjs`）；打进 bundle 的包里音源没声明的可选依赖一律当没装。
 - 原生件随应用走，覆盖副本用 `folia` 版本范围锁住宿主。
 - 开发：`dev:electron` 同时以 watch 方式跑 `dev/sources/build.mjs`；改了文件 → 产物指纹变 → 现成的 client 重载机制只重载那一个。
 
@@ -378,9 +398,9 @@ packages/folium-source-kit/   纯 TS 的共用函数（exploreReads、listeningR
 
 ## 9. Folium 1 兼容
 
-- `folium: 1` 的模组照旧加载，接口冻结在 1.9，internals 和旧名字照旧标废弃；`deprecated/` 里「Folium 2 删除」的那份清单改期到以后的 major。main 在 `edge` 切出之后又发了 Folium 1.10（2026-11-18，`folium.theme`），冻结线跟不跟到 1.10 待维护者定（§10「main 到 `edge` 的同步」）。
+- `folium: 1` 的模组照旧加载，接口冻结在 1.9，internals 和旧名字照旧标废弃；`deprecated/` 里「Folium 2 删除」的那份清单改期到以后的 major。main 在 `edge` 切出之后又发了 Folium 1.10（2026-11-18，`folium.theme`），冻结线跟不跟到 1.10 待维护者定（§10「main 到 `edge` 的同步」）；2026-11-20 同步 main 时代码里先按 1.10 写了（`foliumOneVersion`），维护者定了别的再改。
 - 实验接口 `omni.providers` 改成新注册表上的一层薄壳，行为不变；文档里指向 `folium.sources`。
-- `mods/README.md` 改写成 Folium 2 规范，去掉「2.0 前不要做完整音源模组」那段；新增 `docs/folium/sources.md`（开发指南、能力一览、旧简化音源的迁移）。
+- `mods/README.md` 改写成 Folium 2 规范，去掉「2.0 前不要做完整音源模组」那段；新增 `docs/folium/sources.md`（开发指南、能力一览、旧简化音源的迁移）。`docs/folium/sources.md` 已有（S8）；`src/mods/README.md` 只做了定点修改，整篇改写等冻结线定。
 - 示范模组：`dev/folium/sample-source-full`（覆盖每个能力族的契约测试音源）、`dev/folium/sample-video-source`（`playback.surface`）。
 
 ## 10. 实施阶段
@@ -445,6 +465,8 @@ S0–S4 与试点平台（bodian）在集成分支 `folium-2`（从 main 切，�
 7. **ytm → appleMusic → spotify。**
 8. **收尾**：S8 的最后一段；做完后 `edge` 合进 main（「交付」第二步）。
 
+**进度（2026-11-20）**：第 2、4–8 步都已做完，九家平台全部是 `sources/<id>/` 下的音源模组。`edge` 推到 `7da6f50cd` 并从它发了 Cielo 滚动版（0.7.29-alpha.1795177495，四个平台构建通过）；之后开发版桌面实测发现的问题另有一组修复。还没做的只有维护者要定的几件：去掉「预览」标记、冻结线、`edge` 合进 main。实施中与本文不同的地方和待定事项汇在 §14。
+
 **CI 要改指向的**：`dev/dedicatus/rules.mjs`（D110 加 `sources/**`，加新边界规则）、`providerRegistration.test.ts`（D122 改读 `sources/*/mod.json`）、`omniArchitecture.test.ts` 与 `platformNamePlaces.ts`、`credentialWriters.mjs`（D604）、`ipcChannels.mjs`（D605，删九个通道并改正 `folia-mods:rpc` 那条的说法）、`storageKeys.mjs`（D507）、`authMembers.test.ts`（换成从矩阵生成的一致性测试）、`providerName.test.ts`、`traditionalMainProcessText.test.ts`。`sampleMods.test.ts` 只扫 `mods/`，`sources/` 不受签名要求影响，另加一个内置清单校验测试。
 
 实现按 `development-workflow` 走：每组提交自检，S 阶段结束时派独立子代理审查。
@@ -458,7 +480,7 @@ S0–S4 与试点平台（bodian）在集成分支 `folium-2`（从 main 切，�
 - **外部播放与 `surface`**：暂停、恢复、跳转、自然结束、单曲循环、窗口重建、进程退出；不重复切歌、不双重出声。
 - **音源类的豁免**：`sample-source-full` 不声明 `net.fetch`、`filesystem.data` 也能发二进制请求、存超过 1 MB 的数据；启用、停用一个普通模组时它的 main 入口不重启；停用它时正在放的歌先停、`onBeforeUnload` 被等到；普通模组照旧被 5 MB、1 MB、权限闸门拦住。内置音源的目录里没有 `folium.sig.json` 也照常加载，面板里标「内置」；`sample-source-full` 不带签名能启用、能拿到上面的豁免。
 - **单独停用**：逐个停用九个内置音源，每次确认它的后端进程、worker、本机端口都没有了（主进程里求值检查），切换器、登录窗口、搜索来源、歌词来源里没有它，别的音源没有重启；队列里它的歌标「音源未启用」，重新启用后能放；「清除数据」之后重新启用是未登录状态；升级来的 profile 九个全开，全新 profile 按引导里勾的来。
-- **只用于匹配**：把网易云和 QQ 设成只用于匹配。切换器、登录窗口、搜索来源、首页、命令面板里都没有它们；没登录的情况下给本地歌配歌词、配在线信息能成功，AMLL 库按 id 查能成功；匹配发生之前主进程里没有它们的后端（主进程里求值确认），第一次匹配之后才有；它们在队列里的歌标「音源未启用」；切回启用后原来的登录还在；联邦搜索里没有它们。全新 profile 在引导里一个都不勾时，网易云和 QQ 是只用于匹配，其余七个是停用；升级来的 profile 九个全开。`crossSource` 的单测覆盖新增的两种状态。
+- **只用于匹配**：把网易云和 QQ 设成只用于匹配。切换器、登录窗口、搜索来源、首页、命令面板里都没有它们；没登录的情况下给本地歌配歌词、配在线信息能成功，AMLL 库按 id 查能成功；它们的 main 入口和启用时一样随应用加载（2026-11-20 改定，原先要求匹配发生之前主进程里没有它们的后端），第一首本地歌的匹配不因后端冷启动超时；它们在队列里的歌标「音源未启用」；切回启用后原来的登录还在；联邦搜索里没有它们。全新 profile 在引导里一个都不勾时，网易云和 QQ 是只用于匹配，其余七个是停用，答完引导之前没有任何音源在运行；升级来的 profile 九个全开。`crossSource` 的单测覆盖新增的两种状态。
 - **跨音源降级**：`crossSource` 的单测覆盖表里五种状态；桌面上停用 QQ 后，歌词首选来源仍存着 `qq`、匹配落到下一个来源、设置里说明了原因，重新启用后用回 QQ；停用网易云、QQ、酷狗后本地歌信息匹配窗口的页签为空、不发搜索（入口留着）；九家都在时元数据匹配的顺序是网易云、QQ、酷狗；只留一个不登录的网易云时联邦搜索和歌词匹配走匿名成功。
 - **覆盖**：干净的安装版上放一个官方签名的更高版本，确认后生效；未签名、版本更低、`folia` 范围不符的都继续跑内置副本。
 - **合规预案**：用 `FOLIA_BUNDLED_SOURCES` 出两个安装包，一个九个都不带，一个只不带 QQ。前一个启动是零音源的空状态，安装包里搜不到任何平台的代码和名字；装上 `sources:pack` 出的未签名 zip 并确认之后，音源以短 id 出现，从九个全带的旧版本升级来的 profile 里登录还在、队列里的歌能放。后一个其余八家照常，QQ 由外部副本接管。声明里有而目录被删掉的，报安装损坏、不放行外部副本；签名不匹配的不让接管；两个模组抢同一个 id 时只有先确认的拿到；换回九个全带的安装包后，未签名的外部副本不再加载，登录还在。
@@ -479,7 +501,7 @@ Windows 以外的系统、Apple Music 的 DRM、Spotify Soloist 以对应系统�
 7. **同步成员跨模组边界**：热路径上不计时，只有一层 try/catch 接住抛错、回保守答复（§5.2）；模组 bundle 里不能自带第二份 i18n 或 zustand，用宿主注入的。
 8. **视频站**：Electron 不带 Widevine，带 DRM 的站点在嵌入页里放不了；嵌入页不可见时可能自己暂停。写进 `surface` 的文档。
 9. **合规预案放宽了「短 id 只归受信表」**：安装包不带某个音源时，未签名的外部模组经确认就能拿到那个音源的旧登录。放宽的条件是安装包自己的声明，它在 app.asar 里，和宿主代码同等可信；九个全带的正常安装包里这条路走不通。模组本来就是可信代码，确认窗口逐项写明它接管什么。预案只管模组这一层：根 `dependencies` 里给 Vercel、Cloudflare、Docker 用的三个 API 包，`api-ts/`、`worker/`、`deploy/docker/` 里的平台入口，都不在它的范围内，真到那一步要另行处理。
-10. **只用于匹配靠的是匿名通道**：平台对匿名请求限流或收紧时，匹配会变差或失效，和现在不登录的用户处境相同；这个状态不替用户登录，也不借用已有的登录。后端推迟到第一次匹配才启动，所以那一次匹配会慢一些（网易云要起工作线程、QQ 要起进程内服务）。
+10. **只用于匹配靠的是匿名通道**：平台对匿名请求限流或收紧时，匹配会变差或失效，和现在不登录的用户处境相同；这个状态不替用户登录，也不借用已有的登录。后端随应用启动（2026-11-20 改定），代价是只用于匹配的音源也占着它的工作线程和本机端口；原先推迟到第一次匹配才启动，那一次匹配会因冷启动超时。
 
 ## 13. 未验证、动手时要先确认的
 
@@ -502,3 +524,55 @@ Windows 以外的系统、Apple Music 的 DRM、Spotify Soloist 以对应系统�
   - 播放器里不是这首歌、或者 `getStatus` 抛错时，`adoptExternalPlayback` 回 `false`，路线退回 `web`。调用方（`src/components/app/playback/restore/useElectronWindowPlaybackHandoff.ts:386-401`）接着调 `releaseUnclaimedExternalTrack` 把播放器暂停（暂停失败只记日志，`externalPlayback.ts:726-733`），把播放状态设成暂停、不自动播放。歌留在原来的位置，用户按播放时由正常的播放路径从那个位置开始（`restorePlaybackSource.ts:382-399`）。全程不抛错，不会双重出声。
   - 所以 §4.2 说的「新窗口按交接位置重新 `play(item, startSec)`」现有代码做不到。`surface` 的容器随窗口销毁，新窗口里一定走到「没有可接手的」这一支，结果是暂停。**建议**：S6 在这一支加一段，只对 `surface` 路线生效：交接快照说当时在播、接手回了 `false`，就按交接位置调一次 `play`；`external` 路线（Spotify、Apple Music）保持现在的暂停，免得和还在出声的外部播放器抢。另外 `surface` 的 `getStatus` 在没有挂载任何东西时要回「没有曲目」（`mediaId` 为空）而不是抛错，这样日志里不会每次重建都多一条警告。
 - 各平台依赖闭包的文件数和体积是按当前 `node_modules` 量的，换版本后重量。
+
+## 14. 实施记录：与本文不同的地方、待定的事（2026-11-20）
+
+九家迁完、S8 收尾做完之后汇总。各处正文里已经就地改了的（只用于匹配随启动加载、引导答完前不运行音源、`publicId`、`surface` 的容器与 `routeOf` 的缺省、§5.5 补进来的成员、§6.2 打包的实际做法）不在这里重复。
+
+**别的模组看得见的变化**
+
+- `folium.omni.listProviders` 里网易云的 `shortName` 随语言变（英文 NetEase，中文网易云）；迁移前是固定的。
+- 宿主一侧网易云的歌、集合、用户 id 都是文字（`'42'`），旧的数字 id 照读；`folium.omni` 给出的歌 id 与迁移前相同。
+- QQ 歌的 id 仍是数字 songid（`publicId`），songmid 也能解析。
+- 纯音乐只交 `isPureMusic`，`omni.getLyrics` 仍是空行。
+- main 入口不应答时，Apple Music、ytm 的错误码是 `network`，迁移前没有 preload 桥时是 `unavailable`。
+
+**行为上和迁移前不一样的**
+
+- 停用 Spotify 期间它在媒体缓存目录里的缓存不计入预算，「清除缓存」清不到，要用「清除数据」。
+- Soloist 选程序时默认打开用户目录下的 `Downloads`，不是系统登记的下载目录（契约里没有下载目录）。
+- 酷狗的 `api.media.allow` 只放 media / xhr / image 与 GET / HEAD / OPTIONS，比原来 `main.cjs` 里的规则窄；媒体错误日志没承接。
+- 网页版里迁移前存下、未过期的 http 酷狗地址不再被宿主升成 https（播放失败会重新取地址）。
+- fnmusic 被外部模组接管后，旧的 `folia-fnmusic://` 地址答 404，不转交。
+
+**S6 没做到本文写的**
+
+- `itemKinds` 没有 `label` 字段；种类的显示名以后要加时连同版本号一起定。
+- 画面只在外部播放事件来时同步：音源被注销或 `routeOf` 的答案中途变了，要等下一次状态（约 500 ms）才卸下。
+- 见过一次没复现的：视频自然结束后下一首宿主音频的歌没有自动开始。
+
+**宿主里还认得平台的地方**（本文的目标是只剩受信表和注册顺序）
+
+- `src/mods/folium/registries/sourcePageStore.ts` 的旧 localStorage 键迁移表（ytm 一条、网易云两条）。挪进受信表还是留在这里，待定。
+- `electron/modSystem/nativeFiles.cjs` 的原生件名字表。
+- `localMusic.kugouSource`（本地歌信息匹配的页签文字）、`kgHash`（歌词 id 的兼容桥）、两份 `credentialCookies.cjs`（宿主日志脱敏）、网易云 `music.126.net` 的 http→https 规则。
+- 根 `package.json` 的上游库依赖：留着（`sources:build` 从根 `node_modules` 取，Vercel、Cloudflare 的入口在用），app.asar 里不再带。
+
+**没做的**
+
+- `npm run sources:pack <id>`（§6.2、§11 合规预案要用）。
+- 零音源时空状态里的「安装音源模组」入口（§5.1），现在的文案仍叫人去连接在线平台。
+- 「设置 → 音源」每行的占用（数据与缓存）补算。
+- 飞牛的自签证书进清单与启用确认（矩阵第 8 项）：它是 Node 直连、清单没声明、内置副本不经启用确认。
+- 网易云上游写在系统临时目录的 `anonymous_token`、`xeapi_public_key`，「清除数据」不删（矩阵 §7 第 8 条）。
+- QQ 后端监听所有网卡（上游 `app.listen(PORT)` 不带 host，迁移前就这样）。
+- `src/mods/README.md` 整篇改写成 Folium 2 规范。
+
+**待维护者定**
+
+1. 去掉音源接口的「预览」标记（`foliumShared.json` 的 `sourcesPreview`）。去掉之后 D513 开始按「只加不改」查 `mods/folium.d.ts` 的 Sources、Source main API 两节，宿主版本号应随之升一档。
+2. `folium: 1` 的冻结线是 1.9 还是 1.10（§9；代码里现在是 1.10）。
+3. 上面「没做的」里哪些要在合进 main 之前补。
+4. `edge` 合进 main 的时机；在那之前 main → `edge` 的同步（2026-11-20 时 main 比 `edge` 多 3 个提交）。
+
+**要真实账号、真机验的**：九家登录后的路径、Apple Music 与 Spotify 的真实播放和窗口交接、各家「清除数据」的原生确认框、确认覆盖的对话框、0.7.x profile 升级再降级、macOS 与 Linux 的安装包，都还只有单测、替身或 Windows 上的冒烟。
