@@ -24,6 +24,8 @@ const env = vi.hoisted(() => {
     const state = {
         /** Song ids whose audio address is held until the promise resolves. */
         audioGate: new Map<string, Promise<unknown>>(),
+        audioCalls: [] as string[],
+        lyricsGate: new Map<string, Promise<unknown>>(),
         /** What the audio source answers for a song id; a plain http address when nothing is set. */
         audioResultFor: new Map<string, unknown>(),
         /** Song ids their platform marks unavailable. */
@@ -32,6 +34,7 @@ const env = vi.hoisted(() => {
         replacementFor: new Map<string, unknown>(),
         /** The Personal FM batch, held until it resolves. */
         fmBatch: null as Promise<unknown[]> | null,
+        fmRequests: [] as unknown[],
         /** Holds the Stage API's lookup of a song's details. */
         detailGate: null as Promise<unknown> | null,
         /** Every lookup of a song's details, as [providerId, id]. */
@@ -97,7 +100,12 @@ vi.mock('@/services/onlineMusic/omni', () => ({
         canPlaySong: () => true,
         canPlayExternally: () => false,
         getProviderLabel: (id: string) => id,
-        getPersonalFm: () => env.self.fmBatch ?? Promise.resolve([]),
+        getLyrics: async () => ({ lyrics: null, isPureMusic: true }),
+        getPersonalFm: (options: unknown) => { env.self.fmRequests.push(options); return env.self.fmBatch ?? Promise.resolve([]); },
+        getPersonalFmCatalog: async () => ({
+            ...DEFAULT_PERSONAL_FM_CATALOG,
+            scenes: ['33', '44'].map(id => ({ id, category: 'activity', labelKey: '', labelFallback: id, keywords: [] })),
+        }),
         getSongReplacement: async (song: { id: string }) => env.self.replacementFor.get(String(song.id)) ?? null,
         getSongDetail: async (providerId: string, id: number | string) => {
             env.self.detailCalls.push([providerId, id]);
@@ -113,6 +121,7 @@ vi.mock('@/services/onlineMusic/songAvailability', () => ({ askPlayedSong: () =>
 vi.mock('@/services/onlineMusic/resourceCache', () => ({
     hasCachedSongAudio: async () => null,
     getCachedSongCoverUrl: async () => null,
+    getSongCacheWithLegacyMigration: async () => null,
 }));
 const prefetch = vi.hoisted(() => ({
     prefetchNearbySongs: vi.fn(),
@@ -128,26 +137,33 @@ vi.mock('@/services/onlinePlayback', () => ({
     // A copy, as a song that took its replay gain is: the landing has a new object to put in the queue.
     applyOnlineAudioSourceMetadata: (song: object) => ({ ...song }),
     loadOnlineSongAudioSource: async (song: { id: string }) => {
+        env.self.audioCalls.push(String(song.id));
         await env.self.audioGate.get(String(song.id));
         return env.self.audioResultFor.get(String(song.id)) ?? { kind: 'ok', audioSrc: `https://audio.test/${song.id}` };
     },
     loadOnlineSongLyrics: async () => {},
 }));
-vi.mock('@/utils/onlineLyricsState', () => ({ loadOnlineLyricsState: async () => null }));
+vi.mock('@/utils/onlineLyricsState', () => ({
+    loadOnlineLyricsState: async (song: { id: string }) => { await env.self.lyricsGate.get(String(song.id)); return null; },
+    resolveOnlineLyrics: (_state: unknown, lyrics: unknown) => lyrics,
+}));
 // The sign-out saves the queue left for the next launch; there is no database here.
 vi.mock('@/components/app/playback/persistPlaybackCache', () => ({
     persistPlaybackCache: async () => undefined,
     forgetPlaybackCache: async () => undefined,
 }));
 
+const { useElectronWindowPlaybackHandoff } = await import('@/components/app/playback/restore/useElectronWindowPlaybackHandoff');
+const HandoffProbe = (props: Parameters<typeof useElectronWindowPlaybackHandoff>[0]) => useElectronWindowPlaybackHandoff(props);
 const { usePlaybackQueueController } = await import('@/components/app/playback/start/usePlaybackQueueController');
 const { usePlaybackRuntimeRefs } = await import('@/components/app/playback/usePlaybackRuntimeRefs');
-const { replacePlayQueue, setIsFmMode, setPlayQueue, usePlaybackStore } = await import('@/stores/usePlaybackStore');
+const { setIsFmMode, setPlayQueue, usePlaybackStore } = await import('@/stores/usePlaybackStore');
+const { noteAcceptedFmPlayback, replacePlayQueue, restoreAcceptedFmPlayback } = await import('@/services/playbackQueueOrigin');
 const { useStatusMessageStore } = await import('@/stores/useStatusMessageStore');
-const { makeSongCurrent } = await import('@/components/app/playback/currentSong');
+const { askedSongKeyRef, makeSongCurrent } = await import('@/components/app/playback/currentSong');
 const { noteWholeQueueWrite } = await import('@/services/wholeQueueWrites');
 const { notePersonalFmEnded } = await import('@/components/app/playback/personalFmEndings');
-const { dropPlaysOfProvider } = await import('@/components/app/playback/currentSong');
+const { dropPlaysOfProvider, dropPlaysInFlight } = await import('@/components/app/playback/currentSong');
 const { dropProviderSongs, leaveProviderForSwitch } = await import('@/library/app/createLibraryAccountPort');
 const { useOnlineProviderAccountStore } = await import('@/stores/useOnlineProviderAccountStore');
 const { getPlaybackSongKey } = await import('@/utils/appPlaybackGuards');
@@ -155,9 +171,22 @@ const { resetPlaybackStore } = await import('./currentSongWatch');
 const { onlineFailureOf } = await import('@/services/onlineMusic/failure/onlineFailureCase');
 const { usePersonalFmModeStore } = await import('@/stores/usePersonalFmModeStore');
 const { useAudioSettingsStore } = await import('@/stores/useAudioSettingsStore');
-const { queueStartsSoFar } = await import('@/components/app/playback/start/queueStarts');
+const { noteQueueStart, queueStartsSoFar } = await import('@/components/app/playback/start/queueStarts');
 const { onQueueEnd } = await import('@/components/scenes/engine/queueEnd');
 const { registerPersonalFmLanding } = await import('@/components/app/playback/start/personalFmLanding');
+const { usePlaybackTransportController } = await import('@/components/app/playback/bridges/usePlaybackTransportController');
+// React is mocked above; the probe invokes the real hook in this test's retained render harness.
+const TransportProbe = (props: Parameters<typeof usePlaybackTransportController>[0]) => usePlaybackTransportController(props);
+const { buildHomeModel } = await import('@/components/app/home/buildHomeModel');
+const { createLibraryHomePort } = await import('@/library/app/createLibraryHomePort');
+const { createLibraryHomeActions } = await import('@/library/core/home/libraryHomeActions.service');
+const { currentTime } = await import('@/stores/motionSignals');
+const { DEFAULT_PERSONAL_FM_CATALOG } = await import('@/services/onlineMusic/fmModes');
+const { usePlayingSongLocatorStore } = await import('@/stores/usePlayingSongLocatorStore');
+const { createOnlineGridViewCollection } = await import('@/components/app/home/gridViewCollectionAdapters');
+const { usePersonalFmModeController } = await import('@/hooks/usePersonalFmModeController');
+// React is mocked above; this probe shares the real mode hook with the queue controller harness.
+const ModeProbe = (props: Parameters<typeof usePersonalFmModeController>[0]) => usePersonalFmModeController(props);
 
 const online = (id: string): SongResult => ({
     id, name: id.toUpperCase(), artists: [], album: { id: '', name: '' }, durationMs: 1000,
@@ -205,11 +234,15 @@ const playerWith = (queue: SongResult[], current: SongResult | null, isFmMode = 
 beforeEach(() => {
     vi.stubGlobal('window', { setTimeout: vi.fn(() => 1), setInterval: vi.fn(() => 2), clearTimeout: vi.fn(), clearInterval: vi.fn() });
     resetPlaybackStore();
+    usePersonalFmModeStore.setState({ stations: {} });
     env.self.audioGate.clear();
+    env.self.lyricsGate.clear();
+    env.self.audioCalls.length = 0;
     env.self.audioResultFor.clear();
     env.self.unavailable.clear();
     env.self.replacementFor.clear();
     env.self.fmBatch = null;
+    env.self.fmRequests.length = 0;
     env.self.detailGate = null;
     env.self.detailCalls.length = 0;
     env.self.missingDetail.clear();
@@ -258,8 +291,368 @@ function mount() {
         }
     };
     const queue = render();
-    return { queue, render, persistLastPlaybackCache };
+    return { queue, render, refs, mainPlaybackSnapshotRef: params.mainPlaybackSnapshotRef, persistLastPlaybackCache };
 }
+
+describe('continuing the accepted stream through the real home surface and playback controllers', () => {
+    const selection = { mode: 'SCENE_RCMD' as const, scene: '33', station: 'radio' };
+    const prepare = (state: PlayerState) => {
+        useOnlineProviderAccountStore.setState({ activeProviderId: 'bodian' });
+        playerWith([f1, f2], f1, true);
+        usePersonalFmModeStore.getState().setStationCatalog('bodian', 'radio', {
+            ...DEFAULT_PERSONAL_FM_CATALOG, scenes: [{ id: '33', category: 'activity', labelKey: '', labelFallback: 'Driving', keywords: [] }],
+        });
+        usePersonalFmModeStore.getState().startStation('bodian', 'radio', selection);
+        noteAcceptedFmPlayback(f1, store().playQueue, true);
+        usePlaybackStore.setState({ playerState: state, audioSrc: 'https://audio.test/f1', playbackRoute: 'web' });
+        currentTime.set(42);
+        const locator = { collection: createOnlineGridViewCollection({ id: 'station-radio', name: 'For you', type: 'collection' }, 'bodian'), songKeys: new Set(keys(store().playQueue)) };
+        usePlayingSongLocatorStore.getState().setSource(locator);
+        const mounted = mount();
+        const audio = {
+            currentTime: 42, currentSrc: 'https://audio.test/f1', paused: state !== PlayerState.PLAYING, ended: false,
+            play: vi.fn(async () => { audio.paused = false; }), pause: vi.fn(),
+        };
+        mounted.refs.audioRef.current = audio as unknown as HTMLAudioElement;
+        const recover = vi.fn(async () => ({ recovered: false }));
+        const transport = TransportProbe({
+            stageActiveEntryKind: null, isNowPlayingStageActive: false,
+            audioRef: mounted.refs.audioRef, audioContextRef: { current: null },
+            stageLyricsClockRef: { current: { startTimeSec: 0, endTimeSec: 180, baseTimeSec: 0, startedAtMs: null } },
+            setupAudioAnalyzer: vi.fn(), syncOutputGain: vi.fn(), getTargetPlaybackVolume: () => 1,
+            shouldRefreshCurrentOnlineAudioSource: () => false, recoverOnlinePlaybackSource: recover,
+            getSyntheticStageLyricsTime: () => 0, syncStageLyricsClock: vi.fn(),
+        });
+        const enter = vi.fn();
+        // The actual surface forwards onPlaySong to queue.playSong: a regression would reset both clocks and fetch again.
+        const surface = buildHomeModel({
+            playSong: mounted.queue.playSong, resumePlayback: transport.resumePlayback, enterPlaybackView: enter,
+            localSongs: [], currentSong: f1, activePlaybackContext: 'main',
+        } as unknown as Parameters<typeof buildHomeModel>[0]).surfaceProps;
+        const actions = createLibraryHomeActions(createLibraryHomePort(() => surface));
+        const click = () => actions.openOnlineCard({ id: 'station-radio', name: 'For you', type: 'collection', raw: {
+            personalFm: selection, songPreview: { firstSong: f2, currentSong: f1 },
+        } }, 'bodian', vi.fn());
+        return { ...mounted, audio, recover, enter, click, locator, originalQueue: store().playQueue, accepted: store().acceptedFmPlayback };
+    };
+
+    it.each([PlayerState.PLAYING, PlayerState.PAUSED])('keeps the current source, queue and position when %s', async state => {
+        const host = prepare(state);
+        expect(await host.click()).toEqual({ ok: true });
+        await settle();
+        expect(store().currentSong).toBe(f1);
+        expect(store().playQueue).toBe(host.originalQueue);
+        expect(store().acceptedFmPlayback).toBe(host.accepted);
+        expect(usePlayingSongLocatorStore.getState().source).toBe(host.locator);
+        expect([currentTime.get(), host.audio.currentTime, store().audioSrc]).toEqual([42, 42, 'https://audio.test/f1']);
+        expect(env.self.audioCalls).toEqual([]);
+        expect(host.recover).not.toHaveBeenCalled();
+        expect(host.audio.play).toHaveBeenCalledTimes(state === PlayerState.PAUSED ? 1 : 0);
+        expect(store().playerState).toBe(PlayerState.PLAYING);
+        expect(host.enter).toHaveBeenCalledOnce();
+    });
+
+    it('continuing the displayed radio cancels a next-track top-up already waiting for its batch', async () => {
+        const host = prepare(PlayerState.PLAYING);
+        const batch = deferred<SongResult[]>();
+        env.self.fmBatch = batch.promise;
+        const next = host.queue.handleNextTrack();
+        await settle();
+        expect(await host.click()).toEqual({ ok: true });
+        batch.resolve([f3]);
+        await next;
+        await settle();
+        expect(store().currentSong).toBe(f1);
+        expect(store().playQueue).toBe(host.originalQueue);
+        expect([currentTime.get(), host.audio.currentTime, store().audioSrc]).toEqual([42, 42, 'https://audio.test/f1']);
+        expect(env.self.audioCalls).toEqual([]);
+    });
+
+    it.each([PlayerState.PLAYING, PlayerState.PAUSED].flatMap(playerState => [false, true].map(sourceFinished => [playerState, sourceFinished] as const)))('continues a handed-over radio after another song asked for lyrics (%s, old restore finished: %s)', async (playerState, sourceFinished) => {
+        useOnlineProviderAccountStore.setState({ activeProviderId: 'bodian' });
+        usePersonalFmModeStore.setState({ providerSelections: {}, stations: {} });
+        const host = mount();
+        const snapshot = {
+            currentSong: f1, lyrics: null, cachedCoverUrl: null, audioSrc: null,
+            playQueue: [f1, f2], isFmMode: true, playerState, currentTime: 42, duration: 180, currentLineIndex: -1,
+        };
+        vi.stubGlobal('window', { ...window, electron: { consumeWindowPlaybackHandoff: async () => ({
+            version: 1, capturedAt: 0, activePlaybackContext: 'main', mainPlayback: snapshot, activePlayback: snapshot,
+            stage: { status: null, source: null, playback: null, lyricsClock: { startTimeSec: 0, endTimeSec: 0, baseTimeSec: 0, startedAtMs: null } },
+            nowPlaying: { track: null, lyricPayload: null, paused: true, progressMs: 0, progressQuality: 'coarse', displayTimeSec: 0 },
+            ui: { currentView: 'home', playerChromeHidden: false, mainWindowBorderVisible: false, transparentModeEnabled: false },
+        }) } });
+        const source = deferred();
+        const lyrics = deferred();
+        env.self.audioGate.set('f1', source.promise);
+        env.self.lyricsGate.set('b', lyrics.promise);
+        vi.stubGlobal('localStorage', { getItem: () => null, setItem: () => {}, removeItem: () => {} });
+        env.self.rendering = true;
+        HandoffProbe({
+            isElectronWindow: true, navigateToPlayer: vi.fn(), audioRef: host.refs.audioRef, mainPlaybackSnapshotRef: host.mainPlaybackSnapshotRef,
+            stageStatus: null, stageSource: null, stageLyricsClockRef: { current: {} }, nowPlayingTrack: null, nowPlayingLyricPayload: null,
+            nowPlayingPaused: true, nowPlayingProgressMs: 0, nowPlayingProgressQuality: 'coarse', getNowPlayingDisplayTime: () => 0,
+            restoreStagePlaybackHandoff: vi.fn(async () => undefined), setLyrics: vi.fn(), setIsLyricsLoading: vi.fn(),
+            blobUrlRef: host.refs.blobUrlRef, shouldAutoPlayRef: host.refs.shouldAutoPlay, pendingResumeTimeRef: host.refs.pendingResumeTimeRef,
+            lastAudioRecoverySourceRef: host.refs.lastAudioRecoverySourceRef, currentOnlineAudioUrlFetchedAtRef: host.refs.currentOnlineAudioUrlFetchedAtRef,
+            applyTransparentPlayerBackground: vi.fn(), restoreCachedThemeForSong: vi.fn(async () => 'none'), persistLastPlaybackCache: host.persistLastPlaybackCache,
+        } as never);
+        env.self.rendering = false;
+        const consume = env.self.effects.find(effect => String(effect).includes('consumeWindowPlaybackHandoff()'));
+        expect(consume).toBeDefined();
+        consume!();
+        await settle();
+        expect(store().acceptedFmPlayback?.providerId).toBe('bodian');
+        expect(store().audioSrc).toBeNull();
+        const competition = host.render().playSong(b, [b], false);
+        await settle();
+        expect(askedSongKeyRef.current).toBe(getPlaybackSongKey(b));
+        if (sourceFinished) {
+            source.resolve();
+            await settle();
+            await settle();
+            expect(store().audioSrc).toBeNull();
+        }
+        const resume = vi.fn(async () => {
+            expect(store().audioSrc).toBe('https://audio.test/f1');
+            store().setPlayerState(PlayerState.PLAYING);
+        });
+        const play = vi.fn();
+        const port = createLibraryHomePort(() => ({ localSongs: [], onRefreshLocalSongs: vi.fn(), onPlaySong: play, onResumePlayback: resume }));
+        try {
+            expect(port.continuePersonalFm?.(f1, { mode: 'DEFAULT', scene: null }, 'bodian')).toBe(true);
+            expect(askedSongKeyRef.current).toBe(getPlaybackSongKey(f1));
+            expect(resume).not.toHaveBeenCalled();
+            lyrics.resolve();
+            await competition;
+            source.resolve();
+            await settle();
+            await settle();
+            expect(store().currentSong?.id).toBe('f1');
+            expect(store().audioSrc).toBe('https://audio.test/f1');
+            expect(host.refs.pendingResumeTimeRef.current).toBe(42);
+            expect(currentTime.get()).toBe(42);
+            expect(store().playerState).toBe(PlayerState.PLAYING);
+            expect(resume).toHaveBeenCalledTimes(playerState === PlayerState.PAUSED ? 1 : 0);
+            expect(play).not.toHaveBeenCalled();
+        } finally { lyrics.resolve(); source.resolve(); await competition; }
+    });
+
+    it('the mode command accepts its exact station mode even when a newer command is still fetching songs', async () => {
+        useOnlineProviderAccountStore.setState({ activeProviderId: 'bodian' });
+        usePersonalFmModeStore.setState({ stations: { bodian: { id: 'radio', selection: { mode: 'DEFAULT', scene: null } } },
+            stationCatalogs: { bodian: { radio: DEFAULT_PERSONAL_FM_CATALOG } } });
+        playerWith([f1, f2], f1, true);
+        noteAcceptedFmPlayback(f1, store().playQueue, true, { mode: 'DEFAULT', scene: null, station: 'radio' });
+        const { queue } = mount();
+        const modes = ModeProbe({ isFmMode: true, currentSong: f1, playSong: queue.playSong, t: key => key });
+        const release = holdAddress(f3);
+        const later = deferred<SongResult[]>();
+        try {
+            env.self.fmBatch = Promise.resolve([f3]);
+            const first = modes.setPersonalFmSelection({ mode: 'FAMILIAR', scene: null });
+            await settle();
+            env.self.fmBatch = later.promise;
+            const second = modes.setPersonalFmSelection({ mode: 'EXPLORE', scene: null });
+            await settle();
+            release();
+            await first;
+            expect(store().acceptedFmPlayback?.selection).toEqual({ mode: 'FAMILIAR', scene: null, station: 'radio' });
+            later.resolve([]);
+            await second;
+        } finally { release(); later.resolve([]); }
+    });
+
+    it('the real home landing and next song keep scene A ownership while scene B is waiting for songs', async () => {
+        useOnlineProviderAccountStore.setState({ activeProviderId: 'bodian' });
+        playerWith([a], a);
+        const host = mount();
+        const plays: Promise<void>[] = [];
+        const port = createLibraryHomePort(() => ({
+            localSongs: [], onRefreshLocalSongs: vi.fn(),
+            onPlaySong: (song, queue, fm) => { plays.push(host.queue.playSong(song, queue, fm)); },
+        }));
+        const first = { mode: 'SCENE_RCMD' as const, scene: '33' };
+        const second = { mode: 'SCENE_RCMD' as const, scene: '44' };
+        const release = holdAddress(f1);
+        const later = deferred<SongResult[]>();
+        try {
+            env.self.fmBatch = Promise.resolve([f1, f2]);
+            const firstQueue = await port.getPersonalFm(first, 'bodian');
+            port.playPersonalFm(f1, firstQueue);
+            await settle();
+            env.self.fmBatch = later.promise;
+            const secondQueue = port.getPersonalFm(second, 'bodian');
+            await settle();
+            expect(usePersonalFmModeStore.getState().providerSelections.bodian).toEqual(second);
+            release();
+            await plays[0];
+            expect(store().acceptedFmPlayback?.selection).toEqual(first);
+            await host.render().playSong(f2, store().playQueue, true);
+            expect(store().acceptedFmPlayback?.selection).toEqual(first);
+            env.self.fmBatch = Promise.resolve([f3]);
+            await host.render().handleNextTrack();
+            await settle();
+            expect(env.self.fmRequests.at(-1)).toEqual({ mode: first.mode, submode: first.scene });
+            expect(store().currentSong).toMatchObject({ id: 'f3' });
+            expect(store().acceptedFmPlayback?.selection).toEqual(first);
+            later.resolve([p1, p2]);
+            await secondQueue;
+        } finally { release(); later.resolve([]); }
+    });
+
+    it('Stage queue selection keeps the accepted scene while another scene is requested', async () => {
+        playerWith([f1, f2], f1, true);
+        noteAcceptedFmPlayback(f1, store().playQueue, true, { mode: 'SCENE_RCMD', scene: '33' });
+        usePersonalFmModeStore.setState({ catalogs: {}, providerSelections: { bodian: { mode: 'SCENE_RCMD', scene: '44' } }, stations: {} });
+        let onRequest: ((request: unknown) => void) | undefined;
+        const complete = vi.fn();
+        vi.stubGlobal('window', { ...window, electron: {
+            onStagePlayerQueueRequest: (handler: (request: unknown) => void) => { onRequest = handler; return () => {}; },
+            completeStagePlayerQueueRequest: complete,
+        } });
+        mount();
+        env.self.effects.find(effect => String(effect).includes('onStagePlayerQueueRequest'))?.();
+        onRequest?.({ requestId: 'scene-queue-select', action: 'select', index: 1 });
+        await vi.waitFor(() => expect(complete).toHaveBeenCalledWith(expect.objectContaining({ ok: true })));
+        expect(store().currentSong).toMatchObject({ id: 'f2' });
+        expect(store().acceptedFmPlayback?.selection).toEqual({ mode: 'SCENE_RCMD', scene: '33' });
+    });
+
+    it('a fresh FM queue does not inherit the accepted scene merely because its songs overlap', async () => {
+        usePersonalFmModeStore.setState({ catalogs: {}, providerSelections: { bodian: { mode: 'SCENE_RCMD', scene: '44' } }, stations: {} });
+        playerWith([f1, f2], f1, true);
+        noteAcceptedFmPlayback(f1, store().playQueue, true, { mode: 'SCENE_RCMD', scene: '33' });
+        const { queue } = mount();
+        await queue.playSong(f2, [...store().playQueue], true);
+        expect(store().acceptedFmPlayback?.selection).toEqual({ mode: 'SCENE_RCMD', scene: '44' });
+    });
+
+    it.each([null, 'saved-radio'])('tops up a restored accepted scene while settings change, with station %s', async station => {
+        const selection = { mode: 'SCENE_RCMD' as const, scene: '33', ...(station ? { station } : {}) };
+        playerWith([f1, f2], f2, true);
+        restoreAcceptedFmPlayback(f2, store().playQueue, true, { providerId: 'bodian', selection });
+        usePersonalFmModeStore.setState({ catalogs: {}, providerSelections: { bodian: { mode: 'SCENE_RCMD', scene: '44' } }, stations: {} });
+        const batch = deferred<SongResult[]>();
+        env.self.fmBatch = batch.promise;
+        const { queue } = mount();
+        const next = queue.handleNextTrack();
+        await settle();
+        usePersonalFmModeStore.setState({ providerSelections: { bodian: { mode: 'SCENE_RCMD', scene: '55' } } });
+        batch.resolve([f3]);
+        await next;
+        await settle();
+        expect(env.self.fmRequests.at(-1)).toEqual({ mode: 'SCENE_RCMD', submode: '33', ...(station ? { station } : {}) });
+        expect(store().currentSong).toMatchObject({ id: 'f3' });
+        expect(store().acceptedFmPlayback?.selection).toEqual(selection);
+    });
+
+    it.each(['source', 'ending', 'intent'] as const)('discards an accepted stream top-up overtaken by a new %s', async change => {
+        playerWith([f1, f2], f2, true);
+        noteAcceptedFmPlayback(f2, store().playQueue, true, { mode: 'SCENE_RCMD', scene: '33' });
+        const batch = deferred<SongResult[]>();
+        env.self.fmBatch = batch.promise;
+        const next = mount().queue.handleNextTrack();
+        await settle();
+        if (change === 'source') noteAcceptedFmPlayback(f2, store().playQueue, true, { mode: 'SCENE_RCMD', scene: '44' });
+        if (change === 'ending') {
+            notePersonalFmEnded();
+            setIsFmMode(true);
+        }
+        if (change === 'intent') noteQueueStart();
+        batch.resolve([f3]);
+        await next;
+        await settle();
+        expect(store().currentSong).toBe(f2);
+        expect(keys(store().playQueue)).toEqual(keys([f1, f2]));
+    });
+
+    it.each(['audio', 'beforePlay'] as const)('cancels the older %s request without letting its late result replace the sounding track', async waitingAt => {
+        const host = prepare(PlayerState.PLAYING);
+        const gate = deferred();
+        if (waitingAt === 'audio') env.self.audioGate.set('b', gate.promise);
+        else env.self.beforePlay = gate.promise;
+        const pending = host.queue.playSong(b, [a, b], false);
+        await settle();
+        // A different request may have changed raw mode/station while the accepted source still sounds.
+        usePersonalFmModeStore.getState().startStation('bodian', 'other', { mode: 'DEFAULT', scene: null });
+        expect(await host.click()).toEqual({ ok: true });
+        gate.resolve();
+        await pending;
+        expect(store().currentSong).toBe(f1);
+        expect(store().playQueue).toBe(host.originalQueue);
+        expect(store().acceptedFmPlayback).toBe(host.accepted);
+        expect(usePlayingSongLocatorStore.getState().source).toBe(host.locator);
+        expect([currentTime.get(), host.audio.currentTime, store().audioSrc]).toEqual([42, 42, 'https://audio.test/f1']);
+        expect(host.audio.play).not.toHaveBeenCalled();
+        expect(store().isFmMode).toBe(true);
+        expect(usePersonalFmModeStore.getState().stations.bodian).toMatchObject({ id: 'radio', selection: { mode: 'SCENE_RCMD', scene: '33' } });
+        // A later failed ordinary request restores the continued mode, never the cancelled request's intent.
+        env.self.beforePlay = null;
+        env.self.audioResultFor.set('c', unavailable('no-audio'));
+        await host.queue.playSong(c, [c], false);
+        expect(store().isFmMode).toBe(true);
+        expect(store().currentSong).toBe(f1);
+    });
+
+    it.each([false, true])('Stage corrects a pending FM flag unless that intent was already cancelled (cancelled: %s)', async cancelled => {
+        playerWith([a], a, false);
+        const host = mount();
+        const subscribe = env.self.effects.find(effect => String(effect).includes('fmModeBeforePendingPlayRef'));
+        expect(subscribe).toBeDefined();
+        const cleanup = subscribe!() as () => void;
+        const release = holdAddress(f1);
+        try {
+            const pending = host.queue.playSong(f1, [f1, f2], true);
+            await settle();
+            expect(store().isFmMode).toBe(true);
+            if (cancelled) dropPlaysInFlight({ keepShownPlayback: true });
+            host.mainPlaybackSnapshotRef.current = { isFmMode: true } as never;
+            // The actual Stage entry captures first, then drops once, then notifies the queue controller.
+            dropPlaysInFlight();
+            usePlaybackStore.getState().setActivePlaybackContext('stage');
+            expect((host.mainPlaybackSnapshotRef.current as { isFmMode: boolean } | null)?.isFmMode).toBe(cancelled);
+            release();
+            await pending;
+            expect(store().currentSong).toBe(a);
+        } finally { cleanup(); }
+    });
+
+    it('replays an ended source through the ordinary controller instead of attempting an empty resume', async () => {
+        const host = prepare(PlayerState.IDLE);
+        expect(await host.click()).toEqual({ ok: true });
+        await settle();
+        expect(env.self.audioCalls).toEqual(['f1']);
+        expect(currentTime.get()).toBe(0);
+        expect(store().currentSong).toMatchObject({ id: 'f1' });
+        expect(store().isFmMode).toBe(true);
+        expect(host.audio.play).not.toHaveBeenCalled();
+    });
+
+    it('does not restore a pre-switch radio flag when a pending ordinary play is dropped into Stage', async () => {
+        playerWith([f1, f2], f1, true);
+        noteAcceptedFmPlayback(f1, [f1, f2], true);
+        const host = mount();
+        const subscribe = env.self.effects.find(effect => String(effect).includes('fmModeBeforePendingPlayRef'));
+        const cleanup = subscribe?.();
+        const release = holdAddress(b);
+        try {
+            const pending = host.queue.playSong(b, [b], false);
+            await settle();
+            leaveProviderForSwitch('bodian', 'qq');
+            host.mainPlaybackSnapshotRef.current = { isFmMode: false } as never;
+            dropPlaysInFlight();
+            usePlaybackStore.getState().setActivePlaybackContext('stage');
+            expect(host.mainPlaybackSnapshotRef.current).toMatchObject({ isFmMode: false });
+            expect(store().acceptedFmPlayback).toBeNull();
+            release();
+            await pending;
+        } finally {
+            release();
+            if (typeof cleanup === 'function') cleanup();
+        }
+    });
+});
 
 describe('a play that lands after the queue was replaced whole', () => {
     it('swaps itself into the new queue when that queue holds it, and saves and fetches around the new queue', async () => {
@@ -605,6 +998,96 @@ describe('a platform switch while a play that turns Personal FM on was on its wa
 
         expect(store().currentSong).toMatchObject({ id: 'f1' });
         expect(store().isFmMode).toBe(false);
+    });
+});
+
+describe('accepted FM origin through pending plays', () => {
+    it('claims the radio only after its own song and queue land', async () => {
+        playerWith([a, b], a);
+        const { queue } = mount();
+        const release = holdAddress(f1);
+        const play = queue.playSong(f1, [f1, f2], true);
+        await settle();
+
+        expect(store().isFmMode).toBe(true);
+        expect(store().acceptedFmPlayback).toBeNull();
+        release();
+        await play;
+
+        expect(store().acceptedFmPlayback).toMatchObject({ providerId: 'bodian' });
+        expect(store().acceptedFmPlayback?.songKeys).toEqual(new Set(keys([f1, f2])));
+    });
+
+    it('does not claim an FM request that lands after a platform switch ended FM', async () => {
+        playerWith([a, b], a);
+        const { queue } = mount();
+        const release = holdAddress(f1);
+        const play = queue.playSong(f1, [f1, f2], true);
+        await settle();
+
+        endFmBySwitch();
+        release();
+        await play;
+
+        expect(store().currentSong).toMatchObject({ id: 'f1' });
+        expect(store().isFmMode).toBe(false);
+        expect(store().acceptedFmPlayback).toBeNull();
+    });
+
+    it('keeps an accepted radio origin when a different pending play is refused', async () => {
+        playerWith([f1, f2], f1, true);
+        noteAcceptedFmPlayback(f1, [f1, f2], true);
+        const accepted = store().acceptedFmPlayback;
+        const { queue } = mount();
+        env.self.audioResultFor.set('b', unavailable('sign-in-needed'));
+        const release = holdAddress(b);
+        const play = queue.playSong(b, [a, b], false);
+        await settle();
+
+        expect(store().acceptedFmPlayback).toBe(accepted);
+        release();
+        await play;
+
+        expect(store().currentSong).toMatchObject({ id: 'f1' });
+        expect(store().acceptedFmPlayback).toBe(accepted);
+    });
+
+    it('leaves no radio origin when a plain queue replaces the pending radio queue', async () => {
+        playerWith([f1, f2, f3], f1, true);
+        noteAcceptedFmPlayback(f1, [f1, f2, f3], true);
+        const { queue } = mount();
+        const release = holdAddress(f2);
+        const play = queue.playSong(f2, store().playQueue, true);
+        await settle();
+
+        replaceWhole([x, y]);
+        release();
+        await play;
+
+        expect(keys(store().playQueue)).toEqual(keys([x, y]));
+        expect(store().isFmMode).toBe(false);
+        expect(store().acceptedFmPlayback).toBeNull();
+    });
+
+    it('captures the accepted mode before a newer mode is requested while audio waits', async () => {
+        const before = usePersonalFmModeStore.getState().providerSelections;
+        const selected = { mode: 'SCENE_RCMD' as const, scene: 'rain' };
+        try {
+            usePersonalFmModeStore.setState({ providerSelections: { ...before, bodian: selected } });
+            playerWith([a, b], a);
+            const { queue } = mount();
+            const release = holdAddress(f1);
+            const play = queue.playSong(f1, [f1, f2], true);
+            await settle();
+
+            usePersonalFmModeStore.setState({ providerSelections: { ...before, bodian: { mode: 'DEFAULT', scene: null } } });
+            release();
+            await play;
+
+            expect(store().acceptedFmPlayback?.selection).toEqual(selected);
+        } finally {
+            usePersonalFmModeStore.setState({ providerSelections: before });
+        }
     });
 });
 

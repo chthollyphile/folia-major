@@ -1,6 +1,7 @@
 import { usePersonalFmModeStore } from '@/stores/usePersonalFmModeStore';
 import type { SongResult } from '@/types';
-import { replacePlayQueue, selectIsShowingTail, usePlaybackStore } from '@/stores/usePlaybackStore';
+import { selectIsShowingTail, usePlaybackStore } from '@/stores/usePlaybackStore';
+import { replacePlayQueue } from '@/services/playbackQueueOrigin';
 import { noteWholeQueueWrite } from '@/services/wholeQueueWrites';
 import { isStagePlaybackSong, samePlaybackKeySequence } from '@/utils/appPlaybackGuards';
 import type { FoliumQueueReplaceRefusal, FoliumQueueReplaceResult } from '../../folium/contract';

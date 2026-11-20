@@ -50,7 +50,8 @@ import { setCurrentSong, usePlaybackStore } from '../../../stores/usePlaybackSto
 // A restore of a remembered song (the last session, the hand-off to a rebuilt window) is not a
 // play: it ends no play, and it makes its song current before its first wait. The key cannot tell
 // it from a play of that same song, so it takes `startRestore()` at that moment and asks the answer
-// after each wait: no, once a song was asked for again, or once the plays in flight were dropped.
+// after each wait: no while a different start is asked for, or once the shown playback was dropped.
+// Putting back that same start lets its still-pending restore finish at the position it kept.
 
 /** The key, for reading only. `usePlaybackRuntimeRefs` hands this out as `currentSongRef`. */
 export type AskedSongKeyRef = { readonly current: string | null };
@@ -65,6 +66,7 @@ export const askedSongKeyRef: AskedSongKeyRef = {
 
 let playsStarted = 0;
 let playsDropped = 0;
+let shownPlaybackDropped = 0;
 /**
  * The plays started since the last drop that have not been abandoned, oldest first (for
  * `onceShown`). Only the newest PLAYS_KEPT are kept: a play older than those is answered no for good
@@ -73,14 +75,20 @@ let playsDropped = 0;
 let playsStanding: number[] = [];
 const PLAYS_KEPT = 64;
 let playsForgotten = 0;
-/** How often a song was asked for. The key cannot tell two asks for the same song apart; this can. */
-let asks = 0;
 
-/** Every play that has started and has not shown its song yet gives up at its next check. */
-export const dropPlaysInFlight = (): void => {
+/**
+ * Every play still on its way gives up at its next check. Continuing the sounding track keeps its
+ * `onceShown` monitor and restores its ask; the default also retires that monitor, as before.
+ */
+export const dropPlaysInFlight = ({ keepShownPlayback = false }: { keepShownPlayback?: boolean } = {}): void => {
     playsDropped += 1;
+    if (!keepShownPlayback) shownPlaybackDropped += 1;
     // Every play started so far is answered no by the count above, whatever is abandoned later.
     playsStanding = [];
+    const shown = usePlaybackStore.getState().currentSong;
+    if (keepShownPlayback && askedSongKey !== (shown ? getPlaybackSongKey(shown) : null)) {
+        askForSong(shown, { putBack: true });
+    }
 };
 
 /** How often the plays of each online platform were dropped (its sign-out): see `dropPlaysOfProvider`. */
@@ -122,7 +130,7 @@ export type PlayStart = {
     (): boolean;
     /**
      * For what the play leaves running once it showed its song (the HiFi track): yes until a newer
-     * play starts or the plays in flight are dropped, and yes again once every newer play abandoned.
+     * play starts or the sounding playback is dropped, and yes again once every newer play abandoned.
      */
     onceShown: () => boolean;
     /**
@@ -141,13 +149,14 @@ export const startPlay = (providerId?: string | null): PlayStart => {
     playsStarted += 1;
     const started = playsStarted;
     const dropped = playsDropped;
+    const shownDropped = shownPlaybackDropped;
     const providerDropped = providerPlaysDroppedSoFar(providerId);
     const providerStands = () => providerPlaysDroppedSoFar(providerId) === providerDropped;
     playsStanding.push(started);
     if (playsStanding.length > PLAYS_KEPT) playsForgotten = playsStanding.shift() ?? playsForgotten;
     const stillWanted = () => playsStarted === started && playsDropped === dropped && providerStands();
     return Object.assign(stillWanted, {
-        onceShown: () => playsDropped === dropped
+        onceShown: () => shownPlaybackDropped === shownDropped
             && providerStands()
             && started > playsForgotten
             && (playsStanding.length === 0 || playsStanding[playsStanding.length - 1] <= started),
@@ -186,19 +195,42 @@ export const askForSong = (song: SongResult | null, { putBack = false }: { putBa
     askedStart = putBack && askedBefore.key === key ? askedBefore.start : (starts += 1);
     askedBefore = replaced;
     askedSongKey = key;
-    asks += 1;
 };
 
 /**
  * A restore of a remembered song calls this right after it made that song current, and keeps what
- * it gets: the answer to "is this restore still wanted". It is yes until a song is asked for again
- * (another song or this same one, by a play, the stage or a route that empties the player), or
- * until the plays in flight are dropped.
+ * it gets: the answer to "is this restore still wanted". A new start (even of the same song) or
+ * dropping the shown playback says no. Continuing the original start puts its identity back,
+ * so its still-pending source and position can finish restoring after a competing play is dropped.
  */
 export const startRestore = (): (() => boolean) => {
-    const asked = asks;
-    const dropped = playsDropped;
-    return () => asks === asked && playsDropped === dropped;
+    const asked = askedStart;
+    const dropped = shownPlaybackDropped;
+    return () => askedStart === asked && shownPlaybackDropped === dropped;
+};
+
+let shownRestore: { stillWanted: () => boolean; finished: Promise<void>; done: boolean; restart: () => Promise<void> } | null = null;
+
+/** Holds resume until the rebuilt window finishes restoring this source, including its playback route. */
+export const trackShownRestore = (stillWanted: () => boolean, restart: () => Promise<void>): (() => void) => {
+    let finish!: () => void;
+    const restoring = { stillWanted, finished: new Promise<void>(resolve => { finish = resolve; }), done: false, restart };
+    shownRestore = restoring;
+    return () => {
+        restoring.done = true;
+        // An overtaken restore may already have discarded its source before Continue puts its start back.
+        // Keep its retry until then; a new start never satisfies this restore's identity guard.
+        if (shownRestore === restoring && stillWanted()) shownRestore = null;
+        finish();
+    };
+};
+
+/** Continues this start's restore, retrying an already discarded source; newer asks cannot be resumed. */
+export const waitForShownRestore = (): Promise<boolean> | null => {
+    const restoring = shownRestore;
+    if (!restoring?.stillWanted()) return null;
+    const finished = restoring.done ? restoring.restart() : restoring.finished;
+    return finished.then(() => restoring.stillWanted());
 };
 
 /**

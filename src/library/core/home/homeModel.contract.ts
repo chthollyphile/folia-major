@@ -204,7 +204,9 @@ export interface LibraryHomePort {
     refreshLocalSongs(): Promise<void> | void;
     /** 订阅扫描进度；返回退订函数。 */
     subscribeScanProgress(listener: (progress: LibraryHomeScanProgress | null) => void): () => void;
-    getPersonalFm(selection?: PersonalFmLaunch, providerId?: string): Promise<SongResult[]>;
+    getPersonalFm(selection?: PersonalFmLaunch, providerId?: string, previewToken?: string): Promise<SongResult[]>;
+    /** Reuses a still-owned stream's displayed song and queue, without claiming a new recommendation batch. */
+    continuePersonalFm?(song: SongResult, selection: PersonalFmLaunch, providerId: string): boolean;
     playPersonalFm(song: SongResult, queue: SongResult[]): void;
     describeOnlineCollection(collection: Record<string, unknown>, providerId: string): LibraryCollectionDescriptor;
     describeLocalGroup(group: LocalLibraryGroup): LibraryCollectionDescriptor;
