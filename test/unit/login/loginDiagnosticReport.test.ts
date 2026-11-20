@@ -54,6 +54,7 @@ const snapshot: Netease = {
     login,
     identity: null,
     connections: [],
+    upstreamTmpDir: null,
 };
 
 const reportOf = (providerLines: readonly unknown[]): string => formatLoginDiagnosticReport({

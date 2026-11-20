@@ -44,6 +44,20 @@ describe('Netease API host', () => {
         expect(workers).toHaveLength(0);
     });
 
+    // workerData（按用户隔离的临时目录，#1304）只在真正开线程的那一刻交给 createWorker。
+    it('hands the worker data to the factory when the worker is opened', () => {
+        const received: unknown[] = [];
+        createHost({
+            workerData: { upstreamTmpDir: '/per-user/netease-api-tmp' },
+            createWorker: (data: unknown) => {
+                received.push(data);
+                return new FakeWorker();
+            },
+        }).host.preload();
+
+        expect(received).toEqual([{ upstreamTmpDir: '/per-user/netease-api-tmp' }]);
+    });
+
     it('resolves a start once the worker says the server is listening', async () => {
         const { host, workers } = createHost();
         const started = host.start({ host: '127.0.0.1' });
@@ -160,7 +174,7 @@ describe('Netease API host', () => {
         const { host, workers } = createHost();
 
         const empty = await host.diagnostics();
-        expect(empty).toEqual({ startup: [], login: null, identity: null, connections: [] });
+        expect(empty).toEqual({ startup: [], login: null, identity: null, connections: [], upstreamTmpDir: null });
         expect(workers).toHaveLength(0);
 
         host.preload();

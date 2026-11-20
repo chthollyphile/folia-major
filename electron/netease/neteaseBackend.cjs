@@ -21,7 +21,8 @@ const SELF_CHECK_HOSTS = ['interfacepc.music.163.com', 'interface3.music.163.com
 
 /**
  * 返回网易后端的控制面。broadcast(channel, status) 把状态推给所有窗口；
- * onUnhandledRejection 接线程里没人接的 rejection；createWorker 只给测试换线程用。
+ * onUnhandledRejection 接线程里没人接的 rejection；createWorker 与 workerData 只给测试和生产换线程参数用
+ * （workerData 带上按用户隔离的临时目录，见 neteaseApiWorker.cjs）。
  */
 function createNeteaseBackend({
   broadcast,
@@ -29,6 +30,7 @@ function createNeteaseBackend({
   now = Date.now,
   onUnhandledRejection,
   createWorker,
+  workerData,
 }) {
   const status = createBackendStatus({ channel: STATUS_CHANNEL, broadcast, now });
   let startPromise = null;
@@ -41,6 +43,7 @@ function createNeteaseBackend({
 
   const host = createNeteaseApiHost({
     createWorker,
+    workerData,
     logger,
     onUnhandledRejection,
     // 线程结束了，它开的服务也就没了。拉起途中结束的不用另管：等着的那次拉起会失败。已经在监听的要在这里

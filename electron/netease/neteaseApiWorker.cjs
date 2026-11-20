@@ -2,7 +2,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const util = require('util');
-const { parentPort } = require('worker_threads');
+const { parentPort, workerData } = require('worker_threads');
 const {
   deferJsdom,
   installLoginQrCheck,
@@ -12,6 +12,7 @@ const {
   withQrNetworkRetry,
   withoutImplicitClientIp,
 } = require('./neteaseApiStartup.cjs');
+const { resolveUpstreamTmpDir } = require('./upstreamTmpDir.cjs');
 const { createNeteaseLoginDiagnostics } = require('./neteaseLoginDiagnostics.cjs');
 const { createNeteaseLoginIdentity } = require('./neteaseLoginIdentity.cjs');
 const { createNetworkRecorder } = require('../networkRecorder.cjs');
@@ -70,7 +71,25 @@ process.on('unhandledRejection', (reason) => {
 // 所以这是给整个进程设的，之后起的子进程也会带上它：和这个包在主线程里运行时一样。
 process.env.ENABLE_GENERAL_UNBLOCK = 'false';
 
-// 上游自己按 os.tmpdir() 读这两个文件，路径必须一致，不能另选目录。
+// 上游按 os.tmpdir() 读写 anonymous_token、xeapi_public_key、neapi_key 和上传临时文件，路径必须一致，
+// 不能另选目录。但 /tmp 全机共有：另一个系统用户先开过 Folia 时，那里的文件属主是别人，这边读不出也
+// 盖不掉，本地 API 起不来（#1304，EACCES）。所以把本线程的 os.tmpdir() 指向主进程传来的按用户隔离的
+// 目录（userData 下的 netease-api-tmp）：上游在这个线程里取到的 tmpdir 跟着变，下面自己算的两个路径也
+// 仍然取自它，两边一致。指不成（没传、建不出来）时退回系统临时目录，行为与没有这个改动时一致。
+// 内置模块是每个线程自己的一份，改这里的 os.tmpdir 不影响主进程；SHARE_ENV 共享的是环境变量，不是模块。
+const upstreamTmp = resolveUpstreamTmpDir({
+    requestedDir: workerData?.upstreamTmpDir,
+    systemTmpDir: os.tmpdir(),
+    ensureDirectory: (dir) => {
+        fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+        // mkdir 对已存在的目录不报错：它可能是别的用户留下的（比如某次用 sudo 跑过 Folia），建得出写不了。
+        // 写不了也当指不成，退回系统临时目录，原因随 fallback 进日志。
+        fs.accessSync(dir, fs.constants.W_OK);
+    },
+});
+if (upstreamTmp.fallback) console.warn(`[Netease API] upstream tmp dir falls back to ${upstreamTmp.dir} (${upstreamTmp.fallback})`);
+os.tmpdir = () => upstreamTmp.dir;
+
 const tokenPath = path.resolve(os.tmpdir(), 'anonymous_token');
 const xeapiPublicKeyPath = path.resolve(os.tmpdir(), 'xeapi_public_key');
 
@@ -222,12 +241,14 @@ async function startNcmApi({ host }) {
   }
 }
 
-// 第 3 段：诊断报告里属于线程的那部分（主进程补上后端状态）。
+// 第 3 段：诊断报告里属于线程的那部分（主进程补上后端状态）。upstreamTmpDir：上游实际在用的临时目录，
+// 退回系统临时目录时报告里看得到（/tmp），排查 #1304 那类问题用。
 const diagnostics = () => ({
   startup: startup.snapshot(),
   login: upstream ? upstream.loginDiagnostics.snapshot() : null,
   identity: upstream ? upstream.loginIdentity.describe() : null,
   connections: networkRecorder.snapshot('netease').filter(entry => entry.tag === null).slice(-RECENT_CONNECTIONS),
+  upstreamTmpDir: upstreamTmp.dir,
 });
 
 const answer = (id, run) => {

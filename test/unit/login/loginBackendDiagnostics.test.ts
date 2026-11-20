@@ -85,6 +85,7 @@ const neteaseSnapshot: ElectronNeteaseLoginDiagnostics = {
         pendingRotation: true,
     },
     connections: [{ ...resetConnection, method: 'GET', path: '/api/xeapi/key?nick=Zhang.San', error: null, status: 200, tlsMs: 40 }],
+    upstreamTmpDir: 'C:\\Users\\Zhang.San\\AppData\\Roaming\\Folia\\netease-api-tmp',
 };
 
 const session = { hasLoginCookie: false, hasAnonymousCookie: true };
@@ -99,6 +100,7 @@ describe('login backend diagnostics', () => {
             'os: 10.0.22631 (Windows 11 Pro), locale zh-CN, time zone Asia/Shanghai, uptime 120s',
             'credential store: encryption=yes',
             'local api: running 127.0.0.1:52001 (since 12:00:00.000)',
+            'upstream tmp: C:\\Users\\Zhang.San\\AppData\\Roaming\\Folia\\netease-api-tmp',
             'startup runs (1, oldest first, UTC):',
             '  12:00:00.000 running (1500ms)',
             '    port ok 1ms port=52001',
