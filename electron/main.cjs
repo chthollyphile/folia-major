@@ -6377,10 +6377,18 @@ app.whenReady().then(async () => {
       legacyCacheDir: (name) => path.join(getConfiguredCacheDirectory(), name),
       openExternal: (url) => openExternalUrl(url),
       // api.native.path / load: the native files the app ships for a built-in source (electron/modSystem/nativeFiles.cjs).
-      nativePath: (name) => resolveNativeFile(name, {
-        platform: process.platform, isPackaged: app.isPackaged, resourcesPath: process.resourcesPath,
-        projectRoot: path.join(__dirname, '..'), env: process.env,
-      }) || null,
+      // A file that is not there (a development run that has not built it, a broken install) is as unavailable as one
+      // the system has no build of: the source says so at once instead of starting what cannot start.
+      nativePath: (name) => {
+        const resolved = resolveNativeFile(name, {
+          platform: process.platform, isPackaged: app.isPackaged, resourcesPath: process.resourcesPath,
+          projectRoot: path.join(__dirname, '..'), env: process.env,
+        });
+        if (!resolved) return null;
+        if (fs.existsSync(resolved)) return resolved;
+        console.warn('[Mods] A native file of a built-in source is missing', { name });
+        return null;
+      },
     });
     modSystem.registerIpc();
     modSystem.startSources();

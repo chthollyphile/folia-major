@@ -10,8 +10,8 @@ import { packageRootOf, qqApiExportsOf } from './qqApiExports';
 // get-qq-api-status 通道与状态推送、媒体跨域与歌词中转的 QQ 主机、诊断与自检）接到 api.* 上，三个 .cjs 搬来，
 // 只把它们 require 宿主的 backendLifecycle.cjs、osEncryption.cjs 换成自带的拷贝：
 //   - qq-music-api：package.json 声明成 asar，构建把它装进 deps.<指纹>.asar。包在加载时就监听 PORT，所以 client 第一次问
-//     `status` 时才拉起（qqBackend.start：找空端口、设好环境变量再从归档加载、装诊断钩子），以后照答；只用于匹配歌词时，
-//     宿主到 client 第一次 rpc 才加载这个入口（mainState deferred），歌词与匿名搜歌（`musicu`）也不拉起后端。
+//     `status` 时才拉起（qqBackend.start：找空端口、设好环境变量再从归档加载、装诊断钩子），以后照答；只用于匹配歌词时
+//     宿主同样一启动就加载这个入口，后端也同样等第一次 `status`：歌词与匿名搜歌（`musicu`）不用后端。
 //     模组停下时（onBeforeUnload / onBeforeQuit）关掉 server；再启用时宿主清掉模组目录的模块缓存（含归档里的包），重新加载
 //     这个入口，`status` 拉起的是新的一个；
 //   - 环境变量：PORT、AUTO_OPEN_EXPLORER、QQ_DISABLE_UPDATE_CHECK、QQ_AUTH_STATE_PATH 只在加载包的那一刻设上，加载完还原

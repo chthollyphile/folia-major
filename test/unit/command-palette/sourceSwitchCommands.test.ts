@@ -81,6 +81,33 @@ describe('the commands that switch one source', () => {
         expect(run).toHaveBeenCalledWith(expect.objectContaining({ sourceId: 'demo' }), 'enabled');
     });
 
+    it('is found by its whole title, and a query naming a state ranks that state first', async () => {
+        const { default: i18n } = await import('@/i18n/config');
+        const { buildSourceSwitchCommands } = await import('@/components/command-palette/commands/sourceSwitchCommands');
+        const { rankCommands } = await import('@/components/command-palette/search/rankCommands');
+        const previous = i18n.language;
+        try {
+            for (const language of ['zh-CN', 'en']) {
+                await i18n.changeLanguage(language);
+                // Built anew per language, as the installer does when the text changes.
+                const commands = buildSourceSwitchCommands([
+                    { sourceId: 'demo', state: 'enabled', threeStates: true, name: () => 'Demo' },
+                    { sourceId: 'other', state: 'disabled', threeStates: false, name: () => 'Other' },
+                ], vi.fn(async () => {}));
+                const top = (query: string) => rankCommands(query, commands, [], language)[0]?.command.id;
+                const title = (id: string) => commands.find(command => command.id === id)!.title;
+                for (const command of commands) {
+                    expect(top(command.title)).toBe(command.id);
+                }
+                expect(top(title('source-disable-demo').replace('Demo', ' Demo '))).toBe('source-disable-demo');
+                expect(top(language === 'en' ? 'Demo matching' : 'Demo 匹配')).toBe('source-matching-demo');
+                expect(top(language === 'en' ? 'disable Demo' : '停用 Demo')).toBe('source-disable-demo');
+            }
+        } finally {
+            await i18n.changeLanguage(previous);
+        }
+    });
+
     it('follows the main process\'s source states, and a switch goes through the same path as the Sources page', async () => {
         const { omni } = await import('@/services/onlineMusic/omni');
         // The two built-in sources the test helper registers, one that may be used only for matching and one that may not.

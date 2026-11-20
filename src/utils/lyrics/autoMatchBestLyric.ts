@@ -424,7 +424,8 @@ async function matchUnderArtist(
                 ? await tryPlatformSource(source)
                 : source === 'amll' ? await tryAmllDb() : null;
         } catch (error) {
-            console.error(`[autoMatchBestLyric] ${source} search/fetch failed:`, error);
+            // One source failing (an upstream refusal, a network error) is passed over: the pick goes on with the others.
+            console.warn(`[autoMatchBestLyric] ${source} search/fetch failed:`, error);
             return null;
         }
     };

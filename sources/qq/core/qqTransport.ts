@@ -225,7 +225,7 @@ const isQqSessionStoreUnreadable = async (): Promise<boolean> => {
 const resolveApiBase = async (): Promise<string> => {
     if (isQqDesktop()) {
         if (electronApiBase) return electronApiBase;
-        // 第一次问的时候 main 入口才把后端拉起来（只用于匹配时也一样），等它监听上再答。
+        // 第一次问的时候 main 入口才把后端拉起来（启用与只用于匹配都一样），等它监听上再答。
         const status = await readQqBackendStatus();
         if (!status?.port) {
             throw qqError('unavailable', `${QQ_API_NOT_RUNNING}${describeEmbeddedStatus(status)}`);

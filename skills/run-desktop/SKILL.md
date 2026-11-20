@@ -105,6 +105,10 @@ node skills/run-desktop/driver.mjs quit
 - **全新 profile 有两道首启门槛**：思索模式引导、「资料库用哪种界面？」选择弹窗。后者会盖在设置面板上。
   驱动启动时写入 `folia_last_seen_ponder_onboarding_version` 和 `library_suite_prompt_seen`
   （与 `test/component/fixtures.ts` 相同）后 reload；直接 `eval` 改这些键要再 `reload` 才生效。
+- **全新 profile 在答完开箱引导的「你用哪些平台听歌？」之前不运行任何音源模组**（Folium 2.0 方案 §5.3：没勾的不能先联网）：
+  这时 `window.electron.mods.getSourceStates()` 里音源行都是 `loaded: false`，注册表里没有这些平台。要测在线音源，先在
+  引导里勾上要用的几家（或一个不勾走完：网易云、QQ 只用于匹配，其余停用），再到「设置 → 音源」开。跳过引导的
+  `?skipStartup` 不会替你回答这一页；这时在「设置 → 音源」切任意一家就算答过，其余没切过的按启用运行。
 - **要一首能放的歌**：`eval "window.__foliaDev.playMockSong().then(s => s.filePath)"`，导入并播放开发用的 mock 歌
   （合成音频 + 逐字歌词 + 封面，不用网络和登录）。细节见 `testing-strategy` 的“开发服务器已经在跑”。
 - **主窗口地址写死 `http://localhost:3000`**（`electron/main.cjs` 的 `loadAppEntry`），Vite 必须就在 3000。

@@ -10,8 +10,8 @@ Folia 内置的网易云音乐音源模组（Folium 2.0）。原来是 `src/serv
 - **桌面端怎么用**：包声明成 `asar`，构建把它和它的依赖装进 `deps.<指纹>.asar`。main 入口（`main/index.ts`）在工作线程
   （`worker.cjs`，源码 `main/neteaseApiWorker.cjs`，线程由 `main/neteaseApiHost.cjs` 开）里经 `@folia/source-deps` 从归档加载包，
   起一个只听 `127.0.0.1` 的本地服务；页面直接向 `http://127.0.0.1:<端口>` 发 HTTP（`core/netease.ts`），端口由 rpc `status` 给。
-  - 完整启用时 main 入口一加载就起服务（和迁移前应用启动时一样）；只用于匹配时宿主到 client 第一次 rpc 才加载 main 入口，服务也到那时
-    才起。状态每次变化经 `folium.rpc` 的 `status` 推给 client，起不来时提示一次（`core/neteaseLocalService.ts`），登录窗口能重启它。
+  - main 入口一加载就起服务（和迁移前应用启动时一样）；完整启用和只用于匹配时宿主一启动都加载它（匹配要后端随时能答，冷启动要几秒，
+    比自动匹配每家的等待上限长）。状态每次变化经 `folium.rpc` 的 `status` 推给 client，起不来时提示一次（`core/neteaseLocalService.ts`），登录窗口能重启它。
   - 模组停下（`onBeforeUnload`）或应用退出时结束工作线程；再启用时起新的一个。
   - 登录的 cookie 在页面存储 `online_provider:netease:cookie`（匿名的在 `anonymous_cookie`），迁移前的 `netease_cookie`、
     `netease_anonymous_cookie` 由宿主的受信表认领、读到时搬过来（`src/mods/folium/registries/sourcePageStore.ts`）。

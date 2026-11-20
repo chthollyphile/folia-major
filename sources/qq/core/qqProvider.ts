@@ -1042,7 +1042,7 @@ const logout = async (): Promise<void> => {
 
 // provider 摘要在应用启动时就会被读到，把探测挂在这里，等用户真的打开登录弹窗时结果早已落地，
 // UI 不会先显示两个通道再缩成一个。只在网页版这样做：桌面上探测要先拉起内嵌后端，只用于匹配时摘要也会被读到
-// （跨源匹配的参与者），在这里探测就把延后的后端拉起来了；桌面的登录窗口照旧先 resolveLoginMethods 等探测落地。
+// （跨源匹配的参与者），在这里探测就把用不着的后端拉起来了；桌面的登录窗口照旧先 resolveLoginMethods 等探测落地。
 const getAvailability = () => {
     const availability = getQqTransportAvailability();
     if (availability.configured && !isQqDesktop()) void refreshDeclaredChannels();

@@ -5,7 +5,7 @@ import {
 
 // test/unit/mod-system/folium2SourcesOnboarding.test.ts
 // Folium 2.0 S8, the start prompt's sources page in the main process (dev/folium/folium-2-plan.md §5.3): a fresh
-// profile is recorded as owing it, an upgraded one never is; the one answer is checked entry by entry before anything
+// profile is recorded as owing it, an upgraded one never is, and no source runs while it is owed; the one answer is checked entry by entry before anything
 // is written (known built-in ids, the three states, 'matching' only for a built-in copy kept for matching), then
 // written, recorded as answered and reloaded differentially; after that nothing is owed and a second answer is refused.
 
@@ -41,6 +41,21 @@ describe('which profile owes the sources page', () => {
         fresh();
         expect(persisted.get(ONBOARDING_KEY)).toBe('pending');
         expect(await invoke(IPC.sourceStates)).toMatchObject({ ok: true, sourcesOnboarding: true });
+    });
+
+    it('runs no source until the page is answered, but lists them with their manifest names', async () => {
+        writeSources();
+        const system = fresh();
+        expect(modRecord('netease')).toBeUndefined();
+        expect(modRecord('kugou')).toBeUndefined();
+        const answer = await invoke(IPC.sourceStates) as { sources: Array<{ sourceId: string; modId: string | null; loaded: boolean; name: unknown }> };
+        const modRows = answer.sources.filter(row => row.modId !== null);
+        expect(modRows.map(row => row.sourceId).sort()).toEqual(['kugou', 'netease', 'qq']);
+        expect(answer.sources.every(row => !row.loaded)).toBe(true);
+        expect(answer.sources.find(row => row.sourceId === 'kugou')?.name).toBe('kugou');
+        // A reload asked for meanwhile (the panel, the master switch) does not start them either.
+        system.loadAll();
+        expect(modRecord('kugou')).toBeUndefined();
     });
 
     it('an upgraded profile never owes it: no record, every source enabled', async () => {
@@ -88,7 +103,7 @@ describe('the answer', () => {
     it('writes every state, records the page as answered and reloads only what changed', async () => {
         writeSources();
         fresh();
-        expect(modRecord('kugou')).toMatchObject({ activations: 1, deactivations: 0 });
+        expect(modRecord('kugou')).toBeUndefined();
         const answer = await invoke(IPC.answerSourcesOnboarding, {
             netease: 'matching', qq: 'enabled', kugou: 'disabled', ytm: 'disabled',
         }) as { ok: boolean; states: Record<string, string> };
@@ -96,13 +111,27 @@ describe('the answer', () => {
         expect(answer.states).toMatchObject({ netease: 'matching', qq: 'enabled', kugou: 'disabled', ytm: 'disabled' });
         expect(persisted.get('mods.sourceStates')).toEqual({ netease: 'matching', qq: 'enabled', kugou: 'disabled', ytm: 'disabled' });
         expect(persisted.get(ONBOARDING_KEY)).toBe('done');
-        // The disabled one wound down; the enabled one did not restart.
-        expect(modRecord('kugou')).toMatchObject({ deactivations: 1 });
+        // The disabled one never ran; the enabled one and the one used only for matching start, main entries too.
+        expect(modRecord('kugou')).toBeUndefined();
         expect(modRecord('qq')).toMatchObject({ activations: 1, deactivations: 0 });
+        expect(modRecord('netease')).toMatchObject({ activations: 1, deactivations: 0 });
 
         expect(await invoke(IPC.sourceStates)).toMatchObject({ sourcesOnboarding: false });
         expect(await invoke(IPC.answerSourcesOnboarding, { kugou: 'enabled' })).toEqual({ ok: false, error: 'sources-onboarding-not-owed' });
         expect(persisted.get('mods.sourceStates')).toMatchObject({ kugou: 'disabled' });
+    });
+
+    it('a source switched while the page is still owed counts as the answer, so the sources run again', async () => {
+        writeSources();
+        fresh();
+        expect(modRecord('kugou')).toBeUndefined();
+        const answer = await invoke(IPC.setSourceState, 'netease', 'matching') as { ok: boolean };
+        expect(answer.ok).toBe(true);
+        expect(persisted.get(ONBOARDING_KEY)).toBe('done');
+        // The one switched runs by its state; the ones nobody switched have no record and run enabled.
+        expect(modRecord('netease')).toMatchObject({ activations: 1 });
+        expect(modRecord('kugou')).toMatchObject({ activations: 1 });
+        expect(await invoke(IPC.sourceStates)).toMatchObject({ sourcesOnboarding: false });
     });
 
     it('stays answered on the next start of the same profile', async () => {

@@ -12,8 +12,8 @@ import { neteasePackageRoot } from './packageRoot';
 //   - @neteasecloudmusicapienhanced/api：package.json 声明成 asar，构建把它装进 deps.<指纹>.asar。包在工作线程里加载和运行
 //     （worker.cjs，源码 neteaseApiWorker.cjs）：这里经 @folia/source-deps 找到包在归档里的目录，开线程时交过去
 //     （workerData.packageRoot），线程从那里按路径加载、替换它的 util/request 与 login_qr_check；
-//   - 这个入口一加载就开线程并拉起（迁之前是应用一启动）：完整启用时宿主一启动就加载它；只用于匹配时宿主到 client
-//     第一次 rpc 才加载（mainState deferred），服务也到那时才起；
+//   - 这个入口一加载就开线程并拉起（迁之前是应用一启动）：完整启用和只用于匹配时宿主一启动都加载它（匹配要后端
+//     随时能答，不等第一次匹配时冷启动）；
 //   - `status` 答现在的状态，不等拉起（client 自己隔一会儿再问）；`restart` 等这一次拉起（reason `needed`：一个请求要用它、
 //     它却因为断网没起来，规则在 startsAgainWhenNeeded）；每次变化经 api.rpc.send('status') 告诉 client；
 //   - 诊断与自检：后端登记在 api.diagnostics，client 经 `diagnostics`、`selfCheck` 取（线程里记着自己的上游连接）；

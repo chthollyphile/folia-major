@@ -10,6 +10,7 @@ import type { ModSourceStateRow } from '@/mods/types';
 const ipc = vi.hoisted(() => ({
     getSourceStates: vi.fn(),
     invokeAnswerSourcesOnboarding: vi.fn(),
+    invokeSetSourceState: vi.fn(),
 }));
 vi.mock('@/mods/ipc', () => ipc);
 vi.mock('@/mods/runtime/sourceSwitches', () => ({ stopPlaybackOfSources: vi.fn(async () => {}) }));
@@ -42,6 +43,7 @@ const load = async () => {
 beforeEach(() => {
     ipc.getSourceStates.mockReset();
     ipc.invokeAnswerSourcesOnboarding.mockReset();
+    ipc.invokeSetSourceState.mockReset();
     vi.spyOn(console, 'info').mockImplementation(() => {});
     vi.spyOn(console, 'warn').mockImplementation(() => {});
 });
@@ -61,6 +63,16 @@ describe('the rows the page lists', () => {
         ]);
         expect(listed.map(source => source.sourceId)).toEqual([...NINE.map(source => source.sourceId), 'spotify']);
         expect(listed.filter(source => source.keepForMatching).map(source => source.sourceId)).toEqual(['netease', 'qq']);
+    });
+
+    it("carries each source's manifest name, since its mod does not run before the page is answered", async () => {
+        const { pickOnboardingSources } = await load();
+        const listed = pickOnboardingSources([
+            row('kugou', { name: { 'zh-CN': '酷狗音乐', en: 'KuGou Music' }, loaded: false, mainState: 'none' }),
+            row('ytm', { modId: null, tier: 'host', name: null }),
+            row('bodian'),
+        ]);
+        expect(listed.map(source => source.name)).toEqual([{ 'zh-CN': '酷狗音乐', en: 'KuGou Music' }, null, null]);
     });
 });
 
@@ -90,6 +102,28 @@ describe('reading and answering', () => {
         expect(module.useSourcesOnboardingStore.getState().status).toBe('none');
         await module.submitSourcesOnboarding();
         expect(ipc.invokeAnswerSourcesOnboarding).not.toHaveBeenCalled();
+    });
+
+    it('owed with no built-in source to list: answers with nothing, so the main process stops holding sources back', async () => {
+        const module = await load();
+        ipc.getSourceStates.mockResolvedValue({
+            states: {}, sources: [row('folium.radio.station', { modId: 'radio', tier: 'user' })], hasSourceMods: true, sourcesOnboarding: true,
+        });
+        ipc.invokeAnswerSourcesOnboarding.mockResolvedValue({ ok: true, states: {}, sources: [] });
+        await module.loadSourcesOnboarding();
+        expect(module.useSourcesOnboardingStore.getState().status).toBe('none');
+        expect(ipc.invokeAnswerSourcesOnboarding).toHaveBeenCalledWith({});
+    });
+
+    it('a source switched before the page closed answered it already: the ticks are written as switches', async () => {
+        const module = await load();
+        ipc.getSourceStates.mockResolvedValue({ states: {}, sources: [row('netease', { keepForMatching: true }), row('kugou')], hasSourceMods: true, sourcesOnboarding: true });
+        ipc.invokeAnswerSourcesOnboarding.mockResolvedValue({ ok: false, error: 'sources-onboarding-not-owed' });
+        ipc.invokeSetSourceState.mockResolvedValue({ ok: true, states: {}, sources: [] });
+        await module.loadSourcesOnboarding();
+        module.useSourcesOnboardingStore.getState().toggle('kugou');
+        await module.submitSourcesOnboarding();
+        expect(ipc.invokeSetSourceState.mock.calls).toEqual([['netease', 'matching'], ['kugou', 'enabled']]);
     });
 
     it('hands the ticks over once, as the main process wants them', async () => {

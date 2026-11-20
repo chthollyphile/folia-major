@@ -92,8 +92,8 @@ export interface ModSourceInfo {
     claims?: string | null;
 }
 
-/** Folium 2.0: where a mod's Node entry stands; 'deferred' is a source used only for matching before its first rpc. */
-export type ModMainState = 'none' | 'deferred' | 'activating' | 'ready';
+/** Folium 2.0: where a mod's Node entry stands (a source used only for matching starts it like an enabled one). */
+export type ModMainState = 'none' | 'activating' | 'ready';
 
 /** Folium 2.0: one row of the source states (folia-mods:source-states). A source the host registers itself has no mod. */
 export interface ModSourceStateRow {
@@ -101,6 +101,8 @@ export interface ModSourceStateRow {
     modId: string | null;
     tier: ModTier | 'host';
     state: ModSourceState;
+    /** The name its mod's manifest gives it (`sources[].name`), for a list that shows it while it is not registered; null for the host's. Absent from an older main process. */
+    name?: string | Record<string, string> | null;
     keepForMatching: boolean;
     takeover: boolean;
     loaded: boolean;

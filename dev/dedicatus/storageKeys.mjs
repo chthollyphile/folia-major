@@ -343,6 +343,8 @@ export const STORAGE_KEYS = [
     'main:mods.sourcesOnboarding',
     // Folium 2.0 S1 的听歌上报设置，每个音源一个键 `folia_playback_report:<音源 id>`（网易云沿用 folia_netease_scrobble）；S2 补登记。
     'web:folia_playback_report:*',
+    // Folium 2.0（2026-11-20）：每个音源上次在本窗口加载时声明的能否只用于匹配（音源 id → 布尔），停用的音源靠它在设置与命令面板里仍给三态。
+    'web:folia.sources.matchOnly',
     'web:folia_perf_check_offered',
     'web:visualizer_picker_keep_open',
     // 网易云更早的版本存登录 cookie / 匿名 cookie 的旧名（之后放在 online_provider:netease: 下）：宿主的页面存储在建网易云的

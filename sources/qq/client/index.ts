@@ -22,6 +22,6 @@ export default function activate(folium: FoliumClientApi): () => void {
     folium.rpc.on('status', () => {
         forgetQqBackendPort();
     });
-    // Switched off, or matching only and unloaded: the module's timer and port go with it.
+    // Switched off and unloaded: the module's timer and port go with it.
     return disposeSource;
 }

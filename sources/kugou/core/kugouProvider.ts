@@ -1287,7 +1287,7 @@ export const createKugouSource = (env: KugouSourceTexts, transport: KugouTranspo
                                             ...(trackGain === undefined ? {} : { trackGain }),
                                             ...(trackPeak === undefined ? {} : { trackPeak }),
                                         };
-                                    console.info('[KuGouProvider] playback:url-resolved', {
+                                    console.info('[KugouProvider] playback:url-resolved', {
                                         hash,
                                         requestedQuality: quality,
                                         resolvedQuality: candidateQuality,
@@ -1304,7 +1304,7 @@ export const createKugouSource = (env: KugouSourceTexts, transport: KugouTranspo
                                     status: valueOf(data, 'status') ?? valueOf(response, 'status'),
                                     errorCode: valueOf(data, 'errcode', 'error_code') ?? valueOf(response, 'errcode', 'error_code'),
                                 };
-                                console.warn('[KuGouProvider] playback:no-url', {
+                                console.warn('[KugouProvider] playback:no-url', {
                                     hash,
                                     requestedQuality: quality,
                                     candidateQuality,
@@ -1315,7 +1315,7 @@ export const createKugouSource = (env: KugouSourceTexts, transport: KugouTranspo
                                 // A sign-in that has ended is said at once: another quality would be refused the same way.
                                 if ((error as { code?: unknown } | null)?.code === 'auth-required') throw error;
                                 firstFailure ??= error;
-                                console.warn('[KuGouProvider] playback:quality-failed', {
+                                console.warn('[KugouProvider] playback:quality-failed', {
                                     hash,
                                     requestedQuality: quality,
                                     candidateQuality,
@@ -1344,7 +1344,7 @@ export const createKugouSource = (env: KugouSourceTexts, transport: KugouTranspo
                             const legacyUrl = audioUrlOf(valueOf(legacyResponse, 'url') ?? valueOf(dataOf(legacyResponse), 'url'))
                                 ?? audioUrlOf(valueOf(legacyResponse, 'backup_url') ?? valueOf(dataOf(legacyResponse), 'backup_url'));
                             if (legacyUrl) {
-                                console.info('[KuGouProvider] playback:url-resolved-legacy', {
+                                console.info('[KugouProvider] playback:url-resolved-legacy', {
                                     hash,
                                     requestedQuality: quality,
                                 });
@@ -1355,14 +1355,14 @@ export const createKugouSource = (env: KugouSourceTexts, transport: KugouTranspo
                             }
                             const legacyStatus = valueOf(legacyResponse, 'status') ?? valueOf(dataOf(legacyResponse), 'status');
                             noUrlSeen ??= { status: legacyStatus };
-                            console.warn('[KuGouProvider] playback:no-url-legacy', {
+                            console.warn('[KugouProvider] playback:no-url-legacy', {
                                 hash,
                                 requestedQuality: quality,
                                 status: legacyStatus,
                             });
                         } catch (error) {
                             firstFailure ??= error;
-                            console.warn('[KuGouProvider] playback:legacy-failed', {
+                            console.warn('[KugouProvider] playback:legacy-failed', {
                                 hash,
                                 requestedQuality: quality,
                                 ...errorFields(error),
@@ -1370,7 +1370,7 @@ export const createKugouSource = (env: KugouSourceTexts, transport: KugouTranspo
                         }
                     }
 
-                    console.warn('[KuGouProvider] playback:unavailable', { hash, requestedQuality: quality, attemptedQualities: qualities });
+                    console.warn('[KugouProvider] playback:unavailable', { hash, requestedQuality: quality, attemptedQualities: qualities });
                     if (noUrlSeen || firstFailure === undefined) throw kugouNoUrlError(env.error, noUrlSeen, !transport.hasAuthenticatedSearchSession());
                     // What failed first, as it was thrown (narrowed to `{} | null` by the check above, which says nothing new).
                     throw firstFailure as unknown;

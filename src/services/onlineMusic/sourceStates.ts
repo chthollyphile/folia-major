@@ -1,5 +1,6 @@
+import { readStoredString, setStoredString } from '../../stores/storagePrimitives';
 import { LYRIC_SOURCES } from '../../utils/lyrics/lyricSources';
-import { getSourceDeclaration } from './sourceDeclarations';
+import { getSourceDeclaration, listSourceDeclarations, subscribeSourceDeclarations, type SourceDeclaration } from './sourceDeclarations';
 
 // src/services/onlineMusic/sourceStates.ts
 // The state of each online source as the user switched it (Folium 2.0 plan §5.3): enabled, used only for
@@ -61,14 +62,65 @@ export const subscribeSourceStates = (listener: () => void): (() => void) => {
  * `songs@1.metadataMatch`, each with `access: 'anonymous'`). A built-in platform, still registered by the host,
  * is read from S1's lyric source registry (an entry of that platform that needs no account, or that does the
  * metadata match).
+ *
+ * A switched-off source mod is not loaded and declares nothing: what it declared the last time it ran in this window
+ * is remembered (`folia.sources.matchOnly`), so "Settings → Sources" and the command palette still offer it the
+ * three states and it can go straight from disabled to used only for matching. One that never ran here has no
+ * answer until it is enabled once.
  */
 export const canSourceMatchOnly = (sourceId: string): boolean => {
     const declaration = getSourceDeclaration(sourceId);
-    if (declaration) {
-        return Boolean(declaration.lyrics?.crossSource && declaration.lyrics.access === 'anonymous')
-            || Boolean(declaration.songs?.metadataMatch && declaration.songs.access === 'anonymous');
-    }
+    if (declaration) return declaresMatchOnly(declaration);
+    const remembered = readRememberedMatchOnly();
+    if (Object.hasOwn(remembered, sourceId)) return remembered[sourceId];
     return LYRIC_SOURCES.some((source) => (
         source.platform && source.id === sourceId && (Boolean(source.metadataMatch) || !source.needsAccount)
     ));
 };
+
+/**
+ * Whether canSourceMatchOnly has an answer for `sourceId`: it declared (it is loaded), or it did the last time it ran
+ * in this window, or the host knows it. False for a source that never ran here: its "no" means "not known yet".
+ */
+export const knowsWhetherSourceMatchesOnly = (sourceId: string): boolean => (
+    getSourceDeclaration(sourceId) !== undefined
+    || Object.hasOwn(readRememberedMatchOnly(), sourceId)
+    || LYRIC_SOURCES.some(source => source.platform && source.id === sourceId)
+);
+
+const declaresMatchOnly = (declaration: SourceDeclaration): boolean => (
+    Boolean(declaration.lyrics?.crossSource && declaration.lyrics.access === 'anonymous')
+    || Boolean(declaration.songs?.metadataMatch && declaration.songs.access === 'anonymous')
+);
+
+// What each source declared the last time it was loaded here: source id → whether it can be used only for matching.
+const MATCH_ONLY_KEY = 'folia.sources.matchOnly';
+
+const readRememberedMatchOnly = (): Record<string, boolean> => {
+    try {
+        const parsed: unknown = JSON.parse(readStoredString(MATCH_ONLY_KEY) ?? '{}');
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+        return Object.fromEntries(Object.entries(parsed).filter((entry): entry is [string, boolean] => typeof entry[1] === 'boolean'));
+    } catch {
+        return {};
+    }
+};
+
+const rememberDeclaredMatchOnly = () => {
+    const remembered = readRememberedMatchOnly();
+    const changed = listSourceDeclarations().filter(([sourceId, declaration]) => {
+        const value = declaresMatchOnly(declaration);
+        if (Object.hasOwn(remembered, sourceId) && remembered[sourceId] === value) return false;
+        remembered[sourceId] = value;
+        return true;
+    });
+    if (changed.length === 0) return;
+    try {
+        setStoredString(MATCH_ONLY_KEY, JSON.stringify(remembered));
+    } catch {
+        // Without storage a switched-off source only offers the three states again once it is loaded.
+    }
+};
+
+rememberDeclaredMatchOnly();
+subscribeSourceDeclarations(rememberDeclaredMatchOnly);

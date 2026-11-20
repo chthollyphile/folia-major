@@ -109,7 +109,8 @@ export const useStartupExperienceGate = () => {
     });
 
     // Whether a fresh profile owes the sources page, asked of the main process once (the web build: never). Not
-    // asked under the dev shortcut: nothing opens and nothing is recorded, so every source stays enabled.
+    // asked under the dev shortcut: nothing opens and nothing is recorded, so a fresh profile runs no source until
+    // one is switched in "Settings → Sources" (which counts as the answer).
     useEffect(() => {
         if (!skipsStartupExperience) void loadSourcesOnboarding();
     }, []);

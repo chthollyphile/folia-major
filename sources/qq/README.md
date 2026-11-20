@@ -9,8 +9,8 @@ Folia 内置的 QQ 音乐音源模组（Folium 2.0）。原来是 `src/services/
 - **桌面端怎么用**：包声明成 `asar`，构建把它和它的依赖装进 `deps.<指纹>.asar`。包在加载时自己起一个 HTTP 服务，所以 main 入口
   （`main/index.ts`）不在启动时加载它：client 第一次问 `status`（要向后端发请求）时才拉起（`main/qqBackend.cjs` 的 `start`：找空端口、
   设好环境变量、从归档加载包、装诊断钩子，`main/qqApiStartup.cjs`），以后照答；页面向 `http://127.0.0.1:<端口>` 发请求
-  （`core/qqTransport.ts`）。状态每次变化经 `folium.rpc` 的 `status` 推给 client。只用于匹配歌词时，宿主到 client 第一次 rpc 才加载
-  main 入口，歌词与匿名搜歌（`musicu`）也不拉起后端。模组停下（`onBeforeUnload`）或应用退出时关掉服务；再启用时宿主清掉模组目录的
+  （`core/qqTransport.ts`）。状态每次变化经 `folium.rpc` 的 `status` 推给 client。只用于匹配歌词时宿主同样一启动就加载
+  main 入口，后端同样等第一次 `status`；歌词与匿名搜歌（`musicu`）不用后端。模组停下（`onBeforeUnload`）或应用退出时关掉服务；再启用时宿主清掉模组目录的
   模块缓存（含归档里的包），`status` 拉起的是新的一个。
   - 登录会话由 `main/qqAuthSessionRepository.cjs` 存：`api.legacy.store` 沿用迁移前的存储键（`QQ_API_AUTH_SESSION_V1`），用
     `api.seal` 加密；包的设备标识文件照旧在 `<userData>/qq-auth-state/qq-device.json`（受信表认领的文件夹）。窗口里只有 opaque 的
