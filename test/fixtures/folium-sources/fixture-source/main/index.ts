@@ -2,6 +2,7 @@ import path from 'node:path';
 import { Worker } from 'node:worker_threads';
 import type { FoliumSourceMainApi } from '@folia/folium';
 import { errorFields } from '@folia/folium-source-kit';
+import { depsRequire } from '@folia/source-deps';
 import { catalog, loadedFrom } from 'fixture-asar-dep';
 import { label } from 'fixture-bundle-dep';
 import esmDefault, { greet } from 'fixture-esm-only';
@@ -9,7 +10,7 @@ import type { WorkerAnswer, WorkerQuestion } from './protocol';
 // test/fixtures/folium-sources/fixture-source/main/index.ts
 // 构建夹具音源的 main 入口：搜索的答案由四条构建路径各出一段——打进 bundle 的包（label）、deps 归档里的包
 // （catalog，它扫自己的 module/ 目录）、worker 线程（worker.cjs，它也从归档取依赖）、vendor.mjs 里的 ESM-only 包。
-// 桌面实测从搜索结果就能看出每条路径都通了；`probe` 交回归档的实际位置。
+// 桌面实测从搜索结果就能看出每条路径都通了；`probe` 交回归档的实际位置，和经 `@folia/source-deps` 按路径找到的一个包内文件。
 
 /** main 入口。 */
 export default function activate(api: FoliumSourceMainApi): void {
@@ -39,6 +40,6 @@ export default function activate(api: FoliumSourceMainApi): void {
         const [query, index] = typeof id === 'string' ? id.split('-') : [];
         return (await rows(query ?? '')).find((row) => row.id === `${query}-${index}`) ?? null;
     });
-    api.rpc.handle('probe', () => ({ depsFrom: loadedFrom, catalog: catalog() }));
+    api.rpc.handle('probe', () => ({ depsFrom: loadedFrom, catalog: catalog(), resolved: depsRequire.resolve('fixture-asar-dep/module/alpha.cjs') }));
     api.log.info(`main ready, deps from ${loadedFrom}`);
 }

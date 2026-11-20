@@ -16,11 +16,18 @@ const PAGE_STORE_KEY = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/;
 // (D507: a published key is not dropped without its move). Only the host can reach the old name.
 // YouTube Music's note of whether the account has Premium (Folium 2.0, 2026-11-20).
 const OLD_YTM_ACCOUNT_KEY = 'folia_ytm_account';
+// NetEase's sign-in cookie and anonymous cookie, from the builds before they were kept under the provider's prefix (the
+// host's provider read these names as their legacy keys up to Folium 2.0, 2026-11-20).
+const OLD_NETEASE_COOKIE_KEY = 'netease_cookie';
+const OLD_NETEASE_ANONYMOUS_COOKIE_KEY = 'netease_anonymous_cookie';
 
 interface MovedPageKey { key: string; read: () => string | null; remove: () => void }
+const movedKey = (key: string, old: string): MovedPageKey => ({ key, read: () => readStoredString(old), remove: () => { removeStoredKey(old); } });
+
 
 const MOVED_PAGE_KEYS: Readonly<Record<string, readonly MovedPageKey[]>> = Object.freeze({
-    ytm: [{ key: 'account', read: () => readStoredString(OLD_YTM_ACCOUNT_KEY), remove: () => { removeStoredKey(OLD_YTM_ACCOUNT_KEY); } }],
+    ytm: [movedKey('account', OLD_YTM_ACCOUNT_KEY)],
+    netease: [movedKey('cookie', OLD_NETEASE_COOKIE_KEY), movedKey('anonymous_cookie', OLD_NETEASE_ANONYMOUS_COOKIE_KEY)],
 });
 
 const moveOldKeys = (sourceId: string) => {

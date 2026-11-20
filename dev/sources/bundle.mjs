@@ -24,6 +24,13 @@ const ASAR_PREFIX = '\0folia-asar:';
 const VENDOR_PREFIX = '\0folia-vendor:';
 const MISSING_PREFIX = '\0folia-missing:';
 /*
+ * main 与 worker 的 `@folia/source-deps`：一个绑在本模组 deps 归档上的 require（`depsRequire`）。上游要按路径动手脚时用它：
+ * `depsRequire.resolve('<包>/<文件>')` 拿到归档里那个文件的路径，再按路径换 `require.cache` 的项、挂替身，或者按需
+ * `depsRequire('<包>/<文件>')`。字面写的 import 只拿得到包导出的东西，拿不到它在归档里的路径。
+ */
+export const SOURCE_DEPS = '@folia/source-deps';
+const SOURCE_DEPS_ID = '\0folia-source-deps';
+/*
  * main 与 worker 里 vendor 文件的占位名：vendor 文件在它们之后才打，打完按内容指纹起名（vendor.<指纹>.mjs），
  * build.mjs 再把占位换成真名。文件名带指纹，因为 require(esm) 载入的模块记在 Node 的 ESM 缓存里，清 require.cache
  * 清不掉，原地覆盖的 vendor 文件重载后仍是旧的（和 deps 归档名带指纹同一个道理）。
@@ -115,6 +122,11 @@ const dependencyPolicy = (kind, context) => {
             if (specifier.startsWith('@/')) fail(`音源模组不 import 宿主的代码：${specifier} 是 src/ 的别名（${importer}）`);
 
             if (specifier === '@folia/folium-source-kit') return KIT_ENTRY;
+            if (specifier === SOURCE_DEPS) {
+                if (kind === 'client') fail(`${SOURCE_DEPS} 只给 main 入口与 worker：client 里没有 deps 归档（${importer}）`);
+                if (!context.asarName) fail(`${SOURCE_DEPS} 是绑在 deps 归档上的 require，这个音源没有声明成 asar 的依赖（${importer}）`);
+                return SOURCE_DEPS_ID;
+            }
             if (specifier === '@folia/folium' || specifier.startsWith('@folia/folium/')) {
                 fail(`${specifier} 只有类型：写成 import type（${importer}）`);
             }
@@ -161,6 +173,14 @@ const dependencyPolicy = (kind, context) => {
                 // CommonJS（用到 module），所以只在被 require 时才执行、才抛，抛在包自己的 try 里。
                 const message = `Cannot find module '${id.slice(MISSING_PREFIX.length)}'`;
                 return `module.exports = (() => { const error = new Error(${JSON.stringify(message)}); error.code = 'MODULE_NOT_FOUND'; throw error; })();`;
+            }
+            if (id === SOURCE_DEPS_ID) {
+                // 和 asar 依赖的虚拟模块同一个 require：模组目录（__dirname）下的归档里，从它的 node_modules 找起。
+                return [
+                    "const { createRequire } = require('node:module');",
+                    "const { join } = require('node:path');",
+                    `exports.depsRequire = createRequire(join(__dirname, ${JSON.stringify(context.asarName)}, 'node_modules', '_'));`,
+                ].join('\n');
             }
             if (id.startsWith(ASAR_PREFIX)) {
                 const specifier = id.slice(ASAR_PREFIX.length);
