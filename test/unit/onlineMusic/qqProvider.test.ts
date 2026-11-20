@@ -2029,13 +2029,22 @@ describe('qqProvider (3.3.3 library)', () => {
         // 通道探测（login_channels）先问完（旧后端的 404，之后 30 秒不再问）：读到登录状态后它在后台接着问，
         // 经适配层多等几拍时会赶在用例的断言之前，占掉用例排好的回答。
         requestMock.mockRejectedValueOnce(new OnlineProviderError('unsupported', 'QQMusicApi has no login_channels route', 'qq', undefined, 404));
-        qqProvider.getAvailability?.();
+        // getAvailability no longer probes on the desktop (it would start the deferred backend): the login methods do.
+        qqProvider.auth?.getLoginMethods?.();
         await vi.waitFor(() => expect(requestMock).toHaveBeenCalledWith('login_channels'));
         requestMock.mockReset();
     });
 
     afterEach(() => {
         vi.restoreAllMocks();
+    });
+
+    it('does not probe the login channels for the availability on the desktop, which would start the deferred backend', async () => {
+        resetQqProviderRuntimeCache();
+        requestMock.mockReset();
+        expect(qqProvider.getAvailability?.()).toEqual({ configured: true });
+        await new Promise(resolve => setTimeout(resolve, 0));
+        expect(requestMock).not.toHaveBeenCalledWith('login_channels');
     });
 
     it('declares the cloud and the explore page with their members', () => {
