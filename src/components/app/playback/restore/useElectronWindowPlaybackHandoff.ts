@@ -27,6 +27,7 @@ import { untransformedLyrics } from '../../../../services/hostExtensionHooks';
 import { lyricsBeforeRules } from '../../../../utils/lyrics/lyricLineRules';
 import { reportYieldedQueue, wholeQueueWritesSoFar } from '../../../../services/wholeQueueWrites';
 import { getHifiPosition, installHifiPlayback, isHifiRoute, releaseUnclaimedHifiTrack } from '../../../../services/hifi/hifiPlayback';
+import { builtinSourcesSettled } from '../../../../services/onlineMusic/sourceReadiness';
 import { adoptExternalPlayback, getExternalPosition, getExternalSong, handOverExternalPlayback, handOverExternalPlaybackDuringRestore, isExternalPlaybackSounding, isExternalRoute, pauseExternalPlayback, reclaimExternalPlayback, releaseUnclaimedExternalTrack, restartSurfaceAfterHandoff } from '../../../../services/onlineMusic/externalPlayback';
 import { omni } from '../../../../services/onlineMusic/omni';
 import { hifiEngine } from '../../../../services/hifi/hifiEngine';
@@ -353,6 +354,11 @@ export function useElectronWindowPlaybackHandoff({
             return;
         }
 
+        // A source mod's client can still be starting (one that ran past the first screen's wait for it):
+        // asked before its platform is registered, the song would count as one nothing can play, and a player
+        // of its own that sounds it through the rebuild as no one's to take over. The same wait as the session
+        // restore's (sourceReadiness.ts); it is over at once when every source is up.
+        await builtinSourcesSettled();
         // The snapshot URL was playing moments ago: falling back to it beats seconds of silence spent on retries.
         const fallbackAudioSrc = snapshot.audioSrc && !snapshot.audioSrc.startsWith('blob:') ? snapshot.audioSrc : null;
         const restored = await restorePlaybackSourceForSong(snapshot.currentSong, {
