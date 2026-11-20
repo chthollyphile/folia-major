@@ -10,7 +10,7 @@
 （client 入口）、[`src/mods/folium/sources/contract.ts`](../../src/mods/folium/sources/contract.ts)（音源）与 [`src/mods/folium/mainContract.ts`](../../src/mods/folium/mainContract.ts)（main 入口），
 `mod.json` 写 `"folium": 1` 的模组看到的接口冻结在 Folium 1.10（`folium.host.folium` 读到 1.10，没有标着 Folium 2 的成员）。
 成员说明保留契约里的原文注释。平台规则（清单、权限、生命周期、安全模型）见 [Folium 规范](../../mods/README.md)，
-从零开始写模组、调试与发布到模组市场见 [模组开发与贡献指南](contributing.md)。
+从零开始写模组、调试与发布到模组市场见 [模组开发与贡献指南](contributing.md)，写一个音源模组见 [写一个音源模组](sources.md)。
 
 ## 目录
 
@@ -3793,7 +3793,7 @@ What `api.render.exportVideo` resolves to.
 
 > **预览**：Folium 2 的音源接口（`folium.sources` 与音源类模组 main 入口的 `api`）还是预览版，九个内置音源全部迁过去之前可能变动；用它写的模组可能要随新版本更新。`folium: 1` 冻结在 Folium 1.10 的接口不受影响。
 
-音源类模组的 main 入口拿到的 `api` 比普通模组多下面这些成员（[FoliumSourceMainApi](#foliumsourcemainapi)，方案 §5.5），也不受普通模组的网络、存储限额约束；普通模组的 `api` 没有它们。
+音源类模组的 main 入口拿到的 `api` 比普通模组多下面这些成员（[FoliumSourceMainApi](#foliumsourcemainapi)，方案 §5.5），也不受普通模组的网络、存储限额约束；普通模组的 `api` 没有它们。怎么用这些成员、要守的约定见 [写一个音源模组](sources.md)。
 
 ### FoliumSourceMainApi
 
@@ -3915,8 +3915,8 @@ Folium 2: one partition of a source mod (`api.net.session`).
 | `resolveProxy()` | `(url: string): Promise<string>` | The proxy for `url` in this partition. |
 | `setProxy()` | `(config: Record<string, unknown>): Promise<void>` | Electron's `session.setProxy`. |
 | `clearStorageData()` | `(options?: Record<string, unknown>): Promise<void>` | Electron's `session.clearStorageData`. |
-| `intercept()` | `(scheme: 'http' \| 'https', handler: (request: Request) => Response \| Promise<Response>): FoliumDisposer` | Answers every `http` or `https` request of this partition (its windows' and its fetches') with `handler`, which gets a web Request and answers a web Response (Electron's `session.protocol.handle`): a sandbox page that must never reach the network. Undone when the mod stops; returns what undoes it sooner. |
-| `refusePermissions()` | `(): FoliumDisposer` | Refuses every permission this partition's pages ask for or are checked for. Undone when the mod stops. |
+| `intercept()` | `(scheme: 'http' \| 'https', handler: (request: Request) => Response \| Promise<Response>): FoliumDisposer` | Answers every `http` or `https` request of this partition (its windows' and its fetches') with `handler`, which gets a web Request and answers a web Response (Electron's `session.protocol.handle`): a sandbox page that must never reach the network. Undone when the mod stops; returns what undoes it sooner. Once per partition and scheme: Electron keeps one handler per scheme, so a second call is not a second layer; undo the first before handling the scheme again. |
+| `refusePermissions()` | `(): FoliumDisposer` | Refuses every permission this partition's pages ask for or are checked for. Undone when the mod stops. Once per partition: undoing it takes the partition's permission handlers away, a second call's as well. |
 
 相关：[FoliumSourceRequestOptions](#foliumsourcerequestoptions) · [FoliumSourceClientRequest](#foliumsourceclientrequest) · [FoliumDisposer](#foliumdisposer)
 

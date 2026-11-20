@@ -9,6 +9,7 @@ import {
     checkPinnedVersion, closureFiles, closureFingerprint, closureShape, dependencyClosure, locatePackage, packArchive, readSourcePackage,
 } from './dependencies.mjs';
 import { toTraditionalLocale } from './locales.mjs';
+import { bundledSourceIds, isSourceDir, listSourceIds, selectSourceIds } from './selection.mjs';
 // dev/sources/build.mjs
 // 把仓库里的音源模组（sources/<id>/）构建成能加载的模组目录（dist-mods/<id>/），Folium 2.0 方案 §6.2。
 // 开发版的模组系统把 dist-mods/ 当内置目录（builtin 层级）读，打包时 extraResources 把它放到
@@ -26,7 +27,6 @@ import { toTraditionalLocale } from './locales.mjs';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const requireHere = createRequire(import.meta.url);
 const { validateManifest } = requireHere('../../electron/modSystem/manifest.cjs');
-const { BUILTIN_SOURCE_TABLE, BUILTIN_SOURCE_IDS } = requireHere('../../electron/modSystem/builtinSources.cjs');
 
 export const DEFAULT_SOURCES_ROOT = path.join(ROOT, 'sources');
 export const DEFAULT_OUT_ROOT = path.join(ROOT, 'dist-mods');
@@ -37,60 +37,18 @@ const firstExisting = (base) => ENTRY_EXTENSIONS.map((extension) => `${base}${ex
 const sha256 = (data) => crypto.createHash('sha256').update(data).digest('hex');
 const log = (message) => console.log(`[sources] ${message}`);
 
-/** 一个目录是不是音源目录：有 mod.json。 */
-const isSourceDir = (dir) => fs.existsSync(path.join(dir, 'mod.json'));
-
-/** `root` 下的音源目录名（排好序）；目录不存在时是空的。 */
-export const listSourceIds = (root = DEFAULT_SOURCES_ROOT) => {
-    if (!fs.existsSync(root)) return [];
-    return fs.readdirSync(root, { withFileTypes: true })
-        .filter((entry) => entry.isDirectory() && !entry.name.startsWith('.') && isSourceDir(path.join(root, entry.name)))
-        .map((entry) => entry.name)
-        .sort();
-};
-
-/*
- * 这次带哪些：FOLIA_BUNDLED_SOURCES 没设是全部；设成空是一个都不带；否则是逗号隔开的目录名（就是音源的短 id），
- * 不在 sources/ 里的报错（拼错了不能悄悄少带一个）。
- */
-export const selectSourceIds = (available, bundled = process.env.FOLIA_BUNDLED_SOURCES) => {
-    if (bundled === undefined) return [...available];
-    const wanted = bundled.split(',').map((id) => id.trim()).filter(Boolean);
-    const unknown = wanted.filter((id) => !available.includes(id));
-    if (unknown.length > 0) {
-        throw new Error(`FOLIA_BUNDLED_SOURCES 里的 ${unknown.join('、')} 不在 sources/ 里（有的是：${available.join('、') || '无'}）`);
-    }
-    return available.filter((id) => wanted.includes(id));
-};
-
 /**
- * 安装包的 `foliaBundledSources`：构建了的那些模组在受信表（electron/modSystem/builtinSources.cjs）里那一行的短音源 id。
- * 不在受信表里的模组不算内置音源（它的音源是 folium.<模组 id>.<名字>）。
+ * 把 `ids` 写进 `packageJsonPath` 的 foliaBundledSources。安装包不用它：electron-builder 打包时由上层配置
+ * （build/bundledSources.mjs）按同一个 FOLIA_BUNDLED_SOURCES 写进包里的 package.json，仓库的 package.json 不改。
+ * 这里给自己摆的安装布局用（例如复制 Electron 发行目录做的冒烟）。
  */
-export const bundledSourceIds = (modIds) => [...new Set(modIds.flatMap((modId) => (
-    Object.hasOwn(BUILTIN_SOURCE_TABLE, modId) ? BUILTIN_SOURCE_TABLE[modId].sources : []
-)))];
-
-/**
- * `--stamp` 现在能不能写 `ids`：不能时交回原因。九家还没全迁成模组、S8 还没做打包形态之前，声明里少一家，就等于
- * 宣布这个安装「不带」它，第三方模组经确认就能接管它的短 id 和旧登录（方案 §5.1），而它其实还静态编在宿主里。所以
- * 只放行九家都在的声明（这时写不写都一样）；S8 定下不带内置音源的打包形态时去掉这道闸。
- */
-export const stampRefusal = (ids) => {
-    const missing = BUILTIN_SOURCE_IDS.filter((id) => !ids.includes(id));
-    return missing.length > 0
-        ? `--stamp 会声明这个安装不带 ${missing.join('、')}；S8 之前不能这样打包（九家还没全迁成模组，见 dev/sources/README.md）`
-        : null;
-};
-
-/** 把 `ids` 写进 `packageJsonPath` 的 foliaBundledSources（和 CI 写 foliaReleaseChannel 一样，在打包前写）。 */
 export const stampBundledSources = (packageJsonPath, ids) => {
     const pkg = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
     pkg.foliaBundledSources = ids;
     fs.writeFileSync(packageJsonPath, `${JSON.stringify(pkg, null, 2)}\n`);
 };
 
-export { toTraditionalLocale };
+export { bundledSourceIds, listSourceIds, selectSourceIds, toTraditionalLocale };
 
 const listFilesUnder = (dir) => {
     const found = [];
@@ -427,8 +385,6 @@ const main = async () => {
     }
     if (results.length === 0) log(`${path.relative(ROOT, options.root)} 里没有要构建的音源`);
     if (options.stamp) {
-        const refusal = stampRefusal(bundledIds);
-        if (refusal) throw new Error(refusal);
         stampBundledSources(options.stamp, bundledIds);
         log(`foliaBundledSources = ${JSON.stringify(bundledIds)} → ${options.stamp}`);
     }

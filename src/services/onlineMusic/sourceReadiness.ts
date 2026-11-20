@@ -1,5 +1,5 @@
-import { getOnlineMusicProvider } from './providerRegistry';
-import { getSourceState } from './sourceStates';
+import { getOnlineMusicProvider, subscribeOnlineMusicProviderRegistry } from './providerRegistry';
+import { getSourceState, subscribeSourceStates } from './sourceStates';
 
 // src/services/onlineMusic/sourceReadiness.ts
 // When the built-in online platforms have all had their chance to register. Startup steps that would lose data
@@ -17,6 +17,33 @@ export const builtinSourcesSettled = (): Promise<void> => settled;
 /** Replaces what `builtinSourcesSettled` waits for. A rejection counts as settled. */
 export const setBuiltinSourcesSettled = (promise: Promise<unknown>): void => {
     settled = promise.then(() => undefined, () => undefined);
+};
+
+/** The longest `sourceRegistered` waits: past the first screen's cap, for a client that starts slowly. */
+export const SOURCE_REGISTER_WAIT_MS = 10_000;
+
+/**
+ * Resolves once `providerId` is registered, or once there is nothing to wait for: it is switched off (a disabled
+ * source mod never registers), or `ms` ran out (a client that failed to start, a source that is not installed).
+ * For a step that needs one platform in particular and can afford to wait for it past the first screen (the
+ * window hand-off of its song); `builtinSourcesSettled` is the wait for all of them, capped with the first screen.
+ * Never rejects.
+ */
+export const sourceRegistered = (providerId: string, ms = SOURCE_REGISTER_WAIT_MS): Promise<void> => {
+    const done = () => Boolean(getOnlineMusicProvider(providerId)) || getSourceState(providerId) === 'disabled';
+    if (done()) return Promise.resolve();
+    return new Promise<void>((resolve) => {
+        const finish = () => {
+            clearTimeout(timer);
+            stopRegistry();
+            stopStates();
+            resolve();
+        };
+        const check = () => { if (done()) finish(); };
+        const timer = setTimeout(finish, ms);
+        const stopRegistry = subscribeOnlineMusicProviderRegistry(check);
+        const stopStates = subscribeSourceStates(check);
+    });
 };
 
 /**

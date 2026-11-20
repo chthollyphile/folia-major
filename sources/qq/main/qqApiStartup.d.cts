@@ -4,6 +4,8 @@
 export const QQ_API_MODULE: '@yakult-green-tea/qq-music-api';
 
 export function isModuleNotFound(error: unknown): boolean;
+/** Runs `run` once the previous start's environment window has ended, or `waitMs` (30 s by default) has passed. */
+export function inEnvWindow<T>(run: () => T | Promise<T>, waitMs?: number): Promise<T>;
 
 export function startQqApi(options: {
     port: number;

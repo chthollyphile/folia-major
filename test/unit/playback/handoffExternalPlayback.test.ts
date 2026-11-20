@@ -21,6 +21,10 @@ const env = vi.hoisted(() => ({
     /** What a surface song's start again answers. */
     restarted: true,
     calls: [] as string[],
+    /** What the wait for the handed song's own platform waits on, and whether the platforms are registered yet. */
+    sourceRegistered: Promise.resolve() as Promise<void>,
+    waitedFor: [] as string[],
+    registered: true,
 }));
 
 vi.mock('react', () => ({
@@ -47,6 +51,10 @@ vi.mock('@/components/app/playback/restore/restorePlaybackSource', () => ({
         return env.restoreOutcome;
     },
 }));
+vi.mock('@/services/onlineMusic/sourceReadiness', () => ({
+    builtinSourcesSettled: async () => undefined,
+    sourceRegistered: (providerId: string) => { env.waitedFor.push(providerId); return env.sourceRegistered; },
+}));
 vi.mock('@/services/onlineMusic/externalPlayback', () => ({
     adoptExternalPlayback: async (song: SongResult) => { env.calls.push(`adopt ${song.id}`); return env.adopted; },
     releaseUnclaimedExternalTrack: (song: SongResult, reason: string) => { env.calls.push(`release ${song.id} (${reason})`); },
@@ -66,7 +74,7 @@ vi.mock('@/services/onlineMusic/externalPlayback', () => ({
 const isOnlineOf = (song: SongResult, providerId: string) => song.sourceRef?.kind === 'online' && song.sourceRef.providerId === providerId;
 vi.mock('@/services/onlineMusic/omni', () => ({
     omni: {
-        canPlayExternally: (song: SongResult) => isOnlineOf(song, 'appleMusic') || isOnlineOf(song, 'folium.vid.clips'),
+        canPlayExternally: (song: SongResult) => env.registered && (isOnlineOf(song, 'appleMusic') || isOnlineOf(song, 'folium.vid.clips')),
         playsOnSurface: (song: SongResult) => isOnlineOf(song, 'folium.vid.clips'),
     },
 }));
@@ -167,6 +175,9 @@ beforeEach(() => {
     env.sounding = false;
     env.restarted = true;
     env.calls.length = 0;
+    env.sourceRegistered = Promise.resolve();
+    env.waitedFor.length = 0;
+    env.registered = true;
 });
 afterEach(() => {
     resetPlaybackStore();
@@ -178,6 +189,23 @@ describe('a new window and the player the old one handed over', () => {
         const { shouldAutoPlayRef } = await restoreFrom(externalSong);
         expect(env.calls).toEqual(['adopt am1']);
         expect(shouldAutoPlayRef.current).toBe(false);
+        expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PLAYING);
+    });
+
+    it('waits for the own platform of the song before it asks about the song: one that registers past the first screen still takes its player over', async () => {
+        let settleSources: () => void = () => undefined;
+        env.registered = false;
+        env.sourceRegistered = new Promise<void>((resolve) => { settleSources = resolve; });
+        const pending = restoreFrom(externalSong);
+        await pending;
+        // Nothing asked yet: the song's platform is not registered, so neither adopting nor stopping is decided.
+        expect(env.calls).toEqual([]);
+        env.registered = true;
+        settleSources();
+        await settle();
+        await settle();
+        expect(env.calls).toEqual(['adopt am1']);
+        expect(env.waitedFor).toEqual(['appleMusic']);
         expect(usePlaybackStore.getState().playerState).toBe(PlayerState.PLAYING);
     });
 

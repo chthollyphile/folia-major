@@ -80,6 +80,7 @@
     "manual:ai-probe": "node test/manual/ai_probe.mjs"
   },
   "build": {
+    "extends": "file:build/bundledSources.mjs",
     "appId": "top.izuna.foliamajor",
     "productName": "Folia",
     "beforePack": "build/beforePack.cjs",
@@ -106,7 +107,6 @@
       "dist/**/*",
       "electron/**/*",
       "shared/**/*",
-      "!**/node_modules/youtubei.js/bundle/**",
       "package.json",
       "build/miao.png",
       "build/thumbar/*.png"
@@ -134,14 +134,6 @@
       {
         "from": "build/steamAudio.LICENSE.md",
         "to": "steam-audio/LICENSE.md"
-      },
-      {
-        "from": "dist-mods",
-        "to": "builtin-mods",
-        "filter": [
-          "**/*",
-          "!**/*.tmp"
-        ]
       },
       {
         "from": "models",
@@ -200,10 +192,6 @@
         {
           "from": "build/mac-helper/darwin-${arch}",
           "to": "."
-        },
-        {
-          "from": "build/apple-music-native/darwin-${arch}/FoliaAppleMusicCompanion.app",
-          "to": "apple-music/FoliaAppleMusicCompanion.app"
         }
       ],
       "target": [
@@ -237,17 +225,6 @@
           "to": ".",
           "filter": [
             "folia-wallpaper-helper.exe"
-          ]
-        },
-        {
-          "from": "build/apple-music-native/windows",
-          "to": "apple-music/windows",
-          "filter": [
-            "FoliaAppleMusicCompanion.exe",
-            "FoliaAppleMusicCompanion.exe.config",
-            "Microsoft.Web.WebView2.Core.dll",
-            "Microsoft.Web.WebView2.WinForms.dll",
-            "WebView2Loader.dll"
           ]
         }
       ]

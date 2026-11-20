@@ -91,7 +91,7 @@ const {
 } = require('./updateChannels.cjs');
 const { discoverUpdateVersion, settleWithin } = require('./updateCheckMirrors.cjs');
 const { createUpdateDownloadPhase } = require('./updateDownloadPhase.cjs');
-const { resolveCacheLimit, selectEvictions, sourceCacheEntries, sourceCacheEntryOf } = require('./audioCachePrune.cjs');
+const { createSourcePruneLimit, resolveCacheLimit, selectEvictions, sourceCacheEntries, sourceCacheEntryOf } = require('./audioCachePrune.cjs');
 const { removeAudioCacheFileOfSize } = require('./audioCacheRemove.cjs');
 const { createAnalysisHost } = require('./analysis/host.cjs');
 const { createAcousticsHost } = require('./acoustics/host.cjs');
@@ -4781,22 +4781,12 @@ async function listMediaCacheEntries() {
 }
 
 /*
- * The media cache limit the main window last named (bytes, 0 for none: the listener's setting lives in the renderer).
- * Every audio cache write names it, and so does the window before a source keeps a file in a cache of its own. A
- * source mod's api.cache.requestPrune() without a limit trims to it; until the window has named one, such a request
- * is left alone, since the host's default could trim a cache the listener let grow past it.
+ * The media cache limit the main window last named, and a source mod's api.cache.requestPrune(limitBytes?) against it
+ * (audioCachePrune.cjs createSourcePruneLimit: until the window has named one, a request without a limit is left alone).
  */
-let mediaCacheLimitBytes = null;
-function noteMediaCacheLimit(limitBytes) {
-  if (typeof limitBytes === 'number' && Number.isFinite(limitBytes) && limitBytes >= 0) mediaCacheLimitBytes = limitBytes;
-}
-
-// api.cache.requestPrune(limitBytes?) of a source mod's main entry.
-function pruneMediaCacheForSource(limitBytes) {
-  if (typeof limitBytes === 'number' && Number.isFinite(limitBytes)) return pruneMediaCache(limitBytes);
-  if (mediaCacheLimitBytes === null) return undefined;
-  return pruneMediaCache(mediaCacheLimitBytes);
-}
+const sourcePruneLimit = createSourcePruneLimit((limitBytes) => pruneMediaCache(limitBytes));
+const noteMediaCacheLimit = sourcePruneLimit.note;
+const pruneMediaCacheForSource = sourcePruneLimit.pruneForSource;
 
 /** Prunes original and transcoded audio and source mods' caches as one media-cache budget. */
 async function pruneMediaCache(limitBytes, protectedTranscodeEntry = null) {

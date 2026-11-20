@@ -1,7 +1,8 @@
 # 音源模组的构建（`dev/sources/`）
 
 把仓库里的音源模组（`sources/<id>/`）构建成能加载的模组目录（`dist-mods/<id>/`）。Folium 2.0 方案
-`dev/folium/folium-2-plan.md` §6.2。
+`dev/folium/folium-2-plan.md` §6.2。音源模组本身怎么写见 `docs/folium/sources.md`，往仓库里加一家见
+`src/services/onlineMusic/README.md` 的「接入一个新平台」。
 
 | 文件 | 做什么 |
 | --- | --- |
@@ -32,16 +33,37 @@ npm run sources:build -- --extra test/fixtures/folium-sources/fixture-source
   改了 kit 重建全部。构建出错只打出来，接着盯。`npm run dev:electron` 同时以这个方式跑它。
 - `--extra <目录>`：另外构建一个不在 `sources/` 里的音源目录（可以写多次），比如构建夹具。
 - `--root <目录>`、`--out <目录>`：换掉 `sources/` 和 `dist-mods/`（测试用）。
-- `--stamp <package.json>`：把这次带的音源写进那份 package.json 的 `foliaBundledSources`（和 CI 写 `foliaReleaseChannel` 一样，
-  打包前写）。**九家迁完、S8 做打包形态之前不要用**：九家还是宿主静态注册的时候，写出一个不全的列表等于声明这个安装包不带它们，
-  会放开外部模组对它们的接管（方案 §5.1）。构建脚本挡着：声明里少了九家中任何一家，`--stamp` 报错、不写文件（`stampRefusal`），
-  S8 做打包形态时去掉。
+- `--stamp <package.json>`：把这次带的音源写进那份 package.json 的 `foliaBundledSources`。打包不需要它：electron-builder 的上层配置
+  `build/bundledSources.mjs` 经 `extraMetadata` 把同样的列表写进安装包里的 package.json，仓库里的 package.json 不动。留给手工装配
+  的场合（例如直接拿 `dist-mods/` 拼一个包）。
 - 环境变量 `FOLIA_BUNDLED_SOURCES`：没设是 `sources/` 里的全部；设成空是一个都不带；否则是逗号隔开的目录名（就是短音源 id），
   拼错的报错。`foliaBundledSources` 是这些目录里的模组在受信表（`electron/modSystem/builtinSources.cjs`）里那一行的短 id。
 
 开发版的内置目录就是 `dist-mods/`（`electron/modSystem/discovery.cjs` 的 `getBuiltinModsDirectory`：开发版是
-`<appPath>/dist-mods`，打包版是 `resources/builtin-mods`）；打包时 `package.json` 的 `extraResources` 把 `dist-mods/` 放到
-`resources/builtin-mods/`。`npm run build:electron*`、`dev:electron:dist*` 和发布用的 workflow 都先跑一遍构建。
+`<appPath>/dist-mods`，打包版是 `resources/builtin-mods`）。`npm run build:electron*`、`dev:electron:dist*` 和发布用的 workflow
+都先跑一遍构建。
+
+### 安装包与网页版带哪些音源
+
+`package.json` 的 `build.extends` 指向 `build/bundledSources.mjs`，electron-builder 先读它，再合上 `package.json` 的 `build`。
+它按 `FOLIA_BUNDLED_SOURCES`（`dev/sources/selection.mjs`，规则同上）决定：
+
+- `extraResources`：只把带的 `dist-mods/<id>` 放到 `resources/builtin-mods/<id>`；`dist-mods/` 和选择对不上（多了或少了）时拒绝
+  打包，所以 `sources:build` 要用同一个 `FOLIA_BUNDLED_SOURCES` 先跑；用 `--extra` 构建过夹具的，先不带 `--extra` 重跑一次。
+- `extraMetadata.foliaBundledSources`：写进安装包里的 package.json，主进程据此认出「不带」的音源，放开外部模组对它的接管（方案 §5.1）。
+- `files` 的排除规则（`dev/sources/packaging.mjs`）：各音源声明的上游库连同只有它们用到的依赖都不进 app.asar（根 `dependencies`
+  仍保留，`sources:build` 和 Vercel / Cloudflare 的入口要用）；宿主自己 require 的包与带上的音源的原生件留着；不带的音源的原生件不进。
+- Apple Music 的伴侣程序（win / mac 的 `extraResources`、`beforePack` 的编译、`afterPack` 的核对）只在带 Apple Music 时有。
+- 受信表 `electron/modSystem/builtinSources.cjs` 九行都留着：外部模组接管一个不带的音源时，它声明的旧登录要拿那一行核对
+  （`sourceOwnership.cjs` 的 `claimRefusal`）。这和方案 §6.2「受信表带哪几行」的字面不同。
+- 方案 §11「安装包里搜不到任何平台的代码和名字」现在做不到「名字」：不带的音源的代码与上游库都不进包，但宿主里还留着它的
+  id 与名字——受信表、注册表顺序 `BUILT_IN_SOURCE_ORDER`、`nativeFiles.cjs` 的原生件名、旧键迁移表、语言包的版本说明、渲染端的
+  平台 id 字符串。要做到得把这些也按选择生成，待维护者定。
+- 开发版用子集（`FOLIA_BUNDLED_SOURCES=… npm run dev:electron:dist*`）时仓库的 package.json 没有 `foliaBundledSources`，主进程按
+  九家都带处理，没构建的那几家会被判成安装损坏；要试子集，用 `--stamp` 写一份临时的 package.json 副本。
+
+网页版（`npm run build`）经虚拟模块 `virtual:folia-web-sources` 只 import 选中的 `src/services/onlineMusic/web/<id>.ts`，没带的那一家
+连 core 都不进包。
 
 ## 一个音源目录
 
@@ -111,7 +133,8 @@ client 里、没有 asar 依赖的音源里 import 它是构建错误；类型�
 
 方案 §10「剩余阶段的顺序」第 2 步：`test/fixtures/folium-sources/deps-archive/` 下的网易云、酷狗、QQ 三个样例，各把上游库
 声明成 `asar`，main 入口（网易云在 worker 里）从归档加载它、照宿主现在的做法起后端、发一个不需要登录的请求。只是样例：
-不注册音源，也不替换宿主里这三家的静态注册和后端。
+不注册音源。三家后来迁成音源模组时照这个做法把上游库声明成 `asar`（`sources/netease/`、`sources/kugou/`、`sources/qq/`）；
+样例留着，给冒烟脚本和 CI 用。
 
 ```bash
 node test/manual/folium2DepsArchiveSmoke.mjs

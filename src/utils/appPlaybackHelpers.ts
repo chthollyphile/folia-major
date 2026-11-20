@@ -67,47 +67,12 @@ export const toSafeRemoteUrl = (url: string | null | undefined): string | null |
         return normalizedUrl.replace('http:', 'https:');
     }
 
-    try {
-        const parsedUrl = new URL(normalizedUrl);
-        if (
-            parsedUrl.protocol === 'http:' &&
-            parsedUrl.hostname.startsWith('fs.') &&
-            parsedUrl.hostname.endsWith('.kugou.com')
-        ) {
-            return normalizedUrl.replace(/^http:/, 'https:');
-        }
-    } catch {
-        return normalizedUrl;
-    }
-
     return normalizedUrl;
 };
 
-// Keeps KuGou's original HTTP media URL only in Electron; Web/PWA retains HTTPS normalization.
-export const toSafePlaybackUrl = (
-    url: string | null | undefined,
-    isElectron = typeof window !== 'undefined' && Boolean(window.electron)
-): string | null | undefined => {
-    if (!url || !isElectron) {
-        return toSafeRemoteUrl(url);
-    }
-
-    const normalizedUrl = url.split(/,\s*(?=https?:\/\/)/i)[0]?.trim() || url;
-    try {
-        const parsedUrl = new URL(normalizedUrl);
-        if (
-            parsedUrl.protocol === 'http:' &&
-            parsedUrl.hostname.startsWith('fs.') &&
-            parsedUrl.hostname.endsWith('.kugou.com')
-        ) {
-            return normalizedUrl;
-        }
-    } catch {
-        return normalizedUrl;
-    }
-
-    return toSafeRemoteUrl(normalizedUrl);
-};
+// The form playback holds a source's audio URL in. The same as toSafeRemoteUrl since the last platform rule that
+// differed between the desktop and the web moved into its source (a source hands the URL its runtime can play).
+export const toSafePlaybackUrl = (url: string | null | undefined): string | null | undefined => toSafeRemoteUrl(url);
 
 // toSafePlaybackUrl only normalizes (http→https, drops trailing fallback URLs) and never filters the scheme;
 // script schemes and blank strings are not audio sources. Shared by the loader and the prefetch resolver.

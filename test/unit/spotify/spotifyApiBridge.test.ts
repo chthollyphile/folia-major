@@ -611,7 +611,8 @@ describe('Spotify requests as the account', () => {
         expect(stored(store).user.premium).toBe(true);
         // Signing out ends the address.
         await bridge.request('logout');
-        expect((await bridge.handleAudioRequest(new Request(played.data.url))).status).toBe(503);
+        const address = new URL(played.data.url);
+        expect((await bridge.serveAudio({ trackId: address.pathname.split('/').pop() ?? '', key: address.searchParams.get('once') ?? '' })).status).toBe(503);
     });
 
     it('lets every track wait for a plan read under way, and asks for the track when the plan cannot be read', async () => {

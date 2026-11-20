@@ -291,7 +291,7 @@ const SECTION_INFO = {
     'Source main API': {
         order: 12,
         title: '音源类模组的 main 入口',
-        intro: '音源类模组的 main 入口拿到的 `api` 比普通模组多下面这些成员（[FoliumSourceMainApi](#foliumsourcemainapi)，方案 §5.5），也不受普通模组的网络、存储限额约束；普通模组的 `api` 没有它们。',
+        intro: '音源类模组的 main 入口拿到的 `api` 比普通模组多下面这些成员（[FoliumSourceMainApi](#foliumsourcemainapi)，方案 §5.5），也不受普通模组的网络、存储限额约束；普通模组的 `api` 没有它们。怎么用这些成员、要守的约定见 [写一个音源模组](sources.md)。',
     },
     Basics: {
         order: 13,
@@ -529,7 +529,7 @@ export const renderApiDocs = (contractText, mainContractText, sourcesContractTex
         '（client 入口）、[`src/mods/folium/sources/contract.ts`](../../src/mods/folium/sources/contract.ts)（音源）与 [`src/mods/folium/mainContract.ts`](../../src/mods/folium/mainContract.ts)（main 入口），',
         '`mod.json` 写 `"folium": 1` 的模组看到的接口冻结在 Folium 1.10（`folium.host.folium` 读到 1.10，没有标着 Folium 2 的成员）。',
         '成员说明保留契约里的原文注释。平台规则（清单、权限、生命周期、安全模型）见 [Folium 规范](../../mods/README.md)，',
-        '从零开始写模组、调试与发布到模组市场见 [模组开发与贡献指南](contributing.md)。',
+        '从零开始写模组、调试与发布到模组市场见 [模组开发与贡献指南](contributing.md)，写一个音源模组见 [写一个音源模组](sources.md)。',
         '',
         '## 目录',
         '',

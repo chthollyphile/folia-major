@@ -14,7 +14,7 @@ import { omni } from '../../../../../services/onlineMusic/omni';
 import { subscribeSourceDeclarations } from '../../../../../services/onlineMusic/sourceDeclarations';
 import { canSourceMatchOnly } from '../../../../../services/onlineMusic/sourceStates';
 import { setStatusMessage } from '../../../../../stores/useStatusMessageStore';
-import { buildSourceNotices, buildSourceRows, type SourceNoticeAction } from './sourcesModel';
+import { buildSourceNotices, buildSourceRows, SILENT_SOURCE_ERRORS, sourceErrorReason, type SourceNoticeAction } from './sourcesModel';
 
 // src/components/modal/settings/pages/sources/useSourcesSettings.ts
 // The state of "Settings → Sources": the main process's source states (read on open, then as it pushes them), the
@@ -23,9 +23,6 @@ import { buildSourceNotices, buildSourceRows, type SourceNoticeAction } from './
 // data", a takeover or an override changes anything.
 
 const EMPTY: ModSourceStatesPayload = { states: {}, sources: [] };
-
-// Answers the user chose themselves (a cancelled confirmation) are not reported.
-const SILENT_ERRORS = new Set(['clear-declined', 'enable-declined', 'override-declined']);
 
 // The registry's version, followed by useSyncExternalStore (module-level, so it does not subscribe anew each render).
 const subscribeRegistry = (listener: () => void) => omni.subscribeProviders(listener);
@@ -89,12 +86,9 @@ export const useSourcesSettings = () => {
     }, []);
 
     const reportError = useCallback((name: string, error: string | undefined, key: string) => {
-        if (error && SILENT_ERRORS.has(error)) return;
-        // A code without its own text reads as "unknown reason" with the code after it, never as the bare code.
-        const code = (error ?? 'unknown').split(':')[0];
-        const reason = i18n.exists(`sourcesSettings.errors.${code}`)
-            ? t(`sourcesSettings.errors.${code}`)
-            : `${t('sourcesSettings.errors.unknown')} (${error ?? ''})`;
+        // Answers the user chose themselves (a cancelled confirmation) are not reported.
+        if (error && SILENT_SOURCE_ERRORS.has(error)) return;
+        const reason = sourceErrorReason(error, key => t(key), key => i18n.exists(key));
         setStatusMessage({ type: 'error', text: t(key, { name, reason }) });
     }, [t, i18n]);
 

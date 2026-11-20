@@ -74,7 +74,11 @@ const setup = ({ file = plainFile(), format = 'OGG_VORBIS_320', directory, fail 
         accessToken: async () => 'access-private', deviceId: () => 'device', fetch, openSession, now: () => clock, quietLimitMs: 30, log: record, warn: record,
         ...(directory ? { disk: createSpotifyAudioFiles({ directory: () => directory }), onKept } : {}),
     });
-    const get = (url: string, range?: string) => audio.handle(new Request(url, range ? { headers: { Range: range } } : undefined));
+    // A read of the `_media/audio` route for an address handed out, as the main entry passes it on (main/index.ts).
+    const get = (url: string, range?: string) => {
+        const address = new URL(url);
+        return audio.serve({ trackId: address.pathname.split('/').pop() ?? '', key: address.searchParams.get('once') ?? '', range: range ?? null });
+    };
     return { audio, file, sealed, fetch, asked, expired, sessions, openSession, logs, get, onKept, advance: (ms: number) => { clock += ms; } };
 };
 

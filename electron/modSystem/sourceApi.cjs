@@ -121,7 +121,8 @@ const createSourceApi = (context, host) => {
              * Answers every http or https request of this partition (its windows' and its fetches') with `handler`
              * (Electron's `session.protocol.handle`): a sandbox page that must never reach the network. Only the
              * source's own partitions (or claimed ones), so no other window or mod is reached; undone when the mod
-             * stops, or by the function returned.
+             * stops, or by the function returned. Once per partition and scheme (the contract says so): Electron keeps
+             * one handler per scheme, and the undo does not count calls.
              */
             intercept: (scheme, handler) => {
                 if (scheme !== 'http' && scheme !== 'https') throw new Error('net.session().intercept takes "http" or "https"');
@@ -136,7 +137,10 @@ const createSourceApi = (context, host) => {
                     }
                 });
             },
-            /* Every permission this partition's pages ask for, or are checked for, is refused; undone when the mod stops. */
+            /*
+             * Every permission this partition's pages ask for, or are checked for, is refused; undone when the mod stops.
+             * Once per partition (the contract says so): the undo clears both handlers, whoever set them.
+             */
             refusePermissions: () => {
                 const target = session();
                 target.setPermissionRequestHandler((_contents, _permission, callback) => callback(false));

@@ -403,17 +403,6 @@ function createSpotifyAudio({
       return { url: audioUrl(trackId, key), format: file.format };
     },
 
-    // A web Request for an address handed out, answered as `serve` answers it (tests).
-    handle(incoming) {
-      let parts;
-      try {
-        parts = partsOf(incoming.url);
-      } catch {
-        return Promise.resolve(Response.error());
-      }
-      return this.serve({ ...parts, method: incoming.method, range: incoming.headers.get('range') });
-    },
-
     // Answers a read of the `_media/audio` route: the track id, the address's key and the raw
     // Range header. No failure carries a body: callers keep whatever body they receive as the
     // track's audio. A failure that may pass is a network error, after which the audio element

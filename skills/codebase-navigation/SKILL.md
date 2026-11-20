@@ -139,6 +139,9 @@ LSP 会老老实实找到死文件和历史命名，这几个需要人工标注�
   `test/unit/onlineMusic/omniArchitecture.test.ts` 确认它们不会回来。
   本地库和 Navidrome 的首页面现在是 `LocalGrid3DView` 和 `NavidromeGrid3DView`，首页入口在 `components/app/home/*`。
 - `components/app/views/*`、`SearchResultsOverlay` —— 已不存在；搜索在 `SearchWorkspace`（`components/app/search/`）。
+- `src/services/onlineMusic/<平台>/`、`electron/<平台>/`（`neteaseProvider`、`kugouTransport`、`bodianApiBridge` 这类文件的旧位置）——
+  Folium 2 起九家都搬进了各自的音源模组 `sources/<id>/`（`core/`、`client/`、`main/`），宿主不再 import 它们；
+  旧目录可能还以未追踪的空目录留在工作树里。
 - `useSettingsUiStore` —— 已不存在，而且**不是简单改名**。设置弹窗的 UI 状态（当前 tab/子页）
   在 `useSettingsModalStore`；具体设置值被拆到了各领域 store（`useAudioSettingsStore`、
   `useLyricSettingsStore`、`useThemeSettingsStore`、`useTypographySettingsStore` 等）。

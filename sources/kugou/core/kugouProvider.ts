@@ -62,6 +62,24 @@ const audioUrlOf = (raw: unknown): string | undefined => {
     })?.trim();
 };
 
+/*
+ * The address the player is handed. KuGou's audio files come from `fs.*.kugou.com` over http as well as https. The
+ * desktop plays the http address as given; the web build's page is https, where an http address is mixed content the
+ * browser refuses, so there the same file is asked for over https. (The host did this for every platform's URL
+ * before this source was a mod: appPlaybackHelpers.ts's toSafePlaybackUrl / toSafeRemoteUrl.)
+ */
+export const kugouPlaybackUrl = (url: string, runtime: 'electron' | 'web'): string => {
+    if (runtime !== 'web') return url;
+    try {
+        const parsed = new URL(url);
+        return parsed.protocol === 'http:' && parsed.hostname.startsWith('fs.') && parsed.hostname.endsWith('.kugou.com')
+            ? url.replace(/^http:/i, 'https:')
+            : url;
+    } catch {
+        return url;
+    }
+};
+
 const dataOf = (raw: any): any => raw?.data ?? raw?.body?.data ?? raw?.body ?? raw;
 
 // Unwrap the nested envelopes used by the different KuGou recommendation endpoints.
@@ -1276,8 +1294,8 @@ export const createKugouSource = (env: KugouSourceTexts, transport: KugouTranspo
                                         requestVariant: requestVariant.name,
                                     });
                                     return {
-                                        // Preserve the upstream candidate here; the shared playback transport normalizes its scheme.
-                                        url,
+                                        // The upstream candidate, over https on the web (kugouPlaybackUrl).
+                                        url: kugouPlaybackUrl(url, transport.runtime),
                                         quality: candidateQuality,
                                         ...(replayGain ? { replayGain } : {}),
                                     };
@@ -1331,7 +1349,7 @@ export const createKugouSource = (env: KugouSourceTexts, transport: KugouTranspo
                                     requestedQuality: quality,
                                 });
                                 return {
-                                    url: legacyUrl,
+                                    url: kugouPlaybackUrl(legacyUrl, transport.runtime),
                                     quality: 'standard',
                                 };
                             }

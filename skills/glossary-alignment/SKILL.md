@@ -113,8 +113,8 @@ bravais 的口头说法大多来自它的设计稿（不在仓库里，常用的
 | 口头说法 | 名字 |
 | --- | --- |
 | 在线歌曲的一切（搜索/歌词/音频/歌单/账户） | `omni` —— 这是公共边界，普通调用只经过它 |
-| 某个平台的 provider | `neteaseProvider`、`kugouProvider`、`qqProvider`、`bodianProvider`、`ytmProvider`、`spotifyProvider`；请求在各自的 `*Transport`（网易云是 `neteaseApi`）—— 实现边界，UI/hook/store 不应直连 |
-| provider 注册 / 账号缓存 | `providerRegistry`（唯一的平台清单）、`providerAccountCache`、`providerStorage` |
+| 某个平台的 provider | `neteaseProvider`、`kugouProvider`、`qqProvider`、`bodianProvider`、`ytmProvider`、`spotifyProvider` 等，都在各自的 `sources/<id>/`；请求在各自的 `*Transport`（网易云是 `sources/netease/core/netease.ts`）—— 实现边界，UI/hook/store 不应直连 |
+| provider 注册 / 账号缓存 | `providerRegistry`（运行时的注册表；平台是 `sources/<id>/` 下的音源模组，经 `folium.sources.register` 注册进来，内置的在受信表 `builtinSources.cjs` 里）、`providerAccountCache`、`providerStorage` |
 | 探索页 | `ExploreSurface`、`useExploreFeedStore`；平台那边是 `*Explore`（`createNeteaseExplore` 等）和 `exploreReads` |
 | Navidrome / Subsonic | `navidromeService` —— **不是** Omni provider |
 
