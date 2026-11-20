@@ -7,3 +7,10 @@ declare module 'virtual:folia-source/*' {
     const source: WebSourcePackage;
     export default source;
 }
+
+// The platforms this build carries (FOLIA_BUNDLED_SOURCES), each registered by its web/<id>.ts: web/index.ts's WEB_SOURCES.
+declare module 'virtual:folia-web-sources' {
+    import type { WebSource } from '@/services/onlineMusic/web';
+    const sources: readonly WebSource[];
+    export default sources;
+}

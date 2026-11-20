@@ -57,8 +57,10 @@ describe('Apple Music native delivery', () => {
         expect(run).not.toHaveBeenCalled();
         await expect(verifyMacCompanion(path.join(root, 'missing-resources'))).rejects.toThrow();
     });
-    it('keeps the build hook, packaged resource and launch path aligned', () => {
-        const config = require('../../../package.json').build;
+    it('keeps the build hook, packaged resource and launch path aligned', async () => {
+        // The companion goes in only with the Apple Music source (build/bundledSources.mjs, FOLIA_BUNDLED_SOURCES).
+        const { bundledSourcesConfig } = await import('../../../build/bundledSources.mjs');
+        const config = bundledSourcesConfig({ bundled: undefined });
         expect(config.mac.extraResources).toContainEqual({
             from: 'build/apple-music-native/darwin-${arch}/FoliaAppleMusicCompanion.app',
             to: 'apple-music/FoliaAppleMusicCompanion.app',
@@ -68,5 +70,11 @@ describe('Apple Music native delivery', () => {
             to: 'apple-music/windows',
             filter: WINDOWS_COMPANION_FILES,
         });
+    });
+    it('leaves the companion out of a package without the Apple Music source', async () => {
+        const { bundledSourcesConfig } = await import('../../../build/bundledSources.mjs');
+        const config = bundledSourcesConfig({ bundled: 'netease' });
+        expect(config.win.extraResources).toEqual([]);
+        expect(config.mac.extraResources).toEqual([]);
     });
 });
