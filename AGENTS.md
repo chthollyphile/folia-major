@@ -25,7 +25,7 @@
 ### 模块边界
 
 - **依赖方向**：`stores`、`utils`、`types`、`services` 不在运行时依赖 `components`；`utils` 也不依赖 `hooks`、`stores`；`types` 不依赖任何实现；`components`、`hooks`、`stores` 不直接用平台的 `*Provider.ts`、`*Transport.ts`。检查规则是 `dev/dedicatus/rules.mjs` 的 `BOUNDARY_RULES`（Dedicatus，`npm run dedicatus`，CI 上也跑）；现有的违规和循环依赖记在 `dev/dedicatus/baseline.json`，只减不增：修好一条就 `npm run dedicatus -- --prune` 删掉，不往里加新的。
-- **在线歌曲只走 omni。** 搜索、播放、歌词、歌单、账户都调 `src/services/onlineMusic/omni.ts`；只有各平台的 `<id>Provider.ts` 和 `<id>Transport.ts` 碰平台的原始接口（网易云没有 Transport，请求在 `src/services/onlineMusic/netease/netease.ts`）。omni 缺一项能力时，在 `src/types/onlineMusic.ts` 和 `omni.ts` 加上，再在各平台实现，不另开旁路。细则见 `online-song-omni-routing`。
+- **在线歌曲只走 omni。** 搜索、播放、歌词、歌单、账户都调 `src/services/onlineMusic/omni.ts`；只有各平台的 `<id>Provider.ts` 和 `<id>Transport.ts` 碰平台的原始接口（网易云没有 Transport，请求在 `sources/netease/core/netease.ts`）。omni 缺一项能力时，在 `src/types/onlineMusic.ts` 和 `omni.ts` 加上，再在各平台实现，不另开旁路。细则见 `online-song-omni-routing`。
 - **一个平台的规则留在那个平台的目录里。** 只是看着像的不要合并成共用规则。平台目录外每个文件提到平台名的次数记在 `test/unit/onlineMusic/platformNamePlaces.ts`，`test/unit/onlineMusic/omniArchitecture.test.ts` 核对它。
 - **加一个同类的东西只动它自己的目录和注册点**：歌词样式和背景放各自的 `entry.tsx`，由 registry 自动发现；平台在 `providerRegistry.ts` 登记；命令放 `src/components/command-palette/commands/`，一组命令一个 `<组>Commands.ts`，自带界面的单条命令一个 `*Command.ts`，都用 `commandFactories.ts` 里的函数建，切换歌词样式的命令写在那个样式的 `entry.tsx` 里。不在 `App.tsx` 里加分支。衡量一个模块看“再加一个平台、一个歌词样式、一种模组要改哪些地方”。
 - **账号凭据只在登记过的入口写。** 处理一般响应的代码不改登录账号。代表“谁登录着”的 token、userid、cookie 只在小而专一的函数里写：要么只在确认的登录（或同一会话的续期）之后调用，要么函数自己挡掉账号项。写入点登记在 `dev/dedicatus/credentialWriters.mjs`，Dedicatus D604 检查渲染进程经 `providerStorage` 的写入和酷狗桥接层的会话对象；其他平台主进程里的会话仓库还没纳入检查，照同样的规矩写。

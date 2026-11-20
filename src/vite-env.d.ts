@@ -89,15 +89,6 @@ declare global {
     bodyText: string;
   }
 
-  interface ElectronNeteaseApiStatus {
-    status: 'starting' | 'running' | 'error';
-    port: number | null;
-    error: string | null;
-    // 没起来是因为断网：页面说连不上，下一次要用它时它再启动一次。
-    offline?: boolean;
-    updatedAt: number;
-  }
-
   // 内嵌后端的诊断快照（electron/loginBackendIpc.cjs 的 get-login-diagnostics）。报告会原样贴进 issue；
   // 界面已告知用户其中包含哪些数据，登录凭据（cookie、token）的值不在其中。
 
@@ -117,7 +108,7 @@ declare global {
     credentialStore: { encryptionAvailable?: boolean; backend?: string | null; error?: string } | null;
   }
 
-  /** 拉起后端的一步（electron/backendLifecycle.cjs 的 createStartupRecorder）。 */
+  /** 拉起后端的一步（音源模组 main/backendLifecycle.cjs 的 createStartupRecorder）。 */
   interface ElectronBackendStartupStep {
     id: string;
     startedAt: number;
@@ -160,58 +151,17 @@ declare global {
     settled?: string;
   }
 
-  interface ElectronNeteaseLoginRequestRecord {
-    at: number;
-    uri: string;
-    crypto: string;
-    ipHeader: 'none' | 'random-cn' | 'client' | 'real-ip';
-    deviceIdTail: string;
-    hasMusicU: boolean;
-    hasMusicA: boolean;
-    durationMs: number | null;
-    outcome: {
-      settled: 'pending' | 'resolved' | 'rejected';
-      status: number | null;
-      code: number | string | null;
-      message: string;
-    };
-    connections: ElectronNetworkConnection[];
-  }
-
-  interface ElectronNeteaseLoginDiagnostics {
-    providerId: 'netease';
+  /**
+   * get-login-diagnostics 的回答：宿主补的应用环境与连接记录，加上登记的后端自己的 getDiagnostics()。后端都在音源模组里，
+   * 各家快照的其余字段由模组自己解读（例如 sources/netease/core/neteaseLoginDiagnostics.ts）。
+   */
+  interface ElectronLoginDiagnostics {
+    providerId: string;
     capturedAt: number;
     app: ElectronAppEnvironment;
-    backend: ElectronNeteaseApiStatus;
-    startup: ElectronBackendStartupRun[];
-    /** 上游包没加载起来（startup 里 load 步骤失败）时为 null，identity 同理。 */
-    login: {
-      capturedAt: number;
-      startup: { anonymousTokenAtLoad?: 'present' | 'empty' };
-      network: {
-        interfaces: Array<{ name: string; addresses: Array<{ address: string; family: 4 | 6; scopeId?: number }> }>;
-        error?: string;
-      };
-      requests: ElectronNeteaseLoginRequestRecord[];
-    } | null;
-    /**
-     * 扫码身份轮换（electron/netease/neteaseLoginIdentity.cjs）：进程启动时刻、当前 deviceId、扫码请求被重置的次数、
-     * 实际轮换的次数（被重置后到下一次要码才换）、最近一次是否换到了新的匿名 token、是否还有待轮换。
-     */
-    identity: {
-      processStartedAt: number;
-      deviceId: string | null;
-      connectionResets: number;
-      rotations: number;
-      lastRotatedAt: number | null;
-      lastTokenRenewed: boolean | null;
-      pendingRotation: boolean;
-    } | null;
-    /** 最近的上游连接（不属于任何一次登录请求的那些，例如启动时取 xeapi 公钥）。 */
-    connections: ElectronNetworkConnection[];
+    connections?: ElectronNetworkConnection[];
+    [field: string]: unknown;
   }
-
-  type ElectronLoginDiagnostics = ElectronNeteaseLoginDiagnostics;
 
   interface ElectronTaskbarControlState {
     hasActiveTrack: boolean;
@@ -960,15 +910,10 @@ declare global {
           body?: string;
         },
       ) => Promise<ElectronLyricProxyResponse>;
-      getNeteasePort: () => Promise<number>;
-      getNeteaseApiStatus: () => Promise<ElectronNeteaseApiStatus>;
-      /** 内嵌后端（网易，及音源模组 api.diagnostics 登记的）的诊断快照；没有内嵌后端的 provider 回 null。 */
+      /** 内嵌后端（音源模组 api.diagnostics 登记的）的诊断快照；没有内嵌后端的 provider 回 null。 */
       getLoginDiagnostics?: (providerId: string) => Promise<ElectronLoginDiagnostics | null>;
       /** 扫码登录失败后的主动自检（electron/loginSelfCheck.cjs）。 */
       runLoginSelfCheck?: (providerId: string) => Promise<import('./types/onlineMusic').LoginSelfCheckResult | null>;
-      // 'needed'：一个请求要用它，它却因为断网没起来；主进程只在离上一次断网失败够久时才再启动。
-      restartNeteaseApi: (reason?: 'needed') => Promise<ElectronNeteaseApiStatus>;
-      onNeteaseApiStatusChanged: (callback: (status: ElectronNeteaseApiStatus) => void) => () => void;
       minimizeWindow: () => Promise<boolean>;
       toggleMaximizeWindow: () => Promise<boolean>;
       toggleFullscreenWindow: () => Promise<boolean>;
@@ -1100,8 +1045,9 @@ declare global {
         reportModsStartSettled: () => Promise<{ ok: boolean }>;
         reportModsStartAlive: () => Promise<{ ok: boolean }>;
         // Folium 2.0: the sources' states, "clear data", the override confirmation, who holds a taken-over id.
-        getSourceStates?: () => Promise<{ ok: boolean; error?: string; hasSourceMods?: boolean } & Partial<ModSourceStatesPayload>>;
+        getSourceStates?: () => Promise<{ ok: boolean; error?: string; hasSourceMods?: boolean; sourcesOnboarding?: boolean } & Partial<ModSourceStatesPayload>>;
         setSourceState?: (sourceId: string, state: ModSourceState) => Promise<{ ok: boolean; error?: string } & Partial<ModSourceStatesPayload>>;
+        answerSourcesOnboarding?: (choices: Record<string, ModSourceState>) => Promise<{ ok: boolean; error?: string } & Partial<ModSourceStatesPayload>>;
         describeSourceData?: (sourceId: string) => Promise<ModSourceDataResult>;
         clearSourceData?: (sourceId: string) => Promise<ModClearSourceDataResult>;
         confirmModOverride?: (modId: string) => Promise<{ ok: boolean; error?: string; mods?: ModRuntimeInfo[] }>;

@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+// @builtin-sources
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Stores read localStorage at import time; see foliumUiRegistries.test.ts.
@@ -20,7 +21,7 @@ vi.hoisted(() => {
 import type { ModRuntimeInfo } from '@/mods/types';
 import type { FoliumPlatformService } from '@/mods/folium/contract';
 import { OnlineProviderError } from '@/types/onlineMusic';
-import { neteaseRaw } from '@/services/onlineMusic/netease/neteaseRaw';
+import { neteaseRaw } from '../../../sources/netease/core/neteaseRaw';
 import { omni } from '@/services/onlineMusic/omni';
 import { useOnlineProviderAccountStore } from '@/stores/useOnlineProviderAccountStore';
 import { createFoliumExperimental } from '@/mods/folium/experimental';

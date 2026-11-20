@@ -1,4 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createNeteaseCore } from '../helpers/neteaseSource';
+
+// The source's core with the web build's env (VITE_NETEASE_API_BASE), fresh after vi.resetModules: the sign-in is in the
+// page store under online_provider:netease:* (the names from before it was so kept are moved by the host's page store).
+const loadNeteaseCore = async () => {
+    await createNeteaseCore();
+    return import('../../../sources/netease/core/netease');
+};
 
 // Covers unavailable-song replacement resolution and legacy Web API fallback behavior.
 
@@ -36,7 +44,7 @@ describe('netease unavailable song replacement', () => {
         vi.stubEnv('VITE_NETEASE_API_BASE', 'http://127.0.0.1:3000');
         vi.stubGlobal('localStorage', {
             getItem: vi.fn((key: string) => {
-                if (key === 'netease_anonymous_cookie') return 'mock-anon-cookie';
+                if (key === 'online_provider:netease:anonymous_cookie') return 'mock-anon-cookie';
                 return null;
             }),
             setItem: vi.fn(),
@@ -58,7 +66,7 @@ describe('netease unavailable song replacement', () => {
             privileges: [{ id: 411500779, st: 0, pl: 320000, dl: 320000 }],
         }) as any);
 
-        const { neteaseApi } = await import('@/services/onlineMusic/netease/netease');
+        const { neteaseApi } = await loadNeteaseCore();
         const replacement = await neteaseApi.getUnavailableSongReplacement(createUnavailableSong({
             noCopyrightRcmd: { songId: 411500779, typeDesc: '其它版本可播' },
         }) as any);
@@ -85,7 +93,7 @@ describe('netease unavailable song replacement', () => {
             },
         }) as any);
 
-        const { neteaseApi } = await import('@/services/onlineMusic/netease/netease');
+        const { neteaseApi } = await loadNeteaseCore();
         const replacement = await neteaseApi.getUnavailableSongReplacement(createUnavailableSong({
             noCopyrightRcmd: { songId: null, typeDesc: '其它版本可播' },
         }) as any);
@@ -117,7 +125,7 @@ describe('netease unavailable song replacement', () => {
                 },
             }) as any);
 
-        const { neteaseApi } = await import('@/services/onlineMusic/netease/netease');
+        const { neteaseApi } = await loadNeteaseCore();
         const replacement = await neteaseApi.getUnavailableSongReplacement(createUnavailableSong({
             noCopyrightRcmd: { songId: 411500779, typeDesc: '其它版本可播' },
         }) as any);
@@ -142,7 +150,7 @@ describe('netease unavailable song replacement', () => {
             },
         }) as any);
 
-        const { neteaseApi } = await import('@/services/onlineMusic/netease/netease');
+        const { neteaseApi } = await loadNeteaseCore();
         const replacement = await neteaseApi.getUnavailableSongReplacement(createUnavailableSong({
             noCopyrightRcmd: { songId: null, typeDesc: '其它版本可播' },
         }) as any);
@@ -159,7 +167,7 @@ describe('netease unavailable song replacement', () => {
             msg: 'Not Found',
         }) as any);
 
-        const { neteaseApi } = await import('@/services/onlineMusic/netease/netease');
+        const { neteaseApi } = await loadNeteaseCore();
         const song = createUnavailableSong({
             noCopyrightRcmd: { songId: null, typeDesc: '其它版本可播' },
         }) as any;
@@ -180,7 +188,7 @@ describe('netease unavailable song replacement', () => {
             text: vi.fn().mockResolvedValue('<!DOCTYPE html><html><body><pre>Cannot GET /song/copyright/rcmd</pre></body></html>'),
         } as any);
 
-        const { neteaseApi } = await import('@/services/onlineMusic/netease/netease');
+        const { neteaseApi } = await loadNeteaseCore();
         const song = createUnavailableSong({
             noCopyrightRcmd: { songId: null, typeDesc: '其它版本可播' },
         }) as any;
@@ -199,7 +207,7 @@ describe('netease unavailable song replacement', () => {
         });
         fetchMock.mockResolvedValueOnce(serverError() as any).mockResolvedValueOnce(serverError() as any);
 
-        const { neteaseApi } = await import('@/services/onlineMusic/netease/netease');
+        const { neteaseApi } = await loadNeteaseCore();
         const song = createUnavailableSong({
             noCopyrightRcmd: { songId: null, typeDesc: '其它版本可播' },
         }) as any;
@@ -221,8 +229,8 @@ describe('netease unavailable song replacement', () => {
                 },
             }) as any);
 
-        const { neteaseApi } = await import('@/services/onlineMusic/netease/netease');
-        const { describeNeteaseFailure } = await import('@/services/onlineMusic/netease/neteaseFailure');
+        const { neteaseApi } = await loadNeteaseCore();
+        const { describeNeteaseFailure } = await import('../../../sources/netease/core/neteaseFailure');
         const song = createUnavailableSong({
             noCopyrightRcmd: { songId: null, typeDesc: '其它版本可播' },
         }) as any;
@@ -246,15 +254,16 @@ describe('netease unavailable song replacement', () => {
             .mockResolvedValueOnce(mockJsonResponse({ code: 502, msg: 'read ECONNRESET' }, 502) as any)
             .mockResolvedValueOnce(mockJsonResponse({ code: 502, msg: 'connect ETIMEDOUT 1.2.3.4:443' }, 502) as any);
 
-        const { neteaseApi } = await import('@/services/onlineMusic/netease/netease');
-        const { describeNeteaseFailure } = await import('@/services/onlineMusic/netease/neteaseFailure');
+        const { neteaseApi } = await loadNeteaseCore();
+        const { describeNeteaseFailure } = await import('../../../sources/netease/core/neteaseFailure');
         const song = createUnavailableSong({
             noCopyrightRcmd: { songId: null, typeDesc: '其它版本可播' },
         }) as any;
 
         for (const said of ['read ECONNRESET', 'connect ETIMEDOUT 1.2.3.4:443']) {
             const failure = await neteaseApi.getUnavailableSongReplacement(song).catch((error: unknown) => error);
-            expect(failure).toMatchObject({ name: 'OnlineProviderError', code: 'network', providerId: 'netease' });
+            // The source's error; the host adapter stamps the providerId on it.
+            expect(failure).toMatchObject({ name: 'OnlineProviderError', code: 'network' });
             expect(describeNeteaseFailure('audio', failure)).toEqual({ code: '502', message: said, httpStatus: 502 });
         }
         expect(fetchMock).toHaveBeenCalledTimes(2);
@@ -270,7 +279,7 @@ describe('netease unavailable song replacement', () => {
             .mockResolvedValueOnce(mockJsonResponse(payload) as any)
             .mockResolvedValueOnce(mockJsonResponse(payload) as any);
 
-        const { neteaseApi } = await import('@/services/onlineMusic/netease/netease');
+        const { neteaseApi } = await loadNeteaseCore();
         const song = createUnavailableSong({
             noCopyrightRcmd: { songId: null, typeDesc: '其它版本可播' },
         }) as any;
@@ -286,7 +295,7 @@ describe('netease unavailable song replacement', () => {
             .mockRejectedValueOnce(new TypeError('detail fetch failed'))
             .mockResolvedValueOnce(mockJsonResponse({ code: 502, msg: 'read ECONNRESET' }) as any);
 
-        const { neteaseApi } = await import('@/services/onlineMusic/netease/netease');
+        const { neteaseApi } = await loadNeteaseCore();
         const failure = await neteaseApi.getUnavailableSongReplacement(createUnavailableSong({
             noCopyrightRcmd: { songId: 411500779, typeDesc: '其它版本可播' },
         }) as any).catch((error: unknown) => error);
@@ -299,7 +308,7 @@ describe('netease unavailable song replacement', () => {
     });
 
     it('prefers the unavailable type description for list tags when present', async () => {
-        const { getSongUnavailableTagText } = await import('@/services/onlineMusic/netease/netease');
+        const { getSongUnavailableTagText } = await loadNeteaseCore();
 
         expect(getSongUnavailableTagText(createUnavailableSong({
             noCopyrightRcmd: { typeDesc: '其它版本可播' },
@@ -321,17 +330,17 @@ describe('netease unavailable song replacement', () => {
         });
 
         it('uses stored logged-in cookie and does not fetch anonymous cookie', async () => {
-            storageMap['netease_cookie'] = 'real-login-cookie';
+            storageMap['online_provider:netease:cookie'] = 'real-login-cookie';
             const fetchMock = vi.mocked(fetch);
             fetchMock.mockResolvedValueOnce(mockJsonResponse({ code: 200 }) as any);
 
-            const { neteaseApi } = await import('@/services/onlineMusic/netease/netease');
+            const { neteaseApi } = await loadNeteaseCore();
             await neteaseApi.getSongUrl(12345);
 
             expect(fetchMock).toHaveBeenCalledTimes(1);
             expect(String(fetchMock.mock.calls[0]?.[0])).toContain('cookie=real-login-cookie');
             expect(String(fetchMock.mock.calls[0]?.[0])).not.toContain('register/anonimous');
-            expect(storageMap['netease_anonymous_cookie']).toBeUndefined();
+            expect(storageMap['online_provider:netease:anonymous_cookie']).toBeUndefined();
         });
 
         it('fetches anonymous cookie when unlogged-in and not cached', async () => {
@@ -341,7 +350,7 @@ describe('netease unavailable song replacement', () => {
             // Second mock resolve: the actual api request
             fetchMock.mockResolvedValueOnce(mockJsonResponse({ code: 200 }) as any);
 
-            const { neteaseApi } = await import('@/services/onlineMusic/netease/netease');
+            const { neteaseApi } = await loadNeteaseCore();
             await neteaseApi.getSongUrl(12345);
 
             expect(fetchMock).toHaveBeenCalledTimes(2);
@@ -351,11 +360,11 @@ describe('netease unavailable song replacement', () => {
         });
 
         it('uses cached anonymous cookie when unlogged-in', async () => {
-            storageMap['netease_anonymous_cookie'] = 'cached-anon-cookie';
+            storageMap['online_provider:netease:anonymous_cookie'] = 'cached-anon-cookie';
             const fetchMock = vi.mocked(fetch);
             fetchMock.mockResolvedValueOnce(mockJsonResponse({ code: 200 }) as any);
 
-            const { neteaseApi } = await import('@/services/onlineMusic/netease/netease');
+            const { neteaseApi } = await loadNeteaseCore();
             await neteaseApi.getSongUrl(12345);
 
             expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -367,7 +376,7 @@ describe('netease unavailable song replacement', () => {
             const fetchMock = vi.mocked(fetch);
             fetchMock.mockResolvedValueOnce(mockJsonResponse({ code: 200 }) as any);
 
-            const { neteaseApi } = await import('@/services/onlineMusic/netease/netease');
+            const { neteaseApi } = await loadNeteaseCore();
             await neteaseApi.getLoginStatus();
 
             expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -376,15 +385,15 @@ describe('netease unavailable song replacement', () => {
         });
 
         it('clears anonymous cookie cache on auth expiration (301, 401, 403)', async () => {
-            storageMap['netease_anonymous_cookie'] = 'expired-anon-cookie';
+            storageMap['online_provider:netease:anonymous_cookie'] = 'expired-anon-cookie';
             const fetchMock = vi.mocked(fetch);
             fetchMock.mockResolvedValueOnce(mockJsonResponse({ code: 301 }) as any);
 
-            const { neteaseApi } = await import('@/services/onlineMusic/netease/netease');
+            const { neteaseApi } = await loadNeteaseCore();
             await neteaseApi.getSongUrl(12345);
 
             expect(fetchMock).toHaveBeenCalledTimes(1);
-            expect(storageMap['netease_anonymous_cookie']).toBeUndefined();
+            expect(storageMap['online_provider:netease:anonymous_cookie']).toBeUndefined();
         });
     });
 });

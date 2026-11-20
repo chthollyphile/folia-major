@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatConnection } from '@/services/onlineMusic/login/loginBackendDiagnostics';
-import { formatNeteaseLoginDiagnostics } from '@/services/onlineMusic/netease/neteaseLoginDiagnostics';
+import { formatNeteaseLoginDiagnostics, type NeteaseBackendSnapshot } from '../../../sources/netease/core/neteaseLoginDiagnostics';
 import type { FoliumSourceDiagnosticLine } from '@/mods/folium/sources/contract';
 import { formatQqLoginDiagnostics, type QqBackendSnapshot } from '../../../sources/qq/core/qqLoginDiagnostics';
 
@@ -43,7 +42,7 @@ const resetConnection: ElectronNetworkConnection = {
     error: { code: 'ECONNRESET', message: 'read ECONNRESET', phase: 'tls' },
 };
 
-const neteaseSnapshot: ElectronNeteaseLoginDiagnostics = {
+const neteaseSnapshot: NeteaseBackendSnapshot = {
     providerId: 'netease',
     capturedAt: AT,
     app,
@@ -89,32 +88,27 @@ const neteaseSnapshot: ElectronNeteaseLoginDiagnostics = {
 };
 
 const session = { hasLoginCookie: false, hasAnonymousCookie: true };
-const textOf = (lines: Array<{ text: string }>): string[] => lines.map(line => line.text);
-// The QQ source mod hands its lines as `{ label, value }` (auth@1.getLoginDiagnostics); the host writes each as `label: value`.
-const qqTextOf = (lines: FoliumSourceDiagnosticLine[]): string[] => lines.map(line => `${line.label}: ${String(line.value)}`);
+// The source mods hand their lines as `{ label, value }` (auth@1.getLoginDiagnostics); the host writes each as `label: value`.
+const textOf = (lines: FoliumSourceDiagnosticLine[]): string[] => lines.map(line => `${line.label}: ${String(line.value)}`);
 
 describe('login backend diagnostics', () => {
     it('lays out the NetEase local API, its start-up steps and each login request with the connection it opened', () => {
         const lines = textOf(formatNeteaseLoginDiagnostics(neteaseSnapshot, session));
 
         expect(lines).toEqual(expect.arrayContaining([
+            'runtime: electron (local API)',
             'app: 1.2.3 electron 43.7.5 (node 24.21.0, chrome 150.0.7871.250) win32 x64',
             'os: 10.0.22631 (Windows 11 Pro), locale zh-CN, time zone Asia/Shanghai, uptime 120s',
             'credential store: encryption=yes',
             'local api: running 127.0.0.1:52001 (since 12:00:00.000)',
-            'startup runs (1, oldest first, UTC):',
-            '  12:00:00.000 running (1500ms)',
-            '    port ok 1ms port=52001',
-            '    runtime ok 5ms deviceId=DEVICE0123456789CEABCDEF',
-            '    xeapi-key ok 1400ms cache=missing source=network',
-            '    anonymous-token ok 90ms refreshed=false error="socket hang up"',
+            'startup runs: 1, oldest first, UTC',
+            '  startup runs: 12:00:00.000 running (1500ms):; port ok 1ms port=52001; runtime ok 5ms deviceId=DEVICE0123456789CEABCDEF; xeapi-key ok 1400ms cache=missing source=network; anonymous-token ok 90ms refreshed=false error="socket hang up"',
             'network interfaces: Wi-Fi: 192.168.1.5',
             'identity: process started 2026-09-26T11:30:00.000Z, deviceId=DEVICE0123456789CEABCDEF, qr connection resets=3, device rotations=2 (last 12:05:00.000, new anonymous token=no), rotation pending=yes',
             'device ids seen in login requests: 1',
-            '  12:00:00.000 /api/login/qrcode/client/login rejected status=502 code=502 msg="read ECONNRESET" 80ms ip-header=none device=…CEABCDEF MUSIC_U=no MUSIC_A=yes',
-            '      ↳ interfacepc.music.163.com → 240e:96c:6100::7 (v6) tcp=31ms → ECONNRESET at tls: read ECONNRESET (80ms)',
-            'other upstream connections (1, oldest first, UTC):',
-            '  12:00:00.000 GET interfacepc.music.163.com/api/xeapi/key?nick=Zhang.San → 240e:96c:6100::7 (v6) tcp=31ms tls=40ms → HTTP 200 (80ms)',
+            '  login requests: 12:00:00.000 /api/login/qrcode/client/login rejected status=502 code=502 msg="read ECONNRESET" 80ms ip-header=none device=…CEABCDEF MUSIC_U=no MUSIC_A=yes; ↳ interfacepc.music.163.com 240e:96c:6100::7 (v6) tcp=31ms → ECONNRESET at tls: read ECONNRESET (80ms)',
+            'other upstream connections: 1, oldest first, UTC',
+            '  other upstream connections: 12:00:00.000 GET interfacepc.music.163.com/api/xeapi/key?nick=Zhang.San → 240e:96c:6100::7 (v6) tcp=31ms tls=40ms → HTTP 200 (80ms)',
         ]));
     });
 
@@ -134,16 +128,15 @@ describe('login backend diagnostics', () => {
         }, session));
 
         expect(lines).toEqual(expect.arrayContaining([
-            '    load failed 0ms error="Cannot find module"',
+            '  startup runs: 12:00:00.000 failed (0ms):; load failed 0ms error="Cannot find module"',
             'upstream package: not loaded (see the load step above)',
-            'other upstream connections (0, oldest first, UTC):',
-            '  (none)',
+            'other upstream connections: 0, oldest first, UTC',
         ]));
     });
 
     it('still produces a NetEase report when the snapshot lacks the app, the backend and the start-up runs', () => {
         const { app: _app, backend: _backend, startup: _startup, ...rest } = neteaseSnapshot;
-        const lines = textOf(formatNeteaseLoginDiagnostics(rest as ElectronNeteaseLoginDiagnostics, session));
+        const lines = textOf(formatNeteaseLoginDiagnostics(rest as NeteaseBackendSnapshot, session));
         expect(lines).toEqual(expect.arrayContaining([
             'app: unknown',
             'local api: unknown',
@@ -152,8 +145,12 @@ describe('login backend diagnostics', () => {
         ]));
     });
 
+    // One connection, as the report's `other upstream connections` section prints it.
+    const connectionText = (connection: NonNullable<NeteaseBackendSnapshot['connections']>[number]): string | undefined => textOf(formatNeteaseLoginDiagnostics({ ...neteaseSnapshot, connections: [connection] }, session))
+        .find(line => line.startsWith('  other upstream connections: '))?.slice('  other upstream connections: 12:00:00.000 '.length);
+
     it('lists each address Happy Eyeballs tried when the first one failed', () => {
-        expect(formatConnection({
+        expect(connectionText({
             ...resetConnection,
             remote: { address: '59.111.181.35', family: 4 },
             attempts: [
@@ -163,11 +160,11 @@ describe('login backend diagnostics', () => {
             tlsMs: 120,
             status: 200,
             error: null,
-        }).text).toBe('POST interfacepc.music.163.com/eapi/login/qrcode/client/login → 59.111.181.35 (v4) tcp=31ms tls=120ms → HTTP 200 (80ms); attempts: 240e:96c:6100::7 v6 timeout, 59.111.181.35 v4 connected');
+        })).toBe('POST interfacepc.music.163.com/eapi/login/qrcode/client/login → 59.111.181.35 (v4) tcp=31ms tls=120ms → HTTP 200 (80ms); attempts: 240e:96c:6100::7 v6 timeout, 59.111.181.35 v4 connected');
     });
 
     it('prints any host with its path, and the error in its own words', () => {
-        expect(formatConnection({ ...resetConnection, host: 'proxy.lan', error: null, dnsError: { code: 'ENOTFOUND', message: 'getaddrinfo ENOTFOUND proxy.lan' }, remote: null }).text)
+        expect(connectionText({ ...resetConnection, host: 'proxy.lan', error: null, dnsError: { code: 'ENOTFOUND', message: 'getaddrinfo ENOTFOUND proxy.lan' }, remote: null }))
             .toBe('POST proxy.lan/eapi/login/qrcode/client/login → no connection tcp=31ms → DNS ENOTFOUND: getaddrinfo ENOTFOUND proxy.lan (80ms)');
     });
 
@@ -194,7 +191,7 @@ describe('login backend diagnostics', () => {
             connections: [{ ...resetConnection, host: 'u.y.qq.com', path: '/cgi-bin/musicu.fcg', error: null, status: 200, tlsMs: 90 }],
         };
 
-        const lines = qqTextOf(formatQqLoginDiagnostics({ hasSession: false, channels: ['qq', 'wx'], lastAccountCheck: null }, snapshot));
+        const lines = textOf(formatQqLoginDiagnostics({ hasSession: false, channels: ['qq', 'wx'], lastAccountCheck: null }, snapshot));
 
         // Each list is a line with its count and a line for each of its last few entries (the host takes 64 lines from a
         // source), and a failure keeps the top line of its stack.
@@ -220,7 +217,7 @@ describe('login backend diagnostics', () => {
 
     it('still produces a QQ report when the snapshot lacks the app, the backend and the start-up runs', () => {
         const snapshot: QqBackendSnapshot = { version: '3.1.3', connections: [] };
-        expect(qqTextOf(formatQqLoginDiagnostics({ hasSession: false, channels: null, lastAccountCheck: null }, snapshot))).toEqual([
+        expect(textOf(formatQqLoginDiagnostics({ hasSession: false, channels: null, lastAccountCheck: null }, snapshot))).toEqual([
             'runtime: electron (local API)',
             'app: unknown',
             'local api: unknown',
@@ -240,8 +237,8 @@ describe('login backend diagnostics', () => {
     it('keeps the QQ session lines alone when there is no main process to ask, and says why when asking failed', () => {
         const state = { hasSession: true, channels: null, lastAccountCheck: null };
         const sessionLines = ['session: backend session stored=yes', 'login channels: not declared by the backend', 'last account check: none'];
-        expect(qqTextOf(formatQqLoginDiagnostics(state))).toEqual(sessionLines);
-        expect(qqTextOf(formatQqLoginDiagnostics(state, null, 'IPC channel closed')))
+        expect(textOf(formatQqLoginDiagnostics(state))).toEqual(sessionLines);
+        expect(textOf(formatQqLoginDiagnostics(state, null, 'IPC channel closed')))
             .toEqual(['backend diagnostics: unavailable: IPC channel closed', ...sessionLines]);
     });
 });

@@ -20,6 +20,7 @@ import { isFoliumClientActive, reconcileFoliumClients, startsIn } from '@/mods/r
 import { getSourceState, setSourceStates } from '@/services/onlineMusic/sourceStates';
 import { callFoliumSourceMember, getFoliumCallStats, markFoliumSourceMod } from '@/mods/runtime/guard';
 import { createFoliumRequestGate, resetFoliumRequestQuotasForTest } from '@/mods/folium/omni/requestQuota';
+import { declareSource } from '@/services/onlineMusic/sourceDeclarations';
 import { clearSourceData, installSourcesStoppingListener, registerSourcePlaybackStop, switchSourceState } from '@/mods/runtime/sourceSwitches';
 import { useModsStore } from '@/mods/useModsStore';
 import '@/mods/folium/api';
@@ -156,12 +157,19 @@ describe('the window\'s half of switching a source', () => {
         };
         registerSourcePlaybackStop((ids) => { order.push(`stop ${ids.join(',')}`); });
         expect(await switchSourceState('spotify', 'matching')).toEqual({ ok: false, error: 'source-cannot-match-only' });
-        // NetEase: a host source that matches anonymously (QQ, a source mod now, is not registered in this file).
+        // NetEase: a source that matches anonymously, as its mod declares it (sources/netease: lyrics@1.crossSource and
+        // songs@1.metadataMatch, anonymous). Not registered in this file (the fake source mods above share its id).
+        const declared = declareSource('netease', {
+            songs: { access: 'anonymous', metadataMatch: true },
+            lyrics: { access: 'anonymous', crossSource: { linesOnly: false } },
+            checksAvailability: true,
+        });
         expect(await switchSourceState('netease', 'matching')).toMatchObject({ ok: true });
         expect(await switchSourceState('netease', 'enabled')).toMatchObject({ ok: true });
         expect(order).toEqual(['stop netease', 'set netease matching', 'set netease enabled']);
         expect(getSourceState('netease')).toBe('enabled');
         registerSourcePlaybackStop(null);
+        declared();
     });
 
     it('clears the window\'s own keys of the source after the main process cleared its data', async () => {

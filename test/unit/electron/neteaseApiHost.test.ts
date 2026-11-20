@@ -5,11 +5,12 @@ import { describe, expect, it, vi } from 'vitest';
 // test/unit/electron/neteaseApiHost.test.ts
 
 const require = createRequire(import.meta.url);
-const { createNeteaseApiHost } = require('../../../electron/netease/neteaseApiHost.cjs') as {
+const { createNeteaseApiHost } = require('../../../sources/netease/main/neteaseApiHost.cjs') as {
     createNeteaseApiHost: (options?: Record<string, unknown>) => {
         preload: () => void;
         start: (options: { host: string }) => Promise<{ port: number }>;
         diagnostics: () => Promise<any>;
+        stop: () => Promise<void>;
     };
 };
 
@@ -17,8 +18,17 @@ const { createNeteaseApiHost } = require('../../../electron/netease/neteaseApiHo
 class FakeWorker extends EventEmitter {
     posted: any[] = [];
 
+    terminated = 0;
+
     postMessage(message: any) {
         this.posted.push(message);
+    }
+
+    // As a real worker does: terminate() resolves once the thread has ended, and 'exit' says so.
+    async terminate() {
+        this.terminated += 1;
+        this.emit('exit', 1);
+        return 1;
     }
 }
 
@@ -171,5 +181,57 @@ describe('Netease API host', () => {
         workers[0].emit('message', { type: 'result', id: message.id, ok: true, value: snapshot });
 
         await expect(asked).resolves.toBe(snapshot);
+    });
+
+    // The source mod stops (switched off, or matching only and unloaded) or the app quits: the thread ends, and the
+    // server it opened goes with it. That is no failure: onExit is not called, and the next start opens a new thread.
+    it('ends the worker when stopped, without calling it a failure, and opens a new one for the next start', async () => {
+        const onExit = vi.fn();
+        const { host, workers, logger } = createHost({ onExit });
+        const started = host.start({ host: '127.0.0.1' });
+        await host.stop();
+
+        expect(workers[0].terminated).toBe(1);
+        await expect(started).rejects.toThrow('Netease API worker exited with code 1');
+        expect(onExit).not.toHaveBeenCalled();
+        expect(logger.info).toHaveBeenCalledWith('[Netease API] worker thread stopped');
+        expect(logger.error).not.toHaveBeenCalled();
+
+        void host.start({ host: '127.0.0.1' });
+        expect(workers).toHaveLength(2);
+        expect(workers[1].posted[0]).toMatchObject({ type: 'start' });
+    });
+
+    it('does nothing when stopped before any worker was opened', async () => {
+        const { host, workers } = createHost();
+        await host.stop();
+        expect(workers).toHaveLength(0);
+    });
+});
+
+// With a real thread: ending it closes the server it listened with, so the port is free again (the API package has
+// no way to close its server; ending the thread is the way, neteaseApiHost.cjs).
+describe('Netease API host with a real worker thread', () => {
+    it('frees the port the worker listened on once stopped', async () => {
+        const { Worker } = await import('node:worker_threads');
+        const net = await import('node:net');
+        const code = `
+            const { parentPort } = require('node:worker_threads');
+            const http = require('node:http');
+            parentPort.on('message', (message) => {
+                const server = http.createServer((_request, response) => response.end('ok'));
+                server.listen(0, message.host, () => parentPort.postMessage({ type: 'result', id: message.id, ok: true, value: { port: server.address().port } }));
+            });
+        `;
+        const { host } = createHost({ createWorker: () => new Worker(code, { eval: true }) });
+        const { port } = await host.start({ host: '127.0.0.1' });
+        const connects = () => new Promise<boolean>((resolve) => {
+            const socket = net.connect(port, '127.0.0.1');
+            socket.once('connect', () => { socket.destroy(); resolve(true); });
+            socket.once('error', () => resolve(false));
+        });
+        await expect(connects()).resolves.toBe(true);
+        await host.stop();
+        await expect(connects()).resolves.toBe(false);
     });
 });

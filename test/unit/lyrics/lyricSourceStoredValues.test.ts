@@ -19,10 +19,10 @@ vi.mock('@/utils/lyrics/providers/amllDbProvider', async (importOriginal) => ({
 }));
 
 const STORED_NAMES = ['netease', 'amll', 'qq', 'kugou', 'spotify'] as const;
-// Each one's name. KuGou's and QQ's are their source mods' own (sources/<id>/locales, lyrics@1.crossSource.name); Spotify's is
+// Each one's name. NetEase's, KuGou's and QQ's are their source mods' own (sources/<id>/locales, lyrics@1.crossSource.name); Spotify's is
 // its source mod's short name (sources/spotify/locales, name.short).
 const LABEL_KEYS: Record<typeof STORED_NAMES[number], string> = {
-    netease: 'lyricProvider.netease',
+    netease: 'folium-mod/netease:name.lyrics',
     amll: 'lyricProvider.amll',
     qq: 'folium-mod/qq:name.lyrics',
     kugou: 'folium-mod/kugou:name.lyrics',
@@ -46,11 +46,11 @@ describe('the source name stored with a song\'s lyric choice', () => {
     });
 
     it('reads a choice stored without a name as NetEase\'s', () => {
-        expect(getLyricProviderLabel(undefined)).toBe(i18n.t('lyricProvider.netease'));
+        expect(getLyricProviderLabel(undefined)).toBe(i18n.t('folium-mod/netease:name.lyrics'));
     });
 
     it('reads the AMLL DB platform stored beside the name', () => {
-        expect(getLyricProviderLabel('amll', 'ncm')).toBe(`${i18n.t('lyricProvider.amll')} · ${i18n.t('lyricProvider.netease')}`);
+        expect(getLyricProviderLabel('amll', 'ncm')).toBe(`${i18n.t('lyricProvider.amll')} · ${i18n.t('folium-mod/netease:name.lyrics')}`);
         expect(getLyricProviderLabel('amll', 'qq')).toBe(`${i18n.t('lyricProvider.amll')} · ${i18n.t('folium-mod/qq:name.lyrics')}`);
     });
 });

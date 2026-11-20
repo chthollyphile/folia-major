@@ -3,6 +3,7 @@ import type { AddressInfo } from 'node:net';
 import { describe, expect, it, vi } from 'vitest';
 
 // test/unit/electron/backendLifecycle.test.ts
+// 内嵌后端的生命周期工具。宿主那份随网易一起搬进了 sources/netease/main/backendLifecycle.cjs（宿主不再有内嵌后端）。
 
 const {
     createBackendStatus,
@@ -10,7 +11,7 @@ const {
     describeError,
     findFreePort,
     waitUntilListening,
-} = require('../../../electron/backendLifecycle.cjs') as {
+} = require('../../../sources/netease/main/backendLifecycle.cjs') as {
     createBackendStatus: (options: Record<string, unknown>) => { get: () => any; update: (patch: Record<string, unknown>) => any };
     createStartupRecorder: (options: Record<string, unknown>) => {
         begin: () => void;

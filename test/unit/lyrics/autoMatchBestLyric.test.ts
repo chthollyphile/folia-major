@@ -1,7 +1,7 @@
 // @builtin-sources
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { autoMatchBestLyric, type AutoMatchProviderCandidate } from '@/utils/lyrics/autoMatchBestLyric';
-import { neteaseApi } from '@/services/onlineMusic/netease/netease';
+import { neteaseApi } from '../../../sources/netease/core/netease';
 import { processNeteaseLyrics } from '@/utils/lyrics/neteaseProcessing';
 import { searchKugouLyrics, fetchKugouLyrics } from '../../manual/kugouLyricProvider';
 import { fetchAmllDbLyrics } from '@/utils/lyrics/providers/amllDbProvider';
@@ -15,8 +15,10 @@ import type { PlatformLyricSource } from '@/utils/lyrics/lyricSources';
 // below), and their ids are lyric sources the host's type of the built-in ones does not name.
 // @builtin-sources
 
-vi.mock('@/services/onlineMusic/netease/netease', () => ({
-    neteaseApi: {
+// The module's own pure helpers stay real (the source reads songs and lyrics through them); the requests are mocked.
+vi.mock('../../../sources/netease/core/netease', async importOriginal => ({
+    ...await importOriginal<object>(),
+    neteaseApi: { ...(await importOriginal<{ neteaseApi: object }>()).neteaseApi,
         cloudSearch: vi.fn(),
         getLyric: vi.fn(),
         getSongDetail: vi.fn(),
@@ -68,6 +70,13 @@ describe('autoMatchBestLyric', () => {
         vi.spyOn(qqProvider().search!, 'searchSongs').mockImplementation(async (query, limit, offset) => {
             const items = (await searchQQLyricsMock(query, limit, offset) ?? []) as UnifiedSong[];
             return { items, hasMore: false, nextOffset: offset + items.length };
+        });
+        // NetEase is a source mod too: its lyrics come as raw tracks the host parses in a worker. These stand in for
+        // it as the built-in provider did (the lyric request, then processNeteaseLyrics on its payload).
+        vi.spyOn(getOnlineMusicProvider('netease')!.lyrics!, 'getLyrics').mockImplementation(async (song) => {
+            const response = await getLyricMock(Number(song.id));
+            const processed = await processNeteaseLyricsMock(neteaseApi.getProcessedLyricPayload(response) as never);
+            return { lyrics: processed?.lyrics ?? null, isPureMusic: processed?.isPureMusic ?? false, chorusRanges: processed?.chorusRanges ?? [] };
         });
         vi.spyOn(qqProvider().lyrics!, 'getLyrics').mockImplementation(async (song) => {
             return { lyrics: await fetchQQLyricsMock(song), isPureMusic: false };
@@ -322,7 +331,7 @@ describe('autoMatchBestLyric', () => {
         const result = await autoMatchBestLyric('Song Title', 'Artist Name', 200000, { preferredSource: 'netease' }) as any;
         expect(result).not.toBeNull();
         expect(result.source).toBe('netease');
-        expect(result.id).toBe(101);
+        expect(result.id).toBe('101');
         expect(cloudSearchMock).toHaveBeenCalled();
         expect(searchQQLyricsMock).not.toHaveBeenCalled();
     });
@@ -344,7 +353,7 @@ describe('autoMatchBestLyric', () => {
             exactMatchOnly: true,
         }) as any;
 
-        expect(result).toMatchObject({ source: 'netease', id: 987 });
+        expect(result).toMatchObject({ source: 'netease', id: '987' });
         expect(getLyricMock).toHaveBeenCalledTimes(1);
         expect(getLyricMock).toHaveBeenCalledWith(987);
         expect(cloudSearchMock).not.toHaveBeenCalled();
@@ -383,7 +392,7 @@ describe('autoMatchBestLyric', () => {
             metadataCandidate: { source: 'netease', songId: 987 },
         }) as any;
 
-        expect(result).toMatchObject({ source: 'amll', id: 987, matchedLyricsProviderPlatform: 'ncm' });
+        expect(result).toMatchObject({ source: 'amll', id: '987', matchedLyricsProviderPlatform: 'ncm' });
         expect(fetchAmllDbLyricsMock).toHaveBeenCalledWith('ncm', ['987']);
         expect(getLyricMock).not.toHaveBeenCalled();
         expect(cloudSearchMock).not.toHaveBeenCalled();
@@ -514,7 +523,7 @@ describe('autoMatchBestLyric', () => {
 
         expect(result).toMatchObject({
             source: 'netease',
-            id: 101,
+            id: '101',
             lyrics: lineByLineLyrics,
         });
         expect(fetchAmllDbLyricsMock).toHaveBeenCalledWith('ncm', ['101']);
@@ -543,7 +552,7 @@ describe('autoMatchBestLyric', () => {
 
         const result = await autoMatchBestLyric('Song Title', 'Artist Name', 200000, { preferredSource: 'netease' });
 
-        expect(result).toEqual({ isPureMusic: true, source: 'netease', id: 101 });
+        expect(result).toEqual({ isPureMusic: true, source: 'netease', id: '101' });
         expect(searchQQLyricsMock).not.toHaveBeenCalled();
         expect(searchKugouLyricsMock).not.toHaveBeenCalled();
     });

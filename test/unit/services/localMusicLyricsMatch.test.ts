@@ -4,7 +4,7 @@ import type { LocalSong } from '@/types';
 import { matchLyrics } from '@/services/localMusicService';
 import { autoMatchBestLyric } from '@/utils/lyrics/autoMatchBestLyric';
 import { applyMatchedMetadata } from '@/services/localLibraryCatalogService';
-import { neteaseApi } from '@/services/onlineMusic/netease/netease';
+import { neteaseApi } from '../../../sources/netease/core/netease';
 import { getLocalLibraryCatalogSnapshot } from '@/services/localLibraryEntityRepository';
 import { getOnlineMusicProvider, registerOnlineMusicProvider, unregisterOnlineMusicProvider } from '@/services/onlineMusic/providerRegistry';
 
@@ -21,8 +21,10 @@ vi.mock('@/services/localLibraryCatalogService', () => ({ applyMatchedMetadata: 
 vi.mock('@/services/localLibraryEntityRepository', () => ({
     getLocalLibraryCatalogSnapshot: vi.fn().mockResolvedValue({ entities: [], assignments: [] }),
 }));
-vi.mock('@/services/onlineMusic/netease/netease', () => ({
-    neteaseApi: {
+// The module's own pure helpers stay real (the source reads songs and lyrics through them); the requests are mocked.
+vi.mock('../../../sources/netease/core/netease', async importOriginal => ({
+    ...await importOriginal<object>(),
+    neteaseApi: { ...(await importOriginal<{ neteaseApi: object }>()).neteaseApi, getChorus: vi.fn(async () => ({ code: 200, chorus: [] })),
         cloudSearch: vi.fn(),
         getLyric: vi.fn(),
         getSongDetail: vi.fn(),

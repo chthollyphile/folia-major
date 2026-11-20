@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+// @builtin-sources
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.hoisted(() => {
@@ -31,7 +32,7 @@ import {
 } from '@/mods/folium/registries/sources';
 import { omniProvidersRegistry } from '@/mods/folium/registries/omniProviders';
 import { toHostSong } from '@/mods/folium/registries/sourceDtos';
-import { createFoliumPageStore, foliumPageStoreKey } from '@/mods/folium/registries/sourcePageStore';
+import { createFoliumPageStore, foliumPageStoreKey, forgetOldPageKeys } from '@/mods/folium/registries/sourcePageStore';
 import { supportsFoliumCapability } from '@/mods/folium/sources/capabilities';
 import { foliumSourceMember, markFoliumSourceMod } from '@/mods/runtime/guard';
 import { clearFoliumIssues, getFoliumIssues } from '@/mods/runtime/status';
@@ -446,6 +447,29 @@ describe('the seams of S1 and S2, fed from capabilities', () => {
         expect(localStorage.getItem('folia_ytm_account')).toBeNull();
         createFoliumPageStore('ytm').set('account', null);
     });
+
+    it("moves NetEase's sign-in and anonymous cookies from their names before the provider prefix", () => {
+        localStorage.setItem('netease_cookie', 'MUSIC_U=signed-in');
+        localStorage.setItem('netease_anonymous_cookie', 'MUSIC_A=anonymous');
+        const store = createFoliumPageStore('netease');
+        expect(store.get('cookie')).toBe('MUSIC_U=signed-in');
+        expect(store.get('anonymous_cookie')).toBe('MUSIC_A=anonymous');
+        expect(localStorage.getItem('netease_cookie')).toBeNull();
+        expect(localStorage.getItem('netease_anonymous_cookie')).toBeNull();
+        store.set('cookie', null);
+        store.set('anonymous_cookie', null);
+    });
+
+    it('forgets the old names on "clear data", so a store made later moves no cleared sign-in back', () => {
+        localStorage.setItem('netease_cookie', 'MUSIC_U=signed-in');
+        localStorage.setItem('netease_anonymous_cookie', 'MUSIC_A=anonymous');
+        expect(forgetOldPageKeys('netease')).toBe(2);
+        expect(localStorage.getItem('netease_cookie')).toBeNull();
+        expect(localStorage.getItem('netease_anonymous_cookie')).toBeNull();
+        expect(createFoliumPageStore('netease').get('cookie')).toBeNull();
+        expect(forgetOldPageKeys('netease')).toBe(0);
+        expect(forgetOldPageKeys('qq')).toBe(0);
+    });
 });
 
 describe('folium.net.fetch of a source mod', () => {
@@ -577,8 +601,9 @@ describe('ids the host has already', () => {
         const mine = mod({ sources: [{ ...sourceInfo('a'), id: 'netease' }, { ...sourceInfo('b'), id: 'amll' }] });
         const lyrics = { getLyrics: async () => null, crossSource: {} };
         const search = { searchSongs: async () => ({ items: [], hasMore: false }) };
-        expect(() => register({ id: 'a', capabilities: { 'search@1': search, 'lyrics@1': lyrics } }, mine)).toThrow(/already exists/);
-        expect(getLyricSource('netease')).toMatchObject({ id: 'netease', metadataMatch: true });
+        // netease is the built-in NetEase source mod's (registered for this file): the second one is refused.
+        expect(() => register({ id: 'a', capabilities: { 'search@1': search, 'lyrics@1': lyrics } }, mine)).toThrow(/"netease" is registered already/);
+        expect(getLyricSource('netease')).toMatchObject({ id: 'netease', platform: true, localMetadataIdentity: true });
         const amll = register({ id: 'b', capabilities: { 'search@1': search, 'lyrics@1': lyrics } }, mine);
         expect(getLyricSource('amll')).toMatchObject({ id: 'amll', platform: false });
         amll.unregister();

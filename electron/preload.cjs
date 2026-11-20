@@ -195,17 +195,8 @@ contextBridge.exposeInMainWorld('electron', {
     testAiConnection: (settings) => ipcRenderer.invoke('ai-test-connection', settings),
     listAiModels: (settings) => ipcRenderer.invoke('ai-list-models', settings),
     fetchLyricProxy: (url, init) => ipcRenderer.invoke('lyric-proxy-fetch', url, init),
-    getNeteasePort: () => ipcRenderer.invoke('get-netease-port'),
-    getNeteaseApiStatus: () => ipcRenderer.invoke('get-netease-api-status'),
     getLoginDiagnostics: (providerId) => ipcRenderer.invoke('get-login-diagnostics', providerId),
     runLoginSelfCheck: (providerId) => ipcRenderer.invoke('run-login-self-check', providerId),
-    // 'needed': a request needs the local service and finds it down (see startsAgainWhenNeeded).
-    restartNeteaseApi: (reason) => ipcRenderer.invoke('restart-netease-api', reason),
-    onNeteaseApiStatusChanged: (callback) => {
-        const listener = (_event, status) => callback(status);
-        ipcRenderer.on('netease-api-status-changed', listener);
-        return () => ipcRenderer.removeListener('netease-api-status-changed', listener);
-    },
     minimizeWindow: () => ipcRenderer.invoke('window-minimize'),
     toggleMaximizeWindow: () => ipcRenderer.invoke('window-toggle-maximize'),
     toggleFullscreenWindow: () => ipcRenderer.invoke('window-toggle-fullscreen'),
@@ -407,6 +398,7 @@ contextBridge.exposeInMainWorld('electron', {
         // Folium 2.0: each source's state (enabled / matching / disabled) and its "clear data".
         getSourceStates: () => ipcRenderer.invoke('folia-mods:source-states'),
         setSourceState: (sourceId, state) => ipcRenderer.invoke('folia-mods:set-source-state', sourceId, state),
+        answerSourcesOnboarding: (choices) => ipcRenderer.invoke('folia-mods:answer-sources-onboarding', choices),
         describeSourceData: (sourceId) => ipcRenderer.invoke('folia-mods:source-data', sourceId),
         clearSourceData: (sourceId) => ipcRenderer.invoke('folia-mods:clear-source-data', sourceId),
         confirmModOverride: (modId) => ipcRenderer.invoke('folia-mods:confirm-override', modId),

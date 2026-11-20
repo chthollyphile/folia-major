@@ -104,6 +104,7 @@
         "startAlive": "folia-mods:start-alive",
         "sourceStates": "folia-mods:source-states",
         "setSourceState": "folia-mods:set-source-state",
+        "answerSourcesOnboarding": "folia-mods:answer-sources-onboarding",
         "sourceData": "folia-mods:source-data",
         "clearSourceData": "folia-mods:clear-source-data",
         "confirmOverride": "folia-mods:confirm-override",

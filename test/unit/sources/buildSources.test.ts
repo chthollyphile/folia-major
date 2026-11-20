@@ -68,7 +68,7 @@ const runMain = (executable: string, dir: string, env: NodeJS.ProcessEnv = {}) =
     const result = spawnSync(executable, ['-e', PROBE, dir], { encoding: 'utf8', env: { ...process.env, ...env }, timeout: 30_000 });
     expect(result.stderr).toBe('');
     expect(result.status).toBe(0);
-    return JSON.parse(result.stdout) as { titles: string[]; probe: { depsFrom: string; catalog: string[] } };
+    return JSON.parse(result.stdout) as { titles: string[]; probe: { depsFrom: string; catalog: string[]; resolved: string } };
 };
 
 beforeAll(async () => {
@@ -170,6 +170,8 @@ describe('dev/sources/build.mjs builds a source directory into a mod directory',
             '晴天 · bundle:晴天', '晴天 · alpha@1.0.0+leaf', '晴天 · beta@1.0.0+leaf', '晴天 · worker:bundle:晴天:2', '晴天 · vendor:esm-only',
         ]);
         expect(probe.depsFrom).toContain(path.join(asarName, 'node_modules', 'fixture-asar-dep', 'index.cjs'));
+        // @folia/source-deps: a path inside the archive, found by the require bound to it.
+        expect(probe.resolved).toBe(path.join(copy, asarName, 'node_modules', 'fixture-asar-dep', 'module', 'alpha.cjs'));
     });
 
     const electronBinary = (() => {
@@ -185,6 +187,7 @@ describe('dev/sources/build.mjs builds a source directory into a mod directory',
         const { titles, probe } = runMain(electronBinary as string, outDir, { ELECTRON_RUN_AS_NODE: '1' });
         expect(titles).toContain('晴天 · worker:bundle:晴天:2');
         expect(probe.depsFrom).toBe(path.join(outDir, asarName, 'node_modules', 'fixture-asar-dep', 'index.cjs'));
+        expect(probe.resolved).toBe(path.join(outDir, asarName, 'node_modules', 'fixture-asar-dep', 'module', 'alpha.cjs'));
     });
 
     it('builds the same output again with nothing changed, and keeps the stamp as it was', async () => {
@@ -282,6 +285,14 @@ describe('what a source may not do, each refused by the build', () => {
         ['takes an asar dependency in the client', (dir) => {
             fs.appendFileSync(path.join(dir, 'client/index.ts'), "\nimport 'fixture-asar-dep';\n");
         }, /fixture-asar-dep 声明成 asar，那只给 main 入口/],
+        ['takes the archive\'s require in the client', (dir) => {
+            fs.appendFileSync(path.join(dir, 'client/index.ts'), "\nimport '@folia/source-deps';\n");
+        }, /@folia\/source-deps 只给 main 入口与 worker/],
+        ['takes the archive\'s require without an archive', (dir) => {
+            const pkg = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'));
+            delete pkg.folia.dependencies['fixture-asar-dep'];
+            fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify(pkg));
+        }, /@folia\/source-deps 是绑在 deps 归档上的 require/],
         ['takes a Node built-in in the client', (dir) => {
             fs.appendFileSync(path.join(dir, 'client/index.ts'), "\nimport 'node:fs';\n");
         }, /client 跑在窗口里/],

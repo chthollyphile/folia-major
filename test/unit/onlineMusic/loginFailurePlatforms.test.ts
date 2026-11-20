@@ -3,7 +3,7 @@ import { createRequire } from 'node:module';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createBodianApi } from 'bodian-music-api';
 import { omni } from '@/services/onlineMusic/omni';
-import { neteaseApi } from '@/services/onlineMusic/netease/netease';
+import { neteaseApi } from '../../../sources/netease/core/netease';
 import { getOnlineMusicProvider } from '@/services/onlineMusic/providerRegistry';
 import { requestQq, resetQqTransportRuntimeCache } from '../../../sources/qq/core/qqTransport';
 import type { LoginStep, LoginState } from '@/types/onlineMusic';
@@ -11,6 +11,8 @@ import { loginCaseOf, loginFailureFacts } from '@/services/onlineMusic/login/log
 import { failureNoteKey } from '@/components/login/window/loginView';
 import { setBuiltinSourceRpc } from '../helpers/builtinSources';
 import { answerQqBackend } from '../helpers/qqSource';
+import { answerNeteaseBackend, type NeteaseBackendStatusAnswer } from '../helpers/neteaseSource';
+import { noteNeteaseBackendStatus } from '../../../sources/netease/core';
 import { sourcesRegistry } from '@/mods/folium/registries/sources';
 import { registerWebSource as registerKugouWebSource } from '@/services/onlineMusic/web/kugou';
 import { registerWebSource as registerQqWebSource } from '@/services/onlineMusic/web/qq';
@@ -30,7 +32,7 @@ const { createWire } = require('../../helpers/bodianWire.cjs');
 const { createKugouApiBridge, normalizeBridgeError } = require('../../../sources/kugou/main/kugouApiBridge.cjs');
 const { BrowserSignInError } = require('../../../sources/ytm/main/browserSignIn.cjs');
 const { toErrorResult: ytmErrorResult } = require('../../../sources/ytm/main/errors.cjs');
-const { createLoginQrCheck } = require('../../../electron/netease/neteaseApiStartup.cjs');
+const { createLoginQrCheck } = require('../../../sources/netease/main/neteaseApiStartup.cjs');
 const neteaseQrKey = require('@neteasecloudmusicapienhanced/api/module/login_qr_key.js');
 const createNeteaseOption = require('@neteasecloudmusicapienhanced/api/util/option.js');
 
@@ -82,11 +84,24 @@ afterEach(() => {
     vi.unstubAllEnvs();
 });
 
+// NetEase's local service is the API in its source mod's main entry: the rpc `status` / `restart` answer for it here. A
+// running one's port is kept by the source until it is told of a change: each case forgets it.
+let neteaseBackendOff: (() => void) | null = null;
+const neteaseBackend = (answer: NeteaseBackendStatusAnswer = {}) => {
+    neteaseBackendOff?.();
+    const made = answerNeteaseBackend(answer);
+    neteaseBackendOff = made.off;
+    return made;
+};
+afterEach(() => {
+    neteaseBackendOff?.();
+    neteaseBackendOff = null;
+    noteNeteaseBackendStatus(null);
+});
+
 describe('NetEase', () => {
     // The desktop app: the local service's port, or none while it is down.
-    const desktop = (port: number | null) => vi.stubGlobal('window', {
-        electron: { getNeteasePort: async () => port, getNeteaseApiStatus: async () => ({ status: port ? 'running' : 'error' }) },
-    });
+    const desktop = (port: number | null) => neteaseBackend({ port });
 
     it('local-service-stopped: the local service is not listening', async () => {
         desktop(null);
@@ -95,7 +110,7 @@ describe('NetEase', () => {
 
     it('unreachable: the local service could not start for want of the network, and is still down when asked again', async () => {
         const down = { status: 'error', port: null, error: 'getaddrinfo ENOTFOUND interface.music.163.com', offline: true, updatedAt: 1 };
-        vi.stubGlobal('window', { electron: { getNeteasePort: async () => null, getNeteaseApiStatus: async () => down, restartNeteaseApi: async () => down } });
+        neteaseBackend(down);
         expect((await thrown('start', () => omni.startLogin('netease'))).id).toBe('unreachable');
     });
 
@@ -175,9 +190,9 @@ describe('NetEase', () => {
         vi.useFakeTimers();
         // The local service takes 30 s to start, and then answers at once.
         const readyAt = Date.now() + 30_000;
-        vi.stubGlobal('window', {
-            electron: { getNeteasePort: async () => (Date.now() >= readyAt ? 35001 : null), getNeteaseApiStatus: async () => ({ status: 'starting' }) },
-        });
+        neteaseBackend().status.mockImplementation(() => (Date.now() >= readyAt
+            ? { status: 'running', port: 35001, error: null, updatedAt: 2 }
+            : { status: 'starting', port: null, error: null, updatedAt: 1 }));
         vi.stubGlobal('fetch', answers({ data: { unikey: 'qr-key', qrimg: 'qr.png' } }));
         const started = omni.startLogin('netease');
         await vi.advanceTimersByTimeAsync(31_000);

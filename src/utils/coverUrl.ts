@@ -1,7 +1,6 @@
 // src/utils/coverUrl.ts
 
 const NON_RESIZABLE_COVER_PROTOCOLS = new Set(['blob:', 'data:', 'file:', 'filesystem:']);
-const NETEASE_COVER_HOST_PATTERN = /^p\d+\.music\.126\.net$/i;
 // Apple's artwork CDN names the box in the file name (`…/512x512bb.jpg`) and renders any size into it.
 const APPLE_COVER_HOST_PATTERN = /(?:^|\.)mzstatic\.com$/i;
 const APPLE_COVER_PATH_PATTERN = /\/(\d+)x(\d+)([a-z]{2})?\.(jpe?g|png|webp)$/i;
@@ -81,18 +80,6 @@ const parseSize = (value: string | null | undefined): number | null => {
 // The picture hosts' rules as the host has always had them: one entry each, in no order that matters (no two
 // match one URL). The size steps of each are explained where its helpers are, above.
 const BUILT_IN_COVER_URL_RULES: readonly CoverUrlRule[] = [
-    {
-        provider: 'netease',
-        sized: (url, size) => (url.hostname.includes('126.net') ? `${url.origin}${url.pathname}?param=${size}y${size}` : null),
-        identity: url => (NETEASE_COVER_HOST_PATTERN.test(url.hostname) ? `netease:${url.pathname}` : null),
-        original: (url) => {
-            if (!url.hostname.includes('126.net') || !url.searchParams.has('param')) return null;
-            url.searchParams.delete('param');
-            return url.toString();
-        },
-        requestedSize: url => (url.hostname.includes('126.net') ? parseSize(url.searchParams.get('param')) : undefined),
-        sizedText: (text, size) => (text.includes('126.net') ? `${text.split('?')[0]}?param=${size}y${size}` : null),
-    },
     {
         provider: 'apple',
         sized: (url, size) => (isAppleCoverUrl(url) ? withAppleCoverSize(url, size) : null),

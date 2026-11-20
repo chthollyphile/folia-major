@@ -86,6 +86,9 @@ const SOURCE_PARTITIONS_KEY = 'mods.sourcePartitions';
 // The built-in mods a confirmed override replaces, built-in id -> overriding mod id: such a built-in copy waits
 // for the full start (which reads the user's folders) instead of starting before the window and being swapped.
 const OVERRIDDEN_BUILTINS_KEY = 'mods.overriddenBuiltins';
+// The start prompt's page that asks a new install which sources it uses (plan §5.3): 'pending' while it is owed,
+// 'done' once answered. Only a fresh profile is ever given 'pending'; no record means nothing is owed.
+const SOURCES_ONBOARDING_KEY = 'mods.sourcesOnboarding';
 const SOURCE_STATES = Object.freeze(['enabled', 'matching', 'disabled']);
 
 // folium.storage over IPC is the same data file as api.storage, behind the permission that
@@ -153,6 +156,9 @@ const createModSystem = ({
     getMainWindow,
     getLocaleKey,
     isFeatureEnabled,
+    // Whether the main config store was empty when main.cjs made it (nothing had written it yet): a fresh profile,
+    // which owes the start prompt's sources page (plan §5.3). An upgraded profile never does.
+    freshProfile = false,
     // Folium 2.0, all optional: the main config store (api.legacy.store), the sign-in diagnostics registry
     // (loginBackendIpc.cjs), the crash report, the host's media cache prune and the folder a built-in source's
     // cache of before is in under the media cache folder, the native files the app ships, and fakes of the
@@ -178,6 +184,13 @@ const createModSystem = ({
             set: (key, value) => { memory.set(key, value); },
         };
     }
+
+    // A fresh profile owes the sources page once; the record stays, so a later start never asks it again.
+    if (freshProfile && store.get(SOURCES_ONBOARDING_KEY) === undefined) {
+        store.set(SOURCES_ONBOARDING_KEY, 'pending');
+        console.info('[Mods] a fresh profile: the start prompt will ask which sources it uses');
+    }
+    const sourcesOnboardingOwed = () => store.get(SOURCES_ONBOARDING_KEY) === 'pending';
 
     const enabledKey = (modId) => `${SETTINGS_NAMESPACE}.enabled.${modId}`;
     const fileGrantsKey = (modId) => `${SETTINGS_NAMESPACE}.fileGrants.${modId}`;
@@ -1158,6 +1171,41 @@ ${partition}`;
     };
 
     /*
+     * The answer to the start prompt's sources page (plan §5.3), given once: `choices` maps built-in short source
+     * ids to their states. Every entry is checked before anything is written: a known built-in id, one of the three
+     * states, and 'matching' only for a built-in copy whose manifest keeps it for matching (`keepForMatching`). Then
+     * each is written as setSourceState writes it, the page is recorded as answered, and one differential reload
+     * restarts only the sources whose state changes how they run. Refused when the page is not owed.
+     */
+    const answerSourcesOnboarding = async (choices) => {
+        if (!sourcesOnboardingOwed()) {
+            return { ok: false, error: 'sources-onboarding-not-owed' };
+        }
+        if (!choices || typeof choices !== 'object' || Array.isArray(choices)) {
+            return { ok: false, error: 'sources-onboarding-invalid' };
+        }
+        const rows = new Map(listSourceStates().sources.map((row) => [row.sourceId, row]));
+        const entries = Object.entries(choices);
+        for (const [sourceId, state] of entries) {
+            if (!BUILTIN_SOURCE_IDS.includes(sourceId) || rows.get(sourceId)?.takeover) {
+                return { ok: false, error: `source-not-built-in:${sourceId}` };
+            }
+            if (!SOURCE_STATES.includes(state)) {
+                return { ok: false, error: `unknown-source-state:${String(state)}` };
+            }
+            if (state === 'matching' && !rows.get(sourceId)?.keepForMatching) {
+                return { ok: false, error: `source-cannot-match-only:${sourceId}` };
+            }
+        }
+        entries.forEach(([sourceId, state]) => writeSourceState(sourceId, state));
+        store.set(SOURCES_ONBOARDING_KEY, 'done');
+        const counted = (wanted) => entries.filter(([, state]) => state === wanted).length;
+        console.info(`[Mods] start prompt sources answered: ${counted('enabled')} enabled, ${counted('matching')} matching only, ${counted('disabled')} disabled`);
+        await reloadChanged();
+        return { ok: true, ...listSourceStates() };
+    };
+
+    /*
      * What "clear data" of a source removes (plan §5.3), for the list the window shows before it asks. The
      * window clears what lives in its own storage (`pageStorePrefixes`) itself.
      */
@@ -1555,8 +1603,10 @@ ${partition}`;
         });
         // Folium 2.0 (plan §5.3): the sources' states and switches, what clearing one removes, the override
         // confirmation and who holds a taken-over id. "Settings → Sources" (S8) is drawn on these.
-        handle(IPC.sourceStates, () => ({ ok: true, ...listSourceStates(), hasSourceMods: hasSourceMods() }));
+        // `sourcesOnboarding`: a fresh profile still owes the start prompt's sources page.
+        handle(IPC.sourceStates, () => ({ ok: true, ...listSourceStates(), hasSourceMods: hasSourceMods(), sourcesOnboarding: sourcesOnboardingOwed() }));
         handle(IPC.setSourceState, (_event, sourceId, state) => setSourceState(sourceId, state));
+        handle(IPC.answerSourcesOnboarding, (_event, choices) => answerSourcesOnboarding(choices));
         handle(IPC.sourceData, (_event, sourceId) => describeSourceData(sourceId));
         handle(IPC.clearSourceData, (_event, sourceId) => clearSourceData(sourceId));
         handle(IPC.confirmOverride, (_event, modId) => confirmModOverride(modId));
@@ -1794,6 +1844,7 @@ ${partition}`;
         listClientDescriptors,
         setModEnabled,
         setSourceState,
+        answerSourcesOnboarding,
         listSourceStates,
         describeSourceData,
         clearSourceData,

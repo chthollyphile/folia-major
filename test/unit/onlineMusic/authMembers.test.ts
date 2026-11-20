@@ -9,9 +9,11 @@ import { getOnlineMusicProvider, listOnlineMusicProviders } from '@/services/onl
 // A member added or removed on purpose changes its row here.
 
 const AUTH_MEMBERS: Record<string, string[]> = {
+    // A source mod since 2026-11-20: the account older builds kept in their own caches is no longer read
+    // (no oldKeptAccount / forgetOldKeptAccount); `localService` is the API in its main entry.
     netease: [
-        'canRunLoginSelfCheck', 'checkLogin', 'createQr', 'describeLoginFailure', 'forgetOldKeptAccount', 'getLoginDiagnostics', 'getLoginStatus', 'getLoginTexts', 'localService',
-        'logout', 'oldKeptAccount', 'runLoginSelfCheck', 'showsKeptAccountAtStart', 'signInRanOut', 'startLogin',
+        'canRunLoginSelfCheck', 'checkLogin', 'createQr', 'describeLoginFailure', 'getLoginDiagnostics', 'getLoginStatus', 'getLoginTexts', 'localService',
+        'logout', 'runLoginSelfCheck', 'showsKeptAccountAtStart', 'signInRanOut', 'startLogin',
     ],
     qq: [
         'canRunLoginSelfCheck', 'cancelLogin', 'checkLogin', 'createQr', 'describeLoginFailure', 'getLoginDiagnostics', 'getLoginMethods', 'getLoginStatus',

@@ -32,7 +32,7 @@ export const REGISTERED_SITES = [
             { path: 'src/mods/runtime/omni/omniDto.ts', why: '把已经确定的可用性映射成模组看到的值，不自己判断' },
         ],
         sites: {
-            'src/services/onlineMusic/netease/netease.ts': { resolveNeteaseSongAvailability: 'privilege.st 是网易云的下架码（NETEASE_TAKEN_DOWN_ST），且没有可播的音质、不是云盘' },
+            'sources/netease/core/netease.ts': { resolveNeteaseSongAvailability: 'privilege.st 是网易云的下架码（NETEASE_TAKEN_DOWN_ST），且没有可播的音质、不是云盘' },
             'sources/bodian/client/bodianProvider.ts': { bodianSongAvailability: '波点自己标的 off-shelf（offline / online 0，normalizeBodianSong 记成 availability）' },
             'src/components/app/playback/start/usePlaybackQueueController.ts': { playSong: '只在 isSongUnavailable(song) 为真时：那是 provider 依据平台记录给的静态可用性，这里只是呈现' },
         },
@@ -44,7 +44,7 @@ export const REGISTERED_SITES = [
         include: ['src/services/onlineMusic/**', 'sources/**'],
         sites: {
             'sources/kugou/core/kugouProvider.ts': { getLikedSongIds: 'getKugouLikedPlaylistTracks 读到底，读不完就抛错' },
-            'src/services/onlineMusic/netease/neteaseProvider.ts': { getLikedSongIds: '一次请求就是整张列表；出错的答复先抛 OnlineProviderError' },
+            'sources/netease/core/neteaseProvider.ts': { getLikedSongIds: '一次请求就是整张列表；出错的答复先抛 neteaseError（宿主收到的是同一种 OnlineProviderError）' },
         },
     },
     {

@@ -1,0 +1,16 @@
+{
+  "name": "@folia-sources/netease",
+  "private": true,
+  "description": "网易云音乐音源模组的依赖：@neteasecloudmusicapienhanced/api 钉死版本（和根 package.json 钉的同一个）。工作线程按包内路径加载它的 util/request、main、server 等文件并替换 util/request 的导出、挂扫码检查的钩子（改 require.cache），它自己也扫 module/ 目录，要真实的文件布局，所以声明成 asar：装进 deps.<指纹>.asar，main 入口与工作线程从归档里加载（方案 §6.2）。",
+  "dependencies": {
+    "@neteasecloudmusicapienhanced/api": "4.41.1"
+  },
+  "folia": {
+    "dependencies": {
+      "@neteasecloudmusicapienhanced/api": "asar"
+    },
+    "workers": {
+      "worker": "main/neteaseApiWorker.cjs"
+    }
+  }
+}

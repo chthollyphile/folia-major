@@ -2647,6 +2647,7 @@ playlists, so `data` must be JSON and small; what else is stored with a song is 
 | 成员 | 类型 | 说明 |
 | --- | --- | --- |
 | `id` | `string` | The song's id at the source. |
+| `publicId?` | `string` | The id other mods know the song by (`FoliumSong.id` in `folium.omni`), when it is not `id`: a built-in source keeping the id it gave before it moved into a mod. The host still plays, keeps and looks the song up by `id`. |
 | `title` | `string` | The title. |
 | `artists` | `FoliumSourceNamedRef[]` | The artists, in order. |
 | `album?` | `FoliumSourceAlbumRef` | The album. |

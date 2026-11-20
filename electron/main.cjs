@@ -276,6 +276,9 @@ if (process.platform === 'darwin' && process.arch === 'x64') {
 }
 
 const store = new Store({ projectName: 'Folia' });
+// Read before anything writes the store: an empty one is a fresh profile, which the start prompt asks which
+// sources it uses (Folium 2.0 plan §5.3, modSystem.cjs). An upgraded profile always has something in it.
+const isFreshProfile = store.size === 0;
 // Before ready: the GPU process reads its switches when it starts.
 const gpuPreferenceApplied = applyGpuPreference({ app, store });
 const readActiveGpu = createActiveGpuReader(app);
@@ -4966,41 +4969,11 @@ async function clearCoverCacheDirectory() {
 }
 
 const { createNetworkRecorder } = require('./networkRecorder.cjs');
-const { createNeteaseBackend } = require('./netease/neteaseBackend.cjs');
 const { registerLoginBackendIpc } = require('./loginBackendIpc.cjs');
 
 // 主线程里内嵌后端的出站连接记录：要在它们发出请求之前开始订阅。工作线程里发出的请求另有一份记录（见 networkRecorder.cjs）。
 const networkRecorder = createNetworkRecorder();
 networkRecorder.start();
-
-function broadcastToWindows(channel, payload) {
-  BrowserWindow.getAllWindows().forEach((win) => {
-    if (!win.isDestroyed()) {
-      win.webContents.send(channel, payload);
-    }
-  });
-}
-
-// 网易云本地 API 的包不在主线程里加载，在工作线程里加载和运行（原因见 neteaseApiWorker.cjs）。
-// 拉起本身（网络请求）在 app ready 之后由 start() 进行。
-const neteaseBackend = createNeteaseBackend({
-  broadcast: broadcastToWindows,
-  // 和主线程里没人接的 rejection 同一个去处：写一份报告，不打断用户。
-  onUnhandledRejection: (reason) => {
-    crashLog.reportError('unhandledRejection', reason, { announceToUser: false });
-  },
-});
-// 确定由本进程运行应用以后就开线程，让它先加载包，不等 ready：主线程接下来有一百多毫秒在等
-// Electron 自己初始化，线程正好用上。重复启动的实例和壁纸模式的跳板进程不运行应用，不开。
-// 不放到文件开头去开得更早：量过一次（4 个慢核，推迟 jsdom 之前），线程加载完的时刻和现在分不出
-// 先后，首页却晚了约 130 毫秒能用；原因没有查。
-mainProcessStartupPromise.then((startupResult) => {
-  if (startupResult !== 'duplicate' && startupResult !== 'spawned') {
-    neteaseBackend.preload();
-  }
-}, () => {
-  // 启动准备本身失败时，ready 的处理函数里等的是同一个 promise，由那里报出来；这里不再报一遍。
-});
 
 function isElectronDevRuntime() {
   return process.env.ELECTRON_DEV === 'true' || process.env.NODE_ENV === 'development';
@@ -6373,10 +6346,6 @@ app.whenReady().then(async () => {
   });
 
   setupAutoUpdater();
-  // Not awaited: this performs network round trips (xeapi key, anonymous token) that used to keep
-  // the window from appearing at all on a slow or blocked route. Status reaches the renderer over
-  // netease-api-status-changed, and get-netease-port reports null until the server is listening.
-  void neteaseBackend.start();
   try {
     await stageApi.startStageServerIfNeeded();
   } catch (error) {
@@ -6410,6 +6379,7 @@ app.whenReady().then(async () => {
       getLocaleKey: getMainLocaleKey,
       isFeatureEnabled: () => readStoredBoolean(MOD_SYSTEM_ENABLED_SETTING_KEY, false),
       hostStore: store,
+      freshProfile: isFreshProfile,
       diagnostics: loginDiagnostics,
       reportError: (where, error) => crashLog.reportError(where, error, { announceToUser: false }),
       requestCachePrune: (limitBytes) => pruneMediaCacheForSource(limitBytes),
@@ -7319,7 +7289,6 @@ const loginBackend = registerLoginBackendIpc({
     app,
     safeStorage,
     getDefaultSession: () => session.defaultSession,
-    neteaseBackend,
     networkRecorder,
     isTrustedSender: isFirstPartyWindowContents,
 });

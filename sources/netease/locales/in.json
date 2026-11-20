@@ -1,0 +1,92 @@
+{
+    "name": {
+        "short": "NetEase",
+        "lyrics": "NetEase Cloud Music"
+    },
+    "login": {
+        "title": "Pindai dengan Aplikasi Netease",
+        "note": "Buka Aplikasi Netease Music > Discover > Pindai QR"
+    },
+    "status": {
+        "startupFailed": "API NetEase gagal dijalankan. Beberapa fitur online tidak tersedia.",
+        "startupFailedDetail": "API NetEase gagal dijalankan, sebagian fitur online tidak tersedia: {{reason}}"
+    },
+    "explore": {
+        "similar": "Mirip dengan {{name}}",
+        "dailySongs": "Rekomendasi Harian",
+        "dailyPlaylists": "Playlist harian untuk Anda",
+        "charts": "Tangga lagu",
+        "newSongs": "Lagu baru",
+        "newAlbums": "Album baru",
+        "hotPlaylists": "Playlist populer"
+    },
+    "cloud": {
+        "name": "Cloud Drive",
+        "description": "NetEase Cloud Music Drive"
+    },
+    "fm": {
+        "mode": {
+            "DEFAULT": "Bawaan",
+            "FAMILIAR": "Familier",
+            "EXPLORE": "Jelajah",
+            "SCENE_RCMD": "Suasana",
+            "PUZZLE_MODE_RCMD": "Puzzle"
+        },
+        "category": {
+            "mode": "Mode",
+            "mood": "Suasana Hati",
+            "activity": "Momen",
+            "genre": "Genre",
+            "language": "Bahasa"
+        },
+        "scene": {
+            "NIGHT_EMO": "Melankolis",
+            "CURE": "Penyembuh",
+            "CHEERFUL": "Ceria",
+            "LYRICAL": "Liris",
+            "INSPIRATIONAL": "Inspiratif",
+            "RELAX": "Santai",
+            "SWEET": "Lagu Cinta",
+            "EXERCISE": "Olahraga",
+            "FOCUS": "Fokus",
+            "SLEEP_HELP": "Tidur",
+            "TAKE_SHOWER": "Mandi",
+            "COMMUTE": "Perjalanan",
+            "COFFEE_SHOP": "Kedai Kopi",
+            "GAMES": "Gim",
+            "DANCE": "Dansa",
+            "RAINY": "Hari Hujan",
+            "RHYTHM_BLUES": "R&B",
+            "RAP": "Rap",
+            "K_POP": "K-Pop",
+            "ELECTRONIC": "Elektronik",
+            "ROCK": "Rock",
+            "FOLK": "Folk",
+            "GUDIAN": "Klasik",
+            "JAZZ": "Jazz",
+            "BLUE": "Blues",
+            "PUNK": "Funk",
+            "COUNTRY": "Country",
+            "LIGHT": "Musik Ringan",
+            "GUOFENG": "Guofeng",
+            "MANYAO": "DJ Lambat",
+            "MUSICAL": "Musikal",
+            "ACG": "ACG",
+            "JINGDIAN": "Klasik Lawas",
+            "ORIGINAL_MUSICIAL": "Karya Orisinal",
+            "YINGSHI": "Soundtrack",
+            "CHINESE": "Mandarin",
+            "ENGLISH": "Barat",
+            "YUEYU": "Kanton",
+            "JAPANESE": "Jepang",
+            "FRANCH": "Prancis",
+            "LATIN": "Latin",
+            "GLOBAL": "Global"
+        }
+    },
+    "listeningRank": {
+        "week": "Peringkat dengar · Minggu terakhir",
+        "all": "Peringkat dengar · Sepanjang waktu",
+        "description": "Lagu yang diurutkan menurut riwayat dengar akun ini di platform"
+    }
+}

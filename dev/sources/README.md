@@ -62,7 +62,7 @@ sources/<id>/
 指纹变了，模组的版本记号跟着变，差量重载只重启这一个模组，client 的地址也换了，窗口重新载入它。
 
 源码只能 import：自己目录里的文件、`@folia/folium-source-kit`、`@folia/folium`（只有类型，写成 `import type`）、
-package.json 里声明了的包、main 与 worker 里的 Node 内置模块。`electron`、宿主（`src/`、`electron/`、`@/` 别名）、
+package.json 里声明了的包、main 与 worker 里的 Node 内置模块，和有 deps 归档的音源的 main 与 worker 里的 `@folia/source-deps`（见下）。`electron`、宿主（`src/`、`electron/`、`@/` 别名）、
 没声明的包都是构建错误；client 里还不能有 Node 内置模块和宿主注入的库（react、react-dom、i18next、react-i18next、zustand）。
 
 ## 依赖怎么声明
@@ -87,6 +87,11 @@ package.json 里声明了的包、main 与 worker 里的 Node 内置模块。`el
 | `asar` | 依赖真实文件布局的上游库（改 `require.cache`、扫 `module/` 目录、按包内路径挂钩子），只给 main 与 worker | 生产依赖闭包（`dependencies`、装着的 `optionalDependencies` 与 `peerDependencies`）装进 `deps.<指纹>.asar`；入口里是 `createRequire(join(__dirname, 'deps.<指纹>.asar', 'node_modules', '_'))('<包>')` |
 | `vendor` | ESM-only 的包，只给 main 与 worker | 用到的这类包一起打成 `vendor.<指纹>.mjs`，入口 `require('./vendor.<指纹>.mjs')`（Node 的 require(esm)：vendor 里不能有顶层 await；文件名带指纹，因为 require(esm) 载入的模块在 Node 的 ESM 缓存里，清 `require.cache` 清不掉，原地覆盖的文件重载后还是旧的） |
 | `native` | 原生件（`.node`、伴侣程序） | 不打包、不进归档；源码 import 它是构建错误，经 `api.native.load(name)` / `api.native.path(name)` 引用（清单 `native` 与受信表那一行的 `native`） |
+
+上游要按包内路径动手脚（换 `require.cache` 的某一项、先放替身再加载，网易云的 worker 就是这样）时，字面写的 import 拿不到
+文件在归档里的路径：main 与 worker 可以 `import { depsRequire } from '@folia/source-deps'`，它是绑在本模组归档上的
+`createRequire`，`depsRequire.resolve('<包>/<文件>')` 是那个文件在归档里的路径，`depsRequire('<包>/<文件>')` 按需加载。
+client 里、没有 asar 依赖的音源里 import 它是构建错误；类型在 `dev/sources/sourceDeps.d.ts`。
 
 `buildSource` 交回的 `archive` 是 deps 归档的规模和这次的耗时（名字、字节数、包数、文件数、这次有没有真打、算闭包与指纹的毫秒数、
 打包的毫秒数），打了新归档时也打一行日志。

@@ -1,4 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createNeteaseCore } from '../helpers/neteaseSource';
+
+// The source's core with the web build's env (VITE_NETEASE_API_BASE), fresh after vi.resetModules: the sign-in is in the
+// page store under online_provider:netease:* (the names from before it was so kept are moved by the host's page store).
+const loadNeteaseCore = async () => {
+    await createNeteaseCore();
+    return import('../../../sources/netease/core/netease');
+};
 
 // test/unit/services/neteaseDailyRecommendations.test.ts
 // Covers the daily recommendation endpoints and their normalized client-facing shapes.
@@ -24,7 +32,7 @@ describe('netease daily recommendations', () => {
         vi.restoreAllMocks();
         vi.stubEnv('VITE_NETEASE_API_BASE', 'http://127.0.0.1:3000');
         vi.stubGlobal('localStorage', {
-            getItem: vi.fn((key: string) => key === 'netease_cookie' ? 'mock-user-cookie' : null),
+            getItem: vi.fn((key: string) => key === 'online_provider:netease:cookie' ? 'mock-user-cookie' : null),
             setItem: vi.fn(),
             removeItem: vi.fn(),
         });
@@ -46,7 +54,7 @@ describe('netease daily recommendations', () => {
             },
         }) as any);
 
-        const { neteaseApi } = await import('@/services/onlineMusic/netease/netease');
+        const { neteaseApi } = await loadNeteaseCore();
         const result = await neteaseApi.getDailyRecommendedSongs(true);
 
         expect(result.songs[0]).toMatchObject({
@@ -64,7 +72,7 @@ describe('netease daily recommendations', () => {
             data: createSong(11, 'Replacement Song'),
         }) as any);
 
-        const { neteaseApi } = await import('@/services/onlineMusic/netease/netease');
+        const { neteaseApi } = await loadNeteaseCore();
         const result = await neteaseApi.dislikeDailyRecommendedSong(10);
 
         expect(result.song).toMatchObject({ id: 11, name: 'Replacement Song' });
@@ -77,7 +85,7 @@ describe('netease daily recommendations', () => {
             message: '今日暂无更多推荐',
         }) as any);
 
-        const { neteaseApi } = await import('@/services/onlineMusic/netease/netease');
+        const { neteaseApi } = await loadNeteaseCore();
         const result = await neteaseApi.dislikeDailyRecommendedSong(10);
 
         expect(result).toMatchObject({
@@ -95,7 +103,7 @@ describe('netease daily recommendations', () => {
             },
         }) as any);
 
-        const { neteaseApi } = await import('@/services/onlineMusic/netease/netease');
+        const { neteaseApi } = await loadNeteaseCore();
         const result = await neteaseApi.getDailyRecommendationHistoryDates();
 
         expect(result.dates).toEqual(['2026-07-12', '2026-07-11']);
@@ -108,7 +116,7 @@ describe('netease daily recommendations', () => {
             data: { songs: [createSong(12, 'History Song')] },
         }) as any);
 
-        const { neteaseApi } = await import('@/services/onlineMusic/netease/netease');
+        const { neteaseApi } = await loadNeteaseCore();
         const result = await neteaseApi.getDailyRecommendationHistoryDetail('2026-07-12');
 
         expect(result.songs[0]).toMatchObject({ id: 12, name: 'History Song' });

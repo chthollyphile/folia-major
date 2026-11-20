@@ -6,9 +6,8 @@ const os = require('os');
 const { runLoginSelfCheck } = require('./loginSelfCheck.cjs');
 
 // electron/loginBackendIpc.cjs
-// 内嵌后端对渲染进程的全部 IPC：端口、状态、重启、诊断快照、主动自检。诊断快照和自检按登记表找后端
-// （createLoginDiagnosticsRegistry，音源模组的 api.diagnostics 也登记在这里），端口、状态、重启这几条是网易自己的通道，
-// S5 随平台迁走（迁走的平台由模组的 main 入口经 rpc 答）。
+// 内嵌后端对渲染进程的 IPC：诊断快照、主动自检。两条都按登记表找后端（createLoginDiagnosticsRegistry，音源模组的
+// api.diagnostics 登记在这里）。端口、状态、重启原来是网易自己的通道，S5 随平台迁走：迁走的平台由模组的 main 入口经 rpc 答。
 // 诊断快照 = 应用与系统环境 + 凭据加密后端 + 那个后端自己的 getDiagnostics()（拉起步骤、请求与连接记录等）。
 // 报告会原样贴进 GitHub issue，界面上已告知用户其中包含哪些数据；登录凭据（cookie、token）的值不在其中。
 
@@ -47,8 +46,8 @@ const describeApp = ({ app, safeStorage }) => {
  * getDiagnostics()（同步、异步都行）和 selfCheckHosts。register 回一个撤销函数。`initial` 是一开始就登记的
  * { 音源 id: 后端 }。
  *
- * Folium 2.0 接缝（S1）：现在由 registerLoginBackendIpc 用传进来的两个内嵌后端建表并交回；S2 由音源模组的
- * api.diagnostics.register 登记到同一张表，get-login-diagnostics、run-login-self-check 两个通道不用再改。
+ * Folium 2.0：内嵌后端都已随平台搬进音源模组，由模组的 api.diagnostics.register 登记到这张表；
+ * get-login-diagnostics、run-login-self-check 两个通道按它找。
  */
 function createLoginDiagnosticsRegistry(initial = {}) {
   const backends = new Map(Object.entries(initial).filter(([, backend]) => Boolean(backend)));
@@ -74,33 +73,26 @@ function registerLoginBackendIpc({
   app,
   safeStorage,
   getDefaultSession,
-  neteaseBackend,
   diagnostics,
     networkRecorder = null,
   runSelfCheck = runLoginSelfCheck,
   isTrustedSender,
 }) {
-    // 诊断与自检按音源 id 查登记表（createLoginDiagnosticsRegistry）。没给登记表时用传进来的后端建一张，并交回去。
-    const registry = diagnostics ?? createLoginDiagnosticsRegistry({ netease: neteaseBackend });
+    // 诊断与自检按音源 id 查登记表（createLoginDiagnosticsRegistry）。没给登记表时建一张空的，并交回去。
+    const registry = diagnostics ?? createLoginDiagnosticsRegistry();
   const backendOf = (providerId) => registry.get(providerId);
 
   // 来源校验：与既有的 IPC 来源校验通道同一个边界、同一个工厂（electron/ipcAccessGuard.cjs）。比 event.sender 的
   // webContents 身份，挡得住其它窗口——包括 window.open 出来的、带着同一个 preload 的那些；挡不住
   // 已经注入第一方窗口的脚本，那是 CSP/preload 层的事，不在这个校验的职责内。
-  // 未注入 isTrustedSender 时按不信任处理（fail closed）：读通道回 null，调用方走 unavailable 分支；
-  // restart 是写通道，走工厂默认的抛错。端口与诊断快照不该被任何窗口免费问走。
+  // 未注入 isTrustedSender 时按不信任处理（fail closed）：读通道回 null，调用方走 unavailable 分支。
+  // 诊断快照不该被任何窗口免费问走。
   const guarded = (channel, handler, onUntrusted) => createSenderGuardedHandler({
     channel,
     isTrusted: (event) => typeof isTrustedSender === 'function' && isTrustedSender(event),
     handler,
     ...(onUntrusted ? { onUntrusted } : {}),
   });
-
-  // null 直到服务真正在监听：渲染进程据此等待或报故障，而不是去连一个不存在的端口。
-  ipcMain.handle('get-netease-port', guarded('get-netease-port', () => neteaseBackend.getPort(), () => null));
-  ipcMain.handle('get-netease-api-status', guarded('get-netease-api-status', () => neteaseBackend.getStatus(), () => null));
-  // reason 'needed'：页面上一个请求要用它、它却因为断网没起来；规则在后端的 start 里。
-  ipcMain.handle('restart-netease-api', guarded('restart-netease-api', (_event, reason) => neteaseBackend.start(reason)));
 
     // 诊断快照：应用与系统环境 + 那个后端自己的 getDiagnostics()（同步、异步都行，有的要问工作线程）。没有内嵌后端的
     // provider 回 null。音源模组的后端在模组里，拿不到主进程的网络记录：它没交 connections 时宿主按音源 id 补上

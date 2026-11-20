@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+// @builtin-sources
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // test/unit/library/app/useLibraryAccountController.test.ts

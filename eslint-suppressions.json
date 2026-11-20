@@ -773,17 +773,6 @@
       "count": 1
     }
   },
-  "electron/backendLifecycle.cjs": {
-    "@stylistic/indent": {
-      "count": 104
-    },
-    "@stylistic/quotes": {
-      "count": 1
-    },
-    "dedicatus/log-module-prefix": {
-      "count": 1
-    }
-  },
   "electron/backgroundThrottling.cjs": {
     "@stylistic/indent": {
       "count": 43
@@ -869,7 +858,7 @@
   },
   "electron/loginBackendIpc.cjs": {
     "@stylistic/indent": {
-      "count": 65
+      "count": 59
     },
     "@stylistic/quotes": {
       "count": 1
@@ -954,52 +943,6 @@
   "electron/modSystem/zipInstall.cjs": {
     "no-useless-assignment": {
       "count": 1
-    }
-  },
-  "electron/netease/lazyJsdom.cjs": {
-    "@stylistic/indent": {
-      "count": 51
-    }
-  },
-  "electron/netease/neteaseApiHost.cjs": {
-    "@stylistic/indent": {
-      "count": 69
-    }
-  },
-  "electron/netease/neteaseApiStartup.cjs": {
-    "@stylistic/indent": {
-      "count": 210
-    }
-  },
-  "electron/netease/neteaseApiWorker.cjs": {
-    "@stylistic/indent": {
-      "count": 159
-    }
-  },
-  "electron/netease/neteaseBackend.cjs": {
-    "@stylistic/indent": {
-      "count": 61
-    },
-    "@stylistic/quotes": {
-      "count": 1
-    }
-  },
-  "electron/netease/neteaseLoginDiagnostics.cjs": {
-    "@stylistic/indent": {
-      "count": 144
-    },
-    "no-useless-assignment": {
-      "count": 1
-    }
-  },
-  "electron/netease/neteaseLoginIdentity.cjs": {
-    "@stylistic/indent": {
-      "count": 72
-    }
-  },
-  "electron/netease/upstreamAddressOrder.cjs": {
-    "@stylistic/indent": {
-      "count": 12
     }
   },
   "electron/networkRecorder.cjs": {
@@ -1427,6 +1370,119 @@
   "sources/kugou/main/kugouApiBridge.cjs": {
     "@stylistic/indent": {
       "count": 373
+    }
+  },
+  "sources/netease/core/netease.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 22
+    },
+    "@typescript-eslint/no-unnecessary-condition": {
+      "count": 12
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 24
+    },
+    "@typescript-eslint/no-unsafe-call": {
+      "count": 8
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 132
+    },
+    "@typescript-eslint/no-unsafe-return": {
+      "count": 6
+    },
+    "@typescript-eslint/only-throw-error": {
+      "count": 3
+    },
+    "dedicatus/log-module-prefix": {
+      "count": 1
+    },
+    "no-useless-escape": {
+      "count": 1
+    }
+  },
+  "sources/netease/core/neteaseExplore.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 11
+    },
+    "@typescript-eslint/no-unnecessary-condition": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-argument": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 16
+    },
+    "@typescript-eslint/no-unsafe-call": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 38
+    },
+    "@typescript-eslint/no-unsafe-return": {
+      "count": 2
+    },
+    "@typescript-eslint/unbound-method": {
+      "count": 1
+    }
+  },
+  "sources/netease/core/neteaseFailure.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 5
+    }
+  },
+  "sources/netease/core/neteaseLoginFailure.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 5
+    }
+  },
+  "sources/netease/core/neteaseProvider.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 9
+    },
+    "@typescript-eslint/no-unnecessary-condition": {
+      "count": 27
+    },
+    "@typescript-eslint/no-unsafe-assignment": {
+      "count": 15
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 54
+    },
+    "@typescript-eslint/no-unsafe-return": {
+      "count": 2
+    },
+    "@typescript-eslint/use-unknown-in-catch-callback-variable": {
+      "count": 1
+    }
+  },
+  "sources/netease/core/neteaseRaw.ts": {
+    "@typescript-eslint/no-explicit-any": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unnecessary-condition": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unsafe-member-access": {
+      "count": 1
+    }
+  },
+  "sources/netease/main/neteaseLoginDiagnostics.cjs": {
+    "no-useless-assignment": {
+      "count": 1
     }
   },
   "sources/qishui/client/qishuiCatalog.ts": {
@@ -9967,205 +10023,12 @@
       "count": 1
     }
   },
-  "src/services/onlineMusic/login/loginBackendDiagnostics.ts": {
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 4
-    }
-  },
   "src/services/onlineMusic/login/loginDiagnosticReport.ts": {
     "@typescript-eslint/no-base-to-string": {
       "count": 1
     },
     "@typescript-eslint/no-unnecessary-template-expression": {
       "count": 6
-    }
-  },
-  "src/services/onlineMusic/loginSelfCheck.ts": {
-    "@typescript-eslint/no-non-null-assertion": {
-      "count": 2
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 1
-    }
-  },
-  "src/services/onlineMusic/netease/netease.ts": {
-    "@stylistic/indent": {
-      "count": 858
-    },
-    "@stylistic/quotes": {
-      "count": 2
-    },
-    "@typescript-eslint/consistent-type-imports": {
-      "count": 1
-    },
-    "@typescript-eslint/no-explicit-any": {
-      "count": 34
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 4
-    },
-    "@typescript-eslint/no-unsafe-argument": {
-      "count": 3
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 84
-    },
-    "@typescript-eslint/no-unsafe-call": {
-      "count": 18
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 271
-    },
-    "@typescript-eslint/no-unsafe-return": {
-      "count": 64
-    },
-    "@typescript-eslint/only-throw-error": {
-      "count": 3
-    },
-    "dedicatus/log-module-prefix": {
-      "count": 1
-    },
-    "dedicatus/restricted-apis": {
-      "count": 1
-    },
-    "no-useless-escape": {
-      "count": 1
-    }
-  },
-  "src/services/onlineMusic/netease/neteaseExplore.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 11
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-argument": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 21
-    },
-    "@typescript-eslint/no-unsafe-call": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 45
-    },
-    "@typescript-eslint/no-unsafe-return": {
-      "count": 2
-    },
-    "@typescript-eslint/unbound-method": {
-      "count": 1
-    }
-  },
-  "src/services/onlineMusic/netease/neteaseFailure.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 2
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 5
-    }
-  },
-  "src/services/onlineMusic/netease/neteaseLocalService.ts": {
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 3
-    },
-    "@typescript-eslint/use-unknown-in-catch-callback-variable": {
-      "count": 1
-    }
-  },
-  "src/services/onlineMusic/netease/neteaseLoginDiagnostics.ts": {
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 7
-    },
-    "@typescript-eslint/no-unnecessary-template-expression": {
-      "count": 1
-    }
-  },
-  "src/services/onlineMusic/netease/neteaseLoginFailure.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 5
-    }
-  },
-  "src/services/onlineMusic/netease/neteaseProvider.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 23
-    },
-    "@typescript-eslint/no-non-null-assertion": {
-      "count": 2
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 3
-    },
-    "@typescript-eslint/no-unsafe-argument": {
-      "count": 2
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 119
-    },
-    "@typescript-eslint/no-unsafe-call": {
-      "count": 28
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 244
-    },
-    "@typescript-eslint/no-unsafe-return": {
-      "count": 10
-    },
-    "@typescript-eslint/require-await": {
-      "count": 1
-    },
-    "@typescript-eslint/restrict-plus-operands": {
-      "count": 12
-    },
-    "@typescript-eslint/use-unknown-in-catch-callback-variable": {
-      "count": 1
-    }
-  },
-  "src/services/onlineMusic/netease/neteaseRaw.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 1
-    }
-  },
-  "src/services/onlineMusic/netease/useNeteaseApiStatusStore.ts": {
-    "@typescript-eslint/no-explicit-any": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-assignment": {
-      "count": 3
-    },
-    "@typescript-eslint/no-unsafe-call": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unsafe-member-access": {
-      "count": 3
-    },
-    "@typescript-eslint/no-unsafe-return": {
-      "count": 1
-    },
-    "dedicatus/restricted-apis": {
-      "count": 1
     }
   },
   "src/services/onlineMusic/omni.ts": {
@@ -11524,7 +11387,7 @@
   },
   "src/vite-env.d.ts": {
     "@stylistic/indent": {
-      "count": 971
+      "count": 919
     },
     "@typescript-eslint/consistent-type-imports": {
       "count": 46
@@ -12506,11 +12369,6 @@
     "@typescript-eslint/consistent-type-imports": {
       "count": 1
     },
-    "@typescript-eslint/no-unused-vars": {
-      "count": 1
-    }
-  },
-  "test/unit/onlineMusic/onlineFailurePlatforms.test.ts": {
     "@typescript-eslint/no-unused-vars": {
       "count": 1
     }

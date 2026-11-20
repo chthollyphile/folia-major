@@ -117,6 +117,8 @@ const lyricIdsOf = (value: unknown): Record<string, string> | null => {
 export const toHostSong = (providerId: OnlineProviderId, song: FoliumSourceSong): UnifiedSong => {
     const raw = song as unknown as Record<string, unknown>;
     const id = song.id;
+    // The id mods see (FoliumSong.id) when the source keeps an older one; the song's own id stays its mediaId.
+    const publicId = optionalText(raw.publicId);
     const album = record(raw.album);
     const albumId = album ? text(album.id) : '';
     const coverUrl = optionalText(raw.coverUrl) ?? (album ? optionalText(album.coverUrl) : undefined);
@@ -145,7 +147,7 @@ export const toHostSong = (providerId: OnlineProviderId, song: FoliumSourceSong)
     const translatedNames = textList(raw.translatedTitles);
     const variant = optionalText(raw.variant);
     return {
-        id,
+        id: publicId ?? id,
         name: song.title,
         artists: namedRefs(providerId, raw.artists),
         album: albumOut,
@@ -212,6 +214,10 @@ export const toSourceSong = (song: SongResult): FoliumSourceSong => {
     const album = loose.album as Partial<Album> | undefined;
     const dto: FoliumSourceSong = {
         id: ref ? ref.mediaId : String(loose.id ?? ''),
+        // A host song whose id is not its mediaId gives that id back as the one mods know it by.
+        ...(ref && loose.id !== undefined && loose.id !== null && String(loose.id) !== '' && String(loose.id) !== ref.mediaId
+            ? { publicId: String(loose.id) }
+            : {}),
         title: loose.name ?? '',
         artists: sourceRefsOf(loose.artists),
         ...(album && (album.name || album.id !== undefined) ? {

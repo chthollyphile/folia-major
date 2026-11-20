@@ -6,6 +6,7 @@ import { selectDisplaySong, usePlaybackStore } from '@/stores/usePlaybackStore';
 import { getPlaybackSourceRef } from '@/utils/appPlaybackGuards';
 import { pauseFoliumHostPlayback } from '../folium/services';
 import { listStoredKeysStartingWith, removeStoredKey } from '@/stores/storagePrimitives';
+import { forgetOldPageKeys } from '../folium/registries/sourcePageStore';
 
 // src/mods/runtime/sourceSwitches.ts
 // The window's half of switching a source and of clearing its data (Folium 2.0 plan §5.2, §5.3). Before the main
@@ -97,7 +98,9 @@ const removeStoredKeys = (prefixes: readonly string[]): number => {
 export const clearSourceData = async (sourceId: string): Promise<ModClearSourceDataResult & { removedKeys?: number }> => {
     await stopPlaybackOf([sourceId]);
     const answer = await invokeClearSourceData(sourceId);
-    const removedKeys = answer.pageStorePrefixes ? removeStoredKeys(answer.pageStorePrefixes) : 0;
+    // Its keys under the prefixes, and the old names the store would move over once (never moved, if the store was not
+    // made since the upgrade).
+    const removedKeys = answer.pageStorePrefixes ? removeStoredKeys(answer.pageStorePrefixes) + forgetOldPageKeys(sourceId) : 0;
     console.info(`[Folium] data of source ${sourceId} cleared: ${answer.ok ? 'done' : answer.error ?? 'refused'}, ${removedKeys} window keys`);
     return { ...answer, removedKeys };
 };

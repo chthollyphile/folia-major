@@ -10,8 +10,10 @@ import { registerLyricSource } from '@/utils/lyrics/lyricSources';
 // adding a source would write it. No such source exists today, so nobody can see this by using
 // the app: the automatic pick must pass it over, not ask AMLL DB a second time in its place.
 
-vi.mock('@/services/onlineMusic/netease/netease', () => ({
-    neteaseApi: { cloudSearch: vi.fn(), getLyric: vi.fn(), getSongDetail: vi.fn(), getChorus: vi.fn() },
+// The module's own pure helpers stay real (the source reads songs and lyrics through them); the requests are mocked.
+vi.mock('../../../sources/netease/core/netease', async importOriginal => ({
+    ...await importOriginal<object>(),
+    neteaseApi: { ...(await importOriginal<{ neteaseApi: object }>()).neteaseApi, cloudSearch: vi.fn(), getLyric: vi.fn(), getSongDetail: vi.fn(), getChorus: vi.fn() },
 }));
 vi.mock('@/utils/lyrics/neteaseProcessing', () => ({ parseNeteaseChorusRanges: vi.fn(() => []), processNeteaseLyrics: vi.fn() }));
 vi.mock('../../../sources/qq/core/qqLyricProvider', () => ({ searchQQLyrics: vi.fn(), fetchQQLyrics: vi.fn() }));

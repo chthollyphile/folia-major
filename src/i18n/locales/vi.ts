@@ -26,7 +26,7 @@ export default {
     "run_mod-off": "Mod của nó đang tắt ở trang Mod nên trạng thái này tạm chưa có tác dụng",
     "runFailed": "Không khởi động được: {{error}}",
     "usage": "Dữ liệu {{data}} · bộ nhớ đệm {{cache}}",
-    "hostNote": "Nền tảng này chưa thành mod nguồn; ứng dụng tự đăng ký nó. Tắt nó hoặc chỉ giữ để khớp chỉ thay đổi chỗ nó xuất hiện: phần của nó trong tiến trình chính không bị ảnh hưởng và vẫn chạy như thường (dịch vụ cục bộ của NetEase Cloud Music khởi động cùng ứng dụng). Xóa dữ liệu chỉ có khi nó thành mod; muốn xóa đăng nhập bây giờ, hãy bật lại trước rồi đăng xuất trong cửa sổ đăng nhập.",
+    "hostNote": "Nền tảng này chưa thành mod nguồn; ứng dụng tự đăng ký nó. Tắt nó hoặc chỉ giữ để khớp chỉ thay đổi chỗ nó xuất hiện: phần của nó trong tiến trình chính không bị ảnh hưởng và vẫn chạy như thường. Xóa dữ liệu chỉ có khi nó thành mod; muốn xóa đăng nhập bây giờ, hãy bật lại trước rồi đăng xuất trong cửa sổ đăng nhập.",
     "matchingNote": "Chỉ để khớp: không có trong bộ chuyển, cửa sổ đăng nhập, tìm kiếm hay bảng lệnh; nó chỉ khớp lời bài hát và thông tin bài hát cục bộ, luôn như chưa ai đăng nhập. Đăng nhập của bạn vẫn được giữ và có lại khi bật.",
     "clearNote": "Xóa dữ liệu sẽ đăng xuất và xóa phiên, bí mật, bộ nhớ đệm và thư mục dữ liệu mod của nó; liệt kê những gì bị xóa và hỏi trước. Điều này khác với tắt, vốn giữ nguyên dữ liệu.",
     "clearData": "Xóa dữ liệu",
@@ -709,8 +709,6 @@ export default {
     "unmarkedPureMusic": "Đã bỏ dấu nhạc không lời; sẽ tự khớp lời lần phát sau",
     "bestLyricsMatchFailed": "Khớp lời tối ưu thất bại",
     "noSongPlaying": "Không có bài hát đang phát",
-    "neteaseApiStartupFailed": "Khởi động NetEase API thất bại. Một số tính năng trực tuyến không khả dụng.",
-    "neteaseApiStartupFailedDetail": "Khởi động NetEase API thất bại, một số tính năng trực tuyến không khả dụng: {{reason}}",
     "generatingTheme": "AI đang sáng tạo chủ đề...",
     "themeApplied": "Đã áp dụng chủ đề: {{themeName}}",
     "aiThemeUpdated": "Đã cập nhật chủ đề AI: {{themeName}}",
@@ -2029,8 +2027,6 @@ export default {
     "yourPlaylists": "Danh sách phát",
     "searchPlaceholder": "Tìm kiếm âm nhạc...",
     "songs": "bài hát",
-    "loginTitle": "Quét bằng ứng dụng Netease",
-    "loginNote": "Mở ứng dụng Netease Music > Khám phá > Quét mã QR",
     "loginCodeWaiting": "Đang chờ xác nhận trên trình duyệt",
     "loginBrowserOpen": "Mở lại trình duyệt",
     "loginBrowserLoading": "Đang mở trình duyệt…",
@@ -2176,11 +2172,6 @@ export default {
     "exploreRecent": "Phát gần đây",
     "exploreAgain": "Nghe lại",
     "exploreSimilar": "Tương tự với «{{name}}»",
-    "neteaseDailyPlaylists": "Danh sách phát đề xuất hàng ngày",
-    "neteaseCharts": "Bảng xếp hạng",
-    "neteaseNewSongs": "Bài hát mới",
-    "neteaseNewAlbums": "Album mới",
-    "neteaseHotPlaylists": "Danh sách phát thịnh hành",
     "personalFm": "FM cá nhân",
     "dailyRecommendations": "Gợi ý hàng ngày",
     "dailyRecommendationsDescription": "Bản phối hàng ngày dành riêng cho bạn",
@@ -2266,11 +2257,7 @@ export default {
     "listenCount_other": "Đã nghe {{count}} lần"
   },
   "lyricProvider": {
-    "netease": "NetEase Cloud Music",
     "amll": "AMLLDB",
-  },
-  "onlineProviderName": {
-    "netease": "NetEase",
   },
   "globalLyricOffset": {
     "title": "Độ lệch thời gian toàn cục",
@@ -5127,8 +5114,6 @@ export default {
     "usingServerPreset": "Dùng tài khoản đặt sẵn của máy chủ",
     "restoreServerPreset": "Dùng đặt sẵn của máy chủ",
     "restoreServerPresetFailed": "Không thể kết nối cấu hình máy chủ sẵn có. Thử lại sau.",
-    "cloudDrive": "Ổ đĩa đám mây",
-    "cloudDriveDesc": "Ổ đĩa NetEase Cloud Music",
   },
   "hifi": {
     "settings": {
@@ -5490,6 +5475,12 @@ export default {
       "title": "Ở lại vị trí hiện tại",
       "description": "Nút Phát chỉ bắt đầu phát nhạc. Bạn vẫn ở lại thư viện, thẻ bài hát chuyển thành tạm dừng / tiếp tục."
     }
+  },
+  "sourcesOnboarding": {
+    "title": "Bạn nghe nhạc trên những nền tảng nào?",
+    "description": "Đánh dấu các nền tảng bạn dùng để nghe nhạc. Nền tảng không được đánh dấu sẽ không có trong bộ chuyển, cửa sổ đăng nhập và tìm kiếm, cũng không chạy nền. Không chọn nền tảng nào cũng được: nhạc cục bộ vẫn phát bình thường.",
+    "matchingNote": "Vẫn được giữ dù không đánh dấu, chỉ để khớp lời bài hát và thông tin cho bài hát cục bộ.",
+    "settingsHint": "Có thể đổi sau tại Tùy chọn → Nguồn."
   },
   "librarySuiteOnboarding": {
     "title": "Giao diện thư viện mong muốn?",

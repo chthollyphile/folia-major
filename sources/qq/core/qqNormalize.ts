@@ -12,7 +12,8 @@ import { originalQqCover } from './qqCovers';
 // sources/qq/core/qqNormalize.ts
 // QQ 的歌、账号、歌单 / 专辑 / 歌手条目读成公开契约的形状（FoliumSourceSong、FoliumSourceUser、FoliumSourceCollection）。
 // 迁之前读成宿主的 UnifiedSong 等，读法不变：
-// - 歌的 `id` 是 songmid（以前是 `sourceRef.mediaId`，播放键），数字 songid 放进 `data.songId`（歌词与详情请求用）；
+// - 歌的 `id` 是 songmid（以前是 `sourceRef.mediaId`，播放键），数字 songid 放进 `data.songId`（歌词与详情请求用），
+//   也作 `publicId`：宿主的歌 id 与 folium.omni 给别的模组的 `FoliumSong.id` 照旧是数字 songid（维护者 2026-11-20 定）；
 //   `lyricIds.qq` 也是 songmid（宿主写回顶层的 `qqMid`）。
 // - 专辑与歌手的 id 是 mid；上游没给 mid 时 `ref: false`（以前不带 catalogRef），界面不把它当成能打开的。
 // - 宿主交回来的歌和集合是同一个形状（`data` 就是以前的 providerData），所以这里也读它，缓存回填照样幂等。
@@ -148,6 +149,8 @@ export const normalizeQqSong = (raw: unknown): FoliumSourceSong => {
 
     return {
         id: songMid || String(songId),
+        // The id mods have always known a QQ song by (folium.omni's FoliumSong.id, since Folium 1.7): the numeric songid.
+        ...(songMid && typeof songId === 'number' ? { publicId: String(songId) } : {}),
         title: name,
         artists: normalizeArtists(item),
         album: albumRef,

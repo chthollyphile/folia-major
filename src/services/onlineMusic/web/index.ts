@@ -1,7 +1,6 @@
-import type { OnlineMusicProvider, OnlineProviderId } from '../../../types/onlineMusic';
-import { registerOnlineMusicProvider } from '../providerRegistry';
+import type { OnlineProviderId } from '../../../types/onlineMusic';
 import { registerWebSource as registerKugouWebSource } from './kugou';
-import { createNeteaseWebSource } from './netease';
+import { registerWebSource as registerNeteaseWebSource } from './netease';
 import { registerWebSource as registerQqWebSource } from './qq';
 
 // src/services/onlineMusic/web/index.ts
@@ -10,12 +9,10 @@ import { registerWebSource as registerQqWebSource } from './qq';
 // each (web/<id>.ts), on the same registry the desktop's source mods reach through the adapter. The other six
 // platforms are desktop-only and have no file here.
 //
-// Each web/<id>.ts registers its platform. Until the platform moves to sources/<id>/ that is the host's own provider,
-// the one providerRegistry.ts registers statically (so registering it here again changes nothing). When it moves,
-// providerRegistry.ts drops it and web/<id>.ts builds it from sources/<id>/core (createSource with the web env: the
-// HTTP transport on VITE_*_API_BASE and the page store providerStorage also reads) and registers it through the
-// adapter, with registerFoliumWebSource (foliumWebSource.ts); only this folder may import sources/*/core (Dedicatus
-// rule, dev/dedicatus/rules.mjs).
+// Each web/<id>.ts builds its platform from sources/<id>/core (createSource with the web env: the HTTP transport on
+// VITE_*_API_BASE and the page store providerStorage also reads) and registers it through the adapter, with
+// registerFoliumWebSource (foliumWebSource.ts); only this folder may import sources/*/core (Dedicatus rule,
+// dev/dedicatus/rules.mjs).
 //
 // bootstrap.tsx calls registerWebSources() where there is no mod bridge (the web build, and the browser preview on
 // the dev server); the desktop gets these platforms from their source mods.
@@ -26,14 +23,9 @@ export interface WebSource {
     register(): void;
 }
 
-// A platform still in the host: its own provider, registered as it is.
-const hostProvider = (create: () => OnlineMusicProvider) => () => {
-    registerOnlineMusicProvider(create());
-};
-
 /** The web build's platforms, in the order the lists show them (the registry orders them anyway). */
 export const WEB_SOURCES: readonly WebSource[] = [
-    { id: 'netease', register: hostProvider(createNeteaseWebSource) },
+    { id: 'netease', register: () => { registerNeteaseWebSource(); } },
     { id: 'kugou', register: () => { registerKugouWebSource(); } },
     { id: 'qq', register: () => { registerQqWebSource(); } },
 ];

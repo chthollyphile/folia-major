@@ -276,11 +276,12 @@ describe('qqProvider', () => {
         expect(qqProvider.catalog?.getSubscriptionStatus).toBeTypeOf('function');
     });
 
-    it('normalizes a song onto songmid identity and keeps the numeric id in provider data', () => {
+    it('normalizes a song onto songmid identity and keeps the numeric id as its id and in provider data', () => {
         const song = normalizeQqSong(SEARCH_ITEM);
 
+        // The host song's id is the numeric songid (what mods get as FoliumSong.id); its mediaId is the songmid.
         expect(song).toMatchObject({
-            id: '003rJSwm3TechU',
+            id: '5105918',
             name: '海阔天空',
             qqMid: '003rJSwm3TechU',
             durationMs: 326_000,
@@ -996,8 +997,8 @@ describe('qqProvider', () => {
                 expect(request.param.song_id).toBe(Number(String(id).trim()));
                 expect(request.param).not.toHaveProperty('song_mid');
                 expect(song).toMatchObject(String(id).trim() === '97773'
-                    ? { id: '0039MnYb0qxYhV', name: '晴天', sourceRef: { providerData: { songId: 97773 } } }
-                    : { id: '003rJSwm3TechU', sourceRef: { providerData: { songId: 5105918 } } });
+                    ? { id: '97773', name: '晴天', sourceRef: { mediaId: '0039MnYb0qxYhV', providerData: { songId: 97773 } } }
+                    : { id: '5105918', sourceRef: { mediaId: '003rJSwm3TechU', providerData: { songId: 5105918 } } });
             }
             expect(requestMock).not.toHaveBeenCalled();
         });

@@ -26,7 +26,7 @@ export default {
     "run_mod-off": "Mod-nya dimatikan di halaman Mod, jadi status ini belum berlaku",
     "runFailed": "Gagal dimulai: {{error}}",
     "usage": "Data {{data}} · cache {{cache}}",
-    "hostNote": "Platform ini belum menjadi mod sumber; aplikasi mendaftarkannya sendiri. Menonaktifkannya atau menyimpannya hanya untuk pencocokan hanya mengubah tempat ia muncul: bagiannya di proses utama tidak terpengaruh dan berjalan seperti biasa (layanan lokal NetEase Cloud Music berjalan bersama aplikasi). Hapus data baru tersedia setelah ia menjadi mod; untuk menghapus login sekarang, aktifkan dulu, lalu keluar di jendela masuk.",
+    "hostNote": "Platform ini belum menjadi mod sumber; aplikasi mendaftarkannya sendiri. Menonaktifkannya atau menyimpannya hanya untuk pencocokan hanya mengubah tempat ia muncul: bagiannya di proses utama tidak terpengaruh dan berjalan seperti biasa. Hapus data baru tersedia setelah ia menjadi mod; untuk menghapus login sekarang, aktifkan dulu, lalu keluar di jendela masuk.",
     "matchingNote": "Hanya untuk pencocokan: tidak muncul di pengalih, jendela masuk, pencarian, atau palet perintah; ia hanya mencocokkan lirik dan info lagu lokal, selalu seolah tidak ada yang masuk. Login Anda tetap tersimpan dan kembali saat diaktifkan.",
     "clearNote": "Hapus data akan keluar dan menghapus sesi, rahasia, cache, dan folder data mod-nya; daftar yang dihapus ditampilkan dan Anda ditanya dulu. Ini berbeda dari menonaktifkan, yang tidak menyentuh data.",
     "clearData": "Hapus data",
@@ -709,8 +709,6 @@ export default {
     "unmarkedPureMusic": "Tanda instrumental dihapus; lirik akan dicocokkan otomatis saat diputar berikutnya",
     "bestLyricsMatchFailed": "Gagal mencocokkan lirik terbaik",
     "noSongPlaying": "Tidak ada lagu yang diputar",
-    "neteaseApiStartupFailed": "API NetEase gagal dijalankan. Beberapa fitur online tidak tersedia.",
-    "neteaseApiStartupFailedDetail": "API NetEase gagal dijalankan, sebagian fitur online tidak tersedia: {{reason}}",
     "generatingTheme": "AI sedang membuat tema...",
     "themeApplied": "Tema diterapkan: {{themeName}}",
     "aiThemeUpdated": "Tema AI diperbarui: {{themeName}}",
@@ -2029,8 +2027,6 @@ export default {
     "yourPlaylists": "Playlist Anda",
     "searchPlaceholder": "Cari musik...",
     "songs": "lagu",
-    "loginTitle": "Pindai dengan Aplikasi Netease",
-    "loginNote": "Buka Aplikasi Netease Music > Discover > Pindai QR",
     "loginCodeWaiting": "Menunggu konfirmasi di browser",
     "loginBrowserOpen": "Buka browser lagi",
     "loginBrowserLoading": "Membuka browser...",
@@ -2176,11 +2172,6 @@ export default {
     "exploreRecent": "Baru diputar",
     "exploreAgain": "Putar lagi",
     "exploreSimilar": "Mirip dengan {{name}}",
-    "neteaseDailyPlaylists": "Playlist harian untuk Anda",
-    "neteaseCharts": "Tangga lagu",
-    "neteaseNewSongs": "Lagu baru",
-    "neteaseNewAlbums": "Album baru",
-    "neteaseHotPlaylists": "Playlist populer",
     "personalFm": "FM Pribadi",
     "dailyRecommendations": "Rekomendasi Harian",
     "dailyRecommendationsDescription": "Campuran harian yang dibuat khusus untuk Anda",
@@ -2266,11 +2257,7 @@ export default {
     "listenCount_other": "Diputar {{count}} kali"
   },
   "lyricProvider": {
-    "netease": "NetEase Cloud Music",
     "amll": "AMLLDB"
-  },
-  "onlineProviderName": {
-    "netease": "NetEase",
   },
   "globalLyricOffset": {
     "title": "Offset Waktu Global",
@@ -5126,8 +5113,6 @@ export default {
     "usingServerPreset": "Menggunakan akun preset server",
     "restoreServerPreset": "Gunakan preset server",
     "restoreServerPresetFailed": "Tidak dapat mengambil preset server. Coba lagi nanti.",
-    "cloudDrive": "Cloud Drive",
-    "cloudDriveDesc": "NetEase Cloud Music Drive",
   },
   "hifi": {
     "settings": {
@@ -5489,6 +5474,12 @@ export default {
       "title": "Tetap di sini",
       "description": "Putar hanya memulai lagu. Anda tetap di pustaka, dan tombol putar pada kartu yang ditekan berubah menjadi jeda / lanjut."
     }
+  },
+  "sourcesOnboarding": {
+    "title": "Anda mendengarkan musik di platform mana saja?",
+    "description": "Centang platform tempat Anda memutar musik. Yang tidak dicentang tidak muncul di pengalih, jendela masuk, dan pencarian, serta tidak berjalan di latar belakang. Tidak mencentang satu pun juga boleh: musik lokal tetap bisa diputar.",
+    "matchingNote": "Tetap disimpan meski tidak dicentang, hanya untuk mencocokkan lirik dan info lagu lokal.",
+    "settingsHint": "Anda bisa mengubahnya nanti di Opsi → Sumber."
   },
   "librarySuiteOnboarding": {
     "title": "Pustaka mau tampil seperti apa?",
