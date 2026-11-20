@@ -108,7 +108,6 @@ export const PLATFORM_NAME_PLACES: Record<string, PlatformNamePlace> = {
     'src/types/localLibrary.ts': { n: { netease: 1, qq: 1, kugou: 1, spotify: 2 }, kind: 'doc' },
     'src/types/onlineMusic.ts': { n: { netease: 3, qq: 1, ytm: 5, spotify: 3 }, kind: 'list', why: 'the type of a platform id, and the platform that is active where none was chosen' },
     'src/utils/appPlaybackGuards.ts': { n: { netease: 1 }, kind: 'stored', why: 'the platform of a stored song that names none' },
-    'src/utils/appPlaybackHelpers.ts': { n: { kugou: 3 }, kind: 'stored', why: 'URL hosts' },
     'src/utils/consoleLogBuffer.ts': { n: { kugou: 1 }, kind: 'doc' },
     'src/utils/coverUrl.ts': { n: { netease: 3, qq: 3, kugou: 3 }, kind: 'question', why: 'how each platform\'s picture host is asked for a size; the code has only the URL to go by; raised by the upstream merge 2026-10-17; the built-in rules of the cover registry until each source declares its own (Folium 2.0 S3), and the web proxy\'s host check moved here from coverCache.ts (S1)' },
     'src/utils/fmQueue.ts': { n: { qq: 1 }, kind: 'doc' },

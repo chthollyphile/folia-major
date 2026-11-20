@@ -3,6 +3,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { resolveSongCatalogRef } from '@/services/onlineMusic/catalogRefs';
 import { createProviderSongMetadata } from '@/utils/songMetadata';
+import { kugouPlaybackUrl } from '../../../sources/kugou/core/kugouProvider';
 import { answerKugouRequests, hostKugouSong, kugouHttpAnswer, lazyKugou, signInKugouHint } from '../helpers/kugouSource';
 
 // test/unit/onlineMusic/kugouProvider.test.ts
@@ -2130,5 +2131,19 @@ describe('kugouProvider', () => {
             code: 'invalid-response',
         });
         expect(requestMock).not.toHaveBeenCalledWith('playlist_tracks_add', expect.anything());
+    });
+});
+
+describe('kugouPlaybackUrl', () => {
+    it('plays an http address of the file hosts as given on the desktop, over https on the web', () => {
+        const url = 'http://fs.youthandroid2.kugou.com/path/song.mp3';
+        expect(kugouPlaybackUrl(url, 'electron')).toBe(url);
+        expect(kugouPlaybackUrl(url, 'web')).toBe('https://fs.youthandroid2.kugou.com/path/song.mp3');
+    });
+
+    it('leaves other hosts, https addresses and what is not a URL alone', () => {
+        expect(kugouPlaybackUrl('http://other.kugou.com/song.mp3', 'web')).toBe('http://other.kugou.com/song.mp3');
+        expect(kugouPlaybackUrl('https://fs.youthandroid2.kugou.com/song.mp3', 'web')).toBe('https://fs.youthandroid2.kugou.com/song.mp3');
+        expect(kugouPlaybackUrl('not a url', 'web')).toBe('not a url');
     });
 });
