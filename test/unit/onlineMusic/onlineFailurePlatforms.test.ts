@@ -10,6 +10,8 @@ import type { UnifiedSong } from '@/types';
 import type { OnlineFailureOperation, OnlineProviderId, ProviderCollection } from '@/types/onlineMusic';
 import { setBuiltinSourceRpc } from '../helpers/builtinSources';
 import { answerQqBackend } from '../helpers/qqSource';
+import { answerNeteaseBackend, type NeteaseBackendStatusAnswer } from '../helpers/neteaseSource';
+import { noteNeteaseBackendStatus } from '../../../sources/netease/core';
 
 // test/unit/onlineMusic/onlineFailurePlatforms.test.ts
 // Which case each platform's own failure to give a song's audio or a collection's tracks sorts
@@ -79,11 +81,24 @@ afterEach(() => {
     vi.unstubAllEnvs();
 });
 
+// NetEase's local service is the API in its source mod's main entry: the rpc `status` / `restart` answer for it here. A
+// running one's port is kept by the source until it is told of a change: each case forgets it.
+let neteaseBackendOff: (() => void) | null = null;
+const neteaseBackend = (answer: NeteaseBackendStatusAnswer = {}) => {
+    neteaseBackendOff?.();
+    const made = answerNeteaseBackend(answer);
+    neteaseBackendOff = made.off;
+    return made;
+};
+afterEach(() => {
+    neteaseBackendOff?.();
+    neteaseBackendOff = null;
+    noteNeteaseBackendStatus(null);
+});
+
 describe('NetEase', () => {
     // The desktop app: the local service's port, or none while it is down.
-    const desktop = (port: number | null) => vi.stubGlobal('window', {
-        electron: { getNeteasePort: async () => port, getNeteaseApiStatus: async () => ({ status: port ? 'running' : 'error' }) },
-    });
+    const desktop = (port: number | null) => neteaseBackend({ port });
     const song = songOf('netease', '42');
 
     it('local-service-stopped: the local service is not listening', async () => {
@@ -95,14 +110,15 @@ describe('NetEase', () => {
     it('unreachable: the local service could not start for want of the network; once it is back, the next request starts it', async () => {
         let port: number | null = null;
         let status: Record<string, unknown> = { status: 'error', port: null, error: 'getaddrinfo ENOTFOUND interface.music.163.com', offline: true, updatedAt: 1 };
-        // Still down: the main process answers the status as it is (too soon, or the start failed again).
-        const restartNeteaseApi = vi.fn(async (_reason?: string) => status);
-        vi.stubGlobal('window', { electron: { getNeteasePort: async () => port, getNeteaseApiStatus: async () => status, restartNeteaseApi } });
+        // Still down: the main entry answers the status as it is (too soon, or the start failed again).
+        const backend = neteaseBackend();
+        backend.status.mockImplementation(() => status);
+        const restartNeteaseApi = backend.restart.mockImplementation(() => status);
         expect((await audio(song)).id).toBe('unreachable');
         expect(restartNeteaseApi).toHaveBeenCalledExactlyOnceWith('needed');
 
         // The network is back: the start the next request asks for comes up, and the request goes through.
-        restartNeteaseApi.mockImplementationOnce(async () => {
+        restartNeteaseApi.mockImplementationOnce(() => {
             port = 35001;
             status = { status: 'running', port, error: null, offline: false, updatedAt: 2 };
             return status;

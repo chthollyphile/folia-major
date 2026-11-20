@@ -227,7 +227,8 @@ describe('folium.omni.listProviders', () => {
         expect(providers[0]).toEqual({
             providerId: 'netease',
             displayName: 'NetEase Cloud Music',
-            shortName: '网易云',
+            // The source mod's own short name, in the language of the page (the tests run in English).
+            shortName: 'NetEase',
             origin: 'host',
             selected: true,
             configured: true,
@@ -297,7 +298,7 @@ describe('folium.omni.searchSongs', () => {
         expect(Object.isFrozen(page.items)).toBe(true);
         expect(Object.isFrozen(page.items[0])).toBe(true);
         // The refs work with playSong and enqueue: they resolve to the host songs.
-        expect(resolveFoliumSongRef(page.items[0].ref)).toMatchObject({ id: 1, sourceRef: { kind: 'online', providerId: 'netease', mediaId: '1' } });
+        expect(resolveFoliumSongRef(page.items[0].ref)).toMatchObject({ id: '1', sourceRef: { kind: 'online', providerId: 'netease', mediaId: '1' } });
     });
 
     it('searches the source named, a mod\'s included, and rejects unsupported where there is no search', async () => {

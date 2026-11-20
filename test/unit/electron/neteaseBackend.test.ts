@@ -14,6 +14,8 @@ const { createNeteaseBackend } = require('../../../sources/netease/main/neteaseB
         getStatus: () => any;
         getPort: () => number | null;
         getDiagnostics: () => Promise<any>;
+        preload: () => void;
+        stop: () => Promise<void>;
     };
 };
 
@@ -77,8 +79,16 @@ describe('NetEase backend load boundary', () => {
 class FakeWorker extends EventEmitter {
     posted: any[] = [];
 
+    terminated = 0;
+
     postMessage(message: any) {
         this.posted.push(message);
+    }
+
+    async terminate() {
+        this.terminated += 1;
+        this.emit('exit', 1);
+        return 1;
     }
 }
 
@@ -103,7 +113,7 @@ describe('NetEase backend on the main thread', () => {
             const message = worker.posted[worker.posted.length - 1];
             worker.emit('message', { type: 'result', id: message.id, ...value });
         };
-        return { backend, fakes, answer, advance: (ms: number) => { clock += ms; } };
+        return { backend, fakes, answer, broadcast, advance: (ms: number) => { clock += ms; } };
     };
 
     it('runs on the port the worker listened on, and goes down when the worker ends', async () => {
@@ -131,5 +141,34 @@ describe('NetEase backend on the main thread', () => {
         advance(10_000);
         void backend.start('needed');
         expect(fakes[0].posted).toHaveLength(2);
+    });
+
+    // The source mod stops or the app quits (main/index.ts): the thread ends and the state goes back to idle. After
+    // that nothing starts it again: a start answers the state as it is, a preload opens no thread.
+    it('ends the worker when stopped, says idle, and starts nothing after', async () => {
+        const { backend, fakes, answer, broadcast } = setup();
+        const started = backend.start();
+        answer({ ok: true, value: { port: 4321 } });
+        await started;
+
+        await backend.stop();
+        expect(fakes[0].terminated).toBe(1);
+        expect(backend.getStatus()).toMatchObject({ status: 'idle', port: null, error: null });
+        expect(backend.getPort()).toBeNull();
+        expect(broadcast).toHaveBeenLastCalledWith('netease-api-status-changed', expect.objectContaining({ status: 'idle' }));
+
+        await expect(backend.start('needed')).resolves.toMatchObject({ status: 'idle' });
+        backend.preload();
+        expect(fakes).toHaveLength(1);
+        expect(fakes[0].posted).toHaveLength(1);
+    });
+
+    it('stopped while a start waits, ends that start too', async () => {
+        const { backend, fakes } = setup();
+        const started = backend.start();
+        await backend.stop();
+        await expect(started).resolves.toMatchObject({ status: expect.any(String) });
+        expect(fakes[0].terminated).toBe(1);
+        expect(backend.getStatus()).toMatchObject({ status: 'idle' });
     });
 });

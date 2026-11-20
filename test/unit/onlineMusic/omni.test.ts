@@ -1,3 +1,4 @@
+// @builtin-sources
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { saveProviderAccountSnapshot } from '@/services/onlineMusic/providerAccountCache';
 import { omni, PLAYLIST_ADD_BATCH } from '@/services/onlineMusic/omni';

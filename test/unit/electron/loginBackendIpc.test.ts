@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
 // test/unit/electron/loginBackendIpc.test.ts
-// 宿主里只剩网易云的内嵌后端；搬成音源模组的平台（QQ 音乐等）由各自的 main 入口经 api.diagnostics 登记。
+// 宿主不再有自己的内嵌后端（网易云是最后一个，2026-11-20 搬进 sources/netease/main）：所有后端都由音源模组的 main 入口
+// 经 api.diagnostics 登记到这张表，宿主只剩诊断快照与自检两个通道。
 
 const { createLoginDiagnosticsRegistry, registerLoginBackendIpc } = require('../../../electron/loginBackendIpc.cjs') as {
     registerLoginBackendIpc: (options: Record<string, unknown>) => {
@@ -15,9 +16,7 @@ const { createLoginDiagnosticsRegistry, registerLoginBackendIpc } = require('../
 };
 
 const createBackend = (providerId: string) => ({
-    getPort: vi.fn(() => (providerId === 'netease' ? 4100 : null)),
     getStatus: vi.fn(() => ({ status: providerId === 'netease' ? 'running' : 'error', port: null, error: null, updatedAt: 1 })),
-    start: vi.fn(async () => ({ status: 'running', port: 4100, error: null, updatedAt: 2 })),
     // 网易的要问工作线程（异步），别的可以当场给（同步）。
     getDiagnostics: vi.fn<() => object | Promise<object>>(() => ({ backend: { status: 'running' }, startup: [], connections: [] })),
     selfCheckHosts: [`${providerId}.example`],
@@ -27,6 +26,9 @@ const setup = () => {
     const handlers = new Map<string, (...args: any[]) => unknown>();
     const ipcMain = { handle: vi.fn((channel: string, handler: (...args: any[]) => unknown) => handlers.set(channel, handler)) };
     const netease = createBackend('netease');
+    // 网易云模组的 main 入口经 api.diagnostics.register 登记它的后端。
+    const diagnostics = createLoginDiagnosticsRegistry();
+    diagnostics.register('netease', netease);
     const runSelfCheck = vi.fn(async (options: Record<string, unknown>) => ({ providerId: options.providerId }));
     const resolveProxy = vi.fn(async () => 'DIRECT');
     const isTrustedSender = vi.fn((event: { sender?: { id: number } }) => event?.sender?.id === 1);
@@ -35,7 +37,7 @@ const setup = () => {
         app: { getVersion: () => '0.7.14-test', getLocale: () => 'zh-CN' },
         safeStorage: { isEncryptionAvailable: () => true, getSelectedStorageBackend: () => 'gnome_libsecret' },
         getDefaultSession: () => ({ resolveProxy }),
-        neteaseBackend: netease,
+        diagnostics,
         runSelfCheck,
         isTrustedSender,
     });
@@ -47,15 +49,9 @@ const setup = () => {
 };
 
 describe('login backend IPC', () => {
-    it('serves ports, status and the NetEase restart from the backends', async () => {
-        const { handlers, invoke, netease } = setup();
-        expect([...handlers.keys()].sort()).toEqual([
-            'get-login-diagnostics', 'get-netease-api-status', 'get-netease-port',
-            'restart-netease-api', 'run-login-self-check',
-        ]);
-        expect(invoke('get-netease-port')).toBe(4100);
-        await expect(invoke('restart-netease-api', 'needed')).resolves.toMatchObject({ status: 'running' });
-        expect(netease.start).toHaveBeenCalledExactlyOnceWith('needed');
+    it('serves only the diagnostics and self-check channels: ports, status and restarts are the rpc of each source mod', () => {
+        const { handlers } = setup();
+        expect([...handlers.keys()].sort()).toEqual(['get-login-diagnostics', 'run-login-self-check']);
     });
 
     it('builds the diagnostics snapshot from the app environment and that backend', async () => {
@@ -74,7 +70,7 @@ describe('login backend IPC', () => {
             },
             backend: { status: 'running' },
         });
-        // 搬成模组的平台不在宿主的表里（它们的 main 入口自己登记）。
+        // 没登记的平台没有快照。
         await expect(invoke('get-login-diagnostics', 'qq')).resolves.toBeNull();
         await expect(invoke('get-login-diagnostics', 'kugou')).resolves.toBeNull();
         await expect(invoke('get-login-diagnostics', 'constructor')).resolves.toBeNull();
@@ -100,19 +96,14 @@ describe('login backend IPC', () => {
         await expect(invoke('run-login-self-check', 'kugou')).resolves.toBeNull();
     });
 
-    it('fail closed: untrusted senders get no port, no status, no diagnostics and no restart', async () => {
-        const { handlers, netease, untrustedEvent } = setup();
+    it('fail closed: untrusted senders get no diagnostics and no self-check', () => {
+        const { handlers, netease, runSelfCheck, untrustedEvent } = setup();
         const invokeUntrusted = (channel: string, ...args: unknown[]) => handlers.get(channel)!(untrustedEvent, ...args);
 
-        expect(invokeUntrusted('get-netease-port')).toBeNull();
-        expect(invokeUntrusted('get-netease-api-status')).toBeNull();
         expect(invokeUntrusted('get-login-diagnostics', 'netease')).toBeNull();
         expect(invokeUntrusted('run-login-self-check', 'netease')).toBeNull();
-        // restart 是写通道：直接拒，且后端没有被触碰。
-        // ipcMain.handle 会把 handler 的异常变成 renderer 侧的 rejection；测试里是直接调用，断言同步抛错。
-        expect(() => invokeUntrusted('restart-netease-api')).toThrow(/Untrusted renderer/);
-        expect(netease.start).not.toHaveBeenCalled();
-        expect(netease.getPort).not.toHaveBeenCalled();
+        expect(netease.getDiagnostics).not.toHaveBeenCalled();
+        expect(runSelfCheck).not.toHaveBeenCalled();
     });
 
     it('fail closed even harder: no isTrustedSender injected at all means everything is untrusted', async () => {
@@ -123,14 +114,17 @@ describe('login backend IPC', () => {
             app: { getVersion: () => '0.7.14-test', getLocale: () => 'zh-CN' },
             safeStorage: { isEncryptionAvailable: () => true },
             getDefaultSession: () => ({ resolveProxy: vi.fn(async () => 'DIRECT') }),
-            neteaseBackend: createBackend('netease'),
+            diagnostics: (() => {
+                const registry = createLoginDiagnosticsRegistry();
+                registry.register('netease', createBackend('netease'));
+                return registry;
+            })(),
         });
         const invokeUntrusted = (channel: string, ...args: unknown[]) => handlers.get(channel)!({ sender: { id: 1 } }, ...args);
 
         // 没人注入判据时连"第一方窗口"也拿不到数据：宁可不工作，不静默放开。
-        expect(invokeUntrusted('get-netease-port')).toBeNull();
-        // ipcMain.handle 会把 handler 的异常变成 renderer 侧的 rejection；测试里是直接调用，断言同步抛错。
-        expect(() => invokeUntrusted('restart-netease-api')).toThrow(/Untrusted renderer/);
+        expect(invokeUntrusted('get-login-diagnostics', 'netease')).toBeNull();
+        expect(invokeUntrusted('run-login-self-check', 'netease')).toBeNull();
     });
 });
 
@@ -148,7 +142,6 @@ describe('login diagnostics registry', () => {
             app: { getVersion: () => '2.0.0-test', getLocale: () => 'en' },
             safeStorage: { isEncryptionAvailable: () => true },
             getDefaultSession: () => ({ resolveProxy: vi.fn(async () => 'DIRECT') }),
-            neteaseBackend: createBackend('netease'),
             diagnostics,
             runSelfCheck,
             isTrustedSender: () => true,
@@ -157,7 +150,7 @@ describe('login diagnostics registry', () => {
 
         await expect(invoke('get-login-diagnostics', 'folium.mod.radio')).resolves.toMatchObject({ providerId: 'folium.mod.radio', backend: { status: 'running' } });
         await expect(invoke('run-login-self-check', 'folium.mod.radio')).resolves.toMatchObject({ providerId: 'folium.mod.radio', hosts: ['folium.mod.radio.example'] });
-        // The backend passed beside a registry is not looked up for diagnostics: the registry is the one table.
+        // Only what registered is answered.
         await expect(invoke('get-login-diagnostics', 'netease')).resolves.toBeNull();
 
         unregister();
@@ -180,7 +173,6 @@ describe('login diagnostics registry', () => {
             app: { getVersion: () => '2.0.0-test', getLocale: () => 'en' },
             safeStorage: { isEncryptionAvailable: () => false },
             getDefaultSession: () => null,
-            neteaseBackend: createBackend('netease'),
             diagnostics,
             networkRecorder,
             runSelfCheck,

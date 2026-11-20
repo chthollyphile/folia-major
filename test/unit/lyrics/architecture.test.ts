@@ -41,9 +41,11 @@ describe('D113 lyrics architecture', () => {
             'src/utils/lyrics/lyricMatchSources.ts',
         ];
 
+        // The NetEase source mod hands its tracks as NetEase gave them (neteaseLyricsOf); the host parses them
+        // (lyricsSource.ts), so the mod names no parser and decides no chorus itself.
         for (const file of directProcessingCallSites) {
             const content = await readRepoFile(file);
-            expect(content, `${file} should use shared Netease processing`).toContain('processNeteaseLyrics');
+            expect(content, `${file} should hand NetEase's tracks as they are`).toContain('neteaseLyricsOf');
             expect(content, `${file} should not import legacy parsers`).not.toMatch(/lrcParser|yrcParser/);
             expect(content, `${file} should not inline chorus detection`).not.toContain('detectChorusLines');
         }

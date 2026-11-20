@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+// @builtin-sources
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.hoisted(() => {
@@ -589,8 +590,9 @@ describe('ids the host has already', () => {
         const mine = mod({ sources: [{ ...sourceInfo('a'), id: 'netease' }, { ...sourceInfo('b'), id: 'amll' }] });
         const lyrics = { getLyrics: async () => null, crossSource: {} };
         const search = { searchSongs: async () => ({ items: [], hasMore: false }) };
-        expect(() => register({ id: 'a', capabilities: { 'search@1': search, 'lyrics@1': lyrics } }, mine)).toThrow(/already exists/);
-        expect(getLyricSource('netease')).toMatchObject({ id: 'netease', metadataMatch: true });
+        // netease is the built-in NetEase source mod's (registered for this file): the second one is refused.
+        expect(() => register({ id: 'a', capabilities: { 'search@1': search, 'lyrics@1': lyrics } }, mine)).toThrow(/"netease" is registered already/);
+        expect(getLyricSource('netease')).toMatchObject({ id: 'netease', platform: true, localMetadataIdentity: true });
         const amll = register({ id: 'b', capabilities: { 'search@1': search, 'lyrics@1': lyrics } }, mine);
         expect(getLyricSource('amll')).toMatchObject({ id: 'amll', platform: false });
         amll.unregister();

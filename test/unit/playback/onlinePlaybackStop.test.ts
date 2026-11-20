@@ -85,6 +85,8 @@ const { askForSong, askedSongKeyRef, dropPlaysInFlight, startOfAskedSong } = awa
 const { mediaFailureOf, onlineFailureOf } = await import('@/services/onlineMusic/failure/onlineFailureCase');
 const { useLoginWindowStore } = await import('@/components/login/loginWindowStore');
 const { neteaseAnswerError } = await import('../../../sources/netease/core/neteaseFailure');
+// The NetEase source's errors are made through its env (createSource): the core is made for that.
+await (await import('../helpers/neteaseSource')).createNeteaseCore();
 const { hifiTransport } = await import('@/services/hifi/hifiPlayback');
 const notified = vi.mocked(notifyPlaybackFailed);
 const getSongReplacement = vi.mocked(omni.getSongReplacement);

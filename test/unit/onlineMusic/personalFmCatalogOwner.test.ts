@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 // @builtin-sources
 import { describe, expect, it } from 'vitest';
+import i18n from '@/i18n/config';
 import { omni } from '@/services/onlineMusic/omni';
 import { getOnlineMusicProvider } from '@/services/onlineMusic/providerRegistry';
 import { DEFAULT_PERSONAL_FM_CATALOG, EMPTY_PERSONAL_FM_CATALOG } from '@/services/onlineMusic/fmModes';
@@ -13,7 +14,18 @@ import { DEFAULT_PERSONAL_FM_CATALOG, EMPTY_PERSONAL_FM_CATALOG } from '@/servic
 describe('the Personal FM catalogue and its owner', () => {
     it('is NetEase\'s own answer for NetEase, the same table as before', async () => {
         expect(getOnlineMusicProvider('netease')?.recommendations?.getPersonalFmCatalog).toBeTypeOf('function');
-        await expect(omni.getPersonalFmCatalog('netease')).resolves.toBe(DEFAULT_PERSONAL_FM_CATALOG);
+        // The same table, its names now the source mod's own (folium-mod/netease:fm.*), with the same words.
+        const catalog = await omni.getPersonalFmCatalog('netease');
+        const MOD_PREFIX = 'folium-mod/netease:fm.';
+        const asHostKey = (key: string) => (key.startsWith(MOD_PREFIX) ? `personalFmMode.${key.slice(MOD_PREFIX.length)}` : key);
+        expect(JSON.parse(JSON.stringify(catalog, (field, value) => (field === 'labelKey' ? asHostKey(value) : value))))
+            .toEqual(JSON.parse(JSON.stringify(DEFAULT_PERSONAL_FM_CATALOG)));
+        for (const language of ['en', 'zh-CN']) {
+            const t = i18n.getFixedT(language);
+            for (const entry of [...catalog.modes, ...catalog.scenes, ...catalog.categories]) {
+                expect(t(entry.labelKey), entry.labelKey).toBe(t(asHostKey(entry.labelKey)));
+            }
+        }
         // NetEase has no extra radios: a station is none of its own.
         await expect(omni.getPersonalFmStationCatalog('netease', 'radio')).rejects.toMatchObject({ code: 'unsupported' });
     });

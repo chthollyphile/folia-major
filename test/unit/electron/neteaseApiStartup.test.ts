@@ -22,7 +22,7 @@ const {
         query: Record<string, unknown>,
         request: (uri: string, data: unknown, options: Record<string, unknown>) => Promise<any>,
     ) => Promise<unknown>;
-    installLoginQrCheck: () => void;
+    installLoginQrCheck: (ncmRequire: NodeJS.Require) => void;
     startsAgainWhenNeeded: (status: Record<string, unknown>, now: number) => boolean;
     waitUntilListening: (server: net.Server, timeoutMs?: number) => Promise<net.Server>;
     withQrNetworkRetry: (
@@ -409,7 +409,8 @@ describe('NetEase QR network retry', () => {
 
 describe('NetEase API sign-in check module', () => {
     it('is the app\'s own once installed, and the worker installs it before the package\'s main and server load', async () => {
-        installLoginQrCheck();
+        // The worker hands it the require of the package's root (in the app: the deps archive); here the repo's node_modules.
+        installLoginQrCheck(require);
         // The path server.js requires when it reads its module folder.
         const check = require('@neteasecloudmusicapienhanced/api/module/login_qr_check.js') as (
             query: Record<string, unknown>, request: () => Promise<unknown>,
@@ -419,9 +420,9 @@ describe('NetEase API sign-in check module', () => {
         await expect(check({ key: 'qr-key', cookie: {} }, () => Promise.reject(notThrough))).rejects.toBe(notThrough);
 
         const worker = readFileSync(new URL('../../../sources/netease/main/neteaseApiWorker.cjs', import.meta.url), 'utf8');
-        const installedAt = worker.indexOf('installLoginQrCheck();');
+        const installedAt = worker.indexOf('installLoginQrCheck(ncmRequire);');
         expect(installedAt).toBeGreaterThan(-1);
-        expect(installedAt).toBeLessThan(worker.indexOf('require(`${NCM_PACKAGE}/main`)'));
-        expect(installedAt).toBeLessThan(worker.indexOf('require(`${NCM_PACKAGE}/server`)'));
+        expect(installedAt).toBeLessThan(worker.indexOf('ncmRequire(`${NCM_PACKAGE}/main`)'));
+        expect(installedAt).toBeLessThan(worker.indexOf('ncmRequire(`${NCM_PACKAGE}/server`)'));
     });
 });

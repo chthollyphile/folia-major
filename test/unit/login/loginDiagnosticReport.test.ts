@@ -1,6 +1,7 @@
+// @builtin-sources
 import { describe, expect, it, vi } from 'vitest';
 import { buildLoginIssueUrl, diagnosticLine, formatLoginDiagnosticReport, formatLoginSelfCheck } from '@/services/onlineMusic/login/loginDiagnosticReport';
-import { formatNeteaseLoginDiagnostics } from '../../../sources/netease/core/neteaseLoginDiagnostics';
+import { formatNeteaseLoginDiagnostics, type NeteaseBackendSnapshot } from '../../../sources/netease/core/neteaseLoginDiagnostics';
 import { formatQqLoginDiagnostics } from '../../../sources/qq/core/qqLoginDiagnostics';
 import { loginCaseOf, loginFailureFacts } from '@/services/onlineMusic/login/loginFailureCase';
 import { omni } from '@/services/onlineMusic/omni';
@@ -11,7 +12,9 @@ import type { LoginDiagnosticLine, LoginSelfCheckResult } from '@/types/onlineMu
 
 const AT = Date.UTC(2026, 8, 26, 12, 0, 0);
 
-type Netease = ElectronNeteaseLoginDiagnostics;
+type Netease = NeteaseBackendSnapshot;
+// A source mod's line as the host writes it (sourceAdapter/auth.ts): `label: value`.
+const textOf = (line: { label: string; value: unknown }): string => `${line.label}: ${String(line.value)}`;
 type Login = NonNullable<Netease['login']>;
 
 // What a network interface carries, as the main process lists it: an IPv4 address, a global IPv6 one, a link-local one.
@@ -94,7 +97,7 @@ const connectionSaying: ElectronNetworkConnection = {
 
 describe('QR login diagnostic report', () => {
     it('lays out the main-process record so the swallowed NetEase code is visible', () => {
-        const lines = formatNeteaseLoginDiagnostics(snapshot, { hasLoginCookie: false, hasAnonymousCookie: true }).map(line => line.text);
+        const lines = formatNeteaseLoginDiagnostics(snapshot, { hasLoginCookie: false, hasAnonymousCookie: true }).map(textOf);
 
         expect(lines).toContain('runtime: electron (local API)');
         expect(lines).toContain('app: 1.2.3 electron 38.0.0 (node 22.20.0, chrome 140.0.7339.0) win32 x64');
@@ -102,12 +105,12 @@ describe('QR login diagnostic report', () => {
         expect(lines).toContain('session: login cookie=no, anonymous cookie=yes');
         expect(lines).toContain('network interfaces: Wi-Fi: 192.0.2.10, 2001:db8::10, 2001:db8::11');
         expect(lines).toContain(
-            '  12:00:00.000 /api/login/qrcode/client/login rejected status=400 code=8821 msg="需要行为验证码验证" 140ms ip-header=none device=…ABCDEF MUSIC_U=no MUSIC_A=yes',
+            '  login requests: 12:00:00.000 /api/login/qrcode/client/login rejected status=400 code=8821 msg="需要行为验证码验证" 140ms ip-header=none device=…ABCDEF MUSIC_U=no MUSIC_A=yes',
         );
     });
 
     it('says plainly when there is no main process to ask', () => {
-        expect(formatNeteaseLoginDiagnostics(null, { hasLoginCookie: false, hasAnonymousCookie: false })[0].text)
+        expect(textOf(formatNeteaseLoginDiagnostics(null, { hasLoginCookie: false, hasAnonymousCookie: false })[0]))
             .toBe('runtime: web (remote API, no main-process record)');
     });
 
@@ -131,10 +134,10 @@ describe('QR login diagnostic report', () => {
                     login: {
                         ...login,
                         network: { interfaces: [{ name: "Zhang San's iPhone", addresses: [{ address: '203.0.113.9', family: 4 }] }] },
-                        requests: [{ ...login.requests[0], outcome: { settled: 'rejected', status: 502, code: null, message: SAID.answer }, connections: [connectionSaying] }],
+                        requests: [{ ...login.requests?.[0], outcome: { settled: 'rejected', status: 502, code: null, message: SAID.answer }, connections: [connectionSaying] }],
                     },
-                }, { hasLoginCookie: true, hasAnonymousCookie: true }),
-                // QQ's source mod hands `{ label, value }`; the host writes each as diagnosticLine`${label}: ${value}`
+                }, { hasLoginCookie: true, hasAnonymousCookie: true }).map(line => diagnosticLine`${line.label}: ${line.value}`),
+                // NetEase's and QQ's source mods hand `{ label, value }`; the host writes each as diagnosticLine`${label}: ${value}`
                 // (sourceAdapter/auth.ts), which is what is checked here.
                 qq: () => formatQqLoginDiagnostics({
                     hasSession: true,
@@ -155,10 +158,10 @@ describe('QR login diagnostic report', () => {
                 }).map(line => diagnosticLine`${line.label}: ${line.value}`),
             };
             const declaring = listOnlineMusicProviders().filter(provider => provider.auth?.getLoginDiagnostics).map(provider => provider.id);
-            // Platforms moved to source mods (Folium 2.0 S5) are not registered here: Qishui's lines (safe stage/code
-            // fields only) are exercised in qishui/adapter.test.ts and qishui/failure.test.ts; QQ's are built above
-            // from its source mod's own writer.
-            expect(Object.keys(builders).filter(id => id !== 'qq').sort()).toEqual(declaring.sort());
+            // Every platform is a source mod now (Folium 2.0 S5), registered here through the adapter. Qishui's lines
+            // (safe stage/code fields only) are exercised in qishui/adapter.test.ts and qishui/failure.test.ts; NetEase's
+            // and QQ's are built above from their source mods' own writers.
+            expect([...Object.keys(builders), 'qishui'].sort()).toEqual(declaring.sort());
             for (const [providerId, build] of Object.entries(builders)) {
                 const report = reportOf(build());
                 expect(report, providerId).toContain('2873651094');
@@ -178,7 +181,7 @@ describe('QR login diagnostic report', () => {
                 app: { ...snapshot.app, platform: 'linux', arch: 'arm64', osRelease: '6.8.0-45-generic' },
                 backend: { status: 'error', port: null, error: "Cannot find module '@neteasecloudmusicapienhanced/api'\nRequire stack:\n- /opt/Folia/resources/app.asar/electron/neteaseApi.cjs", updatedAt: AT },
                 login: { ...login, network: interfacesOf(names.map((name, index) => ({ name, ipv4: true, globalIpv6: index % 2 === 0 }))) },
-            }, { hasLoginCookie: false, hasAnonymousCookie: false }).map(line => line.text);
+            }, { hasLoginCookie: false, hasAnonymousCookie: false }).map(textOf);
             expect(lines).toContain('app: 1.2.3 electron 38.0.0 (node 22.20.0, chrome 140.0.7339.0) linux arm64');
             expect(lines).toContain('local api: error error="Cannot find module \'@neteasecloudmusicapienhanced/api\'\\nRequire stack:\\n- /opt/Folia/resources/app.asar/electron/neteaseApi.cjs" (since 12:00:00.000)');
             // Ten interfaces, each with every address it carries.

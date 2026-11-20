@@ -21,8 +21,10 @@ vi.mock('@/services/localLibraryCatalogService', () => ({ applyMatchedMetadata: 
 vi.mock('@/services/localLibraryEntityRepository', () => ({
     getLocalLibraryCatalogSnapshot: vi.fn().mockResolvedValue({ entities: [], assignments: [] }),
 }));
-vi.mock('../../../sources/netease/core/netease', () => ({
-    neteaseApi: {
+// The module's own pure helpers stay real (the source reads songs and lyrics through them); the requests are mocked.
+vi.mock('../../../sources/netease/core/netease', async importOriginal => ({
+    ...await importOriginal<object>(),
+    neteaseApi: { ...(await importOriginal<{ neteaseApi: object }>()).neteaseApi, getChorus: vi.fn(async () => ({ code: 200, chorus: [] })),
         cloudSearch: vi.fn(),
         getLyric: vi.fn(),
         getSongDetail: vi.fn(),

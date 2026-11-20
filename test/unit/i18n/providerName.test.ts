@@ -1,3 +1,4 @@
+// @builtin-sources
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -27,16 +28,17 @@ const movedIds = new Set(listBuiltinSourceDirs().flatMap((dir) => (
 ).map((source) => source.id)));
 
 describe('provider names in the locale bundles', () => {
-    it('has a short name for every provider the host registers, in every language', () => {
-        const ids = listOnlineMusicProviders().map(provider => provider.id).filter(id => !movedIds.has(id)).sort();
+    // NetEase, the last platform the host registered itself, moved into sources/netease/ (2026-11-20): every registered
+    // provider is a source mod now, and the host's bundles keep no provider names.
+    it('every provider the host registers is a source mod, naming itself from its own locale files', () => {
+        const ids = listOnlineMusicProviders().map(provider => provider.id);
         expect(ids.length).toBeGreaterThan(0);
-        for (const bundle of [en, zhCN, ind, vi]) {
-            expect(Object.keys(names(bundle)).sort()).toEqual(ids);
-        }
+        expect(ids.filter(id => !movedIds.has(id))).toEqual([]);
     });
 
-    it('keeps the Mandarin names in the Mandarin bundle', () => {
-        const expected = { netease: '网易云', kugou: '酷狗', qq: 'QQ音乐', bodian: '波点', qishui: '汽水' };
-        expect(names(zhCN)).toMatchObject(Object.fromEntries(Object.entries(expected).filter(([id]) => !movedIds.has(id))));
+    it('leaves no provider names in the host bundles', () => {
+        for (const bundle of [en, zhCN, ind, vi]) {
+            expect(names(bundle)).toEqual({});
+        }
     });
 });
