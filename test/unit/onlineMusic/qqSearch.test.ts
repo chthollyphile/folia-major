@@ -1,23 +1,34 @@
+// @builtin-sources
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // test/unit/onlineMusic/qqSearch.test.ts
+// 经注册着的 QQ 音源模组跑（helpers/qqSource.ts），结果是宿主的形状；transport 与匿名搜歌用替身。
 
 const requestMock = vi.hoisted(() => vi.fn());
 const searchQQSongsMock = vi.hoisted(() => vi.fn());
 const transportState = vi.hoisted(() => ({ hasSession: true }));
 
-vi.mock('@/services/onlineMusic/qq/qqTransport', () => ({
+vi.mock('../../../sources/qq/core/qqTransport', async importOriginal => ({
+    ...await importOriginal<object>(),
     hasQqSession: () => transportState.hasSession,
     hasUsableQqSession: () => transportState.hasSession,
     requestQq: requestMock,
 }));
 
-vi.mock('@/services/onlineMusic/qq/qqLyricProvider', () => ({
+vi.mock('../../../sources/qq/core/qqLyricProvider', async importOriginal => ({
+    ...await importOriginal<object>(),
     searchQQSongs: searchQQSongsMock,
 }));
 
-import { resetQqSearchFallbackMemory, searchQqCollections, searchQqSongs } from '@/services/onlineMusic/qq/qqSearch';
+import { resetQqSearchFallbackMemory } from '../../../sources/qq/core/qqSearch';
+import { lazyQq } from '../helpers/qqSource';
 import { OnlineProviderError } from '@/types/onlineMusic';
+
+const qq = lazyQq();
+const searchQqSongs = (query: string, limit: number, offset: number) => qq.search!.searchSongs!(query, limit, offset);
+const searchQqCollections = (type: 'album' | 'playlist', query: string, limit: number, offset: number) => (
+    type === 'album' ? qq.search!.searchAlbums!(query, limit, offset) : qq.search!.searchPlaylists!(query, limit, offset)
+);
 
 // 后端 `/search` 原样交出的精简版搜索条目（字段按 qq-music-api 3.3.1 文档，标识符取公开曲目）。
 const LITE_ITEM = {
@@ -30,14 +41,14 @@ const LITE_ITEM = {
     file: { media_mid: '003rJSwm3TechU' },
 };
 
-// 匿名路径经歌词模块转换后的形状：只剩数字 id 与 songmid。
+// 匿名路径的结果：歌词模块已经归一成模组的歌，只剩 songmid 与数字 songid（专辑、歌手没有 mid）。
 const ANONYMOUS_RESULT = {
-    id: 5105918,
-    name: '海阔天空',
-    artists: [{ id: 4558, name: 'Beyond' }],
-    album: { id: 8112, name: '乐与怒' },
+    id: '003rJSwm3TechU',
+    title: '海阔天空',
+    artists: [{ name: 'Beyond' }],
+    album: { name: '乐与怒' },
     durationMs: 326_000,
-    qqMid: '003rJSwm3TechU',
+    data: { songId: 5105918 },
 };
 
 const rejected = () => new OnlineProviderError(

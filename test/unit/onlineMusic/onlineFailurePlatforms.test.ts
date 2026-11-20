@@ -3,12 +3,13 @@ import { createRequire } from 'node:module';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createBodianApi } from 'bodian-music-api';
 import { omni } from '@/services/onlineMusic/omni';
-import { QQ_ONLINE_REQUEST_LIMIT_MS, resetQqTransportRuntimeCache } from '@/services/onlineMusic/qq/qqTransport';
+import { QQ_ONLINE_REQUEST_LIMIT_MS, resetQqTransportRuntimeCache } from '../../../sources/qq/core/qqTransport';
 import { NETEASE_ONLINE_REQUEST_LIMIT_MS } from '@/services/onlineMusic/netease/netease';
 import { onlineFailureOf, stopsPlayback } from '@/services/onlineMusic/failure/onlineFailureCase';
 import type { UnifiedSong } from '@/types';
 import type { OnlineFailureOperation, OnlineProviderId, ProviderCollection } from '@/types/onlineMusic';
 import { setBuiltinSourceRpc } from '../helpers/builtinSources';
+import { answerQqBackend } from '../helpers/qqSource';
 
 // test/unit/onlineMusic/onlineFailurePlatforms.test.ts
 // Which case each platform's own failure to give a song's audio or a collection's tracks sorts
@@ -214,9 +215,10 @@ describe('NetEase', () => {
 });
 
 describe('QQ Music', () => {
+    // The source mod's main entry answers `status` with the embedded backend's port (none: it is not running).
     const desktop = (port: number | null) => {
         resetQqTransportRuntimeCache();
-        vi.stubGlobal('window', { electron: { getQqPort: async () => port } });
+        answerQqBackend({ port });
     };
     const song = songOf('qq', '003rJSwm3TechU');
 

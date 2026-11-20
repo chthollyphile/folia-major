@@ -45,8 +45,6 @@ export const IPC_CHANNELS = {
     'get-login-diagnostics': { level: 'first-party', why: '诊断快照只给第一方窗口，别处回 null（loginBackendIpc.cjs 的 guarded，宿主注入 isTrustedSender；#654）' },
     'get-netease-api-status': { level: 'first-party', why: '只回状态给第一方窗口，别处回 null（loginBackendIpc.cjs 的 guarded，宿主注入 isTrustedSender；#654）' },
     'get-netease-port': { level: 'first-party', why: '只回端口给第一方窗口，别处回 null（loginBackendIpc.cjs 的 guarded，宿主注入 isTrustedSender；#654）' },
-    'get-qq-api-status': { level: 'first-party', why: '只回状态给第一方窗口，别处回 null（loginBackendIpc.cjs 的 guarded，宿主注入 isTrustedSender；#654）' },
-    'get-qq-port': { level: 'first-party', why: '只回端口给第一方窗口，别处回 null（loginBackendIpc.cjs 的 guarded，宿主注入 isTrustedSender；#654）' },
     'get-settings': { level: 'first-party', why: '读主进程设置：含 OBS 令牌和各平台的会话（firstParty）' },
     'global-shortcuts-backend': { level: 'any', why: '只读全局快捷键用哪种后端' },
     'global-shortcuts-set': { level: 'first-party', why: '现状：有来源校验' },

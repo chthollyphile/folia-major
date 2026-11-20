@@ -1,0 +1,85 @@
+{
+    "name": {
+        "short": "QQ Music",
+        "lyrics": "QQ Music"
+    },
+    "login": {
+        "title": "Pindai untuk masuk ke QQ Music",
+        "titleAppScan": "Pindai dengan QQ, WeChat, atau QQ Music",
+        "note": "Pilih metode masuk yang sesuai: pindai QQ atau pindai WeChat",
+        "noteAppScan": "Mendukung 3 cara pindai: QQ, WeChat, dan QQ Music",
+        "noteWithApp": "Pilih metode masuk yang sesuai: pindai QQ atau pindai WeChat, atau gunakan pindai aplikasi QQ Music",
+        "method": {
+            "mobile": "Pindai QQ",
+            "wechat": "Pindai WeChat",
+            "qqMusic": "Pindai aplikasi QQ Music"
+        },
+        "case": {
+            "restart": "Mulai ulang Folia, lalu coba lagi",
+            "deviceLimit": "Buka aplikasi QQ Music, masuk ke Pengaturan, gulir ke paling bawah, ketuk Manajemen Perangkat dan hapus perangkat yang tidak dipakai, lalu pindai lagi",
+            "wrongScanApp": "Untuk memindai dengan aplikasi QQ Music, pilih “Pindai aplikasi QQ Music”, atau pindai kode ini dengan QQ di ponsel",
+            "wrongScanAppMobileOnly": "Pindai QQ di sini hanya bisa dengan QQ di ponsel: pindai kode ini dengan QQ di ponsel",
+            "accountBanned": "Akun ini telah diblokir dan tidak bisa masuk",
+            "accountRestricted": "Akun ini dibatasi untuk masuk untuk sementara",
+            "accountBinding": "Ada masalah pada tautan akun ini: periksa di aplikasi QQ Music"
+        }
+    },
+    "explore": {
+        "radar": "Radar lagu",
+        "dailySongs": "Rekomendasi Harian",
+        "feedForYou": "Untukmu",
+        "recommendedPlaylists": "Playlist rekomendasi",
+        "charts": "Tangga lagu",
+        "newSongs": "Lagu baru",
+        "newAlbums": "Album baru",
+        "similar": "Mirip dengan {{name}}"
+    },
+    "guessYouLike": {
+        "name": "Mungkin Kamu Suka",
+        "description": "Radio Mungkin Kamu Suka dari QQ Music; ganti mode dengar saat diputar",
+        "suggested": "Saran",
+        "other": "Lainnya"
+    },
+    "fm": {
+        "mode": {
+            "DEFAULT": "Bawaan",
+            "FAMILIAR": "Familier",
+            "EXPLORE": "Jelajah",
+            "SCENE_RCMD": "Suasana"
+        },
+        "category": {
+            "mood": "Suasana Hati",
+            "activity": "Momen",
+            "genre": "Genre",
+            "language": "Bahasa"
+        }
+    },
+    "listeningRank": {
+        "week": "Peringkat dengar · Minggu ini",
+        "weekDescription": "Peringkat QQ Music minggu ini, dihitung dari hari Senin; minggu yang belum selesai dihitung sampai hari ini",
+        "year": "Peringkat dengar · Tahunan",
+        "yearDescription": "Peringkat tahunan QQ Music, dihitung selama tahun lalu (1 Januari sampai 31 Desember)"
+    },
+    "cloud": {
+        "name": "Cloud Drive",
+        "description": "Weiyun Music Drive"
+    },
+    "preferences": {
+        "note": "Disimpan di akun; memengaruhi semua lagu yang direkomendasikan",
+        "familiarity": "Keakraban lagu",
+        "familiarityExplore": "Lebih banyak yang baru",
+        "keep": "Tetap seperti sekarang",
+        "familiarityFamiliar": "Lebih akrab",
+        "mood": "Suasana musik",
+        "moodSad": "Lebih sedih",
+        "moodHappy": "Lebih ceria",
+        "coverLive": "Cover & live",
+        "instrumental": "Instrumental",
+        "mandarin": "Mandarin",
+        "english": "Inggris",
+        "japanese": "Jepang",
+        "korean": "Korea",
+        "cantonese": "Kanton",
+        "ai": "Lagu AI"
+    }
+}

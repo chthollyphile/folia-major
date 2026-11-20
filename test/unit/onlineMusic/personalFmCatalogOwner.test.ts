@@ -29,7 +29,12 @@ describe('the Personal FM catalogue and its owner', () => {
         await expect(omni.getPersonalFmCatalog('not-registered-source')).resolves.toEqual(EMPTY_PERSONAL_FM_CATALOG);
     });
 
-    it('stays QQ\'s own answer for QQ (its Personal FM keeps the default table it always gave)', async () => {
-        await expect(omni.getPersonalFmCatalog('qq')).resolves.toBe(DEFAULT_PERSONAL_FM_CATALOG);
+    // QQ's source mod answers its Personal FM with the default mode alone (it used to hand over the whole default
+    // table): QQ declares no FM modes, so nothing showed that table, and its own radio keeps modes of its own.
+    it('stays QQ\'s own answer for QQ: the default mode alone, with no FM modes declared', async () => {
+        const catalog = await omni.getPersonalFmCatalog('qq');
+        expect(catalog.modes.map(mode => mode.id)).toEqual(['DEFAULT']);
+        expect(catalog).toMatchObject({ scenes: [], categories: [] });
+        expect(omni.getProviderCapabilities('qq').personalFmModes).toBeFalsy();
     });
 });

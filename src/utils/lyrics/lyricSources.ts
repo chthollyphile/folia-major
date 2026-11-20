@@ -58,14 +58,17 @@ export interface LyricSourceEntry {
 const BUILT_IN_ENTRIES = [
     { id: 'netease', labelKey: 'lyricProvider.netease', platform: true, localMetadataIdentity: true, metadataMatch: true },
     { id: 'amll', labelKey: 'lyricProvider.amll', platform: false },
-    { id: 'qq', labelKey: 'lyricProvider.qq', platform: true, localMetadataIdentity: true, metadataMatch: true },
 ] as const satisfies readonly LyricSourceEntry[];
 
 /** The ids of the sources the host knows by name. Any other id is a source all the same. */
 export type KnownLyricProviderSource = (typeof BUILT_IN_ENTRIES)[number]['id'];
 /** A lyric source's id: stored as text, open to sources registered later. */
 export type LyricProviderSource = KnownLyricProviderSource | (string & {});
-export type PlatformLyricSource = Extract<(typeof BUILT_IN_ENTRIES)[number], { platform: true }>['id'];
+/**
+ * A platform's lyric source: the built-in ones, or one a source mod registers (lyrics@1.crossSource), which the host
+ * does not know by name.
+ */
+export type PlatformLyricSource = Extract<(typeof BUILT_IN_ENTRIES)[number], { platform: true }>['id'] | (string & {});
 
 export interface LyricSource extends LyricSourceEntry {
     id: LyricProviderSource;
@@ -204,5 +207,5 @@ export const getPlatformLyricSource = (
     providerId: string | null | undefined,
 ): (LyricSource & { id: PlatformLyricSource }) | undefined => {
     const source = sourcesById.get(providerId);
-    return source?.platform ? source as LyricSource & { id: PlatformLyricSource } : undefined;
+    return source?.platform ? source : undefined;
 };

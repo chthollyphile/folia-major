@@ -1,0 +1,85 @@
+{
+    "name": {
+        "short": "QQ Music",
+        "lyrics": "QQ Music"
+    },
+    "login": {
+        "title": "Scan to sign in to QQ Music",
+        "titleAppScan": "Scan with QQ, WeChat, or QQ Music",
+        "note": "Choose the sign-in method matching your account: QQ scan or WeChat scan",
+        "noteAppScan": "Supports 3 ways to scan: QQ, WeChat, and QQ Music",
+        "noteWithApp": "Choose the sign-in method matching your account: QQ scan or WeChat scan, or use QQ Music app scan",
+        "method": {
+            "mobile": "QQ scan",
+            "wechat": "WeChat scan",
+            "qqMusic": "QQ Music app scan"
+        },
+        "case": {
+            "restart": "Restart Folia, then try again",
+            "deviceLimit": "Open the QQ Music app, go to Settings, scroll to the bottom, tap Device Management and remove devices you no longer use, then scan again",
+            "wrongScanApp": "To scan with the QQ Music app, choose “QQ Music app scan” instead, or scan this code with mobile QQ",
+            "wrongScanAppMobileOnly": "QQ scan here works with mobile QQ only: scan this code with mobile QQ",
+            "accountBanned": "This account has been banned and cannot sign in",
+            "accountRestricted": "This account is restricted from signing in for now",
+            "accountBinding": "This account's linking has a problem: check it in the QQ Music app"
+        }
+    },
+    "explore": {
+        "radar": "Song radar",
+        "dailySongs": "Daily Recommendations",
+        "feedForYou": "For you",
+        "recommendedPlaylists": "Recommended playlists",
+        "charts": "Charts",
+        "newSongs": "New songs",
+        "newAlbums": "New albums",
+        "similar": "Similar to {{name}}"
+    },
+    "guessYouLike": {
+        "name": "Guess You Like",
+        "description": "QQ Music's Guess You Like radio; switch its listening mode while it plays",
+        "suggested": "Suggested",
+        "other": "Other"
+    },
+    "fm": {
+        "mode": {
+            "DEFAULT": "Default",
+            "FAMILIAR": "Familiar",
+            "EXPLORE": "Explore",
+            "SCENE_RCMD": "Scene"
+        },
+        "category": {
+            "mood": "Mood",
+            "activity": "Moment",
+            "genre": "Genre",
+            "language": "Language"
+        }
+    },
+    "listeningRank": {
+        "week": "Listening rank · This week",
+        "weekDescription": "QQ Music's ranking for this week, counted from Monday; a week not over yet counts up to today",
+        "year": "Listening rank · Year",
+        "yearDescription": "QQ Music's yearly ranking, counted over all of last year (1 January to 31 December)"
+    },
+    "cloud": {
+        "name": "Cloud Drive",
+        "description": "Weiyun Music Drive"
+    },
+    "preferences": {
+        "note": "Saved on your account; affects every song recommended to you",
+        "familiarity": "Song familiarity",
+        "familiarityExplore": "More new",
+        "keep": "Keep as is",
+        "familiarityFamiliar": "More familiar",
+        "mood": "Music mood",
+        "moodSad": "Sadder",
+        "moodHappy": "Happier",
+        "coverLive": "Covers & live",
+        "instrumental": "Instrumental",
+        "mandarin": "Mandarin",
+        "english": "English",
+        "japanese": "Japanese",
+        "korean": "Korean",
+        "cantonese": "Cantonese",
+        "ai": "AI songs"
+    }
+}

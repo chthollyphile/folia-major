@@ -2,7 +2,7 @@ import type { OnlineMusicProvider, OnlineProviderId } from '../../../types/onlin
 import { registerOnlineMusicProvider } from '../providerRegistry';
 import { registerWebSource as registerKugouWebSource } from './kugou';
 import { createNeteaseWebSource } from './netease';
-import { createQqWebSource } from './qq';
+import { registerWebSource as registerQqWebSource } from './qq';
 
 // src/services/onlineMusic/web/index.ts
 // The web build's sources (Folium 2.0 plan §8). The web build has no mod runtime: it loads no mod and calls no
@@ -35,7 +35,7 @@ const hostProvider = (create: () => OnlineMusicProvider) => () => {
 export const WEB_SOURCES: readonly WebSource[] = [
     { id: 'netease', register: hostProvider(createNeteaseWebSource) },
     { id: 'kugou', register: () => { registerKugouWebSource(); } },
-    { id: 'qq', register: hostProvider(createQqWebSource) },
+    { id: 'qq', register: () => { registerQqWebSource(); } },
 ];
 
 /** Registers the web build's platforms; hands back the ids it registered. */

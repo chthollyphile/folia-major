@@ -3,7 +3,6 @@ import type { OnlineMusicProvider, OnlineProviderId, ProviderCapabilities } from
 import type { SongResult } from '../../types';
 import { getPlaybackSourceRef } from '../../utils/appPlaybackGuards';
 import { neteaseProvider } from './netease/neteaseProvider';
-import { qqProvider } from './qq/qqProvider';
 import { startsWithoutSources } from '../../dev/devLaunchFlags';
 import { announceCacheLimit } from '../audioCache';
 
@@ -177,5 +176,4 @@ export const requireOnlineMusicProviderForSong = (song: SongResult): OnlineMusic
 // moves to a source mod it leaves this list, and web/<id>.ts is where the web build gets it.
 if (!startsWithoutSources) {
     registerOnlineMusicProvider(neteaseProvider);
-    registerOnlineMusicProvider(qqProvider);
 }

@@ -211,7 +211,7 @@ describe('the trusted table of the built-in sources (§5.1)', () => {
     it('names the store keys the platform modules use', () => {
         const expected: Record<string, string[]> = {
             kugou: [constant('sources/kugou/main/kugouApiBridge.cjs', 'SESSION_KEY')!, constant('sources/kugou/main/kugouApiBridge.cjs', 'LEGACY_SESSION_KEY')!],
-            qq: [constant('electron/qq/qqAuthSessionRepository.cjs', 'SESSION_KEY')!],
+            qq: [constant('sources/qq/main/qqAuthSessionRepository.cjs', 'SESSION_KEY')!],
             bodian: [constant('sources/bodian/main/session.cjs', 'SESSION_KEY')!, constant('sources/bodian/main/session.cjs', 'DEVICE_KEY')!],
             qishui: [constant('sources/qishui/main/session.cjs', 'SESSION_KEY')!, constant('sources/qishui/main/session.cjs', 'DEVICE_KEY')!],
             ytm: [constant('sources/ytm/main/session.cjs', 'SESSION_KEY')!, constant('sources/ytm/main/webSignIn.cjs', 'WEB_SESSION_KEY')!],
@@ -230,8 +230,8 @@ describe('the trusted table of the built-in sources (§5.1)', () => {
     });
 
     it('names the partitions and userData folders main.cjs gives the platforms', () => {
-        const main = fs.readFileSync(path.join(ROOT, 'electron/main.cjs'), 'utf8');
-        expect(main).toContain("'qq-auth-state'");
+        // QQ Music is a source mod now: its main entry claims the folder of its device file through api.paths.legacy.
+        expect(fs.readFileSync(path.join(ROOT, 'sources/qq/main/index.ts'), 'utf8')).toContain("api.paths.legacy('qq-auth-state')");
         // YouTube Music is a source mod now: its main entry claims the same partitions and folder through api.*.
         const ytmMain = fs.readFileSync(path.join(ROOT, 'sources/ytm/main/index.ts'), 'utf8');
         expect(ytmMain).toContain("api.net.session('folia-ytm')");

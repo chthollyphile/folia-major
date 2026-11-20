@@ -15,7 +15,7 @@ import type { OnlineMusicProvider, ProviderCapabilities } from '@/types/onlineMu
 // and a switch of its state shows at once. One rule for a source registered at run time (as a source mod's is)
 // and for a platform the host still registers itself: only the state table decides.
 
-vi.mock('@/services/onlineMusic/qq/qqLyricProvider', () => ({ searchQQLyrics: vi.fn(async () => []), fetchQQLyrics: vi.fn(async () => null) }));
+vi.mock('../../../sources/qq/core/qqLyricProvider', () => ({ searchQQLyrics: vi.fn(async () => []), fetchQQLyrics: vi.fn(async () => null) }));
 // switchSourceState asks the main process through the mods bridge: it answers with the table it now holds.
 vi.mock('@/mods/ipc', async (importOriginal) => ({
     ...await importOriginal<Record<string, unknown>>(),

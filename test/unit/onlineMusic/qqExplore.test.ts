@@ -1,24 +1,29 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // test/unit/onlineMusic/qqExplore.test.ts
 // QQ 音乐的探索页：第一页与后面几部分各有哪些栏、栏的 id、游标、换一批（整页重读）时各栏怎么轮换。
 // 回应形状取自 qq-music-api 3.3.3 的使用文档（「刷歌模式」「相似歌曲和包含这首歌的歌单」「歌单分类、分类歌单与新歌速递」
-// 「电台」）；数字与名字是虚构示例。
+// 「电台」）；数字与名字是虚构示例。只测 core（createQqCore）：栏和条目是模组的形状，栏名是文字的键名。
 
 const requestMock = vi.hoisted(() => vi.fn());
 const transportState = vi.hoisted(() => ({ hasSession: true }));
 
-vi.mock('@/services/onlineMusic/qq/qqTransport', async importOriginal => ({
-    ...await importOriginal<typeof import('@/services/onlineMusic/qq/qqTransport')>(),
+vi.mock('../../../sources/qq/core/qqTransport', async importOriginal => ({
+    ...await importOriginal<typeof import('../../../sources/qq/core/qqTransport')>(),
     hasQqSession: () => transportState.hasSession,
     hasUsableQqSession: () => transportState.hasSession,
     requestQq: requestMock,
 }));
 
-import i18n from '@/i18n/config';
-import { createQqExplore } from '@/services/onlineMusic/qq/qqExplore';
-import { normalizeQqSong } from '@/services/onlineMusic/qq/qqNormalize';
-import { OnlineProviderError, type ProviderExploreSection } from '@/types/onlineMusic';
+import { createQqExplore } from '../../../sources/qq/core/qqExplore';
+import { normalizeQqSong } from '../../../sources/qq/core/qqNormalize';
+import type { FoliumSourceExploreSection } from '@/mods/folium/sources/contract';
+import { OnlineProviderError } from '@/types/onlineMusic';
+import { createQqCore } from '../helpers/qqSource';
+
+beforeAll(async () => {
+    await createQqCore();
+});
 
 const track = (mid: string, id: number) => ({ mid, id, name: `歌 ${mid}`, singer: [{ mid: 'singer-mid', name: '歌手' }], album: { mid: 'album-mid', name: '专辑' } });
 const tracks = (prefix: string, from: number, count: number) => Array.from({ length: count }, (_, index) => track(`${prefix}-${from + index}`, from + index));
@@ -81,8 +86,9 @@ const FEED_SHELVES = [
 ];
 
 const listened = [normalizeQqSong(track('heard-a', 11)), normalizeQqSong(track('heard-b', 12))];
-const ids = (sections: ProviderExploreSection[]) => sections.map(section => section.id);
-const titles = (sections: ProviderExploreSection[]) => sections.map(section => section.title);
+const ids = (sections: FoliumSourceExploreSection[]) => sections.map(section => section.id);
+// Titles here are text keys or the source's own words, all plain strings (createQqCore renders a key as itself).
+const titles = (sections: FoliumSourceExploreSection[]) => sections.map(section => String(section.title));
 const operations = () => requestMock.mock.calls.map(call => call[0]);
 
 // 把整页读完：第一页，再按游标读到没有下一部分。
@@ -119,16 +125,16 @@ describe('QQ explore page', () => {
             'qq-radar', 'qq-daily-songs', 'qq-feed-1', 'qq-feed-2', 'qq-feed-3', 'qq-recommended-playlists', 'qq-charts',
         ]);
         expect(titles(first.sections)).toEqual([
-            i18n.t('home.qqRadar'), i18n.t('home.dailyRecommendations'),
-            '今日为你推荐', '心动的歌曲推荐 · 种子歌', i18n.t('home.qqFeedForYou'),
-            i18n.t('home.qqRecommendedPlaylists'), i18n.t('home.qqCharts'),
+            'explore.radar', 'explore.dailySongs',
+            '今日为你推荐', '心动的歌曲推荐 · 种子歌', 'explore.feedForYou',
+            'explore.recommendedPlaylists', 'explore.charts',
         ]);
         expect(first.sections[0].items).toHaveLength(10);
-        expect(first.sections[1].items.map(item => item.kind === 'song' && item.song.qqMid)).toEqual(tracks('daily', 500, 5).map(song => song.mid));
-        expect(first.sections[2].items.map(item => item.kind === 'collection' && item.collection.id)).toEqual([700001]);
-        expect(first.sections[3].items.map(item => item.kind === 'song' && item.song.qqMid)).toEqual(['feed-a']);
+        expect(first.sections[1].items.map(item => item.kind === 'song' && item.song.id)).toEqual(tracks('daily', 500, 5).map(song => song.mid));
+        expect(first.sections[2].items.map(item => item.kind === 'collection' && item.collection.id)).toEqual(['700001']);
+        expect(first.sections[3].items.map(item => item.kind === 'song' && item.song.id)).toEqual(['feed-a']);
         expect(first.sections.slice(2, 5).every(section => section.changesWithRead)).toBe(true);
-        expect(first.sections[5].items.map(item => item.kind === 'collection' && item.collection.id)).toEqual([9001, 9002, 9003]);
+        expect(first.sections[5].items.map(item => item.kind === 'collection' && item.collection.id)).toEqual(['9001', '9002', '9003']);
         // 昵称不进栏标题。
         expect(titles(first.sections).join(' ')).not.toContain('示例昵称');
         expect(operations()).not.toContain('song_similar');
@@ -148,7 +154,7 @@ describe('QQ explore page', () => {
         expect(titles(dollars.sections)).toContain('「$$$ & $& (Money)」也会喜欢');
         answerAs({ recommend_feed: feedOf('') });
         const empty = await createQqExplore().getFeed(undefined, listened);
-        expect(titles(empty.sections)).toContain(i18n.t('home.qqFeedForYou'));
+        expect(titles(empty.sections)).toContain('explore.feedForYou');
         expect(titles(empty.sections).some(title => title.startsWith('」'))).toBe(false);
     });
 
@@ -156,7 +162,7 @@ describe('QQ explore page', () => {
         answerAs();
         const { sections } = await readWhole(createQqExplore());
 
-        const similar = (name: string) => i18n.t('home.exploreSimilar', { name });
+        const similar = (name: string) => `explore.similar(name=${name})`;
         expect(ids(sections).slice(0, 7)).toEqual([
             'qq-radar', 'qq-daily-songs', 'qq-feed-1', 'qq-feed-2', 'qq-feed-3', 'qq-recommended-playlists', 'qq-charts',
         ]);
@@ -186,7 +192,7 @@ describe('QQ explore page', () => {
         const charts = sections.find(section => section.id === 'qq-charts')!;
         const newSongs = sections.find(section => section.id === 'qq-new-songs')!;
 
-        expect(charts.items.map(item => item.kind === 'collection' && item.collection.providerData)).toEqual([
+        expect(charts.items.map(item => item.kind === 'collection' && item.collection.data)).toEqual([
             { list: 'toplist', listId: 4, period: '2026-10-17' },
             { list: 'toplist', listId: 26, period: '2026_41' },
             { list: 'toplist', listId: 27, period: '2026-10-17' },
@@ -209,11 +215,11 @@ describe('QQ explore page', () => {
 
         const moreSongs = await explore.getSectionItems!(newSongs.moreCursor!);
         expect(moreSongs.items).toHaveLength(12);
-        expect(moreSongs.items.map(item => item.kind === 'song' && item.song.qqMid)).not.toContain(
-            newSongs.items[0].kind === 'song' && newSongs.items[0].song.qqMid,
+        expect(moreSongs.items.map(item => item.kind === 'song' && item.song.id)).not.toContain(
+            newSongs.items[0].kind === 'song' && newSongs.items[0].song.id,
         );
         const moreRadar = await explore.getSectionItems!(radar.moreCursor!);
-        expect(moreRadar.items.map(item => item.kind === 'song' && item.song.qqMid)[0]).toBe('radar2-200');
+        expect(moreRadar.items.map(item => item.kind === 'song' && item.song.id)[0]).toBe('radar2-200');
 
         await explore.getFeed(undefined, listened);
         requestMock.mockClear();
@@ -229,14 +235,14 @@ describe('QQ explore page', () => {
         const one = (await readWhole(explore, [])).sections;
         const two = (await readWhole(explore, [])).sections;
 
-        const radarMids = (sections: ProviderExploreSection[]) => sections[0].items.map(item => item.kind === 'song' && item.song.qqMid);
+        const radarMids = (sections: FoliumSourceExploreSection[]) => sections[0].items.map(item => item.kind === 'song' && item.song.id);
         expect(radarMids(one)[0]).toBe('radar1-100');
         expect(radarMids(two)[0]).toBe('radar2-200');
         expect(titles(one).filter(title => title.startsWith('分类'))).toEqual(['分类 1', '分类 2', '分类 3']);
         expect(titles(two).filter(title => title.startsWith('分类'))).toEqual(['分类 4', '分类 5', '分类 1']);
         expect(titles(two).filter(title => ['热门', '心情', '场景'].includes(title))).toEqual(['场景', '热门']);
-        const songsOf = (sections: ProviderExploreSection[]) => sections.find(section => section.id === 'qq-new-songs')!.items
-            .map(item => item.kind === 'song' && item.song.qqMid);
+        const songsOf = (sections: FoliumSourceExploreSection[]) => sections.find(section => section.id === 'qq-new-songs')!.items
+            .map(item => item.kind === 'song' && item.song.id);
         expect(songsOf(two).filter(mid => songsOf(one).includes(mid))).toEqual([]);
         // 每次重读，相似歌曲、分类、电台的栏都是新的栏。
         // 榜单的歌接着轮：第二次先给还没轮到的两个，再从最早轮过的接上。
@@ -274,7 +280,7 @@ describe('QQ explore page', () => {
         expect(ids(sections)).not.toContain('qq-charts');
         expect(ids(sections).filter(id => id.startsWith('qq-chart-'))).toEqual([]);
         // 太少首的那一栏不出。
-        expect(titles(sections)).not.toContain(i18n.t('home.exploreSimilar', { name: '歌 heard-a' }));
+        expect(titles(sections)).not.toContain('explore.similar(name=歌 heard-a)');
     });
 
     // 旧后端没有 feed 路由（404）、没有可用架子（422）都只是少这几栏；别的失败也不拖垮整页。

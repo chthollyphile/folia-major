@@ -113,7 +113,7 @@ declare global {
     locale: string | null;
     timeZone: string | null;
     uptimeSec: number;
-    /** safeStorage 的状态；Linux 上 backend 为 basic_text 时 QQ 的凭据仓库会拒绝保存登录态。 */
+    /** safeStorage 的状态；Linux 上 backend 为 basic_text 时要加密保存登录的凭据仓库会拒绝保存登录态。 */
     credentialStore: { encryptionAvailable?: boolean; backend?: string | null; error?: string } | null;
   }
 
@@ -211,39 +211,7 @@ declare global {
     connections: ElectronNetworkConnection[];
   }
 
-  interface ElectronQqLoginDiagnostics {
-    providerId: 'qq';
-    capturedAt: number;
-    app: ElectronAppEnvironment;
-    backend: ElectronQqApiStatus;
-    version: string | null;
-    startup: ElectronBackendStartupRun[];
-    hooks: { installed: string[]; error: string | null };
-    /** 包内扫码服务的失败（electron/qq/qqBackend.cjs 的钩子），带原始错误。 */
-    failures: Array<{
-      at: number;
-      kind: 'session' | 'bootstrap';
-      stage: string | null;
-      channel: string | null;
-      sessionState: string | null;
-      error: Record<string, unknown>;
-    }>;
-    /** 包的 qq-auth.* 日志事件。 */
-    authEvents: Array<{ at: number; level: string; event: string; details: unknown }>;
-    connections: ElectronNetworkConnection[];
-  }
-
-  type ElectronLoginDiagnostics = ElectronNeteaseLoginDiagnostics | ElectronQqLoginDiagnostics;
-
-  // `unavailable` means the packaged build shipped without the bundled qq-music-api.
-  interface ElectronQqApiStatus {
-    status: 'starting' | 'running' | 'error' | 'unavailable';
-    port: number | null;
-    error: string | null;
-    /** 这次启动没能读出加密的登录仓库：后端里没有任何会话，后端不认一个 session 不说明登录没了。 */
-    sessionStoreUnreadable?: boolean;
-    updatedAt: number;
-  }
+  type ElectronLoginDiagnostics = ElectronNeteaseLoginDiagnostics;
 
   interface ElectronTaskbarControlState {
     hasActiveTrack: boolean;
@@ -994,16 +962,13 @@ declare global {
       ) => Promise<ElectronLyricProxyResponse>;
       getNeteasePort: () => Promise<number>;
       getNeteaseApiStatus: () => Promise<ElectronNeteaseApiStatus>;
-      /** 内嵌后端（网易、QQ）的诊断快照；没有内嵌后端的 provider 回 null。 */
+      /** 内嵌后端（网易，及音源模组 api.diagnostics 登记的）的诊断快照；没有内嵌后端的 provider 回 null。 */
       getLoginDiagnostics?: (providerId: string) => Promise<ElectronLoginDiagnostics | null>;
       /** 扫码登录失败后的主动自检（electron/loginSelfCheck.cjs）。 */
       runLoginSelfCheck?: (providerId: string) => Promise<import('./types/onlineMusic').LoginSelfCheckResult | null>;
       // 'needed'：一个请求要用它，它却因为断网没起来；主进程只在离上一次断网失败够久时才再启动。
       restartNeteaseApi: (reason?: 'needed') => Promise<ElectronNeteaseApiStatus>;
       onNeteaseApiStatusChanged: (callback: (status: ElectronNeteaseApiStatus) => void) => () => void;
-      getQqPort: () => Promise<number | null>;
-      getQqApiStatus: () => Promise<ElectronQqApiStatus>;
-      onQqApiStatusChanged: (callback: (status: ElectronQqApiStatus) => void) => () => void;
       minimizeWindow: () => Promise<boolean>;
       toggleMaximizeWindow: () => Promise<boolean>;
       toggleFullscreenWindow: () => Promise<boolean>;

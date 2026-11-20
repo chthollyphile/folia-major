@@ -2,7 +2,7 @@
 
 每个在线平台靠什么拿到数据和音频、版本钉在哪里、我们在上面包了或改了什么、上游变了怎么跟。平台清单以 `providerRegistry.ts` 为准；接入一个新平台见同目录 `README.md` 的“接入一个新平台”。
 
-Folium 2.0 起平台逐家迁成仓库内的音源模组（`sources/<id>/`），迁过去的那一家，这里的一节搬进它自己的 `sources/<id>/README.md`：已经迁的有 `sources/bodian/`、`sources/qishui/`、`sources/fnmusic/`、`sources/kugou/`、`sources/ytm/`、`sources/appleMusic/`、`sources/spotify/`。
+Folium 2.0 起平台逐家迁成仓库内的音源模组（`sources/<id>/`），迁过去的那一家，这里的一节搬进它自己的 `sources/<id>/README.md`：已经迁的有 `sources/bodian/`、`sources/qishui/`、`sources/fnmusic/`、`sources/kugou/`、`sources/ytm/`、`sources/appleMusic/`、`sources/spotify/`、`sources/qq/`。
 
 几条各平台通用的事实：
 
@@ -27,21 +27,6 @@ Folium 2.0 起平台逐家迁成仓库内的音源模组（`sources/<id>/`），
   - 模组的实验接口 `platform.raw`（Folium 1.7）按包里 `module/` 的文件名直通后端：哪些模块能读、能写、永远拒绝，记在 `netease/neteaseRaw.ts` 的分类表里，表外的一律拒绝。上游新增模块、有人要用时在表里补一行；改名或删掉的模块，`test/unit/onlineMusic/neteaseRaw.test.ts` 读包的 `module/` 目录会报出来。那里报给模组的后端名字和版本取自包自己的 `package.json`，升级后不用改。
   - 测试：`test/unit/electron/neteaseApiStartup.test.ts`、`neteaseApiHost.test.ts`、`lazyJsdom.test.ts`、`neteaseLoginDiagnostics.test.ts` 都用替身，抓不到上游的变化。`npm run probe:netease-xeapi`（`test/manual/netease_xeapi_probe.cjs`）是手动跑的诊断，看 xeapi key 接口在不同网络路径下的答复。
 
-## QQ 音乐（`qq`）
-
-- **上游**：第三方库 `@yakult-green-tea/qq-music-api`（仓库 yakult-green-tea/qq-music-api），代我们向 QQ 音乐的接口发请求。
-- **版本**：3.3.6，根目录 `package.json`（钉死）和 `deploy/docker/qq-api/package.json` 都是。
-- **怎么用**：
-  - 桌面端：主进程 require 这个包，包在 require 时自己起一个 HTTP 服务（`electron/qq/qqApiStartup.cjs`）；页面经 `window.electron.getQqPort` 拿到端口，向 `http://127.0.0.1:<端口>` 发请求（`qq/qqTransport.ts`）。登录会话由 `electron/qq/qqAuthSessionRepository.cjs` 存。
-  - 网页版：用包的 `./serverless` 导出，Vercel 的入口是 `api-ts/qq.ts`（编译成入库的 `api/qq.js`），Cloudflare 的是 `worker/qq.ts`，扫码登录通道在 `worker/qqQrChannel.ts`。两边都挂在 `/api/qq`，`VITE_QQ_API_BASE` 填 `/api/qq`。
-  - 有两处不经后端，直接向 QQ 的 musicu 发匿名请求：匿名搜歌与歌词（`qq/qqLyricProvider.ts`）、按数字 songid 查歌和批量查歌（`qq/qqTransport.ts` 的 `requestQqMusicu`）。桌面端直连 `u.y.qq.com`，网页版经前端同源的 `/api/lyric-proxy`。
-- **我们改了什么**：不改包。`api-ts/qq.ts` 和 `worker/qq.ts` 只把宿主的路径还原成包认识的路径。部署细节（Vercel、Cloudflare、Docker、裸 Node 四种）在 [`docs/qq-music-deployment.md`](../../../docs/qq-music-deployment.md)。
-- **上游变了怎么跟**：
-  - `test/unit/onlineMusic/qqServerlessClosure.test.ts` 读真的包：`./serverless` 的依赖里不能有别的 npm 包和 `node:*`，`process.env.*` 要能在编译时换掉，入库的 `api/qq.js` 要存在。升级后这条最先告诉你网页版还能不能部署。
-  - `test/unit/onlineMusic/qqServerlessAdapter.test.ts`、`qqTransport.test.ts`、`test/unit/electron/qqApiStartup.test.ts` 用替身，抓不到包的接口变化。
-  - 包的路径（`/getMusicPlay/:songmid` 这类）写在 `qq/qqTransport.ts` 开头的操作表里，包改了路径要跟着改这张表。
-  - 升级改根目录和 `deploy/docker/qq-api/` 两处，再按 `npm run build:vercel-api` 重新生成 `api/qq.js`。
-  - 按数字 songid 查歌不走后端：3.3.3 的 `/getSongInfo` 把 songid 当字符串交给 QQ，QQ 只认数字（2026-10-21 实测），serverless 的这条路由 songmid 必填。上游修好后也不改回来：用户自己部署的后端版本跟不上。QQ 改了 musicu 的协议或子请求上限时，用 `node test/manual/qq_musicu_song_detail_probe.mjs` 复查（加 `--relay <网页部署的源>` 查中转出口）。
 
 ## Navidrome（不是 Omni 的 provider）
 

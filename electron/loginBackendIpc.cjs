@@ -6,8 +6,9 @@ const os = require('os');
 const { runLoginSelfCheck } = require('./loginSelfCheck.cjs');
 
 // electron/loginBackendIpc.cjs
-// 内嵌后端（网易、QQ）对渲染进程的全部 IPC：端口、状态、重启（只有网易能重启）、诊断快照、主动自检。诊断快照和自检
-// 按登记表找后端（createLoginDiagnosticsRegistry），端口、状态、重启这几条是那两个平台自己的通道，S5 随平台迁走。
+// 内嵌后端对渲染进程的全部 IPC：端口、状态、重启、诊断快照、主动自检。诊断快照和自检按登记表找后端
+// （createLoginDiagnosticsRegistry，音源模组的 api.diagnostics 也登记在这里），端口、状态、重启这几条是网易自己的通道，
+// S5 随平台迁走（迁走的平台由模组的 main 入口经 rpc 答）。
 // 诊断快照 = 应用与系统环境 + 凭据加密后端 + 那个后端自己的 getDiagnostics()（拉起步骤、请求与连接记录等）。
 // 报告会原样贴进 GitHub issue，界面上已告知用户其中包含哪些数据；登录凭据（cookie、token）的值不在其中。
 
@@ -15,7 +16,7 @@ const describeCredentialStore = (safeStorage) => {
   try {
     return {
       encryptionAvailable: Boolean(safeStorage?.isEncryptionAvailable?.()),
-      // 只有 Linux 有可选后端；basic_text 意味着没有系统钥匙串，QQ 的凭据仓库会拒绝保存（见 qqAuthSessionRepository）。
+      // 只有 Linux 有可选后端；basic_text 意味着没有系统钥匙串，要加密保存登录的凭据仓库会拒绝保存（音源模组的 api.seal 这时不可用）。
       backend: process.platform === 'linux' ? safeStorage?.getSelectedStorageBackend?.() ?? null : null,
     };
   } catch (error) {
@@ -74,13 +75,13 @@ function registerLoginBackendIpc({
   safeStorage,
   getDefaultSession,
   neteaseBackend,
-  qqBackend,
   diagnostics,
+    networkRecorder = null,
   runSelfCheck = runLoginSelfCheck,
   isTrustedSender,
 }) {
-  // 诊断与自检按音源 id 查登记表（createLoginDiagnosticsRegistry）。没给登记表时用传进来的两个后端建一张，并交回去。
-  const registry = diagnostics ?? createLoginDiagnosticsRegistry({ netease: neteaseBackend, qq: qqBackend });
+    // 诊断与自检按音源 id 查登记表（createLoginDiagnosticsRegistry）。没给登记表时用传进来的后端建一张，并交回去。
+    const registry = diagnostics ?? createLoginDiagnosticsRegistry({ netease: neteaseBackend });
   const backendOf = (providerId) => registry.get(providerId);
 
   // 来源校验：与既有的 IPC 来源校验通道同一个边界、同一个工厂（electron/ipcAccessGuard.cjs）。比 event.sender 的
@@ -100,38 +101,48 @@ function registerLoginBackendIpc({
   ipcMain.handle('get-netease-api-status', guarded('get-netease-api-status', () => neteaseBackend.getStatus(), () => null));
   // reason 'needed'：页面上一个请求要用它、它却因为断网没起来；规则在后端的 start 里。
   ipcMain.handle('restart-netease-api', guarded('restart-netease-api', (_event, reason) => neteaseBackend.start(reason)));
-  ipcMain.handle('get-qq-port', guarded('get-qq-port', () => qqBackend.getPort(), () => null));
-  ipcMain.handle('get-qq-api-status', guarded('get-qq-api-status', () => qqBackend.getStatus(), () => null));
 
-  // 扫码登录失败后渲染进程用它生成可以直接贴进 issue 的诊断报告。没有内嵌后端的 provider 回 null。
-  // 有的后端的 getDiagnostics 要问工作线程，是异步的；await 同步、异步都接得住。
-  ipcMain.handle('get-login-diagnostics', guarded('get-login-diagnostics', async (_event, providerId) => {
-    const backend = backendOf(providerId);
-    if (!backend) return null;
-    const capturedAt = Date.now();
-    return {
-      providerId,
-      capturedAt,
-      app: describeApp({ app, safeStorage }),
-      ...(await backend.getDiagnostics()),
+    // 诊断快照：应用与系统环境 + 那个后端自己的 getDiagnostics()（同步、异步都行，有的要问工作线程）。没有内嵌后端的
+    // provider 回 null。音源模组的后端在模组里，拿不到主进程的网络记录：它没交 connections 时宿主按音源 id 补上
+    // （networkRecorder.cjs 按域名认出是哪家）。
+    const snapshot = async (providerId) => {
+        const backend = backendOf(providerId);
+        if (!backend) return null;
+        const capturedAt = Date.now();
+        const own = await backend.getDiagnostics();
+        const connections = networkRecorder && !(own && typeof own === 'object' && 'connections' in own)
+            ? { connections: networkRecorder.snapshot(providerId) }
+            : {};
+        return {
+            providerId,
+            capturedAt,
+            app: describeApp({ app, safeStorage }),
+            ...connections,
+            ...own,
+        };
     };
-  }, () => null));
 
-  ipcMain.handle('run-login-self-check', guarded('run-login-self-check', async (_event, providerId) => {
-    const backend = backendOf(providerId);
-    if (!backend) return null;
-    const session = getDefaultSession?.();
-    const result = await runSelfCheck({
-      providerId,
-      backend: backend.getStatus(),
-      hosts: backend.selfCheckHosts,
-      resolveSystemProxy: session?.resolveProxy ? (url) => session.resolveProxy(url) : null,
-    });
-    return { ...result, credentialStore: describeCredentialStore(safeStorage) };
-  }, () => null));
+    // 自检：后端的状态、它声明的域名，宿主补系统代理（默认 session 解析）和凭据加密后端。
+    const selfCheck = async (providerId) => {
+        const backend = backendOf(providerId);
+        if (!backend) return null;
+        const session = getDefaultSession?.();
+        const result = await runSelfCheck({
+            providerId,
+            backend: typeof backend.getStatus === 'function' ? backend.getStatus() : null,
+            hosts: backend.selfCheckHosts,
+            resolveSystemProxy: session?.resolveProxy ? (url) => session.resolveProxy(url) : null,
+        });
+        return { ...result, credentialStore: describeCredentialStore(safeStorage) };
+    };
 
-  // 交回登记表：别处（S2 起是音源模组的 api.diagnostics）往里登记后端。
-  return { diagnostics: registry };
+    // 扫码登录失败后渲染进程用它生成可以直接贴进 issue 的诊断报告。
+    ipcMain.handle('get-login-diagnostics', guarded('get-login-diagnostics', (_event, providerId) => snapshot(providerId), () => null));
+    ipcMain.handle('run-login-self-check', guarded('run-login-self-check', (_event, providerId) => selfCheck(providerId), () => null));
+
+    // 交回登记表：别处（S2 起是音源模组的 api.diagnostics）往里登记后端；快照与自检同 IPC 两个通道一样，
+    // 也交给音源模组（api.diagnostics.snapshot / selfCheck），模组的界面一侧经自己的 main 入口取。
+    return { diagnostics: registry, snapshot, selfCheck };
 }
 
 module.exports = {

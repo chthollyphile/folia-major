@@ -4448,6 +4448,17 @@ export interface FoliumSourceDiagnostics {
      * mod's sources, as the host knows it. Returns what takes it out.
      */
     register(sourceId: string, backend: { getDiagnostics(): unknown; getStatus?(): unknown; selfCheckHosts?: readonly string[] }): FoliumDisposer;
+    /**
+     * What the sign-in diagnostics report shows for `sourceId` on the desktop: the app and system, what its registered
+     * backend's `getDiagnostics()` answered, and the main process's connection record for it when that has none.
+     * Null when nothing is registered for it.
+     */
+    snapshot(sourceId: string): Promise<Record<string, unknown> | null>;
+    /**
+     * The sign-in self-check for `sourceId`: its backend's status, and each of its `selfCheckHosts` checked through the
+     * system proxy. Null when nothing is registered for it.
+     */
+    selfCheck(sourceId: string): Promise<Record<string, unknown> | null>;
 }
 
 /** Folium 2: `api.native` of a source mod. */

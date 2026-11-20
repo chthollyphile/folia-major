@@ -57,15 +57,17 @@ export const CREDENTIAL_WRITERS = {
         // 网页版的会话整个去掉：退出，或酷狗不再认的登录
         forgetWebSession: ['cookie', 'token', 'userid'],
     },
-    'src/services/onlineMusic/qq/qqTransport.ts': {
+    'sources/qq/core/qqTransport.ts': {
         // 只在 login_qr_check 确认（code 803）时写
         persistConfirmedSession: ['cookie'],
+        // 只写 null：退出登录，或后端不再认的会话
+        clearQqSession: ['cookie'],
     },
-    'src/services/onlineMusic/qq/qqProvider.ts': {
+    'sources/qq/core/qqProvider.ts': {
         // 扫码轮询确认（803）的分支
         checkLogin: ['cookie'],
     },
-    'src/services/onlineMusic/qq/qqSessionRefresh.ts': {
+    'sources/qq/core/qqSessionRefresh.ts': {
         // 同一个会话的续期：轮换出的新 token，换账号或退出后不写
         refreshOnce: ['cookie'],
     },

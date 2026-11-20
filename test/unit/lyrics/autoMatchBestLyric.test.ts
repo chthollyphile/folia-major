@@ -3,11 +3,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { autoMatchBestLyric, type AutoMatchProviderCandidate } from '@/utils/lyrics/autoMatchBestLyric';
 import { neteaseApi } from '@/services/onlineMusic/netease/netease';
 import { processNeteaseLyrics } from '@/utils/lyrics/neteaseProcessing';
-import { searchQQLyrics, fetchQQLyrics } from '@/services/onlineMusic/qq/qqLyricProvider';
 import { searchKugouLyrics, fetchKugouLyrics } from '../../manual/kugouLyricProvider';
 import { fetchAmllDbLyrics } from '@/utils/lyrics/providers/amllDbProvider';
 import { getOnlineMusicProvider } from '@/services/onlineMusic/providerRegistry';
 import { useOnlineProviderAccountStore } from '@/stores/useOnlineProviderAccountStore';
+import type { LyricData, SongResult, UnifiedSong } from '@/types';
 import type { PlatformLyricSource } from '@/utils/lyrics/lyricSources';
 
 // test/unit/lyrics/autoMatchBestLyric.test.ts
@@ -27,11 +27,6 @@ vi.mock('@/services/onlineMusic/netease/netease', () => ({
 vi.mock('@/utils/lyrics/neteaseProcessing', () => ({
     parseNeteaseChorusRanges: vi.fn(() => []),
     processNeteaseLyrics: vi.fn()
-}));
-
-vi.mock('@/services/onlineMusic/qq/qqLyricProvider', () => ({
-    searchQQLyrics: vi.fn(),
-    fetchQQLyrics: vi.fn()
 }));
 
 vi.mock('../../manual/kugouLyricProvider', () => ({
@@ -58,8 +53,11 @@ describe('autoMatchBestLyric', () => {
     const cloudSearchMock = vi.mocked(neteaseApi.cloudSearch);
     const getLyricMock = vi.mocked(neteaseApi.getLyric);
     const processNeteaseLyricsMock = vi.mocked(processNeteaseLyrics);
-    const searchQQLyricsMock = vi.mocked(searchQQLyrics);
-    const fetchQQLyricsMock = vi.mocked(fetchQQLyrics);
+    // QQ is a source mod: the lyric match searches and fetches it through its provider (search.searchSongs and
+    // lyrics.getLyrics, spied on below), which these two stand in for as the lyric module's search and fetch did.
+    const searchQQLyricsMock = vi.fn<(query: string, limit: number, offset: number) => Promise<SongResult[]>>();
+    const fetchQQLyricsMock = vi.fn<(song: SongResult) => Promise<LyricData | null>>();
+    const qqProvider = () => getOnlineMusicProvider('qq')!;
     const searchKugouLyricsMock = vi.mocked(searchKugouLyrics);
     const fetchKugouLyricsMock = vi.mocked(fetchKugouLyrics);
     const fetchAmllDbLyricsMock = vi.mocked(fetchAmllDbLyrics);
@@ -67,6 +65,13 @@ describe('autoMatchBestLyric', () => {
     beforeEach(() => {
         vi.resetAllMocks();
         fetchAmllDbLyricsMock.mockResolvedValue(null);
+        vi.spyOn(qqProvider().search!, 'searchSongs').mockImplementation(async (query, limit, offset) => {
+            const items = (await searchQQLyricsMock(query, limit, offset) ?? []) as UnifiedSong[];
+            return { items, hasMore: false, nextOffset: offset + items.length };
+        });
+        vi.spyOn(qqProvider().lyrics!, 'getLyrics').mockImplementation(async (song) => {
+            return { lyrics: await fetchQQLyricsMock(song), isPureMusic: false };
+        });
     });
 
     describe('a provider that keeps its own word timing (Apple Music)', () => {
@@ -346,10 +351,12 @@ describe('autoMatchBestLyric', () => {
         expect(searchQQLyricsMock).not.toHaveBeenCalled();
     });
 
+    // The QQ source mod's songs are known by their mid (the numeric id rides in providerData), so the metadata
+    // dialog's pick (a mid) is compared with the mid.
     it('accepts the selected QQ lyric directly when best-lyric selection is disabled', async () => {
         searchQQLyricsMock.mockResolvedValue([
-            { id: 201, name: 'Correct title', durationMs: 200000, artists: [{ id: 1, name: 'Wrong artist' }], album: { id: 2, name: 'Wrong album' }, qqMid: 'distractor-mid' },
-            { id: 202, name: 'Correct title', durationMs: 200000, artists: [{ id: 3, name: 'Correct artist' }], album: { id: 4, name: 'Correct album' }, qqMid: 'selected-mid' },
+            { id: 'distractor-mid', name: 'Correct title', durationMs: 200000, artists: [{ id: 1, name: 'Wrong artist' }], album: { id: 2, name: 'Wrong album' }, qqMid: 'distractor-mid', sourceRef: { kind: 'online' as const, providerId: 'qq', mediaId: 'distractor-mid', providerData: { songId: 201 } } },
+            { id: 'selected-mid', name: 'Correct title', durationMs: 200000, artists: [{ id: 3, name: 'Correct artist' }], album: { id: 4, name: 'Correct album' }, qqMid: 'selected-mid', sourceRef: { kind: 'online' as const, providerId: 'qq', mediaId: 'selected-mid', providerData: { songId: 202 } } },
         ]);
         fetchQQLyricsMock.mockResolvedValue(createLyrics(false));
 
@@ -359,12 +366,11 @@ describe('autoMatchBestLyric', () => {
             exactMatchOnly: true,
         }) as any;
 
-        expect(searchQQLyricsMock).toHaveBeenCalledWith('Correct title - Correct artist - Correct album', 1, 10);
+        expect(searchQQLyricsMock).toHaveBeenCalledWith('Correct title - Correct artist - Correct album', 10, 0);
         expect(fetchQQLyricsMock).toHaveBeenCalledWith(
-            expect.objectContaining({ id: 202, qqMid: 'selected-mid' }),
-            { chorusRanges: [] },
+            expect.objectContaining({ id: 'selected-mid', qqMid: 'selected-mid' }),
         );
-        expect(result).toMatchObject({ source: 'qq', id: 202, qqMid: 'selected-mid' });
+        expect(result).toMatchObject({ source: 'qq', id: 'selected-mid', qqMid: 'selected-mid' });
         expect(cloudSearchMock).not.toHaveBeenCalled();
     });
 
@@ -422,14 +428,14 @@ describe('autoMatchBestLyric', () => {
         }) as any;
 
         expect(getLyricMock).toHaveBeenCalledWith(987);
-        expect(searchQQLyricsMock).toHaveBeenCalledWith('Correct title - Correct artist - Correct album', 1, 10);
+        expect(searchQQLyricsMock).toHaveBeenCalledWith('Correct title - Correct artist - Correct album', 10, 0);
         expect(result).toMatchObject({ source: 'qq', id: 202, qqMid: 'word-mid' });
         expect(cloudSearchMock).not.toHaveBeenCalled();
     });
 
     it('uses a selected QQ mid to probe preferred QQ AMLLDB lyrics', async () => {
         searchQQLyricsMock.mockResolvedValue([
-            { id: 202, name: 'Correct title', durationMs: 200000, artists: [{ id: 3, name: 'Correct artist' }], album: { id: 4, name: 'Correct album' }, qqMid: 'selected-mid' },
+            { id: 'selected-mid', name: 'Correct title', durationMs: 200000, artists: [{ id: 3, name: 'Correct artist' }], album: { id: 4, name: 'Correct album' }, qqMid: 'selected-mid', sourceRef: { kind: 'online' as const, providerId: 'qq', mediaId: 'selected-mid', providerData: { songId: 202 } } },
         ]);
         fetchAmllDbLyricsMock.mockResolvedValue(createLyrics(true));
 
@@ -439,9 +445,9 @@ describe('autoMatchBestLyric', () => {
             metadataCandidate: { source: 'qq', songId: 'selected-mid' },
         }) as any;
 
-        expect(searchQQLyricsMock).toHaveBeenCalledWith('Correct title - Correct artist - Correct album', 1, 10);
+        expect(searchQQLyricsMock).toHaveBeenCalledWith('Correct title - Correct artist - Correct album', 10, 0);
         expect(fetchAmllDbLyricsMock).toHaveBeenCalledWith('qq', ['selected-mid', '202']);
-        expect(result).toMatchObject({ source: 'amll', id: 202, matchedLyricsProviderPlatform: 'qq' });
+        expect(result).toMatchObject({ source: 'amll', id: 'selected-mid', matchedLyricsProviderPlatform: 'qq' });
         expect(fetchQQLyricsMock).not.toHaveBeenCalled();
         expect(cloudSearchMock).not.toHaveBeenCalled();
     });
@@ -613,14 +619,12 @@ describe('autoMatchBestLyric', () => {
 
         expect(searchQQLyricsMock).toHaveBeenCalledWith(
             'Night of Bloom (feat. nayuta) - Kirara Magic/Xomu/nayuta - Night of Bloom',
-            1,
-            10
+            10,
+            0
         );
         expect(fetchQQLyricsMock).toHaveBeenCalledTimes(1);
         expect(fetchQQLyricsMock).toHaveBeenCalledWith(
-            expect.objectContaining({ id: 205, qqMid: 'correct-mid' }),
-            { chorusRanges: [] }
-        );
+            expect.objectContaining({ id: 205, qqMid: 'correct-mid' }));
         expect(result.source).toBe('qq');
         expect(result.qqMid).toBe('correct-mid');
     });
@@ -664,9 +668,7 @@ describe('autoMatchBestLyric', () => {
 
         expect(result.source).toBe('qq');
         expect(fetchQQLyricsMock).toHaveBeenCalledWith(
-            expect.objectContaining({ id: 201 }),
-            { chorusRanges: [{ startTime: 34, endTime: 89 }] }
-        );
+            expect.objectContaining({ id: 201 }));
         expect(result.lyrics.lines[0].isChorus).toBeUndefined();
         expect(result.lyrics.lines[0].chorusEffect).toBeUndefined();
         expect(result.lyrics.lines[1].isChorus).toBe(true);
@@ -700,9 +702,7 @@ describe('autoMatchBestLyric', () => {
         expect(getLyricMock).not.toHaveBeenCalled();
         expect(processNeteaseLyricsMock).not.toHaveBeenCalled();
         expect(fetchQQLyricsMock).toHaveBeenCalledWith(
-            expect.objectContaining({ id: 201 }),
-            { chorusRanges: [{ startTime: 71.288, endTime: 100.79 }] }
-        );
+            expect.objectContaining({ id: 201 }));
     });
 
     it('returns the preprocessed NetEase candidate directly when it is word-by-word', async () => {
@@ -802,7 +802,7 @@ describe('autoMatchBestLyric', () => {
         expect(fetchAmllDbLyricsMock).toHaveBeenCalledTimes(1);
         expect(fetchAmllDbLyricsMock).toHaveBeenCalledWith('ncm', ['101']);
         expect(fetchAmllDbLyricsMock).not.toHaveBeenCalledWith('qq', expect.arrayContaining(['201']));
-        expect(fetchQQLyricsMock).toHaveBeenCalledWith(expect.objectContaining({ id: 201 }), { chorusRanges: [] });
+        expect(fetchQQLyricsMock).toHaveBeenCalledWith(expect.objectContaining({ id: 201 }));
     });
 
     it('preserves AMLLDB TTML chorus markers instead of fetching NetEase chorus ranges', async () => {

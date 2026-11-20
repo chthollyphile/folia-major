@@ -5,13 +5,15 @@ import { createBodianApi } from 'bodian-music-api';
 import { omni } from '@/services/onlineMusic/omni';
 import { neteaseApi } from '@/services/onlineMusic/netease/netease';
 import { getOnlineMusicProvider } from '@/services/onlineMusic/providerRegistry';
-import { requestQq, resetQqTransportRuntimeCache } from '@/services/onlineMusic/qq/qqTransport';
+import { requestQq, resetQqTransportRuntimeCache } from '../../../sources/qq/core/qqTransport';
 import type { LoginStep, LoginState } from '@/types/onlineMusic';
 import { loginCaseOf, loginFailureFacts } from '@/services/onlineMusic/login/loginFailureCase';
 import { failureNoteKey } from '@/components/login/window/loginView';
 import { setBuiltinSourceRpc } from '../helpers/builtinSources';
+import { answerQqBackend } from '../helpers/qqSource';
 import { sourcesRegistry } from '@/mods/folium/registries/sources';
 import { registerWebSource as registerKugouWebSource } from '@/services/onlineMusic/web/kugou';
+import { registerWebSource as registerQqWebSource } from '@/services/onlineMusic/web/qq';
 
 // test/unit/onlineMusic/loginFailurePlatforms.test.ts
 // Which case each platform's own failure sorts to, through the real facade, adapter and
@@ -193,10 +195,34 @@ describe('NetEase', () => {
     });
 });
 
+// qq-music-api 3.3.3 qrService.ts: the mobile QQ code exchanged over MQTT fails with 50006 and the fallback check
+// after it with 1000 when the QQ Music app scanned it.
+const QQ_WRONG_SCAN_APP = {
+    code: 800, message: 'QR login failed', failureStage: 'credential-validation', upstreamCode: 1000,
+    primaryFailure: { failureStage: 'credential-exchange', upstreamCode: 50006 }, fallbackAttempted: true,
+    failureHint: { key: 'login.wrong-scan-app', message: 'If you scanned with the QQ Music app, choose QQ Music app login instead.' },
+};
+
+// The shapes qq-music-api gives for a full device list, by channel and by how the code was read.
+const QQ_DEVICE_LIMIT_HINT = { key: 'login.device-limit', message: 'This account has reached its login device limit.' };
+const QQ_DEVICE_LIMITS: Array<[string, Record<string, unknown>]> = [
+    // WeChat: the exchange itself answers 20279 (every deployment).
+    ['wechat', { code: 800, message: 'QR login failed', failureStage: 'credential-exchange', failureReason: 'upstream-rejected', upstreamCode: 20279, upstreamErrorKey: 'auth.device-limit', failureHint: QQ_DEVICE_LIMIT_HINT }],
+    // Mobile QQ and the QQ Music app over MQTT (desktop, Docker, Node, Cloudflare with a Durable
+    // Object): the fallback check answers last, the exchange's 20279 is in primaryFailure.
+    ['qq over MQTT', { code: 800, message: 'QR login failed', failureStage: 'credential-validation', failureReason: 'upstream-rejected', upstreamCode: 1000, primaryFailure: { failureStage: 'credential-exchange', upstreamCode: 20279, upstreamErrorKey: 'auth.device-limit' }, fallbackAttempted: true, failureHint: QQ_DEVICE_LIMIT_HINT }],
+    ['qqmusic over MQTT', { code: 800, message: 'QR login failed', failureStage: 'credential-validation', failureReason: 'upstream-rejected', upstreamCode: 1000, primaryFailure: { failureStage: 'credential-exchange', upstreamCode: 20279, upstreamErrorKey: 'auth.device-limit' }, fallbackAttempted: true, failureHint: QQ_DEVICE_LIMIT_HINT }],
+    // Mobile QQ by the web sign-in (Vercel, Cloudflare without one): 20279 on top, no error key.
+    ['qq by the web sign-in', { code: 800, message: 'QR login failed', failureStage: 'credential-exchange', failureReason: 'upstream-rejected', upstreamCode: 20279, failureHint: QQ_DEVICE_LIMIT_HINT, retryAfterMs: 15000 }],
+    // A hint alone is enough.
+    ['the hint alone', { code: 800, message: 'QR login failed', failureStage: 'credential-exchange', failureHint: QQ_DEVICE_LIMIT_HINT, retryAfterMs: 15000 }],
+];
+
 describe('QQ Music', () => {
+    // The source mod's main entry answers `status` with the embedded backend's port (none: it is not running).
     const desktop = (port: number | null) => {
         resetQqTransportRuntimeCache();
-        vi.stubGlobal('window', { electron: { getQqPort: async () => port } });
+        answerQqBackend({ port });
     };
 
     it('local-service-unavailable: the embedded backend has no port', async () => {
@@ -283,17 +309,18 @@ describe('QQ Music', () => {
     it('refused: 800 whose hint names a problem with the account itself, said in Folia\'s words', async () => {
         desktop(3300);
         const NOTES: Record<string, string> = {
-            'login.account-banned': 'home.loginCaseQqAccountBanned',
-            'login.account-restricted': 'home.loginCaseQqAccountRestricted',
-            'login.account-binding': 'home.loginCaseQqAccountBinding',
+            'login.account-banned': 'login.case.accountBanned',
+            'login.account-restricted': 'login.case.accountRestricted',
+            'login.account-binding': 'login.case.accountBinding',
         };
-        const locales = await Promise.all(['en', 'in', 'zh-CN'].map(name => import(`@/i18n/locales/${name}.ts`)));
+        // The words are the source mod's own (sources/qq/locales), under its namespace.
+        const locales = await Promise.all(['en', 'in', 'vi', 'zh-CN'].map(name => import(`../../../sources/qq/locales/${name}.json`)));
         for (const [key, note] of Object.entries(NOTES)) {
             vi.stubGlobal('fetch', answers({ code: 800, message: 'QR login failed', upstreamCode: 1000, failureHint: { key, message: `words for ${key}` }, retryAfterMs: 30000 }));
             const failed = await answered(() => omni.checkLogin('qq', 'qr-key'));
             expect(failed, key).toMatchObject({ id: 'refused', code: '800', message: 'QR login failed', upstreamCode: '1000' });
-            expect(failureNoteKey({ case: loginCaseOf(failed), facts: failed, at: 0 }, omni.getLoginTexts('qq')?.caseNotes), key).toBe(note);
-            for (const locale of locales) expect(locale.default.home[note.split('.')[1]], note).toEqual(expect.any(String));
+            expect(failureNoteKey({ case: loginCaseOf(failed), facts: failed, at: 0 }, omni.getLoginTexts('qq')?.caseNotes), key).toBe(`folium-mod/qq:${note}`);
+            for (const locale of locales) expect(locale.default.login.case[note.split('.')[2]], note).toEqual(expect.any(String));
         }
         // A new code clears it: a refusal at another step does not carry the account's words.
         vi.stubGlobal('fetch', answers({ code: 200, data: { unikey: 'next-key', qrimg: 'data:image/png;base64,fixture' } }));
@@ -301,32 +328,18 @@ describe('QQ Music', () => {
         expect(omni.getLoginTexts('qq')?.caseNotes?.refused).toBeUndefined();
     });
 
-    // Where Folia reaches the backend: the desktop app's embedded one, a same-origin serverless entry
-    // (Vercel, Cloudflare) and a backend at an address of its own (Docker, Node). The window reads
-    // the same answer the same way on each.
+    // Where Folia reaches the backend: here the desktop app's embedded one; a same-origin serverless entry (Vercel,
+    // Cloudflare) and a backend at an address of its own (Docker, Node) are the web build's, in 'QQ Music on the web'
+    // at the end of this file. The window reads the same answer the same way on each.
     const DEPLOYMENTS: Array<[string, () => void]> = [
         ['the desktop app', () => desktop(3300)],
-        ['a serverless entry', () => {
-            resetQqTransportRuntimeCache();
-            vi.stubGlobal('window', {});
-            vi.stubEnv('VITE_QQ_API_BASE', '/api/qq');
-        }],
-        ['a backend of its own', () => {
-            resetQqTransportRuntimeCache();
-            vi.stubGlobal('window', {});
-            vi.stubEnv('VITE_QQ_API_BASE', 'https://qq-api.example.test');
-        }],
     ];
 
     // qq-music-api 3.3.3 qrService.ts: the mobile QQ code exchanged over MQTT fails with 50006 and the
     // fallback check after it with 1000 when the QQ Music app scanned it.
     it.each(DEPLOYMENTS)('wrong-scan-app: the code of mobile QQ was scanned with the QQ Music app, on %s', async (_where, reach) => {
         reach();
-        vi.stubGlobal('fetch', answers({
-            code: 800, message: 'QR login failed', failureStage: 'credential-validation', upstreamCode: 1000,
-            primaryFailure: { failureStage: 'credential-exchange', upstreamCode: 50006 }, fallbackAttempted: true,
-            failureHint: { key: 'login.wrong-scan-app', message: 'If you scanned with the QQ Music app, choose QQ Music app login instead.' },
-        }));
+        vi.stubGlobal('fetch', answers(QQ_WRONG_SCAN_APP));
         const failed = await answered(() => omni.checkLogin('qq', 'qr-key'));
         // The window says what to do (QQ's caseNotes); the quote stays the backend's own sentence.
         expect(failed).toMatchObject({ id: 'wrong-scan-app', code: '800', message: 'QR login failed', upstreamCode: '1000' });
@@ -353,24 +366,9 @@ describe('QQ Music', () => {
         expect((await answered(() => omni.checkLogin('qq', 'qr-key'))).id).toBe('wrong-scan-app');
     });
 
-    // The shapes qq-music-api gives for a full device list, by channel and by how the code was read.
-    const hint = { key: 'login.device-limit', message: 'This account has reached its login device limit.' };
-    const DEVICE_LIMITS: Array<[string, Record<string, unknown>]> = [
-        // WeChat: the exchange itself answers 20279 (every deployment).
-        ['wechat', { code: 800, message: 'QR login failed', failureStage: 'credential-exchange', failureReason: 'upstream-rejected', upstreamCode: 20279, upstreamErrorKey: 'auth.device-limit', failureHint: hint }],
-        // Mobile QQ and the QQ Music app over MQTT (desktop, Docker, Node, Cloudflare with a Durable
-        // Object): the fallback check answers last, the exchange's 20279 is in primaryFailure.
-        ['qq over MQTT', { code: 800, message: 'QR login failed', failureStage: 'credential-validation', failureReason: 'upstream-rejected', upstreamCode: 1000, primaryFailure: { failureStage: 'credential-exchange', upstreamCode: 20279, upstreamErrorKey: 'auth.device-limit' }, fallbackAttempted: true, failureHint: hint }],
-        ['qqmusic over MQTT', { code: 800, message: 'QR login failed', failureStage: 'credential-validation', failureReason: 'upstream-rejected', upstreamCode: 1000, primaryFailure: { failureStage: 'credential-exchange', upstreamCode: 20279, upstreamErrorKey: 'auth.device-limit' }, fallbackAttempted: true, failureHint: hint }],
-        // Mobile QQ by the web sign-in (Vercel, Cloudflare without one): 20279 on top, no error key.
-        ['qq by the web sign-in', { code: 800, message: 'QR login failed', failureStage: 'credential-exchange', failureReason: 'upstream-rejected', upstreamCode: 20279, failureHint: hint, retryAfterMs: 15000 }],
-        // A hint alone is enough.
-        ['the hint alone', { code: 800, message: 'QR login failed', failureStage: 'credential-exchange', failureHint: hint, retryAfterMs: 15000 }],
-    ];
-
     it.each(DEPLOYMENTS)('device-limit: for every channel, on %s', async (_where, reach) => {
         reach();
-        for (const [channel, shape] of DEVICE_LIMITS) {
+        for (const [channel, shape] of QQ_DEVICE_LIMITS) {
             vi.stubGlobal('fetch', answers(shape));
             expect((await answered(() => omni.checkLogin('qq', 'qr-key'))).id, channel).toBe('device-limit');
         }
@@ -643,7 +641,7 @@ describe('every platform', () => {
 });
 
 // The web build's kugou (src/services/onlineMusic/web/kugou.ts): the same core with the web transport, registered in
-// place of the desktop's for the rest of this file (the last describe, so nothing after it sees the swap).
+// place of the desktop's for the rest of this file (the last describes, so nothing after them sees the swap).
 describe('KuGou on the web', () => {
     beforeAll(() => {
         vi.stubEnv('VITE_KUGOU_API_BASE', 'https://kugou.example.test');
@@ -679,5 +677,41 @@ describe('KuGou on the web', () => {
         expect(asked).toHaveBeenCalledTimes(1);
         expect(asked.mock.calls[0][1]?.signal).toBeUndefined();
         expect(vi.getTimerCount()).toBe(0);
+    });
+});
+
+// The web build's QQ (src/services/onlineMusic/web/qq.ts) at the two kinds of address it is given: a same-origin
+// serverless entry (Vercel, Cloudflare) and a backend at an address of its own (Docker, Node). It reads the address when
+// it registers, so each one registers it again in place of the one before (the desktop's first).
+describe('QQ Music on the web', () => {
+    beforeAll(() => {
+        sourcesRegistry.unregisterAll('qq');
+    });
+
+    const onTheWeb = (apiBase: string) => () => {
+        resetQqTransportRuntimeCache();
+        vi.stubGlobal('window', {});
+        vi.stubEnv('VITE_QQ_API_BASE', apiBase);
+        registerQqWebSource();
+    };
+    const DEPLOYMENTS: Array<[string, () => void]> = [
+        ['a serverless entry', onTheWeb('/api/qq')],
+        ['a backend of its own', onTheWeb('https://qq-api.example.test')],
+    ];
+
+    it.each(DEPLOYMENTS)('wrong-scan-app: the code of mobile QQ was scanned with the QQ Music app, on %s', async (_where, reach) => {
+        reach();
+        vi.stubGlobal('fetch', answers(QQ_WRONG_SCAN_APP));
+        const failed = await answered(() => omni.checkLogin('qq', 'qr-key'));
+        expect(failed).toMatchObject({ id: 'wrong-scan-app', code: '800', message: 'QR login failed', upstreamCode: '1000' });
+        expect(loginCaseOf(failed)).toMatchObject({ kind: 'C', action: 'refresh-code' });
+    });
+
+    it.each(DEPLOYMENTS)('device-limit: for every channel, on %s', async (_where, reach) => {
+        reach();
+        for (const [channel, shape] of QQ_DEVICE_LIMITS) {
+            vi.stubGlobal('fetch', answers(shape));
+            expect((await answered(() => omni.checkLogin('qq', 'qr-key'))).id, channel).toBe('device-limit');
+        }
     });
 });

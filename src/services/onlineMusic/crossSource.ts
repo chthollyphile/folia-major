@@ -113,15 +113,21 @@ export const declaredParticipants = (feature: CrossSourceFeature): CrossSourceDe
     }
     if (feature === 'metadata') {
         // The sources the lyric registry marks `metadataMatch`, in its order (their search needs no account), then
-        // the sources that declare `songs@1.metadataMatch`, in the order they registered.
+        // the sources that declare `songs@1.metadataMatch`: in the lyric registry's order where they are lyric sources
+        // too (a built-in platform that became a mod keeps its place), the others after them in the order they registered.
         const listed: CrossSourceDeclaration[] = LYRIC_SOURCES
             .filter(source => source.metadataMatch)
             .map(source => ({ sourceId: source.id, access: 'anonymous', checksAvailability: false }));
+        const declared: CrossSourceDeclaration[] = [];
         for (const [sourceId, declaration] of listSourceDeclarations()) {
             if (!declaration.songs?.metadataMatch || listed.some(known => known.sourceId === sourceId)) continue;
-            listed.push({ sourceId, access: declaration.songs.access, checksAvailability: declaration.checksAvailability });
+            declared.push({ sourceId, access: declaration.songs.access, checksAvailability: declaration.checksAvailability });
         }
-        return listed;
+        const lyricRank = (sourceId: string) => {
+            const at = LYRIC_SOURCES.findIndex(source => source.id === sourceId);
+            return at < 0 ? LYRIC_SOURCES.length : at;
+        };
+        return [...listed, ...declared.sort((a, b) => lyricRank(a.sourceId) - lyricRank(b.sourceId))];
     }
     // The federated search lists a platform the listener can play from without signing in first: one with no
     // account at all, one whose search needs none (its `search@1.access`), or one signed in. A platform

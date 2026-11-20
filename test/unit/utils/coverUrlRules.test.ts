@@ -9,6 +9,7 @@ import {
     type CoverUrlRule,
 } from '@/utils/coverUrl';
 import { registerWebSource as registerKugouWebSource } from '@/services/onlineMusic/web/kugou';
+import { registerWebSource as registerQqWebSource } from '@/services/onlineMusic/web/qq';
 
 // test/unit/utils/coverUrlRules.test.ts
 // Folium 2.0 plan §7 (utils/coverUrl.ts, coverCache.ts → covers@1): the picture hosts' rules are a registry the
@@ -47,8 +48,10 @@ describe('the cover rule registry', () => {
     });
 
     it('keeps the web proxy hosts coverCache.ts used to name: QQ\'s and KuGou\'s picture hosts, by host alone', () => {
+        // Both are said by the web build's registration of its source mod (web/qq.ts, web/kugou.ts, proxiedCoverHosts).
+        expect(isCoverFetchedThroughProxy('https://y.gtimg.cn/music/photo_new/T002R300x300M000abc.jpg')).toBe(false);
+        registerQqWebSource();
         expect(isCoverFetchedThroughProxy('https://y.gtimg.cn/music/photo_new/T002R300x300M000abc.jpg')).toBe(true);
-        // KuGou's are said by the web build's registration of its source mod (web/kugou.ts, proxiedCoverHosts).
         expect(isCoverFetchedThroughProxy('https://imge.kugou.com/anything.jpg')).toBe(false);
         registerKugouWebSource();
         expect(isCoverFetchedThroughProxy('https://imge.kugou.com/anything.jpg')).toBe(true);

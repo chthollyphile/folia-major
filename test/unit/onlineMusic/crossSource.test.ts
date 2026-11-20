@@ -32,7 +32,7 @@ import type { OnlineMusicProvider } from '@/types/onlineMusic';
 // the nine platforms taken away in turn: none of them throws, the platform is left out as `not-enabled`, and
 // the stored choices (the preferred lyric source, a local song's online metadata source) are not written over.
 
-vi.mock('@/services/onlineMusic/qq/qqLyricProvider', () => ({ searchQQLyrics: vi.fn(async () => []), fetchQQLyrics: vi.fn(async () => null) }));
+vi.mock('../../../sources/qq/core/qqLyricProvider', () => ({ searchQQLyrics: vi.fn(async () => []), fetchQQLyrics: vi.fn(async () => null) }));
 vi.mock('@/utils/lyrics/providers/amllDbProvider', async (importOriginal) => ({
     ...await importOriginal<Record<string, unknown>>(),
     fetchAmllDbLyrics: vi.fn(async () => null),

@@ -1,0 +1,13 @@
+{
+  "name": "@folia-sources/qq",
+  "private": true,
+  "description": "QQ 音乐音源模组的依赖：qq-music-api 钉死版本（和根 package.json 钉的同一个）。它在加载时就监听 PORT，main/qqBackend.cjs 还按路径加载它的两个内部文件挂诊断钩子，要真实的文件布局，所以声明成 asar：装进 deps.<指纹>.asar，main 入口从归档里加载（方案 §6.2）。",
+  "dependencies": {
+    "@yakult-green-tea/qq-music-api": "3.3.6"
+  },
+  "folia": {
+    "dependencies": {
+      "@yakult-green-tea/qq-music-api": "asar"
+    }
+  }
+}

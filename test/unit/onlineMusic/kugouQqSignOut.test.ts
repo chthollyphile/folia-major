@@ -1,15 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FoliumSourcePageStore } from '@folia/folium';
 import { createFoliumSourceError } from '@/mods/folium/sources/errors';
-import { qqProvider } from '@/services/onlineMusic/qq/qqProvider';
 import { createSource } from '../../../sources/kugou/core';
+import { createSource as createQqSource } from '../../../sources/qq/core';
 
 // test/unit/onlineMusic/kugouQqSignOut.test.ts
-// What the KuGou source and the QQ adapter keep of a sign-in in the page's storage, and when it goes at a
+// What the KuGou and QQ sources keep of a sign-in in the page's storage, and when it goes at a
 // sign-out (`auth.logout`, which is also their `signInRanOut`): before the first wait, whatever
 // becomes of the request. The page's storage is a map of texts; the platform is `fetch`, answered
-// by the test. Both run as on the web: there is no desktop side here. KuGou is the source its core makes for
-// the web build (sources/kugou/core createSource with `web`), its own logout called as the adapter calls it.
+// by the test. Both run as on the web: there is no desktop side here. Each is the source its core makes for
+// the web build (sources/<id>/core createSource with `web`), its own logout called as the adapter calls it.
 
 const QQ_SESSION = 'online_provider:qq:cookie';
 const page = new Map<string, string>();
@@ -37,6 +37,19 @@ const kugouLogout = (): Promise<void> => {
     });
     return (source.capabilities['auth@1'] as { logout(): Promise<void> }).logout();
 };
+const qqLogout = (): Promise<void> => {
+    const source = createQqSource({
+        modId: 'qq',
+        call: () => Promise.reject(new Error('no main entry on the web')),
+        text: key => ({ key }) as never,
+        translate: key => key,
+        error: createFoliumSourceError,
+        isPureMusicText: () => false,
+        pageStore,
+        web: { apiBase: 'http://qq.test', relayUrl: url => url },
+    });
+    return (source.capabilities['auth@1'] as { logout(): Promise<void> }).logout();
+};
 const fetchMock = vi.fn();
 // A request the test answers when it chooses to.
 const held = () => {
@@ -57,13 +70,7 @@ const kugouSignedIn = (name: string) => {
 beforeEach(() => {
     page.clear();
     fetchMock.mockReset();
-    vi.stubEnv('VITE_QQ_API_BASE', 'http://qq.test');
     vi.stubGlobal('fetch', fetchMock);
-    vi.stubGlobal('localStorage', {
-        getItem: (key: string) => page.get(key) ?? null,
-        setItem: (key: string, value: string) => { page.set(key, value); },
-        removeItem: (key: string) => { page.delete(key); },
-    });
     vi.spyOn(console, 'warn').mockImplementation(() => {});
 });
 
@@ -119,7 +126,7 @@ describe('a QQ sign-out', () => {
         page.set(QQ_SESSION, 'qqmusic_session=old');
         fetchMock.mockReturnValue(new Promise(() => {}));
 
-        void qqProvider.auth!.logout();
+        void qqLogout();
 
         expect(page.size).toBe(0);
         await sent();
@@ -133,7 +140,7 @@ describe('a QQ sign-out', () => {
         const request = held();
         fetchMock.mockReturnValue(request.promise);
 
-        const signedOut = qqProvider.auth!.logout();
+        const signedOut = qqLogout();
         await sent();
         page.set(QQ_SESSION, 'qqmusic_session=new');
         request.answer(Response.json({ code: status }, { status }));

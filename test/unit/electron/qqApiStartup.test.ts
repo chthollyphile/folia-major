@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 // test/unit/electron/qqApiStartup.test.ts
 
-const { QQ_API_MODULE, isModuleNotFound, startQqApi } = require('../../../electron/qq/qqApiStartup.cjs') as {
+const { QQ_API_MODULE, isModuleNotFound, startQqApi } = require('../../../sources/qq/main/qqApiStartup.cjs') as {
     QQ_API_MODULE: string;
     isModuleNotFound: (error: unknown) => boolean;
     startQqApi: (options: Record<string, unknown>) => Promise<{
@@ -140,7 +140,8 @@ describe('QQ API startup', () => {
             env: {},
         });
 
-        server.failToBind(new Error('listen EADDRINUSE: address already in use :::45123'));
+        // The listen fails on a later tick, as a real one does (the package may also be loaded with a dynamic import).
+        setImmediate(() => server.failToBind(new Error('listen EADDRINUSE: address already in use :::45123')));
 
         await expect(pending).rejects.toThrow('EADDRINUSE');
     });

@@ -101,14 +101,33 @@ export const buildAuth = (kit: SourceAdapterKit, auth: FoliumSourceAuth): Online
         getSetup: auth.getSetup?.bind(auth),
         runSetupAction: auth.runSetupAction?.bind(auth),
     };
+    // The sign-in window takes the texts when a sign-in starts and reads them again each time it draws: a source may
+    // answer with getters that say what fits once it has learnt more (which ways to sign in its backend offers), so
+    // each field is read from the source's answer when the window reads it, not once here.
     const textsOf = lastOf((value: unknown): LoginTexts => {
         const texts = record(value);
-        const notes = record(texts?.caseNotes);
-        return {
-            title: kit.key(texts?.title, 'loginTexts.title') ?? '',
-            note: kit.key(texts?.note, 'loginTexts.note') ?? '',
-            ...(notes ? { caseNotes: Object.fromEntries(Object.entries(notes).map(([name, note]) => [name, kit.key(note, 'loginTexts.caseNotes')])) } : {}),
+        const read = (name: 'title' | 'note'): string => {
+            try {
+                return kit.key(texts?.[name], `loginTexts.${name}`) ?? '';
+            } catch {
+                return '';
+            }
         };
+        const notesOf = (): LoginTexts['caseNotes'] => {
+            try {
+                const notes = record(texts?.caseNotes);
+                return notes ? Object.fromEntries(Object.entries(notes).map(([name, note]) => [name, kit.key(note, 'loginTexts.caseNotes')])) : undefined;
+            } catch {
+                return undefined;
+            }
+        };
+        const live: LoginTexts = {
+            get title() { return read('title'); },
+            get note() { return read('note'); },
+        };
+        // Defined, not spread: a spread would copy the notes of this moment.
+        if (notesOf()) Object.defineProperty(live, 'caseNotes', { get: notesOf, enumerable: true });
+        return live;
     });
     const methodsOf = lastOf((value: unknown): LoginMethod[] => list(value).flatMap((item): LoginMethod[] => {
         const method = record(item);

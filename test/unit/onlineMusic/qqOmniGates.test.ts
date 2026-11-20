@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { omni } from '@/services/onlineMusic/omni';
 import { getOnlineMusicProvider } from '@/services/onlineMusic/providerRegistry';
-import { normalizeQqCollection, normalizeQqSong } from '@/services/onlineMusic/qq/qqNormalize';
+import { hostQqCollection as normalizeQqCollection, hostQqSong as normalizeQqSong } from '../helpers/qqSource';
 import { useOnlineProviderAccountStore } from '@/stores/useOnlineProviderAccountStore';
 import { canDislikeCurrentSong } from '@/utils/playerLikeAvailability';
 import type { UnifiedSong } from '@/types';
@@ -49,11 +49,12 @@ describe('QQ collection gates', () => {
 });
 
 describe('QQ personal FM dislike', () => {
-    const qqSong = normalizeQqSong({ mid: 'mid-a', id: 1, name: 'a', singer: [], album: {} });
+    // 宿主的歌要注册着的 provider 来做，所以到用例里才做。
+    const qqSong = () => normalizeQqSong({ mid: 'mid-a', id: 1, name: 'a', singer: [], album: {} });
 
     // qq-music-api 3.3.6 起 QQ 有歌曲不喜欢（拉进黑名单），垃圾桶可以用；没有 dislike 的平台仍置灰。
     it('lets the FM trash dislike a QQ song, and greys it out for a provider without dislike', () => {
-        expect(canDislikeCurrentSong(qqSong)).toBe(true);
+        expect(canDislikeCurrentSong(qqSong())).toBe(true);
         expect(canDislikeCurrentSong(null)).toBe(false);
         const bodianSong: UnifiedSong = { id: 1, name: 'b', artists: [], album: { id: '', name: '' }, durationMs: 1,
             sourceRef: { kind: 'online', providerId: 'bodian', mediaId: '1' } };
