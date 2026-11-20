@@ -1,4 +1,4 @@
-const { isConnectionResetMessage } = require('../../../shared/networkErrorText.cjs');
+const { isConnectionResetMessage } = require('./networkErrorText.cjs');
 const { readCookieField } = require('./neteaseLoginDiagnostics.cjs');
 
 // sources/netease/main/neteaseLoginIdentity.cjs
@@ -17,96 +17,96 @@ const LOGIN_QR_KEY_URI = '/api/login/qrcode/unikey';
 
 // 上游 request 把网络错误 reject 成 { status: 502, body: { code: 502, msg: err.message } }。
 const isConnectionReset = (error) => Boolean(
-  error
+    error
   && typeof error === 'object'
   && Number(error.status) === 502
   && isConnectionResetMessage(error.body?.msg),
 );
 
 const withCookieField = (options, name, value) => {
-  const { cookie } = options;
-  if (typeof cookie === 'string' && cookie.trim()) return { ...options, cookie: `${cookie}; ${name}=${value}` };
-  if (cookie && typeof cookie === 'object') return { ...options, cookie: { ...cookie, [name]: value } };
-  return { ...options, cookie: { [name]: value } };
+    const { cookie } = options;
+    if (typeof cookie === 'string' && cookie.trim()) return { ...options, cookie: `${cookie}; ${name}=${value}` };
+    if (cookie && typeof cookie === 'object') return { ...options, cookie: { ...cookie, [name]: value } };
+    return { ...options, cookie: { [name]: value } };
 };
 
 // 创建扫码身份轮换器：wrapRequest 包住上游 request，describe 给诊断报告。
 function createNeteaseLoginIdentity({
-  generateDeviceId,
-  readAnonymousToken,
-  // 上游 util/request 加载时读到的那份 token，用来判断轮换时是否真的换到了新 token。
-  initialAnonymousToken = '',
-  setDeviceId = (deviceId) => { global.deviceId = deviceId; },
-  getDeviceId = () => global.deviceId,
-  now = Date.now,
-  logger = console,
+    generateDeviceId,
+    readAnonymousToken,
+    // 上游 util/request 加载时读到的那份 token，用来判断轮换时是否真的换到了新 token。
+    initialAnonymousToken = '',
+    setDeviceId = (deviceId) => { global.deviceId = deviceId; },
+    getDeviceId = () => global.deviceId,
+    now = Date.now,
+    logger = console,
 } = {}) {
-  const processStartedAt = now();
-  // null：沿用上游加载时读到的匿名 token。
-  let anonymousToken = null;
-  let pendingRotation = false;
-  let rotations = 0;
-  let lastRotatedAt = null;
-  let lastTokenRenewed = null;
-  let connectionResets = 0;
+    const processStartedAt = now();
+    // null：沿用上游加载时读到的匿名 token。
+    let anonymousToken = null;
+    let pendingRotation = false;
+    let rotations = 0;
+    let lastRotatedAt = null;
+    let lastTokenRenewed = null;
+    let connectionResets = 0;
 
-  const readToken = () => {
-    try {
-      return String(readAnonymousToken() ?? '').trim() || null;
-    } catch {
-      return null;
-    }
-  };
+    const readToken = () => {
+        try {
+            return String(readAnonymousToken() ?? '').trim() || null;
+        } catch {
+            return null;
+        }
+    };
 
-  // 换 deviceId；token 读到了、且与当前在用的不同才算换到了新 token（读不到时保留原来那个）。
-  const rotate = () => {
-    pendingRotation = false;
-    setDeviceId(generateDeviceId());
-    const token = readToken();
-    const current = anonymousToken ?? (String(initialAnonymousToken ?? '').trim() || null);
-    lastTokenRenewed = Boolean(token && token !== current);
-    if (token) anonymousToken = token;
-    rotations += 1;
-    lastRotatedAt = now();
-    logger.warn('[Netease API] login identity rotated after connection reset', {
-      rotations,
-      tokenRenewed: lastTokenRenewed,
+    // 换 deviceId；token 读到了、且与当前在用的不同才算换到了新 token（读不到时保留原来那个）。
+    const rotate = () => {
+        pendingRotation = false;
+        setDeviceId(generateDeviceId());
+        const token = readToken();
+        const current = anonymousToken ?? (String(initialAnonymousToken ?? '').trim() || null);
+        lastTokenRenewed = Boolean(token && token !== current);
+        if (token) anonymousToken = token;
+        rotations += 1;
+        lastRotatedAt = now();
+        logger.warn('[Netease API] login identity rotated after connection reset', {
+            rotations,
+            tokenRenewed: lastTokenRenewed,
+        });
+    };
+
+    // 只补上游本来会用缓存 token 兜底的请求：没有 MUSIC_U，也没自带 MUSIC_A（渲染进程的匿名 cookie 不动）。
+    const applyAnonymousToken = (options) => {
+        if (!anonymousToken || readCookieField(options.cookie, 'MUSIC_U') || readCookieField(options.cookie, 'MUSIC_A')) {
+            return options;
+        }
+        return withCookieField(options, 'MUSIC_A', anonymousToken);
+    };
+
+    const wrapRequest = (request) => (uri, data, options = {}) => {
+        const isQrRequest = typeof uri === 'string' && uri.startsWith(LOGIN_QR_URI_PREFIX);
+        if (pendingRotation && uri === LOGIN_QR_KEY_URI) rotate();
+        return Promise.resolve(request(uri, data, applyAnonymousToken(options))).catch((error) => {
+            if (isQrRequest && isConnectionReset(error)) {
+                connectionResets += 1;
+                pendingRotation = true;
+            }
+            throw error;
+        });
+    };
+
+    const describe = () => ({
+        processStartedAt,
+        deviceId: typeof getDeviceId() === 'string' ? getDeviceId() : null,
+        connectionResets,
+        rotations,
+        lastRotatedAt,
+        lastTokenRenewed,
+        pendingRotation,
     });
-  };
 
-  // 只补上游本来会用缓存 token 兜底的请求：没有 MUSIC_U，也没自带 MUSIC_A（渲染进程的匿名 cookie 不动）。
-  const applyAnonymousToken = (options) => {
-    if (!anonymousToken || readCookieField(options.cookie, 'MUSIC_U') || readCookieField(options.cookie, 'MUSIC_A')) {
-      return options;
-    }
-    return withCookieField(options, 'MUSIC_A', anonymousToken);
-  };
-
-  const wrapRequest = (request) => (uri, data, options = {}) => {
-    const isQrRequest = typeof uri === 'string' && uri.startsWith(LOGIN_QR_URI_PREFIX);
-    if (pendingRotation && uri === LOGIN_QR_KEY_URI) rotate();
-    return Promise.resolve(request(uri, data, applyAnonymousToken(options))).catch((error) => {
-      if (isQrRequest && isConnectionReset(error)) {
-        connectionResets += 1;
-        pendingRotation = true;
-      }
-      throw error;
-    });
-  };
-
-  const describe = () => ({
-    processStartedAt,
-    deviceId: typeof getDeviceId() === 'string' ? getDeviceId() : null,
-    connectionResets,
-    rotations,
-    lastRotatedAt,
-    lastTokenRenewed,
-    pendingRotation,
-  });
-
-  return { wrapRequest, describe };
+    return { wrapRequest, describe };
 }
 
 module.exports = {
-  createNeteaseLoginIdentity,
+    createNeteaseLoginIdentity,
 };

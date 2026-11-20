@@ -25,20 +25,20 @@ const UPSTREAM_ATTEMPT_TIMEOUT_MS = 1000;
 
 // 把这个线程之后的连接改成 IPv4 在前，并放宽每个地址的尝试时限。要在任何上游请求发出之前调用。
 function preferIpv4Upstream({ dnsModule = dns, netModule = net, logger = console } = {}) {
-  const previousOrder = typeof dnsModule.getDefaultResultOrder === 'function' ? dnsModule.getDefaultResultOrder() : 'unknown';
-  const previousTimeout = typeof netModule.getDefaultAutoSelectFamilyAttemptTimeout === 'function'
-    ? netModule.getDefaultAutoSelectFamilyAttemptTimeout()
-    : 'unknown';
-  dnsModule.setDefaultResultOrder(UPSTREAM_RESULT_ORDER);
-  netModule.setDefaultAutoSelectFamilyAttemptTimeout(UPSTREAM_ATTEMPT_TIMEOUT_MS);
-  logger.log(
-    `[Netease API] upstream address order set to ${UPSTREAM_RESULT_ORDER} (was ${previousOrder}), `
+    const previousOrder = typeof dnsModule.getDefaultResultOrder === 'function' ? dnsModule.getDefaultResultOrder() : 'unknown';
+    const previousTimeout = typeof netModule.getDefaultAutoSelectFamilyAttemptTimeout === 'function'
+        ? netModule.getDefaultAutoSelectFamilyAttemptTimeout()
+        : 'unknown';
+    dnsModule.setDefaultResultOrder(UPSTREAM_RESULT_ORDER);
+    netModule.setDefaultAutoSelectFamilyAttemptTimeout(UPSTREAM_ATTEMPT_TIMEOUT_MS);
+    logger.log(
+        `[Netease API] upstream address order set to ${UPSTREAM_RESULT_ORDER} (was ${previousOrder}), `
     + `attempt timeout ${UPSTREAM_ATTEMPT_TIMEOUT_MS}ms (was ${previousTimeout}ms)`,
-  );
+    );
 }
 
 module.exports = {
-  UPSTREAM_ATTEMPT_TIMEOUT_MS,
-  UPSTREAM_RESULT_ORDER,
-  preferIpv4Upstream,
+    UPSTREAM_ATTEMPT_TIMEOUT_MS,
+    UPSTREAM_RESULT_ORDER,
+    preferIpv4Upstream,
 };

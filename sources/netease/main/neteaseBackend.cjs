@@ -1,8 +1,8 @@
-"use strict";
+'use strict';
 
 const { createNeteaseApiHost } = require('./neteaseApiHost.cjs');
 const { startsAgainWhenNeeded } = require('./neteaseApiStartup.cjs');
-const { createBackendStatus, describeError } = require('../../../electron/backendLifecycle.cjs');
+const { createBackendStatus, describeError } = require('./backendLifecycle.cjs');
 
 // sources/netease/main/neteaseBackend.cjs
 // 网易云本地 API（@neteasecloudmusicapienhanced/api）在主进程这一侧的控制面。包本身在工作线程里加载和运行
@@ -10,7 +10,8 @@ const { createBackendStatus, describeError } = require('../../../electron/backen
 // - preload()：开线程，让它先加载包；
 // - start(reason)：让线程拉起服务，状态经 netease-api-status-changed 广播；并发调用共用同一次拉起
 //   （serveNcmApi 没有关闭入口，第二次会泄漏一个监听端口）；
-// - getDiagnostics()：后端状态 + 线程里的拉起步骤、登录请求记录、扫码身份、最近的上游连接（都记在线程里，请求在那里发出）。
+// - getDiagnostics()：后端状态 + 线程里的拉起步骤、登录请求记录、扫码身份、最近的上游连接（都记在线程里，请求在那里发出）；
+// - stop()：模组停下或应用退出，结束线程（服务随之关掉），状态回到 idle；之后不再拉起。
 
 const STATUS_CHANNEL = 'netease-api-status-changed';
 // 只监听 IPv4 回环：本地 API 只给本进程和渲染进程用，不该暴露到局域网；固定地址也让渲染进程
@@ -24,75 +25,92 @@ const SELF_CHECK_HOSTS = ['interfacepc.music.163.com', 'interface3.music.163.com
  * onUnhandledRejection 接线程里没人接的 rejection；createWorker 只给测试换线程用。
  */
 function createNeteaseBackend({
-  broadcast,
-  logger = console,
-  now = Date.now,
-  onUnhandledRejection,
-  createWorker,
-}) {
-  const status = createBackendStatus({ channel: STATUS_CHANNEL, broadcast, now });
-  let startPromise = null;
-
-  // 本地服务用不了了（没拉起来，或者线程自己结束了）：清掉端口，把状态改成 error。`offline`：没拉起来是因为
-  // 断网（线程认出来的），页面据此说连不上，下一次要用它时它会再拉起（startsAgainWhenNeeded）。
-  const markDown = (error) => {
-    status.update({ status: 'error', port: null, error: describeError(error), offline: error?.offline === true });
-  };
-
-  const host = createNeteaseApiHost({
-    createWorker,
-    logger,
+    broadcast,
+    logger = console,
+    now = Date.now,
     onUnhandledRejection,
-    // 线程结束了，它开的服务也就没了。拉起途中结束的不用另管：等着的那次拉起会失败。已经在监听的要在这里
-    // 改状态，页面才看得到失败，「重启后端」才会去开新的线程。
-    onExit: (_code, error) => {
-      if (status.get().status === 'running') markDown(error);
-    },
-  });
+    createWorker,
+    workerPath,
+    workerData,
+}) {
+    const status = createBackendStatus({ channel: STATUS_CHANNEL, broadcast, now });
+    let startPromise = null;
+    let stopped = false;
 
-  const startOnce = async () => {
-    status.update({ status: 'starting', port: null, error: null, offline: false });
-    try {
-      const { port } = await host.start({ host: LISTEN_HOST });
-      status.update({ status: 'running', port, error: null, offline: false });
-    } catch (error) {
-      markDown(error);
-    }
-    return status.get();
-  };
+    // 本地服务用不了了（没拉起来，或者线程自己结束了）：清掉端口，把状态改成 error。`offline`：没拉起来是因为
+    // 断网（线程认出来的），页面据此说连不上，下一次要用它时它会再拉起（startsAgainWhenNeeded）。
+    const markDown = (error) => {
+        status.update({ status: 'error', port: null, error: describeError(error), offline: error?.offline === true });
+    };
 
-  // reason 'needed'：一个请求要用它、它却因为断网没起来（规则和次数的限制在 startsAgainWhenNeeded）。
-  // 不带是用的人按了「重启后端服务」或应用刚启动，照旧拉起。
-  const start = (reason) => {
-    const current = status.get();
-    if (reason === 'needed' && !startsAgainWhenNeeded(current, now())) return Promise.resolve(current);
-    if (current.status === 'running') return Promise.resolve(current);
-    if (!startPromise) {
-      startPromise = startOnce().finally(() => {
-        startPromise = null;
-      });
-    }
-    return startPromise;
-  };
+    const host = createNeteaseApiHost({
+        ...(createWorker ? { createWorker } : {}),
+        ...(workerPath ? { workerPath } : {}),
+        ...(workerData === undefined ? {} : { workerData }),
+        logger,
+        onUnhandledRejection,
+        // 线程结束了，它开的服务也就没了。拉起途中结束的不用另管：等着的那次拉起会失败。已经在监听的要在这里
+        // 改状态，页面才看得到失败，「重启后端」才会去开新的线程。
+        onExit: (_code, error) => {
+            if (status.get().status === 'running') markDown(error);
+        },
+    });
 
-  const getDiagnostics = async () => ({
-    backend: { ...status.get() },
-    ...(await host.diagnostics()),
-  });
+    const startOnce = async () => {
+        status.update({ status: 'starting', port: null, error: null, offline: false });
+        try {
+            const { port } = await host.start({ host: LISTEN_HOST });
+            status.update({ status: 'running', port, error: null, offline: false });
+        } catch (error) {
+            markDown(error);
+        }
+        return status.get();
+    };
 
-  return {
-    statusChannel: STATUS_CHANNEL,
-    preload: () => host.preload(),
-    start,
-    getStatus: () => status.get(),
-    /** 服务真正在监听时的端口；没起来时为 null（渲染进程据此等待或显示故障，而不是去连一个假端口）。 */
-    getPort: () => (status.get().status === 'running' ? status.get().port : null),
-    getDiagnostics,
-    selfCheckHosts: SELF_CHECK_HOSTS,
-  };
+    // reason 'needed'：一个请求要用它、它却因为断网没起来（规则和次数的限制在 startsAgainWhenNeeded）。
+    // 不带是用的人按了「重启后端服务」或应用刚启动，照旧拉起。
+    const start = (reason) => {
+        const current = status.get();
+        if (stopped) return Promise.resolve(current);
+        if (reason === 'needed' && !startsAgainWhenNeeded(current, now())) return Promise.resolve(current);
+        if (current.status === 'running') return Promise.resolve(current);
+        if (!startPromise) {
+            startPromise = startOnce().finally(() => {
+                startPromise = null;
+            });
+        }
+        return startPromise;
+    };
+
+    const getDiagnostics = async () => ({
+        backend: { ...status.get() },
+        ...(await host.diagnostics()),
+    });
+
+    // 等着的那次拉起先结束（线程一结束它就失败），再把状态记成 idle。
+    const stop = async () => {
+        stopped = true;
+        await host.stop();
+        await startPromise?.catch(() => undefined);
+        status.update({ status: 'idle', port: null, error: null, offline: false });
+    };
+
+    return {
+        statusChannel: STATUS_CHANNEL,
+        preload: () => {
+            if (!stopped) host.preload();
+        },
+        stop,
+        start,
+        getStatus: () => status.get(),
+        /** 服务真正在监听时的端口；没起来时为 null（渲染进程据此等待或显示故障，而不是去连一个假端口）。 */
+        getPort: () => (status.get().status === 'running' ? status.get().port : null),
+        getDiagnostics,
+        selfCheckHosts: SELF_CHECK_HOSTS,
+    };
 }
 
 module.exports = {
-  NETEASE_SELF_CHECK_HOSTS: SELF_CHECK_HOSTS,
-  createNeteaseBackend,
+    NETEASE_SELF_CHECK_HOSTS: SELF_CHECK_HOSTS,
+    createNeteaseBackend,
 };
