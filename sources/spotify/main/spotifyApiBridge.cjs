@@ -606,7 +606,6 @@ function createSpotifyApiBridge({
   return {
     // A read of the main entry's `_media/audio` route (audio.cjs `serve`).
     serveAudio: read => audio.serve(read),
-    handleAudioRequest: request => audio.handle(request),
     // The audio files kept on disk, for the media cache to count, prune and clear: `list()`,
     // `remove(name)`, `clear()`.
     audioFiles,
