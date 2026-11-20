@@ -1968,6 +1968,8 @@ export default {
     "loginNoteBodian": "Scan this code with the Bodian Music app and confirm sign-in",
     "loginTitleFnMusic": "Sign in to fnOS Music",
     "loginNoteFnMusic": "Enter your fnOS Music server address and account to play your NAS music library",
+    "loginTitleLxmusic": "LX Music source",
+    "loginNoteLxmusic": "LX Music does not use an account: import your own source scripts to search and play. The scripts are yours; Folia ships none.",
     "loginTitleYtm": "Sign in to YouTube Music",
     "loginTitleAppleMusic": "Sign in to Apple Music",
     "loginNoteAppleMusic": "Sign in using the Apple window. Your password stays with Apple.",
@@ -2269,6 +2271,8 @@ export default {
   },
   "lyricProvider": {
     "qishui": "Qishui Music",
+
+    "lxmusic": "LX Music",
     "netease": "NetEase Cloud Music",
     "qq": "QQ Music",
     "kugou": "Kugou Music",
@@ -2285,6 +2289,7 @@ export default {
     "ytm": "YT Music",
     "spotify": "Spotify",
     "qishui": "Qishui",
+    "lxmusic": "LX Music",
     "fnmusic": "fnOS",
   },
   "globalLyricOffset": {

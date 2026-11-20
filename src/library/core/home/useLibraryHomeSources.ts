@@ -15,6 +15,7 @@ import { selectProviderPersonalFm, usePersonalFmModeStore } from '../../../store
 import { getLocalLibraryAvailability } from '../../../services/localLibraryAvailability';
 import { getPersonalFmSelectionLabel } from '../../../services/onlineMusic/fmModes';
 import { useLibraryAccountProviders } from '../account/useLibraryAccount';
+import { useLxSquareCollections } from './online/useLxSquareCollections';
 
 // src/library/core/home/useLibraryHomeSources.ts
 // 首页的来源与一级页签：当前页签（搜索导航 store 持有）、当前在线来源（provider、账户、能力）、
@@ -66,7 +67,7 @@ export const useLibraryHomeSources = ({
     const provider = useMemo(() => resolveActiveProviderSummary(providers, providerId), [providerId, providers]);
     const capabilities = readOnlineProviderCapabilities(providerId);
     const { userLibrary, playlists: canListPlaylists, userAlbums, recommendations, personalFmModes, explore } = capabilities;
-    const online = useMemo(() => resolveHomeOnlineSource({
+    const onlineBase = useMemo(() => resolveHomeOnlineSource({
         providerId,
         provider,
         capabilities: { ...capabilities, userLibrary, playlists: canListPlaylists, userAlbums, recommendations, personalFmModes, explore },
@@ -80,6 +81,34 @@ export const useLibraryHomeSources = ({
         // capabilities 每次读都是新对象：按用到的几个开关比较。
         canListPlaylists, cloudPlaylist, explore, personalFmModes, playlists, provider, providerId, recommendations, user, userAlbums, userLibrary,
     ]);
+
+    /*
+     * 洛雪没有账号，也就没有「我的收藏歌单」—— 它的歌单页本来是空的（capabilities.userLibrary 为 false，
+     * 页签直接判成不可用）。解法：选中洛雪时这一屏换成四家平台的公开歌单广场（四家交替排，点进去是真实曲目）。
+     * 只换首页这一屏的数据来源，登录 / 搜索 / 播放仍走洛雪自己。
+     * 广场还没取到时保持原本的空状态，免得先闪一下「没有歌单」再跳出来。
+     */
+    const isLxmusic = providerId === 'lxmusic';
+    const lxSquare = useLxSquareCollections(isLxmusic);
+    const online = useMemo(() => {
+        if (!isLxmusic) return onlineBase;
+        const hasSquare = lxSquare.length > 0;
+        return {
+            ...onlineBase,
+            collections: hasSquare ? lxSquare : onlineBase.collections,
+            canUsePlaylists: true,
+            /*
+             * 推荐（榜单）与专辑这两屏在洛雪下也换成了自己的卡流（LxChartBoard / LxAlbumWall），
+             * 数据全走公开接口，不依赖账号。可 provider 的能力声明里没有「我的专辑 / 私人电台」，
+             * 于是这两颗页签一直被挂上 disabledReason，字色被压暗、悬停提示是「暂未提供」，
+             * 明明点得动却像个坏按钮。这里按实际能力把两颗都放行。
+             */
+            canUseRadio: true,
+            canUseAlbums: true,
+            // 有内容就按「已就绪」显示：否则整个墙会空着只剩登录入口，而洛雪压根不登录。
+            ...(hasSquare ? { accountView: 'authenticated' as const } : {}),
+        };
+    }, [isLxmusic, lxSquare, onlineBase]);
 
     // The explore tab is gone after a switch to a provider without one, and a stored choice of it
     // may be older than the switch.

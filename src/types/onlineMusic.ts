@@ -1098,6 +1098,12 @@ export interface OnlineMutationProvider {
     canSubscribe?(collection: ProviderCollection): boolean;
     subscribePlaylist?(playlist: MediaId | ProviderCollection, subscribed: boolean): Promise<void>;
     subscribeAlbum?(id: MediaId, subscribed: boolean): Promise<void>;
+    /**
+     * Where a song can be put, for a provider that keeps its playlists on this machine instead of
+     * on the platform (洛雪 is one: no account, no server-side collections). Answering here takes
+     * the place of the account's cached collections for the picker; without it, those are used.
+     */
+    listPlaylists?(): ProviderCollection[];
 }
 
 // Something a provider has to tell the listener unasked. The text is an i18n key, translated by the UI.
