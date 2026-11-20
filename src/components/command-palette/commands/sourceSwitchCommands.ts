@@ -55,7 +55,7 @@ export const sourceSwitchStates = (target: Pick<SourceSwitchTarget, 'state' | 't
     (['enabled', 'matching', 'disabled'] as const).filter(state => state !== target.state && (state !== 'matching' || target.threeStates))
 );
 
-/** The command id that switches `sourceId` to `state` (`source-enable-qq`, …). */
+/** The command id that switches `sourceId` to `state` (`source-enable-<id>`, …). */
 export const sourceSwitchCommandId = (sourceId: string, state: ModSourceState): string => `${COMMAND_TEXT[state].id}-${sourceId}`;
 
 /** The commands for `targets`, in their order: per source, one for each state it can move to now. */
