@@ -26,7 +26,7 @@ export default {
     "run_mod-off": "Its mod is switched off on the Mods page, so this state has no effect for now",
     "runFailed": "Could not start: {{error}}",
     "usage": "Data {{data}} · cache {{cache}}",
-    "hostNote": "This platform is not a source mod yet; the app registers it itself. Disabling it or keeping it only for matching only changes where it shows: its main-process part is not affected and runs as usual (NetEase Cloud Music's local service starts with the app). Clearing its data comes once it is a mod; to remove the sign-in now, enable it again first, then sign out in the sign-in window.",
+    "hostNote": "This platform is not a source mod yet; the app registers it itself. Disabling it or keeping it only for matching only changes where it shows: its main-process part is not affected and runs as usual. Clearing its data comes once it is a mod; to remove the sign-in now, enable it again first, then sign out in the sign-in window.",
     "matchingNote": "Only for matching: not in the switcher, the sign-in window, search or the command palette; it only matches lyrics and details of local songs, always as if nobody were signed in. Your sign-in stays and is there again once you enable it.",
     "clearNote": "Clear data signs out and deletes its session, secrets, cache and mod data folder; it lists what goes and asks first. It is not the same as disabling, which keeps the data.",
     "clearData": "Clear data",
@@ -709,8 +709,6 @@ export default {
     "unmarkedPureMusic": "Instrumental mark removed; lyrics will be matched automatically next time it plays",
     "bestLyricsMatchFailed": "Failed to match best lyrics",
     "noSongPlaying": "No song is playing",
-    "neteaseApiStartupFailed": "NetEase API failed to start. Some online features are unavailable.",
-    "neteaseApiStartupFailedDetail": "NetEase API failed to start, so some online features are unavailable: {{reason}}",
     "generatingTheme": "AI is dreaming up a theme...",
     "themeApplied": "Applied theme: {{themeName}}",
     "aiThemeUpdated": "AI theme updated: {{themeName}}",
@@ -2029,8 +2027,6 @@ export default {
     "yourPlaylists": "Your Playlists",
     "searchPlaceholder": "Search for music...",
     "songs": "songs",
-    "loginTitle": "Scan with Netease App",
-    "loginNote": "Open Netease Music App > Discover > Scan QR",
     "loginCodeWaiting": "Waiting for confirmation in your browser",
     "loginBrowserOpen": "Open the browser again",
     "loginBrowserLoading": "Opening your browser...",
@@ -2176,11 +2172,6 @@ export default {
     "exploreRecent": "Recently played",
     "exploreAgain": "Play again",
     "exploreSimilar": "Similar to {{name}}",
-    "neteaseDailyPlaylists": "Daily playlists for you",
-    "neteaseCharts": "Charts",
-    "neteaseNewSongs": "New songs",
-    "neteaseNewAlbums": "New albums",
-    "neteaseHotPlaylists": "Popular playlists",
     "personalFm": "Personal FM",
     "dailyRecommendations": "Daily Recommendations",
     "dailyRecommendationsDescription": "A daily mix made for you",
@@ -2266,11 +2257,7 @@ export default {
     "listenCount_other": "Played {{count}} times"
   },
   "lyricProvider": {
-    "netease": "NetEase Cloud Music",
     "amll": "AMLLDB",
-  },
-  "onlineProviderName": {
-    "netease": "NetEase",
   },
   "globalLyricOffset": {
     "title": "Global Timing Offset",
@@ -5127,8 +5114,6 @@ export default {
     "usingServerPreset": "Using the server preset account",
     "restoreServerPreset": "Use server preset",
     "restoreServerPresetFailed": "Could not reach the server preset. Try again later.",
-    "cloudDrive": "Cloud Drive",
-    "cloudDriveDesc": "NetEase Cloud Music Drive",
   },
   "hifi": {
     "settings": {

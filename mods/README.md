@@ -1691,7 +1691,7 @@ const { body, accountKey } = await platform.request('netease', 'user_record', { 
   由平台的 provider 补上会话后发出，模组碰不到凭据。
 - **`describe(providerId)`** 不需要权限，说这个平台能不能直通，以及后端库的名字和版本（取自包本身，随宿主更新）。
 - **`endpoint`** 是钉住的后端库自己的模块名（网易云：`@neteasecloudmusicapienhanced/api` 的 `module/` 下的文件名，如 `user_record`、`listen_data_total`）。
-  哪些能调由平台自己的分类表决定（网易云的在 `src/services/onlineMusic/netease/neteaseRaw.ts`）：
+  哪些能调由平台自己的分类表决定（网易云的在 `sources/netease/core/neteaseRaw.ts`）：
   - 读接口要 `read`：听歌记录与听歌足迹、用户资料与关注、歌曲、歌单、专辑、歌手、排行榜、搜索、推荐等；
   - 写接口另要 `write`：点赞、歌单增删歌和改名、收藏、关注、听歌上报、签到等；
   - 永远拒绝：登录、注册、验证码、会话刷新、账号与绑定、设备、改资料，以及能把任意请求转发出去或解密流量的模块；

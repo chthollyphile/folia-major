@@ -26,7 +26,7 @@ export default {
     "run_mod-off": "它的模组在模组页里整个关着，这里的状态暂不生效",
     "runFailed": "没能启动：{{error}}",
     "usage": "数据 {{data}} · 缓存 {{cache}}",
-    "hostNote": "这个平台还没迁成音源模组，由应用自己注册。停用和只用于匹配只改它在界面里出不出现：它在主进程里的部分不受影响，照常运行（网易云的本地服务随应用启动）。清除数据要等它迁成模组后才有；现在要清掉登录，请先切回启用，再在登录窗口里退出。",
+    "hostNote": "这个平台还没迁成音源模组，由应用自己注册。停用和只用于匹配只改它在界面里出不出现：它在主进程里的部分不受影响，照常运行。清除数据要等它迁成模组后才有；现在要清掉登录，请先切回启用，再在登录窗口里退出。",
     "matchingNote": "只用于匹配：不出现在切换器、登录窗口、搜索和命令面板里，只参加歌词匹配和本地歌的信息匹配，一律按没登录对待。你的登录数据留着，切回启用后还在。",
     "clearNote": "清除数据：登出并删掉它的会话、密钥、缓存和模组数据目录；先列出要删什么，确认后才执行。它和停用是两回事，停用不动数据。",
     "clearData": "清除数据",
@@ -709,8 +709,6 @@ export default {
     "unmarkedPureMusic": "已取消纯音乐标记，下次播放会自动匹配歌词",
     "bestLyricsMatchFailed": "匹配最佳歌词失败",
     "noSongPlaying": "当前没有正在播放的歌曲",
-    "neteaseApiStartupFailed": "网易云接口启动失败，部分在线功能不可用",
-    "neteaseApiStartupFailedDetail": "网易云接口启动失败，部分在线功能不可用：{{reason}}",
     "generatingTheme": "主题构想中...",
     "themeApplied": "已应用主题: {{themeName}}",
     "aiThemeUpdated": "AI 主题已更新: {{themeName}}",
@@ -2029,8 +2027,6 @@ export default {
     "yourPlaylists": "您的歌单",
     "searchPlaceholder": "搜索音乐...",
     "songs": "首",
-    "loginTitle": "使用网易云APP扫码",
-    "loginNote": "打开网易云音乐APP > 发现 > 扫一扫",
     "loginCodeWaiting": "等待在浏览器中确认",
     "loginBrowserOpen": "重新打开浏览器",
     "loginBrowserLoading": "正在打开浏览器…",
@@ -2176,11 +2172,6 @@ export default {
     "exploreRecent": "最近播放",
     "exploreAgain": "再听一次",
     "exploreSimilar": "与《{{name}}》相似",
-    "neteaseDailyPlaylists": "每日推荐歌单",
-    "neteaseCharts": "排行榜",
-    "neteaseNewSongs": "新歌速递",
-    "neteaseNewAlbums": "新碟上架",
-    "neteaseHotPlaylists": "热门歌单",
     "personalFm": "私人FM",
     "dailyRecommendations": "每日推荐",
     "dailyRecommendationsDescription": "为你定制的每日歌曲",
@@ -2266,11 +2257,7 @@ export default {
     "listenCount_other": "听过 {{count}} 次"
   },
   "lyricProvider": {
-    "netease": "网易云音乐",
     "amll": "AMLLDB",
-  },
-  "onlineProviderName": {
-    "netease": "网易云",
   },
   "globalLyricOffset": {
     "title": "全局时间偏移",
@@ -5126,8 +5113,6 @@ export default {
     "usingServerPreset": "正在使用服务器预置的账号",
     "restoreServerPreset": "恢复使用服务器预置",
     "restoreServerPresetFailed": "无法获取服务器预置，请稍后再试。",
-    "cloudDrive": "云盘",
-    "cloudDriveDesc": "网易云音乐云盘",
   },
   "hifi": {
     "settings": {

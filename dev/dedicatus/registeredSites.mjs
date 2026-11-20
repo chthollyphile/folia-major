@@ -44,7 +44,7 @@ export const REGISTERED_SITES = [
         include: ['src/services/onlineMusic/**', 'sources/**'],
         sites: {
             'sources/kugou/core/kugouProvider.ts': { getLikedSongIds: 'getKugouLikedPlaylistTracks 读到底，读不完就抛错' },
-            'sources/netease/core/neteaseProvider.ts': { getLikedSongIds: '一次请求就是整张列表；出错的答复先抛 OnlineProviderError' },
+            'sources/netease/core/neteaseProvider.ts': { getLikedSongIds: '一次请求就是整张列表；出错的答复先抛 neteaseError（宿主收到的是同一种 OnlineProviderError）' },
         },
     },
     {

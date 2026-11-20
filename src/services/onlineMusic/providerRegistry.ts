@@ -2,7 +2,6 @@ import { OnlineProviderError } from '../../types/onlineMusic';
 import type { OnlineMusicProvider, OnlineProviderId, ProviderCapabilities } from '../../types/onlineMusic';
 import type { SongResult } from '../../types';
 import { getPlaybackSourceRef } from '../../utils/appPlaybackGuards';
-import { neteaseProvider } from '../../../sources/netease/core/neteaseProvider';
 import { startsWithoutSources } from '../../dev/devLaunchFlags';
 import { announceCacheLimit } from '../audioCache';
 
@@ -42,6 +41,9 @@ const announceRegistryChange = () => {
 };
 
 export const registerOnlineMusicProvider = (provider: OnlineMusicProvider): void => {
+    // `?noSources` (dev only): none of the nine built-in platforms is registered (their source mods, and the web build's
+    // registerWebSources), to see the app with no platform at all.
+    if (startsWithoutSources && BUILT_IN_SOURCE_ORDER.includes(provider.id)) return;
     if (!providers.has(provider.id)) {
         registrationCount += 1;
         registeredAt.set(provider.id, registrationCount);
@@ -168,12 +170,3 @@ export const requireOnlineMusicProviderForSong = (song: SongResult): OnlineMusic
     }
     return requireOnlineMusicProvider(sourceRef.providerId);
 };
-
-// The built-in platforms not yet moved to source mods, registered at load until they are (Folium 2.0 S5/S8); the
-// moved ones (sources/<id>/) register through the mod runtime. `?noSources` (dev only) leaves these out,
-// to see the app with no platform at all.
-// The web build registers its three platforms again through web/index.ts (registerWebSources); once one of them
-// moves to a source mod it leaves this list, and web/<id>.ts is where the web build gets it.
-if (!startsWithoutSources) {
-    registerOnlineMusicProvider(neteaseProvider);
-}

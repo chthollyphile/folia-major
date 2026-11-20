@@ -14,7 +14,6 @@ import {
     unregisterOnlineMusicProvider,
 } from '../../../src/services/onlineMusic/providerRegistry';
 import { useOnlineProviderAccountStore } from '../../../src/stores/useOnlineProviderAccountStore';
-import { useNeteaseApiStatusStore } from '../../../sources/netease/core/useNeteaseApiStatusStore';
 import { useCollectionNavigationStore } from '../../../src/stores/useCollectionNavigationStore';
 import { useLibrarySuiteStore } from '../../../src/library/core/suite/useLibrarySuiteStore';
 import { DEFAULT_LIBRARY_SUITE_ID } from '../../../src/library/core/suite/librarySuites';
@@ -40,6 +39,8 @@ import {
     recordAccountCall,
     resetFakeAuth,
     scriptQrStates,
+    setFakeNeteaseBackend,
+    setFakeNeteaseRestart,
     setQrTtl,
     setSelfCheck,
     shouldFailRefresh,
@@ -49,8 +50,8 @@ import type { AccountProbeApi } from './probeApi';
 
 // dev/probes/accountBehavior/useAccountProbeHarness.ts
 // 账户探针的「假 App」，分两段：
-// - useAccountProbeEnvironment：挂载时把内置 provider 换成六个假 provider、种好账户与当前平台、接管网易后端的
-//   状态与重启动作，卸载时全部还原；就绪前不渲染首页（平台 hook 第一次跑时 provider 必须已经注册，
+// - useAccountProbeEnvironment：挂载时把内置 provider 换成六个假 provider、种好账户与当前平台（假网易的本地后端
+//   也在 fakeAuthProviders 里），卸载时全部还原；就绪前不渲染首页（平台 hook 第一次跑时 provider 必须已经注册，
 //   否则它会把当前平台回退成 netease 并写进 localStorage）。
 // - useAccountProbeModel：按 App 的方式装出 HomeViewModel——真实的账户 controller（useLibraryAccountController，
 //   刷新器 / 登出表与 App 同形、只记账，切换清理是应用的端口外包一层记账），交给真实的 Home（registry 解析出的
@@ -76,31 +77,6 @@ const seedAccount = (providerId: string, status: 'authenticated' | 'anonymous'):
     });
 };
 
-// ---- 网易本地后端：接管 store 的 restart（真实实现走 Electron bridge，探针没有），流程与真实一致 ----
-let restartPlan: { outcome: 'running' | 'error'; delayMs: number } = { outcome: 'running', delayMs: 300 };
-
-const backendStatus = (status: 'starting' | 'running' | 'error', error: string | null = null): ElectronNeteaseApiStatus => ({
-    status,
-    port: status === 'running' ? 4173 : null,
-    error,
-    updatedAt: Date.now(),
-});
-
-const probeRestartNeteaseApi = async (): Promise<void> => {
-    const store = useNeteaseApiStatusStore;
-    recordAccountCall({ op: 'backend-restart', providerId: ACCOUNT_NETEASE });
-    if (store.getState().restarting) return;
-    store.setState({ restarting: true });
-    try {
-        await delay(restartPlan.delayMs);
-        store.setState({
-            status: backendStatus(restartPlan.outcome, restartPlan.outcome === 'error' ? 'probe: restart failed' : null),
-        });
-    } finally {
-        store.setState({ restarting: false });
-    }
-};
-
 /** 装好探针环境；返回是否就绪。 */
 export const useAccountProbeEnvironment = (): boolean => {
     const [ready, setReady] = useState(false);
@@ -109,7 +85,6 @@ export const useAccountProbeEnvironment = (): boolean => {
         const builtins: OnlineMusicProvider[] = listOnlineMusicProviders();
         builtins.forEach(provider => unregisterOnlineMusicProvider(provider.id));
         resetFakeAuth();
-        restartPlan = { outcome: 'running', delayMs: 300 };
         ACCOUNT_PROVIDERS.forEach(rule => registerOnlineMusicProvider(createFakeAuthProvider(rule)));
 
         const accountStore = useOnlineProviderAccountStore.getState();
@@ -122,20 +97,12 @@ export const useAccountProbeEnvironment = (): boolean => {
             if (rule.initial) seedAccount(rule.id, rule.initial);
         });
 
-        const previousNetease = useNeteaseApiStatusStore.getState();
-        useNeteaseApiStatusStore.setState({ supported: false, status: null, restarting: false, restart: probeRestartNeteaseApi });
         useCollectionNavigationStore.getState().clear();
         useLibrarySuiteStore.setState({ suite: DEFAULT_LIBRARY_SUITE_ID });
         setReady(true);
 
         return () => {
             setReady(false);
-            useNeteaseApiStatusStore.setState({
-                supported: previousNetease.supported,
-                status: previousNetease.status,
-                restarting: previousNetease.restarting,
-                restart: previousNetease.restart,
-            });
             useCollectionNavigationStore.getState().clear();
             useOnlineProviderAccountStore.setState({ accounts: previousAccounts, activeProviderId: previousProviderId });
             if (previousStoredProviderId === null) localStorage.removeItem(ACTIVE_PROVIDER_STORAGE_KEY);
@@ -263,12 +230,8 @@ export const useAccountProbeModel = (): AccountProbeModel => {
             setSelfCheck,
             setAccount: seedAccount,
             setActive: providerId => useOnlineProviderAccountStore.setState({ activeProviderId: providerId }),
-            setNeteaseBackend: ({ supported, status, error = null }) => {
-                useNeteaseApiStatusStore.setState({ supported, status: backendStatus(status, error) });
-            },
-            setBackendRestart: (outcome, delayMs = 300) => {
-                restartPlan = { outcome, delayMs };
-            },
+            setNeteaseBackend: setFakeNeteaseBackend,
+            setBackendRestart: setFakeNeteaseRestart,
             suite: () => useLibrarySuiteStore.getState().suite,
             setSuite: suiteId => useLibrarySuiteStore.getState().setSuite(suiteId),
             startLogin: async providerId => (await accountRef.current.startLogin(providerId)).status,

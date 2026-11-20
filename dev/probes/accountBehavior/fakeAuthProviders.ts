@@ -1,6 +1,5 @@
 import type { UnifiedSong } from '../../../src/types';
-import type { LoginSelfCheckResult, OnlineMusicProvider } from '../../../src/types/onlineMusic';
-import { useNeteaseApiStatusStore } from '../../../sources/netease/core/useNeteaseApiStatusStore';
+import type { LoginLocalService, LoginLocalServiceStatus, LoginSelfCheckResult, OnlineMusicProvider } from '../../../src/types/onlineMusic';
 import { diagnosticLine } from '../../../src/services/onlineMusic/login/loginDiagnosticReport';
 import { ACCOUNT_CANCEL_COOLDOWN_MS, ACCOUNT_NETEASE, accountUser, qrKeyOf, type AccountProviderRule } from './accountFixtureRules';
 import type { AccountCall, AccountQrState, AccountSelfCheckScript } from './probeApi';
@@ -81,6 +80,55 @@ const takeFailure = (table: Map<string, number>, providerId: string): boolean =>
 
 export const shouldFailRefresh = (providerId: string): boolean => takeFailure(refreshFailures, providerId);
 
+// ---- 网易本地后端（假的）：真实的是网易云模组的 auth@1.localService（sources/netease/core/neteaseLocalService.ts），
+// 登录窗口经 provider.auth.localService 看它的状态、按重启。探针按 setNeteaseBackend / setBackendRestart 编排。----
+type FakeBackendStatus = 'starting' | 'running' | 'error';
+let fakeBackend: { supported: boolean; status: FakeBackendStatus; error: string | null } = { supported: false, status: 'running', error: null };
+let fakeBackendRestarting = false;
+let fakeBackendView: LoginLocalServiceStatus = { failed: false, error: null, restarting: false };
+let restartPlan: { outcome: 'running' | 'error'; delayMs: number } = { outcome: 'running', delayMs: 300 };
+const fakeBackendListeners = new Set<() => void>();
+
+const publishFakeBackend = (): void => {
+    const failed = fakeBackend.status === 'error';
+    fakeBackendView = { failed, error: failed ? fakeBackend.error : null, restarting: fakeBackendRestarting };
+    fakeBackendListeners.forEach(listener => listener());
+};
+
+/** supported=false 等同 Web 版（没有后端可看）。status 为 error 时假网易的要码会抛错，和真实一致。 */
+export const setFakeNeteaseBackend = (backend: { supported: boolean; status: FakeBackendStatus; error?: string | null }): void => {
+    fakeBackend = { supported: backend.supported, status: backend.status, error: backend.error ?? null };
+    publishFakeBackend();
+};
+/** 下一次重启的结果与耗时。 */
+export const setFakeNeteaseRestart = (outcome: 'running' | 'error', delayMs = 300): void => {
+    restartPlan = { outcome, delayMs };
+};
+
+const fakeNeteaseLocalService: LoginLocalService = {
+    subscribe: (listener) => {
+        fakeBackendListeners.add(listener);
+        return () => {
+            fakeBackendListeners.delete(listener);
+        };
+    },
+    getStatus: () => fakeBackendView,
+    restart: async () => {
+        recordAccountCall({ op: 'backend-restart', providerId: ACCOUNT_NETEASE });
+        if (fakeBackendRestarting) return fakeBackend.status === 'running';
+        fakeBackendRestarting = true;
+        publishFakeBackend();
+        try {
+            await new Promise(resolve => setTimeout(resolve, restartPlan.delayMs));
+            fakeBackend = { ...fakeBackend, status: restartPlan.outcome, error: restartPlan.outcome === 'error' ? 'probe: restart failed' : null };
+        } finally {
+            fakeBackendRestarting = false;
+            publishFakeBackend();
+        }
+        return fakeBackend.status === 'running';
+    },
+};
+
 /** 清空编排与账（探针挂载时调用；序号不归零，整页内的 key 保持唯一）。 */
 export const resetFakeAuth = (): void => {
     qrQueues.clear();
@@ -88,6 +136,10 @@ export const resetFakeAuth = (): void => {
     refreshFailures.clear();
     createFailures.clear();
     selfChecks.clear();
+    fakeBackend = { supported: false, status: 'running', error: null };
+    fakeBackendRestarting = false;
+    restartPlan = { outcome: 'running', delayMs: 300 };
+    publishFakeBackend();
     clearAccountCalls();
 };
 
@@ -129,6 +181,10 @@ export const createFakeAuthProvider = (rule: AccountProviderRule): OnlineMusicPr
     return {
         ...base,
         auth: {
+            // 只有假网易有本地后端，且只在桌面版（supported）时；按读取时的编排答。
+            get localService(): LoginLocalService | undefined {
+                return providerId === ACCOUNT_NETEASE && fakeBackend.supported ? fakeNeteaseLocalService : undefined;
+            },
             getLoginStatus: async () => accountUser(providerId),
             logout: async () => {
                 recordAccountCall({ op: 'auth-logout', providerId });
@@ -145,8 +201,7 @@ export const createFakeAuthProvider = (rule: AccountProviderRule): OnlineMusicPr
                 const key = qrKeyOf(providerId, methodId, qrSerial);
                 recordAccountCall({ op: 'create', providerId, key, methodId: methodId ?? null });
                 // 网易本地后端没起来时，真实的要码请求必然失败。
-                const backendDown = providerId === ACCOUNT_NETEASE
-                    && useNeteaseApiStatusStore.getState().status?.status === 'error';
+                const backendDown = providerId === ACCOUNT_NETEASE && fakeBackend.status === 'error';
                 if (backendDown || takeFailure(createFailures, providerId)) {
                     throw new Error(`probe: cannot create QR for ${providerId}`);
                 }

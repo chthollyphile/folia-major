@@ -74,6 +74,8 @@ export const CREDENTIAL_WRITERS = {
     'sources/netease/core/neteaseProvider.ts': {
         // 扫码轮询确认（803）的分支
         checkLogin: ['cookie'],
+        // 只写 null：退出登录，或网易云说这次问的登录已经失效（迁移前经 providerStorage 的 remove 删，不在检查范围里）
+        dropNeteaseSignIn: ['cookie'],
     },
     'sources/kugou/main/kugouApiBridge.cjs': {
         // 确认的扫码登录（login_qr_check、status 4），整对写入

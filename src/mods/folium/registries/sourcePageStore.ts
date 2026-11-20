@@ -22,12 +22,14 @@ const OLD_NETEASE_COOKIE_KEY = 'netease_cookie';
 const OLD_NETEASE_ANONYMOUS_COOKIE_KEY = 'netease_anonymous_cookie';
 
 interface MovedPageKey { key: string; read: () => string | null; remove: () => void }
-const movedKey = (key: string, old: string): MovedPageKey => ({ key, read: () => readStoredString(old), remove: () => { removeStoredKey(old); } });
 
-
+// Each old name read and removed by its own constant: D507 (dev/dedicatus/storageKeys.mjs) finds a key's uses that way.
 const MOVED_PAGE_KEYS: Readonly<Record<string, readonly MovedPageKey[]>> = Object.freeze({
-    ytm: [movedKey('account', OLD_YTM_ACCOUNT_KEY)],
-    netease: [movedKey('cookie', OLD_NETEASE_COOKIE_KEY), movedKey('anonymous_cookie', OLD_NETEASE_ANONYMOUS_COOKIE_KEY)],
+    ytm: [{ key: 'account', read: () => readStoredString(OLD_YTM_ACCOUNT_KEY), remove: () => { removeStoredKey(OLD_YTM_ACCOUNT_KEY); } }],
+    netease: [
+        { key: 'cookie', read: () => readStoredString(OLD_NETEASE_COOKIE_KEY), remove: () => { removeStoredKey(OLD_NETEASE_COOKIE_KEY); } },
+        { key: 'anonymous_cookie', read: () => readStoredString(OLD_NETEASE_ANONYMOUS_COOKIE_KEY), remove: () => { removeStoredKey(OLD_NETEASE_ANONYMOUS_COOKIE_KEY); } },
+    ],
 });
 
 const moveOldKeys = (sourceId: string) => {

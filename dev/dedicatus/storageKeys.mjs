@@ -343,4 +343,8 @@ export const STORAGE_KEYS = [
     'web:folia_playback_report:*',
     'web:folia_perf_check_offered',
     'web:visualizer_picker_keep_open',
+    // 网易云更早的版本存登录 cookie / 匿名 cookie 的旧名（之后放在 online_provider:netease: 下）：宿主的页面存储在建网易云的
+    // 那一份时搬一次（src/mods/folium/registries/sourcePageStore.ts）；迁成模组之前由宿主的 provider 当旧键读。
+    'web:netease_anonymous_cookie',
+    'web:netease_cookie',
 ];

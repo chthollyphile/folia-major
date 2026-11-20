@@ -30,7 +30,7 @@ export type AccountCallOp =
     | 'switch-cleanup'
     /** 退出登录时移出那个平台的歌（同一个端口的 dropSongsOf）。 */
     | 'drop-songs'
-    /** 网易本地后端的重启动作（useNeteaseApiStatusStore.restart）。 */
+    /** 网易本地后端的重启动作（登录窗口经 auth.localService.restart，假的在 fakeAuthProviders.ts）。 */
     | 'backend-restart'
     /** 登录失败后的主动自检（provider.runQrLoginSelfCheck）。 */
     | 'self-check';

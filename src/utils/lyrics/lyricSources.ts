@@ -56,7 +56,6 @@ export interface LyricSourceEntry {
 // In the order the automatic pick asks them after the preferred one, which is also the order of
 // the tabs in the match windows and of the choices in settings.
 const BUILT_IN_ENTRIES = [
-    { id: 'netease', labelKey: 'lyricProvider.netease', platform: true, localMetadataIdentity: true, metadataMatch: true },
     { id: 'amll', labelKey: 'lyricProvider.amll', platform: false },
 ] as const satisfies readonly LyricSourceEntry[];
 
@@ -65,10 +64,10 @@ export type KnownLyricProviderSource = (typeof BUILT_IN_ENTRIES)[number]['id'];
 /** A lyric source's id: stored as text, open to sources registered later. */
 export type LyricProviderSource = KnownLyricProviderSource | (string & {});
 /**
- * A platform's lyric source: the built-in ones, or one a source mod registers (lyrics@1.crossSource), which the host
- * does not know by name.
+ * A platform's lyric source: one a source mod registers (lyrics@1.crossSource), which the host does not know by name.
+ * The host's own table lists no platform since the last one moved into its source mod (Folium 2.0, 2026-11-20).
  */
-export type PlatformLyricSource = Extract<(typeof BUILT_IN_ENTRIES)[number], { platform: true }>['id'] | (string & {});
+export type PlatformLyricSource = string & {};
 
 export interface LyricSource extends LyricSourceEntry {
     id: LyricProviderSource;

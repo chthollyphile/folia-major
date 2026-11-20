@@ -28,6 +28,9 @@
       ],
       "@folia/folium": [
         "./mods/folium.d.ts"
+      ],
+      "@folia/source-deps": [
+        "./dev/sources/sourceDeps.d.ts"
       ]
     },
     "allowImportingTsExtensions": true,
