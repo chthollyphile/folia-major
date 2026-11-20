@@ -1,0 +1,36 @@
+{
+  "folium": 2,
+  "id": "qq",
+  "name": "QQ 音乐",
+  "version": "1.0.0",
+  "author": "Folia",
+  "description": "Folia 内置的 QQ 音乐音源：QQ、微信与 QQ 音乐 App 扫码登录、搜索、播放、逐字歌词、曲库、云盘、听歌排行、推荐、猜你喜欢电台、探索页、音乐偏好与歌单改动。桌面端经主进程里内嵌的 qq-music-api 请求，网页版发到配置的 qq-music-api 服务。",
+  "client": "client.mjs",
+  "main": "index.cjs",
+  "locales": "locales",
+  "sources": [
+    {
+      "id": "qq",
+      "name": {
+        "zh-CN": "QQ 音乐",
+        "en": "QQ Music",
+        "in": "QQ Music",
+        "vi": "QQ Music"
+      },
+      "requires": [
+        "search@1",
+        "songs@1",
+        "playback.audio@1",
+        "lyrics@1",
+        "auth@1",
+        "library@1",
+        "catalog@1",
+        "explore@1",
+        "recommendations@1",
+        "mutations@1",
+        "covers@1"
+      ],
+      "keepForMatching": true
+    }
+  ]
+}

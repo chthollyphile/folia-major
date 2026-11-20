@@ -1,11 +1,13 @@
-import { OnlineProviderError } from '../../../src/types/onlineMusic';
-import { readProviderSessionValue, removeProviderSessionValue, writeProviderSessionValue } from '../../../src/services/onlineMusic/providerStorage';
 import { withLoginRequestLimit } from '@folia/folium-source-kit';
-import { withOnlineRequestLimit } from '../../../src/services/onlineMusic/failure/onlineRequestLimit';
-import { lyricProxyWebUrl } from '../../../src/services/lyricProxy';
-import { errorMessage } from '../../../src/utils/errorText';
+import {
+    isQqDesktop, isQqError, qqEnv, qqError, readQqStoredSession,
+} from './qqEnv';
 
 // sources/qq/core/qqTransport.ts
+// The requests to qq-music-api. The desktop app's backend runs in the main entry (main/index.ts): the main entry starts
+// it the first time `status` is asked, and requests go straight to it at http://127.0.0.1:<port>. The web build sends
+// them to VITE_QQ_API_BASE. musicu (QQ's own entry, for lyrics, the anonymous search and song details) is asked by the
+// main entry on the desktop (`musicu`) and through the lyric proxy on the web.
 
 export const QQ_OPERATIONS = [
     'login_qr_key', 'login_qr_create', 'login_qr_check', 'login_qr_cancel', 'login_status', 'logout',
@@ -126,25 +128,51 @@ const ONLINE_REQUESTS: ReadonlySet<QqOperation> = new Set([
 // 5 s probe, each call to QQ limited to 25 s (services/auth/httpClient.js): 60 s in all.
 export const QQ_ONLINE_REQUEST_LIMIT_MS = 70_000;
 
+/**
+ * 给一个请求加上 `limitMs` 的时限（宿主 failure/onlineRequestLimit.ts 的同一个做法）。`run` 拿到的 signal 交给 fetch：
+ * 到点时请求被中止，以 network 的错失败。在时限内有了结果的，成功和失败都原样交出去。
+ */
+const withOnlineRequestLimit = <T>(run: (signal: AbortSignal) => Promise<T>, limitMs: number): Promise<T> => {
+    const controller = new AbortController();
+    return new Promise<T>((resolve, reject) => {
+        const timer = setTimeout(() => {
+            reject(qqError('network', `The request was not answered in ${limitMs / 1000} s`, { timedOut: true }));
+            controller.abort();
+        }, limitMs);
+        new Promise<T>(settle => settle(run(controller.signal))).then(resolve, reject).finally(() => clearTimeout(timer));
+    });
+};
+
+/** The request ran into its limit (withOnlineRequestLimit): the next quality would wait as long, on the same network. */
+export const isQqTimeout = (error: unknown): boolean => (
+    isQqError(error, 'network') && (error.cause as { timedOut?: unknown } | undefined)?.timedOut === true
+);
+
+const errorMessage = (error: unknown): string => (error instanceof Error ? error.message : String(error));
+
 // qq-music-api translates the native QR states into the Netease codes; 803 is the only one carrying a session.
 const QR_CONFIRMED_CODE = 803;
 
-const getWebApiBase = (): string => {
-    const viteValue = typeof import.meta !== 'undefined' && import.meta.env?.MODE !== 'test'
-        ? String((import.meta as ImportMeta & { env?: Record<string, string> }).env?.VITE_QQ_API_BASE || '')
-        : '';
-    const processValue = typeof process !== 'undefined'
-        ? String(process.env?.VITE_QQ_API_BASE || '')
-        : '';
-    const value = viteValue || processValue;
-    return value.trim().replace(/\/$/, '');
-};
+const getWebApiBase = (): string => (qqEnv().web?.apiBase ?? '').trim().replace(/\/$/, '');
 
-// Electron embeds qq-music-api and starts it on a free port, so the base is only known at runtime.
-const getElectronQqPortReader = (): (() => Promise<number | null>) | null => {
-    if (typeof window === 'undefined') return null;
-    const reader = window.electron?.getQqPort;
-    return typeof reader === 'function' ? () => reader() : null;
+/** What the main entry answers to `status`: the embedded backend, started the first time it is asked. */
+export interface QqBackendStatus {
+    status: 'starting' | 'running' | 'error' | 'unavailable' | 'stopped' | (string & {});
+    port: number | null;
+    error: string | null;
+    updatedAt?: number;
+    /** The encrypted sign-in store could not be read at this start, and no sign-in of this run replaced it. */
+    sessionStoreUnreadable?: boolean;
+}
+
+/** The main entry's backend status; null where it cannot be asked. */
+export const readQqBackendStatus = async (): Promise<QqBackendStatus | null> => {
+    try {
+        return await qqEnv().call<QqBackendStatus | null>('status');
+    } catch (error) {
+        console.warn('[QQ] status:failed', error);
+        return null;
+    }
 };
 
 // What a request fails with where the desktop app's embedded backend has no port: the sentence
@@ -159,19 +187,22 @@ let electronApiBase: string | null = null;
 
 export const resetQqTransportRuntimeCache = (): void => {
     electronApiBase = null;
+    storeReadable = false;
+    lastStoreUnreadable = false;
+    sessionCheck = null;
+};
+
+/** The embedded backend moved (restarted on another port): the next request asks the main entry again. */
+export const forgetQqBackendPort = (): void => {
+    electronApiBase = null;
 };
 
 // 内嵌后端没在监听时，把主进程报的状态与故障原因带进错误：时间线里直接能看到它为什么没起来。
-const describeEmbeddedStatus = async (): Promise<string> => {
-    try {
-        const status = await window.electron?.getQqApiStatus?.();
-        return status ? ` (status ${status.status}${status.error ? `: ${status.error}` : ''})` : '';
-    } catch {
-        return '';
-    }
-};
+const describeEmbeddedStatus = (status: QqBackendStatus | null): string => (
+    status ? ` (status ${status.status}${status.error ? `: ${status.error}` : ''})` : ''
+);
 
-// 主进程这次启动没能读出加密的登录仓库（electron/qq/qqAuthSessionRepository.cjs：这次没有系统加密），这次运行里也还没有
+// 主进程这次启动没能读出加密的登录仓库（main/qqAuthSessionRepository.cjs：这次没有系统加密），这次运行里也还没有
 // 新登录替掉它：内嵌后端里没有一个会话是这次运行之前的。网页版没有这个仓库；状态问不到时也当作读出来了，和以前一样。
 // 读得出（或被替掉）以后整次运行都不会再变回去，所以只记下「读得出」；读不出时每次现问，这次运行里的新登录一到，下一个
 // 请求就照常带上它（页面重新载入以后也是）。lastStoreUnreadable 是最近一次问到的答案，给要同步判断的地方用（hasUsableQqSession）。
@@ -179,44 +210,40 @@ let storeReadable = false;
 let lastStoreUnreadable = false;
 const isQqSessionStoreUnreadable = async (): Promise<boolean> => {
     if (storeReadable) return false;
-    const readStatus = typeof window === 'undefined' ? undefined : window.electron?.getQqApiStatus;
-    if (typeof readStatus !== 'function') {
+    if (!isQqDesktop()) {
         storeReadable = true;
         return false;
     }
-    try {
-        const status = await readStatus();
-        const unreadable = Boolean(status?.sessionStoreUnreadable);
-        if (status?.status === 'running' && !unreadable) storeReadable = true;
-        lastStoreUnreadable = unreadable;
-        return unreadable;
-    } catch {
-        return false;
-    }
+    const status = await readQqBackendStatus();
+    if (!status) return false;
+    const unreadable = Boolean(status.sessionStoreUnreadable);
+    if (status.status === 'running' && !unreadable) storeReadable = true;
+    lastStoreUnreadable = unreadable;
+    return unreadable;
 };
 
 const resolveApiBase = async (): Promise<string> => {
-    const readPort = getElectronQqPortReader();
-    if (readPort) {
+    if (isQqDesktop()) {
         if (electronApiBase) return electronApiBase;
-        const port = await readPort();
-        if (!port) {
-            throw new OnlineProviderError('unavailable', `${QQ_API_NOT_RUNNING}${await describeEmbeddedStatus()}`, 'qq');
+        // 第一次问的时候 main 入口才把后端拉起来（只用于匹配时也一样），等它监听上再答。
+        const status = await readQqBackendStatus();
+        if (!status?.port) {
+            throw qqError('unavailable', `${QQ_API_NOT_RUNNING}${describeEmbeddedStatus(status)}`);
         }
-        electronApiBase = `http://127.0.0.1:${port}`;
+        electronApiBase = `http://127.0.0.1:${status.port}`;
         return electronApiBase;
     }
 
     const base = getWebApiBase();
     if (!base) {
         // 网页版没配后端地址：这里用不了 QQ 音乐，再试也一样（qqFailure.ts 说它是「没有配置」）。
-        throw new OnlineProviderError('unavailable', QQ_API_BASE_MISSING, 'qq');
+        throw qqError('unavailable', QQ_API_BASE_MISSING);
     }
     return base;
 };
 
 // The stored value is the backend's opaque `qqmusic_session=<token>` string, never a QQ credential.
-const getWebSessionCookie = (): string => readProviderSessionValue('qq', 'cookie') || '';
+const getWebSessionCookie = (): string => readQqStoredSession();
 
 const SESSION_COOKIE_NAME = 'qqmusic_session';
 const SESSION_HEADER_NAME = 'X-QQ-Session';
@@ -253,7 +280,9 @@ export const isQqSessionParked = async (): Promise<boolean> => hasQqSession() &&
  */
 export const hasUsableQqSession = (): boolean => hasQqSession() && !lastStoreUnreadable;
 
-export const clearQqSession = (): void => removeProviderSessionValue('qq', 'cookie');
+export const clearQqSession = (): void => {
+    qqEnv().pageStore('qq').set('cookie', null);
+};
 
 // 后端的退避时长（qq-music-api 在 429 的响应体里给 retryAfterMs，同时带 Retry-After 头，单位是秒）。
 // 只收非负安全整数，读不出就不给，调用方按普通失败处理。
@@ -332,12 +361,9 @@ const assertUpstreamAccepted = (operation: QqOperation, body: any): void => {
 
         const subcode = Number(node?.subcode);
         const message = typeof node?.message === 'string' ? node.message.trim() : '';
-        throw new OnlineProviderError(
-            'invalid-response',
-            `QQMusicApi ${operation} was rejected upstream at ${path.join('.')} (code ${code}`
+        throw qqError('invalid-response', `QQMusicApi ${operation} was rejected upstream at ${path.join('.')} (code ${code}`
             + `${Number.isFinite(subcode) && subcode !== code ? `, subcode ${subcode}` : ''})`
             + `${message ? `: ${message}` : ''}`,
-            'qq',
             node,
         );
     }
@@ -346,14 +372,14 @@ const assertUpstreamAccepted = (operation: QqOperation, body: any): void => {
 const persistConfirmedSession = (operation: QqOperation, body: any): void => {
     if (operation !== 'login_qr_check' || Number(body?.code) !== QR_CONFIRMED_CODE) return;
     const cookie = body?.cookie;
-    if (typeof cookie === 'string' && cookie) writeProviderSessionValue('qq', 'cookie', cookie);
+    if (typeof cookie === 'string' && cookie) qqEnv().pageStore('qq').set('cookie', cookie);
 };
 
 /** 网页版配置的远端 API 地址（自检与诊断报告用）；桌面版走内嵌后端，返回 null。 */
-export const getQqRemoteApiBase = (): string | null => (getElectronQqPortReader() ? null : getWebApiBase() || null);
+export const getQqRemoteApiBase = (): string | null => (isQqDesktop() ? null : getWebApiBase() || null);
 
 export const getQqTransportAvailability = () => {
-    if (getElectronQqPortReader()) return { configured: true } as const;
+    if (isQqDesktop()) return { configured: true } as const;
     return getWebApiBase()
         ? { configured: true } as const
         : { configured: false, reason: 'not-configured' as const };
@@ -366,10 +392,7 @@ const endpointFor = (operation: QqOperation, params: QqParams): { path: string; 
         delete query[name];
         const pathValue = value === undefined ? '' : String(value).trim();
         if (!pathValue) {
-            throw new OnlineProviderError(
-                'invalid-response',
-                `QQMusicApi ${operation} requires ${name}`,
-                'qq',
+            throw qqError('invalid-response', `QQMusicApi ${operation} requires ${name}`,
             );
         }
         return encodeURIComponent(pathValue);
@@ -405,7 +428,7 @@ const checkSessionAfterRefusal = (sent: string): void => {
     if (sessionCheck || getWebSessionCookie() !== sent) return;
     sessionCheck = requestQq<any>('login_status').then(
         body => !body?.data?.profile,
-        error => error instanceof OnlineProviderError && error.code === 'auth-required',
+        error => isQqError(error, 'auth-required'),
     ).then(ended => {
         console.info(`[QQ] A request was refused with 401; login_status ${ended ? 'no longer names the account, the session goes' : 'did not say the sign-in ended, the session stays'}`);
         if (ended) dropSessionSent(sent);
@@ -424,10 +447,7 @@ export const requestQq = async <T = unknown>(
 ): Promise<T> => {
     const isPost = POST_OPERATIONS.has(operation);
     if (isPost !== (payload !== undefined)) {
-        throw new OnlineProviderError(
-            'invalid-response',
-            `QQMusicApi ${operation} ${isPost ? 'requires' : 'does not take'} a request body`,
-            'qq',
+        throw qqError('invalid-response', `QQMusicApi ${operation} ${isPost ? 'requires' : 'does not take'} a request body`,
         );
     }
     const stored = getWebSessionCookie();
@@ -473,7 +493,7 @@ export const requestQq = async <T = unknown>(
         // (checkSessionAfterRefusal); at an account read login_status itself decides (accountRead, signInRanOut).
         if (response.status === 401) {
             if (operation !== 'login_status' && cookie) checkSessionAfterRefusal(cookie);
-            throw new OnlineProviderError('auth-required', 'QQMusicApi login required', 'qq', body, response.status);
+            throw qqError('auth-required', 'QQMusicApi login required', body, response.status);
         }
         // 旧后端缺路由会回 404；旧版 Serverless 则回带固定文案的 501。其他 501 仍是配置错误。
         const missingServerlessRoute = response.status === 501 && typeof body?.message === 'string' && (
@@ -481,21 +501,18 @@ export const requestQq = async <T = unknown>(
             || body.message.endsWith(' is not implemented by the serverless runtime. See /login/channels for what this deployment serves.')
         );
         if (response.status === 404 || missingServerlessRoute) {
-            throw new OnlineProviderError(
-                'unsupported',
-                `QQMusicApi has no ${operation} route`,
-                'qq',
+            throw qqError('unsupported', `QQMusicApi has no ${operation} route`,
                 body,
                 response.status,
             );
         }
         // The status is in the sentence, the backend's answer in the cause (qqFailure.ts reads both), and the wait a
         // 429 asks for on the error.
-        throw new OnlineProviderError('network', `QQMusicApi request failed: ${response.status}`, 'qq', body, response.status, readRetryAfterMs(body, response));
+        throw qqError('network', `QQMusicApi request failed: ${response.status}`, body, response.status, readRetryAfterMs(body, response));
     }
 
     if (body === undefined) {
-        throw new OnlineProviderError('invalid-response', `QQMusicApi returned an unreadable ${operation} body`, 'qq');
+        throw qqError('invalid-response', `QQMusicApi returned an unreadable ${operation} body`);
     }
     assertUpstreamAccepted(operation, body);
     persistConfirmedSession(operation, body);
@@ -536,54 +553,81 @@ const readMusicuCode = (value: unknown): number | undefined => {
     return Number.isFinite(code) ? code : undefined;
 };
 
+const readRetryAfterHeader = (raw: string | null | undefined): number | undefined => {
+    const value = raw?.trim();
+    if (!value || !/^\d+$/.test(value)) return undefined;
+    const seconds = Number(value);
+    return Number.isSafeInteger(seconds * 1000) ? seconds * 1000 : undefined;
+};
+
+/**
+ * 把一份 musicu 正文发出去：桌面版交给 main 入口（`musicu`），网页版经歌词代理。答 QQ 的状态与正文（只有 2xx 读正文）；
+ * 连不上、到点没有回答时抛 network 的错。`direct`：状态是 QQ 自己的（不是网页中转的）。
+ */
+export const sendQqMusicuPayload = async (
+    payload: unknown,
+    limitMs: number,
+): Promise<{ status: number; text: string; retryAfter?: string | null; direct: boolean }> => {
+    const env = qqEnv();
+    if (!env.web) {
+        let reply: QqMusicuReply;
+        try {
+            reply = await env.call<QqMusicuReply>('musicu', payload);
+        } catch (error) {
+            throw qqError('network', `QQ musicu unreachable: ${errorMessage(error)}`, error);
+        }
+        if ('unreachable' in reply) throw qqError('network', `QQ musicu unreachable: ${reply.message}`);
+        return { ...reply, direct: true };
+    }
+    const url = env.web.relayUrl(QQ_MUSICU_URL);
+    const init: RequestInit = {
+        method: 'POST',
+        // 网页版要带上同源的 cookie：Vercel 的部署保护靠它放行。
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    };
+    try {
+        return await withOnlineRequestLimit(async (signal) => {
+            const response = await fetch(url, { ...init, signal });
+            return {
+                status: response.status,
+                text: response.ok ? await response.text() : '',
+                retryAfter: response.headers?.get?.('Retry-After') ?? null,
+                direct: false,
+            };
+        }, limitMs);
+    } catch (error) {
+        // 到点没有回答：那本身就是 network 的错，原样交出去。
+        if (isQqError(error)) throw error;
+        throw qqError('network', `QQ musicu unreachable: ${errorMessage(error)}`, error);
+    }
+};
+
+/** What the main entry answers to `musicu`: QQ's status and body (the body only of a 2xx), or that it was not reached. */
+export type QqMusicuReply =
+    | { status: number; text: string; retryAfter?: string | null }
+    | { unreachable: true; message: string };
+
 /**
  * 直接向 QQ 的 musicu 发一次匿名请求（不经 qq-music-api 后端）：`requests` 的每个 key 是一个子请求，一次交给 musicu。
- * 桌面端直连（主进程给 *.qq.com 的回答补了 CORS 头，electron/main.cjs），网页版经前端同源的 `/api/lyric-proxy`；
+ * 桌面版交给 main 入口发（`musicu`：只发这一个地址，不带会话），网页版经前端同源的 `/api/lyric-proxy`；
  * 不看内嵌后端的端口和 VITE_QQ_API_BASE，两者都没有时也能发。不带会话：这里只读公开数据，也不随登录状态变。
- * 返回每个 key 的 { code, data }；整次被拒（全局 code ≠ 0）、读不出、连不上时抛 OnlineProviderError。
+ * 返回每个 key 的 { code, data }；整次被拒（全局 code ≠ 0）、读不出、连不上时抛 qqError。
  */
 export const requestQqMusicu = async (
     requests: Readonly<Record<string, QqMusicuRequest>>,
 ): Promise<Record<string, QqMusicuAnswer>> => {
-    const direct = typeof window !== 'undefined' && Boolean(window.electron);
-    const url = direct ? QQ_MUSICU_URL : lyricProxyWebUrl(QQ_MUSICU_URL);
-    const init: RequestInit = {
-        method: 'POST',
-        // 网页版要带上同源的 cookie：Vercel 的部署保护靠它放行（qqLyricProvider.ts 同样这样发）。
-        credentials: direct ? 'omit' : 'same-origin',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ comm: QQ_MUSICU_COMM, ...requests }),
-    };
-    // The answer and its body, read together: the time limit covers both. A refused answer's body is not read.
-    const send = async (signal: AbortSignal) => {
-        const response = await fetch(url, { ...init, signal });
-        return { response, text: response.ok ? await response.text() : '' };
-    };
-
-    let answer: { response: Response; text: string };
-    try {
-        answer = await withOnlineRequestLimit(send, QQ_MUSICU_REQUEST_LIMIT_MS);
-    } catch (error) {
-        // 到点没有回答：OnlineRequestTimeout 本身就是 network 的错，原样交出去。
-        if (error instanceof OnlineProviderError) throw error;
-        throw new OnlineProviderError('network', `QQ musicu unreachable: ${errorMessage(error)}`, 'qq', error);
-    }
-
-    const { response, text } = answer;
-    if (!response.ok) {
+    const payload = { comm: QQ_MUSICU_COMM, ...requests };
+    const answer = await sendQqMusicuPayload(payload, QQ_MUSICU_REQUEST_LIMIT_MS);
+    const { status, text, direct } = answer;
+    if (status < 200 || status > 299) {
         // 直连时状态就是 QQ 的；经网页中转时 500 / 502 是中转自己的失败，不带状态，其余是 QQ 的状态由中转转来
         // （没有中转的静态站点回的 404 / 405 也在这里：是 network，不是 unsupported）。
-        // Retry-After 只在 Cloudflare 中转时读得到（它原样转发回答的头）；Vercel 与开发中转只转 Content-Type，桌面直连时
-        // CORS 放行没有 Access-Control-Expose-Headers，渲染进程读不到这个头。读不到时 429 也照样算限流（看 httpStatus）。
-        const httpStatus = direct || !isLyricProxyOwnFailureStatus(response.status) ? response.status : undefined;
-        throw new OnlineProviderError(
-            'network',
-            `QQ musicu request failed: ${response.status}`,
-            'qq',
-            undefined,
-            httpStatus,
-            readRetryAfterMs(undefined, response),
-        );
+        // Retry-After 只在 Cloudflare 中转时读得到（它原样转发回答的头）；Vercel 与开发中转只转 Content-Type。
+        // 读不到时 429 也照样算限流（看 httpStatus）。
+        const httpStatus = direct || !isLyricProxyOwnFailureStatus(status) ? status : undefined;
+        throw qqError('network', `QQ musicu request failed: ${status}`, undefined, httpStatus, readRetryAfterHeader(answer.retryAfter));
     }
 
     let body: any;
@@ -591,15 +635,15 @@ export const requestQqMusicu = async (
         body = JSON.parse(text);
     } catch (error) {
         // 例如只托管静态文件的站点把 POST 回成 index.html。
-        throw new OnlineProviderError('invalid-response', 'QQ musicu returned an unreadable body', 'qq', error);
+        throw qqError('invalid-response', 'QQ musicu returned an unreadable body', error);
     }
     if (!body || typeof body !== 'object') {
-        throw new OnlineProviderError('invalid-response', 'QQ musicu returned an unreadable body', 'qq', body);
+        throw qqError('invalid-response', 'QQ musicu returned an unreadable body', body);
     }
     const code = readMusicuCode(body.code);
     if (code !== 0) {
         // 实测一次超过 30 个子请求时整次 500000，各子请求也都是 500000、没有 data。
-        throw new OnlineProviderError('invalid-response', `QQ musicu refused the request (code ${code ?? 'missing'})`, 'qq', { code });
+        throw qqError('invalid-response', `QQ musicu refused the request (code ${code ?? 'missing'})`, { code });
     }
 
     const answers: Record<string, QqMusicuAnswer> = {};

@@ -1,5 +1,4 @@
-import { OnlineProviderError } from '../../../src/types/onlineMusic';
-import { readProviderSessionValue, writeProviderSessionValue } from '../../../src/services/onlineMusic/providerStorage';
+import { isQqError, qqEnv, readQqStoredSession } from './qqEnv';
 import { hasQqSession, requestQq } from './qqTransport';
 
 // sources/qq/core/qqSessionRefresh.ts
@@ -19,7 +18,7 @@ let running: Promise<void> | null = null;
 // 后端没有这条路由（旧版本）：一个页面的生命周期里不会变，探到 404 就不再问。
 let routeMissing = false;
 
-const storedSession = (): string => readProviderSessionValue('qq', 'cookie') || '';
+const storedSession = (): string => readQqStoredSession();
 
 const refreshOnce = async (): Promise<void> => {
     if (routeMissing || !hasQqSession()) return;
@@ -32,10 +31,10 @@ const refreshOnce = async (): Promise<void> => {
         const token = typeof data.token === 'string' ? data.token.trim() : '';
         // 等回答的这段时间里退出了或换了账号：新 token 是刚才那个会话的，不能盖掉现在存的。
         if (!token || /[;\s]/.test(token) || storedSession() !== sent) return;
-        writeProviderSessionValue('qq', 'cookie', `${SESSION_COOKIE_NAME}=${token}`);
+        qqEnv().pageStore('qq').set('cookie', `${SESSION_COOKIE_NAME}=${token}`);
         console.info('[QQProvider] session-refresh:rotated');
     } catch (error) {
-        if (error instanceof OnlineProviderError && error.code === 'unsupported') {
+        if (isQqError(error, 'unsupported')) {
             routeMissing = true;
             return;
         }

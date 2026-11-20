@@ -1,9 +1,9 @@
-import { OnlineProviderError } from '../../../src/types/onlineMusic';
-import type { OnlineFailureDetail, OnlineFailureOperation } from '../../../src/types/onlineMusic';
+import type { FoliumSourceError, FoliumSourceFailureDetail } from '@folia/folium';
+import { isQqError } from './qqEnv';
 import { QQ_API_BASE_MISSING, QQ_API_NOT_RUNNING, readBackendMessage, readUpstreamRefusalCode } from './qqTransport';
 
 // sources/qq/core/qqFailure.ts
-// QQ 音乐要播放地址、读歌单和专辑的歌曲没有成功时交出的事实（services/onlineMusic/failure/）。
+// QQ 音乐要播放地址、读歌单和专辑的歌曲没有成功时交出的事实（describeFailure）。
 // 后端的错误是什么意思，只在这里说（登录的那一份在 qqLoginFailure.ts，HTTP 状态的读法两边共用）。
 
 /**
@@ -11,7 +11,7 @@ import { QQ_API_BASE_MISSING, QQ_API_NOT_RUNNING, readBackendMessage, readUpstre
  * 在回答里或 Retry-After 头里）照样交出去，后端的原话（多数路由的 message，播放等路由的 500 只给 error）也交出去。
  * 不是这样一个错的回 null。
  */
-export const qqStatusFailure = (error: OnlineProviderError): { httpStatus: number; retryAfterMs?: number; message?: string } | null => {
+export const qqStatusFailure = (error: FoliumSourceError & { cause?: unknown }): { httpStatus: number; retryAfterMs?: number; message?: string } | null => {
     const status = /^QQMusicApi request failed: (\d{3})$/.exec(error.message)?.[1];
     if (!status) return null;
     const answer = error.cause as { retryAfterMs?: unknown } | null | undefined;
@@ -40,18 +40,18 @@ const codeOf = (value: unknown): string | undefined => (
     value === undefined || value === null || !Number.isFinite(Number(value)) ? undefined : String(Number(value))
 );
 
-// 只有播放地址（'audio'）和读集合的歌（'collection'）来这里：omni.ts 的 runRequest 只为这两种调用 describeFailure。
+// 只有播放地址（'audio'）和读集合的歌（'collection'）来这里：宿主只为这两种调用 describeFailure。
 // 写入（加歌、收藏、红心）的失败不经过这里，所以下面的分法不用再按 operation 分。
-export const describeQqFailure = (_operation: OnlineFailureOperation, error: unknown): OnlineFailureDetail | null => {
+export const describeQqFailure = (_operation: 'audio' | 'collection', error: unknown): FoliumSourceFailureDetail | null => {
     // 请求是裸 fetch：连不上时它抛 TypeError（Failed to fetch）。别的 TypeError 是读回答时出的错，不是网络。
     if (error instanceof TypeError && /fetch/i.test(error.message)) return { case: 'unreachable' };
-    if (!(error instanceof OnlineProviderError) || error.providerId !== 'qq') return null;
+    if (!isQqError(error)) return null;
     // 登录窗口叫它 local-service-unavailable（登录窗口重启不了它）；在别处两种本地服务说的是同一句。
     if (error.message.startsWith(QQ_API_NOT_RUNNING)) return { case: 'local-service-stopped' };
     if (error.message === QQ_API_BASE_MISSING) return { case: 'not-configured' };
     // 后端答了，没给链接（qqProvider.ts）：它透出来的「可能」的原因在 cause 上。
     if (error.code === 'not-playable') {
-        const likely = (error.cause as { likelyCause?: OnlineFailureDetail['likelyCause'] } | null | undefined)?.likelyCause;
+        const likely = (error.cause as { likelyCause?: FoliumSourceFailureDetail['likelyCause'] } | null | undefined)?.likelyCause;
         return { case: 'no-audio', ...(likely ? { likelyCause: likely } : {}) };
     }
     const status = qqStatusFailure(error);

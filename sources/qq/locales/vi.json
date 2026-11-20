@@ -1,0 +1,85 @@
+{
+    "name": {
+        "short": "QQ Music",
+        "lyrics": "QQ Music"
+    },
+    "login": {
+        "title": "Quét mã đăng nhập QQ Music",
+        "titleAppScan": "Quét mã bằng ứng dụng QQ, WeChat hoặc QQ Music",
+        "note": "Chọn phương thức khớp với tài khoản: Quét QQ hoặc Quét WeChat",
+        "noteAppScan": "Hỗ trợ 3 cách quét mã: QQ, WeChat và QQ Music",
+        "noteWithApp": "Vui lòng chọn phương thức đăng nhập khớp với tài khoản: quét mã QQ hoặc WeChat, hoặc quét bằng ứng dụng QQ Music",
+        "method": {
+            "mobile": "Quét QQ",
+            "wechat": "Quét WeChat",
+            "qqMusic": "Quét bằng ứng dụng QQ Music"
+        },
+        "case": {
+            "restart": "Vui lòng khởi động lại Folia rồi thử lại",
+            "deviceLimit": "Vui lòng mở ứng dụng QQ Music, vào «Cài đặt», cuộn xuống dưới cùng chọn «Quản lý thiết bị» và gỡ bỏ các thiết bị không còn dùng, sau đó quét mã lại",
+            "wrongScanApp": "Nếu dùng ứng dụng QQ Music để quét, vui lòng đổi sang «Quét mã bằng ứng dụng QQ Music»; hoặc dùng ứng dụng QQ di động để quét mã này",
+            "wrongScanAppMobileOnly": "Phương thức quét mã QQ ở đây chỉ hỗ trợ QQ di động: vui lòng dùng ứng dụng QQ trên điện thoại để quét mã này",
+            "accountBanned": "Tài khoản này đã bị khóa và không thể đăng nhập",
+            "accountRestricted": "Tài khoản này hiện đang bị hạn chế đăng nhập",
+            "accountBinding": "Liên kết của tài khoản này gặp sự cố: vui lòng kiểm tra liên kết tài khoản trong ứng dụng QQ Music"
+        }
+    },
+    "explore": {
+        "radar": "Khám phá bài hát",
+        "dailySongs": "Gợi ý hàng ngày",
+        "feedForYou": "Dành cho bạn",
+        "recommendedPlaylists": "Playlist đề xuất",
+        "charts": "Bảng xếp hạng",
+        "newSongs": "Bài hát mới",
+        "newAlbums": "Album mới",
+        "similar": "Tương tự với «{{name}}»"
+    },
+    "guessYouLike": {
+        "name": "Có thể bạn thích",
+        "description": "Đài Có thể bạn thích của QQ Music; đổi chế độ nghe khi đang phát",
+        "suggested": "Gợi ý",
+        "other": "Khác"
+    },
+    "fm": {
+        "mode": {
+            "DEFAULT": "Mặc định",
+            "FAMILIAR": "Quen thuộc",
+            "EXPLORE": "Khám phá",
+            "SCENE_RCMD": "Bối cảnh"
+        },
+        "category": {
+            "mood": "Tâm trạng",
+            "activity": "Khoảnh khắc",
+            "genre": "Thể loại",
+            "language": "Ngôn ngữ"
+        }
+    },
+    "listeningRank": {
+        "week": "Bảng xếp hạng nghe · Tuần này",
+        "weekDescription": "Bảng xếp hạng tuần này của QQ Music, tính từ thứ Hai; tuần chưa hết thì tính đến hôm nay",
+        "year": "Bảng xếp hạng nghe · Năm",
+        "yearDescription": "Bảng xếp hạng năm của QQ Music, tính trọn năm ngoái (1/1 đến 31/12)"
+    },
+    "cloud": {
+        "name": "Ổ đĩa đám mây",
+        "description": "Ổ nhạc đám mây Weiyun"
+    },
+    "preferences": {
+        "note": "Lưu trên tài khoản; ảnh hưởng đến mọi bài hát được đề xuất",
+        "familiarity": "Độ quen thuộc của bài hát",
+        "familiarityExplore": "Khám phá thêm",
+        "keep": "Giữ nguyên",
+        "familiarityFamiliar": "Quen thuộc hơn",
+        "mood": "Cảm xúc âm nhạc",
+        "moodSad": "Buồn hơn",
+        "moodHappy": "Vui hơn",
+        "coverLive": "Cover & live",
+        "instrumental": "Nhạc không lời",
+        "mandarin": "Tiếng Quan Thoại",
+        "english": "Tiếng Anh",
+        "japanese": "Tiếng Nhật",
+        "korean": "Tiếng Hàn",
+        "cantonese": "Tiếng Quảng Đông",
+        "ai": "Bài hát AI"
+    }
+}

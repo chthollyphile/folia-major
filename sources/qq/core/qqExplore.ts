@@ -1,17 +1,14 @@
-import i18n from '../../../src/i18n/config';
-import type { UnifiedSong } from '../../../src/types';
 import type {
-    OnlineExploreProvider,
-    ProviderExploreItem,
-    ProviderExploreItemsPage,
-    ProviderExplorePage,
-    ProviderExploreSection,
-} from '../../../src/types/onlineMusic';
-import { OnlineProviderError } from '../../../src/types/onlineMusic';
-import { createHandedOut, cursorWords, stampCursor } from '@folia/folium-source-kit';
-import { errorMessage } from '../../../src/utils/errorText';
+    FoliumSourceExplore,
+    FoliumSourceExploreItem,
+    FoliumSourceExplorePage,
+    FoliumSourceExploreSection,
+    FoliumSourceSong,
+} from '@folia/folium';
+import { createHandedOut, cursorWords, errorMessage, stampCursor } from '@folia/folium-source-kit';
+import { isQqError, qqText } from './qqEnv';
 import { qqRadioCollection, qqToplistCollection } from './qqLists';
-import { normalizeQqCollection, normalizeQqSong } from './qqNormalize';
+import { normalizeQqCollection, normalizeQqSong, qqSongIdNumberOf } from './qqNormalize';
 import { hasUsableQqSession, requestQq } from './qqTransport';
 
 // sources/qq/core/qqExplore.ts
@@ -56,11 +53,11 @@ const feedTitleOf = (template: unknown, content: unknown): string => {
     const filled = typeof content === 'string' ? content.trim() : '';
     if (QUOTED_PLACEHOLDER.test(words)) {
         // 用函数替换：歌名里的 `$` 原样填进去，不当替换语法。
-        return filled ? words.replace(FEED_PLACEHOLDER, () => filled).trim() : i18n.t('home.qqFeedForYou');
+        return filled ? words.replace(FEED_PLACEHOLDER, () => filled).trim() : qqText('explore.feedForYou');
     }
     const at = words.indexOf(FEED_PLACEHOLDER);
     const title = (at >= 0 ? words.slice(at + FEED_PLACEHOLDER.length) : words).trim();
-    if (!title) return i18n.t('home.qqFeedForYou');
+    if (!title) return qqText('explore.feedForYou');
     return at < 0 && filled ? `${title} · ${filled}` : title;
 };
 
@@ -85,9 +82,10 @@ const CHART_TURN = 'charts';
 const CATEGORIES = 'categories';
 const RADIO_GROUPS = 'radio-groups';
 
-interface Seed { id: string; name: string }
+// `id` 是数字歌曲 id（`/song/similar` 认它），`mid` 是这首歌在 Folia 里的 id（songmid）。
+interface Seed { id: string; mid: string; name: string }
 interface Named { id: string; name: string }
-interface RadioGroup { id: string; name: string; radios: ProviderExploreItem[] }
+interface RadioGroup { id: string; name: string; radios: FoliumSourceExploreItem[] }
 
 const newMemory = () => ({
     /** 分页读的列表上一次停在哪里（刷歌模式是第几页，其余是位置）：下一次读取从那里接着读。 */
@@ -96,19 +94,19 @@ const newMemory = () => ({
     handedOut: createHandedOut(),
 });
 
-const newRead = (number: number, memory: ReturnType<typeof newMemory>, signedIn: boolean, listened: UnifiedSong[] = []) => ({
+const newRead = (number: number, memory: ReturnType<typeof newMemory>, signedIn: boolean, listened: FoliumSourceSong[] = []) => ({
     number,
     memory,
     signedIn,
     /** 听的人在应用里听过的歌，拿来问相似歌曲。 */
     listened,
     /** 每日 30 首，一次读取只要一次：一栏用它，问相似歌曲也用它。 */
-    daily: undefined as Promise<UnifiedSong[]> | undefined,
+    daily: undefined as Promise<FoliumSourceSong[]> | undefined,
     /** 这次读取要问的歌，和已经用掉几首。 */
     seeds: undefined as Promise<Seed[]> | undefined,
     seedsUsed: 0,
     /** 整份读来的列表，按栏的范围，按这次交出的顺序：这一批，然后是「更多」接着给的。 */
-    held: new Map<string, ProviderExploreItem[]>(),
+    held: new Map<string, FoliumSourceExploreItem[]>(),
     /** 一首歌只出现在一栏相似歌曲里。 */
     onShelf: new Set<string>(),
     /** 排行榜清单（按组），一次读取只要一次。 */
@@ -117,17 +115,17 @@ const newRead = (number: number, memory: ReturnType<typeof newMemory>, signedIn:
 type Read = ReturnType<typeof newRead>;
 
 const present = <T>(value: T | null | undefined): value is T => value != null;
-const keyOf = (item: ProviderExploreItem): string => (item.kind === 'collection' ? `${item.collection.type}:${item.collection.id}` : `song:${item.song.id}`);
-const countOf = (sections: ProviderExploreSection[]) => sections.reduce((count, section) => count + section.items.length, 0);
-const songItem = (song: UnifiedSong): ProviderExploreItem => ({ kind: 'song', song });
-const songsIn = (answer: any): UnifiedSong[] => (
-    (Array.isArray(answer?.songs) ? answer.songs : []).map(normalizeQqSong).filter((song: UnifiedSong) => Boolean(song.qqMid))
+const keyOf = (item: FoliumSourceExploreItem): string => (item.kind === 'collection' ? `${item.collection.type}:${item.collection.id}` : `song:${item.song.id}`);
+const countOf = (sections: FoliumSourceExploreSection[]) => sections.reduce((count, section) => count + section.items.length, 0);
+const songItem = (song: FoliumSourceSong): FoliumSourceExploreItem => ({ kind: 'song', song });
+const songsIn = (answer: any): FoliumSourceSong[] => (
+    (Array.isArray(answer?.songs) ? answer.songs : []).map(normalizeQqSong).filter((song: FoliumSourceSong) => Boolean(song.lyricIds?.qq))
 );
 const listOf = (value: unknown): any[] => (Array.isArray(value) ? value : []);
 
 // 422 是「上游成功但没有数据」：这一栏这次没有东西，不是失败。
 const isEmptyAnswer = (error: unknown): boolean => (
-    error instanceof OnlineProviderError && error.code === 'network' && error.httpStatus === 422
+    isQqError(error, 'network') && error.httpStatus === 422
 );
 const orEmpty = async <T>(asked: Promise<T>, empty: T): Promise<T> => {
     try {
@@ -147,7 +145,7 @@ const arrivedOf = async <T>(what: string, asked: Array<Promise<T>>): Promise<Arr
     return answers.map(answer => (answer.status === 'fulfilled' ? answer.value : null));
 };
 
-export const createQqExplore = (): OnlineExploreProvider => {
+export const createQqExplore = (): FoliumSourceExplore => {
     let reads = 0;
     let memory = newMemory();
     // 画面上那一次读取。从头读的那一次在第一页到了之后接替它。
@@ -168,7 +166,7 @@ export const createQqExplore = (): OnlineExploreProvider => {
      * 范围 `scope` 下一整份列表的一批：这一栏没交过的在前，交过的按最久以前交过的在前。
      * 比一批长的，剩下的留在这次读取里，「更多」接着给。
      */
-    const handOut = (read: Read, scope: string, listed: ProviderExploreItem[]): Pick<ProviderExploreSection, 'items' | 'moreCursor'> => {
+    const handOut = (read: Read, scope: string, listed: FoliumSourceExploreItem[]): Pick<FoliumSourceExploreSection, 'items' | 'moreCursor'> => {
         const all = [...new Map(listed.map(item => [keyOf(item), item] as const)).values()];
         const inTurn = read.memory.handedOut.inTurn(scope, all, keyOf);
         const items = inTurn.slice(0, BATCH);
@@ -178,14 +176,14 @@ export const createQqExplore = (): OnlineExploreProvider => {
     };
 
     /** 一份整读来的列表做成一栏；空的不出。`id` 不给就用范围当 id。 */
-    const listShelf = (read: Read, scope: string, title: string, all: ProviderExploreItem[], made?: string): ProviderExploreSection | null => (
+    const listShelf = (read: Read, scope: string, title: string, all: FoliumSourceExploreItem[], made?: string): FoliumSourceExploreSection | null => (
         all.length > 0
             ? { id: made ?? scope, title, ...handOut(read, scope, all), ...(made ? { changesWithRead: true } : {}) }
             : null
     );
 
     /** 列表 `key` 从 `from` 起的一批，和下一批从哪里起；`hasMore` 是 QQ 说后面还有。 */
-    const readPaged = async (key: string, from: number): Promise<{ items: ProviderExploreItem[]; hasMore: boolean; next: number }> => {
+    const readPaged = async (key: string, from: number): Promise<{ items: FoliumSourceExploreItem[]; hasMore: boolean; next: number }> => {
         if (key === RADAR) {
             // 刷歌模式按页读，`from` 是已经读过几页。
             const answer = await orEmpty(requestQq<any>('recommend_radar', { page: from + 1 }), null);
@@ -198,7 +196,7 @@ export const createQqExplore = (): OnlineExploreProvider => {
             const items = albums
                 .map(album => normalizeQqCollection(album, 'album'))
                 .filter(album => album.id !== '' && album.name)
-                .map((collection): ProviderExploreItem => ({ kind: 'collection', collection }));
+                .map((collection): FoliumSourceExploreItem => ({ kind: 'collection', collection }));
             // 下一批从后端给了几条算起，不从滤掉坏条目后剩几条算：否则下一批会和这一批重叠。
             return { items, hasMore: answer?.more === true, next: from + albums.length };
         }
@@ -212,7 +210,7 @@ export const createQqExplore = (): OnlineExploreProvider => {
             const items = listOf(answer?.playlists)
                 .map(playlist => normalizeQqCollection(playlist))
                 .filter(playlist => playlist.id !== '' && playlist.name)
-                .map((collection): ProviderExploreItem => ({ kind: 'collection', collection }));
+                .map((collection): FoliumSourceExploreItem => ({ kind: 'collection', collection }));
             return { items, hasMore: answer?.more === true, next: from + BATCH };
         }
         const answer = await orEmpty(requestQq<any>('recommend_toplist', { id: Number(key.slice(CHART.length)), offset: from, limit: BATCH }), null);
@@ -224,7 +222,7 @@ export const createQqExplore = (): OnlineExploreProvider => {
      * 分页读的列表 `key` 做成一栏：接着上一次读取（自己或「更多」）交到的地方读一批，读到头就从头再来。
      * 后面还有就给游标。
      */
-    const pagedShelf = async (read: Read, key: string, title: string, made?: string): Promise<ProviderExploreSection | null> => {
+    const pagedShelf = async (read: Read, key: string, title: string, made?: string): Promise<FoliumSourceExploreSection | null> => {
         let from = read.memory.reached.get(key) ?? 0;
         let batch = await readPaged(key, from);
         // 列表比上次停的地方短了：从头读。
@@ -245,7 +243,7 @@ export const createQqExplore = (): OnlineExploreProvider => {
     };
 
     /** 这次读取的每日 30 首；没登录不问，读不到当没有。 */
-    const dailyOf = (read: Read): Promise<UnifiedSong[]> => {
+    const dailyOf = (read: Read): Promise<FoliumSourceSong[]> => {
         if (!read.daily) {
             read.daily = read.signedIn
                 ? orEmpty(requestQq<any>('user_daily_songs'), null).then(songsIn).catch(error => {
@@ -265,26 +263,27 @@ export const createQqExplore = (): OnlineExploreProvider => {
     const collectSeeds = async (read: Read): Promise<Seed[]> => {
         const seeds: Seed[] = [];
         const known = new Set<string>();
-        const add = (songs: UnifiedSong[]) => songs.forEach(song => {
-            const id = String(song.id);
-            const numeric = Number(id);
-            // `/song/similar` 认数字歌曲 id。
-            if (!song.name || !Number.isSafeInteger(numeric) || numeric <= 0 || known.has(id)) return;
+        const add = (songs: FoliumSourceSong[]) => songs.forEach(song => {
+            // `/song/similar` 认数字歌曲 id：歌里记着的（data.songId），旧版存下的歌 id 本身就是数字。
+            const numeric = qqSongIdNumberOf(song) ?? Number(song.id);
+            const id = String(numeric);
+            if (!song.title || !Number.isSafeInteger(numeric) || numeric <= 0 || known.has(id)) return;
             known.add(id);
-            seeds.push({ id, name: song.name });
+            seeds.push({ id, mid: song.id, name: song.title });
         });
-        add(read.listened.filter(song => song.sourceRef?.kind !== 'online' || song.sourceRef.providerId === 'qq'));
+        // 宿主交来的就是在应用里听过的这个音源的歌。
+        add(read.listened);
         if (seeds.length < MAX_SIMILAR) add(await dailyOf(read));
         return read.memory.handedOut.inTurn(SEEDS, seeds, seed => seed.id).slice(0, MAX_SIMILAR);
     };
 
     /** 和 `seed` 相似、又不在别栏里的歌做成一栏；太少或读不到就不出。 */
-    const similarShelf = async (read: Read, seed: Seed): Promise<ProviderExploreSection | null> => {
+    const similarShelf = async (read: Read, seed: Seed): Promise<FoliumSourceExploreSection | null> => {
         try {
             const found = songsIn(await orEmpty(requestQq<any>('song_similar', { id: Number(seed.id) }), null));
-            const met = new Set([seed.id]);
+            const met = new Set([seed.mid]);
             const songs = found.filter(song => {
-                const id = String(song.id);
+                const id = song.id;
                 if (met.has(id) || read.onShelf.has(id)) return false;
                 met.add(id);
                 return true;
@@ -293,11 +292,11 @@ export const createQqExplore = (): OnlineExploreProvider => {
                 console.log(`[QQ] Explore songs like ${seed.id}: ${songs.length} on no other shelf, too few for a shelf`);
                 return null;
             }
-            songs.forEach(song => read.onShelf.add(String(song.id)));
+            songs.forEach(song => read.onShelf.add(song.id));
             console.log(`[QQ] Explore songs like ${seed.id}: a shelf of ${songs.length} songs`);
             return {
                 id: `qq-similar-${++shelvesMade}`,
-                title: i18n.t('home.exploreSimilar', { name: seed.name }),
+                title: qqText('explore.similar', { name: seed.name }),
                 items: songs.slice(0, BATCH).map(songItem),
                 // 下一次读取问别的歌：它的栏接替这几栏的位置。
                 changesWithRead: true,
@@ -318,14 +317,14 @@ export const createQqExplore = (): OnlineExploreProvider => {
         return read.toplists;
     };
 
-    const newPart = async (read: Read): Promise<ProviderExploreSection[]> => (await arrivedOf('the new songs and albums', [
+    const newPart = async (read: Read): Promise<FoliumSourceExploreSection[]> => (await arrivedOf('the new songs and albums', [
         orEmpty(requestQq<any>('recommend_new_songs'), null)
-            .then(answer => listShelf(read, NEW_SONGS_ID, i18n.t('home.qqNewSongs'), songsIn(answer).map(songItem))),
-        pagedShelf(read, NEW_ALBUMS, i18n.t('home.qqNewAlbums')),
+            .then(answer => listShelf(read, NEW_SONGS_ID, qqText('explore.newSongs'), songsIn(answer).map(songItem))),
+        pagedShelf(read, NEW_ALBUMS, qqText('explore.newAlbums')),
     ])).filter(present);
 
     /** 下一部分的相似歌曲：接着这次读取要问的歌往下用 `SIMILAR_A_PART` 首；没登录没有。 */
-    const similarPart = async (read: Read): Promise<ProviderExploreSection[]> => {
+    const similarPart = async (read: Read): Promise<FoliumSourceExploreSection[]> => {
         if (!read.signedIn) return [];
         const seeds = (await seedsOf(read)).slice(read.seedsUsed, read.seedsUsed + SIMILAR_A_PART);
         read.seedsUsed += seeds.length;
@@ -334,7 +333,7 @@ export const createQqExplore = (): OnlineExploreProvider => {
     };
 
     /** 榜单的歌：照 QQ 的榜单顺序，这次轮到的几个榜各一栏；前几次读取轮过的排后面。 */
-    const chartSongsPart = async (read: Read): Promise<ProviderExploreSection[]> => {
+    const chartSongsPart = async (read: Read): Promise<FoliumSourceExploreSection[]> => {
         const charts = (await toplistsOf(read)).flat()
             .filter(toplist => Number.isSafeInteger(Number(toplist?.id)) && Number(toplist.id) > 0);
         const taken = read.memory.handedOut.inTurn(CHART_TURN, charts, toplist => String(Number(toplist.id))).slice(0, CHARTS_A_READ);
@@ -344,7 +343,7 @@ export const createQqExplore = (): OnlineExploreProvider => {
         )))).filter(present);
     };
 
-    const categoriesPart = async (read: Read): Promise<ProviderExploreSection[]> => {
+    const categoriesPart = async (read: Read): Promise<FoliumSourceExploreSection[]> => {
         const answer = await orEmpty(requestQq<any>('recommend_categories'), null);
         // 热门那一组（第一组）里的分类轮流出。
         const categories: Named[] = listOf(listOf(answer?.groups)[0]?.categories)
@@ -357,7 +356,7 @@ export const createQqExplore = (): OnlineExploreProvider => {
         )))).filter(present);
     };
 
-    const radioPart = async (read: Read): Promise<ProviderExploreSection[]> => {
+    const radioPart = async (read: Read): Promise<FoliumSourceExploreSection[]> => {
         if (!read.signedIn) return [];
         const answer = await orEmpty(requestQq<any>('radio_list'), null);
         const groups: RadioGroup[] = listOf(answer?.groups).map(group => ({
@@ -367,7 +366,7 @@ export const createQqExplore = (): OnlineExploreProvider => {
                 .filter(radio => Number(radio?.id) !== GUESS_YOU_LIKE_RADIO)
                 .map(qqRadioCollection)
                 .filter(present)
-                .map((collection): ProviderExploreItem => ({ kind: 'collection', collection, isMix: true })),
+                .map((collection): FoliumSourceExploreItem => ({ kind: 'collection', collection, isMix: true })),
         })).filter(group => group.id && group.name && !isListeningRecord(group.name) && group.radios.length > 0);
         const taken = read.memory.handedOut.inTurn(RADIO_GROUPS, groups, group => group.id).slice(0, RADIO_GROUPS_A_READ);
         read.memory.handedOut.note(RADIO_GROUPS, taken.map(group => group.id));
@@ -379,9 +378,9 @@ export const createQqExplore = (): OnlineExploreProvider => {
     const PARTS = [similarPart, newPart, similarPart, chartSongsPart, similarPart, categoriesPart, radioPart];
 
     // 从第 `from` 部分起，第一个有栏的部分。读不到的部分略过，失败记进 `failures`。
-    const madeHere = async (read: Read, from: number, failures: unknown[] = []): Promise<ProviderExplorePage> => {
+    const madeHere = async (read: Read, from: number, failures: unknown[] = []): Promise<FoliumSourceExplorePage> => {
         for (let index = from; index < PARTS.length; index += 1) {
-            let sections: ProviderExploreSection[] = [];
+            let sections: FoliumSourceExploreSection[] = [];
             try {
                 sections = await PARTS[index](read);
             } catch (error) {
@@ -397,18 +396,18 @@ export const createQqExplore = (): OnlineExploreProvider => {
     };
 
     /** 首页 feed 的几架（要登录）；旧后端没有这条路由、没有可用架子都只是不出。 */
-    const feedShelvesOf = async (read: Read): Promise<ProviderExploreSection[]> => {
+    const feedShelvesOf = async (read: Read): Promise<FoliumSourceExploreSection[]> => {
         if (!read.signedIn) return [];
         // 旧后端没有这条路由（404／旧 Serverless 的 501，transport 报成 unsupported）是常态，不当成读失败。
         const answer = await orEmpty(requestQq<any>('recommend_feed'), null).catch(error => {
-            if (error instanceof OnlineProviderError && error.code === 'unsupported') return null;
+            if (isQqError(error, 'unsupported')) return null;
             throw error;
         });
         return listOf(answer?.shelves).map((shelf, index) => {
-            const items = listOf(shelf?.items).map((item): ProviderExploreItem | null => {
+            const items = listOf(shelf?.items).map((item): FoliumSourceExploreItem | null => {
                 if (item?.type === 'song') {
                     const song = normalizeQqSong(item.song);
-                    return song.qqMid ? songItem(song) : null;
+                    return song.lyricIds?.qq ? songItem(song) : null;
                 }
                 if (item?.type !== 'playlist') return null;
                 const playlist = item.playlist ?? {};
@@ -419,7 +418,7 @@ export const createQqExplore = (): OnlineExploreProvider => {
         }).filter(present);
     };
 
-    const firstPage = async (listened: UnifiedSong[]): Promise<ProviderExplorePage> => {
+    const firstPage = async (listened: FoliumSourceSong[]): Promise<FoliumSourceExplorePage> => {
         // 停用的会话（isQqSessionParked）请求不带，照游客读。
         const signedIn = hasUsableQqSession();
         if (hadAccount !== undefined && hadAccount !== signedIn) {
@@ -430,17 +429,17 @@ export const createQqExplore = (): OnlineExploreProvider => {
         const read = newRead(++reads, memory, signedIn, listened);
         const failures: unknown[] = [];
         const shelves = await Promise.allSettled([
-            pagedShelf(read, RADAR, i18n.t('home.qqRadar')),
-            dailyOf(read).then(songs => listShelf(read, DAILY_SONGS_ID, i18n.t('home.dailyRecommendations'), songs.map(songItem))),
+            pagedShelf(read, RADAR, qqText('explore.radar')),
+            dailyOf(read).then(songs => listShelf(read, DAILY_SONGS_ID, qqText('explore.dailySongs'), songs.map(songItem))),
             feedShelvesOf(read),
             requestQq<any>('recommend_playlists', { limit: BATCH }).catch(error => (isEmptyAnswer(error) ? null : Promise.reject(error)))
-                .then(answer => listShelf(read, PLAYLISTS_ID, i18n.t('home.qqRecommendedPlaylists'), listOf(answer?.playlists)
+                .then(answer => listShelf(read, PLAYLISTS_ID, qqText('explore.recommendedPlaylists'), listOf(answer?.playlists)
                     .map(playlist => normalizeQqCollection(playlist))
                     .filter(playlist => playlist.id !== '' && playlist.name)
-                    .map((collection): ProviderExploreItem => ({ kind: 'collection', collection })))),
-            toplistsOf(read).then(groups => listShelf(read, CHARTS_ID, i18n.t('home.qqCharts'), groups.flat()
+                    .map((collection): FoliumSourceExploreItem => ({ kind: 'collection', collection })))),
+            toplistsOf(read).then(groups => listShelf(read, CHARTS_ID, qqText('explore.charts'), groups.flat()
                 .map(qqToplistCollection).filter(present)
-                .map((collection): ProviderExploreItem => ({ kind: 'collection', collection })))),
+                .map((collection): FoliumSourceExploreItem => ({ kind: 'collection', collection })))),
         ]);
         for (const answer of shelves) {
             if (answer.status !== 'rejected') continue;
@@ -475,7 +474,7 @@ export const createQqExplore = (): OnlineExploreProvider => {
             return { sections: [] };
         },
         // 一栏的「更多」：接着它交出的往下给。（换一批不走这里：第一页说了换一批要整页重读。）
-        async getSectionItems(cursor): Promise<ProviderExploreItemsPage> {
+        async getSectionItems(cursor): Promise<{ items: FoliumSourceExploreItem[]; moreCursor?: string }> {
             const read = page;
             const words = wordsIn(cursor);
             if (words === null) {
@@ -511,4 +510,3 @@ export const createQqExplore = (): OnlineExploreProvider => {
     };
 };
 
-export const qqExplore = createQqExplore();

@@ -1,11 +1,5 @@
-import {
-    OnlineProviderError,
-    type RecommendationPreferenceChanges,
-    type RecommendationPreferenceItem,
-    type RecommendationPreferenceLabel,
-    type RecommendationPreferences,
-    type RecommendationPreferencesSaveResult,
-} from '../../../src/types/onlineMusic';
+import type { FoliumSourcePreference, FoliumSourcePreferences, FoliumText } from '@folia/folium';
+import { isQqError, qqError, qqTextKey } from './qqEnv';
 import { requestQq } from './qqTransport';
 
 // sources/qq/core/qqPreferences.ts
@@ -54,13 +48,11 @@ const RATIO_MIN = 1;
 const RATIO_MAX = 99;
 const SNAP_WITHIN = 4;
 
-const NOTE: RecommendationPreferenceLabel = {
-    labelKey: 'qqPreferences.note',
-    labelFallback: '保存在账号上，会影响所有推荐的歌',
-};
+const noteOf = (): FoliumText => qqTextKey('preferences.note');
 
-const labelOf = (name: string | undefined, fallback: string): RecommendationPreferenceLabel => (
-    name ? { labelKey: `qqPreferences.${name}`, labelFallback: fallback } : { labelFallback: fallback }
+// A known item reads the mod's text; one the backend added since reads its own name.
+const labelOf = (name: string | undefined, fallback: string): FoliumText => (
+    name ? qqTextKey(`preferences.${name}`) : fallback
 );
 
 /** 三选一读到的分数不一定正好是 25／50／75：按在 50 的哪一边归到那一档。 */
@@ -68,7 +60,7 @@ const choiceScoreOf = (score: number): string => (
     score < DEFAULT_SCORE ? CHOICE_SCORES[0] : score > DEFAULT_SCORE ? CHOICE_SCORES[2] : CHOICE_SCORES[1]
 );
 
-const itemOf = (key: string, name: string, score: number): RecommendationPreferenceItem => {
+const itemOf = (key: string, name: string, score: number): FoliumSourcePreference => {
     const choice = Object.hasOwn(CHOICES, key) ? CHOICES[key] : undefined;
     if (choice) {
         return {
@@ -96,20 +88,20 @@ const itemOf = (key: string, name: string, score: number): RecommendationPrefere
 };
 
 /** 读账号的偏好，照后端给的顺序；缺字段的项不要。 */
-export const getQqRecommendationPreferences = async (): Promise<RecommendationPreferences> => {
+export const getQqRecommendationPreferences = async (): Promise<FoliumSourcePreferences> => {
     let answer: { profiles?: unknown };
     try {
         answer = await requestQq<{ profiles?: unknown }>('user_recommendation_preferences');
     } catch (error) {
         // 账号上一项偏好都没有时，后端回 422（resource.not-found）：这是空的，不是读失败。
-        if (error instanceof OnlineProviderError && error.code === 'network' && error.httpStatus === 422) {
+        if (isQqError(error, 'network') && error.httpStatus === 422) {
             console.info('[QQProvider] preferences:read', { items: 0 });
-            return { items: [], note: NOTE };
+            return { items: [], note: noteOf() };
         }
         throw error;
     }
     if (!Array.isArray(answer?.profiles)) {
-        throw new OnlineProviderError('invalid-response', 'QQMusicApi user_recommendation_preferences answered without profiles', 'qq');
+        throw qqError('invalid-response', 'QQMusicApi user_recommendation_preferences answered without profiles');
     }
     const items = answer.profiles.flatMap((profile: any) => {
         const key = typeof profile?.key === 'string' ? profile.key.trim() : '';
@@ -119,14 +111,14 @@ export const getQqRecommendationPreferences = async (): Promise<RecommendationPr
         return [itemOf(key, name, score)];
     });
     console.info('[QQProvider] preferences:read', { items: items.length });
-    return { items, note: NOTE };
+    return { items, note: noteOf() };
 };
 
 /** 改了的项换回分数：三选一是选项的值，比例是整数。对不上的值是调用方写错了。 */
 const scoreOf = (key: string, value: string | number): number => {
     const score = typeof value === 'string' ? Number(value) : value;
     if (!Number.isInteger(score) || score < 0 || score > 100) {
-        throw new OnlineProviderError('invalid-response', `QQ preference ${key} has no whole score from 0 to 100`, 'qq');
+        throw qqError('invalid-response', `QQ preference ${key} has no whole score from 0 to 100`);
     }
     return score;
 };
@@ -136,8 +128,8 @@ const scoreOf = (key: string, value: string | number): number => {
  * 读回全部对上才算确认；所有项本来就是这个值时后端不写，也算确认。失败抛错，不重送。
  */
 export const saveQqRecommendationPreferences = async (
-    changes: RecommendationPreferenceChanges,
-): Promise<RecommendationPreferencesSaveResult> => {
+    changes: Record<string, string | number>,
+): Promise<{ confirmed: boolean }> => {
     const profiles = Object.entries(changes).map(([key, value]) => ({ key, score: scoreOf(key, value) }));
     if (!profiles.length) return { confirmed: true };
     try {
@@ -148,7 +140,7 @@ export const saveQqRecommendationPreferences = async (
     } catch (error) {
         // 写已经发出、之后读回核对失败：后端回非 2xx，错误体里带 writeAttempted。账号上可能已经改了，
         // 按「存了但没确认」交回，不当成没存成。
-        if (error instanceof OnlineProviderError && (error.cause as { writeAttempted?: unknown } | undefined)?.writeAttempted === true) {
+        if (isQqError(error) && (error.cause as { writeAttempted?: unknown } | undefined)?.writeAttempted === true) {
             console.warn('[QQProvider] preferences:saved, read-back failed', error);
             return { confirmed: false };
         }

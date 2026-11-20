@@ -1,5 +1,5 @@
-import { OnlineProviderError } from '../../../src/types/onlineMusic';
-import type { LoginFailureDetail, LoginStep } from '../../../src/types/onlineMusic';
+import type { FoliumSourceLoginFailure, FoliumSourceLoginStep } from '@folia/folium';
+import { isQqError } from './qqEnv';
 import { QQ_API_NOT_RUNNING } from './qqTransport';
 import { qqStatusFailure } from './qqFailure';
 
@@ -7,10 +7,10 @@ import { qqStatusFailure } from './qqFailure';
 // QQ 音乐登录失败时交给登录窗口的事实。后端的错误是什么意思，只在这里说。
 
 // 登录的某一步抛了错（都出自 qqTransport.ts 的 requestQq）。
-export const describeQqLoginFailure = (_step: LoginStep, error: unknown): LoginFailureDetail | null => {
+export const describeQqLoginFailure = (_step: FoliumSourceLoginStep, error: unknown): FoliumSourceLoginFailure | null => {
     // 请求是裸 fetch：连不上时它抛 TypeError。
     if (error instanceof TypeError) return { case: 'unreachable' };
-    if (!(error instanceof OnlineProviderError)) return null;
+    if (!isQqError(error)) return null;
     if (error.message.startsWith(QQ_API_NOT_RUNNING)) return { case: 'local-service-unavailable' };
     const status = qqStatusFailure(error);
     // 502 而回答里没有 QQ 的码：后端没能连上 QQ（断网时就是这样），不是 QQ 拒绝了。后端照样要过一会才肯再给
@@ -24,7 +24,7 @@ export const describeQqLoginFailure = (_step: LoginStep, error: unknown): LoginF
  * login_qr_check 回了 801 到 803 之外的状态码。800 带着 upstreamCode 时是上游要求稍后再试（`wait`），
  * 不是二维码过期；`upstreamCode` 是上游的风控编号，照旧不解释它的意思。
  */
-export const qqCheckFailure = (response: any, wait = false): LoginFailureDetail => {
+export const qqCheckFailure = (response: any, wait = false): FoliumSourceLoginFailure => {
     const code = Number(response?.code);
     return {
         ...(wait ? { case: 'retry-later' as const } : {}),
@@ -38,12 +38,12 @@ export const qqCheckFailure = (response: any, wait = false): LoginFailureDetail 
 // 平台拒绝了这次登录、原因在账号本身的那几种（被封、受限、绑定有问题）：登录窗口用 Folia 自己的话说
 // 怎么回事、该做什么（qqProvider.ts 的 caseNotes），不引后端的英文预设，也不说稍后重试会好。
 const QQ_ACCOUNT_HINT_NOTES: Readonly<Record<string, string>> = {
-    'login.account-banned': 'home.loginCaseQqAccountBanned',
-    'login.account-restricted': 'home.loginCaseQqAccountRestricted',
-    'login.account-binding': 'home.loginCaseQqAccountBinding',
+    'login.account-banned': 'login.case.accountBanned',
+    'login.account-restricted': 'login.case.accountRestricted',
+    'login.account-binding': 'login.case.accountBinding',
 };
 
-/** 账号本身的问题那几种 hint 在登录窗口说的那一句（i18n key）；别的 key 和没有 key 是 undefined。 */
+/** 账号本身的问题那几种 hint 在登录窗口说的那一句（模组文字的 key）；别的 key 和没有 key 是 undefined。 */
 export const qqAccountHintNote = (key: string | null | undefined): string | undefined => (
     key && Object.hasOwn(QQ_ACCOUNT_HINT_NOTES, key) ? QQ_ACCOUNT_HINT_NOTES[key] : undefined
 );
@@ -58,7 +58,7 @@ export const qqAccountHintNote = (key: string | null | undefined): string | unde
  * 回 null 照一般的拒绝处理。不知道通道时照旧。
  * 后端给的 `retryAfterMs` 都留着：失败之后后端在那之前不给新码（qrService 的 backoff），重来要先等。
  */
-export const qqHintFailure = (response: any, channel?: string): LoginFailureDetail | null => {
+export const qqHintFailure = (response: any, channel?: string): FoliumSourceLoginFailure | null => {
     const hint = response?.failureHint;
     const key = typeof hint?.key === 'string' ? hint.key : '';
     if (key === 'login.rate-limited') return qqCheckFailure(response, true);

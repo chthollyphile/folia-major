@@ -1,7 +1,6 @@
-import type { SongResult } from '../../../src/types';
-import type { MediaId, OnlineMutationProvider, ProviderCollection } from '../../../src/types/onlineMusic';
-import { OnlineProviderError } from '../../../src/types/onlineMusic';
-import { normalizeQqCollection } from './qqNormalize';
+import type { FoliumSourceCollection, FoliumSourceMutations, FoliumSourceSong } from '@folia/folium';
+import { qqError } from './qqEnv';
+import { normalizeQqCollection, qqSongMidOf as songMidOf } from './qqNormalize';
 import { qqListKindOf } from './qqLists';
 import { requestQqSongDetail } from './qqSongDetail';
 import { hasUsableQqSession, requestQq } from './qqTransport';
@@ -20,16 +19,16 @@ const positiveInteger = (value: unknown): number | null => {
     return typeof number === 'number' && Number.isSafeInteger(number) && number > 0 ? number : null;
 };
 
-const playlistTid = (playlist: MediaId | ProviderCollection): number | null => (
+const playlistTid = (playlist: string | FoliumSourceCollection): number | null => (
     typeof playlist === 'object'
-        ? positiveInteger(playlist.providerData?.tid ?? playlist.id)
+        ? positiveInteger(playlist.data?.tid ?? playlist.id)
         : positiveInteger(playlist)
 );
 
 /** 能不能往这个歌单里加歌删歌：本人的、普通目录、带得出 tid 的歌单。收藏的、「我喜欢」和系统目录都不行。 */
-export const canEditQqPlaylistTracks = (playlist: ProviderCollection): boolean => {
-    if (playlist.providerId !== 'qq' || playlist.type !== 'playlist' || playlist.isLiked) return false;
-    const data = playlist.providerData;
+export const canEditQqPlaylistTracks = (playlist: FoliumSourceCollection): boolean => {
+    if (playlist.type !== 'playlist' || playlist.isLiked) return false;
+    const data = playlist.data;
     if (data?.owned !== true) return false;
     const dirId = Number(data.dirId);
     // 与后端同一条判定：没有类型标记，或标记正好是数字 0。
@@ -40,30 +39,25 @@ export const canEditQqPlaylistTracks = (playlist: ProviderCollection): boolean =
         && positiveInteger(data.tid) !== null;
 };
 
-const qqSongMidOf = (song: MediaId | SongResult): string => {
-    if (typeof song !== 'object') return '';
-    const sourceRef = song.sourceRef?.kind === 'online' && song.sourceRef.providerId === 'qq' ? song.sourceRef : undefined;
-    return String(song.qqMid || sourceRef?.providerData?.songMid || sourceRef?.mediaId || '').trim();
-};
+const qqSongMidOf = (song: string | FoliumSourceSong): string => (typeof song === 'object' ? songMidOf(song) : '');
 
 /**
  * 写入要的是数字歌曲 id（songId），歌单与曲库里的歌正规化时都存了它。只有 songmid 的歌（老缓存、个别搜索结果）
  * 补查一次歌曲详情取回 id；仍拿不到就报错，不拿 songmid 去猜。
  */
-const resolveQqSongId = async (song: MediaId | SongResult): Promise<number> => {
+const resolveQqSongId = async (song: string | FoliumSourceSong): Promise<number> => {
     if (typeof song !== 'object') {
         const id = positiveInteger(song);
         if (id !== null) return id;
     } else {
-        const sourceRef = song.sourceRef?.kind === 'online' && song.sourceRef.providerId === 'qq' ? song.sourceRef : undefined;
-        const id = positiveInteger(sourceRef?.providerData?.songId) ?? positiveInteger(song.id);
+        const id = positiveInteger(song.data?.songId) ?? positiveInteger(song.id);
         if (id !== null) return id;
         const songMid = qqSongMidOf(song);
         const detail = songMid ? await requestQqSongDetail(songMid) : null;
-        const detailId = detail ? positiveInteger(detail.id) : null;
+        const detailId = detail ? positiveInteger(detail.data?.songId) : null;
         if (detailId !== null) return detailId;
     }
-    throw new OnlineProviderError('invalid-response', 'QQ song has no numeric song id for a playlist write', 'qq');
+    throw qqError('invalid-response', 'QQ song has no numeric song id for a playlist write');
 };
 
 /** 没有改动时，读回的结果是不是已经是用户要的样子（加歌：都在；删歌：都不在）。 */
@@ -72,12 +66,12 @@ const alreadyApplied = (operation: 'add' | 'del', response: any): boolean => {
     return operation === 'add' ? status === 'present' : status === 'absent';
 };
 
-const updatePlaylistTracks: NonNullable<OnlineMutationProvider['updatePlaylistTracks']> = async (operation, playlist, tracks) => {
+const updatePlaylistTracks: NonNullable<FoliumSourceMutations['updatePlaylistTracks']> = async (operation, playlist, tracks) => {
     if (typeof playlist === 'object' && !canEditQqPlaylistTracks(playlist)) {
-        throw new OnlineProviderError('unsupported', 'QQ playlist does not accept track mutations', 'qq');
+        throw qqError('unsupported', 'QQ playlist does not accept track mutations');
     }
     const tid = playlistTid(playlist);
-    if (tid === null) throw new OnlineProviderError('invalid-response', 'QQ playlist has no tid', 'qq');
+    if (tid === null) throw qqError('invalid-response', 'QQ playlist has no tid');
     if (tracks.length === 0) return;
 
     // `type: 0` 是调用方明确确认的普通曲库歌曲；Folia 里能加进歌单的 QQ 歌都来自曲库，不沿用读取条目里的 type。
@@ -89,22 +83,19 @@ const updatePlaylistTracks: NonNullable<OnlineMutationProvider['updatePlaylistTr
         // 就是用户要的结果，算成功；其余（方向不对、读不出来、旧后端没有这个字段）不当成功，
         // 免得界面说「已更新」或把没删掉的歌从列表里拿掉。
         if (response?.changed !== true && !alreadyApplied(operation, response)) {
-            throw new OnlineProviderError(
-                'invalid-response',
-                `QQMusicApi user_playlist_tracks reported no change (${operation})`,
-                'qq',
+            throw qqError('invalid-response', `QQMusicApi user_playlist_tracks reported no change (${operation})`,
                 response,
             );
         }
     }
 };
 
-const subscribePlaylist: NonNullable<OnlineMutationProvider['subscribePlaylist']> = async (playlist, subscribed) => {
+const subscribePlaylist: NonNullable<FoliumSourceMutations['subscribePlaylist']> = async (playlist, subscribed) => {
     const tid = playlistTid(playlist);
-    if (tid === null) throw new OnlineProviderError('invalid-response', 'QQ playlist has no tid', 'qq');
+    if (tid === null) throw qqError('invalid-response', 'QQ playlist has no tid');
     const response = await requestQq<any>('user_playlist_subscribe', {}, { tid: String(tid), subscribed });
     if (response?.subscribed !== subscribed) {
-        throw new OnlineProviderError('invalid-response', 'QQMusicApi user_playlist_subscribe returned no confirmation', 'qq', response);
+        throw qqError('invalid-response', 'QQMusicApi user_playlist_subscribe returned no confirmation', response);
     }
 };
 
@@ -112,27 +103,24 @@ const subscribePlaylist: NonNullable<OnlineMutationProvider['subscribePlaylist']
  * 红心与取消红心。后端要数字 id 与 songmid 一起核对，type 0 是调用方确认的普通曲库歌曲；
  * 回包的 liked 对上才算成功。结果不明时后端回 502，写入可能已经生效，这里不重送。
  */
-const likeSong: NonNullable<OnlineMutationProvider['likeSong']> = async (song, liked) => {
-    // 只认真的 songmid：没有 mid 的条目 mediaId 会退成数字 id，送去只会被后端核对失败。
-    const sourceRef = typeof song === 'object' && song.sourceRef?.kind === 'online' && song.sourceRef.providerId === 'qq'
-        ? song.sourceRef
-        : undefined;
-    const mid = typeof song === 'object' ? String(song.qqMid || sourceRef?.providerData?.songMid || '').trim() : '';
-    if (!mid) throw new OnlineProviderError('invalid-response', 'QQ song has no songmid for a like write', 'qq');
+const likeSong: NonNullable<FoliumSourceMutations['likeSong']> = async (song, liked) => {
+    // 只认真的 songmid：没有 mid 的条目 id 会退成数字 id，送去只会被后端核对失败。
+    const mid = typeof song === 'object' ? String(song.data?.songMid || song.lyricIds?.qq || '').trim() : '';
+    if (!mid) throw qqError('invalid-response', 'QQ song has no songmid for a like write');
     const id = await resolveQqSongId(song);
     const response = await requestQq<any>('user_song_like', {}, { song: { id, mid, type: 0 }, liked });
     if (response?.liked !== liked) {
-        throw new OnlineProviderError('invalid-response', 'QQMusicApi user_song_like returned no confirmation', 'qq', response);
+        throw qqError('invalid-response', 'QQMusicApi user_song_like returned no confirmation', response);
     }
 };
 
 /** 收藏与取消收藏专辑，按专辑 mid 送；回包的 subscribed 对上才算成功，同样不重送。 */
-const subscribeAlbum: NonNullable<OnlineMutationProvider['subscribeAlbum']> = async (id, subscribed) => {
+const subscribeAlbum: NonNullable<FoliumSourceMutations['subscribeAlbum']> = async (id, subscribed) => {
     const albumMid = String(id ?? '').trim();
-    if (!albumMid) throw new OnlineProviderError('invalid-response', 'QQ album has no mid for a subscription write', 'qq');
+    if (!albumMid) throw qqError('invalid-response', 'QQ album has no mid for a subscription write');
     const response = await requestQq<any>('user_album_subscribe', {}, { id: albumMid, subscribed });
     if (response?.subscribed !== subscribed) {
-        throw new OnlineProviderError('invalid-response', 'QQMusicApi user_album_subscribe returned no confirmation', 'qq', response);
+        throw qqError('invalid-response', 'QQMusicApi user_album_subscribe returned no confirmation', response);
     }
 };
 
@@ -140,7 +128,7 @@ const subscribeAlbum: NonNullable<OnlineMutationProvider['subscribeAlbum']> = as
  * 查收藏状态。没登录就是没收藏；后端明确回 `unknown` 时报错而不是回 false：查不出来就别报一个结论，
  * 收藏按钮的状态留空（界面按未收藏显示，点了只会去收藏，不会误取消）。
  */
-export const getQqSubscriptionStatus = async (type: 'playlist' | 'album', id: MediaId): Promise<boolean> => {
+export const getQqSubscriptionStatus = async (type: 'playlist' | 'album', id: string): Promise<boolean> => {
     if (!hasUsableQqSession()) return false;
     const key = type === 'playlist' ? positiveInteger(id) : String(id ?? '').trim();
     if (key === null || key === '') return false;
@@ -149,17 +137,17 @@ export const getQqSubscriptionStatus = async (type: 'playlist' | 'album', id: Me
     const status = items.find((item: any) => String(item?.id) === String(key))?.status;
     if (status === 'subscribed') return true;
     if (status === 'not-subscribed') return false;
-    throw new OnlineProviderError('invalid-response', `QQ subscription status is ${String(status ?? 'missing')}`, 'qq', response);
+    throw qqError('invalid-response', `QQ subscription status is ${String(status ?? 'missing')}`, response);
 };
 
 /**
  * 建一张自己的空歌单（qq-music-api 3.3.3）。后端写一次、从自建清单读回才回成功，名称也是读回的；
  * 结果不明时回 502，可能已经建好了，这里不重送。
  */
-const createPlaylist: NonNullable<OnlineMutationProvider['createPlaylist']> = async name => {
+const createPlaylist: NonNullable<FoliumSourceMutations['createPlaylist']> = async name => {
     const response = await requestQq<any>('user_playlist_create', {}, { name });
     if (positiveInteger(response?.tid) === null || positiveInteger(response?.dirId) === null) {
-        throw new OnlineProviderError('invalid-response', 'QQMusicApi user_playlist_create returned no playlist', 'qq', response);
+        throw qqError('invalid-response', 'QQMusicApi user_playlist_create returned no playlist', response);
     }
     // 和自建清单里的条目同一个形状（有 dirName 就是自建的），读账号时也就是同一张。
     return normalizeQqCollection({
@@ -170,7 +158,7 @@ const createPlaylist: NonNullable<OnlineMutationProvider['createPlaylist']> = as
     });
 };
 
-export const qqMutations: OnlineMutationProvider = {
+export const qqMutations: FoliumSourceMutations = {
     canAddToPlaylist: canEditQqPlaylistTracks,
     canEditPlaylistTracks: canEditQqPlaylistTracks,
     // 排行榜和电台（探索页的卡片）不是歌单，收藏不了。

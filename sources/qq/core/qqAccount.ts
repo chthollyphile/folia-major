@@ -1,10 +1,10 @@
-import type { MediaId, ProviderUser } from '../../../src/types/onlineMusic';
+import type { FoliumSourceUser } from '@folia/folium';
 import { requestQq } from './qqTransport';
 
 // sources/qq/core/qqAccount.ts
 // QQ 音乐账号的两样补充资料（qq-music-api 3.3.3）：会员等级，和喜欢清单没读完整时逐首确认的红心。
 
-// `/user/vip` 的三级会员换成 ProviderUser.vipType：免费 0、绿钻 1、超级会员 2。判断不出来（unknown）不填，不当成免费。
+// `/user/vip` 的三级会员换成 FoliumSourceUser.vipType：免费 0、绿钻 1、超级会员 2。判断不出来（unknown）不填，不当成免费。
 const QQ_VIP_TYPES: Readonly<Record<string, number>> = { free: 0, green: 1, super: 2 };
 
 // 登录状态最多为会员等级等这么久；没读完的接着读，读到了下一次检查就有。
@@ -47,7 +47,7 @@ const readVipType = (account: string): Promise<void> => {
  * 补上会员等级。一个账号只读一次、记住；登录状态最多等 VIP_WAIT_MS，慢了或读不到就用这个账号上次读到的
  * （没读到过就没有），下一次检查再读。读不到只是少了等级，不影响登录。
  */
-export const withQqVipType = async (user: ProviderUser): Promise<ProviderUser> => {
+export const withQqVipType = async (user: FoliumSourceUser): Promise<FoliumSourceUser> => {
     const account = String(user.id ?? '');
     if (!vipKnown.has(account)) {
         let timer: ReturnType<typeof setTimeout> | undefined;
@@ -61,10 +61,10 @@ export const withQqVipType = async (user: ProviderUser): Promise<ProviderUser> =
 };
 
 /**
- * 这几首歌是不是红心（一次一个请求，按 songmid 问）。只在喜欢清单没读完整时才被问到（account/likedChecks.ts）。
+ * 这几首歌是不是红心（一次一个请求，按 songmid 问）。只在喜欢清单没读完整时才被问到（宿主的 account/likedChecks.ts）。
  * 后端说 `unknown` 的、和没有 songmid 的歌（mediaId 退成了数字 id）都不回答，不当成「没喜欢」。
  */
-export const areQqSongsLiked = async (ids: MediaId[]): Promise<Record<string, boolean>> => {
+export const areQqSongsLiked = async (ids: string[]): Promise<Record<string, boolean>> => {
     const mids = [...new Set(ids.map(id => String(id).trim()).filter(id => id && !/^\d+$/.test(id)))];
     if (mids.length === 0) return {};
     const response = await requestQq<any>('user_subscription_status', { type: 'song', ids: mids.join(',') });
