@@ -1968,6 +1968,8 @@ export default {
     "loginNoteBodian": "Mở ứng dụng Bodian Music quét mã QR và xác nhận đăng nhập",
     "loginTitleFnMusic": "Đăng nhập fnOS Music",
     "loginNoteFnMusic": "Nhập địa chỉ máy chủ và tài khoản fnOS Music để phát nhạc từ NAS của bạn",
+    "loginTitleHuawei": "Đăng nhập Huawei Music",
+    "loginNoteHuawei": "Đăng nhập trong cửa sổ tài khoản Huawei. Hầu hết bài hát còn cần gói đăng ký Huawei Music của tài khoản đó để phát.",
     "loginTitleYtm": "Đăng nhập YouTube Music",
     "loginTitleAppleMusic": "Đăng nhập Apple Music",
     "loginNoteAppleMusic": "Đăng nhập trong cửa sổ Apple. Mật khẩu của bạn chỉ được gửi cho Apple.",
@@ -2286,6 +2288,7 @@ export default {
     "spotify": "Spotify",
     "qishui": "Qishui",
     "fnmusic": "fnOS",
+    "huawei": "Huawei",
   },
   "globalLyricOffset": {
     "title": "Độ lệch thời gian toàn cục",

@@ -49,6 +49,11 @@ const AUTH_MEMBERS: Record<string, string[]> = {
     fnmusic: [
         'checkLogin', 'describeLoginFailure', 'getLoginForm', 'getLoginStatus', 'getLoginTexts', 'logout', 'startLogin', 'submitLoginForm',
     ],
+    // 华为账号在应用自己的窗口里确认：没有码可看，没有刷新令牌（会话过期后要重新登录）。
+    huawei: [
+        'cancelLogin', 'checkLogin', 'describeLoginFailure', 'getLoginStatus', 'getLoginTexts', 'getLoginTtlMs', 'logout', 'openLoginPage',
+        'recheckOnWindowReturn', 'signInRanOut', 'startLogin',
+    ],
 };
 
 describe('the sign-in members of each built-in platform', () => {

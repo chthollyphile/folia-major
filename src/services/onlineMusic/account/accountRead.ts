@@ -61,7 +61,7 @@ import { errorMessage } from '../../../utils/errorText';
 // shown at once at app start, while the platform is asked.
 
 /** Why an account is read. */
-export type AccountReadReason = 'start' | 'sign-in' | 'switch' | 'sync';
+export type AccountReadReason = 'start' | 'sign-in' | 'switch' | 'sync' | 'session-change';
 
 /**
  * How a read of an account ended.
@@ -243,8 +243,10 @@ export const createAccountReads = <R>(deps: AccountReadsDeps<R>) => {
         }
         store().clearAccount(providerId, error);
         deps.forgetLikePresses(providerId);
-        await reads.saving.catch(() => {});
-        const [adapterFailure, removalFailure] = await Promise.all([told, clearProviderAccountSnapshot(providerId).then(() => null, messageOf)]);
+        // Queue removal with saves now, so a newer sign-in always saves after this removal.
+        const removal = reads.saving.catch(() => {}).then(() => clearProviderAccountSnapshot(providerId));
+        reads.saving = removal;
+        const [adapterFailure, removalFailure] = await Promise.all([told, removal.then(() => null, messageOf)]);
         if (adapterFailure !== null) console.warn(`[Account] ${providerId}: its adapter could not be told that the account left: ${adapterFailure}`);
         if (removalFailure !== null) console.warn(`[Account] ${providerId}: the kept account could not be removed: ${removalFailure}`);
     };
@@ -471,8 +473,9 @@ export const createAccountReads = <R>(deps: AccountReadsDeps<R>) => {
             const provider = getOnlineMusicProvider(providerId);
             if (!provider) return Promise.resolve('nobody');
             const reads = readsOf(providerId);
-            if (reads.whole && reason !== 'sign-in') return reads.whole.outcome;
-            if (reason === 'sign-in') reads.generation += 1;
+            const replacesRead = reason === 'sign-in' || reason === 'session-change';
+            if (reads.whole && !replacesRead) return reads.whole.outcome;
+            if (replacesRead) reads.generation += 1;
 
             let likedEnded!: (alike: boolean) => void;
             let likedNotRead!: (error: Error) => void;

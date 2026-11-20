@@ -729,6 +729,8 @@ export type LoginSelfCheckResult = {
 
 export interface OnlineAuthProvider {
     getLoginStatus(): Promise<ProviderUser | null>;
+    /** Revalidate a desktop-held session when the listener returns to the window. */
+    recheckOnWindowReturn?: boolean;
     /**
      * The listener signs out. The account leaves the screen as soon as this is called, and what
      * shows the account asks the adapter again then: whatever the adapter answers such questions

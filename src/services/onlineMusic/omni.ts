@@ -89,6 +89,7 @@ import type { SongInPlay } from './account/likedChecks';
 import { createAccountMoments } from './account/readMoments';
 import type { AccountMoment } from './account/readMoments';
 import { createAccountReads } from './account/accountRead';
+import { onProviderSessionChanged } from './account/sessionChanges';
 import { withoutCredentials } from './rawResponse';
 import { resolveSongCatalogRefSet } from './catalogRefs';
 import { ARTIST_SONGS_CAP, readAlignedPages } from './alignedPages';
@@ -475,6 +476,11 @@ const accountReads = createAccountReads({
     // Only spans of time are measured: a clock that is set back must not hold the reads off.
     now: () => performance.now(),
 });
+
+// A desktop transport can discover expiry during playback or a lyric fallback. Ask its
+// adapter again and supersede older account reads before they can restore a stale profile.
+const stopSessionChanges = onProviderSessionChanged(providerId => { void accountReads.read(providerId, 'session-change'); });
+if (import.meta.hot) import.meta.hot.dispose(stopSessionChanges);
 
 // The moments at which an account's liked songs may have been changed in its platform's own app
 // (account/readMoments.ts decides what is asked and read then). The seam to the platforms is the
@@ -1577,7 +1583,9 @@ export const omni = {
     // asked' where none was made. Never throws or rejects.
     accountMoment(moment: AccountMoment): Promise<AccountReadOutcome> {
         const providerId = activeProviderId();
-        const playlists = moment === 'home-entered' ? accountReads.readAtHome(providerId) : Promise.resolve<AccountReadOutcome>('not asked');
+        const playlists = moment === 'home-entered' ? accountReads.readAtHome(providerId)
+            : getOnlineMusicProvider(providerId)?.auth?.recheckOnWindowReturn
+                ? accountReads.read(providerId, 'sync') : Promise.resolve<AccountReadOutcome>('not asked');
         void accountMoments(moment, providerId);
         return playlists;
     },

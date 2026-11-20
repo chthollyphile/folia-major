@@ -18,6 +18,7 @@ export const STORAGE_KEYS = [
     'main:ENABLE_AUTO_UPDATE',
     'main:ENABLE_UPDATE_CHECK',
     'main:GEMINI_API_KEY',
+    'main:HUAWEI_SESSION_V1',
     'main:GEMINI_API_MODEL',
     'main:GPU_PREFERENCE',
     'main:HIDE_TASKBAR_ICON',
