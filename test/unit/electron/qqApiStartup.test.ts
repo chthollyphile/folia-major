@@ -218,6 +218,41 @@ describe('QQ API startup', () => {
         expect(env.AUTO_OPEN_EXPLORER).toBeUndefined();
     });
 
+    // The load is awaited, so two starts (an old copy of the mod and its reloaded copy) could overlap: each would save the
+    // other's PORT as "previous" and leave it behind. The windows are taken one at a time instead.
+    it('takes overlapping starts one at a time, so neither leaves its port in the environment', async () => {
+        const env: Record<string, string | undefined> = {};
+        const seen: string[] = [];
+        const slowLoad = (server: FakeServer) => async () => {
+            seen.push(`load ${env.PORT}`);
+            await new Promise(resolve => setTimeout(resolve, 5));
+            seen.push(`loaded ${env.PORT}`);
+            setImmediate(() => server.bind());
+            return { server };
+        };
+
+        await Promise.all([
+            startQqApi({ port: 41001, loadModule: slowLoad(new FakeServer()), env }),
+            startQqApi({ port: 41002, loadModule: slowLoad(new FakeServer()), env }),
+        ]);
+
+        expect(seen).toEqual(['load 41001', 'loaded 41001', 'load 41002', 'loaded 41002']);
+        expect(env.PORT).toBeUndefined();
+        expect(env.AUTO_OPEN_EXPLORER).toBeUndefined();
+    });
+
+    it('lets the next start in after one whose load threw', async () => {
+        const env: Record<string, string | undefined> = {};
+        const server = new FakeServer();
+
+        const failing = startQqApi({ port: 41003, loadModule: () => { throw new Error('listen EADDRINUSE'); }, env });
+        const next = startQqApi({ port: 41004, loadModule: moduleThatBinds(server), env });
+
+        await expect(failing).rejects.toThrow('listen EADDRINUSE');
+        await expect(next).resolves.toMatchObject({ port: 41004 });
+        expect(env.PORT).toBeUndefined();
+    });
+
     // A build shipped without the dependency can never recover, so the caller reports it as
     // 'unavailable'; a runtime failure must not be flattened into that same message.
     it('marks a missing package as MODULE_NOT_FOUND with an actionable message', async () => {
