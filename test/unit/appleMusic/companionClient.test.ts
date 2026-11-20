@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 // Test the parent-owned channel without starting Electron or loading an Apple account.
 const require = createRequire(import.meta.url);
-const { createCompanionClient: createClient } = require('../../../electron/appleMusic/companionClient.cjs');
+const { createCompanionClient: createClient } = require('../../../sources/appleMusic/main/companionClient.cjs');
 
 // Isolate client request routing from the separately tested native pipe adapter.
 const createCompanionClient = (options: Record<string, unknown>) => createClient({

@@ -101,6 +101,7 @@ function createNativeSpawn({ spawnProcess, timeoutMs = 25000, pinLimitMs = PIN_L
         const native = spawnProcess(binary, [`--profile=${profilePath}`, `--store=${store}`], { stdio: ['pipe', 'pipe', 'pipe'], shell: false });
         const bridge = new EventEmitter();
         bridge.connected = true;
+        bridge.exited = false;
         let sequence = 0;
         let generation = 0;
         let currentUrl = 'about:blank';
@@ -120,12 +121,22 @@ function createNativeSpawn({ spawnProcess, timeoutMs = 25000, pinLimitMs = PIN_L
             }
             pending.clear();
         };
+        let exited = false;
         const finish = () => {
             if (exitTimer) clearTimeout(exitTimer);
-            if (!bridge.connected) { failPending(); return; }
+            // The process is gone (or never started): said once as the bridge's 'exit', after the channel's own
+            // 'disconnect', so a close can wait for the profile folder to be let go.
+            const announceExit = () => {
+                if (exited) return;
+                exited = true;
+                bridge.exited = true;
+                bridge.emit('exit');
+            };
+            if (!bridge.connected) { failPending(); announceExit(); return; }
             bridge.connected = false;
             failPending();
             bridge.emit('disconnect');
+            announceExit();
         };
 
         // Only fixed host controls and parent-built expressions are sent; the renderer cannot supply scripts.

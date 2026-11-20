@@ -1,6 +1,8 @@
+// @builtin-sources
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { appleMusicCatalogSongId, getAppleMusicPlaylistTracks, getAppleMusicPlaylists, searchAppleMusic } from '../../../src/services/onlineMusic/appleMusic/appleMusicData';
-import { normalizeAppleMusicSong } from '../../../src/services/onlineMusic/appleMusic/appleMusicNormalize';
+import { appleMusicCatalogSongId, getAppleMusicPlaylistTracks, getAppleMusicPlaylists, searchAppleMusic } from '../../../sources/appleMusic/client/appleMusicData';
+import { normalizeAppleMusicSong } from '../../../sources/appleMusic/client/appleMusicNormalize';
+import { stubAppleMusicBridge } from '../helpers/appleMusicSource';
 
 // A missing catalog identity and a broken cursor must not become false success or an empty library.
 afterEach(() => { vi.unstubAllGlobals(); });
@@ -14,24 +16,24 @@ describe('Apple Music data adapter', () => {
     });
 
     it('preserves a server-provided next offset and maps playlist identity', async () => {
-        vi.stubGlobal('window', { electron: { appleMusicRequest: vi.fn(async () => ({
+        stubAppleMusicBridge(vi.fn(async () => ({
             ok: true, data: { items: [{ id: 'p.example', type: 'library-playlists' }], nextOffset: 5, hasMore: true },
-        })) } });
+        })));
         // One row wanted: the server's own next offset is kept, and no second page is read.
         await expect(getAppleMusicPlaylists(1, 0)).resolves.toMatchObject({
-            nextOffset: 5, hasMore: true, items: [{ id: 'library-songs', providerId: 'appleMusic' }, { id: 'p.example', providerId: 'appleMusic' }],
+            nextOffset: 5, hasMore: true, items: [{ id: 'library-songs' }, { id: 'p.example' }],
         });
     });
 
     it('rejects malformed pagination rather than returning an incomplete page', async () => {
-        vi.stubGlobal('window', { electron: { appleMusicRequest: vi.fn(async () => ({
+        stubAppleMusicBridge(vi.fn(async () => ({
             ok: true, data: { items: [], nextOffset: 0, hasMore: true },
-        })) } });
+        })));
         await expect(getAppleMusicPlaylists(5, 0)).rejects.toMatchObject({ code: 'invalid-response' });
     });
 
     it('leaves rows this adapter does not model out of a library page', async () => {
-        vi.stubGlobal('window', { electron: { appleMusicRequest: vi.fn(async () => ({
+        stubAppleMusicBridge(vi.fn(async () => ({
             ok: true,
             data: {
                 items: [
@@ -41,9 +43,9 @@ describe('Apple Music data adapter', () => {
                 nextOffset: 2,
                 hasMore: false,
             },
-        })) } });
+        })));
         await expect(getAppleMusicPlaylists(10, 0)).resolves.toMatchObject({
-            items: [{ id: 'library-songs', providerId: 'appleMusic' }, { id: 'p.1', providerId: 'appleMusic' }],
+            items: [{ id: 'library-songs' }, { id: 'p.1' }],
             nextOffset: 2,
             hasMore: false,
         });
@@ -60,7 +62,7 @@ describe('Apple Music data adapter', () => {
                 hasMore: params.offset + params.limit < 150,
             },
         }));
-        vi.stubGlobal('window', { electron: { appleMusicRequest: request } });
+        stubAppleMusicBridge(request);
         const page = await getAppleMusicPlaylistTracks('p.example', 150, 0);
         expect(page.items).toHaveLength(150);
         expect(page.hasMore).toBe(false);
@@ -70,7 +72,7 @@ describe('Apple Music data adapter', () => {
 
     it('does not issue an empty search', async () => {
         const request = vi.fn();
-        vi.stubGlobal('window', { electron: { appleMusicRequest: request } });
+        stubAppleMusicBridge(request);
         await expect(searchAppleMusic('  ', 10, 0)).resolves.toMatchObject({ items: [], hasMore: false });
         expect(request).not.toHaveBeenCalled();
     });

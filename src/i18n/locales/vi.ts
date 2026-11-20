@@ -67,9 +67,6 @@ export default {
       "unknown": "Không rõ lý do"
     }
   },
-  "appleMusic": {
-    "libraryPlaylistName": "Tất cả bài hát"
-  },
   "perfCheck": {
     "title": "Kiểm tra hiệu năng",
     "songTitle": "Kiểm tra hiệu năng",
@@ -2035,9 +2032,6 @@ export default {
     "loginTitle": "Quét bằng ứng dụng Netease",
     "loginNote": "Mở ứng dụng Netease Music > Khám phá > Quét mã QR",
     "loginTitleQq": "Quét mã đăng nhập QQ Music",
-    "loginTitleAppleMusic": "Đăng nhập Apple Music",
-    "loginNoteAppleMusic": "Đăng nhập trong cửa sổ Apple. Mật khẩu của bạn chỉ được gửi cho Apple.",
-    "appleMusicLinuxUnsupported": "Chưa hỗ trợ Linux",
     "loginCodeWaiting": "Đang chờ xác nhận trên trình duyệt",
     "loginTitleSpotify": "Đăng nhập Spotify",
     "loginNoteSpotify": "Chọn “Đồng ý” trên trang Spotify mở trong trình duyệt của bạn",
@@ -2329,11 +2323,9 @@ export default {
     "netease": "NetEase Cloud Music",
     "qq": "QQ Music",
     "spotify": "Spotify",
-    "appleMusic": "Apple Music",
     "amll": "AMLLDB",
   },
   "onlineProviderName": {
-    "appleMusic": "Apple Music",
     "netease": "NetEase",
     "qq": "QQ Music",
     "spotify": "Spotify",

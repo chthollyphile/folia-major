@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from 'vitest';
 // plays only previews: the page moves to the account's region, or MusicKit follows it in place.
 
 const require = createRequire(import.meta.url);
-const { storefrontTarget, pageStorefront, alignStorefront } = require('../../../electron/appleMusic/companionStorefront.cjs') as {
+const { storefrontTarget, pageStorefront, alignStorefront } = require('../../../sources/appleMusic/main/companionStorefront.cjs') as {
     storefrontTarget: (currentUrl: unknown, storefront: unknown) => string | null;
     pageStorefront: (address: unknown) => string | null;
     alignStorefront: (mk: unknown) => Promise<void>;

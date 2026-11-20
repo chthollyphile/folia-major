@@ -999,10 +999,6 @@ declare global {
       // 'needed'：一个请求要用它，它却因为断网没起来；主进程只在离上一次断网失败够久时才再启动。
       restartNeteaseApi: (reason?: 'needed') => Promise<ElectronNeteaseApiStatus>;
       onNeteaseApiStatusChanged: (callback: (status: ElectronNeteaseApiStatus) => void) => () => void;
-      appleMusicRequest: (
-        operation: import('./services/onlineMusic/appleMusic/appleMusicTransport').AppleMusicOperation,
-        params?: import('./services/onlineMusic/appleMusic/appleMusicTransport').AppleMusicParams,
-      ) => Promise<import('./services/onlineMusic/appleMusic/appleMusicTransport').AppleMusicBridgeResult>;
       spotifyRequest: (
         operation: import('./services/onlineMusic/spotify/spotifyTransport').SpotifyOperation,
         params?: import('./services/onlineMusic/spotify/spotifyTransport').SpotifyParams,

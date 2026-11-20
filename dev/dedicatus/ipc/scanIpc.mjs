@@ -28,7 +28,6 @@ const GUARD_TERNARY = /^(?:async\s+)?\(?\s*(?:event|e)\s*\)?\s*=>\s*\(?\s*is\w+\
  */
 export const GUARD_FACTORIES = {
     createSenderGuardedHandler: { file: 'electron/ipcAccessGuard.cjs', trustedTakes: 'event', check: /if \(!isTrusted\(event\)\)/ },
-    createCompanionRequestHandler: { file: 'electron/appleMusic/companionIpc.cjs', trustedTakes: 'webContents', check: /if \(!isTrusted\(event\.sender\)/ },
 };
 
 const FACTORY_NAMES = Object.keys(GUARD_FACTORIES).join('|');

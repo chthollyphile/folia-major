@@ -1353,6 +1353,16 @@
       "count": 1
     }
   },
+  "sources/appleMusic/client/appleMusicData.ts": {
+    "@typescript-eslint/no-unnecessary-condition": {
+      "count": 3
+    }
+  },
+  "sources/appleMusic/client/appleMusicRadio.ts": {
+    "@typescript-eslint/no-unnecessary-condition": {
+      "count": 2
+    }
+  },
   "sources/bodian/client/bodianCatalog.ts": {
     "@typescript-eslint/no-explicit-any": {
       "count": 5
@@ -9521,27 +9531,6 @@
       "count": 3
     }
   },
-  "src/services/onlineMusic/appleMusic/appleMusicData.ts": {
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 3
-    }
-  },
-  "src/services/onlineMusic/appleMusic/appleMusicProvider.ts": {
-    "@typescript-eslint/consistent-type-imports": {
-      "count": 7
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 3
-    },
-    "@typescript-eslint/no-unnecessary-type-conversion": {
-      "count": 1
-    }
-  },
-  "src/services/onlineMusic/appleMusic/appleMusicRadio.ts": {
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 2
-    }
-  },
   "src/services/onlineMusic/catalogRefs.ts": {
     "@typescript-eslint/no-unnecessary-condition": {
       "count": 6
@@ -11649,7 +11638,7 @@
       "count": 997
     },
     "@typescript-eslint/consistent-type-imports": {
-      "count": 52
+      "count": 49
     },
     "@typescript-eslint/no-explicit-any": {
       "count": 4

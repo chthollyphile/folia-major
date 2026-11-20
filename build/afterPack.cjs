@@ -106,11 +106,11 @@ exports.default = async (context) => {
   await verifyBundledMnn(context);
   await pruneLibrespotBinaries(context);
   if (context.electronPlatformName === 'win32') {
-    const { verifyWindowsCompanion } = require('../electron/appleMusic/windows/prepareBundle.cjs');
+    const { verifyWindowsCompanion } = require('../sources/appleMusic/native/windows/prepareBundle.cjs');
     await verifyWindowsCompanion(context.packager.getResourcesDir(context.appOutDir));
   }
   if (context.electronPlatformName === 'darwin') {
-    const { verifyMacCompanion } = require('../electron/appleMusic/macos/prepareBundle.cjs');
+    const { verifyMacCompanion } = require('../sources/appleMusic/native/macos/prepareBundle.cjs');
     await verifyMacCompanion(context.packager.getResourcesDir(context.appOutDir));
     const { verifyBundledKoffi } = await import('../packaging/macos/prepare-koffi.mjs');
     await verifyBundledKoffi({

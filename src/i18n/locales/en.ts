@@ -67,9 +67,6 @@ export default {
       "unknown": "Unknown reason"
     }
   },
-  "appleMusic": {
-    "libraryPlaylistName": "All songs"
-  },
   "perfCheck": {
     "title": "Performance check",
     "songTitle": "Performance check",
@@ -2035,9 +2032,6 @@ export default {
     "loginTitle": "Scan with Netease App",
     "loginNote": "Open Netease Music App > Discover > Scan QR",
     "loginTitleQq": "Scan to sign in to QQ Music",
-    "loginTitleAppleMusic": "Sign in to Apple Music",
-    "loginNoteAppleMusic": "Sign in using the Apple window. Your password stays with Apple.",
-    "appleMusicLinuxUnsupported": "Not supported on Linux yet",
     "loginCodeWaiting": "Waiting for confirmation in your browser",
     "loginTitleSpotify": "Sign in to Spotify",
     "loginNoteSpotify": "Choose Agree on the Spotify page that opens in your browser",
@@ -2329,11 +2323,9 @@ export default {
     "netease": "NetEase Cloud Music",
     "qq": "QQ Music",
     "spotify": "Spotify",
-    "appleMusic": "Apple Music",
     "amll": "AMLLDB",
   },
   "onlineProviderName": {
-    "appleMusic": "Apple Music",
     "netease": "NetEase",
     "qq": "QQ Music",
     "spotify": "Spotify",

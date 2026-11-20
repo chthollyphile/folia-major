@@ -5,8 +5,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 // Native transport tests exercise the shared request dispatcher without WebKit or credentials.
 const require = createRequire(import.meta.url);
-const { createNativeSpawn } = require('../../../electron/appleMusic/nativeSpawn.cjs');
-const { createCompanionClient } = require('../../../electron/appleMusic/companionClient.cjs');
+const { createNativeSpawn } = require('../../../sources/appleMusic/main/nativeSpawn.cjs');
+const { createCompanionClient } = require('../../../sources/appleMusic/main/companionClient.cjs');
 
 function fixture(
     evaluate: (expression: string) => unknown = () => ({ ok: true, data: { items: [] } }),
@@ -80,6 +80,18 @@ describe('native WebView companion adapter', () => {
         bridge.disconnect();
         expect(bridge.connected).toBe(false);
         expect(f.child.stdin.writableEnded).toBe(true);
+    });
+    it('says when the process has gone, after the channel closed, so a close can wait for it', async () => {
+        const f = fixture(); const bridge = f.create(); instances.push(bridge);
+        const heard: string[] = [];
+        bridge.on('disconnect', () => heard.push('disconnect'));
+        bridge.on('exit', () => heard.push('exit'));
+        bridge.disconnect();
+        expect(heard).toEqual(['disconnect']);
+        expect(bridge.exited).toBe(false);
+        await settle();
+        expect(heard).toEqual(['disconnect', 'exit']);
+        expect(bridge.exited).toBe(true);
     });
     it('keeps requests not-ready until the document is ready and never forwards caller scripts', async () => {
         const f = fixture(); const bridge = f.create(); instances.push(bridge);

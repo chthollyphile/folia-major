@@ -17,7 +17,7 @@ const WINDOWS_COMPANION_FILES = [
 // The project targets x64 only (PlatformTarget x64); other architectures would ship a host that cannot load its loader.
 function prepareWindowsCompanion({ arch, projectRoot, run = execFileSync }) {
     if (arch !== 'x64') throw new Error(`Unsupported Apple Music companion architecture: ${arch}`);
-    run('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(projectRoot, 'electron/appleMusic/windows/buildCompanion.ps1')], { stdio: 'inherit' });
+    run('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(projectRoot, 'sources/appleMusic/native/windows/buildCompanion.ps1')], { stdio: 'inherit' });
     return path.join(projectRoot, 'build/apple-music-native/windows');
 }
 

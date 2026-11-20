@@ -4,8 +4,14 @@ const path = require('node:path');
 const { spawn } = require('node:child_process');
 const { validateRequest } = require('./companionRequests.cjs');
 
+// How long a close waits for the companion to exit: past the native channel's 1.5 s kill fallback, inside the
+// host's 3 s budget for onBeforeUnload.
+const CLOSE_WAIT_MS = 2500;
+
 // Both hosts use a private parent-owned channel; neither opens a network listener.
-function createCompanionClient({ nativeExecutablePath = '', profilePath, spawnProcess = spawn, createNativeChannel = require('./nativeSpawn.cjs').createNativeSpawn, timeoutMs = 25000 }) {
+// `onRunningChanged(running)` hears when a companion starts and when it goes (closed, exited or lost): the source's
+// main entry holds the app's quit only while one runs.
+function createCompanionClient({ nativeExecutablePath = '', profilePath, spawnProcess = spawn, createNativeChannel = require('./nativeSpawn.cjs').createNativeSpawn, timeoutMs = 25000, onRunningChanged = () => {} }) {
     const spawnNative = createNativeChannel({ spawnProcess });
     let child = null;
     let sequence = 0;
@@ -28,6 +34,7 @@ function createCompanionClient({ nativeExecutablePath = '', profilePath, spawnPr
         if (!path.isAbsolute(nativeExecutablePath || '') || !path.isAbsolute(profilePath || '')) return false;
         const instance = spawnNative(nativeExecutablePath, [`--user-data-dir=${profilePath}`]);
         child = instance;
+        onRunningChanged(true);
         instance.on('message', message => {
             if (instance !== child || !message || typeof message !== 'object' || typeof message.id !== 'string') return;
             const entry = pending.get(message.id);
@@ -40,6 +47,7 @@ function createCompanionClient({ nativeExecutablePath = '', profilePath, spawnPr
             if (child !== instance) return;
             child = null;
             failPending('disconnected');
+            onRunningChanged(false);
         };
         instance.once('error', onClosed);
         instance.once('exit', onClosed);
@@ -120,12 +128,21 @@ function createCompanionClient({ nativeExecutablePath = '', profilePath, spawnPr
             const result = await this.request('pause');
             return result.ok === true;
         },
-        // Disconnecting the parent channel makes the companion exit and clears pending work.
-        close() {
+        // Disconnecting the parent channel makes the companion exit and clears pending work. The promise settles
+        // once the process has gone (its 'exit'), or after `waitMs` at most: until then WebView2 / WebKit may still
+        // hold files in the profile folder, which a data clear right after removes.
+        close({ waitMs = CLOSE_WAIT_MS } = {}) {
             const instance = child;
             child = null;
             failPending('disconnected');
+            const gone = !instance || instance.exited === true ? Promise.resolve() : new Promise(resolve => {
+                const timer = setTimeout(resolve, waitMs);
+                timer.unref?.();
+                instance.once('exit', () => { clearTimeout(timer); resolve(); });
+            });
             if (instance?.connected) instance.disconnect();
+            if (instance) onRunningChanged(false);
+            return gone;
         },
     };
 }

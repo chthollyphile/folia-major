@@ -1,0 +1,33 @@
+{
+  "folium": 2,
+  "id": "apple-music",
+  "name": "Apple Music",
+  "version": "1.0.0",
+  "author": "Folia",
+  "description": "Folia 内置的 Apple Music 音源（macOS 与 Windows 桌面端）：登录、搜索、资料库与歌单、目录专辑与歌手、个人 FM 与直播电台、TTML 歌词；Apple 的音频受 DRM 保护，在随应用带的伴侣程序里播放，Folia 驱动它并跟随它的时钟。",
+  "client": "client.mjs",
+  "main": "index.cjs",
+  "locales": "locales",
+  "native": ["apple-music-companion"],
+  "sources": [
+    {
+      "id": "appleMusic",
+      "name": {
+        "zh-CN": "Apple Music",
+        "en": "Apple Music",
+        "in": "Apple Music",
+        "vi": "Apple Music"
+      },
+      "requires": [
+        "search@1",
+        "playback.external@1",
+        "lyrics@1",
+        "auth@1",
+        "library@1",
+        "catalog@1",
+        "recommendations@1",
+        "mutations@1"
+      ]
+    }
+  ]
+}

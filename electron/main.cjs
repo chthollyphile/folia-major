@@ -14,6 +14,7 @@ const { resolveStageConnectionFilePath } = require('./stageConnectionFile.cjs');
 const { isCursorInsideUnlockHotspot, createUnlockHoverRequests, resolveUnlockHotspot } = require('./mainWindowClickThrough.cjs');
 const { shouldHideToTrayOnClose, shouldRebuildBeforeMacWallpaper, shouldRebuildAfterMacWallpaper } = require('./nativeTrafficLights.cjs');
 const { createModSystem } = require('./modSystem/modSystem.cjs');
+const { resolveNativeFile } = require('./modSystem/nativeFiles.cjs');
 const { MOD_PROTOCOL_PRIVILEGED_SCHEME, legacyMediaPrivilegedSchemes } = require('./modSystem/modProtocol.cjs');
 const { BUILTIN_LEGACY_MEDIA_SCHEMES } = require('./modSystem/builtinSources.cjs');
 const { createWindowPlaybackHandoffStore } = require('./windowPlaybackHandoff.cjs');
@@ -71,8 +72,6 @@ const {
 } = require('./wallpaper/wallpaperDisplay.cjs');
 const { createExternalUrlOpener } = require('./externalUrlPolicy.cjs');
 const { createSenderGuardedHandler } = require('./ipcAccessGuard.cjs');
-const { createCompanionClient } = require('./appleMusic/companionClient.cjs');
-const { createCompanionRequestHandler } = require('./appleMusic/companionIpc.cjs');
 const { createSpotifyApiBridge } = require('./spotify/spotifyApiBridge.cjs');
 const { SPOTIFY_AUDIO_PRIVILEGED_SCHEME, SPOTIFY_AUDIO_SCHEME } = require('./spotify/audio.cjs');
 const { createQqAuthSessionRepository } = require('./qq/qqAuthSessionRepository.cjs');
@@ -366,16 +365,6 @@ const hifiMpris = process.platform === 'linux'
   : null;
 // Last resort for every way out, app.exit() included: an mpv left behind would keep playing.
 process.on('exit', () => hifiSession.killSync());
-// Development and packaged builds both use the system-WebView host; no alternate browser runtime.
-const { resolveNativeExecutable } = require('./appleMusic/nativePaths.cjs');
-const appleMusicClient = createCompanionClient({
-  nativeExecutablePath: resolveNativeExecutable({
-    platform: process.platform, isPackaged: app.isPackaged, resourcesPath: process.resourcesPath,
-    projectRoot: path.join(__dirname, '..'),
-    override: process.env.ELECTRON_DEV === 'true' ? process.env.FOLIA_APPLE_MUSIC_NATIVE : '',
-  }),
-  profilePath: path.join(app.getPath('userData'), 'apple-music-companion'),
-});
 let spotifyNetwork = null;
 const getSpotifyNetwork = () => {
   if (!spotifyNetwork) {
@@ -5362,9 +5351,6 @@ async function rebuildMainWindowWithPlaybackHandoff(reason, stillWanted = () => 
 // the window that did can no longer reach them once it is replaced (its requests are refused).
 function pauseExternalPlayersNobodyFollows(reason) {
   console.log('[Electron] no window takes the playback over; pausing the players outside the window', { reason });
-  appleMusicClient.pauseIfRunning().catch((error) => {
-    console.warn('[Electron] the companion player could not be paused', error);
-  });
   spotifyApiBridge.pauseSoloist().catch((error) => {
     console.warn('[Electron] Soloist could not be paused', error);
   });
@@ -6463,6 +6449,11 @@ app.whenReady().then(async () => {
       reportError: (where, error) => crashLog.reportError(where, error, { announceToUser: false }),
       requestCachePrune: (limitBytes) => pruneMediaCache(limitBytes),
       openExternal: (url) => openExternalUrl(url),
+      // api.native.path / load: the native files the app ships for a built-in source (electron/modSystem/nativeFiles.cjs).
+      nativePath: (name) => resolveNativeFile(name, {
+        platform: process.platform, isPackaged: app.isPackaged, resourcesPath: process.resourcesPath,
+        projectRoot: path.join(__dirname, '..'), env: process.env,
+      }) || null,
     });
     modSystem.registerIpc();
     modSystem.startSources();
@@ -7362,10 +7353,6 @@ const { diagnostics: loginDiagnostics } = registerLoginBackendIpc({
   isTrustedSender: isFirstPartyWindowContents,
 });
 
-ipcMain.handle('apple-music-request', createCompanionRequestHandler({
-  isTrusted: isTrustedMainWindowContents,
-  client: appleMusicClient,
-}));
 ipcMain.handle('spotify-api-request', (event, operation, params) => {
   if (!isTrustedMainWindowContents(event.sender)) {
     return { ok: false, error: { code: 'unavailable', message: 'Untrusted Spotify request' } };
@@ -7791,7 +7778,6 @@ ipcMain.handle('global-shortcuts-set', (event, accelerators) => {
 });
 
 app.on('will-quit', () => {
-  appleMusicClient.close();
   stageApi.dispose();
   globalShortcutController?.dispose();
   hifiSession.killSync();

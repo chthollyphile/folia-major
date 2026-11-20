@@ -5,7 +5,6 @@ import { getPlaybackSourceRef } from '../../utils/appPlaybackGuards';
 import { neteaseProvider } from './netease/neteaseProvider';
 import { qqProvider } from './qq/qqProvider';
 import { spotifyProvider } from './spotify/spotifyProvider';
-import { appleMusicProvider } from './appleMusic/appleMusicProvider';
 import { startsWithoutSources } from '../../dev/devLaunchFlags';
 
 // src/services/onlineMusic/providerRegistry.ts
@@ -174,5 +173,4 @@ if (!startsWithoutSources) {
     registerOnlineMusicProvider(neteaseProvider);
     registerOnlineMusicProvider(qqProvider);
     registerOnlineMusicProvider(spotifyProvider);
-    registerOnlineMusicProvider(appleMusicProvider);
 }

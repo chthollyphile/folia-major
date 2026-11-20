@@ -238,7 +238,10 @@ describe('the trusted table of the built-in sources (§5.1)', () => {
         expect(ytmMain).toContain("api.net.session('folia-ytm')");
         expect(ytmMain).toContain("api.net.session('folia-ytm-sandbox')");
         expect(ytmMain).toContain("api.paths.legacy('ytm-sign-in')");
-        expect(main).toContain("'apple-music-companion'");
+        // Apple Music too: its main entry finds the companion's profile folder through api.paths.legacy.
+        const appleMusicMain = fs.readFileSync(path.join(ROOT, 'sources/appleMusic/main/index.ts'), 'utf8');
+        expect(appleMusicMain).toContain("const PROFILE_DIR = 'apple-music-companion';");
+        expect(appleMusicMain).toContain('api.paths.legacy(PROFILE_DIR)');
         expect(main).toContain("'soloist'");
         expect(BUILTIN_SOURCE_TABLE.ytm.partitions).toEqual(['folia-ytm', 'folia-ytm-sandbox']);
         expect(BUILTIN_SOURCE_TABLE.spotify.partitions).toEqual(['folia-spotify']);

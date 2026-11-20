@@ -15,7 +15,6 @@ export const IPC_CHANNELS = {
     'ai-list-models': { level: 'first-party', why: '现状：有来源校验' },
     'ai-test-connection': { level: 'first-party', why: '现状：有来源校验' },
     'app-quit': { level: 'first-party', why: '现状：有来源校验' },
-    'apple-music-request': { level: 'first-party', why: '经 createCompanionRequestHandler 校验：只给主窗口的主 frame' },
     'automix-beat-this': { level: 'first-party', why: '跑分析模型，占 CPU/GPU（宿主注入的来源校验）' },
     'automix-beat-this-gpu-weights': { level: 'any', why: '只读随应用分发的模型权重（公开数据）' },
     'automix-diag': { level: 'first-party', why: '写运行日志（宿主注入的来源校验，不可信来源静默忽略）' },

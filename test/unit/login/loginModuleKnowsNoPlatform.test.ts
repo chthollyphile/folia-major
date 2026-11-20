@@ -65,7 +65,7 @@ describe('what each platform declares for the sign-in window', () => {
             ytm: { title: 'folium-mod/ytm:login.title', note: 'folium-mod/ytm:login.note' },
             spotify: { title: 'home.loginTitleSpotify', note: 'home.loginNoteSpotify' },
             qishui: { title: 'folium-mod/qishui:login.title', note: 'folium-mod/qishui:login.note' },
-            appleMusic: { title: 'home.loginTitleAppleMusic', note: 'home.loginNoteAppleMusic' },
+            appleMusic: { title: 'folium-mod/apple-music:login.title', note: 'folium-mod/apple-music:login.note' },
         });
     });
 

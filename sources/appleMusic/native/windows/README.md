@@ -23,7 +23,7 @@ Windows 11 已实测官方登录、整首 DRM 播放与逐词歌词（见文末�
 在仓库根目录 PowerShell 执行：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File electron/appleMusic/windows/buildCompanion.ps1
+powershell -ExecutionPolicy Bypass -File sources/appleMusic/native/windows/buildCompanion.ps1
 npm run dev:electron
 ```
 
