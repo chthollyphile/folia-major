@@ -30,61 +30,54 @@ UI / hooks / stores / app services
 
 ## 接入一个新平台
 
-下面用 `foo` 代表新平台的 id。`OnlineProviderId` 是开放的字符串，不用改类型。
+Folium 2 起一个平台就是一个**音源模组**：仓库里的放在 `sources/<id>/`，经 `folium.sources.register` 注册进宿主的注册表，宿主自己的代码里没有任何一家的静态注册、主进程块或 preload 通道。以前「`src/services/onlineMusic/<id>/` 加 `electron/<id>/`、在 `providerRegistry.ts` 里 import 并登记、在 `main.cjs` / `preload.cjs` / `vite-env.d.ts` 加通道」的做法全部作废。
 
-一个平台的代码放在名字正好是 `foo` 的目录里：`src/services/onlineMusic/foo/`，桌面端的 `electron/foo/`，测试 `test/unit/foo/`。目录名要和 id 相同：`test/unit/onlineMusic/platformNameCount.ts` 按目录名认平台自己的文件，别处每一行提到平台名都要登记。上一次完整接入一个平台的记录在 [`docs/bodian.md`](../../../docs/bodian.md)，可以对照着看。
+先读这三份：[`docs/folium/sources.md`](../../../docs/folium/sources.md)（音源模组怎么写、能力、`playback.surface`、main 入口的 `api`）、[`sources/README.md`](../../../sources/README.md)（仓库里的音源要守的规矩）、[`dev/sources/README.md`](../../../dev/sources/README.md)（构建、依赖的做法、打包）。签名以生成的 [`docs/folium/api.md`](../../../docs/folium/api.md) 为准。现成的例子：只在桌面、依赖打进 bundle 的 `sources/bodian/`（最短）、带 core 和网页版的 `sources/kugou/`、带依赖归档和 worker 的 `sources/netease/`。
+
+下面用 `foo` 代表新平台的短 id。`OnlineProviderId` 是开放的字符串，不用改类型。
 
 ### 必须做的
 
-1. `foo/fooTransport.ts`：平台的原始请求全在这里发出，别的文件不碰平台接口。平台答的错误换成 `OnlineProviderError`，带上 `'foo'`。
-2. `foo/fooProvider.ts`：导出一个 `OnlineMusicProvider`（定义和契约注释在 `src/types/onlineMusic.ts`）。必填 `id`、`displayName`、`capabilities`、`normalizeSong`。其余成员按平台有的能力加（`search`、`playback`、`lyrics`、`auth`、`library`、`catalog`、`recommendations`、`explore`、`mutations` 等）。`capabilities` 的开关要和实现了的成员一致：界面很多地方只看开关（例如探索页签）。短的例子是 `bodian/bodianProvider.ts`；归一化、集合、用户库可以像波点那样分成同目录的几个文件（`bodianNormalize.ts`、`bodianCatalog.ts`、`bodianLibrary.ts`）。
-3. 每首歌都带 `sourceRef: { kind: 'online', providerId: 'foo', mediaId }`，每个集合都带 `providerId: 'foo'`。原因：没有 `sourceRef` 也没有 `providerId` 的歌会被当成网易云的（`src/utils/appPlaybackGuards.ts` 的 `getPlaybackSourceRef`）。
-4. 在 `providerRegistry.ts` 里 import `fooProvider`，再 `registerOnlineMusicProvider(fooProvider)`。这是唯一的平台清单。
-5. 有登录的：`auth` 实现 `startLogin`、`checkLogin`，再加 `createQr`（扫码）或 `openLoginPage`（在浏览器里确认）其中一个。`getLoginTexts` 回登录标题和说明的文案键（现有的叫 `home.loginTitle<平台>`、`home.loginNote<平台>`），三份语言文件 `src/i18n/locales/en.ts`、`zh-CN.ts`、`in.ts` 都要写。
-6. 两个架构测试要认得新平台，否则它们不管它：
-   - `test/unit/onlineMusic/omniArchitecture.test.ts` 的 `forbiddenImport` 加上 `fooTransport`，界面、hook、store 就不能直接 import 它。
-   - `test/unit/onlineMusic/platformNameCount.ts` 的 `PLATFORM_NAMES` 加上平台的名字（id 和中文名）。平台目录之外提到它的文件（`providerRegistry.ts`、桌面端的 `main.cjs`、`preload.cjs`、`vite-env.d.ts` 等）在 `platformNamePlaces.ts` 里登记行数和原因；`node test/unit/onlineMusic/platformNameCount.ts --files` 列出这些文件和数字。
-7. 逻辑测试放 `test/unit/foo/`：归一化、翻页、错误答复这些用的人看不出来的逻辑，用量到的最小答复做数据。
+1. **目录**：`sources/foo/`，目录名就是短 id。里面是 `mod.json`（`folium: 2`、`sources[{ id: 'foo', name: 四种语言, requires }]`、`client`、`main`、`locales`）、`package.json`（上游库钉死版本，`folia.dependencies` 写做法）、`README.md`（这一家靠哪个上游、版本钉在哪、我们改了什么、上游变了怎么跟，见 `UPSTREAMS.md` 的规矩）、`locales/` 的 zh-CN、en、in、vi 四份（zh-TW 由构建生成）。源码只能 import 自己目录里的文件、`@folia/folium`（类型）、`@folia/folium-source-kit` 和声明了的包，不 import `src/`、`electron/`（Dedicatus D130）。
+2. **受信表**：`electron/modSystem/builtinSources.cjs` 加一行：模组 id → 短 id，以及它要认领的旧 electron-store 键、session 分区、userData 目录、原生件（新平台一般都是空的）。内置清单校验要求模组 id 在这张表里、目录名是那一行的短 id（`dev/sources/manifestCheck.mjs`）。
+3. **client**（`client/index.ts`）：`activate(folium)` 里先接上请求通道（`folium.rpc`），在第一个 `await` 之前 `folium.sources.register(...)`。音源定义按能力族写成员（`search@1`、`songs@1`、`playback.audio@1`、`lyrics@1`、`auth@1`……），宿主的开关由实现了哪些能力推导；平台的错误换成 `folium.sources.error(code, …)`；界面文字全走模组自己的语言表（`folium.i18n.key`），宿主语言包里不加这一家的 key；记号是一个字加一个颜色，不用平台的商标图。
+4. **main**（`main/index.ts`，要在主进程里请求时才有）：`activate(api)` 只做接线。请求用 `api.net`（Electron `net`，可用自己的分区），凭据用 `api.seal` 加密后放 `api.legacy.store` 认领的键或清单 `secrets` 的槽，不交给窗口；音频要特殊请求头、跨域或会重定向的用 `api.media.allow`，要自己出流的用 `api.media.serve`；收尾用 `api.onBeforeUnload` / `onBeforeQuit`。窗口经 `folium.rpc` 调它（`api.rpc.handle`），宿主只放主窗口的调用进来。
+5. **顺序**：九家内置音源在切换器、登录窗口、搜索命令里的位置由 `providerRegistry.ts` 的 `BUILT_IN_SOURCE_ORDER` 定，没列进去的排在它们后面、按注册先后。新的内置平台要固定位置就加进去；是歌词来源的，歌词来源表 `src/utils/lyrics/lyricSources.ts` 的 `BUILT_IN_ORDER` 同理。
+6. **架构检查要认得新平台**：`test/unit/onlineMusic/platformNameCount.ts` 的 `PLATFORM_NAMES` 加上平台的名字（id 和中文名）；平台目录之外提到它的文件在 `platformNamePlaces.ts` 里登记行数和原因（`node test/unit/onlineMusic/platformNameCount.ts --files` 列出这些文件和数字）。界面、hook、store 不能 import `sources/` 的规则（`omniArchitecture.test.ts`、Dedicatus D131）已经挡住所有平台，不用再加名字。新的存储键登记进 `dev/dedicatus/storageKeys.mjs`（D507），写登录凭据的函数登记进 `dev/dedicatus/credentialWriters.mjs`（D604）。
+7. **测试**放 `test/unit/foo/`：归一化、翻页、错误答复这些用的人看不出来的逻辑，用量到的最小答复做数据；main 入口用假的 `api` 驱动（升级来的会话照读、只碰认领的键、请求走哪条 net、媒体规则）。要经宿主注册表测的文件第一行写 `// @builtin-sources`，`test/unit/helpers/builtinSources.ts` 会在 `beforeAll` 里注册仓库里的音源（测试文件顶层还拿不到）。
+8. **构建与实测**：`npm run sources:build` 出 `dist-mods/foo/`（`npm run dev:electron` 会 watch 着构建），开发版以内置层级加载它；桌面实测按 `run-desktop` skill 走。拿不到真账号时可以照 `test/manual/fakeSourceNetwork/` 给它写一张假网络路由表，验证的是管道，不是真实接口。
 
-### 只在桌面端跑的平台
+### 网页版
 
-平台要在主进程里请求（凭据加密、跨域、本地服务）时，照波点和 YouTube Music 做：
-
-1. `electron/foo/fooApiBridge.cjs`：导出 `createFooApiBridge({ store, safeStorage, ... })`，对外一个 `request(operation, params)`，回 `{ ok: true, data }` 或 `{ ok: false, error: { code, message } }`。凭据在主进程里用 `safeStorage` 加密保存，不交给渲染进程。
-2. `electron/main.cjs`：require 并创建这个桥；加 `ipcMain.handle('foo-api-request', ...)`，先用 `isTrustedMainWindowContents(event.sender)` 挡掉别的窗口（照 `bodian-api-request` 那一段）。
-3. `electron/preload.cjs`：加 `fooRequest`。
-4. `src/vite-env.d.ts`：给 `window.electron` 加 `fooRequest` 的类型。
-5. `fooTransport.ts` 用 `window.electron?.fooRequest` 判断能不能请求；provider 的 `getAvailability` 在网页版回 `{ configured: false, reason: 'runtime-unavailable' }`（照 `bodian/bodianTransport.ts`）。
-6. 音频地址要特殊的请求头或会重定向的：在 `main.cjs` 的媒体请求规则里登记（波点用 `electron/bodian/mediaCors.cjs`）。
+网页版没有模组运行时。要在网页版也能用的平台，把区分桌面与网页的那部分抽成 `sources/foo/core/`：`createSource(env)`，桌面的 client 注入 `folium.rpc` 和 `folium.sources.pageStore`，网页由 `src/services/onlineMusic/web/foo.ts` 注入 `VITE_FOO_API_BASE` 的 HTTP 传输和 `providerStorage`（照 `web/kugou.ts`）。宿主只有 `src/services/onlineMusic/web/*` 可以 import `sources/*/core`（D131）。安装包和网页版带哪几家由构建参数决定，见 `dev/sources/README.md`。
 
 ### 按需要做的
 
-- 探索页：见同目录 `EXPLORE_ADAPTER.md`。
+- 探索页：见同目录 `EXPLORE_ADAPTER.md`（`explore@1`）。
 - 电台页签和音质档位：见 `EXPLORE_ADAPTER.md` 最后一节。
 - 推荐偏好（账号上那份会影响推荐的设置）：见下面「推荐偏好」。
-- 应用开着时要盯着的东西（比如本地服务起不来）：provider 的 `watch` 成员。提示由 `src/components/app/useProviderNotices.ts` 统一显示，不用改它。
-- 登录要靠的本地服务：`auth.localService`，登录窗口会显示它的错误和重启按钮。
-- 多种登录方式和图标：`auth.getLoginMethods` 回 `iconKey`，图标放 `src/assets/providers/<iconKey>.svg`。
-- 平台在界面上的名字：`shortNameKey` 是名字的 i18n key（`onlineProviderName.<id>`），界面用 `providerDisplayName` 翻译；没有就显示 `shortName`。
-- 跨源歌词匹配的来源：`src/utils/lyrics/lyricSources.ts` 是登记表（Folium 2.0 S1）。现在由同文件的 `BUILT_IN_ENTRIES` 加一行（S3 起由音源自己 `registerLyricSource`），语言文件加 `lyricProvider.foo`。`platform: true` 的来源经它的 provider 去搜；取法和 provider 不同的（自己的歌词服务、按 id 就能取、认歌用的 id 不是歌曲 id、副歌借给别人）在平台目录里写一个 `<id>LyricSource.ts`，用 `registerLyricSourceAccess` 登记，provider 加载时调用（网易云这样做；id 超出 number 精度的按字符串回，不转成数。迁成模组的音源用 `lyrics@1.songIdOf`，汽水这样做）。只在桌面端可用的平台（provider 的 `getAvailability` 在网页版回 `configured: false`）在条目里还要设 `needsConfiguredProvider: true`。哪个来源此刻参加匹配由 `crossSource.ts` 统一判断（没注册、没配好、要账号没登录的都跳过）。
-- 跨源歌词匹配搜不到时换个名字再搜：平台给的歌名带着括号里的译名或版本、另有不带它们的原名时，`lyrics.getSearchAlias` 回原名和歌手（QQ 的 `name`、酷狗去掉 `Suffix` / `trans_param.songname_suffix` 的歌名、波点的 `name`，Apple Music 去 jp 目录查）；歌手在别处另有写法时，`lyrics.getAlternateArtistName` 回那个写法（网易云 cloudsearch 歌手的 `tns` / `alias`，YouTube Music 问另一种语言的页面）。QQ、酷狗、波点、网易云在 normalize 时把要用的字段存进 `sourceRef.providerData`，Apple Music 和 YouTube Music 在被问到时才去查。调用方经 `omni.getLyricSearchAlias` / `omni.getAlternateArtistName` 传给 `autoMatchBestLyric`，不是歌词来源的平台（波点）也用得上。歌名去掉的部分是伴奏一类标记（`伴奏`、`Instrumental`、`Off Vocal` 等）时不换名字搜，免得伴奏配上原唱的歌词。歌名的译名和说明（网易云的 `tns` / `alia`、QQ 的 `subtitle`、波点的 `FSONGNAME` / `subtitle`）常是「某剧主题曲」一类文字，不当别名。
-- 本地歌匹配在线信息：参加的来源是歌词来源条目里标了 `metadataMatch` 的（现在是网易云、QQ、酷狗，按条目顺序），匹配窗口的页签、自动匹配和 `localMusicService.matchLyrics` 都经 `crossSource.ts` 的 `participants('metadata')` 取；要让新平台参加，给它的条目加 `metadataMatch: true`。已选元数据能否恢复自动匹配、刷新旧歌词由歌词来源表的 `localMetadataIdentity` 单独声明，不从 `platform: true` 推断：目前保留网易云、QQ、酷狗，以及给了 `lyrics@1.songIdOf` 的模组音源（汽水），不改变 Spotify 对 `noAutoMatch` 和旧歌词的处理。
-- 命令面板的“搜某平台的歌”：每个注册的平台一条 `search-<id>`，由 `searchCommands.ts` 的 `buildProviderSearchCommands` 生成，`providerSearchCommandsInstaller.ts` 在平台增删时重装，不用改。
-- 封面按尺寸取图：`src/utils/coverUrl.ts` 的图床规则是登记表（`CoverUrlRule`、`registerCoverUrlRule`），现在由同文件的 `BUILT_IN_COVER_URL_RULES` 喂，加一条就行；认不出的封面按原图用。
-- 新的缓存键：用 `providerStorage.ts` 的 `online_provider_<id>_...` 前缀就不用改；新的前缀要登记到 `src/services/repositories/cacheRepository.ts` 的 `getCacheTableName` 和 `matchesCategory`。
+- 应用开着时要盯着的东西（比如本地服务起不来）：`handle.notify(...)`，由 `src/components/app/useProviderNotices.ts` 统一显示。
+- 登录要靠的本地服务：`auth@1.localService`，登录窗口会显示它的错误和重启按钮；登录诊断与自检用 main 入口的 `api.diagnostics`。
+- 跨源歌词匹配的来源：`lyrics@1.crossSource`（只知道 id 时直接取歌词再加 `songIdOf`）。哪个来源此刻参加匹配由 `crossSource.ts` 统一判断（没注册、没配好、要账号没登录的都跳过）。
+- 跨源歌词匹配搜不到时换个名字再搜：`lyrics@1.getSearchAlias` 回原名和歌手，`getAlternateArtistName` 回歌手在别处的写法。歌名去掉的部分是伴奏一类标记时不换名字搜；歌名的译名和说明常是「某剧主题曲」一类文字，不当别名。
+- 本地歌匹配在线信息：`songs@1.metadataMatch`（要有 `search@1`）。匿名就能配歌词或信息的音源，用户可以把它设成「只用于匹配」；内置的在清单里标 `keepForMatching`，全新安装没勾它时落到这个状态。
+- 命令面板：「搜某平台的歌」（`search-<id>`）和「启用 / 只用于匹配 / 停用某平台」（`source-*-<id>`）按注册表和主进程的音源状态自动生成，不用改。
+- 封面按尺寸取图：`covers@1`。认不出的封面按原图用。
+- 新的缓存键：用 `providerStorage.ts` 的 `online_provider_<id>_...` 前缀就不用改（「清除数据」按这个前缀清）；新的前缀要登记到 `src/services/repositories/cacheRepository.ts` 的 `getCacheTableName` 和 `matchesCategory`。
 
 ### 不用改的
 
-- 登录界面 `src/components/login/`：平台的记号（`mark`）、标题、说明、失败说明都由 provider 声明，界面经 omni 去问。
+- 登录界面 `src/components/login/`：平台的记号、标题、说明、失败说明都由音源声明，界面经 omni 去问。
 - 登录失败的分类和请求时限（`login/`）。
 - 账号状态：`src/stores/useOnlineProviderAccountStore.ts`、`providerAccountCache.ts`、`account/accountRead.ts`。
 - 平台切换：`omni.ts` 的 `getProviderSummaries` 按注册表列出，只列音源状态（`sourceStates.ts`）是启用的；只用于匹配的音源只在 `getMatchingProviderSummaries` 里（按没登录给出），见下表“provider 状态”一行。
-- 设置页。
+- 设置页（「设置 → 音源」按主进程的音源状态列出每个音源）。
 - 探索页的界面和页面数据（`src/components/app/home/explore/`、`src/stores/useExploreFeedStore.ts`）。
+- `electron/main.cjs`、`electron/preload.cjs`、`src/vite-env.d.ts`：音源只经模组系统的 `folium.rpc` 和 `api.*`，不加平台专属的主进程块和通道。
 
-### 由 mod 提供平台
+### 第三方的音源模组
 
-不改内建代码、由 mod 加一个平台的做法，见 [`docs/folium/api.md`](../../../docs/folium/api.md) 和 [`docs/folium/contributing.md`](../../../docs/folium/contributing.md)。这条路还是实验接口，能力比内建平台少，动手前先读 `contributing.md` 开头说的接口边界。
+不进 Folia 仓库、由第三方发布的音源模组用的是同一套接口，见 [`docs/folium/sources.md`](../../../docs/folium/sources.md)；它没有受信表的那一行（不能认领内置平台的旧数据），装在用户的模组目录里，启用要经用户确认。Folium 1 的实验接口 `omni.providers` 还能用，能力少得多，迁过来的步骤在同一份文档里。
 
 ## Public contract
 
@@ -136,10 +129,8 @@ UI / hooks / stores / app services
 
 ## Provider and cache files
 
-- `providerRegistry.ts`：注册、查找、按歌曲 `sourceRef` 选择 provider、能力检查。
-- `bodian/bodianProvider.ts`：波点 adapter；`bodian/bodianTransport.ts` 通过受限 IPC 连接 `electron/bodian/bodianApiBridge.cjs`。
-  桥接调用固定版本的 `bodian-music-api`，协议实现在独立仓库维护；Folia 负责加密存储与媒体策略。没有系统加密时存着的登录和 YouTube Music 一样处理（`electron/bodian/session.cjs`）；请求被拒时这次读不出的那份留着，用户退出登录时也删。
-  `bodian/bodianCatalog.ts` / `bodian/bodianLibrary.ts` 处理集合与用户库，`bodian/bodianNormalize.ts` 统一数据，凭据不返回 renderer。
+- `providerRegistry.ts`：注册、查找、按歌曲 `sourceRef` 选择 provider、能力检查。它不静态 import 任何平台：音源模组经适配层注册进来（`src/mods/folium/registries/sources.ts`），网页版由 `web/` 注册；`BUILT_IN_SOURCE_ORDER` 只定九家内置音源在列表里的位置。
+- 波点已迁成音源模组：`sources/bodian/`（client 里的 `bodianProvider.ts`、`bodianTransport.ts` 等，main 入口经 `api.net.request` 调固定版本的 `bodian-music-api`，会话经 `api.legacy.store` 与 `api.seal` 加密保存，凭据不交给窗口），平台细节见 `sources/bodian/README.md` 和 `docs/bodian.md`。
 - 网易云音乐已迁成音源模组：`sources/netease/`（core 里的 `neteaseProvider.ts`、`netease.ts`、`neteaseExplore.ts` 等，main 入口工作线程里内嵌的 `@neteasecloudmusicapienhanced/api`），扫码登录、本地服务、探索页、`platform.raw` 这些平台细节见 `sources/netease/README.md`。迁移前账号快照之前的旧缓存（`neteaseOldAccountCache.ts`）不再读。
 - 酷狗已迁成音源模组：`sources/kugou/`（core 里的 `kugouProvider.ts`、`kugouTransport.ts`），具体接口需结合 `docs/ku-go-api-docs.md` 和 `skills/kugou-provider-alignment`。
 - QQ 音乐已迁成音源模组：`sources/qq/`（core 里的 `qqProvider.ts`、`qqTransport.ts` 等，main 入口里内嵌的 qq-music-api），扫码登录、会话、推荐、写入、探索页这些平台细节见 `sources/qq/README.md`。
@@ -198,7 +189,8 @@ await omni.getCollectionTracks(collection, { limit: 50, offset: 0 });
 ```powershell
 rg -n "export const omni|searchSongs|getLyrics|getAudioSource|updateCollectionTracks" src/services/onlineMusic/omni.ts
 rg -n "OnlineMusicProvider|OmniProvider|UnifiedSong|OmniLyricsResult|OmniAudioSource" src/types/onlineMusic.ts
-rg -n "registerOnlineMusicProvider|neteaseProvider|kugouProvider|qqProvider|providerSupports" src/services/onlineMusic/providerRegistry.ts
+rg -n "registerOnlineMusicProvider|BUILT_IN_SOURCE_ORDER|providerSupports" src/services/onlineMusic/providerRegistry.ts
+rg -n "folium.sources.register" sources/*/client/index.ts
 ```
 
 先确认 Omni 是否已有能力；没有时扩展 `types/onlineMusic.ts`、`omni.ts` 和适用 adapter，不要新增第二条公开 bypass。加一整个平台，按上面的“接入一个新平台”做。

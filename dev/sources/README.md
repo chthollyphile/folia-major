@@ -1,7 +1,8 @@
 # 音源模组的构建（`dev/sources/`）
 
 把仓库里的音源模组（`sources/<id>/`）构建成能加载的模组目录（`dist-mods/<id>/`）。Folium 2.0 方案
-`dev/folium/folium-2-plan.md` §6.2。
+`dev/folium/folium-2-plan.md` §6.2。音源模组本身怎么写见 `docs/folium/sources.md`，往仓库里加一家见
+`src/services/onlineMusic/README.md` 的「接入一个新平台」。
 
 | 文件 | 做什么 |
 | --- | --- |
@@ -111,7 +112,8 @@ client 里、没有 asar 依赖的音源里 import 它是构建错误；类型�
 
 方案 §10「剩余阶段的顺序」第 2 步：`test/fixtures/folium-sources/deps-archive/` 下的网易云、酷狗、QQ 三个样例，各把上游库
 声明成 `asar`，main 入口（网易云在 worker 里）从归档加载它、照宿主现在的做法起后端、发一个不需要登录的请求。只是样例：
-不注册音源，也不替换宿主里这三家的静态注册和后端。
+不注册音源。三家后来迁成音源模组时照这个做法把上游库声明成 `asar`（`sources/netease/`、`sources/kugou/`、`sources/qq/`）；
+样例留着，给冒烟脚本和 CI 用。
 
 ```bash
 node test/manual/folium2DepsArchiveSmoke.mjs
