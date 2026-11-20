@@ -81,6 +81,18 @@ describe('native WebView companion adapter', () => {
         expect(bridge.connected).toBe(false);
         expect(f.child.stdin.writableEnded).toBe(true);
     });
+    it('says when the process has gone, after the channel closed, so a close can wait for it', async () => {
+        const f = fixture(); const bridge = f.create(); instances.push(bridge);
+        const heard: string[] = [];
+        bridge.on('disconnect', () => heard.push('disconnect'));
+        bridge.on('exit', () => heard.push('exit'));
+        bridge.disconnect();
+        expect(heard).toEqual(['disconnect']);
+        expect(bridge.exited).toBe(false);
+        await settle();
+        expect(heard).toEqual(['disconnect', 'exit']);
+        expect(bridge.exited).toBe(true);
+    });
     it('keeps requests not-ready until the document is ready and never forwards caller scripts', async () => {
         const f = fixture(); const bridge = f.create(); instances.push(bridge);
         expect(await send(bridge, { id: 'early', operation: 'search', params: { query: 'example' } })).toMatchObject({ error: 'not-ready' });

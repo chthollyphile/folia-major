@@ -11,8 +11,11 @@ export interface CompanionClient {
     request(operation: string, params?: Record<string, unknown>): Promise<CompanionResult>;
     /** Pauses the player when the companion runs; false when there was nothing to pause or the pause failed. */
     pauseIfRunning(): Promise<boolean>;
-    /** Disconnects the parent channel: the companion exits and pending work fails. */
-    close(): void;
+    /**
+     * Disconnects the parent channel: the companion exits and pending work fails. Settles once the process has
+     * exited, or after `waitMs` (2.5 s) at most.
+     */
+    close(options?: { waitMs?: number }): Promise<void>;
 }
 
 export function createCompanionClient(options: {

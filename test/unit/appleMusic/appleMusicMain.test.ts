@@ -13,7 +13,11 @@ class Child extends EventEmitter {
         callback();
         queueMicrotask(() => this.emit('message', { id: message.id, ok: true, data: { operation: message.operation } }));
     });
-    disconnect = vi.fn(() => { this.connected = false; this.emit('disconnect'); });
+    exited = false;
+    // The process goes a moment after its channel, as the native companion does once its stdin ends.
+    disconnect = vi.fn(() => { this.connected = false; this.emit('disconnect'); setTimeout(() => this.exit(), this.exitDelayMs); });
+    exitDelayMs = 0;
+    exit() { if (this.exited) return; this.exited = true; this.emit('exit'); }
 }
 
 const harness = vi.hoisted(() => ({
@@ -111,12 +115,41 @@ describe('Apple Music main entry', () => {
         expect(beforeQuit).toHaveLength(0);
     });
 
-    it('closes the companion when the source is turned off', async () => {
+    it('closes the companion when the source is turned off, and waits for it to exit', async () => {
         const { rpc, beforeUnload } = launch();
         await rpc.get('request')!('accountStatus', {});
         const child = harness.spawned[0].child as Child;
+        // A data clear removes the profile folder right after: the process must have let its files go by then.
+        child.exitDelayMs = 50;
         await beforeUnload[0]();
         expect(child.disconnect).toHaveBeenCalled();
+        expect(child.exited).toBe(true);
+    });
+
+    it('does not wait past its limit for a companion that never says it exited', async () => {
+        vi.useFakeTimers();
+        try {
+            const { rpc, beforeUnload } = launch();
+            await rpc.get('request')!('accountStatus', {});
+            const child = harness.spawned[0].child as Child;
+            child.exitDelayMs = 60_000;
+            let settled = false;
+            const closing = Promise.resolve(beforeUnload[0]()).then(() => { settled = true; });
+            await vi.advanceTimersByTimeAsync(2400);
+            expect(settled).toBe(false);
+            await vi.advanceTimersByTimeAsync(200);
+            await closing;
+            expect(settled).toBe(true);
+            expect(child.exited).toBe(false);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('does not wait when no companion runs', async () => {
+        const { beforeUnload } = launch();
+        await expect(Promise.resolve(beforeUnload[0]())).resolves.toBeUndefined();
+        expect(harness.spawned).toHaveLength(0);
     });
 
     it('pauses a running companion nobody follows, and does not start one to pause it', async () => {
