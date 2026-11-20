@@ -100,6 +100,7 @@ const setup = ({
     const store = memoryStore({ SPOTIFY_SOLOIST_V1: { executable, sealedKey: sealed ? Buffer.from(`sealed:${KEY}`).toString('base64') : null } });
     const fake = program({ paired, exitAtOnce, pairAfterMs, stderr });
     const logs: string[] = [];
+    const actives: boolean[] = [];
     const soloist = createSoloist({
         store,
         safeStorage: keychain(available),
@@ -112,9 +113,10 @@ const setup = ({
         log: (line: string) => logs.push(line),
         warn: (line: string) => logs.push(line),
         onProcessExit: (stop: () => void) => { exitStops.push(stop); },
+        onActiveChanged: (active: boolean) => { actives.push(active); },
         signInWaitMs: 400,
     });
-    return { soloist, store, ...fake, logs, data, exitStops };
+    return { soloist, store, ...fake, logs, data, exitStops, actives };
 };
 // What each Soloist made in a test would stop when the process ends.
 const exitStops: Array<() => void> = [];
@@ -609,6 +611,16 @@ describe('soloist', () => {
         expect(Date.now() - quitAt).toBeLessThan(1000);
         expect(spawned[0].proc.kill).toHaveBeenCalled();
         await starting;
+    });
+
+    // The source mod's main entry holds a quit while the program is about (sources/spotify/main/index.ts).
+    it('tells when the program begins and stops being about', async () => {
+        const { soloist, spawned, actives } = setup();
+        expect(actives).toEqual([]);
+        await playing(soloist, spawned);
+        expect(actives).toEqual([true]);
+        await soloist.shutdown();
+        expect(actives).toEqual([true, false]);
     });
 
     it('stops the program when the app quits', async () => {
