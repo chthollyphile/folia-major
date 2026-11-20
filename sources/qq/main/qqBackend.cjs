@@ -7,10 +7,10 @@ const {
   createStartupRecorder,
   describeError,
   findFreePort,
-} = require('../../../electron/backendLifecycle.cjs');
+} = require('./backendLifecycle.cjs');
 
 // sources/qq/main/qqBackend.cjs
-// QQ 音乐本地 API（@yakult-green-tea/qq-music-api）在主进程里的生命周期与诊断。
+// QQ 音乐本地 API（@yakult-green-tea/qq-music-api）在主进程里的生命周期与诊断（由模组的 main 入口建，main/index.ts）。
 // start()：port → listen（加载包即监听，等绑定成功）→ login-hooks，每一步经启动记录留下耗时与结果。
 // 包只回给客户端白名单过滤过的失败类别（failureStage / failureReason），扫码之后失败时界面只拿到一句
 // 「QR login failed」，包自己的 qq-auth.session-failed 日志也只记了错误的 name。为了让诊断报告里有真实原因，
@@ -18,7 +18,8 @@ const {
 // - 扫码服务实例的 failSession / failBootstrap：记下原始错误（name、message、Node 错误码、上游 HTTP 状态、cause、栈顶几行）；
 // - 包的 logger：记下 qq-auth.* 事件（会话被抢占、登录确认、凭据交换回退等），日志照常输出。
 // 钩子依赖包的内部文件布局（package.json 把版本钉死在一个确切版本）；布局变了就只记一条「钩子不可用」，不影响启动。
-// 「重启」不可能：require 缓存让第二次加载拿到的仍是旧的 server（见 qqApiStartup.cjs），所以这里没有 restart。
+// 「重启」不可能：require 缓存让第二次加载拿到的仍是旧的 server（见 qqApiStartup.cjs），所以这里没有 restart；
+// 模组停用再启用时宿主清掉模组目录的缓存，main 入口重新加载，才是新的一个。
 
 const STATUS_CHANNEL = 'qq-api-status-changed';
 const MAX_RECORDS = 40;
@@ -223,7 +224,8 @@ function createQqBackend({
     hooks: { installed: [...hooks.installed], error: hooks.error },
     failures: failures.map(item => ({ ...item, error: { ...item.error } })),
     authEvents: authEvents.map(item => ({ ...item })),
-    connections: networkRecorder ? networkRecorder.snapshot('qq') : [],
+    // 模组拿不到主进程的网络记录：不交 connections，宿主按音源 id 补上（api.diagnostics.snapshot）。
+    ...(networkRecorder ? { connections: networkRecorder.snapshot('qq') } : {}),
   });
 
   return {

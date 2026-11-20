@@ -1,9 +1,11 @@
-const { keepServerErrorsLogged, waitUntilListening } = require('../../../electron/backendLifecycle.cjs');
+const { keepServerErrorsLogged, waitUntilListening } = require('./backendLifecycle.cjs');
 
 // sources/qq/main/qqApiStartup.cjs
 //
-// Starts @yakult-green-tea/qq-music-api inside the Electron main process. The package is a regular
-// production dependency, so npm nests its own ws@7 under it and the app's ws@8 is left alone.
+// Starts @yakult-green-tea/qq-music-api inside the Electron main process, from the mod's main entry (main/index.ts).
+// The package is the mod's own dependency, packed into its deps archive (package.json `folia.dependencies`), so it
+// brings its own ws@7 and the app's ws@8 is left alone. `loadModule` may answer a promise: the main entry loads the
+// package from the archive with a dynamic import.
 
 const QQ_API_MODULE = '@yakult-green-tea/qq-music-api';
 
@@ -41,10 +43,13 @@ function closeServer(server) {
 // The package listens on import and reads PORT at config load, so the environment is prepared first
 // and restored afterwards to keep the main process environment untouched.
 //
-// ⚠️ Call this at most once per process. require() caches modules, so a second call would not start
+// ⚠️ Call this at most once per load of the mod. require() caches modules, so a second call would not start
 // a second server: it would return the cached module, i.e. the *previous* server bound to the
 // *previous* port, while reporting the port passed in this time. Do not add a retry path here
 // without first solving the cache (there is no supported way to re-listen on the exported server).
+// The mod system drops the mod's whole folder (its deps archive too) from the cache before it loads the main
+// entry again (purgeModuleCache in electron/modSystem/nodeEntry.cjs), so a mod switched off and on again loads
+// the package anew and gets a new server.
 async function startQqApi(options = {}) {
   const {
     port,
@@ -86,7 +91,7 @@ async function startQqApi(options = {}) {
 
   let qqApi;
   try {
-    qqApi = loadModule(moduleId);
+    qqApi = await loadModule(moduleId);
     if (authSessionRepository) {
       const configureAuthSessionRepository = qqApi && (
         qqApi.configureAuthSessionRepository ||

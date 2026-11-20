@@ -1,10 +1,36 @@
 // sources/qq/main/qqAuthSessionRepository.cjs
 //
-// Persists the QQ API's server-side credential state in Electron's main process. The renderer keeps
-// only the opaque `qqmusic_session` token; musickey, refresh keys and device context are encrypted
-// before electron-store writes them to disk and are never sent over IPC.
+// Persists the QQ API's server-side credential state in Electron's main process (the mod's main entry: the store is
+// api.legacy.store, the same electron-store key as before). The page keeps only the opaque `qqmusic_session` token;
+// musickey, refresh keys and device context are encrypted before they are written to disk and never leave the main
+// process.
 
-const { assertEncryptionAvailable, encryptionAvailable } = require('../../../electron/osEncryption.cjs');
+// Whether this run can seal credentials: the host's electron/osEncryption.cjs check, which a source cannot import
+// (other source mods' main entries keep the same copy). The main entry hands in api.seal in safeStorage's shape;
+// api.seal is unavailable where the system keeps no encrypted store (Linux's basic_text).
+function assertEncryptionAvailable(safeStorage, platform) {
+    if (!safeStorage || typeof safeStorage.isEncryptionAvailable !== 'function') {
+        throw new Error('Electron safeStorage is unavailable');
+    }
+    if (!safeStorage.isEncryptionAvailable()) {
+        throw new Error('Electron safeStorage encryption is unavailable');
+    }
+    const backend = platform === 'linux' && typeof safeStorage.getSelectedStorageBackend === 'function'
+        ? safeStorage.getSelectedStorageBackend()
+        : null;
+    if (backend === 'basic_text') {
+        throw new Error('Electron safeStorage selected the unencrypted basic_text backend');
+    }
+}
+
+const encryptionAvailable = (safeStorage, platform) => {
+    try {
+        assertEncryptionAvailable(safeStorage, platform);
+        return true;
+    } catch {
+        return false;
+    }
+};
 
 const SESSION_KEY = 'QQ_API_AUTH_SESSION_V1';
 const ENVELOPE_VERSION = 1;
