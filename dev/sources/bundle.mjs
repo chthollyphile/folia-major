@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import { builtinModules } from 'node:module';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -21,6 +22,7 @@ const isNodeBuiltin = (specifier) => specifier.startsWith('node:') || NODE_BUILT
 
 const ASAR_PREFIX = '\0folia-asar:';
 const VENDOR_PREFIX = '\0folia-vendor:';
+const MISSING_PREFIX = '\0folia-missing:';
 /*
  * main 与 worker 里 vendor 文件的占位名：vendor 文件在它们之后才打，打完按内容指纹起名（vendor.<指纹>.mjs），
  * build.mjs 再把占位换成真名。文件名带指纹，因为 require(esm) 载入的模块记在 Node 的 ESM 缓存里，清 require.cache
@@ -33,6 +35,32 @@ export const vendorKey = (specifier) => `v_${Buffer.from(specifier, 'utf8').toSt
 const isInside = (file, dir) => {
     const relative = path.relative(dir, file);
     return relative !== '' && !relative.startsWith('..') && !path.isAbsolute(relative);
+};
+
+/** The package.json of the package `file` is in (the nearest one above it that names a package), or null. */
+const ownPackageOf = (file) => {
+    for (let dir = path.dirname(file); dir !== path.dirname(dir); dir = path.dirname(dir)) {
+        const manifest = path.join(dir, 'package.json');
+        if (!fs.existsSync(manifest)) continue;
+        try {
+            const json = JSON.parse(fs.readFileSync(manifest, 'utf8'));
+            if (typeof json?.name === 'string') return json;
+        } catch {
+            return null;
+        }
+    }
+    return null;
+};
+
+/*
+ * 打进 bundle 的包自己可选的依赖（peerDependenciesMeta 里 optional、或 optionalDependencies 里的），没装时：ws 的
+ * bufferutil、utf-8-validate 就是这样，它在 try 里 require，找不到就用自己的 JS 实现。原样留一个裸 require 的话，
+ * 开发版往上找得到仓库根的 node_modules、安装包里找不到，两处行为不同；这里换成一个一 require 就抛
+ * MODULE_NOT_FOUND 的模块，两处都走包自己“没装”的那条路。
+ */
+const isOptionalOf = (importer, name) => {
+    const own = importer && !importer.startsWith('\0') ? ownPackageOf(importer) : null;
+    return Boolean(own && (own.peerDependenciesMeta?.[name]?.optional === true || Object.hasOwn(own.optionalDependencies ?? {}, name)));
 };
 
 /**
@@ -66,7 +94,14 @@ const dependencyPolicy = (kind, context) => {
             }
             // 依赖自己的其余 import：它的事（打进 bundle 的包照 Node 的规矩找它的依赖）。宿主的文件在 load 里挡。
             const fromSource = !importer || isInside(importer, sourceDir) || isInside(importer, KIT_DIR);
-            if (!fromSource) return bare && isNodeBuiltin(specifier) ? { id: specifier, external: true } : null;
+            if (!fromSource) {
+                if (bare && isNodeBuiltin(specifier)) return { id: specifier, external: true };
+                if (bare && kind !== 'client' && isOptionalOf(importer, packageNameOf(specifier))) {
+                    const resolved = await this.resolve(specifier, importer, { skipSelf: true });
+                    return resolved && !resolved.external ? resolved : `${MISSING_PREFIX}${specifier}`;
+                }
+                return null;
+            }
             if (specifier.startsWith('.') || path.isAbsolute(specifier)) {
                 // 相对路径也不能走出去拿宿主的代码（方案 §6.1；Dedicatus 的边界规则在仓库里另查一遍）。
                 const resolved = await this.resolve(specifier, importer, { skipSelf: true });
@@ -118,6 +153,11 @@ const dependencyPolicy = (kind, context) => {
             // 不管经哪条路解析到的（依赖的相对路径、file: 指到仓库里、worker 入口），宿主的文件都不进音源的 bundle。
             if (!id.startsWith('\0') && HOST_DIRS.some((dir) => isInside(id.replace(/\?.*$/, ''), dir))) {
                 fail(`音源模组不 import 宿主的代码：${path.relative(ROOT, id)}`);
+            }
+            if (id.startsWith(MISSING_PREFIX)) {
+                // CommonJS（用到 module），所以只在被 require 时才执行、才抛，抛在包自己的 try 里。
+                const message = `Cannot find module '${id.slice(MISSING_PREFIX.length)}'`;
+                return `module.exports = (() => { const error = new Error(${JSON.stringify(message)}); error.code = 'MODULE_NOT_FOUND'; throw error; })();`;
             }
             if (id.startsWith(ASAR_PREFIX)) {
                 const specifier = id.slice(ASAR_PREFIX.length);
