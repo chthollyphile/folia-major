@@ -571,7 +571,7 @@ describe('soloist', () => {
         await playing(first.soloist, first.spawned);
         const dataDir = path.join(first.data, 'data');
         let alive = true;
-        const killPid = vi.fn((_pid: number) => { alive = false; });
+        const killPid = vi.fn<(pid: number) => void>(() => { alive = false; });
         let reaching = false;
         const again = createSoloist({
             store: first.store, safeStorage: keychain(),
