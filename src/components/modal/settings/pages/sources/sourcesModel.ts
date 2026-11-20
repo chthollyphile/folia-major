@@ -93,6 +93,24 @@ export const manifestSourceName = (name: string | Record<string, string> | null,
     return texts[language] ?? texts[base] ?? texts.en ?? Object.values(texts)[0] ?? fallback;
 };
 
+/** The answers the user chose themselves (a cancelled confirmation): not reported as failures. */
+export const SILENT_SOURCE_ERRORS: ReadonlySet<string> = new Set(['clear-declined', 'enable-declined', 'override-declined']);
+
+/**
+ * The reason a switch, a clear or a notice action failed, in words: the text of the code (`<code>:<detail>`), or
+ * "unknown reason" with the code after it for one without its own text, never the bare code.
+ */
+export const sourceErrorReason = (
+    error: string | undefined,
+    t: (key: string) => string,
+    exists: (key: string) => boolean,
+): string => {
+    const code = (error ?? 'unknown').split(':')[0];
+    return exists(`sourcesSettings.errors.${code}`)
+        ? t(`sourcesSettings.errors.${code}`)
+        : `${t('sourcesSettings.errors.unknown')} (${error ?? ''})`;
+};
+
 export type SourceNoticeKind =
     | 'claim-unconfirmed'
     | 'claim-taken'

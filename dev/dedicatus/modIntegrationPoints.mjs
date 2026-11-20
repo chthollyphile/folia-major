@@ -16,6 +16,7 @@ export const MOD_INTEGRATION_POINTS = [
     'src/components/app/playback/bridges/useElectronPlaybackBridge.ts',
     'src/components/command-palette/commands/playbackCommands.ts',
     'src/components/command-palette/globalShortcuts/useGlobalShortcuts.ts',
+    'src/components/command-palette/sourceSwitchCommandsInstaller.ts',
     'src/components/command-palette/surfaces/modsSurface.ts',
     'src/components/modal/playback-entry-view/sourcesOnboarding.ts',
     'src/components/modal/settings/pages/GlobalShortcutsGroup.tsx',

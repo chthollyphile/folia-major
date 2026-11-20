@@ -14,9 +14,10 @@ export { getCommandPaletteMatches, matchCommandsExactly, rankCommands } from './
 export const COMMAND_PALETTE_COMMANDS: CommandPaletteCommand[] = ALL_COMMAND_PALETTE_COMMANDS;
 
 // The slices installed into the list at run time, each replaced whole by its setter.
-const installedSlices: Record<'suite-chrome' | 'provider-search', readonly CommandPaletteCommand[]> = {
+const installedSlices: Record<'suite-chrome' | 'provider-search' | 'source-switch', readonly CommandPaletteCommand[]> = {
     'suite-chrome': [],
     'provider-search': [],
+    'source-switch': [],
 };
 
 // Replaces one installed slice, re-checking the static list's invariants over the combined list: a duplicate id
@@ -61,6 +62,14 @@ export const setSuiteChromeCommands = (commands: readonly CommandPaletteCommand[
  */
 export const setProviderSearchCommands = (commands: readonly CommandPaletteCommand[]) => {
     installSlice('provider-search', commands);
+};
+
+/**
+ * Puts the commands that switch one source (commands/sourceSwitchCommands) into the list, replacing the ones an earlier
+ * call put there. Installed by sourceSwitchCommandsInstaller.ts whenever the source states change, with the same checks.
+ */
+export const setSourceSwitchCommands = (commands: readonly CommandPaletteCommand[]) => {
+    installSlice('source-switch', commands);
 };
 
 // Availability is declared on each command: `platform` gates the environment, `scope` gates the
