@@ -7352,15 +7352,22 @@ ipcMain.handle('clear-local-cover-assets', firstParty('clear-local-cover-assets'
 // 内嵌后端的端口、状态、重启、诊断快照与主动自检（electron/loginBackendIpc.cjs）。
 // 它交回登录诊断与自检的登记表（{ diagnostics }，Folium 2.0 接缝）：现在里面是两个内嵌后端，S2 起音源模组的
 // api.diagnostics 往里登记。
-const { diagnostics: loginDiagnostics } = registerLoginBackendIpc({
-  ipcMain,
-  app,
-  safeStorage,
-  getDefaultSession: () => session.defaultSession,
-  neteaseBackend,
-  qqBackend,
-  isTrustedSender: isFirstPartyWindowContents,
+const loginBackend = registerLoginBackendIpc({
+    ipcMain,
+    app,
+    safeStorage,
+    getDefaultSession: () => session.defaultSession,
+    neteaseBackend,
+    qqBackend,
+    networkRecorder,
+    isTrustedSender: isFirstPartyWindowContents,
 });
+// 音源模组的 api.diagnostics：登记进同一张表，快照与自检和登录窗口的两个通道答的一样。
+const loginDiagnostics = {
+    register: (sourceId, backend) => loginBackend.diagnostics.register(sourceId, backend),
+    snapshot: loginBackend.snapshot,
+    selfCheck: loginBackend.selfCheck,
+};
 
 ipcMain.handle('apple-music-request', createCompanionRequestHandler({
   isTrusted: isTrustedMainWindowContents,

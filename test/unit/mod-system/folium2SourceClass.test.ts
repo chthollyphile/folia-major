@@ -377,6 +377,23 @@ describe('the source members of api (plan §5.5)', () => {
         expect(reported).toEqual([['mod:spotify worker', error]]);
     });
 
+    it('diagnostics.snapshot and selfCheck answer what the host answers for its own sources only', async () => {
+        const { api } = launchSource({
+            diagnostics: {
+                register: () => () => {},
+                snapshot: async (sourceId: string) => ({ providerId: sourceId, app: {} }),
+                selfCheck: async (sourceId: string) => ({ providerId: sourceId, hosts: [] }),
+            },
+        });
+        await expect(api.diagnostics.snapshot('spotify')).resolves.toEqual({ providerId: 'spotify', app: {} });
+        await expect(api.diagnostics.selfCheck('spotify')).resolves.toEqual({ providerId: 'spotify', hosts: [] });
+        await expect(api.diagnostics.snapshot('qq')).rejects.toThrow('not a source of this mod');
+        await expect(api.diagnostics.selfCheck('qq')).rejects.toThrow('not a source of this mod');
+        // A host without them (an older registry) answers null.
+        const bare = launchSource({ diagnostics: createLoginDiagnosticsRegistry() });
+        await expect(bare.api.diagnostics.snapshot('spotify')).resolves.toBeNull();
+    });
+
     it('takes everything the mod registered away when it stops', async () => {
         const { api, system, diagnostics } = launchSource();
         api.media.allow({ hosts: ['cdn.example.com'] });

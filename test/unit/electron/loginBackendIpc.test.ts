@@ -3,7 +3,10 @@ import { describe, expect, it, vi } from 'vitest';
 // test/unit/electron/loginBackendIpc.test.ts
 
 const { createLoginDiagnosticsRegistry, registerLoginBackendIpc } = require('../../../electron/loginBackendIpc.cjs') as {
-    registerLoginBackendIpc: (options: Record<string, unknown>) => void;
+    registerLoginBackendIpc: (options: Record<string, unknown>) => {
+        snapshot: (providerId: string) => Promise<Record<string, unknown> | null>;
+        selfCheck: (providerId: string) => Promise<Record<string, unknown> | null>;
+    };
     createLoginDiagnosticsRegistry: () => {
         register: (providerId: string, backend: object) => () => void;
         get: (providerId: unknown) => object | null;
@@ -165,5 +168,46 @@ describe('login diagnostics registry', () => {
         unregister();
         await expect(invoke('get-login-diagnostics', 'folium.mod.radio')).resolves.toBeNull();
         expect(diagnostics.get(42)).toBeNull();
+    });
+
+    it('fills in the main process connection record for a backend that has none, and hands snapshot and self-check out', async () => {
+        const ipcMain = { handle: vi.fn() };
+        const diagnostics = createLoginDiagnosticsRegistry();
+        const own = createBackend('folium.mod.radio');
+        own.getDiagnostics.mockImplementation(() => ({ backend: { status: 'running' } }));
+        const kept = createBackend('folium.mod.kept');
+        diagnostics.register('folium.mod.radio', own);
+        diagnostics.register('folium.mod.kept', kept);
+        const networkRecorder = { snapshot: vi.fn((providerId: string) => [{ host: `${providerId}.example` }]) };
+        const runSelfCheck = vi.fn(async (options: Record<string, unknown>) => ({ providerId: options.providerId, backend: options.backend }));
+        const { snapshot, selfCheck } = registerLoginBackendIpc({
+            ipcMain,
+            app: { getVersion: () => '2.0.0-test', getLocale: () => 'en' },
+            safeStorage: { isEncryptionAvailable: () => false },
+            getDefaultSession: () => null,
+            neteaseBackend: createBackend('netease'),
+            qqBackend: createBackend('qq'),
+            diagnostics,
+            networkRecorder,
+            runSelfCheck,
+            isTrustedSender: () => true,
+        });
+
+        await expect(snapshot('folium.mod.radio')).resolves.toMatchObject({
+            providerId: 'folium.mod.radio',
+            app: { version: '2.0.0-test' },
+            backend: { status: 'running' },
+            connections: [{ host: 'folium.mod.radio.example' }],
+        });
+        // A backend that keeps its own record is answered with it.
+        await expect(snapshot('folium.mod.kept')).resolves.toMatchObject({ connections: [] });
+        expect(networkRecorder.snapshot).toHaveBeenCalledExactlyOnceWith('folium.mod.radio');
+        await expect(selfCheck('folium.mod.radio')).resolves.toMatchObject({
+            providerId: 'folium.mod.radio',
+            backend: { status: 'error' },
+            credentialStore: { encryptionAvailable: false },
+        });
+        await expect(snapshot('folium.mod.none')).resolves.toBeNull();
+        await expect(selfCheck('folium.mod.none')).resolves.toBeNull();
     });
 });

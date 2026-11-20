@@ -342,6 +342,9 @@ const createSourceApi = (context, host) => {
         /*
          * The sign-in diagnostics and self-check of one of the mod's own sources (electron/loginBackendIpc.cjs):
          * `backend` has getStatus(), getDiagnostics() and selfCheckHosts, as the embedded backends do.
+         * snapshot() and selfCheck() answer what the sign-in window's two channels answer for that source, with
+         * what only the host has (the app, the system proxy, the main process's connection record); null when
+         * nothing is registered for it.
          */
         diagnostics: Object.freeze({
             register: (sourceId, backend) => {
@@ -351,6 +354,14 @@ const createSourceApi = (context, host) => {
                 }
                 if (!host.diagnostics) return () => {};
                 return keep(host.diagnostics.register(sourceId, backend));
+            },
+            snapshot: async (sourceId) => {
+                if (!ownSourceIds.has(sourceId)) throw new Error(`diagnostics.snapshot: "${String(sourceId)}" is not a source of this mod`);
+                return typeof host.diagnostics?.snapshot === 'function' ? await host.diagnostics.snapshot(sourceId) : null;
+            },
+            selfCheck: async (sourceId) => {
+                if (!ownSourceIds.has(sourceId)) throw new Error(`diagnostics.selfCheck: "${String(sourceId)}" is not a source of this mod`);
+                return typeof host.diagnostics?.selfCheck === 'function' ? await host.diagnostics.selfCheck(sourceId) : null;
             },
         }),
         /* Native files the app ships for a built-in source, by the names its manifest and its table row both list. */
