@@ -276,6 +276,9 @@ if (process.platform === 'darwin' && process.arch === 'x64') {
 }
 
 const store = new Store({ projectName: 'Folia' });
+// Read before anything writes the store: an empty one is a fresh profile, which the start prompt asks which
+// sources it uses (Folium 2.0 plan §5.3, modSystem.cjs). An upgraded profile always has something in it.
+const isFreshProfile = store.size === 0;
 // Before ready: the GPU process reads its switches when it starts.
 const gpuPreferenceApplied = applyGpuPreference({ app, store });
 const readActiveGpu = createActiveGpuReader(app);
@@ -6376,6 +6379,7 @@ app.whenReady().then(async () => {
       getLocaleKey: getMainLocaleKey,
       isFeatureEnabled: () => readStoredBoolean(MOD_SYSTEM_ENABLED_SETTING_KEY, false),
       hostStore: store,
+      freshProfile: isFreshProfile,
       diagnostics: loginDiagnostics,
       reportError: (where, error) => crashLog.reportError(where, error, { announceToUser: false }),
       requestCachePrune: (limitBytes) => pruneMediaCacheForSource(limitBytes),

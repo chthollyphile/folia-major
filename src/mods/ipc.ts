@@ -237,13 +237,20 @@ export const subscribeModSecretChanges = (callback: (change: ModSecretChange) =>
 
 // ---- Folium 2.0 (plan §5.3): the sources' states. "Settings → Sources" (S8) is drawn on these. ----
 
-const EMPTY_SOURCE_STATES: ModSourceStatesPayload & { hasSourceMods: boolean } = { states: {}, sources: [], hasSourceMods: false };
+type SourceStatesAnswer = ModSourceStatesPayload & {
+    hasSourceMods: boolean;
+    /** A fresh profile still owes the start prompt's sources page (never in the web build). */
+    sourcesOnboarding: boolean;
+};
+
+const EMPTY_SOURCE_STATES: SourceStatesAnswer = { states: {}, sources: [], hasSourceMods: false, sourcesOnboarding: false };
 
 /**
- * Every known source's state and row, and whether a source mod runs; empty without the bridge (the web build:
- * every source enabled). It answers while the start question is still open.
+ * Every known source's state and row, whether a source mod runs, and whether the start prompt still owes its sources
+ * page; empty without the bridge (the web build: every source enabled, nothing owed). It answers while the start
+ * question is still open.
  */
-export const getSourceStates = async (): Promise<ModSourceStatesPayload & { hasSourceMods: boolean }> => {
+export const getSourceStates = async (): Promise<SourceStatesAnswer> => {
     try {
         const response = await bridge()?.getSourceStates?.();
         if (!response?.ok) return EMPTY_SOURCE_STATES;
@@ -251,6 +258,7 @@ export const getSourceStates = async (): Promise<ModSourceStatesPayload & { hasS
             states: response.states ?? {},
             sources: Array.isArray(response.sources) ? response.sources : [],
             hasSourceMods: response.hasSourceMods === true,
+            sourcesOnboarding: response.sourcesOnboarding === true,
         };
     } catch {
         return EMPTY_SOURCE_STATES;
@@ -263,6 +271,16 @@ export const invokeSetSourceState = async (
     state: ModSourceState,
 ): Promise<{ ok: boolean; error?: string } & Partial<ModSourceStatesPayload>> => (
     await bridge()?.setSourceState?.(sourceId, state) ?? { ok: false, error: 'no-electron-bridge' }
+);
+
+/**
+ * The start prompt's sources page, answered once: the state of each built-in source. The main process checks every
+ * entry, writes them all, records the page as answered and reloads only what changed.
+ */
+export const invokeAnswerSourcesOnboarding = async (
+    choices: Record<string, ModSourceState>,
+): Promise<{ ok: boolean; error?: string } & Partial<ModSourceStatesPayload>> => (
+    await bridge()?.answerSourcesOnboarding?.(choices) ?? { ok: false, error: 'no-electron-bridge' }
 );
 
 /** What "clear data" of a source would remove. */

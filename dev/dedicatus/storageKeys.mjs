@@ -339,6 +339,8 @@ export const STORAGE_KEYS = [
     'main:mods.sourcePartitions',
     // 确认过覆盖副本的内置模组（内置 id → 覆盖它的模组 id）：建窗口前不先起它，免得起来又被换掉。
     'main:mods.overriddenBuiltins',
+    // Folium 2.0 S8（2026-11-20）：全新 profile 欠开箱引导的「你用哪些平台听歌」一页（'pending'），答过记 'done'；升级来的 profile 没有这条。
+    'main:mods.sourcesOnboarding',
     // Folium 2.0 S1 的听歌上报设置，每个音源一个键 `folia_playback_report:<音源 id>`（网易云沿用 folia_netease_scrobble）；S2 补登记。
     'web:folia_playback_report:*',
     'web:folia_perf_check_offered',

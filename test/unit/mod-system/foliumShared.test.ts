@@ -53,6 +53,7 @@ describe('the copies of what foliumShared.json holds', () => {
         reportModsStartAlive: 'startAlive',
         getSourceStates: 'sourceStates',
         setSourceState: 'setSourceState',
+        answerSourcesOnboarding: 'answerSourcesOnboarding',
         describeSourceData: 'sourceData',
         clearSourceData: 'clearSourceData',
         confirmModOverride: 'confirmOverride',
