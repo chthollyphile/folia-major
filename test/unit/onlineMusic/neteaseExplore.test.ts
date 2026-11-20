@@ -18,14 +18,14 @@ const api = vi.hoisted(() => ({
     getSimilarSongs: vi.fn(),
     getPlaylistTracks: vi.fn(),
 }));
-vi.mock('@/services/onlineMusic/netease/netease', async importOriginal => {
-    const actual = await importOriginal<typeof import('@/services/onlineMusic/netease/netease')>();
+vi.mock('../../../sources/netease/core/netease', async importOriginal => {
+    const actual = await importOriginal<typeof import('../../../sources/netease/core/netease')>();
     return { ...actual, neteaseApi: { ...actual.neteaseApi, ...api } };
 });
 vi.mock('@/utils/lyrics/workerClient', () => ({ parseLyricsAsync: vi.fn() }));
 import i18n from '@/i18n/config';
-import { createNeteaseExplore } from '@/services/onlineMusic/netease/neteaseExplore';
-import { neteaseProvider } from '@/services/onlineMusic/netease/neteaseProvider';
+import { createNeteaseExplore } from '../../../sources/netease/core/neteaseExplore';
+import { neteaseProvider } from '../../../sources/netease/core/neteaseProvider';
 import type { ProviderExploreItem, ProviderExploreSection } from '@/types/onlineMusic';
 import type { UnifiedSong } from '@/types';
 

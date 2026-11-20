@@ -2,9 +2,9 @@
 
 const { createNeteaseApiHost } = require('./neteaseApiHost.cjs');
 const { startsAgainWhenNeeded } = require('./neteaseApiStartup.cjs');
-const { createBackendStatus, describeError } = require('../backendLifecycle.cjs');
+const { createBackendStatus, describeError } = require('../../../electron/backendLifecycle.cjs');
 
-// electron/netease/neteaseBackend.cjs
+// sources/netease/main/neteaseBackend.cjs
 // 网易云本地 API（@neteasecloudmusicapienhanced/api）在主进程这一侧的控制面。包本身在工作线程里加载和运行
 // （neteaseApiWorker.cjs，原因写在那里；线程由 neteaseApiHost.cjs 开），这里只管状态、并发与对外的形状：
 // - preload()：开线程，让它先加载包；

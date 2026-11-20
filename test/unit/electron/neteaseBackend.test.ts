@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 // 网易后端的错误边界：上游包加载前的准备失败（#690：临时目录不可用）不能带崩主进程，要变成 load 步骤的失败与 error 状态。
 // 用真的工作线程跑：加载在线程里进行，失败要经线程的回话变成主进程这边的状态和诊断。
 
-const { createNeteaseBackend } = require('../../../electron/netease/neteaseBackend.cjs') as {
+const { createNeteaseBackend } = require('../../../sources/netease/main/neteaseBackend.cjs') as {
     createNeteaseBackend: (options: Record<string, unknown>) => {
         start: (reason?: string) => Promise<any>;
         getStatus: () => any;
@@ -17,7 +17,7 @@ const { createNeteaseBackend } = require('../../../electron/netease/neteaseBacke
     };
 };
 
-const WORKER_PATH = path.resolve(__dirname, '../../../electron/netease/neteaseApiWorker.cjs');
+const WORKER_PATH = path.resolve(__dirname, '../../../sources/netease/main/neteaseApiWorker.cjs');
 const workers: Worker[] = [];
 const createWorker = () => {
     const worker = new Worker(WORKER_PATH, { env: SHARE_ENV });

@@ -21,10 +21,10 @@ const api = vi.hoisted(() => ({
     getSimilarSongs: vi.fn(),
     getPlaylistTracks: vi.fn(),
 }));
-vi.mock('@/services/onlineMusic/netease/netease', () => ({ neteaseApi: api }));
+vi.mock('../../../sources/netease/core/netease', () => ({ neteaseApi: api }));
 const omni = vi.hoisted(() => ({ getExploreFeed: vi.fn(), getExploreSectionItems: vi.fn() }));
 vi.mock('@/services/onlineMusic/omni', () => ({ omni }));
-import { createNeteaseExplore } from '@/services/onlineMusic/netease/neteaseExplore';
+import { createNeteaseExplore } from '../../../sources/netease/core/neteaseExplore';
 import { resetExploreMemory } from '@/stores/exploreFeedMemory';
 import { useExploreFeedStore } from '@/stores/useExploreFeedStore';
 

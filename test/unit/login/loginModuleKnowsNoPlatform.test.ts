@@ -3,7 +3,7 @@ import { readdir, readFile } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 import { omni } from '@/services/onlineMusic/omni';
 import { listOnlineMusicProviders } from '@/services/onlineMusic/providerRegistry';
-import { useNeteaseApiStatusStore } from '@/services/onlineMusic/netease/useNeteaseApiStatusStore';
+import { useNeteaseApiStatusStore } from '../../../sources/netease/core/useNeteaseApiStatusStore';
 
 // test/unit/login/loginModuleKnowsNoPlatform.test.ts
 // One platform's rule stays with the platform. The sign-in window (src/components/login/) names

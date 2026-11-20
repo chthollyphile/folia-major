@@ -956,27 +956,27 @@
       "count": 1
     }
   },
-  "electron/netease/lazyJsdom.cjs": {
+  "sources/netease/main/lazyJsdom.cjs": {
     "@stylistic/indent": {
       "count": 51
     }
   },
-  "electron/netease/neteaseApiHost.cjs": {
+  "sources/netease/main/neteaseApiHost.cjs": {
     "@stylistic/indent": {
       "count": 69
     }
   },
-  "electron/netease/neteaseApiStartup.cjs": {
+  "sources/netease/main/neteaseApiStartup.cjs": {
     "@stylistic/indent": {
       "count": 210
     }
   },
-  "electron/netease/neteaseApiWorker.cjs": {
+  "sources/netease/main/neteaseApiWorker.cjs": {
     "@stylistic/indent": {
       "count": 159
     }
   },
-  "electron/netease/neteaseBackend.cjs": {
+  "sources/netease/main/neteaseBackend.cjs": {
     "@stylistic/indent": {
       "count": 61
     },
@@ -984,7 +984,7 @@
       "count": 1
     }
   },
-  "electron/netease/neteaseLoginDiagnostics.cjs": {
+  "sources/netease/main/neteaseLoginDiagnostics.cjs": {
     "@stylistic/indent": {
       "count": 144
     },
@@ -992,12 +992,12 @@
       "count": 1
     }
   },
-  "electron/netease/neteaseLoginIdentity.cjs": {
+  "sources/netease/main/neteaseLoginIdentity.cjs": {
     "@stylistic/indent": {
       "count": 72
     }
   },
-  "electron/netease/upstreamAddressOrder.cjs": {
+  "sources/netease/main/upstreamAddressOrder.cjs": {
     "@stylistic/indent": {
       "count": 12
     }
@@ -9988,7 +9988,7 @@
       "count": 1
     }
   },
-  "src/services/onlineMusic/netease/netease.ts": {
+  "sources/netease/core/netease.ts": {
     "@stylistic/indent": {
       "count": 858
     },
@@ -10032,7 +10032,7 @@
       "count": 1
     }
   },
-  "src/services/onlineMusic/netease/neteaseExplore.ts": {
+  "sources/netease/core/neteaseExplore.ts": {
     "@typescript-eslint/no-explicit-any": {
       "count": 11
     },
@@ -10058,7 +10058,7 @@
       "count": 1
     }
   },
-  "src/services/onlineMusic/netease/neteaseFailure.ts": {
+  "sources/netease/core/neteaseFailure.ts": {
     "@typescript-eslint/no-explicit-any": {
       "count": 2
     },
@@ -10069,7 +10069,7 @@
       "count": 5
     }
   },
-  "src/services/onlineMusic/netease/neteaseLocalService.ts": {
+  "sources/netease/core/neteaseLocalService.ts": {
     "@typescript-eslint/no-unnecessary-condition": {
       "count": 3
     },
@@ -10077,7 +10077,7 @@
       "count": 1
     }
   },
-  "src/services/onlineMusic/netease/neteaseLoginDiagnostics.ts": {
+  "sources/netease/core/neteaseLoginDiagnostics.ts": {
     "@typescript-eslint/no-unnecessary-condition": {
       "count": 7
     },
@@ -10085,7 +10085,7 @@
       "count": 1
     }
   },
-  "src/services/onlineMusic/netease/neteaseLoginFailure.ts": {
+  "sources/netease/core/neteaseLoginFailure.ts": {
     "@typescript-eslint/no-explicit-any": {
       "count": 1
     },
@@ -10096,7 +10096,7 @@
       "count": 5
     }
   },
-  "src/services/onlineMusic/netease/neteaseProvider.ts": {
+  "sources/netease/core/neteaseProvider.ts": {
     "@typescript-eslint/no-explicit-any": {
       "count": 23
     },
@@ -10131,7 +10131,7 @@
       "count": 1
     }
   },
-  "src/services/onlineMusic/netease/neteaseRaw.ts": {
+  "sources/netease/core/neteaseRaw.ts": {
     "@typescript-eslint/no-explicit-any": {
       "count": 1
     },
@@ -10145,7 +10145,7 @@
       "count": 1
     }
   },
-  "src/services/onlineMusic/netease/useNeteaseApiStatusStore.ts": {
+  "sources/netease/core/useNeteaseApiStatusStore.ts": {
     "@typescript-eslint/no-explicit-any": {
       "count": 1
     },

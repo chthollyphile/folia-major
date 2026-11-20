@@ -1,8 +1,8 @@
-import { OnlineProviderError } from '../../../types/onlineMusic';
-import type { OnlineFailureDetail, OnlineFailureOperation } from '../../../types/onlineMusic';
+import { OnlineProviderError } from '../../../src/types/onlineMusic';
+import type { OnlineFailureDetail, OnlineFailureOperation } from '../../../src/types/onlineMusic';
 import { NETEASE_API_BASE_MISSING, NETEASE_API_OFFLINE, httpErrorStatusOf, isNeteaseApiUnavailable, isNeteaseNetworkFailure } from './netease';
 
-// src/services/onlineMusic/netease/neteaseFailure.ts
+// sources/netease/core/neteaseFailure.ts
 // 网易云要播放地址、读歌单和专辑的歌曲没有成功时交出的事实（services/onlineMusic/failure/）。
 // 网易云自己的回答是什么意思，只在这里说。
 

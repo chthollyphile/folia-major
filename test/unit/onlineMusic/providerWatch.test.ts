@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { omni } from '@/services/onlineMusic/omni';
 import { listOnlineMusicProviders } from '@/services/onlineMusic/providerRegistry';
-import { useNeteaseApiStatusStore } from '@/services/onlineMusic/netease/useNeteaseApiStatusStore';
+import { useNeteaseApiStatusStore } from '../../../sources/netease/core/useNeteaseApiStatusStore';
 import type { ProviderNotice } from '@/types/onlineMusic';
 
 // test/unit/onlineMusic/providerWatch.test.ts

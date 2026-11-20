@@ -1,10 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { UNSET_SEARCH_SOURCE, resolveCommandPaletteSearchSource, useSearchNavigationStore } from '@/stores/useSearchNavigationStore';
-import { neteaseApi } from '@/services/onlineMusic/netease/netease';
+import { neteaseApi } from '../../../sources/netease/core/netease';
 import { getNavidromeConfig, navidromeApi } from '@/services/navidromeService';
 import type { LocalLibraryAssignment, LocalLibraryEntity } from '@/types/localLibrary';
 
-vi.mock('@/services/onlineMusic/netease/netease', () => ({
+vi.mock('../../../sources/netease/core/netease', () => ({
     neteaseApi: {
         cloudSearch: vi.fn(),
         normalizeSongResult: vi.fn((raw: unknown) => raw),

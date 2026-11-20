@@ -1,10 +1,10 @@
-import { NoCopyrightRecommendation, SongPrivilege, SongResult } from "../../../types";
-import { readProviderSessionValue, removeProviderSessionValue, writeProviderSessionValue } from '../providerStorage';
-import { OnlineProviderError } from '../../../types/onlineMusic';
-import type { PersonalFmRequestOptions, ProviderSongAvailability } from '../../../types/onlineMusic';
+import { NoCopyrightRecommendation, SongPrivilege, SongResult } from "../../../src/types";
+import { readProviderSessionValue, removeProviderSessionValue, writeProviderSessionValue } from '../../../src/services/onlineMusic/providerStorage';
+import { OnlineProviderError } from '../../../src/types/onlineMusic';
+import type { PersonalFmRequestOptions, ProviderSongAvailability } from '../../../src/types/onlineMusic';
 import { withLoginRequestLimit } from '@folia/folium-source-kit';
-import { withOnlineRequestLimit } from '../failure/onlineRequestLimit';
-import { errorFields } from '../../../utils/errorText';
+import { withOnlineRequestLimit } from '../../../src/services/onlineMusic/failure/onlineRequestLimit';
+import { errorFields } from '../../../src/utils/errorText';
 
 type UnavailableSongReplacement = {
   replacementSong: SongResult;

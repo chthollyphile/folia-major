@@ -71,7 +71,7 @@ export const CREDENTIAL_WRITERS = {
         // 同一个会话的续期：轮换出的新 token，换账号或退出后不写
         refreshOnce: ['cookie'],
     },
-    'src/services/onlineMusic/netease/neteaseProvider.ts': {
+    'sources/netease/core/neteaseProvider.ts': {
         // 扫码轮询确认（803）的分支
         checkLogin: ['cookie'],
     },

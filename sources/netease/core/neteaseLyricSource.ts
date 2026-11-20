@@ -1,6 +1,6 @@
-import { registerLyricSourceAccess } from '../../../utils/lyrics/lyricSources';
+import { registerLyricSourceAccess } from '../../../src/utils/lyrics/lyricSources';
 
-// src/services/onlineMusic/netease/neteaseLyricSource.ts
+// sources/netease/core/neteaseLyricSource.ts
 // How NetEase is reached as a lyric source where that differs from its provider: a song id alone is enough
 // to fetch its lyrics, and the chorus ranges it gives are lent to a fetch that marks the chorus itself.
 // Registered when the provider loads (Folium 2.0 S1: moved here from the host's lyricMatchSources.ts).

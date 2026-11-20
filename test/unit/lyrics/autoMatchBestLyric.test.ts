@@ -1,7 +1,7 @@
 // @builtin-sources
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { autoMatchBestLyric, type AutoMatchProviderCandidate } from '@/utils/lyrics/autoMatchBestLyric';
-import { neteaseApi } from '@/services/onlineMusic/netease/netease';
+import { neteaseApi } from '../../../sources/netease/core/netease';
 import { processNeteaseLyrics } from '@/utils/lyrics/neteaseProcessing';
 import { searchKugouLyrics, fetchKugouLyrics } from '../../manual/kugouLyricProvider';
 import { fetchAmllDbLyrics } from '@/utils/lyrics/providers/amllDbProvider';
@@ -15,7 +15,7 @@ import type { PlatformLyricSource } from '@/utils/lyrics/lyricSources';
 // below), and their ids are lyric sources the host's type of the built-in ones does not name.
 // @builtin-sources
 
-vi.mock('@/services/onlineMusic/netease/netease', () => ({
+vi.mock('../../../sources/netease/core/netease', () => ({
     neteaseApi: {
         cloudSearch: vi.fn(),
         getLyric: vi.fn(),

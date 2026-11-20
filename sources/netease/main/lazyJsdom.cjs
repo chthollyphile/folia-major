@@ -1,6 +1,6 @@
 const Module = require('module');
 
-// electron/netease/lazyJsdom.cjs
+// sources/netease/main/lazyJsdom.cjs
 // 网易云 API 的包一加载就 require jsdom（module/register_checktoken_v2.js 开头），可是只有带
 // checkToken 的请求（收藏歌单）才真的用它，而加载它要占掉整个包一多半的时间。
 // 这里在包加载之前往 require 缓存里放一个替身：JSDOM 和 VirtualConsole 这两个类到第一次被构造、

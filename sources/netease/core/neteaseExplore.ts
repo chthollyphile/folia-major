@@ -1,5 +1,5 @@
-import i18n from '../../../i18n/config';
-import type { UnifiedSong } from '../../../types';
+import i18n from '../../../src/i18n/config';
+import type { UnifiedSong } from '../../../src/types';
 import type {
     OnlineExploreProvider,
     ProviderCollection,
@@ -7,12 +7,12 @@ import type {
     ProviderExploreItemsPage,
     ProviderExplorePage,
     ProviderExploreSection,
-} from '../../../types/onlineMusic';
+} from '../../../src/types/onlineMusic';
 import { neteaseApi } from './netease';
 import { createHandedOut, cursorWords, stampCursor } from '@folia/folium-source-kit';
-import { errorMessage } from '../../../utils/errorText';
+import { errorMessage } from '../../../src/utils/errorText';
 
-// src/services/onlineMusic/netease/neteaseExplore.ts
+// sources/netease/core/neteaseExplore.ts
 // The explore page of NetEase Cloud Music, in three parts, each asked for when the list gets to
 // it. (What a guest is answered was measured 2026-10-08, one request an endpoint, and 2026-10-09,
 // the same request twice or more. What an account is answered was not seen: its shapes are the

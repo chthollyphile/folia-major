@@ -1,5 +1,5 @@
 import type { OnlineMusicProvider } from '../../../types/onlineMusic';
-import { neteaseProvider } from '../netease/neteaseProvider';
+import { neteaseProvider } from '../../../../sources/netease/core/neteaseProvider';
 
 // src/services/onlineMusic/web/netease.ts
 // The web build's netease (web/index.ts). For now the host's own provider, which providerRegistry.ts also registers;

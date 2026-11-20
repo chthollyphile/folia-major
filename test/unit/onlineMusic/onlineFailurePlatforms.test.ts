@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createBodianApi } from 'bodian-music-api';
 import { omni } from '@/services/onlineMusic/omni';
 import { QQ_ONLINE_REQUEST_LIMIT_MS, resetQqTransportRuntimeCache } from '../../../sources/qq/core/qqTransport';
-import { NETEASE_ONLINE_REQUEST_LIMIT_MS } from '@/services/onlineMusic/netease/netease';
+import { NETEASE_ONLINE_REQUEST_LIMIT_MS } from '../../../sources/netease/core/netease';
 import { onlineFailureOf, stopsPlayback } from '@/services/onlineMusic/failure/onlineFailureCase';
 import type { UnifiedSong } from '@/types';
 import type { OnlineFailureOperation, OnlineProviderId, ProviderCollection } from '@/types/onlineMusic';

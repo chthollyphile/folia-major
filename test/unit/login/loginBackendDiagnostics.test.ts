@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { formatConnection } from '@/services/onlineMusic/login/loginBackendDiagnostics';
-import { formatNeteaseLoginDiagnostics } from '@/services/onlineMusic/netease/neteaseLoginDiagnostics';
+import { formatNeteaseLoginDiagnostics } from '../../../sources/netease/core/neteaseLoginDiagnostics';
 import type { FoliumSourceDiagnosticLine } from '@/mods/folium/sources/contract';
 import { formatQqLoginDiagnostics, type QqBackendSnapshot } from '../../../sources/qq/core/qqLoginDiagnostics';
 

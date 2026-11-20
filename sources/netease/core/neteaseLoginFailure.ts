@@ -1,7 +1,7 @@
-import type { LoginFailureDetail, LoginStep } from '../../../types/onlineMusic';
+import type { LoginFailureDetail, LoginStep } from '../../../src/types/onlineMusic';
 import { NETEASE_API_OFFLINE, NeteaseLoginHttpError, isNeteaseApiUnavailable, isNeteaseNetworkFailure } from './netease';
 
-// src/services/onlineMusic/netease/neteaseLoginFailure.ts
+// sources/netease/core/neteaseLoginFailure.ts
 // 网易云登录失败时交给登录窗口的事实。网易云自己的错误是什么意思，只在这里说。
 
 // 登录的某一步抛了错。

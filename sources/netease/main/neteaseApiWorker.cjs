@@ -14,16 +14,16 @@ const {
 } = require('./neteaseApiStartup.cjs');
 const { createNeteaseLoginDiagnostics } = require('./neteaseLoginDiagnostics.cjs');
 const { createNeteaseLoginIdentity } = require('./neteaseLoginIdentity.cjs');
-const { createNetworkRecorder } = require('../networkRecorder.cjs');
+const { createNetworkRecorder } = require('../../../electron/networkRecorder.cjs');
 const { preferIpv4Upstream } = require('./upstreamAddressOrder.cjs');
 const {
   createStartupRecorder,
   describeError,
   findFreePort,
   keepServerErrorsLogged,
-} = require('../backendLifecycle.cjs');
+} = require('../../../electron/backendLifecycle.cjs');
 
-// electron/netease/neteaseApiWorker.cjs
+// sources/netease/main/neteaseApiWorker.cjs
 // 网易云本地 API 在这个工作线程里加载和运行（由 neteaseApiHost.cjs 开出来，主进程那一侧是 neteaseBackend.cjs）。
 // 这个包连同依赖有近 900 个文件（不算已经推迟的 jsdom），在慢处理器上 require 一遍要几百毫秒。放在主线程时，
 // 这段时间主进程什么都做不了：窗口建不出来，页面的 IPC 也没人答。放在这里，主进程只管状态和 IPC；

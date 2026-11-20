@@ -14,7 +14,7 @@ import {
     unregisterOnlineMusicProvider,
 } from '../../../src/services/onlineMusic/providerRegistry';
 import { useOnlineProviderAccountStore } from '../../../src/stores/useOnlineProviderAccountStore';
-import { useNeteaseApiStatusStore } from '../../../src/services/onlineMusic/netease/useNeteaseApiStatusStore';
+import { useNeteaseApiStatusStore } from '../../../sources/netease/core/useNeteaseApiStatusStore';
 import { useCollectionNavigationStore } from '../../../src/stores/useCollectionNavigationStore';
 import { useLibrarySuiteStore } from '../../../src/library/core/suite/useLibrarySuiteStore';
 import { DEFAULT_LIBRARY_SUITE_ID } from '../../../src/library/core/suite/librarySuites';

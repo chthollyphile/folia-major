@@ -169,7 +169,7 @@ describeWithLintRuntime('dedicatus eslint rules', async () => {
                 code: "const f = (folium, id) => { folium.sources.pageStore('demo').set('device_id', id); new Map().set('token', 1); };",
             },
             // 不算凭据的键（匿名会话、设备 id）哪里都能写
-            { filename: inRepo('src/services/onlineMusic/netease/netease.ts'), options: credentialOptions, code: "const f = () => writeProviderSessionValue('netease', 'anonymous_cookie', c);" },
+            { filename: inRepo('sources/netease/core/netease.ts'), options: credentialOptions, code: "const f = () => writeProviderSessionValue('netease', 'anonymous_cookie', c);" },
         ],
         invalid: [
             {

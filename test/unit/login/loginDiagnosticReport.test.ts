@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { buildLoginIssueUrl, diagnosticLine, formatLoginDiagnosticReport, formatLoginSelfCheck } from '@/services/onlineMusic/login/loginDiagnosticReport';
-import { formatNeteaseLoginDiagnostics } from '@/services/onlineMusic/netease/neteaseLoginDiagnostics';
+import { formatNeteaseLoginDiagnostics } from '../../../sources/netease/core/neteaseLoginDiagnostics';
 import { formatQqLoginDiagnostics } from '../../../sources/qq/core/qqLoginDiagnostics';
 import { loginCaseOf, loginFailureFacts } from '@/services/onlineMusic/login/loginFailureCase';
 import { omni } from '@/services/onlineMusic/omni';

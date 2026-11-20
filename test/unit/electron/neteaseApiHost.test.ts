@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 // test/unit/electron/neteaseApiHost.test.ts
 
 const require = createRequire(import.meta.url);
-const { createNeteaseApiHost } = require('../../../electron/netease/neteaseApiHost.cjs') as {
+const { createNeteaseApiHost } = require('../../../sources/netease/main/neteaseApiHost.cjs') as {
     createNeteaseApiHost: (options?: Record<string, unknown>) => {
         preload: () => void;
         start: (options: { host: string }) => Promise<{ port: number }>;

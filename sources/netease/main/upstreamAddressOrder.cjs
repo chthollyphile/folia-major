@@ -1,7 +1,7 @@
 const dns = require('dns');
 const net = require('net');
 
-// electron/netease/upstreamAddressOrder.cjs
+// sources/netease/main/upstreamAddressOrder.cjs
 // 网易云工作线程连上游时先试 IPv4、IPv4 连不上再试 IPv6（#1068）。只在 neteaseApiWorker.cjs 里调用。
 //
 // 为什么：上游（util/request）每个请求都新建一个 https.Agent，所以每次都是一条新的 TCP + TLS 连接，不存在

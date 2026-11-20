@@ -25,7 +25,7 @@ describe('netease liked songs request', () => {
 
     it('asks a new address at every read, so that no read is answered from the cache', async () => {
         vi.spyOn(Date, 'now').mockReturnValueOnce(1_000).mockReturnValueOnce(2_000);
-        const { neteaseApi } = await import('@/services/onlineMusic/netease/netease');
+        const { neteaseApi } = await import('../../../sources/netease/core/netease');
 
         await neteaseApi.getLikedSongs(7);
         await neteaseApi.getLikedSongs(7);

@@ -1,9 +1,9 @@
-import type { LoginDiagnosticLine } from '../../../types/onlineMusic';
-import { diagnosticLine, formatDiagnosticClock } from '../login/loginDiagnosticReport';
-import { formatBackendApp, formatBackendStartup, formatConnection, formatListen, formatRecentConnections, formatValue, readBackendSnapshot } from '../login/loginBackendDiagnostics';
-import { readProviderSessionValue } from '../providerStorage';
+import type { LoginDiagnosticLine } from '../../../src/types/onlineMusic';
+import { diagnosticLine, formatDiagnosticClock } from '../../../src/services/onlineMusic/login/loginDiagnosticReport';
+import { formatBackendApp, formatBackendStartup, formatConnection, formatListen, formatRecentConnections, formatValue, readBackendSnapshot } from '../../../src/services/onlineMusic/login/loginBackendDiagnostics';
+import { readProviderSessionValue } from '../../../src/services/onlineMusic/providerStorage';
 
-// src/services/onlineMusic/netease/neteaseLoginDiagnostics.ts
+// sources/netease/core/neteaseLoginDiagnostics.ts
 // 网易扫码登录诊断报告里的 provider 专属部分。真正有用的现场在 Electron 主进程：上游会把网易的
 // 真实返回码吞成 404，只有主进程的请求层记下了它（electron/netease/neteaseLoginDiagnostics.cjs）。
 

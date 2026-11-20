@@ -1,6 +1,6 @@
 const os = require('os');
 
-// electron/netease/neteaseLoginDiagnostics.cjs
+// sources/netease/main/neteaseLoginDiagnostics.cjs
 // 网易登录请求的记录：包在上游 util/request 外面，只记登录相关的接口（扫码、匿名注册、账户读取），
 // 每次调用记下 uri、加密方式、来源 IP 头、deviceId、cookie 里有没有登录 / 匿名凭据、耗时与结果（状态码、返回码、原文），
 // 并经连接层记录器（electron/networkRecorder.cjs）对上这一次调用实际发出的连接：连了哪个地址、v4 还是 v6、

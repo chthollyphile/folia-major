@@ -3,7 +3,7 @@ import { createRequire } from 'node:module';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createBodianApi } from 'bodian-music-api';
 import { omni } from '@/services/onlineMusic/omni';
-import { neteaseApi } from '@/services/onlineMusic/netease/netease';
+import { neteaseApi } from '../../../sources/netease/core/netease';
 import { getOnlineMusicProvider } from '@/services/onlineMusic/providerRegistry';
 import { requestQq, resetQqTransportRuntimeCache } from '../../../sources/qq/core/qqTransport';
 import type { LoginStep, LoginState } from '@/types/onlineMusic';
@@ -30,7 +30,7 @@ const { createWire } = require('../../helpers/bodianWire.cjs');
 const { createKugouApiBridge, normalizeBridgeError } = require('../../../sources/kugou/main/kugouApiBridge.cjs');
 const { BrowserSignInError } = require('../../../sources/ytm/main/browserSignIn.cjs');
 const { toErrorResult: ytmErrorResult } = require('../../../sources/ytm/main/errors.cjs');
-const { createLoginQrCheck } = require('../../../electron/netease/neteaseApiStartup.cjs');
+const { createLoginQrCheck } = require('../../../sources/netease/main/neteaseApiStartup.cjs');
 const neteaseQrKey = require('@neteasecloudmusicapienhanced/api/module/login_qr_key.js');
 const createNeteaseOption = require('@neteasecloudmusicapienhanced/api/util/option.js');
 

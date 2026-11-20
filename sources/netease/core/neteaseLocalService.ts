@@ -1,7 +1,7 @@
 import { useNeteaseApiStatusStore } from './useNeteaseApiStatusStore';
-import type { LoginLocalService, LoginLocalServiceStatus, ProviderNotice } from '../../../types/onlineMusic';
+import type { LoginLocalService, LoginLocalServiceStatus, ProviderNotice } from '../../../src/types/onlineMusic';
 
-// src/services/onlineMusic/netease/neteaseLocalService.ts
+// sources/netease/core/neteaseLocalService.ts
 // 网易云的本地后端在登录窗口里的样子：它起没起来、它自己的错误原话、重启。它起不来时取二维码的请求
 // 必然失败，登录窗口据此显示原因和重启的按钮。状态本身在 useNeteaseApiStatusStore.ts。
 // 应用开着的时候由 watchNeteaseLocalService 盯着它：把它的状态抄进那个仓库，起不来时告诉用的人。

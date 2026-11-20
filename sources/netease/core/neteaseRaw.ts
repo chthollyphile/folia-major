@@ -1,10 +1,10 @@
 import { name as backendName, version as backendVersion } from '@neteasecloudmusicapienhanced/api/package.json';
-import { OnlineProviderError } from '../../../types/onlineMusic';
-import type { JsonValue, OnlineRawRequestProvider, ProviderRawEndpoint } from '../../../types/onlineMusic';
+import { OnlineProviderError } from '../../../src/types/onlineMusic';
+import type { JsonValue, OnlineRawRequestProvider, ProviderRawEndpoint } from '../../../src/types/onlineMusic';
 import { httpErrorStatusOf, requestNeteaseRoute } from './netease';
 import { describeNeteaseFailure, neteaseAnswerError } from './neteaseFailure';
 
-// src/services/onlineMusic/netease/neteaseRaw.ts
+// sources/netease/core/neteaseRaw.ts
 // NetEase's raw endpoints (OnlineRawRequestProvider, for the Folium experimental `platform.raw`): the
 // table of which modules of the pinned backend (@neteasecloudmusicapienhanced/api, see UPSTREAMS.md)
 // may be called, and the request itself. An endpoint is the backend's module name (`user_record`), the

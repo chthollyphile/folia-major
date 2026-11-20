@@ -267,7 +267,7 @@ describeWithLintRuntime('dedicatus project rules (ESLint)', async () => {
     tester.run('dedicatus/registered-sites', plugin.rules['registered-sites'], {
         valid: [
             // D121：登记过的函数依据平台记录给出下架；比较、类型表不算“给出”
-            { code: "export const resolveNeteaseSongAvailability = (song) => ({ state: 'unavailable', reason: 'taken-down' });", filename: inRepo('src/services/onlineMusic/netease/netease.ts'), options: sitesOptions },
+            { code: "export const resolveNeteaseSongAvailability = (song) => ({ state: 'unavailable', reason: 'taken-down' });", filename: inRepo('sources/netease/core/netease.ts'), options: sitesOptions },
             { code: "if (shown.case === 'taken-down') present(shown);", filename: inRepo('src/services/onlineMusic/qq/qqProvider.ts'), options: sitesOptions },
             // 查询也是读
             { code: "const down = reasons.includes('taken-down') || DOWN.has('taken-down') || isFailureCase(failure, 'taken-down'); const text = TEXTS['taken-down'];", filename: inRepo('src/components/x/Thing.tsx'), options: sitesOptions },

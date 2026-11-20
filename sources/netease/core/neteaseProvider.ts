@@ -1,5 +1,5 @@
-import type { SongResult, UnifiedSong } from '../../../types';
-import { OnlineProviderError } from '../../../types/onlineMusic';
+import type { SongResult, UnifiedSong } from '../../../src/types';
+import { OnlineProviderError } from '../../../src/types/onlineMusic';
 import type {
     AudioQualityPreference,
     DailyStyleGroup,
@@ -13,15 +13,15 @@ import type {
     ProviderSongReplacement,
     ProviderArtistSummary,
     ProviderUser,
-} from '../../../types/onlineMusic';
-import { getPersonalFmRequestOptions } from '../../../stores/usePersonalFmModeStore';
-import { parseNeteaseChorusRanges, processNeteaseLyrics } from '../../../utils/lyrics/neteaseProcessing';
-import { getPlaybackSourceRef } from '../../../utils/appPlaybackGuards';
-import { toFiniteNumber } from '../../../utils/replayGain';
-import { createProviderSongMetadata } from '../../../utils/songMetadata';
+} from '../../../src/types/onlineMusic';
+import { getPersonalFmRequestOptions } from '../../../src/stores/usePersonalFmModeStore';
+import { parseNeteaseChorusRanges, processNeteaseLyrics } from '../../../src/utils/lyrics/neteaseProcessing';
+import { getPlaybackSourceRef } from '../../../src/utils/appPlaybackGuards';
+import { toFiniteNumber } from '../../../src/utils/replayGain';
+import { createProviderSongMetadata } from '../../../src/utils/songMetadata';
 import { NeteaseLoginHttpError, getNeteaseRemoteApiBase, httpErrorStatusOf, neteaseApi, resolveNeteaseSongAvailability } from './netease';
-import i18n from '../../../i18n/config';
-import { readProviderSessionValue, removeProviderSessionValue, writeProviderSessionValue } from '../providerStorage';
+import i18n from '../../../src/i18n/config';
+import { readProviderSessionValue, removeProviderSessionValue, writeProviderSessionValue } from '../../../src/services/onlineMusic/providerStorage';
 import { readNeteaseOldAccountCache, removeNeteaseOldAccountCache } from './neteaseOldAccountCache';
 import { collectNeteaseLoginDiagnostics } from './neteaseLoginDiagnostics';
 import { describeNeteaseLoginFailure, neteaseCheckFailure } from './neteaseLoginFailure';
@@ -29,13 +29,13 @@ import { describeNeteaseFailure, isRefusedNeteaseAnswer, neteaseAnswerError, net
 import { neteaseLocalService, watchNeteaseLocalService } from './neteaseLocalService';
 import { createNeteaseExplore } from './neteaseExplore';
 import { neteaseRaw } from './neteaseRaw';
-import { LISTENING_RANK_RANGES, listeningRankCollection, listeningRankPage, withListenCount } from '../listeningRank';
-import { canRunLoginSelfCheck, runLoginSelfCheck } from '../loginSelfCheck';
-import { diagnosticLine, formatDiagnosticClock } from '../login/loginDiagnosticReport';
+import { LISTENING_RANK_RANGES, listeningRankCollection, listeningRankPage, withListenCount } from '../../../src/services/onlineMusic/listeningRank';
+import { canRunLoginSelfCheck, runLoginSelfCheck } from '../../../src/services/onlineMusic/loginSelfCheck';
+import { diagnosticLine, formatDiagnosticClock } from '../../../src/services/onlineMusic/login/loginDiagnosticReport';
 import { registerNeteaseLyricSource } from './neteaseLyricSource';
-import { DEFAULT_PERSONAL_FM_CATALOG } from '../fmModes';
+import { DEFAULT_PERSONAL_FM_CATALOG } from '../../../src/services/onlineMusic/fmModes';
 
-// src/services/onlineMusic/netease/neteaseProvider.ts
+// sources/netease/core/neteaseProvider.ts
 
 export const toNeteaseId = (id: MediaId): number => {
     const numericId = Number(id);

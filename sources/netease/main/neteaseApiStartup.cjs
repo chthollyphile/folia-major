@@ -1,7 +1,7 @@
-const { isNetworkFailureMessage } = require('../../shared/networkErrorText.cjs');
-const { waitUntilListening: waitUntilBound } = require('../backendLifecycle.cjs');
+const { isNetworkFailureMessage } = require('../../../shared/networkErrorText.cjs');
+const { waitUntilListening: waitUntilBound } = require('../../../electron/backendLifecycle.cjs');
 
-// electron/netease/neteaseApiStartup.cjs
+// sources/netease/main/neteaseApiStartup.cjs
 // 网易本地 API 的启动与请求管线上用到的纯函数：启动期网络调用的超时与重试、xeapi 公钥与匿名 token 的刷新、
 // 来源 IP 策略、扫码请求的网络层重试、替换上游 login_qr_check。装配顺序见 neteaseApiWorker.cjs。
 

@@ -1,7 +1,7 @@
 const path = require('path');
 const { Worker, SHARE_ENV } = require('worker_threads');
 
-// electron/netease/neteaseApiHost.cjs
+// sources/netease/main/neteaseApiHost.cjs
 // 主进程这一侧。网易云本地 API 在工作线程里加载和运行（neteaseApiWorker.cjs，原因写在那里）；
 // 这里开线程，把「启动」和「取诊断」发过去等回话，把线程里的日志接回主进程的 console。
 

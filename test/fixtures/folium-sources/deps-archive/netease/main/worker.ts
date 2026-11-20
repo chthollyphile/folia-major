@@ -5,7 +5,7 @@ import path from 'node:path';
 import { parentPort } from 'node:worker_threads';
 import { answerError, freePort, runSteps, untilListening, withTimeout } from '../../shared/smoke';
 // test/fixtures/folium-sources/deps-archive/netease/main/worker.ts
-// 网易云依赖归档样例的 worker（worker.cjs）：照宿主 electron/netease/neteaseApiWorker.cjs 的形态，在工作线程里
+// 网易云依赖归档样例的 worker（worker.cjs）：照 sources/netease/main/neteaseApiWorker.cjs（迁之前在宿主的 electron/netease/） 的形态，在工作线程里
 // 从 deps 归档加载上游，先经 require.cache 换掉它的 util/request（宿主就是这样挂请求管线的），再起本地服务，
 // 发一次匿名搜索。替换赶在 main / server 首次 require util/request 之前，所以上游全用动态 import 按顺序取。
 

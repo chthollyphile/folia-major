@@ -2,7 +2,7 @@ import { OnlineProviderError } from '../../types/onlineMusic';
 import type { OnlineMusicProvider, OnlineProviderId, ProviderCapabilities } from '../../types/onlineMusic';
 import type { SongResult } from '../../types';
 import { getPlaybackSourceRef } from '../../utils/appPlaybackGuards';
-import { neteaseProvider } from './netease/neteaseProvider';
+import { neteaseProvider } from '../../../sources/netease/core/neteaseProvider';
 import { startsWithoutSources } from '../../dev/devLaunchFlags';
 import { announceCacheLimit } from '../audioCache';
 

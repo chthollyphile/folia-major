@@ -617,7 +617,7 @@ const parseNeteaseLyricsSynchronously = async ({
     source,
     songId,
 }: {
-    neteaseApi: Awaited<typeof import('../../../src/services/onlineMusic/netease/netease')>['neteaseApi'];
+    neteaseApi: Awaited<typeof import('../../../sources/netease/core/netease')>['neteaseApi'];
     detectTimedLyricFormat: Awaited<typeof import('../../../src/utils/lyrics/formatDetection')>['detectTimedLyricFormat'];
     parseLyricsByFormat: Awaited<typeof import('../../../src/utils/lyrics/parserCore')>['parseLyricsByFormat'];
     extractNeteaseLyricPayload: Awaited<typeof import('../../../src/utils/lyrics/neteaseProcessing')>['extractNeteaseLyricPayload'];
@@ -699,7 +699,7 @@ export const runLyricSourceOffsetAudit = async (options: CliOptions): Promise<Ly
         { resolveLyricProcessingOptions },
         { applyDetectedChorusEffects, applyChorusRangesByTime },
     ] = await Promise.all([
-        import('../../../src/services/onlineMusic/netease/netease'),
+        import('../../../sources/netease/core/netease'),
         import('../qqLyricProvider'),
         import('../kugouLyricProvider'),
         import('../../../src/utils/lyrics/searchQuery'),

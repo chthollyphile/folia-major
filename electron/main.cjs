@@ -4966,7 +4966,7 @@ async function clearCoverCacheDirectory() {
 }
 
 const { createNetworkRecorder } = require('./networkRecorder.cjs');
-const { createNeteaseBackend } = require('./netease/neteaseBackend.cjs');
+const { createNeteaseBackend } = require('../sources/netease/main/neteaseBackend.cjs');
 const { registerLoginBackendIpc } = require('./loginBackendIpc.cjs');
 
 // 主线程里内嵌后端的出站连接记录：要在它们发出请求之前开始订阅。工作线程里发出的请求另有一份记录（见 networkRecorder.cjs）。

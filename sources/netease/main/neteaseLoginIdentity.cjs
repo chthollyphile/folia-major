@@ -1,7 +1,7 @@
-const { isConnectionResetMessage } = require('../../shared/networkErrorText.cjs');
+const { isConnectionResetMessage } = require('../../../shared/networkErrorText.cjs');
 const { readCookieField } = require('./neteaseLoginDiagnostics.cjs');
 
-// electron/netease/neteaseLoginIdentity.cjs
+// sources/netease/main/neteaseLoginIdentity.cjs
 // 扫码请求被网易直接断开（连接被重置）后，同一设备标识和出口 IP 下继续扫码多半还是被断；用户反馈要重新联网
 // （换出口 IP）或重启应用才恢复。扫码请求走 eapi，Cookie 只带 header 里的几项，其中重启会换掉的是：
 // - deviceId：取 global.deviceId，每次启动随机生成。「重启后端」只在后端故障时重新初始化，届时上游

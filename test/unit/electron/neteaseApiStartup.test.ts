@@ -14,7 +14,7 @@ const {
     waitUntilListening,
     withQrNetworkRetry,
     withoutImplicitClientIp,
-} = require('../../../electron/netease/neteaseApiStartup.cjs') as {
+} = require('../../../sources/netease/main/neteaseApiStartup.cjs') as {
     OFFLINE_RETRY_GAP_MS: number;
     createLoginQrCheck: (
         createOption: (query: Record<string, unknown>) => Record<string, unknown>,
@@ -418,7 +418,7 @@ describe('NetEase API sign-in check module', () => {
         const notThrough = { status: 502, body: { code: 502, msg: 'getaddrinfo ENOTFOUND interfacepc.music.163.com' }, cookie: [] };
         await expect(check({ key: 'qr-key', cookie: {} }, () => Promise.reject(notThrough))).rejects.toBe(notThrough);
 
-        const worker = readFileSync(new URL('../../../electron/netease/neteaseApiWorker.cjs', import.meta.url), 'utf8');
+        const worker = readFileSync(new URL('../../../sources/netease/main/neteaseApiWorker.cjs', import.meta.url), 'utf8');
         const installedAt = worker.indexOf('installLoginQrCheck();');
         expect(installedAt).toBeGreaterThan(-1);
         expect(installedAt).toBeLessThan(worker.indexOf('require(`${NCM_PACKAGE}/main`)'));

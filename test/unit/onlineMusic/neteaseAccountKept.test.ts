@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { neteaseProvider } from '@/services/onlineMusic/netease/neteaseProvider';
+import { neteaseProvider } from '../../../sources/netease/core/neteaseProvider';
 import { omni } from '@/services/onlineMusic/omni';
 import { useOnlineProviderAccountStore } from '@/stores/useOnlineProviderAccountStore';
 

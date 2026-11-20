@@ -37,7 +37,7 @@ const loadEnvLocal = () => {
     });
 };
 loadEnvLocal();
-import { neteaseApi } from '../../src/services/onlineMusic/netease/netease';
+import { neteaseApi } from '../../sources/netease/core/netease';
 import type { LyricData } from '../../src/types';
 import { applyDetectedChorusEffects } from '../../src/utils/lyrics/chorusEffects';
 import { detectTimedLyricFormat } from '../../src/utils/lyrics/formatDetection';

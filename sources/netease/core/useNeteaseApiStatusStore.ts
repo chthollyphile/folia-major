@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-// src/services/onlineMusic/netease/useNeteaseApiStatusStore.ts
+// sources/netease/core/useNeteaseApiStatusStore.ts
 // Mirrors the Electron NetEase backend lifecycle into the renderer.
 //
 // The local NetEase server is a hard dependency of every NetEase feature, including QR login: when

@@ -1,15 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { NeteaseLoginHttpError, neteaseApi } from '@/services/onlineMusic/netease/netease';
-import { describeNeteaseFailure } from '@/services/onlineMusic/netease/neteaseFailure';
-import { NETEASE_SONG_DETAIL_BATCH, neteaseProvider } from '@/services/onlineMusic/netease/neteaseProvider';
+import { NeteaseLoginHttpError, neteaseApi } from '../../../sources/netease/core/netease';
+import { describeNeteaseFailure } from '../../../sources/netease/core/neteaseFailure';
+import { NETEASE_SONG_DETAIL_BATCH, neteaseProvider } from '../../../sources/netease/core/neteaseProvider';
 import type { UnifiedSong } from '@/types';
 import { OnlineProviderError } from '@/types/onlineMusic';
 import { parseLyricsAsync } from '@/utils/lyrics/workerClient';
 
 // test/unit/onlineMusic/neteaseProvider.test.ts
 
-vi.mock('@/services/onlineMusic/netease/netease', async importOriginal => ({
-    ...await importOriginal<typeof import('@/services/onlineMusic/netease/netease')>(),
+vi.mock('../../../sources/netease/core/netease', async importOriginal => ({
+    ...await importOriginal<typeof import('../../../sources/netease/core/netease')>(),
     isSongMarkedUnavailable: (candidate: UnifiedSong) => candidate.privilege?.st === -200,
     getNeteaseRemoteApiBase: () => null,
     neteaseApi: {

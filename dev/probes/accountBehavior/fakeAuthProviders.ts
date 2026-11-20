@@ -1,6 +1,6 @@
 import type { UnifiedSong } from '../../../src/types';
 import type { LoginSelfCheckResult, OnlineMusicProvider } from '../../../src/types/onlineMusic';
-import { useNeteaseApiStatusStore } from '../../../src/services/onlineMusic/netease/useNeteaseApiStatusStore';
+import { useNeteaseApiStatusStore } from '../../../sources/netease/core/useNeteaseApiStatusStore';
 import { diagnosticLine } from '../../../src/services/onlineMusic/login/loginDiagnosticReport';
 import { ACCOUNT_CANCEL_COOLDOWN_MS, ACCOUNT_NETEASE, accountUser, qrKeyOf, type AccountProviderRule } from './accountFixtureRules';
 import type { AccountCall, AccountQrState, AccountSelfCheckScript } from './probeApi';

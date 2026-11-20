@@ -2,7 +2,7 @@
 import { beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
 import type { UnifiedSong } from '@/types';
 import type { OnlineMusicProvider } from '@/types/onlineMusic';
-import { neteaseApi } from '@/services/onlineMusic/netease/netease';
+import { neteaseApi } from '../../../sources/netease/core/netease';
 import { getOnlineMusicProvider } from '@/services/onlineMusic/providerRegistry';
 import {
     findAutomaticOnlineMetadataCandidate,
@@ -12,7 +12,7 @@ import {
 // test/unit/localLibrary/onlineMetadataSearchService.test.ts
 // Verifies metadata-only provider selection and exact manual query forwarding.
 
-vi.mock('@/services/onlineMusic/netease/netease', () => ({ neteaseApi: { cloudSearch: vi.fn() } }));
+vi.mock('../../../sources/netease/core/netease', () => ({ neteaseApi: { cloudSearch: vi.fn() } }));
 
 const song = {
     id: 'local-song',

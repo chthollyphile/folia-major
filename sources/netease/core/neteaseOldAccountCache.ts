@@ -1,8 +1,8 @@
-import type { MediaId, ProviderCollection, ProviderUser } from '../../../types/onlineMusic';
-import { removeCacheEntries } from '../../db';
-import { getProviderCacheKey, getProviderCacheWithLegacyMigration } from '../providerStorage';
+import type { MediaId, ProviderCollection, ProviderUser } from '../../../src/types/onlineMusic';
+import { removeCacheEntries } from '../../../src/services/db';
+import { getProviderCacheKey, getProviderCacheWithLegacyMigration } from '../../../src/services/onlineMusic/providerStorage';
 
-// src/services/onlineMusic/netease/neteaseOldAccountCache.ts
+// sources/netease/core/neteaseOldAccountCache.ts
 // What builds from before the account snapshot (providerAccountCache.ts) kept of the signed-in
 // NetEase account: four caches, one each for the user, the playlists, the liked song ids and the
 // cloud entry. Nothing writes them any more. They are read where no snapshot is found, so that a
