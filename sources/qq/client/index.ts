@@ -1,5 +1,5 @@
 import type { FoliumClientApi } from '@folia/folium';
-import { createSource, forgetQqBackendPort } from '../core';
+import { createSource, disposeSource, forgetQqBackendPort } from '../core';
 
 // sources/qq/client/index.ts
 // QQ 音乐音源模组的 client 入口：core 的 createSource 拿 folium 拼出的 env，后端请求直接发到 main 入口里内嵌
@@ -7,7 +7,7 @@ import { createSource, forgetQqBackendPort } from '../core';
 // （main/index.ts）；名字、登录窗口、探索页、偏好与云盘的文字来自模组自己的语言表；在第一个 await 之前注册（方案 §5.4）。
 
 /** client 入口。 */
-export default function activate(folium: FoliumClientApi): void {
+export default function activate(folium: FoliumClientApi): () => void {
     folium.sources.register(createSource({
         modId: folium.modId,
         call: <T>(name: string, ...args: unknown[]) => folium.rpc.call<T>(name, ...args),
@@ -22,4 +22,6 @@ export default function activate(folium: FoliumClientApi): void {
     folium.rpc.on('status', () => {
         forgetQqBackendPort();
     });
+    // Switched off, or matching only and unloaded: the module's timer and port go with it.
+    return disposeSource;
 }

@@ -24,3 +24,12 @@ export const createSource = (env: QqSourceEnv): FoliumSourceDef => {
     resetQqProviderRuntimeCache();
     return createQqSource();
 };
+
+/**
+ * What the source leaves when it stops: the hourly session refresh (a timer the module keeps, which would go on asking
+ * a closed port, or start the backend of a source only used for matching), the backend's port and the cached answers.
+ */
+export const disposeSource = (): void => {
+    resetQqProviderRuntimeCache();
+    resetQqTransportRuntimeCache();
+};
