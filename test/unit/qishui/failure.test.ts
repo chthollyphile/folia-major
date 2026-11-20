@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { qishuiProvider } from '@/services/onlineMusic/qishui/qishuiProvider';
 import { describeQishuiFailure } from '@/services/onlineMusic/qishui/qishuiFailure';
-import { clearQishuiPlayback } from '@/services/onlineMusic/qishui/qishuiPlayback';
+import { clearQishuiPlayback, readQishuiSongs } from '@/services/onlineMusic/qishui/qishuiPlayback';
 import { readQishuiSceneIcon, requestQishui } from '@/services/onlineMusic/qishui/qishuiTransport';
+import { normalizeQishuiSong } from '@/services/onlineMusic/qishui/qishuiNormalize';
 import { onlineFailureOf } from '@/services/onlineMusic/failure/onlineFailureCase';
 import { omni } from '@/services/onlineMusic/omni';
 import { track } from './fixtures';
@@ -45,6 +46,13 @@ describe('Qishui failure cases', () => {
         expect(shown.case).toBe('no-audio');
         expect(shown.facts.message).toBeUndefined();
     });
+    it('does not name a takedown from an empty audio answer alone', async () => {
+        // The audio request and a look-up by id share this sentence; only qishuiPlayback's re-check may
+        // turn it into a takedown (see the audio-request block below).
+        const error = await thrownBy(refusal('not-playable', 'Qishui did not return the track'));
+        expect(describeQishuiFailure('audio', error)).toBeNull();
+        expect(caseOf(error).case).toBe('no-audio');
+    });
     it('says "sign in to play" when nobody is signed in', async () => {
         const error = await thrownBy(refusal('auth-required', 'Sign in to Qishui first'));
         expect(caseOf(error)).toMatchObject({ case: 'sign-in-needed', facts: { signedOut: true } });
@@ -64,6 +72,75 @@ describe('Qishui failure cases', () => {
     });
     it('is the provider\'s describeFailure', () => {
         expect(qishuiProvider.describeFailure).toBe(describeQishuiFailure);
+    });
+});
+
+describe('Qishui playability records', () => {
+    it('reads the service\'s own record before the risk check', async () => {
+        request.mockResolvedValueOnce({ ok: true, data: { statuses: [
+            { id: '1', riskResult: 0, status: 0 },
+            { id: '2', riskResult: -2, status: 20 },
+            { id: '3', riskResult: -2, status: 10 },
+            { id: '4', riskResult: -2, status: 0 },
+            // The record says "not served" where the risk check would have said "playable": status wins.
+            { id: '6', riskResult: 0, status: 20 },
+            // No status at all: the risk check still answers.
+            { id: '7', riskResult: 0 },
+            // A status that is not an integer is no record: fall through to the risk check.
+            { id: '8', riskResult: 1, status: 20.5 },
+        ] } });
+        const songs = await readQishuiSongs(['1', '2', '3', '4', '5', '6', '7', '8'].map(id => track(id)));
+        const availability = (index: number) => qishuiProvider.playback!.getAvailability!(songs[index]);
+        expect(availability(0)).toEqual({ state: 'playable' });
+        // A media the service will not serve, though the risk check says nothing about it.
+        expect(availability(1)).toEqual({ state: 'unavailable', reason: 'taken-down' });
+        // Encrypted audio only is a restriction, not a takedown.
+        expect(availability(2)).toEqual({ state: 'unknown', reason: 'restricted' });
+        // Served, with no risk result either way, and a media the answer did not mention: both unknown.
+        expect(availability(3)).toEqual({ state: 'unknown' });
+        expect(availability(4)).toEqual({ state: 'unknown' });
+        expect(availability(5)).toEqual({ state: 'unavailable', reason: 'taken-down' });
+        expect(availability(6)).toEqual({ state: 'playable' });
+        expect(availability(7)).toEqual({ state: 'unknown', reason: 'restricted' });
+    });
+});
+
+describe('Qishui audio requests that come back empty', () => {
+    const song = normalizeQishuiSong(track('1'));
+    const emptyAnswer = refusal('not-playable', 'Qishui did not return the track');
+    const audioFailure = async () => {
+        try { await qishuiProvider.playback!.getAudioSource!(song, 'standard'); }
+        catch (error) { return error; }
+        throw new Error('the address request did not fail');
+    };
+    it('names a takedown only after the service\'s own record says status 20', async () => {
+        request.mockImplementationOnce(emptyAnswer)
+            .mockResolvedValueOnce({ ok: true, data: { statuses: [{ id: '1', riskResult: -2, status: 20 }] } });
+        const error = await audioFailure();
+        expect(describeQishuiFailure('audio', error)).toEqual({ case: 'taken-down' });
+        expect(caseOf(error).case).toBe('taken-down');
+        // A playback failure never writes the availability record: only a read of a list does.
+        expect(qishuiProvider.playback!.getAvailability!(song)).toEqual({ state: 'unknown' });
+        // Only the address request is named: the same sentence read elsewhere stays unnamed.
+        expect(describeQishuiFailure('collection', error)).toBeNull();
+    });
+    it('leaves the failure as "no audio" when the record says the media is served', async () => {
+        request.mockImplementationOnce(emptyAnswer)
+            .mockResolvedValueOnce({ ok: true, data: { statuses: [{ id: '1', riskResult: 0, status: 0 }] } });
+        expect(caseOf(await audioFailure()).case).toBe('no-audio');
+    });
+    it('leaves the failure as "no audio" when the record cannot be read or names another media', async () => {
+        request.mockImplementationOnce(emptyAnswer).mockRejectedValueOnce(new Error('An object could not be cloned.'));
+        expect(caseOf(await audioFailure()).case).toBe('no-audio');
+        request.mockImplementationOnce(emptyAnswer)
+            .mockResolvedValueOnce({ ok: true, data: { statuses: [{ id: '2', riskResult: -2, status: 20 }] } });
+        expect(caseOf(await audioFailure()).case).toBe('no-audio');
+    });
+    it('does not ask the record for a failure that is not an empty answer', async () => {
+        request.mockImplementationOnce(refusal('unsupported', 'Qishui returned protected audio only; decryption is disabled'));
+        const error = await audioFailure();
+        expect(caseOf(error).case).toBe('no-audio');
+        expect(request).toHaveBeenCalledTimes(1);
     });
 });
 
