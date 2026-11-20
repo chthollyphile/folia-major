@@ -1,4 +1,4 @@
-// electron/spotify/errors.cjs
+// sources/spotify/main/errors.cjs
 // What a failed Spotify request becomes on its way out of the main process: for the renderer a
 // code it understands and a fixed sentence, for the log the failure's own words with addresses
 // and tokens taken out.
@@ -9,7 +9,7 @@ const CODES = new Set(['auth-required', 'unsupported', 'unavailable', 'not-playa
 class SpotifyError extends Error {
   // `detail` is what the other side said, for the log; the renderer gets the code and the message.
   // `reason` is this process's own word for why a sign-in failed, where it has one; the renderer
-  // gets it too, and sorts the failure by it (src/services/onlineMusic/spotify/spotifyLoginFailure.ts).
+  // gets it too, and sorts the failure by it (sources/spotify/client/spotifyLoginFailure.ts).
   constructor(code, message, detail, reason) {
     super(message);
     this.name = 'SpotifyError';
@@ -22,7 +22,7 @@ class SpotifyError extends Error {
 const spotifyError = (code, message, detail, reason) => new SpotifyError(code, message, detail, reason);
 
 // Spotify asks to wait (429): a sentence of its own, so the renderer can tell it from a network
-// that fails (src/services/onlineMusic/spotify/spotifyFailure.ts). The code stays the one of an
+// that fails (sources/spotify/client/spotifyFailure.ts). The code stays the one of an
 // unreachable service.
 const ASKED_TO_WAIT = 'Spotify asked to wait before trying again';
 
@@ -47,7 +47,7 @@ function toErrorResult(error) {
 }
 
 // The reason word a sign-in is told with when a request to Spotify it waited on failed on the
-// line (src/services/onlineMusic/spotify/spotifyLoginFailure.ts): no answer within the request's
+// line (sources/spotify/client/spotifyLoginFailure.ts): no answer within the request's
 // limit (nothing else stops these requests), Spotify asked to wait, or it could not be reached
 // (a network that fails, 5xx). undefined for any other failure.
 function lineReason(error) {

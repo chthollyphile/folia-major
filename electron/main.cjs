@@ -72,8 +72,6 @@ const {
 } = require('./wallpaper/wallpaperDisplay.cjs');
 const { createExternalUrlOpener } = require('./externalUrlPolicy.cjs');
 const { createSenderGuardedHandler } = require('./ipcAccessGuard.cjs');
-const { createSpotifyApiBridge } = require('./spotify/spotifyApiBridge.cjs');
-const { SPOTIFY_AUDIO_PRIVILEGED_SCHEME, SPOTIFY_AUDIO_SCHEME } = require('./spotify/audio.cjs');
 const { createQqAuthSessionRepository } = require('./qq/qqAuthSessionRepository.cjs');
 const { DEFAULT_DISCORD_APPLICATION_ID, createDiscordPresenceController } = require('./discordPresence.cjs');
 const { createVoiceInputPauseMonitor } = require('./voiceInputPause.cjs');
@@ -94,7 +92,7 @@ const {
 } = require('./updateChannels.cjs');
 const { discoverUpdateVersion, settleWithin } = require('./updateCheckMirrors.cjs');
 const { createUpdateDownloadPhase } = require('./updateDownloadPhase.cjs');
-const { resolveCacheLimit, selectEvictions } = require('./audioCachePrune.cjs');
+const { resolveCacheLimit, selectEvictions, sourceCacheEntries, sourceCacheEntryOf } = require('./audioCachePrune.cjs');
 const { removeAudioCacheFileOfSize } = require('./audioCacheRemove.cjs');
 const { createAnalysisHost } = require('./analysis/host.cjs');
 const { createAcousticsHost } = require('./acoustics/host.cjs');
@@ -171,7 +169,6 @@ protocol.registerSchemesAsPrivileged([
     },
   },
   MOD_PROTOCOL_PRIVILEGED_SCHEME,
-  SPOTIFY_AUDIO_PRIVILEGED_SCHEME,
   // Old media addresses of built-in sources that saved data may still hold (a platform's folia-<id>://): the
   // mod system answers them from the mod's _media routes (builtinSources.cjs's legacyMediaSchemes).
   ...legacyMediaPrivilegedSchemes(BUILTIN_LEGACY_MEDIA_SCHEMES),
@@ -365,36 +362,6 @@ const hifiMpris = process.platform === 'linux'
   : null;
 // Last resort for every way out, app.exit() included: an mpv left behind would keep playing.
 process.on('exit', () => hifiSession.killSync());
-let spotifyNetwork = null;
-const getSpotifyNetwork = () => {
-  if (!spotifyNetwork) {
-    const ses = session.fromPartition('folia-spotify');
-    spotifyNetwork = ses.setProxy({ mode: 'system' }).catch(() => {}).then(() => ses);
-  }
-  return spotifyNetwork;
-};
-const spotifyApiBridge = createSpotifyApiBridge({ store, safeStorage,
-  fetch: async (input, init) => (await getSpotifyNetwork()).fetch(input instanceof URL ? input.href : input, { ...init, credentials: 'omit' }),
-  openExternal: url => shell.openExternal(url),
-  language: () => getMainLocaleKey(),
-  audioDirectory: () => path.join(getConfiguredCacheDirectory(), 'spotify'),
-  onAudioKept: limitBytes => pruneMediaCache(limitBytes),
-  // Soloist (the program the person downloads) keeps its pairing and its cache under the app's data.
-  soloistPaths: {
-    data: () => path.join(app.getPath('userData'), 'soloist', 'data'),
-    cache: () => path.join(app.getPath('userData'), 'soloist', 'cache'),
-  },
-  chooseSoloistFile: async () => {
-    const owner = BrowserWindow.getFocusedWindow();
-    const options = {
-      properties: ['openFile'],
-      defaultPath: app.getPath('downloads'),
-      filters: process.platform === 'win32' ? [{ name: 'Soloist', extensions: ['exe'] }] : [],
-    };
-    const chosen = owner ? await dialog.showOpenDialog(owner, options) : await dialog.showOpenDialog(options);
-    return chosen.canceled ? null : chosen.filePaths[0] ?? null;
-  },
-});
 const qqAuthSessionRepository = createQqAuthSessionRepository({ store, safeStorage });
 // AI API keys are sealed with safeStorage instead of sitting in config.json as plaintext, and never
 // leave the main process: the renderer only sees AI_API_KEYS_CONFIGURED (#586).
@@ -4803,21 +4770,40 @@ async function removeAudioCacheEntry(name) {
   ]);
 }
 
-/** Every file the media-cache budget counts: original audio, transcodes, and Spotify's encrypted files. */
+/** Every file the media-cache budget counts: original audio, transcodes, and source mods' own. */
 async function listMediaCacheEntries() {
-  const [audioEntries, transcodeEntries, spotifyEntries] = await Promise.all([
+  const [audioEntries, transcodeEntries, sourceEntries] = await Promise.all([
     listAudioCacheEntries(),
     transcodeService.listCacheEntries(),
-    spotifyApiBridge.audioFiles.list(),
+    // What the running source mods keep in caches of their own (api.cache.provideEntries): one budget with the rest.
+    modSystem ? modSystem.sourceCaches.list() : [],
   ]);
   return [
     ...audioEntries.map(entry => ({ ...entry, name: `audio:${entry.name}` })),
     ...transcodeEntries.map(entry => ({ ...entry, name: `transcode:${entry.name}` })),
-    ...spotifyEntries.map(entry => ({ ...entry, name: `spotify:${entry.name}` })),
+    ...sourceCacheEntries(sourceEntries),
   ];
 }
 
-/** Prunes original, transcoded and Spotify audio as one media-cache budget. */
+/*
+ * The media cache limit the main window last named (bytes, 0 for none: the listener's setting lives in the renderer).
+ * Every audio cache write names it, and so does the window before a source keeps a file in a cache of its own. A
+ * source mod's api.cache.requestPrune() without a limit trims to it; until the window has named one, such a request
+ * is left alone, since the host's default could trim a cache the listener let grow past it.
+ */
+let mediaCacheLimitBytes = null;
+function noteMediaCacheLimit(limitBytes) {
+  if (typeof limitBytes === 'number' && Number.isFinite(limitBytes) && limitBytes >= 0) mediaCacheLimitBytes = limitBytes;
+}
+
+// api.cache.requestPrune(limitBytes?) of a source mod's main entry.
+function pruneMediaCacheForSource(limitBytes) {
+  if (typeof limitBytes === 'number' && Number.isFinite(limitBytes)) return pruneMediaCache(limitBytes);
+  if (mediaCacheLimitBytes === null) return undefined;
+  return pruneMediaCache(mediaCacheLimitBytes);
+}
+
+/** Prunes original and transcoded audio and source mods' caches as one media-cache budget. */
 async function pruneMediaCache(limitBytes, protectedTranscodeEntry = null) {
   const resolvedLimit = resolveCacheLimit(limitBytes);
   if (resolvedLimit === Infinity) return;
@@ -4839,7 +4825,10 @@ async function pruneMediaCache(limitBytes, protectedTranscodeEntry = null) {
     for (const name of selectEvictions(entries, effectiveLimit)) {
       if (name.startsWith('audio:')) await removeAudioCacheEntry(name.slice('audio:'.length));
       else if (name.startsWith('transcode:')) await transcodeService.removeCacheEntry(name.slice('transcode:'.length));
-      else if (name.startsWith('spotify:')) await spotifyApiBridge.audioFiles.remove(name.slice('spotify:'.length));
+      else {
+        const sourceEntry = sourceCacheEntryOf(name);
+        if (sourceEntry) await modSystem?.sourceCaches.remove(sourceEntry.modId, sourceEntry.id);
+      }
     }
   } catch (error) {
     console.warn('[AudioCache] Failed to prune media cache directories', error);
@@ -4896,7 +4885,7 @@ async function clearAudioCacheDirectory() {
     await Promise.all([
       fsp.rm(getAudioCacheDirectory(), { recursive: true, force: true }),
       transcodeService.clearCache(),
-      spotifyApiBridge.audioFiles.clear(),
+      modSystem?.sourceCaches.clear(),
     ]);
   } catch (error) {
     console.warn('[AudioCache] Failed to clear cache directory', error);
@@ -5351,9 +5340,6 @@ async function rebuildMainWindowWithPlaybackHandoff(reason, stillWanted = () => 
 // the window that did can no longer reach them once it is replaced (its requests are refused).
 function pauseExternalPlayersNobodyFollows(reason) {
   console.log('[Electron] no window takes the playback over; pausing the players outside the window', { reason });
-  spotifyApiBridge.pauseSoloist().catch((error) => {
-    console.warn('[Electron] Soloist could not be paused', error);
-  });
   modSystem?.notePlayersOrphaned(reason);
 }
 
@@ -6375,7 +6361,6 @@ app.whenReady().then(async () => {
   setupVideoExportDisplayMediaHandler();
   setupCorsBypassHandlers();
   localCoverAssetStore.registerProtocolHandler(protocol, electronNet);
-  protocol.handle(SPOTIFY_AUDIO_SCHEME, request => spotifyApiBridge.handleAudioRequest(request));
   // Transcode fallback is an optional degradation path; a failure preparing it must never keep
   // the rest of this handler, createWindow() included, from running.
   try {
@@ -6447,7 +6432,9 @@ app.whenReady().then(async () => {
       hostStore: store,
       diagnostics: loginDiagnostics,
       reportError: (where, error) => crashLog.reportError(where, error, { announceToUser: false }),
-      requestCachePrune: (limitBytes) => pruneMediaCache(limitBytes),
+      requestCachePrune: (limitBytes) => pruneMediaCacheForSource(limitBytes),
+      // api.cache.legacyDir: a built-in source's cache of before, in the media cache folder the listener chose.
+      legacyCacheDir: (name) => path.join(getConfiguredCacheDirectory(), name),
       openExternal: (url) => openExternalUrl(url),
       // api.native.path / load: the native files the app ships for a built-in source (electron/modSystem/nativeFiles.cjs).
       nativePath: (name) => resolveNativeFile(name, {
@@ -6664,20 +6651,18 @@ app.on('window-all-closed', () => {
   }
 });
 
-// The bridges whose work under way holds a quit, each through its shutdown() (see before-quit).
-const quitHoldingBridges = [spotifyApiBridge];
-// Set while a quit is held for such work (see before-quit).
+// Set while a quit is held for a source mod's work (see before-quit).
 let isQuitHeldForAccounts = false;
 
 app.on('before-quit', (event) => {
-  // Work that must not be cut off: a token renewal whose answer is not stored yet, as the next run
-  // may not be able to use the token it replaces; a source mod's (its api.onBeforeQuit, through
-  // modSystem.prepareQuit), such as a web sign-in under way, whose ended browser leaves a folder
-  // holding a whole sign-in session to remove. shutdown() answers a promise
-  // while there is such work, settled in 3 seconds at most. The quit is held until all have
-  // settled, and then asked for again; nothing below has run by then. A quit with no such work is
-  // not held, and neither is one that arrives while another is held.
-  const held = [...quitHoldingBridges.map(bridge => bridge.shutdown()), modSystem?.prepareQuit()].filter(Boolean);
+  // Work of a source mod that must not be cut off (its api.onBeforeQuit, through modSystem.prepareQuit): a
+  // token renewal whose answer is not stored yet, as the next run may not be able to use the token it
+  // replaces; a web sign-in under way, whose ended browser leaves a folder holding a whole sign-in session
+  // to remove; a program of its own still playing. prepareQuit() answers a promise while there is such work,
+  // settled in a few seconds at most. The quit is held until it has settled, and then asked for again;
+  // nothing below has run by then. A quit with no such work is not held, and neither is one that arrives
+  // while another is held.
+  const held = [modSystem?.prepareQuit()].filter(Boolean);
   if (held.length > 0 && !isQuitHeldForAccounts) {
     isQuitHeldForAccounts = true;
     event.preventDefault();
@@ -7269,7 +7254,14 @@ ipcMain.handle('has-audio-cache', firstParty('has-audio-cache', async (event, ca
 }));
 
 ipcMain.handle('save-audio-cache', firstParty('save-audio-cache', async (event, cacheKey, data, mimeType, limitBytes) => {
+  noteMediaCacheLimit(limitBytes);
   await writeAudioCacheEntry(cacheKey, data, mimeType, limitBytes);
+  return true;
+}));
+
+// The listener's media cache limit, named before a source keeps a file in a cache of its own (see noteMediaCacheLimit).
+ipcMain.handle('set-media-cache-limit', firstParty('set-media-cache-limit', async (event, limitBytes) => {
+  noteMediaCacheLimit(limitBytes);
   return true;
 }));
 
@@ -7351,13 +7343,6 @@ const { diagnostics: loginDiagnostics } = registerLoginBackendIpc({
   neteaseBackend,
   qqBackend,
   isTrustedSender: isFirstPartyWindowContents,
-});
-
-ipcMain.handle('spotify-api-request', (event, operation, params) => {
-  if (!isTrustedMainWindowContents(event.sender)) {
-    return { ok: false, error: { code: 'unavailable', message: 'Untrusted Spotify request' } };
-  }
-  return spotifyApiBridge.request(operation, params);
 });
 
 ipcMain.handle('window-minimize', firstParty('window-minimize', () => {

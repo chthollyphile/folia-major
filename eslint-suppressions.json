@@ -893,7 +893,7 @@
       "count": 5634
     },
     "dedicatus/restricted-apis": {
-      "count": 6
+      "count": 5
     },
     "no-extra-boolean-cast": {
       "count": 3
@@ -1046,52 +1046,6 @@
   "electron/remoteControlWindowSettings.cjs": {
     "@stylistic/indent": {
       "count": 20
-    }
-  },
-  "electron/spotify/audio.cjs": {
-    "@stylistic/indent": {
-      "count": 407
-    }
-  },
-  "electron/spotify/audioFiles.cjs": {
-    "@stylistic/indent": {
-      "count": 87
-    }
-  },
-  "electron/spotify/errors.cjs": {
-    "@stylistic/indent": {
-      "count": 26
-    }
-  },
-  "electron/spotify/session.cjs": {
-    "@stylistic/indent": {
-      "count": 82
-    },
-    "dedicatus/restricted-apis": {
-      "count": 2
-    }
-  },
-  "electron/spotify/signIn.cjs": {
-    "@stylistic/indent": {
-      "count": 132
-    }
-  },
-  "electron/spotify/soloist.cjs": {
-    "@stylistic/indent": {
-      "count": 620
-    },
-    "dedicatus/restricted-apis": {
-      "count": 2
-    }
-  },
-  "electron/spotify/soloistBuild.cjs": {
-    "@stylistic/indent": {
-      "count": 53
-    }
-  },
-  "electron/spotify/spotifyApiBridge.cjs": {
-    "@stylistic/indent": {
-      "count": 498
     }
   },
   "electron/stageApi.cjs": {
@@ -1539,6 +1493,100 @@
     },
     "@typescript-eslint/no-non-null-assertion": {
       "count": 1
+    }
+  },
+  "sources/spotify/client/spotifyExplore.ts": {
+    "@typescript-eslint/no-non-null-assertion": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unnecessary-type-assertion": {
+      "count": 3
+    },
+    "@typescript-eslint/use-unknown-in-catch-callback-variable": {
+      "count": 2
+    }
+  },
+  "sources/spotify/client/spotifyMutations.ts": {
+    "@typescript-eslint/no-unnecessary-condition": {
+      "count": 1
+    }
+  },
+  "sources/spotify/client/spotifyNormalize.ts": {
+    "@typescript-eslint/no-non-null-assertion": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unnecessary-condition": {
+      "count": 2
+    },
+    "@typescript-eslint/no-unnecessary-type-conversion": {
+      "count": 2
+    }
+  },
+  "sources/spotify/client/spotifyRecommendations.ts": {
+    "@typescript-eslint/no-non-null-assertion": {
+      "count": 1
+    },
+    "@typescript-eslint/require-await": {
+      "count": 1
+    }
+  },
+  "sources/spotify/client/spotifySoloistPlayback.ts": {
+    "@typescript-eslint/no-redundant-type-constituents": {
+      "count": 4
+    },
+    "@typescript-eslint/no-unnecessary-boolean-literal-compare": {
+      "count": 1
+    },
+    "@typescript-eslint/no-unnecessary-condition": {
+      "count": 1
+    },
+    "@typescript-eslint/use-unknown-in-catch-callback-variable": {
+      "count": 1
+    }
+  },
+  "sources/spotify/client/spotifyTransport.ts": {
+    "@typescript-eslint/no-unnecessary-condition": {
+      "count": 1
+    }
+  },
+  "sources/spotify/main/audio.cjs": {
+    "@stylistic/indent": {
+      "count": 407
+    }
+  },
+  "sources/spotify/main/audioFiles.cjs": {
+    "@stylistic/indent": {
+      "count": 87
+    }
+  },
+  "sources/spotify/main/errors.cjs": {
+    "@stylistic/indent": {
+      "count": 26
+    }
+  },
+  "sources/spotify/main/session.cjs": {
+    "@stylistic/indent": {
+      "count": 82
+    }
+  },
+  "sources/spotify/main/signIn.cjs": {
+    "@stylistic/indent": {
+      "count": 132
+    }
+  },
+  "sources/spotify/main/soloist.cjs": {
+    "@stylistic/indent": {
+      "count": 620
+    }
+  },
+  "sources/spotify/main/soloistBuild.cjs": {
+    "@stylistic/indent": {
+      "count": 53
+    }
+  },
+  "sources/spotify/main/spotifyApiBridge.cjs": {
+    "@stylistic/indent": {
+      "count": 498
     }
   },
   "sources/ytm/client/ytmCatalog.ts": {
@@ -10267,66 +10315,6 @@
       "count": 1
     }
   },
-  "src/services/onlineMusic/spotify/spotifyExplore.ts": {
-    "@typescript-eslint/no-non-null-assertion": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unnecessary-type-assertion": {
-      "count": 3
-    },
-    "@typescript-eslint/use-unknown-in-catch-callback-variable": {
-      "count": 2
-    }
-  },
-  "src/services/onlineMusic/spotify/spotifyMutations.ts": {
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 1
-    }
-  },
-  "src/services/onlineMusic/spotify/spotifyNormalize.ts": {
-    "@typescript-eslint/no-non-null-assertion": {
-      "count": 2
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 2
-    },
-    "@typescript-eslint/no-unnecessary-type-assertion": {
-      "count": 3
-    },
-    "@typescript-eslint/no-unnecessary-type-conversion": {
-      "count": 2
-    }
-  },
-  "src/services/onlineMusic/spotify/spotifyRecommendations.ts": {
-    "@typescript-eslint/no-non-null-assertion": {
-      "count": 1
-    },
-    "@typescript-eslint/require-await": {
-      "count": 1
-    }
-  },
-  "src/services/onlineMusic/spotify/spotifySoloistPlayback.ts": {
-    "@typescript-eslint/no-redundant-type-constituents": {
-      "count": 4
-    },
-    "@typescript-eslint/no-unnecessary-boolean-literal-compare": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 1
-    },
-    "@typescript-eslint/use-unknown-in-catch-callback-variable": {
-      "count": 1
-    }
-  },
-  "src/services/onlineMusic/spotify/spotifyTransport.ts": {
-    "@typescript-eslint/no-non-null-assertion": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
-      "count": 1
-    }
-  },
   "src/services/onlinePlayback.ts": {
     "@stylistic/indent": {
       "count": 4
@@ -11638,7 +11626,7 @@
       "count": 997
     },
     "@typescript-eslint/consistent-type-imports": {
-      "count": 49
+      "count": 46
     },
     "@typescript-eslint/no-explicit-any": {
       "count": 4

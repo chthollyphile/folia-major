@@ -1,6 +1,6 @@
 const { execFile } = require('node:child_process');
 
-// electron/spotify/soloistBuild.cjs
+// sources/spotify/main/soloistBuild.cjs
 // What a Spotify Soloist program on this computer says of itself, and how long it is good for.
 // Spotify lets a build run for 90 days from its build date and then refuses to start it (exit
 // code 10); a new one is downloaded from Spotify's own page (Folia may not hand the program out).

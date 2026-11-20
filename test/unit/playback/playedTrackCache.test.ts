@@ -1,5 +1,7 @@
+// @builtin-sources
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SongResult } from '../../../src/types';
+import { setBuiltinSourceRpc } from '../helpers/builtinSources';
 import { getPlaybackSongKey } from '../../../src/utils/appPlaybackGuards';
 
 const hasCachedSongAudio = vi.fn<(song: SongResult, level?: string) => Promise<boolean>>();
@@ -9,6 +11,7 @@ const levelOfAudioSource = vi.fn<(url: string) => string | undefined>();
 const isPreviewAudioSource = vi.fn<(url: string) => boolean>();
 const saveAudioBlob = vi.fn<(key: string, blob: Blob) => Promise<void>>();
 const notifyAudioCached = vi.fn<(key: string, keptUrl?: string) => void>();
+const announceCacheLimit = vi.fn<() => Promise<void>>(async () => {});
 const saveToCache = vi.fn<(key: string, value: unknown) => Promise<void>>();
 
 vi.mock('../../../src/services/onlineMusic/resourceCache', () => ({
@@ -26,6 +29,7 @@ vi.mock('../../../src/services/audioCache', () => ({
     saveAudioBlob: (key: string, blob: Blob) => saveAudioBlob(key, blob),
     notifyAudioCached: (key: string, keptUrl?: string) => notifyAudioCached(key, keptUrl),
     cacheLimitBytes: () => 4096,
+    announceCacheLimit: () => announceCacheLimit(),
 }));
 vi.mock('../../../src/services/db', () => ({
     saveToCache: (key: string, value: unknown) => saveToCache(key, value),
@@ -339,18 +343,21 @@ describe('cachePlayedTrackAssets', () => {
     // Spotify keeps its audio in a cache of its own (encrypted, on the desktop side). The played
     // track is not read here and nothing of it goes to the media cache: the provider is asked to
     // keep the file the song played from, and a separation waiting for the song is told. The cover
-    // is kept like any other.
+    // is kept like any other. The Spotify source mod asks its main entry (answered here through the
+    // test's rpc). The listener's media cache limit is named to the main process first: the main entry has
+    // the host prune its files to it.
     describe('for a provider with a cache of its own', () => {
         const spotifySong = {
             ...onlineSong, sourceRef: { kind: 'online', providerId: 'spotify', mediaId: '4cOdK2wGLETKBW3PvgPWqT' },
         } as unknown as SongResult;
-        const src = 'folia-spotify://audio/4cOdK2wGLETKBW3PvgPWqT?k=1';
+        const src = 'folia-mod://spotify/_media/audio/4cOdK2wGLETKBW3PvgPWqT?once=1';
         const desktop = (answers: Record<string, boolean>) => {
             const asked: Array<[string, unknown]> = [];
-            vi.stubGlobal('window', { electron: { spotifyRequest: async (operation: string, params: unknown) => {
-                asked.push([operation, params]);
-                return { ok: true, data: answers[operation] };
-            } } });
+            announceCacheLimit.mockReset().mockImplementation(async () => { asked.push(['limit named', null]); });
+            setBuiltinSourceRpc('spotify', { request: async (operation: unknown, params: unknown) => {
+                asked.push([operation as string, params]);
+                return { ok: true, data: answers[operation as string] };
+            } });
             return asked;
         };
 
@@ -360,7 +367,7 @@ describe('cachePlayedTrackAssets', () => {
             const written = await cachePlayedTrackAssets(spotifySong, src);
 
             expect(written).toEqual({ audio: true, cover: true });
-            expect(asked).toEqual([['audio_kept', { url: src }], ['audio_keep', { url: src, limitBytes: 4096 }]]);
+            expect(asked).toEqual([['audio_kept', { url: src }], ['limit named', null], ['audio_keep', { url: src }]]);
             expect(notifyAudioCached).toHaveBeenCalledWith(getSongResourceCacheKey('audio', spotifySong), src);
             expect(saveAudioBlob).not.toHaveBeenCalled();
             expect(fetch).toHaveBeenCalledTimes(1);

@@ -11,8 +11,8 @@ import { useOnlineProviderAccountStore } from '@/stores/useOnlineProviderAccount
 import type { PlatformLyricSource } from '@/utils/lyrics/lyricSources';
 
 // test/unit/lyrics/autoMatchBestLyric.test.ts
-// Unit tests for the best lyric auto-matcher. Apple Music is a source mod: it is registered (the marker below), and
-// its id is a lyric source the host's type of the built-in ones does not name.
+// Unit tests for the best lyric auto-matcher. Apple Music and Spotify are source mods: they are registered (the marker
+// below), and their ids are lyric sources the host's type of the built-in ones does not name.
 // @builtin-sources
 
 vi.mock('@/services/onlineMusic/netease/netease', () => ({
@@ -956,7 +956,7 @@ describe('autoMatchBestLyric', () => {
             fetchQQLyricsMock.mockResolvedValue(createLyrics(false));
             const options = {
                 preferredSource: 'spotify' as const,
-                providerCandidate: { providerId: 'spotify' as const, song: spotifySong, lyricsResult: { lyrics: own, isPureMusic: false } },
+                providerCandidate: { providerId: 'spotify' as PlatformLyricSource, song: spotifySong, lyricsResult: { lyrics: own, isPureMusic: false } },
             };
 
             const kept = await autoMatchBestLyric('Song Title', 'Artist Name', 200000, options);

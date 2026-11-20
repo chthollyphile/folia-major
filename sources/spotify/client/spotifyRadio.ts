@@ -1,11 +1,11 @@
-import type { UnifiedSong } from '../../../types';
+import type { FoliumSourceSong } from '@folia/folium';
 import { spotifyPlaylistTracks } from './spotifyCatalog';
 import type { SpotifyLikedAnswer } from './spotifyLibrary';
 import { present, spotifyId, spotifySongOf } from './spotifyNormalize';
 import { querySpotify, requestSpotify } from './spotifyTransport';
 import type { SpotifyWireRadio } from './spotifyTransport';
 
-// src/services/onlineMusic/spotify/spotifyRadio.ts
+// sources/spotify/client/spotifyRadio.ts
 // A song's radio, and the songs a radio is asked with ("seeds"). Two things are made of them: the
 // explore page's shelves of the songs like one song (spotifyExplore.ts) and the radio tab's
 // personal FM (spotifyRecommendations.ts). A radio is the playlist Spotify keeps of the songs
@@ -14,7 +14,7 @@ import type { SpotifyWireRadio } from './spotifyTransport';
 // account liked on Spotify.
 
 export interface SpotifySeed { id: string; name: string }
-export const spotifySeedOf = (song: UnifiedSong): SpotifySeed => ({ id: String(song.id), name: song.name });
+export const spotifySeedOf = (song: FoliumSourceSong): SpotifySeed => ({ id: song.id, name: song.title });
 
 // The liked songs read to ask with, the latest first.
 const SEED_ROWS = 50;
@@ -22,7 +22,7 @@ const SEED_ROWS = 50;
 const RADIO_ROWS = 100;
 
 // The songs the listener played in the app, as the explore page last handed them over
-// (`OnlineExploreProvider.getFeed`): the personal FM is not handed them, and asks with these.
+// (`explore@1.getFeed`): the personal FM is not handed them, and asks with these.
 let listened: SpotifySeed[] = [];
 export const noteSpotifyListened = (songs: SpotifySeed[]): void => { listened = songs; };
 export const spotifyListenedSeeds = (): SpotifySeed[] => listened;
@@ -43,7 +43,7 @@ export const spotifyLikedSeeds = async (): Promise<SpotifySeed[]> => {
 };
 
 /** The songs of the radio of the song `id`, as Spotify lists them (the song itself among them); none where Spotify keeps no radio of it. */
-export const spotifyRadioSongs = async (id: string): Promise<UnifiedSong[]> => {
+export const spotifyRadioSongs = async (id: string): Promise<FoliumSourceSong[]> => {
     const radio = await requestSpotify<SpotifyWireRadio | null>('radio', { id });
     const list = spotifyId(radio?.uri, 'playlist');
     return list ? (await spotifyPlaylistTracks(list, RADIO_ROWS, 0)).items : [];

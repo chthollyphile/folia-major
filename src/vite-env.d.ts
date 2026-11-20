@@ -960,6 +960,8 @@ declare global {
       hasAudioCache: (cacheKey: string) => Promise<boolean>;
       /** `limitBytes` is the cache ceiling to prune down to afterwards; 0 means no ceiling. */
       saveAudioCache: (cacheKey: string, data: ArrayBuffer, mimeType?: string, limitBytes?: number) => Promise<boolean>;
+      /** The listener's media cache limit (bytes, 0 for none), which a source mod's api.cache.requestPrune() trims to. */
+      setMediaCacheLimit?: (limitBytes: number) => Promise<boolean>;
       /** Deletes the file under `cacheKey` only while it is `size` bytes; resolves to whether it did. */
       removeAudioCache: (cacheKey: string, size: number) => Promise<boolean>;
       getAudioCacheUsage: () => Promise<number>;
@@ -999,10 +1001,6 @@ declare global {
       // 'needed'：一个请求要用它，它却因为断网没起来；主进程只在离上一次断网失败够久时才再启动。
       restartNeteaseApi: (reason?: 'needed') => Promise<ElectronNeteaseApiStatus>;
       onNeteaseApiStatusChanged: (callback: (status: ElectronNeteaseApiStatus) => void) => () => void;
-      spotifyRequest: (
-        operation: import('./services/onlineMusic/spotify/spotifyTransport').SpotifyOperation,
-        params?: import('./services/onlineMusic/spotify/spotifyTransport').SpotifyParams,
-      ) => Promise<import('./services/onlineMusic/spotify/spotifyTransport').SpotifyBridgeResult>;
       getQqPort: () => Promise<number | null>;
       getQqApiStatus: () => Promise<ElectronQqApiStatus>;
       onQqApiStatusChanged: (callback: (status: ElectronQqApiStatus) => void) => () => void;

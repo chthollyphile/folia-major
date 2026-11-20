@@ -64,11 +64,6 @@ export const getOnlineRecoveryKey = (src: string | null | undefined): string | n
 
     try {
         const parsedUrl = new URL(src);
-        // The desktop app's own Spotify stream URLs are new on every request too: without this a
-        // track that keeps failing would be refreshed forever, each time under a different string.
-        if (parsedUrl.protocol === 'folia-spotify:') {
-            return `${parsedUrl.protocol}//${parsedUrl.host}${parsedUrl.pathname}`;
-        }
         // A source mod's `_media` address that is made anew for every request carries its one-time key in `once`
         // (api.media.serve): the rest of the address names the file.
         if (parsedUrl.protocol === 'folia-mod:' && parsedUrl.searchParams.has('once')) {

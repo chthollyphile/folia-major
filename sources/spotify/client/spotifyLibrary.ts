@@ -1,11 +1,9 @@
-import i18n from '../../../i18n/config';
-import { OnlineProviderError } from '../../../types/onlineMusic';
-import type { OnlineLibraryProvider, ProviderCollection } from '../../../types/onlineMusic';
+import type { FoliumSourceCollection, FoliumSourceLibrary } from '@folia/folium';
 import { SPOTIFY_LIKED_ID, present, spotifyAlbumOf, spotifyId, spotifyPage, spotifyPlaylistOf, spotifySongOf, spotifyUri } from './spotifyNormalize';
 import type { SpotifyAlbum, SpotifyPlaylist, SpotifyTrack } from './spotifyNormalize';
-import { querySpotify } from './spotifyTransport';
+import { querySpotify, spotifyError } from './spotifyTransport';
 
-// src/services/onlineMusic/spotify/spotifyLibrary.ts
+// sources/spotify/client/spotifyLibrary.ts
 // What the account keeps: its playlists (its own and the ones it follows), its albums, and the
 // songs it liked, which Spotify keeps as a list of their own and the app shows as one more playlist.
 
@@ -43,24 +41,26 @@ const likedHead = (): Promise<SpotifyLikedAnswer> => {
     return likedHeadUnderWay;
 };
 
-// The liked songs as a playlist card: how many there are, under the cover of the latest one.
-const likedCollection = async (): Promise<ProviderCollection> => {
+// The liked songs as a playlist card: how many there are, under the cover of the latest one. `name` is the
+// card's name in the UI language now (a collection's name is a string).
+const likedCollection = async (name: string): Promise<FoliumSourceCollection> => {
     const liked = await likedHead();
     const tracks = liked.me?.library?.tracks;
     const latest = tracks?.items?.[0]?.track;
     return {
-        providerId: 'spotify', id: SPOTIFY_LIKED_ID, type: 'playlist', name: i18n.t('home.spotifyLikedSongs'),
-        coverUrl: spotifySongOf(latest?.data, { uri: latest?._uri })?.album.coverUrl ?? '', description: '',
+        id: SPOTIFY_LIKED_ID, type: 'playlist', name,
+        coverUrl: spotifySongOf(latest?.data, { uri: latest?._uri })?.album?.coverUrl ?? '', description: '',
         trackCount: tracks?.totalCount ?? 0, isLiked: true, isOwned: true,
     };
 };
 
-export const spotifyLibrary: OnlineLibraryProvider = {
+/** The account's lists; `likedName()` names the liked songs' card in the UI language now. */
+export const createSpotifyLibrary = (likedName: () => string): FoliumSourceLibrary => ({
     // The liked songs come first, on the first page only; `total` counts them in.
     async getUserPlaylists(_userId, limit, offset) {
         const [page, liked] = await Promise.all([
             querySpotify<LibraryAnswer>('libraryV3', libraryVariables('Playlists', limit, offset)),
-            offset === 0 ? likedCollection() : null,
+            offset === 0 ? likedCollection(likedName()) : null,
         ]);
         const rows = page.me?.libraryV3?.items ?? [];
         const playlists = rows.map(row => spotifyPlaylistOf(row.item?.data as SpotifyPlaylist)).filter(present);
@@ -77,7 +77,7 @@ export const spotifyLibrary: OnlineLibraryProvider = {
         while (offset < LIKED_MAX_ROWS) {
             const tracks = (await querySpotify<SpotifyLikedAnswer>('fetchLibraryTracks', { offset, limit: Math.min(LIKED_ROWS, LIKED_MAX_ROWS - offset) })).me?.library?.tracks;
             // An answer without the list is no empty list: the read fails.
-            if (!Array.isArray(tracks?.items)) throw new OnlineProviderError('invalid-response', 'Spotify liked songs are missing', 'spotify');
+            if (!Array.isArray(tracks?.items)) throw spotifyError('invalid-response', 'Spotify liked songs are missing');
             const rows = tracks.items;
             ids.push(...rows.map(row => spotifyId(row.track?._uri, 'track')).filter(Boolean));
             offset += rows.length;
@@ -97,12 +97,12 @@ export const spotifyLibrary: OnlineLibraryProvider = {
     // request for them all. The answer is read as a row for each uri asked, in their order (so it
     // is for one album; for tracks it was not tried). Rows of another number are not matched up.
     async areSongsLiked(ids) {
-        const answer = await querySpotify<{ lookup?: Array<{ data?: { saved?: boolean } }> }>('areEntitiesInLibrary', { uris: ids.map(id => spotifyUri('track', String(id))) });
+        const answer = await querySpotify<{ lookup?: Array<{ data?: { saved?: boolean } }> }>('areEntitiesInLibrary', { uris: ids.map(id => spotifyUri('track', id)) });
         const rows = answer.lookup?.length === ids.length ? answer.lookup : [];
         const liked: Record<string, boolean> = {};
         ids.forEach((id, at) => {
             const saved = rows[at]?.data?.saved;
-            if (typeof saved === 'boolean') liked[String(id)] = saved;
+            if (typeof saved === 'boolean') liked[id] = saved;
         });
         const said = Object.values(liked);
         console.log(`[Spotify] areEntitiesInLibrary for ${ids.length} tracks: ${said.filter(Boolean).length} liked, ${said.filter(saved => !saved).length} not, ${ids.length - said.length} without an answer`);
@@ -118,4 +118,4 @@ export const spotifyLibrary: OnlineLibraryProvider = {
         const rows = page.me?.libraryV3?.items ?? [];
         return spotifyPage(rows.map(row => spotifyAlbumOf(row.item?.data as SpotifyAlbum)).filter(present), offset, rows.length, page.me?.libraryV3?.totalCount);
     },
-};
+});

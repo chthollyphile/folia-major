@@ -1,21 +1,19 @@
+// @builtin-sources
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // test/unit/spotify/spotifyRecommendations.test.ts — the radio tab for Spotify, where using the
 // app does not show the rule: which songs the personal FM hands out (none twice, a trashed song's
 // radio dropped, none made up), which of Spotify's lists is the daily one, and the quality level
-// a provider is asked for under a preference it does not list.
+// a provider is asked for under a preference it does not list. The source mod is the registered one; its
+// `request` to the main entry is answered here (helpers/spotifySource.ts).
 
-const request = vi.hoisted(() => vi.fn());
-vi.mock('@/services/onlineMusic/spotify/spotifyTransport', () => ({
-    requestSpotify: request,
-    querySpotify: (name: string, variables: Record<string, unknown> = {}) => request('query', { name, variables }),
-    getSpotifyTransportAvailability: () => ({ configured: true }),
-}));
 import { omni } from '@/services/onlineMusic/omni';
-import { spotifyProvider } from '@/services/onlineMusic/spotify/spotifyProvider';
-import { clearSpotifyCatalogCache } from '@/services/onlineMusic/spotify/spotifyCatalog';
-import { resetSpotifyRecommendations } from '@/services/onlineMusic/spotify/spotifyRecommendations';
-import type { UnifiedSong } from '@/types';
+import { clearSpotifyCatalogCache } from '../../../sources/spotify/client/spotifyCatalog';
+import { resetSpotifyRecommendations } from '../../../sources/spotify/client/spotifyRecommendations';
+import { answerSpotifyRequests, hostSpotifySong, lazySpotifyProvider } from '../helpers/spotifySource';
+
+const { request } = answerSpotifyRequests();
+const spotifyProvider = lazySpotifyProvider();
 
 const id = (name: string) => name.replace('-', '').padEnd(22, 'Z');
 const track = (name: string) => ({
@@ -36,7 +34,7 @@ const serve = ({ liked = [], lists = {}, made = [] }: { liked?: string[]; lists?
             const seed = Object.keys(lists).find(name => name.startsWith('radio-') && id(name.slice(6)) === params.id);
             return seed ? { uri: `spotify:playlist:${id(seed)}` } : null;
         }
-        if (operation === 'audio') return { url: 'folia-spotify://audio/1', format: 'OGG_VORBIS_320' };
+        if (operation === 'audio') return { url: 'folia-mod://spotify/_media/audio/1?once=k', format: 'OGG_VORBIS_320' };
         if (operation !== 'query') throw new Error(`unexpected ${operation}`);
         if (params.name === 'fetchLibraryTracks') {
             return { me: { library: { tracks: { totalCount: liked.length, items: liked.map(name => ({ track: { _uri: `spotify:track:${id(name)}`, data: track(name) } })) } } } };
@@ -98,7 +96,7 @@ describe('Spotify personal FM', () => {
 
     it('asks with the songs played in the app too, once the explore page was handed them', async () => {
         serve({ lists: { 'radio-p': ['p', 'z1'] } });
-        await spotifyProvider.explore!.getFeed(undefined, [spotifyProvider.normalizeSong(track('p'))]);
+        await spotifyProvider.explore!.getFeed(undefined, [hostSpotifySong(track('p'))]);
         expect(await fm()).toEqual(['z1']);
         // Another account's FM begins with nothing of this one's.
         resetSpotifyRecommendations();
@@ -143,7 +141,7 @@ describe('quality levels', () => {
         expect(omni.getAudioQualityLevels('spotify')).toEqual(['standard', 'high']);
         expect((['standard', 'high', 'lossless', 'hires'] as const).map(level => omni.resolveAudioQuality('spotify', level))).toEqual(['standard', 'high', 'high', 'high']);
         serve({});
-        await omni.getAudioSource(spotifyProvider.normalizeSong(track('a')) as UnifiedSong, 'lossless');
+        await omni.getAudioSource(hostSpotifySong(track('a')), 'lossless');
         expect(asked('audio')[0][1]).toEqual({ id: id('a'), quality: 'high' });
     });
 

@@ -24,7 +24,7 @@ const TABLE_PLACES: [string[], string][] = [
     [['electron/main.cjs'], 'mainLocale'],
     [['electron/modSystem/approval.cjs'], 'TRUST_DIALOG_LOCALE'],
     [['electron/modSystem/safeStart.cjs'], 'SAFE_START_LOCALE'],
-    [['electron/spotify/signIn.cjs', 'sources/spotify/main/signIn.ts'], 'PAGE_TEXT'],
+    [['sources/spotify/main/signIn.cjs'], 'PAGE_TEXT'],
 ];
 const TABLES = TABLE_PLACES.map(([files, name]) => [files.find(file => fs.existsSync(path.join(ROOT, file))) ?? files[0], name] as const);
 

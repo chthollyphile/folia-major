@@ -2,7 +2,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { Readable } = require('node:stream');
 
-// electron/spotify/audioFiles.cjs
+// sources/spotify/main/audioFiles.cjs
 // Spotify's audio files on disk, kept as Spotify sends them: encrypted. No key is written here
 // or anywhere; a kept file opens only with the key Spotify gives a signed-in paying account, and
 // that key is asked for anew in every run (`audio.cjs`).

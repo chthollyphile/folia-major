@@ -122,6 +122,8 @@ export interface ModSourceDataResult {
     storeKeys?: string[];
     partitions?: string[];
     userDataDirs?: string[];
+    /** Folders under the media cache folder the platform kept its cache in before it was a mod. */
+    cacheDirs?: string[];
     modData?: string;
     modCache?: string;
     /** localStorage key prefixes the window clears itself (`online_provider:<id>:`, `online_provider_<id>_`). */

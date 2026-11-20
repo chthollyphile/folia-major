@@ -1,12 +1,11 @@
-import type { UnifiedSong } from '../../../types';
-import { OnlineProviderError } from '../../../types/onlineMusic';
-import type { OnlineRecommendationProvider, ProviderCollection } from '../../../types/onlineMusic';
+import type { FoliumSourceCollection, FoliumSourceRecommendations, FoliumSourceSong } from '@folia/folium';
 import { spotifyPlaylistTracks } from './spotifyCatalog';
 import { spotifyMadeForAccount, wordsOf } from './spotifyExplore';
 import { addSpotifySeeds, noteSpotifyListened, spotifyLikedSeeds, spotifyListenedSeeds, spotifyRadioSongs } from './spotifyRadio';
 import type { SpotifySeed } from './spotifyRadio';
+import { spotifyCodeOf } from './spotifyTransport';
 
-// src/services/onlineMusic/spotify/spotifyRecommendations.ts
+// sources/spotify/client/spotifyRecommendations.ts
 // The radio tab for Spotify, all of it what Spotify itself has for the account:
 //  - Personal FM: one radio after another (spotifyRadio.ts), each asked with a song the account
 //    liked or the listener played in the app. The song is picked at random among the ones not yet
@@ -23,7 +22,7 @@ import type { SpotifySeed } from './spotifyRadio';
 // Nothing here outlasts a run of the app, and all of it is forgotten when the account changes.
 
 // A call hands out this many songs. The queue asks for more when "next" finds the song playing
-// among its last two (usePlaybackQueueController.ts). With two a call the queue always knows the
+// among its last two (the host's queue controller). With two a call the queue always knows the
 // song to come (one a call and it never would), and at most two songs handed out before a trash
 // are still to come after it (three a call and it would be three).
 const FM_BATCH = 2;
@@ -47,7 +46,7 @@ const newFm = () => ({
     /** Whether the account's liked songs were put among them. */
     hasLiked: false,
     /** The radio being handed out: the song it was asked with, and what is left of it. */
-    radio: null as { seed: SpotifySeed; songs: UnifiedSong[] } | null,
+    radio: null as { seed: SpotifySeed; songs: FoliumSourceSong[] } | null,
     /** Every song handed out or trashed, with the song its radio was asked with ('' for a song no radio here gave). */
     gone: new Map<string, string>(),
     /** Calls take turns, so that two of them do not hand out the same songs. */
@@ -56,7 +55,7 @@ const newFm = () => ({
 type Fm = ReturnType<typeof newFm>;
 let fm = newFm();
 // The read of the lists made for the account that is under way or was made last.
-let made: { at: number; lists: Promise<ProviderCollection[]> } | null = null;
+let made: { at: number; lists: Promise<FoliumSourceCollection[]> } | null = null;
 
 /** Forgets the FM and the lists read: for when the account signs out, or a sign-in begins. */
 export const resetSpotifyRecommendations = (): void => {
@@ -65,7 +64,7 @@ export const resetSpotifyRecommendations = (): void => {
     noteSpotifyListened([]);
 };
 
-const isOffline = (error: unknown) => error instanceof OnlineProviderError && error.code === 'network';
+const isOffline = (error: unknown) => spotifyCodeOf(error)?.code === 'network';
 
 // The songs to ask with. The ones played here join as the explore page hands them over. The liked
 // ones are read once, and again when every song was asked with and the last radio is used up: the
@@ -87,15 +86,15 @@ const gatherSeeds = async (session: Fm): Promise<void> => {
 };
 
 /** The next songs of the FM: what is left of the radio being handed out, then the radio of another song. None once there is no song left to ask with. */
-const nextFmSongs = async (session: Fm): Promise<UnifiedSong[]> => {
+const nextFmSongs = async (session: Fm): Promise<FoliumSourceSong[]> => {
     await gatherSeeds(session);
-    const songs: UnifiedSong[] = [];
+    const songs: FoliumSourceSong[] = [];
     let asked = 0;
     while (songs.length < FM_BATCH) {
         const radio = session.radio;
         if (radio && radio.songs.length > 0) {
             const song = radio.songs.shift()!;
-            const id = String(song.id);
+            const id = song.id;
             // (Not the song asked with, and none that was handed out or trashed before.)
             if (id === radio.seed.id || session.gone.has(id)) continue;
             session.gone.set(id, radio.seed.id);
@@ -129,17 +128,17 @@ const leftOut = <T>(what: string, none: T) => (error: unknown): T => {
     return none;
 };
 
-const madeLists = (): Promise<ProviderCollection[]> => {
+const madeLists = (): Promise<FoliumSourceCollection[]> => {
     if (made && Date.now() - made.at < MADE_MAX_AGE_MS) return made.lists;
-    const lists = spotifyMadeForAccount().catch(leftOut('the page of the lists made for the account', [] as ProviderCollection[]));
+    const lists = spotifyMadeForAccount().catch(leftOut('the page of the lists made for the account', [] as FoliumSourceCollection[]));
     made = { at: Date.now(), lists };
     // (A read that failed is not kept: the next one asks Spotify again.)
     lists.catch(() => { if (made?.lists === lists) made = null; });
     return lists;
 };
-const isDailyMix = (list: ProviderCollection) => DAILY_MIX_ID.test(String(list.id));
+const isDailyMix = (list: FoliumSourceCollection) => DAILY_MIX_ID.test(list.id);
 
-export const spotifyRecommendations: OnlineRecommendationProvider = {
+export const spotifyRecommendations: FoliumSourceRecommendations = {
     getPersonalFm() {
         const session = fm;
         const turn = session.queue.catch(() => undefined).then(() => nextFmSongs(session));
@@ -150,7 +149,7 @@ export const spotifyRecommendations: OnlineRecommendationProvider = {
     // of the app, and so is what was left of the radio it came from.
     async dislikeSong(id) {
         const session = fm;
-        const song = String(id);
+        const song = id;
         const seed = session.gone.get(song) ?? '';
         session.gone.set(song, seed);
         const left = session.radio?.seed.id === seed ? session.radio.songs.length : null;
@@ -167,7 +166,7 @@ export const spotifyRecommendations: OnlineRecommendationProvider = {
             console.log(`[Spotify] Daily songs: none of the ${lists.length} lists made for the account is a daily mix`);
             return [];
         }
-        const songs = await spotifyPlaylistTracks(String(daily.id), DAILY_ROWS, 0).then(page => page.items, leftOut('the daily mix', [] as UnifiedSong[]));
+        const songs = await spotifyPlaylistTracks(daily.id, DAILY_ROWS, 0).then(page => page.items, leftOut('the daily mix', [] as FoliumSourceSong[]));
         console.log(`[Spotify] Daily songs: ${songs.length} songs of the first daily mix (${daily.id}) among the ${lists.length} lists made for the account`);
         return songs;
     },

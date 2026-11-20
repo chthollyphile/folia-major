@@ -2,7 +2,7 @@ const crypto = require('node:crypto');
 const http = require('node:http');
 const { describeError, lineReason, spotifyError, statusError } = require('./errors.cjs');
 
-// electron/spotify/signIn.cjs
+// sources/spotify/main/signIn.cjs
 // Sign-in in the listener's own browser: Spotify's consent page, which sends the browser back to
 // a loopback address this process listens on while one attempt lasts (authorization code with
 // PKCE, no secret). The listener types nothing here and sets nothing up. Spotify knows the app as
