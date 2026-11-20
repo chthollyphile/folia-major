@@ -263,6 +263,13 @@ function createLoginQrCheck(createOption) {
 
 // 扫码的两步：要码与轮询。两者都可以安全地重发：重发要码只是换一把新 key，重发轮询只是多问一次同一把 key。
 const QR_RETRY_URIS = new Set(['/api/login/qrcode/unikey', '/api/login/qrcode/client/login']);
+
+// 只读的账户路由加入同一份重试表：启动后第一次问「谁登录着」时，偶尔会撞上上游一次连接级别的重置/超时
+// （2026-10-26 实测：匿名 token 刚刷新完，紧随其后的 /api/w/nuser/account/get 两次 ETIMEDOUT 共 42 秒，
+// 之后同一条链路 81ms 就通）。它们都是幂等读，重发一次没有副作用；不重试的话 UI 会看到 502、账号区停在
+// 「问不到」。写操作（发送、收藏、播放上报）不在这里，重发会重复动作。
+const READ_RETRY_URIS = new Set(['/api/w/nuser/account/get', '/api/nuser/account/get']);
+const NETWORK_RETRY_URIS = new Set([...QR_RETRY_URIS, ...READ_RETRY_URIS]);
 const DEFAULT_QR_RETRY_DELAY_MS = 300;
 
 /** 上游 request 的网络层失败：axios 没拿到响应时上游 reject 成 { status: 502, body: { code: 502, msg } }。 */
@@ -278,7 +285,7 @@ const isUpstreamNetworkFailure = (error) => Boolean(
 // 每次尝试各自经过诊断记录（这一层包在诊断记录外面），报告里能看到重试本身。
 // 传给上游的 data / options 每次都复制一份：上游会往 data 上写字段，重发不能带着上一次的改动。
 function withQrNetworkRetry(request, {
-  uris = QR_RETRY_URIS,
+  uris = NETWORK_RETRY_URIS,
   delayMs = DEFAULT_QR_RETRY_DELAY_MS,
   sleep = wait,
   logger = console,
@@ -292,7 +299,7 @@ function withQrNetworkRetry(request, {
       return await attempt(uri, data, options);
     } catch (error) {
       if (!uris.has(uri) || !isUpstreamNetworkFailure(error)) throw error;
-      logger.warn('[Netease API] QR request failed at the network level, retrying once', {
+      logger.warn('[Netease API] request failed at the network level, retrying once', {
         uri,
         message: error.body?.msg,
       });
@@ -330,6 +337,8 @@ module.exports = {
   createLoginQrCheck,
   installLoginQrCheck,
   isUpstreamNetworkFailure,
+  NETWORK_RETRY_URIS,
+  READ_RETRY_URIS,
   deferJsdom,
   hasUsableXeapiPublicKey,
   isNetworkFailure,
