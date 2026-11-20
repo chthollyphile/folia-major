@@ -89,7 +89,7 @@ export const PLATFORM_NAME_PLACES: Record<string, PlatformNamePlace> = {
     'src/services/onlineMusic/fmModes.ts': { n: { netease: 1 }, kind: 'doc' },
     'src/services/onlineMusic/omni.ts': { n: { netease: 5, kugou: 2 }, kind: 'doc' },
     'src/services/onlineMusic/providerAccountCache.ts': { n: { kugou: 1 }, kind: 'doc' },
-    'src/services/onlineMusic/web/index.ts': { n: { netease: 3, qq: 3, kugou: 3 }, kind: 'list', why: "the web build's list of platforms (Folium 2.0 plan §8): the only place the web build names the three it has (2026-11-20)" },
+    'src/services/onlineMusic/web/index.ts': { n: { netease: 1, qq: 1, kugou: 1 }, kind: 'list', why: "the web build's list of platforms (Folium 2.0 plan §8): the only place the web build names the three it has (2026-11-20)" },
     'src/services/onlineMusic/web/kugou.ts': { n: { kugou: 5 }, kind: 'file', why: "the web build's file for this platform (plan §8): the one host file that may import sources/<id>/core, so it cannot move into the platform folder" },
     'src/services/onlineMusic/web/netease.ts': { n: { netease: 5 }, kind: 'file', why: "the web build's file for this platform (plan §8): the one host file that may import sources/<id>/core, so it cannot move into the platform folder" },
     'src/services/onlineMusic/web/qq.ts': { n: { qq: 5 }, kind: 'file', why: "the web build's file for this platform (plan §8): the one host file that may import sources/<id>/core, so it cannot move into the platform folder" },
