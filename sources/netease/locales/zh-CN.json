@@ -1,0 +1,92 @@
+{
+    "name": {
+        "short": "网易云",
+        "lyrics": "网易云音乐"
+    },
+    "login": {
+        "title": "使用网易云APP扫码",
+        "note": "打开网易云音乐APP > 发现 > 扫一扫"
+    },
+    "status": {
+        "startupFailed": "网易云接口启动失败，部分在线功能不可用",
+        "startupFailedDetail": "网易云接口启动失败，部分在线功能不可用：{{reason}}"
+    },
+    "explore": {
+        "similar": "与《{{name}}》相似",
+        "dailySongs": "每日推荐",
+        "dailyPlaylists": "每日推荐歌单",
+        "charts": "排行榜",
+        "newSongs": "新歌速递",
+        "newAlbums": "新碟上架",
+        "hotPlaylists": "热门歌单"
+    },
+    "cloud": {
+        "name": "云盘",
+        "description": "网易云音乐云盘"
+    },
+    "fm": {
+        "mode": {
+            "DEFAULT": "默认",
+            "FAMILIAR": "熟悉",
+            "EXPLORE": "探索",
+            "SCENE_RCMD": "场景",
+            "PUZZLE_MODE_RCMD": "拼图"
+        },
+        "category": {
+            "mode": "模式",
+            "mood": "情绪",
+            "activity": "场景",
+            "genre": "曲风",
+            "language": "语种"
+        },
+        "scene": {
+            "NIGHT_EMO": "伤感",
+            "CURE": "治愈",
+            "CHEERFUL": "欢快",
+            "LYRICAL": "抒情",
+            "INSPIRATIONAL": "励志",
+            "RELAX": "放松",
+            "SWEET": "情歌",
+            "EXERCISE": "运动",
+            "FOCUS": "专注",
+            "SLEEP_HELP": "助眠",
+            "TAKE_SHOWER": "洗澡",
+            "COMMUTE": "出行",
+            "COFFEE_SHOP": "咖啡馆",
+            "GAMES": "游戏",
+            "DANCE": "舞蹈",
+            "RAINY": "雨天",
+            "RHYTHM_BLUES": "R&B",
+            "RAP": "说唱",
+            "K_POP": "K-Pop",
+            "ELECTRONIC": "电音",
+            "ROCK": "摇滚",
+            "FOLK": "民谣",
+            "GUDIAN": "古典",
+            "JAZZ": "爵士",
+            "BLUE": "蓝调",
+            "PUNK": "放克",
+            "COUNTRY": "乡村乐",
+            "LIGHT": "轻音乐",
+            "GUOFENG": "国风",
+            "MANYAO": "慢摇DJ",
+            "MUSICAL": "音乐剧",
+            "ACG": "二次元",
+            "JINGDIAN": "经典",
+            "ORIGINAL_MUSICIAL": "宝藏原创",
+            "YINGSHI": "影视",
+            "CHINESE": "华语",
+            "ENGLISH": "欧美",
+            "YUEYU": "粤语",
+            "JAPANESE": "日语",
+            "FRANCH": "法语",
+            "LATIN": "拉丁",
+            "GLOBAL": "全球"
+        }
+    },
+    "listeningRank": {
+        "week": "听歌排行 · 最近一周",
+        "all": "听歌排行 · 所有时间",
+        "description": "按这个账号在平台上的收听记录排出的歌"
+    }
+}

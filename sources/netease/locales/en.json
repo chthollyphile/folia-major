@@ -1,0 +1,92 @@
+{
+    "name": {
+        "short": "NetEase",
+        "lyrics": "NetEase Cloud Music"
+    },
+    "login": {
+        "title": "Scan with Netease App",
+        "note": "Open Netease Music App > Discover > Scan QR"
+    },
+    "status": {
+        "startupFailed": "NetEase API failed to start. Some online features are unavailable.",
+        "startupFailedDetail": "NetEase API failed to start, so some online features are unavailable: {{reason}}"
+    },
+    "explore": {
+        "similar": "Similar to {{name}}",
+        "dailySongs": "Daily Recommendations",
+        "dailyPlaylists": "Daily playlists for you",
+        "charts": "Charts",
+        "newSongs": "New songs",
+        "newAlbums": "New albums",
+        "hotPlaylists": "Popular playlists"
+    },
+    "cloud": {
+        "name": "Cloud Drive",
+        "description": "NetEase Cloud Music Drive"
+    },
+    "fm": {
+        "mode": {
+            "DEFAULT": "Default",
+            "FAMILIAR": "Familiar",
+            "EXPLORE": "Explore",
+            "SCENE_RCMD": "Scene",
+            "PUZZLE_MODE_RCMD": "Puzzle"
+        },
+        "category": {
+            "mode": "Mode",
+            "mood": "Mood",
+            "activity": "Moment",
+            "genre": "Genre",
+            "language": "Language"
+        },
+        "scene": {
+            "NIGHT_EMO": "Melancholy",
+            "CURE": "Healing",
+            "CHEERFUL": "Cheerful",
+            "LYRICAL": "Lyrical",
+            "INSPIRATIONAL": "Inspirational",
+            "RELAX": "Relax",
+            "SWEET": "Love Songs",
+            "EXERCISE": "Workout",
+            "FOCUS": "Focus",
+            "SLEEP_HELP": "Sleep",
+            "TAKE_SHOWER": "Shower",
+            "COMMUTE": "Commute",
+            "COFFEE_SHOP": "Coffee Shop",
+            "GAMES": "Gaming",
+            "DANCE": "Dance",
+            "RAINY": "Rainy Day",
+            "RHYTHM_BLUES": "R&B",
+            "RAP": "Rap",
+            "K_POP": "K-Pop",
+            "ELECTRONIC": "Electronic",
+            "ROCK": "Rock",
+            "FOLK": "Folk",
+            "GUDIAN": "Classical",
+            "JAZZ": "Jazz",
+            "BLUE": "Blues",
+            "PUNK": "Funk",
+            "COUNTRY": "Country",
+            "LIGHT": "Light Music",
+            "GUOFENG": "Guofeng",
+            "MANYAO": "Slow DJ",
+            "MUSICAL": "Musical",
+            "ACG": "ACG",
+            "JINGDIAN": "Classics",
+            "ORIGINAL_MUSICIAL": "Indie Original",
+            "YINGSHI": "Soundtrack",
+            "CHINESE": "Mandarin",
+            "ENGLISH": "Western",
+            "YUEYU": "Cantonese",
+            "JAPANESE": "Japanese",
+            "FRANCH": "French",
+            "LATIN": "Latin",
+            "GLOBAL": "Global"
+        }
+    },
+    "listeningRank": {
+        "week": "Listening ranking · Last week",
+        "all": "Listening ranking · All time",
+        "description": "Songs ranked by this account's listening on the platform"
+    }
+}

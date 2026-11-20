@@ -1,11 +1,10 @@
-import { name as backendName, version as backendVersion } from '@neteasecloudmusicapienhanced/api/package.json';
-import { OnlineProviderError } from '../../../src/types/onlineMusic';
-import type { JsonValue, OnlineRawRequestProvider, ProviderRawEndpoint } from '../../../src/types/onlineMusic';
+import type { FoliumJsonValue as JsonValue, FoliumSourceRaw, FoliumSourceRawEndpoint } from '@folia/folium';
+import { isNeteaseError, neteaseEnv, neteaseError } from './neteaseEnv';
 import { httpErrorStatusOf, requestNeteaseRoute } from './netease';
 import { describeNeteaseFailure, neteaseAnswerError } from './neteaseFailure';
 
 // sources/netease/core/neteaseRaw.ts
-// NetEase's raw endpoints (OnlineRawRequestProvider, for the Folium experimental `platform.raw`): the
+// NetEase's raw endpoints (raw@1, for the Folium experimental `platform.raw`): the
 // table of which modules of the pinned backend (@neteasecloudmusicapienhanced/api, see UPSTREAMS.md)
 // may be called, and the request itself. An endpoint is the backend's module name (`user_record`), the
 // file name under the package's module/ folder; the table names only modules that are there
@@ -25,7 +24,7 @@ import { describeNeteaseFailure, neteaseAnswerError } from './neteaseFailure';
 // signed-in session to any music.163.com endpoint, the denied ones included
 // (test/unit/onlineMusic/neteaseRaw.test.ts reads the modules for such parameters).
 
-type Row = ProviderRawEndpoint & { pathParams?: readonly string[] };
+type Row = FoliumSourceRawEndpoint & { pathParams?: readonly string[] };
 
 const read = (extra: Omit<Row, 'access'> = {}): Row => ({ access: 'read', ...extra });
 const write = (extra: Omit<Row, 'access'> = {}): Row => ({ access: 'write', ...extra });
@@ -176,23 +175,27 @@ const request = async (endpoint: string, params: Record<string, JsonValue>, sign
     try {
         answer = await requestNeteaseRoute(neteaseRouteOf(endpoint), neteaseRawQuery(params), signal);
     } catch (error) {
-        if (error instanceof OnlineProviderError || (error as { name?: unknown } | null)?.name === 'AbortError') throw error;
+        if (isNeteaseError(error) || (error as { name?: unknown } | null)?.name === 'AbortError') throw error;
         // The backend could not be reached or did not answer with JSON: the network's, unless this build
         // has no backend configured at all.
         const unconfigured = describeNeteaseFailure('collection', error)?.case === 'not-configured';
-        throw new OnlineProviderError(unconfigured ? 'unsupported' : 'network', `NetEase raw request ${endpoint} failed`, 'netease', error);
+        throw neteaseError(unconfigured ? 'unsupported' : 'network', `NetEase raw request ${endpoint} failed`, error);
     }
     const code = Number(answer?.code);
     if ([301, 401, 403].includes(code)) throw neteaseAnswerError(answer, endpoint);
     if (code === RATE_LIMITED_CODE || httpErrorStatusOf(answer) === 429) {
-        throw new OnlineProviderError('unavailable', `NetEase refused ${endpoint}: too many requests`, 'netease', { code }, 429);
+        throw neteaseEnv().error('unavailable', `NetEase refused ${endpoint}: too many requests`, { cause: { code }, httpStatus: 429 });
     }
     // Any other answer, a refusal with another code included, is the platform's raw answer.
     return answer;
 };
 
-export const neteaseRaw: OnlineRawRequestProvider = {
-    backend: { name: backendName, version: backendVersion },
+// The backend the table is of: the package and version sources/netease/package.json pins (a test holds them equal). The
+// page cannot read the package's own package.json: the package is in the main entry's deps archive.
+export const NETEASE_RAW_BACKEND = Object.freeze({ name: '@neteasecloudmusicapienhanced/api', version: '4.41.1' });
+
+export const neteaseRaw: FoliumSourceRaw = {
+    backend: NETEASE_RAW_BACKEND,
     reservedParams: RESERVED_PARAMS,
     credentialFields: CREDENTIAL_FIELDS,
     describeEndpoint: (endpoint) => (Object.hasOwn(NETEASE_RAW_ENDPOINTS, endpoint) ? NETEASE_RAW_ENDPOINTS[endpoint] : null),

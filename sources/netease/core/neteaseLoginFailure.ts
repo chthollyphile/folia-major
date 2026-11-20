@@ -1,11 +1,11 @@
-import type { LoginFailureDetail, LoginStep } from '../../../src/types/onlineMusic';
+import type { FoliumSourceLoginFailure, FoliumSourceLoginStep } from '@folia/folium';
 import { NETEASE_API_OFFLINE, NeteaseLoginHttpError, isNeteaseApiUnavailable, isNeteaseNetworkFailure } from './netease';
 
 // sources/netease/core/neteaseLoginFailure.ts
 // 网易云登录失败时交给登录窗口的事实。网易云自己的错误是什么意思，只在这里说。
 
 // 登录的某一步抛了错。
-export const describeNeteaseLoginFailure = (_step: LoginStep, error: unknown): LoginFailureDetail | null => {
+export const describeNeteaseLoginFailure = (_step: FoliumSourceLoginStep, error: unknown): FoliumSourceLoginFailure | null => {
     // 桌面端的本地后端没有在监听（netease.ts 的 getApiBase）。
     if (isNeteaseApiUnavailable(error)) return { case: 'local-service-stopped' };
     // 它没起来是因为断网：说连不上，不给重启的按钮。网通了，下一次开始会让它再启动。
@@ -18,7 +18,7 @@ export const describeNeteaseLoginFailure = (_step: LoginStep, error: unknown): L
 };
 
 // checkQr 回了 800 到 803 之外的状态码：把网易云的码和原话交出去，有哪样交哪样。
-export const neteaseCheckFailure = (response: any): LoginFailureDetail => {
+export const neteaseCheckFailure = (response: any): FoliumSourceLoginFailure => {
     const message = response?.message || response?.msg;
     return {
         ...(response?.code === undefined || response?.code === null ? {} : { code: String(response.code) }),

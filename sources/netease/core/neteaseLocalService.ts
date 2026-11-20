@@ -1,74 +1,97 @@
-import { useNeteaseApiStatusStore } from './useNeteaseApiStatusStore';
-import type { LoginLocalService, LoginLocalServiceStatus, ProviderNotice } from '../../../src/types/onlineMusic';
+import type { FoliumSourceLocalService } from '@folia/folium';
+import { neteaseEnv, neteaseTextKey } from './neteaseEnv';
+import { hearNeteaseBackendStatus, rememberNeteaseBackendStatus, type NeteaseBackendStatus } from './netease';
 
 // sources/netease/core/neteaseLocalService.ts
-// 网易云的本地后端在登录窗口里的样子：它起没起来、它自己的错误原话、重启。它起不来时取二维码的请求
-// 必然失败，登录窗口据此显示原因和重启的按钮。状态本身在 useNeteaseApiStatusStore.ts。
-// 应用开着的时候由 watchNeteaseLocalService 盯着它：把它的状态抄进那个仓库，起不来时告诉用的人。
+// 网易云的本地后端（main 入口工作线程里的 API）在登录窗口里的样子：它起没起来、它自己的错误原话、重启。它起不来时
+// 取二维码的请求必然失败，登录窗口据此显示原因和重启的按钮。只有桌面版有（网页版发到配置的地址）。
+// 状态来自 main 入口：每次变化它经 rpc.send('status') 推过来（client 交给 noteNeteaseBackendStatus），请求问端口时
+// 拿到的也记在这里。登录窗口打开（subscribe）时问一次：只用于匹配时 main 入口要等到真用到才加载，所以不在 client
+// 一启动就问。起不来时告诉用的人一次（handle.notify）。
 
-let last: LoginLocalServiceStatus = { failed: false, error: null, restarting: false };
+type Listener = () => void;
 
-export const neteaseLocalService: LoginLocalService = {
-    subscribe: listener => useNeteaseApiStatusStore.subscribe(listener),
+const listeners = new Set<Listener>();
+let current: NeteaseBackendStatus | null = null;
+let restarting = false;
+let last = { failed: false, error: null as string | null, restarting: false };
+// When the failure last told was reported: the same failure pushed twice is told once.
+let lastToldFailureAt: number | null = null;
+
+const emit = () => {
+    listeners.forEach((listener) => {
+        try {
+            listener();
+        } catch (error) {
+            console.warn('[NeteaseLocalService] a listener failed', error);
+        }
+    });
+};
+
+/** The backend's state as the main entry told it (a push, or the answer to a request): kept, and told on failure. */
+export const noteNeteaseBackendStatus = (status: NeteaseBackendStatus | null): void => {
+    current = status;
+    rememberNeteaseBackendStatus(status);
+    emit();
+    if (status?.status !== 'error' || lastToldFailureAt === (status.updatedAt ?? null)) return;
+    lastToldFailureAt = status.updatedAt ?? null;
+    // The service's own sentence, for the log line and for the message on screen.
+    const reason = status.error?.trim() ?? '';
+    console.warn('[NeteaseLocalService] the NetEase API failed to start', reason);
+    // 断网时没起来，不说「接口启动失败」：要用它的请求会说连不上，网通了它会在下一次被用到时再启动。
+    if (status.offline === true) return;
+    // The reason travels with the notice: reports of this failure used to arrive with nothing to go on.
+    neteaseEnv().notify?.({
+        type: 'error',
+        text: reason ? neteaseTextKey('status.startupFailedDetail', { reason }) : neteaseTextKey('status.startupFailed'),
+        ...(status.updatedAt ? { nonce: status.updatedAt } : {}),
+        durationMs: 8000,
+    });
+};
+
+// What a request learns of the backend (asking for its port) is what the sign-in window shows too.
+hearNeteaseBackendStatus(status => noteNeteaseBackendStatus(status));
+
+const askStatus = async (): Promise<void> => {
+    try {
+        noteNeteaseBackendStatus(await neteaseEnv().call<NeteaseBackendStatus | null>('status'));
+    } catch (error) {
+        console.warn('[NeteaseLocalService] could not read the NetEase API status', error);
+    }
+};
+
+export const neteaseLocalService: FoliumSourceLocalService = {
+    subscribe(listener) {
+        listeners.add(listener);
+        // The sign-in window is open: what it shows is asked now (the request for the code would ask anyway).
+        if (listeners.size === 1) void askStatus();
+        return () => {
+            listeners.delete(listener);
+        };
+    },
     getStatus() {
-        const { supported, status, restarting } = useNeteaseApiStatusStore.getState();
-        const failed = supported && status?.status === 'error';
-        const error = failed ? status?.error ?? null : null;
+        const failed = current?.status === 'error';
+        const error = failed ? current?.error ?? null : null;
         if (last.failed !== failed || last.error !== error || last.restarting !== restarting) last = { failed, error, restarting };
         return last;
     },
     async restart() {
-        await useNeteaseApiStatusStore.getState().restart();
-        return useNeteaseApiStatusStore.getState().status?.status === 'running';
+        restarting = true;
+        emit();
+        try {
+            noteNeteaseBackendStatus(await neteaseEnv().call<NeteaseBackendStatus | null>('restart'));
+        } finally {
+            restarting = false;
+            emit();
+        }
+        return current?.status === 'running';
     },
 };
 
-// When the failure last told was reported: a watch that is started again does not tell it twice.
-let lastToldFailureAt: number | null = null;
-
-/**
- * Watches the desktop app's local service for as long as the app is open: mirrors its state into
- * the store the sign-in window reads, and tells the listener when it failed to start. Does
- * nothing where there is no desktop bridge (the web build). Answers with the way to stop.
- */
-export const watchNeteaseLocalService = (tell: (notice: ProviderNotice) => void): (() => void) => {
-    const bridge = typeof window === 'undefined' ? undefined : window.electron;
-    if (!bridge?.getNeteaseApiStatus) return () => {};
-
-    let stopped = false;
-    useNeteaseApiStatusStore.getState().setSupported(true);
-
-    const reportStatus = (status: ElectronNeteaseApiStatus) => {
-        if (stopped) return;
-        useNeteaseApiStatusStore.getState().setStatus(status);
-        if (status.status !== 'error' || lastToldFailureAt === status.updatedAt) return;
-
-        lastToldFailureAt = status.updatedAt;
-        // The service's own sentence, for the log line and for the message on screen.
-        const reason = status.error?.trim() ?? '';
-        console.warn('[Electron] Netease API failed to start', reason);
-        // 断网时没起来，不说「接口启动失败」：要用它的请求会说连不上，网通了它会在下一次被用到时再启动。
-        if (status.offline === true) return;
-        // The reason travels with the toast: user reports of this failure previously arrived
-        // with nothing to go on, because the cause only ever reached the main-process stdout.
-        tell({
-            type: 'error',
-            textKey: reason ? 'status.neteaseApiStartupFailedDetail' : 'status.neteaseApiStartupFailed',
-            ...(reason ? { params: { reason } } : {}),
-            nonce: status.updatedAt,
-            durationMs: 8000,
-        });
-    };
-
-    void bridge.getNeteaseApiStatus()
-        .then(reportStatus)
-        .catch((error) => {
-            console.warn('[Electron] Failed to read Netease API status', error);
-        });
-    const unsubscribe = bridge.onNeteaseApiStatusChanged?.(reportStatus);
-
-    return () => {
-        stopped = true;
-        unsubscribe?.();
-    };
+/** What the module keeps of the backend: dropped when the source is made again or stops. */
+export const resetNeteaseLocalService = (): void => {
+    current = null;
+    restarting = false;
+    lastToldFailureAt = null;
+    last = { failed: false, error: null, restarting: false };
 };

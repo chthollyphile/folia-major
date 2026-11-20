@@ -1,0 +1,92 @@
+{
+    "name": {
+        "short": "NetEase",
+        "lyrics": "NetEase Cloud Music"
+    },
+    "login": {
+        "title": "Quét bằng ứng dụng Netease",
+        "note": "Mở ứng dụng Netease Music > Khám phá > Quét mã QR"
+    },
+    "status": {
+        "startupFailed": "Khởi động NetEase API thất bại. Một số tính năng trực tuyến không khả dụng.",
+        "startupFailedDetail": "Khởi động NetEase API thất bại, một số tính năng trực tuyến không khả dụng: {{reason}}"
+    },
+    "explore": {
+        "similar": "Tương tự với «{{name}}»",
+        "dailySongs": "Gợi ý hàng ngày",
+        "dailyPlaylists": "Danh sách phát đề xuất hàng ngày",
+        "charts": "Bảng xếp hạng",
+        "newSongs": "Bài hát mới",
+        "newAlbums": "Album mới",
+        "hotPlaylists": "Danh sách phát thịnh hành"
+    },
+    "cloud": {
+        "name": "Ổ đĩa đám mây",
+        "description": "Ổ đĩa NetEase Cloud Music"
+    },
+    "fm": {
+        "mode": {
+            "DEFAULT": "Mặc định",
+            "FAMILIAR": "Quen thuộc",
+            "EXPLORE": "Khám phá",
+            "SCENE_RCMD": "Bối cảnh",
+            "PUZZLE_MODE_RCMD": "Phối ghép"
+        },
+        "category": {
+            "mode": "Chế độ",
+            "mood": "Tâm trạng",
+            "activity": "Khoảnh khắc",
+            "genre": "Thể loại",
+            "language": "Ngôn ngữ"
+        },
+        "scene": {
+            "NIGHT_EMO": "Melancholy",
+            "CURE": "Healing",
+            "CHEERFUL": "Cheerful",
+            "LYRICAL": "Lyrical",
+            "INSPIRATIONAL": "Inspirational",
+            "RELAX": "Relax",
+            "SWEET": "Tình ca",
+            "EXERCISE": "Workout",
+            "FOCUS": "Focus",
+            "SLEEP_HELP": "Sleep",
+            "TAKE_SHOWER": "Shower",
+            "COMMUTE": "Commute",
+            "COFFEE_SHOP": "Quán cà phê",
+            "GAMES": "Gaming",
+            "DANCE": "Dance",
+            "RAINY": "Ngày mưa",
+            "RHYTHM_BLUES": "R&B",
+            "RAP": "Rap",
+            "K_POP": "K-Pop",
+            "ELECTRONIC": "Electronic",
+            "ROCK": "Rock",
+            "FOLK": "Folk",
+            "GUDIAN": "Classical",
+            "JAZZ": "Jazz",
+            "BLUE": "Blues",
+            "PUNK": "Funk",
+            "COUNTRY": "Country",
+            "LIGHT": "Nhạc nhẹ",
+            "GUOFENG": "Guofeng",
+            "MANYAO": "Slow DJ",
+            "MUSICAL": "Musical",
+            "ACG": "ACG",
+            "JINGDIAN": "Classics",
+            "ORIGINAL_MUSICIAL": "Sáng tác độc lập",
+            "YINGSHI": "Soundtrack",
+            "CHINESE": "Mandarin",
+            "ENGLISH": "Western",
+            "YUEYU": "Cantonese",
+            "JAPANESE": "Japanese",
+            "FRANCH": "French",
+            "LATIN": "Latin",
+            "GLOBAL": "Global"
+        }
+    },
+    "listeningRank": {
+        "week": "Xếp hạng nghe · Tuần qua",
+        "all": "Xếp hạng nghe · Mọi lúc",
+        "description": "Bài hát xếp theo lịch sử nghe của tài khoản này trên nền tảng"
+    }
+}

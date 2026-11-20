@@ -1,16 +1,15 @@
-import i18n from '../../../src/i18n/config';
-import type { UnifiedSong } from '../../../src/types';
 import type {
-    OnlineExploreProvider,
-    ProviderCollection,
-    ProviderExploreItem,
-    ProviderExploreItemsPage,
-    ProviderExplorePage,
-    ProviderExploreSection,
-} from '../../../src/types/onlineMusic';
+    FoliumSourceCollection,
+    FoliumSourceExplore,
+    FoliumSourceExploreItem,
+    FoliumSourceExplorePage,
+    FoliumSourceExploreSection,
+    FoliumSourceSong,
+    FoliumText,
+} from '@folia/folium';
 import { neteaseApi } from './netease';
-import { createHandedOut, cursorWords, stampCursor } from '@folia/folium-source-kit';
-import { errorMessage } from '../../../src/utils/errorText';
+import { createHandedOut, cursorWords, errorMessage, stampCursor } from '@folia/folium-source-kit';
+import { neteaseTextKey } from './neteaseEnv';
 
 // sources/netease/core/neteaseExplore.ts
 // The explore page of NetEase Cloud Music, in three parts, each asked for when the list gets to
@@ -74,8 +73,8 @@ interface HomeBlock {
 
 /** The adapter's own normalizers, handed in by neteaseProvider.ts (which imports this file). */
 export interface NeteaseExploreNormalizers {
-    song(raw: unknown): UnifiedSong;
-    collection(raw: unknown, type?: string): ProviderCollection;
+    song(raw: unknown): FoliumSourceSong;
+    collection(raw: unknown, type?: string): FoliumSourceCollection;
 }
 
 // A shelf hands out this many entries at a time, at most: one batch with a read of the page, and
@@ -111,7 +110,7 @@ const CHART = 'chart-';
 // The home page's block of charts is left out: the page has the charts from NetEase's list of
 // them (all of them as cards, and the songs of the official four).
 const CHART_BLOCK = 'HOMEPAGE_BLOCK_TOPLIST';
-// NetEase's own record of the account's listening is left out too (see OnlineExploreProvider):
+// NetEase's own record of the account's listening is left out too (see FoliumSourceExplore):
 // the explore page has such sections from the app's own record alone. A guest's home page has no
 // such block and an account's was not seen, so these are told by the words NetEase's block codes
 // and headings would use for them. One it names otherwise stays on the page until it is added
@@ -152,7 +151,7 @@ const newRead = (number: number, memory: ReturnType<typeof newMemory>) => ({
     /** NetEase's charts, asked for once in a read. */
     charts: undefined as Promise<any[]> | undefined,
     /** Each list read whole and each home block, by its shelf's id, in the order this read hands it out in: the shelf's batch, then what its "more" goes on with. */
-    held: new Map<string, ProviderExploreItem[]>(),
+    held: new Map<string, FoliumSourceExploreItem[]>(),
     /** The songs a shelf may still be made of, the ones to ask with first at the front. */
     seeds: [] as Seed[],
     /** Every song that was put among them: a song is asked with once in a read. */
@@ -166,8 +165,8 @@ type Read = ReturnType<typeof newRead>;
 
 const present = <T>(value: T | null | undefined): value is T => value != null;
 const wordsOf = (error: unknown) => errorMessage(error);
-const keyOf = (item: ProviderExploreItem): string => (item.kind === 'collection' ? `${item.collection.type}:${item.collection.id}` : `song:${item.song.id}`);
-const countOf = (sections: ProviderExploreSection[]) => sections.reduce((count, section) => count + section.items.length, 0);
+const keyOf = (item: FoliumSourceExploreItem): string => (item.kind === 'collection' ? `${item.collection.type}:${item.collection.id}` : `song:${item.song.id}`);
+const countOf = (sections: FoliumSourceExploreSection[]) => sections.reduce((count, section) => count + section.items.length, 0);
 /** The rows of a list in an answer that name something: an id and a name. */
 const rowsOf = (list: unknown): any[] => (Array.isArray(list) ? list.filter(row => row && row.id && row.name) : []);
 const blocksIn = (answer: any): HomeBlock[] => (Array.isArray(answer?.data?.blocks) ? answer.data.blocks : []);
@@ -177,7 +176,7 @@ const cursorIn = (answer: any): string | undefined => {
     if (!answer?.data?.hasMore || !cursor) return undefined;
     return typeof cursor === 'string' ? cursor : JSON.stringify(cursor);
 };
-const songsOf = (items: ProviderExploreItem[]): Seed[] => items.flatMap(item => (item.kind === 'song' ? [{ id: String(item.song.id), name: item.song.name }] : []));
+const songsOf = (items: FoliumSourceExploreItem[]): Seed[] => items.flatMap(item => (item.kind === 'song' ? [{ id: item.song.id, name: item.song.title }] : []));
 
 /** What arrived of the requests `asked`, each in its place, null for one that failed. Fails when none of them arrived. */
 const arrivedOf = async <T>(what: string, asked: Array<Promise<T>>): Promise<Array<T | null>> => {
@@ -188,7 +187,7 @@ const arrivedOf = async <T>(what: string, asked: Array<Promise<T>>): Promise<Arr
     return answers.map(answer => (answer.status === 'fulfilled' ? answer.value : null));
 };
 
-export const createNeteaseExplore = (normalize: NeteaseExploreNormalizers): OnlineExploreProvider => {
+export const createNeteaseExplore = (normalize: NeteaseExploreNormalizers): FoliumSourceExplore => {
     let reads = 0;
     let memory = newMemory();
     // The read whose page is on screen. A read from the start takes its place once its first page has arrived.
@@ -213,35 +212,35 @@ export const createNeteaseExplore = (normalize: NeteaseExploreNormalizers): Onli
     /** What a cursor says, where it is of the read on screen; null for one of a read before. */
     const wordsIn = (cursor: string): string | null => cursorWords(cursor, page.number);
 
-    const songItem = (raw: unknown): ProviderExploreItem => ({ kind: 'song', song: normalize.song(raw) });
+    const songItem = (raw: unknown): FoliumSourceExploreItem => ({ kind: 'song', song: normalize.song(raw) });
     // (Only the fields named: a row's own `type` is a number in one list and the release kind in another.)
-    const playlistItem = (raw: any): ProviderExploreItem => ({
+    const playlistItem = (raw: any): FoliumSourceExploreItem => ({
         kind: 'collection',
         collection: normalize.collection({
             id: raw.id, name: raw.name, coverImgUrl: raw.coverImgUrl ?? raw.picUrl, description: raw.description ?? raw.copywriter,
             trackCount: raw.trackCount, playCount: raw.playCount ?? raw.playcount, creator: raw.creator,
         }),
     });
-    const albumItem = (raw: any): ProviderExploreItem => ({
+    const albumItem = (raw: any): FoliumSourceExploreItem => ({
         kind: 'collection',
         collection: normalize.collection({ id: raw.id, name: raw.name, picUrl: raw.picUrl, artists: raw.artists, size: raw.size, publishTime: raw.publishTime }, 'album'),
     });
     // A chart's second line is how often NetEase says it changes ("每天更新"); a chart has no maker to name.
-    const chartItem = (raw: any): ProviderExploreItem => ({
+    const chartItem = (raw: any): FoliumSourceExploreItem => ({
         ...playlistItem(raw),
         ...(typeof raw.updateFrequency === 'string' && raw.updateFrequency ? { subtitle: raw.updateFrequency } : {}),
     });
 
     /** One entry of a home block: a song, a playlist or an album. Null for anything else NetEase puts there (a podcast, a video, a digital album on sale, a link). */
-    const itemOf = (resource: HomeResource): ProviderExploreItem | null => {
+    const itemOf = (resource: HomeResource): FoliumSourceExploreItem | null => {
         const cover = resource.uiElement?.image?.imageUrl || undefined;
         const info: NonNullable<HomeResource['resourceExtInfo']> = resource.resourceExtInfo ?? {};
         if (resource.resourceType === 'song') {
             const raw = info.songData ?? info.song;
             if (!raw) return null;
             const song = normalize.song({ ...raw, privilege: info.songPrivilege ?? raw.privilege });
-            if (!song.id) return null;
-            return { kind: 'song', song: song.album.coverUrl || !cover ? song : { ...song, album: { ...song.album, coverUrl: cover } } };
+            if (!Number(song.id)) return null;
+            return { kind: 'song', song: !song.album || song.album.coverUrl || !cover ? song : { ...song, album: { ...song.album, coverUrl: cover } } };
         }
         const id = Number(resource.resourceId);
         const name = resource.uiElement?.mainTitle?.title;
@@ -257,8 +256,8 @@ export const createNeteaseExplore = (normalize: NeteaseExploreNormalizers): Onli
      * nothing the app shows, and one that stands already (`taken`: the same code under the same
      * heading). A shelf's id is its block's code, so the same block is the same shelf in every read.
      */
-    const shelvesOf = (blocks: HomeBlock[], taken: Pick<Read, 'blockIds' | 'blocks'>): { shelves: ProviderExploreSection[]; leftOut: string[] } => {
-        const shelves: ProviderExploreSection[] = [];
+    const shelvesOf = (blocks: HomeBlock[], taken: Pick<Read, 'blockIds' | 'blocks'>): { shelves: FoliumSourceExploreSection[]; leftOut: string[] } => {
+        const shelves: FoliumSourceExploreSection[] = [];
         const leftOut: string[] = [];
         for (const block of blocks) {
             const code = block.blockCode ?? '';
@@ -289,7 +288,7 @@ export const createNeteaseExplore = (normalize: NeteaseExploreNormalizers): Onli
      * shelf's first read. The shelves of similar songs are other shelves in every read, so they
      * are counted under one name (`countedAs`), against all of them in the read before.
      */
-    const noteHandedOut = (read: Read, id: string, items: ProviderExploreItem[], countedAs = id): void => {
+    const noteHandedOut = (read: Read, id: string, items: FoliumSourceExploreItem[], countedAs = id): void => {
         const keys = items.map(keyOf);
         const last = read.memory.handedLast.get(countedAs);
         const now = last?.read === read.number ? last : { read: read.number, keys: new Set<string>(), earlier: last?.keys };
@@ -299,7 +298,7 @@ export const createNeteaseExplore = (normalize: NeteaseExploreNormalizers): Onli
         if (earlier) console.log(`[Netease] Explore refresh: ${id} ${keys.filter(key => !earlier.has(key)).length}/${keys.length}`);
     };
     /** What the "more" of the shelf `id` showed is among what it handed out in this read: the line the next read logs counts against it too. */
-    const noteShownFurther = (read: Read, id: string, items: ProviderExploreItem[]): void => {
+    const noteShownFurther = (read: Read, id: string, items: FoliumSourceExploreItem[]): void => {
         const noted = read.memory.handedLast.get(id);
         if (noted?.read === read.number) items.forEach(item => noted.keys.add(keyOf(item)));
     };
@@ -313,7 +312,7 @@ export const createNeteaseExplore = (normalize: NeteaseExploreNormalizers): Onli
      * Where the list is longer than the batch, the rest stays with the read in that order behind
      * the shelf's cursor: its "more" goes on with it (`getSectionItems`).
      */
-    const handOut = (read: Read, id: string, listed: ProviderExploreItem[]): Pick<ProviderExploreSection, 'items' | 'moreCursor'> => {
+    const handOut = (read: Read, id: string, listed: FoliumSourceExploreItem[]): Pick<FoliumSourceExploreSection, 'items' | 'moreCursor'> => {
         // (An entry NetEase lists twice is handed out once.)
         const all = [...new Map(listed.map(item => [keyOf(item), item] as const)).values()];
         // (NetEase's order stays among the entries never handed out.)
@@ -326,12 +325,12 @@ export const createNeteaseExplore = (normalize: NeteaseExploreNormalizers): Onli
     };
 
     /** A shelf of a list that was read whole: one batch of it, and a cursor where it holds more (see `handOut`). */
-    const listShelf = (read: Read, id: string, title: string, all: ProviderExploreItem[]): ProviderExploreSection | null => (
+    const listShelf = (read: Read, id: string, title: FoliumText, all: FoliumSourceExploreItem[]): FoliumSourceExploreSection | null => (
         all.length > 0 ? { id, title, ...handOut(read, id, all) } : null
     );
 
     /** A batch of the list `key` from `offset`, and whether NetEase has more of it after them. */
-    const readPaged = async (key: string, offset: number): Promise<{ items: ProviderExploreItem[]; hasMore: boolean }> => {
+    const readPaged = async (key: string, offset: number): Promise<{ items: FoliumSourceExploreItem[]; hasMore: boolean }> => {
         if (key === NEW_ALBUMS) {
             const answer = await neteaseApi.getNewAlbums(BATCH, offset);
             const items = rowsOf(answer?.albums).map(albumItem);
@@ -350,7 +349,7 @@ export const createNeteaseExplore = (normalize: NeteaseExploreNormalizers): Onli
      * or through the shelf's "more"), and the list's first batch again once its last was handed
      * out. With a cursor for the batch after it, where the list goes on.
      */
-    const pagedShelf = async (read: Read, key: string, title: string): Promise<ProviderExploreSection | null> => {
+    const pagedShelf = async (read: Read, key: string, title: FoliumText): Promise<FoliumSourceExploreSection | null> => {
         let from = read.memory.reached.get(key) ?? 0;
         let batch = await readPaged(key, from);
         // (The list has got shorter than where the read before stopped: from its start.)
@@ -397,21 +396,21 @@ export const createNeteaseExplore = (normalize: NeteaseExploreNormalizers): Onli
     // once. They are on a shelf from then on, unless they are too few for one. (Marked here, in one
     // go with the choice: the shelves of a page are read side by side, and a song two of them were
     // given would be chosen by both.)
-    const similarSongs = async (read: Read, seedId: string): Promise<UnifiedSong[]> => {
+    const similarSongs = async (read: Read, seedId: string): Promise<FoliumSourceSong[]> => {
         const answer = await neteaseApi.getSimilarSongs(Number(seedId));
-        const found: UnifiedSong[] = rowsOf(answer?.songs).map(normalize.song);
+        const found: FoliumSourceSong[] = rowsOf(answer.songs).map(normalize.song);
         const met = new Set([seedId]);
         const songs = found.filter(song => {
-            const id = String(song.id);
+            const id = song.id;
             if (met.has(id) || read.onShelf.has(id)) return false;
             met.add(id);
             return true;
         });
-        if (songs.length >= SIMILAR_MIN) songs.forEach(song => read.onShelf.add(String(song.id)));
+        if (songs.length >= SIMILAR_MIN) songs.forEach(song => read.onShelf.add(song.id));
         return songs;
     };
     /** A shelf of the songs like `seed`; null where they could not be read, or too few of them are on no other shelf. */
-    const similarShelf = async (read: Read, seed: Seed): Promise<ProviderExploreSection | null> => {
+    const similarShelf = async (read: Read, seed: Seed): Promise<FoliumSourceExploreSection | null> => {
         try {
             const songs = await similarSongs(read, seed.id);
             if (songs.length < SIMILAR_MIN) {
@@ -420,9 +419,9 @@ export const createNeteaseExplore = (normalize: NeteaseExploreNormalizers): Onli
             }
             console.log(`[Netease] Explore songs like ${seed.id}: a shelf of ${songs.length} songs`);
             // (NetEase gives 5 songs an answer and has no others for the song: see `getSimilarSongs`.)
-            const shelf: ProviderExploreSection = {
+            const shelf: FoliumSourceExploreSection = {
                 id: `netease-similar-${++shelvesMade}`,
-                title: i18n.t('home.exploreSimilar', { name: seed.name }),
+                title: neteaseTextKey('explore.similar', { name: seed.name }),
                 items: songs.map(song => ({ kind: 'song', song })),
                 // Another read asks with other songs: its shelves take the places of these.
                 changesWithRead: true,
@@ -436,25 +435,25 @@ export const createNeteaseExplore = (normalize: NeteaseExploreNormalizers): Onli
     };
 
     // The pages of shelves made here, in the order the list comes to them. One fails when nothing of it could be read.
-    const similarPart = async (read: Read): Promise<ProviderExploreSection[]> => (
+    const similarPart = async (read: Read): Promise<FoliumSourceExploreSection[]> => (
         (await Promise.all(takeSeeds(read, SIMILAR_A_PAGE).map(seed => similarShelf(read, seed)))).filter(present)
     );
-    const newPart = async (read: Read): Promise<ProviderExploreSection[]> => (await arrivedOf('the new songs and albums', [
-        neteaseApi.getNewSongs().then((answer: any) => listShelf(read, NEW_SONGS_ID, i18n.t('home.neteaseNewSongs'), rowsOf(answer?.songs).map(songItem))),
-        pagedShelf(read, NEW_ALBUMS, i18n.t('home.neteaseNewAlbums')),
+    const newPart = async (read: Read): Promise<FoliumSourceExploreSection[]> => (await arrivedOf('the new songs and albums', [
+        neteaseApi.getNewSongs().then((answer: any) => listShelf(read, NEW_SONGS_ID, neteaseTextKey('explore.newSongs'), rowsOf(answer?.songs).map(songItem))),
+        pagedShelf(read, NEW_ALBUMS, neteaseTextKey('explore.newAlbums')),
     ])).filter(present);
-    const chartsPart = async (read: Read): Promise<ProviderExploreSection[]> => {
+    const chartsPart = async (read: Read): Promise<FoliumSourceExploreSection[]> => {
         const charts = await chartsOf(read);
         const official = charts.filter(chart => chart.ToplistType);
         const shelves = (official.length > 0 ? official : charts).slice(0, SONG_CHARTS).map(chart => pagedShelf(read, `${CHART}${chart.id}`, String(chart.name)));
         return (await arrivedOf('the songs of the charts', shelves)).filter(present);
     };
-    const playlistsPart = async (read: Read): Promise<ProviderExploreSection[]> => [await pagedShelf(read, HOT_PLAYLISTS, i18n.t('home.neteaseHotPlaylists'))].filter(present);
+    const playlistsPart = async (read: Read): Promise<FoliumSourceExploreSection[]> => [await pagedShelf(read, HOT_PLAYLISTS, neteaseTextKey('explore.hotPlaylists'))].filter(present);
     const PARTS = [similarPart, newPart, similarPart, chartsPart, similarPart, playlistsPart];
 
     // The pages made here from the one at `from`: the first that has a shelf (one of similar songs
     // has none once the songs to ask with, or the read's requests, have run out).
-    const madeHere = async (read: Read, from: number): Promise<ProviderExplorePage> => {
+    const madeHere = async (read: Read, from: number): Promise<FoliumSourceExplorePage> => {
         for (let index = from; index < PARTS.length; index += 1) {
             const sections = await PARTS[index](read);
             if (read !== page) return { sections: [] };
@@ -465,7 +464,7 @@ export const createNeteaseExplore = (normalize: NeteaseExploreNormalizers): Onli
         return { sections: [] };
     };
 
-    const firstPage = async (listened: UnifiedSong[]): Promise<ProviderExplorePage> => {
+    const firstPage = async (listened: FoliumSourceSong[]): Promise<FoliumSourceExplorePage> => {
         const signedIn = neteaseApi.hasAccountSession();
         if (hadAccount !== undefined && hadAccount !== signedIn) {
             memory = newMemory();
@@ -484,14 +483,14 @@ export const createNeteaseExplore = (normalize: NeteaseExploreNormalizers): Onli
         read.homeCursor = cursorIn(home);
         const dailySongs = rowsOf(daily?.songs).map(songItem);
         const sections = [
-            listShelf(read, DAILY_SONGS_ID, i18n.t('home.dailyRecommendations'), dailySongs),
+            listShelf(read, DAILY_SONGS_ID, neteaseTextKey('explore.dailySongs'), dailySongs),
             ...blocks,
-            listShelf(read, DAILY_PLAYLISTS_ID, i18n.t('home.neteaseDailyPlaylists'), rowsOf(lists?.recommend).map(playlistItem)),
-            listShelf(read, CHARTS_ID, i18n.t('home.neteaseCharts'), (charts ?? []).map(chartItem)),
+            listShelf(read, DAILY_PLAYLISTS_ID, neteaseTextKey('explore.dailyPlaylists'), rowsOf(lists?.recommend).map(playlistItem)),
+            listShelf(read, CHARTS_ID, neteaseTextKey('explore.charts'), (charts ?? []).map(chartItem)),
         ].filter(present);
         // (A song of the account's cloud drive is none NetEase lists songs like.)
-        const played = listened.filter(song => !(song.sourceRef?.kind === 'online' && song.sourceRef.variant === 'cloud'));
-        addSeeds(read, [...played.map(song => ({ id: String(song.id), name: song.name })), ...songsOf(dailySongs), ...songsOf(shelves.flatMap(shelf => shelf.items))]);
+        const played = listened.filter(song => song.variant !== 'cloud');
+        addSeeds(read, [...played.map(song => ({ id: song.id, name: song.title })), ...songsOf(dailySongs), ...songsOf(shelves.flatMap(shelf => shelf.items))]);
         page = read;
         const account = signedIn
             ? `signed in: ${dailySongs.length} daily songs (code ${daily?.code ?? 'none'}), ${rowsOf(lists?.recommend).length} daily playlists (code ${lists?.code ?? 'none'})`
@@ -506,7 +505,7 @@ export const createNeteaseExplore = (normalize: NeteaseExploreNormalizers): Onli
     // over here, as `madeHere` passes over its own: the list's reader takes a few pages in a row
     // with nothing on them for the list's end. Where a page cannot be read, or NetEase's pages
     // are through, the list goes on to the shelves made here.
-    const furtherHome = async (read: Read): Promise<ProviderExplorePage> => {
+    const furtherHome = async (read: Read): Promise<FoliumSourceExplorePage> => {
         while (read.homeCursor) {
             const asked = read.homeCursor;
             try {
@@ -548,7 +547,7 @@ export const createNeteaseExplore = (normalize: NeteaseExploreNormalizers): Onli
         },
         // A shelf's "more": the batch after the ones it shows. (A refresh does not come here: the
         // page says that a refresh reads it anew.)
-        async getSectionItems(cursor): Promise<ProviderExploreItemsPage> {
+        async getSectionItems(cursor): Promise<{ items: FoliumSourceExploreItem[]; moreCursor?: string }> {
             const read = page;
             const words = wordsIn(cursor);
             if (words === null) {
