@@ -68,16 +68,25 @@ describe('sourcesModel · rows', () => {
         expect(row.threeStates).toBe(true);
     });
 
-    it('says how a source mod runs: off, deferred to the first match, starting, failed with its error, or stopped', () => {
+    it('tells a source that cannot be used only for matching from one whose answer is not known yet', () => {
+        const knowsMatchOnly = (id: string) => id !== 'folium.never.ran';
+        const rows = buildSourceRows([
+            stateRow({ sourceId: 'folium.never.ran', modId: 'never', tier: 'user', state: 'disabled' }),
+            stateRow({ sourceId: 'folium.cannot.match', modId: 'cannot', tier: 'user', state: 'disabled' }),
+        ], [], { ...inputs, canMatchOnly: () => false, knowsMatchOnly, sort: ids => [...ids] });
+        expect(rows.map(row => [row.threeStates, row.matchOnlyKnown])).toEqual([[false, false], [false, true]]);
+    });
+
+    it('says how a source mod runs: off, running (used only for matching too), starting, failed with its error, or stopped', () => {
         const rows = buildSourceRows([
             stateRow({ sourceId: 'a', modId: 'a', tier: 'user', state: 'disabled', loaded: false }),
-            stateRow({ sourceId: 'b', modId: 'b', tier: 'user', state: 'matching', loaded: true, mainState: 'deferred' }),
+            stateRow({ sourceId: 'b', modId: 'b', tier: 'user', state: 'matching', loaded: true, mainState: 'ready' }),
             stateRow({ sourceId: 'c', modId: 'c', tier: 'user', loaded: true, mainState: 'activating' }),
             stateRow({ sourceId: 'd', modId: 'd', tier: 'user', loaded: false }),
             stateRow({ sourceId: 'e', modId: 'e', tier: 'user', loaded: false }),
         ], [mod({ id: 'd', status: 'error', error: 'boom' })], inputs);
         expect(rows.map(row => [row.sourceId, row.run, row.error])).toEqual([
-            ['a', 'off', null], ['b', 'deferred', null], ['c', 'starting', null], ['d', 'failed', 'boom'], ['e', 'stopped', null],
+            ['a', 'off', null], ['b', 'running', null], ['c', 'starting', null], ['d', 'failed', 'boom'], ['e', 'stopped', null],
         ]);
     });
 

@@ -10,8 +10,6 @@ export type SourceRunState =
     /** Still registered by the host (not a mod yet): switching it only changes where it shows. */
     | 'host'
     | 'running'
-    /** Used only for matching: its main entry starts at the first match. */
-    | 'deferred'
     | 'starting'
     | 'stopped'
     | 'failed'
@@ -23,12 +21,14 @@ export interface SourceRowModel {
     sourceId: string;
     /** The mod that provides it; null for one the host registers itself. */
     modId: string | null;
-    /** The name the mod's manifest gives it, for a source not registered now; null for the host's. */
+    /** The name the mod's manifest gives it (the name shown in every state); null for the host's. */
     manifestName: string | Record<string, string> | null;
     tier: ModTier | 'host';
     state: ModSourceState;
-    /** Offered the three states (enabled, only for matching, disabled) rather than a switch. */
+    /** It may be used only for matching (the middle of its three states can be chosen; the palette offers that command). */
     threeStates: boolean;
+    /** Whether it is known if it may be used only for matching (false for a source that never ran here). */
+    matchOnlyKnown: boolean;
     takeover: boolean;
     run: SourceRunState;
     /** The loader's error for a source mod that did not start. */
@@ -40,6 +40,8 @@ export interface SourceRowModel {
 export interface SourceRowInputs {
     /** Whether a source may be used only for matching (sourceStates.canSourceMatchOnly). */
     canMatchOnly: (sourceId: string) => boolean;
+    /** Whether `canMatchOnly` has an answer (sourceStates.knowsWhetherSourceMatchesOnly); always, when not given. */
+    knowsMatchOnly?: (sourceId: string) => boolean;
     /** The ids in the registry's order (omni.sortSourceIds). */
     sort: (ids: readonly string[]) => string[];
 }
@@ -49,7 +51,6 @@ const runOf = (row: ModSourceStateRow, mod: ModRuntimeInfo | undefined): SourceR
     if (row.state === 'disabled') return 'off';
     if (mod && !mod.enabled) return 'mod-off';
     if (mod?.status === 'error') return 'failed';
-    if (row.mainState === 'deferred') return 'deferred';
     if (row.mainState === 'activating') return 'starting';
     return row.loaded ? 'running' : 'stopped';
 };
@@ -71,11 +72,13 @@ export const buildSourceRows = (
         return [{
             sourceId,
             modId: row.modId,
-            manifestName: manifestEntry?.name ?? null,
+            // The mod list's copy of the manifest, else the main process's (it lists a source whose mod is not loaded).
+            manifestName: manifestEntry?.name ?? row.name ?? null,
             tier: row.tier,
             state: row.state,
             // A source already used only for matching keeps the three, so it can be switched back.
             threeStates: row.state === 'matching' || inputs.canMatchOnly(sourceId),
+            matchOnlyKnown: row.state === 'matching' || (inputs.knowsMatchOnly?.(sourceId) ?? true),
             takeover: row.takeover,
             run,
             error: run === 'failed' ? mod?.error ?? null : null,

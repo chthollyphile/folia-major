@@ -26,7 +26,7 @@ export default function activate(folium: FoliumClientApi): () => void {
     folium.rpc.on('status', (status) => {
         noteNeteaseBackendStatus((status ?? null) as NeteaseBackendStatus | null);
     });
-    // Switched off, or matching only and unloaded: the port and state go with it.
+    // Switched off and unloaded: the port and state go with it.
     return () => {
         handle = null;
         disposeSource();

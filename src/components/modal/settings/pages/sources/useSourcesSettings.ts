@@ -12,7 +12,7 @@ import type { ModSourceState, ModSourceStatesPayload, ModStorageUsageResult } fr
 import { useModsStore } from '../../../../../mods/useModsStore';
 import { omni } from '../../../../../services/onlineMusic/omni';
 import { subscribeSourceDeclarations } from '../../../../../services/onlineMusic/sourceDeclarations';
-import { canSourceMatchOnly } from '../../../../../services/onlineMusic/sourceStates';
+import { canSourceMatchOnly, knowsWhetherSourceMatchesOnly } from '../../../../../services/onlineMusic/sourceStates';
 import { setStatusMessage } from '../../../../../stores/useStatusMessageStore';
 import { buildSourceNotices, buildSourceRows, SILENT_SOURCE_ERRORS, sourceErrorReason, type SourceNoticeAction } from './sourcesModel';
 
@@ -56,7 +56,7 @@ export const useSourcesSettings = () => {
     // The two versions are read so the rows follow the registry (the order) and the declarations (what may be
     // used only for matching).
     const rows = useMemo(() => (registryVersion + declarationsVersion >= 0
-        ? buildSourceRows(payload.sources, mods, { canMatchOnly: canSourceMatchOnly, sort: ids => omni.sortSourceIds(ids) })
+        ? buildSourceRows(payload.sources, mods, { canMatchOnly: canSourceMatchOnly, knowsMatchOnly: knowsWhetherSourceMatchesOnly, sort: ids => omni.sortSourceIds(ids) })
         : []), [payload.sources, mods, registryVersion, declarationsVersion]);
     const notices = useMemo(() => buildSourceNotices(mods), [mods]);
 

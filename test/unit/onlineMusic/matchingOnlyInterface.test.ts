@@ -368,6 +368,24 @@ describe('the nine built-in platforms', () => {
         expect(shownIds()).not.toContain('qq');
     });
 
+    it('a switched-off source keeps what it last declared, so it can go straight to matching', async () => {
+        const undeclareLater = declareSource('laterOff', {
+            lyrics: { access: 'anonymous', crossSource: { linesOnly: false } }, checksAvailability: false,
+        });
+        const undeclareAccount = declareSource('accountOnly', {
+            lyrics: { access: 'account', crossSource: { linesOnly: false } }, checksAvailability: false,
+        });
+        // Switched off: its mod unloads and its declaration goes.
+        undeclareLater();
+        undeclareAccount();
+        expect(canSourceMatchOnly('laterOff')).toBe(true);
+        expect(canSourceMatchOnly('accountOnly')).toBe(false);
+        await expect(switchSourceState('laterOff', 'matching')).resolves.toMatchObject({ ok: true });
+        // One that never ran in this window has no answer.
+        expect(canSourceMatchOnly('neverRan')).toBe(false);
+        localStorage.removeItem('folia.sources.matchOnly');
+    });
+
     it('all show, as before, while nobody switched any', () => {
         expect(shownIds()).toEqual(expect.arrayContaining(['netease', 'kugou', 'qq', 'bodian', 'ytm', 'spotify', 'qishui', 'appleMusic', 'fnmusic']));
         expect(omni.getMatchingProviderSummaries().map(summary => summary.providerId)).toEqual(shownIds());

@@ -198,10 +198,10 @@ const createNodeEntryRuntime = ({
          * a rejection goes to `onActivationRejected`.
          */
         /*
-         * Where the Node entry stands: 'none' (no main, or not loaded yet), 'deferred' (a source used only for
-         * matching: started by its client's first rpc, plan §5.3), 'activating' (an async activate() still
-         * running), 'ready'. `ready` resolves once activate() has settled, so an rpc that arrives meanwhile
-         * waits for the handlers it registers instead of answering rpc-not-found (plan §5.4).
+         * Where the Node entry stands: 'none' (no main, or not loaded yet), 'activating' (an async activate()
+         * still running), 'ready'. `ready` resolves once activate() has settled, so an rpc that arrives meanwhile
+         * waits for the handlers it registers instead of answering rpc-not-found (plan §5.4). A source used only
+         * for matching starts its main entry at load like an enabled one: matching wants its backend ready.
          */
         let mainState = 'none';
         let markReady = () => {};
@@ -210,7 +210,7 @@ const createNodeEntryRuntime = ({
 
         /* Requires and activates the main entry; a throw is the caller's to record. */
         const startMain = () => {
-            if (!manifest.main || unloaded || (mainState !== 'none' && mainState !== 'deferred')) {
+            if (!manifest.main || unloaded || mainState !== 'none') {
                 return;
             }
             const entryPath = path.join(entries.dirPath, manifest.main);
@@ -235,20 +235,9 @@ const createNodeEntryRuntime = ({
             }
         };
 
-        /*
-         * Loads the entry. `deferMain` (a source used only for matching): the main entry is not required now;
-         * startMain() runs it on the first rpc from its client. A rejected async activate() goes to
-         * `onActivationRejected`.
-         */
-        const load = (onActivationRejected, { deferMain = false } = {}) => {
+        /* Loads the entry. A rejected async activate() goes to `onActivationRejected`. */
+        const load = (onActivationRejected) => {
             rejectedHandler = onActivationRejected;
-            if (!manifest.main) {
-                return;
-            }
-            if (deferMain) {
-                mainState = 'deferred';
-                return;
-            }
             startMain();
         };
 
@@ -279,11 +268,10 @@ const createNodeEntryRuntime = ({
         return {
             load,
             unload,
-            startMain,
             whenReady,
             dataStore,
             getRpcHandler: (name) => rpcHandlers.get(name) ?? null,
-            /* 'none' | 'deferred' | 'activating' | 'ready', see startMain. */
+            /* 'none' | 'activating' | 'ready', see startMain. */
             getMainState: () => mainState,
             /* A source's onBeforeUnload handlers, 3 seconds at most together; resolves false at the limit. */
             beforeUnload: () => (sourceApi

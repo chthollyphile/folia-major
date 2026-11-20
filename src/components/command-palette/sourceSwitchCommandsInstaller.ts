@@ -27,12 +27,12 @@ const STATE_TEXT_KEYS: Record<ModSourceState, string> = {
     disabled: 'sourcesSettings.stateDisabled',
 };
 
-// A registered source by the name the switcher uses; a source mod that is switched off by its manifest's.
+// A source mod by its manifest's name in every state, as "Settings → Sources" names it; a source the host registers
+// by the name the switcher uses.
 const nameOf = (row: SourceRowModel) => (): string => {
+    if (row.manifestName) return manifestSourceName(row.manifestName, i18n.language, row.sourceId);
     const naming = omni.getProviderNaming(row.sourceId);
-    return naming
-        ? providerDisplayName(i18n.t.bind(i18n), naming, row.sourceId)
-        : manifestSourceName(row.manifestName, i18n.language, row.sourceId);
+    return naming ? providerDisplayName(i18n.t.bind(i18n), naming, row.sourceId) : row.sourceId;
 };
 
 // One switch per source at a time, as "Settings → Sources" keeps it (its withPending): a second command for a source
@@ -90,9 +90,9 @@ let modsAsked = false;
 const applySources = (next: readonly ModSourceStateRow[]) => {
     sources = next;
     install();
-    // A source that is not registered (switched off) is named by its mod's manifest: the mod list is read once for it
-    // when nothing has read it yet (the Mods page and "Settings → Sources" keep it fresh after that).
-    if (!modsAsked && useModsStore.getState().mods.length === 0 && next.some(row => !omni.getProviderNaming(row.sourceId))) {
+    // A source mod is named by its manifest, which the main process's rows carry; the mod list is read once when a row
+    // came without it and nothing has read the list yet (the Mods page and "Settings → Sources" keep it fresh after that).
+    if (!modsAsked && useModsStore.getState().mods.length === 0 && next.some(row => row.modId !== null && !row.name)) {
         modsAsked = true;
         void useModsStore.getState().refresh();
     }

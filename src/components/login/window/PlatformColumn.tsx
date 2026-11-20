@@ -244,7 +244,8 @@ export const PlatformColumn: React.FC<PlatformColumnProps> = ({ rows, chosenId, 
                         : <React.Fragment key={row.providerId}>{item}</React.Fragment>;
                 })}
                 {shown.length === 0 && (
-                    <p className="py-6 text-center text-[13px] text-[color:var(--st-t3)]">{t('login.noPlatformMatch')}</p>
+                    // 一个平台都没有（音源全停用了）时说去哪儿启用；有平台只是搜不到时说没有匹配的。
+                    <p className="px-3 py-6 text-center text-[13px] text-[color:var(--st-t3)]">{t(rows.length === 0 ? 'login.noSourceEnabled' : 'login.noPlatformMatch')}</p>
                 )}
             </div>
         </div>

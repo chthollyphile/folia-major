@@ -23,12 +23,13 @@ const PROFILE_DIR = 'apple-music-companion';
 
 /** main 入口。 */
 export default function activate(api: FoliumSourceMainApi): void {
-    // A platform the app ships no companion for answers every request with runtime-unavailable, as before.
+    // A platform the app ships no companion for, or an app whose companion file is missing (a development run that has
+    // not built it), answers every request with runtime-unavailable at once.
     let nativeExecutablePath = '';
     try {
         nativeExecutablePath = api.native.path(NATIVE_NAME);
     } catch (error) {
-        console.info('[AppleMusic] No companion for this platform', error instanceof Error ? error.message : String(error));
+        console.info('[AppleMusic] No companion here', error instanceof Error ? error.message : String(error));
     }
 
     let quitHold: (() => void) | null = null;

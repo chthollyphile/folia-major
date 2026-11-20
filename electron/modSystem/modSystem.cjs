@@ -694,7 +694,11 @@ ${partition}`;
         // can no longer take the whole loader down with it. Built-in and source mods go first.
         // Before the window (`builtinOnly`): not a built-in copy an override was confirmed for.
         const overridden = builtinOnly ? (store.get(OVERRIDDEN_BUILTINS_KEY) ?? {}) : {};
+        // A fresh profile runs no source until the start prompt's sources page is answered (plan §5.3): what the
+        // user leaves unticked must not have started, signed in anonymously or reached the network first.
+        const awaitingSourcesAnswer = sourcesOnboardingOwed();
         const runnable = (entry) => entry.enabled && !entry.blocked && !entry.shadowedBy && entry.mode !== 'off'
+            && !(awaitingSourcesAnswer && entry.source)
             && !clearing.has(entry.manifest.id) && (!sourcesOnly || entry.source)
             && !(builtinOnly && entry.tier === 'builtin' && Object.hasOwn(overridden, entry.manifest.id));
         const rank = (entry) => (BUILTIN_TIERS.has(entry.tier) ? 0 : entry.source ? 1 : 2);
@@ -715,8 +719,10 @@ ${partition}`;
     };
 
     // What decides whether a running copy is kept by the next load (plan §5.4, `unloadAll()` made differential).
+    // Enabled and used only for matching run the same copy (its main entry starts in both): switching between the
+    // two keeps it running, so a backend is not restarted; only 'off' differs, and an off copy does not run.
     const reloadKeyOf = (entry) => JSON.stringify([
-        entry.tier, entry.dirPath, entry.digest, entry.mode ?? null,
+        entry.tier, entry.dirPath, entry.digest, entry.mode === 'off' ? 'off' : entry.mode ? 'on' : null,
         (entry.source?.sources ?? []).map((source) => [source.sourceId, source.legacy]),
     ]);
 
@@ -867,7 +873,7 @@ ${partition}`;
                     runtime.status = 'error';
                     runtime.error = serializeError(error);
                     notifyStateChanged();
-                }, { deferMain: entry.mode === 'matching' });
+                });
                 runtime.status = 'loaded';
             } catch (error) {
                 // A source mod's registrations (windows, media rules, diagnostics, cache entries) go with it.
@@ -1120,6 +1126,8 @@ ${partition}`;
                     modId: runtime.manifest.id,
                     tier: runtime.tier,
                     state: stored[source.sourceId] ?? 'enabled',
+                    // The manifest's name of it, for lists that show it while it is not registered.
+                    name: (runtime.manifest.sources ?? []).find((entry) => entry?.id === source.sourceId)?.name ?? null,
                     keepForMatching: Boolean(source.keepForMatching),
                     takeover: Boolean(source.takeover),
                     loaded: runtime.status === 'loaded',
@@ -1130,7 +1138,7 @@ ${partition}`;
         bundledSources.ids.forEach((sourceId) => {
             if (seen.has(sourceId)) return;
             seen.add(sourceId);
-            sources.push({ sourceId, modId: null, tier: 'host', state: stored[sourceId] ?? 'enabled', keepForMatching: false, takeover: false, loaded: false, mainState: 'none' });
+            sources.push({ sourceId, modId: null, tier: 'host', state: stored[sourceId] ?? 'enabled', name: null, keepForMatching: false, takeover: false, loaded: false, mainState: 'none' });
         });
         const states = { ...stored };
         sources.forEach((source) => { states[source.sourceId] = source.state; });
@@ -1155,7 +1163,9 @@ ${partition}`;
      * Switches one source to 'enabled', 'matching' or 'disabled' (plan §5.3). Only its own mod reloads, and
      * only when the switch changes how it runs; no other mod restarts, and no restart of the app is needed.
      * Who may be 'matching' is the window's to check (it knows the capabilities, S3); the stored value is kept as
-     * it is given.
+     * it is given. A switch made while the start prompt's sources page is still owed (the page was skipped, its
+     * answer was lost or refused) counts as the answer: the page is recorded as answered, so the sources run again
+     * by their states (a source nobody switched is enabled) instead of every one staying stopped.
      */
     const setSourceState = async (sourceId, state) => {
         if (!SOURCE_STATES.includes(state)) {
@@ -1165,6 +1175,10 @@ ${partition}`;
             return { ok: false, error: 'source-not-found' };
         }
         writeSourceState(sourceId, state);
+        if (sourcesOnboardingOwed()) {
+            store.set(SOURCES_ONBOARDING_KEY, 'done');
+            console.info('[Mods] a source was switched before the start prompt sources page was answered: it counts as the answer');
+        }
         console.info(`[Mods] source ${sourceId} switched to ${state}`);
         await reloadChanged();
         return { ok: true, ...listSourceStates() };
@@ -1313,25 +1327,11 @@ ${partition}`;
     };
 
     /*
-     * client → main call routed to the handler the mod registered with api.rpc.handle. A source used only for
-     * matching has its main entry started here, by its client's first rpc (plan §5.3); an activate() still
+     * client → main call routed to the handler the mod registered with api.rpc.handle. An activate() still
      * running is waited for, so its handlers are found (plan §5.4).
      */
     const invokeModRpc = async (modId, name, args) => {
         const runtime = requireLoadedMod(modId);
-        if (typeof runtime.getMainState === 'function' && runtime.getMainState() === 'deferred') {
-            try {
-                runtime.startMain();
-                console.info(`[Mods] ${modId}: main entry started by the first rpc (source used only for matching)`);
-            } catch (error) {
-                runtime.unload();
-                runtime.status = 'error';
-                runtime.error = serializeError(error);
-                notifyStateChanged();
-                return { ok: false, error: runtime.error };
-            }
-            notifyStateChanged();
-        }
         let handler = runtime.getRpcHandler(name);
         if (!handler && typeof runtime.whenReady === 'function') {
             await runtime.whenReady();

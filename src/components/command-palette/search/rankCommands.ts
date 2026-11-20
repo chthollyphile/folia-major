@@ -93,6 +93,9 @@ const scoreEntry = (
     let score = 0;
     let input = '';
     let matchedTermLength = 0;
+    // A command that takes no input reads the words after a term as more of its name: each must be in its text.
+    const restFoundInText = (term: string) => splitWords(normalizedQuery.slice(term.length))
+        .every(word => entry.haystack.includes(word));
 
     /**
      * `allowExact` 是标题词与同义词的分界线。
@@ -109,7 +112,7 @@ const scoreEntry = (
             } else if (term.startsWith(normalizedQuery)) {
                 tier = Math.max(tier, MATCH_QUALITY.prefix);
                 score = Math.max(score, 100 - term.length - penalty);
-            } else if (normalizedQuery.startsWith(`${term} `)) {
+            } else if (normalizedQuery.startsWith(`${term} `) && (entry.command.requiresInput || restFoundInText(term))) {
                 tier = Math.max(tier, MATCH_QUALITY.input);
                 score = Math.max(score, 90 + term.length + (entry.command.requiresInput ? 20 : 0) - penalty);
                 if (term.length > matchedTermLength) {
@@ -144,6 +147,15 @@ const scoreEntry = (
         if (at >= 0) {
             tier = MATCH_QUALITY.contains;
             score = Math.max(score, 55 - Math.min(at, 40));
+        } else {
+            // 几个词分开打（「停用 某平台」「某平台 匹配」）：每个词都在语料里也算 contains，比整段连着出现的低一档分。
+            // 单个 ASCII 字母在很多命令的语料里都能碰上，不算词（留给 fuzzy 档）；一个汉字算。
+            const words = splitWords(normalizedQuery);
+            const meaningful = (word: string) => word.length >= 2 || /[^\p{ASCII}]/u.test(word);
+            if (words.length > 1 && words.every(meaningful) && words.every(word => entry.haystack.includes(word))) {
+                tier = MATCH_QUALITY.contains;
+                score = Math.max(score, 45 - Math.min(entry.haystack.indexOf(words[0]), 30));
+            }
         }
     }
 

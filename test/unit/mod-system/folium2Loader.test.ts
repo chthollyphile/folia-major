@@ -10,7 +10,7 @@ import { FROM_MAIN_WINDOW_SUBFRAME, FROM_OTHER_WINDOW } from './mainWindowFake';
 // test/unit/mod-system/folium2Loader.test.ts
 // Folium 2.0 S2 in the main-process loader (dev/folium/folium-2-plan.md §5): the built-in tier and an empty
 // built-in folder, a load that reloads only what changed, the source states (enabled / only for matching /
-// disabled) with the main entry of a matching-only source started by its first rpc, the unload order and the
+// disabled) with the main entry of a matching-only source started at load like an enabled one, the unload order and the
 // moments before an unload or a quit, and the main-window-only IPC.
 
 beforeEach(() => {
@@ -244,20 +244,16 @@ module.exports = function activate(api) {
         expect(modRecord('qq')?.activations).toBe(2);
     });
 
-    it('starts a matching-only source\'s client but not its main entry until the first rpc (gate 5)', async () => {
+    it('starts a matching-only source\'s main entry at load, like an enabled one', async () => {
         writeMod('builtin', sourceManifest('qq', ['qq']), { main: matchingMain });
         persisted.set('mods.sourceStates', { qq: 'matching' });
         const system = launch();
-        expect(stateOf(system, 'qq')).toMatchObject({ status: 'loaded', mainState: 'deferred' });
+        expect(stateOf(system, 'qq')).toMatchObject({ status: 'loaded', mainState: 'ready' });
         expect(stateOf(system, 'qq')!.clientUrl).toMatch(/^folia-mod:\/\/qq\//);
-        expect(modRecord('qq')).toBeUndefined();
-        expect(system.listSourceStates().sources.find((source) => source.sourceId === 'qq')).toMatchObject({ mainState: 'deferred' });
+        expect(modRecord('qq')?.activations).toBe(1);
+        expect(system.listSourceStates().sources.find((source) => source.sourceId === 'qq')).toMatchObject({ mainState: 'ready' });
 
         expect(await invoke(IPC.rpc, 'qq', 'match', ['song'])).toEqual({ ok: true, result: { matched: 'song' } });
-        expect(modRecord('qq')?.activations).toBe(1);
-        expect(stateOf(system, 'qq')!.mainState).toBe('ready');
-        // Stays started for later calls.
-        await invoke(IPC.rpc, 'qq', 'match', ['again']);
         expect(modRecord('qq')?.activations).toBe(1);
     });
 
@@ -267,13 +263,17 @@ module.exports = function activate(api) {
         userMod('alpha');
         const system = launch();
         expect(modRecord('qq')?.activations).toBe(1);
+        // Enabled and matching only run the same copy: switching between them does not restart it.
         await system.setSourceState('qq', 'matching');
-        expect(stateOf(system, 'qq')!.mainState).toBe('deferred');
+        expect(stateOf(system, 'qq')!.mainState).toBe('ready');
+        expect(modRecord('qq')?.activations).toBe(1);
         await system.setSourceState('qq', 'disabled');
         expect(stateOf(system, 'qq')!.status).toBe('disabled');
         await system.setSourceState('qq', 'matching');
+        expect(modRecord('qq')?.activations).toBe(2);
         await system.setSourceState('qq', 'enabled');
         expect(stateOf(system, 'qq')!.mainState).toBe('ready');
+        expect(modRecord('qq')?.activations).toBe(2);
         expect(modRecord('netease')).toMatchObject({ activations: 1, deactivations: 0 });
         expect(modRecord('alpha')).toMatchObject({ activations: 1, deactivations: 0 });
     });

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { getSourceStates, invokeAnswerSourcesOnboarding } from '../../../mods/ipc';
+import { getSourceStates, invokeAnswerSourcesOnboarding, invokeSetSourceState } from '../../../mods/ipc';
 import { stopPlaybackOfSources } from '../../../mods/runtime/sourceSwitches';
 import type { ModSourceState, ModSourceStateRow } from '../../../mods/types';
 import { setSourceStates } from '../../../services/onlineMusic/sourceStates';
@@ -15,6 +15,8 @@ import { setSourceStates } from '../../../services/onlineMusic/sourceStates';
 /** One built-in source the page lists. */
 export interface OnboardingSource {
     sourceId: string;
+    /** The name its mod's manifest gives it (one text, or one per language); null for a host platform. */
+    name: string | Record<string, string> | null;
     /** Unticked, it stays for matching rather than going off. */
     keepForMatching: boolean;
 }
@@ -22,7 +24,7 @@ export interface OnboardingSource {
 /** The built-in sources among the main process's rows: its own copies and their overrides, never a takeover. */
 export const pickOnboardingSources = (rows: readonly ModSourceStateRow[]): OnboardingSource[] => rows
     .filter(row => !row.takeover && (row.tier === 'host' || row.tier === 'builtin' || row.tier === 'override'))
-    .map(row => ({ sourceId: row.sourceId, keepForMatching: row.keepForMatching }));
+    .map(row => ({ sourceId: row.sourceId, name: row.name ?? null, keepForMatching: row.keepForMatching }));
 
 /** The answer for the main process: every listed source with the state its tick (or its absence) means. */
 export const resolveSourcesOnboardingChoices = (
@@ -62,8 +64,13 @@ export const loadSourcesOnboarding = (): Promise<void> => {
     loading ??= (async () => {
         const answer = await getSourceStates();
         const sources = answer.sourcesOnboarding ? pickOnboardingSources(answer.sources) : [];
-        // Owed with nothing to list (an installation that carries no source) has nothing to ask.
+        // Owed with nothing to list (an installation that carries no built-in source) has nothing to ask: it is
+        // answered with nothing, so the main process stops holding the sources mods back (a third-party one).
         useSourcesOnboardingStore.setState({ status: sources.length > 0 ? 'owed' : 'none', sources });
+        if (answer.sourcesOnboarding && sources.length === 0) {
+            const answered = await invokeAnswerSourcesOnboarding({});
+            if (answered.ok && answered.states) setSourceStates(answered.states);
+        }
         if (sources.length > 0) console.info(`[SourcesOnboarding] a fresh profile: the start prompt asks about ${sources.length} sources`);
     })().catch((error: unknown) => {
         console.warn('[SourcesOnboarding] reading whether the sources page is owed failed', error);
@@ -74,7 +81,8 @@ export const loadSourcesOnboarding = (): Promise<void> => {
 
 /**
  * Hands the page's answer to the main process (the prompt is closing). The page is not asked again in this run
- * whatever the answer; one the main process refused stays owed there, so the next start asks again.
+ * whatever the answer; one the main process refused stays owed there, so the next start asks again. Until then the
+ * main process runs no source; switching one in "Settings → Sources" counts as the answer and lets them run.
  */
 export const submitSourcesOnboarding = async (): Promise<void> => {
     const { status, sources, ticked } = useSourcesOnboardingStore.getState();
@@ -83,7 +91,12 @@ export const submitSourcesOnboarding = async (): Promise<void> => {
     const choices = resolveSourcesOnboardingChoices(sources, ticked);
     try {
         await stopPlaybackOfSources(Object.keys(choices).filter(sourceId => choices[sourceId] !== 'enabled'));
-        const answer = await invokeAnswerSourcesOnboarding(choices);
+        let answer = await invokeAnswerSourcesOnboarding(choices);
+        // A source switched before the page closed already counted as the answer: the ticks are still what the
+        // listener chose last, so each is written as a switch would write it rather than dropped.
+        if (!answer.ok && answer.error === 'sources-onboarding-not-owed') {
+            for (const [sourceId, state] of Object.entries(choices)) answer = await invokeSetSourceState(sourceId, state);
+        }
         if (answer.ok && answer.states) setSourceStates(answer.states);
         console.info(`[SourcesOnboarding] answered with ${ticked.size} of ${sources.length} ticked: ${answer.ok ? 'done' : answer.error ?? 'refused'}`);
     } catch (error) {
