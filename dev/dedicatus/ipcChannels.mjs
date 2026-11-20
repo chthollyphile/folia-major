@@ -97,6 +97,7 @@ export const IPC_CHANNELS = {
     'save-cover-cache': { level: 'first-party', why: '写封面缓存文件（firstParty）' },
     'save-local-cover-asset': { level: 'first-party', why: '写本地歌曲封面（firstParty）' },
     'save-settings': { level: 'first-party', why: '写主进程设置（firstParty）' },
+    'set-media-cache-limit': { level: 'first-party', why: '告诉主进程媒体缓存上限，音源模组请修剪时按它（firstParty）' },
     'scene-acoustics-available': { level: 'first-party', why: '只读场景声线追踪能不能用（firstParty）' },
     'scene-acoustics-compute': { level: 'first-party', why: '算场景房间的声音，占 CPU（firstParty）' },
     'scene-screen-capture': { level: 'first-party', why: '截主窗口一小块画面给场景打光（firstParty）' },

@@ -960,6 +960,8 @@ declare global {
       hasAudioCache: (cacheKey: string) => Promise<boolean>;
       /** `limitBytes` is the cache ceiling to prune down to afterwards; 0 means no ceiling. */
       saveAudioCache: (cacheKey: string, data: ArrayBuffer, mimeType?: string, limitBytes?: number) => Promise<boolean>;
+      /** The listener's media cache limit (bytes, 0 for none), which a source mod's api.cache.requestPrune() trims to. */
+      setMediaCacheLimit?: (limitBytes: number) => Promise<boolean>;
       /** Deletes the file under `cacheKey` only while it is `size` bytes; resolves to whether it did. */
       removeAudioCache: (cacheKey: string, size: number) => Promise<boolean>;
       getAudioCacheUsage: () => Promise<number>;

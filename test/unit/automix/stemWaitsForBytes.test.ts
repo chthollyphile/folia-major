@@ -26,6 +26,7 @@ const { listeners, getCachedAudioBlob } = vi.hoisted(() => ({
 }));
 
 vi.mock('@/services/audioCache', () => ({
+    announceCacheLimit: async () => {},
     onAudioCached: (listener: (cacheKey: string, keptUrl?: string) => void) => {
         listeners.add(listener);
         return () => listeners.delete(listener);

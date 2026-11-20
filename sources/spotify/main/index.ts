@@ -92,7 +92,8 @@ export default function activate(api: FoliumSourceMainApi): void {
         },
         // Read anew on every use: the listener may move the media cache folder.
         audioDirectory: () => api.cache.legacyDir(AUDIO_CACHE_DIR),
-        // The host trims the media cache to its own budget, the one the listener set.
+        // The host trims the media cache to the listener's limit, which the main window names before it asks a
+        // source to keep a file (set-media-cache-limit in electron/main.cjs).
         onAudioKept: () => { api.cache.requestPrune(); },
         soloistPaths: {
             data: () => path.join(api.paths.legacy(SOLOIST_DIR), 'data'),

@@ -11,6 +11,7 @@ const levelOfAudioSource = vi.fn<(url: string) => string | undefined>();
 const isPreviewAudioSource = vi.fn<(url: string) => boolean>();
 const saveAudioBlob = vi.fn<(key: string, blob: Blob) => Promise<void>>();
 const notifyAudioCached = vi.fn<(key: string, keptUrl?: string) => void>();
+const announceCacheLimit = vi.fn<() => Promise<void>>(async () => {});
 const saveToCache = vi.fn<(key: string, value: unknown) => Promise<void>>();
 
 vi.mock('../../../src/services/onlineMusic/resourceCache', () => ({
@@ -28,6 +29,7 @@ vi.mock('../../../src/services/audioCache', () => ({
     saveAudioBlob: (key: string, blob: Blob) => saveAudioBlob(key, blob),
     notifyAudioCached: (key: string, keptUrl?: string) => notifyAudioCached(key, keptUrl),
     cacheLimitBytes: () => 4096,
+    announceCacheLimit: () => announceCacheLimit(),
 }));
 vi.mock('../../../src/services/db', () => ({
     saveToCache: (key: string, value: unknown) => saveToCache(key, value),
@@ -342,7 +344,8 @@ describe('cachePlayedTrackAssets', () => {
     // track is not read here and nothing of it goes to the media cache: the provider is asked to
     // keep the file the song played from, and a separation waiting for the song is told. The cover
     // is kept like any other. The Spotify source mod asks its main entry (answered here through the
-    // test's rpc); the host's media cache limit is not handed on, the main entry has the host prune to it.
+    // test's rpc). The listener's media cache limit is named to the main process first: the main entry has
+    // the host prune its files to it.
     describe('for a provider with a cache of its own', () => {
         const spotifySong = {
             ...onlineSong, sourceRef: { kind: 'online', providerId: 'spotify', mediaId: '4cOdK2wGLETKBW3PvgPWqT' },
@@ -350,6 +353,7 @@ describe('cachePlayedTrackAssets', () => {
         const src = 'folia-mod://spotify/_media/audio/4cOdK2wGLETKBW3PvgPWqT?once=1';
         const desktop = (answers: Record<string, boolean>) => {
             const asked: Array<[string, unknown]> = [];
+            announceCacheLimit.mockReset().mockImplementation(async () => { asked.push(['limit named', null]); });
             setBuiltinSourceRpc('spotify', { request: async (operation: unknown, params: unknown) => {
                 asked.push([operation as string, params]);
                 return { ok: true, data: answers[operation as string] };
@@ -363,7 +367,7 @@ describe('cachePlayedTrackAssets', () => {
             const written = await cachePlayedTrackAssets(spotifySong, src);
 
             expect(written).toEqual({ audio: true, cover: true });
-            expect(asked).toEqual([['audio_kept', { url: src }], ['audio_keep', { url: src }]]);
+            expect(asked).toEqual([['audio_kept', { url: src }], ['limit named', null], ['audio_keep', { url: src }]]);
             expect(notifyAudioCached).toHaveBeenCalledWith(getSongResourceCacheKey('audio', spotifySong), src);
             expect(saveAudioBlob).not.toHaveBeenCalled();
             expect(fetch).toHaveBeenCalledTimes(1);
