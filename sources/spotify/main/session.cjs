@@ -1,6 +1,6 @@
 const crypto = require('node:crypto');
 
-// electron/spotify/session.cjs
+// sources/spotify/main/session.cjs
 // The signed-in Spotify account as it is kept between runs: its tokens, and what the app shows of it.
 
 const SESSION_KEY = 'SPOTIFY_SESSION_V1';

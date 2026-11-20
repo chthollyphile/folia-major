@@ -6,7 +6,7 @@ const { createSpotifySessionRepository, publicAccountId } = require('./session.c
 const { createSpotifySignIn } = require('./signIn.cjs');
 const { createSoloist } = require('./soloist.cjs');
 
-// electron/spotify/spotifyApiBridge.cjs
+// sources/spotify/main/spotifyApiBridge.cjs
 // Everything the app asks Spotify goes through here: the sign-in, and requests made as the
 // signed-in account. The token never leaves this process.
 // Spotify's public Web API answers this sign-in with 429 from the first request (measured
@@ -107,16 +107,25 @@ const TRACK_ID = /^[0-9A-Za-z]{22}$/;
 // to stay under.
 // `soloistPaths` ({ data(), cache() }) and `chooseSoloistFile()` (the system's file picker, to a
 // path or null) let Spotify play through Soloist; without them only the standard way is offered.
-// `soloist` replaces the whole Soloist part (tests).
+// `soloist` replaces the whole Soloist part (tests); `onSoloistActive(active)` and
+// `onProcessExit(stop)` go to it (soloist.cjs).
+// `loadLibrespot()` gives the playback component's module and `audioUrl(trackId, key)` the address of
+// a track's audio (audio.cjs). `onRenewing(done)` is told of a token renewal under way, with a promise
+// settled when it is over: `shutdown` has it to wait for until then.
 function createSpotifyApiBridge({
   store, safeStorage, fetch, openExternal, language = () => 'zh-CN', now = Date.now,
   log = (...args) => console.log(...args), warn = (...args) => console.warn(...args), signIn: givenSignIn, openSession,
+  loadLibrespot, audioUrl, onRenewing = () => {},
   audioDirectory, onAudioKept, wait = ms => new Promise(resolve => { setTimeout(resolve, ms); }),
-  soloistPaths, chooseSoloistFile, soloist: givenSoloist,
+  soloistPaths, chooseSoloistFile, soloist: givenSoloist, onSoloistActive, onProcessExit,
 }) {
   const repo = createSpotifySessionRepository({ store, safeStorage, log, warn });
   const soloist = givenSoloist ?? (soloistPaths
-    ? createSoloist({ store, safeStorage, dataDirectory: soloistPaths.data, cacheDirectory: soloistPaths.cache, chooseFile: chooseSoloistFile, log, warn })
+    ? createSoloist({
+      store, safeStorage, dataDirectory: soloistPaths.data, cacheDirectory: soloistPaths.cache, chooseFile: chooseSoloistFile, log, warn,
+      ...(onSoloistActive ? { onActiveChanged: onSoloistActive } : {}),
+      ...(onProcessExit ? { onProcessExit } : {}),
+    })
     : null);
   const playbackMode = () => (soloist && store.get(PLAYBACK_KEY) === 'soloist' ? 'soloist' : 'standard');
   const setPlaybackMode = mode => {
@@ -163,6 +172,11 @@ function createSpotifyApiBridge({
       throw error;
     }).finally(() => { if (renewing?.answer === answer) renewing = null; });
     renewing = { token, answer };
+    try {
+      onRenewing(answer.then(() => {}, () => {}));
+    } catch (error) {
+      warn('[Spotify] onRenewing failed', error);
+    }
     return answer;
   };
   const accessToken = async (fresh = false) => {
@@ -294,6 +308,8 @@ function createSpotifyApiBridge({
   const audio = createSpotifyAudio({
     accessToken: () => accessToken(), deviceId, fetch, now, log, warn, disk: audioFiles, onKept: onAudioKept,
     ...(openSession ? { openSession } : {}),
+    ...(loadLibrespot ? { loadLibrespot } : {}),
+    ...(audioUrl ? { audioUrl } : {}),
   });
 
   const handlers = {
@@ -588,6 +604,8 @@ function createSpotifyApiBridge({
   };
 
   return {
+    // A read of the main entry's `_media/audio` route (audio.cjs `serve`).
+    serveAudio: read => audio.serve(read),
     handleAudioRequest: request => audio.handle(request),
     // The audio files kept on disk, for the media cache to count, prune and clear: `list()`,
     // `remove(name)`, `clear()`.
@@ -622,6 +640,12 @@ function createSpotifyApiBridge({
       const stopping = soloist?.shutdown() ?? null;
       const saving = renewing && Promise.race([renewing.answer.then(() => {}, () => {}), wait(SHUTDOWN_LIMIT_MS)]);
       return stopping || saving ? Promise.all([stopping, saving]).then(() => {}) : null;
+    },
+    // The source is turned off (after `shutdown`): the sign-in's local port is closed and the
+    // playback component's connection to Spotify with it.
+    dispose() {
+      signIn.cancel();
+      audio.clear();
     },
   };
 }

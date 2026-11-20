@@ -1,11 +1,12 @@
 const crypto = require('node:crypto');
-const { parseRangeHeader } = require('../../../electron/transcode/protocol.cjs');
 const { SpotifyError, describeError, plainWords, spotifyError, statusError, toErrorResult } = require('./errors.cjs');
 const { CLIENT_ID } = require('./signIn.cjs');
 
-// electron/spotify/audio.cjs
+// sources/spotify/main/audio.cjs
 // Spotify's own audio, for a paying account, served to the renderer as
-// `folia-spotify://audio/<trackId>?k=<key>`.
+// `folia-mod://spotify/_media/audio/<trackId>?once=<key>` (the main entry's `_media/audio` route; before the
+// source was a mod it was `folia-spotify://audio/<trackId>?k=<key>`; a key is good for one run, so no old
+// address has to be answered).
 // Spotify keeps a track as an encrypted file on its CDN. The playback component (librespot,
 // through `@lox-audioserver/node-librespot`) connects to Spotify as the account and is told where
 // the file is and what its key is. The bytes are then fetched here, by range, as the audio
@@ -16,10 +17,28 @@ const { CLIENT_ID } = require('./signIn.cjs');
 // never written: every run asks Spotify for it, so a kept file opens only for a signed-in
 // paying account.
 
-const SPOTIFY_AUDIO_SCHEME = 'folia-spotify';
-const SPOTIFY_AUDIO_PRIVILEGED_SCHEME = {
-  scheme: SPOTIFY_AUDIO_SCHEME,
-  privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, stream: true },
+// The address of a track's audio when the main entry gives none (tests): the route it serves.
+const defaultAudioUrl = (trackId, key) => `folia-mod://spotify/_media/audio/${trackId}?once=${key}`;
+
+// One Range header against a file's size: `{ start, end }`, `{ invalid: true }`, or null for none (the
+// rules the host's transcode protocol reads by, which a source mod cannot require).
+const parseRangeHeader = (value, size) => {
+  if (!value) return null;
+  const match = /^bytes=(\d*)-(\d*)$/.exec(value.trim());
+  if (!match) return { invalid: true };
+  let start = match[1] ? Number(match[1]) : null;
+  let end = match[2] ? Number(match[2]) : null;
+  if (start === null) {
+    if (end === null || end <= 0) return { invalid: true };
+    start = Math.max(size - end, 0);
+    end = size - 1;
+  } else {
+    end = end === null ? size - 1 : Math.min(end, size - 1);
+  }
+  if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || start > end || start >= size) {
+    return { invalid: true };
+  }
+  return { start, end };
 };
 
 const TRACK_ID = /^[0-9A-Za-z]{22}$/;
@@ -42,7 +61,7 @@ const REFUSED = new Set([401, 403, 404, 410]);
 // gave this account any key in this run, it is an account Spotify gives no key to at all (common for
 // accounts made since about the end of 2024); after, it is asking to slow down. A new connection
 // helps neither. The renderer tells the two apart by these sentences
-// (src/services/onlineMusic/spotify/spotifyFailure.ts).
+// (sources/spotify/client/spotifyFailure.ts).
 const KEY_REFUSED = /audio key unavailable.*AesKey/i;
 const ACCOUNT_GETS_NO_KEY = 'Spotify gives this account no audio key';
 const KEY_REFUSED_FOR_NOW = 'Spotify refused the audio key for now';
@@ -81,8 +100,9 @@ function closeQuietly(session) {
 }
 
 // Connects the playback component to Spotify as the account. It is a native module with a build
-// for some systems only; where there is none, Spotify cannot be played.
-function openLibrespotSession({ accessToken, deviceId }) {
+// for some systems only; where there is none, Spotify cannot be played. `loadLibrespot()` gives the
+// module: the main entry has the host load the copy the app ships (api.native.load('librespot')).
+function openLibrespotSession({ accessToken, deviceId }, loadLibrespot) {
   let librespot;
   // On Linux the module asks for a diagnostic report when it is first required, to tell glibc
   // from musl. The report's network section looks up every interface's address and can wait
@@ -90,22 +110,28 @@ function openLibrespotSession({ accessToken, deviceId }) {
   // module reads only the report's header, so the network section is left out.
   if (process.report) process.report.excludeNetwork = true;
   try {
-    librespot = require('@lox-audioserver/node-librespot');
+    librespot = loadLibrespot();
   } catch (error) {
     throw spotifyError('unavailable', 'Spotify playback is not available on this system', `${process.platform}-${process.arch}: ${error?.message}`);
+  }
+  if (typeof librespot?.createSession !== 'function') {
+    throw spotifyError('unavailable', 'Spotify playback is not available on this system', `${process.platform}-${process.arch}: no createSession`);
   }
   return librespot.createSession({ accessToken, clientId: CLIENT_ID, deviceName: deviceId });
 }
 
 // `accessToken()` resolves to the account's token; `deviceId()` names this installation to
 // Spotify; `fetch` reaches the CDN; `openSession({ accessToken, deviceId })` resolves to
-// `{ resolveAudioFileAsync({ uri, bitrate }), close() }`.
+// `{ resolveAudioFileAsync({ uri, bitrate }), close() }`; without it the session is made by the
+// module `loadLibrespot()` gives. `audioUrl(trackId, key)` is the address handed out for a track.
 // A URL is honoured only when its key was issued here during this run, so page content cannot
 // make the app fetch an arbitrary id.
 // `disk` is the store of kept files (`audioFiles.cjs`); without one nothing is kept.
 // `onKept(limitBytes)` is called after a file was written, with the size the cache is to stay under.
 function createSpotifyAudio({
-  accessToken, deviceId, fetch, openSession = openLibrespotSession, now = Date.now, quietLimitMs = QUIET_LIMIT_MS,
+  accessToken, deviceId, fetch, loadLibrespot = () => { throw new Error('no librespot was given'); },
+  openSession = options => openLibrespotSession(options, loadLibrespot), audioUrl = defaultAudioUrl,
+  now = Date.now, quietLimitMs = QUIET_LIMIT_MS,
   randomKey = () => crypto.randomBytes(16).toString('hex'),
   log = (...args) => console.log(...args), warn = (...args) => console.warn(...args),
   disk = null, onKept = () => {},
@@ -332,11 +358,16 @@ function createSpotifyAudio({
     }
   };
   // What an issued URL stands for; a URL that was not issued in this run stands for nothing.
+  // An address's track id is its last path segment, its key the `once` parameter.
+  const partsOf = address => {
+    const url = new URL(address);
+    return { trackId: url.pathname.split('/').pop() ?? '', key: url.searchParams.get('once') ?? '' };
+  };
   const linkOf = address => {
     try {
-      const url = new URL(address);
-      const link = keys.get(url.searchParams.get('k') ?? '');
-      return link?.trackId === url.pathname.slice(1) ? link : null;
+      const { trackId, key } = partsOf(address);
+      const link = keys.get(key);
+      return link?.trackId === trackId ? link : null;
     } catch {
       return null;
     }
@@ -369,24 +400,34 @@ function createSpotifyAudio({
       const key = randomKey();
       keys.set(key, { trackId, bitrate, total: file.total, mimeType: file.mimeType, keptAs: file.keptAs, length: file.length });
       while (keys.size > MAX_ISSUED_KEYS) keys.delete(keys.keys().next().value);
-      return { url: `${SPOTIFY_AUDIO_SCHEME}://audio/${trackId}?k=${key}`, format: file.format };
+      return { url: audioUrl(trackId, key), format: file.format };
     },
 
-    // Answers a request for the scheme. No failure carries a body: callers keep whatever body
-    // they receive as the track's audio. A failure that may pass is a network error, after which
-    // the audio element goes on asking while it plays what it has. One that will not pass is a
-    // status, which ends its asking, so that the renderer can ask for a new URL or move on.
-    async handle(incoming) {
+    // A web Request for an address handed out, answered as `serve` answers it (tests).
+    handle(incoming) {
+      let parts;
       try {
-        const url = new URL(incoming.url);
-        const trackId = url.pathname.slice(1);
-        const link = keys.get(url.searchParams.get('k') ?? '');
-        if (incoming.method !== 'GET' || url.hostname !== 'audio' || !TRACK_ID.test(trackId)) return Response.error();
+        parts = partsOf(incoming.url);
+      } catch {
+        return Promise.resolve(Response.error());
+      }
+      return this.serve({ ...parts, method: incoming.method, range: incoming.headers.get('range') });
+    },
+
+    // Answers a read of the `_media/audio` route: the track id, the address's key and the raw
+    // Range header. No failure carries a body: callers keep whatever body they receive as the
+    // track's audio. A failure that may pass is a network error, after which the audio element
+    // goes on asking while it plays what it has. One that will not pass is a status, which ends its
+    // asking, so that the renderer can ask for a new URL or move on.
+    async serve({ trackId, key: given, method = 'GET', range: rangeHeader = null }) {
+      try {
+        const link = keys.get(typeof given === 'string' ? given : '');
+        if (method !== 'GET' || typeof trackId !== 'string' || !TRACK_ID.test(trackId)) return Response.error();
         // A key dropped by a sign-in or sign-out will not come back; the track plays from a new URL.
         if (link?.trackId !== trackId) return gone();
         const file = await prepare(trackId, link.bitrate);
         if (!sameFile(file, link)) return gone();
-        const range = parseRangeHeader(incoming.headers.get('range'), link.total);
+        const range = parseRangeHeader(rangeHeader, link.total);
         if (range?.invalid) {
           return new Response(null, { status: 416, headers: { 'Content-Range': `bytes */${link.total}`, 'Access-Control-Allow-Origin': '*' } });
         }
@@ -502,4 +543,4 @@ function createSpotifyAudio({
   };
 }
 
-module.exports = { SPOTIFY_AUDIO_PRIVILEGED_SCHEME, SPOTIFY_AUDIO_SCHEME, counterAt, createSpotifyAudio };
+module.exports = { counterAt, createSpotifyAudio };

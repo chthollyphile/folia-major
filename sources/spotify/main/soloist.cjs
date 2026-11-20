@@ -5,10 +5,10 @@ const WebSocket = require('ws');
 const { spotifyError } = require('./errors.cjs');
 const { EXIT_EXPIRED, createSoloistBuildReader } = require('./soloistBuild.cjs');
 
-// electron/spotify/soloist.cjs
+// sources/spotify/main/soloist.cjs
 // Spotify Soloist: Spotify's own player, a program on this computer that the person downloads
 // from Spotify (Folia may not hand it out). It is the other way Spotify plays here, for accounts
-// Spotify gives no audio key to (electron/spotify/audio.cjs): the program plays to the system's
+// Spotify gives no audio key to (sources/spotify/main/audio.cjs): the program plays to the system's
 // sound output itself, and Folia steers it and follows its clock (the renderer's external route).
 //
 // - It runs only while it is wanted: started at the first play, or while the setup checklist asks
@@ -63,12 +63,16 @@ const SOLOIST_REFUSED = 'Spotify Soloist did not play the track';
 // `onProcessExit(stop)` registers what stops the program when this process ends without quitting
 // (a crash, a relaunch): on macOS and Linux a child outlives its parent and would go on playing.
 // `isAlive(pid)` and `killPid(pid)` reach a program an earlier run left running.
+// `onActiveChanged(active)` is told when the program begins or stops running, being started or
+// being followed (`shutdown` has something to stop exactly while it is active): the main entry
+// holds a quit only then.
 function createSoloist({
   store, safeStorage, dataDirectory, cacheDirectory, chooseFile,
   spawn = spawnProcess, readBuild = createSoloistBuildReader(), WebSocketClass = WebSocket, files = fs,
   now = Date.now, wait = ms => new Promise(resolve => { setTimeout(resolve, ms); }),
   log = (...args) => console.log(...args), warn = (...args) => console.warn(...args),
   onProcessExit = stop => { process.once('exit', stop); },
+  onActiveChanged = () => {},
   isAlive = pid => {
     try {
       process.kill(pid, 0);
@@ -124,6 +128,18 @@ function createSoloist({
   let lastError = null;
   let socket = null;
   let quitting = false;
+  // What onActiveChanged was last told.
+  let wasActive = false;
+  const noteActive = () => {
+    const active = Boolean(child || adopted || socket || starting);
+    if (active === wasActive) return;
+    wasActive = active;
+    try {
+      onActiveChanged(active);
+    } catch (error) {
+      warn('[Soloist] onActiveChanged failed', error);
+    }
+  };
   // What the program last said: whether it is signed in, and what it plays.
   let auth = null;
   let playback = null;
@@ -335,6 +351,7 @@ function createSoloist({
     auth = null;
     playback = null;
     for (const waiter of [...waiters]) waiter.lost();
+    noteActive();
   };
 
   // Opens the control socket; resolves once the program has said whether it is signed in (it does
@@ -364,6 +381,7 @@ function createSoloist({
           try { socket.terminate(); } catch { /* gone */ }
         }
         socket = ws;
+        noteActive();
         onEvent(event);
         resolve();
         return;
@@ -406,6 +424,7 @@ function createSoloist({
       forgetRunFiles();
       log(`[Soloist] Stopped the program an earlier run left (pid ${left.pid})`);
     }
+    noteActive();
     if (!running) return;
     if (running.proc.exitCode === null && running.proc.signalCode === null) {
       running.proc.kill();
@@ -436,6 +455,7 @@ function createSoloist({
         let pid = null;
         try { pid = Number(files.readFileSync(path.join(dataDir(), PID_FILE), 'utf8').trim()) || null; } catch { /* none */ }
         adopted = pid ? { pid } : null;
+        noteActive();
         lastError = null;
         log(`[Soloist] Using the program an earlier run left running${pid ? ` (pid ${pid})` : ', with no process id to stop it by'}`);
         return;
@@ -478,12 +498,14 @@ function createSoloist({
     });
     const entry = { proc, exited };
     child = entry;
+    noteActive();
     if (proc.pid) {
       try { files.writeFileSync(path.join(dataDir(), PID_FILE), String(proc.pid)); } catch { /* it can still be stopped by this run */ }
     }
     void exited.then(code => {
       if (child !== entry) return;
       child = null;
+      noteActive();
       lastError = code === EXIT_EXPIRED ? 'expired' : 'exited';
       warn(`[Soloist] The program ended (exit ${code ?? 'not started'}): ${scrub(said) || 'it said nothing'}`);
       const closing = socket;
@@ -520,7 +542,11 @@ function createSoloist({
       starting = start().catch(error => {
         startFailedAt = now();
         throw error;
-      }).finally(() => { starting = null; });
+      }).finally(() => {
+        starting = null;
+        noteActive();
+      });
+      noteActive();
     }
     return starting;
   };
