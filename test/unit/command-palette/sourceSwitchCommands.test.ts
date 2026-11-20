@@ -126,4 +126,22 @@ describe('the commands that switch one source', () => {
         expect(await switchIds()).toEqual(['source-matching-netease', 'source-disable-netease', 'source-disable-bodian']);
         expect(useStatusMessageStore.getState().message?.type).toBe('error');
     });
+
+    it('runs one switch per source at a time, and shows a switch that throws as failed instead of rejecting', async () => {
+        const { runSourceSwitch } = await import('@/components/command-palette/sourceSwitchCommandsInstaller');
+        const { useStatusMessageStore } = await import('@/stores/useStatusMessageStore');
+        vi.spyOn(console, 'warn').mockImplementation(() => {});
+        let answer: (value: { ok: boolean }) => void = () => undefined;
+        switches.switchSourceState.mockImplementationOnce(() => new Promise((resolve) => { answer = resolve; }));
+        const target = { sourceId: 'qishui', state: 'enabled' as const, threeStates: false, name: () => 'Qishui' };
+        const first = runSourceSwitch(target, 'disabled');
+        await runSourceSwitch(target, 'enabled');
+        expect(switches.switchSourceState).toHaveBeenCalledTimes(1);
+        answer({ ok: true });
+        await first;
+        switches.switchSourceState.mockRejectedValueOnce(new Error('ipc gone'));
+        await expect(runSourceSwitch(target, 'disabled')).resolves.toBeUndefined();
+        expect(switches.switchSourceState).toHaveBeenCalledTimes(2);
+        expect(JSON.stringify(useStatusMessageStore.getState())).toContain('error');
+    });
 });

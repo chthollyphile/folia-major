@@ -35,19 +35,37 @@ const nameOf = (row: SourceRowModel) => (): string => {
         : manifestSourceName(row.manifestName, i18n.language, row.sourceId);
 };
 
-const run = async (target: SourceSwitchTarget, state: ModSourceState): Promise<void> => {
-    const answer = await switchSourceState(target.sourceId, state);
-    if (answer.ok) {
-        if (answer.sources) applySources(answer.sources);
-        setStatusMessage({
-            type: 'success',
-            text: i18n.t('commandPalette.sourceSwitched', { source: target.name(), state: i18n.t(STATE_TEXT_KEYS[state]) }),
-        });
-        return;
-    }
-    if (answer.error && SILENT_SOURCE_ERRORS.has(answer.error)) return;
-    const reason = sourceErrorReason(answer.error, key => i18n.t(key), key => i18n.exists(key));
+// One switch per source at a time, as "Settings → Sources" keeps it (its withPending): a second command for a source
+// whose switch is still under way is ignored rather than raced against it.
+const switching = new Set<string>();
+
+const failed = (target: SourceSwitchTarget, error: string | undefined) => {
+    if (error && SILENT_SOURCE_ERRORS.has(error)) return;
+    const reason = sourceErrorReason(error, key => i18n.t(key), key => i18n.exists(key));
     setStatusMessage({ type: 'error', text: i18n.t('sourcesSettings.switchFailed', { name: target.name(), reason }) });
+};
+
+/** Switches `target` to `state` (exported for the tests). Never rejects: a throw is shown as a failed switch. */
+export const runSourceSwitch = async (target: SourceSwitchTarget, state: ModSourceState): Promise<void> => {
+    if (switching.has(target.sourceId)) return;
+    switching.add(target.sourceId);
+    try {
+        const answer = await switchSourceState(target.sourceId, state);
+        if (answer.ok) {
+            if (answer.sources) applySources(answer.sources);
+            setStatusMessage({
+                type: 'success',
+                text: i18n.t('commandPalette.sourceSwitched', { source: target.name(), state: i18n.t(STATE_TEXT_KEYS[state]) }),
+            });
+            return;
+        }
+        failed(target, answer.error);
+    } catch (error: unknown) {
+        console.warn('[Sources] switching a source from the command palette failed', { sourceId: target.sourceId, state, error });
+        failed(target, undefined);
+    } finally {
+        switching.delete(target.sourceId);
+    }
 };
 
 /** The commands for the source states known now (exported for the tests). */
@@ -62,7 +80,7 @@ export const buildInstalledSourceSwitchCommands = () => {
         threeStates: row.threeStates,
         name: nameOf(row),
     }));
-    return buildSourceSwitchCommands(targets, run);
+    return buildSourceSwitchCommands(targets, runSourceSwitch);
 };
 
 const install = () => setSourceSwitchCommands(buildInstalledSourceSwitchCommands());
