@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 // Run the exact isolated-page queue operations without audio, tokens or a browser account.
 const require = createRequire(import.meta.url);
-const { requestExpression, validateRequest } = require('../../../electron/appleMusic/companionRequests.cjs');
+const { requestExpression, validateRequest } = require('../../../sources/appleMusic/main/companionRequests.cjs');
 const item = (id: string) => ({ id, attributes: { playParams: { catalogId: id } } });
 function player() {
     const queue = { items: [item('123')], position: 0, clearAfterCurrent: vi.fn(async () => { queue.items = queue.items.slice(0, queue.position + 1); }) };

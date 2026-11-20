@@ -216,10 +216,10 @@ describe('the trusted table of the built-in sources (§5.1)', () => {
             qishui: [constant('sources/qishui/main/session.cjs', 'SESSION_KEY')!, constant('sources/qishui/main/session.cjs', 'DEVICE_KEY')!],
             ytm: [constant('sources/ytm/main/session.cjs', 'SESSION_KEY')!, constant('sources/ytm/main/webSignIn.cjs', 'WEB_SESSION_KEY')!],
             spotify: [
-                constant('electron/spotify/session.cjs', 'SESSION_KEY')!,
-                constant('electron/spotify/soloist.cjs', 'CONFIG_KEY')!,
-                constant('electron/spotify/spotifyApiBridge.cjs', 'PLAYBACK_KEY')!,
-                constant('electron/spotify/spotifyApiBridge.cjs', 'DEVICE_KEY')!,
+                constant('sources/spotify/main/session.cjs', 'SESSION_KEY')!,
+                constant('sources/spotify/main/soloist.cjs', 'CONFIG_KEY')!,
+                constant('sources/spotify/main/spotifyApiBridge.cjs', 'PLAYBACK_KEY')!,
+                constant('sources/spotify/main/spotifyApiBridge.cjs', 'DEVICE_KEY')!,
             ],
             fnmusic: [constant('sources/fnmusic/main/fnmusicApiBridge.cjs', 'CONFIG_STORE_KEY')!, constant('sources/fnmusic/main/fnmusicApiBridge.cjs', 'DEVICE_STORE_KEY')!],
         };
@@ -231,7 +231,6 @@ describe('the trusted table of the built-in sources (§5.1)', () => {
 
     it('names the partitions and userData folders main.cjs gives the platforms', () => {
         const main = fs.readFileSync(path.join(ROOT, 'electron/main.cjs'), 'utf8');
-        expect(main).toContain("session.fromPartition('folia-spotify')");
         // QQ Music is a source mod now: its main entry claims the folder of its device file through api.paths.legacy.
         expect(fs.readFileSync(path.join(ROOT, 'sources/qq/main/index.ts'), 'utf8')).toContain("api.paths.legacy('qq-auth-state')");
         // YouTube Music is a source mod now: its main entry claims the same partitions and folder through api.*.
@@ -239,8 +238,19 @@ describe('the trusted table of the built-in sources (§5.1)', () => {
         expect(ytmMain).toContain("api.net.session('folia-ytm')");
         expect(ytmMain).toContain("api.net.session('folia-ytm-sandbox')");
         expect(ytmMain).toContain("api.paths.legacy('ytm-sign-in')");
-        expect(main).toContain("'apple-music-companion'");
-        expect(main).toContain("'soloist'");
+        // Apple Music too: its main entry finds the companion's profile folder through api.paths.legacy.
+        const appleMusicMain = fs.readFileSync(path.join(ROOT, 'sources/appleMusic/main/index.ts'), 'utf8');
+        expect(appleMusicMain).toContain("const PROFILE_DIR = 'apple-music-companion';");
+        expect(appleMusicMain).toContain('api.paths.legacy(PROFILE_DIR)');
+        // Spotify too: its partition, Soloist's folder and the media cache folder of its encrypted audio files.
+        const spotifyMain = fs.readFileSync(path.join(ROOT, 'sources/spotify/main/index.ts'), 'utf8');
+        expect(spotifyMain).toContain("api.net.session('folia-spotify')");
+        expect(spotifyMain).toContain("const SOLOIST_DIR = 'soloist';");
+        expect(spotifyMain).toContain('api.paths.legacy(SOLOIST_DIR)');
+        expect(spotifyMain).toContain("const AUDIO_CACHE_DIR = 'spotify';");
+        expect(spotifyMain).toContain('api.cache.legacyDir(AUDIO_CACHE_DIR)');
+        expect(BUILTIN_SOURCE_TABLE.spotify.userDataDirs).toEqual(['soloist']);
+        expect(BUILTIN_SOURCE_TABLE.spotify.native).toEqual(['librespot']);
         expect(BUILTIN_SOURCE_TABLE.ytm.partitions).toEqual(['folia-ytm', 'folia-ytm-sandbox']);
         expect(BUILTIN_SOURCE_TABLE.spotify.partitions).toEqual(['folia-spotify']);
     });

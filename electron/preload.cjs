@@ -174,6 +174,7 @@ contextBridge.exposeInMainWorld('electron', {
     getAudioCache: (cacheKey) => ipcRenderer.invoke('get-audio-cache', cacheKey),
     hasAudioCache: (cacheKey) => ipcRenderer.invoke('has-audio-cache', cacheKey),
     saveAudioCache: (cacheKey, data, mimeType, limitBytes) => ipcRenderer.invoke('save-audio-cache', cacheKey, data, mimeType, limitBytes),
+    setMediaCacheLimit: (limitBytes) => ipcRenderer.invoke('set-media-cache-limit', limitBytes),
     removeAudioCache: (cacheKey, size) => ipcRenderer.invoke('remove-audio-cache', cacheKey, size),
     getAudioCacheUsage: () => ipcRenderer.invoke('get-audio-cache-usage'),
     getAudioCacheStats: () => ipcRenderer.invoke('get-audio-cache-stats'),
@@ -205,8 +206,6 @@ contextBridge.exposeInMainWorld('electron', {
         ipcRenderer.on('netease-api-status-changed', listener);
         return () => ipcRenderer.removeListener('netease-api-status-changed', listener);
     },
-    appleMusicRequest: (operation, params) => ipcRenderer.invoke('apple-music-request', operation, params),
-    spotifyRequest: (operation, params) => ipcRenderer.invoke('spotify-api-request', operation, params),
     minimizeWindow: () => ipcRenderer.invoke('window-minimize'),
     toggleMaximizeWindow: () => ipcRenderer.invoke('window-toggle-maximize'),
     toggleFullscreenWindow: () => ipcRenderer.invoke('window-toggle-fullscreen'),

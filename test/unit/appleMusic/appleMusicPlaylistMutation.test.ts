@@ -1,13 +1,14 @@
+// @builtin-sources
 import { createRequire } from 'node:module';
 import { runInNewContext } from 'node:vm';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { canAddToAppleMusicPlaylist, updateAppleMusicPlaylistTracks } from '../../../src/services/onlineMusic/appleMusic/appleMusicData';
-import { normalizeAppleMusicPlaylist, normalizeAppleMusicSong } from '../../../src/services/onlineMusic/appleMusic/appleMusicNormalize';
-import { createAppleMusicProvider } from '../../../src/services/onlineMusic/appleMusic/appleMusicProvider';
+import { canAddToAppleMusicPlaylist, updateAppleMusicPlaylistTracks } from '../../../sources/appleMusic/client/appleMusicData';
+import { normalizeAppleMusicPlaylist, normalizeAppleMusicSong } from '../../../sources/appleMusic/client/appleMusicNormalize';
+import { freshAppleMusicProvider, hostAppleMusicPlaylist, stubAppleMusicBridge } from '../helpers/appleMusicSource';
 
 // Appending uses validated catalog IDs and fresh server permissions; no personal playlists are changed.
 const require = createRequire(import.meta.url);
-const { validateRequest, requestExpression, createRequestDispatcher } = require('../../../electron/appleMusic/companionRequests.cjs');
+const { validateRequest, requestExpression, createRequestDispatcher } = require('../../../sources/appleMusic/main/companionRequests.cjs');
 const playlist = (attributes: Record<string, unknown> = {}) => normalizeAppleMusicPlaylist({
     id: 'p.owned', type: 'library-playlists', attributes: { canEdit: true, ...attributes },
 });
@@ -29,13 +30,13 @@ describe('Apple Music playlist additions', () => {
         for (const attrs of [{ canEdit: false }, { canEdit: undefined }, { isFavoritePlaylist: true }]) {
             expect(canAddToAppleMusicPlaylist(playlist(attrs))).toBe(false);
         }
-        const provider = createAppleMusicProvider(() => ({ configured: true }));
+        const provider = freshAppleMusicProvider();
         expect(provider.capabilities.playlistTrackMutations).toBe(true);
-        expect(provider.mutations?.canEditPlaylistTracks?.(playlist())).toBe(false);
+        expect(provider.mutations?.canEditPlaylistTracks?.(hostAppleMusicPlaylist({ id: 'p.owned', type: 'library-playlists', attributes: { canEdit: true } }))).toBe(false);
     });
     it('resolves library rows before sending a single append request', async () => {
         const request = vi.fn(async () => ({ ok: true, data: {} }));
-        vi.stubGlobal('window', { electron: { appleMusicRequest: request } });
+        stubAppleMusicBridge(request);
         const song = normalizeAppleMusicSong({ id: 'i.a', type: 'library-songs', attributes: { playParams: { catalogId: '123' } } });
         await updateAppleMusicPlaylistTracks('add', playlist(), [song, song]);
         expect(request).toHaveBeenCalledExactlyOnceWith('addPlaylistTracks', { playlistId: 'p.owned', catalogIds: ['123'] });
@@ -45,7 +46,7 @@ describe('Apple Music playlist additions', () => {
     // An upload has no catalog song: it goes into the playlist as the library song it is.
     it('appends an upload as a library song beside catalog songs', async () => {
         const request = vi.fn(async () => ({ ok: true, data: {} }));
-        vi.stubGlobal('window', { electron: { appleMusicRequest: request } });
+        stubAppleMusicBridge(request);
         const upload = normalizeAppleMusicSong({ id: 'i.upload', type: 'library-songs', attributes: { playParams: { id: 'i.upload', isLibrary: true } } });
         const mapped = normalizeAppleMusicSong({ id: 'i.a', type: 'library-songs', attributes: { playParams: { catalogId: '123' } } });
         await updateAppleMusicPlaylistTracks('add', playlist(), [upload, mapped]);

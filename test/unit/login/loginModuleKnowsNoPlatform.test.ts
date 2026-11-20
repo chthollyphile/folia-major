@@ -63,9 +63,9 @@ describe('what each platform declares for the sign-in window', () => {
             fnmusic: { title: 'folium-mod/fnmusic:login.title', note: 'folium-mod/fnmusic:login.note' },
             // The test runs where no browser tells the system: the note is the one for Windows and Linux.
             ytm: { title: 'folium-mod/ytm:login.title', note: 'folium-mod/ytm:login.note' },
-            spotify: { title: 'home.loginTitleSpotify', note: 'home.loginNoteSpotify' },
+            spotify: { title: 'folium-mod/spotify:login.title', note: 'folium-mod/spotify:login.note' },
             qishui: { title: 'folium-mod/qishui:login.title', note: 'folium-mod/qishui:login.note' },
-            appleMusic: { title: 'home.loginTitleAppleMusic', note: 'home.loginNoteAppleMusic' },
+            appleMusic: { title: 'folium-mod/apple-music:login.title', note: 'folium-mod/apple-music:login.note' },
         });
     });
 

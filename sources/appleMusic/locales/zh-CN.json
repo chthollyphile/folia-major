@@ -1,0 +1,11 @@
+{
+    "name": {
+        "short": "Apple Music"
+    },
+    "login": {
+        "title": "登录 Apple Music",
+        "note": "请在 Apple 窗口中登录，密码只会交给 Apple。"
+    },
+    "linuxUnsupported": "Linux 暂未支援",
+    "libraryPlaylistName": "全部歌曲"
+}

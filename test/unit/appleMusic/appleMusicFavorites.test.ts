@@ -1,12 +1,14 @@
+// @builtin-sources
 import { createRequire } from 'node:module';
 import { runInNewContext } from 'node:vm';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { getAppleMusicLikedSongIds, setAppleMusicSongLiked } from '../../../src/services/onlineMusic/appleMusic/appleMusicData';
-import { normalizeAppleMusicPlaylist, normalizeAppleMusicSong } from '../../../src/services/onlineMusic/appleMusic/appleMusicNormalize';
+import { getAppleMusicLikedSongIds, setAppleMusicSongLiked } from '../../../sources/appleMusic/client/appleMusicData';
+import { normalizeAppleMusicPlaylist, normalizeAppleMusicSong } from '../../../sources/appleMusic/client/appleMusicNormalize';
+import { stubAppleMusicBridge } from '../helpers/appleMusicSource';
 
 // Favorite reads and writes use the real serialized request boundary without personal credentials.
 const require = createRequire(import.meta.url);
-const { validateRequest, requestExpression } = require('../../../electron/appleMusic/companionRequests.cjs');
+const { validateRequest, requestExpression } = require('../../../sources/appleMusic/main/companionRequests.cjs');
 afterEach(() => vi.unstubAllGlobals());
 
 describe('Apple Music favorites', () => {
@@ -101,11 +103,11 @@ describe('Apple Music favorites', () => {
             expect(params.playlistId).toBe('p.fav');
             return { ok: true, data: { items: [{ id: params.offset === 0 ? 'i.a' : 'i.b', type: 'library-songs', attributes: { playParams: { catalogId: params.offset === 0 ? '123' : '456' } } }], hasMore: params.offset === 0, nextOffset: Number(params.offset) + 1 } };
         });
-        vi.stubGlobal('window', { electron: { appleMusicRequest: request } });
+        stubAppleMusicBridge(request);
         await expect(getAppleMusicLikedSongIds()).resolves.toEqual({ ids: ['123', '456'], whole: true });
     });
     it('keeps a missing system list uncertain instead of erasing saved likes', async () => {
-        vi.stubGlobal('window', { electron: { appleMusicRequest: vi.fn(async () => ({ ok: true, data: { items: [], hasMore: false, nextOffset: 0 } })) } });
+        stubAppleMusicBridge(vi.fn(async () => ({ ok: true, data: { items: [], hasMore: false, nextOffset: 0 } })));
         await expect(getAppleMusicLikedSongIds()).resolves.toEqual({ ids: [], whole: false });
     });
     it('propagates a later page failure instead of returning a partial whole list', async () => {
@@ -115,12 +117,12 @@ describe('Apple Music favorites', () => {
             if (page++) return { ok: false, error: 'request-failed' };
             return { ok: true, data: { items: [{ id: '123', type: 'songs', attributes: {} }], hasMore: true, nextOffset: 1 } };
         });
-        vi.stubGlobal('window', { electron: { appleMusicRequest: request } });
+        stubAppleMusicBridge(request);
         await expect(getAppleMusicLikedSongIds()).rejects.toMatchObject({ code: 'network' });
     });
     it('resolves a library row to its catalog ID for a mutation', async () => {
         const request = vi.fn(async () => ({ ok: true, data: {} }));
-        vi.stubGlobal('window', { electron: { appleMusicRequest: request } });
+        stubAppleMusicBridge(request);
         await setAppleMusicSongLiked(normalizeAppleMusicSong({ id: 'i.a', type: 'library-songs', attributes: { playParams: { catalogId: '123' } } }), false);
         expect(request).toHaveBeenCalledWith('likeSong', { catalogId: '123', liked: false });
     });

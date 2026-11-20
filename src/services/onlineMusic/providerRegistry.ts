@@ -3,9 +3,8 @@ import type { OnlineMusicProvider, OnlineProviderId, ProviderCapabilities } from
 import type { SongResult } from '../../types';
 import { getPlaybackSourceRef } from '../../utils/appPlaybackGuards';
 import { neteaseProvider } from './netease/neteaseProvider';
-import { spotifyProvider } from './spotify/spotifyProvider';
-import { appleMusicProvider } from './appleMusic/appleMusicProvider';
 import { startsWithoutSources } from '../../dev/devLaunchFlags';
+import { announceCacheLimit } from '../audioCache';
 
 // src/services/onlineMusic/providerRegistry.ts
 
@@ -130,8 +129,14 @@ const askProviderCache = async (song: SongResult, ask: 'hasKeptAudio' | 'keepAud
 /** Whether the provider's own cache holds the file `url` plays. */
 export const hasProviderKeptSongAudio = (song: SongResult, url: string): Promise<boolean> => askProviderCache(song, 'hasKeptAudio', url);
 
-/** Puts the file `url` plays into the provider's own cache; resolves to whether it is there. */
-export const keepProviderSongAudio = (song: SongResult, url: string): Promise<boolean> => askProviderCache(song, 'keepAudio', url);
+/**
+ * Puts the file `url` plays into the provider's own cache; resolves to whether it is there. That cache
+ * is in the media cache budget: the main process hears the listener's limit first, to prune to it.
+ */
+export const keepProviderSongAudio = async (song: SongResult, url: string): Promise<boolean> => {
+    await announceCacheLimit();
+    return askProviderCache(song, 'keepAudio', url);
+};
 
 export const canPlayOnlineMusicSong = (song: SongResult): boolean => {
     const provider = getOnlineMusicProviderForSong(song);
@@ -171,6 +176,4 @@ export const requireOnlineMusicProviderForSong = (song: SongResult): OnlineMusic
 // moves to a source mod it leaves this list, and web/<id>.ts is where the web build gets it.
 if (!startsWithoutSources) {
     registerOnlineMusicProvider(neteaseProvider);
-    registerOnlineMusicProvider(spotifyProvider);
-    registerOnlineMusicProvider(appleMusicProvider);
 }

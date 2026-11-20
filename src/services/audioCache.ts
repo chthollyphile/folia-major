@@ -12,6 +12,19 @@ import { useAudioSettingsStore } from '../stores/useAudioSettingsStore';
 export const cacheLimitBytes = () =>
   useAudioSettingsStore.getState().mediaCacheLimitGb * 1024 * 1024 * 1024;
 
+/**
+ * Names the ceiling to the main process before a source keeps a file in a cache of its own
+ * (`keepProviderSongAudio`): that cache is in the same budget, and the source's main entry asks
+ * the host to prune it without knowing the listener's setting.
+ */
+export const announceCacheLimit = async (): Promise<void> => {
+  try {
+    await window.electron?.setMediaCacheLimit?.(cacheLimitBytes());
+  } catch {
+    // An older main process without the channel prunes nothing for the source.
+  }
+};
+
 interface ElectronAudioCacheEntry {
   found: boolean;
   data?: Uint8Array | ArrayBuffer | null;

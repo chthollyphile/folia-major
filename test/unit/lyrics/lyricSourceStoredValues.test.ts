@@ -19,13 +19,14 @@ vi.mock('@/utils/lyrics/providers/amllDbProvider', async (importOriginal) => ({
 }));
 
 const STORED_NAMES = ['netease', 'amll', 'qq', 'kugou', 'spotify'] as const;
-// Each one's name. KuGou's and QQ's are their source mods' own (sources/<id>/locales, lyrics@1.crossSource.name).
+// Each one's name. KuGou's and QQ's are their source mods' own (sources/<id>/locales, lyrics@1.crossSource.name); Spotify's is
+// its source mod's short name (sources/spotify/locales, name.short).
 const LABEL_KEYS: Record<typeof STORED_NAMES[number], string> = {
     netease: 'lyricProvider.netease',
     amll: 'lyricProvider.amll',
     qq: 'folium-mod/qq:name.lyrics',
     kugou: 'folium-mod/kugou:name.lyrics',
-    spotify: 'lyricProvider.spotify',
+    spotify: 'folium-mod/spotify:name.short',
 };
 const SETTING_KEY = 'preferred_alternative_lyric_source_v2';
 const LEGACY_SETTING_KEY = 'preferred_alternative_lyric_source';

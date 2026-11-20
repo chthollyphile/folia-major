@@ -1,0 +1,11 @@
+{
+    "name": {
+        "short": "Apple Music"
+    },
+    "login": {
+        "title": "Đăng nhập Apple Music",
+        "note": "Đăng nhập trong cửa sổ Apple. Mật khẩu của bạn chỉ được gửi cho Apple."
+    },
+    "linuxUnsupported": "Chưa hỗ trợ Linux",
+    "libraryPlaylistName": "Tất cả bài hát"
+}

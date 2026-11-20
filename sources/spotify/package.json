@@ -1,0 +1,15 @@
+{
+  "name": "@folia-sources/spotify",
+  "private": true,
+  "description": "Spotify 音源模组的依赖：ws 钉死版本打进 main 入口（Soloist 的本机控制接口）；librespot 的 Node 原生模块随应用带（asarUnpack），经 api.native.load('librespot') 由宿主加载，不打包。",
+  "dependencies": {
+    "@lox-audioserver/node-librespot": "0.5.1",
+    "ws": "8.21.3"
+  },
+  "folia": {
+    "dependencies": {
+      "@lox-audioserver/node-librespot": "native",
+      "ws": "bundle"
+    }
+  }
+}

@@ -1,14 +1,16 @@
+// @builtin-sources
 import { createRequire } from 'node:module';
 import { runInNewContext } from 'node:vm';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import i18n from '../../../src/i18n/config';
-import { createAppleMusicProvider } from '../../../src/services/onlineMusic/appleMusic/appleMusicProvider';
-import { canAddToAppleMusicPlaylist, getAppleMusicPlaylists } from '../../../src/services/onlineMusic/appleMusic/appleMusicData';
+import { foliumModTextNamespace } from '../../../src/mods/folium/registries/sourceText';
+import { canAddToAppleMusicPlaylist, getAppleMusicPlaylists } from '../../../sources/appleMusic/client/appleMusicData';
+import { freshAppleMusicProvider, stubAppleMusicBridge } from '../helpers/appleMusicSource';
 
 // Exercise the virtual library playlist through the transport and the companion's actual page expression.
-const { validateRequest, requestExpression } = createRequire(import.meta.url)('../../../electron/appleMusic/companionRequests.cjs');
+const { validateRequest, requestExpression } = createRequire(import.meta.url)('../../../sources/appleMusic/main/companionRequests.cjs');
 const LIBRARY_ID = 'library-songs';
-const provider = () => createAppleMusicProvider(() => ({ configured: true }));
+const provider = () => freshAppleMusicProvider();
 const rawSong = (id: string, catalogId?: string) => ({
     id, type: 'library-songs', attributes: { name: id, playParams: { id, kind: 'song', isLibrary: true } },
     ...(catalogId ? { relationships: { catalog: { data: [{ id: catalogId, type: 'songs' }] } } } : {}),
@@ -25,7 +27,7 @@ function installBridge(readPage: (offset: number, limit: number, path: string) =
         if (!request) return { ok: false, error: 'invalid-request' };
         return runInNewContext(requestExpression(request), context);
     });
-    vi.stubGlobal('window', { electron: { appleMusicRequest: bridge } });
+    stubAppleMusicBridge(bridge);
     return { call, bridge };
 }
 
@@ -46,7 +48,9 @@ describe('Apple Music virtual library playlist', () => {
         const { bridge } = installBridge(() => ({ data: [rawPlaylist('p.first')], next: '/v1/me/library/playlists?offset=7' }));
         const first = await getAppleMusicPlaylists(1, 0);
         expect(first.items).toHaveLength(2);
-        expect(first.items[0]).toMatchObject({ providerId: 'appleMusic', id: LIBRARY_ID, type: 'playlist', name: i18n.t('appleMusic.libraryPlaylistName'), isOwned: true });
+        // The name is the mod's own text (its locale files), in the UI language now.
+        expect(first.items[0]).toMatchObject({ id: LIBRARY_ID, type: 'playlist', name: i18n.t('libraryPlaylistName', { ns: foliumModTextNamespace('apple-music') }), isOwned: true });
+        expect(first.items[0].name).not.toBe('libraryPlaylistName');
         expect(first.items[0].isLiked).not.toBe(true);
         expect(first.items[1].id).toBe('p.first');
         expect(first).toMatchObject({ hasMore: true, nextOffset: 7 });
@@ -188,7 +192,7 @@ describe('Apple Music virtual library playlist', () => {
     it('rejects invalid pages and auth failures rather than silently completing the library', async () => {
         installBridge(() => ({ data: [rawSong('i.first')], next: '/v1/me/library/songs?offset=0' }));
         await expect(libraryTracks(1)).rejects.toMatchObject({ code: 'invalid-response' });
-        vi.stubGlobal('window', { electron: { appleMusicRequest: vi.fn(async () => ({ ok: false, error: 'auth-required' })) } });
+        stubAppleMusicBridge(vi.fn(async () => ({ ok: false, error: 'auth-required' })));
         await expect(libraryTracks(1)).rejects.toMatchObject({ code: 'auth-required' });
     });
 

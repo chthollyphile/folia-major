@@ -154,12 +154,14 @@ const createModSystem = ({
     getLocaleKey,
     isFeatureEnabled,
     // Folium 2.0, all optional: the main config store (api.legacy.store), the sign-in diagnostics registry
-    // (loginBackendIpc.cjs), the crash report, the host's media cache prune, the native files the app ships,
-    // and fakes of the Electron services source mods use (tests).
+    // (loginBackendIpc.cjs), the crash report, the host's media cache prune and the folder a built-in source's
+    // cache of before is in under the media cache folder, the native files the app ships, and fakes of the
+    // Electron services source mods use (tests).
     hostStore = null,
     diagnostics = null,
     reportError = null,
     requestCachePrune = null,
+    legacyCacheDir = null,
     nativePath = null,
     openExternal = null,
     sourceHostOverrides = {},
@@ -347,6 +349,7 @@ const createModSystem = ({
             ? reportError
             : (where, error) => console.error(`[Mods] ${where}: an error reported to the crash report`, error),
         requestCachePrune: typeof requestCachePrune === 'function' ? requestCachePrune : () => {},
+        legacyCacheDir: typeof legacyCacheDir === 'function' ? legacyCacheDir : () => null,
         ensureDir: (directory) => fs.mkdirSync(directory, { recursive: true }),
         mediaRules,
         mediaHandlers,
@@ -1181,6 +1184,8 @@ ${partition}`;
             storeKeys: [...legacy.storeKeys],
             partitions: [...new Set([...legacy.partitions, ...(Array.isArray(ownPartitions) ? ownPartitions : [])])],
             userDataDirs: legacy.userDataDirs.map((folder) => path.join(app.getPath('userData'), folder)),
+            // The platform's cache of before under the media cache folder (builtinSources.cjs legacyCacheDirs).
+            cacheDirs: (legacy.cacheDirs ?? []).map((folder) => sourceHost.legacyCacheDir(folder)).filter(Boolean),
             modData: dataDir,
             modCache: cacheDir,
             pageStorePrefixes: [`online_provider:${sourceId}:`, `online_provider_${sourceId}_`],
@@ -1229,7 +1234,7 @@ ${partition}`;
                     console.warn(`[Mods] clearing ${sourceId}: partition ${partition} could not be cleared`, error);
                 }
             }
-            for (const directory of [...described.userDataDirs, described.modData, described.modCache]) {
+            for (const directory of [...described.userDataDirs, ...described.cacheDirs, described.modData, described.modCache]) {
                 try {
                     await fs.promises.rm(directory, { recursive: true, force: true, maxRetries: 3 });
                 } catch (error) {

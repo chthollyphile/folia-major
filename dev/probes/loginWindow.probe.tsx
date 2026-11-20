@@ -119,34 +119,35 @@ const failureOf = (id: LoginCaseId): LoginFailure => {
 
 type Shown = Pick<LoginScreenProps, 'chosen' | 'login' | 'setup'>;
 
-// Two ways to sign in in the browser, as a platform with two ways to play declares them.
+// Two ways to sign in in the browser, as a platform with two ways to play declares them. The words are the Spotify
+// source mod's (its locales, under folium-mod/spotify), there once the built-in source mod runs.
 const BROWSER_METHODS: LoginMethod[] = [
-    { id: 'standard', labelKey: 'soloist.method.standard', iconKey: '', noteKey: 'soloist.method.standardNote' },
-    { id: 'soloist', labelKey: 'soloist.method.soloist', iconKey: '', noteKey: 'soloist.method.soloistNote' },
+    { id: 'standard', labelKey: 'folium-mod/spotify:soloist.method.standard', iconKey: '', noteKey: 'folium-mod/spotify:soloist.method.standardNote' },
+    { id: 'soloist', labelKey: 'folium-mod/spotify:soloist.method.soloist', iconKey: '', noteKey: 'folium-mod/spotify:soloist.method.soloistNote' },
 ];
 const NO_KEY_VIEW: ProviderSetupView = {
-    titleKey: 'soloist.noKey.title',
-    noteKey: 'soloist.noKey.note',
+    titleKey: 'folium-mod/spotify:soloist.noKey.title',
+    noteKey: 'folium-mod/spotify:soloist.noKey.note',
     complete: false,
-    steps: [{ id: 'mode', titleKey: 'soloist.step.modeStandard', noteKey: 'soloist.mode.noKeyNote', state: 'warn', actions: [{ id: 'use-soloist', labelKey: 'soloist.action.useSoloist', kind: 'run', primary: true }] }],
+    steps: [{ id: 'mode', titleKey: 'folium-mod/spotify:soloist.step.modeStandard', noteKey: 'folium-mod/spotify:soloist.mode.noKeyNote', state: 'warn', actions: [{ id: 'use-soloist', labelKey: 'folium-mod/spotify:soloist.action.useSoloist', kind: 'run', primary: true }] }],
 };
 const STEPS_VIEW: ProviderSetupView = {
-    titleKey: 'soloist.setup.title',
-    noteKey: 'soloist.setup.note',
+    titleKey: 'folium-mod/spotify:soloist.setup.title',
+    noteKey: 'folium-mod/spotify:soloist.setup.note',
     complete: false,
-    message: { key: 'soloist.message.keySaved', tone: 'ok' },
+    message: { key: 'folium-mod/spotify:soloist.message.keySaved', tone: 'ok' },
     steps: [
         {
-            id: 'program', titleKey: 'soloist.step.program', noteKey: 'soloist.program.expiring', state: 'warn',
+            id: 'program', titleKey: 'folium-mod/spotify:soloist.step.program', noteKey: 'folium-mod/spotify:soloist.program.expiring', state: 'warn',
             params: { version: '1.4.2', days: 9, expires: '2026年11月15日' }, detail: 'C:\\Users\\listener\\Downloads\\soloist\\soloist.exe',
-            actions: [{ id: 'download', labelKey: 'soloist.action.download', kind: 'link' }, { id: 'pick', labelKey: 'soloist.action.pickAgain', kind: 'pick-file' }],
+            actions: [{ id: 'download', labelKey: 'folium-mod/spotify:soloist.action.download', kind: 'link' }, { id: 'pick', labelKey: 'folium-mod/spotify:soloist.action.pickAgain', kind: 'pick-file' }],
         },
         {
-            id: 'key', titleKey: 'soloist.step.key', noteKey: 'soloist.key.saved', state: 'done', secret: { labelKey: 'soloist.key.label', saved: true },
-            actions: [{ id: 'key-page', labelKey: 'soloist.action.keyPage', kind: 'link' }, { id: 'save-key', labelKey: 'soloist.action.saveKey', kind: 'submit-secret', primary: true }],
+            id: 'key', titleKey: 'folium-mod/spotify:soloist.step.key', noteKey: 'folium-mod/spotify:soloist.key.saved', state: 'done', secret: { labelKey: 'folium-mod/spotify:soloist.key.label', saved: true },
+            actions: [{ id: 'key-page', labelKey: 'folium-mod/spotify:soloist.action.keyPage', kind: 'link' }, { id: 'save-key', labelKey: 'folium-mod/spotify:soloist.action.saveKey', kind: 'submit-secret', primary: true }],
         },
-        { id: 'pair', titleKey: 'soloist.step.pair', noteKey: 'soloist.pair.todo', state: 'todo', actions: [{ id: 'restart', labelKey: 'soloist.action.reconnect', kind: 'run' }] },
-        { id: 'mode', titleKey: 'soloist.step.modeSoloist', noteKey: 'soloist.mode.soloistNote', state: 'done', actions: [{ id: 'use-standard', labelKey: 'soloist.action.useStandard', kind: 'run' }] },
+        { id: 'pair', titleKey: 'folium-mod/spotify:soloist.step.pair', noteKey: 'folium-mod/spotify:soloist.pair.todo', state: 'todo', actions: [{ id: 'restart', labelKey: 'folium-mod/spotify:soloist.action.reconnect', kind: 'run' }] },
+        { id: 'mode', titleKey: 'folium-mod/spotify:soloist.step.modeSoloist', noteKey: 'folium-mod/spotify:soloist.mode.soloistNote', state: 'done', actions: [{ id: 'use-standard', labelKey: 'folium-mod/spotify:soloist.action.useStandard', kind: 'run' }] },
     ],
 };
 const setupOf = (view: ProviderSetupView, origin: 'sign-in' | 'account'): LibraryProviderSetupSnapshot => ({ providerId: 'spotify', view, busy: false, origin });
