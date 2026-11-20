@@ -562,6 +562,36 @@ describe('soloist', () => {
         await first.soloist.shutdown();
     });
 
+    // The source turned off while a start was taking over a program an earlier run left: the program
+    // and the socket are not kept by a start that ends after the shutdown.
+    it('stops a program it was taking over when it is shut down meanwhile', async () => {
+        const first = setup();
+        await playing(first.soloist, first.spawned);
+        const dataDir = path.join(first.data, 'data');
+        let alive = true;
+        const killPid = vi.fn((_pid: number) => { alive = false; });
+        let reaching = false;
+        const again = createSoloist({
+            store: first.store, safeStorage: keychain(),
+            dataDirectory: () => { reaching = true; return dataDir; },
+            cacheDirectory: () => path.join(first.data, 'cache'),
+            chooseFile: async () => null, spawn: vi.fn(), readBuild: async () => VALID_BUILD, log: () => { }, warn: () => { },
+            onProcessExit: () => { }, isAlive: () => alive, killPid,
+        });
+        const connected = () => servers.reduce((total, server) => total + server.clients.size, 0);
+        const before = connected();
+        const going = again.restart().catch((error: any) => error);
+        for (let tries = 0; tries < 1000 && !reaching; tries += 1) await Promise.resolve();
+        expect(reaching).toBe(true);
+        await again.shutdown();
+        expect(await going).toMatchObject({ reason: 'soloist-gone' });
+        expect(killPid).toHaveBeenCalledWith(4321);
+        await expect(again.state({ start: false })).resolves.toMatchObject({ running: false });
+        await settle();
+        expect(connected()).toBe(before);
+        await first.soloist.shutdown();
+    });
+
     it('stops what it started when the process ends without quitting', async () => {
         const { soloist, spawned, exitStops: stops } = setup();
         await playing(soloist, spawned);

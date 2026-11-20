@@ -443,29 +443,41 @@ function createSoloist({
     try { if (adopted) killPid(adopted.pid); } catch { /* gone */ }
   });
 
+  const quittingError = () => spotifyError('unavailable', SOLOIST_GONE, 'the app is quitting', 'soloist-gone');
+
   const notSetUp = (what, detail) => spotifyError('unavailable', SOLOIST_NOT_SET_UP, detail ?? what, `soloist-${what}`);
 
   const start = async () => {
     // A program this data directory already has (an earlier run of the app ended without stopping
     // it) is used: a second one would refuse the data directory.
     const left = endpoint();
+    let reached = false;
     if (left) {
       try {
         await connect(left);
-        let pid = null;
-        try { pid = Number(files.readFileSync(path.join(dataDir(), PID_FILE), 'utf8').trim()) || null; } catch { /* none */ }
-        adopted = pid ? { pid } : null;
-        noteActive();
-        lastError = null;
-        log(`[Soloist] Using the program an earlier run left running${pid ? ` (pid ${pid})` : ', with no process id to stop it by'}`);
-        return;
+        reached = true;
       } catch { /* an address left by a program that is gone */ }
+    }
+    if (reached) {
+      let pid = null;
+      try { pid = Number(files.readFileSync(path.join(dataDir(), PID_FILE), 'utf8').trim()) || null; } catch { /* none */ }
+      adopted = pid ? { pid } : null;
+      // Stopped (or the source turned off) while it was being reached: what was taken over is stopped here,
+      // as `shutdown` found nothing to stop yet.
+      if (quitting) {
+        await stopRunning();
+        throw quittingError();
+      }
+      noteActive();
+      lastError = null;
+      log(`[Soloist] Using the program an earlier run left running${pid ? ` (pid ${pid})` : ', with no process id to stop it by'}`);
+      return;
     }
     // Whatever was taken over before is gone (its address did not answer): its id is not this run's.
     adopted = null;
     if (!config.executable) throw notSetUp('program');
     const build = await readBuild(config.executable);
-    if (quitting) throw spotifyError('unavailable', SOLOIST_GONE, 'the app is quitting', 'soloist-gone');
+    if (quitting) throw quittingError();
     if (build.state === 'missing' || build.state === 'invalid') throw notSetUp('program', `${build.state}: ${config.executable}`);
     if (build.state === 'expired') {
       lastError = 'expired';
@@ -520,6 +532,8 @@ function createSoloist({
       if (url) {
         try {
           await connect(url);
+          // The socket came up after `shutdown` stopped the program: it is closed, not kept.
+          if (quitting) break;
           lastError = null;
           log(`[Soloist] Started in ${now() - startedAt}ms (signed in: ${auth?.loggedIn ? 'yes' : 'not yet'})`);
           return;
@@ -528,6 +542,10 @@ function createSoloist({
       await wait(START_POLL_MS);
     }
     const ended = child !== entry;
+    if (quitting) {
+      if (!ended || socket) await stopRunning();
+      throw quittingError();
+    }
     if (!ended) await stopRunning();
     const expired = lastError === 'expired';
     lastError = expired ? 'expired' : 'start';
@@ -537,7 +555,7 @@ function createSoloist({
 
   const ensureRunning = () => {
     if (socket) return Promise.resolve();
-    if (quitting) return Promise.reject(spotifyError('unavailable', SOLOIST_GONE, 'the app is quitting', 'soloist-gone'));
+    if (quitting) return Promise.reject(quittingError());
     if (!starting) {
       starting = start().catch(error => {
         startFailedAt = now();
@@ -764,13 +782,13 @@ function createSoloist({
       };
     },
 
-    // The app is quitting: the program is stopped. Answers null when nothing runs.
-    // A start under way is not waited for: it stops at its next step, and what it started is
-    // stopped here.
+    // The app is quitting, or the source is turned off: the program is stopped. Answers null when
+    // nothing runs. A start under way stops at its next step and stops what it started or took over
+    // (it reads `quitting` after each wait); it is waited for, so nothing of it outlives this.
     shutdown() {
       quitting = true;
       if (!child && !adopted && !socket && !starting) return null;
-      return stopRunning();
+      return Promise.all([stopRunning(), settleStart()]).then(() => stopRunning());
     },
   };
 }
