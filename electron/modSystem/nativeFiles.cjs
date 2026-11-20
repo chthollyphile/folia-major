@@ -3,7 +3,7 @@
 // electron/modSystem/nativeFiles.cjs
 // The native files the app ships for a built-in source (Folium 2.0 plan §5.5, §6.2): what `api.native.path(name)` /
 // `load(name)` resolve, by the names the trusted table's rows list (builtinSources.cjs `native`). The files are built
-// and packaged by the app (build/beforePack.cjs, package.json extraResources), not by the source mod: a packaged
+// and packaged by the app (build/beforePack.cjs, the extraResources of build/bundledSources.mjs), not by the source mod: a packaged
 // app reads them from its resources only, a development run from the build output, or from an absolute path a
 // developer names in the environment. A name this file does not know resolves to '' (the host's `native-unavailable`).
 

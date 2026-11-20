@@ -49,13 +49,18 @@ npm run sources:build -- --extra test/fixtures/folium-sources/fixture-source
 它按 `FOLIA_BUNDLED_SOURCES`（`dev/sources/selection.mjs`，规则同上）决定：
 
 - `extraResources`：只把带的 `dist-mods/<id>` 放到 `resources/builtin-mods/<id>`；`dist-mods/` 和选择对不上（多了或少了）时拒绝
-  打包，所以 `sources:build` 要用同一个 `FOLIA_BUNDLED_SOURCES` 先跑。
+  打包，所以 `sources:build` 要用同一个 `FOLIA_BUNDLED_SOURCES` 先跑；用 `--extra` 构建过夹具的，先不带 `--extra` 重跑一次。
 - `extraMetadata.foliaBundledSources`：写进安装包里的 package.json，主进程据此认出「不带」的音源，放开外部模组对它的接管（方案 §5.1）。
 - `files` 的排除规则（`dev/sources/packaging.mjs`）：各音源声明的上游库连同只有它们用到的依赖都不进 app.asar（根 `dependencies`
   仍保留，`sources:build` 和 Vercel / Cloudflare 的入口要用）；宿主自己 require 的包与带上的音源的原生件留着；不带的音源的原生件不进。
 - Apple Music 的伴侣程序（win / mac 的 `extraResources`、`beforePack` 的编译、`afterPack` 的核对）只在带 Apple Music 时有。
 - 受信表 `electron/modSystem/builtinSources.cjs` 九行都留着：外部模组接管一个不带的音源时，它声明的旧登录要拿那一行核对
   （`sourceOwnership.cjs` 的 `claimRefusal`）。这和方案 §6.2「受信表带哪几行」的字面不同。
+- 方案 §11「安装包里搜不到任何平台的代码和名字」现在做不到「名字」：不带的音源的代码与上游库都不进包，但宿主里还留着它的
+  id 与名字——受信表、注册表顺序 `BUILT_IN_SOURCE_ORDER`、`nativeFiles.cjs` 的原生件名、旧键迁移表、语言包的版本说明、渲染端的
+  平台 id 字符串。要做到得把这些也按选择生成，待维护者定。
+- 开发版用子集（`FOLIA_BUNDLED_SOURCES=… npm run dev:electron:dist*`）时仓库的 package.json 没有 `foliaBundledSources`，主进程按
+  九家都带处理，没构建的那几家会被判成安装损坏；要试子集，用 `--stamp` 写一份临时的 package.json 副本。
 
 网页版（`npm run build`）经虚拟模块 `virtual:folia-web-sources` 只 import 选中的 `src/services/onlineMusic/web/<id>.ts`，没带的那一家
 连 core 都不进包。

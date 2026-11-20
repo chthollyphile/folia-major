@@ -210,7 +210,7 @@ jobs:
           key: mnn-${{ runner.os }}-${{ hashFiles('build/buildMnnRuntime.mjs', 'native/folia-mnn/**') }}
 
       # Folium 2.0: the built-in source mods, sources/<id>/ built into dist-mods/ (dev/sources/build.mjs), which
-      # extraResources ships as resources/builtin-mods. FOLIA_BUNDLED_SOURCES unset: every source in sources/.
+      # build/bundledSources.mjs (build.extends) ships them as resources/builtin-mods. FOLIA_BUNDLED_SOURCES unset: every source in sources/.
       - name: Build built-in source mods
         run: npm run sources:build
 
