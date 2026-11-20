@@ -69,10 +69,10 @@ const createSourceApi = (context, host) => {
     };
 
     // What the old data grants allow: the union over the mod's sources (one row each).
-    const grants = { storeKeys: new Set(), partitions: new Set(), userDataDirs: new Set(), native: new Set() };
+    const grants = { storeKeys: new Set(), partitions: new Set(), userDataDirs: new Set(), native: new Set(), cacheDirs: new Set() };
     (context.sources ?? []).forEach(({ legacy }) => {
         if (!legacy) return;
-        Object.keys(grants).forEach((field) => legacy[field].forEach((value) => grants[field].add(value)));
+        Object.keys(grants).forEach((field) => (legacy[field] ?? []).forEach((value) => grants[field].add(value)));
     });
     const ownSourceIds = new Set((context.sources ?? []).map(({ sourceId }) => sourceId));
 
@@ -215,6 +215,17 @@ const createSourceApi = (context, host) => {
                 return context.cacheDir;
             },
             requestPrune: (limitBytes) => host.requestCachePrune(limitBytes),
+            /*
+             * A folder under the host's media cache folder (the one the listener may choose) that a built-in source's
+             * row claims (legacyCacheDirs): where the platform kept its cache before it was a mod. Read anew on every
+             * call, as the listener may move the cache folder; not made here.
+             */
+            legacyDir: (name) => {
+                if (!grants.cacheDirs.has(name)) throw new Error(`legacy-cache-not-claimed:${String(name)}`);
+                const resolved = host.legacyCacheDir(name);
+                if (!resolved) throw new Error(`legacy-cache-unavailable:${name}`);
+                return resolved;
+            },
             provideEntries: (provider) => {
                 if (!provider || typeof provider.list !== 'function') throw new TypeError('cache.provideEntries requires { list, remove?, clear? }');
                 host.cacheProviders.set(modId, provider);

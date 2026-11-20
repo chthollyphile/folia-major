@@ -23,6 +23,10 @@ const path = require('path');
  * here, not read from the platform modules, so this file loads nothing of theirs; builtinSources.test.ts
  * holds them to the constants those modules use today.
  *
+ * `legacyCacheDirs` (only where a row has it): folders under the host's media cache folder (the one the listener may
+ * choose) the built-in platform kept a cache of its own in. `api.cache.legacyDir(name)` reaches them, so files kept
+ * before still count, and the source keeps them where the listener wanted the cache.
+ *
  * `legacyMediaSchemes` (only where a row has it): a privileged scheme the built-in platform served its media under
  * before it became a mod (`folia-<platform>://cover?coverId=…`). Songs saved then (history, queues, playlists, the
  * scratchpad) keep those addresses, so the host goes on answering the scheme: `<scheme>://<name>?<query>` (or
@@ -80,6 +84,8 @@ const BUILTIN_SOURCE_TABLE = Object.freeze({
         partitions: ['folia-spotify'],
         userDataDirs: ['soloist'],
         native: ['librespot'],
+        // Its encrypted audio files, in a folder of the media cache folder the listener chose (api.cache.legacyDir).
+        legacyCacheDirs: ['spotify'],
     }),
     'apple-music': Object.freeze({
         sources: ['appleMusic'],

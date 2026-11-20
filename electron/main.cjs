@@ -6496,6 +6496,8 @@ app.whenReady().then(async () => {
       diagnostics: loginDiagnostics,
       reportError: (where, error) => crashLog.reportError(where, error, { announceToUser: false }),
       requestCachePrune: (limitBytes) => pruneMediaCache(limitBytes),
+      // api.cache.legacyDir: a built-in source's cache of before, in the media cache folder the listener chose.
+      legacyCacheDir: (name) => path.join(getConfiguredCacheDirectory(), name),
       openExternal: (url) => openExternalUrl(url),
       // api.native.path / load: the native files the app ships for a built-in source (electron/modSystem/nativeFiles.cjs).
       nativePath: (name) => resolveNativeFile(name, {

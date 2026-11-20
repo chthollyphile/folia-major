@@ -196,6 +196,16 @@ describe('the source members of api (plan §5.5)', () => {
         expect(await system.sourceCaches.list()).toEqual([]);
     });
 
+    // Spotify kept its encrypted audio in a folder of the media cache folder the listener chose; its row claims it.
+    it('cache.legacyDir: only a folder the row claims, under the media cache folder the host names now', () => {
+        let cacheRoot = path.join(harness().root, 'media-cache');
+        const { api } = launchSource({ legacyCacheDir: (name: string) => path.join(cacheRoot, name) });
+        expect(api.cache.legacyDir('spotify')).toBe(path.join(harness().root, 'media-cache', 'spotify'));
+        cacheRoot = path.join(harness().root, 'moved');
+        expect(api.cache.legacyDir('spotify')).toBe(path.join(harness().root, 'moved', 'spotify'));
+        expect(() => api.cache.legacyDir('ytm')).toThrow('legacy-cache-not-claimed:ytm');
+    });
+
     // A source names its partition on every request; the record of it is read from the settings file once a run.
     it('reads the record of its own partitions once, not on every request', () => {
         const { api } = launchSource();

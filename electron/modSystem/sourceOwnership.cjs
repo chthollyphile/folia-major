@@ -34,6 +34,8 @@ const legacyOfRow = (row) => (row ? {
     partitions: [...row.partitions],
     userDataDirs: [...row.userDataDirs],
     native: [...row.native],
+    // Only where the row names any (builtinSources.cjs legacyCacheDirs).
+    ...(row.legacyCacheDirs ? { cacheDirs: [...row.legacyCacheDirs] } : {}),
 } : null);
 
 const legacyOfClaims = (claims) => ({

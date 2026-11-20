@@ -474,6 +474,7 @@ const createModApproval = ({ app, store, enabledKey, getMainWindowSafe, getLocal
             ...items.storeKeys,
             ...items.partitions.map((partition) => `partition ${partition}`),
             ...items.userDataDirs,
+            ...(items.cacheDirs ?? []),
             items.modData,
             items.modCache,
             ...items.pageStorePrefixes.map((prefix) => `${prefix}*`),
