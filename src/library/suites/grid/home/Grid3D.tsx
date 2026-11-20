@@ -203,13 +203,15 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
 
     const showUpdateIndicator = useUpdateIndicator();
     // 紧凑档（窗口窄于 960，progress-bar v3，见 useBottomLayoutTracking）：页头一行放不下标题加五颗
-    // 页签胶囊，Folia 标题让位；搜索也收成一颗按钮——点开之后整排按钮向左滑出、搜索框从右边滑进来
+    // 页签胶囊，Folia 标题让位给当前页签的名字；搜索也收成一颗按钮——点开之后整排按钮向左滑出、搜索框从右边滑进来
     // 占满整条页头。没挂档位追踪的页面（OBS 之类）一直是桌面档，标题与搜索框照旧。
     const isCompact = useIsBottomLayoutCompact();
     /** 紧凑档的搜索是不是已经滑进来；桌面档的搜索框一直摆着，不看这个。 */
     const [isCompactSearchOpen, setIsCompactSearchOpen] = useState(false);
     /** 紧凑档把页签收成了一颗菜单按钮：点开展开页签列表，再点（或选一个页签、点外面）收起。 */
     const [isCompactTabsOpen, setIsCompactTabsOpen] = useState(false);
+    /** 紧凑档页头正中的标题：当前页签的名字；万一对不上任何页签，退回 Folia。 */
+    const compactTabTitle = homeTabs.find(tab => tab.key === homeViewTab)?.label ?? 'Folia';
 
     // Reset focused index when switching tabs.
     useEffect(() => {
@@ -396,8 +398,8 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                 <div className="relative overflow-x-clip">
                 {/* 纵向留白两档一致，按桌面档：上内边距一直是 32px（p-8 的纵向那半）。
                     两档都用三等分：两侧各占一份剩余宽度，中间那一块恰好落在页面正中。
-                    桌面档中间是页签胶囊；紧凑档页签收进了左侧菜单，中间放 Folia 标题，
-                    换页签、加页签都不会让标题偏。
+                    桌面档中间是页签胶囊；紧凑档页签收进了左侧菜单，中间放当前页签的名字，
+                    换页签、加页签都不会让它偏。
                     中间这一块是 auto 宽、不参与伸缩：窗口再窄也不压它，先让两边让出位置。
                     横向在窄窗口收窄到 16px；窗口很窄时只收每个页签的左右内边距。 */}
                 <div
@@ -583,13 +585,29 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                         )}
                     </div>
 
-                    {/* Center Tab Switcher：桌面档是横排胶囊；紧凑档页签收进左侧的菜单按钮，这里放 Folia 标题，
-                        照样落在页面正中。胶囊的宽度永远是它自身的内容宽度（shrink-0）：
-                        窗口再窄也不压它，先让两侧让位。窗口很窄时只收每个页签的左右内边距。 */}
+                    {/* Center Tab Switcher：桌面档是横排胶囊；紧凑档页签收进左侧的菜单按钮，这里改放当前页签的名字，
+                        照样落在页面正中——收起菜单也看得出自己在哪一页。胶囊的宽度永远是它自身的内容宽度（shrink-0）：
+                        窗口再窄也不压它，先让两侧让位。页签名太长（译文）时截断，不把两侧挤没。 */}
                     <div className="flex shrink-0 justify-center">
                         {isCompact ? (
-                            <h1 className="text-2xl font-bold tracking-tight opacity-90 flex items-center gap-3">
-                                Folia
+                            <h1
+                                data-testid="home-compact-tab-title"
+                                className="relative max-w-[min(50vw,20rem)] text-2xl font-bold tracking-tight opacity-90"
+                            >
+                                {/* 换页签时旧名字往上淡出、新名字从下面淡入；mode="wait" 让两者不叠在一起。
+                                    initial={false}：首次挂载和进紧凑档那一下直接显示，不播入场。 */}
+                                <AnimatePresence mode="wait" initial={false}>
+                                    <motion.span
+                                        key={compactTabTitle}
+                                        initial={{ opacity: 0, y: 8 }}
+                                        animate={{ opacity: 1, y: 0 }}
+                                        exit={{ opacity: 0, y: -8 }}
+                                        transition={{ duration: 0.16, ease: 'easeOut' }}
+                                        className="block truncate"
+                                    >
+                                        {compactTabTitle}
+                                    </motion.span>
+                                </AnimatePresence>
                             </h1>
                         ) : (
                         <div className={`relative shrink-0 ${navPillBg} backdrop-blur-md p-1 rounded-full`}>
