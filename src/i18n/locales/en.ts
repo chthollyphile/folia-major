@@ -5476,6 +5476,12 @@ export default {
       "description": "Play only starts the song. You stay in the library, and the card you pressed turns into pause / resume."
     }
   },
+  "sourcesOnboarding": {
+    "title": "Which platforms do you listen on?",
+    "description": "Tick the platforms you play music from. Unticked ones stay out of the switcher, the sign-in window and search, and do not run in the background. Ticking none is fine too: local music plays as always.",
+    "matchingNote": "Kept even when unticked, only to match lyrics and details for your local songs.",
+    "settingsHint": "You can change this later under Options → Sources."
+  },
   "librarySuiteOnboarding": {
     "title": "How should your library look?",
     "description": "The home screen, playlists, albums and artist pages are all browsed in the interface you pick here. Both do the same things; they just browse differently.",

@@ -5475,6 +5475,12 @@ export default {
       "description": "Putar hanya memulai lagu. Anda tetap di pustaka, dan tombol putar pada kartu yang ditekan berubah menjadi jeda / lanjut."
     }
   },
+  "sourcesOnboarding": {
+    "title": "Anda mendengarkan musik di platform mana saja?",
+    "description": "Centang platform tempat Anda memutar musik. Yang tidak dicentang tidak muncul di pengalih, jendela masuk, dan pencarian, serta tidak berjalan di latar belakang. Tidak mencentang satu pun juga boleh: musik lokal tetap bisa diputar.",
+    "matchingNote": "Tetap disimpan meski tidak dicentang, hanya untuk mencocokkan lirik dan info lagu lokal.",
+    "settingsHint": "Anda bisa mengubahnya nanti di Opsi → Sumber."
+  },
   "librarySuiteOnboarding": {
     "title": "Pustaka mau tampil seperti apa?",
     "description": "Beranda, playlist, album, dan halaman artis dijelajahi dengan antarmuka yang Anda pilih di sini. Keduanya bisa melakukan hal yang sama, hanya cara menjelajahnya berbeda.",

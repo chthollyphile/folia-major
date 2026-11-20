@@ -5475,6 +5475,12 @@ export default {
       "description": "点击播放只开始播放，不跳转；留在资料库里，按过的卡片上的播放键变成暂停 / 继续。"
     }
   },
+  "sourcesOnboarding": {
+    "title": "你用哪些平台听歌？",
+    "description": "勾上你会在上面听歌的平台。没勾的不出现在切换器、登录窗口和搜索里，也不在后台运行。一个都不勾也行，本地音乐照常能听。",
+    "matchingNote": "不勾也会留着，只用来给本地歌配歌词和信息。",
+    "settingsHint": "之后可在「设置 → 音源」里改。"
+  },
   "librarySuiteOnboarding": {
     "title": "资料库用哪种界面？",
     "description": "首页、歌单、专辑与歌手页都用这里选的界面浏览。两种能做的事一样，只是浏览的方式不同。",

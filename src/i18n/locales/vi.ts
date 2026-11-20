@@ -5476,6 +5476,12 @@ export default {
       "description": "Nút Phát chỉ bắt đầu phát nhạc. Bạn vẫn ở lại thư viện, thẻ bài hát chuyển thành tạm dừng / tiếp tục."
     }
   },
+  "sourcesOnboarding": {
+    "title": "Bạn nghe nhạc trên những nền tảng nào?",
+    "description": "Đánh dấu các nền tảng bạn dùng để nghe nhạc. Nền tảng không được đánh dấu sẽ không có trong bộ chuyển, cửa sổ đăng nhập và tìm kiếm, cũng không chạy nền. Không chọn nền tảng nào cũng được: nhạc cục bộ vẫn phát bình thường.",
+    "matchingNote": "Vẫn được giữ dù không đánh dấu, chỉ để khớp lời bài hát và thông tin cho bài hát cục bộ.",
+    "settingsHint": "Có thể đổi sau tại Tùy chọn → Nguồn."
+  },
   "librarySuiteOnboarding": {
     "title": "Giao diện thư viện mong muốn?",
     "description": "Trang chủ, danh sách phát, album và nghệ sĩ đều duyệt theo giao diện bạn chọn ở đây. Cả hai đều đủ tính năng, chỉ khác cách duyệt.",
