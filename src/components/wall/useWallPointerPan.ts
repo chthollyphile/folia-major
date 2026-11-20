@@ -47,6 +47,9 @@ export const useWallPointerPan = ({
     } | null>(null);
     // Read by the poster click handler so a drag that ends on a card does not open it.
     const didDragRef = useRef(false);
+    // 盖在墙上面的兄弟层（如 bravais 的缝）：指针停在它上面时 wheel 到不了下面的 container，由 forwardWheel 把
+    // 同一个事件交给下面那份 onWheel。那一层要不要接、接给谁，由它自己的规则判断（见 bravaisSeamWheel.ts）。
+    const wheelHandlerRef = useRef<((event: WheelEvent) => void) | null>(null);
 
     // Republishing bounds is what triggers a re-cull, so only do it near the edge of what is culled.
     const updateCamera = useCallback((x: number, y: number) => {
@@ -242,6 +245,7 @@ export const useWallPointerPan = ({
             wheel.pending = { x: wheel.pending.x - dx, y: wheel.pending.y - dy };
             if (wheel.frame === null) wheel.frame = requestAnimationFrame(tick);
         };
+        wheelHandlerRef.current = onWheel;
         const cancel = () => { pointerRef.current = null; interrupt(); };
         // 只按修饰键（按住 Shift 横向滚动时 Shift 会自动重复 keydown）不算键盘输入，不打断平滑滚动。
         const onKeyDown = (event: KeyboardEvent) => {
@@ -258,6 +262,7 @@ export const useWallPointerPan = ({
         window.addEventListener('blur', cancel);
         return () => {
             container.removeEventListener('wheel', onWheel);
+            wheelHandlerRef.current = null;
             releaseLatch();
             container.removeEventListener('keydown', onKeyDown, true);
             window.removeEventListener('blur', cancel);
@@ -268,5 +273,7 @@ export const useWallPointerPan = ({
         };
     }, [animationRef, cameraRef, containerRef, interrupt, reducedMotion, stopPan, updateCamera, viewportRef]);
 
-    return { didDragRef, onPointerDown, onPointerMove, onPointerUp, onPointerCancel, onClickCapture };
+    const forwardWheel = useCallback((event: WheelEvent) => { wheelHandlerRef.current?.(event); }, []);
+
+    return { didDragRef, onPointerDown, onPointerMove, onPointerUp, onPointerCancel, onClickCapture, forwardWheel };
 };

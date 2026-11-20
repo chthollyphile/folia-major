@@ -67,7 +67,8 @@ export const BravaisSeamFullRow: React.FC<{ layer: BravaisLayer; actions: Bravai
             <div className="bravais-seam-row-main">
                 <BravaisSeamTitleArea title={seam.title} fontSize={rowTitleSize(seam.title, 40, 20)} label={t('libraryBravais.seamCollapseStrip')}
                     onCollapse={collapse} row />
-                <div className="bravais-seam-row-info">
+                {/* 挤满时这一栏自己纵向滚（bravaisSeamRow.css）：标记给 bravaisSeamWheel 的快速判断用。 */}
+                <div className="bravais-seam-row-info" data-wheel-scroll-region>
                     {/* 歌手页的统计已是「关于艺术家」的附注：相同时元数据行不重复（过滤中是匹配数，照常显示）。 */}
                     {!(seam.artist?.stats && seam.artist.stats === seam.meta) && (
                         <BravaisSeamMetaLine meta={seam.meta} reload={collection?.reload} className="bravais-seam-meta" />
