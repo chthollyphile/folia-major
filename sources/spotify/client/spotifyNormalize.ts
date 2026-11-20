@@ -73,7 +73,7 @@ const plainText = (html: string | undefined): string => (html ?? '').replace(/<[
     .replace(/&(amp|lt|gt|quot|#x27|#39);/g, (_all, name: string) => ({ amp: '&', lt: '<', gt: '>', quot: '"', '#x27': '\'', '#39': '\'' })[name] ?? '');
 
 // The Spotify track id of one of this source's songs (the host hands the source only its own).
-export const requireSpotifySong = (song: Pick<FoliumSourceSong, 'id'>): string => {
+export const requireSpotifySong = (song: Pick<FoliumSourceSong, 'id'> | null | undefined): string => {
     const id = typeof song?.id === 'string' ? song.id : '';
     if (!id) throw spotifyError('unsupported', 'Song does not belong to Spotify');
     return id;

@@ -117,8 +117,8 @@ export const createSpotifySource = (env: SpotifySourceEnv): FoliumSourceDef => {
         return wrapped;
     };
 
-    connectSpotifyExplore({ text: env.text, translate: env.translate });
-    connectSpotifySetup({ text: env.text, translate: env.translate });
+    connectSpotifyExplore(env);
+    connectSpotifySetup(env);
     // The way Spotify plays is read at once: a song played right after the start takes its route from it.
     void readSpotifyPlaybackMode();
 
