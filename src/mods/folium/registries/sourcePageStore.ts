@@ -47,6 +47,25 @@ const moveOldKeys = (sourceId: string) => {
     }
 };
 
+/**
+ * The old names of source `sourceId` removed without moving them ("clear data"): a profile that never made the store
+ * since its upgrade still has them, and the next store made would move a cleared sign-in back.
+ */
+export const forgetOldPageKeys = (sourceId: string): number => {
+    const moved = Object.hasOwn(MOVED_PAGE_KEYS, sourceId) ? MOVED_PAGE_KEYS[sourceId] : [];
+    let removed = 0;
+    for (const { read, remove } of moved) {
+        try {
+            if (read() === null) continue;
+            remove();
+            removed += 1;
+        } catch (error) {
+            console.warn(`[Folium] pageStore ${sourceId}: could not remove a key it kept before`, error);
+        }
+    }
+    return removed;
+};
+
 /** The synchronous store of source `sourceId`. */
 export const createFoliumPageStore = (sourceId: string): FoliumSourcePageStore => {
     const prefix = foliumPageStoreKey(sourceId, '');

@@ -32,7 +32,7 @@ import {
 } from '@/mods/folium/registries/sources';
 import { omniProvidersRegistry } from '@/mods/folium/registries/omniProviders';
 import { toHostSong } from '@/mods/folium/registries/sourceDtos';
-import { createFoliumPageStore, foliumPageStoreKey } from '@/mods/folium/registries/sourcePageStore';
+import { createFoliumPageStore, foliumPageStoreKey, forgetOldPageKeys } from '@/mods/folium/registries/sourcePageStore';
 import { supportsFoliumCapability } from '@/mods/folium/sources/capabilities';
 import { foliumSourceMember, markFoliumSourceMod } from '@/mods/runtime/guard';
 import { clearFoliumIssues, getFoliumIssues } from '@/mods/runtime/status';
@@ -458,6 +458,17 @@ describe('the seams of S1 and S2, fed from capabilities', () => {
         expect(localStorage.getItem('netease_anonymous_cookie')).toBeNull();
         store.set('cookie', null);
         store.set('anonymous_cookie', null);
+    });
+
+    it('forgets the old names on "clear data", so a store made later moves no cleared sign-in back', () => {
+        localStorage.setItem('netease_cookie', 'MUSIC_U=signed-in');
+        localStorage.setItem('netease_anonymous_cookie', 'MUSIC_A=anonymous');
+        expect(forgetOldPageKeys('netease')).toBe(2);
+        expect(localStorage.getItem('netease_cookie')).toBeNull();
+        expect(localStorage.getItem('netease_anonymous_cookie')).toBeNull();
+        expect(createFoliumPageStore('netease').get('cookie')).toBeNull();
+        expect(forgetOldPageKeys('netease')).toBe(0);
+        expect(forgetOldPageKeys('qq')).toBe(0);
     });
 });
 
