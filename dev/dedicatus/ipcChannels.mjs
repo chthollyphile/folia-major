@@ -102,7 +102,6 @@ export const IPC_CHANNELS = {
     'scene-screen-capture': { level: 'first-party', why: '截主窗口一小块画面给场景打光（firstParty）' },
     'segment-lyrics': { level: 'first-party', why: '用用户的 AI 额度（firstParty）' },
     'set-app-locale': { level: 'first-party', why: '写界面语言（firstParty）' },
-    'spotify-api-request': { level: 'first-party', why: '现状：有来源校验' },
     'stage-clear-state': { level: 'first-party', why: '清舞台状态（firstParty）' },
     'stage-complete-external-play': { level: 'first-party', why: '现状：有来源校验' },
     'stage-complete-player-control': { level: 'first-party', why: '现状：有来源校验' },
