@@ -45,12 +45,25 @@ function closeServer(server) {
 // say) would each save the other's values as "previous" and the last to restore would leave a PORT behind. So the
 // windows are taken one at a time, through one chain kept on globalThis: a reload drops this file from the module cache
 // and a new copy of it would otherwise have a chain of its own.
+// A window that never ends (a load that hangs) would hold every later start of this process behind it, a reloaded copy
+// of the mod's too; past ENV_WINDOW_WAIT_MS the next one goes ahead without it.
 const ENV_WINDOW_KEY = Symbol.for('folia.sources.qq.envWindow');
+const ENV_WINDOW_WAIT_MS = 30_000;
 
-function inEnvWindow(run) {
+function withinWait(previous, ms) {
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, ms);
+    previous.then(() => {
+      clearTimeout(timer);
+      resolve();
+    });
+  });
+}
+
+function inEnvWindow(run, waitMs = ENV_WINDOW_WAIT_MS) {
   const holder = globalThis;
   const previous = holder[ENV_WINDOW_KEY] || Promise.resolve();
-  const result = previous.then(run, run);
+  const result = withinWait(previous, waitMs).then(run);
   // The next window waits for this one to end, whether it loaded the package or threw.
   holder[ENV_WINDOW_KEY] = result.then(() => undefined, () => undefined);
   return result;
@@ -171,5 +184,6 @@ module.exports = {
   QQ_API_MODULE,
   getErrorMessage,
   isModuleNotFound,
+  inEnvWindow,
   startQqApi,
 };

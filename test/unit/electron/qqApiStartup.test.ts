@@ -3,8 +3,9 @@ import { describe, expect, it, vi } from 'vitest';
 
 // test/unit/electron/qqApiStartup.test.ts
 
-const { QQ_API_MODULE, isModuleNotFound, startQqApi } = require('../../../sources/qq/main/qqApiStartup.cjs') as {
+const { QQ_API_MODULE, isModuleNotFound, inEnvWindow, startQqApi } = require('../../../sources/qq/main/qqApiStartup.cjs') as {
     QQ_API_MODULE: string;
+    inEnvWindow: <T>(run: () => T | Promise<T>, waitMs?: number) => Promise<T>;
     isModuleNotFound: (error: unknown) => boolean;
     startQqApi: (options: Record<string, unknown>) => Promise<{
         port: number;
@@ -251,6 +252,13 @@ describe('QQ API startup', () => {
         await expect(failing).rejects.toThrow('listen EADDRINUSE');
         await expect(next).resolves.toMatchObject({ port: 41004 });
         expect(env.PORT).toBeUndefined();
+    });
+
+    it('lets the next start in once a window that never ends has been waited for long enough', async () => {
+        const order: string[] = [];
+        void inEnvWindow(() => new Promise<void>(() => { order.push('stuck'); }), 10);
+        await expect(inEnvWindow(() => { order.push('next'); return 'next'; }, 10)).resolves.toBe('next');
+        expect(order).toEqual(['stuck', 'next']);
     });
 
     // A build shipped without the dependency can never recover, so the caller reports it as
