@@ -33,6 +33,11 @@ export default function activate(api: FoliumSourceMainApi): void {
         onUnhandledRejection: (reason) => {
             api.reportError(reason, 'NetEase API worker');
         },
+        // An exception the worker did not catch: reported as the mod's, not thrown in the main process (a source mod
+        // must not take the app down). The worker ends with it; onExit marks the backend down for a restart.
+        onWorkerError: (error) => {
+            api.reportError(error, 'NetEase API worker');
+        },
         workerPath: path.join(__dirname, 'worker.cjs'),
         workerData: { packageRoot: neteasePackageRoot(request => depsRequire.resolve(request)) },
     });

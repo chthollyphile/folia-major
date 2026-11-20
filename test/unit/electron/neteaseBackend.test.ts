@@ -163,12 +163,35 @@ describe('NetEase backend on the main thread', () => {
         expect(fakes[0].posted).toHaveLength(1);
     });
 
-    it('stopped while a start waits, ends that start too', async () => {
-        const { backend, fakes } = setup();
+    it('stopped while a start waits, ends that start too, without telling the page it failed', async () => {
+        const { backend, fakes, broadcast } = setup();
         const started = backend.start();
         await backend.stop();
         await expect(started).resolves.toMatchObject({ status: expect.any(String) });
         expect(fakes[0].terminated).toBe(1);
         expect(backend.getStatus()).toMatchObject({ status: 'idle' });
+        // Switched off or cleared while starting: the page hears starting, then idle, never an error to show.
+        const told = broadcast.mock.calls.map(([, status]) => (status as { status: string }).status);
+        expect(told).not.toContain('error');
+        expect(told[told.length - 1]).toBe('idle');
+    });
+
+    it('hands an exception the worker did not catch to onWorkerError instead of throwing it', () => {
+        const onWorkerError = vi.fn();
+        const fakes: FakeWorker[] = [];
+        const backend = createNeteaseBackend({
+            broadcast: vi.fn(),
+            logger: { log: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+            onWorkerError,
+            createWorker: () => {
+                const worker = new FakeWorker();
+                fakes.push(worker);
+                return worker;
+            },
+        });
+        void backend.start();
+        const error = new Error('thrown in a callback of the package');
+        expect(() => fakes[0].emit('error', error)).not.toThrow();
+        expect(onWorkerError).toHaveBeenCalledWith(error);
     });
 });

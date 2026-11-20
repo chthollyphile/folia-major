@@ -29,6 +29,7 @@ export function createNeteaseBackend(options: {
     logger?: Pick<Console, 'log' | 'info' | 'warn' | 'error'>;
     now?: () => number;
     onUnhandledRejection?: (reason: unknown) => void;
+    onWorkerError?: (error: Error) => void;
     createWorker?: () => unknown;
     workerPath?: string;
     workerData?: unknown;

@@ -22,13 +22,15 @@ const SELF_CHECK_HOSTS = ['interfacepc.music.163.com', 'interface3.music.163.com
 
 /**
  * 返回网易后端的控制面。broadcast(channel, status) 把状态推给所有窗口；
- * onUnhandledRejection 接线程里没人接的 rejection；createWorker 只给测试换线程用。
+ * onUnhandledRejection 接线程里没人接的 rejection；onWorkerError 接线程里未捕获的异常（不给时原样抛出，
+ * 和主线程的异常走同一条路）；createWorker 只给测试换线程用。
  */
 function createNeteaseBackend({
     broadcast,
     logger = console,
     now = Date.now,
     onUnhandledRejection,
+    onWorkerError,
     createWorker,
     workerPath,
     workerData,
@@ -49,6 +51,7 @@ function createNeteaseBackend({
         ...(workerData === undefined ? {} : { workerData }),
         logger,
         onUnhandledRejection,
+        ...(onWorkerError ? { onWorkerError } : {}),
         // 线程结束了，它开的服务也就没了。拉起途中结束的不用另管：等着的那次拉起会失败。已经在监听的要在这里
         // 改状态，页面才看得到失败，「重启后端」才会去开新的线程。
         onExit: (_code, error) => {
@@ -62,7 +65,9 @@ function createNeteaseBackend({
             const { port } = await host.start({ host: LISTEN_HOST });
             status.update({ status: 'running', port, error: null, offline: false });
         } catch (error) {
-            markDown(error);
+            // Stopped while it was starting (switched off, data cleared, quitting): the start failing is the stop
+            // itself, not a fault to tell the page about; stop() records idle once the start has ended.
+            if (!stopped) markDown(error);
         }
         return status.get();
     };
