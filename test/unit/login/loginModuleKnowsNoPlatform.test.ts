@@ -56,7 +56,7 @@ describe('what each platform declares for the sign-in window', () => {
         }));
         expect(texts).toEqual({
             netease: { title: 'home.loginTitle', note: 'home.loginNote' },
-            kugou: { title: 'home.loginTitleKugou', note: 'home.loginNoteKugou' },
+            kugou: { title: 'folium-mod/kugou:login.title', note: 'folium-mod/kugou:login.note' },
             qq: { title: 'home.loginTitleQq', note: 'home.loginNoteQq' },
             // Folium 2.0 S5: a source mod's texts are keys of its own locale files (folium-mod/<mod id>).
             bodian: { title: 'folium-mod/bodian:login.title', note: 'folium-mod/bodian:login.note' },

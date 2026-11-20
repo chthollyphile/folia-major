@@ -22,13 +22,15 @@ const STAGING_DIRECTORY = '.staging';
  * Install guards. A .zip is untrusted input: it is size-checked before it is
  * read, entry-checked against its declared uncompressed sizes before anything
  * is inflated, and checked again against the real inflated bytes. The caps
- * match modDigest's, so anything installable is also verifiable.
+ * match modDigest's, so anything installable is also verifiable. One file and
+ * the total are Folium 2.0's (plan §6.2): a source mod's dependency archive is
+ * one file (the largest about 49 MiB) and the mod about as large.
  */
 const INSTALL_LIMITS = {
-    maxArchiveBytes: 64 * 1024 * 1024,
+    maxArchiveBytes: 96 * 1024 * 1024,
     maxEntries: 2000,
-    maxTotalBytes: 64 * 1024 * 1024,
-    maxFileBytes: 32 * 1024 * 1024,
+    maxTotalBytes: 96 * 1024 * 1024,
+    maxFileBytes: 64 * 1024 * 1024,
 };
 
 /*

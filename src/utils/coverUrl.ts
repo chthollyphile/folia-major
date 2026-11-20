@@ -1,9 +1,6 @@
 // src/utils/coverUrl.ts
 
 const NON_RESIZABLE_COVER_PROTOCOLS = new Set(['blob:', 'data:', 'file:', 'filesystem:']);
-const KUGOU_COVER_HOST_PATTERN = /(?:^|\.)(?:kugou\.com|kgimg\.com)$/i;
-// Song art lives under /stdmusic/<size>/, playlist covers under /soft/collection/<size>/; both resize to any number.
-const KUGOU_COVER_PATH_PATTERN = /(\/(?:stdmusic|soft\/collection)\/)(\d+)(\/)/;
 const NETEASE_COVER_HOST_PATTERN = /^p\d+\.music\.126\.net$/i;
 const QQ_COVER_HOSTNAMES = new Set(['y.gtimg.cn', 'y.qq.com']);
 const QQ_COVER_PATH_PATTERN = /(T00[12])(?:R(\d+)x\d+)?(M000)/;
@@ -32,15 +29,6 @@ export const resolveLocalCoverThumbnailSize = (size: number): number => {
 
 const withLocalCoverThumbnailSize = (url: URL, size: number): string => {
     url.searchParams.set('size', String(resolveLocalCoverThumbnailSize(size)));
-    return url.toString();
-};
-
-const isKugouCoverUrl = (url: URL): boolean => (
-    KUGOU_COVER_HOST_PATTERN.test(url.hostname) && KUGOU_COVER_PATH_PATTERN.test(url.pathname)
-);
-
-const withKugouCoverSize = (url: URL, size: number): string => {
-    url.pathname = url.pathname.replace(KUGOU_COVER_PATH_PATTERN, `$1${size}$3`);
     return url.toString();
 };
 
@@ -137,14 +125,6 @@ const BUILT_IN_COVER_URL_RULES: readonly CoverUrlRule[] = [
         },
         requestedSize: url => (url.hostname.includes('126.net') ? parseSize(url.searchParams.get('param')) : undefined),
         sizedText: (text, size) => (text.includes('126.net') ? `${text.split('?')[0]}?param=${size}y${size}` : null),
-    },
-    {
-        provider: 'kugou',
-        sized: (url, size) => (isKugouCoverUrl(url) ? withKugouCoverSize(url, size) : null),
-        identity: url => (isKugouCoverUrl(url) ? `kugou:${url.pathname.replace(KUGOU_COVER_PATH_PATTERN, '$1*$3')}` : null),
-        original: () => null,
-        requestedSize: url => (isKugouCoverUrl(url) ? parseSize(KUGOU_COVER_PATH_PATTERN.exec(url.pathname)?.[2]) : undefined),
-        proxiedOnWeb: url => KUGOU_COVER_HOST_PATTERN.test(url.hostname),
     },
     {
         provider: 'qq',

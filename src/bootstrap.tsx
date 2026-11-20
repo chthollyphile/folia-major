@@ -12,6 +12,8 @@ import { initializeLocalCoverRuntime } from './services/localCoverRuntime';
 import { installFoliumHomePageDismissal } from './components/app/home/foliumHomePageDismissal';
 import { installLibrarySuiteChromeCommands } from './library/app/installLibrarySuiteChromeCommands';
 import { installProviderSearchCommands } from './components/command-palette/providerSearchCommandsInstaller';
+import { isModsBridgeAvailable } from './mods/ipc';
+import { registerWebSources } from './services/onlineMusic/web';
 import { noteFoliumFirstScreenMounted, startFoliumForMainWindow } from './mods/runtime/mainWindowStart';
 import { installNativeDragGuard } from './utils/nativeDragGuard';
 import { prewarmSavedVisualizer, prewarmVisualizersWhenIdle } from './components/visualizer/prewarmVisualizers';
@@ -96,6 +98,9 @@ const renderApp = () => root.render(
 // registry, so the commands are put into its list here, before anything renders (main window only,
 // like the mod commands below). A clashing execute shortcut throws here, at startup.
 if (isMainApp) installLibrarySuiteChromeCommands();
+// The web build has no mod runtime: its three platforms are registered here, in every window, before
+// anything renders (Folium 2.0 plan §8, services/onlineMusic/web/). The desktop gets them from their source mods.
+if (!isModsBridgeAvailable()) registerWebSources();
 // One search command per registered online source (no default platform), put in again when the sources change.
 if (isMainApp) installProviderSearchCommands();
 

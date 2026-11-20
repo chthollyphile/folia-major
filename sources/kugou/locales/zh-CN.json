@@ -1,0 +1,18 @@
+{
+    "name": {
+        "short": "酷狗",
+        "lyrics": "酷狗音乐"
+    },
+    "login": {
+        "title": "使用酷狗音乐APP扫码",
+        "note": "打开酷狗音乐APP扫描二维码"
+    },
+    "cloud": {
+        "name": "音乐云盘"
+    },
+    "listeningRank": {
+        "week": "听歌排行 · 最近一周",
+        "all": "听歌排行 · 所有时间",
+        "description": "按这个账号在平台上的收听记录排出的歌"
+    }
+}

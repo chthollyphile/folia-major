@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+// @builtin-sources
 import { describe, expect, it } from 'vitest';
 import { omni } from '@/services/onlineMusic/omni';
 import { getOnlineMusicProvider } from '@/services/onlineMusic/providerRegistry';

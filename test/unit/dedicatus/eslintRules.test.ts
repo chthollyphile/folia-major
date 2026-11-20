@@ -132,8 +132,8 @@ describeWithLintRuntime('dedicatus eslint rules', async () => {
         writers: CREDENTIAL_WRITERS,
     }];
     const inRepo = (file: string) => path.join(process.cwd(), file);
-    const transport = inRepo('src/services/onlineMusic/kugou/kugouTransport.ts');
-    const bridge = inRepo('electron/kugou/kugouApiBridge.cjs');
+    const transport = inRepo('sources/kugou/core/kugouTransport.ts');
+    const bridge = inRepo('sources/kugou/main/kugouApiBridge.cjs');
     tester.run('dedicatus/credential-write-sites', plugin.rules['credential-write-sites'], {
         valid: [
             {

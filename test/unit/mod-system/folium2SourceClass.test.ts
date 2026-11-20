@@ -176,6 +176,18 @@ describe('the source members of api (plan §5.5)', () => {
         expect(() => api.paths.legacy('ytm-sign-in')).toThrow('legacy-folder-not-claimed');
     });
 
+    it('legacy.store writes nothing once the mod has stopped (a late answer cannot undo a clear)', async () => {
+        hostStore.set('SPOTIFY_SESSION_V1', 'sealed');
+        const { api, system } = launchSource();
+        await system.setSourceState('spotify', 'disabled');
+        hostStore.delete('SPOTIFY_SESSION_V1');
+        api.legacy.store.set('SPOTIFY_SESSION_V1', 'old sign-in');
+        expect(hostStore.has('SPOTIFY_SESSION_V1')).toBe(false);
+        hostStore.set('SPOTIFY_DEVICE_ID', 'device');
+        api.legacy.store.delete('SPOTIFY_DEVICE_ID');
+        expect(hostStore.get('SPOTIFY_DEVICE_ID')).toBe('device');
+    });
+
     it('seal seals and opens with safeStorage', () => {
         const { api } = launchSource();
         expect(api.seal.available()).toBe(true);

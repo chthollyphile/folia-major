@@ -1,3 +1,4 @@
+// @builtin-sources
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { neteaseApi } from '@/services/onlineMusic/netease/netease';
 import { searchQQLyrics } from '@/services/onlineMusic/qq/qqLyricProvider';

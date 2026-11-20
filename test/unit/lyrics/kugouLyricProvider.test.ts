@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { fetchKugouLyrics } from '@/services/onlineMusic/kugou/kugouLyricProvider';
+import { fetchKugouLyrics } from '../../manual/kugouLyricProvider';
 import type { SongResult } from '@/types';
 
 // test/unit/lyrics/kugouLyricProvider.test.ts

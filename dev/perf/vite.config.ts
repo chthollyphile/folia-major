@@ -4,6 +4,7 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { commandPinyinPlugin } from '../pinyin/commandPinyinPlugin.mjs';
 import { traditionalLocalePlugin } from '../i18n/traditionalLocalePlugin.mjs';
+import { webSourcePlugin } from '../sources/webSourcePlugin.mjs';
 import { icuFoliaDataPlugin } from '../icuFolia/icuFoliaDataPlugin.mjs';
 
 // dev/perf/vite.config.ts
@@ -58,6 +59,7 @@ export default defineConfig({
     plugins: [
         commandPinyinPlugin(),
         traditionalLocalePlugin(),
+        webSourcePlugin(),
         icuFoliaDataPlugin(),
         react(),
     ],

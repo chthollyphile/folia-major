@@ -2,7 +2,7 @@
 
 每个在线平台靠什么拿到数据和音频、版本钉在哪里、我们在上面包了或改了什么、上游变了怎么跟。平台清单以 `providerRegistry.ts` 为准；接入一个新平台见同目录 `README.md` 的“接入一个新平台”。
 
-Folium 2.0 起平台逐家迁成仓库内的音源模组（`sources/<id>/`），迁过去的那一家，这里的一节搬进它自己的 `sources/<id>/README.md`：已经迁的有 `sources/bodian/`、`sources/qishui/`、`sources/fnmusic/`、`sources/ytm/`、`sources/appleMusic/`。
+Folium 2.0 起平台逐家迁成仓库内的音源模组（`sources/<id>/`），迁过去的那一家，这里的一节搬进它自己的 `sources/<id>/README.md`：已经迁的有 `sources/bodian/`、`sources/qishui/`、`sources/fnmusic/`、`sources/kugou/`、`sources/ytm/`、`sources/appleMusic/`。
 
 几条各平台通用的事实：
 
@@ -26,17 +26,6 @@ Folium 2.0 起平台逐家迁成仓库内的音源模组（`sources/<id>/`），
   - 升级要改三处：根目录 `package.json` 和锁文件、`deploy/docker/netease-api/package.json` 和它的锁文件。
   - 模组的实验接口 `platform.raw`（Folium 1.7）按包里 `module/` 的文件名直通后端：哪些模块能读、能写、永远拒绝，记在 `netease/neteaseRaw.ts` 的分类表里，表外的一律拒绝。上游新增模块、有人要用时在表里补一行；改名或删掉的模块，`test/unit/onlineMusic/neteaseRaw.test.ts` 读包的 `module/` 目录会报出来。那里报给模组的后端名字和版本取自包自己的 `package.json`，升级后不用改。
   - 测试：`test/unit/electron/neteaseApiStartup.test.ts`、`neteaseApiHost.test.ts`、`lazyJsdom.test.ts`、`neteaseLoginDiagnostics.test.ts` 都用替身，抓不到上游的变化。`npm run probe:netease-xeapi`（`test/manual/netease_xeapi_probe.cjs`）是手动跑的诊断，看 xeapi key 接口在不同网络路径下的答复。
-
-## 酷狗（`kugou`）
-
-- **上游**：第三方库 KuGouMusicApi（MakcRe/KuGouMusicApi），包名 `kugoumusicapi`。另有一处直接调酷狗旧的公开手机接口 `https://m.kugou.com/app/i/getSongInfo.php`，在 `/song/url` 拒绝一个 hash 时用来取播放地址（`kugou/kugouTransport.ts` 的 `requestKugouLegacyPlayInfo`）。
-- **版本**：v1.6.0。不是从 npm 装的，是 GitHub 上这个标签的源码包：根目录 `package.json` 和 `deploy/docker/kugou-api/package.json` 都写 `https://github.com/MakcRe/KuGouMusicApi/archive/refs/tags/v1.6.0.tar.gz`。
-- **桌面端怎么用**：主进程直接 require 这个包、调用它的函数，不起本地服务（`electron/kugou/kugouApiBridge.cjs`，加载前设 `process.env.platform = 'lite'`）。设备 cookie 和登录态由桥接层存，用系统加密。网页版发到 `VITE_KUGOU_API_BASE`。
-- **我们改了什么**：桌面端没有改包；Docker 镜像跑同一个 `patch-music-api-client-ip.mjs`，改包的 `server.js`。
-- **上游变了怎么跟**：
-  - 接口的参数和答复按 `docs/ku-go-api-docs.md` 对；开发时怎么用真的服务对齐，见 skill `kugou-provider-alignment`。
-  - 升级改两处的源码包地址和各自的锁文件。
-  - 测试：`test/unit/electron/kugouApiBridge.test.ts` 用替身代替包，`test/unit/onlineMusic/kugouTransport.test.ts`、`kugouProvider.test.ts` 用替身代替请求：抓得到我们自己的解析错，抓不到上游改了答复。
 
 ## QQ 音乐（`qq`）
 

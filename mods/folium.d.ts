@@ -4562,11 +4562,11 @@ export interface FoliumSourceMediaRequest {
 export interface FoliumSourceLegacyStore {
     /** The value, or undefined. */
     get(key: string): unknown;
-    /** Stores `value`. */
+    /** Stores `value`; does nothing once the mod has stopped (a late answer cannot write back what a clear removed). */
     set(key: string, value: unknown): void;
     /** Whether the key has a value. */
     has(key: string): boolean;
-    /** Removes the key. */
+    /** Removes the key; does nothing once the mod has stopped. */
     delete(key: string): void;
 }
 

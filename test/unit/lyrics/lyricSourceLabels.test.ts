@@ -1,3 +1,4 @@
+// @builtin-sources
 import { describe, expect, it } from 'vitest';
 import { getLyricProviderLabel, getOnlineLyricSourceLabel, getSongNativeLyricProviderSource } from '@/utils/lyrics/lyricSourceLabels';
 
