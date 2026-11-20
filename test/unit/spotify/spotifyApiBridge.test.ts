@@ -7,9 +7,9 @@ import { describe, expect, it, vi } from 'vitest';
 // renderer may ask for, and what never leaves the process.
 
 const require = createRequire(import.meta.url);
-const { createSpotifyApiBridge, CHANGES, QUERIES, SPOTIFY_OPERATIONS } = require('../../../electron/spotify/spotifyApiBridge.cjs');
-const { createSpotifySignIn, REDIRECT_URI } = require('../../../electron/spotify/signIn.cjs');
-const { createSpotifySessionRepository, publicAccountId, SESSION_KEY } = require('../../../electron/spotify/session.cjs');
+const { createSpotifyApiBridge, CHANGES, QUERIES, SPOTIFY_OPERATIONS } = require('../../../sources/spotify/main/spotifyApiBridge.cjs');
+const { createSpotifySignIn, REDIRECT_URI } = require('../../../sources/spotify/main/signIn.cjs');
+const { createSpotifySessionRepository, publicAccountId, SESSION_KEY } = require('../../../sources/spotify/main/session.cjs');
 
 const createStore = () => {
     const values = new Map<string, unknown>();

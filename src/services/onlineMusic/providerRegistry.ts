@@ -5,7 +5,7 @@ import { getPlaybackSourceRef } from '../../utils/appPlaybackGuards';
 import { neteaseProvider } from './netease/neteaseProvider';
 import { kugouProvider } from './kugou/kugouProvider';
 import { qqProvider } from './qq/qqProvider';
-import { spotifyProvider } from './spotify/spotifyProvider';
+import { spotifyProvider } from '../../../sources/spotify/client/spotifyProvider';
 import { startsWithoutSources } from '../../dev/devLaunchFlags';
 
 // src/services/onlineMusic/providerRegistry.ts

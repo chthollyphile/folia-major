@@ -5,15 +5,15 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-// test/unit/spotify/soloist.test.ts — Spotify Soloist in the main process (electron/spotify/soloist.cjs)
+// test/unit/spotify/soloist.test.ts — Spotify Soloist in the main process (sources/spotify/main/soloist.cjs)
 // and the reading of its build (soloistBuild.cjs). The program is a stand-in: `spawn` starts a real
 // WebSocket server on loopback, writes its port where Soloist writes it, and answers the way the
 // documented control API does. The tests then drive it as the program would.
 
 const require = createRequire(import.meta.url);
 const { WebSocketServer } = require('ws');
-const { createSoloist } = require('../../../electron/spotify/soloist.cjs');
-const { describeBuild, createSoloistBuildReader, DAY_MS } = require('../../../electron/spotify/soloistBuild.cjs');
+const { createSoloist } = require('../../../sources/spotify/main/soloist.cjs');
+const { describeBuild, createSoloistBuildReader, DAY_MS } = require('../../../sources/spotify/main/soloistBuild.cjs');
 
 const URI = 'spotify:track:4cOdK2wGLETKBW3PvgPWqT';
 const OTHER = 'spotify:track:7qiZfU4dY1lWllzX7mPBI3';

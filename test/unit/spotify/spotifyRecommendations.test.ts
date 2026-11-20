@@ -6,15 +6,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // a provider is asked for under a preference it does not list.
 
 const request = vi.hoisted(() => vi.fn());
-vi.mock('@/services/onlineMusic/spotify/spotifyTransport', () => ({
+vi.mock('../../../sources/spotify/client/spotifyTransport', () => ({
     requestSpotify: request,
     querySpotify: (name: string, variables: Record<string, unknown> = {}) => request('query', { name, variables }),
     getSpotifyTransportAvailability: () => ({ configured: true }),
 }));
 import { omni } from '@/services/onlineMusic/omni';
-import { spotifyProvider } from '@/services/onlineMusic/spotify/spotifyProvider';
-import { clearSpotifyCatalogCache } from '@/services/onlineMusic/spotify/spotifyCatalog';
-import { resetSpotifyRecommendations } from '@/services/onlineMusic/spotify/spotifyRecommendations';
+import { spotifyProvider } from '../../../sources/spotify/client/spotifyProvider';
+import { clearSpotifyCatalogCache } from '../../../sources/spotify/client/spotifyCatalog';
+import { resetSpotifyRecommendations } from '../../../sources/spotify/client/spotifyRecommendations';
 import type { UnifiedSong } from '@/types';
 
 const id = (name: string) => name.replace('-', '').padEnd(22, 'Z');

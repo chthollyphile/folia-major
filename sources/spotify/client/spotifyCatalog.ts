@@ -1,6 +1,6 @@
-import type { UnifiedSong } from '../../../types';
-import { OnlineProviderError } from '../../../types/onlineMusic';
-import type { OnlineCatalogProvider, ProviderCollection, ProviderPage } from '../../../types/onlineMusic';
+import type { UnifiedSong } from '../../../src/types';
+import { OnlineProviderError } from '../../../src/types/onlineMusic';
+import type { OnlineCatalogProvider, ProviderCollection, ProviderPage } from '../../../src/types/onlineMusic';
 import {
     SPOTIFY_LIKED_ID, present, spotifyAlbumOf, spotifyArtistOf, spotifyPage, spotifyPlaylistOf, spotifySongOf, spotifyUri,
 } from './spotifyNormalize';

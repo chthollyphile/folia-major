@@ -1009,9 +1009,9 @@ declare global {
       onNeteaseApiStatusChanged: (callback: (status: ElectronNeteaseApiStatus) => void) => () => void;
       getKugouApiStatus: () => Promise<ElectronKugouApiStatus>;
       spotifyRequest: (
-        operation: import('./services/onlineMusic/spotify/spotifyTransport').SpotifyOperation,
-        params?: import('./services/onlineMusic/spotify/spotifyTransport').SpotifyParams,
-      ) => Promise<import('./services/onlineMusic/spotify/spotifyTransport').SpotifyBridgeResult>;
+        operation: import('../sources/spotify/client/spotifyTransport').SpotifyOperation,
+        params?: import('../sources/spotify/client/spotifyTransport').SpotifyParams,
+      ) => Promise<import('../sources/spotify/client/spotifyTransport').SpotifyBridgeResult>;
       kugouRequest: (
         operation: ElectronKugouOperation,
         params?: Record<string, string | number | boolean | undefined>,

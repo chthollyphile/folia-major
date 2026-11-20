@@ -1,10 +1,10 @@
-import type { UnifiedSong } from '../../../types';
-import type { LoginMethod, OnlineMusicProvider, ProviderUser, LoginState } from '../../../types/onlineMusic';
-import { createProviderSongMetadata } from '../../../utils/songMetadata';
-import { parseLyricsByFormat } from '../../../utils/lyrics/parserCore';
-import { formatLrcTimestamp } from '../../../utils/lyrics/lrcTimestamp';
-import i18n from '../../../i18n/config';
-import { cacheLimitBytes } from '../../audioCache';
+import type { UnifiedSong } from '../../../src/types';
+import type { LoginMethod, OnlineMusicProvider, ProviderUser, LoginState } from '../../../src/types/onlineMusic';
+import { createProviderSongMetadata } from '../../../src/utils/songMetadata';
+import { parseLyricsByFormat } from '../../../src/utils/lyrics/parserCore';
+import { formatLrcTimestamp } from '../../../src/utils/lyrics/lrcTimestamp';
+import i18n from '../../../src/i18n/config';
+import { cacheLimitBytes } from '../../../src/services/audioCache';
 import { getSpotifyTransportAvailability, querySpotify, requestSpotify } from './spotifyTransport';
 import type { SpotifyWireAudio, SpotifyWireLoginStart, SpotifyWireLyrics } from './spotifyTransport';
 import {

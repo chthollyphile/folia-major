@@ -1,6 +1,6 @@
-import type { OnlineExternalPlaybackProvider, ProviderExternalPlaybackStatus } from '../../../types/onlineMusic';
-import { OnlineProviderError } from '../../../types/onlineMusic';
-import { createProviderSongMetadata } from '../../../utils/songMetadata';
+import type { OnlineExternalPlaybackProvider, ProviderExternalPlaybackStatus } from '../../../src/types/onlineMusic';
+import { OnlineProviderError } from '../../../src/types/onlineMusic';
+import { createProviderSongMetadata } from '../../../src/utils/songMetadata';
 import { getSpotifyTransportAvailability, requestSpotify } from './spotifyTransport';
 import { requireSpotifySong, spotifyUri } from './spotifyNormalize';
 

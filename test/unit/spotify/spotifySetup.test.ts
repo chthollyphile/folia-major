@@ -5,15 +5,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // external player that steers Soloist (spotifySoloistPlayback.ts) and how its failures are sorted.
 
 const request = vi.hoisted(() => vi.fn());
-vi.mock('@/services/onlineMusic/spotify/spotifyTransport', () => ({
+vi.mock('../../../sources/spotify/client/spotifyTransport', () => ({
     requestSpotify: request,
     querySpotify: (name: string, variables: Record<string, unknown> = {}) => request('query', { name, variables }),
     getSpotifyTransportAvailability: () => ({ configured: true }),
 }));
-import { checkSpotifyAfterLogin, getSpotifySetup, runSpotifySetupAction } from '@/services/onlineMusic/spotify/spotifySetup';
-import { readSpotifyPlaybackMode, spotifyPlaysThroughSoloist, spotifySoloistPlayback } from '@/services/onlineMusic/spotify/spotifySoloistPlayback';
-import { describeSpotifyFailure } from '@/services/onlineMusic/spotify/spotifyFailure';
-import { spotifyProvider } from '@/services/onlineMusic/spotify/spotifyProvider';
+import { checkSpotifyAfterLogin, getSpotifySetup, runSpotifySetupAction } from '../../../sources/spotify/client/spotifySetup';
+import { readSpotifyPlaybackMode, spotifyPlaysThroughSoloist, spotifySoloistPlayback } from '../../../sources/spotify/client/spotifySoloistPlayback';
+import { describeSpotifyFailure } from '../../../sources/spotify/client/spotifyFailure';
+import { spotifyProvider } from '../../../sources/spotify/client/spotifyProvider';
 import { OnlineProviderError } from '@/types/onlineMusic';
 import type { UnifiedSong } from '@/types';
 

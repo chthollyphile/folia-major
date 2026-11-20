@@ -1,4 +1,4 @@
-import type { UnifiedSong } from '../../../types';
+import type { UnifiedSong } from '../../../src/types';
 import { spotifyPlaylistTracks } from './spotifyCatalog';
 import type { SpotifyLikedAnswer } from './spotifyLibrary';
 import { present, spotifyId, spotifySongOf } from './spotifyNormalize';

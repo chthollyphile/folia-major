@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 // here is which files those reach, and that a file is never left half written under its name.
 
 const require = createRequire(import.meta.url);
-const { createSpotifyAudioFiles } = require('../../../electron/spotify/audioFiles.cjs');
+const { createSpotifyAudioFiles } = require('../../../sources/spotify/main/audioFiles.cjs');
 
 const NAME = '4cOdK2wGLETKBW3PvgPWqT-320';
 const chunks = async function* (...parts: number[][]) { for (const part of parts) yield Uint8Array.from(part); };

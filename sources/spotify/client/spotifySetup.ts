@@ -1,5 +1,5 @@
-import i18n from '../../../i18n/config';
-import type { ProviderSetupAction, ProviderSetupStep, ProviderSetupView } from '../../../types/onlineMusic';
+import i18n from '../../../src/i18n/config';
+import type { ProviderSetupAction, ProviderSetupStep, ProviderSetupView } from '../../../src/types/onlineMusic';
 import { requestSpotify } from './spotifyTransport';
 import { readSpotifyPlaybackMode, setSpotifyPlaybackMode, type SpotifyPlaybackMode } from './spotifySoloistPlayback';
 

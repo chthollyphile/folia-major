@@ -5,16 +5,16 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { onlineFailureOf, stopsPlayback } from '@/services/onlineMusic/failure/onlineFailureCase';
-import { describeSpotifyFailure } from '@/services/onlineMusic/spotify/spotifyFailure';
+import { describeSpotifyFailure } from '../../../sources/spotify/client/spotifyFailure';
 import { OnlineProviderError } from '@/types/onlineMusic';
 
 // test/unit/spotify/spotifyAudio.test.ts — the scheme handler that serves Spotify's audio,
 // against a stand-in for Spotify's CDN that holds a file encrypted the way Spotify encrypts one.
 
 const require = createRequire(import.meta.url);
-const { createSpotifyAudio, counterAt } = require('../../../electron/spotify/audio.cjs');
-const { createSpotifyAudioFiles } = require('../../../electron/spotify/audioFiles.cjs');
-const { toErrorResult } = require('../../../electron/spotify/errors.cjs');
+const { createSpotifyAudio, counterAt } = require('../../../sources/spotify/main/audio.cjs');
+const { createSpotifyAudioFiles } = require('../../../sources/spotify/main/audioFiles.cjs');
+const { toErrorResult } = require('../../../sources/spotify/main/errors.cjs');
 
 const TRACK = '4cOdK2wGLETKBW3PvgPWqT';
 const KEY = Buffer.from('000102030405060708090a0b0c0d0e0f', 'hex');

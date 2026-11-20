@@ -1053,22 +1053,22 @@
       "count": 20
     }
   },
-  "electron/spotify/audio.cjs": {
+  "sources/spotify/main/audio.cjs": {
     "@stylistic/indent": {
       "count": 407
     }
   },
-  "electron/spotify/audioFiles.cjs": {
+  "sources/spotify/main/audioFiles.cjs": {
     "@stylistic/indent": {
       "count": 87
     }
   },
-  "electron/spotify/errors.cjs": {
+  "sources/spotify/main/errors.cjs": {
     "@stylistic/indent": {
       "count": 26
     }
   },
-  "electron/spotify/session.cjs": {
+  "sources/spotify/main/session.cjs": {
     "@stylistic/indent": {
       "count": 82
     },
@@ -1076,12 +1076,12 @@
       "count": 2
     }
   },
-  "electron/spotify/signIn.cjs": {
+  "sources/spotify/main/signIn.cjs": {
     "@stylistic/indent": {
       "count": 132
     }
   },
-  "electron/spotify/soloist.cjs": {
+  "sources/spotify/main/soloist.cjs": {
     "@stylistic/indent": {
       "count": 620
     },
@@ -1089,12 +1089,12 @@
       "count": 2
     }
   },
-  "electron/spotify/soloistBuild.cjs": {
+  "sources/spotify/main/soloistBuild.cjs": {
     "@stylistic/indent": {
       "count": 53
     }
   },
-  "electron/spotify/spotifyApiBridge.cjs": {
+  "sources/spotify/main/spotifyApiBridge.cjs": {
     "@stylistic/indent": {
       "count": 498
     }
@@ -10344,7 +10344,7 @@
       "count": 1
     }
   },
-  "src/services/onlineMusic/spotify/spotifyExplore.ts": {
+  "sources/spotify/client/spotifyExplore.ts": {
     "@typescript-eslint/no-non-null-assertion": {
       "count": 1
     },
@@ -10355,12 +10355,12 @@
       "count": 2
     }
   },
-  "src/services/onlineMusic/spotify/spotifyMutations.ts": {
+  "sources/spotify/client/spotifyMutations.ts": {
     "@typescript-eslint/no-unnecessary-condition": {
       "count": 1
     }
   },
-  "src/services/onlineMusic/spotify/spotifyNormalize.ts": {
+  "sources/spotify/client/spotifyNormalize.ts": {
     "@typescript-eslint/no-non-null-assertion": {
       "count": 2
     },
@@ -10374,7 +10374,7 @@
       "count": 2
     }
   },
-  "src/services/onlineMusic/spotify/spotifyRecommendations.ts": {
+  "sources/spotify/client/spotifyRecommendations.ts": {
     "@typescript-eslint/no-non-null-assertion": {
       "count": 1
     },
@@ -10382,7 +10382,7 @@
       "count": 1
     }
   },
-  "src/services/onlineMusic/spotify/spotifySoloistPlayback.ts": {
+  "sources/spotify/client/spotifySoloistPlayback.ts": {
     "@typescript-eslint/no-redundant-type-constituents": {
       "count": 4
     },
@@ -10396,7 +10396,7 @@
       "count": 1
     }
   },
-  "src/services/onlineMusic/spotify/spotifyTransport.ts": {
+  "sources/spotify/client/spotifyTransport.ts": {
     "@typescript-eslint/no-non-null-assertion": {
       "count": 1
     },

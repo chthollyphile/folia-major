@@ -1,6 +1,6 @@
-import type { UnifiedSong } from '../../../types';
-import { OnlineProviderError } from '../../../types/onlineMusic';
-import type { OnlineRecommendationProvider, ProviderCollection } from '../../../types/onlineMusic';
+import type { UnifiedSong } from '../../../src/types';
+import { OnlineProviderError } from '../../../src/types/onlineMusic';
+import type { OnlineRecommendationProvider, ProviderCollection } from '../../../src/types/onlineMusic';
 import { spotifyPlaylistTracks } from './spotifyCatalog';
 import { spotifyMadeForAccount, wordsOf } from './spotifyExplore';
 import { addSpotifySeeds, noteSpotifyListened, spotifyLikedSeeds, spotifyListenedSeeds, spotifyRadioSongs } from './spotifyRadio';

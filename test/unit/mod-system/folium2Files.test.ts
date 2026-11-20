@@ -216,10 +216,10 @@ describe('the trusted table of the built-in sources (§5.1)', () => {
             qishui: [constant('sources/qishui/main/session.cjs', 'SESSION_KEY')!, constant('sources/qishui/main/session.cjs', 'DEVICE_KEY')!],
             ytm: [constant('sources/ytm/main/session.cjs', 'SESSION_KEY')!, constant('sources/ytm/main/webSignIn.cjs', 'WEB_SESSION_KEY')!],
             spotify: [
-                constant('electron/spotify/session.cjs', 'SESSION_KEY')!,
-                constant('electron/spotify/soloist.cjs', 'CONFIG_KEY')!,
-                constant('electron/spotify/spotifyApiBridge.cjs', 'PLAYBACK_KEY')!,
-                constant('electron/spotify/spotifyApiBridge.cjs', 'DEVICE_KEY')!,
+                constant('sources/spotify/main/session.cjs', 'SESSION_KEY')!,
+                constant('sources/spotify/main/soloist.cjs', 'CONFIG_KEY')!,
+                constant('sources/spotify/main/spotifyApiBridge.cjs', 'PLAYBACK_KEY')!,
+                constant('sources/spotify/main/spotifyApiBridge.cjs', 'DEVICE_KEY')!,
             ],
             fnmusic: [constant('sources/fnmusic/main/fnmusicApiBridge.cjs', 'CONFIG_STORE_KEY')!, constant('sources/fnmusic/main/fnmusicApiBridge.cjs', 'DEVICE_STORE_KEY')!],
         };

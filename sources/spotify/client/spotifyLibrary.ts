@@ -1,6 +1,6 @@
-import i18n from '../../../i18n/config';
-import { OnlineProviderError } from '../../../types/onlineMusic';
-import type { OnlineLibraryProvider, ProviderCollection } from '../../../types/onlineMusic';
+import i18n from '../../../src/i18n/config';
+import { OnlineProviderError } from '../../../src/types/onlineMusic';
+import type { OnlineLibraryProvider, ProviderCollection } from '../../../src/types/onlineMusic';
 import { SPOTIFY_LIKED_ID, present, spotifyAlbumOf, spotifyId, spotifyPage, spotifyPlaylistOf, spotifySongOf, spotifyUri } from './spotifyNormalize';
 import type { SpotifyAlbum, SpotifyPlaylist, SpotifyTrack } from './spotifyNormalize';
 import { querySpotify } from './spotifyTransport';

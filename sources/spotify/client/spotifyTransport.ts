@@ -1,5 +1,5 @@
-import { OnlineProviderError } from '../../../types/onlineMusic';
-import type { ProviderErrorCode } from '../../../types/onlineMusic';
+import { OnlineProviderError } from '../../../src/types/onlineMusic';
+import type { ProviderErrorCode } from '../../../src/types/onlineMusic';
 
 // src/services/onlineMusic/spotify/spotifyTransport.ts
 // The IPC boundary to electron/spotify/spotifyApiBridge.cjs. The Spotify token stays in the main

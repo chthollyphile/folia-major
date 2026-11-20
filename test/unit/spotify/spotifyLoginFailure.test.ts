@@ -6,7 +6,7 @@ import { loginCaseOf, loginFailureFacts } from '@/services/onlineMusic/login/log
 
 // test/unit/spotify/spotifyLoginFailure.test.ts
 // Which case each failure of a Spotify sign-in sorts to. The desktop side is the real one
-// (electron/spotify/signIn.cjs and spotifyApiBridge.cjs) over stand-ins for Spotify, the loopback
+// (sources/spotify/main/signIn.cjs and spotifyApiBridge.cjs) over stand-ins for Spotify, the loopback
 // server and the system browser; the renderer side is the real facade, adapter and transport.
 // Each test is named after the case it ends in. The other platforms are in
 // test/unit/onlineMusic/loginFailurePlatforms.test.ts. Nothing here asks Spotify.
@@ -14,8 +14,8 @@ import { loginCaseOf, loginFailureFacts } from '@/services/onlineMusic/login/log
 vi.mock('@/services/onlineMusic/providerAccountCache', () => ({ saveProviderAccountSnapshot: vi.fn() }));
 
 const require = createRequire(import.meta.url);
-const { createSpotifyApiBridge } = require('../../../electron/spotify/spotifyApiBridge.cjs');
-const { createSpotifySignIn } = require('../../../electron/spotify/signIn.cjs');
+const { createSpotifyApiBridge } = require('../../../sources/spotify/main/spotifyApiBridge.cjs');
+const { createSpotifySignIn } = require('../../../sources/spotify/main/signIn.cjs');
 
 const json = (body: unknown, status = 200) => ({ ok: status >= 200 && status < 300, status, json: async () => body });
 const cipher = { isEncryptionAvailable: () => true, encryptString: (text: string) => Buffer.from(text), decryptString: (data: Buffer) => data.toString() };

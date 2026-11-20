@@ -1,5 +1,5 @@
-import { OnlineProviderError } from '../../../types/onlineMusic';
-import type { LoginCaseId, LoginFailureDetail, LoginStep } from '../../../types/onlineMusic';
+import { OnlineProviderError } from '../../../src/types/onlineMusic';
+import type { LoginCaseId, LoginFailureDetail, LoginStep } from '../../../src/types/onlineMusic';
 
 // src/services/onlineMusic/spotify/spotifyLoginFailure.ts
 // What the sign-in dialog is handed of a Spotify sign-in that failed. What the desktop side's own

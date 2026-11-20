@@ -60,7 +60,7 @@ const MAIN_TABLES = [
     ['electron/main.cjs', 'mainLocale'],
     ['electron/modSystem/approval.cjs', 'TRUST_DIALOG_LOCALE'],
     ['electron/modSystem/safeStart.cjs', 'SAFE_START_LOCALE'],
-    ['electron/spotify/signIn.cjs', 'PAGE_TEXT'],
+    ['sources/spotify/main/signIn.cjs', 'PAGE_TEXT'],
 ] as const;
 
 type Entry = string | ((...args: string[]) => string);

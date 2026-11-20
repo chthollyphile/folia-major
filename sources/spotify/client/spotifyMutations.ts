@@ -1,6 +1,6 @@
-import type { SongResult } from '../../../types';
-import type { MediaId, OnlineMutationProvider, ProviderCollection } from '../../../types/onlineMusic';
-import { OnlineProviderError } from '../../../types/onlineMusic';
+import type { SongResult } from '../../../src/types';
+import type { MediaId, OnlineMutationProvider, ProviderCollection } from '../../../src/types/onlineMusic';
+import { OnlineProviderError } from '../../../src/types/onlineMusic';
 import { SPOTIFY_LIKED_ID, requireSpotifySong, spotifyId, spotifyUri } from './spotifyNormalize';
 import { requestSpotify } from './spotifyTransport';
 import type { SpotifyWireMadePlaylist } from './spotifyTransport';

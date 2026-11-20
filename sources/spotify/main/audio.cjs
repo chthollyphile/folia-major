@@ -1,5 +1,5 @@
 const crypto = require('node:crypto');
-const { parseRangeHeader } = require('../transcode/protocol.cjs');
+const { parseRangeHeader } = require('../../../electron/transcode/protocol.cjs');
 const { SpotifyError, describeError, plainWords, spotifyError, statusError, toErrorResult } = require('./errors.cjs');
 const { CLIENT_ID } = require('./signIn.cjs');
 

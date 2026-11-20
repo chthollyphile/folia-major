@@ -1,14 +1,14 @@
-import i18n from '../../../i18n/config';
-import type { UnifiedSong } from '../../../types';
-import { OnlineProviderError } from '../../../types/onlineMusic';
-import type { OnlineExploreProvider, ProviderCollection, ProviderExploreItem, ProviderExplorePage, ProviderExploreSection } from '../../../types/onlineMusic';
+import i18n from '../../../src/i18n/config';
+import type { UnifiedSong } from '../../../src/types';
+import { OnlineProviderError } from '../../../src/types/onlineMusic';
+import type { OnlineExploreProvider, ProviderCollection, ProviderExploreItem, ProviderExplorePage, ProviderExploreSection } from '../../../src/types/onlineMusic';
 import { createHandedOut } from '@folia/folium-source-kit';
 import { present, spotifyAlbumOf, spotifyArtistOf, spotifyPlaylistOf } from './spotifyNormalize';
 import type { SpotifyAlbum, SpotifyArtistRow, SpotifyPlaylist } from './spotifyNormalize';
 import { addSpotifySeeds, noteSpotifyListened, spotifyLikedSeeds, spotifyRadioSongs, spotifySeedOf } from './spotifyRadio';
 import type { SpotifySeed } from './spotifyRadio';
 import { querySpotify } from './spotifyTransport';
-import { errorMessage } from '../../../utils/errorText';
+import { errorMessage } from '../../../src/utils/errorText';
 
 // src/services/onlineMusic/spotify/spotifyExplore.ts
 // The explore page is what Spotify itself picks for the account, in four parts, each asked for

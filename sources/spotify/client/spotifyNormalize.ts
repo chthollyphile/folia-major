@@ -1,6 +1,6 @@
-import type { Artist, UnifiedSong } from '../../../types';
-import type { ProviderCatalogRef, ProviderCollection, ProviderPage, ProviderUser } from '../../../types/onlineMusic';
-import { OnlineProviderError } from '../../../types/onlineMusic';
+import type { Artist, UnifiedSong } from '../../../src/types';
+import type { ProviderCatalogRef, ProviderCollection, ProviderPage, ProviderUser } from '../../../src/types/onlineMusic';
+import { OnlineProviderError } from '../../../src/types/onlineMusic';
 
 // src/services/onlineMusic/spotify/spotifyNormalize.ts
 // Spotify's query answers, as far as this adapter reads them (measured 2026-10-08), and what they

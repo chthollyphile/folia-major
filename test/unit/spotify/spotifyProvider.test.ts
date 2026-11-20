@@ -5,15 +5,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 // queries gave them on 2026-10-08: what a row becomes, and how lists are paged.
 
 const request = vi.hoisted(() => vi.fn());
-vi.mock('@/services/onlineMusic/spotify/spotifyTransport', () => ({
+vi.mock('../../../sources/spotify/client/spotifyTransport', () => ({
     requestSpotify: request,
     querySpotify: (name: string, variables: Record<string, unknown> = {}) => request('query', { name, variables }),
     getSpotifyTransportAvailability: () => ({ configured: true }),
 }));
 import { omni } from '@/services/onlineMusic/omni';
-import { spotifyProvider } from '@/services/onlineMusic/spotify/spotifyProvider';
-import { clearSpotifyCatalogCache } from '@/services/onlineMusic/spotify/spotifyCatalog';
-import { normalizeSpotifyCollection, normalizeSpotifySong, spotifyPlaylistOf, spotifySongOf } from '@/services/onlineMusic/spotify/spotifyNormalize';
+import { spotifyProvider } from '../../../sources/spotify/client/spotifyProvider';
+import { clearSpotifyCatalogCache } from '../../../sources/spotify/client/spotifyCatalog';
+import { normalizeSpotifyCollection, normalizeSpotifySong, spotifyPlaylistOf, spotifySongOf } from '../../../sources/spotify/client/spotifyNormalize';
 import { getPlaybackSongKey } from '@/utils/appPlaybackGuards';
 import { OnlineProviderError } from '@/types/onlineMusic';
 import type { ProviderExploreItem } from '@/types/onlineMusic';
