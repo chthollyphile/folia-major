@@ -572,7 +572,7 @@ export const sendQqMusicuPayload = async (
     if (!env.web) {
         let reply: QqMusicuReply;
         try {
-            reply = await env.call<QqMusicuReply>('musicu', payload);
+            reply = await env.call<QqMusicuReply>('musicu', payload, limitMs);
         } catch (error) {
             throw qqError('network', `QQ musicu unreachable: ${errorMessage(error)}`, error);
         }

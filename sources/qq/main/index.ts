@@ -24,8 +24,9 @@ import { packageRootOf, qqApiExportsOf } from './qqApiExports';
 //   - 媒体跨域：api.media.allow 放行 qq.com、*.qq.com 与 y.gtimg.cn（以前 main.cjs 的 CORS 名单），封面取色与音频读得到。
 
 const QQ_MUSICU_URL = 'https://u.y.qq.com/cgi-bin/musicu.fcg';
-// musicu 一次请求最多等多久：client 那边经歌词中转时是 20–30 s 的时限，这里给最长的那个。
+// musicu 一次请求最多等多久：client 交来它自己的时限（歌词与匿名搜歌 20 s），这里只取不超过 30 s 的那部分。
 const MUSICU_LIMIT_MS = 30_000;
+const MUSICU_MIN_LIMIT_MS = 1_000;
 // 一份 musicu 正文的上限：歌词与详情的请求都是几 KB。
 const MUSICU_MAX_BODY = 256 * 1024;
 
@@ -72,14 +73,17 @@ export default function activate(api: FoliumSourceMainApi): void {
         return backend.getStatus();
     });
 
-    api.rpc.handle('musicu', async (payload: unknown) => {
+    api.rpc.handle('musicu', async (payload: unknown, limitMs?: unknown) => {
         if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
             throw new TypeError('musicu: a request body (an object)');
         }
         const body = JSON.stringify(payload);
         if (body.length > MUSICU_MAX_BODY) throw new TypeError('musicu: the request body is too large');
+        const limit = typeof limitMs === 'number' && Number.isFinite(limitMs)
+            ? Math.min(MUSICU_LIMIT_MS, Math.max(MUSICU_MIN_LIMIT_MS, limitMs))
+            : MUSICU_LIMIT_MS;
         const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), MUSICU_LIMIT_MS);
+        const timer = setTimeout(() => controller.abort(), limit);
         try {
             const response = await api.net.fetch(QQ_MUSICU_URL, {
                 method: 'POST',
@@ -94,7 +98,7 @@ export default function activate(api: FoliumSourceMainApi): void {
                 retryAfter: response.headers.get('Retry-After'),
             };
         } catch (error) {
-            return { unreachable: true, message: controller.signal.aborted ? `not answered in ${MUSICU_LIMIT_MS / 1000} s` : messageOf(error) };
+            return { unreachable: true, message: controller.signal.aborted ? `not answered in ${limit / 1000} s` : messageOf(error) };
         } finally {
             clearTimeout(timer);
         }

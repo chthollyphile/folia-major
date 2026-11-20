@@ -150,6 +150,19 @@ describe('QQ Music main entry (source mod)', () => {
         await expect(pending).resolves.toEqual({ unreachable: true, message: 'not answered in 30 s' });
     });
 
+    it('keeps to the limit the client gives for musicu, never past 30 s', async () => {
+        vi.useFakeTimers();
+        const { handlers } = await launch((_url, init) => new Promise((_resolve, reject) => {
+            (init?.signal as AbortSignal).addEventListener('abort', () => reject(new Error('aborted')));
+        }));
+        const pending = handlers.get('musicu')!({ req: {} }, 20_000);
+        await vi.advanceTimersByTimeAsync(20_000);
+        await expect(pending).resolves.toEqual({ unreachable: true, message: 'not answered in 20 s' });
+        const longer = handlers.get('musicu')!({ req: {} }, 90_000);
+        await vi.advanceTimersByTimeAsync(30_000);
+        await expect(longer).resolves.toEqual({ unreachable: true, message: 'not answered in 30 s' });
+    });
+
     it('answers diagnostics and the self-check from the host\'s diagnostics of its backend', async () => {
         const { api, handlers } = await launch();
         expect(await handlers.get('diagnostics')!()).toEqual({ snapshotOf: 'qq' });
