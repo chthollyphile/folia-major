@@ -80,6 +80,7 @@
     "manual:ai-probe": "node test/manual/ai_probe.mjs"
   },
   "build": {
+    "extends": "file:build/bundledSources.mjs",
     "appId": "top.izuna.foliamajor",
     "productName": "Folia",
     "beforePack": "build/beforePack.cjs",
@@ -106,7 +107,6 @@
       "dist/**/*",
       "electron/**/*",
       "shared/**/*",
-      "!**/node_modules/youtubei.js/bundle/**",
       "package.json",
       "build/miao.png",
       "build/thumbar/*.png"
