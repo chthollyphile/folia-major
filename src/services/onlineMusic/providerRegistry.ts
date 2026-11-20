@@ -4,7 +4,6 @@ import type { SongResult } from '../../types';
 import { getPlaybackSourceRef } from '../../utils/appPlaybackGuards';
 import { neteaseProvider } from './netease/neteaseProvider';
 import { qqProvider } from './qq/qqProvider';
-import { spotifyProvider } from '../../../sources/spotify/client/spotifyProvider';
 import { startsWithoutSources } from '../../dev/devLaunchFlags';
 
 // src/services/onlineMusic/providerRegistry.ts
@@ -172,5 +171,4 @@ export const requireOnlineMusicProviderForSong = (song: SongResult): OnlineMusic
 if (!startsWithoutSources) {
     registerOnlineMusicProvider(neteaseProvider);
     registerOnlineMusicProvider(qqProvider);
-    registerOnlineMusicProvider(spotifyProvider);
 }

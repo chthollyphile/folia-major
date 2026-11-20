@@ -59,7 +59,6 @@ const BUILT_IN_ENTRIES = [
     { id: 'netease', labelKey: 'lyricProvider.netease', platform: true, localMetadataIdentity: true, metadataMatch: true },
     { id: 'amll', labelKey: 'lyricProvider.amll', platform: false },
     { id: 'qq', labelKey: 'lyricProvider.qq', platform: true, localMetadataIdentity: true, metadataMatch: true },
-    { id: 'spotify', labelKey: 'lyricProvider.spotify', platform: true, needsAccount: true, linesOnly: true },
 ] as const satisfies readonly LyricSourceEntry[];
 
 /** The ids of the sources the host knows by name. Any other id is a source all the same. */

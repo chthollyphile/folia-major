@@ -1,23 +1,24 @@
-import type { OnlineExternalPlaybackProvider, ProviderExternalPlaybackStatus } from '../../../src/types/onlineMusic';
-import { OnlineProviderError } from '../../../src/types/onlineMusic';
-import { createProviderSongMetadata } from '../../../src/utils/songMetadata';
-import { getSpotifyTransportAvailability, requestSpotify } from './spotifyTransport';
+import type { FoliumSourceExternalPlayback, FoliumSourceExternalStatus } from '@folia/folium';
+import { requestSpotify, spotifyError } from './spotifyTransport';
 import { requireSpotifySong, spotifyUri } from './spotifyNormalize';
 
-// src/services/onlineMusic/spotify/spotifySoloistPlayback.ts
-// The two ways Spotify plays here, and the second of them. 'standard' is librespot in the desktop
-// side (an audio URL, the web route); 'soloist' is Spotify's own Soloist program on this computer,
-// for accounts Spotify gives no audio key: it plays to the system's output itself, and the app
-// steers it on the external route (services/onlineMusic/externalPlayback.ts) and follows its clock.
-// The way is kept by the desktop side (electron/spotify/spotifyApiBridge.cjs, `playback_mode`); it
-// is read once at start and after each change, and kept here so the route can be chosen at once.
+// sources/spotify/client/spotifySoloistPlayback.ts
+// The two ways Spotify plays here, and the second of them. 'standard' is librespot in the desktop side (an audio
+// URL, playback.audio@1); 'soloist' is Spotify's own Soloist program on this computer, for accounts Spotify gives
+// no audio key: it plays to the system's output itself, and the host steers it as an external player
+// (playback.external@1) and follows its clock. Which one plays a song is the source's `routeOf`.
+// The way is kept by the desktop side (sources/spotify/main/spotifyApiBridge.cjs, `playback_mode`); it is read once
+// at start and after each change, and kept here so the route can be chosen at once. A change is told to the host
+// (`onModeChanged`), which reads the source again.
+// No `adopt` and no `mount`: when the main window is rebuilt, the new window finds Soloist still sounding by
+// `isStatusForSong` (its loaded track is the song's uri) and follows it without starting it again.
 
 export type SpotifyPlaybackMode = 'standard' | 'soloist';
 
 /** What the desktop side says of the way Spotify plays: the way, and whether Soloist is offered at all. */
 export interface SpotifyWirePlaybackMode { mode: SpotifyPlaybackMode; soloist: boolean }
 
-/** What Soloist plays now (electron/spotify/soloist.cjs `status`). */
+/** What Soloist plays now (sources/spotify/main/soloist.cjs `status`). */
 interface SoloistWireStatus {
     running: boolean;
     paired: boolean;
@@ -31,17 +32,23 @@ interface SoloistWireStatus {
 let mode: SpotifyPlaybackMode = 'standard';
 let soloistOffered = false;
 let reading: Promise<SpotifyWirePlaybackMode | null> | null = null;
+let onModeChanged: () => void = () => {};
+
+/** What is told when the way Spotify plays changes (activate hands in `handle.changed`). */
+export const connectSpotifyPlaybackMode = (changed: () => void): void => { onModeChanged = changed; };
 
 const keep = (answer: SpotifyWirePlaybackMode): SpotifyWirePlaybackMode => {
-    if (answer.mode !== mode) console.info(`[Spotify] Plays through ${answer.mode === 'soloist' ? 'Soloist' : 'the standard way'}`);
-    mode = answer.mode === 'soloist' ? 'soloist' : 'standard';
+    const next: SpotifyPlaybackMode = answer.mode === 'soloist' ? 'soloist' : 'standard';
+    const changed = next !== mode;
+    if (changed) console.info(`[Spotify] Plays through ${next === 'soloist' ? 'Soloist' : 'the standard way'}`);
+    mode = next;
     soloistOffered = answer.soloist === true;
+    if (changed) onModeChanged();
     return answer;
 };
 
 /** Reads the way Spotify plays from the desktop side; resolves to null where it cannot be asked. */
 export const readSpotifyPlaybackMode = (): Promise<SpotifyWirePlaybackMode | null> => {
-    if (!getSpotifyTransportAvailability().configured) return Promise.resolve(null);
     if (!reading) {
         const asked = Promise.resolve()
             .then(() => requestSpotify<SpotifyWirePlaybackMode>('playback_mode'))
@@ -59,12 +66,12 @@ export const setSpotifyPlaybackMode = async (next: SpotifyPlaybackMode): Promise
     keep(await requestSpotify<SpotifyWirePlaybackMode>('playback_mode', { mode: next }));
 };
 
-/** Whether Spotify plays through Soloist now (the provider's `externalPlayback` capability). */
+/** Whether Spotify plays through Soloist now (the source's `routeOf`). */
 export const spotifyPlaysThroughSoloist = (): boolean => mode === 'soloist';
 export const spotifySoloistOffered = (): boolean => soloistOffered;
 export const spotifyPlaybackMode = (): SpotifyPlaybackMode => mode;
 
-export const spotifySoloistPlayback: OnlineExternalPlaybackProvider = {
+export const spotifySoloistPlayback: FoliumSourceExternalPlayback = {
     canPlay: song => {
         try {
             requireSpotifySong(song);
@@ -77,7 +84,7 @@ export const spotifySoloistPlayback: OnlineExternalPlaybackProvider = {
         const id = requireSpotifySong(song);
         // The program is told the track's length: it has no event for the end of a track, and the
         // end is read from its position against it.
-        const durationMs = createProviderSongMetadata(song).durationMs || 0;
+        const durationMs = song.durationMs || 0;
         await requestSpotify('soloist_play', { id, startMs: Math.max(0, Math.round(startSec * 1000)), durationMs });
     },
     async pause() {
@@ -96,9 +103,9 @@ export const spotifySoloistPlayback: OnlineExternalPlaybackProvider = {
     async setRepeatOne(enabled) {
         await requestSpotify('soloist_repeat', { enabled });
     },
-    async getStatus(): Promise<ProviderExternalPlaybackStatus> {
+    async getStatus(): Promise<FoliumSourceExternalStatus> {
         const status = await requestSpotify<SoloistWireStatus>('soloist_status');
-        if (!status.running) throw new OnlineProviderError('unavailable', 'Spotify Soloist is not running', 'spotify', 'soloist-gone');
+        if (!status.running) throw spotifyError('unavailable', 'Spotify Soloist is not running', 'soloist-gone');
         return {
             mediaId: status.uri ?? '',
             isPlaying: status.status === 'playing',

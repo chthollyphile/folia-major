@@ -1,16 +1,15 @@
-import i18n from '../../../src/i18n/config';
-import type { UnifiedSong } from '../../../src/types';
-import { OnlineProviderError } from '../../../src/types/onlineMusic';
-import type { OnlineExploreProvider, ProviderCollection, ProviderExploreItem, ProviderExplorePage, ProviderExploreSection } from '../../../src/types/onlineMusic';
-import { createHandedOut } from '@folia/folium-source-kit';
+import type {
+    FoliumSourceCollection, FoliumSourceExplore, FoliumSourceExploreItem, FoliumSourceExplorePage, FoliumSourceExploreSection, FoliumSourceSong,
+    FoliumText,
+} from '@folia/folium';
+import { createHandedOut, errorMessage } from '@folia/folium-source-kit';
 import { present, spotifyAlbumOf, spotifyArtistOf, spotifyPlaylistOf } from './spotifyNormalize';
 import type { SpotifyAlbum, SpotifyArtistRow, SpotifyPlaylist } from './spotifyNormalize';
 import { addSpotifySeeds, noteSpotifyListened, spotifyLikedSeeds, spotifyRadioSongs, spotifySeedOf } from './spotifyRadio';
 import type { SpotifySeed } from './spotifyRadio';
-import { querySpotify } from './spotifyTransport';
-import { errorMessage } from '../../../src/utils/errorText';
+import { querySpotify, spotifyCodeOf } from './spotifyTransport';
 
-// src/services/onlineMusic/spotify/spotifyExplore.ts
+// sources/spotify/client/spotifyExplore.ts
 // The explore page is what Spotify itself picks for the account, in four parts, each asked for
 // when the list gets to it (all measured 2026-10-08, a little-used free account):
 //  1. Spotify's home page: one request, 6 sections of playlists, albums and artists, 10 entries
@@ -86,7 +85,7 @@ const newRead = () => ({
     /** How many were asked with. */
     asked: 0,
     /** What each shelf holds, by the shelf's id. */
-    songs: new Map<string, ProviderExploreItem[]>(),
+    songs: new Map<string, FoliumSourceExploreItem[]>(),
     /** The songs on a shelf: a song is on one shelf in a read. */
     onShelf: new Set<string>(),
 });
@@ -104,36 +103,46 @@ const SONGS = 'songs';
 let shelvesMade = 0;
 
 export const wordsOf = (error: unknown) => errorMessage(error);
+
+/** The texts of the page, from the mod's locale files: activate (index.ts) hands them in. */
+export interface SpotifyExploreTexts {
+    /** A key written out in the UI language now (an entry's second line is a string). */
+    translate(key: string): string;
+    /** A key as a FoliumText (a section's heading). */
+    text(key: string, params?: Record<string, string | number>): FoliumText;
+}
+let texts: SpotifyExploreTexts = { translate: key => key, text: key => key };
+export const connectSpotifyExplore = (next: SpotifyExploreTexts): void => { texts = next; };
 // An entry's second line on this page: what the entry is, then whose. The app's own rule (the
 // names, and the kind only where there are none) told nothing apart here: every playlist of the
 // home page and of the account's lists is Spotify's own (115 of 115, 2026-10-08), so each card
 // read "Spotify". A maker other than Spotify is still named.
 // Spotify keeps a release of a song or two as an album of its own kind (`albumType` SINGLE),
 // and so an EP and a compilation; a card of the home page and a new release say which.
-const RELEASE_LABELS: Record<string, string> = { SINGLE: 'home.exploreSingle', EP: 'home.exploreEp', COMPILATION: 'home.exploreCompilation' };
+const RELEASE_LABELS: Record<string, string> = { SINGLE: 'explore.single', EP: 'explore.ep', COMPILATION: 'explore.compilation' };
 const OWN_MAKER = 'Spotify';
-const lineOf = (kind: string, whose: string | undefined) => [i18n.t(kind), whose].filter(Boolean).join(' · ');
+const lineOf = (kind: string, whose: string | undefined) => [texts.translate(kind), whose].filter(Boolean).join(' · ');
 const namesOf = (artists: Array<{ name: string }> | undefined) => (artists ?? []).map(artist => artist.name).filter(Boolean).join(', ');
-const songItem = (song: UnifiedSong): ProviderExploreItem => ({ kind: 'song', song, subtitle: lineOf('home.exploreSong', namesOf(song.artists)) });
-const itemOf = (card: Card): ProviderExploreItem | null => {
+const songItem = (song: FoliumSourceSong): FoliumSourceExploreItem => ({ kind: 'song', song, subtitle: lineOf('explore.song', namesOf(song.artists)) });
+const itemOf = (card: Card): FoliumSourceExploreItem | null => {
     const data = card.content?.data;
     if (data?.__typename === 'Playlist') {
         const collection = spotifyPlaylistOf(data as SpotifyPlaylist);
         const maker = collection?.creator?.nickname;
-        return collection ? { kind: 'collection', collection, subtitle: lineOf('home.explorePlaylist', maker === OWN_MAKER ? '' : maker) } : null;
+        return collection ? { kind: 'collection', collection, subtitle: lineOf('explore.playlist', maker === OWN_MAKER ? '' : maker) } : null;
     }
     if (data?.__typename === 'Album') {
         const collection = spotifyAlbumOf(data as SpotifyAlbum);
-        const kind = RELEASE_LABELS[(data as SpotifyAlbum).albumType ?? ''] ?? 'home.exploreAlbum';
+        const kind = RELEASE_LABELS[(data as SpotifyAlbum).albumType ?? ''] ?? 'explore.album';
         return collection ? { kind: 'collection', collection, subtitle: lineOf(kind, namesOf(collection.artists)) } : null;
     }
     // (An artist's card reads "artist" by the app's own rule.)
     const artist = data?.__typename === 'Artist' ? spotifyArtistOf(data as SpotifyArtistRow) : null;
     return artist ? { kind: 'collection', collection: artist } : null;
 };
-const keyOf = (item: ProviderExploreItem): string => (item.kind === 'collection' ? `${item.collection.type}:${item.collection.id}` : `song:${item.song.id}`);
+const keyOf = (item: FoliumSourceExploreItem): string => (item.kind === 'collection' ? `${item.collection.type}:${item.collection.id}` : `song:${item.song.id}`);
 const rowsOf = (section: Section | undefined): Card[] => section?.sectionItems?.items ?? [];
-const countOf = (sections: ProviderExploreSection[]) => sections.reduce((count, section) => count + section.items.length, 0);
+const countOf = (sections: FoliumSourceExploreSection[]) => sections.reduce((count, section) => count + section.items.length, 0);
 const homeVariables = () => ({ timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone, sp_t: '' });
 // The page of the account's lists pages all its sections at once: entries `offset` onwards of each.
 const madeVariables = (offset: number, limit: number) => ({
@@ -142,7 +151,7 @@ const madeVariables = (offset: number, limit: number) => ({
 });
 
 /** A section of Spotify's as one of the page; null for one that holds nothing the app shows. `moreCursor` is asked where Spotify has more of it than it gave. */
-const sectionOf = (row: Section, moreCursor: (given: number) => string): ProviderExploreSection | null => {
+const sectionOf = (row: Section, moreCursor: (given: number) => string): FoliumSourceExploreSection | null => {
     const items = rowsOf(row).map(itemOf).filter(present);
     if (!row.uri || items.length === 0) return null;
     const hasMore = (row.sectionItems?.totalCount ?? 0) > rowsOf(row).length;
@@ -161,19 +170,19 @@ const takeSeeds = (read: Read, count: number): Seed[] => {
 };
 
 /** `items` as a shelf made here hands them out: their songs are noted, for the shelves handed out after. */
-const noted = (items: ProviderExploreItem[]): ProviderExploreItem[] => {
-    handedOut.note(SONGS, items.flatMap(item => (item.kind === 'song' ? [String(item.song.id)] : [])));
+const noted = (items: FoliumSourceExploreItem[]): FoliumSourceExploreItem[] => {
+    handedOut.note(SONGS, items.flatMap(item => (item.kind === 'song' ? [item.song.id] : [])));
     return items;
 };
 
 /** A shelf of the songs like `seed`; null where they could not be read, or too few of them are on no other shelf. */
-const radioShelf = async (read: Read, seed: Seed): Promise<ProviderExploreSection | null> => {
+const radioShelf = async (read: Read, seed: Seed): Promise<FoliumSourceExploreSection | null> => {
     try {
         const found = await spotifyRadioSongs(seed.id);
         // (Not the song asked with, not one of another shelf, and each once.)
         const taken = new Set([seed.id]);
         const free = found.filter(song => {
-            const id = String(song.id);
+            const id = song.id;
             if (taken.has(id) || read.onShelf.has(id)) return false;
             taken.add(id);
             return true;
@@ -182,16 +191,16 @@ const radioShelf = async (read: Read, seed: Seed): Promise<ProviderExploreSectio
             console.log(`[Spotify] Explore radio of ${seed.id}: ${free.length} of ${found.length} songs on no other shelf, too few for a shelf`);
             return null;
         }
-        const wasShown = (song: UnifiedSong) => handedOut.has(SONGS, String(song.id));
+        const wasShown = (song: FoliumSourceSong) => handedOut.has(SONGS, song.id);
         // (The songs no shelf has handed out first, then the ones handed out longest ago.)
-        const songs = handedOut.inTurn(SONGS, free, song => String(song.id)).slice(0, Math.floor(free.length / RADIO_BATCH) * RADIO_BATCH);
-        songs.forEach(song => read.onShelf.add(String(song.id)));
+        const songs = handedOut.inTurn(SONGS, free, song => song.id).slice(0, Math.floor(free.length / RADIO_BATCH) * RADIO_BATCH);
+        songs.forEach(song => read.onShelf.add(song.id));
         const id = `spotify-radio-${++shelvesMade}`;
         read.songs.set(id, songs.map(songItem));
         console.log(`[Spotify] Explore radio of ${seed.id}: a shelf of ${songs.length} songs (${found.length} read, ${free.filter(wasShown).length} of them shown by a shelf before)`);
         return {
             id,
-            title: i18n.t('home.exploreSimilar', { name: seed.name }),
+            title: texts.text('explore.similar', { name: seed.name }),
             items: noted(read.songs.get(id)!.slice(0, RADIO_BATCH)),
             // (The cursor names the shelf: one of a read before finds nothing in this read.)
             ...(songs.length > RADIO_BATCH ? { moreCursor: `${RADIO}${id} ${RADIO_BATCH}` } : {}),
@@ -204,7 +213,7 @@ const radioShelf = async (read: Read, seed: Seed): Promise<ProviderExploreSectio
     }
 };
 
-const homePage = async (listened: UnifiedSong[]): Promise<ProviderExplorePage> => {
+const homePage = async (listened: FoliumSourceSong[]): Promise<FoliumSourceExplorePage> => {
     const answer = await querySpotify<HomeAnswer>('home', { ...homeVariables(), facet: '', sectionItemsLimit: HOME_ROWS });
     const rows = answer.home?.sectionContainer?.sections?.items ?? [];
     const sections = rows.filter(row => !LISTENING_RECORD_SECTIONS.has(row.data?.__typename ?? ''))
@@ -223,11 +232,11 @@ const homePage = async (listened: UnifiedSong[]): Promise<ProviderExplorePage> =
 // They are left out when they cannot be read. So are the account's lists when Spotify refuses
 // the query (it replaces its queries without notice): the list must go on to the shelves made
 // here. Offline or busy, the page fails instead, and is asked for again.
-const madePage = async (): Promise<ProviderExplorePage> => {
+const madePage = async (): Promise<FoliumSourceExplorePage> => {
     const read = page;
     const [made, releases] = await Promise.all([
         querySpotify<BrowseAnswer>('browsePage', madeVariables(0, MADE_ROWS)).catch(error => {
-            if (error instanceof OnlineProviderError && error.code === 'network') throw error;
+            if (spotifyCodeOf(error)?.code === 'network') throw error;
             console.warn(`[Spotify] Explore page: the lists made for the account could not be read (${wordsOf(error)}); the page goes on without them`);
             return null;
         }),
@@ -240,7 +249,7 @@ const madePage = async (): Promise<ProviderExplorePage> => {
     const rows = made?.browse?.sections?.items ?? [];
     // (A section the home page has too stands there already: the page holds one of an id.)
     const lists = rows.filter(row => !read.home.has(row.uri ?? '')).map(row => sectionOf(row, given => `${MADE_SECTION}${row.uri} ${given}`)).filter(present);
-    const sections = [...(albums.length > 0 ? [{ id: RELEASES_ID, title: i18n.t('home.spotifyNewReleases'), items: albums }] : []), ...lists];
+    const sections = [...(albums.length > 0 ? [{ id: RELEASES_ID, title: texts.text('newReleases'), items: albums }] : []), ...lists];
     console.log(`[Spotify] Explore page (made for the account): ${lists.length} sections of ${rows.length}, ${countOf(lists)} entries; ${albums.length} new releases`);
     return { sections, nextCursor: `${RADIO_PAGE}0` };
 };
@@ -250,18 +259,18 @@ const madePage = async (): Promise<ProviderExplorePage> => {
  * first MADE_ROWS of each section): what the radio tab's daily songs and playlists are taken from
  * (spotifyRecommendations.ts).
  */
-export const spotifyMadeForAccount = async (): Promise<ProviderCollection[]> => {
+export const spotifyMadeForAccount = async (): Promise<FoliumSourceCollection[]> => {
     const answer = await querySpotify<BrowseAnswer>('browsePage', madeVariables(0, MADE_ROWS));
-    const lists = new Map<string, ProviderCollection>();
+    const lists = new Map<string, FoliumSourceCollection>();
     for (const item of (answer.browse?.sections?.items ?? []).flatMap(rowsOf).map(itemOf).filter(present)) {
-        if (item.kind === 'collection' && item.collection.type === 'playlist' && !lists.has(String(item.collection.id))) {
-            lists.set(String(item.collection.id), item.collection);
+        if (item.kind === 'collection' && item.collection.type === 'playlist' && !lists.has(item.collection.id)) {
+            lists.set(item.collection.id, item.collection);
         }
     }
     return [...lists.values()];
 };
 
-const radioPage = async (): Promise<ProviderExplorePage> => {
+const radioPage = async (): Promise<FoliumSourceExplorePage> => {
     const read = page;
     if (!read.hasLiked) {
         try {
@@ -278,7 +287,7 @@ const radioPage = async (): Promise<ProviderExplorePage> => {
     return { sections: shelves, ...(hasSeedsLeft(read) || (!read.hasLiked && read.asked < MAX_RADIOS) ? { nextCursor: `${RADIO_PAGE}${read.asked}` } : {}) };
 };
 
-export const spotifyExplore: OnlineExploreProvider = {
+export const spotifyExplore: FoliumSourceExplore = {
     async getFeed(cursor, listened = []) {
         if (!cursor) return homePage(listened);
         if (cursor === MADE_PAGE) return madePage();
