@@ -230,6 +230,19 @@ describe('amllDbProvider', () => {
         expect(getAmllDbMusicIds('qq', { id: 'mid', qqMid: 'mid' })).toEqual(['mid']);
     });
 
+    // A song of the QQ source mod is known by its mid; the numeric id rides in its providerData.
+    it('tries the numeric id a QQ source-mod song keeps in its providerData after the mid', () => {
+        expect(getAmllDbMusicIds('qq', {
+            id: '000zi9gH0OEMMu',
+            qqMid: '000zi9gH0OEMMu',
+            sourceRef: { kind: 'online', providerId: 'qq', mediaId: '000zi9gH0OEMMu', providerData: { songId: 105094238 } },
+        })).toEqual(['000zi9gH0OEMMu', '105094238']);
+        expect(getAmllDbMusicIds('ncm', {
+            id: 101,
+            sourceRef: { kind: 'online', providerId: 'netease', mediaId: '101', providerData: { songId: 7 } },
+        })).toEqual(['101']);
+    });
+
     it('returns null for non-TTML lyrics', async () => {
         fetchMock.mockResolvedValue(lyricsHit('not found'));
 

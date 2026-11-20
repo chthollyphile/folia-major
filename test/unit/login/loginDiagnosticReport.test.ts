@@ -134,13 +134,13 @@ describe('QR login diagnostic report', () => {
                         requests: [{ ...login.requests[0], outcome: { settled: 'rejected', status: 502, code: null, message: SAID.answer }, connections: [connectionSaying] }],
                     },
                 }, { hasLoginCookie: true, hasAnonymousCookie: true }),
+                // QQ's source mod hands `{ label, value }`; the host writes each as diagnosticLine`${label}: ${value}`
+                // (sourceAdapter/auth.ts), which is what is checked here.
                 qq: () => formatQqLoginDiagnostics({
                     hasSession: true,
                     channels: ['qq', 'wx'],
-                    lastAccountCheck: diagnosticLine`failed: ${SAID.address}`,
+                    lastAccountCheck: `failed: ${SAID.address}`,
                 }, {
-                    providerId: 'qq',
-                    capturedAt: AT,
                     app: snapshot.app,
                     backend: { status: 'error', port: 41057, error: SAID.answer, updatedAt: AT },
                     version: '3.3.0',
@@ -152,12 +152,13 @@ describe('QR login diagnostic report', () => {
                     }],
                     authEvents: [{ at: AT, level: 'warn', event: 'qq-auth.session-failed', details: { said: SAID.answer } }],
                     connections: [connectionSaying],
-                }),
+                }).map(line => diagnosticLine`${line.label}: ${line.value}`),
             };
             const declaring = listOnlineMusicProviders().filter(provider => provider.auth?.getLoginDiagnostics).map(provider => provider.id);
             // Platforms moved to source mods (Folium 2.0 S5) are not registered here: Qishui's lines (safe stage/code
-            // fields only) are exercised in qishui/adapter.test.ts and qishui/failure.test.ts.
-            expect(Object.keys(builders).sort()).toEqual(declaring.sort());
+            // fields only) are exercised in qishui/adapter.test.ts and qishui/failure.test.ts; QQ's are built above
+            // from its source mod's own writer.
+            expect(Object.keys(builders).filter(id => id !== 'qq').sort()).toEqual(declaring.sort());
             for (const [providerId, build] of Object.entries(builders)) {
                 const report = reportOf(build());
                 expect(report, providerId).toContain('2873651094');
@@ -167,7 +168,7 @@ describe('QR login diagnostic report', () => {
                 expect(report, providerId).toContain('Zhang San');
             }
             expect(reportOf(builders.netease())).toContain("network interfaces: Zhang San's iPhone: 203.0.113.9");
-            expect(reportOf(builders.qq())).toContain('      at QrLoginService.poll (qq-music-api/dist/src/services/auth/qrLogin.node.js:185:23)');
+            expect(reportOf(builders.qq())).toContain(' at QrLoginService.poll (qq-music-api/dist/src/services/auth/qrLogin.node.js:185:23)');
         });
 
         it('keeps a long list of network interfaces whole, a start-up error of several lines on its line, and a kernel release readable', () => {

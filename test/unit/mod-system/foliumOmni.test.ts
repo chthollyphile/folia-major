@@ -638,8 +638,9 @@ describe('folium.omni.resolveSongs', () => {
         expect(details).toHaveBeenCalledTimes(4);
     });
 
-    // QQ Music's song id (`FoliumSong.id`) is the numeric songid; its play key is the songmid. Its adapter looks
-    // both up at QQ's musicu, 25 a request, and every request counts once against the mod's allowance.
+    // QQ Music's song id (`FoliumSong.id`) is its songmid since QQ became a source mod (the numeric songid rides in
+    // the song's data); a key may be either. Its adapter looks both up at QQ's musicu, 25 a request, and every request
+    // counts once against the mod's allowance.
     describe('QQ Music keys', () => {
         type MusicuRequests = Record<string, { module: string; method: string; param: { song_type: number; song_id?: unknown; song_mid?: unknown } }>;
         const SUNNY_MID = '0039MnYb0qxYhV';
@@ -671,24 +672,24 @@ describe('folium.omni.resolveSongs', () => {
             const api = omniOf();
             const [resolution] = await api.resolveSongs([{ source: 'qq', id: '97773' }]);
 
-            expect(resolution).toMatchObject({ status: 'found', song: { source: 'qq', id: '97773', title: '晴天' } });
+            expect(resolution).toMatchObject({ status: 'found', song: { source: 'qq', id: SUNNY_MID, title: '晴天' } });
             const song = (resolution as { song: FoliumSong }).song;
-            expect(resolveFoliumSongRef(song.ref)).toMatchObject({ id: 97773, qqMid: SUNNY_MID });
+            expect(resolveFoliumSongRef(song.ref)).toMatchObject({ id: SUNNY_MID, qqMid: SUNNY_MID, sourceRef: { providerData: { songId: 97773 } } });
             expect(requestQqMusicu).toHaveBeenCalledTimes(1);
             expect(sentRequests(0)).toEqual([{
                 module: 'music.pf_song_detail_svr', method: 'get_song_detail_yqq', param: { song_type: 0, song_id: 97773 },
             }]);
             expect(requestQq).not.toHaveBeenCalled();
 
-            await expect(api.resolveSongs([{ source: 'qq', id: '97773' }])).resolves.toMatchObject([{ status: 'found', song: { id: '97773' } }]);
+            await expect(api.resolveSongs([{ source: 'qq', id: '97773' }])).resolves.toMatchObject([{ status: 'found', song: { id: SUNNY_MID } }]);
             expect(requestQqMusicu).toHaveBeenCalledTimes(1);
         });
 
-        it('finds a key by its songmid at musicu too, as the same song with its numeric id', async () => {
+        it('finds a key by its songmid at musicu too, as the same song', async () => {
             answerMusicu();
             const [resolution] = await omniOf().resolveSongs([{ source: 'qq', id: SUNNY_MID }]);
 
-            expect(resolution).toMatchObject({ status: 'found', song: { source: 'qq', id: '97773', title: '晴天' } });
+            expect(resolution).toMatchObject({ status: 'found', song: { source: 'qq', id: SUNNY_MID, title: '晴天' } });
             expect(requestQqMusicu).toHaveBeenCalledTimes(1);
             const [request] = sentRequests(0);
             expect(request.param.song_mid).toBe(SUNNY_MID);
@@ -707,7 +708,7 @@ describe('folium.omni.resolveSongs', () => {
             const results = await omniOf().resolveSongs(keysOf(ids));
 
             expect(results.map(statusOf)).toEqual(Array(50).fill('found'));
-            expect(results.map((result) => (result as { song: FoliumSong }).song.id)).toEqual(ids.map(String));
+            expect(results.map((result) => (result as { song: FoliumSong }).song.id)).toEqual(ids.map((id) => `00${id}`));
             expect(requestQqMusicu).toHaveBeenCalledTimes(2);
             expect([0, 1].map((call) => sentRequests(call).length)).toEqual([25, 25]);
             // 118 and 2: the minute's 120 are used up.

@@ -6,7 +6,6 @@ import { autoMatchBestLyric } from '@/utils/lyrics/autoMatchBestLyric';
 import { fetchLyricsForMatchSource } from '@/utils/lyrics/lyricMatchSources';
 import { getLyricProviderLabel } from '@/utils/lyrics/lyricSourceLabels';
 import { fetchAmllDbLyrics } from '@/utils/lyrics/providers/amllDbProvider';
-import { fetchQQLyrics } from '../../../sources/qq/core/qqLyricProvider';
 
 // test/unit/lyrics/lyricSourceStoredValues.test.ts
 // Pins what is stored about lyric sources: the preferred-source setting (its key and its values)
@@ -18,14 +17,13 @@ vi.mock('@/utils/lyrics/providers/amllDbProvider', async (importOriginal) => ({
     ...await importOriginal<typeof import('@/utils/lyrics/providers/amllDbProvider')>(),
     fetchAmllDbLyrics: vi.fn(),
 }));
-vi.mock('../../../sources/qq/core/qqLyricProvider', () => ({ searchQQLyrics: vi.fn(), fetchQQLyrics: vi.fn() }));
 
 const STORED_NAMES = ['netease', 'amll', 'qq', 'kugou', 'spotify'] as const;
-// Each one's name. KuGou's is its source mod's own (sources/kugou/locales, lyrics@1.crossSource.name).
+// Each one's name. KuGou's and QQ's are their source mods' own (sources/<id>/locales, lyrics@1.crossSource.name).
 const LABEL_KEYS: Record<typeof STORED_NAMES[number], string> = {
     netease: 'lyricProvider.netease',
     amll: 'lyricProvider.amll',
-    qq: 'lyricProvider.qq',
+    qq: 'folium-mod/qq:name.lyrics',
     kugou: 'folium-mod/kugou:name.lyrics',
     spotify: 'lyricProvider.spotify',
 };
@@ -52,7 +50,7 @@ describe('the source name stored with a song\'s lyric choice', () => {
 
     it('reads the AMLL DB platform stored beside the name', () => {
         expect(getLyricProviderLabel('amll', 'ncm')).toBe(`${i18n.t('lyricProvider.amll')} · ${i18n.t('lyricProvider.netease')}`);
-        expect(getLyricProviderLabel('amll', 'qq')).toBe(`${i18n.t('lyricProvider.amll')} · ${i18n.t('lyricProvider.qq')}`);
+        expect(getLyricProviderLabel('amll', 'qq')).toBe(`${i18n.t('lyricProvider.amll')} · ${i18n.t('folium-mod/qq:name.lyrics')}`);
     });
 });
 
@@ -81,19 +79,19 @@ describe('what a lyric match hands over to be stored', () => {
 
     it('gives the AMLL DB platform of a lyric picked by hand, and none for any other source', async () => {
         vi.mocked(fetchAmllDbLyrics).mockResolvedValue(lyrics(true, true));
-        vi.mocked(fetchQQLyrics).mockResolvedValue(lyrics(true));
+        vi.spyOn(getOnlineMusicProvider('qq')!.lyrics!, 'getLyrics').mockResolvedValue({ lyrics: lyrics(true), isPureMusic: false });
 
         expect(await fetchLyricsForMatchSource('amll', { ...song, id: 101, amllDbPlatform: 'ncm' }))
             .toMatchObject({ isPureMusic: false, matchedLyricsProviderPlatform: 'ncm' });
         expect(await fetchLyricsForMatchSource('amll', { ...song, id: 202, qqMid: 'mid', amllDbPlatform: 'qq' }))
             .toMatchObject({ isPureMusic: false, matchedLyricsProviderPlatform: 'qq' });
-        const fromQq = await fetchLyricsForMatchSource('qq', { ...song, id: 202, qqMid: 'mid' });
+        const fromQq = await fetchLyricsForMatchSource('qq', { ...song, id: 'mid', qqMid: 'mid', sourceRef: { kind: 'online' as const, providerId: 'qq', mediaId: 'mid' } });
         expect(fromQq).toMatchObject({ isPureMusic: false });
         expect(fromQq?.matchedLyricsProviderPlatform).toBeUndefined();
     });
 });
 
-// Last: its vi.resetModules() loads i18n anew, which drops the source mods' texts the setup gave it (KuGou's name).
+// Last: its vi.resetModules() loads i18n anew, which drops the source mods' texts the setup gave it (KuGou's and QQ's names).
 describe('the preferred lyric source setting', () => {
     let values: Map<string, string>;
 

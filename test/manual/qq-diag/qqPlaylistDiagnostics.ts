@@ -1,6 +1,7 @@
 import { OnlineProviderError, type ProviderCollection } from '../../../src/types/onlineMusic';
 import { normalizeQqCollection } from '../../../sources/qq/core/qqNormalize';
-import { qqProvider } from '../../../sources/qq/core/qqProvider';
+import { toHostCollection } from '../../../src/mods/folium/registries/sourceDtos';
+import { getOnlineMusicProvider } from '../../../src/services/onlineMusic/providerRegistry';
 import { hasQqSession, requestQq } from '../../../sources/qq/core/qqTransport';
 
 // test/manual/qq-diag/qqPlaylistDiagnostics.ts
@@ -77,7 +78,8 @@ export const probeQqPlaylists = async (): Promise<QqPlaylistProbeEntry[]> => {
 
     return playlists.map((raw: any) => {
         const item = raw && typeof raw === 'object' ? raw : {};
-        const normalized = normalizeQqCollection(item);
+        // 宿主的形状：模组归一，再经适配层换成宿主的集合（应用里点开歌单时拿到的就是它）。
+        const normalized = toHostCollection('qq', normalizeQqCollection(item));
         const identity: Record<string, string | number | boolean | null> = {};
         IDENTITY_KEYS.forEach(key => {
             if (item[key] !== undefined) identity[key] = scalar(item[key]);
@@ -150,7 +152,7 @@ export const probeQqPlaylistDetail = async (disstid: string): Promise<QqPlaylist
 
 
 /**
- * 走 `qqProvider.catalog.getPlaylistTracks`，也就是应用点开歌单时真正跑的那条路径。
+ * 走注册着的 QQ 音源（getOnlineMusicProvider('qq')）的 `catalog.getPlaylistTracks`，也就是应用点开歌单时真正跑的那条路径。
  *
  * transport 能拿到 songlist 但界面是空的时候，答案只可能在这一段：要么 provider 自己返回了
  * 空页，要么它返回了条目而问题在更上层。探针把两者分开。
@@ -161,7 +163,9 @@ export const probeQqPlaylistTracks = async (
 ): Promise<QqPlaylistTracksProbe> => {
     const requestedId = entry.normalizedId;
     try {
-        const page = await qqProvider.catalog!.getPlaylistTracks!(
+        const qqProvider = getOnlineMusicProvider('qq');
+        if (!qqProvider?.catalog?.getPlaylistTracks) throw new Error('QQ 音源没有注册');
+        const page = await qqProvider.catalog.getPlaylistTracks(
             entry.collection.id,
             limit,
             0,

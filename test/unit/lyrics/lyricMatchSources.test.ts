@@ -3,7 +3,6 @@ import { fetchAmllDbLyrics, searchAmllDbSongs } from '@/utils/lyrics/providers/a
 import { fetchLyricsForMatchSource, searchAmllDbLyricCandidates } from '@/utils/lyrics/lyricMatchSources';
 import type { AmllApiSongItem } from '@/utils/lyrics/providers/amllApi';
 import { neteaseApi } from '@/services/onlineMusic/netease/netease';
-import { searchQQLyrics } from '../../../sources/qq/core/qqLyricProvider';
 
 // test/unit/lyrics/lyricMatchSources.test.ts
 // Covers source-specific lyric matching orchestration.
@@ -19,11 +18,6 @@ vi.mock('@/services/onlineMusic/netease/netease', () => ({
 vi.mock('@/utils/lyrics/neteaseProcessing', () => ({
     parseNeteaseChorusRanges: vi.fn(() => []),
     processNeteaseLyrics: vi.fn(),
-}));
-
-vi.mock('../../../sources/qq/core/qqLyricProvider', () => ({
-    searchQQLyrics: vi.fn(),
-    fetchQQLyrics: vi.fn(),
 }));
 
 vi.mock('../../manual/kugouLyricProvider', () => ({

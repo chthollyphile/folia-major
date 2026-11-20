@@ -232,7 +232,8 @@ describe('the trusted table of the built-in sources (§5.1)', () => {
     it('names the partitions and userData folders main.cjs gives the platforms', () => {
         const main = fs.readFileSync(path.join(ROOT, 'electron/main.cjs'), 'utf8');
         expect(main).toContain("session.fromPartition('folia-spotify')");
-        expect(main).toContain("'qq-auth-state'");
+        // QQ Music is a source mod now: its main entry claims the folder of its device file through api.paths.legacy.
+        expect(fs.readFileSync(path.join(ROOT, 'sources/qq/main/index.ts'), 'utf8')).toContain("api.paths.legacy('qq-auth-state')");
         // YouTube Music is a source mod now: its main entry claims the same partitions and folder through api.*.
         const ytmMain = fs.readFileSync(path.join(ROOT, 'sources/ytm/main/index.ts'), 'utf8');
         expect(ytmMain).toContain("api.net.session('folia-ytm')");

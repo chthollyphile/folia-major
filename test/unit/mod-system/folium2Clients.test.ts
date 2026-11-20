@@ -156,10 +156,11 @@ describe('the window\'s half of switching a source', () => {
         };
         registerSourcePlaybackStop((ids) => { order.push(`stop ${ids.join(',')}`); });
         expect(await switchSourceState('spotify', 'matching')).toEqual({ ok: false, error: 'source-cannot-match-only' });
-        expect(await switchSourceState('qq', 'matching')).toMatchObject({ ok: true });
-        expect(await switchSourceState('qq', 'enabled')).toMatchObject({ ok: true });
-        expect(order).toEqual(['stop qq', 'set qq matching', 'set qq enabled']);
-        expect(getSourceState('qq')).toBe('enabled');
+        // NetEase: a host source that matches anonymously (QQ, a source mod now, is not registered in this file).
+        expect(await switchSourceState('netease', 'matching')).toMatchObject({ ok: true });
+        expect(await switchSourceState('netease', 'enabled')).toMatchObject({ ok: true });
+        expect(order).toEqual(['stop netease', 'set netease matching', 'set netease enabled']);
+        expect(getSourceState('netease')).toBe('enabled');
         registerSourcePlaybackStop(null);
     });
 

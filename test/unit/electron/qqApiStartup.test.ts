@@ -140,7 +140,8 @@ describe('QQ API startup', () => {
             env: {},
         });
 
-        server.failToBind(new Error('listen EADDRINUSE: address already in use :::45123'));
+        // The listen fails on a later tick, as a real one does (the package may also be loaded with a dynamic import).
+        setImmediate(() => server.failToBind(new Error('listen EADDRINUSE: address already in use :::45123')));
 
         await expect(pending).rejects.toThrow('EADDRINUSE');
     });

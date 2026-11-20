@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+// @builtin-sources
 import { describe, expect, it, vi } from 'vitest';
 
 // Stores read localStorage at import time, and Node's own experimental storage
@@ -27,7 +28,8 @@ import { DEFAULT_THEME } from '@/services/baseThemes';
 
 // test/unit/visualizer/fullScreenCoverBackgrounds.test.ts
 // Monet and Nomand fill the screen with the cover, so they read the backdrop's 1024 step back to the
-// provider's original; the backgrounds that only take colours keep the sized one.
+// provider's original; the backgrounds that only take colours keep the sized one. QQ's picture rule is its source
+// mod's (covers@1), so the built-in sources are registered here.
 
 const QQ = 'https://y.gtimg.cn/music/photo_new/T002M000album-mid.jpg?max_age=2592000';
 const NETEASE = 'https://p1.music.126.net/abc/109951.jpg';

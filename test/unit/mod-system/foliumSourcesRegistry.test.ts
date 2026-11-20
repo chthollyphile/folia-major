@@ -331,8 +331,8 @@ describe('the seams of S1 and S2, fed from capabilities', () => {
         // Built-in platforms are read from their tables as before.
         expect(canSourceMatchOnly('netease')).toBe(true);
         expect(canSourceMatchOnly('spotify')).toBe(false);
-        // KuGou is a source mod now: not registered in this file.
-        expect(participants('metadata').ready.slice(0, 2)).toEqual(['netease', 'qq']);
+        // KuGou and QQ are source mods now: not registered in this file.
+        expect(participants('metadata').ready.slice(0, 1)).toEqual(['netease']);
     });
 
     it('the search page lists a source whose search needs no account, signed in or not', () => {
@@ -386,7 +386,7 @@ describe('the seams of S1 and S2, fed from capabilities', () => {
             },
         });
         expect(getSizedCoverUrl('https://img.reg.invalid/a.jpg?w=10', 300)).toBe('https://img.reg.invalid/a.jpg?w=300');
-        expect(getSizedCoverUrl('https://y.gtimg.cn/music/photo_new/T002R300x300M000x.jpg', 800)).toBe('https://y.gtimg.cn/music/photo_new/T002R800x800M000x.jpg');
+        expect(getSizedCoverUrl('https://p1.music.126.net/a.jpg?param=300y300', 800)).toBe('https://p1.music.126.net/a.jpg?param=800y800');
     });
 
     // A source's rule is asked about its own hosts only, with a URL of its own: a loose rule must not rewrite or
@@ -574,11 +574,11 @@ describe('what the second migrated platform needed (qishui)', () => {
 
 describe('ids the host has already', () => {
     it('a source on an id another provider holds puts nothing in place, and a host lyric source of its id stays', () => {
-        const mine = mod({ sources: [{ ...sourceInfo('a'), id: 'qq' }, { ...sourceInfo('b'), id: 'amll' }] });
+        const mine = mod({ sources: [{ ...sourceInfo('a'), id: 'netease' }, { ...sourceInfo('b'), id: 'amll' }] });
         const lyrics = { getLyrics: async () => null, crossSource: {} };
         const search = { searchSongs: async () => ({ items: [], hasMore: false }) };
         expect(() => register({ id: 'a', capabilities: { 'search@1': search, 'lyrics@1': lyrics } }, mine)).toThrow(/already exists/);
-        expect(getLyricSource('qq')).toMatchObject({ id: 'qq', metadataMatch: true });
+        expect(getLyricSource('netease')).toMatchObject({ id: 'netease', metadataMatch: true });
         const amll = register({ id: 'b', capabilities: { 'search@1': search, 'lyrics@1': lyrics } }, mine);
         expect(getLyricSource('amll')).toMatchObject({ id: 'amll', platform: false });
         amll.unregister();

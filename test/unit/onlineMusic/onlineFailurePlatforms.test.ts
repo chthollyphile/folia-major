@@ -9,6 +9,7 @@ import { onlineFailureOf, stopsPlayback } from '@/services/onlineMusic/failure/o
 import type { UnifiedSong } from '@/types';
 import type { OnlineFailureOperation, OnlineProviderId, ProviderCollection } from '@/types/onlineMusic';
 import { setBuiltinSourceRpc } from '../helpers/builtinSources';
+import { answerQqBackend } from '../helpers/qqSource';
 
 // test/unit/onlineMusic/onlineFailurePlatforms.test.ts
 // Which case each platform's own failure to give a song's audio or a collection's tracks sorts
@@ -214,9 +215,10 @@ describe('NetEase', () => {
 });
 
 describe('QQ Music', () => {
+    // The source mod's main entry answers `status` with the embedded backend's port (none: it is not running).
     const desktop = (port: number | null) => {
         resetQqTransportRuntimeCache();
-        vi.stubGlobal('window', { electron: { getQqPort: async () => port } });
+        answerQqBackend({ port });
     };
     const song = songOf('qq', '003rJSwm3TechU');
 

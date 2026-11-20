@@ -1,9 +1,11 @@
+// @builtin-sources
 import { beforeEach, describe, expect, it } from 'vitest';
 import { useOnlineProviderAccountStore } from '@/stores/useOnlineProviderAccountStore';
 import { asksBeforeOwnWordTiming, firstLyricSourceAsked, settlesOnOwnWordTiming } from '@/utils/lyrics/ownWordTiming';
 
 // test/unit/lyrics/ownWordTiming.test.ts
 // When the automatic lyric pick settles on a song's own word timing without asking another source (issue #1127).
+// QQ, the default lyric source, is a source mod: registered with the others (@builtin-sources).
 
 const wordLevel = { lines: [], isWordByWord: true };
 const lineLevel = { lines: [], isWordByWord: false };

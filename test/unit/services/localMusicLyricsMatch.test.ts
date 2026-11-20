@@ -1,3 +1,4 @@
+// @builtin-sources
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { LocalSong } from '@/types';
 import { matchLyrics } from '@/services/localMusicService';
@@ -5,7 +6,6 @@ import { autoMatchBestLyric } from '@/utils/lyrics/autoMatchBestLyric';
 import { applyMatchedMetadata } from '@/services/localLibraryCatalogService';
 import { neteaseApi } from '@/services/onlineMusic/netease/netease';
 import { getLocalLibraryCatalogSnapshot } from '@/services/localLibraryEntityRepository';
-import { fetchQQLyrics, searchQQLyrics } from '../../../sources/qq/core/qqLyricProvider';
 import { getOnlineMusicProvider, registerOnlineMusicProvider, unregisterOnlineMusicProvider } from '@/services/onlineMusic/providerRegistry';
 
 // test/unit/services/localMusicLyricsMatch.test.ts
@@ -21,7 +21,6 @@ vi.mock('@/services/localLibraryCatalogService', () => ({ applyMatchedMetadata: 
 vi.mock('@/services/localLibraryEntityRepository', () => ({
     getLocalLibraryCatalogSnapshot: vi.fn().mockResolvedValue({ entities: [], assignments: [] }),
 }));
-vi.mock('../../../sources/qq/core/qqLyricProvider', () => ({ searchQQLyrics: vi.fn(), fetchQQLyrics: vi.fn() }));
 vi.mock('@/services/onlineMusic/netease/netease', () => ({
     neteaseApi: {
         cloudSearch: vi.fn(),
@@ -146,13 +145,15 @@ describe('localMusicService lyric matching', () => {
         vi.spyOn(console, 'info').mockImplementation(() => {});
         try {
             lyricSettings.autoUseBestLyric = false;
-            vi.mocked(searchQQLyrics).mockResolvedValue([{
-                id: 4242, qqMid: 'mid-4242', name: 'Plain title', artists: [{ id: 1, name: 'Singer' }],
+            // QQ is a source mod (registered here by @builtin-sources): the match searches and fetches through its provider.
+            const qq = getOnlineMusicProvider('qq')!;
+            vi.spyOn(qq.search!, 'searchSongs').mockResolvedValue({ items: [{
+                id: 'mid-4242', qqMid: 'mid-4242', name: 'Plain title', artists: [{ id: 1, name: 'Singer' }],
                 album: { id: 2, name: 'Album' }, durationMs: 200000,
-                sourceRef: { kind: 'online', providerId: 'qq', mediaId: 'mid-4242' },
-            } as never]);
+                sourceRef: { kind: 'online', providerId: 'qq', mediaId: 'mid-4242', providerData: { songId: 4242 } },
+            }], hasMore: false, nextOffset: 1 });
             const lyrics = { lines: [{ startTime: 0, endTime: 1, fullText: 'line', words: [] }], isWordByWord: false };
-            vi.mocked(fetchQQLyrics).mockResolvedValue(lyrics as never);
+            vi.spyOn(qq.lyrics!, 'getLyrics').mockResolvedValue({ lyrics: lyrics as never, isPureMusic: false });
             const local = { ...song(), title: 'Plain title', titleOrigin: 'import', onlineMetadata: undefined } as unknown as LocalSong;
 
             await matchLyrics(local);
