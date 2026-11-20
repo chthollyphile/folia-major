@@ -11524,7 +11524,7 @@
   },
   "src/vite-env.d.ts": {
     "@stylistic/indent": {
-      "count": 977
+      "count": 971
     },
     "@typescript-eslint/consistent-type-imports": {
       "count": 46
