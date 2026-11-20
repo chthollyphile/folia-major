@@ -63,4 +63,30 @@ const sourceCacheEntryOf = (name) => {
     return { modId: rest.slice(0, colon), id: rest.slice(colon + 1) };
 };
 
-module.exports = { DEFAULT_AUDIO_CACHE_LIMIT_BYTES, resolveCacheLimit, selectEvictions, sourceCacheEntries, sourceCacheEntryOf };
+/*
+ * The media cache limit the main window last named (bytes, 0 for none: the listener's setting lives in the renderer),
+ * and a source mod's api.cache.requestPrune(limitBytes?) against it. Every audio cache write names the limit
+ * (save-audio-cache), and so does the window before a source keeps a file in a cache of its own (set-media-cache-limit).
+ * A request with a limit of its own prunes to that; one without prunes to the named limit, and until the window has
+ * named one it is left alone, since the host's default (5 GiB) could trim a cache the listener let grow past it.
+ * `prune(limitBytes)` is the host's pruning of the whole media cache budget.
+ */
+const createSourcePruneLimit = (prune) => {
+    let namedLimitBytes = null;
+    return {
+        /** Keeps a limit the window named; anything but a finite number of zero or more is ignored. */
+        note: (limitBytes) => {
+            if (typeof limitBytes === 'number' && Number.isFinite(limitBytes) && limitBytes >= 0) namedLimitBytes = limitBytes;
+        },
+        /** The limit the window last named, or null. */
+        named: () => namedLimitBytes,
+        /** api.cache.requestPrune of a source mod's main entry. */
+        pruneForSource: (limitBytes) => {
+            if (typeof limitBytes === 'number' && Number.isFinite(limitBytes)) return prune(limitBytes);
+            if (namedLimitBytes === null) return undefined;
+            return prune(namedLimitBytes);
+        },
+    };
+};
+
+module.exports = { DEFAULT_AUDIO_CACHE_LIMIT_BYTES, createSourcePruneLimit, resolveCacheLimit, selectEvictions, sourceCacheEntries, sourceCacheEntryOf };
