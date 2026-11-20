@@ -1,3 +1,4 @@
+// @builtin-sources
 import { beforeEach, describe, expect, it } from 'vitest';
 import { useOnlineProviderAccountStore } from '@/stores/useOnlineProviderAccountStore';
 import { asksBeforeOwnWordTiming, firstLyricSourceAsked, settlesOnOwnWordTiming } from '@/utils/lyrics/ownWordTiming';

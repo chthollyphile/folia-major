@@ -555,7 +555,7 @@ describe('Spotify requests as the account', () => {
 
         clock += 31_000;
         const played = await ask();
-        expect(played.data.url).toMatch(/^folia-spotify:\/\/audio\/4cOdK2wGLETKBW3PvgPWqT\?k=/);
+        expect(played.data.url).toMatch(/^folia-mod:\/\/spotify\/_media\/audio\/4cOdK2wGLETKBW3PvgPWqT\?once=/);
         expect(openSession).toHaveBeenCalledWith({ accessToken: 'access-private', deviceId: expect.stringMatching(/^[0-9a-f]{40}$/) });
         expect(resolveAudioFileAsync).toHaveBeenCalledWith({ uri: 'spotify:track:4cOdK2wGLETKBW3PvgPWqT', bitrate: 160 });
         expect(stored(store).user.premium).toBe(true);

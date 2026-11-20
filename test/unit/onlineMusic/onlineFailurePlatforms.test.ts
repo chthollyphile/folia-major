@@ -372,7 +372,7 @@ describe('YouTube Music', () => {
 });
 
 describe('Spotify', () => {
-    // The real bridge, signed in, over a stand-in for Spotify's services.
+    // The real bridge (sources/spotify/main/), signed in, over a stand-in for Spotify's services.
     const desktop = (respond: () => unknown) => {
         const values = new Map<string, unknown>([[SPOTIFY_SESSION_KEY, Buffer.from(JSON.stringify({
             version: 1, credentials: { access_token: 'access-private', refresh_token: 'refresh-private', expires_at: Date.now() + 3600_000 },
@@ -383,7 +383,8 @@ describe('Spotify', () => {
             safeStorage: { isEncryptionAvailable: () => true, encryptString: (text: string) => Buffer.from(text), decryptString: (data: Buffer) => data.toString() },
             fetch: async () => respond(), openExternal: async () => { }, log: () => { }, warn: () => { },
         });
-        vi.stubGlobal('window', { electron: { spotifyRequest: bridge.request } });
+        // The source mod's main entry runs the bridge; its client reaches it over the rpc.
+        setBuiltinSourceRpc('spotify', { request: (operation, params) => bridge.request(operation as string, (params ?? {}) as Record<string, unknown>) });
     };
     const list = collectionOf('spotify', 'playlist', '37i9dQZF1DXcBWIGoYBM5M');
 
