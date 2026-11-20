@@ -4334,10 +4334,9 @@ function runUpdaterCheck(updater) {
 
 function configureAutoUpdaterChannel(updater) {
   const releaseChannel = getCurrentReleaseChannel();
-  updater.channel = releaseChannel.updaterChannel;
-  updater.allowPrerelease = releaseChannel.allowPrerelease;
-
   const providerConfig = getUpdateProviderConfig(releaseChannel, FOLIA_GITHUB_REPOSITORY);
+  updater.channel = providerConfig?.channel ?? null;
+  updater.allowPrerelease = releaseChannel.allowPrerelease;
   if (providerConfig) {
     updater.setFeedURL(providerConfig);
   }
