@@ -16,6 +16,7 @@ vi.mock('@/services/onlineMusic/qq/qqTransport', async importOriginal => ({
 }));
 
 import i18n from '@/i18n/config';
+import { clearQqGuessYouLikeCatalog } from '@/services/onlineMusic/qq/qqGuessYouLike';
 import { createQqExplore } from '@/services/onlineMusic/qq/qqExplore';
 import { normalizeQqSong } from '@/services/onlineMusic/qq/qqNormalize';
 import { OnlineProviderError, type ProviderExploreSection } from '@/types/onlineMusic';
@@ -40,6 +41,7 @@ const answerAs = (overrides: Record<string, (params: any) => unknown> = {}) => {
         switch (operation) {
             case 'recommend_radar': return { code: 200, page: params.page, songs: tracks(`radar${params.page}`, params.page * 100, 10), more: params.page < 3 };
             case 'user_daily_songs': return { code: 200, songs: tracks('daily', 500, 5) };
+            case 'user_guess_you_like': return { code: 200, songs: tracks('fm', 700, 3) };
             case 'song_similar': return { code: 200, songs: tracks(`like${params.id}`, params.id * 1000, 6) };
             case 'recommend_new_songs': return { code: 200, area: 5, songs: tracks('new', 2000, 30), areas: [] };
             case 'recommend_new_albums': return {
@@ -84,6 +86,7 @@ const listened = [normalizeQqSong(track('heard-a', 11)), normalizeQqSong(track('
 const ids = (sections: ProviderExploreSection[]) => sections.map(section => section.id);
 const titles = (sections: ProviderExploreSection[]) => sections.map(section => section.title);
 const operations = () => requestMock.mock.calls.map(call => call[0]);
+const songMids = (section: ProviderExploreSection) => section.items.flatMap(item => item.kind === 'song' ? [item.song.qqMid] : []);
 
 // 把整页读完：第一页，再按游标读到没有下一部分。
 const readWhole = async (explore: ReturnType<typeof createQqExplore>, heard = listened) => {
@@ -102,6 +105,7 @@ describe('QQ explore page', () => {
     beforeEach(() => {
         requestMock.mockReset();
         transportState.hasSession = true;
+        clearQqGuessYouLikeCatalog();
         vi.spyOn(console, 'log').mockImplementation(() => { });
         vi.spyOn(console, 'warn').mockImplementation(() => { });
     });
@@ -113,28 +117,77 @@ describe('QQ explore page', () => {
 
         const first = await explore.getFeed(undefined, listened);
 
+        const ordinary = first.sections.slice(1);
+        expect(first.sections[0]).toMatchObject({ id: 'qq-personal-recommendations', placement: 'first' });
+        expect(first.sections[0].items).toHaveLength(11);
         expect(first.refreshReadsAnew).toBe(true);
         expect(first.nextCursor).toBeTruthy();
-        expect(ids(first.sections)).toEqual([
+        expect(ids(ordinary)).toEqual([
             'qq-radar', 'qq-daily-songs', 'qq-feed-1', 'qq-feed-2', 'qq-feed-3', 'qq-recommended-playlists', 'qq-charts',
         ]);
-        expect(titles(first.sections)).toEqual([
+        expect(titles(ordinary)).toEqual([
             i18n.t('home.qqRadar'), i18n.t('home.dailyRecommendations'),
             '今日为你推荐', '心动的歌曲推荐 · 种子歌', i18n.t('home.qqFeedForYou'),
             i18n.t('home.qqRecommendedPlaylists'), i18n.t('home.qqCharts'),
         ]);
-        expect(first.sections[0].items).toHaveLength(10);
-        expect(first.sections[1].items.map(item => item.kind === 'song' && item.song.qqMid)).toEqual(tracks('daily', 500, 5).map(song => song.mid));
-        expect(first.sections[2].items.map(item => item.kind === 'collection' && item.collection.id)).toEqual([700001]);
-        expect(first.sections[3].items.map(item => item.kind === 'song' && item.song.qqMid)).toEqual(['feed-a']);
-        expect(first.sections.slice(2, 5).every(section => section.changesWithRead)).toBe(true);
-        expect(first.sections[5].items.map(item => item.kind === 'collection' && item.collection.id)).toEqual([9001, 9002, 9003]);
+        expect(ordinary[0].items).toHaveLength(1);
+        expect(ordinary[1].items.map(item => item.kind === 'song' && item.song.qqMid)).toEqual(tracks('daily', 500, 5).map(song => song.mid));
+        expect(ordinary[2].items.map(item => item.kind === 'collection' && item.collection.id)).toEqual([700001]);
+        expect(ordinary[3].items.map(item => item.kind === 'song' && item.song.qqMid)).toEqual(['feed-a']);
+        expect(ordinary.slice(2, 5).every(section => section.changesWithRead)).toBe(true);
+        expect(ordinary[5].items.map(item => item.kind === 'collection' && item.collection.id)).toEqual([9001, 9002, 9003]);
         // 昵称不进栏标题。
-        expect(titles(first.sections).join(' ')).not.toContain('示例昵称');
+        expect(titles(ordinary).join(' ')).not.toContain('示例昵称');
         expect(operations()).not.toContain('song_similar');
     });
 
     // 引号里的 {String} 是作种子的歌名，不是打招呼：填进去；填不了就用通用的「为你推荐」。
+    it('uses only distinct available songs, including similarity results when the radar has too few', async () => {
+        answerAs({
+            recommend_radar: () => ({ songs: [track('few-a', 1), track('few-a', 99), track('few-b', 2)], more: false }),
+            song_similar: () => ({ songs: [track('few-a', 3), ...tracks('similar', 1000, 6)] }),
+        });
+        const first = await createQqExplore().getFeed(undefined, listened);
+        const shelf = first.sections[0];
+
+        expect(songMids(shelf)).toEqual(['few-a', 'few-b', ...tracks('similar', 1000, 6).map(song => song.mid)]);
+        expect(shelf.items).toHaveLength(10);
+        expect(new Set(songMids(shelf)).size).toBe(8);
+        expect(first.sections.slice(1).flatMap(songMids).filter(mid => songMids(shelf).includes(mid))).toEqual([]);
+        expect(operations().filter(operation => operation === 'user_guess_you_like')).toHaveLength(1);
+    });
+
+    it('fills the lead from already requested similar songs when the radar fails', async () => {
+        answerAs({ recommend_radar: () => { throw new OnlineProviderError('network', 'offline', 'qq'); } });
+        const first = await createQqExplore().getFeed(undefined, listened);
+
+        expect(first.sections[0].items).toHaveLength(11);
+        expect(songMids(first.sections[0])).toEqual([
+            ...tracks('like11', 11000, 6).map(song => song.mid),
+            ...tracks('like12', 12000, 3).map(song => song.mid),
+        ]);
+        expect(ids(first.sections)).not.toContain('qq-radar');
+        expect(first.sections.slice(1).flatMap(songMids).filter(mid => songMids(first.sections[0]).includes(mid))).toEqual([]);
+        expect(operations().filter(operation => operation === 'user_guess_you_like')).toHaveLength(1);
+    });
+
+    it('hands an emptied radar cursor to the lead alone so its further songs remain reachable', async () => {
+        answerAs({ recommend_radar: params => ({ songs: tracks(`short${params.page}`, params.page * 100, 4), more: params.page < 2 }) });
+        const explore = createQqExplore();
+        const first = await explore.getFeed(undefined, listened);
+        const shelf = first.sections[0];
+
+        expect(shelf.items).toHaveLength(11);
+        expect(ids(first.sections)).not.toContain('qq-radar');
+        expect(shelf.moreCursor).toBeTruthy();
+        expect(first.sections.filter(section => section.moreCursor === shelf.moreCursor)).toHaveLength(1);
+        const more = await explore.getSectionItems!(shelf.moreCursor!);
+        expect(more.items.flatMap(item => item.kind === 'song' ? [item.song.qqMid] : [])).toEqual(tracks('short2', 200, 4).map(song => song.mid));
+        expect(more.moreCursor).toBeUndefined();
+        expect(requestMock).toHaveBeenLastCalledWith('recommend_radar', { page: 2 });
+        expect(operations().filter(operation => operation === 'user_guess_you_like')).toHaveLength(1);
+    });
+
     it('fills a quoted placeholder of a feed title with the seed song, and does not cut the title at it', async () => {
         const feedOf = (titleContent: string) => () => ({
             code: 200,
@@ -152,9 +205,10 @@ describe('QQ explore page', () => {
         expect(titles(empty.sections).some(title => title.startsWith('」'))).toBe(false);
     });
 
-    it('lays the page out in the order of the client\'s pages, leaving out the account\'s own listening and the personal FM', async () => {
+    it('lays the page out in the order of the client\'s pages, leaving out listening records and a duplicate FM radio', async () => {
         answerAs();
-        const { sections } = await readWhole(createQqExplore());
+        const whole = await readWhole(createQqExplore());
+        const sections = whole.sections.slice(1);
 
         const similar = (name: string) => i18n.t('home.exploreSimilar', { name });
         expect(ids(sections).slice(0, 7)).toEqual([
@@ -205,7 +259,7 @@ describe('QQ explore page', () => {
         const explore = createQqExplore();
         const { first, sections } = await readWhole(explore);
         const newSongs = sections.find(section => section.id === 'qq-new-songs')!;
-        const radar = first.sections[0];
+        const radar = first.sections[1];
 
         const moreSongs = await explore.getSectionItems!(newSongs.moreCursor!);
         expect(moreSongs.items).toHaveLength(12);
@@ -229,9 +283,9 @@ describe('QQ explore page', () => {
         const one = (await readWhole(explore, [])).sections;
         const two = (await readWhole(explore, [])).sections;
 
-        const radarMids = (sections: ProviderExploreSection[]) => sections[0].items.map(item => item.kind === 'song' && item.song.qqMid);
-        expect(radarMids(one)[0]).toBe('radar1-100');
-        expect(radarMids(two)[0]).toBe('radar2-200');
+        const radarMids = (sections: ProviderExploreSection[]) => sections.find(section => section.id === 'qq-radar')!.items.map(item => item.kind === 'song' && item.song.qqMid);
+        expect(radarMids(one)[0]).toBe('radar1-109');
+        expect(radarMids(two)[0]).toBe('radar2-209');
         expect(titles(one).filter(title => title.startsWith('分类'))).toEqual(['分类 1', '分类 2', '分类 3']);
         expect(titles(two).filter(title => title.startsWith('分类'))).toEqual(['分类 4', '分类 5', '分类 1']);
         expect(titles(two).filter(title => ['热门', '心情', '场景'].includes(title))).toEqual(['场景', '热门']);
@@ -242,6 +296,7 @@ describe('QQ explore page', () => {
         // 榜单的歌接着轮：第二次先给还没轮到的两个，再从最早轮过的接上。
         expect(ids(two).filter(id => id.startsWith('qq-chart-'))).toEqual(['qq-chart-5', 'qq-chart-108', 'qq-chart-4', 'qq-chart-26']);
         expect(ids(two).filter(id => ids(one).includes(id))).toEqual([
+            'qq-personal-recommendations',
             'qq-radar', 'qq-daily-songs', 'qq-recommended-playlists', 'qq-charts',
             'qq-new-songs', 'qq-new-albums', 'qq-chart-4', 'qq-chart-26',
         ]);
@@ -255,10 +310,55 @@ describe('QQ explore page', () => {
         expect(ids(sections).filter(id => id.startsWith('qq-similar') || id.startsWith('qq-radio'))).toEqual([]);
         expect(operations()).not.toContain('song_similar');
         expect(operations()).not.toContain('user_daily_songs');
+        expect(operations()).not.toContain('user_guess_you_like');
         expect(operations()).not.toContain('radio_list');
         expect(operations()).not.toContain('recommend_feed');
         // 没登录也有刷歌模式、推荐歌单和榜单，没有每日 30 首和首页 feed。
         expect(ids(sections).slice(0, 3)).toEqual(['qq-radar', 'qq-recommended-playlists', 'qq-charts']);
+    });
+
+    it('keeps recommendation entries available when this read cannot load any song shelf', async () => {
+        requestMock.mockRejectedValue(new OnlineProviderError('network', 'QQMusicApi request failed: 503', 'qq', undefined, 503));
+
+        const first = await createQqExplore().getFeed();
+
+        expect(ids(first.sections)).toEqual(['qq-personal-recommendations']);
+        expect(first.sections[0].items.map(item => item.kind === 'collection' && item.collection.id))
+            .toEqual(['station-guess-you-like', 'daily_recommendations']);
+        expect(first.sections[0].items.every(item => item.kind === 'collection' && item.collection.songPreview))
+            .toBe(true);
+    });
+
+    it('keeps ordinary songs when both previews fail and reads daily only once for its seed fallback', async () => {
+        answerAs({
+            user_guess_you_like: () => { throw new Error('FM preview unavailable'); },
+            user_daily_songs: () => { throw new Error('Daily preview unavailable'); },
+        });
+        const first = await createQqExplore().getFeed(undefined, listened);
+
+        expect(first.sections[0].items).toHaveLength(11);
+        expect(first.sections[0].items.slice(0, 2)).toEqual([
+            expect.objectContaining({ collection: expect.objectContaining({ id: 'station-guess-you-like', songPreview: {} }) }),
+            expect.objectContaining({ collection: expect.objectContaining({ id: 'daily_recommendations', songPreview: { dailySongs: true } }) }),
+        ]);
+        expect(operations().filter(operation => operation === 'user_daily_songs')).toHaveLength(1);
+        expect(operations().filter(operation => operation === 'user_guess_you_like')).toHaveLength(1);
+    });
+
+    it('discards preview artwork if the login generation changes while other first-page songs are loading', async () => {
+        let finishRadar!: (answer: unknown) => void;
+        answerAs({ recommend_radar: () => new Promise(resolve => { finishRadar = resolve; }) });
+        const pending = createQqExplore().getFeed(undefined, listened);
+        await Promise.resolve();
+        await Promise.resolve();
+        clearQqGuessYouLikeCatalog();
+        finishRadar({ songs: tracks('radar', 100, 10), more: false });
+
+        const first = await pending;
+        expect(first.sections[0].items.slice(0, 2).every(item => (
+            item.kind === 'collection' && item.collection.songPreview?.firstSong === undefined
+        ))).toBe(true);
+        expect(first.sections[0].items).toHaveLength(11);
     });
 
     it('goes on without a shelf that could not be read, and leaves out one with no data', async () => {
@@ -284,7 +384,7 @@ describe('QQ explore page', () => {
             requestMock.mockReset();
             answerAs({ recommend_feed: () => { throw failure; } });
             const first = await createQqExplore().getFeed(undefined, listened);
-            expect(ids(first.sections)).toEqual(['qq-radar', 'qq-daily-songs', 'qq-recommended-playlists', 'qq-charts']);
+            expect(ids(first.sections)).toEqual(['qq-personal-recommendations', 'qq-radar', 'qq-daily-songs', 'qq-recommended-playlists', 'qq-charts']);
         }
     });
 

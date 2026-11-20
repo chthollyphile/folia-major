@@ -75,6 +75,32 @@ describe('online home cards', () => {
         expect(cards.map(card => card.id)).toEqual(['daily_recommendations']);
     });
 
+    it('leaves synthesized recommendation entries to Explore while keeping the provider collections on Radio', () => {
+        const playlist = collection({ id: 'r1' });
+        const radio = collection({ id: 'station', type: 'radio', personalFm: { mode: 'DEFAULT', scene: null } });
+        const feed = { hasPersonalFm: true, supportsDailySongs: true, dailyCoverUrl: 'daily.jpg', dailyCount: 30, recommended: [playlist, radio] };
+        const cards = buildOnlineRadioCards(feed, { t, presentation: { homeTab: 'explore' } });
+
+        expect(cards.map(card => [card.id, card.type])).toEqual([['r1', 'playlist'], ['station', 'radio']]);
+        expect(isPersonalFmCard(cards[1])).toBe(true);
+        expect(buildOnlineRadioCards(feed, { t, presentation: { homeTab: 'radio' } }).map(card => card.id))
+            .toEqual(['personal_fm', 'daily_recommendations', 'r1', 'station']);
+    });
+
+    it('keeps recommendation identities and daily counts when the provider supplies its own wording', () => {
+        const [fm, daily] = buildOnlineRadioCards({ dailyCoverUrl: 'daily.jpg', dailyCount: 30, recommended: [] }, {
+            t,
+            presentation: {
+                personalFm: { name: 'For you', description: 'Nonstop radio', summary: 'Keeps playing' },
+                dailySongs: { name: 'Daily 30' },
+            },
+        });
+        expect(fm).toMatchObject({ id: 'personal_fm', name: 'For you', description: 'Nonstop radio', summary: 'Keeps playing' });
+        expect(isPersonalFmCard(fm)).toBe(true);
+        expect(daily).toMatchObject({ id: 'daily_recommendations', name: 'Daily 30', trackCount: 30 });
+        expect(onlineCardCollection(daily)).toMatchObject({ name: 'Daily 30', type: 'daily_recommendations' });
+    });
+
     it('the FM card shows the current FM mode when the provider has modes', () => {
         const feed = { dailyCoverUrl: '', dailyCount: 0, recommended: [] };
         expect(buildOnlineRadioCards(feed, { t, personalFmModeLabel: 'Mode X' })[0].description).toBe('Mode X');

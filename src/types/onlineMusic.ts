@@ -230,6 +230,17 @@ export interface ProviderCollection {
     personalFm?: PersonalFmLaunch;
     /** The account's listening ranking over this span (type `listening_rank`): read-only, made by the platform. */
     listeningRank?: ListeningRankRange;
+    /** Songs used to present a recommendation entry without changing its collection identity. */
+    songPreview?: {
+        /** Today's default daily songs: follows successful daily reads through Omni. */
+        dailySongs?: true;
+        firstSong?: UnifiedSong;
+        currentSong?: UnifiedSong;
+        /** Transient provider ticket for starting exactly the displayed batch, never a credential. */
+        playbackToken?: string;
+    };
+    /** Provider artwork displayed over a collection's song cover. */
+    coverOverlay?: { label: string; logoUrl?: string };
     providerId: OnlineProviderId;
     id: MediaId;
     name: string;
@@ -890,6 +901,8 @@ export interface PersonalFmRequestOptions {
     submode?: string | null;
     /** One of the provider's extra radios; absent for its Personal FM. A provider without stations ignores it. */
     station?: string | null;
+    /** Transient provider-issued preview ticket, for explicit card starts; continuation omits it. */
+    previewToken?: string;
 }
 
 /**
@@ -912,6 +925,16 @@ export interface DailyStyleSelection {
 export interface DailyStyleSongs {
     songs: UnifiedSong[];
     selection: DailyStyleSelection | null;
+}
+
+/** Provider-owned names for the shared recommendation entry points, translated when read. */
+export interface RecommendationPresentation {
+    /** The home tab that owns personal FM and daily entries; omitted retains the Radio tab. */
+    homeTab?: 'radio' | 'explore';
+    /** Override when a provider has a distinct Personal FM in addition to featured stations. */
+    personalFmHomeTab?: 'radio' | 'explore';
+    personalFm?: { name: string; description?: string; summary?: string };
+    dailySongs?: { name: string; description?: string; summary?: string };
 }
 
 /**
@@ -974,6 +997,7 @@ export type RecommendationPreferenceEntry = 'explore' | 'personal-fm' | 'daily';
 
 export interface OnlineRecommendationProvider {
     /** The mode choices of the Personal FM, or of the extra radio `station` when one is asked for. */
+    getPresentation?(): RecommendationPresentation;
     getPersonalFmCatalog?(station?: string): Promise<PersonalFmCatalog>;
     getDailySongs?(refresh?: boolean): Promise<UnifiedSong[]>;
     getPersonalFm?(options?: PersonalFmRequestOptions): Promise<UnifiedSong[]>;
@@ -1019,6 +1043,8 @@ export interface ProviderExploreSection {
     id: string;
     /** The provider's own heading, in the language its pages are read in. May be empty. */
     title: string;
+    /** Fixed entry sections stay before remembered headings, in the order the provider gives them. */
+    placement?: 'first';
     items: ProviderExploreItem[];
     /** Present when the section has further items; handed back to `getSectionItems`. */
     moreCursor?: string;

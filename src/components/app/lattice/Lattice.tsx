@@ -176,6 +176,11 @@ export default function Lattice({
             onPlaySong(tile.song, tile.queue ?? queue, isRadio && isFm);
             return;
         }
+        // A stream starts playback instead of opening a collection page.
+        if (tile.collection.personalFm) {
+            onOpenCollection?.(tile.collection);
+            return;
+        }
         beginWallTrip('open');
         planPageFromWall(coverFlies);
         appView.setLatticeReturnTileId(tile.id);

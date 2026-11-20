@@ -4,7 +4,7 @@ import { SlidersHorizontal } from 'lucide-react';
 import type { SongResult } from '../../../types';
 import type { OmniExploreSection, OnlineProviderId } from '../../../types/onlineMusic';
 import type { LibraryCollectionDescriptor } from '../../core/collection/collection.contract';
-import type { LibraryHomeOnlineSource } from '../../core/home/homeModel.contract';
+import type { LibraryHomeActionsController, LibraryHomeOnlineSource } from '../../core/home/homeModel.contract';
 import type { LibraryAccountController } from '../../core/account/account.contract';
 import type { LibraryDeclaredActions } from '../../core/suite/suite.contract';
 import type { LibraryPlaybackPort } from '../../core/shared/ports.contract';
@@ -12,7 +12,7 @@ import { explorePageKey, useExploreFeedStore } from '../../../stores/useExploreF
 import { useExploreWall } from '../../../components/app/lattice/useExploreWall';
 import { listenedSongsOf, readOwnExploreSections } from '../../../components/app/home/explore/ownSections';
 import { recordSetRightTimes, watchRecentPlays } from '../../../components/app/home/explore/recentPlays';
-import { createOnlineGridViewCollection } from '../../../components/app/home/gridViewCollectionAdapters';
+import { buildOnlinePlaylistCards } from '../../core/home/homeCards';
 import { isSongUnavailable } from '../../../services/onlineMusic/songAvailability';
 import type { BravaisLayer, BravaisSeamModel } from './bravaisLayer';
 import type { BravaisHomeEntry, BravaisHomeTool } from './bravaisHomeModels';
@@ -59,12 +59,13 @@ const BravaisHomeExplore: React.FC<{
     chrome: BravaisHomeChrome;
     online: LibraryHomeOnlineSource;
     account: LibraryAccountController;
+    homeActions: LibraryHomeActionsController;
     isInteractive: boolean;
     declaredActions: LibraryDeclaredActions;
     playback: LibraryPlaybackPort;
     onPlaySong: (song: SongResult, queue: SongResult[], isFmCall?: boolean) => void;
     onOpenGridView: (collection: LibraryCollectionDescriptor) => void;
-}> = ({ chrome, online, account: accountController, isInteractive, declaredActions, playback, onPlaySong, onOpenGridView }) => {
+}> = ({ chrome, online, account: accountController, homeActions, isInteractive, declaredActions, playback, onPlaySong, onOpenGridView }) => {
     const { t, i18n } = useTranslation();
     const isOn = online.accountView === 'authenticated' && online.canUseExplore;
     const providerId = online.providerId as OnlineProviderId;
@@ -101,12 +102,14 @@ const BravaisHomeExplore: React.FC<{
     const headings = useMemo(() => projectExploreHeadings(wall.sections, t), [t, wall.sections]);
     const shape = useMemo(() => (wall.sections.length > 0 ? { kind: 'explore' as const, sections: wall.sections, headings } : undefined), [headings, wall.sections]);
 
-    const latest = useRef({ tiles: wall.tiles, onPlaySong, onOpenGridView, providerId, declaredActions, playback, t });
-    latest.current = { tiles: wall.tiles, onPlaySong, onOpenGridView, providerId, declaredActions, playback, t };
+    const latest = useRef({ tiles: wall.tiles, onPlaySong, onOpenGridView, providerId, homeActions, declaredActions, playback, t });
+    latest.current = { tiles: wall.tiles, onPlaySong, onOpenGridView, providerId, homeActions, declaredActions, playback, t };
     const onOpenItem = useCallback((itemKey: string) => {
-        const { tiles, onOpenGridView: open, providerId: provider } = latest.current;
+        const { tiles, onOpenGridView: open, providerId: provider, homeActions: actions, t: translate } = latest.current;
         const tile = tiles.find(candidate => candidate.id === itemKey);
-        if (tile?.kind === 'collection') open(createOnlineGridViewCollection(tile.collection, provider));
+        if (tile?.kind === 'collection') {
+            void actions.openOnlineCard(buildOnlinePlaylistCards([tile.collection], translate)[0], provider, open);
+        }
     }, []);
     const onPlayItem = useCallback((itemKey: string) => {
         const { tiles, onPlaySong: play } = latest.current;

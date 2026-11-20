@@ -31,6 +31,7 @@ import type {
     OnlineMusicProvider,
     OnlineSearchProvider,
     PersonalFmRequestOptions,
+    RecommendationPresentation,
     ProviderCatalogEntityKind,
     ProviderExternalPlaybackStatus,
     ProviderLoginForm,
@@ -592,6 +593,10 @@ export const omni = {
         return typeof requireOnlineMusicProvider(providerId).recommendations?.getDailySongs === 'function';
     },
 
+    getRecommendationPresentation(providerId: OmniProviderId): RecommendationPresentation {
+        return requireOnlineMusicProvider(providerId).recommendations?.getPresentation?.() ?? {};
+    },
+
     getProviderLabel(providerId: OmniProviderId): string {
         const provider = getOnlineMusicProvider(providerId);
         return provider?.shortName || provider?.displayName || providerId;
@@ -922,18 +927,22 @@ export const omni = {
     }> {
         return withActiveProvider(async provider => {
             const recommendations = provider.recommendations;
+            // Explore owns these actions for some providers; Radio must not claim their preview batch.
+            const presentation = recommendations?.getPresentation?.();
+            const readsPersonalFm = (presentation?.personalFmHomeTab ?? presentation?.homeTab) !== 'explore';
+            const readsDailySongs = presentation?.homeTab !== 'explore';
             // 三块各自成败：一块失败（例如日推被上游拒绝）只让那一块为空、结果标成 partial，不把 FM 与推荐歌单
             // 一起拖下去；三块都失败才算这次首页推荐失败。作废（AbortError）不算某一块的失败，整次照常作废。
             const [personalFm, dailySongs, recommendedCollections] = await Promise.allSettled([
-                recommendations?.getPersonalFm?.() ?? [],
-                recommendations?.getDailySongs?.() ?? [],
+                readsPersonalFm ? recommendations?.getPersonalFm?.() ?? [] : [],
+                readsDailySongs ? recommendations?.getDailySongs?.() ?? [] : [],
                 recommendations?.getRecommendedCollections?.(limit) ?? [],
             ]);
             const settled = [personalFm, dailySongs, recommendedCollections];
             const failures = settled.filter((result): result is PromiseRejectedResult => result.status === 'rejected');
             const aborted = failures.find(failure => (failure.reason as { name?: unknown } | null)?.name === 'AbortError');
             if (aborted) throw aborted.reason;
-            if (failures.length === settled.length) throw failures[0].reason;
+            if (failures.length === (1 + Number(readsPersonalFm) + Number(readsDailySongs))) throw failures[0].reason;
             failures.forEach(failure => console.warn('[Omni] Home feed section failed', {
                 providerId: provider.id,
                 ...errorFields(failure.reason),
