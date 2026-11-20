@@ -224,3 +224,36 @@ describe('re-enabling a source mod loads its packages anew', () => {
         }
     });
 });
+
+describe('QQ main entry: the package\'s exports', () => {
+    it('takes the exports that carry the server, not the Koa app the compiled package puts on `default`', async () => {
+        const { qqApiExportsOf } = await import('../../../sources/qq/main/qqApiExports');
+        const server = { once: () => undefined };
+        const app = { use: () => undefined };
+        // What `import()` gives for the compiled CommonJS package: the exports object itself, its default the app.
+        const compiled = { server, configureAuthSessionRepository: () => undefined, default: app };
+        expect(qqApiExportsOf(compiled)).toBe(compiled);
+        // An ESM wrapper whose default is the exports object.
+        const exportsObject = { server, configureAuthSessionRepository: () => undefined };
+        expect(qqApiExportsOf({ default: exportsObject })).toBe(exportsObject);
+    });
+
+    it('finds the package folder above the stub package.json the package ships in dist/, by the loaded server', async () => {
+        const { packageRootOf } = await import('../../../sources/qq/main/qqApiExports');
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), 'folia-qq-root-'));
+        try {
+            const packageDir = path.join(root, 'node_modules', '@yakult-green-tea', 'qq-music-api');
+            fs.mkdirSync(path.join(packageDir, 'dist', 'src'), { recursive: true });
+            fs.writeFileSync(path.join(packageDir, 'package.json'), JSON.stringify({ name: '@yakult-green-tea/qq-music-api', main: 'dist/src/app.js' }));
+            // What 3.3.6 ships in dist/: the same name, no entry.
+            fs.writeFileSync(path.join(packageDir, 'dist', 'package.json'), JSON.stringify({ name: '@yakult-green-tea/qq-music-api', version: '3.3.6' }));
+            const server = { once: () => undefined };
+            const cached = { filename: path.join(packageDir, 'dist', 'src', 'app.js'), exports: { server, default: {} } };
+            // The import may hand back another object around the same exports: the server is what is matched.
+            expect(packageRootOf({ server }, { [cached.filename]: cached } as never)).toBe(packageDir);
+            expect(() => packageRootOf({ server: {} }, { [cached.filename]: cached } as never)).toThrow(/folder was not found/);
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true });
+        }
+    });
+});

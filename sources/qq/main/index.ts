@@ -1,9 +1,9 @@
-import fs from 'node:fs';
 import path from 'node:path';
 import type { FoliumSourceMainApi, FoliumSourceSeal } from '@folia/folium';
-import { QQ_API_MODULE, startQqApi } from './qqApiStartup.cjs';
+import { startQqApi } from './qqApiStartup.cjs';
 import { createQqAuthSessionRepository, type QqSafeStorage } from './qqAuthSessionRepository.cjs';
 import { createQqBackend, type QqBackend } from './qqBackend.cjs';
+import { packageRootOf, qqApiExportsOf } from './qqApiExports';
 
 // sources/qq/main/index.ts
 // QQ 音乐音源模组的 main 入口：迁之前 main.cjs 里的那几块（createQqBackend、createQqAuthSessionRepository、get-qq-port /
@@ -38,25 +38,6 @@ const sealAsSafeStorage = (seal: FoliumSourceSeal): QqSafeStorage => ({
 
 const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
 
-/**
- * The package's folder, from the module the archive loaded (require.cache keeps it under its file): the diagnostic hooks
- * load two of its inner files by path (qqBackend.cjs installQqLoginHooks).
- */
-const packageRootOf = (loaded: unknown): string => {
-    const entry = Object.values(require.cache).find(module => module?.exports === loaded);
-    let dir = entry ? path.dirname(entry.filename) : '';
-    while (dir && path.dirname(dir) !== dir) {
-        const manifest = path.join(dir, 'package.json');
-        try {
-            if ((JSON.parse(fs.readFileSync(manifest, 'utf8')) as { name?: unknown } | null)?.name === QQ_API_MODULE) return dir;
-        } catch {
-            // No package.json here, or another package's: one folder up.
-        }
-        dir = path.dirname(dir);
-    }
-    throw new Error(`${QQ_API_MODULE}: its folder was not found`);
-};
-
 /** main 入口。 */
 export default function activate(api: FoliumSourceMainApi): void {
     // QQ's own hosts: media, xhr and image reads get CORS headers (main.cjs's list before).
@@ -74,8 +55,7 @@ export default function activate(api: FoliumSourceMainApi): void {
             ...options as { port: number },
             // A literal import: the build loads it from the deps archive.
             loadModule: async () => {
-                const module = await import('@yakult-green-tea/qq-music-api');
-                loaded = (module as { default?: unknown }).default ?? module;
+                loaded = qqApiExportsOf(await import('@yakult-green-tea/qq-music-api'));
                 return loaded;
             },
         }),
