@@ -53,7 +53,7 @@ const ownPackageOf = (file) => {
 };
 
 /*
- * 打进 bundle 的包自己可选的依赖（peerDependenciesMeta 里 optional、或 optionalDependencies 里的），没装时：ws 的
+ * 打进 bundle 的包自己可选的依赖（peerDependenciesMeta 里 optional、或 optionalDependencies 里的），音源没声明、或没装时：ws 的
  * bufferutil、utf-8-validate 就是这样，它在 try 里 require，找不到就用自己的 JS 实现。原样留一个裸 require 的话，
  * 开发版往上找得到仓库根的 node_modules、安装包里找不到，两处行为不同；这里换成一个一 require 就抛
  * MODULE_NOT_FOUND 的模块，两处都走包自己“没装”的那条路。
@@ -97,6 +97,9 @@ const dependencyPolicy = (kind, context) => {
             if (!fromSource) {
                 if (bare && isNodeBuiltin(specifier)) return { id: specifier, external: true };
                 if (bare && kind !== 'client' && isOptionalOf(importer, packageNameOf(specifier))) {
+                    // 音源没在 dependencies 里声明的可选依赖一律当没装（审查）：装没装要看这台机器上别的包带没带进来，
+                    // 产物不能跟着变，也不能悄悄打进一个没钉版本、可能是原生的包。声明了的照常找。
+                    if (!specs.has(packageNameOf(specifier))) return `${MISSING_PREFIX}${specifier}`;
                     const resolved = await this.resolve(specifier, importer, { skipSelf: true });
                     return resolved && !resolved.external ? resolved : `${MISSING_PREFIX}${specifier}`;
                 }
