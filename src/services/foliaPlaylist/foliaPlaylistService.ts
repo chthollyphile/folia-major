@@ -22,13 +22,14 @@ import {
     repairLocalEntries,
     type FoliaPlaylistsMeta,
 } from './foliaPlaylistRows';
+import { LEGACY_LOCAL_PLAYLISTS_CACHE_KEY, convertLegacyLocalPlaylists } from './localPlaylistMigration';
 import { resolveCanonicalLocalSongId } from './localSongDuplicates';
 
 // src/services/foliaPlaylist/foliaPlaylistService.ts
 // Folia 聚合歌单的读写。存的形状见 foliaPlaylistRows.ts。
 // 每个操作都在一个 api_cache + local_music 的读写事务里做完（读、修补、改、写），IndexedDB 让同一张表上的读写事务
 // 一个接一个跑，所以并发的写（连点红心、两个窗口）不会互相盖掉。事务里只等数据库的操作，不等别的。
-// 读的时候保证有一张「我喜欢的音乐」。
+// 第一次读的时候把旧的本地歌单并进来（localPlaylistMigration.ts），并保证有一张「我喜欢的音乐」。
 
 type PlaylistState = {
     meta: FoliaPlaylistsMeta;
@@ -72,6 +73,34 @@ const writeMeta = async (state: PlaylistState): Promise<void> => {
     state.dirty = true;
 };
 
+// 旧的本地歌单并进来：只在 meta 里没有迁移标记时做一次。已经有同 id 的行（上次迁到一半之类）就不覆盖。
+// 整个在调用方的事务里：中途出错事务回滚，什么都没写，下次再试；旧的那一行只读。
+const migrateLocalPlaylists = async (state: PlaylistState): Promise<void> => {
+    const legacyRow = await table().get(LEGACY_LOCAL_PLAYLISTS_CACHE_KEY);
+    const localSongs = legacyRow ? await appDatabase.local_music.toArray() : [];
+    const converted = convertLegacyLocalPlaylists(legacyRow?.data, localSongs);
+    const existingIds = new Set(state.playlists.map(playlist => playlist.id));
+    const hadFavorite = state.playlists.some(playlist => playlist.isFavorite);
+    let migrated = 0;
+    for (const playlist of converted.playlists) {
+        if (existingIds.has(playlist.id)) continue;
+        // 已经有一张「我喜欢的音乐」了（不该发生，防着）：迁来的那张当普通歌单留着，不丢。
+        const { isFavorite: wasFavorite, ...plain } = playlist;
+        const next: FoliaPlaylist = wasFavorite && !hadFavorite ? playlist : plain;
+        state.playlists.push(next);
+        await writePlaylist(state, next);
+        migrated += 1;
+    }
+    state.meta = { ...state.meta, localPlaylistsMigratedAt: Date.now(), localPlaylistsMigratedCount: migrated };
+    await writeMeta(state);
+    console.info('[FoliaPlaylist] Local playlists migrated', {
+        found: Array.isArray(legacyRow?.data) ? legacyRow.data.length : 0,
+        migrated,
+        droppedSongs: converted.droppedSongCount,
+        skipped: converted.skippedPlaylistCount,
+    });
+};
+
 const readState = async (): Promise<PlaylistState> => {
     const metaRow = await table().get(FOLIA_PLAYLISTS_META_KEY);
     const meta = parseFoliaPlaylistsMeta(metaRow?.data);
@@ -82,6 +111,8 @@ const readState = async (): Promise<PlaylistState> => {
         meta.order,
     );
     const state: PlaylistState = { meta, metaExtras, playlists, dirty: false };
+
+    if (typeof meta.localPlaylistsMigratedAt !== 'number') await migrateLocalPlaylists(state);
 
     if (!state.playlists.some(playlist => playlist.isFavorite)) {
         const now = Date.now();
