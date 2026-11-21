@@ -185,6 +185,28 @@ describe('handing a taken-over id to another mod', () => {
     });
 });
 
+describe('a source that accepts self-signed certificates from servers the user enters', () => {
+    it('says so in its enable confirmation, and in its row of the source states', async () => {
+        writeMod('user', sourceManifest('nas', [{ id: 'nas', name: 'My NAS', selfSignedUserServers: true }, { id: 'other', name: 'Other' }]));
+        const system = launch();
+        dialogAnswer.response = 1;
+        expect(await system.setModEnabled('nas', true)).toMatchObject({ ok: true });
+        expect(dialogs.at(-1)!.detail).toContain('Accepts a self-signed certificate from a server you enter yourself (such as a NAS at home): My NAS');
+        expect(dialogs.at(-1)!.detail).not.toMatch(/NAS at home\): My NAS, Other/);
+        const rows = system.listSourceStates().sources as Array<{ sourceId: string; selfSignedUserServers?: boolean }>;
+        expect(rows.find((row) => row.sourceId === 'folium.nas.nas')?.selfSignedUserServers).toBe(true);
+        expect(rows.find((row) => row.sourceId === 'folium.nas.other')?.selfSignedUserServers).toBe(false);
+    });
+
+    it('says nothing for a source mod that does not declare it', async () => {
+        writeMod('user', sourceManifest('radio', ['station']));
+        const system = launch();
+        dialogAnswer.response = 1;
+        await system.setModEnabled('radio', true);
+        expect(dialogs.at(-1)!.detail).not.toContain('self-signed');
+    });
+});
+
 describe('the source states channel', () => {
     it('says whether a source mod runs', async () => {
         launch();

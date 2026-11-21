@@ -26,7 +26,8 @@
         "library@1",
         "catalog@1",
         "mutations@1"
-      ]
+      ],
+      "selfSignedUserServers": true
     }
   ]
 }

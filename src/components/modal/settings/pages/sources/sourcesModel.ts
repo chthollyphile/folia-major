@@ -35,6 +35,8 @@ export interface SourceRowModel {
     error: string | null;
     /** "Clear data" works: only a source mod's data is listed in the trusted table or its claims. */
     clearable: boolean;
+    /** It accepts a self-signed certificate from a server the user enters (its manifest says so); the row tells. */
+    selfSignedUserServers: boolean;
 }
 
 export interface SourceRowInputs {
@@ -83,6 +85,7 @@ export const buildSourceRows = (
             run,
             error: run === 'failed' ? mod?.error ?? null : null,
             clearable: row.tier !== 'host' && row.modId !== null,
+            selfSignedUserServers: row.selfSignedUserServers === true,
         }];
     });
 };

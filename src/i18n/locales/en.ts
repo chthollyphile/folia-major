@@ -25,6 +25,7 @@ export default {
     "runFailed": "Could not start: {{error}}",
     "usage": "Data {{data}} · cache {{cache}}",
     "hostNote": "This platform is not a source mod yet; the app registers it itself. Disabling it or keeping it only for matching only changes where it shows: its main-process part is not affected and runs as usual. Clearing its data comes once it is a mod; to remove the sign-in now, enable it again first, then sign out in the sign-in window.",
+    "selfSignedNote": "When it connects to a server you enter yourself (such as a NAS at home), it accepts that server's self-signed certificate.",
     "clearData": "Clear data",
     "clearDataTip": "Clear the data of {{name}}…",
     "clearDone": "The data of {{name}} was cleared; the next time it runs it is signed out.",

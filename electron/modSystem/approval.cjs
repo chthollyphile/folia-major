@@ -53,6 +53,7 @@ const TRUST_DIALOG_LOCALE = {
         takeoverData: (items) => `它要接的旧数据：${items}`,
         certificateExceptions: (hosts) => `对这些域名放宽证书检查：${hosts}`,
         lyricRelayHosts: (hosts) => `经应用中转歌词请求的域名：${hosts}`,
+        selfSignedUserServers: (sources) => `连接你自己填写的服务器（例如家里的 NAS）时接受它的自签证书：${sources}`,
         overrideTitle: '用新版本替换内置模组',
         overrideMessage: (name, id, version, builtinVersion) => `用 ${version} 版替换内置的“${name}”（${id}，${builtinVersion} 版）吗？`,
         overrideDetail: '这个副本带有有效的 Folium 官方签名，版本高于随应用安装的内置副本。确认后它替代内置副本运行，沿用内置副本的登录和数据；删掉它就回到内置副本。启用后它仍以应用的完整权限运行。',
@@ -101,6 +102,7 @@ const TRUST_DIALOG_LOCALE = {
         takeoverData: (items) => `它要接的舊資料：${items}`,
         certificateExceptions: (hosts) => `對這些網域放寬證書檢查：${hosts}`,
         lyricRelayHosts: (hosts) => `經應用中轉歌詞請求的網域：${hosts}`,
+        selfSignedUserServers: (sources) => `連線你自己填寫的伺服器（例如家裡的 NAS）時接受它的自簽證書：${sources}`,
         overrideTitle: '用新版本替換內建模組',
         overrideMessage: (name, id, version, builtinVersion) => `用 ${version} 版替換內建的“${name}”（${id}，${builtinVersion} 版）嗎？`,
         overrideDetail: '這個副本帶有有效的 Folium 官方簽名，版本高於隨應用安裝的內建副本。確認後它替代內建副本執行，沿用內建副本的登入和資料；刪掉它就回到內建副本。啟用後它仍以應用的完整權限執行。',
@@ -149,6 +151,7 @@ const TRUST_DIALOG_LOCALE = {
         takeoverData: (items) => `Old data it takes over: ${items}`,
         certificateExceptions: (hosts) => `Relaxes certificate checks for these hosts: ${hosts}`,
         lyricRelayHosts: (hosts) => `Hosts whose lyric requests the app relays: ${hosts}`,
+        selfSignedUserServers: (sources) => `Accepts a self-signed certificate from a server you enter yourself (such as a NAS at home): ${sources}`,
         overrideTitle: 'Replace a built-in mod with a newer version',
         overrideMessage: (name, id, version, builtinVersion) => `Replace the built-in "${name}" (${id}, version ${builtinVersion}) with version ${version}?`,
         overrideDetail: 'This copy carries a valid official Folium signature and is newer than the built-in copy installed with the app. Once confirmed it runs instead of the built-in copy and keeps its sign-in and data; removing it brings the built-in copy back. It still runs with the full privileges of the app.',
@@ -197,6 +200,7 @@ const TRUST_DIALOG_LOCALE = {
         takeoverData: (items) => `Data lama yang diambil alih: ${items}`,
         certificateExceptions: (hosts) => `Melonggarkan pemeriksaan sertifikat untuk host ini: ${hosts}`,
         lyricRelayHosts: (hosts) => `Host yang permintaan liriknya diteruskan aplikasi: ${hosts}`,
+        selfSignedUserServers: (sources) => `Menerima sertifikat yang ditandatangani sendiri dari server yang Anda isi sendiri (misalnya NAS di rumah): ${sources}`,
         overrideTitle: 'Ganti mod bawaan dengan versi yang lebih baru',
         overrideMessage: (name, id, version, builtinVersion) => `Ganti "${name}" bawaan (${id}, versi ${builtinVersion}) dengan versi ${version}?`,
         overrideDetail: 'Salinan ini memiliki tanda tangan resmi Folium yang valid dan lebih baru daripada salinan bawaan yang terpasang bersama aplikasi. Setelah dikonfirmasi, salinan ini berjalan menggantikan salinan bawaan dan memakai login serta datanya; menghapusnya mengembalikan salinan bawaan. Salinan ini tetap berjalan dengan hak penuh aplikasi.',
@@ -245,6 +249,7 @@ const TRUST_DIALOG_LOCALE = {
         takeoverData: (items) => `Dữ liệu cũ được tiếp quản: ${items}`,
         certificateExceptions: (hosts) => `Nới lỏng kiểm tra chứng chỉ cho các tên miền này: ${hosts}`,
         lyricRelayHosts: (hosts) => `Các tên miền mà ứng dụng chuyển tiếp yêu cầu lời bài hát: ${hosts}`,
+        selfSignedUserServers: (sources) => `Chấp nhận chứng chỉ tự ký của máy chủ do bạn tự nhập (ví dụ NAS ở nhà): ${sources}`,
         overrideTitle: 'Thay mod tích hợp bằng phiên bản mới hơn',
         overrideMessage: (name, id, version, builtinVersion) => `Thay “${name}” tích hợp (${id}, phiên bản ${builtinVersion}) bằng phiên bản ${version}?`,
         overrideDetail: 'Bản này có chữ ký chính thức hợp lệ của Folium và mới hơn bản tích hợp được cài cùng ứng dụng. Sau khi xác nhận, bản này chạy thay cho bản tích hợp và giữ nguyên đăng nhập cùng dữ liệu của nó; xóa bản này sẽ quay về bản tích hợp. Bản này vẫn chạy với toàn bộ quyền hạn của ứng dụng.',
@@ -425,6 +430,10 @@ const createModApproval = ({ app, store, enabledKey, getMainWindowSafe, getLocal
         const hosts = (field) => [...new Set(manifest.sources.flatMap((entry) => entry[field] ?? []))];
         if (hosts('certificateExceptions').length > 0) lines.push(locale.certificateExceptions(hosts('certificateExceptions').join(', ')));
         if (hosts('lyricRelayHosts').length > 0) lines.push(locale.lyricRelayHosts(hosts('lyricRelayHosts').join(', ')));
+        // A source that connects to a server the user enters (a NAS at home) and accepts its self-signed certificate
+        // (`sources[].selfSignedUserServers`): its main entry makes those requests itself, so this is what it says it does.
+        const selfSigned = manifest.sources.filter((entry) => entry.selfSignedUserServers === true).map((entry) => nameOf(entry));
+        if (selfSigned.length > 0) lines.push(locale.selfSignedUserServers(selfSigned.join(', ')));
         return lines;
     };
 

@@ -99,7 +99,11 @@ const SourcesPage: React.FC = () => {
                         runText(t, row),
                         row.modId ? usageText(t, usage[row.sourceId]) : null,
                     ].filter(Boolean).join(' · ');
-                    const notes = row.tier === 'host' ? t('sourcesSettings.hostNote') : '';
+                    const notes = [
+                        row.tier === 'host' ? t('sourcesSettings.hostNote') : null,
+                        // A built-in copy never shows the enable confirmation that says this; the row says it instead.
+                        row.selfSignedUserServers ? t('sourcesSettings.selfSignedNote') : null,
+                    ].filter(Boolean).join(' ');
                     return (
                         <Row
                             key={row.sourceId}

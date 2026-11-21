@@ -63,6 +63,14 @@ describe('sourcesModel · rows', () => {
         expect(rows.map(row => row.clearable)).toEqual([false, false, false, true]);
     });
 
+    it('carries whether a source accepts self-signed certificates from servers the user enters (absent reads as no)', () => {
+        const rows = buildSourceRows([
+            stateRow({ sourceId: 'fnmusic', modId: 'fnmusic', tier: 'builtin', selfSignedUserServers: true }),
+            stateRow({ sourceId: 'bodian', modId: 'bodian', tier: 'builtin' }),
+        ], [], inputs);
+        expect(rows.map(row => [row.sourceId, row.selfSignedUserServers])).toEqual([['bodian', false], ['fnmusic', true]]);
+    });
+
     it('keeps the three states for a source already used only for matching, even when it is not offered them now', () => {
         const [row] = buildSourceRows([stateRow({ sourceId: 'folium.x.y', modId: 'x', tier: 'user', state: 'matching' })], [], { ...inputs, canMatchOnly: () => false });
         expect(row.threeStates).toBe(true);

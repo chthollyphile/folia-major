@@ -105,6 +105,8 @@ export interface ModSourceStateRow {
     name?: string | Record<string, string> | null;
     keepForMatching: boolean;
     takeover: boolean;
+    /** Its manifest says it accepts a self-signed certificate from a server the user enters (`sources[].selfSignedUserServers`). Absent from an older main process. */
+    selfSignedUserServers?: boolean;
     loaded: boolean;
     mainState: ModMainState;
 }

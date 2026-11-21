@@ -1135,6 +1135,9 @@ ${partition}`;
                     name: (runtime.manifest.sources ?? []).find((entry) => entry?.id === source.sourceId)?.name ?? null,
                     keepForMatching: Boolean(source.keepForMatching),
                     takeover: Boolean(source.takeover),
+                    // It accepts a self-signed certificate from a server the user enters: the row says so, as a
+                    // built-in copy never shows the enable confirmation that lists it.
+                    selfSignedUserServers: (runtime.manifest.sources ?? []).find((entry) => entry?.id === source.localId)?.selfSignedUserServers === true,
                     loaded: runtime.status === 'loaded',
                     mainState: typeof runtime.getMainState === 'function' ? runtime.getMainState() : 'none',
                 });
