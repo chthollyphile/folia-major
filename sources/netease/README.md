@@ -37,6 +37,11 @@ Folia 内置的网易云音乐音源模组（Folium 2.0）。原来是 `src/serv
     都用替身，抓不到上游的变化；音源本身的单测经注册着的模组跑（`test/unit/helpers/neteaseSource.ts`）。`npm run probe:netease-xeapi`
     （`test/manual/netease_xeapi_probe.cjs`）是手动跑的诊断，看 xeapi key 接口在不同网络路径下的答复。
 
+- **已知情况（保持现状）**：上游包把匿名 token 和 xeapi 公钥写在系统临时目录（`os.tmpdir()`）下的 `anonymous_token`、
+  `xeapi_public_key` 两个文件里（`main/neteaseApiWorker.cjs` 按这两个路径读写），不在模组数据目录里。「清除数据」不删它们：它们不是
+  登录凭据（登录的 cookie 在页面存储里，会被清掉），下次启动后端时会刷新；路径是上游定的，所有用这个包的程序共用。维护者
+  2026-11-21 定：保持现状，不改代码。「设置 → 音源」这一行的占用也不算这两个文件。
+
 ## 能力
 
 扫码登录、歌曲 / 专辑 / 歌单搜索、歌曲详情（一次 50 首）、按音质取地址（会员歌曲只给试听片段时标成试听）、下架与灰色歌曲的标记和替代版本、
