@@ -86,7 +86,7 @@ describe('PonderSurfaceContents', () => {
     it('本地曲库新增的三个 surface 各自保留可识别结构', () => {
         const controls = renderSurface('local-grid-controls');
         expect(controls).toContain('data-ponder-local-grid-controls-structure');
-        expect(controls.match(/data-ponder-local-grid-tab=/g)).toHaveLength(4);
+        expect(controls.match(/data-ponder-local-grid-tab=/g)).toHaveLength(3);
 
         const onlineActions = renderSurface('online-collection-actions');
         expect(onlineActions).toContain('data-ponder-online-collection-actions-structure');

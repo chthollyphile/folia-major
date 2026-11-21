@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Search, Loader2, Settings, Cable, ListMusic, NotebookPen } from 'lucide-react';
+import { Search, Loader2, Settings, Cable } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { resolveSearchSource, useSearchNavigationStore } from '../../../../stores/useSearchNavigationStore';
 import { useShallow } from 'zustand/react/shallow';
@@ -36,10 +36,10 @@ import { cycleIndex } from '../../../core/home/homeSources';
 import HomeSearchHistory from './HomeSearchHistory';
 import Grid3DHomeTabs from './Grid3DHomeTabs';
 import HomeNoticePanel from './HomeNoticePanel';
+import FoliaGrid3DView from './FoliaGrid3DView';
 import { buildOnlineGridTabs, OnlineGridTabsRow } from './OnlineGridTabs';
 import { openLoginWindow } from '../../../../components/login/loginWindowStore';
 import { openSettings } from '../../../../stores/useSettingsModalStore';
-import { useScratchpadStore } from '../../../../stores/useScratchpadStore';
 import { useUpdateIndicator } from '../../../../hooks/useUpdateIndicator';
 
 // src/library/suites/grid/home/Grid3D.tsx
@@ -61,7 +61,7 @@ interface Grid3DProps {
     localPlaylists: FoliaPlaylist[];
     onRefreshLocalSongs: () => Promise<void> | void;
     localMusicState: {
-        activeRow: 0 | 1 | 2 | 3;
+        activeRow: 0 | 1 | 2;
         selectedGroup: LocalLibraryGroup | null;
         detailStack: LocalLibraryGroup[];
         detailOriginView: 'home' | 'player' | null;
@@ -71,7 +71,7 @@ interface Grid3DProps {
         focusedPlaylistIndex: number;
     };
     setLocalMusicState: React.Dispatch<React.SetStateAction<{
-        activeRow: 0 | 1 | 2 | 3;
+        activeRow: 0 | 1 | 2;
         selectedGroup: LocalLibraryGroup | null;
         detailStack: LocalLibraryGroup[];
         detailOriginView: 'home' | 'player' | null;
@@ -535,15 +535,23 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                     <OnlineGridTabsRow tabs={onlineTabs} isDaylight={isDaylight} label={onlineTabsLabel} />
                 )}
                 {homeViewTab === 'folia' ? (
-                    // Folia 组的占位：聚合歌单的页面还没做，先给打开速记簿的入口（规格 §9 第 1 条）。
-                    <HomeNoticePanel
-                        testId="home-folia-placeholder"
-                        icon={ListMusic}
-                        title={t('home.foliaTitle')}
-                        body={t('home.foliaBody')}
-                        isDaylight={isDaylight}
-                        action={{ label: t('scratchpad.open'), icon: NotebookPen, run: () => useScratchpadStore.getState().setOpen(true) }}
-                    />
+                    // Folia 组：聚合歌单的卡片（不设二级页签）；新建、排序、导入、打开速记簿在右上角。
+                    <div className="w-full h-full flex-1" data-testid="home-folia">
+                        <FoliaGrid3DView
+                            playlists={localPlaylists}
+                            localSongs={localSongs}
+                            focusedIndex={localMusicState.focusedPlaylistIndex}
+                            setFocusedIndex={(index) => setLocalMusicState(prev => ({ ...prev, focusedPlaylistIndex: index }))}
+                            homeActions={homeActions}
+                            directoryKey={directoryKey}
+                            theme={theme}
+                            isDaylight={isDaylight}
+                            isInteractive={isInteractive}
+                            hasFloatingPlayer={Boolean(currentTrack)}
+                            onOpenGridView={onOpenGridView}
+                            declaredHomeActions={declaredActions}
+                        />
+                    </div>
                 ) : isOnlineTab && onlineSwitcher.empty ? (
                     <HomeNoticePanel
                         testId="home-no-sources"
@@ -603,7 +611,6 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                     <div className="w-full h-full flex-1">
                         <LocalGrid3DView
                             localSongs={localSongs}
-                            localPlaylists={localPlaylists}
                             localLibraryCatalog={localLibraryCatalog}
                             activeRow={localMusicState.activeRow}
                             setActiveRow={(row) => setLocalMusicState(prev => ({ ...prev, activeRow: row }))}
@@ -613,8 +620,6 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                             setFocusedAlbumIndex={(index) => setLocalMusicState(prev => ({ ...prev, focusedAlbumIndex: index }))}
                             focusedArtistIndex={localMusicState.focusedArtistIndex}
                             setFocusedArtistIndex={(index) => setLocalMusicState(prev => ({ ...prev, focusedArtistIndex: index }))}
-                            focusedPlaylistIndex={localMusicState.focusedPlaylistIndex}
-                            setFocusedPlaylistIndex={(index) => setLocalMusicState(prev => ({ ...prev, focusedPlaylistIndex: index }))}
                             homeActions={homeActions}
                             directoryTreesResource={homeResources.localDirectoryTrees}
                             directoryKey={directoryKey}

@@ -21,7 +21,7 @@ import type { GridViewCollectionDescriptor } from '../collection/collection.cont
 // 两边一旦不一致，Home.tsx 把首页模型交给 surface 的那一行就会编译失败。
 
 export type LibraryHomeLocalMusicState = {
-    activeRow: 0 | 1 | 2 | 3;
+    activeRow: 0 | 1 | 2;
     selectedGroup: LocalLibraryGroup | null;
     detailStack: LocalLibraryGroup[];
     detailOriginView: 'home' | 'player' | null;

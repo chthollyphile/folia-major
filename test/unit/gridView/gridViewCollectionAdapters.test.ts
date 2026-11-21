@@ -252,7 +252,7 @@ describe('gridViewCollectionAdapters', () => {
             { ...buildLocalSong('track-02', '1-02 Title'), fileName: '1-02 Title.wav', folderName },
             { ...buildLocalSong('track-01', '1-01 Game'), fileName: '1-01 Game.wav', folderName },
         ];
-        const groups = buildLocalHomeGroups(songs, [], ((key: string) => key) as any, undefined, getLocalCoverAssetUrl);
+        const groups = buildLocalHomeGroups(songs, ((key: string) => key) as any, undefined, getLocalCoverAssetUrl);
         const folder = groups.folders.find(group => group.name === folderName)!;
         const descriptor = createLocalGridViewCollection(folder);
 
@@ -274,7 +274,7 @@ describe('gridViewCollectionAdapters', () => {
         }];
         const createObjectUrl = vi.spyOn(URL, 'createObjectURL');
 
-        const groups = buildLocalHomeGroups(songs, [], ((key: string) => key) as any, undefined, getLocalCoverAssetUrl);
+        const groups = buildLocalHomeGroups(songs, ((key: string) => key) as any, undefined, getLocalCoverAssetUrl);
 
         expect(groups.folders.find(group => group.name === 'Music')).toMatchObject({
             coverUrl: embeddedCover,

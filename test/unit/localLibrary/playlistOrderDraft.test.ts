@@ -8,7 +8,7 @@ import {
     startOrderHistory,
     undoOrderDraft,
     type OrderDraft,
-} from '../../../src/components/local-playlist-order/playlistOrderDraft';
+} from '../../../src/components/folia-playlist-order/playlistOrderDraft';
 
 // Covers moves across a gap in the original list and preserving staged songs across operations.
 const song = (id: string, title = id) => ({ id, title, fileName: id });

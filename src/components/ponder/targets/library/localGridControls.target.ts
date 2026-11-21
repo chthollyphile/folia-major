@@ -2,6 +2,7 @@ import { LOCAL_GRID_CONTROLS_GEOMETRY as G } from '../../surfaces/library/localL
 import type { PonderAnchorSource, PonderRelativeRect, PonderTargetDefinition } from '../../../../types/ponder';
 
 // src/components/ponder/targets/library/localGridControls.target.ts
+// 本地组右上那一排：文件夹 / 专辑 / 艺术家三类，导入文件夹与刷新。歌单与导入 M3U 在首页的 Folia 组，不在这里。
 
 const panel = {
     kind: 'synthetic',
@@ -19,10 +20,8 @@ const anchors = {
     panel,
     tabs: region(G.tabs, 'ponder.anchors.localGridControls.tabs'),
     folders: region(G.folders, 'ponder.anchors.localGridControls.folders'),
-    playlists: region(G.playlists, 'ponder.anchors.localGridControls.playlists'),
     imports: region(G.imports, 'ponder.anchors.localGridControls.imports'),
     refresh: region(G.refresh, 'ponder.anchors.localGridControls.refresh'),
-    playlistImport: region(G.playlistImport, 'ponder.anchors.localGridControls.playlistImport'),
 } satisfies Record<string, PonderAnchorSource>;
 
 export default {
@@ -40,8 +39,7 @@ export default {
                 { kind: 'caption', id: 'sources', textKey: 'ponder.captions.localGridControls.sources', pointTo: { anchor: 'tabs' }, durationMs: 5200, withPrevious: true },
                 { kind: 'pause', id: 'sourcesRead' },
                 { kind: 'highlight', id: 'folders', anchor: 'folders', intensity: [0, 0.85], durationMs: 400, keyframe: true },
-                { kind: 'highlight', id: 'playlists', anchor: 'playlists', intensity: [0, 0.85], durationMs: 400, withPrevious: true },
-                { kind: 'caption', id: 'foldersAndPlaylists', textKey: 'ponder.captions.localGridControls.foldersAndPlaylists', pointTo: { anchor: 'playlists' }, durationMs: 5200, withPrevious: true },
+                { kind: 'caption', id: 'foldersAndPlaylists', textKey: 'ponder.captions.localGridControls.foldersAndPlaylists', pointTo: { anchor: 'folders' }, durationMs: 5200, withPrevious: true },
                 { kind: 'pause', id: 'foldersAndPlaylistsRead' },
             ],
         },
@@ -49,7 +47,6 @@ export default {
             id: 'local-grid-controls-maintenance', titleKey: 'ponder.scenes.localGridControlsMaintenance', anchors,
             steps: [
                 { kind: 'highlight', id: 'imports', anchor: 'imports', intensity: [0, 0.85], durationMs: 420, keyframe: true },
-                { kind: 'highlight', id: 'playlistImport', anchor: 'playlistImport', intensity: [0, 0.85], durationMs: 420, withPrevious: true },
                 { kind: 'caption', id: 'importCaption', textKey: 'ponder.captions.localGridControls.imports', pointTo: { anchor: 'imports' }, durationMs: 5400, withPrevious: true },
                 { kind: 'pause', id: 'importsRead' },
                 { kind: 'highlight', id: 'refresh', anchor: 'refresh', intensity: [0, 0.9], durationMs: 420, keyframe: true },

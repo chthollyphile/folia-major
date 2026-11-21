@@ -90,7 +90,7 @@ export const gridCommands: CommandPaletteCommand[] = [
     createGridSurfaceCommand(
         'grid-reorder-playlist',
         'Reorder playlist songs',
-        'Edit the order of songs in this local playlist',
+        'Edit the order of songs in this Folia playlist',
         ['reorder', 'sort songs', 'A-Z', '歌单排序', '调整顺序'],
         'reorder-playlist',
         ListOrdered,
@@ -98,7 +98,7 @@ export const gridCommands: CommandPaletteCommand[] = [
     createGridSurfaceCommand(
         'grid-export-playlist',
         'Export this playlist',
-        'Save this local playlist as an m3u8 file',
+        'Save this Folia playlist as an m3u8 file',
         ['m3u8', 'export', '导出'],
         'export-playlist',
         Share,

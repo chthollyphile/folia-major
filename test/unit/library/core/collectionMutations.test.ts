@@ -283,14 +283,14 @@ describe('removing an entry from an online playlist', () => {
 });
 
 describe('removing an entry from a local playlist', () => {
-    it('removes by song id: every entry of that song goes, then the library refreshes', async () => {
+    it('removes by entry key: every row of that song goes, then the library refreshes', async () => {
         const tracks = [localSong('a'), localSong('b'), localSong('a'), localSong('c')];
         const resource = createStaticCollectionResource('k', tracks);
         const { controller, port } = setup({ descriptor: localPlaylist, resource });
 
         expect(await controller.removeEntry(entryIn(resource, 2))).toEqual({ ok: true });
         expect(port.local.removePlaylistSongs).toHaveBeenCalledTimes(1);
-        expect(port.local.removePlaylistSongs).toHaveBeenCalledWith('pl-1', ['a']);
+        expect(port.local.removePlaylistSongs).toHaveBeenCalledWith('pl-1', ['local:a']);
         expect(ids(resource.getSnapshot().tracks)).toEqual(['local-b', 'local-c']);
         expect(port.local.refresh).toHaveBeenCalledTimes(1);
     });
@@ -1062,12 +1062,15 @@ describe('source actions', () => {
         expect(navi.port.navidrome.deletePlaylist).toHaveBeenCalledWith('np');
     });
 
-    it('opens the song order editor only for a custom local playlist', async () => {
+    it('opens the song order editor for a Folia playlist, the favourites included, and for nothing else', async () => {
         const open = (descriptor: LibraryCollectionDescriptor) => setup({ descriptor, resource: createStaticCollectionResource('k', []) });
         const playlist = open(localPlaylist);
         expect(await playlist.controller.reorderPlaylist()).toEqual({ ok: true });
         expect(playlist.port.local.reorderPlaylist).toHaveBeenCalledWith('pl-1');
-        for (const descriptor of [localFolder, { ...localPlaylist, isVirtual: true }, naviPlaylist, ownedPlaylist()]) {
+        const favorites = open({ ...localPlaylist, isVirtual: true });
+        expect(await favorites.controller.reorderPlaylist()).toEqual({ ok: true });
+        expect(favorites.port.local.reorderPlaylist).toHaveBeenCalledWith('pl-1');
+        for (const descriptor of [localFolder, naviPlaylist, ownedPlaylist()]) {
             const { controller, port } = open(descriptor);
             expect(await controller.reorderPlaylist()).toEqual({ ok: false, reason: 'unsupported' });
             expect(port.local.reorderPlaylist).not.toHaveBeenCalled();

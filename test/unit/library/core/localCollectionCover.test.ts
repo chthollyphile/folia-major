@@ -6,6 +6,7 @@ import type { LocalLibraryAssignment, LocalLibraryEntity } from '@/types/localLi
 import type { LocalGridViewCollectionDescriptor } from '@/library/core/collection/collection.contract';
 import type { LibraryMutationPort } from '@/library/core/shared/ports.contract';
 import { buildLocalHomeGroups } from '@/library/core/home/localHomeModel';
+import { buildFoliaHomeGroups } from '@/library/core/home/foliaHomeModel';
 import { createLocalGridViewCollection } from '@/components/app/home/gridViewCollectionAdapters';
 import { deriveLocalArtist, UNKNOWN_LOCAL_ALBUM_KEY } from '@/library/core/artist/artistModel';
 import {
@@ -88,30 +89,32 @@ describe('local collection cover keys', () => {
     it('gives a home group and the collection descriptor built from it the same key', () => {
         const songs = [song('s1', 'Root/A'), song('s2', 'Root/B')];
         const catalog = { entities: [entity('e-al', 'Album')], assignments: [assignment('s1', 'e-al'), assignment('s2', 'e-al')] };
-        const groups = buildLocalHomeGroups(songs, [playlist('p1', ['s2'])], t, catalog, assetUrl);
-        [...groups.folders, ...groups.albums, ...groups.playlists].forEach(group => {
+        const groups = buildLocalHomeGroups(songs, t, catalog, assetUrl);
+        [...groups.folders, ...groups.albums, ...buildFoliaHomeGroups([playlist('p1', ['s2'])], songs, t, assetUrl)].forEach(group => {
             expect(localCollectionCoverKey(createLocalGridViewCollection(group))).toBe(localCollectionCoverKey(group));
         });
     });
 
     it('keeps every key when the library is scanned again with other songs, other covers and another language', () => {
-        const before = buildLocalHomeGroups(
+        const groupsOf = (songs: LocalSong[], playlists: FoliaPlaylist[], translate: TFunction, catalog: Parameters<typeof buildLocalHomeGroups>[2]) => {
+            const local = buildLocalHomeGroups(songs, translate, catalog, assetUrl);
+            return [...local.folders, ...local.albums, ...buildFoliaHomeGroups(playlists, songs, translate, assetUrl)];
+        };
+        const before = groupsOf(
             [song('s1', 'Root/A', { localCoverAssetId: 'c1' }), song('s2', 'Root/A')],
             [playlist('p1', ['s1'])],
             t,
             { entities: [entity('e-al', 'Album')], assignments: [assignment('s1', 'e-al')] },
-            assetUrl,
         );
         // 重扫：多了一首、封面换了、歌单改了名、界面换了语言（「全部歌曲」的名字变了）。
         const otherT = ((key: string) => `other:${key}`) as unknown as TFunction;
-        const after = buildLocalHomeGroups(
+        const after = groupsOf(
             [song('s3', 'Root/A', { localCoverAssetId: 'c9' }), song('s1', 'Root/A', { localCoverAssetId: 'c2' }), song('s5', 'Root/A')],
             [playlist('p1', ['s1', 's3'], 'Renamed')],
             otherT,
             { entities: [entity('e-al', 'Album (Deluxe)')], assignments: [assignment('s1', 'e-al'), assignment('s3', 'e-al')] },
-            assetUrl,
         );
-        const keys = (groups: typeof before) => [...groups.folders, ...groups.albums, ...groups.playlists].map(localCollectionCoverKey);
+        const keys = (groups: typeof before) => groups.map(localCollectionCoverKey);
         expect(keys(after)).toEqual(keys(before));
         expect(keys(before)).toEqual(['folder:__all-songs__', 'folder:Root/A', 'album:e-al', 'album:album-__unknown__', 'playlist:p1']);
     });
@@ -129,7 +132,7 @@ describe('local collection cover resolution', () => {
 
     it('keeps the custom cover when the songs inside change, and the automatic one follows them again once restored', () => {
         const build = (coverAssetId: string) => buildLocalHomeGroups(
-            [song('s1', 'Root/A', { localCoverAssetId: coverAssetId })], [playlist('p1', ['s1'])], t, undefined, assetUrl,
+            [song('s1', 'Root/A', { localCoverAssetId: coverAssetId })], t, undefined, assetUrl,
         );
         const first = applyLocalCollectionCoverOverrides(build('c1').folders, overrides);
         const rescanned = applyLocalCollectionCoverOverrides(build('c2').folders, overrides);
@@ -141,7 +144,7 @@ describe('local collection cover resolution', () => {
     });
 
     it('only touches the groups that have a custom cover and returns the same array when none does', () => {
-        const groups = buildLocalHomeGroups([song('s1', 'Root/A'), song('s2', 'Root/B')], [], t, undefined, assetUrl).folders;
+        const groups = buildLocalHomeGroups([song('s1', 'Root/A'), song('s2', 'Root/B')], t, undefined, assetUrl).folders;
         const applied = applyLocalCollectionCoverOverrides(groups, overrides);
         expect(applied).not.toBe(groups);
         expect(applied.find(group => group.id === 'folder-Root/B')).toBe(groups.find(group => group.id === 'folder-Root/B'));
@@ -162,7 +165,7 @@ describe('local collection cover resolution', () => {
             { ...assignment('s3', ''), albumEntityId: undefined, artistEntityIds: ['e-ar'] },
         ];
         const catalog = { ready: true, failed: false, entities: [entity('e-al', 'Album'), artistEntity], assignments };
-        const homeAlbum = buildLocalHomeGroups(songs, [], t, catalog, assetUrl).albums.find(group => group.entityId === 'e-al')!;
+        const homeAlbum = buildLocalHomeGroups(songs, t, catalog, assetUrl).albums.find(group => group.entityId === 'e-al')!;
         const overrides = new Map([[localCollectionCoverKey(homeAlbum)!, 'blob:custom-album']]);
 
         const derived = deriveLocalArtist('e-ar', { catalog, songs } as Parameters<typeof deriveLocalArtist>[1], {

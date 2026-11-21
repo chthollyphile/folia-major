@@ -405,8 +405,8 @@ export default {
     "queueCount_other": "Antrean putar · {{count}} lagu",
     "queueClear": "Kosongkan antrean",
     "queueClearConfirm": "Klik sekali lagi untuk mengosongkan",
-    "queueSave": "Simpan sebagai playlist lokal",
-    "queueSaved": "Disimpan sebagai playlist lokal “{{name}}”",
+    "queueSave": "Simpan sebagai playlist",
+    "queueSaved": "Disimpan sebagai playlist “{{name}}”",
     "queueSaveFailed": "Playlist tidak bisa disimpan",
     "queueDragHandle": "Seret untuk mengurutkan",
     "queueMoved": "Dipindah ke posisi {{position}}",
@@ -1109,8 +1109,8 @@ export default {
       "grid-resync-folder": { "title": "Impor ulang folder ini", "description": "Pindai ulang folder lokal ini dan segarkan lagunya" },
       "grid-resync-all-folders": { "title": "Impor ulang semua folder", "description": "Pindai ulang semua folder lokal dan segarkan pustaka" },
       "grid-organize-song-info": { "title": "Rapikan info lagu", "description": "Rapikan judul, artis, dan album pada folder ini" },
-      "grid-reorder-playlist": { "title": "Atur urutan lagu", "description": "Edit urutan lagu dalam playlist lokal ini" },
-      "grid-export-playlist": { "title": "Ekspor daftar putar ini", "description": "Simpan daftar putar lokal ini sebagai berkas m3u8" },
+      "grid-reorder-playlist": { "title": "Atur urutan lagu", "description": "Edit urutan lagu dalam playlist Folia ini" },
+      "grid-export-playlist": { "title": "Ekspor daftar putar ini", "description": "Simpan playlist Folia ini sebagai berkas m3u8" },
       "grid-edit-entity": { "title": "Sunting album atau artis ini", "description": "Buka penyunting entitas pustaka lokal untuk koleksi ini" },
       "grid-set-cover": { "title": "Atur sampul koleksi", "description": "Pilih sampul tetap untuk folder, album, atau daftar putar lokal ini" },
       "grid-toggle-edit-mode": { "title": "Alihkan mode sunting", "description": "Masuk atau keluar dari mode yang memungkinkan menghapus lagu dari koleksi ini" },
@@ -1120,7 +1120,7 @@ export default {
       "grid-shuffle-play-filtered": { "title": "Putar acak lagu-lagu ini", "description": "Jadikan koleksi ini (hanya lagu yang tersaring saat menyaring) antrean putar dengan urutan acak dan mulai dari lagu acak" },
       "directory-play-selection": { "title": "Putar kartu terpilih", "description": "Putar lagu dari kartu yang dipilih di peta, sesuai urutan kartu" },
       "directory-enqueue-selection": { "title": "Antrekan kartu terpilih", "description": "Tambahkan lagu dari kartu yang dipilih di peta ke antrean" },
-      "directory-create-playlist": { "title": "Playlist baru dari pilihan", "description": "Buat playlist lokal berisi lagu dari kartu yang dipilih" },
+      "directory-create-playlist": { "title": "Playlist baru dari pilihan", "description": "Buat playlist Folia berisi lagu dari kartu yang dipilih" },
       "directory-remove-selection": { "title": "Hapus pilihan dari pustaka", "description": "Minta konfirmasi untuk menghapus folder terpilih beserta lagunya dari pustaka lokal" },
       "directory-select-all": { "title": "Pilih semua kartu tersaring", "description": "Buka panel batch dan pilih setiap kartu yang ditampilkan filter" },
       "directory-clear-selection": { "title": "Kosongkan pilihan", "description": "Batalkan pilihan semua kartu di peta" },
@@ -2011,6 +2011,9 @@ export default {
     "openSetup": "Pengaturan pemutaran"
   },
   "home": {
+    "foliaEmpty": "Belum ada playlist. Buat satu, atau tambahkan lagu dari sumber mana pun lewat “Tambahkan ke playlist”.",
+    "foliaReorderPlaylists": "Urutkan playlist",
+    "foliaPlaylist": "Playlist Folia",
     "welcome": "Selamat datang di Folia",
     "lattice": "Kolase antrean",
     "latticeLabel": "Kolase antrean",
@@ -5050,6 +5053,30 @@ export default {
     "coverCacheFailed": "Metadata disimpan, tetapi sampul tidak dapat di-cache. URL online tetap akan digunakan bila tersedia.",
     "lyricsNotAppliedOtherSaved": "Lirik tidak diterapkan; pilihan lain disimpan."
   },
+  "foliaPlaylist": {
+    "created": "“{{name}}” dibuat",
+    "navidromeUnconfigured": "Navidrome belum diatur",
+    "localMissing": "Berkas tidak ada di pustaka",
+    "sourceMissing": "Sumber tidak terpasang",
+    "sourceOff": "Sumber dimatikan",
+  },
+  "foliaPlaylistOrder": {
+    "changed": "Playlist berubah. Buka kembali editor untuk memuat urutan terbaru.",
+    "sortNotice": "Susun semua {{count}} playlist (termasuk yang ditahan) menurut nama dari A sampai Z? Tidak dapat dibatalkan setelah disimpan.",
+    "sortTitle": "Urutkan semua playlist menurut nama?",
+    "sort": "Urutkan menurut nama",
+    "selectedCount": "{{count}} dipilih",
+    "finishStaging": "Sisipkan kembali playlist yang ditahan sebelum menyimpan.",
+    "listEmpty": "Semua playlist sedang ditahan. Sisipkan kembali.",
+    "stageHint": "Taruh playlist yang dipilih di sini, lalu sisipkan kembali sebagai grup.",
+    "insertHint": "Seret grup ke antara dua playlist, atau gunakan tombol sisip di ujung baris.",
+    "insertBefore": "Sisipkan playlist yang ditahan sebelum “{{title}}”",
+    "dragCount": "Pindahkan {{count}} playlist",
+    "dragSong": "Seret playlist ini atau yang dipilih",
+    "songCount": "{{count}} playlist",
+    "list": "Urutan playlist",
+    "edit": "Urutkan playlist",
+  },
   "localPlaylistOrder": {
     "edit": "Atur urutan lagu",
     "list": "Urutan lagu",
@@ -6419,7 +6446,7 @@ export default {
       "localFolderActionsDelete": "Yang merah menghapus sesuatu",
       "localMetadataMatchReveal": "Satu pensil di balik tiga syarat",
       "localTrackSortingFields": "Hanya folder lokal yang bisa diurutkan",
-      "localGridControlsSources": "Folder, album, artis, dan playlist lokal",
+      "localGridControlsSources": "Folder, album, dan artis",
       "localGridControlsMaintenance": "Mengimpor dan menyegarkan pustaka lokal",
       "onlineCollectionActionsCommon": "Aksi bersama koleksi daring",
       "onlineCollectionActionsProvider": "Aksi bergantung pada sumber aktif",
@@ -6867,9 +6894,9 @@ export default {
         "confirm": "Karena itu ia bertanya dulu, dan bertanya dengan dua cara berbeda: menghapus folder akar dan menghapus subfolder di bawahnya tidak menjangkau sejauh yang sama, dan kotak konfirmasinya menyebut mana yang sedang kamu lakukan. Layak dibaca sebelum ditekan."
       },
       "localGridControls": {
-        "sources": "Baris ini mengganti pustaka lokal antara folder, album, artis, dan playlist lokal. Ini mengubah isi rel Grid3D, bukan berpindah ke penyedia daring.",
-        "foldersAndPlaylists": "Folder mempertahankan struktur direktori impor. Playlist lokal disimpan oleh Folia dan terpisah dari playlist daring maupun Navidrome.",
-        "imports": "Impor folder menambahkan musik dari direktori. Impor playlist membaca M3U atau M3U8 dan membuat playlist lokal dari lagu yang bisa ditemukan Folia.",
+        "sources": "Baris ini mengganti pustaka lokal antara folder, album, dan artis. Ini mengubah isi rel Grid3D, bukan berpindah ke penyedia daring.",
+        "foldersAndPlaylists": "Folder mempertahankan struktur direktori impor. Playlist tidak ada di sini: playlist berada di tab Folia pada beranda, tempat lagu lokal dan lagu dari sumber mana pun bisa berada dalam satu playlist.",
+        "imports": "Impor folder menambahkan musik dari direktori. Impor playlist M3U atau M3U8 ada di tab Folia pada beranda.",
         "refresh": "Segarkan memindai ulang akar impor untuk berkas baru, berubah, atau hilang. Ini tidak membuat salinan pustaka baru."
       },
       "onlineCollectionActions": {
@@ -6878,10 +6905,10 @@ export default {
         "destructive": "Tombol hapus hanya muncul bila sumber itu menyediakan operasi dan koleksinya dapat diubah. Dampaknya pada koleksi remote atau server, bukan berkas audio lokal."
       },
       "localGridMap": {
-        "page": "Ini GridMap pustaka lokal. Folder, album, artis, atau playlist lokal yang aktif disusun menjadi satu sarang lebah, bukan satu rel Grid3D.",
+        "page": "Ini GridMap pustaka lokal. Folder, album, atau artis yang aktif disusun menjadi satu sarang lebah, bukan satu rel Grid3D.",
         "cards": "Seret atau gulir untuk bergerak. Klik kartu kembali ke Grid3D dengan koleksi itu terfokus; aktivasi kartu membuka koleksinya.",
-        "openPanel": "Peta folder, album, dan artis dapat membuka pilihan massal dari judul: folder menampilkan pohon direktori, sedangkan album dan artis menampilkan daftar datar. Peta playlist lokal hanya untuk menjelajah.",
-        "batchActions": "Panel mengubah koleksi terpilih menjadi daftar lagu. Kamu dapat memutar, menambah ke antrean, membuat playlist lokal, dan pada peta folder menghapus catatan pustaka terpilih.",
+        "openPanel": "Peta dapat membuka pilihan massal dari judul: folder menampilkan pohon direktori, sedangkan album dan artis menampilkan daftar datar.",
+        "batchActions": "Panel mengubah koleksi terpilih menjadi daftar lagu. Kamu dapat memutar, menambah ke antrean, membuat playlist Folia, dan pada peta folder menghapus catatan pustaka terpilih.",
         "filter": "{{mod}} + F atau mengetik menyaring peta. Pilihan massal dan pohon folder mengikuti kartu tersaring, jadi aksi berlaku pada pilihan yang terlihat.",
         "back": "Kembali menutup GridMap dan memulihkan kategori serta fokus Grid3D lokal sebelumnya."
       },

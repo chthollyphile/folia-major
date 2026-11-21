@@ -206,16 +206,19 @@ export const resolveHomeDirectoryKey = ({
     localSection: string;
     navidromeSection: string;
 }): string => {
-    // Folia 组还没有列表（聚合歌单的页面在后面一步）：先给它一个自己的 key，不和别的列表共用筛选与批选。
+    // Folia 组只有聚合歌单这一个列表：自己的 key，不和别的列表共用筛选与批选。
     if (tab === 'folia') return 'home:folia';
     if (tab === 'local') return directoryKey({ source: 'local', section: localSection });
     if (tab === 'navidrome') return directoryKey({ source: 'navidrome', section: navidromeSection });
     return directoryKey({ source: 'online', providerId, section: tab === 'playlist' ? 'playlists' : tab });
 };
 
-/** 首页当前列表的隐藏作用域：在线按 provider，本地与 Navidrome 各一个。 */
+/**
+ * 首页当前列表的隐藏作用域：在线按 provider，本地与 Navidrome 各一个。Folia 的歌单沿用本地那一个
+ * （它们是从本地歌单迁来的，卡片 id 没变，以前隐藏过的仍然隐藏）。
+ */
 export const resolveHomeHiddenScope = (tab: LibraryHomeTabKey, providerId: string): LibraryHiddenScope => (
-    tab === 'local' ? 'local' : tab === 'navidrome' ? 'navidrome' : tab === 'folia' ? 'default' : onlineHiddenScope(providerId)
+    tab === 'local' || tab === 'folia' ? 'local' : tab === 'navidrome' ? 'navidrome' : onlineHiddenScope(providerId)
 );
 
 const GROUP_ORDER: readonly LibraryHomeGroupKey[] = ['folia', 'online', 'local', 'navidrome'];

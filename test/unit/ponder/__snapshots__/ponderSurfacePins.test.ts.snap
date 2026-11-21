@@ -22,7 +22,7 @@ exports[`the stand-ins as recorded before the size table was split > every kind 
   "lattice-style-settings": "7480 5c88d6ab0229e915",
   "library-watch-settings": "4775 27975ad54de9bef6",
   "local-folder-actions": "5105 c7998d8c0b8ec0b6",
-  "local-grid-controls": "6633 a64f3fab8470eea4",
+  "local-grid-controls": "5198 cb7cb52360a2a164",
   "local-grid-map": "10476 6aacceedce3dc58e",
   "local-track-list": "5092 fc150ffa0705d1cf",
   "lyric-export": "16852 f05853a9cc70336a",
@@ -4825,26 +4825,14 @@ exports[`the stand-ins as recorded before the size table was split > every size 
     "imports": {
       "height": 0.32,
       "left": 0.6,
-      "right": 0.03,
       "top": 0.18,
+      "width": 0.15,
     },
     "map": {
       "height": 0.28,
       "left": 0.15,
       "top": 0.2,
       "width": 0.1,
-    },
-    "playlistImport": {
-      "height": 0.32,
-      "left": 0.88,
-      "right": 0.03,
-      "top": 0.18,
-    },
-    "playlists": {
-      "height": 0.28,
-      "left": 0.505,
-      "top": 0.2,
-      "width": 0.05,
     },
     "refresh": {
       "height": 0.32,

@@ -31,7 +31,7 @@ import { resolvePlaybackSurface, usePlaybackEntryViewStore, type PlaybackEntryVi
 type ViewState = AppView;
 
 type LocalMusicNavigationState = {
-    activeRow: 0 | 1 | 2 | 3;
+    activeRow: 0 | 1 | 2;
     selectedGroup: LocalLibraryGroup | null;
     detailStack: LocalLibraryGroup[];
     detailOriginView: 'home' | 'player' | null;
@@ -157,7 +157,8 @@ export function useAppNavigation() {
             const saved = localStorage.getItem(LOCAL_MUSIC_LAST_ROW_KEY);
             if (saved !== null) {
                 const parsed = parseInt(saved, 10);
-                if (!isNaN(parsed) && parsed >= 0 && parsed <= 3) {
+                // 以前的第 3 行是「歌单」，本地歌单并进 Folia 之后没有了：存着 3 的落回文件夹（0）。
+                if (!isNaN(parsed) && parsed >= 0 && parsed <= 2) {
                     savedRow = parsed;
                 }
             }

@@ -170,7 +170,11 @@ export const TrackListItem = React.memo<{
     isUnavailable?: boolean;
     isActive?: boolean;
     albumTrackLabel?: string | null;
-}>(({ track, index, style, onPlay, onAddToQueue, onCollect, isUnavailable, isActive, albumTrackLabel }) => {
+    /** 这一首来自哪里（混合来源的歌单里才给），跟在歌手后面。 */
+    sourceLabel?: string;
+    /** 播不了的原因（音源已停用之类），跟在最后。 */
+    unavailableLabel?: string;
+}>(({ track, index, style, onPlay, onAddToQueue, onCollect, isUnavailable, isActive, albumTrackLabel, sourceLabel, unavailableLabel }) => {
     const { t } = useTranslation();
     const coverUrl = getSongCoverUrl(track) || '';
     const artistName = getSongArtistLabel(track).split(',')[0]?.trim() || 'Unknown Artist';
@@ -214,7 +218,9 @@ export const TrackListItem = React.memo<{
                             </span>
                         )}
                     </div>
-                    <div className="text-[10px] opacity-60 truncate leading-tight mt-0.5">{artistName}</div>
+                    <div className="text-[10px] opacity-60 truncate leading-tight mt-0.5">
+                        {[artistName, sourceLabel, isUnavailable ? unavailableLabel : ''].filter(Boolean).join(' · ')}
+                    </div>
                 </div>
                 {!isUnavailable && onCollect && (
                     <button

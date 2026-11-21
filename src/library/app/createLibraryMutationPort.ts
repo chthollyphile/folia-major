@@ -1,7 +1,6 @@
 import type { TFunction } from 'i18next';
 import type { UnifiedSong } from '../../types';
 import type { FoliaPlaylist } from '../../types/foliaPlaylist';
-import { foliaLocalSongKey } from '../../utils/foliaPlaylistEntries';
 import type { LocalGridViewCollectionDescriptor } from '../core/collection/collection.contract';
 import type { LibraryMutationPort, LibraryPlaylistOption } from '../core/shared/ports.contract';
 import { deleteFolderSongs, resyncAllFolders, resyncFolder } from '../../services/localMusicService';
@@ -96,7 +95,7 @@ export const createLibraryMutationPort = ({
         },
         reorderPlaylist: (playlistId) => {
             const playlist = surface.localPlaylists.find(item => item.id === playlistId);
-            if (playlist && !playlist.isFavorite) dialogs.reorderPlaylist(playlist);
+            if (playlist) dialogs.reorderPlaylist(playlist);
         },
         exportPlaylist: async (playlistId) => {
             const playlist = surface.localPlaylists.find(item => item.id === playlistId);
@@ -111,8 +110,8 @@ export const createLibraryMutationPort = ({
                     : undefined,
             });
         },
-        removePlaylistSongs: async (playlistId, songIds) => {
-            await removeFoliaPlaylistEntries(playlistId, songIds.map(foliaLocalSongKey));
+        removePlaylistSongs: async (playlistId, entryKeys) => {
+            await removeFoliaPlaylistEntries(playlistId, entryKeys);
         },
     },
     navidrome: {
