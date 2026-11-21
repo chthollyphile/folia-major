@@ -10,6 +10,9 @@
 
 const path = require('node:path');
 
+// The Windows companion's executable: in the app's resources, and in a takeover's own folder (MOD_NATIVE_ENTRIES).
+const WINDOWS_COMPANION_EXE = 'FoliaAppleMusicCompanion.exe';
+
 // Keep release resource paths separate from development outputs and explicit developer overrides.
 function resolveNativeExecutable({ platform, isPackaged, resourcesPath, projectRoot, override = '' }) {
     if (platform !== 'darwin' && platform !== 'win32') return '';
@@ -17,7 +20,7 @@ function resolveNativeExecutable({ platform, isPackaged, resourcesPath, projectR
     const root = isPackaged ? path.join(resourcesPath, 'apple-music') : path.join(projectRoot, 'build/apple-music-native');
     return platform === 'darwin'
         ? path.join(root, 'FoliaAppleMusicCompanion.app/Contents/MacOS/FoliaAppleMusicCompanion')
-        : path.join(root, 'windows/FoliaAppleMusicCompanion.exe');
+        : path.join(root, 'windows', WINDOWS_COMPANION_EXE);
 }
 
 /*
@@ -35,14 +38,28 @@ function resolveAppPackage(name) {
 
 /*
  * name -> how it resolves. `env` (where a row has it) names the environment variable a development run may point it elsewhere with (read
- * only when `ELECTRON_DEV` is 'true', as main.cjs read it before). Rows come with the source that uses them.
+ * only when `ELECTRON_DEV` is 'true', as main.cjs read it before). `mod` is a takeover's own copy, by system (MOD_NATIVE_ENTRIES
+ * below). Rows come with the source that uses them.
  */
+// A takeover's companion: Windows only. A macOS .app unpacked from a zip into the user's folders keeps neither its signature
+// nor its executable bits for certain, which nobody has checked.
+const WINDOWS_COMPANION_ENTRY = Object.freeze({ 'win32-x64': WINDOWS_COMPANION_EXE });
+// A takeover's librespot: the package's own loader, which finds the binding of this system in ../prebuilds/<platform>-<arch>[-<abi>]/.
+const LIBRESPOT_LOADER = 'dist/index.js';
 const NATIVE_FILES = Object.freeze({
     // The system-WebView companion (WKWebView on macOS 14+, WebView2 on Windows x64); Linux has none.
-    'apple-music-companion': Object.freeze({ resolve: resolveNativeExecutable, env: 'FOLIA_APPLE_MUSIC_NATIVE' }),
+    'apple-music-companion': Object.freeze({ resolve: resolveNativeExecutable, env: 'FOLIA_APPLE_MUSIC_NATIVE', mod: WINDOWS_COMPANION_ENTRY }),
     // librespot's Node binding (`api.native.load`): builds for darwin-arm64, linux-x64/arm64 (glibc) and win32-x64 only;
     // where there is none, loading it throws and the source says it cannot play on this system.
-    librespot: Object.freeze({ resolve: () => resolveAppPackage('@lox-audioserver/node-librespot') }),
+    librespot: Object.freeze({
+        resolve: () => resolveAppPackage('@lox-audioserver/node-librespot'),
+        mod: Object.freeze({
+            'win32-x64': LIBRESPOT_LOADER,
+            'darwin-arm64': LIBRESPOT_LOADER,
+            'linux-x64': LIBRESPOT_LOADER,
+            'linux-arm64': LIBRESPOT_LOADER,
+        }),
+    }),
 });
 
 /**
@@ -67,19 +84,11 @@ function resolveNativeFile(name, { platform, isPackaged, resourcesPath, projectR
  * (the companion's DLLs, librespot's prebuilt binding) sit in the same system folder. A name or system the table has no
  * entry for has no takeover copy: the source says it cannot run there. The names a takeover may resolve this way are
  * those its manifest `native` and the trusted row of the source it claims both list (sourceOwnership.cjs ownNative).
+ * Read from the `mod` field of NATIVE_FILES' rows, so a name is written once.
  */
-const MOD_NATIVE_ENTRIES = Object.freeze({
-    // The Windows companion only: a macOS .app unpacked from a zip into the user's folders keeps neither its signature
-    // nor its executable bits for certain, which nobody has checked.
-    'apple-music-companion': Object.freeze({ 'win32-x64': 'FoliaAppleMusicCompanion.exe' }),
-    // The package's own loader, which finds the binding of this system in ../prebuilds/<platform>-<arch>[-<abi>]/.
-    librespot: Object.freeze({
-        'win32-x64': 'dist/index.js',
-        'darwin-arm64': 'dist/index.js',
-        'linux-x64': 'dist/index.js',
-        'linux-arm64': 'dist/index.js',
-    }),
-});
+const MOD_NATIVE_ENTRIES = Object.freeze(Object.fromEntries(
+    Object.entries(NATIVE_FILES).filter(([, row]) => row.mod).map(([name, row]) => [name, row.mod]),
+));
 
 /** `<platform>-<arch>`, the system folder of a takeover's native files. */
 const modNativeSystem = (platform, arch) => `${platform}-${arch}`;
