@@ -61,13 +61,13 @@ Folia 的在线平台（网易云、QQ 音乐、酷狗……）在 Folium 2 里�
 | `keepForMatching` | 开箱引导里用户没勾它时落到「只用于匹配」而不是停用（见第 6 节）。只对内置副本生效 |
 | `offByDefault` | 没有记录时读作停用：新装、升级上来的用户都要自己去启用，开箱引导里也不预先勾选。只对内置副本生效 |
 | `enableNotice` | 启用这家前要让人看到的一句话，字符串或按语言的对象，最多 300 个字；显示在「设置 → 音源」那一行和开箱引导里它的那一项下面。只对内置副本生效 |
-| `claims` | 接管一个安装包不带的内置音源时要接的短 id 和旧数据（见第 6 节） |
+| `claims` | 接管一个安装包不带的内置音源时要接的短 id 和旧数据：`storeKeys`、`partitions`、`userDataDirs`、`legacyCacheDirs`（媒体缓存目录下的旧缓存目录），都不能超出受信表那一行（见第 6 节） |
 | `certificateExceptions` | 要放宽证书检查的域名，启用确认窗口里列出 |
 | `lyricRelayHosts` | 要经宿主歌词中继的域名，启用确认窗口里列出 |
 | `selfSignedUserServers` | `true`：连用户自己填写的服务器（如家里的 NAS）时接受它的自签证书。只是如实声明，请求由 main 入口自己发、宿主拦不住；第三方与覆盖副本的启用确认窗口里列出，内置副本不经确认，在「设置 → 音源」那一行写明 |
 
 只有 `folium: 2` 才有的其他字段：`locales`（语言表目录，每种语言一个 `<语言>.json`）、`assets`（静态资源目录）、`secrets`（密钥槽，最多 64 个）、
-`contexts`（client 在哪些窗口运行）、`native`（内置音源随应用带的原生件，第三方用不了）。声明了 `sources` 就必须有 `client`：音源在那里注册。
+`contexts`（client 在哪些窗口运行）、`native`（内置音源随应用带的原生件；接管副本用自己包里 `native/` 下的那份，见第 6 节；第三方用不了）。声明了 `sources` 就必须有 `client`：音源在那里注册。
 空的 `sources` 不算数：清单校验拒绝，不能拿它换豁免。
 
 `npm run folium:check <目录>` 会核对清单里每个音源都在 client 里注册了、用到的能力宿主都认得。
@@ -171,7 +171,7 @@ export function activate(folium) {
 | `api.onPlayersOrphaned` | 主窗口没了、也没有窗口接手播放时，暂停应用外面的播放器 |
 | `api.diagnostics` | 登录诊断报告与自检里这个音源的那一段 |
 | `api.reportError` | 自己处理不了的错交进宿主的崩溃报告，不打扰用户 |
-| `api.legacy.store`、`api.paths.legacy`、`api.cache.legacyDir`、`api.native` | 只给内置音源（和接管它们的副本）：受信表里认领的旧 electron-store 键、userData 目录、旧缓存目录，以及随应用带的原生件 |
+| `api.legacy.store`、`api.paths.legacy`、`api.cache.legacyDir`、`api.native` | 只给内置音源（和接管它们的副本）：受信表或 `claims` 里认领的旧 electron-store 键、userData 目录、旧缓存目录，以及原生件（内置与覆盖副本拿随应用带的，接管副本拿自己包里的） |
 
 worker、子进程、本机 HTTP 服务用 Node 自带的。凭据（cookie、token、密码）的值不写进日志。
 
@@ -187,9 +187,12 @@ worker、子进程、本机 HTTP 服务用 Node 自带的。凭据（cookie、to
 - **接管**：安装包没带某个内置音源时（安装包自己声明带了哪些），外部模组可以在 `sources[].claims` 里写明要接的短 id 和旧数据，
   经用户确认后以那个短 id 出现，旧登录、队列里的歌接着用。`claims` 不能超出受信表那一行；签名不匹配的不让接管；一个 id 只给先确认的那个模组。
   内置音源自己的旧媒体协议（如 `folia-fnmusic://`）只交给内置副本：接管的模组拿到短 id 后，存下来的这类旧地址回 404。
+  安装包不带的音源也不带它的原生件：接管副本的 `api.native` 解析到自己目录里的 `native/<名字>/<platform>-<arch>/<入口>`（入口由宿主按名字定），
+  名字要清单 `native` 与那一行 `native` 都写了；路上有符号链接或出了模组目录答 `native-unsafe-path`，没带本系统那份答
+  `native-not-in-mod:<名字>:<系统>`。确认窗口会说它带着自己的原生程序。
 - **打包**：仓库里的内置音源用 `npm run sources:pack -- <id>` 打成能「从 zip 安装」的包：清单补上受信表那一行的 `claims`，给了私钥就带
-  `folium.sig.json`。未签名的包只能接管，官方签名、版本更高的才能覆盖；接管时拿不到随应用带的原生件（Spotify 的 librespot 播放、
-  Apple Music 的伴侣程序用不了）。九家各自装上后能跑到哪一步见 [`dev/sources/README.md`](../../dev/sources/README.md) 的「打成 zip」。
+  `folium.sig.json`，声明了原生件的按系统带上那一份（`--system`；Apple Music 伴侣程序只有 Windows 的）。未签名的包只能接管，官方签名、
+  版本更高的才能覆盖。各家装上后能跑到哪一步见 [`dev/sources/README.md`](../../dev/sources/README.md) 的「打成 zip」。
 
 ## 7. 从实验接口 `omni.providers` 迁过来
 

@@ -159,6 +159,7 @@ const createNodeEntryRuntime = ({
             ? createSourceApi({
                 modId: manifest.id,
                 manifest,
+                dirPath: entries.dirPath,
                 sources: entries.source.sources,
                 cacheDir,
                 userDataDir: app.getPath('userData'),

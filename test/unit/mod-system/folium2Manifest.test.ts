@@ -71,6 +71,9 @@ describe('sources', () => {
         expect(errorsOf({ sources: [{ id: 'a', name: 'A', claims: { id: 'qq', userDataDirs: ['../up'] } }] })).toEqual(['sources[0].claims.userDataDirs must be a list where each entry is a folder name under userData']);
         expect(errorsOf({ sources: [{ id: 'a', name: 'A', claims: { id: 'qq', storeKeys: ['K', 'K'] } }] })).toEqual(['sources[0].claims.storeKeys lists an entry twice']);
         expect(errorsOf({ sources: [{ id: 'a', name: 'A', claims: { id: 'qq', other: [] } }] })).toEqual(['sources[0].claims has an unknown field "other"']);
+        expect(errorsOf({ sources: [{ id: 'a', name: 'A', claims: { id: 'spotify', legacyCacheDirs: ['spotify'] } }] })).toEqual([]);
+        expect(errorsOf({ sources: [{ id: 'a', name: 'A', claims: { id: 'spotify', legacyCacheDirs: ['../media'] } }] }))
+            .toEqual(['sources[0].claims.legacyCacheDirs must be a list where each entry is a folder name under the media cache folder']);
     });
 });
 

@@ -43,7 +43,7 @@ const requireWebUrl = (value) => {
 };
 
 /**
- * context: { modId, manifest, sources (resolved: [{ sourceId, legacy }]), cacheDir, userDataDir, emitLog }
+ * context: { modId, manifest, dirPath (the mod's folder), sources (resolved: [{ sourceId, legacy }]), cacheDir, userDataDir, emitLog }
  * host:    see the top of this file; `mediaRules` (mediaRules.cjs), `mediaHandlers` (Map modId -> Map name ->
  *          handler, read by the folia-mod:// protocol), `cacheProviders` (Map modId -> provider),
  *          `isMainWindowPresent()`.
@@ -69,7 +69,7 @@ const createSourceApi = (context, host) => {
     };
 
     // What the old data grants allow: the union over the mod's sources (one row each).
-    const grants = { storeKeys: new Set(), partitions: new Set(), userDataDirs: new Set(), native: new Set(), cacheDirs: new Set() };
+    const grants = { storeKeys: new Set(), partitions: new Set(), userDataDirs: new Set(), native: new Set(), ownNative: new Set(), cacheDirs: new Set() };
     (context.sources ?? []).forEach(({ legacy }) => {
         if (!legacy) return;
         Object.keys(grants).forEach((field) => (legacy[field] ?? []).forEach((value) => grants[field].add(value)));
@@ -153,13 +153,26 @@ const createSourceApi = (context, host) => {
         });
     };
 
+    /*
+     * A built-in copy or a signed override: the file the app ships (host.nativePath). A takeover (ownNative): its own copy
+     * in its folder (nativeFiles.cjs resolveModNativeFile), never the app's; one it does not carry for this system is
+     * `native-not-in-mod:<name>:<platform>-<arch>`, one reached through a link or out of its folder `native-unsafe-path`.
+     */
     const nativePath = (name) => {
-        if (!Array.isArray(manifest.native) || !manifest.native.includes(name) || !grants.native.has(name)) {
+        if (!Array.isArray(manifest.native) || !manifest.native.includes(name)) {
             throw new Error(`native-not-granted:${String(name)}`);
         }
-        const resolved = host.nativePath(name);
-        if (!resolved) throw new Error(`native-unavailable:${name}`);
-        return resolved;
+        if (grants.native.has(name)) {
+            const resolved = host.nativePath(name);
+            if (!resolved) throw new Error(`native-unavailable:${name}`);
+            return resolved;
+        }
+        if (grants.ownNative.has(name) && typeof host.modNativePath === 'function') {
+            const resolved = host.modNativePath(context.dirPath, name);
+            if (resolved?.path) return resolved.path;
+            throw new Error(`${resolved?.error ?? 'native-not-in-mod'}:${name}:${resolved?.system ?? `${process.platform}-${process.arch}`}`);
+        }
+        throw new Error(`native-not-granted:${String(name)}`);
     };
 
     const members = {

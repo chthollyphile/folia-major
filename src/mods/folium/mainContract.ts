@@ -292,7 +292,10 @@ export interface FoliumSourceMainApi extends FoliumMainApi {
     onPlayersOrphaned(handler: () => void): FoliumDisposer;
     /** The sign-in diagnostics and self-check of one of the mod's own sources. */
     readonly diagnostics: FoliumSourceDiagnostics;
-    /** Native files the app ships for a built-in source, by the names its manifest `native` and its row both list. */
+    /**
+     * Native files, by the names its manifest `native` and its row both list: the app's own for a built-in source (or a
+     * signed override of one); for a takeover, its own copy in `native/<name>/<platform>-<arch>/` of its folder.
+     */
     readonly native: FoliumSourceNative;
     /** An error the source could not handle: into the host's crash report, without telling the user. */
     reportError(error: unknown, where?: string): void;
@@ -332,7 +335,11 @@ export interface FoliumSourceDiagnostics {
 
 /** Folium 2: `api.native` of a source mod. */
 export interface FoliumSourceNative {
-    /** The file's path; throws `native-not-granted:<name>` or `native-unavailable:<name>`. */
+    /**
+     * The file's path. Throws `native-not-granted:<name>`; `native-unavailable:<name>` where the app has none for this
+     * system; for a takeover, `native-not-in-mod:<name>:<platform>-<arch>` where the mod does not carry this system's copy,
+     * `native-unsafe-path:<name>:<platform>-<arch>` where the way to it is a link or leaves the mod's folder.
+     */
     path(name: string): string;
     /** `require` of that path. */
     load(name: string): unknown;
@@ -474,8 +481,9 @@ export interface FoliumSourceCache {
     /** Hands the host the source's cache entries, so its cache view lists, removes and clears them. */
     provideEntries(provider: FoliumSourceCacheEntries): FoliumDisposer;
     /**
-     * A built-in source only: the folder under the host's media cache folder (the one the user may choose) its row
-     * claims, where the platform kept its cache before it was a mod. Read it anew each time; not made here.
+     * The folder under the host's media cache folder (the one the user may choose) that a built-in source's row claims,
+     * or a takeover's `claims.legacyCacheDirs` (within that row): where the platform kept its cache before it was a mod.
+     * Read it anew each time; not made here. Any other name throws `legacy-cache-not-claimed:<name>`.
      */
     legacyDir(name: string): string;
 }

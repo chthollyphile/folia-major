@@ -3822,7 +3822,7 @@ interface FoliumSourceMainApi extends FoliumMainApi
 | `onBeforeQuit()` | `(handler: () => void \| Promise<void>): FoliumDisposer` | Waited for (3 seconds at most) when the app quits. |
 | `onPlayersOrphaned()` | `(handler: () => void): FoliumDisposer` | The main window went and no window takes its playback over: pause what plays outside the app. |
 | `readonly diagnostics` | `FoliumSourceDiagnostics` | The sign-in diagnostics and self-check of one of the mod's own sources. |
-| `readonly native` | `FoliumSourceNative` | Native files the app ships for a built-in source, by the names its manifest `native` and its row both list. |
+| `readonly native` | `FoliumSourceNative` | Native files, by the names its manifest `native` and its row both list: the app's own for a built-in source (or a signed override of one); for a takeover, its own copy in `native/<name>/<platform>-<arch>/` of its folder. |
 | `reportError()` | `(error: unknown, where?: string): void` | An error the source could not handle: into the host's crash report, without telling the user. |
 | `readonly manifest` | `FoliumManifest` | 继承自 [FoliumMainApi](#foliummainapi)。This mod's mod.json as the host read it (missing fields filled in), frozen. |
 | `readonly log` | `FoliumLogger` | 继承自 [FoliumMainApi](#foliummainapi)。Logging; `error` entries show in the mods panel under the mod. |
@@ -3887,7 +3887,7 @@ Folium 2: `api.native` of a source mod.
 
 | 成员 | 类型 | 说明 |
 | --- | --- | --- |
-| `path()` | `(name: string): string` | The file's path; throws `native-not-granted:<name>` or `native-unavailable:<name>`. |
+| `path()` | `(name: string): string` | The file's path. Throws `native-not-granted:<name>`; `native-unavailable:<name>` where the app has none for this system; for a takeover, `native-not-in-mod:<name>:<platform>-<arch>` where the mod does not carry this system's copy, `native-unsafe-path:<name>:<platform>-<arch>` where the way to it is a link or leaves the mod's folder. |
 | `load()` | `(name: string): unknown` | `require` of that path. |
 
 ### FoliumSourceNet
@@ -4000,7 +4000,7 @@ Folium 2: `api.cache` of a source mod.
 | `dir()` | `(): string` | `<userData>/mods-cache/<id>`, made when missing. |
 | `requestPrune()` | `(limitBytes?: number): void` | Asks the host to trim the media cache to its budget (or to `limitBytes`). |
 | `provideEntries()` | `(provider: FoliumSourceCacheEntries): FoliumDisposer` | Hands the host the source's cache entries, so its cache view lists, removes and clears them. |
-| `legacyDir()` | `(name: string): string` | A built-in source only: the folder under the host's media cache folder (the one the user may choose) its row claims, where the platform kept its cache before it was a mod. Read it anew each time; not made here. |
+| `legacyDir()` | `(name: string): string` | The folder under the host's media cache folder (the one the user may choose) that a built-in source's row claims, or a takeover's `claims.legacyCacheDirs` (within that row): where the platform kept its cache before it was a mod. Read it anew each time; not made here. Any other name throws `legacy-cache-not-claimed:<name>`. |
 
 相关：[FoliumSourceCacheEntries](#foliumsourcecacheentries) · [FoliumDisposer](#foliumdisposer)
 

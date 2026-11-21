@@ -8,6 +8,9 @@
 'use strict';
 
 const path = require('path');
+// original-fs: a mod folder is read as files, as the digest reads it (rawFs.cjs).
+const { rawFs: fs } = require('./rawFs.cjs');
+const { resolveModNativeFile } = require('./nativeFiles.cjs');
 const { dialog } = require('electron');
 
 const { shortDigest } = require('./modDigest.cjs');
@@ -51,6 +54,7 @@ const TRUST_DIALOG_LOCALE = {
         sourceIntro: (sources) => `这个模组提供音源：${sources}。它会保管你在这些平台的登录，不受模组的网络和存储限额约束，并随应用一起启动。`,
         takeover: (ids) => `它会接管这个安装没有带的音源：${ids}，并用上你在这些平台已有的登录（队列、历史、歌单里这些平台的歌也接着用）。`,
         takeoverData: (items) => `它要接的旧数据：${items}`,
+        takeoverNative: (names) => `它带着自己的原生程序，会直接在你的电脑上运行（不是应用带的那份）：${names}`,
         certificateExceptions: (hosts) => `对这些域名放宽证书检查：${hosts}`,
         lyricRelayHosts: (hosts) => `经应用中转歌词请求的域名：${hosts}`,
         selfSignedUserServers: (sources) => `连接你自己填写的服务器（例如家里的 NAS）时接受它的自签证书：${sources}`,
@@ -104,6 +108,7 @@ const TRUST_DIALOG_LOCALE = {
         sourceIntro: (sources) => `這個模組提供音源：${sources}。它會保管你在這些平臺的登入，不受模組的網路和儲存限額約束，並隨應用一起啟動。`,
         takeover: (ids) => `它會接管這個安裝沒有帶的音源：${ids}，並用上你在這些平臺已有的登入（佇列、歷史、歌單裡這些平臺的歌也接著用）。`,
         takeoverData: (items) => `它要接的舊資料：${items}`,
+        takeoverNative: (names) => `它帶著自己的原生程式，會直接在你的電腦上執行（不是應用帶的那份）：${names}`,
         certificateExceptions: (hosts) => `對這些網域放寬證書檢查：${hosts}`,
         lyricRelayHosts: (hosts) => `經應用中轉歌詞請求的網域：${hosts}`,
         selfSignedUserServers: (sources) => `連線你自己填寫的伺服器（例如家裡的 NAS）時接受它的自簽證書：${sources}`,
@@ -157,6 +162,7 @@ const TRUST_DIALOG_LOCALE = {
         sourceIntro: (sources) => `This mod provides music sources: ${sources}. It keeps your sign-in on these platforms, is not held to the network and storage limits of mods, and starts together with the app.`,
         takeover: (ids) => `It takes over sources this installation does not carry: ${ids}, and uses the sign-in you already have on these platforms (their songs in your queue, history and playlists keep working too).`,
         takeoverData: (items) => `Old data it takes over: ${items}`,
+        takeoverNative: (names) => `It brings native programs of its own, which run directly on your computer (not the ones the app ships): ${names}`,
         certificateExceptions: (hosts) => `Relaxes certificate checks for these hosts: ${hosts}`,
         lyricRelayHosts: (hosts) => `Hosts whose lyric requests the app relays: ${hosts}`,
         selfSignedUserServers: (sources) => `Accepts a self-signed certificate from a server you enter yourself (such as a NAS at home): ${sources}`,
@@ -210,6 +216,7 @@ const TRUST_DIALOG_LOCALE = {
         sourceIntro: (sources) => `Mod ini menyediakan sumber musik: ${sources}. Mod ini menyimpan login Anda di platform tersebut, tidak terikat batas jaringan dan penyimpanan mod, dan dimulai bersama aplikasi.`,
         takeover: (ids) => `Mod ini mengambil alih sumber yang tidak dibawa instalasi ini: ${ids}, dan memakai login Anda yang sudah ada di platform tersebut (lagu-lagunya di antrean, riwayat, dan playlist tetap berfungsi).`,
         takeoverData: (items) => `Data lama yang diambil alih: ${items}`,
+        takeoverNative: (names) => `Membawa program native sendiri yang langsung berjalan di komputer Anda (bukan yang disertakan aplikasi): ${names}`,
         certificateExceptions: (hosts) => `Melonggarkan pemeriksaan sertifikat untuk host ini: ${hosts}`,
         lyricRelayHosts: (hosts) => `Host yang permintaan liriknya diteruskan aplikasi: ${hosts}`,
         selfSignedUserServers: (sources) => `Menerima sertifikat yang ditandatangani sendiri dari server yang Anda isi sendiri (misalnya NAS di rumah): ${sources}`,
@@ -263,6 +270,7 @@ const TRUST_DIALOG_LOCALE = {
         sourceIntro: (sources) => `Mod này cung cấp nguồn nhạc: ${sources}. Mod sẽ giữ thông tin đăng nhập của bạn trên các nền tảng này, không bị giới hạn mạng và lưu trữ dành cho mod, và khởi động cùng ứng dụng.`,
         takeover: (ids) => `Mod sẽ tiếp quản các nguồn mà bản cài đặt này không kèm theo: ${ids}, và dùng thông tin đăng nhập sẵn có của bạn trên các nền tảng này (bài hát của chúng trong hàng đợi, lịch sử và danh sách phát vẫn dùng được).`,
         takeoverData: (items) => `Dữ liệu cũ được tiếp quản: ${items}`,
+        takeoverNative: (names) => `Mang theo chương trình gốc của riêng nó, chạy trực tiếp trên máy tính của bạn (không phải bản đi kèm ứng dụng): ${names}`,
         certificateExceptions: (hosts) => `Nới lỏng kiểm tra chứng chỉ cho các tên miền này: ${hosts}`,
         lyricRelayHosts: (hosts) => `Các tên miền mà ứng dụng chuyển tiếp yêu cầu lời bài hát: ${hosts}`,
         selfSignedUserServers: (sources) => `Chấp nhận chứng chỉ tự ký của máy chủ do bạn tự nhập (ví dụ NAS ở nhà): ${sources}`,
@@ -429,7 +437,7 @@ const createModApproval = ({ app, store, enabledKey, getMainWindowSafe, getLocal
      * each source id it takes over and the old data it will use. `sources` are the resolved ones
      * (sourceOwnership.cjs).
      */
-    const sourceLines = (locale, manifest, sources) => {
+    const sourceLines = (locale, manifest, sources, dirPath = null) => {
         if (!Array.isArray(manifest.sources) || manifest.sources.length === 0) return [];
         const nameOf = (entry) => (typeof entry.name === 'string' ? entry.name : entry.name?.en ?? Object.values(entry.name ?? {})[0] ?? entry.id);
         const described = manifest.sources.map((entry) => {
@@ -444,8 +452,14 @@ const createModApproval = ({ app, store, enabledKey, getMainWindowSafe, getLocal
                 ...source.legacy.storeKeys,
                 ...source.legacy.partitions.map((partition) => `partition ${partition}`),
                 ...source.legacy.userDataDirs.map((folder) => `userData/${folder}`),
+                ...(source.legacy.cacheDirs ?? []).map((folder) => `cache/${folder}`),
             ]);
             if (data.length > 0) lines.push(locale.takeoverData(data.join(', ')));
+            // Its own native files: the names it may resolve that resolve in its folder on this system (nativeFiles.cjs
+            // resolveModNativeFile, as api.native will). Without the folder to look in, every name it may resolve.
+            const ownNative = [...new Set(takeovers.flatMap((source) => source.legacy.ownNative ?? []))]
+                .filter((name) => !dirPath || Boolean(resolveModNativeFile(name, dirPath, { platform: process.platform, arch: process.arch, fs }).path));
+            if (ownNative.length > 0) lines.push(locale.takeoverNative(ownNative.join(', ')));
         }
         const hosts = (field) => [...new Set(manifest.sources.flatMap((entry) => entry[field] ?? []))];
         if (hosts('certificateExceptions').length > 0) lines.push(locale.certificateExceptions(hosts('certificateExceptions').join(', ')));
@@ -480,7 +494,7 @@ const createModApproval = ({ app, store, enabledKey, getMainWindowSafe, getLocal
                 locale.overrideDetail,
                 '',
                 locale.signatureVerified(keyText),
-                ...sourceLines(locale, runtime.manifest, runtime.source?.sources),
+                ...sourceLines(locale, runtime.manifest, runtime.source?.sources, runtime.dirPath),
                 `${locale.location}${runtime.dirPath ?? '-'}`,
                 `${locale.fingerprint}${shortDigest(digest)}`,
                 '',
@@ -577,7 +591,7 @@ const createModApproval = ({ app, store, enabledKey, getMainWindowSafe, getLocal
             ...(experimental.length > 0 ? [`${locale.experimental}${experimental.join(', ')}`] : []),
             ...(embedOrigins.length > 0 ? [`${locale.embedOrigins}${embedOrigins.join(', ')}`] : []),
             ...(folia ? [`${locale.folia}${folia}`] : []),
-            ...sourceLines(locale, runtime.manifest, runtime.source?.sources),
+            ...sourceLines(locale, runtime.manifest, runtime.source?.sources, runtime.dirPath),
             `${locale.location}${runtime.dirPath ?? '-'}`,
             `${locale.fingerprint}${shortDigest(digest)}`,
             '',

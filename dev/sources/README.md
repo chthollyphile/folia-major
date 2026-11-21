@@ -85,18 +85,50 @@ npm run sources:pack -- --all
 
 - 不带参数：列出 `dist-mods/` 里能打的（有 `mod.json` 和 `build.json` 的目录）、大小、带不带 deps 归档和原生件。先跑 `sources:build`。
 - `<id>`：目录名（短音源 id，如 `appleMusic`）或模组 id（`apple-music`），可以写几个；`--all` 打全部。
-- 产物：`dist-mod-packs/<模组 id>-<版本>.zip`，未签名的是 `…-unsigned.zip`（git 忽略），如 `apple-music-1.0.0-unsigned.zip`。同一份构建打两次未签名的包，字节相同。
+- 产物：`dist-mod-packs/<模组 id>-<版本>.zip`，未签名的是 `…-unsigned.zip`（git 忽略），如 `bodian-1.0.0-unsigned.zip`；
+  带上了原生件的按系统出，名字多一段系统（这个系统一个都没带时不加）：`spotify-1.0.0-win32-x64-unsigned.zip`。同一份构建打两次未签名的包，字节相同。
+- `--system <platform>-<arch>`：原生件按哪个系统带（`win32-x64`、`darwin-arm64`、`linux-x64`、`linux-arm64`），默认本机。
+  可以在一台机器上给别的系统打包（librespot 的 npm 包里四个系统的 `.node` 都有）。
+- `--no-native`：不带原生件（包名不带系统段），接管后靠原生件的功能用不了。
 - `--version <x.y.z>`：换掉包里的版本号（覆盖内置副本要比安装包里那份高；内置的清单都是 `1.0.0`）。
 - `--folia <范围>`：包里写的宿主范围，默认 `>=<仓库 package.json 的版本>`（预发布号去掉），`none` 是不写。默认值只是占位：
   比它旧的宿主本来就不收 Folium 2 模组，它不额外挡什么；上限和真正的下限等维护者定。
 - `--dist <目录>`、`--out <目录>`：换掉 `dist-mods/` 和 `dist-mod-packs/`。
 
 **包里是什么**：一个 `<模组 id>/` 目录，构建产物原样（`client.mjs`、`index.cjs`、worker、`vendor.<指纹>.mjs`、`deps.<指纹>.asar`、
-语言表、`README.md`），不带 `build.json`（只给开发版的主进程盯着重载）。`mod.json` 比构建出的多两样：
+语言表、`README.md`），不带 `build.json`（只给开发版的主进程盯着重载），加上这个系统的原生件（见下）。`mod.json` 比构建出的多两样：
 
 - `sources[].claims`：受信表（`electron/modSystem/builtinSources.cjs`）里这个模组那一行的短 id、旧 electron-store 键、会话分区、
-  userData 目录，照抄（宿主核对 claims 不能超出那一行）。不在受信表里的模组没有 claims，装上是第三方音源 `folium.<模组 id>.<名字>`。
+  userData 目录、媒体缓存目录下的旧缓存目录（`legacyCacheDirs`，现在只有 spotify），照抄（宿主核对 claims 不能超出那一行）。
+  不在受信表里的模组没有 claims，装上是第三方音源 `folium.<模组 id>.<名字>`。
 - `folia`：上面的宿主范围。
+
+**原生件**：安装包不带某家音源时也不带它的原生件，接管它的副本用包里自己的那份。布局（宿主按这个找，
+`electron/modSystem/nativeFiles.cjs` 的 `MOD_NATIVE_ENTRIES`）：
+
+```text
+<模组 id>/native/<名字>/<platform>-<arch>/<入口>
+```
+
+| 名字 | 系统 | 入口（`api.native.path` 答的） | 一起带的 | 大小（`.node` / 整包 zip） |
+| --- | --- | --- | --- | --- |
+| `librespot` | win32-x64、darwin-arm64、linux-x64、linux-arm64（glibc） | `dist/index.js`（包自己的加载器） | `package.json`、`dist/types.js`、`prebuilds/<系统>/librespot_addon.node` | 13.7 / 5.3 MB、11.8 / 5.0、18.3 / 6.6、12.6 / 5.3 |
+| `apple-music-companion` | win32-x64 | `FoliaAppleMusicCompanion.exe` | `.exe.config`、两个 WebView2 托管 DLL、`WebView2Loader.dll`（和安装包里同一组） | 0.9 / 0.3 MB |
+
+- 只带清单 `native` 与受信表那一行 `native` 都写了的名字；接管副本也只能解析这些（`native-not-granted` 以外的名字）。
+- librespot 从装着的 `@lox-audioserver/node-librespot` 取；Apple Music 伴侣程序从 `build/apple-music-native/windows` 取，没有时
+  报错并给出构建命令（`powershell -NoProfile -ExecutionPolicy Bypass -File sources/appleMusic/native/windows/buildCompanion.ps1`，要 .NET SDK）。
+- **macOS 的伴侣程序不带**：它是签名的 `.app`，经 zip 解到用户目录后签名和可执行位保不保得住没验证；`--system darwin-*` 打 appleMusic
+  时会写明不带，接管后每个请求答 `runtime-unavailable`。Linux 没有伴侣程序；darwin-x64 与 musl 的 Linux 没有 librespot 现成构建。
+- 可执行位：`zipInstall.cjs` 解包只写文件内容，不保留权限位。现在带的都用不到：Windows 不看可执行位，`.node` 是 `dlopen`
+  读进来的（Linux、macOS 只要可读）。将来要带 macOS / Linux 的可执行程序时得先补这一步。
+- 内置副本、官方签名的覆盖副本仍用应用带的那份；包里的 `native/` 只给接管用。原生件和别的文件一样算进内容摘要与签名摘要，
+  换了就要重新确认。系统目录 `native/<名字>/<系统>/` 里有任何符号链接或 junction，宿主都不解析（`native-unsafe-path`）。
+- 应用开着时从 zip 装新版接管副本，新的 `.node` 要重启应用才生效：同一路径的原生模块已经载入进程，再 require 拿到的还是旧的
+  （Windows 上旧目录也删不掉，留在 `mods/.staging` 里，下次启动清掉）。
+- 只有清单字段比较新的宿主装得上这些包：`claims.legacyCacheDirs` 是补项 C（`40e0a1641`）加的，之前的宿主（包括那之前出的滚动版）
+  校验清单时报 `claims has an unknown field "legacyCacheDirs"`，整个包装不上。`--folia` 的默认下限挡不住它（版本号没变），
+  要给旧宿主打包时手动去掉 spotify 包里的这一项。
 
 打之前按「从 zip 安装」（`zipInstall.cjs`）和摘要（`modDigest.cjs`）的上限查：单个文件 64 MB、合计 96 MB、2000 个文件，
 zip 本身 96 MB；`dist-mods/<id>/` 的文件和 `build.json` 记的对不上（手改过、没构建完）时拒绝并列出多出与缺的文件，重新构建再打；
@@ -120,11 +152,8 @@ v1、固定格式的签名消息、Ed25519），签完先用宿主的验签在�
 | bodian、qishui、fnmusic | 入口（上游库打进 `index.cjs`） | 能跑；fnmusic 存下的 `folia-fnmusic://` 旧地址回 404（旧协议只交给内置副本） | 能跑 |
 | ytm | 入口 + `vendor.<指纹>.mjs` | 能跑 | 能跑 |
 | netease、kugou、qq | 入口 + `deps.<指纹>.asar`（netease 约 49 MB，zip 约 21 MB；kugou、qq 各十几 MB） | 能跑：归档随包装进 `userData/mods/<id>/`，入口照旧用 `createRequire` 从归档里取上游库 | 能跑 |
-| spotify | 入口（`ws` 打进去）；不带 librespot | 部分：librespot 是应用带的原生件，接管拿不到（`native-not-granted`），旧缓存目录 `spotify` 也不在 claims 能写的范围里（`api.cache.legacyDir` 拿不到），librespot 整首播放不能用；登录、搜索、曲库、歌词与 Soloist 按代码看不靠它（没实测） | 能跑：拿应用带的那份 |
-| appleMusic | 入口；不带伴侣程序 | 跑不了：伴侣程序是原生件，接管拿不到，每个请求都答 `runtime-unavailable`（登录、搜索、播放都经伴侣程序） | 能跑：拿应用带的那份（只有 macOS、Windows） |
-
-原生件不进包是故意的：它们随应用构建、按平台不同（`electron/modSystem/nativeFiles.cjs`），`asar` 里也加载不了 `.node`。
-要让接管的 spotify、appleMusic 也能用原生件，得先定外部模组带原生件的规矩（方案没写），现在不做。
+| spotify | 入口（`ws` 打进去）+ 本系统的 librespot | 能跑：librespot 用包里那份，旧缓存目录 `spotify` 经 claims 认领；darwin-x64、musl 上没有 librespot，整首播放不能用 | 能跑：拿应用带的那份 |
+| appleMusic | 入口 + Windows 上的伴侣程序 | Windows 能跑（伴侣程序用包里那份）；macOS 包里不带伴侣程序，每个请求都答 `runtime-unavailable`；Linux 本来就没有 | 能跑：拿应用带的那份（只有 macOS、Windows） |
 
 一个包从打出来到装上的桌面实测做法（开发版）：
 
@@ -181,7 +210,7 @@ package.json 里声明了的包、main 与 worker 里的 Node 内置模块，和
 | `bundle`（不写就是它） | 普通的包 | 打进用到它的入口（`index.cjs`、`<worker>.cjs` 或 `client.mjs`） |
 | `asar` | 依赖真实文件布局的上游库（改 `require.cache`、扫 `module/` 目录、按包内路径挂钩子），只给 main 与 worker | 生产依赖闭包（`dependencies`、装着的 `optionalDependencies` 与 `peerDependencies`）装进 `deps.<指纹>.asar`；入口里是 `createRequire(join(__dirname, 'deps.<指纹>.asar', 'node_modules', '_'))('<包>')` |
 | `vendor` | ESM-only 的包，只给 main 与 worker | 用到的这类包一起打成 `vendor.<指纹>.mjs`，入口 `require('./vendor.<指纹>.mjs')`（Node 的 require(esm)：vendor 里不能有顶层 await；文件名带指纹，因为 require(esm) 载入的模块在 Node 的 ESM 缓存里，清 `require.cache` 清不掉，原地覆盖的文件重载后还是旧的） |
-| `native` | 原生件（`.node`、伴侣程序） | 不打包、不进归档；源码 import 它是构建错误，经 `api.native.load(name)` / `api.native.path(name)` 引用（清单 `native` 与受信表那一行的 `native`） |
+| `native` | 原生件（`.node`、伴侣程序） | 不打包、不进归档；源码 import 它是构建错误，经 `api.native.load(name)` / `api.native.path(name)` 引用（清单 `native` 与受信表那一行的 `native`）；内置副本拿应用带的，接管副本拿 `sources:pack` 放进包里 `native/` 的（见「打成 zip」） |
 
 上游要按包内路径动手脚（换 `require.cache` 的某一项、先放替身再加载，网易云的 worker 就是这样）时，字面写的 import 拿不到
 文件在归档里的路径：main 与 worker 可以 `import { depsRequire } from '@folia/source-deps'`，它是绑在本模组归档上的
