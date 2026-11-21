@@ -14,6 +14,10 @@ Folia 内置的 Apple Music 音源模组（Folium 2.0，模组 id `apple-music`�
   伴侣程序可执行文件的路径（宿主在 `electron/modSystem/nativeFiles.cjs` 里按名字找：打包后在 `resources/apple-music/`，
   开发时在 `build/apple-music-native/`，`ELECTRON_DEV=true` 时认环境变量 `FOLIA_APPLE_MUSIC_NATIVE`）。Linux 没有，
   请求答 `runtime-unavailable`。
+- **接管**：安装包不带 Apple Music 时也不带伴侣程序。`npm run sources:pack -- appleMusic`（Windows x64）把
+  `build/apple-music-native/windows` 那五个文件放进包里的 `native/apple-music-companion/win32-x64/`，接管副本的 `api.native.path`
+  答这份的 `FoliaAppleMusicCompanion.exe`。macOS 的 `.app` 不带（经 zip 解到用户目录后签名和可执行位没验证），macOS 上接管后
+  每个请求答 `runtime-unavailable`。
 - **请求通道**：client 经 `folium.rpc` 的 `request` 把操作交给 main 入口（`main/index.ts`），宿主只放主窗口主框架的调用
   进来，和以前 `apple-music-request` 那条 IPC 的来源校验（`companionIpc.cjs`，已删）一样。操作白名单仍在
   `main/companionRequests.cjs`。

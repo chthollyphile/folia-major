@@ -13,6 +13,9 @@ Folia 内置的 Spotify 音源模组（Folium 2.0）。原来是 `src/services/o
   系统浏览器打开；停用时进行中的登录取消、端口关掉。
 - **librespot**：原生包不打进模组，宿主按名字解析（`electron/modSystem/nativeFiles.cjs` 的 `librespot`），main 入口经
   `api.native.load('librespot')` 在第一次要音频时才加载；加载失败或模块不对，取音频报 `unavailable`，其余功能照旧。
+  安装包不带 Spotify 时也不带 librespot（`build/bundledSources.mjs` 把不带的音源的原生包排除在 app.asar 外）：`npm run sources:pack -- spotify`
+  按系统把 librespot 的加载器和那个系统的 `.node` 放进包里的 `native/librespot/<系统>/`，接管副本的 `api.native.load` 就加载这份；
+  旧音频缓存目录 `spotify` 经 `claims.legacyCacheDirs` 认领，`api.cache.legacyDir('spotify')` 照常可用。代码不用改。
 - **音频地址**：`folia-spotify://audio/<id>?k=<key>` 换成 `folia-mod://spotify/_media/audio/<id>?once=<key>`
   （`api.media.serve('audio')`）；宿主比较两个地址时不看 `once`。`main/audio.cjs` 收 `audioUrl` 和 `loadLibrespot`，多了
   `serve`（拆开的一次读取），Range 的解析搬进它自己（不再 require 宿主的 `electron/transcode/protocol.cjs`）。

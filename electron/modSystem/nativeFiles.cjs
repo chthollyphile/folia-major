@@ -6,6 +6,7 @@
 // and packaged by the app (build/beforePack.cjs, the extraResources of build/bundledSources.mjs), not by the source mod: a packaged
 // app reads them from its resources only, a development run from the build output, or from an absolute path a
 // developer names in the environment. A name this file does not know resolves to '' (the host's `native-unavailable`).
+// A takeover never gets these: it resolves its own copy in its folder (resolveModNativeFile, below).
 
 const path = require('node:path');
 

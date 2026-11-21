@@ -16,4 +16,7 @@ Folia 的内置音源模组（Folium 2.0，方案 `dev/folium/folium-2-plan.md` 
 - 单测里由 `test/unit/helpers/builtinSources.ts`（vitest 的 setupFiles）给第一行写了 `// @builtin-sources` 的测试文件注册：
   有 `core/index.ts` 的 `createSource` 就用测试 env 调它，否则调 `client/index.ts` 的 `activate`；到 main 入口的调用由测试用
   `setBuiltinSourceRpc` 接住。测试仍放 `test/unit/`。
+- 安装包可以不带某几家（`FOLIA_BUNDLED_SOURCES`）；不带的那家用 `npm run sources:pack -- <id>` 打成 zip，经「从 zip 安装」接管它的
+  短 id 和旧数据（`claims`）。声明了原生件的（spotify 的 librespot、appleMusic 的 Windows 伴侣程序）按系统把那一份带进包里的
+  `native/<名字>/<系统>/`，接管副本经 `api.native` 用它；macOS 的伴侣程序不带。见 `dev/sources/README.md` 的「打成 zip」。
 - 桌面上拿不到真账号时，`test/manual/fakeSourceNetwork/` 给一家写张路由表就能把它的网络换成假应答（验证管道，不验证真实接口）。
