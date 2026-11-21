@@ -56,7 +56,7 @@ export const navigationCommands: CommandPaletteCommand[] = [
         group: 'navigation',
         title: 'Toggle remote control window',
         description: 'Open or close the remote control window',
-        keywords: ['remote control', 'remote window', 'toggle remote', '遥控窗口', '切换遥控窗口', '打开遥控'],
+        keywords: ['remote control', 'remote window', 'toggle remote', '遥控窗口', '切换遥控窗口', '打开遥控', '妙控窗'],
         execute: (_input, context) => context.navigation.toggleRemoteControlWindow(),
     },
     {
