@@ -1,7 +1,7 @@
 /* src/library/suites/bravais/bravaisAppearance.css — 实测反馈 1：Lattice 的墙面外观设置（灯光、叠色）作用到 bravais，
    以及共享浮层控件（components/wall 的返回按钮、工具按钮）在 bravais 上的位置补充。2026-10-09 起叠色与熄灯也作用到
    缝（信息条，见下方「缝」一节）与集合的叠页边（bravaisTileKinds.css）。
-   熄灯本身（每张海报一层 82% 的黑 / 日光下白、正在播放的不熄、熄灯时叠色归零）在 wall.css，与 Lattice 同一份；这里只放
+   熄灯本身（每张海报一层 82% 的黑，日光下也是黑、正在播放的不熄、熄灯时叠色归零）在 wall.css，与 Lattice 同一份；这里只放
    bravais 的豁免。叠色不需要补：wall.css 的 has-poster-tint / uses-custom-poster-tint 已经作用在 bravais 根节点上，
    而窗与全透明档的透着的磁贴根本不画叠色层（BravaisTile），所以叠色从不压在窗上。 */
 
@@ -11,6 +11,22 @@
 .bravais-root.is-lights-out .lattice-poster.bravais-tile-face:is(.is-expanded, .is-focused, .is-linked, .is-selected) .lattice-poster-lights-out {
     opacity: 0;
 }
+
+/* 日光下熄灯时的墙面：实色档由 wall.css 在根节点上压暗；根节点不画底的两档（透光、始终透明的缝）露出来的是块底板，
+   改为把底板的填色压到同样的 92% 黑。不能沿用根节点的内阴影：它会连窗里透出的 visualizer 一起压暗。 */
+.bravais-root.is-daylight.is-lights-out:is(.is-see-through, .is-backdrop-open) {
+    box-shadow: none;
+}
+
+.bravais-block-plate > path {
+    transition: fill 260ms ease;
+}
+
+.bravais-root.is-daylight.is-lights-out .bravais-block-plate > path {
+    fill: color-mix(in srgb, var(--bg-color, #fafaf9) 8%, #000);
+}
+
+:root[data-reduce-motion~='lattice'] .bravais-block-plate > path { transition: none; }
 
 /* 全透明档：墙上的内容磁贴本身就是窗（透出下面的 visualizer），熄灯不往窗上涂黑，只把标题与徽标压暗。
    部分透明档的窗、实色空画框没有内容，也就没有熄灯层。 */
@@ -57,7 +73,6 @@
     --bravais-seam-dim-fill: #000;
 }
 
-.bravais-root.is-daylight { --bravais-seam-dim-fill: #fff; }
 .bravais-root.uses-custom-poster-tint { --bravais-seam-tint-fill: var(--lattice-poster-tint-color); }
 .bravais-root.has-poster-tint:not(.is-lights-out):not([data-bravais-look='clear']):not(.has-clear-seam) { --bravais-seam-tint: var(--lattice-poster-tint-effective-opacity); }
 .bravais-root.is-lights-out:not([data-bravais-look='clear']):not(.has-clear-seam) { --bravais-seam-dim: 0.6; }

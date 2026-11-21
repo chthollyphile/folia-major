@@ -2,7 +2,7 @@
 
 # Folium API 参考
 
-当前契约版本：**Folium 1.9**。
+当前契约版本：**Folium 1.10**。
 
 本文列出模组能用到的全部公开类型，内容直接来自契约文件 [`src/mods/folium/contract.ts`](../../src/mods/folium/contract.ts)
 （client 入口）与 [`src/mods/folium/mainContract.ts`](../../src/mods/folium/mainContract.ts)（main 入口），
@@ -16,7 +16,7 @@
 - **宿主容器与上下文**：[FoliumMount](#foliummount) · [FoliumSize](#foliumsize) · [FoliumMountHelpers](#foliummounthelpers) · [FoliumPanelContext](#foliumpanelcontext) · [FoliumSettingsPanelContext](#foliumsettingspanelcontext) · [FoliumClock](#foliumclock) · [FoliumSurface](#foliumsurface) · [FoliumAudioBands](#foliumaudiobands) · [FoliumAudio](#foliumaudio) · [FoliumDisplay](#foliumdisplay) · [FoliumStageContext](#foliumstagecontext)
 - **事件**：[事件一览](#事件一览) · [FoliumEventPriority](#foliumeventpriority) · [FoliumPlaybackFailureReason](#foliumplaybackfailurereason) · [FoliumNotificationEvents](#foliumnotificationevents) · [FoliumLyricsTransformEvent](#foliumlyricstransformevent) · [FoliumBeforePlayEvent](#foliumbeforeplayevent) · [FoliumOmniLyricsEvent](#foliumomnilyricsevent) · [FoliumOmniAudioEvent](#foliumomniaudioevent) · [FoliumHookEvents](#foliumhookevents) · [FoliumEventMap](#foliumeventmap) · [FoliumEvents](#foliumevents)
 - **服务**：[FoliumPlaybackService](#foliumplaybackservice) · [FoliumFileHandle](#foliumfilehandle) · [FoliumIconOptions](#foliumiconoptions) · [FoliumUiService](#foliumuiservice) · [FoliumFetchInit](#foliumfetchinit) · [FoliumFetchResponse](#foliumfetchresponse) · [FoliumLyricsService](#foliumlyricsservice) · [FoliumNetService](#foliumnetservice) · [FoliumAccountState](#foliumaccountstate) · [FoliumAccountService](#foliumaccountservice) · [FoliumSongKey](#foliumsongkey) · [FoliumOmniProviderInfo](#foliumomniproviderinfo) · [FoliumOmniPage](#foliumomnipage) · [FoliumSongResolution](#foliumsongresolution) · [FoliumSongDetails](#foliumsongdetails) · [FoliumOmniLyrics](#foliumomnilyrics) · [FoliumCollectionKey](#foliumcollectionkey) · [FoliumCollection](#foliumcollection) · [FoliumOmniErrorCode](#foliumomnierrorcode) · [FoliumOmniService](#foliumomniservice) · [FoliumEqualizerBand](#foliumequalizerband) · [FoliumEqualizerPresetId](#foliumequalizerpresetid) · [FoliumEqualizerCustomId](#foliumequalizercustomid) · [FoliumEqualizerUserMode](#foliumequalizerusermode) · [FoliumEqualizerMode](#foliumequalizermode) · [FoliumEqualizerState](#foliumequalizerstate) · [FoliumEqualizerChangeOrigin](#foliumequalizerchangeorigin) · [FoliumEqualizerRefusal](#foliumequalizerrefusal) · [FoliumEqualizerWriteResult](#foliumequalizerwriteresult) · [FoliumEqualizerService](#foliumequalizerservice) · [FoliumLyricRenderScale](#foliumlyricrenderscale) · [FoliumLyricAntialias](#foliumlyricantialias) · [FoliumLyricRenderQuality](#foliumlyricrenderquality) · [FoliumRenderQualityChangeOrigin](#foliumrenderqualitychangeorigin) · [FoliumRenderQualityRefusal](#foliumrenderqualityrefusal) · [FoliumRenderQualityWriteResult](#foliumrenderqualitywriteresult) · [FoliumVisualizerChangeOrigin](#foliumvisualizerchangeorigin) · [FoliumVisualizerWriteRefusal](#foliumvisualizerwriterefusal) · [FoliumTuningKeyInfo](#foliumtuningkeyinfo) · [FoliumTuningValue](#foliumtuningvalue) · [FoliumVisualizerTuning](#foliumvisualizertuning) · [FoliumBeatEffectSource](#foliumbeateffectsource) · [FoliumBeatEffectPartInfo](#foliumbeateffectpartinfo) · [FoliumBeatEffectInfo](#foliumbeateffectinfo) · [FoliumVisualizerModeInfo](#foliumvisualizermodeinfo) · [FoliumBeatEffectState](#foliumbeateffectstate) · [FoliumSmartBeatMode](#foliumsmartbeatmode) · [FoliumBeatEffectsState](#foliumbeateffectsstate) · [FoliumBeatEffectPatch](#foliumbeateffectpatch) · [FoliumModeWriteResult](#foliummodewriteresult) · [FoliumTuningWriteResult](#foliumtuningwriteresult) · [FoliumBeatEffectsWriteResult](#foliumbeateffectswriteresult) · [FoliumBackgroundInfo](#foliumbackgroundinfo) · [FoliumAnimationIntensity](#foliumanimationintensity) · [FoliumBackgroundWriteResult](#foliumbackgroundwriteresult) · [FoliumAnimationIntensityWriteResult](#foliumanimationintensitywriteresult) · [FoliumVisualizerService](#foliumvisualizerservice)
-- **共享工具**：[FoliumWordSegment](#foliumwordsegment) · [FoliumWordColorRange](#foliumwordcolorrange) · [FoliumLyricsHelpers](#foliumlyricshelpers) · [FoliumThemeHelpers](#foliumthemehelpers)
+- **共享工具**：[FoliumWordSegment](#foliumwordsegment) · [FoliumWordColorRange](#foliumwordcolorrange) · [FoliumLyricsHelpers](#foliumlyricshelpers) · [FoliumThemeInput](#foliumthemeinput) · [FoliumDualThemeInput](#foliumdualthemeinput) · [FoliumDualTheme](#foliumdualtheme) · [FoliumThemeOverride](#foliumthemeoverride) · [FoliumThemeOverrideChangeOrigin](#foliumthemeoverridechangeorigin) · [FoliumThemeRefusal](#foliumthemerefusal) · [FoliumThemeWriteResult](#foliumthemewriteresult) · [FoliumThemeHelpers](#foliumthemehelpers)
 - **设置 schema**：[FoliumSettingType](#foliumsettingtype) · [FoliumSettingOption](#foliumsettingoption) · [FoliumSetting](#foliumsetting) · [FoliumSettingValues](#foliumsettingvalues) · [FoliumSettingAccess](#foliumsettingaccess)
 - **数据结构**：[FoliumLyricRuby](#foliumlyricruby) · [FoliumLyricSyllable](#foliumlyricsyllable) · [FoliumLyricAlternateText](#foliumlyricalternatetext) · [FoliumWord](#foliumword) · [FoliumBackgroundVocal](#foliumbackgroundvocal) · [FoliumLineTimingClass](#foliumlinetimingclass) · [FoliumLineTransitionMode](#foliumlinetransitionmode) · [FoliumWordRevealMode](#foliumwordrevealmode) · [FoliumLineRenderHints](#foliumlinerenderhints) · [FoliumLine](#foliumline) · [FoliumTheme](#foliumtheme) · [FoliumSong](#foliumsong) · [FoliumPlaybackState](#foliumplaybackstate) · [FoliumLoopMode](#foliumloopmode) · [FoliumQueueItem](#foliumqueueitem) · [FoliumQueueSnapshot](#foliumqueuesnapshot) · [FoliumQueueChange](#foliumqueuechange) · [FoliumQueueReplaceRefusal](#foliumqueuereplacerefusal) · [FoliumQueueReplaced](#foliumqueuereplaced) · [FoliumQueueReplaceRefused](#foliumqueuereplacerefused) · [FoliumQueueReplaceResult](#foliumqueuereplaceresult) · [FoliumPlaybackSnapshot](#foliumplaybacksnapshot) · [FoliumLyricFormat](#foliumlyricformat) · [FoliumLyricsTrack](#foliumlyricstrack) · [FoliumLyricsResult](#foliumlyricsresult) · [FoliumLegacyLyricsResult](#foliumlegacylyricsresult) · [FoliumParsedLyrics](#foliumparsedlyrics)
 - **实验接口**：[FoliumLayoutRect](#foliumlayoutrect) · [FoliumPlayerObstacle](#foliumplayerobstacle) · [FoliumPlayerLayout](#foliumplayerlayout) · [FoliumRemoteActionDef](#foliumremoteactiondef) · [FoliumRemoteActionsContext](#foliumremoteactionscontext) · [FoliumRemoteActionsDef](#foliumremoteactionsdef) · [FoliumRemoteActionsHandle](#foliumremoteactionshandle) · [FoliumProviderSong](#foliumprovidersong) · [FoliumAudioQuality](#foliumaudioquality) · [FoliumOmniProviderDef](#foliumomniproviderdef) · [FoliumJsonValue](#foliumjsonvalue) · [FoliumPlatformBackend](#foliumplatformbackend) · [FoliumPlatformDescription](#foliumplatformdescription) · [FoliumPlatformResponse](#foliumplatformresponse) · [FoliumPlatformErrorCode](#foliumplatformerrorcode) · [FoliumPlatformService](#foliumplatformservice)
@@ -45,6 +45,7 @@
 | `visualizer.beatEffects` | `folium.visualizer.setBeatEffects` |
 | `visualizer.background` | `folium.visualizer.setBackground` |
 | `visualizer.animationIntensity` | `folium.visualizer.setAnimationIntensity` |
+| `theme.write` | `folium.theme.apply`、`folium.theme.release` |
 | `render.export` | `api.render.exportVideo` |
 | `net.fetch` | `folium.net.fetch` |
 | `net.embed` | `folium.ui.embed` |
@@ -156,7 +157,7 @@ The object a client entry's `activate(folium)` receives.
 | `readonly secrets` | `FoliumSecretAccess` | Folium 1.7: the values of this mod's `secret` settings fields. |
 | `readonly rpc` | `FoliumRpc` | Calls into this mod's main entry. |
 | `readonly lyrics` | `FoliumLyricsService` | The lyric helpers builtin modes use, and the displayed song's lyrics. |
-| `readonly theme` | `FoliumThemeHelpers` | The theme helpers builtin modes use. |
+| `readonly theme` | `FoliumThemeHelpers` | The theme helpers builtin modes use; Folium 1.10: the theme on screen, and a theme of your own over it. |
 | `readonly account` | `FoliumAccountService` | Folium 1.7: who is signed in to the online sources. |
 | `readonly omni` | `FoliumOmniService` | Folium 1.7: the host's online music sources, read only: search, songs by id, lyrics, albums, artists. |
 | `readonly equalizer` | `FoliumEqualizerService` | Folium 1.7: the host's graphic equalizer: read it, switch the user's sound, put a curve of your own in place. |
@@ -720,6 +721,7 @@ interface FoliumStageContext extends FoliumMountHelpers
 | `app.viewChanged` | 通知 | — |
 | `visualizer.modeChanged` | 通知 | — |
 | `theme.changed` | 通知 | — |
+| `theme.overrideChanged` | 通知 | — |
 | `playback.likeChanged` | 通知 | — |
 | `playback.volumeChanged` | 通知 | — |
 | `playback.loopModeChanged` | 通知 | — |
@@ -772,6 +774,7 @@ Read-only notifications, emitted after the fact.
 | `app.viewChanged` | `{ readonly view: string }` | The app switched views (e.g. `home`, `player`). |
 | `visualizer.modeChanged` | `{ readonly mode: string; readonly origin: FoliumVisualizerChangeOrigin }` | The lyric animation mode changed, one event for each change. Folium 1.8: `origin` says who changed it (a host before 1.8 sends no `origin`). |
 | `theme.changed` | `{ readonly theme: FoliumTheme }` | The theme or daylight mode changed. |
+| `theme.overrideChanged` | `{ readonly override: FoliumThemeOverride; readonly origin: FoliumThemeOverrideChangeOrigin }` | Folium 1.10: whose theme is on screen changed, or whether `apply` may change it (`folium.theme.getOverride()`). `theme.changed` fires too when what is on screen changed. One event for all the changes of one task; its origin is the last of them that was not `host`, or `host` when all of them were. Changes that end where they began fire none. Not emitted in the export window. |
 | `playback.likeChanged` | `{ readonly liked: boolean }` | `playback.getState().liked` changed (a like or unlike, or a new song). |
 | `playback.volumeChanged` | `{ readonly volume: number; readonly muted: boolean }` | The volume or the mute switch changed, whoever changed it. |
 | `playback.loopModeChanged` | `{ readonly mode: FoliumLoopMode }` | The repeat mode changed. |
@@ -785,7 +788,7 @@ Read-only notifications, emitted after the fact.
 | `visualizer.backgroundChanged` | `{ readonly background: string; readonly origin: FoliumVisualizerChangeOrigin; }` | Folium 1.9: the background type changed (`folium.visualizer.getBackground()`), whoever changed it. One event for all the changes of one task; its origin is the last of them. Changes that end where they began fire none. Not emitted in the export window. |
 | `visualizer.animationIntensityChanged` | `{ readonly intensity: FoliumAnimationIntensity; readonly origin: FoliumVisualizerChangeOrigin; }` | Folium 1.9: the animation intensity changed (`folium.visualizer.getAnimationIntensity()`), whoever changed it. `theme.changed` fires for the same change, as the theme carries the intensity too. Not emitted in the export window. |
 
-相关：[FoliumSong](#foliumsong) · [FoliumPlaybackState](#foliumplaybackstate) · [FoliumLine](#foliumline) · [FoliumVisualizerChangeOrigin](#foliumvisualizerchangeorigin) · [FoliumTheme](#foliumtheme) · [FoliumLoopMode](#foliumloopmode) · [FoliumQueueChange](#foliumqueuechange) · [FoliumPlaybackFailureReason](#foliumplaybackfailurereason) · [FoliumAccountState](#foliumaccountstate) · [FoliumEqualizerState](#foliumequalizerstate) · [FoliumEqualizerChangeOrigin](#foliumequalizerchangeorigin) · [FoliumLyricRenderQuality](#foliumlyricrenderquality) · [FoliumRenderQualityChangeOrigin](#foliumrenderqualitychangeorigin) · [FoliumVisualizerTuning](#foliumvisualizertuning) · [FoliumBeatEffectsState](#foliumbeateffectsstate) · [FoliumAnimationIntensity](#foliumanimationintensity)
+相关：[FoliumSong](#foliumsong) · [FoliumPlaybackState](#foliumplaybackstate) · [FoliumLine](#foliumline) · [FoliumVisualizerChangeOrigin](#foliumvisualizerchangeorigin) · [FoliumTheme](#foliumtheme) · [FoliumThemeOverride](#foliumthemeoverride) · [FoliumThemeOverrideChangeOrigin](#foliumthemeoverridechangeorigin) · [FoliumLoopMode](#foliumloopmode) · [FoliumQueueChange](#foliumqueuechange) · [FoliumPlaybackFailureReason](#foliumplaybackfailurereason) · [FoliumAccountState](#foliumaccountstate) · [FoliumEqualizerState](#foliumequalizerstate) · [FoliumEqualizerChangeOrigin](#foliumequalizerchangeorigin) · [FoliumLyricRenderQuality](#foliumlyricrenderquality) · [FoliumRenderQualityChangeOrigin](#foliumrenderqualitychangeorigin) · [FoliumVisualizerTuning](#foliumvisualizertuning) · [FoliumBeatEffectsState](#foliumbeateffectsstate) · [FoliumAnimationIntensity](#foliumanimationintensity)
 
 ### FoliumLyricsTransformEvent
 
@@ -887,7 +890,7 @@ The event bus, as `folium.events`.
 
 ## 服务
 
-`folium.playback` / `folium.ui` / `folium.net`，以及 Folium 1.7 的登录状态 `folium.account` 和经 Omni 只读在线音源的 `folium.omni`（两者都不需要权限；`folium.omni` 以用户在 Folia 登录的平台账号发请求），以及宿主均衡器 `folium.equalizer`（读不需要权限，写需 `equalizer.control`）；Folium 1.8 加了歌词显示设置 `folium.visualizer`：歌词画布渲染质量、歌词动画模式、内置模式的样式参数与智能动感效果（读不需要权限，写分别需 `visualizer.renderQuality`、`visualizer.mode`、`visualizer.tuning`、`visualizer.beatEffects`）；Folium 1.9 加了返回一层的 `folium.ui.back()`，以及 `folium.visualizer` 的背景类型与动画强度（写分别需 `visualizer.background`、`visualizer.animationIntensity`）。需要权限的方法见[权限一览](#权限一览)；导出窗口里调用会抛 `*-unavailable-in-export-context`（`ui.icon` 除外）。
+`folium.playback` / `folium.ui` / `folium.net`，以及 Folium 1.7 的登录状态 `folium.account` 和经 Omni 只读在线音源的 `folium.omni`（两者都不需要权限；`folium.omni` 以用户在 Folia 登录的平台账号发请求），以及宿主均衡器 `folium.equalizer`（读不需要权限，写需 `equalizer.control`）；Folium 1.8 加了歌词显示设置 `folium.visualizer`：歌词画布渲染质量、歌词动画模式、内置模式的样式参数与智能动感效果（读不需要权限，写分别需 `visualizer.renderQuality`、`visualizer.mode`、`visualizer.tuning`、`visualizer.beatEffects`）；Folium 1.9 加了返回一层的 `folium.ui.back()`，以及 `folium.visualizer` 的背景类型与动画强度（写分别需 `visualizer.background`、`visualizer.animationIntensity`）；Folium 1.10 给 `folium.theme` 加了屏幕上的主题：读当前主题、按颜色做主题、把模组自己的主题盖在歌曲主题上（`apply`、`release` 需 `theme.write`）。需要权限的方法见[权限一览](#权限一览)；导出窗口里调用会抛 `*-unavailable-in-export-context`（`ui.icon` 除外）。
 
 ### FoliumPlaybackService
 
@@ -1756,17 +1759,134 @@ times and colors lines exactly as they do. Available in both contexts.
 
 相关：[FoliumLine](#foliumline) · [FoliumWordSegment](#foliumwordsegment) · [FoliumTheme](#foliumtheme) · [FoliumWordColorRange](#foliumwordcolorrange) · [FoliumLyricsTrack](#foliumlyricstrack) · [FoliumParsedLyrics](#foliumparsedlyrics)
 
+### FoliumThemeInput
+
+Folium 1.10: one side (light or dark) of a theme a mod hands to `folium.theme.apply`. Every field may be
+left out; one left out takes the host's default. Texts (names, descriptions, words, icons) are cut to 200
+characters. Colors are hex (`#rgb` or `#rrggbb`); any other color
+is a malformed argument. `name` defaults to the mod's name. The animation intensity, the fonts and
+`isDaylight` are not taken from it: the intensity and the fonts stay the user's, and the side says which
+mode it is for. A FoliumTheme (from `getCurrent` or `fromColors`) is accepted as it is.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `name?` | `string` | Theme name, shown where the host names the theme. |
+| `backgroundColor?` | `string` | Background color. |
+| `primaryColor?` | `string` | Color of lyric text. |
+| `accentColor?` | `string` | Color for highlights. |
+| `secondaryColor?` | `string` | Color for secondary text. |
+| `wordColors?` | `readonly { readonly word: string; readonly color: string }[]` | Keyword colors, each a word and a hex color; at most 64 are kept. |
+| `lyricsIcons?` | `readonly string[]` | Decorative icon names; at most 12 are kept. |
+| `description?` | `string` | Theme description. |
+
+### FoliumDualThemeInput
+
+Folium 1.10: a theme for both modes, as `folium.theme.apply` takes it.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `readonly light` | `FoliumThemeInput` | The side shown in light (daylight) mode. |
+| `readonly dark` | `FoliumThemeInput` | The side shown in dark mode. |
+
+相关：[FoliumThemeInput](#foliumthemeinput)
+
+### FoliumDualTheme
+
+Folium 1.10: a theme for both modes from the host, as `folium.theme.fromColors` makes it. Frozen. Each side
+is a full FoliumTheme (`isDaylight` true on `light`, false on `dark`).
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `readonly light` | `FoliumTheme` | The side for light (daylight) mode. |
+| `readonly dark` | `FoliumTheme` | The side for dark mode. |
+
+相关：[FoliumTheme](#foliumtheme)
+
+### FoliumThemeOverride
+
+Folium 1.10: whose theme is on screen, as `folium.theme.getOverride()` and `theme.overrideChanged` give it.
+Frozen.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `readonly modId` | `string \| null` | The mod whose theme is laid over the song's theme (compare it with your own `folium.modId`); null when none is. |
+| `readonly writable` | `boolean` | False while the user prefers their custom theme (the custom theme preference in the player panel): an `apply` that would change something is refused `custom-preferred` then, and `theme.overrideChanged` fires when it turns true again. Later minors may add other times it is false. The permission and the rate limit are not part of it. |
+
+### FoliumThemeOverrideChangeOrigin
+
+Folium 1.10: who changed the theme override, as `theme.overrideChanged` reports it. `user`: the user chose a
+theme themselves (a theme source, the default or their custom theme, a theme they save or edit, a theme
+they generate on request), which ends any mod's theme. `mod`: a mod, through `apply` or `release`; compare
+`modId` with your own `folium.modId`. `host`: the host itself, with nobody choosing a theme (the mod of the
+theme in place was disabled or removed, or the user's custom theme preference came on or off). Later minors
+may add kinds: read one you do not know as `user`.
+
+| 成员 | 类型 | 说明 |
+| --- | --- | --- |
+| `readonly kind` | `'user' \| 'host' \| 'mod'` | Who it was. |
+| `readonly modId` | `string \| null` | The mod, for `mod`; null for the others. |
+
+### FoliumThemeRefusal
+
+Folium 1.10: why the host did not take a `folium.theme.apply`. `stopped`: this mod has stopped.
+`custom-preferred`: the user prefers their custom theme; wait for `theme.overrideChanged` with `writable`
+true. `rate-limited`: too many writes (see FoliumThemeHelpers). When several apply, the first of these in
+this order is given. A write that would change nothing is never refused for `custom-preferred` or
+`rate-limited`. Later minors may add reasons: treat one you do not know as `rate-limited`, and try again
+later rather than in a loop.
+
+```ts
+type FoliumThemeRefusal = 'stopped' | 'custom-preferred' | 'rate-limited'
+```
+
+### FoliumThemeWriteResult
+
+Folium 1.10: the outcome of a `folium.theme.apply`; `override` is whose theme is on screen after it.
+
+```ts
+type FoliumThemeWriteResult = | { readonly ok: true; readonly override: FoliumThemeOverride } | { readonly ok: false; readonly reason: FoliumThemeRefusal }
+```
+
+相关：[FoliumThemeOverride](#foliumthemeoverride) · [FoliumThemeRefusal](#foliumthemerefusal)
+
 ### FoliumThemeHelpers
 
-Theme resolution builtin modes use. Available in both contexts.
+`folium.theme`: theme resolution builtin modes use (available in both contexts) and, Folium 1.10, the theme
+on screen: read it, make a theme from colors, and lay a theme of your own over the song's theme.
+
+A mod's theme is a layer over the song's theme, not a theme of the user's: it is not saved as the user's
+custom theme or as the song's theme, is not synced, and lasts for this run only (apply it again when your
+mod starts). It stays while songs change, over the song themes the host restores or generates on its own.
+The user comes first: any theme the user chooses themselves (a theme source in the player panel, the
+default or their custom theme, a theme they save or edit, a theme they generate on request) ends it, and
+while the user prefers their custom theme no mod's theme is shown. Follow `theme.overrideChanged`: once its
+`origin` is the user or another mod, step back; applying your theme again at once overrides the user. The
+theme ends too when its mod is disabled or removed. The host tells the user which mod took the theme over,
+and the player panel offers to take it off.
+
+Every `apply` that changes something counts: currently one a second and 20 a minute per mod; past that it
+is refused `rate-limited`. An `apply` that changes nothing (the same theme from the same mod) is accepted,
+does not count and is never refused `custom-preferred` or `rate-limited`. Apply what you settled on, not
+every step of a fade.
+
+`getCurrent`, `getOverride`, `apply` and `release` are main window only: in the export window they throw an
+Error whose message is `theme-unavailable-in-export-context`. `apply` and `release` need `theme.write`, and
+throw `permission-denied:theme.write` without it. Malformed arguments throw a TypeError
+(`invalid-arguments: …`). An older host has none of the Folium 1.10 members: check
+`folium.host.folium.minor >= 10` first.
 
 | 成员 | 类型 | 说明 |
 | --- | --- | --- |
 | `resolveFontStack()` | `(theme: Pick<FoliumTheme, 'fontStyle' \| 'fontFamily' \| 'fontFamilyStack'>): string` | CSS font-family value for lyric text. |
 | `resolveTranslationFontStack()` | `(theme: Pick<FoliumTheme, 'fontStyle' \| 'fontFamily' \| 'fontFamilyStack'>): string` | CSS font-family value for translations and subtitles. |
 | `resolveFontWeight()` | `(theme: Pick<FoliumTheme, 'fontWeight'> \| null \| undefined, fallback: number): number` | The theme's weight, normalized, or `fallback`. |
+| `getCurrent()` | `(): FoliumTheme` | Folium 1.10: the theme on screen now, in the app's current mode, as `theme.changed` gives it. A mount reads the same from its context; this is for code with no mount. Before the first screen (while `activate` runs) it is the host's default dark theme: follow `theme.changed` for the real one. Main window only. |
+| `getOverride()` | `(): FoliumThemeOverride` | Folium 1.10: whose theme is on screen, and whether `apply` may change it now. Main window only. |
+| `fromColors()` | `(colors: readonly string[]): FoliumDualTheme` | Folium 1.10: a theme for both modes from 1 to 8 hex colors, the most prominent first, made the way the host makes a theme from a song's cover (the cover theme source): hues kept close to the ones given, text pushed to a readable contrast. Hand it to `apply` as it is, or change it first. The name and description are picked at random from the host's tables, so two calls may name the same colors differently. Pure: available in both contexts, needs no permission. |
+| `apply()` | `(theme: FoliumDualThemeInput): FoliumThemeWriteResult` | Folium 1.10: lays this mod's theme over the song's theme: the light side in light mode, the dark side in dark mode. Replaces this mod's theme in place, or another mod's. It stays until the user chooses a theme, another mod applies one, this mod releases it, or this mod is disabled or removed. Needs `theme.write`. |
+| `release()` | `(): boolean` | Folium 1.10: takes this mod's theme off; the song's theme shows again. True when this mod's theme was on screen; false otherwise, and nothing changes. Never refused for the rate or the custom theme preference. Needs `theme.write`. |
 
-相关：[FoliumTheme](#foliumtheme)
+相关：[FoliumTheme](#foliumtheme) · [FoliumThemeOverride](#foliumthemeoverride) · [FoliumDualTheme](#foliumdualtheme) · [FoliumDualThemeInput](#foliumdualthemeinput) · [FoliumThemeWriteResult](#foliumthemewriteresult)
 
 ## 设置 schema
 
@@ -2619,7 +2739,7 @@ What `api.render.exportVideo` resolves to.
 The Folium version this host implements; mods read it at runtime as `folium.host.folium`.
 
 ```ts
-const FOLIUM_VERSION = Object.freeze({ major: 1, minor: 9 })
+const FOLIUM_VERSION = Object.freeze({ major: 1, minor: 10 })
 ```
 
 ### FoliumId

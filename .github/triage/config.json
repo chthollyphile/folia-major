@@ -6,6 +6,7 @@
   "labels": {
     "managed": {
       "needs-info": { "color": "fbca04", "description": "等待提交者补充信息" },
+      "needs-rewrite": { "color": "fbca04", "description": "需求太分散，等待提交者拆分或改写，到期未改自动关闭" },
       "stale": { "color": "eeeeee", "description": "长期无活动" },
       "provider-request": { "color": "5319e7", "description": "请求支持新的音乐平台或音源" },
       "bot: skip": { "color": "ededed", "description": "triage bot 跳过此条目" },
@@ -36,10 +37,10 @@
     "botMayAdd": [
       "bug", "enhancement", "question", "documentation", "duplicate", "invalid", "out of scope",
       "breaking-change", "scope too large", "需要他人协助",
-      "needs-info", "stale", "provider-request", "unofficial build", "self-hosted", "deployment config",
+      "needs-info", "needs-rewrite", "stale", "provider-request", "unofficial build", "self-hosted", "deployment config",
       "bot: auto-closed", "bot: rate-limited", "module: *", "type: *"
     ],
-    "botMayRemove": ["needs-info", "stale", "bot: rate-limited"]
+    "botMayRemove": ["needs-info", "needs-rewrite", "stale", "bot: rate-limited"]
   },
   "modules": {
     "lattice": "Lattice 封面墙（Bravais 墙面）：以拼贴形式展示播放队列、海报歌词、聚焦当前歌曲、墙面的拖动、缩放、滚动与布局、墙面工具浮岛",
@@ -125,6 +126,13 @@
     "scopeTooLarge": { "changedLines": 3000, "changedFiles": 40 },
     "ignoreFilesForSize": ["**/package-lock.json", "package-lock.json", "docs/CODEMAP.md", "**/*.snap", "**/__screenshots__/**"],
     "exemptAuthors": ["app/allcontributors", "allcontributors[bot]", "dependabot[bot]"]
+  },
+  "wishlist": {
+    "confidence": 0.9,
+    "minListItems": 8,
+    "minSections": 4,
+    "graceDays": 7,
+    "exemptAssociations": ["CONTRIBUTOR"]
   },
   "stale": {
     "needsInfoDays": 14,

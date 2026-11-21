@@ -8787,7 +8787,7 @@
   },
   "src/services/analysis/trackStemRun.ts": {
     "@typescript-eslint/no-non-null-assertion": {
-      "count": 5
+      "count": 4
     },
     "@typescript-eslint/no-unnecessary-type-assertion": {
       "count": 1
@@ -9168,7 +9168,7 @@
       "count": 6
     },
     "@typescript-eslint/no-unnecessary-condition": {
-      "count": 11
+      "count": 10
     },
     "@typescript-eslint/no-unsafe-call": {
       "count": 1
@@ -9191,9 +9191,6 @@
   },
   "src/services/localPlaylistService.ts": {
     "@typescript-eslint/consistent-type-imports": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unnecessary-condition": {
       "count": 1
     },
     "@typescript-eslint/no-unnecessary-type-assertion": {
@@ -12186,11 +12183,6 @@
     }
   },
   "test/unit/analysis/stemPass.test.ts": {
-    "@typescript-eslint/consistent-type-imports": {
-      "count": 2
-    }
-  },
-  "test/unit/analysis/trackStemRun.test.ts": {
     "@typescript-eslint/consistent-type-imports": {
       "count": 2
     }

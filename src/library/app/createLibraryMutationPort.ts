@@ -1,5 +1,5 @@
 import type { TFunction } from 'i18next';
-import type { UnifiedSong } from '../../types';
+import type { LocalPlaylist, UnifiedSong } from '../../types';
 import type { LocalGridViewCollectionDescriptor } from '../core/collection/collection.contract';
 import type { LibraryMutationPort, LibraryPlaylistOption } from '../core/shared/ports.contract';
 import { deleteFolderSongs, resyncAllFolders, resyncFolder } from '../../services/localMusicService';
@@ -15,7 +15,7 @@ import { localCollectionCovers } from '../core/collection/cover/localCollectionC
 
 // src/library/app/createLibraryMutationPort.ts
 // 把首页 surface 上的来源动作装配成 Library Core 的变更端口：本地曲库与 Navidrome 的读写、
-// 宿主挂载的四个对话框（实体编辑、整理、匹配、集合封面）、账户刷新与应用内通知。实现原样搬自 GridViewOverlayHost 的 sourceActions，
+// 宿主挂载的对话框（实体编辑、整理、匹配、集合封面、歌单排序）、账户刷新与应用内通知。实现原样搬自 GridViewOverlayHost 的 sourceActions，
 // 行为不变；在线集合的变更不在这里（控制器经由 omni 完成）。
 
 type MutationSurface = Pick<
@@ -28,6 +28,7 @@ type MutationSurface = Pick<
 >;
 
 export type LibraryMutationPortDialogs = {
+    reorderPlaylist: (playlist: LocalPlaylist) => void;
     editEntity: (entityId: string) => void;
     editCover: (collection: LocalGridViewCollectionDescriptor) => void;
     organizeFolder: (collection: LocalGridViewCollectionDescriptor) => void;
@@ -90,6 +91,10 @@ export const createLibraryMutationPort = ({
                 ));
             }
             surface.onRefreshLocalSongs();
+        },
+        reorderPlaylist: (playlistId) => {
+            const playlist = surface.localPlaylists.find(item => item.id === playlistId);
+            if (playlist && !playlist.isFavorite) dialogs.reorderPlaylist(playlist);
         },
         exportPlaylist: async (playlistId) => {
             const playlist = surface.localPlaylists.find(item => item.id === playlistId);

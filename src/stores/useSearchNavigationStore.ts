@@ -9,6 +9,11 @@ import {
     type LocalLibraryDisplayCatalog,
 } from '../services/playbackAdapters';
 import { omni } from '../services/onlineMusic/omni';
+import type { SubsonicAlbum, SubsonicPlaylist } from '../types/navidrome';
+import type {
+    LocalGridViewCollectionDescriptor,
+    NavidromeGridViewCollectionDescriptor,
+} from '../library/core/collection/collection.contract';
 import { isLocalPlaybackSong, isNavidromePlaybackSong } from '../utils/appPlaybackGuards';
 import { sanitizeSearchHistory, withSearchHistoryQuery, withoutSearchHistoryQuery } from '../utils/searchHistory';
 import { getStoredString, setStoredString } from './storagePrimitives';
@@ -19,20 +24,46 @@ const SEARCH_HISTORY_KEY = 'folia_search_history_v1';
 const DEFAULT_SEARCH_LIMIT = 30;
 export type SearchSource = OnlineProviderId | 'local' | 'navidrome';
 export type SearchReturnView = 'home' | 'player';
-/** 搜什么：单曲、专辑或歌单。专辑和歌单只有在线平台搜得到（omni.getProviderSearchKinds），本地与 Navidrome 只搜单曲。 */
+/** 搜什么：单曲、专辑或歌单。在线平台搜得到几种问 omni.getProviderSearchKinds，本地与 Navidrome 三种都有。 */
 export type SearchKind = OmniSearchKind;
 
-type SearchExecutorDeps = {
+/**
+ * 专辑、歌单搜索的一条结果：在线平台的是 omni 的集合（打开时再转成集合描述）；本地与 Navidrome 的
+ * 直接就是集合描述（带 source），打开时原样交给集合导航。
+ */
+export type SearchCollectionResult =
+    | OmniCollection
+    | LocalGridViewCollectionDescriptor
+    | NavidromeGridViewCollectionDescriptor;
+
+/** 这条结果是不是本地或 Navidrome 的集合描述（在线平台的 omni 集合没有 source）。 */
+export const isLibrarySearchCollection = (
+    collection: SearchCollectionResult,
+): collection is LocalGridViewCollectionDescriptor | NavidromeGridViewCollectionDescriptor => 'source' in collection;
+
+export type SearchExecutorDeps = {
     localSongs: LocalSong[];
     localLibraryCatalog?: LocalLibraryDisplayCatalog;
     t: (key: string, fallback?: string) => string;
+};
+
+/** 读本地曲库的专辑或歌单（与首页本地页签同一套分组）。 */
+export type LocalSearchCollectionsReader = (kind: 'album' | 'playlist') => LocalGridViewCollectionDescriptor[];
+
+// 搜本地专辑、歌单时从哪读：由应用登记（usePlaybackQueueController），而不是放进每次的 deps——
+// 首页、命令面板、搜索页各自拼 deps，放进 deps 就得每个入口都记得带上。没登记时搜不到。
+let localSearchCollectionsReader: LocalSearchCollectionsReader | null = null;
+
+/** 登记（或用 null 撤下）本地专辑、歌单的读取函数。 */
+export const setLocalSearchCollectionsReader = (reader: LocalSearchCollectionsReader | null) => {
+    localSearchCollectionsReader = reader;
 };
 
 type SearchExecutionResult = {
     /** 单曲搜索的结果；搜专辑、歌单时是空的。 */
     results: UnifiedSong[];
     /** 专辑、歌单搜索的结果；搜单曲时是空的。 */
-    collections: OmniCollection[];
+    collections: SearchCollectionResult[];
     hasMore: boolean;
     nextOffset: number;
     total?: number;
@@ -40,7 +71,7 @@ type SearchExecutionResult = {
 
 type SearchCacheEntry = {
     results: UnifiedSong[];
-    collections: OmniCollection[];
+    collections: SearchCollectionResult[];
     offset: number;
     hasMore: boolean;
     total: number | null;
@@ -56,7 +87,7 @@ interface SearchNavigationState {
     searchKind: SearchKind;
     searchResults: UnifiedSong[] | null;
     /** 搜专辑、歌单时的结果（searchKind 不是 'song'）；还没搜过是 null。 */
-    collectionResults: OmniCollection[] | null;
+    collectionResults: SearchCollectionResult[] | null;
     /** 平台说一共有多少条；没说是 null。 */
     resultTotal: number | null;
     searchReturnView: SearchReturnView;
@@ -96,9 +127,9 @@ const getSearchCacheKey = (query: string, sourceTab: SearchSource, kind: SearchK
     `${sourceTab}:${kind}:${query.trim().toLowerCase()}`
 );
 
-/** 这个来源能搜的种类：在线平台问 omni，本地与 Navidrome 只有单曲。单曲总在第一个。 */
+/** 这个来源能搜的种类：在线平台问 omni，本地与 Navidrome 单曲、专辑、歌单都有。单曲总在第一个。 */
 export const getSearchKinds = (sourceTab: SearchSource): SearchKind[] => {
-    if (sourceTab === 'local' || sourceTab === 'navidrome') return ['song'];
+    if (sourceTab === 'local' || sourceTab === 'navidrome') return ['song', 'album', 'playlist'];
     const kinds = omni.getProviderSearchKinds(sourceTab);
     return kinds.includes('song') ? kinds : ['song', ...kinds];
 };
@@ -137,40 +168,48 @@ const mapLocalSongToUnifiedSong = (
         preferOnlineMetadata: false,
     }), catalog);
 
+// 本地曲库一次全筛完（总数就有了），但和在线一样一页一页交出去：只给这一页做展示映射，翻页从 offset 接着切。
 const searchLocalSongs = (
     deps: SearchExecutorDeps,
     query: string,
+    limit: number,
+    offset: number,
 ): SearchExecutionResult => {
     const lowerQuery = query.toLowerCase();
-    const results = deps.localSongs
-        .filter(song => {
-            const title = song.title.toLowerCase();
-            const artist = [
-                ...song.importedMetadata.artistNames,
-                ...song.onlineMetadata?.artists.map(item => item.name) || [],
-            ].join(' ').toLowerCase();
-            const album = [song.importedMetadata.albumName, song.onlineMetadata?.album?.name]
-                .filter(Boolean).join(' ').toLowerCase();
-            return title.includes(lowerQuery) || artist.includes(lowerQuery) || album.includes(lowerQuery);
-        })
+    const matches = deps.localSongs.filter(song => {
+        const title = song.title.toLowerCase();
+        const artist = [
+            ...song.importedMetadata.artistNames,
+            ...song.onlineMetadata?.artists.map(item => item.name) || [],
+        ].join(' ').toLowerCase();
+        const album = [song.importedMetadata.albumName, song.onlineMetadata?.album?.name]
+            .filter(Boolean).join(' ').toLowerCase();
+        return title.includes(lowerQuery) || artist.includes(lowerQuery) || album.includes(lowerQuery);
+    });
+    const nextOffset = Math.min(offset + limit, matches.length);
+    const results = matches
+        .slice(offset, nextOffset)
         .map(song => mapLocalSongToUnifiedSong(song, deps.localLibraryCatalog));
 
     return {
         results,
         collections: [],
-        hasMore: false,
-        nextOffset: results.length,
+        hasMore: nextOffset < matches.length,
+        nextOffset,
+        total: matches.length,
     };
 };
 
-const searchNavidromeSongs = async (query: string): Promise<SearchExecutionResult> => {
+// Navidrome 的 search3 用 songCount / songOffset 分页、不答总数：这一页装满了就当后面还有。
+const searchNavidromeSongs = async (query: string, limit: number, offset: number): Promise<SearchExecutionResult> => {
     const config = getNavidromeConfig();
     if (!config) {
-        return { results: [], collections: [], hasMore: false, nextOffset: 0 };
+        return { results: [], collections: [], hasMore: false, nextOffset: offset };
     }
 
-    const response = await navidromeApi.search(config, query, 0, 0, DEFAULT_SEARCH_LIMIT);
-    const results = (response.song || []).map(song => {
+    const response = await navidromeApi.search(config, query, 0, 0, limit, offset);
+    const songs = response.song || [];
+    const results = songs.map(song => {
         const navidromeSong = navidromeApi.toNavidromeSong(config, song);
         return navidromeSong as UnifiedSong;
     });
@@ -178,8 +217,109 @@ const searchNavidromeSongs = async (query: string): Promise<SearchExecutionResul
     return {
         results,
         collections: [],
-        hasMore: false,
-        nextOffset: results.length,
+        hasMore: songs.length >= limit,
+        nextOffset: offset + songs.length,
+    };
+};
+
+/** 一组已经在手里的结果按 offset / limit 切出一页（本地的分组与 Navidrome 的歌单是整份读来的）。 */
+const pageOf = <T,>(items: readonly T[], limit: number, offset: number) => {
+    const nextOffset = Math.min(offset + limit, items.length);
+    return { page: items.slice(offset, nextOffset), nextOffset, hasMore: nextOffset < items.length, total: items.length };
+};
+
+const nameMatches = (lowerQuery: string, names: Array<string | undefined>) => (
+    names.some(name => name?.toLowerCase().includes(lowerQuery))
+);
+
+// 本地专辑、歌单：从首页本地页签的那套分组里按名字（专辑也按专辑歌手）筛，再切页。
+const searchLocalCollections = (
+    kind: Exclude<SearchKind, 'song'>,
+    query: string,
+    limit: number,
+    offset: number,
+): SearchExecutionResult => {
+    const lowerQuery = query.toLowerCase();
+    const matches = (localSearchCollectionsReader?.(kind) ?? []).filter(collection => nameMatches(
+        lowerQuery,
+        [collection.name, ...(collection.artists ?? []).map(artist => artist.name)],
+    ));
+    const { page, nextOffset, hasMore, total } = pageOf(matches, limit, offset);
+    return { results: [], collections: page, hasMore, nextOffset, total };
+};
+
+const toNavidromeAlbumCollection = (
+    album: SubsonicAlbum,
+    coverArtUrl: (coverArtId: string) => string,
+): NavidromeGridViewCollectionDescriptor => ({
+    source: 'navidrome',
+    type: 'album',
+    id: album.id,
+    name: album.name,
+    coverUrl: album.coverArt ? coverArtUrl(album.coverArt) : undefined,
+    description: album.artist,
+    trackCount: album.songCount,
+    artists: album.artists?.length
+        ? album.artists.map(artist => ({ id: artist.id, name: artist.name }))
+        : album.artist ? [{ id: album.artistId, name: album.artist }] : undefined,
+    albumArtist: album.artist,
+    albumYear: album.year,
+    albumGenre: album.genre,
+    albumDuration: album.duration,
+    publishedAt: album.year ? new Date(album.year, 0, 1).getTime() : undefined,
+    editable: false,
+});
+
+const toNavidromePlaylistCollection = (
+    playlist: SubsonicPlaylist,
+    coverArtUrl: (coverArtId: string) => string,
+): NavidromeGridViewCollectionDescriptor => ({
+    source: 'navidrome',
+    type: 'playlist',
+    id: playlist.id,
+    name: playlist.name,
+    coverUrl: playlist.coverArt ? coverArtUrl(playlist.coverArt) : undefined,
+    description: playlist.comment || playlist.owner,
+    trackCount: playlist.songCount,
+    creator: playlist.owner ? { id: playlist.owner, nickname: playlist.owner } : undefined,
+    editable: true,
+});
+
+// Navidrome 专辑走 search3 的 albumCount / albumOffset（不答总数，这一页装满就当还有）；
+// search3 不搜歌单：歌单整份读来按名字筛，再切页。
+const searchNavidromeCollections = async (
+    kind: Exclude<SearchKind, 'song'>,
+    query: string,
+    limit: number,
+    offset: number,
+): Promise<SearchExecutionResult> => {
+    const config = getNavidromeConfig();
+    if (!config) {
+        return { results: [], collections: [], hasMore: false, nextOffset: offset };
+    }
+    const coverArtUrl = (coverArtId: string) => navidromeApi.getCoverArtUrl(config, coverArtId, 300);
+
+    if (kind === 'album') {
+        const response = await navidromeApi.search(config, query, 0, limit, 0, 0, offset);
+        const albums = response.album || [];
+        return {
+            results: [],
+            collections: albums.map(album => toNavidromeAlbumCollection(album, coverArtUrl)),
+            hasMore: albums.length >= limit,
+            nextOffset: offset + albums.length,
+        };
+    }
+
+    const lowerQuery = query.toLowerCase();
+    const playlists = (await navidromeApi.getPlaylists(config))
+        .filter(playlist => nameMatches(lowerQuery, [playlist.name, playlist.comment]));
+    const { page, nextOffset, hasMore, total } = pageOf(playlists, limit, offset);
+    return {
+        results: [],
+        collections: page.map(playlist => toNavidromePlaylistCollection(playlist, coverArtUrl)),
+        hasMore,
+        nextOffset,
+        total,
     };
 };
 
@@ -217,11 +357,15 @@ const executeSearch = async (
     deps: SearchExecutorDeps
 ): Promise<SearchExecutionResult> => {
     if (sourceTab === 'local') {
-        return searchLocalSongs(deps, query);
+        return kind === 'song'
+            ? searchLocalSongs(deps, query, limit, offset)
+            : searchLocalCollections(kind, query, limit, offset);
     }
 
     if (sourceTab === 'navidrome') {
-        return searchNavidromeSongs(query);
+        return kind === 'song'
+            ? searchNavidromeSongs(query, limit, offset)
+            : searchNavidromeCollections(kind, query, limit, offset);
     }
 
     return kind === 'song'
@@ -449,9 +593,7 @@ export const useSearchNavigationStore = create<SearchNavigationState>((set, get)
         } = get();
 
         if (
-            searchSourceTab === 'local'
-            || searchSourceTab === 'navidrome'
-            || !hasMore
+            !hasMore
             || isSearching
             || isLoadingMore
             || !searchQuery.trim()
@@ -471,11 +613,15 @@ export const useSearchNavigationStore = create<SearchNavigationState>((set, get)
                 const results = [...(searchResults || []), ...result.results];
                 const collections = [...(collectionResults || []), ...result.collections];
                 const total = totalOf(result) ?? state.resultTotal;
+                // 平台说还有、这一页却是空的（或游标没往前走）：当作到头了。滚到底会自动接着要，
+                // 不在这里停下，就会对着同一个 offset 一直要下去。
+                const advanced = result.results.length + result.collections.length > 0 && result.nextOffset > offset;
+                const hasMore = result.hasMore && advanced;
                 return {
                     searchResults: results,
                     collectionResults: collections,
                     resultTotal: total,
-                    hasMore: result.hasMore,
+                    hasMore,
                     offset: result.nextOffset,
                     isLoadingMore: false,
                     searchCache: {
@@ -483,7 +629,7 @@ export const useSearchNavigationStore = create<SearchNavigationState>((set, get)
                         [getSearchCacheKey(searchQuery, searchSourceTab, searchKind)]: {
                             results,
                             collections,
-                            hasMore: result.hasMore,
+                            hasMore,
                             offset: result.nextOffset,
                             total,
                             scrollTop: state.scrollTop,

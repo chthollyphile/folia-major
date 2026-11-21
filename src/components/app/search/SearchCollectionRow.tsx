@@ -1,17 +1,17 @@
 import React from 'react';
 import { ArrowUpRight, Disc, ListMusic } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import type { OmniCollection } from '../../../types/onlineMusic';
+import type { SearchCollectionResult } from '../../../stores/useSearchNavigationStore';
 import { getSizedCoverUrl } from '../../../utils/coverUrl';
 
 // src/components/app/search/SearchCollectionRow.tsx
 // 搜索结果里的一张专辑或一个歌单：整行是一个按钮，点开集合页。专辑封面后面藏着一张唱片，歌单封面后面错开一层色块（search.css）。
 
 type SearchCollectionRowProps = {
-    collection: OmniCollection;
+    collection: SearchCollectionResult;
     index: number;
     style: React.CSSProperties;
-    onOpenCollection: (collection: OmniCollection) => void;
+    onOpenCollection: (collection: SearchCollectionResult) => void;
 };
 
 const yearOf = (publishedAt?: number) => {

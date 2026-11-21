@@ -1,6 +1,6 @@
 import { LocalSong, LyricData, LocalLibrarySnapshot, LocalLibrarySnapshotFile, LocalLibrarySnapshotNode, type SongResult } from '../types';
 import { saveLocalSong, saveLocalSongs, deleteLocalSong as dbDeleteLocalSong, deleteLocalSongs as dbDeleteLocalSongs, saveDirHandles, getDirHandles, deleteDirHandle, getLocalSongs, getLocalLibrarySnapshot, saveLocalLibrarySnapshot, deleteLocalLibrarySnapshot } from './db';
-import { getLocalPlaylists, saveLocalPlaylists } from './localPlaylistService';
+import { removeDeletedSongIdsFromPlaylists } from './localPlaylistService';
 import { parseEmbeddedMetadataAsync, type EmbeddedMetadataResult } from '../utils/localMetadataWorkerClient';
 import { autoMatchBestLyric } from '../utils/lyrics/autoMatchBestLyric';
 import { normalizeLyricMatchText } from '../utils/lyrics/matchScore';
@@ -121,29 +121,12 @@ function notifyLocalMusicUpdated() {
     window.dispatchEvent(new CustomEvent(LOCAL_MUSIC_UPDATED_EVENT));
 }
 
-async function removeDeletedSongIdsFromPlaylists(songIds: string[]): Promise<void> {
-    if (songIds.length === 0) {
-        return;
-    }
-
-    const removingIds = new Set(songIds);
-    const playlists = await getLocalPlaylists();
-    let changed = false;
-    const nextPlaylists = playlists.map(playlist => {
-        const nextSongIds = playlist.songIds.filter(songId => !removingIds.has(songId));
-        if (nextSongIds.length === playlist.songIds.length) {
-            return playlist;
-        }
-
-        changed = true;
-        return {
-            ...playlist,
-            songIds: nextSongIds,
-        };
-    });
-
-    if (changed) {
-        await saveLocalPlaylists(nextPlaylists);
+// 歌曲已经删了，歌单里的残留 id 下次读歌单时也会被修掉：清理失败只记一行，不打断后面的收尾。
+async function dropDeletedSongsFromPlaylists(songIds: string[]): Promise<void> {
+    try {
+        await removeDeletedSongIdsFromPlaylists(songIds);
+    } catch (error) {
+        console.warn('[LocalMusic] Could not remove deleted songs from playlists', error);
     }
 }
 
@@ -1777,7 +1760,7 @@ export async function deleteSongsByIds(songIds: string[]): Promise<void> {
         dbDeleteLocalSongs(uniqueSongIds),
         ...uniqueSongIds.map(id => removeCachedCover(`cover_local_${id}`)),
     ]);
-    await removeDeletedSongIdsFromPlaylists(uniqueSongIds);
+    await dropDeletedSongsFromPlaylists(uniqueSongIds);
     await Promise.all(Array.from(affectedRoots).map(cleanupDirHandleIfUnused));
     notifyLocalMusicUpdated();
     console.log(`[LocalMusic] Deleted ${uniqueSongIds.length} songs by ID`);
@@ -1890,7 +1873,7 @@ async function deleteFolderContents(folderName: string): Promise<void> {
         dbDeleteLocalSongs(songIdsToDelete),
         ...songIdsToDelete.map(id => removeCachedCover(`cover_local_${id}`)),
     ]);
-    await removeDeletedSongIdsFromPlaylists(songIdsToDelete);
+    await dropDeletedSongsFromPlaylists(songIdsToDelete);
 
     notifyLocalMusicUpdated();
     console.log(`[LocalMusic] Deleted ${songsToDelete.length} songs from folder tree: ${folderName}`);

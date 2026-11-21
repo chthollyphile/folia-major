@@ -102,7 +102,8 @@ export async function runIssueTriage({ gh, llmClient, config, prompts, templateL
     const isMaintainer = isMaintainerAssociation(config, issue.authorAssociation);
     let wantLlm = !facts.qr && !issue.labels.includes('announcement') && !(isMaintainer && hasModuleLabel);
     if (trigger === 'author-comment') wantLlm = false;
-    if (trigger === 'edited') wantLlm = wantLlm && needsTldr && previous?.bodyHash !== bodyHash;
+    // 编辑后正文变了：要更新 TL;DR，或者之前请作者拆分改写过（看改完还算不算「愿望清单」），才重新分类。
+    if (trigger === 'edited') wantLlm = wantLlm && (needsTldr || Boolean(previous?.rewrite?.askedAt)) && previous?.bodyHash !== bodyHash;
 
     let llm = { status: 'skipped' };
     let breaker = null;

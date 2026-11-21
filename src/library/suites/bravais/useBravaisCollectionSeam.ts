@@ -1,6 +1,6 @@
 import { useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { FileDown, FolderSync, IdCard, ImagePlus, ListMusic, NotebookPen, PencilLine, WandSparkles } from 'lucide-react';
+import { FileDown, FolderSync, IdCard, ImagePlus, ListMusic, ListOrdered, NotebookPen, PencilLine, WandSparkles } from 'lucide-react';
 import type { SongResult, UnifiedSong } from '../../../types';
 import type { LibraryActionId, LibraryCollectionSurfaceProps } from '../../core/suite/suite.contract';
 import type { CollectionMutationController, CollectionMutationSnapshot, LibraryMutationResult } from '../../core/collection/mutations/mutations.contract';
@@ -146,6 +146,7 @@ export const useBravaisCollectionSeam = (input: BravaisCollectionSeamInput) => {
         if (offers('resync-folder')) items.push({ ...quick('resync-folder', FolderSync), label: t('localMusic.reimport'), disabled: pending, run: runMutation(c => c.resyncFolder()) });
         if (offers('resync-all-folders')) items.push({ ...quick('resync-all-folders', FolderSync), label: t('localMusic.reimport'), disabled: pending, run: runMutation(c => c.resyncAllFolders()) });
         if (offers('organize-song-info')) items.push({ ...quick('organize-song-info', WandSparkles), label: t('localMusic.organizeSongInfo'), run: runMutation(c => c.organizeSongInfo()) });
+        if (offers('reorder-playlist')) items.push({ ...quick('reorder-playlist', ListOrdered), label: t('localPlaylistOrder.edit'), run: runMutation(c => c.reorderPlaylist()) });
         if (offers('export-playlist')) items.push({ ...quick('export-playlist', FileDown), label: t('localMusic.exportPlaylist'), disabled: pending, run: runMutation(c => c.exportPlaylist()) });
         if (offers('edit-entity')) {
             items.push({

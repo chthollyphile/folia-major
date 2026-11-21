@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import 'fake-indexeddb/auto';
 import { describe, expect, it, vi } from 'vitest';
 
 // test/unit/player-panel/localFavoriteHeart.test.ts
@@ -40,6 +41,7 @@ import { createRoot } from 'react-dom/client';
 import { useLibraryPlaybackController } from '@/components/app/playback/start/useLibraryPlaybackController';
 import { usePlayerPanelModel } from '@/components/app/player-panel/usePlayerPanelModel';
 import { usePlaybackStore } from '@/stores/usePlaybackStore';
+import { appDatabase } from '@/services/appDatabase';
 import type { LocalSong, SongResult } from '@/types';
 
 const localSongRecord = (id: string, filePath: string, addedAt: number): LocalSong => ({
@@ -74,6 +76,10 @@ describe('local favorite heart', () => {
         (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
         env.cache = new Map();
         env.songs = [canonicalSong, duplicateSong];
+        // 歌单服务在自己的事务里直接读曲库表和缓存表，不经过上面 mock 的 db 模块。
+        await appDatabase.delete();
+        await appDatabase.open();
+        await appDatabase.local_music.bulkPut([canonicalSong, duplicateSong]);
         usePlaybackStore.setState({ currentSong: playingDuplicate } as never);
 
         const likedStates: boolean[] = [];

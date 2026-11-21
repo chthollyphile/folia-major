@@ -1,15 +1,17 @@
 import React from 'react';
-import { Palette } from 'lucide-react';
+import { Palette, Puzzle, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { Theme, ThemeMode } from '../../../types';
 import type { ThemeSourceModel } from '../../../hooks/themeControllerState';
 import { useThemeQuickEditorStore } from '../../../stores/useThemeQuickEditorStore';
+import { endThemeOverrideForUserChoice, useThemeOverrideStore } from '../../../stores/useThemeOverrideStore';
 import { PanelIconButton } from '../shell/PanelIconButton';
 import { Segments } from '../shell/Segments';
 
 // src/components/panelTab/controls/ThemeSourceRow.tsx
 // 主题来源选择（默认 / AI / 自定义），旁边是快速编辑当前主题的按钮。
 // 自定义主题不可用时保留占位而不是整格消失，避免这一行的宽度跳变。
+// 模组经 folium.theme.apply 盖上主题时（Folium 1.10），下面多一行说明是哪个模组，并给一个撤下的键。
 
 interface ThemeSourceRowProps {
     themeSourceModel: ThemeSourceModel;
@@ -41,8 +43,9 @@ const ThemeSourceRow: React.FC<ThemeSourceRowProps> = ({
     const aiThemeSource = themeSourceModel.options.ai;
     const customThemeSource = themeSourceModel.options.custom;
     const editableSource = themeSourceModel.editableSource;
+    const themeOverride = useThemeOverrideStore(state => (state.customPreferred ? null : state.override));
 
-    return (
+    const row = (
         <div className="flex min-h-12 items-center gap-2">
             <Segments<ThemeMode>
                 fill
@@ -84,6 +87,27 @@ const ThemeSourceRow: React.FC<ThemeSourceRowProps> = ({
             >
                 <Palette size={15} />
             </PanelIconButton>
+        </div>
+    );
+
+    if (!themeOverride) return row;
+
+    return (
+        <div className="flex flex-col gap-1">
+            {row}
+            <div className="flex min-h-8 items-center gap-2 px-1 text-xs text-[color:var(--st-t2)]">
+                <Puzzle size={13} className="shrink-0" />
+                <span className="min-w-0 flex-1 truncate">
+                    {t('ui.themeModOverride', { mod: themeOverride.modName })}
+                </span>
+                <PanelIconButton
+                    size="s"
+                    label={t('ui.themeModOverrideRelease')}
+                    onClick={endThemeOverrideForUserChoice}
+                >
+                    <X size={13} />
+                </PanelIconButton>
+            </div>
         </div>
     );
 };

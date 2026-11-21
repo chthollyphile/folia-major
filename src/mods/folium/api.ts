@@ -31,7 +31,7 @@ import { addFoliumEventHandler } from './events';
 import { bindFoliumStageRegistry } from './registries/stageRegistry';
 import { createFoliumLyricsService, createFoliumNetService, createFoliumPlaybackService, createFoliumUiService } from './services';
 import { createFoliumSecrets, declareFoliumSecretKeys } from './secrets';
-import { FOLIUM_THEME_HELPERS } from './sharedHelpers';
+import { createFoliumThemeService } from './theme/service';
 import { FOLIUM_HOST_VERSION } from './shared';
 import { FOLIUM_EVENT_TYPES } from './eventTypes';
 import { addFoliumRpcListener, FOLIUM_RPC_NAME_PATTERN } from './rpcMessages';
@@ -313,7 +313,9 @@ export const createFoliumClientApi = (mod: ModRuntimeInfo, options: FoliumClient
         secrets: createFoliumSecrets(modId, context, onRelease),
         rpc,
         lyrics: createFoliumLyricsService(context),
-        theme: FOLIUM_THEME_HELPERS,
+        // Folium 1.10: the theme on screen and a mod's theme over it (theme/service.ts; the main window installs
+        // the source, runtime/theme/hostTheme.ts). The font helpers are there in both contexts.
+        theme: createFoliumThemeService(mod, context, stopped),
         account: createFoliumAccountService(context),
         // Folium 1.7: the host's online sources through Omni, read only (omni/service.ts; the main window
         // installs the source, runtime/omni/hostOmni.ts).

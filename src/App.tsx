@@ -75,7 +75,7 @@ import { Album, Artist, LyricData, Theme, PlayerState, SongResult, ReplayGainMod
 import type { LocalSong } from './types';
 import { getLocalSongArrayBuffer } from './services/localMusicService';
 import { registerLocalTrackFileReader } from './services/analysis/trackAudio';
-import type { MediaId, ProviderCollection } from './types/onlineMusic';
+import type { MediaId } from './types/onlineMusic';
 import { resolveSongCatalogRef } from './services/onlineMusic/catalogRefs';
 import { omni } from './services/onlineMusic/omni';
 import { consumeProgrammaticPause, playbackFade } from './services/playbackFade';
@@ -104,6 +104,7 @@ import { useHifiMediaSessionKeepAlive } from './components/hifi/useHifiMediaSess
 import { useHifiMpris } from './components/hifi/useHifiMpris';
 import { useHifiWebRouteNotice } from './components/hifi/useHifiWebRouteNotice';
 import { isHifiRoute, useHifiTrackStore } from './services/hifi/hifiPlayback';
+import { useStemMixer } from './services/stemMixer/useStemMixer';
 import { hifiEngine } from './services/hifi/hifiEngine';
 import { selectHifiEngineConfig, useHifiSettingsStore } from './stores/useHifiSettingsStore';
 import { useElectronDisplaySleepBlocker } from './hooks/useElectronDisplaySleepBlocker';
@@ -142,7 +143,7 @@ import { useStagePlaybackController } from './components/app/playback/useStagePl
 import { useSongThemeAutoGeneration } from './hooks/useSongThemeAutoGeneration';
 import { useThemeController } from './hooks/useThemeController';
 import { useOnlineSongMetadataHydration } from './hooks/useOnlineSongMetadataHydration';
-import { resolveCommandPaletteSearchSource, resolveSearchSource, useSearchNavigationStore } from './stores/useSearchNavigationStore';
+import { isLibrarySearchCollection, resolveCommandPaletteSearchSource, resolveSearchSource, type SearchCollectionResult, useSearchNavigationStore } from './stores/useSearchNavigationStore';
 import { useOnlineProviderAccountStore } from './stores/useOnlineProviderAccountStore';
 import { useShallow } from 'zustand/react/shallow';
 import { clampMediaVolume, toSafeRemoteUrl } from './utils/appPlaybackHelpers';
@@ -1032,6 +1033,7 @@ export default function App() {
         isNowPlayingStageActive,
         shouldNavigateToPlayerOnTrackChange: currentView !== 'lattice',
         localSongs,
+        localPlaylists,
         localLibraryCatalog,
         userId: user?.id,
         setLyrics,
@@ -1094,8 +1096,12 @@ export default function App() {
         }
         setStatusMsg({ type: 'error', text: t('search.catalogUnavailable') });
     }, [navigateToCollection, setStatusMsg, t]);
-    const handleSearchResultCollectionOpen = useCallback((collection: ProviderCollection) => {
-        navigateToCollection(createSearchResultCollection(collection), 'search');
+    const handleSearchResultCollectionOpen = useCallback((collection: SearchCollectionResult) => {
+        // 本地与 Navidrome 的结果本来就是集合描述；在线平台的 omni 集合要转一下。
+        navigateToCollection(
+            isLibrarySearchCollection(collection) ? collection : createSearchResultCollection(collection),
+            'search',
+        );
     }, [navigateToCollection]);
 
     usePlaybackUiEffects({
@@ -1160,6 +1166,14 @@ export default function App() {
     });
 
     automixRef.current = automix;
+    // 分轨调音台：automix 关着、不在 HiFi / 外部播放器上时，在 deck 上按四轨强度改写元素的声音（services/stemMixer）。
+    useStemMixer({
+        audioRef,
+        audioContextRef,
+        getActiveChain: automix.getActiveChain,
+        hifiBlocked: hifiBlocksAutomix,
+        externalBlocked: externalBlocksAutomix,
+    });
     // The route flipping to HiFi silences both decks and suspends the AudioContext before mpv opens the device.
     useWebEngineYield({ audioRef, audioContextRef, automix });
 
@@ -2206,6 +2220,7 @@ export default function App() {
         localSongs,
         localLibraryCatalog,
         localPlaylists,
+        onRefreshLocalPlaylists: loadLocalPlaylists,
         onRefreshLocalSongs,
         onAddLocalSongToQueue: handleLocalQueueAdd,
         localMusicState,

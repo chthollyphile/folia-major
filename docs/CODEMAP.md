@@ -35,11 +35,11 @@
 | --- | --- |
 | 1024+ | `src/types.ts` |
 | 256+ | `src/types/onlineMusic.ts` |
+| 128+ | `src/components/modal/settings/kit/index.ts` |
 | 128+ | `src/stores/usePlaybackStore.ts` |
 | 128+ | `src/types/ponder.ts` |
 | 128+ | `src/utils/appPlaybackGuards.ts` |
 | 64+ | `src/components/command-palette/types.ts` |
-| 64+ | `src/components/modal/settings/kit/index.ts` |
 | 64+ | `src/components/visualizer/definition.ts` |
 | 64+ | `src/i18n/config.ts` |
 | 64+ | `src/library/core/collection/collection.contract.ts` |
@@ -356,8 +356,5 @@
 这些边命中了规则，但目标模块在运行时根本不含 UI（不传递依赖 react）。
 依赖方向没问题，是文件住在了 UI 目录（`src/components/`、`src/library/` 的 suites / app）下面。修法是移动文件，不是改依赖。
 
-- D190 `src/services/obs/visualSettingsConfig.ts` → `src/components/visualizer/tuningRegistry.ts`
-- D190 `src/services/sync/settingsSnapshot.ts` → `src/components/visualizer/tuningRegistry.ts`
 - D190 `src/stores/usePlaybackStore.ts` → `src/components/app/playback/createCoverUrlResolver.ts`
-- D190 `src/stores/useVisualizerSettingsStore.ts` → `src/components/visualizer/tuningRegistry.ts`
 

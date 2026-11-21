@@ -1,5 +1,5 @@
 {
-    "version": { "major": 1, "minor": 9 },
+    "version": { "major": 1, "minor": 10 },
     "permissions": {
         "filesystem.data": { "guards": ["folium.storage", "api.storage"] },
         "playback.read": { "guards": ["api.runtime.getPlaybackSnapshot"] },
@@ -30,6 +30,7 @@
         "visualizer.beatEffects": { "guards": ["folium.visualizer.setBeatEffects"] },
         "visualizer.background": { "guards": ["folium.visualizer.setBackground"] },
         "visualizer.animationIntensity": { "guards": ["folium.visualizer.setAnimationIntensity"] },
+        "theme.write": { "guards": ["folium.theme.apply", "folium.theme.release"] },
         "render.export": { "guards": ["api.render.exportVideo"] },
         "net.fetch": { "guards": ["folium.net.fetch"] },
         "net.embed": { "guards": ["folium.ui.embed"] },
