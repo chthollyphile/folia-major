@@ -133,6 +133,9 @@ module.exports = async function activate(api) {
         expect(dialogs.at(-1)).toMatchObject({ title: 'Clear source data' });
         expect(dialogs.at(-1)!.detail).toContain('partition persist:folium.radio.login');
         expect(electronCalls).toContainEqual(['session.clearStorageData', 'persist:folium.radio.login']);
+        // The partition's HTTP and code caches go too: the row's disk use counts them.
+        expect(electronCalls).toContainEqual(['session.clearCache', 'persist:folium.radio.login']);
+        expect(electronCalls).toContainEqual(['session.clearCodeCaches', 'persist:folium.radio.login']);
         await new Promise((resolve) => setTimeout(resolve, 0));
         const api = modRecord('radio')!.api as { secrets: { get: (key: string) => Promise<string | null> } };
         expect(await api.secrets.get('token')).toBeNull();

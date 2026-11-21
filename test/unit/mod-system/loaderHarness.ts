@@ -49,6 +49,8 @@ const fakeSession = (partition: string) => ({
     },
     setProxy: async (config: unknown) => { electronCalls.push(['session.setProxy', partition, config]); },
     clearStorageData: async () => { electronCalls.push(['session.clearStorageData', partition]); },
+    clearCache: async () => { electronCalls.push(['session.clearCache', partition]); },
+    clearCodeCaches: async () => { electronCalls.push(['session.clearCodeCaches', partition]); },
     protocol: {
         handle: (scheme: string) => { electronCalls.push(['session.protocol.handle', partition, scheme]); },
         unhandle: (scheme: string) => { electronCalls.push(['session.protocol.unhandle', partition, scheme]); },

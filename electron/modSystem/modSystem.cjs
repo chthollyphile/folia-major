@@ -340,8 +340,10 @@ const createModSystem = ({
         netRequest: (options) => electron.net.request(options),
         sessionFromPartition: (partition) => electron.session.fromPartition(partition),
         // The folder a `persist:` partition keeps on disk (null for one kept in memory), for a source's disk use.
+        // Worked out from the name (Chromium's <userData>/Partitions/<name> layout), not asked of a session: asking
+        // `session.fromPartition` would create a session the source has not used this run, and with it the folder.
         partitionStoragePath: (partition) => (String(partition).startsWith('persist:')
-            ? electron.session.fromPartition(partition).storagePath ?? null
+            ? path.join(app.getPath('userData'), 'Partitions', String(partition).slice('persist:'.length))
             : null),
         defaultSession: () => electron.session.defaultSession,
         // The host's opener with its protocol allowlist (main.cjs openExternalUrl, D609); none without one.
@@ -1321,7 +1323,11 @@ ${partition}`;
             });
             for (const partition of described.partitions) {
                 try {
-                    await sourceHost.sessionFromPartition(partition).clearStorageData();
+                    const session = sourceHost.sessionFromPartition(partition);
+                    await session.clearStorageData();
+                    // Its HTTP and code caches too: clearStorageData leaves them, and the row's disk use counts them.
+                    await session.clearCache?.();
+                    await session.clearCodeCaches?.({});
                 } catch (error) {
                     failures.push(`partition:${partition}`);
                     console.warn(`[Mods] clearing ${sourceId}: partition ${partition} could not be cleared`, error);
