@@ -207,6 +207,12 @@ export const installModFromZip = async (
     return response ?? { ok: false, error: 'no-electron-bridge' };
 };
 
+/** Installs a mod from a .zip the main process asks the user for (Settings → Sources). */
+export const installModFromPickedZip = async (): Promise<{ ok: boolean; id?: string; error?: string }> => {
+    const response = await bridge()?.installModFromPickedZip?.();
+    return response ?? { ok: false, error: 'no-electron-bridge' };
+};
+
 /** Bytes a mod keeps on disk (data and cache); disabled mods included, broken entries refused. */
 export const getModStorageUsage = async (modId: string): Promise<ModStorageUsageResult> => {
     const response = await bridge()?.getModStorageUsage(modId);

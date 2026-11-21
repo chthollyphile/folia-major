@@ -1039,6 +1039,8 @@ declare global {
         getFfmpegStatus: () => Promise<{ ffmpeg: ModFfmpegStatus }>;
         openModsDirectory: () => Promise<{ ok: boolean; directory?: string; error?: string }>;
         installModFromZip: (zipPath: string) => Promise<{ ok: boolean; id?: string; error?: string }>;
+        installModFromPickedZip?: () => Promise<{ ok: boolean; id?: string; error?: string }>;
+        setCommunityMods?: (enabled: boolean) => Promise<{ ok: boolean; error?: string; enabled?: boolean }>;
         getModStorageUsage: (modId: string) => Promise<ModStorageUsageResult>;
         clearModCache: (modId: string) => Promise<ModClearCacheResult>;
         getModCallStats: () => Promise<{ stats: Record<string, ModMainCallStats> }>;

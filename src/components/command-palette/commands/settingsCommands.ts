@@ -466,6 +466,16 @@ export const settingsCommands: CommandPaletteCommand[] = [
         context => context.settings.toggleBackgroundThrottling(),
         { platform: ['electron'] },
     ),
+    // Folium 2.0: the community mods switch. The main process asks before turning it on, so this only asks it.
+    createToggleCommand(
+        'desktop-toggle-community-mods',
+        'settings',
+        'Community mods',
+        'Toggle installing and running mods that are not official source mods',
+        ['third party mods', 'unofficial mods', 'allow mods', '第三方模组', '非官方模组'],
+        context => context.settings.toggleCommunityMods(),
+        { platform: ['electron'], isAvailable: context => context?.settings.modSystemEnabled ?? true },
+    ),
     createSettingsCommand('settings-wallpaper-mode', 'Wallpaper mode settings', 'Open wallpaper mode settings', ['wallpaper mode', 'desktop wallpaper', 'lyrics wallpaper', '壁纸模式', '桌面壁纸', '歌词壁纸'], 'options', 'desktop', { platform: ['linux', 'win', 'mac'] }),
     {
         id: 'desktop-toggle-wallpaper-mode',

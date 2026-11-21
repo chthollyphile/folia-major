@@ -245,6 +245,9 @@ export const buildSettingsCommandContext = (
         },
         voiceInputPauseSupported: deps.voiceInputPauseSupported,
         modSystemEnabled: desktop.modSystemEnabled,
+        toggleCommunityMods: () => {
+            void desktop.handleToggleCommunityMods(!useDesktopSettingsStore.getState().modCommunityEnabled);
+        },
         toggleVoiceInputPause: () => desktop.handleToggleVoiceInputPause(
             !useDesktopSettingsStore.getState().voiceInputPauseEnabled,
         ),

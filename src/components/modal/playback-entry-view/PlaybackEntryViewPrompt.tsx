@@ -10,6 +10,8 @@ import { useThemeSettingsStore } from '../../../stores/useThemeSettingsStore';
 import { resolveReducedMotion, useMotionSettingsStore } from '../../../stores/useMotionSettingsStore';
 import { confirmOnboardingLibrarySuite } from '../../../library/app/librarySuiteChoice';
 import { OVERLAY_CALM_TRANSITION, OVERLAY_TRANSITION } from '../../shared/overlayEntranceMotion';
+import { openSettings } from '../../../stores/useSettingsModalStore';
+import { settingsAnchorSubview } from '../../../utils/settingsAnchorModel';
 import type { Theme } from '../../../types';
 
 // src/components/modal/playback-entry-view/PlaybackEntryViewPrompt.tsx
@@ -140,7 +142,16 @@ const PromptPanel: React.FC<{ theme?: Theme | null; pages: readonly PromptPage[]
 
                     <div className="mt-5">
                         {page === 'sources' ? (
-                            <SourcesOnboardingOptions isDaylight={isDaylight} accentColor={accentColor} />
+                            <SourcesOnboardingOptions
+                                isDaylight={isDaylight}
+                                accentColor={accentColor}
+                                // Navidrome (not a source mod): the dialog closes as answered (these ticks go to the main
+                                // process, the other pages keep their defaults) and its connection in Settings opens.
+                                onOpenNavidrome={() => {
+                                    onClose();
+                                    openSettings('options', settingsAnchorSubview('navidrome'), null, 'navidrome');
+                                }}
+                            />
                         ) : page === 'library-suite' ? (
                             <LibrarySuiteOnboardingOptions isDaylight={isDaylight} accentColor={accentColor} />
                         ) : (

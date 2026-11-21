@@ -153,10 +153,11 @@ const SignatureNotice: React.FC<{ mod: ModRuntimeInfo; isDaylight: boolean; clas
     );
 };
 
-const StatusIcon: React.FC<{ status: string; isDaylight: boolean }> = ({ status, isDaylight }) => {
+const StatusIcon: React.FC<{ status: string; error?: string | null; isDaylight: boolean }> = ({ status, error, isDaylight }) => {
     if (status === 'loaded') return <CircleCheck size={15} className={`${isDaylight ? 'text-emerald-600' : 'text-emerald-300'} shrink-0`} />;
     // 'skipped' (this run was started without mods) is not running and not broken: it reads as off.
-    if (status === 'disabled' || status === 'skipped') return <CircleOff size={15} className={`${isDaylight ? 'text-zinc-400' : 'text-white/35'} shrink-0`} />;
+    // A community mod while community mods are off is held back by the user's own switch, not broken.
+    if (status === 'disabled' || status === 'skipped' || error === 'community-off') return <CircleOff size={15} className={`${isDaylight ? 'text-zinc-400' : 'text-white/35'} shrink-0`} />;
     return <TriangleAlert size={15} className={`${isDaylight ? 'text-red-600' : 'text-red-300'} shrink-0`} />;
 };
 
@@ -236,7 +237,7 @@ export const ModListItem: React.FC<ModListItemProps> = ({
                         {selected ? <CheckSquare size={15} /> : <Square size={15} />}
                     </span>
                 ) : (
-                    <StatusIcon status={mod.status} isDaylight={isDaylight} />
+                    <StatusIcon status={mod.status} error={mod.error} isDaylight={isDaylight} />
                 )}
                 <div className="min-w-0 flex-1 text-left">
                     <div className="flex items-center gap-1.5 min-w-0">
@@ -254,6 +255,11 @@ export const ModListItem: React.FC<ModListItemProps> = ({
                                 className={`shrink-0 text-[10px] px-1.5 py-px rounded-full border ${isDaylight ? 'text-violet-700 border-violet-700/40' : 'text-violet-300 border-violet-300/40'}`}
                             >
                                 {t('mods.sourcePreview')}
+                            </span>
+                        ) : null}
+                        {mod.error === 'community-off' ? (
+                            <span data-mod-community-off="" className={`shrink-0 text-[10px] px-1.5 py-px rounded-full border ${classes.muted}`}>
+                                {t('mods.communityOffMark')}
                             </span>
                         ) : null}
                         {isModSlow(runningCost) ? <ModSlowMark isDaylight={isDaylight} /> : null}

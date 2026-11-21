@@ -389,8 +389,10 @@ export type CommandPaletteSettingsContext = {
     toggleAutoAiLyricSegmentation: () => void;
     toggleKeepProviderWordTiming: () => void;
     voiceInputPauseSupported: boolean;
-    /** Lab switch for the experimental mod system; gates the `mods` command. */
+    /** The mod system's master switch (on by default since Folium 2.0); gates the `mods` command. */
     modSystemEnabled: boolean;
+    /** Folium 2.0: flips the community mods switch; the main process confirms turning it on. */
+    toggleCommunityMods: () => void;
     toggleVoiceInputPause: () => void;
     togglePreventDisplaySleepDuringPlayback: () => void;
     /** 后台节流: throttle the window and hold the lyric animation while it is minimised or hidden (main process applies it). */

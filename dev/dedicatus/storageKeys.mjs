@@ -27,6 +27,7 @@ export const STORAGE_KEYS = [
     'main:MAIN_WINDOW_ALWAYS_ON_TOP',
     'main:MINIMIZE_TO_TRAY',
     'main:MODELS_DIRECTORY',
+    'main:MOD_COMMUNITY_ENABLED',
     'main:MOD_SYSTEM_ENABLED',
     'main:OBS_BROWSER_SOURCE_ENABLED',
     'main:OBS_BROWSER_SOURCE_PORT',

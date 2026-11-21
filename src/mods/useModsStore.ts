@@ -4,6 +4,7 @@ import {
     clearModCache,
     getFfmpegStatus,
     getModStorageUsage,
+    installModFromPickedZip,
     installModFromZip,
     isModsBridgeAvailable,
     listMods,
@@ -56,6 +57,8 @@ interface ModsStoreState {
     cancelActiveExport: () => Promise<void>;
     openModsDirectory: () => Promise<{ ok: boolean; directory?: string; error?: string }>;
     installModFromZip: (zipPath: string) => Promise<{ ok: boolean; id?: string; error?: string }>;
+    /** 「从 zip 安装音源模组」: the main process asks for the file. */
+    installModFromPickedZip: () => Promise<{ ok: boolean; id?: string; error?: string }>;
     getModStorageUsage: (modId: string) => Promise<ModStorageUsageResult>;
     clearModCache: (modId: string) => Promise<ModClearCacheResult>;
     bindEvents: () => void;
@@ -124,6 +127,14 @@ export const useModsStore = create<ModsStoreState>((set, get) => ({
 
     installModFromZip: async (zipPath) => {
         const result = await installModFromZip(zipPath);
+        if (result.ok) {
+            await get().refresh();
+        }
+        return result;
+    },
+
+    installModFromPickedZip: async () => {
+        const result = await installModFromPickedZip();
         if (result.ok) {
             await get().refresh();
         }

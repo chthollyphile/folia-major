@@ -7,8 +7,9 @@ import { useDesktopSettingsStore } from '../../stores/useDesktopSettingsStore';
 import type { ModManagerClasses } from './modManagerClasses';
 
 // src/mods/manager/ModSystemSwitch.tsx
-// The mod system's master switch as a one-row card. Rendered at the top of both the settings page
-// and the palette surface, so the list below it always sits under the switch that governs it.
+// The mod system's master switch and, under it, the community mods switch (Folium 2.0), as one card. Rendered on
+// the palette surface, so the list below it always sits under the switches that govern it. Both values are the
+// main process's: turning community mods on asks there, in a native dialog.
 
 type ModSystemSwitchProps = {
     classes: ModManagerClasses;
@@ -17,22 +18,17 @@ type ModSystemSwitchProps = {
 
 export const ModSystemSwitch: React.FC<ModSystemSwitchProps> = ({ classes, theme }) => {
     const { t } = useTranslation();
-    const { modSystemEnabled, onToggleModSystem } = useDesktopSettingsStore(useShallow(state => ({
+    const { modSystemEnabled, onToggleModSystem, communityEnabled, onToggleCommunity } = useDesktopSettingsStore(useShallow(state => ({
         modSystemEnabled: state.modSystemEnabled,
         onToggleModSystem: state.handleToggleModSystem,
+        communityEnabled: state.modCommunityEnabled,
+        onToggleCommunity: state.handleToggleCommunityMods,
     })));
 
     return (
         <div className={`rounded-xl border overflow-hidden ${classes.card}`}>
             <SettingsRow
-                title={(
-                    <>
-                        {t('options.enableModSystem')}
-                        <span className={`px-1.5 py-0.5 rounded text-[10px] font-normal border ${classes.experimentalBadge}`}>
-                            {t('mods.experimental')}
-                        </span>
-                    </>
-                )}
+                title={t('options.enableModSystem')}
                 description={t('options.enableModSystemDesc')}
                 note={t('options.enableModSystemDescSub')}
                 control={(
@@ -42,6 +38,21 @@ export const ModSystemSwitch: React.FC<ModSystemSwitchProps> = ({ classes, theme
                         offClass={classes.toggleOff}
                         onColor={theme?.secondaryColor}
                         ariaLabel={t('options.enableModSystem')}
+                    />
+                )}
+                dividerClass={classes.divider}
+            />
+            <SettingsRow
+                title={t('options.enableCommunityMods')}
+                description={t('options.enableCommunityModsDesc')}
+                control={(
+                    <SettingsToggle
+                        checked={communityEnabled}
+                        disabled={!modSystemEnabled}
+                        onChange={() => { void onToggleCommunity(!communityEnabled); }}
+                        offClass={classes.toggleOff}
+                        onColor={theme?.secondaryColor}
+                        ariaLabel={t('options.enableCommunityMods')}
                     />
                 )}
                 dividerClass={classes.divider}

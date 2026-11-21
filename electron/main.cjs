@@ -15,6 +15,7 @@ const { isCursorInsideUnlockHotspot, createUnlockHoverRequests, resolveUnlockHot
 const { shouldHideToTrayOnClose, shouldRebuildBeforeMacWallpaper, shouldRebuildAfterMacWallpaper } = require('./nativeTrafficLights.cjs');
 const { createModSystem } = require('./modSystem/modSystem.cjs');
 const { resolveNativeFile } = require('./modSystem/nativeFiles.cjs');
+const { COMMUNITY_MODS_SETTING_KEY, migrateCommunityModsSetting } = require('./modSystem/communityMods.cjs');
 const { MOD_PROTOCOL_PRIVILEGED_SCHEME, legacyMediaPrivilegedSchemes } = require('./modSystem/modProtocol.cjs');
 const { BUILTIN_LEGACY_MEDIA_SCHEMES } = require('./modSystem/builtinSources.cjs');
 const { createWindowPlaybackHandoffStore } = require('./windowPlaybackHandoff.cjs');
@@ -279,6 +280,12 @@ const store = new Store({ projectName: 'Folia' });
 // Read before anything writes the store: an empty one is a fresh profile, which the start prompt asks which
 // sources it uses (Folium 2.0 plan §5.3, modSystem.cjs). An upgraded profile always has something in it.
 const isFreshProfile = store.size === 0;
+// Folium 2.0: the community mods switch, given once to a profile that has none (communityMods.cjs), before
+// anything reads it or the mod system's master switch (on by default from Folium 2.0).
+const communityModsMigrated = migrateCommunityModsSetting(store);
+if (communityModsMigrated !== null) {
+  console.info(`[Mods] community mods switch recorded for this profile: ${communityModsMigrated ? 'on (the mod system was on)' : 'off'}`);
+}
 // Before ready: the GPU process reads its switches when it starts.
 const gpuPreferenceApplied = applyGpuPreference({ app, store });
 const readActiveGpu = createActiveGpuReader(app);
@@ -2778,7 +2785,10 @@ function getPublicSettings() {
     [LYRIC_API_ENABLED_SETTING_KEY]: readStoredBoolean(LYRIC_API_ENABLED_SETTING_KEY, false),
     [VOICE_INPUT_PAUSE_ENABLED_SETTING_KEY]: readStoredBoolean(VOICE_INPUT_PAUSE_ENABLED_SETTING_KEY, false),
     [PREVENT_DISPLAY_SLEEP_DURING_PLAYBACK_SETTING_KEY]: readStoredBoolean(PREVENT_DISPLAY_SLEEP_DURING_PLAYBACK_SETTING_KEY, false),
-    [MOD_SYSTEM_ENABLED_SETTING_KEY]: readStoredBoolean(MOD_SYSTEM_ENABLED_SETTING_KEY, false),
+    // On by default from Folium 2.0; a profile that switched it off keeps it off.
+    [MOD_SYSTEM_ENABLED_SETTING_KEY]: readStoredBoolean(MOD_SYSTEM_ENABLED_SETTING_KEY, true),
+    // Shown only: it is written through folia-mods:set-community (a native confirmation), never save-settings.
+    [COMMUNITY_MODS_SETTING_KEY]: readStoredBoolean(COMMUNITY_MODS_SETTING_KEY, false),
     [BACKGROUND_THROTTLING_SETTING_KEY]: readStoredBoolean(BACKGROUND_THROTTLING_SETTING_KEY, false),
     [UPDATE_CHANNEL_SETTING_KEY]: getCurrentReleaseChannel().id,
     'enable_player_page_native_blur': NATIVE_BLUR_SUPPORTED && store.get('enable_player_page_native_blur') === true,
@@ -6367,7 +6377,10 @@ app.whenReady().then(async () => {
       BrowserWindow,
       getMainWindow: () => mainWindow,
       getLocaleKey: getMainLocaleKey,
-      isFeatureEnabled: () => readStoredBoolean(MOD_SYSTEM_ENABLED_SETTING_KEY, false),
+      isFeatureEnabled: () => readStoredBoolean(MOD_SYSTEM_ENABLED_SETTING_KEY, true),
+      // Community mods (communityMods.cjs): read here, written by the mod system after its own confirmation.
+      isCommunityEnabled: () => readStoredBoolean(COMMUNITY_MODS_SETTING_KEY, false),
+      writeCommunityEnabled: (enabled) => store.set(COMMUNITY_MODS_SETTING_KEY, Boolean(enabled)),
       hostStore: store,
       freshProfile: isFreshProfile,
       diagnostics: loginDiagnostics,
@@ -6544,7 +6557,7 @@ app.whenReady().then(async () => {
     // Loads the enabled mods. If the last start never got to its end, it asks first whether to
     // start without mods this time, and loads once the answer is in (modSystem.cjs `start`).
     modSystem.start();
-    if (readStoredBoolean(MOD_SYSTEM_ENABLED_SETTING_KEY, false)) {
+    if (readStoredBoolean(MOD_SYSTEM_ENABLED_SETTING_KEY, true)) {
       void modSystem.probeFfmpeg();
     }
   } catch (error) {
@@ -6789,7 +6802,9 @@ ipcMain.handle('save-settings', firstParty('save-settings', (event, key, value) 
   }
   // The HiFi key is the old home of the approved mpv path (now in a file of main's own): nothing
   // reads it any more, and the renderer has no business writing it.
-  if (key === 'DISCORD_RICH_PRESENCE_APPLICATION_ID' || isReservedAiCredentialKey(key) || isReservedHifiSettingKey(key)) {
+  // The community mods switch lets third-party code run: only the mod system writes it, after the user confirmed
+  // in a native dialog (folia-mods:set-community). A page in the window (a mod among them) cannot set it here.
+  if (key === 'DISCORD_RICH_PRESENCE_APPLICATION_ID' || key === COMMUNITY_MODS_SETTING_KEY || isReservedAiCredentialKey(key) || isReservedHifiSettingKey(key)) {
     return getPublicSettings();
   }
   if (isAiCredentialKey(key)) {

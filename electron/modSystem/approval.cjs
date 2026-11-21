@@ -63,6 +63,10 @@ const TRUST_DIALOG_LOCALE = {
         clearDetail: '它会登出，并删掉下面这些。删掉的找不回来；停用音源不会删这些。',
         clearConfirm: '清除',
         enable: '仍要启用',
+        communityTitle: '打开社区模组',
+        communityMessage: '允许安装和运行社区模组吗？',
+        communityDetail: '社区模组是第三方代码，没有经过 Folia 的官方签名，可能也没有经过安全审查。打开后，你可以从 zip 安装任何模组，模组目录里已有的模组也能启用；启用的模组以应用的完整权限运行：能读写本地文件、访问网络、读取或修改应用设置，并能在界面里执行代码。之前确认过的模组会立刻运行，其余每个模组启用前仍会单独确认。只安装你信任的来源。',
+        communityConfirm: '打开',
         cancel: '取消',
     },
     'zh-TW': {
@@ -112,6 +116,10 @@ const TRUST_DIALOG_LOCALE = {
         clearDetail: '它會登出，並刪掉下面這些。刪掉的找不回來；停用音源不會刪這些。',
         clearConfirm: '清除',
         enable: '仍要啟用',
+        communityTitle: '開啟社群模組',
+        communityMessage: '允許安裝和執行社群模組嗎？',
+        communityDetail: '社群模組是第三方程式碼，沒有經過 Folia 的官方簽名，可能也沒有經過安全審查。開啟後，你可以從 zip 安裝任何模組，模組目錄裡已有的模組也能啟用；啟用的模組以應用的完整權限執行：能讀寫本地檔案、存取網路、讀取或修改應用設定，並能在介面裡執行程式碼。之前確認過的模組會立刻執行，其餘每個模組啟用前仍會單獨確認。只安裝你信任的來源。',
+        communityConfirm: '開啟',
         cancel: '取消',
     },
     en: {
@@ -161,6 +169,10 @@ const TRUST_DIALOG_LOCALE = {
         clearDetail: 'It is signed out and everything below is removed. What is removed cannot be brought back; turning a source off removes none of it.',
         clearConfirm: 'Clear',
         enable: 'Enable anyway',
+        communityTitle: 'Turn on community mods',
+        communityMessage: 'Allow installing and running community mods?',
+        communityDetail: 'Community mods are third-party code without an official Folia signature, and may not have had a security review. Once this is on, any mod can be installed from a zip and the mods already in the mods folder can be enabled; an enabled mod runs with the app\'s full rights: it can read and write local files, reach the network, read or change the app\'s settings and run code in the interface. Mods you confirmed before run at once; any other mod is still confirmed on its own before it is enabled. Only install mods from sources you trust.',
+        communityConfirm: 'Turn on',
         cancel: 'Cancel',
     },
     in: {
@@ -210,6 +222,10 @@ const TRUST_DIALOG_LOCALE = {
         clearDetail: 'Sumber ini akan keluar dari akun dan semua di bawah ini dihapus. Yang dihapus tidak bisa dikembalikan; menonaktifkan sumber tidak menghapus apa pun dari ini.',
         clearConfirm: 'Hapus',
         enable: 'Tetap aktifkan',
+        communityTitle: 'Aktifkan mod komunitas',
+        communityMessage: 'Izinkan memasang dan menjalankan mod komunitas?',
+        communityDetail: 'Mod komunitas adalah kode pihak ketiga tanpa tanda tangan resmi Folia, dan mungkin belum melewati tinjauan keamanan. Setelah diaktifkan, mod apa pun bisa dipasang dari zip dan mod yang sudah ada di folder mod bisa diaktifkan; mod yang aktif berjalan dengan hak penuh aplikasi: bisa membaca dan menulis file lokal, mengakses jaringan, membaca atau mengubah pengaturan aplikasi, dan menjalankan kode di antarmuka. Mod yang sudah pernah Anda konfirmasi langsung berjalan; mod lain tetap dikonfirmasi sendiri sebelum diaktifkan. Pasang hanya dari sumber yang Anda percayai.',
+        communityConfirm: 'Aktifkan',
         cancel: 'Batal',
     },
     vi: {
@@ -259,6 +275,10 @@ const TRUST_DIALOG_LOCALE = {
         clearDetail: 'Nguồn sẽ đăng xuất và mọi thứ bên dưới sẽ bị xóa. Những gì đã xóa không thể khôi phục; tắt nguồn không xóa những thứ này.',
         clearConfirm: 'Xóa',
         enable: 'Vẫn bật',
+        communityTitle: 'Bật mod cộng đồng',
+        communityMessage: 'Cho phép cài đặt và chạy mod cộng đồng?',
+        communityDetail: 'Mod cộng đồng là mã của bên thứ ba, không có chữ ký chính thức của Folia và có thể chưa qua đánh giá bảo mật. Khi bật, có thể cài bất kỳ mod nào từ zip và bật các mod đã có trong thư mục mod; mod đã bật chạy với toàn quyền của ứng dụng: đọc ghi tệp cục bộ, truy cập mạng, đọc hoặc sửa cài đặt ứng dụng và chạy mã trong giao diện. Các mod bạn đã xác nhận trước đó sẽ chạy ngay; mọi mod khác vẫn được xác nhận riêng trước khi bật. Chỉ cài từ nguồn bạn tin cậy.',
+        communityConfirm: 'Bật',
         cancel: 'Hủy',
     },
 };
@@ -500,6 +520,24 @@ const createModApproval = ({ app, store, enabledKey, getMainWindowSafe, getLocal
         });
     };
 
+    /*
+     * The one confirmation before community mods are allowed (communityMods.cjs): what they are and what an enabled
+     * one can do. Each mod is still confirmed on its own (confirmEnableMod) before it runs.
+     */
+    const confirmCommunityMods = async () => {
+        const locale = resolveDialogLocale();
+        return showDialog({
+            type: 'warning',
+            title: locale.communityTitle,
+            message: locale.communityMessage,
+            detail: locale.communityDetail,
+            buttons: [locale.cancel, locale.communityConfirm],
+            defaultId: 0,
+            cancelId: 0,
+            noLink: true,
+        });
+    };
+
     const confirmEnableMod = async (runtime, digest, signature) => {
         const locale = resolveDialogLocale();
         const keyText = signature.keyLabel ? `${signature.keyLabel}, ${signature.keyId}` : signature.keyId;
@@ -574,6 +612,7 @@ const createModApproval = ({ app, store, enabledKey, getMainWindowSafe, getLocal
         writeOverrideApproval,
         confirmOverride,
         confirmClearSourceData,
+        confirmCommunityMods,
     };
 };
 
