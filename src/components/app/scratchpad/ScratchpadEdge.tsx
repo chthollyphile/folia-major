@@ -72,14 +72,15 @@ const ScratchpadEdge: React.FC<ScratchpadEdgeProps> = ({ handleStyle, position, 
 
     const handlePointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
         if (event.button !== 0 && event.pointerType === 'mouse') return;
-        // 计时器回调是事件派发之外跑的，currentTarget 那时已经失效：先抓住元素。
-        const element = event.currentTarget;
         const press = { pointerId: event.pointerId, startY: event.clientY, timer: undefined as number | undefined, moved: false };
         pressRef.current = press;
+        // 按下就把指针抓到标签上（capture 只在按住期间改道路由，松手的 click 照常落在标签上）：
+        // 之后指针跑出标签，move / up 仍到得了这里，长按计时器也从这里出发。计时器回调是事件派发之外
+        // 跑的，那时候 setPointerCapture 会因为指针不在活跃事件里而失败，所以在这里抓。
+        event.currentTarget.setPointerCapture(event.pointerId);
         // 按住不动到点：进入拖动。移动超过 SLOP 的情形在 move 里提前进入，不等计时器。
         press.timer = window.setTimeout(() => {
             if (pressRef.current !== press) return;
-            element.setPointerCapture(event.pointerId);
             beginDrag(event.clientY);
         }, LONG_PRESS_DRAG_MS);
     };
@@ -127,7 +128,9 @@ const ScratchpadEdge: React.FC<ScratchpadEdgeProps> = ({ handleStyle, position, 
         <div
             ref={edgeRef}
             className={`scratchpad-edge is-${handleStyle}${count > 0 ? ' has-entries' : ''}${pulsing ? ' is-pulsing' : ''}${dragging ? ' is-dragging' : ''}`}
-            style={{ '--scratchpad-edge-position': position } as React.CSSProperties}
+            /* 拖动中行内写的是实时位置（拖动不经过 React，重渲染也不能把它抹回设置值）；
+               平时写的才是设置值。 */
+            style={{ '--scratchpad-edge-position': dragging ? dragPositionRef.current : position } as React.CSSProperties}
             data-ponder="scratchpad"
         >
             <span className="scratchpad-edge-rest" aria-hidden="true">
