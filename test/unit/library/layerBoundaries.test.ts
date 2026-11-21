@@ -205,7 +205,7 @@ describe('library core layer boundaries', () => {
         // 网格的首页视图只做展示（omni 只剩 Grid3D 的二维码登录与账户切换在用）。
         const HOME_VIEWS = ['Grid3D.tsx', 'LocalGrid3DView.tsx', 'NavidromeGrid3DView.tsx'].map(name => `src/library/suites/grid/home/${name}`);
         const offenders = offendersOf(HOME_VIEWS, target => (
-            /^src\/services\/(localMusicService|localPlaylistFileService|localLibraryDirectoryTree|localLibraryAvailability|navidromeService)$/.test(target)
+            /^src\/services\/(localMusicService|foliaPlaylist\/\w+|localLibraryDirectoryTree|localLibraryAvailability|navidromeService)$/.test(target)
             || /^src\/hooks\/useLocalLibraryCatalog$/.test(target)
         ), allSpecifiersOf);
         expect(offenders).toEqual([]);

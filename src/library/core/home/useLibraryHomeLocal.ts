@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { LocalLibraryGroup, LocalPlaylist, LocalSong } from '../../../types';
+import type { LocalLibraryGroup, LocalSong } from '../../../types';
+import type { FoliaPlaylist } from '../../../types/foliaPlaylist';
 import type { LibraryDirectoryBatchConfig, LibraryDirectoryBatchController, LibraryDirectoryNode, LibraryDirectorySelectionType } from '../directory/directory.contract';
 import type { LibraryLocalCatalogSnapshot } from './home.contract';
 import type { LibraryHomeCard, LibraryLocalDirectoryTreesResource, LibraryLocalDirectoryTreesSnapshot } from './homeModel.contract';
@@ -45,7 +46,7 @@ export const useLibraryHomeLocal = ({
     activeRow,
 }: {
     localSongs: LocalSong[];
-    localPlaylists: LocalPlaylist[];
+    localPlaylists: FoliaPlaylist[];
     /** 宿主的曲库实体快照（与应用其它地方同一份；没读好时按歌曲的原始标签分组）。 */
     catalog: LibraryLocalCatalogSnapshot;
     activeRow: number;

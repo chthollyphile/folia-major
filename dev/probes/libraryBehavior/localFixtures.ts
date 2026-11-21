@@ -1,6 +1,8 @@
-import type { LocalPlaylist, LocalSong } from '../../../src/types';
+import type { LocalSong } from '../../../src/types';
+import type { FoliaPlaylist } from '../../../src/types/foliaPlaylist';
 import { getLocalSongs, saveLocalSongs } from '../../../src/services/db';
-import { createLocalPlaylist, getLocalPlaylists } from '../../../src/services/localPlaylistService';
+import { createFoliaPlaylistFromLocalSongs, getFoliaPlaylists } from '../../../src/services/foliaPlaylist/foliaPlaylistService';
+import { buildLocalEntry } from '../../../src/services/foliaPlaylist/foliaPlaylistRows';
 import {
     LOCAL_BASE_TIME,
     LOCAL_PLAYLIST_NAME,
@@ -49,33 +51,33 @@ export const makeLocalSong = (index: number): LocalSong => {
 export const LOCAL_FIXTURE_SONGS: LocalSong[] = range(LOCAL_SONG_COUNT, 1).map(makeLocalSong);
 
 /** 非沙盒模式下的内存歌单：删歌不落盘，只用来看显示。 */
-export const IN_MEMORY_LOCAL_PLAYLIST: LocalPlaylist = {
+export const IN_MEMORY_LOCAL_PLAYLIST: FoliaPlaylist = {
     id: 'probe-memory-playlist',
     name: LOCAL_PLAYLIST_NAME,
-    songIds: LOCAL_PLAYLIST_SONGS.map(localSongId),
+    entries: LOCAL_PLAYLIST_SONGS.map(index => buildLocalEntry(makeLocalSong(index), 1)),
     createdAt: LOCAL_BASE_TIME,
     updatedAt: LOCAL_BASE_TIME,
 };
 
 /** 把 fixture 写进 IndexedDB（可重复调用），返回存储里的曲目与歌单。 */
-export const seedLocalLibrary = async (): Promise<{ songs: LocalSong[]; playlists: LocalPlaylist[] }> => {
+export const seedLocalLibrary = async (): Promise<{ songs: LocalSong[]; playlists: FoliaPlaylist[] }> => {
     const stored = await getLocalSongs();
     const storedIds = new Set(stored.map(song => song.id));
     const missing = LOCAL_FIXTURE_SONGS.filter(song => !storedIds.has(song.id));
     if (missing.length > 0) {
         await saveLocalSongs(missing);
     }
-    const playlists = await getLocalPlaylists();
+    const playlists = await getFoliaPlaylists();
     if (!playlists.some(playlist => playlist.name === LOCAL_PLAYLIST_NAME)) {
-        await createLocalPlaylist(LOCAL_PLAYLIST_NAME, LOCAL_PLAYLIST_SONGS.map(index => makeLocalSong(index)));
+        await createFoliaPlaylistFromLocalSongs(LOCAL_PLAYLIST_NAME, LOCAL_PLAYLIST_SONGS.map(index => makeLocalSong(index)));
     }
     return readLocalLibrary();
 };
 
 /** 从 IndexedDB 读回探针用到的曲目与歌单（只取 fixture 自己的那部分）。 */
-export const readLocalLibrary = async (): Promise<{ songs: LocalSong[]; playlists: LocalPlaylist[] }> => {
+export const readLocalLibrary = async (): Promise<{ songs: LocalSong[]; playlists: FoliaPlaylist[] }> => {
     const fixtureIds = new Set(LOCAL_FIXTURE_SONGS.map(song => song.id));
-    const [songs, playlists] = await Promise.all([getLocalSongs(), getLocalPlaylists()]);
+    const [songs, playlists] = await Promise.all([getLocalSongs(), getFoliaPlaylists()]);
     return {
         songs: songs.filter(song => fixtureIds.has(song.id)),
         playlists: playlists.filter(playlist => playlist.name === LOCAL_PLAYLIST_NAME),

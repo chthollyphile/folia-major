@@ -6,7 +6,7 @@ import type { PersonalFmLaunch, PersonalFmSelection } from '../../types/personal
 import { translateHomeMessage } from '../core/home/homeSources';
 import { importFolder, resyncAllFolders, LOCAL_MUSIC_SCAN_PROGRESS_EVENT } from '../../services/localMusicService';
 import { getLocalLibraryAvailability } from '../../services/localLibraryAvailability';
-import { importLocalPlaylistFile } from '../../services/localPlaylistFileService';
+import { importLocalPlaylistFile } from '../../services/foliaPlaylist/foliaPlaylistM3u';
 import { useOnlineProviderAccountStore } from '../../stores/useOnlineProviderAccountStore';
 import { selectProviderPersonalFm, usePersonalFmModeStore } from '../../stores/usePersonalFmModeStore';
 import { isSamePersonalFmSelection, normalizePersonalFmSelection, toPersonalFmRequestOptions } from '../../services/onlineMusic/fmModes';

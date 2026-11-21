@@ -7,7 +7,9 @@ import {
     useCollectionNavigationStore,
     type CollectionNavigationSnapshot,
 } from '../../stores/useCollectionNavigationStore';
-import { LocalPlaylist, LocalSong, SongResult, UnifiedSong } from '../../types';
+import { LocalSong, SongResult, UnifiedSong } from '../../types';
+import type { FoliaPlaylist } from '../../types/foliaPlaylist';
+import { getFoliaPlaylistLocalSongIds } from '../../utils/foliaPlaylistEntries';
 import { getNavidromeConfig, navidromeApi } from '../../services/navidromeService';
 import { getLocalCoverAssetUrl } from '../../services/localCoverAssetUrl';
 import {
@@ -169,7 +171,7 @@ const resolveLiveLocalCollection = (
     }
 
     const validSongIds = new Set(surfaceProps.localSongs.map(song => song.id));
-    const songIds = playlist.songIds.filter(songId => validSongIds.has(songId));
+    const songIds = getFoliaPlaylistLocalSongIds(playlist).filter(songId => validSongIds.has(songId));
 
     return {
         ...collection,
@@ -239,7 +241,7 @@ const GridViewOverlayHost: React.FC<GridViewOverlayHostProps> = ({
     const [resolvedLocalCollectionCoverUrl, setResolvedLocalCollectionCoverUrl] = useState<string | undefined>(undefined);
     const [navidromePlaylistItems, setNavidromePlaylistItems] = useState<Array<{ id: string | number; name: string; description?: string; }>>([]);
     const [editingEntityId, setEditingEntityId] = useState<string | null>(null);
-    const [orderingPlaylist, setOrderingPlaylist] = useState<LocalPlaylist | null>(null);
+    const [orderingPlaylist, setOrderingPlaylist] = useState<FoliaPlaylist | null>(null);
     const [organizingFolder, setOrganizingFolder] = useState<LocalGridViewCollectionDescriptor | null>(null);
     const [matchingSongId, setMatchingSongId] = useState<string | null>(null);
     const [coverEditingCollection, setCoverEditingCollection] = useState<LocalGridViewCollectionDescriptor | null>(null);

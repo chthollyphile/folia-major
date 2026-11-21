@@ -36,7 +36,7 @@ description: Use when the user refers to repository-specific spoken terms - home
 | 本地库首页面 / 本地 3D 网格 | `LocalGrid3DView`、`localGrid3DModel` |
 | Navidrome 首页面 | `NavidromeGrid3DView`、`useNavidromeGridLibrary` |
 | 本地库扫描 / 索引 / 重扫 | `useLocalLibraryCatalog` → `localLibraryCatalogService`、`localMusicService`、`localLibraryIndex` |
-| 本地文件夹 / 本地歌单 / 实体编辑 | `entityEditorModel`、`localPlaylistService` |
+| 本地文件夹 / 本地歌单 / 实体编辑 | `entityEditorModel`、`foliaPlaylistService`（本地歌单已并进 Folia 聚合歌单） |
 | 在线 provider 账号 / 登录 | `useOnlineProviderAccountStore`、`useOnlineProviderPlatform`；登录窗口 `LoginHost`（`App.tsx` 挂一次）、`openLoginWindow`（`loginWindowStore`）；账户 controller `useLibraryAccountController` |
 
 ## 资料库 suite / bravais 墙

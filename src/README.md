@@ -79,7 +79,8 @@ App.tsx
 ### Services
 
 - 在线歌曲公共边界：`services/onlineMusic/omni.ts`；provider adapter/transport 只在实现层使用，详见 `services/onlineMusic/README.md`。
-- 本地库：`localLibraryCatalogService.ts`、`localLibraryCatalogInternals.ts`、`localLibraryImportCatalog.ts`、`localMusicService.ts`、`localPlaylistService.ts`。
+- 本地库：`localLibraryCatalogService.ts`、`localLibraryCatalogInternals.ts`、`localLibraryImportCatalog.ts`、`localMusicService.ts`。
+- Folia 聚合歌单（跨来源的歌单，旧的本地歌单已并进去）：`foliaPlaylist/`（`foliaPlaylistService.ts` 读写、`foliaPlaylistRows.ts` 存的形状、`localPlaylistMigration.ts` 旧本地歌单的换算、`foliaPlaylistM3u.ts` M3U 导入导出）。
 - 本地实体：`localLibraryEntityMutations.ts`、`localLibraryEntityRepository.ts`。
 - Navidrome：`navidromeService.ts`；它是独立 Subsonic 服务，不是 Omni provider。
 - 播放：`onlinePlayback.ts`、`playbackAdapters.ts`、`prefetchService.ts`、`nowPlayingProvider.ts`、`playerCapProvider.ts`。

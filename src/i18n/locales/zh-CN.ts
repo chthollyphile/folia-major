@@ -4949,6 +4949,7 @@ export default {
     "playlistImportNoMatches": "歌单中没有路径能匹配当前已导入的本地歌曲。",
     "playlistImportFailed": "歌单导入失败，请确认文件为有效的 M3U 或 M3U8。",
     "playlistExportSuccess": "已导出歌单“{{name}}”。",
+    "playlistExportSkipped": "有 {{count}} 首不是本地文件，没有导出。",
     "entityInfo": "{{kind}}信息",
     "entityDisplayName": "展示名称",
     "mergeEntity": "合并{{kind}}",

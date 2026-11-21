@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
-import type { LocalPlaylist, SongResult, UnifiedSong } from '../../types';
+import type { SongResult, UnifiedSong } from '../../types';
+import type { FoliaPlaylist } from '../../types/foliaPlaylist';
+import { foliaLocalSongKey } from '../../utils/foliaPlaylistEntries';
 import type { ProviderCollection } from '../../types/onlineMusic';
 import PlaylistSelectionDialog, { type PlaylistSelectionDialogItem, type PlaylistSelectionSubject } from '../shared/PlaylistSelectionDialog';
 import { getPlaybackSourceRef, resolveNavidromePlaybackCarrier } from '../../utils/appPlaybackGuards';
@@ -29,7 +31,7 @@ import { onlineMutationFailureText } from '../../services/onlineMusic/failure/on
 
 type AddToPlaylistHostProps = {
     isDaylight: boolean;
-    localPlaylists: LocalPlaylist[];
+    localPlaylists: FoliaPlaylist[];
     // All six are handed the songs the picker is about: the shown song (the playback store's
     // current song is another one during a blend, and after any change of track under the open
     // dialog), or the scratchpad's row or group it was asked for — all of one source.
@@ -166,15 +168,18 @@ export const AddToPlaylistHost: React.FC<AddToPlaylistHostProps> = ({
         if (isLocal) {
             // 本地的「我喜欢」就是收藏歌单本身（isFavorite）：画成红心那一行，排在最前。
             const localIds = targetSongs.map(song => (song as UnifiedSong).localRef?.songId).filter((id): id is string => Boolean(id));
-            return localPlaylists.map((playlist): PlaylistEntry => ({
-                id: playlist.id,
-                name: playlist.isFavorite ? t('localMusic.favoritePlaylist') : playlist.name,
-                description: trackCount(playlist.songIds.length),
-                kind: playlist.isFavorite ? 'liked' : undefined,
-                note: playlist.isFavorite && localIds.length > 0 && localIds.every(id => playlist.songIds.includes(id))
-                    ? t('playlist.alreadyLiked')
-                    : undefined,
-            }));
+            return localPlaylists.map((playlist): PlaylistEntry => {
+                const keys = playlist.isFavorite ? new Set(playlist.entries.map(entry => entry.key)) : null;
+                return {
+                    id: playlist.id,
+                    name: playlist.isFavorite ? t('localMusic.favoritePlaylist') : playlist.name,
+                    description: trackCount(playlist.entries.length),
+                    kind: playlist.isFavorite ? 'liked' : undefined,
+                    note: keys && localIds.length > 0 && localIds.every(id => keys.has(foliaLocalSongKey(id)))
+                        ? t('playlist.alreadyLiked')
+                        : undefined,
+                };
+            });
         }
 
         if (isOnline) {

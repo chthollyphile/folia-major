@@ -1,7 +1,8 @@
 import React, { useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FileMusic, FolderPlus, RefreshCw, type LucideIcon } from 'lucide-react';
-import type { LocalLibraryGroup, LocalPlaylist, LocalSong } from '../../../types';
+import type { LocalLibraryGroup, LocalSong } from '../../../types';
+import type { FoliaPlaylist } from '../../../types/foliaPlaylist';
 import type { LibraryCollectionDescriptor } from '../../core/collection/collection.contract';
 import type { LibraryDirectoryBatchController, LibraryHiddenScope } from '../../core/directory/directory.contract';
 import type { LibraryLocalCatalogSnapshot } from '../../core/home/home.contract';
@@ -132,7 +133,7 @@ export const BravaisHomeOnline: React.FC<BravaisHomeSourceCommonProps & {
 export const BravaisHomeLocal: React.FC<BravaisHomeSourceCommonProps & {
     meta: string;
     localSongs: LocalSong[];
-    localPlaylists: LocalPlaylist[];
+    localPlaylists: FoliaPlaylist[];
     catalog: LibraryLocalCatalogSnapshot;
     activeRow: number;
     setActiveRow: (row: LocalHomeRow) => void;
