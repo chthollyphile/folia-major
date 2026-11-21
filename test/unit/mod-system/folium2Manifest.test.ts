@@ -56,6 +56,16 @@ describe('sources', () => {
         expect(errorsOf({ sources: [{ id: 'a', name: 'A', selfSignedUserServers: true }] })).toEqual([]);
     });
 
+    it('takes offByDefault and enableNotice, a sentence or one per language', () => {
+        expect(v2({ sources: [{ id: 'a', name: 'A', offByDefault: true, enableNotice: 'Runs scripts you import.' }] }).ok).toBe(true);
+        expect(v2({ sources: [{ id: 'a', name: 'A', offByDefault: false, enableNotice: { en: 'Runs scripts.', 'zh-CN': '运行脚本。' } }] }).ok).toBe(true);
+        expect(errorsOf({ sources: [{ id: 'a', name: 'A', offByDefault: 'yes' }] })).toEqual(['sources[0].offByDefault must be true or false']);
+        const notice = 'sources[0].enableNotice must be a string of at most 300 characters, or one per language';
+        for (const enableNotice of ['', 'x'.repeat(301), {}, { en: '' }, { 'not a language': 'x' }, ['x'], 5]) {
+            expect(errorsOf({ sources: [{ id: 'a', name: 'A', enableNotice }] }), JSON.stringify(enableNotice)).toEqual([notice]);
+        }
+    });
+
     it('checks claims field by field', () => {
         expect(errorsOf({ sources: [{ id: 'a', name: 'A', claims: { storeKeys: [] } }] })).toEqual(['sources[0].claims.id must be the short source id it takes over']);
         expect(errorsOf({ sources: [{ id: 'a', name: 'A', claims: { id: 'qq', userDataDirs: ['../up'] } }] })).toEqual(['sources[0].claims.userDataDirs must be a list where each entry is a folder name under userData']);

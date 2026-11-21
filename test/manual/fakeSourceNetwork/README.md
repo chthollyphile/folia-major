@@ -10,6 +10,7 @@
 | `fakeMedia.mjs` | 路由表共用的媒体：单色 PNG、自己生成的 WAV 音调、按 Range 分段 |
 | `bodian.mjs` | 波点的路由表（依据见文件头） |
 | `fnmusic.mjs` | 飞牛的路由表（依据见文件头）。`direct`：服务器地址是用户填的、main 入口用 Node 的 http 直连，所以假服务就是服务器本身，登录表单填 `http://127.0.0.1:<端口>`（密码 `folia-fake`），不用装 `install.js`；控制接口 `state`、`expire`（让 token 失效）。FN Connect 中继要改 DNS，这里不测 |
+| `lxmusic.mjs`、`lxmusic/` | 洛雪音源的路由表和两个脚本样例（依据与用法见文件头）。曲库的假应答走 `install.js`（酷我的公开接口）；脚本的请求和音频是 `direct`，假服务必须起在 39877 端口，桌面要带环境变量 `FOLIA_LXMUSIC_DEV_ALLOW=127.0.0.1:39877` 启动。`lxmusic/fake-source.js` 是自己写的假脚本（能搜到并放出假歌），`lxmusic/malicious-source.js` 是恶意脚本样例（摸宿主、连本机与内网，结果看控制接口 `state`，其中 `secretHits` 应为空）。导入脚本的文件选择框用 `main-eval` 换掉 `electron.dialog.showOpenDialog` |
 | `qishui.mjs` | 汽水的路由表（依据见文件头）；控制接口 `scan`、`state` 与波点相同。汽水启动时会用存着的票据读账号：那一刻假网络还没装上就会打到真服务、被拒后包会登出，所以「重启后登录还在」在这套做法下测不了 |
 
 ## 用法

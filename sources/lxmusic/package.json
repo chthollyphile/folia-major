@@ -1,0 +1,8 @@
+{
+  "name": "@folia-sources/lxmusic",
+  "private": true,
+  "description": "洛雪音源模组：没有 npm 依赖。sandbox 是注入隐藏沙箱窗口的运行环境（main/sandbox/entry.ts → sandbox.cjs），不是工作线程。",
+  "folia": {
+    "workers": { "sandbox": "main/sandbox/entry.ts" }
+  }
+}

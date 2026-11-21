@@ -71,6 +71,16 @@ describe('sourcesModel · rows', () => {
         expect(rows.map(row => [row.sourceId, row.selfSignedUserServers])).toEqual([['bodian', false], ['fnmusic', true]]);
     });
 
+    it("carries a source's enableNotice from its manifest, null where it has none", () => {
+        const notice = { en: 'Runs scripts you import.', 'zh-CN': '运行你导入的脚本。' };
+        const rows = buildSourceRows([
+            stateRow({ sourceId: 'bodian', modId: 'bodian', tier: 'builtin' }),
+            stateRow({ sourceId: 'folium.lx.lx', modId: 'lx', tier: 'builtin', state: 'disabled', enableNotice: notice }),
+        ], [], inputs);
+        expect(rows.map(row => row.enableNotice)).toEqual([null, notice]);
+        expect(rows[1].state).toBe('disabled');
+    });
+
     it('keeps the three states for a source already used only for matching, even when it is not offered them now', () => {
         const [row] = buildSourceRows([stateRow({ sourceId: 'folium.x.y', modId: 'x', tier: 'user', state: 'matching' })], [], { ...inputs, canMatchOnly: () => false });
         expect(row.threeStates).toBe(true);

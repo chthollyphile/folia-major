@@ -15,6 +15,7 @@ Folium 2.0 起每个平台是仓库内的一个音源模组（`sources/<id>/`）
 | 汽水音乐 | [`sources/qishui/README.md`](../../../sources/qishui/README.md) |
 | Apple Music | [`sources/appleMusic/README.md`](../../../sources/appleMusic/README.md) |
 | 飞牛音乐 | [`sources/fnmusic/README.md`](../../../sources/fnmusic/README.md) |
+| 洛雪音源（用户导入的自定义源脚本） | [`sources/lxmusic/README.md`](../../../sources/lxmusic/README.md) |
 
 新平台的那一节也写在它自己的 `sources/<id>/README.md` 里，不加到这里。这里只剩各平台通用的事实和不是 Omni provider 的 Navidrome。
 

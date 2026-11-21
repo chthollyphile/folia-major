@@ -2,7 +2,7 @@
 
 Folia 的内置音源模组（Folium 2.0，方案 `dev/folium/folium-2-plan.md` §6）。每个子目录是一家平台，目录名就是它的短音源 id
 （如 `bodian`、`appleMusic`，也是受信表 `electron/modSystem/builtinSources.cjs` 里那一行认领的 id）。九家都已经从
-`src/services/onlineMusic/<id>/` 和 `electron/<id>/` 迁到这里，宿主不再静态注册任何一家；那两处旧路径作废。
+`src/services/onlineMusic/<id>/` 和 `electron/<id>/` 迁到这里，宿主不再静态注册任何一家；那两处旧路径作废。第十家 `lxmusic`（洛雪音源）是直接在这里写的，没有旧路径。
 
 - 音源模组怎么写（清单 `sources[]`、能力、`playback.surface`、main 入口的 `api`）：[`docs/folium/sources.md`](../docs/folium/sources.md)；
   签名以生成的 [`docs/folium/api.md`](../docs/folium/api.md) 为准。往仓库里加一家的步骤：`src/services/onlineMusic/README.md` 的「接入一个新平台」。

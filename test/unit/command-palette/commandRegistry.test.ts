@@ -665,7 +665,7 @@ describe('command palette registry', () => {
         expect(searchIds()).toEqual([
             'search-current', 'search-local', 'search-navidrome',
             'search-netease', 'search-kugou', 'search-qq', 'search-bodian', 'search-ytm',
-            'search-spotify', 'search-qishui', 'search-appleMusic', 'search-fnmusic',
+            'search-spotify', 'search-qishui', 'search-appleMusic', 'search-fnmusic', 'search-lxmusic',
         ]);
         const netease = COMMAND_PALETTE_COMMANDS.find(command => command.id === 'search-netease')!;
         expect(netease.textSource).toBe('runtime');

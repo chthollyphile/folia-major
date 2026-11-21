@@ -1,0 +1,46 @@
+{
+    "name": {
+        "full": "LX Music Source",
+        "short": "LX"
+    },
+    "availability": {
+        "noScript": "Belum ada skrip sumber kustom yang diimpor. Jalankan “LX Music Source: Impor skrip sumber kustom…” dari palet perintah."
+    },
+    "platform": {
+        "kw": "Kuwo",
+        "kg": "Kugou",
+        "tx": "QQ Music",
+        "wy": "NetEase",
+        "other": "platform saat ini"
+    },
+    "explore": {
+        "charts": {
+            "kw": "Tangga lagu Kuwo",
+            "kg": "Tangga lagu Kugou",
+            "tx": "Tangga lagu QQ Music",
+            "wy": "Tangga lagu NetEase",
+            "other": "Tangga lagu"
+        }
+    },
+    "import": {
+        "cancelled": "Tidak ada berkas yang dipilih",
+        "done": "“{{name}}” diimpor dan dijadikan skrip saat ini",
+        "failed": {
+            "too-large": "Berkas terlalu besar: satu skrip maksimal 2 MB",
+            "not-a-script": "Ini bukan skrip sumber kustom LX Music",
+            "no-platform": "Skrip tidak menyatakan dukungan untuk Kuwo, Kugou, QQ Music, maupun NetEase",
+            "too-many": "Terlalu banyak skrip: hapus satu sebelum mengimpor lagi",
+            "load-failed": "Skrip tidak berjalan (tidak melaporkan platform yang didukungnya)",
+            "unreadable": "Berkas tidak dapat dibaca"
+        }
+    },
+    "select": {
+        "done": "Sekarang memakai “{{name}}”"
+    },
+    "remove": {
+        "done": "“{{name}}” dihapus"
+    },
+    "platformSwitch": {
+        "done": "Sekarang mencari di {{platform}}"
+    }
+}

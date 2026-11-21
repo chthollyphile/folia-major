@@ -223,7 +223,7 @@ describe('folium.omni.listProviders', () => {
         signIn('netease', 9_876_543);
         const providers = omniOf().listProviders();
         // Folium 2.0: Bodian, a source mod now, keeps its place from before it moved (the registry order).
-        expect(providers.map((provider) => provider.providerId)).toEqual(['netease', 'kugou', 'qq', 'bodian', 'ytm', 'spotify', 'qishui', 'appleMusic', 'fnmusic']);
+        expect(providers.map((provider) => provider.providerId)).toEqual(['netease', 'kugou', 'qq', 'bodian', 'ytm', 'spotify', 'qishui', 'appleMusic', 'fnmusic', 'lxmusic']);
         expect(providers[0]).toEqual({
             providerId: 'netease',
             displayName: 'NetEase Cloud Music',

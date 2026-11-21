@@ -310,7 +310,7 @@ describe('the source members of api (plan §5.5)', () => {
     it('windows: a hidden sandboxed window destroyed with the mod, and whether the main window is there', async () => {
         const { api, system } = launchSource();
         const window = api.windows.hidden({ session: 'folia-spotify', width: 10, webPreferences: { preload: '/evil.js' } });
-        expect(window.options).toEqual({ width: 10, show: false, webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, partition: 'folia-spotify' } });
+        expect(window.options).toEqual({ width: 10, show: false, webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false, disableDialogs: true, partition: 'folia-spotify' } });
         expect(api.windows.mainWindowPresent()).toBe(true);
         const heard: boolean[] = [];
         api.windows.onMainWindowChanged((present: boolean) => heard.push(present));
@@ -347,7 +347,7 @@ describe('the source members of api (plan §5.5)', () => {
         expect(electronCalls).toContainEqual(['session.protocol.unhandle', 'persist:folium.spotify.sandbox', 'http']);
         const window = api.windows.hidden({ session: 'sandbox', backgroundThrottling: false, webPreferences: { backgroundThrottling: true } });
         expect(window.options.webPreferences).toEqual({
-            sandbox: true, contextIsolation: true, nodeIntegration: false, partition: 'persist:folium.spotify.sandbox', backgroundThrottling: false,
+            sandbox: true, contextIsolation: true, nodeIntegration: false, disableDialogs: true, partition: 'persist:folium.spotify.sandbox', backgroundThrottling: false,
         });
         await system.setSourceState('spotify', 'disabled');
         expect(electronCalls).toContainEqual(['session.protocol.unhandle', 'persist:folium.spotify.sandbox', 'https']);

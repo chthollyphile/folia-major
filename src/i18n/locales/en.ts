@@ -5501,6 +5501,7 @@ export default {
     "title": "Which platforms do you listen on?",
     "description": "Tick the platforms you use. Unticked ones are hidden, and the disabled ones do not run in the background; with none ticked, local music still plays.",
     "nameSeparator": ", ",
+    "noticeSeparator": ": ",
     "matchingNote_one": "{{names}} stays running in the background even when unticked, only to find lyrics and details for local songs.",
     "matchingNote_other": "{{names}} stay running in the background even when unticked, only to find lyrics and details for local songs.",
     "settingsHint": "You can change this later under Options → Sources.",

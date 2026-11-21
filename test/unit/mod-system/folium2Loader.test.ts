@@ -71,7 +71,7 @@ describe('an empty or missing built-in folder (gate 2)', () => {
         const { states, sources } = system.listSourceStates();
         expect(Object.values(states).every((state) => state === 'enabled')).toBe(true);
         expect(sources.map((source) => source.sourceId)).toEqual(
-            ['netease', 'kugou', 'qq', 'bodian', 'qishui', 'ytm', 'spotify', 'appleMusic', 'fnmusic'],
+            ['netease', 'kugou', 'qq', 'bodian', 'qishui', 'ytm', 'spotify', 'appleMusic', 'fnmusic', 'lxmusic'],
         );
         expect(sources.every((source) => source.modId === null)).toBe(true);
     });
@@ -93,6 +93,31 @@ describe('the built-in tier', () => {
         const system = launch();
         expect(stateOf(system, 'qq')!.sources).toEqual([expect.objectContaining({ id: 'qq', keepForMatching: true, takeover: false })]);
         expect(stateOf(system, 'extra-source')!.sources).toEqual([expect.objectContaining({ id: 'folium.extra-source.radio' })]);
+    });
+
+    it('starts a source its manifest marks offByDefault as disabled, until it is switched on', async () => {
+        writeMod('builtin', sourceManifest('lxmusic', [{ id: 'lxmusic', offByDefault: true, enableNotice: { en: 'Runs scripts you import.' } }]), { main: true });
+        writeMod('builtin', sourceManifest('netease', ['netease']), { main: true });
+        const system = launch();
+        const rowOf = (id: string) => system.listSourceStates().sources.find((source: { sourceId: string }) => source.sourceId === id);
+        expect(rowOf('lxmusic')).toMatchObject({ state: 'disabled', loaded: false, enableNotice: { en: 'Runs scripts you import.' } });
+        expect(system.listSourceStates().states.lxmusic).toBe('disabled');
+        expect(rowOf('netease')).toMatchObject({ state: 'enabled', loaded: true, enableNotice: null });
+        // Nothing of it ran: no main entry, no client.
+        expect(modRecord('lxmusic')?.activations ?? 0).toBe(0);
+        expect(stateOf(system, 'lxmusic')!.sources).toEqual([expect.objectContaining({ id: 'lxmusic', state: 'disabled' })]);
+
+        expect(await system.setSourceState('lxmusic', 'enabled')).toMatchObject({ ok: true });
+        expect(rowOf('lxmusic')).toMatchObject({ state: 'enabled', loaded: true });
+        expect(modRecord('lxmusic')?.activations).toBe(1);
+        expect(await system.setSourceState('lxmusic', 'disabled')).toMatchObject({ ok: true });
+        expect(rowOf('lxmusic')).toMatchObject({ state: 'disabled', loaded: false });
+    });
+
+    it('reads offByDefault from a built-in copy only: a third-party source starts enabled whatever it says', () => {
+        writeMod('builtin', sourceManifest('extra-source', [{ id: 'radio', offByDefault: true }]));
+        const system = launch();
+        expect(system.listSourceStates().states['folium.extra-source.radio']).toBe('enabled');
     });
 
     it('is switched off and on alone, with no dialog and the master switch off', async () => {

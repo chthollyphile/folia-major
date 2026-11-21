@@ -379,6 +379,8 @@ const createModSystem = ({
                 sandbox: true,
                 contextIsolation: true,
                 nodeIntegration: false,
+                // A hidden window runs a mod's page, never the app's: its alert / confirm / prompt would be a native box in the app's name.
+                disableDialogs: true,
                 ...(partition ? { partition } : {}),
                 ...(backgroundThrottling === false ? { backgroundThrottling: false } : {}),
             },
@@ -420,7 +422,8 @@ const createModSystem = ({
     } = createModApproval({ app, store, enabledKey, getMainWindowSafe, getLocaleKey });
 
     /*
-     * Source states (plan §5.3). No record reads as enabled, so an upgraded install has every source on. The
+     * Source states (plan §5.3). No record reads as enabled, so an upgraded install has every source on (but for a
+     * built-in source whose manifest starts it off, `offByDefault`: sourceStateOf below). The
      * states apply whether or not the master switch is on, and to the sources the host still registers
      * itself (the nine before they are mods): the window reads them through the source-states channel.
      */
@@ -434,7 +437,11 @@ const createModSystem = ({
         }
         return states;
     };
-    const sourceStateOf = (sourceId) => readSourceStates()[sourceId] ?? 'enabled';
+    // The built-in sources whose manifest says a profile without a record of them has them off (`sources[].offByDefault`:
+    // a source that does nothing until the listener sets it up); known once a load has resolved who owns which id.
+    let offByDefaultSources = new Set();
+    const defaultSourceStateOf = (sourceId) => (offByDefaultSources.has(sourceId) ? 'disabled' : 'enabled');
+    const sourceStateOf = (sourceId) => readSourceStates()[sourceId] ?? defaultSourceStateOf(sourceId);
     const writeSourceState = (sourceId, state) => {
         store.set(SOURCE_STATES_KEY, { ...readSourceStates(), [sourceId]: state });
     };
@@ -634,6 +641,7 @@ ${partition}`;
             claimRecord: (shortId) => readSourceClaims()[shortId] ?? null,
         });
         lastOwnership = ownership;
+        offByDefaultSources = new Set([...ownership.sources.values()].flat().filter((source) => source.offByDefault).map((source) => source.sourceId));
         // Said once a run, and only by an installation that declares what it carries: until the nine are mods
         // (S5) an undeclared installation carries them as host code, and nothing is broken.
         const missing = ownership.brokenInstall.join(', ');
@@ -1164,9 +1172,11 @@ ${partition}`;
                     sourceId: source.sourceId,
                     modId: runtime.manifest.id,
                     tier: runtime.tier,
-                    state: stored[source.sourceId] ?? 'enabled',
+                    state: stored[source.sourceId] ?? defaultSourceStateOf(source.sourceId),
                     // The manifest's name of it, for lists that show it while it is not registered.
                     name: (runtime.manifest.sources ?? []).find((entry) => entry?.id === source.sourceId)?.name ?? null,
+                    // What the manifest says where it is switched on (`sources[].enableNotice`), or null.
+                    enableNotice: (runtime.manifest.sources ?? []).find((entry) => entry?.id === source.localId)?.enableNotice ?? null,
                     keepForMatching: Boolean(source.keepForMatching),
                     takeover: Boolean(source.takeover),
                     // It accepts a self-signed certificate from a server the user enters: the row says so, as a

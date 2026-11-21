@@ -1,0 +1,46 @@
+{
+    "name": {
+        "full": "洛雪音源",
+        "short": "洛雪"
+    },
+    "availability": {
+        "noScript": "还没有导入自定义源脚本。在命令面板里运行「洛雪音源：导入自定义源脚本…」。"
+    },
+    "platform": {
+        "kw": "酷我",
+        "kg": "酷狗",
+        "tx": "QQ 音乐",
+        "wy": "网易云",
+        "other": "当前平台"
+    },
+    "explore": {
+        "charts": {
+            "kw": "酷我的榜单",
+            "kg": "酷狗的榜单",
+            "tx": "QQ 音乐的榜单",
+            "wy": "网易云的榜单",
+            "other": "榜单"
+        }
+    },
+    "import": {
+        "cancelled": "没有选文件",
+        "done": "已导入「{{name}}」并设为当前的脚本",
+        "failed": {
+            "too-large": "文件太大：单个脚本最多 2 MB",
+            "not-a-script": "这不是洛雪的自定义源脚本",
+            "no-platform": "脚本没有声明它支持酷我、酷狗、QQ 音乐或网易云中的任何一家",
+            "too-many": "脚本太多了：先移除一个再导入",
+            "load-failed": "脚本没能运行起来（它没有报告自己支持哪些平台）",
+            "unreadable": "读不了这个文件"
+        }
+    },
+    "select": {
+        "done": "现在用「{{name}}」"
+    },
+    "remove": {
+        "done": "已移除「{{name}}」"
+    },
+    "platformSwitch": {
+        "done": "现在搜{{platform}}"
+    }
+}

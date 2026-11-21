@@ -359,7 +359,7 @@ describe('the texts the window can ask for', () => {
     it('declares a second line of its own only where the sentence names that platform\'s own thing', () => {
         const notes = Object.fromEntries(listOnlineMusicProviders().map(provider => [provider.id, omni.getLoginTexts(provider.id)?.caseNotes ?? null]));
         expect(notes).toEqual({
-            netease: null, kugou: null, bodian: null, fnmusic: null, qishui: null, appleMusic: null,
+            netease: null, kugou: null, bodian: null, fnmusic: null, qishui: null, appleMusic: null, lxmusic: null,
             // 扫错 App 的那一句按后端有没有 QQ 音乐 App 扫码说（这里还没问到后端）。
             qq: { 'local-service-unavailable': 'folium-mod/qq:login.case.restart', 'wrong-scan-app': 'folium-mod/qq:login.case.wrongScanAppMobileOnly', 'device-limit': 'folium-mod/qq:login.case.deviceLimit' },
             ytm: { 'browser-unfinished': 'folium-mod/ytm:login.unfinished', 'no-browser': 'folium-mod/ytm:login.noBrowser' },

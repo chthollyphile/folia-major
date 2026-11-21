@@ -5501,6 +5501,7 @@ export default {
     "title": "Bạn nghe nhạc trên những nền tảng nào?",
     "description": "Đánh dấu các nền tảng bạn dùng. Nền tảng không đánh dấu sẽ bị ẩn, và nền tảng đã tắt không chạy nền; không chọn nền tảng nào thì nhạc cục bộ vẫn phát.",
     "nameSeparator": ", ",
+    "noticeSeparator": ": ",
     "matchingNote_one": "{{names}} vẫn chạy nền dù không đánh dấu, chỉ để tìm lời bài hát và thông tin cho bài hát cục bộ.",
     "matchingNote_other": "{{names}} vẫn chạy nền dù không đánh dấu, chỉ để tìm lời bài hát và thông tin cho bài hát cục bộ.",
     "settingsHint": "Có thể đổi sau tại Tùy chọn → Nguồn.",

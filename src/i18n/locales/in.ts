@@ -5500,6 +5500,7 @@ export default {
     "title": "Anda mendengarkan musik di platform mana saja?",
     "description": "Centang platform yang Anda pakai. Yang tidak dicentang disembunyikan, dan yang nonaktif tidak berjalan di latar belakang; tanpa satu pun, musik lokal tetap bisa diputar.",
     "nameSeparator": ", ",
+    "noticeSeparator": ": ",
     "matchingNote_one": "{{names}} tetap berjalan di latar belakang meski tidak dicentang, hanya untuk mencari lirik dan info lagu lokal.",
     "matchingNote_other": "{{names}} tetap berjalan di latar belakang meski tidak dicentang, hanya untuk mencari lirik dan info lagu lokal.",
     "settingsHint": "Anda bisa mengubahnya nanti di Opsi → Sumber.",

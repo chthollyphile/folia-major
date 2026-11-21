@@ -37,6 +37,8 @@ export interface SourceRowModel {
     clearable: boolean;
     /** It accepts a self-signed certificate from a server the user enters (its manifest says so); the row tells. */
     selfSignedUserServers: boolean;
+    /** What its manifest says where it is switched on (`sources[].enableNotice`); null for none. */
+    enableNotice: string | Record<string, string> | null;
 }
 
 export interface SourceRowInputs {
@@ -86,6 +88,7 @@ export const buildSourceRows = (
             error: run === 'failed' ? mod?.error ?? null : null,
             clearable: row.tier !== 'host' && row.modId !== null,
             selfSignedUserServers: row.selfSignedUserServers === true,
+            enableNotice: row.enableNotice ?? null,
         }];
     });
 };
