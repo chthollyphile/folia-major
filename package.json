@@ -24,6 +24,7 @@
     "typecheck": "tsc --noEmit && node dev/sources/typecheck.mjs",
     "codemap": "node dev/mcp/ts-code-map/codemap.mjs",
     "sources:build": "node dev/sources/build.mjs",
+    "sources:pack": "node dev/sources/pack.mjs",
     "folium:api": "node dev/folium/api-docs.mjs",
     "folium:types": "node dev/folium/types.mjs",
     "folium:new": "node dev/folium/new.mjs",
