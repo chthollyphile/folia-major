@@ -191,11 +191,24 @@ describe('handing a taken-over id to another mod', () => {
 describe('a takeover that claims a cache folder of before', () => {
     it('lists it with the old data in its confirmation', async () => {
         writeAppPackage({ foliaBundledSources: [] });
-        writeMod('user', sourceManifest('spotify-copy', [{ id: 'spotify', claims: { id: 'spotify', storeKeys: ['SPOTIFY_SESSION_V1'], legacyCacheDirs: ['spotify'] } }]));
+        writeMod('user', sourceManifest('spotify-copy', [{ id: 'spotify', claims: { id: 'spotify', storeKeys: ['SPOTIFY_SESSION_V1'], legacyCacheDirs: ['spotify'] } }], { native: ['librespot'] }));
         const system = launch();
         dialogAnswer.response = 1;
         expect(await system.assignSourceClaim('spotify', 'spotify-copy')).toMatchObject({ ok: true });
         expect(dialogs.at(-1)!.detail).toContain('cache/spotify');
+        // It declares librespot but carries no native folder: no line about native programs.
+        expect(dialogs.at(-1)!.detail).not.toContain('native programs');
+    });
+
+    it('says it brings native programs of its own when it carries them', async () => {
+        writeAppPackage({ foliaBundledSources: [] });
+        writeMod('user', sourceManifest('spotify-copy', [{ id: 'spotify', claims: { id: 'spotify' } }], { native: ['librespot'] }), {
+            files: { 'native/librespot/win32-x64/dist/index.js': 'module.exports = {};' },
+        });
+        const system = launch();
+        dialogAnswer.response = 1;
+        expect(await system.assignSourceClaim('spotify', 'spotify-copy')).toMatchObject({ ok: true });
+        expect(dialogs.at(-1)!.detail).toContain('It brings native programs of its own, which run directly on your computer (not the ones the app ships): librespot');
     });
 });
 

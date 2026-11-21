@@ -73,6 +73,8 @@ const { createModSecrets, SECRET_MAX_BYTES } = require('./modSecrets.cjs');
 const { oldNameWarnings, onOldNameWarning } = require('./deprecated.cjs');
 const { BUILTIN_LEGACY_MEDIA_SCHEMES, BUILTIN_SOURCE_IDS, builtinSourceRow, builtinModOfSource, readBundledSources } = require('./builtinSources.cjs');
 const { resolveSourceOwnership, claimRefusal, legacyOfClaims } = require('./sourceOwnership.cjs');
+const { resolveModNativeFile } = require('./nativeFiles.cjs');
+const { rawFs } = require('./rawFs.cjs');
 const { ownPartitionOf, PARTITION_NAME_PATTERN } = require('./sourceApi.cjs');
 const { createMediaRules } = require('./mediaRules.cjs');
 const { limits: FOLIUM_LIMITS, foliumOneVersion: FOLIUM_ONE_VERSION } = require('./foliumShared.json');
@@ -387,6 +389,8 @@ const createModSystem = ({
         }),
         diagnostics,
         nativePath: typeof nativePath === 'function' ? nativePath : () => null,
+        // A takeover's own copy of a native file, in its folder (nativeFiles.cjs resolveModNativeFile): { path } or { error }.
+        modNativePath: (dirPath, name) => resolveModNativeFile(name, dirPath, { platform: process.platform, arch: process.arch, fs: rawFs }),
         reportError: typeof reportError === 'function'
             ? reportError
             : (where, error) => console.error(`[Mods] ${where}: an error reported to the crash report`, error),
@@ -1135,7 +1139,7 @@ ${partition}`;
             sourceId: shortId,
             takeover: true,
             keepForMatching: false,
-            legacy: legacyOfClaims(entry.claims),
+            legacy: legacyOfClaims(entry.claims, sourceRowOf(shortId), discovery.manifest),
         }));
         const confirmed = await confirmEnableMod({
             manifest: discovery.manifest,

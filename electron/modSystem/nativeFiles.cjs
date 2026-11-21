@@ -55,4 +55,77 @@ function resolveNativeFile(name, { platform, isPackaged, resourcesPath, projectR
     return row.resolve({ platform, isPackaged, resourcesPath, projectRoot, override });
 }
 
-module.exports = { NATIVE_FILES, resolveNativeExecutable, resolveNativeFile };
+/*
+ * A takeover's own copy (Folium 2.0 plan §5.1). An installation that does not carry a source does not carry its native
+ * files either, so a mod that takes that source over brings them in its own folder:
+ *
+ *     <mod folder>/native/<name>/<platform>-<arch>/<entry>
+ *
+ * `<platform>-<arch>` is Node's `process.platform` and `process.arch` (win32-x64, darwin-arm64, linux-x64, …); `<entry>` is
+ * this table's, by name and system: the file `api.native.path` answers and `load` requires. The files it needs beside it
+ * (the companion's DLLs, librespot's prebuilt binding) sit in the same system folder. A name or system the table has no
+ * entry for has no takeover copy: the source says it cannot run there. The names a takeover may resolve this way are
+ * those its manifest `native` and the trusted row of the source it claims both list (sourceOwnership.cjs ownNative).
+ */
+const MOD_NATIVE_ENTRIES = Object.freeze({
+    // The Windows companion only: a macOS .app unpacked from a zip into the user's folders keeps neither its signature
+    // nor its executable bits for certain, which nobody has checked.
+    'apple-music-companion': Object.freeze({ 'win32-x64': 'FoliaAppleMusicCompanion.exe' }),
+    // The package's own loader, which finds the binding of this system in ../prebuilds/<platform>-<arch>[-<abi>]/.
+    librespot: Object.freeze({
+        'win32-x64': 'dist/index.js',
+        'darwin-arm64': 'dist/index.js',
+        'linux-x64': 'dist/index.js',
+        'linux-arm64': 'dist/index.js',
+    }),
+});
+
+/** `<platform>-<arch>`, the system folder of a takeover's native files. */
+const modNativeSystem = (platform, arch) => `${platform}-${arch}`;
+
+/** The entry's path in a mod folder, `/`-separated, or null where the table has none for that name and system. */
+function modNativeRelativePath(name, system) {
+    const row = Object.hasOwn(MOD_NATIVE_ENTRIES, name) ? MOD_NATIVE_ENTRIES[name] : null;
+    const entry = row && Object.hasOwn(row, system) ? row[system] : null;
+    return entry ? `native/${name}/${system}/${entry}` : null;
+}
+
+const isInside = (parent, child) => child === parent || child.startsWith(parent.endsWith(path.sep) ? parent : parent + path.sep);
+
+/**
+ * A takeover's own copy of the native file `name`, in its folder `modDir`. Answers { path } or { error, system }:
+ *   native-not-in-mod   the table has no entry for this system, or the mod does not carry it;
+ *   native-unsafe-path  a folder or file on the way is a symbolic link (or junction), or is not what it should be, or the
+ *                       real path leaves the mod folder.
+ * Walked one name at a time with lstat, so no link is followed; the real path is checked again at the end.
+ * `fs` is node's (original-fs in the app, so an .asar on the way is a file, as zipInstall.cjs wrote it).
+ */
+function resolveModNativeFile(name, modDir, { platform, arch, fs }) {
+    const system = modNativeSystem(platform, arch);
+    const relative = modNativeRelativePath(name, system);
+    if (!relative || typeof modDir !== 'string' || !modDir) return { error: 'native-not-in-mod', system };
+    const segments = relative.split('/');
+    let current = path.resolve(modDir);
+    for (let index = 0; index < segments.length; index += 1) {
+        current = path.join(current, segments[index]);
+        let stat;
+        try {
+            stat = fs.lstatSync(current);
+        } catch {
+            return { error: 'native-not-in-mod', system };
+        }
+        const last = index === segments.length - 1;
+        if (stat.isSymbolicLink()) return { error: 'native-unsafe-path', system };
+        if (last ? !stat.isFile() : !stat.isDirectory()) return { error: 'native-unsafe-path', system };
+    }
+    try {
+        if (!isInside(fs.realpathSync(path.resolve(modDir)), fs.realpathSync(current))) return { error: 'native-unsafe-path', system };
+    } catch {
+        return { error: 'native-unsafe-path', system };
+    }
+    return { path: current };
+}
+
+module.exports = {
+    NATIVE_FILES, MOD_NATIVE_ENTRIES, resolveNativeExecutable, resolveNativeFile, modNativeSystem, modNativeRelativePath, resolveModNativeFile,
+};

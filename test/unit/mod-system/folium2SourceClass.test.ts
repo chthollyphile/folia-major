@@ -4,7 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import {
     IPC, cleanHarness, clearModRecords, confirmMod, electronCalls, hostStore, invoke, launch, modRecord, resetHarness,
-    harness, persisted, sourceManifest, stateOf, writeMod,
+    harness, persisted, sourceManifest, stateOf, writeAppPackage, writeMod,
 } from './loaderHarness';
 
 // test/unit/mod-system/folium2SourceClass.test.ts
@@ -385,6 +385,41 @@ describe('the source members of api (plan §5.5)', () => {
         const error = new Error('boom');
         api.reportError(error, 'worker');
         expect(reported).toEqual([['mod:spotify worker', error]]);
+    });
+
+    // Plan §5.1: an installation without Spotify carries no librespot; the mod that takes it over brings its own.
+    it('native files of a takeover: its own copy in its folder, never the one the app ships', () => {
+        writeAppPackage({ foliaBundledSources: [] });
+        const system = `${process.platform}-${process.arch}`;
+        const { modNativeRelativePath } = require('../../../electron/modSystem/nativeFiles.cjs');
+        const relative = modNativeRelativePath('librespot', system);
+        const files: Record<string, string> = relative ? { [relative]: 'module.exports = { own: true };' } : {};
+        const directory = writeMod('user', sourceManifest('spotify-copy', [{ id: 'spotify', claims: { id: 'spotify' } }], {
+            native: ['librespot', 'apple-music-companion', 'other'],
+        }), { main: true, files });
+        confirmMod(directory, 'spotify-copy');
+        persisted.set('mods.sourceClaims', { spotify: 'spotify-copy' });
+        const appCopy = path.join(harness().root, 'native', 'app-librespot.cjs');
+        launch({ extra: { nativePath: () => appCopy } });
+        const api = apiOf('spotify-copy');
+        if (relative) {
+            expect(api.native.path('librespot')).toBe(path.join(directory, ...relative.split('/')));
+            expect(api.native.load('librespot')).toEqual({ own: true });
+        } else {
+            expect(() => api.native.path('librespot')).toThrow(`native-not-in-mod:librespot:${system}`);
+        }
+        // apple-music-companion is in the manifest but not in Spotify's row; `other` in neither.
+        expect(() => api.native.path('apple-music-companion')).toThrow('native-not-granted');
+        expect(() => api.native.path('other')).toThrow('native-not-granted');
+    });
+
+    it('a takeover that does not carry the copy for this system is told so, not that it is not granted', () => {
+        writeAppPackage({ foliaBundledSources: [] });
+        const directory = writeMod('user', sourceManifest('spotify-copy', [{ id: 'spotify', claims: { id: 'spotify' } }], { native: ['librespot'] }), { main: true });
+        confirmMod(directory, 'spotify-copy');
+        persisted.set('mods.sourceClaims', { spotify: 'spotify-copy' });
+        launch({ extra: { nativePath: () => path.join(harness().root, 'nope.cjs') } });
+        expect(() => apiOf('spotify-copy').native.path('librespot')).toThrow(`native-not-in-mod:librespot:${process.platform}-${process.arch}`);
     });
 
     it('diagnostics.snapshot and selfCheck answer what the host answers for its own sources only', async () => {

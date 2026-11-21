@@ -27,7 +27,7 @@ const { compareVersionStrings, satisfiesHostRange } = require('./manifest.cjs');
 /** The id the host knows a mod's own (third-party) source by. */
 const thirdPartySourceId = (modId, localId) => `folium.${modId}.${localId}`;
 
-const NO_LEGACY = Object.freeze({ storeKeys: [], partitions: [], userDataDirs: [], native: [] });
+const NO_LEGACY = Object.freeze({ storeKeys: [], partitions: [], userDataDirs: [], native: [], ownNative: [] });
 
 const legacyOfRow = (row) => (row ? {
     storeKeys: [...row.storeKeys],
@@ -40,15 +40,21 @@ const legacyOfRow = (row) => (row ? {
 
 /*
  * What a takeover's claims grant. The cache folders of before only where the claims name any, as a row's. Native files:
- * none of the app's (`native`, which only a built-in copy or a signed override reaches).
+ * none of the app's (`native`, which only a built-in copy or a signed override reaches); `ownNative` are the names the
+ * mod may resolve in its own folder (nativeFiles.cjs resolveModNativeFile): those both its manifest `native` and the
+ * trusted row of the source it claims (`row`) list.
  */
-const legacyOfClaims = (claims) => ({
-    storeKeys: [...(claims.storeKeys ?? [])],
-    partitions: [...(claims.partitions ?? [])],
-    userDataDirs: [...(claims.userDataDirs ?? [])],
-    native: [],
-    ...(claims.legacyCacheDirs?.length ? { cacheDirs: [...claims.legacyCacheDirs] } : {}),
-});
+const legacyOfClaims = (claims, row = null, manifest = null) => {
+    const declared = Array.isArray(manifest?.native) ? manifest.native : [];
+    return {
+        storeKeys: [...(claims.storeKeys ?? [])],
+        partitions: [...(claims.partitions ?? [])],
+        userDataDirs: [...(claims.userDataDirs ?? [])],
+        native: [],
+        ownNative: (row?.native ?? []).filter((name) => declared.includes(name)),
+        ...(claims.legacyCacheDirs?.length ? { cacheDirs: [...claims.legacyCacheDirs] } : {}),
+    };
+};
 
 /*
  * Why `candidate` may not replace the built-in copy `builtin`, or null when it may. Checked in the order the
@@ -210,7 +216,7 @@ const resolveSourceOwnership = (builtins, candidates, bundled, options) => {
             }
             const claimsIt = entry.claims && (claimHolders.get(entry.claims.id) === modId || unheld.get(entry.claims.id)?.includes(modId));
             if (claimsAsLegacy && claimsIt) {
-                return { localId: entry.id, sourceId: entry.claims.id, legacy: legacyOfClaims(entry.claims), takeover: true, keepForMatching: false, offByDefault: false };
+                return { localId: entry.id, sourceId: entry.claims.id, legacy: legacyOfClaims(entry.claims, options.sourceRow(entry.claims.id), manifest), takeover: true, keepForMatching: false, offByDefault: false };
             }
             return { localId: entry.id, sourceId: thirdPartySourceId(modId, entry.id), legacy: null, takeover: false, keepForMatching: false, offByDefault: false };
         })

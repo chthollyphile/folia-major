@@ -3822,7 +3822,7 @@ interface FoliumSourceMainApi extends FoliumMainApi
 | `onBeforeQuit()` | `(handler: () => void \| Promise<void>): FoliumDisposer` | Waited for (3 seconds at most) when the app quits. |
 | `onPlayersOrphaned()` | `(handler: () => void): FoliumDisposer` | The main window went and no window takes its playback over: pause what plays outside the app. |
 | `readonly diagnostics` | `FoliumSourceDiagnostics` | The sign-in diagnostics and self-check of one of the mod's own sources. |
-| `readonly native` | `FoliumSourceNative` | Native files the app ships for a built-in source, by the names its manifest `native` and its row both list. |
+| `readonly native` | `FoliumSourceNative` | Native files, by the names its manifest `native` and its row both list: the app's own for a built-in source (or a signed override of one); for a takeover, its own copy in `native/<name>/<platform>-<arch>/` of its folder. |
 | `reportError()` | `(error: unknown, where?: string): void` | An error the source could not handle: into the host's crash report, without telling the user. |
 | `readonly manifest` | `FoliumManifest` | 继承自 [FoliumMainApi](#foliummainapi)。This mod's mod.json as the host read it (missing fields filled in), frozen. |
 | `readonly log` | `FoliumLogger` | 继承自 [FoliumMainApi](#foliummainapi)。Logging; `error` entries show in the mods panel under the mod. |
@@ -3887,7 +3887,7 @@ Folium 2: `api.native` of a source mod.
 
 | 成员 | 类型 | 说明 |
 | --- | --- | --- |
-| `path()` | `(name: string): string` | The file's path; throws `native-not-granted:<name>` or `native-unavailable:<name>`. |
+| `path()` | `(name: string): string` | The file's path. Throws `native-not-granted:<name>`; `native-unavailable:<name>` where the app has none for this system; for a takeover, `native-not-in-mod:<name>:<platform>-<arch>` where the mod does not carry this system's copy, `native-unsafe-path:<name>:<platform>-<arch>` where the way to it is a link or leaves the mod's folder. |
 | `load()` | `(name: string): unknown` | `require` of that path. |
 
 ### FoliumSourceNet
