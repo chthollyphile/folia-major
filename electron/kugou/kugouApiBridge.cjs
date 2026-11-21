@@ -406,7 +406,7 @@ function createKugouApiBridge({
         return mergeResponseSession(operation, result);
     };
 
-    // Refresh QR sessions in the main process; a logout or switch invalidates an in-flight reply.
+    // Refresh the VIP credential in the main process; a logout or switch invalidates an in-flight reply.
     const ensureVipCredential = async () => {
         const session = ensureCookies();
         const token = session.token;
