@@ -10,7 +10,7 @@ import {
 import { omni } from '../services/onlineMusic/omni';
 import { isLocalPlaybackSong, isNavidromePlaybackSong } from '../utils/appPlaybackGuards';
 import { sanitizeSearchHistory, withSearchHistoryQuery, withoutSearchHistoryQuery } from '../utils/searchHistory';
-import { getStoredString, setStoredString } from './storagePrimitives';
+import { getStoredString, readStoredString, setStoredString } from './storagePrimitives';
 
 const LAST_HOME_VIEW_TAB_KEY = 'last_home_view_tab';
 /** 在线组上次停在哪一页（首页两级页签：从别的组回到在线组时回到它）。 */
@@ -263,7 +263,7 @@ const getInitialHomeViewTab = (): HomeViewTab => {
 
 /** 在线组上次停在哪一页：没存过（旧版本升级上来）时，上次停的那一页是在线页就是它，否则是歌单。 */
 const getInitialHomeOnlineTab = (homeViewTab: HomeViewTab): HomeOnlineViewTab => {
-    const savedTab = typeof window === 'undefined' ? null : localStorage.getItem(LAST_HOME_ONLINE_TAB_KEY);
+    const savedTab = readStoredString(LAST_HOME_ONLINE_TAB_KEY);
     if (isHomeOnlineViewTab(savedTab)) return savedTab;
     return isHomeOnlineViewTab(homeViewTab) ? homeViewTab : 'playlist';
 };
@@ -323,8 +323,8 @@ export const useSearchNavigationStore = create<SearchNavigationState>((set, get)
     setHomeViewTab: (tab) => {
         if (typeof window !== 'undefined') {
             localStorage.setItem(LAST_HOME_VIEW_TAB_KEY, tab);
-            if (isHomeOnlineViewTab(tab)) localStorage.setItem(LAST_HOME_ONLINE_TAB_KEY, tab);
         }
+        if (isHomeOnlineViewTab(tab)) setStoredString(LAST_HOME_ONLINE_TAB_KEY, tab);
         set(isHomeOnlineViewTab(tab) ? { homeViewTab: tab, homeOnlineTab: tab } : { homeViewTab: tab });
     },
     setSearchQuery: (query) => set({ searchQuery: query }),

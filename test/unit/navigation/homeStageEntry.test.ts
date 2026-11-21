@@ -143,8 +143,12 @@ describe('home stage entry source contracts', () => {
 
         expect(content).toContain('stageEnabled?: boolean;');
         expect(content).toContain('onOpenStagePlayer?: () => void;');
-        expect(content).toContain('{stageEnabled && (');
-        expect(content).toContain("onClick={() => onOpenStagePlayer?.()}");
-        expect(content).toContain("t('home.stage')");
+        // 顶部那一排（首页两级页签的一级）挪进了 Grid3DHomeTabs；Grid3D 把舞台入口原样交给它。
+        expect(content).toContain('stage={{ enabled: stageEnabled, active: stageIsActive, open: onOpenStagePlayer }}');
+
+        const tabs = await readRepoFile('src/library/suites/grid/home/Grid3DHomeTabs.tsx');
+        expect(tabs).toContain('{stage.enabled && (');
+        expect(tabs).toContain('onClick={() => stage.open?.()}');
+        expect(tabs).toContain("t('home.stage')");
     });
 });
