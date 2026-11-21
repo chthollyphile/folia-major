@@ -276,11 +276,9 @@ const validateClaims = (claims, where, errors) => {
         errors.push(`${where}.claims must be an object`);
         return;
     }
-    Object.keys(claims).forEach((field) => {
-        if (field !== 'id' && !CLAIM_LIST_FIELDS.some(([name]) => name === field)) {
-            errors.push(`${where}.claims has an unknown field "${field}"`);
-        }
-    });
+    // A field this host does not know is ignored, not refused: a later host may let a takeover claim one more kind of
+    // old data (as legacyCacheDirs was added), and a pack made for it should still install here. What is ignored is
+    // never granted: grants come from the fields below only, each checked against the trusted table's row.
     if (typeof claims.id !== 'string' || !SOURCE_ID_PATTERN.test(claims.id)) {
         errors.push(`${where}.claims.id must be the short source id it takes over`);
     }

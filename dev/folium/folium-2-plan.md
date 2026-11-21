@@ -605,7 +605,7 @@ Windows 以外的系统、Apple Music 的 DRM、Spotify Soloist 以对应系统�
 - 内置副本和官方签名的覆盖副本照旧用应用带的那份；接管副本的 `api.native` 解析到自己目录。名字限于清单 `native` 与受信表那一行的交集；路径逐级查链接，不能出模组目录；没有本系统那份时报 `native-not-in-mod`。音源代码不变。
 - `claims` 加 `legacyCacheDirs`，必须是受信表那一行的子集；接管确认窗口列出旧缓存目录，并多一行说明它带着自己的原生程序。原生件在内容摘要里，变了要重新确认。
 - `npm run sources:pack -- <id> --system <系统>-<架构>` 按系统带上 librespot（win32-x64、darwin-arm64、linux-x64、linux-arm64）和 Windows 的伴侣程序，`--no-native` 不带；单文件最大 18.3 MB，没有动 zip 安装的上限。
-- 这之前的宿主不认识 `claims.legacyCacheDirs`，装新的 Spotify 包会因未知字段整包失败。
+- 这之前的宿主不认识 `claims.legacyCacheDirs`，装新的 Spotify 包会因未知字段整包失败。维护者 2026-11-22 定：`claims` 里宿主不认识的字段改成忽略、不认领任何东西，以后再加字段时新包在旧宿主上也装得上（已经发出去的滚动版仍会拒绝）。
 
 **待维护者定**
 
@@ -617,6 +617,5 @@ Windows 以外的系统、Apple Music 的 DRM、Spotify Soloist 以对应系统�
 6. `sources:pack` 的签名是否改成只出未签名包、交给 folium-compound 签；`folia` 范围的上下界。
 7. 用户明确关掉模组系统总开关时，内置音源照常运行，但它们的命令面板命令（洛雪的脚本管理全靠命令）不出现；要不要让内置音源的命令不受总开关管。
 8. 给 PR #1177 作者的回复（草稿在洛雪的交接说明里，没发）。
-9. 清单校验遇到不认识的字段是整包拒绝；要不要对 `claims` 里不认识的字段放宽成忽略，好让新包能装在旧宿主上。
 
 **要真实账号、真机验的**：洛雪拿真实的自定义源脚本导入并在四个平台各放一首、官方私钥签的音源包在社区模组关着时能直接装、0.7.29 升级后两个开关的取值、九家登录后的路径、Apple Music 与 Spotify 的真实播放和窗口交接、各家「清除数据」的原生确认框、确认覆盖的对话框、0.7.x profile 升级再降级、macOS 与 Linux 的安装包，都还只有单测、替身或 Windows 上的冒烟。
