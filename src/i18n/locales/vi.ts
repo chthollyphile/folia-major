@@ -7037,6 +7037,7 @@ export default {
         "notQueue": "Thêm vào sổ ghi nhanh không đụng đến hàng đợi phát; bài đang phát vẫn tiếp tục. Một dấu nhỏ, mờ luôn nằm ở phần trên mép trái; đưa chuột tới đó, nó mở ra thành nhãn giấy cho thấy số bài bên trong. Có thể đổi kiểu dấu trong Cài đặt.",
         "otherWays": "Với bài đang phát, nhấn : để vào chế độ thực thi rồi nhấn S. Ở trang bộ sưu tập, “Thêm tất cả vào sổ ghi nhanh” lấy các bài của trang đó một lần, chỉ những bài đã lọc khi đang lọc: ở Grid nằm trong bảng thông tin, ở Bravais nằm trong “⋯ Thêm” của dải thông tin.",
         "open": "Nhấn tay nắm, hoặc nhấn {{mod}} + J, để mở sổ ghi nhanh; trong chế độ thực thi là J. Nhấn lần nữa để đóng.",
+        "handleDrag": "Giữ tay nắm (hoặc giữ và kéo lên / xuống) để di chuyển; thả ở độ cao phù hợp thì lưu vào cài đặt \u0022vị trí thẻ\u0022, lần sau vẫn ở đó.",
         "groups": "Bài hát được nhóm theo nguồn: mỗi nền tảng trực tuyến một nhóm, tệp cục bộ một nhóm, Navidrome một nhóm. Bài được lấy từ đâu (danh sách nào, lần tìm kiếm nào) ghi sau tên nghệ sĩ.",
         "groupActions": "Bên phải đầu nhóm: “Thêm nhóm này vào hàng đợi” và “Thêm nhóm này vào danh sách phát…”. Một danh sách phát chỉ nhận bài từ một nguồn; vì đã nhóm theo nguồn, cả nhóm vừa vặn một danh sách.",
         "rowActions": "Rê chuột lên một dòng để thấy: phát trong hàng đợi, thêm vào hàng đợi, thêm vào danh sách phát, và bỏ ra khỏi sổ. Bài vẫn ở lại sau khi đã vào hàng đợi hay danh sách phát; không cần nữa thì tự bỏ ra.",
