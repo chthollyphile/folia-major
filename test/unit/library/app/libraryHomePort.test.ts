@@ -15,7 +15,7 @@ import { noteWholeQueueWrite } from '@/services/wholeQueueWrites';
 const api = vi.hoisted(() => ({ getPersonalFm: vi.fn(), getPersonalFmCatalog: vi.fn(), getPersonalFmStationCatalog: vi.fn() }));
 vi.mock('@/services/onlineMusic/omni', () => ({ omni: api }));
 vi.mock('@/services/localMusicService', () => ({ importFolder: vi.fn(), resyncAllFolders: vi.fn(), LOCAL_MUSIC_SCAN_PROGRESS_EVENT: 'scan' }));
-vi.mock('@/services/localPlaylistFileService', () => ({ importLocalPlaylistFile: vi.fn() }));
+vi.mock('@/services/foliaPlaylist/foliaPlaylistM3u', () => ({ importLocalPlaylistFile: vi.fn() }));
 const selection = { mode: 'SCENE_RCMD' as const, scene: '33' };
 const catalog = { ...DEFAULT_PERSONAL_FM_CATALOG, scenes: [{ id: '33', category: 'activity', labelKey: '', labelFallback: 'Driving', keywords: [] }] };
 const stationCatalog = { ...catalog, modes: catalog.modes.filter(entry => entry.id === 'DEFAULT' || entry.id === 'SCENE_RCMD') };

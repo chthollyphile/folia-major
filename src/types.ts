@@ -1582,15 +1582,6 @@ export interface LocalLibrarySnapshot {
   tree: LocalLibrarySnapshotNode;
 }
 
-export interface LocalPlaylist {
-  id: string;
-  name: string;
-  songIds: string[];
-  createdAt: number;
-  updatedAt: number;
-  isFavorite?: boolean;
-}
-
 export type LocalLibraryGroupType = 'folder' | 'album' | 'artist' | 'playlist';
 
 export interface LocalLibraryGroup {

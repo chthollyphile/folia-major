@@ -1,10 +1,12 @@
 import type { TFunction } from 'i18next';
-import type { LocalPlaylist, UnifiedSong } from '../../types';
+import type { UnifiedSong } from '../../types';
+import type { FoliaPlaylist } from '../../types/foliaPlaylist';
+import { foliaLocalSongKey } from '../../utils/foliaPlaylistEntries';
 import type { LocalGridViewCollectionDescriptor } from '../core/collection/collection.contract';
 import type { LibraryMutationPort, LibraryPlaylistOption } from '../core/shared/ports.contract';
 import { deleteFolderSongs, resyncAllFolders, resyncFolder } from '../../services/localMusicService';
-import { deleteLocalPlaylist, removeSongsFromLocalPlaylist, updateLocalPlaylist } from '../../services/localPlaylistService';
-import { downloadLocalPlaylistM3u8 } from '../../services/localPlaylistFileService';
+import { deleteFoliaPlaylist, removeFoliaPlaylistEntries, renameFoliaPlaylist } from '../../services/foliaPlaylist/foliaPlaylistService';
+import { downloadFoliaPlaylistM3u8 } from '../../services/foliaPlaylist/foliaPlaylistM3u';
 import { getNavidromeConfig, navidromeApi } from '../../services/navidromeService';
 import { isLocalGridViewCollection } from '../../components/app/home/gridViewCollectionAdapters';
 import type { HomeSurfaceProps } from '../../components/app/home/homeSurfaceTypes';
@@ -28,7 +30,7 @@ type MutationSurface = Pick<
 >;
 
 export type LibraryMutationPortDialogs = {
-    reorderPlaylist: (playlist: LocalPlaylist) => void;
+    reorderPlaylist: (playlist: FoliaPlaylist) => void;
     editEntity: (entityId: string) => void;
     editCover: (collection: LocalGridViewCollectionDescriptor) => void;
     organizeFolder: (collection: LocalGridViewCollectionDescriptor) => void;
@@ -75,14 +77,14 @@ export const createLibraryMutationPort = ({
             surface.onRefreshLocalSongs();
         },
         renamePlaylist: async (playlistId, name) => {
-            await updateLocalPlaylist(playlistId, playlist => ({
-                ...playlist,
-                name: name.trim(),
-            }));
+            await renameFoliaPlaylist(playlistId, name);
             surface.onRefreshLocalSongs();
         },
         deletePlaylist: async (playlistId) => {
-            await deleteLocalPlaylist(playlistId);
+            if (!await deleteFoliaPlaylist(playlistId)) {
+                await surface.onRefreshLocalSongs();
+                return;
+            }
             // 歌单 id 不会再出现：它的自定义封面一并删掉（失败只记一行，歌单已经删了）。
             const coverKey = localCollectionCoverKey({ type: 'playlist', id: playlistId, playlistId });
             if (coverKey) {
@@ -99,14 +101,18 @@ export const createLibraryMutationPort = ({
         exportPlaylist: async (playlistId) => {
             const playlist = surface.localPlaylists.find(item => item.id === playlistId);
             if (!playlist) return;
-            downloadLocalPlaylistM3u8(playlist, surface.localSongs);
+            // M3U 只装得下本地文件：别的来源的条目不导出，跳过了几首要说出来。
+            const exported = downloadFoliaPlaylistM3u8(playlist, surface.localSongs);
             surface.onStatusMessage?.({
                 type: 'success',
                 text: t('localMusic.playlistExportSuccess', { name: playlist.name }),
+                note: exported.skippedCount > 0
+                    ? t('localMusic.playlistExportSkipped', { count: exported.skippedCount })
+                    : undefined,
             });
         },
         removePlaylistSongs: async (playlistId, songIds) => {
-            await removeSongsFromLocalPlaylist(playlistId, songIds);
+            await removeFoliaPlaylistEntries(playlistId, songIds.map(foliaLocalSongKey));
         },
     },
     navidrome: {

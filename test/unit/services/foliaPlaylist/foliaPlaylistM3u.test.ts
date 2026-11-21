@@ -1,19 +1,26 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { LocalPlaylist, LocalSong } from '@/types';
-import { createLocalPlaylist } from '@/services/localPlaylistService';
+import type { LocalSong } from '@/types';
+import type { FoliaPlaylist } from '@/types/foliaPlaylist';
+import { createFoliaPlaylistFromLocalSongs } from '@/services/foliaPlaylist/foliaPlaylistService';
 import {
     importLocalPlaylistFile,
     matchM3uPathsToLocalSongs,
     normalizeM3uPath,
     parseM3uPlaylist,
-    serializeLocalPlaylistToM3u8,
-} from '@/services/localPlaylistFileService';
+    serializeFoliaPlaylistToM3u8,
+} from '@/services/foliaPlaylist/foliaPlaylistM3u';
 
-// test/unit/services/localPlaylistFileService.test.ts
+// test/unit/services/foliaPlaylist/foliaPlaylistM3u.test.ts
 // Covers portable M3U parsing, path matching, import reporting, and relative-path export.
 
-vi.mock('@/services/localPlaylistService', () => ({
-    createLocalPlaylist: vi.fn(),
+vi.mock('@/services/foliaPlaylist/foliaPlaylistService', () => ({
+    createFoliaPlaylistFromLocalSongs: vi.fn(),
+}));
+
+const localEntries = (songIds: string[]): FoliaPlaylist['entries'] => songIds.map(id => ({
+    key: `local:${id}`,
+    song: { id, name: id, artists: [], album: { id: 0, name: '' }, durationMs: 0 },
+    addedAt: 1,
 }));
 
 const createSong = (id: string, filePath: string, patch: Partial<LocalSong> = {}): LocalSong => ({
@@ -35,9 +42,9 @@ const createSong = (id: string, filePath: string, patch: Partial<LocalSong> = {}
     ...patch,
 });
 
-describe('localPlaylistFileService', () => {
+describe('foliaPlaylistM3u', () => {
     beforeEach(() => {
-        vi.mocked(createLocalPlaylist).mockReset();
+        vi.mocked(createFoliaPlaylistFromLocalSongs).mockReset();
     });
 
     it('parses playlist metadata while keeping only media paths', () => {
@@ -90,21 +97,21 @@ describe('localPlaylistFileService', () => {
             createSong('one', 'Library/A.mp3'),
             createSong('two', 'Library/B.mp3'),
         ];
-        const created: LocalPlaylist = {
+        const created: FoliaPlaylist = {
             id: 'playlist',
             name: 'Road Trip',
-            songIds: ['two', 'one'],
+            entries: localEntries(['two', 'one']),
             createdAt: 1,
             updatedAt: 1,
         };
-        vi.mocked(createLocalPlaylist).mockResolvedValue(created);
+        vi.mocked(createFoliaPlaylistFromLocalSongs).mockResolvedValue(created);
 
         const result = await importLocalPlaylistFile(
             new File(['#EXTM3U\n#PLAYLIST:Road Trip\nB.mp3\nMissing.mp3\nA.mp3\n'], 'fallback.m3u8'),
             songs,
         );
 
-        expect(createLocalPlaylist).toHaveBeenCalledWith('Road Trip', [songs[1], songs[0]]);
+        expect(createFoliaPlaylistFromLocalSongs).toHaveBeenCalledWith('Road Trip', [songs[1], songs[0]]);
         expect(result.playlist).toBe(created);
         expect(result.unmatchedPaths).toEqual(['Missing.mp3']);
     });
@@ -114,15 +121,15 @@ describe('localPlaylistFileService', () => {
             createSong('one', 'Library/Album/01.mp3', { title: 'First' }),
             createSong('two', 'Library/Album/02.mp3', { title: 'Second' }),
         ];
-        const playlist: LocalPlaylist = {
+        const playlist: FoliaPlaylist = {
             id: 'playlist',
             name: '精选',
-            songIds: ['two', 'one'],
+            entries: localEntries(['two', 'one']),
             createdAt: 1,
             updatedAt: 1,
         };
 
-        const output = serializeLocalPlaylistToM3u8(playlist, songs);
+        const { content: output } = serializeFoliaPlaylistToM3u8(playlist, songs);
 
         expect(output).toContain('#PLAYLIST:精选\r\n');
         expect(output).toContain('#EXTINF:215,Artist - Second\r\nAlbum/02.mp3\r\n');
@@ -135,17 +142,39 @@ describe('localPlaylistFileService', () => {
             createSong('one', 'LibraryA/Album/01.mp3'),
             createSong('two', 'LibraryB/Album/02.mp3'),
         ];
-        const playlist: LocalPlaylist = {
+        const playlist: FoliaPlaylist = {
             id: 'playlist',
             name: 'Mixed roots',
-            songIds: ['one', 'two'],
+            entries: localEntries(['one', 'two']),
             createdAt: 1,
             updatedAt: 1,
         };
 
-        const output = serializeLocalPlaylistToM3u8(playlist, songs);
+        const { content: output } = serializeFoliaPlaylistToM3u8(playlist, songs);
 
         expect(output).toContain('LibraryA/Album/01.mp3');
         expect(output).toContain('LibraryB/Album/02.mp3');
+    });
+
+    it('exports only the local songs and counts what it left out', () => {
+        const songs = [createSong('one', 'Library/Album/01.mp3')];
+        const playlist: FoliaPlaylist = {
+            id: 'playlist',
+            name: 'Mixed sources',
+            entries: [
+                ...localEntries(['one']),
+                { key: 'online:netease:42', song: { id: 42, name: 'Online', artists: [], album: { id: 0, name: '' }, durationMs: 0 }, addedAt: 1 },
+                ...localEntries(['gone']),
+            ],
+            createdAt: 1,
+            updatedAt: 1,
+        };
+
+        const exported = serializeFoliaPlaylistToM3u8(playlist, songs);
+
+        expect(exported.exportedCount).toBe(1);
+        expect(exported.skippedCount).toBe(2);
+        expect(exported.content).toContain('Album/01.mp3');
+        expect(exported.content).not.toContain('Online');
     });
 });

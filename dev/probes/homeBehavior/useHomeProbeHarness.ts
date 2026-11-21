@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { LocalPlaylist, LocalSong } from '../../../src/types';
+import type { LocalSong } from '../../../src/types';
+import type { FoliaPlaylist } from '../../../src/types/foliaPlaylist';
+import { getFoliaPlaylistLocalSongIds } from '../../../src/utils/foliaPlaylistEntries';
 import type { ProviderCollection } from '../../../src/types/onlineMusic';
 import type { HomeViewModel } from '../../../src/components/app/home/buildHomeModel';
 import type { HomeLocalMusicState, HomeSurfaceProps } from '../../../src/components/app/home/homeSurfaceTypes';
 import type { GridViewCollectionDescriptor } from '../../../src/components/app/home/gridViewCollectionAdapters';
 import { useLocalLibraryCatalog } from '../../../src/hooks/useLocalLibraryCatalog';
-import { getLocalPlaylists } from '../../../src/services/localPlaylistService';
+import { getFoliaPlaylists } from '../../../src/services/foliaPlaylist/foliaPlaylistService';
 import type { LibraryAccountController } from '../../../src/library/core/account/account.contract';
 import { useLibraryAccountController, type LibraryAccountHostTables } from '../../../src/library/app/useLibraryAccountController';
 import { useLibraryAccountProviders } from '../../../src/library/core/account/useLibraryAccount';
@@ -49,7 +51,7 @@ const ACTIVE_PROVIDER_STORAGE_KEY = 'active_online_provider_id';
 const PROBE_PROVIDERS = [PROBE_PROVIDER_A, PROBE_PROVIDER_B];
 const PAGE_LIMIT = 50;
 
-export type HomeProbeLibrary = { songs: LocalSong[]; playlists: LocalPlaylist[] };
+export type HomeProbeLibrary = { songs: LocalSong[]; playlists: FoliaPlaylist[] };
 
 // 一个 provider 的账户：按 App 刷新歌单的方式翻页取用户歌单，再取云盘；请求都经假 provider 记账。
 const loadProbeAccount = async (providerId: string): Promise<void> => {
@@ -164,7 +166,7 @@ const summarizeDescriptor = (collection: GridViewCollectionDescriptor): HomeProb
 /** 首页模型（交给真实的 Home）与 Home 的挂载 key（remount 时变）。 */
 export const useHomeProbeModel = (initial: HomeProbeLibrary): { model: HomeViewModel; mountKey: number } => {
     const [localSongs, setLocalSongs] = useState<LocalSong[]>(initial.songs);
-    const [localPlaylists, setLocalPlaylists] = useState<LocalPlaylist[]>(initial.playlists);
+    const [localPlaylists, setLocalPlaylists] = useState<FoliaPlaylist[]>(initial.playlists);
     const [localMusicState, setLocalMusicState] = useState<HomeLocalMusicState>(INITIAL_LOCAL_STATE);
     const [navidromeFocusedAlbumIndex, setNavidromeFocusedAlbumIndex] = useState(0);
     const [mountKey, setMountKey] = useState(0);
@@ -205,7 +207,7 @@ export const useHomeProbeModel = (initial: HomeProbeLibrary): { model: HomeViewM
         ...PROBE_SURFACE_CALLBACKS,
         onRefreshUser: () => void refreshUser(),
         onRefreshLocalSongs: refreshLocal,
-        onRefreshLocalPlaylists: async () => setLocalPlaylists(await getLocalPlaylists()),
+        onRefreshLocalPlaylists: async () => setLocalPlaylists(await getFoliaPlaylists()),
         user: activeProvider?.user ?? null,
         playlists: activeCollections?.filter(collection => collection.type !== 'cloud') ?? [],
         cloudPlaylist: activeCollections?.find(collection => collection.type === 'cloud') ?? null,
@@ -258,7 +260,7 @@ export const useHomeProbeModel = (initial: HomeProbeLibrary): { model: HomeViewM
         localPlaylists: () => latestRef.current.localPlaylists.map(playlist => ({
             id: playlist.id,
             name: playlist.name,
-            songIds: [...playlist.songIds],
+            songIds: getFoliaPlaylistLocalSongIds(playlist),
         })),
         providers: () => latestRef.current.account.getSnapshot().providers.map(provider => provider.providerId),
         activeProvider: () => latestRef.current.account.getSnapshot().activeProviderId,

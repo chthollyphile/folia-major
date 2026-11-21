@@ -1,6 +1,6 @@
 import { LocalSong, LyricData, LocalLibrarySnapshot, LocalLibrarySnapshotFile, LocalLibrarySnapshotNode, type SongResult } from '../types';
 import { saveLocalSong, saveLocalSongs, deleteLocalSong as dbDeleteLocalSong, deleteLocalSongs as dbDeleteLocalSongs, saveDirHandles, getDirHandles, deleteDirHandle, getLocalSongs, getLocalLibrarySnapshot, saveLocalLibrarySnapshot, deleteLocalLibrarySnapshot } from './db';
-import { removeDeletedSongIdsFromPlaylists } from './localPlaylistService';
+import { removeDeletedLocalSongsFromFoliaPlaylists } from './foliaPlaylist/foliaPlaylistService';
 import { parseEmbeddedMetadataAsync, type EmbeddedMetadataResult } from '../utils/localMetadataWorkerClient';
 import { autoMatchBestLyric } from '../utils/lyrics/autoMatchBestLyric';
 import { normalizeLyricMatchText } from '../utils/lyrics/matchScore';
@@ -126,7 +126,7 @@ function notifyLocalMusicUpdated() {
 // 歌曲已经删了，歌单里的残留 id 下次读歌单时也会被修掉：清理失败只记一行，不打断后面的收尾。
 async function dropDeletedSongsFromPlaylists(songIds: string[]): Promise<void> {
     try {
-        await removeDeletedSongIdsFromPlaylists(songIds);
+        await removeDeletedLocalSongsFromFoliaPlaylists(songIds);
     } catch (error) {
         console.warn('[LocalMusic] Could not remove deleted songs from playlists', error);
     }

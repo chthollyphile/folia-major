@@ -143,7 +143,7 @@ export const isSerializedRemoval = (kind: CollectionEntryRemovalKind | null): bo
     kind === 'daily-dislike' || kind === 'navidrome-playlist'
 );
 
-/** 本地歌曲在歌单里的 id：与 localPlaylistService 按 songId 删除的语义一致。 */
+/** 本地歌曲在歌单里的 id：与本地页签按 songId 从歌单里删除的语义一致（createLibraryMutationPort 换成条目的 key）。 */
 export const localPlaylistSongIdOf = (track: SongResult): string => (
     (track as UnifiedSong).localRef?.songId || String(track.id)
 );

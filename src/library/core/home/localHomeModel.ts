@@ -1,5 +1,7 @@
 import type { TFunction } from 'i18next';
-import { LocalLibraryGroup, LocalPlaylist, LocalSong } from '../../../types';
+import { LocalLibraryGroup, LocalSong } from '../../../types';
+import type { FoliaPlaylist } from '../../../types/foliaPlaylist';
+import { getFoliaPlaylistLocalSongIds } from '../../../utils/foliaPlaylistEntries';
 import { sortLocalAlbumSongs, sortLocalFolderSongs } from '../../../utils/localSongSorting';
 import type { LocalLibraryAssignment, LocalLibraryEntity } from '../../../types/localLibrary';
 import { getActiveEntities } from '../../../utils/localLibraryIndex';
@@ -47,7 +49,7 @@ const sortByName = <T extends { name: string }>(items: T[]) => (
 /** 本地页签的四组条目。catalog（曲库实体）读好之前按歌曲的原始标签分专辑 / 歌手。 */
 export const buildLocalHomeGroups = (
     localSongs: LocalSong[],
-    localPlaylists: LocalPlaylist[],
+    localPlaylists: FoliaPlaylist[],
     t: TFunction,
     catalog: { entities: LocalLibraryEntity[]; assignments: LocalLibraryAssignment[]; } | undefined,
     coverAssetUrl: LocalCoverAssetUrlResolver,
@@ -205,7 +207,8 @@ export const buildLocalHomeGroups = (
     const artistList = sortByName(entityArtistList);
 
     const playlistList: LocalLibraryGroup[] = localPlaylists.map(playlist => {
-        const playlistSongs = playlist.songIds
+        // 本地页签只显示歌单里的本地歌；别的来源的条目在 Folia 的歌单页里才看得到。
+        const playlistSongs = getFoliaPlaylistLocalSongIds(playlist)
             .map(songId => songsById.get(songId))
             .filter((song): song is LocalSong => Boolean(song));
 

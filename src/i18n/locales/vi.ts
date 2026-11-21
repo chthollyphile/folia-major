@@ -4949,6 +4949,8 @@ export default {
     "playlistImportNoMatches": "Không có đường dẫn nào khớp với nhạc nội bộ hiện có trong Folia.",
     "playlistImportFailed": "Nhập danh sách phát thất bại. Hãy đảm bảo tệp M3U hoặc M3U8 hợp lệ.",
     "playlistExportSuccess": "Đã xuất “{{name}}”.",
+    "playlistExportSkipped_one": "{{count}} bài không phải tệp nội bộ nên không được xuất.",
+    "playlistExportSkipped_other": "{{count}} bài không phải tệp nội bộ nên không được xuất.",
     "entityInfo": "Thông tin {{kind}}",
     "entityDisplayName": "Tên hiển thị",
     "mergeEntity": "Hợp nhất {{kind}}",

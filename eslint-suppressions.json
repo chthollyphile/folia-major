@@ -2846,7 +2846,7 @@
       "count": 3
     },
     "dedicatus/log-module-prefix": {
-      "count": 18
+      "count": 17
     },
     "prefer-const": {
       "count": 1
@@ -9828,14 +9828,6 @@
     },
     "prefer-const": {
       "count": 2
-    }
-  },
-  "src/services/localPlaylistService.ts": {
-    "@typescript-eslint/consistent-type-imports": {
-      "count": 1
-    },
-    "@typescript-eslint/no-unnecessary-type-assertion": {
-      "count": 1
     }
   },
   "src/services/localSongMatchSelectionService.ts": {

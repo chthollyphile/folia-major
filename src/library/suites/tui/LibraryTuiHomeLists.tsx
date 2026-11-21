@@ -1,6 +1,7 @@
 import React, { useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { LocalLibraryGroup, LocalPlaylist, LocalSong } from '../../../types';
+import type { LocalLibraryGroup, LocalSong } from '../../../types';
+import type { FoliaPlaylist } from '../../../types/foliaPlaylist';
 import type { LibraryAccountController } from '../../core/account/account.contract';
 import type { LibraryCollectionDescriptor } from '../../core/collection/collection.contract';
 import type { LibraryDirectoryBatchController, LibraryHiddenScope } from '../../core/directory/directory.contract';
@@ -158,7 +159,7 @@ export const LibraryTuiOnlineList: React.FC<LibraryTuiListCommonProps & {
 
 export const LibraryTuiLocalList: React.FC<LibraryTuiListCommonProps & {
     localSongs: LocalSong[];
-    localPlaylists: LocalPlaylist[];
+    localPlaylists: FoliaPlaylist[];
     catalog: LibraryLocalCatalogSnapshot;
     activeRow: number;
     setActiveRow: (row: LocalHomeRow) => void;

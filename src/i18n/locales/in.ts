@@ -4949,6 +4949,7 @@ export default {
     "playlistImportNoMatches": "Tidak ada path playlist yang cocok dengan lagu lokal yang saat ini diimpor ke Folia.",
     "playlistImportFailed": "Impor playlist gagal. Pastikan file adalah playlist M3U atau M3U8 yang valid.",
     "playlistExportSuccess": "Diekspor “{{name}}”.",
+    "playlistExportSkipped": "{{count}} lagu bukan file lokal dan tidak diekspor.",
     "entityInfo": "Info {{kind}}",
     "entityDisplayName": "Nama Tampilan",
     "mergeEntity": "Gabungkan {{kind}}",

@@ -148,6 +148,11 @@ export const removeCacheEntry = async (key: string): Promise<void> => {
   await getTable(getCacheTableName(key)).delete(key);
 };
 
+// The user's own playlists live in api_cache beside the caches (services/foliaPlaylist/foliaPlaylistRows.ts:
+// `folia_playlists_meta`, `folia_playlist:<id>`; before them `local_playlists`, kept for going back a version).
+// They are not a cache: clearing everything leaves them.
+const isUserPlaylistKey = (key: string): boolean => key.startsWith('folia_playlist') || key === 'local_playlists';
+
 export const clearCacheTables = async (preserveKeys: string[] = []): Promise<void> => {
   const preserved = new Set([
     ...preserveKeys,
@@ -158,7 +163,7 @@ export const clearCacheTables = async (preserveKeys: string[] = []): Promise<voi
     await Promise.all(CACHE_TABLE_NAMES.map(async name => {
       const table = getTable(name);
       const keys = await table.toCollection().primaryKeys();
-      const deletedKeys = keys.map(String).filter(key => !preserved.has(key));
+      const deletedKeys = keys.map(String).filter(key => !preserved.has(key) && !isUserPlaylistKey(key));
       await table.bulkDelete(deletedKeys);
     }));
   });

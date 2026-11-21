@@ -2,7 +2,8 @@ import React, { useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { FileUp, FolderOpen, Loader2, Music, ListMusic, User, Disc3, RefreshCw } from 'lucide-react';
 import DesktopGrid3DSurface, { DesktopGrid3DAction } from './DesktopGrid3DSurface';
-import { LocalPlaylist, LocalSong, Theme } from '../../../../types';
+import { LocalSong, Theme } from '../../../../types';
+import type { FoliaPlaylist } from '../../../../types/foliaPlaylist';
 import type { GridViewCollectionDescriptor } from '../../../../components/app/home/gridViewCollectionAdapters';
 import { useDebouncedFocusSync } from '../../../../hooks/useDebouncedFocusSync';
 import type { GridMapBatchConfig } from '../directory/GridMap';
@@ -36,7 +37,7 @@ const ACTION_ICONS: Record<string, React.ReactNode> = {
 
 interface LocalGrid3DViewProps {
     localSongs: LocalSong[];
-    localPlaylists: LocalPlaylist[];
+    localPlaylists: FoliaPlaylist[];
     /** 宿主的曲库实体快照（与应用其它地方同一份，不再自己另读一份）。 */
     localLibraryCatalog: LibraryLocalCatalogSnapshot;
     activeRow: LocalHomeRow;

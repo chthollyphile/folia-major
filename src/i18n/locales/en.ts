@@ -4949,6 +4949,8 @@ export default {
     "playlistImportNoMatches": "No playlist paths matched the local songs currently imported into Folia.",
     "playlistImportFailed": "Playlist import failed. Make sure the file is a valid M3U or M3U8 playlist.",
     "playlistExportSuccess": "Exported “{{name}}”.",
+    "playlistExportSkipped_one": "{{count}} song is not a local file and was left out.",
+    "playlistExportSkipped_other": "{{count}} songs are not local files and were left out.",
     "entityInfo": "{{kind}} Info",
     "entityDisplayName": "Display Name",
     "mergeEntity": "Merge {{kind}}",

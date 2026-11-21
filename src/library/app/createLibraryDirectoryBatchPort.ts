@@ -1,7 +1,7 @@
 import type { LibraryDirectoryBatchPort } from '../core/directory/directory.contract';
 import type { HomeSurfaceProps } from '../../components/app/home/homeSurfaceTypes';
 import { buildLocalQueue } from '../../services/playbackAdapters';
-import { createLocalPlaylist } from '../../services/localPlaylistService';
+import { createFoliaPlaylistFromLocalSongs } from '../../services/foliaPlaylist/foliaPlaylistService';
 import { clearFolderIgnore, deleteFolderSongs, deleteSongsByIds, removeImportedRoot, resyncFolder } from '../../services/localMusicService';
 
 // src/library/app/createLibraryDirectoryBatchPort.ts
@@ -32,7 +32,7 @@ export const createLibraryDirectoryBatchPort = (getSurface: () => DirectoryBatch
             if (queue.length > 0) getSurface().onAddAllToQueue?.(queue);
         },
         createLocalPlaylist: async (name, songs) => {
-            await createLocalPlaylist(name, songs);
+            await createFoliaPlaylistFromLocalSongs(name, songs);
         },
         deleteFolderSongs: folderPath => deleteFolderSongs(folderPath),
         deleteSongsByIds: songIds => deleteSongsByIds(songIds),

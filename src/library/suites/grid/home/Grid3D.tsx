@@ -4,7 +4,8 @@ import { Search, Loader2, Settings, PanelsTopLeft } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { resolveSearchSource, useSearchNavigationStore } from '../../../../stores/useSearchNavigationStore';
 import { useShallow } from 'zustand/react/shallow';
-import { SongResult, LocalSong, LocalPlaylist, LocalLibraryGroup, Theme, type StatusMessage } from '../../../../types';
+import { SongResult, LocalSong, LocalLibraryGroup, Theme, type StatusMessage } from '../../../../types';
+import type { FoliaPlaylist } from '../../../../types/foliaPlaylist';
 import LocalGrid3DView from './LocalGrid3DView';
 import NavidromeGrid3DView from './NavidromeGrid3DView';
 import { useGrid3DTabKeys } from './useGrid3DTabKeys';
@@ -51,7 +52,7 @@ interface Grid3DProps {
     currentTrack?: SongResult | null;
     localSongs: LocalSong[];
     localLibraryCatalog: LibraryLocalCatalogSnapshot;
-    localPlaylists: LocalPlaylist[];
+    localPlaylists: FoliaPlaylist[];
     onRefreshLocalSongs: () => Promise<void> | void;
     localMusicState: {
         activeRow: 0 | 1 | 2 | 3;

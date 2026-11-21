@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { TFunction } from 'i18next';
-import type { LocalPlaylist, LocalSong } from '@/types';
+import type { LocalSong } from '@/types';
+import type { FoliaPlaylist } from '@/types/foliaPlaylist';
 import type { LocalLibraryAssignment, LocalLibraryEntity } from '@/types/localLibrary';
 import type { LocalGridViewCollectionDescriptor } from '@/library/core/collection/collection.contract';
 import type { LibraryMutationPort } from '@/library/core/shared/ports.contract';
@@ -59,7 +60,13 @@ const assignment = (songId: string, albumEntityId: string): LocalLibraryAssignme
     albumOrigin: 'import',
     updatedAt: 1,
 });
-const playlist = (id: string, songIds: string[], name = 'Mix'): LocalPlaylist => ({ id, name, songIds, createdAt: 1, updatedAt: 1 });
+const playlist = (id: string, songIds: string[], name = 'Mix'): FoliaPlaylist => ({
+    id,
+    name,
+    entries: songIds.map(songId => ({ key: `local:${songId}`, song: { id: songId } as FoliaPlaylist['entries'][number]['song'], addedAt: 1 })),
+    createdAt: 1,
+    updatedAt: 1,
+});
 
 describe('local collection cover keys', () => {
     it('keys folders by path, albums by entity id and playlists by playlist id', () => {

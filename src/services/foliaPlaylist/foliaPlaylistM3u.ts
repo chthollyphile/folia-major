@@ -1,10 +1,13 @@
-import type { LocalPlaylist, LocalSong } from '../types';
-import { createSafeObjectUrl } from '../utils/blobGuards';
-import { sanitizeDownloadFileName } from '../utils/downloadFileName';
-import { createLocalPlaylist } from './localPlaylistService';
+import type { LocalSong } from '../../types';
+import type { FoliaPlaylist } from '../../types/foliaPlaylist';
+import { createSafeObjectUrl } from '../../utils/blobGuards';
+import { sanitizeDownloadFileName } from '../../utils/downloadFileName';
+import { getFoliaEntryLocalSongId } from '../../utils/foliaPlaylistEntries';
+import { createFoliaPlaylistFromLocalSongs } from './foliaPlaylistService';
 
-// src/services/localPlaylistFileService.ts
+// src/services/foliaPlaylist/foliaPlaylistM3u.ts
 // Parses, matches, imports, and exports portable M3U playlists for the indexed local library.
+// M3U 只装得下本地文件：导入建出来的歌单全是本地歌；导出只写歌单里本地歌的条目，别的来源的跳过并报出跳过了几首。
 
 export interface ParsedM3uPlaylist {
     name?: string;
@@ -12,7 +15,7 @@ export interface ParsedM3uPlaylist {
 }
 
 export interface LocalPlaylistImportResult {
-    playlist: LocalPlaylist | null;
+    playlist: FoliaPlaylist | null;
     matchedSongIds: string[];
     unmatchedPaths: string[];
     ambiguousPaths: string[];
@@ -180,7 +183,7 @@ export const importLocalPlaylistFile = async (
         .map(songId => songsById.get(songId))
         .filter((song): song is LocalSong => Boolean(song));
     const playlist = matchedSongs.length > 0
-        ? await createLocalPlaylist(parsed.name?.trim() || getPlaylistNameFromFile(file.name), matchedSongs)
+        ? await createFoliaPlaylistFromLocalSongs(parsed.name?.trim() || getPlaylistNameFromFile(file.name), matchedSongs)
         : null;
 
     return { playlist, ...matched };
@@ -193,13 +196,23 @@ const getExportPath = (song: LocalSong, sharedRoot: string | null): string => {
         : path;
 };
 
-export const serializeLocalPlaylistToM3u8 = (
-    playlist: LocalPlaylist,
+export interface FoliaPlaylistM3uExport {
+    content: string;
+    exportedCount: number;
+    /** 没写进去的条目：别的来源的歌，和曲库里找不到的本地歌。 */
+    skippedCount: number;
+}
+
+export const serializeFoliaPlaylistToM3u8 = (
+    playlist: FoliaPlaylist,
     localSongs: LocalSong[],
-): string => {
+): FoliaPlaylistM3uExport => {
     const songsById = new Map(localSongs.map(song => [song.id, song]));
-    const songs = playlist.songIds
-        .map(songId => songsById.get(songId))
+    const songs = playlist.entries
+        .map(entry => {
+            const songId = getFoliaEntryLocalSongId(entry);
+            return songId === null ? undefined : songsById.get(songId);
+        })
         .filter((song): song is LocalSong => Boolean(song));
     const roots = new Set(songs.map(song => normalizeM3uPath(song.filePath)?.split('/')[0]).filter(Boolean));
     const sharedRoot = roots.size === 1 ? Array.from(roots)[0] || null : null;
@@ -213,12 +226,17 @@ export const serializeLocalPlaylistToM3u8 = (
         lines.push(getExportPath(song, sharedRoot));
     });
 
-    return `${lines.join('\r\n')}\r\n`;
+    return {
+        content: `${lines.join('\r\n')}\r\n`,
+        exportedCount: songs.length,
+        skippedCount: playlist.entries.length - songs.length,
+    };
 };
 
-export const downloadLocalPlaylistM3u8 = (playlist: LocalPlaylist, localSongs: LocalSong[]): void => {
-    const content = serializeLocalPlaylistToM3u8(playlist, localSongs);
-    const blob = new Blob([content], { type: 'application/vnd.apple.mpegurl;charset=utf-8' });
+/** 下载歌单的 .m3u8；返回写进去几首、跳过了几首。 */
+export const downloadFoliaPlaylistM3u8 = (playlist: FoliaPlaylist, localSongs: LocalSong[]): FoliaPlaylistM3uExport => {
+    const exported = serializeFoliaPlaylistToM3u8(playlist, localSongs);
+    const blob = new Blob([exported.content], { type: 'application/vnd.apple.mpegurl;charset=utf-8' });
     const url = createSafeObjectUrl(blob);
     if (!url) throw new Error('Failed to create playlist download');
 
@@ -229,4 +247,5 @@ export const downloadLocalPlaylistM3u8 = (playlist: LocalPlaylist, localSongs: L
     link.click();
     link.remove();
     window.setTimeout(() => URL.revokeObjectURL(url), 0);
+    return exported;
 };

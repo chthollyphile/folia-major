@@ -5,7 +5,8 @@ import { LyricParserFactory } from '../../../../utils/lyrics/LyricParserFactory'
 import { getFromCacheWithMigration, getLocalSong, getLocalSongs, removeFromCache, saveLocalSong, saveToCache } from '../../../../services/db';
 import { getCachedCoverUrl, loadCachedOrFetchCover } from '../../../../services/coverCache';
 import { ensureLocalSongCoverAsset } from '../../../../services/localMusicService';
-import { addSongsToLocalPlaylist, buildCanonicalLocalSongIdIndex, createLocalPlaylist, getLocalPlaylists, setLocalSongFavorite } from '../../../../services/localPlaylistService';
+import { addLocalSongsToFoliaPlaylist, createFoliaPlaylistFromLocalSongs, setLocalSongFavorite } from '../../../../services/foliaPlaylist/foliaPlaylistService';
+import { buildCanonicalLocalSongIdIndex } from '../../../../services/foliaPlaylist/localSongDuplicates';
 import { applyLocalLibraryEntityDisplay, buildLocalQueue, buildNavidromeQueue, buildUnifiedLocalSong, buildUnifiedNavidromeSong, resolveLocalSongMetadata } from '../../../../services/playbackAdapters';
 import { getPrefetchedData, prefetchNearbySongs } from '../../../../services/prefetchService';
 import { retireBlobUrl } from '../../../../services/playbackBlobUrls';
@@ -42,7 +43,7 @@ import { notifyPlaybackFailed, untransformedLyrics } from '../../../../services/
 import { lyricsBeforeRules } from '../../../../utils/lyrics/lyricLineRules';
 import { wholeQueueWritesSoFar } from '../../../../services/wholeQueueWrites';
 import { PlayerState } from '../../../../types';
-import type { LyricData, LocalPlaylist, LocalSong, OnlineLyricsState, QueueAddBehavior, SongResult, StatusMessage } from '../../../../types';
+import type { LyricData, LocalSong, OnlineLyricsState, QueueAddBehavior, SongResult, StatusMessage } from '../../../../types';
 import type { AudioQualityPreference, MediaId, ProviderCollection } from '../../../../types/onlineMusic';
 import type { PlaybackSnapshot, PlaybackNavigationOptions } from '../../../../types/appPlayback';
 import { getNavidromeMatchCacheKey, type NavidromeMatchData, type NavidromeSong } from '../../../../types/navidrome';
@@ -66,6 +67,8 @@ import { useStableActionSurface } from '../../../../hooks/useStableCallbacks';
 import { useTranslation } from 'react-i18next';
 import { usePlaybackStore } from '../../../../stores/usePlaybackStore';
 import { useAudioSettingsStore } from '../../../../stores/useAudioSettingsStore';
+import { useFoliaPlaylistsStore } from '../../../../stores/useFoliaPlaylistsStore';
+import { foliaLocalSongKey } from '../../../../utils/foliaPlaylistEntries';
 import { useLibraryStore } from '../../../../stores/useLibraryStore';
 import { setIsPanelOpen } from '../../../../stores/useAppViewStore';
 import { currentTime } from '../../../../stores/motionSignals';
@@ -226,7 +229,8 @@ export function useLibraryPlaybackController({
     const setStarredNavidromeSongIds = useLibraryStore(state => state.setStarredNavidromeSongIds);
 
     const [localSongs, setLocalSongs] = useState<LocalSong[]>([]);
-    const [localPlaylists, setLocalPlaylists] = useState<LocalPlaylist[]>([]);
+    // 本地页签里的歌单就是 Folia 聚合歌单（旧的本地歌单已并进去）；数据在 useFoliaPlaylistsStore，改完会自己重读。
+    const localPlaylists = useFoliaPlaylistsStore(state => state.playlists);
     // The window for matching lyrics by hand: the key of the song it was opened for, or none. It
     // is open only while that song plays, and another song closes it for good.
     const [lyricMatchSongKey, setLyricMatchSongKey] = useState<string | null>(null);
@@ -321,14 +325,7 @@ export function useLibraryPlaybackController({
         });
     }, []);
 
-    const loadLocalPlaylists = useCallback(async () => {
-        try {
-            const playlists = await getLocalPlaylists();
-            setLocalPlaylists(playlists);
-        } catch (error) {
-            console.error('Failed to load local playlists:', error);
-        }
-    }, []);
+    const loadLocalPlaylists = useCallback(() => useFoliaPlaylistsStore.getState().refresh(), []);
 
     const onRefreshLocalSongs = useCallback(async () => {
         const [songs, catalog] = await Promise.all([
@@ -381,6 +378,10 @@ export function useLibraryPlaybackController({
         () => localPlaylists.find(playlist => playlist.isFavorite) ?? null,
         [localPlaylists],
     );
+    const favoriteLocalSongKeys = useMemo(
+        () => new Set(getFavoriteLocalPlaylist?.entries.map(entry => entry.key)),
+        [getFavoriteLocalPlaylist],
+    );
 
     const loadBaseOnlineLyrics = useCallback(async (
         onlineSong: SongResult,
@@ -416,8 +417,8 @@ export function useLibraryPlaybackController({
         }
 
         const songId = song.localRef.songId;
-        return getFavoriteLocalPlaylist.songIds.includes(canonicalLocalSongIds.get(songId) ?? songId);
-    }, [canonicalLocalSongIds, getFavoriteLocalPlaylist]);
+        return favoriteLocalSongKeys.has(foliaLocalSongKey(canonicalLocalSongIds.get(songId) ?? songId));
+    }, [canonicalLocalSongIds, favoriteLocalSongKeys, getFavoriteLocalPlaylist]);
 
     const saveCurrentQueueAsLocalPlaylist = useCallback(async (name: string) => {
         const trimmedName = name.trim();
@@ -438,7 +439,7 @@ export function useLibraryPlaybackController({
             throw new Error('No local songs in queue');
         }
 
-        await createLocalPlaylist(trimmedName, queueSongs);
+        await createFoliaPlaylistFromLocalSongs(trimmedName, queueSongs);
         await loadLocalPlaylists();
     }, [loadLocalPlaylists, playQueue, resolveLocalSongRecord]);
 
@@ -450,7 +451,7 @@ export function useLibraryPlaybackController({
             throw new Error('Picked songs are not all local');
         }
 
-        await addSongsToLocalPlaylist(playlistId, localSongs as LocalSong[]);
+        await addLocalSongsToFoliaPlaylist(playlistId, localSongs as LocalSong[]);
         await loadLocalPlaylists();
     }, [loadLocalPlaylists, resolveLocalSongRecord]);
 
@@ -465,7 +466,7 @@ export function useLibraryPlaybackController({
             throw new Error('Picked songs are not all local');
         }
 
-        await createLocalPlaylist(trimmedName, localSongs as LocalSong[]);
+        await createFoliaPlaylistFromLocalSongs(trimmedName, localSongs as LocalSong[]);
         await loadLocalPlaylists();
         setStatusMsg({ type: 'success', text: t('status.playlistUpdated') || '' });
     }, [loadLocalPlaylists, resolveLocalSongRecord, setStatusMsg, t]);

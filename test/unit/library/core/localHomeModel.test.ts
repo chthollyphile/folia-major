@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { TFunction } from 'i18next';
-import type { LocalLibraryGroup, LocalPlaylist, LocalSong } from '@/types';
+import type { LocalLibraryGroup, LocalSong } from '@/types';
+import type { FoliaPlaylist } from '@/types/foliaPlaylist';
+
+const localEntries = (songIds: string[]) => songIds.map(id => ({ key: `local:${id}`, song: { id }, addedAt: 1 }));
 import {
     buildLocalHomeCards,
     buildLocalHomeGroups,
@@ -50,9 +53,10 @@ describe('buildLocalHomeGroups', () => {
     it('builds playlists in order with the favorite one marked virtual', () => {
         const songs = [song('s1', 'A'), song('s2', 'A')];
         const playlists = [
-            { id: 'fav', name: 'Liked', songIds: ['s2'], isFavorite: true },
-            { id: 'p1', name: 'Mine', songIds: ['s1', 'missing', 's2'] },
-        ] as unknown as LocalPlaylist[];
+            { id: 'fav', name: 'Liked', entries: localEntries(['s2']), isFavorite: true },
+            // 别的来源的条目不进本地页签。
+            { id: 'p1', name: 'Mine', entries: [...localEntries(['s1', 'missing']), { key: 'online:netease:9', song: { id: 9 }, addedAt: 1 }, ...localEntries(['s2'])] },
+        ] as unknown as FoliaPlaylist[];
         const groups = buildLocalHomeGroups(songs, playlists, t, undefined, noCover);
         expect(groups.playlists.map(group => [group.id, group.isVirtual ?? false, group.songs.map(item => item.id)])).toEqual([
             ['playlist-fav', true, ['s2']],
