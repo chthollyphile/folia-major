@@ -330,4 +330,38 @@ describe('foliaPlaylistService', () => {
         expect(playlists.map(item => item.id)).toContain(playlist.id);
         expect(playlists.filter(item => item.isFavorite)).toHaveLength(1);
     });
+
+    it('keeps fields it does not know on a playlist and its entries when it writes the row back', async () => {
+        const playlist = await createFoliaPlaylist('Mix', [onlineSong('netease', 1)]);
+        const row = await appDatabase.api_cache.get(foliaPlaylistRowKey(playlist.id));
+        const stored = row?.data as FoliaPlaylist;
+        await appDatabase.api_cache.put({
+            key: foliaPlaylistRowKey(playlist.id),
+            data: { ...stored, pinned: true, entries: stored.entries.map(entry => ({ ...entry, note: 'later version' })) },
+            timestamp: 1,
+        });
+
+        await addSongsToFoliaPlaylist(playlist.id, [onlineSong('netease', 2)]);
+        await renameFoliaPlaylist(playlist.id, 'Renamed');
+
+        const after = (await appDatabase.api_cache.get(foliaPlaylistRowKey(playlist.id)))?.data as Record<string, unknown>;
+        expect(after).toMatchObject({ name: 'Renamed', pinned: true });
+        expect((after.entries as Array<Record<string, unknown>>).map(entry => entry.note)).toEqual(['later version', undefined]);
+    });
+
+    it('only reads playlists written by a newer version: no repair, no write', async () => {
+        await appDatabase.local_music.bulkPut([track('a')]);
+        const playlist = await createFoliaPlaylistFromLocalSongs('Local', [track('a')]);
+        const meta = (await appDatabase.api_cache.get(FOLIA_PLAYLISTS_META_KEY))?.data as Record<string, unknown>;
+        await appDatabase.api_cache.put({ key: FOLIA_PLAYLISTS_META_KEY, data: { ...meta, version: 2 }, timestamp: 1 });
+        // 曲库里那首歌没了：平时读的时候会把这一条修掉，这里不许动。
+        await appDatabase.local_music.clear();
+
+        const playlists = await getFoliaPlaylists();
+        expect(playlists.find(item => item.id === playlist.id)?.entries).toHaveLength(1);
+        await expect(renameFoliaPlaylist(playlist.id, 'Nope')).rejects.toThrow(/newer version/);
+        await expect(createFoliaPlaylist('New', [])).rejects.toThrow(/newer version/);
+        expect(((await appDatabase.api_cache.get(foliaPlaylistRowKey(playlist.id)))?.data as FoliaPlaylist).name).toBe('Local');
+        expect(((await appDatabase.api_cache.get(FOLIA_PLAYLISTS_META_KEY))?.data as Record<string, unknown>).version).toBe(2);
+    });
 });

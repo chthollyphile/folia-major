@@ -216,4 +216,30 @@ describe('local playlist migration', () => {
         expect(playlists).toHaveLength(1);
         expect(keysOf(playlists[0])).toEqual(['local:b']);
     });
+
+    it('does not bring back a migrated playlist the user deleted when the meta row is lost', async () => {
+        await appDatabase.local_music.bulkPut([createSong('a')]);
+        await putLegacy([
+            { id: 'keep', name: 'Keep', songIds: ['a'], createdAt: 1, updatedAt: 1 },
+            { id: 'gone', name: 'Gone', songIds: ['a'], createdAt: 2, updatedAt: 2 },
+        ]);
+        await getFoliaPlaylists();
+        expect(await deleteFoliaPlaylist('gone')).toBe(true);
+        await appDatabase.api_cache.delete(FOLIA_PLAYLISTS_META_KEY);
+
+        const playlists = await getFoliaPlaylists();
+
+        expect(playlists.map(playlist => playlist.name).sort()).toEqual(['Keep', 'Liked Songs']);
+        expect(typeof (await readMeta())?.localPlaylistsMigratedAt).toBe('number');
+    });
+
+    it('migrates even when a referenced library record is malformed: the reference is kept', async () => {
+        const broken = { ...createSong('a'), importedMetadata: undefined } as unknown as LocalSong;
+        await appDatabase.local_music.bulkPut([broken, createSong('b')]);
+        await putLegacy([{ id: 'p', name: 'P', songIds: ['a', 'b'], createdAt: 1, updatedAt: 1 }]);
+
+        const playlists = await getFoliaPlaylists();
+
+        expect(keysOf(playlists.find(playlist => playlist.id === 'p'))).toEqual(['local:a', 'local:b']);
+    });
 });

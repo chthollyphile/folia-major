@@ -81,7 +81,10 @@ export const createLibraryMutationPort = ({
             surface.onRefreshLocalSongs();
         },
         deletePlaylist: async (playlistId) => {
-            if (!await deleteFoliaPlaylist(playlistId)) return;
+            if (!await deleteFoliaPlaylist(playlistId)) {
+                await surface.onRefreshLocalSongs();
+                return;
+            }
             // 歌单 id 不会再出现：它的自定义封面一并删掉（失败只记一行，歌单已经删了）。
             const coverKey = localCollectionCoverKey({ type: 'playlist', id: playlistId, playlistId });
             if (coverKey) {

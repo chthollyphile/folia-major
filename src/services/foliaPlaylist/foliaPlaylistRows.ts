@@ -55,7 +55,10 @@ const parseOrigin = (data: unknown): FoliaPlaylistOrigin | undefined => {
     };
 };
 
-/** 读回来的一行：没有 id 的不是歌单（null）；条目至少要有 key 与 song，同一个 key 只留第一条。 */
+/**
+ * 读回来的一行：没有 id 的不是歌单（null）；条目至少要有 key 与 song，同一个 key 只留第一条。
+ * 歌单和条目上这个版本不认识的字段原样留着（以后的版本加了字段、用户又退回这一版时，写回去不会把它们抹掉）。
+ */
 export const parseFoliaPlaylistRow = (data: unknown): FoliaPlaylist | null => {
     if (!isRecord(data) || typeof data.id !== 'string' || !data.id) return null;
     const seen = new Set<string>();
@@ -63,7 +66,9 @@ export const parseFoliaPlaylistRow = (data: unknown): FoliaPlaylist | null => {
     (Array.isArray(data.entries) ? data.entries : []).forEach((entry: unknown) => {
         if (!isRecord(entry) || typeof entry.key !== 'string' || !entry.key || !isRecord(entry.song) || seen.has(entry.key)) return;
         seen.add(entry.key);
+        const { originalKey: _originalKey, ...entryRest } = entry;
         entries.push({
+            ...entryRest,
             key: entry.key,
             song: entry.song as unknown as SongResult,
             addedAt: typeof entry.addedAt === 'number' ? entry.addedAt : 0,
@@ -72,7 +77,9 @@ export const parseFoliaPlaylistRow = (data: unknown): FoliaPlaylist | null => {
     });
     const origin = parseOrigin(data.origin);
     const isFavorite = data.isFavorite === true;
+    const { isFavorite: _isFavorite, origin: _origin, entries: _entries, ...rest } = data;
     return {
+        ...rest,
         id: data.id,
         name: typeof data.name === 'string' && data.name ? data.name : (isFavorite ? FAVORITE_PLAYLIST_NAME : UNNAMED_PLAYLIST_NAME),
         createdAt: typeof data.createdAt === 'number' ? data.createdAt : 0,
@@ -96,11 +103,7 @@ export const orderFoliaPlaylists = (playlists: FoliaPlaylist[], order: readonly 
     });
 };
 
-/**
- * 本地曲库的一条记录在歌单里的样子：只有引用和名字（没有封面、没有文件），显示时以曲库里的记录为准。
- * 这是本地歌没经过播放模型（UnifiedSong）就进歌单时用的：迁移、M3U 导入、从曲库页直接建歌单。
- */
-export const buildLocalEntrySong = (localSong: LocalSong): SongResult => {
+const buildLocalEntrySongFromMetadata = (localSong: LocalSong): SongResult => {
     const useImported = localSong.titleOrigin === 'import';
     const artistNames = (useImported ? undefined : localSong.onlineMetadata?.artists.map(artist => artist.name))
         ?? localSong.importedMetadata.artistNames;
@@ -116,6 +119,30 @@ export const buildLocalEntrySong = (localSong: LocalSong): SongResult => {
         sourceRef: { kind: 'local', mediaId: localSong.id },
     };
     return toStoredSongSnapshot(song);
+};
+
+/**
+ * 本地曲库的一条记录在歌单里的样子：只有引用和名字（没有封面、没有文件），显示时以曲库里的记录为准。
+ * 这是本地歌没经过播放模型（UnifiedSong）就进歌单时用的：迁移、M3U 导入、从曲库页直接建歌单。
+ */
+export const buildLocalEntrySong = (localSong: LocalSong): SongResult => {
+    try {
+        return buildLocalEntrySongFromMetadata(localSong);
+    } catch (error) {
+        // 曲库里的记录缺了该有的字段（不该发生）：只留引用和名字，不让一条坏记录挡住迁移或红心。
+        console.warn('[FoliaPlaylist] A local song record is malformed; keeping the reference only', localSong.id, error);
+        const song: UnifiedSong = {
+            id: localSong.id,
+            name: localSong.title || localSong.fileName || '',
+            artists: [],
+            album: { id: 0, name: '' },
+            durationMs: 0,
+            isLocal: true,
+            localRef: { songId: localSong.id },
+            sourceRef: { kind: 'local', mediaId: localSong.id },
+        };
+        return toStoredSongSnapshot(song);
+    }
 };
 
 export const buildLocalEntry = (localSong: LocalSong, addedAt: number): FoliaPlaylistEntry => ({

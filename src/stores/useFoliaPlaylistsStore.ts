@@ -35,6 +35,8 @@ export const useFoliaPlaylistsStore = create<FoliaPlaylistsState>(set => {
     const readUntilSettled = async (): Promise<void> => {
         await readOnce();
         while (takeAgain()) await readOnce();
+        // 和上面那次 takeAgain 在同一段同步代码里清掉：之后再叫 refresh 的人会开新的一轮，不会拿到一个不再读的 promise。
+        pending.inFlight = null;
     };
     return {
         playlists: [],
@@ -44,10 +46,9 @@ export const useFoliaPlaylistsStore = create<FoliaPlaylistsState>(set => {
                 pending.again = true;
                 return pending.inFlight;
             }
-            pending.inFlight = readUntilSettled().finally(() => {
-                pending.inFlight = null;
-            });
-            return pending.inFlight;
+            const run = readUntilSettled();
+            pending.inFlight = run;
+            return run;
         },
     };
 });

@@ -11,6 +11,7 @@ import { appDatabase } from '../appDatabase';
 import {
     FAVORITE_PLAYLIST_NAME,
     FOLIA_PLAYLISTS_META_KEY,
+    FOLIA_PLAYLISTS_VERSION,
     FOLIA_PLAYLIST_ROW_PREFIX,
     buildLocalEntrySong,
     buildLocalRepairIndex,
@@ -38,6 +39,20 @@ type PlaylistState = {
     playlists: FoliaPlaylist[];
     /** 这次事务里写过东西。 */
     dirty: boolean;
+    /** 存的是更新的版本写的（meta.version 比这一版认识的大）：只读，不迁移、不修补、不写。 */
+    readOnly: boolean;
+};
+
+/** 歌单是更新版本的 Folia 写的，这一版不敢改它。 */
+export class FoliaPlaylistsNewerVersionError extends Error {
+    constructor() {
+        super('Folia playlists were written by a newer version; this version only reads them');
+        this.name = 'FoliaPlaylistsNewerVersionError';
+    }
+}
+
+const assertWritable = (state: PlaylistState): void => {
+    if (state.readOnly) throw new FoliaPlaylistsNewerVersionError();
 };
 
 const table = () => appDatabase.api_cache;
@@ -63,32 +78,28 @@ const notifyChanged = () => {
 };
 
 const writePlaylist = async (state: PlaylistState, playlist: FoliaPlaylist): Promise<void> => {
+    assertWritable(state);
     await table().put({ key: foliaPlaylistRowKey(playlist.id), data: playlist, timestamp: Date.now() });
     state.dirty = true;
 };
 
 const writeMeta = async (state: PlaylistState): Promise<void> => {
+    assertWritable(state);
     state.meta = { ...state.meta, order: state.playlists.map(playlist => playlist.id) };
     await table().put({ key: FOLIA_PLAYLISTS_META_KEY, data: { ...state.metaExtras, ...state.meta }, timestamp: Date.now() });
     state.dirty = true;
 };
 
-// 旧的本地歌单并进来：只在 meta 里没有迁移标记时做一次。已经有同 id 的行（上次迁到一半之类）就不覆盖。
+// 旧的本地歌单并进来：只在还没有任何歌单行、meta 里也没有迁移标记时做一次（见 readState）。
 // 整个在调用方的事务里：中途出错事务回滚，什么都没写，下次再试；旧的那一行只读。
 const migrateLocalPlaylists = async (state: PlaylistState): Promise<void> => {
     const legacyRow = await table().get(LEGACY_LOCAL_PLAYLISTS_CACHE_KEY);
     const localSongs = legacyRow ? await appDatabase.local_music.toArray() : [];
     const converted = convertLegacyLocalPlaylists(legacyRow?.data, localSongs);
-    const existingIds = new Set(state.playlists.map(playlist => playlist.id));
-    const hadFavorite = state.playlists.some(playlist => playlist.isFavorite);
     let migrated = 0;
     for (const playlist of converted.playlists) {
-        if (existingIds.has(playlist.id)) continue;
-        // 已经有一张「我喜欢的音乐」了（不该发生，防着）：迁来的那张当普通歌单留着，不丢。
-        const { isFavorite: wasFavorite, ...plain } = playlist;
-        const next: FoliaPlaylist = wasFavorite && !hadFavorite ? playlist : plain;
-        state.playlists.push(next);
-        await writePlaylist(state, next);
+        state.playlists.push(playlist);
+        await writePlaylist(state, playlist);
         migrated += 1;
     }
     state.meta = { ...state.meta, localPlaylistsMigratedAt: Date.now(), localPlaylistsMigratedCount: migrated };
@@ -107,12 +118,29 @@ const readState = async (): Promise<PlaylistState> => {
     const metaExtras = metaRow?.data && typeof metaRow.data === 'object' ? { ...(metaRow.data as Record<string, unknown>) } : {};
     const rows = await table().where(':id').startsWith(FOLIA_PLAYLIST_ROW_PREFIX).toArray();
     const playlists = orderFoliaPlaylists(
-        rows.flatMap(row => parseFoliaPlaylistRow(row.data) ?? []),
+        rows.flatMap(row => {
+            const playlist = parseFoliaPlaylistRow(row.data);
+            // 读不出来的行不动它（不删、不改），只说一声，方便排查。
+            if (!playlist) console.warn('[FoliaPlaylist] Skipped an unreadable playlist row', row.key);
+            return playlist ?? [];
+        }),
         meta.order,
     );
-    const state: PlaylistState = { meta, metaExtras, playlists, dirty: false };
+    const readOnly = meta.version > FOLIA_PLAYLISTS_VERSION;
+    const state: PlaylistState = { meta, metaExtras, playlists, dirty: false, readOnly };
+    if (readOnly) return state;
 
-    if (typeof meta.localPlaylistsMigratedAt !== 'number') await migrateLocalPlaylists(state);
+    if (typeof meta.localPlaylistsMigratedAt !== 'number') {
+        if (rows.length > 0) {
+            // 迁移、建「我喜欢的音乐」和写标记是同一个事务：已经有歌单行却没有标记，只能是 meta 那一行坏了或丢了。
+            // 这时不再迁（再迁会把迁移之后用户删掉的旧歌单又带回来），只把标记补上；顺序按建的时间。
+            console.warn('[FoliaPlaylist] The meta row was lost or damaged; restored it without migrating again');
+            state.meta = { ...state.meta, localPlaylistsMigratedAt: Date.now() };
+            await writeMeta(state);
+        } else {
+            await migrateLocalPlaylists(state);
+        }
+    }
 
     if (!state.playlists.some(playlist => playlist.isFavorite)) {
         const now = Date.now();
@@ -134,6 +162,7 @@ const readState = async (): Promise<PlaylistState> => {
 
 // 本地歌的条目对着曲库修一遍（删掉曲库里没有的、重复导入的副本换成 canonical），改了的歌单写回去。
 const repairAgainstLocalLibrary = async (state: PlaylistState, removedSongIds: readonly string[] = []): Promise<void> => {
+    if (state.readOnly) return;
     const hasLocalEntries = state.playlists.some(playlist => playlist.entries.some(entry => entry.key.startsWith('local:')));
     if (!hasLocalEntries) return;
     const { validSongById, canonicalByDuplicateKey } = buildLocalRepairIndex(await appDatabase.local_music.toArray(), removedSongIds);
