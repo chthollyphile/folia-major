@@ -16,6 +16,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 // 包里是 <模组 id>/ 一个目录：构建产物原样（不带 build.json），mod.json 补上接管要的 sources[].claims（受信表那一行，
 // electron/modSystem/builtinSources.cjs）和 folia 范围。给了私钥就照宿主的签名格式（electron/modSystem/modSignature.cjs）
 // 在目录里写 folium.sig.json；没给就是未签名的包。产物在 dist-mod-packs/（git 忽略）。
+// 清单要原生件的（librespot、Apple Music 伴侣程序）按系统出包：带上那个系统的一份，放在 native/<名字>/<系统>/，
+// 接管副本经 api.native 用它（electron/modSystem/nativeFiles.cjs 的 MOD_NATIVE_ENTRIES）。
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const requireHere = createRequire(import.meta.url);
@@ -28,6 +30,11 @@ const {
 const { TRUSTED_SIGNING_KEYS } = requireHere('../../electron/modSystem/trustedKeys.cjs');
 const { INSTALL_LIMITS } = requireHere('../../electron/modSystem/zipInstall.cjs');
 const { DIGEST_LIMITS } = requireHere('../../electron/modSystem/modDigest.cjs');
+const { modNativeRelativePath } = requireHere('../../electron/modSystem/nativeFiles.cjs');
+const { WINDOWS_COMPANION_FILES } = requireHere('../../sources/appleMusic/native/windows/prepareBundle.cjs');
+
+/** 这台机器的 `<platform>-<arch>`：不给 --system 时出这个系统的包。 */
+export const DEFAULT_SYSTEM = `${process.platform}-${process.arch}`;
 
 export const DEFAULT_DIST_ROOT = path.join(ROOT, 'dist-mods');
 export const DEFAULT_PACK_ROOT = path.join(ROOT, 'dist-mod-packs');
@@ -182,19 +189,100 @@ export const signingKeyText = ({ keyFile = null, env = process.env } = {}) => {
 };
 
 /*
+ * 原生件从哪来。名字 → (system, root) 交回 { files: [{ from, to }] }（to 是 native/<名字>/<系统>/ 下的相对路径），
+ * 或 { none: 为什么这个系统不带 }。本机缺构建产物时报错并说怎么补（不悄悄出一个缺原生件的包；不要原生件用 --no-native）。
+ */
+// librespot 的现成构建目录（包里 prebuilds/ 下的名字）：只有这四个系统有；Linux 只带 glibc 的。
+const LIBRESPOT_PREBUILDS = Object.freeze({
+    'win32-x64': 'win32-x64-msvc',
+    'darwin-arm64': 'darwin-arm64',
+    'linux-x64': 'linux-x64-gnu',
+    'linux-arm64': 'linux-arm64-gnu',
+});
+const LIBRESPOT_PACKAGE = '@lox-audioserver/node-librespot';
+const NATIVE_SOURCES = Object.freeze({
+    librespot: (system, root) => {
+        const prebuild = Object.hasOwn(LIBRESPOT_PREBUILDS, system) ? LIBRESPOT_PREBUILDS[system] : null;
+        if (!prebuild) return { none: `${LIBRESPOT_PACKAGE} 没有 ${system} 的现成构建` };
+        let packageDir;
+        try {
+            packageDir = path.dirname(path.dirname(createRequire(path.join(root, 'package.json')).resolve(LIBRESPOT_PACKAGE)));
+        } catch {
+            throw new Error(`没装 ${LIBRESPOT_PACKAGE}（根目录 package.json 的 optionalDependencies）：npm ci 装上再打，或 --no-native`);
+        }
+        // 包自己的加载器（dist/index.js 再 require ./types）、package.json（版本与许可）、这个系统的 .node。
+        const wanted = ['package.json', 'dist/index.js', 'dist/types.js', `prebuilds/${prebuild}/librespot_addon.node`];
+        const absent = wanted.filter((file) => !fs.existsSync(path.join(packageDir, ...file.split('/'))));
+        if (absent.length > 0) throw new Error(`${packageDir} 里没有 ${absent.join('、')}：重新 npm ci，或 --no-native`);
+        return { files: wanted.map((file) => ({ from: path.join(packageDir, ...file.split('/')), to: file })) };
+    },
+    'apple-music-companion': (system, root) => {
+        if (system.startsWith('darwin-')) {
+            return { none: 'macOS 的伴侣程序是签名的 .app，经 zip 解到用户目录后签名与可执行位保不保得住没验证，不带' };
+        }
+        if (system !== 'win32-x64') return { none: `${system} 没有伴侣程序` };
+        const folder = path.join(root, 'build', 'apple-music-native', 'windows');
+        const absent = WINDOWS_COMPANION_FILES.filter((file) => !fs.existsSync(path.join(folder, file)));
+        if (absent.length > 0) {
+            throw new Error(`build/apple-music-native/windows 里没有 ${absent.join('、')}：在 Windows 上先构建伴侣程序`
+                + '（powershell -NoProfile -ExecutionPolicy Bypass -File sources/appleMusic/native/windows/buildCompanion.ps1，要 .NET SDK），或 --no-native');
+        }
+        return { files: WINDOWS_COMPANION_FILES.map((file) => ({ from: path.join(folder, file), to: file })) };
+    },
+});
+
+/**
+ * 一个模组在 `system` 上要带的原生件：清单 native 与受信表那一行 native 都写了的名字（接管副本只能用这些，
+ * sourceOwnership.cjs ownNative）。交回 { files: Map<包里路径, 来源>, carried: [名字], skipped: [{ name, reason }] }。
+ * @param {Record<string, any>} manifest
+ * @param {string} system
+ * @param {string} [root]
+ */
+export const nativeFilesFor = (manifest, system, root = ROOT) => {
+    const row = Object.hasOwn(BUILTIN_SOURCE_TABLE, manifest.id) ? BUILTIN_SOURCE_TABLE[manifest.id] : null;
+    const names = (manifest.native ?? []).filter((name) => row?.native.includes(name));
+    const files = new Map();
+    const carried = [];
+    const skipped = [];
+    for (const name of names) {
+        const source = Object.hasOwn(NATIVE_SOURCES, name) ? NATIVE_SOURCES[name](system, root) : { none: '打包脚本不认识这个原生件' };
+        if (source.none) {
+            skipped.push({ name, reason: source.none });
+            continue;
+        }
+        // 入口要和宿主找的那个对上（nativeFiles.cjs MOD_NATIVE_ENTRIES），不然装上也找不到。
+        const entry = modNativeRelativePath(name, system);
+        const prefix = `native/${name}/${system}/`;
+        if (!entry || !source.files.some((file) => `${prefix}${file.to}` === entry)) {
+            throw new Error(`${name} 在 ${system} 上的入口和宿主的 MOD_NATIVE_ENTRIES 对不上`);
+        }
+        source.files.forEach((file) => files.set(`${prefix}${file.to}`, file.from));
+        carried.push(name);
+    }
+    return { files, carried, skipped };
+};
+
+/*
  * 装上之后要知道的事，只按产物和受信表那一行判断（这里不写平台名）：带着的 deps 归档、清单要的原生件、claims 写不进的
  * 旧数据、旧媒体协议、签名与版本对覆盖的影响。
  */
-const runtimeNotes = ({ manifest, files, sizes, signature, sourceVersion }) => {
+const runtimeNotes = ({ manifest, files, sizes, signature, sourceVersion, native, system }) => {
     const notes = [];
     const row = Object.hasOwn(BUILTIN_SOURCE_TABLE, manifest.id) ? BUILTIN_SOURCE_TABLE[manifest.id] : null;
     files.filter((file) => /^deps\.[0-9a-f]+\.asar$/.test(file)).forEach((file) => {
         notes.push(`带 deps 归档 ${file}（${megabytes(sizes.get(file))}）：装上后入口从 userData/mods/${manifest.id}/ 里的这份读上游库，和内置副本一样`);
     });
-    (manifest.native ?? []).forEach((name) => {
-        notes.push(`清单要原生件 ${name}，包里不带（原生件随应用走）：安装包带着这个音源时，只有官方签名、版本更高的覆盖副本拿得到应用带的那份；`
-            + `接管（安装包不带它）时拿不到，api.native 报 native-not-granted，靠它的功能用不了`);
+    (native?.carried ?? []).forEach((name) => {
+        const bytes = [...native.files.keys()].filter((file) => file.startsWith(`native/${name}/`)).reduce((sum, file) => sum + sizes.get(file), 0);
+        notes.push(`带原生件 ${name}（${system}，${megabytes(bytes)}，在 native/${name}/${system}/）：接管时 api.native 用包里这份；`
+            + '安装包带着这个音源时，覆盖副本仍用应用带的那份；只能装在这个系统上用');
     });
+    (native?.skipped ?? []).forEach(({ name, reason }) => {
+        notes.push(`不带原生件 ${name}：${reason}；接管时 api.native 报 native-not-in-mod，靠它的功能用不了`);
+    });
+    if (!native && (manifest.native ?? []).length > 0) {
+        notes.push(`没带原生件（--no-native）：接管时 ${manifest.native.join('、')} 报 native-not-in-mod，靠它的功能用不了`);
+    }
     if (!row) {
         notes.push('不在受信表里：没有 claims，装上后是第三方音源 folium.<模组 id>.<名字>');
         return notes;
@@ -237,18 +325,22 @@ const checkLimits = (files, sizes, limits, { reserveFiles = 0 } = {}) => {
  *   trustedKeys 验签用的公钥表（测试用）
  *   limits     上限（测试用）
  *   now        签名时间（测试用）
- * 交回 { modId, version, zipPath, archiveBytes, files, totalBytes, digest, signature, notes, manifest }。
+ *   system     原生件的系统 <platform>-<arch>（默认本机）
+ *   native     带不带原生件（默认带；false 是 --no-native）
+ *   nativeRoot 找原生件的仓库根（测试用）
+ * 交回 { modId, version, zipPath, archiveBytes, files, totalBytes, digest, signature, notes, manifest, system }（system：带了原生件时是那个系统，否则 null）。
  *
  * @param {string} distDir
  * @param {{
  *   outRoot?: string, version?: string | null, folia?: string | null, signingKey?: ReturnType<typeof loadSigningKey> | null,
  *   trustedKeys?: Parameters<typeof loadSigningKey>[2], limits?: typeof PACK_LIMITS, now?: () => Date,
+ *   system?: string, native?: boolean, nativeRoot?: string,
  * }} [options]
  */
 export const packSource = (distDir, options = {}) => {
     const {
         outRoot = DEFAULT_PACK_ROOT, version = null, signingKey = null, trustedKeys = TRUSTED_SIGNING_KEYS,
-        limits = PACK_LIMITS, now = () => new Date(),
+        limits = PACK_LIMITS, now = () => new Date(), system = DEFAULT_SYSTEM, nativeRoot = ROOT,
     } = options;
     // 默认下限只是占位：仓库版本号以下的宿主本来就不收 Folium 2 的模组，这一条不额外挡什么。预发布号（-alpha.x）去掉，
     // 宿主的范围写法只认 x.y.z。
@@ -278,25 +370,37 @@ export const packSource = (distDir, options = {}) => {
     if (!validation.ok) throw new Error(`包里的 mod.json 不合格：${validation.errors.join('; ')}`);
     if (manifest.folium !== 2 || !Array.isArray(manifest.sources)) throw new Error(`${built.id} 不是音源模组（Folium 2 且声明了 sources）`);
 
-    const sizes = new Map(files.map((file) => [file, fs.statSync(path.join(distDir, file)).size]));
+    // 包里每个文件从哪拷：构建产物，加上这个系统的原生件（native/<名字>/<系统>/，构建产物里没有 native/）。
+    const from = new Map(files.map((file) => [file, path.join(distDir, ...file.split('/'))]));
+    const native = options.native === false ? null : nativeFilesFor(manifest, system, nativeRoot);
+    if (native) {
+        for (const [file, source] of native.files) {
+            if (from.has(file)) throw new Error(`构建产物里已经有 ${file}`);
+            from.set(file, source);
+        }
+    }
+    const contentFiles = [...from.keys()].sort();
+    const sizes = new Map(contentFiles.map((file) => [file, fs.statSync(from.get(file)).size]));
     const manifestText = `${JSON.stringify(manifest, null, 2)}\n`;
     sizes.set('mod.json', Buffer.byteLength(manifestText));
-    checkLimits(files, sizes, limits, { reserveFiles: signingKey ? 1 : 0 });
+    checkLimits(contentFiles, sizes, limits, { reserveFiles: signingKey ? 1 : 0 });
+    // 声明了原生件的包按系统出（内容随系统变）；没声明的、--no-native 的和以前一样。
+    const systemTag = (manifest.native ?? []).length > 0 && native ? system : null;
 
     // 在临时目录里摆出装上后的样子：签名摘要就按这个目录算，和装上后宿主验的是同一份字节。
     const stageRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'folia-sources-pack-'));
     try {
         const stageDir = path.join(stageRoot, manifest.id);
-        for (const file of files) {
+        for (const file of contentFiles) {
             const destination = path.join(stageDir, ...file.split('/'));
             fs.mkdirSync(path.dirname(destination), { recursive: true });
-            fs.copyFileSync(path.join(distDir, ...file.split('/')), destination);
+            fs.copyFileSync(from.get(file), destination);
         }
         fs.writeFileSync(path.join(stageDir, 'mod.json'), manifestText);
 
         const { digest } = computeSignedDigestDetailed(stageDir);
         let signature = null;
-        const packedFiles = [...files];
+        const packedFiles = [...contentFiles];
         if (signingKey) {
             const record = {
                 format: SIGNATURE_FORMAT,
@@ -327,7 +431,7 @@ export const packSource = (distDir, options = {}) => {
             throw new Error(`包有 ${megabytes(archive.byteLength)}，超过「从 zip 安装」的上限 ${megabytes(limits.maxArchiveBytes)}`);
         }
         fs.mkdirSync(outRoot, { recursive: true });
-        const zipPath = path.join(outRoot, `${manifest.id}-${manifest.version}${signingKey ? '' : '-unsigned'}.zip`);
+        const zipPath = path.join(outRoot, `${manifest.id}-${manifest.version}${systemTag ? `-${systemTag}` : ''}${signingKey ? '' : '-unsigned'}.zip`);
         fs.writeFileSync(zipPath, archive);
         const totalBytes = [...sizes.values()].reduce((sum, size) => sum + size, 0);
         return {
@@ -340,7 +444,8 @@ export const packSource = (distDir, options = {}) => {
             digest,
             signature,
             manifest,
-            notes: runtimeNotes({ manifest, files, sizes, signature, sourceVersion: built.version }),
+            system: systemTag,
+            notes: runtimeNotes({ manifest, files: contentFiles, sizes, signature, sourceVersion: built.version, native, system }),
         };
     } finally {
         // 只删自己在系统临时目录里建的这一个目录。
@@ -350,7 +455,10 @@ export const packSource = (distDir, options = {}) => {
 
 /** 命令行参数。没给 id 也没给 --all 是列出能打的。 */
 export const parseArgs = (argv) => {
-    const options = { ids: [], all: false, distRoot: DEFAULT_DIST_ROOT, outRoot: DEFAULT_PACK_ROOT, version: null, folia: undefined, keyFile: null, keyId: null };
+    const options = {
+        ids: [], all: false, distRoot: DEFAULT_DIST_ROOT, outRoot: DEFAULT_PACK_ROOT, version: null, folia: undefined, keyFile: null, keyId: null,
+        system: DEFAULT_SYSTEM, native: true,
+    };
     for (let index = 0; index < argv.length; index += 1) {
         const arg = argv[index];
         const value = () => {
@@ -368,6 +476,10 @@ export const parseArgs = (argv) => {
             options.folia = range === 'none' ? null : range;
         } else if (arg === '--key') options.keyFile = value();
         else if (arg === '--key-id') options.keyId = value();
+        else if (arg === '--system') {
+            options.system = value();
+            if (!/^[a-z0-9]+-[a-z0-9]+$/.test(options.system)) throw new Error('--system 要写成 <platform>-<arch>，如 win32-x64、darwin-arm64、linux-x64');
+        } else if (arg === '--no-native') options.native = false;
         else if (arg.startsWith('--')) throw new Error(`不认识的参数 ${arg}`);
         else options.ids.push(arg);
     }
@@ -386,7 +498,7 @@ const printList = (packable) => {
         const bytes = files.reduce((sum, file) => sum + fs.statSync(path.join(item.dir, file)).size, 0);
         const extras = [
             files.some((file) => /^deps\.[0-9a-f]+\.asar$/.test(file)) ? 'deps 归档' : '',
-            (item.manifest.native ?? []).length > 0 ? `原生件 ${item.manifest.native.join('、')}（不进包）` : '',
+            (item.manifest.native ?? []).length > 0 ? `原生件 ${item.manifest.native.join('、')}（按系统带，--system）` : '',
         ].filter(Boolean);
         log(`  ${item.name.padEnd(12)} 模组 ${item.manifest.id} ${item.manifest.version}  ${megabytes(bytes)}${extras.length > 0 ? `  ${extras.join('，')}` : ''}`);
     }
@@ -407,7 +519,9 @@ const main = () => {
         log('没有给私钥（--key <文件>、FOLIUM_SIGNING_KEY 或 FOLIUM_SIGNING_KEY_FILE）：打的是未签名的包，只能用来接管安装包不带的音源');
     }
     for (const target of targets) {
-        const result = packSource(target.dir, { outRoot: options.outRoot, version: options.version, folia: options.folia, signingKey });
+        const result = packSource(target.dir, {
+            outRoot: options.outRoot, version: options.version, folia: options.folia, signingKey, system: options.system, native: options.native,
+        });
         const signed = result.signature ? `已签名（${result.signature.status}，${signingKey.keyId}）` : '未签名';
         log(`${target.name}: ${path.relative(ROOT, result.zipPath)}  ${megabytes(result.archiveBytes)}（解开 ${megabytes(result.totalBytes)}，${result.files.length} 个文件），${signed}`);
         log(`  签名摘要 ${result.digest}`);

@@ -21,6 +21,8 @@ const { validateManifest } = requireHere('../../../electron/modSystem/manifest.c
 const { verifyModSignature } = requireHere('../../../electron/modSystem/modSignature.cjs');
 const { BUILTIN_SOURCE_TABLE, builtinModOfSource, builtinSourceRow } = requireHere('../../../electron/modSystem/builtinSources.cjs');
 const { claimRefusal, resolveSourceOwnership } = requireHere('../../../electron/modSystem/sourceOwnership.cjs');
+const { resolveModNativeFile } = requireHere('../../../electron/modSystem/nativeFiles.cjs');
+const { WINDOWS_COMPANION_FILES } = requireHere('../../../sources/appleMusic/native/windows/prepareBundle.cjs');
 
 // 一把只给测试用的钥匙，不在任何受信表里；packSource 与验签都换成只认它的表。
 const { publicKey: TEST_PUBLIC, privateKey: TEST_PRIVATE } = crypto.generateKeyPairSync('ed25519');
@@ -49,6 +51,25 @@ const makeBuilt = (dirName: string, manifest: Record<string, unknown>, extra: Re
     }
     fs.writeFileSync(path.join(dir, 'build.json'), JSON.stringify({ fingerprint: '0', modId: manifest.id, files: Object.keys(files).sort() }));
     return dir;
+};
+
+/* A repository root with what sources:pack takes native files from: librespot's package (every system's build) and nothing else. */
+const fakeRoot = () => {
+    const root = temporary('root');
+    const librespot = path.join(root, 'node_modules', '@lox-audioserver', 'node-librespot');
+    const files: Record<string, string | Buffer> = {
+        'package.json': JSON.stringify({ name: '@lox-audioserver/node-librespot', version: '0.5.1', main: 'dist/index.js', license: 'Apache-2.0' }),
+        'dist/index.js': 'module.exports = require("./types");\n',
+        'dist/types.js': 'module.exports = {};\n',
+        'prebuilds/win32-x64-msvc/librespot_addon.node': Buffer.alloc(8192, 1),
+        'prebuilds/linux-x64-gnu/librespot_addon.node': Buffer.alloc(2048, 2),
+    };
+    for (const [name, content] of Object.entries(files)) {
+        fs.mkdirSync(path.dirname(path.join(librespot, name)), { recursive: true });
+        fs.writeFileSync(path.join(librespot, name), content);
+    }
+    fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({ name: 'folia' }));
+    return root;
 };
 
 const sourceManifest = (id: string, sourceId: string, more: Record<string, unknown> = {}) => ({
@@ -190,10 +211,9 @@ describe('packing and installing from zip', () => {
         expect(result.notes.join('\n')).toContain('覆盖内置副本要版本更高');
     });
 
-    it('notes the native files it leaves out, and that a mod the table does not know gets no short id', () => {
-        const native = packSource(makeBuilt('qishui', sourceManifest('qishui', 'qishui', { native: ['librespot'] })), { outRoot: temporary('packs') });
-        expect(native.notes.join('\n')).toContain('原生件 librespot');
-        expect(native.files.some((file: string) => file.includes('librespot'))).toBe(false);
+    it('carries no native file its trusted row does not list, and a mod the table does not know gets no short id', () => {
+        const native = packSource(makeBuilt('qishui', sourceManifest('qishui', 'qishui', { native: ['librespot'] })), { outRoot: temporary('packs'), nativeRoot: fakeRoot() });
+        expect(native.files.some((file: string) => file.startsWith('native/'))).toBe(false);
         const stranger = packSource(makeBuilt('thing', sourceManifest('someone-else', 'thing')), { outRoot: temporary('packs') });
         expect(stranger.notes.join('\n')).toContain('不在受信表里');
     });
@@ -203,6 +223,59 @@ describe('packing and installing from zip', () => {
         const first = fs.readFileSync(packSource(dist, { outRoot: temporary('packs'), folia: null }).zipPath);
         const second = fs.readFileSync(packSource(dist, { outRoot: temporary('packs'), folia: null }).zipPath);
         expect(first.equals(second)).toBe(true);
+    });
+});
+
+describe('native files, by system', () => {
+    const spotify = () => makeBuilt('spotify', sourceManifest('spotify', 'spotify', { native: ['librespot'] }));
+    const appleMusic = () => makeBuilt('appleMusic', sourceManifest('apple-music', 'appleMusic', { native: ['apple-music-companion'] }));
+
+    it('carries the system\'s librespot where the host looks for it, and the takeover resolves it once installed', async () => {
+        const result = packSource(spotify(), { outRoot: temporary('packs'), system: 'win32-x64', nativeRoot: fakeRoot() });
+        expect(result.system).toBe('win32-x64');
+        expect(path.basename(result.zipPath)).toBe('spotify-1.0.0-win32-x64-unsigned.zip');
+        expect(result.files.filter((file: string) => file.startsWith('native/'))).toEqual([
+            'native/librespot/win32-x64/dist/index.js',
+            'native/librespot/win32-x64/dist/types.js',
+            'native/librespot/win32-x64/package.json',
+            'native/librespot/win32-x64/prebuilds/win32-x64-msvc/librespot_addon.node',
+        ]);
+        expect(result.notes.join('\n')).toContain('带原生件 librespot（win32-x64');
+        const installed = await install(result.zipPath);
+        const resolved = resolveModNativeFile('librespot', installed, { platform: 'win32', arch: 'x64', fs });
+        expect(resolved).toEqual({ path: path.join(installed, 'native', 'librespot', 'win32-x64', 'dist', 'index.js') });
+        // The other systems' builds stay out.
+        expect(fs.existsSync(path.join(installed, 'native', 'librespot', 'win32-x64', 'prebuilds', 'linux-x64-gnu'))).toBe(false);
+    });
+
+    it('says what it leaves out on a system without a build, and with --no-native', () => {
+        const none = packSource(spotify(), { outRoot: temporary('packs'), system: 'darwin-x64', nativeRoot: fakeRoot() });
+        expect(none.files.some((file: string) => file.startsWith('native/'))).toBe(false);
+        expect(none.notes.join('\n')).toMatch(/不带原生件 librespot：.*darwin-x64.*native-not-in-mod/);
+        const off = packSource(spotify(), { outRoot: temporary('packs'), native: false, nativeRoot: fakeRoot() });
+        expect(off.system).toBeNull();
+        expect(path.basename(off.zipPath)).toBe('spotify-1.0.0-unsigned.zip');
+        expect(off.notes.join('\n')).toContain('--no-native');
+    });
+
+    it('carries the Windows companion only, and says how to build it when it is not there', () => {
+        const root = fakeRoot();
+        const mac = packSource(appleMusic(), { outRoot: temporary('packs'), system: 'darwin-arm64', nativeRoot: root });
+        expect(mac.notes.join('\n')).toMatch(/不带原生件 apple-music-companion：macOS/);
+        expect(() => packSource(appleMusic(), { outRoot: temporary('packs'), system: 'win32-x64', nativeRoot: root })).toThrow(/buildCompanion\.ps1/);
+        const companion = path.join(root, 'build', 'apple-music-native', 'windows');
+        fs.mkdirSync(companion, { recursive: true });
+        for (const file of WINDOWS_COMPANION_FILES) fs.writeFileSync(path.join(companion, file), file);
+        fs.writeFileSync(path.join(companion, 'FoliaAppleMusicCompanion.pdb'), 'debug');
+        const windows = packSource(appleMusic(), { outRoot: temporary('packs'), system: 'win32-x64', nativeRoot: root });
+        expect(windows.files.filter((file: string) => file.startsWith('native/')).sort())
+            .toEqual(WINDOWS_COMPANION_FILES.map((file: string) => `native/apple-music-companion/win32-x64/${file}`).sort());
+    });
+
+    it('stops at a native file past the install limit', () => {
+        expect(() => packSource(spotify(), {
+            outRoot: temporary('packs'), system: 'win32-x64', nativeRoot: fakeRoot(), limits: { ...PACK_LIMITS, maxFileBytes: 4096 },
+        })).toThrow(/librespot_addon\.node.*单个文件的上限/);
     });
 });
 
@@ -259,6 +332,9 @@ describe('the command line', () => {
             .toMatchObject({ ids: ['qishui'], version: '1.0.1', folia: null, keyFile: 'k.pem', keyId: 'x' });
         expect(() => parseArgs(['--all', 'qishui'])).toThrow();
         expect(() => parseArgs(['--nope'])).toThrow(/不认识/);
+        expect(parseArgs(['spotify', '--system', 'linux-arm64', '--no-native'])).toMatchObject({ system: 'linux-arm64', native: false });
+        expect(parseArgs(['spotify'])).toMatchObject({ system: `${process.platform}-${process.arch}`, native: true });
+        expect(() => parseArgs(['--system', '../x'])).toThrow(/platform/);
     });
 
     it('finds a built source by its folder name or its mod id, and lists only built folders', () => {
