@@ -444,6 +444,7 @@ const createModApproval = ({ app, store, enabledKey, getMainWindowSafe, getLocal
                 ...source.legacy.storeKeys,
                 ...source.legacy.partitions.map((partition) => `partition ${partition}`),
                 ...source.legacy.userDataDirs.map((folder) => `userData/${folder}`),
+                ...(source.legacy.cacheDirs ?? []).map((folder) => `cache/${folder}`),
             ]);
             if (data.length > 0) lines.push(locale.takeoverData(data.join(', ')));
         }

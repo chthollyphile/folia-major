@@ -66,7 +66,8 @@ const FOLIUM_2_FIELDS = Object.freeze(['sources', 'locales', 'assets', 'secrets'
  * known to the host as `folium.<mod id>.<id>`, a built-in one (and one that took over a short id) by the
  * short id itself, which is why mixed case is allowed (a short id may be camelCase). `claims` names what the source takes
  * over when the installation does not carry that source (the compliance plan, §5.1): the short id, and
- * the old main-process store keys, session partitions and userData folders that hold its sign-in.
+ * the old main-process store keys, session partitions and userData folders that hold its sign-in, and the folders under
+ * the host's media cache folder that held its cache (`legacyCacheDirs`).
  */
 const SOURCE_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
 const STORE_KEY_PATTERN = /^[A-Za-z0-9_.:-]{1,128}$/;
@@ -94,6 +95,7 @@ const CLAIM_LIST_FIELDS = [
     ['storeKeys', STORE_KEY_PATTERN, 'a store key'],
     ['partitions', PARTITION_PATTERN, 'a session partition name'],
     ['userDataDirs', FOLDER_NAME_PATTERN, 'a folder name under userData'],
+    ['legacyCacheDirs', FOLDER_NAME_PATTERN, 'a folder name under the media cache folder'],
 ];
 const SOURCE_FIELDS = new Set(['id', 'name', 'requires', 'keepForMatching', 'offByDefault', 'enableNotice', 'claims', 'certificateExceptions', 'lyricRelayHosts', 'selfSignedUserServers']);
 

@@ -38,11 +38,16 @@ const legacyOfRow = (row) => (row ? {
     ...(row.legacyCacheDirs ? { cacheDirs: [...row.legacyCacheDirs] } : {}),
 } : null);
 
+/*
+ * What a takeover's claims grant. The cache folders of before only where the claims name any, as a row's. Native files:
+ * none of the app's (`native`, which only a built-in copy or a signed override reaches).
+ */
 const legacyOfClaims = (claims) => ({
     storeKeys: [...(claims.storeKeys ?? [])],
     partitions: [...(claims.partitions ?? [])],
     userDataDirs: [...(claims.userDataDirs ?? [])],
     native: [],
+    ...(claims.legacyCacheDirs?.length ? { cacheDirs: [...claims.legacyCacheDirs] } : {}),
 });
 
 /*
@@ -70,7 +75,7 @@ const claimRefusal = (claims, sourceRow) => {
     if (!row) return 'claim-unknown-source';
     const within = (list, allowed) => (list ?? []).every((item) => allowed.includes(item));
     if (!within(claims.storeKeys, row.storeKeys) || !within(claims.partitions, row.partitions)
-        || !within(claims.userDataDirs, row.userDataDirs)) {
+        || !within(claims.userDataDirs, row.userDataDirs) || !within(claims.legacyCacheDirs, row.legacyCacheDirs ?? [])) {
         return 'claim-outside-row';
     }
     return null;
@@ -229,4 +234,4 @@ const resolveSourceOwnership = (builtins, candidates, bundled, options) => {
     return { overrides, refused, pendingOverride, sources, notes, brokenInstall, claimHolders };
 };
 
-module.exports = { resolveSourceOwnership, thirdPartySourceId, overrideRefusal, claimRefusal, NO_LEGACY };
+module.exports = { resolveSourceOwnership, thirdPartySourceId, overrideRefusal, claimRefusal, legacyOfClaims, NO_LEGACY };

@@ -72,7 +72,7 @@ const { createNodeEntryRuntime } = require('./nodeEntry.cjs');
 const { createModSecrets, SECRET_MAX_BYTES } = require('./modSecrets.cjs');
 const { oldNameWarnings, onOldNameWarning } = require('./deprecated.cjs');
 const { BUILTIN_LEGACY_MEDIA_SCHEMES, BUILTIN_SOURCE_IDS, builtinSourceRow, builtinModOfSource, readBundledSources } = require('./builtinSources.cjs');
-const { resolveSourceOwnership, claimRefusal } = require('./sourceOwnership.cjs');
+const { resolveSourceOwnership, claimRefusal, legacyOfClaims } = require('./sourceOwnership.cjs');
 const { ownPartitionOf, PARTITION_NAME_PATTERN } = require('./sourceApi.cjs');
 const { createMediaRules } = require('./mediaRules.cjs');
 const { limits: FOLIUM_LIMITS, foliumOneVersion: FOLIUM_ONE_VERSION } = require('./foliumShared.json');
@@ -1135,12 +1135,7 @@ ${partition}`;
             sourceId: shortId,
             takeover: true,
             keepForMatching: false,
-            legacy: {
-                storeKeys: [...(entry.claims.storeKeys ?? [])],
-                partitions: [...(entry.claims.partitions ?? [])],
-                userDataDirs: [...(entry.claims.userDataDirs ?? [])],
-                native: [],
-            },
+            legacy: legacyOfClaims(entry.claims),
         }));
         const confirmed = await confirmEnableMod({
             manifest: discovery.manifest,

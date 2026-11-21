@@ -135,6 +135,17 @@ describe('the compliance plan (pure rules)', () => {
         expect(result.sources.get('modest')![0]).toMatchObject({ sourceId: 'ytm', takeover: true, legacy: expect.objectContaining({ storeKeys: ['YTM_SESSION_V1'] }) });
     });
 
+    it('2b. lets a takeover claim the cache folders of before its row names, and no other', () => {
+        const cached = candidate('spotify-copy', { sources: [{ id: 'main', name: 'x', claims: { ...rowClaims('spotify'), legacyCacheDirs: ['spotify'] } }] });
+        const stray = candidate('stray', { sources: [{ id: 'main', name: 'x', claims: { ...rowClaims('ytm'), legacyCacheDirs: ['spotify'] } }] });
+        const result = resolve([], [cached, stray], { bundled: [], claims: { spotify: 'spotify-copy' } });
+        expect(result.sources.get('spotify-copy')![0]).toMatchObject({ sourceId: 'spotify', takeover: true, legacy: expect.objectContaining({ cacheDirs: ['spotify'] }) });
+        expect(result.notes.get('stray')).toEqual(['claim-outside-row']);
+        // Without the field, no cache folder of before.
+        const plain = resolve([], [candidate('qq-community', { claims: 'qq' })], { bundled: [], claims: { qq: 'qq-community' } });
+        expect(plain.sources.get('qq-community')![0].legacy).not.toHaveProperty('cacheDirs');
+    });
+
     it('3. does not let a mismatched signature take over: it runs under its own id', () => {
         const result = resolve([], [candidate('qq-community', { claims: 'qq', status: 'invalid' })], { bundled: [] });
         expect(result.claimHolders.has('qq')).toBe(false);

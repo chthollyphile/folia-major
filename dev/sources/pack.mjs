@@ -90,21 +90,21 @@ export const findPackable = (packable, wanted) => {
 
 /*
  * 接管（方案 §5.1）要的 `sources[].claims`：这个模组在受信表里那一行认领的短 id，连同那一行的旧 electron-store 键、
- * 会话分区、userData 目录。宿主核对 claims 不超出那一行（sourceOwnership.cjs 的 claimRefusal），所以照抄整行。
+ * 会话分区、userData 目录、媒体缓存目录下的旧缓存目录（legacyCacheDirs）。宿主核对 claims 不超出那一行（sourceOwnership.cjs 的 claimRefusal），所以照抄整行。
  * 不在受信表里的模组没有 claims：装上后是第三方音源 folium.<模组 id>.<名字>。
  */
 /**
  * @param {string} modId
  * @param {string} sourceId
- * @returns {{ id: string, storeKeys?: string[], partitions?: string[], userDataDirs?: string[] } | null}
+ * @returns {{ id: string, storeKeys?: string[], partitions?: string[], userDataDirs?: string[], legacyCacheDirs?: string[] } | null}
  */
 export const claimsFor = (modId, sourceId) => {
     const row = Object.hasOwn(BUILTIN_SOURCE_TABLE, modId) ? BUILTIN_SOURCE_TABLE[modId] : null;
     if (!row || !row.sources.includes(sourceId)) return null;
-    /** @type {{ id: string, storeKeys?: string[], partitions?: string[], userDataDirs?: string[] }} */
+    /** @type {{ id: string, storeKeys?: string[], partitions?: string[], userDataDirs?: string[], legacyCacheDirs?: string[] }} */
     const claims = { id: sourceId };
-    for (const field of ['storeKeys', 'partitions', 'userDataDirs']) {
-        if (row[field].length > 0) claims[field] = [...row[field]];
+    for (const field of ['storeKeys', 'partitions', 'userDataDirs', 'legacyCacheDirs']) {
+        if ((row[field] ?? []).length > 0) claims[field] = [...row[field]];
     }
     return claims;
 };
@@ -199,9 +199,6 @@ const runtimeNotes = ({ manifest, files, sizes, signature, sourceVersion }) => {
         notes.push('不在受信表里：没有 claims，装上后是第三方音源 folium.<模组 id>.<名字>');
         return notes;
     }
-    (row.legacyCacheDirs ?? []).forEach((dir) => {
-        notes.push(`受信表那一行的旧缓存目录 ${dir} 不在 claims 能写的范围里：接管时 api.cache.legacyDir('${dir}') 拿不到`);
-    });
     (row.legacyMediaSchemes ?? []).forEach((scheme) => {
         notes.push(`旧媒体协议 ${scheme}:// 只交给内置副本：接管时存下的这类地址回 404`);
     });

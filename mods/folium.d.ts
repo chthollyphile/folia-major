@@ -4610,8 +4610,9 @@ export interface FoliumSourceCache {
     /** Hands the host the source's cache entries, so its cache view lists, removes and clears them. */
     provideEntries(provider: FoliumSourceCacheEntries): FoliumDisposer;
     /**
-     * A built-in source only: the folder under the host's media cache folder (the one the user may choose) its row
-     * claims, where the platform kept its cache before it was a mod. Read it anew each time; not made here.
+     * The folder under the host's media cache folder (the one the user may choose) that a built-in source's row claims,
+     * or a takeover's `claims.legacyCacheDirs` (within that row): where the platform kept its cache before it was a mod.
+     * Read it anew each time; not made here. Any other name throws `legacy-cache-not-claimed:<name>`.
      */
     legacyDir(name: string): string;
 }

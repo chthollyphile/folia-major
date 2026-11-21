@@ -188,6 +188,17 @@ describe('handing a taken-over id to another mod', () => {
     });
 });
 
+describe('a takeover that claims a cache folder of before', () => {
+    it('lists it with the old data in its confirmation', async () => {
+        writeAppPackage({ foliaBundledSources: [] });
+        writeMod('user', sourceManifest('spotify-copy', [{ id: 'spotify', claims: { id: 'spotify', storeKeys: ['SPOTIFY_SESSION_V1'], legacyCacheDirs: ['spotify'] } }]));
+        const system = launch();
+        dialogAnswer.response = 1;
+        expect(await system.assignSourceClaim('spotify', 'spotify-copy')).toMatchObject({ ok: true });
+        expect(dialogs.at(-1)!.detail).toContain('cache/spotify');
+    });
+});
+
 describe('a source that accepts self-signed certificates from servers the user enters', () => {
     it('says so in its enable confirmation, and in its row of the source states', async () => {
         writeMod('user', sourceManifest('nas', [{ id: 'nas', name: 'My NAS', selfSignedUserServers: true }, { id: 'other', name: 'Other' }]));

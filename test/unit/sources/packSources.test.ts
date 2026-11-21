@@ -88,12 +88,13 @@ afterAll(() => {
 
 describe('the packed manifest', () => {
     it('claims the trusted row of a built-in source, with only the lists that row has', () => {
-        for (const [modId, row] of Object.entries(BUILTIN_SOURCE_TABLE) as [string, { sources: string[]; storeKeys: string[]; partitions: string[]; userDataDirs: string[] }][]) {
+        for (const [modId, row] of Object.entries(BUILTIN_SOURCE_TABLE) as [string, { sources: string[]; storeKeys: string[]; partitions: string[]; userDataDirs: string[]; legacyCacheDirs?: string[] }][]) {
             const claims = claimsFor(modId, row.sources[0]) ?? { id: '' };
             expect(claims.id).toBe(row.sources[0]);
             expect(claims.storeKeys ?? []).toEqual(row.storeKeys);
             expect(claims.partitions ?? []).toEqual(row.partitions);
             expect(claims.userDataDirs ?? []).toEqual(row.userDataDirs);
+            expect(claims.legacyCacheDirs ?? []).toEqual(row.legacyCacheDirs ?? []);
             // What the host checks a takeover's claims against (sourceOwnership.cjs).
             expect(claimRefusal(claims, (shortId: string) => builtinSourceRow(builtinModOfSource(shortId)))).toBeNull();
         }
