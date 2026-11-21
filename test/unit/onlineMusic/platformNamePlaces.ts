@@ -21,7 +21,7 @@ export const PLACE_KINDS = {
 export type PlaceKind = keyof typeof PLACE_KINDS;
 
 export interface PlatformNamePlace {
-    n: Partial<Record<'netease' | 'qq' | 'kugou' | 'bodian' | 'ytm' | 'spotify' | 'qishui' | 'fnmusic' | 'appleMusic', number>>;
+    n: Partial<Record<'netease' | 'qq' | 'kugou' | 'bodian' | 'ytm' | 'spotify' | 'qishui' | 'fnmusic' | 'appleMusic' | 'lxmusic', number>>;
     // The kind of the file's lines of code; its comment lines are counted as comments.
     kind: PlaceKind;
     // What the lines are, where the kind alone does not say it.
@@ -35,7 +35,7 @@ export const PLATFORM_NAME_PLACES: Record<string, PlatformNamePlace> = {
     'api/qq.js': { n: { qq: 10 }, kind: 'main', why: 'the built copy of api-ts/qq.ts' },
     'electron/aiCredentialStore.cjs': { n: { qq: 1, kugou: 1, bodian: 1 }, kind: 'doc' },
     'electron/linuxPasswordStore.cjs': { n: { qq: 1, kugou: 1 }, kind: 'main' },
-    'electron/modSystem/builtinSources.cjs': { n: { netease: 3, qq: 4, kugou: 3, bodian: 3, ytm: 5, spotify: 5, qishui: 3, appleMusic: 1, fnmusic: 4 }, kind: 'list', why: 'Folium 2.0 (plan §5.1): the trusted table of the built-in sources, the one place the loader names them, with the old keys, partitions and folders each sign-in lives in (2026-11-14, S2); fnmusic +1 for its old media scheme, which saved songs still name (S5, 2026-11-20); spotify +1 for the media cache folder its encrypted audio files are in (step 7, 2026-11-20)' },
+    'electron/modSystem/builtinSources.cjs': { n: { netease: 3, qq: 4, kugou: 3, bodian: 3, ytm: 5, spotify: 5, qishui: 3, appleMusic: 1, fnmusic: 4, lxmusic: 3 }, kind: 'list', why: 'Folium 2.0 (plan §5.1): the trusted table of the built-in sources, the one place the loader names them, with the old keys, partitions and folders each sign-in lives in (2026-11-14, S2); fnmusic +1 for its old media scheme, which saved songs still name (S5, 2026-11-20); spotify +1 for the media cache folder its encrypted audio files are in (step 7, 2026-11-20); lxmusic: its row, with the in-memory partition of its sandbox window (2026-11-21)' },
     'electron/modSystem/nativeFiles.cjs': { n: { appleMusic: 2 }, kind: 'list', why: 'Folium 2.0 (plan §5.5): the native files the app ships for a built-in source, by the names the trusted table lists; the two lines are the file names of the Apple Music companion the app builds and packages (2026-11-20, step 7)' },
     'electron/loginBackendIpc.cjs': { n: { netease: 1 }, kind: 'main', why: 'a comment on the IPC channels the embedded backends had before they moved into their source mods (2026-11-20), and the table that finds a backend by its platform id' },
     'electron/networkRecorder.cjs': { n: { netease: 4, qq: 3 }, kind: 'main', why: 'the hosts by which a request is filed under the backend that sent it' },
@@ -93,7 +93,10 @@ export const PLATFORM_NAME_PLACES: Record<string, PlatformNamePlace> = {
     'src/services/onlineMusic/web/kugou.ts': { n: { kugou: 5 }, kind: 'file', why: "the web build's file for this platform (plan §8): the one host file that may import sources/<id>/core, so it cannot move into the platform folder" },
     'src/services/onlineMusic/web/netease.ts': { n: { netease: 5 }, kind: 'file', why: "the web build's file for this platform (plan §8): the one host file that may import sources/<id>/core, so it cannot move into the platform folder" },
     'src/services/onlineMusic/web/qq.ts': { n: { qq: 5 }, kind: 'file', why: "the web build's file for this platform (plan §8): the one host file that may import sources/<id>/core, so it cannot move into the platform folder" },
-    'src/services/onlineMusic/providerRegistry.ts': { n: { netease: 1, qq: 1, kugou: 1, bodian: 1, ytm: 1, spotify: 3, qishui: 1, appleMusic: 1, fnmusic: 1 }, kind: 'list', why: 'the list of platforms: where a platform is added; +1 each (bodian 1) for the one line that keeps the nine built-in platforms in their order, however each registers (Folium 2.0 plan §10, the remaining stages, step 2, 2026-11-20)' },
+    'src/services/onlineMusic/providerRegistry.ts': { n: { netease: 1, qq: 1, kugou: 1, bodian: 1, ytm: 1, spotify: 3, qishui: 1, appleMusic: 1, fnmusic: 1, lxmusic: 1 }, kind: 'list', why: 'the list of platforms: where a platform is added; +1 each (bodian 1) for the one line that keeps the nine built-in platforms in their order, however each registers (Folium 2.0 plan §10, the remaining stages, step 2, 2026-11-20)' },
+    'sources/lxmusic/client/lxCommands.ts': { n: { netease: 1, qq: 1, kugou: 1 }, kind: 'text', why: 'the LX source (2026-11-21) has no library of its own: it searches the public catalogues of the four platforms LX scripts are keyed by (kw, kg, tx, wy), so its folder names them; here, the names of the search platforms in its command' },
+    'sources/lxmusic/main/catalog.ts': { n: { netease: 27, qq: 31, kugou: 23 }, kind: 'file', why: 'the LX source (2026-11-21) has no library of its own: it searches the public catalogues of the four platforms LX scripts are keyed by (kw, kg, tx, wy), so its folder names them' },
+    'sources/lxmusic/main/index.ts': { n: { qq: 1, kugou: 1 }, kind: 'doc' },
     'sources/qq/core/qqProvider.ts': { n: { kugou: 1 }, kind: 'doc' },
     'sources/qq/core/qqTransport.ts': { n: { netease: 1 }, kind: 'doc' },
     'src/services/onlineMusic/resourceCache.ts': { n: { netease: 2 }, kind: 'doc' },
@@ -112,11 +115,11 @@ export const PLATFORM_NAME_PLACES: Record<string, PlatformNamePlace> = {
     'src/utils/coverUrl.ts': { n: { netease: 3, qq: 3, kugou: 3 }, kind: 'question', why: 'how each platform\'s picture host is asked for a size; the code has only the URL to go by; raised by the upstream merge 2026-10-17; the built-in rules of the cover registry until each source declares its own (Folium 2.0 S3), and the web proxy\'s host check moved here from coverCache.ts (S1)' },
     'src/utils/fmQueue.ts': { n: { qq: 1 }, kind: 'doc' },
     'src/utils/lyrics/LyricParserFactory.ts': { n: { netease: 3 }, kind: 'lyric' },
-    'src/utils/lyrics/adapters/LocalFileLyricAdapter.ts': { n: { kugou: 1 }, kind: 'doc' },
+    'src/utils/lyrics/adapters/LocalFileLyricAdapter.ts': { n: { kugou: 1, lxmusic: 1 }, kind: 'doc' },
     'src/utils/lyrics/adapters/NeteaseLyricAdapter.ts': { n: { netease: 5 }, kind: 'lyric', why: 'the parser of a lyric payload format named for the platform that made it; the stage API takes that format from any client' },
     'src/utils/lyrics/amllDbCandidates.ts': { n: { netease: 1, qq: 6 }, kind: 'lyric', why: 'the platform ids the AMLL DB files a song under' },
     'src/utils/lyrics/autoMatchBestLyric.ts': { n: { netease: 15, qq: 13, spotify: 2 }, kind: 'lyric', why: 'raised by the upstream merge 2026-10-17' },
-    'src/utils/lyrics/awlrcContainer.ts': { n: { kugou: 1 }, kind: 'doc' },
+    'src/utils/lyrics/awlrcContainer.ts': { n: { kugou: 1, lxmusic: 7 }, kind: 'doc', why: 'the lyric container the LX Music app writes at the end of an exported LRC, named for the app that made it' },
     'src/utils/lyrics/foliaLyricDocument.ts': { n: { netease: 1 }, kind: 'doc' },
     'src/utils/lyrics/lyricFileDecoding.ts': { n: { kugou: 1 }, kind: 'lyric', why: 'a lyric file format (.krc) named for the platform that made it, decrypted by packages/folium-source-kit' },
     'src/utils/lyrics/lyricMatchSources.ts': { n: { netease: 5, qq: 3 }, kind: 'lyric' },

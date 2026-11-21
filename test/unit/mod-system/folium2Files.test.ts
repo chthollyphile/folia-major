@@ -226,7 +226,7 @@ describe('the trusted table of the built-in sources (§5.1)', () => {
         Object.entries(expected).forEach(([modId, keys]) => {
             expect(BUILTIN_SOURCE_TABLE[modId].storeKeys, modId).toEqual(keys);
         });
-        expect(Object.keys(BUILTIN_SOURCE_TABLE)).toEqual(['netease', 'kugou', 'qq', 'bodian', 'qishui', 'ytm', 'spotify', 'apple-music', 'fnmusic']);
+        expect(Object.keys(BUILTIN_SOURCE_TABLE)).toEqual(['netease', 'kugou', 'qq', 'bodian', 'qishui', 'ytm', 'spotify', 'apple-music', 'fnmusic', 'lxmusic']);
     });
 
     it('names the partitions and userData folders main.cjs gives the platforms', () => {

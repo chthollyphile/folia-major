@@ -105,6 +105,16 @@ const BUILTIN_SOURCE_TABLE = Object.freeze({
         // and the saved addresses of the old scheme answer 404 while it holds the id. Its routes need not mean the same thing.
         legacyMediaSchemes: ['folia-fnmusic'],
     }),
+    // The tenth, added after the nine platforms moved (2026-11-21): it runs LX Music "custom source" scripts the
+    // listener imports. No sign-in and nothing from before it was a mod, so no keys or folders; the partition is the
+    // in-memory one of the hidden sandbox page those scripts run in.
+    lxmusic: Object.freeze({
+        sources: ['lxmusic'],
+        storeKeys: [],
+        partitions: ['folia-lxmusic-sandbox'],
+        userDataDirs: [],
+        native: [],
+    }),
 });
 
 /** Every short source id the table knows, in the table's order. */

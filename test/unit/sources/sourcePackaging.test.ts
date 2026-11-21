@@ -73,12 +73,13 @@ describe('the built-in sources in app.asar', () => {
 
 // FOLIA_BUNDLED_SOURCES (plan §6.2, §8, §11 the compliance plan): what an installer and the web build carry.
 describe('FOLIA_BUNDLED_SOURCES', () => {
-    const nine = ['netease', 'kugou', 'qq', 'bodian', 'qishui', 'ytm', 'spotify', 'appleMusic', 'fnmusic'];
+    // The nine platforms and LX Music Source, the tenth (2026-11-21).
+    const all = ['netease', 'kugou', 'qq', 'bodian', 'qishui', 'ytm', 'spotify', 'appleMusic', 'fnmusic', 'lxmusic'];
 
-    it('carries all nine without it: every dist-mods folder, the declaration, the Apple Music companion', () => {
+    it('carries every source without it: every dist-mods folder, the declaration, the Apple Music companion', () => {
         const config = bundledSourcesConfig({ root: ROOT, bundled: undefined });
-        expect([...config.extraMetadata.foliaBundledSources].sort()).toEqual([...nine].sort());
-        expect(config.extraResources.map((entry: { to: string }) => entry.to).sort()).toEqual(nine.map(id => `builtin-mods/${id}`).sort());
+        expect([...config.extraMetadata.foliaBundledSources].sort()).toEqual([...all].sort());
+        expect(config.extraResources.map((entry: { to: string }) => entry.to).sort()).toEqual(all.map(id => `builtin-mods/${id}`).sort());
         expect(config.extraResources[0]?.filter).toEqual(['**/*', '!**/*.tmp']);
         expect(config.win.extraResources).toHaveLength(1);
         expect(config.mac.extraResources).toHaveLength(1);

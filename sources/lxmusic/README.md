@@ -1,0 +1,101 @@
+# 洛雪音源（`lxmusic`，仅桌面端）
+
+让用户导入洛雪音乐（LX Music）的「自定义源」脚本来取播放地址的音源模组（Folium 2.0）。它是独立的一家音源：自己搜歌、
+列歌单与榜单，歌都算 `lxmusic` 自己的；不接管别家平台的歌，也不读别家的登录和数据。
+构建、布局和依赖的规矩见 `dev/sources/README.md`。
+
+**不随应用带任何脚本，也不内置脚本的下载地址。** 脚本是第三方代码，来源由用户自己负责；没导入脚本时这家音源答「没配好」，
+一个请求都不发。它默认停用（清单 `sources[].offByDefault`），开箱引导里不预先勾选，启用处显示清单 `sources[].enableNotice` 的说明。
+
+最初的接入是 PR #1177（作者 baixiao0919）：脚本接口的行为（回调的几种写法、`lx.utils` 的实现）、四个平台公开接口的
+请求与字段都取自那里的实测，这里换了运行方式（沙箱窗口加受控出口）和形态（独立音源，而不是别家歌单加洛雪取流）。
+
+- **上游**：两样，都没有要装的包。
+  1. 洛雪桌面版给自定义源的接口（`globalThis.lx`：`on` / `send` / `request` / `utils` / `EVENT_NAMES` / `currentScriptInfo`，
+     仓库 lyswhut/lx-music-desktop 的自定义源说明）。我们实现的是其中脚本取地址要用的那部分，见下面「没做的」。
+  2. 四个平台的公开网页接口（酷我 `kw`、酷狗 `kg`、QQ `tx`、网易云 `wy`），地址写死在 `main/catalog.ts`。没有官方文档，
+     会随平台变动。
+- **版本**：`lx.version` 报 `2.0.0`、`lx.env` 报 `desktop`。本目录的 `package.json` 没有依赖。
+- **我们改了什么**：不是移植洛雪的代码，是照它的接口重写的运行环境。`lx.utils.zlib` 的 `inflate` / `deflate` 用页面的
+  `DecompressionStream` / `CompressionStream`，回的是 Promise（洛雪里是回调或 Promise 两种都有的写法，脚本一般 `await`）。
+  `updateAlert` 事件不弹窗、不开它带的链接。
+- **上游变了怎么跟**：平台接口变了改 `main/catalog.ts` 里那一家的请求和归一化，`test/unit/lxmusic/scriptsAndCatalog.test.ts`
+  用写好的答复管归一化，抓不到平台换了答复的样子，要在应用里试。洛雪给脚本加了新接口时改 `main/sandbox/runtime.ts`，
+  `test/unit/lxmusic/sandboxRuntime.test.ts` 管接口的行为（`lx.utils` 与 Node 自带实现逐项对照）。
+
+## 怎么用
+
+命令面板（也出现在模组面板里这个模组的那一行）：
+
+| 命令 | 什么时候有 |
+| --- | --- |
+| 导入自定义源脚本… | 一直有。选一个脚本文件（`.js`，也认 `.json`、`.txt`），单个最多 2 MB，最多存 16 个 |
+| 切换自定义源脚本 | 存了不止一个脚本时。一次只用一个，和洛雪桌面版一样 |
+| 移除自定义源脚本 | 有脚本时 |
+| 切换搜索平台 | 当前脚本声明了不止一家平台时。一次搜一家 |
+
+脚本原文、清单、当前选择存在模组自己的 `api.storage`，不碰 localStorage。歌曲 id 是 `<平台键>:<平台的歌曲 id>`
+（`kw:123`、`tx:<mid>`），歌单、榜单、专辑是 `<平台键>:<p|c|a>:<id>`。
+
+## 隔离（改这里的代码前先读）
+
+脚本是不可信的第三方代码。它跑在模组自己的隐藏沙箱窗口里，联网只有一条路：
+
+1. **窗口**（`main/sandboxHost.ts`）：`api.windows.hidden` 开的沙箱渲染进程，上下文隔离、没有 preload、没有 Node，所以页面里
+   没有 `window.electron`。分区是受信表认领的内存分区 `folia-lxmusic-sandbox`，和宿主、别家音源的会话分开，里面没有任何
+   cookie。分区的 http(s) 全部由 `intercept` 在本地应答，其余协议指向一个不存在的代理，权限一律拒绝，禁 WebRTC、开窗、
+   跳转和 webview。页面的 CSP 是 `default-src 'none'`，只放行内联脚本、`eval`（混淆过的脚本要用）和对沙箱自己那个假源的
+   `connect-src`。
+2. **出口**（`main/egress.ts`、`main/egressGuard.ts`）：`lx.request` 是页面里对固定假地址 `https://lx-sandbox.invalid/__lx/request`
+   的一次 POST，`intercept` 接住后交给出口。出口用 Node 的 `http` / `https` 加自己的 `lookup`：解析出地址、判过、连的就是
+   判过的那个地址，连上后再核对一次对端地址。跳转不自动跟，每一跳重新判（最多 8 跳），跨源时去掉 cookie 与 authorization。
+   拦的地址：回环、私网、链路本地（含 169.254.169.254）、`100.64.0.0/10`、`::ffff:` 映射 / NAT64 / 6to4 / Teredo 里包着的
+   IPv4、ULA、组播、未指定地址、文档与保留段，字面的 `localhost`、`.local`、没有点的主机名。一个名字解析出多个地址时，
+   有一个不许就整个不许。只许 http(s)。
+3. **音频**：脚本给的地址不交给主窗口。播放器拿到的是 `folia-mod://lxmusic/_media/stream/…?once=<令牌>`（`api.media.serve`），
+   由同一个出口带 Range 转发；回的不是音频或状态不是 200 / 206 就答 502，没签发过的令牌答 410。所以脚本给一个内网地址
+   也打不到，CDN 的 302 也跟得上。
+4. **曲库**：搜歌、榜单这些请求是模组自己的代码发的，地址写死，走 `api.net.fetch`（默认会话、不带凭据、跟系统代理）。
+   脚本碰不到这条路。
+
+几条有意的取舍：
+
+- **出口不走系统代理**。走了代理就看不到解析出的地址，按 IP 的判定也就没了。代价是只能靠代理上网的机器上脚本的请求会失败；
+  开着 TUN 的没有这个问题。
+- **`198.18.0.0/15` 不拦**。它是代理软件 fake-ip 模式的占位地址段：拦了，开着 TUN 的用户一首歌都放不了。这个模式下解析结果
+  本来就不是真实去处，按 IP 的判定看不到最终连到哪，只剩主机名字面那一层；真正的去处由代理软件自己的规则决定。
+- **没有再套 `sandbox` iframe**。独立的沙箱渲染进程比同进程的 iframe 隔得更开，页面里也没有要瞒着脚本的东西。
+- **开发放行**：环境变量 `FOLIA_LXMUSIC_DEV_ALLOW=<主机>:<端口>` 让出口放行一个本机地址，只在从源码跑（`process.defaultApp`）
+  时读，打包后的应用不认。桌面实测用它把假音频服务接进来（`test/manual/fakeSourceNetwork/lxmusic.mjs`）。
+
+## 没做的
+
+- 咪咕（`mg`）：公开接口不稳，PR #1177 里也没有。脚本声明了它也不会出现在平台列表里。
+- 脚本的 `pic` 动作：封面用公开接口给的。`lyric` 动作做了，脚本没声明或答不上时退回公开接口的歌词。
+- 脚本的自动更新（`updateAlert`）：不弹、不下。要换脚本就重新导入。
+- 网页版：没有。脚本要一个能隔离运行第三方代码、又能替它跨域联网的地方，网页版给不了，所以 `src/services/onlineMusic/web/`
+  里没有它的文件，网页构建不带这个模组。
+- 登录、红心、歌单增删：这家没有账号。
+
+## 目录
+
+| 位置 | 是什么 |
+| --- | --- |
+| `mod.json` | 清单：`folium: 2`，音源 `lxmusic`，`offByDefault`，四种语言的名字和启用说明 |
+| `client/index.ts` | client 入口：在第一个 `await` 前 `folium.sources.register`，之后向 main 入口读一次状态 |
+| `client/lxProvider.ts` | 音源定义：`search@1`、`songs@1`、`playback.audio@1`、`lyrics@1`、`catalog@1`、`explore@1` |
+| `client/lxCommands.ts` | 上面那四条命令 |
+| `client/lxTransport.ts` | 经 `folium.rpc` 调 main 入口 |
+| `main/index.ts` | main 入口：rpc、脚本库、沙箱窗口、音频的签发与转发 |
+| `main/scripts.ts` | 脚本的校验（头注释、大小、声明的平台）和存取 |
+| `main/catalog.ts` | 四个平台的公开接口与归一化 |
+| `main/musicInfo.ts` | 给脚本的 `musicInfo` 和音质的对应 |
+| `main/egress.ts`、`egressGuard.ts` | 受控出口与地址判定 |
+| `main/sandboxHost.ts` | 沙箱窗口：分区、CSP、`/__lx/request` 的应答、调页面里的运行环境 |
+| `main/sandbox/` | 打进沙箱页面的运行环境（`package.json` 的 `folia.workers.sandbox`）：`globalThis.lx` 和 `lx.utils` |
+| `locales/` | 名字、命令的回执、失败原因；`zh-TW.json` 由构建生成 |
+
+## 验
+
+单测在 `test/unit/lxmusic/`（地址判定、出口、运行环境、脚本与曲库、沙箱窗口与 main 入口）。桌面实测的步骤、假脚本和恶意脚本
+样例在 `test/manual/fakeSourceNetwork/`（`lxmusic.mjs` 与 `lxmusic/` 目录）。假应答证明的是管道，真实脚本和真实平台要维护者自己验。

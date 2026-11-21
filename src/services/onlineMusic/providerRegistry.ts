@@ -16,7 +16,7 @@ const providers = new Map<OnlineProviderId, OnlineMusicProvider>();
  * or its source mod registers it once the mod's client starts, so the switcher, the sign-in window and the search
  * commands do not reorder each time one more platform moves to a mod or the mods start in another order.
  */
-const BUILT_IN_SOURCE_ORDER: readonly OnlineProviderId[] = ['netease', 'kugou', 'qq', 'bodian', 'ytm', 'spotify', 'qishui', 'appleMusic', 'fnmusic'];
+const BUILT_IN_SOURCE_ORDER: readonly OnlineProviderId[] = ['netease', 'kugou', 'qq', 'bodian', 'ytm', 'spotify', 'qishui', 'appleMusic', 'fnmusic', 'lxmusic'];
 
 // When each id registered (a later registration of the same id counts anew), for the sources after the nine.
 const registeredAt = new Map<OnlineProviderId, number>();

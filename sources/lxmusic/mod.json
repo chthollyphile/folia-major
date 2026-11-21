@@ -1,0 +1,30 @@
+{
+  "folium": 2,
+  "id": "lxmusic",
+  "name": "洛雪音源",
+  "version": "1.0.0",
+  "author": "Folia",
+  "description": "运行用户自己导入的洛雪（LX Music）「自定义源」脚本的音源（仅桌面端）：搜索、歌单、专辑、榜单来自酷我、酷狗、QQ 音乐、网易云的公开接口，播放地址由导入的脚本给出。不带任何脚本；脚本跑在没有 Node、连不上本机与内网的沙箱窗口里。",
+  "client": "client.mjs",
+  "main": "index.cjs",
+  "locales": "locales",
+  "sources": [
+    {
+      "id": "lxmusic",
+      "name": {
+        "zh-CN": "洛雪音源",
+        "en": "LX Music Source",
+        "in": "LX Music Source",
+        "vi": "LX Music Source"
+      },
+      "requires": ["search@1", "songs@1", "playback.audio@1", "lyrics@1", "catalog@1", "explore@1"],
+      "offByDefault": true,
+      "enableNotice": {
+        "zh-CN": "要自己导入洛雪「自定义源」脚本才能用。脚本是第三方代码，Folia 不提供也不审核，来源由你自己负责。",
+        "en": "Needs an LX Music “custom source” script that you import yourself. The script is third-party code that Folia neither provides nor reviews; where it comes from is your responsibility.",
+        "in": "Memerlukan skrip “sumber kustom” LX Music yang Anda impor sendiri. Skrip adalah kode pihak ketiga yang tidak disediakan maupun ditinjau oleh Folia; asal-usulnya menjadi tanggung jawab Anda.",
+        "vi": "Cần một tập lệnh “nguồn tùy chỉnh” của LX Music do bạn tự nhập. Tập lệnh là mã của bên thứ ba, Folia không cung cấp cũng không kiểm duyệt; bạn tự chịu trách nhiệm về nguồn gốc của nó."
+      }
+    }
+  ]
+}
