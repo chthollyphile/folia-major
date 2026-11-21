@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-import type { ModClearCacheResult, ModClearSourceDataResult, ModExportProgress, ModFfmpegStatus, ModLogEntry, ModMainCallStats, ModRpcMessage, ModRuntimeInfo, ModRuntimeSnapshot, ModSecretChange, ModSourceDataResult, ModSourceState, ModSourceStatesPayload, ModStorageUsageResult } from './mods/types';
+import type { ModClearCacheResult, ModClearSourceDataResult, ModExportProgress, ModFfmpegStatus, ModLogEntry, ModMainCallStats, ModRpcMessage, ModRuntimeInfo, ModRuntimeSnapshot, ModSecretChange, ModSourceDataResult, ModSourceState, ModSourceStatesPayload, ModSourceUsageResult, ModStorageUsageResult } from './mods/types';
 import type { PerfCheckProcessMemory, PerfCheckSettings } from './components/perfCheck/perfCheckTypes';
 
 declare global {
@@ -1049,6 +1049,7 @@ declare global {
         setSourceState?: (sourceId: string, state: ModSourceState) => Promise<{ ok: boolean; error?: string } & Partial<ModSourceStatesPayload>>;
         answerSourcesOnboarding?: (choices: Record<string, ModSourceState>) => Promise<{ ok: boolean; error?: string } & Partial<ModSourceStatesPayload>>;
         describeSourceData?: (sourceId: string) => Promise<ModSourceDataResult>;
+        getSourceStorageUsage?: (sourceId: string) => Promise<ModSourceUsageResult>;
         clearSourceData?: (sourceId: string) => Promise<ModClearSourceDataResult>;
         confirmModOverride?: (modId: string) => Promise<{ ok: boolean; error?: string; mods?: ModRuntimeInfo[] }>;
         assignSourceClaim?: (shortId: string, modId: string) => Promise<{ ok: boolean; error?: string; mods?: ModRuntimeInfo[] }>;

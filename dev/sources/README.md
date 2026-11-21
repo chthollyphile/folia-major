@@ -11,6 +11,7 @@
 | `dependencies.mjs` | 读依赖声明、找包、算 `deps` 归档的闭包与指纹、打归档 |
 | `locales.mjs` | 由 `zh-CN.json` 生成 `zh-TW.json`（和宿主同一条转换） |
 | `manifestCheck.mjs` | `sources/*/` 的内置清单校验（测试在 `test/unit/sources/builtinManifests.test.ts`） |
+| `pack.mjs` | `npm run sources:pack`：把 `dist-mods/<id>/` 打成能「从 zip 安装」的包，可签名（见下面「打成 zip」） |
 | `typecheck.mjs` | `npm run typecheck` 的后半段：kit、`sources/`、构建夹具各按自己的 tsconfig 编译 |
 
 ## 用法
@@ -64,6 +65,78 @@ npm run sources:build -- --extra test/fixtures/folium-sources/fixture-source
 
 网页版（`npm run build`）经虚拟模块 `virtual:folia-web-sources` 只 import 选中的 `src/services/onlineMusic/web/<id>.ts`，没带的那一家
 连 core 都不进包。
+
+## 打成 zip（`sources:pack`）
+
+方案 §5.1 的合规预案：安装包不带某个内置音源时（`FOLIA_BUNDLED_SOURCES`），同一份宿主装上外部的音源模组就能接着用。
+`npm run sources:pack` 把构建好的 `dist-mods/<id>/` 打成这样一个包，用模组面板的「从 zip 安装」装（要开着模组系统）。
+
+```bash
+npm run sources:pack
+```
+
+```bash
+npm run sources:pack -- bodian
+```
+
+```bash
+npm run sources:pack -- --all
+```
+
+- 不带参数：列出 `dist-mods/` 里能打的（有 `mod.json` 和 `build.json` 的目录）、大小、带不带 deps 归档和原生件。先跑 `sources:build`。
+- `<id>`：目录名（短音源 id，如 `appleMusic`）或模组 id（`apple-music`），可以写几个；`--all` 打全部。
+- 产物：`dist-mod-packs/<模组 id>-<版本>.zip`，未签名的是 `…-unsigned.zip`（git 忽略），如 `apple-music-1.0.0-unsigned.zip`。同一份构建打两次未签名的包，字节相同。
+- `--version <x.y.z>`：换掉包里的版本号（覆盖内置副本要比安装包里那份高；内置的清单都是 `1.0.0`）。
+- `--folia <范围>`：包里写的宿主范围，默认 `>=<仓库 package.json 的版本>`（预发布号去掉），`none` 是不写。默认值只是占位：
+  比它旧的宿主本来就不收 Folium 2 模组，它不额外挡什么；上限和真正的下限等维护者定。
+- `--dist <目录>`、`--out <目录>`：换掉 `dist-mods/` 和 `dist-mod-packs/`。
+
+**包里是什么**：一个 `<模组 id>/` 目录，构建产物原样（`client.mjs`、`index.cjs`、worker、`vendor.<指纹>.mjs`、`deps.<指纹>.asar`、
+语言表、`README.md`），不带 `build.json`（只给开发版的主进程盯着重载）。`mod.json` 比构建出的多两样：
+
+- `sources[].claims`：受信表（`electron/modSystem/builtinSources.cjs`）里这个模组那一行的短 id、旧 electron-store 键、会话分区、
+  userData 目录，照抄（宿主核对 claims 不能超出那一行）。不在受信表里的模组没有 claims，装上是第三方音源 `folium.<模组 id>.<名字>`。
+- `folia`：上面的宿主范围。
+
+打之前按「从 zip 安装」（`zipInstall.cjs`）和摘要（`modDigest.cjs`）的上限查：单个文件 64 MB、合计 96 MB、2000 个文件，
+zip 本身 96 MB；`dist-mods/<id>/` 的文件和 `build.json` 记的对不上（手改过、没构建完）时拒绝并列出多出与缺的文件，重新构建再打；
+重新构建删不掉旧文件时多半是开着的应用占着，先关应用。签名时 `folium.sig.json` 也算进 2000 个文件。
+
+**签名**：给了私钥就在包里的目录写 `folium.sig.json`，格式和算法就是宿主验的那一套（`electron/modSystem/modSignature.cjs`：签名摘要
+v1、固定格式的签名消息、Ed25519），签完先用宿主的验签在临时目录里验一遍。按宿主的验签实现写，没和 folium-compound 的
+`tools/sign.mjs` 逐字节对照过。
+
+- 私钥：`--key <文件>`，或环境变量 `FOLIUM_SIGNING_KEY`（私钥文字）、`FOLIUM_SIGNING_KEY_FILE`（文件）；PEM（PKCS#8）或 JWK。
+- keyId：`--key-id`、`FOLIUM_SIGNING_KEY_ID`，JWK 里有 `kid` 时也认。必须是受信公钥表（`trustedKeys.cjs`）里的一把、没吊销、
+  和私钥是一对，否则报错（签出来宿主只会标「签名不匹配」）。
+- 没给私钥：出未签名的包，并打一行说明。未签名的包只能在安装包**不带**这个音源时经确认接管；安装包带着时它不覆盖内置副本
+  （覆盖要 `verified`、版本更高、`folia` 范围满足、确认过一次，方案 §5.1）。先行测试钥匙签的（`beta`）同样只能接管。
+- 仓库里没有私钥。官方签名由维护者在本机或 folium-compound 的 CI 里给私钥跑同一条命令。
+
+**装上之后能不能跑**（接管 = 安装包不带这个音源；覆盖 = 安装包带着，官方签名、版本更高的副本替代内置副本）：
+
+| 音源 | 包里带的 | 接管时 | 覆盖时 |
+| --- | --- | --- | --- |
+| bodian、qishui、fnmusic | 入口（上游库打进 `index.cjs`） | 能跑；fnmusic 存下的 `folia-fnmusic://` 旧地址回 404（旧协议只交给内置副本） | 能跑 |
+| ytm | 入口 + `vendor.<指纹>.mjs` | 能跑 | 能跑 |
+| netease、kugou、qq | 入口 + `deps.<指纹>.asar`（netease 约 49 MB，zip 约 21 MB；kugou、qq 各十几 MB） | 能跑：归档随包装进 `userData/mods/<id>/`，入口照旧用 `createRequire` 从归档里取上游库 | 能跑 |
+| spotify | 入口（`ws` 打进去）；不带 librespot | 部分：librespot 是应用带的原生件，接管拿不到（`native-not-granted`），旧缓存目录 `spotify` 也不在 claims 能写的范围里（`api.cache.legacyDir` 拿不到），librespot 整首播放不能用；登录、搜索、曲库、歌词与 Soloist 按代码看不靠它（没实测） | 能跑：拿应用带的那份 |
+| appleMusic | 入口；不带伴侣程序 | 跑不了：伴侣程序是原生件，接管拿不到，每个请求都答 `runtime-unavailable`（登录、搜索、播放都经伴侣程序） | 能跑：拿应用带的那份（只有 macOS、Windows） |
+
+原生件不进包是故意的：它们随应用构建、按平台不同（`electron/modSystem/nativeFiles.cjs`），`asar` 里也加载不了 `.node`。
+要让接管的 spotify、appleMusic 也能用原生件，得先定外部模组带原生件的规矩（方案没写），现在不做。
+
+一个包从打出来到装上的桌面实测做法（开发版）：
+
+1. `FOLIA_BUNDLED_SOURCES=<除了它的那几家> npm run sources:build -- --stamp package.json`（先备份 `package.json`），让开发版
+   当成「不带它」的安装。
+2. `npm run sources:pack -- <它>`（`dist-mods/` 里已经没有它时，先用全带的构建打好包，再做第 1 步）。
+3. 启动应用（模组系统开着），「从 zip 安装」装 `dist-mod-packs/<它>-1.0.0-unsigned.zip`，启用时确认窗口列出它要接管的短 id 和旧数据；确认后它以
+   短 id 出现。
+4. 还原 `package.json`，不带变量重跑 `npm run sources:build`。外部副本在全带的安装里不再加载（未签名，不覆盖），可以在模组面板删掉。
+
+测试：`test/unit/sources/packSources.test.ts`（打包、用宿主的 `installModFromZip` 装进临时目录、claims 过受信表核对、接管与
+不覆盖、签名后 `verified`、改一个字节 `digest-mismatch`、上限与私钥的报错）。
 
 ## 一个音源目录
 

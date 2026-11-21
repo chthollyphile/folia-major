@@ -25,6 +25,7 @@ export default {
     "runFailed": "Không khởi động được: {{error}}",
     "usage": "Dữ liệu {{data}} · bộ nhớ đệm {{cache}}",
     "hostNote": "Nền tảng này chưa thành mod nguồn; ứng dụng tự đăng ký nó. Tắt nó hoặc chỉ giữ để khớp chỉ thay đổi chỗ nó xuất hiện: phần của nó trong tiến trình chính không bị ảnh hưởng và vẫn chạy như thường. Xóa dữ liệu chỉ có khi nó thành mod; muốn xóa đăng nhập bây giờ, hãy bật lại trước rồi đăng xuất trong cửa sổ đăng nhập.",
+    "selfSignedNote": "Khi kết nối tới máy chủ do bạn tự nhập (ví dụ NAS ở nhà), nguồn này chấp nhận chứng chỉ tự ký của máy chủ đó.",
     "clearData": "Xóa dữ liệu",
     "clearDataTip": "Xóa dữ liệu của {{name}}…",
     "clearDone": "Đã xóa dữ liệu của {{name}}; lần chạy tới nó ở trạng thái chưa đăng nhập.",

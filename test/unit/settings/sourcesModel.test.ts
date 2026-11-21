@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ModRuntimeInfo, ModSourceStateRow } from '@/mods/types';
-import { buildSourceNotices, buildSourceRows, manifestSourceName } from '@/components/modal/settings/pages/sources/sourcesModel';
+import { buildSourceNotices, buildSourceRows, manifestSourceName, shownSourceUsage } from '@/components/modal/settings/pages/sources/sourcesModel';
 
 // test/unit/settings/sourcesModel.test.ts
 // "Settings → Sources" (Folium 2.0 plan §5.3): the rows it draws from the main process's source states and the mod
@@ -61,6 +61,14 @@ describe('sourcesModel · rows', () => {
         // The host's platforms say what switching them cannot do; only a source mod's data can be cleared.
         expect(rows.map(row => row.run)).toEqual(['host', 'host', 'host', 'running']);
         expect(rows.map(row => row.clearable)).toEqual([false, false, false, true]);
+    });
+
+    it('carries whether a source accepts self-signed certificates from servers the user enters (absent reads as no)', () => {
+        const rows = buildSourceRows([
+            stateRow({ sourceId: 'fnmusic', modId: 'fnmusic', tier: 'builtin', selfSignedUserServers: true }),
+            stateRow({ sourceId: 'bodian', modId: 'bodian', tier: 'builtin' }),
+        ], [], inputs);
+        expect(rows.map(row => [row.sourceId, row.selfSignedUserServers])).toEqual([['bodian', false], ['fnmusic', true]]);
     });
 
     it('keeps the three states for a source already used only for matching, even when it is not offered them now', () => {
@@ -165,5 +173,22 @@ describe('sourcesModel · takeover and override notes', () => {
             ['shadowed', 'kugou', null, 'Alt KuGou', null],
             ['bundled-source-missing', 'lost', 'qq', null, null],
         ]);
+    });
+});
+
+describe('the disk use a row shows', () => {
+    it('shows a measure that keeps something', () => {
+        expect(shownSourceUsage({ ok: true, data: 10, cache: 0 })).toEqual({ data: 10, cache: 0 });
+        expect(shownSourceUsage({ ok: true, data: 0, cache: 5 })).toEqual({ data: 0, cache: 5 });
+    });
+
+    it('shows nothing, never 0, for an answer that is not a measure or keeps nothing', () => {
+        expect(shownSourceUsage(undefined)).toBeNull();
+        expect(shownSourceUsage({ ok: false, error: 'source-usage-failed' })).toBeNull();
+        expect(shownSourceUsage({ ok: false, error: 'no-electron-bridge' })).toBeNull();
+        expect(shownSourceUsage({ ok: true })).toBeNull();
+        expect(shownSourceUsage({ ok: true, data: 3 })).toBeNull();
+        expect(shownSourceUsage({ ok: true, data: Number.NaN, cache: 1 })).toBeNull();
+        expect(shownSourceUsage({ ok: true, data: 0, cache: 0 })).toBeNull();
     });
 });

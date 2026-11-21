@@ -400,6 +400,7 @@ contextBridge.exposeInMainWorld('electron', {
         setSourceState: (sourceId, state) => ipcRenderer.invoke('folia-mods:set-source-state', sourceId, state),
         answerSourcesOnboarding: (choices) => ipcRenderer.invoke('folia-mods:answer-sources-onboarding', choices),
         describeSourceData: (sourceId) => ipcRenderer.invoke('folia-mods:source-data', sourceId),
+        getSourceStorageUsage: (sourceId) => ipcRenderer.invoke('folia-mods:source-usage', sourceId),
         clearSourceData: (sourceId) => ipcRenderer.invoke('folia-mods:clear-source-data', sourceId),
         confirmModOverride: (modId) => ipcRenderer.invoke('folia-mods:confirm-override', modId),
         assignSourceClaim: (shortId, modId) => ipcRenderer.invoke('folia-mods:assign-source-claim', shortId, modId),

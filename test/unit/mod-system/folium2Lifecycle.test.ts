@@ -133,6 +133,9 @@ module.exports = async function activate(api) {
         expect(dialogs.at(-1)).toMatchObject({ title: 'Clear source data' });
         expect(dialogs.at(-1)!.detail).toContain('partition persist:folium.radio.login');
         expect(electronCalls).toContainEqual(['session.clearStorageData', 'persist:folium.radio.login']);
+        // The partition's HTTP and code caches go too: the row's disk use counts them.
+        expect(electronCalls).toContainEqual(['session.clearCache', 'persist:folium.radio.login']);
+        expect(electronCalls).toContainEqual(['session.clearCodeCaches', 'persist:folium.radio.login']);
         await new Promise((resolve) => setTimeout(resolve, 0));
         const api = modRecord('radio')!.api as { secrets: { get: (key: string) => Promise<string | null> } };
         expect(await api.secrets.get('token')).toBeNull();
@@ -182,6 +185,28 @@ describe('handing a taken-over id to another mod', () => {
         expect(dialogs.at(-1)!.detail).toContain('takes over sources this installation does not carry: qq');
         expect(dialogs.at(-1)!.detail).toContain('QQ_API_AUTH_SESSION_V1');
         expect(stateOf(system, 'bbb-qq')!.status).toBe('loaded');
+    });
+});
+
+describe('a source that accepts self-signed certificates from servers the user enters', () => {
+    it('says so in its enable confirmation, and in its row of the source states', async () => {
+        writeMod('user', sourceManifest('nas', [{ id: 'nas', name: 'My NAS', selfSignedUserServers: true }, { id: 'other', name: 'Other' }]));
+        const system = launch();
+        dialogAnswer.response = 1;
+        expect(await system.setModEnabled('nas', true)).toMatchObject({ ok: true });
+        expect(dialogs.at(-1)!.detail).toContain('Accepts a self-signed certificate from a server you enter yourself (such as a NAS at home): My NAS');
+        expect(dialogs.at(-1)!.detail).not.toMatch(/NAS at home\): My NAS, Other/);
+        const rows = system.listSourceStates().sources as Array<{ sourceId: string; selfSignedUserServers?: boolean }>;
+        expect(rows.find((row) => row.sourceId === 'folium.nas.nas')?.selfSignedUserServers).toBe(true);
+        expect(rows.find((row) => row.sourceId === 'folium.nas.other')?.selfSignedUserServers).toBe(false);
+    });
+
+    it('says nothing for a source mod that does not declare it', async () => {
+        writeMod('user', sourceManifest('radio', ['station']));
+        const system = launch();
+        dialogAnswer.response = 1;
+        await system.setModEnabled('radio', true);
+        expect(dialogs.at(-1)!.detail).not.toContain('self-signed');
     });
 });
 

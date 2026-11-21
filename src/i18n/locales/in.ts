@@ -25,6 +25,7 @@ export default {
     "runFailed": "Gagal dimulai: {{error}}",
     "usage": "Data {{data}} · cache {{cache}}",
     "hostNote": "Platform ini belum menjadi mod sumber; aplikasi mendaftarkannya sendiri. Menonaktifkannya atau menyimpannya hanya untuk pencocokan hanya mengubah tempat ia muncul: bagiannya di proses utama tidak terpengaruh dan berjalan seperti biasa. Hapus data baru tersedia setelah ia menjadi mod; untuk menghapus login sekarang, aktifkan dulu, lalu keluar di jendela masuk.",
+    "selfSignedNote": "Saat terhubung ke server yang Anda isi sendiri (misalnya NAS di rumah), sumber ini menerima sertifikat yang ditandatangani sendiri dari server itu.",
     "clearData": "Hapus data",
     "clearDataTip": "Hapus data {{name}}…",
     "clearDone": "Data {{name}} sudah dihapus; saat berjalan lagi ia tidak dalam keadaan masuk.",

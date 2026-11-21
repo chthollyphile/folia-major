@@ -95,7 +95,7 @@ const CLAIM_LIST_FIELDS = [
     ['partitions', PARTITION_PATTERN, 'a session partition name'],
     ['userDataDirs', FOLDER_NAME_PATTERN, 'a folder name under userData'],
 ];
-const SOURCE_FIELDS = new Set(['id', 'name', 'requires', 'keepForMatching', 'claims', 'certificateExceptions', 'lyricRelayHosts']);
+const SOURCE_FIELDS = new Set(['id', 'name', 'requires', 'keepForMatching', 'claims', 'certificateExceptions', 'lyricRelayHosts', 'selfSignedUserServers']);
 
 // Deterministic result envelope shared by all validators.
 const ok = (value) => ({ ok: true, value });
@@ -312,6 +312,10 @@ const validateSourceEntry = (source, where, ids, errors) => {
     }
     if (source.keepForMatching !== undefined && typeof source.keepForMatching !== 'boolean') {
         errors.push(`${where}.keepForMatching must be true or false`);
+    }
+    // It accepts a self-signed certificate from a server the user enters (a NAS at home); said in its enable confirmation.
+    if (source.selfSignedUserServers !== undefined && typeof source.selfSignedUserServers !== 'boolean') {
+        errors.push(`${where}.selfSignedUserServers must be true or false`);
     }
     if (source.claims !== undefined) {
         validateClaims(source.claims, where, errors);

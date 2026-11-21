@@ -3,12 +3,12 @@ import { useTranslation } from 'react-i18next';
 import {
     assignSourceClaim,
     confirmModOverride,
-    getModStorageUsage,
     getSourceStates,
+    getSourceStorageUsage,
     subscribeSourceStates,
 } from '../../../../../mods/ipc';
 import { clearSourceData, switchSourceState } from '../../../../../mods/runtime/sourceSwitches';
-import type { ModSourceState, ModSourceStatesPayload, ModStorageUsageResult } from '../../../../../mods/types';
+import type { ModSourceState, ModSourceStatesPayload, ModSourceUsageResult } from '../../../../../mods/types';
 import { useModsStore } from '../../../../../mods/useModsStore';
 import { omni } from '../../../../../services/onlineMusic/omni';
 import { subscribeSourceDeclarations } from '../../../../../services/onlineMusic/sourceDeclarations';
@@ -18,7 +18,7 @@ import { buildSourceNotices, buildSourceRows, SILENT_SOURCE_ERRORS, sourceErrorR
 
 // src/components/modal/settings/pages/sources/useSourcesSettings.ts
 // The state of "Settings → Sources": the main process's source states (read on open, then as it pushes them), the
-// mod list it reads the notes from, each source mod's disk use, and the actions of the page. Every action goes
+// mod list it reads the notes from, each source's disk use, and the actions of the page. Every action goes
 // through the runtime's own path (sourceSwitches.ts, the mods IPC); the main process asks the user before "clear
 // data", a takeover or an override changes anything.
 
@@ -33,7 +33,8 @@ export const useSourcesSettings = () => {
     const [payload, setPayload] = useState<ModSourceStatesPayload>(EMPTY);
     const [ready, setReady] = useState(false);
     const [pending, setPending] = useState<ReadonlySet<string>>(new Set());
-    const [usage, setUsage] = useState<Readonly<Record<string, ModStorageUsageResult>>>({});
+    // By source id; a source not asked yet, or not measured, has no entry.
+    const [usage, setUsage] = useState<Readonly<Record<string, ModSourceUsageResult>>>({});
     const mods = useModsStore(state => state.mods);
     // Names, marks and what may be used only for matching follow the registry (a source mod starting or stopping).
     const registryVersion = useSyncExternalStore(subscribeRegistry, readRegistryVersion);
@@ -60,17 +61,19 @@ export const useSourcesSettings = () => {
         : []), [payload.sources, mods, registryVersion, declarationsVersion]);
     const notices = useMemo(() => buildSourceNotices(mods), [mods]);
 
-    // The disk use of each source mod, read once per mod (counting walks its folders) and again after a clear.
-    const usageModIds = useMemo(() => [...new Set(rows.flatMap(row => (row.clearable && row.modId ? [row.modId] : [])))], [rows]);
+    // The disk use of each source a mod provides (what its "clear data" removes), read once per source after the rows
+    // are drawn (the main process walks its folders) and again after a clear. Asked only where clearing works: the
+    // main process measures what it would clear.
+    const usageSourceIds = useMemo(() => rows.flatMap(row => (row.clearable && row.modId ? [row.sourceId] : [])), [rows]);
     const usageAsked = useRef(new Set<string>());
-    const readUsage = useCallback(async (modId: string) => {
-        usageAsked.current.add(modId);
-        const result = await getModStorageUsage(modId);
-        setUsage(current => ({ ...current, [modId]: result }));
+    const readUsage = useCallback(async (sourceId: string) => {
+        usageAsked.current.add(sourceId);
+        const result = await getSourceStorageUsage(sourceId);
+        setUsage(current => ({ ...current, [sourceId]: result }));
     }, []);
     useEffect(() => {
-        usageModIds.filter(modId => !usageAsked.current.has(modId)).forEach(modId => void readUsage(modId));
-    }, [usageModIds, readUsage]);
+        usageSourceIds.filter(sourceId => !usageAsked.current.has(sourceId)).forEach(sourceId => void readUsage(sourceId));
+    }, [usageSourceIds, readUsage]);
 
     const withPending = useCallback(async (key: string, run: () => Promise<void>) => {
         setPending(current => new Set(current).add(key));
@@ -113,7 +116,7 @@ export const useSourcesSettings = () => {
         } else {
             reportError(name, answer.error, 'sourcesSettings.clearFailed');
         }
-        if (modId) void readUsage(modId);
+        if (modId) void readUsage(sourceId);
         await refreshStates();
     }), [withPending, reportError, readUsage, refreshStates, t]);
 

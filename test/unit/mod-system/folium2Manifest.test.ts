@@ -52,6 +52,8 @@ describe('sources', () => {
         expect(errorsOf({ sources: [{ id: 'a', name: 'A', extra: 1 }] })).toEqual(['sources[0] has an unknown field "extra"']);
         expect(errorsOf({ sources: [{ id: 'a', name: 'A', keepForMatching: 'yes' }] })).toEqual(['sources[0].keepForMatching must be true or false']);
         expect(errorsOf({ sources: [{ id: 'a', name: 'A', certificateExceptions: ['not a host'] }] })).toEqual(['sources[0].certificateExceptions must be a list of host names']);
+        expect(errorsOf({ sources: [{ id: 'a', name: 'A', selfSignedUserServers: 'yes' }] })).toEqual(['sources[0].selfSignedUserServers must be true or false']);
+        expect(errorsOf({ sources: [{ id: 'a', name: 'A', selfSignedUserServers: true }] })).toEqual([]);
     });
 
     it('checks claims field by field', () => {

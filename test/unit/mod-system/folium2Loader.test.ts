@@ -332,6 +332,61 @@ module.exports = function activate(api) {
     });
 });
 
+describe('the disk use of one source (plan §5.3)', () => {
+    const write = (file: string, bytes: number) => {
+        fs.mkdirSync(path.dirname(file), { recursive: true });
+        fs.writeFileSync(file, Buffer.alloc(bytes));
+    };
+
+    it('counts what its clear data removes: mod folders, old folders and keys, and its own on-disk partitions', async () => {
+        writeMod('builtin', sourceManifest('qq', ['qq']), { main: true });
+        const { userData } = harness();
+        write(path.join(userData, 'mods-data', 'qq', 'mod-data.json'), 100);
+        write(path.join(userData, 'mods-cache', 'qq', 'a', 'b.bin'), 1000);
+        // The trusted table's row for qq claims the userData folder qq-auth-state and one store key.
+        write(path.join(userData, 'qq-auth-state', 'state.json'), 20);
+        hostStore.set('QQ_API_AUTH_SESSION_V1', 'abc');
+        hostStore.set('OTHER_KEY', 'x'.repeat(5000));
+        // A partition of its own: Chromium's caches inside it are cache, the rest is the sign-in.
+        persisted.set('mods.sourcePartitions', { qq: ['persist:folium.qq.web', 'folium.qq.memory'] });
+        write(path.join(userData, 'Partitions', 'folium.qq.web', 'Cookies'), 7);
+        write(path.join(userData, 'Partitions', 'folium.qq.web', 'Cache', 'Cache_Data', 'f'), 300);
+        write(path.join(userData, 'Partitions', 'folium.qq.web', 'Code Cache', 'js', 'g'), 30);
+        // Another mod's folders and another source's folders are not its own.
+        write(path.join(userData, 'mods-data', 'kugou', 'mod-data.json'), 9999);
+        write(path.join(userData, 'ytm-sign-in', 'x'), 9999);
+        const system = launch();
+        expect(await system.getSourceStorageUsage('qq')).toEqual({
+            ok: true,
+            data: 100 + 20 + Buffer.byteLength(JSON.stringify('abc')) + 7,
+            cache: 1000 + 300 + 30,
+        });
+        expect(await invoke(IPC.sourceUsage, 'qq')).toEqual({ ok: true, data: 132, cache: 1330 });
+    });
+
+    it('counts 0 for folders that are not there, and refuses a source that is not a mod as clearing does', async () => {
+        writeMod('builtin', sourceManifest('kugou', ['kugou']), { main: true });
+        const system = launch();
+        expect(await system.getSourceStorageUsage('kugou')).toEqual({ ok: true, data: 0, cache: 0 });
+        expect(await system.getSourceStorageUsage('qq')).toEqual({ ok: false, error: 'source-not-a-mod' });
+        expect(await system.getSourceStorageUsage('nowhere')).toEqual({ ok: false, error: 'source-not-found' });
+    });
+
+    it('answers could-not-measure, never 0, when a folder cannot be read', async () => {
+        writeMod('builtin', sourceManifest('kugou', ['kugou']), { main: true });
+        const dataDir = path.join(harness().userData, 'mods-data', 'kugou');
+        write(path.join(dataDir, 'mod-data.json'), 10);
+        const system = launch();
+        const readdir = fs.promises.readdir;
+        const spy = vi.spyOn(fs.promises, 'readdir').mockImplementation((async (target: fs.PathLike, ...rest: unknown[]) => {
+            if (String(target) === dataDir) throw Object.assign(new Error('denied'), { code: 'EACCES' });
+            return (readdir as (...args: unknown[]) => unknown)(target, ...rest);
+        }) as typeof fs.promises.readdir);
+        expect(await system.getSourceStorageUsage('kugou')).toEqual({ ok: false, error: 'source-usage-failed' });
+        spy.mockRestore();
+    });
+});
+
 describe('main-window-only IPC (plan §2 item 1)', () => {
     it('serves the main window\'s main frame and refuses a sub-frame, another window, and no window', async () => {
         writeMod('builtin', sourceManifest('qq', ['qq']), { main: `'use strict';

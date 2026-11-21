@@ -105,6 +105,8 @@ export interface ModSourceStateRow {
     name?: string | Record<string, string> | null;
     keepForMatching: boolean;
     takeover: boolean;
+    /** Its manifest says it accepts a self-signed certificate from a server the user enters (`sources[].selfSignedUserServers`). Absent from an older main process. */
+    selfSignedUserServers?: boolean;
     loaded: boolean;
     mainState: ModMainState;
 }
@@ -130,6 +132,21 @@ export interface ModSourceDataResult {
     modCache?: string;
     /** localStorage key prefixes the window clears itself (`online_provider:<id>:`, `online_provider_<id>_`). */
     pageStorePrefixes?: string[];
+}
+
+/**
+ * Folium 2.0: how much one source keeps on disk (folia-mods:source-usage), in bytes, for its row in "Settings →
+ * Sources". Counted from what its "clear data" removes: `data` is its mod data folder, the userData folders and old
+ * store keys its row or claims name, and its on-disk partitions less Chromium's caches; `cache` is its mod cache
+ * folder, its old folders under the media cache folder and those caches. Not ok when a folder could not be read.
+ * Not counted: the renderer's page store entries (the prefixes clear data hands back), which live in the page's own
+ * storage. Per source, not per mod: the sources of a mod that declares several each count the shared mod folders.
+ */
+export interface ModSourceUsageResult {
+    ok: boolean;
+    error?: string;
+    data?: number;
+    cache?: number;
 }
 
 export interface ModClearSourceDataResult {
