@@ -64,6 +64,8 @@ describe('the sign-in members of each built-in platform', () => {
     });
 
     it('has a row for every built-in platform', () => {
-        expect(listOnlineMusicProviders().map(provider => provider.id).sort()).toEqual(Object.keys(AUTH_MEMBERS).sort());
+        // A platform without a sign-in (the LX source) has no auth members and no row.
+        expect(listOnlineMusicProviders().filter(provider => provider.auth).map(provider => provider.id).sort()).toEqual(Object.keys(AUTH_MEMBERS).sort());
+        expect(getOnlineMusicProvider('lxmusic')?.auth).toBeUndefined();
     });
 });

@@ -227,11 +227,11 @@ describe.each([
 });
 
 describe('a source used only for matching, beyond the lists (review of the first pass)', () => {
-    const NINE = ['netease', 'kugou', 'qq', 'bodian', 'ytm', 'spotify', 'qishui', 'appleMusic', 'fnmusic'];
+    const ALL = ['netease', 'kugou', 'qq', 'bodian', 'ytm', 'spotify', 'qishui', 'appleMusic', 'fnmusic', 'lxmusic'];
 
     it('is not in effect even when no other source is shown: nothing is', () => {
         useOnlineProviderAccountStore.getState().setActiveProviderId(SAMPLE);
-        setSourceStates({ ...Object.fromEntries(NINE.map(id => [id, 'disabled'])), [SAMPLE]: 'matching' });
+        setSourceStates({ ...Object.fromEntries(ALL.map(id => [id, 'disabled'])), [SAMPLE]: 'matching' });
         expect(shownIds()).toEqual([]);
         expect(useOnlineProviderAccountStore.getState().activeProviderId).toBe('');
         expect(useOnlineProviderAccountStore.getState().chosenProviderId).toBe(SAMPLE);

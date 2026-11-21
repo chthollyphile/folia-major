@@ -46,15 +46,18 @@ describe('what each platform declares for the sign-in window', () => {
             spotify: { letter: 'S', color: '#22c55e' },
             qishui: { letter: '汽', color: '#19a58c' },
             appleMusic: { letter: 'A', color: '#fa243c' },
+            lxmusic: { letter: '洛', color: '#2f9e6e' },
         });
     });
 
     it('its title and note, as text keys', () => {
         // The second lines a platform declares for single cases are pinned in loginView.test.ts.
-        const texts = Object.fromEntries(listOnlineMusicProviders().map(provider => {
-            const { title, note } = omni.getLoginTexts(provider.id)!;
-            return [provider.id, { title, note }];
+        // A source without a sign-in (the LX source: it has no account) declares no texts and is not in the list.
+        const texts = Object.fromEntries(listOnlineMusicProviders().flatMap(provider => {
+            const declared = omni.getLoginTexts(provider.id);
+            return declared ? [[provider.id, { title: declared.title, note: declared.note }]] : [];
         }));
+        expect(omni.getLoginTexts('lxmusic')).toBeNull();
         expect(texts).toEqual({
             netease: { title: 'folium-mod/netease:login.title', note: 'folium-mod/netease:login.note' },
             kugou: { title: 'folium-mod/kugou:login.title', note: 'folium-mod/kugou:login.note' },
