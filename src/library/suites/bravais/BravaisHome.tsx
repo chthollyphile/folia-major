@@ -50,12 +50,14 @@ const BravaisHome: React.FC<LibraryHomeSurfaceProps> = (props) => {
 
     const selectTab = useCallback((key: LibraryHomeTabKey) => {
         const target = tabs.find(candidate => candidate.key === key);
-        if (!target || target.disabledReason) return false;
+        // 不可用的页不让选，除非它是某个组的落点：在线组一页都不可用（没有启用音源、当前音源没有这些页）时仍要进得去，
+        // 那一页说的正是为什么不可用、去哪里启用。
+        if (!target || (target.disabledReason && !groups.some(group => group.target === key))) return false;
         props.onNativeTabSelected?.();
         setBravaisSearchOpen(false);
         setTab(key);
         return true;
-    }, [setTab, tabs, props.onNativeTabSelected]);
+    }, [groups, setTab, tabs, props.onNativeTabSelected]);
 
     const chrome = useBravaisHomeChrome({
         tab,
@@ -74,7 +76,7 @@ const BravaisHome: React.FC<LibraryHomeSurfaceProps> = (props) => {
         setTab: selectTab,
         cycleTab: chrome.cycleTab,
         openOnlineSwitcher: () => {
-            if (!chrome.sources) return false;
+            if (!chrome.sources || !isInteractive) return false;
             props.onNativeTabSelected?.();
             return chrome.openSources();
         },

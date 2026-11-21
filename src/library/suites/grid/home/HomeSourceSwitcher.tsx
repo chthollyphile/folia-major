@@ -29,6 +29,8 @@ type HomeSourceSwitcherProps = {
     onManageSources?: () => void;
     /** 每变一次就把列表打开一次（命令面板的「切换在线音源」）；0 不算。 */
     openSignal?: number;
+    /** 命令面板打开的列表收起后，焦点交回哪里（不给就留在小箭头上）。 */
+    onDismissed?: () => void;
 };
 
 export const HomeSourceSwitcher: React.FC<HomeSourceSwitcherProps> = ({
@@ -42,6 +44,7 @@ export const HomeSourceSwitcher: React.FC<HomeSourceSwitcherProps> = ({
     onSelectSource,
     onManageSources,
     openSignal = 0,
+    onDismissed,
 }) => {
     const { t } = useTranslation();
     const [open, setOpen] = useState(false);
@@ -53,9 +56,15 @@ export const HomeSourceSwitcher: React.FC<HomeSourceSwitcherProps> = ({
     const isOpen = open && hasMenu;
     const textClass = group.active ? activeClassName : inactiveClassName;
 
-    // 命令面板要它打开。
+    // 命令面板要它打开：只认变化（挂载时带着的旧值不算，否则这一格重新挂载时列表会自己弹开）。
+    // 这样打开的列表收起时焦点不留在小箭头上（没人把焦点带到过这里），交回首页（onDismissed）。
+    const seenSignalRef = useRef(openSignal);
+    const openedBySignalRef = useRef(false);
     useEffect(() => {
-        if (openSignal > 0) setOpen(true);
+        if (openSignal === seenSignalRef.current) return;
+        seenSignalRef.current = openSignal;
+        openedBySignalRef.current = true;
+        setOpen(true);
     }, [openSignal]);
 
     // 打开时焦点进列表（当前音源那一行）；点别处收起。
@@ -66,6 +75,7 @@ export const HomeSourceSwitcher: React.FC<HomeSourceSwitcherProps> = ({
         (current ?? rows?.[0])?.focus({ preventScroll: true });
         const onPointerDown = (event: PointerEvent) => {
             if (event.target instanceof Node && rootRef.current?.contains(event.target)) return;
+            openedBySignalRef.current = false;
             setOpen(false);
         };
         document.addEventListener('pointerdown', onPointerDown, true);
@@ -74,7 +84,15 @@ export const HomeSourceSwitcher: React.FC<HomeSourceSwitcherProps> = ({
 
     const close = (restoreFocus: boolean) => {
         setOpen(false);
-        if (restoreFocus) arrowRef.current?.focus({ preventScroll: true });
+        const bySignal = openedBySignalRef.current;
+        openedBySignalRef.current = false;
+        if (!restoreFocus) return;
+        if (bySignal && onDismissed) onDismissed();
+        else arrowRef.current?.focus({ preventScroll: true });
+    };
+    const toggle = () => {
+        openedBySignalRef.current = false;
+        setOpen(previous => !previous);
     };
 
     const onMenuKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
@@ -118,8 +136,10 @@ export const HomeSourceSwitcher: React.FC<HomeSourceSwitcherProps> = ({
                     title={hasMenu && group.active ? `${group.label} · ${openLabel}` : group.label}
                     aria-label={group.label}
                     aria-current={group.active ? 'page' : undefined}
+                    aria-haspopup={group.active && hasMenu ? 'menu' : undefined}
+                    aria-expanded={group.active && hasMenu ? isOpen : undefined}
                     onClick={() => {
-                        if (group.active && hasMenu) setOpen(previous => !previous);
+                        if (group.active && hasMenu) toggle();
                         else onSelectGroup();
                     }}
                     className={`relative z-10 inline-flex items-center rounded-full py-1.5 pl-4 ${hasMenu ? 'pr-1' : 'pr-4'}`}
@@ -136,7 +156,7 @@ export const HomeSourceSwitcher: React.FC<HomeSourceSwitcherProps> = ({
                         aria-haspopup="menu"
                         aria-expanded={isOpen}
                         aria-controls={isOpen ? menuId : undefined}
-                        onClick={() => setOpen(previous => !previous)}
+                        onClick={toggle}
                         onKeyDown={(event) => {
                             if (event.key !== 'ArrowDown' || isOpen) return;
                             event.preventDefault();

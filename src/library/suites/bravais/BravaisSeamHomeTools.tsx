@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, type KeyboardEvent } from 'react';
+import React, { useEffect, useRef, type FocusEvent, type KeyboardEvent } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
     Disc3,
@@ -109,6 +109,7 @@ const BravaisSeamHomeTools: React.FC<{
     const menuOpen = useBravaisHomeUiStore(state => state.popover === 'menu');
     const sourcesRequested = useBravaisHomeUiStore(state => state.popover === 'sources');
     const sources = home.sources ?? null;
+    const manageSources = sources?.manage;
     const sourcesRef = useRef<HTMLDivElement>(null);
     const dockRef = useRef<HTMLDivElement>(null);
     const moreRef = useRef<HTMLButtonElement>(null);
@@ -215,6 +216,15 @@ const BravaisSeamHomeTools: React.FC<{
         if (event.target instanceof Node && !moreRef.current?.contains(event.target)) moreRef.current?.focus({ preventScroll: true });
     };
 
+    // 焦点离开工具格（Tab 回墙上）时音源列表跟着收：留着的话之后的 Esc 走墙的阶梯，会多退一层。
+    const onBlur = (event: FocusEvent<HTMLDivElement>) => {
+        if (!sourcesOpen) return;
+        const next = event.relatedTarget;
+        if (!(next instanceof Node)) return;
+        if (dockRef.current?.contains(next) || (next instanceof Element && next.closest('[data-bravais-tab-switcher]'))) return;
+        closeBravaisHomePopover('sources');
+    };
+
     const runSource = (providerId: string, pressed: Element) => {
         closeBravaisHomePopover('sources');
         // 列表要放完收起动画才卸载：焦点先交回页签。登录窗口从那个页签那一边出来。
@@ -269,9 +279,9 @@ const BravaisSeamHomeTools: React.FC<{
     };
 
     return (
-        <div ref={dockRef} className="bravais-seam-dock" onKeyDown={onKeyDown}>
+        <div ref={dockRef} className="bravais-seam-dock" onKeyDown={onKeyDown} onBlur={onBlur}>
             <AnimatePresence>
-                {sourcesOpen && sources && (
+                {sourcesOpen && (
                     <motion.div key="sources" ref={sourcesRef} className="bravais-seam-menu is-home is-sources" role="menu" aria-label={sources.label}
                         data-bravais-seam-menu data-bravais-source-menu {...pop}>
                         <div className="bravais-seam-menu-heading" aria-hidden>{sources.label}</div>
@@ -287,12 +297,12 @@ const BravaisSeamHomeTools: React.FC<{
                                 </button>
                             ))}
                         </div>
-                        {sources.manage && (
+                        {manageSources && (
                             <>
                                 <div className="bravais-seam-menu-rule" role="separator" />
                                 <button type="button" role="menuitem" data-bravais-seam-action="manage-sources"
-                                    onClick={() => { closeBravaisHomePopover('sources'); sources.manage?.run(); }}>
-                                    <Settings2 aria-hidden />{sources.manage.label}
+                                    onClick={() => { closeBravaisHomePopover('sources'); manageSources.run(); }}>
+                                    <Settings2 aria-hidden />{manageSources.label}
                                 </button>
                             </>
                         )}

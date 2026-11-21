@@ -20,6 +20,8 @@ type Grid3DHomeTabsProps = {
     onSelectGroup: (group: LibraryHomeGroupView) => void;
     onSelectSource: (providerId: string, pressed: Element | null) => void;
     onManageSources?: () => void;
+    /** 音源列表不是从它自己的按钮打开的（命令面板），收起后焦点交回哪里。 */
+    onSwitcherDismissed?: () => void;
     extraTabs?: readonly LibraryHomeExtraTab[];
     isDaylight: boolean;
     stage: { enabled: boolean; active: boolean; open?: () => void };
@@ -34,6 +36,7 @@ export const Grid3DHomeTabs: React.FC<Grid3DHomeTabsProps> = ({
     onSelectGroup,
     onSelectSource,
     onManageSources,
+    onSwitcherDismissed,
     extraTabs,
     isDaylight,
     stage,
@@ -62,6 +65,7 @@ export const Grid3DHomeTabs: React.FC<Grid3DHomeTabsProps> = ({
                                 onSelectGroup={() => onSelectGroup(group)}
                                 onSelectSource={onSelectSource}
                                 onManageSources={onManageSources}
+                                onDismissed={onSwitcherDismissed}
                                 openSignal={switcherOpenSignal}
                             />
                         );

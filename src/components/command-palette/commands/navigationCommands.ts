@@ -3,6 +3,7 @@ import { defineCommand, createToggleCommand, createHomeTabCommand } from '../com
 import { omni } from '../../../services/onlineMusic/omni';
 import { useLibraryHomeSurfaceStore } from '../../../library/core/home/useLibraryHomeSurfaceStore';
 import { openLoginWindow } from '../../login/loginWindowStore';
+import { useHomeLayoutSettingsStore } from '../../../stores/useHomeLayoutSettingsStore';
 
 // src/components/command-palette/commands/navigationCommands.ts
 // Commands in the `navigation` group: moving between home tabs, the player, and window-level views.
@@ -42,7 +43,11 @@ export const navigationCommands: CommandPaletteCommand[] = [
         isAvailable: (context) => !context?.navigation.isWallpaperMode,
         execute: (_input, context) => context.navigation.toggleBrowserFullscreen(),
     },
-    createHomeTabCommand('folia', 'Open Folia playlists', 'Open the Folia home tab', ['folia', 'folia playlists', 'scratchpad', '聚合歌单', 'Folia 歌单']),
+    {
+        ...createHomeTabCommand('folia', 'Open Folia playlists', 'Open the Folia home tab', ['folia', 'folia playlists', 'scratchpad', '聚合歌单', 'Folia 歌单']),
+        // Hidden in settings, there is no Folia tab to open.
+        isAvailable: () => useHomeLayoutSettingsStore.getState().showHomeTabFolia,
+    },
     {
         // The online group's first-level tab doubles as the source switcher; this opens its list without walking
         // the keyboard to that tab. A home without the list (TUI, home under the player, no source enabled) gets

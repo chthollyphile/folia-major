@@ -108,8 +108,9 @@ export const useLibraryHomeSources = ({
     // The explore tab is gone after a switch to a provider without one, and a stored choice of it
     // may be older than the switch.
     useEffect(() => {
-        if (tab === 'explore' && !online.canUseExplore) setTab('playlist');
-    }, [online.canUseExplore, setTab, tab]);
+        // 只改存着的就是 explore 的情形：存的是 Folia、这里只是按在线组记住的页显示时不写（见 folia 参数）。
+        if (storedTab === 'explore' && !online.canUseExplore) setTab('playlist');
+    }, [online.canUseExplore, setTab, storedTab]);
 
     const localAvailability = getLocalLibraryAvailability();
     const tabs = useMemo(() => translateHomeTabs(resolveHomeTabs({

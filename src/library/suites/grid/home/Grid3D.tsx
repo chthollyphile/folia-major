@@ -208,6 +208,7 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
     const [isSearchHistoryOpen, setIsSearchHistoryOpen] = useState(false);
     // 命令面板的「切换在线音源」每来一次加一，顶部胶囊里的音源列表随之打开。
     const [switcherOpenSignal, setSwitcherOpenSignal] = useState(0);
+    const [enterOnlineGroup, setEnterOnlineGroup] = useState(false);
 
     const showUpdateIndicator = useUpdateIndicator();
 
@@ -231,13 +232,14 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
         getState: () => ({ active: homeViewTab, tabs: homeTabs, groups: homeGroups }),
         setTab: tab => {
             const target = homeTabs.find(candidate => candidate.key === tab);
-            if (!target || target.disabledReason) return false;
+            // 不可用的页不让选，除非它是某个组的落点（在线组一页都不可用时仍要进得去，见 resolveHomeGroups）。
+            if (!target || (target.disabledReason && !homeGroups.some(group => group.target === tab))) return false;
             props.onNativeTabSelected?.();
             setHomeViewTab(tab);
             return true;
         },
         openOnlineSwitcher: () => {
-            if (!onlineGroup || onlineSwitcher.empty) return false;
+            if (!onlineGroup || onlineSwitcher.empty || !isInteractive) return false;
             props.onNativeTabSelected?.();
             setSwitcherOpenSignal(signal => signal + 1);
             return true;
@@ -326,9 +328,17 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
     const selectOnlineSource = (providerId: string, pressed: Element | null) => {
         void onlineSwitcher.select(providerId).then(result => {
             if (result === 'login') openLoginWindow(providerId, pressed);
-            else if (result === 'switched' && !isOnlineTab && onlineGroup?.target) selectHomeTab(onlineGroup.target);
+            else if (result === 'switched') setEnterOnlineGroup(true);
         });
     };
+    // 换完音源后落在在线组：等换好的那次渲染再取落点（新音源未必有刚才记着的那一页），焦点交回海报轨道。
+    useEffect(() => {
+        if (!enterOnlineGroup) return;
+        setEnterOnlineGroup(false);
+        if (!isOnlineTab && onlineGroup?.target) setHomeViewTab(onlineGroup.target);
+        focusActiveSlider();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 只在换完音源的那一次跑
+    }, [enterOnlineGroup]);
     // 「设置 → 音源」只在桌面版有。
     const openSourceSettings = window.electron ? () => openSettings('options', 'sources', null, 'sourceList') : undefined;
     // 一个音源都没启用时没有二级页签可言（页都是空的），只留「去启用音源」那块提示。
@@ -442,6 +452,7 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                             onSelectGroup={selectHomeGroup}
                             onSelectSource={selectOnlineSource}
                             onManageSources={openSourceSettings}
+                            onSwitcherDismissed={focusActiveSlider}
                             extraTabs={props.extraTabs}
                             isDaylight={isDaylight}
                             stage={{ enabled: stageEnabled, active: stageIsActive, open: onOpenStagePlayer }}
