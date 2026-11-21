@@ -12294,9 +12294,6 @@
     }
   },
   "test/unit/navigation/homeStageEntry.test.ts": {
-    "@stylistic/quotes": {
-      "count": 1
-    },
     "@typescript-eslint/await-thenable": {
       "count": 1
     }

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { getNavidromeConfig, navidromeApi } from '../services/navidromeService';
-import type { HomeViewTab, LocalSong, SongResult, UnifiedSong } from '../types';
+import type { HomeOnlineViewTab, HomeViewTab, LocalSong, SongResult, UnifiedSong } from '../types';
 import type { OmniCollection, OmniSearchKind, OnlineProviderId } from '../types/onlineMusic';
 import {
     applyLocalLibraryEntityDisplay,
@@ -10,9 +10,11 @@ import {
 import { omni } from '../services/onlineMusic/omni';
 import { isLocalPlaybackSong, isNavidromePlaybackSong } from '../utils/appPlaybackGuards';
 import { sanitizeSearchHistory, withSearchHistoryQuery, withoutSearchHistoryQuery } from '../utils/searchHistory';
-import { getStoredString, setStoredString } from './storagePrimitives';
+import { getStoredString, readStoredString, setStoredString } from './storagePrimitives';
 
 const LAST_HOME_VIEW_TAB_KEY = 'last_home_view_tab';
+/** 在线组上次停在哪一页（首页两级页签：从别的组回到在线组时回到它）。 */
+const LAST_HOME_ONLINE_TAB_KEY = 'last_home_online_tab';
 /** 搜索历史：字符串数组的 JSON，最近的在前。列表的规则（去重、淘汰）在 utils/searchHistory.ts。 */
 const SEARCH_HISTORY_KEY = 'folia_search_history_v1';
 const DEFAULT_SEARCH_LIMIT = 30;
@@ -48,6 +50,8 @@ type SearchCacheEntry = {
 
 interface SearchNavigationState {
     homeViewTab: HomeViewTab;
+    /** 在线组上次停在哪一页；homeViewTab 是在线页时与它相同。 */
+    homeOnlineTab: HomeOnlineViewTab;
     searchQuery: string;
     /** 结果是按哪个词搜出来的（提交或恢复时定下）；searchQuery 是输入框里正在打的字。 */
     submittedQuery: string;
@@ -113,7 +117,7 @@ export const UNSET_SEARCH_SOURCE: SearchSource = '';
 /** The platform in effect, read when a search is about to go out ('' when no platform is registered). */
 const activeSearchProvider = (): OnlineProviderId => omni.getActiveProviderSummary()?.providerId ?? '';
 
-/** The source a home tab searches: its own for local and Navidrome, else the platform in effect (`activeProviderId`). */
+/** The source a home tab searches: its own for local and Navidrome, else the platform in effect (`activeProviderId`); the Folia tab searches that platform too. */
 export const resolveSearchSource = (
     tab: HomeViewTab | SearchSource,
     activeProviderId: OnlineProviderId = activeSearchProvider(),
@@ -122,7 +126,7 @@ export const resolveSearchSource = (
         return tab;
     }
     if (tab === UNSET_SEARCH_SOURCE) return activeProviderId;
-    if (tab !== 'playlist' && tab !== 'albums' && tab !== 'radio' && tab !== 'explore') return tab as OnlineProviderId;
+    if (tab !== 'playlist' && tab !== 'albums' && tab !== 'radio' && tab !== 'explore' && tab !== 'folia') return tab as OnlineProviderId;
     return activeProviderId;
 };
 
@@ -239,14 +243,29 @@ const executeSearch = async (
         : searchOnlineProviderCollections(sourceTab, kind, query, limit, offset);
 };
 
+const isHomeOnlineViewTab = (tab: unknown): tab is HomeOnlineViewTab => (
+    tab === 'playlist' || tab === 'albums' || tab === 'radio' || tab === 'explore'
+);
+
+/**
+ * 上次停在哪一页。旧版本（首页还是一排平铺的页签）存的六个值原样有效：它们就是现在的「页」，组由页推出，
+ * 不需要改写存下的值。
+ */
 const getInitialHomeViewTab = (): HomeViewTab => {
     if (typeof window === 'undefined') {
         return 'playlist';
     }
     const savedTab = localStorage.getItem(LAST_HOME_VIEW_TAB_KEY);
-    return savedTab === 'playlist' || savedTab === 'local' || savedTab === 'albums' || savedTab === 'navidrome' || savedTab === 'radio' || savedTab === 'explore'
+    return isHomeOnlineViewTab(savedTab) || savedTab === 'local' || savedTab === 'navidrome' || savedTab === 'folia'
         ? savedTab
         : 'playlist';
+};
+
+/** 在线组上次停在哪一页：没存过（旧版本升级上来）时，上次停的那一页是在线页就是它，否则是歌单。 */
+const getInitialHomeOnlineTab = (homeViewTab: HomeViewTab): HomeOnlineViewTab => {
+    const savedTab = readStoredString(LAST_HOME_ONLINE_TAB_KEY);
+    if (isHomeOnlineViewTab(savedTab)) return savedTab;
+    return isHomeOnlineViewTab(homeViewTab) ? homeViewTab : 'playlist';
 };
 
 const readSearchHistory = (): string[] => {
@@ -269,6 +288,7 @@ const writeSearchHistory = (history: string[]) => {
 
 export const useSearchNavigationStore = create<SearchNavigationState>((set, get) => ({
     homeViewTab: getInitialHomeViewTab(),
+    homeOnlineTab: getInitialHomeOnlineTab(getInitialHomeViewTab()),
     searchQuery: '',
     submittedQuery: '',
     searchSourceTab: UNSET_SEARCH_SOURCE,
@@ -304,7 +324,8 @@ export const useSearchNavigationStore = create<SearchNavigationState>((set, get)
         if (typeof window !== 'undefined') {
             localStorage.setItem(LAST_HOME_VIEW_TAB_KEY, tab);
         }
-        set({ homeViewTab: tab });
+        if (isHomeOnlineViewTab(tab)) setStoredString(LAST_HOME_ONLINE_TAB_KEY, tab);
+        set(isHomeOnlineViewTab(tab) ? { homeViewTab: tab, homeOnlineTab: tab } : { homeViewTab: tab });
     },
     setSearchQuery: (query) => set({ searchQuery: query }),
     setSearchScrollTop: (scrollTop) => set(state => {

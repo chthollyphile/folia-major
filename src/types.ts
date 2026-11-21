@@ -163,7 +163,14 @@ export interface LyricRenderOverride {
   antialias: 'global' | 'on' | 'off';
 }
 
-export type HomeViewTab = 'playlist' | 'local' | 'albums' | 'navidrome' | 'radio' | 'explore';
+/**
+ * 首页的一页。首页是两级页签：一级是组（Folia、当前在线音源、本地、Navidrome），二级是组里的页。这里的值是「页」，
+ * 组由页推出（library/core/home/homeSources 的 homeGroupOfTab）：在线组有四页（playlist / radio / albums / explore），
+ * 其余各组只有一页（本地与 Navidrome 的二级页签是各自的 section，不在这里）。旧版本存下的值都还是其中一页。
+ */
+export type HomeViewTab = 'folia' | 'playlist' | 'local' | 'albums' | 'navidrome' | 'radio' | 'explore';
+/** 在线组里的页。 */
+export type HomeOnlineViewTab = 'playlist' | 'radio' | 'albums' | 'explore';
 
 export type PlaybackContext = 'main' | 'stage';
 export type StageSource = 'stage-api' | 'now-playing' | 'playercap';

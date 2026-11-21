@@ -3,6 +3,8 @@ import { AnimatePresence, motion } from 'framer-motion';
 import {
     CalendarPlus,
     Check,
+    ChevronDown,
+    Compass,
     DiscAlbum,
     Folder,
     FoldHorizontal,
@@ -10,8 +12,10 @@ import {
     LayoutGrid,
     ListFilter,
     Library,
+    ListMusic,
     Maximize2,
     MicVocal,
+    Radio,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { BravaisLayer, BravaisSeamTab } from './bravaisLayer';
@@ -27,6 +31,7 @@ import { bravaisRevealMotion, BRAVAIS_SEAM_FLIP_IN_EASING_BEZIER } from './brava
 import { BRAVAIS_SEAM_FLIP_IN_MS } from './bravaisConstants';
 import BravaisSeamFilterField from './BravaisSeamFilterField';
 import { useBravaisUiStore } from './bravaisUiStore';
+import { useBravaisHomeUiStore } from './bravaisHomeUiStore';
 import { openBravaisFilter } from './useBravaisSeamFilter';
 import './bravaisHome.css';
 
@@ -86,8 +91,31 @@ export const BravaisSeamAccountSlot: React.FC<{ account: BravaisHomeAccount; com
     </div>
 );
 
-/** 二级切换的图标（本地四行与 Navidrome 的 section 按 key 取；未知的 key 用 LayoutGrid）。 */
+/**
+ * 一级页签里的字：普通页签就是名字；同时是音源切换器的那个（在线组，名字是当前音源的名字）名字有最大长度、超出截断
+ * （全名在 title），后面跟一个小箭头。真按钮与测量副本用同一份，量出来的尺寸才对得上。
+ */
+export const seamTabContent = (tab: BravaisSeamTab, text: string): React.ReactNode => (tab.switcher ? (
+    <>
+        <span className="is-name">{text}</span>
+        <ChevronDown className="is-chevron" aria-hidden />
+    </>
+) : text);
+
+/** 一级页签按钮上随「是不是音源切换器」变的属性。 */
+export const seamTabSwitcherProps = (tab: BravaisSeamTab, open: boolean) => (tab.switcher ? {
+    'data-bravais-tab-switcher': '',
+    'aria-haspopup': 'menu' as const,
+    'aria-expanded': tab.active ? open : undefined,
+} : {});
+
+export const seamTabClassName = (tab: BravaisSeamTab) => `bravais-seam-home-tab${tab.active ? ' is-active' : ''}${tab.switcher ? ' has-switcher' : ''}`;
+
+/** 二级切换的图标（在线组的页、本地四行与 Navidrome 的 section 按 key 取；未知的 key 用 LayoutGrid）。 */
 const SECTION_ICONS: Record<string, React.ComponentType<{ 'aria-hidden'?: boolean }>> = {
+    playlist: ListMusic,
+    radio: Radio,
+    explore: Compass,
     folders: Folder,
     albums: DiscAlbum,
     artists: MicVocal,
@@ -144,7 +172,8 @@ export const HomeSeamSections: React.FC<{
                     role="tab"
                     aria-selected={section.active}
                     aria-label={section.label}
-                    title={section.label}
+                    title={section.title ?? section.label}
+                    disabled={section.disabled}
                     data-bravais-section={section.key}
                     className={`bravais-seam-section${section.active ? ' is-active' : ''}`}
                     onClick={() => onSelect?.(section.key)}
@@ -238,6 +267,7 @@ const HomeSeamHead: React.FC<{
     onSelectTab?: (key: string) => void;
     measure?: boolean;
 }> = ({ title, hideTitle, tabs, shorts, lead, onSelectTab, measure = false }) => {
+    const sourcesOpen = useBravaisHomeUiStore(state => state.popover === 'sources');
     return (
         <div className="bravais-seam-home-head">
             <div className={`bravais-seam-home-title${hideTitle ? ' is-hidden' : ''}`} data-bravais-home-title={measure ? undefined : hideTitle ? 'hidden' : 'shown'}>
@@ -247,7 +277,7 @@ const HomeSeamHead: React.FC<{
                 {lead}
                 {tabs.length > 0 && (measure ? (
                     <div className="bravais-seam-tabs">
-                        {tabs.map(tab => <span key={tab.key} className="bravais-seam-home-tab">{tab.label}</span>)}
+                        {tabs.map(tab => <span key={tab.key} className={seamTabClassName({ ...tab, active: false })}>{seamTabContent(tab, tab.label)}</span>)}
                     </div>
                 ) : (
                     <div className={`bravais-seam-tabs${shorts ? ' is-short' : ''}`} role="tablist" aria-label={title} aria-orientation="vertical">
@@ -257,15 +287,16 @@ const HomeSeamHead: React.FC<{
                                 type="button"
                                 role="tab"
                                 aria-selected={tab.active}
-                                aria-label={shorts ? tab.label : undefined}
-                                title={tab.label}
+                                aria-label={shorts || tab.switcher ? tab.label : undefined}
+                                title={tab.title ?? tab.label}
                                 disabled={tab.disabled}
                                 data-bravais-tab={tab.key}
                                 data-bravais-tab-short={shorts ? 'true' : undefined}
-                                className={`bravais-seam-home-tab${tab.active ? ' is-active' : ''}`}
+                                className={seamTabClassName(tab)}
+                                {...seamTabSwitcherProps(tab, sourcesOpen)}
                                 onClick={() => onSelectTab?.(tab.key)}
                             >
-                                {shorts ? shorts[index] : tab.label}
+                                {seamTabContent(tab, shorts ? shorts[index] : tab.label)}
                             </button>
                         ))}
                     </div>

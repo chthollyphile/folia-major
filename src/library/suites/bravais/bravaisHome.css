@@ -776,3 +776,25 @@
 .bravais-seam-menu.is-home button.is-shortcut svg { color: var(--text-accent, currentColor); opacity: 1; }
 
 :root[data-reduce-motion~='lattice'] .bravais-seam-home .bravais-seam-shortcut { transition: none; }
+
+/* 首页两级页签：在线组的一级页签同时是音源切换器（名字是当前音源的名字）。名字有最大长度、超出截断（全名在 title），
+   后面一个小箭头；竖排页签里长度沿竖直方向（inline 轴）。 */
+.bravais-seam-home .bravais-seam-home-tab.has-switcher,
+.bravais-seam-home-row .bravais-seam-home-tab.has-switcher { display: inline-flex; align-items: center; gap: 3px; }
+.bravais-seam-home-tab.has-switcher .is-name { max-inline-size: 7em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bravais-seam-home-tab.has-switcher .is-chevron { width: 11px; height: 11px; flex: none; opacity: 0.6; }
+.bravais-seam-home-tab.has-switcher[aria-expanded='true'] .is-chevron { opacity: 1; transform: rotate(180deg); }
+.bravais-seam-tabs.is-short .bravais-seam-home-tab.has-switcher { gap: 1px; }
+
+/* 二级切换里此刻不能选的一项（在线组里当前音源没有的那一页）。 */
+.bravais-seam-section:disabled { opacity: 0.35; cursor: default; pointer-events: auto; }
+.bravais-seam-home button.bravais-seam-section:disabled:hover,
+.bravais-seam-home-row button.bravais-seam-section:disabled:hover { color: inherit; background: none; }
+
+/* 音源列表（工具格上的弹层，与「⋯」菜单同一套样式）：一行是音源名加一行小字的账户状态，当前音源是强调色。 */
+.bravais-seam-menu.is-home.is-sources { display: flex; flex-direction: column; max-block-size: min(60vh, 420px); }
+.bravais-seam-menu.is-sources .bravais-seam-menu-heading { padding: 5px 6px 3px; font-size: 10px; letter-spacing: 0.06em; opacity: 0.55; }
+.bravais-seam-menu.is-sources .bravais-seam-source-list { min-block-size: 0; overflow-y: auto; }
+.bravais-seam .bravais-seam-menu.is-home button.is-source { display: grid; gap: 1px; inline-size: 100%; }
+.bravais-seam-menu.is-home button.is-source .is-source-name { overflow: hidden; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.bravais-seam-menu.is-home button.is-source .is-source-detail { overflow: hidden; font-size: 10px; opacity: 0.6; text-overflow: ellipsis; white-space: nowrap; }

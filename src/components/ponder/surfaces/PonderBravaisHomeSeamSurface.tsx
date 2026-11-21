@@ -64,9 +64,11 @@ type PonderBravaisHomeSeamSurfaceProps = {
 };
 
 /** 一级页签的「字数」：歌单、电台、专辑、本地、Navi。 */
-const TAB_GLYPHS = [2, 2, 2, 2, 4] as const;
-const ONLINE_TAB = 0;
-const LOCAL_TAB = 3;
+// 一级页签是首页两级页签的组：Folia、当前在线音源、本地、Navidrome（西文的两个字小一号）。
+const TAB_GLYPHS = [3, 2, 2, 4] as const;
+const SMALL_TABS: readonly number[] = [0, 3];
+const ONLINE_TAB = 1;
+const LOCAL_TAB = 2;
 
 type HomeSeamOptions = {
     tab: number;
@@ -100,7 +102,7 @@ const HomeSeam: React.FC<{ colors: BravaisSeamColors; options: HomeSeamOptions }
             <SeamIcon rect={H.fold} icon={FoldHorizontal} marker="data-ponder-bravais-fold" />
 
             <div data-ponder-bravais-tabs style={relativeRectStyle(H.tabs)} />
-            {H.tab.map((rect, index) => {
+            {H.tab.slice(0, TAB_GLYPHS.length).map((rect, index) => {
                 const active = index === options.tab;
                 return (
                     <span
@@ -110,7 +112,7 @@ const HomeSeam: React.FC<{ colors: BravaisSeamColors; options: HomeSeamOptions }
                         className="flex items-center justify-center rounded-[10px]"
                         style={{ ...relativeRectStyle(rect), backgroundColor: active ? 'rgba(255,255,255,0.13)' : undefined }}
                     >
-                        <VerticalGlyphs count={TAB_GLYPHS[index]} size={index === 4 ? '8px' : '13px'} gap="2px" color={BRAVAIS_SEAM_INK} opacity={active ? 1 : 0.5} />
+                        <VerticalGlyphs count={TAB_GLYPHS[index]} size={SMALL_TABS.includes(index) ? '8px' : '13px'} gap="2px" color={BRAVAIS_SEAM_INK} opacity={active ? 1 : 0.5} />
                     </span>
                 );
             })}

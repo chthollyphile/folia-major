@@ -66,6 +66,13 @@ export type BravaisSeamTab = {
     label: string;
     active: boolean;
     disabled: boolean;
+    /**
+     * 这个页签同时是音源切换器（首页的在线组）：名字是当前音源的名字，带一个小箭头；已经在这一组时再点一下，
+     * 展开已启用音源的列表（BravaisHomeSeam.sources，画在工具格的弹层里）。
+     */
+    switcher?: boolean;
+    /** 页签的 title（不可用的原因）；不给就是 label。 */
+    title?: string;
 };
 
 /** 缝里画什么（设计稿 §5「内容」）。文案都是已翻译的。 */

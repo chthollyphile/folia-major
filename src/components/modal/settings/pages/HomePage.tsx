@@ -40,6 +40,8 @@ const SCRATCHPAD: SettingsGroupDef = { id: 'scratchpadSettings', titleKey: 'opti
 const O = {
     suite: option(SUITE, 'librarySuiteChoice', 'options.librarySuite'),
     tabs: option(HOME, 'homeTabsVisibility', 'options.homeTabsVisibility'),
+    tabFolia: option(HOME, 'showHomeTabFolia', 'options.showHomeTabFolia'),
+    onlineTabs: option(HOME, 'homeOnlineTabsVisibility', 'options.homeOnlineTabsVisibility'),
     tabPlaylist: option(HOME, 'showHomeTabPlaylist', 'options.showHomeTabPlaylist'),
     tabRadio: option(HOME, 'showHomeTabRadio', 'options.showHomeTabRadio'),
     tabExplore: option(HOME, 'showHomeTabExplore', 'options.showHomeTabExplore'),
@@ -65,6 +67,7 @@ const HomePage: React.FC = () => {
     const activeSuiteId = useActiveLibrarySuiteId();
     const isGridActive = useIsGridLibraryActive();
     const home = useHomeLayoutSettingsStore(useShallow(state => ({
+        tabFolia: state.showHomeTabFolia,
         tabPlaylist: state.showHomeTabPlaylist,
         tabRadio: state.showHomeTabRadio,
         tabAlbums: state.showHomeTabAlbums,
@@ -72,6 +75,7 @@ const HomePage: React.FC = () => {
         tabExplore: state.showHomeTabExplore,
         cardStyle: state.grid3dCardStyle,
         rememberPosition: state.rememberHomeCardPosition,
+        setTabFolia: state.handleToggleHomeTabFolia,
         setTabPlaylist: state.handleToggleHomeTabPlaylist,
         setTabRadio: state.handleToggleHomeTabRadio,
         setTabAlbums: state.handleToggleHomeTabAlbums,
@@ -119,15 +123,25 @@ const HomePage: React.FC = () => {
             <BravaisWallGroup />
 
             <Group def={HOME}>
-                {/* The entries are one option: one row, a chip for each, named and ordered as the home screen has them. */}
+                {/* The home tabs come in two levels, and so do these: the first row is the groups that can be hidden (the
+                    online group goes when all of its pages are off, Navidrome follows its own switch), the second the
+                    pages of the online group. Each is a chip, named and ordered as the home screen has them. The stored
+                    switches are the ones from before the two levels, so an old profile keeps what it had hidden. */}
                 <Row option={O.tabs}>
+                    <Chips
+                        items={[
+                            { id: O.tabFolia.id, label: t('home.foliaTab'), checked: home.tabFolia, onChange: home.setTabFolia },
+                            { id: O.tabLocal.id, label: t('localMusic.folder'), checked: home.tabLocal, onChange: home.setTabLocal },
+                        ]}
+                    />
+                </Row>
+                <Row option={O.onlineTabs} note={t('options.homeOnlineTabsVisibilityDesc')}>
                     <Chips
                         items={[
                             { id: O.tabPlaylist.id, label: t('home.playlists'), checked: home.tabPlaylist, onChange: home.setTabPlaylist },
                             { id: O.tabRadio.id, label: t('home.radioTab'), checked: home.tabRadio, onChange: home.setTabRadio },
                             { id: O.tabExplore.id, label: t('home.explore'), checked: home.tabExplore, onChange: home.setTabExplore, disabled: !hasExplore },
                             { id: O.tabAlbums.id, label: t('home.albums'), checked: home.tabAlbums, onChange: home.setTabAlbums },
-                            { id: O.tabLocal.id, label: t('localMusic.folder'), checked: home.tabLocal, onChange: home.setTabLocal },
                         ]}
                     />
                 </Row>
