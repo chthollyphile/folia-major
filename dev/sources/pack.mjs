@@ -147,7 +147,9 @@ export const loadSigningKey = (keyText, keyId, trustedKeys = TRUSTED_SIGNING_KEY
     const trimmed = String(keyText ?? '').trim();
     try {
         if (trimmed.startsWith('{')) {
-            const jwk = JSON.parse(trimmed);
+            let jwk;
+            // JSON.parse 的报错会引出错处附近的原文，那是私钥的一段：不往外带。
+            try { jwk = JSON.parse(trimmed); } catch { throw new Error('JWK 不是合法 JSON'); }
             jwkKeyId = typeof jwk.kid === 'string' ? jwk.kid : null;
             privateKey = crypto.createPrivateKey({ key: jwk, format: 'jwk' });
         } else {
@@ -214,8 +216,11 @@ const runtimeNotes = ({ manifest, files, sizes, signature, sourceVersion }) => {
 };
 
 /** 写包之前查上限：每个文件、文件数、合计，和安装、验签时一样。 */
-const checkLimits = (files, sizes, limits) => {
-    if (files.length > limits.maxFiles) throw new Error(`${files.length} 个文件，超过「从 zip 安装」的上限 ${limits.maxFiles}`);
+const checkLimits = (files, sizes, limits, { reserveFiles = 0 } = {}) => {
+    // reserveFiles：之后还要加进包的文件（签名文件），先给它留出位置。
+    if (files.length + reserveFiles > limits.maxFiles) {
+        throw new Error(`${files.length + reserveFiles} 个文件${reserveFiles ? `（含签名文件）` : ''}，超过「从 zip 安装」的上限 ${limits.maxFiles}`);
+    }
     let total = 0;
     for (const file of files) {
         const size = sizes.get(file);
@@ -248,15 +253,27 @@ export const packSource = (distDir, options = {}) => {
         outRoot = DEFAULT_PACK_ROOT, version = null, signingKey = null, trustedKeys = TRUSTED_SIGNING_KEYS,
         limits = PACK_LIMITS, now = () => new Date(),
     } = options;
-    const folia = options.folia === undefined ? `>=${readJson(path.join(ROOT, 'package.json')).version}` : options.folia;
+    // 默认下限只是占位：仓库版本号以下的宿主本来就不收 Folium 2 的模组，这一条不额外挡什么。预发布号（-alpha.x）去掉，
+    // 宿主的范围写法只认 x.y.z。
+    const folia = options.folia === undefined
+        ? `>=${String(readJson(path.join(ROOT, 'package.json')).version).split(/[-+]/)[0]}`
+        : options.folia;
     const built = readJson(path.join(distDir, 'mod.json'));
     const stamp = readJson(path.join(distDir, BUILD_STAMP));
     const files = listFiles(distDir).filter((file) => file !== BUILD_STAMP);
     if (files.includes(SIGNATURE_FILE)) throw new Error(`${distDir} 里已经有 ${SIGNATURE_FILE}：构建产物不该带签名`);
     // build.json 的文件表是这次构建写下的全部：对不上说明目录被手动改过或构建没写完，重新构建再打。
     const expected = [...(stamp.files ?? [])].sort();
-    if (expected.length !== files.length || expected.some((file, index) => file !== files[index])) {
-        throw new Error(`${distDir} 的文件和 ${BUILD_STAMP} 里记的对不上，先重新 npm run sources:build`);
+    const extra = files.filter((file) => !expected.includes(file));
+    const missing = expected.filter((file) => !files.includes(file));
+    if (extra.length > 0 || missing.length > 0) {
+        const sample = (list) => list.slice(0, 5).join('、') + (list.length > 5 ? ` 等 ${list.length} 个` : '');
+        throw new Error([
+            `${distDir} 的文件和 ${BUILD_STAMP} 里记的对不上`,
+            extra.length > 0 ? `多出 ${sample(extra)}` : null,
+            missing.length > 0 ? `缺 ${sample(missing)}` : null,
+            '先重新 npm run sources:build；重新构建删不掉多出的旧文件时，多半是开着的应用占着它们，关掉应用再构建',
+        ].filter(Boolean).join('；'));
     }
 
     const manifest = packedManifest(built, { version, folia });
@@ -267,7 +284,7 @@ export const packSource = (distDir, options = {}) => {
     const sizes = new Map(files.map((file) => [file, fs.statSync(path.join(distDir, file)).size]));
     const manifestText = `${JSON.stringify(manifest, null, 2)}\n`;
     sizes.set('mod.json', Buffer.byteLength(manifestText));
-    checkLimits(files, sizes, limits);
+    checkLimits(files, sizes, limits, { reserveFiles: signingKey ? 1 : 0 });
 
     // 在临时目录里摆出装上后的样子：签名摘要就按这个目录算，和装上后宿主验的是同一份字节。
     const stageRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'folia-sources-pack-'));

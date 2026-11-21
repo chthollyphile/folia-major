@@ -209,7 +209,16 @@ describe('what packing refuses', () => {
     it('a directory that does not match its build.json', () => {
         const dist = makeBuilt('qishui', sourceManifest('qishui', 'qishui'));
         fs.writeFileSync(path.join(dist, 'stray.txt'), 'x');
-        expect(() => packSource(dist, { outRoot: temporary('packs') })).toThrow(/build\.json/);
+        expect(() => packSource(dist, { outRoot: temporary('packs') })).toThrow(/build\.json.*多出 stray\.txt.*关掉应用/);
+    });
+
+    it('leaves room for the signature file under the file limit', () => {
+        const dist = makeBuilt('qishui', sourceManifest('qishui', 'qishui'));
+        const count = packSource(dist, { outRoot: temporary('packs') }).files.length;
+        const limits = { ...PACK_LIMITS, maxFiles: count };
+        expect(() => packSource(dist, { outRoot: temporary('packs'), limits })).not.toThrow();
+        const signingKey = loadSigningKey(TEST_PEM, TEST_KEY_ID, TEST_KEYS);
+        expect(() => packSource(dist, { outRoot: temporary('packs'), limits, signingKey, trustedKeys: TEST_KEYS })).toThrow(/含签名文件/);
     });
 
     it('a file or a total past the install limits', () => {
@@ -231,6 +240,8 @@ describe('what packing refuses', () => {
         expect(() => loadSigningKey(TEST_PEM, TEST_KEY_ID, [{ ...TEST_KEYS[0], revoked: true }])).toThrow(/吊销/);
         expect(() => loadSigningKey(TEST_PEM, null, TEST_KEYS)).toThrow(/keyId/);
         expect(() => loadSigningKey('not a key', TEST_KEY_ID, TEST_KEYS)).toThrow(/读不了私钥/);
+        // A broken JWK reports only that it is broken, not the text around the fault.
+        expect(() => loadSigningKey('{"kty":"OKP","d":"secretfragment"', TEST_KEY_ID, TEST_KEYS)).toThrow(/：JWK 不是合法 JSON$/);
     });
 
     it('reads a JWK private key and its kid', () => {
