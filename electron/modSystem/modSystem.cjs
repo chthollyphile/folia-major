@@ -75,6 +75,7 @@ const { resolveSourceOwnership, claimRefusal } = require('./sourceOwnership.cjs'
 const { ownPartitionOf, PARTITION_NAME_PATTERN } = require('./sourceApi.cjs');
 const { createMediaRules } = require('./mediaRules.cjs');
 const { limits: FOLIUM_LIMITS, foliumOneVersion: FOLIUM_ONE_VERSION } = require('./foliumShared.json');
+const { isAllowedWithoutCommunity } = require('./communityMods.cjs');
 
 const SETTINGS_NAMESPACE = 'mods';
 // Folium 2.0 (plan §5.3): the state of every source, by source id, and who holds each taken-over short id.
@@ -156,6 +157,10 @@ const createModSystem = ({
     getMainWindow,
     getLocaleKey,
     isFeatureEnabled,
+    // Folium 2.0, the community mods switch (communityMods.cjs): read, and written once the user confirmed. main.cjs
+    // passes both; without them (tests, tools) mods from the folders run as they did before Folium 2.0.
+    isCommunityEnabled = null,
+    writeCommunityEnabled = null,
     // Whether the main config store was empty when main.cjs made it (nothing had written it yet): a fresh profile,
     // which owes the start prompt's sources page (plan §5.3). An upgraded profile never does.
     freshProfile = false,
@@ -229,6 +234,21 @@ const createModSystem = ({
             return false;
         }
     };
+
+    /*
+     * Folium 2.0: whether community mods may be installed and run (communityMods.cjs). Off, a mod from the user's
+     * folders runs only when it is an official source mod; any other is listed with 'community-off' and not run.
+     * Fails closed when the answer throws.
+     */
+    const isCommunityModsEnabled = () => {
+        if (typeof isCommunityEnabled !== 'function') return true;
+        try {
+            return Boolean(isCommunityEnabled());
+        } catch {
+            return false;
+        }
+    };
+    const communityBlocks = (candidate) => !isCommunityModsEnabled() && !isAllowedWithoutCommunity(candidate);
 
     const sendToRenderer = (channel, payload) => {
         const win = getMainWindowSafe();
@@ -389,7 +409,7 @@ const createModSystem = ({
     const {
         writeTrust, isDevSourceMod, resolveTrust, confirmEnableMod,
         readBuiltinEnabled, writeBuiltinEnabled, isOverrideConfirmed, writeOverrideApproval, confirmOverride,
-        confirmClearSourceData,
+        confirmClearSourceData, confirmCommunityMods,
     } = createModApproval({ app, store, enabledKey, getMainWindowSafe, getLocaleKey });
 
     /*
@@ -595,8 +615,11 @@ ${partition}`;
             });
         });
 
+        // Community mods while the switch is off (communityMods.cjs): listed, never run, never an override or takeover.
+        const communityOff = new Set([...candidates.entries()].filter(([, candidate]) => communityBlocks(candidate)).map(([modId]) => modId));
+        const ownershipCandidates = new Map([...candidates.entries()].filter(([modId]) => !communityOff.has(modId)));
         // Overrides and takeovers are user-folder code: not this run when it was started without mods.
-        const ownership = resolveSourceOwnership(builtins, skippedThisRun ? new Map() : candidates, bundledSources.ids, {
+        const ownership = resolveSourceOwnership(builtins, skippedThisRun ? new Map() : ownershipCandidates, bundledSources.ids, {
             hostVersion: typeof app.getVersion === 'function' ? app.getVersion() : null,
             tableRow: builtinSourceRow,
             sourceRow: sourceRowOf,
@@ -683,7 +706,9 @@ ${partition}`;
                 ...(overriding ? { tier: 'override', enabled: readBuiltinEnabled(overriding), trustStale: false, builtinId: overriding } : {}),
                 source: sourceInfo(modId),
                 mode: modeOf(modId),
-                blocked: refused ? (refused.detail ? `${refused.reason}:${refused.detail}` : refused.reason) : null,
+                blocked: communityOff.has(modId)
+                    ? 'community-off'
+                    : refused ? (refused.detail ? `${refused.reason}:${refused.detail}` : refused.reason) : null,
                 notes: ownership.notes.get(modId) ?? [],
             });
         });
@@ -986,6 +1011,10 @@ ${partition}`;
         if (!runtime) {
             return { ok: false, error: 'mod-not-found', mods: listMods() };
         }
+        // A community mod while community mods are off is not offered the enable dialog: it could not run.
+        if (enabled && communityBlocks(runtime)) {
+            return { ok: false, error: 'community-off', mods: listMods() };
+        }
         if (!enabled) {
             writeTrust(modId, false, null);
             return { ok: true, mods: await reloadChanged() };
@@ -1082,6 +1111,9 @@ ${partition}`;
         const signature = verifyModSignature(discovery.dirPath, discovery.manifest);
         if (signature.status === 'invalid') {
             return { ok: false, error: 'claim-signature-invalid' };
+        }
+        if (communityBlocks({ tier: discovery.tier, manifest: discovery.manifest, signature })) {
+            return { ok: false, error: 'community-off' };
         }
         const takeovers = claiming.map((entry) => ({
             localId: entry.id,
@@ -1471,8 +1503,46 @@ ${partition}`;
 
     // The user's own mods folder, and installing a .zip into it (zipInstall.cjs).
     const { getUserModsDirectory, pruneStagingDirectory, installModFromZip } = createZipInstall({
-        app, isModSystemEnabled, loadAll: () => reloadChanged(), emitLog, serializeError,
+        app, isModSystemEnabled, isCommunityModsEnabled, loadAll: () => reloadChanged(), emitLog, serializeError,
     });
+
+    /*
+     * 「从 zip 安装音源模组」 (Settings → Sources): the main process asks for the file, so the window never names a
+     * path; then the same install as a dropped zip. A cancelled picker answers 'install-cancelled'.
+     */
+    const installModFromPickedZip = async () => {
+        if (!isModSystemEnabled()) {
+            return { ok: false, error: 'mod-system-disabled' };
+        }
+        const win = getMainWindowSafe();
+        const options = { properties: ['openFile'], filters: [{ name: 'zip', extensions: ['zip'] }] };
+        const picked = await (win && !win.isDestroyed() ? dialog.showOpenDialog(win, options) : dialog.showOpenDialog(options));
+        const zipPath = picked?.canceled ? null : picked?.filePaths?.[0];
+        if (!zipPath) {
+            return { ok: false, error: 'install-cancelled' };
+        }
+        return installModFromZip(zipPath);
+    };
+
+    /*
+     * Turns community mods on (after the native confirmation) or off (at once), then reloads: on, the mods the
+     * user already confirmed run; off, every community mod stops. The answer carries the switch as it is now.
+     */
+    const setCommunityMods = async (enabled) => {
+        const wanted = Boolean(enabled);
+        if (typeof writeCommunityEnabled !== 'function') {
+            return { ok: false, error: 'community-unavailable', enabled: isCommunityModsEnabled() };
+        }
+        if (wanted === isCommunityModsEnabled()) {
+            return { ok: true, enabled: wanted, mods: listMods() };
+        }
+        if (wanted && !(await confirmCommunityMods())) {
+            return { ok: false, error: 'community-declined', enabled: false, mods: listMods() };
+        }
+        writeCommunityEnabled(wanted);
+        console.info(`[Mods] community mods switched ${wanted ? 'on' : 'off'}`);
+        return { ok: true, enabled: wanted, mods: await reloadChanged({ differential: false }) };
+    };
 
     const openModsDirectory = async () => {
         try {
@@ -1588,6 +1658,8 @@ ${partition}`;
         handle(IPC.ffmpegStatus, async () => ({ ffmpeg: await probeFfmpeg() }));
         handle(IPC.openDirectory, () => openModsDirectory());
         handle(IPC.installZip, (_event, zipPath) => installModFromZip(zipPath));
+        handle(IPC.installZipPicked, () => installModFromPickedZip());
+        handle(IPC.setCommunity, (_event, enabled) => setCommunityMods(enabled));
         handle(IPC.storageUsage, (_event, modId) => getModStorageUsage(modId));
         handle(IPC.clearCache, (_event, modId) => clearModCache(modId));
         // What the gate counted for each mod's Node entry, for the mod's row in Settings.

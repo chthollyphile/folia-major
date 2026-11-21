@@ -46,6 +46,8 @@ describe('the copies of what foliumShared.json holds', () => {
         getFfmpegStatus: 'ffmpegStatus',
         openModsDirectory: 'openDirectory',
         installModFromZip: 'installZip',
+        installModFromPickedZip: 'installZipPicked',
+        setCommunityMods: 'setCommunity',
         getModStorageUsage: 'storageUsage',
         clearModCache: 'clearCache',
         getModCallStats: 'callStats',

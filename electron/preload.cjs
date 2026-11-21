@@ -390,6 +390,10 @@ contextBridge.exposeInMainWorld('electron', {
         getFfmpegStatus: () => ipcRenderer.invoke('folia-mods:ffmpeg-status'),
         openModsDirectory: () => ipcRenderer.invoke('folia-mods:open-directory'),
         installModFromZip: (zipPath) => ipcRenderer.invoke('folia-mods:install-zip', zipPath),
+        // Folium 2.0: install a zip the main process asks for (Settings → Sources), and the community mods switch
+        // (the main process confirms turning it on).
+        installModFromPickedZip: () => ipcRenderer.invoke('folia-mods:install-zip-picked'),
+        setCommunityMods: (enabled) => ipcRenderer.invoke('folia-mods:set-community', enabled),
         getModStorageUsage: (modId) => ipcRenderer.invoke('folia-mods:storage-usage', modId),
         clearModCache: (modId) => ipcRenderer.invoke('folia-mods:clear-cache', modId),
         getModCallStats: () => ipcRenderer.invoke('folia-mods:call-stats'),

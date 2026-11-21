@@ -97,6 +97,8 @@
         "ffmpegStatus": "folia-mods:ffmpeg-status",
         "openDirectory": "folia-mods:open-directory",
         "installZip": "folia-mods:install-zip",
+        "installZipPicked": "folia-mods:install-zip-picked",
+        "setCommunity": "folia-mods:set-community",
         "storageUsage": "folia-mods:storage-usage",
         "clearCache": "folia-mods:clear-cache",
         "callStats": "folia-mods:call-stats",

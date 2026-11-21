@@ -13,6 +13,8 @@ const path = require('path');
 const { unzipSync } = require('fflate');
 
 const { validateManifest } = require('./manifest.cjs');
+const { verifyModSignature } = require('./modSignature.cjs');
+const { isAllowedWithoutCommunity } = require('./communityMods.cjs');
 
 // Staged installs and their rollback copies live under this directory inside
 // the user mods folder; discovery skips it (and every other dot-directory).
@@ -36,10 +38,11 @@ const INSTALL_LIMITS = {
 /*
  * `app` is Electron's (where the user's data lives). The rest is the loader's:
  * `isModSystemEnabled` (nothing is installed while mods are switched off),
+ * `isCommunityModsEnabled` (while community mods are off, only an official source mod is installed; absent: any),
  * `loadAll` (run once the new files are in place), `emitLog`, and
  * `serializeError` (a failure as the text the mods page shows).
  */
-const createZipInstall = ({ app, isModSystemEnabled, loadAll, emitLog, serializeError }) => {
+const createZipInstall = ({ app, isModSystemEnabled, isCommunityModsEnabled = () => true, loadAll, emitLog, serializeError }) => {
     // The per-user writable mod directory (the packaged app's own tree is read-only).
     const getUserModsDirectory = () => path.join(app.getPath('userData'), 'mods');
 
@@ -238,6 +241,15 @@ const createZipInstall = ({ app, isModSystemEnabled, loadAll, emitLog, serialize
             }
             if (validation.value.client && !fs.existsSync(path.join(stagingDir, validation.value.client))) {
                 throw new Error('install-client-missing');
+            }
+            // Folium 2.0, community mods off: the staged files must be an official source mod (communityMods.cjs).
+            // Checked on the staged tree, the files that would run, before anything replaces a working install.
+            if (!isCommunityModsEnabled() && !isAllowedWithoutCommunity({
+                tier: 'user',
+                manifest: validation.value,
+                signature: verifyModSignature(stagingDir, validation.value),
+            })) {
+                throw new Error('install-community-off');
             }
 
             // Atomic-ish swap: move the old copy aside, move the new one in, and
