@@ -145,6 +145,26 @@ export interface LxSandboxHost {
 
 type LxHandler = (payload: unknown, callback: (error: unknown, result?: unknown) => void) => unknown;
 
+const MAX_URL_CHARS = 4096;
+const MAX_LYRIC_CHARS = 1_000_000;
+
+/**
+ * 交回 main 入口之前把结果裁成它认的样子：一个地址，或歌词的三个字符串。main 入口照样自己校验；这里裁是为了
+ * 不让一个巨大的返回值整个搬进主进程。
+ */
+const clipResult = (result: unknown): unknown => {
+    if (typeof result === 'string') return result.slice(0, MAX_URL_CHARS);
+    if (typeof result !== 'object' || result === null) return null;
+    const out: Record<string, string> = {};
+    const source = result as Record<string, unknown>;
+    if (typeof source.url === 'string') out.url = source.url.slice(0, MAX_URL_CHARS);
+    for (const key of ['lyric', 'tlyric', 'rlyric', 'lxlyric']) {
+        const value = source[key];
+        if (typeof value === 'string') out[key] = value.slice(0, MAX_LYRIC_CHARS);
+    }
+    return out;
+};
+
 /** 在 `scope`（页面的 globalThis）上装好运行环境。 */
 export const installLxRuntime = (scope: Record<string, unknown>, transport: LxTransport = pageTransport): LxSandboxHost => {
     const handlers = new Map<string, LxHandler[]>();
@@ -236,7 +256,7 @@ export const installLxRuntime = (scope: Record<string, unknown>, transport: LxTr
             for (const handler of list) {
                 try {
                     const result = await callHandler(handler, payload, timeoutMs);
-                    if (result !== undefined && result !== null) return result;
+                    if (result !== undefined && result !== null) return clipResult(result);
                 } catch (error) {
                     lastError = error;
                 }

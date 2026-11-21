@@ -1,6 +1,8 @@
 import * as dns from 'node:dns';
 import * as http from 'node:http';
 import * as https from 'node:https';
+import * as net from 'node:net';
+import * as os from 'node:os';
 import * as zlib from 'node:zlib';
 import type { LookupAddress } from 'node:dns';
 import type { IncomingMessage } from 'node:http';
@@ -15,6 +17,9 @@ import type { EgressBlockReason } from './egressGuard.ts';
 //   - 解析走自己的 lookup：一个名字解析出的地址只要有一个是本机或内网的就整个拒绝，连的就是判过的那些地址，
 //     没有「判一次、连的时候再解析一次」的空子；连上之后再核一遍对端地址；
 //   - 跳转不自动跟：每一跳回到开头重新判，最多 MAX_REDIRECTS 跳；跨源的跳转不带凭据类的头；
+//   - 这台机器自己的地址和它所在的在链子网也不许：公网 IPv6（没有 NAT，本机、路由器、NAS 各有一个）和直接拿到
+//     公网 IPv4 的机器，地址不在任何保留段里，只能照网卡表判（localNetworkReason）；
+//   - 一批不该用 HTTP 去碰的端口不许连（邮件、IRC 等，Chromium 也禁）；
 //   - 每次新开连接（agent: false），不和别处共用连接池；有总时限，取整个回答时有大小上限。
 
 const MAX_REDIRECTS = 8;
@@ -29,6 +34,54 @@ const HOP_HEADERS = new Set([
 ]);
 // 跨源跳转时拿掉的头。
 const CREDENTIAL_HEADERS = new Set(['authorization', 'cookie', 'proxy-authorization']);
+
+// Chromium 不许 HTTP 连的端口里常见的那些：往这些端口 POST 正文可以冒充别的协议。
+const BLOCKED_PORTS = new Set([
+    1, 7, 9, 11, 13, 15, 17, 19, 20, 21, 22, 23, 25, 37, 42, 43, 53, 69, 77, 79, 87, 95, 101, 102, 103, 104, 109, 110, 111, 113,
+    115, 117, 119, 123, 135, 137, 139, 143, 161, 179, 389, 427, 465, 512, 513, 514, 515, 526, 530, 531, 532, 540, 548, 554,
+    556, 563, 587, 601, 636, 989, 990, 993, 995, 1719, 1720, 1723, 2049, 3659, 4045, 5060, 5061, 6000, 6566, 6665, 6666,
+    6667, 6668, 6669, 6697, 10080,
+]);
+
+// 代理软件 fake-ip 模式的占位地址段。解析出来的放行（egressGuard.ts 说了为什么），写在地址里的不放：占位地址只会
+// 来自解析，字面写它的是想连 TUN 网卡自己（常见 198.18.0.1，就是这台机器）。
+const FAKE_IP = new net.BlockList();
+FAKE_IP.addSubnet('198.18.0.0', 15, 'ipv4');
+
+const familyOf = (address: string): 'ipv4' | 'ipv6' | null => {
+    const kind = net.isIP(address);
+    return kind === 4 ? 'ipv4' : kind === 6 ? 'ipv6' : null;
+};
+
+/**
+ * 按这台机器的网卡表判一个地址：是某块网卡自己的地址（'own-address'），或落在某块网卡的在链子网里（'on-link'）。
+ * 地址在 fake-ip 段里的网卡（TUN）只算它自己的地址，不算整段，否则开着 TUN 的人一个名字都连不上。
+ */
+export const localNetworkReason = (address: string, interfaces: NodeJS.Dict<os.NetworkInterfaceInfo[]>): EgressBlockReason | null => {
+    const family = familyOf(address);
+    if (!family) return null;
+    const own = new net.BlockList();
+    const onLink = new net.BlockList();
+    for (const list of Object.values(interfaces)) {
+        for (const info of list ?? []) {
+            const kind = familyOf(info.address);
+            if (!kind) continue;
+            own.addAddress(info.address, kind);
+            const prefix = Number((info.cidr ?? '').split('/')[1]);
+            // 太宽的前缀（全隧道的 VPN 网卡有写 /0、/1 的）不当子网用，否则整个公网都不许了。
+            if (!Number.isInteger(prefix) || prefix < (kind === 'ipv4' ? 8 : 16)) continue;
+            if (kind === 'ipv4' && FAKE_IP.check(info.address, 'ipv4')) continue;
+            try {
+                onLink.addSubnet(info.address, prefix, kind);
+            } catch {
+                // 前缀不合法的网卡条目：只算它自己的地址。
+            }
+        }
+    }
+    if (own.check(address, family)) return 'own-address';
+    if (onLink.check(address, family)) return 'on-link';
+    return null;
+};
 
 /** 去处被拦。`reason` 是拦的原因，`host` 是被拦的主机名或地址。 */
 export class EgressBlockedError extends Error {
@@ -69,6 +122,8 @@ export interface EgressOptions {
      * 正式版里是空的。
      */
     allow?: (hostname: string, port: number) => boolean;
+    /** 这台机器的网卡表；默认 os.networkInterfaces()。测试里换成假的。 */
+    interfaces?: () => NodeJS.Dict<os.NetworkInterfaceInfo[]>;
 }
 
 export interface Egress {
@@ -102,7 +157,7 @@ const cleanHeaders = (headers: Record<string, string> | undefined): Record<strin
 };
 
 /** 建一个出口。 */
-export const createEgress = ({ lookup = systemLookup, allow = () => false }: EgressOptions = {}): Egress => {
+export const createEgress = ({ lookup = systemLookup, allow = () => false, interfaces = os.networkInterfaces }: EgressOptions = {}): Egress => {
     const portOf = (url: URL) => Number(url.port || (url.protocol === 'https:' ? 443 : 80));
 
     /** 一跳：判定、解析、连接，回这一跳的回答（不跟跳转）。 */
@@ -115,10 +170,17 @@ export const createEgress = ({ lookup = systemLookup, allow = () => false }: Egr
             const hostname = url.hostname.replace(/^\[|\]$/g, '');
             const port = portOf(url);
             const allowed = allow(hostname, port);
+            // 每一跳读一次网卡表（网卡会变：连上 VPN、换了网络）。
+            const network = allowed ? {} : interfaces();
+            const addressReason = (address: string) => addressBlockReason(address) ?? localNetworkReason(address, network);
             if (!allowed) {
-                const reason = hostnameBlockReason(hostname);
+                const literalFamily = familyOf(hostname);
+                const reason = (BLOCKED_PORTS.has(port) ? 'port' : null)
+                    ?? hostnameBlockReason(hostname)
+                    ?? (literalFamily ? localNetworkReason(hostname, network) : null)
+                    ?? (literalFamily && FAKE_IP.check(hostname, literalFamily) ? 'reserved' : null);
                 if (reason) {
-                    reject(new EgressBlockedError(reason, hostname));
+                    reject(new EgressBlockedError(reason, reason === 'port' ? `${hostname}:${port}` : hostname));
                     return;
                 }
             }
@@ -135,7 +197,7 @@ export const createEgress = ({ lookup = systemLookup, allow = () => false }: Egr
                     }
                     if (!allowed) {
                         for (const entry of addresses) {
-                            const reason = addressBlockReason(entry.address);
+                            const reason = addressReason(entry.address);
                             if (reason) {
                                 callback(new EgressBlockedError(reason, `${name} → ${entry.address}`), []);
                                 return;
@@ -160,10 +222,11 @@ export const createEgress = ({ lookup = systemLookup, allow = () => false }: Egr
                 ...(url.protocol === 'https:' && !isIpLiteral(hostname) ? { servername: hostname } : {}),
             });
             request.on('socket', (socket) => {
-                // 连上之后再核一遍：对端地址应该就是判过的那个。
+                // 连上之后再核一遍：对端地址应该就是判过的那个。这只是事后的保险（这时请求可能已经发出去了），
+                // 拦人的是上面连之前的判定。
                 socket.once('connect', () => {
                     const remote = socket.remoteAddress;
-                    const reason = allowed || !remote ? null : addressBlockReason(remote);
+                    const reason = allowed || !remote ? null : addressReason(remote);
                     if (reason) request.destroy(new EgressBlockedError(reason, `${hostname} → ${remote}`));
                 });
             });

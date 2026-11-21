@@ -9,7 +9,9 @@
 /** 一个去处被拦的原因；null 是放行。 */
 export type EgressBlockReason =
     | 'loopback' | 'private' | 'link-local' | 'carrier-nat' | 'unspecified' | 'multicast' | 'reserved'
-    | 'local-name' | 'invalid-address';
+    | 'local-name' | 'invalid-address'
+    // 下面三个是出口（egress.ts）按这台机器的情况加的：本机网卡自己的地址、网卡所在的在链子网、不许连的端口。
+    | 'own-address' | 'on-link' | 'port';
 
 const IPV4_PART = /^(?:0|[1-9]\d{0,2})$/;
 

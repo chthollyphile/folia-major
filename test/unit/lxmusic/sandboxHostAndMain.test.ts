@@ -27,6 +27,7 @@ const fakeSession = () => {
 
 /** A hidden window whose page answers each executeJavaScript with what `answer` returns for the code. */
 const fakeWindows = (answer: (code: string) => unknown) => {
+    const downloads: Array<(event: { preventDefault(): void }) => void> = [];
     const windows: Array<{ destroyed: boolean; options: Record<string, unknown>; loaded: string[]; events: string[]; evaluated: string[] }> = [];
     const hidden = (options: Record<string, unknown>) => {
         const state = { destroyed: false, options, loaded: [] as string[], events: [] as string[], evaluated: [] as string[] };
@@ -40,10 +41,12 @@ const fakeWindows = (answer: (code: string) => unknown) => {
                 on: (event: string) => { state.events.push(event); },
                 setWebRTCIPHandlingPolicy: (policy: string) => { state.events.push(`webrtc:${policy}`); },
                 executeJavaScript: async (code: string) => { state.evaluated.push(code); return answer(code); },
+                setAudioMuted: (muted: boolean) => { state.events.push(`muted:${String(muted)}`); },
+                session: { on: (event: string, listener: (event: { preventDefault(): void }) => void) => { state.events.push(`session:${event}`); downloads.push(listener); } },
             },
         };
     };
-    return { windows, hidden };
+    return { windows, hidden, downloads };
 };
 
 const SCRIPT = { id: 's1', code: 'the script', info: { name: 'S' } };
@@ -51,23 +54,32 @@ const PAYLOAD = { source: 'kw', action: 'musicUrl', info: { type: '128k', musicI
 
 const sandboxWith = (answer: (code: string) => unknown, allowed = () => true) => {
     const { session, calls, handlers } = fakeSession();
-    const { windows, hidden } = fakeWindows(answer);
+    const { windows, hidden, downloads } = fakeWindows(answer);
     const sandbox = createLxSandbox({
         session, hidden, egress: createEgress(), runtimeCode: () => 'RUNTIME_CODE', isAllowed: allowed, log: () => undefined,
     });
-    return { sandbox, calls, handlers, windows };
+    return { sandbox, calls, handlers, windows, downloads };
 };
 const pageAnswers = (code: string) => (code.includes('__lxHost.load(') ? { sources: { kw: {} } } : code.includes('__lxHost.call(') ? 'http://example.com/a.mp3' : undefined);
 
 describe('the hidden sandbox window', () => {
     it('answers the partition locally, refuses permissions and sends everything else to a dead proxy', async () => {
-        const { sandbox, calls, windows } = sandboxWith(pageAnswers);
+        const { sandbox, calls, windows, downloads } = sandboxWith(pageAnswers);
         expect(await sandbox.load(SCRIPT)).toEqual({ kw: {} });
         expect(calls).toEqual(['intercept:https', 'intercept:http', 'refusePermissions', 'setProxy:socks5://127.0.0.1:1']);
         expect(windows).toHaveLength(1);
         expect(windows[0].options).toEqual({ session: SANDBOX_PARTITION, backgroundThrottling: false });
         expect(windows[0].loaded).toEqual(['https://lx-sandbox.invalid/']);
-        expect(windows[0].events).toEqual(['open:deny', 'will-navigate', 'will-redirect', 'will-attach-webview', 'webrtc:disable_non_proxied_udp']);
+        expect(windows[0].events).toEqual([
+            'open:deny', 'will-navigate', 'will-redirect', 'will-attach-webview', 'webrtc:disable_non_proxied_udp', 'muted:true', 'session:will-download',
+        ]);
+        // Every download of the partition is refused (a blob link with a download attribute is not the CSP's to stop).
+        let prevented = 0;
+        downloads[0]({ preventDefault: () => { prevented += 1; } });
+        expect(prevented).toBe(1);
+        // The partition is one: a second window registers no second listener.
+        await sandbox.load({ ...SCRIPT, id: 's2' });
+        expect(downloads).toHaveLength(1);
         expect(windows[0].evaluated[0]).toContain('RUNTIME_CODE');
         // The script goes in as a JSON string: it can never close the call it is handed in.
         expect(windows[0].evaluated[1]).toBe('globalThis.__lxHost.load("the script", {"name":"S"}, 15000)');
@@ -83,6 +95,9 @@ describe('the hidden sandbox window', () => {
         expect(csp).toContain("default-src 'none'");
         expect(csp).toContain('connect-src https://lx-sandbox.invalid');
         expect(csp).not.toContain('*');
+        // No modal box in the app's name, no download, no popup, no form: only scripts, and its own origin for the fetch.
+        expect(csp).toContain('sandbox allow-scripts allow-same-origin');
+        expect(csp).not.toMatch(/allow-(modals|downloads|popups|forms|top-navigation)/);
         expect(await page.text()).not.toMatch(/<script|src=/);
         for (const url of ['https://example.com/', 'https://lx-sandbox.invalid/other', 'https://lx-sandbox.invalid.evil.example/', 'http://127.0.0.1/']) {
             expect((await serve(new Request(url))).status, url).toBe(403);
@@ -98,12 +113,21 @@ describe('the hidden sandbox window', () => {
         for (const url of ['http://127.0.0.1:8080/', 'http://[::ffff:10.0.0.1]/', 'http://169.254.169.254/', 'file:///etc/passwd', 'http://localhost/']) {
             const answer = await (await post({ url, method: 'GET', headers: {}, body: null, timeoutMs: 1000 })).json();
             expect(answer.ok, url).toBe(false);
-            expect(answer.error, url).toMatch(/egress blocked/);
+            // A reason and nothing else: not the host, not the address a name resolved to.
+            expect(answer.error, url).toMatch(/^egress blocked [(][a-z-]+[)]$/);
             expect(answer.body).toBeUndefined();
         }
         expect((await post({ url: 42 })).status).toBe(400);
         expect((await handlers.get('https')!(new Request('https://lx-sandbox.invalid/__lx/request', { method: 'POST', body: 'not json' }))).status).toBe(400);
         expect((await answerLxRequest(createEgress(), { url: 'http://example.com/', body: Buffer.alloc(3 * 1024 * 1024).toString('base64') })).status).toBe(413);
+        // A POST larger than the envelope is not read into the main process: refused by its declared length, or while it streams in.
+        const huge = 'x'.repeat(5 * 1024 * 1024);
+        expect((await handlers.get('https')!(new Request('https://lx-sandbox.invalid/__lx/request', { method: 'POST', body: huge, headers: { 'content-length': String(huge.length) } }))).status).toBe(413);
+        const streamed = new Request('https://lx-sandbox.invalid/__lx/request', {
+            method: 'POST', duplex: 'half',
+            body: new ReadableStream({ pull(controller) { controller.enqueue(new Uint8Array(1024 * 1024)); } }),
+        } as RequestInit);
+        expect((await handlers.get('https')!(streamed)).status).toBe(413);
     });
 
     it('runs one script a window: another script, or a destroy, replaces the window', async () => {
@@ -197,9 +221,11 @@ describe('the main entry with no script imported', () => {
     it('answers its state as empty, and refuses the catalog and audio without a request', async () => {
         const { rpc, fetched, windows } = fakeApi();
         expect(await rpc.get('state')!()).toEqual({ ok: true, data: { scripts: [], activeId: null, platform: null, platforms: [] } });
-        for (const operation of ['searchSongs', 'searchPlaylists', 'searchAlbums', 'charts']) {
-            expect(await rpc.get('catalog')!(operation, { query: 'x', limit: 30, offset: 0 }), operation).toMatchObject({ ok: false, code: 'unavailable' });
+        // The songs a history or a playlist still holds are not asked about either: tracks, song and lyric too.
+        for (const operation of ['searchSongs', 'searchPlaylists', 'searchAlbums', 'charts', 'tracks', 'song']) {
+            expect(await rpc.get('catalog')!(operation, { query: 'x', id: 'kw:p:1', limit: 30, offset: 0 }), operation).toMatchObject({ ok: false, code: 'unavailable' });
         }
+        expect(await rpc.get('lyric')!({ id: 'kw:1', title: 't', artists: [] })).toEqual({ ok: true, data: null });
         expect(await rpc.get('audio')!({ id: 'kw:1', title: 't', artists: [] }, 'high')).toMatchObject({ ok: false, code: 'unavailable' });
         expect(await rpc.get('audio')!({ id: 'netease:1', title: 't', artists: [] }, 'high')).toMatchObject({ ok: false, code: 'unsupported' });
         expect(fetched).toEqual([]);

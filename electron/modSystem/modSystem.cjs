@@ -352,6 +352,8 @@ const createModSystem = ({
                 sandbox: true,
                 contextIsolation: true,
                 nodeIntegration: false,
+                // A hidden window runs a mod's page, never the app's: its alert / confirm / prompt would be a native box in the app's name.
+                disableDialogs: true,
                 ...(partition ? { partition } : {}),
                 ...(backgroundThrottling === false ? { backgroundThrottling: false } : {}),
             },

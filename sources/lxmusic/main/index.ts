@@ -52,7 +52,11 @@ const devAllowance = (): ((hostname: string, port: number) => boolean) => {
 
 /** main 入口。 */
 export default function activate(api: FoliumSourceMainApi): void {
-    const log = (message: string, error?: unknown) => api.log.warn(`[LxMusic] ${message}`, error);
+    // 错误的文字有的来自脚本：只留一行、截短了再进日志。
+    const log = (message: string, error?: unknown) => {
+        const detail = error === undefined ? '' : (error instanceof Error ? error.message : typeof error === 'string' ? error : 'unknown error').replace(/\s+/g, ' ').slice(0, 300);
+        api.log.warn(detail ? `[LxMusic] ${message}: ${detail}` : `[LxMusic] ${message}`);
+    };
     const allow = devAllowance();
     const egress = createEgress({ allow });
     const library = createScriptLibrary(api.storage);
@@ -207,11 +211,11 @@ export default function activate(api: FoliumSourceMainApi): void {
             const limit = Math.min(Math.max(Math.trunc(Number(input.limit)) || 30, 1), MAX_PAGE);
             const offset = Math.max(Math.trunc(Number(input.offset)) || 0, 0);
             const id = typeof input.id === 'string' ? input.id : '';
+            // 没导入脚本时什么都不请求：历史和歌单里留着的歌也一样（client 的 getAvailability 让宿主不来问，这里自己也守着）。
+            const { platform, active } = await library.state();
+            if (!active || !platform) throw new CatalogError('unavailable', 'no script is imported');
             if (operation === 'tracks') return catalog.tracks(id, limit, offset);
             if (operation === 'song') return catalog.song(id);
-            // 其余的都是「在当前平台上」：没导入脚本时没有当前平台，什么都不请求。
-            const { platform } = await library.state();
-            if (!platform) throw new CatalogError('unavailable', 'no script is imported');
             const query = typeof input.query === 'string' ? input.query.trim().slice(0, 200) : '';
             if (operation === 'charts') return catalog.charts(platform);
             if (!query) return { items: [], hasMore: false };
@@ -255,6 +259,8 @@ export default function activate(api: FoliumSourceMainApi): void {
             const parsed = parseSongId(idOf(song));
             if (!parsed) return null;
             const state = await library.state();
+            // 没导入脚本时不联网，公开接口的歌词也不取。
+            if (!state.active) return null;
             // 脚本声明了 lyric 的用脚本的（酷狗、QQ 只有这条路），否则用公开接口的；脚本答不上也退回公开接口。
             if (state.active?.sources[parsed.platform]?.actions.includes('lyric')) {
                 try {
@@ -292,6 +298,8 @@ export default function activate(api: FoliumSourceMainApi): void {
 
     // 宿主只把 GET 交过来。失败不带正文：调用方会把收到的正文当成这首歌的音频存起来。
     const CORS = { 'access-control-allow-origin': '*' };
+    /** 一首歌的音频回答最多这么大（按 content-length 判；一小时的 24 bit 无损不到它的一半）。 */
+    const MAX_STREAM_BYTES = 2 * 1024 * 1024 * 1024;
     api.media.serve('stream', async (read) => {
         const entry = streams.get(Object.hasOwn(read.query, 'once') ? read.query.once : '');
         if (!entry || entry.expiresAt < Date.now()) return { status: 410, headers: CORS, body: '' };
@@ -301,13 +309,17 @@ export default function activate(api: FoliumSourceMainApi): void {
                 headers: { 'accept-encoding': 'identity', ...(read.range ? { range: read.range } : {}) },
                 timeoutMs: 20_000,
             });
-            const type = answer.headers['content-type'] ?? '';
-            // 取不到的歌有的平台回一张网页（200）：那不是音频。
-            if ((answer.statusCode !== 200 && answer.statusCode !== 206) || /^text\/|json|xml/i.test(type)) {
+            const type = (answer.headers['content-type'] ?? '').split(';')[0].trim().toLowerCase();
+            const length = Number(answer.headers['content-length']);
+            // 取不到的歌有的平台回一张网页（200）：那不是音频。只认音频、视频容器和没说类型的二进制；大得离谱的也不要。
+            const isMedia = type === '' || type.startsWith('audio/') || type.startsWith('video/') || type === 'application/octet-stream' || type === 'application/ogg';
+            if ((answer.statusCode !== 200 && answer.statusCode !== 206) || !isMedia || (Number.isFinite(length) && length > MAX_STREAM_BYTES)) {
                 answer.stream.destroy();
                 return { status: answer.statusCode === 416 ? 416 : 502, headers: CORS, body: '' };
             }
-            const headers: Record<string, string> = { ...CORS, 'content-type': type || 'application/octet-stream', 'accept-ranges': 'bytes' };
+            const headers: Record<string, string> = {
+                ...CORS, 'content-type': type || 'application/octet-stream', 'accept-ranges': 'bytes', 'x-content-type-options': 'nosniff',
+            };
             for (const name of ['content-length', 'content-range']) {
                 if (answer.headers[name]) headers[name] = answer.headers[name];
             }

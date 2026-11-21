@@ -1,4 +1,5 @@
 import type { FoliumSourceNetSession } from '@folia/folium';
+import { EgressBlockedError } from './egress.ts';
 import type { Egress } from './egress.ts';
 import { REQUEST_PATH, SANDBOX_ORIGIN } from './sandbox/constants.ts';
 import type { LxScriptInfo } from './sandbox/runtime.ts';
@@ -17,7 +18,9 @@ export const SANDBOX_PARTITION = 'folia-lxmusic-sandbox';
 
 // default-src 'none'：不许加载任何子资源、框架、worker；脚本只能是注入的（'unsafe-eval' 给脚本自己的 eval /
 // new Function，混淆过的脚本离不开它）；联网只许回到本页的源，也就是只到得了 intercept。
-const PAGE_CSP = `default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval'; connect-src ${SANDBOX_ORIGIN}; base-uri 'none'; form-action 'none'`;
+// sandbox 指令只留脚本和同源（同源是为了 fetch 回本页的源）：alert / confirm / print 这些以应用名义弹出的原生窗口、
+// 下载、弹窗、表单、指针锁都随它关掉。
+const PAGE_CSP = `default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval'; connect-src ${SANDBOX_ORIGIN}; base-uri 'none'; form-action 'none'; sandbox allow-scripts allow-same-origin`;
 const BLANK_PAGE = '<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><title></title></head><body></body></html>';
 const DEAD_PROXY = { proxyRules: 'socks5://127.0.0.1:1', proxyBypassRules: '<-loopback>' };
 
@@ -27,6 +30,8 @@ const CALL_TIMEOUT_MS = 20_000;
 export const MAX_ANSWER_BYTES = 8 * 1024 * 1024;
 /** `lx.request` 一个请求正文的上限。 */
 const MAX_REQUEST_BYTES = 2 * 1024 * 1024;
+/** `/__lx/request` 整个 POST 的上限（正文是 base64，再加地址和头）：超了不读进来。 */
+const MAX_ENVELOPE_BYTES = 4 * 1024 * 1024;
 /** 同时在途的 `lx.request`。 */
 const MAX_CONCURRENT_REQUESTS = 8;
 
@@ -40,6 +45,8 @@ interface HiddenWindow {
         on(event: string, listener: (event: { preventDefault(): void }) => void): void;
         setWebRTCIPHandlingPolicy(policy: string): void;
         executeJavaScript(code: string, userGesture?: boolean): Promise<unknown>;
+        setAudioMuted(muted: boolean): void;
+        session: { on(event: 'will-download', listener: (event: { preventDefault(): void }) => void): void };
     };
 }
 
@@ -92,9 +99,31 @@ export const answerLxRequest = async (egress: Egress, raw: unknown): Promise<Res
             body: answer.body.toString('base64'),
         });
     } catch (error) {
-        // 给脚本的只是一句原因；被拦的去处不回任何内容。
-        return json(200, { ok: false, error: error instanceof Error ? error.message : String(error) });
+        // 给脚本的只是一句原因；被拦的去处不回任何内容，连解析出的地址也不说（不然脚本能拿它查内网的域名解析）。
+        if (error instanceof EgressBlockedError) return json(200, { ok: false, error: `egress blocked (${error.reason})` });
+        return json(200, { ok: false, error: error instanceof Error ? error.message.slice(0, 200) : 'request failed' });
     }
+};
+
+/** 带上限地读 POST 的正文；超了回 null（不把它读进主进程）。 */
+const readBounded = async (request: Request, maxBytes: number): Promise<string | null> => {
+    const declared = Number(request.headers.get('content-length'));
+    if (Number.isFinite(declared) && declared > maxBytes) return null;
+    const reader = request.body?.getReader();
+    if (!reader) return '';
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        size += value.byteLength;
+        if (size > maxBytes) {
+            await reader.cancel().catch(() => undefined);
+            return null;
+        }
+        chunks.push(value);
+    }
+    return Buffer.concat(chunks).toString('utf8');
 };
 
 /** 建沙箱。`runtimeCode` 是 sandbox.cjs 的文本；`isAllowed` 说主窗口还在不在（隐藏窗口不能比它活得久）。 */
@@ -109,6 +138,7 @@ export const createLxSandbox = ({ session, hidden, egress, runtimeCode, isAllowe
     let configured: Promise<void> | null = null;
     let current: { scriptId: string; window: Promise<HiddenWindow> } | null = null;
     let inFlight = 0;
+    let downloadsRefused = false;
 
     const serve = async (request: Request): Promise<Response> => {
         const url = new URL(request.url);
@@ -120,7 +150,9 @@ export const createLxSandbox = ({ session, hidden, egress, runtimeCode, isAllowe
             if (inFlight >= MAX_CONCURRENT_REQUESTS) return json(429, { ok: false, error: 'too many requests at once' });
             inFlight += 1;
             try {
-                return await answerLxRequest(egress, await request.json());
+                const text = await readBounded(request, MAX_ENVELOPE_BYTES);
+                if (text === null) return json(413, { ok: false, error: 'request too large' });
+                return await answerLxRequest(egress, JSON.parse(text));
             } catch {
                 return json(400, { ok: false, error: 'bad request' });
             } finally {
@@ -161,6 +193,12 @@ export const createLxSandbox = ({ session, hidden, egress, runtimeCode, isAllowe
             window.webContents.on('will-redirect', event => event.preventDefault());
             window.webContents.on('will-attach-webview', event => event.preventDefault());
             window.webContents.setWebRTCIPHandlingPolicy('disable_non_proxied_udp');
+            window.webContents.setAudioMuted(true);
+            // 下载不归 CSP 管（blob 链接加 download 属性）：分区上一律不许，免得弹「另存为」。分区只有这一个，登记一次。
+            if (!downloadsRefused) {
+                downloadsRefused = true;
+                window.webContents.session.on('will-download', event => event.preventDefault());
+            }
             await window.loadURL(`${SANDBOX_ORIGIN}/`);
             // sandbox.cjs 是 CommonJS 包：给它一对 module / exports 垫着，它只往 globalThis 上挂 __lxHost。
             await evaluate(window, `(() => { const module = { exports: {} }; const exports = module.exports;\n${runtimeCode()}\n})(); undefined;`, LOAD_TIMEOUT_MS);

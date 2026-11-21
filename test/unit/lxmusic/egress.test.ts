@@ -2,7 +2,7 @@ import http from 'node:http';
 import zlib from 'node:zlib';
 import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { createEgress, EgressBlockedError } from '../../../sources/lxmusic/main/egress';
+import { createEgress, EgressBlockedError, localNetworkReason } from '../../../sources/lxmusic/main/egress';
 
 // test/unit/lxmusic/egress.test.ts
 // 洛雪音源的受控出口：解析出本机或内网地址的名字连不上，跳转的每一跳都重新判，流式取地址跟得上跳转并带着 Range。
@@ -201,5 +201,79 @@ describe('the controlled egress', () => {
     it('lets nothing through without the development allowance: the fake resolver points at the loopback', async () => {
         const strict = createEgress({ lookup });
         expect((await blocked(strict.fetchBytes({ url: at('public.example', '/hello') }, 1024))).reason).toBe('loopback');
+    });
+});
+
+// 公网地址不在任何保留段里：这台机器自己的（没有 NAT 的 IPv6、直接拿到的公网 IPv4）和同一个子网里的路由器、NAS，
+// 只能照网卡表判。下面的网卡表是假的，解析也是假的，所以没有一个请求真的发出去。
+describe('the addresses of this machine and of its own subnets', () => {
+    const iface = (address: string, cidr: string, family: 'IPv4' | 'IPv6') => ({
+        address, cidr, family, netmask: '', mac: '00:00:00:00:00:00', internal: false, ...(family === 'IPv6' ? { scopeid: 0 } : {}),
+    }) as never;
+    const INTERFACES = {
+        ethernet: [iface('2408:8207:1234:5600:aaaa:bbbb:cccc:dddd', '2408:8207:1234:5600:aaaa:bbbb:cccc:dddd/64', 'IPv6'), iface('203.9.113.7', '203.9.113.7/24', 'IPv4')],
+        // 代理软件的 TUN 网卡，地址在 fake-ip 段里。
+        tun: [iface('198.18.0.1', '198.18.0.1/15', 'IPv4')],
+        // 全隧道的 VPN 有把前缀写成 /0 的：不当子网用。
+        vpn: [iface('45.67.89.10', '45.67.89.10/0', 'IPv4')],
+    };
+
+    it('tells an own address from one on the same link, and leaves the rest alone', () => {
+        expect(localNetworkReason('2408:8207:1234:5600:aaaa:bbbb:cccc:dddd', INTERFACES)).toBe('own-address');
+        expect(localNetworkReason('2408:8207:1234:5600::1', INTERFACES)).toBe('on-link');
+        expect(localNetworkReason('2408:8207:1234:5601::1', INTERFACES)).toBeNull();
+        expect(localNetworkReason('203.9.113.7', INTERFACES)).toBe('own-address');
+        expect(localNetworkReason('203.9.113.1', INTERFACES)).toBe('on-link');
+        expect(localNetworkReason('203.9.114.1', INTERFACES)).toBeNull();
+        expect(localNetworkReason('::ffff:203.9.113.7', INTERFACES)).toBe('own-address');
+        // The TUN interface: its own address only, not the placeholder range a resolved name lands in.
+        expect(localNetworkReason('198.18.0.1', INTERFACES)).toBe('own-address');
+        expect(localNetworkReason('198.18.3.4', INTERFACES)).toBeNull();
+        // A /0 is no subnet: the rest of the internet stays reachable.
+        expect(localNetworkReason('45.67.89.10', INTERFACES)).toBe('own-address');
+        expect(localNetworkReason('93.184.216.34', INTERFACES)).toBeNull();
+        expect(localNetworkReason('not an address', INTERFACES)).toBeNull();
+    });
+
+    const NAMES_HERE: Record<string, Array<{ address: string; family: number }>> = {
+        'me.example': [{ address: '2408:8207:1234:5600:aaaa:bbbb:cccc:dddd', family: 6 }],
+        'router.example': [{ address: '2408:8207:1234:5600::1', family: 6 }],
+        'neighbour.example': [{ address: '203.9.113.1', family: 4 }],
+        'tun.example': [{ address: '198.18.0.1', family: 4 }],
+    };
+    const guarded = () => createEgress({
+        lookup: async (hostname) => {
+            const found = NAMES_HERE[hostname];
+            if (!found) throw Object.assign(new Error(`ENOTFOUND ${hostname}`), { code: 'ENOTFOUND' });
+            return found;
+        },
+        interfaces: () => INTERFACES,
+    });
+
+    it('refuses them written in the address', async () => {
+        expect((await blocked(guarded().fetchBytes({ url: 'http://[2408:8207:1234:5600:aaaa:bbbb:cccc:dddd]:8080/' }, 1024))).reason).toBe('own-address');
+        expect((await blocked(guarded().fetchBytes({ url: 'http://[2408:8207:1234:5600::1]/' }, 1024))).reason).toBe('on-link');
+        expect((await blocked(guarded().fetchBytes({ url: 'http://203.9.113.7:3000/' }, 1024))).reason).toBe('own-address');
+        expect((await blocked(guarded().fetchBytes({ url: 'http://203.9.113.1/' }, 1024))).reason).toBe('on-link');
+    });
+
+    it('refuses a name that resolves to one of them', async () => {
+        expect((await blocked(guarded().fetchBytes({ url: 'http://me.example:8080/' }, 1024))).reason).toBe('own-address');
+        expect((await blocked(guarded().fetchBytes({ url: 'http://router.example/' }, 1024))).reason).toBe('on-link');
+        expect((await blocked(guarded().fetchBytes({ url: 'http://neighbour.example/' }, 1024))).reason).toBe('on-link');
+        expect((await blocked(guarded().fetchBytes({ url: 'http://tun.example/' }, 1024))).reason).toBe('own-address');
+    });
+
+    it('refuses a fake-ip placeholder written in the address: only a resolved name may land there', async () => {
+        expect((await blocked(guarded().fetchBytes({ url: 'http://198.18.3.4/' }, 1024))).reason).toBe('reserved');
+        expect((await blocked(guarded().fetchBytes({ url: 'http://198.19.255.254:9090/' }, 1024))).reason).toBe('reserved');
+        expect((await blocked(guarded().fetchBytes({ url: 'http://[::ffff:198.18.3.4]/' }, 1024))).reason).toBe('reserved');
+    });
+
+    it('refuses the ports HTTP has no business on', async () => {
+        for (const port of [22, 25, 110, 143, 6667]) {
+            const error = await blocked(guarded().fetchBytes({ url: `http://public.example:${port}/` }, 1024));
+            expect(error.reason, String(port)).toBe('port');
+        }
     });
 });
