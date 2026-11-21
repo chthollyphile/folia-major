@@ -1,9 +1,10 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { Eraser } from 'lucide-react';
+import { Eraser, FileArchive } from 'lucide-react';
 import { providerDisplayName } from '../../../../i18n/providerName';
 import { omni } from '../../../../services/onlineMusic/omni';
 import { openSettings } from '../../../../stores/useSettingsModalStore';
+import { settingsAnchorSubview } from '../../../../utils/settingsAnchorModel';
 import { formatByteSize } from '../../../../utils/formatByteSize';
 import { PlatformMark } from '../../../login/PlatformMark';
 import { Button, Group, Row, option, type SettingsGroupDef, type SettingsOptionDef } from '../kit';
@@ -21,12 +22,17 @@ import type { ModStorageUsageResult } from '../../../../mods/types';
 const LIST: SettingsGroupDef = { id: 'sourceList', titleKey: 'sourcesSettings.groupList', electronOnly: true };
 const NOTICES: SettingsGroupDef = { id: 'sourceNotices', titleKey: 'sourcesSettings.groupNotices', electronOnly: true };
 const INSTALL: SettingsGroupDef = { id: 'sourceInstall', titleKey: 'sourcesSettings.groupInstall', electronOnly: true };
+// Navidrome: the listener's own server, not a source mod (the maintainer, 2026-11-21: not moved to Folium yet). Said
+// here so it is not looked for in the list; it is connected under Settings → Connections.
+const OTHER: SettingsGroupDef = { id: 'sourceOther', titleKey: 'sourcesSettings.groupOther', electronOnly: true };
 
 const O = {
     // The rows of the list are the sources themselves: a search hit lands on the group.
     states: option(LIST, 'sourceStates', 'sourcesSettings.searchStates'),
     clearData: option(LIST, 'sourceClearData', 'sourcesSettings.clearData'),
+    installZip: option(INSTALL, 'sourceInstallZip', 'sourcesSettings.installZipLabel'),
     install: option(INSTALL, 'sourceInstallMod', 'sourcesSettings.installLabel'),
+    navidrome: option(OTHER, 'sourceNavidrome', 'sourcesSettings.navidromeLabel'),
 };
 
 export const OPTIONS: SettingsOptionDef[] = Object.values(O);
@@ -62,7 +68,7 @@ const usageText = (t: (key: string, options?: Record<string, unknown>) => string
 
 const SourcesPage: React.FC = () => {
     const { t, i18n } = useTranslation();
-    const { ready, rows, notices, usage, pending, switchTo, clearData, runNoticeAction } = useSourcesSettings();
+    const { ready, rows, notices, usage, pending, switchTo, clearData, runNoticeAction, installZip } = useSourcesSettings();
 
     // A source mod by its manifest's name whether it is switched on or off (one name in every state, as the start
     // prompt and the command palette give it); a source the host registers by the name the switcher uses.
@@ -154,13 +160,30 @@ const SourcesPage: React.FC = () => {
                 </Group>
             )}
 
-            <Group def={INSTALL}>
-                <Row option={O.install} hint={t('sourcesSettings.installHint')}>
-                    <Button onClick={() => openSettings('options', 'mods', null, 'modList')}>
-                        {t('sourcesSettings.installButton')}
-                    </Button>
-                </Row>
-            </Group>
+            {/* Drawn once the list is in: a landing on these groups (the login window's 「安装音源模组」) waits for them to
+                register, so they must not register above a list that is still empty and about to push them down. */}
+            {ready && (<>
+                <Group def={INSTALL}>
+                    <Row option={O.installZip} hint={t('sourcesSettings.installZipHint')}>
+                        <Button icon={FileArchive} disabled={pending.has('install-zip')} onClick={() => void installZip()}>
+                            {t('sourcesSettings.installZipButton')}
+                        </Button>
+                    </Row>
+                    <Row option={O.install} hint={t('sourcesSettings.installHint')}>
+                        <Button onClick={() => openSettings('options', 'mods', null, 'modList')}>
+                            {t('sourcesSettings.installButton')}
+                        </Button>
+                    </Row>
+                </Group>
+
+                <Group def={OTHER}>
+                    <Row option={O.navidrome} hint={t('sourcesSettings.navidromeHint')}>
+                        <Button onClick={() => openSettings('options', settingsAnchorSubview('navidrome'), null, 'navidrome')}>
+                            {t('sourcesSettings.navidromeButton')}
+                        </Button>
+                    </Row>
+                </Group>
+            </>)}
         </>
     );
 };

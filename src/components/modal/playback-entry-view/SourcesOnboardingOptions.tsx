@@ -1,6 +1,6 @@
 import React, { useSyncExternalStore } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Check } from 'lucide-react';
+import { Check, ChevronRight } from 'lucide-react';
 import { providerDisplayName } from '../../../i18n/providerName';
 import { omni } from '../../../services/onlineMusic/omni';
 import { PlatformMark } from '../../login/PlatformMark';
@@ -15,6 +15,8 @@ import { useSourcesOnboardingStore, type OnboardingSource } from './sourcesOnboa
 // 记号是按名字首字画的中性灰。
 // 每家一行紧凑的勾选（记号、名字、勾）；清单标了只用于匹配的（keepForMatching）不在格子里各写一遍，而是在格子下面用一句话
 // 点名：不勾也留着，只给本地歌配歌词和信息。勾选只记在这里，关掉引导时一次交给主进程。
+// 最下面一句说 Navidrome：它是自建的服务器，不是音源模组，不在这张表里，在设置里连接（维护者 2026-11-21：暂不迁成音源）。
+// 按钮关掉引导（按答完算）再打开它在设置里的连接处。
 
 // The registry's version, followed so names and marks appear once a source registers (module-level subscription).
 const subscribeRegistry = (listener: () => void) => omni.subscribeProviders(listener);
@@ -23,9 +25,11 @@ const readRegistryVersion = () => omni.getProviderRegistryVersion();
 type SourcesOnboardingOptionsProps = {
     isDaylight: boolean;
     accentColor: string;
+    /** Closes the start prompt as answered and opens the Navidrome connection in Settings. */
+    onOpenNavidrome?: () => void;
 };
 
-export const SourcesOnboardingOptions: React.FC<SourcesOnboardingOptionsProps> = ({ isDaylight, accentColor }) => {
+export const SourcesOnboardingOptions: React.FC<SourcesOnboardingOptionsProps> = ({ isDaylight, accentColor, onOpenNavidrome }) => {
     const { t, i18n } = useTranslation();
     const sources = useSourcesOnboardingStore(state => state.sources);
     const ticked = useSourcesOnboardingStore(state => state.ticked);
@@ -81,6 +85,20 @@ export const SourcesOnboardingOptions: React.FC<SourcesOnboardingOptionsProps> =
                 <p className="mt-3 text-xs leading-relaxed opacity-70" style={{ color: 'var(--text-secondary)' }}>
                     {t('sourcesOnboarding.matchingNote', { names: kept.join(t('sourcesOnboarding.nameSeparator')), count: kept.length })}
                 </p>
+            )}
+            {onOpenNavidrome && (
+                <div data-onboarding-navidrome="" className="mt-3 flex items-center gap-3 text-xs leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
+                    <span className="min-w-0 flex-1 opacity-70">{t('sourcesOnboarding.navidromeNote')}</span>
+                    <button
+                        type="button"
+                        onClick={onOpenNavidrome}
+                        className={`inline-flex shrink-0 items-center gap-0.5 rounded-lg px-2.5 py-1 font-medium transition-colors ${isDaylight ? 'bg-black/[0.05] hover:bg-black/[0.09]' : 'bg-white/[0.06] hover:bg-white/[0.1]'}`}
+                        style={{ color: 'var(--text-primary)' }}
+                    >
+                        {t('sourcesOnboarding.navidromeButton')}
+                        <ChevronRight size={13} />
+                    </button>
+                </div>
             )}
         </>
     );

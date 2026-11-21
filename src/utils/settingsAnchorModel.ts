@@ -99,6 +99,7 @@ export const SETTINGS_ANCHOR_DEFINITIONS = {
     // pages/SourcesPage (desktop app only)
     sourceList: { section: 'sources' },
     sourceInstall: { section: 'sources' },
+    sourceOther: { section: 'sources' },
 
     // pages/ModsPage
     modSystem: { section: 'mods' },

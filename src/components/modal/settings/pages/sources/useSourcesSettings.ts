@@ -42,9 +42,13 @@ export const useSourcesSettings = () => {
     useEffect(() => subscribeSourceDeclarations(() => setDeclarationsVersion(version => version + 1)), []);
 
     const refreshStates = useCallback(async () => {
-        const next = await getSourceStates();
-        setPayload({ states: next.states, sources: next.sources });
-        setReady(true);
+        try {
+            const next = await getSourceStates();
+            setPayload({ states: next.states, sources: next.sources });
+        } finally {
+            // Drawn even when the read failed: the install groups wait for it (SourcesPage).
+            setReady(true);
+        }
     }, []);
 
     useEffect(() => {
@@ -125,5 +129,18 @@ export const useSourcesSettings = () => {
         await Promise.all([useModsStore.getState().refresh(), refreshStates()]);
     }), [withPending, reportError, refreshStates]);
 
-    return { ready, rows, notices, usage, pending, switchTo, clearData, runNoticeAction };
+    // 「从 zip 安装音源模组」: the main process asks for the file and decides (community mods off: official source mods
+    // only); a cancelled picker says nothing. The loader's error codes are the mods page's (mods.errors.*).
+    const installZip = useCallback(() => withPending('install-zip', async () => {
+        const result = await useModsStore.getState().installModFromPickedZip();
+        if (result.ok) {
+            setStatusMessage({ type: 'success', text: t('mods.installSuccess', { id: result.id ?? '' }) });
+        } else if (result.error !== 'install-cancelled') {
+            const code = result.error ?? 'install-failed';
+            setStatusMessage({ type: 'error', text: t(`mods.errors.${code}`, { value: code, defaultValue: code }) });
+        }
+        await refreshStates();
+    }), [withPending, refreshStates, t]);
+
+    return { ready, rows, notices, usage, pending, switchTo, clearData, runNoticeAction, installZip };
 };
