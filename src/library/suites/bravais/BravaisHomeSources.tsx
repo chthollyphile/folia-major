@@ -121,6 +121,8 @@ export const BravaisHomeOnline: React.FC<BravaisHomeSourceCommonProps & {
             emptyMessage={emptyMessage}
             wallHint={wallHint}
             meta={online.providerLabel}
+            sections={common.chrome.onlineSections}
+            onSelectSection={common.chrome.onSelectOnlineSection}
             account={account}
             panelTitle={list.title}
             onOpen={onOpen}

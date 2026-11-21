@@ -11,9 +11,12 @@ import { setBravaisSearchOpen } from './bravaisHomeUiStore';
 import { useBravaisHomeChrome } from './useBravaisHomeChrome';
 import { BravaisHomeLocal, BravaisHomeNavidrome, BravaisHomeOnline } from './BravaisHomeSources';
 import BravaisHomeExplore from './BravaisHomeExplore';
+import { BravaisHomeFolia, BravaisHomeNoSources } from './BravaisHomeNotice';
 
 // src/library/suites/bravais/BravaisHome.tsx
-// 首页 surface（B9，设计稿 §10.5）：六个页签（歌单 / 电台 / 专辑 / 探索 / 本地 / Navidrome）都铺墙；探索按网格探索拼贴的
+// 首页 surface（B9，设计稿 §10.5）：两级页签——缝里一级是组（Folia、当前在线音源、本地、Navidrome），二级是组里的页
+// （在线组的歌单 / 电台 / 专辑 / 探索，本地四行，Navidrome 的 section）。各页（歌单 / 电台 / 专辑 / 探索 / 本地 / Navidrome）都铺墙；
+// Folia 组先是一面空墙加打开速记簿的入口（BravaisHomeNotice），聚合歌单的墙之后接在那里。探索按网格探索拼贴的
 // 排法铺（BravaisHomeExplore）。与 TUI、网格用同一套首页
 // 绑定（来源与页签、在线列表、首页资源与动作都来自 core，换 suite 不重新请求），按当前来源挂一个来源组件
 // （BravaisHomeSources），它把当前页签 / section 的卡片投影成首页层推进 stage store；这里自己只渲染一个不可见的锚点。
@@ -35,8 +38,8 @@ const BravaisHome: React.FC<LibraryHomeSurfaceProps> = (props) => {
         isInteractive,
         declaredActions,
     } = props;
-    const sources = useLibraryHomeSources({ account, user, playlists, cloudPlaylist, navidromeEnabled });
-    const { tab, setTab, tabs, online } = sources;
+    const sources = useLibraryHomeSources({ account, user, playlists, cloudPlaylist, navidromeEnabled, folia: true });
+    const { tab, setTab, tabs, groups, onlineSwitcher, online } = sources;
     const onlineList = useLibraryHomeOnline(homeResources, sources);
     const { scanPercent, snapshot: actionState } = useLibraryHomeActions(homeResources.actions);
     const { directoryKey, hiddenScope } = useLibraryHomeDirectory({
@@ -57,6 +60,8 @@ const BravaisHome: React.FC<LibraryHomeSurfaceProps> = (props) => {
     const chrome = useBravaisHomeChrome({
         tab,
         tabs,
+        groups,
+        onlineSwitcher,
         providerId: online.providerId,
         selectTab,
         scanPercent,
@@ -64,7 +69,16 @@ const BravaisHome: React.FC<LibraryHomeSurfaceProps> = (props) => {
         props,
     });
     // F6 的循环也交给句柄：模组的首页页面盖住首页时墙的按键监听让出，页面里按 F6 经句柄接着循环。
-    useLibraryHomeTabsRegistration({ getState: () => ({ active: tab, tabs }), setTab: selectTab, cycleTab: chrome.cycleTab });
+    useLibraryHomeTabsRegistration({
+        getState: () => ({ active: tab, tabs, groups }),
+        setTab: selectTab,
+        cycleTab: chrome.cycleTab,
+        openOnlineSwitcher: () => {
+            if (!chrome.sources) return false;
+            props.onNativeTabSelected?.();
+            return chrome.openSources();
+        },
+    });
     const tabLabel = (key: LibraryHomeTabKey) => tabs.find(candidate => candidate.key === key)?.label ?? key;
     const common = {
         chrome,
@@ -84,7 +98,11 @@ const BravaisHome: React.FC<LibraryHomeSurfaceProps> = (props) => {
             aria-hidden
             className="pointer-events-none absolute inset-0"
         >
-            {tab === 'explore' ? (
+            {tab === 'folia' ? (
+                <BravaisHomeFolia chrome={chrome} isInteractive={isInteractive} />
+            ) : isOnlineHomeTab(tab) && chrome.noSources ? (
+                <BravaisHomeNoSources chrome={chrome} isInteractive={isInteractive} meta={groups.find(group => group.key === 'online')?.label ?? ''} layerKey={`home:${tab}`} />
+            ) : tab === 'explore' ? (
                 <BravaisHomeExplore
                     chrome={chrome}
                     online={online}

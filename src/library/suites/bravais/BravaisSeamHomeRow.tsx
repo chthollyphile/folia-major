@@ -7,13 +7,14 @@ import type { BravaisHomeShortcut } from './bravaisHomeModels';
 import type { BravaisSeamLevel } from './bravaisSeamLevel';
 import BravaisSeamHomeTools, { homePageLayout } from './BravaisSeamHomeTools';
 import BravaisSeamAccountSwitcher from './BravaisSeamAccountSwitcher';
-import { BravaisSeamAccountSlot, HomeSeamSections, HomeSeamShortcuts } from './BravaisSeamHome';
+import { BravaisSeamAccountSlot, HomeSeamSections, HomeSeamShortcuts, seamTabClassName, seamTabContent, seamTabSwitcherProps } from './BravaisSeamHome';
 import { BravaisSeamFlipText, useBravaisSeamFade } from './BravaisSeamFlip';
 import { useBravaisReducedTransitions } from './bravaisMotion';
 import { bravaisRevealMotion } from './bravaisSeamMotion';
 import { abbreviateSeamTabLabels } from './bravaisSeamTabLabels';
 import BravaisSeamFilterField from './BravaisSeamFilterField';
 import { useBravaisUiStore } from './bravaisUiStore';
+import { useBravaisHomeUiStore } from './bravaisHomeUiStore';
 import { openBravaisFilter } from './useBravaisSeamFilter';
 import { useBravaisSeamRowFit } from './useBravaisSeamRowFit';
 import './bravaisHome.css';
@@ -36,12 +37,15 @@ const RowTabs: React.FC<{
     onSelect?: (key: string) => void;
     measure?: boolean;
 }> = ({ tabs, label, shorts, onSelect, measure = false }) => {
+    const sourcesOpen = useBravaisHomeUiStore(state => state.popover === 'sources');
     if (tabs.length === 0) return null;
     const className = `bravais-seam-tabs${shorts ? ' is-short' : ''}`;
     if (measure) {
         return (
             <div className={className}>
-                {tabs.map((tab, index) => <span key={tab.key} className="bravais-seam-home-tab">{shorts ? shorts[index] : tab.label}</span>)}
+                {tabs.map((tab, index) => (
+                    <span key={tab.key} className={seamTabClassName({ ...tab, active: false })}>{seamTabContent(tab, shorts ? shorts[index] : tab.label)}</span>
+                ))}
             </div>
         );
     }
@@ -53,15 +57,16 @@ const RowTabs: React.FC<{
                     type="button"
                     role="tab"
                     aria-selected={tab.active}
-                    aria-label={shorts ? tab.label : undefined}
-                    title={tab.label}
+                    aria-label={shorts || tab.switcher ? tab.label : undefined}
+                    title={tab.title ?? tab.label}
                     disabled={tab.disabled}
                     data-bravais-tab={tab.key}
                     data-bravais-tab-short={shorts ? 'true' : undefined}
-                    className={`bravais-seam-home-tab${tab.active ? ' is-active' : ''}`}
+                    className={seamTabClassName(tab)}
+                    {...seamTabSwitcherProps(tab, sourcesOpen)}
                     onClick={() => onSelect?.(tab.key)}
                 >
-                    {shorts ? shorts[index] : tab.label}
+                    {seamTabContent(tab, shorts ? shorts[index] : tab.label)}
                 </button>
             ))}
         </div>

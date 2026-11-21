@@ -10,7 +10,38 @@ import type { LucideIcon } from 'lucide-react';
 // 都是已翻译的文案与身份稳定的回调，stage 只读、只调。
 
 /** 缝里的二级切换：本地四行（文件夹 / 专辑 / 歌手 / 歌单）、Navidrome 的 section。切换 = 整面翻牌，不换层。 */
-export type BravaisHomeSection = { key: string; label: string; active: boolean };
+export type BravaisHomeSection = {
+    key: string;
+    label: string;
+    active: boolean;
+    /** 这一项此刻不能选（在线组里当前音源没有的那一页）；`title` 说原因。 */
+    disabled?: boolean;
+    title?: string;
+};
+
+/** 在线组页签上的音源列表里的一行（文案已翻译）。 */
+export type BravaisHomeSourceOption = {
+    providerId: string;
+    label: string;
+    /** 账户状态（昵称 / 未登录 / 无需登录 / 未配置）。 */
+    detail: string;
+    active: boolean;
+    disabled: boolean;
+};
+
+/**
+ * 在线组页签上的音源切换器：已启用音源的列表（account controller 的快照，不另存状态），选一个走原有的切换
+ * （要登录的打开登录窗口）。弹层画在工具格上（与「⋯」菜单同一个位置、同一套样式），开合记在 bravaisHomeUiStore 的
+ * popover（'sources'）。一个音源都没启用时不给（null）。
+ */
+export type BravaisHomeSourceMenu = {
+    /** 列表的读屏名（「已启用的在线音源」）。 */
+    label: string;
+    options: readonly BravaisHomeSourceOption[];
+    onSelect: (providerId: string, pressed: Element | null) => void;
+    /** 「管理音源」（去设置 → 音源；只桌面版有）。 */
+    manage?: { label: string; run: () => void };
+};
 
 /**
  * 直达入口那一列里的动作入口（平台声明的「偏好设置」这类）：样子与直达入口一样、一起量、放不下时一起挪进「⋯」，
@@ -156,6 +187,8 @@ export type BravaisHomeSeam = {
     search: BravaisHomeSearch;
     /** B10 的账户位（只有在线页签有）。 */
     account?: BravaisHomeAccount | null;
+    /** 在线组页签上的音源列表（没有启用的音源时为 null）。 */
+    sources?: BravaisHomeSourceMenu | null;
 };
 
 /** 目录树面板里的一行（本地文件夹是树；专辑 / 歌手是平铺的条目）。 */

@@ -330,8 +330,9 @@ const BravaisHomeDirectory: React.FC<BravaisHomeDirectoryProps> = ({
             scan: chrome.scan,
             search: chrome.search,
             account,
+            sources: chrome.sources,
         },
-    }), [account, chrome.onSelectTab, chrome.scan, chrome.search, chrome.tabs, chrome.title, filter, manage, menu, meta, onSelectSection, sections, shortcuts, status, t, tools]);
+    }), [account, chrome.onSelectTab, chrome.scan, chrome.search, chrome.sources, chrome.tabs, chrome.title, filter, manage, menu, meta, onSelectSection, sections, shortcuts, status, t, tools]);
 
     const entriesModel = useMemo<BravaisLayerEntries>(() => ({
         hasPanel: Boolean(batchConfig),
