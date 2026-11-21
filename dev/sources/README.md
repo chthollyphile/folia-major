@@ -85,9 +85,10 @@ npm run sources:pack -- --all
 
 - 不带参数：列出 `dist-mods/` 里能打的（有 `mod.json` 和 `build.json` 的目录）、大小、带不带 deps 归档和原生件。先跑 `sources:build`。
 - `<id>`：目录名（短音源 id，如 `appleMusic`）或模组 id（`apple-music`），可以写几个；`--all` 打全部。
-- 产物：`dist-mod-packs/<模组 id>-<版本>.zip`，未签名的是 `…-unsigned.zip`（git 忽略）。同一份构建打两次未签名的包，字节相同。
+- 产物：`dist-mod-packs/<模组 id>-<版本>.zip`，未签名的是 `…-unsigned.zip`（git 忽略），如 `apple-music-1.0.0-unsigned.zip`。同一份构建打两次未签名的包，字节相同。
 - `--version <x.y.z>`：换掉包里的版本号（覆盖内置副本要比安装包里那份高；内置的清单都是 `1.0.0`）。
-- `--folia <范围>`：包里写的宿主范围，默认 `>=<仓库 package.json 的版本>`（这次构建所对的宿主接口），`none` 是不写。
+- `--folia <范围>`：包里写的宿主范围，默认 `>=<仓库 package.json 的版本>`（预发布号去掉），`none` 是不写。默认值只是占位：
+  比它旧的宿主本来就不收 Folium 2 模组，它不额外挡什么；上限和真正的下限等维护者定。
 - `--dist <目录>`、`--out <目录>`：换掉 `dist-mods/` 和 `dist-mod-packs/`。
 
 **包里是什么**：一个 `<模组 id>/` 目录，构建产物原样（`client.mjs`、`index.cjs`、worker、`vendor.<指纹>.mjs`、`deps.<指纹>.asar`、
@@ -98,10 +99,12 @@ npm run sources:pack -- --all
 - `folia`：上面的宿主范围。
 
 打之前按「从 zip 安装」（`zipInstall.cjs`）和摘要（`modDigest.cjs`）的上限查：单个文件 64 MB、合计 96 MB、2000 个文件，
-zip 本身 96 MB；`dist-mods/<id>/` 的文件和 `build.json` 记的对不上（手改过、没构建完）时拒绝，重新构建再打。
+zip 本身 96 MB；`dist-mods/<id>/` 的文件和 `build.json` 记的对不上（手改过、没构建完）时拒绝并列出多出与缺的文件，重新构建再打；
+重新构建删不掉旧文件时多半是开着的应用占着，先关应用。签名时 `folium.sig.json` 也算进 2000 个文件。
 
 **签名**：给了私钥就在包里的目录写 `folium.sig.json`，格式和算法就是宿主验的那一套（`electron/modSystem/modSignature.cjs`：签名摘要
-v1、固定格式的签名消息、Ed25519），和 folium-compound 的 `tools/sign.mjs` 签出来的一样；签完先用宿主的验签在临时目录里验一遍。
+v1、固定格式的签名消息、Ed25519），签完先用宿主的验签在临时目录里验一遍。按宿主的验签实现写，没和 folium-compound 的
+`tools/sign.mjs` 逐字节对照过。
 
 - 私钥：`--key <文件>`，或环境变量 `FOLIUM_SIGNING_KEY`（私钥文字）、`FOLIUM_SIGNING_KEY_FILE`（文件）；PEM（PKCS#8）或 JWK。
 - keyId：`--key-id`、`FOLIUM_SIGNING_KEY_ID`，JWK 里有 `kid` 时也认。必须是受信公钥表（`trustedKeys.cjs`）里的一把、没吊销、

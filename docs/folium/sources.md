@@ -185,7 +185,7 @@ worker、子进程、本机 HTTP 服务用 Node 自带的。凭据（cookie、to
 - **接管**：安装包没带某个内置音源时（安装包自己声明带了哪些），外部模组可以在 `sources[].claims` 里写明要接的短 id 和旧数据，
   经用户确认后以那个短 id 出现，旧登录、队列里的歌接着用。`claims` 不能超出受信表那一行；签名不匹配的不让接管；一个 id 只给先确认的那个模组。
   内置音源自己的旧媒体协议（如 `folia-fnmusic://`）只交给内置副本：接管的模组拿到短 id 后，存下来的这类旧地址回 404。
-- **打包**：仓库里的内置音源用 `npm run sources:pack <id>` 打成能「从 zip 安装」的包：清单补上受信表那一行的 `claims`，给了私钥就带
+- **打包**：仓库里的内置音源用 `npm run sources:pack -- <id>` 打成能「从 zip 安装」的包：清单补上受信表那一行的 `claims`，给了私钥就带
   `folium.sig.json`。未签名的包只能接管，官方签名、版本更高的才能覆盖；接管时拿不到随应用带的原生件（Spotify 的 librespot 播放、
   Apple Music 的伴侣程序用不了）。九家各自装上后能跑到哪一步见 [`dev/sources/README.md`](../../dev/sources/README.md) 的「打成 zip」。
 
