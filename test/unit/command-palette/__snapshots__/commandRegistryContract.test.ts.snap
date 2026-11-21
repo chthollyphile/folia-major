@@ -161,6 +161,7 @@ exports[`command palette registry contract > keeps the registered command order 
   "ui-zoom-in",
   "ui-zoom-out",
   "desktop-toggle-background-throttling",
+  "desktop-toggle-community-mods",
   "settings-wallpaper-mode",
   "desktop-toggle-wallpaper-mode",
   "desktop-toggle-wallpaper-dock-autohide",

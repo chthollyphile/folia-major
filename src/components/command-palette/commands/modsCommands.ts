@@ -12,10 +12,11 @@ export const modsCommands: CommandPaletteCommand[] = [
     defineCommand({
         id: 'mods',
         group: 'panel',
-        title: 'Mods (Experimental)',
-        description: 'Experimental: manage mods and export transparent lyric videos',
-        keywords: ['mods', 'mod', 'mods manager', '模组', '模组管理', 'mokuai', '导出透明视频'],
+        title: 'Mods',
+        description: 'Manage mods and export transparent lyric videos',
+        keywords: ['mods manager', '模组', '模组管理', 'mokuai', '导出透明视频'],
         icon: Boxes,
+        platform: ['electron'],
         // Behind the mod system switch (Settings → Mods): with it off the main
         // process loads no mod at all, so the entry would open a manager over nothing.
         isAvailable: context => context?.settings.modSystemEnabled ?? true,

@@ -32,9 +32,6 @@ export const modManagerClassesFor = (isDaylight: boolean) => ({
     success: isDaylight
         ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700'
         : 'border-emerald-400/20 bg-emerald-500/10 text-emerald-300',
-    experimentalBadge: isDaylight
-        ? 'border-amber-500/30 bg-amber-500/10 text-amber-800'
-        : 'border-amber-400/25 bg-amber-400/10 text-amber-200',
 });
 
 export type ModManagerClasses = ReturnType<typeof modManagerClassesFor>;

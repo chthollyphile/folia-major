@@ -3,11 +3,12 @@ import { useTranslation } from 'react-i18next';
 import { ModManager } from '../../../../mods/manager/ModManager';
 import type { ModManagerClasses } from '../../../../mods/manager/modManagerClasses';
 import { useDesktopSettingsStore } from '../../../../stores/useDesktopSettingsStore';
-import { Group, Row, Status, Toggle, option, useSettingsKitTheme, type SettingsGroupDef, type SettingsOptionDef } from '../kit';
+import { Group, Row, Toggle, option, useSettingsKitTheme, type SettingsGroupDef, type SettingsOptionDef } from '../kit';
 import { SettingsAnchor } from '../navigation/SettingsAnchorContext';
 
 // src/components/modal/settings/pages/ModsPage.tsx
-// The 模组 page (desktop app only): the mod system's master switch, and under it the mod manager.
+// The 模组 page (desktop app only): the mod system's master switch, the community mods switch (Folium 2.0, the
+// main process's: turning it on asks in a native dialog), and under them the mod manager.
 // The manager is the one component the command palette's mods surface also shows
 // (src/mods/manager); here it wears the settings window's colours.
 
@@ -16,6 +17,7 @@ const MANAGER: SettingsGroupDef = { id: 'modList', titleKey: 'mods.title', elect
 
 const O = {
     enabled: option(SYSTEM, 'enableModSystem', 'options.enableModSystem'),
+    community: option(SYSTEM, 'enableCommunityMods', 'options.enableCommunityMods'),
     // Drawn by the manager, not as a row: a search hit lands on the group.
     market: option(MANAGER, 'modMarket', 'mods.market'),
 };
@@ -37,7 +39,6 @@ const MANAGER_CLASSES: ModManagerClasses = {
     danger: 'border-[color:var(--st-err)]/25 bg-[var(--st-err)]/10 text-[color:var(--st-t1)]',
     preview: 'border-violet-400/25 bg-violet-500/10 text-[color:var(--st-t1)]',
     success: 'border-[color:var(--st-ok)]/25 bg-[var(--st-ok)]/10 text-[color:var(--st-t1)]',
-    experimentalBadge: 'border-[color:var(--st-warn)]/25 bg-[var(--st-warn)]/10 text-[color:var(--st-t1)]',
 };
 
 const ModsPage: React.FC = () => {
@@ -45,14 +46,18 @@ const ModsPage: React.FC = () => {
     const { isDaylight, theme } = useSettingsKitTheme();
     const enabled = useDesktopSettingsStore(state => state.modSystemEnabled);
     const setEnabled = useDesktopSettingsStore(state => state.handleToggleModSystem);
+    const communityEnabled = useDesktopSettingsStore(state => state.modCommunityEnabled);
+    const setCommunityEnabled = useDesktopSettingsStore(state => state.handleToggleCommunityMods);
     const managerTitle = t(MANAGER.titleKey);
 
     return (
         <>
             <Group def={SYSTEM} bare>
                 <Row option={O.enabled} hint={t('options.enableModSystemDesc')} note={t('options.enableModSystemDescSub')}>
-                    <Status tone="warn">{t('mods.experimental')}</Status>
                     <Toggle checked={enabled} onChange={setEnabled} />
+                </Row>
+                <Row option={O.community} hint={t('options.enableCommunityModsDesc')}>
+                    <Toggle checked={communityEnabled} disabled={!enabled} onChange={(next) => { void setCommunityEnabled(next); }} />
                 </Row>
             </Group>
 

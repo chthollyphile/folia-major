@@ -175,6 +175,7 @@ const createContext = (overrides: CommandPaletteContextOverrides = {}): CommandP
             toggleVoiceInputPause: vi.fn(),
             togglePreventDisplaySleepDuringPlayback: vi.fn(),
             toggleBackgroundThrottling: vi.fn(),
+            toggleCommunityMods: vi.fn(),
             toggleUiZoom: vi.fn(),
             stepUiZoom: vi.fn(() => true),
             toggleWallpaperMode: vi.fn(),
