@@ -36,6 +36,8 @@ export type HomeLayoutSettingsState = {
     grid3dCardStyle: 'image' | 'card';
     handleSetGrid3dCardStyle: (style: 'image' | 'card') => void;
     homeLayoutStyle: 'carousel' | 'grid';
+    /** The Folia group (aggregate playlists) in the home screen's first row of tabs. */
+    showHomeTabFolia: boolean;
     showHomeTabPlaylist: boolean;
     showHomeTabRadio: boolean;
     showHomeTabAlbums: boolean;
@@ -43,6 +45,7 @@ export type HomeLayoutSettingsState = {
     /** Shown only where the active platform has an explore page; this hides it there too. */
     showHomeTabExplore: boolean;
     handleSetHomeLayoutStyle: (style: 'carousel' | 'grid') => void;
+    handleToggleHomeTabFolia: (show: boolean) => void;
     handleToggleHomeTabPlaylist: (show: boolean) => void;
     handleToggleHomeTabRadio: (show: boolean) => void;
     handleToggleHomeTabAlbums: (show: boolean) => void;
@@ -67,6 +70,7 @@ export const useHomeLayoutSettingsStore = create<HomeLayoutSettingsState>((set, 
         });
     },
     homeLayoutStyle: readStoredHomeLayoutStyle(),
+    showHomeTabFolia: getStoredBoolean('show_home_tab_folia', true),
     showHomeTabPlaylist: getStoredBoolean('show_home_tab_playlist', true),
     showHomeTabRadio: getStoredBoolean('show_home_tab_radio', true),
     showHomeTabAlbums: getStoredBoolean('show_home_tab_albums', true),
@@ -81,6 +85,10 @@ export const useHomeLayoutSettingsStore = create<HomeLayoutSettingsState>((set, 
             type: 'info',
             text: i18n.t('notifications.homeLayoutGrid'),
         });
+    },
+    handleToggleHomeTabFolia: (show) => {
+        set({ showHomeTabFolia: show });
+        setStoredBoolean('show_home_tab_folia', show);
     },
     handleToggleHomeTabPlaylist: (show) => {
         set({ showHomeTabPlaylist: show });
@@ -114,12 +122,14 @@ export const selectHomeLayoutSettingsSnapshot = (state: HomeLayoutSettingsState)
     grid3dCardStyle: state.grid3dCardStyle,
     handleSetGrid3dCardStyle: state.handleSetGrid3dCardStyle,
     homeLayoutStyle: state.homeLayoutStyle,
+    showHomeTabFolia: state.showHomeTabFolia,
     showHomeTabPlaylist: state.showHomeTabPlaylist,
     showHomeTabRadio: state.showHomeTabRadio,
     showHomeTabAlbums: state.showHomeTabAlbums,
     showHomeTabLocal: state.showHomeTabLocal,
     showHomeTabExplore: state.showHomeTabExplore,
     handleSetHomeLayoutStyle: state.handleSetHomeLayoutStyle,
+    handleToggleHomeTabFolia: state.handleToggleHomeTabFolia,
     handleToggleHomeTabPlaylist: state.handleToggleHomeTabPlaylist,
     handleToggleHomeTabRadio: state.handleToggleHomeTabRadio,
     handleToggleHomeTabAlbums: state.handleToggleHomeTabAlbums,

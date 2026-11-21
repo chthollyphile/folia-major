@@ -1,5 +1,5 @@
 import type { PersonalFmLaunch } from '../../../types/personalFm';
-import type { HomeViewTab, LocalLibraryGroup, LocalSong, SongResult } from '../../../types';
+import type { HomeOnlineViewTab, HomeViewTab, LocalLibraryGroup, LocalSong, SongResult } from '../../../types';
 import type { MediaId, ProviderAccountSummary, ProviderCollection, ProviderUser } from '../../../types/onlineMusic';
 import type { NavidromeConfig, SubsonicAlbum, SubsonicArtist, SubsonicPlaylist, SubsonicSong } from '../../../types/navidrome';
 import type { LibraryCollectionDescriptor, NavidromeGridViewCollectionType } from '../collection/collection.contract';
@@ -10,10 +10,16 @@ import type { LibraryDirectoryNode, LibraryDirectorySelectionType, LibraryHidden
 // 首页卡片的视图模型、首页动作（导入、私人 FM、打开卡片）的控制器与端口。任何一套 suite 的首页都按这些类型
 // 拿数据，不依赖网格。只有类型。
 
-/** 首页一级页签（与应用的 HomeViewTab 同一套）。 */
+/**
+ * 首页的一页（与应用的 HomeViewTab 同一套）。首页是两级页签：一级是组（LibraryHomeGroupKey），二级是组里的页。
+ * 在线组有四页；Folia、本地、Navidrome 各只有一页（本地与 Navidrome 的二级页签是各自的 section，由它们的首页模型给）。
+ * 存下来的、命令面板与页签句柄用的都是「页」的 key，组由页推出（core/home/homeSources 的 homeGroupOfTab）。
+ */
 export type LibraryHomeTabKey = HomeViewTab;
 /** 在线来源的页签。探索（explore）是平台自己的推荐页：没有卡片列表，由 suite 自己画（网格挂 ExploreSurface）。 */
-export type LibraryHomeOnlineTab = 'playlist' | 'radio' | 'albums' | 'explore';
+export type LibraryHomeOnlineTab = HomeOnlineViewTab;
+/** 首页的一级组：Folia（聚合歌单）、当前在线音源、本地、Navidrome。模组的首页页面也在一级，由宿主另外交来（extraTabs）。 */
+export type LibraryHomeGroupKey = 'folia' | 'online' | 'local' | 'navidrome';
 
 /** 待翻译的文案：core 只给 i18n key 与插值，翻译在绑定 / 端口里做（fallback 是翻译为空时的兜底）。 */
 export type LibraryHomeMessage = {
@@ -34,6 +40,51 @@ export type LibraryHomeTabView = {
     key: LibraryHomeTabKey;
     label: string;
     disabledReason?: string;
+};
+
+/**
+ * 一个一级组（已翻译）。`tabs` 是组里的页，顺序同页签条；在线组的页就是它的二级页签，其余各组只有一页。
+ * 在线组的名字是当前在线音源的名字（清单里的列表名），一个音源都没启用时是一个通用的词。
+ */
+export type LibraryHomeGroupView = {
+    key: LibraryHomeGroupKey;
+    label: string;
+    /** 当前页在这个组里。 */
+    active: boolean;
+    tabs: LibraryHomeTabView[];
+    /**
+     * 点这个组去哪一页：组里记住的那一页（在线组是上次停的那一页）可用就是它，否则第一个可用的页。
+     * 一页都不可用时：在线组仍给第一页（组不禁用——切换音源的入口在它上面，那一页自己说明为什么不可用），其余为 null。
+     */
+    target: LibraryHomeTabKey | null;
+    /** 组整个不可用的原因（target 为 null 时）。 */
+    disabledReason?: string;
+};
+
+/** 在线组的音源切换器里的一行：已启用的在线音源（只用于匹配的、停用的不在）。 */
+export type LibraryHomeOnlineSwitcherOption = {
+    providerId: string;
+    /** 清单里的列表名。 */
+    label: string;
+    active: boolean;
+    /** 平台声明未配置：列出来但不能选。 */
+    disabled: boolean;
+    /** 账户状态的一句话（昵称 / 未登录 / 无需登录 / 未配置）。 */
+    detail: string;
+};
+
+/** 选一个音源的结局：切过去了；要先登录（suite 打开登录窗口，开在这个平台上）；没切成。 */
+export type LibraryHomeOnlineSwitchResult = 'switched' | 'login' | 'unavailable';
+
+/**
+ * 在线组的音源切换器（一级页签「当前在线音源」同时是它）：列表与当前项来自账户 controller，选择走 controller 的
+ * selectProvider——与登录窗口里换平台同一套逻辑，不另存状态。
+ */
+export type LibraryHomeOnlineSwitcher = {
+    /** 一个音源都没启用：组名是通用的词，界面引到「设置 → 音源」。 */
+    empty: boolean;
+    options: LibraryHomeOnlineSwitcherOption[];
+    select: (providerId: string) => Promise<LibraryHomeOnlineSwitchResult>;
 };
 
 /** 在线 provider 的账户视图（规则见 core/account/onlineProviderAccountView）。 */
@@ -321,12 +372,15 @@ export interface LibraryHomeListHandle {
 
 export type LibraryHomeTabsState = {
     active: LibraryHomeTabKey;
+    /** 全部的页（各组的页按页签条的顺序排成一排）。 */
     tabs: LibraryHomeTabView[];
+    /** 一级组（两级页签的首页给；列表形态、只按来源分组的 TUI 不给）。 */
+    groups?: LibraryHomeGroupView[];
 };
 
 export interface LibraryHomeTabsHandle {
     getState(): LibraryHomeTabsState;
-    /** 切页签（不存在或不可用时返回 false）。 */
+    /** 切到这一页（它所在的组随之成为当前组；不存在或不可用时返回 false）。 */
     setTab(tab: LibraryHomeTabKey): boolean;
     /**
      * 首页自己的 F6 / Shift+F6 页签循环（bravais），含宿主的扩展页签：从当前项（开着的扩展页签，没有就是原生的当前页签）

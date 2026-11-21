@@ -2,6 +2,8 @@ import type { TFunction } from 'i18next';
 import type { OmniProviderCapabilities, ProviderAccountSummary } from '../../../types/onlineMusic';
 import type {
     LibraryHomeActionsSnapshot,
+    LibraryHomeGroupKey,
+    LibraryHomeGroupView,
     LibraryHomeLocalAvailability,
     LibraryHomeMessage,
     LibraryHomeOnlineSource,
@@ -20,11 +22,18 @@ import { onlineHiddenScope } from '../directory/directoryVisibility';
 // 首页的来源与页签（纯规则，原样搬自 Grid3D）：当前在线 provider 的账户、歌单与能力；一级页签的列表、顺序与
 // 不可用原因（原先直接写在 Grid3D 的 JSX 里）；在线列表的加载态；本地导入的「忙」与扫描百分比。
 // 文案只给 i18n key（LibraryHomeMessage），由绑定翻译。
+// 首页是两级页签：一级是组（Folia、当前在线音源、本地、Navidrome），二级是组里的页。存下来的是「页」，组由页推出
+// （homeGroupOfTab）；resolveHomeTabs 给全部的页，resolveHomeGroups 把它们分进组、定每个组点了去哪一页。
 
 const ONLINE_TABS: readonly LibraryHomeOnlineTab[] = ['playlist', 'radio', 'albums', 'explore'];
 
 export const isOnlineHomeTab = (tab: LibraryHomeTabKey): tab is LibraryHomeOnlineTab => (
     (ONLINE_TABS as readonly string[]).includes(tab)
+);
+
+/** 这一页在哪个一级组里。 */
+export const homeGroupOfTab = (tab: LibraryHomeTabKey): LibraryHomeGroupKey => (
+    tab === 'folia' ? 'folia' : tab === 'local' ? 'local' : tab === 'navidrome' ? 'navidrome' : 'online'
 );
 
 /** 翻译一条首页文案；翻译为空时用 fallback。 */
@@ -88,6 +97,8 @@ export const resolveLocalUnavailableReason = (availability: LibraryHomeLocalAvai
 
 /** 首页设置里各页签的显示开关（Navidrome 由是否启用决定）。 */
 export type LibraryHomeTabVisibility = {
+    /** Folia 组（聚合歌单）。 */
+    folia: boolean;
     playlist: boolean;
     radio: boolean;
     explore: boolean;
@@ -96,7 +107,8 @@ export type LibraryHomeTabVisibility = {
 };
 
 /**
- * 一级页签：顺序是 歌单、电台、探索、专辑、本地、Navidrome；隐藏的页签不出现，不可用的带原因。
+ * 全部的页：顺序是 Folia、歌单、电台、探索、专辑、本地、Navidrome（组的顺序是 Folia、在线、本地、Navidrome，
+ * 在线组里四页的顺序照旧）；隐藏的页不出现，不可用的带原因。
  * 探索只在平台有推荐页时出现（没有时不是「不可用」，是没有这一页）。
  */
 export const resolveHomeTabs = ({
@@ -110,6 +122,7 @@ export const resolveHomeTabs = ({
     online: Pick<LibraryHomeOnlineSource, 'providerLabel' | 'canUsePlaylists' | 'canUseAlbums' | 'canUseRadio' | 'canUseExplore'>;
     localAvailability: LibraryHomeLocalAvailability;
 }): LibraryHomeTab[] => [
+    ...(visibility.folia ? [{ key: 'folia' as const, label: { key: 'home.foliaTab', fallback: 'Folia' } }] : []),
     ...(visibility.playlist ? [{ key: 'playlist' as const, label: { key: 'home.playlists' }, disabledReason: resolveOnlineTabUnavailableReason(online, 'playlist') }] : []),
     ...(visibility.radio ? [{ key: 'radio' as const, label: { key: 'home.radioTab' }, disabledReason: resolveOnlineTabUnavailableReason(online, 'radio') }] : []),
     ...(visibility.explore && online.canUseExplore ? [{ key: 'explore' as const, label: { key: 'home.explore' } }] : []),
@@ -193,6 +206,8 @@ export const resolveHomeDirectoryKey = ({
     localSection: string;
     navidromeSection: string;
 }): string => {
+    // Folia 组还没有列表（聚合歌单的页面在后面一步）：先给它一个自己的 key，不和别的列表共用筛选与批选。
+    if (tab === 'folia') return 'home:folia';
     if (tab === 'local') return directoryKey({ source: 'local', section: localSection });
     if (tab === 'navidrome') return directoryKey({ source: 'navidrome', section: navidromeSection });
     return directoryKey({ source: 'online', providerId, section: tab === 'playlist' ? 'playlists' : tab });
@@ -200,9 +215,46 @@ export const resolveHomeDirectoryKey = ({
 
 /** 首页当前列表的隐藏作用域：在线按 provider，本地与 Navidrome 各一个。 */
 export const resolveHomeHiddenScope = (tab: LibraryHomeTabKey, providerId: string): LibraryHiddenScope => (
-    tab === 'local' ? 'local' : tab === 'navidrome' ? 'navidrome' : onlineHiddenScope(providerId)
+    tab === 'local' ? 'local' : tab === 'navidrome' ? 'navidrome' : tab === 'folia' ? 'default' : onlineHiddenScope(providerId)
 );
 
+const GROUP_ORDER: readonly LibraryHomeGroupKey[] = ['folia', 'online', 'local', 'navidrome'];
+
+/**
+ * 把全部的页分进一级组（两级页签的首页——网格与 Bravais——按它画一级那一排）。一页都没有的组不出现。
+ * - 在线组的名字是 onlineLabel（当前在线音源的列表名；一个音源都没启用时调用方给通用的词），其余组用自己那一页的名字。
+ * - target：组里记住的那一页可用就是它（在线组是 rememberedOnlineTab，当前页在这个组里时就是当前页），否则第一个可用的。
+ *   在线组一页都不可用时仍给第一页、不带 disabledReason：切换音源的入口在这个组上，不能跟着禁用。
+ */
+export const resolveHomeGroups = ({
+    tabs,
+    active,
+    onlineLabel,
+    rememberedOnlineTab,
+}: {
+    tabs: readonly LibraryHomeTabView[];
+    active: LibraryHomeTabKey;
+    onlineLabel: string;
+    rememberedOnlineTab: LibraryHomeOnlineTab;
+}): LibraryHomeGroupView[] => {
+    const activeGroup = homeGroupOfTab(active);
+    return GROUP_ORDER.flatMap((key): LibraryHomeGroupView[] => {
+        const members = tabs.filter(tab => homeGroupOfTab(tab.key) === key);
+        if (members.length === 0) return [];
+        const usable = (candidate: LibraryHomeTabKey) => members.find(tab => tab.key === candidate && !tab.disabledReason);
+        const remembered = key === 'online' ? rememberedOnlineTab : members[0].key;
+        const enabled = (activeGroup === key ? usable(active) : undefined) ?? usable(remembered) ?? members.find(tab => !tab.disabledReason);
+        const target = enabled?.key ?? (key === 'online' ? members[0].key : null);
+        return [{
+            key,
+            label: key === 'online' ? onlineLabel : members[0].label,
+            active: activeGroup === key,
+            tabs: [...members],
+            target,
+            ...(target === null ? { disabledReason: members[0].disabledReason } : {}),
+        }];
+    });
+};
 /** 首页的一个来源：在线（歌单 / 电台 / 探索 / 专辑）、本地、Navidrome。 */
 export type LibraryHomeSourceGroup = {
     source: 'online' | 'local' | 'navidrome';
