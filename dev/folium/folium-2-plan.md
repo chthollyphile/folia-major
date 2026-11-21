@@ -336,7 +336,7 @@ packages/folium-source-kit/   纯 TS 的共用函数（exploreReads、listeningR
   - `extraResources`、app.asar 的排除规则、原生件与伴侣程序不写在 `package.json` 里，由 `build.extends` 指向的 `build/bundledSources.mjs` 按 `FOLIA_BUNDLED_SOURCES` 算（排除规则来自 `dev/sources/packaging.mjs`）。只在 Windows x64 上打包冒烟过；macOS、Linux 由 Cielo 的 CI 构建通过，安装后的行为没验证。
   - 受信表九行都留，不随 `FOLIA_BUNDLED_SOURCES` 减：外部模组接管时要拿它核对旧登录。「安装包里没有它的任何名字」做不到（受信表、注册顺序、原生件名、旧键迁移表、语言包里的版本说明都有平台名），代码和上游库做到了不带。
   - 64 MB / 96 MB 的上限落在 `zipInstall.cjs` 和 `modDigest.cjs`，对所有 .zip 安装生效，不只是官方签名的覆盖包：安装流程在验签之前分不出来。
-  - `npm run sources:pack <id>` 还没有，做不做、何时做待维护者定。
+  - `npm run sources:pack <id>` 还没有；维护者 2026-11-21 定要做，在收尾补项里（§14）。
   - ytm 的 vendor 文件带内容指纹（`vendor.<指纹>.mjs`）；打进 bundle 的包里音源没声明的可选依赖一律当没装。
 - 原生件随应用走，覆盖副本用 `folia` 版本范围锁住宿主。
 - 开发：`dev:electron` 同时以 watch 方式跑 `dev/sources/build.mjs`；改了文件 → 产物指纹变 → 现成的 client 重载机制只重载那一个。
@@ -398,7 +398,7 @@ packages/folium-source-kit/   纯 TS 的共用函数（exploreReads、listeningR
 
 ## 9. Folium 1 兼容
 
-- `folium: 1` 的模组照旧加载，接口冻结在 1.9，internals 和旧名字照旧标废弃；`deprecated/` 里「Folium 2 删除」的那份清单改期到以后的 major。main 在 `edge` 切出之后又发了 Folium 1.10（2026-11-18，`folium.theme`），冻结线跟不跟到 1.10 待维护者定（§10「main 到 `edge` 的同步」）；2026-11-20 同步 main 时代码里先按 1.10 写了（`foliumOneVersion`），维护者定了别的再改。
+- `folium: 1` 的模组照旧加载，接口冻结在 1.9，internals 和旧名字照旧标废弃；`deprecated/` 里「Folium 2 删除」的那份清单改期到以后的 major。main 在 `edge` 切出之后又发了 Folium 1.10（2026-11-18，`folium.theme`），冻结线随之定在 1.10（2026-11-21，§10「main 到 `edge` 的同步」；代码里是 `foliumOneVersion`），上面的「1.9」按 1.10 读。
 - 实验接口 `omni.providers` 改成新注册表上的一层薄壳，行为不变；文档里指向 `folium.sources`。
 - `mods/README.md` 改写成 Folium 2 规范，去掉「2.0 前不要做完整音源模组」那段；新增 `docs/folium/sources.md`（开发指南、能力一览、旧简化音源的迁移）。`docs/folium/sources.md` 已有（S8）；`src/mods/README.md` 只做了定点修改，整篇改写等冻结线定。
 - 示范模组：`dev/folium/sample-source-full`（覆盖每个能力族的契约测试音源）、`dev/folium/sample-video-source`（`playback.surface`）。
@@ -418,7 +418,7 @@ S0–S4 与试点平台（bodian）在集成分支 `folium-2`（从 main 切，�
 - **main 到 `edge` 的同步**：定期把 main 上的改动同步进 `edge`，由维护者手动触发，不自动做。
   - 2026-11-18 的情况：`edge` 切出四天，落后 main 147 个提交（含 0.7.29）。试合并有 15 个文件冲突：6 个是 Folium 接口文件（`src/mods/folium/contract.ts`、`src/mods/folium/api.ts`、`mods/folium.d.ts`、`docs/folium/api.md`、`electron/modSystem/foliumShared.json`、一个模组测试），4 个是语言包，3 个是 Dedicatus 的登记表，另有 `searchCommands.ts` 和 `vite-env.d.ts`。同一段时间平台目录只动了 5 个文件。
   - 冲突集中在接口文件上，是因为 main 上接口还在加（Folium 1.10），而下面的冻结清单只管平台文件。建议 main 上每次动过 `src/mods/folium/`、`electron/modSystem/`、`mods/folium.d.ts` 就同步一次，不等到每周。
-  - **待维护者定**：Folium 1.10 怎么进 2.0。一种是冻结线挪到 1.10（`folium: 1` 的模组在 2.0 宿主上读到 1.10）；另一种是接口合进 main 之前，main 上不再加 1.x 的接口。
+  - Folium 1.10 怎么进 2.0：冻结线挪到 1.10（`folium: 1` 的模组在 2.0 宿主上读到 1.10）。2026-11-21 维护者把这件交给编排会话定；定 1.10 是因为 `folium.theme` 已经随 main 发布，退回 1.9 要把它从 2.0 宿主里拿掉。
 
 **合并纪律**：搬目录的提交只做 `git mv`、单独成组；平台文件正文尽量不动，只改接缝；每周把 main 合进来一次（`merge.renameLimit` 调大，`-X find-renames=30%`）。期间 main 上冻结：`src/types/onlineMusic.ts` 的签名、`providerRegistry.ts`、`main.cjs` 的平台块、`preload.cjs` 的平台通道、平台目录的增删文件；平台内部修 bug 照常。这份清单只管平台文件，接口文件见上面「main 到 `edge` 的同步」。
 
@@ -568,11 +568,28 @@ Windows 以外的系统、Apple Music 的 DRM、Spotify Soloist 以对应系统�
 - QQ 后端监听所有网卡（上游 `app.listen(PORT)` 不带 host，迁移前就这样）。
 - `src/mods/README.md` 整篇改写成 Folium 2 规范。
 
+**2026-11-21 定下来的**
+
+维护者定的：
+
+- `npm run sources:pack` 做好。
+- 「安装音源模组」入口加在登录窗口里，跳到音源安装的入口。
+- 设计变化：Folium 2 起模组系统默认开启；默认只能安装内置（官方签名的）音源模组，另有一个开关打开后才能安装社区模组。
+- 网易云临时目录的两个文件，「清除数据」不删，保持现状。
+- QQ 后端监听所有网卡，暂不处理。
+- PR #1177 里承诺的洛雪接入一并做。编排会话定的做法：不照 PR 的内置 provider 方式合，做成 `sources/lxmusic/` 下的音源模组；第三方脚本隔离运行、默认不接管别家的歌、不随应用带脚本、默认停用。
+- Navidrome 暂不迁成 Folium 音源，只在音源选择页面给出说明和跳转设置的按钮。
+
+维护者交给编排会话定的：
+
+- `folium: 1` 的冻结线定在 1.10（§9、§10）。
+- 「设置 → 音源」每行的占用、飞牛的自签证书进清单与启用确认、`src/mods/README.md` 改写，都在合进 main 之前补。
+- 社区模组开关的细节：关着时非官方模组既不能装也不加载（列表里标明要打开开关）；升级前总开关明确开着的 profile，升级后社区开关视为开；总开关明确关过的保持关。
+- 去掉音源接口的「预览」标记（`foliumShared.json` 的 `sourcesPreview`）：等上面的补项合进 `edge` 之后做。去掉之后 D513 开始按「只加不改」查 `mods/folium.d.ts` 的 Sources、Source main API 两节。
+
 **待维护者定**
 
-1. 去掉音源接口的「预览」标记（`foliumShared.json` 的 `sourcesPreview`）。去掉之后 D513 开始按「只加不改」查 `mods/folium.d.ts` 的 Sources、Source main API 两节，宿主版本号应随之升一档。
-2. `folium: 1` 的冻结线是 1.9 还是 1.10（§9；代码里现在是 1.10）。
-3. 上面「没做的」里哪些要在合进 main 之前补。
-4. `edge` 合进 main 的时机；在那之前 main → `edge` 的同步（2026-11-20 时 main 比 `edge` 多 3 个提交）。
+1. 要不要再发一版 Cielo（线上那版是 `7da6f50cd`，不含之后的修复和补项）。
+2. `edge` 合进 main 的时机；在那之前 main → `edge` 的同步（2026-11-20 时 main 比 `edge` 多 3 个提交）。
 
 **要真实账号、真机验的**：九家登录后的路径、Apple Music 与 Spotify 的真实播放和窗口交接、各家「清除数据」的原生确认框、确认覆盖的对话框、0.7.x profile 升级再降级、macOS 与 Linux 的安装包，都还只有单测、替身或 Windows 上的冒烟。
