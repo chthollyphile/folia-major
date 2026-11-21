@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ModRuntimeInfo, ModSourceStateRow } from '@/mods/types';
-import { buildSourceNotices, buildSourceRows, manifestSourceName } from '@/components/modal/settings/pages/sources/sourcesModel';
+import { buildSourceNotices, buildSourceRows, manifestSourceName, shownSourceUsage } from '@/components/modal/settings/pages/sources/sourcesModel';
 
 // test/unit/settings/sourcesModel.test.ts
 // "Settings → Sources" (Folium 2.0 plan §5.3): the rows it draws from the main process's source states and the mod
@@ -165,5 +165,22 @@ describe('sourcesModel · takeover and override notes', () => {
             ['shadowed', 'kugou', null, 'Alt KuGou', null],
             ['bundled-source-missing', 'lost', 'qq', null, null],
         ]);
+    });
+});
+
+describe('the disk use a row shows', () => {
+    it('shows a measure that keeps something', () => {
+        expect(shownSourceUsage({ ok: true, data: 10, cache: 0 })).toEqual({ data: 10, cache: 0 });
+        expect(shownSourceUsage({ ok: true, data: 0, cache: 5 })).toEqual({ data: 0, cache: 5 });
+    });
+
+    it('shows nothing, never 0, for an answer that is not a measure or keeps nothing', () => {
+        expect(shownSourceUsage(undefined)).toBeNull();
+        expect(shownSourceUsage({ ok: false, error: 'source-usage-failed' })).toBeNull();
+        expect(shownSourceUsage({ ok: false, error: 'no-electron-bridge' })).toBeNull();
+        expect(shownSourceUsage({ ok: true })).toBeNull();
+        expect(shownSourceUsage({ ok: true, data: 3 })).toBeNull();
+        expect(shownSourceUsage({ ok: true, data: Number.NaN, cache: 1 })).toBeNull();
+        expect(shownSourceUsage({ ok: true, data: 0, cache: 0 })).toBeNull();
     });
 });

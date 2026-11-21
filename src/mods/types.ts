@@ -132,6 +132,19 @@ export interface ModSourceDataResult {
     pageStorePrefixes?: string[];
 }
 
+/**
+ * Folium 2.0: how much one source keeps on disk (folia-mods:source-usage), in bytes, for its row in "Settings →
+ * Sources". Counted from what its "clear data" removes: `data` is its mod data folder, the userData folders and old
+ * store keys its row or claims name, and its on-disk partitions less Chromium's caches; `cache` is its mod cache
+ * folder, its old folders under the media cache folder and those caches. Not ok when a folder could not be read.
+ */
+export interface ModSourceUsageResult {
+    ok: boolean;
+    error?: string;
+    data?: number;
+    cache?: number;
+}
+
 export interface ModClearSourceDataResult {
     ok: boolean;
     error?: string;

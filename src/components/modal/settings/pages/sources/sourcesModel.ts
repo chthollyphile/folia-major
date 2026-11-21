@@ -1,4 +1,4 @@
-import type { ModRuntimeInfo, ModSourceState, ModSourceStateRow, ModTier } from '../../../../../mods/types';
+import type { ModRuntimeInfo, ModSourceState, ModSourceStateRow, ModSourceUsageResult, ModTier } from '../../../../../mods/types';
 
 // src/components/modal/settings/pages/sources/sourcesModel.ts
 // What "Settings → Sources" (Folium 2.0 plan §5.3) shows, worked out from the main process's source states and the
@@ -228,4 +228,17 @@ export const buildSourceNotices = (mods: readonly ModRuntimeInfo[]): SourceNotic
     });
 
     return notices;
+};
+
+/*
+ * The disk use a row shows, or null for none: not measured yet, not measurable (the main process could not read a
+ * folder, or the page has no bridge), or nothing kept at all. An answer that is not a measure is never shown as 0.
+ */
+export const shownSourceUsage = (usage: ModSourceUsageResult | undefined): { data: number; cache: number } | null => {
+    if (!usage?.ok) return null;
+    const data = usage.data;
+    const cache = usage.cache;
+    if (typeof data !== 'number' || typeof cache !== 'number' || !Number.isFinite(data) || !Number.isFinite(cache)) return null;
+    if (data < 0 || cache < 0 || data + cache === 0) return null;
+    return { data, cache };
 };

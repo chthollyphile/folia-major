@@ -2,6 +2,7 @@ import type {
     ModClearCacheResult,
     ModClearSourceDataResult,
     ModSourceDataResult,
+    ModSourceUsageResult,
     ModSourceState,
     ModSourceStatesPayload,
     ModFfmpegStatus,
@@ -286,6 +287,11 @@ export const invokeAnswerSourcesOnboarding = async (
 /** What "clear data" of a source would remove. */
 export const describeSourceData = async (sourceId: string): Promise<ModSourceDataResult> => (
     await bridge()?.describeSourceData?.(sourceId) ?? { ok: false, error: 'no-electron-bridge' }
+);
+
+/** How much one source keeps on disk (data and cache), measured in the main process. */
+export const getSourceStorageUsage = async (sourceId: string): Promise<ModSourceUsageResult> => (
+    await bridge()?.getSourceStorageUsage?.(sourceId) ?? { ok: false, error: 'no-electron-bridge' }
 );
 
 /** The main process's half of "clear data"; the window's own storage is runtime/sourceSwitches.ts's. */

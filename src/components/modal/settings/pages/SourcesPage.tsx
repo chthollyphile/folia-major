@@ -7,10 +7,10 @@ import { openSettings } from '../../../../stores/useSettingsModalStore';
 import { formatByteSize } from '../../../../utils/formatByteSize';
 import { PlatformMark } from '../../../login/PlatformMark';
 import { Button, Group, Row, option, type SettingsGroupDef, type SettingsOptionDef } from '../kit';
-import { manifestSourceName, type SourceNotice, type SourceRowModel } from './sources/sourcesModel';
+import { manifestSourceName, shownSourceUsage, type SourceNotice, type SourceRowModel } from './sources/sourcesModel';
 import { SourceStateDots } from './sources/SourceStateDots';
 import { useSourcesSettings } from './sources/useSourcesSettings';
-import type { ModStorageUsageResult } from '../../../../mods/types';
+import type { ModSourceUsageResult } from '../../../../mods/types';
 
 // src/components/modal/settings/pages/SourcesPage.tsx
 // The 音源 page (desktop app only, Folium 2.0 plan §5.3): every online source with its state — enabled, used only
@@ -53,12 +53,11 @@ const runText = (t: (key: string, options?: Record<string, unknown>) => string, 
     return t(`sourcesSettings.run_${row.run}`);
 };
 
-// What it keeps on disk, once it keeps anything.
-const usageText = (t: (key: string, options?: Record<string, unknown>) => string, usage: ModStorageUsageResult | undefined): string | null => (
-    usage?.ok && ((usage.data ?? 0) + (usage.cache ?? 0)) > 0
-        ? t('sourcesSettings.usage', { data: formatByteSize(usage.data ?? 0), cache: formatByteSize(usage.cache ?? 0) })
-        : null
-);
+// What it keeps on disk, once it was measured and keeps anything (shownSourceUsage).
+const usageText = (t: (key: string, options?: Record<string, unknown>) => string, usage: ModSourceUsageResult | undefined): string | null => {
+    const shown = shownSourceUsage(usage);
+    return shown ? t('sourcesSettings.usage', { data: formatByteSize(shown.data), cache: formatByteSize(shown.cache) }) : null;
+};
 
 const SourcesPage: React.FC = () => {
     const { t, i18n } = useTranslation();
@@ -98,7 +97,7 @@ const SourcesPage: React.FC = () => {
                     const hint = [
                         row.takeover ? t('sourcesSettings.tierTakeover') : row.tier === 'builtin' ? null : t(TIER_KEYS[row.tier]),
                         runText(t, row),
-                        row.modId ? usageText(t, usage[row.modId]) : null,
+                        row.modId ? usageText(t, usage[row.sourceId]) : null,
                     ].filter(Boolean).join(' · ');
                     const notes = row.tier === 'host' ? t('sourcesSettings.hostNote') : '';
                     return (

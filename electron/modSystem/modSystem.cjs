@@ -55,6 +55,7 @@ const {
 const { computeModDigest, shortDigest } = require('./modDigest.cjs');
 const { verifyModSignature } = require('./modSignature.cjs');
 const { clearDirectoryContents, isBrokenDirectory, measureDirectoryBytes, resolveModStorageDirs } = require('./modFiles.cjs');
+const { measureSourceUsage } = require('./sourceUsage.cjs');
 const { createFileGrantStore } = require('./fileGrants.cjs');
 const { resolveFfmpeg, MODS_RUNTIME_DIR } = require('../ffmpeg.cjs');
 const { createExportService } = require('./exportService.cjs');
@@ -338,6 +339,10 @@ const createModSystem = ({
         netFetch: (url, init) => electron.net.fetch(url, init),
         netRequest: (options) => electron.net.request(options),
         sessionFromPartition: (partition) => electron.session.fromPartition(partition),
+        // The folder a `persist:` partition keeps on disk (null for one kept in memory), for a source's disk use.
+        partitionStoragePath: (partition) => (String(partition).startsWith('persist:')
+            ? electron.session.fromPartition(partition).storagePath ?? null
+            : null),
         defaultSession: () => electron.session.defaultSession,
         // The host's opener with its protocol allowlist (main.cjs openExternalUrl, D609); none without one.
         openExternal: typeof openExternal === 'function' ? openExternal : async () => false,
@@ -1255,6 +1260,29 @@ ${partition}`;
     };
 
     /*
+     * How much one source keeps on disk, for its row in "Settings → Sources" (plan §5.3): what its "clear data"
+     * removes (describeSourceData), as `{ data, cache }` bytes (sourceUsage.cjs). Asked by the page after it drew its
+     * rows; a folder that cannot be read answers 'source-usage-failed', which the page shows as nothing.
+     */
+    const getSourceStorageUsage = async (sourceId) => {
+        const described = describeSourceData(sourceId);
+        if (!described.ok) {
+            return described;
+        }
+        try {
+            const { data, cache } = await measureSourceUsage({
+                described,
+                store: sourceHost.store,
+                partitionStoragePath: sourceHost.partitionStoragePath,
+            });
+            return { ok: true, data, cache };
+        } catch (error) {
+            console.warn(`[Mods] the disk use of source ${sourceId} could not be measured`, error);
+            return { ok: false, error: 'source-usage-failed' };
+        }
+    };
+
+    /*
      * "Clear data" of one source (plan §5.3): its mod stops (its onBeforeUnload is awaited), the old store keys,
      * partitions and userData folders its row or claims name go, and so do its secrets and its mod data and
      * cache folders; then it starts again as it was switched, signed out. A source the host still registers
@@ -1608,6 +1636,7 @@ ${partition}`;
         handle(IPC.setSourceState, (_event, sourceId, state) => setSourceState(sourceId, state));
         handle(IPC.answerSourcesOnboarding, (_event, choices) => answerSourcesOnboarding(choices));
         handle(IPC.sourceData, (_event, sourceId) => describeSourceData(sourceId));
+        handle(IPC.sourceUsage, (_event, sourceId) => getSourceStorageUsage(sourceId));
         handle(IPC.clearSourceData, (_event, sourceId) => clearSourceData(sourceId));
         handle(IPC.confirmOverride, (_event, modId) => confirmModOverride(modId));
         handle(IPC.assignSourceClaim, (_event, shortId, modId) => assignSourceClaim(shortId, modId));
@@ -1847,6 +1876,7 @@ ${partition}`;
         answerSourcesOnboarding,
         listSourceStates,
         describeSourceData,
+        getSourceStorageUsage,
         clearSourceData,
         confirmModOverride,
         assignSourceClaim,

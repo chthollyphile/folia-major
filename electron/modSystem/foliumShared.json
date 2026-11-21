@@ -106,6 +106,7 @@
         "setSourceState": "folia-mods:set-source-state",
         "answerSourcesOnboarding": "folia-mods:answer-sources-onboarding",
         "sourceData": "folia-mods:source-data",
+        "sourceUsage": "folia-mods:source-usage",
         "clearSourceData": "folia-mods:clear-source-data",
         "confirmOverride": "folia-mods:confirm-override",
         "assignSourceClaim": "folia-mods:assign-source-claim",

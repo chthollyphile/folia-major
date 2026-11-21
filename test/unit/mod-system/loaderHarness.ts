@@ -37,6 +37,8 @@ const stubModule = (name: string, exports: unknown) => {
 
 const fakeSession = (partition: string) => ({
     partition,
+    // As Electron answers it: a `persist:` partition's folder under <userData>/Partitions, none for one in memory.
+    storagePath: partition.startsWith('persist:') && current ? path.join(current.userData, 'Partitions', partition.slice('persist:'.length)) : null,
     fetch: async (url: string) => {
         electronCalls.push(['session.fetch', partition, url]);
         return new Response(`from ${partition}`);
@@ -132,6 +134,7 @@ export interface ModSystem {
     setSourceState: (sourceId: string, state: string) => Promise<{ ok: boolean; error?: string; states?: Record<string, string> }>;
     listSourceStates: () => { states: Record<string, string>; sources: Array<{ sourceId: string; modId: string | null; mainState: string }> };
     describeSourceData: (sourceId: string) => Record<string, unknown> & { ok: boolean };
+    getSourceStorageUsage: (sourceId: string) => Promise<{ ok: boolean; error?: string; data?: number; cache?: number }>;
     clearSourceData: (sourceId: string) => Promise<{ ok: boolean; error?: string; pageStorePrefixes?: string[] }>;
     confirmModOverride: (modId: string) => Promise<{ ok: boolean; error?: string }>;
     assignSourceClaim: (shortId: string, modId: string) => Promise<{ ok: boolean; error?: string }>;

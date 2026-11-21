@@ -55,6 +55,7 @@ describe('the copies of what foliumShared.json holds', () => {
         setSourceState: 'setSourceState',
         answerSourcesOnboarding: 'answerSourcesOnboarding',
         describeSourceData: 'sourceData',
+        getSourceStorageUsage: 'sourceUsage',
         clearSourceData: 'clearSourceData',
         confirmModOverride: 'confirmOverride',
         assignSourceClaim: 'assignSourceClaim',
