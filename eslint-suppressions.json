@@ -875,11 +875,6 @@
       "count": 8
     }
   },
-  "electron/kugou/kugouApiBridge.cjs": {
-    "@stylistic/indent": {
-      "count": 373
-    }
-  },
   "electron/linuxPasswordStore.cjs": {
     "@stylistic/indent": {
       "count": 20
@@ -9648,7 +9643,7 @@
       "count": 2
     },
     "@typescript-eslint/no-unsafe-member-access": {
-      "count": 72
+      "count": 71
     },
     "@typescript-eslint/no-unsafe-return": {
       "count": 3

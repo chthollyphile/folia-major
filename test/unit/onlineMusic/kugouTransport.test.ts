@@ -22,6 +22,18 @@ describe('KuGou Web transport', () => {
         vi.unstubAllEnvs();
     });
 
+    it('reports VIP session eligibility for Web and Electron', async () => {
+        const { hasKugouVipSession } = await import('@/services/onlineMusic/kugou/kugouTransport');
+        vi.stubGlobal('window', undefined);
+        expect(hasKugouVipSession()).toBe(false);
+        storage.set('online_provider:kugou:cookie', 'userid=9; vip_token=secret');
+        expect(hasKugouVipSession()).toBe(true);
+        vi.stubGlobal('window', { electron: { kugouRequest: vi.fn() } });
+        expect(hasKugouVipSession()).toBe(false);
+        storage.set('online_provider:kugou:userid', '9');
+        expect(hasKugouVipSession()).toBe(true);
+    });
+
     it('prefers Electron IPC without copying credentials into renderer storage', async () => {
         storage.set('online_provider:kugou:cookie', 'token=legacy;userid=7;dfid=legacy-device');
         storage.set('online_provider:kugou:token', 'legacy');
