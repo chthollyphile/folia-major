@@ -164,54 +164,54 @@ const NowPlayingToast: React.FC<NowPlayingToastProps> = ({
 
     return (
         <>
-        <AnimatePresence>
-            {visible && (
-                <motion.div
-                    ref={setFrameRef}
-                    onUpdate={invalidateLayout}
-                    initial={{ opacity: 0, x: isPositioning ? 0 : enterX }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -16 }}
-                    // 从胶囊左端滑回来那一下和挂件的平移同一条曲线、同一个时长（bottomDock.css 的 --dock-ease、480ms）。
-                    transition={enterX === CARD_ENTER_X
-                        ? { duration: 0.35, ease: 'easeOut' }
-                        : { duration: 0.48, ease: [0.32, 0.72, 0, 1] }}
-                    // 底边跟右下角面板开关按钮和中间的进度条胶囊落在同一条基线上，
-                    // 由共享 MotionValue 直接驱动 bottom（默认 32，即原来的 bottom-8）。
-                    style={position.style}
-                    data-now-playing-card=""
-                    className={`pointer-events-none fixed w-max max-w-[calc(100vw-48px)] ${isPositioning ? 'z-[65]' : 'z-40'}`}
-                >
-                    {/* 让位层：960–1119 px 之间胶囊展开会碰到卡片，卡片按 <html data-capsule> 淡出（bottomDock.css）。
-                        单独一层、不归 framer 管：framer 每帧写的 opacity 不能再被 CSS 过渡拖慢。 */}
-                    <div
-                        data-card-yield={isPositioning ? 'off' : ''}
-                        className="relative"
-                        // 让位的淡出带一点位移，走完请 player.layout 量一次（CSS 过渡不触发它自己的测量）。
-                        onTransitionEnd={invalidateLayout}
+            <AnimatePresence>
+                {visible && (
+                    <motion.div
+                        ref={setFrameRef}
+                        onUpdate={invalidateLayout}
+                        initial={{ opacity: 0, x: isPositioning ? 0 : enterX }}
+                        animate={{ opacity: 1, x: 0 }}
+                        exit={{ opacity: 0, x: -16 }}
+                        // 从胶囊左端滑回来那一下和挂件的平移同一条曲线、同一个时长（bottomDock.css 的 --dock-ease、480ms）。
+                        transition={enterX === CARD_ENTER_X
+                            ? { duration: 0.35, ease: 'easeOut' }
+                            : { duration: 0.48, ease: [0.32, 0.72, 0, 1] }}
+                        // 底边跟右下角面板开关按钮和中间的进度条胶囊落在同一条基线上，
+                        // 由共享 MotionValue 直接驱动 bottom（默认 32，即原来的 bottom-8）。
+                        style={position.style}
+                        data-now-playing-card=""
+                        className={`pointer-events-none fixed w-max max-w-[calc(100vw-48px)] ${isPositioning || position.dragArmed ? 'z-[65]' : 'z-40'}`}
                     >
-                    {/* 描边排在卡片前面：卡片自己是 relative，绘制顺序上压在描边上头，所以
+                        {/* 让位层：960–1119 px 之间胶囊展开会碰到卡片，卡片按 <html data-capsule> 淡出（bottomDock.css）。
+                        单独一层、不归 framer 管：framer 每帧写的 opacity 不能再被 CSS 过渡拖慢。 */}
+                        <div
+                            data-card-yield={isPositioning ? 'off' : ''}
+                            className="relative"
+                            // 让位的淡出带一点位移，走完请 player.layout 量一次（CSS 过渡不触发它自己的测量）。
+                            onTransitionEnd={invalidateLayout}
+                        >
+                            {/* 描边排在卡片前面：卡片自己是 relative，绘制顺序上压在描边上头，所以
                         描边内侧那一半被卡片背景盖住，露在外面的是外侧 + 辉光。
                         AnimatePresence 在这儿单独开一层，混音结束时描边自己淡出，不用等卡片；
                         Suspense 套在外面而不是里面，否则 chunk 还没到时它会顶掉 AnimatePresence
                         的直接子节点，退场就丢了。 */}
-                    <Suspense fallback={null}>
-                        <AnimatePresence>
-                            {transitionCue && cardSize.width > 0 && (
-                                <NowPlayingToastTransitionBorder
-                                    key="transition-border"
-                                    cue={transitionCue.cue}
-                                    startAtMs={transitionCue.startAtMs}
-                                    cardWidth={cardSize.width}
-                                    cardHeight={cardSize.height}
-                                    cardRadius={cardSize.height / 2}
-                                    isDaylight={isDaylight}
-                                    theme={theme}
-                                />
-                            )}
-                        </AnimatePresence>
-                    </Suspense>
-                    {/* Toast 卡片（playing-toast 样式）。
+                            <Suspense fallback={null}>
+                                <AnimatePresence>
+                                    {transitionCue && cardSize.width > 0 && (
+                                        <NowPlayingToastTransitionBorder
+                                            key="transition-border"
+                                            cue={transitionCue.cue}
+                                            startAtMs={transitionCue.startAtMs}
+                                            cardWidth={cardSize.width}
+                                            cardHeight={cardSize.height}
+                                            cardRadius={cardSize.height / 2}
+                                            isDaylight={isDaylight}
+                                            theme={theme}
+                                        />
+                                    )}
+                                </AnimatePresence>
+                            </Suspense>
+                            {/* Toast 卡片（playing-toast 样式）。
 
                         没有 key，所以卡片在场期间不会因为换内容重挂：正在播放 → 预告下一首 →
                         那首真的播起来，是一条连续的事，中间不该滑出再滑进来。内容就地换掉，宽度
@@ -222,42 +222,42 @@ const NowPlayingToast: React.FC<NowPlayingToastProps> = ({
 
                         给了 onActivate 就渲染成真的 button：键盘和焦点环白送，而且外层那层
                         pointer-events-none 只在这一个元素上翻回来——描边和扫光都还是不吃鼠标的。 */}
-                    <motion.button
-                        onUpdate={invalidateLayout}
-                        onLayoutAnimationComplete={invalidateLayout}
-                        data-toast-card=""
-                        type="button"
-                        layout="size"
-                        onClick={isPositioning ? event => event.preventDefault() : onActivate}
-                        {...(isPositioning ? position.handlers : {})}
-                        disabled={!onActivate && !isPositioning}
-                        aria-label={isPositioning ? t('options.stageTrackPillReposition') : onActivate ? activateLabel : undefined}
-                        style={isPositioning ? { touchAction: 'none', outline: '2px solid currentColor', outlineOffset: 3 } : undefined}
-                        initial={{ opacity: 0, x: isPositioning ? 0 : -24 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        whileTap={onActivate && !isPositioning ? { opacity: 0.85 } : undefined}
-                        transition={{ duration: 0.35, ease: 'easeOut' }}
-                        className={`relative flex min-w-[min(240px,calc(100vw-48px))] max-w-[calc(100vw-48px)] items-center gap-3 overflow-hidden rounded-full border p-2 pr-5 text-left backdrop-blur-xl shadow-lg transition-colors ${
-                            isDaylight ? 'border-black/10 bg-white/35 text-zinc-900' : 'border-white/10 bg-black/35 text-white'
-                        } ${isPositioning ? 'pointer-events-auto cursor-grab select-none active:cursor-grabbing' : onActivate
-                            ? `pointer-events-auto cursor-pointer ${isDaylight ? 'hover:bg-white/55' : 'hover:bg-black/55'}`
-                            : ''}`}
-                    >
-                        {/* 原来顶上有一条进场扫光；卡片改成圆头长条（和胶囊同一种形状，progress-bar v3）后去掉了。 */}
-                        {/* 封面和文字块也带 layout：卡片的尺寸补间是靠 transform 做的，途中
+                            <motion.button
+                                onUpdate={invalidateLayout}
+                                onLayoutAnimationComplete={invalidateLayout}
+                                data-toast-card=""
+                                type="button"
+                                layout="size"
+                                onClick={isPositioning ? event => event.preventDefault() : onActivate}
+                                {...position.handlers}
+                                disabled={!onActivate && !isPositioning}
+                                aria-label={isPositioning ? t('options.stageTrackPillReposition') : onActivate ? activateLabel : undefined}
+                                style={isPositioning || position.dragArmed ? { touchAction: 'none', outline: '2px solid currentColor', outlineOffset: 3 } : undefined}
+                                initial={{ opacity: 0, x: isPositioning ? 0 : -24 }}
+                                animate={{ opacity: 1, x: 0 }}
+                                whileTap={onActivate && !isPositioning ? { opacity: 0.85 } : undefined}
+                                transition={{ duration: 0.35, ease: 'easeOut' }}
+                                className={`relative flex min-w-[min(240px,calc(100vw-48px))] max-w-[calc(100vw-48px)] items-center gap-3 overflow-hidden rounded-full border p-2 pr-5 text-left backdrop-blur-xl shadow-lg transition-colors ${
+                                    isDaylight ? 'border-black/10 bg-white/35 text-zinc-900' : 'border-white/10 bg-black/35 text-white'
+                                } ${isPositioning || position.dragArmed ? 'pointer-events-auto cursor-grab select-none active:cursor-grabbing' : onActivate
+                                    ? `pointer-events-auto cursor-pointer ${isDaylight ? 'hover:bg-white/55' : 'hover:bg-black/55'}`
+                                    : ''}`}
+                            >
+                                {/* 原来顶上有一条进场扫光；卡片改成圆头长条（和胶囊同一种形状，progress-bar v3）后去掉了。 */}
+                                {/* 封面和文字块也带 layout：卡片的尺寸补间是靠 transform 做的，途中
                             没有自己 layout 的子节点会被一起拉扁。带上它俩，framer 会逐层把缩放
                             反解掉，封面不变形、歌名不横向压扁。 */}
-                        <motion.div
-                            layout
-                            // Which of the two the frame settled on, so a test can tell "showed the
-                            // cover" from "fell back" - the difference used to be invisible from
-                            // the outside, which is how the blank square went unnoticed.
-                            data-toast-cover={coverSrc ? 'image' : 'placeholder'}
-                            className={`relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full ${
-                                isDaylight ? 'bg-zinc-200' : 'bg-zinc-800'
-                            }`}
-                        >
-                            {/* An <img> rather than a background-image, for the two things a
+                                <motion.div
+                                    layout
+                                    // Which of the two the frame settled on, so a test can tell "showed the
+                                    // cover" from "fell back" - the difference used to be invisible from
+                                    // the outside, which is how the blank square went unnoticed.
+                                    data-toast-cover={coverSrc ? 'image' : 'placeholder'}
+                                    className={`relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full ${
+                                        isDaylight ? 'bg-zinc-200' : 'bg-zinc-800'
+                                    }`}
+                                >
+                                    {/* An <img> rather than a background-image, for the two things a
                                 background cannot do: it reports failure, and the browser parses the
                                 URL instead of the CSS tokenizer (an unquoted url() is voided
                                 outright by a space, a bracket or the comma in a multi-value cover
@@ -266,58 +266,58 @@ const NowPlayingToast: React.FC<NowPlayingToastProps> = ({
                                 takes them back on the next track - and a dead URL used to leave a
                                 bare grey square, since the placeholder below only stood in when
                                 there was no URL at all. */}
-                            {coverSrc && (
-                                <img
-                                    key={coverSrc}
-                                    src={coverSrc}
-                                    alt=""
-                                    aria-hidden
-                                    decoding="async"
-                                    draggable={false}
-                                    onError={() => setBrokenCoverUrl(coverSrc)}
-                                    className="absolute inset-0 h-full w-full object-cover"
-                                />
-                            )}
-                            {!coverSrc && <Music size={18} className={isDaylight ? 'text-black/35' : 'text-white/35'} />}
-                        </motion.div>
-                        <motion.div layout className="min-w-0 max-w-[200px] flex-1">
-                            {/* 正在播放 / 接下来播放：歌名上方。切歌那一刻整张卡片不重挂，所以这
+                                    {coverSrc && (
+                                        <img
+                                            key={coverSrc}
+                                            src={coverSrc}
+                                            alt=""
+                                            aria-hidden
+                                            decoding="async"
+                                            draggable={false}
+                                            onError={() => setBrokenCoverUrl(coverSrc)}
+                                            className="absolute inset-0 h-full w-full object-cover"
+                                        />
+                                    )}
+                                    {!coverSrc && <Music size={18} className={isDaylight ? 'text-black/35' : 'text-white/35'} />}
+                                </motion.div>
+                                <motion.div layout className="min-w-0 max-w-[200px] flex-1">
+                                    {/* 正在播放 / 接下来播放：歌名上方。切歌那一刻整张卡片不重挂，所以这
                                 一行是自己淡入淡出换掉的，不跟着进场动画走。
                                 高度写死成和 leading 一样的 10px：mode="wait" 换字的中途这一行是
                                 空的，不占住高度的话歌名会往上跳一下再落回来。 */}
-                            <div
-                                className={`h-[10px] text-[9px] font-semibold uppercase leading-[10px] tracking-[0.14em] select-none ${
-                                    isDaylight ? 'text-black/45' : 'text-white/45'
-                                }`}
-                            >
-                                <AnimatePresence mode="wait" initial={false}>
-                                    <motion.span
-                                        key={label}
-                                        className="block"
-                                        initial={{ opacity: 0 }}
-                                        animate={{ opacity: 1 }}
-                                        exit={{ opacity: 0 }}
-                                        transition={{ duration: 0.18, ease: 'easeOut' }}
+                                    <div
+                                        className={`h-[10px] text-[9px] font-semibold uppercase leading-[10px] tracking-[0.14em] select-none ${
+                                            isDaylight ? 'text-black/45' : 'text-white/45'
+                                        }`}
                                     >
-                                        {label}
-                                    </motion.span>
-                                </AnimatePresence>
-                            </div>
-                            <div className="truncate text-[13px] font-bold leading-4">{shown.title}</div>
-                            <div
-                                className={`truncate text-[11px] font-medium leading-[14px] ${
-                                    isDaylight ? 'text-black/55' : 'text-white/50'
-                                }`}
-                            >
-                                {shown.artist || t('ui.unknownArtist')}
-                            </div>
-                        </motion.div>
-                    </motion.button>
-                    </div>
-                </motion.div>
-            )}
-        </AnimatePresence>
-        {isPositioning && <NowPlayingCardPositioner isDaylight={isDaylight} onSave={position.save} onCancel={position.cancel} onReset={position.reset} />}
+                                        <AnimatePresence mode="wait" initial={false}>
+                                            <motion.span
+                                                key={label}
+                                                className="block"
+                                                initial={{ opacity: 0 }}
+                                                animate={{ opacity: 1 }}
+                                                exit={{ opacity: 0 }}
+                                                transition={{ duration: 0.18, ease: 'easeOut' }}
+                                            >
+                                                {label}
+                                            </motion.span>
+                                        </AnimatePresence>
+                                    </div>
+                                    <div className="truncate text-[13px] font-bold leading-4">{shown.title}</div>
+                                    <div
+                                        className={`truncate text-[11px] font-medium leading-[14px] ${
+                                            isDaylight ? 'text-black/55' : 'text-white/50'
+                                        }`}
+                                    >
+                                        {shown.artist || t('ui.unknownArtist')}
+                                    </div>
+                                </motion.div>
+                            </motion.button>
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+            {isPositioning && <NowPlayingCardPositioner isDaylight={isDaylight} onSave={position.save} onCancel={position.cancel} onReset={position.reset} />}
         </>
     );
 };
