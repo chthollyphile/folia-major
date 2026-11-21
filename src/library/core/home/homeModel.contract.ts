@@ -388,4 +388,9 @@ export interface LibraryHomeTabsHandle {
      * 页面里按同一对键转交到这里，循环不会在进入页面之后断掉。没有这个循环键的 suite 不提供。
      */
     cycleTab?(delta: 1 | -1): boolean;
+    /**
+     * 打开在线组一级页签上的音源列表（焦点进列表）：命令面板的「切换在线音源」用，键盘不必先走到那个页签上。
+     * 没有这个列表的 suite 不提供；一个音源都没启用时返回 false。
+     */
+    openOnlineSwitcher?(): boolean;
 }

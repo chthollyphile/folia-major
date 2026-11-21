@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useShallow } from 'zustand/react/shallow';
 import type { HomeViewTab } from '../../../types';
@@ -21,6 +21,7 @@ import { usePersonalFmCatalog } from '../../../hooks/usePersonalFmCatalog';
 import { selectProviderPersonalFm, usePersonalFmModeStore } from '../../../stores/usePersonalFmModeStore';
 import { getLocalLibraryAvailability } from '../../../services/localLibraryAvailability';
 import { getPersonalFmSelectionLabel } from '../../../services/onlineMusic/fmModes';
+import { builtinSourcesSettled } from '../../../services/onlineMusic/sourceReadiness';
 import { providerDisplayName } from '../../../i18n/providerName';
 import { useLibraryAccountProviders } from '../account/useLibraryAccount';
 
@@ -118,8 +119,17 @@ export const useLibraryHomeSources = ({
         localAvailability: { supported: localAvailability.supported, reason: localAvailability.reason },
     }), t), [localAvailability.reason, localAvailability.supported, navidromeEnabled, online, t, visibility]);
 
-    // 一个音源都没启用（或还没有一个注册上来）：在线组的名字是通用的词。
-    const noSources = providers.length === 0;
+    // 一个音源都没启用：在线组的名字是通用的词。启动时音源模组还在注册的那一会儿列表也是空的，等它们都有过机会
+    // 注册（builtinSourcesSettled）再下这个结论，免得「没有启用音源」闪一下。
+    const [sourcesSettled, setSourcesSettled] = useState(false);
+    useEffect(() => {
+        let live = true;
+        void builtinSourcesSettled().then(() => {
+            if (live) setSourcesSettled(true);
+        });
+        return () => { live = false; };
+    }, []);
+    const noSources = sourcesSettled && providers.length === 0;
     const onlineLabel = noSources ? t('home.onlineGroup') : online.providerLabel;
     const groups = useMemo(
         () => resolveHomeGroups({ tabs, active: tab, onlineLabel, rememberedOnlineTab }),
