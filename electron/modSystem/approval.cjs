@@ -10,6 +10,7 @@
 const path = require('path');
 // original-fs: a mod folder is read as files, as the digest reads it (rawFs.cjs).
 const { rawFs: fs } = require('./rawFs.cjs');
+const { resolveModNativeFile } = require('./nativeFiles.cjs');
 const { dialog } = require('electron');
 
 const { shortDigest } = require('./modDigest.cjs');
@@ -454,10 +455,10 @@ const createModApproval = ({ app, store, enabledKey, getMainWindowSafe, getLocal
                 ...(source.legacy.cacheDirs ?? []).map((folder) => `cache/${folder}`),
             ]);
             if (data.length > 0) lines.push(locale.takeoverData(data.join(', ')));
-            // Its own native files (nativeFiles.cjs resolveModNativeFile): the names it may resolve and carries a folder of.
-            // Without the folder to look in, every name it may resolve.
+            // Its own native files: the names it may resolve that resolve in its folder on this system (nativeFiles.cjs
+            // resolveModNativeFile, as api.native will). Without the folder to look in, every name it may resolve.
             const ownNative = [...new Set(takeovers.flatMap((source) => source.legacy.ownNative ?? []))]
-                .filter((name) => !dirPath || fs.existsSync(path.join(dirPath, 'native', name)));
+                .filter((name) => !dirPath || Boolean(resolveModNativeFile(name, dirPath, { platform: process.platform, arch: process.arch, fs }).path));
             if (ownNative.length > 0) lines.push(locale.takeoverNative(ownNative.join(', ')));
         }
         const hosts = (field) => [...new Set(manifest.sources.flatMap((entry) => entry[field] ?? []))];

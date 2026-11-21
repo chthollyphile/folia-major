@@ -35,6 +35,7 @@ const { WINDOWS_COMPANION_FILES } = requireHere('../../sources/appleMusic/native
 
 /** 这台机器的 `<platform>-<arch>`：不给 --system 时出这个系统的包。 */
 export const DEFAULT_SYSTEM = `${process.platform}-${process.arch}`;
+const SYSTEM_PATTERN = /^[a-z0-9]+-[a-z0-9]+$/;
 
 export const DEFAULT_DIST_ROOT = path.join(ROOT, 'dist-mods');
 export const DEFAULT_PACK_ROOT = path.join(ROOT, 'dist-mod-packs');
@@ -347,6 +348,7 @@ export const packSource = (distDir, options = {}) => {
     const folia = options.folia === undefined
         ? `>=${String(readJson(path.join(ROOT, 'package.json')).version).split(/[-+]/)[0]}`
         : options.folia;
+    if (!SYSTEM_PATTERN.test(system)) throw new Error(`system 要写成 <platform>-<arch>，如 win32-x64，不是 ${system}`);
     const built = readJson(path.join(distDir, 'mod.json'));
     const stamp = readJson(path.join(distDir, BUILD_STAMP));
     const files = listFiles(distDir).filter((file) => file !== BUILD_STAMP);
@@ -385,7 +387,7 @@ export const packSource = (distDir, options = {}) => {
     sizes.set('mod.json', Buffer.byteLength(manifestText));
     checkLimits(contentFiles, sizes, limits, { reserveFiles: signingKey ? 1 : 0 });
     // 声明了原生件的包按系统出（内容随系统变）；没声明的、--no-native 的和以前一样。
-    const systemTag = (manifest.native ?? []).length > 0 && native ? system : null;
+    const systemTag = native && native.carried.length > 0 ? system : null;
 
     // 在临时目录里摆出装上后的样子：签名摘要就按这个目录算，和装上后宿主验的是同一份字节。
     const stageRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'folia-sources-pack-'));
@@ -478,7 +480,7 @@ export const parseArgs = (argv) => {
         else if (arg === '--key-id') options.keyId = value();
         else if (arg === '--system') {
             options.system = value();
-            if (!/^[a-z0-9]+-[a-z0-9]+$/.test(options.system)) throw new Error('--system 要写成 <platform>-<arch>，如 win32-x64、darwin-arm64、linux-x64');
+            if (!SYSTEM_PATTERN.test(options.system)) throw new Error('--system 要写成 <platform>-<arch>，如 win32-x64、darwin-arm64、linux-x64');
         } else if (arg === '--no-native') options.native = false;
         else if (arg.startsWith('--')) throw new Error(`不认识的参数 ${arg}`);
         else options.ids.push(arg);

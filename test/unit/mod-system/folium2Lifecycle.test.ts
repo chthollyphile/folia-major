@@ -34,6 +34,8 @@ afterEach(() => {
 
 const ROOT = path.resolve(__dirname, '../../..');
 
+const { modNativeRelativePath } = createRequire(import.meta.url)('../../../electron/modSystem/nativeFiles.cjs');
+
 describe('before the window', () => {
     it('starts the built-in tier only: a source mod of the user\'s folders waits for the start and its question', () => {
         writeMod('builtin', sourceManifest('netease', ['netease']), { main: true });
@@ -200,15 +202,29 @@ describe('a takeover that claims a cache folder of before', () => {
         expect(dialogs.at(-1)!.detail).not.toContain('native programs');
     });
 
-    it('says it brings native programs of its own when it carries them', async () => {
+    it('says it brings native programs of its own when it carries this system\u2019s copy, and not for another system\u2019s', async () => {
+        writeAppPackage({ foliaBundledSources: [] });
+        const here = modNativeRelativePath('librespot', `${process.platform}-${process.arch}`);
+        const files: Record<string, string> = { 'native/librespot/plan9-mips/dist/index.js': 'module.exports = {};' };
+        if (here) files[here] = 'module.exports = {};';
+        writeMod('user', sourceManifest('spotify-copy', [{ id: 'spotify', claims: { id: 'spotify' } }], { native: ['librespot'] }), { files });
+        const system = launch();
+        dialogAnswer.response = 1;
+        expect(await system.assignSourceClaim('spotify', 'spotify-copy')).toMatchObject({ ok: true });
+        const line = 'It brings native programs of its own, which run directly on your computer (not the ones the app ships): librespot';
+        if (here) expect(dialogs.at(-1)!.detail).toContain(line);
+        else expect(dialogs.at(-1)!.detail).not.toContain(line);
+    });
+
+    it('does not say so when it carries only another system\u2019s copy', async () => {
         writeAppPackage({ foliaBundledSources: [] });
         writeMod('user', sourceManifest('spotify-copy', [{ id: 'spotify', claims: { id: 'spotify' } }], { native: ['librespot'] }), {
-            files: { 'native/librespot/win32-x64/dist/index.js': 'module.exports = {};' },
+            files: { 'native/librespot/plan9-mips/dist/index.js': 'module.exports = {};' },
         });
         const system = launch();
         dialogAnswer.response = 1;
         expect(await system.assignSourceClaim('spotify', 'spotify-copy')).toMatchObject({ ok: true });
-        expect(dialogs.at(-1)!.detail).toContain('It brings native programs of its own, which run directly on your computer (not the ones the app ships): librespot');
+        expect(dialogs.at(-1)!.detail).not.toContain('native programs');
     });
 });
 

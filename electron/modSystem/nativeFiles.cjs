@@ -91,6 +91,19 @@ function modNativeRelativePath(name, system) {
     return entry ? `native/${name}/${system}/${entry}` : null;
 }
 
+/* Whether anything under `dir` (lstat, not followed) is a link or neither a file nor a folder. */
+const hasLinkBelow = (dir, fs) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (entry.isSymbolicLink()) return true;
+        if (entry.isDirectory()) {
+            if (hasLinkBelow(path.join(dir, entry.name), fs)) return true;
+        } else if (!entry.isFile()) {
+            return true;
+        }
+    }
+    return false;
+};
+
 const isInside = (parent, child) => child === parent || child.startsWith(parent.endsWith(path.sep) ? parent : parent + path.sep);
 
 /**
@@ -98,8 +111,16 @@ const isInside = (parent, child) => child === parent || child.startsWith(parent.
  *   native-not-in-mod   the table has no entry for this system, or the mod does not carry it;
  *   native-unsafe-path  a folder or file on the way is a symbolic link (or junction), or is not what it should be, or the
  *                       real path leaves the mod folder.
- * Walked one name at a time with lstat, so no link is followed; the real path is checked again at the end.
+ * Walked one name at a time with lstat, so no link is followed; the real path is checked again at the end. The whole
+ * system folder is walked too: the entry finds the files beside it by itself (librespot's ../prebuilds/), and a link
+ * there would reach out of the folder without coming through here (the digest records a link, not what it points at).
  * `fs` is node's (original-fs in the app, so an .asar on the way is a file, as zipInstall.cjs wrote it).
+ *
+ * What this guards: a mod folder put together by hand (zipInstall.cjs writes plain files only). It is defence in depth,
+ * not the boundary: a takeover's main entry is Node code in the main process and can require any path already, and what
+ * it runs is bound by the content digest and the user's confirmation. A hard link, or a folder swapped for a link
+ * between this check and the require, needs someone who can write the user's userData, who could rewrite the trust
+ * records as well.
  */
 function resolveModNativeFile(name, modDir, { platform, arch, fs }) {
     const system = modNativeSystem(platform, arch);
@@ -124,6 +145,7 @@ function resolveModNativeFile(name, modDir, { platform, arch, fs }) {
     } catch {
         return { error: 'native-unsafe-path', system };
     }
+    if (hasLinkBelow(path.join(path.resolve(modDir), 'native', name, system), fs)) return { error: 'native-unsafe-path', system };
     return { path: current };
 }
 

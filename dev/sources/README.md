@@ -86,7 +86,7 @@ npm run sources:pack -- --all
 - 不带参数：列出 `dist-mods/` 里能打的（有 `mod.json` 和 `build.json` 的目录）、大小、带不带 deps 归档和原生件。先跑 `sources:build`。
 - `<id>`：目录名（短音源 id，如 `appleMusic`）或模组 id（`apple-music`），可以写几个；`--all` 打全部。
 - 产物：`dist-mod-packs/<模组 id>-<版本>.zip`，未签名的是 `…-unsigned.zip`（git 忽略），如 `bodian-1.0.0-unsigned.zip`；
-  带原生件的按系统出，名字多一段系统：`spotify-1.0.0-win32-x64-unsigned.zip`。同一份构建打两次未签名的包，字节相同。
+  带上了原生件的按系统出，名字多一段系统（这个系统一个都没带时不加）：`spotify-1.0.0-win32-x64-unsigned.zip`。同一份构建打两次未签名的包，字节相同。
 - `--system <platform>-<arch>`：原生件按哪个系统带（`win32-x64`、`darwin-arm64`、`linux-x64`、`linux-arm64`），默认本机。
   可以在一台机器上给别的系统打包（librespot 的 npm 包里四个系统的 `.node` 都有）。
 - `--no-native`：不带原生件（包名不带系统段），接管后靠原生件的功能用不了。
@@ -123,7 +123,12 @@ npm run sources:pack -- --all
 - 可执行位：`zipInstall.cjs` 解包只写文件内容，不保留权限位。现在带的都用不到：Windows 不看可执行位，`.node` 是 `dlopen`
   读进来的（Linux、macOS 只要可读）。将来要带 macOS / Linux 的可执行程序时得先补这一步。
 - 内置副本、官方签名的覆盖副本仍用应用带的那份；包里的 `native/` 只给接管用。原生件和别的文件一样算进内容摘要与签名摘要，
-  换了就要重新确认。
+  换了就要重新确认。系统目录 `native/<名字>/<系统>/` 里有任何符号链接或 junction，宿主都不解析（`native-unsafe-path`）。
+- 应用开着时从 zip 装新版接管副本，新的 `.node` 要重启应用才生效：同一路径的原生模块已经载入进程，再 require 拿到的还是旧的
+  （Windows 上旧目录也删不掉，留在 `mods/.staging` 里，下次启动清掉）。
+- 只有清单字段比较新的宿主装得上这些包：`claims.legacyCacheDirs` 是补项 C（`40e0a1641`）加的，之前的宿主（包括那之前出的滚动版）
+  校验清单时报 `claims has an unknown field "legacyCacheDirs"`，整个包装不上。`--folia` 的默认下限挡不住它（版本号没变），
+  要给旧宿主打包时手动去掉 spotify 包里的这一项。
 
 打之前按「从 zip 安装」（`zipInstall.cjs`）和摘要（`modDigest.cjs`）的上限查：单个文件 64 MB、合计 96 MB、2000 个文件，
 zip 本身 96 MB；`dist-mods/<id>/` 的文件和 `build.json` 记的对不上（手改过、没构建完）时拒绝并列出多出与缺的文件，重新构建再打；

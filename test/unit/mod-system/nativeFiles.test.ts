@@ -77,6 +77,15 @@ describe('a takeover\'s own native files', () => {
             fs.rmSync(path.join(modDir, 'native', 'librespot', 'win32-x64'), { recursive: true, force: true });
             fs.mkdirSync(path.join(modDir, 'native', 'librespot', 'win32-x64', 'dist', 'index.js'), { recursive: true });
             expect(resolveModNativeFile('librespot', modDir, system)).toEqual({ error: 'native-unsafe-path', system: 'win32-x64' });
+            // A link beside the entry (librespot finds its binding in ../prebuilds/ by itself).
+            fs.rmSync(path.join(modDir, 'native', 'librespot', 'win32-x64'), { recursive: true, force: true });
+            const entry = path.join(modDir, 'native', 'librespot', 'win32-x64', 'dist', 'index.js');
+            fs.mkdirSync(path.dirname(entry), { recursive: true });
+            fs.writeFileSync(entry, 'module.exports = {};');
+            fs.symlinkSync(outside, path.join(modDir, 'native', 'librespot', 'win32-x64', 'prebuilds'), 'junction');
+            expect(resolveModNativeFile('librespot', modDir, system)).toEqual({ error: 'native-unsafe-path', system: 'win32-x64' });
+            fs.rmSync(path.join(modDir, 'native', 'librespot', 'win32-x64', 'prebuilds'), { recursive: true, force: true });
+            expect(resolveModNativeFile('librespot', modDir, system)).toEqual({ path: entry });
         } finally {
             fs.rmSync(modDir, { recursive: true, force: true });
             fs.rmSync(outside, { recursive: true, force: true });

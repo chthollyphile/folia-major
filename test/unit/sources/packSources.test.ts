@@ -252,6 +252,10 @@ describe('native files, by system', () => {
         const none = packSource(spotify(), { outRoot: temporary('packs'), system: 'darwin-x64', nativeRoot: fakeRoot() });
         expect(none.files.some((file: string) => file.startsWith('native/'))).toBe(false);
         expect(none.notes.join('\n')).toMatch(/不带原生件 librespot：.*darwin-x64.*native-not-in-mod/);
+        // Nothing carried: the same package as one without native files, named the same way.
+        expect(none.system).toBeNull();
+        expect(path.basename(none.zipPath)).toBe('spotify-1.0.0-unsigned.zip');
+        expect(() => packSource(spotify(), { outRoot: temporary('packs'), system: '../evil', nativeRoot: fakeRoot() })).toThrow(/platform/);
         const off = packSource(spotify(), { outRoot: temporary('packs'), native: false, nativeRoot: fakeRoot() });
         expect(off.system).toBeNull();
         expect(path.basename(off.zipPath)).toBe('spotify-1.0.0-unsigned.zip');
