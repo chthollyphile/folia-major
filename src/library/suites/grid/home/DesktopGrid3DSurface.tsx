@@ -36,6 +36,8 @@ interface DesktopGrid3DSurfaceProps {
     onFocusedIndexChange: (index: number) => void;
     onSelect: (item: Grid3DSliderItem, index: number) => void;
     tabs?: DesktopGrid3DAction[];
+    /** 二级页签那一组的读屏名。 */
+    tabsLabel?: string;
     actions?: DesktopGrid3DAction[];
     isInteractive?: boolean;
     isLoading?: boolean;
@@ -63,6 +65,7 @@ export const DesktopGrid3DSurface: React.FC<DesktopGrid3DSurfaceProps> = ({
     onFocusedIndexChange: onLegacyFocusedIndexChange,
     onSelect,
     tabs = [],
+    tabsLabel,
     actions = [],
     isInteractive = true,
     isLoading = false,
@@ -159,6 +162,7 @@ export const DesktopGrid3DSurface: React.FC<DesktopGrid3DSurfaceProps> = ({
                                 mapLabel={mapButtonLabel}
                                 mapIcon={<MapIcon size={13} />}
                                 ponderId={ponderControls}
+                                label={tabsLabel}
                             />
                         )}
                     </div>
