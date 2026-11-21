@@ -35,6 +35,8 @@ export interface SourceRowModel {
     error: string | null;
     /** "Clear data" works: only a source mod's data is listed in the trusted table or its claims. */
     clearable: boolean;
+    /** What its manifest says where it is switched on (`sources[].enableNotice`); null for none. */
+    enableNotice: string | Record<string, string> | null;
 }
 
 export interface SourceRowInputs {
@@ -83,6 +85,7 @@ export const buildSourceRows = (
             run,
             error: run === 'failed' ? mod?.error ?? null : null,
             clearable: row.tier !== 'host' && row.modId !== null,
+            enableNotice: row.enableNotice ?? null,
         }];
     });
 };

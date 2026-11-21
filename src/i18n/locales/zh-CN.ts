@@ -5483,6 +5483,7 @@ export default {
     "title": "你用哪些平台听歌？",
     "description": "勾上你在用的平台。没勾的不会显示，停用的也不在后台运行；一个都不勾也能听本地音乐。",
     "nameSeparator": "、",
+    "noticeSeparator": "：",
     "matchingNote_one": "{{names}}不勾也会在后台留着，只给本地歌配歌词和信息。",
     "matchingNote_other": "{{names}}不勾也会在后台留着，只给本地歌配歌词和信息。",
     "settingsHint": "之后可在「设置 → 音源」里改。"

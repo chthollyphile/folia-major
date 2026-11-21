@@ -88,7 +88,7 @@ const claimRefusal = (claims, sourceRow) => {
  *   overrides       Map built-in modId -> the candidate modId that replaces it
  *   refused         Map candidate modId -> { reason, detail } (not run)
  *   pendingOverride Map candidate modId -> built-in modId, for a copy that only lacks the confirmation
- *   sources         Map modId -> [{ localId, sourceId, legacy, takeover, keepForMatching }] for every source mod
+ *   sources         Map modId -> [{ localId, sourceId, legacy, takeover, keepForMatching, offByDefault }] for every source mod
  *   notes           Map modId -> reasons that do not stop the mod (claim-signature-invalid, claim-unknown-source,
  *                   claim-outside-row, claim-unconfirmed)
  *   brokenInstall   the carried short ids no built-in copy provides
@@ -192,21 +192,22 @@ const resolveSourceOwnership = (builtins, candidates, bundled, options) => {
         live.filter((modId) => modId !== holder).forEach((modId) => refuse(modId, 'claim-taken', holder));
     });
 
-    // What each source mod's sources are called, and what old data each may reach.
+    // What each source mod's sources are called, and what old data each may reach. `keepForMatching` and
+    // `offByDefault` are read from a built-in copy's manifest only (the option of the same name says it is one).
     const sources = new Map();
     const describe = (modId, manifest, { row = null, keepForMatching = false, claimsAsLegacy = false, claimOverrideRow = null }) => (
         manifest.sources.map((entry) => {
             if (row?.sources.includes(entry.id)) {
-                return { localId: entry.id, sourceId: entry.id, legacy: legacyOfRow(row), takeover: false, keepForMatching: keepForMatching && entry.keepForMatching === true };
+                return { localId: entry.id, sourceId: entry.id, legacy: legacyOfRow(row), takeover: false, keepForMatching: keepForMatching && entry.keepForMatching === true, offByDefault: keepForMatching && entry.offByDefault === true };
             }
             if (entry.claims && claimOverrideRow?.sources.includes(entry.claims.id)) {
-                return { localId: entry.id, sourceId: entry.claims.id, legacy: legacyOfRow(claimOverrideRow), takeover: false, keepForMatching: keepForMatching && entry.keepForMatching === true };
+                return { localId: entry.id, sourceId: entry.claims.id, legacy: legacyOfRow(claimOverrideRow), takeover: false, keepForMatching: keepForMatching && entry.keepForMatching === true, offByDefault: keepForMatching && entry.offByDefault === true };
             }
             const claimsIt = entry.claims && (claimHolders.get(entry.claims.id) === modId || unheld.get(entry.claims.id)?.includes(modId));
             if (claimsAsLegacy && claimsIt) {
-                return { localId: entry.id, sourceId: entry.claims.id, legacy: legacyOfClaims(entry.claims), takeover: true, keepForMatching: false };
+                return { localId: entry.id, sourceId: entry.claims.id, legacy: legacyOfClaims(entry.claims), takeover: true, keepForMatching: false, offByDefault: false };
             }
-            return { localId: entry.id, sourceId: thirdPartySourceId(modId, entry.id), legacy: null, takeover: false, keepForMatching: false };
+            return { localId: entry.id, sourceId: thirdPartySourceId(modId, entry.id), legacy: null, takeover: false, keepForMatching: false, offByDefault: false };
         })
     );
     builtins.forEach((builtin, modId) => {

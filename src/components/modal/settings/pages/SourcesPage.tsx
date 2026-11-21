@@ -100,7 +100,10 @@ const SourcesPage: React.FC = () => {
                         runText(t, row),
                         row.modId ? usageText(t, usage[row.modId]) : null,
                     ].filter(Boolean).join(' · ');
-                    const notes = row.tier === 'host' ? t('sourcesSettings.hostNote') : '';
+                    // The manifest's own words on switching it on (a source that runs code the listener brings).
+                    const notes = row.tier === 'host'
+                        ? t('sourcesSettings.hostNote')
+                        : row.enableNotice ? manifestSourceName(row.enableNotice, i18n.language, '') : '';
                     return (
                         <Row
                             key={row.sourceId}

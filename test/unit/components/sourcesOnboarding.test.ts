@@ -76,6 +76,17 @@ describe('the rows the page lists', () => {
     });
 });
 
+describe('a source that starts off', () => {
+    it("carries the manifest's enableNotice, and is not ticked ahead of the listener: unticked means disabled", async () => {
+        const { pickOnboardingSources, resolveSourcesOnboardingChoices } = await load();
+        const notice = { en: 'Runs scripts you import.' };
+        const sources = pickOnboardingSources([row('bodian'), row('lxmusic', { state: 'disabled', loaded: false, mainState: 'none', enableNotice: notice })]);
+        expect(sources.map(source => source.enableNotice)).toEqual([null, notice]);
+        expect(resolveSourcesOnboardingChoices(sources, new Set())).toEqual({ bodian: 'disabled', lxmusic: 'disabled' });
+        expect(resolveSourcesOnboardingChoices(sources, new Set(['lxmusic']))).toEqual({ bodian: 'disabled', lxmusic: 'enabled' });
+    });
+});
+
 describe('what the ticks mean', () => {
     it('ticked → enabled; unticked and kept for matching → matching; any other unticked → disabled', async () => {
         const { pickOnboardingSources, resolveSourcesOnboardingChoices } = await load();

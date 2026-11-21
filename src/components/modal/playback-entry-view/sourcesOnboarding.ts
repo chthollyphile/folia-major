@@ -19,12 +19,14 @@ export interface OnboardingSource {
     name: string | Record<string, string> | null;
     /** Unticked, it stays for matching rather than going off. */
     keepForMatching: boolean;
+    /** What its manifest says where it is switched on (`sources[].enableNotice`); null for none. */
+    enableNotice: string | Record<string, string> | null;
 }
 
 /** The built-in sources among the main process's rows: its own copies and their overrides, never a takeover. */
 export const pickOnboardingSources = (rows: readonly ModSourceStateRow[]): OnboardingSource[] => rows
     .filter(row => !row.takeover && (row.tier === 'host' || row.tier === 'builtin' || row.tier === 'override'))
-    .map(row => ({ sourceId: row.sourceId, name: row.name ?? null, keepForMatching: row.keepForMatching }));
+    .map(row => ({ sourceId: row.sourceId, name: row.name ?? null, keepForMatching: row.keepForMatching, enableNotice: row.enableNotice ?? null }));
 
 /** The answer for the main process: every listed source with the state its tick (or its absence) means. */
 export const resolveSourcesOnboardingChoices = (

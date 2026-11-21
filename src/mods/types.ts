@@ -104,6 +104,8 @@ export interface ModSourceStateRow {
     /** The name its mod's manifest gives it (`sources[].name`), for a list that shows it while it is not registered; null for the host's. Absent from an older main process. */
     name?: string | Record<string, string> | null;
     keepForMatching: boolean;
+    /** What its manifest says where it is switched on (`sources[].enableNotice`: one text, or one per language). Absent from an older main process. */
+    enableNotice?: string | Record<string, string> | null;
     takeover: boolean;
     loaded: boolean;
     mainState: ModMainState;

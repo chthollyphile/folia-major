@@ -111,7 +111,7 @@ describe('the compliance plan (pure rules)', () => {
         expect(result.refused.size).toBe(0);
         expect(result.claimHolders.get('qq')).toBe('qq-community');
         expect(result.sources.get('qq-community')).toEqual([{
-            localId: 'main', sourceId: 'qq', takeover: true, keepForMatching: false,
+            localId: 'main', sourceId: 'qq', takeover: true, keepForMatching: false, offByDefault: false,
             legacy: { storeKeys: ['QQ_API_AUTH_SESSION_V1'], partitions: [], userDataDirs: ['qq-auth-state'], native: [] },
         }]);
     });

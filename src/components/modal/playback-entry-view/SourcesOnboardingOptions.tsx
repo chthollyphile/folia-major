@@ -41,6 +41,10 @@ export const SourcesOnboardingOptions: React.FC<SourcesOnboardingOptionsProps> =
         .flatMap(sourceId => sources.filter(source => source.sourceId === sourceId));
 
     const kept = ordered.filter(source => source.keepForMatching).map(nameOf);
+    // 勾上的音源里清单带了启用说明的（enableNotice）：在格子下面各说一句。
+    const notices = ordered
+        .filter(source => ticked.has(source.sourceId) && source.enableNotice)
+        .map(source => ({ sourceId: source.sourceId, text: `${nameOf(source)}${t('sourcesOnboarding.noticeSeparator')}${manifestSourceName(source.enableNotice, i18n.language, '')}` }));
 
     return (
         <>
@@ -82,6 +86,11 @@ export const SourcesOnboardingOptions: React.FC<SourcesOnboardingOptionsProps> =
                     {t('sourcesOnboarding.matchingNote', { names: kept.join(t('sourcesOnboarding.nameSeparator')), count: kept.length })}
                 </p>
             )}
+            {notices.map(notice => (
+                <p key={notice.sourceId} className="mt-3 text-xs leading-relaxed opacity-70" style={{ color: 'var(--text-secondary)' }} data-onboarding-notice={notice.sourceId}>
+                    {notice.text}
+                </p>
+            ))}
         </>
     );
 };

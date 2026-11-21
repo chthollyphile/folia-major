@@ -95,7 +95,7 @@ const CLAIM_LIST_FIELDS = [
     ['partitions', PARTITION_PATTERN, 'a session partition name'],
     ['userDataDirs', FOLDER_NAME_PATTERN, 'a folder name under userData'],
 ];
-const SOURCE_FIELDS = new Set(['id', 'name', 'requires', 'keepForMatching', 'claims', 'certificateExceptions', 'lyricRelayHosts']);
+const SOURCE_FIELDS = new Set(['id', 'name', 'requires', 'keepForMatching', 'offByDefault', 'enableNotice', 'claims', 'certificateExceptions', 'lyricRelayHosts']);
 
 // Deterministic result envelope shared by all validators.
 const ok = (value) => ({ ok: true, value });
@@ -255,6 +255,19 @@ const isSourceName = (value) => {
         && entries.every(([language, text]) => /^[A-Za-z-]{2,16}$/.test(language) && isNonEmptyString(text) && text.length <= 64);
 };
 
+/* `sources[].enableNotice`: a sentence (or one per language) of at most 300 characters, shown where the source is switched on. */
+const isSourceNotice = (value) => {
+    if (isNonEmptyString(value)) {
+        return value.length <= 300;
+    }
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+        return false;
+    }
+    const entries = Object.entries(value);
+    return entries.length > 0
+        && entries.every(([language, text]) => /^[A-Za-z-]{2,16}$/.test(language) && isNonEmptyString(text) && text.length <= 300);
+};
+
 /* One `sources[].claims` (the compliance plan, §5.1): checked here, read by the loader's ownership rules. */
 const validateClaims = (claims, where, errors) => {
     if (!claims || typeof claims !== 'object' || Array.isArray(claims)) {
@@ -312,6 +325,12 @@ const validateSourceEntry = (source, where, ids, errors) => {
     }
     if (source.keepForMatching !== undefined && typeof source.keepForMatching !== 'boolean') {
         errors.push(`${where}.keepForMatching must be true or false`);
+    }
+    if (source.offByDefault !== undefined && typeof source.offByDefault !== 'boolean') {
+        errors.push(`${where}.offByDefault must be true or false`);
+    }
+    if (source.enableNotice !== undefined && !isSourceNotice(source.enableNotice)) {
+        errors.push(`${where}.enableNotice must be a string of at most 300 characters, or one per language`);
     }
     if (source.claims !== undefined) {
         validateClaims(source.claims, where, errors);
