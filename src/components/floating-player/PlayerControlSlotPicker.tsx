@@ -79,6 +79,10 @@ const PlayerControlSlotPicker: React.FC<PlayerControlSlotPickerProps> = ({
     );
     const bottom = viewportHeight - anchorRect.top + ANCHOR_GAP_PX;
 
+    // 墨色自己定，不跟着 --text-primary 走：浮层是 portal 到 body 的，body 那一层拿到的
+    // 是歌曲主题色（深色封面取出来的白），而底色按 isDaylight 是白玻璃——浅色模式下就成了白字白底。
+    const ink = isDaylight ? '#18181b' : '#f4f4f5';
+
     if (typeof document === 'undefined') {
         return null;
     }
@@ -91,7 +95,7 @@ const PlayerControlSlotPicker: React.FC<PlayerControlSlotPickerProps> = ({
             data-testid="player-control-slot-picker"
             className={`fixed z-[140] rounded-3xl p-2 ${capsuleGlassClass(isDaylight)}`}
             // 和进度条胶囊同一层玻璃，边沿是播放页面板那条 1px 线。
-            style={{ left, bottom, width, ...capsuleGlassStyle(isDaylight) }}
+            style={{ left, bottom, width, ...capsuleGlassStyle(isDaylight), color: ink }}
             initial={{ opacity: 0, y: 8, scale: 0.97 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             transition={{ duration: 0.16, ease: 'easeOut' }}
