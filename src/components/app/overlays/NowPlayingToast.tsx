@@ -228,8 +228,19 @@ const NowPlayingToast: React.FC<NowPlayingToastProps> = ({
                                 data-toast-card=""
                                 type="button"
                                 layout="size"
-                                onClick={isPositioning ? event => event.preventDefault() : onActivate}
                                 {...position.handlers}
+                                onClick={event => {
+                                    // 拖完的那次松手不算点击（hook 在 dataset 上留了记号）；其余照旧：
+                                    // 调整模式里拦下，平时打开播放页 / 歌词面板。
+                                    if (event.currentTarget.dataset.nowPlayingDragged === 'true') {
+                                        delete event.currentTarget.dataset.nowPlayingDragged;
+                                        event.preventDefault();
+                                        event.stopPropagation();
+                                        return;
+                                    }
+                                    if (isPositioning) { event.preventDefault(); return; }
+                                    onActivate?.();
+                                }}
                                 disabled={!onActivate && !isPositioning}
                                 aria-label={isPositioning ? t('options.stageTrackPillReposition') : onActivate ? activateLabel : undefined}
                                 style={isPositioning || position.dragArmed ? { touchAction: 'none', outline: '2px solid currentColor', outlineOffset: 3 } : undefined}
