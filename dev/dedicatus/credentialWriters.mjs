@@ -62,6 +62,8 @@ export const CREDENTIAL_WRITERS = {
     'electron/kugou/kugouApiBridge.cjs': {
         // 确认的扫码登录（login_qr_check、status 4），整对写入
         adoptConfirmedSignIn: ['token', 'userid'],
+        // 同一会话刷新后，校验账号和 token 未变化才接收轮换凭据
+        ensureVipCredential: ['token'],
         // 响应带回的设备 cookie：函数自己挡掉账号 cookie
         rememberDeviceCookie: ['*'],
         // 第一次用时载入存着的会话（或者一套新的设备 cookie）

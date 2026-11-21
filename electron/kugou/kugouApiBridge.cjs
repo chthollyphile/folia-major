@@ -6,9 +6,11 @@ const { assertEncryptionAvailable, encryptionAvailable } = require('../osEncrypt
 const LEGACY_SESSION_KEY = 'KUGOU_API_SESSION_V1';
 const SESSION_KEY = 'KUGOU_API_SESSION_V2';
 const SESSION_ENVELOPE_VERSION = 2;
-const AUTH_COOKIE_KEYS = new Set(['token', 'userid', 'user_id', 'dfid']);
+// How long a session without a VIP entitlement is left alone before the credential is asked for again.
+const VIP_CREDENTIAL_RETRY_MS = 10 * 60 * 1000;
+const AUTH_COOKIE_KEYS = new Set(['token', 'userid', 'user_id', 'dfid', 'vip_token', 'vip_type']);
 // The cookies that say which account is signed in; only a confirmed sign-in writes them.
-const ACCOUNT_COOKIE_KEYS = new Set(['token', 'userid', 'user_id']);
+const ACCOUNT_COOKIE_KEYS = new Set(['token', 'userid', 'user_id', 'vip_token', 'vip_type']);
 const OPERATION_MODULES = {
     register_dev: ['register_dev'],
     login_qr_key: ['login_qr_key'],
@@ -28,6 +30,7 @@ const OPERATION_MODULES = {
     audio: ['audio'],
     krm_audio: ['krm_audio'],
     song_url: ['song_url'],
+    song_url_new: ['song_url_new'],
     song_climax: ['song_climax'],
     search_lyric: ['search_lyric'],
     lyric: ['lyric'],
@@ -249,7 +252,12 @@ function createKugouApiBridge({
     let api = null;
     let loadError = null;
     let registrationPromise = null;
+    let vipCredentialPromise = null;
+    // A refresh that found no entitlement is not asked again for this token until it had time to change:
+    // otherwise every playback of a signed-in non-VIP account would pay an extra login request.
+    let vipCredentialChecked = { token: '', at: 0 };
     let cookies = null;
+    let sessionGeneration = 0;
     // A stored session this run could not load is not written over: the cookies of this run stay in
     // memory until a sign-in of this run brings a token of its own (mergeResponseSession).
     let keepStored = false;
@@ -292,9 +300,15 @@ function createKugouApiBridge({
         const token = data?.token || responseCookies.token;
         const userId = data?.userid ?? data?.user_id ?? responseCookies.userid ?? responseCookies.user_id;
         if (token && userId) {
+            delete sessionCookies.vip_token;
+            delete sessionCookies.vip_type;
             sessionCookies.token = String(token);
             sessionCookies.userid = String(userId);
             delete sessionCookies.user_id;
+            const vipToken = data?.vip_token || responseCookies.vip_token;
+            const vipType = data?.vip_type ?? responseCookies.vip_type;
+            if (vipToken) sessionCookies.vip_token = String(vipToken);
+            if (vipType != null && vipType !== '') sessionCookies.vip_type = String(vipType);
         } else {
             // Half of a pair is not taken: the other half would be the previous account's.
             warn('[KuGouSession] A confirmed sign-in came without both a token and an account id; the session is unchanged', {
@@ -356,7 +370,7 @@ function createKugouApiBridge({
         const removeSecrets = value => {
             if (!isRecord(value)) return value;
             return Object.fromEntries(
-                Object.entries(value).filter(([key]) => !['token', 'dfid', 'cookie'].includes(key.toLowerCase())),
+                Object.entries(value).filter(([key]) => !['token', 'vip_token', 'dfid', 'cookie'].includes(key.toLowerCase())),
             );
         };
         return {
@@ -372,17 +386,64 @@ function createKugouApiBridge({
         const moduleName = candidates.find(name => typeof loaded[name] === 'function');
         if (!moduleName) throw new Error(`KuGouMusicApi module is unavailable: ${operation}`);
         const sessionCookies = ensureCookies();
+        const generation = sessionGeneration;
         const userId = sessionCookies.userid || sessionCookies.user_id;
+        if (['youth_union_vip', 'youth_day_vip', 'youth_day_vip_upgrade'].includes(operation)
+        && params.userid && String(params.userid) !== String(userId || '')) {
+            throw new Error('KuGou account changed during VIP operation');
+        }
         const token = sessionCookies.token;
+        const safeParams = Object.fromEntries(Object.entries(params).filter(([key]) => !['token', 'vip_token', 'viptype', 'vip_type', 'cookie', 'dfid'].includes(key.toLowerCase())));
         const result = await loaded[moduleName]({
-            ...params,
+            ...safeParams,
             ...(userId ? { userid: userId, uid: userId } : {}),
             // Renderer no longer stores the token in Electron mode. Supplying it here preserves modules
             // such as concept-VIP calls that historically received an explicit token parameter.
             ...(token ? { token } : {}),
             cookie: { ...sessionCookies },
         });
+        if (generation !== sessionGeneration) throw new Error('KuGou session changed during request');
         return mergeResponseSession(operation, result);
+    };
+
+    // Refresh QR sessions in the main process; a logout or switch invalidates an in-flight reply.
+    const ensureVipCredential = async () => {
+        const session = ensureCookies();
+        const token = session.token;
+        const userid = session.userid || session.user_id;
+        if (!token || !userid || session.vip_token) return;
+        if (vipCredentialChecked.token === token && Date.now() - vipCredentialChecked.at < VIP_CREDENTIAL_RETRY_MS) return;
+        const refresh = loadApi().login_token;
+        if (typeof refresh !== 'function') return;
+        let result;
+        try {
+            result = await refresh({ token, userid, cookie: { ...session } });
+        } catch {
+            return;
+        }
+        // The answer is about this token even when it grants nothing; a network failure above is retried.
+        vipCredentialChecked = { token, at: Date.now() };
+        const current = ensureCookies();
+        if (current !== session || current.token !== token || (current.userid || current.user_id) !== userid) return;
+        const body = result?.body ?? result;
+        const data = body?.data;
+        if (Number(body?.status) !== 1 || !isRecord(data)) return;
+        const responseId = data.userid ?? data.user_id;
+        if (responseId && String(responseId) !== String(userid)) return;
+        const responseCookies = {};
+        (Array.isArray(result?.cookie) ? result.cookie : []).forEach(entry => {
+            const parsed = parseCookieEntry(entry);
+            if (parsed && ACCOUNT_COOKIE_KEYS.has(parsed[0].toLowerCase()) && !['', 'undefined', 'null'].includes(parsed[1])) responseCookies[parsed[0].toLowerCase()] = parsed[1];
+        });
+        const vipToken = data.vip_token || responseCookies.vip_token;
+        const vipType = data.vip_type ?? responseCookies.vip_type;
+        const refreshedToken = data.token || responseCookies.token;
+        const refreshedT1 = data.t1;
+        if (refreshedToken && !['undefined', 'null'].includes(String(refreshedToken))) current.token = String(refreshedToken);
+        if (refreshedT1 && !['undefined', 'null'].includes(String(refreshedT1))) current.t1 = String(refreshedT1);
+        if (vipToken) current.vip_token = String(vipToken);
+        if (vipType != null && vipType !== '') current.vip_type = String(vipType);
+        persist();
     };
 
     const ensureRegistered = async (force = false) => {
@@ -409,6 +470,7 @@ function createKugouApiBridge({
     const performRequest = async (operation, params) => {
         if (!OPERATION_MODULES[operation]) throw new Error(`Unsupported KuGou operation: ${operation}`);
         if (operation === 'logout') {
+            sessionGeneration++;
             dropAccountCookies();
             // A sign-out and an ended sign-in (the renderer's signInRanOut) both arrive here: what is
             // stored goes too, also a session this run could not load, so the next start cannot sign back in.
@@ -423,6 +485,17 @@ function createKugouApiBridge({
             throw Object.assign(new Error('The stored KuGou session cannot be read now'), { sessionUnreadable: true });
         }
         if (operation !== 'register_dev') await ensureRegistered(false);
+        if (operation === 'song_url_new') {
+            if (!vipCredentialPromise) {
+                const pending = ensureVipCredential().catch(error => {
+                    // The URL module still works with the ordinary credential; a refresh failure is not its failure.
+                    warn('[KuGouSession] The VIP credential could not be refreshed', { error: String(error?.message ?? error) });
+                });
+                vipCredentialPromise = pending;
+                pending.then(() => { if (vipCredentialPromise === pending) vipCredentialPromise = null; });
+            }
+            await vipCredentialPromise;
+        }
         let body = await invokeModule(operation, params);
         if (operation !== 'register_dev' && isDeviceVerificationRequired(body)) {
             await ensureRegistered(true);

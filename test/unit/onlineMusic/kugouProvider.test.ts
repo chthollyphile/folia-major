@@ -5,12 +5,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const requestMock = vi.hoisted(() => vi.fn());
 const anonymousSearchMock = vi.hoisted(() => vi.fn());
 const legacyPlayInfoMock = vi.hoisted(() => vi.fn());
-const transportState = vi.hoisted(() => ({ hasAuthenticatedSearchSession: true }));
+const transportState = vi.hoisted(() => ({ hasAuthenticatedSearchSession: true, hasVipSession: false }));
 
 vi.mock('@/services/onlineMusic/kugou/kugouTransport', async importOriginal => ({
     ...await importOriginal<typeof import('@/services/onlineMusic/kugou/kugouTransport')>(),
     getKugouTransportAvailability: () => ({ configured: false, reason: 'not-configured' }),
     hasKugouAuthenticatedSearchSession: () => transportState.hasAuthenticatedSearchSession,
+    hasKugouVipSession: () => transportState.hasVipSession,
     requestKugouAnonymousSearch: anonymousSearchMock,
     requestKugou: requestMock,
     requestKugouLegacyPlayInfo: legacyPlayInfoMock,
@@ -87,6 +88,7 @@ describe('kugouProvider', () => {
         anonymousSearchMock.mockReset();
         legacyPlayInfoMock.mockReset();
         transportState.hasAuthenticatedSearchSession = true;
+        transportState.hasVipSession = false;
     });
 
     it('uses anonymous signed search when no authenticated KuGou session exists', async () => {
@@ -749,6 +751,94 @@ describe('kugouProvider', () => {
         expect(source?.url).toBe('http://fs.example.test/primary.mp3');
     });
 
+    it('tries the VIP source before the ordinary source for a signed-in account', async () => {
+        transportState.hasVipSession = true;
+        requestMock.mockImplementation(async (operation: string) => operation === 'song_url_new'
+            ? { data: { url: ['https://example.test/128.mp3', 'https://example.test/320.mp3'], priv_status: 1 } }
+            : { data: { url: 'https://example.test/ordinary.mp3' } });
+        const song = normalizeKugouSong({ FileHash: 'hash', SongName: 'Song' });
+        const source = await kugouProvider.playback!.getAudioSource(song, 'high');
+        expect(requestMock.mock.calls[0][0]).toBe('song_url_new');
+        expect(source).toMatchObject({ url: 'https://example.test/320.mp3', quality: 'high' });
+    });
+
+    it('falls back to the ordinary source when the VIP answer is not entitled', async () => {
+        transportState.hasVipSession = true;
+        requestMock.mockImplementation(async (operation: string) => operation === 'song_url_new'
+            ? { data: { url: ['https://example.test/preview.mp3'], priv_status: 0 } }
+            : { data: { url: 'https://example.test/ordinary.mp3' } });
+        const song = normalizeKugouSong({ FileHash: 'hash', SongName: 'Song' });
+        const source = await kugouProvider.playback!.getAudioSource(song, 'high');
+        expect(source?.url).toBe('https://example.test/ordinary.mp3');
+    });
+
+    it('rejects a VIP answer marked as a purchase preview or too small for the track', async () => {
+        transportState.hasVipSession = true;
+        const cases = [
+            { url: ['https://example.test/buy.mp3'], priv_status: 1, fail_process: ['buy'] },
+            { url: ['https://example.test/short.mp3'], priv_status: 1, fileSize: 100 * 1024 },
+        ];
+        for (const data of cases) {
+            requestMock.mockImplementation(async (operation: string) => operation === 'song_url_new'
+                ? { data }
+                : { data: { url: 'https://example.test/ordinary.mp3' } });
+            const song = normalizeKugouSong({ FileHash: 'hash', SongName: 'Song' });
+            const source = await kugouProvider.playback!.getAudioSource(song, 'high');
+            expect(source?.url).toBe('https://example.test/ordinary.mp3');
+        }
+    });
+
+    it('keeps the better of a degraded VIP answer and the ordinary source', async () => {
+        transportState.hasVipSession = true;
+        requestMock.mockImplementation(async (operation: string) => operation === 'song_url_new'
+            ? { data: { url: 'https://example.test/128.mp3', bitRate: 128000, extName: 'mp3' } }
+            : { data: { url: 'https://example.test/flac.flac', quality: 'flac' } });
+        const song = normalizeKugouSong({ FileHash: 'hash', SongName: 'Song' });
+        const source = await kugouProvider.playback!.getAudioSource(song, 'lossless');
+        expect(source).toMatchObject({ url: 'https://example.test/flac.flac', quality: 'lossless' });
+    });
+
+    it('reports the quality of a single VIP answer from its own figures', async () => {
+        transportState.hasVipSession = true;
+        requestMock.mockResolvedValue({ data: { url: 'https://example.test/audio.mp3', priv_status: 1, bitRate: 320000, extName: 'mp3' } });
+        const song = normalizeKugouSong({ FileHash: 'hash', SongName: 'Song' });
+        const source = await kugouProvider.playback!.getAudioSource(song, 'lossless');
+        expect(source).toMatchObject({ url: 'https://example.test/audio.mp3', quality: 'high' });
+    });
+
+    it('uses reported bitrate when duration units are ambiguous', async () => {
+        requestMock.mockResolvedValue({ data: { url: 'https://example.test/audio.mp3', fileSize: 3000000, timeLength: 200000, bitRate: 320000, extName: 'mp3' } });
+        const song = normalizeKugouSong({ FileHash: 'hash', SongName: 'Song' });
+        const source = await kugouProvider.playback!.getAudioSource(song, 'high');
+        expect(source?.quality).toBe('high');
+        expect(requestMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps a lower actual quality while trying to find a better source', async () => {
+        requestMock.mockResolvedValueOnce({ data: { url: 'https://example.test/128.mp3', quality: '128' } })
+            .mockResolvedValueOnce({ data: { url: 'https://example.test/flac.flac', quality: 'flac' } });
+        const song = normalizeKugouSong({ FileHash: 'hash', SongName: 'Song' });
+        const source = await kugouProvider.playback!.getAudioSource(song, 'hires');
+        expect(source).toMatchObject({ url: 'https://example.test/flac.flac', quality: 'lossless' });
+    });
+
+    it('tries the collection page context before the legacy endpoint', async () => {
+        requestMock.mockImplementation(async (_operation: string, params: Record<string, unknown>) =>
+            params.ppage_id === '356753938' ? { data: { url: 'https://example.test/collected.mp3' } } : { status: 3 });
+        const song = normalizeKugouSong({ FileHash: 'hash', SongName: 'Song' });
+        const source = await kugouProvider.playback!.getAudioSource(song, 'standard');
+        expect(source?.url).toBe('https://example.test/collected.mp3');
+        expect(legacyPlayInfoMock).not.toHaveBeenCalled();
+    });
+
+    it('skips a purchase-only preview URL and retries a lower quality', async () => {
+        requestMock.mockResolvedValueOnce({ data: { url: 'https://example.test/preview.mp3', fail_process: ['buy'] } })
+            .mockResolvedValueOnce({ data: { url: 'https://example.test/full.mp3' } });
+        const song = normalizeKugouSong({ FileHash: 'hash', SongName: 'Song' });
+        const source = await kugouProvider.playback!.getAudioSource(song, 'high');
+        expect(source).toMatchObject({ url: 'https://example.test/full.mp3', quality: 'standard' });
+    });
+
     it('degrades unavailable qualities in order', async () => {
         requestMock
             .mockResolvedValueOnce({ data: {} })
@@ -848,7 +938,7 @@ describe('kugouProvider', () => {
 
             const error = await kugouProvider.playback!.getAudioSource(metadataSong(), 'high').catch(caught => caught);
 
-            expect(requestMock).toHaveBeenCalledTimes(4);
+            expect(requestMock).toHaveBeenCalledTimes(5);
             expect(legacyPlayInfoMock).toHaveBeenCalledTimes(1);
             // errcode 0 is KuGou saying no error: the status is the code quoted.
             expect(kugouProvider.describeFailure?.('audio', error)).toEqual({ case: 'no-audio', code: '3' });
@@ -871,7 +961,7 @@ describe('kugouProvider', () => {
             legacyPlayInfoMock.mockRejectedValue(networkError());
 
             await expect(kugouProvider.playback!.getAudioSource(plainSong(), 'lossless')).rejects.toBe(first);
-            expect(requestMock).toHaveBeenCalledTimes(3);
+            expect(requestMock).toHaveBeenCalledTimes(4);
         });
 
         // KuGou's own answer says more than a request that failed after it.
@@ -880,7 +970,7 @@ describe('kugouProvider', () => {
             legacyPlayInfoMock.mockResolvedValue({ status: 3 });
 
             await expect(kugouProvider.playback!.getAudioSource(plainSong(), 'lossless')).rejects.toMatchObject({ code: 'not-playable' });
-            expect(requestMock).toHaveBeenCalledTimes(3);
+            expect(requestMock).toHaveBeenCalledTimes(4);
         });
 
         it('stops asking /song/url after a request ran out of time, and still asks the legacy endpoint once', async () => {

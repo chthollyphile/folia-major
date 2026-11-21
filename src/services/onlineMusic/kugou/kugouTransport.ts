@@ -10,7 +10,7 @@ export const KUGOU_OPERATIONS = [
     'register_dev', 'login_qr_key', 'login_qr_create', 'login_qr_check', 'logout',
     'user_detail', 'user_vip_detail', 'youth_union_vip', 'youth_day_vip', 'youth_day_vip_upgrade',
     'user_playlist', 'user_cloud', 'user_cloud_url', 'user_listen', 'search',
-    'audio', 'krm_audio', 'song_url', 'song_climax', 'search_lyric', 'lyric', 'playlist_track_all',
+    'audio', 'krm_audio', 'song_url', 'song_url_new', 'song_climax', 'search_lyric', 'lyric', 'playlist_track_all',
     'playlist_detail',
     'album_detail', 'album_songs', 'artist_detail', 'artist_albums', 'artist_audios',
     'everyday_recommend', 'everyday_history', 'personal_fm', 'top_card_youth', 'playlist_add',
@@ -42,6 +42,7 @@ const ENDPOINTS: Record<KugouOperation, string> = {
     audio: '/audio',
     krm_audio: '/krm/audio',
     song_url: '/song/url',
+    song_url_new: '/song/url/new',
     song_climax: '/song/climax',
     search_lyric: '/search/lyric',
     lyric: '/lyric',
@@ -232,6 +233,14 @@ const getWebSessionCookie = (): string => {
     if (token) values.set('token', token);
     if (userId) values.set('userid', userId);
     return Array.from(values, ([key, value]) => `${key}=${value}`).join(';');
+};
+
+// Eligibility, not proof of entitlement: Electron refreshes the VIP credential in the main process.
+export const hasKugouVipSession = (): boolean => {
+    if (typeof window !== 'undefined' && window.electron?.kugouRequest) {
+        return Boolean(readProviderSessionValue('kugou', 'userid'));
+    }
+    return /(?:^|;)\s*vip_token=[^;\s]+/i.test(getWebSessionCookie());
 };
 
 export const hasKugouAuthenticatedSearchSession = (): boolean => {
@@ -465,7 +474,7 @@ const persistWebSession = (operation: KugouOperation, response: any): void => {
  * account id in renderer storage; every reusable credential stays in the encrypted IPC bridge.
  */
 const persistElectronAccountHint = (operation: KugouOperation, response: any): void => {
-    ['cookie', 'token', 'dfid'].forEach(key => removeProviderSessionValue('kugou', key));
+    ['cookie', 'token', 'vip_token', 'vip_type', 'dfid'].forEach(key => removeProviderSessionValue('kugou', key));
     if (operation === 'logout') {
         removeProviderSessionValue('kugou', 'userid');
         return;
@@ -492,7 +501,7 @@ export const requestKugou = async <T = unknown>(operation: KugouOperation, param
         // Account credentials are injected by the main-process bridge. Drop legacy renderer values
         // at the IPC boundary so an old localStorage token cannot keep circulating after migration.
         const electronParams = Object.fromEntries(
-            Object.entries(params).filter(([key]) => !['token', 'dfid', 'cookie'].includes(key.toLowerCase())),
+            Object.entries(params).filter(([key]) => !['token', 'vip_token', 'vip_type', 'viptype', 'dfid', 'cookie'].includes(key.toLowerCase())),
         );
         const send = async (): Promise<unknown> => {
             try {

@@ -30,6 +30,7 @@ import i18n from '../../../i18n/config';
 import {
     getKugouTransportAvailability,
     hasKugouAuthenticatedSearchSession,
+    hasKugouVipSession,
     requestKugouAnonymousSearch,
     requestKugou,
     requestKugouLegacyPlayInfo,
@@ -759,6 +760,58 @@ const QUALITY_FALLBACKS: Record<AudioQualityPreference, AudioQualityPreference[]
 
 const qualityFallbacks = (quality: AudioQualityPreference): AudioQualityPreference[] => QUALITY_FALLBACKS[quality];
 
+const kugouQualityRank: Record<AudioQualityPreference, number> = { standard: 0, high: 1, ultra: 1, lossless: 2, hires: 3 };
+// The response says what was actually returned, which can be lower than what was asked for (KuGou degrades
+// silently). fileSize/timeLength are the reliable pair; bitRate is only a fallback because its unit varies.
+const actualKugouQuality = (payload: unknown, requested: AudioQualityPreference): AudioQualityPreference => {
+    const explicit = String(valueOf(payload, 'quality') ?? '').toLowerCase();
+    const mapped: Partial<Record<string, AudioQualityPreference>> = { '128': 'standard', '320': 'high', flac: 'lossless', high: 'hires' };
+    const known = mapped[explicit];
+    if (known) return known;
+    const size = toFiniteNumber(valueOf(payload, 'fileSize', 'file_size'));
+    const duration = toFiniteNumber(valueOf(payload, 'timeLength', 'time_length'));
+    let bitrate = size && duration && duration < 86400 ? size * 8 / duration : undefined;
+    if (!bitrate) {
+        bitrate = toFiniteNumber(valueOf(payload, 'bitRate', 'bit_rate'));
+        if (bitrate !== undefined && bitrate > 0 && bitrate < 1000) bitrate *= 1000;
+    }
+    if (!bitrate || bitrate <= 0) return requested;
+    const kbps = bitrate / 1000;
+    const ext = String(valueOf(payload, 'extName', 'extname') ?? '').toLowerCase();
+    if (['ogg', 'mp3', 'aac', 'm4a', 'wma'].includes(ext)) return kbps <= 200 ? 'standard' : 'high';
+    if (kbps <= 200) return 'standard';
+    if (kbps <= 500) return 'high';
+    return kbps > 1500 ? 'hires' : 'lossless';
+};
+
+const replayGainOf = (payload: unknown): { trackGain?: number; trackPeak?: number } | undefined => {
+    const trackGain = toFiniteNumber(valueOf(payload, 'volume'));
+    const trackPeak = decibelsToLinearPeak(valueOf(payload, 'volume_peak'));
+    return trackGain === undefined && trackPeak === undefined
+        ? undefined
+        : {
+            ...(trackGain === undefined ? {} : { trackGain }),
+            ...(trackPeak === undefined ? {} : { trackPeak }),
+        };
+};
+
+// A privileged URL is only trusted when the answer says the account is entitled to the full track: a
+// preview slips through with an empty fail_process when KuGou does not mark it.
+const isKugouPreview = (payload: unknown): boolean => {
+    const failProcess = valueOf(payload, 'fail_process');
+    if (Array.isArray(failProcess) ? failProcess.length > 0 : Boolean(failProcess)) return true;
+    const size = toFiniteNumber(valueOf(payload, 'fileSize', 'file_size'));
+    return size !== undefined && size > 0 && size < 200 * 1024;
+};
+
+// The /song/url answer drops a URL only when it is marked for purchase or is too small to be the track.
+const isKugouTrial = (payload: unknown): boolean => {
+    const failProcess = valueOf(payload, 'fail_process');
+    if (Array.isArray(failProcess) ? failProcess.includes('buy') : failProcess === 'buy') return true;
+    const size = toFiniteNumber(valueOf(payload, 'fileSize', 'file_size'));
+    return size !== undefined && size > 0 && size < 200 * 1024;
+};
+
 const getId = (value: MediaId | ProviderCollection | SongResult) => typeof value === 'object' ? value.id : value;
 
 const getKugouUserId = (): string => String(readProviderSessionValue('kugou', 'userid') || '');
@@ -1214,6 +1267,39 @@ export const kugouProvider: OnlineMusicProvider = {
             // A request that ran out of time stops the remaining /song/url qualities and variants: they would wait
             // as long. The legacy endpoint is still asked once.
             let songUrlChainStopped = false;
+            let bestSource: { url: string; fetchedAt: number; quality: AudioQualityPreference; replayGain?: { trackGain?: number; trackPeak?: number } } | undefined;
+
+            // The privileged endpoint returns quality-indexed URLs, not CDN alternatives.
+            if (sourceRef?.variant !== 'cloud' && hasKugouVipSession()) {
+                try {
+                    const response = await requestKugou('song_url_new', {
+                        hash: hash.toLowerCase(), quality: qualityValue(quality), album_id: albumId, album_audio_id: albumAudioId,
+                    });
+                    const data: unknown = dataOf(response);
+                    const payload: unknown = Array.isArray(data) ? data[0] : data;
+                    const privilege: unknown = valueOf(payload, 'priv_status');
+                    const urls: unknown = valueOf(payload, 'url', 'play_url');
+                    const urlList: unknown[] = Array.isArray(urls) ? urls : [urls];
+                    const levels: AudioQualityPreference[] = ['standard', 'high', 'lossless', 'hires'];
+                    const desiredIndex = Math.min(kugouQualityRank[quality], levels.length - 1);
+                    const indexed = urlList.length > 1;
+                    let index = desiredIndex;
+                    if (indexed) {
+                        while (index > 0 && !audioUrlOf(urlList[index])) index--;
+                    }
+                    const url = audioUrlOf(urlList[index]);
+                    if (url && privilege !== 0 && privilege !== '0' && !isKugouPreview(payload)) {
+                        // The URL array is positional; a single answer only carries its own figures.
+                        const actual = indexed ? levels[index] : actualKugouQuality(payload, quality);
+                        const replayGain = replayGainOf(payload);
+                        bestSource = { url, fetchedAt: Date.now(), quality: actual, ...(replayGain ? { replayGain } : {}) };
+                        if (kugouQualityRank[actual] >= kugouQualityRank[quality]) return bestSource;
+                    }
+                } catch (error) {
+                    // A failed optional VIP request must not hide the ordinary playback path.
+                    console.warn('[KuGouProvider] playback:vip-failed', errorFields(error));
+                }
+            }
 
             // Tries the preferred KuGou quality first and degrades until a playable URL is returned.
             for (const candidateQuality of qualities) {
@@ -1241,34 +1327,24 @@ export const kugouProvider: OnlineMusicProvider = {
                 for (const requestVariant of requestVariants) {
                     try {
                         const response = await requestKugou(requestVariant.operation, requestVariant.params);
-                        const data = dataOf(response);
-                        const payload = Array.isArray(data) ? data[0] : data;
-                        const url = audioUrlOf(
-                            valueOf(payload, 'play_url', 'playUrl', 'url')
-                            ?? valueOf(data?.[0], 'url', 'play_url'),
-                        );
-                        if (url) {
-                            const trackGain = toFiniteNumber(valueOf(payload, 'volume'));
-                            const trackPeak = decibelsToLinearPeak(valueOf(payload, 'volume_peak'));
-                            const replayGain = trackGain === undefined && trackPeak === undefined
-                                ? undefined
-                                : {
-                                    ...(trackGain === undefined ? {} : { trackGain }),
-                                    ...(trackPeak === undefined ? {} : { trackPeak }),
-                                };
+                        const data: unknown = dataOf(response);
+                        const payload: unknown = Array.isArray(data) ? data[0] : data;
+                        const url = audioUrlOf(valueOf(payload, 'play_url', 'playUrl', 'url'));
+                        const isPurchasePreview = candidateQuality !== 'standard' && isKugouTrial(payload);
+                        if (url && !isPurchasePreview) {
+                            const replayGain = replayGainOf(payload);
+                            const actualQuality = actualKugouQuality(payload, candidateQuality);
+                            const result = { url, fetchedAt: Date.now(), quality: actualQuality, ...(replayGain ? { replayGain } : {}) };
+                            if (!bestSource || kugouQualityRank[actualQuality] > kugouQualityRank[bestSource.quality]) bestSource = result;
+                            if (kugouQualityRank[actualQuality] < kugouQualityRank[candidateQuality]) continue;
+                            if (kugouQualityRank[bestSource.quality] > kugouQualityRank[actualQuality]) return bestSource;
                             console.info('[KuGouProvider] playback:url-resolved', {
                                 hash,
                                 requestedQuality: quality,
-                                resolvedQuality: candidateQuality,
+                                resolvedQuality: actualQuality,
                                 requestVariant: requestVariant.name,
                             });
-                            return {
-                                // Preserve the upstream candidate here; the shared playback transport normalizes its scheme.
-                                url,
-                                fetchedAt: Date.now(),
-                                quality: candidateQuality,
-                                ...(replayGain ? { replayGain } : {}),
-                            };
+                            return result;
                         }
                         noUrlSeen = {
                             status: valueOf(data, 'status') ?? valueOf(response, 'status'),
@@ -1302,6 +1378,25 @@ export const kugouProvider: OnlineMusicProvider = {
                             break;
                         }
                     }
+                }
+            }
+
+            if (bestSource) return bestSource;
+
+            // The collection page has a distinct playback context for songs already saved by the account.
+            if (sourceRef?.variant !== 'cloud' && !songUrlChainStopped) {
+                try {
+                    const response = await requestKugou('song_url', {
+                        hash, quality: '128', album_id: albumId, album_audio_id: albumAudioId, ppage_id: '356753938',
+                    });
+                    const data: unknown = dataOf(response);
+                    const payload: unknown = Array.isArray(data) ? data[0] : data;
+                    const url = audioUrlOf(valueOf(payload, 'play_url', 'playUrl', 'url'));
+                    if (url && !isKugouTrial(payload)) {
+                        return { url, fetchedAt: Date.now(), quality: 'standard' };
+                    }
+                } catch (error) {
+                    firstFailure ??= error;
                 }
             }
 
