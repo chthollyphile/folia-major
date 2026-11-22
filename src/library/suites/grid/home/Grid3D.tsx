@@ -38,7 +38,6 @@ import Grid3DHomeTabs from './Grid3DHomeTabs';
 import HomeNoticePanel from './HomeNoticePanel';
 import FoliaGrid3DView from './FoliaGrid3DView';
 import { buildOnlineGridTabs, OnlineGridTabsRow } from './OnlineGridTabs';
-import { openLoginWindow } from '../../../../components/login/loginWindowStore';
 import { openSettings } from '../../../../stores/useSettingsModalStore';
 import { useUpdateIndicator } from '../../../../hooks/useUpdateIndicator';
 
@@ -172,7 +171,7 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
         navidromeEnabled,
         folia: true,
     });
-    const { tab: homeViewTab, setTab: setHomeViewTab, isOnlineTab, online, tabs: homeTabs, groups: homeGroups, onlineSwitcher } = homeSources;
+    const { tab: homeViewTab, setTab: setHomeViewTab, isOnlineTab, online, tabs: homeTabs, groups: homeGroups, noOnlineSources } = homeSources;
     const onlineGroup = homeGroups.find(group => group.key === 'online');
     const activeProviderId = online.providerId;
     const activeProviderLabel = online.providerLabel;
@@ -191,7 +190,7 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
     });
     // 在线列表只在账户已就绪时显示（无账户 / 解析中 / 未登录各有面板）。探索页签没有卡片列表：它是平台自己的推荐页。
     const showOnlineList = isOnlineTab
-        && !onlineSwitcher.empty
+        && !noOnlineSources
         && homeViewTab !== 'explore'
         && activeAccountView !== 'accountless'
         && activeAccountView !== 'resolving'
@@ -207,9 +206,6 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
     const [scanDetailsExpanded, setScanDetailsExpanded] = useState(false);
     // 点开搜索框时贴在它下面的历史：数据是 useSearchNavigationStore 的 searchHistory，由 submitSearch 记。
     const [isSearchHistoryOpen, setIsSearchHistoryOpen] = useState(false);
-    // 命令面板的「切换在线音源」每来一次加一，顶部胶囊里的音源列表随之打开。
-    const [switcherOpenSignal, setSwitcherOpenSignal] = useState(0);
-    const [enterOnlineGroup, setEnterOnlineGroup] = useState(false);
 
     const showUpdateIndicator = useUpdateIndicator();
 
@@ -237,12 +233,6 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
             if (!target || (target.disabledReason && !homeGroups.some(group => group.target === tab))) return false;
             props.onNativeTabSelected?.();
             setHomeViewTab(tab);
-            return true;
-        },
-        openOnlineSwitcher: () => {
-            if (!onlineGroup || onlineSwitcher.empty || !isInteractive) return false;
-            props.onNativeTabSelected?.();
-            setSwitcherOpenSignal(signal => signal + 1);
             return true;
         },
     });
@@ -325,25 +315,10 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
     const selectHomeGroup = (group: LibraryHomeGroupView) => {
         if (group.target) selectHomeTab(group.target);
     };
-    // 音源列表里选了一个：能直接切的切过去并落在在线组；要登录的打开登录窗口（开在那个平台上）。
-    const selectOnlineSource = (providerId: string, pressed: Element | null) => {
-        void onlineSwitcher.select(providerId).then(result => {
-            if (result === 'login') openLoginWindow(providerId, pressed);
-            else if (result === 'switched') setEnterOnlineGroup(true);
-        });
-    };
-    // 换完音源后落在在线组：等换好的那次渲染再取落点（新音源未必有刚才记着的那一页），焦点交回海报轨道。
-    useEffect(() => {
-        if (!enterOnlineGroup) return;
-        setEnterOnlineGroup(false);
-        if (!isOnlineTab && onlineGroup?.target) setHomeViewTab(onlineGroup.target);
-        focusActiveSlider();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 只在换完音源的那一次跑
-    }, [enterOnlineGroup]);
     // 「设置 → 音源」只在桌面版有。
     const openSourceSettings = window.electron ? () => openSettings('options', 'sources', null, 'sourceList') : undefined;
     // 一个音源都没启用时没有二级页签可言（页都是空的），只留「去启用音源」那块提示。
-    const onlineTabs = onlineSwitcher.empty ? [] : buildOnlineGridTabs(onlineGroup, homeViewTab, selectHomeTab);
+    const onlineTabs = noOnlineSources ? [] : buildOnlineGridTabs(onlineGroup, homeViewTab, selectHomeTab);
     const onlineTabsLabel = t('home.onlineTabsLabel', { source: onlineGroup?.label ?? '' });
 
     useGrid3DTabKeys({
@@ -448,12 +423,7 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                     <div className="flex justify-center order-3 md:order-none col-span-2 md:col-span-1 min-w-0">
                         <Grid3DHomeTabs
                             groups={homeGroups}
-                            switcher={onlineSwitcher}
-                            switcherOpenSignal={switcherOpenSignal}
                             onSelectGroup={selectHomeGroup}
-                            onSelectSource={selectOnlineSource}
-                            onManageSources={openSourceSettings}
-                            onSwitcherDismissed={focusActiveSlider}
                             extraTabs={props.extraTabs}
                             isDaylight={isDaylight}
                             stage={{ enabled: stageEnabled, active: stageIsActive, open: onOpenStagePlayer }}
@@ -552,7 +522,7 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                             declaredHomeActions={declaredActions}
                         />
                     </div>
-                ) : isOnlineTab && onlineSwitcher.empty ? (
+                ) : isOnlineTab && noOnlineSources ? (
                     <HomeNoticePanel
                         testId="home-no-sources"
                         icon={Cable}

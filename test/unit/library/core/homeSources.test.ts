@@ -220,7 +220,7 @@ describe('home groups (two-level tabs)', () => {
         expect(online?.target).toBe('radio');
     });
 
-    it('the online group stays selectable with no page available: the source switcher is on it', () => {
+    it('the online group stays selectable with no page available: its page says why', () => {
         const online = groupsOf({ tabs: pages(source({ capabilities: NONE })), active: 'local' }).find(group => group.key === 'online');
         expect(online?.target).toBe('playlist');
         expect(online?.disabledReason).toBeUndefined();

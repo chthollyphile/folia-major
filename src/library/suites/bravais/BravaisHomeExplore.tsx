@@ -195,9 +195,8 @@ const BravaisHomeExplore: React.FC<{
             scan: chrome.scan,
             search: chrome.search,
             account: accountSeam,
-            sources: chrome.sources,
         },
-    }), [accountSeam, chrome.onSelectOnlineSection, chrome.onSelectTab, chrome.onlineSections, chrome.scan, chrome.search, chrome.sources, chrome.tabs, chrome.title, entries, online.providerLabel, status, t, tools]);
+    }), [accountSeam, chrome.onSelectOnlineSection, chrome.onSelectTab, chrome.onlineSections, chrome.scan, chrome.search, chrome.tabs, chrome.title, entries, online.providerLabel, status, t, tools]);
     const localTab = availableLocalTabLabel(chrome.tabs);
     const { accountView, needsRelogin, providerLabel } = online;
     const wallHint = useMemo(

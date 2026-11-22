@@ -6,10 +6,10 @@ import { create } from 'zustand';
 // 折叠缝、换 suite（stage 卸载）都会关上。模块作用域，stage 与 surface 共用。
 // fb3：书脊上的「⋯」要先把缝展开成窄缝、再打开窄缝里的菜单。书脊与窄缝是同一个组件的两种
 // 排版，但翻转换内容时不保证是同一个实例，所以「展开后要打开什么」记在这里（openRequest），窄缝渲染出来时消费掉。
-// 窄缝里的弹层（工具格的「⋯」菜单、在线组页签的音源列表，一次只开一个）开没开记在 popover。
+// 窄缝里的弹层（工具格的「⋯」菜单）开没开记在 popover。
 
-/** 书脊展开成窄缝后要打开的东西：工具格的「⋯」菜单、在线组页签的音源列表。 */
-export type BravaisHomeOpenRequest = 'menu' | 'sources';
+/** 书脊展开成窄缝后要打开的东西：工具格的「⋯」菜单。 */
+export type BravaisHomeOpenRequest = 'menu';
 
 /** 首页窄缝里此刻开着的弹层（与 openRequest 同一组取值）。 */
 export type BravaisHomePopover = BravaisHomeOpenRequest;
@@ -31,7 +31,7 @@ export const setBravaisHomeOpenRequest = (request: BravaisHomeOpenRequest | null
     if (useBravaisHomeUiStore.getState().openRequest !== request) useBravaisHomeUiStore.setState({ openRequest: request });
 };
 
-/** 开一个弹层（另一个随之收起），或收起全部（null）。 */
+/** 开一个弹层，或收起（null）。 */
 export const setBravaisHomePopover = (popover: BravaisHomePopover | null) => {
     if (useBravaisHomeUiStore.getState().popover !== popover) useBravaisHomeUiStore.setState({ popover });
 };

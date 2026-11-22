@@ -40,7 +40,7 @@ const BravaisHome: React.FC<LibraryHomeSurfaceProps> = (props) => {
         declaredActions,
     } = props;
     const sources = useLibraryHomeSources({ account, user, playlists, cloudPlaylist, navidromeEnabled, folia: true });
-    const { tab, setTab, tabs, groups, onlineSwitcher, online } = sources;
+    const { tab, setTab, tabs, groups, noOnlineSources, online } = sources;
     const onlineList = useLibraryHomeOnline(homeResources, sources);
     const { scanPercent, snapshot: actionState } = useLibraryHomeActions(homeResources.actions);
     const { directoryKey, hiddenScope } = useLibraryHomeDirectory({
@@ -64,7 +64,7 @@ const BravaisHome: React.FC<LibraryHomeSurfaceProps> = (props) => {
         tab,
         tabs,
         groups,
-        onlineSwitcher,
+        noOnlineSources,
         providerId: online.providerId,
         selectTab,
         scanPercent,
@@ -76,11 +76,6 @@ const BravaisHome: React.FC<LibraryHomeSurfaceProps> = (props) => {
         getState: () => ({ active: tab, tabs, groups }),
         setTab: selectTab,
         cycleTab: chrome.cycleTab,
-        openOnlineSwitcher: () => {
-            if (!chrome.sources || !isInteractive) return false;
-            props.onNativeTabSelected?.();
-            return chrome.openSources();
-        },
     });
     const tabLabel = (key: LibraryHomeTabKey) => tabs.find(candidate => candidate.key === key)?.label ?? key;
     const common = {

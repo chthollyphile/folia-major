@@ -705,7 +705,7 @@ test.describe('[bravais-only] the narrow home seam layout', () => {
         expect(layout.title.height).toBeGreaterThan(10);
         // 标题是横排的一行小字，不再与页签列并排占一大块。
         expect(layout.title.height).toBeLessThan(30);
-        // 一级那一排是组：Folia、当前在线音源（名字是音源的名字，同时是音源切换器）、本地、Navidrome。
+        // 一级那一排是组：Folia、当前在线音源（名字是音源的名字）、本地、Navidrome。
         expect(layout.tabs.map(tab => tab.key)).toEqual(['folia', 'online', 'local', 'navidrome']);
         expect(layout.tabs.every(tab => !tab.short && tab.writingMode === 'vertical-rl' && tab.text === tab.title)).toBe(true);
         expect(layout.tabs.map(tab => tab.name)).toEqual(['Folia', PROBE_PROVIDER_A, 'Folder', 'Navi']);

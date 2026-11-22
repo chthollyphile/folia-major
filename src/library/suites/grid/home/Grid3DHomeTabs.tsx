@@ -2,12 +2,11 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { motion } from 'framer-motion';
 import { PanelsTopLeft } from 'lucide-react';
-import type { LibraryHomeGroupView, LibraryHomeOnlineSwitcher } from '../../../core/home/homeModel.contract';
+import type { LibraryHomeGroupView } from '../../../core/home/homeModel.contract';
 import type { LibraryHomeExtraTab } from '../../../core/suite/suite.contract';
-import HomeSourceSwitcher from './HomeSourceSwitcher';
 
 // src/library/suites/grid/home/Grid3DHomeTabs.tsx
-// 网格首页顶部的胶囊：首页两级页签的一级那一排——Folia、当前在线音源（同时是音源切换器，HomeSourceSwitcher）、本地、
+// 网格首页顶部的胶囊：首页两级页签的一级那一排——Folia、当前在线音源（名字跟着当前音源，只是一个页签；换音源在账户 / 登录窗口里做）、本地、
 // Navidrome，后面接模组的首页页面、舞台与队列拼贴这几个「去哪儿」。二级页签在它正下方的小胶囊里（GridViewTabs：
 // 在线组的歌单 / 推荐 / 探索 / 专辑，本地与 Navidrome 的 section）。数据都是 Grid3D 给的，这里只画。
 
@@ -15,13 +14,7 @@ const HIGHLIGHT_LAYOUT_ID = 'home-active-tab-pill-desktop';
 
 type Grid3DHomeTabsProps = {
     groups: readonly LibraryHomeGroupView[];
-    switcher: LibraryHomeOnlineSwitcher;
-    switcherOpenSignal: number;
     onSelectGroup: (group: LibraryHomeGroupView) => void;
-    onSelectSource: (providerId: string, pressed: Element | null) => void;
-    onManageSources?: () => void;
-    /** 音源列表不是从它自己的按钮打开的（命令面板），收起后焦点交回哪里。 */
-    onSwitcherDismissed?: () => void;
     extraTabs?: readonly LibraryHomeExtraTab[];
     isDaylight: boolean;
     stage: { enabled: boolean; active: boolean; open?: () => void };
@@ -31,12 +24,7 @@ type Grid3DHomeTabsProps = {
 
 export const Grid3DHomeTabs: React.FC<Grid3DHomeTabsProps> = ({
     groups,
-    switcher,
-    switcherOpenSignal,
     onSelectGroup,
-    onSelectSource,
-    onManageSources,
-    onSwitcherDismissed,
     extraTabs,
     isDaylight,
     stage,
@@ -52,24 +40,6 @@ export const Grid3DHomeTabs: React.FC<Grid3DHomeTabsProps> = ({
             {/* 窄窗口里放不下一行时折成两行（圆角是 3xl：一行时仍是胶囊形）。 */}
             <div className="inline-flex max-w-full flex-wrap items-center justify-center gap-0" role="navigation">
                 {groups.map((group) => {
-                    if (group.key === 'online') {
-                        return (
-                            <HomeSourceSwitcher
-                                key={group.key}
-                                group={group}
-                                switcher={switcher}
-                                isDaylight={isDaylight}
-                                activeClassName={activeText}
-                                inactiveClassName={inactiveText}
-                                highlightLayoutId={HIGHLIGHT_LAYOUT_ID}
-                                onSelectGroup={() => onSelectGroup(group)}
-                                onSelectSource={onSelectSource}
-                                onManageSources={onManageSources}
-                                onDismissed={onSwitcherDismissed}
-                                openSignal={switcherOpenSignal}
-                            />
-                        );
-                    }
                     return (
                         <span key={group.key} title={group.disabledReason || group.label} className="inline-flex">
                             <button
@@ -88,7 +58,8 @@ export const Grid3DHomeTabs: React.FC<Grid3DHomeTabsProps> = ({
                                         transition={{ type: 'spring', stiffness: 460, damping: 36, mass: 0.9 }}
                                     />
                                 )}
-                                <span className="relative z-10">{group.label}</span>
+                                {/* 在线组的名字是音源的名字，长短不定：太长的截断，全名在 title。 */}
+                                <span className="relative z-10 block max-w-[9rem] truncate">{group.label}</span>
                             </button>
                         </span>
                     );

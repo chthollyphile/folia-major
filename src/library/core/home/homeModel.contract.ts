@@ -54,37 +54,11 @@ export type LibraryHomeGroupView = {
     tabs: LibraryHomeTabView[];
     /**
      * 点这个组去哪一页：组里记住的那一页（在线组是上次停的那一页）可用就是它，否则第一个可用的页。
-     * 一页都不可用时：在线组仍给第一页（组不禁用——切换音源的入口在它上面，那一页自己说明为什么不可用），其余为 null。
+     * 一页都不可用时：在线组仍给第一页（组不禁用——那一页自己说明为什么不可用），其余为 null。
      */
     target: LibraryHomeTabKey | null;
     /** 组整个不可用的原因（target 为 null 时）。 */
     disabledReason?: string;
-};
-
-/** 在线组的音源切换器里的一行：已启用的在线音源（只用于匹配的、停用的不在）。 */
-export type LibraryHomeOnlineSwitcherOption = {
-    providerId: string;
-    /** 清单里的列表名。 */
-    label: string;
-    active: boolean;
-    /** 平台声明未配置：列出来但不能选。 */
-    disabled: boolean;
-    /** 账户状态的一句话（昵称 / 未登录 / 无需登录 / 未配置）。 */
-    detail: string;
-};
-
-/** 选一个音源的结局：切过去了；要先登录（suite 打开登录窗口，开在这个平台上）；没切成。 */
-export type LibraryHomeOnlineSwitchResult = 'switched' | 'login' | 'unavailable';
-
-/**
- * 在线组的音源切换器（一级页签「当前在线音源」同时是它）：列表与当前项来自账户 controller，选择走 controller 的
- * selectProvider——与登录窗口里换平台同一套逻辑，不另存状态。
- */
-export type LibraryHomeOnlineSwitcher = {
-    /** 一个音源都没启用：组名是通用的词，界面引到「设置 → 音源」。 */
-    empty: boolean;
-    options: LibraryHomeOnlineSwitcherOption[];
-    select: (providerId: string) => Promise<LibraryHomeOnlineSwitchResult>;
 };
 
 /** 在线 provider 的账户视图（规则见 core/account/onlineProviderAccountView）。 */
@@ -388,9 +362,4 @@ export interface LibraryHomeTabsHandle {
      * 页面里按同一对键转交到这里，循环不会在进入页面之后断掉。没有这个循环键的 suite 不提供。
      */
     cycleTab?(delta: 1 | -1): boolean;
-    /**
-     * 打开在线组一级页签上的音源列表（焦点进列表）：命令面板的「切换在线音源」用，键盘不必先走到那个页签上。
-     * 没有这个列表的 suite 不提供；一个音源都没启用时返回 false。
-     */
-    openOnlineSwitcher?(): boolean;
 }
