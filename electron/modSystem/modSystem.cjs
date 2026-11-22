@@ -1311,6 +1311,9 @@ ${partition}`;
         });
         const recordedHolder = readSourceClaims()[sourceId] ?? null;
         const picked = carrying.find(({ runtime }) => runtime.status === 'loaded')
+            // A built-in copy that a confirmed copy under another id replaced carries the id too: the data is the
+            // replacing copy's, not the shadowed one's.
+            ?? carrying.find(({ runtime, entry: found }) => !found.takeover && !runtime.shadowedBy)
             ?? carrying.find(({ entry: found }) => !found.takeover)
             ?? carrying.find(({ runtime }) => runtime.manifest.id === recordedHolder)
             ?? null;
