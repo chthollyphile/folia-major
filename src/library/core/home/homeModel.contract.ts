@@ -229,6 +229,8 @@ export type LibraryHomePlaylistImportResult = {
     matchedCount: number;
     /** 没匹配上或匹配到多首的路径数。 */
     skippedCount: number;
+    /** 宿主已经自己把结果告诉用户了（它的导入对话框里有预览和提示）：这边不再发提示。playlistName 为 null 是取消或没写成。 */
+    reported?: boolean;
 };
 
 /** 端口发出的提示：alert 是阻塞式提示框（原先的 window.alert），status 是应用内状态消息。 */
@@ -249,7 +251,7 @@ export interface LibraryHomePort {
     importFolder(): Promise<number>;
     /** 重扫全部导入根；返回新导入的歌曲数。 */
     resyncAllFolders(): Promise<number>;
-    /** 用宿主此刻的曲库匹配 m3u 文件里的路径并建歌单。 */
+    /** 读一个歌单文件（Folia 的 JSON 或 M3U）并建歌单；本地歌用宿主此刻的曲库去认。 */
     importPlaylistFile(file: File): Promise<LibraryHomePlaylistImportResult>;
     /** 重新读取本地曲库。 */
     refreshLocalSongs(): Promise<void> | void;

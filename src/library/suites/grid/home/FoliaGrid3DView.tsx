@@ -105,7 +105,7 @@ export const FoliaGrid3DView: React.FC<FoliaGrid3DViewProps> = ({
             <input
                 ref={playlistFileInputRef}
                 type="file"
-                accept=".m3u,.m3u8,audio/x-mpegurl,application/vnd.apple.mpegurl"
+                accept=".m3u,.m3u8,.json,audio/x-mpegurl,application/vnd.apple.mpegurl,application/json"
                 className="hidden"
                 onChange={(event) => {
                     const file = event.target.files?.[0];

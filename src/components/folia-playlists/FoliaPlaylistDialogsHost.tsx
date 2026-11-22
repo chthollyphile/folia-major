@@ -11,12 +11,14 @@ import FoliaPlaylistOrderDialog from '../folia-playlist-order/FoliaPlaylistOrder
 import type { OrderSong } from '../folia-playlist-order/playlistOrderDraft';
 import TextInputDialog from '../shared/TextInputDialog';
 import { useFoliaPlaylistDialogStore } from './foliaPlaylistDialogStore';
+import { FoliaPlaylistExportDialog, FoliaPlaylistImportDialog } from './FoliaPlaylistFileDialogs';
 import FoliaTransferDialog from './FoliaTransferDialog';
 
 // src/components/folia-playlists/FoliaPlaylistDialogsHost.tsx
 // Folia 页的两个对话框：新建歌单（只要一个名字，建出来是空的）、调整歌单顺序（歌单本身的先后，用排歌的那个编辑器，
 // 一行一张歌单）。「我喜欢的音乐」固定在最前，不进编辑器。
-// 另有集合页上的转存对话框（把平台歌单 / 专辑存成 Folia 歌单、从原歌单更新）：FoliaTransferDialog。
+// 另有集合页上的转存对话框（把平台歌单 / 专辑存成 Folia 歌单、从原歌单更新）：FoliaTransferDialog；
+// 歌单文件的导出（选 JSON 或 M3U8）与导入（两种都认，先预览）：FoliaPlaylistFileDialogs。
 
 type Props = {
     playlists: readonly FoliaPlaylist[];
@@ -58,6 +60,10 @@ const FoliaPlaylistDialogsHost: React.FC<Props> = (props) => {
     const close = useFoliaPlaylistDialogStore(state => state.close);
     const transfer = useFoliaPlaylistDialogStore(state => state.transfer);
     const closeTransfer = useFoliaPlaylistDialogStore(state => state.closeTransfer);
+    const exportPlaylistId = useFoliaPlaylistDialogStore(state => state.exportPlaylistId);
+    const closeExport = useFoliaPlaylistDialogStore(state => state.closeExport);
+    const importRequest = useFoliaPlaylistDialogStore(state => state.importRequest);
+    const exportPlaylist = exportPlaylistId ? props.playlists.find(playlist => playlist.id === exportPlaylistId) : undefined;
     // 这两个对话框和首页层在同一个层叠上下文里，盖不过左边的速记簿：开着时让它藏起来。
     useEffect(() => {
         if (dialog !== 'reorder') return;
@@ -96,6 +102,25 @@ const FoliaPlaylistDialogsHost: React.FC<Props> = (props) => {
                     playlists={props.playlists}
                     isDaylight={props.isDaylight}
                     onClose={closeTransfer}
+                />
+            )}
+            {exportPlaylist && (
+                <FoliaPlaylistExportDialog
+                    key={`export:${exportPlaylist.id}`}
+                    playlist={exportPlaylist}
+                    name={exportPlaylist.isFavorite ? t('localMusic.favoritePlaylist') : exportPlaylist.name}
+                    localSongs={props.localSongs}
+                    isDaylight={props.isDaylight}
+                    onClose={closeExport}
+                />
+            )}
+            {importRequest && (
+                <FoliaPlaylistImportDialog
+                    file={importRequest.file}
+                    playlists={props.playlists}
+                    localSongs={props.localSongs}
+                    isDaylight={props.isDaylight}
+                    onDone={importRequest.done}
                 />
             )}
         </>
